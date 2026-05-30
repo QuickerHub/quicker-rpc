@@ -110,10 +110,10 @@ if (-not $SkipBuild) {
     }
 
     if ($DryRun) {
-        Write-Host "[DryRun] pwsh -NoProfile -File $publishScript -SkipPath" -ForegroundColor DarkGray
+        Write-Host "[DryRun] pwsh -NoProfile -File $publishScript -SkipInstall" -ForegroundColor DarkGray
     }
     else {
-        & pwsh -NoProfile -File $publishScript -SkipPath
+        & pwsh -NoProfile -File $publishScript -SkipInstall
         if ($LASTEXITCODE -ne 0) {
             throw "publish-rpc.ps1 failed with exit code $LASTEXITCODE"
         }

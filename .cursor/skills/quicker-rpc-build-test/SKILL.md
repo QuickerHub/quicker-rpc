@@ -40,10 +40,10 @@ pwsh -NoProfile -File ./build.ps1 -t
 1. **Read** `version.json` → 汇报 `QuickerRpc` 版本（如 `0.3.8.0`）
 2. 汇报产物：
    - 测试包：`C:\Users\{user}\Documents\Quicker\_packages\quicker.rpc\{前三段版本}`
-   - CLI：`publish/cli/qkrpc.exe`
+   - CLI：`%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe`
    - 插件 DLL：`publish/plugin/QuickerRpc.Plugin.*.dll`
 3. 若改了 **RPC 接口或插件逻辑**：提醒在 Quicker 中加载新版本插件（子程序 `QuickerRpc_Run` 通常会被 `-t` 自动 bump；若 RPC 仍报方法不存在，需重新 Register / 重启 Quicker）
-4. 可选冒烟：`publish/cli/qkrpc.exe ping --json`
+4. 可选冒烟：`qkrpc ping --json`
 
 ## 构建失败
 
@@ -51,21 +51,21 @@ pwsh -NoProfile -File ./build.ps1 -t
 2. 修复后 **再次** `build.ps1 -t`，直到退出码 **0**
 3. 不要提交 `version.json` bump（除非用户要求 commit）
 
-## 与 `quicker-rpc-publish` 的区别
+## 与公开发布的区别
 
-| | `build -t`（本 skill） | `build -p`（publish skill） |
-|--|------------------------|-----------------------------|
-| 用途 | 改代码后本地/测试包验证 | 正式发布上传 |
-| 版本 | patch bump + 测试目录 | 生产 OSS + Quicker 依赖 |
-| 确认 | 改代码后 **自动** | 需用户确认后再 `-p` |
+| | `build -t`（本 skill） | GitHub Release（publish skill） |
+|--|------------------------|----------------------------------|
+| 用途 | 改代码后本地/测试包验证 | 对外发布 `qkrpc` CLI |
+| 命令 | `build.ps1 -t` | `publish/Publish-GitHubRelease.ps1` |
+| 产物 | Quicker 测试包 + 本机 CLI | GitHub Release zip + 用户 `install.ps1` |
 
 ## 禁止
 
-- 用 `-p` 代替 `-t` 做日常改代码验证（会走正式发布流程）
+- 用 GitHub Release 流程代替 `-t` 做日常改代码验证
 - 将 `publish/cli`、`publish/plugin`、`QuickerRpc.Plugin/publish/*.zip` 提交 Git
 - 修改 `git config`
 
 ## 相关
 
-- 发布详情：`.cursor/skills/quicker-rpc-publish/SKILL.md`
+- 公开发布：`.cursor/skills/quicker-rpc-publish/SKILL.md`
 - 入口：`build.ps1` → qkbuild + `publish/publish-rpc.ps1`

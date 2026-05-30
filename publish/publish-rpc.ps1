@@ -2,8 +2,12 @@
 # Safe to run from repo root or from this directory.
 
 param(
+    [switch]$SkipInstall,
     [switch]$SkipPath
 )
+
+# Backward-compatible alias for Publish-GitHubRelease.ps1 and older docs.
+if ($SkipPath) { $SkipInstall = $true }
 
 $ErrorActionPreference = 'Stop'
 
@@ -116,24 +120,19 @@ if (Test-Path -LiteralPath $exePath) {
 
 Write-Host ""
 Write-Host "Examples:" -ForegroundColor Yellow
-Write-Host "  .\publish\cli\qkrpc.exe ping --json"
-Write-Host "  .\publish\cli\qkrpc.exe action update --id <guid> --changelog ""fix"" --json"
+Write-Host "  qkrpc ping --json"
+Write-Host "  qkrpc action update --id <guid> --changelog ""fix"" --json"
 Write-Host ""
 Write-Host "User install (after GitHub Release upload):" -ForegroundColor Yellow
 Write-Host "  irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex"
 Write-Host ""
 
-if (-not $SkipPath) {
-    try {
-        $publishPath = (Resolve-Path -LiteralPath $publishDir).Path
-    }
-    catch {
-        $publishPath = $publishDir
-    }
-
-    Write-Host "Adding publish/cli to user PATH (if missing)..." -ForegroundColor Yellow
-    Write-Host "Publish path: $publishPath" -ForegroundColor Cyan
-    Add-QuickerRpcUserPath -DirectoryPath $publishPath | Out-Null
+if (-not $SkipInstall) {
+    $installDir = Get-QkrpcDefaultInstallDir
+    Install-QkrpcFromDirectory -SourceDirectory $publishDir -InstallDir $installDir | Out-Null
+}
+else {
+    Write-Host "SkipInstall: left CLI in publish/cli only (not deployed to $((Get-QkrpcDefaultInstallDir)))." -ForegroundColor Yellow
 }
 
 Write-Host ""
