@@ -3,6 +3,8 @@ obj/
 .vs/
 publish/**
 !publish/publish-rpc.ps1
+**/publish/*.zip
+QuickerRpc.Plugin/publish/
 *.user
 *.suo
 *.cache
