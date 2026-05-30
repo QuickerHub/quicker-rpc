@@ -41,9 +41,11 @@ else {
     New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
 }
 
+$dotnetQuiet = @('-v:q', '--nologo')
+
 $csproj = Join-Path $repoRoot 'QuickerRpc.Console\QuickerRpc.Console.csproj'
 Write-Host "dotnet publish -> $publishDir" -ForegroundColor Yellow
-dotnet publish $csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o $publishDir
+dotnet publish $csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o $publishDir @dotnetQuiet
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Publish failed (dotnet exit $LASTEXITCODE)." -ForegroundColor Red
@@ -60,7 +62,7 @@ else {
     New-Item -ItemType Directory -Path $pluginPublishDir -Force | Out-Null
 }
 
-dotnet publish $pluginCsproj -c Release -o $pluginPublishDir
+dotnet publish $pluginCsproj -c Release -o $pluginPublishDir @dotnetQuiet
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Plugin publish failed (dotnet exit $LASTEXITCODE)." -ForegroundColor Red
     exit $LASTEXITCODE

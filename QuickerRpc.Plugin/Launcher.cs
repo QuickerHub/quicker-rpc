@@ -1,47 +1,145 @@
 using System;
-using System.Threading;
-using QuickerRpc.Plugin.Rpc;
+using System.Reflection;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Threading;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using QuickerRpc.Plugin.Quicker;
 
 namespace QuickerRpc.Plugin;
 
-/// <summary>
-/// Plugin bootstrap: starts the named-pipe JSON-RPC server once per Quicker session.
-/// </summary>
-public static class Launcher
+public enum LauncherStatus
 {
-    private static readonly object Gate = new();
-    private static QuickerRpcServer? _server;
-    private static int _started;
+    NotStarted,
+    Started,
+    Stopped,
+}
 
-    /// <summary>Idempotent start for Register() or manual calls from Quicker actions.</summary>
-    public static void EnsureStarted()
+/// <summary>
+/// Quicker plugin composition root: DI host + named-pipe RPC <see cref="Rpc.QuickerRpcServer"/>.
+/// </summary>
+public static partial class Launcher
+{
+    private static readonly object LockObject = new();
+    private static readonly IHost _host = CreateHostForQuickerPlugin();
+    private static readonly ILogger Logger = _host.Services.GetRequiredService<ILoggerFactory>()
+        .CreateLogger(typeof(Launcher));
+
+    private static LauncherStatus _status = LauncherStatus.NotStarted;
+
+    public static T GetService<T>()
+        where T : class =>
+        AppServices.GetRequired<T>();
+
+    public static void Start()
     {
-        if (Volatile.Read(ref _started) == 1)
+        lock (LockObject)
         {
-            return;
-        }
+            if (_status == LauncherStatus.Started)
+            {
+                Logger.LogInformation("QuickerRpc launcher already started");
+                return;
+            }
 
-        lock (Gate)
+            if (_status == LauncherStatus.Stopped)
+            {
+                PopupMessage.Warning("动作已停止运行，不能再次启动");
+                return;
+            }
+
+            try
+            {
+                WaitForPriorQuickerRpcExitWithUiPump();
+
+                _host.StartAsync().GetAwaiter().GetResult();
+                _status = LauncherStatus.Started;
+                Logger.LogInformation("QuickerRpc launcher started");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "QuickerRpc launcher start failed");
+                PopupMessage.Warning(ex.Message);
+                throw;
+            }
+        }
+    }
+
+    public static void Stop()
+    {
+        lock (LockObject)
         {
-            if (_started == 1)
+            StopCore();
+        }
+    }
+
+    /// <summary>
+    /// Stops the DI host and RPC server. For Quicker expression / subprogram teardown.
+    /// </summary>
+    public static void Exit()
+    {
+        lock (LockObject)
+        {
+            if (_status == LauncherStatus.Stopped)
             {
                 return;
             }
 
-            _server = new QuickerRpcServer();
-            _server.Start();
-            _started = 1;
+            StopCore();
+
+            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+            PopupMessage.Infomation("动作已退出，版本号:" + version);
         }
     }
 
-    /// <summary>Stop the RPC server (mainly for tests).</summary>
-    public static void Stop()
+    /// <summary>
+    /// Exits other QuickerRpc.Plugin.* assemblies while pumping the WPF dispatcher.
+    /// </summary>
+    private static void WaitForPriorQuickerRpcExitWithUiPump()
     {
-        lock (Gate)
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || !dispatcher.CheckAccess())
         {
-            _server?.Stop();
-            _server = null;
-            _started = 0;
+            Task.Run(ProgramManager.ExitOtherVersionPlugins).GetAwaiter().GetResult();
+            return;
+        }
+
+        var frame = new DispatcherFrame();
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                ProgramManager.ExitOtherVersionPlugins();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "ExitOtherVersionPlugins failed (ignored).");
+            }
+            finally
+            {
+                frame.Continue = false;
+            }
+        });
+        Dispatcher.PushFrame(frame);
+    }
+
+    private static void StopCore()
+    {
+        if (_status != LauncherStatus.Started)
+        {
+            return;
+        }
+
+        try
+        {
+            _host.StopAsync().GetAwaiter().GetResult();
+            _status = LauncherStatus.Stopped;
+            Logger.LogInformation("QuickerRpc launcher stopped");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error stopping QuickerRpc services");
         }
     }
 }

@@ -2,8 +2,8 @@ using System;
 using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using QuickerRpc.Contracts.Rpc;
 using StreamJsonRpc;
 
@@ -12,44 +12,46 @@ namespace QuickerRpc.Plugin.Rpc;
 /// <summary>
 /// Hosts <see cref="IQuickerRpcService"/> on a named pipe using JSON-RPC 2.0 (StreamJsonRpc).
 /// </summary>
-public sealed class QuickerRpcServer
+public sealed class QuickerRpcServer : IHostedService
 {
-    private readonly QuickerRpcService _service = new();
+    private readonly IQuickerRpcService _service;
     private readonly ILogger<QuickerRpcServer> _logger;
     private readonly CancellationTokenSource _shutdown = new();
     private Task? _runTask;
     private bool _loggedListening;
 
-    public QuickerRpcServer()
-        : this(NullLogger<QuickerRpcServer>.Instance)
+    public QuickerRpcServer(IQuickerRpcService service, ILogger<QuickerRpcServer> logger)
     {
-    }
-
-    public QuickerRpcServer(ILogger<QuickerRpcServer> logger)
-    {
+        _service = service;
         _logger = logger;
     }
 
-    public void Start()
+    public Task StartAsync(CancellationToken cancellationToken)
     {
-        if (_runTask is not null)
+        _runTask = Task.Run(() => RunAsync(_shutdown.Token), CancellationToken.None);
+        return Task.CompletedTask;
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _shutdown.Cancel();
+        if (_runTask is null)
         {
             return;
         }
 
-        _runTask = Task.Run(() => RunAsync(_shutdown.Token), CancellationToken.None);
-    }
-
-    public void Stop()
-    {
-        _shutdown.Cancel();
         try
         {
-            _runTask?.Wait(TimeSpan.FromSeconds(5));
+            var finished = await Task.WhenAny(_runTask, Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None))
+                .ConfigureAwait(false);
+            if (finished != _runTask)
+            {
+                _logger.LogWarning("QuickerRpc server loop did not stop within timeout.");
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            // ignore
+            _logger.LogDebug(ex, "QuickerRpc server loop ended.");
         }
     }
 

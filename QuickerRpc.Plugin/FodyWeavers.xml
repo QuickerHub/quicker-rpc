@@ -1,0 +1,37 @@
+<!--
+  Release Quicker plugin (Costura): do not remove IncludeAssemblies lines casually.
+  If RPC pipe / DI host fails (especially Debug ok, Release plugin not), check this file first.
+-->
+<Weavers xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="FodyWeavers.xsd">
+  <Costura IncludeDebugSymbols="false" CreateTemporaryAssemblies="true">
+    <IncludeAssemblies>
+      QuickerRpc.Contracts*
+      <!-- Microsoft.Extensions 6: DI, Hosting, Logging, Configuration (prefix match) -->
+      Microsoft.Extensions*
+      Microsoft.Win32*
+      Microsoft.Bcl.AsyncInterfaces*
+      Microsoft.NET.StringTools*
+      Microsoft.VisualStudio.Threading*
+      Microsoft.VisualStudio.Validation*
+      System.Text.Json*
+      System.Text.Encodings.Web*
+      System.ComponentModel.Annotations*
+      System.IO.Pipelines*
+      System.Security.AccessControl*
+      System.Security.Principal.Windows*
+      System.Threading.Tasks.Extensions*
+      System.Threading.Tasks.Dataflow*
+      System.Diagnostics.DiagnosticSource*
+      <!-- net472 facades pulled in by Extensions 6 / Hosting -->
+      System.Buffers*
+      System.Memory*
+      System.Numerics.Vectors*
+      System.Runtime.CompilerServices.Unsafe*
+      System.ValueTuple*
+      StreamJsonRpc*
+      MessagePack*
+      Nerdbank.Streams*
+      Newtonsoft.Json*
+    </IncludeAssemblies>
+  </Costura>
+</Weavers>

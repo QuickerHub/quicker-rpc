@@ -1,0 +1,9 @@
+<Project>
+  <!-- Propagate AppendAssemblyVersionFileNameSuffix to ProjectReference graph (IntelliTools-style). -->
+  <ItemDefinitionGroup>
+    <ProjectReference>
+      <AdditionalProperties Condition="'$(AppendAssemblyVersionFileNameSuffix)' == 'false'">AppendAssemblyVersionFileNameSuffix=false;%(AdditionalProperties)</AdditionalProperties>
+      <AdditionalProperties Condition="'$(AppendAssemblyVersionFileNameSuffix)' == 'true'">AppendAssemblyVersionFileNameSuffix=true;%(AdditionalProperties)</AdditionalProperties>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+</Project>

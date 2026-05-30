@@ -13,7 +13,7 @@ public static class AssemblyLoader
     public static bool Register(EvalContext eval)
     {
         eval.RegisterType(typeof(Launcher));
-        Launcher.EnsureStarted();
+        Launcher.Start();
         return true;
     }
 }

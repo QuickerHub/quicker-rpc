@@ -60,7 +60,7 @@ type QuickerRpc.Plugin.AssemblyLoader, QuickerRpc.Plugin.{version}
 也可在 Quicker 动作中调用：
 
 ```csharp
-QuickerRpc.Plugin.Launcher.EnsureStarted()
+QuickerRpc.Plugin.Launcher.Start()
 ```
 
 ## CLI 用法

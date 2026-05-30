@@ -1,0 +1,11 @@
+<Project>
+  <!--
+    Release + AppendAssemblyVersionFileNameSuffix: ProjectName.(Version).dll
+    net472 plugin graph only; netstandard2.0 (qkrpc) keeps short names even when the flag is propagated.
+  -->
+  <PropertyGroup>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <AssemblyName Condition="'$(Configuration)' != 'Release' OR '$(AppendAssemblyVersionFileNameSuffix)' != 'true' OR '$(TargetFramework)' != 'net472'">$(MSBuildProjectName)</AssemblyName>
+    <AssemblyName Condition="'$(Configuration)' == 'Release' AND '$(AppendAssemblyVersionFileNameSuffix)' == 'true' AND '$(TargetFramework)' == 'net472'">$(MSBuildProjectName).$(Version)</AssemblyName>
+  </PropertyGroup>
+</Project>

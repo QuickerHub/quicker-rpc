@@ -35,7 +35,7 @@ load {packagePath}/QuickerRpc.Plugin.{version}.dll
 type QuickerRpc.Plugin.AssemblyLoader, QuickerRpc.Plugin.{version}
 ```
 
-`Register()` 会 `Launcher.EnsureStarted()` 启动 RPC 监听。
+`Register()` 会 `Launcher.Start()` 启动 RPC 监听。
 
 ## CLI
 

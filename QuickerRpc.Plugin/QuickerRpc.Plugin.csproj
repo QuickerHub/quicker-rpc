@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>net472</TargetFramework>
@@ -7,24 +6,28 @@
     <UseWPF>true</UseWPF>
     <LangVersion>latest</LangVersion>
     <PlatformTarget>x64</PlatformTarget>
+    <!-- WPF markup-compilation temp project must see NuGet refs (e.g. StreamJsonRpc). -->
+    <IncludePackageReferencesDuringMarkupCompilation>true</IncludePackageReferencesDuringMarkupCompilation>
     <Version Condition="'$(Version)' == ''">0.1.0</Version>
-    <AssemblyName Condition="'$(Configuration)' != 'Release'">$(MSBuildProjectName)</AssemblyName>
+    <UseAssemblyVersionFileNameSuffix>true</UseAssemblyVersionFileNameSuffix>
     <RootNamespace>QuickerRpc.Plugin</RootNamespace>
+    <!-- Quicker.exe refs + plugin hosting: same suppressions as IntelliTools -->
+    <NoWarn>$(NoWarn);MSB3277;VSTHRD002;VSTHRD003</NoWarn>
   </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <AssemblyName>$(MSBuildProjectName).$(Version)</AssemblyName>
-  </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
   </ItemGroup>
-
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Costura.Fody">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="StreamJsonRpc" />
+    <!-- Quicker plugin (net472): Microsoft.Extensions.* must stay on 6.0.0 (see IntelliTools). -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" VersionOverride="6.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" VersionOverride="6.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" VersionOverride="6.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="6.0.0" />
   </ItemGroup>
-
   <Import Project="..\qkref.props" />
-
+  <Import Project="..\build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
 </Project>
