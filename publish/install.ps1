@@ -19,11 +19,16 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$localLib = Join-Path $PSScriptRoot 'qkrpc-publish-lib.ps1'
-if ($PSScriptRoot -and (Test-Path -LiteralPath $localLib)) {
-    . $localLib
+$libLoaded = $false
+if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    $localLib = Join-Path $PSScriptRoot 'qkrpc-publish-lib.ps1'
+    if (Test-Path -LiteralPath $localLib) {
+        . $localLib
+        $libLoaded = $true
+    }
 }
-else {
+
+if (-not $libLoaded) {
     $tempLib = Join-Path $env:TEMP 'qkrpc-publish-lib.ps1'
     $libUrl = 'https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/qkrpc-publish-lib.ps1'
     Invoke-WebRequest -Uri $libUrl -OutFile $tempLib -UseBasicParsing
@@ -32,10 +37,9 @@ else {
 
 $GitHubRepo = 'QuickerHub/quicker-rpc'
 $AssetNamePattern = 'qkrpc-*-win-x64.zip'
-$DefaultInstallDir = Join-Path $env:LOCALAPPDATA 'Programs\qkrpc'
 
 if ([string]::IsNullOrWhiteSpace($InstallDir)) {
-    $InstallDir = $DefaultInstallDir
+    $InstallDir = Get-QkrpcDefaultInstallDir
 }
 
 function Get-GitHubRelease {
@@ -72,21 +76,7 @@ function Install-QkrpcCli {
         New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
         Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath -UseBasicParsing
         Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
-
-        if (Test-Path -LiteralPath $InstallDir) {
-            Write-Host "Removing previous install..." -ForegroundColor Yellow
-            Remove-Item -LiteralPath $InstallDir -Recurse -Force
-        }
-
-        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-        Copy-Item -Path (Join-Path $extractDir '*') -Destination $InstallDir -Recurse -Force
-
-        $exePath = Join-Path $InstallDir 'qkrpc.exe'
-        if (-not (Test-Path -LiteralPath $exePath)) {
-            throw "Downloaded archive does not contain qkrpc.exe."
-        }
-
-        Add-QuickerRpcUserPath -DirectoryPath $InstallDir | Out-Null
+        Install-QkrpcFromDirectory -SourceDirectory $extractDir -InstallDir $InstallDir | Out-Null
 
         Write-Host ''
         Write-Host 'qkrpc installed successfully.' -ForegroundColor Green

@@ -1,5 +1,82 @@
 # Shared helpers for qkrpc publish/install scripts.
 
+function Get-QkrpcDefaultInstallDir {
+    return Join-Path $env:LOCALAPPDATA 'Programs\qkrpc'
+}
+
+function Remove-StaleQkrpcUserPaths {
+    param(
+        [string]$InstallDir = (Get-QkrpcDefaultInstallDir)
+    )
+
+    $installTarget = $InstallDir.TrimEnd('\')
+    $currentPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
+    if ([string]::IsNullOrWhiteSpace($currentPath)) {
+        return $false
+    }
+
+    $changed = $false
+    $segments = @($currentPath -split ';' | ForEach-Object {
+        if (-not $_) { return $_ }
+
+        $normalized = $_.TrimEnd('\')
+        if ($normalized -eq $installTarget) {
+            return $_
+        }
+
+        if ($normalized -match '[\\/]publish[\\/]cli$') {
+            Write-Host "Removing stale PATH entry: $normalized" -ForegroundColor Yellow
+            $changed = $true
+            return $null
+        }
+
+        return $_
+    } | Where-Object { $_ })
+
+    if (-not $changed) {
+        return $false
+    }
+
+    $newPath = ($segments -join ';').Trim(';')
+    [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User')
+    return $true
+}
+
+function Install-QkrpcFromDirectory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourceDirectory,
+
+        [string]$InstallDir = ''
+    )
+
+    if ([string]::IsNullOrWhiteSpace($InstallDir)) {
+        $InstallDir = Get-QkrpcDefaultInstallDir
+    }
+
+    $sourcePath = (Resolve-Path -LiteralPath $SourceDirectory -ErrorAction Stop).Path
+    $exePath = Join-Path $sourcePath 'qkrpc.exe'
+    if (-not (Test-Path -LiteralPath $exePath)) {
+        throw "Source directory does not contain qkrpc.exe: $sourcePath"
+    }
+
+    Write-Host "Installing qkrpc to $InstallDir ..." -ForegroundColor Cyan
+
+    if (Test-Path -LiteralPath $InstallDir) {
+        Write-Host 'Removing previous install...' -ForegroundColor Yellow
+        Remove-Item -LiteralPath $InstallDir -Recurse -Force
+    }
+
+    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+    Copy-Item -Path (Join-Path $sourcePath '*') -Destination $InstallDir -Recurse -Force
+
+    Remove-StaleQkrpcUserPaths -InstallDir $InstallDir | Out-Null
+    Add-QuickerRpcUserPath -DirectoryPath $InstallDir | Out-Null
+
+    Write-Host "Installed: $InstallDir\qkrpc.exe" -ForegroundColor Green
+    return $InstallDir
+}
+
 function Get-QuickerRpcSemVerFromVersion {
     param([string]$Version)
 
