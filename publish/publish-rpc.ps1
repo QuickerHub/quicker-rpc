@@ -1,7 +1,13 @@
 # Publishes QuickerRpc.Console as non-single-file win-x64 self-contained layout.
 # Safe to run from repo root or from this directory.
 
+param(
+    [switch]$SkipPath
+)
+
 $ErrorActionPreference = 'Stop'
+
+. (Join-Path $PSScriptRoot 'qkrpc-publish-lib.ps1')
 
 function Get-QuickerRpcRepoRoot {
     param([string]$StartPath)
@@ -46,9 +52,10 @@ function Get-QuickerRpcVersionFromJson {
 $repoRoot = Get-QuickerRpcRepoRoot -StartPath $PSScriptRoot
 Set-Location -LiteralPath $repoRoot
 $quickerRpcVersion = Get-QuickerRpcVersionFromJson -RepoRoot $repoRoot
+$semver = Get-QuickerRpcSemVerFromVersion -Version $quickerRpcVersion
 
 Write-Host "Publishing qkrpc.exe (QuickerRpc.Console, non-single-file, win-x64, self-contained)..." -ForegroundColor Green
-Write-Host "Version (version.json): $quickerRpcVersion" -ForegroundColor Cyan
+Write-Host "Version (version.json): $quickerRpcVersion ($semver)" -ForegroundColor Cyan
 
 $publishDir = Join-Path $repoRoot 'publish\cli'
 if (Test-Path -LiteralPath $publishDir) {
@@ -87,8 +94,18 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
+$zipName = Get-QuickerRpcCliZipName -Version $quickerRpcVersion
+$zipPath = Join-Path $repoRoot "publish\$zipName"
+if (Test-Path -LiteralPath $zipPath) {
+    Remove-Item -LiteralPath $zipPath -Force
+}
+
+Write-Host "Creating release archive: $zipName" -ForegroundColor Yellow
+Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath -CompressionLevel Optimal -Force
+
 Write-Host "Publish succeeded." -ForegroundColor Green
 Write-Host "CLI:    $publishDir\qkrpc.exe" -ForegroundColor Cyan
+Write-Host "Zip:    $zipPath" -ForegroundColor Cyan
 Write-Host "Plugin: $pluginPublishDir\QuickerRpc.Plugin.*.dll" -ForegroundColor Cyan
 
 $exePath = Join-Path $publishDir 'qkrpc.exe'
@@ -102,26 +119,21 @@ Write-Host "Examples:" -ForegroundColor Yellow
 Write-Host "  .\publish\cli\qkrpc.exe ping --json"
 Write-Host "  .\publish\cli\qkrpc.exe action update --id <guid> --changelog ""fix"" --json"
 Write-Host ""
+Write-Host "User install (after GitHub Release upload):" -ForegroundColor Yellow
+Write-Host "  irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex"
+Write-Host ""
 
-try {
-    $publishPath = (Resolve-Path -LiteralPath $publishDir).Path
-}
-catch {
-    $publishPath = $publishDir
-}
+if (-not $SkipPath) {
+    try {
+        $publishPath = (Resolve-Path -LiteralPath $publishDir).Path
+    }
+    catch {
+        $publishPath = $publishDir
+    }
 
-Write-Host "Adding publish/cli to user PATH (if missing)..." -ForegroundColor Yellow
-Write-Host "Publish path: $publishPath" -ForegroundColor Cyan
-
-$currentPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
-if ($currentPath -notlike "*$publishPath*") {
-    $newPath = if ($currentPath) { "$currentPath;$publishPath" } else { $publishPath }
-    [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User')
-    Write-Host "Appended to user PATH: $publishPath" -ForegroundColor Green
-    Write-Host "Restart the terminal for PATH to take effect." -ForegroundColor Yellow
-}
-else {
-    Write-Host "Publish path already on user PATH." -ForegroundColor Green
+    Write-Host "Adding publish/cli to user PATH (if missing)..." -ForegroundColor Yellow
+    Write-Host "Publish path: $publishPath" -ForegroundColor Cyan
+    Add-QuickerRpcUserPath -DirectoryPath $publishPath | Out-Null
 }
 
 Write-Host ""

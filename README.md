@@ -24,12 +24,15 @@ Quicker (plugin DLL)  --named pipe-->  qkrpc.exe (CLI client)
 
 # 仅 CLI（不跑 qkbuild）
 .\publish\publish-rpc.ps1
+
+# CLI 发布到 GitHub Releases（需 gh auth login）
+.\publish\Publish-GitHubRelease.ps1
 ```
 
 `build.ps1` 会依次执行：
 
 1. `qkbuild build -c build.yaml` — 将 `QuickerRpc.Plugin` 打成 Quicker 依赖 zip（配置见 `build.yaml` / `version.json`）
-2. `publish/publish-rpc.ps1` — 发布 `qkrpc.exe` 并追加用户 PATH
+2. `publish/publish-rpc.ps1` — 发布 `qkrpc.exe`、生成 `publish/qkrpc-{version}-win-x64.zip`，并追加用户 PATH
 
 qkbuild 常用参数（透传给第一步）：
 
@@ -44,7 +47,34 @@ qkbuild 常用参数（透传给第一步）：
 | 路径 | 说明 |
 |------|------|
 | `publish/cli/qkrpc.exe` | 自包含 CLI（会追加到用户 PATH） |
+| `publish/qkrpc-{version}-win-x64.zip` | CLI 发布包（上传 GitHub Releases） |
 | `publish/plugin/QuickerRpc.Plugin.*.dll` | Quicker 插件及依赖 |
+
+### 用户安装 CLI（一条命令）
+
+发布到 [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases) 后，用户在 PowerShell 7+ 执行：
+
+```powershell
+irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex
+```
+
+安装到 `%LOCALAPPDATA%\Programs\qkrpc` 并写入用户 PATH。指定版本：
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1))) -Version v0.3.9
+```
+
+卸载：
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1))) -Uninstall
+```
+
+维护者发布 CLI 流程：
+
+1. 更新 `version.json`，提交
+2. `pwsh ./publish/Publish-GitHubRelease.ps1`（打 zip、打 tag、创建 Release）
+3. 或推送 `v*` tag，由 `.github/workflows/release-cli.yml` 自动构建上传
 
 ## 在 Quicker 中加载插件
 

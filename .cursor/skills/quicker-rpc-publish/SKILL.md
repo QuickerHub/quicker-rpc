@@ -21,7 +21,9 @@ disable-model-invocation: false
 | 子程序 | `QuickerRpc_Run` |
 | 插件 zip | `QuickerRpc.Plugin/publish/QuickerRpc.{version}.zip` |
 | 本地 CLI | `publish/cli/qkrpc.exe` |
+| CLI 发布 zip | `publish/qkrpc-{semver}-win-x64.zip` |
 | 本地插件 DLL | `publish/plugin/QuickerRpc.Plugin.{version}.dll` |
+| 用户安装 | `irm .../publish/install.ps1 \| iex` → `%LOCALAPPDATA%\Programs\qkrpc` |
 
 ## 入口脚本
 
@@ -40,6 +42,19 @@ pwsh ./build.ps1 @args
 
 ```powershell
 pwsh -NoProfile -File ./publish/publish-rpc.ps1
+```
+
+**CLI 发布到 GitHub Releases**（用户一条命令安装）：
+
+```powershell
+pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1
+# 或推送 v* tag 触发 .github/workflows/release-cli.yml
+```
+
+用户安装命令（Release 上传后）：
+
+```powershell
+irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex
 ```
 
 ## qkbuild 参数（透传给 `build.ps1` 第一步）

@@ -1,0 +1,100 @@
+name: Release qkrpc CLI
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build (e.g. v0.3.9). Leave empty when triggered by tag push.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release-cli:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: tag
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.tag }}' -ne '') {
+            $tag = '${{ inputs.tag }}'.Trim()
+          } else {
+            $tag = '${{ github.ref_name }}'.Trim()
+          }
+          if ($tag -notmatch '^v') { throw "Tag must start with v: $tag" }
+          $semver = $tag.Substring(1)
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "semver=$semver" >> $env:GITHUB_OUTPUT
+          "zip_name=qkrpc-$semver-win-x64.zip" >> $env:GITHUB_OUTPUT
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Read version.json
+        id: version
+        shell: pwsh
+        run: |
+          $json = Get-Content version.json -Raw | ConvertFrom-Json
+          $full = [string]$json.QuickerRpc
+          if ([string]::IsNullOrWhiteSpace($full)) { throw 'version.json missing QuickerRpc' }
+          "full=$full" >> $env:GITHUB_OUTPUT
+
+      - name: Publish CLI
+        shell: pwsh
+        run: |
+          $publishDir = Join-Path $PWD 'publish/cli'
+          New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
+          dotnet publish QuickerRpc.Console/QuickerRpc.Console.csproj `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=false `
+            -p:Version='${{ steps.version.outputs.full }}' `
+            -o $publishDir `
+            -v:q --nologo
+
+      - name: Create zip
+        shell: pwsh
+        run: |
+          $zipPath = Join-Path $PWD 'publish/${{ steps.tag.outputs.zip_name }}'
+          Compress-Archive -Path 'publish/cli/*' -DestinationPath $zipPath -CompressionLevel Optimal -Force
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: qkrpc ${{ steps.tag.outputs.tag }}
+          files: publish/${{ steps.tag.outputs.zip_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Install (one command)
+
+            ```powershell
+            irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex
+            ```
+
+            Pin this version:
+
+            ```powershell
+            & ([scriptblock]::Create((irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1))) -Version ${{ steps.tag.outputs.tag }}
+            ```
+
+            ## Verify
+
+            ```powershell
+            qkrpc ping --json
+            ```
+
+            Quicker plugin package is published separately via Quicker dependency **quicker.rpc**.
