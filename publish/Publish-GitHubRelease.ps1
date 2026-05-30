@@ -85,6 +85,9 @@ Run publish-rpc.ps1 first (or omit -SkipBuild).
 function New-ReleaseNotesBody {
     param([string]$Tag, [string]$VersionFull)
 
+    $installLatest = '$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p'
+    $installPinned = "`$p=`"`$env:TEMP\qkrpc-install.ps1`"; iwr https://github.com/QuickerHub/quicker-rpc/releases/download/$Tag/install.ps1 -OutFile `$p -UseBasicParsing; & `$p"
+
     return @"
 ## qkrpc $Tag
 
@@ -93,13 +96,13 @@ CLI client for [quicker-rpc](https://github.com/QuickerHub/quicker-rpc) (version
 ### Install (one command)
 
 ``````powershell
-$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
+$installLatest
 ``````
 
 Pin this version:
 
 ``````powershell
-$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/download/$Tag/install.ps1 -OutFile $p -UseBasicParsing; & $p
+$installPinned
 ``````
 
 ### Verify
