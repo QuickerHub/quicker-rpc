@@ -27,6 +27,12 @@ internal static class QkrpcCliHelp
             name = "qkrpc",
             version = GetCliVersion(),
             pipe = QuickerRpcPipeNames.ServerPipe,
+            pluginBootstrap = new
+            {
+                runActionUri = QuickerRpcBootstrap.BuildRunActionUri(),
+                runActionId = QuickerRpcBootstrap.PluginRunActionId,
+                autoStart = "When pipe is unavailable, qkrpc tries quicker:runaction once before failing (disable with --no-bootstrap).",
+            },
             discovery = "qkrpc help --json",
             exitCodes = new Dictionary<string, string>
             {
@@ -36,7 +42,7 @@ internal static class QkrpcCliHelp
             prerequisites = new[]
             {
                 "Quicker is running",
-                "QuickerRpc plugin loaded (Register() or Launcher.Start())",
+                "QuickerRpc plugin loaded, or auto-started via quicker:runaction",
             },
             commands = new object[]
             {
@@ -56,11 +62,12 @@ internal static class QkrpcCliHelp
                 {
                     name = "ping",
                     summary = "Check connectivity to the QuickerRpc plugin.",
-                    usage = "qkrpc ping [--json] [--timeout <seconds>]",
+                    usage = "qkrpc ping [--json] [--timeout <seconds>] [--no-bootstrap]",
                     options = new[]
                     {
                         Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect timeout in seconds.", defaultValue: "15"),
+                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
+                        Option("no-bootstrap", "Skip auto-start via quicker:runaction when plugin pipe is missing."),
                     },
                     examples = new[] { "qkrpc ping --json" },
                     responseExample = new
@@ -71,7 +78,7 @@ internal static class QkrpcCliHelp
                         protocolVersion = 1,
                         pipe = QuickerRpcPipeNames.ServerPipe,
                     },
-                    errors = new[] { "PING_FAILED" },
+                    errors = new[] { "PLUGIN_NOT_RUNNING", "CONNECT_TIMEOUT", "RPC_TIMEOUT", "PING_FAILED" },
                 },
                 new
                 {
@@ -85,7 +92,7 @@ internal static class QkrpcCliHelp
                         Option("changelog", "Inline change log message. Mutually exclusive with --changelog-file."),
                         Option("changelog-file", "Read change log from a UTF-8 text file.", shortName: "f"),
                         Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect timeout in seconds.", defaultValue: "15"),
+                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
                     },
                     examples = new[]
                     {
@@ -121,7 +128,7 @@ internal static class QkrpcCliHelp
                         Option("query", "Search keyword (title, description, pinyin).", shortName: "q"),
                         Option("limit", "Max results (1-100).", defaultValue: "20"),
                         Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect timeout in seconds.", defaultValue: "15"),
+                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
                     },
                     examples = new[]
                     {
@@ -166,7 +173,7 @@ internal static class QkrpcCliHelp
                         Option("code", "Alias for --id."),
                         Option("yes", "Required; skips Quicker confirm dialog.", shortName: "y", required: true),
                         Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect timeout in seconds.", defaultValue: "15"),
+                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
                     },
                     examples = new[]
                     {
@@ -198,7 +205,7 @@ internal static class QkrpcCliHelp
                         Option("id", "Local action id (GUID)."),
                         Option("code", "Alias for --id."),
                         Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect timeout in seconds.", defaultValue: "15"),
+                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
                     },
                     examples = new[]
                     {
@@ -224,8 +231,10 @@ internal static class QkrpcCliHelp
             errorResponseExample = new
             {
                 ok = false,
-                error = "PING_FAILED",
-                message = "Timed out connecting to QuickerRpc pipe.",
+                error = "PLUGIN_NOT_RUNNING",
+                message = "QuickerRpc 插件未运行（命名管道不可用）。",
+                hints = QuickerRpcConnect.BuildPluginNotRunningHints(bootstrapAttempted: true),
+                pipe = QuickerRpcPipeNames.ServerPipe,
             },
         };
     }

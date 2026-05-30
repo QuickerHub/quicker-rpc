@@ -18,8 +18,6 @@ public static class ExitCodes
 
 internal static class Program
 {
-    private const int PipeConnectTimeoutMilliseconds = 15000;
-
     private static readonly JsonSerializerOptions JsonWriteOptions = new()
     {
         WriteIndented = false,
@@ -62,9 +60,10 @@ internal static class Program
     {
         try
         {
-            await using var session = await ConnectAsync(options.TimeoutSeconds).ConfigureAwait(false);
-            var pong = await session.Proxy.PingAsync(CancellationToken.None).ConfigureAwait(false);
-            var version = await session.Proxy.GetProtocolVersionAsync(CancellationToken.None).ConfigureAwait(false);
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var pong = await session.Proxy.PingAsync(rpcToken).ConfigureAwait(false);
+            var version = await session.Proxy.GetProtocolVersionAsync(rpcToken).ConfigureAwait(false);
 
             if (options.Json)
             {
@@ -85,6 +84,22 @@ internal static class Program
             }
 
             return ExitCodes.Success;
+        }
+        catch (QuickerRpcConnectException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitConnectErrorAsync(
+                options.Json,
+                new QuickerRpcConnectException(
+                    QuickerRpcConnect.ConnectTimeoutErrorCode,
+                    QuickerRpcConnect.BuildConnectTimeoutMessage(QuickerRpcPipeNames.ServerPipe, options.TimeoutSeconds),
+                    QuickerRpcConnect.BuildPluginNotRunningHints(bootstrapAttempted: false)))
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
         }
         catch (Exception ex)
         {
@@ -138,9 +153,10 @@ internal static class Program
 
         try
         {
-            await using var session = await ConnectAsync(options.TimeoutSeconds).ConfigureAwait(false);
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var result = await session.Proxy
-                .UpdateSharedActionAsync(actionId, changelog, CancellationToken.None)
+                .UpdateSharedActionAsync(actionId, changelog, rpcToken)
                 .ConfigureAwait(false);
 
             if (options.Json)
@@ -167,6 +183,16 @@ internal static class Program
 
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
         }
+        catch (QuickerRpcConnectException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
         catch (Exception ex)
         {
             await EmitErrorAsync(options.Json, "UPDATE_FAILED", ex.Message).ConfigureAwait(false);
@@ -186,9 +212,10 @@ internal static class Program
 
         try
         {
-            await using var session = await ConnectAsync(options.TimeoutSeconds).ConfigureAwait(false);
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var result = await session.Proxy
-                .SearchActionsAsync(query, options.Limit, CancellationToken.None)
+                .SearchActionsAsync(query, options.Limit, rpcToken)
                 .ConfigureAwait(false);
 
             if (options.Json)
@@ -227,6 +254,16 @@ internal static class Program
 
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
         }
+        catch (QuickerRpcConnectException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
         catch (Exception ex)
         {
             await EmitErrorAsync(options.Json, "SEARCH_FAILED", ex.Message).ConfigureAwait(false);
@@ -256,9 +293,10 @@ internal static class Program
 
         try
         {
-            await using var session = await ConnectAsync(options.TimeoutSeconds).ConfigureAwait(false);
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var result = await session.Proxy
-                .DeleteActionAsync(actionId, showConfirm: false, CancellationToken.None)
+                .DeleteActionAsync(actionId, showConfirm: false, rpcToken)
                 .ConfigureAwait(false);
 
             if (options.Json)
@@ -285,6 +323,16 @@ internal static class Program
 
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
         }
+        catch (QuickerRpcConnectException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
         catch (Exception ex)
         {
             await EmitErrorAsync(options.Json, "DELETE_FAILED", ex.Message).ConfigureAwait(false);
@@ -304,9 +352,10 @@ internal static class Program
 
         try
         {
-            await using var session = await ConnectAsync(options.TimeoutSeconds).ConfigureAwait(false);
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var result = await session.Proxy
-                .EditActionAsync(actionId, CancellationToken.None)
+                .EditActionAsync(actionId, rpcToken)
                 .ConfigureAwait(false);
 
             if (options.Json)
@@ -333,6 +382,16 @@ internal static class Program
 
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
         }
+        catch (QuickerRpcConnectException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
         catch (Exception ex)
         {
             await EmitErrorAsync(options.Json, "EDIT_FAILED", ex.Message).ConfigureAwait(false);
@@ -340,29 +399,46 @@ internal static class Program
         }
     }
 
-    private static async Task<RpcClientSession> ConnectAsync(int timeoutSeconds)
+    private static async Task<RpcClientSession> ConnectAsync(int timeoutSeconds, bool tryBootstrap = true)
     {
-        var pipeName = QuickerRpcPipeNames.ServerPipe;
-        var pipe = new NamedPipeClientStream(
-            ".",
-            pipeName,
-            PipeDirection.InOut,
-            PipeOptions.Asynchronous);
-
-        using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
-        try
-        {
-            await pipe.ConnectAsync(connectCts.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            throw new InvalidOperationException(
-                $"Timed out connecting to QuickerRpc pipe '{pipeName}'. " +
-                "Ensure Quicker is running and the QuickerRpc plugin has been loaded (Register).");
-        }
-
-        var (jsonRpc, proxy) = StreamJsonRpcSession.CreateClient<IQuickerRpcService>(pipe);
+        var (pipe, jsonRpc, proxy) = await QuickerRpcConnect.ConnectAsync(timeoutSeconds, tryBootstrap).ConfigureAwait(false);
         return new RpcClientSession(pipe, jsonRpc, proxy);
+    }
+
+    private static Task EmitConnectErrorAsync(bool json, QuickerRpcConnectException ex)
+    {
+        if (json)
+        {
+            global::System.Console.WriteLine(JsonSerializer.Serialize(
+                new
+                {
+                    ok = false,
+                    error = ex.ErrorCode,
+                    message = ex.Message,
+                    hints = ex.Hints,
+                    pipe = QuickerRpcPipeNames.ServerPipe,
+                },
+                JsonWriteOptions));
+        }
+        else
+        {
+            global::System.Console.Error.WriteLine(ex.Message);
+            foreach (var hint in ex.Hints)
+            {
+                global::System.Console.Error.WriteLine($"  - {hint}");
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static Task EmitRpcTimeoutAsync(bool json, int timeoutSeconds)
+    {
+        var message =
+            $"RPC 调用超时（{timeoutSeconds}s）。Quicker 可能繁忙，或插件无响应。" + Environment.NewLine +
+            "请重试：qkrpc ping --json";
+
+        return EmitErrorAsync(json, "RPC_TIMEOUT", message);
     }
 
     private static Task EmitErrorAsync(bool json, string code, string message)
@@ -463,8 +539,11 @@ public sealed class PingOptions
     [Option("json", HelpText = "Emit JSON for automation.")]
     public bool Json { get; set; }
 
-    [Option("timeout", Default = 15, HelpText = "Pipe connect timeout in seconds.")]
+    [Option("timeout", Default = 10, HelpText = "Pipe connect and RPC timeout in seconds.")]
     public int TimeoutSeconds { get; set; }
+
+    [Option("no-bootstrap", HelpText = "Do not auto-start plugin via quicker:runaction when pipe is unavailable.")]
+    public bool NoBootstrap { get; set; }
 }
 
 [Verb("action", HelpText = "Quicker action operations via RPC.")]
@@ -497,6 +576,9 @@ public sealed class ActionOptions
     [Option("json", HelpText = "Emit JSON for automation.")]
     public bool Json { get; set; }
 
-    [Option("timeout", Default = 15, HelpText = "Pipe connect timeout in seconds.")]
+    [Option("timeout", Default = 10, HelpText = "Pipe connect and RPC timeout in seconds.")]
     public int TimeoutSeconds { get; set; }
+
+    [Option("no-bootstrap", HelpText = "Do not auto-start plugin via quicker:runaction when pipe is unavailable.")]
+    public bool NoBootstrap { get; set; }
 }
