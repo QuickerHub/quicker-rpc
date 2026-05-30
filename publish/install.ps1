@@ -19,20 +19,16 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-function Import-QkrpcPublishLib {
-    $localLib = Join-Path $PSScriptRoot 'qkrpc-publish-lib.ps1'
-    if ($PSScriptRoot -and (Test-Path -LiteralPath $localLib)) {
-        . $localLib
-        return
-    }
-
+$localLib = Join-Path $PSScriptRoot 'qkrpc-publish-lib.ps1'
+if ($PSScriptRoot -and (Test-Path -LiteralPath $localLib)) {
+    . $localLib
+}
+else {
     $tempLib = Join-Path $env:TEMP 'qkrpc-publish-lib.ps1'
     $libUrl = 'https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/qkrpc-publish-lib.ps1'
     Invoke-WebRequest -Uri $libUrl -OutFile $tempLib -UseBasicParsing
     . $tempLib
 }
-
-Import-QkrpcPublishLib
 
 $GitHubRepo = 'QuickerHub/quicker-rpc'
 $AssetNamePattern = 'qkrpc-*-win-x64.zip'
