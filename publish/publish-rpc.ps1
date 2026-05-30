@@ -107,6 +107,11 @@ if (Test-Path -LiteralPath $zipPath) {
 Write-Host "Creating release archive: $zipName" -ForegroundColor Yellow
 Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath -CompressionLevel Optimal -Force
 
+$latestZipName = Get-QkrpcLatestCliZipName
+$latestZipPath = Join-Path $repoRoot "publish\$latestZipName"
+Copy-Item -LiteralPath $zipPath -Destination $latestZipPath -Force
+Write-Host "Latest alias: $latestZipPath" -ForegroundColor Cyan
+
 Write-Host "Publish succeeded." -ForegroundColor Green
 Write-Host "CLI:    $publishDir\qkrpc.exe" -ForegroundColor Cyan
 Write-Host "Zip:    $zipPath" -ForegroundColor Cyan

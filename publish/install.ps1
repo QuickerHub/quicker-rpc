@@ -18,7 +18,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$QkrpcInstallScriptVersion = '3'
+$QkrpcInstallScriptVersion = '4'
+$QkrpcGitHubRepo = 'QuickerHub/quicker-rpc'
+$QkrpcLatestZipName = 'qkrpc-win-x64.zip'
 
 function Get-QkrpcDefaultInstallDir {
     $root = $env:LOCALAPPDATA
@@ -156,51 +158,32 @@ function Install-QkrpcFromDirectory {
     return $TargetInstallDir
 }
 
-$GitHubRepo = 'QuickerHub/quicker-rpc'
-$AssetNamePattern = 'qkrpc-*-win-x64.zip'
-
-if ([string]::IsNullOrWhiteSpace($InstallDir)) {
-    $InstallDir = Get-QkrpcDefaultInstallDir
-}
-
-function Get-GitHubRelease {
+function Get-QkrpcCliDownloadUrl {
     param([string]$RequestedVersion)
 
-    $headers = @{ 'User-Agent' = 'qkrpc-install' }
-
     if ($RequestedVersion -eq 'latest') {
-        $uri = "https://api.github.com/repos/$GitHubRepo/releases/latest"
-        return Invoke-RestMethod -Uri $uri -Headers $headers
+        return "https://github.com/$QkrpcGitHubRepo/releases/latest/download/$QkrpcLatestZipName"
     }
 
-    $tag = if ($RequestedVersion -match '^v') {
-        $RequestedVersion
-    }
-    else {
-        "v$(Get-QuickerRpcSemVerFromVersion -VersionText $RequestedVersion)"
-    }
-    $uri = "https://api.github.com/repos/$GitHubRepo/releases/tags/$tag"
-    return Invoke-RestMethod -Uri $uri -Headers $headers
+    $semver = Get-QuickerRpcSemVerFromVersion -VersionText $RequestedVersion
+    $tag = "v$semver"
+    $zipName = "qkrpc-$semver-win-x64.zip"
+    return "https://github.com/$QkrpcGitHubRepo/releases/download/$tag/$zipName"
 }
 
 function Install-QkrpcCli {
     Write-Host "Installing qkrpc to $InstallDir ..." -ForegroundColor Cyan
 
-    $release = Get-GitHubRelease -RequestedVersion $ReleaseVersion
-    $asset = @($release.assets | Where-Object { $_.name -like $AssetNamePattern }) | Select-Object -First 1
-    if (-not $asset) {
-        throw "Release '$($release.tag_name)' has no asset matching '$AssetNamePattern'. Publish the CLI zip first."
-    }
-
-    Write-Host "Release: $($release.tag_name) ($($asset.name), $([math]::Round($asset.size / 1MB, 2)) MB)" -ForegroundColor Cyan
+    $downloadUrl = Get-QkrpcCliDownloadUrl -RequestedVersion $ReleaseVersion
+    Write-Host "Download: $downloadUrl" -ForegroundColor Cyan
 
     $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("qkrpc-install-" + [Guid]::NewGuid().ToString('N'))
-    $zipPath = Join-Path $tempRoot $asset.name
+    $zipPath = Join-Path $tempRoot 'qkrpc.zip'
     $extractDir = Join-Path $tempRoot 'extract'
 
     try {
         New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
-        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath -UseBasicParsing
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -UseBasicParsing
         Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
         Install-QkrpcFromDirectory -SourceDirectory $extractDir -TargetInstallDir $InstallDir | Out-Null
 
@@ -233,6 +216,10 @@ function Uninstall-QkrpcCli {
 
     Remove-QuickerRpcUserPath -DirectoryPath $InstallDir | Out-Null
     Write-Host 'qkrpc uninstalled.' -ForegroundColor Green
+}
+
+if ([string]::IsNullOrWhiteSpace($InstallDir)) {
+    $InstallDir = Get-QkrpcDefaultInstallDir
 }
 
 if ($Uninstall) {

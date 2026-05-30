@@ -49,6 +49,7 @@ else {
 $tagName = "v$semantic"
 $zipName = Get-QuickerRpcCliZipName -Version $semantic
 $zipPath = Join-Path $RepoRoot "publish\$zipName"
+$latestZipPath = Join-Path $RepoRoot "publish\$((Get-QkrpcLatestCliZipName))"
 $installScriptPath = Join-Path $RepoRoot 'publish\install.ps1'
 $installOneLiner = '$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p'
 
@@ -70,11 +71,15 @@ Run publish-rpc.ps1 first (or omit -SkipBuild).
 "@
     }
 
+    if (-not (Test-Path -LiteralPath $latestZipPath)) {
+        throw "Latest CLI zip alias not found: $latestZipPath"
+    }
+
     if (-not (Test-Path -LiteralPath $installScriptPath)) {
         throw "install.ps1 not found: $installScriptPath"
     }
 
-    return @($zipPath, $installScriptPath)
+    return @($zipPath, $latestZipPath, $installScriptPath)
 }
 
 function New-ReleaseNotesBody {

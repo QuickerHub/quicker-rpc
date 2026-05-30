@@ -77,6 +77,10 @@ function Install-QkrpcFromDirectory {
     return $InstallDir
 }
 
+function Get-QkrpcLatestCliZipName {
+    return 'qkrpc-win-x64.zip'
+}
+
 function Get-QuickerRpcSemVerFromVersion {
     param([string]$Version)
 
