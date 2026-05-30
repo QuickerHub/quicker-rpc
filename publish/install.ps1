@@ -19,20 +19,136 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$libLoaded = $false
-if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
-    $localLib = Join-Path $PSScriptRoot 'qkrpc-publish-lib.ps1'
-    if (Test-Path -LiteralPath $localLib) {
-        . $localLib
-        $libLoaded = $true
-    }
+function Get-QkrpcDefaultInstallDir {
+    return Join-Path $env:LOCALAPPDATA 'Programs\qkrpc'
 }
 
-if (-not $libLoaded) {
-    $tempLib = Join-Path $env:TEMP 'qkrpc-publish-lib.ps1'
-    $libUrl = 'https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/qkrpc-publish-lib.ps1'
-    Invoke-WebRequest -Uri $libUrl -OutFile $tempLib -UseBasicParsing
-    . $tempLib
+function Get-QuickerRpcSemVerFromVersion {
+    param([string]$VersionText)
+
+    if ([string]::IsNullOrWhiteSpace($VersionText)) {
+        throw 'Version is required.'
+    }
+
+    $parts = $VersionText.Trim().TrimStart('v') -split '\.'
+    if ($parts.Count -lt 3) {
+        throw "Version must have at least three segments (major.minor.patch): $VersionText"
+    }
+
+    return ($parts[0..2] -join '.')
+}
+
+function Add-QuickerRpcUserPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DirectoryPath
+    )
+
+    $resolved = (Resolve-Path -LiteralPath $DirectoryPath -ErrorAction Stop).Path
+    $currentPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
+
+    if ($currentPath -split ';' | Where-Object { $_ -eq $resolved }) {
+        Write-Host "Already on user PATH: $resolved" -ForegroundColor Green
+        return $false
+    }
+
+    $newPath = if ($currentPath) { "$currentPath;$resolved" } else { $resolved }
+    [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User')
+    Write-Host "Added to user PATH: $resolved" -ForegroundColor Green
+    Write-Host 'Open a new terminal (or restart the shell) before running qkrpc.' -ForegroundColor Yellow
+    return $true
+}
+
+function Remove-QuickerRpcUserPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DirectoryPath
+    )
+
+    $target = $DirectoryPath.TrimEnd('\')
+    $currentPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
+    if ([string]::IsNullOrWhiteSpace($currentPath)) {
+        return $false
+    }
+
+    $segments = @($currentPath -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ne $target })
+    $newPath = ($segments -join ';').Trim(';')
+    [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User')
+    Write-Host "Removed from user PATH: $target" -ForegroundColor Green
+    return $true
+}
+
+function Remove-StaleQkrpcUserPaths {
+    param(
+        [string]$InstallDir = (Get-QkrpcDefaultInstallDir)
+    )
+
+    $installTarget = $InstallDir.TrimEnd('\')
+    $currentPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
+    if ([string]::IsNullOrWhiteSpace($currentPath)) {
+        return $false
+    }
+
+    $changed = $false
+    $segments = @($currentPath -split ';' | ForEach-Object {
+        if (-not $_) { return $_ }
+
+        $normalized = $_.TrimEnd('\')
+        if ($normalized -eq $installTarget) {
+            return $_
+        }
+
+        if ($normalized -match '[\\/]publish[\\/]cli$') {
+            Write-Host "Removing stale PATH entry: $normalized" -ForegroundColor Yellow
+            $changed = $true
+            return $null
+        }
+
+        return $_
+    } | Where-Object { $_ })
+
+    if (-not $changed) {
+        return $false
+    }
+
+    $newPath = ($segments -join ';').Trim(';')
+    [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User')
+    return $true
+}
+
+function Install-QkrpcFromDirectory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourceDirectory,
+
+        [string]$TargetInstallDir = ''
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TargetInstallDir)) {
+        $TargetInstallDir = Get-QkrpcDefaultInstallDir
+    }
+
+    $sourcePath = (Resolve-Path -LiteralPath $SourceDirectory -ErrorAction Stop).Path
+    $exePath = Join-Path $sourcePath 'qkrpc.exe'
+    if (-not (Test-Path -LiteralPath $exePath)) {
+        throw "Source directory does not contain qkrpc.exe: $sourcePath"
+    }
+
+    Write-Host "Installing qkrpc to $TargetInstallDir ..." -ForegroundColor Cyan
+
+    if (Test-Path -LiteralPath $TargetInstallDir) {
+        Write-Host 'Removing previous install...' -ForegroundColor Yellow
+        Remove-Item -LiteralPath $TargetInstallDir -Recurse -Force
+    }
+
+    New-Item -ItemType Directory -Path $TargetInstallDir -Force | Out-Null
+    Copy-Item -Path (Join-Path $sourcePath '*') -Destination $TargetInstallDir -Recurse -Force
+
+    Remove-StaleQkrpcUserPaths -InstallDir $TargetInstallDir | Out-Null
+    Add-QuickerRpcUserPath -DirectoryPath $TargetInstallDir | Out-Null
+
+    Write-Host "Installed: $TargetInstallDir\qkrpc.exe" -ForegroundColor Green
+    return $TargetInstallDir
 }
 
 $GitHubRepo = 'QuickerHub/quicker-rpc'
@@ -52,7 +168,12 @@ function Get-GitHubRelease {
         return Invoke-RestMethod -Uri $uri -Headers $headers
     }
 
-    $tag = if ($RequestedVersion -match '^v') { $RequestedVersion } else { "v$(Get-QuickerRpcSemVerFromVersion -Version $RequestedVersion)" }
+    $tag = if ($RequestedVersion -match '^v') {
+        $RequestedVersion
+    }
+    else {
+        "v$(Get-QuickerRpcSemVerFromVersion -VersionText $RequestedVersion)"
+    }
     $uri = "https://api.github.com/repos/$GitHubRepo/releases/tags/$tag"
     return Invoke-RestMethod -Uri $uri -Headers $headers
 }
@@ -76,7 +197,7 @@ function Install-QkrpcCli {
         New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
         Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath -UseBasicParsing
         Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
-        Install-QkrpcFromDirectory -SourceDirectory $extractDir -InstallDir $InstallDir | Out-Null
+        Install-QkrpcFromDirectory -SourceDirectory $extractDir -TargetInstallDir $InstallDir | Out-Null
 
         Write-Host ''
         Write-Host 'qkrpc installed successfully.' -ForegroundColor Green
