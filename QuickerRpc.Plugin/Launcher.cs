@@ -40,6 +40,7 @@ public static partial class Launcher
             if (_status == LauncherStatus.Started)
             {
                 Logger.LogInformation("QuickerRpc launcher already started");
+                PopupMessage.Success("动作已在运行");
                 return;
             }
 

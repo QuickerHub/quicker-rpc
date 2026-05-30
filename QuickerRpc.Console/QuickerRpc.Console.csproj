@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ApplicationUTF8Encoding>true</ApplicationUTF8Encoding>
     <AssemblyName>qkrpc</AssemblyName>
-    <Version>0.1.0</Version>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
     <RootNamespace>QuickerRpc.Console</RootNamespace>
     <NoWarn>$(NoWarn);VSTHRD002;VSTHRD003;VSTHRD103</NoWarn>
   </PropertyGroup>

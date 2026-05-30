@@ -26,10 +26,29 @@ function Get-QuickerRpcRepoRoot {
     throw "Repository root not found (missing QuickerRpc.Console\QuickerRpc.Console.csproj). Start from quicker-rpc or run from publish/."
 }
 
+function Get-QuickerRpcVersionFromJson {
+    param([string]$RepoRoot)
+
+    $versionFile = Join-Path $RepoRoot 'version.json'
+    if (-not (Test-Path -LiteralPath $versionFile)) {
+        throw "version.json not found at $versionFile"
+    }
+
+    $json = Get-Content -LiteralPath $versionFile -Raw | ConvertFrom-Json
+    $version = $json.QuickerRpc
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        throw "version.json missing 'QuickerRpc' key"
+    }
+
+    return $version.ToString().Trim()
+}
+
 $repoRoot = Get-QuickerRpcRepoRoot -StartPath $PSScriptRoot
 Set-Location -LiteralPath $repoRoot
+$quickerRpcVersion = Get-QuickerRpcVersionFromJson -RepoRoot $repoRoot
 
 Write-Host "Publishing qkrpc.exe (QuickerRpc.Console, non-single-file, win-x64, self-contained)..." -ForegroundColor Green
+Write-Host "Version (version.json): $quickerRpcVersion" -ForegroundColor Cyan
 
 $publishDir = Join-Path $repoRoot 'publish\cli'
 if (Test-Path -LiteralPath $publishDir) {
@@ -45,7 +64,7 @@ $dotnetQuiet = @('-v:q', '--nologo')
 
 $csproj = Join-Path $repoRoot 'QuickerRpc.Console\QuickerRpc.Console.csproj'
 Write-Host "dotnet publish -> $publishDir" -ForegroundColor Yellow
-dotnet publish $csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o $publishDir @dotnetQuiet
+dotnet publish $csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:Version=$quickerRpcVersion -o $publishDir @dotnetQuiet
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Publish failed (dotnet exit $LASTEXITCODE)." -ForegroundColor Red
@@ -62,7 +81,7 @@ else {
     New-Item -ItemType Directory -Path $pluginPublishDir -Force | Out-Null
 }
 
-dotnet publish $pluginCsproj -c Release -o $pluginPublishDir @dotnetQuiet
+dotnet publish $pluginCsproj -c Release -p:Version=$quickerRpcVersion -o $pluginPublishDir @dotnetQuiet
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Plugin publish failed (dotnet exit $LASTEXITCODE)." -ForegroundColor Red
     exit $LASTEXITCODE
