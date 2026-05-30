@@ -1,0 +1,26 @@
+# qkbuild configuration for QuickerRpc plugin package
+# Run from repo root: pwsh ./build.ps1
+
+name: quicker-rpc
+displayName: QuickerRpc
+versionKey: QuickerRpc
+projectDir: ./QuickerRpc.Plugin
+
+# Quicker package / subprogram (adjust to your action setup)
+uploadDir: quicker.rpc
+packageName: quicker.rpc
+subprogramName: QuickerRpc_Run
+instruction: Quicker plugin RPC bridge (StreamJsonRpc named pipe)
+
+filesToInclude:
+  - "QuickerRpc.Plugin*.dll"
+  - "QuickerRpc.Contracts*.dll"
+
+filesToExclude:
+  - "*.pdb"
+  - "*.xml"
+
+obfuscate: false
+
+cleanupOldZips: true
+enabled: true

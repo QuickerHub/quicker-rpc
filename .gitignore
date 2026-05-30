@@ -1,0 +1,8 @@
+bin/
+obj/
+.vs/
+publish/**
+!publish/publish-rpc.ps1
+*.user
+*.suo
+*.cache

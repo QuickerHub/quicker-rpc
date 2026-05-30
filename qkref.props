@@ -1,0 +1,102 @@
+<Project>
+  <!--
+    Quicker Assembly Reference Configuration
+    This file provides unified Quicker assembly references for all projects.
+    Import this file in your .csproj to use Quicker assemblies.
+
+    Usage in QuickerRpc.Plugin.csproj:
+      <Import Project="..\qkref.props" />
+  -->
+
+  <PropertyGroup>
+    <!--
+      Quicker DLL Path Configuration
+      Priority:
+      1. MSBuild property: -p:QuickerDllPath="path"
+      2. Environment variable: QUICKER_DLL_PATH
+      3. Auto-detect: Try Debug path first, fallback to Release path
+    -->
+    <QuickerDllPath Condition="'$(QuickerDllPath)' == ''">$(QUICKER_DLL_PATH)</QuickerDllPath>
+
+    <!-- If not specified, try Debug path first -->
+    <_QuickerDebugPath Condition="'$(QuickerDllPath)' == ''">D:\source\repos\quicker\quickerorg\Quicker\QuickerPc\Quicker\bin\x64\Debug\net472</_QuickerDebugPath>
+    <_QuickerReleasePath Condition="'$(QuickerDllPath)' == ''">C:\Program Files\Quicker</_QuickerReleasePath>
+
+    <!-- Auto-select: Use Debug path if exists, otherwise use Release path -->
+    <!-- <QuickerDllPath Condition="'$(QuickerDllPath)' == '' And Exists('$(_QuickerDebugPath)\Quicker.exe')">$(_QuickerDebugPath)</QuickerDllPath> -->
+    <QuickerDllPath Condition="'$(QuickerDllPath)' == ''">$(_QuickerReleasePath)</QuickerDllPath>
+  </PropertyGroup>
+
+
+  <!-- Reference Quicker assemblies from QuickerDllPath -->
+  <ItemGroup>
+    <!-- 关键：如果使用 Debug 版本（非强名称），编译时就不会记录 PublicKeyToken -->
+    <Reference Include="Quicker">
+      <HintPath>$(QuickerDllPath)\Quicker.exe</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="Quicker.Common">
+      <HintPath>$(QuickerDllPath)\Quicker.Common.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="Quicker.Public">
+      <HintPath>$(QuickerDllPath)\Quicker.Public.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <!-- Additional Quicker assemblies (usually only in Release) -->
+    <Reference Include="DotNetProjects.SVGImage">
+      <HintPath>$(QuickerDllPath)\DotNetProjects.SVGImage.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="DotNetProjects.Wpf.Extended.Toolkit">
+      <HintPath>$(QuickerDllPath)\DotNetProjects.Wpf.Extended.Toolkit.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="FontAwesomeIconsWpf">
+      <HintPath>$(QuickerDllPath)\FontAwesomeIconsWpf.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="HandyControl">
+      <HintPath>$(QuickerDllPath)\HandyControl.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="ICSharpCode.AvalonEdit">
+      <HintPath>$(QuickerDllPath)\ICSharpCode.AvalonEdit.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="ICSharpCode.SharpZipLib">
+      <HintPath>$(QuickerDllPath)\ICSharpCode.SharpZipLib.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="MdXaml">
+      <HintPath>$(QuickerDllPath)\MdXaml.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="Z.Expressions.Eval">
+      <HintPath>$(QuickerDllPath)\Z.Expressions.Eval.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="ToastNotifications">
+      <HintPath>$(QuickerDllPath)\ToastNotifications.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="ToastNotifications.Messages">
+      <HintPath>$(QuickerDllPath)\ToastNotifications.Messages.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="HL">
+      <HintPath>$(QuickerDllPath)\HL.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="WindowsInput">
+      <HintPath>$(QuickerDllPath)\WindowsInput.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Exclude publish folder from build -->
+  <ItemGroup>
+    <Compile Remove="publish/**" />
+    <None Remove="publish/**" />
+  </ItemGroup>
+</Project>

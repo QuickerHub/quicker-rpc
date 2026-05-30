@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="QuickerRpc.Contracts/QuickerRpc.Contracts.csproj" />
+  <Project Path="QuickerRpc.Plugin/QuickerRpc.Plugin.csproj" />
+  <Project Path="QuickerRpc.Console/QuickerRpc.Console.csproj" />
+</Solution>
