@@ -35,22 +35,22 @@ pwsh ./publish/Publish-GitHubRelease.ps1
 
 ### 用户安装 CLI（一条命令）
 
-发布到 [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases) 后，用户在 PowerShell 7+ 执行：
+发布到 [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases) 后，用户在 PowerShell 执行：
 
 ```powershell
-irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex
+$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
 ```
 
 安装到 `%LOCALAPPDATA%\Programs\qkrpc` 并写入用户 PATH。指定版本：
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1))) -Version v0.3.9
+$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/download/v0.3.10/install.ps1 -OutFile $p -UseBasicParsing; & $p
 ```
 
 卸载：
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1))) -Uninstall
+$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p -Uninstall
 ```
 
 ## 在 Quicker 中加载插件

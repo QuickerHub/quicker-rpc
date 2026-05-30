@@ -74,7 +74,9 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: qkrpc ${{ steps.tag.outputs.tag }}
-          files: publish/${{ steps.tag.outputs.zip_name }}
+          files: |
+            publish/${{ steps.tag.outputs.zip_name }}
+            publish/install.ps1
           draft: false
           prerelease: false
           generate_release_notes: true
@@ -82,13 +84,13 @@ jobs:
             ## Install (one command)
 
             ```powershell
-            irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex
+            $p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
             ```
 
             Pin this version:
 
             ```powershell
-            & ([scriptblock]::Create((irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1))) -Version ${{ steps.tag.outputs.tag }}
+            $p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/download/${{ steps.tag.outputs.tag }}/install.ps1 -OutFile $p -UseBasicParsing; & $p
             ```
 
             ## Verify

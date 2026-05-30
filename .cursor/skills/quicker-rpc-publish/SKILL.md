@@ -23,7 +23,7 @@ disable-model-invocation: false
 Release 发布后：
 
 ```powershell
-irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex
+$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
 ```
 
 ## 发布入口

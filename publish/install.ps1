@@ -1,26 +1,31 @@
 # Install or uninstall qkrpc CLI from GitHub Releases.
 #
-# One-line install (PowerShell 7+):
-#   irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex
+# Recommended one-line install (PowerShell 5.1+):
+#   $p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
 #
 # Options:
-#   -Version latest | 0.3.9 | v0.3.9
+#   -ReleaseVersion latest | 0.3.10 | v0.3.10
 #   -InstallDir "$env:LOCALAPPDATA\Programs\qkrpc"
 #   -Uninstall
 
-#Requires -Version 7.0
+#Requires -Version 5.1
 
 [CmdletBinding()]
 param(
-    [string]$Version = 'latest',
+    [string]$ReleaseVersion = 'latest',
     [string]$InstallDir = '',
     [switch]$Uninstall
 )
 
 $ErrorActionPreference = 'Stop'
+$QkrpcInstallScriptVersion = '3'
 
 function Get-QkrpcDefaultInstallDir {
-    return Join-Path $env:LOCALAPPDATA 'Programs\qkrpc'
+    $root = $env:LOCALAPPDATA
+    if ([string]::IsNullOrWhiteSpace($root)) {
+        throw 'LOCALAPPDATA is not set. Cannot determine install directory.'
+    }
+    return Join-Path $root 'Programs\qkrpc'
 }
 
 function Get-QuickerRpcSemVerFromVersion {
@@ -181,7 +186,7 @@ function Get-GitHubRelease {
 function Install-QkrpcCli {
     Write-Host "Installing qkrpc to $InstallDir ..." -ForegroundColor Cyan
 
-    $release = Get-GitHubRelease -RequestedVersion $Version
+    $release = Get-GitHubRelease -RequestedVersion $ReleaseVersion
     $asset = @($release.assets | Where-Object { $_.name -like $AssetNamePattern }) | Select-Object -First 1
     if (-not $asset) {
         throw "Release '$($release.tag_name)' has no asset matching '$AssetNamePattern'. Publish the CLI zip first."

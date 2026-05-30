@@ -49,6 +49,8 @@ else {
 $tagName = "v$semantic"
 $zipName = Get-QuickerRpcCliZipName -Version $semantic
 $zipPath = Join-Path $RepoRoot "publish\$zipName"
+$installScriptPath = Join-Path $RepoRoot 'publish\install.ps1'
+$installOneLiner = '$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p'
 
 if (-not $ReleaseTitle) {
     $ReleaseTitle = "qkrpc $tagName"
@@ -60,7 +62,7 @@ function Assert-GhAvailable {
     }
 }
 
-function Get-ReleaseAssetPath {
+function Get-ReleaseAssetPaths {
     if (-not (Test-Path -LiteralPath $zipPath)) {
         throw @"
 CLI release zip not found: $zipPath
@@ -68,7 +70,11 @@ Run publish-rpc.ps1 first (or omit -SkipBuild).
 "@
     }
 
-    return $zipPath
+    if (-not (Test-Path -LiteralPath $installScriptPath)) {
+        throw "install.ps1 not found: $installScriptPath"
+    }
+
+    return @($zipPath, $installScriptPath)
 }
 
 function New-ReleaseNotesBody {
@@ -82,13 +88,13 @@ CLI client for [quicker-rpc](https://github.com/QuickerHub/quicker-rpc) (version
 ### Install (one command)
 
 ``````powershell
-irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex
+$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
 ``````
 
-Pin a version:
+Pin this version:
 
 ``````powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1))) -Version $Tag
+$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/download/$Tag/install.ps1 -OutFile $p -UseBasicParsing; & $p
 ``````
 
 ### Verify
@@ -121,11 +127,11 @@ if (-not $SkipBuild) {
 }
 
 if ($DryRun) {
-    Write-Host "[DryRun] Expect zip: $zipPath" -ForegroundColor DarkGray
-    $assetPath = $zipPath
+    Write-Host "[DryRun] Expect assets: $zipPath, $installScriptPath" -ForegroundColor DarkGray
+    $assetPaths = @($zipPath, $installScriptPath)
 }
 else {
-    $assetPath = Get-ReleaseAssetPath
+    $assetPaths = @(Get-ReleaseAssetPaths)
 }
 
 $notesBody = New-ReleaseNotesBody -Tag $tagName -VersionFull $quickerRpcVersion
@@ -156,9 +162,9 @@ else {
 $ghArgs = @(
     'release', 'create', $tagName,
     '--title', $ReleaseTitle,
-    '--notes-file', $notesPath,
-    $assetPath
+    '--notes-file', $notesPath
 )
+$ghArgs += $assetPaths
 if ($Draft) {
     $ghArgs += '--draft'
 }
@@ -180,8 +186,8 @@ finally {
 }
 
 if ($releaseExists) {
-    Write-Host "Release $tagName already exists; uploading asset..." -ForegroundColor Yellow
-    gh release upload $tagName $assetPath --clobber
+    Write-Host "Release $tagName already exists; uploading assets..." -ForegroundColor Yellow
+    gh release upload $tagName @assetPaths --clobber
 }
 else {
     gh @ghArgs
@@ -193,7 +199,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ''
 Write-Host "Release completed: $tagName" -ForegroundColor Green
-Write-Host "Asset: $assetPath" -ForegroundColor Cyan
+Write-Host "Assets: $($assetPaths -join ', ')" -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'Users can install with:' -ForegroundColor Yellow
-Write-Host '  irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex'
+Write-Host "  $installOneLiner"

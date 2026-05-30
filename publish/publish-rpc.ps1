@@ -124,7 +124,7 @@ Write-Host "  qkrpc ping --json"
 Write-Host "  qkrpc action update --id <guid> --changelog ""fix"" --json"
 Write-Host ""
 Write-Host "User install (after GitHub Release upload):" -ForegroundColor Yellow
-Write-Host "  irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex"
+Write-Host "  `$p=`"`$env:TEMP\qkrpc-install.ps1`"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile `$p -UseBasicParsing; & `$p"
 Write-Host ""
 
 if (-not $SkipInstall) {

@@ -34,7 +34,7 @@ pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1
 3. 给用户安装命令：
 
 ```powershell
-irm https://raw.githubusercontent.com/QuickerHub/quicker-rpc/main/publish/install.ps1 | iex
+$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
 ```
 
 4. 若 `version.json` 有未推送 commit，用户要求时再 `git push origin main`。
