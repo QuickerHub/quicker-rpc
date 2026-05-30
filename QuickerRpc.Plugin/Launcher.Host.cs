@@ -19,6 +19,9 @@ public static partial class Launcher
 
                 services.AddSingleton<IPopupMessageService>(PopupMessage.Default);
                 services.AddSingleton<ActionUpdateService>();
+                services.AddSingleton<ActionSearchService>();
+                services.AddSingleton<ActionDeleteService>();
+                services.AddSingleton<ActionEditService>();
                 services.AddSingleton<QuickerRpcService>();
                 services.AddSingleton<IQuickerRpcService>(sp => sp.GetRequiredService<QuickerRpcService>());
 

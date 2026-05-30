@@ -17,11 +17,22 @@ public sealed class QuickerRpcService : IQuickerRpcService
     public const int CurrentProtocolVersion = 1;
 
     private readonly ActionUpdateService _actionUpdateService;
+    private readonly ActionSearchService _actionSearchService;
+    private readonly ActionDeleteService _actionDeleteService;
+    private readonly ActionEditService _actionEditService;
     private readonly IPopupMessageService _popup;
 
-    public QuickerRpcService(ActionUpdateService actionUpdateService, IPopupMessageService popup)
+    public QuickerRpcService(
+        ActionUpdateService actionUpdateService,
+        ActionSearchService actionSearchService,
+        ActionDeleteService actionDeleteService,
+        ActionEditService actionEditService,
+        IPopupMessageService popup)
     {
         _actionUpdateService = actionUpdateService;
+        _actionSearchService = actionSearchService;
+        _actionDeleteService = actionDeleteService;
+        _actionEditService = actionEditService;
         _popup = popup;
     }
 
@@ -72,6 +83,74 @@ public sealed class QuickerRpcService : IQuickerRpcService
 
                 return result;
             },
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcActionSearchResult> SearchActionsAsync(
+        string query,
+        int maxCount = 20,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_actionSearchService.SearchActions(query, maxCount)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcActionUpdateResult> DeleteActionAsync(
+        string actionId,
+        bool showConfirm = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            return Task.FromResult(new QuickerRpcActionUpdateResult
+            {
+                Ok = false,
+                Message = "actionId is required.",
+            });
+        }
+
+        return InvokeOnDispatcherAsync(
+            async () =>
+            {
+                var result = await _actionDeleteService
+                    .DeleteActionAsync(actionId.Trim(), showConfirm)
+                    .ConfigureAwait(true);
+
+                if (result.Ok)
+                {
+                    var text = string.IsNullOrWhiteSpace(result.Message)
+                        ? $"动作已删除：{result.ActionId}"
+                        : result.Message;
+                    _popup.Success(text);
+                }
+                else
+                {
+                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "删除动作失败" : result.Message);
+                }
+
+                return result;
+            },
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcActionUpdateResult> EditActionAsync(
+        string actionId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            return Task.FromResult(new QuickerRpcActionUpdateResult
+            {
+                Ok = false,
+                Message = "actionId is required.",
+            });
+        }
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_actionEditService.EditAction(actionId.Trim())),
             cancellationToken);
     }
 

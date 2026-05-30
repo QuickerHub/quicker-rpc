@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,6 +20,49 @@ public interface IQuickerRpcService
         string actionId,
         string? changeLog = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Search local Quicker actions by keyword (same scoring as the main search box).</summary>
+    Task<QuickerRpcActionSearchResult> SearchActionsAsync(
+        string query,
+        int maxCount = 20,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Delete a local Quicker action (ActionEditMgr.DeleteAction).</summary>
+    Task<QuickerRpcActionUpdateResult> DeleteActionAsync(
+        string actionId,
+        bool showConfirm = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Open the Quicker action editor for a local action id.</summary>
+    Task<QuickerRpcActionUpdateResult> EditActionAsync(
+        string actionId,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class QuickerRpcActionSearchResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public IList<QuickerRpcActionSummary> Items { get; set; } = new List<QuickerRpcActionSummary>();
+}
+
+public sealed class QuickerRpcActionSummary
+{
+    /// <summary>Local action instance id; pass to UpdateSharedActionAsync.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+
+    public string? PageTitle { get; set; }
+
+    public int Score { get; set; }
+
+    /// <summary>Shared action library id when the action has been shared.</summary>
+    public string? SharedActionId { get; set; }
 }
 
 public sealed class QuickerRpcActionUpdateResult
