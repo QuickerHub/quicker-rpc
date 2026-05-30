@@ -1,6 +1,6 @@
 # quicker-rpc
 
-> 私有仓库：[QuickerHub/quicker-rpc](https://github.com/QuickerHub/quicker-rpc)
+> 仓库：[QuickerHub/quicker-rpc](https://github.com/QuickerHub/quicker-rpc)
 
 Quicker 插件 + 命令行客户端：通过 **命名管道 + StreamJsonRpc**，让外部 `qkrpc.exe` 调用 Quicker 内插件能力。
 

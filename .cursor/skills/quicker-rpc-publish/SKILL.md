@@ -14,7 +14,7 @@ disable-model-invocation: false
 
 | 项目 | 值 |
 |------|-----|
-| 私有 Git | [QuickerHub/quicker-rpc](https://github.com/QuickerHub/quicker-rpc) |
+| Git | [QuickerHub/quicker-rpc](https://github.com/QuickerHub/quicker-rpc) |
 | 版本 | `version.json` → `QuickerRpc`（四段，如 `0.2.0.0`） |
 | qkbuild 配置 | `build.yaml`（`versionKey: QuickerRpc`） |
 | Quicker 包名 | `quicker.rpc` |
