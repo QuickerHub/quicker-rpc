@@ -22,6 +22,7 @@ public static partial class Launcher
                 services.AddSingleton<ActionSearchService>();
                 services.AddSingleton<ActionDeleteService>();
                 services.AddSingleton<ActionEditService>();
+                services.AddSingleton<GlobalSubProgramVariableEditService>();
                 services.AddSingleton<QuickerRpcService>();
                 services.AddSingleton<IQuickerRpcService>(sp => sp.GetRequiredService<QuickerRpcService>());
 

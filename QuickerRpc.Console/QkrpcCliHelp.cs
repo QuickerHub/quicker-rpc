@@ -227,6 +227,45 @@ internal static class QkrpcCliHelp
                         "EDIT_FAILED",
                     },
                 },
+                new
+                {
+                    name = "action edit-var",
+                    summary = "Edit a global subprogram variable default value and save (e.g. version).",
+                    usage = "qkrpc action edit-var --id <subProgramIdOrName> --var <key> --value <defaultValue> [--json] [--timeout <seconds>]",
+                    options = new[]
+                    {
+                        Option("id", "Global subprogram id or name."),
+                        Option("code", "Alias for --id."),
+                        Option("var", "Variable key (e.g. version)."),
+                        Option("value", "New default value."),
+                        Option("json", "Emit JSON for automation."),
+                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
+                    },
+                    examples = new[]
+                    {
+                        "qkrpc action edit-var --id MySubProgram --var version --value 2.1 --json",
+                        "qkrpc action edit-var --code {subProgramGuid} --var version --value 3 --json",
+                    },
+                    responseExample = new
+                    {
+                        ok = true,
+                        action = "edit-var",
+                        subProgramIdOrName = "MySubProgram",
+                        variableKey = "version",
+                        oldValue = "2.0",
+                        newValue = "2.1",
+                        message = "变量 version 变更 2.0 => 2.1",
+                        pipe = QuickerRpcPipeNames.ServerPipe,
+                    },
+                    errors = new[]
+                    {
+                        "UNKNOWN_ACTION_VERB",
+                        "MISSING_SUBPROGRAM_ID",
+                        "MISSING_VARIABLE",
+                        "MISSING_VALUE",
+                        "EDIT_VAR_FAILED",
+                    },
+                },
             },
             errorResponseExample = new
             {

@@ -37,6 +37,31 @@ public interface IQuickerRpcService
     Task<QuickerRpcActionUpdateResult> EditActionAsync(
         string actionId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Edit a global subprogram variable default value and save.
+    /// Opens the subprogram designer briefly (same as EditVarVersionAsync in quicker-modifier).
+    /// </summary>
+    Task<QuickerRpcSubProgramVariableEditResult> EditGlobalSubProgramVariableAsync(
+        string subProgramIdOrName,
+        string variableKey,
+        string defaultValue,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class QuickerRpcSubProgramVariableEditResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? SubProgramIdOrName { get; set; }
+
+    public string? VariableKey { get; set; }
+
+    public string? OldValue { get; set; }
+
+    public string? NewValue { get; set; }
 }
 
 public sealed class QuickerRpcActionSearchResult

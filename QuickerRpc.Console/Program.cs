@@ -117,6 +117,7 @@ internal static class Program
             "search" => await RunActionSearchAsync(options).ConfigureAwait(false),
             "delete" => await RunActionDeleteAsync(options).ConfigureAwait(false),
             "edit" => await RunActionEditAsync(options).ConfigureAwait(false),
+            "edit-var" => await RunActionEditVarAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownActionVerbAsync(options).ConfigureAwait(false),
         };
     }
@@ -129,7 +130,8 @@ internal static class Program
             "Use: action update --id <sharedActionId> [--changelog ... | --changelog-file <path>] [--json] " +
             "or action search --query <keyword> [--limit 20] [--json] " +
             "or action delete --id <actionId> --yes [--json] " +
-            "or action edit --id <actionId> [--json]")
+            "or action edit --id <actionId> [--json] " +
+            "or action edit-var --id <subProgramIdOrName> --var <key> --value <defaultValue> [--json]")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -336,6 +338,83 @@ internal static class Program
         catch (Exception ex)
         {
             await EmitErrorAsync(options.Json, "DELETE_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
+
+    private static async Task<int> RunActionEditVarAsync(ActionOptions options)
+    {
+        var subProgramIdOrName = (options.Id ?? options.Code ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(subProgramIdOrName))
+        {
+            await EmitErrorAsync(options.Json, "MISSING_SUBPROGRAM_ID", "Provide --id or --code <subProgramIdOrName>.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        var variableKey = (options.Variable ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(variableKey))
+        {
+            await EmitErrorAsync(options.Json, "MISSING_VARIABLE", "Provide --var <variableKey> (e.g. version).")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        if (options.Value is null)
+        {
+            await EmitErrorAsync(options.Json, "MISSING_VALUE", "Provide --value <defaultValue>.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var result = await session.Proxy
+                .EditGlobalSubProgramVariableAsync(subProgramIdOrName, variableKey, options.Value, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "edit-var",
+                        subProgramIdOrName = result.SubProgramIdOrName ?? subProgramIdOrName,
+                        variableKey = result.VariableKey ?? variableKey,
+                        oldValue = result.OldValue,
+                        newValue = result.NewValue ?? options.Value,
+                        message = result.Message,
+                        pipe = QuickerRpcPipeNames.ServerPipe,
+                    },
+                    JsonWriteOptions));
+            }
+            else if (result.Ok)
+            {
+                global::System.Console.WriteLine(result.Message);
+            }
+            else
+            {
+                global::System.Console.Error.WriteLine(result.Message);
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcConnectException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "EDIT_VAR_FAILED", ex.Message).ConfigureAwait(false);
             return ExitCodes.Error;
         }
     }
@@ -549,7 +628,7 @@ public sealed class PingOptions
 [Verb("action", HelpText = "Quicker action operations via RPC.")]
 public sealed class ActionOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "update | search | delete | edit")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "update | search | delete | edit | edit-var")]
     public string? Command { get; set; }
 
     [Option("id", HelpText = "Shared action id (GUID).")]
@@ -572,6 +651,12 @@ public sealed class ActionOptions
 
     [Option('y', "yes", HelpText = "Required for action delete (skip Quicker confirm dialog).")]
     public bool Yes { get; set; }
+
+    [Option("var", HelpText = "Variable key for action edit-var (e.g. version).")]
+    public string? Variable { get; set; }
+
+    [Option("value", HelpText = "New default value for action edit-var.")]
+    public string? Value { get; set; }
 
     [Option("json", HelpText = "Emit JSON for automation.")]
     public bool Json { get; set; }

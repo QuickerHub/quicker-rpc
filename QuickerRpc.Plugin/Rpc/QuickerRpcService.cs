@@ -20,6 +20,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly ActionSearchService _actionSearchService;
     private readonly ActionDeleteService _actionDeleteService;
     private readonly ActionEditService _actionEditService;
+    private readonly GlobalSubProgramVariableEditService _globalSubProgramVariableEditService;
     private readonly IPopupMessageService _popup;
 
     public QuickerRpcService(
@@ -27,12 +28,14 @@ public sealed class QuickerRpcService : IQuickerRpcService
         ActionSearchService actionSearchService,
         ActionDeleteService actionDeleteService,
         ActionEditService actionEditService,
+        GlobalSubProgramVariableEditService globalSubProgramVariableEditService,
         IPopupMessageService popup)
     {
         _actionUpdateService = actionUpdateService;
         _actionSearchService = actionSearchService;
         _actionDeleteService = actionDeleteService;
         _actionEditService = actionEditService;
+        _globalSubProgramVariableEditService = globalSubProgramVariableEditService;
         _popup = popup;
     }
 
@@ -151,6 +154,52 @@ public sealed class QuickerRpcService : IQuickerRpcService
 
         return InvokeOnDispatcherAsync(
             () => Task.FromResult(_actionEditService.EditAction(actionId.Trim())),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcSubProgramVariableEditResult> EditGlobalSubProgramVariableAsync(
+        string subProgramIdOrName,
+        string variableKey,
+        string defaultValue,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(subProgramIdOrName))
+        {
+            return Task.FromResult(new QuickerRpcSubProgramVariableEditResult
+            {
+                Ok = false,
+                Message = "subProgramIdOrName is required.",
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(variableKey))
+        {
+            return Task.FromResult(new QuickerRpcSubProgramVariableEditResult
+            {
+                Ok = false,
+                SubProgramIdOrName = subProgramIdOrName.Trim(),
+                Message = "variableKey is required.",
+            });
+        }
+
+        return InvokeOnDispatcherAsync(
+            async () =>
+            {
+                var result = await _globalSubProgramVariableEditService
+                    .EditVariableAsync(subProgramIdOrName.Trim(), variableKey.Trim(), defaultValue ?? string.Empty)
+                    .ConfigureAwait(true);
+
+                if (result.Ok)
+                {
+                    _popup.Success(result.Message);
+                }
+                else
+                {
+                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "修改变量默认值失败" : result.Message);
+                }
+
+                return result;
+            },
             cancellationToken);
     }
 
