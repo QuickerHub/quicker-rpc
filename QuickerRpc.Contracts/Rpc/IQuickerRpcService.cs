@@ -27,6 +27,12 @@ public interface IQuickerRpcService
         int maxCount = 20,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Search global (public) subprograms by id, name, or description.</summary>
+    Task<QuickerRpcSubProgramSearchResult> SearchGlobalSubProgramsAsync(
+        string query,
+        int maxCount = 20,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Delete a local Quicker action (ActionEditMgr.DeleteAction).</summary>
     Task<QuickerRpcActionUpdateResult> DeleteActionAsync(
         string actionId,
@@ -39,8 +45,8 @@ public interface IQuickerRpcService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Edit a global subprogram variable default value and save.
-    /// Opens the subprogram designer briefly (same as EditVarVersionAsync in quicker-modifier).
+    /// Edit a variable default value and save via ActionDesignerWindow.
+    /// Accepts a global subprogram id/name or a local action id.
     /// </summary>
     Task<QuickerRpcSubProgramVariableEditResult> EditGlobalSubProgramVariableAsync(
         string subProgramIdOrName,
@@ -55,6 +61,10 @@ public sealed class QuickerRpcSubProgramVariableEditResult
 
     public string Message { get; set; } = string.Empty;
 
+    /// <summary>subprogram | action</summary>
+    public string? TargetKind { get; set; }
+
+    /// <summary>Global subprogram id/name or local action id.</summary>
     public string? SubProgramIdOrName { get; set; }
 
     public string? VariableKey { get; set; }
@@ -71,6 +81,30 @@ public sealed class QuickerRpcActionSearchResult
     public string Message { get; set; } = string.Empty;
 
     public IList<QuickerRpcActionSummary> Items { get; set; } = new List<QuickerRpcActionSummary>();
+}
+
+public sealed class QuickerRpcSubProgramSearchResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public IList<QuickerRpcSubProgramSummary> Items { get; set; } = new List<QuickerRpcSubProgramSummary>();
+}
+
+public sealed class QuickerRpcSubProgramSummary
+{
+    /// <summary>Global subprogram id; pass to EditGlobalSubProgramVariableAsync.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+
+    public int Score { get; set; }
+
+    /// <summary>Shared subprogram library id when the subprogram has been shared.</summary>
+    public string? SharedId { get; set; }
 }
 
 public sealed class QuickerRpcActionSummary

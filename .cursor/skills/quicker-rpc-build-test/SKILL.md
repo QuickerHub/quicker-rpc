@@ -42,7 +42,7 @@ pwsh -NoProfile -File ./build.ps1 -t
    - 测试包：`C:\Users\{user}\Documents\Quicker\_packages\quicker.rpc\{前三段版本}`
    - CLI：`%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe`
    - 插件 DLL：`publish/plugin/QuickerRpc.Plugin.*.dll`
-3. 若改了 **RPC 接口或插件逻辑**：提醒在 Quicker 中加载新版本插件（子程序 `QuickerRpc_Run` 通常会被 `-t` 自动 bump；若 RPC 仍报方法不存在，需重新 Register / 重启 Quicker）
+3. `build.ps1` 成功结束时会自动 `Start-Process quicker:runaction:{PluginRunActionId}` 加载/重载插件（与 `QuickerRpcBootstrap` 一致）；若 RPC 仍报方法不存在，确认 Quicker 已启动且动作执行成功
 4. 可选冒烟：`qkrpc ping --json`
 
 ## 构建失败

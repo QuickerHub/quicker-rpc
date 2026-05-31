@@ -164,6 +164,49 @@ internal static class QkrpcCliHelp
                 },
                 new
                 {
+                    name = "subprogram search",
+                    summary = "Search global (public) Quicker subprograms by id, name, or description.",
+                    usage = "qkrpc subprogram search --query <keyword> [--limit 20] [--json] [--timeout <seconds>]",
+                    options = new[]
+                    {
+                        Option("query", "Search keyword (id, name, description).", shortName: "q"),
+                        Option("limit", "Max results (1-100).", defaultValue: "20"),
+                        Option("json", "Emit JSON for automation."),
+                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
+                    },
+                    examples = new[]
+                    {
+                        "qkrpc subprogram search --query \"QuickerRpc\" --json",
+                        "qkrpc subprogram search -q \"弹窗\" --limit 10 --json",
+                    },
+                    responseExample = new
+                    {
+                        ok = true,
+                        action = "subprogram-search",
+                        query = "QuickerRpc",
+                        count = 1,
+                        items = new[]
+                        {
+                            new
+                            {
+                                id = "{subProgramGuid}",
+                                name = "QuickerRpc_Run",
+                                description = (string?)null,
+                                score = 100,
+                                sharedId = (string?)null,
+                            },
+                        },
+                        pipe = QuickerRpcPipeNames.ServerPipe,
+                    },
+                    errors = new[]
+                    {
+                        "UNKNOWN_SUBPROGRAM_VERB",
+                        "MISSING_QUERY",
+                        "SUBPROGRAM_SEARCH_FAILED",
+                    },
+                },
+                new
+                {
                     name = "action delete",
                     summary = "Delete a local Quicker action.",
                     usage = "qkrpc action delete --id <actionId> --yes [--json] [--timeout <seconds>]",
@@ -230,11 +273,11 @@ internal static class QkrpcCliHelp
                 new
                 {
                     name = "action edit-var",
-                    summary = "Edit a global subprogram variable default value and save (e.g. version).",
-                    usage = "qkrpc action edit-var --id <subProgramIdOrName> --var <key> --value <defaultValue> [--json] [--timeout <seconds>]",
+                    summary = "Edit a variable default value and save via ActionDesignerWindow (global subprogram or local action).",
+                    usage = "qkrpc action edit-var --id <subProgramIdOrName|actionId> --var <key> --value <defaultValue> [--json] [--timeout <seconds>]",
                     options = new[]
                     {
-                        Option("id", "Global subprogram id or name."),
+                        Option("id", "Global subprogram id/name, or local action id."),
                         Option("code", "Alias for --id."),
                         Option("var", "Variable key (e.g. version)."),
                         Option("value", "New default value."),
@@ -243,14 +286,16 @@ internal static class QkrpcCliHelp
                     },
                     examples = new[]
                     {
-                        "qkrpc action edit-var --id MySubProgram --var version --value 2.1 --json",
-                        "qkrpc action edit-var --code {subProgramGuid} --var version --value 3 --json",
+                        "qkrpc action edit-var --id QuickerRpc_Run --var version --value 2.1 --json",
+                        "qkrpc action edit-var --id {actionGuid} --var foo --value bar --json",
                     },
                     responseExample = new
                     {
                         ok = true,
                         action = "edit-var",
-                        subProgramIdOrName = "MySubProgram",
+                        targetKind = "subprogram",
+                        targetId = "QuickerRpc_Run",
+                        subProgramIdOrName = "QuickerRpc_Run",
                         variableKey = "version",
                         oldValue = "2.0",
                         newValue = "2.1",
@@ -260,7 +305,7 @@ internal static class QkrpcCliHelp
                     errors = new[]
                     {
                         "UNKNOWN_ACTION_VERB",
-                        "MISSING_SUBPROGRAM_ID",
+                        "MISSING_TARGET_ID",
                         "MISSING_VARIABLE",
                         "MISSING_VALUE",
                         "EDIT_VAR_FAILED",

@@ -33,11 +33,12 @@ internal static class Program
             return ExitCodes.Success;
         }
 
-        var result = Parser.Default.ParseArguments<PingOptions, ActionOptions>(args);
+        var result = Parser.Default.ParseArguments<PingOptions, ActionOptions, SubProgramOptions>(args);
         return await result
             .MapResult(
                 (PingOptions o) => RunPingAsync(o),
                 (ActionOptions o) => RunActionAsync(o),
+                (SubProgramOptions o) => RunSubProgramAsync(o),
                 _ => Task.FromResult(ExitCodes.Error))
             .ConfigureAwait(false);
     }
@@ -108,6 +109,97 @@ internal static class Program
         }
     }
 
+    private static async Task<int> RunSubProgramAsync(SubProgramOptions options)
+    {
+        var verb = (options.Command ?? string.Empty).Trim().ToLowerInvariant();
+        return verb switch
+        {
+            "search" => await RunSubProgramSearchAsync(options).ConfigureAwait(false),
+            _ => await ReportUnknownSubProgramVerbAsync(options).ConfigureAwait(false),
+        };
+    }
+
+    private static async Task<int> ReportUnknownSubProgramVerbAsync(SubProgramOptions options)
+    {
+        await EmitErrorAsync(
+            options.Json,
+            "UNKNOWN_SUBPROGRAM_VERB",
+            "Use: subprogram search --query <keyword> [--limit 20] [--json]")
+            .ConfigureAwait(false);
+        return ExitCodes.Error;
+    }
+
+    private static async Task<int> RunSubProgramSearchAsync(SubProgramOptions options)
+    {
+        var query = (options.Query ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            await EmitErrorAsync(options.Json, "MISSING_QUERY", "Provide --query <keyword>.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var result = await session.Proxy
+                .SearchGlobalSubProgramsAsync(query, options.Limit, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "subprogram-search",
+                        query,
+                        count = result.Items.Count,
+                        items = result.Items,
+                        message = string.IsNullOrWhiteSpace(result.Message) ? null : result.Message,
+                        pipe = QuickerRpcPipeNames.ServerPipe,
+                    },
+                    JsonWriteOptions));
+            }
+            else if (result.Ok)
+            {
+                if (result.Items.Count == 0)
+                {
+                    global::System.Console.WriteLine(result.Message);
+                }
+                else
+                {
+                    foreach (var item in result.Items)
+                    {
+                        global::System.Console.WriteLine($"{item.Id}\t{item.Name}\t{item.Description}");
+                    }
+                }
+            }
+            else
+            {
+                global::System.Console.Error.WriteLine(result.Message);
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcConnectException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "SUBPROGRAM_SEARCH_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
+
     private static async Task<int> RunActionAsync(ActionOptions options)
     {
         var verb = (options.Command ?? string.Empty).Trim().ToLowerInvariant();
@@ -131,7 +223,7 @@ internal static class Program
             "or action search --query <keyword> [--limit 20] [--json] " +
             "or action delete --id <actionId> --yes [--json] " +
             "or action edit --id <actionId> [--json] " +
-            "or action edit-var --id <subProgramIdOrName> --var <key> --value <defaultValue> [--json]")
+            "or action edit-var --id <subProgramIdOrName|actionId> --var <key> --value <defaultValue> [--json]")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -344,10 +436,10 @@ internal static class Program
 
     private static async Task<int> RunActionEditVarAsync(ActionOptions options)
     {
-        var subProgramIdOrName = (options.Id ?? options.Code ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(subProgramIdOrName))
+        var targetIdOrName = (options.Id ?? options.Code ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(targetIdOrName))
         {
-            await EmitErrorAsync(options.Json, "MISSING_SUBPROGRAM_ID", "Provide --id or --code <subProgramIdOrName>.")
+            await EmitErrorAsync(options.Json, "MISSING_TARGET_ID", "Provide --id or --code <subProgramIdOrName|actionId>.")
                 .ConfigureAwait(false);
             return ExitCodes.Error;
         }
@@ -372,7 +464,7 @@ internal static class Program
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var result = await session.Proxy
-                .EditGlobalSubProgramVariableAsync(subProgramIdOrName, variableKey, options.Value, rpcToken)
+                .EditGlobalSubProgramVariableAsync(targetIdOrName, variableKey, options.Value, rpcToken)
                 .ConfigureAwait(false);
 
             if (options.Json)
@@ -382,7 +474,9 @@ internal static class Program
                     {
                         ok = result.Ok,
                         action = "edit-var",
-                        subProgramIdOrName = result.SubProgramIdOrName ?? subProgramIdOrName,
+                        targetKind = result.TargetKind,
+                        targetId = result.SubProgramIdOrName ?? targetIdOrName,
+                        subProgramIdOrName = result.SubProgramIdOrName ?? targetIdOrName,
                         variableKey = result.VariableKey ?? variableKey,
                         oldValue = result.OldValue,
                         newValue = result.NewValue ?? options.Value,
@@ -657,6 +751,28 @@ public sealed class ActionOptions
 
     [Option("value", HelpText = "New default value for action edit-var.")]
     public string? Value { get; set; }
+
+    [Option("json", HelpText = "Emit JSON for automation.")]
+    public bool Json { get; set; }
+
+    [Option("timeout", Default = 10, HelpText = "Pipe connect and RPC timeout in seconds.")]
+    public int TimeoutSeconds { get; set; }
+
+    [Option("no-bootstrap", HelpText = "Do not auto-start plugin via quicker:runaction when pipe is unavailable.")]
+    public bool NoBootstrap { get; set; }
+}
+
+[Verb("subprogram", HelpText = "Global (public) subprogram operations via RPC.")]
+public sealed class SubProgramOptions
+{
+    [Value(0, MetaName = "command", Required = true, HelpText = "search")]
+    public string? Command { get; set; }
+
+    [Option('q', "query", HelpText = "Search keyword for global subprogram search.")]
+    public string? Query { get; set; }
+
+    [Option("limit", Default = 20, HelpText = "Max results for subprogram search (1-100).")]
+    public int Limit { get; set; }
 
     [Option("json", HelpText = "Emit JSON for automation.")]
     public bool Json { get; set; }

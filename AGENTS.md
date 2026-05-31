@@ -50,8 +50,9 @@ type QuickerRpc.Plugin.AssemblyLoader, QuickerRpc.Plugin.{version}
 qkrpc help --json          # machine-readable reference (preferred for agents)
 qkrpc ping --json
 qkrpc action search --query "<keyword>" [--limit 20] --json
+qkrpc subprogram search --query "<keyword>" [--limit 20] --json
 qkrpc action edit --id <guid> --json
-qkrpc action edit-var --id <subProgramIdOrName> --var version --value 2.1 --json
+qkrpc action edit-var --id <subProgramIdOrName|actionId> --var version --value 2.1 --json
 qkrpc action delete --id <guid> --yes --json
 qkrpc action update --id <guid> [--changelog "..."] [--changelog-file <path>] --json
 ```

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -12,105 +13,63 @@ using QuickerRpc.Contracts.Rpc;
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Edits default values of variables in global subprograms via ActionDesignerWindow UI automation.
-/// Ported from wpf-demos/quicker-modifier ActionEditService.EditVarVersionAsync.
+/// Edits variable default values via ActionDesignerWindow for global subprograms and local actions.
 /// </summary>
-public sealed class GlobalSubProgramVariableEditService
+public sealed class DesignerVariableEditService
 {
-    private readonly object? _actionEditMgr;
-    private readonly MethodInfo? _createOrEditGlobalSubProgramMethod;
+    private readonly ActionEditMgrAccessor? _actionEditMgr;
     private readonly Type? _designerWindowType;
     private readonly MethodInfo? _doActionOnLoadedMethod;
     private readonly MethodInfo? _triggerClickMethod;
     private readonly Type? _actionVariableType;
 
-    public GlobalSubProgramVariableEditService()
+    public DesignerVariableEditService()
     {
-        _actionEditMgr = TryGetActionEditMgr(out _createOrEditGlobalSubProgramMethod);
+        _actionEditMgr = ActionEditMgrAccessor.TryCreate();
         _designerWindowType = typeof(AppState).Assembly.GetType("Quicker.View.X.ActionDesignerWindow", throwOnError: false);
-        _actionVariableType = typeof(AppState).Assembly.GetType("Quicker.Domain.Actions.ActionVariable", throwOnError: false)
+        _actionVariableType = typeof(AppState).Assembly.GetType("Quicker.Domain.Actions.X.Storage.ActionVariable", throwOnError: false)
+            ?? typeof(AppState).Assembly.GetType("Quicker.Domain.Actions.ActionVariable", throwOnError: false)
             ?? typeof(AppState).Assembly.GetType("Quicker.Domain.Actions.X.ActionVariable", throwOnError: false);
-        _doActionOnLoadedMethod = TryFindExtensionMethod("DoActionOnLoaded", typeof(Window), typeof(Action));
+        _doActionOnLoadedMethod =
+            TryFindExtensionMethod("DoActionOnLoaded", typeof(Window), typeof(Action), typeof(int))
+            ?? TryFindExtensionMethod("DoActionOnLoaded", typeof(Window), typeof(Action));
         _triggerClickMethod = TryFindExtensionMethod("TriggerClick", typeof(Button));
     }
 
     public async Task<QuickerRpcSubProgramVariableEditResult> EditVariableAsync(
-        string subProgramIdOrName,
+        string targetIdOrName,
         string variableKey,
         string defaultValue)
     {
-        var idOrName = (subProgramIdOrName ?? string.Empty).Trim();
+        var idOrName = (targetIdOrName ?? string.Empty).Trim();
         var key = (variableKey ?? string.Empty).Trim();
         var value = defaultValue ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(idOrName))
         {
-            return Fail(null, null, null, "subProgramIdOrName is required.");
+            return Fail(null, null, null, null, "targetIdOrName is required.");
         }
 
         if (string.IsNullOrWhiteSpace(key))
         {
-            return Fail(idOrName, null, null, "variableKey is required.");
+            return Fail(idOrName, null, null, null, "variableKey is required.");
         }
 
-        if (_actionEditMgr is null
-            || _createOrEditGlobalSubProgramMethod is null
-            || _designerWindowType is null
-            || _doActionOnLoadedMethod is null
-            || _triggerClickMethod is null
-            || _actionVariableType is null)
+        var unavailable = DescribeUnavailableDependencies();
+        if (unavailable is not null)
         {
-            return Fail(
-                idOrName,
-                key,
-                value,
-                "Not running inside Quicker (global subprogram editor unavailable).");
+            return Fail(idOrName, null, key, value, $"Action designer automation unavailable ({unavailable}).");
         }
 
-        object? subProgram;
-        try
+        if (!TryOpenDesigner(idOrName, out var targetKind, out var openError))
         {
-            subProgram = AppState.DataService.GetGlobalSubProgram(idOrName);
-        }
-        catch (Exception ex)
-        {
-            return Fail(idOrName, key, value, ex.Message);
+            return Fail(idOrName, null, key, value, openError ?? $"Target not found: {idOrName}");
         }
 
-        if (subProgram is null)
+        var designer = await WaitForDesignerWindowAsync().ConfigureAwait(true);
+        if (designer is null)
         {
-            return Fail(idOrName, key, value, $"Global subprogram not found: {idOrName}");
-        }
-
-        try
-        {
-            _createOrEditGlobalSubProgramMethod.Invoke(_actionEditMgr, new[] { subProgram });
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is not null)
-        {
-            return Fail(idOrName, key, value, ex.InnerException.Message);
-        }
-        catch (Exception ex)
-        {
-            return Fail(idOrName, key, value, ex.Message);
-        }
-
-        Window? designer = null;
-        for (var i = 0; i < 30; i++)
-        {
-            designer = GetForegroundWpfWindow();
-            if (designer is not null && _designerWindowType.IsInstanceOfType(designer))
-            {
-                break;
-            }
-
-            designer = null;
-            await Task.Delay(100).ConfigureAwait(true);
-        }
-
-        if (designer is null || !_designerWindowType.IsInstanceOfType(designer))
-        {
-            return Fail(idOrName, key, value, "ActionDesignerWindow did not open in time.");
+            return Fail(idOrName, targetKind, key, value, "ActionDesignerWindow did not open in time.");
         }
 
         await Task.Delay(200).ConfigureAwait(true);
@@ -123,9 +82,9 @@ public sealed class GlobalSubProgramVariableEditService
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
-                _doActionOnLoadedMethod.Invoke(
+                _doActionOnLoadedMethod!.Invoke(
                     null,
-                    new object?[] { designer, (Action)(() =>
+                    BuildDoActionOnLoadedArgs(designer, () =>
                     {
                         var variable = FindVariable(designer, key);
                         if (variable is null)
@@ -141,28 +100,29 @@ public sealed class GlobalSubProgramVariableEditService
                         var saveButton = designer.FindName("BtnSave") as Button;
                         if (saveButton is not null)
                         {
-                            _triggerClickMethod.Invoke(null, new object[] { saveButton });
+                            _triggerClickMethod!.Invoke(null, new object[] { saveButton });
                         }
-                    }), 0 });
+                    }));
             });
         }
         catch (TargetInvocationException ex) when (ex.InnerException is not null)
         {
-            return Fail(idOrName, key, value, ex.InnerException.Message);
+            return Fail(idOrName, targetKind, key, value, ex.InnerException.Message);
         }
         catch (Exception ex)
         {
-            return Fail(idOrName, key, value, ex.Message);
+            return Fail(idOrName, targetKind, key, value, ex.Message);
         }
 
         if (notFound)
         {
-            return Fail(idOrName, key, value, $"Variable '{key}' not found in subprogram '{idOrName}'.");
+            var targetLabel = DescribeTargetLabel(targetKind);
+            return Fail(idOrName, targetKind, key, value, $"Variable '{key}' not found in {targetLabel} '{idOrName}'.");
         }
 
         if (!saved)
         {
-            return Fail(idOrName, key, value, "Failed to update variable default value.");
+            return Fail(idOrName, targetKind, key, value, "Failed to update variable default value.");
         }
 
         var message = string.IsNullOrWhiteSpace(oldValue)
@@ -172,11 +132,149 @@ public sealed class GlobalSubProgramVariableEditService
         return new QuickerRpcSubProgramVariableEditResult
         {
             Ok = true,
+            TargetKind = targetKind,
             SubProgramIdOrName = idOrName,
             VariableKey = key,
             OldValue = oldValue,
             NewValue = value,
             Message = message,
+        };
+    }
+
+    private bool TryOpenDesigner(string idOrName, out string targetKind, out string? errorMessage)
+    {
+        targetKind = QuickerRpcVariableTargetKinds.SubProgram;
+        errorMessage = null;
+
+        object? subProgram;
+        try
+        {
+            subProgram = AppState.DataService.GetGlobalSubProgram(idOrName);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            return false;
+        }
+
+        if (subProgram is not null)
+        {
+            if (_actionEditMgr!.CreateOrEditGlobalSubProgram is null)
+            {
+                errorMessage = "ActionEditMgr.CreateOrEditGlobalSubProgram is unavailable.";
+                return false;
+            }
+
+            return TryInvokeOpenDesigner(
+                () => _actionEditMgr.CreateOrEditGlobalSubProgram.Invoke(_actionEditMgr.Instance, new[] { subProgram }),
+                "CreateOrEditGlobalSubProgram",
+                out errorMessage);
+        }
+
+        if (!ActionContextResolver.TryResolve(idOrName, out _, out _, out var resolveError))
+        {
+            errorMessage =
+                $"Target not found: {idOrName}. Expected a global subprogram name/id or a local action id." +
+                (string.IsNullOrWhiteSpace(resolveError) ? string.Empty : $" ({resolveError})");
+            return false;
+        }
+
+        if (_actionEditMgr!.EditActionById is null)
+        {
+            errorMessage = "ActionEditMgr.EditActionById is unavailable.";
+            return false;
+        }
+
+        targetKind = QuickerRpcVariableTargetKinds.Action;
+        return TryInvokeOpenDesigner(
+            () => _actionEditMgr.EditActionById.Invoke(
+                _actionEditMgr.Instance,
+                new object?[] { idOrName, _actionEditMgr.CreateDefaultEditActionParam(), false }),
+            "EditActionById",
+            out errorMessage);
+    }
+
+    private bool TryInvokeOpenDesigner(Action openDesigner, string methodName, out string? errorMessage)
+    {
+        _ = methodName;
+        errorMessage = null;
+        try
+        {
+            openDesigner();
+            return true;
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            errorMessage = ex.InnerException.Message;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            return false;
+        }
+    }
+
+    private async Task<Window?> WaitForDesignerWindowAsync()
+    {
+        for (var i = 0; i < 30; i++)
+        {
+            var designer = GetForegroundWpfWindow();
+            if (designer is not null && _designerWindowType!.IsInstanceOfType(designer))
+            {
+                return designer;
+            }
+
+            await Task.Delay(100).ConfigureAwait(true);
+        }
+
+        return null;
+    }
+
+    private string? DescribeUnavailableDependencies()
+    {
+        if (!QuickerHost.IsRunningInQuicker())
+        {
+            return "Not running inside Quicker.";
+        }
+
+        var missing = new List<string>();
+        if (_actionEditMgr is null || !_actionEditMgr.CanOpenDesigner)
+        {
+            missing.Add("ActionEditMgr designer open methods");
+        }
+
+        if (_designerWindowType is null)
+        {
+            missing.Add("ActionDesignerWindow");
+        }
+
+        if (_actionVariableType is null)
+        {
+            missing.Add("ActionVariable");
+        }
+
+        if (_doActionOnLoadedMethod is null)
+        {
+            missing.Add("DoActionOnLoaded");
+        }
+
+        if (_triggerClickMethod is null)
+        {
+            missing.Add("TriggerClick");
+        }
+
+        return missing.Count == 0 ? null : string.Join(", ", missing);
+    }
+
+    private object?[] BuildDoActionOnLoadedArgs(Window designer, Action action)
+    {
+        var parameters = _doActionOnLoadedMethod!.GetParameters();
+        return parameters.Length switch
+        {
+            2 => new object?[] { designer, action },
+            >= 3 => new object?[] { designer, action, 0 },
+            _ => new object?[] { designer, action },
         };
     }
 
@@ -213,6 +311,13 @@ public sealed class GlobalSubProgramVariableEditService
         return null;
     }
 
+    private static string DescribeTargetLabel(string targetKind)
+    {
+        return string.Equals(targetKind, QuickerRpcVariableTargetKinds.Action, StringComparison.Ordinal)
+            ? "action"
+            : "subprogram";
+    }
+
     private static string? ReadDefaultValue(object variable)
     {
         var property = variable.GetType().GetProperty("DefaultValue", BindingFlags.Public | BindingFlags.Instance);
@@ -237,7 +342,8 @@ public sealed class GlobalSubProgramVariableEditService
     }
 
     private static QuickerRpcSubProgramVariableEditResult Fail(
-        string? subProgramIdOrName,
+        string? targetIdOrName,
+        string? targetKind,
         string? variableKey,
         string? newValue,
         string message)
@@ -245,7 +351,8 @@ public sealed class GlobalSubProgramVariableEditService
         return new QuickerRpcSubProgramVariableEditResult
         {
             Ok = false,
-            SubProgramIdOrName = subProgramIdOrName,
+            TargetKind = targetKind,
+            SubProgramIdOrName = targetIdOrName,
             VariableKey = variableKey,
             NewValue = newValue,
             Message = message,
@@ -303,48 +410,6 @@ public sealed class GlobalSubProgramVariableEditService
         }
 
         return true;
-    }
-
-    private static object? TryGetActionEditMgr(out MethodInfo? createOrEditGlobalSubProgramMethod)
-    {
-        createOrEditGlobalSubProgramMethod = null;
-        if (!IsInQuicker())
-        {
-            return null;
-        }
-
-        try
-        {
-            var mgrType = typeof(AppState).Assembly.GetType("Quicker.Domain.Services.ActionEditMgr", throwOnError: false);
-            if (mgrType is null)
-            {
-                return null;
-            }
-
-            var mgr = typeof(AppState).GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
-                .FirstOrDefault(x => x.ReturnType == mgrType)
-                ?.Invoke(null, null);
-            if (mgr is null)
-            {
-                return null;
-            }
-
-            createOrEditGlobalSubProgramMethod = mgrType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                .FirstOrDefault(m =>
-                    string.Equals(m.Name, "CreateOrEditGlobalSubProgram", StringComparison.Ordinal)
-                    && m.GetParameters().Length == 1);
-
-            return createOrEditGlobalSubProgramMethod is null ? null : mgr;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static bool IsInQuicker()
-    {
-        return Assembly.GetEntryAssembly()?.GetName().Name == "Quicker";
     }
 
     [DllImport("user32.dll")]

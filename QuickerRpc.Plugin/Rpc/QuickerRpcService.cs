@@ -18,24 +18,27 @@ public sealed class QuickerRpcService : IQuickerRpcService
 
     private readonly ActionUpdateService _actionUpdateService;
     private readonly ActionSearchService _actionSearchService;
+    private readonly SubProgramSearchService _subProgramSearchService;
     private readonly ActionDeleteService _actionDeleteService;
     private readonly ActionEditService _actionEditService;
-    private readonly GlobalSubProgramVariableEditService _globalSubProgramVariableEditService;
+    private readonly DesignerVariableEditService _designerVariableEditService;
     private readonly IPopupMessageService _popup;
 
     public QuickerRpcService(
         ActionUpdateService actionUpdateService,
         ActionSearchService actionSearchService,
+        SubProgramSearchService subProgramSearchService,
         ActionDeleteService actionDeleteService,
         ActionEditService actionEditService,
-        GlobalSubProgramVariableEditService globalSubProgramVariableEditService,
+        DesignerVariableEditService designerVariableEditService,
         IPopupMessageService popup)
     {
         _actionUpdateService = actionUpdateService;
         _actionSearchService = actionSearchService;
+        _subProgramSearchService = subProgramSearchService;
         _actionDeleteService = actionDeleteService;
         _actionEditService = actionEditService;
-        _globalSubProgramVariableEditService = globalSubProgramVariableEditService;
+        _designerVariableEditService = designerVariableEditService;
         _popup = popup;
     }
 
@@ -98,6 +101,18 @@ public sealed class QuickerRpcService : IQuickerRpcService
 
         return InvokeOnDispatcherAsync(
             () => Task.FromResult(_actionSearchService.SearchActions(query, maxCount)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcSubProgramSearchResult> SearchGlobalSubProgramsAsync(
+        string query,
+        int maxCount = 20,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_subProgramSearchService.Search(query, maxCount)),
             cancellationToken);
     }
 
@@ -185,7 +200,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         return InvokeOnDispatcherAsync(
             async () =>
             {
-                var result = await _globalSubProgramVariableEditService
+                var result = await _designerVariableEditService
                     .EditVariableAsync(subProgramIdOrName.Trim(), variableKey.Trim(), defaultValue ?? string.Empty)
                     .ConfigureAwait(true);
 

@@ -1,8 +1,6 @@
 using System;
-using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-using Quicker.Domain;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Plugin.Services;
@@ -13,18 +11,16 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 public sealed class ActionUpdateService
 {
-    private readonly object? _actionEditMgr;
-    private readonly MethodInfo? _updateSharedActionAsyncMethod;
+    private readonly ActionEditMgrAccessor? _actionEditMgr;
 
     public ActionUpdateService()
     {
-        _actionEditMgr = TryGetActionEditMgr(out var updateMethod);
-        _updateSharedActionAsyncMethod = updateMethod;
+        _actionEditMgr = ActionEditMgrAccessor.TryCreate();
     }
 
     public async Task<QuickerRpcActionUpdateResult> UpdateSharedActionAsync(string actionId, string changeLog)
     {
-        if (_actionEditMgr is null || _updateSharedActionAsyncMethod is null)
+        if (_actionEditMgr?.UpdateSharedActionAsync is null)
         {
             return new QuickerRpcActionUpdateResult
             {
@@ -36,7 +32,9 @@ public sealed class ActionUpdateService
 
         try
         {
-            var pending = _updateSharedActionAsyncMethod.Invoke(_actionEditMgr, new object[] { actionId, changeLog });
+            var pending = _actionEditMgr.UpdateSharedActionAsync.Invoke(
+                _actionEditMgr.Instance,
+                new object[] { actionId, changeLog });
             if (pending is not Task task)
             {
                 return new QuickerRpcActionUpdateResult
@@ -99,50 +97,5 @@ public sealed class ActionUpdateService
         var item1 = valueType.GetField("Item1")?.GetValue(value);
         var item2 = valueType.GetField("Item2")?.GetValue(value);
         return (item1 is bool ok && ok, item2 as string);
-    }
-
-    private static object? TryGetActionEditMgr(out MethodInfo? updateSharedActionAsyncMethod)
-    {
-        updateSharedActionAsyncMethod = null;
-        if (!IsInQuicker())
-        {
-            return null;
-        }
-
-        try
-        {
-            var mgrType = typeof(AppState).Assembly.GetType("Quicker.Domain.Services.ActionEditMgr", throwOnError: false);
-            if (mgrType is null)
-            {
-                return null;
-            }
-
-            var mgr = typeof(AppState).GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
-                .FirstOrDefault(x => x.ReturnType == mgrType)
-                ?.Invoke(null, null);
-            if (mgr is null)
-            {
-                return null;
-            }
-
-            updateSharedActionAsyncMethod = mgrType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                .FirstOrDefault(m =>
-                    string.Equals(m.Name, "UpdateSharedActionAsync", StringComparison.Ordinal)
-                    && m.ReturnType.IsGenericType
-                    && m.GetParameters().Length == 2
-                    && m.GetParameters()[0].ParameterType == typeof(string)
-                    && m.GetParameters()[1].ParameterType == typeof(string));
-
-            return updateSharedActionAsyncMethod is null ? null : mgr;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static bool IsInQuicker()
-    {
-        return Assembly.GetEntryAssembly()?.GetName().Name == "Quicker";
     }
 }
