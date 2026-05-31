@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using CommandLine;
 using Microsoft.Extensions.Logging;
+using QuickerRpc.Console.Mcp;
 using QuickerRpc.Contracts.Rpc;
 using StreamJsonRpc;
 
@@ -27,14 +28,46 @@ internal static class Program
             return ExitCodes.Success;
         }
 
-        var result = Parser.Default.ParseArguments<PingOptions, ActionOptions, SubProgramOptions>(args);
+        var result = Parser.Default.ParseArguments<PingOptions, ActionOptions, SubProgramOptions, McpOptions>(args);
         return await result
             .MapResult(
                 (PingOptions o) => RunPingAsync(o),
                 (ActionOptions o) => RunActionAsync(o),
                 (SubProgramOptions o) => RunSubProgramAsync(o),
+                (McpOptions o) => RunMcpAsync(o),
                 _ => Task.FromResult(ExitCodes.Error))
             .ConfigureAwait(false);
+    }
+
+    private static async Task<int> RunMcpAsync(McpOptions options)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource();
+            global::System.Console.CancelKeyPress += (_, e) =>
+            {
+                e.Cancel = true;
+                cts.Cancel();
+            };
+
+            await McpHostRunner.RunAsync(options.TimeoutSeconds, !options.NoBootstrap, cts.Token)
+                .ConfigureAwait(false);
+            return ExitCodes.Success;
+        }
+        catch (OperationCanceledException)
+        {
+            return ExitCodes.Success;
+        }
+        catch (QuickerRpcConnectException ex)
+        {
+            await EmitConnectErrorAsync(json: true, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(json: true, "MCP_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
     }
 
     private static void ConfigureConsoleUtf8()
@@ -851,6 +884,16 @@ public sealed class SubProgramOptions
     public bool Json { get; set; }
 
     [Option("timeout", Default = 10, HelpText = "Pipe connect and RPC timeout in seconds.")]
+    public int TimeoutSeconds { get; set; }
+
+    [Option("no-bootstrap", HelpText = "Do not auto-start plugin via quicker:runaction when pipe is unavailable.")]
+    public bool NoBootstrap { get; set; }
+}
+
+[Verb("mcp", HelpText = "Run stdio MCP server for headless Quicker action editing.")]
+public sealed class McpOptions
+{
+    [Option("timeout", Default = 30, HelpText = "Pipe connect and RPC timeout in seconds.")]
     public int TimeoutSeconds { get; set; }
 
     [Option("no-bootstrap", HelpText = "Do not auto-start plugin via quicker:runaction when pipe is unavailable.")]

@@ -23,6 +23,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly ActionEditService _actionEditService;
     private readonly ActionRunService _actionRunService;
     private readonly DesignerVariableEditService _designerVariableEditService;
+    private readonly HeadlessActionProgramService _headlessActionProgramService;
     private readonly IPopupMessageService _popup;
 
     public QuickerRpcService(
@@ -33,6 +34,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         ActionEditService actionEditService,
         ActionRunService actionRunService,
         DesignerVariableEditService designerVariableEditService,
+        HeadlessActionProgramService headlessActionProgramService,
         IPopupMessageService popup)
     {
         _actionUpdateService = actionUpdateService;
@@ -42,6 +44,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _actionEditService = actionEditService;
         _actionRunService = actionRunService;
         _designerVariableEditService = designerVariableEditService;
+        _headlessActionProgramService = headlessActionProgramService;
         _popup = popup;
     }
 
@@ -245,6 +248,103 @@ public sealed class QuickerRpcService : IQuickerRpcService
 
                 return result;
             },
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcGetCompressedActionResult> GetCompressedActionByIdAsync(
+        string actionId,
+        string? returnMode = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessActionProgramService.GetCompressedActionById(actionId, returnMode)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcApplyXActionResult> ApplyXActionToActionAsync(
+        string actionId,
+        string xActionJson,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            return Task.FromResult(new QuickerRpcApplyXActionResult
+            {
+                Success = false,
+                ErrorMessage = "actionId is required.",
+            });
+        }
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessActionProgramService.ApplyXActionToAction(
+                actionId.Trim(),
+                xActionJson,
+                expectedEditVersion,
+                force)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcApplyActionPatchResult> ApplyActionPatchToActionAsync(
+        string actionId,
+        string patchJson,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            return Task.FromResult(new QuickerRpcApplyActionPatchResult
+            {
+                Success = false,
+                ErrorMessage = "actionId is required.",
+            });
+        }
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessActionProgramService.ApplyActionPatchToAction(
+                actionId.Trim(),
+                patchJson,
+                expectedEditVersion,
+                force)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcSearchActionSummariesResult> SearchActionSummariesAsync(
+        string? query,
+        int maxResults = 30,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessActionProgramService.SearchActionSummaries(query, maxResults)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcSearchStepRunnersResult> SearchStepRunnersAsync(
+        string keyword,
+        int? maxResults = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessActionProgramService.SearchStepRunners(keyword, maxResults)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerDetailAsync(
+        string stepRunnerKey,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessActionProgramService.GetStepRunnerDetail(stepRunnerKey)),
             cancellationToken);
     }
 

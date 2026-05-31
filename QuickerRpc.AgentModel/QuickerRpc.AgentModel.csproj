@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>QuickerRpc.AgentModel</RootNamespace>
+    <Description>Quicker agent-facing models, XAction compression, and program patch logic.</Description>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Docs\ActionAuthoring\*.md" />
+  </ItemGroup>
+</Project>

@@ -16,6 +16,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
+    <ProjectReference Include="..\QuickerRpc.AgentModel\QuickerRpc.AgentModel.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Costura.Fody">

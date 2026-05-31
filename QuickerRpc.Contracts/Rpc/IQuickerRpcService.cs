@@ -61,6 +61,45 @@ public interface IQuickerRpcService
         string variableKey,
         string defaultValue,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Read a persisted XAction by local action id (compressed agent shape).</summary>
+    Task<QuickerRpcGetCompressedActionResult> GetCompressedActionByIdAsync(
+        string actionId,
+        string? returnMode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Replace steps/variables on a local XAction (headless save).</summary>
+    Task<QuickerRpcApplyXActionResult> ApplyXActionToActionAsync(
+        string actionId,
+        string xActionJson,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Apply a partial program patch to a local XAction (headless save).</summary>
+    Task<QuickerRpcApplyActionPatchResult> ApplyActionPatchToActionAsync(
+        string actionId,
+        string patchJson,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Search or list recent local actions for agent workflows.</summary>
+    Task<QuickerRpcSearchActionSummariesResult> SearchActionSummariesAsync(
+        string? query,
+        int maxResults = 30,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Search StepRunner catalog rows for stepRunnerKey selection.</summary>
+    Task<QuickerRpcSearchStepRunnersResult> SearchStepRunnersAsync(
+        string keyword,
+        int? maxResults = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Get StepRunner schema for authoring ActionStep inputParams.</summary>
+    Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerDetailAsync(
+        string stepRunnerKey,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class QuickerRpcSubProgramVariableEditResult

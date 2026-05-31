@@ -17,6 +17,7 @@ internal sealed class ActionEditMgrAccessor
         MethodInfo? editActionById,
         MethodInfo? updateSharedActionAsync,
         MethodInfo? deleteAction,
+        MethodInfo? saveEditingAction,
         Type? editActionParamType)
     {
         Instance = instance;
@@ -24,6 +25,7 @@ internal sealed class ActionEditMgrAccessor
         EditActionById = editActionById;
         UpdateSharedActionAsync = updateSharedActionAsync;
         DeleteAction = deleteAction;
+        SaveEditingAction = saveEditingAction;
         EditActionParamType = editActionParamType;
     }
 
@@ -36,6 +38,8 @@ internal sealed class ActionEditMgrAccessor
     public MethodInfo? UpdateSharedActionAsync { get; }
 
     public MethodInfo? DeleteAction { get; }
+
+    public MethodInfo? SaveEditingAction { get; }
 
     public Type? EditActionParamType { get; }
 
@@ -95,6 +99,10 @@ internal sealed class ActionEditMgrAccessor
                 && m.ReturnType.GetGenericTypeDefinition() == typeof(Task<>)
                 && m.ReturnType.GetGenericArguments()[0] == typeof(bool));
 
+            var saveEditingAction = instanceMethods.FirstOrDefault(m =>
+                string.Equals(m.Name, "SaveEditingAction", StringComparison.Ordinal)
+                && m.GetParameters().Length == 1);
+
             var editActionParamType = typeof(AppState).Assembly.GetType(
                 "Quicker.Domain.Services.EditActionParam",
                 throwOnError: false);
@@ -105,6 +113,7 @@ internal sealed class ActionEditMgrAccessor
                 editActionById,
                 updateSharedActionAsync,
                 deleteAction,
+                saveEditingAction,
                 editActionParamType);
         }
         catch

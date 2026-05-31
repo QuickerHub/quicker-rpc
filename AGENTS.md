@@ -56,7 +56,10 @@ qkrpc action edit --id <guid> --json
 qkrpc action edit-var --id <subProgramIdOrName|actionId> --var version --value 2.1 --json
 qkrpc action delete --id <guid> --yes --json
 qkrpc action update --id <guid> [--changelog "..."] [--changelog-file <path>] --json
+qkrpc mcp                  # stdio MCP server（无头编辑 XAction，无需 Action Designer）
 ```
+
+**MCP（Cursor）**：`command`: `qkrpc`，`args`: `["mcp"]`。Tools：`guide_get`、`guide_search`（动作编写文档）、`action_get`、`action_replace`、`action_patch`、`action_search`、`step_runner_search`、`step_runner_get`。**编辑前**先 `guide_get` topic `overview`。详见 `qkrpc help --json` 中 `mcp` 条目。
 
 退出码：0 成功，1 失败。
 
@@ -64,8 +67,9 @@ qkrpc action update --id <guid> [--changelog "..."] [--changelog-file <path>] --
 
 | 项目 | 职责 |
 |------|------|
+| `QuickerRpc.AgentModel` | Agent 用 XAction 压缩/patch、StepRunner 目录模型、**ActionAuthoring 嵌入式文档**（无 MCP/RPC） |
 | `QuickerRpc.Contracts` | `IQuickerRpcService`、管道名、StreamJsonRpc 辅助 |
-| `QuickerRpc.Plugin` | Quicker 内插件：RPC 服务端 + `ActionUpdateService` |
+| `QuickerRpc.Plugin` | Quicker 内插件：RPC 服务端 + 无头 `HeadlessActionProgramService` |
 | `QuickerRpc.Console` | `qkrpc.exe` 客户端 |
 
 更新动作实现：`ActionEditMgr.UpdateSharedActionAsync`（反射，internal 类型）。

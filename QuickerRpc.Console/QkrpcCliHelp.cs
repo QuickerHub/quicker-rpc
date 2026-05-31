@@ -342,6 +342,31 @@ internal static class QkrpcCliHelp
                         "EDIT_VAR_FAILED",
                     },
                 },
+                new
+                {
+                    name = "mcp",
+                    summary = "Run stdio MCP server for headless Quicker XAction editing (no Action Designer UI).",
+                    usage = "qkrpc mcp [--timeout <seconds>] [--no-bootstrap]",
+                    options = new[]
+                    {
+                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "30"),
+                        Option("no-bootstrap", "Skip auto-start via quicker:runaction when plugin pipe is missing."),
+                    },
+                    examples = new[] { "qkrpc mcp" },
+                    mcpTools = new[]
+                    {
+                        "guide_get",
+                        "guide_search",
+                        "action_get",
+                        "action_replace",
+                        "action_patch",
+                        "action_search",
+                        "step_runner_search",
+                        "step_runner_get",
+                    },
+                    notes = "Configure Cursor MCP with command qkrpc, args [\"mcp\"]. Requires Quicker running with QuickerRpc plugin loaded. Agents should call guide_get topic overview before editing actions.",
+                    errors = new[] { "MCP_FAILED", "PLUGIN_NOT_RUNNING", "CONNECT_TIMEOUT" },
+                },
             },
             errorResponseExample = new
             {
