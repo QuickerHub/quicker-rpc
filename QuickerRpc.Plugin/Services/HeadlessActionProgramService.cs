@@ -148,7 +148,7 @@ public sealed class HeadlessActionProgramService
             return FailApply("xAction must contain steps and variables JSON arrays.");
         }
 
-        if (_actions is null || !_actions.IsAvailable || _actionEditMgr?.SaveEditingAction is null)
+        if (_actions is null || !_actions.IsAvailable)
         {
             return FailApply("Headless action save unavailable.");
         }
@@ -227,7 +227,7 @@ public sealed class HeadlessActionProgramService
             return FailPatch("patchJson parse failed: " + ex.Message);
         }
 
-        if (_actions is null || !_actions.IsAvailable || _actionEditMgr?.SaveEditingAction is null)
+        if (_actions is null || !_actions.IsAvailable)
         {
             return FailPatch("Headless action save unavailable.");
         }
@@ -266,6 +266,7 @@ public sealed class HeadlessActionProgramService
         var variables = body["variables"] as JArray ?? new JArray();
         var stepsClone = (JArray)steps.DeepClone();
         var variablesClone = (JArray)variables.DeepClone();
+        XActionProgramService.EnsureEphemeralIds(stepsClone, variablesClone);
 
         var applyResult = XActionProgramService.ApplyPatch(stepsClone, variablesClone, patch);
         if (!applyResult.Success)

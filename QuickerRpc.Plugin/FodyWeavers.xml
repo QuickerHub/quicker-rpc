@@ -6,6 +6,7 @@
   <Costura IncludeDebugSymbols="false" CreateTemporaryAssemblies="true">
     <IncludeAssemblies>
       QuickerRpc.Contracts*
+      QuickerRpc.AgentModel*
       <!-- Microsoft.Extensions 6: DI, Hosting, Logging, Configuration (prefix match) -->
       Microsoft.Extensions*
       Microsoft.Win32*

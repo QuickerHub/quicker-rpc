@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 
 namespace QuickerRpc.AgentModel.Guides;
 
-/// <summary>Loads embedded ActionAuthoring Markdown topics for MCP agents.</summary>
+/// <summary>Loads embedded ActionAuthoring Markdown topics for qkrpc CLI agents.</summary>
 public sealed class ActionAuthoringGuideService
 {
     private const string ResourcePrefix = "QuickerRpc.AgentModel.Docs.ActionAuthoring.";

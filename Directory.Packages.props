@@ -12,7 +12,8 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageVersion Include="System.Text.Json" Version="8.0.5" />
-    <PackageVersion Include="ModelContextProtocol" Version="0.3.0-preview.1" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="MSTest.TestAdapter" Version="3.6.4" />
+    <PackageVersion Include="MSTest.TestFramework" Version="3.6.4" />
   </ItemGroup>
 </Project>

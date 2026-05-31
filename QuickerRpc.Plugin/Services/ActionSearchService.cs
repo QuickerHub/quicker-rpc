@@ -3,13 +3,15 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Quicker.Common;
 using Quicker.Domain;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Plugin.Reflection;
 
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Searches local Quicker actions. Uses reflection so the plugin stays compatible across Quicker versions.
+/// Searches local Quicker actions. Prefers <see cref="QuickerInternalAccess"/> catalog; falls back to IActionSearchService via reflection.
 /// </summary>
 public sealed class ActionSearchService
 {
@@ -152,41 +154,13 @@ public sealed class ActionSearchService
 
         try
         {
-            var storeType = typeof(AppState).Assembly.GetType(
-                "Quicker.Domain.Services.ActionItem2Store",
-                throwOnError: false);
-            if (storeType is not null)
+            if (!QuickerInternalAccess.IsCatalogAvailable)
             {
-                var store = ResolveAppStateService(storeType)
-                    ?? ResolveAppStateStaticProperty(storeType, "ActionItem2Store");
-                var getAll = storeType.GetMethod("GetAllActionItems", BindingFlags.Public | BindingFlags.Instance);
-                if (store is not null && getAll is not null)
-                {
-                    search = (keyword, limit) =>
-                    {
-                        var raw = getAll.Invoke(store, null);
-                        return FilterActions(raw as IEnumerable, keyword, limit);
-                    };
-                    return true;
-                }
+                return false;
             }
 
-            var dataService = typeof(AppState).GetProperty("DataService", BindingFlags.Public | BindingFlags.Static)
-                ?.GetValue(null);
-            var getAllLegacy = dataService?.GetType().GetMethod(
-                "GetAllActionItems",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (dataService is not null && getAllLegacy is not null)
-            {
-                search = (keyword, limit) =>
-                {
-                    var raw = getAllLegacy.Invoke(dataService, null);
-                    return FilterActions(raw as IEnumerable, keyword, limit);
-                };
-                return true;
-            }
-
-            return false;
+            search = (keyword, limit) => FilterActionItems(QuickerInternalAccess.EnumerateAllActionItems(), keyword, limit);
+            return true;
         }
         catch
         {
@@ -229,6 +203,65 @@ public sealed class ActionSearchService
             .ToList();
     }
 
+    private static IReadOnlyList<QuickerRpcActionSummary> FilterActionItems(
+        IEnumerable<ActionItem> actions,
+        string keyword,
+        int limit)
+    {
+        var scored = new List<(int Score, QuickerRpcActionSummary Item)>();
+        foreach (var action in actions)
+        {
+            var score = ComputeSimpleMatchScore(action, keyword);
+            if (score <= 0)
+            {
+                continue;
+            }
+
+            var summary = MapActionItem(action, pageTitle: null, score);
+            if (summary is not null)
+            {
+                scored.Add((score, summary));
+            }
+        }
+
+        return scored
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Item.Title, StringComparer.OrdinalIgnoreCase)
+            .Take(limit)
+            .Select(x => x.Item)
+            .ToList();
+    }
+
+    private static int ComputeSimpleMatchScore(ActionItem action, string keyword)
+    {
+        var id = (action.Id ?? string.Empty).Trim();
+        var title = action.Title ?? string.Empty;
+        var description = action.Description ?? string.Empty;
+
+        if (!string.IsNullOrEmpty(id)
+            && string.Equals(id, keyword, StringComparison.OrdinalIgnoreCase))
+        {
+            return 200;
+        }
+
+        if (title.Equals(keyword, StringComparison.OrdinalIgnoreCase))
+        {
+            return 150;
+        }
+
+        if (title.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return 100;
+        }
+
+        if (description.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return 60;
+        }
+
+        return 0;
+    }
+
     private static IReadOnlyList<QuickerRpcActionSummary> FilterActions(IEnumerable? actions, string keyword, int limit)
     {
         if (actions is null)
@@ -244,7 +277,22 @@ public sealed class ActionSearchService
                 continue;
             }
 
-            var score = ComputeSimpleMatchScore(action, keyword);
+            if (action is ActionItem ai)
+            {
+                var typedScore = ComputeSimpleMatchScore(ai, keyword);
+                if (typedScore > 0)
+                {
+                    var typedSummary = MapActionItem(ai, pageTitle: null, typedScore);
+                    if (typedSummary is not null)
+                    {
+                        scored.Add((typedScore, typedSummary));
+                    }
+                }
+
+                continue;
+            }
+
+            var score = ComputeSimpleMatchScoreLegacy(action, keyword);
             if (score <= 0)
             {
                 continue;
@@ -265,7 +313,7 @@ public sealed class ActionSearchService
             .ToList();
     }
 
-    private static int ComputeSimpleMatchScore(object action, string keyword)
+    private static int ComputeSimpleMatchScoreLegacy(object action, string keyword)
     {
         var id = ReadActionId(action);
         var title = ReadActionTitle(action) ?? string.Empty;
@@ -293,6 +341,25 @@ public sealed class ActionSearchService
         }
 
         return 0;
+    }
+
+    private static QuickerRpcActionSummary? MapActionItem(ActionItem action, string? pageTitle, int score)
+    {
+        var id = (action.Id ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return null;
+        }
+
+        return new QuickerRpcActionSummary
+        {
+            Id = id,
+            Title = action.Title ?? string.Empty,
+            Description = NullIfEmpty(action.Description),
+            PageTitle = NullIfEmpty(pageTitle),
+            Score = score,
+            SharedActionId = null,
+        };
     }
 
     private static QuickerRpcActionSummary? MapActionObject(object action, string? pageTitle, int score)
@@ -361,34 +428,20 @@ public sealed class ActionSearchService
         return ReadGuidMember(action, "SharedActionId");
     }
 
-    private static object? ResolveAppStateService(Type serviceType)
-    {
-        var getService = typeof(AppState).GetMethod(
-            "GetService",
-            BindingFlags.Public | BindingFlags.Static,
-            binder: null,
-            types: new[] { typeof(Type) },
-            modifiers: null);
-        return getService?.Invoke(null, new object[] { serviceType });
-    }
+    private static object? ResolveAppStateService(Type serviceType) =>
+        QuickerInternalAccess.TryGetService(serviceType);
 
     private static object? ResolveAppStateStaticProperty(Type serviceType, string propertyName)
     {
-        var property = typeof(AppState).GetProperty(propertyName, BindingFlags.Public | BindingFlags.Static);
-        if (property is null || !serviceType.IsAssignableFrom(property.PropertyType))
-        {
-            return null;
-        }
-
-        return property.GetValue(null);
+        var value = QuickerInternalAccess.TryGetAppStateStaticProperty(propertyName);
+        return value is not null && serviceType.IsInstanceOfType(value) ? value : null;
     }
 
     private static bool TryGetIgnoreCaseSearchSetting()
     {
         try
         {
-            var settings = typeof(AppState).GetProperty("SearchSettings2", BindingFlags.Public | BindingFlags.Static)
-                ?.GetValue(null);
+            var settings = QuickerInternalAccess.TryGetAppStateStaticProperty("SearchSettings2");
             var matchUpper = settings?.GetType().GetProperty("MatchUpperCaseEqual")?.GetValue(settings);
             if (matchUpper is bool value)
             {
@@ -461,8 +514,5 @@ public sealed class ActionSearchService
         return maxCount > 100 ? 100 : maxCount;
     }
 
-    private static bool IsInQuicker()
-    {
-        return Assembly.GetEntryAssembly()?.GetName().Name == "Quicker";
-    }
+    private static bool IsInQuicker() => QuickerInternalAccess.IsInQuicker;
 }

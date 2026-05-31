@@ -3,12 +3,11 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Quicker.Domain;
+using QuickerRpc.Plugin.Reflection;
 
 namespace QuickerRpc.Plugin.Services;
 
-/// <summary>
-/// Shared reflection access to Quicker's internal ActionEditMgr.
-/// </summary>
+/// <summary>Cached access to Quicker <c>ActionEditMgr</c> (internal type — resolved once at startup).</summary>
 internal sealed class ActionEditMgrAccessor
 {
     private ActionEditMgrAccessor(
@@ -46,34 +45,51 @@ internal sealed class ActionEditMgrAccessor
     public bool CanOpenDesigner =>
         CreateOrEditGlobalSubProgram is not null || EditActionById is not null;
 
-    public object? CreateDefaultEditActionParam()
+    public object? CreateDefaultEditActionParam() =>
+        EditActionParamType is null ? null : Activator.CreateInstance(EditActionParamType);
+
+    public bool TrySaveEditingAction(object resultAction, out string? error)
     {
-        return EditActionParamType is null ? null : Activator.CreateInstance(EditActionParamType);
+        error = null;
+        if (SaveEditingAction is null)
+        {
+            error = "SaveEditingAction unavailable on ActionEditMgr.";
+            return false;
+        }
+
+        try
+        {
+            SaveEditingAction.Invoke(Instance, new[] { resultAction });
+            return true;
+        }
+        catch (TargetInvocationException ex)
+        {
+            error = ex.InnerException?.Message ?? ex.Message;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
     }
 
     public static ActionEditMgrAccessor? TryCreate()
     {
-        if (!QuickerHost.IsRunningInQuicker())
+        if (!QuickerInternalAccess.IsInQuicker)
         {
             return null;
         }
 
         try
         {
-            var mgrType = typeof(AppState).Assembly.GetType("Quicker.Domain.Services.ActionEditMgr", throwOnError: false);
-            if (mgrType is null)
-            {
-                return null;
-            }
-
-            var mgr = typeof(AppState).GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
-                .FirstOrDefault(x => x.ReturnType == mgrType)
-                ?.Invoke(null, null);
+            var mgr = QuickerInternalAccess.TryGetActionEditMgr();
             if (mgr is null)
             {
                 return null;
             }
 
+            var mgrType = mgr.GetType();
             var instanceMethods = mgrType.GetMethods(BindingFlags.Public | BindingFlags.Instance);
 
             var createOrEditGlobalSubProgram = instanceMethods.FirstOrDefault(m =>

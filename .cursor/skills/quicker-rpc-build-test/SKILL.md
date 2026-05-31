@@ -68,4 +68,5 @@ pwsh -NoProfile -File ./build.ps1 -t
 ## 相关
 
 - 公开发布：`.cursor/skills/quicker-rpc-publish/SKILL.md`
+- 反射 / 查 Quicker 源码：`.cursor/skills/quicker-exe-type-probing/SKILL.md`
 - 入口：`build.ps1` → qkbuild + `publish/publish-rpc.ps1`

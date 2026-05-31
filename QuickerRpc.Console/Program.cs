@@ -3,8 +3,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CommandLine;
-using Microsoft.Extensions.Logging;
-using QuickerRpc.Console.Mcp;
 using QuickerRpc.Contracts.Rpc;
 using StreamJsonRpc;
 
@@ -17,7 +15,7 @@ public static class ExitCodes
     public const int Error = 1;
 }
 
-internal static class Program
+internal static partial class Program
 {
     private static async Task<int> Main(string[] args)
     {
@@ -28,46 +26,21 @@ internal static class Program
             return ExitCodes.Success;
         }
 
-        var result = Parser.Default.ParseArguments<PingOptions, ActionOptions, SubProgramOptions, McpOptions>(args);
+        var result = Parser.Default.ParseArguments<
+            PingOptions,
+            ActionOptions,
+            SubProgramOptions,
+            StepRunnerOptions,
+            GuideOptions>(args);
         return await result
             .MapResult(
                 (PingOptions o) => RunPingAsync(o),
                 (ActionOptions o) => RunActionAsync(o),
                 (SubProgramOptions o) => RunSubProgramAsync(o),
-                (McpOptions o) => RunMcpAsync(o),
+                (StepRunnerOptions o) => RunStepRunnerAsync(o),
+                (GuideOptions o) => RunGuideAsync(o),
                 _ => Task.FromResult(ExitCodes.Error))
             .ConfigureAwait(false);
-    }
-
-    private static async Task<int> RunMcpAsync(McpOptions options)
-    {
-        try
-        {
-            using var cts = new CancellationTokenSource();
-            global::System.Console.CancelKeyPress += (_, e) =>
-            {
-                e.Cancel = true;
-                cts.Cancel();
-            };
-
-            await McpHostRunner.RunAsync(options.TimeoutSeconds, !options.NoBootstrap, cts.Token)
-                .ConfigureAwait(false);
-            return ExitCodes.Success;
-        }
-        catch (OperationCanceledException)
-        {
-            return ExitCodes.Success;
-        }
-        catch (QuickerRpcConnectException ex)
-        {
-            await EmitConnectErrorAsync(json: true, ex).ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
-        catch (Exception ex)
-        {
-            await EmitErrorAsync(json: true, "MCP_FAILED", ex.Message).ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
     }
 
     private static void ConfigureConsoleUtf8()
@@ -113,7 +86,7 @@ internal static class Program
 
             return ExitCodes.Success;
         }
-        catch (QuickerRpcConnectException ex)
+        catch (QuickerRpcClientException ex)
         {
             await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
             return ExitCodes.Error;
@@ -122,7 +95,7 @@ internal static class Program
         {
             await EmitConnectErrorAsync(
                 options.Json,
-                new QuickerRpcConnectException(
+                new QuickerRpcClientException(
                     QuickerRpcConnect.ConnectTimeoutErrorCode,
                     QuickerRpcConnect.BuildConnectTimeoutMessage(QuickerRpcPipeNames.ServerPipe, options.TimeoutSeconds),
                     QuickerRpcConnect.BuildPluginNotRunningHints(bootstrapAttempted: false)))
@@ -210,7 +183,7 @@ internal static class Program
 
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
         }
-        catch (QuickerRpcConnectException ex)
+        catch (QuickerRpcClientException ex)
         {
             await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
             return ExitCodes.Error;
@@ -234,6 +207,10 @@ internal static class Program
         {
             "update" => await RunActionUpdateAsync(options).ConfigureAwait(false),
             "search" => await RunActionSearchAsync(options).ConfigureAwait(false),
+            "list" => await RunActionListAsync(options).ConfigureAwait(false),
+            "get" => await RunActionGetAsync(options).ConfigureAwait(false),
+            "patch" => await RunActionPatchAsync(options).ConfigureAwait(false),
+            "replace" => await RunActionReplaceAsync(options).ConfigureAwait(false),
             "delete" => await RunActionDeleteAsync(options).ConfigureAwait(false),
             "edit" => await RunActionEditAsync(options).ConfigureAwait(false),
             "run" => await RunActionRunAsync(options).ConfigureAwait(false),
@@ -247,12 +224,7 @@ internal static class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action update --id <sharedActionId> [--changelog ... | --changelog-file <path>] [--json] " +
-            "or action search --query <keyword> [--limit 20] [--json] " +
-            "or action delete --id <actionId> --yes [--json] " +
-            "or action edit --id <actionId> [--json] " +
-            "or action run --id <actionIdOrName> [--param <text>] [--debug] [--wait] [--json] " +
-            "or action edit-var --id <subProgramIdOrName|actionId> --var <key> --value <defaultValue> [--json]")
+            "Use: action get|patch|replace|list|search|update|delete|edit|run|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -306,7 +278,7 @@ internal static class Program
 
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
         }
-        catch (QuickerRpcConnectException ex)
+        catch (QuickerRpcClientException ex)
         {
             await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
             return ExitCodes.Error;
@@ -377,7 +349,7 @@ internal static class Program
 
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
         }
-        catch (QuickerRpcConnectException ex)
+        catch (QuickerRpcClientException ex)
         {
             await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
             return ExitCodes.Error;
@@ -446,7 +418,7 @@ internal static class Program
 
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
         }
-        catch (QuickerRpcConnectException ex)
+        catch (QuickerRpcClientException ex)
         {
             await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
             return ExitCodes.Error;
@@ -525,7 +497,7 @@ internal static class Program
 
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
         }
-        catch (QuickerRpcConnectException ex)
+        catch (QuickerRpcClientException ex)
         {
             await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
             return ExitCodes.Error;
@@ -593,7 +565,7 @@ internal static class Program
 
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
         }
-        catch (QuickerRpcConnectException ex)
+        catch (QuickerRpcClientException ex)
         {
             await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
             return ExitCodes.Error;
@@ -652,7 +624,7 @@ internal static class Program
 
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
         }
-        catch (QuickerRpcConnectException ex)
+        catch (QuickerRpcClientException ex)
         {
             await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
             return ExitCodes.Error;
@@ -675,7 +647,7 @@ internal static class Program
         return new RpcClientSession(pipe, jsonRpc, proxy);
     }
 
-    private static Task EmitConnectErrorAsync(bool json, QuickerRpcConnectException ex)
+    private static Task EmitConnectErrorAsync(bool json, QuickerRpcClientException ex)
     {
         if (json)
         {
@@ -819,7 +791,7 @@ public sealed class PingOptions
 [Verb("action", HelpText = "Quicker action operations via RPC.")]
 public sealed class ActionOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "update | search | delete | edit | run | edit-var")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "get | patch | replace | list | search | update | delete | edit | run | edit-var")]
     public string? Command { get; set; }
 
     [Option("id", HelpText = "Shared action id (GUID).")]
@@ -837,8 +809,29 @@ public sealed class ActionOptions
     [Option('q', "query", HelpText = "Search keyword for action search.")]
     public string? Query { get; set; }
 
-    [Option("limit", Default = 20, HelpText = "Max results for action search (1-100).")]
+    [Option("limit", Default = 20, HelpText = "Max results for action search/list (1-200).")]
     public int Limit { get; set; }
+
+    [Option("return-mode", HelpText = "For action get: full | structure | metadata.")]
+    public string? ReturnMode { get; set; }
+
+    [Option("patch", HelpText = "Inline JSON patch object for action patch.")]
+    public string? Patch { get; set; }
+
+    [Option("patch-file", HelpText = "Patch JSON file path, or - for stdin.")]
+    public string? PatchFile { get; set; }
+
+    [Option("xaction", HelpText = "Inline XAction JSON for action replace.")]
+    public string? XAction { get; set; }
+
+    [Option("xaction-file", HelpText = "XAction JSON file path, or - for stdin.")]
+    public string? XActionFile { get; set; }
+
+    [Option("expected-edit-version", HelpText = "Edit version from action get (optimistic concurrency).")]
+    public long? ExpectedEditVersion { get; set; }
+
+    [Option("force", HelpText = "Skip edit version check for patch/replace.")]
+    public bool Force { get; set; }
 
     [Option('y', "yes", HelpText = "Required for action delete (skip Quicker confirm dialog).")]
     public bool Yes { get; set; }
@@ -890,12 +883,46 @@ public sealed class SubProgramOptions
     public bool NoBootstrap { get; set; }
 }
 
-[Verb("mcp", HelpText = "Run stdio MCP server for headless Quicker action editing.")]
-public sealed class McpOptions
+[Verb("step-runner", HelpText = "StepRunner catalog for headless XAction authoring.")]
+public sealed class StepRunnerOptions
 {
+    [Value(0, MetaName = "command", Required = true, HelpText = "search | get")]
+    public string? Command { get; set; }
+
+    [Option('q', "query", HelpText = "Search keyword for step-runner search.")]
+    public string? Query { get; set; }
+
+    [Option("key", HelpText = "StepRunner key for step-runner get.")]
+    public string? Key { get; set; }
+
+    [Option("limit", Default = 40, HelpText = "Max results for step-runner search.")]
+    public int Limit { get; set; }
+
+    [Option("json", HelpText = "Emit JSON for automation.")]
+    public bool Json { get; set; }
+
     [Option("timeout", Default = 30, HelpText = "Pipe connect and RPC timeout in seconds.")]
     public int TimeoutSeconds { get; set; }
 
     [Option("no-bootstrap", HelpText = "Do not auto-start plugin via quicker:runaction when pipe is unavailable.")]
     public bool NoBootstrap { get; set; }
+}
+
+[Verb("guide", HelpText = "Embedded ActionAuthoring docs (no Quicker connection required).")]
+public sealed class GuideOptions
+{
+    [Value(0, MetaName = "command", Required = true, HelpText = "get | search")]
+    public string? Command { get; set; }
+
+    [Option("topic", HelpText = "Topic id for guide get (e.g. overview, patch-workflow).")]
+    public string? Topic { get; set; }
+
+    [Option('q', "query", HelpText = "Keyword for guide search.")]
+    public string? Query { get; set; }
+
+    [Option("limit", Default = 10, HelpText = "Max results for guide search.")]
+    public int Limit { get; set; }
+
+    [Option("json", HelpText = "Emit JSON for automation.")]
+    public bool Json { get; set; }
 }

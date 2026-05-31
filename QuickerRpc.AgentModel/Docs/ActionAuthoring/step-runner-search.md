@@ -1,41 +1,45 @@
-# Step runner search (`step_runner_search`)
+# Step runner search (`qkrpc step-runner search`)
 
-> **qkrpc MCP:** keyword uses **whitespace AND** matching (all tokens must appear). There is no `|` OR or `*` wildcard syntax yet — prefer the **`step-modules`** cheatsheet, then try several focused searches.
+在 **`step-modules`** 速查表没有合适模块时使用。优先**一次**传入带 OR/通配符的关键词，不要拆成多次模糊搜索。
 
-Use **`step_runner_search`** when **`step-modules`** has no match. Prefer **one keyword string** with advanced syntax instead of many separate searches.
+## 命令
+
+```powershell
+qkrpc step-runner search --query "剪贴板|clipboard|sys:*clip*" --limit 40 --json
+```
+
+响应 `payload.items[]`：`key`（即 `stepRunnerKey`）、`name`、`description`。选定 key 后必须 **`qkrpc step-runner get --key <key> --json`**。
 
 ## Syntax
 
 | Feature | Syntax | Meaning |
 |---------|--------|---------|
-| **AND** (default) | `剪贴板 文本` | Both tokens must match (space / tab). Same as legacy behavior. |
-| **OR** | `aaa\|bbb\|ccc` | Any branch may match. Split on `\|`. |
-| **Wildcard** | `*clip*`, `sys:*` | `*` → any substring (case-insensitive regex). |
-| **Combined** | `桌面\|图标\|desktop*\|icon` | OR of branches; `desktop*` is one token. |
-| **Branch AND** | `剪贴板 文本\|clipboard text` | Left branch: both 剪贴板 and 文本; right branch: both English tokens. |
+| **AND** (default) | `剪贴板 文本` | 所有 token 都要匹配（空格 / Tab） |
+| **OR** | `aaa\|bbb\|ccc` | 任一分支匹配即可 |
+| **Wildcard** | `*clip*`, `sys:*` | `*` 为子串（不区分大小写） |
+| **Combined** | `桌面\|图标\|desktop*\|icon` | 多分支 OR；`desktop*` 为一个 token |
+| **Branch AND** | `剪贴板 文本\|clipboard text` | 分支内 token 全部匹配 |
 
-**Examples (single MCP call):**
+**Examples:**
 
 ```text
+msgbox|消息|sys:*msg*
 剪贴板|clipboard|getClipboard
-桌面|图标|desktop|icon
 sys:*clip*|write*board*
-表达式|evalexpression|csscript
 ```
 
 ## Behavior
 
-- **No `|` and no `*`**: legacy mode — all whitespace tokens must match (pinyin / FastMatcher on catalog text).
-- **With `|` and/or `*`**: advanced mode — row matches if **any** branch matches; within a branch **all** tokens must match.
-- **Wildcard tokens** use substring regex on the catalog match surface; other tokens still use FastMatcher.
-- **Empty keyword**: browse top-level parent runners (MCP default list).
+- 无 `|`、无 `*`：所有空格分隔 token 均须出现在 key/name/description 中。
+- 有 `|` 和/或 `*`：任一分支满足即可；分支内 token 全部满足。
+- **空 keyword**：按名称浏览（受 `--limit` 限制）。
 
 ## Agent workflow
 
-1. Draft OR branches from the user requirement (synonyms, English/Chinese, `sys:` key fragments).
-2. Call **`step_runner_search` once** with e.g. `剪贴板|clipboard|sys:*clip*`.
-3. **`step_runner_get`** on the best `key` from results — never guess param names.
+1. 根据用户需求列出 OR 分支（中英文同义词、`sys:` 片段）。
+2. **一次** `step-runner search`。
+3. **`step-runner get`** 取 schema — **禁止**猜 `inputParams` 键名。
 
 ## Related
 
-`step-modules` · `implementation-fallback` · `overview`
+`authoring-workflow` · `step-modules` · `implementation-fallback` · `overview`

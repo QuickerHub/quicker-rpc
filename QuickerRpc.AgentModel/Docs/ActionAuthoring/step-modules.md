@@ -1,8 +1,8 @@
 # 常用模块对照（StepRunner 选型）
 
-**目的**：在 `step_runner_search` 之前选定 `stepRunnerKey`。
+**目的**：在 **`qkrpc step-runner search`** 之前选定 `stepRunnerKey`。
 
-**表内文案来源**：各行的 **name**、**description** 均来自 **`step_runner_get`**（与 Quicker 模块目录一致）。参数与子操作（`Type` / `Method` 等）仍须 **`step_runner_get`** 查看 schema。
+**表内文案来源**：各行的 **name**、**description** 与目录一致；**参数键名、类型、子操作** 必须以 **`qkrpc step-runner get --key … --json`** 返回的 `schema.Inputs` 为准 — 禁止猜键名。
 
 **表达式优先**：赋值、计算、比较、格式化、GUID/时间/随机数、简单字符串/JSON/路径处理等 — 见 **`expressions`**，**不**单独建步骤。下表只列需独立模块的项。
 
@@ -12,8 +12,8 @@
 
 1. 读 **`implementation-fallback`**，判断能否用表达式 / `sys:evalexpression` 完成（优先于搜表）
 2. 计算类、单步内逻辑 → **`expressions`**（或 `sys:evalexpression`）
-3. 本表选 key → **`step_runner_get`**
-4. 无匹配 → **`step_runner_search`** 一次传入 OR/通配符关键词（见 **`step-runner-search`**，如 `剪贴板|clipboard|sys:*clip*`）；仍无结果 → **`implementation-fallback`** 回退
+3. 本表选 key → **`qkrpc step-runner get --key … --json`**
+4. 无匹配 → **`qkrpc step-runner search --query "…|…|sys:*…"`** 一次查询（见 **`step-runner-search`**）；仍无结果 → **`implementation-fallback`** 回退
 
 ## 流程控制
 
@@ -167,7 +167,7 @@
 | 向**前台活动窗口**输入文字 | `sys:outputText`（发送文本到窗口） | 非 `sys:showText`（独立文本窗口） |
 | 需要 else 分支 | `sys:if` | `sys:simpleIf` 无 else 结构 |
 | 多文件操作 | `sys:fileOperation` | 用 `type` 选子操作 |
-| 多子操作模块 | 先定 key 再 `step_runner_get` | 如 `stringProcess`、`uiautomation` |
+| 多子操作模块 | 先定 key 再 `step-runner get` | 如 `stringProcess`、`uiautomation` |
 
 ## 相关主题
 

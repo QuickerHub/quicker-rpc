@@ -1,9 +1,11 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Quicker.Domain;
 using QuickerRpc.AgentModel.Catalog;
+using QuickerRpc.Plugin.Reflection;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -13,7 +15,7 @@ internal static class StepRunnerCatalogFromQuicker
     public static StepRunnerCatalog Build()
     {
         var items = new List<StepRunnerDefinition>();
-        if (!QuickerHost.IsRunningInQuicker())
+        if (!QuickerInternalAccess.IsInQuicker)
         {
             return new StepRunnerCatalog();
         }
@@ -25,58 +27,67 @@ internal static class StepRunnerCatalogFromQuicker
         }
         catch
         {
-            return new StepRunnerCatalog();
+            runners = null;
         }
 
-        if (runners is null)
+        if (runners is not null)
         {
-            return new StepRunnerCatalog();
-        }
-
-        foreach (var ro in runners)
-        {
-            if (ro is null)
+            foreach (var ro in runners)
             {
-                continue;
-            }
-
-            try
-            {
-                var mapped = MapRunner(ro);
-                if (mapped is not null)
+                if (ro is null)
                 {
-                    items.Add(mapped);
+                    continue;
+                }
+
+                try
+                {
+                    var mapped = MapRunner(ro);
+                    if (mapped is not null)
+                    {
+                        items.Add(mapped);
+                    }
+                }
+                catch
+                {
+                    // skip broken runner rows
                 }
             }
-            catch
-            {
-                // skip broken runner rows
-            }
         }
 
+        MergeSupplementalRunners(items);
         return new StepRunnerCatalog { Items = items };
     }
 
     private static IEnumerable? TryGetAllRunners()
     {
+        var assembly = typeof(AppState).Assembly;
+
+        // QuickerPc: StepRunnerRegistry.GetAllRunners()
+        var registryType = assembly.GetType(
+            "Quicker.Domain.Actions.X.StepRunners.StepRunnerRegistry",
+            throwOnError: false);
+        var registryGetAll = registryType?.GetMethod(
+            "GetAllRunners",
+            BindingFlags.Public | BindingFlags.Static);
+        var fromRegistry = registryGetAll?.Invoke(null, null) as IEnumerable;
+        if (fromRegistry is not null)
+        {
+            return fromRegistry;
+        }
+
+        // Fallback: optional IStepRunnerService on AppState (other Quicker builds).
         var stepRunnerServiceProp = typeof(AppState).GetProperty(
             "StepRunnerService",
             BindingFlags.Public | BindingFlags.Static);
         var service = stepRunnerServiceProp?.GetValue(null);
         if (service is null)
         {
-            var serviceType = typeof(AppState).Assembly.GetType(
+            var serviceType = assembly.GetType(
                 "Quicker.Domain.Actions.X.StepRunners.IStepRunnerService",
                 throwOnError: false);
             if (serviceType is not null)
             {
-                service = typeof(AppState).GetMethod(
-                        "GetService",
-                        BindingFlags.Public | BindingFlags.Static,
-                        binder: null,
-                        types: new[] { typeof(Type) },
-                        modifiers: null)
-                    ?.Invoke(null, new object[] { serviceType });
+                service = QuickerInternalAccess.TryGetService(serviceType);
             }
         }
 
@@ -210,6 +221,19 @@ internal static class StepRunnerCatalogFromQuicker
         }
 
         return list;
+    }
+
+    private static void MergeSupplementalRunners(List<StepRunnerDefinition> items)
+    {
+        foreach (var supplemental in PluginStepRunnerCatalog.GetDefinitions())
+        {
+            if (items.Any(x => string.Equals(x.Key, supplemental.Key, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            items.Add(supplemental);
+        }
     }
 
     private static string? ReadString(object target, string propertyName) =>

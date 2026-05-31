@@ -11,20 +11,20 @@ public static class StepRunnerCatalogMapper
     {
         var limit = maxResults is > 0 and <= 200 ? maxResults!.Value : 40;
         var kw = (keyword ?? string.Empty).Trim();
-        var tokens = kw.Length == 0
-            ? Array.Empty<string>()
-            : kw.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        var searchQuery = StepRunnerSearchQuery.Parse(kw);
 
         IEnumerable<StepRunnerDefinition> query = catalog.Items;
-        if (tokens.Length > 0)
+        if (kw.Length > 0)
         {
-            query = query.Where(r => RowMatches(r, tokens));
+            query = query.Where(r => StepRunnerSearchQuery.RowMatches(r, searchQuery));
         }
 
         var ordered = query
-            .OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(r => (r, score: StepRunnerSearchQuery.ComputeSortScore(r, searchQuery)))
+            .OrderByDescending(x => x.score)
+            .ThenBy(x => x.r.Name, StringComparer.OrdinalIgnoreCase)
             .Take(limit)
-            .Select(ToSearchItem)
+            .Select(x => ToSearchItem(x.r))
             .ToList();
 
         return new SearchStepRunnersResult
@@ -62,26 +62,6 @@ public static class StepRunnerCatalogMapper
         {
             return new StepRunnerDetailResult { Success = false, ErrorMessage = ex.Message };
         }
-    }
-
-    private static bool RowMatches(StepRunnerDefinition row, string[] tokens)
-    {
-        var surface = string.Join(
-            "\n",
-            row.Key,
-            row.Name,
-            row.Description,
-            row.Category).ToLowerInvariant();
-
-        foreach (var token in tokens)
-        {
-            if (surface.IndexOf(token.ToLowerInvariant(), StringComparison.Ordinal) < 0)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private static StepRunnerSearchItem ToSearchItem(StepRunnerDefinition row) =>

@@ -1,38 +1,64 @@
 # Overview
 
-Authoring via Quicker MCP. **Setup:** `mcp-setup`. **Tool names/params:** MCP tool list (not duplicated here).
 
-## Workflow
 
-1. Resolve **`actionId`** via **`action_search`** (create new actions in Quicker UI first — qkrpc MCP has no `action_create`).
-2. **`action_get`** before editing: `returnMode: structure` to scan steps; `returnMode: full` when you need param values for the patch (non-default literals only — do not request full catalog defaults).
-3. **Pick implementation path** (before stacking many steps): read **`implementation-fallback`** — prefer **`expressions`** / **`sys:evalexpression`** for compute/compare/assign; use dedicated **`step-modules`** only when a stable catalog step fits; if search finds nothing, follow the **fallback chain** (script / self-contained C#), never internal Quicker-repo-only APIs.
-4. Per dedicated step: **`guide_get`** topic **`step-modules`** to pick `stepRunnerKey`, then **`step_runner_get`** for schema — use **`step_runner_search`** only when the cheatsheet has no match (one call with `|` OR and `*` wildcards per **`step-runner-search`**); never guess param keys.
-5. Expressions in values: **`guide_get`** topic **`expressions`**.
-6. **`action_patch`** once per save (edits the action in your current Quicker profile).
-7. Use the **patch response** (`editVersion`, `addedSteps`, `updatedSteps`, `addedVariables`, `updatedVariables`) — **do not** call `action_get` again only to verify or to read ids you just wrote. See **`patch-workflow`**.
-8. Summarize results to the user (below).
+无头编辑 XAction：**`qkrpc` CLI**（`qkrpc help --json`）。**完整流程约束见 `authoring-workflow`**。环境：**`cli-setup`**。
+
+
+
+## Workflow（摘要）
+
+
+
+1. **`action list`** / **`action search`** → `actionId`（新动作在 Quicker UI 创建）。
+
+2. **`action get`** → `editVersion`；`structure` 扫树，`full` 读非默认参数。
+
+3. **`guide get --topic implementation-fallback`** → 表达式优先，再考虑专用步骤。
+
+4. 每个专用步骤：**`step-modules`** → 否则 **`step-runner search`** → **`step-runner get`**（必须，禁止猜 `inputParams` 键）。
+
+5. 表达式参数值：**`expressions`**。
+
+6. **`action patch`** 一次保存；用响应里的 `editVersion` / `addedSteps`，**不要**仅为验证再 `action get`。
+
+
 
 ## Rules
 
+
+
 | Rule | Detail |
+
 |------|--------|
-| Read before write | Patch only after a fresh read when editing existing actions |
-| Minimal patch | **`action_patch`**: omit steps, variables, and `inputParams` keys you are not changing — merge preserves the rest |
-| Native JSON | `patch` / `xAction` / patches are objects/arrays, not escaped strings |
-| Schema-driven | `stepRunnerKey` and `inputParams` keys from `step_runner_get` |
-| Ephemeral `stepId` | Use `nodePath` or `addedSteps` after insert; variables use `key` |
-| Types on save | Variables: numeric `type`; reads may show `varType` string |
-| No post-patch re-read | After successful `action_patch`, use response fragments; skip `action_get` unless conflict or unrelated inspection |
-| Token discipline | `addedSteps` / `addedVariables` supply new `stepId` and variable shape for the next patch |
-| Read compression | `action_get` always omits default/empty literal `inputParams` in **full** mode — enough for patching; never needed to expand to full catalog defaults |
-| No repo-only APIs | Do not reference types from the Quicker source tree unless exposed via MCP / `step_runner_get`; see **`implementation-fallback`** |
-| Fallback when no module | After failed `step_runner_search`, use expression → `evalexpression` → `csscript` / `runScript` per **`implementation-fallback`** |
+
+| Read before write | 改已有动作前先 `action get` |
+
+| Minimal patch | 省略未改的 steps、variables、`inputParams` 键；新建步骤时省略与目录 `Default` 相同的**普通**参数；**控制字段保留** |
+
+| Schema-driven | `stepRunnerKey` 与 `inputParams` 键来自 **`step-runner get`** |
+
+| Ephemeral `stepId` | 插入后用 patch 响应的 `addedSteps` 或 `nodePath` |
+
+| No post-patch re-read | 成功 patch 后以响应为准 |
+
+| Read compression | `action get --return-mode full` 省略目录默认的普通参数；**控制字段始终保留** |
+
+| Fallback | 搜不到模块见 **`implementation-fallback`** |
+
+
 
 ## User summary
 
-Report: `actionId`, `stepRunnerKey`(s), what changed, save success / `editVersion`, or `errorMessage` and retry hint.
+
+
+汇报：`actionId`、`stepRunnerKey`、改了什么、`editVersion` 或错误与重试建议。
+
+
 
 ## Topics
 
-`implementation-fallback` · `step-modules` · `step-runner-search` · `mcp-setup` · `xaction-json` · `variables` · `expressions` · `patch-workflow`
+
+
+`authoring-workflow` · `implementation-fallback` · `step-modules` · `step-runner-search` · `cli-setup` · `xaction-json` · `variables` · `expressions` · `patch-workflow`
+

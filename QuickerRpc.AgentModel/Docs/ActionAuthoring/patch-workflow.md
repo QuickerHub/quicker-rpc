@@ -1,12 +1,10 @@
 # Patch workflow
 
-Prefer **`action_patch`** — one call, one save. Op semantics (`update` / `add` / `remove` / `move`, locators) are defined on that MCP tool; below is a minimal pattern.
+Prefer **`qkrpc action patch`** — one call, one save. Op semantics (`update` / `add` / `remove` / `move`, locators) match the patch JSON schema; below is a minimal pattern.
 
 ```json
 {
-  "actionId": "<guid>",
-  "patch": {
-    "steps": [
+  "steps": [
       {
         "op": "add",
         "after": { "nodePath": "0" },
@@ -24,14 +22,19 @@ Prefer **`action_patch`** — one call, one save. Op semantics (`update` / `add`
     "variables": [
       { "op": "update", "key": "status", "defaultValue": "ok" }
     ]
-  },
-  "force": true
 }
 ```
 
-## After save — do not call `action_get` to verify
+```powershell
+qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
+# or: --force when retrying after conflict
+```
 
-On **`success: true`**, the patch response is the source of truth for what changed. **Do not** call `action_get` afterward just to confirm save or to list new `stepId` / variable `id`.
+**Before patch:** each new/changed catalog step requires **`qkrpc step-runner get --key … --json`**（见 **`authoring-workflow`**）。
+
+## After save — do not call `action get` to verify
+
+On **`success: true`**, the patch response is the source of truth for what changed. **Do not** call `qkrpc action get` afterward just to confirm save or to list new `stepId` / variable `id`.
 
 | Field | Use |
 |-------|-----|
@@ -55,7 +58,43 @@ Summarize to the user from the patch response (`success`, `editVersion`, changed
 
 Example: to add a notify step after write-clipboard, patch only the `add` op — **do not** include `inputParams` on the write-clipboard step unless you mean to change one of its params.
 
-`action_get` (**full**) hides default-empty params (e.g. `successMsg`). That is fine for **reading**; when **patching**, still omit those keys unless you explicitly want to set or remove them.
+`qkrpc action get --return-mode full` hides default-empty params (e.g. `successMsg`). That is fine for **reading**; when **patching**, still omit those keys unless you explicitly want to set or remove them.
+
+## Omit catalog defaults (Agent: reduce token use)
+
+After **`step-runner get`**, compare each `Inputs[]` entry’s **`Default`** to the value you would write.
+
+| Situation | What to include in `inputParams` |
+|-----------|----------------------------------|
+| **`add`** (new step) | **Required** params with no usable default (e.g. empty `script` default but you have real script text) **plus** any optional param whose value **differs** from catalog `Default` |
+| **`update`** (existing step) | Only keys you **change**; use `null` to drop a key when switching `stepRunnerKey` |
+| Either | **Never** copy patch **responses** (`updatedSteps` / `addedSteps`) back wholesale — they echo saved literals, not a minimal template |
+
+**Rule:** if `{ "value": "<Default>" }` would match `step-runner get` → **omit the key** — **except control fields** (`schema.ControlField` / `Inputs[].IsControlField: true`): **keep them** even at default (identifies step variant / sub-operation).
+
+Anti-pattern (redundant non-control defaults):
+
+```json
+"inputParams": {
+  "mode": { "value": "normal" },
+  "script": { "value": "..." },
+  "waitResp": { "value": "true" },
+  "runOnUiThread": { "value": "auto" },
+  "stopIfFail": { "value": "true" },
+  "waitMs": { "value": "10000" }
+}
+```
+
+Minimal (same behavior; `mode` kept as control field):
+
+```json
+"inputParams": {
+  "mode": { "value": "normal" },
+  "script": { "value": "..." }
+}
+```
+
+Optional params with empty catalog default (e.g. `title`, `reference`) — omit unless you set a non-empty value.
 
 ### `inputParams` merge semantics (when you do send a key)
 
@@ -68,7 +107,7 @@ Example: to add a notify step after write-clipboard, patch only the `add` op —
 
 Patch **responses** (`updatedSteps` / `addedSteps`) return only the touched steps with full literals on those steps so you can see what was saved — not a template to copy back wholesale on the next patch.
 
-### When `action_get` is still required
+### When `action get` is still required
 
 | Situation | Why |
 |-----------|-----|
@@ -77,8 +116,8 @@ Patch **responses** (`updatedSteps` / `addedSteps`) return only the touched step
 | **Inspect unrelated parts** | Patch response only returns touched steps/variables |
 | **`subPrograms` or full-program audit** | Patch does not return subPrograms |
 
-Version conflict: `action_get` → retry with new `expectedEditVersion` or `force: true`.
+Version conflict: `qkrpc action get` → retry with new `--expected-edit-version` or `--force`.
 
 Full program replace (all steps + variables): `action_replace`.
 
-**Storage (qkrpc MCP):** edits actions in the **current Quicker profile** only (no `workspace` / `.quicker` file path).
+**Storage:** edits actions in the **current Quicker profile** only (no `workspace` / `.quicker` file path).

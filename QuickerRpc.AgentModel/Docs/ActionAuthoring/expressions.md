@@ -1,8 +1,12 @@
 # Expressions and Interpolation
 
-Use for **`$=`**, **`$$`**, and **`sys:evalexpression`**. Parameter keys from **`step_runner_get`**. Load via **`guide_get`** with `topic: "expressions"`.
+用于 **`$=`**、**`$$`**、**`sys:evalexpression`**。参数键名仍来自 **`qkrpc step-runner get`**。
 
-**Priority:** Prefer expressions / `sys:evalexpression` over extra catalog steps when the logic is compute, compare, or assign-only. If no dedicated module exists after `step_runner_search`, see **`implementation-fallback`** before adding `sys:csscript` or scripts.
+**优先级**：纯计算/比较/赋值优先表达式，少堆专用步骤；`step-runner search` 无结果时见 **`implementation-fallback`**。
+
+```powershell
+qkrpc guide get --topic expressions --json
+```
 
 ## Prefixes in `inputParams.value`
 
@@ -38,7 +42,10 @@ Use for **`$=`**, **`$$`**, and **`sys:evalexpression`**. Parameter keys from **
 | `onUiThread` | UI thread (deadlock risk) |
 | `output` | Return value; assignments update variables directly |
 
-`step_runner_search({ "keyword": "表达式" })` → `step_runner_get({ "stepRunnerKey": "sys:evalexpression" })`.
+```powershell
+qkrpc step-runner search --query "表达式|evalexpression" --json
+qkrpc step-runner get --key sys:evalexpression --json
+```
 
 ## Conditions
 

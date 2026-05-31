@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using Quicker.Domain;
+using QuickerRpc.Plugin.Reflection;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -178,7 +179,7 @@ internal static class ActionContextResolver
             return null;
         }
 
-        var query = ResolveAppStateService(queryType);
+        var query = QuickerInternalAccess.TryGetService(queryType);
         if (query is null)
         {
             return null;
@@ -188,16 +189,8 @@ internal static class ActionContextResolver
         return getPage?.Invoke(query, new object[] { pageId });
     }
 
-    private static object? ResolveAppStateService(Type serviceType)
-    {
-        var getService = typeof(AppState).GetMethod(
-            "GetService",
-            BindingFlags.Public | BindingFlags.Static,
-            binder: null,
-            types: new[] { typeof(Type) },
-            modifiers: null);
-        return getService?.Invoke(null, new object[] { serviceType });
-    }
+    private static object? ResolveAppStateService(Type serviceType) =>
+        QuickerInternalAccess.TryGetService(serviceType);
 
     private static object? ReadTupleItem(object tuple, int index, string itemName, string? namedField)
     {

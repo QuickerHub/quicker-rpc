@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using QuickerRpc.Plugin.Quicker;
+using QuickerRpc.Plugin.Services;
 
 namespace QuickerRpc.Plugin;
 
@@ -53,6 +54,7 @@ public static partial class Launcher
             try
             {
                 WaitForPriorQuickerRpcExitWithUiPump();
+                StepRunnerRegistration.RegisterPluginStepRunners(Logger);
 
                 _host.StartAsync().GetAwaiter().GetResult();
                 _status = LauncherStatus.Started;

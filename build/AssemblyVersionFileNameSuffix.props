@@ -1,7 +1,7 @@
 <Project>
   <!--
     Release + AppendAssemblyVersionFileNameSuffix: ProjectName.(Version).dll
-    net472 plugin graph only; netstandard2.0 (qkrpc) keeps short names even when the flag is propagated.
+    net472 plugin graph (Plugin, Contracts, AgentModel); netstandard2.0 (qkrpc) keeps short names.
   -->
   <PropertyGroup>
     <Version Condition="'$(Version)' == ''">0.1.0</Version>

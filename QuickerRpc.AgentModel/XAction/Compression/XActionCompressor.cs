@@ -465,9 +465,12 @@ public static class XActionCompressor
                 continue;
             }
 
+            // Control fields (e.g. csscript "mode", runScript "type") identify step variant;
+            // keep them in the read model even when value equals catalog default.
             if (omitDefaultLiteralInputs
                 && string.IsNullOrEmpty(varKey)
                 && TryGetParamDef(defsByKey, key, out var def)
+                && !def.IsControlField
                 && IsLiteralValue(value)
                 && string.Equals(
                     SerializeDefaultForComparison(def.DefaultValue),

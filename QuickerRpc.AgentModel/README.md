@@ -11,7 +11,7 @@ Agent-facing Quicker models and XAction program logic (compression, patch, StepR
 |------|------|
 | `Catalog/` | Neutral `StepRunnerCatalog` + agent schema/search DTOs |
 | `Core/` | `AgentJson` (JsonElement ↔ JObject) |
-| `Docs/ActionAuthoring/` | Embedded Markdown guides for MCP agents (`guide_get` / `guide_search`) |
+    | `Docs/ActionAuthoring/` | Embedded Markdown guides for CLI agents (`qkrpc guide get/search`) |
 | `Guides/` | `ActionAuthoringGuideService` (loads embedded topics) |
 | `XAction/Compression/` | `XActionCompressor` |
 | `XAction/Patch/` | `XActionPatchApplier`, step/variable resolvers |
@@ -31,5 +31,5 @@ quickerorg/Quicker/QuickerPc/Quicker.Mcp  →  ../../../../quicker-rpc/QuickerRp
 
 ## Next steps
 
-- Plugin: headless MCP via `qkrpc mcp` + `HeadlessActionProgramService`
+- Plugin: headless editing via `qkrpc action get/patch/replace` + `HeadlessActionProgramService`
 - Port advanced `step_runner_search` (| OR, * wildcards) into AgentModel (optional)

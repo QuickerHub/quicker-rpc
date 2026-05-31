@@ -72,15 +72,20 @@ QuickerRpc.Plugin.Launcher.Start()
 
 ## CLI 用法
 
-退出码：**0 成功，1 失败**。推荐 `--json`。
+退出码：**0 成功，1 失败**。推荐 `--json`。完整命令表：`qkrpc help --json`。
 
 ```powershell
-# 检查 Quicker 插件是否在线
 qkrpc ping --json
 
-# 更新分享动作
+# 无头编辑 XAction（需 Quicker + 插件在线）
+qkrpc guide get --topic overview --json
+qkrpc action list --query myaction --json
+qkrpc action get --id <guid> --return-mode full --json
+qkrpc action patch --id <guid> --patch-file patch.json --json
+
+# 运维
 qkrpc action update --id <sharedActionGuid> --changelog "说明" --json
-qkrpc action update --code <sharedActionGuid> --json
+qkrpc action run --id <idOrName> --wait --json
 ```
 
 ## 开发

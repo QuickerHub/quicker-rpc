@@ -1,405 +1,291 @@
+using System.Collections.Generic;
+
 using System.Reflection;
+
 using System.Text.Json;
+
 using System.Text.Json.Serialization;
+
 using QuickerRpc.Contracts.Rpc;
+
+
 
 namespace QuickerRpc.Console;
 
+
+
 /// <summary>Machine-readable CLI reference for scripts and AI agents.</summary>
+
 internal static class QkrpcCliHelp
+
 {
+
     public static void WriteJson(TextWriter output)
+
     {
+
         output.WriteLine(JsonSerializer.Serialize(Build(), QkrpcJson.HelpOutput));
+
     }
+
+
 
     private static object Build()
+
     {
+
         return new
+
         {
+
             name = "qkrpc",
+
             version = GetCliVersion(),
+
             pipe = QuickerRpcPipeNames.ServerPipe,
-            pluginBootstrap = new
-            {
-                runActionUri = QuickerRpcBootstrap.BuildRunActionUri(),
-                runActionId = QuickerRpcBootstrap.PluginRunActionId,
-                autoStart = "When pipe is unavailable, qkrpc tries quicker:runaction once before failing (disable with --no-bootstrap).",
-            },
+
             discovery = "qkrpc help --json",
+
+            agentWorkflow =
+                "guide authoring-workflow: action list/get → implementation-fallback → " +
+                "(step-modules | step-runner search) → step-runner get (required) → action patch",
+            authoringGuideTopic = "authoring-workflow",
+
+            jsonFlag = "Append --json for structured stdout on all commands.",
+
             exitCodes = new Dictionary<string, string>
+
             {
+
                 ["0"] = "success",
+
                 ["1"] = "error",
+
             },
-            prerequisites = new[]
-            {
-                "Quicker is running",
-                "QuickerRpc plugin loaded, or auto-started via quicker:runaction",
-            },
+
             commands = new object[]
+
             {
-                new
-                {
-                    name = "help",
-                    summary = "Emit this machine-readable CLI reference.",
-                    usage = "qkrpc help --json",
-                    options = new[]
-                    {
-                        Option("json", "Emit JSON for automation.", required: true),
-                    },
-                    examples = new[] { "qkrpc help --json" },
-                    responseExample = new { ok = true, action = "help", name = "qkrpc" },
-                },
-                new
-                {
-                    name = "ping",
-                    summary = "Check connectivity to the QuickerRpc plugin.",
-                    usage = "qkrpc ping [--json] [--timeout <seconds>] [--no-bootstrap]",
-                    options = new[]
-                    {
-                        Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
-                        Option("no-bootstrap", "Skip auto-start via quicker:runaction when plugin pipe is missing."),
-                    },
-                    examples = new[] { "qkrpc ping --json" },
-                    responseExample = new
-                    {
-                        ok = true,
-                        action = "ping",
-                        pong = "pong",
-                        protocolVersion = 1,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
-                    },
-                    errors = new[] { "PLUGIN_NOT_RUNNING", "CONNECT_TIMEOUT", "RPC_TIMEOUT", "PING_FAILED" },
-                },
-                new
-                {
-                    name = "action update",
-                    summary = "Upload or refresh a shared action in Quicker.",
-                    usage = "qkrpc action update --id <guid> [--changelog <text> | --changelog-file <path>] [--json] [--timeout <seconds>]",
-                    options = new[]
-                    {
-                        Option("id", "Shared action id (GUID)."),
-                        Option("code", "Alias for --id."),
-                        Option("changelog", "Inline change log message. Mutually exclusive with --changelog-file."),
-                        Option("changelog-file", "Read change log from a UTF-8 text file.", shortName: "f"),
-                        Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
-                    },
-                    examples = new[]
-                    {
-                        "qkrpc action update --id {sharedActionGuid} --changelog \"fix\" --json",
-                        "qkrpc action update --id {sharedActionGuid} --changelog-file changelog.txt --json",
-                        "qkrpc action update --code {sharedActionGuid} -f changelog.txt --json",
-                    },
-                    responseExample = new
-                    {
-                        ok = true,
-                        action = "update",
-                        sharedId = "{sharedActionGuid}",
-                        message = "更新分享成功。",
-                        pipe = QuickerRpcPipeNames.ServerPipe,
-                    },
-                    errors = new[]
-                    {
-                        "UNKNOWN_ACTION_VERB",
-                        "MISSING_ACTION_ID",
-                        "CONFLICTING_CHANGELOG",
-                        "CHANGELOG_FILE_NOT_FOUND",
-                        "CHANGELOG_FILE_READ_FAILED",
-                        "UPDATE_FAILED",
-                    },
-                },
-                new
-                {
-                    name = "action search",
-                    summary = "Search local Quicker actions by keyword and return action ids.",
-                    usage = "qkrpc action search --query <keyword> [--limit 20] [--json] [--timeout <seconds>]",
-                    options = new[]
-                    {
-                        Option("query", "Search keyword (title, description, pinyin).", shortName: "q"),
-                        Option("limit", "Max results (1-100).", defaultValue: "20"),
-                        Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
-                    },
-                    examples = new[]
-                    {
-                        "qkrpc action search --query \"clipboard\" --json",
-                        "qkrpc action search -q \"更新\" --limit 10 --json",
-                    },
-                    responseExample = new
-                    {
-                        ok = true,
-                        action = "search",
-                        query = "clipboard",
-                        count = 1,
-                        items = new[]
-                        {
-                            new
-                            {
-                                id = "{actionGuid}",
-                                title = "Copy to clipboard",
-                                description = (string?)null,
-                                pageTitle = "My Panel",
-                                score = 100,
-                                sharedActionId = (string?)null,
-                            },
-                        },
-                        pipe = QuickerRpcPipeNames.ServerPipe,
-                    },
-                    errors = new[]
-                    {
-                        "UNKNOWN_ACTION_VERB",
-                        "MISSING_QUERY",
-                        "SEARCH_FAILED",
-                    },
-                },
-                new
-                {
-                    name = "subprogram search",
-                    summary = "Search global (public) Quicker subprograms by id, name, or description.",
-                    usage = "qkrpc subprogram search --query <keyword> [--limit 20] [--json] [--timeout <seconds>]",
-                    options = new[]
-                    {
-                        Option("query", "Search keyword (id, name, description).", shortName: "q"),
-                        Option("limit", "Max results (1-100).", defaultValue: "20"),
-                        Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
-                    },
-                    examples = new[]
-                    {
-                        "qkrpc subprogram search --query \"QuickerRpc\" --json",
-                        "qkrpc subprogram search -q \"弹窗\" --limit 10 --json",
-                    },
-                    responseExample = new
-                    {
-                        ok = true,
-                        action = "subprogram-search",
-                        query = "QuickerRpc",
-                        count = 1,
-                        items = new[]
-                        {
-                            new
-                            {
-                                id = "{subProgramGuid}",
-                                name = "QuickerRpc_Run",
-                                description = (string?)null,
-                                score = 100,
-                                sharedId = (string?)null,
-                            },
-                        },
-                        pipe = QuickerRpcPipeNames.ServerPipe,
-                    },
-                    errors = new[]
-                    {
-                        "UNKNOWN_SUBPROGRAM_VERB",
-                        "MISSING_QUERY",
-                        "SUBPROGRAM_SEARCH_FAILED",
-                    },
-                },
-                new
-                {
-                    name = "action delete",
-                    summary = "Delete a local Quicker action.",
-                    usage = "qkrpc action delete --id <actionId> --yes [--json] [--timeout <seconds>]",
-                    options = new[]
-                    {
-                        Option("id", "Local action id (GUID)."),
-                        Option("code", "Alias for --id."),
-                        Option("yes", "Required; skips Quicker confirm dialog.", shortName: "y", required: true),
-                        Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
-                    },
-                    examples = new[]
-                    {
-                        "qkrpc action delete --id {actionGuid} --yes --json",
-                    },
-                    responseExample = new
-                    {
-                        ok = true,
-                        action = "delete",
-                        actionId = "{actionGuid}",
-                        message = "动作已删除。",
-                        pipe = QuickerRpcPipeNames.ServerPipe,
-                    },
-                    errors = new[]
-                    {
-                        "UNKNOWN_ACTION_VERB",
-                        "CONFIRMATION_REQUIRED",
-                        "MISSING_ACTION_ID",
-                        "DELETE_FAILED",
-                    },
-                },
-                new
-                {
-                    name = "action run",
-                    summary = "Run a local Quicker action by id or name.",
-                    usage = "qkrpc action run --id <actionIdOrName> [--param <text>] [--debug] [--wait] [--json] [--timeout <seconds>]",
-                    options = new[]
-                    {
-                        Option("id", "Local action id (GUID) or action name."),
-                        Option("code", "Alias for --id."),
-                        Option("param", "Optional input parameter passed to the action.", shortName: "p"),
-                        Option("debug", "Enable debugging (same as holding Right Shift when running from UI)."),
-                        Option("wait", "Wait for completion; include returnResult in JSON output."),
-                        Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
-                    },
-                    examples = new[]
-                    {
-                        "qkrpc action run --id aa5917ad-1256-4c73-7022-08debe3efcbe --json",
-                        "qkrpc action search --query \"clipboard\" --json  # then run items[].id",
-                        "qkrpc action run --id {actionGuid} --param \"hello\" --wait --json",
-                    },
-                    responseExample = new
-                    {
-                        ok = true,
-                        action = "run",
-                        actionId = "{actionGuid}",
-                        actionTitle = "My Action",
-                        returnResult = (string?)null,
-                        message = "动作已运行。",
-                        pipe = QuickerRpcPipeNames.ServerPipe,
-                    },
-                    errors = new[]
-                    {
-                        "UNKNOWN_ACTION_VERB",
-                        "MISSING_ACTION_ID",
-                        "RUN_FAILED",
-                    },
-                },
-                new
-                {
-                    name = "action edit",
-                    summary = "Open the Quicker action editor for a local action.",
-                    usage = "qkrpc action edit --id <actionId> [--json] [--timeout <seconds>]",
-                    options = new[]
-                    {
-                        Option("id", "Local action id (GUID)."),
-                        Option("code", "Alias for --id."),
-                        Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
-                    },
-                    examples = new[]
-                    {
-                        "qkrpc action edit --id {actionGuid} --json",
-                        "qkrpc action search --query \"clipboard\" --json  # then edit items[].id",
-                    },
-                    responseExample = new
-                    {
-                        ok = true,
-                        action = "edit",
-                        actionId = "{actionGuid}",
-                        message = "动作编辑窗口已打开。",
-                        pipe = QuickerRpcPipeNames.ServerPipe,
-                    },
-                    errors = new[]
-                    {
-                        "UNKNOWN_ACTION_VERB",
-                        "MISSING_ACTION_ID",
-                        "EDIT_FAILED",
-                    },
-                },
-                new
-                {
-                    name = "action edit-var",
-                    summary = "Edit a variable default value and save via ActionDesignerWindow (global subprogram or local action).",
-                    usage = "qkrpc action edit-var --id <subProgramIdOrName|actionId> --var <key> --value <defaultValue> [--json] [--timeout <seconds>]",
-                    options = new[]
-                    {
-                        Option("id", "Global subprogram id/name, or local action id."),
-                        Option("code", "Alias for --id."),
-                        Option("var", "Variable key (e.g. version)."),
-                        Option("value", "New default value."),
-                        Option("json", "Emit JSON for automation."),
-                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
-                    },
-                    examples = new[]
-                    {
-                        "qkrpc action edit-var --id QuickerRpc_Run --var version --value 2.1 --json",
-                        "qkrpc action edit-var --id {actionGuid} --var foo --value bar --json",
-                    },
-                    responseExample = new
-                    {
-                        ok = true,
-                        action = "edit-var",
-                        targetKind = "subprogram",
-                        targetId = "QuickerRpc_Run",
-                        subProgramIdOrName = "QuickerRpc_Run",
-                        variableKey = "version",
-                        oldValue = "2.0",
-                        newValue = "2.1",
-                        message = "变量 version 变更 2.0 => 2.1",
-                        pipe = QuickerRpcPipeNames.ServerPipe,
-                    },
-                    errors = new[]
-                    {
-                        "UNKNOWN_ACTION_VERB",
-                        "MISSING_TARGET_ID",
-                        "MISSING_VARIABLE",
-                        "MISSING_VALUE",
-                        "EDIT_VAR_FAILED",
-                    },
-                },
-                new
-                {
-                    name = "mcp",
-                    summary = "Run stdio MCP server for headless Quicker XAction editing (no Action Designer UI).",
-                    usage = "qkrpc mcp [--timeout <seconds>] [--no-bootstrap]",
-                    options = new[]
-                    {
-                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "30"),
-                        Option("no-bootstrap", "Skip auto-start via quicker:runaction when plugin pipe is missing."),
-                    },
-                    examples = new[] { "qkrpc mcp" },
-                    mcpTools = new[]
-                    {
-                        "guide_get",
-                        "guide_search",
-                        "action_get",
-                        "action_replace",
-                        "action_patch",
-                        "action_search",
-                        "step_runner_search",
-                        "step_runner_get",
-                    },
-                    notes = "Configure Cursor MCP with command qkrpc, args [\"mcp\"]. Requires Quicker running with QuickerRpc plugin loaded. Agents should call guide_get topic overview before editing actions.",
-                    errors = new[] { "MCP_FAILED", "PLUGIN_NOT_RUNNING", "CONNECT_TIMEOUT" },
-                },
+
+                Cmd("help", "Emit machine-readable CLI reference.", "qkrpc help --json",
+
+                    opts: new[] { Option("json", "Required for JSON output.", required: true) }),
+
+                Cmd("ping", "Check QuickerRpc plugin connectivity.", "qkrpc ping [--json] [--timeout 10] [--no-bootstrap]",
+
+                    opts: JsonTimeoutBootstrap()),
+
+                Cmd("guide get", "Read ActionAuthoring guides (start: authoring-workflow).", "qkrpc guide get --topic <id> [--json]",
+
+                    opts: new[] { Option("topic", "Topic id (authoring-workflow, overview, patch-workflow, step-runner-search, …)."), Option("json", "Structured output.") }),
+
+                Cmd("guide search", "Search authoring guides.", "qkrpc guide search [--query <keyword>] [--limit 10] [--json]",
+
+                    opts: new[] { Option("query", "Keyword.", shortName: "q"), Option("limit", "Max results.", defaultValue: "10"), Option("json", "Structured output.") }),
+
+                Cmd("action get", "Read compressed XAction by action id.", "qkrpc action get --id <guid> [--return-mode full|structure|metadata] [--json]",
+
+                    opts: ActionHeadlessOpts()),
+
+                Cmd("action patch", "Apply partial XAction patch (one call = one save). On success use response; do not action_get only to verify.", "qkrpc action patch --id <guid> --patch-file <path|-> [--expected-edit-version N] [--force] [--json]",
+
+                    opts: ActionPatchOpts()),
+
+                Cmd("action replace", "Replace steps/variables.", "qkrpc action replace --id <guid> --xaction-file <path|-> [--expected-edit-version N] [--force] [--json]",
+
+                    opts: ActionReplaceOpts()),
+
+                Cmd("action list", "List/search actions (agent summaries).", "qkrpc action list [--query <keyword>] [--limit 30] [--json]",
+
+                    opts: new[] { Option("query", "Optional filter.", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("action update", "Upload or refresh a shared action.", "qkrpc action update --id <guid> [--changelog <text>] [--json]",
+
+                    opts: new[] { Option("id", "Shared action GUID."), Option("changelog", "Change log text."), Option("json", "Structured output.") }),
+
+                Cmd("action search", "Search local actions (main search box scoring).", "qkrpc action search --query <keyword> [--limit 20] [--json]",
+
+                    opts: new[] { Option("query", "Keyword.", shortName: "q"), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),
+
+                Cmd("subprogram search", "Search global subprograms.", "qkrpc subprogram search --query <keyword> [--limit 20] [--json]",
+
+                    opts: new[] { Option("query", "Keyword.", shortName: "q"), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),
+
+                Cmd("action delete", "Delete a local action.", "qkrpc action delete --id <guid> --yes [--json]",
+
+                    opts: new[] { Option("id", "Action GUID."), Option("yes", "Required.", shortName: "y", required: true), Option("json", "Structured output.") }),
+
+                Cmd("action run", "Run a local action.", "qkrpc action run --id <idOrName> [--param <text>] [--wait] [--json]",
+
+                    opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
+
+                Cmd("action edit", "Open action editor UI.", "qkrpc action edit --id <guid> [--json]",
+
+                    opts: new[] { Option("id", "Action GUID."), Option("json", "Structured output.") }),
+
+                Cmd("action edit-var", "Edit variable default via designer UI.", "qkrpc action edit-var --id <id> --var <key> --value <val> [--json]",
+
+                    opts: new[] { Option("id", "Subprogram or action id."), Option("var", "Variable key."), Option("value", "New default."), Option("json", "Structured output.") }),
+
+                Cmd("step-runner search", "Search StepRunner catalog (| OR, * wildcard). Use when step-modules has no match.", "qkrpc step-runner search --query <keyword> [--limit 40] [--json]",
+
+                    opts: new[] { Option("query", "Filter: AND with spaces, OR with |, * wildcard.", shortName: "q"), Option("limit", "Max results.", defaultValue: "40"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("step-runner get", "StepRunner schema: input param keys/types (required before patch inputParams).", "qkrpc step-runner get --key <stepRunnerKey> [--json]",
+
+                    opts: new[] { Option("key", "StepRunner key."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
             },
-            errorResponseExample = new
-            {
-                ok = false,
-                error = "PLUGIN_NOT_RUNNING",
-                message = "QuickerRpc 插件未运行（命名管道不可用）。",
-                hints = QuickerRpcConnect.BuildPluginNotRunningHints(bootstrapAttempted: true),
-                pipe = QuickerRpcPipeNames.ServerPipe,
-            },
+
         };
+
     }
+
+
+
+    private static object[] ActionHeadlessOpts() =>
+
+        new object[]
+
+        {
+
+            Option("id", "Action GUID."),
+
+            Option("return-mode", "full | structure | metadata."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object[] ActionPatchOpts() =>
+
+        new object[]
+
+        {
+
+            Option("id", "Action GUID."),
+
+            Option("patch", "Inline patch JSON."),
+
+            Option("patch-file", "Patch JSON file or - for stdin."),
+
+            Option("expected-edit-version", "From action get."),
+
+            Option("force", "Skip version check."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object[] ActionReplaceOpts() =>
+
+        new object[]
+
+        {
+
+            Option("id", "Action GUID."),
+
+            Option("xaction", "Inline XAction JSON."),
+
+            Option("xaction-file", "XAction JSON file or - for stdin."),
+
+            Option("expected-edit-version", "From action get."),
+
+            Option("force", "Skip version check."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object Cmd(string name, string summary, string usage, object[] opts)
+
+    {
+
+        return new { name, summary, usage, options = opts };
+
+    }
+
+
+
+    private static object[] JsonTimeoutBootstrap() =>
+
+        new object[]
+
+        {
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip quicker:runaction auto-start."),
+
+        };
+
+
 
     private static object Option(string name, string description, string? shortName = null, string? defaultValue = null, bool required = false)
+
     {
+
         return new
+
         {
+
             name,
+
             shortName,
+
             description,
+
             defaultValue,
+
             required = required ? true : (bool?)null,
+
         };
+
     }
+
+
 
     private static string GetCliVersion()
+
     {
+
         var assembly = Assembly.GetExecutingAssembly();
+
         var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
         if (!string.IsNullOrWhiteSpace(informational))
+
         {
+
             return informational;
+
         }
 
+
+
         return assembly.GetName().Version?.ToString() ?? "unknown";
+
     }
+
 }
+
