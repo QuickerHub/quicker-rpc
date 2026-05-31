@@ -44,6 +44,14 @@ public interface IQuickerRpcService
         string actionId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Run a local Quicker action by id or name (AppServer.ExecuteActionByIdOrName).</summary>
+    Task<QuickerRpcActionRunResult> RunActionAsync(
+        string actionId,
+        string? inputParam = null,
+        bool enableDebugging = false,
+        bool waitForComplete = false,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Edit a variable default value and save via ActionDesignerWindow.
     /// Accepts a global subprogram id/name or a local action id.
@@ -131,4 +139,18 @@ public sealed class QuickerRpcActionUpdateResult
     public string Message { get; set; } = string.Empty;
 
     public string? ActionId { get; set; }
+}
+
+public sealed class QuickerRpcActionRunResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? ActionId { get; set; }
+
+    public string? ActionTitle { get; set; }
+
+    /// <summary>Action return value when waitForComplete is true.</summary>
+    public string? ReturnResult { get; set; }
 }

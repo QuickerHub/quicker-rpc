@@ -51,6 +51,7 @@ qkrpc help --json          # machine-readable reference (preferred for agents)
 qkrpc ping --json
 qkrpc action search --query "<keyword>" [--limit 20] --json
 qkrpc subprogram search --query "<keyword>" [--limit 20] --json
+qkrpc action run --id <actionIdOrName> [--param <text>] [--wait] [--json]
 qkrpc action edit --id <guid> --json
 qkrpc action edit-var --id <subProgramIdOrName|actionId> --var version --value 2.1 --json
 qkrpc action delete --id <guid> --yes --json

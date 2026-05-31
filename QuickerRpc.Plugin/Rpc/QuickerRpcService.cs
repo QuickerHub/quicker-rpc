@@ -21,6 +21,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly SubProgramSearchService _subProgramSearchService;
     private readonly ActionDeleteService _actionDeleteService;
     private readonly ActionEditService _actionEditService;
+    private readonly ActionRunService _actionRunService;
     private readonly DesignerVariableEditService _designerVariableEditService;
     private readonly IPopupMessageService _popup;
 
@@ -30,6 +31,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         SubProgramSearchService subProgramSearchService,
         ActionDeleteService actionDeleteService,
         ActionEditService actionEditService,
+        ActionRunService actionRunService,
         DesignerVariableEditService designerVariableEditService,
         IPopupMessageService popup)
     {
@@ -38,6 +40,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _subProgramSearchService = subProgramSearchService;
         _actionDeleteService = actionDeleteService;
         _actionEditService = actionEditService;
+        _actionRunService = actionRunService;
         _designerVariableEditService = designerVariableEditService;
         _popup = popup;
     }
@@ -169,6 +172,33 @@ public sealed class QuickerRpcService : IQuickerRpcService
 
         return InvokeOnDispatcherAsync(
             () => Task.FromResult(_actionEditService.EditAction(actionId.Trim())),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcActionRunResult> RunActionAsync(
+        string actionId,
+        string? inputParam = null,
+        bool enableDebugging = false,
+        bool waitForComplete = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            return Task.FromResult(new QuickerRpcActionRunResult
+            {
+                Ok = false,
+                Message = "actionId is required.",
+            });
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_actionRunService.RunAction(
+                actionId.Trim(),
+                inputParam,
+                enableDebugging,
+                waitForComplete)),
             cancellationToken);
     }
 

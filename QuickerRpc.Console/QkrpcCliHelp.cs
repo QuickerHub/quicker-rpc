@@ -8,16 +8,9 @@ namespace QuickerRpc.Console;
 /// <summary>Machine-readable CLI reference for scripts and AI agents.</summary>
 internal static class QkrpcCliHelp
 {
-    private static readonly JsonSerializerOptions JsonWriteOptions = new()
-    {
-        WriteIndented = false,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
-
     public static void WriteJson(TextWriter output)
     {
-        output.WriteLine(JsonSerializer.Serialize(Build(), JsonWriteOptions));
+        output.WriteLine(JsonSerializer.Serialize(Build(), QkrpcJson.HelpOutput));
     }
 
     private static object Build()
@@ -236,6 +229,44 @@ internal static class QkrpcCliHelp
                         "CONFIRMATION_REQUIRED",
                         "MISSING_ACTION_ID",
                         "DELETE_FAILED",
+                    },
+                },
+                new
+                {
+                    name = "action run",
+                    summary = "Run a local Quicker action by id or name.",
+                    usage = "qkrpc action run --id <actionIdOrName> [--param <text>] [--debug] [--wait] [--json] [--timeout <seconds>]",
+                    options = new[]
+                    {
+                        Option("id", "Local action id (GUID) or action name."),
+                        Option("code", "Alias for --id."),
+                        Option("param", "Optional input parameter passed to the action.", shortName: "p"),
+                        Option("debug", "Enable debugging (same as holding Right Shift when running from UI)."),
+                        Option("wait", "Wait for completion; include returnResult in JSON output."),
+                        Option("json", "Emit JSON for automation."),
+                        Option("timeout", "Pipe connect and RPC timeout in seconds.", defaultValue: "10"),
+                    },
+                    examples = new[]
+                    {
+                        "qkrpc action run --id aa5917ad-1256-4c73-7022-08debe3efcbe --json",
+                        "qkrpc action search --query \"clipboard\" --json  # then run items[].id",
+                        "qkrpc action run --id {actionGuid} --param \"hello\" --wait --json",
+                    },
+                    responseExample = new
+                    {
+                        ok = true,
+                        action = "run",
+                        actionId = "{actionGuid}",
+                        actionTitle = "My Action",
+                        returnResult = (string?)null,
+                        message = "动作已运行。",
+                        pipe = QuickerRpcPipeNames.ServerPipe,
+                    },
+                    errors = new[]
+                    {
+                        "UNKNOWN_ACTION_VERB",
+                        "MISSING_ACTION_ID",
+                        "RUN_FAILED",
                     },
                 },
                 new
