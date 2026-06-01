@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package quickerrpc.agent.v1;
+
+option csharp_namespace = "QuickerRpc.AgentModel.Proto.V1";
+
+import "google/protobuf/timestamp.proto";
+
+// Canonical persisted program body for an X-type action (PascalCase json_name).
+// Aligned with Quicker.Designer x_action_program.proto; quicker-rpc parses Quicker native JSON via JsonParser.
+message XActionData {
+  bool limit_single_instance = 1 [json_name = "LimitSingleInstance"];
+  string summary_expression = 2 [json_name = "SummaryExpression"];
+  repeated XSubProgramData sub_programs = 3 [json_name = "SubPrograms"];
+  repeated XVariableData variables = 4 [json_name = "Variables"];
+  repeated XStepData steps = 5 [json_name = "Steps"];
+}
+
+message XStepData {
+  string step_runner_key = 1 [json_name = "StepRunnerKey"];
+  map<string, XStepParamData> input_params = 2 [json_name = "InputParams"];
+  map<string, string> output_params = 3 [json_name = "OutputParams"];
+  repeated XStepData if_steps = 4 [json_name = "IfSteps"];
+  repeated XStepData else_steps = 5 [json_name = "ElseSteps"];
+  string note = 6 [json_name = "Note"];
+  bool disabled = 7 [json_name = "Disabled"];
+  bool collapsed = 8 [json_name = "Collapsed"];
+  int32 delay_ms = 9 [json_name = "DelayMs"];
+  // Ephemeral editor/agent id (may appear as StepId or stepId in JSON before normalize).
+  string step_id = 10 [json_name = "StepId"];
+}
+
+message XStepParamData {
+  string var_key = 1 [json_name = "VarKey"];
+  string value = 2 [json_name = "Value"];
+}
+
+message XVariableData {
+  string key = 1 [json_name = "Key"];
+  bool is_locked = 2 [json_name = "IsLocked"];
+  string desc = 3 [json_name = "Desc"];
+  bool save_state = 4 [json_name = "SaveState"];
+  bool is_input = 5 [json_name = "IsInput"];
+  bool is_output = 6 [json_name = "IsOutput"];
+  int32 type = 7 [json_name = "Type"];
+  string default_value = 8 [json_name = "DefaultValue"];
+  string param_name = 9 [json_name = "ParamName"];
+  XInputParamInfoData input_param_info = 10 [json_name = "InputParamInfo"];
+  XOutputParamInfoData output_param_info = 11 [json_name = "OutputParamInfo"];
+  XTableDefData table_def = 12 [json_name = "TableDef"];
+  string custom_type = 13 [json_name = "CustomType"];
+  string group = 14 [json_name = "Group"];
+  string id = 15 [json_name = "Id"];
+}
+
+message XInputParamInfoData {
+  int32 input_method = 1 [json_name = "InputMethod"];
+  string selection_items = 2 [json_name = "SelectionItems"];
+  bool only_use_select = 3 [json_name = "OnlyUseSelect"];
+  bool is_required = 4 [json_name = "IsRequired"];
+  string validation_pattern = 5 [json_name = "ValidationPattern"];
+  int32 variable_mode = 6 [json_name = "VariableMode"];
+  string text_tools = 7 [json_name = "TextTools"];
+  int32 replace_mode = 8 [json_name = "ReplaceMode"];
+  bool is_advanced = 9 [json_name = "IsAdvanced"];
+  bool allow_input = 10 [json_name = "AllowInput"];
+  bool multi_line = 11 [json_name = "MultiLine"];
+  string visible_expression = 12 [json_name = "VisibleExpression"];
+  bool skip_eval = 13 [json_name = "SkipEval"];
+}
+
+message XOutputParamInfoData {
+  string visible_expression = 1 [json_name = "VisibleExpression"];
+}
+
+message XTableDefData {
+  repeated XTableFieldData fields = 1 [json_name = "Fields"];
+}
+
+message XTableFieldData {
+  string field_key = 1 [json_name = "FieldKey"];
+  optional int32 dict_var_type = 2 [json_name = "DictVarType"];
+  string label = 3 [json_name = "Label"];
+  string default_value = 18 [json_name = "DefaultValue"];
+}
+
+message XSubProgramData {
+  string id = 1 [json_name = "Id"];
+  string icon = 2 [json_name = "Icon"];
+  string name = 3 [json_name = "Name"];
+  string description = 4 [json_name = "Description"];
+  string summary_expression = 5 [json_name = "SummaryExpression"];
+  google.protobuf.Timestamp create_time_utc = 6 [json_name = "CreateTimeUtc"];
+  google.protobuf.Timestamp last_edit_time_utc = 7 [json_name = "LastEditTimeUtc"];
+  bool is_local_edited = 8 [json_name = "IsLocalEdited"];
+  repeated XVariableData variables = 9 [json_name = "Variables"];
+  repeated XStepData steps = 10 [json_name = "Steps"];
+  repeated XSubProgramData sub_programs = 11 [json_name = "SubPrograms"];
+  string template_id = 12 [json_name = "TemplateId"];
+  int32 template_revision = 13 [json_name = "TemplateRevision"];
+  optional bool use_server_version = 14 [json_name = "UseServerVersion"];
+  optional bool is_protected = 15 [json_name = "IsProtected"];
+  string shared_id = 16 [json_name = "SharedId"];
+  google.protobuf.Timestamp share_time_utc = 17 [json_name = "ShareTimeUtc"];
+}

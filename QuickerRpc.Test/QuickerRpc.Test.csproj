@@ -22,4 +22,9 @@
       <SetTargetFramework>TargetFramework=net472</SetTargetFramework>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Fixtures\rpc-test-xaction.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

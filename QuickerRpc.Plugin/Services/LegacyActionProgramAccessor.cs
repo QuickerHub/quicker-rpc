@@ -7,7 +7,7 @@ using QuickerRpc.Plugin.Reflection;
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Read/write XAction programs via live <see cref="ActionItem"/> from ProfileStore / DataService.
+/// Read/write XAction programs via <see cref="ActionDesignerProgramAccess"/> (DataService + designer save).
 /// </summary>
 internal sealed class LegacyActionProgramAccessor
 {
@@ -18,10 +18,7 @@ internal sealed class LegacyActionProgramAccessor
     public bool IsAvailable => QuickerInternalAccess.IsInQuicker;
 
     public static LegacyActionProgramAccessor? TryCreate() =>
-        QuickerInternalAccess.IsInQuicker
-        && (ActionItem2ProgramAccess.IsAvailable || QuickerInternalAccess.IsCatalogAvailable)
-            ? new LegacyActionProgramAccessor()
-            : null;
+        QuickerInternalAccess.IsInQuicker ? new LegacyActionProgramAccessor() : null;
 
     public bool TryGetById(string actionId, out ActionItem? action, out string? error)
     {
@@ -29,11 +26,17 @@ internal sealed class LegacyActionProgramAccessor
         error = null;
         if (!IsAvailable)
         {
-            error = "Action catalog store unavailable.";
+            error = "Not running inside Quicker.";
             return false;
         }
 
-        if (!ActionProgramPersistence.TryGetLiveActionItem(actionId.Trim(), out action) || action is null)
+        var id = actionId.Trim();
+        if (ActionDesignerProgramAccess.TryGetById(id, out action, out _))
+        {
+            return true;
+        }
+
+        if (!ActionProgramPersistence.TryGetLiveActionItem(id, out action) || action is null)
         {
             error = $"Action not found: {actionId}";
             return false;
@@ -44,38 +47,21 @@ internal sealed class LegacyActionProgramAccessor
 
     public IEnumerable<ActionItem> EnumerateAll() => QuickerInternalAccess.EnumerateAllActionItems();
 
-    public bool IsXAction(ActionItem action)
+    public bool IsXAction(ActionItem action) => ActionDesignerProgramAccess.IsXAction(action);
+
+    public string? GetPayloadJson(ActionItem action, out string? hydrateError)
     {
-        if (ActionItem2ProgramAccess.TryGetById(GetActionId(action), out var action2, out _)
-            && action2 is not null)
+        hydrateError = null;
+        var actionId = GetActionId(action);
+        if (ActionDesignerProgramAccess.TryGetXActionPayloadJson(actionId, out var json, out hydrateError))
         {
-            return ActionItem2ProgramAccess.IsXAction(action2!);
+            return json;
         }
 
-        return action.ActionType == ActionType.XAction;
+        return ActionProgramContent.HasProgramContent(action.Data) ? action.Data : null;
     }
 
-    public string? GetPayloadJson(ActionItem action)
-    {
-        if (ActionItem2ProgramAccess.TryGetById(GetActionId(action), out var action2, out _)
-            && action2 is not null)
-        {
-            return ActionItem2ProgramAccess.TryGetXActionPayloadJson(action2!);
-        }
-
-        return action.Data;
-    }
-
-    public long GetEditVersion(ActionItem action)
-    {
-        if (ActionItem2ProgramAccess.TryGetById(GetActionId(action), out var action2, out _)
-            && action2 is not null)
-        {
-            return ActionItem2ProgramAccess.GetEditVersionMs(action2);
-        }
-
-        return ToUnixMilliseconds(action.LastEditTimeUtc);
-    }
+    public long GetEditVersion(ActionItem action) => ActionDesignerProgramAccess.GetEditVersionMs(action);
 
     public (string Title, string Description, string Icon) GetPresentation(ActionItem action) =>
         (action.Title ?? string.Empty, action.Description ?? string.Empty, action.Icon ?? string.Empty);
@@ -92,23 +78,5 @@ internal sealed class LegacyActionProgramAccessor
     {
         _ = actionEditMgr;
         return ActionProgramPersistence.TrySave(GetActionId(sourceAction), steps, variables, subProgramsJson, out error);
-    }
-
-    private static long ToUnixMilliseconds(DateTime? dt)
-    {
-        if (!dt.HasValue)
-        {
-            return 0;
-        }
-
-        var v = dt.Value;
-        var utc = v.Kind switch
-        {
-            DateTimeKind.Utc => v,
-            DateTimeKind.Local => v.ToUniversalTime(),
-            _ => DateTime.SpecifyKind(v, DateTimeKind.Utc),
-        };
-
-        return new DateTimeOffset(utc, TimeSpan.Zero).ToUnixTimeMilliseconds();
     }
 }

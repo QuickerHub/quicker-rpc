@@ -61,9 +61,15 @@ public sealed class ActionSearchService
             {
                 items = SearchScopedCatalog(keyword, scopeValue, limit);
             }
+            else if (_search is not null)
+            {
+                var fromNative = EnrichSummaries(_search(keyword, limit));
+                var fromCatalog = SearchScopedCatalog(keyword, scope: null, limit);
+                items = MergeSearchResults(fromNative, fromCatalog, limit);
+            }
             else
             {
-                items = EnrichSummaries(_search!(keyword, limit));
+                items = SearchScopedCatalog(keyword, scope: null, limit);
             }
 
             return new QuickerRpcActionSearchResult
@@ -293,35 +299,12 @@ public sealed class ActionSearchService
             .ToList();
     }
 
-    private static int ComputeSimpleMatchScore(ActionItem action, string keyword)
-    {
-        var id = (action.Id ?? string.Empty).Trim();
-        var title = action.Title ?? string.Empty;
-        var description = action.Description ?? string.Empty;
-
-        if (!string.IsNullOrEmpty(id)
-            && string.Equals(id, keyword, StringComparison.OrdinalIgnoreCase))
-        {
-            return 200;
-        }
-
-        if (title.Equals(keyword, StringComparison.OrdinalIgnoreCase))
-        {
-            return 150;
-        }
-
-        if (title.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return 100;
-        }
-
-        if (description.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return 60;
-        }
-
-        return 0;
-    }
+    private static int ComputeSimpleMatchScore(ActionItem action, string keyword) =>
+        ActionSearchFuzzyMatch.ComputeScore(
+            keyword,
+            action.Id,
+            action.Title ?? string.Empty,
+            action.Description);
 
     private static IReadOnlyList<QuickerRpcActionSummary> FilterActions(IEnumerable? actions, string keyword, int limit)
     {
@@ -374,34 +357,38 @@ public sealed class ActionSearchService
             .ToList();
     }
 
-    private static int ComputeSimpleMatchScoreLegacy(object action, string keyword)
+    private static int ComputeSimpleMatchScoreLegacy(object action, string keyword) =>
+        ActionSearchFuzzyMatch.ComputeScore(
+            keyword,
+            ReadActionId(action),
+            ReadActionTitle(action) ?? string.Empty,
+            ReadActionDescription(action));
+
+    private static IReadOnlyList<QuickerRpcActionSummary> MergeSearchResults(
+        IReadOnlyList<QuickerRpcActionSummary> primary,
+        IReadOnlyList<QuickerRpcActionSummary> catalog,
+        int limit)
     {
-        var id = ReadActionId(action);
-        var title = ReadActionTitle(action) ?? string.Empty;
-        var description = ReadActionDescription(action) ?? string.Empty;
-
-        if (!string.IsNullOrEmpty(id)
-            && string.Equals(id, keyword, StringComparison.OrdinalIgnoreCase))
+        var merged = new Dictionary<string, QuickerRpcActionSummary>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in primary.Concat(catalog))
         {
-            return 200;
+            var id = (item.Id ?? string.Empty).Trim();
+            if (id.Length == 0)
+            {
+                continue;
+            }
+
+            if (!merged.TryGetValue(id, out var existing) || item.Score > existing.Score)
+            {
+                merged[id] = item;
+            }
         }
 
-        if (title.Equals(keyword, StringComparison.OrdinalIgnoreCase))
-        {
-            return 150;
-        }
-
-        if (title.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return 100;
-        }
-
-        if (description.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return 60;
-        }
-
-        return 0;
+        return merged.Values
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
+            .Take(limit)
+            .ToList();
     }
 
     private static QuickerRpcActionSummary? MapActionItem(ActionItem action, string? pageTitle, int score)

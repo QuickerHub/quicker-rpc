@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using Quicker.Common;
 using Quicker.Domain;
 using QuickerRpc.Plugin.Reflection;
 
@@ -126,45 +127,26 @@ internal static class ActionContextResolver
 
         try
         {
-            var dataService = typeof(AppState).GetProperty("DataService", BindingFlags.Public | BindingFlags.Static)
-                ?.GetValue(null);
+            var dataService = AppState.DataService;
             if (dataService is null)
             {
                 return false;
             }
 
-            var getById = dataService.GetType().GetMethod(
-                "GetActionById",
-                BindingFlags.Public | BindingFlags.Instance,
-                binder: null,
-                types: new[] { typeof(string) },
-                modifiers: null);
-            if (getById is null)
-            {
-                return false;
-            }
-
-            var raw = getById.Invoke(dataService, new object[] { actionId });
-            if (raw is null)
+            var (actionItem, profile) = dataService.GetActionById(actionId.Trim());
+            if (actionItem is null || profile is null)
             {
                 errorMessage = $"Action not found: {actionId}";
                 return false;
             }
 
-            var actionValue = ReadTupleItem(raw, 0, "Item1", "action");
-            var profileValue = ReadTupleItem(raw, 1, "Item2", "profile");
-            if (actionValue is null || profileValue is null)
-            {
-                errorMessage = $"Action not found: {actionId}";
-                return false;
-            }
-
-            pageOrProfile = profileValue;
-            action = actionValue;
+            pageOrProfile = profile;
+            action = actionItem;
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            errorMessage = ex.Message;
             return false;
         }
     }

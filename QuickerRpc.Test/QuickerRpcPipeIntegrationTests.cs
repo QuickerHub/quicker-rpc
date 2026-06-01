@@ -46,7 +46,9 @@ public sealed class QuickerRpcPipeIntegrationTests
         var ct = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
         var query = QuickerRpcTestSettings.SearchQuery;
 
-        var result = await session.Rpc.SearchActionSummariesAsync(query, maxResults: 10, ct).ConfigureAwait(false);
+        var result = await session.Rpc
+            .SearchActionSummariesAsync(query, maxResults: 10, scope: null, cancellationToken: ct)
+            .ConfigureAwait(false);
 
         TestContext.WriteLine("Search query: " + query);
         TestContext.WriteLine("Success: " + result.Success + ", MatchCount: " + result.MatchCount);
@@ -89,16 +91,11 @@ public sealed class QuickerRpcPipeIntegrationTests
     [TestMethod]
     public async Task Rpc_GetCompressedAction_when_test_action_id_set()
     {
-        var actionId = QuickerRpcTestSettings.TestActionId;
-        if (string.IsNullOrWhiteSpace(actionId))
-        {
-            Assert.Inconclusive(
-                "Set QUICKER_RPC_TEST_ACTION_ID to a local XAction id to run this test.");
-            return;
-        }
-
         await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);
         var ct = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
+
+        var actionId = QuickerRpcTestSettings.TestActionId
+            ?? await QuickerRpcRpcTestAction.EnsureActionIdAsync(session.Rpc, TestContext, ct).ConfigureAwait(false);
 
         var result = await session.Rpc
             .GetCompressedActionByIdAsync(actionId, returnMode: "full", cancellationToken: ct)
@@ -111,15 +108,14 @@ public sealed class QuickerRpcPipeIntegrationTests
             TestContext.WriteLine("Error: " + result.ErrorMessage);
         }
 
-        if (result.Success && !string.IsNullOrWhiteSpace(result.CompressedJson))
-        {
-            var root = JObject.Parse(result.CompressedJson);
-            TestContext.WriteLine("editVersion: " + result.EditVersion);
-            TestContext.WriteLine("steps: " + (root["steps"] as JArray)?.Count);
-        }
-
         Assert.IsTrue(result.Success, result.ErrorMessage ?? "GetCompressedActionById failed.");
-        Assert.IsFalse(string.IsNullOrWhiteSpace(result.CompressedJson));
         Assert.IsTrue(result.EditVersion > 0);
+
+        var root = QuickerRpcCompressedJsonAssert.ParseRequired(result.CompressedJson);
+        TestContext.WriteLine("editVersion: " + result.EditVersion);
+        TestContext.WriteLine(
+            "steps: " + QuickerRpcCompressedJsonAssert.StepCount(root)
+            + " variables: " + QuickerRpcCompressedJsonAssert.VariableCount(root));
+        QuickerRpcCompressedJsonAssert.AssertStepsAndVariablesPositive(root, QuickerRpcRpcTestAction.Title);
     }
 }

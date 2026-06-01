@@ -13,6 +13,7 @@ QuickerRpc.Plugin/publish/
 *.user
 *.suo
 *.cache
+.tmp*
 
 # Local Quicker source reference for agent/reflection work (not part of this repo)
 .ref/Quicker/

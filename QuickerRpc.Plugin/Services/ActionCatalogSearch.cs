@@ -24,7 +24,13 @@ internal static class ActionCatalogSearch
                 continue;
             }
 
-            var score = keyword.Length == 0 ? 1 : ComputeMatchScore(entry.Action, keyword);
+            var score = keyword.Length == 0
+                ? 1
+                : ActionSearchFuzzyMatch.ComputeScore(
+                    keyword,
+                    entry.Action.Id,
+                    entry.Action.Title ?? string.Empty,
+                    entry.Action.Description);
             if (score <= 0)
             {
                 continue;
@@ -38,35 +44,5 @@ internal static class ActionCatalogSearch
             .ThenBy(x => x.Entry.Action.Title, StringComparer.OrdinalIgnoreCase)
             .Take(max)
             .ToList();
-    }
-
-    private static int ComputeMatchScore(ActionItem action, string keyword)
-    {
-        var id = (action.Id ?? string.Empty).Trim();
-        var title = action.Title ?? string.Empty;
-        var description = action.Description ?? string.Empty;
-
-        if (!string.IsNullOrEmpty(id)
-            && string.Equals(id, keyword, StringComparison.OrdinalIgnoreCase))
-        {
-            return 200;
-        }
-
-        if (title.Equals(keyword, StringComparison.OrdinalIgnoreCase))
-        {
-            return 150;
-        }
-
-        if (title.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return 100;
-        }
-
-        if (description.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return 60;
-        }
-
-        return 0;
     }
 }

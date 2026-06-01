@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package quickerrpc.agent.v1;
+
+option csharp_namespace = "QuickerRpc.AgentModel.Proto.V1";
+
+// Agent wire JSON (camelCase json_name). Output via JsonFormatter with formatDefaultValues=false.
+message AgentCompressedProgram {
+  repeated AgentCompressedStep steps = 1;
+  repeated AgentCompressedVariable variables = 2;
+}
+
+message AgentCompressedStep {
+  string step_runner_key = 1 [json_name = "stepRunnerKey"];
+  map<string, AgentCompressedInputParam> input_params = 2 [json_name = "inputParams"];
+  map<string, string> output_params = 3 [json_name = "outputParams"];
+  repeated AgentCompressedStep if_steps = 4 [json_name = "ifSteps"];
+  repeated AgentCompressedStep else_steps = 5 [json_name = "elseSteps"];
+  string note = 6;
+  bool disabled = 7;
+  bool collapsed = 8;
+  int32 delay_ms = 9 [json_name = "delayMs"];
+  string step_id = 10 [json_name = "stepId"];
+}
+
+message AgentCompressedInputParam {
+  string var_key = 1 [json_name = "varKey"];
+  string value = 2;
+}
+
+message AgentCompressedVariable {
+  string id = 1;
+  string key = 2;
+  string var_type = 3 [json_name = "varType"];
+  string default_value = 4 [json_name = "defaultValue"];
+  string desc = 5;
+  bool is_locked = 6 [json_name = "isLocked"];
+  bool save_state = 7 [json_name = "saveState"];
+  bool is_input = 8 [json_name = "isInput"];
+  bool is_output = 9 [json_name = "isOutput"];
+  string param_name = 10 [json_name = "paramName"];
+  string group = 11;
+  string custom_type = 12 [json_name = "customType"];
+  AgentCompressedVariableInputInfo input_param_info = 13 [json_name = "inputParamInfo"];
+  AgentCompressedVariableOutputInfo output_param_info = 14 [json_name = "outputParamInfo"];
+  AgentCompressedTableDef table_def = 15 [json_name = "tableDef"];
+}
+
+message AgentCompressedVariableInputInfo {
+  int32 input_method = 1 [json_name = "inputMethod"];
+  string selection_items = 2 [json_name = "selectionItems"];
+  bool only_use_select = 3 [json_name = "onlyUseSelect"];
+  bool is_required = 4 [json_name = "isRequired"];
+  string validation_pattern = 5 [json_name = "validationPattern"];
+  int32 variable_mode = 6 [json_name = "variableMode"];
+  string text_tools = 7 [json_name = "textTools"];
+  int32 replace_mode = 8 [json_name = "replaceMode"];
+  bool is_advanced = 9 [json_name = "isAdvanced"];
+  bool allow_input = 10 [json_name = "allowInput"];
+  bool multi_line = 11 [json_name = "multiLine"];
+  string visible_expression = 12 [json_name = "visibleExpression"];
+  bool skip_eval = 13 [json_name = "skipEval"];
+}
+
+message AgentCompressedVariableOutputInfo {
+  string visible_expression = 1 [json_name = "visibleExpression"];
+}
+
+message AgentCompressedTableDef {
+  repeated AgentCompressedTableField fields = 1;
+}
+
+message AgentCompressedTableField {
+  string field_key = 1 [json_name = "fieldKey"];
+  optional int32 dict_var_type = 2 [json_name = "dictVarType"];
+  string label = 3;
+  string default_value = 4 [json_name = "defaultValue"];
+}

@@ -1,5 +1,8 @@
 # quicker-rpc — 给 AI Agent 的快速说明
 
+> **系统提示（可复制到规则）**  
+> `qkrpc` 是本机已安装的 **CLI 可执行命令**（Windows：`qkrpc` / `%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe`）。在终端 **直接调用** `qkrpc <子命令>`，不要把它当成只能由用户手动的说明文档。前置：`qkrpc ping --json` 成功（Quicker 已运行且已加载 QuickerRpc 插件）。探命令：`qkrpc help --json`；写动作：`qkrpc guide get --topic authoring-workflow --json`。机器可读输出加 `--json`；退出码 0=成功、1=失败。
+
 Quicker 插件 + `qkrpc.exe` CLI，通过 **命名管道 + StreamJsonRpc** 让外部命令行调用 Quicker 内能力。
 
 **CLI 自描述（优先）**：`qkrpc help --json` — 命令、参数、无头编辑工作流。人类可读：[docs/cli-commands.md](docs/cli-commands.md)。
@@ -73,12 +76,24 @@ qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <
 | `QuickerRpc.Test` | **活进程** RPC：`QuickerRpcClient` → 命名管道 → `IQuickerRpcService`（需 Quicker + 插件） |
 
 ```powershell
-# 需 Quicker 已启动并加载插件
+# 需 Quicker 已启动并加载插件（改 Plugin 后先 build.ps1 -t 并在 Quicker 里 reload DLL）
+dotnet test QuickerRpc.Test -c Release
+
+# 仅连通性
 dotnet test QuickerRpc.Test --filter FullyQualifiedName~QuickerRpcPipeIntegrationTests
 
-# 指定本地 XAction 测 get
+# 本地夹具动作 _rpc_test（自动 create + 写入 2 步/2 变量，断言 get 后 steps、variables > 0）
+dotnet test QuickerRpc.Test --filter Rpc_GetCompressedAction_rpc_test_fixture
+
+# 其它内容断言（改 Plugin 后须先 pwsh ./build.ps1 -t 并在 Quicker 重载 DLL）
+dotnet test QuickerRpc.Test --filter FullyQualifiedName~QuickerRpcRpcContentTests
+dotnet test QuickerRpc.Test --filter FullyQualifiedName~clipboard_n10
+
+# 可选覆盖
 $env:QUICKER_RPC_TEST_ACTION_ID = "<guid>"
-dotnet test QuickerRpc.Test --filter Rpc_GetCompressedAction
+$env:QUICKER_RPC_TEST_SHARED_ACTION_ID = "f5c76108-3ce9-433f-8cd0-8f0d9c562052"
+$env:QUICKER_RPC_TEST_CLIPBOARD_N10_ACTION_ID = "32c12786-9bb8-4b0c-8d55-7e6a4c8a5d10"  # 剪贴板 n10（UseTemplate）
+$env:QUICKER_RPC_TEST_SUBPROGRAM = "某子程序名"
 ```
 
 ## Quicker 源码参考（反射 / 实现原理）

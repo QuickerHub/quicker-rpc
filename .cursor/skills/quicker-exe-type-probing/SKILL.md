@@ -46,7 +46,7 @@ Local tree (gitignored): **`.ref/Quicker/QuickerPc/`** — e.g. `D:\source\repos
 | Designer UI (Ctrl+S, `SaveAllData`, `UpdateXActionUi`) | `.ref/Quicker/QuickerPc/Quicker/View/X/ActionDesignerWindow.xaml.cs` |
 | Utilities / extensions used by reflection | `QuickerPc/Quicker/Utilities/` |
 | Stable public API (`IQuickerApi`, expressions) | `QuickerPc/Quicker.Public/` |
-| Shared DTOs, legacy models | `QuickerPc/Common/Quicker.Common/` (submodule) | `ActionItem2ProgramAccess` (some `Quicker.Common.V2.*` types may exist only in built DLLs — use Debug exe scan if source has no match) |
+| Shared DTOs, legacy models | `QuickerPc/Common/Quicker.Common/` (submodule) | `ActionDesignerProgramAccess` |
 
 **Submodule:** shallow clone does **not** populate `QuickerPc/Common/`. Before searching Common types:
 
@@ -95,8 +95,7 @@ Live RPC (Quicker + plugin running): `QuickerRpc.Test/` — see `AGENTS.md`.
 | `Quicker.Domain.AppState` | `QuickerPc/Quicker/Domain/AppState.cs` | `QuickerInternalAccess`, `QuickerAssemblyReflection` |
 | `Quicker.Domain.Services.ActionEditMgr` | `QuickerPc/Quicker/Domain/Services/ActionEditMgr.cs` | `QuickerInternalAccess`, `ActionEditMgrAccessor` |
 | `Quicker.Domain.Actions.X.*` | `QuickerPc/Quicker/Actions/XActions/` | `XActionProgramBodyWriter`, `ActionProgramPersistence` |
-| `ActionItem` + `Data` (JSON `XAction`) | `ActionDesignerWindow.SaveAllData`, `ActionEditMgr.SaveEditingAction(ActionItem)` | `ActionProgramPersistence` legacy path, `ActionDesignerUiSave` |
-| `Quicker.Common.V2.ActionItem2`, `XActionDto` | Only if present in **your** `.ref` or runtime; else optional fallback | `ActionItem2ProgramAccess` |
+| `ActionItem` + `Data` (JSON `XAction`) | `DataService.GetActionById`, `ActionDesignerWindow` (`Action`, `ResultActionItem.Data`), `ActionEditMgr.SaveEditingAction(ActionItem)` | `ActionDesignerProgramAccess`, `ActionProgramPersistence`, `ActionDesignerUiSave` |
 | `Quicker.View.X.ActionDesignerWindow` | `ActionDesignerWindow.xaml.cs` (`Action`, `ResultActionItem`, `UpdateXActionUi`) | `ActionDesignerUiSave`, `DesignerVariableEditService` |
 | Step runner catalog | search `IStepRunnerService` under `QuickerPc/` | `StepRunnerCatalogFromQuicker` |
 

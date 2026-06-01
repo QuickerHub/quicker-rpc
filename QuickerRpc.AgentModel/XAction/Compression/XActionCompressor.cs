@@ -3,13 +3,14 @@ using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Catalog;
+using QuickerRpc.AgentModel.XAction.Proto;
 
 namespace QuickerRpc.AgentModel.XAction.Compression;
 
 /// <summary>
-/// Read-only compressed view of an XAction program for agents (parity with
-/// <c>Quicker.ActionDesigner.Backend.XActionCompression</c> using protobuf <see cref="StepRunnerCatalog"/> instead of
-/// <c>IStepRunnerService</c>).
+/// Read-only compressed view of an XAction program for agents. Full compression parses native XAction via
+/// <see cref="XActionDataJsonParser"/> (x_action_program.proto) and emits agent wire JSON from agent_compressed_program.proto.
+/// Patch/ephemeral-id helpers still operate on <see cref="JArray"/> for round-trip editing.
 /// </summary>
 public static class XActionCompressor
 {
@@ -19,24 +20,9 @@ public static class XActionCompressor
         StepRunnerCatalog catalog,
         bool omitDefaultLiteralInputs)
     {
-        var outSteps = new JArray();
-        foreach (var token in steps)
-        {
-            if (token is JObject stepObj)
-            {
-                outSteps.Add(CompressStep(stepObj, catalog, omitDefaultLiteralInputs));
-            }
-            else
-            {
-                outSteps.Add(token);
-            }
-        }
-
-        return new JObject
-        {
-            ["steps"] = outSteps,
-            ["variables"] = CompressVariables(variables)
-        };
+        var native = XActionDataJsonParser.ParseProgramBody(steps, variables);
+        var compressed = TypedXActionCompressor.CompressProgram(native, catalog, omitDefaultLiteralInputs);
+        return AgentCompressedProgramJson.ToJObject(compressed);
     }
 
     public static JObject CompressStructure(JArray steps, JArray variables)
@@ -69,6 +55,27 @@ public static class XActionCompressor
         };
     }
 
+    /// <summary>
+    /// Quicker stores XAction JSON with PascalCase property names; the agent wire format uses camelCase.
+    /// Call before compress / patch when the body came from <see cref="Newtonsoft.Json"/> default serialization.
+    /// </summary>
+    public static void NormalizeQuickerWireNames(JArray steps, JArray? variables = null)
+    {
+        NormalizeStepsWireNamesRecursive(steps);
+        if (variables is null)
+        {
+            return;
+        }
+
+        foreach (var token in variables)
+        {
+            if (token is JObject variableObj)
+            {
+                NormalizeVariablePropertyNames(variableObj);
+            }
+        }
+    }
+
     public static void EnsureEphemeralStepIds(JArray rootSteps)
     {
         var counter = 1;
@@ -96,17 +103,11 @@ public static class XActionCompressor
 
     public static JArray CompressVariables(JArray variables)
     {
+        var native = XActionDataJsonParser.ParseProgramBody(new JArray(), variables);
         var outVariables = new JArray();
-        foreach (var token in variables)
+        foreach (var variable in native.Variables)
         {
-            if (token is JObject variableObj)
-            {
-                outVariables.Add(CompressVariable(variableObj));
-            }
-            else
-            {
-                outVariables.Add(token);
-            }
+            outVariables.Add(CompressVariable(variable));
         }
 
         return outVariables;
@@ -114,32 +115,19 @@ public static class XActionCompressor
 
     public static JObject CompressVariable(JObject variableObj)
     {
-        var result = (JObject)variableObj.DeepClone();
-        NormalizeVariablePropertyNames(result);
-
-        if (!TryReadVarType(result["varType"], out var numericVarType))
+        var native = XActionDataJsonParser.ParseProgramBody(
+            new JArray(),
+            new JArray { variableObj });
+        if (native.Variables.Count == 0)
         {
-            numericVarType = 0;
+            return new JObject();
         }
 
-        result.Remove("type");
-        result.Remove("var_type");
-        result.Remove("csharpType");
-
-        var varTypeName = ResolveVariableVarTypeName(numericVarType);
-        if (!string.Equals(varTypeName, "text", StringComparison.Ordinal))
-        {
-            result["varType"] = varTypeName;
-        }
-        else
-        {
-            result.Remove("varType");
-        }
-
-        OmitDefaultVariableFields(result);
-        OmitEmptyVariableNestedObjects(result);
-        return result;
+        return CompressVariable(native.Variables[0]);
     }
+
+    public static JObject CompressVariable(QuickerRpc.AgentModel.Proto.V1.XVariableData variable) =>
+        AgentCompressedProgramJson.ToJObject(TypedXActionCompressor.CompressVariable(variable));
 
     public static JArray NormalizeVariablesForSave(JArray variables)
     {
@@ -189,6 +177,18 @@ public static class XActionCompressor
         RenameIfPresent(variableObj, "input_param_info", "inputParamInfo");
         RenameIfPresent(variableObj, "output_param_info", "outputParamInfo");
         RenameIfPresent(variableObj, "table_def", "tableDef");
+        RenameIfPresent(variableObj, "Key", "key");
+        RenameIfPresent(variableObj, "Type", "type");
+        RenameIfPresent(variableObj, "Id", "id");
+        RenameIfPresent(variableObj, "Desc", "desc");
+        RenameIfPresent(variableObj, "DefaultValue", "defaultValue");
+        RenameIfPresent(variableObj, "IsLocked", "isLocked");
+        RenameIfPresent(variableObj, "SaveState", "saveState");
+        RenameIfPresent(variableObj, "IsInput", "isInput");
+        RenameIfPresent(variableObj, "IsOutput", "isOutput");
+        RenameIfPresent(variableObj, "ParamName", "paramName");
+        RenameIfPresent(variableObj, "CustomType", "customType");
+        RenameIfPresent(variableObj, "Group", "group");
 
         if (variableObj["type"] != null && variableObj["varType"] == null)
         {
@@ -315,60 +315,14 @@ public static class XActionCompressor
         StepRunnerCatalog catalog,
         bool omitDefaultLiteralInputs)
     {
-        var result = (JObject)step.DeepClone();
-        NormalizePropertyNames(result);
-
-        var runnerKey = result.Value<string>("stepRunnerKey") ?? "";
-        var runner = omitDefaultLiteralInputs && !string.IsNullOrEmpty(runnerKey)
-            ? TryFindRunnerItem(catalog, runnerKey)
-            : null;
-
-        var inputObj = result["inputParams"] as JObject ?? new JObject();
-        var compressedInputs = CompressInputParams(inputObj, runner, omitDefaultLiteralInputs);
-        if (compressedInputs.Count > 0)
+        var native = XActionDataJsonParser.ParseProgramBody(new JArray { step }, new JArray());
+        if (native.Steps.Count == 0)
         {
-            result["inputParams"] = compressedInputs;
-        }
-        else
-        {
-            result.Remove("inputParams");
+            return new JObject();
         }
 
-        var outputObj = result["outputParams"] as JObject ?? new JObject();
-        var compressedOutputs = CompressOutputParams(outputObj);
-        if (compressedOutputs.Count > 0)
-        {
-            result["outputParams"] = compressedOutputs;
-        }
-        else
-        {
-            result.Remove("outputParams");
-        }
-
-        var ifArr = result["ifSteps"] as JArray ?? new JArray();
-        var elseArr = result["elseSteps"] as JArray ?? new JArray();
-        var compressedIf = CompressStepArray(ifArr, catalog, omitDefaultLiteralInputs);
-        var compressedElse = CompressStepArray(elseArr, catalog, omitDefaultLiteralInputs);
-        if (compressedIf.Count > 0)
-        {
-            result["ifSteps"] = compressedIf;
-        }
-        else
-        {
-            result.Remove("ifSteps");
-        }
-
-        if (compressedElse.Count > 0)
-        {
-            result["elseSteps"] = compressedElse;
-        }
-        else
-        {
-            result.Remove("elseSteps");
-        }
-
-        OmitDefaultPresentationFields(result);
-        return result;
+        return AgentCompressedProgramJson.ToJObject(
+            TypedXActionCompressor.CompressStep(native.Steps[0], catalog, omitDefaultLiteralInputs));
     }
 
     /// <summary>
@@ -428,6 +382,16 @@ public static class XActionCompressor
         RenameIfPresent(step, "else_steps", "elseSteps");
         RenameIfPresent(step, "delay_ms", "delayMs");
         RenameIfPresent(step, "step_id", "stepId");
+        RenameIfPresent(step, "StepRunnerKey", "stepRunnerKey");
+        RenameIfPresent(step, "InputParams", "inputParams");
+        RenameIfPresent(step, "OutputParams", "outputParams");
+        RenameIfPresent(step, "IfSteps", "ifSteps");
+        RenameIfPresent(step, "ElseSteps", "elseSteps");
+        RenameIfPresent(step, "DelayMs", "delayMs");
+        RenameIfPresent(step, "StepId", "stepId");
+        RenameIfPresent(step, "Disabled", "disabled");
+        RenameIfPresent(step, "Collapsed", "collapsed");
+        RenameIfPresent(step, "Note", "note");
     }
 
     private static void RenameIfPresent(JObject o, string from, string to)
@@ -508,6 +472,41 @@ public static class XActionCompressor
     private static void NormalizeParamNames(JObject paramObj)
     {
         RenameIfPresent(paramObj, "var_key", "varKey");
+        RenameIfPresent(paramObj, "VarKey", "varKey");
+        RenameIfPresent(paramObj, "Value", "value");
+    }
+
+    private static void NormalizeStepsWireNamesRecursive(JArray steps)
+    {
+        foreach (var token in steps)
+        {
+            if (token is not JObject stepObj)
+            {
+                continue;
+            }
+
+            NormalizePropertyNames(stepObj);
+            if (stepObj["inputParams"] is JObject inputObj)
+            {
+                foreach (var prop in inputObj.Properties())
+                {
+                    if (prop.Value is JObject paramObj)
+                    {
+                        NormalizeParamNames(paramObj);
+                    }
+                }
+            }
+
+            if (stepObj["ifSteps"] is JArray ifSteps)
+            {
+                NormalizeStepsWireNamesRecursive(ifSteps);
+            }
+
+            if (stepObj["elseSteps"] is JArray elseSteps)
+            {
+                NormalizeStepsWireNamesRecursive(elseSteps);
+            }
+        }
     }
 
     private static Dictionary<string, StepRunnerInputParamDef> BuildParamDefIndex(StepRunnerDefinition? runner)

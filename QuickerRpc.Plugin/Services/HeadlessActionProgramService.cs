@@ -52,16 +52,14 @@ public sealed class HeadlessActionProgramService
             return FailGet($"Action {id} is not an XAction program.");
         }
 
-        var payloadJson = _actions.GetPayloadJson(action!);
+        var payloadJson = _actions.GetPayloadJson(action!, out var hydrateError);
         if (string.IsNullOrWhiteSpace(payloadJson))
         {
-            return FailGet($"Action {id} has no XAction payload.");
+            return FailGet(hydrateError ?? $"Action {id} has no XAction payload.");
         }
 
         var body = JObject.Parse(payloadJson);
-        var steps = body["steps"] as JArray ?? new JArray();
-        var variables = body["variables"] as JArray ?? new JArray();
-        var subPrograms = body["subPrograms"] as JArray ?? new JArray();
+        var (steps, variables, subPrograms) = ActionProgramContent.ReadBodyArrays(body);
         XActionProgramService.EnsureEphemeralIds(steps, variables);
 
         var catalog = StepRunnerCatalogFromQuicker.Build();
@@ -179,7 +177,7 @@ public sealed class HeadlessActionProgramService
         var catalog = StepRunnerCatalogFromQuicker.Build();
         var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variables);
         XActionProgramService.NormalizeStepsInputParamKeys(steps, catalog);
-        var subProgramsJson = SerializeSubProgramsJson(_actions.GetPayloadJson(action!), xAction["subPrograms"]);
+        var subProgramsJson = SerializeSubProgramsJson(_actions.GetPayloadJson(action!, out _), xAction["subPrograms"]);
 
         if (!_actions.TryApplyPayloadAndSave(action!, steps, normalizedVariables, subProgramsJson, _actionEditMgr, out var saveError))
         {
@@ -255,15 +253,14 @@ public sealed class HeadlessActionProgramService
             };
         }
 
-        var payloadJson = _actions.GetPayloadJson(action!);
+        var payloadJson = _actions.GetPayloadJson(action!, out var hydrateError);
         if (string.IsNullOrWhiteSpace(payloadJson))
         {
-            return FailPatch($"Action {id} has no XAction payload.");
+            return FailPatch(hydrateError ?? $"Action {id} has no XAction payload.");
         }
 
         var body = JObject.Parse(payloadJson);
-        var steps = body["steps"] as JArray ?? new JArray();
-        var variables = body["variables"] as JArray ?? new JArray();
+        var (steps, variables, _) = ActionProgramContent.ReadBodyArrays(body);
         var stepsClone = (JArray)steps.DeepClone();
         var variablesClone = (JArray)variables.DeepClone();
         XActionProgramService.EnsureEphemeralIds(stepsClone, variablesClone);
