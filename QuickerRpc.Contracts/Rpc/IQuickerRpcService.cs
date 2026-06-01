@@ -159,6 +159,13 @@ public interface IQuickerRpcService
     Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerDetailAsync(
         string stepRunnerKey,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Search Font Awesome icons; returns enum names (default one style per glyph).</summary>
+    Task<QuickerRpcSearchFontAwesomeIconsResult> SearchFontAwesomeIconsAsync(
+        string? query,
+        int maxResults = 40,
+        bool includeAllStyles = false,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class QuickerRpcSubProgramVariableEditResult

@@ -17,7 +17,7 @@ Use this skill before changing `QuickerRpc.Plugin` code that reflects into Quick
 
 Read this section **before** guessing type names or adding reflection.
 
-**Prefer local source over exe scans.** When `.ref/Quicker/QuickerPc` is present (see repo `.ref/`), read and `rg` there first. Use `QuickerRpc.Plugin.Test` Release/Debug scans only to confirm obfuscated runtime signatures or when `.ref` is missing/out of date.
+**Default order:** existing `QuickerRpc.Plugin` wrappers → `QuickerRpc.Plugin.Test` exe scans → installed `Quicker.exe` (Release, obfuscated). Optional maintainer-local source under `.ref/Quicker/` (gitignored) only when that directory already exists on disk.
 
 ### A. quicker-rpc — code you edit
 
@@ -34,40 +34,25 @@ Read this section **before** guessing type names or adding reflection.
 
 **First step:** search `QuickerRpc.Plugin` for an existing wrapper (`rg ActionEditMgr QuickerRpc.Plugin`).
 
-### B. Quicker product source — implementation reference (primary)
+### B. Optional local Quicker source (maintainer only)
 
-Local tree (gitignored): **`.ref/Quicker/QuickerPc/`** — e.g. `D:\source\repos\quicker\quicker-rpc\.ref\Quicker\QuickerPc`. May be a full QuickerPc checkout, not only `dev` from [QuickerOrg/Quicker](https://github.com/QuickerOrg/Quicker). **Trust the tree you have** for save/designer APIs; do not assume `ActionItem2` exists because another branch did.
+`.ref/Quicker/` is **gitignored** and not part of this repository. Clone/setup is out of scope for agents; do not document or assume a public upstream.
 
-| What you need | Where to look |
-|---------------|---------------|
-| Domain services (`ActionEditMgr`, search, runtime lookup) | `.ref/Quicker/QuickerPc/Quicker/Domain/Services/` |
-| App state, catalog, profiles | `.ref/Quicker/QuickerPc/Quicker/Domain/` |
-| XAction program model (steps, variables, subprograms) | `.ref/Quicker/QuickerPc/Quicker/Actions/XActions/` |
-| Designer UI (Ctrl+S, `SaveAllData`, `UpdateXActionUi`) | `.ref/Quicker/QuickerPc/Quicker/View/X/ActionDesignerWindow.xaml.cs` |
-| Utilities / extensions used by reflection | `QuickerPc/Quicker/Utilities/` |
-| Stable public API (`IQuickerApi`, expressions) | `QuickerPc/Quicker.Public/` |
-| Shared DTOs, legacy models | `QuickerPc/Common/Quicker.Common/` (submodule) | `ActionDesignerProgramAccess` |
+When the directory exists, use it for **Debug type/method names** and call-site context. **Trust the tree you have** — save/designer APIs differ by version/branch; do not assume types like `ActionItem2` exist because another environment had them.
 
-**Submodule:** shallow clone does **not** populate `QuickerPc/Common/`. Before searching Common types:
+| What you need | Search under `.ref/Quicker/` (examples) |
+|---------------|----------------------------------------|
+| Domain services (`ActionEditMgr`, search, runtime lookup) | `rg "class ActionEditMgr"` |
+| XAction program model (steps, variables, subprograms) | `rg "SaveEditingAction"` / `XAction` under Actions |
+| Designer UI (`SaveAllData`, `UpdateXActionUi`) | `rg "ActionDesignerWindow"` |
+| Step runner catalog | `rg "IStepRunnerService"` |
+| Shared DTOs / legacy models | `rg` for the type name; Common layout varies |
 
 ```powershell
-git -C .ref/Quicker submodule update --init QuickerPc/Common
-```
-
-Refresh source:
-
-```powershell
-git -C .ref/Quicker pull origin dev
-git -C .ref/Quicker submodule update --init QuickerPc/Common
-```
-
-**Search examples** (run from repo root):
-
-```powershell
-rg "class ActionEditMgr" .ref/Quicker/QuickerPc
-rg "SaveEditingAction" .ref/Quicker/QuickerPc/Quicker
-rg "IStepRunnerService" .ref/Quicker/QuickerPc
-rg "ActionItem2" .ref/Quicker/QuickerPc/Common
+# From repo root — only if .ref/Quicker exists
+rg "class ActionEditMgr" .ref/Quicker
+rg "SaveEditingAction" .ref/Quicker
+rg "IStepRunnerService" .ref/Quicker
 ```
 
 Source is **reference only** — do not ship Quicker internal types into user actions unless exposed via `qkrpc step-runner get` (see `QuickerRpc.AgentModel/Docs/ActionAuthoring/implementation-fallback.md`).
@@ -77,7 +62,7 @@ Source is **reference only** — do not ship Quicker internal types into user ac
 | Build | Typical path | Override |
 |-------|--------------|----------|
 | **Release** (obfuscated names) | `C:/Program Files/Quicker/Quicker.exe` | `QUICKER_DLL_PATH` |
-| **Debug** (readable names) | Build output under `.ref/Quicker/QuickerPc/Quicker/bin/x64/Debug/net472/` or a separate Quicker dev tree | `QUICKER_DEBUG_DLL_PATH` (directory containing `Quicker.exe`) |
+| **Debug** (readable names) | Local Debug build output directory containing `Quicker.exe` | `QUICKER_DEBUG_DLL_PATH` |
 
 Probe tests (no live Quicker required):
 
@@ -88,16 +73,18 @@ dotnet test QuickerRpc.Plugin.Test --filter FullyQualifiedName~QuickerExeRelease
 
 Live RPC (Quicker + plugin running): `QuickerRpc.Test/` — see `AGENTS.md`.
 
-### D. Type → source quick map (common quicker-rpc targets)
+### D. Type → quicker-rpc wrapper (common targets)
 
-| Reflection target | Quicker source (Debug names) | quicker-rpc wrapper |
-|-------------------|------------------------------|---------------------|
-| `Quicker.Domain.AppState` | `QuickerPc/Quicker/Domain/AppState.cs` | `QuickerInternalAccess`, `QuickerAssemblyReflection` |
-| `Quicker.Domain.Services.ActionEditMgr` | `QuickerPc/Quicker/Domain/Services/ActionEditMgr.cs` | `QuickerInternalAccess`, `ActionEditMgrAccessor` |
-| `Quicker.Domain.Actions.X.*` | `QuickerPc/Quicker/Actions/XActions/` | `XActionProgramBodyWriter`, `ActionProgramPersistence` |
-| `ActionItem` + `Data` (JSON `XAction`) | `DataService.GetActionById`, `ActionDesignerWindow` (`Action`, `ResultActionItem.Data`), `ActionEditMgr.SaveEditingAction(ActionItem)` | `ActionDesignerProgramAccess`, `ActionProgramPersistence`, `ActionDesignerUiSave` |
-| `Quicker.View.X.ActionDesignerWindow` | `ActionDesignerWindow.xaml.cs` (`Action`, `ResultActionItem`, `UpdateXActionUi`) | `ActionDesignerUiSave`, `DesignerVariableEditService` |
-| Step runner catalog | search `IStepRunnerService` under `QuickerPc/` | `StepRunnerCatalogFromQuicker` |
+| Reflection target (Debug names) | quicker-rpc wrapper |
+|---------------------------------|---------------------|
+| `Quicker.Domain.AppState` | `QuickerInternalAccess`, `QuickerAssemblyReflection` |
+| `Quicker.Domain.Services.ActionEditMgr` | `QuickerInternalAccess`, `ActionEditMgrAccessor` |
+| `Quicker.Domain.Actions.X.*` | `XActionProgramBodyWriter`, `ActionProgramPersistence` |
+| `ActionItem` + `Data` (JSON `XAction`) | `ActionDesignerProgramAccess`, `ActionProgramPersistence`, `ActionDesignerUiSave` |
+| `Quicker.View.X.ActionDesignerWindow` | `ActionDesignerUiSave`, `DesignerVariableEditService` |
+| Step runner catalog (`IStepRunnerService`) | `StepRunnerCatalogFromQuicker` |
+
+Use `.ref/Quicker` (if present) or Debug `Quicker.exe` to locate declaring types and full signatures for new wrappers.
 
 ## Core Rules
 
@@ -111,7 +98,7 @@ Live RPC (Quicker + plugin running): `QuickerRpc.Test/` — see `AGENTS.md`.
 ## Recommended Workflow
 
 1. Find or add a wrapper in `QuickerRpc.Plugin/Services/` or `Reflection/`.
-2. Search **`.ref/Quicker/QuickerPc`** (`rg` / read call sites) for type/method and save flow.
+2. If `.ref/Quicker` exists, `rg` / read call sites for type/method and save flow; otherwise use Plugin.Test scans and Debug exe.
 3. Record full signature: declaring type, static/instance, parameters, return type, async shape.
 4. Only if needed: validate **Release** obfuscation via `QuickerRpc.Plugin.Test` scans.
 5. Implement runtime lookup by signature in `QuickerRpc.Plugin`; avoid hardcoding Release type names.
@@ -146,7 +133,7 @@ Prefer a focused helper on the service that needs it; share only when several se
 ## Agent Checklist
 
 - [ ] Checked existing `QuickerRpc.Plugin` wrappers before adding reflection
-- [ ] Searched `.ref/Quicker` (and `QuickerPc/Common` if types live in Quicker.Common)
+- [ ] Used `.ref/Quicker` only if present; otherwise Plugin.Test + installed exe
 - [ ] Recorded Debug type/method **full signature**
 - [ ] Avoided hardcoding obfuscated Release type names
 - [ ] Runtime lookup requires **exactly one** match

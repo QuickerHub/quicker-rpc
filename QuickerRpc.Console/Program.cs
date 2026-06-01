@@ -31,6 +31,7 @@ internal static partial class Program
             ActionOptions,
             SubProgramOptions,
             StepRunnerOptions,
+            FaOptions,
             GuideOptions>(args);
         return await result
             .MapResult(
@@ -38,6 +39,7 @@ internal static partial class Program
                 (ActionOptions o) => RunActionAsync(o),
                 (SubProgramOptions o) => RunSubProgramAsync(o),
                 (StepRunnerOptions o) => RunStepRunnerAsync(o),
+                (FaOptions o) => RunFaAsync(o),
                 (GuideOptions o) => RunGuideAsync(o),
                 _ => Task.FromResult(ExitCodes.Error))
             .ConfigureAwait(false);
@@ -978,6 +980,31 @@ public sealed class StepRunnerOptions
     public bool Json { get; set; }
 
     [Option("timeout", Default = 30, HelpText = "Pipe connect and RPC timeout in seconds.")]
+    public int TimeoutSeconds { get; set; }
+
+    [Option("no-bootstrap", HelpText = "Do not auto-start plugin via quicker:runaction when pipe is unavailable.")]
+    public bool NoBootstrap { get; set; }
+}
+
+[Verb("fa", HelpText = "Font Awesome icon search (Quicker fa:Solid_IconName specs).")]
+public sealed class FaOptions
+{
+    [Value(0, MetaName = "command", Required = true, HelpText = "search")]
+    public string? Command { get; set; }
+
+    [Option('q', "query", HelpText = "Search keyword (name, label, or fa: spec). Empty lists catalog head.")]
+    public string? Query { get; set; }
+
+    [Option("limit", Default = 40, HelpText = "Max results for fa search.")]
+    public int Limit { get; set; }
+
+    [Option("all-styles", HelpText = "Return every style variant (Solid/Regular/Light); default dedupes to one enum per glyph.")]
+    public bool AllStyles { get; set; }
+
+    [Option("json", HelpText = "Emit JSON for automation.")]
+    public bool Json { get; set; }
+
+    [Option("timeout", Default = 10, HelpText = "Pipe connect and RPC timeout in seconds.")]
     public int TimeoutSeconds { get; set; }
 
     [Option("no-bootstrap", HelpText = "Do not auto-start plugin via quicker:runaction when pipe is unavailable.")]

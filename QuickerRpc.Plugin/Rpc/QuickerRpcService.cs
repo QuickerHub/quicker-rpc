@@ -26,6 +26,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly DesignerVariableEditService _designerVariableEditService;
     private readonly HeadlessActionProgramService _headlessActionProgramService;
     private readonly HeadlessSubProgramProgramService _headlessSubProgramProgramService;
+    private readonly FontAwesomeIconSearchService _fontAwesomeIconSearchService;
     private readonly IPopupMessageService _popup;
 
     public QuickerRpcService(
@@ -39,6 +40,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         DesignerVariableEditService designerVariableEditService,
         HeadlessActionProgramService headlessActionProgramService,
         HeadlessSubProgramProgramService headlessSubProgramProgramService,
+        FontAwesomeIconSearchService fontAwesomeIconSearchService,
         IPopupMessageService popup)
     {
         _actionUpdateService = actionUpdateService;
@@ -51,6 +53,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _designerVariableEditService = designerVariableEditService;
         _headlessActionProgramService = headlessActionProgramService;
         _headlessSubProgramProgramService = headlessSubProgramProgramService;
+        _fontAwesomeIconSearchService = fontAwesomeIconSearchService;
         _popup = popup;
     }
 
@@ -478,6 +481,16 @@ public sealed class QuickerRpcService : IQuickerRpcService
         return InvokeOnDispatcherAsync(
             () => Task.FromResult(_headlessActionProgramService.GetStepRunnerDetail(stepRunnerKey)),
             cancellationToken);
+    }
+
+    public Task<QuickerRpcSearchFontAwesomeIconsResult> SearchFontAwesomeIconsAsync(
+        string? query,
+        int maxResults = 40,
+        bool includeAllStyles = false,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_fontAwesomeIconSearchService.Search(query, maxResults, includeAllStyles));
     }
 
     private static async Task<T> InvokeOnDispatcherAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)

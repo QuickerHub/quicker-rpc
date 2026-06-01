@@ -123,6 +123,20 @@ public sealed class QuickerRpcSearchStepRunnersResult
     public IList<QuickerRpcStepRunnerSearchItem> Items { get; set; } = new List<QuickerRpcStepRunnerSearchItem>();
 }
 
+public sealed class QuickerRpcSearchFontAwesomeIconsResult
+{
+    public bool Success { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public string? Keyword { get; set; }
+
+    public int MatchCount { get; set; }
+
+    /// <summary>EFontAwesomeIcon member names (e.g. Solid_AddressBook). Quicker icon: fa:{name}.</summary>
+    public IList<string> Names { get; set; } = new List<string>();
+}
+
 public sealed class QuickerRpcStepRunnerDetailResult
 {
     public bool Success { get; set; }

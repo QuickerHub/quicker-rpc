@@ -181,6 +181,10 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("key", "StepRunner key."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
+                Cmd("fa search", "Search FA icons; returns enum names (fa:{name} in Quicker). Default dedupes Solid/Regular/Light.", "qkrpc fa search [--query <keyword>] [--limit 40] [--all-styles] [--json]",
+
+                    opts: new[] { Option("query", "Filter: AND with spaces, OR with |, * wildcard.", shortName: "q"), Option("limit", "Max unique glyphs (or rows with --all-styles).", defaultValue: "40"), Option("all-styles", "Return every style variant; default one enum per glyph (prefers Solid)."), Option("json", "Structured output: names[]."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
+
             },
 
         };

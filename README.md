@@ -76,9 +76,10 @@ qkrpc action create --title "My Action" --json
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
 qkrpc action replace --id <guid> --xaction-file action.json --json
 
-# 查询步骤类型和公共子程序
+# 查询步骤类型、图标和公共子程序
 qkrpc step-runner search --query "clipboard|text" --json
 qkrpc step-runner get --key <stepRunnerKey> --json
+qkrpc fa search --query "address book" --json
 qkrpc subprogram search --query "keyword" --json
 
 # 运行、打开设计器、更新共享动作

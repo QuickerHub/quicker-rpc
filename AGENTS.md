@@ -56,6 +56,7 @@ qkrpc subprogram search --query "<keyword>" --json
 qkrpc subprogram get --id <idOrName> --return-mode full --json
 qkrpc step-runner search --query "关键词|english|sys:*" --json
 qkrpc step-runner get --key <stepRunnerKey> --json
+qkrpc fa search --query "<keyword>" --json
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
 ```
 
@@ -95,29 +96,15 @@ $env:QUICKER_RPC_TEST_SUBPROGRAM = "某子程序名"
 
 ## Quicker 源码参考（反射 / 实现原理）
 
-本地浅克隆 [QuickerOrg/Quicker](https://github.com/QuickerOrg/Quicker) **dev** 分支，仅供 Agent **搜索实现**；**不**提交 Git（`.gitignore` → `.ref/Quicker/`）。
+可选：维护者本机 `.ref/Quicker/`（gitignore，不在本仓库；无公开克隆说明）。有则 `rg` 查 Debug 类型名；无则靠本仓库封装与 exe 探测。
 
-| 要找的内容 | 路径 |
-|------------|------|
-| 源码根 | `.ref/Quicker/` |
-| 主程序（`Quicker.exe` 工程） | `.ref/Quicker/QuickerPc/Quicker/` |
-| 领域服务（`ActionEditMgr` 等） | `…/Quicker/Domain/Services/` |
-| XAction 步骤/变量/子程序 | `…/Quicker/Actions/XActions/` |
-| 设计器 UI | `…/Quicker/View/X/` |
-| 公共 API | `.ref/Quicker/QuickerPc/Quicker.Public/` |
-| 共享 DTO、通用模型 | `.ref/Quicker/QuickerPc/Common/Quicker.Common/`（子模块） |
+| 手段 | 用途 |
+|------|------|
+| `QuickerRpc.Plugin/Reflection/`、`Services/` | 已有反射封装（优先） |
+| `QuickerRpc.Plugin.Test/` | 离线扫 `Quicker.exe`（Debug/Release 签名） |
+| `QUICKER_DLL_PATH` / `QUICKER_DEBUG_DLL_PATH` | 指向本机 Release/Debug `Quicker.exe` |
 
-```powershell
-# 首次
-git clone --branch dev --single-branch --depth 1 https://github.com/QuickerOrg/Quicker .ref/Quicker
-git -C .ref/Quicker submodule update --init QuickerPc/Common
-
-# 更新
-git -C .ref/Quicker pull origin dev
-git -C .ref/Quicker submodule update --init QuickerPc/Common
-```
-
-**本仓库反射代码**在 `QuickerRpc.Plugin/Reflection/`、`QuickerRpc.Plugin/Services/`；离线扫 exe 用 `QuickerRpc.Plugin.Test/`。完整查找流程见 **`.cursor/skills/quicker-exe-type-probing/SKILL.md`**。
+完整流程见 **`.cursor/skills/quicker-exe-type-probing/SKILL.md`**。
 
 ## 模块
 

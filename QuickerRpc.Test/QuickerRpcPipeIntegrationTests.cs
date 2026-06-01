@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
@@ -86,6 +88,33 @@ public sealed class QuickerRpcPipeIntegrationTests
         {
             Assert.Inconclusive("StepRunner catalog is empty in this Quicker session.");
         }
+    }
+
+    [TestMethod]
+    public async Task Rpc_SearchFontAwesomeIcons_returns_fa_specs()
+    {
+        await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);
+        var ct = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
+
+        var result = await session.Rpc
+            .SearchFontAwesomeIconsAsync("google", maxResults: 5, cancellationToken: ct)
+            .ConfigureAwait(false);
+
+        TestContext.WriteLine("FA search Success: " + result.Success + ", MatchCount: " + result.MatchCount);
+        foreach (var name in result.Names ?? System.Array.Empty<string>())
+        {
+            TestContext.WriteLine("  - " + name);
+        }
+
+        Assert.IsTrue(result.Success, result.ErrorMessage ?? "SearchFontAwesomeIcons failed.");
+        if (result.MatchCount == 0)
+        {
+            Assert.Inconclusive("Font Awesome catalog returned no matches for 'google'.");
+        }
+
+        Assert.IsTrue(
+            result.Names!.Any(n => n.StartsWith("Brands_", StringComparison.Ordinal)),
+            "Expected Brands_* enum names in results.");
     }
 
     [TestMethod]

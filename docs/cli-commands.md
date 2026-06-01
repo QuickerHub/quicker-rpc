@@ -193,6 +193,31 @@ qkrpc step-runner get --key <stepRunnerKey> [--json]
 
 ---
 
+## Font Awesome 图标
+
+### `qkrpc fa search`
+
+在 Quicker 已加载的 Font Awesome 目录中搜索图标。默认**同一图形只返回一个枚举名**（优先 `Solid`，其次 `Regular`、`Light`）；`Brands_*` 不去重合并。
+
+响应 `names[]` 为 `EFontAwesomeIcon` 成员名（如 `Solid_AddressBook`），写入动作用 `fa:{name}`。
+
+```powershell
+qkrpc fa search [--query <keyword>] [--limit 40] [--all-styles] [--json]
+```
+
+| 查询 | 说明 |
+|------|------|
+| `address book` | 空格 AND；默认只返回 `Solid_AddressBook` |
+| `google\|pen` | `\|` OR |
+| `solid *book` | `*` 通配 |
+| `Brands_*` | 品牌类图标 |
+| `--all-styles` | 返回 Solid/Regular/Light 等全部变体 |
+| （空） | 去重后按名称列出前 N 个 |
+
+JSON 示例：`{ "names": ["Solid_AddressBook", "Solid_Book"], "matchCount": 2 }`
+
+---
+
 ## 子程序
 
 ### `qkrpc subprogram search` / `list`
@@ -250,6 +275,7 @@ qkrpc action list --scope agent --json
 # 无头写动作
 qkrpc action get --id <guid> --return-mode full --json
 qkrpc step-runner get --key sys:MsgBox --json
+qkrpc fa search --query "clipboard" --json
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
 
 # 运行与发布
