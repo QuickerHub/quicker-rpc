@@ -72,7 +72,7 @@ QuickerRpc.Plugin.Launcher.Start()
 
 ## CLI 用法
 
-退出码：**0 成功，1 失败**。推荐 `--json`。完整命令表：`qkrpc help --json`。
+退出码：**0 成功，1 失败**。推荐 `--json`。人类可读命令表：[docs/cli-commands.md](docs/cli-commands.md)；机器可读：`qkrpc help --json`。
 
 ```powershell
 qkrpc ping --json

@@ -2,7 +2,7 @@
 
 Quicker 插件 + `qkrpc.exe` CLI，通过 **命名管道 + StreamJsonRpc** 让外部命令行调用 Quicker 内能力。
 
-**CLI 自描述（优先）**：`qkrpc help --json` — 命令、参数、无头编辑工作流。
+**CLI 自描述（优先）**：`qkrpc help --json` — 命令、参数、无头编辑工作流。人类可读：[docs/cli-commands.md](docs/cli-commands.md)。
 
 详细用法见 [README.md](README.md)。
 
