@@ -307,7 +307,7 @@ public sealed class HeadlessActionProgramService
         };
     }
 
-    public QuickerRpcSearchActionSummariesResult SearchActionSummaries(string? query, int maxResults)
+    public QuickerRpcSearchActionSummariesResult SearchActionSummaries(string? query, int maxResults, string? scope)
     {
         if (_actions is null || !_actions.IsAvailable)
         {
@@ -318,54 +318,48 @@ public sealed class HeadlessActionProgramService
             };
         }
 
-        var max = Math.Max(1, Math.Min(maxResults <= 0 ? 30 : maxResults, 200));
-        var q = (query ?? string.Empty).Trim();
-        var items = new List<QuickerRpcActionSummaryItem>();
-
-        foreach (var item in _actions.EnumerateAll())
+        if (ProfileManagerAccessor.TryCreate() is null && !string.IsNullOrWhiteSpace(scope))
         {
-            if (!_actions.IsXAction(item))
+            return new QuickerRpcSearchActionSummariesResult
             {
-                continue;
-            }
-
-            var actionId = _actions.GetActionId(item);
-            if (string.IsNullOrWhiteSpace(actionId))
-            {
-                continue;
-            }
-
-            var (title, description, icon) = _actions.GetPresentation(item);
-            if (q.Length > 0
-                && title.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0
-                && description.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0
-                && !string.Equals(actionId, q, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            items.Add(
-                new QuickerRpcActionSummaryItem
-                {
-                    ActionId = actionId,
-                    Title = title,
-                    Description = description,
-                    Icon = icon,
-                    LastEditTimeUtc = FormatUtcFromVersion(_actions.GetEditVersion(item)),
-                });
+                Success = false,
+                ErrorMessage = "ProfileManager unavailable (scope filter requires Quicker runtime).",
+            };
         }
 
-        var ordered = items
-            .OrderByDescending(x => x.LastEditTimeUtc, StringComparer.Ordinal)
-            .Take(max)
-            .ToList();
+        var scopeValue = string.IsNullOrWhiteSpace(scope) ? null : scope.Trim();
+        var matches = ActionCatalogSearch.Match(
+            query,
+            scopeValue,
+            maxResults,
+            action => _actions!.IsXAction(action));
+
+        var items = matches.Select(x => new QuickerRpcActionSummaryItem
+        {
+            ActionId = _actions!.GetActionId(x.Entry.Action),
+            Title = x.Entry.Action.Title ?? string.Empty,
+            Description = x.Entry.Action.Description ?? string.Empty,
+            Icon = x.Entry.Action.Icon ?? string.Empty,
+            LastEditTimeUtc = FormatUtcFromVersion(_actions.GetEditVersion(x.Entry.Action)),
+            ProfileId = x.Entry.Profile.Id,
+            ProfileName = x.Entry.Profile.Name,
+            ExeFile = x.Entry.Profile.ExeFile,
+        }).ToList();
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            items = items
+                .OrderByDescending(x => x.LastEditTimeUtc, StringComparer.Ordinal)
+                .ToList();
+        }
 
         return new QuickerRpcSearchActionSummariesResult
         {
             Success = true,
-            Query = q,
-            MatchCount = ordered.Count,
-            Items = ordered,
+            Query = (query ?? string.Empty).Trim(),
+            Scope = scopeValue,
+            MatchCount = items.Count,
+            Items = items,
         };
     }
 

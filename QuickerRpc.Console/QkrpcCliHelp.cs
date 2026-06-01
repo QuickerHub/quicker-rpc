@@ -47,7 +47,7 @@ internal static class QkrpcCliHelp
             discovery = "qkrpc help --json",
 
             agentWorkflow =
-                "guide authoring-workflow: action list/get → implementation-fallback → " +
+                "guide authoring-workflow: action create → action get → implementation-fallback → " +
                 "(step-modules | step-runner search) → step-runner get (required) → action patch",
             authoringGuideTopic = "authoring-workflow",
 
@@ -83,6 +83,19 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("query", "Keyword.", shortName: "q"), Option("limit", "Max results.", defaultValue: "10"), Option("json", "Structured output.") }),
 
+                Cmd("action create", "Create XAction on auto-managed virtual action page (creates virtual process/page as needed).", "qkrpc action create [--title <text>] [--description <text>] [--icon <spec>] [--profile-id <guid>] [--json]",
+
+                    opts: new[]
+                    {
+                        Option("title", "Action title (default: 新动作)."),
+                        Option("description", "Action description."),
+                        Option("icon", "Icon spec, e.g. fa:IconName."),
+                        Option("profile-id", "Use a specific @qkrpc virtual page id."),
+                        Option("json", "Structured output."),
+                        Option("timeout", "Seconds.", defaultValue: "10"),
+                        Option("no-bootstrap", "Skip auto-start."),
+                    }),
+
                 Cmd("action get", "Read compressed XAction by action id.", "qkrpc action get --id <guid> [--return-mode full|structure|metadata] [--json]",
 
                     opts: ActionHeadlessOpts()),
@@ -95,17 +108,17 @@ internal static class QkrpcCliHelp
 
                     opts: ActionReplaceOpts()),
 
-                Cmd("action list", "List/search actions (agent summaries).", "qkrpc action list [--query <keyword>] [--limit 30] [--json]",
+                Cmd("action list", "List/search actions (agent summaries).", "qkrpc action list [--query <keyword>] [--scope chrome|global|common|...] [--limit 30] [--json]",
 
-                    opts: new[] { Option("query", "Optional filter.", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
+                    opts: new[] { Option("query", "Optional filter.", shortName: "q"), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("action update", "Upload or refresh a shared action.", "qkrpc action update --id <guid> [--changelog <text>] [--json]",
 
                     opts: new[] { Option("id", "Shared action GUID."), Option("changelog", "Change log text."), Option("json", "Structured output.") }),
 
-                Cmd("action search", "Search local actions (main search box scoring).", "qkrpc action search --query <keyword> [--limit 20] [--json]",
+                Cmd("action search", "Search local actions (main search box scoring).", "qkrpc action search --query <keyword> [--scope chrome|global|common|...] [--limit 20] [--json]",
 
-                    opts: new[] { Option("query", "Keyword.", shortName: "q"), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),
+                    opts: new[] { Option("query", "Keyword.", shortName: "q"), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),
 
                 Cmd("subprogram search", "Search global subprograms.", "qkrpc subprogram search --query <keyword> [--limit 20] [--json]",
 

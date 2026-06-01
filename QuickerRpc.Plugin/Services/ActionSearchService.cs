@@ -22,9 +22,9 @@ public sealed class ActionSearchService
         _search = TryCreateSearchDelegate();
     }
 
-    public QuickerRpcActionSearchResult SearchActions(string query, int maxCount)
+    public QuickerRpcActionSearchResult SearchActions(string query, int maxCount, string? scope)
     {
-        if (_search is null)
+        if (_search is null && string.IsNullOrWhiteSpace(scope))
         {
             return new QuickerRpcActionSearchResult
             {
@@ -43,13 +43,33 @@ public sealed class ActionSearchService
             };
         }
 
+        var scopeValue = string.IsNullOrWhiteSpace(scope) ? null : scope.Trim();
+        if (!string.IsNullOrWhiteSpace(scopeValue) && ProfileManagerAccessor.TryCreate() is null)
+        {
+            return new QuickerRpcActionSearchResult
+            {
+                Ok = false,
+                Message = "ProfileManager unavailable (scope filter requires Quicker runtime).",
+            };
+        }
+
         try
         {
             var limit = NormalizeMaxCount(maxCount);
-            var items = _search(keyword, limit);
+            IReadOnlyList<QuickerRpcActionSummary> items;
+            if (!string.IsNullOrWhiteSpace(scopeValue))
+            {
+                items = SearchScopedCatalog(keyword, scopeValue, limit);
+            }
+            else
+            {
+                items = EnrichSummaries(_search!(keyword, limit));
+            }
+
             return new QuickerRpcActionSearchResult
             {
                 Ok = true,
+                Scope = scopeValue,
                 Message = items.Count == 0 ? "No matching actions." : string.Empty,
                 Items = items.ToList(),
             };
@@ -62,6 +82,47 @@ public sealed class ActionSearchService
                 Message = ex.Message,
             };
         }
+    }
+
+    private static IReadOnlyList<QuickerRpcActionSummary> SearchScopedCatalog(string keyword, string scope, int limit)
+    {
+        return ActionCatalogSearch.Match(keyword, scope, limit)
+            .Select(x => new QuickerRpcActionSummary
+            {
+                Id = (x.Entry.Action.Id ?? string.Empty).Trim(),
+                Title = x.Entry.Action.Title ?? string.Empty,
+                Description = NullIfEmpty(x.Entry.Action.Description),
+                PageTitle = NullIfEmpty(x.Entry.Profile.Name),
+                ProfileId = x.Entry.Profile.Id,
+                ProfileName = x.Entry.Profile.Name,
+                ExeFile = x.Entry.Profile.ExeFile,
+                Score = x.Score,
+            })
+            .Where(x => x.Id.Length > 0)
+            .ToList();
+    }
+
+    private static IReadOnlyList<QuickerRpcActionSummary> EnrichSummaries(IReadOnlyList<QuickerRpcActionSummary> items)
+    {
+        var locationById = ActionCatalogEnumerator.Enumerate(scope: null)
+            .GroupBy(x => (x.Action.Id ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        var enriched = new List<QuickerRpcActionSummary>();
+        foreach (var item in items)
+        {
+            if (locationById.TryGetValue(item.Id, out var entry))
+            {
+                item.PageTitle ??= NullIfEmpty(entry.Profile.Name);
+                item.ProfileId ??= entry.Profile.Id;
+                item.ProfileName ??= entry.Profile.Name;
+                item.ExeFile ??= entry.Profile.ExeFile;
+            }
+
+            enriched.Add(item);
+        }
+
+        return enriched;
     }
 
     private static Func<string, int, IReadOnlyList<QuickerRpcActionSummary>>? TryCreateSearchDelegate()

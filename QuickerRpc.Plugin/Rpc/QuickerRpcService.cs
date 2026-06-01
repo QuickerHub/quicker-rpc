@@ -20,6 +20,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly ActionSearchService _actionSearchService;
     private readonly SubProgramSearchService _subProgramSearchService;
     private readonly ActionDeleteService _actionDeleteService;
+    private readonly ActionCreateService _actionCreateService;
     private readonly ActionEditService _actionEditService;
     private readonly ActionRunService _actionRunService;
     private readonly DesignerVariableEditService _designerVariableEditService;
@@ -31,6 +32,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         ActionSearchService actionSearchService,
         SubProgramSearchService subProgramSearchService,
         ActionDeleteService actionDeleteService,
+        ActionCreateService actionCreateService,
         ActionEditService actionEditService,
         ActionRunService actionRunService,
         DesignerVariableEditService designerVariableEditService,
@@ -41,6 +43,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _actionSearchService = actionSearchService;
         _subProgramSearchService = subProgramSearchService;
         _actionDeleteService = actionDeleteService;
+        _actionCreateService = actionCreateService;
         _actionEditService = actionEditService;
         _actionRunService = actionRunService;
         _designerVariableEditService = designerVariableEditService;
@@ -101,12 +104,13 @@ public sealed class QuickerRpcService : IQuickerRpcService
     public Task<QuickerRpcActionSearchResult> SearchActionsAsync(
         string query,
         int maxCount = 20,
+        string? scope = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         return InvokeOnDispatcherAsync(
-            () => Task.FromResult(_actionSearchService.SearchActions(query, maxCount)),
+            () => Task.FromResult(_actionSearchService.SearchActions(query, maxCount, scope)),
             cancellationToken);
     }
 
@@ -157,6 +161,18 @@ public sealed class QuickerRpcService : IQuickerRpcService
 
                 return result;
             },
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcCreateActionResult> CreateActionAsync(
+        string? title = null,
+        string? description = null,
+        string? icon = null,
+        string? profileId = null,
+        CancellationToken cancellationToken = default)
+    {
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_actionCreateService.CreateAction(title, description, icon, profileId)),
             cancellationToken);
     }
 
@@ -316,12 +332,13 @@ public sealed class QuickerRpcService : IQuickerRpcService
     public Task<QuickerRpcSearchActionSummariesResult> SearchActionSummariesAsync(
         string? query,
         int maxResults = 30,
+        string? scope = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         return InvokeOnDispatcherAsync(
-            () => Task.FromResult(_headlessActionProgramService.SearchActionSummaries(query, maxResults)),
+            () => Task.FromResult(_headlessActionProgramService.SearchActionSummaries(query, maxResults, scope)),
             cancellationToken);
     }
 

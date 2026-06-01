@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using Quicker.Common;
 using Quicker.Domain;
 using QuickerRpc.Plugin.Reflection;
 
@@ -17,6 +18,7 @@ internal sealed class ActionEditMgrAccessor
         MethodInfo? updateSharedActionAsync,
         MethodInfo? deleteAction,
         MethodInfo? saveEditingAction,
+        MethodInfo? setButtonAction,
         Type? editActionParamType)
     {
         Instance = instance;
@@ -25,6 +27,7 @@ internal sealed class ActionEditMgrAccessor
         UpdateSharedActionAsync = updateSharedActionAsync;
         DeleteAction = deleteAction;
         SaveEditingAction = saveEditingAction;
+        SetButtonAction = setButtonAction;
         EditActionParamType = editActionParamType;
     }
 
@@ -40,6 +43,8 @@ internal sealed class ActionEditMgrAccessor
 
     public MethodInfo? SaveEditingAction { get; }
 
+    public MethodInfo? SetButtonAction { get; }
+
     public Type? EditActionParamType { get; }
 
     public bool CanOpenDesigner =>
@@ -47,6 +52,38 @@ internal sealed class ActionEditMgrAccessor
 
     public object? CreateDefaultEditActionParam() =>
         EditActionParamType is null ? null : Activator.CreateInstance(EditActionParamType);
+
+    public bool TrySetButtonAction(
+        ActionProfile profile,
+        int row,
+        int col,
+        ActionItem action,
+        bool skipSave,
+        out string? error)
+    {
+        error = null;
+        if (SetButtonAction is null)
+        {
+            error = "SetButtonAction unavailable on ActionEditMgr.";
+            return false;
+        }
+
+        try
+        {
+            SetButtonAction.Invoke(Instance, new object[] { profile, row, col, action, skipSave });
+            return true;
+        }
+        catch (TargetInvocationException ex)
+        {
+            error = ex.InnerException?.Message ?? ex.Message;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
 
     public bool TrySaveEditingAction(object resultAction, out string? error)
     {
@@ -119,6 +156,12 @@ internal sealed class ActionEditMgrAccessor
                 string.Equals(m.Name, "SaveEditingAction", StringComparison.Ordinal)
                 && m.GetParameters().Length == 1);
 
+            var setButtonAction = instanceMethods.FirstOrDefault(m =>
+                string.Equals(m.Name, "SetButtonAction", StringComparison.Ordinal)
+                && m.GetParameters().Length == 5
+                && m.GetParameters()[0].ParameterType == typeof(ActionProfile)
+                && m.GetParameters()[3].ParameterType == typeof(ActionItem));
+
             var editActionParamType = typeof(AppState).Assembly.GetType(
                 "Quicker.Domain.Services.EditActionParam",
                 throwOnError: false);
@@ -130,6 +173,7 @@ internal sealed class ActionEditMgrAccessor
                 updateSharedActionAsync,
                 deleteAction,
                 saveEditingAction,
+                setButtonAction,
                 editActionParamType);
         }
         catch

@@ -21,10 +21,18 @@ public interface IQuickerRpcService
         string? changeLog = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Search or list recent local actions for agent workflows.</summary>
+    Task<QuickerRpcSearchActionSummariesResult> SearchActionSummariesAsync(
+        string? query,
+        int maxResults = 30,
+        string? scope = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Search local Quicker actions by keyword (same scoring as the main search box).</summary>
     Task<QuickerRpcActionSearchResult> SearchActionsAsync(
         string query,
         int maxCount = 20,
+        string? scope = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Search global (public) subprograms by id, name, or description.</summary>
@@ -37,6 +45,17 @@ public interface IQuickerRpcService
     Task<QuickerRpcActionUpdateResult> DeleteActionAsync(
         string actionId,
         bool showConfirm = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Create a new local XAction on an auto-managed virtual action page
+    /// (creates virtual process/page slots as needed).
+    /// </summary>
+    Task<QuickerRpcCreateActionResult> CreateActionAsync(
+        string? title = null,
+        string? description = null,
+        string? icon = null,
+        string? profileId = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Open the Quicker action editor for a local action id.</summary>
@@ -84,12 +103,6 @@ public interface IQuickerRpcService
         bool force = false,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Search or list recent local actions for agent workflows.</summary>
-    Task<QuickerRpcSearchActionSummariesResult> SearchActionSummariesAsync(
-        string? query,
-        int maxResults = 30,
-        CancellationToken cancellationToken = default);
-
     /// <summary>Search StepRunner catalog rows for stepRunnerKey selection.</summary>
     Task<QuickerRpcSearchStepRunnersResult> SearchStepRunnersAsync(
         string keyword,
@@ -126,6 +139,8 @@ public sealed class QuickerRpcActionSearchResult
     public bool Ok { get; set; }
 
     public string Message { get; set; } = string.Empty;
+
+    public string? Scope { get; set; }
 
     public IList<QuickerRpcActionSummary> Items { get; set; } = new List<QuickerRpcActionSummary>();
 }
@@ -165,6 +180,15 @@ public sealed class QuickerRpcActionSummary
 
     public string? PageTitle { get; set; }
 
+    /// <summary>Action page / profile id.</summary>
+    public string? ProfileId { get; set; }
+
+    /// <summary>Action page name (e.g. @qkrpc 001, _default).</summary>
+    public string? ProfileName { get; set; }
+
+    /// <summary>Process/scene key (e.g. chrome.exe, _global, common).</summary>
+    public string? ExeFile { get; set; }
+
     public int Score { get; set; }
 
     /// <summary>Shared action library id when the action has been shared.</summary>
@@ -178,6 +202,32 @@ public sealed class QuickerRpcActionUpdateResult
     public string Message { get; set; } = string.Empty;
 
     public string? ActionId { get; set; }
+}
+
+public sealed class QuickerRpcCreateActionResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? ActionId { get; set; }
+
+    public string? ProfileId { get; set; }
+
+    public string? ProfileName { get; set; }
+
+    public string? ExeFile { get; set; }
+
+    public int Row { get; set; }
+
+    public int Col { get; set; }
+
+    public long EditVersion { get; set; }
+
+    /// <summary>True when a new virtual action page was created for this action.</summary>
+    public bool CreatedProfile { get; set; }
+
+    public bool IsVirtual { get; set; }
 }
 
 public sealed class QuickerRpcActionRunResult

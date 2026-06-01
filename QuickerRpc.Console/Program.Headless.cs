@@ -375,6 +375,65 @@ internal static partial class Program
         }
     }
 
+    private static async Task<int> RunActionCreateAsync(ActionOptions options)
+    {
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var result = await session.Proxy
+                .CreateActionAsync(options.Title, options.Description, options.Icon, options.ProfileId, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "create",
+                        actionId = result.ActionId,
+                        profileId = result.ProfileId,
+                        profileName = result.ProfileName,
+                        exeFile = result.ExeFile,
+                        row = result.Row,
+                        col = result.Col,
+                        editVersion = result.EditVersion,
+                        createdProfile = result.CreatedProfile,
+                        isVirtual = result.IsVirtual,
+                        message = result.Message,
+                        pipe = QuickerRpcPipeNames.ServerPipe,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else if (result.Ok)
+            {
+                global::System.Console.WriteLine(
+                    $"{result.Message} actionId={result.ActionId} profile={result.ProfileName} ({result.Row},{result.Col}) editVersion={result.EditVersion}");
+            }
+            else
+            {
+                global::System.Console.Error.WriteLine(result.Message);
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "CREATE_FAILED", ex.Message).ConfigureAwait(false);
+        }
+    }
+
     private static async Task<int> RunActionListAsync(ActionOptions options)
     {
         try
@@ -383,7 +442,11 @@ internal static partial class Program
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var query = (options.Query ?? string.Empty).Trim();
             var response = await session.Proxy
-                .SearchActionSummariesAsync(string.IsNullOrWhiteSpace(query) ? null : query, options.Limit, rpcToken)
+                .SearchActionSummariesAsync(
+                    string.IsNullOrWhiteSpace(query) ? null : query,
+                    options.Limit,
+                    options.Scope,
+                    rpcToken)
                 .ConfigureAwait(false);
 
             WriteRpcJson(options.Json, "list", response.Success, response);

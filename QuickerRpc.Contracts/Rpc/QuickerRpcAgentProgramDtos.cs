@@ -14,6 +14,12 @@ public sealed class QuickerRpcActionSummaryItem
     public string Icon { get; set; } = string.Empty;
 
     public string LastEditTimeUtc { get; set; } = string.Empty;
+
+    public string? ProfileId { get; set; }
+
+    public string? ProfileName { get; set; }
+
+    public string? ExeFile { get; set; }
 }
 
 public sealed class QuickerRpcGetCompressedActionResult
@@ -86,6 +92,9 @@ public sealed class QuickerRpcSearchActionSummariesResult
     public string? ErrorMessage { get; set; }
 
     public string? Query { get; set; }
+
+    /// <summary>Requested scope filter, if any.</summary>
+    public string? Scope { get; set; }
 
     public int MatchCount { get; set; }
 

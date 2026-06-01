@@ -209,6 +209,7 @@ internal static partial class Program
             "search" => await RunActionSearchAsync(options).ConfigureAwait(false),
             "list" => await RunActionListAsync(options).ConfigureAwait(false),
             "get" => await RunActionGetAsync(options).ConfigureAwait(false),
+            "create" => await RunActionCreateAsync(options).ConfigureAwait(false),
             "patch" => await RunActionPatchAsync(options).ConfigureAwait(false),
             "replace" => await RunActionReplaceAsync(options).ConfigureAwait(false),
             "delete" => await RunActionDeleteAsync(options).ConfigureAwait(false),
@@ -224,7 +225,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action get|patch|replace|list|search|update|delete|edit|run|edit-var (see qkrpc help --json)")
+            "Use: action create|get|patch|replace|list|search|update|delete|edit|run|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -310,7 +311,7 @@ internal static partial class Program
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var result = await session.Proxy
-                .SearchActionsAsync(query, options.Limit, rpcToken)
+                .SearchActionsAsync(query, options.Limit, options.Scope, rpcToken)
                 .ConfigureAwait(false);
 
             if (options.Json)
@@ -321,6 +322,7 @@ internal static partial class Program
                         ok = result.Ok,
                         action = "search",
                         query,
+                        scope = result.Scope,
                         count = result.Items.Count,
                         items = result.Items,
                         message = string.IsNullOrWhiteSpace(result.Message) ? null : result.Message,
@@ -338,7 +340,8 @@ internal static partial class Program
                 {
                     foreach (var item in result.Items)
                     {
-                        global::System.Console.WriteLine($"{item.Id}\t{item.Title}\t{item.PageTitle}");
+                        global::System.Console.WriteLine(
+                            $"{item.Id}\t{item.Title}\t{item.ExeFile}\t{item.ProfileName ?? item.PageTitle}");
                     }
                 }
             }
@@ -791,7 +794,7 @@ public sealed class PingOptions
 [Verb("action", HelpText = "Quicker action operations via RPC.")]
 public sealed class ActionOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "get | patch | replace | list | search | update | delete | edit | run | edit-var")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | list | search | update | delete | edit | run | edit-var")]
     public string? Command { get; set; }
 
     [Option("id", HelpText = "Shared action id (GUID).")]
@@ -806,11 +809,26 @@ public sealed class ActionOptions
     [Option('f', "changelog-file", HelpText = "Read change log from a UTF-8 text file.")]
     public string? ChangelogFile { get; set; }
 
-    [Option('q', "query", HelpText = "Search keyword for action search.")]
+    [Option('q', "query", HelpText = "Search keyword for action search/list.")]
     public string? Query { get; set; }
+
+    [Option("scope", HelpText = "Limit to process/scene: chrome, global, common, default, taskbar, desktop, agent, profile id/name.")]
+    public string? Scope { get; set; }
 
     [Option("limit", Default = 20, HelpText = "Max results for action search/list (1-200).")]
     public int Limit { get; set; }
+
+    [Option("title", HelpText = "Title for action create.")]
+    public string? Title { get; set; }
+
+    [Option("description", HelpText = "Description for action create.")]
+    public string? Description { get; set; }
+
+    [Option("icon", HelpText = "Icon for action create (e.g. fa:IconName).")]
+    public string? Icon { get; set; }
+
+    [Option("profile-id", HelpText = "Optional virtual action page id for action create.")]
+    public string? ProfileId { get; set; }
 
     [Option("return-mode", HelpText = "For action get: full | structure | metadata.")]
     public string? ReturnMode { get; set; }

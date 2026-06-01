@@ -10,7 +10,7 @@
 
 
 
-1. **`action list`** / **`action search`** → `actionId`（新动作在 Quicker UI 创建）。
+1. **`action create`**（新动作）或 **`action list`** / **`action search`** → `actionId`。
 
 2. **`action get`** → `editVersion`；`structure` 扫树，`full` 读非默认参数。
 
