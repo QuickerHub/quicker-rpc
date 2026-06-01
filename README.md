@@ -57,6 +57,18 @@ qkrpc ping --json
 qkrpc help --json
 ```
 
+### 4. 安装 Agent skill（推荐）
+
+使用 [skills.sh](https://skills.sh) 通用 CLI，自动适配 Cursor、Claude Code、Codex 等：
+
+```powershell
+npx skills add QuickerHub/quicker-rpc-skills --skill quicker-rpc -y
+```
+
+仅装到 Cursor 且全局可用：`-a cursor -g`。先查看：`npx skills add QuickerHub/quicker-rpc-skills --list`。
+
+Skill 发布仓库：[QuickerHub/quicker-rpc-skills](https://github.com/QuickerHub/quicker-rpc-skills)（本仓子模块 `quicker-rpc-skills/`，clone 后执行 `git submodule update --init`）。
+
 CLI 约定：退出码 `0` 表示成功，`1` 表示失败；脚本和 Agent 场景推荐始终使用 `--json`。
 
 ## 常用命令

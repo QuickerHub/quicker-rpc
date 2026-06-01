@@ -5,6 +5,8 @@ description: >-
   qkrpc action update for shared action f5c76108-3ce9-433f-8cd0-8f0d9c562052.
   Use when the user asks to publish, release, ship, GitHub release, or /publish.
 disable-model-invocation: false
+metadata:
+  internal: true
 ---
 
 # quicker-rpc 公开发布

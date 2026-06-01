@@ -7,6 +7,8 @@ description: >-
   features; when the user asks to build, test build, build -t, or reload the plugin
   after code edits.
 disable-model-invocation: false
+metadata:
+  internal: true
 ---
 
 # quicker-rpc 改代码后测试构建

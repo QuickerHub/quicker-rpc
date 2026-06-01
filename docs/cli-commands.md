@@ -37,6 +37,18 @@ qkrpc ping [--json] [--timeout 10] [--no-bootstrap]
 qkrpc help --json
 ```
 
+### Agent skill 安装（推荐：skills.sh）
+
+面向用户的 skill 在子模块 [quicker-rpc-skills](https://github.com/QuickerHub/quicker-rpc-skills)（`quicker-rpc-skills/skills/quicker-rpc/SKILL.md`；clone 主仓后 `git submodule update --init`）：
+
+```powershell
+npx skills add QuickerHub/quicker-rpc-skills --list
+npx skills add QuickerHub/quicker-rpc-skills --skill quicker-rpc -y
+npx skills add QuickerHub/quicker-rpc-skills --skill quicker-rpc -a cursor -a claude-code -g -y
+```
+
+本仓库 `.cursor/skills/` 仅含维护者 skill（`metadata.internal: true`），不对外发布。
+
 ### `qkrpc guide get`
 
 读取内置 ActionAuthoring 文档。

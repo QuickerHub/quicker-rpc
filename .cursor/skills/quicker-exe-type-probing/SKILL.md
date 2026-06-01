@@ -5,6 +5,8 @@ description: >-
   Use when implementing or debugging reflection against Quicker.exe, locating internal Quicker
   APIs, handling obfuscated Release builds, qkref references, or service access from
   QuickerRpc.Plugin.
+metadata:
+  internal: true
 ---
 
 # Quicker.exe Type Probing
