@@ -25,6 +25,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly ActionRunService _actionRunService;
     private readonly DesignerVariableEditService _designerVariableEditService;
     private readonly HeadlessActionProgramService _headlessActionProgramService;
+    private readonly HeadlessSubProgramProgramService _headlessSubProgramProgramService;
     private readonly IPopupMessageService _popup;
 
     public QuickerRpcService(
@@ -37,6 +38,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         ActionRunService actionRunService,
         DesignerVariableEditService designerVariableEditService,
         HeadlessActionProgramService headlessActionProgramService,
+        HeadlessSubProgramProgramService headlessSubProgramProgramService,
         IPopupMessageService popup)
     {
         _actionUpdateService = actionUpdateService;
@@ -48,6 +50,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _actionRunService = actionRunService;
         _designerVariableEditService = designerVariableEditService;
         _headlessActionProgramService = headlessActionProgramService;
+        _headlessSubProgramProgramService = headlessSubProgramProgramService;
         _popup = popup;
     }
 
@@ -123,6 +126,118 @@ public sealed class QuickerRpcService : IQuickerRpcService
 
         return InvokeOnDispatcherAsync(
             () => Task.FromResult(_subProgramSearchService.Search(query, maxCount)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcSubProgramSearchResult> ListGlobalSubProgramsAsync(
+        string? query,
+        int maxCount = 30,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessSubProgramProgramService.ListSubPrograms(query, maxCount)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcCreateSubProgramResult> CreateGlobalSubProgramAsync(
+        string name,
+        string? description = null,
+        string? icon = null,
+        CancellationToken cancellationToken = default)
+    {
+        return InvokeOnDispatcherAsync(
+            () =>
+            {
+                var result = _headlessSubProgramProgramService.CreateSubProgram(name, description, icon);
+                if (result.Ok)
+                {
+                    _popup.Success(result.Message);
+                }
+                else
+                {
+                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "创建公共子程序失败" : result.Message);
+                }
+
+                return Task.FromResult(result);
+            },
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcGetCompressedSubProgramResult> GetCompressedSubProgramAsync(
+        string subProgramIdOrName,
+        string? returnMode = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessSubProgramProgramService.GetCompressedSubProgram(subProgramIdOrName, returnMode)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcApplySubProgramPatchResult> ApplySubProgramPatchAsync(
+        string subProgramIdOrName,
+        string patchJson,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default)
+    {
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessSubProgramProgramService.ApplyPatchToSubProgram(
+                subProgramIdOrName,
+                patchJson,
+                expectedEditVersion,
+                force)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcApplySubProgramPatchResult> ApplyProgramToSubProgramAsync(
+        string subProgramIdOrName,
+        string programJson,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default)
+    {
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessSubProgramProgramService.ApplyProgramToSubProgram(
+                subProgramIdOrName,
+                programJson,
+                expectedEditVersion,
+                force)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcActionUpdateResult> EditGlobalSubProgramAsync(
+        string subProgramIdOrName,
+        CancellationToken cancellationToken = default)
+    {
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessSubProgramProgramService.EditSubProgram(subProgramIdOrName)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcActionUpdateResult> DeleteGlobalSubProgramAsync(
+        string subProgramIdOrName,
+        bool skipConfirm = true,
+        CancellationToken cancellationToken = default)
+    {
+        return InvokeOnDispatcherAsync(
+            async () =>
+            {
+                var result = _headlessSubProgramProgramService.DeleteSubProgram(subProgramIdOrName, skipConfirm);
+                if (result.Ok)
+                {
+                    _popup.Success(result.Message);
+                }
+                else
+                {
+                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "删除公共子程序失败" : result.Message);
+                }
+
+                return await Task.FromResult(result).ConfigureAwait(true);
+            },
             cancellationToken);
     }
 

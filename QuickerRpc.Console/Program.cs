@@ -115,6 +115,14 @@ internal static partial class Program
         return verb switch
         {
             "search" => await RunSubProgramSearchAsync(options).ConfigureAwait(false),
+            "list" => await RunSubProgramListAsync(options).ConfigureAwait(false),
+            "create" => await RunSubProgramCreateAsync(options).ConfigureAwait(false),
+            "get" => await RunSubProgramGetAsync(options).ConfigureAwait(false),
+            "patch" => await RunSubProgramPatchAsync(options).ConfigureAwait(false),
+            "replace" => await RunSubProgramReplaceAsync(options).ConfigureAwait(false),
+            "edit" => await RunSubProgramEditAsync(options).ConfigureAwait(false),
+            "delete" => await RunSubProgramDeleteAsync(options).ConfigureAwait(false),
+            "edit-var" => await RunSubProgramEditVarAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownSubProgramVerbAsync(options).ConfigureAwait(false),
         };
     }
@@ -124,7 +132,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_SUBPROGRAM_VERB",
-            "Use: subprogram search --query <keyword> [--limit 20] [--json]")
+            "Use: subprogram create|get|patch|replace|list|search|edit|edit-var|delete (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -882,14 +890,62 @@ public sealed class ActionOptions
 [Verb("subprogram", HelpText = "Global (public) subprogram operations via RPC.")]
 public sealed class SubProgramOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "search")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | list | search | edit | edit-var | delete")]
     public string? Command { get; set; }
 
-    [Option('q', "query", HelpText = "Search keyword for global subprogram search.")]
+    [Option("id", HelpText = "Global subprogram id or name.")]
+    public string? Id { get; set; }
+
+    [Option("code", HelpText = "Alias for --id.")]
+    public string? Code { get; set; }
+
+    [Option("name", HelpText = "Subprogram name for create.")]
+    public string? Name { get; set; }
+
+    [Option("title", HelpText = "Alias for --name on create.")]
+    public string? Title { get; set; }
+
+    [Option("description", HelpText = "Description for create.")]
+    public string? Description { get; set; }
+
+    [Option("icon", HelpText = "Icon for create (e.g. fa:IconName).")]
+    public string? Icon { get; set; }
+
+    [Option('q', "query", HelpText = "Search keyword for subprogram search/list.")]
     public string? Query { get; set; }
 
-    [Option("limit", Default = 20, HelpText = "Max results for subprogram search (1-100).")]
+    [Option("limit", Default = 20, HelpText = "Max results for subprogram search/list (1-100).")]
     public int Limit { get; set; }
+
+    [Option("return-mode", HelpText = "For subprogram get: full | structure | metadata.")]
+    public string? ReturnMode { get; set; }
+
+    [Option("patch", HelpText = "Inline JSON patch for subprogram patch.")]
+    public string? Patch { get; set; }
+
+    [Option("patch-file", HelpText = "Patch JSON file path, or - for stdin.")]
+    public string? PatchFile { get; set; }
+
+    [Option("program", HelpText = "Inline program JSON for subprogram replace.")]
+    public string? Program { get; set; }
+
+    [Option("program-file", HelpText = "Program JSON file path, or - for stdin.")]
+    public string? ProgramFile { get; set; }
+
+    [Option("expected-edit-version", HelpText = "Edit version from subprogram get.")]
+    public long? ExpectedEditVersion { get; set; }
+
+    [Option("force", HelpText = "Skip edit version check for patch/replace.")]
+    public bool Force { get; set; }
+
+    [Option("var", HelpText = "Variable key for subprogram edit-var.")]
+    public string? Variable { get; set; }
+
+    [Option("value", HelpText = "New default value for subprogram edit-var.")]
+    public string? Value { get; set; }
+
+    [Option('y', "yes", HelpText = "Required for subprogram delete.")]
+    public bool Yes { get; set; }
 
     [Option("json", HelpText = "Emit JSON for automation.")]
     public bool Json { get; set; }

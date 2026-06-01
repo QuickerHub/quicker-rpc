@@ -81,7 +81,6 @@ jobs:
             publish/install.ps1
           draft: false
           prerelease: false
-          generate_release_notes: true
           body: |
             ## Install (one command)
 

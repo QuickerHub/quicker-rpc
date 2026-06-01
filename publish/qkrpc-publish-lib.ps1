@@ -124,6 +124,81 @@ function Add-QuickerRpcUserPath {
     return $true
 }
 
+function Resolve-QkrpcChangelogContent {
+    param(
+        [string]$Changelog = '',
+        [string]$ChangelogFile = ''
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($ChangelogFile)) {
+        if (-not (Test-Path -LiteralPath $ChangelogFile)) {
+            throw "Changelog file not found: $ChangelogFile"
+        }
+
+        return (Get-Content -Raw -LiteralPath $ChangelogFile).Trim()
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Changelog)) {
+        return $Changelog.Trim()
+    }
+
+    return ''
+}
+
+function New-QkrpcReleaseNotesBody {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Tag,
+
+        [Parameter(Mandatory = $true)]
+        [string]$VersionFull,
+
+        [string]$Changelog = ''
+    )
+
+    $installLatest = '$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p'
+    $installPinned = "`$p=`"`$env:TEMP\qkrpc-install.ps1`"; iwr https://github.com/QuickerHub/quicker-rpc/releases/download/$Tag/install.ps1 -OutFile `$p -UseBasicParsing; & `$p"
+
+    $sections = @()
+    if (-not [string]::IsNullOrWhiteSpace($Changelog)) {
+        $sections += $Changelog.Trim()
+    }
+    else {
+        $sections += @(
+            "## qkrpc $Tag",
+            '',
+            "CLI client for [quicker-rpc](https://github.com/QuickerHub/quicker-rpc) (version.json: ``$VersionFull``)."
+        )
+    }
+
+    $sections += @(
+        '',
+        '---',
+        '',
+        '### Install (one command)',
+        '',
+        '```powershell',
+        $installLatest,
+        '```',
+        '',
+        'Pin this version:',
+        '',
+        '```powershell',
+        $installPinned,
+        '```',
+        '',
+        '### Verify',
+        '',
+        '```powershell',
+        'qkrpc ping --json',
+        '```',
+        '',
+        'Quicker plugin package is published separately via Quicker dependency **quicker.rpc**.'
+    )
+
+    return ($sections -join [Environment]::NewLine)
+}
+
 function Remove-QuickerRpcUserPath {
     param(
         [Parameter(Mandatory = $true)]

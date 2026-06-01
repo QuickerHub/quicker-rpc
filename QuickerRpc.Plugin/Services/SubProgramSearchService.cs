@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Quicker.Domain;
 using Quicker.Domain.Actions.X;
+using Quicker.Domain.Actions.X.SubPrograms;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Plugin.Services;
@@ -131,6 +132,7 @@ public sealed class SubProgramSearchService
             Description = NullIfEmpty(subProgram.Description),
             Score = score,
             SharedId = NullIfEmpty(subProgram.SharedId),
+            CallIdentifier = DataServiceSubProgramAccessor.GetCallIdentifier(subProgram),
         };
 
     private static string? NullIfEmpty(string? value) =>

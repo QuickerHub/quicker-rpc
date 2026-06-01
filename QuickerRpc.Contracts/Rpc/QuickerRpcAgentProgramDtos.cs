@@ -132,3 +132,66 @@ public sealed class QuickerRpcStepRunnerDetailResult
     /// <summary>Step runner agent schema JSON.</summary>
     public string? SchemaJson { get; set; }
 }
+
+public sealed class QuickerRpcGetCompressedSubProgramResult
+{
+    public bool Success { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public string? SubProgramId { get; set; }
+
+    public string? Name { get; set; }
+
+    /// <summary>Pass to sys:subprogram inputParams.subProgram when calling from an action.</summary>
+    public string? CallIdentifier { get; set; }
+
+    public long? EditVersion { get; set; }
+
+    public string? CompressedJson { get; set; }
+
+    public bool? OmitDefaultLiteralInputsApplied { get; set; }
+
+    /// <summary>full | structure | metadata</summary>
+    public string? ReturnMode { get; set; }
+}
+
+public sealed class QuickerRpcCreateSubProgramResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? SubProgramId { get; set; }
+
+    public string? Name { get; set; }
+
+    public string? CallIdentifier { get; set; }
+
+    public long EditVersion { get; set; }
+}
+
+public sealed class QuickerRpcApplySubProgramPatchResult
+{
+    public bool Success { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public string? SubProgramId { get; set; }
+
+    public string? CallIdentifier { get; set; }
+
+    public long? EditVersion { get; set; }
+
+    public bool? VersionConflict { get; set; }
+
+    public string? UpdatedStepsJson { get; set; }
+
+    public string? AddedStepsJson { get; set; }
+
+    public string? UpdatedVariablesJson { get; set; }
+
+    public string? AddedVariablesJson { get; set; }
+
+    public string? UpdatedUtc { get; set; }
+}

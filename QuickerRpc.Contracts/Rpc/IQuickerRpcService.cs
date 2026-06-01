@@ -41,6 +41,52 @@ public interface IQuickerRpcService
         int maxCount = 20,
         CancellationToken cancellationToken = default);
 
+    /// <summary>List or search global subprograms (empty query lists all).</summary>
+    Task<QuickerRpcSubProgramSearchResult> ListGlobalSubProgramsAsync(
+        string? query,
+        int maxCount = 30,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Create a new global (public) subprogram.</summary>
+    Task<QuickerRpcCreateSubProgramResult> CreateGlobalSubProgramAsync(
+        string name,
+        string? description = null,
+        string? icon = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Read a global subprogram by id or name (compressed agent shape).</summary>
+    Task<QuickerRpcGetCompressedSubProgramResult> GetCompressedSubProgramAsync(
+        string subProgramIdOrName,
+        string? returnMode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Apply a partial program patch to a global subprogram (headless save).</summary>
+    Task<QuickerRpcApplySubProgramPatchResult> ApplySubProgramPatchAsync(
+        string subProgramIdOrName,
+        string patchJson,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Replace steps/variables on a global subprogram (headless save).</summary>
+    Task<QuickerRpcApplySubProgramPatchResult> ApplyProgramToSubProgramAsync(
+        string subProgramIdOrName,
+        string programJson,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Open the Quicker subprogram editor for a global subprogram.</summary>
+    Task<QuickerRpcActionUpdateResult> EditGlobalSubProgramAsync(
+        string subProgramIdOrName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Delete a global subprogram.</summary>
+    Task<QuickerRpcActionUpdateResult> DeleteGlobalSubProgramAsync(
+        string subProgramIdOrName,
+        bool skipConfirm = true,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Delete a local Quicker action (ActionEditMgr.DeleteAction).</summary>
     Task<QuickerRpcActionUpdateResult> DeleteActionAsync(
         string actionId,
@@ -167,6 +213,9 @@ public sealed class QuickerRpcSubProgramSummary
 
     /// <summary>Shared subprogram library id when the subprogram has been shared.</summary>
     public string? SharedId { get; set; }
+
+    /// <summary>Value for sys:subprogram step inputParams.subProgram (from subprogram get/search).</summary>
+    public string? CallIdentifier { get; set; }
 }
 
 public sealed class QuickerRpcActionSummary

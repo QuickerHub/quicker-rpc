@@ -47,9 +47,10 @@ internal static class QkrpcCliHelp
             discovery = "qkrpc help --json",
 
             agentWorkflow =
-                "guide authoring-workflow: action create → action get → implementation-fallback → " +
-                "(step-modules | step-runner search) → step-runner get (required) → action patch",
+                "guide authoring-workflow + subprogram-workflow: action/subprogram create → get → " +
+                "step-runner get (required) → patch; call subprograms via sys:subprogram + callIdentifier",
             authoringGuideTopic = "authoring-workflow",
+            subprogramGuideTopic = "subprogram-workflow",
 
             jsonFlag = "Append --json for structured stdout on all commands.",
 
@@ -120,9 +121,41 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("query", "Keyword.", shortName: "q"), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),
 
-                Cmd("subprogram search", "Search global subprograms.", "qkrpc subprogram search --query <keyword> [--limit 20] [--json]",
+                Cmd("subprogram search", "Search global subprograms (returns callIdentifier for sys:subprogram).", "qkrpc subprogram search --query <keyword> [--limit 20] [--json]",
 
                     opts: new[] { Option("query", "Keyword.", shortName: "q"), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),
+
+                Cmd("subprogram list", "List global subprograms.", "qkrpc subprogram list [--query <keyword>] [--limit 30] [--json]",
+
+                    opts: new[] { Option("query", "Optional filter.", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output.") }),
+
+                Cmd("subprogram create", "Create a global subprogram.", "qkrpc subprogram create --name <name> [--description <text>] [--json]",
+
+                    opts: new[] { Option("name", "Unique subprogram name."), Option("description", "Description."), Option("icon", "Icon spec."), Option("json", "Structured output.") }),
+
+                Cmd("subprogram get", "Read compressed subprogram program.", "qkrpc subprogram get --id <idOrName> [--return-mode full|structure|metadata] [--json]",
+
+                    opts: SubProgramHeadlessOpts()),
+
+                Cmd("subprogram patch", "Apply partial patch to subprogram (same JSON shape as action patch).", "qkrpc subprogram patch --id <idOrName> --patch-file <path|-> [--expected-edit-version N] [--json]",
+
+                    opts: SubProgramPatchOpts()),
+
+                Cmd("subprogram replace", "Replace subprogram steps/variables.", "qkrpc subprogram replace --id <idOrName> --program-file <path|-> [--expected-edit-version N] [--json]",
+
+                    opts: SubProgramReplaceOpts()),
+
+                Cmd("subprogram edit", "Open subprogram editor UI.", "qkrpc subprogram edit --id <idOrName> [--json]",
+
+                    opts: new[] { Option("id", "Subprogram id or name."), Option("json", "Structured output.") }),
+
+                Cmd("subprogram edit-var", "Edit subprogram variable default via designer UI.", "qkrpc subprogram edit-var --id <idOrName> --var <key> --value <val> [--json]",
+
+                    opts: new[] { Option("id", "Subprogram id or name."), Option("var", "Variable key."), Option("value", "New default."), Option("json", "Structured output.") }),
+
+                Cmd("subprogram delete", "Delete a global subprogram.", "qkrpc subprogram delete --id <idOrName> --yes [--json]",
+
+                    opts: new[] { Option("id", "Subprogram id or name."), Option("yes", "Required.", shortName: "y", required: true), Option("json", "Structured output.") }),
 
                 Cmd("action delete", "Delete a local action.", "qkrpc action delete --id <guid> --yes [--json]",
 
@@ -215,6 +248,78 @@ internal static class QkrpcCliHelp
             Option("xaction-file", "XAction JSON file or - for stdin."),
 
             Option("expected-edit-version", "From action get."),
+
+            Option("force", "Skip version check."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object[] SubProgramHeadlessOpts() =>
+
+        new object[]
+
+        {
+
+            Option("id", "Subprogram id or name."),
+
+            Option("return-mode", "full | structure | metadata."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object[] SubProgramPatchOpts() =>
+
+        new object[]
+
+        {
+
+            Option("id", "Subprogram id or name."),
+
+            Option("patch", "Inline patch JSON."),
+
+            Option("patch-file", "Patch JSON file or - for stdin."),
+
+            Option("expected-edit-version", "From subprogram get."),
+
+            Option("force", "Skip version check."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object[] SubProgramReplaceOpts() =>
+
+        new object[]
+
+        {
+
+            Option("id", "Subprogram id or name."),
+
+            Option("program", "Inline program JSON { steps, variables }."),
+
+            Option("program-file", "Program JSON file or - for stdin."),
+
+            Option("expected-edit-version", "From subprogram get."),
 
             Option("force", "Skip version check."),
 

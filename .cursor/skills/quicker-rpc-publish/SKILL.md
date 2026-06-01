@@ -12,11 +12,11 @@ disable-model-invocation: false
 ## 完整流程（Agent 顺序）
 
 1. `git status`；必要时 bump `version.json` 并 commit
-2. `git log` 自上一 tag → **撰写 changelog**（阶段四用）
-3. `pwsh ./publish/Publish-GitHubRelease.ps1` → GitHub Release（CLI）
+2. `git log` 自上一 tag → **撰写 changelog**（写入临时文件，阶段三、六共用）
+3. `pwsh ./publish/Publish-GitHubRelease.ps1 -ChangelogFile $env:TEMP\qkrpc-release-changelog.txt` → GitHub Release（CLI + 说明）
 4. `pwsh ./build.ps1 -p -n` → Quicker 依赖 **quicker.rpc** 上传（版本与 `version.json` 一致，不再 bump）
 5. `qkrpc ping --json` 确认插件在线
-6. `qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog "..." --json`（或 `--changelog-file`）
+6. `qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog-file $env:TEMP\qkrpc-release-changelog.txt --json`（与 Release 同一文件）
 7. 汇报 Release URL、Quicker 包版本、action update 结果、用户安装命令
 
 ## 仓库与产物
@@ -43,14 +43,15 @@ $p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/
 | `build.ps1 -p -n` | qkbuild 上传 Quicker 依赖，**不**改 `version.json` |
 | `publish/publish-rpc.ps1` | 仅本地 CLI/插件构建（一般由上面脚本间接调用） |
 
-`Publish-GitHubRelease.ps1` 参数：`-SkipBuild`、`-SkipTag`、`-DryRun`、`-Draft`、`-TagVersion`
+`Publish-GitHubRelease.ps1` 参数：`-SkipBuild`、`-SkipTag`、`-DryRun`、`-Draft`、`-TagVersion`、`-Changelog`、`-ChangelogFile`
 
-## Changelog（Agent 撰写）
+## Changelog（Agent 撰写，Release 与 action update 共用）
 
 - 阅读 `git log vX.Y.Z..HEAD` 或近期 commit
 - 用中文，按 **CLI / 安装 / 插件** 分组
 - 首行写版本号（如 `v0.3.11`）
 - 不要空 changelog；不要只写「发布」
+- 写入临时文件后传给 `-ChangelogFile` 与 `action update --changelog-file`（同一内容）
 
 ## 前置条件
 
@@ -64,6 +65,7 @@ $p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/
 - 修改 `git config`
 - 用 `-p`（无 `-n`）在 Release 后再 bump 版本
 - 跳过 `action update` 或让用户提供 changelog 文本
+- 未传 `-Changelog` / `-ChangelogFile` 时 GitHub Release 仅有安装说明（无变更条目）
 
 ## 相关
 

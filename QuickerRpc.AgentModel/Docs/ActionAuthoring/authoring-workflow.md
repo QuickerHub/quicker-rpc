@@ -209,6 +209,14 @@ qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <
 
 变量、子程序、完整替换：**`patch-workflow`**、**`variables`**、**`action replace`**。
 
+### 5.4 在动作中调用公共子程序
+
+1. `subprogram search/get` → 记下 **`callIdentifier`**
+2. `step-runner get --key sys:subprogram --json` → 确认参数键 **`subProgram`**
+3. `action patch` 添加 `sys:subprogram` 步骤，`inputParams.subProgram.value` = `callIdentifier`
+
+详见 **`subprogram-workflow`**。
+
 ---
 
 ## 6. 保存后
@@ -235,4 +243,4 @@ patch 成功时响应含 **`editVersion`**、**`addedSteps`**、**`updatedSteps`
 
 ## 相关主题
 
-`overview` · `cli-setup` · `step-modules` · `step-runner-search` · `xaction-json` · `patch-workflow` · `variables` · `expressions` · `implementation-fallback`
+`overview` · `cli-setup` · `subprogram-workflow` · `step-modules` · `step-runner-search` · `xaction-json` · `patch-workflow` · `variables` · `expressions` · `implementation-fallback`

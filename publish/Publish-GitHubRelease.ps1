@@ -6,6 +6,7 @@
 #   pwsh ./publish/Publish-GitHubRelease.ps1
 #   pwsh ./publish/Publish-GitHubRelease.ps1 -SkipBuild
 #   pwsh ./publish/Publish-GitHubRelease.ps1 -DryRun
+#   pwsh ./publish/Publish-GitHubRelease.ps1 -ChangelogFile $env:TEMP\qkrpc-release-changelog.txt
 
 [CmdletBinding()]
 param(
@@ -13,6 +14,8 @@ param(
     [string]$TagVersion = '',
     [string]$Commitish = 'HEAD',
     [string]$ReleaseTitle = '',
+    [string]$Changelog = '',
+    [string]$ChangelogFile = '',
     [switch]$SkipBuild,
     [switch]$SkipTag,
     [switch]$Draft,
@@ -82,40 +85,12 @@ Run publish-rpc.ps1 first (or omit -SkipBuild).
     return @($zipPath, $latestZipPath, $installScriptPath)
 }
 
-function New-ReleaseNotesBody {
-    param([string]$Tag, [string]$VersionFull)
-
-    $installLatest = '$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p'
-    $installPinned = "`$p=`"`$env:TEMP\qkrpc-install.ps1`"; iwr https://github.com/QuickerHub/quicker-rpc/releases/download/$Tag/install.ps1 -OutFile `$p -UseBasicParsing; & `$p"
-
-    return @"
-## qkrpc $Tag
-
-CLI client for [quicker-rpc](https://github.com/QuickerHub/quicker-rpc) (version.json: ``$VersionFull``).
-
-### Install (one command)
-
-``````powershell
-$installLatest
-``````
-
-Pin this version:
-
-``````powershell
-$installPinned
-``````
-
-### Verify
-
-``````powershell
-qkrpc ping --json
-``````
-
-Quicker plugin package is published separately via Quicker dependency **quicker.rpc**.
-"@
-}
-
 Assert-GhAvailable
+
+$changelogContent = Resolve-QkrpcChangelogContent -Changelog $Changelog -ChangelogFile $ChangelogFile
+if ([string]::IsNullOrWhiteSpace($changelogContent)) {
+    Write-Host 'Warning: no -Changelog / -ChangelogFile; release notes will only include install instructions.' -ForegroundColor Yellow
+}
 
 if (-not $SkipBuild) {
     $publishScript = Join-Path $RepoRoot 'publish\publish-rpc.ps1'
@@ -142,7 +117,7 @@ else {
     $assetPaths = @(Get-ReleaseAssetPaths)
 }
 
-$notesBody = New-ReleaseNotesBody -Tag $tagName -VersionFull $quickerRpcVersion
+$notesBody = New-QkrpcReleaseNotesBody -Tag $tagName -VersionFull $quickerRpcVersion -Changelog $changelogContent
 $notesPath = Join-Path $env:TEMP "qkrpc-release-notes-$tagName.md"
 Set-Content -LiteralPath $notesPath -Value $notesBody -Encoding utf8NoBOM
 
@@ -196,6 +171,17 @@ finally {
 if ($releaseExists) {
     Write-Host "Release $tagName already exists; uploading assets..." -ForegroundColor Yellow
     gh release upload $tagName @assetPaths --clobber
+    if ($LASTEXITCODE -ne 0) {
+        throw "gh release upload failed with exit code $LASTEXITCODE"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($changelogContent)) {
+        Write-Host "Updating release notes..." -ForegroundColor Yellow
+        gh release edit $tagName --notes-file $notesPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "gh release edit failed with exit code $LASTEXITCODE"
+        }
+    }
 }
 else {
     gh @ghArgs

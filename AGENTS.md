@@ -43,19 +43,25 @@ type QuickerRpc.Plugin.AssemblyLoader, QuickerRpc.Plugin.{version}
 
 ## CLI（Agent 无头编辑）
 
-写动作流程（完整约束）：`qkrpc guide get --topic authoring-workflow --json`
+写动作流程（完整约束）：`qkrpc guide get --topic authoring-workflow --json`  
+公共子程序：`qkrpc guide get --topic subprogram-workflow --json`
 
 ```powershell
 qkrpc help --json
 qkrpc guide get --topic authoring-workflow --json
+qkrpc guide get --topic subprogram-workflow --json
 qkrpc action list --query "<keyword>" --json
 qkrpc action get --id <guid> --return-mode full --json
+qkrpc subprogram search --query "<keyword>" --json
+qkrpc subprogram get --id <idOrName> --return-mode full --json
 qkrpc step-runner search --query "关键词|english|sys:*" --json
 qkrpc step-runner get --key <stepRunnerKey> --json
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
 ```
 
-**禁止**：未 `step-runner get` 就猜 `inputParams` 键名；patch 写与目录 **Default** 相同的**普通**参数（控制字段除外）；patch 成功后仅为验证再 `action get`。
+**调用公共子程序**：`subprogram search/get` 取 **`callIdentifier`**（通常 `%%{guid}`）→ `step-runner get --key sys:subprogram` → `action patch` 写 `inputParams.subProgram`。
+
+**禁止**：未 `step-runner get` 就猜 `inputParams` 键名；未 `subprogram get/search` 就猜 `callIdentifier`；patch 写与目录 **Default** 相同的**普通**参数（控制字段除外）；patch 成功后仅为验证再 `action get`。
 
 退出码：0 成功，1 失败。大 JSON 用 `--patch-file -` 从 stdin 读。
 

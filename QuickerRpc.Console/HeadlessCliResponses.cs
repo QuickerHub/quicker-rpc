@@ -48,6 +48,53 @@ internal static class HeadlessCliResponses
             updatedUtc = response.UpdatedUtc,
         };
 
+    public static object ToSubProgramGetPayload(QuickerRpcGetCompressedSubProgramResult response)
+    {
+        if (!response.Success || string.IsNullOrWhiteSpace(response.CompressedJson))
+        {
+            return new
+            {
+                success = response.Success,
+                errorMessage = response.ErrorMessage,
+                subProgramId = response.SubProgramId,
+                name = response.Name,
+                callIdentifier = response.CallIdentifier,
+                editVersion = response.EditVersion,
+                returnMode = response.ReturnMode,
+            };
+        }
+
+        using var doc = JsonDocument.Parse(response.CompressedJson);
+        return new
+        {
+            success = response.Success,
+            errorMessage = response.ErrorMessage,
+            subProgramId = response.SubProgramId,
+            name = response.Name,
+            callIdentifier = response.CallIdentifier,
+            editVersion = response.EditVersion,
+            compressed = doc.RootElement.Clone(),
+            omitDefaultLiteralInputsApplied = response.OmitDefaultLiteralInputsApplied,
+            returnMode = response.ReturnMode,
+        };
+    }
+
+    public static object ToSubProgramPatchPayload(QuickerRpcApplySubProgramPatchResult response) =>
+        new
+        {
+            success = response.Success,
+            errorMessage = response.ErrorMessage,
+            subProgramId = response.SubProgramId,
+            callIdentifier = response.CallIdentifier,
+            editVersion = response.EditVersion,
+            versionConflict = response.VersionConflict,
+            updatedSteps = ParseJsonOrNull(response.UpdatedStepsJson),
+            addedSteps = ParseJsonOrNull(response.AddedStepsJson),
+            updatedVariables = ParseJsonOrNull(response.UpdatedVariablesJson),
+            addedVariables = ParseJsonOrNull(response.AddedVariablesJson),
+            updatedUtc = response.UpdatedUtc,
+        };
+
     public static object ToStepRunnerDetailPayload(QuickerRpcStepRunnerDetailResult response)
     {
         if (!response.Success || string.IsNullOrWhiteSpace(response.SchemaJson))

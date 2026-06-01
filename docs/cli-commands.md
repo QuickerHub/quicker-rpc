@@ -14,7 +14,8 @@
 | `--no-bootstrap` | 跳过 `quicker:runaction` 自动拉起插件 |
 | stdin | 大 JSON 可用 `--patch-file -` / `--xaction-file -` |
 
-Agent 写动作流程：`guide get --topic authoring-workflow --json`
+Agent 写动作流程：`guide get --topic authoring-workflow --json`  
+公共子程序：`guide get --topic subprogram-workflow --json`
 
 ---
 
@@ -194,13 +195,40 @@ qkrpc step-runner get --key <stepRunnerKey> [--json]
 
 ## 子程序
 
-### `qkrpc subprogram search`
+### `qkrpc subprogram search` / `list`
 
-搜索公共子程序。
+搜索或列出公共子程序。响应含 **`callIdentifier`**（供 `sys:subprogram` 步骤使用）。
 
 ```powershell
 qkrpc subprogram search --query <keyword> [--limit 20] [--json]
+qkrpc subprogram list [--query <keyword>] [--limit 30] [--json]
 ```
+
+### `qkrpc subprogram create`
+
+```powershell
+qkrpc subprogram create --name <name> [--description <text>] [--icon <spec>] [--json]
+```
+
+### `qkrpc subprogram get` / `patch` / `replace`
+
+无头读写公共子程序（patch 语法与 `action patch` 相同）。
+
+```powershell
+qkrpc subprogram get --id <idOrName> [--return-mode full|structure|metadata] [--json]
+qkrpc subprogram patch --id <idOrName> --patch-file <path|-> [--expected-edit-version N] [--json]
+qkrpc subprogram replace --id <idOrName> --program-file <path|-> [--json]
+```
+
+### `qkrpc subprogram edit` / `edit-var` / `delete`
+
+```powershell
+qkrpc subprogram edit --id <idOrName> [--json]
+qkrpc subprogram edit-var --id <idOrName> --var <key> --value <val> [--json]
+qkrpc subprogram delete --id <idOrName> --yes [--json]
+```
+
+在动作中调用公共子程序：见 [subprogram-workflow](../QuickerRpc.AgentModel/Docs/ActionAuthoring/subprogram-workflow.md) 或 `guide get --topic subprogram-workflow --json`。
 
 ---
 

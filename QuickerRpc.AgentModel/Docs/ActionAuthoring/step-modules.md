@@ -133,7 +133,7 @@
 |---------------|------|-------------|
 | `sys:run` | 运行或打开 | 运行软件或命令，打开文件、文件夹或网址。效果类似于在Windows"运行"对话框中执行命令。 |
 | `sys:openUrl` | 打开网址 | 打开指定的网址 |
-| `sys:subprogram` | 运行子程序 | 运行子程序 |
+| `sys:subprogram` | 运行子程序 | 运行**公共**或动作内子程序；公共子程序见 **`subprogram-workflow`**（`callIdentifier` + `inputParams.subProgram`） |
 | `sys:runAction` | 运行或停止动作 | 执行指定的其他动作 |
 | `sys:csscript` | 运行C#代码 | 执行C#代码片段。代码中应包含主函数Exec(stepContext)，请参考文档说明。 |
 | `sys:pythonscript` | 运行Python代码 | 执行Python代码片段。 |
