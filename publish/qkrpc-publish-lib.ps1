@@ -124,10 +124,29 @@ function Add-QuickerRpcUserPath {
     return $true
 }
 
+function Get-QkrpcChangelogFilePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Tag
+    )
+
+    $normalizedTag = $Tag.Trim()
+    if (-not $normalizedTag.StartsWith('v')) {
+        $normalizedTag = "v$normalizedTag"
+    }
+
+    return Join-Path $RepoRoot "publish\changelogs\$normalizedTag.md"
+}
+
 function Resolve-QkrpcChangelogContent {
     param(
         [string]$Changelog = '',
-        [string]$ChangelogFile = ''
+        [string]$ChangelogFile = '',
+        [string]$RepoRoot = '',
+        [string]$Tag = ''
     )
 
     if (-not [string]::IsNullOrWhiteSpace($ChangelogFile)) {
@@ -140,6 +159,13 @@ function Resolve-QkrpcChangelogContent {
 
     if (-not [string]::IsNullOrWhiteSpace($Changelog)) {
         return $Changelog.Trim()
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($RepoRoot) -and -not [string]::IsNullOrWhiteSpace($Tag)) {
+        $defaultPath = Get-QkrpcChangelogFilePath -RepoRoot $RepoRoot -Tag $Tag
+        if (Test-Path -LiteralPath $defaultPath) {
+            return (Get-Content -Raw -LiteralPath $defaultPath).Trim()
+        }
     }
 
     return ''

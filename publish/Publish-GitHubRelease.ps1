@@ -16,6 +16,7 @@ param(
     [string]$ReleaseTitle = '',
     [string]$Changelog = '',
     [string]$ChangelogFile = '',
+    [switch]$AllowEmptyChangelog,
     [switch]$SkipBuild,
     [switch]$SkipTag,
     [switch]$Draft,
@@ -87,9 +88,33 @@ Run publish-rpc.ps1 first (or omit -SkipBuild).
 
 Assert-GhAvailable
 
-$changelogContent = Resolve-QkrpcChangelogContent -Changelog $Changelog -ChangelogFile $ChangelogFile
+$defaultChangelogPath = Get-QkrpcChangelogFilePath -RepoRoot $RepoRoot -Tag $tagName
+$changelogContent = Resolve-QkrpcChangelogContent -Changelog $Changelog -ChangelogFile $ChangelogFile -RepoRoot $RepoRoot -Tag $tagName
+$resolvedChangelogFile = if (-not [string]::IsNullOrWhiteSpace($ChangelogFile)) {
+    $ChangelogFile
+}
+elseif (Test-Path -LiteralPath $defaultChangelogPath) {
+    $defaultChangelogPath
+}
+else {
+    ''
+}
+
 if ([string]::IsNullOrWhiteSpace($changelogContent)) {
-    Write-Host 'Warning: no -Changelog / -ChangelogFile; release notes will only include install instructions.' -ForegroundColor Yellow
+    if ($AllowEmptyChangelog) {
+        Write-Host 'Warning: no changelog; release notes will only include install instructions.' -ForegroundColor Yellow
+    }
+    else {
+        throw @"
+Release changelog is required.
+
+Write publish/changelogs/$tagName.md (commit before tagging), or pass -Changelog / -ChangelogFile.
+Expected path: $defaultChangelogPath
+"@
+    }
+}
+elseif ($resolvedChangelogFile) {
+    Write-Host "Using changelog: $resolvedChangelogFile" -ForegroundColor Cyan
 }
 
 if (-not $SkipBuild) {
@@ -174,22 +199,21 @@ if ($releaseExists) {
     if ($LASTEXITCODE -ne 0) {
         throw "gh release upload failed with exit code $LASTEXITCODE"
     }
-
-    if (-not [string]::IsNullOrWhiteSpace($changelogContent)) {
-        Write-Host "Updating release notes..." -ForegroundColor Yellow
-        gh release edit $tagName --notes-file $notesPath
-        if ($LASTEXITCODE -ne 0) {
-            throw "gh release edit failed with exit code $LASTEXITCODE"
-        }
-    }
 }
 else {
     gh @ghArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "gh release create failed with exit code $LASTEXITCODE"
+    }
 }
 
+Write-Host 'Setting release notes...' -ForegroundColor Cyan
+gh release edit $tagName --notes-file $notesPath
 if ($LASTEXITCODE -ne 0) {
-    throw "gh release failed with exit code $LASTEXITCODE"
+    throw "gh release edit failed with exit code $LASTEXITCODE"
 }
+
+Write-Host 'Release notes applied. If CI release-cli.yml runs for this tag, it uses the same publish/changelogs file.' -ForegroundColor DarkGray
 
 Write-Host ''
 Write-Host "Release completed: $tagName" -ForegroundColor Green

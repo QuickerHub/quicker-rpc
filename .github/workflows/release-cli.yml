@@ -70,34 +70,34 @@ jobs:
           Compress-Archive -Path 'publish/cli/*' -DestinationPath $zipPath -CompressionLevel Optimal -Force
           Copy-Item -LiteralPath $zipPath -Destination (Join-Path $PWD 'publish/qkrpc-win-x64.zip') -Force
 
+      - name: Generate release notes
+        id: notes
+        shell: pwsh
+        run: |
+          . ./publish/qkrpc-publish-lib.ps1
+          $tag = '${{ steps.tag.outputs.tag }}'
+          $full = '${{ steps.version.outputs.full }}'
+          $changelogPath = Get-QkrpcChangelogFilePath -RepoRoot $PWD -Tag $tag
+          $changelog = Resolve-QkrpcChangelogContent -RepoRoot $PWD -Tag $tag
+          if ([string]::IsNullOrWhiteSpace($changelog)) {
+            Write-Warning "No changelog at $changelogPath; release notes will only include install instructions."
+          } else {
+            Write-Host "Using changelog: $changelogPath"
+          }
+          $body = New-QkrpcReleaseNotesBody -Tag $tag -VersionFull $full -Changelog $changelog
+          $notesPath = Join-Path $env:RUNNER_TEMP 'qkrpc-release-notes.md'
+          Set-Content -LiteralPath $notesPath -Value $body -Encoding utf8NoBOM
+          "path=$notesPath" >> $env:GITHUB_OUTPUT
+
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: qkrpc ${{ steps.tag.outputs.tag }}
+          body_path: ${{ steps.notes.outputs.path }}
           files: |
             publish/${{ steps.tag.outputs.zip_name }}
             publish/qkrpc-win-x64.zip
             publish/install.ps1
           draft: false
           prerelease: false
-          body: |
-            ## Install (one command)
-
-            ```powershell
-            $p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
-            ```
-
-            Pin this version:
-
-            ```powershell
-            $p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/download/${{ steps.tag.outputs.tag }}/install.ps1 -OutFile $p -UseBasicParsing; & $p
-            ```
-
-            ## Verify
-
-            ```powershell
-            qkrpc ping --json
-            ```
-
-            Quicker plugin package is published separately via Quicker dependency **quicker.rpc**.

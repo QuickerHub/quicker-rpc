@@ -7,9 +7,9 @@
 1. `git status`、当前分支；工作区应已提交（Release 会打 tag 到 `HEAD`）。
 2. **Read** `version.json` → 记录 `QuickerRpc` 四段版本；tag 取前三段（如 `0.3.11.0` → `v0.3.11`）。
 3. 若 tag 已存在或需新版本，先改 `version.json` 并 commit，再发布。
-4. 浏览 `git log`（自上一 tag 或近几次 commit），**撰写 changelog** 并写入临时文件（阶段二、四共用）。
+4. 浏览 `git log`（自上一 tag 或近几次 commit），**撰写 changelog** 写入 `publish/changelogs/vX.Y.Z.md` 并 **commit**（CI 从 tag 指向的 commit 读取此文件）。
 
-**Changelog 建议结构**（Agent 按实际 commit 填写）：
+**Changelog 建议结构**：
 
 ```text
 v0.3.11
@@ -24,25 +24,22 @@ CLI
 - ...
 ```
 
-```powershell
-$changelogPath = Join-Path $env:TEMP 'qkrpc-release-changelog.txt'
-# Agent 将 changelog 写入 $changelogPath
-```
-
 ## 阶段二：GitHub Release（CLI + 说明）
 
 ```powershell
-pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1 -ChangelogFile $env:TEMP\qkrpc-release-changelog.txt
+pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1
 ```
 
-`block_until_ms` ≥ **120000**（dotnet publish + gh upload）。
+脚本会自动读取 `publish/changelogs/vX.Y.Z.md`（也可用 `-ChangelogFile` 覆盖）。
 
-脚本会：`publish-rpc.ps1 -SkipInstall` → 打 zip → 创建并推送 tag → `gh release create` 上传资产（含 `install.ps1`、`qkrpc-win-x64.zip`），Release 正文 = changelog + 安装说明。
+`block_until_ms` ≥ **120000**（dotnet publish + gh upload + CI 可能并行）。
+
+**注意**：push tag 会触发 `.github/workflows/release-cli.yml`；CI 与本地脚本共用 `publish/changelogs/vX.Y.Z.md` 生成 Release 正文。若未 commit changelog，CI 会覆盖为仅含安装说明的模板。
 
 | 参数 | 用途 |
 |------|------|
-| `-ChangelogFile` | 与 action update 共用的 changelog 文件（推荐） |
-| `-Changelog` | 内联 changelog 文本 |
+| `-ChangelogFile` | 覆盖默认 `publish/changelogs/vX.Y.Z.md` |
+| `-AllowEmptyChangelog` | 跳过 changelog 校验（不推荐） |
 | `-SkipBuild` | 已有 zip 时跳过构建 |
 | `-DryRun` | 预览 tag / gh 命令 |
 | `-Draft` | 草稿 Release |
@@ -57,16 +54,13 @@ pwsh ./build.ps1 -p -n
 
 `block_until_ms` ≥ **120000**（qkbuild 上传 quicker.rpc + 本地 CLI 安装）。
 
-`-p -n`：发布到 Quicker 依赖/OSS，**不**修改 `version.json`（版本已在阶段一确定）。
-
 ## 阶段四：更新 Quicker 分享动作
 
-Agent **必须**使用与 GitHub Release **相同**的 changelog 文件：
+与 GitHub Release **同一 changelog 文件**：
 
-| 项 | 值 |
-|----|-----|
-| 动作 ID | `f5c76108-3ce9-433f-8cd0-8f0d9c562052` |
-| 命令 | `qkrpc action update --id ... --changelog-file $env:TEMP\qkrpc-release-changelog.txt --json` |
+```powershell
+qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog-file publish/changelogs/vX.Y.Z.md --json
+```
 
 前置：Quicker 已运行且 QuickerRpc 插件已加载（`qkrpc ping --json` 成功）。
 
@@ -86,4 +80,4 @@ $p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/
 - 将 `publish/cli`、`publish/plugin`、`publish/*.zip` 提交 Git
 - 修改 `git config`
 - 未经用户确认 force push tag / 删除已有 Release
-- 跳过 Agent 撰写 changelog 直接 `action update` 或 `Publish-GitHubRelease`
+- 未 commit `publish/changelogs/vX.Y.Z.md` 就 push tag（CI 会覆盖 Release 说明）

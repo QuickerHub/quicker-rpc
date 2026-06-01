@@ -21,9 +21,9 @@ Quicker (plugin DLL)  --named pipe-->  qkrpc.exe (CLI client)
 维护者对外发布 **qkrpc CLI**（GitHub Releases）：
 
 ```powershell
-# 1. 更新 version.json 并 commit
-# 2. 撰写 changelog 并发布（需 gh auth login）
-pwsh ./publish/Publish-GitHubRelease.ps1 -ChangelogFile $env:TEMP\qkrpc-release-changelog.txt
+# 1. 更新 version.json，撰写 publish/changelogs/vX.Y.Z.md 并 commit
+# 2. 发布（需 gh auth login）
+pwsh ./publish/Publish-GitHubRelease.ps1
 ```
 
 或推送 `v*` tag，由 `.github/workflows/release-cli.yml` 自动构建上传。
