@@ -42,7 +42,7 @@ public static class StepNodeResolver
     {
         if (!string.IsNullOrWhiteSpace(stepId))
         {
-            if (TryFindStepById(rootSteps, stepId.Trim(), out var parent, out var index, out var resolvedPath))
+            if (TryFindStepById(rootSteps, stepId!.Trim(), out var parent, out var index, out var resolvedPath))
             {
                 return new ResolvedStepNode
                 {
@@ -227,6 +227,6 @@ public static class StepNodeResolver
             return string.Empty;
         }
 
-        return string.Join("/", nodePath.Split('/').Select(x => x.Trim()).Where(x => x.Length > 0));
+        return string.Join("/", nodePath!.Split('/').Select(x => x.Trim()).Where(x => x.Length > 0));
     }
 }

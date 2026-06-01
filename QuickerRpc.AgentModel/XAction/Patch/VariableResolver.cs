@@ -22,7 +22,7 @@ public static class VariableResolver
     {
         if (!string.IsNullOrWhiteSpace(variableId))
         {
-            var id = variableId.Trim();
+            var id = variableId!.Trim();
             for (var i = 0; i < variables.Count; i++)
             {
                 if (variables[i] is not JObject variableObj)
@@ -51,7 +51,7 @@ public static class VariableResolver
             return new ResolvedVariable { Success = false, ErrorMessage = "Either variableId or variableKey is required." };
         }
 
-        var key = variableKey.Trim();
+        var key = variableKey!.Trim();
         for (var i = 0; i < variables.Count; i++)
         {
             if (variables[i] is not JObject variableObj)

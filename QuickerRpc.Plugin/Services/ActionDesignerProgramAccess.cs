@@ -96,6 +96,17 @@ internal static class ActionDesignerProgramAccess
         JArray steps,
         JArray variables,
         string subProgramsJson,
+        out string? error) =>
+        TrySave(actionId, steps, variables, subProgramsJson, title: null, description: null, icon: null, out error);
+
+    public static bool TrySave(
+        string actionId,
+        JArray steps,
+        JArray variables,
+        string subProgramsJson,
+        string? title,
+        string? description,
+        string? icon,
         out string? error)
     {
         error = null;
@@ -110,6 +121,14 @@ internal static class ActionDesignerProgramAccess
         {
             error = $"Action not found: {id}";
             return false;
+        }
+
+        if (title is not null || description is not null || icon is not null)
+        {
+            if (!ActionPresentationUpdate.TryApply(live, title, description, icon, out error))
+            {
+                return false;
+            }
         }
 
         var existingJson = ActionProgramContent.HasProgramContent(live.Data) ? live.Data : null;
@@ -130,6 +149,41 @@ internal static class ActionDesignerProgramAccess
         }
 
         ActionDesignerUiSave.TrySyncOpenDesignerOnUiThread(id, xAction);
+        return true;
+    }
+
+    /// <summary>Update title / description / icon only (does not change XAction program body).</summary>
+    public static bool TryUpdatePresentation(
+        string actionId,
+        string? title,
+        string? description,
+        string? icon,
+        out string? error)
+    {
+        error = null;
+        var id = (actionId ?? string.Empty).Trim();
+        if (id.Length == 0)
+        {
+            error = "actionId is required.";
+            return false;
+        }
+
+        if (!TryGetById(id, out var live, out _) || live is null)
+        {
+            error = $"Action not found: {id}";
+            return false;
+        }
+
+        if (!ActionPresentationUpdate.TryApply(live, title, description, icon, out error))
+        {
+            return false;
+        }
+
+        if (!QuickerInternalAccess.TrySaveEditingAction(live, out error))
+        {
+            return false;
+        }
+
         return true;
     }
 

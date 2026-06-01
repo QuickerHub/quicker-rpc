@@ -90,7 +90,7 @@ internal static class QkrpcCliHelp
                     {
                         Option("title", "Action title (default: 新动作)."),
                         Option("description", "Action description."),
-                        Option("icon", "Icon spec, e.g. fa:IconName."),
+                        Option("icon", "Icon spec (fa:Light_Name[:#color]); invalid values return errorMessage."),
                         Option("profile-id", "Use a specific @qkrpc virtual page id."),
                         Option("json", "Structured output."),
                         Option("timeout", "Seconds.", defaultValue: "10"),
@@ -101,9 +101,13 @@ internal static class QkrpcCliHelp
 
                     opts: ActionHeadlessOpts()),
 
-                Cmd("action patch", "Apply partial XAction patch (one call = one save). On success use response; do not action_get only to verify.", "qkrpc action patch --id <guid> --patch-file <path|-> [--expected-edit-version N] [--force] [--json]",
+                Cmd("action patch", "Apply partial XAction patch (one call = one save). Patch JSON may also include title, description, icon. On success use response; do not action_get only to verify.", "qkrpc action patch --id <guid> --patch-file <path|-> [--expected-edit-version N] [--force] [--json]",
 
                     opts: ActionPatchOpts()),
+
+                Cmd("action set-metadata", "Update action title, description, and/or icon (does not change steps/variables).", "qkrpc action set-metadata --id <guid> [--title <text>] [--description <text>] [--icon <fa:Light_Name>] [--expected-edit-version N] [--force] [--json]",
+
+                    opts: ActionSetMetadataOpts()),
 
                 Cmd("action replace", "Replace steps/variables.", "qkrpc action replace --id <guid> --xaction-file <path|-> [--expected-edit-version N] [--force] [--json]",
 
@@ -181,9 +185,9 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("key", "StepRunner key."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
-                Cmd("fa search", "Search FA icons; returns enum names (fa:{name} in Quicker). Default dedupes Solid/Regular/Light.", "qkrpc fa search [--query <keyword>] [--limit 40] [--all-styles] [--json]",
+                Cmd("fa search", "Search FA icons (see guide action-icons). Default: Light_* + Brands_*; --expand: all styles.", "qkrpc fa search [--query <keyword>] [--limit 40] [--expand] [--json]",
 
-                    opts: new[] { Option("query", "Filter: AND with spaces, OR with |, * wildcard.", shortName: "q"), Option("limit", "Max unique glyphs (or rows with --all-styles).", defaultValue: "40"), Option("all-styles", "Return every style variant; default one enum per glyph (prefers Solid)."), Option("json", "Structured output: names[]."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
+                    opts: new[] { Option("query", "Filter: AND with spaces, OR with |, * wildcard.", shortName: "q"), Option("limit", "Max results (unique glyphs default, or rows with --expand).", defaultValue: "40"), Option("expand", "No compress: all style rows (Solid/Regular/Light/…)."), Option("all-styles", "Alias for --expand."), Option("json", "Structured output: names[] (Light_*|Brands_*). Spec: fa:{name} or fa:{name}:{#color} (action-icons)."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
 
             },
 
@@ -224,6 +228,34 @@ internal static class QkrpcCliHelp
             Option("patch", "Inline patch JSON."),
 
             Option("patch-file", "Patch JSON file or - for stdin."),
+
+            Option("expected-edit-version", "From action get."),
+
+            Option("force", "Skip version check."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object[] ActionSetMetadataOpts() =>
+
+        new object[]
+
+        {
+
+            Option("id", "Action GUID."),
+
+            Option("title", "New title (omit to leave unchanged)."),
+
+            Option("description", "New description (pass empty string to clear)."),
+
+            Option("icon", "Icon spec (fa:Light_Name[:#color]); validated on save."),
 
             Option("expected-edit-version", "From action get."),
 

@@ -447,6 +447,35 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
+    public Task<QuickerRpcUpdateActionMetadataResult> UpdateActionMetadataAsync(
+        string actionId,
+        string? title = null,
+        string? description = null,
+        string? icon = null,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            return Task.FromResult(new QuickerRpcUpdateActionMetadataResult
+            {
+                Success = false,
+                ErrorMessage = "actionId is required.",
+            });
+        }
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessActionProgramService.UpdateActionMetadata(
+                actionId.Trim(),
+                title,
+                description,
+                icon,
+                expectedEditVersion,
+                force)),
+            cancellationToken);
+    }
+
     public Task<QuickerRpcSearchActionSummariesResult> SearchActionSummariesAsync(
         string? query,
         int maxResults = 30,
@@ -486,11 +515,11 @@ public sealed class QuickerRpcService : IQuickerRpcService
     public Task<QuickerRpcSearchFontAwesomeIconsResult> SearchFontAwesomeIconsAsync(
         string? query,
         int maxResults = 40,
-        bool includeAllStyles = false,
+        bool expand = false,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(_fontAwesomeIconSearchService.Search(query, maxResults, includeAllStyles));
+        return Task.FromResult(_fontAwesomeIconSearchService.Search(query, maxResults, expand));
     }
 
     private static async Task<T> InvokeOnDispatcherAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)

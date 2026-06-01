@@ -177,6 +177,57 @@ public sealed class QuickerRpcRpcContentTests
     }
 
     [TestMethod]
+    public async Task Rpc_UpdateActionMetadata_sets_and_restores_icon()
+    {
+        await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);
+        var ctSetup = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
+        var actionId = QuickerRpcTestSettings.TestActionId
+            ?? await QuickerRpcRpcTestAction.EnsureActionIdAsync(session.Rpc, TestContext, ctSetup).ConfigureAwait(false);
+
+        var ct = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
+        var before = await session.Rpc
+            .GetCompressedActionByIdAsync(actionId, returnMode: "metadata", cancellationToken: ct)
+            .ConfigureAwait(false);
+        Assert.IsTrue(before.Success, before.ErrorMessage);
+        var beforeRoot = QuickerRpcCompressedJsonAssert.ParseRequired(before.CompressedJson);
+        var originalIcon = beforeRoot["icon"]?.ToString() ?? string.Empty;
+        var editVersion = before.EditVersion;
+
+        const string testIcon = "fa:Light_Flask";
+        var updated = await session.Rpc
+            .UpdateActionMetadataAsync(
+                actionId,
+                title: null,
+                description: null,
+                icon: testIcon,
+                expectedEditVersion: editVersion,
+                force: false,
+                cancellationToken: ct)
+            .ConfigureAwait(false);
+        Assert.IsTrue(updated.Success, updated.ErrorMessage ?? "UpdateActionMetadata failed.");
+        Assert.AreEqual(testIcon, updated.Icon);
+
+        var after = await session.Rpc
+            .GetCompressedActionByIdAsync(actionId, returnMode: "metadata", cancellationToken: ct)
+            .ConfigureAwait(false);
+        Assert.IsTrue(after.Success, after.ErrorMessage);
+        var afterRoot = QuickerRpcCompressedJsonAssert.ParseRequired(after.CompressedJson);
+        Assert.AreEqual(testIcon, afterRoot["icon"]?.ToString());
+
+        var restored = await session.Rpc
+            .UpdateActionMetadataAsync(
+                actionId,
+                title: null,
+                description: null,
+                icon: originalIcon,
+                expectedEditVersion: after.EditVersion,
+                force: false,
+                cancellationToken: ct)
+            .ConfigureAwait(false);
+        Assert.IsTrue(restored.Success, restored.ErrorMessage ?? "Restore icon failed.");
+    }
+
+    [TestMethod]
     public async Task Rpc_ListGlobalSubPrograms_returns_entries()
     {
         await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);

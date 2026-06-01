@@ -24,6 +24,9 @@ public sealed class SearchFontAwesomeIconsResult
 
     public int MatchCount { get; set; }
 
-    /// <summary>EFontAwesomeIcon member names (e.g. Solid_AddressBook). Use as fa:{name} in Quicker.</summary>
+    /// <summary>Compressed enum names: Light_* (Solid/Regular/Light merged); Brands_*.</summary>
     public List<string> Names { get; set; } = new();
+
+    /// <summary>Glyph family default style when merging (Light). CLI: fa:{name} or fa:{name}:{#color}.</summary>
+    public string? DefaultStyle { get; set; }
 }

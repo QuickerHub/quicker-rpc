@@ -19,7 +19,7 @@ disable-model-invocation: false
 pwsh -NoProfile -File ./build.ps1 -t
 ```
 
-`block_until_ms` ≥ **120000**（构建 + OSS 上传约 20–30s）。
+`block_until_ms` ≥ **90000**（`-t` 已跳过 CLI zip / setup.exe / `publish/plugin`，通常 30–50s；含 Inno 的完整打包仍用 `publish-rpc.ps1` 无 `-SkipPackaging`）。
 
 ## 何时跳过
 
@@ -58,6 +58,7 @@ pwsh -NoProfile -File ./build.ps1 -t
 | 用途 | 改代码后本地/测试包验证 | 对外发布 `qkrpc` CLI |
 | 命令 | `build.ps1 -t` | `publish/Publish-GitHubRelease.ps1` |
 | 产物 | Quicker 测试包 + 本机 CLI | GitHub Release `setup.exe` + zip |
+| `-t` 跳过 | CLI zip、Inno `setup.exe`、`publish/plugin` 二次 publish（插件已由 qkbuild 写入测试包） | — |
 
 ## 禁止
 
@@ -69,4 +70,5 @@ pwsh -NoProfile -File ./build.ps1 -t
 
 - 公开发布：`.cursor/skills/quicker-rpc-publish/SKILL.md`
 - 反射 / 查 Quicker 源码：`.cursor/skills/quicker-exe-type-probing/SKILL.md`
-- 入口：`build.ps1` → qkbuild + `publish/publish-rpc.ps1`
+- 入口：`build.ps1` → qkbuild + `publish/publish-rpc.ps1`（`-t` 时 `publish-rpc.ps1 -SkipPackaging`）
+- 需要本地 zip/setup 时：`pwsh ./publish/publish-rpc.ps1` 或 `build.ps1 -SkipCliPackaging:$false -t`

@@ -3,8 +3,15 @@
 # On success, launches the Quicker action that loads/reloads the plugin (quicker:runaction).
 # Examples:
 #   pwsh ./build.ps1
-#   pwsh ./build.ps1 -t
+#   pwsh ./build.ps1 -t          # test: skip CLI zip/setup + redundant plugin publish
 #   pwsh ./build.ps1 -p -n
+#   pwsh ./build.ps1 -t -SkipCliPackaging:$false   # force full CLI packaging
+
+param(
+    [switch]$SkipCliPackaging,
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [object[]]$QkbuildArgs
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -22,16 +29,32 @@ function Invoke-QuickerRpcPluginRunAction {
     }
 }
 
+$testBuild = ($QkbuildArgs -contains '-t')
+if ($SkipCliPackaging.IsPresent) {
+    $skipPackaging = [bool]$SkipCliPackaging
+}
+else {
+    $skipPackaging = $testBuild
+}
+
 Push-Location $PSScriptRoot
 try {
     Write-Host "=== QuickerRpc.Plugin (qkbuild) ===" -ForegroundColor Cyan
-    qkbuild build -c "build.yaml" --project-path ".\QuickerRpc.Plugin" @args
+    $qkbuildCmd = @('build', '-c', 'build.yaml', '--project-path', '.\QuickerRpc.Plugin') + @($QkbuildArgs)
+    & qkbuild @qkbuildCmd
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
 
     Write-Host "=== qkrpc CLI (publish-rpc.ps1) ===" -ForegroundColor Cyan
-    pwsh -NoProfile -File .\publish\publish-rpc.ps1
+    if ($skipPackaging) {
+        Write-Host "SkipCliPackaging: dotnet publish CLI + install only (no zip, setup.exe, publish/plugin)." -ForegroundColor Yellow
+    }
+    $publishArgs = @()
+    if ($skipPackaging) {
+        $publishArgs += '-SkipPackaging'
+    }
+    pwsh -NoProfile -File .\publish\publish-rpc.ps1 @publishArgs
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }

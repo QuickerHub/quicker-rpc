@@ -85,9 +85,31 @@ qkrpc action get --id <guid> [--return-mode full|structure|metadata] [--json]
 
 局部 patch，**一次调用 = 一次保存**。成功后以响应为准，勿仅为验证再 `action get`。
 
+Patch JSON 除 `steps` / `variables` 外，可在**同一保存**中附带元数据字段：`title`、`description`、`icon`（省略的键不修改；`description` / `icon` 可传空字符串清空）。
+
 ```powershell
 qkrpc action patch --id <guid> --patch-file <path|-> [--expected-edit-version N] [--force] [--json]
 ```
+
+仅改图标示例：
+
+```powershell
+qkrpc action patch --id <guid> --patch "{\"icon\":\"fa:Light_Flask\"}" --expected-edit-version <N> --json
+```
+
+### `qkrpc action set-metadata`
+
+只更新动作的**标题 / 说明 / 图标**，不修改步骤与变量程序体。
+
+```powershell
+qkrpc action set-metadata --id <guid> [--title <text>] [--description <text>] [--icon <fa:Light_Name>] [--expected-edit-version N] [--force] [--json]
+```
+
+| 选项 | 说明 |
+|------|------|
+| `--title` | 新标题（不可传空） |
+| `--description` | 新说明；空字符串清空 |
+| `--icon` | 完整 spec：`fa:Light_AddressBook` 或 `fa:Light_AddressBook:#3b82f6`（`names[]` 项 + `fa:` 前缀，见 action-icons） |
 
 ### `qkrpc action replace`
 
@@ -195,26 +217,28 @@ qkrpc step-runner get --key <stepRunnerKey> [--json]
 
 ## Font Awesome 图标
 
+> **Agent 编辑链路**：`qkrpc guide get --topic overview --json`（P0–P7）→ `authoring-workflow`。图标：`action-icons`。
+
 ### `qkrpc fa search`
 
-在 Quicker 已加载的 Font Awesome 目录中搜索图标。默认**同一图形只返回一个枚举名**（优先 `Solid`，其次 `Regular`、`Light`）；`Brands_*` 不去重合并。
+在 Quicker 已加载的 Font Awesome 目录中搜索图标。
 
-响应 `names[]` 为 `EFontAwesomeIcon` 成员名（如 `Solid_AddressBook`），写入动作用 `fa:{name}`。
+**默认（压缩）**：Solid/Regular/Light 同图形合并为 **`Light_{图形id}`**；品牌为 **`Brands_{图形id}`**。`names[]` 为枚举名；写入时用 **`fa:{enumName}`** 或 **`fa:{enumName}:{#color}`**（见 `guide get --topic action-icons`）。
+
+**`--expand`**：不合并，返回全部样式行（`Solid_*`、`Regular_*`、`Light_*` …）。`--all-styles` 同义。
 
 ```powershell
-qkrpc fa search [--query <keyword>] [--limit 40] [--all-styles] [--json]
+qkrpc fa search [--query <keyword>] [--limit 40] [--expand] [--json]
 ```
 
-| 查询 | 说明 |
+| 模式 | 说明 |
 |------|------|
-| `address book` | 空格 AND；默认只返回 `Solid_AddressBook` |
-| `google\|pen` | `\|` OR |
-| `solid *book` | `*` 通配 |
-| `Brands_*` | 品牌类图标 |
-| `--all-styles` | 返回 Solid/Regular/Light 等全部变体 |
-| （空） | 去重后按名称列出前 N 个 |
+| 默认 | `Light_*` + `Brands_*`，每图形一条 |
+| `--expand` | 全部样式枚举名 |
+| `address book` | 默认 → `["Light_AddressBook"]`；expand → Solid/Regular/Light 各行 |
 
-JSON 示例：`{ "names": ["Solid_AddressBook", "Solid_Book"], "matchCount": 2 }`
+JSON 默认：`{ "names": ["Light_AddressBook"], "defaultStyle": "Light", "expand": false }` → 写入 `fa:Light_AddressBook` 或 `fa:Light_AddressBook:#rrggbb`  
+JSON expand：`{ "names": ["Solid_AddressBook", "Regular_AddressBook", "Light_AddressBook"], "expand": true }`
 
 ---
 

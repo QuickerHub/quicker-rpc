@@ -69,7 +69,10 @@ public sealed class ActionCreateService
                 actionItem.Description = description;
             }
 
-            ApplyIcon(actionItem, icon);
+            if (!TryApplyIcon(actionItem, icon, out var iconError))
+            {
+                return Fail(iconError ?? "Invalid icon.");
+            }
             TryApplyTemplate(actionItem);
             EnsureXActionPayload(actionItem);
 
@@ -225,12 +228,18 @@ public sealed class ActionCreateService
         return profile;
     }
 
-    private static void ApplyIcon(ActionItem actionItem, string? icon)
+    private static bool TryApplyIcon(ActionItem actionItem, string? icon, out string? error)
     {
+        error = null;
         if (!string.IsNullOrWhiteSpace(icon))
         {
+            if (!FontAwesomeIconValidation.TryValidate(icon, allowEmpty: false, out error))
+            {
+                return false;
+            }
+
             actionItem.Icon = icon.Trim();
-            return;
+            return true;
         }
 
         var defaultIcon = TryGetNewActionDefaultIcon();
@@ -242,6 +251,8 @@ public sealed class ActionCreateService
         {
             actionItem.Icon = defaultIcon ?? string.Empty;
         }
+
+        return true;
     }
 
     private static string? TryGetNewActionDefaultIcon()

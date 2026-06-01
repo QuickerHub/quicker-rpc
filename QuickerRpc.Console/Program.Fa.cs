@@ -17,11 +17,12 @@ internal static partial class Program
 
     private static Task<int> ReportUnknownFaVerbAsync(FaOptions options) =>
         EmitErrorAndFailAsync(options.Json, "UNKNOWN_FA_VERB",
-            "Use: fa search [--query <keyword>] [--limit 40] [--all-styles] [--json] (see qkrpc help --json)");
+            "Use: fa search [--query <keyword>] [--limit 40] [--expand] [--json] (see qkrpc help --json)");
 
     private static async Task<int> RunFaSearchAsync(FaOptions options)
     {
         var query = (options.Query ?? string.Empty).Trim();
+        var expand = options.Expand || options.AllStyles;
 
         try
         {
@@ -32,7 +33,7 @@ internal static partial class Program
                 .SearchFontAwesomeIconsAsync(
                     query.Length == 0 ? null : query,
                     options.Limit,
-                    options.AllStyles,
+                    expand,
                     rpcToken)
                 .ConfigureAwait(false);
 
@@ -46,9 +47,9 @@ internal static partial class Program
                         query = query.Length == 0 ? null : query,
                         matchCount = response.MatchCount,
                         names = response.Names,
-                        allStyles = options.AllStyles,
+                        defaultStyle = response.DefaultStyle,
+                        expand,
                         errorMessage = string.IsNullOrWhiteSpace(response.ErrorMessage) ? null : response.ErrorMessage,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }

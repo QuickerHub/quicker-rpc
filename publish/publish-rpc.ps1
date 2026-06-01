@@ -3,7 +3,9 @@
 
 param(
     [switch]$SkipInstall,
-    [switch]$SkipPath
+    [switch]$SkipPath,
+    # Test build (-t): skip zip, setup.exe, and publish/plugin (plugin already from qkbuild).
+    [switch]$SkipPackaging
 )
 
 # Backward-compatible alias for Publish-GitHubRelease.ps1 and older docs.
@@ -82,52 +84,59 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-Write-Host "Publishing QuickerRpc plugin (Release, net472)..." -ForegroundColor Green
-$pluginCsproj = Join-Path $repoRoot 'QuickerRpc.Plugin\QuickerRpc.Plugin.csproj'
-$pluginPublishDir = Join-Path $repoRoot 'publish\plugin'
-if (Test-Path -LiteralPath $pluginPublishDir) {
-    Remove-Item -LiteralPath (Join-Path $pluginPublishDir '*') -Recurse -Force -ErrorAction SilentlyContinue
-}
-else {
-    New-Item -ItemType Directory -Path $pluginPublishDir -Force | Out-Null
-}
+if (-not $SkipPackaging) {
+    Write-Host "Publishing QuickerRpc plugin (Release, net472)..." -ForegroundColor Green
+    $pluginCsproj = Join-Path $repoRoot 'QuickerRpc.Plugin\QuickerRpc.Plugin.csproj'
+    $pluginPublishDir = Join-Path $repoRoot 'publish\plugin'
+    if (Test-Path -LiteralPath $pluginPublishDir) {
+        Remove-Item -LiteralPath (Join-Path $pluginPublishDir '*') -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    else {
+        New-Item -ItemType Directory -Path $pluginPublishDir -Force | Out-Null
+    }
 
-dotnet publish $pluginCsproj -c Release -p:Version=$quickerRpcVersion -o $pluginPublishDir @dotnetQuiet
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Plugin publish failed (dotnet exit $LASTEXITCODE)." -ForegroundColor Red
-    exit $LASTEXITCODE
-}
-
-$zipName = Get-QuickerRpcCliZipName -Version $quickerRpcVersion
-$zipPath = Join-Path $repoRoot "publish\$zipName"
-if (Test-Path -LiteralPath $zipPath) {
-    Remove-Item -LiteralPath $zipPath -Force
-}
-
-Write-Host "Creating release archive: $zipName" -ForegroundColor Yellow
-Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath -CompressionLevel Optimal -Force
-
-$latestZipName = Get-QkrpcLatestCliZipName
-$latestZipPath = Join-Path $repoRoot "publish\$latestZipName"
-Copy-Item -LiteralPath $zipPath -Destination $latestZipPath -Force
-Write-Host "Latest alias: $latestZipPath" -ForegroundColor Cyan
-
-$buildSetupScript = Join-Path $PSScriptRoot 'Build-QkrpcSetup.ps1'
-if (Test-Path -LiteralPath $buildSetupScript) {
-    & pwsh -NoProfile -File $buildSetupScript -RepoRoot $repoRoot
+    dotnet publish $pluginCsproj -c Release -p:Version=$quickerRpcVersion -o $pluginPublishDir @dotnetQuiet
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Setup build failed (exit $LASTEXITCODE)." -ForegroundColor Red
+        Write-Host "Plugin publish failed (dotnet exit $LASTEXITCODE)." -ForegroundColor Red
         exit $LASTEXITCODE
+    }
+
+    $zipName = Get-QuickerRpcCliZipName -Version $quickerRpcVersion
+    $zipPath = Join-Path $repoRoot "publish\$zipName"
+    if (Test-Path -LiteralPath $zipPath) {
+        Remove-Item -LiteralPath $zipPath -Force
+    }
+
+    Write-Host "Creating release archive: $zipName" -ForegroundColor Yellow
+    Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath -CompressionLevel Optimal -Force
+
+    $latestZipName = Get-QkrpcLatestCliZipName
+    $latestZipPath = Join-Path $repoRoot "publish\$latestZipName"
+    Copy-Item -LiteralPath $zipPath -Destination $latestZipPath -Force
+    Write-Host "Latest alias: $latestZipPath" -ForegroundColor Cyan
+
+    $buildSetupScript = Join-Path $PSScriptRoot 'Build-QkrpcSetup.ps1'
+    if (Test-Path -LiteralPath $buildSetupScript) {
+        & pwsh -NoProfile -File $buildSetupScript -RepoRoot $repoRoot
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Setup build failed (exit $LASTEXITCODE)." -ForegroundColor Red
+            exit $LASTEXITCODE
+        }
+    }
+    else {
+        Write-Host "Build-QkrpcSetup.ps1 not found; skipping setup.exe." -ForegroundColor Yellow
     }
 }
 else {
-    Write-Host "Build-QkrpcSetup.ps1 not found; skipping setup.exe." -ForegroundColor Yellow
+    Write-Host "SkipPackaging: plugin DLL from qkbuild test package only; no zip/setup/publish/plugin." -ForegroundColor Yellow
 }
 
 Write-Host "Publish succeeded." -ForegroundColor Green
 Write-Host "CLI:    $publishDir\qkrpc.exe" -ForegroundColor Cyan
-Write-Host "Zip:    $zipPath" -ForegroundColor Cyan
-Write-Host "Plugin: $pluginPublishDir\QuickerRpc.Plugin.*.dll" -ForegroundColor Cyan
+if (-not $SkipPackaging) {
+    Write-Host "Zip:    $zipPath" -ForegroundColor Cyan
+    Write-Host "Plugin: $pluginPublishDir\QuickerRpc.Plugin.*.dll" -ForegroundColor Cyan
+}
 
 $exePath = Join-Path $publishDir 'qkrpc.exe'
 if (Test-Path -LiteralPath $exePath) {

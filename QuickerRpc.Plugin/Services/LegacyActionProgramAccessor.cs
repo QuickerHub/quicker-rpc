@@ -74,9 +74,29 @@ internal sealed class LegacyActionProgramAccessor
         JArray variables,
         string subProgramsJson,
         ActionEditMgrAccessor? actionEditMgr,
+        out string? error) =>
+        TryApplyPayloadAndSave(sourceAction, steps, variables, subProgramsJson, null, null, null, actionEditMgr, out error);
+
+    public bool TryApplyPayloadAndSave(
+        ActionItem sourceAction,
+        JArray steps,
+        JArray variables,
+        string subProgramsJson,
+        string? title,
+        string? description,
+        string? icon,
+        ActionEditMgrAccessor? actionEditMgr,
         out string? error)
     {
         _ = actionEditMgr;
-        return ActionProgramPersistence.TrySave(GetActionId(sourceAction), steps, variables, subProgramsJson, out error);
+        return ActionProgramPersistence.TrySave(
+            GetActionId(sourceAction),
+            steps,
+            variables,
+            subProgramsJson,
+            title,
+            description,
+            icon,
+            out error);
     }
 }

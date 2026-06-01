@@ -56,6 +56,30 @@ public sealed class QuickerRpcApplyXActionResult
     public bool? VersionConflict { get; set; }
 
     public string? UpdatedUtc { get; set; }
+
+    /// <summary>Non-fatal issues (e.g. unknown inputParams keys). Save may still succeed.</summary>
+    public IList<string> Warnings { get; set; } = new List<string>();
+}
+
+public sealed class QuickerRpcUpdateActionMetadataResult
+{
+    public bool Success { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public string? ActionId { get; set; }
+
+    public long? EditVersion { get; set; }
+
+    public bool? VersionConflict { get; set; }
+
+    public string? Title { get; set; }
+
+    public string? Description { get; set; }
+
+    public string? Icon { get; set; }
+
+    public string? UpdatedUtc { get; set; }
 }
 
 public sealed class QuickerRpcApplyActionPatchResult
@@ -70,6 +94,9 @@ public sealed class QuickerRpcApplyActionPatchResult
 
     public bool? VersionConflict { get; set; }
 
+    /// <summary>True when patch JSON included title, description, and/or icon.</summary>
+    public bool? PresentationUpdated { get; set; }
+
     /// <summary>Compressed patched steps JSON array.</summary>
     public string? UpdatedStepsJson { get; set; }
 
@@ -83,6 +110,9 @@ public sealed class QuickerRpcApplyActionPatchResult
     public string? AddedVariablesJson { get; set; }
 
     public string? UpdatedUtc { get; set; }
+
+    /// <summary>Non-fatal issues (e.g. unknown inputParams keys). Save may still succeed.</summary>
+    public IList<string> Warnings { get; set; } = new List<string>();
 }
 
 public sealed class QuickerRpcSearchActionSummariesResult
@@ -133,8 +163,11 @@ public sealed class QuickerRpcSearchFontAwesomeIconsResult
 
     public int MatchCount { get; set; }
 
-    /// <summary>EFontAwesomeIcon member names (e.g. Solid_AddressBook). Quicker icon: fa:{name}.</summary>
+    /// <summary>Compressed: Light_* (merged styles) or Brands_*; CLI spec: fa:{name} or fa:{name}:{#color}</summary>
     public IList<string> Names { get; set; } = new List<string>();
+
+    /// <summary>Merged glyph family style (Light).</summary>
+    public string? DefaultStyle { get; set; }
 }
 
 public sealed class QuickerRpcStepRunnerDetailResult
@@ -208,4 +241,7 @@ public sealed class QuickerRpcApplySubProgramPatchResult
     public string? AddedVariablesJson { get; set; }
 
     public string? UpdatedUtc { get; set; }
+
+    /// <summary>Non-fatal issues (e.g. unknown inputParams keys). Save may still succeed.</summary>
+    public IList<string> Warnings { get; set; } = new List<string>();
 }

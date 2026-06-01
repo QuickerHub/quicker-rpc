@@ -149,6 +149,16 @@ public interface IQuickerRpcService
         bool force = false,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Update action title, description, and/or icon (headless save; does not change program body).</summary>
+    Task<QuickerRpcUpdateActionMetadataResult> UpdateActionMetadataAsync(
+        string actionId,
+        string? title = null,
+        string? description = null,
+        string? icon = null,
+        long? expectedEditVersion = null,
+        bool force = false,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Search StepRunner catalog rows for stepRunnerKey selection.</summary>
     Task<QuickerRpcSearchStepRunnersResult> SearchStepRunnersAsync(
         string keyword,
@@ -160,11 +170,11 @@ public interface IQuickerRpcService
         string stepRunnerKey,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Search Font Awesome icons; returns enum names (default one style per glyph).</summary>
+    /// <summary>Search Font Awesome icons. Default: Light_* + Brands_*; expand returns all style rows.</summary>
     Task<QuickerRpcSearchFontAwesomeIconsResult> SearchFontAwesomeIconsAsync(
         string? query,
         int maxResults = 40,
-        bool includeAllStyles = false,
+        bool expand = false,
         CancellationToken cancellationToken = default);
 }
 

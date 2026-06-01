@@ -131,6 +131,11 @@ public sealed class HeadlessSubProgramProgramService
             return FailCreate($"Subprogram already exists: {subProgramName}");
         }
 
+        if (!string.IsNullOrWhiteSpace(icon) && !FontAwesomeIconValidation.TryValidate(icon, allowEmpty: false, out var iconError))
+        {
+            return FailCreate(iconError ?? "Invalid icon.");
+        }
+
         var now = AppHelper.GetUtcNowForDb();
         var subProgram = new SubProgram
         {
@@ -226,6 +231,7 @@ public sealed class HeadlessSubProgramProgramService
         var catalog = StepRunnerCatalogFromQuicker.Build();
         var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variablesClone);
         XActionProgramService.NormalizeStepsInputParamKeys(stepsClone, catalog);
+        var inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(stepsClone, catalog);
 
         subProgram.Steps = SubProgramProgramSerialization.DeserializeSteps(stepsClone);
         subProgram.Variables = SubProgramProgramSerialization.DeserializeVariables(normalizedVariables);
@@ -256,6 +262,7 @@ public sealed class HeadlessSubProgramProgramService
             UpdatedVariablesJson = compressedUpdatedVariables.ToString(Formatting.None),
             AddedVariablesJson = compressedAddedVariables.Count > 0 ? compressedAddedVariables.ToString(Formatting.None) : null,
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
+            Warnings = inputParamWarnings.Count == 0 ? new List<string>() : inputParamWarnings.ToList(),
         };
     }
 
@@ -319,6 +326,7 @@ public sealed class HeadlessSubProgramProgramService
         var catalog = StepRunnerCatalogFromQuicker.Build();
         var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variables);
         XActionProgramService.NormalizeStepsInputParamKeys(steps, catalog);
+        var inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(steps, catalog);
 
         subProgram!.Steps = SubProgramProgramSerialization.DeserializeSteps(steps);
         subProgram.Variables = SubProgramProgramSerialization.DeserializeVariables(normalizedVariables);
@@ -340,6 +348,7 @@ public sealed class HeadlessSubProgramProgramService
             CallIdentifier = DataServiceSubProgramAccessor.GetCallIdentifier(saved),
             EditVersion = _subPrograms.GetEditVersion(saved),
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
+            Warnings = inputParamWarnings.Count == 0 ? new List<string>() : inputParamWarnings.ToList(),
         };
     }
 

@@ -64,7 +64,9 @@ CLI 约定：退出码 `0` 表示成功，`1` 表示失败；脚本和 Agent 场
 
 ```powershell
 # 读取 Agent 写动作指南
+qkrpc guide get --topic overview --json
 qkrpc guide get --topic authoring-workflow --json
+qkrpc guide get --topic action-icons --json
 qkrpc guide get --topic subprogram-workflow --json
 
 # 搜索和读取动作

@@ -43,11 +43,12 @@ type QuickerRpc.Plugin.AssemblyLoader, QuickerRpc.Plugin.{version}
 
 ## CLI（Agent 无头编辑）
 
-写动作流程（完整约束）：`qkrpc guide get --topic authoring-workflow --json`  
+编辑链路：`qkrpc guide get --topic overview --json` → `authoring-workflow`（P1–P7）  
 公共子程序：`qkrpc guide get --topic subprogram-workflow --json`
 
 ```powershell
 qkrpc help --json
+qkrpc guide get --topic overview --json
 qkrpc guide get --topic authoring-workflow --json
 qkrpc guide get --topic subprogram-workflow --json
 qkrpc action list --query "<keyword>" --json
@@ -56,13 +57,15 @@ qkrpc subprogram search --query "<keyword>" --json
 qkrpc subprogram get --id <idOrName> --return-mode full --json
 qkrpc step-runner search --query "关键词|english|sys:*" --json
 qkrpc step-runner get --key <stepRunnerKey> --json
+qkrpc guide get --topic action-icons --json
 qkrpc fa search --query "<keyword>" --json
+qkrpc action set-metadata --id <guid> --icon "fa:Light_<Name>" --expected-edit-version <N> --json
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
 ```
 
 **调用公共子程序**：`subprogram search/get` 取 **`callIdentifier`**（通常 `%%{guid}`）→ `step-runner get --key sys:subprogram` → `action patch` 写 `inputParams.subProgram`。
 
-**禁止**：未 `step-runner get` 就猜 `inputParams` 键名；未 `subprogram get/search` 就猜 `callIdentifier`；patch 写与目录 **Default** 相同的**普通**参数（控制字段除外）；patch 成功后仅为验证再 `action get`。无专用模块时**禁止**默认用长 PowerShell — 见 `guide get --topic implementation-fallback`（**`sys:csscript` 优先**，`sys:runScript` 仅极简单系统命令或用户脚本）。
+**禁止**：未 `step-runner get` 就猜 `inputParams` 键名；未 `subprogram get/search` 就猜 `callIdentifier`；未 `fa search` 就猜图标 spec（见 **`guide get --topic action-icons`**）；patch 写与目录 **Default** 相同的**普通**参数（控制字段除外）；patch 成功后仅为验证再 `action get`。无专用模块时**禁止**默认用长 PowerShell — 见 `guide get --topic implementation-fallback`（**`sys:csscript` 优先**，`sys:runScript` 仅极简单系统命令或用户脚本）。
 
 退出码：0 成功，1 失败。大 JSON 用 `--patch-file -` 从 stdin 读。
 

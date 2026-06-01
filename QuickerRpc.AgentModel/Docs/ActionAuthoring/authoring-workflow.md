@@ -1,246 +1,58 @@
 # qkrpc 写动作流程（Agent 必读）
-
-通过 **`qkrpc.exe`** 无头编辑当前 Quicker 配置里的 XAction。命令细节见 **`qkrpc help --json`**；本文只规定**顺序与硬约束**。
-
-## 前置
-
+规定 **P1–P7 编辑链路**（总览见 **`overview`**）。命令细节：`qkrpc help --json`。
+## P0 前置
 ```powershell
 qkrpc ping --json
 ```
-
-Quicker 已启动且已加载 QuickerRpc 插件。
-
-**新建动作**（全自动虚拟动作页，无需 Quicker UI）：
-
+Quicker 已运行且已加载 QuickerRpc 插件。
+## P1 定位动作
+| 场景 | 命令 |
+|------|------|
+| 新建 | `qkrpc action create --title "动作名" [--icon fa:Light_*] --json` → `actionId`、`editVersion` |
+| 已有 | `qkrpc action list --query "名" [--scope agent\|chrome\|global\|…] --json` 或 `action search` |
+`--scope`：`global`/`common`/`default`/`chrome`/`taskbar`/`desktop`/`agent`/`qkrpc`、动作页 id 或名称。记下 **`actionId`**（GUID）。
+## P2 读取
 ```powershell
-qkrpc action create --title "动作名" --json
+qkrpc action get --id <guid> --return-mode structure --json   # 步骤树、stepId
+qkrpc action get --id <guid> --return-mode full --json        # 非默认 inputParams
+qkrpc action get --id <guid> --return-mode metadata --json  # 标题/icon/概要
 ```
-
-默认在虚拟进程 `_qkrpc_agent` 下自动创建/选用 `@qkrpc` 虚拟动作页；页满时自动新建动作页。返回 `actionId` 与 `editVersion` 后按下方流程 patch。
-
-编辑已有动作时，对象限于**当前配置**中的动作（含上述虚拟页）。
-
----
-
-## 流程总览
-
-```text
-0. action create（新动作）  → actionId + editVersion
-1. action list / action search     → 已有动作 actionId (GUID)
-2. action get                      → editVersion + 现有程序（读模型）
-3. implementation-fallback         → 决定用表达式还是专用步骤（先读指南）
-4. 每个专用步骤：
-     step-modules（有则跳过搜索）
-  → step-runner search（无表项时，一次 OR/通配符查询）
-  → step-runner get（必须，拿 inputParams 键名与类型）
-5. expressions（若参数值用 $= / $$）
-6. action patch（一次调用 = 一次保存）
-7. 以 patch 响应为准，禁止仅为验证再 action get
-```
-
----
-
-## 1. 定位或创建动作
-
-**新建：**
-
+**`editVersion`** → 下次 `--expected-edit-version`。冲突：重读或 `--force`。字段说明：**`xaction-json`**。
+## P3 元数据（可选）
+改标题/说明/图标、不动程序体：
 ```powershell
-qkrpc action create --title "动作名" --json
+qkrpc action set-metadata --id <guid> --icon fa:Light_<Name> --expected-edit-version <N> --json
 ```
-
-**已有：**
-
-```powershell
-qkrpc action list --query "动作名" --json
-# 或
-qkrpc action search --query "关键词" --json
-# 限定进程/场景：
-qkrpc action list --scope chrome --query "关键词" --json
-qkrpc action search --scope global --query "关键词" --json
-```
-
-`--scope`：`global`/`全局`、`common`/`通用`、`default`/`默认`、`chrome`（自动补 `.exe`）、`taskbar`、`desktop`、`agent`/`qkrpc`、动作页 id 或名称。
-
-记下 **`actionId`**（GUID）。
-
----
-
-## 2. 读取现有程序
-
-```powershell
-qkrpc action get --id <guid> --return-mode structure --json   # 扫步骤树、stepId
-qkrpc action get --id <guid> --return-mode full --json        # 写 patch 前需要非默认参数值时
-```
-
-| return-mode | 用途 |
-|-------------|------|
-| `structure` | 只有 `stepRunnerKey`、`stepId`、分支，**无** `inputParams` |
-| `full` | 含 `inputParams`，但**省略**与目录默认相同的空字面量 |
-| `metadata` | 标题、步骤概要，不写 patch 时用 |
-
-响应中的 **`editVersion`** 用于下次 patch 的 `--expected-edit-version`（冲突时重读再试或 `--force`）。
-
-读模型字段说明：**`xaction-json`**。
-
----
-
-## 3. 选型（先读，再加步骤）
-
+或与 P6 同 patch 写顶层 `icon`（值见 **`action-icons`**）。
+## P4 实现选型
 ```powershell
 qkrpc guide get --topic implementation-fallback --json
 ```
-
-- 计算、比较、赋值 → 优先 **`expressions`** / `sys:evalexpression`，不要堆无关模块步骤。
-- 需要 UI/IO 能力 → 再走下面的 **StepRunner 目录**。
-- 搜不到模块 → 按 **`implementation-fallback`** 回退：**优先 `sys:csscript`（C#）**；仅极简单系统命令或用户提供的脚本才用 **`sys:runScript`**。**禁止**猜 Quicker 内部 API 名，**禁止**用长 PowerShell 代替本可写的 C# 逻辑。
-
----
-
-## 4. 搜索步骤模块（StepRunner）
-
-### 4.1 速查表（优先）
-
+计算/比较/赋值 → **`expressions`** 或 `sys:evalexpression`；UI/IO → P5 专用模块；无模块 → **`sys:csscript`**（C#），勿默认长 PowerShell（**`implementation-fallback`**）。
+## P5 步骤 schema（每个新建/改参步骤）
+```text
+step-modules（速查）→ 无则 step-runner search（一次 OR|通配）→ step-runner get（必须）
+```
 ```powershell
 qkrpc guide get --topic step-modules --json
-```
-
-表里的 `stepRunnerKey` 可直接用于下一步 **`step-runner get`**。
-
-### 4.2 目录搜索（表里没有时）
-
-```powershell
 qkrpc step-runner search --query "剪贴板|clipboard|sys:*clip*" --json
-```
-
-语法见 **`step-runner-search`**（空格 AND、`|` OR、`*` 通配符）。**一次调用**传齐同义词，不要拆成多次瞎搜。
-
-从 `items[].key` 选定 **`stepRunnerKey`**。
-
-### 4.3 获取 schema（每个新建/修改的步骤都必须）
-
-```powershell
 qkrpc step-runner get --key sys:MsgBox --json
 ```
-
-响应 `payload.schema` 包含：
-
-| 字段 | 用途 |
-|------|------|
-| `StepRunnerKey` | 写入 patch 的 `stepRunnerKey` |
-| `Inputs[].Key` | **`inputParams` 的键名**（如 MsgBox 是 `message`，不是 `content`） |
-| `Inputs[].ValueType` / `Required` / `Default` | 类型与是否必填 |
-| `Inputs[].Options` | 枚举可选值 |
-| `ControlField` | 子操作（如 `operation` = default/custom）时，先设控制字段再设其它参数 |
-| `Outputs[].Key` | 输出绑定时的 output 名 |
-
-**禁止**在未执行 `step-runner get` 的情况下凭记忆或其它动作的参数名写 `inputParams`。
-
----
-
-## 5. 写入：patch JSON 语法
-
-一次保存 = 一次 CLI 调用：
-
+`schema.Inputs[].Key` = **`inputParams` 键名**（以 `step-runner get` 为准）。搜索语法：**`step-runner-search`**。
+## P6 写入
 ```powershell
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
 ```
-
-### 5.1 顶层形状
-
+顶层：`{ "steps": [...], "variables": [...] }`；可含 `title`/`description`/`icon`。op：`add`/`update`/`remove`/`move`；`inputParams` 只写要改的键；**控制字段**即使等于 Default 也保留。完整语法、默认值省略、示例：**`patch-workflow`**。变量类型：**`variables`**。
+首步示例：
 ```json
-{
-  "steps": [ /* 步骤操作 */ ],
-  "variables": [ /* 可选，变量操作 */ ]
-}
+{ "steps": [{ "op": "add", "index": 0, "step": {
+  "stepRunnerKey": "sys:MsgBox",
+  "inputParams": { "message": { "value": "hello" } }
+}}]}
 ```
-
-### 5.2 步骤 `inputParams`（与 schema 对齐）
-
-每个参数键来自 **`step-runner get`** 的 `Inputs[].Key`。
-
-**只写需要的键**（降低 token、避免噪音）：
-
-| 场景 | 写什么 |
-|------|--------|
-| **`add` 新步骤** | 必填且实际要设值的参数 + **控制字段**（`ControlField` / `IsControlField`，即使等于 Default 也写）+ 与目录 **`Default` 不同** 的普通可选参数 |
-| **`update` 改步骤** | 仅要改的键；换 `stepRunnerKey` 时用 `null` 删掉旧模块的参数键 |
-
-对照 `step-runner get` → `schema.Inputs[].Default`：**等于默认值的普通参数省略**；**控制字段一般不省略**（见 **`patch-workflow`**「Omit catalog defaults」）。
-
-```json
-"inputParams": {
-  "message": { "value": "显示文字" },
-  "someVar": { "varKey": "变量key" }
-}
-```
-
-| 写法 | 含义 |
-|------|------|
-| 键省略 | `update`：不修改该参数；`add`：使用目录默认值 |
-| `{ "value": "..." }` | 字面量 |
-| `{ "varKey": "..." }` | 引用变量 |
-| `null` | 删除该参数键 |
-
-### 5.3 常见步骤操作
-
-| op | 要点 |
-|----|------|
-| `add` | 需 `index` 或 `after`/`before` 锚点；新步骤要带 `stepRunnerKey` + `inputParams` |
-| `update` | `id` 为 `s-1` 等 **stepId**（来自上次 `action get` 或 patch 响应的 `addedSteps`） |
-| `remove` | `id` |
-| `move` | 见 **`patch-workflow`** |
-
-空动作首步示例：
-
-```json
-{
-  "steps": [{
-    "op": "add",
-    "index": 0,
-    "step": {
-      "stepRunnerKey": "sys:MsgBox",
-      "inputParams": {
-        "message": { "value": "hello" }
-      }
-    }
-  }]
-}
-```
-
-变量、子程序、完整替换：**`patch-workflow`**、**`variables`**、**`action replace`**。
-
-### 5.4 在动作中调用公共子程序
-
-1. `subprogram search/get` → 记下 **`callIdentifier`**
-2. `step-runner get --key sys:subprogram --json` → 确认参数键 **`subProgram`**
-3. `action patch` 添加 `sys:subprogram` 步骤，`inputParams.subProgram.value` = `callIdentifier`
-
-详见 **`subprogram-workflow`**。
-
----
-
-## 6. 保存后
-
-patch 成功时响应含 **`editVersion`**、**`addedSteps`**、**`updatedSteps`** 等：
-
-- 下一步 patch 用新的 `editVersion`。
-- 新插入步骤的 **`stepId`** 从 **`addedSteps`** 取，**不要**仅为确认再 `action get`。
-
-版本冲突 → 重新 `action get` 取 `editVersion` 后重试。
-
----
-
-## 硬约束（违反会导致写错或保存失败）
-
-| # | 约束 |
-|---|------|
-| 1 | 每个新建/改参步骤：**先 `step-runner get`，再写 `inputParams` 键名** |
-| 2 | 专用步骤：**先 `implementation-fallback` / `step-modules`，再 `step-runner search`** |
-| 3 | patch 只含要改的字段；**普通** `inputParams` 省略与目录 `Default` 相同的键；**控制字段一般不省略**（**`patch-workflow`**） |
-| 4 | 成功后**不以 `action get` 代替 patch 响应**做验证 |
-| 5 | 变量写入用数字 **`type`**；读取可能是 **`varType` 字符串**（**`variables`**） |
-| 6 | 表达式语法见 **`expressions`** |
-
+调公共子程序：**`subprogram-workflow`**（`callIdentifier` → `sys:subprogram`）。
+## P7 保存后
+patch 成功 → 用响应 **`editVersion`**、**`addedSteps`**（新 `stepId`）、**`updatedSteps`**。版本冲突 → P2 重读 `editVersion` 后重试。参数/图标等问题见命令 **`errorMessage`**。
 ## 相关主题
-
-`overview` · `cli-setup` · `subprogram-workflow` · `step-modules` · `step-runner-search` · `xaction-json` · `patch-workflow` · `variables` · `expressions` · `implementation-fallback`
+`overview` · `patch-workflow` · `xaction-json` · `action-icons` · `step-modules` · `step-runner-search` · `implementation-fallback` · `expressions` · `variables` · `subprogram-workflow` · `cli-setup`

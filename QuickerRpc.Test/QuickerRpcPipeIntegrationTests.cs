@@ -113,8 +113,8 @@ public sealed class QuickerRpcPipeIntegrationTests
         }
 
         Assert.IsTrue(
-            result.Names!.Any(n => n.StartsWith("Brands_", StringComparison.Ordinal)),
-            "Expected Brands_* enum names in results.");
+            result.Names!.Any(n => n.Contains("Google", StringComparison.OrdinalIgnoreCase)),
+            "Expected Google glyph in results.");
     }
 
     [TestMethod]

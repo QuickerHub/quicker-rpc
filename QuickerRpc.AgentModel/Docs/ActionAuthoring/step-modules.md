@@ -1,22 +1,7 @@
 # 常用模块对照（StepRunner 选型）
-
-**目的**：在 **`qkrpc step-runner search`** 之前选定 `stepRunnerKey`。
-
-**表内文案来源**：各行的 **name**、**description** 与目录一致；**参数键名、类型、子操作** 必须以 **`qkrpc step-runner get --key … --json`** 返回的 `schema.Inputs` 为准 — 禁止猜键名。
-
-**表达式优先**：赋值、计算、比较、格式化、GUID/时间/随机数、简单字符串/JSON/路径处理等 — 见 **`expressions`**，**不**单独建步骤。下表只列需独立模块的项。
-
-**找不到模块时**：不要猜参数或内部 API；按 **`implementation-fallback`** 回退（表达式 → `sys:evalexpression` → **`sys:csscript` 优先** → 仅极简单场景 `sys:runScript`）。
-
-## 使用顺序
-
-1. 读 **`implementation-fallback`**，判断能否用表达式 / `sys:evalexpression` 完成（优先于搜表）
-2. 计算类、单步内逻辑 → **`expressions`**（或 `sys:evalexpression`）
-3. 本表选 key → **`qkrpc step-runner get --key … --json`**
-4. 无匹配 → **`qkrpc step-runner search --query "…|…|sys:*…"`** 一次查询（见 **`step-runner-search`**）；仍无结果 → **`implementation-fallback`** 回退
-
+**链路位置**：**`overview`** P5 — 在 **`step-runner search`** 之前用本表选 `stepRunnerKey`，再 **`step-runner get`** 取 `inputParams` 键名。
+表达式/计算优先 **`expressions`**；无表项 → **`step-runner-search`** → **`implementation-fallback`**。
 ## 流程控制
-
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:if` | 如果/否则 | 依据条件执行操作 |
@@ -32,16 +17,12 @@
 | `sys:waitClipboardChange` | 等待剪贴板内容改变 | 等待剪贴板的内容发生改变。等待第三方工具（如截图工具）完成操作并更新剪贴板。 |
 | `sys:waitKeyboard` | 等待按键 | 等待用户按下某个按键 |
 | `sys:fileSystemWatch` | 文件系统监控 | 监控文件创建/变更/删除等事件。 |
-
 ## 状态与检查
-
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:stateStorage` | 状态存取 | 存取状态数据；更新动作的徽标文字；设置附加的动作右键菜单项 |
 | `sys:dependencycheck` | 检查和下载依赖 | 检查和下载依赖的外部文件包。 |
-
 ## 提示与用户交互
-
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:MsgBox` | 弹窗提示或确认 | 弹窗显示提示或确认对话框 |
@@ -54,9 +35,7 @@
 | `sys:form` | 多字段表单 | 使用表单窗口编辑多个变量的值。 |
 | `sys:showWaitWin` | 显示等待窗口 | 显示一个等待用户完成某个操作的提示窗口。 |
 | `sys:reportProgress` | 显示进度条 | 显示/更新进度条 |
-
 ## 剪贴板与选区
-
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:getClipboardText` | 获取剪贴板文本 | 读取剪贴板中的文本内容 |
@@ -65,9 +44,7 @@
 | `sys:getClipboardFiles` | 获取剪贴板文件列表 | 获取剪贴板中复制的文件(或文件夹)的路径列表 |
 | `sys:fileToClipboard` | 文件放入剪贴板 | 将文件或文件列表存入剪贴板 |
 | `sys:getSelectedText` | 获取选中的文本 | 获取选中的文字 |
-
 ## 文件与路径
-
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:readFile` | 读取文件 | 将读取的文本或图片内容写入变量。 |
@@ -81,16 +58,12 @@
 | `sys:getFolderPath` | 获取系统路径 | 返回指定的特殊目录路径。 |
 | `sys:SelectFileInExplorer` | 在资源管理器中定位文件 | 在资源管理器中选中文件 |
 | `sys:everythingsearch` | 使用Everything搜索文件 | 调用Everything提供的接口搜索文件 |
-
 ## 文本（专用模块）
-
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:stringProcess` | 文本处理 | 各种文本处理功能 |
 | `sys:htmlExtract` | 提取HTML内容 | 从HTML代码中提取内容 |
-
 ## 列表、词典、表格
-
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:listOperations` | 列表操作 | 对列表变量进行添加、删除等操作 |
@@ -98,9 +71,7 @@
 | `sys:dictOperations` | 词典操作 | 对词典变量进行添加、删除等操作 |
 | `sys:tableoperation` | 表格数据操作 | 表格变量的相关处理操作 |
 | `sys:dboperation` | 数据库查询 | 对数据库执行SQL语句并返回结果 |
-
 ## 键盘、鼠标、窗口
-
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:sendKeys` | 模拟按键B（参数） | 发送按键和文本 |
@@ -115,9 +86,7 @@
 | `sys:uiautomation` | 窗口界面控制 | 触发Windows窗口的菜单/按钮等控件。 |
 | `sys:flauiautomation` | 窗口界面控制(FlaUI) | 触发Windows窗口的菜单/按钮等控件(通过FlaUI库实现)。 |
 | `sys:searchBmp` | 屏幕找图/找色/找字 | 在屏幕上查找图片里的内容出现的位置 |
-
 ## 网络与 AI
-
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:http` | HTTP请求 | 发送HTTP请求，并获取返回结果 |
@@ -126,11 +95,8 @@
 | `sys:basic-ocr` | 基础OCR | 获取图片中的文字 |
 | `sys:ai` | AI 调用 | 调用第三方AI服务 |
 | `sys:tempcloudstore` | 临时云存储 | 将文本、文件、图片临时保存到云端并得到网址。 |
-
 ## 运行程序与脚本
-
 无专用模块时：**先 `sys:csscript`**，不要默认 PowerShell。`sys:runScript` 仅用于极短系统命令或用户已有脚本（见 **`implementation-fallback`**）。
-
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:run` | 运行或打开 | 运行软件或命令，打开文件、文件夹或网址。效果类似于在Windows"运行"对话框中执行命令。 |
@@ -142,9 +108,7 @@
 | `sys:jsscript` | 运行Javascript代码 | 执行Js代码片段。代码中应包含主函数exec()，请参考文档。 |
 | `sys:runScript` | 运行脚本 | 运行脚本。 |
 | `sys:shelloperation` | Shell文件操作 | 针对文件的Windows Shell相关操作 |
-
 ## 图像
-
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:screenCapture` | 屏幕截图 | 截取屏幕区域 |
@@ -152,17 +116,13 @@
 | `sys:WriteImageFile` | 写入图片文件 | 将图片内容写入文件 |
 | `sys:imgProcess` | 图片处理 | 图片处理和变换 |
 | `sys:showImage` | 显示图片 | 在屏幕上显示图片。输入文件路径/url或图片变量。 |
-
 ## Quicker 自身
-
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:quickeroperations` | Quicker操作 | 调用Quicker的某个功能 |
 | `sys:getActionInfo` | 获取动作信息 | 读取当前正在运行的动作，或按动作 ID 读取：输出 ID、标题、图标、说明；可选输出完整 JSON。 |
 | `sys:getQuickerInfo` | 获取Quicker信息 | 返回 Quicker 与当前运行动作相关状态：版本、主题、专业版、触发方式、上下文参数等。 |
-
 ## 易混淆项
-
 | 场景 | 选用 | 说明 |
 |------|------|------|
 | 赋值/计算/比较等 | **`expressions`** | 勿用已下架于本表的 `sys:assign` 等 |
@@ -170,7 +130,5 @@
 | 需要 else 分支 | `sys:if` | `sys:simpleIf` 无 else 结构 |
 | 多文件操作 | `sys:fileOperation` | 用 `type` 选子操作 |
 | 多子操作模块 | 先定 key 再 `step-runner get` | 如 `stringProcess`、`uiautomation` |
-
 ## 相关主题
-
 `implementation-fallback` · `expressions` · `overview` · `patch-workflow` · `variables`

@@ -24,7 +24,7 @@ public static class XActionGetReturnModeParser
             return true;
         }
 
-        switch (raw.Trim().ToLowerInvariant())
+        switch (raw!.Trim().ToLowerInvariant())
         {
             case "full":
                 mode = XActionGetReturnMode.Full;

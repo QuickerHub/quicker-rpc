@@ -34,7 +34,6 @@ internal static partial class Program
                         callIdentifier = result.CallIdentifier,
                         editVersion = result.EditVersion,
                         message = result.Message,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -88,7 +87,7 @@ internal static partial class Program
             if (options.Json)
             {
                 global::System.Console.WriteLine(JsonSerializer.Serialize(
-                    new { ok = response.Success, action = "subprogram-get", pipe = QuickerRpcPipeNames.ServerPipe, payload },
+                    new { ok = response.Success, action = "subprogram-get", payload },
                     QkrpcJson.CliOutput));
             }
             else
@@ -153,12 +152,17 @@ internal static partial class Program
             if (options.Json)
             {
                 global::System.Console.WriteLine(JsonSerializer.Serialize(
-                    new { ok = response.Success, action = "subprogram-patch", pipe = QuickerRpcPipeNames.ServerPipe, payload },
+                    new { ok = response.Success, action = "subprogram-patch", payload },
                     QkrpcJson.CliOutput));
             }
             else
             {
                 global::System.Console.WriteLine(JsonSerializer.Serialize(payload, QkrpcJson.CliOutput));
+            }
+
+            if (response.Success)
+            {
+                HeadlessCliResponses.WriteWarningsToStderr(response.Warnings);
             }
 
             return response.Success ? ExitCodes.Success : ExitCodes.Error;
@@ -221,7 +225,6 @@ internal static partial class Program
                     {
                         ok = response.Success,
                         action = "subprogram-replace",
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                         success = response.Success,
                         errorMessage = response.ErrorMessage,
                         subProgramId = response.SubProgramId,
@@ -285,7 +288,6 @@ internal static partial class Program
                         query,
                         count = result.Items.Count,
                         items = result.Items,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -340,7 +342,6 @@ internal static partial class Program
                         action = "subprogram-edit",
                         subProgramId = result.ActionId,
                         message = result.Message,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -399,7 +400,6 @@ internal static partial class Program
                         action = "subprogram-delete",
                         subProgramId = result.ActionId,
                         message = result.Message,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -464,7 +464,6 @@ internal static partial class Program
                         oldValue = result.OldValue,
                         newValue = result.NewValue,
                         message = result.Message,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }

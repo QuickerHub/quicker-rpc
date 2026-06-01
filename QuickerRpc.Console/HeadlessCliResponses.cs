@@ -41,10 +41,26 @@ internal static class HeadlessCliResponses
             actionId = response.ActionId,
             editVersion = response.EditVersion,
             versionConflict = response.VersionConflict,
+            presentationUpdated = response.PresentationUpdated,
             updatedSteps = ParseJsonOrNull(response.UpdatedStepsJson),
             addedSteps = ParseJsonOrNull(response.AddedStepsJson),
             updatedVariables = ParseJsonOrNull(response.UpdatedVariablesJson),
             addedVariables = ParseJsonOrNull(response.AddedVariablesJson),
+            updatedUtc = response.UpdatedUtc,
+            warnings = ToWarningsArray(response.Warnings),
+        };
+
+    public static object ToMetadataPayload(QuickerRpcUpdateActionMetadataResult response) =>
+        new
+        {
+            success = response.Success,
+            errorMessage = response.ErrorMessage,
+            actionId = response.ActionId,
+            editVersion = response.EditVersion,
+            versionConflict = response.VersionConflict,
+            title = response.Title,
+            description = response.Description,
+            icon = response.Icon,
             updatedUtc = response.UpdatedUtc,
         };
 
@@ -93,6 +109,7 @@ internal static class HeadlessCliResponses
             updatedVariables = ParseJsonOrNull(response.UpdatedVariablesJson),
             addedVariables = ParseJsonOrNull(response.AddedVariablesJson),
             updatedUtc = response.UpdatedUtc,
+            warnings = ToWarningsArray(response.Warnings),
         };
 
     public static object ToStepRunnerDetailPayload(QuickerRpcStepRunnerDetailResult response)
@@ -120,5 +137,24 @@ internal static class HeadlessCliResponses
 
         using var doc = JsonDocument.Parse(json);
         return doc.RootElement.Clone();
+    }
+
+    public static string[] ToWarningsArray(IList<string>? warnings) =>
+        warnings is null || warnings.Count == 0 ? Array.Empty<string>() : warnings.ToArray();
+
+    public static void WriteWarningsToStderr(IList<string>? warnings)
+    {
+        if (warnings is null || warnings.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var warning in warnings)
+        {
+            if (!string.IsNullOrWhiteSpace(warning))
+            {
+                global::System.Console.Error.WriteLine("warning: " + warning);
+            }
+        }
     }
 }

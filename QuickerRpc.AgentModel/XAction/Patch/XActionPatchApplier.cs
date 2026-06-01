@@ -1513,7 +1513,7 @@ public static class XActionPatchApplier
 
             {
 
-                used.Add(id);
+                used.Add(id!);
 
             }
 
@@ -1563,7 +1563,7 @@ public static class XActionPatchApplier
 
                 {
 
-                    used.Add(id);
+                    used.Add(id!);
 
                 }
 

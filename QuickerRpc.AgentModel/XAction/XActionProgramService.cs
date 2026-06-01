@@ -2,6 +2,7 @@ using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.AgentModel.XAction.Compression;
 using QuickerRpc.AgentModel.XAction.Patch;
+using QuickerRpc.AgentModel.XAction.Validation;
 
 namespace QuickerRpc.AgentModel.XAction;
 
@@ -44,6 +45,9 @@ public static class XActionProgramService
 
     public static void NormalizeStepsInputParamKeys(JArray steps, StepRunnerCatalog? catalog) =>
         XActionCompressor.NormalizeStepsInputParamKeys(steps, catalog);
+
+    public static IList<string> CollectStepsInputParamsWarnings(JArray steps, StepRunnerCatalog? catalog) =>
+        StepInputParamsValidator.CollectWarnings(steps, catalog);
 
     public static JArray NormalizeVariablesForSave(JArray variables) =>
         XActionCompressor.NormalizeVariablesForSave(variables);

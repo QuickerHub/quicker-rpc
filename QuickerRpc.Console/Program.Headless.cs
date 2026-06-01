@@ -14,8 +14,8 @@ internal static partial class Program
         var verb = (options.Command ?? string.Empty).Trim().ToLowerInvariant();
         return verb switch
         {
-            "get" => RunGuideGet(options),
-            "search" => RunGuideSearch(options),
+            "get" => RunGuideGetAsync(options),
+            "search" => RunGuideSearchAsync(options),
             _ => ReportUnknownGuideVerbAsync(options),
         };
     }
@@ -24,7 +24,7 @@ internal static partial class Program
         EmitErrorAndFailAsync(options.Json, "UNKNOWN_GUIDE_VERB",
             "Use: guide get --topic <id> [--json] | guide search [--query <keyword>] [--limit 10] [--json]");
 
-    private static Task<int> RunGuideGet(GuideOptions options)
+    private static Task<int> RunGuideGetAsync(GuideOptions options)
     {
         var response = ActionAuthoringGuide.GetDoc(options.Topic ?? string.Empty);
         if (options.Json)
@@ -59,7 +59,7 @@ internal static partial class Program
         return Task.FromResult(response.Success ? ExitCodes.Success : ExitCodes.Error);
     }
 
-    private static Task<int> RunGuideSearch(GuideOptions options)
+    private static Task<int> RunGuideSearchAsync(GuideOptions options)
     {
         var response = ActionAuthoringGuide.Search(options.Query, options.Limit);
         if (options.Json)
@@ -159,7 +159,7 @@ internal static partial class Program
             if (options.Json)
             {
                 global::System.Console.WriteLine(JsonSerializer.Serialize(
-                    new { ok = response.Success, action = "step-runner-get", pipe = QuickerRpcPipeNames.ServerPipe, payload },
+                    new { ok = response.Success, action = "step-runner-get", payload },
                     QkrpcJson.CliOutput));
             }
             else
@@ -207,7 +207,7 @@ internal static partial class Program
             if (options.Json)
             {
                 global::System.Console.WriteLine(JsonSerializer.Serialize(
-                    new { ok = response.Success, action = "get", pipe = QuickerRpcPipeNames.ServerPipe, payload },
+                    new { ok = response.Success, action = "get", payload },
                     QkrpcJson.CliOutput));
             }
             else
@@ -230,6 +230,74 @@ internal static partial class Program
         catch (Exception ex)
         {
             return await EmitErrorAndFailAsync(options.Json, "GET_FAILED", ex.Message).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task<int> RunActionSetMetadataAsync(ActionOptions options)
+    {
+        var actionId = (options.Id ?? options.Code ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            return await EmitErrorAndFailAsync(options.Json, "MISSING_ACTION_ID", "Provide --id <actionId>.")
+                .ConfigureAwait(false);
+        }
+
+        if (options.Title is null && options.Description is null && options.Icon is null)
+        {
+            return await EmitErrorAndFailAsync(
+                    options.Json,
+                    "MISSING_METADATA",
+                    "Provide at least one of --title, --description, or --icon.")
+                .ConfigureAwait(false);
+        }
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var response = await session.Proxy
+                .UpdateActionMetadataAsync(
+                    actionId,
+                    options.Title,
+                    options.Description,
+                    options.Icon,
+                    options.ExpectedEditVersion,
+                    options.Force,
+                    rpcToken)
+                .ConfigureAwait(false);
+            var payload = HeadlessCliResponses.ToMetadataPayload(response);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new { ok = response.Success, action = "set-metadata", payload },
+                    QkrpcJson.CliOutput));
+            }
+            else if (response.Success)
+            {
+                global::System.Console.WriteLine(
+                    $"Updated metadata for {response.ActionId} (editVersion {response.EditVersion}, icon: {response.Icon}).");
+            }
+            else
+            {
+                global::System.Console.Error.WriteLine(response.ErrorMessage ?? "set-metadata failed");
+            }
+
+            return response.Success ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "SET_METADATA_FAILED", ex.Message).ConfigureAwait(false);
         }
     }
 
@@ -271,12 +339,17 @@ internal static partial class Program
             if (options.Json)
             {
                 global::System.Console.WriteLine(JsonSerializer.Serialize(
-                    new { ok = response.Success, action = "patch", pipe = QuickerRpcPipeNames.ServerPipe, payload },
+                    new { ok = response.Success, action = "patch", payload },
                     QkrpcJson.CliOutput));
             }
             else
             {
                 global::System.Console.WriteLine(JsonSerializer.Serialize(payload, QkrpcJson.CliOutput));
+            }
+
+            if (response.Success)
+            {
+                HeadlessCliResponses.WriteWarningsToStderr(response.Warnings);
             }
 
             return response.Success ? ExitCodes.Success : ExitCodes.Error;
@@ -338,19 +411,20 @@ internal static partial class Program
                     {
                         ok = response.Success,
                         action = "replace",
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                         success = response.Success,
                         errorMessage = response.ErrorMessage,
                         actionId = response.ActionId,
                         editVersion = response.EditVersion,
                         versionConflict = response.VersionConflict,
                         updatedUtc = response.UpdatedUtc,
+                        warnings = HeadlessCliResponses.ToWarningsArray(response.Warnings),
                     },
                     QkrpcJson.CliOutput));
             }
             else if (response.Success)
             {
                 global::System.Console.WriteLine($"Replaced action {response.ActionId} (editVersion {response.EditVersion}).");
+                HeadlessCliResponses.WriteWarningsToStderr(response.Warnings);
             }
             else
             {
@@ -402,7 +476,6 @@ internal static partial class Program
                         createdProfile = result.CreatedProfile,
                         isVirtual = result.IsVirtual,
                         message = result.Message,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -494,7 +567,7 @@ internal static partial class Program
         if (json)
         {
             global::System.Console.WriteLine(JsonSerializer.Serialize(
-                new { ok = success, action, pipe = QuickerRpcPipeNames.ServerPipe, payload },
+                new { ok = success, action, payload },
                 QkrpcJson.CliOutput));
         }
         else

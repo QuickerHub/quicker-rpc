@@ -18,6 +18,33 @@ internal static class ActionProgramPersistence
         out string? error) =>
         ActionDesignerProgramAccess.TrySave(actionId, steps, variables, subProgramsJson, out error);
 
+    public static bool TrySave(
+        string actionId,
+        JArray steps,
+        JArray variables,
+        string subProgramsJson,
+        string? title,
+        string? description,
+        string? icon,
+        out string? error) =>
+        ActionDesignerProgramAccess.TrySave(
+            actionId,
+            steps,
+            variables,
+            subProgramsJson,
+            title,
+            description,
+            icon,
+            out error);
+
+    public static bool TryUpdatePresentation(
+        string actionId,
+        string? title,
+        string? description,
+        string? icon,
+        out string? error) =>
+        ActionDesignerProgramAccess.TryUpdatePresentation(actionId, title, description, icon, out error);
+
     internal static bool TryGetLiveActionItem(string actionId, out ActionItem? action) =>
         DataServiceActionAccess.TryFindActionWithPayload(actionId, out action)
         || (DataServiceActionAccess.TryGetById(actionId, out action, out _) && action is not null)

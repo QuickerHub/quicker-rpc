@@ -11,12 +11,14 @@ public static class FontAwesomeIconDedup
 {
     private static readonly Dictionary<string, int> StyleRank = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["Solid"] = 0,
+        ["Light"] = 0,
         ["Regular"] = 1,
-        ["Light"] = 2,
+        ["Solid"] = 2,
         ["Thin"] = 3,
         ["Duotone"] = 4,
     };
+
+    public const string DefaultStyle = "Light";
 
     public static string GetGroupKey(FontAwesomeIconEntry entry)
     {
@@ -40,8 +42,38 @@ public static class FontAwesomeIconDedup
     public static int GetStyleRank(FontAwesomeIconEntry entry) =>
         StyleRank.TryGetValue(entry.Style ?? string.Empty, out var rank) ? rank : 100;
 
-    /// <summary>One enum name per glyph; prefers Solid over Regular/Light when scores tie.</summary>
+    /// <summary>One row per glyph; prefers Light over Regular/Solid when scores tie.</summary>
+    public static List<FontAwesomeIconEntry> CollapseToEntries(
+        IEnumerable<(FontAwesomeIconEntry Entry, int Score)> ranked,
+        int limit) =>
+        PickGroups(ranked, limit)
+            .Select(x => x.Entry)
+            .ToList();
+
     public static List<string> CollapseToEnumNames(
+        IEnumerable<(FontAwesomeIconEntry Entry, int Score)> ranked,
+        int limit) =>
+        CollapseToEntries(ranked, limit)
+            .Select(ToCompressedEnumName)
+            .ToList();
+
+    /// <summary>Compressed row id: Light_* for glyph families; Brands_* unchanged.</summary>
+    public static string ToCompressedEnumName(FontAwesomeIconEntry entry)
+    {
+        var name = entry.Name ?? string.Empty;
+        if (IsBrand(entry))
+        {
+            return name;
+        }
+
+        return DefaultStyle + "_" + ToShortGlyphName(name);
+    }
+
+    public static bool IsBrand(FontAwesomeIconEntry entry) =>
+        (entry.Name ?? string.Empty).StartsWith("Brands_", StringComparison.Ordinal)
+        || string.Equals(entry.Style, "Brands", StringComparison.OrdinalIgnoreCase);
+
+    private static IEnumerable<(FontAwesomeIconEntry Entry, int Score)> PickGroups(
         IEnumerable<(FontAwesomeIconEntry Entry, int Score)> ranked,
         int limit)
     {
@@ -65,16 +97,17 @@ public static class FontAwesomeIconDedup
         return groupPick.Values
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.Entry.Name, StringComparer.OrdinalIgnoreCase)
-            .Take(limit)
-            .Select(x => x.Entry.Name)
-            .ToList();
+            .Take(limit);
     }
 
-    private static string GetGlyphBaseName(string enumName)
+    /// <summary>Strip style prefix (Solid_, Brands_, …) for compact search results.</summary>
+    public static string ToShortGlyphName(string enumName)
     {
         var idx = enumName.IndexOf('_');
         return idx < 0 || idx >= enumName.Length - 1
             ? enumName
             : enumName.Substring(idx + 1);
     }
+
+    private static string GetGlyphBaseName(string enumName) => ToShortGlyphName(enumName);
 }

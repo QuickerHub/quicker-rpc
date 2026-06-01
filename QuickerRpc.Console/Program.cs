@@ -168,7 +168,6 @@ internal static partial class Program
                         count = result.Items.Count,
                         items = result.Items,
                         message = string.IsNullOrWhiteSpace(result.Message) ? null : result.Message,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -221,6 +220,7 @@ internal static partial class Program
             "get" => await RunActionGetAsync(options).ConfigureAwait(false),
             "create" => await RunActionCreateAsync(options).ConfigureAwait(false),
             "patch" => await RunActionPatchAsync(options).ConfigureAwait(false),
+            "set-metadata" => await RunActionSetMetadataAsync(options).ConfigureAwait(false),
             "replace" => await RunActionReplaceAsync(options).ConfigureAwait(false),
             "delete" => await RunActionDeleteAsync(options).ConfigureAwait(false),
             "edit" => await RunActionEditAsync(options).ConfigureAwait(false),
@@ -235,7 +235,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action create|get|patch|replace|list|search|update|delete|edit|run|edit-var (see qkrpc help --json)")
+            "Use: action create|get|patch|set-metadata|replace|list|search|update|delete|edit|run|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -274,7 +274,6 @@ internal static partial class Program
                         action = "update",
                         sharedId = result.ActionId ?? actionId,
                         message = result.Message,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -336,7 +335,6 @@ internal static partial class Program
                         count = result.Items.Count,
                         items = result.Items,
                         message = string.IsNullOrWhiteSpace(result.Message) ? null : result.Message,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -416,7 +414,6 @@ internal static partial class Program
                         action = "delete",
                         actionId = result.ActionId ?? actionId,
                         message = result.Message,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -495,7 +492,6 @@ internal static partial class Program
                         oldValue = result.OldValue,
                         newValue = result.NewValue ?? options.Value,
                         message = result.Message,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -558,7 +554,6 @@ internal static partial class Program
                         wait = options.Wait,
                         returnResult = result.ReturnResult,
                         message = result.Message,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -624,7 +619,6 @@ internal static partial class Program
                         action = "edit",
                         actionId = result.ActionId ?? actionId,
                         message = result.Message,
-                        pipe = QuickerRpcPipeNames.ServerPipe,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -986,7 +980,7 @@ public sealed class StepRunnerOptions
     public bool NoBootstrap { get; set; }
 }
 
-[Verb("fa", HelpText = "Font Awesome icon search (Quicker fa:Solid_IconName specs).")]
+[Verb("fa", HelpText = "Font Awesome icon search (names[]; write fa:{name} or fa:{name}:{#color}).")]
 public sealed class FaOptions
 {
     [Value(0, MetaName = "command", Required = true, HelpText = "search")]
@@ -998,7 +992,10 @@ public sealed class FaOptions
     [Option("limit", Default = 40, HelpText = "Max results for fa search.")]
     public int Limit { get; set; }
 
-    [Option("all-styles", HelpText = "Return every style variant (Solid/Regular/Light); default dedupes to one enum per glyph.")]
+    [Option("expand", HelpText = "Do not compress: full enum names, all style variants (Solid/Regular/Light).")]
+    public bool Expand { get; set; }
+
+    [Option("all-styles", HelpText = "Alias for --expand.")]
     public bool AllStyles { get; set; }
 
     [Option("json", HelpText = "Emit JSON for automation.")]

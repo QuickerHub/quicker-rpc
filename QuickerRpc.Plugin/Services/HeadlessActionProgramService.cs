@@ -6,6 +6,7 @@ using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.AgentModel.XAction;
 using QuickerRpc.AgentModel.XAction.Compression;
+using QuickerRpc.AgentModel.XAction.Patch;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Plugin.Services;
@@ -177,6 +178,8 @@ public sealed class HeadlessActionProgramService
         var catalog = StepRunnerCatalogFromQuicker.Build();
         var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variables);
         XActionProgramService.NormalizeStepsInputParamKeys(steps, catalog);
+        var inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(steps, catalog);
+
         var subProgramsJson = SerializeSubProgramsJson(_actions.GetPayloadJson(action!, out _), xAction["subPrograms"]);
 
         if (!_actions.TryApplyPayloadAndSave(action!, steps, normalizedVariables, subProgramsJson, _actionEditMgr, out var saveError))
@@ -194,6 +197,67 @@ public sealed class HeadlessActionProgramService
             Success = true,
             ActionId = id,
             EditVersion = _actions.GetEditVersion(saved!),
+            UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
+            Warnings = ToWarningList(inputParamWarnings),
+        };
+    }
+
+    public QuickerRpcUpdateActionMetadataResult UpdateActionMetadata(
+        string? actionId,
+        string? title,
+        string? description,
+        string? icon,
+        long? expectedEditVersion,
+        bool force)
+    {
+        var id = (actionId ?? string.Empty).Trim();
+        if (id.Length == 0)
+        {
+            return FailMetadata("actionId is required.");
+        }
+
+        if (_actions is null || !_actions.IsAvailable)
+        {
+            return FailMetadata("Headless action save unavailable.");
+        }
+
+        if (!_actions.TryGetById(id, out var action, out var loadError))
+        {
+            return FailMetadata(loadError ?? $"Action not found: {id}");
+        }
+
+        var versionBefore = _actions.GetEditVersion(action!);
+        if (!force && expectedEditVersion.HasValue && expectedEditVersion.Value != versionBefore)
+        {
+            return new QuickerRpcUpdateActionMetadataResult
+            {
+                Success = false,
+                ActionId = id,
+                ErrorMessage = "Version conflict: action was modified in Quicker. Re-read with action_get or use force.",
+                VersionConflict = true,
+                EditVersion = versionBefore,
+            };
+        }
+
+        if (!ActionProgramPersistence.TryUpdatePresentation(id, title, description, icon, out var saveError))
+        {
+            return FailMetadata(saveError ?? "save_failed");
+        }
+
+        if (!_actions.TryGetById(id, out var saved, out _))
+        {
+            return FailMetadata("save finished but action could not be reloaded.");
+        }
+
+        var (savedTitle, savedDescription, savedIcon) = _actions.GetPresentation(saved!);
+        return new QuickerRpcUpdateActionMetadataResult
+        {
+            Success = true,
+            ActionId = id,
+            EditVersion = _actions.GetEditVersion(saved!),
+            Title = savedTitle,
+            Description = savedDescription,
+            Icon = savedIcon,
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
         };
     }
@@ -225,6 +289,21 @@ public sealed class HeadlessActionProgramService
             return FailPatch("patchJson parse failed: " + ex.Message);
         }
 
+        var metaTitle = ActionPresentationUpdate.ReadOptionalPatchString(patch["title"]);
+        var metaDescription = ActionPresentationUpdate.ReadOptionalPatchString(patch["description"]);
+        var metaIcon = ActionPresentationUpdate.ReadOptionalPatchString(patch["icon"]);
+        var programPatch = (JObject)patch.DeepClone();
+        programPatch.Remove("title");
+        programPatch.Remove("description");
+        programPatch.Remove("icon");
+
+        var hasMeta = metaTitle is not null || metaDescription is not null || metaIcon is not null;
+        var hasProgramPatch = programPatch["steps"] is JArray || programPatch["variables"] is JArray;
+        if (!hasMeta && !hasProgramPatch)
+        {
+            return FailPatch("patch must contain steps/variables arrays and/or title, description, icon.");
+        }
+
         if (_actions is null || !_actions.IsAvailable)
         {
             return FailPatch("Headless action save unavailable.");
@@ -235,7 +314,7 @@ public sealed class HeadlessActionProgramService
             return FailPatch(loadError ?? $"Action not found: {id}");
         }
 
-        if (!_actions.IsXAction(action!))
+        if (hasProgramPatch && !_actions.IsXAction(action!))
         {
             return FailPatch($"Action {id} is not an XAction program.");
         }
@@ -253,32 +332,52 @@ public sealed class HeadlessActionProgramService
             };
         }
 
-        var payloadJson = _actions.GetPayloadJson(action!, out var hydrateError);
-        if (string.IsNullOrWhiteSpace(payloadJson))
+        XActionPatchApplier.ApplyResult applyResult = new() { Success = true };
+        IList<string> inputParamWarnings = Array.Empty<string>();
+        if (hasProgramPatch)
         {
-            return FailPatch(hydrateError ?? $"Action {id} has no XAction payload.");
+            var payloadJson = _actions.GetPayloadJson(action!, out var hydrateError);
+            if (string.IsNullOrWhiteSpace(payloadJson))
+            {
+                return FailPatch(hydrateError ?? $"Action {id} has no XAction payload.");
+            }
+
+            var body = JObject.Parse(payloadJson);
+            var (steps, variables, _) = ActionProgramContent.ReadBodyArrays(body);
+            var stepsClone = (JArray)steps.DeepClone();
+            var variablesClone = (JArray)variables.DeepClone();
+            XActionProgramService.EnsureEphemeralIds(stepsClone, variablesClone);
+
+            applyResult = XActionProgramService.ApplyPatch(stepsClone, variablesClone, programPatch);
+            if (!applyResult.Success)
+            {
+                return FailPatch(applyResult.ErrorMessage ?? "patch apply failed.");
+            }
+
+            var catalog = StepRunnerCatalogFromQuicker.Build();
+            var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variablesClone);
+            XActionProgramService.NormalizeStepsInputParamKeys(stepsClone, catalog);
+            inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(stepsClone, catalog);
+
+            var subProgramsJson = SerializeSubProgramsJson(payloadJson, subProgramsOverride: null);
+
+            if (!_actions.TryApplyPayloadAndSave(
+                    action!,
+                    stepsClone,
+                    normalizedVariables,
+                    subProgramsJson,
+                    metaTitle,
+                    metaDescription,
+                    metaIcon,
+                    _actionEditMgr,
+                    out var saveError))
+            {
+                return FailPatch(saveError ?? "save_failed");
+            }
         }
-
-        var body = JObject.Parse(payloadJson);
-        var (steps, variables, _) = ActionProgramContent.ReadBodyArrays(body);
-        var stepsClone = (JArray)steps.DeepClone();
-        var variablesClone = (JArray)variables.DeepClone();
-        XActionProgramService.EnsureEphemeralIds(stepsClone, variablesClone);
-
-        var applyResult = XActionProgramService.ApplyPatch(stepsClone, variablesClone, patch);
-        if (!applyResult.Success)
+        else if (!ActionProgramPersistence.TryUpdatePresentation(id, metaTitle, metaDescription, metaIcon, out var metaSaveError))
         {
-            return FailPatch(applyResult.ErrorMessage ?? "patch apply failed.");
-        }
-
-        var catalog = StepRunnerCatalogFromQuicker.Build();
-        var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variablesClone);
-        XActionProgramService.NormalizeStepsInputParamKeys(stepsClone, catalog);
-        var subProgramsJson = SerializeSubProgramsJson(payloadJson, subProgramsOverride: null);
-
-        if (!_actions.TryApplyPayloadAndSave(action!, stepsClone, normalizedVariables, subProgramsJson, _actionEditMgr, out var saveError))
-        {
-            return FailPatch(saveError ?? "save_failed");
+            return FailPatch(metaSaveError ?? "save_failed");
         }
 
         if (!_actions.TryGetById(id, out var saved, out _))
@@ -286,21 +385,26 @@ public sealed class HeadlessActionProgramService
             return FailPatch("save finished but action could not be reloaded.");
         }
 
-        var compressedUpdatedSteps = CompressSteps(applyResult.UpdatedSteps, catalog, omitDefaultLiteralInputs: false);
-        var compressedAddedSteps = CompressSteps(applyResult.AddedSteps, catalog, omitDefaultLiteralInputs: false);
+        var catalogForCompress = StepRunnerCatalogFromQuicker.Build();
+        var compressedUpdatedSteps = CompressSteps(applyResult.UpdatedSteps, catalogForCompress, omitDefaultLiteralInputs: false);
+        var compressedAddedSteps = CompressSteps(applyResult.AddedSteps, catalogForCompress, omitDefaultLiteralInputs: false);
         var compressedUpdatedVariables = CompressVariables(applyResult.UpdatedVariables);
         var compressedAddedVariables = CompressVariables(applyResult.AddedVariables);
+
+        IList<string> patchWarnings = hasProgramPatch ? ToWarningList(inputParamWarnings) : new List<string>();
 
         return new QuickerRpcApplyActionPatchResult
         {
             Success = true,
             ActionId = id,
             EditVersion = _actions.GetEditVersion(saved!),
+            PresentationUpdated = hasMeta,
             UpdatedStepsJson = compressedUpdatedSteps.ToString(Formatting.None),
             AddedStepsJson = compressedAddedSteps.Count > 0 ? compressedAddedSteps.ToString(Formatting.None) : null,
             UpdatedVariablesJson = compressedUpdatedVariables.ToString(Formatting.None),
             AddedVariablesJson = compressedAddedVariables.Count > 0 ? compressedAddedVariables.ToString(Formatting.None) : null,
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
+            Warnings = patchWarnings,
         };
     }
 
@@ -467,4 +571,10 @@ public sealed class HeadlessActionProgramService
 
     private static QuickerRpcApplyActionPatchResult FailPatch(string message) =>
         new() { Success = false, ErrorMessage = message };
+
+    private static QuickerRpcUpdateActionMetadataResult FailMetadata(string message) =>
+        new() { Success = false, ErrorMessage = message };
+
+    private static List<string> ToWarningList(IList<string> warnings) =>
+        warnings.Count == 0 ? new List<string>() : warnings.ToList();
 }

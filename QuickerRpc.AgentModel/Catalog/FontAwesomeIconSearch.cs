@@ -47,7 +47,7 @@ public static class FontAwesomeIconSearch
         IReadOnlyList<FontAwesomeIconEntry> catalog,
         string? query,
         int? maxResults,
-        bool includeAllStyles = false)
+        bool expand = false)
     {
         var limit = ClampLimit(maxResults);
         var kw = (query ?? string.Empty).Trim();
@@ -73,7 +73,7 @@ public static class FontAwesomeIconSearch
         }
 
         List<string> names;
-        if (includeAllStyles)
+        if (expand)
         {
             names = ranked.Take(limit).Select(x => x.Entry.Name).ToList();
         }
@@ -88,6 +88,7 @@ public static class FontAwesomeIconSearch
             Keyword = kw.Length == 0 ? null : kw,
             MatchCount = names.Count,
             Names = names,
+            DefaultStyle = FontAwesomeIconDedup.DefaultStyle,
         };
     }
 

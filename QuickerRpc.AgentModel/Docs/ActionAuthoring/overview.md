@@ -1,64 +1,40 @@
-# Overview
-
-
-
-无头编辑 XAction：**`qkrpc` CLI**（`qkrpc help --json`）。**完整流程约束见 `authoring-workflow`**。环境：**`cli-setup`**。
-
-
-
-## Workflow（摘要）
-
-
-
-1. **`action create`**（新动作）或 **`action list`** / **`action search`** → `actionId`。
-
-2. **`action get`** → `editVersion`；`structure` 扫树，`full` 读非默认参数。
-
-3. **`guide get --topic implementation-fallback`** → 表达式优先，再专用步骤；无模块时 **C#（`sys:csscript`）优先于 PowerShell（`sys:runScript`）**。
-
-4. 每个专用步骤：**`step-modules`** → 否则 **`step-runner search`** → **`step-runner get`**（必须，禁止猜 `inputParams` 键）。
-
-5. 表达式参数值：**`expressions`**。
-
-6. **`action patch`** 一次保存；用响应里的 `editVersion` / `addedSteps`，**不要**仅为验证再 `action get`。
-
-
-
-## Rules
-
-
-
-| Rule | Detail |
-
+# Overview（动作编辑入口）
+无头编辑 XAction：**`qkrpc`** + QuickerRpc 插件。命令表：`qkrpc help --json`。环境：**`cli-setup`**。逐步操作：**`authoring-workflow`**。
+## 编辑链路（必读顺序）
+```text
+阶段  目的                    命令 / 主题
+────  ──────────────────────  ─────────────────────────────────────────
+ P0   连通                    ping · cli-setup
+ P1   定位动作                action create · list/search → actionId
+ P2   读取快照                action get → editVersion · steps/variables
+      return-mode             structure | full | metadata → xaction-json
+ P3   元数据（可选）          set-metadata · patch 顶层 title/icon → action-icons
+ P4   实现选型                implementation-fallback → expressions 或步骤模块
+ P5   步骤 schema             step-modules → step-runner search → step-runner get
+ P6   写入保存                action patch（一次调用=一次保存）→ patch-workflow
+      整页替换                action replace（少用）
+ P7   收尾                    以 patch/set-metadata 响应的 editVersion 等为准
+```
+**子程序调用**（动作内调公共子程序）：在 P5–P6 之间插入 **`subprogram-workflow`**（`callIdentifier` + `sys:subprogram`）。
+**变量**：读写在 P2/P6；类型与 patch 见 **`variables`**。
+## 常见校验（由 qkrpc 返回说明）
+| 场景 | 失败时参考 |
+|------|------------|
+| `inputParams` 键名 | `step-runner get`；未知键见 patch 的 `warnings[]` |
+| `callIdentifier` | `subprogram search/get` |
+| `icon` spec | `fa search` · **`action-icons`** · 响应 `errorMessage` |
+| patch 后确认 | 成功响应的 `editVersion` / `addedSteps`，不必再 `action get` |
+## 专题索引
+| 主题 | 何时读 |
 |------|--------|
-
-| Read before write | 改已有动作前先 `action get` |
-
-| Minimal patch | 省略未改的 steps、variables、`inputParams` 键；新建步骤时省略与目录 `Default` 相同的**普通**参数；**控制字段保留** |
-
-| Schema-driven | `stepRunnerKey` 与 `inputParams` 键来自 **`step-runner get`** |
-
-| Ephemeral `stepId` | 插入后用 patch 响应的 `addedSteps` 或 `nodePath` |
-
-| No post-patch re-read | 成功 patch 后以响应为准 |
-
-| Read compression | `action get --return-mode full` 省略目录默认的普通参数；**控制字段始终保留** |
-
-| Fallback | 搜不到模块见 **`implementation-fallback`** |
-
-
-
-## User summary
-
-
-
-汇报：`actionId`、`stepRunnerKey`、改了什么、`editVersion` 或错误与重试建议。
-
-
-
-## Topics
-
-
-
-`authoring-workflow` · `implementation-fallback` · `step-modules` · `step-runner-search` · `cli-setup` · `xaction-json` · `variables` · `expressions` · `patch-workflow`
-
+| **`authoring-workflow`** | 执行 P1–P7 的命令与示例 |
+| **`patch-workflow`** | patch JSON、默认值省略、保存后字段 |
+| **`xaction-json`** | `return-mode`、stepId、nodePath |
+| **`action-icons`** | fa search、icon 字符串格式 |
+| **`step-modules`** | 常用 stepRunnerKey 速查 |
+| **`step-runner-search`** | 目录搜索语法 |
+| **`implementation-fallback`** | 无模块 / 表达式 vs C# |
+| **`expressions`** | `$=`、`$$` 参数表达式 |
+| **`variables`** | 变量 type、patch |
+| **`subprogram-workflow`** | 公共子程序与 `sys:subprogram` |
+| **`cli-setup`** | P0 安装与最小命令链 |

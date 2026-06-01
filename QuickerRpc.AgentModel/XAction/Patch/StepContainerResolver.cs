@@ -220,7 +220,7 @@ public static class StepContainerResolver
             return false;
         }
 
-        var steps = rootSteps;
+        JArray steps = rootSteps;
         for (var i = 0; i < tokens.Length; i += 2)
         {
             var indexToken = tokens[i];
@@ -261,7 +261,7 @@ public static class StepContainerResolver
                 childSteps = (JArray)stepObj[branchName]!;
             }
 
-            steps = childSteps;
+            steps = childSteps!;
         }
 
         container = steps;
@@ -281,7 +281,7 @@ public static class StepContainerResolver
             return "";
         }
 
-        return string.Join("/", containerPath.Split('/').Select(x => x.Trim()).Where(x => x.Length > 0));
+        return string.Join("/", containerPath!.Split('/').Select(x => x.Trim()).Where(x => x.Length > 0));
     }
 
     private static string? ReadNonEmptyString(JToken? token)
