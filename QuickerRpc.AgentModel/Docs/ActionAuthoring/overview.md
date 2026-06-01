@@ -38,3 +38,4 @@
 | **`variables`** | 变量 type、patch |
 | **`subprogram-workflow`** | 公共子程序与 `sys:subprogram` |
 | **`cli-setup`** | P0 安装与最小命令链 |
+| **`action-project-files`** | 大段 inputParams 用 `file` + `.quicker` 目录 export/import |

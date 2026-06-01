@@ -15,12 +15,13 @@
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
 ```
 ## inputParams 规则
-键名以 **`step-runner get`** 的 `schema.Inputs[].Key` 为准；未知键不阻止保存，在响应 **`warnings[]`** 中列出合法键并可能给出相近建议（退出码仍为 0）。
+键名以 **`step-runner get`** 的 `schema.Inputs[].Key` 为准（有控制字段时加 **`--control-field <value>`**，与 search 返回的 `controlFieldValue` 一致）；未知键不阻止保存，在响应 **`warnings[]`** 中列出合法键并可能给出相近建议（退出码仍为 0）。
 | 场景 | 写什么 |
 |------|--------|
 | `add` | 必填 + **控制字段**（`IsControlField`）+ 与 catalog **Default 不同** 的普通参数 |
 | `update` | 仅改动的键；换模块时对旧键写 `null` |
 | 值 | `{ "value": "..." }` · `{ "varKey": "k" }` · `null` 删键 |
+| 大文本（本地工程） | `data.json` 中 `{ "file": "path" }` → **`action-project-files`**（import 时编译为 value） |
 下次 patch 只提交改动项，勿整段回写 `updatedSteps`。
 ## 保存后
 | 响应字段 | 用途 |

@@ -24,7 +24,7 @@ public static class StepRunnerCatalogMapper
             .OrderByDescending(x => x.score)
             .ThenBy(x => x.r.Name, StringComparer.OrdinalIgnoreCase)
             .Take(limit)
-            .Select(x => ToSearchItem(x.r))
+            .Select(x => ToSearchItem(x.r, searchQuery))
             .ToList();
 
         return new SearchStepRunnersResult
@@ -36,7 +36,10 @@ public static class StepRunnerCatalogMapper
         };
     }
 
-    public static StepRunnerDetailResult GetDetail(StepRunnerCatalog catalog, string stepRunnerKey)
+    public static StepRunnerDetailResult GetDetail(
+        StepRunnerCatalog catalog,
+        string stepRunnerKey,
+        string? controlFieldValue = null)
     {
         var key = (stepRunnerKey ?? string.Empty).Trim();
         if (string.IsNullOrEmpty(key))
@@ -56,7 +59,11 @@ public static class StepRunnerCatalogMapper
 
         try
         {
-            return new StepRunnerDetailResult { Success = true, Schema = MapAgentSchema(item) };
+            return new StepRunnerDetailResult
+            {
+                Success = true,
+                Schema = MapAgentSchema(item, controlFieldValue)
+            };
         }
         catch (Exception ex)
         {
@@ -64,27 +71,121 @@ public static class StepRunnerCatalogMapper
         }
     }
 
-    private static StepRunnerSearchItem ToSearchItem(StepRunnerDefinition row) =>
-        new()
+    private static StepRunnerSearchItem ToSearchItem(StepRunnerDefinition row, StepRunnerSearchQuery searchQuery)
+    {
+        var item = new StepRunnerSearchItem
         {
             Key = row.Key ?? string.Empty,
             Name = row.Name ?? string.Empty,
             Description = row.Description ?? string.Empty
         };
 
-    private static StepRunnerAgentSchema MapAgentSchema(StepRunnerDefinition runner)
+        var matched = TryGetMatchedControlSelection(row, searchQuery);
+        if (matched is not null)
+        {
+            item.ControlFieldKey = matched.Value.Key;
+            item.ControlFieldValue = matched.Value.Value;
+            item.ControlFieldName = matched.Value.Name;
+        }
+
+        return item;
+    }
+
+    private static (string Key, string Value, string Name)? TryGetMatchedControlSelection(
+        StepRunnerDefinition row,
+        StepRunnerSearchQuery searchQuery)
     {
+        var control = StepRunnerInputParamVisibility.TryFindControlField(row.InputParamDefs);
+        if (control is null || searchQuery.IsEmpty)
+        {
+            return null;
+        }
+
+        (string Key, string Value, string Name)? best = null;
+        var bestScore = 0;
+        foreach (var si in control.SelectionItems)
+        {
+            var value = (si.Value ?? string.Empty).Trim();
+            var name = (si.Name ?? string.Empty).Trim();
+            if (value.Length == 0 && name.Length == 0)
+            {
+                continue;
+            }
+
+            var score = StepRunnerSearchQuery.ScoreControlSelectionMatch(name, value, searchQuery);
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = (control.Key ?? string.Empty, value, name);
+            }
+        }
+
+        return bestScore > 0 ? best : null;
+    }
+
+    private static StepRunnerAgentSchema MapAgentSchema(
+        StepRunnerDefinition runner,
+        string? controlFieldValue)
+    {
+        var control = StepRunnerInputParamVisibility.TryFindControlField(runner.InputParamDefs);
+        var appliedValue = (controlFieldValue ?? string.Empty).Trim();
+        var hasControl = control is not null;
+        var filteringAvailable = StepRunnerInputParamVisibility.RunnerHasInputVisibilityRules(runner);
+
+        if (hasControl && appliedValue.Length > 0
+            && !StepRunnerInputParamVisibility.IsValidControlValue(control!, appliedValue))
+        {
+            throw new InvalidOperationException(
+                "Invalid control field value '"
+                + appliedValue
+                + "' for "
+                + (runner.Key ?? string.Empty)
+                + ". Valid values: "
+                + StepRunnerInputParamVisibility.FormatValidControlValues(control!));
+        }
+
         var dto = new StepRunnerAgentSchema
         {
             StepRunnerKey = runner.Key ?? string.Empty,
             Name = runner.Name ?? string.Empty,
             Description = runner.Description ?? string.Empty,
-            ControlField = MapControlFieldOrNull(runner.InputParamDefs)
+            ControlField = MapControlFieldOrNull(runner.InputParamDefs),
+            VisibilityFilteringAvailable = filteringAvailable
         };
+
+        if (hasControl && appliedValue.Length > 0)
+        {
+            dto.AppliedControlFieldKey = control!.Key;
+            dto.AppliedControlFieldValue = appliedValue;
+        }
+        else if (hasControl)
+        {
+            dto.AgentGuidance =
+                "This step has a control field. Pass --control-field <value> to step-runner get "
+                + "(values: "
+                + StepRunnerInputParamVisibility.FormatValidControlValues(control!)
+                + ") so Inputs only lists parameters visible for that mode.";
+        }
+
+        if (hasControl && appliedValue.Length > 0 && !filteringAvailable)
+        {
+            dto.AgentGuidance =
+                "Visibility rules are not available for this StepRunner in the current Quicker session; "
+                + "returning all Inputs. Prefer the control-field value from search or ControlField.Selection.";
+        }
+
+        var controlKey = control?.Key;
+        var filterInputs = hasControl && appliedValue.Length > 0 && filteringAvailable;
 
         foreach (var p in runner.InputParamDefs)
         {
             if (string.IsNullOrWhiteSpace(p.Key))
+            {
+                continue;
+            }
+
+            if (filterInputs
+                && !StepRunnerInputParamVisibility.IsInputVisible(p, controlKey, appliedValue))
             {
                 continue;
             }
@@ -107,16 +208,7 @@ public static class StepRunnerCatalogMapper
 
     private static ControlFieldSchema? MapControlFieldOrNull(IList<StepRunnerInputParamDef> inputDefs)
     {
-        StepRunnerInputParamDef? control = null;
-        foreach (var p in inputDefs)
-        {
-            if (p.IsControlField && p.VarType == 9 && p.SelectionItems.Count > 0)
-            {
-                control = p;
-                break;
-            }
-        }
-
+        var control = StepRunnerInputParamVisibility.TryFindControlField(inputDefs);
         if (control is null)
         {
             return null;

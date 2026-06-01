@@ -113,6 +113,14 @@ internal static class QkrpcCliHelp
 
                     opts: ActionReplaceOpts()),
 
+                Cmd("action export", "Export action to .quicker project dir (info.json + data.json; preserves file refs).", "qkrpc action export --id <guid> --dir <path> [--json]",
+
+                    opts: ActionProjectOpts()),
+
+                Cmd("action import", "Import .quicker project (compile file refs to value, then replace).", "qkrpc action import --dir <path> [--expected-edit-version N] [--force] [--json]",
+
+                    opts: ActionProjectImportOpts()),
+
                 Cmd("action list", "List/search actions (agent summaries).", "qkrpc action list [--query <keyword>] [--scope chrome|global|common|...] [--limit 30] [--json]",
 
                     opts: new[] { Option("query", "Optional filter.", shortName: "q"), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
@@ -149,6 +157,14 @@ internal static class QkrpcCliHelp
 
                     opts: SubProgramReplaceOpts()),
 
+                Cmd("subprogram export", "Export subprogram to .quicker project dir.", "qkrpc subprogram export --id <idOrName> --dir <path> [--json]",
+
+                    opts: SubProgramProjectOpts()),
+
+                Cmd("subprogram import", "Import .quicker subprogram project.", "qkrpc subprogram import --dir <path> [--expected-edit-version N] [--force] [--json]",
+
+                    opts: SubProgramProjectImportOpts()),
+
                 Cmd("subprogram edit", "Open subprogram editor UI.", "qkrpc subprogram edit --id <idOrName> [--json]",
 
                     opts: new[] { Option("id", "Subprogram id or name."), Option("json", "Structured output.") }),
@@ -169,6 +185,10 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("debug", "Debug run (opens Quicker step debugger)."), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
 
+                Cmd("action float", "Show a local action as a floating button.", "qkrpc action float --id <idOrName> [--json]",
+
+                    opts: new[] { Option("id", "Action id or name."), Option("json", "Structured output.") }),
+
                 Cmd("action edit", "Open action editor UI.", "qkrpc action edit --id <guid> [--json]",
 
                     opts: new[] { Option("id", "Action GUID."), Option("json", "Structured output.") }),
@@ -181,9 +201,9 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("query", "Filter: AND with spaces, OR with |, * wildcard.", shortName: "q"), Option("limit", "Max results.", defaultValue: "40"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
-                Cmd("step-runner get", "StepRunner schema: input param keys/types (required before patch inputParams).", "qkrpc step-runner get --key <stepRunnerKey> [--json]",
+                Cmd("step-runner get", "StepRunner schema: input param keys/types (required before patch inputParams). Use --control-field when ControlField exists.", "qkrpc step-runner get --key <stepRunnerKey> [--control-field <value>] [--json]",
 
-                    opts: new[] { Option("key", "StepRunner key."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+                    opts: new[] { Option("key", "StepRunner key."), Option("control-field", "Control-field value (from search or ControlField.Selection)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("fa search", "Search FA icons (see guide action-icons). Default: Light_* + Brands_*; --expand: all styles.", "qkrpc fa search [--query <keyword>] [--limit 40] [--expand] [--json]",
 
@@ -297,6 +317,48 @@ internal static class QkrpcCliHelp
 
 
 
+    private static object[] ActionProjectOpts() =>
+
+        new object[]
+
+        {
+
+            Option("id", "Action GUID."),
+
+            Option("dir", "Project directory (e.g. .quicker/actions/my-action)."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object[] ActionProjectImportOpts() =>
+
+        new object[]
+
+        {
+
+            Option("dir", "Project directory."),
+
+            Option("expected-edit-version", "From info.json or prior export."),
+
+            Option("force", "Skip version check."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
     private static object[] SubProgramHeadlessOpts() =>
 
         new object[]
@@ -356,6 +418,48 @@ internal static class QkrpcCliHelp
             Option("program-file", "Program JSON file or - for stdin."),
 
             Option("expected-edit-version", "From subprogram get."),
+
+            Option("force", "Skip version check."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object[] SubProgramProjectOpts() =>
+
+        new object[]
+
+        {
+
+            Option("id", "Subprogram id or name."),
+
+            Option("dir", "Project directory (e.g. .quicker/subprograms/my-sub)."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object[] SubProgramProjectImportOpts() =>
+
+        new object[]
+
+        {
+
+            Option("dir", "Project directory."),
+
+            Option("expected-edit-version", "From info.json or prior export."),
 
             Option("force", "Skip version check."),
 

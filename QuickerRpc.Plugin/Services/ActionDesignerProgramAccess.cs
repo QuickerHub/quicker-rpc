@@ -190,7 +190,7 @@ internal static class ActionDesignerProgramAccess
     private static bool TryExtractPayloadFromActionItem(ActionItem action, out string? bodyJson)
     {
         bodyJson = null;
-        if (!ActionProgramContent.HasProgramContent(action.Data))
+        if (!ActionProgramContent.IsXActionBody(action.Data))
         {
             return false;
         }
@@ -229,7 +229,7 @@ internal static class ActionDesignerProgramAccess
                     | System.Reflection.BindingFlags.Instance)?.GetValue(designer) is XAction xAction)
             {
                 bodyJson = JsonConvert.SerializeObject(xAction, BodyJson);
-                return ActionProgramContent.HasProgramContent(bodyJson);
+                return ActionProgramContent.IsXActionBody(bodyJson);
             }
         }
         catch

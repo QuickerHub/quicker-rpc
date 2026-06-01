@@ -11,7 +11,14 @@ public sealed class StepRunnerSearchItem
 
     public string Description { get; set; } = string.Empty;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ControlFieldKey { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ControlFieldValue { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ControlFieldName { get; set; }
 }
 
 public sealed class SearchStepRunnersResult
@@ -99,6 +106,18 @@ public sealed class StepRunnerAgentSchema
     public string Description { get; set; } = string.Empty;
 
     public ControlFieldSchema? ControlField { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AppliedControlFieldKey { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AppliedControlFieldValue { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool VisibilityFilteringAvailable { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentGuidance { get; set; }
 
     public List<AgentInputParamSchema> Inputs { get; set; } = new();
 

@@ -41,7 +41,7 @@ public sealed class QuickerRpcRpcContentTests
         var ct = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
         var key = QuickerRpcTestSettings.StepRunnerKey;
 
-        var result = await session.Rpc.GetStepRunnerDetailAsync(key, ct).ConfigureAwait(false);
+        var result = await session.Rpc.GetStepRunnerDetailAsync(key, cancellationToken: ct).ConfigureAwait(false);
 
         TestContext.WriteLine($"GetStepRunnerDetail key={key} success={result.Success}");
         Assert.IsTrue(result.Success, result.ErrorMessage ?? "GetStepRunnerDetail failed.");
@@ -49,6 +49,74 @@ public sealed class QuickerRpcRpcContentTests
         Assert.IsTrue(
             result.SchemaJson.IndexOf("\"Inputs\"", System.StringComparison.Ordinal) >= 0,
             "SchemaJson should contain Inputs array.");
+    }
+
+    [TestMethod]
+    public async Task Rpc_SearchStepRunners_window_move_ex_sets_control_field()
+    {
+        await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);
+        var ct = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
+
+        var result = await session.Rpc
+            .SearchStepRunnersAsync("移动窗口增强", maxResults: 10, cancellationToken: ct)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(result.Success, result.ErrorMessage ?? "SearchStepRunners failed.");
+        var hit = result.Items.FirstOrDefault(i => i.Key == "sys:windowOperations");
+        Assert.IsNotNull(hit, "Expected sys:windowOperations in search results.");
+        Assert.AreEqual("type", hit!.ControlFieldKey);
+        Assert.AreEqual("move_ex", hit.ControlFieldValue);
+    }
+
+    [TestMethod]
+    public async Task Rpc_GetStepRunnerDetail_windowOperations_filters_by_control_field()
+    {
+        await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);
+        var ct = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
+
+        var moveEx = await session.Rpc
+            .GetStepRunnerDetailAsync("sys:windowOperations", "move_ex", ct)
+            .ConfigureAwait(false);
+        var move = await session.Rpc
+            .GetStepRunnerDetailAsync("sys:windowOperations", "move", ct)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(moveEx.Success, moveEx.ErrorMessage);
+        Assert.IsTrue(move.Success, move.ErrorMessage);
+
+        var moveExKeys = ExtractInputKeys(moveEx.SchemaJson!);
+        var moveKeys = ExtractInputKeys(move.SchemaJson!);
+
+        TestContext.WriteLine("move_ex keys: " + string.Join(", ", moveExKeys));
+        TestContext.WriteLine("move keys: " + string.Join(", ", moveKeys));
+
+        CollectionAssert.Contains(moveExKeys, "area");
+        CollectionAssert.DoesNotContain(moveExKeys, "x");
+        CollectionAssert.Contains(moveKeys, "x");
+        CollectionAssert.DoesNotContain(moveKeys, "area");
+        Assert.IsTrue(
+            moveEx.SchemaJson!.IndexOf("\"VisibilityFilteringAvailable\":true", System.StringComparison.Ordinal) >= 0,
+            "Expected visibility filtering metadata.");
+    }
+
+    private static System.Collections.Generic.List<string> ExtractInputKeys(string schemaJson)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(schemaJson);
+        var list = new System.Collections.Generic.List<string>();
+        if (!doc.RootElement.TryGetProperty("Inputs", out var inputs))
+        {
+            return list;
+        }
+
+        foreach (var item in inputs.EnumerateArray())
+        {
+            if (item.TryGetProperty("Key", out var key))
+            {
+                list.Add(key.GetString() ?? string.Empty);
+            }
+        }
+
+        return list;
     }
 
     [TestMethod]

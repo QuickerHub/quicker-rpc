@@ -192,6 +192,7 @@ public sealed class HeadlessActionProgramService
             return FailApply("save finished but action could not be reloaded.");
         }
 
+        ActionMonitorNotifier.Notify();
         return new QuickerRpcApplyXActionResult
         {
             Success = true,
@@ -250,6 +251,7 @@ public sealed class HeadlessActionProgramService
         }
 
         var (savedTitle, savedDescription, savedIcon) = _actions.GetPresentation(saved!);
+        ActionMonitorNotifier.Notify();
         return new QuickerRpcUpdateActionMetadataResult
         {
             Success = true,
@@ -393,6 +395,7 @@ public sealed class HeadlessActionProgramService
 
         IList<string> patchWarnings = hasProgramPatch ? ToWarningList(inputParamWarnings) : new List<string>();
 
+        ActionMonitorNotifier.Notify();
         return new QuickerRpcApplyActionPatchResult
         {
             Success = true,
@@ -489,12 +492,17 @@ public sealed class HeadlessActionProgramService
                     Key = x.Key,
                     Name = x.Name,
                     Description = x.Description,
+                    ControlFieldKey = x.ControlFieldKey,
+                    ControlFieldValue = x.ControlFieldValue,
+                    ControlFieldName = x.ControlFieldName,
                 })
                 .ToList(),
         };
     }
 
-    public QuickerRpcStepRunnerDetailResult GetStepRunnerDetail(string? stepRunnerKey)
+    public QuickerRpcStepRunnerDetailResult GetStepRunnerDetail(
+        string? stepRunnerKey,
+        string? controlFieldValue = null)
     {
         if (!QuickerHost.IsRunningInQuicker())
         {
@@ -506,7 +514,10 @@ public sealed class HeadlessActionProgramService
         }
 
         var catalog = StepRunnerCatalogFromQuicker.Build();
-        var mapped = StepRunnerCatalogMapper.GetDetail(catalog, stepRunnerKey ?? string.Empty);
+        var mapped = StepRunnerCatalogMapper.GetDetail(
+            catalog,
+            stepRunnerKey ?? string.Empty,
+            controlFieldValue);
         return new QuickerRpcStepRunnerDetailResult
         {
             Success = mapped.Success,

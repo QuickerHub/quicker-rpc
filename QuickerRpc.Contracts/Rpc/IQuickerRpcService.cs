@@ -117,6 +117,11 @@ public interface IQuickerRpcService
         bool waitForComplete = false,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Show a local action as a floating button (ActionEditMgr.FloatAction).</summary>
+    Task<QuickerRpcFloatActionResult> FloatActionAsync(
+        string actionId,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Edit a variable default value and save via ActionDesignerWindow.
     /// Accepts a global subprogram id/name or a local action id.
@@ -168,6 +173,7 @@ public interface IQuickerRpcService
     /// <summary>Get StepRunner schema for authoring ActionStep inputParams.</summary>
     Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerDetailAsync(
         string stepRunnerKey,
+        string? controlFieldValue = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Search Font Awesome icons. Default: Light_* + Brands_*; expand returns all style rows.</summary>
@@ -308,4 +314,15 @@ public sealed class QuickerRpcActionRunResult
 
     /// <summary>Action return value when waitForComplete is true.</summary>
     public string? ReturnResult { get; set; }
+}
+
+public sealed class QuickerRpcFloatActionResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? ActionId { get; set; }
+
+    public string? ActionTitle { get; set; }
 }

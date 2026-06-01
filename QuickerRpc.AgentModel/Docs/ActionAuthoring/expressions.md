@@ -16,6 +16,21 @@ qkrpc guide get --topic expressions --json
 | `{varKey}` | Action variable (engine rewrites to `v_varKey` internally) |
 | `{[cliptext]}` | Clipboard text |
 **Author with `{varKey}` only** — not `v_count`, bare `count`, or `vv_cliptext`. Optional leading `$=` on the whole body is stripped before eval.
+## `quicker_in_param`（动作运行入参）
+Quicker **注入的运行时变量**，不在动作的 `variables[]` 里定义，也 **不要** 用 patch 去 `add` 它。
+| 项 | 说明 |
+|----|------|
+| 含义 | 本次运行动作的 **输入参数字符串**（托盘/面板传参、命令行参数、`sys:runaction` 的 inputParam、手动运行填写的参数等）。无入参时为空字符串。 |
+| 子程序 | 调用子程序时，父动作的入参会写入子程序上下文的 `quicker_in_param`（与 `sys:runaction` 传给目标动作一致）。 |
+| `$$` | `$$...{quicker_in_param}...` |
+| `$=` / `sys:evalexpression` / 赋值体 | `{quicker_in_param}` |
+| 比较 | `$=string.Equals({quicker_in_param}, "keyword", StringComparison.OrdinalIgnoreCase)` 等 |
+示例：
+```text
+$=string.Equals({quicker_in_param}, "verbose", StringComparison.OrdinalIgnoreCase)
+"{mode} = {quicker_in_param}"
+"$$Param: {quicker_in_param}"
+```
 ## Assignment (`sys:evalexpression`)
 ```text
 {result} = {num1} + {num2}
@@ -27,6 +42,7 @@ qkrpc guide get --topic expressions --json
 | `expression` | C# expression/script; `{var}`; optional `$=`; `{var}=value` assignment |
 | `onUiThread` | UI thread (deadlock risk) |
 | `output` | Return value; assignments update variables directly |
+`$=` 若创建窗口、访问 WPF 或 Quicker 主界面，须在 **UI 线程** 执行：用本步骤的 `onUiThread`，或子程序调用扩展表达式时将该子程序的 UI 线程参数设为 `true`（键名以 `step-runner get` 为准）。
 ```powershell
 qkrpc step-runner search --query "表达式|evalexpression" --json
 qkrpc step-runner get --key sys:evalexpression --json
@@ -37,9 +53,9 @@ Many runners accept `$=` in condition fields (exact key from step schema):
 "someConditionKey": { "value": "$={someVar} > 0" }
 ```
 ## Implicit `using` (Z.Expressions)
-Expressions behave as C# that **already has** the preamble below (`App.RegisterEval()` → `EvalManager.DefaultContext`). Use **short type names**, not FQN (`JsonConvert` not `Newtonsoft.Json.JsonConvert`).
+`$=` and **sys:evalexpression** run as C# with Quicker's built-in eval context: namespaces, types, and globals below are **pre-registered** (no per-action setup). Use **short type names**, not FQN (`JsonConvert` not `Newtonsoft.Json.JsonConvert`).
 ```csharp
-// Quicker/Application/App.xaml.cs — RegisterEval()
+// Available in expression eval (illustrative — not pasted into actions)
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -85,4 +101,6 @@ IQuickerApi _qk;              // always
 "{total} = {num1} + {num2}"
 "JsonConvert.SerializeObject(_context.GetVariables())"
 "_qk.Text.IsMatch({title}, {pattern})"
+"isVerbose": { "value": "$=string.Equals({quicker_in_param}, \"verbose\", StringComparison.OrdinalIgnoreCase)" }
+"msg": { "value": "$$Param: {quicker_in_param}" }
 ```

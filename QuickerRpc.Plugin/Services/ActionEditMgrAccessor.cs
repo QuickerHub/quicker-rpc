@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using System.Windows;
 using Quicker.Common;
 using Quicker.Domain;
 using QuickerRpc.Plugin.Reflection;
@@ -19,6 +20,7 @@ internal sealed class ActionEditMgrAccessor
         MethodInfo? deleteAction,
         MethodInfo? saveEditingAction,
         MethodInfo? setButtonAction,
+        MethodInfo? floatAction,
         Type? editActionParamType)
     {
         Instance = instance;
@@ -28,6 +30,7 @@ internal sealed class ActionEditMgrAccessor
         DeleteAction = deleteAction;
         SaveEditingAction = saveEditingAction;
         SetButtonAction = setButtonAction;
+        FloatAction = floatAction;
         EditActionParamType = editActionParamType;
     }
 
@@ -44,6 +47,8 @@ internal sealed class ActionEditMgrAccessor
     public MethodInfo? SaveEditingAction { get; }
 
     public MethodInfo? SetButtonAction { get; }
+
+    public MethodInfo? FloatAction { get; }
 
     public Type? EditActionParamType { get; }
 
@@ -71,6 +76,38 @@ internal sealed class ActionEditMgrAccessor
         try
         {
             SetButtonAction.Invoke(Instance, new object[] { profile, row, col, action, skipSave });
+            return true;
+        }
+        catch (TargetInvocationException ex)
+        {
+            error = ex.InnerException?.Message ?? ex.Message;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    public bool TryFloatAction(ActionItem action, Window ownerWindow, out string? error)
+    {
+        error = null;
+        if (FloatAction is null)
+        {
+            error = "FloatAction unavailable on ActionEditMgr.";
+            return false;
+        }
+
+        if (ownerWindow is null)
+        {
+            error = "No WPF owner window available for FloatAction.";
+            return false;
+        }
+
+        try
+        {
+            FloatAction.Invoke(Instance, new object[] { action, ownerWindow });
             return true;
         }
         catch (TargetInvocationException ex)
@@ -162,6 +199,12 @@ internal sealed class ActionEditMgrAccessor
                 && m.GetParameters()[0].ParameterType == typeof(ActionProfile)
                 && m.GetParameters()[3].ParameterType == typeof(ActionItem));
 
+            var floatAction = instanceMethods.FirstOrDefault(m =>
+                string.Equals(m.Name, "FloatAction", StringComparison.Ordinal)
+                && m.GetParameters().Length == 2
+                && m.GetParameters()[0].ParameterType == typeof(ActionItem)
+                && typeof(Window).IsAssignableFrom(m.GetParameters()[1].ParameterType));
+
             var editActionParamType = typeof(AppState).Assembly.GetType(
                 "Quicker.Domain.Services.EditActionParam",
                 throwOnError: false);
@@ -174,6 +217,7 @@ internal sealed class ActionEditMgrAccessor
                 deleteAction,
                 saveEditingAction,
                 setButtonAction,
+                floatAction,
                 editActionParamType);
         }
         catch

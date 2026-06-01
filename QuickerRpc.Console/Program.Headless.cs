@@ -101,7 +101,7 @@ internal static partial class Program
 
     private static Task<int> ReportUnknownStepRunnerVerbAsync(StepRunnerOptions options) =>
         EmitErrorAndFailAsync(options.Json, "UNKNOWN_STEP_RUNNER_VERB",
-            "Use: step-runner search --query <keyword> [--limit 40] [--json] | step-runner get --key <stepRunnerKey> [--json]");
+            "Use: step-runner search --query <keyword> [--limit 40] [--json] | step-runner get --key <stepRunnerKey> [--control-field <value>] [--json]");
 
     private static async Task<int> RunStepRunnerSearchAsync(StepRunnerOptions options)
     {
@@ -153,7 +153,13 @@ internal static partial class Program
         {
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
-            var response = await session.Proxy.GetStepRunnerDetailAsync(key, rpcToken).ConfigureAwait(false);
+            var controlField = (options.ControlField ?? string.Empty).Trim();
+            var response = await session.Proxy
+                .GetStepRunnerDetailAsync(
+                    key,
+                    controlField.Length > 0 ? controlField : null,
+                    rpcToken)
+                .ConfigureAwait(false);
             var payload = HeadlessCliResponses.ToStepRunnerDetailPayload(response);
 
             if (options.Json)

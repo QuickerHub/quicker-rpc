@@ -58,7 +58,17 @@ internal sealed class LegacyActionProgramAccessor
             return json;
         }
 
-        return ActionProgramContent.HasProgramContent(action.Data) ? action.Data : null;
+        if (ActionProgramContent.IsXActionBody(action.Data))
+        {
+            return action.Data;
+        }
+
+        if (IsXAction(action) && string.IsNullOrWhiteSpace(action.Data))
+        {
+            return ActionProgramContent.EmptyBodyJson;
+        }
+
+        return null;
     }
 
     public long GetEditVersion(ActionItem action) => ActionDesignerProgramAccess.GetEditVersionMs(action);

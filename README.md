@@ -38,13 +38,14 @@ Start-Process -FilePath "$env:TEMP\qkrpc-setup.exe" -ArgumentList '/VERYSILENT' 
 
 ```text
 load {packagePath}/QuickerRpc.Plugin.{version}.dll
-type QuickerRpc.Plugin.AssemblyLoader, QuickerRpc.Plugin.{version}
+type QuickerRpc.Plugin.Launcher, QuickerRpc.Plugin.{version}
 ```
 
-`Register` 会启动 RPC 服务并监听命名管道。也可以在 Quicker 动作中显式启动：
+`Register` 会启动 RPC 服务并监听命名管道；需要监控窗时可在子程序里传参或调用 `Launcher.Start(openMonitor: true)`。也可在动作中显式启动：
 
 ```csharp
-QuickerRpc.Plugin.Launcher.Start()
+Launcher.Start();
+Launcher.Start(openMonitor: true);
 ```
 
 ### 3. 验证连接

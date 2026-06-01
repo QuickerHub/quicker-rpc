@@ -37,8 +37,9 @@ step-modules（速查）→ 无则 step-runner search（一次 OR|通配）→ s
 qkrpc guide get --topic step-modules --json
 qkrpc step-runner search --query "剪贴板|clipboard|sys:*clip*" --json
 qkrpc step-runner get --key sys:MsgBox --json
+qkrpc step-runner get --key sys:windowOperations --control-field move_ex --json
 ```
-`schema.Inputs[].Key` = **`inputParams` 键名**（以 `step-runner get` 为准）。搜索语法：**`step-runner-search`**。
+`schema.Inputs[].Key` = **`inputParams` 键名**（以 `step-runner get` 为准）。有 **`ControlField`** 的步骤：search 可能返回 `controlFieldValue`；get 须传 **`--control-field`**，否则 `Inputs` 含全部模式参数易写错键。搜索语法：**`step-runner-search`**。
 ## P6 写入
 ```powershell
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json

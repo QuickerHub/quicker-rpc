@@ -66,6 +66,15 @@ public sealed class StepRunnerInputParamDef
 
     public IList<StepRunnerParamSelectionItem> SelectionItems { get; set; } =
         new List<StepRunnerParamSelectionItem>();
+
+    /// <summary>Show only when control-field value is in this list (Quicker <c>ValidForList</c>).</summary>
+    public IList<string> ValidForValues { get; set; } = new List<string>();
+
+    /// <summary>Hide when control-field value is in this list (Quicker <c>InvalidForList</c>).</summary>
+    public IList<string> InvalidForValues { get; set; } = new List<string>();
+
+    /// <summary>Quicker designer visibility expression (e.g. <c>type=='move'</c>).</summary>
+    public string VisibleExpression { get; set; } = string.Empty;
 }
 
 public sealed class StepRunnerOutputParamDef

@@ -138,6 +138,12 @@ public sealed class QuickerRpcStepRunnerSearchItem
     public string Name { get; set; } = string.Empty;
 
     public string Description { get; set; } = string.Empty;
+
+    public string? ControlFieldKey { get; set; }
+
+    public string? ControlFieldValue { get; set; }
+
+    public string? ControlFieldName { get; set; }
 }
 
 public sealed class QuickerRpcSearchStepRunnersResult

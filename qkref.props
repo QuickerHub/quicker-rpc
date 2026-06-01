@@ -111,6 +111,17 @@
       <SpecificVersion>false</SpecificVersion>
       <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
+    <!-- Quicker.exe transitive deps (WPF markup compiler / runtime reflection) -->
+    <Reference Include="log4net">
+      <HintPath>$(QuickerDllPath)\log4net.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(QuickerDllPath)\Newtonsoft.Json.dll</HintPath>
+      <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
+    </Reference>
   </ItemGroup>
 
   <!-- Drop transitive Quicker-install DLLs from Copy Local (Quicker.exe dependency walk) in Release. -->

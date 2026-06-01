@@ -13,12 +13,19 @@ public sealed class StepRunnerSearchQuery
 {
     private static readonly char[] BranchSeparators = { '|' };
     private static readonly char[] TokenSeparators = { ' ', '\t' };
+    private static readonly Regex MatchNormalization = new(
+        @"[\s\(\)（）\-_·•,，.。:：/\\]+",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public bool IsAdvanced { get; set; }
 
     public string[] LegacyPatterns { get; set; } = Array.Empty<string>();
 
     public string[][] Branches { get; set; } = Array.Empty<string[]>();
+
+    public bool IsEmpty =>
+        !IsAdvanced && LegacyPatterns.Length == 0
+        || IsAdvanced && Branches.Length == 0;
 
     public static StepRunnerSearchQuery Parse(string? keyword)
     {
@@ -122,13 +129,54 @@ public sealed class StepRunnerSearchQuery
             .Select(p => p.ToLowerInvariant())
             .ToArray();
 
-    private static string GetMatchSurface(StepRunnerDefinition row) =>
-        string.Join(
-            "\n",
-            row.Key,
-            row.Name,
-            row.Description,
-            row.Category);
+    public static int ScoreControlSelectionMatch(
+        string selectionName,
+        string selectionValue,
+        StepRunnerSearchQuery query)
+    {
+        if (query.IsEmpty)
+        {
+            return 0;
+        }
+
+        var surface = string.Join("\n", selectionName, selectionValue);
+        if (query.IsAdvanced)
+        {
+            return query.Branches
+                .Where(branch => BranchMatchesSurface(surface, branch))
+                .Select(branch => LegacyComputeSortScoreSurface(surface, branch))
+                .DefaultIfEmpty(0)
+                .Max();
+        }
+
+        return LegacyRowMatchesSurface(surface, query.LegacyPatterns)
+            ? LegacyComputeSortScoreSurface(surface, query.LegacyPatterns) + 6
+            : 0;
+    }
+
+    private static string GetMatchSurface(StepRunnerDefinition row)
+    {
+        var parts = new List<string>
+        {
+            row.Key ?? string.Empty,
+            row.Name ?? string.Empty,
+            row.Description ?? string.Empty,
+            row.Category ?? string.Empty
+        };
+
+        var control = StepRunnerInputParamVisibility.TryFindControlField(row.InputParamDefs);
+        if (control is not null)
+        {
+            foreach (var si in control.SelectionItems)
+            {
+                parts.Add(si.Name ?? string.Empty);
+                parts.Add(si.Value ?? string.Empty);
+                parts.Add(si.Description ?? string.Empty);
+            }
+        }
+
+        return string.Join("\n", parts);
+    }
 
     private static bool LegacyRowMatches(StepRunnerDefinition row, string[] patterns)
     {
@@ -137,8 +185,28 @@ public sealed class StepRunnerSearchQuery
             return true;
         }
 
-        var surface = GetMatchSurface(row).ToLowerInvariant();
-        return patterns.All(p => surface.IndexOf(p, StringComparison.Ordinal) >= 0);
+        return LegacyRowMatchesSurface(GetMatchSurface(row), patterns);
+    }
+
+    public static string NormalizeMatchText(string? text)
+    {
+        var raw = (text ?? string.Empty).Trim().ToLowerInvariant();
+        return raw.Length == 0 ? string.Empty : MatchNormalization.Replace(raw, string.Empty);
+    }
+
+    private static bool LegacyRowMatchesSurface(string surface, string[] patterns)
+    {
+        if (patterns.Length == 0)
+        {
+            return true;
+        }
+
+        var lower = surface.ToLowerInvariant();
+        var normalizedSurface = NormalizeMatchText(surface);
+        return patterns.All(p =>
+            lower.IndexOf(p, StringComparison.Ordinal) >= 0
+            || (!string.IsNullOrEmpty(normalizedSurface)
+                && normalizedSurface.IndexOf(NormalizeMatchText(p), StringComparison.Ordinal) >= 0));
     }
 
     private static int LegacyComputeSortScore(StepRunnerDefinition row, string[] patterns)
@@ -148,24 +216,42 @@ public sealed class StepRunnerSearchQuery
             return 0;
         }
 
+        return LegacyComputeSortScoreSurface(GetMatchSurface(row), patterns, row);
+    }
+
+    private static int LegacyComputeSortScoreSurface(string surface, string[] patterns, StepRunnerDefinition? row = null)
+    {
+        if (patterns.Length == 0)
+        {
+            return 0;
+        }
+
         var score = 0;
-        var keyLower = (row.Key ?? string.Empty).ToLowerInvariant();
-        var nameLower = (row.Name ?? string.Empty).ToLowerInvariant();
+        var keyLower = (row?.Key ?? string.Empty).ToLowerInvariant();
+        var nameLower = (row?.Name ?? string.Empty).ToLowerInvariant();
+        var surfaceLower = surface.ToLowerInvariant();
         foreach (var p in patterns)
         {
-            if (keyLower.IndexOf(p, StringComparison.Ordinal) >= 0)
+            if (row is not null)
             {
-                score += 8;
-            }
+                if (keyLower.IndexOf(p, StringComparison.Ordinal) >= 0)
+                {
+                    score += 8;
+                }
 
-            if (nameLower.IndexOf(p, StringComparison.Ordinal) >= 0)
+                if (nameLower.IndexOf(p, StringComparison.Ordinal) >= 0)
+                {
+                    score += 4;
+                }
+
+                if ((row.Description ?? string.Empty).IndexOf(p, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    score += 1;
+                }
+            }
+            else if (surfaceLower.IndexOf(p, StringComparison.Ordinal) >= 0)
             {
                 score += 4;
-            }
-
-            if ((row.Description ?? string.Empty).IndexOf(p, StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                score += 1;
             }
         }
 
@@ -179,7 +265,16 @@ public sealed class StepRunnerSearchQuery
             return true;
         }
 
-        var surface = GetMatchSurface(row);
+        return BranchMatchesSurface(GetMatchSurface(row), branchTokens);
+    }
+
+    private static bool BranchMatchesSurface(string surface, string[] branchTokens)
+    {
+        if (branchTokens.Length == 0)
+        {
+            return true;
+        }
+
         if (string.IsNullOrEmpty(surface))
         {
             return false;
@@ -205,7 +300,14 @@ public sealed class StepRunnerSearchQuery
 
         if (token.IndexOf('*') < 0)
         {
-            return surface.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0;
+            if (surface.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            var normalizedToken = NormalizeMatchText(token);
+            return normalizedToken.Length > 0
+                && NormalizeMatchText(surface).IndexOf(normalizedToken, StringComparison.Ordinal) >= 0;
         }
 
         try

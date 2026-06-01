@@ -87,6 +87,7 @@ public sealed class ActionCreateService
                 return Fail("Action was saved but has no id.");
             }
 
+            ActionMonitorNotifier.Notify();
             return new QuickerRpcCreateActionResult
             {
                 Ok = true,

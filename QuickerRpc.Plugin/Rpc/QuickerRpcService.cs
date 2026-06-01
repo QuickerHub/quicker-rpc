@@ -23,6 +23,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly ActionCreateService _actionCreateService;
     private readonly ActionEditService _actionEditService;
     private readonly ActionRunService _actionRunService;
+    private readonly ActionFloatService _actionFloatService;
     private readonly DesignerVariableEditService _designerVariableEditService;
     private readonly HeadlessActionProgramService _headlessActionProgramService;
     private readonly HeadlessSubProgramProgramService _headlessSubProgramProgramService;
@@ -37,6 +38,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         ActionCreateService actionCreateService,
         ActionEditService actionEditService,
         ActionRunService actionRunService,
+        ActionFloatService actionFloatService,
         DesignerVariableEditService designerVariableEditService,
         HeadlessActionProgramService headlessActionProgramService,
         HeadlessSubProgramProgramService headlessSubProgramProgramService,
@@ -50,6 +52,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _actionCreateService = actionCreateService;
         _actionEditService = actionEditService;
         _actionRunService = actionRunService;
+        _actionFloatService = actionFloatService;
         _designerVariableEditService = designerVariableEditService;
         _headlessActionProgramService = headlessActionProgramService;
         _headlessSubProgramProgramService = headlessSubProgramProgramService;
@@ -339,6 +342,37 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
+    public Task<QuickerRpcFloatActionResult> FloatActionAsync(
+        string actionId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            return Task.FromResult(new QuickerRpcFloatActionResult
+            {
+                Ok = false,
+                Message = "actionId is required.",
+            });
+        }
+
+        return InvokeOnDispatcherAsync(
+            async () =>
+            {
+                var result = _actionFloatService.FloatAction(actionId.Trim());
+                if (result.Ok)
+                {
+                    _popup.Success(result.Message);
+                }
+                else
+                {
+                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "悬浮动作失败" : result.Message);
+                }
+
+                return await Task.FromResult(result).ConfigureAwait(true);
+            },
+            cancellationToken);
+    }
+
     public Task<QuickerRpcSubProgramVariableEditResult> EditGlobalSubProgramVariableAsync(
         string subProgramIdOrName,
         string variableKey,
@@ -503,12 +537,14 @@ public sealed class QuickerRpcService : IQuickerRpcService
 
     public Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerDetailAsync(
         string stepRunnerKey,
+        string? controlFieldValue = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         return InvokeOnDispatcherAsync(
-            () => Task.FromResult(_headlessActionProgramService.GetStepRunnerDetail(stepRunnerKey)),
+            () => Task.FromResult(
+                _headlessActionProgramService.GetStepRunnerDetail(stepRunnerKey, controlFieldValue)),
             cancellationToken);
     }
 

@@ -155,6 +155,9 @@ internal static class StepRunnerCatalogFromQuicker
                     IsControlField = ReadBool(p, "IsControlField"),
                     DefaultValue = SerializeDefault(ReadProperty(p, "DefaultValue")),
                     SelectionItems = MapSelection(ReadProperty(p, "SelectionItems")),
+                    ValidForValues = MapStringCollection(ReadProperty(p, "ValidForList")),
+                    InvalidForValues = MapStringCollection(ReadProperty(p, "InvalidForList")),
+                    VisibleExpression = ReadString(p, "VisibleExpression") ?? string.Empty,
                 });
         }
 
@@ -191,6 +194,31 @@ internal static class StepRunnerCatalogFromQuicker
                     VarType = ReadEnumInt(p, "Type"),
                     CustomTypeName = ReadString(p, "CustomTypeName") ?? string.Empty,
                 });
+        }
+
+        return list;
+    }
+
+    private static IList<string> MapStringCollection(object? items)
+    {
+        var list = new List<string>();
+        if (items is not IEnumerable enumerable)
+        {
+            return list;
+        }
+
+        foreach (var item in enumerable)
+        {
+            if (item is null)
+            {
+                continue;
+            }
+
+            var text = item.ToString()?.Trim();
+            if (!string.IsNullOrEmpty(text))
+            {
+                list.Add(text);
+            }
         }
 
         return list;

@@ -43,6 +43,22 @@ public sealed class QuickerExeDebugScanTests
     }
 
     [TestMethod]
+    public void Scan_FloatAction_on_ActionEditMgr_by_name()
+    {
+        if (!TryLoadDebug(out var assembly))
+        {
+            return;
+        }
+
+        QuickerExeReflectionProbe.ScanTypeAndMethodByName(
+            assembly,
+            "Quicker.Domain.Services.ActionEditMgr",
+            "FloatAction",
+            QuickerExeReflectionProbe.InstanceMethodFlags,
+            WriteLine);
+    }
+
+    [TestMethod]
     public void Scan_AppState_GetService_generic_by_name()
     {
         if (!TryLoadDebug(out var assembly))

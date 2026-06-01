@@ -19,3 +19,6 @@ QuickerRpc.Plugin/publish/
 
 # Local Quicker source reference for agent/reflection work (not part of this repo)
 .ref/Quicker/
+
+# Local qkrpc action/subprogram projects (export/import)
+.quicker/

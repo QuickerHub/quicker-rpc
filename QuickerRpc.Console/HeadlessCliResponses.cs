@@ -142,9 +142,9 @@ internal static class HeadlessCliResponses
     public static string[] ToWarningsArray(IList<string>? warnings) =>
         warnings is null || warnings.Count == 0 ? Array.Empty<string>() : warnings.ToArray();
 
-    public static void WriteWarningsToStderr(IList<string>? warnings)
+    public static void WriteWarningsToStderr(IEnumerable<string>? warnings)
     {
-        if (warnings is null || warnings.Count == 0)
+        if (warnings is null)
         {
             return;
         }

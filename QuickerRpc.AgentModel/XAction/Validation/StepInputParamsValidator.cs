@@ -133,7 +133,8 @@ public static class StepInputParamsValidator
             sb.Append(" Did you mean '").Append(suggestion).Append("'?");
         }
 
-        sb.Append(" Run qkrpc step-runner get --key ").Append(runnerKey).Append(" --json.");
+        sb.Append(" Run qkrpc step-runner get --key ").Append(runnerKey)
+            .Append(" [--control-field <value>] --json.");
         return sb.ToString();
     }
 

@@ -8,4 +8,7 @@ internal static class QkrpcVirtualActionHost
 
     /// <summary>Prefix for auto-created virtual action page names.</summary>
     public const string ProfileNamePrefix = "@qkrpc ";
+
+    /// <summary>Scope token for <see cref="ActionScopeResolver"/> / CLI <c>--scope agent</c>.</summary>
+    public const string AgentScope = "agent";
 }

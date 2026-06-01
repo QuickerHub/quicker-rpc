@@ -165,6 +165,6 @@ else {
 Write-Host ""
 Write-Host "Load plugin in Quicker (expression registration):" -ForegroundColor Cyan
 Write-Host "  load {packagePath}/QuickerRpc.Plugin.{version}.dll"
-Write-Host "  type QuickerRpc.Plugin.AssemblyLoader, QuickerRpc.Plugin.{version}"
+Write-Host "  type QuickerRpc.Plugin.Launcher, QuickerRpc.Plugin.{version}"
 
 exit 0

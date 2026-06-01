@@ -122,6 +122,8 @@ internal static partial class Program
             "get" => await RunSubProgramGetAsync(options).ConfigureAwait(false),
             "patch" => await RunSubProgramPatchAsync(options).ConfigureAwait(false),
             "replace" => await RunSubProgramReplaceAsync(options).ConfigureAwait(false),
+            "export" => await RunSubProgramExportAsync(options).ConfigureAwait(false),
+            "import" => await RunSubProgramImportAsync(options).ConfigureAwait(false),
             "edit" => await RunSubProgramEditAsync(options).ConfigureAwait(false),
             "delete" => await RunSubProgramDeleteAsync(options).ConfigureAwait(false),
             "edit-var" => await RunSubProgramEditVarAsync(options).ConfigureAwait(false),
@@ -134,7 +136,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_SUBPROGRAM_VERB",
-            "Use: subprogram create|get|patch|replace|list|search|edit|edit-var|delete (see qkrpc help --json)")
+            "Use: subprogram create|get|patch|replace|export|import|list|search|edit|edit-var|delete (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -222,9 +224,12 @@ internal static partial class Program
             "patch" => await RunActionPatchAsync(options).ConfigureAwait(false),
             "set-metadata" => await RunActionSetMetadataAsync(options).ConfigureAwait(false),
             "replace" => await RunActionReplaceAsync(options).ConfigureAwait(false),
+            "export" => await RunActionExportAsync(options).ConfigureAwait(false),
+            "import" => await RunActionImportAsync(options).ConfigureAwait(false),
             "delete" => await RunActionDeleteAsync(options).ConfigureAwait(false),
             "edit" => await RunActionEditAsync(options).ConfigureAwait(false),
             "run" => await RunActionRunAsync(options).ConfigureAwait(false),
+            "float" => await RunActionFloatAsync(options).ConfigureAwait(false),
             "edit-var" => await RunActionEditVarAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownActionVerbAsync(options).ConfigureAwait(false),
         };
@@ -235,7 +240,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action create|get|patch|set-metadata|replace|list|search|update|delete|edit|run|edit-var (see qkrpc help --json)")
+            "Use: action create|get|patch|set-metadata|replace|export|import|list|search|update|delete|edit|run|float|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -523,6 +528,63 @@ internal static partial class Program
         }
     }
 
+    private static async Task<int> RunActionFloatAsync(ActionOptions options)
+    {
+        var actionId = (options.Id ?? options.Code ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            await EmitErrorAsync(options.Json, "MISSING_ACTION_ID", "Provide --id or --code <actionIdOrName>.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var result = await session.Proxy.FloatActionAsync(actionId, rpcToken).ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "float",
+                        actionId = result.ActionId ?? actionId,
+                        actionTitle = result.ActionTitle,
+                        message = result.Message,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else if (result.Ok)
+            {
+                global::System.Console.WriteLine(result.Message);
+            }
+            else
+            {
+                global::System.Console.Error.WriteLine(result.Message);
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "FLOAT_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
+
     private static async Task<int> RunActionRunAsync(ActionOptions options)
     {
         var actionId = (options.Id ?? options.Code ?? string.Empty).Trim();
@@ -800,7 +862,7 @@ public sealed class PingOptions
 [Verb("action", HelpText = "Quicker action operations via RPC.")]
 public sealed class ActionOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | list | search | update | delete | edit | run | edit-var")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | export | import | list | search | update | delete | edit | run | float | edit-var")]
     public string? Command { get; set; }
 
     [Option("id", HelpText = "Shared action id (GUID).")]
@@ -851,6 +913,9 @@ public sealed class ActionOptions
     [Option("xaction-file", HelpText = "XAction JSON file path, or - for stdin.")]
     public string? XActionFile { get; set; }
 
+    [Option("dir", HelpText = "Local .quicker project directory for export/import.")]
+    public string? Dir { get; set; }
+
     [Option("expected-edit-version", HelpText = "Edit version from action get (optimistic concurrency).")]
     public long? ExpectedEditVersion { get; set; }
 
@@ -888,7 +953,7 @@ public sealed class ActionOptions
 [Verb("subprogram", HelpText = "Global (public) subprogram operations via RPC.")]
 public sealed class SubProgramOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | list | search | edit | edit-var | delete")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | export | import | list | search | edit | edit-var | delete")]
     public string? Command { get; set; }
 
     [Option("id", HelpText = "Global subprogram id or name.")]
@@ -930,6 +995,9 @@ public sealed class SubProgramOptions
     [Option("program-file", HelpText = "Program JSON file path, or - for stdin.")]
     public string? ProgramFile { get; set; }
 
+    [Option("dir", HelpText = "Local .quicker project directory for export/import.")]
+    public string? Dir { get; set; }
+
     [Option("expected-edit-version", HelpText = "Edit version from subprogram get.")]
     public long? ExpectedEditVersion { get; set; }
 
@@ -966,6 +1034,9 @@ public sealed class StepRunnerOptions
 
     [Option("key", HelpText = "StepRunner key for step-runner get.")]
     public string? Key { get; set; }
+
+    [Option("control-field", HelpText = "Control-field value for step-runner get (e.g. move_ex on sys:windowOperations).")]
+    public string? ControlField { get; set; }
 
     [Option("limit", Default = 40, HelpText = "Max results for step-runner search.")]
     public int Limit { get; set; }
