@@ -26,6 +26,7 @@ public interface IQuickerRpcService
         string? query,
         int maxResults = 30,
         string? scope = null,
+        string? sort = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Search local Quicker actions by keyword (same scoring as the main search box).</summary>
@@ -181,6 +182,11 @@ public interface IQuickerRpcService
         string? query,
         int maxResults = 40,
         bool expand = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Resolve fa: specs to SVG path data (FontAwesome5 catalog in Quicker).</summary>
+    Task<QuickerRpcResolveFontAwesomeIconsResult> ResolveFontAwesomeIconsAsync(
+        IList<string> specs,
         CancellationToken cancellationToken = default);
 }
 

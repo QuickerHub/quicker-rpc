@@ -1,0 +1,34 @@
+name: Action authoring docs
+
+on:
+  push:
+    paths:
+      - 'docs/action-authoring-src/**'
+      - 'docs/action-authoring/**'
+      - 'scripts/generate-authoring-docs.mjs'
+      - 'scripts/Generate-ActionAuthoringDocs.ps1'
+      - 'build/GenerateActionAuthoringDocs.targets'
+      - '.github/workflows/docs-check.yml'
+  pull_request:
+    paths:
+      - 'docs/action-authoring-src/**'
+      - 'docs/action-authoring/**'
+      - 'scripts/generate-authoring-docs.mjs'
+      - 'scripts/Generate-ActionAuthoringDocs.ps1'
+      - 'build/GenerateActionAuthoringDocs.targets'
+      - '.github/workflows/docs-check.yml'
+
+jobs:
+  docs-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify generated docs match templates
+        run: node scripts/generate-authoring-docs.mjs --check

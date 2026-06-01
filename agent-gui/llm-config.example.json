@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "defaultProvider": "nvidia",
+  "providers": {
+    "zen": {
+      "apiKey": "",
+      "baseURL": "https://opencode.ai/zen/v1",
+      "model": "deepseek-v4-flash-free"
+    },
+    "nvidia": {
+      "apiKey": "nvapi-...",
+      "baseURL": "https://integrate.api.nvidia.com/v1",
+      "model": "z-ai/glm-5.1"
+    },
+    "nvidia-minimax": {
+      "model": "minimaxai/minimax-m2.7"
+    },
+    "deepseek": {
+      "apiKey": "sk-...",
+      "baseURL": "https://api.deepseek.com/v1",
+      "model": "deepseek-v4-flash"
+    }
+  }
+}

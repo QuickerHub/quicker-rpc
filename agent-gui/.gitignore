@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# env
+.env.local
+.env*.local
+
+# LLM credentials (copy from llm-config.example.json)
+llm-config.json
+
+# UI-saved LLM API keys (local only)
+.local/
+
+# staged qkrpc serve runtime (copied from publish/cli or bundled qkrpc/)
+.runtime/
+
+# tauri
+src-tauri/target/
+src-tauri/resources/
+src-tauri/gen/

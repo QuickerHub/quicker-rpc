@@ -1,21 +1,56 @@
-bin/
-obj/
+# .NET / Visual Studio
+[Bb]in/
+[Oo]bj/
 .vs/
+TestResults/
+*.user
+*.suo
+*.cache
+*.nupkg
+*.snupkg
+*.trx
+*.coverage
+*.coveragexml
+
+# Node / Next.js / TypeScript
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# Tauri / Rust build output
+target/
+agent-gui/src-tauri/target/
+agent-gui/src-tauri/resources/
+agent-gui/src-tauri/gen/
+
+# Local app/runtime state
+.local/
+.runtime/
+.env
+.env.*
+!.env.example
+!**/.env.example
+llm-config.json
+
+# Publish output, keep release scripts and changelogs
 publish/**
 !publish/publish-rpc.ps1
 !publish/install.ps1
 !publish/Build-QkrpcSetup.ps1
-!publish/qkrpc-setup.iss
 !publish/qkrpc-publish-lib.ps1
 !publish/Publish-GitHubRelease.ps1
+!publish/Publish-AgentGui.ps1
+!publish/Publish-QuickerAgent.ps1
 !publish/changelogs/
 !publish/changelogs/**
 **/publish/*.zip
 QuickerRpc.Plugin/publish/
-*.user
-*.suo
-*.cache
 .tmp*
+tmp/
+tmp*.json
+_tmp*.json
 temp/
 
 # Local Quicker source reference for agent/reflection work (not part of this repo)
@@ -23,3 +58,6 @@ temp/
 
 # Local qkrpc action/subprogram projects (export/import)
 .quicker/
+
+# MSBuild stamp for action-authoring doc generation (local only)
+docs/action-authoring/.generated.stamp

@@ -63,7 +63,7 @@ internal static class QuickerRpcRpcTestAction
         CancellationToken cancellationToken)
     {
         var search = await rpc
-            .SearchActionSummariesAsync(Title, maxResults: 30, scope: null, cancellationToken)
+            .SearchActionSummariesAsync(Title, maxResults: 30, scope: null, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         if (!search.Success || search.Items is null)
         {

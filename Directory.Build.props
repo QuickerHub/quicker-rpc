@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
+    <RepoRoot>$([MSBuild]::EnsureTrailingSlash($([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), 'version.json'))))</RepoRoot>
     <!--
       Release: ProjectName.(Version).dll when true. Quicker loads by file name; same base name blocks side-by-side versions.
       QuickerRpc.Console keeps short dependency names via Contracts/AgentModel netstandard2.0 (AppendAssemblyVersionFileNameSuffix=false there).

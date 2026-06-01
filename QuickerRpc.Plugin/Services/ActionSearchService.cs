@@ -34,16 +34,13 @@ public sealed class ActionSearchService
         }
 
         var keyword = (query ?? string.Empty).Trim();
+        var scopeValue = string.IsNullOrWhiteSpace(scope) ? null : scope.Trim();
+
         if (string.IsNullOrEmpty(keyword))
         {
-            return new QuickerRpcActionSearchResult
-            {
-                Ok = false,
-                Message = "query is required.",
-            };
+            return SearchRecentActions(scopeValue, maxCount);
         }
 
-        var scopeValue = string.IsNullOrWhiteSpace(scope) ? null : scope.Trim();
         if (!string.IsNullOrWhiteSpace(scopeValue) && ProfileManagerAccessor.TryCreate() is null)
         {
             return new QuickerRpcActionSearchResult
@@ -98,10 +95,10 @@ public sealed class ActionSearchService
                 Id = (x.Entry.Action.Id ?? string.Empty).Trim(),
                 Title = x.Entry.Action.Title ?? string.Empty,
                 Description = NullIfEmpty(x.Entry.Action.Description),
-                PageTitle = NullIfEmpty(x.Entry.Profile.Name),
-                ProfileId = x.Entry.Profile.Id,
-                ProfileName = x.Entry.Profile.Name,
-                ExeFile = x.Entry.Profile.ExeFile,
+                PageTitle = NullIfEmpty(x.Entry.Profile?.Name),
+                ProfileId = x.Entry.Profile?.Id,
+                ProfileName = x.Entry.Profile?.Name,
+                ExeFile = x.Entry.Profile?.ExeFile,
                 Score = x.Score,
             })
             .Where(x => x.Id.Length > 0)
@@ -119,10 +116,10 @@ public sealed class ActionSearchService
         {
             if (locationById.TryGetValue(item.Id, out var entry))
             {
-                item.PageTitle ??= NullIfEmpty(entry.Profile.Name);
-                item.ProfileId ??= entry.Profile.Id;
-                item.ProfileName ??= entry.Profile.Name;
-                item.ExeFile ??= entry.Profile.ExeFile;
+                item.PageTitle ??= NullIfEmpty(entry.Profile?.Name);
+                item.ProfileId ??= entry.Profile?.Id;
+                item.ProfileName ??= entry.Profile?.Name;
+                item.ExeFile ??= entry.Profile?.ExeFile;
             }
 
             enriched.Add(item);
@@ -304,7 +301,9 @@ public sealed class ActionSearchService
             keyword,
             action.Id,
             action.Title ?? string.Empty,
-            action.Description);
+            action.Description,
+            profileName: null,
+            exeFile: null);
 
     private static IReadOnlyList<QuickerRpcActionSummary> FilterActions(IEnumerable? actions, string keyword, int limit)
     {
@@ -363,6 +362,49 @@ public sealed class ActionSearchService
             ReadActionId(action),
             ReadActionTitle(action) ?? string.Empty,
             ReadActionDescription(action));
+
+    private QuickerRpcActionSearchResult SearchRecentActions(string? scope, int maxCount)
+    {
+        try
+        {
+            var limit = NormalizeMaxCount(maxCount);
+            var matches = ActionCatalogSearch.ListRecentByLastEdit(
+                scope,
+                limit,
+                actionFilter: null);
+
+            var items = EnrichSummaries(matches
+                .Select(x => new QuickerRpcActionSummary
+                {
+                    Id = (x.Entry.Action.Id ?? string.Empty).Trim(),
+                    Title = x.Entry.Action.Title ?? string.Empty,
+                    Description = NullIfEmpty(x.Entry.Action.Description),
+                    PageTitle = NullIfEmpty(x.Entry.Profile?.Name),
+                    ProfileId = x.Entry.Profile?.Id,
+                    ProfileName = x.Entry.Profile?.Name,
+                    ExeFile = x.Entry.Profile?.ExeFile,
+                    Score = x.Score,
+                })
+                .Where(x => x.Id.Length > 0)
+                .ToList());
+
+            return new QuickerRpcActionSearchResult
+            {
+                Ok = true,
+                Scope = scope,
+                Message = items.Count == 0 ? "No recently edited actions." : string.Empty,
+                Items = items.ToList(),
+            };
+        }
+        catch (Exception ex)
+        {
+            return new QuickerRpcActionSearchResult
+            {
+                Ok = false,
+                Message = ex.Message,
+            };
+        }
+    }
 
     private static IReadOnlyList<QuickerRpcActionSummary> MergeSearchResults(
         IReadOnlyList<QuickerRpcActionSummary> primary,

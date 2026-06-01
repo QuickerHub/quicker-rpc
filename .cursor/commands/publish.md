@@ -62,7 +62,7 @@ pwsh ./build.ps1 -p -n
 qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog-file publish/changelogs/vX.Y.Z.md --json
 ```
 
-前置：Quicker 已运行且 QuickerRpc 插件已加载（`qkrpc ping --json` 成功）。
+前置：Quicker 已运行且 QuickerRpc 插件已加载（`qkrpc action list --limit 1 --json` 成功即可）。
 
 ## 阶段五：发布后汇报
 

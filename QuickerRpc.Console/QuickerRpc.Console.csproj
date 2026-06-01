@@ -11,11 +11,16 @@
     <NoWarn>$(NoWarn);VSTHRD002;VSTHRD003;VSTHRD103</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
     <ProjectReference Include="..\QuickerRpc.AgentModel\QuickerRpc.AgentModel.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CommandLineParser" />
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="StreamJsonRpc" />
   </ItemGroup>
 </Project>

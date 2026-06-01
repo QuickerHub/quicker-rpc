@@ -2,6 +2,8 @@ using Newtonsoft.Json;
 
 using Newtonsoft.Json.Linq;
 
+using QuickerRpc.AgentModel.XAction.Compression;
+
 
 
 namespace QuickerRpc.AgentModel.XAction.Patch;
@@ -10,7 +12,7 @@ namespace QuickerRpc.AgentModel.XAction.Patch;
 
 /// <summary>
 
-/// Applies partial program patches: update (merge), add, remove, move for steps and variables.
+/// Applies incremental program patches (add/update/remove/move). Full program write uses top-level <c>"replace": true</c> (same semantics as action replace).
 
 /// </summary>
 
@@ -64,7 +66,7 @@ public static class XActionPatchApplier
 
     {
 
-        public string Op { get; set; } = OpUpdate;
+        public string Op { get; set; } = OpAdd;
 
         public JObject Entry { get; set; } = new();
 
@@ -118,6 +120,16 @@ public static class XActionPatchApplier
 
 
 
+        if (IsProgramReplaceMode(patch))
+
+        {
+
+            return ApplyProgramReplace(steps, variables, patch);
+
+        }
+
+
+
         if (stepsToken is not JArray && variablesToken is not JArray)
 
         {
@@ -132,33 +144,110 @@ public static class XActionPatchApplier
 
 
 
-        var stepOps = ParseStepOps(stepsToken as JArray);
-
-        var variableOps = ParseVariableOps(variablesToken as JArray);
-
-
-
-        if (!ApplyStepPhases(steps, stepOps, result))
+        if (stepsToken is JArray stepsPatch)
 
         {
 
-            return result;
+            var stepOps = ParseStepOps(stepsPatch);
+
+            if (!ApplyStepPhases(steps, stepOps, result))
+
+            {
+
+                return result;
+
+            }
 
         }
 
 
 
-        if (!ApplyVariablePhases(variables, variableOps, result))
+        if (variablesToken is JArray variablesPatch)
 
         {
 
-            return result;
+            var variableOps = ParseVariableOps(variablesPatch);
+
+            if (!ApplyVariablePhases(variables, variableOps, result))
+
+            {
+
+                return result;
+
+            }
 
         }
+
+
+
+        XActionCompressor.EnsureEphemeralStepIds(steps);
+
+        XActionCompressor.EnsureEphemeralVariableIds(variables);
 
 
 
         return result;
+
+    }
+
+
+
+    /// <summary>Clear existing program body and set <c>steps</c> / <c>variables</c> from patch (same as <c>action replace</c>).</summary>
+    private static ApplyResult ApplyProgramReplace(JArray steps, JArray variables, JObject patch)
+
+    {
+
+        var result = new ApplyResult { Success = true };
+
+        if (patch["steps"] is not JArray stepsPatch || patch["variables"] is not JArray variablesPatch)
+
+        {
+
+            result.Success = false;
+
+            result.ErrorMessage = "replace patch requires steps and variables JSON arrays (same as action replace).";
+
+            return result;
+
+        }
+
+
+
+        ReplaceProgramArray(steps, stepsPatch);
+
+        ReplaceProgramArray(variables, variablesPatch);
+
+        XActionCompressor.EnsureEphemeralStepIds(steps);
+
+        XActionCompressor.EnsureEphemeralVariableIds(variables);
+
+        return result;
+
+    }
+
+
+
+    public static bool IsProgramReplaceMode(JObject patch)
+
+    {
+
+        if (patch["replace"] is JValue { Type: JTokenType.Boolean } flag)
+
+        {
+
+            return flag.Value<bool>();
+
+        }
+
+
+
+        return string.Equals(
+
+            patch["mode"]?.Value<string>(),
+
+            "replace",
+
+            StringComparison.OrdinalIgnoreCase);
 
     }
 
@@ -188,7 +277,7 @@ public static class XActionPatchApplier
 
             {
 
-                ops.Add(new StepOp { Op = OpUpdate, Entry = new JObject(), Order = i });
+                ops.Add(new StepOp { Op = OpAdd, Entry = new JObject(), Order = i });
 
                 continue;
 
@@ -200,7 +289,7 @@ public static class XActionPatchApplier
 
             {
 
-                Op = NormalizeOp(entry["op"]),
+                Op = NormalizeStepOp(entry["op"]),
 
                 Entry = entry,
 
@@ -254,7 +343,7 @@ public static class XActionPatchApplier
 
             {
 
-                Op = NormalizeOp(entry["op"]),
+                Op = NormalizeVariableOp(entry["op"]),
 
                 Entry = entry,
 
@@ -272,7 +361,45 @@ public static class XActionPatchApplier
 
 
 
-    private static string NormalizeOp(JToken? token)
+    /// <summary>Missing <c>op</c> on a step patch entry defaults to <c>add</c>.</summary>
+    private static string NormalizeStepOp(JToken? token)
+
+    {
+
+        if (token?.Type != JTokenType.String)
+
+        {
+
+            return OpAdd;
+
+        }
+
+
+
+        var raw = token.Value<string>()?.Trim().ToLowerInvariant();
+
+        return raw switch
+
+        {
+
+            OpAdd => OpAdd,
+
+            OpRemove => OpRemove,
+
+            OpMove => OpMove,
+
+            OpUpdate => OpUpdate,
+
+            _ => OpUpdate
+
+        };
+
+    }
+
+
+
+    /// <summary>Missing <c>op</c> on a variable patch entry defaults to <c>update</c>.</summary>
+    private static string NormalizeVariableOp(JToken? token)
 
     {
 
@@ -553,13 +680,9 @@ public static class XActionPatchApplier
 
 
 
-        var stepBody = op.Entry["step"] as JObject ?? op.Entry["stepPatch"] as JObject;
-
-        if (stepBody is null)
+        if (!TryExtractStepBodyFromOpEntry(op.Entry, out var stepBody, out error))
 
         {
-
-            error = "add step requires a 'step' object with stepRunnerKey.";
 
             return false;
 
@@ -1424,6 +1547,92 @@ public static class XActionPatchApplier
 
 
         updatedVariable = targetVariableObj;
+
+        return true;
+
+    }
+
+
+
+    private static void ReplaceProgramArray(JArray target, JArray source)
+
+    {
+
+        target.Clear();
+
+        foreach (var item in source)
+
+        {
+
+            if (item is JObject obj)
+
+            {
+
+                target.Add((JObject)obj.DeepClone());
+
+            }
+
+        }
+
+    }
+
+
+
+    /// <summary>
+    /// Step fields live at the same level as <c>op</c> (stepRunnerKey, inputParams, …).
+    /// Legacy nested <c>step</c> / <c>stepPatch</c> objects are still accepted.
+    /// </summary>
+    private static bool TryExtractStepBodyFromOpEntry(JObject entry, out JObject? stepBody, out string? error)
+
+    {
+
+        stepBody = null;
+
+        error = null;
+
+
+
+        if (entry["step"] is JObject nestedStep)
+
+        {
+
+            stepBody = (JObject)nestedStep.DeepClone();
+
+            return true;
+
+        }
+
+
+
+        if (entry["stepPatch"] is JObject nestedPatch)
+
+        {
+
+            stepBody = (JObject)nestedPatch.DeepClone();
+
+            return true;
+
+        }
+
+
+
+        var flat = (JObject)entry.DeepClone();
+
+        StripStepLocatorFields(flat);
+
+        if (string.IsNullOrEmpty(ReadNonEmptyString(flat["stepRunnerKey"])))
+
+        {
+
+            error = "add step requires stepRunnerKey at the op level (or inside legacy 'step' / 'stepPatch').";
+
+            return false;
+
+        }
+
+
+
+        stepBody = flat;
 
         return true;
 

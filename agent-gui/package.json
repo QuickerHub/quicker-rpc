@@ -1,0 +1,49 @@
+{
+  "name": "quicker-rpc-agent-gui",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node ./start.mjs --dev",
+    "build": "next build",
+    "start": "node ./start.mjs",
+    "lint": "next lint",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:prepare": "node scripts/tauri-prepare.mjs",
+    "tauri:verify-bundle": "node scripts/verify-tauri-bundle.mjs",
+    "proto:dep": "cd .. && pnpm exec --dir agent-gui buf dep update",
+    "proto:gen": "pnpm exec buf generate --template buf.gen.yaml",
+    "docs:gen": "node ../scripts/generate-authoring-docs.mjs",
+    "docs:check": "node ../scripts/generate-authoring-docs.mjs --check",
+    "predev": "pnpm docs:gen",
+    "prebuild": "pnpm docs:gen"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^2.0.0",
+    "@ai-sdk/openai-compatible": "^2.0.48",
+    "@ai-sdk/react": "^3.0.195",
+    "@bufbuild/protobuf": "^2.2.3",
+    "ai": "^6.0.193",
+    "next": "^15.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "zod": "^3.24.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@bufbuild/buf"
+    ]
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.2.0",
+    "@bufbuild/buf": "^1.47.2",
+    "@bufbuild/protoc-gen-es": "^2.2.3",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.8.0"
+  }
+}

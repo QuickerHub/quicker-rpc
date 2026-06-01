@@ -4,7 +4,7 @@ namespace QuickerRpc.Plugin.Services;
 
 internal readonly struct ActionCatalogEntry
 {
-    public ActionCatalogEntry(ActionItem action, ActionProfile profile)
+    public ActionCatalogEntry(ActionItem action, ActionProfile? profile = null)
     {
         Action = action;
         Profile = profile;
@@ -12,5 +12,5 @@ internal readonly struct ActionCatalogEntry
 
     public ActionItem Action { get; }
 
-    public ActionProfile Profile { get; }
+    public ActionProfile? Profile { get; }
 }

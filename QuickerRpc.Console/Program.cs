@@ -28,6 +28,7 @@ internal static partial class Program
 
         var result = Parser.Default.ParseArguments<
             PingOptions,
+            ServeOptions,
             ActionOptions,
             SubProgramOptions,
             StepRunnerOptions,
@@ -36,6 +37,7 @@ internal static partial class Program
         return await result
             .MapResult(
                 (PingOptions o) => RunPingAsync(o),
+                (ServeOptions o) => RunServeAsync(o),
                 (ActionOptions o) => RunActionAsync(o),
                 (SubProgramOptions o) => RunSubProgramAsync(o),
                 (StepRunnerOptions o) => RunStepRunnerAsync(o),
@@ -838,12 +840,30 @@ internal static partial class Program
 
         public IQuickerRpcService Proxy { get; }
 
+        public JsonRpc JsonRpc => _jsonRpc;
+
         public async ValueTask DisposeAsync()
         {
             _jsonRpc.Dispose();
             await _pipe.DisposeAsync().ConfigureAwait(false);
         }
     }
+}
+
+[Verb("serve", HelpText = "Run local HTTP API with a persistent Quicker RPC connection (for agent-gui).")]
+public sealed class ServeOptions
+{
+    [Option("host", Default = "127.0.0.1", HelpText = "Bind address (loopback only).")]
+    public string? Host { get; set; }
+
+    [Option("port", Default = 9477, HelpText = "HTTP port (/health, /v1/invoke).")]
+    public int Port { get; set; }
+
+    [Option("timeout", Default = 120, HelpText = "Default per-request RPC timeout in seconds.")]
+    public int TimeoutSeconds { get; set; }
+
+    [Option("no-bootstrap", HelpText = "Do not auto-start plugin when pipe is unavailable.")]
+    public bool NoBootstrap { get; set; }
 }
 
 [Verb("ping", HelpText = "Check connectivity to the QuickerRpc plugin.")]
@@ -885,6 +905,9 @@ public sealed class ActionOptions
 
     [Option("limit", Default = 20, HelpText = "Max results for action search/list (1-200).")]
     public int Limit { get; set; }
+
+    [Option("sort", HelpText = "action list: relevance | lastEdit (default when no --query) | title.")]
+    public string? Sort { get; set; }
 
     [Option("title", HelpText = "Title for action create.")]
     public string? Title { get; set; }
@@ -1054,8 +1077,14 @@ public sealed class StepRunnerOptions
 [Verb("fa", HelpText = "Font Awesome icon search (names[]; write fa:{name} or fa:{name}:{#color}).")]
 public sealed class FaOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "search")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "search | resolve")]
     public string? Command { get; set; }
+
+    [Option("spec", HelpText = "Single fa: spec for fa resolve (e.g. fa:Light_Flask).")]
+    public string? Spec { get; set; }
+
+    [Option("specs", HelpText = "JSON array of fa: specs for fa resolve (batch).")]
+    public string? Specs { get; set; }
 
     [Option('q', "query", HelpText = "Search keyword (name, label, or fa: spec). Empty lists catalog head.")]
     public string? Query { get; set; }

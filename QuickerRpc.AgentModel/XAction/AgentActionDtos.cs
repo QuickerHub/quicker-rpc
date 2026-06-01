@@ -2,6 +2,8 @@ using System.Collections.Generic;
 
 namespace QuickerRpc.AgentModel.XAction;
 
+// Legacy hand-written DTOs — prefer Protos/agent_api.proto + generated Proto.V1 types for wire JSON.
+
 public sealed class ActionSummary
 {
     public string ActionId { get; set; } = string.Empty;
@@ -13,6 +15,8 @@ public sealed class ActionSummary
     public string Icon { get; set; } = string.Empty;
 
     public string LastEditTimeUtc { get; set; } = string.Empty;
+
+    public string LastEditTimeLocal { get; set; } = string.Empty;
 }
 
 public sealed class SearchActionSummariesResult

@@ -26,14 +26,16 @@ pwsh -NoProfile -File ./build.ps1 -t
 ## 何时跳过
 
 - 用户明确说不要 build / 只讨论 / 只改文档
-- 仅修改 `README.md`、`AGENTS.md`、`.cursor/**` 且未动 C#/构建配置
+- 仅修改 `README.md`、`AGENTS.md`、`.cursor/**` 且未动 C#/构建配置/ **`docs/action-authoring-src`**
 - 用户只要 `dotnet build` 本地编译验证（未要求部署到 Quicker 测试包）
 
 ## 触发 build 的路径（任一）
 
 - `QuickerRpc.Plugin/**`
+- `QuickerRpc.AgentModel/**`
 - `QuickerRpc.Console/**`
 - `QuickerRpc.Contracts/**`
+- `docs/action-authoring-src/**`
 - `build.ps1`、`build.yaml`、`publish/publish-rpc.ps1`
 - `Directory.*.props`、`version.json`（若与构建相关）
 
@@ -45,7 +47,8 @@ pwsh -NoProfile -File ./build.ps1 -t
    - CLI：`%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe`
    - 插件 DLL：`publish/plugin/QuickerRpc.Plugin.*.dll`
 3. `build.ps1` 成功结束时会自动 `Start-Process quicker:runaction:{PluginRunActionId}` 加载/重载插件（与 `QuickerRpcBootstrap` 一致）；若 RPC 仍报方法不存在，确认 Quicker 已启动且动作执行成功
-4. 可选冒烟：`qkrpc ping --json`
+4. 默认会先 **停止** 占用中的 `qkrpc serve`，构建完成后从 `publish/cli` **重启** `qkrpc serve`（`http://127.0.0.1:9477/health`）；跳过：`build.ps1 -t -SkipQkrpcServe`
+5. 可选冒烟：`qkrpc guide get --topic overview --json` 或 `qkrpc action list --limit 1 --json`
 
 ## 构建失败
 

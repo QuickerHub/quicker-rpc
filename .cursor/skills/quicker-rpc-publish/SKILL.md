@@ -17,7 +17,7 @@ metadata:
 2. `git log` 自上一 tag → **撰写 changelog** → 写入 `publish/changelogs/vX.Y.Z.md` 并 **commit**
 3. `pwsh ./publish/Publish-GitHubRelease.ps1` → GitHub Release（自动读 changelog；push tag 后 CI 也用同一文件）
 4. `pwsh ./build.ps1 -p -n` → Quicker 依赖 **quicker.rpc** 上传（版本与 `version.json` 一致，不再 bump）
-5. `qkrpc ping --json` 确认插件在线
+5. `qkrpc action list --limit 1 --json` 确认插件在线（或已 `qkrpc serve` 且 `/health` 为 ok）
 6. `qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog-file publish/changelogs/vX.Y.Z.md --json`
 7. 汇报 Release URL、Quicker 包版本、action update 结果、用户安装命令
 
@@ -60,7 +60,7 @@ metadata:
 
 - .NET 8 SDK、`gh auth login`
 - `qkbuild` 与 build-tools `.env`（`-p -n` 上传）
-- Quicker 运行中 + QuickerRpc 插件已 Register（`qkrpc ping --json`）
+- Quicker 运行中 + QuickerRpc 插件已 Register（`qkrpc action list --limit 1 --json` 成功即可）
 
 ## 禁止
 

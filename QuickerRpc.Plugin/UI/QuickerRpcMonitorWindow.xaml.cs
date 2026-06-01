@@ -220,6 +220,7 @@ public partial class QuickerRpcMonitorWindow : Window
         AppendJsonProperty(builder, "profileName", item.ProfileName);
         AppendJsonProperty(builder, "exeFile", item.ExeFile);
         AppendJsonProperty(builder, "lastEditTimeUtc", item.LastEditTimeUtc);
+        AppendJsonProperty(builder, "lastEditTimeLocal", item.LastEditTimeLocal);
         builder.Append('}');
         return builder.ToString();
     }

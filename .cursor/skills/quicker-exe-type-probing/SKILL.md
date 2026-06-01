@@ -30,7 +30,7 @@ Read this section **before** guessing type names or adding reflection.
 | RPC surface | `QuickerRpc.Plugin/Rpc/QuickerRpcService.cs` | Maps CLI/RPC to services |
 | Contracts | `QuickerRpc.Contracts/Rpc/IQuickerRpcService.cs` | Public RPC API |
 | XAction compress/patch (no Quicker.exe) | `QuickerRpc.AgentModel/` | Agent models; **not** runtime reflection |
-| Action authoring docs for agents | `QuickerRpc.AgentModel/Docs/ActionAuthoring/` | CLI workflow, step modules, expressions |
+| Action authoring docs for agents | `docs/action-authoring-src/` + `ops.json` | Generate → `cli/` (qkrpc) / `agent/` (agent-ui) |
 | Offline exe scans | `QuickerRpc.Plugin.Test/` | Debug/Release `Quicker.exe` signature probes |
 | Quicker DLL references | `qkref.props` | Default Release: `C:/Program Files/Quicker` |
 
@@ -57,7 +57,7 @@ rg "SaveEditingAction" .ref/Quicker
 rg "IStepRunnerService" .ref/Quicker
 ```
 
-Source is **reference only** — do not ship Quicker internal types into user actions unless exposed via `qkrpc step-runner get` (see `QuickerRpc.AgentModel/Docs/ActionAuthoring/implementation-fallback.md`).
+Source is **reference only** — do not ship Quicker internal types into user actions unless exposed via `qkrpc step-runner get` (see `docs/action-authoring/implementation-fallback.md`).
 
 ### C. Runtime binaries — confirm signatures
 
@@ -146,4 +146,4 @@ Prefer a focused helper on the service that needs it; share only when several se
 
 - Repo overview + CLI: `AGENTS.md`
 - Build after edits: `.cursor/skills/quicker-rpc-build-test/SKILL.md`
-- Agent XAction editing (no reflection): `QuickerRpc.AgentModel/Docs/ActionAuthoring/overview.md`
+- Agent XAction editing (no reflection): `docs/action-authoring/overview.md`

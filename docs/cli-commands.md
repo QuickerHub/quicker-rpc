@@ -14,20 +14,12 @@
 | `--no-bootstrap` | 跳过 `quicker:runaction` 自动拉起插件 |
 | stdin | 大 JSON 可用 `--patch-file -` / `--xaction-file -` |
 
-Agent 写动作流程：`guide get --topic authoring-workflow --json`  
+Agent 写动作流程：`guide get --topic authoring-workflow --json`（**勿**先 `ping`）  
 公共子程序：`guide get --topic subprogram-workflow --json`
 
 ---
 
 ## 连接与指南
-
-### `qkrpc ping`
-
-检测 QuickerRpc 插件是否在线。
-
-```powershell
-qkrpc ping [--json] [--timeout 10] [--no-bootstrap]
-```
 
 ### `qkrpc help`
 
@@ -135,13 +127,30 @@ qkrpc action replace --id <guid> --xaction-file <path|-> [--expected-edit-versio
 
 ## 动作：搜索与列表
 
+### `qkrpc serve`
+
+本机桥接服务，**维持一条到 Quicker 命名管道的连接**，供 agent-gui 调用（避免每次 `spawn qkrpc`）。
+
+```powershell
+qkrpc serve [--host 127.0.0.1] [--port 9477] [--timeout 120] [--no-bootstrap]
+```
+
+| 端点 | 说明 |
+|------|------|
+| `GET http://127.0.0.1:9477/health` | 管道连通性（`Ping` + 协议版本） |
+| `POST http://127.0.0.1:9477/v1/invoke` | JSON 体 `{ "op": "...", "args": { ... } }`（**agent-gui 默认**） |
+
+`op` 与 agent-gui 工具一致：`guide.get`、`action.list`、`action.patch`、`fa.search` 等。消息体契约见 `QuickerRpc.AgentModel/Protos/agent_api.proto`（仅生成 model，线上为 camelCase JSON）。
+
 ### `qkrpc action list`
 
 列出/筛选本地 XAction（Agent 摘要）。
 
 ```powershell
-qkrpc action list [--query <keyword>] [--scope <scope>] [--limit 30] [--json]
+qkrpc action list [--query <keyword>] [--scope <scope>] [--limit 30] [--sort relevance|lastEdit|title] [--json]
 ```
+
+无 `--query` 时默认 `--sort lastEdit`（全库按最后编辑时间取前 N 条）。有 `--query` 时默认按相关度排序。
 
 ### `qkrpc action search`
 
@@ -289,15 +298,28 @@ qkrpc subprogram edit-var --id <idOrName> --var <key> --value <val> [--json]
 qkrpc subprogram delete --id <idOrName> --yes [--json]
 ```
 
-在动作中调用公共子程序：见 [subprogram-workflow](../QuickerRpc.AgentModel/Docs/ActionAuthoring/subprogram-workflow.md) 或 `guide get --topic subprogram-workflow --json`。
+在动作中调用公共子程序：见 [subprogram-workflow](action-authoring/subprogram-workflow.md) 或 `guide get --topic subprogram-workflow --json`。
+
+---
+
+## 诊断（可选）
+
+### `qkrpc ping`
+
+手动检测插件是否在线（**非** Agent 编辑链路步骤；agent-gui 用 `serve` + `/health` 或页头状态）。
+
+```powershell
+qkrpc ping [--json] [--timeout 10] [--no-bootstrap]
+```
 
 ---
 
 ## 常用示例
 
 ```powershell
-# 连通性
-qkrpc ping --json
+# 环境（推荐）
+qkrpc help --json
+qkrpc serve   # 另开终端；GET http://127.0.0.1:9477/health
 
 # 新建动作（Agent）
 qkrpc action create --title "我的动作" --json

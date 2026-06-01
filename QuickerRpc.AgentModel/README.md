@@ -11,8 +11,7 @@ Agent-facing Quicker models and XAction program logic (compression, patch, StepR
 |------|------|
 | `Catalog/` | Neutral `StepRunnerCatalog` + agent schema/search DTOs |
 | `Core/` | `AgentJson` (JsonElement ↔ JObject) |
-    | `Docs/ActionAuthoring/` | Embedded Markdown guides for CLI agents (`qkrpc guide get/search`) |
-| `Guides/` | `ActionAuthoringGuideService` (loads embedded topics) |
+| `Guides/` | `ActionAuthoringGuideService` — embeds generated `docs/action-authoring/cli/` |
 | `XAction/Compression/` | `XActionCompressor` |
 | `XAction/Patch/` | `XActionPatchApplier`, step/variable resolvers |
 | `XAction/XActionProgramService.cs` | Facade entry points |

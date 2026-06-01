@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Newtonsoft.Json.Linq;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Console;
@@ -11,13 +12,14 @@ internal static partial class Program
         return verb switch
         {
             "search" => await RunFaSearchAsync(options).ConfigureAwait(false),
+            "resolve" => await RunFaResolveAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownFaVerbAsync(options).ConfigureAwait(false),
         };
     }
 
     private static Task<int> ReportUnknownFaVerbAsync(FaOptions options) =>
         EmitErrorAndFailAsync(options.Json, "UNKNOWN_FA_VERB",
-            "Use: fa search [--query <keyword>] [--limit 40] [--expand] [--json] (see qkrpc help --json)");
+            "Use: fa search | fa resolve (see qkrpc help --json)");
 
     private static async Task<int> RunFaSearchAsync(FaOptions options)
     {
@@ -82,5 +84,112 @@ internal static partial class Program
             return await EmitErrorAndFailAsync(options.Json, "FA_SEARCH_FAILED", ex.Message)
                 .ConfigureAwait(false);
         }
+    }
+
+    private static async Task<int> RunFaResolveAsync(FaOptions options)
+    {
+        var specs = CollectFaResolveSpecs(options);
+        if (specs.Count == 0)
+        {
+            return await EmitErrorAndFailAsync(
+                options.Json,
+                "MISSING_SPEC",
+                "Provide --spec fa:Light_Name or --specs '[\"fa:...\"]' (JSON array).")
+                .ConfigureAwait(false);
+        }
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap)
+                .ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var response = await session.Proxy
+                .ResolveFontAwesomeIconsAsync(specs, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = response.Success,
+                        action = "fa-resolve",
+                        count = response.Items.Count,
+                        items = response.Items,
+                        errors = response.Errors.Count > 0 ? response.Errors : null,
+                        errorMessage = string.IsNullOrWhiteSpace(response.ErrorMessage)
+                            ? null
+                            : response.ErrorMessage,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else if (response.Success)
+            {
+                foreach (var item in response.Items)
+                {
+                    global::System.Console.WriteLine($"{item.Spec}\t{item.Width}x{item.Height}\t{item.Path.Length} chars");
+                }
+
+                foreach (var err in response.Errors)
+                {
+                    global::System.Console.Error.WriteLine(err);
+                }
+            }
+            else
+            {
+                global::System.Console.Error.WriteLine(response.ErrorMessage ?? "fa resolve failed");
+            }
+
+            return response.Success ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "FA_RESOLVE_FAILED", ex.Message)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static List<string> CollectFaResolveSpecs(FaOptions options)
+    {
+        var list = new List<string>();
+        if (!string.IsNullOrWhiteSpace(options.Spec))
+        {
+            list.Add(options.Spec.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.Specs))
+        {
+            try
+            {
+                var arr = JArray.Parse(options.Specs);
+                foreach (var token in arr)
+                {
+                    if (token.Type == JTokenType.String)
+                    {
+                        var s = token.Value<string>()?.Trim();
+                        if (!string.IsNullOrEmpty(s))
+                        {
+                            list.Add(s);
+                        }
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidOperationException($"Invalid --specs JSON array: {ex.Message}", ex);
+            }
+        }
+
+        return list;
     }
 }

@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Quicker.Common;
 using QuickerRpc.AgentModel.Catalog;
+using QuickerRpc.AgentModel.LocalTime;
 using QuickerRpc.AgentModel.XAction;
 using QuickerRpc.AgentModel.XAction.Compression;
 using QuickerRpc.AgentModel.XAction.Patch;
@@ -299,6 +301,13 @@ public sealed class HeadlessActionProgramService
         programPatch.Remove("description");
         programPatch.Remove("icon");
 
+        var isProgramReplace = XActionPatchApplier.IsProgramReplaceMode(patch);
+        if (isProgramReplace
+            && (programPatch["steps"] is not JArray || programPatch["variables"] is not JArray))
+        {
+            return FailPatch("replace patch requires steps and variables JSON arrays (same as action replace).");
+        }
+
         var hasMeta = metaTitle is not null || metaDescription is not null || metaIcon is not null;
         var hasProgramPatch = programPatch["steps"] is JArray || programPatch["variables"] is JArray;
         if (!hasMeta && !hasProgramPatch)
@@ -361,7 +370,7 @@ public sealed class HeadlessActionProgramService
             XActionProgramService.NormalizeStepsInputParamKeys(stepsClone, catalog);
             inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(stepsClone, catalog);
 
-            var subProgramsJson = SerializeSubProgramsJson(payloadJson, subProgramsOverride: null);
+            var subProgramsJson = SerializeSubProgramsJson(payloadJson, programPatch["subPrograms"]);
 
             if (!_actions.TryApplyPayloadAndSave(
                     action!,
@@ -411,7 +420,11 @@ public sealed class HeadlessActionProgramService
         };
     }
 
-    public QuickerRpcSearchActionSummariesResult SearchActionSummaries(string? query, int maxResults, string? scope)
+    public QuickerRpcSearchActionSummariesResult SearchActionSummaries(
+        string? query,
+        int maxResults,
+        string? scope,
+        string? sort = null)
     {
         if (_actions is null || !_actions.IsAvailable)
         {
@@ -431,37 +444,72 @@ public sealed class HeadlessActionProgramService
             };
         }
 
+        var queryValue = (query ?? string.Empty).Trim();
         var scopeValue = string.IsNullOrWhiteSpace(scope) ? null : scope.Trim();
-        var matches = ActionCatalogSearch.Match(
-            query,
-            scopeValue,
-            maxResults,
-            action => _actions!.IsXAction(action));
+        var limit = ActionSummarySort.ClampLimit(maxResults);
+        var sortMode = ActionSummarySort.Resolve(sort, queryValue.Length == 0);
+        var queryIsEmpty = queryValue.Length == 0;
+        var limitInMatch = !queryIsEmpty && sortMode == ActionSummarySortMode.Relevance;
+        // Empty query: library-wide recent edits (composer @-mention, monitor). With query: XAction summaries for agent list/search.
+        Func<ActionItem, bool>? actionFilter = queryIsEmpty
+            ? null
+            : action => _actions!.IsXAction(action);
 
-        var items = matches.Select(x => new QuickerRpcActionSummaryItem
+        var matches = queryIsEmpty
+            ? ActionCatalogSearch.ListRecentByLastEdit(
+                scopeValue,
+                limit,
+                actionFilter,
+                action => _actions.GetEditVersion(action))
+            : ActionCatalogSearch.Match(
+                queryValue,
+                scopeValue,
+                limit,
+                actionFilter,
+                limitResults: limitInMatch);
+
+        var rows = matches
+            .Select(x => (Match: x, EditMs: _actions.GetEditVersion(x.Entry.Action)))
+            .Where(x => _actions.GetActionId(x.Match.Entry.Action).Length > 0)
+            .ToList();
+
+        var ordered = sortMode switch
         {
-            ActionId = _actions!.GetActionId(x.Entry.Action),
-            Title = x.Entry.Action.Title ?? string.Empty,
-            Description = x.Entry.Action.Description ?? string.Empty,
-            Icon = x.Entry.Action.Icon ?? string.Empty,
-            LastEditTimeUtc = FormatUtcFromVersion(_actions.GetEditVersion(x.Entry.Action)),
-            ProfileId = x.Entry.Profile.Id,
-            ProfileName = x.Entry.Profile.Name,
-            ExeFile = x.Entry.Profile.ExeFile,
+            ActionSummarySortMode.LastEditDesc => queryIsEmpty
+                ? rows
+                : rows
+                    .OrderByDescending(x => x.EditMs)
+                    .Take(limit),
+            ActionSummarySortMode.TitleAsc => rows
+                .OrderBy(x => x.Match.Entry.Action.Title, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => _actions.GetActionId(x.Match.Entry.Action), StringComparer.Ordinal)
+                .Take(limit),
+            _ => rows.AsEnumerable(),
+        };
+
+        var items = ordered.Select(x =>
+        {
+            var lastEditUtc = FormatUtcFromVersion(x.EditMs);
+            return new QuickerRpcActionSummaryItem
+            {
+                ActionId = _actions!.GetActionId(x.Match.Entry.Action),
+                Title = x.Match.Entry.Action.Title ?? string.Empty,
+                Description = x.Match.Entry.Action.Description ?? string.Empty,
+                Icon = x.Match.Entry.Action.Icon ?? string.Empty,
+                LastEditTimeUtc = lastEditUtc,
+                LastEditTimeLocal = LocalTimeDisplay.FormatUtcIso(lastEditUtc),
+                ProfileId = x.Match.Entry.Profile?.Id,
+                ProfileName = x.Match.Entry.Profile?.Name ?? string.Empty,
+                ExeFile = x.Match.Entry.Profile?.ExeFile,
+            };
         }).ToList();
-
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            items = items
-                .OrderByDescending(x => x.LastEditTimeUtc, StringComparer.Ordinal)
-                .ToList();
-        }
 
         return new QuickerRpcSearchActionSummariesResult
         {
             Success = true,
-            Query = (query ?? string.Empty).Trim(),
+            Query = queryValue,
             Scope = scopeValue,
+            Sort = ActionSummarySort.ToApiValue(sortMode),
             MatchCount = items.Count,
             Items = items,
         };
@@ -571,7 +619,7 @@ public sealed class HeadlessActionProgramService
 
     private static string FormatUtcFromVersion(long editVersionMs) =>
         editVersionMs > 0
-            ? DateTimeOffset.FromUnixTimeMilliseconds(editVersionMs).UtcDateTime.ToString("o")
+            ? DateTimeOffset.FromUnixTimeMilliseconds(editVersionMs).ToUniversalTime().ToString("o")
             : string.Empty;
 
     private static QuickerRpcGetCompressedActionResult FailGet(string message) =>

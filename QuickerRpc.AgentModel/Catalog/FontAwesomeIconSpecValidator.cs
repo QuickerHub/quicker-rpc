@@ -15,16 +15,16 @@ public static class FontAwesomeIconSpecValidator
         @"^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
-    /// <summary>
-    /// Validates format. <paramref name="allowEmpty"/> permits whitespace-only / empty (clear icon).
-    /// When <paramref name="knownEnumNames"/> is set, the enum segment must be a catalog member.
-    /// </summary>
-    public static bool TryValidate(
+    /// <summary>Parse <c>fa:{enumName}</c>[:{#color}] without catalog membership check.</summary>
+    public static bool TryParse(
         string? spec,
         bool allowEmpty,
-        ICollection<string>? knownEnumNames,
+        out string enumName,
+        out string? color,
         out string? error)
     {
+        enumName = string.Empty;
+        color = null;
         error = null;
         if (spec is null)
         {
@@ -49,9 +49,39 @@ public static class FontAwesomeIconSpecValidator
             return false;
         }
 
-        if (!TryParseParts(trimmed, out var enumName, out var color, out error))
+        return TryParseParts(trimmed, out enumName, out color, out error);
+    }
+
+    /// <summary>
+    /// Validates format. <paramref name="allowEmpty"/> permits whitespace-only / empty (clear icon).
+    /// When <paramref name="knownEnumNames"/> is set, the enum segment must be a catalog member.
+    /// </summary>
+    public static bool TryValidate(
+        string? spec,
+        bool allowEmpty,
+        ICollection<string>? knownEnumNames,
+        out string? error)
+    {
+        error = null;
+        if (spec is null)
+        {
+            if (allowEmpty)
+            {
+                return true;
+            }
+
+            error = "icon is required.";
+            return false;
+        }
+
+        if (!TryParse(spec, allowEmpty, out var enumName, out var color, out error))
         {
             return false;
+        }
+
+        if (allowEmpty && enumName.Length == 0)
+        {
+            return true;
         }
 
         if (knownEnumNames is not null && !knownEnumNames.Contains(enumName))

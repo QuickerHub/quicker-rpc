@@ -89,12 +89,24 @@ public static class StepContainerResolver
 
         if (explicitContainer is not null)
         {
-            error = "containerPath requires index for insert position.";
-            return false;
+            var resolved = ResolveContainer(rootSteps, explicitContainer);
+            if (!resolved.Success)
+            {
+                error = resolved.ErrorMessage;
+                return false;
+            }
+
+            container = resolved.Container;
+            index = resolved.Container!.Count;
+            containerPath = resolved.ContainerPath;
+            return true;
         }
 
-        error = "add/move step requires containerPath+index, or after/before anchor.";
-        return false;
+        // No index / after / before / containerPath → append to root steps
+        container = rootSteps;
+        index = rootSteps.Count;
+        containerPath = "";
+        return true;
     }
 
     private static bool TryResolveAnchorInsertIndex(

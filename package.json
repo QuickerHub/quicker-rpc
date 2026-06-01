@@ -1,0 +1,13 @@
+{
+  "name": "quicker-rpc-repo",
+  "private": true,
+  "description": "Root scripts for quicker-rpc (action-authoring doc generation)",
+  "scripts": {
+    "docs:gen": "node scripts/generate-authoring-docs.mjs",
+    "docs:check": "node scripts/generate-authoring-docs.mjs --check",
+    "docs:gen:force": "node scripts/generate-authoring-docs.mjs --force",
+    "quicker-agent:build": "pnpm --dir agent-gui tauri build",
+    "quicker-agent:dev": "pnpm --dir agent-gui tauri dev",
+    "quicker-agent:publish": "pwsh ./publish/Publish-QuickerAgent.ps1"
+  }
+}

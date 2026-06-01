@@ -25,9 +25,14 @@
   <ItemGroup>
     <Protobuf Include="Protos\x_action_program.proto" GrpcServices="None" ProtoRoot="Protos" />
     <Protobuf Include="Protos\agent_compressed_program.proto" GrpcServices="None" ProtoRoot="Protos" />
+    <Protobuf Include="Protos\agent_api.proto" GrpcServices="None" ProtoRoot="Protos" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Docs\ActionAuthoring\*.md" />
+    <EmbeddedResource Include="$(RepoRoot)docs\action-authoring\cli\*.md">
+      <Link>Docs\ActionAuthoring\%(Filename)%(Extension)</Link>
+      <LogicalName>QuickerRpc.AgentModel.Docs.ActionAuthoring.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
+  <Import Project="$(MSBuildThisFileDirectory)..\build\GenerateActionAuthoringDocs.targets" />
   <Import Project="$(MSBuildThisFileDirectory)..\build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
 </Project>

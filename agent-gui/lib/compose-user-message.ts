@@ -1,0 +1,213 @@
+import type { PinnedAction } from "@/lib/action-context";
+
+/** Stored in chat history; expanded to {@link formatActionTagLine} before the model. */
+const ACTION_TAG_RE = new RegExp(
+  "<qkrpc-action-tag\\s+([^>]*?)\\s*(?:/>|></qkrpc-action-tag>)",
+  "gi",
+);
+
+const LEGACY_ACTION_LINE_RE =
+  /^\[动作:\s*([^\]]+)\]\s*actionId=([^\s,]+)(?:,\s*lastEdit=([^\n,]+))?/;
+
+function escapeAttrValue(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
+}
+
+function decodeAttrValue(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&");
+}
+
+function parseHtmlAttrs(attrStr: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  const attrRe = /([\w-]+)="([^"]*)"/g;
+  let match: RegExpExecArray | null;
+  while ((match = attrRe.exec(attrStr)) !== null) {
+    attrs[match[1]] = decodeAttrValue(match[2]);
+  }
+  return attrs;
+}
+
+function pinnedActionFromTagAttrs(attrs: Record<string, string>): PinnedAction | null {
+  const id = attrs["data-id"]?.trim();
+  const title = attrs["data-title"]?.trim();
+  if (!id || !title) return null;
+  return {
+    id,
+    title,
+    lastEditTimeLocal: attrs["data-last-edit"]?.trim() || undefined,
+    description: attrs["data-desc"]?.trim() || undefined,
+  };
+}
+
+/** HTML marker kept in UI message text; renders as a chip in the chat bubble. */
+export function formatActionTagMarkup(action: PinnedAction): string {
+  return `<qkrpc-action-tag data-id="${escapeAttrValue(action.id)}" data-title="${escapeAttrValue(action.title)}"></qkrpc-action-tag>`;
+}
+
+/** One action tag line merged into the outgoing user message. */
+export function formatActionTagLine(action: PinnedAction): string {
+  const meta: string[] = [`actionId=${action.id}`];
+  if (action.lastEditTimeLocal) {
+    meta.push(`lastEdit=${action.lastEditTimeLocal}`);
+  }
+  if (action.description?.trim()) {
+    meta.push(`desc=${action.description.trim().slice(0, 120)}`);
+  }
+  return `[动作: ${action.title}] ${meta.join(", ")}`;
+}
+
+/** Compose the user message sent to the model from draft tags + textarea. */
+export function composeUserMessage(
+  tags: PinnedAction[],
+  userText: string,
+): string {
+  const body = userText.trim();
+  if (tags.length === 0) {
+    return body;
+  }
+  const header = tags.map(formatActionTagLine).join("\n");
+  return body ? `${header}\n\n${body}` : header;
+}
+
+/** Compose text stored in chat history (tag markup + user body). */
+export function composeUserMessageDisplay(
+  tags: PinnedAction[],
+  userText: string,
+): string {
+  const body = userText.trim();
+  if (tags.length === 0) {
+    return body;
+  }
+  const header = tags.map(formatActionTagMarkup).join("\n");
+  return body ? `${header}\n\n${body}` : header;
+}
+
+/** Expand stored markup to model-facing lines before convertToModelMessages. */
+export function expandUserMessageForModel(text: string): string {
+  if (!text.includes("<qkrpc-action-tag")) {
+    return text;
+  }
+
+  const tagLines: string[] = [];
+  let body = text.replace(ACTION_TAG_RE, (_full, attrStr: string) => {
+    const action = pinnedActionFromTagAttrs(parseHtmlAttrs(attrStr));
+    if (action) tagLines.push(formatActionTagLine(action));
+    return "";
+  });
+  body = body.replace(/^\s*\n+/, "").trim();
+
+  if (tagLines.length === 0) {
+    return text.trim();
+  }
+  return body ? `${tagLines.join("\n")}\n\n${body}` : tagLines.join("\n");
+}
+
+export type UserMessageSegment =
+  | { type: "tag"; action: PinnedAction }
+  | { type: "text"; text: string };
+
+function parseInlineTagSegments(text: string): UserMessageSegment[] {
+  const segments: UserMessageSegment[] = [];
+  const re = new RegExp(ACTION_TAG_RE.source, "gi");
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > last) {
+      segments.push({ type: "text", text: text.slice(last, match.index) });
+    }
+    const action = pinnedActionFromTagAttrs(parseHtmlAttrs(match[1]));
+    if (action) segments.push({ type: "tag", action });
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) {
+    segments.push({ type: "text", text: text.slice(last) });
+  }
+  return segments;
+}
+
+/** Ordered inline segments (tags may appear anywhere in the text). */
+export function parseUserMessageSegments(text: string): UserMessageSegment[] {
+  if (!text) return [];
+
+  if (text.includes("<qkrpc-action-tag")) {
+    return parseInlineTagSegments(text);
+  }
+
+  const lines = text.split("\n");
+  const segments: UserMessageSegment[] = [];
+  let index = 0;
+  while (index < lines.length) {
+    const legacy = lines[index].match(LEGACY_ACTION_LINE_RE);
+    if (!legacy) break;
+    segments.push({
+      type: "tag",
+      action: {
+        title: legacy[1].trim(),
+        id: legacy[2].trim(),
+        lastEditTimeLocal: legacy[3]?.trim(),
+      },
+    });
+    index += 1;
+  }
+
+  const rest = lines.slice(index).join("\n").replace(/^\n+/, "");
+  if (rest) {
+    segments.push({ type: "text", text: rest });
+  } else if (segments.length === 0) {
+    segments.push({ type: "text", text });
+  }
+  return segments;
+}
+
+export type ParsedUserMessage = {
+  tags: PinnedAction[];
+  body: string;
+};
+
+/** Parse stored user message (tags + concatenated plain text). */
+export function parseUserMessageContent(text: string): ParsedUserMessage {
+  const segments = parseUserMessageSegments(text);
+  const tags = segments
+    .filter((s): s is { type: "tag"; action: PinnedAction } => s.type === "tag")
+    .map((s) => s.action);
+  const body = segments
+    .filter((s): s is { type: "text"; text: string } => s.type === "text")
+    .map((s) => s.text)
+    .join("");
+  return { tags, body: body.trim() };
+}
+
+export function canSendComposedMessage(draft: string): boolean {
+  const segments = parseUserMessageSegments(draft);
+  return segments.some(
+    (s) =>
+      s.type === "tag"
+      || (s.type === "text" && s.text.trim().length > 0),
+  );
+}
+
+/** Clipboard / paste round-trip uses stored markup or legacy action lines. */
+export function hasPasteableUserMessageFormat(text: string): boolean {
+  if (text.includes("<qkrpc-action-tag")) return true;
+  return /^\[动作:\s*[^\]]+\]\s*actionId=/m.test(text);
+}
+
+export function mergePinnedActionTags(
+  existing: PinnedAction[],
+  incoming: PinnedAction[],
+): PinnedAction[] {
+  const seen = new Set(existing.map((t) => t.id));
+  const merged = [...existing];
+  for (const tag of incoming) {
+    if (seen.has(tag.id)) continue;
+    seen.add(tag.id);
+    merged.push(tag);
+  }
+  return merged;
+}

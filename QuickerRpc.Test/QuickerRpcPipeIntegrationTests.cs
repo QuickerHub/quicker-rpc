@@ -69,6 +69,66 @@ public sealed class QuickerRpcPipeIntegrationTests
     }
 
     [TestMethod]
+    public async Task Rpc_SearchActionSummaries_empty_query_defaults_to_recent_actions()
+    {
+        await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);
+        var ct = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
+
+        var result = await session.Rpc
+            .SearchActionSummariesAsync(query: string.Empty, maxResults: 5, scope: null, cancellationToken: ct)
+            .ConfigureAwait(false);
+
+        TestContext.WriteLine("Query: empty, Sort: " + result.Sort + ", MatchCount: " + result.MatchCount);
+        Assert.IsTrue(result.Success, result.ErrorMessage ?? "SearchActionSummaries failed.");
+        Assert.AreEqual("lastEdit", result.Sort);
+        Assert.AreEqual(string.Empty, result.Query);
+        Assert.IsTrue(result.MatchCount > 0, "expected at least one recent action in catalog.");
+        Assert.IsTrue(
+            result.Items.All(i => !string.IsNullOrWhiteSpace(i.ActionId)),
+            "recent action summaries should include action ids.");
+    }
+
+    [TestMethod]
+    public async Task Rpc_SearchActionSummaries_sort_lastEdit_returns_recent_first()
+    {
+        await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);
+        var ct = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
+
+        var result = await session.Rpc
+            .SearchActionSummariesAsync(
+                query: null,
+                maxResults: 5,
+                scope: null,
+                sort: "lastEdit",
+                cancellationToken: ct)
+            .ConfigureAwait(false);
+
+        TestContext.WriteLine("Sort: " + result.Sort + ", MatchCount: " + result.MatchCount);
+        Assert.IsTrue(result.Success, result.ErrorMessage ?? "SearchActionSummaries failed.");
+        Assert.AreEqual("lastEdit", result.Sort);
+        Assert.IsTrue(result.MatchCount > 0, "expected at least one XAction in catalog.");
+
+        string? previousUtc = null;
+        foreach (var item in result.Items ?? Array.Empty<QuickerRpcActionSummaryItem>())
+        {
+            TestContext.WriteLine("  - " + item.LastEditTimeUtc + " | " + item.Title);
+            if (string.IsNullOrEmpty(item.LastEditTimeUtc))
+            {
+                continue;
+            }
+
+            if (previousUtc is not null)
+            {
+                Assert.IsTrue(
+                    string.CompareOrdinal(previousUtc, item.LastEditTimeUtc) >= 0,
+                    "items should be ordered by LastEditTimeUtc descending.");
+            }
+
+            previousUtc = item.LastEditTimeUtc;
+        }
+    }
+
+    [TestMethod]
     public async Task Rpc_SearchStepRunners_returns_catalog_entries()
     {
         await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);

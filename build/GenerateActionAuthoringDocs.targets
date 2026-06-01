@@ -1,0 +1,31 @@
+<Project>
+  <!--
+    Regenerate docs/action-authoring/cli|agent when action-authoring-src changes.
+    MSBuild skips this target when .generated.stamp is newer than sources.
+    The node script also skips when outputs are already up to date.
+    Disable: dotnet build -p:GenerateActionAuthoringDocs=false
+  -->
+  <PropertyGroup>
+    <GenerateActionAuthoringDocs Condition="'$(GenerateActionAuthoringDocs)' == ''">true</GenerateActionAuthoringDocs>
+    <ActionAuthoringDocsStamp>$([System.IO.Path]::Combine('$(RepoRoot)', 'docs', 'action-authoring', '.generated.stamp'))</ActionAuthoringDocsStamp>
+    <ActionAuthoringDocsScript>$([System.IO.Path]::Combine('$(RepoRoot)', 'scripts', 'Generate-ActionAuthoringDocs.ps1'))</ActionAuthoringDocsScript>
+    <ActionAuthoringDocsGenerator>$([System.IO.Path]::Combine('$(RepoRoot)', 'scripts', 'generate-authoring-docs.mjs'))</ActionAuthoringDocsGenerator>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(GenerateActionAuthoringDocs)' == 'true'">
+    <ActionAuthoringDocSrc Include="$(RepoRoot)docs\action-authoring-src\**\*" />
+    <ActionAuthoringDocSrc Include="$(ActionAuthoringDocsGenerator)" />
+  </ItemGroup>
+
+  <Target
+    Name="GenerateActionAuthoringDocs"
+    BeforeTargets="BeforeBuild"
+    Condition="'$(GenerateActionAuthoringDocs)' == 'true'"
+    Inputs="@(ActionAuthoringDocSrc)"
+    Outputs="$(ActionAuthoringDocsStamp)">
+    <Message Importance="high" Text="Action authoring docs: checking for changes..." />
+    <Exec
+      Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(ActionAuthoringDocsScript)&quot; -StampPath &quot;$(ActionAuthoringDocsStamp)&quot;"
+      WorkingDirectory="$(RepoRoot)" />
+  </Target>
+</Project>

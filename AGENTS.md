@@ -1,11 +1,13 @@
 # quicker-rpc — 给 AI Agent 的快速说明
 
 > **系统提示（可复制到规则）**  
-> `qkrpc` 是本机已安装的 **CLI 可执行命令**（Windows：`qkrpc` / `%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe`）。在终端 **直接调用** `qkrpc <子命令>`，不要把它当成只能由用户手动的说明文档。前置：`qkrpc ping --json` 成功（Quicker 已运行且已加载 QuickerRpc 插件）。探命令：`qkrpc help --json`；写动作：`qkrpc guide get --topic authoring-workflow --json`。机器可读输出加 `--json`；退出码 0=成功、1=失败。
+> `qkrpc` 是本机已安装的 **CLI 可执行命令**（Windows：`qkrpc` / `%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe`）。在终端 **直接调用** `qkrpc <子命令>`，不要把它当成只能由用户手动的说明文档。前置：Quicker 已运行且已加载 QuickerRpc 插件；**勿**先 `ping` 探活。探命令：`qkrpc help --json`；写动作：`qkrpc guide get --topic authoring-workflow --json`。高频/agent-gui：`qkrpc serve`（`GET /health`）。机器可读输出加 `--json`；退出码 0=成功、1=失败。
 
 Quicker 插件 + `qkrpc.exe` CLI，通过 **命名管道 + StreamJsonRpc** 让外部命令行调用 Quicker 内能力。
 
 **CLI 自描述（优先）**：`qkrpc help --json` — 命令、参数、无头编辑工作流。人类可读：[docs/cli-commands.md](docs/cli-commands.md)。
+
+**agent-gui / 高频调用**：优先 `qkrpc serve`（`http://127.0.0.1:9477`，持久管道）；未启动 serve 时 agent-gui 自动回退为 CLI 子进程。
 
 详细用法见 [README.md](README.md)。
 
@@ -117,7 +119,8 @@ $env:QUICKER_RPC_TEST_SUBPROGRAM = "某子程序名"
 
 | 项目 | 职责 |
 |------|------|
-| `QuickerRpc.AgentModel` | XAction 压缩/patch、StepRunner 模型、嵌入式 ActionAuthoring 文档 |
+| `QuickerRpc.AgentModel` | XAction 压缩/patch、StepRunner 模型；文档源 `docs/action-authoring-src/` → 生成 `cli/` 嵌入 |
 | `QuickerRpc.Contracts` | `IQuickerRpcService`、管道名、`QuickerRpcClient` |
 | `QuickerRpc.Plugin` | RPC 服务端 + `HeadlessActionProgramService` |
 | `QuickerRpc.Console` | `qkrpc.exe` |
+| `agent-gui/` | Next.js + AI SDK 聊天 Agent（子进程调用 `qkrpc`）；见 `agent-gui/README.md` |

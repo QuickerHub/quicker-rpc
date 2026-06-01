@@ -30,6 +30,93 @@ public sealed class FontAwesomeIconSearchService
     public bool TryValidateIconSpec(string? spec, bool allowEmpty, out string? errorMessage) =>
         FontAwesomeIconSpecValidator.TryValidate(spec, allowEmpty, KnownEnumNames, out errorMessage);
 
+    public QuickerRpcResolveFontAwesomeIconsResult ResolveMany(IList<string>? specs)
+    {
+        var result = new QuickerRpcResolveFontAwesomeIconsResult { Success = true };
+        if (specs is null || specs.Count == 0)
+        {
+            return result;
+        }
+
+        const int max = 80;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in specs)
+        {
+            if (result.Items.Count >= max)
+            {
+                result.Errors.Add($"Only first {max} unique specs are resolved per call.");
+                break;
+            }
+
+            var spec = (raw ?? string.Empty).Trim();
+            if (spec.Length == 0 || !seen.Add(spec))
+            {
+                continue;
+            }
+
+            if (TryResolveGeometry(spec, out var geometry, out var error))
+            {
+                result.Items.Add(geometry!);
+            }
+            else
+            {
+                result.Errors.Add($"{spec}: {error}");
+            }
+        }
+
+        return result;
+    }
+
+    public bool TryResolveGeometry(
+        string? spec,
+        out QuickerRpcFontAwesomeIconGeometry? geometry,
+        out string? error)
+    {
+        geometry = null;
+        error = null;
+        if (!FontAwesomeIconSpecValidator.TryParse(spec, allowEmpty: false, out var enumName, out var color, out error))
+        {
+            return false;
+        }
+
+        if (!_enumNames.Value.Contains(enumName))
+        {
+            error =
+                $"Unknown icon enum '{enumName}'. Run qkrpc fa search --query <keyword> --json.";
+            return false;
+        }
+
+        var field = typeof(EFontAwesomeIcon).GetField(
+            enumName,
+            BindingFlags.Public | BindingFlags.Static);
+        if (field is null)
+        {
+            error = $"Icon enum '{enumName}' not found in catalog.";
+            return false;
+        }
+
+        var svg = field.GetCustomAttribute<FontAwesomeSvgInformationAttribute>();
+        if (svg is null || string.IsNullOrWhiteSpace(svg.Path))
+        {
+            error = $"No SVG path metadata for '{enumName}'.";
+            return false;
+        }
+
+        var info = field.GetCustomAttribute<FontAwesomeInformationAttribute>();
+        geometry = new QuickerRpcFontAwesomeIconGeometry
+        {
+            Spec = spec!.Trim(),
+            EnumName = enumName,
+            Path = svg.Path.Trim(),
+            Width = svg.Width > 0 ? svg.Width : 512,
+            Height = svg.Height > 0 ? svg.Height : 512,
+            Color = color,
+            Label = info?.Label ?? enumName,
+            Unicode = info?.Unicode ?? 0,
+        };
+        return true;
+    }
+
     public QuickerRpcSearchFontAwesomeIconsResult Search(
         string? query,
         int? maxResults,

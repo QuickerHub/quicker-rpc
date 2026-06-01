@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package quickerrpc.agent.v1;
+
+option csharp_namespace = "QuickerRpc.AgentModel.Proto.V1";
+
+import "google/protobuf/timestamp.proto";
+
+// Agent wire JSON for qkrpc action list (camelCase json_name). Serialize with JsonFormatter.
+message ActionSummaryItem {
+  string action_id = 1 [json_name = "actionId"];
+  string title = 2;
+  string description = 3;
+  string icon = 4;
+  google.protobuf.Timestamp last_edit_time_utc = 5 [json_name = "lastEditTimeUtc"];
+  string last_edit_time_local = 6 [json_name = "lastEditTimeLocal"];
+  string profile_id = 7 [json_name = "profileId"];
+  string profile_name = 8 [json_name = "profileName"];
+  string exe_file = 9 [json_name = "exeFile"];
+}
+
+message SearchActionSummariesResult {
+  bool success = 1;
+  string error_message = 2 [json_name = "errorMessage"];
+  string query = 3;
+  string scope = 4;
+  int32 match_count = 5 [json_name = "matchCount"];
+  repeated ActionSummaryItem items = 6;
+  // Applied sort: relevance | lastEdit | title
+  string sort = 7;
+}

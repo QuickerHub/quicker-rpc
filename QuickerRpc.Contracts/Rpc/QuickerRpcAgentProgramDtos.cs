@@ -15,6 +15,9 @@ public sealed class QuickerRpcActionSummaryItem
 
     public string LastEditTimeUtc { get; set; } = string.Empty;
 
+    /// <summary>Last edit time in local timezone (human-readable, for tables/UI).</summary>
+    public string LastEditTimeLocal { get; set; } = string.Empty;
+
     public string? ProfileId { get; set; }
 
     public string? ProfileName { get; set; }
@@ -126,6 +129,9 @@ public sealed class QuickerRpcSearchActionSummariesResult
     /// <summary>Requested scope filter, if any.</summary>
     public string? Scope { get; set; }
 
+    /// <summary>Applied sort: relevance | lastEdit | title.</summary>
+    public string? Sort { get; set; }
+
     public int MatchCount { get; set; }
 
     public IList<QuickerRpcActionSummaryItem> Items { get; set; } = new List<QuickerRpcActionSummaryItem>();
@@ -174,6 +180,39 @@ public sealed class QuickerRpcSearchFontAwesomeIconsResult
 
     /// <summary>Merged glyph family style (Light).</summary>
     public string? DefaultStyle { get; set; }
+}
+
+/// <summary>Resolved FA icon SVG path (from Quicker FontAwesome5 catalog).</summary>
+public sealed class QuickerRpcFontAwesomeIconGeometry
+{
+    public string Spec { get; set; } = string.Empty;
+
+    public string EnumName { get; set; } = string.Empty;
+
+    public string Path { get; set; } = string.Empty;
+
+    public int Width { get; set; }
+
+    public int Height { get; set; }
+
+    public string? Color { get; set; }
+
+    public string? Label { get; set; }
+
+    public int Unicode { get; set; }
+}
+
+public sealed class QuickerRpcResolveFontAwesomeIconsResult
+{
+    public bool Success { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public IList<QuickerRpcFontAwesomeIconGeometry> Items { get; set; } =
+        new List<QuickerRpcFontAwesomeIconGeometry>();
+
+    /// <summary>Per-spec errors for specs that could not be resolved.</summary>
+    public IList<string> Errors { get; set; } = new List<string>();
 }
 
 public sealed class QuickerRpcStepRunnerDetailResult

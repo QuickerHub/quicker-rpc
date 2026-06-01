@@ -18,7 +18,11 @@ public sealed class ActionMonitorSnapshotService
     public ActionMonitorSnapshot Load(int agentMaxResults = 100, int recentMaxResults = 40)
     {
         var agent = _programs.SearchActionSummaries(null, agentMaxResults, QkrpcVirtualActionHost.AgentScope);
-        var recent = _programs.SearchActionSummaries(null, recentMaxResults, scope: null);
+        var recent = _programs.SearchActionSummaries(
+            null,
+            recentMaxResults,
+            scope: null,
+            sort: ActionSummarySort.LastEditApiValue);
 
         return new ActionMonitorSnapshot
         {

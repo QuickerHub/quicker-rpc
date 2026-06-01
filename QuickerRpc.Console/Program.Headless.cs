@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using QuickerRpc.AgentModel.Api;
 using QuickerRpc.AgentModel.Core;
 using QuickerRpc.AgentModel.Guides;
 using QuickerRpc.Contracts.Rpc;
@@ -520,15 +522,18 @@ internal static partial class Program
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var query = (options.Query ?? string.Empty).Trim();
-            var response = await session.Proxy
-                .SearchActionSummariesAsync(
+            var response = await QuickerRpcActionListCompat
+                .ListAsync(
+                    session.Proxy,
+                    session.JsonRpc,
                     string.IsNullOrWhiteSpace(query) ? null : query,
                     options.Limit,
                     options.Scope,
+                    options.Sort,
                     rpcToken)
                 .ConfigureAwait(false);
 
-            WriteRpcJson(options.Json, "list", response.Success, response);
+            WriteActionListRpcJson(options.Json, "list", response.Success, response);
             return response.Success ? ExitCodes.Success : ExitCodes.Error;
         }
         catch (QuickerRpcClientException ex)
@@ -566,6 +571,25 @@ internal static partial class Program
             error = ex.Message;
             return false;
         }
+    }
+
+    private static void WriteActionListRpcJson(
+        bool json,
+        string action,
+        bool success,
+        QuickerRpcSearchActionSummariesResult response)
+    {
+        if (!json)
+        {
+            global::System.Console.WriteLine(
+                JsonSerializer.Serialize(response, QkrpcJson.CliOutput));
+            return;
+        }
+
+        var payloadNode = AgentApiListJson.ToPayload(response);
+        global::System.Console.WriteLine(JsonSerializer.Serialize(
+            new { ok = success, action, payload = payloadNode },
+            QkrpcJson.CliOutput));
     }
 
     private static void WriteRpcJson(bool json, string action, bool success, object payload)

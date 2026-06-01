@@ -8,7 +8,13 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 internal static class ActionSearchFuzzyMatch
 {
-    public static int ComputeScore(string keyword, string? actionId, string title, string? description)
+    public static int ComputeScore(
+        string keyword,
+        string? actionId,
+        string title,
+        string? description,
+        string? profileName = null,
+        string? exeFile = null)
     {
         var q = (keyword ?? string.Empty).Trim();
         if (q.Length == 0)
@@ -23,13 +29,36 @@ internal static class ActionSearchFuzzyMatch
         }
 
         var titleScore = ScoreText(q, title ?? string.Empty, exact: 150, contains: 100, normalizedExact: 145, normalizedContains: 95);
-        var descScore = ScoreText(q, description ?? string.Empty, exact: 0, contains: 0, normalizedExact: 0, normalizedContains: 60);
         if (titleScore > 0)
         {
             return titleScore;
         }
 
-        return descScore;
+        var profileScore = ScoreText(
+            q,
+            profileName ?? string.Empty,
+            exact: 0,
+            contains: 55,
+            normalizedExact: 0,
+            normalizedContains: 50);
+        if (profileScore > 0)
+        {
+            return profileScore;
+        }
+
+        var exeScore = ScoreText(
+            q,
+            exeFile ?? string.Empty,
+            exact: 0,
+            contains: 45,
+            normalizedExact: 0,
+            normalizedContains: 40);
+        if (exeScore > 0)
+        {
+            return exeScore;
+        }
+
+        return ScoreText(q, description ?? string.Empty, exact: 0, contains: 0, normalizedExact: 0, normalizedContains: 60);
     }
 
     private static int ScoreText(
@@ -77,7 +106,7 @@ internal static class ActionSearchFuzzyMatch
             return Math.Max(normalizedContains - 10, 50);
         }
 
-        return 0;
+        return ActionSearchPinyin.ScoreText(haystack, normalizedKeyword);
     }
 
     /// <summary>Removes whitespace and common separators so <c>剪贴板 n10</c> and <c>剪贴板n10</c> align.</summary>
@@ -102,7 +131,7 @@ internal static class ActionSearchFuzzyMatch
         return sb.ToString();
     }
 
-    private static bool IsIgnorableSeparator(char ch) =>
+    internal static bool IsIgnorableSeparator(char ch) =>
         char.IsWhiteSpace(ch)
         || ch is '_' or '-' or '.' or '·' or ':' or '/'
         || ch is '（' or '）' or '(' or ')';

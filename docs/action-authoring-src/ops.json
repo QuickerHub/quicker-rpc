@@ -1,0 +1,254 @@
+{
+  "phrases": {
+    "authoring.title": {
+      "cli": "qkrpc 写动作流程（Agent 必读）",
+      "agent": "写动作流程（Agent 必读）"
+    },
+    "product.intro": {
+      "cli": "无头编辑 XAction：**`qkrpc`** + QuickerRpc 插件。命令表：{{@ help}}。环境：**`cli-setup`**。逐步操作：**`authoring-workflow`**。",
+      "agent": "无头编辑 XAction：**agent-ui 工具** + QuickerRpc 插件。环境：**`cli-setup`**。逐步操作：**`authoring-workflow`**（按需 **`docs_get`**，勿在回复中粘贴全文）。"
+    },
+    "help.detail": {
+      "cli": "命令细节：`qkrpc help --json`",
+      "agent": "工具说明见系统提示与 **`docs_index`**"
+    },
+    "help.ref": {
+      "cli": "`qkrpc help --json`",
+      "agent": "聊天工具列表（无需单独 help 工具）"
+    },
+    "connectivity.p0": {
+      "cli": "连通问题看命令 stderr，或 `qkrpc serve` 后 `GET http://127.0.0.1:9477/health`",
+      "agent": "页头绿点表示 RPC 状态；qkrpc 类工具失败时检查 Quicker + 插件或 `qkrpc serve`"
+    },
+    "errors.source": {
+      "cli": "由 qkrpc 返回说明",
+      "agent": "由工具返回的 `errorMessage` / stderr"
+    },
+    "table.invoke.header": {
+      "cli": "命令",
+      "agent": "工具"
+    },
+    "patch.stdin.hint": {
+      "cli": "Patch stdin：`Get-Content patch.json -Raw | qkrpc action patch --id <guid> --patch-file - --json`",
+      "agent": ""
+    },
+    "subprogram.product": {
+      "cli": "全局库：**`qkrpc subprogram`**",
+      "agent": "全局库：**`qkrpc_subprogram_*` 工具**"
+    },
+    "action-icons.help": {
+      "cli": "命令与开关见 `qkrpc help --json`",
+      "agent": "搜索图标用 **`qkrpc_fa_search`**；格式见下文"
+    },
+    "variables.patch-ops": {
+      "cli": "Variable patch ops: same `op` vocabulary as steps in **`action patch`** (see **`patch-workflow`** example).",
+      "agent": "Variable patch ops: same `op` vocabulary as steps in **`qkrpc_action_patch`** (see **`patch-workflow`** example)."
+    },
+    "xaction.read.invoke": {
+      "cli": "`action get`",
+      "agent": "`qkrpc_action_get`"
+    },
+    "xaction.write.invoke": {
+      "cli": "`action patch`",
+      "agent": "`qkrpc_action_patch`"
+    },
+    "step-runner.get.invoke": {
+      "cli": "**`step-runner get`**",
+      "agent": "**`qkrpc_step_runner_get`**"
+    },
+    "step-runner.search.invoke": {
+      "cli": "**`step-runner search`**",
+      "agent": "**`qkrpc_step_runner_search`**"
+    },
+    "cli-setup.intro": {
+      "cli": "Quicker 运行中且已加载 QuickerRpc 插件。高频调用可先 `qkrpc serve`（默认 `http://127.0.0.1:9477`）。",
+      "agent": "Quicker 运行中且已加载 QuickerRpc 插件。推荐 `qkrpc serve`（agent-ui 优先 HTTP）。文档用 **`docs_get` / `docs_search` / `docs_index`** 本地工具，不经 qkrpc。"
+    },
+    "cli-setup.title": {
+      "cli": "CLI setup for agents",
+      "agent": "Agent setup（agent-ui）"
+    },
+    "cli-setup.agent.p0": {
+      "cli": "",
+      "agent": "按需读文档（系统提示已含核心规则，勿在会话开头连续 `docs_get` 多篇全文）：\n\n| 工具 | 用途 |\n|------|------|\n| `docs_index` | 列出全部主题 id |\n| `docs_get` | `topic`: 如 `overview`、`authoring-workflow` |\n| `docs_search` | `query`: 关键词检索主题 |"
+    },
+    "patch.invoke": {
+      "cli": "**`action patch`**",
+      "agent": "**`qkrpc_action_patch`**"
+    },
+    "patch.set-metadata.alt": {
+      "cli": "**`action set-metadata`**",
+      "agent": "**`qkrpc_action_set_metadata`**"
+    },
+    "edit-version.next": {
+      "cli": "下次 `--expected-edit-version`",
+      "agent": "下次 `expectedEditVersion`"
+    },
+    "edit-version.field": {
+      "cli": "`--expected-edit-version`",
+      "agent": "`expectedEditVersion`"
+    },
+    "control-field.get": {
+      "cli": "**`--control-field <value>`**",
+      "agent": "**`controlField`**"
+    },
+    "action.get.retry": {
+      "cli": "`action get`",
+      "agent": "`qkrpc_action_get`"
+    },
+    "subprogram.call.chain": {
+      "cli": "→ `step-runner get --key sys:subprogram`\n→ `action patch` 添加步骤，`inputParams.subProgram.value = callIdentifier`",
+      "agent": "→ `qkrpc_step_runner_get({ key: \"sys:subprogram\" })`\n→ `qkrpc_action_patch` 添加步骤，`inputParams.subProgram.value = callIdentifier`"
+    },
+    "action-project-files.commands.agent": {
+      "cli": "",
+      "agent": "agent-ui **暂无** export/import 工具；请在终端使用 qkrpc：`action export` / `action import`、`subprogram export` / `subprogram import`（命令见 CLI 版 **`action-project-files`**）。"
+    },
+    "overview.pipeline.header": {
+      "cli": "命令 / 主题",
+      "agent": "工具 / 主题"
+    },
+    "overview.workflow.when": {
+      "cli": "执行 P1–P7 的命令与示例",
+      "agent": "执行 P1–P7 的工具与示例"
+    }
+  },
+  "ops": {
+    "help": {
+      "cli": "qkrpc help --json",
+      "agent": null
+    },
+    "docs.get": {
+      "cli": "qkrpc guide get --topic {{topic}} --json",
+      "agent": "docs_get({ topic: \"{{topic}}\" })",
+      "defaults": { "topic": "overview" }
+    },
+    "docs.search": {
+      "cli": "qkrpc guide search --query {{query}} --json",
+      "agent": "docs_search({ query: \"{{query}}\" })",
+      "defaults": { "query": "keyword" }
+    },
+    "docs.index": {
+      "cli": "qkrpc guide search [--limit 50] --json",
+      "agent": "docs_index()"
+    },
+    "action.create": {
+      "cli": "qkrpc action create --title \"{{title}}\" [--icon {{icon}}] --json",
+      "agent": "qkrpc_action_create({ title: \"{{title}}\", icon?: \"{{icon}}\" })",
+      "defaults": { "title": "动作名", "icon": "fa:Light_*" }
+    },
+    "action.list": {
+      "cli": "qkrpc action list --query \"{{query}}\" [--scope {{scope}}] --json",
+      "agent": "qkrpc_action_list({ query: \"{{query}}\", scope?: \"{{scope}}\" })",
+      "defaults": { "query": "名", "scope": "agent" }
+    },
+    "action.search": {
+      "cli": "qkrpc action search --query \"{{query}}\" [--scope {{scope}}] --json",
+      "agent": "qkrpc_action_search({ query: \"{{query}}\", scope?: \"{{scope}}\" })",
+      "defaults": { "query": "名", "scope": "agent" }
+    },
+    "action.get.structure": {
+      "cli": "qkrpc action get --id {{id}} --return-mode structure --json",
+      "agent": "qkrpc_action_get({ id: \"{{id}}\", returnMode: \"structure\" })",
+      "defaults": { "id": "<guid>" }
+    },
+    "action.get.full": {
+      "cli": "qkrpc action get --id {{id}} --return-mode full --json",
+      "agent": "qkrpc_action_get({ id: \"{{id}}\", returnMode: \"full\" })",
+      "defaults": { "id": "<guid>" }
+    },
+    "action.get.metadata": {
+      "cli": "qkrpc action get --id {{id}} --return-mode metadata --json",
+      "agent": "qkrpc_action_get({ id: \"{{id}}\", returnMode: \"metadata\" })",
+      "defaults": { "id": "<guid>" }
+    },
+    "action.set-metadata": {
+      "cli": "qkrpc action set-metadata --id {{id}} --icon {{icon}} --expected-edit-version {{N}} --json",
+      "agent": "qkrpc_action_set_metadata({ id: \"{{id}}\", icon: \"{{icon}}\", expectedEditVersion: {{N}} })",
+      "defaults": { "id": "<guid>", "icon": "fa:Light_<Name>", "N": "<N>" }
+    },
+    "action.patch": {
+      "cli": "qkrpc action patch --id {{id}} --patch-file patch.json --expected-edit-version {{N}} --json",
+      "agent": "qkrpc_action_patch({ id: \"{{id}}\", patch: { ... }, expectedEditVersion: {{N}} })",
+      "defaults": { "id": "<guid>", "N": "<N>" }
+    },
+    "action.patch.stdin": {
+      "cli": "Get-Content patch.json -Raw | qkrpc action patch --id {{id}} --patch-file - --json",
+      "agent": null,
+      "defaults": { "id": "<guid>" }
+    },
+    "action.export": {
+      "cli": "qkrpc action export --id {{id}} --dir {{dir}} --json",
+      "agent": null,
+      "agentNote": "（agent-ui 暂无 export 工具；终端用 qkrpc CLI）",
+      "defaults": { "id": "<guid>", "dir": ".quicker/actions/my-action" }
+    },
+    "action.import": {
+      "cli": "qkrpc action import --dir {{dir}} [--expected-edit-version {{N}}] [--force] --json",
+      "agent": null,
+      "agentNote": "（agent-ui 暂无 import 工具；终端用 qkrpc CLI）",
+      "defaults": { "dir": ".quicker/actions/my-action", "N": "N" }
+    },
+    "subprogram.create": {
+      "cli": "qkrpc subprogram create --name \"{{name}}\" [--icon {{icon}}] --json",
+      "agent": null,
+      "agentNote": "（agent-ui 暂无 subprogram create；终端用 qkrpc CLI）",
+      "defaults": { "name": "名", "icon": "fa:Light_*" }
+    },
+    "subprogram.get": {
+      "cli": "qkrpc subprogram get --id {{id}} --return-mode full --json",
+      "agent": "qkrpc_subprogram_get({ id: \"{{id}}\", returnMode: \"full\" })",
+      "defaults": { "id": "<id|name>" }
+    },
+    "subprogram.patch": {
+      "cli": "qkrpc subprogram patch --id {{id}} --patch-file patch.json --expected-edit-version {{N}} --json",
+      "agent": null,
+      "agentNote": "（agent-ui 暂无 subprogram patch；终端用 qkrpc CLI）",
+      "defaults": { "id": "<id>", "N": "<N>" }
+    },
+    "subprogram.export": {
+      "cli": "qkrpc subprogram export --id {{id}} --dir {{dir}} --json",
+      "agent": null,
+      "agentNote": "（agent-ui 暂无；终端用 qkrpc CLI）",
+      "defaults": { "id": "<nameOrId>", "dir": ".quicker/subprograms/my-sub" }
+    },
+    "subprogram.import": {
+      "cli": "qkrpc subprogram import --dir {{dir}} --json",
+      "agent": null,
+      "agentNote": "（agent-ui 暂无；终端用 qkrpc CLI）",
+      "defaults": { "dir": ".quicker/subprograms/my-sub" }
+    },
+    "step-runner.search": {
+      "cli": "qkrpc step-runner search --query \"{{query}}\" --json",
+      "agent": "qkrpc_step_runner_search({ query: \"{{query}}\" })",
+      "defaults": { "query": "剪贴板|clipboard|sys:*clip*" }
+    },
+    "step-runner.search.expr": {
+      "cli": "qkrpc step-runner search --query \"表达式|evalexpression\" --json",
+      "agent": "qkrpc_step_runner_search({ query: \"表达式|evalexpression\" })"
+    },
+    "step-runner.get": {
+      "cli": "qkrpc step-runner get --key {{key}} --json",
+      "agent": "qkrpc_step_runner_get({ key: \"{{key}}\" })",
+      "defaults": { "key": "sys:MsgBox" }
+    },
+    "step-runner.get.control": {
+      "cli": "qkrpc step-runner get --key {{key}} --control-field {{control}} --json",
+      "agent": "qkrpc_step_runner_get({ key: \"{{key}}\", controlField: \"{{control}}\" })",
+      "defaults": { "key": "sys:windowOperations", "control": "move_ex" }
+    },
+    "step-runner.get.subprogram": {
+      "cli": "qkrpc step-runner get --key sys:subprogram --json",
+      "agent": "qkrpc_step_runner_get({ key: \"sys:subprogram\" })"
+    },
+    "step-runner.get.evalexpression": {
+      "cli": "qkrpc step-runner get --key sys:evalexpression --json",
+      "agent": "qkrpc_step_runner_get({ key: \"sys:evalexpression\" })"
+    },
+    "fa.search": {
+      "cli": "qkrpc fa search [--query {{query}}] --json",
+      "agent": "qkrpc_fa_search({ query?: \"{{query}}\" })",
+      "defaults": { "query": "keyword" }
+    }
+  }
+}

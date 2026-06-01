@@ -48,13 +48,13 @@ Launcher.Start();
 Launcher.Start(openMonitor: true);
 ```
 
-### 3. 验证连接
+### 3. 验证环境
 
-Quicker 已启动且插件已加载后执行：
+Quicker 已启动且插件已加载后：
 
 ```powershell
-qkrpc ping --json
 qkrpc help --json
+# 可选（agent-gui / 高频）：qkrpc serve → GET http://127.0.0.1:9477/health
 ```
 
 ### 4. 安装 Agent skill（推荐）
@@ -128,6 +128,18 @@ qkrpc.exe (CLI client)  --named pipe-->  QuickerRpc.Plugin (RPC server)
 | `QuickerRpc.AgentModel` | XAction 压缩模型、patch 模型、StepRunner 元数据和内置指南 |
 | `QuickerRpc.Test` | 连接真实 Quicker 插件的集成测试 |
 | `QuickerRpc.Plugin.Test` | 面向 Quicker 程序集的离线反射/扫描测试 |
+
+## Agent GUI（实验）
+
+`agent-gui/`：基于 Vercel AI SDK 的 Web 聊天界面，通过本机 `qkrpc` 驱动 Quicker。见 [agent-gui/README.md](agent-gui/README.md)。
+
+编译发布（Tauri 2 Windows 安装包）：
+
+```powershell
+pnpm quicker-agent:publish
+```
+
+产物：`agent-gui/src-tauri/target/release/bundle/nsis/` 下的 NSIS 安装程序（内置 `qkrpc` 与 Node）。见 [agent-gui/README.md](agent-gui/README.md)。
 
 ## 开发
 

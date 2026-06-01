@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -514,12 +515,14 @@ public sealed class QuickerRpcService : IQuickerRpcService
         string? query,
         int maxResults = 30,
         string? scope = null,
+        string? sort = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         return InvokeOnDispatcherAsync(
-            () => Task.FromResult(_headlessActionProgramService.SearchActionSummaries(query, maxResults, scope)),
+            () => Task.FromResult(
+                _headlessActionProgramService.SearchActionSummaries(query, maxResults, scope, sort)),
             cancellationToken);
     }
 
@@ -556,6 +559,14 @@ public sealed class QuickerRpcService : IQuickerRpcService
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(_fontAwesomeIconSearchService.Search(query, maxResults, expand));
+    }
+
+    public Task<QuickerRpcResolveFontAwesomeIconsResult> ResolveFontAwesomeIconsAsync(
+        IList<string> specs,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_fontAwesomeIconSearchService.ResolveMany(specs));
     }
 
     private static async Task<T> InvokeOnDispatcherAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)

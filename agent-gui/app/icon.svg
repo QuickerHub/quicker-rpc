@@ -1,0 +1,56 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Modern tech gradient -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366f1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="256" height="256" rx="50" fill="url(#bgGradient)"/>
+  
+  <!-- Cube frame: hexagon with lines from center to three non-adjacent vertices -->
+  <g transform="translate(128, 128)">
+    <!-- Hexagon (centered at origin, radius = 90) -->
+    <polygon 
+      points="-77.94,-45 -77.94,45 0,90 77.94,45 77.94,-45 0,-90"
+      fill="none"
+      stroke="white"
+      stroke-width="18"
+      stroke-linecap="round"
+      stroke-linejoin="round"/>
+    
+    <!-- Lines from center to three non-adjacent vertices (forming cube frame) -->
+    <!-- Vertex 1: (-77.94, -45) -->
+    <line 
+      x1="0" 
+      y1="0" 
+      x2="-77.94" 
+      y2="-45"
+      stroke="white"
+      stroke-width="18"
+      stroke-linecap="round"/>
+    
+    <!-- Vertex 3: (0, 90) -->
+    <line 
+      x1="0" 
+      y1="0" 
+      x2="0" 
+      y2="90"
+      stroke="white"
+      stroke-width="18"
+      stroke-linecap="round"/>
+    
+    <!-- Vertex 5: (77.94, -45) -->
+    <line 
+      x1="0" 
+      y1="0" 
+      x2="77.94" 
+      y2="-45"
+      stroke="white"
+      stroke-width="18"
+      stroke-linecap="round"/>
+  </g>
+</svg>
