@@ -302,7 +302,7 @@ flowchart TB
 | 本地编辑过的 XAction | 通常 `Data` 有 JSON | 直接读 `ActionItem.Data`，注意 **PascalCase** |
 | 动作库安装（`UseTemplate`） | `Data` 为空 | `TemplateId` + `GetSharedActionAsync`（或 SQL `GetSharedAction`） |
 | 设计器已打开 | 内存 `ResultActionItem` 最准 | 可读设计器窗口内对象 |
-| 压缩 RPC 输出 | — | 先 `XActionCompressor.NormalizeQuickerWireNames`（PascalCase→camelCase），再 `Compress`；否则 `InputParams`/`VarKey` 不会被识别 |
+| 压缩 RPC 输出 | — | Quicker 正文 JSON → `XActionData`（`x_action_program.proto` + `JsonParser`）→ `TypedXActionCompressor` → agent wire JSON（`agent_compressed_program.proto` + `JsonFormatter`）；patch 路径仍用 `JArray` |
 
 本仓库插件侧对应实现：`ActionDesignerProgramAccess`、`DataServiceSharedActionLoader`、`SharedActionProgramAccessor`（见 `QuickerRpc.Plugin/Services/`）。
 

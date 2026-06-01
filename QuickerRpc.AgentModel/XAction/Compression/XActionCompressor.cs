@@ -355,24 +355,6 @@ public static class XActionCompressor
         }
     }
 
-    private static JArray CompressStepArray(JArray arr, StepRunnerCatalog catalog, bool omitDefaultLiteralInputs)
-    {
-        var o = new JArray();
-        foreach (var token in arr)
-        {
-            if (token is JObject jo)
-            {
-                o.Add(CompressStep(jo, catalog, omitDefaultLiteralInputs));
-            }
-            else
-            {
-                o.Add(token);
-            }
-        }
-
-        return o;
-    }
-
     private static void NormalizePropertyNames(JObject step)
     {
         RenameIfPresent(step, "step_runner_key", "stepRunnerKey");
@@ -401,72 +383,6 @@ public static class XActionCompressor
             o[to] = o[from]!;
             o.Remove(from);
         }
-    }
-
-    private static JObject CompressInputParams(
-        JObject inputParams,
-        StepRunnerDefinition? runner,
-        bool omitDefaultLiteralInputs)
-    {
-        var defsByKey = BuildParamDefIndex(runner);
-        var result = new JObject();
-        foreach (var prop in inputParams.Properties())
-        {
-            var key = prop.Name;
-            if (prop.Value is not JObject paramObj)
-            {
-                continue;
-            }
-
-            NormalizeParamNames(paramObj);
-            var varKey = paramObj.Value<string>("varKey") ?? "";
-            var value = paramObj.Value<string>("value") ?? "";
-
-            if (omitDefaultLiteralInputs
-                && string.IsNullOrEmpty(varKey)
-                && string.IsNullOrEmpty(value))
-            {
-                continue;
-            }
-
-            // Control fields (e.g. csscript "mode", runScript "type") identify step variant;
-            // keep them in the read model even when value equals catalog default.
-            if (omitDefaultLiteralInputs
-                && string.IsNullOrEmpty(varKey)
-                && TryGetParamDef(defsByKey, key, out var def)
-                && !def.IsControlField
-                && IsLiteralValue(value)
-                && string.Equals(
-                    SerializeDefaultForComparison(def.DefaultValue),
-                    value,
-                    StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            result[key] = CompressInputParamEntry(paramObj);
-        }
-
-        return result;
-    }
-
-    /// <summary>Omit empty <c>varKey</c> / <c>value</c>; include only non-empty sides of each param.</summary>
-    private static JObject CompressInputParamEntry(JObject paramObj)
-    {
-        var varKey = paramObj.Value<string>("varKey") ?? "";
-        var value = paramObj.Value<string>("value") ?? "";
-        var compressed = new JObject();
-        if (!string.IsNullOrEmpty(varKey))
-        {
-            compressed["varKey"] = varKey;
-        }
-
-        if (!string.IsNullOrEmpty(value))
-        {
-            compressed["value"] = value;
-        }
-
-        return compressed;
     }
 
     private static void NormalizeParamNames(JObject paramObj)
@@ -507,57 +423,6 @@ public static class XActionCompressor
                 NormalizeStepsWireNamesRecursive(elseSteps);
             }
         }
-    }
-
-    private static Dictionary<string, StepRunnerInputParamDef> BuildParamDefIndex(StepRunnerDefinition? runner)
-    {
-        var d = new Dictionary<string, StepRunnerInputParamDef>(StringComparer.OrdinalIgnoreCase);
-        if (runner == null)
-        {
-            return d;
-        }
-
-        foreach (var p in runner.InputParamDefs)
-        {
-            if (string.IsNullOrWhiteSpace(p.Key))
-            {
-                continue;
-            }
-
-            if (!d.ContainsKey(p.Key))
-            {
-                d[p.Key] = p;
-            }
-        }
-
-        return d;
-    }
-
-    private static bool TryGetParamDef(
-        Dictionary<string, StepRunnerInputParamDef> defsByKey,
-        string key,
-        out StepRunnerInputParamDef def) =>
-        defsByKey.TryGetValue(key, out def!);
-
-    private static bool IsLiteralValue(string value) => value.IndexOf('$') < 0;
-
-    private static JObject CompressOutputParams(JObject outputParams)
-    {
-        var result = new JObject();
-        foreach (var prop in outputParams.Properties())
-        {
-            var s = prop.Value?.Type == JTokenType.String
-                ? prop.Value.Value<string>() ?? ""
-                : prop.Value?.ToString() ?? "";
-            if (string.IsNullOrWhiteSpace(s))
-            {
-                continue;
-            }
-
-            result[prop.Name] = prop.Value;
-        }
-
-        return result;
     }
 
     public static string SerializeDefaultForComparison(string? defaultValue) =>

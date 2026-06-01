@@ -261,9 +261,7 @@ qkrpc action update --id <sharedGuid> --changelog "说明" --json
 
 ## 安装 CLI
 
-```powershell
-$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
-```
+从 [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases/latest) 下载 **`qkrpc-win-x64-setup.exe`** 并运行（推荐）。
 
 安装后新开终端。插件需在本机 Quicker 中加载 [QuickerRpc 分享动作](https://getquicker.net/Sharedaction?code=aa5917ad-1256-4c73-7022-08debe3efcbe) 并至少运行一次。
 

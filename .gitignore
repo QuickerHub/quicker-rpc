@@ -4,6 +4,8 @@ obj/
 publish/**
 !publish/publish-rpc.ps1
 !publish/install.ps1
+!publish/Build-QkrpcSetup.ps1
+!publish/qkrpc-setup.iss
 !publish/qkrpc-publish-lib.ps1
 !publish/Publish-GitHubRelease.ps1
 !publish/changelogs/

@@ -54,8 +54,10 @@ $tagName = "v$semantic"
 $zipName = Get-QuickerRpcCliZipName -Version $semantic
 $zipPath = Join-Path $RepoRoot "publish\$zipName"
 $latestZipPath = Join-Path $RepoRoot "publish\$((Get-QkrpcLatestCliZipName))"
-$installScriptPath = Join-Path $RepoRoot 'publish\install.ps1'
-$installOneLiner = '$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p'
+$setupName = Get-QuickerRpcCliSetupName -Version $semantic
+$setupPath = Join-Path $RepoRoot "publish\$setupName"
+$latestSetupPath = Join-Path $RepoRoot "publish\$((Get-QkrpcLatestCliSetupName))"
+$installUrl = Get-QkrpcLatestSetupDownloadUrl
 
 if (-not $ReleaseTitle) {
     $ReleaseTitle = "qkrpc $tagName"
@@ -79,11 +81,18 @@ Run publish-rpc.ps1 first (or omit -SkipBuild).
         throw "Latest CLI zip alias not found: $latestZipPath"
     }
 
-    if (-not (Test-Path -LiteralPath $installScriptPath)) {
-        throw "install.ps1 not found: $installScriptPath"
+    if (-not (Test-Path -LiteralPath $setupPath)) {
+        throw @"
+CLI setup installer not found: $setupPath
+Run publish-rpc.ps1 first (requires Inno Setup 6 / ISCC.exe), or omit -SkipBuild.
+"@
     }
 
-    return @($zipPath, $latestZipPath, $installScriptPath)
+    if (-not (Test-Path -LiteralPath $latestSetupPath)) {
+        throw "Latest setup alias not found: $latestSetupPath"
+    }
+
+    return @($zipPath, $latestZipPath, $setupPath, $latestSetupPath)
 }
 
 Assert-GhAvailable
@@ -135,8 +144,8 @@ if (-not $SkipBuild) {
 }
 
 if ($DryRun) {
-    Write-Host "[DryRun] Expect assets: $zipPath, $installScriptPath" -ForegroundColor DarkGray
-    $assetPaths = @($zipPath, $installScriptPath)
+    Write-Host "[DryRun] Expect assets: $zipPath, $setupPath" -ForegroundColor DarkGray
+    $assetPaths = @($zipPath, $setupPath)
 }
 else {
     $assetPaths = @(Get-ReleaseAssetPaths)
@@ -220,4 +229,4 @@ Write-Host "Release completed: $tagName" -ForegroundColor Green
 Write-Host "Assets: $($assetPaths -join ', ')" -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'Users can install with:' -ForegroundColor Yellow
-Write-Host "  $installOneLiner"
+Write-Host "  $installUrl"

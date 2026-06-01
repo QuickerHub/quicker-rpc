@@ -57,7 +57,7 @@ pwsh -NoProfile -File ./build.ps1 -t
 |--|------------------------|----------------------------------|
 | 用途 | 改代码后本地/测试包验证 | 对外发布 `qkrpc` CLI |
 | 命令 | `build.ps1 -t` | `publish/Publish-GitHubRelease.ps1` |
-| 产物 | Quicker 测试包 + 本机 CLI | GitHub Release zip + 用户 `install.ps1` |
+| 产物 | Quicker 测试包 + 本机 CLI | GitHub Release `setup.exe` + zip |
 
 ## 禁止
 

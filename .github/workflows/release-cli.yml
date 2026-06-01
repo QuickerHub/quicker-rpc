@@ -36,6 +36,7 @@ jobs:
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "semver=$semver" >> $env:GITHUB_OUTPUT
           "zip_name=qkrpc-$semver-win-x64.zip" >> $env:GITHUB_OUTPUT
+          "setup_name=qkrpc-$semver-win-x64-setup.exe" >> $env:GITHUB_OUTPUT
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -70,6 +71,14 @@ jobs:
           Compress-Archive -Path 'publish/cli/*' -DestinationPath $zipPath -CompressionLevel Optimal -Force
           Copy-Item -LiteralPath $zipPath -Destination (Join-Path $PWD 'publish/qkrpc-win-x64.zip') -Force
 
+      - name: Install Inno Setup 6
+        run: choco install innosetup --no-progress -y
+
+      - name: Build setup.exe
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./publish/Build-QkrpcSetup.ps1 -RepoRoot $PWD
+
       - name: Generate release notes
         id: notes
         shell: pwsh
@@ -98,6 +107,7 @@ jobs:
           files: |
             publish/${{ steps.tag.outputs.zip_name }}
             publish/qkrpc-win-x64.zip
-            publish/install.ps1
+            publish/${{ steps.tag.outputs.setup_name }}
+            publish/qkrpc-win-x64-setup.exe
           draft: false
           prerelease: false

@@ -27,6 +27,10 @@
     <QuickerDllPath Condition="'$(QuickerDllPath)' == ''">$(_QuickerReleasePath)</QuickerDllPath>
   </PropertyGroup>
 
+  <!-- Release/publish: plugin runs inside Quicker.exe; do not copy host install tree to output (Costura sees fewer false positives). -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <QuickerDllPathFullPath>$([System.IO.Path]::GetFullPath('$(QuickerDllPath)'))</QuickerDllPathFullPath>
+  </PropertyGroup>
 
   <!-- Reference Quicker assemblies from QuickerDllPath -->
   <ItemGroup>
@@ -34,65 +38,90 @@
     <Reference Include="Quicker">
       <HintPath>$(QuickerDllPath)\Quicker.exe</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="Quicker.Common">
       <HintPath>$(QuickerDllPath)\Quicker.Common.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="Quicker.Public">
       <HintPath>$(QuickerDllPath)\Quicker.Public.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <!-- Additional Quicker assemblies (usually only in Release) -->
     <Reference Include="DotNetProjects.SVGImage">
       <HintPath>$(QuickerDllPath)\DotNetProjects.SVGImage.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="DotNetProjects.Wpf.Extended.Toolkit">
       <HintPath>$(QuickerDllPath)\DotNetProjects.Wpf.Extended.Toolkit.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="FontAwesomeIconsWpf">
       <HintPath>$(QuickerDllPath)\FontAwesomeIconsWpf.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="HandyControl">
       <HintPath>$(QuickerDllPath)\HandyControl.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="ICSharpCode.AvalonEdit">
       <HintPath>$(QuickerDllPath)\ICSharpCode.AvalonEdit.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="ICSharpCode.SharpZipLib">
       <HintPath>$(QuickerDllPath)\ICSharpCode.SharpZipLib.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="MdXaml">
       <HintPath>$(QuickerDllPath)\MdXaml.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="Z.Expressions.Eval">
       <HintPath>$(QuickerDllPath)\Z.Expressions.Eval.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="ToastNotifications">
       <HintPath>$(QuickerDllPath)\ToastNotifications.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="ToastNotifications.Messages">
       <HintPath>$(QuickerDllPath)\ToastNotifications.Messages.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="HL">
       <HintPath>$(QuickerDllPath)\HL.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
     <Reference Include="WindowsInput">
       <HintPath>$(QuickerDllPath)\WindowsInput.dll</HintPath>
       <SpecificVersion>false</SpecificVersion>
+      <Private Condition="'$(Configuration)' == 'Release'">false</Private>
     </Reference>
   </ItemGroup>
+
+  <!-- Drop transitive Quicker-install DLLs from Copy Local (Quicker.exe dependency walk) in Release. -->
+  <Target Name="SuppressQuickerHostCopyLocal"
+          AfterTargets="ResolveAssemblyReferences"
+          Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+                               Condition="$([System.String]::Copy('%(ReferenceCopyLocalPaths.RootDir)%(ReferenceCopyLocalPaths.Directory)').StartsWith('$(QuickerDllPathFullPath)', System.StringComparison.OrdinalIgnoreCase))" />
+    </ItemGroup>
+  </Target>
 
   <!-- Exclude publish folder from build -->
   <ItemGroup>

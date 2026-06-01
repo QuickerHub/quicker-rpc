@@ -66,14 +66,12 @@ qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog-file p
 
 ## 阶段五：发布后汇报
 
-1. Release URL、tag、zip / `install.ps1` 资产。
+1. Release URL、tag、`qkrpc-win-x64-setup.exe` / zip 资产。
 2. Quicker 依赖版本（`version.json` 四段 → quicker.rpc 前三段目录）。
 3. `qkrpc action update` 结果（JSON 中 `ok` / `message`）。
 4. 用户安装命令：
 
-```powershell
-$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
-```
+https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe
 
 ## 禁止
 

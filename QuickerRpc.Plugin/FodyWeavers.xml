@@ -1,5 +1,6 @@
 <!--
-  Release Quicker plugin (Costura): do not remove IncludeAssemblies lines casually.
+  Release Quicker plugin (Costura): whitelist plugin-owned Copy Local assemblies.
+  Quicker host refs use Private=false in Release (qkref.props); do not embed Quicker install tree.
   If RPC pipe / DI host fails (especially Debug ok, Release plugin not), check this file first.
 -->
 <Weavers xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="FodyWeavers.xsd">
@@ -7,32 +8,28 @@
     <IncludeAssemblies>
       QuickerRpc.Contracts*
       QuickerRpc.AgentModel*
+      <!-- AgentModel proto JSON (x_action_program.proto); Quicker package ships only the plugin DLL -->
+      Google.Protobuf*
       <!-- Microsoft.Extensions 6: DI, Hosting, Logging, Configuration (prefix match) -->
       Microsoft.Extensions*
       Microsoft.Win32*
-      Microsoft.Bcl.AsyncInterfaces*
       Microsoft.NET.StringTools*
       Microsoft.VisualStudio.Threading*
       Microsoft.VisualStudio.Validation*
       System.Text.Json*
       System.Text.Encodings.Web*
-      System.ComponentModel.Annotations*
       System.IO.Pipelines*
       System.Security.AccessControl*
       System.Security.Principal.Windows*
-      System.Threading.Tasks.Extensions*
       System.Threading.Tasks.Dataflow*
-      System.Diagnostics.DiagnosticSource*
-      <!-- net472 facades pulled in by Extensions 6 / Hosting -->
-      System.Buffers*
-      System.Memory*
-      System.Numerics.Vectors*
-      System.Runtime.CompilerServices.Unsafe*
-      System.ValueTuple*
+      <!-- Not embedded (Quicker install + Quicker.exe.config binding redirects):
+           System.Buffers, System.Memory, System.Numerics.Vectors, System.Runtime.CompilerServices.Unsafe,
+           System.Diagnostics.DiagnosticSource, System.Threading.Tasks.Extensions, System.ComponentModel.Annotations,
+           System.Collections.Immutable, Newtonsoft.Json, Microsoft.Bcl.AsyncInterfaces.
+           System.ValueTuple: net472 framework facade only. -->
       StreamJsonRpc*
       MessagePack*
       Nerdbank.Streams*
-      Newtonsoft.Json*
     </IncludeAssemblies>
   </Costura>
 </Weavers>

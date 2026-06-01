@@ -112,6 +112,18 @@ $latestZipPath = Join-Path $repoRoot "publish\$latestZipName"
 Copy-Item -LiteralPath $zipPath -Destination $latestZipPath -Force
 Write-Host "Latest alias: $latestZipPath" -ForegroundColor Cyan
 
+$buildSetupScript = Join-Path $PSScriptRoot 'Build-QkrpcSetup.ps1'
+if (Test-Path -LiteralPath $buildSetupScript) {
+    & pwsh -NoProfile -File $buildSetupScript -RepoRoot $repoRoot
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Setup build failed (exit $LASTEXITCODE)." -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
+}
+else {
+    Write-Host "Build-QkrpcSetup.ps1 not found; skipping setup.exe." -ForegroundColor Yellow
+}
+
 Write-Host "Publish succeeded." -ForegroundColor Green
 Write-Host "CLI:    $publishDir\qkrpc.exe" -ForegroundColor Cyan
 Write-Host "Zip:    $zipPath" -ForegroundColor Cyan
@@ -129,7 +141,8 @@ Write-Host "  qkrpc ping --json"
 Write-Host "  qkrpc action update --id <guid> --changelog ""fix"" --json"
 Write-Host ""
 Write-Host "User install (after GitHub Release upload):" -ForegroundColor Yellow
-Write-Host "  `$p=`"`$env:TEMP\qkrpc-install.ps1`"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile `$p -UseBasicParsing; & `$p"
+Write-Host "  Download: $(Get-QkrpcLatestSetupDownloadUrl)"
+Write-Host "  Or run: publish\$(Get-QkrpcLatestCliSetupName) (after Build-QkrpcSetup)"
 Write-Host ""
 
 if (-not $SkipInstall) {

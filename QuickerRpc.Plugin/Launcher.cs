@@ -41,7 +41,8 @@ public static partial class Launcher
             if (_status == LauncherStatus.Started)
             {
                 Logger.LogInformation("QuickerRpc launcher already started");
-                PopupMessage.Success("动作已在运行");
+                var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+                PopupMessage.Success("动作已在运行，版本号:" + version);
                 return;
             }
 

@@ -17,17 +17,20 @@
 
 ### 1. 安装 `qkrpc`
 
-在 PowerShell 中安装最新版 CLI：
+从 [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases/latest) 下载 **`qkrpc-win-x64-setup.exe`**，双击安装即可。
+
+- 安装目录：`%LOCALAPPDATA%\Programs\qkrpc`
+- 安装程序会把该目录加入用户 `PATH`（需**新开**终端后生效）
+- 卸载：Windows「设置 → 应用」中卸载 **qkrpc**，或运行安装目录下的 `unins000.exe`
+
+可选静默安装（PowerShell）：
 
 ```powershell
-$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
+Invoke-WebRequest -Uri 'https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe' -OutFile "$env:TEMP\qkrpc-setup.exe" -UseBasicParsing
+Start-Process -FilePath "$env:TEMP\qkrpc-setup.exe" -ArgumentList '/VERYSILENT' -Wait
 ```
 
-安装位置为 `%LOCALAPPDATA%\Programs\qkrpc`，安装脚本会把目录写入用户 `PATH`。卸载：
-
-```powershell
-$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p -Uninstall
-```
+便携 zip（无需安装程序）：`qkrpc-win-x64.zip`。高级用户仍可使用仓库内的 `publish/install.ps1`（需自行下载 zip）。
 
 ### 2. 加载 Quicker 插件
 

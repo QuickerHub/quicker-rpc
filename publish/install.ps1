@@ -1,7 +1,7 @@
-# Install or uninstall qkrpc CLI from GitHub Releases.
+# Install or uninstall qkrpc CLI from GitHub Releases (legacy; prefer setup.exe).
 #
-# Recommended one-line install (PowerShell 5.1+):
-#   $p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
+# Recommended: download and run qkrpc-win-x64-setup.exe from GitHub Releases.
+# This script remains for zip-based / scripted installs.
 #
 # Options:
 #   -ReleaseVersion latest | 0.3.10 | v0.3.10

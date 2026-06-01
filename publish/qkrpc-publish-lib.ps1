@@ -81,6 +81,32 @@ function Get-QkrpcLatestCliZipName {
     return 'qkrpc-win-x64.zip'
 }
 
+function Get-QuickerRpcCliSetupName {
+    param([string]$Version)
+
+    $semver = Get-QuickerRpcSemVerFromVersion -Version $Version
+    return "qkrpc-$semver-win-x64-setup.exe"
+}
+
+function Get-QkrpcLatestCliSetupName {
+    return 'qkrpc-win-x64-setup.exe'
+}
+
+function Get-QkrpcLatestSetupDownloadUrl {
+    return 'https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe'
+}
+
+function Get-QkrpcPinnedSetupDownloadUrl {
+    param([Parameter(Mandatory = $true)][string]$Tag)
+
+    $normalizedTag = $Tag.Trim()
+    if (-not $normalizedTag.StartsWith('v')) {
+        $normalizedTag = "v$normalizedTag"
+    }
+
+    return "https://github.com/QuickerHub/quicker-rpc/releases/download/$normalizedTag/qkrpc-win-x64-setup.exe"
+}
+
 function Get-QuickerRpcSemVerFromVersion {
     param([string]$Version)
 
@@ -182,8 +208,9 @@ function New-QkrpcReleaseNotesBody {
         [string]$Changelog = ''
     )
 
-    $installLatest = '$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p'
-    $installPinned = "`$p=`"`$env:TEMP\qkrpc-install.ps1`"; iwr https://github.com/QuickerHub/quicker-rpc/releases/download/$Tag/install.ps1 -OutFile `$p -UseBasicParsing; & `$p"
+    $setupLatest = Get-QkrpcLatestSetupDownloadUrl
+    $setupPinned = Get-QkrpcPinnedSetupDownloadUrl -Tag $Tag
+    $setupAsset = Get-QkrpcLatestCliSetupName
 
     $sections = @()
     if (-not [string]::IsNullOrWhiteSpace($Changelog)) {
@@ -201,16 +228,17 @@ function New-QkrpcReleaseNotesBody {
         '',
         '---',
         '',
-        '### Install (one command)',
+        '### Install',
+        '',
+        "1. Download [**$setupAsset**]($setupLatest) from GitHub Releases (or pinned: $setupPinned).",
+        '2. Run the installer (adds `%LOCALAPPDATA%\Programs\qkrpc` to user PATH).',
+        '3. Open a **new** terminal.',
+        '',
+        'Silent install (optional):',
         '',
         '```powershell',
-        $installLatest,
-        '```',
-        '',
-        'Pin this version:',
-        '',
-        '```powershell',
-        $installPinned,
+        "Invoke-WebRequest -Uri '$setupLatest' -OutFile `"`$env:TEMP\qkrpc-setup.exe`" -UseBasicParsing",
+        'Start-Process -FilePath "$env:TEMP\qkrpc-setup.exe" -ArgumentList "/VERYSILENT" -Wait',
         '```',
         '',
         '### Verify',

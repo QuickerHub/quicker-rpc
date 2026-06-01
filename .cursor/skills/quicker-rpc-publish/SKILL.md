@@ -28,21 +28,20 @@ disable-model-invocation: false
 | Changelog | `publish/changelogs/vX.Y.Z.md`（**必须 commit 后再打 tag**） |
 | Quicker 包 | `quicker.rpc`（`build.ps1 -p -n`） |
 | 分享动作 ID | `f5c76108-3ce9-433f-8cd0-8f0d9c562052` |
-| CLI Release | `publish/qkrpc-{semver}-win-x64.zip`、`install.ps1`、`qkrpc-win-x64.zip` |
+| CLI Release | `qkrpc-{semver}-win-x64-setup.exe`、`qkrpc-win-x64-setup.exe`（latest）、zip 便携包 |
 
 ## 用户安装 CLI
 
-```powershell
-$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
-```
+下载 [qkrpc-win-x64-setup.exe](https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe) 并运行。发布前本地需安装 [Inno Setup 6](https://jrsoftware.org/isinfo.php)（`ISCC.exe`），由 `publish/Build-QkrpcSetup.ps1` 编译安装包。
 
 ## 脚本说明
 
 | 命令 | 用途 |
 |------|------|
-| `publish/Publish-GitHubRelease.ps1` | CLI zip + tag + gh release |
+| `publish/Publish-GitHubRelease.ps1` | CLI zip + setup.exe + tag + gh release |
+| `publish/Build-QkrpcSetup.ps1` | Inno Setup 编译 `qkrpc-*-win-x64-setup.exe`（需本机 ISCC） |
 | `build.ps1 -p -n` | qkbuild 上传 Quicker 依赖，**不**改 `version.json` |
-| `publish/publish-rpc.ps1` | 仅本地 CLI/插件构建（一般由上面脚本间接调用） |
+| `publish/publish-rpc.ps1` | CLI/插件构建 + zip + setup（一般由上面脚本间接调用） |
 
 `Publish-GitHubRelease.ps1` 参数：`-SkipBuild`、`-SkipTag`、`-DryRun`、`-Draft`、`-TagVersion`、`-Changelog`、`-ChangelogFile`、`-AllowEmptyChangelog`
 
