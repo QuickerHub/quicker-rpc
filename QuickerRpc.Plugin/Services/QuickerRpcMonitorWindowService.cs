@@ -1,5 +1,4 @@
 using System;
-using System.Windows;
 using System.Windows.Threading;
 using QuickerRpc.Plugin.Rpc;
 using QuickerRpc.Plugin.UI;
@@ -48,12 +47,6 @@ public sealed class QuickerRpcMonitorWindowService
         if (_window is null)
         {
             _window = CreateWindow();
-            var owner = Application.Current?.MainWindow;
-            if (owner is not null && owner != _window)
-            {
-                _window.Owner = owner;
-            }
-
             _window.RefreshRequested += OnWindowRefreshRequested;
             _window.Show();
         }

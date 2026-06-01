@@ -6,7 +6,8 @@
         Height="560"
         MinWidth="640"
         MinHeight="400"
-        WindowStartupLocation="CenterOwner"
+        WindowStartupLocation="CenterScreen"
+        Topmost="False"
         ShowInTaskbar="True"
         Activated="OnActivated">
     <Window.Resources>
@@ -16,8 +17,7 @@
                        Foreground="#1565C0"
                        TextDecorations="Underline"
                        Cursor="Hand"
-                       ToolTip="点击复制 ActionId"
-                       MouseLeftButtonUp="OnActionIdCellClick" />
+                       ToolTip="点击复制 ActionId" />
         </DataTemplate>
     </Window.Resources>
     <Grid Margin="12">
@@ -47,6 +47,7 @@
                           CanUserDeleteRows="False"
                           HeadersVisibility="Column"
                           GridLinesVisibility="Horizontal"
+                          PreviewMouseLeftButtonDown="OnGridPreviewMouseLeftButtonDown"
                           PreviewMouseRightButtonDown="OnGridPreviewMouseRightButtonDown"
                           MouseDoubleClick="OnGridDoubleClick">
                     <DataGrid.ContextMenu>
@@ -81,6 +82,7 @@
                           CanUserDeleteRows="False"
                           HeadersVisibility="Column"
                           GridLinesVisibility="Horizontal"
+                          PreviewMouseLeftButtonDown="OnGridPreviewMouseLeftButtonDown"
                           PreviewMouseRightButtonDown="OnGridPreviewMouseRightButtonDown"
                           MouseDoubleClick="OnGridDoubleClick">
                     <DataGrid.ContextMenu>

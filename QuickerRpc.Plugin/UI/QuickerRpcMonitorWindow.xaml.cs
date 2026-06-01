@@ -81,19 +81,41 @@ public partial class QuickerRpcMonitorWindow : Window
             return;
         }
 
-        CopyActionId(item.ActionId, item.Title);
+        ScheduleCopyActionId(item.ActionId, item.Title);
     }
 
-    private void OnActionIdCellClick(object sender, MouseButtonEventArgs e)
+    private void OnGridPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        e.Handled = true;
-        if (sender is not FrameworkElement { DataContext: ActionMonitorRow row }
-            || string.IsNullOrWhiteSpace(row.ActionId))
+        if (e.ChangedButton != MouseButton.Left)
         {
             return;
         }
 
-        CopyActionId(row.ActionId, row.Title);
+        var source = e.OriginalSource as DependencyObject;
+        if (!IsActionIdCell(source))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (FindAncestor<DataGridRow>(source) is not { } gridRow
+            || gridRow.Item is not ActionMonitorRow monitorRow
+            || string.IsNullOrWhiteSpace(monitorRow.ActionId))
+        {
+            return;
+        }
+
+        gridRow.IsSelected = true;
+        gridRow.Focus();
+        ScheduleCopyActionId(monitorRow.ActionId, monitorRow.Title);
+    }
+
+    private void ScheduleCopyActionId(string actionId, string? titleForFooter = null)
+    {
+        // Defer past PreviewMouse* so DataGrid / context menu release any clipboard lock.
+        Dispatcher.BeginInvoke(
+            () => CopyActionId(actionId, titleForFooter),
+            System.Windows.Threading.DispatcherPriority.Background);
     }
 
     private void CopyActionId(string actionId, string? titleForFooter = null)
@@ -118,13 +140,19 @@ public partial class QuickerRpcMonitorWindow : Window
         }
 
         var title = item.Title;
-        if (!ClipboardSta.TrySetText(
-                BuildActionMetadataJson(item),
-                out var error,
-                onSuccess: () => FooterStatusText.Text = $"已复制动作元数据：{title}"))
-        {
-            MessageBox.Show(this, error ?? "复制失败", "复制失败", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
+        var json = BuildActionMetadataJson(item);
+        Dispatcher.BeginInvoke(
+            () =>
+            {
+                if (!ClipboardSta.TrySetText(
+                        json,
+                        out var error,
+                        onSuccess: () => FooterStatusText.Text = $"已复制动作元数据：{title}"))
+                {
+                    MessageBox.Show(this, error ?? "复制失败", "复制失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            },
+            System.Windows.Threading.DispatcherPriority.Background);
     }
 
     private void OnGridDoubleClick(object sender, MouseButtonEventArgs e)

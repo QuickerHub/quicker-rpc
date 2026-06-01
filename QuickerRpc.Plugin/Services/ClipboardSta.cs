@@ -1,74 +1,38 @@
 using System;
-using System.Runtime.InteropServices;
-using System.Threading;
-using System.Windows;
-using System.Windows.Threading;
+using Quicker.Utilities;
 
 namespace QuickerRpc.Plugin.Services;
 
-/// <summary>Clipboard writes on Quicker's STA UI dispatcher (required for OpenClipboard).</summary>
+/// <summary>
+/// Clipboard writes via Quicker <see cref="ClipboardHelper"/> (secondary STA dispatcher + WinForms API).
+/// Avoids OpenClipboard failures when the main WPF dispatcher or DataGrid still holds the clipboard.
+/// </summary>
 internal static class ClipboardSta
 {
     public static bool TrySetText(string text, out string? errorMessage, Action? onSuccess = null)
     {
         errorMessage = null;
-        var dispatcher = QuickerDispatcherInvoke.AppDispatcher;
-        if (dispatcher is null)
+        if (string.IsNullOrEmpty(text))
         {
-            errorMessage = "WPF dispatcher unavailable.";
+            errorMessage = "要复制的内容为空。";
             return false;
         }
 
-        var success = false;
-        Exception? failure = null;
-
-        void CopyCore()
+        try
         {
-            try
+            if (!ClipboardHelper.SetText(text))
             {
-                SetTextWithRetry(text);
-                onSuccess?.Invoke();
-                success = true;
+                errorMessage = "复制到剪贴板失败（剪贴板可能被其它程序占用）。";
+                return false;
             }
-            catch (Exception ex)
-            {
-                failure = ex;
-            }
+
+            onSuccess?.Invoke();
+            return true;
         }
-
-        // Context menu may still own the clipboard; wait until idle on the UI thread.
-        var priority = dispatcher.CheckAccess()
-            ? DispatcherPriority.ApplicationIdle
-            : DispatcherPriority.Normal;
-
-        dispatcher.Invoke(CopyCore, priority);
-
-        if (!success)
+        catch (Exception ex)
         {
-            errorMessage = failure?.Message ?? "复制到剪贴板失败。";
-        }
-
-        return success;
-    }
-
-    private static void SetTextWithRetry(string text)
-    {
-        const int attempts = 10;
-        for (var i = 0; i < attempts; i++)
-        {
-            try
-            {
-                Clipboard.SetText(text);
-                return;
-            }
-            catch (COMException) when (i < attempts - 1)
-            {
-                Thread.Sleep(50);
-            }
-            catch (ExternalException) when (i < attempts - 1)
-            {
-                Thread.Sleep(50);
-            }
+            errorMessage = ex.Message;
+            return false;
         }
     }
 }

@@ -41,7 +41,7 @@ load {packagePath}/QuickerRpc.Plugin.{version}.dll
 type QuickerRpc.Plugin.Launcher, QuickerRpc.Plugin.{version}
 ```
 
-`Register` 会启动 RPC 服务并监听命名管道；需要监控窗时可在子程序里传参或调用 `Launcher.Start(openMonitor: true)`。也可在动作中显式启动：
+`Register` 会启动 RPC 服务并监听命名管道。子程序 **QuickerRpc_Run** 提供布尔入参 **`openMonitor`**（勾选后 `Launcher.Start(true)` 打开监控窗）；也可用虚拟动作页上的 **QuickerRpc 管理**（`Launcher.ShowMonitor()`）。显式启动示例：
 
 ```csharp
 Launcher.Start();
