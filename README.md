@@ -2,108 +2,157 @@
 
 > 仓库：[QuickerHub/quicker-rpc](https://github.com/QuickerHub/quicker-rpc)
 
-Quicker 插件 + 命令行客户端：通过 **命名管道 + StreamJsonRpc**，让外部 `qkrpc.exe` 调用 Quicker 内插件能力。
+`quicker-rpc` 为 [Quicker](https://getquicker.net/) 提供一个本地 RPC 插件和命令行客户端 `qkrpc`。它通过 **命名管道 + StreamJsonRpc** 把 Quicker 内部能力暴露给外部脚本、CI、本地工具和 AI Agent，用于无头搜索、读取、创建、编辑和发布 Quicker 动作。
 
-当前已实现：**更新分享动作**（`ActionEditMgr.UpdateSharedActionAsync`）。
+## 主要能力
 
-## 架构
+- 连接本机 Quicker 插件，检测 RPC 服务状态。
+- 搜索、创建、读取、运行、删除和更新本地 XAction。
+- 通过 patch/replace 无头编辑动作步骤、变量和公共子程序。
+- 查询 StepRunner schema，辅助生成正确的 `inputParams`。
+- 上传/更新共享动作，配合发布流程维护动作库内容。
+- 为 Agent 提供机器可读的 CLI 自描述和内置写作指南。
 
-```text
-Quicker (plugin DLL)  --named pipe-->  qkrpc.exe (CLI client)
-     ^ hosts IQuickerRpcService              ^ connects & calls RPC
-```
+## 快速开始
 
-- 管道名：`QuickerRpc_Server_QRPC2026`（见 `QuickerRpcPipeNames.ServerPipe`）
-- 单向使用场景：CLI 连接插件；插件在 Quicker UI 线程执行操作
+### 1. 安装 `qkrpc`
 
-## 发布
-
-维护者对外发布 **qkrpc CLI**（GitHub Releases）：
-
-```powershell
-# 1. 更新 version.json，撰写 publish/changelogs/vX.Y.Z.md 并 commit
-# 2. 发布（需 gh auth login）
-pwsh ./publish/Publish-GitHubRelease.ps1
-```
-
-或推送 `v*` tag，由 `.github/workflows/release-cli.yml` 自动构建上传。
-
-| 路径 | 说明 |
-|------|------|
-| `publish/qkrpc-{version}-win-x64.zip` | CLI 发布包（GitHub Releases 资产） |
-| `%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe` | 本机已安装 CLI |
-
-### 用户安装 CLI（一条命令）
-
-发布到 [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases) 后，用户在 PowerShell 执行：
+在 PowerShell 中安装最新版 CLI：
 
 ```powershell
 $p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p
 ```
 
-安装到 `%LOCALAPPDATA%\Programs\qkrpc` 并写入用户 PATH。指定版本：
-
-```powershell
-$p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/download/v0.3.10/install.ps1 -OutFile $p -UseBasicParsing; & $p
-```
-
-卸载：
+安装位置为 `%LOCALAPPDATA%\Programs\qkrpc`，安装脚本会把目录写入用户 `PATH`。卸载：
 
 ```powershell
 $p="$env:TEMP\qkrpc-install.ps1"; iwr https://github.com/QuickerHub/quicker-rpc/releases/latest/download/install.ps1 -OutFile $p -UseBasicParsing; & $p -Uninstall
 ```
 
-## 在 Quicker 中加载插件
+### 2. 加载 Quicker 插件
 
-将 `publish/plugin` 下文件复制到动作的 `{packagePath}`，在子程序注册区执行：
+将 `publish/plugin` 下的插件文件复制到动作的 `{packagePath}`，在 Quicker 子程序注册区执行：
 
 ```text
 load {packagePath}/QuickerRpc.Plugin.{version}.dll
 type QuickerRpc.Plugin.AssemblyLoader, QuickerRpc.Plugin.{version}
 ```
 
-`Register` 会自动启动 RPC 服务（命名管道监听）。
-
-也可在 Quicker 动作中调用：
+`Register` 会启动 RPC 服务并监听命名管道。也可以在 Quicker 动作中显式启动：
 
 ```csharp
 QuickerRpc.Plugin.Launcher.Start()
 ```
 
-## CLI 用法
+### 3. 验证连接
 
-退出码：**0 成功，1 失败**。推荐 `--json`。人类可读命令表：[docs/cli-commands.md](docs/cli-commands.md)；机器可读：`qkrpc help --json`。
+Quicker 已启动且插件已加载后执行：
 
 ```powershell
 qkrpc ping --json
-
-# 无头编辑 XAction（需 Quicker + 插件在线）
-qkrpc guide get --topic overview --json
-qkrpc action list --query myaction --json
-qkrpc action get --id <guid> --return-mode full --json
-qkrpc action patch --id <guid> --patch-file patch.json --json
-
-# 运维
-qkrpc action update --id <sharedActionGuid> --changelog "说明" --json
-qkrpc action run --id <idOrName> --wait --json
+qkrpc help --json
 ```
+
+CLI 约定：退出码 `0` 表示成功，`1` 表示失败；脚本和 Agent 场景推荐始终使用 `--json`。
+
+## 常用命令
+
+完整命令表见 [docs/cli-commands.md](docs/cli-commands.md)，机器可读版本使用 `qkrpc help --json`。
+
+```powershell
+# 读取 Agent 写动作指南
+qkrpc guide get --topic authoring-workflow --json
+qkrpc guide get --topic subprogram-workflow --json
+
+# 搜索和读取动作
+qkrpc action list --query "keyword" --json
+qkrpc action get --id <guid> --return-mode full --json
+
+# 创建和编辑动作
+qkrpc action create --title "My Action" --json
+qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
+qkrpc action replace --id <guid> --xaction-file action.json --json
+
+# 查询步骤类型和公共子程序
+qkrpc step-runner search --query "clipboard|text" --json
+qkrpc step-runner get --key <stepRunnerKey> --json
+qkrpc subprogram search --query "keyword" --json
+
+# 运行、打开设计器、更新共享动作
+qkrpc action run --id <idOrName> --wait --json
+qkrpc action edit --id <guid> --json
+qkrpc action update --id <sharedActionGuid> --changelog "说明" --json
+```
+
+写动作时请先读取内置指南，尤其是 `authoring-workflow`、`subprogram-workflow` 和 `implementation-fallback`。大 JSON 可通过 `--patch-file -` 或 `--xaction-file -` 从 stdin 传入。
+
+## 架构
+
+```text
+qkrpc.exe (CLI client)  --named pipe-->  QuickerRpc.Plugin (RPC server)
+                                                |
+                                                v
+                                      Quicker UI thread / services
+```
+
+- 管道名：`QuickerRpc_Server_QRPC2026`（见 `QuickerRpcPipeNames.ServerPipe`）。
+- 插件托管 `IQuickerRpcService`，CLI 作为客户端连接并发起 RPC 调用。
+- 涉及 Quicker 内部对象访问的操作由插件切回 Quicker UI 线程执行。
+
+## 项目结构
+
+| 项目 | 说明 |
+|------|------|
+| `QuickerRpc.Contracts` | RPC 合约、管道名、客户端封装 |
+| `QuickerRpc.Plugin` | Quicker 插件与 RPC 服务端 |
+| `QuickerRpc.Console` | `qkrpc.exe` 命令行客户端 |
+| `QuickerRpc.AgentModel` | XAction 压缩模型、patch 模型、StepRunner 元数据和内置指南 |
+| `QuickerRpc.Test` | 连接真实 Quicker 插件的集成测试 |
+| `QuickerRpc.Plugin.Test` | 面向 Quicker 程序集的离线反射/扫描测试 |
 
 ## 开发
 
 ```powershell
 dotnet build QuickerRpc.slnx
 
-# 改代码后本地/测试包验证（Quicker 测试包 + 本机 CLI）
+# 构建插件测试包、发布本机 CLI，并触发 Quicker 重载插件动作
 pwsh ./build.ps1 -t
 ```
 
-插件引用 Quicker 程序集 via 仓库根目录 `qkref.props`（默认 `C:\Program Files\Quicker`）。调试时可：
+插件通过仓库根目录的 `qkref.props` 引用 Quicker 程序集，默认路径为 `C:\Program Files\Quicker`。需要指向自定义 Quicker 构建时：
 
 ```powershell
 dotnet build QuickerRpc.Plugin -p:QuickerDllPath="D:\path\to\Quicker\bin\x64\Debug\net472"
 ```
 
-## 参考
+常用测试：
 
-- Quicker API（更新动作）：`wpf-demos/quicker-modifier` → `ActionEditService.UpdateActionAsync`
-- StreamJsonRpc 管道模式：`CeaQuickerTools/IntelliTools` → `IntelliToolsQuickerRpcServer`
+```powershell
+# 需要 Quicker 已运行并加载 QuickerRpc 插件
+dotnet test QuickerRpc.Test -c Release
+
+# 仅验证命名管道连通性
+dotnet test QuickerRpc.Test --filter FullyQualifiedName~QuickerRpcPipeIntegrationTests
+```
+
+## 发布
+
+维护者发布 CLI 和插件前，先更新 `version.json`、补充 `publish/changelogs/vX.Y.Z.md` 并提交代码。随后执行：
+
+```powershell
+pwsh ./publish/Publish-GitHubRelease.ps1
+```
+
+也可以推送 `v*` tag，由 `.github/workflows/release-cli.yml` 自动构建并上传 GitHub Release 资产。
+
+| 产物 | 路径 |
+|------|------|
+| CLI zip | `publish/qkrpc-{version}-win-x64.zip` |
+| 本机 CLI | `%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe` |
+| 插件 DLL | `publish/plugin/QuickerRpc.Plugin.*.dll` |
+
+## 参考资料
+
+- [CLI 命令参考](docs/cli-commands.md)
+- [Quicker 动作数据存储架构](docs/quicker-action-data-storage.md)
+- [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases)
