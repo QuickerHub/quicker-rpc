@@ -2,7 +2,7 @@
 
 用于 **`$=`**、**`$$`**、**`sys:evalexpression`**。参数键名仍来自 **`qkrpc step-runner get`**。
 
-**优先级**：纯计算/比较/赋值优先表达式，少堆专用步骤；`step-runner search` 无结果时见 **`implementation-fallback`**。
+**优先级**：纯计算/比较/赋值优先表达式，少堆专用步骤；`step-runner search` 无结果时见 **`implementation-fallback`**（复杂逻辑用 **`sys:csscript`**，勿默认 `sys:runScript`）。
 
 ```powershell
 qkrpc guide get --topic expressions --json

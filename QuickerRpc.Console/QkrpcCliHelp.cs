@@ -161,9 +161,9 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Action GUID."), Option("yes", "Required.", shortName: "y", required: true), Option("json", "Structured output.") }),
 
-                Cmd("action run", "Run a local action.", "qkrpc action run --id <idOrName> [--param <text>] [--wait] [--json]",
+                Cmd("action run", "Run a local action.", "qkrpc action run --id <idOrName> [--param <text>] [--debug] [--wait] [--json]",
 
-                    opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
+                    opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("debug", "Debug run (opens Quicker step debugger)."), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
 
                 Cmd("action edit", "Open action editor UI.", "qkrpc action edit --id <guid> [--json]",
 

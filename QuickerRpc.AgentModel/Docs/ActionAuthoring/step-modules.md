@@ -6,7 +6,7 @@
 
 **表达式优先**：赋值、计算、比较、格式化、GUID/时间/随机数、简单字符串/JSON/路径处理等 — 见 **`expressions`**，**不**单独建步骤。下表只列需独立模块的项。
 
-**找不到模块时**：不要猜参数或内部 API；按 **`implementation-fallback`** 的回退链路（表达式 → `sys:evalexpression` → `sys:csscript` / `sys:runScript` 等）。
+**找不到模块时**：不要猜参数或内部 API；按 **`implementation-fallback`** 回退（表达式 → `sys:evalexpression` → **`sys:csscript` 优先** → 仅极简单场景 `sys:runScript`）。
 
 ## 使用顺序
 
@@ -128,6 +128,8 @@
 | `sys:tempcloudstore` | 临时云存储 | 将文本、文件、图片临时保存到云端并得到网址。 |
 
 ## 运行程序与脚本
+
+无专用模块时：**先 `sys:csscript`**，不要默认 PowerShell。`sys:runScript` 仅用于极短系统命令或用户已有脚本（见 **`implementation-fallback`**）。
 
 | stepRunnerKey | name | description |
 |---------------|------|-------------|

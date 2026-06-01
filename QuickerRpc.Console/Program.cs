@@ -552,6 +552,8 @@ internal static partial class Program
                         action = "run",
                         actionId = result.ActionId ?? actionId,
                         actionTitle = result.ActionTitle,
+                        debug = options.Debug,
+                        wait = options.Wait,
                         returnResult = result.ReturnResult,
                         message = result.Message,
                         pipe = QuickerRpcPipeNames.ServerPipe,
@@ -871,7 +873,7 @@ public sealed class ActionOptions
     [Option('p', "param", HelpText = "Input parameter for action run.")]
     public string? Param { get; set; }
 
-    [Option("debug", HelpText = "Run action with debugging enabled.")]
+    [Option("debug", HelpText = "Debug run: open Quicker step debugger (enableDebugging).")]
     public bool Debug { get; set; }
 
     [Option("wait", HelpText = "Wait for action completion and return ReturnResult.")]

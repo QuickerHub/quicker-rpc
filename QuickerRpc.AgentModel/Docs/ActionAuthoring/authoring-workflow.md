@@ -92,7 +92,7 @@ qkrpc guide get --topic implementation-fallback --json
 
 - 计算、比较、赋值 → 优先 **`expressions`** / `sys:evalexpression`，不要堆无关模块步骤。
 - 需要 UI/IO 能力 → 再走下面的 **StepRunner 目录**。
-- 搜不到模块 → 按 **`implementation-fallback`** 回退（脚本等），**禁止**猜 Quicker 内部 API 名。
+- 搜不到模块 → 按 **`implementation-fallback`** 回退：**优先 `sys:csscript`（C#）**；仅极简单系统命令或用户提供的脚本才用 **`sys:runScript`**。**禁止**猜 Quicker 内部 API 名，**禁止**用长 PowerShell 代替本可写的 C# 逻辑。
 
 ---
 

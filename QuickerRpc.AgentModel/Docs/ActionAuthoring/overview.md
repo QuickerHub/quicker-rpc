@@ -14,7 +14,7 @@
 
 2. **`action get`** → `editVersion`；`structure` 扫树，`full` 读非默认参数。
 
-3. **`guide get --topic implementation-fallback`** → 表达式优先，再考虑专用步骤。
+3. **`guide get --topic implementation-fallback`** → 表达式优先，再专用步骤；无模块时 **C#（`sys:csscript`）优先于 PowerShell（`sys:runScript`）**。
 
 4. 每个专用步骤：**`step-modules`** → 否则 **`step-runner search`** → **`step-runner get`**（必须，禁止猜 `inputParams` 键）。
 

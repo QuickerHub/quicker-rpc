@@ -61,7 +61,7 @@ qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <
 
 **调用公共子程序**：`subprogram search/get` 取 **`callIdentifier`**（通常 `%%{guid}`）→ `step-runner get --key sys:subprogram` → `action patch` 写 `inputParams.subProgram`。
 
-**禁止**：未 `step-runner get` 就猜 `inputParams` 键名；未 `subprogram get/search` 就猜 `callIdentifier`；patch 写与目录 **Default** 相同的**普通**参数（控制字段除外）；patch 成功后仅为验证再 `action get`。
+**禁止**：未 `step-runner get` 就猜 `inputParams` 键名；未 `subprogram get/search` 就猜 `callIdentifier`；patch 写与目录 **Default** 相同的**普通**参数（控制字段除外）；patch 成功后仅为验证再 `action get`。无专用模块时**禁止**默认用长 PowerShell — 见 `guide get --topic implementation-fallback`（**`sys:csscript` 优先**，`sys:runScript` 仅极简单系统命令或用户脚本）。
 
 退出码：0 成功，1 失败。大 JSON 用 `--patch-file -` 从 stdin 读。
 
