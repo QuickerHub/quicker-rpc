@@ -115,6 +115,7 @@ jobs:
         shell: pwsh
         env:
           BUNDLED_LLM_AI98PRO_API_KEY: ${{ secrets.BUNDLED_LLM_AI98PRO_API_KEY }}
+          AGENT_GUI_DEFAULT_CWD: ${{ github.workspace }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:BUNDLED_LLM_AI98PRO_API_KEY)) {
             throw 'GitHub secret BUNDLED_LLM_AI98PRO_API_KEY is required for QuickerAgent release builds.'

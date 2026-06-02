@@ -24,9 +24,14 @@ export function resolveUserDocumentsDirectory(): string {
   return join(homedir(), "Documents");
 }
 
-/** Release default: Documents/QuickerAgent (created on first resolve). */
+/** Release default: Documents/QuickerAgent (directory created on demand, not at module load). */
 export function resolveReleaseDefaultWorkingDirectory(): string {
-  const dir = join(resolveUserDocumentsDirectory(), RELEASE_WORKSPACE_DIRNAME);
+  return join(resolveUserDocumentsDirectory(), RELEASE_WORKSPACE_DIRNAME);
+}
+
+/** Ensure release workspace exists (call from API/runtime only, not during `next build`). */
+export function ensureReleaseWorkspaceDirectory(): string {
+  const dir = resolveReleaseDefaultWorkingDirectory();
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
@@ -46,7 +51,11 @@ export function resolveDefaultWorkingDirectory(): string {
   const repo = resolveQuickerRpcRepoRoot();
   if (repo) return repo;
 
-  return resolveReleaseDefaultWorkingDirectory();
+  if (process.env.CI === "true" || process.env.CI === "1") {
+    return process.cwd();
+  }
+
+  return ensureReleaseWorkspaceDirectory();
 }
 
 export function getDefaultWorkingDirectoryProfile(): DefaultWorkingDirectoryProfile {
