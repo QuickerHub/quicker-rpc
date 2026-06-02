@@ -51,8 +51,10 @@ pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1 -WaitForCi
 **在 GitHub Release 成功后**，按 **当前 `version.json` 版本**（不再 bump）上传 Quicker 包：
 
 ```powershell
-pwsh ./build.ps1 -QkbuildArgs '-p','-n'
+pwsh ./build.ps1 -Publish -NoVersion
 ```
+
+（等价于 qkbuild `--publish --no-version`；勿用裸 `-p -n`，PowerShell 会与通用参数冲突。）
 
 `block_until_ms` ≥ **120000**（qkbuild 上传 quicker.rpc + 本地 CLI 安装）。
 

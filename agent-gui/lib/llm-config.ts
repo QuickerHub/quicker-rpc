@@ -3,34 +3,44 @@ import { dirname } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import {
   getLlmProviderMeta,
-  LLM_PROVIDER_LIST,
-  parseLlmProviderId,
+  LLM_PROVIDER_ID,
   type LlmProviderId,
 } from "@/lib/llm-providers";
 
+export type LlmEndpointConfig = {
+  apiKey: string;
+  baseURL?: string;
+  model?: string;
+};
+
+/** @deprecated alias */
+export type LlmEndpointFallback = LlmEndpointConfig;
+
 export type LlmProviderEntry = {
+  /** Primary endpoint (preferred over legacy flat apiKey/baseURL/model). */
+  default?: LlmEndpointConfig;
   apiKey?: string;
   baseURL?: string;
   model?: string;
   /** When true, omit from model selector (API keys still work if configured). */
   hidden?: boolean;
+  /** Tried in order when the primary endpoint fails. */
+  fallbacks?: LlmEndpointConfig[];
 };
 
 export type LlmConfigFile = {
   version: 1;
-  /** Default model menu selection (overridden by LLM_PROVIDER env). */
+  /** @deprecated ignored — always GPT-5.5 */
   defaultProvider?: LlmProviderId;
-  providers?: Partial<Record<LlmProviderId, LlmProviderEntry>>;
+  /** GPT-5.5 endpoint config (`providers.default` in llm-config.json). */
+  provider?: LlmProviderEntry;
 };
 
-export type ResolvedLlmProviderEntry = {
-  apiKey?: string;
-  baseURL?: string;
-  model?: string;
+export type ResolvedLlmProviderEntry = LlmProviderEntry & {
   source?: "config";
 };
 
-const EMPTY: LlmConfigFile = { version: 1, providers: {} };
+const EMPTY: LlmConfigFile = { version: 1 };
 
 let cache: LlmConfigFile | null = null;
 
@@ -40,49 +50,84 @@ export function resolveLlmConfigPath(): string {
   return `${resolveAgentGuiRoot()}/llm-config.json`;
 }
 
-function normalizeEntry(raw: unknown): LlmProviderEntry | undefined {
+function normalizeEndpointConfig(raw: unknown): LlmEndpointConfig | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
-  const data = raw as LlmProviderEntry;
-  const entry: LlmProviderEntry = {};
-  if (typeof data.apiKey === "string" && data.apiKey.trim()) {
-    entry.apiKey = data.apiKey.trim();
-  }
+  const data = raw as LlmEndpointConfig;
+  const apiKey = typeof data.apiKey === "string" ? data.apiKey.trim() : "";
+  if (!apiKey) return undefined;
+  const next: LlmEndpointConfig = { apiKey };
   if (typeof data.baseURL === "string" && data.baseURL.trim()) {
-    entry.baseURL = data.baseURL.trim();
+    next.baseURL = data.baseURL.trim();
   }
   if (typeof data.model === "string" && data.model.trim()) {
-    entry.model = data.model.trim();
+    next.model = data.model.trim();
   }
+  return next;
+}
+
+function normalizeEntry(raw: unknown): LlmProviderEntry | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const data = raw as LlmProviderEntry & Record<string, unknown>;
+  const entry: LlmProviderEntry = {};
+
+  const defaultEndpoint = normalizeEndpointConfig(data.default);
+  if (defaultEndpoint) {
+    entry.default = defaultEndpoint;
+    entry.apiKey = defaultEndpoint.apiKey;
+    if (defaultEndpoint.baseURL) entry.baseURL = defaultEndpoint.baseURL;
+    if (defaultEndpoint.model) entry.model = defaultEndpoint.model;
+  } else {
+    if (typeof data.apiKey === "string" && data.apiKey.trim()) {
+      entry.apiKey = data.apiKey.trim();
+    }
+    if (typeof data.baseURL === "string" && data.baseURL.trim()) {
+      entry.baseURL = data.baseURL.trim();
+    }
+    if (typeof data.model === "string" && data.model.trim()) {
+      entry.model = data.model.trim();
+    }
+  }
+
   if (data.hidden === true) entry.hidden = true;
-  if (!entry.apiKey && !entry.baseURL && !entry.model && !entry.hidden) {
+  if (Array.isArray(data.fallbacks)) {
+    const fallbacks: LlmEndpointConfig[] = [];
+    for (const rawFallback of data.fallbacks) {
+      const fb = normalizeEndpointConfig(rawFallback);
+      if (fb) fallbacks.push(fb);
+    }
+    if (fallbacks.length) entry.fallbacks = fallbacks;
+  }
+  if (
+    !entry.apiKey
+    && !entry.baseURL
+    && !entry.model
+    && !entry.hidden
+    && !entry.fallbacks?.length
+  ) {
     return undefined;
   }
   return entry;
 }
 
+function readProviderEntry(raw: unknown): LlmProviderEntry | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const data = raw as Record<string, unknown>;
+  const providers = data.providers;
+  if (typeof providers === "object" && providers !== null) {
+    const map = providers as Record<string, unknown>;
+    return (
+      normalizeEntry(map.default)
+      ?? normalizeEntry(map.bingleimuzi)
+      ?? normalizeEntry(map.ai98pro)
+    );
+  }
+  return normalizeEntry(data.default) ?? normalizeEntry(data);
+}
+
 function normalizeConfig(raw: unknown): LlmConfigFile {
   if (typeof raw !== "object" || raw === null) return { ...EMPTY };
-  const data = raw as Partial<LlmConfigFile>;
-  const providers: Partial<Record<LlmProviderId, LlmProviderEntry>> = {};
-  if (typeof data.providers === "object" && data.providers !== null) {
-    const rawProviders = data.providers as Record<string, unknown>;
-    for (const id of [
-      "zen",
-      "nvidia",
-      "deepseek",
-      "chatanywhere",
-      "bingleimuzi",
-    ] as const) {
-      const entry = normalizeEntry(rawProviders[id]);
-      if (entry) providers[id] = entry;
-    }
-    if (!providers.bingleimuzi) {
-      const legacy = normalizeEntry(rawProviders.ai98pro);
-      if (legacy) providers.bingleimuzi = legacy;
-    }
-  }
-  const defaultProvider = parseLlmProviderId(data.defaultProvider);
-  return { version: 1, defaultProvider, providers };
+  const provider = readProviderEntry(raw);
+  return provider ? { version: 1, provider } : { ...EMPTY };
 }
 
 export function loadLlmConfig(): LlmConfigFile {
@@ -116,20 +161,22 @@ export function saveLlmConfig(data: LlmConfigFile): void {
 }
 
 export function resolveLlmConfigProvider(
-  providerId: LlmProviderId,
+  providerId: LlmProviderId = LLM_PROVIDER_ID,
 ): ResolvedLlmProviderEntry | undefined {
-  const entry = loadLlmConfig().providers?.[providerId];
+  if (providerId !== LLM_PROVIDER_ID) return undefined;
+  const entry = loadLlmConfig().provider;
   return entry ? { ...entry, source: "config" } : undefined;
 }
 
-export function getLlmConfigDefaultProvider(): LlmProviderId | undefined {
-  return loadLlmConfig().defaultProvider;
+export function getLlmConfigDefaultProvider(): LlmProviderId {
+  return LLM_PROVIDER_ID;
 }
 
 export function patchLlmConfigProviderApiKey(
   providerId: LlmProviderId,
   apiKey: string | undefined,
 ): void {
+  if (providerId !== LLM_PROVIDER_ID) return;
   patchLlmConfigProvider(providerId, { apiKey: apiKey ?? null });
 }
 
@@ -143,11 +190,11 @@ export function patchLlmConfigProvider(
   providerId: LlmProviderId,
   patch: LlmProviderPatch,
 ): void {
+  if (providerId !== LLM_PROVIDER_ID) return;
   const current = loadLlmConfig();
-  const providers = { ...current.providers };
-  const prev = providers[providerId] ?? {};
+  const prev = current.provider ?? {};
   const next: LlmProviderEntry = { ...prev };
-  const meta = getLlmProviderMeta(providerId);
+  const meta = getLlmProviderMeta();
 
   if (patch.apiKey !== undefined) {
     const trimmed = patch.apiKey?.trim() ?? "";
@@ -167,38 +214,27 @@ export function patchLlmConfigProvider(
     else delete next.model;
   }
 
-  if (!next.apiKey && !next.baseURL && !next.model && !next.hidden) {
-    delete providers[providerId];
-  } else {
-    providers[providerId] = next;
-  }
+  const provider = !next.apiKey && !next.baseURL && !next.model && !next.hidden
+    ? undefined
+    : next;
 
-  saveLlmConfig({ ...current, providers });
+  saveLlmConfig({ ...current, provider });
 }
 
-export function getLlmConfigModel(providerId: LlmProviderId): string | undefined {
-  const entry = resolveLlmConfigProvider(providerId);
+export function getLlmConfigModel(
+  _providerId: LlmProviderId = LLM_PROVIDER_ID,
+): string | undefined {
+  const entry = resolveLlmConfigProvider(_providerId);
   if (entry?.model) return entry.model;
-  return getLlmProviderMeta(providerId).defaultModel;
+  return getLlmProviderMeta(_providerId).defaultModel;
 }
 
-export function isLlmProviderHidden(providerId: LlmProviderId): boolean {
-  return loadLlmConfig().providers?.[providerId]?.hidden === true;
-}
-
-/** First visible provider id that passes `predicate`, else undefined. */
-export function findVisibleLlmProvider(
-  predicate: (id: LlmProviderId) => boolean,
-): LlmProviderId | undefined {
-  for (const meta of LLM_PROVIDER_LIST) {
-    if (isLlmProviderHidden(meta.id)) continue;
-    if (predicate(meta.id)) return meta.id;
-  }
-  return undefined;
+export function isLlmProviderHidden(
+  _providerId: LlmProviderId = LLM_PROVIDER_ID,
+): boolean {
+  return loadLlmConfig().provider?.hidden === true;
 }
 
 export function resolveVisibleDefaultProvider(): LlmProviderId {
-  const fromConfig = getLlmConfigDefaultProvider();
-  if (fromConfig && !isLlmProviderHidden(fromConfig)) return fromConfig;
-  return findVisibleLlmProvider(() => true) ?? "bingleimuzi";
+  return LLM_PROVIDER_ID;
 }

@@ -1,5 +1,6 @@
 # qkbuild configuration for QuickerRpc plugin package
 # Run from repo root: pwsh ./build.ps1
+# Release upload: pwsh ./build.ps1 -Publish -NoVersion
 
 name: quicker-rpc
 displayName: QuickerRpc

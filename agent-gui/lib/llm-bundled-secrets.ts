@@ -2,21 +2,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { decodeSecret } from "@/lib/llm-secret-cipher";
-import type { LlmProviderId } from "@/lib/llm-providers";
+import { LLM_PROVIDER_ID, type LlmProviderId } from "@/lib/llm-providers";
 
 type BundledSecretsFile = {
   version: 1;
   appVersion: string;
   providers?: Partial<Record<LlmProviderId, { enc: string }>>;
 };
-
-const PROVIDER_IDS = [
-  "zen",
-  "nvidia",
-  "deepseek",
-  "chatanywhere",
-  "bingleimuzi",
-] as const satisfies readonly LlmProviderId[];
 
 let cache: BundledSecretsFile | null | undefined;
 
@@ -54,23 +46,24 @@ function loadBundledSecretsFile(): BundledSecretsFile | null {
   }
 }
 
-export function hasBundledProviderApiKey(providerId: LlmProviderId): boolean {
+export function hasBundledProviderApiKey(
+  providerId: LlmProviderId = LLM_PROVIDER_ID,
+): boolean {
+  if (providerId !== LLM_PROVIDER_ID) return false;
   const file = loadBundledSecretsFile();
-  const enc = file?.providers?.[providerId]?.enc;
+  const enc = file?.providers?.[LLM_PROVIDER_ID]?.enc;
   return typeof enc === "string" && enc.length > 0;
 }
 
 export function getBundledProviderApiKey(
-  providerId: LlmProviderId,
+  providerId: LlmProviderId = LLM_PROVIDER_ID,
 ): string | undefined {
+  if (providerId !== LLM_PROVIDER_ID) return undefined;
   const file = loadBundledSecretsFile();
-  const enc = file?.providers?.[providerId]?.enc;
+  const enc = file?.providers?.[LLM_PROVIDER_ID]?.enc;
   if (!file || typeof enc !== "string" || !enc.trim()) return undefined;
-  if (!(PROVIDER_IDS as readonly LlmProviderId[]).includes(providerId)) {
-    return undefined;
-  }
   try {
-    const decoded = decodeSecret(enc, file.appVersion, providerId).trim();
+    const decoded = decodeSecret(enc, file.appVersion, LLM_PROVIDER_ID).trim();
     return decoded || undefined;
   } catch {
     return undefined;

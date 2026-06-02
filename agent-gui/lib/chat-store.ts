@@ -17,6 +17,8 @@ export type ChatStoreData = {
   threads: ChatThread[];
   /** Thread ids shown in the titlebar tab strip (order preserved). */
   openTabIds: string[];
+  /** User has explicitly opened/closed titlebar tabs since this field existed. */
+  tabStripPersisted?: boolean;
   /** Empty = server default working directory (dev: repo root; release: Documents). */
   workingDirectory: string;
 };
@@ -124,14 +126,150 @@ function normalizeOpenTabIds(
   raw: unknown,
   threads: ChatThread[],
   activeThreadId: string,
+  tabStripPersisted?: boolean,
 ): string[] {
   const threadIds = new Set(threads.map((t) => t.id));
-  const openTabIds = Array.isArray(raw)
+  let openTabIds = Array.isArray(raw)
     ? raw.filter((id): id is string => typeof id === "string" && threadIds.has(id))
-    : threads.map((t) => t.id);
+    : [];
 
-  if (openTabIds.length > 0) return openTabIds;
-  return threadIds.has(activeThreadId) ? [activeThreadId] : [threads[0]!.id];
+  if (openTabIds.length === 0) {
+    openTabIds = threadIds.has(activeThreadId)
+      ? [activeThreadId]
+      : [threads[0]!.id];
+  }
+
+  // Repair persisted state from older loads that expanded every thread into the tab strip.
+  if (
+    tabStripPersisted !== true
+    && Array.isArray(raw)
+    && threads.length > 1
+    && openTabIds.length === threads.length
+    && threads.every((t) => openTabIds.includes(t.id))
+  ) {
+    openTabIds = threadIds.has(activeThreadId)
+      ? [activeThreadId]
+      : [threads[0]!.id];
+  }
+
+  if (!openTabIds.includes(activeThreadId) && threadIds.has(activeThreadId)) {
+    openTabIds = [...openTabIds, activeThreadId];
+  }
+
+  return openTabIds;
+}
+
+function tabStripStateChanged(
+  before: Partial<ChatStoreData>,
+  after: ChatStoreData,
+): boolean {
+  if (openTabIdsChanged(before.openTabIds, after.openTabIds)) return true;
+  return before.tabStripPersisted !== after.tabStripPersisted;
+}
+
+function openTabIdsChanged(before: unknown, after: string[]): boolean {
+  if (!Array.isArray(before)) return true;
+  if (before.length !== after.length) return true;
+  return before.some((id, index) => id !== after[index]);
+}
+
+function withTabStripPersisted(data: ChatStoreData): ChatStoreData {
+  return data.tabStripPersisted === true
+    ? data
+    : { ...data, tabStripPersisted: true };
+}
+
+/** Titlebar tab strip cap; overflow tabs are hidden, not deleted (sidebar history kept). */
+export const MAX_OPEN_CHAT_TABS = 8;
+
+function threadById(threads: ChatThread[]): Map<string, ChatThread> {
+  return new Map(threads.map((t) => [t.id, t]));
+}
+
+/** Drop inactive empty tabs when user focuses a conversation that has messages. */
+function pruneAbandonedEmptyTabs(
+  openTabIds: string[],
+  threads: ChatThread[],
+  activeThreadId: string,
+): string[] {
+  const byId = threadById(threads);
+  const active = byId.get(activeThreadId);
+  if (!active || isThreadEmpty(active)) return openTabIds;
+
+  return openTabIds.filter((id) => {
+    if (id === activeThreadId) return true;
+    const thread = byId.get(id);
+    return !thread || !isThreadEmpty(thread);
+  });
+}
+
+/**
+ * Enforce tab cap: close inactive tabs from the strip (left-to-right among empties,
+ * then least-recently-updated among the rest). Never hides the active tab.
+ */
+function pruneOpenTabIds(
+  openTabIds: string[],
+  threads: ChatThread[],
+  activeThreadId: string,
+  maxTabs: number = MAX_OPEN_CHAT_TABS,
+): string[] {
+  if (openTabIds.length <= maxTabs) return openTabIds;
+
+  const byId = threadById(threads);
+  let ids = [...openTabIds];
+
+  while (ids.length > maxTabs) {
+    const inactive = ids.filter((id) => id !== activeThreadId);
+    if (inactive.length === 0) break;
+
+    const emptyInactive = inactive.filter((id) => {
+      const t = byId.get(id);
+      return t !== undefined && isThreadEmpty(t);
+    });
+
+    let victimId: string;
+    if (emptyInactive.length > 0) {
+      victimId = emptyInactive[0]!;
+    } else {
+      victimId = inactive.reduce((oldest, id) => {
+        const t = byId.get(id);
+        const o = byId.get(oldest);
+        if (!t) return oldest;
+        if (!o) return id;
+        return t.updatedAt < o.updatedAt ? id : oldest;
+      }, inactive[0]!);
+    }
+
+    ids = ids.filter((id) => id !== victimId);
+  }
+
+  return ids;
+}
+
+function applyOpenTabPolicy(
+  data: ChatStoreData,
+  options?: { pruneAbandonedEmpty?: boolean },
+): ChatStoreData {
+  let openTabIds = data.openTabIds;
+  if (options?.pruneAbandonedEmpty) {
+    openTabIds = pruneAbandonedEmptyTabs(
+      openTabIds,
+      data.threads,
+      data.activeThreadId,
+    );
+  }
+  openTabIds = pruneOpenTabIds(
+    openTabIds,
+    data.threads,
+    data.activeThreadId,
+  );
+  if (
+    openTabIds.length === data.openTabIds.length
+    && openTabIds.every((id, i) => id === data.openTabIds[i])
+  ) {
+    return data;
+  }
+  return { ...data, openTabIds };
 }
 
 function normalizeThreads(raw: unknown): ChatThread[] {
@@ -178,13 +316,20 @@ function normalizeStore(raw: unknown): ChatStoreData {
         ? data.activeThreadId
         : threads[0]!.id;
 
-    const openTabIds = normalizeOpenTabIds(data.openTabIds, threads, activeThreadId);
+    const tabStripPersisted = data.tabStripPersisted === true;
+    const openTabIds = normalizeOpenTabIds(
+      data.openTabIds,
+      threads,
+      activeThreadId,
+      tabStripPersisted,
+    );
 
     return compactEmptyThreads({
       version: 2,
       activeThreadId,
       threads,
       openTabIds,
+      tabStripPersisted,
       workingDirectory:
         typeof data.workingDirectory === "string" ? data.workingDirectory : "",
     });
@@ -249,7 +394,12 @@ export function loadChatStore(): ChatStoreData {
   try {
     const current = localStorage.getItem(CHAT_STORAGE_KEY);
     if (current) {
-      return normalizeStore(JSON.parse(current) as unknown);
+      const raw = JSON.parse(current) as Partial<ChatStoreData>;
+      const store = normalizeStore(raw);
+      if (tabStripStateChanged(raw, store)) {
+        saveChatStore(store);
+      }
+      return store;
     }
 
     const legacy = localStorage.getItem(LEGACY_WORKSPACE_STORAGE_KEY);
@@ -314,7 +464,9 @@ export function updateThreadMessages(
   threadId: string,
   messages: AgentUIMessage[],
 ): ChatStoreData {
-  return {
+  const hadContent =
+    (data.threads.find((t) => t.id === threadId)?.messages.length ?? 0) > 0;
+  const next: ChatStoreData = {
     ...data,
     threads: data.threads.map((thread) => {
       if (thread.id !== threadId) return thread;
@@ -336,6 +488,10 @@ export function updateThreadMessages(
       };
     }),
   };
+  if (!hadContent && messages.length > 0 && threadId === next.activeThreadId) {
+    return applyOpenTabPolicy(next, { pruneAbandonedEmpty: true });
+  }
+  return next;
 }
 
 export function addThread(data: ChatStoreData): ChatStoreData {
@@ -344,11 +500,15 @@ export function addThread(data: ChatStoreData): ChatStoreData {
     const openTabIds = data.openTabIds.includes(existingEmpty.id)
       ? data.openTabIds
       : [...data.openTabIds, existingEmpty.id];
-    return compactEmptyThreads({
-      ...data,
-      openTabIds,
-      activeThreadId: existingEmpty.id,
-    });
+    return withTabStripPersisted(
+      applyOpenTabPolicy(
+        compactEmptyThreads({
+          ...data,
+          openTabIds,
+          activeThreadId: existingEmpty.id,
+        }),
+      ),
+    );
   }
 
   const thread = createThread();
@@ -365,17 +525,24 @@ export function addThread(data: ChatStoreData): ChatStoreData {
     thread.id,
   );
 
-  return compactEmptyThreads({
-    ...data,
-    activeThreadId: thread.id,
-    threads,
-    openTabIds,
-  });
+  return withTabStripPersisted(
+    applyOpenTabPolicy(
+      compactEmptyThreads({
+        ...data,
+        activeThreadId: thread.id,
+        threads,
+        openTabIds,
+      }),
+    ),
+  );
 }
 
 export function selectThread(data: ChatStoreData, threadId: string): ChatStoreData {
   if (!data.threads.some((t) => t.id === threadId)) return data;
-  return { ...data, activeThreadId: threadId };
+  return applyOpenTabPolicy(
+    { ...data, activeThreadId: threadId },
+    { pruneAbandonedEmpty: true },
+  );
 }
 
 /** Open a thread in the tab strip (sidebar) and focus it. */
@@ -384,7 +551,12 @@ export function openThread(data: ChatStoreData, threadId: string): ChatStoreData
   const openTabIds = data.openTabIds.includes(threadId)
     ? data.openTabIds
     : [...data.openTabIds, threadId];
-  return { ...data, openTabIds, activeThreadId: threadId };
+  return withTabStripPersisted(
+    applyOpenTabPolicy(
+      { ...data, openTabIds, activeThreadId: threadId },
+      { pruneAbandonedEmpty: true },
+    ),
+  );
 }
 
 /** Hide a tab without deleting the conversation (sidebar history kept). */
@@ -412,7 +584,7 @@ export function closeTab(data: ChatStoreData, threadId: string): ChatStoreData {
     }
   }
 
-  return { ...data, threads, openTabIds, activeThreadId };
+  return withTabStripPersisted({ ...data, threads, openTabIds, activeThreadId });
 }
 
 export function deleteThread(data: ChatStoreData, threadId: string): ChatStoreData {

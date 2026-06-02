@@ -1,7 +1,7 @@
 ---
 name: quicker-rpc-publish
 description: >-
-  Full quicker-rpc release: GitHub Release CLI, build.ps1 -p -n Quicker plugin upload,
+  Full quicker-rpc release: GitHub Release CLI, build.ps1 -Publish -NoVersion Quicker plugin upload,
   qkrpc action update for shared action f5c76108-3ce9-433f-8cd0-8f0d9c562052.
   Use when the user asks to publish, release, ship, GitHub release, or /publish.
 disable-model-invocation: false
@@ -16,7 +16,7 @@ metadata:
 1. `git status`；必要时 bump `version.json` 并 commit
 2. `git log` 自上一 tag → **撰写 changelog** → 写入 `publish/changelogs/vX.Y.Z.md` 并 **commit**
 3. `pwsh ./publish/Publish-GitHubRelease.ps1` → **push tag**；`.github/workflows/release-cli.yml` 在 GitHub Actions 编译 qkrpc zip/setup **与 QuickerAgent Tauri 安装包**并发布 Release（可选 `-WaitForCi` 等待完成）
-4. `pwsh ./build.ps1 -QkbuildArgs '-p','-n'` → Quicker 依赖 **quicker.rpc** 上传（版本与 `version.json` 一致，不再 bump）
+4. `pwsh ./build.ps1 -Publish -NoVersion` → Quicker 依赖 **quicker.rpc** 上传（版本与 `version.json` 一致，不再 bump）
 5. `qkrpc action list --limit 1 --json` 确认插件在线（或已 `qkrpc serve` 且 `/health` 为 ok）
 6. `qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog-file publish/changelogs/vX.Y.Z.md --json`
 7. 汇报 Release URL、Quicker 包版本、action update 结果、用户安装命令
@@ -28,7 +28,7 @@ metadata:
 | Git | [QuickerHub/quicker-rpc](https://github.com/QuickerHub/quicker-rpc) |
 | 版本 | `version.json` → `QuickerRpc`（四段）；Release tag 前三段 `vX.Y.Z` |
 | Changelog | `publish/changelogs/vX.Y.Z.md`（**必须 commit 后再打 tag**） |
-| Quicker 包 | `quicker.rpc`（`build.ps1 -p -n`） |
+| Quicker 包 | `quicker.rpc`（`build.ps1 -Publish -NoVersion`） |
 | 分享动作 ID | `f5c76108-3ce9-433f-8cd0-8f0d9c562052` |
 | CLI Release | `qkrpc-{semver}-win-x64-setup.exe`、`qkrpc-win-x64-setup.exe`（latest）、zip 便携包 |
 | Agent Release | `QuickerAgent_{semver}_x64-setup.exe`、`quicker-agent-win-x64-setup.exe`（latest，Tauri NSIS，CI 构建） |
@@ -45,7 +45,7 @@ metadata:
 | `publish/Publish-GitHubRelease.ps1 -WaitForCi` | 同上，并等待 `release-cli.yml` 完成 |
 | `publish/Publish-GitHubRelease.ps1 -LocalBuild` | 本地构建 + `gh release`（需 Inno Setup，CI 不可用时） |
 | `publish/Build-QkrpcSetup.ps1` | Inno Setup 编译（CI 与 `-LocalBuild` 共用） |
-| `build.ps1 -QkbuildArgs '-p','-n'` | qkbuild 上传 Quicker 依赖，**不**改 `version.json` |
+| `build.ps1 -Publish -NoVersion` | qkbuild 上传 Quicker 依赖，**不**改 `version.json`（自动 SkipCliPackaging） |
 | `publish/publish-rpc.ps1` | 本地 CLI/插件构建（`-SkipSetup` 跳过安装包） |
 
 `Publish-GitHubRelease.ps1` 参数：`-LocalBuild`、`-WaitForCi`、`-SkipBuild`（仅 `-LocalBuild`）、`-SkipTag`、`-DryRun`、`-Draft`、`-TagVersion`、`-Changelog`、`-ChangelogFile`、`-AllowEmptyChangelog`

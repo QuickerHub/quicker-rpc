@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import type { LlmProviderId } from "@/lib/llm-providers";
+import { DEEPSEEK_PROVIDER_ID, LLM_PROVIDER_ID } from "@/lib/llm-providers";
 
 export type LlmLocalProviderSecrets = {
   apiKey?: string;
@@ -55,15 +56,14 @@ function normalizeSecrets(raw: unknown): LlmLocalSecrets {
   const data = raw as Partial<LlmLocalSecrets>;
   const providers: Partial<Record<LlmProviderId, LlmLocalProviderSecrets>> = {};
   if (typeof data.providers === "object" && data.providers !== null) {
-    for (const id of [
-      "zen",
-      "nvidia",
-      "deepseek",
-      "chatanywhere",
-      "bingleimuzi",
-    ] as const) {
-      const entry = normalizeProviderEntry(data.providers[id]);
+    const rawProviders = data.providers as Record<string, unknown>;
+    for (const id of [LLM_PROVIDER_ID, DEEPSEEK_PROVIDER_ID] as const) {
+      const entry = normalizeProviderEntry(rawProviders[id]);
       if (entry) providers[id] = entry;
+    }
+    if (!providers[LLM_PROVIDER_ID]) {
+      const legacy = normalizeProviderEntry(rawProviders.default);
+      if (legacy) providers[LLM_PROVIDER_ID] = legacy;
     }
   }
   const directApiKey =
@@ -100,13 +100,13 @@ export function saveLlmLocalSecrets(data: LlmLocalSecrets): void {
 }
 
 export function getLocalProviderConfig(
-  providerId: LlmProviderId,
+  providerId: LlmProviderId = LLM_PROVIDER_ID,
 ): LlmLocalProviderSecrets | undefined {
   return loadLlmLocalSecrets().providers[providerId];
 }
 
 export function getLocalProviderApiKey(
-  providerId: LlmProviderId,
+  providerId: LlmProviderId = LLM_PROVIDER_ID,
 ): string | undefined {
   return getLocalProviderConfig(providerId)?.apiKey;
 }

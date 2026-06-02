@@ -31,10 +31,11 @@ import {
 import {
   getActiveThread,
   getOpenTabThreads,
+  openThread,
   updateThreadMessages,
   updateThreadTitle,
 } from "@/lib/chat-store";
-import { AppSettingsMenu, type PingState } from "@/components/chat/AppSettingsMenu";
+import { AppSettingsPanel } from "@/components/chat/AppSettingsPanel";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ChatTitlebar } from "@/components/chat/ChatTitlebar";
 import { DocsViewerPanel, DocsViewerTabs } from "@/components/chat/DocsViewerTabs";
@@ -50,34 +51,24 @@ import { ActionTagSelector } from "./ActionTagSelector";
 import { ToolSelector } from "./ToolSelector";
 import {
   fetchLlmOptions,
+  hasConfiguredLlmProvider,
   ModelSelector,
   pickInitialLlmProvider,
 } from "./ModelSelector";
 import type { LlmProviderId } from "@/lib/llm-providers";
+import { LLM_PROVIDER_ID } from "@/lib/llm-providers";
 import { loadStoredLlmProvider, storeLlmProvider } from "@/lib/llm-prefs";
+import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
 import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent-activity";
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
+import { ActionPatchFollowUp } from "@/components/chat/ActionPatchFollowUp";
+import { EmptyChatPrompts } from "@/components/chat/EmptyChatPrompts";
+import { findActionPatchFollowUp } from "@/lib/action-patch-followup";
 import { useUserMessageStickyMarkers } from "@/lib/use-user-message-sticky";
 import { useAutoThreadTitle } from "@/lib/use-auto-thread-title";
-
-const PING_FETCH_MS = 15_000;
-
-function formatPingError(data: unknown, fallback: string): string {
-  if (typeof data === "object" && data !== null) {
-    const d = data as Record<string, unknown>;
-    if (typeof d.stderr === "string" && d.stderr.trim()) {
-      return d.stderr.trim();
-    }
-    if (typeof d.data === "string" && d.data.trim()) {
-      return d.data.trim().slice(0, 120);
-    }
-    if (typeof d.data === "object" && d.data !== null && "error" in d.data) {
-      const err = (d.data as { error: unknown }).error;
-      if (typeof err === "string") return err;
-    }
-  }
-  return fallback;
-}
+import { useComposerMessageQueue } from "@/lib/use-composer-message-queue";
+import type { AppMainView } from "@/lib/app-main-view";
+import { useQkrpcPing, type PingState } from "@/lib/use-qkrpc-ping";
 
 function formatChatError(error: Error): string {
   const message = error.message?.trim();
@@ -102,6 +93,9 @@ type ChatPanelProps = {
   visible?: boolean;
   titleGenerated: boolean;
   titleManual: boolean;
+  ping: PingState;
+  connectTick: number;
+  onOpenSettings: () => void;
   onPersist: (threadId: string, messages: AgentUIMessage[]) => void;
   onAutoTitle: (threadId: string, title: string) => void;
 };
@@ -113,32 +107,46 @@ function ChatPanel({
   visible = true,
   titleGenerated,
   titleManual,
+  ping,
+  connectTick,
+  onOpenSettings,
   onPersist,
   onAutoTitle,
 }: ChatPanelProps) {
   const [draftMessage, setDraftMessage] = useState("");
-  const [ping, setPing] = useState<PingState>({ status: "loading" });
   const [enabledTools, setEnabledTools] = useState(defaultEnabledToolIds);
-  const [llmProvider, setLlmProvider] = useState<LlmProviderId>("deepseek");
-  const [connectTick, setConnectTick] = useState(0);
+  const [llmProvider, setLlmProvider] = useState<LlmProviderId>(LLM_PROVIDER_ID);
 
   useEffect(() => {
     setEnabledTools(loadStoredEnabledTools());
   }, []);
 
+  const syncLlmProviderFromApi = useCallback(async () => {
+    const data = await fetchLlmOptions();
+    if (!data) return;
+    const initial = pickInitialLlmProvider(data, loadStoredLlmProvider());
+    setLlmProvider(initial);
+    storeLlmProvider(initial);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const data = await fetchLlmOptions();
-      if (cancelled || !data) return;
-      const initial = pickInitialLlmProvider(data, loadStoredLlmProvider());
-      setLlmProvider(initial);
-      storeLlmProvider(initial);
+      await syncLlmProviderFromApi();
+      if (cancelled) return;
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [syncLlmProviderFromApi]);
+
+  useEffect(() => {
+    const onKeysUpdated = () => {
+      void syncLlmProviderFromApi();
+    };
+    window.addEventListener(LLM_KEYS_UPDATED_EVENT, onKeysUpdated);
+    return () => window.removeEventListener(LLM_KEYS_UPDATED_EVENT, onKeysUpdated);
+  }, [syncLlmProviderFromApi]);
   const messagesRef = useRef<HTMLElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<ComposerMarkupFieldHandle>(null);
@@ -209,68 +217,13 @@ function ChatPanel({
     return n;
   }, [messages]);
 
-  const refreshPing = useCallback(async () => {
-    setPing({ status: "loading" });
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), PING_FETCH_MS);
-    try {
-      const res = await fetch("/api/ping", {
-        signal: controller.signal,
-        cache: "no-store",
-      });
-      const raw = await res.text();
-      let data: unknown = null;
-      if (raw.trim()) {
-        try {
-          data = JSON.parse(raw) as unknown;
-        } catch {
-          setPing({ status: "error", message: "健康检查响应无效" });
-          return;
-        }
-      }
-      const ok =
-        typeof data === "object" &&
-        data !== null &&
-        "ok" in data &&
-        (data as { ok: boolean }).ok;
-      if (res.ok && ok) {
-        setPing({ status: "ok", data });
-        setConnectTick((n) => n + 1);
-        return;
-      }
-      setPing({
-        status: "error",
-        message: formatPingError(data, res.ok ? "未连接 Quicker" : `HTTP ${res.status}`),
-      });
-    } catch (e) {
-      const message =
-        e instanceof Error && e.name === "AbortError"
-          ? "检测超时（请确认 pnpm dev 已启动且 qkrpc 可用）"
-          : e instanceof Error
-            ? e.message
-            : String(e);
-      setPing({ status: "error", message });
-    } finally {
-      window.clearTimeout(timer);
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshPing();
-  }, [refreshPing]);
-
-  // start.mjs may still be launching qkrpc serve when the page first loads
-  const pingBootRetriesRef = useRef(0);
-  useEffect(() => {
-    if (ping.status !== "error") return;
-    if (pingBootRetriesRef.current >= 2) return;
-    const delayMs = pingBootRetriesRef.current === 0 ? 2_000 : 5_000;
-    pingBootRetriesRef.current += 1;
-    const timer = window.setTimeout(() => void refreshPing(), delayMs);
-    return () => window.clearTimeout(timer);
-  }, [ping.status, refreshPing]);
-
   const busy = status === "submitted" || status === "streaming";
+  const { queueLength, enqueueOrSend, clearQueue } = useComposerMessageQueue(
+    busy,
+    sendMessage,
+  );
+  const qkrpcOk = ping.status === "ok";
+  const composerLocked = !qkrpcOk;
 
   useEffect(() => {
     const container = messagesRef.current;
@@ -339,14 +292,21 @@ function ChatPanel({
   const canSend = canSendComposedMessage(draftMessage);
 
   const submitComposer = useCallback(() => {
-    if (busy) return;
     const text = draftMessage.trim();
     if (!canSendComposedMessage(text)) return;
-    sendMessage({ text });
     setDraftMessage("");
-  }, [busy, draftMessage, sendMessage]);
+    enqueueOrSend(text);
+    requestAnimationFrame(() => composerRef.current?.focus());
+  }, [draftMessage, enqueueOrSend]);
 
-  const qkrpcOk = ping.status === "ok";
+  const runQuickPrompt = useCallback(
+    (text: string) => {
+      if (composerLocked) return;
+      enqueueOrSend(text);
+    },
+    [composerLocked, enqueueOrSend],
+  );
+
   const qkrpcLoading = ping.status === "loading";
   const agentActivity = useMemo(
     () =>
@@ -374,6 +334,10 @@ function ChatPanel({
     return null;
   }, [messages, agentActivity]);
   const isEmptyThread = messages.length === 0 && !error;
+  const actionPatchFollowUp = useMemo(() => {
+    if (agentActivity || pendingApprovalCount > 0) return null;
+    return findActionPatchFollowUp(messages);
+  }, [agentActivity, messages, pendingApprovalCount]);
   const { activeTabId } = useDocsViewer();
   const showDocView = activeTabId != null;
 
@@ -441,6 +405,12 @@ function ChatPanel({
             </button>
           </div>
         )}
+        {actionPatchFollowUp && !showDocView && (
+          <ActionPatchFollowUp
+            context={actionPatchFollowUp}
+            disabled={composerLocked}
+          />
+        )}
         <div ref={messagesEndRef} className="messages-anchor" aria-hidden />
       </main>
       </div>
@@ -453,6 +423,12 @@ function ChatPanel({
       )}
 
       <footer className="composer">
+        {isEmptyThread && !showDocView && (
+          <EmptyChatPrompts
+            disabled={composerLocked}
+            onRun={runQuickPrompt}
+          />
+        )}
         <form
           className="composer-form"
           onSubmit={(e) => {
@@ -465,31 +441,30 @@ function ChatPanel({
             <ComposerMarkupField
               ref={composerRef}
               value={draftMessage}
-              placeholder="描述你想在 Quicker 里做的事…（@ 引用动作）"
-              disabled={busy}
+              placeholder={
+                queueLength > 0
+                  ? `Agent 完成后将发送已排队的 ${queueLength} 条消息…`
+                  : "描述你想在 Quicker 里做的事…（@ 引用动作）"
+              }
+              disabled={composerLocked}
               qkrpcOk={qkrpcOk}
               onChange={setDraftMessage}
               onSubmit={submitComposer}
             />
             <div className="composer-toolbar">
               <div className="composer-toolbar-left">
-                <AppSettingsMenu
-                  ping={ping}
-                  onRefreshPing={refreshPing}
-                  disabled={busy}
-                />
                 <ActionTagSelector
                   ping={ping}
                   refreshKey={connectTick}
                   tagCount={draftTagCount}
                   embeddedTagIds={draftTagIds}
                   onSelect={insertDraftActionTag}
-                  disabled={busy}
+                  disabled={composerLocked}
                 />
                 <ToolSelector
                   enabledTools={enabledTools}
                   onChange={setEnabledTools}
-                  disabled={busy}
+                  disabled={composerLocked}
                 />
                 <ModelSelector
                   providerId={llmProvider}
@@ -497,9 +472,14 @@ function ChatPanel({
                     setLlmProvider(id);
                     storeLlmProvider(id);
                   }}
-                  disabled={busy}
+                  onNeedSettings={onOpenSettings}
+                  disabled={composerLocked}
                 />
-                <span className="composer-hint">Shift+Enter 换行</span>
+                <span className="composer-hint">
+                  {queueLength > 0
+                    ? `已排队 ${queueLength} 条`
+                    : "Shift+Enter 换行"}
+                </span>
               </div>
               <div className="composer-toolbar-actions">
                 {!isEmptyThread && (
@@ -509,12 +489,16 @@ function ChatPanel({
                     providerId={llmProvider}
                   />
                 )}
-                {busy ? (
+                {busy && (
                   <button
                     type="button"
                     className="composer-btn composer-btn--stop"
-                    onClick={() => stop()}
+                    onClick={() => {
+                      clearQueue();
+                      stop();
+                    }}
                     aria-label="停止生成"
+                    title={queueLength > 0 ? "停止并清空排队" : "停止生成"}
                   >
                     <svg
                       className="composer-stop-icon"
@@ -531,30 +515,30 @@ function ChatPanel({
                       />
                     </svg>
                   </button>
-                ) : (
-                  <button
-                    type="submit"
-                    className="composer-btn composer-btn--send"
-                    disabled={!canSend}
-                    aria-label="发送"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      aria-hidden
-                    >
-                      <path
-                        d="M8 3v10M8 3l4 4M8 3L4 7"
-                        stroke="currentColor"
-                        strokeWidth="1.75"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
                 )}
+                <button
+                  type="submit"
+                  className="composer-btn composer-btn--send"
+                  disabled={!canSend || composerLocked}
+                  aria-label={busy ? "加入发送队列" : "发送"}
+                  title={busy ? "加入发送队列" : "发送"}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    aria-hidden
+                  >
+                    <path
+                      d="M8 3v10M8 3l4 4M8 3L4 7"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
               </div>
             </div>
             </div>
@@ -568,6 +552,9 @@ function ChatPanel({
 export function Chat() {
   const { store, defaultCwd, defaultCwdProfile, updateStore } = useChatStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [mainView, setMainView] = useState<AppMainView>("chat");
+  const [settingsTabOpen, setSettingsTabOpen] = useState(false);
+  const { ping, refreshPing, connectTick } = useQkrpcPing();
   const storeRef = useRef(store);
   storeRef.current = store;
 
@@ -599,6 +586,39 @@ export function Chat() {
     [updateStore],
   );
 
+  const handleActivateThread = useCallback(
+    (threadId: string) => {
+      updateStore(openThread(storeRef.current, threadId));
+      setMainView("chat");
+    },
+    [updateStore],
+  );
+
+  const openSettingsTab = useCallback(() => {
+    setSettingsTabOpen(true);
+    setMainView("settings");
+  }, []);
+
+  const llmSettingsAutoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (llmSettingsAutoOpenedRef.current) return;
+    let cancelled = false;
+    void (async () => {
+      const data = await fetchLlmOptions();
+      if (cancelled || !data || hasConfiguredLlmProvider(data)) return;
+      llmSettingsAutoOpenedRef.current = true;
+      openSettingsTab();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [openSettingsTab]);
+
+  const closeSettingsTab = useCallback(() => {
+    setSettingsTabOpen(false);
+    setMainView("chat");
+  }, []);
+
   const activeThread = getActiveThread(store);
   const workingDirectory = store.workingDirectory.trim() || defaultCwd;
 
@@ -610,8 +630,13 @@ export function Chat() {
       <ChatTitlebar
         store={store}
         sidebarOpen={!sidebarCollapsed}
+        mainView={mainView}
+        settingsTabOpen={settingsTabOpen}
         onToggleSidebar={toggleSidebar}
         onChange={updateStore}
+        onMainViewChange={setMainView}
+        onOpenSettingsTab={openSettingsTab}
+        onCloseSettingsTab={closeSettingsTab}
       />
       <div className="app-body">
         <ChatSidebar
@@ -619,23 +644,38 @@ export function Chat() {
           defaultCwd={defaultCwd}
           defaultCwdProfile={defaultCwdProfile}
           onChange={updateStore}
+          onActivateThread={handleActivateThread}
+          onShowChatView={() => setMainView("chat")}
           collapsed={sidebarCollapsed}
         />
         <DocsViewerProvider>
-          <div className="app-main-stack">
-            {getOpenTabThreads(store).map((thread) => (
-              <ChatPanel
-                key={thread.id}
-                threadId={thread.id}
-                initialMessages={thread.messages}
-                workingDirectory={workingDirectory}
-                visible={thread.id === activeThread.id}
-                titleGenerated={thread.titleGenerated ?? false}
-                titleManual={thread.titleManual ?? false}
-                onPersist={persistMessages}
-                onAutoTitle={handleAutoTitle}
+          <div className="app-main-shell">
+            {mainView === "settings" && settingsTabOpen ? (
+              <AppSettingsPanel
+                active
+                ping={ping}
+                onRefreshPing={refreshPing}
               />
-            ))}
+            ) : (
+              <div className="app-main-stack">
+                {getOpenTabThreads(store).map((thread) => (
+                  <ChatPanel
+                    key={thread.id}
+                    threadId={thread.id}
+                    initialMessages={thread.messages}
+                    workingDirectory={workingDirectory}
+                    visible={thread.id === activeThread.id}
+                    titleGenerated={thread.titleGenerated ?? false}
+                    titleManual={thread.titleManual ?? false}
+                    ping={ping}
+                    connectTick={connectTick}
+                    onOpenSettings={openSettingsTab}
+                    onPersist={persistMessages}
+                    onAutoTitle={handleAutoTitle}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </DocsViewerProvider>
       </div>

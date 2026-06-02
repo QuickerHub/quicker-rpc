@@ -6,7 +6,7 @@ import {
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { buildSystemInstructions } from "@/lib/instructions";
 import { runWithQkrpcCwd } from "@/lib/qkrpc-request-context";
-import { getChatModelId, resolveChatModel } from "@/lib/llm";
+import { resolveChatModelForRequest } from "@/lib/llm";
 import { isLlmProviderHidden } from "@/lib/llm-config";
 import { parseLlmProviderId } from "@/lib/llm-providers";
 import { isUserModelSelectorProvider } from "@/lib/llm-user-providers";
@@ -47,14 +47,14 @@ export async function POST(req: Request) {
   }
 
   let model;
+  let modelId: string;
   try {
-    model = resolveChatModel(providerOverride);
+    ({ model, modelId } = await resolveChatModelForRequest(providerOverride));
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return Response.json({ error: message }, { status: 500 });
   }
 
-  const modelId = getChatModelId(providerOverride);
   const tools = pickEnabledTools(quickerTools, enabledTools);
   const cwd = (workingDirectory ?? workspaceRoot)?.trim() || undefined;
 

@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
-import { resolveChatModel } from "@/lib/llm";
+import { runLlmWithEndpointFallback } from "@/lib/llm";
 import { isLlmProviderHidden } from "@/lib/llm-config";
 import { parseLlmProviderId } from "@/lib/llm-providers";
 import { isUserModelSelectorProvider } from "@/lib/llm-user-providers";
@@ -42,24 +42,19 @@ export async function POST(req: Request) {
     );
   }
 
-  let model;
   try {
-    model = resolveChatModel(providerOverride);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return Response.json({ error: message }, { status: 500 });
-  }
+    const { result } = await runLlmWithEndpointFallback(
+      providerOverride,
+      async (model) => generateText({
+        model,
+        system: THREAD_TITLE_SYSTEM_PROMPT,
+        prompt: context,
+        maxOutputTokens: 40,
+        temperature: 0.2,
+      }),
+    );
 
-  try {
-    const { text } = await generateText({
-      model,
-      system: THREAD_TITLE_SYSTEM_PROMPT,
-      prompt: context,
-      maxOutputTokens: 40,
-      temperature: 0.2,
-    });
-
-    return Response.json({ title: sanitizeThreadTitle(text) });
+    return Response.json({ title: sanitizeThreadTitle(result.text) });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return Response.json({ error: message }, { status: 500 });

@@ -4,19 +4,114 @@
 # Stops any running qkrpc serve before build (unlocks DLLs), then starts serve from publish/cli.
 # Examples:
 #   pwsh ./build.ps1
-#   pwsh ./build.ps1 -t          # test: skip CLI zip/setup + redundant plugin publish
-#   pwsh ./build.ps1 -p -n
-#   pwsh ./build.ps1 -t -SkipCliPackaging:$false   # force full CLI packaging
-#   pwsh ./build.ps1 -t -SkipQkrpcServe            # no kill/restart of qkrpc serve
+#   pwsh ./build.ps1 -Test          # or -t: skip CLI zip/setup + redundant plugin publish
+#   pwsh ./build.ps1 -Publish -NoVersion   # release: upload quicker.rpc, no version bump
+#   pwsh ./build.ps1 -Test -SkipCliPackaging:$false   # force full CLI packaging
+#   pwsh ./build.ps1 -Test -SkipQkrpcServe            # no kill/restart of qkrpc serve
 
 param(
     [switch]$SkipCliPackaging,
     [switch]$SkipQkrpcServe,
+  # First-class qkbuild flags (avoid PowerShell common-parameter clash on bare -p / -n).
+    [Alias('p')]
+    [switch]$Publish,
+    [Alias('n')]
+    [switch]$NoVersion,
+    [Alias('t')]
+    [switch]$Test,
     [Parameter(ValueFromRemainingArguments = $true)]
     [object[]]$QkbuildArgs
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Expand-QkbuildArgTokens {
+    param([object[]]$Raw)
+    $out = [System.Collections.Generic.List[string]]::new()
+    foreach ($item in @($Raw)) {
+        if ($null -eq $item) { continue }
+        if ($item -is [System.Array]) {
+            foreach ($sub in $item) {
+                if (-not [string]::IsNullOrWhiteSpace([string]$sub)) {
+                    $out.Add([string]$sub.Trim())
+                }
+            }
+            continue
+        }
+        $text = [string]$item
+        if ([string]::IsNullOrWhiteSpace($text)) { continue }
+        $segments = if ($text -match '[\s,]') {
+            $text -split '[\s,]+'
+        }
+        else {
+            @($text)
+        }
+        foreach ($part in $segments) {
+            if (-not [string]::IsNullOrWhiteSpace($part)) {
+                $out.Add($part.Trim())
+            }
+        }
+    }
+    return $out
+}
+
+function Test-QkbuildFlag {
+    param(
+        [string[]]$Tokens,
+        [string[]]$Names
+    )
+    foreach ($token in $Tokens) {
+        $t = $token.Trim()
+        foreach ($name in $Names) {
+            if ($t -eq $name) { return $true }
+        }
+    }
+    return $false
+}
+
+function Get-QkbuildInvocationArgs {
+    param(
+        [switch]$Publish,
+        [switch]$NoVersion,
+        [switch]$Test,
+        [object[]]$Extra = @()
+    )
+
+    $extraTokens = Expand-QkbuildArgTokens -Raw $Extra
+    if (Test-QkbuildFlag -Tokens $extraTokens -Names @('-p', '--publish')) {
+        $Publish = $true
+    }
+    if (Test-QkbuildFlag -Tokens $extraTokens -Names @('-n', '--no-version')) {
+        $NoVersion = $true
+    }
+    if (Test-QkbuildFlag -Tokens $extraTokens -Names @('-t', '--test')) {
+        $Test = $true
+    }
+
+    $reserved = [System.Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::OrdinalIgnoreCase
+    )
+    foreach ($name in @('-p', '--publish', '-n', '--no-version', '-t', '--test')) {
+        [void]$reserved.Add($name)
+    }
+
+    $args = [System.Collections.Generic.List[string]]::new()
+    if ($Test) { $args.Add('--test') }
+    if ($Publish) { $args.Add('--publish') }
+    if ($NoVersion) { $args.Add('--no-version') }
+
+    foreach ($token in $extraTokens) {
+        if ($reserved.Contains($token)) { continue }
+        $args.Add($token)
+    }
+
+    return ,@{
+        Args    = $args.ToArray()
+        Publish = [bool]$Publish
+        NoVersion = [bool]$NoVersion
+        Test    = [bool]$Test
+    }
+}
 
 # Keep in sync with QuickerRpc.Contracts.Rpc.QuickerRpcBootstrap.PluginRunActionId
 $PluginRunActionUri = 'quicker:runaction:aa5917ad-1256-4c73-7022-08debe3efcbe'
@@ -141,9 +236,17 @@ function Invoke-QuickerRpcPluginRunAction {
     }
 }
 
-$testBuild = ($QkbuildArgs -contains '-t')
+$qkMeta = Get-QkbuildInvocationArgs -Publish:$Publish -NoVersion:$NoVersion -Test:$Test -Extra $QkbuildArgs
+$qkbuildArgsResolved = $qkMeta.Args
+$testBuild = $qkMeta.Test
+$quickerDependencyUpload = $qkMeta.Publish -and $qkMeta.NoVersion
+
 if ($SkipCliPackaging.IsPresent) {
     $skipPackaging = [bool]$SkipCliPackaging
+}
+elseif ($quickerDependencyUpload) {
+    # After GitHub Release: upload quicker.rpc + refresh local CLI; skip zip/setup/redundant plugin publish.
+    $skipPackaging = $true
 }
 else {
     $skipPackaging = $testBuild
@@ -163,9 +266,16 @@ try {
     }
 
     Write-Host "=== QuickerRpc.Plugin (qkbuild) ===" -ForegroundColor Cyan
-    $qkbuildCmd = @('build', '-c', 'build.yaml', '--project-path', '.\QuickerRpc.Plugin') + @($QkbuildArgs)
+    if ($quickerDependencyUpload) {
+        Write-Host "Mode: Quicker dependency upload (--publish --no-version); CLI zip/setup skipped." -ForegroundColor Yellow
+    }
+    if ($qkbuildArgsResolved.Count -gt 0) {
+        Write-Host "qkbuild args: $($qkbuildArgsResolved -join ' ')" -ForegroundColor DarkGray
+    }
+    $qkbuildCmd = @('build', '-c', 'build.yaml', '--project-path', '.\QuickerRpc.Plugin') + $qkbuildArgsResolved
     & qkbuild @qkbuildCmd
     if ($LASTEXITCODE -ne 0) {
+        Write-Host "qkbuild failed (exit $LASTEXITCODE)." -ForegroundColor Red
         exit $LASTEXITCODE
     }
 

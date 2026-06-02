@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import type { PingState } from "@/components/chat/AppSettingsMenu";
+import type { PingState } from "@/lib/use-qkrpc-ping";
 import type { PinnedAction } from "@/lib/action-context";
 import type { RecentActionItem } from "@/lib/recent-actions";
 import { useAgentActions } from "@/lib/use-agent-actions";

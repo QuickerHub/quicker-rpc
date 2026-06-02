@@ -1,9 +1,10 @@
 import type { LlmProviderId } from "@/lib/llm-providers";
+import { DEEPSEEK_PROVIDER_ID, LLM_PROVIDER_ID } from "@/lib/llm-providers";
 
 /** Providers shown in the composer model menu (end-user surface). */
 export const USER_MODEL_SELECTOR_IDS = [
-  "bingleimuzi",
-  "deepseek",
+  LLM_PROVIDER_ID,
+  DEEPSEEK_PROVIDER_ID,
 ] as const satisfies readonly LlmProviderId[];
 
 export type UserSettingsField = "apiKey" | "baseURL" | "model";
@@ -15,8 +16,8 @@ export type UserProviderUiSpec = {
 
 /** Providers / fields exposed in the settings dialog (not llm-config.json). */
 export const USER_PROVIDER_UI: readonly UserProviderUiSpec[] = [
-  { id: "bingleimuzi", settingsFields: [] },
-  { id: "deepseek", settingsFields: ["apiKey"] },
+  { id: LLM_PROVIDER_ID, settingsFields: [] },
+  { id: DEEPSEEK_PROVIDER_ID, settingsFields: ["apiKey"] },
 ] as const;
 
 export function isUserModelSelectorProvider(id: LlmProviderId): boolean {

@@ -1,16 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { SettingsGearIcon } from "@/components/SettingsGearIcon";
+import type { AppMainView } from "@/lib/app-main-view";
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
   addThread,
   closeTab,
   getActiveThread,
   getOpenTabThreads,
-  saveChatStore,
   selectThread,
 } from "@/lib/chat-store";
-import { SidebarSettingsMenu } from "@/components/chat/SidebarSettingsMenu";
 import { SidebarToggle } from "@/components/chat/SidebarToggle";
 import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
@@ -19,8 +19,13 @@ import { useShellPlatform, useTauriShell } from "@/lib/tauri-shell";
 type ChatTitlebarProps = {
   store: ChatStoreData;
   sidebarOpen: boolean;
+  mainView: AppMainView;
+  settingsTabOpen: boolean;
   onToggleSidebar: () => void;
   onChange: (next: ChatStoreData) => void;
+  onMainViewChange: (view: AppMainView) => void;
+  onOpenSettingsTab: () => void;
+  onCloseSettingsTab: () => void;
 };
 
 function IconChatTab() {
@@ -62,30 +67,52 @@ function IconClose() {
   );
 }
 
+function plainTitleText(raw: string): string {
+  const withoutTags = raw.replace(/<[^>]*>/g, " ");
+  const normalized = withoutTags.replace(/\s+/g, " ").trim();
+  return normalized || "新对话";
+}
+
 export function ChatTitlebar({
   store,
   sidebarOpen,
+  mainView,
+  settingsTabOpen,
   onToggleSidebar,
   onChange,
+  onMainViewChange,
+  onOpenSettingsTab,
+  onCloseSettingsTab,
 }: ChatTitlebarProps) {
   const tabsRef = useRef<HTMLDivElement>(null);
   const activeThread = useMemo(() => getActiveThread(store), [store]);
   const tabThreads = useMemo(() => getOpenTabThreads(store), [store]);
+  const settingsActive = mainView === "settings";
 
   const commit = useCallback(
     (next: ChatStoreData) => {
-      saveChatStore(next);
       onChange(next);
     },
     [onChange],
   );
 
-  const handleSelect = (threadId: string) => {
-    if (threadId === activeThread.id) return;
+  const handleSelectChat = (threadId: string) => {
+    onMainViewChange("chat");
+    if (threadId === activeThread.id && mainView === "chat") return;
     commit(selectThread(store, threadId));
   };
 
+  const handleSelectSettings = () => {
+    if (!settingsTabOpen) {
+      onOpenSettingsTab();
+      return;
+    }
+    if (settingsActive) return;
+    onMainViewChange("settings");
+  };
+
   const handleNew = () => {
+    onMainViewChange("chat");
     commit(addThread(store));
   };
 
@@ -96,9 +123,39 @@ export function ChatTitlebar({
   useEffect(() => {
     const root = tabsRef.current;
     if (!root) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (root.scrollWidth <= root.clientWidth) return;
+      const delta =
+        Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (delta === 0) return;
+      e.preventDefault();
+      root.scrollLeft += delta;
+    };
+
+    root.addEventListener("wheel", onWheel, { passive: false });
+    return () => root.removeEventListener("wheel", onWheel);
+  }, []);
+
+  useEffect(() => {
+    const root = tabsRef.current;
+    if (!root) return;
     const active = root.querySelector<HTMLElement>('[data-active="true"]');
-    active?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [activeThread.id, tabThreads.length]);
+    if (!active) return;
+
+    if (settingsActive) {
+      active.scrollIntoView({ block: "nearest", inline: "end" });
+      return;
+    }
+
+    const tabIndex = tabThreads.findIndex((t) => t.id === activeThread.id);
+    const isLast = tabIndex === tabThreads.length - 1;
+    const isFirst = tabIndex === 0;
+    active.scrollIntoView({
+      block: "nearest",
+      inline: isLast ? "end" : isFirst ? "start" : "nearest",
+    });
+  }, [activeThread.id, tabThreads.length, settingsActive, settingsTabOpen]);
 
   const isTauri = useTauriShell();
   const platform = useShellPlatform();
@@ -121,9 +178,10 @@ export function ChatTitlebar({
 
       <TitlebarDragRegion className="titlebar-drag-spacer--lead" />
 
-      <div className="titlebar-tabs" ref={tabsRef} role="tablist" aria-label="对话标签">
+      <div className="titlebar-tabs" ref={tabsRef} role="tablist" aria-label="主标签">
         {tabThreads.map((thread) => {
-          const active = thread.id === activeThread.id;
+          const active = !settingsActive && thread.id === activeThread.id;
+          const titleText = plainTitleText(thread.title);
           return (
             <div
               key={thread.id}
@@ -135,18 +193,18 @@ export function ChatTitlebar({
                 role="tab"
                 className="titlebar-tab-main"
                 aria-selected={active}
-                title={thread.title}
-                onClick={() => handleSelect(thread.id)}
+                title={titleText}
+                onClick={() => handleSelectChat(thread.id)}
               >
                 <span className="titlebar-tab-icon">
                   <IconChatTab />
                 </span>
-                <span className="titlebar-tab-label">{thread.title}</span>
+                <span className="titlebar-tab-label">{titleText}</span>
               </button>
               <button
                 type="button"
                 className="titlebar-tab-close"
-                aria-label={`关闭 ${thread.title}`}
+                aria-label={`关闭 ${titleText}`}
                 title="关闭"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -158,6 +216,40 @@ export function ChatTitlebar({
             </div>
           );
         })}
+
+        {settingsTabOpen && (
+          <div
+            className={`titlebar-tab titlebar-tab--settings${settingsActive ? " titlebar-tab--active" : ""}`}
+            data-active={settingsActive ? "true" : undefined}
+            data-tab-kind="settings"
+          >
+            <button
+              type="button"
+              role="tab"
+              className="titlebar-tab-main"
+              aria-selected={settingsActive}
+              title="设置"
+              onClick={handleSelectSettings}
+            >
+              <span className="titlebar-tab-icon">
+                <SettingsGearIcon size={12} />
+              </span>
+              <span className="titlebar-tab-label">设置</span>
+            </button>
+            <button
+              type="button"
+              className="titlebar-tab-close"
+              aria-label="关闭设置"
+              title="关闭"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCloseSettingsTab();
+              }}
+            >
+              <IconClose />
+            </button>
+          </div>
+        )}
 
         <button
           type="button"
@@ -180,7 +272,17 @@ export function ChatTitlebar({
           .filter(Boolean)
           .join(" ")}
       >
-        <SidebarSettingsMenu />
+        {!settingsTabOpen && (
+          <button
+            type="button"
+            className="ws-icon-btn ws-settings-trigger"
+            title="设置"
+            aria-label="打开设置"
+            onClick={onOpenSettingsTab}
+          >
+            <SettingsGearIcon size={16} />
+          </button>
+        )}
       </div>
       <TauriWindowControls />
     </header>

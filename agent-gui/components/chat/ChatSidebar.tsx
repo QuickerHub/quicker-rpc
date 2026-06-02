@@ -7,9 +7,7 @@ import {
   addThread,
   deleteThread,
   getActiveThread,
-  openThread,
   renameThread,
-  saveChatStore,
   setWorkingDirectory,
   sortThreads,
 } from "@/lib/chat-store";
@@ -33,6 +31,8 @@ type ChatSidebarProps = {
   defaultCwd: string;
   defaultCwdProfile: DefaultWorkingDirectoryProfile;
   onChange: (next: ChatStoreData) => void;
+  onActivateThread: (threadId: string) => void;
+  onShowChatView: () => void;
   collapsed: boolean;
   disabled?: boolean;
 };
@@ -114,6 +114,8 @@ export function ChatSidebar({
   defaultCwd,
   defaultCwdProfile,
   onChange,
+  onActivateThread,
+  onShowChatView,
   collapsed,
   disabled = false,
 }: ChatSidebarProps) {
@@ -127,7 +129,6 @@ export function ChatSidebar({
 
   const commit = useCallback(
     (next: ChatStoreData) => {
-      saveChatStore(next);
       onChange(next);
     },
     [onChange],
@@ -135,6 +136,7 @@ export function ChatSidebar({
 
   const handleNewThread = () => {
     commit(addThread(store));
+    onShowChatView();
   };
 
   const handleRenameThread = (threadId: string, currentTitle: string) => {
@@ -181,7 +183,7 @@ export function ChatSidebar({
                   <button
                     type="button"
                     className={`ws-item${selected ? " ws-item--active" : ""}`}
-                    onClick={() => commit(openThread(store, thread.id))}
+                    onClick={() => onActivateThread(thread.id)}
                     disabled={disabled}
                     aria-selected={selected}
                   >

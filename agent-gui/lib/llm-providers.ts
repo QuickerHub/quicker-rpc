@@ -1,11 +1,9 @@
 /** Client-safe LLM provider metadata (no secrets). */
 
-export type LlmProviderId =
-  | "zen"
-  | "nvidia"
-  | "deepseek"
-  | "chatanywhere"
-  | "bingleimuzi";
+export const LLM_PROVIDER_ID = "bingleimuzi" as const;
+export const DEEPSEEK_PROVIDER_ID = "deepseek" as const;
+
+export type LlmProviderId = typeof LLM_PROVIDER_ID | typeof DEEPSEEK_PROVIDER_ID;
 
 export type LlmProviderMeta = {
   id: LlmProviderId;
@@ -17,65 +15,64 @@ export type LlmProviderMeta = {
   description: string;
 };
 
+export const GPT55_PROVIDER: LlmProviderMeta = {
+  id: LLM_PROVIDER_ID,
+  label: "OpenAI",
+  defaultBaseURL: "https://api.bingleimuzi.eu.cc/v1",
+  defaultModel: "gpt-5.5",
+  clientName: "gpt-5.5",
+  description: "默认对话模型 gpt-5.5（内置 endpoint fallback）",
+};
+
+/** DeepSeek official API default (V4 Flash; replaces deprecated deepseek-chat). */
+export const DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash" as const;
+
+const DEEPSEEK_LEGACY_MODEL_IDS = new Set([
+  "deepseek-chat",
+  "deepseek-reasoner",
+]);
+
+export const DEEPSEEK_PROVIDER: LlmProviderMeta = {
+  id: DEEPSEEK_PROVIDER_ID,
+  label: "DeepSeek",
+  defaultBaseURL: "https://api.deepseek.com/v1",
+  defaultModel: DEEPSEEK_DEFAULT_MODEL,
+  clientName: "deepseek-official",
+  description: "DeepSeek 官方 API（默认 deepseek-v4-flash，需在设置中填写 Key）",
+};
+
+/** Map legacy DeepSeek model ids to the current default. */
+export function resolveDeepSeekModelId(modelId: string | undefined): string {
+  const trimmed = modelId?.trim();
+  if (!trimmed) return DEEPSEEK_DEFAULT_MODEL;
+  if (DEEPSEEK_LEGACY_MODEL_IDS.has(trimmed.toLowerCase())) {
+    return DEEPSEEK_DEFAULT_MODEL;
+  }
+  return trimmed;
+}
+
 export const LLM_PROVIDER_LIST: readonly LlmProviderMeta[] = [
-  {
-    id: "zen",
-    label: "OpenCode Zen",
-    defaultBaseURL: "https://opencode.ai/zen/v1",
-    defaultModel: "deepseek-v4-flash-free",
-    clientName: "opencode-zen",
-    description: "DeepSeek 等（opencode.ai/zen）",
-  },
-  {
-    id: "nvidia",
-    label: "NVIDIA GLM",
-    defaultBaseURL: "https://integrate.api.nvidia.com/v1",
-    defaultModel: "z-ai/glm-5.1",
-    clientName: "nvidia-integrate",
-    description: "build.nvidia.com integrate API（GLM）",
-  },
-  {
-    id: "deepseek",
-    label: "DeepSeek",
-    defaultBaseURL: "https://api.deepseek.com/v1",
-    defaultModel: "deepseek-v4-flash",
-    clientName: "deepseek-official",
-    description: "DeepSeek 官方 API（需自备 Key）",
-  },
-  {
-    id: "chatanywhere",
-    label: "ChatAnywhere",
-    defaultBaseURL: "https://api.chatanywhere.tech/v1",
-    defaultModel: "gpt-5.5",
-    clientName: "chatanywhere",
-    description: "OpenAI 兼容转发（api.chatanywhere.tech）",
-  },
-  {
-    id: "bingleimuzi",
-    label: "GPT-5.5",
-    defaultBaseURL: "https://api.bingleimuzi.eu.cc/v1",
-    defaultModel: "gpt-5.5",
-    clientName: "bingleimuzi",
-    description: "默认对话模型（api.bingleimuzi.eu.cc）",
-  },
+  GPT55_PROVIDER,
+  DEEPSEEK_PROVIDER,
 ] as const;
 
+const GPT55_ALIASES = new Set([
+  "bingleimuzi",
+  "default",
+  "gpt-5.5",
+  "gpt55",
+  "ai98pro",
+]);
+
 export function parseLlmProviderId(raw: string | undefined): LlmProviderId | undefined {
-  const id = raw?.trim().toLowerCase();
-  if (
-    id === "nvidia"
-    || id === "zen"
-    || id === "deepseek"
-    || id === "chatanywhere"
-    || id === "bingleimuzi"
-    || id === "ai98pro"
-  ) {
-    return id === "ai98pro" ? "bingleimuzi" : id;
-  }
+  if (!raw?.trim()) return LLM_PROVIDER_ID;
+  const id = raw.trim().toLowerCase();
+  if (id === DEEPSEEK_PROVIDER_ID) return DEEPSEEK_PROVIDER_ID;
+  if (GPT55_ALIASES.has(id)) return LLM_PROVIDER_ID;
   return undefined;
 }
 
-export function getLlmProviderMeta(id: LlmProviderId): LlmProviderMeta {
+export function getLlmProviderMeta(id: LlmProviderId = LLM_PROVIDER_ID): LlmProviderMeta {
   const meta = LLM_PROVIDER_LIST.find((p) => p.id === id);
   if (!meta) throw new Error(`Unknown LLM provider: ${id}`);
   return meta;

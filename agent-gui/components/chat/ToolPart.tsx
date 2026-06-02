@@ -127,16 +127,16 @@ export function ToolPart({
   });
 
   useEffect(() => {
+    if (needsApprovalUi || state === "output-error") {
+      setOpen(true);
+      return;
+    }
     if (hasInlinePreview) {
       setOpen(false);
       return;
     }
     if (inBatch && !batchOpen) {
       setOpen(false);
-      return;
-    }
-    if (needsApprovalUi || state === "output-error") {
-      setOpen(true);
       return;
     }
     if (isTerminal && !needsAttention) {
@@ -170,19 +170,20 @@ export function ToolPart({
 
   if (hasInlinePreview) {
     return (
-      <div
-        className={`tool-card tool-card--action-list tool-card--preview${inBatch ? " tool-card--nested" : ""}${needsApprovalUi ? " tool-card--approval" : ""}`}
+      <details
+        className={`tool-card tool-card--action-list tool-card--preview${inBatch ? " tool-card--nested" : ""}${needsApprovalUi ? " tool-card--approval" : ""}${open ? "" : " tool-card--collapsed"}`}
+        open={open}
+        onToggle={(e) => setOpen(e.currentTarget.open)}
       >
-        <div className="tool-summary tool-summary--static">
+        <summary className="tool-summary">
           <ToolSummaryTitle
             displayName={displayName}
             meta={meta}
             isRunning={isRunning}
             state={state}
-            showChevron={false}
           />
-        </div>
-        {needsApprovalUi && (
+        </summary>
+        {open && needsApprovalUi && (
           <div className="tool-body tool-body--approval">
             <ToolApprovalActions
               toolName={name}
@@ -193,7 +194,7 @@ export function ToolPart({
             />
           </div>
         )}
-        {!needsApprovalUi && output && (
+        {open && !needsApprovalUi && output && (
           <div className="tool-preview tool-body--action-list">
             <ActionListToolBody
               input={"input" in part ? part.input : undefined}
@@ -202,10 +203,10 @@ export function ToolPart({
             />
           </div>
         )}
-        {"errorText" in part && part.errorText && (
+        {open && "errorText" in part && part.errorText && (
           <pre className="tool-error">{part.errorText}</pre>
         )}
-      </div>
+      </details>
     );
   }
 

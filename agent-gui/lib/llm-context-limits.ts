@@ -15,14 +15,15 @@ export const DEFAULT_MODEL_CONTEXT_TOKENS = 128_000;
  * Keys are lowercased; lookup normalizes vendor prefixes (e.g. z-ai/glm-5.1).
  */
 const EXACT_CONTEXT_TOKENS: Readonly<Record<string, number>> = {
-  // DeepSeek official
-  "deepseek-chat": 64_000,
-  "deepseek-reasoner": 64_000,
-  "deepseek-v4-flash": 128_000,
-  "deepseek-v4-flash-free": 128_000,
+  // DeepSeek official (V4: 1M context per api-docs.deepseek.com)
+  "deepseek-v4-flash": 1_000_000,
+  "deepseek-v4-pro": 1_000_000,
+  "deepseek-chat": 1_000_000,
+  "deepseek-reasoner": 1_000_000,
+  "deepseek-v4-flash-free": 1_000_000,
 
   // OpenCode Zen (common routed ids)
-  "deepseek-v4": 128_000,
+  "deepseek-v4": 1_000_000,
 
   // NVIDIA integrate / Zhipu
   "z-ai/glm-5.1": 128_000,
@@ -48,10 +49,11 @@ const EXACT_CONTEXT_TOKENS: Readonly<Record<string, number>> = {
 
 /** Longest match first. */
 const PATTERN_CONTEXT_TOKENS: ReadonlyArray<{ pattern: RegExp; tokens: number }> = [
-  { pattern: /deepseek.*reasoner/i, tokens: 64_000 },
-  { pattern: /deepseek.*chat/i, tokens: 64_000 },
-  { pattern: /deepseek.*flash/i, tokens: 128_000 },
-  { pattern: /deepseek/i, tokens: 128_000 },
+  { pattern: /deepseek-v4-pro/i, tokens: 1_000_000 },
+  { pattern: /deepseek-v4-flash/i, tokens: 1_000_000 },
+  { pattern: /deepseek.*reasoner/i, tokens: 1_000_000 },
+  { pattern: /deepseek.*chat/i, tokens: 1_000_000 },
+  { pattern: /deepseek/i, tokens: 1_000_000 },
   { pattern: /glm-4\.6|glm4\.6/i, tokens: 200_000 },
   { pattern: /glm-5|glm5/i, tokens: 128_000 },
   { pattern: /glm-4|glm4/i, tokens: 128_000 },
