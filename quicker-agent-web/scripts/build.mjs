@@ -103,8 +103,10 @@ async function main() {
   const fromJson = await readVersionJson();
   const apiTag = await fetchLatestReleaseTag();
   const releaseTag = apiTag ?? fromJson.tag;
+  // Always derive download version from local version.json so link matches this repo build.
+  const downloadVersion = fromJson.semver;
   const displayVersion = releaseTag.replace(/^v/i, "");
-  const downloadUrl = `${BITIFUL_DOWNLOAD_PREFIX}/quicker-agent-${displayVersion}-x64-setup.exe`;
+  const downloadUrl = `${BITIFUL_DOWNLOAD_PREFIX}/quicker-agent-${downloadVersion}-x64-setup.exe`;
 
   const vars = {
     RELEASE_TAG: releaseTag,
@@ -153,6 +155,7 @@ async function main() {
         product: "QuickerAgent",
         releaseTag,
         displayVersion,
+        downloadVersion,
         versionFull: fromJson.full,
         downloadUrl,
         builtAt: new Date().toISOString(),
