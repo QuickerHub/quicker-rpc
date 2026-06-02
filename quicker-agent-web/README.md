@@ -17,7 +17,7 @@ npx --yes serve quicker-agent-web/dist -l 3456
 | 路径 | 说明 |
 |------|------|
 | `index.html` | 落地页 |
-| `download/` | 跳转到 latest 安装包的 HTML 重定向 |
+| `download/` | 跳转到当前构建版本安装包的 HTML 重定向 |
 | `site.json` | 构建时写入的版本元数据 |
 
 ## 部署
@@ -30,7 +30,16 @@ npx --yes serve quicker-agent-web/dist -l 3456
 
 ### Vercel（可选）
 
-将 **Root Directory** 设为 `quicker-agent-web`，使用仓库内 [`vercel.json`](vercel.json)（含 `/download` 302）。
+有两种方式：
+
+1. 在 Vercel 控制台绑定仓库，Root Directory 设为 `quicker-agent-web`；
+2. 或直接使用 GitHub Actions 自动发布：[`.github/workflows/quicker-agent-web-vercel.yml`](../.github/workflows/quicker-agent-web-vercel.yml)。
+
+自动发布需要在 GitHub 仓库 Secrets 配置：
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
 
 ## 下载 URL
 
@@ -38,4 +47,4 @@ npx --yes serve quicker-agent-web/dist -l 3456
 - QuickerAgent（版本归档示例）：`https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/quicker-agent-0.8.5-x64-setup.exe`
 - qkrpc CLI（GitHub latest）：`https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe`
 
-`release-cli.yml` 在上传版本名安装包后，会同步覆盖上传 `quicker-agent-win-x64-setup.exe` 作为 latest 别名，因此下载页无需每版改链接。
+`release-cli.yml` 会上传版本名安装包（如 `quicker-agent-0.8.5-x64-setup.exe`），并同步更新 `quicker-agent-win-x64-setup.exe` 作为 latest 别名。

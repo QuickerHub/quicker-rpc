@@ -1,0 +1,60 @@
+name: Deploy QuickerAgent site to Vercel
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'quicker-agent-web/**'
+      - 'version.json'
+      - '.github/workflows/quicker-agent-web-vercel.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quicker-agent-web-vercel
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '' }}
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        working-directory: quicker-agent-web
+
+      - name: Build static site
+        run: node scripts/build.mjs
+        working-directory: quicker-agent-web
+
+      - name: Deploy to Vercel production
+        run: vercel deploy --cwd . --prod --token="$VERCEL_TOKEN"
+        working-directory: quicker-agent-web
+
+  explain-missing-secrets:
+    runs-on: ubuntu-latest
+    if: ${{ !(secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '') }}
+    steps:
+      - name: Missing Vercel secrets
+        run: |
+          echo "Vercel deploy skipped: configure VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID secrets."
