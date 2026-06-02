@@ -21,7 +21,6 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '' }}
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -39,6 +38,13 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
+      - name: Validate required Vercel secrets
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "Missing required secrets: VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID"
+            exit 1
+          fi
+
       - name: Pull Vercel environment
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
         working-directory: quicker-agent-web
@@ -50,11 +56,3 @@ jobs:
       - name: Deploy to Vercel production
         run: vercel deploy --cwd . --prod --token="$VERCEL_TOKEN"
         working-directory: quicker-agent-web
-
-  explain-missing-secrets:
-    runs-on: ubuntu-latest
-    if: ${{ !(secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '') }}
-    steps:
-      - name: Missing Vercel secrets
-        run: |
-          echo "Vercel deploy skipped: configure VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID secrets."
