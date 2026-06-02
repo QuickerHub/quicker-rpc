@@ -1,3 +1,9 @@
+---
+name: cli-setup
+description: "QuickerAgent 环境前置与 docs_get/docs_search/docs_index 用法。Use when setting up agent-ui or explaining how to read local authoring guides."
+allowed-tools: docs_get docs_search docs_index
+---
+
 # Agent setup（agent-ui）
 ## P0 环境
 Quicker 运行中且已加载 QuickerRpc 插件。推荐 `qkrpc serve`（agent-ui 优先 HTTP）。文档用 **`docs_get` / `docs_search` / `docs_index`** 本地工具，不经 qkrpc。
@@ -21,3 +27,4 @@ qkrpc_action_patch({ id: "<guid>", patch: { ... }, expectedEditVersion: <N> })
 
 ## 专题
 `overview` · `authoring-workflow` · `patch-workflow` · `action-icons` · `xaction-json` · `variables` · `expressions` · `step-modules` · `step-runner-search` · `implementation-fallback`
+

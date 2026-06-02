@@ -212,6 +212,7 @@ fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<St
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(BackendState::new())
         .setup(|app| {
             #[cfg(debug_assertions)]

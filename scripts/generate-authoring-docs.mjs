@@ -15,7 +15,8 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = path.join(ROOT, "docs/action-authoring-src");
 const OUT_CLI = path.join(ROOT, "docs/action-authoring/cli");
-const OUT_AGENT = path.join(ROOT, "docs/action-authoring/agent");
+const OUT_SKILLS = path.join(ROOT, "docs/skills/quicker-authoring");
+const SRC_REF = path.join(SRC, "references");
 const GENERATOR = fileURLToPath(import.meta.url);
 
 /** Normalize to LF so output matches on Linux CI and Windows (core.autocrlf). */
@@ -24,6 +25,58 @@ function normalizeEol(text) {
 }
 
 /** @typedef {'cli' | 'agent'} Profile */
+
+/**
+ * @param {Record<string, unknown>} opsData
+ * @param {string} topic
+ * @param {string} body
+ */
+function buildSkillMd(opsData, topic, body) {
+  const topics = /** @type {Record<string, Record<string, unknown>>} */ (
+    opsData.topics ?? {}
+  );
+  const meta = topics[topic];
+  if (!meta?.description) {
+    throw new Error(`Missing topics.${topic}.description in ops.json`);
+  }
+
+  const description = String(meta.description).trim();
+  if (description.length === 0 || description.length > 1024) {
+    throw new Error(
+      `topics.${topic}.description must be 1–1024 chars (got ${description.length})`,
+    );
+  }
+
+  const lines = ["---", `name: ${topic}`, `description: ${yamlDoubleQuote(description)}`];
+
+  const allowedTools = meta["allowed-tools"];
+  if (typeof allowedTools === "string" && allowedTools.trim()) {
+    lines.push(`allowed-tools: ${allowedTools.trim()}`);
+  }
+
+  const compatibility = meta.compatibility;
+  if (typeof compatibility === "string" && compatibility.trim()) {
+    lines.push(`compatibility: ${yamlDoubleQuote(compatibility.trim())}`);
+  }
+
+  const metadata = meta.metadata;
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    lines.push("metadata:");
+    for (const [k, v] of Object.entries(
+      /** @type {Record<string, unknown>} */ (metadata),
+    )) {
+      lines.push(`  ${k}: ${yamlDoubleQuote(String(v))}`);
+    }
+  }
+
+  lines.push("---", "", body.trimEnd(), "");
+  return `${lines.join("\n")}\n`;
+}
+
+/** @param {string} value */
+function yamlDoubleQuote(value) {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
+}
 
 function parseArgs(argv) {
   const touchIdx = argv.indexOf("--touch");
@@ -49,6 +102,30 @@ async function loadSource() {
 }
 
 /**
+ * @param {string} topic
+ * @returns {Promise<Map<string, string>>}
+ */
+async function loadReferenceMap(topic) {
+  /** @type {Map<string, string>} */
+  const map = new Map();
+  let entries;
+  try {
+    entries = await fs.readdir(SRC_REF);
+  } catch {
+    return map;
+  }
+
+  const prefix = `${topic}.`;
+  for (const fname of entries) {
+    if (!fname.startsWith(prefix) || !fname.endsWith(".md")) continue;
+    const refName = fname.slice(prefix.length, -3);
+    const raw = normalizeEol(await fs.readFile(path.join(SRC_REF, fname), "utf8"));
+    map.set(refName, raw);
+  }
+  return map;
+}
+
+/**
  * @param {Record<string, unknown>} opsData
  * @param {string[]} files
  * @returns {Promise<Map<string, string>>}
@@ -56,13 +133,34 @@ async function loadSource() {
 async function computeOutputs(opsData, files) {
   /** @type {Map<string, string>} */
   const outputs = new Map();
-  for (const profile of /** @type {Profile[]} */ (["cli", "agent"])) {
-    for (const file of files) {
-      const src = normalizeEol(
-        await fs.readFile(path.join(SRC, file), "utf8"),
+  for (const file of files) {
+    const topic = file.replace(/\.md$/i, "");
+    const src = normalizeEol(
+      await fs.readFile(path.join(SRC, file), "utf8"),
+    );
+    const refMap = await loadReferenceMap(topic);
+
+    const cliRendered = renderDoc(src, opsData, "cli", file, refMap);
+    outputs.set(`cli/${file}`, cliRendered);
+
+    const agentBody = renderDoc(src, opsData, "agent", file, refMap);
+    outputs.set(
+      `skills/${topic}/SKILL.md`,
+      buildSkillMd(opsData, topic, agentBody),
+    );
+
+    for (const [refName, refSrc] of refMap) {
+      const refAgent = renderDoc(
+        refSrc,
+        opsData,
+        "agent",
+        `${file}#ref:${refName}`,
+        refMap,
       );
-      const rendered = renderDoc(src, opsData, profile, file);
-      outputs.set(`${profile}/${file}`, rendered);
+      outputs.set(
+        `skills/${topic}/references/${refName}.md`,
+        `${refAgent.trimEnd()}\n`,
+      );
     }
   }
   return outputs;
@@ -109,21 +207,44 @@ async function isFreshByMtime(topicFiles) {
     await fileMtimeMs(GENERATOR),
   );
 
+  const expected = await computeOutputs(
+    JSON.parse(
+      normalizeEol(
+        await fs.readFile(path.join(SRC, "ops.json"), "utf8"),
+      ),
+    ),
+    topicFiles,
+  );
+
   let minOut = Number.POSITIVE_INFINITY;
-  for (const profile of /** @type {Profile[]} */ (["cli", "agent"])) {
-    const outDir = profile === "cli" ? OUT_CLI : OUT_AGENT;
-    for (const file of topicFiles) {
-      const outPath = path.join(outDir, file);
-      try {
-        const st = await fs.stat(outPath);
-        minOut = Math.min(minOut, st.mtimeMs);
-      } catch {
-        return false;
-      }
+  for (const rel of expected.keys()) {
+    const outPath = resolveOutputPath(rel);
+    if (!outPath) return false;
+    try {
+      const st = await fs.stat(outPath);
+      minOut = Math.min(minOut, st.mtimeMs);
+    } catch {
+      return false;
     }
   }
 
   return minOut >= srcMtime;
+}
+
+/** @param {string} rel */
+function resolveOutputPath(rel) {
+  if (rel.startsWith("cli/")) {
+    return path.join(OUT_CLI, rel.slice("cli/".length));
+  }
+  if (rel.startsWith("skills/")) {
+    const parts = rel.split("/");
+    const topic = parts[1];
+    if (parts[2] === "references") {
+      return path.join(OUT_SKILLS, topic, "references", parts[3]);
+    }
+    return path.join(OUT_SKILLS, topic, parts[2] ?? "SKILL.md");
+  }
+  return null;
 }
 
 /**
@@ -134,9 +255,11 @@ async function findStale(expected) {
   /** @type {string[]} */
   const stale = [];
   for (const [rel, content] of expected) {
-    const [profile, file] = rel.split("/");
-    const outDir = profile === "cli" ? OUT_CLI : OUT_AGENT;
-    const outPath = path.join(outDir, file);
+    const outPath = resolveOutputPath(rel);
+    if (!outPath) {
+      stale.push(rel);
+      continue;
+    }
     let existing;
     try {
       existing = await fs.readFile(outPath, "utf8");
@@ -159,10 +282,22 @@ async function writeOutputs(outputs, only) {
   const allow = only ? new Set(only) : null;
   for (const [rel, content] of outputs) {
     if (allow && !allow.has(rel)) continue;
-    const [profile, file] = rel.split("/");
-    const outDir = profile === "cli" ? OUT_CLI : OUT_AGENT;
-    await fs.mkdir(outDir, { recursive: true });
-    await fs.writeFile(path.join(outDir, file), content, "utf8");
+    const outPath = resolveOutputPath(rel);
+    if (!outPath) continue;
+    await fs.mkdir(path.dirname(outPath), { recursive: true });
+    await fs.writeFile(outPath, content, "utf8");
+  }
+}
+
+// Legacy flat agent/*.md removed — agent-ui reads docs/skills/quicker-authoring/{topic}/SKILL.md
+const OUT_AGENT_LEGACY = path.join(ROOT, "docs/action-authoring/agent");
+
+/** Remove flat agent/*.md outputs from the pre-skills layout. */
+async function removeLegacyAgentOutputs() {
+  try {
+    await fs.rm(OUT_AGENT_LEGACY, { recursive: true, force: true });
+  } catch {
+    // ignore
   }
 }
 
@@ -181,7 +316,7 @@ async function generate(opts) {
 
   if (!opts.force && (await isFreshByMtime(files))) {
     console.log(
-      `Action authoring docs up to date (${files.length} topics × cli + agent, skipped).`,
+      `Action authoring docs up to date (${files.length} topics × cli + skills, skipped).`,
     );
     await touchStamp(opts.touchPath);
     return;
@@ -192,7 +327,7 @@ async function generate(opts) {
 
   if (!opts.force && stale.length === 0) {
     console.log(
-      `Action authoring docs up to date (${files.length} topics × cli + agent, skipped).`,
+      `Action authoring docs up to date (${files.length} topics × cli + skills, skipped).`,
     );
     await touchStamp(opts.touchPath);
     return;
@@ -200,13 +335,17 @@ async function generate(opts) {
 
   if (opts.force) {
     await writeOutputs(expected);
+    await removeLegacyAgentOutputs();
     console.log(
-      `Generated ${files.length} topics → docs/action-authoring/cli/ and agent/ (forced).`,
+      `Generated ${files.length} topics → docs/action-authoring/cli/ and docs/skills/quicker-authoring/ (forced).`,
     );
   } else {
     await writeOutputs(expected, stale);
+    if (stale.some((rel) => rel.startsWith("skills/"))) {
+      await removeLegacyAgentOutputs();
+    }
     console.log(
-      `Generated ${stale.length} file(s) → docs/action-authoring/cli/ and agent/.`,
+      `Generated ${stale.length} file(s) → docs/action-authoring/cli/ and docs/skills/quicker-authoring/.`,
     );
   }
   await touchStamp(opts.touchPath);
@@ -229,7 +368,7 @@ async function check() {
   }
 
   console.log(
-    `Action authoring docs up to date (${files.length} topics × cli + agent).`,
+    `Action authoring docs up to date (${files.length} topics × cli + skills).`,
   );
 }
 
@@ -239,7 +378,7 @@ async function check() {
  * @param {Profile} profile
  * @param {string} file
  */
-function renderDoc(text, opsData, profile, file) {
+function renderDoc(text, opsData, profile, file, refMap = new Map()) {
   let out = text;
 
   out = out.replace(
@@ -251,7 +390,21 @@ function renderDoc(text, opsData, profile, file) {
     profile === "agent" ? "$1" : "",
   );
 
-  out = expandRefs(out, opsData, profile, file, 0);
+  out = out.replace(/\{\{#include-reference\s+([\w-]+)\}\}/g, (_, refName) => {
+    const refSrc = refMap.get(refName);
+    if (!refSrc) {
+      throw new Error(`Missing reference ${refName} for ${file}`);
+    }
+    return renderDoc(
+      refSrc,
+      opsData,
+      profile,
+      `${file}#ref:${refName}`,
+      refMap,
+    ).trim();
+  });
+
+  out = expandRefs(out, opsData, profile, file, 0, refMap);
   out = out.replace(/\n{3,}/g, "\n\n");
   return `${out.trimEnd()}\n`;
 }
@@ -263,7 +416,7 @@ function renderDoc(text, opsData, profile, file) {
  * @param {string} file
  * @param {number} depth
  */
-function expandRefs(text, opsData, profile, file, depth) {
+function expandRefs(text, opsData, profile, file, depth, refMap = new Map()) {
   if (depth > 8) {
     throw new Error(`Max expansion depth in ${file}`);
   }
@@ -278,7 +431,7 @@ function expandRefs(text, opsData, profile, file, depth) {
     if (!p) throw new Error(`Unknown phrase: ${id} (${file})`);
     const v = p[profile];
     if (v == null || v === "") return "";
-    return expandRefs(v, opsData, profile, file, depth + 1);
+    return expandRefs(v, opsData, profile, file, depth + 1, refMap);
   });
 
   out = out.replace(/\{\{@doc\s+([\w-]+)\}\}/g, (_, topic) =>
@@ -291,7 +444,7 @@ function expandRefs(text, opsData, profile, file, depth) {
   });
 
   if (/\{\{#ref|\{\{@doc|\{\{@/.test(out) && depth < 8) {
-    return expandRefs(out, opsData, profile, file, depth + 1);
+    return expandRefs(out, opsData, profile, file, depth + 1, refMap);
   }
 
   return out;

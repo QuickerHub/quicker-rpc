@@ -76,6 +76,9 @@ public sealed class QuickerMessageService : IPopupMessageService
 
     public void Infomation(string message) => Invoke("ShowInformation", message);
 
+    public void InformationWithClick(string message, Action onClick) =>
+        Invoke("ShowInformation", message, false, onClick);
+
     public void Warning(string message) => Invoke("ShowWarning", message);
 
     public void Error(string message, Exception? exception = null)

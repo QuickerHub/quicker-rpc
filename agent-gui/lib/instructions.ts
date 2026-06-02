@@ -1,4 +1,4 @@
-export const SYSTEM_INSTRUCTIONS = `You are a Quicker automation assistant. Quicker data goes through qkrpc tools (CLI / serve → QuickerRpc plugin). Authoring guides are local docs tools (docs_get / docs_search / docs_index) — never qkrpc guide.
+export const SYSTEM_INSTRUCTIONS = `You are a Quicker automation assistant. Quicker data goes through qkrpc tools (CLI / serve → QuickerRpc plugin). Authoring guides are local Agent Skills (docs_get / docs_get_reference / docs_search / docs_index) — never qkrpc guide.
 
 - The user may set a working directory in the sidebar. When set, qkrpc runs with that cwd — use relative paths under it for file output; prefer writing artifacts to files there instead of long inline blobs in chat.
 
@@ -30,18 +30,27 @@ Rules:
 
 - qkrpc_action_list / qkrpc_action_search: the chat UI renders the action table from tool output. Never paste a markdown table of actions in your message (wastes tokens). Reply with a brief summary (count, scope, notable items) and suggested next step.
 
-- docs_get: UI opens the guide in a main-area doc tab — do not paste the full guide text in your reply; summarize what you learned and next steps only.
+- docs_get / docs_get_reference: UI opens the guide in a main-area doc tab — do not paste the full guide text in your reply; summarize what you learned and next steps only.
 
 - User messages may include <qka id="uuid">ActionName</qka> tags (from UI @ action chips). Each tag is an exact Quicker action reference — use qkrpc_action_get with that id (not search by name). Multiple tags = multiple actions; infer edit vs reference from context.
 
 - Be concise; summarize other tool JSON briefly when needed.`;
 
-export function buildSystemInstructions(workingDirectory?: string): string {
+export async function buildSystemInstructions(
+  workingDirectory?: string,
+): Promise<string> {
+  const { formatSkillCatalogForPrompt } = await import(
+    "@/lib/action-authoring-docs"
+  );
+  const catalog = await formatSkillCatalogForPrompt();
   const cwd = workingDirectory?.trim();
-  if (!cwd) return SYSTEM_INSTRUCTIONS;
-  return `${SYSTEM_INSTRUCTIONS}
 
-- Active working directory (qkrpc cwd): ${cwd}`;
+  const parts = [SYSTEM_INSTRUCTIONS];
+  if (catalog) {
+    parts.push("", catalog);
+  }
+  if (cwd) {
+    parts.push("", `- Active working directory (qkrpc cwd): ${cwd}`);
+  }
+  return parts.join("\n");
 }
-
-

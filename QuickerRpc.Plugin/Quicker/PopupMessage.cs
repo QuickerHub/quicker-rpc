@@ -19,6 +19,9 @@ public static class PopupMessage
 
     public static void Infomation(string message) => Current.Infomation(message);
 
+    public static void InformationWithClick(string message, Action onClick) =>
+        Current.InformationWithClick(message, onClick);
+
     public static void Warning(string message) => Current.Warning(message);
 
     public static void Error(string message, Exception? exception = null) =>

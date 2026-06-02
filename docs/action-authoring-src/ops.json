@@ -113,6 +113,68 @@
       "agent": "执行 P1–P7 的工具与示例"
     }
   },
+  "topics": {
+    "overview": {
+      "description": "Quicker 动作无头编辑总览与 P0–P7 专题索引。Use when starting action editing or choosing which guide topic to read next.",
+      "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
+    },
+    "authoring-workflow": {
+      "description": "Quicker 动作编辑 P1–P7 逐步流程（定位、读取、patch 保存）。Use when creating actions, patching steps, or before the first action edit in a session.",
+      "allowed-tools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_step_runner_get",
+      "metadata": { "phase": "P1-P7" }
+    },
+    "cli-setup": {
+      "description": "QuickerAgent 环境前置与 docs_get/docs_search/docs_index 用法。Use when setting up agent-ui or explaining how to read local authoring guides.",
+      "allowed-tools": "docs_get docs_search docs_index"
+    },
+    "patch-workflow": {
+      "description": "action patch JSON 格式、默认值省略、保存响应字段与常见 warnings。Use when writing qkrpc_action_patch or debugging patch failures.",
+      "allowed-tools": "qkrpc_action_patch qkrpc_action_get",
+      "metadata": { "phase": "P6" }
+    },
+    "xaction-json": {
+      "description": "XAction JSON 字段、returnMode（structure/full/metadata）、stepId 与 nodePath。Use when reading qkrpc_action_get output or mapping patch targets.",
+      "allowed-tools": "qkrpc_action_get qkrpc_action_patch",
+      "metadata": { "phase": "P2" }
+    },
+    "action-icons": {
+      "description": "Quicker 动作图标 fa:Light_* 格式与 qkrpc_fa_search 用法。Use when setting or changing action icons.",
+      "allowed-tools": "qkrpc_fa_search qkrpc_action_set_metadata qkrpc_action_patch"
+    },
+    "step-modules": {
+      "description": "常用 stepRunnerKey 速查表。Use before step-runner search when a known module might fit.",
+      "allowed-tools": "qkrpc_step_runner_get qkrpc_step_runner_search",
+      "metadata": { "phase": "P5" }
+    },
+    "step-runner-search": {
+      "description": "step-runner 目录搜索语法（OR、通配、sys:*）。Use when finding a step module key before qkrpc_step_runner_get.",
+      "allowed-tools": "qkrpc_step_runner_search qkrpc_step_runner_get",
+      "metadata": { "phase": "P5" }
+    },
+    "implementation-fallback": {
+      "description": "无专用模块时的实现选型：表达式 vs sys:csscript vs sys:runScript。Use when no step module fits or choosing between expression and script steps.",
+      "allowed-tools": "qkrpc_step_runner_search qkrpc_step_runner_get qkrpc_action_patch",
+      "metadata": { "phase": "P4" }
+    },
+    "expressions": {
+      "description": "Quicker 参数表达式（$=、$$）与 sys:evalexpression 步骤。Use when using eval expressions instead of dedicated step modules.",
+      "allowed-tools": "qkrpc_step_runner_get qkrpc_action_patch"
+    },
+    "variables": {
+      "description": "动作变量类型、读取与 variables patch 操作。Use when adding or editing action variables in patch JSON.",
+      "allowed-tools": "qkrpc_action_get qkrpc_action_patch",
+      "metadata": { "phase": "P2-P6" }
+    },
+    "subprogram-workflow": {
+      "description": "在动作中调用公共子程序：callIdentifier 与 sys:subprogram 步骤。Use when adding subprogram call steps to an action.",
+      "allowed-tools": "qkrpc_subprogram_search qkrpc_subprogram_get qkrpc_step_runner_get qkrpc_action_patch",
+      "metadata": { "phase": "P5-P6" }
+    },
+    "action-project-files": {
+      "description": "大段 inputParams 用 file 引用与 .quicker 目录 export/import（终端 qkrpc CLI）。Use when patch JSON is too large for inline inputParams.",
+      "compatibility": "export/import via qkrpc CLI; agent-ui has no export/import tools yet"
+    }
+  },
   "ops": {
     "help": {
       "cli": "qkrpc help --json",

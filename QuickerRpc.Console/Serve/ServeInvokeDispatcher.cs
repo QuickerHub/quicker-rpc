@@ -71,6 +71,7 @@ internal static class ServeInvokeDispatcher
             "action.replace" => await ActionReplaceAsync(rpc, args, token).ConfigureAwait(false),
             "action.set-metadata" => await ActionSetMetadataAsync(rpc, args, token).ConfigureAwait(false),
             "action.update" => await ActionUpdateAsync(rpc, args, token).ConfigureAwait(false),
+            "action.move" => await ActionMoveAsync(rpc, args, token).ConfigureAwait(false),
             "action.delete" => await ActionDeleteAsync(rpc, args, token).ConfigureAwait(false),
             "action.run" => await ActionRunAsync(rpc, args, token).ConfigureAwait(false),
             "action.float" => await ActionFloatAsync(rpc, args, token).ConfigureAwait(false),
@@ -370,6 +371,59 @@ internal static class ServeInvokeDispatcher
             .DeleteActionAsync(id.Trim(), showConfirm: false, token)
             .ConfigureAwait(false);
         return Ok(new { ok = response.Ok, action = "delete", message = response.Message, actionId = response.ActionId });
+    }
+
+    private static async Task<ServeInvokeResponse> ActionMoveAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var profile = ServeJsonArgs.GetString(args, "profile", "profileId", "targetProfile") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(profile))
+        {
+            return Fail("MISSING_TARGET_PROFILE", "args.profile is required.");
+        }
+
+        var row = ServeJsonArgs.GetInt(args, "row") ?? ServeJsonArgs.GetInt(args, "targetRow");
+        var col = ServeJsonArgs.GetInt(args, "col") ?? ServeJsonArgs.GetInt(args, "targetCol");
+        if ((row.HasValue && !col.HasValue) || (!row.HasValue && col.HasValue))
+        {
+            return Fail("MISSING_TARGET_POSITION", "Provide both args.row and args.col, or neither.");
+        }
+
+        var response = await rpc
+            .MoveActionAsync(
+                id.Trim(),
+                profile.Trim(),
+                row,
+                col,
+                ServeJsonArgs.GetBool(args, "swap") || ServeJsonArgs.GetBool(args, "allowSwap"),
+                token)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "move",
+            message = response.Message,
+            actionId = response.ActionId,
+            actionTitle = response.ActionTitle,
+            sourceProfileId = response.SourceProfileId,
+            sourceProfileName = response.SourceProfileName,
+            sourceRow = response.SourceRow,
+            sourceCol = response.SourceCol,
+            targetProfileId = response.TargetProfileId,
+            targetProfileName = response.TargetProfileName,
+            targetRow = response.TargetRow,
+            targetCol = response.TargetCol,
+            swappedActionId = response.SwappedActionId,
+            swappedActionTitle = response.SwappedActionTitle,
+        });
     }
 
     private static async Task<ServeInvokeResponse> ActionRunAsync(

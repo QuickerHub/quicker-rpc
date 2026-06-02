@@ -1,3 +1,9 @@
+---
+name: action-project-files
+description: "大段 inputParams 用 file 引用与 .quicker 目录 export/import（终端 qkrpc CLI）。Use when patch JSON is too large for inline inputParams."
+compatibility: "export/import via qkrpc CLI; agent-ui has no export/import tools yet"
+---
+
 # Local .quicker project (file refs)
 
 For large `inputParams` literals, use a **local project directory** instead of embedding long `value` strings in JSON.
@@ -33,3 +39,4 @@ agent-ui **暂无** export/import 工具；请在终端使用 qkrpc：`action ex
 **Import:** Reads `info.json` + `data.json`, resolves all `file` refs, then `action replace` / `subprogram replace`.
 
 See also: `patch-workflow`, `xaction-json`, `authoring-workflow`.
+

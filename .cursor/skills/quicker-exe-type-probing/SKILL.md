@@ -30,7 +30,7 @@ Read this section **before** guessing type names or adding reflection.
 | RPC surface | `QuickerRpc.Plugin/Rpc/QuickerRpcService.cs` | Maps CLI/RPC to services |
 | Contracts | `QuickerRpc.Contracts/Rpc/IQuickerRpcService.cs` | Public RPC API |
 | XAction compress/patch (no Quicker.exe) | `QuickerRpc.AgentModel/` | Agent models; **not** runtime reflection |
-| Action authoring docs for agents | `docs/action-authoring-src/` + `ops.json` | Generate → `cli/` (qkrpc) / `agent/` (agent-ui) |
+| Action authoring docs for agents | `docs/action-authoring-src/` + `ops.json` | Generate → `cli/` (qkrpc) / `docs/skills/quicker-authoring/` (QuickerAgent) |
 | Offline exe scans | `QuickerRpc.Plugin.Test/` | Debug/Release `Quicker.exe` signature probes |
 | Quicker DLL references | `qkref.props` | Default Release: `C:/Program Files/Quicker` |
 

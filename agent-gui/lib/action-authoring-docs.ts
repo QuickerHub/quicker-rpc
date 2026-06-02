@@ -1,34 +1,48 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
+import { parseSkillMd } from "@/lib/skill-parse";
 
-const DOCS_DIR = "docs/action-authoring/agent";
+const SKILLS_DIR = "docs/skills/quicker-authoring";
+const LEGACY_DOCS_DIR = "docs/action-authoring/agent";
 
 export type ActionAuthoringTopicMeta = {
   topic: string;
   title: string;
+  description: string;
   charCount: number;
 };
 
 export type ActionAuthoringDoc = {
   topic: string;
   title: string;
+  description: string;
   markdown: string;
 };
 
 export type ActionAuthoringSearchItem = {
   topic: string;
   title: string;
+  description: string;
   excerpt: string;
 };
 
 type TopicRow = ActionAuthoringTopicMeta & { markdown: string };
 
-function docsRoot(): string {
+let cachedRows: TopicRow[] | null = null;
+let cachedRoot: string | null = null;
+
+function skillsRoot(): string {
   const repo = resolveQuickerRpcRepoRoot();
-  if (repo) return join(repo, DOCS_DIR);
-  return join(resolveAgentGuiRoot(), DOCS_DIR);
+  if (repo) return join(repo, SKILLS_DIR);
+  return join(resolveAgentGuiRoot(), SKILLS_DIR);
+}
+
+function legacyDocsRoot(): string {
+  const repo = resolveQuickerRpcRepoRoot();
+  if (repo) return join(repo, LEGACY_DOCS_DIR);
+  return join(resolveAgentGuiRoot(), LEGACY_DOCS_DIR);
 }
 
 function normalizeTopic(topic: string): string {
@@ -45,11 +59,51 @@ function extractTitle(markdown: string): string {
   return "";
 }
 
-async function loadAllTopics(): Promise<TopicRow[]> {
-  const root = docsRoot();
-  const names = (await readdir(root))
-    .filter((n) => n.endsWith(".md") && n.toLowerCase() !== "readme.md")
+async function loadSkillTopics(root: string): Promise<TopicRow[]> {
+  let entries;
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const dirs = entries
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
     .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+  const rows: TopicRow[] = [];
+  for (const topic of dirs) {
+    const skillPath = join(root, topic, "SKILL.md");
+    let content: string;
+    try {
+      content = await readFile(skillPath, "utf8");
+    } catch {
+      continue;
+    }
+
+    const parsed = parseSkillMd(content);
+    const markdown = parsed.body;
+    rows.push({
+      topic: parsed.name || topic,
+      title: extractTitle(markdown) || parsed.name || topic,
+      description: parsed.description,
+      charCount: markdown.length,
+      markdown,
+    });
+  }
+  return rows;
+}
+
+async function loadLegacyFlatTopics(root: string): Promise<TopicRow[]> {
+  let names: string[];
+  try {
+    names = (await readdir(root))
+      .filter((n) => n.endsWith(".md") && n.toLowerCase() !== "readme.md")
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  } catch {
+    return [];
+  }
 
   const rows: TopicRow[] = [];
   for (const name of names) {
@@ -58,6 +112,7 @@ async function loadAllTopics(): Promise<TopicRow[]> {
     rows.push({
       topic,
       title: extractTitle(markdown) || topic,
+      description: "",
       charCount: markdown.length,
       markdown,
     });
@@ -65,13 +120,133 @@ async function loadAllTopics(): Promise<TopicRow[]> {
   return rows;
 }
 
+async function loadAllTopics(): Promise<TopicRow[]> {
+  const root = skillsRoot();
+  if (cachedRows && cachedRoot === root) {
+    return cachedRows;
+  }
+
+  let rows = await loadSkillTopics(root);
+  if (rows.length === 0) {
+    rows = await loadLegacyFlatTopics(legacyDocsRoot());
+  }
+
+  cachedRows = rows;
+  cachedRoot = root;
+  return rows;
+}
+
+export async function formatSkillCatalogForPrompt(): Promise<string> {
+  const topics = await listActionAuthoringTopics();
+  if (topics.length === 0) return "";
+
+  const lines = [
+    "Authoring skills catalog (Discovery — use docs_get / docs_get_reference for full instructions):",
+  ];
+  for (const t of topics) {
+    const desc = t.description.trim() || t.title;
+    lines.push(`- ${t.topic}: ${desc}`);
+  }
+  return lines.join("\n");
+}
+
+export async function listActionAuthoringReferences(
+  topic: string,
+): Promise<string[]> {
+  const key = normalizeTopic(topic);
+  const root = skillsRoot();
+  const refDir = join(root, key, "references");
+  try {
+    return (await readdir(refDir))
+      .filter((n) => n.endsWith(".md"))
+      .map((n) => n.replace(/\.md$/i, ""))
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  } catch {
+    return [];
+  }
+}
+
+export async function getActionAuthoringReference(
+  topic: string,
+  file: string,
+): Promise<
+  | { ok: true; doc: ActionAuthoringDoc & { reference: string } }
+  | {
+      ok: false;
+      error: string;
+      availableTopics: string[];
+      availableReferences?: string[];
+    }
+> {
+  const key = normalizeTopic(topic);
+  const refKey = file
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/^references\//, "")
+    .replace(/\.md$/i, "")
+    .toLowerCase();
+
+  const rows = await loadAllTopics();
+  const availableTopics = rows.map((r) => r.topic);
+
+  if (!key) {
+    return { ok: false, error: "topic is required", availableTopics };
+  }
+  if (!refKey) {
+    return { ok: false, error: "file is required", availableTopics };
+  }
+
+  if (refKey.includes("/") || refKey.includes("..")) {
+    return {
+      ok: false,
+      error: `Invalid reference file: ${file}`,
+      availableTopics,
+    };
+  }
+
+  const match = rows.find((r) => r.topic.toLowerCase() === key);
+  if (!match) {
+    return {
+      ok: false,
+      error: `Unknown topic: ${key}`,
+      availableTopics,
+    };
+  }
+
+  const refPath = join(skillsRoot(), match.topic, "references", `${refKey}.md`);
+  let markdown: string;
+  try {
+    markdown = await readFile(refPath, "utf8");
+  } catch {
+    const availableReferences = await listActionAuthoringReferences(match.topic);
+    return {
+      ok: false,
+      error: `Unknown reference: ${refKey} (topic: ${match.topic})`,
+      availableTopics,
+      availableReferences,
+    };
+  }
+
+  return {
+    ok: true,
+    doc: {
+      topic: match.topic,
+      title: extractTitle(markdown) || `${match.title} · ${refKey}`,
+      description: match.description,
+      markdown,
+      reference: refKey,
+    },
+  };
+}
+
 export async function listActionAuthoringTopics(): Promise<
   ActionAuthoringTopicMeta[]
 > {
   const rows = await loadAllTopics();
-  return rows.map(({ topic, title, charCount }) => ({
+  return rows.map(({ topic, title, description, charCount }) => ({
     topic,
     title,
+    description,
     charCount,
   }));
 }
@@ -104,6 +279,7 @@ export async function getActionAuthoringDoc(
     doc: {
       topic: match.topic,
       title: match.title,
+      description: match.description,
       markdown: match.markdown,
     },
   };
@@ -149,10 +325,12 @@ function rowScore(row: TopicRow, patterns: string[]): number {
   let score = 0;
   const topicLower = row.topic.toLowerCase();
   const titleLower = row.title.toLowerCase();
+  const descLower = row.description.toLowerCase();
   const bodyLower = row.markdown.toLowerCase();
   for (const p of patterns) {
     if (topicLower.includes(p)) score += 8;
     if (titleLower.includes(p)) score += 4;
+    if (descLower.includes(p)) score += 4;
     if (bodyLower.includes(p)) score += 1;
   }
   return score;
@@ -175,13 +353,17 @@ export async function searchActionAuthoringDocs(
   let candidates = rows;
   if (patterns.length > 0) {
     candidates = rows.filter((row) => {
-      const hay = `${row.topic} ${row.title} ${row.markdown}`.toLowerCase();
+      const hay =
+        `${row.topic} ${row.title} ${row.description} ${row.markdown}`.toLowerCase();
       return patterns.every((p) => hay.includes(p));
     });
   }
 
   const scored = candidates
-    .map((row) => ({ row, score: patterns.length ? rowScore(row, patterns) : 0 }))
+    .map((row) => ({
+      row,
+      score: patterns.length ? rowScore(row, patterns) : 0,
+    }))
     .sort(
       (a, b) =>
         b.score - a.score
@@ -194,6 +376,7 @@ export async function searchActionAuthoringDocs(
   const items = scored.map(({ row }) => ({
     topic: row.topic,
     title: row.title,
+    description: row.description,
     excerpt: buildExcerpt(row.markdown, patterns),
   }));
 

@@ -94,6 +94,15 @@ public interface IQuickerRpcService
         bool showConfirm = false,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Move a local Quicker action to another profile, optionally swapping with the target slot.</summary>
+    Task<QuickerRpcMoveActionResult> MoveActionAsync(
+        string actionId,
+        string targetProfile,
+        int? targetRow = null,
+        int? targetCol = null,
+        bool allowSwap = false,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Create a new local XAction on an auto-managed virtual action page
     /// (creates virtual process/page slots as needed).
@@ -280,6 +289,37 @@ public sealed class QuickerRpcActionUpdateResult
     public string Message { get; set; } = string.Empty;
 
     public string? ActionId { get; set; }
+}
+
+public sealed class QuickerRpcMoveActionResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? ActionId { get; set; }
+
+    public string? ActionTitle { get; set; }
+
+    public string? SourceProfileId { get; set; }
+
+    public string? SourceProfileName { get; set; }
+
+    public int SourceRow { get; set; }
+
+    public int SourceCol { get; set; }
+
+    public string? TargetProfileId { get; set; }
+
+    public string? TargetProfileName { get; set; }
+
+    public int TargetRow { get; set; }
+
+    public int TargetCol { get; set; }
+
+    public string? SwappedActionId { get; set; }
+
+    public string? SwappedActionTitle { get; set; }
 }
 
 public sealed class QuickerRpcCreateActionResult

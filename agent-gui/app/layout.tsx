@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { QuickerAgentUpdateChecker } from "@/components/QuickerAgentUpdateChecker";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { SIDEBAR_INIT_SCRIPT } from "@/lib/sidebar-prefs";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-constants";
@@ -21,7 +22,10 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: SIDEBAR_INIT_SCRIPT }} />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <QuickerAgentUpdateChecker />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -17,7 +17,8 @@ export const TOOL_GROUP_LABELS: Record<ToolGroupId, string> = {
 };
 
 export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
-  { id: "docs_get", label: "指南", group: "read", description: "本地 docs/action-authoring" },
+  { id: "docs_get", label: "指南", group: "read", description: "本地 Agent Skills 指南" },
+  { id: "docs_get_reference", label: "指南附录", group: "read", description: "Skill references/ 大表" },
   { id: "docs_search", label: "搜索指南", group: "read", description: "本地文档搜索" },
   { id: "docs_index", label: "指南索引", group: "read", description: "列出全部主题" },
   { id: "qkrpc_action_list", label: "列出动作", group: "read" },

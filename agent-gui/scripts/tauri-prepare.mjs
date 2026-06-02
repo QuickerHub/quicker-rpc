@@ -136,8 +136,8 @@ function stageNextStandalone() {
     cpSync(publicSrc, join(appDir, "public"), { recursive: true });
   }
 
-  const docsSrc = join(repoRoot, "docs", "action-authoring", "agent");
-  const docsDst = join(appDir, "docs", "action-authoring", "agent");
+  const docsSrc = join(repoRoot, "docs", "skills", "quicker-authoring");
+  const docsDst = join(appDir, "docs", "skills", "quicker-authoring");
   if (existsSync(docsSrc)) {
     mkdirSync(dirname(docsDst), { recursive: true });
     cpSync(docsSrc, docsDst, { recursive: true });

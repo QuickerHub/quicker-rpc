@@ -1,12 +1,14 @@
 import type { StructuredToolResult } from "@/lib/tool-result";
 
 export const DOCS_GET_TOOL = "docs_get";
+export const DOCS_GET_REFERENCE_TOOL = "docs_get_reference";
 export const DOCS_SEARCH_TOOL = "docs_search";
 export const DOCS_INDEX_TOOL = "docs_index";
 
 export function isDocsTool(toolName: string): boolean {
   return (
     toolName === DOCS_GET_TOOL
+    || toolName === DOCS_GET_REFERENCE_TOOL
     || toolName === DOCS_SEARCH_TOOL
     || toolName === DOCS_INDEX_TOOL
   );
@@ -44,9 +46,16 @@ export function summarizeDocsToolOutput(
   if (typeof data !== "object" || data === null) return null;
   const d = data as Record<string, unknown>;
 
-  if (toolName === DOCS_GET_TOOL && typeof d.title === "string") {
+  if (
+    (toolName === DOCS_GET_TOOL || toolName === DOCS_GET_REFERENCE_TOOL)
+    && typeof d.title === "string"
+  ) {
     const topic = typeof d.topic === "string" ? d.topic : "";
-    return topic ? `${d.title} · ${topic}` : d.title;
+    const ref =
+      typeof d.reference === "string" && d.reference
+        ? ` · ${d.reference}`
+        : "";
+    return topic ? `${d.title} · ${topic}${ref}` : `${d.title}${ref}`;
   }
 
   if (toolName === DOCS_SEARCH_TOOL && Array.isArray(d.items)) {

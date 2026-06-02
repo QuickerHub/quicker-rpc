@@ -133,6 +133,21 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Shared action GUID."), Option("changelog", "Change log text."), Option("json", "Structured output.") }),
 
+                Cmd("action move", "Move a local action to another profile; defaults to the first empty slot.", "qkrpc action move --id <guid> --profile <profileIdOrName> [--row N --col N] [--swap] [--json]",
+
+                    opts: new[]
+                    {
+                        Option("id", "Action GUID."),
+                        Option("profile", "Target profile id/name/scope."),
+                        Option("profile-id", "Alias for --profile."),
+                        Option("row", "Target row. Must be used with --col."),
+                        Option("col", "Target column. Must be used with --row."),
+                        Option("swap", "Exchange with the action at target row/col if occupied."),
+                        Option("json", "Structured output."),
+                        Option("timeout", "Seconds.", defaultValue: "10"),
+                        Option("no-bootstrap", "Skip auto-start."),
+                    }),
+
                 Cmd("action search", "Search local actions (main search box scoring).", "qkrpc action search --query <keyword> [--scope chrome|global|common|...] [--limit 20] [--json]",
 
                     opts: new[] { Option("query", "Keyword.", shortName: "q"), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),

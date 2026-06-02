@@ -9,6 +9,7 @@ public interface IPopupMessageService
 {
     void Success(string message);
     void Infomation(string message);
+    void InformationWithClick(string message, Action onClick);
     void Warning(string message);
     void Error(string message, Exception? exception = null);
 }

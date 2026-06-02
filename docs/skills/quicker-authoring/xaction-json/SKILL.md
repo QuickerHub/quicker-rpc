@@ -1,3 +1,11 @@
+---
+name: xaction-json
+description: "XAction JSON 字段、returnMode（structure/full/metadata）、stepId 与 nodePath。Use when reading qkrpc_action_get output or mapping patch targets."
+allowed-tools: qkrpc_action_get qkrpc_action_patch
+metadata:
+  phase: "P2"
+---
+
 # Compressed XAction（读模型）
 `qkrpc_action_get` → `payload.compressed` + **`editVersion`**。
 ## return-mode
@@ -17,3 +25,4 @@
 | 变量 `key` | patch 稳定 id；写入用数字 **`type`**（**`variables`**） |
 ## 相关
 `authoring-workflow`（P2）· `patch-workflow` · `overview`
+

@@ -1,3 +1,11 @@
+---
+name: authoring-workflow
+description: "Quicker 动作编辑 P1–P7 逐步流程（定位、读取、patch 保存）。Use when creating actions, patching steps, or before the first action edit in a session."
+allowed-tools: qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_step_runner_get
+metadata:
+  phase: "P1-P7"
+---
+
 # 写动作流程（Agent 必读）
 规定 **P1–P7 编辑链路**（总览见 **`overview`**）。工具说明见系统提示与 **`docs_index`**。
 ## P0 前置
@@ -66,3 +74,4 @@ qkrpc_action_patch({ id: "<guid>", patch: { ... }, expectedEditVersion: <N> })
 patch 成功 → 用响应 **`editVersion`**、**`addedSteps`**（新 `stepId`）、**`updatedSteps`**。版本冲突 → P2 重读 `editVersion` 后重试。参数/图标等问题见 **`errorMessage`**。
 ## 相关主题
 `overview` · `patch-workflow` · `xaction-json` · `action-icons` · `step-modules` · `step-runner-search` · `implementation-fallback` · `expressions` · `variables` · `subprogram-workflow` · `cli-setup`
+

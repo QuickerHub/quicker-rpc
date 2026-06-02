@@ -1,3 +1,9 @@
+---
+name: overview
+description: "Quicker 动作无头编辑总览与 P0–P7 专题索引。Use when starting action editing or choosing which guide topic to read next."
+compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
+---
+
 # Overview（动作编辑入口）
 无头编辑 XAction：**agent-ui 工具** + QuickerRpc 插件。环境：**`cli-setup`**。逐步操作：**`authoring-workflow`**（按需 **`docs_get`**，勿在回复中粘贴全文）。
 ## 编辑链路（必读顺序）
@@ -39,3 +45,4 @@
 | **`subprogram-workflow`** | 公共子程序与 `sys:subprogram` |
 | **`cli-setup`** | P0 安装与最小命令链 |
 | **`action-project-files`** | 大段 inputParams 用 `file` + `.quicker` 目录 export/import |
+

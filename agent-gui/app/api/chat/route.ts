@@ -81,11 +81,12 @@ export async function POST(req: Request) {
       contextLimit,
     });
 
+    const system = preparedContext.systemSuffix
+      ? `${await buildSystemInstructions(cwd)}\n\n${preparedContext.systemSuffix}`
+      : await buildSystemInstructions(cwd);
     const result = streamText({
       model,
-      system: preparedContext.systemSuffix
-        ? `${buildSystemInstructions(cwd)}\n\n${preparedContext.systemSuffix}`
-        : buildSystemInstructions(cwd),
+      system,
       messages: preparedContext.modelMessages,
       tools,
       stopWhen: stepCountIs(25),

@@ -21,6 +21,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly ActionSearchService _actionSearchService;
     private readonly SubProgramSearchService _subProgramSearchService;
     private readonly ActionDeleteService _actionDeleteService;
+    private readonly ActionMoveService _actionMoveService;
     private readonly ActionCreateService _actionCreateService;
     private readonly ActionEditService _actionEditService;
     private readonly ActionRunService _actionRunService;
@@ -36,6 +37,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         ActionSearchService actionSearchService,
         SubProgramSearchService subProgramSearchService,
         ActionDeleteService actionDeleteService,
+        ActionMoveService actionMoveService,
         ActionCreateService actionCreateService,
         ActionEditService actionEditService,
         ActionRunService actionRunService,
@@ -50,6 +52,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _actionSearchService = actionSearchService;
         _subProgramSearchService = subProgramSearchService;
         _actionDeleteService = actionDeleteService;
+        _actionMoveService = actionMoveService;
         _actionCreateService = actionCreateService;
         _actionEditService = actionEditService;
         _actionRunService = actionRunService;
@@ -295,6 +298,56 @@ public sealed class QuickerRpcService : IQuickerRpcService
     {
         return InvokeOnDispatcherAsync(
             () => Task.FromResult(_actionCreateService.CreateAction(title, description, icon, profileId)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcMoveActionResult> MoveActionAsync(
+        string actionId,
+        string targetProfile,
+        int? targetRow = null,
+        int? targetCol = null,
+        bool allowSwap = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            return Task.FromResult(new QuickerRpcMoveActionResult
+            {
+                Ok = false,
+                Message = "actionId is required.",
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(targetProfile))
+        {
+            return Task.FromResult(new QuickerRpcMoveActionResult
+            {
+                Ok = false,
+                ActionId = actionId.Trim(),
+                Message = "targetProfile is required.",
+            });
+        }
+
+        return InvokeOnDispatcherAsync(
+            () =>
+            {
+                var result = _actionMoveService.MoveAction(
+                    actionId.Trim(),
+                    targetProfile.Trim(),
+                    targetRow,
+                    targetCol,
+                    allowSwap);
+                if (result.Ok)
+                {
+                    _popup.Success(result.Message);
+                }
+                else
+                {
+                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "移动动作失败" : result.Message);
+                }
+
+                return Task.FromResult(result);
+            },
             cancellationToken);
     }
 

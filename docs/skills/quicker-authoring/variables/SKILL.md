@@ -1,3 +1,11 @@
+---
+name: variables
+description: "动作变量类型、读取与 variables patch 操作。Use when adding or editing action variables in patch JSON."
+allowed-tools: qkrpc_action_get qkrpc_action_patch
+metadata:
+  phase: "P2-P6"
+---
+
 # Variables
 **链路位置**：**`overview`** P2 读 / P6 patch。稳定 id：**`key`**（非临时 `id`）。
 ## Runtime-only: `quicker_in_param`
@@ -21,3 +29,4 @@ Patch/update may send `"varType": "integer"`; host normalizes to `type` on save.
 Variable patch ops: same `op` vocabulary as steps in **`qkrpc_action_patch`** (see **`patch-workflow`** example).
 ## 相关
 `patch-workflow` · `xaction-json` · `overview`
+

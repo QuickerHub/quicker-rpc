@@ -2,11 +2,13 @@ import { tool } from "ai";
 import { z } from "zod";
 import {
   getActionAuthoringDoc,
+  getActionAuthoringReference,
   listActionAuthoringTopics,
   searchActionAuthoringDocs,
 } from "@/lib/action-authoring-docs";
 import {
   DOCS_GET_TOOL,
+  DOCS_GET_REFERENCE_TOOL,
   DOCS_INDEX_TOOL,
   DOCS_SEARCH_TOOL,
 } from "@/lib/docs-tool";
@@ -24,7 +26,7 @@ const returnModeSchema = z.enum(["full", "structure", "metadata"]);
 export const quickerTools = {
   [DOCS_GET_TOOL]: tool({
     description:
-      'Read authoring guide from local docs/action-authoring (no qkrpc). Start with "authoring-workflow" or "overview".',
+      'Read an authoring skill (Agent Skills SKILL.md). Start with "authoring-workflow" or "overview".',
     inputSchema: z.object({
       topic: z.string().describe("Guide topic id"),
     }),
@@ -46,6 +48,7 @@ export const quickerTools = {
         success: true,
         topic: result.doc.topic,
         title: result.doc.title,
+        description: result.doc.description,
         markdown: result.doc.markdown,
       });
     },
@@ -53,7 +56,7 @@ export const quickerTools = {
 
   [DOCS_SEARCH_TOOL]: tool({
     description:
-      "Search local authoring guides by keyword (docs/action-authoring, no qkrpc).",
+      "Search local authoring skills by keyword (Agent Skills catalog, no qkrpc).",
     inputSchema: z.object({
       query: z.string().optional(),
       limit: z.number().int().min(1).max(50).optional(),
@@ -70,7 +73,7 @@ export const quickerTools = {
 
   [DOCS_INDEX_TOOL]: tool({
     description:
-      "List all local authoring guide topics with titles (docs/action-authoring, no qkrpc).",
+      "List all local authoring skills with name, title, and description (no qkrpc).",
     inputSchema: z.object({}),
     execute: async () => {
       const topics = await listActionAuthoringTopics();
@@ -78,6 +81,39 @@ export const quickerTools = {
         action: "docs-index",
         success: true,
         topics,
+      });
+    },
+  }),
+
+  [DOCS_GET_REFERENCE_TOOL]: tool({
+    description:
+      "Read a reference file from an authoring skill (Agent Skills references/). Use for large tables, e.g. step-modules modules-table.",
+    inputSchema: z.object({
+      topic: z.string().describe("Skill topic id"),
+      file: z.string().describe('Reference file id without .md, e.g. "modules-table"'),
+    }),
+    execute: async ({ topic, file }) => {
+      const result = await getActionAuthoringReference(topic, file);
+      if (!result.ok) {
+        return formatLocalToolResult(
+          {
+            action: "docs-get",
+            errorMessage: result.error,
+            availableTopics: result.availableTopics,
+            availableReferences: result.availableReferences,
+          },
+          false,
+          result.error,
+        );
+      }
+      return formatLocalToolResult({
+        action: "docs-get",
+        success: true,
+        topic: result.doc.topic,
+        reference: result.doc.reference,
+        title: result.doc.title,
+        description: result.doc.description,
+        markdown: result.doc.markdown,
       });
     },
   }),

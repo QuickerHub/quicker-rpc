@@ -75,6 +75,7 @@ public static partial class Launcher
                     ShowMonitorCore();
                 }
 
+                ScheduleQuickerAgentUpdateCheck();
                 return;
             }
 
@@ -143,6 +144,18 @@ public static partial class Launcher
 
     private static void ShowMonitorCore() =>
         GetService<QuickerRpcMonitorWindowService>().Show();
+
+    private static void ScheduleQuickerAgentUpdateCheck()
+    {
+        try
+        {
+            GetService<QuickerAgentUpdateCheckService>().ScheduleCheckAndNotify();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "QuickerAgent update check skipped.");
+        }
+    }
 
     public static void Stop()
     {

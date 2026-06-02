@@ -1,3 +1,11 @@
+---
+name: implementation-fallback
+description: "无专用模块时的实现选型：表达式 vs sys:csscript vs sys:runScript。Use when no step module fits or choosing between expression and script steps."
+allowed-tools: qkrpc_step_runner_search qkrpc_step_runner_get qkrpc_action_patch
+metadata:
+  phase: "P4"
+---
+
 # 实现方式与回退
 **何时读**：`step-modules`/search 无合适模块，或需求是计算/逻辑而非固定 UI。
 ## 优先级
@@ -19,3 +27,4 @@
 ```
 ## 相关
 `authoring-workflow`（P4）· `expressions` · `step-runner-search` · `overview`
+

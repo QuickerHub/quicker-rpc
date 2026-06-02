@@ -22,6 +22,7 @@ public static partial class Launcher
                 services.AddSingleton<ActionSearchService>();
                 services.AddSingleton<SubProgramSearchService>();
                 services.AddSingleton<ActionDeleteService>();
+                services.AddSingleton<ActionMoveService>();
                 services.AddSingleton<ActionCreateService>();
                 services.AddSingleton<ActionEditService>();
                 services.AddSingleton<ActionRunService>();
@@ -32,6 +33,7 @@ public static partial class Launcher
                 services.AddSingleton<QuickerRpcMonitorWindowService>();
                 services.AddSingleton<HeadlessSubProgramProgramService>();
                 services.AddSingleton<FontAwesomeIconSearchService>();
+                services.AddSingleton<QuickerAgentUpdateCheckService>();
                 services.AddSingleton<QuickerRpcService>();
                 services.AddSingleton<IQuickerRpcService>(sp => sp.GetRequiredService<QuickerRpcService>());
 

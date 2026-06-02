@@ -228,6 +228,7 @@ internal static partial class Program
             "replace" => await RunActionReplaceAsync(options).ConfigureAwait(false),
             "export" => await RunActionExportAsync(options).ConfigureAwait(false),
             "import" => await RunActionImportAsync(options).ConfigureAwait(false),
+            "move" => await RunActionMoveAsync(options).ConfigureAwait(false),
             "delete" => await RunActionDeleteAsync(options).ConfigureAwait(false),
             "edit" => await RunActionEditAsync(options).ConfigureAwait(false),
             "run" => await RunActionRunAsync(options).ConfigureAwait(false),
@@ -242,7 +243,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action create|get|patch|set-metadata|replace|export|import|list|search|update|delete|edit|run|float|edit-var (see qkrpc help --json)")
+            "Use: action create|get|patch|set-metadata|replace|export|import|list|search|update|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -448,6 +449,91 @@ internal static partial class Program
         catch (Exception ex)
         {
             await EmitErrorAsync(options.Json, "DELETE_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
+
+    private static async Task<int> RunActionMoveAsync(ActionOptions options)
+    {
+        var actionId = (options.Id ?? options.Code ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            await EmitErrorAsync(options.Json, "MISSING_ACTION_ID", "Provide --id or --code <actionId>.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        var targetProfile = (options.TargetProfile ?? options.ProfileId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(targetProfile))
+        {
+            await EmitErrorAsync(options.Json, "MISSING_TARGET_PROFILE", "Provide --profile <profileIdOrName>.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        if ((options.Row.HasValue && !options.Col.HasValue) || (!options.Row.HasValue && options.Col.HasValue))
+        {
+            await EmitErrorAsync(options.Json, "MISSING_TARGET_POSITION", "Provide both --row and --col, or neither.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var result = await session.Proxy
+                .MoveActionAsync(actionId, targetProfile, options.Row, options.Col, options.Swap, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "move",
+                        actionId = result.ActionId ?? actionId,
+                        actionTitle = result.ActionTitle,
+                        sourceProfileId = result.SourceProfileId,
+                        sourceProfileName = result.SourceProfileName,
+                        sourceRow = result.SourceRow,
+                        sourceCol = result.SourceCol,
+                        targetProfileId = result.TargetProfileId,
+                        targetProfileName = result.TargetProfileName,
+                        targetRow = result.TargetRow,
+                        targetCol = result.TargetCol,
+                        swappedActionId = result.SwappedActionId,
+                        swappedActionTitle = result.SwappedActionTitle,
+                        message = result.Message,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else if (result.Ok)
+            {
+                global::System.Console.WriteLine(
+                    $"{result.Message} actionId={result.ActionId} profile={result.TargetProfileName} ({result.TargetRow},{result.TargetCol})");
+            }
+            else
+            {
+                global::System.Console.Error.WriteLine(result.Message);
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "MOVE_FAILED", ex.Message).ConfigureAwait(false);
             return ExitCodes.Error;
         }
     }
@@ -882,7 +968,7 @@ public sealed class PingOptions
 [Verb("action", HelpText = "Quicker action operations via RPC.")]
 public sealed class ActionOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | export | import | list | search | update | delete | edit | run | float | edit-var")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | export | import | list | search | update | move | delete | edit | run | float | edit-var")]
     public string? Command { get; set; }
 
     [Option("id", HelpText = "Shared action id (GUID).")]
@@ -920,6 +1006,18 @@ public sealed class ActionOptions
 
     [Option("profile-id", HelpText = "Optional virtual action page id for action create.")]
     public string? ProfileId { get; set; }
+
+    [Option("profile", HelpText = "Target profile id/name/scope for action move.")]
+    public string? TargetProfile { get; set; }
+
+    [Option("row", HelpText = "Target row for action move.")]
+    public int? Row { get; set; }
+
+    [Option("col", HelpText = "Target column for action move.")]
+    public int? Col { get; set; }
+
+    [Option("swap", HelpText = "Allow action move to swap with an occupied target position.")]
+    public bool Swap { get; set; }
 
     [Option("return-mode", HelpText = "For action get: full | structure | metadata.")]
     public string? ReturnMode { get; set; }

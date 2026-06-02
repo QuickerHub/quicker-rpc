@@ -1,3 +1,9 @@
+---
+name: action-icons
+description: "Quicker 动作图标 fa:Light_* 格式与 qkrpc_fa_search 用法。Use when setting or changing action icons."
+allowed-tools: qkrpc_fa_search qkrpc_action_set_metadata qkrpc_action_patch
+---
+
 # 动作图标（Font Awesome 与图片 URL）
 说明 **`icon` 参数值** 怎么写。搜索图标用 **`qkrpc_fa_search`**；格式见下文。
 ## 枚举名（Font Awesome）
@@ -33,3 +39,4 @@ http://...
 格式或未知枚举名会在 由工具返回的 `errorMessage` / stderr；可用 **`qkrpc_fa_search`** / `fa search` 核对 `names[]`。
 ## 相关
 `authoring-workflow`（P3）· `patch-workflow` · `overview`
+

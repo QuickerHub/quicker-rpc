@@ -1,3 +1,11 @@
+---
+name: subprogram-workflow
+description: "在动作中调用公共子程序：callIdentifier 与 sys:subprogram 步骤。Use when adding subprogram call steps to an action."
+allowed-tools: qkrpc_subprogram_search qkrpc_subprogram_get qkrpc_step_runner_get qkrpc_action_patch
+metadata:
+  phase: "P5-P6"
+---
+
 # 公共子程序
 全局库：**`qkrpc_subprogram_*` 工具**。动作内调用走 **`authoring-workflow`** P5–P6 + 下文 B 链。
 ## A 管理子程序
@@ -20,3 +28,4 @@ subprogram search/get → callIdentifier
 **`callIdentifier`** 通常 `%%{guid}`，从 `subprogram search/get` 读取；未知标识会在 RPC/工具报错。
 ## 相关
 `authoring-workflow` · `patch-workflow` · `overview`
+

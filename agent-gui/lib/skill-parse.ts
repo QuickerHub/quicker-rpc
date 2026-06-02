@@ -1,0 +1,127 @@
+export type ParsedSkill = {
+  name: string;
+  description: string;
+  allowedTools: string[];
+  compatibility: string | null;
+  metadata: Record<string, string>;
+  body: string;
+};
+
+function parseScalarValue(raw: string): string {
+  const trimmed = raw.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+    || (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    const quote = trimmed[0];
+    return trimmed
+      .slice(1, -1)
+      .replace(/\\n/g, "\n")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\")
+      .replace(new RegExp(`\\\\${quote}`, "g"), quote);
+  }
+  return trimmed;
+}
+
+function parseFrontmatterBlock(block: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  const lines = block.split("\n");
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const match = /^(\w[\w-]*):\s*(.*)$/.exec(line);
+    if (!match) {
+      i += 1;
+      continue;
+    }
+
+    const key = match[1];
+    const rest = match[2];
+
+    if (rest === "" || rest === "|" || rest === ">-" || rest === ">") {
+      if (key === "metadata") {
+        i += 1;
+        while (i < lines.length) {
+          const nestedLine = lines[i];
+          const metaMatch = /^  (\w[\w-]*):\s*(.*)$/.exec(nestedLine);
+          if (!metaMatch) break;
+          result[`metadata.${metaMatch[1]}`] = parseScalarValue(metaMatch[2]);
+          i += 1;
+        }
+        continue;
+      }
+
+      i += 1;
+      const nested: string[] = [];
+      while (i < lines.length) {
+        const nestedLine = lines[i];
+        if (/^\S/.test(nestedLine) && nestedLine.includes(":")) break;
+        if (/^  /.test(nestedLine)) {
+          nested.push(nestedLine.slice(2));
+        } else if (nested.length > 0) {
+          break;
+        }
+        i += 1;
+      }
+      result[key] = nested.join("\n").trimEnd();
+      continue;
+    }
+
+    result[key] = parseScalarValue(rest);
+    i += 1;
+  }
+
+  return result;
+}
+
+/** Parse Agent Skills SKILL.md (YAML frontmatter + Markdown body). */
+export function parseSkillMd(content: string): ParsedSkill {
+  if (!content.startsWith("---\n")) {
+    return {
+      name: "",
+      description: "",
+      allowedTools: [],
+      compatibility: null,
+      metadata: {},
+      body: content,
+    };
+  }
+
+  const end = content.indexOf("\n---\n", 4);
+  if (end < 0) {
+    return {
+      name: "",
+      description: "",
+      allowedTools: [],
+      compatibility: null,
+      metadata: {},
+      body: content,
+    };
+  }
+
+  const frontmatter = parseFrontmatterBlock(content.slice(4, end));
+  const body = content.slice(end + 5).replace(/^\n/, "");
+
+  const metadata: Record<string, string> = {};
+  for (const [k, v] of Object.entries(frontmatter)) {
+    if (k.startsWith("metadata.")) {
+      metadata[k.slice("metadata.".length)] = v;
+    }
+  }
+
+  const allowedRaw = frontmatter["allowed-tools"]?.trim() ?? "";
+  const allowedTools = allowedRaw
+    ? allowedRaw.split(/\s+/).filter(Boolean)
+    : [];
+
+  return {
+    name: frontmatter.name?.trim() ?? "",
+    description: frontmatter.description?.trim() ?? "",
+    allowedTools,
+    compatibility: frontmatter.compatibility?.trim() || null,
+    metadata,
+    body,
+  };
+}

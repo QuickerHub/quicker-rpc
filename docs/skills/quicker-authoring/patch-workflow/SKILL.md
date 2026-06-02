@@ -1,3 +1,11 @@
+---
+name: patch-workflow
+description: "action patch JSON 格式、默认值省略、保存响应字段与常见 warnings。Use when writing qkrpc_action_patch or debugging patch failures."
+allowed-tools: qkrpc_action_patch qkrpc_action_get
+metadata:
+  phase: "P6"
+---
+
 # Patch workflow
 
 **`qkrpc_action_patch`**：一次调用 = 一次保存。前置：每个新/改步骤先 **`qkrpc_step_runner_get`**（**`authoring-workflow`** P5）。
@@ -99,3 +107,4 @@ qkrpc_action_patch({ id: "<guid>", patch: { ... }, expectedEditVersion: <N> })
 | `updatedSteps` / `updatedVariables` | 已改项摘要 |
 
 冲突 → `qkrpc_action_get` 取新 `editVersion` 或 `force`。整页写入用 `"replace": true` 的 patch，或 `action replace`。仅当前 Quicker 配置内动作。
+

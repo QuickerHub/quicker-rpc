@@ -1,3 +1,9 @@
+---
+name: expressions
+description: "Quicker 参数表达式（$=、$$）与 sys:evalexpression 步骤。Use when using eval expressions instead of dedicated step modules."
+allowed-tools: qkrpc_step_runner_get qkrpc_action_patch
+---
+
 # Expressions and Interpolation
 **链路位置**：**`overview`** P4 — 纯计算/比较/赋值优先于专用步骤。参数键名仍来自 **`qkrpc_step_runner_get`**；无模块见 **`implementation-fallback`**（复杂逻辑 **`sys:csscript`**，勿默认长 `sys:runScript`）。
 ## Prefixes in `inputParams.value`
@@ -103,3 +109,4 @@ IQuickerApi _qk;              // always
 "isVerbose": { "value": "$=string.Equals({quicker_in_param}, \"verbose\", StringComparison.OrdinalIgnoreCase)" }
 "msg": { "value": "$$Param: {quicker_in_param}" }
 ```
+
