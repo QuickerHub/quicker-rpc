@@ -16,6 +16,7 @@
         "title": "QuickerAgent",
         "width": 1280,
         "height": 800,
+        "center": true,
         "resizable": true,
         "visible": false,
         "decorations": false,

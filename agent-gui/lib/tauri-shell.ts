@@ -1,9 +1,29 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 /** True when the UI runs inside a Tauri webview (not plain browser). */
 export function isTauriShell(): boolean {
   if (typeof window === "undefined") return false;
   return "__TAURI_INTERNALS__" in window;
+}
+
+/** SSR-safe: false until after mount, then matches {@link isTauriShell}. */
+export function useTauriShell(): boolean {
+  const [isTauri, setIsTauri] = useState(false);
+  useEffect(() => {
+    setIsTauri(isTauriShell());
+  }, []);
+  return isTauri;
+}
+
+/** SSR-safe: `"web"` until after mount, then matches {@link getShellPlatform}. */
+export function useShellPlatform(): ShellPlatform {
+  const [platform, setPlatform] = useState<ShellPlatform>("web");
+  useEffect(() => {
+    setPlatform(getShellPlatform());
+  }, []);
+  return platform;
 }
 
 export type ShellPlatform = "windows" | "macos" | "linux" | "web";

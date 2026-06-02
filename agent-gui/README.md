@@ -21,13 +21,15 @@ pnpm install
 copy llm-config.example.json llm-config.json
 # 编辑 llm-config.json；一般无需配置 QKRPC_* 
 
+**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；Tauri 安装版为 **`Documents/QuickerAgent`**（首次启动自动创建）。可用 `AGENT_GUI_DEFAULT_CWD` 覆盖。
+
 pnpm dev
 ```
 
-`pnpm dev` = `start.mjs --dev`：优先连接本机 `qkrpc serve`（`GET /health`），否则回退为子进程 `qkrpc` CLI。界面齿轮菜单可「重新检测」Quicker 连接。
+`pnpm dev` = `start.mjs --dev`：优先连接本机 `qkrpc serve`（`GET /health`），否则回退为子进程 `qkrpc` CLI。界面齿轮菜单可「重新检测」Quicker 连接。默认**不会**用系统浏览器打开 localhost（`pnpm dev:browser` 或 `AGENT_GUI_OPEN_BROWSER=1` 可开启）。
 
 ```powershell
-pnpm tauri:dev   # 桌面壳，内置 qkrpc serve + Next
+pnpm tauri:dev   # 桌面壳，内置 qkrpc serve + Next（不打开外部浏览器）
 ```
 
 ## 发布（Tauri 2）

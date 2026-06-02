@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { getShellPlatform, isTauriShell } from "@/lib/tauri-shell";
+import { useShellPlatform, useTauriShell } from "@/lib/tauri-shell";
 
 async function getAppWindow() {
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
@@ -47,8 +47,9 @@ function IconClose() {
 }
 
 export function TauriWindowControls() {
-  const platform = getShellPlatform();
-  const showControls = isTauriShell() && platform !== "macos" && platform !== "web";
+  const isTauri = useTauriShell();
+  const platform = useShellPlatform();
+  const showControls = isTauri && platform !== "macos" && platform !== "web";
 
   const onMinimize = useCallback(async () => {
     const win = await getAppWindow();

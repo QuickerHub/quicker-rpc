@@ -1,10 +1,16 @@
 import { existsSync } from "node:fs";
 import { basename, join } from "node:path";
+import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 
-/** Repo root (directory containing version.json). */
-export function resolveRepoRoot(): string {
+/** Directory containing quicker-rpc `version.json`. */
+export function isQuickerRpcRepoRoot(dir: string): boolean {
+  return existsSync(join(dir, "version.json"));
+}
+
+/** quicker-rpc monorepo root, or null when running from an install bundle only. */
+export function resolveQuickerRpcRepoRoot(): string | null {
   const fromEnv = process.env.QKRPC_REPO_ROOT?.trim();
-  if (fromEnv && existsSync(join(fromEnv, "version.json"))) {
+  if (fromEnv && isQuickerRpcRepoRoot(fromEnv)) {
     return fromEnv;
   }
 
@@ -12,14 +18,22 @@ export function resolveRepoRoot(): string {
   if (basename(dir) === "agent-gui") {
     dir = join(dir, "..");
   }
-  if (existsSync(join(dir, "version.json"))) {
+  if (isQuickerRpcRepoRoot(dir)) {
     return dir;
   }
 
   const parent = join(dir, "..");
-  if (existsSync(join(parent, "version.json"))) {
+  if (isQuickerRpcRepoRoot(parent)) {
     return parent;
   }
 
-  return dir;
+  return null;
+}
+
+/**
+ * Root for repo-scoped assets (e.g. authoring docs in dev).
+ * Falls back to agent-gui / bundle runtime when not in a checkout.
+ */
+export function resolveRepoRoot(): string {
+  return resolveQuickerRpcRepoRoot() ?? resolveAgentGuiRoot();
 }

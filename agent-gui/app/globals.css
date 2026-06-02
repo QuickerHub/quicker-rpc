@@ -50,10 +50,27 @@ body {
   background: var(--panel);
 }
 
-/* Tauri: in-app titlebar replaces native chrome */
-.app-titlebar--tauri[data-tauri-drag-region] {
+/* Tauri: dedicated drag handles (not the whole header — tabs stay clickable) */
+.app-titlebar--tauri .titlebar-drag-region {
   -webkit-app-region: drag;
   app-region: drag;
+  user-select: none;
+  touch-action: none;
+  cursor: default;
+}
+
+.titlebar-drag-spacer {
+  flex: 1 1 auto;
+  min-width: 1.25rem;
+  align-self: stretch;
+}
+
+/* Narrow drag strip before tabs; must not grow (or tabs look centered) */
+.titlebar-drag-spacer--lead {
+  flex: 0 0 auto;
+  width: 0.65rem;
+  min-width: 0.65rem;
+  max-width: 0.65rem;
 }
 
 .app-titlebar--tauri button,
@@ -62,7 +79,10 @@ body {
 .app-titlebar--tauri select,
 .app-titlebar--tauri textarea,
 .app-titlebar--tauri [role="menu"],
-.app-titlebar--tauri .titlebar-tabs {
+.app-titlebar--tauri .titlebar-tab,
+.app-titlebar--tauri .titlebar-tab-new,
+.app-titlebar--tauri .titlebar-actions,
+.app-titlebar--tauri .tauri-window-controls {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
@@ -71,9 +91,13 @@ body {
   padding-left: 4.75rem;
 }
 
-.titlebar-actions--with-window-controls {
+/* Frameless Tauri (Win/Linux): window controls sit outside actions, flush to the right edge */
+.app-titlebar--frameless {
   padding-right: 0;
-  border-left: none;
+}
+
+.app-titlebar--frameless .titlebar-actions--with-window-controls {
+  padding-right: 0.35rem;
 }
 
 .tauri-window-controls {
@@ -81,7 +105,7 @@ body {
   align-items: stretch;
   align-self: stretch;
   flex-shrink: 0;
-  margin-left: 0.15rem;
+  margin-left: 0;
 }
 
 .tauri-window-control {
@@ -115,13 +139,10 @@ body {
   display: block;
 }
 
-.app-titlebar--frameless .titlebar-actions {
-  padding-right: 0;
-}
-
 .titlebar-tabs {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
   display: flex;
   align-items: stretch;
   align-self: stretch;
@@ -955,6 +976,83 @@ html.sidebar-collapsed-init .app-shell .workspace-sidebar {
   display: flex;
   justify-content: flex-end;
   margin-top: 0.55rem;
+}
+
+.ws-settings-actions--split {
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ws-settings-actions-primary {
+  display: flex;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.ws-settings-secondary {
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.ws-settings-secondary:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--hover-overlay);
+}
+
+.ws-settings-secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ws-cwd-default-hint {
+  margin-top: 0.35rem;
+  word-break: break-all;
+}
+
+.ws-settings-panel--cwd {
+  width: min(32rem, calc(100vw - 2rem));
+}
+
+.ws-cwd-path-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.ws-cwd-path-row .ws-settings-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ws-cwd-browse-btn {
+  flex-shrink: 0;
+  align-self: stretch;
+  padding: 0 0.65rem;
+  border-radius: 6px;
+  border: 1px solid var(--composer-border);
+  background: var(--composer-input-bg);
+  color: var(--text);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ws-cwd-browse-btn:hover:not(:disabled) {
+  border-color: var(--composer-focus-border);
+  background: var(--hover-overlay);
+}
+
+.ws-cwd-browse-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .ws-settings-save {

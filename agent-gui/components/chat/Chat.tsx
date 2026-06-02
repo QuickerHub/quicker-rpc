@@ -533,7 +533,7 @@ function ChatPanel({
 }
 
 export function Chat() {
-  const { store, defaultCwd, updateStore } = useChatStore();
+  const { store, defaultCwd, defaultCwdProfile, updateStore } = useChatStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const storeRef = useRef(store);
   storeRef.current = store;
@@ -584,6 +584,7 @@ export function Chat() {
         <ChatSidebar
           store={store}
           defaultCwd={defaultCwd}
+          defaultCwdProfile={defaultCwdProfile}
           onChange={updateStore}
           collapsed={sidebarCollapsed}
         />

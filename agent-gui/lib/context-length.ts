@@ -12,7 +12,7 @@ export function formatContextWindowLabel(tokenLimit: number): string {
   return String(tokenLimit);
 }
 
-/** Latest assistant turn: API-reported usage from the model call (not summed). */
+/** Latest assistant turn: last stream step usage (prompt size), not finish.totalUsage across tool steps. */
 export function getLatestContextUsage(
   messages: AgentUIMessage[],
 ): {

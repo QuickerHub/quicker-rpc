@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import type { DefaultWorkingDirectoryProfile } from "@/lib/default-working-directory";
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
   CHAT_STORAGE_KEY,
@@ -68,6 +69,8 @@ export function useChatStore() {
   );
 
   const [defaultCwd, setDefaultCwd] = useState("");
+  const [defaultCwdProfile, setDefaultCwdProfile] =
+    useState<DefaultWorkingDirectoryProfile>("documents");
 
   useEffect(() => {
     let cancelled = false;
@@ -75,10 +78,20 @@ export function useChatStore() {
       try {
         const res = await fetch("/api/settings/default-cwd", { cache: "no-store" });
         if (!res.ok || cancelled) return;
-        const data = (await res.json()) as { cwd?: string };
+        const data = (await res.json()) as {
+          cwd?: string;
+          profile?: DefaultWorkingDirectoryProfile;
+        };
         if (cancelled) return;
         if (typeof data.cwd === "string") {
           setDefaultCwd(data.cwd);
+        }
+        if (
+          data.profile === "env"
+          || data.profile === "repo"
+          || data.profile === "documents"
+        ) {
+          setDefaultCwdProfile(data.profile);
         }
       } catch {
         /* optional default cwd */
@@ -95,5 +108,5 @@ export function useChatStore() {
     notifyChatStoreListeners();
   }, []);
 
-  return { store, defaultCwd, updateStore };
+  return { store, defaultCwd, defaultCwdProfile, updateStore };
 }

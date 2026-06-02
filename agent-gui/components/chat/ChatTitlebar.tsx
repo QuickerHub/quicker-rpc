@@ -13,11 +13,8 @@ import {
 import { SidebarSettingsMenu } from "@/components/chat/SidebarSettingsMenu";
 import { SidebarToggle } from "@/components/chat/SidebarToggle";
 import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
-import {
-  isTauriShell,
-  usesFramelessTitlebar,
-  usesMacOverlayTitlebar,
-} from "@/lib/tauri-shell";
+import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
+import { useShellPlatform, useTauriShell } from "@/lib/tauri-shell";
 
 type ChatTitlebarProps = {
   store: ChatStoreData;
@@ -103,25 +100,26 @@ export function ChatTitlebar({
     active?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [activeThread.id, tabThreads.length]);
 
+  const isTauri = useTauriShell();
+  const platform = useShellPlatform();
   const titlebarClass = [
     "app-titlebar",
-    isTauriShell() ? "app-titlebar--tauri" : "",
-    usesFramelessTitlebar() ? "app-titlebar--frameless" : "",
-    usesMacOverlayTitlebar() ? "app-titlebar--mac-overlay" : "",
+    isTauri ? "app-titlebar--tauri" : "",
+    isTauri && platform !== "macos" ? "app-titlebar--frameless" : "",
+    isTauri && platform === "macos" ? "app-titlebar--mac-overlay" : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <header
-      className={titlebarClass}
-      {...(isTauriShell() ? { "data-tauri-drag-region": "" } : {})}
-    >
+    <header className={titlebarClass}>
       <SidebarToggle
         sidebarOpen={sidebarOpen}
         onClick={onToggleSidebar}
         className="shell-sidebar-toggle"
       />
+
+      <TitlebarDragRegion className="titlebar-drag-spacer--lead" />
 
       <div className="titlebar-tabs" ref={tabsRef} role="tablist" aria-label="对话标签">
         {tabThreads.map((thread) => {
@@ -172,10 +170,19 @@ export function ChatTitlebar({
         </button>
       </div>
 
-      <div className="titlebar-actions">
+      <TitlebarDragRegion />
+
+      <div
+        className={[
+          "titlebar-actions",
+          isTauri && platform !== "macos" ? "titlebar-actions--with-window-controls" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         <SidebarSettingsMenu />
-        <TauriWindowControls />
       </div>
+      <TauriWindowControls />
     </header>
   );
 }

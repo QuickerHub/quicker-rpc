@@ -129,7 +129,7 @@ fn spawn_node_server(app_dir: &Path, node_exe: &Path, host: &str, port: u16) -> 
         .current_dir(app_dir)
         .env("HOSTNAME", host)
         .env("PORT", port.to_string())
-        .env("QKRPC_REPO_ROOT", app_dir);
+        .env("AGENT_GUI_BUNDLED", "1");
 
     if let Ok(url) = std::env::var("QKRPC_HTTP_URL") {
         cmd.env("QKRPC_HTTP_URL", url);
@@ -195,9 +195,6 @@ fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<St
     let qkrpc_url = format!("http://{host}:{qkrpc_port}");
     std::env::set_var("QKRPC_HTTP_URL", &qkrpc_url);
     std::env::set_var("QKRPC_TRANSPORT", "http");
-    std::env::set_var("QKRPC_CWD", &runtime);
-    std::env::set_var("QKRPC_REPO_ROOT", &runtime);
-
     let qkrpc_dir = resource.join("qkrpc");
     let qkrpc_child = spawn_qkrpc(&qkrpc_dir, host, qkrpc_port)?;
     wait_http_ok(host, qkrpc_port, "/health", 45_000)?;
@@ -214,6 +211,7 @@ fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<St
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(BackendState::new())
         .setup(|app| {
             #[cfg(debug_assertions)]
@@ -221,6 +219,7 @@ pub fn run() {
                 // `tauri dev` uses devUrl + start.mjs from beforeDevCommand.
                 if let Some(win) = app.get_webview_window("main") {
                     apply_titlebar_chrome_existing(&win);
+                    let _ = win.center();
                     let _ = win.show();
                 }
                 return Ok(());
@@ -239,6 +238,7 @@ pub fn run() {
                 WebviewWindowBuilder::new(&handle, "agent", WebviewUrl::External(external))
                     .title("QuickerAgent")
                     .inner_size(1280.0, 800.0)
+                    .center()
                     .resizable(true)
                     .visible(true),
             )

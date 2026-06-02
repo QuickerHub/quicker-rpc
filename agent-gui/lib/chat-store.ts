@@ -17,7 +17,7 @@ export type ChatStoreData = {
   threads: ChatThread[];
   /** Thread ids shown in the titlebar tab strip (order preserved). */
   openTabIds: string[];
-  /** Empty = server default repo root (qkrpc cwd). */
+  /** Empty = server default working directory (dev: repo root; release: Documents). */
   workingDirectory: string;
 };
 

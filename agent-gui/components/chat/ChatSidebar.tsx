@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { WorkingDirectoryDialog } from "@/components/chat/WorkingDirectoryDialog";
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
   addThread,
@@ -12,9 +13,25 @@ import {
   setWorkingDirectory,
   sortThreads,
 } from "@/lib/chat-store";
+import type { DefaultWorkingDirectoryProfile } from "@/lib/default-working-directory";
+
+function defaultCwdFallbackLabel(profile: DefaultWorkingDirectoryProfile): string {
+  switch (profile) {
+    case "repo":
+      return "默认（quicker-rpc 仓库根）";
+    case "documents":
+      return "默认（文档/QuickerAgent）";
+    case "env":
+      return "默认（已配置）";
+    default:
+      return "默认";
+  }
+}
+
 type ChatSidebarProps = {
   store: ChatStoreData;
   defaultCwd: string;
+  defaultCwdProfile: DefaultWorkingDirectoryProfile;
   onChange: (next: ChatStoreData) => void;
   collapsed: boolean;
   disabled?: boolean;
@@ -95,6 +112,7 @@ function RowAction({ label, onClick, disabled, children }: RowActionProps) {
 export function ChatSidebar({
   store,
   defaultCwd,
+  defaultCwdProfile,
   onChange,
   collapsed,
   disabled = false,
@@ -102,7 +120,10 @@ export function ChatSidebar({
   const activeThread = useMemo(() => getActiveThread(store), [store]);
   const sortedThreads = useMemo(() => sortThreads(store.threads), [store.threads]);
   const effectiveCwd = store.workingDirectory.trim() || defaultCwd;
-  const cwdFallbackLabel = defaultCwd ? "默认仓库根" : "未设置";
+  const cwdFallbackLabel = defaultCwd
+    ? defaultCwdFallbackLabel(defaultCwdProfile)
+    : "未设置";
+  const [cwdDialogOpen, setCwdDialogOpen] = useState(false);
 
   const commit = useCallback(
     (next: ChatStoreData) => {
@@ -114,15 +135,6 @@ export function ChatSidebar({
 
   const handleNewThread = () => {
     commit(addThread(store));
-  };
-
-  const handleEditWorkingDirectory = () => {
-    const path = window.prompt(
-      "工作目录（qkrpc 运行 cwd，便于读写本地文件；留空使用默认仓库根）",
-      store.workingDirectory,
-    );
-    if (path === null) return;
-    commit(setWorkingDirectory(store, path));
   };
 
   const handleRenameThread = (threadId: string, currentTitle: string) => {
@@ -204,9 +216,10 @@ export function ChatSidebar({
           <button
             type="button"
             className="ws-footer-path"
-            onClick={handleEditWorkingDirectory}
+            onClick={() => setCwdDialogOpen(true)}
             disabled={disabled}
             title={effectiveCwd || "点击设置工作目录"}
+            aria-haspopup="dialog"
           >
             <span className="ws-footer-path-label">工作目录</span>
             <span className="ws-footer-path-value">
@@ -215,6 +228,16 @@ export function ChatSidebar({
           </button>
         </div>
       </div>
+
+      <WorkingDirectoryDialog
+        open={cwdDialogOpen}
+        disabled={disabled}
+        value={store.workingDirectory}
+        defaultCwd={defaultCwd}
+        defaultCwdProfile={defaultCwdProfile}
+        onClose={() => setCwdDialogOpen(false)}
+        onSave={(path) => commit(setWorkingDirectory(store, path))}
+      />
     </aside>
   );
 }

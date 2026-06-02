@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node ./start.mjs --dev",
+    "dev:browser": "node ./start.mjs --dev --open-browser",
     "build": "next build",
     "start": "node ./start.mjs",
     "lint": "next lint",
@@ -25,6 +26,7 @@
     "@ai-sdk/react": "^3.0.195",
     "@bufbuild/protobuf": "^2.2.3",
     "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
     "ai": "^6.0.193",
     "next": "^15.3.0",
     "react": "^19.0.0",

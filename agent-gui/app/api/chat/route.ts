@@ -89,8 +89,9 @@ export async function POST(req: Request) {
         if (part.type === "start") {
           return { model: modelId };
         }
-        if (part.type === "finish") {
-          const u = part.totalUsage;
+        // Per-step usage (last finish-step wins). Do not use finish.totalUsage — it sums all tool steps.
+        if (part.type === "finish-step" && part.usage) {
+          const u = part.usage;
           return {
             model: modelId,
             inputTokens: u.inputTokens,
@@ -98,6 +99,19 @@ export async function POST(req: Request) {
             totalTokens: u.totalTokens,
             reasoningTokens: u.reasoningTokens,
           };
+        }
+        if (part.type === "finish" && part.usage) {
+          const u = part.usage;
+          return {
+            model: modelId,
+            inputTokens: u.inputTokens,
+            outputTokens: u.outputTokens,
+            totalTokens: u.totalTokens,
+            reasoningTokens: u.reasoningTokens,
+          };
+        }
+        if (part.type === "finish") {
+          return { model: modelId };
         }
         return undefined;
       },

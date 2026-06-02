@@ -171,7 +171,7 @@ export function ContextUsage({
 
           <p className="context-popup-hint">
             {hasData
-              ? "基于最近一次模型调用的 inputTokens"
+              ? "基于本轮最后一步模型调用的 prompt 用量（非多步累加）"
               : busy
                 ? "本轮响应完成后更新"
                 : "完成一轮对话后显示"}

@@ -3,9 +3,10 @@ import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { argvToInvoke } from "@/lib/qkrpc-argv";
+import { resolveDefaultWorkingDirectory } from "@/lib/default-working-directory";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
 import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
 import {
@@ -47,11 +48,7 @@ function resolveCwd(): string {
   if (process.env.QKRPC_CWD?.trim()) {
     return process.env.QKRPC_CWD.trim();
   }
-  const cwd = process.cwd();
-  if (basename(cwd) === "agent-gui") {
-    return join(cwd, "..");
-  }
-  return cwd;
+  return resolveDefaultWorkingDirectory();
 }
 
 function truncate(text: string): { text: string; truncated: boolean } {

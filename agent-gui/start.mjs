@@ -1,6 +1,6 @@
 /**
  * Start bundled qkrpc serve (if present) + agent-gui on available ports.
- * Usage: node start.mjs [--dev]
+ * Usage: node start.mjs [--dev] [--open-browser]
  */
 import { exec, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -17,6 +17,7 @@ import {
 const root = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const isDev = process.argv.includes("--dev");
+const openBrowserCli = process.argv.includes("--open-browser");
 
 /** Prefer portable Node shipped in publish package. */
 function resolveNodeExe() {
@@ -192,9 +193,6 @@ async function ensureBundledQkrpcServe(host) {
   process.env.QKRPC_BIN = exe;
   process.env.QKRPC_HTTP_URL = base;
   process.env.QKRPC_TRANSPORT = "http";
-  if (!process.env.QKRPC_CWD?.trim()) {
-    process.env.QKRPC_CWD = root;
-  }
 
   console.log(`qkrpc: starting staged serve at ${base} (${exe})`);
   qkrpcChild = spawn(
@@ -228,8 +226,16 @@ async function ensureBundledQkrpcServe(host) {
   return qkrpcChild;
 }
 
+function shouldOpenBrowser() {
+  if (process.env.AGENT_GUI_OPEN_BROWSER === "0") return false;
+  if (process.env.AGENT_GUI_OPEN_BROWSER === "1" || openBrowserCli) return true;
+  // beforeDevCommand under `tauri dev` — UI loads in the Tauri webview
+  if (process.env.TAURI_ENV_DEBUG === "true") return false;
+  return false;
+}
+
 function openBrowser(url) {
-  if (process.env.AGENT_GUI_OPEN_BROWSER === "0") return;
+  if (!shouldOpenBrowser()) return;
   if (process.platform === "win32") {
     exec(`start "" "${url}"`, { shell: true });
   } else if (process.platform === "darwin") {
@@ -243,9 +249,24 @@ function printListening(url) {
   console.log(`quicker-agent: ${url}`);
 }
 
+function applyDevWorkspaceEnv(agentGuiRoot) {
+  const repoRoot = join(agentGuiRoot, "..");
+  if (existsSync(join(repoRoot, "version.json"))) {
+    if (!process.env.QKRPC_REPO_ROOT?.trim()) {
+      process.env.QKRPC_REPO_ROOT = repoRoot;
+    }
+    if (!process.env.QKRPC_CWD?.trim()) {
+      process.env.QKRPC_CWD = repoRoot;
+    }
+  } else if (!process.env.QKRPC_CWD?.trim()) {
+    process.env.QKRPC_CWD = agentGuiRoot;
+  }
+}
+
 async function main() {
   registerShutdown();
   const host = process.env.HOSTNAME?.trim() || "127.0.0.1";
+  applyDevWorkspaceEnv(root);
 
   await ensureBundledQkrpcServe(host);
 

@@ -1,6 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { resolveRepoRoot } from "@/lib/repo-root";
+import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
+import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
 
 const DOCS_DIR = "docs/action-authoring/agent";
 
@@ -25,7 +26,9 @@ export type ActionAuthoringSearchItem = {
 type TopicRow = ActionAuthoringTopicMeta & { markdown: string };
 
 function docsRoot(): string {
-  return join(resolveRepoRoot(), DOCS_DIR);
+  const repo = resolveQuickerRpcRepoRoot();
+  if (repo) return join(repo, DOCS_DIR);
+  return join(resolveAgentGuiRoot(), DOCS_DIR);
 }
 
 function normalizeTopic(topic: string): string {
