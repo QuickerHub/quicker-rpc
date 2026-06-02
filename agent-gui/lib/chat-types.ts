@@ -6,12 +6,23 @@ import {
 } from "@/lib/llm-context-limits";
 
 /** Token usage attached to assistant messages via messageMetadata. */
+export type ContextCompressionMetadata = {
+  summary: string;
+  throughMessageId: string;
+  sourceInputTokens: number;
+  createdAt: number;
+  recentMessagesKept: number;
+  totalMessagesAtCreation: number;
+};
+
+/** Token usage attached to assistant messages via messageMetadata. */
 export type ChatUsageMetadata = {
   model?: string;
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
   reasoningTokens?: number;
+  contextCompression?: ContextCompressionMetadata;
 };
 
 export type AgentUIMessage = UIMessage<ChatUsageMetadata>;

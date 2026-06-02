@@ -50,7 +50,20 @@ export type ApiContextUsageSnapshot = {
   pct: number;
   hasData: boolean;
   warn: boolean;
+  compressionSummary: string | null;
 };
+
+export function getLatestContextCompressionSummary(
+  messages: AgentUIMessage[],
+): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message.role !== "assistant") continue;
+    const summary = message.metadata?.contextCompression?.summary?.trim();
+    if (summary) return summary;
+  }
+  return null;
+}
 
 /** Context fill from the latest model API response (inputTokens vs window). */
 export function buildApiContextUsageSnapshot(
@@ -75,5 +88,6 @@ export function buildApiContextUsageSnapshot(
     pct,
     hasData,
     warn: pct >= 90,
+    compressionSummary: getLatestContextCompressionSummary(messages),
   };
 }

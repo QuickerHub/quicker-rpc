@@ -1,5 +1,4 @@
 import {
-  convertToModelMessages,
   streamText,
   stepCountIs,
 } from "ai";
@@ -14,6 +13,8 @@ import { pickEnabledTools } from "@/lib/tool-registry";
 import { quickerTools } from "@/lib/tools";
 import { expandUserMessageForModel } from "@/lib/compose-user-message";
 import { isTextUIPart } from "ai";
+import { resolveModelContextLimit } from "@/lib/llm-context-limits";
+import { prepareCompressedContext } from "@/lib/context-compression";
 
 export const maxDuration = 120;
 
@@ -73,12 +74,19 @@ export async function POST(req: Request) {
       };
     });
 
-    const modelMessages = await convertToModelMessages(messagesForModel);
+    const contextLimit = resolveModelContextLimit(modelId).tokens;
+    const preparedContext = await prepareCompressedContext({
+      messages: messagesForModel,
+      model,
+      contextLimit,
+    });
 
     const result = streamText({
       model,
-      system: buildSystemInstructions(cwd),
-      messages: modelMessages,
+      system: preparedContext.systemSuffix
+        ? `${buildSystemInstructions(cwd)}\n\n${preparedContext.systemSuffix}`
+        : buildSystemInstructions(cwd),
+      messages: preparedContext.modelMessages,
       tools,
       stopWhen: stepCountIs(25),
     });
@@ -87,7 +95,10 @@ export async function POST(req: Request) {
       originalMessages: messages,
       messageMetadata: ({ part }) => {
         if (part.type === "start") {
-          return { model: modelId };
+          return {
+            model: modelId,
+            contextCompression: preparedContext.contextCompression,
+          };
         }
         // Per-step usage (last finish-step wins). Do not use finish.totalUsage — it sums all tool steps.
         if (part.type === "finish-step" && part.usage) {

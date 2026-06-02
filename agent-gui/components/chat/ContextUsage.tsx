@@ -63,7 +63,7 @@ export function ContextUsage({
 
   const lastModel = lastAssistantModel(messages);
   const displayModel = lastModel ?? activeModelId;
-  const { pct, hasData, warn, windowLabel, inputTokens } = snapshot;
+  const { pct, hasData, warn, windowLabel, inputTokens, compressionSummary } = snapshot;
   const dashOffset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
 
   const usageSummary = hasData
@@ -176,6 +176,11 @@ export function ContextUsage({
                 ? "本轮响应完成后更新"
                 : "完成一轮对话后显示"}
           </p>
+          {compressionSummary && (
+            <p className="context-popup-hint">
+              已启用自动压缩：历史消息已摘要后参与后续推理。
+            </p>
+          )}
 
           {displayModel && (
             <p className="context-popup-model" title={displayModel}>
