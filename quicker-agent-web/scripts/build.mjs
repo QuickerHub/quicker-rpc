@@ -17,6 +17,7 @@ const DIST = path.join(WEB_ROOT, "dist");
 const GITHUB_REPO = "QuickerHub/quicker-rpc";
 const BITIFUL_DOWNLOAD_PREFIX =
   "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent";
+const BITIFUL_VERSION_TXT_URL = `${BITIFUL_DOWNLOAD_PREFIX}/version.txt`;
 const QKRPC_DOWNLOAD_URL =
   "https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe";
 const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
@@ -73,6 +74,28 @@ async function fetchLatestReleaseTag() {
   }
 }
 
+async function fetchBitifulLatestVersion() {
+  try {
+    const res = await fetch(BITIFUL_VERSION_TXT_URL, {
+      headers: { "User-Agent": "quicker-agent-web-build" },
+    });
+    if (!res.ok) {
+      console.warn(`Bitiful version.txt ${res.status}; using fallback version`);
+      return null;
+    }
+
+    const text = (await res.text()).trim();
+    if (!text || !/^\d+\.\d+\.\d+$/.test(text)) {
+      console.warn(`Bitiful version.txt invalid content: "${text}"`);
+      return null;
+    }
+    return text;
+  } catch (err) {
+    console.warn(`Bitiful version fetch failed: ${err.message}; using fallback version`);
+    return null;
+  }
+}
+
 function applyTemplate(html, vars) {
   let out = html;
   for (const [key, value] of Object.entries(vars)) {
@@ -102,9 +125,9 @@ function downloadRedirectHtml(targetUrl) {
 async function main() {
   const fromJson = await readVersionJson();
   const apiTag = await fetchLatestReleaseTag();
+  const bitifulVersion = await fetchBitifulLatestVersion();
   const releaseTag = apiTag ?? fromJson.tag;
-  // Always derive download version from local version.json so link matches this repo build.
-  const downloadVersion = fromJson.semver;
+  const downloadVersion = bitifulVersion ?? fromJson.semver;
   const displayVersion = releaseTag.replace(/^v/i, "");
   const downloadUrl = `${BITIFUL_DOWNLOAD_PREFIX}/quicker-agent-${downloadVersion}-x64-setup.exe`;
 
@@ -155,6 +178,7 @@ async function main() {
         product: "QuickerAgent",
         releaseTag,
         displayVersion,
+        bitifulVersion,
         downloadVersion,
         versionFull: fromJson.full,
         downloadUrl,

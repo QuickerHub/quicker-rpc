@@ -249,6 +249,11 @@ jobs:
           latest_alias = "quicker-agent-win-x64-setup.exe"
           object_key = f"{prefix}/{local_file.name}"
           latest_object_key = f"{prefix}/{latest_alias}"
+          version_txt_key = f"{prefix}/version.txt"
+          file_name = local_file.name
+          version_marker = file_name.replace("quicker-agent-", "").replace("-x64-setup.exe", "").strip()
+          if not version_marker or version_marker == file_name:
+              raise RuntimeError(f"Unable to parse semver from file name: {file_name}")
 
           s3_client = boto3.client(
               "s3",
@@ -270,13 +275,23 @@ jobs:
               latest_object_key,
               ExtraArgs={"ContentType": "application/vnd.microsoft.portable-executable"},
           )
+          s3_client.put_object(
+              Bucket=os.environ["BITIFUL_BUCKET_NAME"],
+              Key=version_txt_key,
+              Body=version_marker.encode("utf-8"),
+              ContentType="text/plain; charset=utf-8",
+              CacheControl="no-cache, no-store, must-revalidate",
+          )
 
           object_url = f"{endpoint_url.rstrip('/')}/{os.environ['BITIFUL_BUCKET_NAME']}/{object_key}"
           latest_url = f"{endpoint_url.rstrip('/')}/{os.environ['BITIFUL_BUCKET_NAME']}/{latest_object_key}"
+          version_txt_url = f"{endpoint_url.rstrip('/')}/{os.environ['BITIFUL_BUCKET_NAME']}/{version_txt_key}"
           print(f"Uploaded to Bitiful: {object_key}")
           print(f"URL: {object_url}")
           print(f"Uploaded latest alias: {latest_object_key}")
           print(f"Latest URL: {latest_url}")
+          print(f"Updated version marker: {version_txt_key} -> {version_marker}")
+          print(f"Version URL: {version_txt_url}")
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
               summary.write("### Bitiful upload\n")
               summary.write(f"- File: `{local_file.name}`\n")
@@ -284,6 +299,9 @@ jobs:
               summary.write(f"- URL: {object_url}\n")
               summary.write(f"- Latest key: `{latest_object_key}`\n")
               summary.write(f"- Latest URL: {latest_url}\n")
+              summary.write(f"- Version key: `{version_txt_key}`\n")
+              summary.write(f"- Version value: `{version_marker}`\n")
+              summary.write(f"- Version URL: {version_txt_url}\n")
           PY
 
       - name: Generate release notes
