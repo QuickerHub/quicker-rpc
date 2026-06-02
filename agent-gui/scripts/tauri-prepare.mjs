@@ -104,12 +104,18 @@ function ensureBundledNode() {
   console.log(`Node staged: ${join(nodeDir, "node.exe")}`);
 }
 
+function resolveStandaloneSrc() {
+  const base = join(agentGuiRoot, ".next", "standalone");
+  const direct = join(base, "server.js");
+  if (existsSync(direct)) return base;
+  // outputFileTracingRoot (monorepo) nests standalone under agent-gui/
+  const nested = join(base, "agent-gui", "server.js");
+  if (existsSync(nested)) return join(base, "agent-gui");
+  throw new Error(`Run pnpm build first. Missing standalone server.js under ${base}`);
+}
+
 function stageNextStandalone() {
-  const standaloneSrc = join(agentGuiRoot, ".next", "standalone");
-  const serverJs = join(standaloneSrc, "server.js");
-  if (!existsSync(serverJs)) {
-    throw new Error(`Run pnpm build first. Missing ${serverJs}`);
-  }
+  const standaloneSrc = resolveStandaloneSrc();
 
   if (existsSync(resourcesDir)) {
     rmSync(resourcesDir, { recursive: true, force: true });
