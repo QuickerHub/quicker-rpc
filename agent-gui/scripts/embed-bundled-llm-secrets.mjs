@@ -2,9 +2,9 @@
  * Embed obfuscated LLM API keys into the Tauri app bundle at publish time.
  *
  * Set env vars before `pnpm tauri build` / Publish-QuickerAgent.ps1:
- *   BUNDLED_LLM_AI98PRO_API_KEY=sk-...
- * Optional comma list (default: ai98pro):
- *   BUNDLED_LLM_PROVIDERS=ai98pro
+ *   BUNDLED_LLM_BINGLEIMUZI_API_KEY=sk-...
+ * Optional comma list (default: bingleimuzi):
+ *   BUNDLED_LLM_PROVIDERS=bingleimuzi
  *
  * Falls back to LLM_<PROVIDER>_API_KEY when BUNDLED_LLM_* is unset.
  */
@@ -21,10 +21,10 @@ const ALL_PROVIDER_IDS = [
   "nvidia",
   "deepseek",
   "chatanywhere",
-  "ai98pro",
+  "bingleimuzi",
 ];
 
-const DEFAULT_BUNDLED_PROVIDERS = ["ai98pro"];
+const DEFAULT_BUNDLED_PROVIDERS = ["bingleimuzi"];
 
 function readSemver() {
   const raw = readFileSync(join(repoRoot, "version.json"), "utf8");
@@ -58,7 +58,16 @@ function envKeyForProvider(providerId) {
   const upper = providerId.toUpperCase();
   const bundled = process.env[`BUNDLED_LLM_${upper}_API_KEY`]?.trim();
   if (bundled) return bundled;
-  return process.env[`LLM_${upper}_API_KEY`]?.trim();
+  if (providerId === "bingleimuzi") {
+    const legacyBundled = process.env.BUNDLED_LLM_AI98PRO_API_KEY?.trim();
+    if (legacyBundled) return legacyBundled;
+  }
+  const direct = process.env[`LLM_${upper}_API_KEY`]?.trim();
+  if (direct) return direct;
+  if (providerId === "bingleimuzi") {
+    return process.env.LLM_AI98PRO_API_KEY?.trim();
+  }
+  return undefined;
 }
 
 /**

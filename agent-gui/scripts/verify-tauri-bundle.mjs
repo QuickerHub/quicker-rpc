@@ -28,7 +28,10 @@ const required = [
   { rel: "qkrpc/qkrpc.exe", minBytes: 100 * 1024 },
 ];
 
-const bundledKeyEnv = process.env.BUNDLED_LLM_AI98PRO_API_KEY?.trim()
+const bundledKeyEnv =
+  process.env.BUNDLED_LLM_BINGLEIMUZI_API_KEY?.trim()
+  || process.env.BUNDLED_LLM_AI98PRO_API_KEY?.trim()
+  || process.env.LLM_BINGLEIMUZI_API_KEY?.trim()
   || process.env.LLM_AI98PRO_API_KEY?.trim();
 
 function countFiles(dir) {

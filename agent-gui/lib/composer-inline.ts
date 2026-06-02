@@ -22,6 +22,7 @@ export function actionFromTagElement(el: HTMLElement): PinnedAction | null {
     id,
     title,
     lastEditTimeLocal: el.getAttribute("data-qkrpc-last-edit")?.trim() || undefined,
+    description: el.getAttribute("data-qkrpc-desc")?.trim() || undefined,
   };
 }
 
@@ -37,6 +38,12 @@ export function createComposerTagElement(action: PinnedAction): HTMLSpanElement 
   span.contentEditable = "false";
   span.setAttribute("data-qkrpc-id", action.id);
   span.setAttribute("data-qkrpc-title", action.title);
+  if (action.lastEditTimeLocal) {
+    span.setAttribute("data-qkrpc-last-edit", action.lastEditTimeLocal);
+  }
+  if (action.description?.trim()) {
+    span.setAttribute("data-qkrpc-desc", action.description.trim());
+  }
   const title = document.createElement("span");
   title.className = "composer-prompt-tag__title";
   title.textContent = action.title;

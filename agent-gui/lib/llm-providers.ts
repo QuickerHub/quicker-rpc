@@ -5,7 +5,7 @@ export type LlmProviderId =
   | "nvidia"
   | "deepseek"
   | "chatanywhere"
-  | "ai98pro";
+  | "bingleimuzi";
 
 export type LlmProviderMeta = {
   id: LlmProviderId;
@@ -51,12 +51,12 @@ export const LLM_PROVIDER_LIST: readonly LlmProviderMeta[] = [
     description: "OpenAI 兼容转发（api.chatanywhere.tech）",
   },
   {
-    id: "ai98pro",
+    id: "bingleimuzi",
     label: "GPT-5.5",
-    defaultBaseURL: "https://ai98pro.xyz/v1",
+    defaultBaseURL: "https://api.bingleimuzi.eu.cc/v1",
     defaultModel: "gpt-5.5",
-    clientName: "ai98pro",
-    description: "默认对话模型",
+    clientName: "bingleimuzi",
+    description: "默认对话模型（api.bingleimuzi.eu.cc）",
   },
 ] as const;
 
@@ -67,9 +67,10 @@ export function parseLlmProviderId(raw: string | undefined): LlmProviderId | und
     || id === "zen"
     || id === "deepseek"
     || id === "chatanywhere"
+    || id === "bingleimuzi"
     || id === "ai98pro"
   ) {
-    return id;
+    return id === "ai98pro" ? "bingleimuzi" : id;
   }
   return undefined;
 }

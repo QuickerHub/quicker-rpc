@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { isQuickerRpcRepoRoot, resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
 
 export type DefaultWorkingDirectoryProfile = "env" | "repo" | "documents";
@@ -48,6 +48,10 @@ export function resolveDefaultWorkingDirectory(): string {
   const explicit = process.env.AGENT_GUI_DEFAULT_CWD?.trim();
   if (explicit) return explicit;
 
+  if (isBundledAgentRuntime()) {
+    return ensureReleaseWorkspaceDirectory();
+  }
+
   const repo = resolveQuickerRpcRepoRoot();
   if (repo) return repo;
 
@@ -60,6 +64,7 @@ export function resolveDefaultWorkingDirectory(): string {
 
 export function getDefaultWorkingDirectoryProfile(): DefaultWorkingDirectoryProfile {
   if (process.env.AGENT_GUI_DEFAULT_CWD?.trim()) return "env";
+  if (isBundledAgentRuntime()) return "documents";
   if (resolveQuickerRpcRepoRoot()) return "repo";
   return "documents";
 }
@@ -68,5 +73,10 @@ export function getDefaultWorkingDirectoryProfile(): DefaultWorkingDirectoryProf
 export function isBundledAgentRuntime(): boolean {
   if (process.env.AGENT_GUI_BUNDLED === "1") return true;
   const cwd = process.cwd();
-  return existsSync(join(cwd, "server.js")) && !isQuickerRpcRepoRoot(cwd);
+  if (!existsSync(join(cwd, "server.js"))) return false;
+  // Local standalone build under agent-gui/ inside the monorepo is still dev, not release.
+  if (basename(cwd) === "agent-gui" && isQuickerRpcRepoRoot(join(cwd, ".."))) {
+    return false;
+  }
+  return true;
 }

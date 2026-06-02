@@ -60,7 +60,7 @@ function normalizeSecrets(raw: unknown): LlmLocalSecrets {
       "nvidia",
       "deepseek",
       "chatanywhere",
-      "ai98pro",
+      "bingleimuzi",
     ] as const) {
       const entry = normalizeProviderEntry(data.providers[id]);
       if (entry) providers[id] = entry;

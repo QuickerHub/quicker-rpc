@@ -13,6 +13,11 @@ export function isFaIconSpec(spec: string | undefined): boolean {
   return Boolean(spec?.trim().toLowerCase().startsWith("fa:"));
 }
 
+export function isHttpIconUrl(spec: string | undefined): boolean {
+  const s = spec?.trim().toLowerCase() ?? "";
+  return s.startsWith("https://") || s.startsWith("http://");
+}
+
 export function uniqueFaSpecs(specs: Iterable<string | undefined>): string[] {
   const seen = new Set<string>();
   const out: string[] = [];

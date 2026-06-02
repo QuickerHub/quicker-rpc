@@ -915,7 +915,7 @@ public sealed class ActionOptions
     [Option("description", HelpText = "Description for action create.")]
     public string? Description { get; set; }
 
-    [Option("icon", HelpText = "Icon for action create (e.g. fa:IconName).")]
+    [Option("icon", HelpText = "Icon: fa:Light_Name[:#color] or absolute http(s) image URL.")]
     public string? Icon { get; set; }
 
     [Option("profile-id", HelpText = "Optional virtual action page id for action create.")]
@@ -994,7 +994,7 @@ public sealed class SubProgramOptions
     [Option("description", HelpText = "Description for create.")]
     public string? Description { get; set; }
 
-    [Option("icon", HelpText = "Icon for create (e.g. fa:IconName).")]
+    [Option("icon", HelpText = "Icon: fa:Light_Name[:#color] or absolute http(s) image URL.")]
     public string? Icon { get; set; }
 
     [Option('q', "query", HelpText = "Search keyword for subprogram search/list.")]

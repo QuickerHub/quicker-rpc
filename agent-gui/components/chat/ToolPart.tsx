@@ -315,7 +315,6 @@ function DocsToolOpenRow({
           >
             {meta}
           </span>
-          <span className="tool-docs-open-hint">{isActive ? "已打开" : "打开"}</span>
         </span>
       </button>
       <ToolMoreDetails input={input} output={output} />

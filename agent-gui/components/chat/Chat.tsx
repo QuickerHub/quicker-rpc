@@ -289,6 +289,39 @@ function ChatPanel({
 
   useUserMessageStickyMarkers(messagesRef, visible, messages);
 
+  useEffect(() => {
+    const container = messagesRef.current;
+    if (!container || !visible) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaX === 0) return;
+
+      const target = event.target;
+      if (target instanceof Element) {
+        const horizontalScroller = target.closest<HTMLElement>(
+          ".md-table-wrap, .md-pre, .action-list-table-wrap, .tool-error",
+        );
+        if (horizontalScroller) {
+          const { scrollLeft, scrollWidth, clientWidth } = horizontalScroller;
+          const atStart = scrollLeft <= 0;
+          const atEnd = scrollLeft + clientWidth >= scrollWidth - 1;
+          const scrollingRight = event.deltaX > 0;
+          const scrollingLeft = event.deltaX < 0;
+          if ((!atStart && scrollingLeft) || (!atEnd && scrollingRight)) {
+            return;
+          }
+        }
+      }
+
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+        event.preventDefault();
+      }
+    };
+
+    container.addEventListener("wheel", onWheel, { passive: false });
+    return () => container.removeEventListener("wheel", onWheel);
+  }, [visible]);
+
   const insertDraftActionTag = useCallback((action: PinnedAction) => {
     composerRef.current?.insertActionTag(action);
     requestAnimationFrame(() => composerRef.current?.focus());

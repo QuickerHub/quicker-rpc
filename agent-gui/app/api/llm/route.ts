@@ -71,7 +71,7 @@ export async function GET() {
 
   const visibleDefault = providers.some((p) => p.id === defaultProvider)
     ? defaultProvider
-    : (providers[0]?.id ?? "ai98pro");
+    : (providers[0]?.id ?? "bingleimuzi");
 
   return Response.json({
     defaultProvider: visibleDefault,

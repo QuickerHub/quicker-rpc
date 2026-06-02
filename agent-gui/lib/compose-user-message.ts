@@ -1,6 +1,7 @@
 import type { PinnedAction } from "@/lib/action-context";
+import { formatActionQkaForModel } from "@/lib/action-qka-prompt";
 
-/** Stored in chat history; expanded to {@link formatActionTagLine} before the model. */
+/** Stored in chat history; expanded to {@link formatActionQkaForModel} before the model. */
 const ACTION_TAG_RE = new RegExp(
   "<qkrpc-action-tag\\s+([^>]*?)\\s*(?:/>|></qkrpc-action-tag>)",
   "gi",
@@ -47,19 +48,22 @@ function pinnedActionFromTagAttrs(attrs: Record<string, string>): PinnedAction |
 
 /** HTML marker kept in UI message text; renders as a chip in the chat bubble. */
 export function formatActionTagMarkup(action: PinnedAction): string {
-  return `<qkrpc-action-tag data-id="${escapeAttrValue(action.id)}" data-title="${escapeAttrValue(action.title)}"></qkrpc-action-tag>`;
-}
-
-/** One action tag line merged into the outgoing user message. */
-export function formatActionTagLine(action: PinnedAction): string {
-  const meta: string[] = [`actionId=${action.id}`];
+  const attrs = [
+    `data-id="${escapeAttrValue(action.id)}"`,
+    `data-title="${escapeAttrValue(action.title)}"`,
+  ];
   if (action.lastEditTimeLocal) {
-    meta.push(`lastEdit=${action.lastEditTimeLocal}`);
+    attrs.push(`data-last-edit="${escapeAttrValue(action.lastEditTimeLocal)}"`);
   }
   if (action.description?.trim()) {
-    meta.push(`desc=${action.description.trim().slice(0, 120)}`);
+    attrs.push(`data-desc="${escapeAttrValue(action.description.trim())}"`);
   }
-  return `[动作: ${action.title}] ${meta.join(", ")}`;
+  return `<qkrpc-action-tag ${attrs.join(" ")}></qkrpc-action-tag>`;
+}
+
+/** One action reference line for the model (legacy compose helpers). */
+export function formatActionTagLine(action: PinnedAction): string {
+  return formatActionQkaForModel(action);
 }
 
 /** Compose the user message sent to the model from draft tags + textarea. */
@@ -88,24 +92,21 @@ export function composeUserMessageDisplay(
   return body ? `${header}\n\n${body}` : header;
 }
 
-/** Expand stored markup to model-facing lines before convertToModelMessages. */
+/** Expand stored markup to model-facing <qka> tags before convertToModelMessages. */
 export function expandUserMessageForModel(text: string): string {
   if (!text.includes("<qkrpc-action-tag")) {
-    return text;
-  }
-
-  const tagLines: string[] = [];
-  let body = text.replace(ACTION_TAG_RE, (_full, attrStr: string) => {
-    const action = pinnedActionFromTagAttrs(parseHtmlAttrs(attrStr));
-    if (action) tagLines.push(formatActionTagLine(action));
-    return "";
-  });
-  body = body.replace(/^\s*\n+/, "").trim();
-
-  if (tagLines.length === 0) {
     return text.trim();
   }
-  return body ? `${tagLines.join("\n")}\n\n${body}` : tagLines.join("\n");
+
+  let expandedAny = false;
+  const expanded = text.replace(ACTION_TAG_RE, (_full, attrStr: string) => {
+    const action = pinnedActionFromTagAttrs(parseHtmlAttrs(attrStr));
+    if (!action) return "";
+    expandedAny = true;
+    return formatActionQkaForModel(action);
+  });
+
+  return expandedAny ? expanded.trim() : text.trim();
 }
 
 export type UserMessageSegment =

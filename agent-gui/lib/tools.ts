@@ -139,7 +139,10 @@ export const quickerTools = {
     inputSchema: z.object({
       title: z.string().optional(),
       description: z.string().optional(),
-      icon: z.string().optional().describe("fa:Light_Name[:#color]"),
+      icon: z
+        .string()
+        .optional()
+        .describe("fa:Light_Name[:#color] or absolute http(s) image URL"),
       profileId: z
         .string()
         .uuid()
@@ -374,7 +377,10 @@ export const quickerTools = {
     inputSchema: z.object({
       name: z.string(),
       description: z.string().optional(),
-      icon: z.string().optional().describe("fa:Light_Name[:#color]"),
+      icon: z
+        .string()
+        .optional()
+        .describe("fa:Light_Name[:#color] or absolute http(s) image URL"),
     }),
     execute: async ({ name, description, icon }) => {
       const args = ["subprogram", "create", "--name", name];

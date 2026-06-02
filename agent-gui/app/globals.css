@@ -1163,7 +1163,9 @@ html.sidebar-collapsed-init .app-shell .workspace-sidebar {
 .messages {
   flex: 1;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior-x: none;
   padding: 1rem 1.25rem 0;
   /* Virtual spacer below last block (see .messages-anchor + .msg--last). */
   --messages-bottom-air: 5rem;
@@ -3250,20 +3252,6 @@ textarea {
   width: 100%;
   padding: 0.06rem 0;
   line-height: 1.35;
-}
-
-.tool-card--docs-open .tool-docs-open-hint {
-  margin-left: auto;
-  font-size: 0.62rem;
-  letter-spacing: 0.02em;
-  color: var(--muted);
-  opacity: 0.75;
-}
-
-.tool-card--docs-open .tool-docs-open-btn:hover .tool-docs-open-hint,
-.tool-card--docs-active .tool-docs-open-hint {
-  opacity: 1;
-  color: var(--text);
 }
 
 .tool-card--docs-open .tool-more {

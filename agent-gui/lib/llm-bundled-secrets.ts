@@ -15,7 +15,7 @@ const PROVIDER_IDS = [
   "nvidia",
   "deepseek",
   "chatanywhere",
-  "ai98pro",
+  "bingleimuzi",
 ] as const satisfies readonly LlmProviderId[];
 
 let cache: BundledSecretsFile | null | undefined;

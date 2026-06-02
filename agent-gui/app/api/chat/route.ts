@@ -58,23 +58,23 @@ export async function POST(req: Request) {
   const tools = pickEnabledTools(quickerTools, enabledTools);
   const cwd = (workingDirectory ?? workspaceRoot)?.trim() || undefined;
 
-  const messagesForModel: AgentUIMessage[] = messages.map((message) => {
-    if (message.role !== "user") return message;
-    return {
-      ...message,
-      parts: message.parts.map((part) => {
-        if (!isTextUIPart(part)) return part;
-        return {
-          ...part,
-          text: expandUserMessageForModel(part.text),
-        };
-      }),
-    };
-  });
+  return runWithQkrpcCwd(cwd, async () => {
+    const messagesForModel: AgentUIMessage[] = messages.map((message) => {
+      if (message.role !== "user") return message;
+      return {
+        ...message,
+        parts: message.parts.map((part) => {
+          if (!isTextUIPart(part)) return part;
+          return {
+            ...part,
+            text: expandUserMessageForModel(part.text),
+          };
+        }),
+      };
+    });
 
-  const modelMessages = await convertToModelMessages(messagesForModel);
+    const modelMessages = await convertToModelMessages(messagesForModel);
 
-  return runWithQkrpcCwd(cwd, () => {
     const result = streamText({
       model,
       system: buildSystemInstructions(cwd),

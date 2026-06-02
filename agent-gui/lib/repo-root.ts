@@ -4,7 +4,10 @@ import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 
 /** Directory containing quicker-rpc `version.json`. */
 export function isQuickerRpcRepoRoot(dir: string): boolean {
-  return existsSync(join(dir, "version.json"));
+  if (!existsSync(join(dir, "version.json"))) return false;
+  // Tauri / standalone bundle also copies version.json next to server.js — not the monorepo root.
+  if (existsSync(join(dir, "server.js"))) return false;
+  return true;
 }
 
 /** quicker-rpc monorepo root, or null when running from an install bundle only. */

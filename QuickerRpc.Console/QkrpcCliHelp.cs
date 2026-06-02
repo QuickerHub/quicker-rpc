@@ -94,7 +94,7 @@ internal static class QkrpcCliHelp
                     {
                         Option("title", "Action title (default: 新动作)."),
                         Option("description", "Action description."),
-                        Option("icon", "Icon spec (fa:Light_Name[:#color]); invalid values return errorMessage."),
+                        Option("icon", "Icon: fa:Light_Name[:#color] or absolute http(s) image URL."),
                         Option("profile-id", "Use a specific @qkrpc virtual page id."),
                         Option("json", "Structured output."),
                         Option("timeout", "Seconds.", defaultValue: "10"),
@@ -109,7 +109,7 @@ internal static class QkrpcCliHelp
 
                     opts: ActionPatchOpts()),
 
-                Cmd("action set-metadata", "Update action title, description, and/or icon (does not change steps/variables).", "qkrpc action set-metadata --id <guid> [--title <text>] [--description <text>] [--icon <fa:Light_Name>] [--expected-edit-version N] [--force] [--json]",
+                Cmd("action set-metadata", "Update action title, description, and/or icon (does not change steps/variables).", "qkrpc action set-metadata --id <guid> [--title <text>] [--description <text>] [--icon <spec|url>] [--expected-edit-version N] [--force] [--json]",
 
                     opts: ActionSetMetadataOpts()),
 
@@ -281,7 +281,7 @@ internal static class QkrpcCliHelp
 
             Option("description", "New description (pass empty string to clear)."),
 
-            Option("icon", "Icon spec (fa:Light_Name[:#color]); validated on save."),
+            Option("icon", "Icon: fa:Light_Name[:#color] or absolute http(s) image URL."),
 
             Option("expected-edit-version", "From action get."),
 

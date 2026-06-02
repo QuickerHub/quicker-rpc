@@ -4,6 +4,7 @@ using QuickerRpc.Plugin;
 
 namespace QuickerRpc.Plugin.Services;
 
+/// <summary>Action/subprogram icon validation (Font Awesome <c>fa:</c> specs and http/https image URLs).</summary>
 internal static class FontAwesomeIconValidation
 {
     public static bool TryValidate(string? icon, bool allowEmpty, out string? error)
@@ -20,6 +21,6 @@ internal static class FontAwesomeIconValidation
             known = AppServices.GetRequired<FontAwesomeIconSearchService>().KnownEnumNames;
         }
 
-        return FontAwesomeIconSpecValidator.TryValidate(icon, allowEmpty, known, out error);
+        return ActionIconSpecValidator.TryValidate(icon, allowEmpty, known, out error);
     }
 }

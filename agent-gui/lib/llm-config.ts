@@ -65,15 +65,20 @@ function normalizeConfig(raw: unknown): LlmConfigFile {
   const data = raw as Partial<LlmConfigFile>;
   const providers: Partial<Record<LlmProviderId, LlmProviderEntry>> = {};
   if (typeof data.providers === "object" && data.providers !== null) {
+    const rawProviders = data.providers as Record<string, unknown>;
     for (const id of [
       "zen",
       "nvidia",
       "deepseek",
       "chatanywhere",
-      "ai98pro",
+      "bingleimuzi",
     ] as const) {
-      const entry = normalizeEntry(data.providers[id]);
+      const entry = normalizeEntry(rawProviders[id]);
       if (entry) providers[id] = entry;
+    }
+    if (!providers.bingleimuzi) {
+      const legacy = normalizeEntry(rawProviders.ai98pro);
+      if (legacy) providers.bingleimuzi = legacy;
     }
   }
   const defaultProvider = parseLlmProviderId(data.defaultProvider);
@@ -195,5 +200,5 @@ export function findVisibleLlmProvider(
 export function resolveVisibleDefaultProvider(): LlmProviderId {
   const fromConfig = getLlmConfigDefaultProvider();
   if (fromConfig && !isLlmProviderHidden(fromConfig)) return fromConfig;
-  return findVisibleLlmProvider(() => true) ?? "ai98pro";
+  return findVisibleLlmProvider(() => true) ?? "bingleimuzi";
 }

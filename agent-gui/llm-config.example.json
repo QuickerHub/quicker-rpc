@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "defaultProvider": "ai98pro",
+  "defaultProvider": "bingleimuzi",
   "providers": {
     "zen": {
       "apiKey": "",
@@ -25,9 +25,9 @@
       "model": "gpt-5.5",
       "hidden": true
     },
-    "ai98pro": {
+    "bingleimuzi": {
       "apiKey": "",
-      "baseURL": "https://ai98pro.xyz/v1",
+      "baseURL": "https://api.bingleimuzi.eu.cc/v1",
       "model": "gpt-5.5"
     }
   }

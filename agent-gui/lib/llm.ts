@@ -32,7 +32,7 @@ const ENV_API_KEYS: Record<LlmProviderId, string[]> = {
   nvidia: ["LLM_NVIDIA_API_KEY"],
   deepseek: ["LLM_DEEPSEEK_API_KEY"],
   chatanywhere: ["LLM_CHATANYWHERE_API_KEY"],
-  ai98pro: ["LLM_AI98PRO_API_KEY"],
+  bingleimuzi: ["LLM_BINGLEIMUZI_API_KEY", "LLM_AI98PRO_API_KEY"],
 };
 
 const ENV_BASE_URLS: Record<LlmProviderId, string[]> = {
@@ -40,7 +40,7 @@ const ENV_BASE_URLS: Record<LlmProviderId, string[]> = {
   nvidia: ["LLM_NVIDIA_BASE_URL"],
   deepseek: ["LLM_DEEPSEEK_BASE_URL"],
   chatanywhere: ["LLM_CHATANYWHERE_BASE_URL"],
-  ai98pro: ["LLM_AI98PRO_BASE_URL"],
+  bingleimuzi: ["LLM_BINGLEIMUZI_BASE_URL", "LLM_AI98PRO_BASE_URL"],
 };
 
 const ENV_MODELS: Record<LlmProviderId, string[]> = {
@@ -48,7 +48,7 @@ const ENV_MODELS: Record<LlmProviderId, string[]> = {
   nvidia: ["LLM_NVIDIA_MODEL"],
   deepseek: ["LLM_DEEPSEEK_MODEL"],
   chatanywhere: ["LLM_CHATANYWHERE_MODEL"],
-  ai98pro: ["LLM_AI98PRO_MODEL"],
+  bingleimuzi: ["LLM_BINGLEIMUZI_MODEL", "LLM_AI98PRO_MODEL"],
 };
 
 function resolveApiKey(providerId: LlmProviderId): string | undefined {

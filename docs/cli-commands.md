@@ -94,14 +94,14 @@ qkrpc action patch --id <guid> --patch "{\"icon\":\"fa:Light_Flask\"}" --expecte
 只更新动作的**标题 / 说明 / 图标**，不修改步骤与变量程序体。
 
 ```powershell
-qkrpc action set-metadata --id <guid> [--title <text>] [--description <text>] [--icon <fa:Light_Name>] [--expected-edit-version N] [--force] [--json]
+qkrpc action set-metadata --id <guid> [--title <text>] [--description <text>] [--icon <fa:spec|url>] [--expected-edit-version N] [--force] [--json]
 ```
 
 | 选项 | 说明 |
 |------|------|
 | `--title` | 新标题（不可传空） |
 | `--description` | 新说明；空字符串清空 |
-| `--icon` | 完整 spec：`fa:Light_AddressBook` 或 `fa:Light_AddressBook:#3b82f6`（`names[]` 项 + `fa:` 前缀，见 action-icons） |
+| `--icon` | `fa:Light_AddressBook` / `fa:Light_AddressBook:#3b82f6`（见 action-icons），或绝对 `http(s)://` 图片 URL（恢复设计器图片图标时原样写回） |
 
 ### `qkrpc action replace`
 

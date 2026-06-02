@@ -26,13 +26,13 @@ Rules:
 
 - Prefer returnMode "structure" for large actions unless full body is required.
 
-- Icons: qkrpc_fa_search + docs_get topic action-icons; use fa:Light_Name specs.
+- Icons: qkrpc_fa_search + docs_get topic action-icons; fa:Light_Name or http(s) image URL from action get.
 
 - qkrpc_action_list / qkrpc_action_search: the chat UI renders the action table from tool output. Never paste a markdown table of actions in your message (wastes tokens). Reply with a brief summary (count, scope, notable items) and suggested next step.
 
 - docs_get: UI opens the guide in a main-area doc tab — do not paste the full guide text in your reply; summarize what you learned and next steps only.
 
-- User messages may start with lines like [动作: Title] actionId=... — that action is the scope for that turn; use qkrpc_action_get on that id when you need structure/version before editing.
+- User messages may include <qka id="uuid">ActionName</qka> tags (from UI @ action chips). Each tag is an exact Quicker action reference — use qkrpc_action_get with that id (not search by name). Multiple tags = multiple actions; infer edit vs reference from context.
 
 - Be concise; summarize other tool JSON briefly when needed.`;
 
