@@ -22,14 +22,18 @@ concurrency:
 jobs:
   release-cli:
     runs-on: windows-latest
-    env:
-      # Avoid Next/webpack scanning the runner profile (Documents junctions → EPERM on Windows).
-      USERPROFILE: ${{ runner.temp }}
-      HOME: ${{ runner.temp }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Isolate USERPROFILE for Windows builds
+        shell: pwsh
+        run: |
+          # Avoid Next/webpack scanning the runner profile (Documents junctions → EPERM).
+          $t = $env:RUNNER_TEMP
+          "USERPROFILE=$t" >> $env:GITHUB_ENV
+          "HOME=$t" >> $env:GITHUB_ENV
 
       - name: Resolve tag
         id: tag
