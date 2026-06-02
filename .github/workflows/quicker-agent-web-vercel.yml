@@ -50,9 +50,9 @@ jobs:
         working-directory: quicker-agent-web
 
       - name: Build static site
-        run: node scripts/build.mjs
+        run: vercel build --prod --token="$VERCEL_TOKEN"
         working-directory: quicker-agent-web
 
       - name: Deploy to Vercel production
-        run: vercel deploy --cwd . --prod --token="$VERCEL_TOKEN"
+        run: vercel deploy --cwd . --prebuilt --prod --token="$VERCEL_TOKEN"
         working-directory: quicker-agent-web
