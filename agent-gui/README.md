@@ -32,6 +32,8 @@ pnpm dev
 pnpm tauri:dev   # 桌面壳，内置 qkrpc serve + Next（不打开外部浏览器）
 ```
 
+`tauri:dev` 现已做冲突优化：优先复用 `http://127.0.0.1:3000` 上已运行的前端（`/api/ping` 健康），否则再启动一个固定 `3000` 端口的前端实例，避免与手动 `pnpm dev` 并行时端口漂移导致白屏。
+
 ## 发布（Tauri 2）
 
 ```powershell

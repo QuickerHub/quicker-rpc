@@ -4,7 +4,7 @@
   "version": "0.6.25",
   "identifier": "ai.quicker.agent",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "node scripts/tauri-before-dev.mjs",
     "devUrl": "http://127.0.0.1:3000",
     "beforeBuildCommand": "pnpm build && node scripts/tauri-prepare.mjs",
     "frontendDist": "../src-tauri/placeholder"

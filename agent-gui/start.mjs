@@ -58,14 +58,28 @@ async function findAvailablePort(host, preferred) {
 }
 
 async function resolveUiPort(host) {
+  const strictPort =
+    process.env.AGENT_GUI_STRICT_PORT === "1"
+    || process.env.TAURI_ENV_DEBUG === "true";
+
   const raw = process.env.PORT?.trim();
   if (raw) {
     const parsed = Number(raw);
     if (Number.isFinite(parsed) && parsed > 0) {
+      if (strictPort) {
+        await listenProbe(parsed, host);
+      }
       return parsed;
     }
   }
   const preferred = Number(process.env.AGENT_GUI_PORT?.trim() || "3000");
+  if (strictPort) {
+    if (!Number.isFinite(preferred) || preferred <= 0) {
+      throw new Error(`Invalid AGENT_GUI_PORT: ${process.env.AGENT_GUI_PORT ?? ""}`);
+    }
+    await listenProbe(preferred, host);
+    return preferred;
+  }
   return findAvailablePort(host, preferred);
 }
 
