@@ -50,7 +50,7 @@ jobs:
           "semver=$semver" >> $env:GITHUB_OUTPUT
           "zip_name=qkrpc-$semver-win-x64.zip" >> $env:GITHUB_OUTPUT
           "setup_name=qkrpc-$semver-win-x64-setup.exe" >> $env:GITHUB_OUTPUT
-          "agent_setup_name=QuickerAgent_${semver}_x64-setup.exe" >> $env:GITHUB_OUTPUT
+          "agent_setup_name=quicker-agent-$semver-x64-setup.exe" >> $env:GITHUB_OUTPUT
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5

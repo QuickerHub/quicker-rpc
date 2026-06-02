@@ -96,7 +96,7 @@ function Get-QuickerAgentSetupName {
     param([string]$Version)
 
     $semver = Get-QuickerRpcSemVerFromVersion -Version $Version
-    return "QuickerAgent_${semver}_x64-setup.exe"
+    return "quicker-agent-$semver-x64-setup.exe"
 }
 
 function Get-QkrpcLatestAgentSetupName {

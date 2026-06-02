@@ -43,7 +43,7 @@ pnpm quicker-agent:publish
 
 流程：`pnpm build` → `scripts/tauri-prepare.mjs`（打入 Next standalone、便携 Node、`publish/cli` 整目录 qkrpc）→ `tauri build` → `scripts/verify-tauri-bundle.mjs`。
 
-**GitHub Release**：push tag 后 `.github/workflows/release-cli.yml` 会自动调用 `Publish-QuickerAgent.ps1`（复用同 job 已构建的 `publish/cli`），上传 `QuickerAgent_{version}_x64-setup.exe` 与 `quicker-agent-win-x64-setup.exe`。本地仅调试时可仍跑 `pnpm quicker-agent:publish`。
+**GitHub Release**：push tag 后 `.github/workflows/release-cli.yml` 会自动调用 `Publish-QuickerAgent.ps1`（复用同 job 已构建的 `publish/cli`），上传 `quicker-agent-{version}-x64-setup.exe` 与 `quicker-agent-win-x64-setup.exe`。本地仅调试时可仍跑 `pnpm quicker-agent:publish`。
 
 安装包内应含三块运行时（`$RESOURCE/resources/` 下保留目录结构）：
 
@@ -78,8 +78,8 @@ CI（`.github/workflows/release-cli.yml`）使用 GitHub Secret `BUNDLED_LLM_BIN
 
 | 路径 | 说明 |
 |------|------|
-| `agent-gui/src-tauri/target/release/bundle/nsis/QuickerAgent_{version}_x64-setup.exe` | Windows 安装包（权威产物） |
-| `publish/QuickerAgent_{version}_x64-setup.exe` | 同上，由 `pnpm quicker-agent:publish` 复制 |
+| `agent-gui/src-tauri/target/release/bundle/nsis/quicker-agent-{version}-x64-setup.exe` | Windows 安装包（权威产物） |
+| `publish/quicker-agent-{version}-x64-setup.exe` | 同上，由 `pnpm quicker-agent:publish` 复制 |
 | `publish/quicker-agent-win-x64-setup.exe` | latest 别名（与上者同文件，须刚跑过 publish） |
 | `agent-gui/src-tauri/target/release/quicker-agent.exe` | 可执行文件 |
 

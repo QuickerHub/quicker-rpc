@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,6 +20,8 @@ public sealed class QuickerRpcServer : IHostedService
     private readonly CancellationTokenSource _shutdown = new();
     private Task? _runTask;
     private bool _loggedListening;
+    private readonly object _sessionsLock = new();
+    private readonly List<Task> _activeSessions = [];
 
     public QuickerRpcServer(IQuickerRpcService service, ILogger<QuickerRpcServer> logger)
     {
@@ -61,7 +64,6 @@ public sealed class QuickerRpcServer : IHostedService
         while (!cancellationToken.IsCancellationRequested)
         {
             NamedPipeServerStream? pipeStream = null;
-            JsonRpc? jsonRpc = null;
             var backoffAfterCycle = false;
             try
             {
@@ -78,18 +80,13 @@ public sealed class QuickerRpcServer : IHostedService
                 LogListening(pipeName);
                 await pipeStream.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
                 _logger.LogDebug("QuickerRpc client connected");
-                QuickerRpcConnectionState.SetConnected(true);
-
-                jsonRpc = StreamJsonRpcFactory.StartListeningServer<IQuickerRpcService>(pipeStream, _service);
-                await StreamJsonRpcCompletion.AwaitSessionAsync(jsonRpc, cancellationToken).ConfigureAwait(false);
+                var sessionTask = HandleSessionAsync(pipeStream, cancellationToken);
+                TrackSession(sessionTask);
+                pipeStream = null; // moved to session task
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 break;
-            }
-            catch (Exception ex) when (jsonRpc is not null && StreamJsonRpcCompletion.IsBenignSessionEnd(ex))
-            {
-                _logger.LogDebug(ex, "QuickerRpc client session ended");
             }
             catch (Exception ex)
             {
@@ -98,8 +95,6 @@ public sealed class QuickerRpcServer : IHostedService
             }
             finally
             {
-                QuickerRpcConnectionState.SetConnected(false);
-                jsonRpc?.Dispose();
                 pipeStream?.Dispose();
             }
 
@@ -119,6 +114,72 @@ public sealed class QuickerRpcServer : IHostedService
                     break;
                 }
             }
+        }
+
+        await WaitForActiveSessionsAsync().ConfigureAwait(false);
+    }
+
+    private async Task HandleSessionAsync(NamedPipeServerStream pipeStream, CancellationToken cancellationToken)
+    {
+        JsonRpc? jsonRpc = null;
+        try
+        {
+            QuickerRpcConnectionState.SetConnected(true);
+            jsonRpc = StreamJsonRpcFactory.StartListeningServer<IQuickerRpcService>(pipeStream, _service);
+            await StreamJsonRpcCompletion.AwaitSessionAsync(jsonRpc, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (jsonRpc is not null && StreamJsonRpcCompletion.IsBenignSessionEnd(ex))
+        {
+            _logger.LogDebug(ex, "QuickerRpc client session ended");
+        }
+        finally
+        {
+            QuickerRpcConnectionState.SetConnected(false);
+            jsonRpc?.Dispose();
+            pipeStream.Dispose();
+        }
+    }
+
+    private void TrackSession(Task sessionTask)
+    {
+        lock (_sessionsLock)
+        {
+            _activeSessions.Add(sessionTask);
+        }
+
+        _ = sessionTask.ContinueWith(
+            completed =>
+            {
+                lock (_sessionsLock)
+                {
+                    _activeSessions.Remove(completed);
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private async Task WaitForActiveSessionsAsync()
+    {
+        Task[] snapshot;
+        lock (_sessionsLock)
+        {
+            snapshot = _activeSessions.ToArray();
+        }
+
+        if (snapshot.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.WhenAll(snapshot).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "One or more QuickerRpc sessions ended with error during shutdown.");
         }
     }
 

@@ -31,7 +31,7 @@ metadata:
 | Quicker 包 | `quicker.rpc`（`build.ps1 -Publish -NoVersion`） |
 | 分享动作 ID | `f5c76108-3ce9-433f-8cd0-8f0d9c562052` |
 | CLI Release | `qkrpc-{semver}-win-x64-setup.exe`、`qkrpc-win-x64-setup.exe`（latest）、zip 便携包 |
-| Agent Release | `QuickerAgent_{semver}_x64-setup.exe`、`quicker-agent-win-x64-setup.exe`（latest，Tauri NSIS，CI 构建） |
+| Agent Release | `quicker-agent-{semver}-x64-setup.exe`、`quicker-agent-win-x64-setup.exe`（latest，Tauri NSIS，CI 构建） |
 
 ## 用户安装 CLI
 
