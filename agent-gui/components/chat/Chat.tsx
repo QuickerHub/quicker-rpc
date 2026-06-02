@@ -61,9 +61,7 @@ import { loadStoredLlmProvider, storeLlmProvider } from "@/lib/llm-prefs";
 import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
 import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent-activity";
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
-import { ActionPatchFollowUp } from "@/components/chat/ActionPatchFollowUp";
 import { EmptyChatPrompts } from "@/components/chat/EmptyChatPrompts";
-import { findActionPatchFollowUp } from "@/lib/action-patch-followup";
 import { useUserMessageStickyMarkers } from "@/lib/use-user-message-sticky";
 import { useAutoThreadTitle } from "@/lib/use-auto-thread-title";
 import { useComposerMessageQueue } from "@/lib/use-composer-message-queue";
@@ -334,10 +332,6 @@ function ChatPanel({
     return null;
   }, [messages, agentActivity]);
   const isEmptyThread = messages.length === 0 && !error;
-  const actionPatchFollowUp = useMemo(() => {
-    if (agentActivity || pendingApprovalCount > 0) return null;
-    return findActionPatchFollowUp(messages);
-  }, [agentActivity, messages, pendingApprovalCount]);
   const { activeTabId } = useDocsViewer();
   const showDocView = activeTabId != null;
 
@@ -404,12 +398,6 @@ function ChatPanel({
               ×
             </button>
           </div>
-        )}
-        {actionPatchFollowUp && !showDocView && (
-          <ActionPatchFollowUp
-            context={actionPatchFollowUp}
-            disabled={composerLocked}
-          />
         )}
         <div ref={messagesEndRef} className="messages-anchor" aria-hidden />
       </main>
