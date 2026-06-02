@@ -9,6 +9,10 @@ import {
 } from "ai";
 import { isActionListTool } from "@/lib/action-list";
 import {
+  shouldDefaultExpandToolDetails,
+  toolHasInlinePreview,
+} from "@/lib/tool-display";
+import {
   ActionListToolBody,
   buildToolSummaryMeta,
   DocsToolBody,
@@ -33,6 +37,32 @@ type ToolPartProps = {
   addToolApprovalResponse?: ChatAddToolApproveResponseFunction;
   approvalDisabled?: boolean;
 };
+
+function ToolSummaryTitle({
+  displayName,
+  meta,
+  isRunning,
+  state,
+  showChevron,
+}: {
+  displayName: string;
+  meta: string;
+  isRunning: boolean;
+  state: string;
+  showChevron?: boolean;
+}) {
+  return (
+    <span className="tool-title">
+      <span className="tool-name">{displayName}</span>
+      <span
+        className={`tool-meta${isRunning ? " tool-meta--running" : ""}${state === "output-error" ? " tool-meta--err" : ""}${state === "approval-requested" ? " tool-meta--approval" : ""}`}
+      >
+        {meta}
+      </span>
+      {showChevron !== false && <span className="tool-chevron" aria-hidden />}
+    </span>
+  );
+}
 
 export function ToolPart({
   part,
@@ -84,26 +114,43 @@ export function ToolPart({
   const isTerminal =
     state === "output-available" || state === "output-denied";
 
+  const hasInlinePreview =
+    toolHasInlinePreview(name)
+    && isActionList
+    && output !== undefined
+    && isQkrpcToolResult(output);
+
   const [open, setOpen] = useState(() => {
-    if (inBatch) {
-      return batchOpen && needsAttention;
-    }
-    return needsAttention || !isTerminal;
+    if (hasInlinePreview) return false;
+    if (inBatch && !batchOpen) return false;
+    return shouldDefaultExpandToolDetails(state, Boolean(needsApprovalUi));
   });
 
   useEffect(() => {
+    if (hasInlinePreview) {
+      setOpen(false);
+      return;
+    }
     if (inBatch && !batchOpen) {
       setOpen(false);
       return;
     }
-    if (isTerminal && !needsAttention) {
-      setOpen(false);
+    if (needsApprovalUi || state === "output-error") {
+      setOpen(true);
       return;
     }
-    if (needsAttention) {
-      setOpen(true);
+    if (isTerminal && !needsAttention) {
+      setOpen(false);
     }
-  }, [inBatch, batchOpen, isTerminal, needsAttention]);
+  }, [
+    hasInlinePreview,
+    inBatch,
+    batchOpen,
+    isTerminal,
+    needsAttention,
+    needsApprovalUi,
+    state,
+  ]);
 
   if (isDocsOpenable && docsDoc && isQkrpcToolResult(output)) {
     return (
@@ -121,77 +168,107 @@ export function ToolPart({
     );
   }
 
-  return (
-    <details
-      className={`tool-card${inBatch ? " tool-card--nested" : ""}${isActionList ? " tool-card--action-list" : ""}${isDocsGet ? " tool-card--docs" : ""}${needsApprovalUi ? " tool-card--approval" : ""}`}
-      open={open}
-      onToggle={(e) => setOpen(e.currentTarget.open)}
-    >
-      <summary className="tool-summary">
-        <span className="tool-title">
-          <span className="tool-name">{displayName}</span>
-          <span
-            className={`tool-meta${isRunning ? " tool-meta--running" : ""}${state === "output-error" ? " tool-meta--err" : ""}${state === "approval-requested" ? " tool-meta--approval" : ""}`}
-          >
-            {meta}
-          </span>
-          <span className="tool-chevron" aria-hidden />
-        </span>
-      </summary>
-
-      {open && (
+  if (hasInlinePreview) {
+    return (
       <div
-        className={`tool-body${isActionList ? " tool-body--action-list" : ""}`}
+        className={`tool-card tool-card--action-list tool-card--preview${inBatch ? " tool-card--nested" : ""}${needsApprovalUi ? " tool-card--approval" : ""}`}
       >
+        <div className="tool-summary tool-summary--static">
+          <ToolSummaryTitle
+            displayName={displayName}
+            meta={meta}
+            isRunning={isRunning}
+            state={state}
+            showChevron={false}
+          />
+        </div>
         {needsApprovalUi && (
-          <ToolApprovalActions
-            toolName={name}
-            input={"input" in part ? part.input : undefined}
-            approvalId={part.approval!.id}
-            addToolApprovalResponse={addToolApprovalResponse}
-            disabled={approvalDisabled}
-          />
+          <div className="tool-body tool-body--approval">
+            <ToolApprovalActions
+              toolName={name}
+              input={"input" in part ? part.input : undefined}
+              approvalId={part.approval!.id}
+              addToolApprovalResponse={addToolApprovalResponse}
+              disabled={approvalDisabled}
+            />
+          </div>
         )}
-
-        {isActionList ? (
-          <ActionListToolBody
-            input={"input" in part ? part.input : undefined}
-            output={output}
-            toolName={name}
-          />
-        ) : isDocsGet ? (
-          <DocsToolBody
-            input={"input" in part ? part.input : undefined}
-            output={output}
-            toolName={name}
-          />
-        ) : !needsApprovalUi ? (
-          <>
-            {"input" in part && part.input !== undefined && (
-              <ToolPayloadView
-                label="请求"
-                value={part.input}
-                compact
-                followTail={isRunning}
-              />
-            )}
-
-            {output !== undefined && (
-              <ToolPayloadView
-                label="结果"
-                value={output}
-                compact
-                toolName={name}
-                followTail={isRunning}
-              />
-            )}
-          </>
-        ) : null}
-
+        {!needsApprovalUi && output && (
+          <div className="tool-preview tool-body--action-list">
+            <ActionListToolBody
+              input={"input" in part ? part.input : undefined}
+              output={output}
+              toolName={name}
+            />
+          </div>
+        )}
         {"errorText" in part && part.errorText && (
           <pre className="tool-error">{part.errorText}</pre>
         )}
       </div>
+    );
+  }
+
+  return (
+    <details
+      className={`tool-card${inBatch ? " tool-card--nested" : ""}${isDocsGet ? " tool-card--docs" : ""}${needsApprovalUi ? " tool-card--approval" : ""}${open ? "" : " tool-card--collapsed"}`}
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
+      <summary className="tool-summary">
+        <ToolSummaryTitle
+          displayName={displayName}
+          meta={meta}
+          isRunning={isRunning}
+          state={state}
+        />
+      </summary>
+
+      {open && (
+        <div className="tool-body">
+          {needsApprovalUi && (
+            <ToolApprovalActions
+              toolName={name}
+              input={"input" in part ? part.input : undefined}
+              approvalId={part.approval!.id}
+              addToolApprovalResponse={addToolApprovalResponse}
+              disabled={approvalDisabled}
+            />
+          )}
+
+          {isDocsGet ? (
+            <DocsToolBody
+              input={"input" in part ? part.input : undefined}
+              output={output as QkrpcToolResult}
+              toolName={name}
+            />
+          ) : !needsApprovalUi ? (
+            <>
+              {"input" in part && part.input !== undefined && (
+                <ToolPayloadView
+                  label="请求"
+                  value={part.input}
+                  compact
+                  followTail={isRunning}
+                />
+              )}
+
+              {output !== undefined && (
+                <ToolPayloadView
+                  label="结果"
+                  value={output}
+                  compact
+                  toolName={name}
+                  followTail={isRunning}
+                />
+              )}
+            </>
+          ) : null}
+
+          {"errorText" in part && part.errorText && (
+            <pre className="tool-error">{part.errorText}</pre>
+          )}
+        </div>
       )}
     </details>
   );
@@ -223,7 +300,7 @@ function DocsToolOpenRow({
 
   return (
     <div
-      className={`tool-card tool-card--docs tool-card--docs-open${inBatch ? " tool-card--nested" : ""}${isActive ? " tool-card--docs-active" : ""}`}
+      className={`tool-card tool-card--docs tool-card--docs-open tool-card--preview${inBatch ? " tool-card--nested" : ""}${isActive ? " tool-card--docs-active" : ""}`}
     >
       <button
         type="button"

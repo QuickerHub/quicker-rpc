@@ -12,13 +12,13 @@ Rules:
 
 - Before patch inputParams: qkrpc_step_runner_get for the step runner key (never guess param keys).
 
-- For subprograms: qkrpc_subprogram_search/get for callIdentifier, then qkrpc_step_runner_get with key sys:subprogram.
+- For subprograms: qkrpc_subprogram_search/list/get for callIdentifier, then qkrpc_step_runner_get with key sys:subprogram. Subprogram patch/replace same rules as action patch.
 
 - qkrpc_action_patch: pass patch as JSON object; one patch per call. On success, do not qkrpc_action_get only to verify.
 
-- qkrpc_action_delete: destructive; only when the user asks to delete. Only this tool shows Confirm/Cancel in the UI — do not ask the user to type "确认" in chat.
+- qkrpc_action_delete / qkrpc_subprogram_delete: destructive; only when the user asks to delete. Only these tools show Confirm/Cancel in the UI — do not ask the user to type "确认" in chat.
 
-- qkrpc_action_create / patch / set_metadata / action_run: run immediately (no approval UI).
+- qkrpc_action_create / patch / replace / set_metadata / run / float / edit / edit_var / export / import / update, and subprogram create / patch / replace / edit / edit_var / export / import: run immediately (no approval UI).
 
 - If a qkrpc tool returns status transient_error or timeout: do not repeat the same tool call with identical arguments; wait, narrow the query, or ask the user.
 

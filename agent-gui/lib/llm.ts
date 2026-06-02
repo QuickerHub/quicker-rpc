@@ -4,8 +4,9 @@ import {
   getLocalProviderApiKey,
 } from "@/lib/llm-local-secrets";
 import {
-  getLlmConfigDefaultProvider,
+  isLlmProviderHidden,
   resolveLlmConfigProvider,
+  resolveVisibleDefaultProvider,
 } from "@/lib/llm-config";
 import {
   getLlmProviderMeta,
@@ -27,7 +28,6 @@ function envFirst(...keys: string[]): string | undefined {
 const ENV_API_KEYS: Record<LlmProviderId, string[]> = {
   zen: ["LLM_ZEN_API_KEY", "OPENCODE_ZEN_API_KEY", "OPENAI_API_KEY"],
   nvidia: ["LLM_NVIDIA_API_KEY"],
-  "nvidia-minimax": ["LLM_NVIDIA_MINIMAX_API_KEY", "LLM_NVIDIA_API_KEY"],
   deepseek: ["LLM_DEEPSEEK_API_KEY"],
   chatanywhere: ["LLM_CHATANYWHERE_API_KEY"],
   ai98pro: ["LLM_AI98PRO_API_KEY"],
@@ -36,7 +36,6 @@ const ENV_API_KEYS: Record<LlmProviderId, string[]> = {
 const ENV_BASE_URLS: Record<LlmProviderId, string[]> = {
   zen: ["LLM_ZEN_BASE_URL", "OPENCODE_ZEN_BASE_URL", "OPENAI_BASE_URL"],
   nvidia: ["LLM_NVIDIA_BASE_URL"],
-  "nvidia-minimax": ["LLM_NVIDIA_MINIMAX_BASE_URL", "LLM_NVIDIA_BASE_URL"],
   deepseek: ["LLM_DEEPSEEK_BASE_URL"],
   chatanywhere: ["LLM_CHATANYWHERE_BASE_URL"],
   ai98pro: ["LLM_AI98PRO_BASE_URL"],
@@ -45,18 +44,13 @@ const ENV_BASE_URLS: Record<LlmProviderId, string[]> = {
 const ENV_MODELS: Record<LlmProviderId, string[]> = {
   zen: ["LLM_ZEN_MODEL", "OPENCODE_ZEN_MODEL", "OPENAI_MODEL"],
   nvidia: ["LLM_NVIDIA_MODEL"],
-  "nvidia-minimax": ["LLM_NVIDIA_MINIMAX_MODEL"],
   deepseek: ["LLM_DEEPSEEK_MODEL"],
   chatanywhere: ["LLM_CHATANYWHERE_MODEL"],
   ai98pro: ["LLM_AI98PRO_MODEL"],
 };
 
 function resolveApiKey(providerId: LlmProviderId): string | undefined {
-  const local =
-    getLocalProviderApiKey(providerId)
-    ?? (providerId === "nvidia-minimax"
-      ? getLocalProviderApiKey("nvidia")
-      : undefined);
+  const local = getLocalProviderApiKey(providerId);
   if (local) return local;
   const fromConfig = resolveLlmConfigProvider(providerId)?.apiKey;
   if (fromConfig) return fromConfig;
@@ -76,11 +70,9 @@ function resolveModelId(providerId: LlmProviderId): string | undefined {
 }
 
 export function getLlmProviderId(): LlmProviderId {
-  return (
-    parseLlmProviderId(process.env.LLM_PROVIDER)
-    ?? getLlmConfigDefaultProvider()
-    ?? "nvidia"
-  );
+  const fromEnv = parseLlmProviderId(process.env.LLM_PROVIDER);
+  if (fromEnv && !isLlmProviderHidden(fromEnv)) return fromEnv;
+  return resolveVisibleDefaultProvider();
 }
 
 function hasDirectApiKey(): boolean {

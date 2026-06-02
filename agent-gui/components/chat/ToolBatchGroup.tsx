@@ -20,9 +20,7 @@ export function ToolBatchGroup({
   approvalDisabled,
 }: ToolBatchGroupProps) {
   const summary = useMemo(() => buildToolBatchSummary(items), [items]);
-  const [open, setOpen] = useState(
-    () => summary.needsAttention || !summary.allTerminal,
-  );
+  const [open, setOpen] = useState(() => summary.needsAttention);
 
   useEffect(() => {
     if (summary.allTerminal && !summary.needsAttention) {

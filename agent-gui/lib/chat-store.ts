@@ -242,10 +242,14 @@ export function updateThreadMessages(
 
 export function addThread(data: ChatStoreData): ChatStoreData {
   const thread = createThread();
+  const activeIndex = data.threads.findIndex((t) => t.id === data.activeThreadId);
+  const insertAt = activeIndex >= 0 ? activeIndex + 1 : data.threads.length;
+  const threads = [...data.threads];
+  threads.splice(insertAt, 0, thread);
   return {
     ...data,
     activeThreadId: thread.id,
-    threads: [thread, ...data.threads],
+    threads,
   };
 }
 
@@ -256,9 +260,13 @@ export function selectThread(data: ChatStoreData, threadId: string): ChatStoreDa
 
 export function deleteThread(data: ChatStoreData, threadId: string): ChatStoreData {
   if (data.threads.length <= 1) return data;
+  const index = data.threads.findIndex((t) => t.id === threadId);
+  if (index < 0) return data;
   const threads = data.threads.filter((t) => t.id !== threadId);
   const activeThreadId =
-    data.activeThreadId === threadId ? threads[0]!.id : data.activeThreadId;
+    data.activeThreadId === threadId
+      ? threads[Math.min(index, threads.length - 1)]!.id
+      : data.activeThreadId;
   return { ...data, threads, activeThreadId };
 }
 

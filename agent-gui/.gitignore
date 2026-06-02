@@ -22,3 +22,10 @@ llm-config.json
 src-tauri/target/
 src-tauri/resources/
 src-tauri/gen/
+
+# ad-hoc debug log captures (manual stdout/stderr redirects during local dev)
+verify-*.txt
+test-*-out.txt
+test-*-err.txt
+agent-run-*.txt
+crash-*.txt

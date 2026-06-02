@@ -8,21 +8,24 @@ type ActionIconProps = {
   className?: string;
 };
 
+function ActionIconPlaceholder({ className }: { className?: string }) {
+  return (
+    <span
+      className={`action-icon action-icon--placeholder${className ? ` ${className}` : ""}`}
+      aria-hidden
+    />
+  );
+}
+
 export function ActionIcon({ spec, className }: ActionIconProps) {
   const trimmed = spec?.trim();
   if (!trimmed || !isFaIconSpec(trimmed)) {
-    return <span className={`action-icon action-icon--empty${className ? ` ${className}` : ""}`} aria-hidden />;
+    return <ActionIconPlaceholder className={className} />;
   }
 
   const geometry = useFaIconGeometry(trimmed);
   if (!geometry) {
-    return (
-      <span
-        className={`action-icon action-icon--loading${className ? ` ${className}` : ""}`}
-        title={trimmed}
-        aria-hidden
-      />
-    );
+    return <ActionIconPlaceholder className={className} />;
   }
 
   const fill = geometry.color ?? "currentColor";

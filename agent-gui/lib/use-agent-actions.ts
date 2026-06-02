@@ -3,24 +3,25 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RecentActionItem } from "@/lib/recent-actions";
 
-export type RecentActionsState =
+export type AgentActionsState =
+  | { status: "idle" }
   | { status: "loading" }
   | { status: "ok"; items: RecentActionItem[] }
   | { status: "error"; message: string };
 
-function beginReload(prev: RecentActionsState): RecentActionsState {
+function beginReload(prev: AgentActionsState): AgentActionsState {
   if (prev.status === "ok" || prev.status === "loading") return prev;
   return { status: "loading" };
 }
 
-/** Load recent actions via server API (does not rely on client ping state). */
-export function useRecentActions(refreshKey = 0) {
-  const [state, setState] = useState<RecentActionsState>({ status: "loading" });
+/** Load assistant-scope actions via server API (direct qkrpc, no LLM). */
+export function useAgentActions(enabled: boolean, refreshKey = 0) {
+  const [state, setState] = useState<AgentActionsState>({ status: "idle" });
 
   const reload = useCallback(async () => {
     setState(beginReload);
     try {
-      const res = await fetch("/api/actions/recent", { cache: "no-store" });
+      const res = await fetch("/api/actions/agent", { cache: "no-store" });
       const raw = await res.text();
       let data: unknown = null;
       if (raw.trim()) {
@@ -30,7 +31,7 @@ export function useRecentActions(refreshKey = 0) {
           setState((prev) =>
             prev.status === "ok"
               ? prev
-              : { status: "error", message: "最近动作接口响应无效" },
+              : { status: "error", message: "助手动作接口响应无效" },
           );
           return;
         }
@@ -70,8 +71,9 @@ export function useRecentActions(refreshKey = 0) {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     void reload();
-  }, [reload, refreshKey]);
+  }, [enabled, reload, refreshKey]);
 
   return { state, reload };
 }

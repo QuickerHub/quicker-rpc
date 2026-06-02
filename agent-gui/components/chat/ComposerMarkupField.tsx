@@ -91,7 +91,7 @@ export const ComposerMarkupField = forwardRef<
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionAnchorRect, setMentionAnchorRect] = useState<DOMRect | null>(null);
   const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
-  const mentionSearch = useActionMentionSearch(qkrpcOk, mentionQuery);
+  const mentionSearch = useActionMentionSearch(mentionQuery);
   const mentionOpen = mentionQuery !== null && !disabled;
   const mentionItems = mentionSearch.items;
 

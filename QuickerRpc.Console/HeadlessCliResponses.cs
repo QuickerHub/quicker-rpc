@@ -50,6 +50,18 @@ internal static class HeadlessCliResponses
             warnings = ToWarningsArray(response.Warnings),
         };
 
+    public static object ToReplacePayload(QuickerRpcApplyXActionResult response) =>
+        new
+        {
+            success = response.Success,
+            errorMessage = response.ErrorMessage,
+            actionId = response.ActionId,
+            editVersion = response.EditVersion,
+            versionConflict = response.VersionConflict,
+            updatedUtc = response.UpdatedUtc,
+            warnings = ToWarningsArray(response.Warnings),
+        };
+
     public static object ToMetadataPayload(QuickerRpcUpdateActionMetadataResult response) =>
         new
         {

@@ -68,11 +68,23 @@ internal static class ServeInvokeDispatcher
             "action.get" => await ActionGetAsync(rpc, args, token).ConfigureAwait(false),
             "action.create" => await ActionCreateAsync(rpc, args, token).ConfigureAwait(false),
             "action.patch" => await ActionPatchAsync(rpc, args, token).ConfigureAwait(false),
+            "action.replace" => await ActionReplaceAsync(rpc, args, token).ConfigureAwait(false),
             "action.set-metadata" => await ActionSetMetadataAsync(rpc, args, token).ConfigureAwait(false),
+            "action.update" => await ActionUpdateAsync(rpc, args, token).ConfigureAwait(false),
             "action.delete" => await ActionDeleteAsync(rpc, args, token).ConfigureAwait(false),
             "action.run" => await ActionRunAsync(rpc, args, token).ConfigureAwait(false),
+            "action.float" => await ActionFloatAsync(rpc, args, token).ConfigureAwait(false),
+            "action.edit" => await ActionEditAsync(rpc, args, token).ConfigureAwait(false),
+            "action.edit-var" => await ActionEditVarAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.search" => await SubprogramSearchAsync(rpc, args, token).ConfigureAwait(false),
+            "subprogram.list" => await SubprogramListAsync(rpc, args, token).ConfigureAwait(false),
+            "subprogram.create" => await SubprogramCreateAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.get" => await SubprogramGetAsync(rpc, args, token).ConfigureAwait(false),
+            "subprogram.patch" => await SubprogramPatchAsync(rpc, args, token).ConfigureAwait(false),
+            "subprogram.replace" => await SubprogramReplaceAsync(rpc, args, token).ConfigureAwait(false),
+            "subprogram.edit" => await SubprogramEditAsync(rpc, args, token).ConfigureAwait(false),
+            "subprogram.edit-var" => await SubprogramEditVarAsync(rpc, args, token).ConfigureAwait(false),
+            "subprogram.delete" => await SubprogramDeleteAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.search" => await StepRunnerSearchAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.get" => await StepRunnerGetAsync(rpc, args, token).ConfigureAwait(false),
             "fa.search" => await FaSearchAsync(rpc, args, token).ConfigureAwait(false),
@@ -288,6 +300,36 @@ internal static class ServeInvokeDispatcher
         return Ok(new { ok = response.Success, action = "patch", payload });
     }
 
+    private static async Task<ServeInvokeResponse> ActionReplaceAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var xactionEl = ServeJsonArgs.GetObject(args, "xaction");
+        if (xactionEl is null)
+        {
+            return Fail("MISSING_XACTION", "args.xaction object is required.");
+        }
+
+        var xactionJson = xactionEl.Value.GetRawText();
+        var response = await rpc
+            .ApplyXActionToActionAsync(
+                id.Trim(),
+                xactionJson,
+                ServeJsonArgs.GetLong(args, "expectedEditVersion"),
+                ServeJsonArgs.GetBool(args, "force"),
+                token)
+            .ConfigureAwait(false);
+        var payload = HeadlessCliResponses.ToReplacePayload(response);
+        return Ok(new { ok = response.Success, action = "replace", payload });
+    }
+
     private static async Task<ServeInvokeResponse> ActionSetMetadataAsync(
         IQuickerRpcService rpc,
         JsonElement args,
@@ -359,6 +401,112 @@ internal static class ServeInvokeDispatcher
         });
     }
 
+    private static async Task<ServeInvokeResponse> ActionUpdateAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var response = await rpc
+            .UpdateSharedActionAsync(id.Trim(), ServeJsonArgs.GetString(args, "changelog"), token)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "update",
+            sharedId = response.ActionId ?? id.Trim(),
+            message = response.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ActionFloatAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var response = await rpc.FloatActionAsync(id.Trim(), token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "float",
+            message = response.Message,
+            actionId = response.ActionId,
+            actionTitle = response.ActionTitle,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ActionEditAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var response = await rpc.EditActionAsync(id.Trim(), token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "edit",
+            message = response.Message,
+            actionId = response.ActionId,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ActionEditVarAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var variableKey = ServeJsonArgs.GetString(args, "var", "variableKey") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(variableKey))
+        {
+            return Fail("MISSING_VARIABLE", "args.var is required.");
+        }
+
+        var value = ServeJsonArgs.GetString(args, "value");
+        if (value is null)
+        {
+            return Fail("MISSING_VALUE", "args.value is required.");
+        }
+
+        var response = await rpc
+            .EditGlobalSubProgramVariableAsync(id.Trim(), variableKey.Trim(), value, token)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "edit-var",
+            targetKind = response.TargetKind,
+            targetId = response.SubProgramIdOrName ?? id.Trim(),
+            subProgramIdOrName = response.SubProgramIdOrName ?? id.Trim(),
+            variableKey = response.VariableKey ?? variableKey.Trim(),
+            oldValue = response.OldValue,
+            newValue = response.NewValue ?? value,
+            message = response.Message,
+        });
+    }
+
     private static async Task<ServeInvokeResponse> SubprogramSearchAsync(
         IQuickerRpcService rpc,
         JsonElement args,
@@ -373,6 +521,47 @@ internal static class ServeInvokeDispatcher
         var limit = ServeJsonArgs.GetInt(args, "limit") ?? 20;
         var response = await rpc.SearchGlobalSubProgramsAsync(query.Trim(), limit, token).ConfigureAwait(false);
         return Ok(new { ok = response.Ok, action = "subprogram-search", items = response.Items, message = response.Message });
+    }
+
+    private static async Task<ServeInvokeResponse> SubprogramListAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var limit = ServeJsonArgs.GetInt(args, "limit") ?? 30;
+        var response = await rpc
+            .ListGlobalSubProgramsAsync(ServeJsonArgs.GetString(args, "query"), limit, token)
+            .ConfigureAwait(false);
+        return Ok(new { ok = response.Ok, action = "subprogram-list", items = response.Items, message = response.Message });
+    }
+
+    private static async Task<ServeInvokeResponse> SubprogramCreateAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var name = ServeJsonArgs.GetString(args, "name") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return Fail("MISSING_NAME", "args.name is required.");
+        }
+
+        var response = await rpc
+            .CreateGlobalSubProgramAsync(
+                name.Trim(),
+                ServeJsonArgs.GetString(args, "description"),
+                ServeJsonArgs.GetString(args, "icon"),
+                token)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "subprogram-create",
+            message = response.Message,
+            subProgramId = response.SubProgramId,
+            callIdentifier = response.CallIdentifier,
+            editVersion = response.EditVersion,
+        });
     }
 
     private static async Task<ServeInvokeResponse> SubprogramGetAsync(
@@ -392,6 +581,149 @@ internal static class ServeInvokeDispatcher
             .ConfigureAwait(false);
         var payload = HeadlessCliResponses.ToSubProgramGetPayload(response);
         return Ok(new { ok = response.Success, action = "subprogram-get", payload });
+    }
+
+    private static async Task<ServeInvokeResponse> SubprogramPatchAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ID", "args.id is required.");
+        }
+
+        var patchEl = ServeJsonArgs.GetObject(args, "patch");
+        if (patchEl is null)
+        {
+            return Fail("MISSING_PATCH", "args.patch object is required.");
+        }
+
+        var patchJson = patchEl.Value.GetRawText();
+        var response = await rpc
+            .ApplySubProgramPatchAsync(
+                id.Trim(),
+                patchJson,
+                ServeJsonArgs.GetLong(args, "expectedEditVersion"),
+                ServeJsonArgs.GetBool(args, "force"),
+                token)
+            .ConfigureAwait(false);
+        var payload = HeadlessCliResponses.ToSubProgramPatchPayload(response);
+        return Ok(new { ok = response.Success, action = "subprogram-patch", payload });
+    }
+
+    private static async Task<ServeInvokeResponse> SubprogramReplaceAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ID", "args.id is required.");
+        }
+
+        var programEl = ServeJsonArgs.GetObject(args, "program");
+        if (programEl is null)
+        {
+            return Fail("MISSING_PROGRAM", "args.program object is required.");
+        }
+
+        var programJson = programEl.Value.GetRawText();
+        var response = await rpc
+            .ApplyProgramToSubProgramAsync(
+                id.Trim(),
+                programJson,
+                ServeJsonArgs.GetLong(args, "expectedEditVersion"),
+                ServeJsonArgs.GetBool(args, "force"),
+                token)
+            .ConfigureAwait(false);
+        var payload = HeadlessCliResponses.ToSubProgramPatchPayload(response);
+        return Ok(new { ok = response.Success, action = "subprogram-replace", payload });
+    }
+
+    private static async Task<ServeInvokeResponse> SubprogramEditAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ID", "args.id is required.");
+        }
+
+        var response = await rpc.EditGlobalSubProgramAsync(id.Trim(), token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "subprogram-edit",
+            message = response.Message,
+            actionId = response.ActionId,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> SubprogramEditVarAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ID", "args.id is required.");
+        }
+
+        var variableKey = ServeJsonArgs.GetString(args, "var", "variableKey") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(variableKey))
+        {
+            return Fail("MISSING_VARIABLE", "args.var is required.");
+        }
+
+        var value = ServeJsonArgs.GetString(args, "value");
+        if (value is null)
+        {
+            return Fail("MISSING_VALUE", "args.value is required.");
+        }
+
+        var response = await rpc
+            .EditGlobalSubProgramVariableAsync(id.Trim(), variableKey.Trim(), value, token)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "subprogram-edit-var",
+            targetKind = response.TargetKind,
+            subProgramIdOrName = response.SubProgramIdOrName ?? id.Trim(),
+            variableKey = response.VariableKey ?? variableKey.Trim(),
+            oldValue = response.OldValue,
+            newValue = response.NewValue ?? value,
+            message = response.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> SubprogramDeleteAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ID", "args.id is required.");
+        }
+
+        var response = await rpc
+            .DeleteGlobalSubProgramAsync(id.Trim(), skipConfirm: true, token)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "subprogram-delete",
+            message = response.Message,
+            actionId = response.ActionId,
+        });
     }
 
     private static async Task<ServeInvokeResponse> StepRunnerSearchAsync(
@@ -433,8 +765,9 @@ internal static class ServeInvokeDispatcher
         CancellationToken token)
     {
         var limit = ServeJsonArgs.GetInt(args, "limit") ?? 40;
+        var expand = ServeJsonArgs.GetBool(args, "expand");
         var response = await rpc
-            .SearchFontAwesomeIconsAsync(ServeJsonArgs.GetString(args, "query"), limit, expand: false, token)
+            .SearchFontAwesomeIconsAsync(ServeJsonArgs.GetString(args, "query"), limit, expand, token)
             .ConfigureAwait(false);
         return Ok(new { ok = response.Success, action = "fa-search", payload = response });
     }

@@ -6,6 +6,7 @@ import {
 } from "@/lib/llm-providers";
 import { resolveModelContextLimit } from "@/lib/llm-context-limits";
 import { getLocalDirectApiKey } from "@/lib/llm-local-secrets";
+import { isLlmProviderHidden } from "@/lib/llm-config";
 import {
   getChatModelId,
   getLlmProviderId,
@@ -37,7 +38,9 @@ function contextLimitForModel(modelId: string, providerId: LlmProviderId) {
 
 export async function GET() {
   const defaultProvider = getLlmProviderId();
-  const providers = LLM_PROVIDER_LIST.map((meta) => {
+  const providers = LLM_PROVIDER_LIST.filter(
+    (meta) => !isLlmProviderHidden(meta.id),
+  ).map((meta) => {
     const modelId = envModelForProvider(meta.id);
     return {
       id: meta.id,
@@ -51,7 +54,8 @@ export async function GET() {
 
   let activeProvider = defaultProvider;
   try {
-    activeProvider = resolveLlmConfig().providerId;
+    const resolved = resolveLlmConfig().providerId;
+    if (!isLlmProviderHidden(resolved)) activeProvider = resolved;
   } catch {
     const firstConfigured = providers.find((p) => p.configured);
     if (firstConfigured) {
@@ -74,6 +78,12 @@ export async function POST(req: Request) {
   const providerId = parseLlmProviderId(body.provider);
   if (!providerId) {
     return Response.json({ error: "Invalid provider" }, { status: 400 });
+  }
+  if (isLlmProviderHidden(providerId)) {
+    return Response.json(
+      { error: `Provider "${providerId}" is hidden in llm-config.json` },
+      { status: 400 },
+    );
   }
   if (!isLlmProviderConfigured(providerId)) {
     return Response.json(

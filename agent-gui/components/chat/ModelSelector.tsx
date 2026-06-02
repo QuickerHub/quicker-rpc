@@ -126,7 +126,7 @@ export function ModelSelector({
         onClick={() => setOpen((v) => !v)}
         title={
           active
-            ? `${active.label} · ${active.modelId}`
+            ? `${active.modelId} · ${active.description}`
             : "选择对话模型"
         }
       >
@@ -158,12 +158,12 @@ export function ModelSelector({
                     p.id === providerId ? " model-selector-item--active" : ""
                   }${!p.configured ? " model-selector-item--disabled" : ""}`}
                   disabled={!p.configured}
+                  aria-label={`${p.modelId}，${p.description}`}
                   onClick={() => select(p.id)}
                 >
                   <span className="model-selector-item-radio" aria-hidden />
                   <span className="model-selector-item-body">
-                    <span className="model-selector-item-label">{p.label}</span>
-                    <span className="model-selector-item-model">{p.modelId}</span>
+                    <span className="model-selector-item-label">{p.modelId}</span>
                     <span className="model-selector-item-desc">{p.description}</span>
                     {!p.configured && (
                       <span className="model-selector-item-warn">

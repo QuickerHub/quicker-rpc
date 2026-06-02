@@ -5,7 +5,7 @@
 ## 前置条件
 
 1. Quicker 已运行，并已加载 QuickerRpc 插件（仓库根目录 `pwsh ./build.ps1 -t` 会自动重载插件并启动 `qkrpc serve`）  
-2. LLM：复制 `llm-config.example.json` → `llm-config.json`，填写各 provider 的 `apiKey` / `model`（可选 `defaultProvider`）  
+2. LLM：复制 `llm-config.example.json` → `llm-config.json`，填写各 provider 的 `apiKey` / `model`（可选 `defaultProvider`；某 provider 加 `"hidden": true` 可从模型菜单隐藏）  
 3. **开发**：Node.js 20+、pnpm、Rust（仅 Tauri 需要）  
 
 ## 开发（推荐流程）

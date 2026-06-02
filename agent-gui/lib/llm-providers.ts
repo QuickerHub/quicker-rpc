@@ -3,7 +3,6 @@
 export type LlmProviderId =
   | "zen"
   | "nvidia"
-  | "nvidia-minimax"
   | "deepseek"
   | "chatanywhere"
   | "ai98pro";
@@ -36,14 +35,6 @@ export const LLM_PROVIDER_LIST: readonly LlmProviderMeta[] = [
     description: "build.nvidia.com integrate API（GLM）",
   },
   {
-    id: "nvidia-minimax",
-    label: "NVIDIA MiniMax",
-    defaultBaseURL: "https://integrate.api.nvidia.com/v1",
-    defaultModel: "minimaxai/minimax-m2.7",
-    clientName: "nvidia-integrate",
-    description: "integrate API，与 NVIDIA 共用 nvapi key",
-  },
-  {
     id: "deepseek",
     label: "DeepSeek",
     defaultBaseURL: "https://api.deepseek.com/v1",
@@ -73,7 +64,6 @@ export function parseLlmProviderId(raw: string | undefined): LlmProviderId | und
   const id = raw?.trim().toLowerCase();
   if (
     id === "nvidia"
-    || id === "nvidia-minimax"
     || id === "zen"
     || id === "deepseek"
     || id === "chatanywhere"

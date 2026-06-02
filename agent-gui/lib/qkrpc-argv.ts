@@ -121,6 +121,48 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
           title: flagStr(flags, "title"),
           description: flagStr(flags, "description"),
           icon: flagStr(flags, "icon"),
+          profileId: flagStr(flags, "profile-id"),
+        },
+      };
+    }
+    if (verb === "replace") {
+      return {
+        op: "action.replace",
+        args: {
+          id: flagStr(flags, "id"),
+          expectedEditVersion: flagInt(flags, "expected-edit-version"),
+          force: flagBool(flags, "force"),
+        },
+      };
+    }
+    if (verb === "update") {
+      return {
+        op: "action.update",
+        args: {
+          id: flagStr(flags, "id"),
+          changelog: flagStr(flags, "changelog"),
+        },
+      };
+    }
+    if (verb === "float") {
+      return {
+        op: "action.float",
+        args: { id: flagStr(flags, "id") },
+      };
+    }
+    if (verb === "edit") {
+      return {
+        op: "action.edit",
+        args: { id: flagStr(flags, "id") },
+      };
+    }
+    if (verb === "edit-var") {
+      return {
+        op: "action.edit-var",
+        args: {
+          id: flagStr(flags, "id"),
+          var: flagStr(flags, "var"),
+          value: flagStr(flags, "value"),
         },
       };
     }
@@ -172,6 +214,22 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         args: { query: flagStr(flags, "query"), limit: flagInt(flags, "limit") },
       };
     }
+    if (verb === "list") {
+      return {
+        op: "subprogram.list",
+        args: { query: flagStr(flags, "query"), limit: flagInt(flags, "limit") },
+      };
+    }
+    if (verb === "create") {
+      return {
+        op: "subprogram.create",
+        args: {
+          name: flagStr(flags, "name"),
+          description: flagStr(flags, "description"),
+          icon: flagStr(flags, "icon"),
+        },
+      };
+    }
     if (verb === "get") {
       return {
         op: "subprogram.get",
@@ -180,6 +238,45 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
           returnMode: flagStr(flags, "return-mode") ?? flagStr(flags, "returnMode"),
         },
       };
+    }
+    if (verb === "patch") {
+      return {
+        op: "subprogram.patch",
+        args: {
+          id: flagStr(flags, "id"),
+          expectedEditVersion: flagInt(flags, "expected-edit-version"),
+          force: flagBool(flags, "force"),
+        },
+      };
+    }
+    if (verb === "replace") {
+      return {
+        op: "subprogram.replace",
+        args: {
+          id: flagStr(flags, "id"),
+          expectedEditVersion: flagInt(flags, "expected-edit-version"),
+          force: flagBool(flags, "force"),
+        },
+      };
+    }
+    if (verb === "edit") {
+      return {
+        op: "subprogram.edit",
+        args: { id: flagStr(flags, "id") },
+      };
+    }
+    if (verb === "edit-var") {
+      return {
+        op: "subprogram.edit-var",
+        args: {
+          id: flagStr(flags, "id"),
+          var: flagStr(flags, "var"),
+          value: flagStr(flags, "value"),
+        },
+      };
+    }
+    if (verb === "delete") {
+      return { op: "subprogram.delete", args: { id: flagStr(flags, "id") } };
     }
     return null;
   }
@@ -209,7 +306,11 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
     if (verb === "search") {
       return {
         op: "fa.search",
-        args: { query: flagStr(flags, "query"), limit: flagInt(flags, "limit") },
+        args: {
+          query: flagStr(flags, "query"),
+          limit: flagInt(flags, "limit"),
+          expand: flagBool(flags, "expand") || flagBool(flags, "all-styles"),
+        },
       };
     }
     if (verb === "resolve") {

@@ -20,6 +20,9 @@ function summarizeApprovalInput(toolName: string, input: unknown): string {
   if (toolName === "qkrpc_action_delete" && typeof o.id === "string") {
     return `永久删除动作 ${o.id}`;
   }
+  if (toolName === "qkrpc_subprogram_delete" && typeof o.id === "string") {
+    return `永久删除子程序 ${o.id}`;
+  }
   if (typeof o.id === "string") {
     const extra =
       typeof o.title === "string"

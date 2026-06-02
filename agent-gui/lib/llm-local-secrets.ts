@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
-import { patchLlmConfigProviderApiKey } from "@/lib/llm-config";
+import { patchLlmConfigProvider, type LlmProviderPatch } from "@/lib/llm-config";
 import type { LlmProviderId } from "@/lib/llm-providers";
 
 export type LlmLocalSecrets = {
@@ -26,7 +26,6 @@ function normalizeSecrets(raw: unknown): LlmLocalSecrets {
     for (const id of [
       "zen",
       "nvidia",
-      "nvidia-minimax",
       "deepseek",
       "chatanywhere",
       "ai98pro",
@@ -76,12 +75,20 @@ export function getLocalProviderApiKey(
   return loadLlmLocalSecrets().providers[providerId];
 }
 
-/** Persist API key from UI into llm-config.json; clears legacy .local/llm-secrets entry. */
+/** Persist provider settings from UI into llm-config.json; clears legacy .local key. */
 export function setLocalProviderApiKey(
   providerId: LlmProviderId,
   apiKey: string | undefined,
 ): void {
-  patchLlmConfigProviderApiKey(providerId, apiKey);
+  setLocalProviderConfig(providerId, { apiKey: apiKey ?? null });
+}
+
+export function setLocalProviderConfig(
+  providerId: LlmProviderId,
+  patch: LlmProviderPatch,
+): void {
+  patchLlmConfigProvider(providerId, patch);
+  if (patch.apiKey === undefined) return;
   const current = loadLlmLocalSecrets();
   if (!current.providers[providerId]) return;
   const providers = { ...current.providers };

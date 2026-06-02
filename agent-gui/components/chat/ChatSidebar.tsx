@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, type ReactNode } from "react";
-import { SidebarSettingsMenu } from "@/components/chat/SidebarSettingsMenu";
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
   addThread,
@@ -204,21 +203,18 @@ export function ChatSidebar({
         </div>
 
         <div className="ws-footer">
-          <div className="ws-footer-row">
-            <button
-              type="button"
-              className="ws-footer-path"
-              onClick={handleEditWorkingDirectory}
-              disabled={disabled}
-              title={effectiveCwd || "点击设置工作目录"}
-            >
-              <span className="ws-footer-path-label">工作目录</span>
-              <span className="ws-footer-path-value">
-                {shortPath(store.workingDirectory, cwdFallbackLabel)}
-              </span>
-            </button>
-            <SidebarSettingsMenu disabled={disabled} />
-          </div>
+          <button
+            type="button"
+            className="ws-footer-path"
+            onClick={handleEditWorkingDirectory}
+            disabled={disabled}
+            title={effectiveCwd || "点击设置工作目录"}
+          >
+            <span className="ws-footer-path-label">工作目录</span>
+            <span className="ws-footer-path-value">
+              {shortPath(store.workingDirectory, cwdFallbackLabel)}
+            </span>
+          </button>
         </div>
       </div>
     </aside>

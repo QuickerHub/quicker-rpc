@@ -7,6 +7,7 @@ import type { AgentUIMessage } from "@/lib/chat-types";
 import { buildSystemInstructions } from "@/lib/instructions";
 import { runWithQkrpcCwd } from "@/lib/qkrpc-request-context";
 import { getChatModelId, resolveChatModel } from "@/lib/llm";
+import { isLlmProviderHidden } from "@/lib/llm-config";
 import { parseLlmProviderId } from "@/lib/llm-providers";
 import { pickEnabledTools } from "@/lib/tool-registry";
 import { quickerTools } from "@/lib/tools";
@@ -32,6 +33,13 @@ export async function POST(req: Request) {
   } = await req.json();
 
   const providerOverride = parseLlmProviderId(llmProvider);
+
+  if (providerOverride && isLlmProviderHidden(providerOverride)) {
+    return Response.json(
+      { error: `Provider "${providerOverride}" is hidden in llm-config.json` },
+      { status: 400 },
+    );
+  }
 
   let model;
   try {

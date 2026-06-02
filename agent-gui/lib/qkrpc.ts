@@ -318,20 +318,33 @@ export function formatQkrpcResultForAgent(
   return formatQkrpcResult(result);
 }
 
-async function runQkrpcWithPatchFileOnce(
+/** Inline JSON body ops supported by qkrpc serve (args key → CLI file flag). */
+const HTTP_JSON_BODY_OPS: Record<string, { argKey: string; fileFlag: string }> = {
+  "action.patch": { argKey: "patch", fileFlag: "patch-file" },
+  "action.replace": { argKey: "xaction", fileFlag: "xaction-file" },
+  "subprogram.patch": { argKey: "patch", fileFlag: "patch-file" },
+  "subprogram.replace": { argKey: "program", fileFlag: "program-file" },
+};
+
+async function runQkrpcWithJsonPayloadOnce(
   baseArgs: string[],
-  patchObject: unknown,
+  jsonObject: unknown,
   timeoutMs: number,
 ): Promise<QkrpcRunResult> {
-  const filtered = baseArgs.filter((a) => a !== "--patch-file");
+  const fileFlags = new Set(
+    Object.values(HTTP_JSON_BODY_OPS).map((entry) => `--${entry.fileFlag}`),
+  );
+  const filtered = baseArgs.filter((a) => !fileFlags.has(a));
   const invoke = argvToInvoke(filtered);
-  if (invoke?.op === "action.patch" && !isCliTransportForced()) {
+  const httpSpec = invoke ? HTTP_JSON_BODY_OPS[invoke.op] : undefined;
+
+  if (httpSpec && !isCliTransportForced()) {
     const useHttp = await shouldUseHttpTransport();
     if (useHttp) {
       const httpResult = await invokeQkrpcHttp(
         {
-          op: "action.patch",
-          args: { ...invoke.args, patch: patchObject },
+          op: invoke!.op,
+          args: { ...invoke!.args, [httpSpec.argKey]: jsonObject },
         },
         { timeoutMs },
       );
@@ -342,14 +355,40 @@ async function runQkrpcWithPatchFileOnce(
     }
   }
 
-  const dir = await mkdtemp(join(tmpdir(), "qkrpc-patch-"));
-  const file = join(dir, "patch.json");
+  const fileFlag = httpSpec?.fileFlag ?? "patch-file";
+  const dir = await mkdtemp(join(tmpdir(), "qkrpc-json-"));
+  const file = join(dir, `${fileFlag.replace(/-/g, "_")}.json`);
   try {
-    await writeFile(file, JSON.stringify(patchObject), "utf8");
-    return await runQkrpc([...baseArgs, "--patch-file", file], { timeoutMs });
+    await writeFile(file, JSON.stringify(jsonObject), "utf8");
+    return await runQkrpc([...baseArgs, `--${fileFlag}`, file], { timeoutMs });
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+async function runQkrpcWithJsonPayloadForTool(
+  baseArgs: string[],
+  jsonObject: unknown,
+): Promise<QkrpcRunResult> {
+  const baseTimeout = 120_000;
+  let last: QkrpcRunResult | null = null;
+
+  for (let attempt = 1; attempt <= QKRPC_TOOL_MAX_ATTEMPTS; attempt++) {
+    const timeoutMs = baseTimeout + (attempt - 1) * 45_000;
+    const result = await runQkrpcWithJsonPayloadOnce(
+      baseArgs,
+      jsonObject,
+      timeoutMs,
+    );
+    if (result.ok) return result;
+    last = result;
+    if (!isRetryableQkrpcFailure(result) || attempt === QKRPC_TOOL_MAX_ATTEMPTS) {
+      break;
+    }
+    await sleep(QKRPC_RETRY_BASE_DELAY_MS * attempt);
+  }
+
+  return last!;
 }
 
 export async function runQkrpcWithPatchFile(
@@ -363,23 +402,19 @@ export async function runQkrpcWithPatchFileForTool(
   baseArgs: string[],
   patchObject: unknown,
 ): Promise<QkrpcRunResult> {
-  const baseTimeout = 120_000;
-  let last: QkrpcRunResult | null = null;
+  return runQkrpcWithJsonPayloadForTool(baseArgs, patchObject);
+}
 
-  for (let attempt = 1; attempt <= QKRPC_TOOL_MAX_ATTEMPTS; attempt++) {
-    const timeoutMs = baseTimeout + (attempt - 1) * 45_000;
-    const result = await runQkrpcWithPatchFileOnce(
-      baseArgs,
-      patchObject,
-      timeoutMs,
-    );
-    if (result.ok) return result;
-    last = result;
-    if (!isRetryableQkrpcFailure(result) || attempt === QKRPC_TOOL_MAX_ATTEMPTS) {
-      break;
-    }
-    await sleep(QKRPC_RETRY_BASE_DELAY_MS * attempt);
-  }
+export async function runQkrpcWithXactionForTool(
+  baseArgs: string[],
+  xactionObject: unknown,
+): Promise<QkrpcRunResult> {
+  return runQkrpcWithJsonPayloadForTool(baseArgs, xactionObject);
+}
 
-  return last!;
+export async function runQkrpcWithProgramForTool(
+  baseArgs: string[],
+  programObject: unknown,
+): Promise<QkrpcRunResult> {
+  return runQkrpcWithJsonPayloadForTool(baseArgs, programObject);
 }

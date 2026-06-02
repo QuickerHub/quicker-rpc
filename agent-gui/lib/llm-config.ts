@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import {
   getLlmProviderMeta,
+  LLM_PROVIDER_LIST,
   parseLlmProviderId,
   type LlmProviderId,
 } from "@/lib/llm-providers";
@@ -11,6 +12,8 @@ export type LlmProviderEntry = {
   apiKey?: string;
   baseURL?: string;
   model?: string;
+  /** When true, omit from model selector (API keys still work if configured). */
+  hidden?: boolean;
 };
 
 export type LlmConfigFile = {
@@ -50,7 +53,10 @@ function normalizeEntry(raw: unknown): LlmProviderEntry | undefined {
   if (typeof data.model === "string" && data.model.trim()) {
     entry.model = data.model.trim();
   }
-  if (!entry.apiKey && !entry.baseURL && !entry.model) return undefined;
+  if (data.hidden === true) entry.hidden = true;
+  if (!entry.apiKey && !entry.baseURL && !entry.model && !entry.hidden) {
+    return undefined;
+  }
   return entry;
 }
 
@@ -62,7 +68,6 @@ function normalizeConfig(raw: unknown): LlmConfigFile {
     for (const id of [
       "zen",
       "nvidia",
-      "nvidia-minimax",
       "deepseek",
       "chatanywhere",
       "ai98pro",
@@ -105,23 +110,11 @@ export function saveLlmConfig(data: LlmConfigFile): void {
   cache = data;
 }
 
-/** Merged entry; nvidia-minimax inherits apiKey/baseURL from nvidia when omitted. */
 export function resolveLlmConfigProvider(
   providerId: LlmProviderId,
 ): ResolvedLlmProviderEntry | undefined {
-  const config = loadLlmConfig();
-  const entry = config.providers?.[providerId];
-  if (providerId !== "nvidia-minimax") {
-    return entry ? { ...entry, source: "config" } : undefined;
-  }
-  const parent = config.providers?.nvidia;
-  const merged: LlmProviderEntry = {
-    apiKey: entry?.apiKey ?? parent?.apiKey,
-    baseURL: entry?.baseURL ?? parent?.baseURL,
-    model: entry?.model,
-  };
-  if (!merged.apiKey && !merged.baseURL && !merged.model) return undefined;
-  return { ...merged, source: "config" };
+  const entry = loadLlmConfig().providers?.[providerId];
+  return entry ? { ...entry, source: "config" } : undefined;
 }
 
 export function getLlmConfigDefaultProvider(): LlmProviderId | undefined {
@@ -132,17 +125,49 @@ export function patchLlmConfigProviderApiKey(
   providerId: LlmProviderId,
   apiKey: string | undefined,
 ): void {
+  patchLlmConfigProvider(providerId, { apiKey: apiKey ?? null });
+}
+
+export type LlmProviderPatch = {
+  apiKey?: string | null;
+  baseURL?: string | null;
+  model?: string | null;
+};
+
+export function patchLlmConfigProvider(
+  providerId: LlmProviderId,
+  patch: LlmProviderPatch,
+): void {
   const current = loadLlmConfig();
   const providers = { ...current.providers };
   const prev = providers[providerId] ?? {};
-  if (apiKey?.trim()) {
-    providers[providerId] = { ...prev, apiKey: apiKey.trim() };
-  } else {
-    const next = { ...prev };
-    delete next.apiKey;
-    if (!next.baseURL && !next.model) delete providers[providerId];
-    else providers[providerId] = next;
+  const next: LlmProviderEntry = { ...prev };
+  const meta = getLlmProviderMeta(providerId);
+
+  if (patch.apiKey !== undefined) {
+    const trimmed = patch.apiKey?.trim() ?? "";
+    if (trimmed) next.apiKey = trimmed;
+    else delete next.apiKey;
   }
+
+  if (patch.baseURL !== undefined) {
+    const trimmed = patch.baseURL?.trim() ?? "";
+    if (trimmed && trimmed !== meta.defaultBaseURL) next.baseURL = trimmed;
+    else delete next.baseURL;
+  }
+
+  if (patch.model !== undefined) {
+    const trimmed = patch.model?.trim() ?? "";
+    if (trimmed && trimmed !== meta.defaultModel) next.model = trimmed;
+    else delete next.model;
+  }
+
+  if (!next.apiKey && !next.baseURL && !next.model && !next.hidden) {
+    delete providers[providerId];
+  } else {
+    providers[providerId] = next;
+  }
+
   saveLlmConfig({ ...current, providers });
 }
 
@@ -150,4 +175,25 @@ export function getLlmConfigModel(providerId: LlmProviderId): string | undefined
   const entry = resolveLlmConfigProvider(providerId);
   if (entry?.model) return entry.model;
   return getLlmProviderMeta(providerId).defaultModel;
+}
+
+export function isLlmProviderHidden(providerId: LlmProviderId): boolean {
+  return loadLlmConfig().providers?.[providerId]?.hidden === true;
+}
+
+/** First visible provider id that passes `predicate`, else undefined. */
+export function findVisibleLlmProvider(
+  predicate: (id: LlmProviderId) => boolean,
+): LlmProviderId | undefined {
+  for (const meta of LLM_PROVIDER_LIST) {
+    if (isLlmProviderHidden(meta.id)) continue;
+    if (predicate(meta.id)) return meta.id;
+  }
+  return undefined;
+}
+
+export function resolveVisibleDefaultProvider(): LlmProviderId {
+  const fromConfig = getLlmConfigDefaultProvider();
+  if (fromConfig && !isLlmProviderHidden(fromConfig)) return fromConfig;
+  return findVisibleLlmProvider(() => true) ?? "deepseek";
 }

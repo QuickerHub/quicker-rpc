@@ -25,8 +25,6 @@ const EXACT_CONTEXT_TOKENS: Readonly<Record<string, number>> = {
   "deepseek-v4": 128_000,
 
   // NVIDIA integrate / Zhipu
-  "minimaxai/minimax-m2.7": 128_000,
-  "minimax-m2.7": 128_000,
   "z-ai/glm-5.1": 128_000,
   "z-ai/glm-5": 128_000,
   "glm-5.1": 128_000,
@@ -41,7 +39,7 @@ const EXACT_CONTEXT_TOKENS: Readonly<Record<string, number>> = {
   "meta/llama-3.1-8b-instruct": 128_000,
 
   // ChatAnywhere / OpenAI
-  "gpt-5.5": 128_000,
+  "gpt-5.5": 272_000,
   "gpt-5.1": 128_000,
   "gpt-5": 128_000,
   "gpt-4.1": 128_000,
@@ -55,10 +53,10 @@ const PATTERN_CONTEXT_TOKENS: ReadonlyArray<{ pattern: RegExp; tokens: number }>
   { pattern: /deepseek.*flash/i, tokens: 128_000 },
   { pattern: /deepseek/i, tokens: 128_000 },
   { pattern: /glm-4\.6|glm4\.6/i, tokens: 200_000 },
-  { pattern: /minimax/i, tokens: 128_000 },
   { pattern: /glm-5|glm5/i, tokens: 128_000 },
   { pattern: /glm-4|glm4/i, tokens: 128_000 },
   { pattern: /llama-3\.1|llama3\.1/i, tokens: 128_000 },
+  { pattern: /gpt-5\.5|gpt5\.5/i, tokens: 272_000 },
   { pattern: /gpt-5|gpt5/i, tokens: 128_000 },
   { pattern: /gpt-4|gpt4/i, tokens: 128_000 },
 ];

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "defaultProvider": "nvidia",
+  "defaultProvider": "deepseek",
   "providers": {
     "zen": {
       "apiKey": "",
@@ -10,10 +10,8 @@
     "nvidia": {
       "apiKey": "nvapi-...",
       "baseURL": "https://integrate.api.nvidia.com/v1",
-      "model": "z-ai/glm-5.1"
-    },
-    "nvidia-minimax": {
-      "model": "minimaxai/minimax-m2.7"
+      "model": "z-ai/glm-5.1",
+      "hidden": true
     },
     "deepseek": {
       "apiKey": "sk-...",

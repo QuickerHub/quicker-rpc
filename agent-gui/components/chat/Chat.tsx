@@ -29,19 +29,16 @@ import {
   loadSidebarCollapsed,
 } from "@/lib/sidebar-prefs";
 import {
-  addThread,
   getActiveThread,
-  saveChatStore,
   updateThreadMessages,
 } from "@/lib/chat-store";
 import { AppSettingsMenu, type PingState } from "@/components/chat/AppSettingsMenu";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
-import { SidebarToggle } from "@/components/chat/SidebarToggle";
+import { ChatTitlebar } from "@/components/chat/ChatTitlebar";
 import { DocsViewerPanel, DocsViewerTabs } from "@/components/chat/DocsViewerTabs";
 import { DocsViewerProvider, useDocsViewer } from "@/lib/docs-viewer";
 import { useChatStore } from "@/lib/use-chat-store";
 import { ContextUsage } from "./ContextUsage";
-import { AGENT_LIST_PROMPT } from "@/lib/agent-prompts";
 import {
   ComposerMarkupField,
   type ComposerMarkupFieldHandle,
@@ -58,6 +55,7 @@ import type { LlmProviderId } from "@/lib/llm-providers";
 import { loadStoredLlmProvider, storeLlmProvider } from "@/lib/llm-prefs";
 import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent-activity";
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
+import { useUserMessageStickyMarkers } from "@/lib/use-user-message-sticky";
 
 const PING_FETCH_MS = 15_000;
 
@@ -78,10 +76,27 @@ function formatPingError(data: unknown, fallback: string): string {
   return fallback;
 }
 
+function formatChatError(error: Error): string {
+  const message = error.message?.trim();
+  if (message) {
+    try {
+      const parsed = JSON.parse(message) as { error?: unknown };
+      if (typeof parsed.error === "string" && parsed.error.trim()) {
+        return parsed.error.trim();
+      }
+    } catch {
+      /* plain text from /api/chat */
+    }
+    return message;
+  }
+  return "对话请求失败（无详细错误信息）。可打开开发者工具 Network 查看 /api/chat 响应。";
+}
+
 type ChatPanelProps = {
   threadId: string;
   initialMessages: AgentUIMessage[];
   workingDirectory: string;
+  visible?: boolean;
   onPersist: (threadId: string, messages: AgentUIMessage[]) => void;
 };
 
@@ -89,12 +104,13 @@ function ChatPanel({
   threadId,
   initialMessages,
   workingDirectory,
+  visible = true,
   onPersist,
 }: ChatPanelProps) {
   const [draftMessage, setDraftMessage] = useState("");
   const [ping, setPing] = useState<PingState>({ status: "loading" });
   const [enabledTools, setEnabledTools] = useState(defaultEnabledToolIds);
-  const [llmProvider, setLlmProvider] = useState<LlmProviderId>("nvidia");
+  const [llmProvider, setLlmProvider] = useState<LlmProviderId>("deepseek");
   const [connectTick, setConnectTick] = useState(0);
 
   useEffect(() => {
@@ -120,20 +136,29 @@ function ChatPanel({
   const persistRef = useRef(onPersist);
   persistRef.current = onPersist;
 
+  const enabledToolsRef = useRef(enabledTools);
+  enabledToolsRef.current = enabledTools;
+  const llmProviderRef = useRef(llmProvider);
+  llmProviderRef.current = llmProvider;
+  const workingDirectoryRef = useRef(workingDirectory);
+  workingDirectoryRef.current = workingDirectory;
+
+  // useChat only recreates Chat when `id` changes; body must stay stable and
+  // read latest composer settings via refs on each request.
   const chatTransport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        body: {
-          enabledTools,
-          llmProvider,
-          workingDirectory: workingDirectory.trim() || undefined,
-        },
+        body: () => ({
+          enabledTools: enabledToolsRef.current,
+          llmProvider: llmProviderRef.current,
+          workingDirectory: workingDirectoryRef.current.trim() || undefined,
+        }),
       }),
-    [enabledTools, llmProvider, workingDirectory],
+    [],
   );
 
-  const { messages, sendMessage, status, error, stop, addToolApprovalResponse } =
+  const { messages, sendMessage, status, error, stop, clearError, addToolApprovalResponse } =
     useChat<AgentUIMessage>({
       id: threadId,
       messages: initialMessages,
@@ -215,6 +240,17 @@ function ChatPanel({
     void refreshPing();
   }, [refreshPing]);
 
+  // start.mjs may still be launching qkrpc serve when the page first loads
+  const pingBootRetriesRef = useRef(0);
+  useEffect(() => {
+    if (ping.status !== "error") return;
+    if (pingBootRetriesRef.current >= 2) return;
+    const delayMs = pingBootRetriesRef.current === 0 ? 2_000 : 5_000;
+    pingBootRetriesRef.current += 1;
+    const timer = window.setTimeout(() => void refreshPing(), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [ping.status, refreshPing]);
+
   const busy = status === "submitted" || status === "streaming";
 
   useEffect(() => {
@@ -232,13 +268,7 @@ function ChatPanel({
     return () => cancelAnimationFrame(frame);
   }, [messages, error, status, busy]);
 
-  const sendStarter = useCallback(
-    (text: string) => {
-      if (busy) return;
-      sendMessage({ text });
-    },
-    [busy, sendMessage],
-  );
+  useUserMessageStickyMarkers(messagesRef, visible, messages);
 
   const insertDraftActionTag = useCallback((action: PinnedAction) => {
     composerRef.current?.insertActionTag(action);
@@ -296,11 +326,15 @@ function ChatPanel({
   const showDocView = activeTabId != null;
 
   return (
-    <div className={`app-main${isEmptyThread ? " app-main--empty" : ""}${showDocView ? " app-main--doc-view" : ""}`}>
+    <div
+      className={`app-main${isEmptyThread ? " app-main--empty" : ""}${showDocView ? " app-main--doc-view" : ""}${visible ? "" : " app-main--hidden"}`}
+      aria-hidden={visible ? undefined : true}
+    >
       <DocsViewerTabs />
       {showDocView ? (
         <DocsViewerPanel />
       ) : (
+      <div className="messages-view">
       <main
         ref={messagesRef}
         className={`messages${agentActivity ? " messages--agent-busy" : ""}`}
@@ -343,10 +377,21 @@ function ChatPanel({
           </article>
         )}
         {error && (
-          <div className="error-banner">{error.message}</div>
+          <div className="error-banner" role="alert">
+            <span>{formatChatError(error)}</span>
+            <button
+              type="button"
+              className="error-banner-dismiss"
+              onClick={() => clearError()}
+              aria-label="关闭错误提示"
+            >
+              ×
+            </button>
+          </div>
         )}
         <div ref={messagesEndRef} className="messages-anchor" aria-hidden />
       </main>
+      </div>
       )}
 
       {pendingApprovalCount > 0 && (
@@ -382,12 +427,11 @@ function ChatPanel({
                   disabled={busy}
                 />
                 <ActionTagSelector
-                  qkrpcOk={qkrpcOk}
+                  ping={ping}
                   refreshKey={connectTick}
                   tagCount={draftTagCount}
                   embeddedTagIds={draftTagIds}
                   onSelect={insertDraftActionTag}
-                  onAgentList={() => sendStarter(AGENT_LIST_PROMPT)}
                   disabled={busy}
                 />
                 <ToolSelector
@@ -406,11 +450,15 @@ function ChatPanel({
                 <span className="composer-hint">Shift+Enter 换行</span>
               </div>
               <div className="composer-toolbar-actions">
-                <ContextUsage
-                  messages={messages}
-                  busy={busy}
-                  providerId={llmProvider}
-                />
+                {!isEmptyThread && (
+                  <ContextUsage
+                    messages={messages}
+                    busy={busy}
+                    providerId={llmProvider}
+                    workingDirectory={workingDirectory}
+                    enabledTools={enabledTools}
+                  />
+                )}
                 {busy ? (
                   <button
                     type="button"
@@ -485,12 +533,6 @@ export function Chat() {
     });
   }, []);
 
-  const handleNewThread = useCallback(() => {
-    const next = addThread(store);
-    saveChatStore(next);
-    updateStore(next);
-  }, [store, updateStore]);
-
   const persistMessages = useCallback(
     (threadId: string, messages: AgentUIMessage[]) => {
       if (!store) return;
@@ -507,24 +549,12 @@ export function Chat() {
       className={`app-shell${sidebarCollapsed ? " app-shell--sidebar-collapsed" : ""}`}
       suppressHydrationWarning
     >
-      <header className="app-titlebar">
-        <SidebarToggle
-          sidebarOpen={!sidebarCollapsed}
-          onClick={toggleSidebar}
-          className="shell-sidebar-toggle"
-        />
-        {activeThread.messages.length > 0 && (
-          <button
-            type="button"
-            className="titlebar-new-btn"
-            onClick={handleNewThread}
-            aria-label="新建对话"
-            title="新建对话"
-          >
-            New
-          </button>
-        )}
-      </header>
+      <ChatTitlebar
+        store={store}
+        sidebarOpen={!sidebarCollapsed}
+        onToggleSidebar={toggleSidebar}
+        onChange={updateStore}
+      />
       <div className="app-body">
         <ChatSidebar
           store={store}
@@ -533,13 +563,18 @@ export function Chat() {
           collapsed={sidebarCollapsed}
         />
         <DocsViewerProvider>
-          <ChatPanel
-            key={activeThread.id}
-            threadId={activeThread.id}
-            initialMessages={activeThread.messages}
-            workingDirectory={workingDirectory}
-            onPersist={persistMessages}
-          />
+          <div className="app-main-stack">
+            {store.threads.map((thread) => (
+              <ChatPanel
+                key={thread.id}
+                threadId={thread.id}
+                initialMessages={thread.messages}
+                workingDirectory={workingDirectory}
+                visible={thread.id === activeThread.id}
+                onPersist={persistMessages}
+              />
+            ))}
+          </div>
         </DocsViewerProvider>
       </div>
     </div>

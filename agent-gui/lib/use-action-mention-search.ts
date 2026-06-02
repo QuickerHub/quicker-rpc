@@ -17,10 +17,7 @@ function cacheKey(query: string): string {
   return query.trim();
 }
 
-export function useActionMentionSearch(
-  qkrpcOk: boolean,
-  query: string | null,
-): MentionSearchView {
+export function useActionMentionSearch(query: string | null): MentionSearchView {
   const [view, setView] = useState<MentionSearchView>({
     items: [],
     isRefreshing: false,
@@ -32,11 +29,6 @@ export function useActionMentionSearch(
   const reload = useCallback(
     async (activeQuery: string) => {
       activeQueryRef.current = activeQuery;
-
-      if (!qkrpcOk) {
-        setView({ items: [], isRefreshing: false, error: "未连接 Quicker" });
-        return;
-      }
 
       const key = cacheKey(activeQuery);
       if (!mentionCache.has(key)) {
@@ -116,7 +108,7 @@ export function useActionMentionSearch(
         }));
       }
     },
-    [qkrpcOk],
+    [],
   );
 
   useEffect(() => {
