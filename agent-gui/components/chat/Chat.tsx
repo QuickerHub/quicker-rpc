@@ -3,6 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import {
   DefaultChatTransport,
+  getToolOrDynamicToolName,
   isToolOrDynamicToolUIPart,
   lastAssistantMessageIsCompleteWithApprovalResponses,
 } from "ai";
@@ -22,6 +23,7 @@ import {
 import type { AgentUIMessage } from "@/lib/chat-types";
 import {
   defaultEnabledToolIds,
+  getToolMeta,
   loadStoredEnabledTools,
 } from "@/lib/tool-registry";
 import {
@@ -82,6 +84,119 @@ function formatChatError(error: Error): string {
     return message;
   }
   return "对话请求失败（无详细错误信息）。可打开开发者工具 Network 查看 /api/chat 响应。";
+}
+
+type PendingToolApproval = {
+  id: string;
+  toolName: string;
+  label: string;
+  input: unknown;
+  destructive: boolean;
+};
+
+function summarizeApprovalTarget(toolName: string, input: unknown): string {
+  if (typeof input !== "object" || input === null) return "即将执行此操作";
+
+  const o = input as Record<string, unknown>;
+  if (typeof o.id === "string") {
+    if (toolName === "qkrpc_action_delete") return `动作 ${o.id}`;
+    if (toolName === "qkrpc_subprogram_delete") return `子程序 ${o.id}`;
+    return o.id;
+  }
+  if (typeof o.title === "string") return o.title;
+  if (typeof o.query === "string") return o.query;
+  return "即将执行此操作";
+}
+
+function collectPendingApprovals(
+  messages: AgentUIMessage[],
+): PendingToolApproval[] {
+  const pending: PendingToolApproval[] = [];
+
+  for (const message of messages) {
+    if (message.role !== "assistant") continue;
+    for (const part of message.parts) {
+      if (
+        !isToolOrDynamicToolUIPart(part)
+        || part.state !== "approval-requested"
+        || !("approval" in part)
+        || !part.approval?.id
+      ) {
+        continue;
+      }
+
+      const toolName = getToolOrDynamicToolName(part);
+      const meta = getToolMeta(toolName);
+      pending.push({
+        id: part.approval.id,
+        toolName,
+        label: meta?.label ?? toolName.replace(/^qkrpc_/, "").replace(/_/g, " "),
+        input: "input" in part ? part.input : undefined,
+        destructive: meta?.group === "destructive",
+      });
+    }
+  }
+
+  return pending;
+}
+
+function ApprovalDock({
+  approvals,
+  disabled,
+  onApproveAll,
+  onDenyAll,
+}: {
+  approvals: PendingToolApproval[];
+  disabled: boolean;
+  onApproveAll: () => void;
+  onDenyAll: () => void;
+}) {
+  const destructive = approvals.some((approval) => approval.destructive);
+  const labels = [...new Set(approvals.map((approval) => approval.label))];
+  const title =
+    labels.length === 1
+      ? `${labels[0]} ${approvals.length} 个待确认`
+      : `${approvals.length} 个操作待确认`;
+  const targets = approvals
+    .slice(0, 3)
+    .map((approval) => summarizeApprovalTarget(approval.toolName, approval.input));
+  const targetText =
+    targets.length === 0
+      ? "请确认是否继续。"
+      : `${targets.join("、")}${approvals.length > targets.length ? ` 等 ${approvals.length} 项` : ""}`;
+
+  return (
+    <div
+      className={`approval-hint${destructive ? " approval-hint--destructive" : ""}`}
+      role="group"
+      aria-label={title}
+    >
+      <div className="approval-hint-main">
+        <div className="approval-hint-title">
+          {destructive ? "危险操作" : "需要确认"}：{title}
+        </div>
+        <div className="approval-hint-summary">{targetText}</div>
+      </div>
+      <div className="approval-hint-actions">
+        <button
+          type="button"
+          className={`approval-hint-btn approval-hint-btn--approve${destructive ? " approval-hint-btn--danger" : ""}`}
+          disabled={disabled}
+          onClick={onApproveAll}
+        >
+          {approvals.length > 1 ? "全部确认" : destructive ? "确认删除" : "确认执行"}
+        </button>
+        <button
+          type="button"
+          className="approval-hint-btn approval-hint-btn--deny"
+          disabled={disabled}
+          onClick={onDenyAll}
+        >
+          全部取消
+        </button>
+      </div>
+    </div>
+  );
 }
 
 type ChatPanelProps = {
@@ -199,21 +314,11 @@ function ChatPanel({
     onTitle: onAutoTitle,
   });
 
-  const pendingApprovalCount = useMemo(() => {
-    let n = 0;
-    for (const message of messages) {
-      if (message.role !== "assistant") continue;
-      for (const part of message.parts) {
-        if (
-          isToolOrDynamicToolUIPart(part)
-          && part.state === "approval-requested"
-        ) {
-          n += 1;
-        }
-      }
-    }
-    return n;
-  }, [messages]);
+  const pendingApprovals = useMemo(
+    () => collectPendingApprovals(messages),
+    [messages],
+  );
+  const pendingApprovalCount = pendingApprovals.length;
 
   const busy = status === "submitted" || status === "streaming";
   const { queueLength, enqueueOrSend, clearQueue } = useComposerMessageQueue(
@@ -303,6 +408,19 @@ function ChatPanel({
       enqueueOrSend(text);
     },
     [composerLocked, enqueueOrSend],
+  );
+
+  const respondToAllPendingApprovals = useCallback(
+    (approved: boolean) => {
+      for (const approval of pendingApprovals) {
+        addToolApprovalResponse({
+          id: approval.id,
+          approved,
+          reason: approved ? "用户点击批量确认" : "用户批量取消",
+        });
+      }
+    },
+    [addToolApprovalResponse, pendingApprovals],
   );
 
   const qkrpcLoading = ping.status === "loading";
@@ -404,10 +522,13 @@ function ChatPanel({
       </div>
       )}
 
-      {pendingApprovalCount > 0 && (
-        <div className="approval-hint" role="status">
-          {pendingApprovalCount} 个操作待确认 — 在上方工具卡片点击「确认执行」或「取消」
-        </div>
+      {pendingApprovals.length > 0 && (
+        <ApprovalDock
+          approvals={pendingApprovals}
+          disabled={busy}
+          onApproveAll={() => respondToAllPendingApprovals(true)}
+          onDenyAll={() => respondToAllPendingApprovals(false)}
+        />
       )}
 
       <footer className="composer">

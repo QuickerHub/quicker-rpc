@@ -3473,17 +3473,105 @@ textarea {
   opacity: 0.9;
 }
 
-/* Pending tool approval banner above composer */
+/* Pending tool approval popup above composer */
 .approval-hint {
   flex-shrink: 0;
-  margin: 0 1rem 0.35rem;
-  padding: 0.45rem 0.65rem;
-  font-size: 0.75rem;
-  color: var(--warn, #cca700);
-  background: var(--status-ok-bg, rgba(255, 255, 255, 0.06));
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 1.25rem -0.15rem;
+  padding: 0.65rem 0.75rem;
+  color: var(--text);
+  background: color-mix(in srgb, var(--panel) 92%, var(--warn, #cca700) 8%);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  text-align: center;
+  border-radius: 10px;
+  box-shadow: 0 10px 26px color-mix(in srgb, #000 22%, transparent);
+}
+
+.approval-hint--destructive {
+  border-color: var(--status-err-border, rgba(244, 135, 113, 0.35));
+  background: color-mix(in srgb, var(--panel) 88%, var(--err) 12%);
+}
+
+.approval-hint-main {
+  min-width: 0;
+}
+
+.approval-hint-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.approval-hint-summary {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.approval-hint-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.approval-hint-btn {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.approval-hint-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.approval-hint-btn--approve {
+  border-color: transparent;
+  background: var(--composer-send-bg);
+  color: var(--composer-send-fg);
+}
+
+.approval-hint-btn--approve:hover:not(:disabled) {
+  background: var(--composer-send-bg-hover);
+}
+
+.approval-hint-btn--danger {
+  background: var(--err);
+  color: #fff;
+}
+
+.approval-hint-btn--danger:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.approval-hint-btn--deny:hover:not(:disabled) {
+  background: var(--hover-overlay-strong);
+}
+
+@media (max-width: 640px) {
+  .approval-hint {
+    align-items: stretch;
+    flex-direction: column;
+    margin-inline: 0.75rem;
+  }
+
+  .approval-hint-actions {
+    justify-content: flex-end;
+  }
 }
 
 .action-patch-followup {
