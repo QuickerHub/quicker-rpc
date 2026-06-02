@@ -23,9 +23,13 @@ if (checkBundled) {
 const required = [
   { rel: "app/server.js", minBytes: 100 },
   { rel: "app/.next/BUILD_ID", minBytes: 1 },
+  { rel: "app/llm-config.json", minBytes: 10 },
   { rel: "node/node.exe", minBytes: 40 * 1024 * 1024 },
   { rel: "qkrpc/qkrpc.exe", minBytes: 100 * 1024 },
 ];
+
+const bundledKeyEnv = process.env.BUNDLED_LLM_AI98PRO_API_KEY?.trim()
+  || process.env.LLM_AI98PRO_API_KEY?.trim();
 
 function countFiles(dir) {
   let n = 0;
@@ -71,6 +75,15 @@ function verifyRoot({ label, dir }) {
     throw new Error(
       `${label}: qkrpc/ has only ${qkrpcFiles} files (expected full publish/cli layout)`,
     );
+  }
+
+  if (bundledKeyEnv) {
+    const secretsPath = join(dir, "app", "llm-bundled-secrets.json");
+    if (!existsSync(secretsPath)) {
+      throw new Error(
+        `${label}: BUNDLED_LLM_* env set but missing app/llm-bundled-secrets.json`,
+      );
+    }
   }
 
   console.log(

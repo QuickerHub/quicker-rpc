@@ -40,7 +40,7 @@ export const LLM_PROVIDER_LIST: readonly LlmProviderMeta[] = [
     defaultBaseURL: "https://api.deepseek.com/v1",
     defaultModel: "deepseek-v4-flash",
     clientName: "deepseek-official",
-    description: "DeepSeek 官方 API（api.deepseek.com）",
+    description: "DeepSeek 官方 API（需自备 Key）",
   },
   {
     id: "chatanywhere",
@@ -52,11 +52,11 @@ export const LLM_PROVIDER_LIST: readonly LlmProviderMeta[] = [
   },
   {
     id: "ai98pro",
-    label: "AI98Pro",
+    label: "GPT-5.5",
     defaultBaseURL: "https://ai98pro.xyz/v1",
     defaultModel: "gpt-5.5",
     clientName: "ai98pro",
-    description: "OpenAI 兼容网关（ai98pro.xyz）",
+    description: "默认对话模型",
   },
 ] as const;
 

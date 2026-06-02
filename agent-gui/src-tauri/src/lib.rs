@@ -8,7 +8,9 @@ use std::time::{Duration, Instant};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Manager, RunEvent, TitleBarStyle, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+};
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -140,6 +142,33 @@ fn spawn_node_server(app_dir: &Path, node_exe: &Path, host: &str, port: u16) -> 
     cmd.spawn().map_err(|e| format!("spawn node server: {e}"))
 }
 
+/// Extends web content into the title bar: frameless on Windows/Linux, overlay on macOS.
+fn apply_titlebar_chrome(builder: WebviewWindowBuilder<'_, tauri::Wry, AppHandle>) -> WebviewWindowBuilder<'_, tauri::Wry, AppHandle> {
+    #[cfg(target_os = "macos")]
+    {
+        builder
+            .decorations(true)
+            .title_bar_style(TitleBarStyle::Overlay)
+            .hidden_title(true)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder.decorations(false).shadow(true)
+    }
+}
+
+fn apply_titlebar_chrome_existing(window: &WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = window.set_decorations(true);
+        let _ = window.set_title_bar_style(TitleBarStyle::Overlay);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = window.set_decorations(false);
+    }
+}
+
 fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<String, String> {
     let host = "127.0.0.1";
     let resource = resource_root(app)?;
@@ -191,6 +220,7 @@ pub fn run() {
             {
                 // `tauri dev` uses devUrl + start.mjs from beforeDevCommand.
                 if let Some(win) = app.get_webview_window("main") {
+                    apply_titlebar_chrome_existing(&win);
                     let _ = win.show();
                 }
                 return Ok(());
@@ -205,12 +235,14 @@ pub fn run() {
                 let _ = placeholder.close();
             }
 
-            WebviewWindowBuilder::new(&handle, "agent", WebviewUrl::External(external))
-                .title("QuickerAgent")
-                .inner_size(1280.0, 800.0)
-                .resizable(true)
-                .visible(true)
-                .build()?;
+            apply_titlebar_chrome(
+                WebviewWindowBuilder::new(&handle, "agent", WebviewUrl::External(external))
+                    .title("QuickerAgent")
+                    .inner_size(1280.0, 800.0)
+                    .resizable(true)
+                    .visible(true),
+            )
+            .build()?;
             Ok(())
         })
         .build(tauri::generate_context!())

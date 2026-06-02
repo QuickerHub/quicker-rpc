@@ -1,12 +1,12 @@
 import {
   getLlmProviderMeta,
-  LLM_PROVIDER_LIST,
   parseLlmProviderId,
   type LlmProviderId,
 } from "@/lib/llm-providers";
 import { resolveModelContextLimit } from "@/lib/llm-context-limits";
 import { getLocalDirectApiKey } from "@/lib/llm-local-secrets";
 import { isLlmProviderHidden } from "@/lib/llm-config";
+import { USER_MODEL_SELECTOR_IDS, isUserModelSelectorProvider } from "@/lib/llm-user-providers";
 import {
   getChatModelId,
   getLlmProviderId,
@@ -38,24 +38,30 @@ function contextLimitForModel(modelId: string, providerId: LlmProviderId) {
 
 export async function GET() {
   const defaultProvider = getLlmProviderId();
-  const providers = LLM_PROVIDER_LIST.filter(
-    (meta) => !isLlmProviderHidden(meta.id),
-  ).map((meta) => {
-    const modelId = envModelForProvider(meta.id);
+  const providers = USER_MODEL_SELECTOR_IDS.filter(
+    (id) => !isLlmProviderHidden(id),
+  ).map((id) => {
+    const meta = getLlmProviderMeta(id);
+    const modelId = envModelForProvider(id);
     return {
       id: meta.id,
       label: meta.label,
       description: meta.description,
       modelId,
-      configured: isLlmProviderConfigured(meta.id),
-      ...contextLimitForModel(modelId, meta.id),
+      configured: isLlmProviderConfigured(id),
+      ...contextLimitForModel(modelId, id),
     };
   });
 
   let activeProvider = defaultProvider;
   try {
     const resolved = resolveLlmConfig().providerId;
-    if (!isLlmProviderHidden(resolved)) activeProvider = resolved;
+    if (
+      isUserModelSelectorProvider(resolved)
+      && !isLlmProviderHidden(resolved)
+    ) {
+      activeProvider = resolved;
+    }
   } catch {
     const firstConfigured = providers.find((p) => p.configured);
     if (firstConfigured) {
@@ -63,8 +69,12 @@ export async function GET() {
     }
   }
 
+  const visibleDefault = providers.some((p) => p.id === defaultProvider)
+    ? defaultProvider
+    : (providers[0]?.id ?? "ai98pro");
+
   return Response.json({
-    defaultProvider,
+    defaultProvider: visibleDefault,
     activeProvider,
     providers,
     directOverride: Boolean(
@@ -76,18 +86,18 @@ export async function GET() {
 export async function POST(req: Request) {
   const body = (await req.json()) as { provider?: string };
   const providerId = parseLlmProviderId(body.provider);
-  if (!providerId) {
+  if (!providerId || !isUserModelSelectorProvider(providerId)) {
     return Response.json({ error: "Invalid provider" }, { status: 400 });
   }
   if (isLlmProviderHidden(providerId)) {
     return Response.json(
-      { error: `Provider "${providerId}" is hidden in llm-config.json` },
+      { error: `Provider "${providerId}" is not available` },
       { status: 400 },
     );
   }
   if (!isLlmProviderConfigured(providerId)) {
     return Response.json(
-      { error: `Provider "${providerId}" is not configured on the server` },
+      { error: `Provider "${providerId}" is not configured` },
       { status: 400 },
     );
   }

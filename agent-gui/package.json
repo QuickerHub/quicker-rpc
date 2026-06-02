@@ -24,6 +24,7 @@
     "@ai-sdk/openai-compatible": "^2.0.48",
     "@ai-sdk/react": "^3.0.195",
     "@bufbuild/protobuf": "^2.2.3",
+    "@tauri-apps/api": "^2.11.0",
     "ai": "^6.0.193",
     "next": "^15.3.0",
     "react": "^19.0.0",
@@ -38,9 +39,9 @@
     ]
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.2.0",
     "@bufbuild/buf": "^1.47.2",
     "@bufbuild/protoc-gen-es": "^2.2.3",
+    "@tauri-apps/cli": "^2.2.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

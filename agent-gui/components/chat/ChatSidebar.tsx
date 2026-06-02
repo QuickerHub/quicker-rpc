@@ -6,9 +6,9 @@ import {
   addThread,
   deleteThread,
   getActiveThread,
+  openThread,
   renameThread,
   saveChatStore,
-  selectThread,
   setWorkingDirectory,
   sortThreads,
 } from "@/lib/chat-store";
@@ -169,7 +169,7 @@ export function ChatSidebar({
                   <button
                     type="button"
                     className={`ws-item${selected ? " ws-item--active" : ""}`}
-                    onClick={() => commit(selectThread(store, thread.id))}
+                    onClick={() => commit(openThread(store, thread.id))}
                     disabled={disabled}
                     aria-selected={selected}
                   >
@@ -186,15 +186,13 @@ export function ChatSidebar({
                     >
                       <IconPencil />
                     </RowAction>
-                    {store.threads.length > 1 && (
-                      <RowAction
-                        label="删除对话"
-                        onClick={() => handleDeleteThread(thread.id)}
-                        disabled={disabled}
-                      >
-                        <IconTrash />
-                      </RowAction>
-                    )}
+                    <RowAction
+                      label="删除对话"
+                      onClick={() => handleDeleteThread(thread.id)}
+                      disabled={disabled}
+                    >
+                      <IconTrash />
+                    </RowAction>
                   </div>
                 </li>
               );

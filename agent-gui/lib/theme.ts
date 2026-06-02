@@ -1,6 +1,12 @@
-export type ThemePreference = "system" | "light" | "dark";
+"use client";
 
-export const THEME_STORAGE_KEY = "agent-gui-theme";
+import {
+  THEME_STORAGE_KEY,
+  type ThemePreference,
+} from "@/lib/theme-constants";
+
+export type { ThemePreference } from "@/lib/theme-constants";
+export { THEME_STORAGE_KEY, THEME_INIT_SCRIPT } from "@/lib/theme-constants";
 
 export function getStoredTheme(): ThemePreference {
   if (typeof window === "undefined") return "system";
@@ -37,12 +43,7 @@ export function setStoredTheme(preference: ThemePreference): void {
     /* ignore */
   }
   applyTheme(preference);
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent("agent-gui-theme-change", { detail: preference }),
-    );
-  }
+  window.dispatchEvent(
+    new CustomEvent("agent-gui-theme-change", { detail: preference }),
+  );
 }
-
-/** Inline script for layout.tsx — prevents theme flash before hydration. */
-export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("${THEME_STORAGE_KEY}");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;}}catch(e){}})();`;

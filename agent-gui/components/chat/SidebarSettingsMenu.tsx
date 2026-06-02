@@ -4,18 +4,22 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { SettingsGearIcon } from "@/components/SettingsGearIcon";
 import {
-  LLM_PROVIDER_LIST,
+  getLlmProviderMeta,
   type LlmProviderId,
 } from "@/lib/llm-providers";
+import {
+  USER_PROVIDER_UI,
+  type UserSettingsField,
+} from "@/lib/llm-user-providers";
 
 export const LLM_KEYS_UPDATED_EVENT = "agent-gui:llm-keys-updated";
 
-type ProviderField = "baseURL" | "apiKey" | "model";
+type ProviderField = UserSettingsField;
 
 type ProviderKeyStatus = {
   configured: boolean;
   masked?: string;
-  source?: "local" | "config" | "env";
+  source?: "local" | "builtin" | "env";
 };
 
 type ProviderConfigStatus = {
@@ -24,45 +28,41 @@ type ProviderConfigStatus = {
   defaultBaseURL: string;
   defaultModel: string;
   apiKey: ProviderKeyStatus;
+  editableFields: readonly ProviderField[];
 };
 
 type LlmSettingsResponse = {
-  configPath: string;
+  storagePath: string;
   providers: Record<LlmProviderId, ProviderConfigStatus>;
 };
 
 type ProviderDraft = {
-  baseURL: string;
   apiKey: string;
-  model: string;
 };
 
-function emptyProviderDrafts(): Record<LlmProviderId, ProviderDraft> {
+function emptyProviderDrafts(): Partial<Record<LlmProviderId, ProviderDraft>> {
   return Object.fromEntries(
-    LLM_PROVIDER_LIST.map((p) => [p.id, { baseURL: "", apiKey: "", model: "" }]),
-  ) as Record<LlmProviderId, ProviderDraft>;
+    USER_PROVIDER_UI.map((spec) => [spec.id, { apiKey: "" }]),
+  ) as Partial<Record<LlmProviderId, ProviderDraft>>;
 }
 
 function draftsFromStatus(
-  providers: Record<LlmProviderId, ProviderConfigStatus>,
-): Record<LlmProviderId, ProviderDraft> {
+  providers: Partial<Record<LlmProviderId, ProviderConfigStatus>>,
+): Partial<Record<LlmProviderId, ProviderDraft>> {
   return Object.fromEntries(
-    LLM_PROVIDER_LIST.map((p) => [
-      p.id,
-      {
-        baseURL: providers[p.id]?.baseURL ?? "",
-        apiKey: "",
-        model: providers[p.id]?.model ?? "",
-      },
+    USER_PROVIDER_UI.map((spec) => [
+      spec.id,
+      { apiKey: "" },
     ]),
-  ) as Record<LlmProviderId, ProviderDraft>;
+  ) as Partial<Record<LlmProviderId, ProviderDraft>>;
 }
 
 function apiKeyStatusLabel(status: ProviderKeyStatus | undefined): string {
   if (!status?.configured) return "未配置";
   if (status.source === "local") return `已保存 ${status.masked ?? ""}`.trim();
-  if (status.source === "config") return status.masked ?? "已配置";
-  return "使用 .env.local";
+  if (status.source === "builtin") return "已就绪";
+  if (status.source === "env") return "使用环境变量";
+  return "已配置";
 }
 
 type SidebarSettingsMenuProps = {
@@ -147,9 +147,7 @@ export function SidebarSettingsMenu({ disabled = false }: SidebarSettingsMenuPro
 
     for (const [id, fields] of touched) {
       const entry: Partial<Record<ProviderField, string>> = {};
-      if (fields.has("baseURL")) entry.baseURL = draft[id].baseURL;
-      if (fields.has("apiKey")) entry.apiKey = draft[id].apiKey;
-      if (fields.has("model")) entry.model = draft[id].model;
+      if (fields.has("apiKey")) entry.apiKey = draft[id]?.apiKey ?? "";
       providers[id] = entry;
     }
 
@@ -199,8 +197,8 @@ export function SidebarSettingsMenu({ disabled = false }: SidebarSettingsMenuPro
       >
         <div className="ws-settings-head">
           <div className="ws-settings-head-text">
-            <span className="ws-settings-title">LLM 配置</span>
-            <span className="ws-settings-hint">每组：Base URL · API Key · 模型名</span>
+            <span className="ws-settings-title">模型与 API Key</span>
+            <span className="ws-settings-hint">默认使用 GPT-5.5；可选填 DeepSeek 官方 Key</span>
           </div>
           <button
             type="button"
@@ -216,91 +214,60 @@ export function SidebarSettingsMenu({ disabled = false }: SidebarSettingsMenuPro
 
         {!loading && (
           <div className="ws-settings-fields">
-            {LLM_PROVIDER_LIST.map((provider) => {
-              const st = status?.providers[provider.id];
+            {USER_PROVIDER_UI.map((spec) => {
+              const meta = getLlmProviderMeta(spec.id);
+              const st = status?.providers[spec.id];
+              const editableApiKey = spec.settingsFields.includes("apiKey");
+
               return (
-                <section key={provider.id} className="ws-settings-group">
+                <section key={spec.id} className="ws-settings-group">
                   <div className="ws-settings-group-head">
                     <span className="ws-settings-group-title">
-                      {provider.label}
+                      {meta.label}
                     </span>
                     <span className="ws-settings-group-desc">
-                      {provider.description}
+                      {meta.description}
                     </span>
                   </div>
 
-                  <label className="ws-settings-field">
-                    <span className="ws-settings-field-label">Base URL</span>
-                    <input
-                      type="url"
-                      className="ws-settings-input"
-                      value={draft[provider.id].baseURL}
-                      placeholder={st?.defaultBaseURL ?? "https://…/v1"}
-                      autoComplete="off"
-                      disabled={disabled || saving}
-                      onChange={(e) => {
-                        markTouched(provider.id, "baseURL");
-                        setDraft((prev) => ({
-                          ...prev,
-                          [provider.id]: {
-                            ...prev[provider.id],
-                            baseURL: e.target.value,
-                          },
-                        }));
-                      }}
-                    />
-                  </label>
+                  <div className="ws-settings-readonly-row">
+                    <span className="ws-settings-field-label">Model</span>
+                    <span className="ws-settings-readonly-value">
+                      {st?.model ?? meta.defaultModel}
+                    </span>
+                  </div>
 
-                  <label className="ws-settings-field">
-                    <span className="ws-settings-field-label">API Key</span>
-                    <span className="ws-settings-field-status">
+                  <div className="ws-settings-readonly-row">
+                    <span className="ws-settings-field-label">状态</span>
+                    <span className="ws-settings-readonly-value">
                       {apiKeyStatusLabel(st?.apiKey)}
                     </span>
-                    <input
-                      type="password"
-                      className="ws-settings-input"
-                      value={draft[provider.id].apiKey}
-                      placeholder={
-                        st?.apiKey.configured && !draft[provider.id].apiKey
-                          ? st.apiKey.masked ?? "已配置"
-                          : "sk-…"
-                      }
-                      autoComplete="off"
-                      disabled={disabled || saving}
-                      onChange={(e) => {
-                        markTouched(provider.id, "apiKey");
-                        setDraft((prev) => ({
-                          ...prev,
-                          [provider.id]: {
-                            ...prev[provider.id],
-                            apiKey: e.target.value,
-                          },
-                        }));
-                      }}
-                    />
-                  </label>
+                  </div>
 
-                  <label className="ws-settings-field">
-                    <span className="ws-settings-field-label">Model</span>
-                    <input
-                      type="text"
-                      className="ws-settings-input"
-                      value={draft[provider.id].model}
-                      placeholder={st?.defaultModel ?? "model-id"}
-                      autoComplete="off"
-                      disabled={disabled || saving}
-                      onChange={(e) => {
-                        markTouched(provider.id, "model");
-                        setDraft((prev) => ({
-                          ...prev,
-                          [provider.id]: {
-                            ...prev[provider.id],
-                            model: e.target.value,
-                          },
-                        }));
-                      }}
-                    />
-                  </label>
+                  {editableApiKey && (
+                    <label className="ws-settings-field">
+                      <span className="ws-settings-field-label">API Key</span>
+                      <input
+                        type="password"
+                        className="ws-settings-input"
+                        value={draft[spec.id]?.apiKey ?? ""}
+                        placeholder={
+                          st?.apiKey.configured && !draft[spec.id]?.apiKey
+                            ? st.apiKey.masked ?? "已配置"
+                            : "sk-…"
+                        }
+                        autoComplete="off"
+                        disabled={disabled || saving}
+                        onChange={(e) => {
+                          markTouched(spec.id, "apiKey");
+                          setDraft((prev) => ({
+                            ...prev,
+                            [spec.id]: { apiKey: e.target.value },
+                          }));
+                        }}
+                      />
+                    </label>
+                  )}
                 </section>
               );
             })}
@@ -322,8 +289,8 @@ export function SidebarSettingsMenu({ disabled = false }: SidebarSettingsMenuPro
         </div>
 
         <p className="ws-settings-footnote">
-          写入 <code>llm-config.json</code>，保存后立即生效。API Key 留空并保存可清除；Base
-          URL / Model 留空则恢复默认值。
+          API Key 保存在本机应用数据目录，不会写入 llm-config.json。留空并保存可清除
+          DeepSeek Key。
         </p>
       </div>
     </div>

@@ -4,13 +4,20 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
   addThread,
-  deleteThread,
+  closeTab,
   getActiveThread,
+  getOpenTabThreads,
   saveChatStore,
   selectThread,
 } from "@/lib/chat-store";
 import { SidebarSettingsMenu } from "@/components/chat/SidebarSettingsMenu";
 import { SidebarToggle } from "@/components/chat/SidebarToggle";
+import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
+import {
+  isTauriShell,
+  usesFramelessTitlebar,
+  usesMacOverlayTitlebar,
+} from "@/lib/tauri-shell";
 
 type ChatTitlebarProps = {
   store: ChatStoreData;
@@ -66,8 +73,7 @@ export function ChatTitlebar({
 }: ChatTitlebarProps) {
   const tabsRef = useRef<HTMLDivElement>(null);
   const activeThread = useMemo(() => getActiveThread(store), [store]);
-  const tabThreads = store.threads;
-  const canCloseTab = store.threads.length > 1;
+  const tabThreads = useMemo(() => getOpenTabThreads(store), [store]);
 
   const commit = useCallback(
     (next: ChatStoreData) => {
@@ -87,8 +93,7 @@ export function ChatTitlebar({
   };
 
   const handleClose = (threadId: string) => {
-    if (!canCloseTab) return;
-    commit(deleteThread(store, threadId));
+    commit(closeTab(store, threadId));
   };
 
   useEffect(() => {
@@ -98,8 +103,20 @@ export function ChatTitlebar({
     active?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [activeThread.id, tabThreads.length]);
 
+  const titlebarClass = [
+    "app-titlebar",
+    isTauriShell() ? "app-titlebar--tauri" : "",
+    usesFramelessTitlebar() ? "app-titlebar--frameless" : "",
+    usesMacOverlayTitlebar() ? "app-titlebar--mac-overlay" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <header className="app-titlebar">
+    <header
+      className={titlebarClass}
+      {...(isTauriShell() ? { "data-tauri-drag-region": "" } : {})}
+    >
       <SidebarToggle
         sidebarOpen={sidebarOpen}
         onClick={onToggleSidebar}
@@ -128,20 +145,18 @@ export function ChatTitlebar({
                 </span>
                 <span className="titlebar-tab-label">{thread.title}</span>
               </button>
-              {canCloseTab && (
-                <button
-                  type="button"
-                  className="titlebar-tab-close"
-                  aria-label={`关闭 ${thread.title}`}
-                  title="关闭"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleClose(thread.id);
-                  }}
-                >
-                  <IconClose />
-                </button>
-              )}
+              <button
+                type="button"
+                className="titlebar-tab-close"
+                aria-label={`关闭 ${thread.title}`}
+                title="关闭"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleClose(thread.id);
+                }}
+              >
+                <IconClose />
+              </button>
             </div>
           );
         })}
@@ -159,6 +174,7 @@ export function ChatTitlebar({
 
       <div className="titlebar-actions">
         <SidebarSettingsMenu />
+        <TauriWindowControls />
       </div>
     </header>
   );

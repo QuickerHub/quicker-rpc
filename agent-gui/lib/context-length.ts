@@ -1,72 +1,6 @@
-import {
-  isTextUIPart,
-  isToolOrDynamicToolUIPart,
-  type UIMessage,
-} from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 
-/** Base system prompt (buildSystemInstructions without cwd). */
-const ESTIMATED_SYSTEM_PROMPT_CHARS = 2_800;
-const WORKING_DIR_LINE_CHARS = 72;
-
-function measureJsonChars(value: unknown): number {
-  if (value === undefined || value === null) return 0;
-  if (typeof value === "string") return value.length;
-  try {
-    return JSON.stringify(value).length;
-  } catch {
-    return String(value).length;
-  }
-}
-
-/** Approximate serialized size of one UI message part. */
-function measurePartChars(part: UIMessage["parts"][number]): number {
-  if (isTextUIPart(part)) {
-    return part.text.length;
-  }
-  if (isToolOrDynamicToolUIPart(part)) {
-    let total = measureJsonChars(part.input);
-    total += measureJsonChars(part.output);
-    if ("errorText" in part && typeof part.errorText === "string") {
-      total += part.errorText.length;
-    }
-    return total;
-  }
-  return 0;
-}
-
-/**
- * Measure conversation payload size in characters (user + assistant + tools),
- * plus a fixed estimate for the server-side system prompt.
- */
-export function measureConversationCharLength(
-  messages: AgentUIMessage[],
-  options?: { workingDirectory?: string },
-): number {
-  let total = ESTIMATED_SYSTEM_PROMPT_CHARS;
-  const cwd = options?.workingDirectory?.trim();
-  if (cwd) {
-    total += WORKING_DIR_LINE_CHARS + cwd.length;
-  }
-
-  for (const message of messages) {
-    for (const part of message.parts) {
-      total += measurePartChars(part);
-    }
-  }
-
-  return total;
-}
-
-/** Human-readable character count (e.g. 485K, 1.2M). */
-export function formatCharLength(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 10_000) return `${(n / 1000).toFixed(1)}K`;
-  if (n < 1_000_000) return `${Math.round(n / 1000)}K`;
-  return `${(n / 1_000_000).toFixed(2)}M`;
-}
-
-/** Model context window label from token catalog (e.g. 272K), not a token count. */
+/** Model context window label from token catalog (e.g. 272K). */
 export function formatContextWindowLabel(tokenLimit: number): string {
   if (tokenLimit >= 1_000_000) {
     const m = tokenLimit / 1_000_000;
@@ -78,7 +12,7 @@ export function formatContextWindowLabel(tokenLimit: number): string {
   return String(tokenLimit);
 }
 
-/** Latest assistant turn: API-reported context fill (not summed across turns). */
+/** Latest assistant turn: API-reported usage from the model call (not summed). */
 export function getLatestContextUsage(
   messages: AgentUIMessage[],
 ): {
@@ -106,4 +40,40 @@ export function getLatestContextUsage(
     return { inputTokens, outputTokens, totalTokens };
   }
   return null;
+}
+
+export type ApiContextUsageSnapshot = {
+  inputTokens: number;
+  outputTokens: number;
+  windowLabel: string;
+  tokenLimit: number;
+  pct: number;
+  hasData: boolean;
+  warn: boolean;
+};
+
+/** Context fill from the latest model API response (inputTokens vs window). */
+export function buildApiContextUsageSnapshot(
+  messages: AgentUIMessage[],
+  tokenLimit: number,
+): ApiContextUsageSnapshot {
+  const windowLabel = formatContextWindowLabel(tokenLimit);
+  const latestUsage = getLatestContextUsage(messages);
+  const inputTokens = latestUsage?.inputTokens ?? 0;
+  const outputTokens = latestUsage?.outputTokens ?? 0;
+  const hasData = inputTokens > 0;
+  const pct =
+    hasData && tokenLimit > 0
+      ? Math.min(100, (inputTokens / tokenLimit) * 100)
+      : 0;
+
+  return {
+    inputTokens,
+    outputTokens,
+    windowLabel,
+    tokenLimit,
+    pct,
+    hasData,
+    warn: pct >= 90,
+  };
 }

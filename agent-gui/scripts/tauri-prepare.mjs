@@ -12,6 +12,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { prepareBundledLlmRuntime } from "./embed-bundled-llm-secrets.mjs";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(agentGuiRoot, "..");
@@ -138,6 +139,8 @@ function stageNextStandalone() {
 
   cpSync(join(repoRoot, "version.json"), join(appDir, "version.json"));
   cpSync(join(agentGuiRoot, ".env.example"), join(appDir, ".env.example"));
+
+  prepareBundledLlmRuntime(appDir);
 
   console.log(`Next standalone staged: ${appDir}`);
 }

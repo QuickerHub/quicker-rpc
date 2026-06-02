@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { SIDEBAR_INIT_SCRIPT } from "@/lib/sidebar-prefs";
-import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { THEME_INIT_SCRIPT } from "@/lib/theme-constants";
 import "./globals.css";
 
 export const metadata: Metadata = {

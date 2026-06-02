@@ -1,11 +1,12 @@
 {
   "version": 1,
-  "defaultProvider": "deepseek",
+  "defaultProvider": "ai98pro",
   "providers": {
     "zen": {
       "apiKey": "",
       "baseURL": "https://opencode.ai/zen/v1",
-      "model": "deepseek-v4-flash-free"
+      "model": "deepseek-v4-flash-free",
+      "hidden": true
     },
     "nvidia": {
       "apiKey": "nvapi-...",
@@ -21,10 +22,11 @@
     "chatanywhere": {
       "apiKey": "sk-...",
       "baseURL": "https://api.chatanywhere.tech/v1",
-      "model": "gpt-5.5"
+      "model": "gpt-5.5",
+      "hidden": true
     },
     "ai98pro": {
-      "apiKey": "sk-...",
+      "apiKey": "",
       "baseURL": "https://ai98pro.xyz/v1",
       "model": "gpt-5.5"
     }

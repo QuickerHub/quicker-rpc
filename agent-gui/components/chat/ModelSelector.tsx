@@ -167,7 +167,7 @@ export function ModelSelector({
                     <span className="model-selector-item-desc">{p.description}</span>
                     {!p.configured && (
                       <span className="model-selector-item-warn">
-                        未配置 API Key（见 llm-config.json）
+                        未配置（可在设置中填写 DeepSeek API Key）
                       </span>
                     )}
                   </span>

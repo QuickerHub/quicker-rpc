@@ -195,5 +195,5 @@ export function findVisibleLlmProvider(
 export function resolveVisibleDefaultProvider(): LlmProviderId {
   const fromConfig = getLlmConfigDefaultProvider();
   if (fromConfig && !isLlmProviderHidden(fromConfig)) return fromConfig;
-  return findVisibleLlmProvider(() => true) ?? "deepseek";
+  return findVisibleLlmProvider(() => true) ?? "ai98pro";
 }

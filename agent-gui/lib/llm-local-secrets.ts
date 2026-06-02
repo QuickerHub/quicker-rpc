@@ -1,13 +1,24 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
-import { patchLlmConfigProvider, type LlmProviderPatch } from "@/lib/llm-config";
 import type { LlmProviderId } from "@/lib/llm-providers";
+
+export type LlmLocalProviderSecrets = {
+  apiKey?: string;
+  baseURL?: string;
+  model?: string;
+};
 
 export type LlmLocalSecrets = {
   version: 1;
-  providers: Partial<Record<LlmProviderId, string>>;
+  providers: Partial<Record<LlmProviderId, LlmLocalProviderSecrets>>;
   directApiKey?: string;
+};
+
+export type LlmProviderPatch = {
+  apiKey?: string | null;
+  baseURL?: string | null;
+  model?: string | null;
 };
 
 const EMPTY: LlmLocalSecrets = { version: 1, providers: {} };
@@ -18,10 +29,31 @@ export function resolveLlmSecretsPath(): string {
   return join(resolveAgentGuiRoot(), ".local", "llm-secrets.json");
 }
 
+function normalizeProviderEntry(raw: unknown): LlmLocalProviderSecrets | undefined {
+  if (typeof raw === "string") {
+    const apiKey = raw.trim();
+    return apiKey ? { apiKey } : undefined;
+  }
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const data = raw as LlmLocalProviderSecrets;
+  const entry: LlmLocalProviderSecrets = {};
+  if (typeof data.apiKey === "string" && data.apiKey.trim()) {
+    entry.apiKey = data.apiKey.trim();
+  }
+  if (typeof data.baseURL === "string" && data.baseURL.trim()) {
+    entry.baseURL = data.baseURL.trim();
+  }
+  if (typeof data.model === "string" && data.model.trim()) {
+    entry.model = data.model.trim();
+  }
+  if (!entry.apiKey && !entry.baseURL && !entry.model) return undefined;
+  return entry;
+}
+
 function normalizeSecrets(raw: unknown): LlmLocalSecrets {
   if (typeof raw !== "object" || raw === null) return { ...EMPTY };
   const data = raw as Partial<LlmLocalSecrets>;
-  const providers: Partial<Record<LlmProviderId, string>> = {};
+  const providers: Partial<Record<LlmProviderId, LlmLocalProviderSecrets>> = {};
   if (typeof data.providers === "object" && data.providers !== null) {
     for (const id of [
       "zen",
@@ -30,10 +62,8 @@ function normalizeSecrets(raw: unknown): LlmLocalSecrets {
       "chatanywhere",
       "ai98pro",
     ] as const) {
-      const value = data.providers[id];
-      if (typeof value === "string" && value.trim()) {
-        providers[id] = value.trim();
-      }
+      const entry = normalizeProviderEntry(data.providers[id]);
+      if (entry) providers[id] = entry;
     }
   }
   const directApiKey =
@@ -69,13 +99,18 @@ export function saveLlmLocalSecrets(data: LlmLocalSecrets): void {
   cache = data;
 }
 
-export function getLocalProviderApiKey(
+export function getLocalProviderConfig(
   providerId: LlmProviderId,
-): string | undefined {
+): LlmLocalProviderSecrets | undefined {
   return loadLlmLocalSecrets().providers[providerId];
 }
 
-/** Persist provider settings from UI into llm-config.json; clears legacy .local key. */
+export function getLocalProviderApiKey(
+  providerId: LlmProviderId,
+): string | undefined {
+  return getLocalProviderConfig(providerId)?.apiKey;
+}
+
 export function setLocalProviderApiKey(
   providerId: LlmProviderId,
   apiKey: string | undefined,
@@ -83,16 +118,38 @@ export function setLocalProviderApiKey(
   setLocalProviderConfig(providerId, { apiKey: apiKey ?? null });
 }
 
+/** Persist user-editable provider settings (local app data, not llm-config.json). */
 export function setLocalProviderConfig(
   providerId: LlmProviderId,
   patch: LlmProviderPatch,
 ): void {
-  patchLlmConfigProvider(providerId, patch);
-  if (patch.apiKey === undefined) return;
   const current = loadLlmLocalSecrets();
-  if (!current.providers[providerId]) return;
+  const prev = current.providers[providerId] ?? {};
+  const next: LlmLocalProviderSecrets = { ...prev };
+
+  if (patch.apiKey !== undefined) {
+    const trimmed = patch.apiKey?.trim() ?? "";
+    if (trimmed) next.apiKey = trimmed;
+    else delete next.apiKey;
+  }
+  if (patch.baseURL !== undefined) {
+    const trimmed = patch.baseURL?.trim() ?? "";
+    if (trimmed) next.baseURL = trimmed;
+    else delete next.baseURL;
+  }
+  if (patch.model !== undefined) {
+    const trimmed = patch.model?.trim() ?? "";
+    if (trimmed) next.model = trimmed;
+    else delete next.model;
+  }
+
   const providers = { ...current.providers };
-  delete providers[providerId];
+  if (!next.apiKey && !next.baseURL && !next.model) {
+    delete providers[providerId];
+  } else {
+    providers[providerId] = next;
+  }
+
   saveLlmLocalSecrets({ ...current, providers });
 }
 

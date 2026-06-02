@@ -11,6 +11,7 @@ out/
 
 # LLM credentials (copy from llm-config.example.json)
 llm-config.json
+llm-bundled-secrets.json
 
 # UI-saved LLM API keys (local only)
 .local/

@@ -9,6 +9,7 @@ import { runWithQkrpcCwd } from "@/lib/qkrpc-request-context";
 import { getChatModelId, resolveChatModel } from "@/lib/llm";
 import { isLlmProviderHidden } from "@/lib/llm-config";
 import { parseLlmProviderId } from "@/lib/llm-providers";
+import { isUserModelSelectorProvider } from "@/lib/llm-user-providers";
 import { pickEnabledTools } from "@/lib/tool-registry";
 import { quickerTools } from "@/lib/tools";
 import { expandUserMessageForModel } from "@/lib/compose-user-message";
@@ -34,9 +35,13 @@ export async function POST(req: Request) {
 
   const providerOverride = parseLlmProviderId(llmProvider);
 
-  if (providerOverride && isLlmProviderHidden(providerOverride)) {
+  if (
+    providerOverride
+    && (!isUserModelSelectorProvider(providerOverride)
+      || isLlmProviderHidden(providerOverride))
+  ) {
     return Response.json(
-      { error: `Provider "${providerOverride}" is hidden in llm-config.json` },
+      { error: `Provider "${providerOverride}" is not available` },
       { status: 400 },
     );
   }

@@ -1,13 +1,11 @@
 import {
   getLlmProviderMeta,
-  LLM_PROVIDER_LIST,
   type LlmProviderId,
 } from "@/lib/llm-providers";
+import { resolveLlmConfigProvider } from "@/lib/llm-config";
+import { hasBundledProviderApiKey } from "@/lib/llm-bundled-secrets";
 import {
-  resolveLlmConfigPath,
-  resolveLlmConfigProvider,
-} from "@/lib/llm-config";
-import {
+  getLocalProviderConfig,
   loadLlmLocalSecrets,
   maskSecret,
   resolveLlmSecretsPath,
@@ -15,13 +13,18 @@ import {
   setLocalProviderConfig,
 } from "@/lib/llm-local-secrets";
 import { isLlmProviderConfigured } from "@/lib/llm";
+import {
+  getUserProviderUiSpec,
+  USER_PROVIDER_UI,
+  type UserSettingsField,
+} from "@/lib/llm-user-providers";
 
 export const dynamic = "force-dynamic";
 
 type ProviderKeyStatus = {
   configured: boolean;
   masked?: string;
-  source?: "local" | "config" | "env";
+  source?: "local" | "builtin" | "bundled" | "env";
 };
 
 type ProviderConfigStatus = {
@@ -30,35 +33,63 @@ type ProviderConfigStatus = {
   defaultBaseURL: string;
   defaultModel: string;
   apiKey: ProviderKeyStatus;
+  editableFields: readonly UserSettingsField[];
 };
 
+function resolveProviderModel(id: LlmProviderId): string {
+  const meta = getLlmProviderMeta(id);
+  return (
+    getLocalProviderConfig(id)?.model
+    ?? resolveLlmConfigProvider(id)?.model
+    ?? meta.defaultModel
+  );
+}
+
+function resolveProviderBaseURL(id: LlmProviderId): string {
+  const meta = getLlmProviderMeta(id);
+  return (
+    getLocalProviderConfig(id)?.baseURL
+    ?? resolveLlmConfigProvider(id)?.baseURL
+    ?? meta.defaultBaseURL
+  );
+}
+
 function providerKeyStatus(id: LlmProviderId): ProviderKeyStatus {
-  const legacy = loadLlmLocalSecrets().providers[id];
+  const local = getLocalProviderConfig(id)?.apiKey;
   const fromConfig = resolveLlmConfigProvider(id)?.apiKey;
-  const key = legacy ?? fromConfig;
   const configured = isLlmProviderConfigured(id);
-  return {
-    configured,
-    masked: key ? maskSecret(key) : undefined,
-    source: legacy
-      ? ("local" as const)
-      : fromConfig
-        ? ("config" as const)
-        : configured
-          ? ("env" as const)
-          : undefined,
-  };
+  if (local) {
+    return {
+      configured: true,
+      masked: maskSecret(local),
+      source: "local",
+    };
+  }
+  if (fromConfig) {
+    return {
+      configured: true,
+      masked: maskSecret(fromConfig),
+      source: "builtin",
+    };
+  }
+  if (hasBundledProviderApiKey(id)) {
+    return { configured: true, source: "bundled" };
+  }
+  if (configured) {
+    return { configured: true, source: "env" };
+  }
+  return { configured: false };
 }
 
 function providerConfigStatus(id: LlmProviderId): ProviderConfigStatus {
   const meta = getLlmProviderMeta(id);
-  const entry = resolveLlmConfigProvider(id);
   return {
-    baseURL: entry?.baseURL ?? meta.defaultBaseURL,
-    model: entry?.model ?? meta.defaultModel,
+    baseURL: resolveProviderBaseURL(id),
+    model: resolveProviderModel(id),
     defaultBaseURL: meta.defaultBaseURL,
     defaultModel: meta.defaultModel,
     apiKey: providerKeyStatus(id),
+    editableFields: getUserProviderUiSpec(id)?.settingsFields ?? [],
   };
 }
 
@@ -66,10 +97,9 @@ export async function GET() {
   const secrets = loadLlmLocalSecrets();
   const direct = secrets.directApiKey;
   return Response.json({
-    configPath: resolveLlmConfigPath(),
     storagePath: resolveLlmSecretsPath(),
     providers: Object.fromEntries(
-      LLM_PROVIDER_LIST.map((p) => [p.id, providerConfigStatus(p.id)]),
+      USER_PROVIDER_UI.map((spec) => [spec.id, providerConfigStatus(spec.id)]),
     ),
     direct: {
       configured: Boolean(direct?.trim() || process.env.LLM_API_KEY?.trim()),
@@ -101,8 +131,8 @@ export async function PUT(req: Request) {
   }
 
   if (body.providers && typeof body.providers === "object") {
-    for (const meta of LLM_PROVIDER_LIST) {
-      const raw = body.providers[meta.id];
+    for (const spec of USER_PROVIDER_UI) {
+      const raw = body.providers[spec.id];
       if (!raw || typeof raw !== "object") continue;
 
       const patch: {
@@ -111,21 +141,25 @@ export async function PUT(req: Request) {
         model?: string | null;
       } = {};
 
-      if ("apiKey" in raw) {
+      if ("apiKey" in raw && spec.settingsFields.includes("apiKey")) {
         patch.apiKey =
           typeof raw.apiKey === "string" && raw.apiKey.trim()
             ? raw.apiKey.trim()
             : null;
       }
-      if ("baseURL" in raw && typeof raw.baseURL === "string") {
-        patch.baseURL = raw.baseURL.trim() || null;
+      if ("baseURL" in raw && spec.settingsFields.includes("baseURL")) {
+        patch.baseURL = typeof raw.baseURL === "string"
+          ? raw.baseURL.trim() || null
+          : null;
       }
-      if ("model" in raw && typeof raw.model === "string") {
-        patch.model = raw.model.trim() || null;
+      if ("model" in raw && spec.settingsFields.includes("model")) {
+        patch.model = typeof raw.model === "string"
+          ? raw.model.trim() || null
+          : null;
       }
 
       if (Object.keys(patch).length > 0) {
-        setLocalProviderConfig(meta.id, patch);
+        setLocalProviderConfig(spec.id, patch);
       }
     }
   }
@@ -141,7 +175,7 @@ export async function PUT(req: Request) {
   return Response.json({
     ok: true,
     providers: Object.fromEntries(
-      LLM_PROVIDER_LIST.map((p) => [p.id, providerConfigStatus(p.id)]),
+      USER_PROVIDER_UI.map((spec) => [spec.id, providerConfigStatus(spec.id)]),
     ),
     direct: {
       configured: Boolean(

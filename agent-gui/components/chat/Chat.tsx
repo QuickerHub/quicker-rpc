@@ -30,7 +30,9 @@ import {
 } from "@/lib/sidebar-prefs";
 import {
   getActiveThread,
+  getOpenTabThreads,
   updateThreadMessages,
+  updateThreadTitle,
 } from "@/lib/chat-store";
 import { AppSettingsMenu, type PingState } from "@/components/chat/AppSettingsMenu";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
@@ -56,6 +58,7 @@ import { loadStoredLlmProvider, storeLlmProvider } from "@/lib/llm-prefs";
 import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent-activity";
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
 import { useUserMessageStickyMarkers } from "@/lib/use-user-message-sticky";
+import { useAutoThreadTitle } from "@/lib/use-auto-thread-title";
 
 const PING_FETCH_MS = 15_000;
 
@@ -97,7 +100,10 @@ type ChatPanelProps = {
   initialMessages: AgentUIMessage[];
   workingDirectory: string;
   visible?: boolean;
+  titleGenerated: boolean;
+  titleManual: boolean;
   onPersist: (threadId: string, messages: AgentUIMessage[]) => void;
+  onAutoTitle: (threadId: string, title: string) => void;
 };
 
 function ChatPanel({
@@ -105,7 +111,10 @@ function ChatPanel({
   initialMessages,
   workingDirectory,
   visible = true,
+  titleGenerated,
+  titleManual,
   onPersist,
+  onAutoTitle,
 }: ChatPanelProps) {
   const [draftMessage, setDraftMessage] = useState("");
   const [ping, setPing] = useState<PingState>({ status: "loading" });
@@ -173,6 +182,16 @@ function ChatPanel({
     }, 400);
     return () => window.clearTimeout(timer);
   }, [threadId, messages]);
+
+  useAutoThreadTitle({
+    threadId,
+    messages,
+    status,
+    llmProvider,
+    titleGenerated,
+    titleManual,
+    onTitle: onAutoTitle,
+  });
 
   const pendingApprovalCount = useMemo(() => {
     let n = 0;
@@ -455,8 +474,6 @@ function ChatPanel({
                     messages={messages}
                     busy={busy}
                     providerId={llmProvider}
-                    workingDirectory={workingDirectory}
-                    enabledTools={enabledTools}
                   />
                 )}
                 {busy ? (
@@ -517,7 +534,9 @@ function ChatPanel({
 
 export function Chat() {
   const { store, defaultCwd, updateStore } = useChatStore();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const storeRef = useRef(store);
+  storeRef.current = store;
 
   useLayoutEffect(() => {
     const collapsed = loadSidebarCollapsed();
@@ -535,10 +554,16 @@ export function Chat() {
 
   const persistMessages = useCallback(
     (threadId: string, messages: AgentUIMessage[]) => {
-      if (!store) return;
-      updateStore(updateThreadMessages(store, threadId, messages));
+      updateStore(updateThreadMessages(storeRef.current, threadId, messages));
     },
-    [store, updateStore],
+    [updateStore],
+  );
+
+  const handleAutoTitle = useCallback(
+    (threadId: string, title: string) => {
+      updateStore(updateThreadTitle(storeRef.current, threadId, title));
+    },
+    [updateStore],
   );
 
   const activeThread = getActiveThread(store);
@@ -564,14 +589,17 @@ export function Chat() {
         />
         <DocsViewerProvider>
           <div className="app-main-stack">
-            {store.threads.map((thread) => (
+            {getOpenTabThreads(store).map((thread) => (
               <ChatPanel
                 key={thread.id}
                 threadId={thread.id}
                 initialMessages={thread.messages}
                 workingDirectory={workingDirectory}
                 visible={thread.id === activeThread.id}
+                titleGenerated={thread.titleGenerated ?? false}
+                titleManual={thread.titleManual ?? false}
                 onPersist={persistMessages}
+                onAutoTitle={handleAutoTitle}
               />
             ))}
           </div>

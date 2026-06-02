@@ -2,7 +2,9 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
   getLocalDirectApiKey,
   getLocalProviderApiKey,
+  getLocalProviderConfig,
 } from "@/lib/llm-local-secrets";
+import { getBundledProviderApiKey } from "@/lib/llm-bundled-secrets";
 import {
   isLlmProviderHidden,
   resolveLlmConfigProvider,
@@ -54,16 +56,22 @@ function resolveApiKey(providerId: LlmProviderId): string | undefined {
   if (local) return local;
   const fromConfig = resolveLlmConfigProvider(providerId)?.apiKey;
   if (fromConfig) return fromConfig;
+  const bundled = getBundledProviderApiKey(providerId);
+  if (bundled) return bundled;
   return envFirst(...ENV_API_KEYS[providerId]);
 }
 
 function resolveBaseURL(providerId: LlmProviderId): string | undefined {
+  const fromLocal = getLocalProviderConfig(providerId)?.baseURL;
+  if (fromLocal) return fromLocal;
   const fromConfig = resolveLlmConfigProvider(providerId)?.baseURL;
   if (fromConfig) return fromConfig;
   return envFirst(...ENV_BASE_URLS[providerId]);
 }
 
 function resolveModelId(providerId: LlmProviderId): string | undefined {
+  const fromLocal = getLocalProviderConfig(providerId)?.model;
+  if (fromLocal) return fromLocal;
   const fromConfig = resolveLlmConfigProvider(providerId)?.model;
   if (fromConfig) return fromConfig;
   return envFirst(...ENV_MODELS[providerId]);
@@ -98,7 +106,7 @@ function resolvePreset(providerId: LlmProviderId): ResolvedLlmConfig {
   if (!apiKey) {
     throw new Error(
       `LLM provider "${providerId}" has no API key. `
-      + "Add it to agent-gui/llm-config.json (see llm-config.example.json).",
+      + "Configure it in Settings or ask your administrator.",
     );
   }
   return {

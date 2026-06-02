@@ -50,6 +50,75 @@ body {
   background: var(--panel);
 }
 
+/* Tauri: in-app titlebar replaces native chrome */
+.app-titlebar--tauri[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.app-titlebar--tauri button,
+.app-titlebar--tauri a,
+.app-titlebar--tauri input,
+.app-titlebar--tauri select,
+.app-titlebar--tauri textarea,
+.app-titlebar--tauri [role="menu"],
+.app-titlebar--tauri .titlebar-tabs {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.app-titlebar--mac-overlay {
+  padding-left: 4.75rem;
+}
+
+.titlebar-actions--with-window-controls {
+  padding-right: 0;
+  border-left: none;
+}
+
+.tauri-window-controls {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  flex-shrink: 0;
+  margin-left: 0.15rem;
+}
+
+.tauri-window-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.875rem;
+  min-width: 2.875rem;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.tauri-window-control:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+}
+
+.tauri-window-control--close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.tauri-window-control svg {
+  display: block;
+}
+
+.app-titlebar--frameless .titlebar-actions {
+  padding-right: 0;
+}
+
 .titlebar-tabs {
   flex: 1;
   min-width: 0;
@@ -810,6 +879,19 @@ html.sidebar-collapsed-init .app-shell .workspace-sidebar {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+}
+
+.ws-settings-readonly-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.72rem;
+}
+
+.ws-settings-readonly-value {
+  color: var(--muted);
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
 }
 
 .ws-settings-field-label {
@@ -2778,6 +2860,13 @@ textarea {
   font-family: inherit;
   white-space: normal;
   text-align: right;
+  color: var(--muted);
+}
+
+.context-popup-hint {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  line-height: 1.35;
   color: var(--muted);
 }
 

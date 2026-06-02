@@ -2,11 +2,8 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { AgentUIMessage } from "@/lib/chat-types";
-import {
-  buildContextUsageSnapshot,
-  formatCharLength,
-  type ContextSegment,
-} from "@/lib/context-breakdown";
+import { formatTokenCount } from "@/lib/chat-types";
+import { buildApiContextUsageSnapshot } from "@/lib/context-length";
 import type { LlmProviderId } from "@/lib/llm-providers";
 import { fetchLlmOptions } from "./ModelSelector";
 
@@ -19,8 +16,6 @@ type ContextUsageProps = {
   messages: AgentUIMessage[];
   busy?: boolean;
   providerId: LlmProviderId;
-  workingDirectory?: string;
-  enabledTools: string[];
 };
 
 function lastAssistantModel(messages: AgentUIMessage[]): string | undefined {
@@ -33,75 +28,16 @@ function lastAssistantModel(messages: AgentUIMessage[]): string | undefined {
   return undefined;
 }
 
-function ContextSegmentBar({
-  segments,
-  fillPct,
-  warn,
-}: {
-  segments: ContextSegment[];
-  fillPct: number;
-  warn: boolean;
-}) {
-  const total = segments.reduce((sum, segment) => sum + segment.chars, 0);
-  if (total <= 0) {
-    return <div className="context-popup-meter" aria-hidden />;
-  }
-
-  return (
-    <div
-      className={`context-popup-segment-bar${warn ? " context-popup-segment-bar--warn" : ""}`}
-      aria-hidden
-      style={{ width: `${fillPct}%` }}
-    >
-      {segments.map((segment) => (
-        <span
-          key={segment.id}
-          className="context-popup-segment-bar-part"
-          style={{
-            flexGrow: segment.chars,
-            backgroundColor: segment.color,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function ContextSegmentLegend({ segments }: { segments: ContextSegment[] }) {
-  return (
-    <ul className="context-popup-breakdown">
-      {segments.map((segment) => (
-        <li key={segment.id} className="context-popup-breakdown-row">
-          <span
-            className="context-popup-breakdown-swatch"
-            style={{ backgroundColor: segment.color }}
-            aria-hidden
-          />
-          <span className="context-popup-breakdown-label">{segment.label}</span>
-          <span className="context-popup-breakdown-value">
-            {formatCharLength(segment.chars)}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 export function ContextUsage({
   messages,
   busy,
   providerId,
-  workingDirectory,
-  enabledTools,
 }: ContextUsageProps) {
   const popupId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [contextLimit, setContextLimit] = useState<number | null>(null);
   const [activeModelId, setActiveModelId] = useState<string | undefined>();
-  const [toolDefinitionSizes, setToolDefinitionSizes] = useState<
-    Record<string, number> | null
-  >(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,52 +55,26 @@ export function ContextUsage({
     };
   }, [providerId]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/context/tool-sizes", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = (await res.json()) as { sizes?: Record<string, number> };
-        if (!cancelled && data.sizes) {
-          setToolDefinitionSizes(data.sizes);
-        }
-      } catch {
-        /* ignore */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const limit = contextLimit ?? 128_000;
   const snapshot = useMemo(
-    () =>
-      buildContextUsageSnapshot({
-        messages,
-        workingDirectory,
-        enabledToolIds: enabledTools,
-        tokenLimit: limit,
-        toolDefinitionSizes: toolDefinitionSizes ?? undefined,
-      }),
-    [messages, workingDirectory, enabledTools, limit, toolDefinitionSizes],
+    () => buildApiContextUsageSnapshot(messages, limit),
+    [messages, limit],
   );
 
   const lastModel = lastAssistantModel(messages);
   const displayModel = lastModel ?? activeModelId;
-  const { pct, hasData, warn, windowLabel, totalChars, segments } = snapshot;
+  const { pct, hasData, warn, windowLabel, inputTokens } = snapshot;
   const dashOffset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
 
   const usageSummary = hasData
-    ? `${formatCharLength(totalChars)} / ${windowLabel}`
+    ? `${formatTokenCount(inputTokens)} / ${windowLabel}`
     : busy
-      ? "正在统计上下文…"
+      ? "等待模型返回用量…"
       : "发送消息后显示用量";
 
   const titleModel = displayModel ? ` · ${displayModel}` : "";
   const buttonTitle = hasData
-    ? `上下文 ${formatCharLength(totalChars)} / ${windowLabel}${titleModel}`
+    ? `上下文 ${formatTokenCount(inputTokens)} / ${windowLabel}${titleModel}`
     : `上下文窗口 ${windowLabel}${titleModel}`;
 
   const close = useCallback(() => setOpen(false), []);
@@ -253,20 +163,19 @@ export function ContextUsage({
           </div>
 
           <div className="context-popup-meter-track" aria-hidden>
-            <ContextSegmentBar
-              segments={segments}
-              fillPct={hasData ? pct : 0}
-              warn={warn}
+            <div
+              className={`context-popup-meter-fill${warn ? " context-popup-meter-fill--warn" : ""}`}
+              style={{ width: hasData ? `${pct}%` : "0%" }}
             />
           </div>
 
-          {hasData && segments.length > 0 ? (
-            <ContextSegmentLegend segments={segments} />
-          ) : (
-            <p className="context-popup-breakdown-empty">
-              {busy ? "正在统计…" : "发送消息后显示分项用量"}
-            </p>
-          )}
+          <p className="context-popup-hint">
+            {hasData
+              ? "基于最近一次模型调用的 inputTokens"
+              : busy
+                ? "本轮响应完成后更新"
+                : "完成一轮对话后显示"}
+          </p>
 
           {displayModel && (
             <p className="context-popup-model" title={displayModel}>

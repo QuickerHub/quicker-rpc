@@ -4,6 +4,10 @@
 # Examples:
 #   pwsh ./publish/Publish-QuickerAgent.ps1
 #   pwsh ./publish/Publish-QuickerAgent.ps1 -SkipQkrpcBuild
+#
+# Bundled LLM key (obfuscated into installer, not stored in git):
+#   $env:BUNDLED_LLM_AI98PRO_API_KEY = 'sk-...'
+#   pwsh ./publish/Publish-QuickerAgent.ps1
 
 [CmdletBinding()]
 param(
