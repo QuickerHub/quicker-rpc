@@ -17,15 +17,15 @@ import {
 import {
   canSendComposedMessage,
   hasPasteableUserMessageFormat,
-  parseUserMessageSegments,
 } from "@/lib/compose-user-message";
 import {
-  appendTextWithNewlines,
   createComposerTagElement,
   deleteComposerTagWithUndo,
   ensureEmptyComposerCaret,
   findComposerTagForBackspace,
   findComposerTagForDelete,
+  insertComposerMarkupPasteWithUndo,
+  insertPlainTextWithUndo,
   normalizeEmptyComposerRoot,
   placeCaretAtStart,
   renderMarkupIntoRoot,
@@ -71,30 +71,6 @@ function insertNodeAtSelection(root: HTMLElement, node: Node): void {
   range.deleteContents();
   range.insertNode(node);
   range.setStartAfter(node);
-  range.collapse(true);
-  selection.removeAllRanges();
-  selection.addRange(range);
-}
-
-function insertFragmentAtSelection(
-  root: HTMLElement,
-  fragment: DocumentFragment,
-): void {
-  const selection = window.getSelection();
-  if (!selection?.rangeCount || !root.contains(selection.anchorNode)) {
-    root.append(fragment);
-    return;
-  }
-
-  const range = selection.getRangeAt(0);
-  const inserted: Node[] = [...fragment.childNodes];
-  range.deleteContents();
-  range.insertNode(fragment);
-
-  const last = inserted[inserted.length - 1];
-  if (last?.parentNode) {
-    range.setStartAfter(last);
-  }
   range.collapse(true);
   selection.removeAllRanges();
   selection.addRange(range);
@@ -300,22 +276,18 @@ export const ComposerMarkupField = forwardRef<
   };
 
   const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
-    const text = event.clipboardData.getData("text/plain");
-    if (!hasPasteableUserMessageFormat(text)) return;
-
     event.preventDefault();
     const root = rootRef.current;
     if (!root) return;
 
-    const fragment = document.createDocumentFragment();
-    for (const segment of parseUserMessageSegments(text)) {
-      if (segment.type === "tag") {
-        fragment.append(createComposerTagElement(segment.action));
-        continue;
-      }
-      appendTextWithNewlines(fragment, segment.text);
+    const text = event.clipboardData.getData("text/plain");
+    if (!text) return;
+
+    if (hasPasteableUserMessageFormat(text)) {
+      insertComposerMarkupPasteWithUndo(root, text);
+    } else {
+      insertPlainTextWithUndo(root, text);
     }
-    insertFragmentAtSelection(root, fragment);
     emitChange();
     requestAnimationFrame(() => ensureEmptyComposerCaret(root));
   };

@@ -14,8 +14,48 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'qkrpc-publish-lib.ps1')
+
 if (-not $RepoRoot) {
     $RepoRoot = Split-Path -Parent $PSScriptRoot
+}
+
+function Get-QuickerAgentVersionFromJson {
+    param([string]$Root)
+    $versionFile = Join-Path $Root 'version.json'
+    if (-not (Test-Path -LiteralPath $versionFile)) {
+        throw "version.json not found: $versionFile"
+    }
+    $json = Get-Content -LiteralPath $versionFile -Raw | ConvertFrom-Json
+    $version = $json.QuickerRpc
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        throw "version.json missing 'QuickerRpc' key"
+    }
+    return Get-QuickerRpcSemVerFromVersion -Version $version.ToString().Trim()
+}
+
+function Resolve-QuickerAgentSetupExe {
+    param(
+        [string]$BundleRoot,
+        [string]$ExpectedSemVer
+    )
+
+    $candidates = @(Get-ChildItem -LiteralPath $BundleRoot -Recurse -Filter '*setup*.exe' -ErrorAction SilentlyContinue)
+    if ($candidates.Count -eq 0) {
+        throw "No NSIS setup.exe found under $BundleRoot"
+    }
+
+    foreach ($setup in $candidates) {
+        Write-Host "  $($setup.FullName) ($([math]::Round($setup.Length / 1MB, 2)) MB)" -ForegroundColor DarkCyan
+    }
+
+    $versioned = @($candidates | Where-Object { $_.Name -match [regex]::Escape($ExpectedSemVer) })
+    if ($versioned.Count -ge 1) {
+        return ($versioned | Sort-Object LastWriteTime -Descending | Select-Object -First 1)
+    }
+
+    Write-Warning "No setup.exe name contains version $ExpectedSemVer; using newest by LastWriteTime."
+    return ($candidates | Sort-Object LastWriteTime -Descending | Select-Object -First 1)
 }
 
 $agentGuiDir = Join-Path $RepoRoot 'agent-gui'
@@ -50,16 +90,19 @@ finally {
 
 $bundleRoot = Join-Path $agentGuiDir 'src-tauri\target\release\bundle'
 $publishOut = Join-Path $RepoRoot 'publish'
-Write-Host "Bundles: $bundleRoot" -ForegroundColor Green
-Get-ChildItem -LiteralPath $bundleRoot -Recurse -Include *.exe,*.msi -ErrorAction SilentlyContinue |
-    ForEach-Object {
-        Write-Host "  $($_.FullName) ($([math]::Round($_.Length / 1MB, 2)) MB)" -ForegroundColor Cyan
-        if ($_.Extension -eq '.exe' -and $_.Name -match 'setup') {
-            Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $publishOut $_.Name) -Force
-            Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $publishOut 'quicker-agent-win-x64-setup.exe') -Force
-        }
-    }
-Write-Host "Copied setup alias: $publishOut\quicker-agent-win-x64-setup.exe" -ForegroundColor Cyan
+$expectedSemVer = Get-QuickerAgentVersionFromJson -Root $RepoRoot
+Write-Host "Bundles: $bundleRoot (expect $expectedSemVer)" -ForegroundColor Green
+
+$setupExe = Resolve-QuickerAgentSetupExe -BundleRoot $bundleRoot -ExpectedSemVer $expectedSemVer
+$versionedName = "QuickerAgent_${expectedSemVer}_x64-setup.exe"
+$versionedPath = Join-Path $publishOut $versionedName
+$aliasPath = Join-Path $publishOut 'quicker-agent-win-x64-setup.exe'
+
+Copy-Item -LiteralPath $setupExe.FullName -Destination $versionedPath -Force
+Copy-Item -LiteralPath $setupExe.FullName -Destination $aliasPath -Force
+Write-Host "Setup:    $($setupExe.FullName)" -ForegroundColor Cyan
+Write-Host "Copied:   $versionedPath" -ForegroundColor Cyan
+Write-Host "Alias:    $aliasPath" -ForegroundColor Cyan
 
 Write-Host 'Verifying bundled resources (app + node + qkrpc)...' -ForegroundColor Cyan
 Push-Location $agentGuiDir
@@ -73,13 +116,16 @@ finally {
     Pop-Location
 }
 
-$aliasSetup = Join-Path $publishOut 'quicker-agent-win-x64-setup.exe'
-if (-not (Test-Path -LiteralPath $aliasSetup)) {
-    throw "Installer alias missing: $aliasSetup"
+if (-not (Test-Path -LiteralPath $aliasPath)) {
+    throw "Installer alias missing: $aliasPath"
 }
 $minInstallerBytes = 50MB
-if ((Get-Item -LiteralPath $aliasSetup).Length -lt $minInstallerBytes) {
+$aliasItem = Get-Item -LiteralPath $aliasPath
+if ($aliasItem.Length -lt $minInstallerBytes) {
     throw "Installer too small (< 50 MB); app/qkrpc may be missing from bundle."
+}
+if ($aliasItem.LastWriteTime -ne $setupExe.LastWriteTime -or $aliasItem.Length -ne $setupExe.Length) {
+    throw "Alias mismatch after copy: $aliasPath"
 }
 
 exit 0

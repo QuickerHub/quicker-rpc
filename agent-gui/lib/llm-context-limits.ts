@@ -35,11 +35,17 @@ const EXACT_CONTEXT_TOKENS: Readonly<Record<string, number>> = {
   "glm-4-air": 128_000,
   "glm-4-flash": 128_000,
   "glm-4.6": 200_000,
-  "glm-4.6": 200_000,
 
   // Common OpenAI-compatible ids on integrate
   "meta/llama-3.1-70b-instruct": 128_000,
   "meta/llama-3.1-8b-instruct": 128_000,
+
+  // ChatAnywhere / OpenAI
+  "gpt-5.5": 128_000,
+  "gpt-5.1": 128_000,
+  "gpt-5": 128_000,
+  "gpt-4.1": 128_000,
+  "gpt-4o": 128_000,
 };
 
 /** Longest match first. */
@@ -53,6 +59,8 @@ const PATTERN_CONTEXT_TOKENS: ReadonlyArray<{ pattern: RegExp; tokens: number }>
   { pattern: /glm-5|glm5/i, tokens: 128_000 },
   { pattern: /glm-4|glm4/i, tokens: 128_000 },
   { pattern: /llama-3\.1|llama3\.1/i, tokens: 128_000 },
+  { pattern: /gpt-5|gpt5/i, tokens: 128_000 },
+  { pattern: /gpt-4|gpt4/i, tokens: 128_000 },
 ];
 
 function normalizeModelKey(modelId: string): string {

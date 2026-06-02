@@ -53,7 +53,9 @@ pnpm quicker-agent:publish
 
 | 路径 | 说明 |
 |------|------|
-| `agent-gui/src-tauri/target/release/bundle/nsis/*.exe` | Windows 安装包 |
+| `agent-gui/src-tauri/target/release/bundle/nsis/QuickerAgent_{version}_x64-setup.exe` | Windows 安装包（权威产物） |
+| `publish/QuickerAgent_{version}_x64-setup.exe` | 同上，由 `pnpm quicker-agent:publish` 复制 |
+| `publish/quicker-agent-win-x64-setup.exe` | latest 别名（与上者同文件，须刚跑过 publish） |
 | `agent-gui/src-tauri/target/release/quicker-agent.exe` | 可执行文件 |
 
 安装后无需单独安装 Node / qkrpc；仍需 Quicker 插件与 `llm-config.json`（可复制安装目录内 `llm-config.example.json`）。

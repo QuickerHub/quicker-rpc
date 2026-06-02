@@ -1,6 +1,8 @@
 import {
   getToolOrDynamicToolName,
   isToolOrDynamicToolUIPart,
+  type DynamicToolUIPart,
+  type ToolUIPart,
   type UIMessage,
 } from "ai";
 import {
@@ -9,7 +11,7 @@ import {
   summarizeToolOutput,
 } from "./tool-output";
 
-export type ToolUiPart = UIMessage["parts"][number];
+export type ToolUiPart = ToolUIPart | DynamicToolUIPart;
 
 export function isToolUiPart(
   part: UIMessage["parts"][number],

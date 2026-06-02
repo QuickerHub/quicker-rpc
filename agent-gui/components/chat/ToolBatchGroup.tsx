@@ -55,18 +55,20 @@ export function ToolBatchGroup({
           <span className="tool-chevron" aria-hidden />
         </span>
       </summary>
-      <div className="tool-batch-body">
-        {items.map((item) => (
-          <ToolPart
-            key={item.index}
-            part={item.part}
-            inBatch
-            batchOpen={open}
-            addToolApprovalResponse={addToolApprovalResponse}
-            approvalDisabled={approvalDisabled}
-          />
-        ))}
-      </div>
+      {open && (
+        <div className="tool-batch-body">
+          {items.map((item) => (
+            <ToolPart
+              key={item.index}
+              part={item.part}
+              inBatch
+              batchOpen={open}
+              addToolApprovalResponse={addToolApprovalResponse}
+              approvalDisabled={approvalDisabled}
+            />
+          ))}
+        </div>
+      )}
     </details>
   );
 }

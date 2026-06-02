@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   getToolOrDynamicToolName,
   isToolOrDynamicToolUIPart,
@@ -76,19 +77,35 @@ export function ToolPart({
     && part.approval?.id
     && addToolApprovalResponse;
 
-  const defaultOpen = inBatch
-    ? batchOpen && (
-      state === "output-error"
-      || state === "approval-requested"
-      || state === "input-available"
-      || state === "input-streaming"
-    )
-    : state === "output-error"
-      || state === "approval-requested"
-      || state === "input-available"
-      || state === "input-streaming";
+  const needsAttention =
+    isRunning
+    || state === "approval-requested"
+    || state === "output-error";
+  const isTerminal =
+    state === "output-available" || state === "output-denied";
 
-  if (isDocsOpenable && docsDoc) {
+  const [open, setOpen] = useState(() => {
+    if (inBatch) {
+      return batchOpen && needsAttention;
+    }
+    return needsAttention || !isTerminal;
+  });
+
+  useEffect(() => {
+    if (inBatch && !batchOpen) {
+      setOpen(false);
+      return;
+    }
+    if (isTerminal && !needsAttention) {
+      setOpen(false);
+      return;
+    }
+    if (needsAttention) {
+      setOpen(true);
+    }
+  }, [inBatch, batchOpen, isTerminal, needsAttention]);
+
+  if (isDocsOpenable && docsDoc && isQkrpcToolResult(output)) {
     return (
       <DocsToolOpenRow
         displayName={displayName}
@@ -98,7 +115,7 @@ export function ToolPart({
         doc={docsDoc}
         inBatch={inBatch}
         input={"input" in part ? part.input : undefined}
-        output={output!}
+        output={output}
         errorText={"errorText" in part ? part.errorText : undefined}
       />
     );
@@ -107,7 +124,8 @@ export function ToolPart({
   return (
     <details
       className={`tool-card${inBatch ? " tool-card--nested" : ""}${isActionList ? " tool-card--action-list" : ""}${isDocsGet ? " tool-card--docs" : ""}${needsApprovalUi ? " tool-card--approval" : ""}`}
-      open={defaultOpen}
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
     >
       <summary className="tool-summary">
         <span className="tool-title">
@@ -121,6 +139,7 @@ export function ToolPart({
         </span>
       </summary>
 
+      {open && (
       <div
         className={`tool-body${isActionList ? " tool-body--action-list" : ""}`}
       >
@@ -173,6 +192,7 @@ export function ToolPart({
           <pre className="tool-error">{part.errorText}</pre>
         )}
       </div>
+      )}
     </details>
   );
 }

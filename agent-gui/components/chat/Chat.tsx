@@ -56,7 +56,7 @@ import {
 } from "./ModelSelector";
 import type { LlmProviderId } from "@/lib/llm-providers";
 import { loadStoredLlmProvider, storeLlmProvider } from "@/lib/llm-prefs";
-import { resolveAgentActivity, resolveActivityAnchorUserId, isPlaceholderAssistantMessage } from "@/lib/agent-activity";
+import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent-activity";
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
 
 const PING_FETCH_MS = 15_000;
@@ -277,15 +277,11 @@ function ChatPanel({
       }),
     [status, messages, qkrpcOk, qkrpcLoading, pendingApprovalCount],
   );
-  const activityAnchorUserId = useMemo(
-    () => resolveActivityAnchorUserId(messages, agentActivity),
-    [messages, agentActivity],
-  );
   const lastVisibleMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const message = messages[i];
       if (
-        activityAnchorUserId != null
+        agentActivity
         && i === messages.length - 1
         && isPlaceholderAssistantMessage(message)
       ) {
@@ -294,7 +290,7 @@ function ChatPanel({
       return message.id;
     }
     return null;
-  }, [messages, activityAnchorUserId]);
+  }, [messages, agentActivity]);
   const isEmptyThread = messages.length === 0 && !error;
   const { activeTabId } = useDocsViewer();
   const showDocView = activeTabId != null;
@@ -312,7 +308,7 @@ function ChatPanel({
         {messages.map((message) => {
           const lastMessage = messages[messages.length - 1];
           if (
-            activityAnchorUserId != null
+            agentActivity
             && message.id === lastMessage?.id
             && isPlaceholderAssistantMessage(message)
           ) {
@@ -322,7 +318,7 @@ function ChatPanel({
           return (
             <article
               key={message.id}
-              className={`msg msg--${message.role === "user" ? "user" : "assistant"}${message.id === lastVisibleMessageId ? " msg--last" : ""}`}
+              className={`msg msg--${message.role === "user" ? "user" : "assistant"}${message.id === lastVisibleMessageId && !agentActivity ? " msg--last" : ""}`}
             >
               <div className="msg-content">
                 <div className="parts">
@@ -333,18 +329,14 @@ function ChatPanel({
                   />
                 </div>
               </div>
-              {message.role === "user"
-                && message.id === activityAnchorUserId
-                && agentActivity && (
-                  <div className="msg-activity" aria-busy="true">
-                    <AgentActivityLine activity={agentActivity} />
-                  </div>
-                )}
             </article>
           );
         })}
-        {agentActivity && !activityAnchorUserId && (
-          <article className="msg msg--assistant msg--activity" aria-busy="true">
+        {agentActivity && (
+          <article
+            className="msg msg--assistant msg--activity msg--last"
+            aria-busy="true"
+          >
             <div className="msg-content">
               <AgentActivityLine activity={agentActivity} />
             </div>
@@ -428,8 +420,8 @@ function ChatPanel({
                   >
                     <svg
                       className="composer-stop-icon"
-                      width="16"
-                      height="16"
+                      width="20"
+                      height="20"
                       viewBox="0 0 16 16"
                       aria-hidden
                     >

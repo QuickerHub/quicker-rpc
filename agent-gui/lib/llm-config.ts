@@ -64,6 +64,8 @@ function normalizeConfig(raw: unknown): LlmConfigFile {
       "nvidia",
       "nvidia-minimax",
       "deepseek",
+      "chatanywhere",
+      "ai98pro",
     ] as const) {
       const entry = normalizeEntry(data.providers[id]);
       if (entry) providers[id] = entry;

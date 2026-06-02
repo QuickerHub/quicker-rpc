@@ -5,7 +5,13 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 struct BackendState {
     qkrpc: Mutex<Option<Child>>,
@@ -72,13 +78,29 @@ fn wait_http_ok(host: &str, port: u16, path: &str, max_ms: u64) -> Result<(), St
 }
 
 fn resource_root(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .resource_dir()
-        .map_err(|e| e.to_string())
+    let base = app.path().resource_dir().map_err(|e| e.to_string())?;
+    let nested = base.join("resources");
+    if nested.join("app").join("server.js").is_file() {
+        return Ok(nested);
+    }
+    if base.join("app").join("server.js").is_file() {
+        return Ok(base);
+    }
+    Err(format!(
+        "runtime bundle not found (expected app/server.js under {} or {})",
+        nested.display(),
+        base.display()
+    ))
 }
 
 fn app_runtime_dir(resource: &Path) -> PathBuf {
     resource.join("app")
+}
+
+fn configure_hidden_child(cmd: &mut Command) {
+    cmd.stdout(Stdio::null()).stderr(Stdio::null());
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
 }
 
 fn spawn_qkrpc(qkrpc_dir: &Path, host: &str, port: u16) -> Result<Child, String> {
@@ -87,13 +109,11 @@ fn spawn_qkrpc(qkrpc_dir: &Path, host: &str, port: u16) -> Result<Child, String>
         return Err(format!("qkrpc.exe not found: {}", exe.display()));
     }
 
-    Command::new(&exe)
-        .args(["serve", "--host", host, "--port", &port.to_string()])
-        .current_dir(qkrpc_dir)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("spawn qkrpc: {e}"))
+    let mut cmd = Command::new(&exe);
+    cmd.args(["serve", "--host", host, "--port", &port.to_string()])
+        .current_dir(qkrpc_dir);
+    configure_hidden_child(&mut cmd);
+    cmd.spawn().map_err(|e| format!("spawn qkrpc: {e}"))
 }
 
 fn spawn_node_server(app_dir: &Path, node_exe: &Path, host: &str, port: u16) -> Result<Child, String> {
@@ -107,9 +127,7 @@ fn spawn_node_server(app_dir: &Path, node_exe: &Path, host: &str, port: u16) -> 
         .current_dir(app_dir)
         .env("HOSTNAME", host)
         .env("PORT", port.to_string())
-        .env("QKRPC_REPO_ROOT", app_dir)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .env("QKRPC_REPO_ROOT", app_dir);
 
     if let Ok(url) = std::env::var("QKRPC_HTTP_URL") {
         cmd.env("QKRPC_HTTP_URL", url);
@@ -118,6 +136,7 @@ fn spawn_node_server(app_dir: &Path, node_exe: &Path, host: &str, port: u16) -> 
         cmd.env("QKRPC_TRANSPORT", mode);
     }
 
+    configure_hidden_child(&mut cmd);
     cmd.spawn().map_err(|e| format!("spawn node server: {e}"))
 }
 
@@ -171,6 +190,9 @@ pub fn run() {
             #[cfg(debug_assertions)]
             {
                 // `tauri dev` uses devUrl + start.mjs from beforeDevCommand.
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.show();
+                }
                 return Ok(());
             }
 
@@ -178,15 +200,17 @@ pub fn run() {
             let state = app.state::<BackendState>();
             let url = start_production_backends(&handle, state.inner())?;
             let external: url::Url = url.parse().expect("valid UI url");
-            if let Some(win) = app.get_webview_window("main") {
-                win.navigate(external)?;
-            } else {
-                WebviewWindowBuilder::new(&handle, "main", WebviewUrl::External(external))
-                    .title("QuickerAgent")
-                    .inner_size(1280.0, 800.0)
-                    .resizable(true)
-                    .build()?;
+
+            if let Some(placeholder) = app.get_webview_window("main") {
+                let _ = placeholder.close();
             }
+
+            WebviewWindowBuilder::new(&handle, "agent", WebviewUrl::External(external))
+                .title("QuickerAgent")
+                .inner_size(1280.0, 800.0)
+                .resizable(true)
+                .visible(true)
+                .build()?;
             Ok(())
         })
         .build(tauri::generate_context!())

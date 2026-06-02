@@ -19,6 +19,16 @@
       "apiKey": "sk-...",
       "baseURL": "https://api.deepseek.com/v1",
       "model": "deepseek-v4-flash"
+    },
+    "chatanywhere": {
+      "apiKey": "sk-...",
+      "baseURL": "https://api.chatanywhere.tech/v1",
+      "model": "gpt-5.5"
+    },
+    "ai98pro": {
+      "apiKey": "sk-...",
+      "baseURL": "https://ai98pro.xyz/v1",
+      "model": "gpt-5.5"
     }
   }
 }

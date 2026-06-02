@@ -31,6 +31,7 @@ export function MessageParts({
         if (segment.kind === "text") {
           const { part, index } = segment;
           if (!isTextUIPart(part)) return null;
+          if (!part.text.trim()) return null;
           if (message.role === "user") {
             return <InlineUserMessage key={index} content={part.text} />;
           }

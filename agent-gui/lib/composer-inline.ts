@@ -329,3 +329,85 @@ export function appendTextWithNewlines(parent: ParentNode, text: string): void {
     }
   }
 }
+
+function insertFragmentAtSelection(
+  root: HTMLElement,
+  fragment: DocumentFragment,
+): void {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || !root.contains(selection.anchorNode)) {
+    root.append(fragment);
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+  const inserted: Node[] = [...fragment.childNodes];
+  range.deleteContents();
+  range.insertNode(fragment);
+
+  const last = inserted[inserted.length - 1];
+  if (last?.parentNode) {
+    range.setStartAfter(last);
+  }
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function prepareComposerPasteRoot(root: HTMLElement): void {
+  root.focus();
+  ensureCaretInRoot(root);
+}
+
+/** Plain-text paste via execCommand so Ctrl+Z can revert it. */
+export function insertPlainTextWithUndo(
+  root: HTMLElement,
+  text: string,
+): boolean {
+  const normalized = text.replace(/\r\n?/g, "\n");
+  if (!normalized) return true;
+
+  prepareComposerPasteRoot(root);
+  if (document.execCommand("insertText", false, normalized)) {
+    return true;
+  }
+
+  const fragment = document.createDocumentFragment();
+  appendTextWithNewlines(fragment, normalized);
+  insertFragmentAtSelection(root, fragment);
+  return false;
+}
+
+/** Markup paste (chips + text) via execCommand insertHTML for undo support. */
+export function insertComposerMarkupPasteWithUndo(
+  root: HTMLElement,
+  markup: string,
+): boolean {
+  const fragment = document.createDocumentFragment();
+  for (const segment of parseUserMessageSegments(markup)) {
+    if (segment.type === "tag") {
+      fragment.append(createComposerTagElement(segment.action));
+      continue;
+    }
+    appendTextWithNewlines(fragment, segment.text);
+  }
+
+  const temp = document.createElement("div");
+  while (fragment.firstChild) {
+    temp.appendChild(fragment.firstChild);
+  }
+  const html = temp.innerHTML;
+  if (!html) return true;
+
+  prepareComposerPasteRoot(root);
+  if (document.execCommand("insertHTML", false, html)) {
+    return true;
+  }
+
+  const fallback = document.createDocumentFragment();
+  while (temp.firstChild) {
+    fallback.appendChild(temp.firstChild);
+  }
+  insertFragmentAtSelection(root, fallback);
+  return false;
+}

@@ -144,22 +144,3 @@ export function isPlaceholderAssistantMessage(message: UIMessage): boolean {
   return true;
 }
 
-/** Pin live activity under the latest user bubble while the assistant row is still empty. */
-export function resolveActivityAnchorUserId(
-  messages: UIMessage[],
-  agentActivity: AgentActivity | null,
-): string | null {
-  if (!agentActivity || messages.length === 0) return null;
-
-  const last = messages[messages.length - 1];
-  if (last.role === "user") return last.id;
-
-  if (last.role === "assistant" && isPlaceholderAssistantMessage(last)) {
-    for (let i = messages.length - 2; i >= 0; i--) {
-      const message = messages[i];
-      if (message?.role === "user") return message.id;
-    }
-  }
-
-  return null;
-}

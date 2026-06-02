@@ -4,7 +4,9 @@ export type LlmProviderId =
   | "zen"
   | "nvidia"
   | "nvidia-minimax"
-  | "deepseek";
+  | "deepseek"
+  | "chatanywhere"
+  | "ai98pro";
 
 export type LlmProviderMeta = {
   id: LlmProviderId;
@@ -49,6 +51,22 @@ export const LLM_PROVIDER_LIST: readonly LlmProviderMeta[] = [
     clientName: "deepseek-official",
     description: "DeepSeek 官方 API（api.deepseek.com）",
   },
+  {
+    id: "chatanywhere",
+    label: "ChatAnywhere",
+    defaultBaseURL: "https://api.chatanywhere.tech/v1",
+    defaultModel: "gpt-5.5",
+    clientName: "chatanywhere",
+    description: "OpenAI 兼容转发（api.chatanywhere.tech）",
+  },
+  {
+    id: "ai98pro",
+    label: "AI98Pro",
+    defaultBaseURL: "https://ai98pro.xyz/v1",
+    defaultModel: "gpt-5.5",
+    clientName: "ai98pro",
+    description: "OpenAI 兼容网关（ai98pro.xyz）",
+  },
 ] as const;
 
 export function parseLlmProviderId(raw: string | undefined): LlmProviderId | undefined {
@@ -58,6 +76,8 @@ export function parseLlmProviderId(raw: string | undefined): LlmProviderId | und
     || id === "nvidia-minimax"
     || id === "zen"
     || id === "deepseek"
+    || id === "chatanywhere"
+    || id === "ai98pro"
   ) {
     return id;
   }

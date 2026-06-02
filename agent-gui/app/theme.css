@@ -8,6 +8,8 @@
   --border: #3c3c3c;
   --text: #cccccc;
   --text-assistant: #cccccc;
+  /* Tool card title: between assistant body and tool-meta */
+  --text-tool-name: color-mix(in srgb, var(--text-assistant) 46%, var(--muted) 54%);
   --muted: #858585;
   --accent: #3794ff;
   --accent-dim: #2b7fd4;
@@ -71,6 +73,7 @@
   --border: #e5e5e5;
   --text: #3b3b3b;
   --text-assistant: #3b3b3b;
+  --text-tool-name: color-mix(in srgb, var(--text-assistant) 46%, var(--muted) 54%);
   --muted: #717171;
   --accent: #005fb8;
   --accent-dim: #004e9a;

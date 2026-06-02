@@ -23,7 +23,14 @@ function normalizeSecrets(raw: unknown): LlmLocalSecrets {
   const data = raw as Partial<LlmLocalSecrets>;
   const providers: Partial<Record<LlmProviderId, string>> = {};
   if (typeof data.providers === "object" && data.providers !== null) {
-    for (const id of ["zen", "nvidia", "nvidia-minimax", "deepseek"] as const) {
+    for (const id of [
+      "zen",
+      "nvidia",
+      "nvidia-minimax",
+      "deepseek",
+      "chatanywhere",
+      "ai98pro",
+    ] as const) {
       const value = data.providers[id];
       if (typeof value === "string" && value.trim()) {
         providers[id] = value.trim();
