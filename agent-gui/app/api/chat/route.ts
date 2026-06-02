@@ -100,16 +100,7 @@ export async function POST(req: Request) {
             reasoningTokens: u.reasoningTokens,
           };
         }
-        if (part.type === "finish" && part.usage) {
-          const u = part.usage;
-          return {
-            model: modelId,
-            inputTokens: u.inputTokens,
-            outputTokens: u.outputTokens,
-            totalTokens: u.totalTokens,
-            reasoningTokens: u.reasoningTokens,
-          };
-        }
+        // finish has totalUsage only (sums all tool steps); per-step usage comes from finish-step above.
         if (part.type === "finish") {
           return { model: modelId };
         }
