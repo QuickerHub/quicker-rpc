@@ -11,7 +11,6 @@ qkrpc subprogram get --id <id|name> --return-mode full --json
 qkrpc subprogram patch --id <id> --patch-file patch.json --expected-edit-version <N> --json
 ```
 
-
 patch 形状同 **`patch-workflow`**。
 ## B 在动作中调用
 ```text

@@ -22,15 +22,9 @@
 
 ```
 
-
-
 **增量 patch**（默认）：在现有程序上增删改；可只传 `steps` 或 `variables` 之一。`steps[]` 中单条且仅含 `stepRunnerKey`（无 `stepId`/`id`、无 `ifSteps`/`elseSteps`）时省略 `op` 视为 **`add`**；`update` / `remove` / `move` 须写明 `op`。
 
-
-
 **整页替换**（等同 `action replace`：先清空再写入）：须显式 `"replace": true`（或 `"mode": "replace"`），且同时提供 **`steps` 与 `variables` 两个数组**（可与 `action get --return-mode full` / `action replace` 相同 JSON，含 `subPrograms`）。不能靠省略 `op` 推断整页替换。
-
-
 
 ```json
 
@@ -48,11 +42,7 @@
 
 ```
 
-
-
 ### `add` 插入位置（steps / variables）
-
-
 
 | 写法 | 行为 |
 
@@ -72,17 +62,11 @@
 
 仅元数据：顶层 `"icon"`（格式 **`action-icons`**）或 **`qkrpc_action_set_metadata`**。
 
-
-
-
-
 ```text
 
 qkrpc_action_patch({ id: "<guid>", patch: { ... }, expectedEditVersion: <N> })
 
 ```
-
-
 
 ## inputParams 规则
 

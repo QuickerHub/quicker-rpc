@@ -18,6 +18,11 @@ const OUT_CLI = path.join(ROOT, "docs/action-authoring/cli");
 const OUT_AGENT = path.join(ROOT, "docs/action-authoring/agent");
 const GENERATOR = fileURLToPath(import.meta.url);
 
+/** Normalize to LF so output matches on Linux CI and Windows (core.autocrlf). */
+function normalizeEol(text) {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
 /** @typedef {'cli' | 'agent'} Profile */
 
 function parseArgs(argv) {
@@ -34,7 +39,9 @@ function parseArgs(argv) {
  */
 async function loadSource() {
   const opsPath = path.join(SRC, "ops.json");
-  const opsData = JSON.parse(await fs.readFile(opsPath, "utf8"));
+  const opsData = JSON.parse(
+    normalizeEol(await fs.readFile(opsPath, "utf8")),
+  );
   const files = (await fs.readdir(SRC))
     .filter((f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md")
     .sort();
@@ -51,7 +58,9 @@ async function computeOutputs(opsData, files) {
   const outputs = new Map();
   for (const profile of /** @type {Profile[]} */ (["cli", "agent"])) {
     for (const file of files) {
-      const src = await fs.readFile(path.join(SRC, file), "utf8");
+      const src = normalizeEol(
+        await fs.readFile(path.join(SRC, file), "utf8"),
+      );
       const rendered = renderDoc(src, opsData, profile, file);
       outputs.set(`${profile}/${file}`, rendered);
     }

@@ -41,7 +41,6 @@ $=string.Equals({quicker_in_param}, "verbose", StringComparison.OrdinalIgnoreCas
 | `output` | Return value; assignments update variables directly |
 `$=` 若创建窗口、访问 WPF 或 Quicker 主界面，须在 **UI 线程** 执行：用本步骤的 `onUiThread`，或子程序调用扩展表达式时将该子程序的 UI 线程参数设为 `true`（键名以 step-runner get 为准）。
 
-
 ```text
 qkrpc_step_runner_search({ query: "表达式|evalexpression" })
 qkrpc_step_runner_get({ key: "sys:evalexpression" })

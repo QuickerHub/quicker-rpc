@@ -5,7 +5,6 @@
 subprogram search/list → get → step-runner get → subprogram patch
 ```
 
-
 ```text
 qkrpc_subprogram_get({ id: "<id|name>", returnMode: "full" })
 ```

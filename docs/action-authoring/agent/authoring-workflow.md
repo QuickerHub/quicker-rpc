@@ -14,7 +14,6 @@
 `scope`（list/search）：`global`/`common`/`default`/`chrome`/`taskbar`/`desktop`/`agent`/`qkrpc`、动作页 id 或名称。记下 **`actionId`**（GUID）。
 ## P2 读取
 
-
 ```text
 qkrpc_action_get({ id: "<guid>", returnMode: "structure" })   # 步骤树、stepId
 qkrpc_action_get({ id: "<guid>", returnMode: "full" })        # 非默认 inputParams
@@ -25,14 +24,12 @@ qkrpc_action_get({ id: "<guid>", returnMode: "metadata" })     # 标题/icon/概
 ## P3 元数据（可选）
 改标题/说明/图标、不动程序体：
 
-
 ```text
 qkrpc_action_set_metadata({ id: "<guid>", icon: "fa:Light_<Name>", expectedEditVersion: <N> })
 ```
 
 或与 P6 同 patch 写顶层 `icon`（值见 **`action-icons`**）。
 ## P4 实现选型
-
 
 需要细节时再 `docs_get`（`topic: "implementation-fallback"`）。
 
@@ -41,7 +38,6 @@ qkrpc_action_set_metadata({ id: "<guid>", icon: "fa:Light_<Name>", expectedEditV
 ```text
 step-modules（速查）→ 无则 step-runner search（一次 OR|通配）→ step-runner get（必须）
 ```
-
 
 ```text
 docs_get({ topic: "step-modules" })   # 速查表；按需
@@ -52,7 +48,6 @@ qkrpc_step_runner_get({ key: "sys:windowOperations", controlField: "move_ex" })
 
 `schema.Inputs[].Key` = **`inputParams` 键名**（以 step-runner get 为准）。有 **`ControlField`** 的步骤：search 可能返回 `controlFieldValue`；get 须传 **`controlField`**，否则 `Inputs` 含全部模式参数易写错键。搜索语法：**`step-runner-search`**。
 ## P6 写入
-
 
 ```text
 qkrpc_action_patch({ id: "<guid>", patch: { ... }, expectedEditVersion: <N> })

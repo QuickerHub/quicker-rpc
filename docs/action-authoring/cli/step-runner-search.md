@@ -5,7 +5,6 @@
 qkrpc step-runner search --query "剪贴板|clipboard|sys:*clip*" --json
 ```
 
-
 → `items[].key` → **`step-runner get`**。若 `items[]` 含 **`controlFieldKey` / `controlFieldValue`**（命中控制字段选项），get 时带上 **`--control-field <value>`**。
 ## 语法
 | 特性 | 语法 |
