@@ -33,7 +33,7 @@ type LlmApiResponse = {
 type ModelSelectorProps = {
   providerId: LlmProviderId;
   onChange: (id: LlmProviderId) => void;
-  onNeedSettings?: () => void;
+  onNeedSettings?: (targetProviderId?: LlmProviderId) => void;
   disabled?: boolean;
 };
 
@@ -189,15 +189,15 @@ export function ModelSelector({
     ? options.find((p) => p.id === hoveredId)
     : undefined;
 
-  const openSettings = () => {
+  const openSettings = (targetProviderId?: LlmProviderId) => {
     setOpen(false);
-    onNeedSettings?.();
+    onNeedSettings?.(targetProviderId);
   };
 
   const select = (id: LlmProviderId) => {
     const opt = options.find((p) => p.id === id);
     if (!opt?.configured) {
-      openSettings();
+      openSettings(id);
       return;
     }
     onChange(id);
@@ -207,7 +207,7 @@ export function ModelSelector({
 
   const togglePanel = () => {
     if (ready && !anyConfigured) {
-      openSettings();
+      openSettings(providerId);
       return;
     }
     setOpen((v) => !v);
@@ -349,7 +349,7 @@ export function ModelSelector({
                         <button
                           type="button"
                           className="model-picker-item-edit"
-                          onClick={openSettings}
+                          onClick={() => openSettings(p.id)}
                         >
                           配置
                         </button>
@@ -364,7 +364,7 @@ export function ModelSelector({
               type="button"
               className="model-picker-footer"
               onMouseEnter={() => setHoveredId(null)}
-              onClick={openSettings}
+              onClick={() => openSettings(providerId)}
             >
               配置模型…
             </button>

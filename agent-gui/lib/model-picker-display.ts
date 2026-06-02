@@ -1,4 +1,5 @@
 import {
+  CUSTOM_PROVIDER_ID,
   DEEPSEEK_PROVIDER_ID,
   formatModelShortLabel,
   getLlmProviderMeta,
@@ -46,6 +47,10 @@ export function getModelPickerDisplay(
   modelId: string,
 ): ModelPickerDisplay {
   const meta = getLlmProviderMeta(providerId);
+  if (providerId === CUSTOM_PROVIDER_ID) {
+    const tier: ModelPickerTier = "Medium";
+    return { displayName: "Custom", tier };
+  }
   if (providerId === DEEPSEEK_PROVIDER_ID) {
     const displayName = humanizeModelId(modelId);
     const tier: ModelPickerTier = "Fast";

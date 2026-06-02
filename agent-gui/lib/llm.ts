@@ -12,6 +12,7 @@ import {
   type LlmEndpointFallback,
 } from "@/lib/llm-config";
 import {
+  CUSTOM_PROVIDER_ID,
   getLlmProviderMeta,
   DEEPSEEK_PROVIDER_ID,
   resolveDeepSeekModelId,
@@ -54,6 +55,11 @@ const DEEPSEEK_ENV_BASE_URLS = ["LLM_DEEPSEEK_BASE_URL"] as const;
 const DEEPSEEK_ENV_MODELS = ["LLM_DEEPSEEK_MODEL"] as const;
 
 function resolveApiKey(providerId: LlmProviderId): string | undefined {
+  if (providerId === CUSTOM_PROVIDER_ID) {
+    const local = getLocalProviderApiKey(CUSTOM_PROVIDER_ID);
+    if (local) return local;
+    return envFirst("LLM_CUSTOM_API_KEY");
+  }
   if (providerId === DEEPSEEK_PROVIDER_ID) {
     const local = getLocalProviderApiKey(DEEPSEEK_PROVIDER_ID);
     if (local) return local;
@@ -70,6 +76,12 @@ function resolveApiKey(providerId: LlmProviderId): string | undefined {
 }
 
 function resolveBaseURL(providerId: LlmProviderId): string | undefined {
+  if (providerId === CUSTOM_PROVIDER_ID) {
+    return (
+      getLocalProviderConfig(CUSTOM_PROVIDER_ID)?.baseURL
+      ?? envFirst("LLM_CUSTOM_BASE_URL")
+    );
+  }
   if (providerId === DEEPSEEK_PROVIDER_ID) {
     return (
       getLocalProviderConfig(DEEPSEEK_PROVIDER_ID)?.baseURL
@@ -85,6 +97,12 @@ function resolveBaseURL(providerId: LlmProviderId): string | undefined {
 }
 
 function resolveModelId(providerId: LlmProviderId): string | undefined {
+  if (providerId === CUSTOM_PROVIDER_ID) {
+    return (
+      getLocalProviderConfig(CUSTOM_PROVIDER_ID)?.model
+      ?? envFirst("LLM_CUSTOM_MODEL")
+    );
+  }
   if (providerId === DEEPSEEK_PROVIDER_ID) {
     const raw =
       getLocalProviderConfig(DEEPSEEK_PROVIDER_ID)?.model
@@ -114,6 +132,9 @@ function hasConfiguredFallbacks(): boolean {
 }
 
 export function isLlmProviderConfigured(providerId: LlmProviderId): boolean {
+  if (providerId === CUSTOM_PROVIDER_ID) {
+    return Boolean(resolveApiKey(CUSTOM_PROVIDER_ID));
+  }
   if (providerId === DEEPSEEK_PROVIDER_ID) {
     return Boolean(resolveApiKey(DEEPSEEK_PROVIDER_ID));
   }

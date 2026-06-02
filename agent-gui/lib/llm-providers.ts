@@ -2,8 +2,12 @@
 
 export const LLM_PROVIDER_ID = "bingleimuzi" as const;
 export const DEEPSEEK_PROVIDER_ID = "deepseek" as const;
+export const CUSTOM_PROVIDER_ID = "custom" as const;
 
-export type LlmProviderId = typeof LLM_PROVIDER_ID | typeof DEEPSEEK_PROVIDER_ID;
+export type LlmProviderId =
+  | typeof LLM_PROVIDER_ID
+  | typeof DEEPSEEK_PROVIDER_ID
+  | typeof CUSTOM_PROVIDER_ID;
 
 export type LlmProviderMeta = {
   id: LlmProviderId;
@@ -41,6 +45,15 @@ export const DEEPSEEK_PROVIDER: LlmProviderMeta = {
   description: "DeepSeek 官方 API（默认 deepseek-v4-flash，需在设置中填写 Key）",
 };
 
+export const CUSTOM_PROVIDER: LlmProviderMeta = {
+  id: CUSTOM_PROVIDER_ID,
+  label: "Custom",
+  defaultBaseURL: "https://api.openai.com/v1",
+  defaultModel: "gpt-4o-mini",
+  clientName: "custom-openai-compatible",
+  description: "自定义 OpenAI-compatible 模型（可配置 Model / Base URL / API Key）",
+};
+
 /** Map legacy DeepSeek model ids to the current default. */
 export function resolveDeepSeekModelId(modelId: string | undefined): string {
   const trimmed = modelId?.trim();
@@ -54,6 +67,7 @@ export function resolveDeepSeekModelId(modelId: string | undefined): string {
 export const LLM_PROVIDER_LIST: readonly LlmProviderMeta[] = [
   GPT55_PROVIDER,
   DEEPSEEK_PROVIDER,
+  CUSTOM_PROVIDER,
 ] as const;
 
 const GPT55_ALIASES = new Set([
@@ -67,6 +81,7 @@ const GPT55_ALIASES = new Set([
 export function parseLlmProviderId(raw: string | undefined): LlmProviderId | undefined {
   if (!raw?.trim()) return LLM_PROVIDER_ID;
   const id = raw.trim().toLowerCase();
+  if (id === CUSTOM_PROVIDER_ID) return CUSTOM_PROVIDER_ID;
   if (id === DEEPSEEK_PROVIDER_ID) return DEEPSEEK_PROVIDER_ID;
   if (GPT55_ALIASES.has(id)) return LLM_PROVIDER_ID;
   return undefined;

@@ -95,7 +95,7 @@ type ChatPanelProps = {
   titleManual: boolean;
   ping: PingState;
   connectTick: number;
-  onOpenSettings: () => void;
+  onOpenSettings: (targetProviderId?: LlmProviderId) => void;
   onPersist: (threadId: string, messages: AgentUIMessage[]) => void;
   onAutoTitle: (threadId: string, title: string) => void;
 };
@@ -554,6 +554,9 @@ export function Chat() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [mainView, setMainView] = useState<AppMainView>("chat");
   const [settingsTabOpen, setSettingsTabOpen] = useState(false);
+  const [settingsFocusProviderId, setSettingsFocusProviderId] = useState<
+    LlmProviderId | undefined
+  >(undefined);
   const { ping, refreshPing, connectTick } = useQkrpcPing();
   const storeRef = useRef(store);
   storeRef.current = store;
@@ -594,7 +597,8 @@ export function Chat() {
     [updateStore],
   );
 
-  const openSettingsTab = useCallback(() => {
+  const openSettingsTab = useCallback((targetProviderId?: LlmProviderId) => {
+    setSettingsFocusProviderId(targetProviderId);
     setSettingsTabOpen(true);
     setMainView("settings");
   }, []);
@@ -617,6 +621,7 @@ export function Chat() {
   const closeSettingsTab = useCallback(() => {
     setSettingsTabOpen(false);
     setMainView("chat");
+    setSettingsFocusProviderId(undefined);
   }, []);
 
   const activeThread = getActiveThread(store);
@@ -655,6 +660,7 @@ export function Chat() {
                 active
                 ping={ping}
                 onRefreshPing={refreshPing}
+                focusProviderId={settingsFocusProviderId}
               />
             ) : (
               <div className="app-main-stack">

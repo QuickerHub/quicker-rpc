@@ -2,12 +2,14 @@
 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LlmKeysSettingsSection } from "@/components/chat/LlmKeysSettingsSection";
+import type { LlmProviderId } from "@/lib/llm-providers";
 import type { PingState } from "@/lib/use-qkrpc-ping";
 
 type AppSettingsPanelProps = {
   active: boolean;
   ping: PingState;
   onRefreshPing: () => void;
+  focusProviderId?: LlmProviderId;
   disabled?: boolean;
 };
 
@@ -21,6 +23,7 @@ export function AppSettingsPanel({
   active,
   ping,
   onRefreshPing,
+  focusProviderId,
   disabled = false,
 }: AppSettingsPanelProps) {
   return (
@@ -33,7 +36,11 @@ export function AppSettingsPanel({
           <ThemeToggle />
         </section>
 
-        <LlmKeysSettingsSection active={active} disabled={disabled} />
+        <LlmKeysSettingsSection
+          active={active}
+          focusProviderId={focusProviderId}
+          disabled={disabled}
+        />
 
         <section className="app-settings-section-block">
           <header className="app-settings-section-head">

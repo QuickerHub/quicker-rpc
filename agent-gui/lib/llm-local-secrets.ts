@@ -2,7 +2,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import type { LlmProviderId } from "@/lib/llm-providers";
-import { DEEPSEEK_PROVIDER_ID, LLM_PROVIDER_ID } from "@/lib/llm-providers";
+import {
+  CUSTOM_PROVIDER_ID,
+  DEEPSEEK_PROVIDER_ID,
+  LLM_PROVIDER_ID,
+} from "@/lib/llm-providers";
 
 export type LlmLocalProviderSecrets = {
   apiKey?: string;
@@ -57,7 +61,11 @@ function normalizeSecrets(raw: unknown): LlmLocalSecrets {
   const providers: Partial<Record<LlmProviderId, LlmLocalProviderSecrets>> = {};
   if (typeof data.providers === "object" && data.providers !== null) {
     const rawProviders = data.providers as Record<string, unknown>;
-    for (const id of [LLM_PROVIDER_ID, DEEPSEEK_PROVIDER_ID] as const) {
+    for (const id of [
+      LLM_PROVIDER_ID,
+      DEEPSEEK_PROVIDER_ID,
+      CUSTOM_PROVIDER_ID,
+    ] as const) {
       const entry = normalizeProviderEntry(rawProviders[id]);
       if (entry) providers[id] = entry;
     }
