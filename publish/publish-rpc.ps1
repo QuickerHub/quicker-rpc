@@ -4,6 +4,7 @@
 param(
     [switch]$SkipInstall,
     [switch]$SkipPath,
+    [switch]$SkipSetup,
     # Test build (-t): skip zip, setup.exe, and publish/plugin (plugin already from qkbuild).
     [switch]$SkipPackaging
 )
@@ -116,8 +117,11 @@ if (-not $SkipPackaging) {
     Write-Host "Latest alias: $latestZipPath" -ForegroundColor Cyan
 
     $buildSetupScript = Join-Path $PSScriptRoot 'Build-QkrpcSetup.ps1'
-    if (Test-Path -LiteralPath $buildSetupScript) {
-        & pwsh -NoProfile -File $buildSetupScript -RepoRoot $repoRoot
+    if ($SkipSetup) {
+        Write-Host 'SkipSetup: setup.exe not built (use GitHub Actions release-cli or omit -SkipSetup).' -ForegroundColor Yellow
+    }
+    elseif (Test-Path -LiteralPath $buildSetupScript) {
+        & pwsh -NoProfile -File $buildSetupScript -RepoRoot $repoRoot -SkipIfMissingCompiler
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Setup build failed (exit $LASTEXITCODE)." -ForegroundColor Red
             exit $LASTEXITCODE

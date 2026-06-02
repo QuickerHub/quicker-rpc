@@ -74,7 +74,7 @@ if (-not $SkipQkrpcBuild) {
 
 Push-Location $agentGuiDir
 try {
-    if (-not (Test-Path -LiteralPath 'node_modules')) {
+    if (-not (Test-Path -LiteralPath 'node_modules') -or $env:CI -eq 'true') {
         Write-Host 'pnpm install (agent-gui)...' -ForegroundColor Cyan
         pnpm install --frozen-lockfile --config.node-linker=hoisted
         if ($LASTEXITCODE -ne 0) { throw "pnpm install failed ($LASTEXITCODE)" }
@@ -94,9 +94,10 @@ $expectedSemVer = Get-QuickerAgentVersionFromJson -Root $RepoRoot
 Write-Host "Bundles: $bundleRoot (expect $expectedSemVer)" -ForegroundColor Green
 
 $setupExe = Resolve-QuickerAgentSetupExe -BundleRoot $bundleRoot -ExpectedSemVer $expectedSemVer
-$versionedName = "QuickerAgent_${expectedSemVer}_x64-setup.exe"
+$versionJson = Get-Content -LiteralPath (Join-Path $RepoRoot 'version.json') -Raw | ConvertFrom-Json
+$versionedName = Get-QuickerAgentSetupName -Version ([string]$versionJson.QuickerRpc)
 $versionedPath = Join-Path $publishOut $versionedName
-$aliasPath = Join-Path $publishOut 'quicker-agent-win-x64-setup.exe'
+$aliasPath = Join-Path $publishOut (Get-QkrpcLatestAgentSetupName)
 
 Copy-Item -LiteralPath $setupExe.FullName -Destination $versionedPath -Force
 Copy-Item -LiteralPath $setupExe.FullName -Destination $aliasPath -Force

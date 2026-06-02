@@ -1,5 +1,6 @@
 name: Release qkrpc CLI
 
+# Builds qkrpc CLI zip + Inno setup, and QuickerAgent Tauri NSIS installer on tag push.
 on:
   push:
     tags:
@@ -14,13 +15,17 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-cli-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release-cli:
     runs-on: windows-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Resolve tag
         id: tag
@@ -37,9 +42,10 @@ jobs:
           "semver=$semver" >> $env:GITHUB_OUTPUT
           "zip_name=qkrpc-$semver-win-x64.zip" >> $env:GITHUB_OUTPUT
           "setup_name=qkrpc-$semver-win-x64-setup.exe" >> $env:GITHUB_OUTPUT
+          "agent_setup_name=QuickerAgent_${semver}_x64-setup.exe" >> $env:GITHUB_OUTPUT
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
 
@@ -79,6 +85,37 @@ jobs:
         run: |
           pwsh -NoProfile -File ./publish/Build-QkrpcSetup.ps1 -RepoRoot $PWD
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: agent-gui/pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: agent-gui/src-tauri
+
+      - name: Install NSIS (Tauri bundler)
+        run: choco install nsis -y --no-progress
+
+      - name: Generate action authoring docs
+        run: node scripts/generate-authoring-docs.mjs
+
+      - name: Build QuickerAgent installer
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./publish/Publish-QuickerAgent.ps1 -SkipQkrpcBuild
+
       - name: Generate release notes
         id: notes
         shell: pwsh
@@ -99,7 +136,7 @@ jobs:
           "path=$notesPath" >> $env:GITHUB_OUTPUT
 
       - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: qkrpc ${{ steps.tag.outputs.tag }}
@@ -109,5 +146,7 @@ jobs:
             publish/qkrpc-win-x64.zip
             publish/${{ steps.tag.outputs.setup_name }}
             publish/qkrpc-win-x64-setup.exe
+            publish/${{ steps.tag.outputs.agent_setup_name }}
+            publish/quicker-agent-win-x64-setup.exe
           draft: false
           prerelease: false

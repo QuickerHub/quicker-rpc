@@ -39,6 +39,8 @@ pnpm quicker-agent:publish
 
 流程：`pnpm build` → `scripts/tauri-prepare.mjs`（打入 Next standalone、便携 Node、`publish/cli` 整目录 qkrpc）→ `tauri build` → `scripts/verify-tauri-bundle.mjs`。
 
+**GitHub Release**：push tag 后 `.github/workflows/release-cli.yml` 会自动调用 `Publish-QuickerAgent.ps1`（复用同 job 已构建的 `publish/cli`），上传 `QuickerAgent_{version}_x64-setup.exe` 与 `quicker-agent-win-x64-setup.exe`。本地仅调试时可仍跑 `pnpm quicker-agent:publish`。
+
 安装包内应含三块运行时（`$RESOURCE/resources/` 下保留目录结构）：
 
 | 目录 | 内容 |

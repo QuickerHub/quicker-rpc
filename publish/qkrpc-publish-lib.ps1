@@ -92,6 +92,32 @@ function Get-QkrpcLatestCliSetupName {
     return 'qkrpc-win-x64-setup.exe'
 }
 
+function Get-QuickerAgentSetupName {
+    param([string]$Version)
+
+    $semver = Get-QuickerRpcSemVerFromVersion -Version $Version
+    return "QuickerAgent_${semver}_x64-setup.exe"
+}
+
+function Get-QkrpcLatestAgentSetupName {
+    return 'quicker-agent-win-x64-setup.exe'
+}
+
+function Get-QkrpcLatestAgentSetupDownloadUrl {
+    return 'https://github.com/QuickerHub/quicker-rpc/releases/latest/download/quicker-agent-win-x64-setup.exe'
+}
+
+function Get-QkrpcPinnedAgentSetupDownloadUrl {
+    param([Parameter(Mandatory = $true)][string]$Tag)
+
+    $normalizedTag = $Tag.Trim()
+    if (-not $normalizedTag.StartsWith('v')) {
+        $normalizedTag = "v$normalizedTag"
+    }
+
+    return "https://github.com/QuickerHub/quicker-rpc/releases/download/$normalizedTag/quicker-agent-win-x64-setup.exe"
+}
+
 function Get-QkrpcLatestSetupDownloadUrl {
     return 'https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe'
 }
@@ -211,6 +237,9 @@ function New-QkrpcReleaseNotesBody {
     $setupLatest = Get-QkrpcLatestSetupDownloadUrl
     $setupPinned = Get-QkrpcPinnedSetupDownloadUrl -Tag $Tag
     $setupAsset = Get-QkrpcLatestCliSetupName
+    $agentLatest = Get-QkrpcLatestAgentSetupDownloadUrl
+    $agentPinned = Get-QkrpcPinnedAgentSetupDownloadUrl -Tag $Tag
+    $agentAsset = Get-QkrpcLatestAgentSetupName
 
     $sections = @()
     if (-not [string]::IsNullOrWhiteSpace($Changelog)) {
@@ -228,7 +257,7 @@ function New-QkrpcReleaseNotesBody {
         '',
         '---',
         '',
-        '### Install',
+        '### Install qkrpc CLI',
         '',
         "1. Download [**$setupAsset**]($setupLatest) from GitHub Releases (or pinned: $setupPinned).",
         '2. Run the installer (adds `%LOCALAPPDATA%\Programs\qkrpc` to user PATH).',
@@ -240,6 +269,10 @@ function New-QkrpcReleaseNotesBody {
         "Invoke-WebRequest -Uri '$setupLatest' -OutFile `"`$env:TEMP\qkrpc-setup.exe`" -UseBasicParsing",
         'Start-Process -FilePath "$env:TEMP\qkrpc-setup.exe" -ArgumentList "/VERYSILENT" -Wait',
         '```',
+        '',
+        '### Install QuickerAgent (desktop UI)',
+        '',
+        "Download [**$agentAsset**]($agentLatest) (or pinned: $agentPinned). Bundles Next.js UI, portable Node, and qkrpc; still requires Quicker + plugin and `llm-config.json`.",
         '',
         '### Verify',
         '',

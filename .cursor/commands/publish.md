@@ -24,32 +24,34 @@ CLI
 - ...
 ```
 
-## 阶段二：GitHub Release（CLI + 说明）
+## 阶段二：GitHub Release（tag → CI 构建 zip + setup.exe）
 
 ```powershell
 pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1
+# 或等待 CI 完成：
+pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1 -WaitForCi
 ```
 
-脚本会自动读取 `publish/changelogs/vX.Y.Z.md`（也可用 `-ChangelogFile` 覆盖）。
+脚本校验 `publish/changelogs/vX.Y.Z.md` 并 **push tag**；`.github/workflows/release-cli.yml` 在 Windows runner 上 `dotnet publish`、打 zip、用 Inno Setup 编译 `setup.exe` 并上传 Release 资产。
 
-`block_until_ms` ≥ **120000**（dotnet publish + gh upload + CI 可能并行）。
-
-**注意**：push tag 会触发 `.github/workflows/release-cli.yml`；CI 与本地脚本共用 `publish/changelogs/vX.Y.Z.md` 生成 Release 正文。若未 commit changelog，CI 会覆盖为仅含安装说明的模板。
+`block_until_ms` ≥ **300000**（若使用 `-WaitForCi`，含 choco 装 Inno + 编译）。
 
 | 参数 | 用途 |
 |------|------|
+| `-WaitForCi` | push tag 后 `gh run watch` 直到 workflow 成功 |
+| `-LocalBuild` | 本地构建并 `gh release upload`（需 Inno Setup；CI 不可用时） |
 | `-ChangelogFile` | 覆盖默认 `publish/changelogs/vX.Y.Z.md` |
 | `-AllowEmptyChangelog` | 跳过 changelog 校验（不推荐） |
-| `-SkipBuild` | 已有 zip 时跳过构建 |
-| `-DryRun` | 预览 tag / gh 命令 |
-| `-Draft` | 草稿 Release |
+| `-SkipBuild` | 仅 `-LocalBuild`：已有 zip/setup 时跳过构建 |
+| `-DryRun` | 预览 tag / 命令 |
+| `-Draft` | 草稿 Release（仅 `-LocalBuild`） |
 
 ## 阶段三：Quicker 依赖上传（插件）
 
 **在 GitHub Release 成功后**，按 **当前 `version.json` 版本**（不再 bump）上传 Quicker 包：
 
 ```powershell
-pwsh ./build.ps1 -p -n
+pwsh ./build.ps1 -QkbuildArgs '-p','-n'
 ```
 
 `block_until_ms` ≥ **120000**（qkbuild 上传 quicker.rpc + 本地 CLI 安装）。

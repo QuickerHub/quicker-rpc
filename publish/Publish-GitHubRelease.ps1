@@ -1,12 +1,12 @@
 #!/usr/bin/env pwsh
-# Create a GitHub Release for qkrpc CLI (zip asset).
-# Quicker plugin zip still uses qkbuild -p locally; this script only ships the CLI.
+# Push a release tag; zip + setup.exe are built by .github/workflows/release-cli.yml (GitHub Actions).
+# Use -LocalBuild only when CI is unavailable (requires Inno Setup 6 locally).
 #
 # Examples:
 #   pwsh ./publish/Publish-GitHubRelease.ps1
-#   pwsh ./publish/Publish-GitHubRelease.ps1 -SkipBuild
+#   pwsh ./publish/Publish-GitHubRelease.ps1 -WaitForCi
+#   pwsh ./publish/Publish-GitHubRelease.ps1 -LocalBuild
 #   pwsh ./publish/Publish-GitHubRelease.ps1 -DryRun
-#   pwsh ./publish/Publish-GitHubRelease.ps1 -ChangelogFile $env:TEMP\qkrpc-release-changelog.txt
 
 [CmdletBinding()]
 param(
@@ -17,6 +17,8 @@ param(
     [string]$Changelog = '',
     [string]$ChangelogFile = '',
     [switch]$AllowEmptyChangelog,
+    [switch]$LocalBuild,
+    [switch]$WaitForCi,
     [switch]$SkipBuild,
     [switch]$SkipTag,
     [switch]$Draft,
@@ -69,11 +71,26 @@ function Assert-GhAvailable {
     }
 }
 
+function Get-GitHubRepoSlug {
+    param([string]$Root)
+
+    $remote = git -C $Root remote get-url origin 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($remote)) {
+        return 'QuickerHub/quicker-rpc'
+    }
+
+    if ($remote -match 'github\.com[:/](?<owner>[^/]+)/(?<repo>[^/]+?)(?:\.git)?$') {
+        return "$($Matches.owner)/$($Matches.repo)"
+    }
+
+    return 'QuickerHub/quicker-rpc'
+}
+
 function Get-ReleaseAssetPaths {
     if (-not (Test-Path -LiteralPath $zipPath)) {
         throw @"
 CLI release zip not found: $zipPath
-Run publish-rpc.ps1 first (or omit -SkipBuild).
+Run publish-rpc.ps1 first (or omit -SkipBuild with -LocalBuild).
 "@
     }
 
@@ -84,7 +101,7 @@ Run publish-rpc.ps1 first (or omit -SkipBuild).
     if (-not (Test-Path -LiteralPath $setupPath)) {
         throw @"
 CLI setup installer not found: $setupPath
-Run publish-rpc.ps1 first (requires Inno Setup 6 / ISCC.exe), or omit -SkipBuild.
+Run publish-rpc.ps1 first (requires Inno Setup 6 / ISCC.exe), or omit -SkipBuild with -LocalBuild.
 "@
     }
 
@@ -95,7 +112,96 @@ Run publish-rpc.ps1 first (requires Inno Setup 6 / ISCC.exe), or omit -SkipBuild
     return @($zipPath, $latestZipPath, $setupPath, $latestSetupPath)
 }
 
-Assert-GhAvailable
+function Invoke-LocalReleaseUpload {
+    param(
+        [string[]]$AssetPaths,
+        [string]$NotesPath,
+        [string]$Title
+    )
+
+    Assert-GhAvailable
+
+    $ghArgs = @(
+        'release', 'create', $tagName,
+        '--title', $Title,
+        '--notes-file', $NotesPath
+    )
+    $ghArgs += $AssetPaths
+    if ($Draft) {
+        $ghArgs += '--draft'
+    }
+
+    if ($DryRun) {
+        Write-Host "[DryRun] gh $($ghArgs -join ' ')" -ForegroundColor DarkGray
+        return
+    }
+
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    try {
+        gh release view $tagName 2>$null | Out-Null
+        $releaseExists = $LASTEXITCODE -eq 0
+    }
+    finally {
+        $ErrorActionPreference = $prevEap
+    }
+
+    if ($releaseExists) {
+        Write-Host "Release $tagName already exists; uploading assets..." -ForegroundColor Yellow
+        gh release upload $tagName @AssetPaths --clobber
+        if ($LASTEXITCODE -ne 0) {
+            throw "gh release upload failed with exit code $LASTEXITCODE"
+        }
+    }
+    else {
+        gh @ghArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "gh release create failed with exit code $LASTEXITCODE"
+        }
+    }
+
+    Write-Host 'Setting release notes...' -ForegroundColor Cyan
+    gh release edit $tagName --notes-file $NotesPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "gh release edit failed with exit code $LASTEXITCODE"
+    }
+}
+
+function Wait-ReleaseCliWorkflow {
+    param(
+        [string]$RepoSlug,
+        [string]$Tag
+    )
+
+    Assert-GhAvailable
+
+    Write-Host "Waiting for release-cli workflow ($Tag)..." -ForegroundColor Cyan
+    Start-Sleep -Seconds 8
+
+    $runId = $null
+    for ($i = 0; $i -lt 12; $i++) {
+        $json = gh run list --repo $RepoSlug --workflow release-cli.yml --limit 8 --json databaseId,headBranch,status,conclusion 2>$null
+        if ($LASTEXITCODE -eq 0 -and $json) {
+            $runs = $json | ConvertFrom-Json
+            $match = $runs | Where-Object { $_.headBranch -eq $Tag } | Select-Object -First 1
+            if ($match) {
+                $runId = [string]$match.databaseId
+                break
+            }
+        }
+        Start-Sleep -Seconds 5
+    }
+
+    if (-not $runId) {
+        Write-Warning "Could not find release-cli run for $Tag. Check: https://github.com/$RepoSlug/actions/workflows/release-cli.yml"
+        return
+    }
+
+    gh run watch $runId --repo $RepoSlug --exit-status
+    if ($LASTEXITCODE -ne 0) {
+        throw "release-cli workflow failed (run $runId)."
+    }
+}
 
 $defaultChangelogPath = Get-QkrpcChangelogFilePath -RepoRoot $RepoRoot -Tag $tagName
 $changelogContent = Resolve-QkrpcChangelogContent -Changelog $Changelog -ChangelogFile $ChangelogFile -RepoRoot $RepoRoot -Tag $tagName
@@ -126,34 +232,9 @@ elseif ($resolvedChangelogFile) {
     Write-Host "Using changelog: $resolvedChangelogFile" -ForegroundColor Cyan
 }
 
-if (-not $SkipBuild) {
-    $publishScript = Join-Path $RepoRoot 'publish\publish-rpc.ps1'
-    if (-not (Test-Path -LiteralPath $publishScript)) {
-        throw "publish-rpc.ps1 not found: $publishScript"
-    }
-
-    if ($DryRun) {
-        Write-Host "[DryRun] pwsh -NoProfile -File $publishScript -SkipInstall" -ForegroundColor DarkGray
-    }
-    else {
-        & pwsh -NoProfile -File $publishScript -SkipInstall
-        if ($LASTEXITCODE -ne 0) {
-            throw "publish-rpc.ps1 failed with exit code $LASTEXITCODE"
-        }
-    }
-}
-
-if ($DryRun) {
-    Write-Host "[DryRun] Expect assets: $zipPath, $setupPath" -ForegroundColor DarkGray
-    $assetPaths = @($zipPath, $setupPath)
-}
-else {
-    $assetPaths = @(Get-ReleaseAssetPaths)
-}
-
-$notesBody = New-QkrpcReleaseNotesBody -Tag $tagName -VersionFull $quickerRpcVersion -Changelog $changelogContent
-$notesPath = Join-Path $env:TEMP "qkrpc-release-notes-$tagName.md"
-Set-Content -LiteralPath $notesPath -Value $notesBody -Encoding utf8NoBOM
+$repoSlug = Get-GitHubRepoSlug -Root $RepoRoot
+$workflowUrl = "https://github.com/$repoSlug/actions/workflows/release-cli.yml"
+$releaseUrl = "https://github.com/$repoSlug/releases/tag/$tagName"
 
 $tagMessage = "Release $tagName (QuickerRpc $quickerRpcVersion)"
 
@@ -176,57 +257,69 @@ else {
     Write-Host "SkipTag: not creating or pushing tag (ensure $tagName exists on remote)." -ForegroundColor Yellow
 }
 
-$ghArgs = @(
-    'release', 'create', $tagName,
-    '--title', $ReleaseTitle,
-    '--notes-file', $notesPath
-)
-$ghArgs += $assetPaths
-if ($Draft) {
-    $ghArgs += '--draft'
+if ($LocalBuild) {
+    if (-not $SkipBuild) {
+        $publishScript = Join-Path $RepoRoot 'publish\publish-rpc.ps1'
+        if (-not (Test-Path -LiteralPath $publishScript)) {
+            throw "publish-rpc.ps1 not found: $publishScript"
+        }
+
+        if ($DryRun) {
+            Write-Host "[DryRun] pwsh -NoProfile -File $publishScript -SkipInstall" -ForegroundColor DarkGray
+        }
+        else {
+            & pwsh -NoProfile -File $publishScript -SkipInstall
+            if ($LASTEXITCODE -ne 0) {
+                throw "publish-rpc.ps1 failed with exit code $LASTEXITCODE"
+            }
+        }
+    }
+
+    $notesBody = New-QkrpcReleaseNotesBody -Tag $tagName -VersionFull $quickerRpcVersion -Changelog $changelogContent
+    $notesPath = Join-Path $env:TEMP "qkrpc-release-notes-$tagName.md"
+    Set-Content -LiteralPath $notesPath -Value $notesBody -Encoding utf8NoBOM
+
+    if ($DryRun) {
+        Write-Host "[DryRun] Expect assets: $zipPath, $setupPath" -ForegroundColor DarkGray
+        Write-Host '[DryRun] Done (LocalBuild).' -ForegroundColor DarkGray
+        exit 0
+    }
+
+    $assetPaths = @(Get-ReleaseAssetPaths)
+    Invoke-LocalReleaseUpload -AssetPaths $assetPaths -NotesPath $notesPath -Title $ReleaseTitle
+
+    Write-Host ''
+    Write-Host "Release completed (local build): $tagName" -ForegroundColor Green
+    Write-Host "Assets: $($assetPaths -join ', ')" -ForegroundColor Cyan
+    Write-Host ''
+    Write-Host 'Users can install with:' -ForegroundColor Yellow
+    Write-Host "  $installUrl"
+    exit 0
 }
 
 if ($DryRun) {
-    Write-Host "[DryRun] gh $($ghArgs -join ' ')" -ForegroundColor DarkGray
+    Write-Host "[DryRun] CI will build zip + setup.exe via release-cli.yml" -ForegroundColor DarkGray
+    Write-Host "[DryRun] $workflowUrl" -ForegroundColor DarkGray
     Write-Host '[DryRun] Done.' -ForegroundColor DarkGray
     exit 0
 }
 
-$prevEap = $ErrorActionPreference
-$ErrorActionPreference = 'SilentlyContinue'
-try {
-    gh release view $tagName 2>$null | Out-Null
-    $releaseExists = $LASTEXITCODE -eq 0
-}
-finally {
-    $ErrorActionPreference = $prevEap
-}
+Write-Host ''
+Write-Host "Tag pushed: $tagName" -ForegroundColor Green
+Write-Host "GitHub Actions builds qkrpc zip/setup + QuickerAgent installer and publishes the release." -ForegroundColor Cyan
+Write-Host "Workflow: $workflowUrl" -ForegroundColor Cyan
+Write-Host "Release (when ready): $releaseUrl" -ForegroundColor Cyan
 
-if ($releaseExists) {
-    Write-Host "Release $tagName already exists; uploading assets..." -ForegroundColor Yellow
-    gh release upload $tagName @assetPaths --clobber
-    if ($LASTEXITCODE -ne 0) {
-        throw "gh release upload failed with exit code $LASTEXITCODE"
-    }
+if ($WaitForCi) {
+    Wait-ReleaseCliWorkflow -RepoSlug $repoSlug -Tag $tagName
+    Write-Host ''
+    Write-Host "Release completed: $releaseUrl" -ForegroundColor Green
 }
 else {
-    gh @ghArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "gh release create failed with exit code $LASTEXITCODE"
-    }
+    Write-Host ''
+    Write-Host 'Tip: pass -WaitForCi to block until the workflow finishes.' -ForegroundColor DarkGray
 }
 
-Write-Host 'Setting release notes...' -ForegroundColor Cyan
-gh release edit $tagName --notes-file $notesPath
-if ($LASTEXITCODE -ne 0) {
-    throw "gh release edit failed with exit code $LASTEXITCODE"
-}
-
-Write-Host 'Release notes applied. If CI release-cli.yml runs for this tag, it uses the same publish/changelogs file.' -ForegroundColor DarkGray
-
 Write-Host ''
-Write-Host "Release completed: $tagName" -ForegroundColor Green
-Write-Host "Assets: $($assetPaths -join ', ')" -ForegroundColor Cyan
-Write-Host ''
-Write-Host 'Users can install with:' -ForegroundColor Yellow
+Write-Host 'Users can install with (after CI completes):' -ForegroundColor Yellow
 Write-Host "  $installUrl"
