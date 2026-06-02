@@ -84,6 +84,11 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "pnpm install failed ($LASTEXITCODE)" }
     }
 
+    if ($env:CI -eq 'true' -and -not [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+        $env:USERPROFILE = $env:RUNNER_TEMP
+        $env:HOME = $env:RUNNER_TEMP
+    }
+
     Write-Host 'tauri build (NSIS installer)...' -ForegroundColor Cyan
     pnpm tauri build
     if ($LASTEXITCODE -ne 0) { throw "tauri build failed ($LASTEXITCODE)" }

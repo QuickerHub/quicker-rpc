@@ -22,6 +22,10 @@ concurrency:
 jobs:
   release-cli:
     runs-on: windows-latest
+    env:
+      # Avoid Next/webpack scanning the runner profile (Documents junctions → EPERM on Windows).
+      USERPROFILE: ${{ runner.temp }}
+      HOME: ${{ runner.temp }}
 
     steps:
       - name: Checkout
