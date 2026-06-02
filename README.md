@@ -121,6 +121,8 @@ qkrpc.exe (CLI client)  --named pipe-->  QuickerRpc.Plugin (RPC server)
 
 `agent-gui/`：基于 Vercel AI SDK 的 Web 聊天界面，通过本机 `qkrpc` 驱动 Quicker。见 [agent-gui/README.md](agent-gui/README.md)。
 
+**下载页**（GitHub Pages 静态站，跳转官方 Release 安装包）：[quicker-agent-web/](quicker-agent-web/) — 构建后访问仓库 Pages 或本地 `node quicker-agent-web/scripts/build.mjs` 后预览 `dist/`。
+
 编译发布（Tauri 2 Windows 安装包）：
 
 ```powershell

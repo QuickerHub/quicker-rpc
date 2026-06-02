@@ -1,0 +1,9 @@
+{
+  "name": "quicker-agent-web",
+  "private": true,
+  "description": "QuickerAgent download landing page (static)",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "preview": "npx --yes serve dist -l 3456"
+  }
+}

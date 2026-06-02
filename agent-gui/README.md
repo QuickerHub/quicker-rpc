@@ -45,6 +45,8 @@ pnpm quicker-agent:publish
 
 **GitHub Release**：push tag 后 `.github/workflows/release-cli.yml` 会自动调用 `Publish-QuickerAgent.ps1`（复用同 job 已构建的 `publish/cli`），上传 `quicker-agent-{version}-x64-setup.exe` 与 `quicker-agent-win-x64-setup.exe`。本地仅调试时可仍跑 `pnpm quicker-agent:publish`。
 
+**下载落地页**：仓库 [`quicker-agent-web/`](../quicker-agent-web/) 提供单页说明与一键下载（指向 `releases/latest/download/quicker-agent-win-x64-setup.exe`）；由 [`.github/workflows/quicker-agent-web.yml`](../.github/workflows/quicker-agent-web.yml) 部署到 GitHub Pages。
+
 安装包内应含三块运行时（`$RESOURCE/resources/` 下保留目录结构）：
 
 | 目录 | 内容 |
