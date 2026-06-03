@@ -44,7 +44,7 @@ export async function GET(req: Request) {
         if (!result.ok) {
           return Response.json({ ok: false, error: result.error }, { status: 400 });
         }
-        return Response.json({ ok: true, ...result });
+        return Response.json(result);
       }
 
       return Response.json({ ok: false, error: `unknown op: ${op}` }, { status: 400 });
