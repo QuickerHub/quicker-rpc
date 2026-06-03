@@ -12,6 +12,7 @@ import {
   sortThreads,
 } from "@/lib/chat-store";
 import type { DefaultWorkingDirectoryProfile } from "@/lib/default-working-directory";
+import { nativeConfirm } from "@/lib/native-confirm";
 
 function defaultCwdFallbackLabel(profile: DefaultWorkingDirectoryProfile): string {
   switch (profile) {
@@ -146,8 +147,10 @@ export function ChatSidebar({
   };
 
   const handleDeleteThread = (threadId: string) => {
-    if (!window.confirm("删除此对话？")) return;
-    commit(deleteThread(store, threadId));
+    void (async () => {
+      if (!(await nativeConfirm("删除此对话？"))) return;
+      commit(deleteThread(store, threadId));
+    })();
   };
 
   return (

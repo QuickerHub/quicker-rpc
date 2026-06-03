@@ -5,6 +5,7 @@ import {
   invokeActionCommand,
   isQuickerActionMissingError,
 } from "@/lib/action-command-client";
+import { nativeConfirm } from "@/lib/native-confirm";
 import { deleteActionProjectApi } from "@/lib/workspace-explorer-api";
 
 export type UseActionProjectDeleteOptions = {
@@ -54,7 +55,7 @@ export function useActionProjectDelete({
   const deleteInWorkspaceOnly = useCallback(async (options?: { confirm?: boolean }) => {
     if (options?.confirm !== false) {
       const name = displayTitle?.trim() || projectPath.split("/").pop() || projectPath;
-      const ok = window.confirm(
+      const ok = await nativeConfirm(
         `在工作区删除动作项目「${name}」？\n\n仅删除本地 .quicker/actions 目录，不会删除 Quicker 内的动作。`,
       );
       if (!ok) return false;
@@ -75,7 +76,7 @@ export function useActionProjectDelete({
   const deleteDirect = useCallback(async (options?: { confirm?: boolean }) => {
     if (options?.confirm !== false) {
       const name = displayTitle?.trim() || actionId;
-      const ok = window.confirm(
+      const ok = await nativeConfirm(
         `直接删除动作「${name}」？\n\n将同时从工作区与 Quicker 中移除，此操作不可撤销。`,
       );
       if (!ok) return false;

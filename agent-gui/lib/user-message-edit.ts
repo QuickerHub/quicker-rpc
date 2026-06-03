@@ -1,6 +1,7 @@
 import { isTextUIPart } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { canSendComposedMessage } from "@/lib/compose-user-message";
+import { nativeConfirm } from "@/lib/native-confirm";
 
 /** Stored user message text (tag markup + body) for composer round-trip. */
 export function getUserMessageDisplayText(message: AgentUIMessage): string {
@@ -113,11 +114,13 @@ export function upsertUserMessageDraft(
   return { ...localDrafts, [message.id]: draftText };
 }
 
-export function confirmBranchUserMessageEdit(removedCount: number): boolean {
+export async function confirmBranchUserMessageEdit(
+  removedCount: number,
+): Promise<boolean> {
   if (removedCount <= 0) return true;
   const suffix =
     removedCount === 1
       ? "并删除之后的 1 条消息"
       : `并删除之后的 ${removedCount} 条消息`;
-  return window.confirm(`将从此消息处重新对话，${suffix}。确定继续？`);
+  return nativeConfirm(`将从此消息处重新对话，${suffix}。确定继续？`);
 }

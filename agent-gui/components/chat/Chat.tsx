@@ -535,6 +535,7 @@ function ChatPanel({
   );
 
   const commitBranchMessageEdit = useCallback(() => {
+    void (async () => {
     if (!editAnchorMessageId) return;
     const anchorIndex = findMessageIndex(messages, editAnchorMessageId);
     if (anchorIndex < 0) return;
@@ -543,7 +544,7 @@ function ChatPanel({
     if (!canSendComposedMessage(text)) return;
 
     const removedCount = countMessagesRemovedOnBranch(messages, anchorIndex);
-    if (!confirmBranchUserMessageEdit(removedCount)) return;
+    if (!(await confirmBranchUserMessageEdit(removedCount))) return;
 
     setEditAnchorMessageId(null);
     setDraftMessage("");
@@ -553,6 +554,7 @@ function ChatPanel({
     setMessages(messages.slice(0, anchorIndex));
     pinToBottom();
     enqueueOrSend(text);
+    })();
   }, [
     editAnchorMessageId,
     draftMessage,

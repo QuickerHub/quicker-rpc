@@ -43,8 +43,8 @@ describe("user-message-edit", () => {
     assert.equal(countMessagesRemovedOnBranch(messages, -1), 0);
   });
 
-  it("confirmBranchUserMessageEdit skips when nothing removed", () => {
-    assert.equal(confirmBranchUserMessageEdit(0), true);
+  it("confirmBranchUserMessageEdit skips when nothing removed", async () => {
+    assert.equal(await confirmBranchUserMessageEdit(0), true);
   });
 
   it("resolveUserMessageDisplayText prefers local draft", () => {
