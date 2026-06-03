@@ -6,25 +6,34 @@ metadata:
   phase: "P4"
 ---
 
-# 实现方式与回退
-**何时读**：`step-modules`/search 无合适模块，或需求是计算/逻辑而非固定 UI。
+# 实现选型与回退
+
+**何时读**：**`overview`** P4 — `step-modules` / search 无合适模块，或需求是计算/逻辑而非固定 UI。
+
 ## 优先级
+
 | 级 | 手段 | 适用 |
 |----|------|------|
-| 1 | 参数 `$=` / `$$`（**`expressions`**） | 单步内运算、拼接 |
+| 1 | `$=` / `$$`（**expressions**） | 单步内运算、拼接、比较 |
 | 2 | `sys:evalexpression` | 多行赋值、分支前准备 |
-| 3 | 专用模块（**`step-modules`** → **`step-runner get`**） | 剪贴板、HTTP、文件等 |
-| 4 | **`sys:csscript`（C#）** | 无模块时**默认** |
-| 5 | `sys:runScript` | 仅极短 PS/CMD 或用户脚本 |
-| 6 | `sys:run` | 外部 exe/CLI |
-无专用模块时建议 **`sys:csscript`**（C#），少用长 PowerShell（见下文表）。
-## 回退链
+| 3 | 专用模块（**step-modules** → step-runner get） | 剪贴板、HTTP、文件等 |
+| 4 | **`sys:csscript`** | 无模块时 **默认**（C#） |
+| 5 | `sys:runScript` | 极短 PS/CMD 或用户已有脚本 |
+| 6 | `sys:run` | 外部 exe |
+
+无专用模块时优先 **`sys:csscript`**，勿默认长 PowerShell。
+
+## 决策
+
 ```text
-需求 → 仅计算？→ expressions / evalexpression
-     → step-modules 有 key？→ step-runner get → patch
-     → step-runner search（单次 OR|*）→ get → patch
-     → 仍无 → sys:csscript → 仅一行系统命令才 runScript
+仅计算/比较/赋值？ → expressions / evalexpression
+step-modules 有 key？ → step-runner get → 写入 data.json → 保存
+否则 → step-runner search（一次 OR|*）→ get → 仍无则 csscript
 ```
+
+写入步骤/参数：**`workspace_action_edit_data`** 或 **`write_data`**，再 **`qkrpc_action_patch({ id })`**（见 **`workspace-editing`**）。
+
 ## 相关
-`authoring-workflow`（P4）· `expressions` · `step-runner-search` · `overview`
+
+`expressions` · `step-runner-search` · `step-modules` · `authoring-workflow` · `overview`
 

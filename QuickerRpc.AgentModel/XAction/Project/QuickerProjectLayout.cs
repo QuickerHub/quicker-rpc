@@ -23,6 +23,17 @@ public static class QuickerProjectLayout
     public static string GetProjectDirectory(QuickerProjectKind kind, string name, string? workspaceRoot = null) =>
         Path.Combine(GetKindRoot(kind, workspaceRoot), SanitizeDirectoryName(name));
 
+    public static string GetActionProjectDirectory(string directoryName, string? workspaceRoot = null) =>
+        GetProjectDirectory(QuickerProjectKind.Action, directoryName, workspaceRoot);
+
+    public static string GetSubProgramProjectDirectory(string subProgramKey, string? workspaceRoot = null) =>
+        GetProjectDirectory(QuickerProjectKind.SubProgram, subProgramKey, workspaceRoot);
+
+    /// <summary>Relative path: <c>.quicker/actions/{directoryName}</c>.</summary>
+    public static string GetActionProjectRelativeDirectory(string directoryName) =>
+        Path.Combine(QuickerRootDirName, ActionsDirName, SanitizeDirectoryName(directoryName))
+            .Replace('\\', '/');
+
     public static string GetInfoPath(string projectDirectory) =>
         Path.Combine(projectDirectory, InfoFileName);
 

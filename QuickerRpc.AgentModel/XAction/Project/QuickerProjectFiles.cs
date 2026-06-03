@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -9,6 +10,8 @@ namespace QuickerRpc.AgentModel.XAction.Project;
 /// <summary>Read/write <c>info.json</c> and <c>data.json</c> for local projects.</summary>
 public static class QuickerProjectFiles
 {
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+
     private static readonly JsonSerializerSettings JsonSettings = new()
     {
         Formatting = Formatting.Indented,
@@ -18,7 +21,7 @@ public static class QuickerProjectFiles
     public static ActionProjectInfo ReadActionInfo(string projectDirectory)
     {
         var path = QuickerProjectLayout.GetInfoPath(projectDirectory);
-        var json = File.ReadAllText(path, System.Text.Encoding.UTF8);
+        var json = File.ReadAllText(path, Utf8NoBom);
         return JsonConvert.DeserializeObject<ActionProjectInfo>(json, JsonSettings)
                ?? throw new InvalidOperationException($"Failed to parse {path}.");
     }
@@ -26,7 +29,7 @@ public static class QuickerProjectFiles
     public static SubProgramProjectInfo ReadSubProgramInfo(string projectDirectory)
     {
         var path = QuickerProjectLayout.GetInfoPath(projectDirectory);
-        var json = File.ReadAllText(path, System.Text.Encoding.UTF8);
+        var json = File.ReadAllText(path, Utf8NoBom);
         return JsonConvert.DeserializeObject<SubProgramProjectInfo>(json, JsonSettings)
                ?? throw new InvalidOperationException($"Failed to parse {path}.");
     }
@@ -45,7 +48,7 @@ public static class QuickerProjectFiles
             throw new FileNotFoundException($"data.json not found: {path}", path);
         }
 
-        var json = File.ReadAllText(path, System.Text.Encoding.UTF8);
+        var json = File.ReadAllText(path, Utf8NoBom);
         if (!TryParseDataRoot(json, out var root, out var error))
         {
             throw new InvalidOperationException(error ?? $"Invalid data.json: {path}");
@@ -63,7 +66,7 @@ public static class QuickerProjectFiles
             return false;
         }
 
-        var json = File.ReadAllText(path, System.Text.Encoding.UTF8);
+        var json = File.ReadAllText(path, Utf8NoBom);
         if (!TryParseDataRoot(json, out data, out _))
         {
             data = null;
@@ -128,6 +131,6 @@ public static class QuickerProjectFiles
             Directory.CreateDirectory(dir);
         }
 
-        File.WriteAllText(path, JsonConvert.SerializeObject(value, JsonSettings), System.Text.Encoding.UTF8);
+        File.WriteAllText(path, JsonConvert.SerializeObject(value, JsonSettings), Utf8NoBom);
     }
 }

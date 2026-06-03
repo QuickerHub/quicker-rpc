@@ -27,17 +27,24 @@ import {
   insertComposerMarkupPasteWithUndo,
   insertPlainTextWithUndo,
   normalizeEmptyComposerRoot,
+  placeCaretAtEnd,
   placeCaretAtStart,
   renderMarkupIntoRoot,
   selectionHasComposerTags,
   serializeComposerRange,
   serializeComposerRoot,
 } from "@/lib/composer-inline";
+import {
+  applyPlainTextEditableDom,
+  plainTextEditableProps,
+} from "@/lib/plain-text-editable";
 import { useActionMentionSearch } from "@/lib/use-action-mention-search";
 import { ComposerMentionMenu } from "./ComposerMentionMenu";
 
 export type ComposerMarkupFieldHandle = {
   focus: () => void;
+  /** Focus composer and place caret at end of content (e.g. branch-edit). */
+  focusAtEnd: () => void;
   insertActionTag: (action: PinnedAction) => void;
 };
 
@@ -84,6 +91,11 @@ export const ComposerMarkupField = forwardRef<
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
+
+  const bindComposerRoot = useCallback((el: HTMLDivElement | null) => {
+    rootRef.current = el;
+    applyPlainTextEditableDom(el);
+  }, []);
   const lastEmitted = useRef(value);
   const mounted = useRef(false);
   const mentionRangeRef = useRef<Range | null>(null);
@@ -158,6 +170,16 @@ export const ComposerMarkupField = forwardRef<
     ref,
     () => ({
       focus: () => rootRef.current?.focus(),
+      focusAtEnd: () => {
+        const root = rootRef.current;
+        if (!root || disabled) return;
+        if (value !== lastEmitted.current) {
+          renderMarkupIntoRoot(root, value);
+          lastEmitted.current = value;
+        }
+        root.focus({ preventScroll: true });
+        placeCaretAtEnd(root);
+      },
       insertActionTag: (action: PinnedAction) => {
         const root = rootRef.current;
         if (!root || disabled) return;
@@ -168,7 +190,7 @@ export const ComposerMarkupField = forwardRef<
         root.focus();
       },
     }),
-    [closeMention, disabled, emitChange],
+    [closeMention, disabled, emitChange, value],
   );
 
   useEffect(() => {
@@ -400,15 +422,10 @@ export const ComposerMarkupField = forwardRef<
       }}
     >
       <div
-        ref={rootRef}
+        ref={bindComposerRoot}
         className={`composer-inline-input${isEmpty ? " composer-inline-input--empty" : ""}`}
         contentEditable={!disabled}
-        spellCheck={false}
-        autoCorrect="off"
-        autoCapitalize="off"
-        data-gramm="false"
-        data-gramm_editor="false"
-        data-enable-grammarly="false"
+        {...plainTextEditableProps}
         suppressContentEditableWarning
         role="textbox"
         aria-multiline="true"

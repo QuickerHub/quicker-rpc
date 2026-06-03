@@ -10,6 +10,10 @@ import {
   formatToolDisplayName,
   summarizeToolOutput,
 } from "./tool-output";
+import {
+  isWorkspaceExplorerFileTool,
+  workspaceFileRunningMeta,
+} from "@/lib/workspace-file-tool";
 
 export type ToolUiPart = ToolUIPart | DynamicToolUIPart;
 
@@ -52,14 +56,19 @@ export function analyzeToolUiPart(
 ): ToolUiPartAnalysis {
   const name = getToolOrDynamicToolName(part);
   const state = getToolUiPartState(part);
+  const input = "input" in part ? part.input : undefined;
   const output =
     "output" in part && part.output !== undefined ? part.output : undefined;
+  const isRunning = isToolUiPartRunning(state);
   const summary =
     state === "output-available" && output !== undefined
-      ? summarizeToolOutput(name, output)
+      ? summarizeToolOutput(name, output, input)
       : null;
-  const meta = buildToolSummaryMeta(state, summary);
-  const isRunning = isToolUiPartRunning(state);
+  const runningMeta =
+    isRunning && isWorkspaceExplorerFileTool(name)
+      ? workspaceFileRunningMeta(name, input)
+      : null;
+  const meta = runningMeta ?? buildToolSummaryMeta(state, summary);
   const needsAttention =
     isRunning
     || state === "approval-requested"

@@ -1,45 +1,41 @@
-# Local .quicker project (file refs)
+# 工作区项目（CLI）
 
-For large `inputParams` literals, use a **local project directory** instead of embedding long `value` strings in JSON.
+{{#only-cli}}
+**何时读**：用 **extract/apply** 或手改 `.quicker` 目录，而非内联 patch JSON。
 
-## Layout
+## 目录
 
 ```text
 .quicker/
-  actions/{name}/info.json      # id, title, description, icon, editVersion
-  actions/{name}/data.json      # steps + variables (compressed XAction shape)
-  actions/{name}/scripts/...    # optional resource files
-  subprograms/{name}/           # same for global subprograms
+  actions/{actionId}/     # 默认目录名 = 动作 GUID
+    info.json             # id, title, icon, editVersion
+    data.json             # steps + variables
+    files/                # inputParams.*.file 外置
+  subprograms/{name}/
 ```
 
-Paths in `file` are **relative to the project directory** (where `data.json` lives), use `/` separators, and must not contain `..`.
+## file 外置
 
-## inputParams with file
-
-In `data.json` only (never sent to Quicker storage):
+`data.json` 中（import/apply 前解析为 `value`）：
 
 ```json
-"script": { "file": "scripts/main.cs" }
+"script": { "file": "files/main.cs" }
 ```
 
-Import compiles to `{ "value": "..." }` before RPC replace. `file` and `value` / `varKey` are mutually exclusive.
+`file` 与 `value` / `varKey` 互斥。路径相对项目目录，`/` 分隔，禁止 `..`。
 
-## Commands
+## 命令
 
-{{#only-cli}}
 ```powershell
-{{@ action.export}}
-{{@ action.import}}
+{{@ action.extract}}
+{{@ action.apply}}
 {{@ subprogram.export}}
 {{@ subprogram.import}}
 ```
+
+内联 patch JSON：**`patch-workflow`**。
+
+## 相关
+
+`authoring-workflow` · `patch-workflow` · `overview`
 {{/only-cli}}
-{{#only-agent}}
-{{#ref action-project-files.commands.agent}}
-{{/only-agent}}
-
-**Export (reversible):** If `data.json` already lists `file` refs, export writes file contents from Quicker and keeps `file` in `data.json`. First export without template writes inline `value` only.
-
-**Import:** Reads `info.json` + `data.json`, resolves all `file` refs, then `action replace` / `subprogram replace`.
-
-See also: `patch-workflow`, `xaction-json`, `authoring-workflow`.

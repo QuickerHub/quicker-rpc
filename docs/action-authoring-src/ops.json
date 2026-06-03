@@ -5,12 +5,12 @@
       "agent": "写动作流程（Agent 必读）"
     },
     "product.intro": {
-      "cli": "无头编辑 XAction：**`qkrpc`** + QuickerRpc 插件。命令表：{{@ help}}。环境：**`cli-setup`**。逐步操作：**`authoring-workflow`**。",
-      "agent": "无头编辑 XAction：**agent-ui 工具** + QuickerRpc 插件。环境：**`cli-setup`**。逐步操作：**`authoring-workflow`**（按需 **`docs_get`**，勿在回复中粘贴全文）。"
+      "cli": "无头编辑 XAction：**`qkrpc`** + QuickerRpc 插件。命令表：{{@ help}}。流程：**`authoring-workflow`**、**`overview`**。",
+      "agent": "无头编辑 XAction：**agent-ui 工具** + QuickerRpc 插件。流程专题见 **`docs_index`**；参数/字段以各工具 description 为准，勿在回复中粘贴指南全文。"
     },
     "help.detail": {
       "cli": "命令细节：`qkrpc help --json`",
-      "agent": "工具说明见系统提示与 **`docs_index`**"
+      "agent": "工具参数见系统提示；流程见 `docs_get`（`authoring-workflow` 等）"
     },
     "help.ref": {
       "cli": "`qkrpc help --json`",
@@ -38,11 +38,7 @@
     },
     "action-icons.help": {
       "cli": "命令与开关见 `qkrpc help --json`",
-      "agent": "搜索图标用 **`qkrpc_fa_search`**；格式见下文"
-    },
-    "variables.patch-ops": {
-      "cli": "Variable patch ops: same `op` vocabulary as steps in **`action patch`** (see **`patch-workflow`** example).",
-      "agent": "Variable patch ops: same `op` vocabulary as steps in **`qkrpc_action_patch`** (see **`patch-workflow`** example)."
+      "agent": "搜图标：**`qkrpc_fa_search`**。"
     },
     "xaction.read.invoke": {
       "cli": "`action get`",
@@ -102,7 +98,7 @@
     },
     "action-project-files.commands.agent": {
       "cli": "",
-      "agent": "agent-ui **暂无** export/import 工具；请在终端使用 qkrpc：`action export` / `action import`、`subprogram export` / `subprogram import`（命令见 CLI 版 **`action-project-files`**）。"
+      "agent": ""
     },
     "overview.pipeline.header": {
       "cli": "命令 / 主题",
@@ -119,27 +115,28 @@
       "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
     },
     "authoring-workflow": {
-      "description": "Quicker 动作编辑 P1–P7 逐步流程（定位、读取、patch 保存）。Use when creating actions, patching steps, or before the first action edit in a session.",
-      "allowed-tools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_step_runner_get",
+      "description": "Quicker 动作编辑 P1–P7 主流程。Use before the first action edit in a session.",
+      "allowed-tools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_validate qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
       "metadata": { "phase": "P1-P7" }
+    },
+    "workspace-editing": {
+      "description": ".quicker/actions/{actionId} 工作区布局、workspace_* 工具分工、file 外置与 qkrpc_action_patch 保存。Use when editing data.json or files/ on disk in agent-ui.",
+      "allowed-tools": "qkrpc_action_get qkrpc_action_validate qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
+      "compatibility": "QuickerAgent; requires working directory in sidebar"
+    },
+    "variables": {
+      "description": "data.json 中 variables[] 的类型、defaultValue、varKey/outputParams 绑定；quicker_in_param 边界。Use when editing action variables.",
+      "allowed-tools": "workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_step_runner_get",
+      "metadata": { "phase": "P2-P6" }
     },
     "cli-setup": {
       "description": "QuickerAgent 环境前置与 docs_get/docs_search/docs_index 用法。Use when setting up agent-ui or explaining how to read local authoring guides.",
       "allowed-tools": "docs_get docs_search docs_index"
     },
     "patch-workflow": {
-      "description": "action patch JSON 格式、默认值省略、保存响应字段与常见 warnings。Use when writing qkrpc_action_patch or debugging patch failures.",
-      "allowed-tools": "qkrpc_action_patch qkrpc_action_get",
+      "description": "CLI 内联 action patch JSON 形状（qkrpc action patch --patch-file）。",
+      "profiles": ["cli"],
       "metadata": { "phase": "P6" }
-    },
-    "xaction-json": {
-      "description": "XAction JSON 字段、returnMode（structure/full/metadata）、stepId 与 nodePath。Use when reading qkrpc_action_get output or mapping patch targets.",
-      "allowed-tools": "qkrpc_action_get qkrpc_action_patch",
-      "metadata": { "phase": "P2" }
-    },
-    "action-icons": {
-      "description": "Quicker 动作图标 fa:Light_* 格式与 qkrpc_fa_search 用法。Use when setting or changing action icons.",
-      "allowed-tools": "qkrpc_fa_search qkrpc_action_set_metadata qkrpc_action_patch"
     },
     "step-modules": {
       "description": "常用 stepRunnerKey 速查表。Use before step-runner search when a known module might fit.",
@@ -158,21 +155,16 @@
     },
     "expressions": {
       "description": "Quicker 参数表达式（$=、$$）与 sys:evalexpression 步骤。Use when using eval expressions instead of dedicated step modules.",
-      "allowed-tools": "qkrpc_step_runner_get qkrpc_action_patch"
-    },
-    "variables": {
-      "description": "动作变量类型、读取与 variables patch 操作。Use when adding or editing action variables in patch JSON.",
-      "allowed-tools": "qkrpc_action_get qkrpc_action_patch",
-      "metadata": { "phase": "P2-P6" }
+      "allowed-tools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch"
     },
     "subprogram-workflow": {
-      "description": "在动作中调用公共子程序：callIdentifier 与 sys:subprogram 步骤。Use when adding subprogram call steps to an action.",
+      "description": "公共子程序与动作内子程序的区别及调用工作流。Use when adding subprogram call steps or editing subprogram projects.",
       "allowed-tools": "qkrpc_subprogram_search qkrpc_subprogram_get qkrpc_step_runner_get qkrpc_action_patch",
       "metadata": { "phase": "P5-P6" }
     },
     "action-project-files": {
-      "description": "大段 inputParams 用 file 引用与 .quicker 目录 export/import（终端 qkrpc CLI）。Use when patch JSON is too large for inline inputParams.",
-      "compatibility": "export/import via qkrpc CLI; agent-ui has no export/import tools yet"
+      "description": "CLI：qkrpc action extract/apply 与 .quicker/actions/{actionId} 目录。",
+      "profiles": ["cli"]
     }
   },
   "ops": {
@@ -231,7 +223,8 @@
     },
     "action.patch": {
       "cli": "qkrpc action patch --id {{id}} --patch-file patch.json --expected-edit-version {{N}} --json",
-      "agent": "qkrpc_action_patch({ id: \"{{id}}\", patch: { ... }, expectedEditVersion: {{N}} })",
+      "agent": "qkrpc_action_patch({ id: \"{{id}}\" })",
+      "agentNote": "（从 .quicker 项目 apply；勿传 patch 对象。可选 expectedEditVersion / force — 见工具说明。）",
       "defaults": { "id": "<guid>", "N": "<N>" }
     },
     "action.patch.stdin": {
@@ -241,15 +234,32 @@
     },
     "action.export": {
       "cli": "qkrpc action export --id {{id}} --dir {{dir}} --json",
+      "agent": "qkrpc_action_export({ id: \"{{id}}\", dir: \"{{dir}}\" })",
+      "agentNote": "（legacy；优先 qkrpc_action_extract）",
+      "defaults": { "id": "<guid>", "dir": ".quicker/actions/<guid>" }
+    },
+    "action.extract": {
+      "cli": "qkrpc action extract --id {{id}} [--dir {{dir}}] [--min-lines 10] --json",
       "agent": null,
-      "agentNote": "（agent-ui 暂无 export 工具；终端用 qkrpc CLI）",
-      "defaults": { "id": "<guid>", "dir": ".quicker/actions/my-action" }
+      "agentNote": "（agent-gui 内部：qkrpc_action_get 自动 extract，勿手动调用）",
+      "defaults": { "id": "<guid>", "dir": ".quicker/actions/<guid>" }
+    },
+    "action.apply": {
+      "cli": "qkrpc action apply --id {{id}} [--dir {{dir}}] [--expected-edit-version {{N}}] [--force] --json",
+      "agent": null,
+      "agentNote": "（agent-gui 内部：qkrpc_action_patch 自动 apply，勿手动调用）",
+      "defaults": { "id": "<guid>", "dir": ".quicker/actions/<guid>", "N": "<N>" }
+    },
+    "action.validate": {
+      "cli": "qkrpc action validate [--id {{id}}] [--dir {{dir}}] --json",
+      "agentNote": "由 qkrpc_action_apply 内部调用；无需 agent 单独执行",
+      "defaults": { "id": "<guid>", "dir": ".quicker/actions/<guid>" }
     },
     "action.import": {
       "cli": "qkrpc action import --dir {{dir}} [--expected-edit-version {{N}}] [--force] --json",
-      "agent": null,
-      "agentNote": "（agent-ui 暂无 import 工具；终端用 qkrpc CLI）",
-      "defaults": { "dir": ".quicker/actions/my-action", "N": "N" }
+      "agent": "qkrpc_action_import({ dir: \"{{dir}}\", expectedEditVersion: {{N}} })",
+      "agentNote": "（legacy；优先 qkrpc_action_apply）",
+      "defaults": { "dir": ".quicker/actions/<guid>", "N": "N" }
     },
     "subprogram.create": {
       "cli": "qkrpc subprogram create --name \"{{name}}\" [--icon {{icon}}] --json",

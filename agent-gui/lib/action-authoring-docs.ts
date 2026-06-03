@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
@@ -32,6 +32,48 @@ type TopicRow = ActionAuthoringTopicMeta & { markdown: string };
 
 let cachedRows: TopicRow[] | null = null;
 let cachedRoot: string | null = null;
+let cachedSkillsMtimeMs = 0;
+
+/** Collapse runs of blank lines (keeps single blank lines for GFM block boundaries). */
+function compactMarkdownBody(markdown: string): string {
+  return markdown.replace(/\n{3,}/g, "\n\n").trimEnd();
+}
+
+async function skillsTreeMtimeMs(root: string): Promise<number> {
+  let max = 0;
+  let entries;
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const ent of entries) {
+    const full = join(root, ent.name);
+    if (ent.isDirectory()) {
+      max = Math.max(max, await skillsTreeMtimeMs(full));
+      const skillPath = join(full, "SKILL.md");
+      try {
+        max = Math.max(max, (await stat(skillPath)).mtimeMs);
+      } catch {
+        // ignore
+      }
+      const refDir = join(full, "references");
+      try {
+        for (const ref of await readdir(refDir)) {
+          if (!ref.endsWith(".md")) continue;
+          max = Math.max(max, (await stat(join(refDir, ref))).mtimeMs);
+        }
+      } catch {
+        // ignore
+      }
+      continue;
+    }
+    if (ent.isFile()) {
+      max = Math.max(max, (await stat(full)).mtimeMs);
+    }
+  }
+  return max;
+}
 
 function skillsRoot(): string {
   const repo = resolveQuickerRpcRepoRoot();
@@ -83,7 +125,7 @@ async function loadSkillTopics(root: string): Promise<TopicRow[]> {
     }
 
     const parsed = parseSkillMd(content);
-    const markdown = parsed.body;
+    const markdown = compactMarkdownBody(parsed.body);
     rows.push({
       topic: parsed.name || topic,
       title: extractTitle(markdown) || parsed.name || topic,
@@ -122,7 +164,12 @@ async function loadLegacyFlatTopics(root: string): Promise<TopicRow[]> {
 
 async function loadAllTopics(): Promise<TopicRow[]> {
   const root = skillsRoot();
-  if (cachedRows && cachedRoot === root) {
+  const skillsMtime = await skillsTreeMtimeMs(root);
+  if (
+    cachedRows
+    && cachedRoot === root
+    && cachedSkillsMtimeMs === skillsMtime
+  ) {
     return cachedRows;
   }
 
@@ -133,6 +180,7 @@ async function loadAllTopics(): Promise<TopicRow[]> {
 
   cachedRows = rows;
   cachedRoot = root;
+  cachedSkillsMtimeMs = skillsMtime;
   return rows;
 }
 

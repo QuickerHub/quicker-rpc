@@ -10,6 +10,8 @@ type CommandBody = {
   wait?: boolean;
 };
 
+const QKRPC_TIMEOUT_MS = 120_000;
+
 function formatError(result: {
   stderr: string;
   parsed: unknown;
@@ -37,7 +39,9 @@ export async function POST(req: Request) {
     if (body.param?.trim()) args.push("--param", body.param.trim());
     if (body.debug) args.push("--debug");
     if (body.wait) args.push("--wait");
-    const result = await runQkrpc(args, { timeoutMs: body.wait ? 300_000 : 120_000 });
+    const result = await runQkrpc(args, {
+      timeoutMs: body.wait ? 300_000 : QKRPC_TIMEOUT_MS,
+    });
     if (!result.ok) {
       return Response.json(
         { ok: false, error: formatError(result), data: result.parsed },
@@ -51,6 +55,33 @@ export async function POST(req: Request) {
     const result = await runQkrpc(["action", "edit", "--id", id, "--json"], {
       timeoutMs: 30_000,
     });
+    if (!result.ok) {
+      return Response.json(
+        { ok: false, error: formatError(result), data: result.parsed },
+        { status: 502 },
+      );
+    }
+    return Response.json({ ok: true, data: result.parsed });
+  }
+
+  if (op === "float") {
+    const result = await runQkrpc(["action", "float", "--id", id, "--json"], {
+      timeoutMs: 30_000,
+    });
+    if (!result.ok) {
+      return Response.json(
+        { ok: false, error: formatError(result), data: result.parsed },
+        { status: 502 },
+      );
+    }
+    return Response.json({ ok: true, data: result.parsed });
+  }
+
+  if (op === "delete") {
+    const result = await runQkrpc(
+      ["action", "delete", "--id", id, "--yes", "--json"],
+      { timeoutMs: QKRPC_TIMEOUT_MS },
+    );
     if (!result.ok) {
       return Response.json(
         { ok: false, error: formatError(result), data: result.parsed },

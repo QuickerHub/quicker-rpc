@@ -8,7 +8,22 @@ namespace QuickerRpc.Console;
 
 internal static partial class Program
 {
-    private static async Task<int> RunActionExportAsync(ActionOptions options)
+    private static async Task<int> RunActionExtractAsync(ActionOptions options) =>
+        await RunActionProjectExportAsync(options, forExtract: true).ConfigureAwait(false);
+
+    private static async Task<int> RunActionExportAsync(ActionOptions options) =>
+        await RunActionProjectExportAsync(options, forExtract: false).ConfigureAwait(false);
+
+    private static async Task<int> RunActionApplyAsync(ActionOptions options) =>
+        await RunActionProjectImportAsync(options, forApply: true).ConfigureAwait(false);
+
+    private static async Task<int> RunActionImportAsync(ActionOptions options) =>
+        await RunActionProjectImportAsync(options, forApply: false).ConfigureAwait(false);
+
+    private static async Task<int> RunActionValidateAsync(ActionOptions options) =>
+        await RunActionProjectValidateAsync(options).ConfigureAwait(false);
+
+    private static async Task<int> RunActionProjectExportAsync(ActionOptions options, bool forExtract)
     {
         var actionId = (options.Id ?? options.Code ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(actionId))
@@ -17,13 +32,19 @@ internal static partial class Program
                 .ConfigureAwait(false);
         }
 
-        if (string.IsNullOrWhiteSpace(options.Dir))
+        if (!forExtract && string.IsNullOrWhiteSpace(options.Dir))
         {
             return await EmitErrorAndFailAsync(options.Json, "MISSING_DIR", "Provide --dir <projectDirectory>.")
                 .ConfigureAwait(false);
         }
 
-        var projectDir = QuickerProjectLayout.ResolveProjectDirectory(options.Dir);
+        var exportOptions = new XActionFileRefExportOptions
+        {
+            AutoExternalizeMinLines = forExtract && !options.NoAutoFiles
+                ? (options.MinLines > 0 ? options.MinLines : 10)
+                : 0,
+        };
+
         try
         {
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
@@ -45,9 +66,33 @@ internal static partial class Program
                 .GetCompressedActionByIdAsync(actionId, "metadata", rpcToken)
                 .ConfigureAwait(false);
 
+            var metaRoot = metaResponse.Success && !string.IsNullOrWhiteSpace(metaResponse.CompressedJson)
+                ? JObject.Parse(metaResponse.CompressedJson)
+                : null;
+            var title = metaRoot?.Value<string>("title");
+
+            string projectDir;
+            try
+            {
+                projectDir = forExtract
+                    ? ActionProjectCatalog.ResolveExtractProjectDirectory(
+                        actionId,
+                        title,
+                        options.Dir)
+                    : QuickerProjectLayout.ResolveProjectDirectory(options.Dir!);
+            }
+            catch (Exception ex)
+            {
+                return await EmitErrorAndFailAsync(options.Json, "INVALID_DIR", ex.Message).ConfigureAwait(false);
+            }
+
             var latestData = ParseProgramBodyFromCompressed(fullResponse.CompressedJson);
             QuickerProjectFiles.TryReadDataIfExists(projectDir, out var templateData);
-            var exportResult = XActionFileRefExporter.Export(latestData, projectDir, templateData);
+            var exportResult = XActionFileRefExporter.Export(
+                latestData,
+                projectDir,
+                templateData,
+                exportOptions);
             if (!exportResult.Success || exportResult.ExportedData is null)
             {
                 return await EmitErrorAndFailAsync(
@@ -60,14 +105,10 @@ internal static partial class Program
             Directory.CreateDirectory(projectDir);
             QuickerProjectFiles.WriteData(projectDir, exportResult.ExportedData);
 
-            var metaRoot = metaResponse.Success && !string.IsNullOrWhiteSpace(metaResponse.CompressedJson)
-                ? JObject.Parse(metaResponse.CompressedJson)
-                : null;
-
             var info = new ActionProjectInfo
             {
                 Id = fullResponse.ActionId ?? actionId,
-                Title = metaRoot?.Value<string>("title"),
+                Title = title,
                 Description = metaRoot?.Value<string>("description"),
                 Icon = metaRoot?.Value<string>("icon"),
                 EditVersion = fullResponse.EditVersion,
@@ -75,15 +116,19 @@ internal static partial class Program
             };
             QuickerProjectFiles.WriteActionInfo(projectDir, info);
 
+            var projectDirectoryRelative = ActionProjectCatalog.GetRelativeProjectDirectory(projectDir);
+
             WriteProjectSuccess(
                 options.Json,
-                "action-export",
+                forExtract ? "action-extract" : "action-export",
                 new
                 {
                     success = true,
-                    projectDirectory = projectDir,
+                    projectDirectory = projectDirectoryRelative,
+                    projectDirectoryAbsolute = projectDir,
                     actionId = info.Id,
                     editVersion = info.EditVersion,
+                    autoExternalizeMinLines = exportOptions.AutoExternalizeMinLines,
                     writtenFiles = exportResult.WrittenFiles,
                     warnings = exportResult.Warnings,
                 },
@@ -103,19 +148,36 @@ internal static partial class Program
         }
         catch (Exception ex)
         {
-            return await EmitErrorAndFailAsync(options.Json, "ACTION_EXPORT_FAILED", ex.Message).ConfigureAwait(false);
+            return await EmitErrorAndFailAsync(
+                    options.Json,
+                    forExtract ? "ACTION_EXTRACT_FAILED" : "ACTION_EXPORT_FAILED",
+                    ex.Message)
+                .ConfigureAwait(false);
         }
     }
 
-    private static async Task<int> RunActionImportAsync(ActionOptions options)
+    private static async Task<int> RunActionProjectValidateAsync(ActionOptions options)
     {
-        if (string.IsNullOrWhiteSpace(options.Dir))
+        var explicitId = (options.Id ?? options.Code ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(options.Dir) && string.IsNullOrWhiteSpace(explicitId))
         {
-            return await EmitErrorAndFailAsync(options.Json, "MISSING_DIR", "Provide --dir <projectDirectory>.")
+            return await EmitErrorAndFailAsync(
+                    options.Json,
+                    "MISSING_DIR_OR_ID",
+                    "Provide --dir <projectDirectory> or --id <actionId>.")
                 .ConfigureAwait(false);
         }
 
-        var projectDir = QuickerProjectLayout.ResolveProjectDirectory(options.Dir);
+        string projectDir;
+        try
+        {
+            projectDir = ActionProjectCatalog.ResolveImportProjectDirectory(explicitId, options.Dir);
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "INVALID_DIR", ex.Message).ConfigureAwait(false);
+        }
+
         try
         {
             if (!File.Exists(QuickerProjectLayout.GetInfoPath(projectDir)))
@@ -129,6 +191,131 @@ internal static partial class Program
             if (actionId.Length == 0)
             {
                 return await EmitErrorAndFailAsync(options.Json, "MISSING_ACTION_ID", "info.json must contain id.")
+                    .ConfigureAwait(false);
+            }
+
+            if (explicitId.Length > 0
+                && !string.Equals(explicitId, actionId, StringComparison.OrdinalIgnoreCase))
+            {
+                return await EmitErrorAndFailAsync(
+                        options.Json,
+                        "ACTION_ID_MISMATCH",
+                        $"--id {explicitId} does not match info.json id {actionId}.")
+                    .ConfigureAwait(false);
+            }
+
+            var data = QuickerProjectFiles.ReadData(projectDir);
+            var validateResult = XActionFileRefValidator.Validate(data, projectDir);
+            if (!validateResult.Success)
+            {
+                if (options.Json)
+                {
+                    global::System.Console.WriteLine(JsonSerializer.Serialize(
+                        new
+                        {
+                            ok = false,
+                            action = "action-validate",
+                            payload = new
+                            {
+                                success = false,
+                                error = validateResult.ErrorMessage,
+                                projectDirectory = ActionProjectCatalog.GetRelativeProjectDirectory(projectDir),
+                                projectDirectoryAbsolute = projectDir,
+                                actionId,
+                                editVersion = info.EditVersion,
+                                stepCount = validateResult.StepCount,
+                                variableCount = validateResult.VariableCount,
+                                fileRefs = validateResult.FileRefs,
+                            },
+                        },
+                        QkrpcJson.CliOutput));
+                }
+                else
+                {
+                    global::System.Console.WriteLine(validateResult.ErrorMessage);
+                }
+
+                return ExitCodes.Error;
+            }
+
+            WriteProjectSuccess(
+                options.Json,
+                "action-validate",
+                new
+                {
+                    success = true,
+                    projectDirectory = ActionProjectCatalog.GetRelativeProjectDirectory(projectDir),
+                    projectDirectoryAbsolute = projectDir,
+                    actionId,
+                    editVersion = info.EditVersion,
+                    stepCount = validateResult.StepCount,
+                    variableCount = validateResult.VariableCount,
+                    fileRefs = validateResult.FileRefs,
+                },
+                warnings: null);
+
+            return ExitCodes.Success;
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "ACTION_VALIDATE_FAILED", ex.Message)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static async Task<int> RunActionProjectImportAsync(ActionOptions options, bool forApply)
+    {
+        var explicitId = (options.Id ?? options.Code ?? string.Empty).Trim();
+        if (forApply && string.IsNullOrWhiteSpace(options.Dir) && string.IsNullOrWhiteSpace(explicitId))
+        {
+            return await EmitErrorAndFailAsync(
+                    options.Json,
+                    "MISSING_DIR_OR_ID",
+                    "Provide --dir <projectDirectory> or --id <actionId>.")
+                .ConfigureAwait(false);
+        }
+
+        if (!forApply && string.IsNullOrWhiteSpace(options.Dir))
+        {
+            return await EmitErrorAndFailAsync(options.Json, "MISSING_DIR", "Provide --dir <projectDirectory>.")
+                .ConfigureAwait(false);
+        }
+
+        string projectDir;
+        try
+        {
+            projectDir = forApply
+                ? ActionProjectCatalog.ResolveImportProjectDirectory(explicitId, options.Dir)
+                : QuickerProjectLayout.ResolveProjectDirectory(options.Dir!);
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "INVALID_DIR", ex.Message).ConfigureAwait(false);
+        }
+
+        try
+        {
+            if (!File.Exists(QuickerProjectLayout.GetInfoPath(projectDir)))
+            {
+                return await EmitErrorAndFailAsync(options.Json, "INFO_NOT_FOUND", $"info.json not found under {projectDir}.")
+                    .ConfigureAwait(false);
+            }
+
+            var info = QuickerProjectFiles.ReadActionInfo(projectDir);
+            var actionId = (info.Id ?? string.Empty).Trim();
+            if (actionId.Length == 0)
+            {
+                return await EmitErrorAndFailAsync(options.Json, "MISSING_ACTION_ID", "info.json must contain id.")
+                    .ConfigureAwait(false);
+            }
+
+            if (explicitId.Length > 0
+                && !string.Equals(explicitId, actionId, StringComparison.OrdinalIgnoreCase))
+            {
+                return await EmitErrorAndFailAsync(
+                        options.Json,
+                        "ACTION_ID_MISMATCH",
+                        $"--id {explicitId} does not match info.json id {actionId}.")
                     .ConfigureAwait(false);
             }
 
@@ -169,10 +356,11 @@ internal static partial class Program
 
             WriteProjectSuccess(
                 options.Json,
-                "action-import",
+                forApply ? "action-apply" : "action-import",
                 new
                 {
                     success = true,
+                    projectDirectory = projectDir,
                     actionId = response.ActionId,
                     editVersion = response.EditVersion,
                     versionConflict = response.VersionConflict,
@@ -194,7 +382,11 @@ internal static partial class Program
         }
         catch (Exception ex)
         {
-            return await EmitErrorAndFailAsync(options.Json, "ACTION_IMPORT_FAILED", ex.Message).ConfigureAwait(false);
+            return await EmitErrorAndFailAsync(
+                    options.Json,
+                    forApply ? "ACTION_APPLY_FAILED" : "ACTION_IMPORT_FAILED",
+                    ex.Message)
+                .ConfigureAwait(false);
         }
     }
 

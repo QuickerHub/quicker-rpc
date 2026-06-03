@@ -1,0 +1,314 @@
+"use client";
+
+import { useCallback } from "react";
+import {
+  getWorkspaceFileEditorPreview,
+  isWorkspaceExplorerFileTool,
+  isWorkspaceFileEditorTool,
+  isWorkspaceFileReadTool,
+  parseWorkspaceFilePayload,
+  shouldFoldFileSnapshotInChat,
+  shouldShowFileEditorCodeBlockInChat,
+  type WorkspaceFilePayload,
+} from "@/lib/workspace-file-tool";
+import { useWorkspaceExplorerActions } from "@/lib/workspace-explorer";
+import {
+  buildEditStat,
+  buildReadStat,
+  buildWriteStat,
+  FileEditorCard,
+} from "./FileEditorCard";
+import {
+  formatToolDisplayName,
+  ToolPayloadView,
+  type QkrpcToolResult,
+} from "./tool-output";
+
+function FileListView({ payload }: { payload: Extract<WorkspaceFilePayload, { action: "file-list" }> }) {
+  const dirs = payload.entries.filter((e) => e.isDirectory);
+  const files = payload.entries.filter((e) => !e.isDirectory);
+
+  return (
+    <div className="tool-file-list">
+      <div className="file-editor-header file-editor-header--list">
+        <span className="file-editor-hash" aria-hidden>
+          #
+        </span>
+        <span className="file-editor-name">{payload.path}</span>
+        <span className="file-editor-stat file-editor-stat--neutral">
+          {payload.entries.length}
+        </span>
+      </div>
+      <ul className="tool-file-list-entries">
+        {dirs.map((e) => (
+          <li key={e.path} className="tool-file-list-item tool-file-list-item--dir">
+            <span className="tool-file-list-name">{e.name}/</span>
+            <span className="tool-file-list-path">{e.path}</span>
+          </li>
+        ))}
+        {files.map((e) => (
+          <li key={e.path} className="tool-file-list-item">
+            <span className="tool-file-list-name">{e.name}</span>
+            <span className="tool-file-list-path">{e.path}</span>
+          </li>
+        ))}
+      </ul>
+      {payload.truncated ? (
+        <p className="file-editor-footnote file-editor-footnote--warn">目录列表已截断</p>
+      ) : null}
+      {payload.entries.length === 0 ? (
+        <p className="file-editor-footnote">（空目录）</p>
+      ) : null}
+    </div>
+  );
+}
+
+function FileEditorPreviewBody({
+  toolName,
+  summaryMeta,
+  headerRunning = false,
+  headerError = false,
+  input,
+  output,
+  running = false,
+  layout = "chip",
+  onOpenInExplorer,
+}: {
+  toolName: string;
+  summaryMeta: string;
+  headerRunning?: boolean;
+  headerError?: boolean;
+  input?: unknown;
+  output?: QkrpcToolResult;
+  running?: boolean;
+  /** chip: compact file header; details-body: code block only inside tool details */
+  layout?: "chip" | "details-body";
+  onOpenInExplorer?: () => void;
+}) {
+  const preview = getWorkspaceFileEditorPreview(
+    toolName,
+    input,
+    output?.ok ? output.data : undefined,
+  );
+
+  if (!preview) return null;
+
+  const embedded = layout === "details-body";
+  const showCodeBlock = shouldShowFileEditorCodeBlockInChat(toolName);
+
+  const stat = !embedded && showCodeBlock
+    ? (() => {
+    switch (toolName) {
+      case "workspace_file_read":
+      case "workspace_action_read_data":
+        return buildReadStat(preview.content, input);
+      case "workspace_file_write":
+      case "workspace_action_write_data":
+        return buildWriteStat(preview.content);
+      case "workspace_file_edit":
+      case "workspace_action_edit_data":
+        return buildEditStat(
+          preview.diff?.removed ?? "",
+          preview.diff?.added ?? preview.content,
+        );
+      default:
+        return undefined;
+    }
+  })()
+    : undefined;
+
+  return (
+    <>
+      <FileEditorCard
+        path={preview.path}
+        content={preview.content}
+        running={running}
+        stat={stat}
+        diff={preview.diff}
+        variant="compact"
+        foldSnapshot={embedded ? false : shouldFoldFileSnapshotInChat(toolName)}
+        showContent={showCodeBlock}
+        showHeader={!embedded}
+        summaryMeta={embedded || isWorkspaceFileReadTool(toolName) ? "" : summaryMeta}
+        headerRunning={headerRunning}
+        headerError={headerError}
+        onOpenInExplorer={embedded ? undefined : onOpenInExplorer}
+      />
+      {showCodeBlock && preview.truncated ? (
+        <p className="file-editor-footnote file-editor-footnote--warn">
+          内容已截断
+          {preview.totalChars !== undefined
+            ? ` · 文件共 ${preview.totalChars} 字符`
+            : ""}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function FileEditorPreviewWithExplorer(
+  props: Omit<Parameters<typeof FileEditorPreviewBody>[0], "onOpenInExplorer">,
+) {
+  const preview = getWorkspaceFileEditorPreview(
+    props.toolName,
+    props.input,
+    props.output?.ok ? props.output.data : undefined,
+  );
+  const { openFileFromTool, revealPath, setPanelOpen } = useWorkspaceExplorerActions();
+  const handleOpenInExplorer = useCallback(() => {
+    if (!preview?.path) return;
+    if (props.output?.ok && isWorkspaceExplorerFileTool(props.toolName)) {
+      openFileFromTool(props.toolName, props.input, props.output);
+    } else {
+      revealPath(preview.path);
+      setPanelOpen(true);
+    }
+  }, [
+    preview?.path,
+    props.output,
+    props.toolName,
+    props.input,
+    openFileFromTool,
+    revealPath,
+    setPanelOpen,
+  ]);
+
+  return <FileEditorPreviewBody {...props} onOpenInExplorer={handleOpenInExplorer} />;
+}
+
+function FileEditorPreview(
+  props: Omit<Parameters<typeof FileEditorPreviewBody>[0], "onOpenInExplorer">,
+) {
+  if (props.layout === "details-body") {
+    return <FileEditorPreviewBody {...props} />;
+  }
+  return <FileEditorPreviewWithExplorer {...props} />;
+}
+
+export { FileEditorPreview };
+
+export function WorkspaceFileEditorRow({
+  toolName,
+  displayName,
+  meta,
+  input,
+  output,
+  running = false,
+  inBatch = false,
+  errorText,
+}: {
+  toolName: string;
+  displayName: string;
+  meta: string;
+  input?: unknown;
+  output?: QkrpcToolResult;
+  running?: boolean;
+  inBatch?: boolean;
+  errorText?: string;
+}) {
+  const failed = output && !output.ok;
+  return (
+    <div
+      className={`tool-card tool-card--file-editor tool-card--preview${inBatch ? " tool-card--nested" : ""}${running ? " tool-card--running" : ""}`}
+    >
+      {failed ? (
+        <FileEditorPreview
+          toolName={toolName}
+          summaryMeta={meta}
+          headerRunning={running}
+          headerError={failed}
+          input={input}
+          output={output}
+        />
+      ) : (
+        <FileEditorPreview
+          toolName={toolName}
+          summaryMeta={meta}
+          headerRunning={running}
+          headerError={failed}
+          input={input}
+          output={output}
+          running={running}
+        />
+      )}
+      {failed && (
+        <p className="file-editor-footnote file-editor-footnote--err">
+          {typeof output?.data === "object"
+          && output.data !== null
+          && "errorMessage" in output.data
+          && typeof (output.data as { errorMessage: unknown }).errorMessage === "string"
+            ? (output.data as { errorMessage: string }).errorMessage
+            : output?.stderr ?? "操作失败"}
+        </p>
+      )}
+      {errorText ? <pre className="tool-error">{errorText}</pre> : null}
+    </div>
+  );
+}
+
+export function WorkspaceFileToolBody({
+  input,
+  output,
+  toolName,
+}: {
+  input?: unknown;
+  output: QkrpcToolResult;
+  toolName: string;
+}) {
+  if (isWorkspaceFileEditorTool(toolName)) {
+    return (
+      <WorkspaceFileEditorRow
+        toolName={toolName}
+        displayName={formatToolDisplayName(toolName)}
+        meta=""
+        input={input}
+        output={output}
+      />
+    );
+  }
+
+  if (!output.ok) {
+    const path = typeof input === "object" && input !== null && "path" in input
+      ? String((input as { path: unknown }).path ?? "")
+      : "";
+    const err =
+      typeof output.data === "object"
+      && output.data !== null
+      && "errorMessage" in output.data
+      && typeof (output.data as { errorMessage: unknown }).errorMessage === "string"
+        ? (output.data as { errorMessage: string }).errorMessage
+        : output.stderr;
+
+    return (
+      <>
+        {path ? (
+          <div className="file-editor-header file-editor-header--list">
+            <span className="file-editor-hash">#</span>
+            <span className="file-editor-name">{path}</span>
+          </div>
+        ) : null}
+        <p className="file-editor-footnote file-editor-footnote--err">{err ?? "操作失败"}</p>
+      </>
+    );
+  }
+
+  const payload = parseWorkspaceFilePayload(toolName, output.data);
+  if (!payload) {
+    return (
+      <ToolPayloadView label="结果" value={output} compact toolName={toolName} />
+    );
+  }
+
+  if (payload.action === "file-list") {
+    return <FileListView payload={payload} />;
+  }
+
+  return (
+    <FileEditorPreview
+        toolName={toolName}
+        summaryMeta=""
+        input={input}
+      output={output}
+    />
+  );
+}

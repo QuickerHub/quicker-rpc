@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { invokeActionCommand } from "@/lib/action-command-client";
 import {
   formatActionIdShort,
   type ActionPatchFollowUpContext,
@@ -12,24 +13,6 @@ type ActionPatchFollowUpProps = {
 };
 
 type RunState = "idle" | "loading" | "ok" | "err";
-
-async function invokeActionCommand(body: {
-  op: "run" | "edit";
-  id: string;
-  param?: string;
-  debug?: boolean;
-}): Promise<{ ok: boolean; error?: string }> {
-  const res = await fetch("/api/actions/command", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = (await res.json()) as { ok?: boolean; error?: string };
-  if (!res.ok || !data.ok) {
-    return { ok: false, error: data.error ?? `HTTP ${res.status}` };
-  }
-  return { ok: true };
-}
 
 export function ActionPatchFollowUp({
   context,

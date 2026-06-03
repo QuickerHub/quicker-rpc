@@ -1,31 +1,48 @@
 ---
 name: subprogram-workflow
-description: "在动作中调用公共子程序：callIdentifier 与 sys:subprogram 步骤。Use when adding subprogram call steps to an action."
+description: "公共子程序与动作内子程序的区别及调用工作流。Use when adding subprogram call steps or editing subprogram projects."
 allowed-tools: qkrpc_subprogram_search qkrpc_subprogram_get qkrpc_step_runner_get qkrpc_action_patch
 metadata:
   phase: "P5-P6"
 ---
 
-# 公共子程序
-全局库：**`qkrpc_subprogram_*` 工具**。动作内调用走 **`authoring-workflow`** P5–P6 + 下文 B 链。
-## A 管理子程序
-```text
-subprogram search/list → get → step-runner get → subprogram patch
-```
+# 子程序
+
+**何时读**：管理公共子程序，或在动作里 **调用** 公共子程序。工具参数见 `qkrpc_subprogram_*`、`qkrpc_step_runner_get`（`sys:subprogram`）。
+
+## 两种概念
+
+| | 公共子程序 | 动作内子程序 |
+|--|------------|----------------|
+| 存储 | Quicker 全局库 | 父动作 `SubPrograms[]` |
+| 磁盘（规划） | `.quicker/subprograms/{name}/` | `.quicker/actions/{actionId}/subprograms/` |
+| 调用标识 | `sys:subprogram` + `callIdentifier` 通常 `%%{guid}` | 本动作内定义（非 `%%{guid}`） |
+
+## A. 管理公共子程序
 
 ```text
-qkrpc_subprogram_get({ id: "<id|name>", returnMode: "full" })
+subprogram search/get → [CLI: create/patch] → 磁盘 .quicker/subprograms/
 ```
-（create / patch 子程序：agent-ui 暂无，请用终端 qkrpc CLI。）
 
-patch 形状同 **`patch-workflow`**。
-## B 在动作中调用
+读取：`qkrpc_subprogram_get`。创建/改体：终端 `qkrpc subprogram`（UI 未全覆盖时）。
+
+## B. 在动作里调用公共子程序
+
 ```text
 subprogram search/get → callIdentifier
+  → step-runner get(sys:subprogram)
+  → 写入 data.json 步骤（inputParams.subProgram 等，键名以 get 为准）
+  → 保存
+```
+
 → `qkrpc_step_runner_get({ key: "sys:subprogram" })`
 → `qkrpc_action_patch` 添加步骤，`inputParams.subProgram.value = callIdentifier`
-```
-**`callIdentifier`** 通常 `%%{guid}`，从 `subprogram search/get` 读取；未知标识会在 RPC/工具报错。
+
+保存：**`qkrpc_action_patch({ id })`**（先 **`workspace_action_*_data`** 改步骤，见 **`workspace-editing`**）。
+
+**`callIdentifier`** 必须从 search/get 读取；未知标识会报错。
+
 ## 相关
-`authoring-workflow` · `patch-workflow` · `overview`
+
+`authoring-workflow` · `workspace-editing` · `overview`
 

@@ -2,17 +2,61 @@
 
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import {
+  formatActionMetadataMetaLine,
+  parseActionMetadata,
+  splitActionMetadataFields,
+} from "@/lib/action-metadata";
+import {
   isActionListTool,
   parseActionListFromQkrpcData,
   formatActionListMetaLine,
 } from "@/lib/action-list";
+import {
+  formatActionProjectsMetaLine,
+  isActionProjectsTool,
+  parseActionProjectsFromToolData,
+  actionProjectsToolDisplayName,
+} from "@/lib/action-projects";
+import {
+  formatFaSearchMetaLine,
+  isFaSearchTool,
+  parseFaSearchFromQkrpcData,
+} from "@/lib/fa-search";
+import {
+  formatWorkspaceToolMetaLine,
+  parseWorkspaceToolDisplay,
+} from "@/lib/action-project-display";
+import { ActionProjectsView } from "./ActionProjectsView";
+import { FaSearchPlainText } from "./FaSearchPlainText";
 import { parseSearchActionSummaries } from "@/lib/agent-api";
 import {
   isDocsTool,
   summarizeDocsToolOutput,
 } from "@/lib/docs-tool";
 import { isStructuredToolResult } from "@/lib/tool-result";
-import { ActionListView } from "./ActionListView";
+import {
+  parseSingleIdInput,
+  shouldOmitCompactToolResultBody,
+  shouldSkipRedundantToolRequest,
+} from "@/lib/tool-display";
+import {
+  countLines,
+  formatCharCount,
+  formatWorkspacePathLabel,
+  isWorkspaceExplorerFileTool,
+  parseWorkspaceFileReadPayload,
+  summarizeWorkspaceFileTool,
+  type WorkspaceFileReadPayload,
+  workspaceFileToolDisplayName,
+} from "@/lib/workspace-file-tool";
+import {
+  formatStepRunnerGetMetaLine,
+  formatStepRunnerSearchMetaLine,
+  isStepRunnerGetTool,
+  isStepRunnerSearchTool,
+  parseStepRunnerGetFromQkrpcData,
+  parseStepRunnerSearchFromQkrpcData,
+} from "@/lib/step-runner-tool";
 
 export type QkrpcToolResult = {
   ok: boolean;
@@ -30,12 +74,23 @@ export function isQkrpcToolResult(value: unknown): value is QkrpcToolResult {
 export function summarizeToolOutput(
   toolName: string,
   output: unknown,
+  input?: unknown,
 ): string | null {
   if (!isQkrpcToolResult(output)) return null;
+
+  if (isWorkspaceExplorerFileTool(toolName)) {
+    const fileSummary = summarizeWorkspaceFileTool(toolName, output, input);
+    if (fileSummary) return fileSummary;
+  }
 
   if (isDocsTool(toolName)) {
     const docSummary = summarizeDocsToolOutput(toolName, output);
     if (docSummary) return docSummary;
+  }
+
+  if (input !== undefined) {
+    const inputMeta = parseActionMetadata(input);
+    if (inputMeta) return formatActionMetadataMetaLine(inputMeta);
   }
 
   if (!output.ok) {
@@ -64,6 +119,33 @@ export function summarizeToolOutput(
     if (isActionListTool(toolName)) {
       const list = parseActionListFromQkrpcData(toolName, output.data);
       if (list) return formatActionListMetaLine(list.meta);
+    }
+    if (isFaSearchTool(toolName)) {
+      const fa = parseFaSearchFromQkrpcData(output.data);
+      if (fa) return formatFaSearchMetaLine(fa.meta);
+    }
+    if (isStepRunnerGetTool(toolName)) {
+      const detail = parseStepRunnerGetFromQkrpcData(output.data, input);
+      if (detail) return formatStepRunnerGetMetaLine(detail);
+    }
+    if (isStepRunnerSearchTool(toolName)) {
+      const search = parseStepRunnerSearchFromQkrpcData(output.data, input);
+      if (search) return formatStepRunnerSearchMetaLine(search);
+    }
+    if (isActionProjectsTool(toolName)) {
+      const projects = parseActionProjectsFromToolData(output.data);
+      if (projects) return formatActionProjectsMetaLine(projects);
+    }
+    const workspaceDisplay = parseWorkspaceToolDisplay(output.data);
+    if (
+      workspaceDisplay
+      && (
+        toolName === "qkrpc_action_get"
+        || toolName === "qkrpc_action_create"
+        || toolName === "qkrpc_action_patch"
+      )
+    ) {
+      return formatWorkspaceToolMetaLine(workspaceDisplay);
     }
     const summaries = parseSearchActionSummaries(output.data);
     if (summaries?.items && summaries.items.length > 0) {
@@ -126,6 +208,10 @@ export function formatToolState(state: string): string {
 
 /** qkrpc_step_runner_search → step runner search */
 export function formatToolDisplayName(toolName: string): string {
+  const projectsLabel = actionProjectsToolDisplayName(toolName);
+  if (projectsLabel) return projectsLabel;
+  const fileLabel = workspaceFileToolDisplayName(toolName);
+  if (fileLabel) return fileLabel;
   return toolName.replace(/^qkrpc_/, "").replace(/_/g, " ");
 }
 
@@ -199,23 +285,113 @@ function shouldShowRawJsonDetails(
   if (result.truncated || result.stderr) return true;
   if (!result.ok) return true;
   if (hasRichBody) return false;
+  if (parseWorkspaceFileReadPayload(result.data)) return true;
   return !isShallowPrimitiveData(result.data);
 }
 
-function CompactSuccessBody({ data }: { data: Record<string, unknown> }) {
+function WorkspaceFileReadResultView({
+  payload,
+  data,
+}: {
+  payload: WorkspaceFileReadPayload;
+  data: Record<string, unknown>;
+}) {
+  const lines = countLines(payload.content);
+  const size =
+    payload.totalChars !== undefined
+      ? formatCharCount(payload.totalChars)
+      : formatCharCount(payload.content.length);
+  const actionId =
+    typeof data.actionId === "string" ? data.actionId.trim() : "";
+  const entries: Array<{ key: string; value: ReactNode }> = [];
+
+  if (actionId) {
+    entries.push({ key: "action", value: <code>{actionId}</code> });
+  }
+  entries.push({
+    key: "path",
+    value: (
+      <code title={payload.path}>{formatWorkspacePathLabel(payload.path)}</code>
+    ),
+  });
+  entries.push({
+    key: "规模",
+    value: `${lines} 行 · ${size}${payload.truncated ? " · 已截断" : ""}`,
+  });
+
+  return (
+    <>
+      <KeyValueRows entries={entries} />
+      <p className="tool-muted tool-hint">完整 data.json 见下方 JSON</p>
+    </>
+  );
+}
+
+function ActionMetadataResultBody({
+  data,
+  inputId,
+  followTail = false,
+}: {
+  data: Record<string, unknown>;
+  inputId?: string | null;
+  followTail?: boolean;
+}) {
+  const meta = parseActionMetadata(data);
+  if (!meta) return null;
+
+  const { rest } = splitActionMetadataFields(data);
+  const id = meta.id?.trim();
+  const hasRest = Object.keys(rest).length > 0;
+
+  if (!hasRest && id && inputId && id === inputId) return null;
+
+  if (hasRest) {
+    return (
+      <>
+        {id ? (
+          <p className="tool-plain-meta">
+            <span className="tool-muted">ID</span>{" "}
+            <code>{id}</code>
+          </p>
+        ) : null}
+        <ShallowObjectView data={rest} followTail={followTail} />
+      </>
+    );
+  }
+
+  if (!id) return null;
+
+  return (
+    <div className="tool-compact-success">
+      <p className="tool-plain-meta">
+        <span className="tool-muted">ID</span>{" "}
+        <code>{id}</code>
+      </p>
+    </div>
+  );
+}
+
+function CompactSuccessBody({
+  data,
+  inputId,
+}: {
+  data: Record<string, unknown>;
+  inputId?: string | null;
+}) {
   const message =
     typeof data.message === "string" ? data.message.trim() : "";
   const actionId =
     typeof data.actionId === "string" ? data.actionId.trim() : "";
+  const showId = Boolean(actionId && actionId !== inputId);
 
-  if (!message && !actionId) {
+  if (!message && !showId) {
     return <ShallowObjectView data={data} />;
   }
 
   return (
     <div className="tool-compact-success">
       {message ? <p className="tool-plain-result">{message}</p> : null}
-      {actionId ? (
+      {showId ? (
         <p className="tool-plain-meta">
           <span className="tool-muted">ID</span>{" "}
           <code>{actionId}</code>
@@ -299,29 +475,129 @@ function ShallowObjectView({
   );
 }
 
+function WorkspaceToolResultView({
+  display,
+}: {
+  display: NonNullable<ReturnType<typeof parseWorkspaceToolDisplay>>;
+}) {
+  if (display.syncError) {
+    return <p className="tool-plain-result tool-error">{display.syncError}</p>;
+  }
+
+  const entries: Array<{ key: string; value: ReactNode }> = [];
+  if (display.actionId) {
+    entries.push({ key: "ID", value: <code>{display.actionId}</code> });
+  }
+  if (display.editVersion != null) {
+    entries.push({ key: "版本", value: String(display.editVersion) });
+  }
+  if (display.stepCount != null) {
+    entries.push({ key: "步骤", value: String(display.stepCount) });
+  }
+  if (display.variableCount != null) {
+    entries.push({ key: "变量", value: String(display.variableCount) });
+  }
+  if (display.fileRefCount != null) {
+    entries.push({ key: "外置文件", value: String(display.fileRefCount) });
+  }
+  if (display.projectDirectory) {
+    entries.push({
+      key: "项目",
+      value: (
+        <code title={display.projectDirectory}>
+          {formatWorkspacePathLabel(display.projectDirectory)}
+        </code>
+      ),
+    });
+  }
+
+  if (entries.length === 0) {
+    return display.workspaceSynced ? (
+      <p className="tool-plain-result">已同步到工作区</p>
+    ) : null;
+  }
+
+  return <KeyValueRows entries={entries} />;
+}
+
 function QkrpcToolResultView({
   result,
   compact,
   toolName,
   followTail = false,
+  input,
 }: {
   result: QkrpcToolResult;
   compact?: boolean;
   toolName?: string;
   followTail?: boolean;
+  input?: unknown;
 }) {
+  const inputId = parseSingleIdInput(input);
+
+  if (shouldOmitCompactToolResultBody(input, result)) {
+    return null;
+  }
+
   const data = result.data;
   const actionList =
     result.ok && toolName
       ? parseActionListFromQkrpcData(toolName, data)
       : null;
-  const hasRichBody = Boolean(actionList);
+  const faSearch =
+    result.ok && toolName && isFaSearchTool(toolName)
+      ? parseFaSearchFromQkrpcData(data)
+      : null;
+  const workspaceDisplay =
+    result.ok ? parseWorkspaceToolDisplay(data) : null;
+  const hasWorkspaceResultBody = Boolean(
+    workspaceDisplay
+    && (
+      workspaceDisplay.syncError
+      || workspaceDisplay.workspaceSynced
+      || workspaceDisplay.actionId
+      || workspaceDisplay.projectDirectory
+    ),
+  );
+  const actionMetadata =
+    result.ok
+    && !hasWorkspaceResultBody
+    && typeof data === "object"
+    && data !== null
+    && !Array.isArray(data)
+      ? parseActionMetadata(data)
+      : null;
+  const metadataRest =
+    actionMetadata && typeof data === "object" && data !== null && !Array.isArray(data)
+      ? splitActionMetadataFields(data).rest
+      : null;
+  const hasMetadataResultBody = Boolean(
+    actionMetadata
+    && (actionMetadata.id?.trim() || (metadataRest && Object.keys(metadataRest).length > 0)),
+  );
+  const hasRichBody = Boolean(
+    actionList || faSearch || hasMetadataResultBody || hasWorkspaceResultBody,
+  );
 
   let resultBody: ReactNode = null;
   if (data !== undefined && data !== null) {
     if (actionList) {
       resultBody = (
-        <ActionListView meta={actionList.meta} items={actionList.items} />
+        <ActionListView meta={actionList.meta} items={actionList.items} snapshot />
+      );
+    } else if (faSearch) {
+      resultBody = (
+        <FaSearchPlainText names={faSearch.names} />
+      );
+    } else if (hasWorkspaceResultBody && workspaceDisplay) {
+      resultBody = <WorkspaceToolResultView display={workspaceDisplay} />;
+    } else if (actionMetadata) {
+      resultBody = (
+        <ActionMetadataResultBody
+          data={data as Record<string, unknown>}
+          inputId={inputId}
+          followTail={followTail}
+        />
       );
     } else if (
       typeof data === "object"
@@ -331,7 +607,25 @@ function QkrpcToolResultView({
     ) {
       resultBody = <PingDataView data={data as Record<string, unknown>} />;
     } else if (
-      compact
+      result.ok
+      && typeof data === "object"
+      && data !== null
+      && !Array.isArray(data)
+    ) {
+      const fileRead = parseWorkspaceFileReadPayload(data);
+      if (fileRead) {
+        resultBody = (
+          <WorkspaceFileReadResultView
+            payload={fileRead}
+            data={data as Record<string, unknown>}
+          />
+        );
+      }
+    }
+
+    if (
+      resultBody === null
+      && compact
       && result.ok
       && typeof data === "object"
       && data !== null
@@ -339,18 +633,24 @@ function QkrpcToolResultView({
       && isShallowPrimitiveData(data)
       && (typeof (data as Record<string, unknown>).message === "string"
         || typeof (data as Record<string, unknown>).actionId === "string")
+      && !parseWorkspaceFileReadPayload(data)
     ) {
       resultBody = (
-        <CompactSuccessBody data={data as Record<string, unknown>} />
+        <CompactSuccessBody
+          data={data as Record<string, unknown>}
+          inputId={inputId}
+        />
       );
-    } else if (typeof data === "object" && data !== null && !Array.isArray(data)) {
+    }
+
+    if (resultBody === null && typeof data === "object" && data !== null && !Array.isArray(data)) {
       resultBody = (
         <ShallowObjectView
           data={data as Record<string, unknown>}
           followTail={followTail}
         />
       );
-    } else {
+    } else if (resultBody === null) {
       resultBody = <JsonBlock value={data} followTail={followTail} />;
     }
   }
@@ -387,44 +687,30 @@ function QkrpcToolResultView({
 
 export function ToolRawJsonDetails({ value }: { value: unknown }) {
   return (
-    <details className="tool-raw-json">
-      <summary>原始 JSON（调试）</summary>
+    <div className="tool-raw-json tool-raw-json--static">
+      <div className="tool-section-label">原始 JSON（调试）</div>
       <JsonBlock value={value} />
-    </details>
+    </div>
   );
 }
 
-/** Collapsed request + raw response for action-list tools. */
-export function ToolMoreDetails({
+export function ActionMetadataRequestSection({
   input,
-  output,
+  label = "请求",
 }: {
-  input?: unknown;
-  output: unknown;
+  input: unknown;
+  label?: string;
 }) {
-  const hasInput =
-    input !== undefined
-    && typeof input === "object"
-    && input !== null
-    && !Array.isArray(input)
-    && Object.keys(input as object).length > 0;
+  const { meta, rest } = splitActionMetadataFields(input);
+  if (!meta || Object.keys(rest).length === 0) return null;
 
   return (
-    <details className="tool-more">
-      <summary className="tool-more-summary">请求 / 原始数据</summary>
-      <div className="tool-more-body">
-        {hasInput && (
-          <div className="tool-more-block">
-            <span className="tool-more-label">请求</span>
-            <JsonBlock value={input} />
-          </div>
-        )}
-        <div className="tool-more-block">
-          <span className="tool-more-label">响应</span>
-          <JsonBlock value={output} />
-        </div>
+    <div className="tool-section">
+      <div className="tool-section-label">
+        <span>{label}</span>
       </div>
-    </details>
+      <JsonBlock value={rest} />
+    </div>
   );
 }
 
@@ -446,26 +732,20 @@ export function ActionListToolBody({
 
   return (
     <>
-      <ActionListView meta={list.meta} items={list.items} showMeta={false} />
-      <ToolMoreDetails input={input} output={output} />
+      <ActionListView meta={list.meta} items={list.items} showMeta={false} snapshot />
     </>
   );
 }
 
 export function DocsToolBody({
-  input,
   output,
   toolName,
 }: {
-  input?: unknown;
   output: QkrpcToolResult;
   toolName: string;
 }) {
   return (
-    <>
-      <ToolPayloadView label="结果" value={output} compact toolName={toolName} />
-      <ToolMoreDetails input={input} output={output} />
-    </>
+    <ToolPayloadView label="结果" value={output} compact toolName={toolName} />
   );
 }
 
@@ -502,14 +782,26 @@ export function ToolPayloadView({
   compact,
   toolName,
   followTail = false,
+  input,
+  output,
 }: {
   label: string;
   value: unknown;
   compact?: boolean;
   toolName?: string;
   followTail?: boolean;
+  input?: unknown;
+  output?: unknown;
 }) {
   if (value === undefined) return null;
+
+  if (label === "请求" && shouldSkipRedundantToolRequest(input ?? value, output)) {
+    return null;
+  }
+
+  if (label === "结果" && shouldOmitCompactToolResultBody(input, value)) {
+    return null;
+  }
 
   const emptyObject =
     typeof value === "object"
@@ -518,6 +810,10 @@ export function ToolPayloadView({
     && Object.keys(value as object).length === 0;
 
   if (emptyObject) return null;
+
+  if (label === "请求" && !isQkrpcToolResult(value) && parseActionMetadata(value)) {
+    return <ActionMetadataRequestSection input={value} label={label} />;
+  }
 
   const payloadInline = unwrapSinglePayloadField(value);
   const displayValue = payloadInline?.value ?? value;
@@ -536,6 +832,7 @@ export function ToolPayloadView({
           compact={compact}
           toolName={toolName}
           followTail={followTail}
+          input={input}
         />
       ) : (
         <JsonBlock value={displayValue} followTail={followTail} />

@@ -33,7 +33,11 @@ public static class XActionFileRefExporter
         public string RelativeFile { get; set; } = "";
     }
 
-    public static ExportResult Export(JObject latestData, string projectDirectory, JObject? templateData = null)
+    public static ExportResult Export(
+        JObject latestData,
+        string projectDirectory,
+        JObject? templateData = null,
+        XActionFileRefExportOptions? options = null)
     {
         if (latestData["steps"] is not JArray latestSteps)
         {
@@ -48,6 +52,12 @@ public static class XActionFileRefExporter
 
         if (templateData is null)
         {
+            var autoOnly = ApplyAutoExternalize(output, projectDir, options, writtenFiles, warnings);
+            if (autoOnly is not null)
+            {
+                return autoOnly;
+            }
+
             return new ExportResult
             {
                 Success = true,
@@ -97,6 +107,12 @@ public static class XActionFileRefExporter
             }
         }
 
+        var autoFail = ApplyAutoExternalize(output, projectDir, options, writtenFiles, warnings);
+        if (autoFail is not null)
+        {
+            return autoFail;
+        }
+
         return new ExportResult
         {
             Success = true,
@@ -104,6 +120,25 @@ public static class XActionFileRefExporter
             WrittenFiles = writtenFiles,
             Warnings = warnings,
         };
+    }
+
+    private static ExportResult? ApplyAutoExternalize(
+        JObject output,
+        string projectDir,
+        XActionFileRefExportOptions? options,
+        List<string> writtenFiles,
+        List<string> warnings)
+    {
+        var minLines = options?.AutoExternalizeMinLines ?? 0;
+        if (minLines <= 0)
+        {
+            return null;
+        }
+
+        var auto = XActionFileRefAutoExternalizer.Apply(output, projectDir, minLines);
+        writtenFiles.AddRange(auto.WrittenFiles);
+        warnings.AddRange(auto.Warnings);
+        return null;
     }
 
     private static bool TryApplyFileRef(JArray? steps, FileRefSlot slot)

@@ -1,48 +1,66 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ChatAddToolApproveResponseFunction } from "ai";
 import {
   buildToolBatchSummary,
   type ToolUiPartAnalysis,
 } from "./tool-part-layout";
+import {
+  isWorkspaceFileOpenBatch,
+  WorkspaceFileBatchRow,
+} from "./WorkspaceFileOpenRow";
+import { readToolCallId } from "@/lib/workspace-tool-auto-open";
+import { ToolDisclosure } from "./ToolDisclosure";
 import { ToolPart } from "./ToolPart";
 
 type ToolBatchGroupProps = {
+  messageId: string;
   items: ToolUiPartAnalysis[];
   addToolApprovalResponse?: ChatAddToolApproveResponseFunction;
   approvalDisabled?: boolean;
 };
 
 export function ToolBatchGroup({
+  messageId,
   items,
   addToolApprovalResponse,
   approvalDisabled,
 }: ToolBatchGroupProps) {
   const summary = useMemo(() => buildToolBatchSummary(items), [items]);
-  const [open, setOpen] = useState(() => summary.needsAttention);
-
-  useEffect(() => {
-    if (summary.allTerminal && !summary.needsAttention) {
-      setOpen(false);
-      return;
-    }
-    if (summary.needsAttention) {
-      setOpen(true);
-    }
-  }, [summary.allTerminal, summary.needsAttention]);
+  const [userOpen, setUserOpen] = useState(() => summary.needsAttention);
 
   const batchRunning = items.some((i) => i.isRunning);
   const batchErr = items.some((i) => i.state === "output-error");
   const batchApproval = items.some((i) => i.state === "approval-requested");
+  const workspaceFileBatch = isWorkspaceFileOpenBatch(items);
+  const forcedOpen = batchApproval ? true : null;
+
+  if (workspaceFileBatch && !batchApproval) {
+    return (
+      <WorkspaceFileBatchRow
+        items={items.map((item) => ({
+          name: item.name,
+          displayName: item.displayName,
+          meta: item.meta,
+          isRunning: item.isRunning,
+          state: item.state,
+          part: item.part,
+        }))}
+      />
+    );
+  }
 
   return (
-    <details
+    <ToolDisclosure
       className="tool-batch"
-      open={open}
-      onToggle={(e) => setOpen(e.currentTarget.open)}
-    >
-      <summary className="tool-batch-summary">
+      open={userOpen}
+      onOpenChange={setUserOpen}
+      forcedOpen={forcedOpen}
+      summaryClassName="tool-batch-summary"
+      expandedClassName="tool-batch--expanded"
+      collapsedClassName="tool-batch--collapsed"
+      summary={
         <span className="tool-title">
           <span className="tool-name">{summary.title}</span>
           <span
@@ -52,21 +70,21 @@ export function ToolBatchGroup({
           </span>
           <span className="tool-chevron" aria-hidden />
         </span>
-      </summary>
-      {open && (
-        <div className="tool-batch-body">
-          {items.map((item) => (
-            <ToolPart
-              key={item.index}
-              part={item.part}
-              inBatch
-              batchOpen={open}
-              addToolApprovalResponse={addToolApprovalResponse}
-              approvalDisabled={approvalDisabled}
-            />
-          ))}
-        </div>
-      )}
-    </details>
+      }
+    >
+      <div className="tool-batch-body">
+        {items.map((item) => (
+          <ToolPart
+            key={readToolCallId(item.part) ?? `tool-${messageId}-${item.index}`}
+            messageId={messageId}
+            partIndex={item.index}
+            part={item.part}
+            inBatch
+            addToolApprovalResponse={addToolApprovalResponse}
+            approvalDisabled={approvalDisabled}
+          />
+        ))}
+      </div>
+    </ToolDisclosure>
   );
 }

@@ -56,11 +56,6 @@ public sealed class ActionDeleteService
 
             await task.ConfigureAwait(true);
             var deleted = ReadTaskBoolResult(task);
-            if (deleted)
-            {
-                ActionMonitorNotifier.Notify();
-            }
-
             return new QuickerRpcActionUpdateResult
             {
                 Ok = deleted,

@@ -32,4 +32,16 @@ internal static class QuickerDispatcherInvoke
 
         dispatcher.Invoke(invoke);
     }
+
+    public static void BeginOnUiThreadIfNeeded(Action invoke)
+    {
+        var dispatcher = AppDispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            invoke();
+            return;
+        }
+
+        dispatcher.BeginInvoke(invoke, DispatcherPriority.Normal);
+    }
 }

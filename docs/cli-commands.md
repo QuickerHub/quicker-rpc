@@ -101,7 +101,7 @@ qkrpc action set-metadata --id <guid> [--title <text>] [--description <text>] [-
 |------|------|
 | `--title` | 新标题（不可传空） |
 | `--description` | 新说明；空字符串清空 |
-| `--icon` | `fa:Light_AddressBook` / `fa:Light_AddressBook:#3b82f6`（见 action-icons），或绝对 `http(s)://` 图片 URL（恢复设计器图片图标时原样写回） |
+| `--icon` | `fa:Light_AddressBook` / `fa:Light_AddressBook:#3b82f6`（枚举见 `fa search`），或绝对 `http(s)://` 图片 URL（恢复设计器图片图标时原样写回） |
 
 ### `qkrpc action replace`
 
@@ -226,13 +226,13 @@ qkrpc step-runner get --key <stepRunnerKey> [--json]
 
 ## Font Awesome 图标
 
-> **Agent 编辑链路**：`qkrpc guide get --topic overview --json`（P0–P7）→ `authoring-workflow`。图标：`action-icons`。
+> **Agent 编辑链路**：`qkrpc guide get --topic overview --json`（P0–P7）→ `authoring-workflow`。图标：`fa search` + `action set-metadata` / patch 顶层 `icon`。
 
 ### `qkrpc fa search`
 
 在 Quicker 已加载的 Font Awesome 目录中搜索图标。
 
-**默认（压缩）**：Solid/Regular/Light 同图形合并为 **`Light_{图形id}`**；品牌为 **`Brands_{图形id}`**。`names[]` 为枚举名；写入时用 **`fa:{enumName}`** 或 **`fa:{enumName}:{#color}`**（见 `guide get --topic action-icons`）。
+**默认（压缩）**：Solid/Regular/Light 同图形合并为 **`Light_{图形id}`**；品牌为 **`Brands_{图形id}`**。`names[]` 为枚举名；写入时用 **`fa:{enumName}`** 或 **`fa:{enumName}:{#color}`**。
 
 **`--expand`**：不合并，返回全部样式行（`Solid_*`、`Regular_*`、`Light_*` …）。`--all-styles` 同义。
 

@@ -1,8 +1,6 @@
 using System;
-using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -15,6 +13,7 @@ namespace QuickerRpc.Plugin;
 public enum LauncherStatus
 {
     NotStarted,
+    Starting,
     Started,
     Stopped,
 }
@@ -38,112 +37,113 @@ public static partial class Launcher
     /// <summary>
     /// Quicker expression entry: <c>type QuickerRpc.Plugin.Launcher, QuickerRpc.Plugin.{version}</c>.
     /// </summary>
-    public static bool Register(EvalContext eval, bool openMonitor = false)
+    public static bool Register(EvalContext eval)
     {
         eval.RegisterType(typeof(Launcher));
-        Start(openMonitor);
+        Start();
         return true;
     }
 
-    /// <summary>Starts the RPC host. Set <paramref name="openMonitor"/> to show the monitor window after start.</summary>
-    public static void Start(bool openMonitor = false)
-    {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
-        {
-            dispatcher.Invoke(() => StartCore(openMonitor));
-            return;
-        }
-
-        StartCore(openMonitor);
-    }
-
-    private static void StartCore(bool openMonitor)
+    /// <summary>Starts the RPC host without blocking the caller or UI thread.</summary>
+    public static void Start()
     {
         lock (LockObject)
         {
             if (_status == LauncherStatus.Started)
             {
                 Logger.LogInformation("QuickerRpc launcher already started");
-                if (!openMonitor)
-                {
-                    var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
-                    PopupMessage.Success("动作已在运行，版本号:" + version);
-                }
-                else
-                {
-                    ShowMonitorCore();
-                }
-
+                QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(() =>
+                    PopupMessage.Success("动作已在运行，版本号:" + GetPluginVersion()));
                 ScheduleQuickerAgentUpdateCheck();
+                return;
+            }
+
+            if (_status == LauncherStatus.Starting)
+            {
+                Logger.LogDebug("QuickerRpc launcher start already in progress");
                 return;
             }
 
             if (_status == LauncherStatus.Stopped)
             {
-                PopupMessage.Warning("动作已停止运行，不能再次启动");
+                QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(() =>
+                    PopupMessage.Warning("动作已停止运行，不能再次启动"));
                 return;
             }
 
-            try
+            _status = LauncherStatus.Starting;
+        }
+
+        _ = Task.Run(StartCoreAsync);
+    }
+
+    private static async Task StartCoreAsync()
+    {
+        try
+        {
+            await Task.Run(ProgramManager.ExitOtherVersionPlugins).ConfigureAwait(false);
+            StepRunnerRegistration.RegisterPluginStepRunners(Logger);
+
+            var shouldStartHost = false;
+            lock (LockObject)
             {
-                WaitForPriorQuickerRpcExitWithUiPump();
-                StepRunnerRegistration.RegisterPluginStepRunners(Logger);
+                shouldStartHost = _status == LauncherStatus.Starting;
+            }
 
-                _host.StartAsync().GetAwaiter().GetResult();
-                _status = LauncherStatus.Started;
-                Logger.LogInformation("QuickerRpc launcher started");
-
-                if (openMonitor)
+            if (!shouldStartHost)
+            {
+                var showExitPopup = false;
+                lock (LockObject)
                 {
-                    ShowMonitorCore();
+                    showExitPopup = _status == LauncherStatus.Stopped;
+                }
+
+                if (showExitPopup)
+                {
+                    QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(ShowExitPopup);
+                }
+
+                return;
+            }
+
+            await _host.StartAsync(CancellationToken.None).ConfigureAwait(false);
+
+            LauncherStatus statusAfterStart;
+            lock (LockObject)
+            {
+                statusAfterStart = _status;
+                if (_status == LauncherStatus.Starting)
+                {
+                    _status = LauncherStatus.Started;
                 }
             }
-            catch (Exception ex)
+
+            if (statusAfterStart == LauncherStatus.Stopped)
             {
-                Logger.LogError(ex, "QuickerRpc launcher start failed");
-                PopupMessage.Warning(ex.Message);
-                throw;
+                await _host.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(ShowExitPopup);
+                return;
+            }
+
+            if (statusAfterStart == LauncherStatus.Starting)
+            {
+                Logger.LogInformation("QuickerRpc launcher started");
             }
         }
-    }
-
-    /// <summary>Opens the QuickerRpc monitor window (agent virtual page + recently edited actions).</summary>
-    public static void ShowMonitor()
-    {
-        QuickerDispatcherInvoke.OnUiThreadIfNeeded(ShowMonitorOnUiThread);
-    }
-
-    /// <summary>Shows the monitor window if hidden; closes it if already visible.</summary>
-    public static void ToggleMonitor()
-    {
-        QuickerDispatcherInvoke.OnUiThreadIfNeeded(ToggleMonitorOnUiThread);
-    }
-
-    private static void ShowMonitorOnUiThread()
-    {
-        if (_status != LauncherStatus.Started)
+        catch (Exception ex)
         {
-            PopupMessage.Warning("请先启动 QuickerRpc（Launcher.Start）。");
-            return;
+            lock (LockObject)
+            {
+                if (_status == LauncherStatus.Starting)
+                {
+                    _status = LauncherStatus.NotStarted;
+                }
+            }
+
+            Logger.LogError(ex, "QuickerRpc launcher start failed");
+            QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(() => PopupMessage.Warning(ex.Message));
         }
-
-        ShowMonitorCore();
     }
-
-    private static void ToggleMonitorOnUiThread()
-    {
-        if (_status != LauncherStatus.Started)
-        {
-            PopupMessage.Warning("请先启动 QuickerRpc（Launcher.Start）。");
-            return;
-        }
-
-        GetService<QuickerRpcMonitorWindowService>().Toggle();
-    }
-
-    private static void ShowMonitorCore() =>
-        GetService<QuickerRpcMonitorWindowService>().Show();
 
     private static void ScheduleQuickerAgentUpdateCheck()
     {
@@ -177,43 +177,24 @@ public static partial class Launcher
                 return;
             }
 
+            if (_status == LauncherStatus.Starting)
+            {
+                _status = LauncherStatus.Stopped;
+                return;
+            }
+
             StopCore();
-
-            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
-            PopupMessage.Infomation("动作已退出，版本号:" + version);
+            QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(ShowExitPopup);
         }
     }
 
-    /// <summary>
-    /// Exits other QuickerRpc.Plugin.* assemblies while pumping the WPF dispatcher.
-    /// </summary>
-    private static void WaitForPriorQuickerRpcExitWithUiPump()
+    private static void ShowExitPopup()
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null || !dispatcher.CheckAccess())
-        {
-            Task.Run(ProgramManager.ExitOtherVersionPlugins).GetAwaiter().GetResult();
-            return;
-        }
-
-        var frame = new DispatcherFrame();
-        _ = Task.Run(() =>
-        {
-            try
-            {
-                ProgramManager.ExitOtherVersionPlugins();
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "ExitOtherVersionPlugins failed (ignored).");
-            }
-            finally
-            {
-                frame.Continue = false;
-            }
-        });
-        Dispatcher.PushFrame(frame);
+        PopupMessage.Infomation("动作已退出，版本号:" + GetPluginVersion());
     }
+
+    private static string GetPluginVersion() =>
+        System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
 
     private static void StopCore()
     {

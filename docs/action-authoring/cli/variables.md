@@ -1,23 +1,36 @@
-# Variables
-**链路位置**：**`overview`** P2 读 / P6 patch。稳定 id：**`key`**（非临时 `id`）。
-## Runtime-only: `quicker_in_param`
-动作/子程序 **运行入参** 由 Quicker 注入为变量 `quicker_in_param`（字符串）。它 **不在** `variables[]` 中声明，patch 时不要 `add`/`update` 该键。用法见 **`expressions`** 专题「`quicker_in_param`」。
-## Types when writing
-| `type` | `varType` when read |
-|--------|---------------------|
-| `0` | *(omitted = text)* |
+# 动作变量（variables[]）
+
+**何时读**：编辑 `data.json` 里的 **`variables[]`** 或步骤里的 `varKey` / `outputParams` 绑定时。
+
+**CLI**：`action patch` 的 `variables[]` 操作见 **`patch-workflow`**。
+
+稳定标识：**`key`**（不要用临时 `id`）。
+
+## 类型（写入 data.json）
+
+| `type` | 读取时 `varType`（若有） |
+|--------|-------------------------|
+| `0` | 省略 = 文本 |
 | `1` | `number` |
 | `2` | `boolean` |
 | `12` | `integer` |
 | `13` | `table` |
-| … | See compressed read for other names |
-`defaultValue` is always a **string** in JSON (`"42"`, `"true"`).
-Patch/update may send `"varType": "integer"`; host normalizes to `type` on save.
-## Binding
+
+`defaultValue` 在 JSON 里 **始终是字符串**（`"42"`、`"true"`）。可写 `"varType": "integer"` 等，保存时宿主会规范为 `type`。
+
+## 绑定
+
 ```json
-"inputParams": { "text": { "varKey": "userName" } }
+"inputParams": { "text": { "varKey": "userName" } },
 "outputParams": { "result": "myVar" }
 ```
-Variable patch ops: same `op` vocabulary as steps in **`action patch`** (see **`patch-workflow`** example).
+
+表达式里引用变量见 **`expressions`**（只用 `{varKey}`，勿写 `v_` 前缀）。
+
+## `quicker_in_param`（勿进 variables[]）
+
+运行入参由 Quicker 注入为 **`quicker_in_param`**，**不在** `variables[]` 声明，也 **不要** patch/`add` 该键。完整说明见 **`expressions`** 专题。
+
 ## 相关
-`patch-workflow` · `xaction-json` · `overview`
+
+`workspace-editing` · `expressions` · `authoring-workflow` · `overview`

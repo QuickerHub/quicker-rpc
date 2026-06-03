@@ -141,7 +141,6 @@ public sealed class ActionMoveService
                 return Fail(targetSaveError ?? "Could not save target profile.", id);
             }
 
-            ActionMonitorNotifier.Notify();
             return new QuickerRpcMoveActionResult
             {
                 Ok = true,

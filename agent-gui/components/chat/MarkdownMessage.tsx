@@ -3,11 +3,15 @@
 import type { Components } from "react-markdown";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { PluggableList } from "unified";
+import { normalizeMarkdownGfmTables } from "@/lib/markdown-gfm-normalize";
 
 type MarkdownMessageProps = {
   content: string;
   variant?: "user" | "assistant";
 };
+
+const remarkPlugins: PluggableList = [remarkGfm];
 
 const markdownComponents: Components = {
   a({ href, children }) {
@@ -58,10 +62,12 @@ export function MarkdownMessage({
     return null;
   }
 
+  const normalized = normalizeMarkdownGfmTables(content);
+
   return (
     <div className={`markdown-body markdown-body--${variant}`}>
-      <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-        {content}
+      <Markdown remarkPlugins={remarkPlugins} components={markdownComponents}>
+        {normalized}
       </Markdown>
     </div>
   );

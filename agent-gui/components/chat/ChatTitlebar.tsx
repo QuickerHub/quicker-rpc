@@ -12,6 +12,7 @@ import {
   selectThread,
 } from "@/lib/chat-store";
 import { SidebarToggle } from "@/components/chat/SidebarToggle";
+import { ExplorerPanelToggle } from "@/components/workspace/WorkspaceExplorerPanel";
 import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { useShellPlatform, useTauriShell } from "@/lib/tauri-shell";
@@ -272,6 +273,7 @@ export function ChatTitlebar({
           .filter(Boolean)
           .join(" ")}
       >
+        <ExplorerPanelToggle className="ws-icon-btn" />
         {!settingsTabOpen && (
           <button
             type="button"

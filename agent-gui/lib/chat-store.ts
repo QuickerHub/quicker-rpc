@@ -464,14 +464,19 @@ export function updateThreadMessages(
   threadId: string,
   messages: AgentUIMessage[],
 ): ChatStoreData {
-  const hadContent =
-    (data.threads.find((t) => t.id === threadId)?.messages.length ?? 0) > 0;
+  const thread = data.threads.find((t) => t.id === threadId);
+  if (!thread) return data;
+  if (threadMessagesEqual(thread.messages, messages)) {
+    return data;
+  }
+
+  const hadContent = thread.messages.length > 0;
   const next: ChatStoreData = {
     ...data,
-    threads: data.threads.map((thread) => {
-      if (thread.id !== threadId) return thread;
-      if (threadMessagesEqual(thread.messages, messages)) {
-        return thread;
+    threads: data.threads.map((t) => {
+      if (t.id !== threadId) return t;
+      if (threadMessagesEqual(t.messages, messages)) {
+        return t;
       }
       const ts = now();
       const shouldSetProvisionalTitle =

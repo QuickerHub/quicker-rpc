@@ -1,0 +1,97 @@
+"use client";
+
+import { memo, useMemo } from "react";
+import {
+  getWorkspaceFileEditorPreview,
+  shouldShowFileEditorCodeBlockInChat,
+} from "@/lib/workspace-file-tool";
+import { FileEditorCard } from "./FileEditorCard";
+import { ToolSummaryTitle } from "@/components/chat/ToolSummaryTitle";
+import { type QkrpcToolResult } from "./tool-output";
+
+type WorkspaceFileReadRowProps = {
+  toolName: string;
+  displayName: string;
+  meta: string;
+  state: string;
+  input?: unknown;
+  output?: QkrpcToolResult;
+  running?: boolean;
+  inBatch?: boolean;
+  errorText?: string;
+};
+
+/** Chat read-data snapshot: tool output only, no explorer context subscription. */
+function WorkspaceFileReadRowInner({
+  toolName,
+  displayName,
+  meta,
+  state,
+  input,
+  output,
+  running = false,
+  inBatch = false,
+  errorText,
+}: WorkspaceFileReadRowProps) {
+  const failed = output && !output.ok;
+
+  const preview = useMemo(
+    () =>
+      getWorkspaceFileEditorPreview(
+        toolName,
+        input,
+        output?.ok ? output.data : undefined,
+      ),
+    [toolName, input, output],
+  );
+
+  return (
+    <div
+      className={`tool-card tool-card--file-read tool-card--preview${inBatch ? " tool-card--nested" : ""}${running ? " tool-card--running" : ""}`}
+    >
+      <div className="tool-summary tool-summary--static">
+        <ToolSummaryTitle
+          displayName={displayName}
+          meta={meta}
+          isRunning={running}
+          state={state}
+          showChevron={false}
+        />
+      </div>
+      {preview ? (
+        <>
+          <FileEditorCard
+            path={preview.path}
+            content={preview.content}
+            running={running}
+            variant="compact"
+            foldSnapshot={false}
+            showContent={shouldShowFileEditorCodeBlockInChat(toolName)}
+            showHeader={false}
+          />
+          {shouldShowFileEditorCodeBlockInChat(toolName) && preview.truncated ? (
+            <p className="file-editor-footnote file-editor-footnote--warn">
+              内容已截断
+              {preview.totalChars !== undefined
+                ? ` · 文件共 ${preview.totalChars} 字符`
+                : ""}
+            </p>
+          ) : null}
+        </>
+      ) : null}
+      {failed ? (
+        <p className="file-editor-footnote file-editor-footnote--err">
+          {typeof output?.data === "object"
+          && output.data !== null
+          && "errorMessage" in output.data
+          && typeof (output.data as { errorMessage: unknown }).errorMessage === "string"
+            ? (output.data as { errorMessage: string }).errorMessage
+            : output?.stderr ?? "操作失败"}
+        </p>
+      ) : null}
+      {errorText ? <pre className="tool-error">{errorText}</pre> : null}
+    </div>
+  );
+}
+
+export const WorkspaceFileReadRow = memo(WorkspaceFileReadRowInner);

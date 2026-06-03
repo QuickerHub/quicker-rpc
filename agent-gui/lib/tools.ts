@@ -14,6 +14,20 @@ import {
 } from "@/lib/docs-tool";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import {
+  augmentActionGetWithWorkspace,
+  buildWorkspaceProjectSummary,
+  getActionProjectDataSummary,
+  saveActionFromWorkspace,
+  syncActionToWorkspace,
+} from "@/lib/action-project-workflow";
+import { resolveActionDataJsonPath } from "@/lib/action-project-data-file.server";
+import { listWorkspaceActionProjects } from "@/lib/action-explorer-server";
+import {
+  editWorkspaceFile,
+  readWorkspaceFile,
+  writeWorkspaceFile,
+} from "@/lib/workspace-fs";
+import {
   formatQkrpcResultForAgent,
   runQkrpcForTool,
   runQkrpcWithPatchFileForTool,
@@ -158,15 +172,57 @@ export const quickerTools = {
   }),
 
   qkrpc_action_get: tool({
-    description: "Read compressed XAction by GUID.",
+    description:
+      "Read action by GUID. returnMode: structure (default) | full | metadata — see docs_get topic workspace-editing. Syncs to .quicker/actions/{id}. Response: editVersion + compressed metadata; steps/variables on disk (workspaceProject summary). stepId is temporary; after patch use addedSteps. inputParams keys require qkrpc_step_runner_get.",
     inputSchema: z.object({
       id: z.string().uuid(),
-      returnMode: returnModeSchema.optional(),
+      returnMode: returnModeSchema
+        .optional()
+        .describe(
+          "structure | full | metadata — see tool description for compressed fields",
+        ),
     }),
     execute: async ({ id, returnMode }) => {
       const args = ["action", "get", "--id", id];
-      if (returnMode) args.push("--return-mode", returnMode);
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+      args.push("--return-mode", returnMode ?? "structure");
+      const getResult = await runQkrpcForTool(args);
+      if (!getResult.ok) {
+        return formatQkrpcResultForAgent(getResult);
+      }
+      const sync = await syncActionToWorkspace(id);
+      return augmentActionGetWithWorkspace(getResult, sync);
+    },
+  }),
+
+  qkrpc_action_validate: tool({
+    description:
+      "Validate local .quicker/actions/{id} project (data.json + file refs). Returns stepCount, variableCount, stepsOutline — prefer over workspace_action_read_data after edit/patch when you only need to verify structure.",
+    inputSchema: z.object({
+      id: z.string().uuid().describe("Quicker action GUID"),
+    }),
+    execute: async ({ id }) => {
+      const result = await getActionProjectDataSummary(id);
+      if (!result.ok) {
+        return formatLocalToolResult(
+          {
+            action: "action-validate",
+            success: false,
+            errorMessage: result.error,
+          },
+          false,
+          result.error,
+        );
+      }
+      const { summary } = result;
+      return formatLocalToolResult(
+        {
+          action: "action-validate",
+          success: summary.validated,
+          ...summary,
+        },
+        summary.validated,
+        summary.validationError,
+      );
     },
   }),
 
@@ -191,7 +247,27 @@ export const quickerTools = {
       if (description) args.push("--description", description);
       if (icon) args.push("--icon", icon);
       if (profileId) args.push("--profile-id", profileId);
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+      const createResult = await runQkrpcForTool(args);
+      if (!createResult.ok) {
+        return formatQkrpcResultForAgent(createResult);
+      }
+      const parsed = createResult.parsed as Record<string, unknown> | null;
+      const actionId =
+        typeof parsed?.actionId === "string" ? parsed.actionId : undefined;
+      if (!actionId) {
+        return formatQkrpcResultForAgent(createResult);
+      }
+      const sync = await syncActionToWorkspace(actionId);
+      if (!sync.ok) {
+        return formatQkrpcResultForAgent(createResult);
+      }
+      return formatLocalToolResult({
+        ...((parsed ?? {}) as Record<string, unknown>),
+        action: "create",
+        ok: true,
+        workspaceSynced: true,
+        workspaceProject: buildWorkspaceProjectSummary(sync.manifest),
+      });
     },
   }),
 
@@ -218,36 +294,256 @@ export const quickerTools = {
     },
   }),
 
-  qkrpc_action_export: tool({
+  workspace_file_read: tool({
     description:
-      "Export action to a .quicker project directory (info.json + data.json).",
+      "Read a UTF-8 file by relative path. For action data.json use workspace_action_read_data({ id }) instead of manual paths.",
     inputSchema: z.object({
-      id: z.string().uuid(),
-      dir: z
-        .string()
-        .describe("Project directory path (relative to working directory)"),
+      path: z.string().describe("Relative path from working directory"),
+      offset: z.number().int().min(0).optional(),
+      limit: z.number().int().min(1).max(200_000).optional(),
     }),
-    execute: async ({ id, dir }) =>
-      formatQkrpcResultForAgent(
-        await runQkrpcForTool(["action", "export", "--id", id, "--dir", dir]),
-      ),
+    execute: async ({ path, offset, limit }) => {
+      const result = await readWorkspaceFile(path, { offset, limit });
+      if (!result.ok) {
+        return formatLocalToolResult(
+          { action: "file-read", success: false, errorMessage: result.error },
+          false,
+          result.error,
+        );
+      }
+      return formatLocalToolResult({
+        action: "file-read",
+        success: true,
+        path: result.path,
+        content: result.content,
+        truncated: result.truncated,
+        totalChars: result.totalChars,
+      });
+    },
   }),
 
-  qkrpc_action_import: tool({
+  workspace_file_write: tool({
     description:
-      "Import a .quicker project directory into an existing action (compile file refs, then replace).",
+      "Write a UTF-8 file by relative path. For action steps/variables use workspace_action_write_data({ id, content }) instead of manual .quicker/actions/.../data.json paths.",
     inputSchema: z.object({
-      dir: z.string().describe("Project directory with info.json + data.json"),
-      expectedEditVersion: z.number().int().optional(),
-      force: z.boolean().optional(),
+      path: z.string().describe("Relative path from working directory"),
+      content: z.string(),
     }),
-    execute: async ({ dir, expectedEditVersion, force }) => {
-      const args = ["action", "import", "--dir", dir];
-      if (expectedEditVersion != null) {
-        args.push("--expected-edit-version", String(expectedEditVersion));
+    execute: async ({ path, content }) => {
+      const result = await writeWorkspaceFile(path, content);
+      if (!result.ok) {
+        return formatLocalToolResult(
+          { action: "file-write", success: false, errorMessage: result.error },
+          false,
+          result.error,
+        );
       }
-      if (force) args.push("--force");
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+      return formatLocalToolResult({
+        action: "file-write",
+        success: true,
+        path: result.path,
+        bytesWritten: result.bytesWritten,
+      });
+    },
+  }),
+
+  workspace_file_edit: tool({
+    description:
+      "Replace text in a workspace file (exact oldString match). Prefer for small edits; use file_write for full rewrites.",
+    inputSchema: z.object({
+      path: z.string(),
+      oldString: z.string().min(1),
+      newString: z.string(),
+      replaceAll: z.boolean().optional(),
+    }),
+    execute: async ({ path, oldString, newString, replaceAll }) => {
+      const result = await editWorkspaceFile(path, oldString, newString, replaceAll);
+      if (!result.ok) {
+        return formatLocalToolResult(
+          { action: "file-edit", success: false, errorMessage: result.error },
+          false,
+          result.error,
+        );
+      }
+      return formatLocalToolResult({
+        action: "file-edit",
+        success: true,
+        path: result.path,
+        replacements: result.replacements,
+      });
+    },
+  }),
+
+  workspace_action_read_data: tool({
+    description:
+      "Read action data.json by GUID. mode=summary returns stepsOutline/variableKeys + validation (for post-edit verification — do NOT read full JSON just to confirm). mode=content (default) returns file text; use offset/limit for fragments. Before first edit you may need content; after edit_data trust replacements + projectSummary or qkrpc_action_validate.",
+    inputSchema: z.object({
+      id: z.string().uuid().describe("Quicker action GUID"),
+      mode: z
+        .enum(["content", "summary"])
+        .optional()
+        .describe("summary = outline only; content = full/partial text"),
+      offset: z.number().int().min(0).optional(),
+      limit: z.number().int().min(1).max(200_000).optional(),
+    }),
+    execute: async ({ id, mode, offset, limit }) => {
+      if (mode === "summary") {
+        const result = await getActionProjectDataSummary(id);
+        if (!result.ok) {
+          return formatLocalToolResult(
+            {
+              action: "action-data-summary",
+              success: false,
+              errorMessage: result.error,
+            },
+            false,
+            result.error,
+          );
+        }
+        return formatLocalToolResult({
+          action: "action-data-summary",
+          success: result.summary.validated,
+          ...result.summary,
+        });
+      }
+
+      const resolved = await resolveActionDataJsonPath(id);
+      if (!resolved.ok) {
+        return formatLocalToolResult(
+          { action: "action-data-read", success: false, errorMessage: resolved.error },
+          false,
+          resolved.error,
+        );
+      }
+      const result = await readWorkspaceFile(resolved.resolved.path, {
+        offset,
+        limit,
+      });
+      if (!result.ok) {
+        return formatLocalToolResult(
+          { action: "action-data-read", success: false, errorMessage: result.error },
+          false,
+          result.error,
+        );
+      }
+      return formatLocalToolResult({
+        action: "action-data-read",
+        success: true,
+        actionId: resolved.resolved.actionId,
+        projectDir: resolved.resolved.projectDir,
+        path: result.path,
+        content: result.content,
+        truncated: result.truncated,
+        totalChars: result.totalChars,
+      });
+    },
+  }),
+
+  workspace_action_write_data: tool({
+    description:
+      "Write full data.json (steps + variables[]) by action GUID. defaultValue must be strings; use numeric type (or varType normalized on save). Then qkrpc_action_patch to sync to Quicker.",
+    inputSchema: z.object({
+      id: z.string().uuid().describe("Quicker action GUID"),
+      content: z.string().describe("Full data.json UTF-8 text"),
+    }),
+    execute: async ({ id, content }) => {
+      const resolved = await resolveActionDataJsonPath(id);
+      if (!resolved.ok) {
+        return formatLocalToolResult(
+          { action: "action-data-write", success: false, errorMessage: resolved.error },
+          false,
+          resolved.error,
+        );
+      }
+      const result = await writeWorkspaceFile(resolved.resolved.path, content);
+      if (!result.ok) {
+        return formatLocalToolResult(
+          { action: "action-data-write", success: false, errorMessage: result.error },
+          false,
+          result.error,
+        );
+      }
+      const summaryResult = await getActionProjectDataSummary(id);
+      return formatLocalToolResult({
+        action: "action-data-write",
+        success: true,
+        actionId: resolved.resolved.actionId,
+        projectDir: resolved.resolved.projectDir,
+        path: result.path,
+        bytesWritten: result.bytesWritten,
+        projectSummary: summaryResult.ok ? summaryResult.summary : undefined,
+      });
+    },
+  }),
+
+  workspace_action_edit_data: tool({
+    description:
+      "Search/replace inside an action's data.json by action GUID (exact oldString match). Response includes replacements + projectSummary — use that or qkrpc_action_validate to verify; do not read full data.json afterward.",
+    inputSchema: z.object({
+      id: z.string().uuid().describe("Quicker action GUID"),
+      oldString: z.string().min(1),
+      newString: z.string(),
+      replaceAll: z.boolean().optional(),
+    }),
+    execute: async ({ id, oldString, newString, replaceAll }) => {
+      const resolved = await resolveActionDataJsonPath(id);
+      if (!resolved.ok) {
+        return formatLocalToolResult(
+          { action: "action-data-edit", success: false, errorMessage: resolved.error },
+          false,
+          resolved.error,
+        );
+      }
+      const result = await editWorkspaceFile(
+        resolved.resolved.path,
+        oldString,
+        newString,
+        replaceAll,
+      );
+      if (!result.ok) {
+        return formatLocalToolResult(
+          { action: "action-data-edit", success: false, errorMessage: result.error },
+          false,
+          result.error,
+        );
+      }
+      const summaryResult = await getActionProjectDataSummary(id);
+      return formatLocalToolResult({
+        action: "action-data-edit",
+        success: true,
+        actionId: resolved.resolved.actionId,
+        projectDir: resolved.resolved.projectDir,
+        path: result.path,
+        replacements: result.replacements,
+        projectSummary: summaryResult.ok ? summaryResult.summary : undefined,
+      });
+    },
+  }),
+
+  workspace_action_projects: tool({
+    description:
+      "List local .quicker/actions/{actionId}/ projects (dir name is the action GUID; info.json has title/icon). Refreshes the sidebar explorer; do not use generic directory listing for this.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      const result = await listWorkspaceActionProjects();
+      if (!result.ok) {
+        return formatLocalToolResult(
+          {
+            action: "action-projects",
+            success: false,
+            errorMessage: result.error,
+          },
+          false,
+          result.error,
+        );
+      }
+      return formatLocalToolResult({
+        action: "action-projects",
+        success: true,
+        root: result.root,
+        count: result.projects.length,
+        projects: result.projects,
+      });
     },
   }),
 
@@ -311,25 +607,12 @@ export const quickerTools = {
 
   qkrpc_action_patch: tool({
     description:
-      "Apply partial XAction patch (one save). Include expectedEditVersion from action_get unless force.",
+      "Save action from workspace project to Quicker (after editing data.json / files/ on disk). Validates, compiles file refs, replaces — no inline JSON.",
     inputSchema: z.object({
       id: z.string().uuid(),
-      patch: z
-        .record(z.unknown())
-        .describe("Patch JSON object (steps, variables, metadata, etc.)"),
-      expectedEditVersion: z.number().int().optional(),
       force: z.boolean().optional(),
     }),
-    execute: async ({ id, patch, expectedEditVersion, force }) => {
-      const base = ["action", "patch", "--id", id];
-      if (expectedEditVersion != null) {
-        base.push("--expected-edit-version", String(expectedEditVersion));
-      }
-      if (force) base.push("--force");
-      return formatQkrpcResultForAgent(
-        await runQkrpcWithPatchFileForTool(base, patch),
-      );
-    },
+    execute: async ({ id, force }) => saveActionFromWorkspace({ id, force }),
   }),
 
   qkrpc_action_set_metadata: tool({

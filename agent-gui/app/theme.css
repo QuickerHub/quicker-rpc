@@ -49,6 +49,14 @@
   --status-err-border: rgba(244, 135, 113, 0.35);
   --code-text: #d4d4d4;
   --code-bg-overlay: rgba(0, 0, 0, 0.28);
+  --font-mono:
+    ui-monospace,
+    "Cascadia Mono",
+    "Cascadia Code",
+    "SF Mono",
+    Consolas,
+    "Liberation Mono",
+    monospace;
   --user-code-bg: rgba(0, 0, 0, 0.22);
   --blockquote-bg: rgba(55, 148, 255, 0.1);
   --tool-card-open-bg: rgba(255, 255, 255, 0.04);

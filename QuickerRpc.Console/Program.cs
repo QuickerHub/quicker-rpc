@@ -228,6 +228,9 @@ internal static partial class Program
             "replace" => await RunActionReplaceAsync(options).ConfigureAwait(false),
             "export" => await RunActionExportAsync(options).ConfigureAwait(false),
             "import" => await RunActionImportAsync(options).ConfigureAwait(false),
+            "extract" => await RunActionExtractAsync(options).ConfigureAwait(false),
+            "apply" => await RunActionApplyAsync(options).ConfigureAwait(false),
+            "validate" => await RunActionValidateAsync(options).ConfigureAwait(false),
             "move" => await RunActionMoveAsync(options).ConfigureAwait(false),
             "delete" => await RunActionDeleteAsync(options).ConfigureAwait(false),
             "edit" => await RunActionEditAsync(options).ConfigureAwait(false),
@@ -243,7 +246,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action create|get|patch|set-metadata|replace|export|import|list|search|update|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
+            "Use: action create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|update|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -968,7 +971,7 @@ public sealed class PingOptions
 [Verb("action", HelpText = "Quicker action operations via RPC.")]
 public sealed class ActionOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | export | import | list | search | update | move | delete | edit | run | float | edit-var")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | extract | apply | validate | export | import | list | search | update | move | delete | edit | run | float | edit-var")]
     public string? Command { get; set; }
 
     [Option("id", HelpText = "Shared action id (GUID).")]
@@ -1034,8 +1037,14 @@ public sealed class ActionOptions
     [Option("xaction-file", HelpText = "XAction JSON file path, or - for stdin.")]
     public string? XActionFile { get; set; }
 
-    [Option("dir", HelpText = "Local .quicker project directory for export/import.")]
+    [Option("dir", HelpText = "Local .quicker project directory (extract/apply default: .quicker/actions/{actionId}).")]
     public string? Dir { get; set; }
+
+    [Option("min-lines", Default = 10, HelpText = "For extract: externalize value strings with more than N lines.")]
+    public int MinLines { get; set; }
+
+    [Option("no-auto-files", HelpText = "For extract: disable auto file refs for long inline values.")]
+    public bool NoAutoFiles { get; set; }
 
     [Option("expected-edit-version", HelpText = "Edit version from action get (optimistic concurrency).")]
     public long? ExpectedEditVersion { get; set; }

@@ -16,3 +16,10 @@ export function runWithQkrpcCwd<T>(
 ): T {
   return qkrpcRequestContext.run({ cwd: cwd?.trim() || undefined }, fn);
 }
+
+export async function runWithQkrpcCwdAsync<T>(
+  cwd: string | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return qkrpcRequestContext.run({ cwd: cwd?.trim() || undefined }, fn);
+}

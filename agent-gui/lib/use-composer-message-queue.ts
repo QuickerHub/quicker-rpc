@@ -10,6 +10,8 @@ type SendTextMessage = (payload: { text: string }) => void;
  */
 export function useComposerMessageQueue(busy: boolean, sendMessage: SendTextMessage) {
   const queueRef = useRef<string[]>([]);
+  const sendMessageRef = useRef(sendMessage);
+  sendMessageRef.current = sendMessage;
   const [queueLength, setQueueLength] = useState(0);
 
   const syncQueue = useCallback((next: string[]) => {
@@ -27,9 +29,9 @@ export function useComposerMessageQueue(busy: boolean, sendMessage: SendTextMess
         syncQueue([...queueRef.current, text]);
         return;
       }
-      sendMessage({ text });
+      sendMessageRef.current({ text });
     },
-    [busy, sendMessage, syncQueue],
+    [busy, syncQueue],
   );
 
   useEffect(() => {
@@ -38,8 +40,8 @@ export function useComposerMessageQueue(busy: boolean, sendMessage: SendTextMess
     if (pending.length === 0) return;
     const [next, ...rest] = pending;
     syncQueue(rest);
-    sendMessage({ text: next });
-  }, [busy, sendMessage, syncQueue]);
+    sendMessageRef.current({ text: next });
+  }, [busy, syncQueue]);
 
   return { queueLength, enqueueOrSend, clearQueue };
 }

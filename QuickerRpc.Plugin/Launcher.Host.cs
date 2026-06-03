@@ -29,8 +29,6 @@ public static partial class Launcher
                 services.AddSingleton<ActionFloatService>();
                 services.AddSingleton<DesignerVariableEditService>();
                 services.AddSingleton<HeadlessActionProgramService>();
-                services.AddSingleton<ActionMonitorSnapshotService>();
-                services.AddSingleton<QuickerRpcMonitorWindowService>();
                 services.AddSingleton<HeadlessSubProgramProgramService>();
                 services.AddSingleton<FontAwesomeIconSearchService>();
                 services.AddSingleton<QuickerAgentUpdateCheckService>();

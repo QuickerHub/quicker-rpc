@@ -117,7 +117,19 @@ internal static class QkrpcCliHelp
 
                     opts: ActionReplaceOpts()),
 
-                Cmd("action export", "Export action to .quicker project dir (info.json + data.json; preserves file refs).", "qkrpc action export --id <guid> --dir <path> [--json]",
+                Cmd("action extract", "Extract action to .quicker/actions/{name} (auto file refs for values >10 lines). Dir from title or --dir; id in info.json.", "qkrpc action extract --id <guid> [--dir <path>] [--min-lines 10] [--no-auto-files] [--json]",
+
+                    opts: ActionExtractOpts()),
+
+                Cmd("action apply", "Apply .quicker project to action (compile file refs, replace). Resolves action id from info.json.", "qkrpc action apply [--dir <path>] [--id <guid>] [--expected-edit-version N] [--force] [--json]",
+
+                    opts: ActionApplyOpts()),
+
+                Cmd("action validate", "Validate local action project (compile file refs dry-run, list file refs).", "qkrpc action validate [--id <guid>] [--dir <path>] [--json]",
+
+                    opts: ActionValidateOpts()),
+
+                Cmd("action export", "Export action to .quicker project dir (info.json + data.json; preserves file refs; no auto file refs).", "qkrpc action export --id <guid> --dir <path> [--json]",
 
                     opts: ActionProjectOpts()),
 
@@ -346,13 +358,79 @@ internal static class QkrpcCliHelp
 
             Option("id", "Action GUID."),
 
-            Option("dir", "Project directory (e.g. .quicker/actions/my-action)."),
+            Option("dir", "Project directory (e.g. .quicker/actions/<name>). Action id from info.json."),
 
             Option("json", "Structured output."),
 
             Option("timeout", "Seconds.", defaultValue: "10"),
 
             Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object[] ActionExtractOpts() =>
+
+        new object[]
+
+        {
+
+            Option("id", "Action GUID."),
+
+            Option("dir", "Override project directory (e.g. .quicker/actions/<name>). Default: title slug or existing project."),
+
+            Option("min-lines", "Externalize inline values with more than N lines.", defaultValue: "10"),
+
+            Option("no-auto-files", "Keep all inputParams inline."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object[] ActionApplyOpts() =>
+
+        new object[]
+
+        {
+
+            Option("id", "Action GUID (optional if info.json present; default dir uses this)."),
+
+            Option("dir", "Project directory (e.g. .quicker/actions/<name>). Action id from info.json."),
+
+            Option("expected-edit-version", "From info.json or prior extract."),
+
+            Option("force", "Skip version check."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
+
+            Option("no-bootstrap", "Skip auto-start."),
+
+        };
+
+
+
+    private static object[] ActionValidateOpts() =>
+
+        new object[]
+
+        {
+
+            Option("id", "Action GUID (optional if info.json present; default dir uses this)."),
+
+            Option("dir", "Project directory (e.g. .quicker/actions/<name>). Action id from info.json."),
+
+            Option("json", "Structured output."),
+
+            Option("timeout", "Seconds.", defaultValue: "10"),
 
         };
 

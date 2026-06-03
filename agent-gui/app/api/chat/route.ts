@@ -19,6 +19,16 @@ import { prepareCompressedContext } from "@/lib/context-compression";
 export const maxDuration = 120;
 
 export async function POST(req: Request) {
+  try {
+    return await handleChatPost(req);
+  } catch (e) {
+    console.error("[/api/chat]", e);
+    const message = e instanceof Error ? e.message : String(e);
+    return Response.json({ error: message }, { status: 500 });
+  }
+}
+
+async function handleChatPost(req: Request) {
   const {
     messages,
     enabledTools,

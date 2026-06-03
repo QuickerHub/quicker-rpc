@@ -21,9 +21,28 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
   { id: "docs_get_reference", label: "指南附录", group: "read", description: "Skill references/ 大表" },
   { id: "docs_search", label: "搜索指南", group: "read", description: "本地文档搜索" },
   { id: "docs_index", label: "指南索引", group: "read", description: "列出全部主题" },
+  { id: "workspace_file_read", label: "读文件", group: "read", description: "工作目录内 UTF-8 文件" },
+  {
+    id: "workspace_action_projects",
+    label: "动作项目",
+    group: "read",
+    description: "扫描 .quicker/actions 本地项目",
+  },
+  {
+    id: "workspace_action_read_data",
+    label: "读 data.json",
+    group: "read",
+    description: "按动作 ID 读取 data.json（mode=summary 仅摘要）",
+  },
   { id: "qkrpc_action_list", label: "列出动作", group: "read" },
   { id: "qkrpc_action_search", label: "搜索动作", group: "read" },
   { id: "qkrpc_action_get", label: "读取动作", group: "read" },
+  {
+    id: "qkrpc_action_validate",
+    label: "校验动作项目",
+    group: "read",
+    description: "校验 data.json 与外置 file，返回步/变量摘要",
+  },
   { id: "qkrpc_subprogram_list", label: "列出子程序", group: "read" },
   { id: "qkrpc_subprogram_search", label: "搜索子程序", group: "read" },
   { id: "qkrpc_subprogram_get", label: "读取子程序", group: "read" },
@@ -39,15 +58,9 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
   },
   {
     id: "qkrpc_action_patch",
-    label: "修补动作",
+    label: "保存动作",
     group: "write",
-    description: "修改步骤/变量",
-  },
-  {
-    id: "qkrpc_action_replace",
-    label: "替换动作",
-    group: "write",
-    description: "整体替换 steps/variables",
+    description: "从工作区 .quicker 项目写回 Quicker",
   },
   {
     id: "qkrpc_action_set_metadata",
@@ -56,16 +69,28 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "标题/描述/图标",
   },
   {
-    id: "qkrpc_action_export",
-    label: "导出动作",
+    id: "workspace_action_write_data",
+    label: "写 data.json",
     group: "write",
-    description: "导出 .quicker 项目",
+    description: "按动作 ID 写入 data.json",
   },
   {
-    id: "qkrpc_action_import",
-    label: "导入动作",
+    id: "workspace_action_edit_data",
+    label: "改 data.json",
     group: "write",
-    description: "从 .quicker 项目导入",
+    description: "按动作 ID 替换 data.json 片段",
+  },
+  {
+    id: "workspace_file_write",
+    label: "写文件",
+    group: "write",
+    description: "按相对路径写文件（脚本等）",
+  },
+  {
+    id: "workspace_file_edit",
+    label: "改文件",
+    group: "write",
+    description: "工作目录内 search/replace 编辑",
   },
   {
     id: "qkrpc_action_update",
@@ -195,6 +220,7 @@ export const TOOL_APPROVAL_STORAGE_KEY = "agent-gui-enabled-tools";
 const LEGACY_TOOL_ID_MAP: Record<string, string> = {
   qkrpc_guide_get: "docs_get",
   qkrpc_guide_search: "docs_search",
+  workspace_file_list: "workspace_action_projects",
 };
 
 type StoredToolPrefsV1 = {

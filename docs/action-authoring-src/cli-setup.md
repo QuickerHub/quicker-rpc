@@ -1,6 +1,21 @@
 # {{#ref cli-setup.title}}
-## P0 环境
+
+## P0
+
 {{#ref cli-setup.intro}}
+
+{{#only-agent}}
+指南写 **流程与领域规则**；参数以工具 description 为准。
+
+| 工具 | 用途 |
+|------|------|
+| `docs_index` | 主题列表 |
+| `docs_get` | 如 `overview`、`authoring-workflow`、`workspace-editing` |
+| `docs_search` | 关键词检索 |
+{{/only-agent}}
+
+## 入口
+
 {{#only-cli}}
 ```powershell
 {{@ help}}
@@ -8,26 +23,7 @@
 {{@doc authoring-workflow}}
 ```
 {{/only-cli}}
-{{#only-agent}}
-{{#ref cli-setup.agent.p0}}
-{{/only-agent}}
-## 最小编辑链（P1→P6）
-{{#only-cli}}
-```powershell
-{{@ action.list query=keyword}}
-{{@ action.get.full id=guid}}
-{{@ step-runner.get key=stepRunnerKey}}
-{{@ action.patch}}
-```
-{{#ref patch.stdin.hint}}
-{{/only-cli}}
-{{#only-agent}}
-```text
-{{@ action.list query=keyword}}
-{{@ action.get.full id=guid}}
-{{@ step-runner.get key=stepRunnerKey}}
-{{@ action.patch}}
-```
-{{/only-agent}}
+
 ## 专题
-`overview` · `authoring-workflow` · `patch-workflow` · `action-icons` · `xaction-json` · `variables` · `expressions` · `step-modules` · `step-runner-search` · `implementation-fallback`
+
+`overview` · `authoring-workflow`{{#only-agent}} · `workspace-editing` · `variables`{{/only-agent}} · `implementation-fallback` · `expressions` · `subprogram-workflow` · `step-runner-search` · `step-modules`{{#only-cli}} · `patch-workflow` · `action-project-files`{{/only-cli}}

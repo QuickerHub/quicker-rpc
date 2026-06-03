@@ -128,4 +128,4 @@
 | 多文件操作 | `sys:fileOperation` | 用 `type` 选子操作 |
 | 多子操作模块 | 先定 key 再 `step-runner get` | 如 `stringProcess`、`uiautomation` |
 ## 相关主题
-`implementation-fallback` · `expressions` · `overview` · `patch-workflow` · `variables`
+`implementation-fallback` · `expressions` · `overview`{{#only-cli}} · `patch-workflow`{{/only-cli}}

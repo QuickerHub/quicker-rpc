@@ -78,6 +78,20 @@ function yamlDoubleQuote(value) {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
 }
 
+/**
+ * @param {Record<string, unknown>} opsData
+ * @param {string} topic
+ * @returns {boolean}
+ */
+function isCliOnlyTopic(opsData, topic) {
+  const topics = /** @type {Record<string, Record<string, unknown>>} */ (
+    opsData.topics ?? {}
+  );
+  const profiles = topics[topic]?.profiles;
+  if (!Array.isArray(profiles)) return false;
+  return profiles.length === 1 && String(profiles[0]).toLowerCase() === "cli";
+}
+
 function parseArgs(argv) {
   const touchIdx = argv.indexOf("--touch");
   return {
@@ -143,24 +157,27 @@ async function computeOutputs(opsData, files) {
     const cliRendered = renderDoc(src, opsData, "cli", file, refMap);
     outputs.set(`cli/${file}`, cliRendered);
 
-    const agentBody = renderDoc(src, opsData, "agent", file, refMap);
-    outputs.set(
-      `skills/${topic}/SKILL.md`,
-      buildSkillMd(opsData, topic, agentBody),
-    );
-
-    for (const [refName, refSrc] of refMap) {
-      const refAgent = renderDoc(
-        refSrc,
-        opsData,
-        "agent",
-        `${file}#ref:${refName}`,
-        refMap,
-      );
+    const cliOnly = isCliOnlyTopic(opsData, topic);
+    if (!cliOnly) {
+      const agentBody = renderDoc(src, opsData, "agent", file, refMap);
       outputs.set(
-        `skills/${topic}/references/${refName}.md`,
-        `${refAgent.trimEnd()}\n`,
+        `skills/${topic}/SKILL.md`,
+        buildSkillMd(opsData, topic, agentBody),
       );
+
+      for (const [refName, refSrc] of refMap) {
+        const refAgent = renderDoc(
+          refSrc,
+          opsData,
+          "agent",
+          `${file}#ref:${refName}`,
+          refMap,
+        );
+        outputs.set(
+          `skills/${topic}/references/${refName}.md`,
+          `${refAgent.trimEnd()}\n`,
+        );
+      }
     }
   }
   return outputs;
@@ -301,6 +318,45 @@ async function removeLegacyAgentOutputs() {
   }
 }
 
+/** Drop cli/*.md and skills/{topic}/ when the topic was removed or is cli-only. */
+async function pruneOrphanOutputs(topicFiles, opsData) {
+  const topics = new Set(
+    topicFiles.map((f) => f.replace(/\.md$/i, "").toLowerCase()),
+  );
+  const agentSkillTopics = new Set(
+    topicFiles
+      .map((f) => f.replace(/\.md$/i, ""))
+      .filter((t) => !isCliOnlyTopic(opsData, t))
+      .map((t) => t.toLowerCase()),
+  );
+
+  try {
+    for (const f of await fs.readdir(OUT_CLI)) {
+      if (!f.endsWith(".md")) continue;
+      const topic = f.replace(/\.md$/i, "").toLowerCase();
+      if (!topics.has(topic)) {
+        await fs.rm(path.join(OUT_CLI, f), { force: true });
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    for (const ent of await fs.readdir(OUT_SKILLS, { withFileTypes: true })) {
+      if (!ent.isDirectory()) continue;
+      if (!agentSkillTopics.has(ent.name.toLowerCase())) {
+        await fs.rm(path.join(OUT_SKILLS, ent.name), {
+          recursive: true,
+          force: true,
+        });
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
 /** @param {string | undefined} touchPath */
 async function touchStamp(touchPath) {
   if (!touchPath) return;
@@ -335,12 +391,16 @@ async function generate(opts) {
 
   if (opts.force) {
     await writeOutputs(expected);
+    await pruneOrphanOutputs(files, opsData);
     await removeLegacyAgentOutputs();
     console.log(
       `Generated ${files.length} topics → docs/action-authoring/cli/ and docs/skills/quicker-authoring/ (forced).`,
     );
   } else {
     await writeOutputs(expected, stale);
+    if (stale.length > 0) {
+      await pruneOrphanOutputs(files, opsData);
+    }
     if (stale.some((rel) => rel.startsWith("skills/"))) {
       await removeLegacyAgentOutputs();
     }
@@ -405,8 +465,8 @@ function renderDoc(text, opsData, profile, file, refMap = new Map()) {
   });
 
   out = expandRefs(out, opsData, profile, file, 0, refMap);
-  out = out.replace(/\n{3,}/g, "\n\n");
-  return `${out.trimEnd()}\n`;
+  out = out.replace(/\n{3,}/g, "\n\n").trimEnd();
+  return out ? `${out}\n` : "\n";
 }
 
 /**

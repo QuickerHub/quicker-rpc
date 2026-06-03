@@ -103,6 +103,7 @@ export function useChatStore() {
   }, []);
 
   const updateStore = useCallback((next: ChatStoreData) => {
+    if (next === cachedStore) return;
     saveChatStore(next);
     cachedStore = next;
     notifyChatStoreListeners();

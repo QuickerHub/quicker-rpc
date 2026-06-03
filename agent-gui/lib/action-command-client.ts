@@ -1,0 +1,39 @@
+export type ActionCommandOp = "run" | "edit" | "float" | "delete";
+
+export type ActionCommandBody = {
+  op: ActionCommandOp;
+  id: string;
+  param?: string;
+  debug?: boolean;
+  wait?: boolean;
+};
+
+/** Quicker library has no such action — safe to skip RPC delete and remove workspace project only. */
+export function isQuickerActionMissingError(error: string): boolean {
+  const text = error.trim();
+  if (!text) return false;
+  if (/action not found/i.test(text)) return true;
+  if (/action page not found/i.test(text)) return true;
+  if (/未找到.*动作|动作.*不存在|找不到.*动作/i.test(text)) return true;
+  return false;
+}
+
+export async function invokeActionCommand(
+  body: ActionCommandBody,
+): Promise<{ ok: true; data?: unknown } | { ok: false; error: string }> {
+  const res = await fetch("/api/actions/command", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  const data = (await res.json()) as {
+    ok?: boolean;
+    error?: string;
+    data?: unknown;
+  };
+  if (!res.ok || !data.ok) {
+    return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+  }
+  return { ok: true, data: data.data };
+}

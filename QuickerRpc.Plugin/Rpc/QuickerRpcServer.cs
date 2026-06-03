@@ -124,7 +124,6 @@ public sealed class QuickerRpcServer : IHostedService
         JsonRpc? jsonRpc = null;
         try
         {
-            QuickerRpcConnectionState.SetConnected(true);
             jsonRpc = StreamJsonRpcFactory.StartListeningServer<IQuickerRpcService>(pipeStream, _service);
             await StreamJsonRpcCompletion.AwaitSessionAsync(jsonRpc, cancellationToken).ConfigureAwait(false);
         }
@@ -134,7 +133,6 @@ public sealed class QuickerRpcServer : IHostedService
         }
         finally
         {
-            QuickerRpcConnectionState.SetConnected(false);
             jsonRpc?.Dispose();
             pipeStream.Dispose();
         }

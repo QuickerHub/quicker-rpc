@@ -194,7 +194,6 @@ public sealed class HeadlessActionProgramService
             return FailApply("save finished but action could not be reloaded.");
         }
 
-        ActionMonitorNotifier.Notify();
         return new QuickerRpcApplyXActionResult
         {
             Success = true,
@@ -253,7 +252,6 @@ public sealed class HeadlessActionProgramService
         }
 
         var (savedTitle, savedDescription, savedIcon) = _actions.GetPresentation(saved!);
-        ActionMonitorNotifier.Notify();
         return new QuickerRpcUpdateActionMetadataResult
         {
             Success = true,
@@ -404,7 +402,6 @@ public sealed class HeadlessActionProgramService
 
         IList<string> patchWarnings = hasProgramPatch ? ToWarningList(inputParamWarnings) : new List<string>();
 
-        ActionMonitorNotifier.Notify();
         return new QuickerRpcApplyActionPatchResult
         {
             Success = true,

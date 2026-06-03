@@ -17,7 +17,7 @@
     "proto:gen": "pnpm exec buf generate --template buf.gen.yaml",
     "docs:gen": "node ../scripts/generate-authoring-docs.mjs",
     "docs:check": "node ../scripts/generate-authoring-docs.mjs --check",
-    "test:context-compression": "tsx --test lib/context-compression.test.ts lib/context-compression.integration.test.ts",
+    "test:context-compression": "tsx --test lib/context-compression.test.ts lib/context-compression.integration.test.ts lib/action-project-workflow.test.ts lib/action-project-roundtrip.test.ts lib/workspace-fs.test.ts",
     "predev": "pnpm docs:gen",
     "prebuild": "pnpm docs:gen"
   },

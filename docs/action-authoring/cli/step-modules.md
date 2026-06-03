@@ -1,5 +1,7 @@
 # 常用模块对照（StepRunner 选型）
-**链路位置**：**`overview`** P5 — 在 **`step-runner search`** 之前用本表选 `stepRunnerKey`，再 **`step-runner get`** 取 `inputParams` 键名。
+
+**何时读**：**`overview`** P5 — 在 **`step-runner search`** 之前查本表找 `stepRunnerKey`，再 **`step-runner get`** 取 `inputParams` 键名。
+
 表达式/计算优先 **`expressions`**；无表项 → **`step-runner-search`** → **`implementation-fallback`**。
 
 ## 流程控制
@@ -132,4 +134,8 @@
 | 多文件操作 | `sys:fileOperation` | 用 `type` 选子操作 |
 | 多子操作模块 | 先定 key 再 `step-runner get` | 如 `stringProcess`、`uiautomation` |
 ## 相关主题
-`implementation-fallback` · `expressions` · `overview` · `patch-workflow` · `variables`
+`implementation-fallback` · `expressions` · `overview` · `patch-workflow`
+
+## 相关
+
+`step-runner-search` · `implementation-fallback` · `expressions` · `authoring-workflow` · `overview`
