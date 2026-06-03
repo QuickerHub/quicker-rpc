@@ -110,7 +110,7 @@ internal static partial class Program
 
             var info = ActionProjectInfoMapper.FromMetadataGet(
                 actionId,
-                fullResponse.EditVersion,
+                fullResponse.EditVersion ?? 0L,
                 metaRoot);
             if (string.IsNullOrWhiteSpace(info.Id))
             {
