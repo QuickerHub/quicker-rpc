@@ -315,10 +315,12 @@ export function ModelSelector({
                       }${!p.configured ? " model-picker-row--unconfigured" : ""}`}
                       onMouseEnter={() => setHoveredId(p.id)}
                       onMouseLeave={(e) => {
+                        const row = e.currentTarget;
                         const next = e.relatedTarget;
                         if (
-                          next instanceof Node
-                          && e.currentTarget
+                          row instanceof Element
+                          && next instanceof Node
+                          && row
                             .closest(".model-picker-panel")
                             ?.querySelector(".model-picker-detail")
                             ?.contains(next)
@@ -375,10 +377,12 @@ export function ModelSelector({
                 aria-label={`${getModelPickerDisplay(detailOption.id, detailOption.modelId).displayName} 详情`}
                 onMouseEnter={() => setHoveredId(detailOption.id)}
                 onMouseLeave={(e) => {
+                  const panel = e.currentTarget;
                   const next = e.relatedTarget;
                   if (
-                    next instanceof Node
-                    && e.currentTarget
+                    panel instanceof Element
+                    && next instanceof Node
+                    && panel
                       .closest(".model-picker-panel")
                       ?.querySelector(".model-picker-list")
                       ?.contains(next)

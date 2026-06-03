@@ -587,7 +587,7 @@ function ChatPanel({
     if (!editAnchorMessageId) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target;
-      if (!(target instanceof Node)) return;
+      if (!(target instanceof Element)) return;
       if (
         target.closest(
           ".composer-box, .composer-edit-banner, .msg--edit-anchor .msg-content",

@@ -175,7 +175,7 @@ export async function pushActionProjectToQuicker(options: {
       ? (data.payload as Record<string, unknown>)
       : data;
 
-  const editVersion = readEditVersion(payload);
+  const editVersion = readEditVersionFromGetPayload(payload);
   const version =
     editVersion != null ? `（Quicker v${editVersion}）` : "";
   return {

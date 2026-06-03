@@ -29,13 +29,14 @@ export function applyTauriConfirmPatch(): void {
       };
     }
   ).__TAURI_INTERNALS__.invoke;
-  window.confirm = async (message?: string) => {
+  const patched = async (message?: string) => {
     const result = await invoke("plugin:dialog|message", {
       message: String(message ?? ""),
       buttons: "OkCancel",
     });
     return result === "Ok";
   };
+  window.confirm = patched as typeof window.confirm;
 }
 
 /** Ok/Cancel dialog; uses Tauri native dialog in desktop shell, window.confirm in browser. */
