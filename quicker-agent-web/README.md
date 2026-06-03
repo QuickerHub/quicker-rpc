@@ -26,7 +26,6 @@ npx --yes serve quicker-agent-web/dist -l 3456
 
 1. 仓库 **Settings → Pages → Build and deployment → Source** 选 **GitHub Actions**。
 2. push 到 `main` 且改动 `quicker-agent-web/` 或 `version.json` 时，[`.github/workflows/quicker-agent-web.yml`](../.github/workflows/quicker-agent-web.yml) 会自动构建并发布。
-3. 新 Release 发布时也会触发部署，使页面上展示的 tag 与 GitHub latest 对齐。
 
 ### Vercel（可选）
 

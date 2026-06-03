@@ -7,8 +7,6 @@ on:
       - 'quicker-agent-web/**'
       - 'version.json'
       - '.github/workflows/quicker-agent-web.yml'
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
