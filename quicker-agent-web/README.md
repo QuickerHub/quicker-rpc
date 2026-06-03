@@ -20,19 +20,12 @@ npx --yes serve quicker-agent-web/dist -l 3456
 | `download/` | 跳转到当前构建版本安装包的 HTML 重定向 |
 | `site.json` | 构建时写入的版本元数据 |
 
-## 部署
-
-### GitHub Pages（推荐）
-
-1. 仓库 **Settings → Pages → Build and deployment → Source** 选 **GitHub Actions**。
-2. push 到 `main` 且改动 `quicker-agent-web/` 或 `version.json` 时，[`.github/workflows/quicker-agent-web.yml`](../.github/workflows/quicker-agent-web.yml) 会自动构建并发布。
-
-### Vercel（可选）
+## 部署（Vercel）
 
 有两种方式：
 
 1. 在 Vercel 控制台绑定仓库，Root Directory 设为 `quicker-agent-web`；
-2. 或直接使用 GitHub Actions 自动发布：[`.github/workflows/quicker-agent-web-vercel.yml`](../.github/workflows/quicker-agent-web-vercel.yml)。
+2. 或 push 到 `main` 且改动 `quicker-agent-web/` 或 `version.json` 时，由 [`.github/workflows/quicker-agent-web-vercel.yml`](../.github/workflows/quicker-agent-web-vercel.yml) 自动发布。
 
 自动发布需要在 GitHub 仓库 Secrets 配置：
 
