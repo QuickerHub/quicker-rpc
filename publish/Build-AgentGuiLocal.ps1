@@ -1,8 +1,7 @@
 #!/usr/bin/env pwsh
 # Local QuickerAgent frontend build (Next standalone + typecheck).
-# Prerequisites on Windows:
-#   - Enable Developer Mode (Settings > Privacy & security > For developers), OR run this shell as Administrator
-#   - Node 20+, pnpm, Rust (only for full `Publish-QuickerAgent.ps1`)
+# Prerequisites: Node 20+, pnpm. agent-gui/.npmrc uses hoisted + symlink=false (no Windows Developer Mode required).
+# Full installer: `Publish-QuickerAgent.ps1` also needs Rust + NSIS.
 #
 # Examples:
 #   pwsh ./publish/Build-AgentGuiLocal.ps1
@@ -19,37 +18,6 @@ $ErrorActionPreference = 'Stop'
 
 if (-not $RepoRoot) {
     $RepoRoot = Split-Path -Parent $PSScriptRoot
-}
-
-function Test-CanCreateSymlink {
-    $dir = Join-Path $env:TEMP "qkrpc-symlink-probe"
-    New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    $target = Join-Path $dir 'target.txt'
-    Set-Content -LiteralPath $target -Value 'x' -Encoding ascii
-    $link = Join-Path $dir 'link.txt'
-    try {
-        if (Test-Path -LiteralPath $link) { Remove-Item -LiteralPath $link -Force }
-        New-Item -ItemType SymbolicLink -Path $link -Target $target -Force | Out-Null
-        return $true
-    }
-    catch {
-        return $false
-    }
-    finally {
-        Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
-    }
-}
-
-if (-not (Test-CanCreateSymlink)) {
-    throw @"
-Windows cannot create symlinks in this session (Next.js standalone needs them).
-
-Fix one of:
-  1. Settings > Privacy & security > For developers > enable Developer Mode
-  2. Run PowerShell as Administrator, then re-run this script
-
-After that: pwsh ./publish/Build-AgentGuiLocal.ps1
-"@
 }
 
 $agentGui = Join-Path $RepoRoot 'agent-gui'

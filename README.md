@@ -133,6 +133,8 @@ pnpm quicker-agent:publish
 
 ## 开发
 
+需要 [.NET 10 SDK](https://dotnet.microsoft.com/download)（`global.json` 固定最低版本）。`qkrpc` CLI 目标为 **net10.0**；**QuickerRpc.Plugin** 仍为 **net472**（与 Quicker.exe 宿主一致）。
+
 ```powershell
 dotnet build QuickerRpc.slnx
 

@@ -61,7 +61,7 @@ metadata:
 
 ## 前置条件
 
-- .NET 8 SDK、`gh auth login`
+- .NET 10 SDK、`gh auth login`
 - `qkbuild` 与 build-tools `.env`（`-p -n` 上传）
 - Quicker 运行中 + QuickerRpc 插件已 Register（`qkrpc action list --limit 1 --json` 成功即可）
 

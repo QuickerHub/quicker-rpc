@@ -2,6 +2,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   rmSync,
   statSync,
 } from "node:fs";
@@ -30,13 +31,30 @@ function allowUserInstalledQkrpc() {
   return process.env.AGENT_GUI_USE_INSTALLED_QKRPC === "1";
 }
 
+function listConsoleReleaseOutputDirs(agentGuiRoot) {
+  const releaseRoot = join(
+    agentGuiRoot,
+    "..",
+    "QuickerRpc.Console",
+    "bin",
+    "Release",
+  );
+  if (!existsSync(releaseRoot)) return [];
+  const dirs = [];
+  for (const tfm of readdirSync(releaseRoot, { withFileTypes: true })) {
+    if (!tfm.isDirectory() || !tfm.name.startsWith("net")) continue;
+    const base = join(releaseRoot, tfm.name);
+    dirs.push(join(base, "win-x64"), base);
+  }
+  return dirs;
+}
+
 /** Source directories that ship a full self-contained qkrpc runtime. */
 export function listBundledQkrpcSourceDirs(agentGuiRoot) {
   return [
     join(agentGuiRoot, "qkrpc"),
     join(agentGuiRoot, "..", "publish", "cli"),
-    join(agentGuiRoot, "..", "QuickerRpc.Console", "bin", "Release", "net8.0", "win-x64"),
-    join(agentGuiRoot, "..", "QuickerRpc.Console", "bin", "Release", "net8.0"),
+    ...listConsoleReleaseOutputDirs(agentGuiRoot),
   ];
 }
 
