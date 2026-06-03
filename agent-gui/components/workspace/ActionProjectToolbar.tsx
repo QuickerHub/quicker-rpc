@@ -79,6 +79,15 @@ export function ActionProjectToolbar({
         </button>
         <button
           type="button"
+          className="project-info-toolbar-btn project-info-toolbar-btn--debug"
+          disabled={runBusy}
+          onClick={() => void runAction(true)}
+          title="带参数调试运行并打开 Quicker 步骤调试器"
+        >
+          调试
+        </button>
+        <button
+          type="button"
           className="project-info-toolbar-btn"
           disabled={runBusy}
           onClick={() => void editAction()}
@@ -96,34 +105,23 @@ export function ActionProjectToolbar({
         </button>
       </div>
 
-      <div className="project-info-toolbar-debug">
-        <label className="project-info-toolbar-param">
-          <span className="project-info-toolbar-param-label">运行参数</span>
-          <input
-            type="text"
-            className="project-info-toolbar-param-input"
-            value={param}
-            placeholder="可选"
-            disabled={runBusy}
-            onChange={(e) => setParam(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void runAction(true);
-              }
-            }}
-          />
-        </label>
-        <button
-          type="button"
-          className="project-info-toolbar-btn project-info-toolbar-btn--debug"
+      <label className="project-info-toolbar-param">
+        <span className="project-info-toolbar-param-label">运行参数</span>
+        <input
+          type="text"
+          className="project-info-toolbar-param-input"
+          value={param}
+          placeholder="可选"
           disabled={runBusy}
-          onClick={() => void runAction(true)}
-          title="带参数调试运行并打开 Quicker 步骤调试器"
-        >
-          调试
-        </button>
-      </div>
+          onChange={(e) => setParam(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void runAction(true);
+            }
+          }}
+        />
+      </label>
 
       {runStatusText ? (
         <p

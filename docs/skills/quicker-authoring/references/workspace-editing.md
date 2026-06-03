@@ -1,10 +1,3 @@
----
-name: workspace-editing
-description: ".quicker/actions/{actionId} 工作区布局、workspace_* 工具分工、file 外置与 qkrpc_action_patch 保存。Use when editing data.json or files/ on disk in agent-ui."
-allowed-tools: qkrpc_action_get qkrpc_action_validate qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit
-compatibility: "QuickerAgent; requires working directory in sidebar"
----
-
 # 工作区编辑（Agent）
 
 **何时读**：P2、P6；在改 `data.json` 或 `files/` 之前。工具参数见各 **`workspace_*`** / **`qkrpc_action_*`** 的 description。
@@ -84,4 +77,3 @@ qkrpc_action_get
 ## 相关
 
 `authoring-workflow` · `variables` · `overview`
-

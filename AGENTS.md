@@ -119,7 +119,7 @@ $env:QUICKER_RPC_TEST_SUBPROGRAM = "某子程序名"
 
 | 项目 | 职责 |
 |------|------|
-| `QuickerRpc.AgentModel` | XAction 压缩/patch、StepRunner 模型；文档源 `docs/action-authoring-src/` → 生成 `cli/` 嵌入 + `skills/quicker-authoring/`（QuickerAgent） |
+| `QuickerRpc.AgentModel` | XAction 压缩/patch、StepRunner 模型；文档源 `docs/action-authoring-src/` → 生成 `cli/` 嵌入 + 单 skill `skills/quicker-authoring/`（QuickerAgent） |
 | `QuickerRpc.Contracts` | `IQuickerRpcService`、管道名、`QuickerRpcClient` |
 | `QuickerRpc.Plugin` | RPC 服务端 + `HeadlessActionProgramService` |
 | `QuickerRpc.Console` | `qkrpc.exe` |

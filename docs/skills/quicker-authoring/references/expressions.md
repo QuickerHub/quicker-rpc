@@ -1,9 +1,3 @@
----
-name: expressions
-description: "Quicker 参数表达式（$=、$$）与 sys:evalexpression 步骤。Use when using eval expressions instead of dedicated step modules."
-allowed-tools: qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch
----
-
 # 表达式与插值
 
 **何时读**：**`overview`** P4 — 纯计算/比较/赋值优先于专用步骤。`inputParams` 键名仍须 **`qkrpc_step_runner_get`**；无合适模块见 **`implementation-fallback`**（复杂逻辑用 **`sys:csscript`**，勿默认长 `sys:runScript`）。
@@ -144,4 +138,3 @@ IQuickerApi _qk;              // always
 ## 相关
 
 `implementation-fallback` · `authoring-workflow` · `overview`
-

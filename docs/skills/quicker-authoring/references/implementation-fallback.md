@@ -1,11 +1,3 @@
----
-name: implementation-fallback
-description: "无专用模块时的实现选型：表达式 vs sys:csscript vs sys:runScript。Use when no step module fits or choosing between expression and script steps."
-allowed-tools: qkrpc_step_runner_search qkrpc_step_runner_get qkrpc_action_patch
-metadata:
-  phase: "P4"
----
-
 # 实现选型与回退
 
 **何时读**：**`overview`** P4 — `step-modules` / search 无合适模块，或需求是计算/逻辑而非固定 UI。
@@ -36,4 +28,3 @@ step-modules 有 key？ → step-runner get → 写入 data.json → 保存
 ## 相关
 
 `expressions` · `step-runner-search` · `step-modules` · `authoring-workflow` · `overview`
-

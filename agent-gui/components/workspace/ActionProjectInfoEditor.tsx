@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActionIcon } from "@/components/chat/ActionIcon";
 import { FileEditorCard } from "@/components/chat/FileEditorCard";
 import { ActionProjectToolbar } from "@/components/workspace/ActionProjectToolbar";
@@ -32,12 +32,27 @@ function CopyableText({
   className?: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const copiedTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current != null) {
+        window.clearTimeout(copiedTimerRef.current);
+      }
+    };
+  }, []);
 
   const onCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
+      if (copiedTimerRef.current != null) {
+        window.clearTimeout(copiedTimerRef.current);
+      }
+      copiedTimerRef.current = window.setTimeout(() => {
+        setCopied(false);
+        copiedTimerRef.current = null;
+      }, 480);
     } catch {
       /* ignore */
     }
@@ -59,6 +74,90 @@ function CopyableText({
     >
       {value}
     </span>
+  );
+}
+
+function ProjectInfoMetaPopup({
+  data,
+}: {
+  data: ParsedActionProjectInfo;
+}) {
+  const popupId = useId();
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+
+  const close = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [data.id, data.icon]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) {
+        close();
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, close]);
+
+  const hasMeta = Boolean(data.id || data.icon);
+  if (!hasMeta) {
+    return (
+      <div className="project-info-icon-wrap project-info-icon-wrap--static">
+        <ActionIcon spec={data.icon} className="project-info-icon" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="project-info-icon-anchor" ref={wrapRef}>
+      <button
+        type="button"
+        className="project-info-icon-wrap"
+        aria-label="项目元数据"
+        aria-expanded={open}
+        aria-controls={popupId}
+        title="点击查看 Id、Icon 等"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <ActionIcon spec={data.icon} className="project-info-icon" />
+      </button>
+
+      {open ? (
+        <div
+          id={popupId}
+          className="composer-popup project-info-meta-popup"
+          role="dialog"
+          aria-label="项目元数据"
+        >
+          <p className="project-info-meta-popup-title">项目信息</p>
+          <dl className="project-info-meta-popup-fields">
+            {data.id ? (
+              <InfoField label="Id" mono>
+                <CopyableText value={data.id} label="Id" />
+              </InfoField>
+            ) : null}
+            {data.icon ? (
+              <InfoField label="Icon" mono>
+                <CopyableText value={data.icon} label="Icon" />
+              </InfoField>
+            ) : null}
+          </dl>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -127,9 +226,7 @@ function InfoBody({
   return (
     <article className="project-info-editor">
         <header className="project-info-header">
-          <div className="project-info-icon-wrap">
-            <ActionIcon spec={data.icon} className="project-info-icon" />
-          </div>
+          <ProjectInfoMetaPopup data={data} />
           <div className="project-info-heading">
             <EditableInline
               className="project-info-title project-info-title--editable"
@@ -157,33 +254,23 @@ function InfoBody({
 
         {saveError ? <p className="project-info-save-error">{saveError}</p> : null}
 
-        <dl className="project-info-fields">
-          {data.id ? (
-            <InfoField label="Id" mono>
-              <CopyableText value={data.id} label="Id" className="project-info-id" />
-            </InfoField>
-          ) : null}
+        {data.callIdentifier || data.exportedUtc ? (
+          <dl className="project-info-fields">
+            {data.callIdentifier ? (
+              <InfoField label="调用" mono>
+                <CopyableText value={data.callIdentifier} label="调用标识" />
+              </InfoField>
+            ) : null}
 
-          {data.callIdentifier ? (
-            <InfoField label="调用" mono>
-              <CopyableText value={data.callIdentifier} label="调用标识" />
-            </InfoField>
-          ) : null}
-
-          {data.icon ? (
-            <InfoField label="Icon" mono>
-              {data.icon}
-            </InfoField>
-          ) : null}
-
-          {data.exportedUtc ? (
-            <InfoField label="Exported">
-              <time dateTime={data.exportedUtc} title={data.exportedUtc}>
-                {formatExportedUtc(data.exportedUtc)}
-              </time>
-            </InfoField>
-          ) : null}
-        </dl>
+            {data.exportedUtc ? (
+              <InfoField label="Exported">
+                <time dateTime={data.exportedUtc} title={data.exportedUtc}>
+                  {formatExportedUtc(data.exportedUtc)}
+                </time>
+              </InfoField>
+            ) : null}
+          </dl>
+        ) : null}
 
         {extraEntries.length > 0 ? (
           <section className="project-info-extra" aria-label="其它字段">

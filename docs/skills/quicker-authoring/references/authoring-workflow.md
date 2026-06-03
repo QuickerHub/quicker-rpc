@@ -1,11 +1,3 @@
----
-name: authoring-workflow
-description: "Quicker 动作编辑 P1–P7 主流程。Use before the first action edit in a session."
-allowed-tools: qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_validate qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit
-metadata:
-  phase: "P1-P7"
----
-
 # 写动作流程（Agent 必读）
 
 规定 **P1–P7**（总览 **`overview`**）。磁盘编辑细节见 **`workspace-editing`**。
@@ -100,4 +92,3 @@ edit_data / write_data 响应中的 projectSummary
 ## 相关
 
 `overview` · `workspace-editing` · `variables` · `implementation-fallback` · `expressions` · `subprogram-workflow` · `step-runner-search` · `step-modules`
-

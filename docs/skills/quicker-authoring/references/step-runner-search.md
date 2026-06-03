@@ -1,11 +1,3 @@
----
-name: step-runner-search
-description: "step-runner 目录搜索语法（OR、通配、sys:*）。Use when finding a step module key before qkrpc_step_runner_get."
-allowed-tools: qkrpc_step_runner_search qkrpc_step_runner_get
-metadata:
-  phase: "P5"
----
-
 # Step runner 搜索
 
 **何时读**：**`overview`** P5 — **`step-modules`** 无匹配时。一次查询带上 OR/通配即可。
@@ -27,4 +19,3 @@ qkrpc_step_runner_search({ query: "剪贴板|clipboard|sys:*clip*" })
 ## 相关
 
 `authoring-workflow`（P5）· `step-modules` · `implementation-fallback` · `overview`
-

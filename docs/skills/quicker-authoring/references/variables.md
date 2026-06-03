@@ -1,11 +1,3 @@
----
-name: variables
-description: "data.json 中 variables[] 的类型、defaultValue、varKey/outputParams 绑定；quicker_in_param 边界。Use when editing action variables."
-allowed-tools: workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_step_runner_get
-metadata:
-  phase: "P2-P6"
----
-
 # 动作变量（variables[]）
 
 **何时读**：编辑 `data.json` 里的 **`variables[]`** 或步骤里的 `varKey` / `outputParams` 绑定时。
@@ -42,4 +34,3 @@ metadata:
 ## 相关
 
 `workspace-editing` · `expressions` · `authoring-workflow` · `overview`
-

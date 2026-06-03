@@ -4052,19 +4052,11 @@ button.tool-batch-summary:disabled {
   margin-bottom: 0.45rem;
 }
 
-.project-info-toolbar-debug {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.35rem;
-}
-
 .project-info-toolbar-param {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  flex: 1;
-  min-width: 6.5rem;
+  min-width: 0;
 }
 
 .project-info-toolbar-param-label {
@@ -4117,7 +4109,7 @@ button.tool-batch-summary:disabled {
 }
 
 .project-info-toolbar-btn--debug {
-  align-self: flex-end;
+  border-color: color-mix(in srgb, var(--accent-border) 70%, var(--border));
 }
 
 .project-info-toolbar-btn--danger {
@@ -4152,9 +4144,14 @@ button.tool-batch-summary:disabled {
 
 .project-info-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.65rem;
   margin-bottom: 0.55rem;
+}
+
+.project-info-icon-anchor {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .project-info-icon-wrap {
@@ -4164,9 +4161,64 @@ button.tool-batch-summary:disabled {
   justify-content: center;
   width: 2.5rem;
   height: 2.5rem;
+  padding: 0;
   border-radius: 8px;
   background: color-mix(in srgb, var(--foreground) 5%, transparent);
   border: 1px solid var(--border);
+  color: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+
+.project-info-icon-wrap--static {
+  cursor: default;
+}
+
+.project-info-icon-wrap:not(.project-info-icon-wrap--static):hover {
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+
+.project-info-icon-wrap[aria-expanded="true"] {
+  border-color: var(--accent-border);
+  background: var(--accent-subtle);
+}
+
+.project-info-meta-popup {
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 120;
+  min-width: 15rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  padding: 0.55rem 0.65rem;
+}
+
+.project-info-meta-popup-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.project-info-meta-popup-fields {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.project-info-meta-popup-fields .project-info-field {
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+}
+
+.project-info-meta-popup-fields .project-info-value--mono .project-info-copyable {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-all;
 }
 
 .project-info-icon-wrap .project-info-icon.action-icon,
@@ -4315,12 +4367,17 @@ button.tool-batch-summary:disabled {
 .project-info-value--mono {
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   font-size: 0.72rem;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
-.project-info-id {
-  flex: 1 1 auto;
-  min-width: 0;
-  word-break: break-all;
+.project-info-value--mono .project-info-copyable {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
 }
 
 .project-info-hint {
@@ -4334,8 +4391,8 @@ button.tool-batch-summary:disabled {
   cursor: pointer;
   border-radius: 3px;
   transition:
-    color 0.12s ease,
-    background 0.12s ease;
+    color 0.08s ease,
+    background 0.08s ease;
 }
 
 .project-info-copyable:hover {
@@ -4344,6 +4401,7 @@ button.tool-batch-summary:disabled {
 
 .project-info-copyable--copied {
   color: var(--accent, #3dd68c);
+  background: color-mix(in srgb, var(--accent, #3dd68c) 14%, transparent);
 }
 
 .project-info-extra {

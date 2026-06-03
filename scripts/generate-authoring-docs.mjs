@@ -16,6 +16,7 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = path.join(ROOT, "docs/action-authoring-src");
 const OUT_CLI = path.join(ROOT, "docs/action-authoring/cli");
 const OUT_SKILLS = path.join(ROOT, "docs/skills/quicker-authoring");
+const SKILL_NAME = "quicker-authoring";
 const SRC_REF = path.join(SRC, "references");
 const GENERATOR = fileURLToPath(import.meta.url);
 
@@ -30,8 +31,9 @@ function normalizeEol(text) {
  * @param {Record<string, unknown>} opsData
  * @param {string} topic
  * @param {string} body
+ * @param {{ skillName?: string }} [opts]
  */
-function buildSkillMd(opsData, topic, body) {
+function buildSkillMd(opsData, topic, body, opts = {}) {
   const topics = /** @type {Record<string, Record<string, unknown>>} */ (
     opsData.topics ?? {}
   );
@@ -47,7 +49,12 @@ function buildSkillMd(opsData, topic, body) {
     );
   }
 
-  const lines = ["---", `name: ${topic}`, `description: ${yamlDoubleQuote(description)}`];
+  const skillName = opts.skillName ?? topic;
+  const lines = [
+    "---",
+    `name: ${skillName}`,
+    `description: ${yamlDoubleQuote(description)}`,
+  ];
 
   const allowedTools = meta["allowed-tools"];
   if (typeof allowedTools === "string" && allowedTools.trim()) {
@@ -81,8 +88,42 @@ function yamlDoubleQuote(value) {
 /**
  * @param {Record<string, unknown>} opsData
  * @param {string} topic
- * @returns {boolean}
+ * @returns {Record<string, unknown>}
  */
+function buildTopicManifestEntry(opsData, topic) {
+  const topics = /** @type {Record<string, Record<string, unknown>>} */ (
+    opsData.topics ?? {}
+  );
+  const meta = topics[topic];
+  if (!meta?.description) {
+    throw new Error(`Missing topics.${topic}.description in ops.json`);
+  }
+
+  /** @type {Record<string, unknown>} */
+  const entry = {
+    topic,
+    description: String(meta.description).trim(),
+    source: topic === "overview" ? "SKILL.md" : `references/${topic}.md`,
+  };
+
+  const allowedTools = meta["allowed-tools"];
+  if (typeof allowedTools === "string" && allowedTools.trim()) {
+    entry.allowedTools = allowedTools.trim();
+  }
+
+  const compatibility = meta.compatibility;
+  if (typeof compatibility === "string" && compatibility.trim()) {
+    entry.compatibility = compatibility.trim();
+  }
+
+  const metadata = meta.metadata;
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    entry.metadata = metadata;
+  }
+
+  return entry;
+}
+
 function isCliOnlyTopic(opsData, topic) {
   const topics = /** @type {Record<string, Record<string, unknown>>} */ (
     opsData.topics ?? {}
@@ -147,6 +188,14 @@ async function loadReferenceMap(topic) {
 async function computeOutputs(opsData, files) {
   /** @type {Map<string, string>} */
   const outputs = new Map();
+  /** @type {Record<string, unknown>[]} */
+  const topicManifest = [];
+  /** @type {Record<string, string>} */
+  const referenceFiles = {};
+
+  /** @type {string | null} */
+  let overviewBody = null;
+
   for (const file of files) {
     const topic = file.replace(/\.md$/i, "");
     const src = normalizeEol(
@@ -158,28 +207,58 @@ async function computeOutputs(opsData, files) {
     outputs.set(`cli/${file}`, cliRendered);
 
     const cliOnly = isCliOnlyTopic(opsData, topic);
-    if (!cliOnly) {
-      const agentBody = renderDoc(src, opsData, "agent", file, refMap);
-      outputs.set(
-        `skills/${topic}/SKILL.md`,
-        buildSkillMd(opsData, topic, agentBody),
-      );
+    if (cliOnly) continue;
 
-      for (const [refName, refSrc] of refMap) {
-        const refAgent = renderDoc(
-          refSrc,
-          opsData,
-          "agent",
-          `${file}#ref:${refName}`,
-          refMap,
-        );
-        outputs.set(
-          `skills/${topic}/references/${refName}.md`,
-          `${refAgent.trimEnd()}\n`,
-        );
-      }
+    const agentBody = renderDoc(src, opsData, "agent", file, refMap);
+    topicManifest.push(buildTopicManifestEntry(opsData, topic));
+
+    if (topic === "overview") {
+      overviewBody = agentBody;
+      continue;
+    }
+
+    outputs.set(
+      `skills/references/${topic}.md`,
+      `${agentBody.trimEnd()}\n`,
+    );
+
+    for (const [refName, refSrc] of refMap) {
+      const refAgent = renderDoc(
+        refSrc,
+        opsData,
+        "agent",
+        `${file}#ref:${refName}`,
+        refMap,
+      );
+      outputs.set(
+        `skills/references/${refName}.md`,
+        `${refAgent.trimEnd()}\n`,
+      );
+      referenceFiles[refName] = topic;
     }
   }
+
+  if (overviewBody == null) {
+    throw new Error("Missing overview.md for agent skill entry");
+  }
+
+  outputs.set(
+    "skills/SKILL.md",
+    buildSkillMd(opsData, "overview", overviewBody, { skillName: SKILL_NAME }),
+  );
+  outputs.set(
+    "skills/topics.json",
+    `${JSON.stringify(
+      {
+        skillName: SKILL_NAME,
+        topics: topicManifest,
+        referenceFiles,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+
   return outputs;
 }
 
@@ -253,13 +332,14 @@ function resolveOutputPath(rel) {
   if (rel.startsWith("cli/")) {
     return path.join(OUT_CLI, rel.slice("cli/".length));
   }
-  if (rel.startsWith("skills/")) {
-    const parts = rel.split("/");
-    const topic = parts[1];
-    if (parts[2] === "references") {
-      return path.join(OUT_SKILLS, topic, "references", parts[3]);
-    }
-    return path.join(OUT_SKILLS, topic, parts[2] ?? "SKILL.md");
+  if (rel === "skills/SKILL.md") {
+    return path.join(OUT_SKILLS, "SKILL.md");
+  }
+  if (rel === "skills/topics.json") {
+    return path.join(OUT_SKILLS, "topics.json");
+  }
+  if (rel.startsWith("skills/references/")) {
+    return path.join(OUT_SKILLS, "references", rel.slice("skills/references/".length));
   }
   return null;
 }
@@ -306,7 +386,7 @@ async function writeOutputs(outputs, only) {
   }
 }
 
-// Legacy flat agent/*.md removed — agent-ui reads docs/skills/quicker-authoring/{topic}/SKILL.md
+// Legacy flat agent/*.md removed — agent-ui reads docs/skills/quicker-authoring/SKILL.md + references/
 const OUT_AGENT_LEGACY = path.join(ROOT, "docs/action-authoring/agent");
 
 /** Remove flat agent/*.md outputs from the pre-skills layout. */
@@ -318,17 +398,27 @@ async function removeLegacyAgentOutputs() {
   }
 }
 
-/** Drop cli/*.md and skills/{topic}/ when the topic was removed or is cli-only. */
+/** Drop stale cli/*.md, references/*.md, and legacy per-topic skill dirs. */
 async function pruneOrphanOutputs(topicFiles, opsData) {
   const topics = new Set(
     topicFiles.map((f) => f.replace(/\.md$/i, "").toLowerCase()),
   );
-  const agentSkillTopics = new Set(
+  const agentReferenceTopics = new Set(
     topicFiles
       .map((f) => f.replace(/\.md$/i, ""))
-      .filter((t) => !isCliOnlyTopic(opsData, t))
+      .filter((t) => !isCliOnlyTopic(opsData, t) && t !== "overview")
       .map((t) => t.toLowerCase()),
   );
+  /** @type {Set<string>} */
+  const expectedReferenceFiles = new Set(agentReferenceTopics);
+  for (const file of topicFiles) {
+    const topic = file.replace(/\.md$/i, "");
+    if (isCliOnlyTopic(opsData, topic)) continue;
+    const refMap = await loadReferenceMap(topic);
+    for (const refName of refMap.keys()) {
+      expectedReferenceFiles.add(refName.toLowerCase());
+    }
+  }
 
   try {
     for (const f of await fs.readdir(OUT_CLI)) {
@@ -342,15 +432,27 @@ async function pruneOrphanOutputs(topicFiles, opsData) {
     // ignore
   }
 
+  const refDir = path.join(OUT_SKILLS, "references");
+  try {
+    for (const f of await fs.readdir(refDir)) {
+      if (!f.endsWith(".md")) continue;
+      const key = f.replace(/\.md$/i, "").toLowerCase();
+      if (!expectedReferenceFiles.has(key)) {
+        await fs.rm(path.join(refDir, f), { force: true });
+      }
+    }
+  } catch {
+    // ignore
+  }
+
   try {
     for (const ent of await fs.readdir(OUT_SKILLS, { withFileTypes: true })) {
       if (!ent.isDirectory()) continue;
-      if (!agentSkillTopics.has(ent.name.toLowerCase())) {
-        await fs.rm(path.join(OUT_SKILLS, ent.name), {
-          recursive: true,
-          force: true,
-        });
-      }
+      if (ent.name === "references") continue;
+      await fs.rm(path.join(OUT_SKILLS, ent.name), {
+        recursive: true,
+        force: true,
+      });
     }
   } catch {
     // ignore
@@ -372,7 +474,7 @@ async function generate(opts) {
 
   if (!opts.force && (await isFreshByMtime(files))) {
     console.log(
-      `Action authoring docs up to date (${files.length} topics × cli + skills, skipped).`,
+      `Action authoring docs up to date (${files.length} topics × cli + single skill, skipped).`,
     );
     await touchStamp(opts.touchPath);
     return;
@@ -383,7 +485,7 @@ async function generate(opts) {
 
   if (!opts.force && stale.length === 0) {
     console.log(
-      `Action authoring docs up to date (${files.length} topics × cli + skills, skipped).`,
+      `Action authoring docs up to date (${files.length} topics × cli + single skill, skipped).`,
     );
     await touchStamp(opts.touchPath);
     return;
@@ -394,7 +496,7 @@ async function generate(opts) {
     await pruneOrphanOutputs(files, opsData);
     await removeLegacyAgentOutputs();
     console.log(
-      `Generated ${files.length} topics → docs/action-authoring/cli/ and docs/skills/quicker-authoring/ (forced).`,
+      `Generated ${files.length} topics → docs/action-authoring/cli/ and docs/skills/quicker-authoring/ (single skill, forced).`,
     );
   } else {
     await writeOutputs(expected, stale);
@@ -405,7 +507,7 @@ async function generate(opts) {
       await removeLegacyAgentOutputs();
     }
     console.log(
-      `Generated ${stale.length} file(s) → docs/action-authoring/cli/ and docs/skills/quicker-authoring/.`,
+      `Generated ${stale.length} file(s) → docs/action-authoring/cli/ and docs/skills/quicker-authoring/ (single skill).`,
     );
   }
   await touchStamp(opts.touchPath);
@@ -428,7 +530,7 @@ async function check() {
   }
 
   console.log(
-    `Action authoring docs up to date (${files.length} topics × cli + skills).`,
+    `Action authoring docs up to date (${files.length} topics × cli + single skill).`,
   );
 }
 

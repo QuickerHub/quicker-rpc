@@ -1,9 +1,3 @@
----
-name: cli-setup
-description: "QuickerAgent 环境前置与 docs_get/docs_search/docs_index 用法。Use when setting up agent-ui or explaining how to read local authoring guides."
-allowed-tools: docs_get docs_search docs_index
----
-
 # Agent setup（agent-ui）
 
 ## P0
@@ -23,4 +17,3 @@ Quicker 运行中且已加载 QuickerRpc 插件。推荐 `qkrpc serve`（agent-u
 ## 专题
 
 `overview` · `authoring-workflow` · `workspace-editing` · `variables` · `implementation-fallback` · `expressions` · `subprogram-workflow` · `step-runner-search` · `step-modules`
-

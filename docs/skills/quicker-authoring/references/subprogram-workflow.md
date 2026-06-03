@@ -1,11 +1,3 @@
----
-name: subprogram-workflow
-description: "公共子程序与动作内子程序的区别及调用工作流。Use when adding subprogram call steps or editing subprogram projects."
-allowed-tools: qkrpc_subprogram_search qkrpc_subprogram_get qkrpc_step_runner_get qkrpc_action_patch
-metadata:
-  phase: "P5-P6"
----
-
 # 子程序
 
 **何时读**：管理公共子程序，或在动作里 **调用** 公共子程序。工具参数见 `qkrpc_subprogram_*`、`qkrpc_step_runner_get`（`sys:subprogram`）。
@@ -45,4 +37,3 @@ subprogram search/get → callIdentifier
 ## 相关
 
 `authoring-workflow` · `workspace-editing` · `overview`
-

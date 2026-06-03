@@ -1,5 +1,5 @@
 ---
-name: overview
+name: quicker-authoring
 description: "Quicker 动作无头编辑总览与 P0–P7 专题索引。Use when starting action editing or choosing which guide topic to read next."
 compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
 ---

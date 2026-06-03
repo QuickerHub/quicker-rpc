@@ -5,6 +5,7 @@ import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
 import { parseSkillMd } from "@/lib/skill-parse";
 
 const SKILLS_DIR = "docs/skills/quicker-authoring";
+const TOPICS_MANIFEST = "topics.json";
 const LEGACY_DOCS_DIR = "docs/action-authoring/agent";
 
 export type ActionAuthoringTopicMeta = {
@@ -30,6 +31,21 @@ export type ActionAuthoringSearchItem = {
 
 type TopicRow = ActionAuthoringTopicMeta & { markdown: string };
 
+type TopicsManifestEntry = {
+  topic: string;
+  description: string;
+  allowedTools?: string;
+  compatibility?: string;
+  metadata?: Record<string, string>;
+  source?: string;
+};
+
+type TopicsManifest = {
+  skillName: string;
+  topics: TopicsManifestEntry[];
+  referenceFiles: Record<string, string>;
+};
+
 let cachedRows: TopicRow[] | null = null;
 let cachedRoot: string | null = null;
 let cachedSkillsMtimeMs = 0;
@@ -41,37 +57,45 @@ function compactMarkdownBody(markdown: string): string {
 
 async function skillsTreeMtimeMs(root: string): Promise<number> {
   let max = 0;
+  const candidates = [
+    join(root, "SKILL.md"),
+    join(root, TOPICS_MANIFEST),
+  ];
+  for (const filePath of candidates) {
+    try {
+      max = Math.max(max, (await stat(filePath)).mtimeMs);
+    } catch {
+      // ignore
+    }
+  }
+
+  const refDir = join(root, "references");
+  try {
+    for (const ref of await readdir(refDir)) {
+      if (!ref.endsWith(".md")) continue;
+      max = Math.max(max, (await stat(join(refDir, ref))).mtimeMs);
+    }
+  } catch {
+    // ignore
+  }
+
+  // Legacy per-topic skill dirs
   let entries;
   try {
     entries = await readdir(root, { withFileTypes: true });
   } catch {
-    return 0;
+    return max;
   }
   for (const ent of entries) {
-    const full = join(root, ent.name);
-    if (ent.isDirectory()) {
-      max = Math.max(max, await skillsTreeMtimeMs(full));
-      const skillPath = join(full, "SKILL.md");
-      try {
-        max = Math.max(max, (await stat(skillPath)).mtimeMs);
-      } catch {
-        // ignore
-      }
-      const refDir = join(full, "references");
-      try {
-        for (const ref of await readdir(refDir)) {
-          if (!ref.endsWith(".md")) continue;
-          max = Math.max(max, (await stat(join(refDir, ref))).mtimeMs);
-        }
-      } catch {
-        // ignore
-      }
-      continue;
-    }
-    if (ent.isFile()) {
-      max = Math.max(max, (await stat(full)).mtimeMs);
+    if (!ent.isDirectory() || ent.name === "references") continue;
+    const skillPath = join(root, ent.name, "SKILL.md");
+    try {
+      max = Math.max(max, (await stat(skillPath)).mtimeMs);
+    } catch {
+      // ignore
     }
   }
+
   return max;
 }
 
@@ -101,7 +125,59 @@ function extractTitle(markdown: string): string {
   return "";
 }
 
-async function loadSkillTopics(root: string): Promise<TopicRow[]> {
+async function loadTopicsManifest(root: string): Promise<TopicsManifest | null> {
+  try {
+    const raw = await readFile(join(root, TOPICS_MANIFEST), "utf8");
+    return JSON.parse(raw) as TopicsManifest;
+  } catch {
+    return null;
+  }
+}
+
+async function readTopicMarkdown(
+  root: string,
+  topic: string,
+): Promise<string | null> {
+  if (topic === "overview") {
+    try {
+      const content = await readFile(join(root, "SKILL.md"), "utf8");
+      return compactMarkdownBody(parseSkillMd(content).body);
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    const content = await readFile(
+      join(root, "references", `${topic}.md`),
+      "utf8",
+    );
+    return compactMarkdownBody(content);
+  } catch {
+    return null;
+  }
+}
+
+async function loadUnifiedSkillTopics(root: string): Promise<TopicRow[]> {
+  const manifest = await loadTopicsManifest(root);
+  if (!manifest?.topics?.length) return [];
+
+  const rows: TopicRow[] = [];
+  for (const meta of manifest.topics) {
+    const markdown = await readTopicMarkdown(root, meta.topic);
+    if (markdown == null) continue;
+    rows.push({
+      topic: meta.topic,
+      title: extractTitle(markdown) || meta.topic,
+      description: meta.description,
+      charCount: markdown.length,
+      markdown,
+    });
+  }
+  return rows;
+}
+
+async function loadLegacyPerTopicSkills(root: string): Promise<TopicRow[]> {
   let entries;
   try {
     entries = await readdir(root, { withFileTypes: true });
@@ -110,7 +186,7 @@ async function loadSkillTopics(root: string): Promise<TopicRow[]> {
   }
 
   const dirs = entries
-    .filter((e) => e.isDirectory())
+    .filter((e) => e.isDirectory() && e.name !== "references")
     .map((e) => e.name)
     .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 
@@ -173,7 +249,10 @@ async function loadAllTopics(): Promise<TopicRow[]> {
     return cachedRows;
   }
 
-  let rows = await loadSkillTopics(root);
+  let rows = await loadUnifiedSkillTopics(root);
+  if (rows.length === 0) {
+    rows = await loadLegacyPerTopicSkills(root);
+  }
   if (rows.length === 0) {
     rows = await loadLegacyFlatTopics(legacyDocsRoot());
   }
@@ -189,7 +268,7 @@ export async function formatSkillCatalogForPrompt(): Promise<string> {
   if (topics.length === 0) return "";
 
   const lines = [
-    "Authoring skills catalog (Discovery — use docs_get / docs_get_reference for full instructions):",
+    "Authoring guide (single local skill — use docs_get by topic id; full text via docs_get_reference for large tables):",
   ];
   for (const t of topics) {
     const desc = t.description.trim() || t.title;
@@ -203,6 +282,14 @@ export async function listActionAuthoringReferences(
 ): Promise<string[]> {
   const key = normalizeTopic(topic);
   const root = skillsRoot();
+  const manifest = await loadTopicsManifest(root);
+  if (manifest?.referenceFiles) {
+    return Object.entries(manifest.referenceFiles)
+      .filter(([, owner]) => owner.toLowerCase() === key)
+      .map(([file]) => file)
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }
+
   const refDir = join(root, key, "references");
   try {
     return (await readdir(refDir))
@@ -261,7 +348,30 @@ export async function getActionAuthoringReference(
     };
   }
 
-  const refPath = join(skillsRoot(), match.topic, "references", `${refKey}.md`);
+  const root = skillsRoot();
+  const manifest = await loadTopicsManifest(root);
+  let refFileName = refKey;
+  if (manifest?.referenceFiles) {
+    const ownerEntry = Object.entries(manifest.referenceFiles).find(
+      ([name]) => name.toLowerCase() === refKey,
+    );
+    const owner = ownerEntry?.[1];
+    if (!owner || owner.toLowerCase() !== key) {
+      const availableReferences = await listActionAuthoringReferences(match.topic);
+      return {
+        ok: false,
+        error: `Unknown reference: ${refKey} (topic: ${match.topic})`,
+        availableTopics,
+        availableReferences,
+      };
+    }
+    refFileName = ownerEntry[0];
+  }
+
+  const refPath = manifest
+    ? join(root, "references", `${refFileName}.md`)
+    : join(root, match.topic, "references", `${refKey}.md`);
+
   let markdown: string;
   try {
     markdown = await readFile(refPath, "utf8");

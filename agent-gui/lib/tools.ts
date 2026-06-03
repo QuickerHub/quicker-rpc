@@ -40,7 +40,7 @@ const returnModeSchema = z.enum(["full", "structure", "metadata"]);
 export const quickerTools = {
   [DOCS_GET_TOOL]: tool({
     description:
-      'Read an authoring skill (Agent Skills SKILL.md). Start with "authoring-workflow" or "overview".',
+      'Read the local authoring guide by topic id (single skill; start with "authoring-workflow" or "overview").',
     inputSchema: z.object({
       topic: z.string().describe("Guide topic id"),
     }),
@@ -70,7 +70,7 @@ export const quickerTools = {
 
   [DOCS_SEARCH_TOOL]: tool({
     description:
-      "Search local authoring skills by keyword (Agent Skills catalog, no qkrpc).",
+      "Search local authoring guide topics by keyword (single skill catalog, no qkrpc).",
     inputSchema: z.object({
       query: z.string().optional(),
       limit: z.number().int().min(1).max(50).optional(),
@@ -87,7 +87,7 @@ export const quickerTools = {
 
   [DOCS_INDEX_TOOL]: tool({
     description:
-      "List all local authoring skills with name, title, and description (no qkrpc).",
+      "List all local authoring guide topics with title and description (no qkrpc).",
     inputSchema: z.object({}),
     execute: async () => {
       const topics = await listActionAuthoringTopics();
@@ -101,7 +101,7 @@ export const quickerTools = {
 
   [DOCS_GET_REFERENCE_TOOL]: tool({
     description:
-      "Read a reference file from an authoring skill (Agent Skills references/). Use for large tables, e.g. step-modules modules-table.",
+      "Read a reference appendix from the authoring skill (e.g. step-modules modules-table).",
     inputSchema: z.object({
       topic: z.string().describe("Skill topic id"),
       file: z.string().describe('Reference file id without .md, e.g. "modules-table"'),

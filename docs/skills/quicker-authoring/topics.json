@@ -1,0 +1,87 @@
+{
+  "skillName": "quicker-authoring",
+  "topics": [
+    {
+      "topic": "authoring-workflow",
+      "description": "Quicker 动作编辑 P1–P7 主流程。Use before the first action edit in a session.",
+      "source": "references/authoring-workflow.md",
+      "allowedTools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_validate qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
+      "metadata": {
+        "phase": "P1-P7"
+      }
+    },
+    {
+      "topic": "cli-setup",
+      "description": "QuickerAgent 环境前置与 docs_get/docs_search/docs_index 用法。Use when setting up agent-ui or explaining how to read local authoring guides.",
+      "source": "references/cli-setup.md",
+      "allowedTools": "docs_get docs_search docs_index"
+    },
+    {
+      "topic": "expressions",
+      "description": "Quicker 参数表达式（$=、$$）与 sys:evalexpression 步骤。Use when using eval expressions instead of dedicated step modules.",
+      "source": "references/expressions.md",
+      "allowedTools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch"
+    },
+    {
+      "topic": "implementation-fallback",
+      "description": "无专用模块时的实现选型：表达式 vs sys:csscript vs sys:runScript。Use when no step module fits or choosing between expression and script steps.",
+      "source": "references/implementation-fallback.md",
+      "allowedTools": "qkrpc_step_runner_search qkrpc_step_runner_get qkrpc_action_patch",
+      "metadata": {
+        "phase": "P4"
+      }
+    },
+    {
+      "topic": "overview",
+      "description": "Quicker 动作无头编辑总览与 P0–P7 专题索引。Use when starting action editing or choosing which guide topic to read next.",
+      "source": "SKILL.md",
+      "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
+    },
+    {
+      "topic": "step-modules",
+      "description": "常用 stepRunnerKey 速查表。Use before step-runner search when a known module might fit.",
+      "source": "references/step-modules.md",
+      "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search",
+      "metadata": {
+        "phase": "P5"
+      }
+    },
+    {
+      "topic": "step-runner-search",
+      "description": "step-runner 目录搜索语法（OR、通配、sys:*）。Use when finding a step module key before qkrpc_step_runner_get.",
+      "source": "references/step-runner-search.md",
+      "allowedTools": "qkrpc_step_runner_search qkrpc_step_runner_get",
+      "metadata": {
+        "phase": "P5"
+      }
+    },
+    {
+      "topic": "subprogram-workflow",
+      "description": "公共子程序与动作内子程序的区别及调用工作流。Use when adding subprogram call steps or editing subprogram projects.",
+      "source": "references/subprogram-workflow.md",
+      "allowedTools": "qkrpc_subprogram_search qkrpc_subprogram_get qkrpc_step_runner_get qkrpc_action_patch",
+      "metadata": {
+        "phase": "P5-P6"
+      }
+    },
+    {
+      "topic": "variables",
+      "description": "data.json 中 variables[] 的类型、defaultValue、varKey/outputParams 绑定；quicker_in_param 边界。Use when editing action variables.",
+      "source": "references/variables.md",
+      "allowedTools": "workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_step_runner_get",
+      "metadata": {
+        "phase": "P2-P6"
+      }
+    },
+    {
+      "topic": "workspace-editing",
+      "description": ".quicker/actions/{actionId} 工作区布局、workspace_* 工具分工、file 外置与 qkrpc_action_patch 保存。Use when editing data.json or files/ on disk in agent-ui.",
+      "source": "references/workspace-editing.md",
+      "allowedTools": "qkrpc_action_get qkrpc_action_validate qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
+      "compatibility": "QuickerAgent; requires working directory in sidebar"
+    }
+  ],
+  "referenceFiles": {
+    "modules-table": "step-modules"
+  }
+}
