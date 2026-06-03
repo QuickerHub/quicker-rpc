@@ -340,7 +340,7 @@
   padding-bottom: 12px;
 }
 
-/* Keyboard-event sink only (programmatic focus after Delete); not a tab stop â€?hide browser ring. */
+/* Keyboard-event sink only (programmatic focus after Delete); not a tab stop ??hide browser ring. */
 .step-editor[tabindex="-1"]:focus,
 .step-editor[tabindex="-1"]:focus-visible {
   outline: none;
@@ -757,7 +757,7 @@
   background: transparent;
 }
 
-/* Only this blockâ€™s rail â€?avoid highlighting nested descendantsâ€?rails. */
+/* Only this block?s rail ??avoid highlighting nested descendants??rails. */
 .step-node-block--selected > .step-node-rail {
   background: var(--ad-accent);
 }
@@ -1447,7 +1447,7 @@
   border-radius: 6px;
 }
 
-/* Filter inputs (toolbox, variable list, sub program list): low-contrast focus â€?avoid loud accent ring. */
+/* Filter inputs (toolbox, variable list, sub program list): low-contrast focus ??avoid loud accent ring. */
 .filter-box:focus,
 .filter-box:focus-visible {
   outline: none;
@@ -1615,7 +1615,7 @@
   visibility: hidden;
 }
 
-/* Thin line chevron; two paths in TSX (no rotate), centroid (5,5) in 10Ã—10 viewBox */
+/* Thin line chevron; two paths in TSX (no rotate), centroid (5,5) in 10?10 viewBox */
 .toolbox-chevron {
   display: flex;
   width: 10px;
@@ -1712,7 +1712,7 @@
   color: var(--ad-fg-muted);
 }
 
-/* Drag preview clone (setDragImage); off-screen, narrow width â€?not full listbox. */
+/* Drag preview clone (setDragImage); off-screen, narrow width ??not full listbox. */
 .toolbox-drag-ghost-snapshot {
   position: fixed !important;
   left: 0 !important;
@@ -1939,7 +1939,7 @@
   padding-left: 8px;
 }
 
-/* VS Codeâ€“like bottom-right toasts */
+/* VS Code?like bottom-right toasts */
 .toast-host {
   position: fixed;
   right: 16px;
@@ -2071,6 +2071,43 @@
   flex: 1;
 }
 
+.step-editor-popup-body--pending {
+  /* Reserve one param row so loading ? content does not jump height. */
+  min-height: 88px;
+}
+
+.step-editor-popup-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.step-editor-popup-skeleton-row {
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  gap: 8px 10px;
+  align-items: center;
+}
+
+.step-editor-popup-skeleton-label,
+.step-editor-popup-skeleton-field {
+  border-radius: 4px;
+  background: var(--ad-bg-input);
+  border: 1px solid var(--ad-border-input);
+}
+
+.step-editor-popup-skeleton-label {
+  height: 14px;
+  justify-self: end;
+  width: 56px;
+  opacity: 0.55;
+}
+
+.step-editor-popup-skeleton-field {
+  height: 30px;
+  opacity: 0.7;
+}
+
 .step-editor-popup-loading {
   margin: 0;
   font-size: 13px;
@@ -2081,6 +2118,16 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  animation: step-editor-popup-content-in 0.12s ease;
+}
+
+@keyframes step-editor-popup-content-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .step-editor-popup-section-title {
@@ -2490,6 +2537,13 @@
   padding-left: 4px;
 }
 
+.step-param-varorvalue-display-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .step-param-varorvalue-input {
   flex: 1 1 auto;
   min-width: 0;
@@ -2503,6 +2557,11 @@
 
 .step-param-varorvalue-input .expression-editor.expression-editor--inline {
   padding: 3px 6px;
+}
+
+.step-param-varorvalue-input .expression-editor.expression-editor--loading {
+  min-height: 24px;
+  height: 24px;
 }
 
 .step-param-varorvalue-input .expression-editor.expression-editor--multiline {
@@ -2883,6 +2942,303 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
 .step-editor-popup-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.form-def-param-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.form-def-param-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--ad-border-input);
+  border-radius: 6px;
+  background: var(--ad-bg-button-secondary);
+}
+
+.form-def-param-summary-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.form-def-param-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ad-fg-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form-def-param-meta {
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+}
+
+.form-def-param-edit-btn {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 4px;
+  background: var(--ad-bg-button-secondary);
+  color: var(--ad-fg-popup-ghost);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.form-def-param-edit-btn:hover {
+  background: var(--ad-overlay-hover);
+  color: var(--ad-fg-on-emphasis);
+}
+
+.form-def-param-hint {
+  margin: 0;
+}
+
+.form-def-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  background: var(--ad-backdrop-popup);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.form-def-editor-dialog {
+  width: min(760px, 100%);
+  max-height: min(88vh, 820px);
+  display: flex;
+  flex-direction: column;
+  background: var(--ad-bg-panel);
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 8px;
+  box-shadow: var(--ad-shadow-popup);
+  color: var(--ad-fg-primary);
+}
+
+.form-def-editor-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ad-border-panel);
+}
+
+.form-def-editor-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.form-def-editor-subtitle {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+}
+
+.form-def-editor-body {
+  padding: 12px 14px;
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-def-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ad-border-panel);
+}
+
+.form-def-editor-loading {
+  font-size: 13px;
+  color: var(--ad-fg-muted);
+}
+
+.form-def-editor-storage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.form-def-editor-storage-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.form-def-editor-file-path {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.form-def-editor-native-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+}
+
+.form-def-editor-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-def-editor-tab {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 4px;
+  background: var(--ad-bg-button-secondary);
+  color: var(--ad-fg-popup-ghost);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.form-def-editor-tab.active {
+  background: var(--ad-bg-button-primary);
+  border-color: var(--ad-border-button-primary);
+  color: var(--ad-fg-on-emphasis);
+}
+
+.form-def-editor-tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.form-def-editor-json-apply {
+  margin-left: auto;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ad-fg-popup-ghost);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.form-def-editor-json {
+  min-height: 280px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+}
+
+.form-spec-fields-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-spec-meta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-spec-meta-field--compact {
+  flex: 1 1 180px;
+}
+
+.form-spec-meta-field--wide {
+  flex: 1 1 100%;
+}
+
+.form-spec-meta-label {
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+}
+
+.form-spec-fields-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr 120px 28px;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--ad-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.form-spec-fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-spec-field-card {
+  border: 1px solid var(--ad-border-input);
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-spec-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 120px 28px;
+  gap: 8px;
+  align-items: center;
+}
+
+.form-spec-field-advanced {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: flex-start;
+}
+
+.form-spec-inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding-top: 22px;
+}
+
+.form-spec-field-remove {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ad-fg-muted);
+  cursor: pointer;
+}
+
+.form-spec-field-remove:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.form-spec-add-field {
+  align-self: flex-start;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px dashed var(--ad-border-strong);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ad-fg-popup-ghost);
+  font-size: 11px;
+  cursor: pointer;
 }
 
 .step-param-expression-wrap {

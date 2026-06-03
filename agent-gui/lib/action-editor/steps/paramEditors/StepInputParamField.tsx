@@ -1,8 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState, type JSX, type Ref } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, memo, type JSX, type Ref } from "react";
 import { createPortal } from "react-dom";
 import type { ActionStepParam, ActionVariable } from "@/lib/action-editor/types/common";
 import type { StepRunnerInputParamDef } from "@/lib/action-editor/types/action_query";
 import { ExpressionEditor } from "../expression/ExpressionEditor";
+import { FormDefParamEditor } from "./FormDefParamEditor";
+import type { ActionProjectWorkspaceContext } from "./FormDefEditorDialog";
+import { isFormParamDef } from "./formSpecModel";
 import { actionVariableRowKey } from "../../variables/actionVariableUi";
 import { CsVarType, ParamVariableMode } from "./csStepEnums";
 import { SelectionItemLabel } from "./stepParamSelectionLabels";
@@ -15,6 +18,7 @@ export type StepInputParamFieldProps = {
   variables: ActionVariable[];
   param: ActionStepParam;
   onChange: (next: ActionStepParam) => void;
+  workspace?: ActionProjectWorkspaceContext;
 };
 
 const ENABLE_EXPRESSION_EDITOR = true;
@@ -96,7 +100,13 @@ function shouldUseVarOrValueEditor(def: StepRunnerInputParamDef): boolean {
   return true;
 }
 
-export function StepInputParamField({ def, variables, param, onChange }: StepInputParamFieldProps): JSX.Element {
+function StepInputParamFieldInner({
+  def,
+  variables,
+  param,
+  onChange,
+  workspace,
+}: StepInputParamFieldProps): JSX.Element {
   const boolInputId = useId();
   const enumInputId = useId();
   const vt = def.varType;
@@ -135,7 +145,7 @@ export function StepInputParamField({ def, variables, param, onChange }: StepInp
     [variables, vt]
   );
 
-  const enumOptions = def.selectionItems ?? [];
+  const enumOptions = useMemo(() => def.selectionItems ?? [], [def.selectionItems]);
   const selectedEnumOption = enumOptions.find((x) => x.value === param.value) ?? null;
   const filteredEnumOptions = useMemo(() => {
     const q = enumFilter.trim().toLowerCase();
@@ -190,7 +200,6 @@ export function StepInputParamField({ def, variables, param, onChange }: StepInp
 
   useEffect(() => {
     if (!enumOpen) {
-      setEnumActiveIndex(0);
       return;
     }
     if (filteredEnumOptions.length === 0) {
@@ -199,11 +208,19 @@ export function StepInputParamField({ def, variables, param, onChange }: StepInp
     }
     const selectedIndex = filteredEnumOptions.findIndex((opt) => opt.value === param.value);
     if (selectedIndex >= 0 && enumFilter.trim().length === 0) {
-      setEnumActiveIndex(selectedIndex);
+      setEnumActiveIndex((prev) => (prev === selectedIndex ? prev : selectedIndex));
       return;
     }
     setEnumActiveIndex((prev) => Math.max(0, Math.min(prev, filteredEnumOptions.length - 1)));
   }, [enumOpen, filteredEnumOptions, param.value, enumFilter]);
+
+  useEffect(() => {
+    if (enumOpen) {
+      return;
+    }
+    setEnumFilter("");
+    setEnumActiveIndex(0);
+  }, [enumOpen]);
 
   useEffect(() => {
     if (!enumOpen) {
@@ -218,7 +235,7 @@ export function StepInputParamField({ def, variables, param, onChange }: StepInp
       selected?.scrollIntoView({ block: "nearest", inline: "nearest" });
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [enumOpen, enumActiveIndex, filteredEnumOptions.length]);
+  }, [enumOpen, enumActiveIndex]);
 
   const enumEditorJsx = hasSelectionEnum ? (
     <>
@@ -398,6 +415,23 @@ export function StepInputParamField({ def, variables, param, onChange }: StepInp
     );
   }
 
+  if (isFormParamDef(def) && vm === ParamVariableMode.Input) {
+    return (
+      <div className="step-param-row">
+        <StepParamLabel label={label} />
+        <div className="step-param-field-col">
+          <FormDefParamEditor
+            def={def}
+            param={param}
+            onChange={onChange}
+            workspace={workspace}
+          />
+          {desc ? <div className="step-param-hint">{desc}</div> : null}
+        </div>
+      </div>
+    );
+  }
+
   const multiline = isMultilineVarOrValueField(def);
 
   /** VarOrValue value slot: always use ExpressionEditor when enabled (literal / interpolation / $=). */
@@ -451,12 +485,33 @@ export function StepInputParamField({ def, variables, param, onChange }: StepInp
   );
 }
 
+function stepInputParamFieldPropsEqual(
+  prev: StepInputParamFieldProps,
+  next: StepInputParamFieldProps,
+): boolean {
+  return (
+    prev.def === next.def
+    && prev.variables === next.variables
+    && prev.workspace === next.workspace
+    && prev.onChange === next.onChange
+    && (prev.param.varKey ?? "") === (next.param.varKey ?? "")
+    && (prev.param.value ?? "") === (next.param.value ?? "")
+    && (prev.param.file ?? "") === (next.param.file ?? "")
+  );
+}
+
+export const StepInputParamField = memo(StepInputParamFieldInner, stepInputParamFieldPropsEqual);
+
 /** Build or migrate ActionStepParam for this definition key (from_old_field migration not applied here). */
 export function ensureParamValue(def: StepRunnerInputParamDef, existing: ActionStepParam | undefined): ActionStepParam {
   // Only hydrate default when the param key does not exist yet.
   // If user has cleared the value to empty string, keep that explicit empty state.
   if (existing) {
-    return { varKey: existing.varKey ?? "", value: existing.value ?? "" };
+    return {
+      varKey: existing.varKey ?? "",
+      value: existing.value ?? "",
+      file: existing.file,
+    };
   }
   const dv = def.defaultValue ?? "";
   return { varKey: "", value: dv };

@@ -1,0 +1,571 @@
+{
+  "sys:GenTempFilePath": [
+    "生成文件路径到：",
+    "filePath"
+  ],
+  "sys:MsgBox": [
+    "message"
+  ],
+  "sys:SelectFileInExplorer": [
+    "path"
+  ],
+  "sys:WriteImageFile": [
+    "写入文件：",
+    "filePath"
+  ],
+  "sys:WriteTextFile": [
+    "filePath"
+  ],
+  "sys:activateProcessMainWindow": [
+    "激活 ",
+    "process",
+    " 进程的主窗口"
+  ],
+  "sys:adobesoftscontrol": [
+    "operation",
+    " ",
+    "script"
+  ],
+  "sys:assign": [
+    "input:60",
+    " => ",
+    "output"
+  ],
+  "sys:audioControl": [
+    "operation",
+    "id"
+  ],
+  "sys:autocadcontrol": [
+    "operation",
+    " ",
+    "command"
+  ],
+  "sys:basic-ocr": [
+    "operation",
+    " ",
+    "imgVar"
+  ],
+  "sys:charInfo": [
+    "获取字符 ",
+    "char",
+    " 的信息"
+  ],
+  "sys:checkPathExists": [
+    "path"
+  ],
+  "sys:checkProcessExists": [
+    "process"
+  ],
+  "sys:chromecontrol": [
+    "operation",
+    " ",
+    "selector"
+  ],
+  "sys:cloudObjectOperation": [
+    "type"
+  ],
+  "sys:cloud_oss": [
+    "operation",
+    "(",
+    "vendor",
+    ")"
+  ],
+  "sys:clouddata": [
+    "type",
+    "  ",
+    "key"
+  ],
+  "sys:color": [
+    "type"
+  ],
+  "sys:comment": [
+    "note:0"
+  ],
+  "sys:compute": [
+    "expression",
+    " => ",
+    "output"
+  ],
+  "sys:computeTime": [
+    "type"
+  ],
+  "sys:createQrCode": [
+    "code",
+    " => ",
+    "img"
+  ],
+  "sys:custompanel": [
+    "operation"
+  ],
+  "sys:customwindow": [
+    "type"
+  ],
+  "sys:dboperation": [
+    "operationType!",
+    " ",
+    "sql"
+  ],
+  "sys:delay": [
+    "等待 ",
+    "delayMs",
+    " ms"
+  ],
+  "sys:dependencycheck": [
+    "packageName",
+    " ",
+    "packageVersion"
+  ],
+  "sys:dictOperations": [
+    "dict",
+    " ",
+    "type",
+    " Key:",
+    "key"
+  ],
+  "sys:download": [
+    "url"
+  ],
+  "sys:each": [
+    "对 ",
+    "input",
+    " 的每项执行"
+  ],
+  "sys:enc": [
+    "operation"
+  ],
+  "sys:evalexpression": [
+    "expression",
+    " => ",
+    "output"
+  ],
+  "sys:everythingsearch": [
+    "search"
+  ],
+  "sys:excelObjects": [
+    "operation"
+  ],
+  "sys:excelRange": [
+    "operation"
+  ],
+  "sys:fileOperation": [
+    "type"
+  ],
+  "sys:fileSystemWatch": [
+    "operation",
+    "path"
+  ],
+  "sys:fileToClipboard": [
+    "file",
+    " ",
+    "list",
+    " => 剪贴板"
+  ],
+  "sys:flauiautomation": [
+    "type",
+    " ",
+    "control",
+    " ",
+    "controlOperation"
+  ],
+  "sys:form": [
+    "operation",
+    " ",
+    "title",
+    " ",
+    "help"
+  ],
+  "sys:formatString": [
+    "formatString!"
+  ],
+  "sys:getActionInfo": [
+    "target",
+    " ",
+    "actionId",
+    " => ",
+    "title"
+  ],
+  "sys:getActiveProcessInfo": [
+    "获取进程信息：",
+    "path"
+  ],
+  "sys:getChromeUrl": [
+    " => ",
+    "output"
+  ],
+  "sys:getClipboardFiles": [
+    "=> ",
+    "output"
+  ],
+  "sys:getClipboardImage": [
+    "=> ",
+    "output"
+  ],
+  "sys:getClipboardText": [
+    "=> ",
+    "output"
+  ],
+  "sys:getCurrentTime": [
+    "source"
+  ],
+  "sys:getExplorerPath": [
+    "operation",
+    " ",
+    "output"
+  ],
+  "sys:getFolderPath": [
+    "folder"
+  ],
+  "sys:getSelectedFiles": [
+    "operation",
+    " ",
+    "files"
+  ],
+  "sys:getSelectedText": [
+    "=> ",
+    "output",
+    " ",
+    "outputEncoded"
+  ],
+  "sys:getWindowTitle": [
+    "which"
+  ],
+  "sys:htmlExtract": [
+    "xpath"
+  ],
+  "sys:http": [
+    "method",
+    " ",
+    "url!"
+  ],
+  "sys:httpserver": [
+    "operation",
+    " ",
+    "docPath"
+  ],
+  "sys:if": [
+    "判断条件：",
+    "condition"
+  ],
+  "sys:imageinfo": [
+    "sourceType"
+  ],
+  "sys:imeControl": [
+    "operation"
+  ],
+  "sys:imgProcess": [
+    "type"
+  ],
+  "sys:imgToBase64": [
+    "type"
+  ],
+  "sys:inputScript": [
+    "data"
+  ],
+  "sys:joinList": [
+    "list",
+    " => ",
+    "output"
+  ],
+  "sys:jsonExtract": [
+    "data",
+    " => ",
+    "v0",
+    " ",
+    "v1",
+    " ",
+    "v2",
+    "..."
+  ],
+  "sys:keyInput": [
+    "keys"
+  ],
+  "sys:keyoperation": [
+    "type",
+    " ",
+    "key"
+  ],
+  "sys:listOperations": [
+    "type",
+    " ",
+    "list"
+  ],
+  "sys:longScreenshot": [
+    "img"
+  ],
+  "sys:manageList": [
+    "list"
+  ],
+  "sys:mouse": [
+    "type",
+    "   ",
+    "extAction"
+  ],
+  "sys:newGuid": [
+    "输出到：",
+    "output"
+  ],
+  "sys:notify": [
+    "msg"
+  ],
+  "sys:numCompare": [
+    "param1",
+    " ",
+    "type",
+    " ",
+    "param2",
+    " ?"
+  ],
+  "sys:numberprocess": [
+    "srcNumber"
+  ],
+  "sys:officehelper": [
+    "operation",
+    " ",
+    "appType"
+  ],
+  "sys:openUrl": [
+    "(",
+    "browser",
+    ") ",
+    "url"
+  ],
+  "sys:outputText": [
+    "content"
+  ],
+  "sys:pinImage": [
+    "mode",
+    " ",
+    "screenPlacement"
+  ],
+  "sys:playSound": [
+    "type",
+    " ",
+    "localSound"
+  ],
+  "sys:quickeroperations": [
+    "type"
+  ],
+  "sys:randomNum": [
+    "=> ",
+    "output"
+  ],
+  "sys:readFile": [
+    "path",
+    " => ",
+    "txt",
+    "image"
+  ],
+  "sys:readQrCode": [
+    "img",
+    " => ",
+    "code"
+  ],
+  "sys:recordSound": [
+    "operation"
+  ],
+  "sys:regexExtract": [
+    "getGroup",
+    " ",
+    "pattern"
+  ],
+  "sys:repeat": [
+    "重复",
+    "count",
+    "次，循环间隔: ",
+    "repeatDelayMs",
+    "ms，中止条件: ",
+    "stopCondition"
+  ],
+  "sys:reportProgress": [
+    "type",
+    " ",
+    "progressId"
+  ],
+  "sys:restoreActiveWindow": [
+    "还原活动窗口"
+  ],
+  "sys:rhinocontrol": [
+    "operation",
+    " ",
+    "command"
+  ],
+  "sys:run": [
+    "运行：",
+    "path",
+    " ",
+    "arg"
+  ],
+  "sys:runAction": [
+    "type",
+    " ",
+    "actionId",
+    " ",
+    "inputParam"
+  ],
+  "sys:screenCapture": [
+    "type",
+    " => ",
+    "img"
+  ],
+  "sys:screenCapturePro": [
+    "img"
+  ],
+  "sys:searchBmp": [
+    "type",
+    " ",
+    "bmpVar",
+    " ",
+    "color",
+    " ",
+    "bmp"
+  ],
+  "sys:select": [
+    "textValue",
+    "   ",
+    "multiSelected"
+  ],
+  "sys:selectFile": [
+    "-> ",
+    "path",
+    " ",
+    "pathList"
+  ],
+  "sys:selectFolder": [
+    "选择文件夹路径"
+  ],
+  "sys:sendKeys": [
+    "keys"
+  ],
+  "sys:sendMessage": [
+    "向窗口发送消息"
+  ],
+  "sys:shelloperation": [
+    "operation",
+    " ",
+    "verb"
+  ],
+  "sys:showImage": [
+    "source",
+    " ",
+    "path",
+    "imgVar"
+  ],
+  "sys:showText": [
+    "type",
+    " ",
+    "text"
+  ],
+  "sys:showWaitWin": [
+    "mode"
+  ],
+  "sys:showmenu": [
+    "menuData"
+  ],
+  "sys:simpleIf": [
+    "判断条件：",
+    "condition"
+  ],
+  "sys:splitString": [
+    "data",
+    " => ",
+    "output"
+  ],
+  "sys:stateStorage": [
+    "type",
+    " ",
+    "key"
+  ],
+  "sys:stop": [
+    "method",
+    " (标记为出错：",
+    "isError",
+    ")"
+  ],
+  "sys:strCompare": [
+    "param1",
+    " ",
+    "type",
+    " ",
+    "param2",
+    " ?"
+  ],
+  "sys:strReplace": [
+    "type",
+    " => ",
+    "output"
+  ],
+  "sys:stringProcess": [
+    "data",
+    " ",
+    "method",
+    " => ",
+    "output"
+  ],
+  "sys:tableoperation": [
+    "table",
+    " ",
+    "type"
+  ],
+  "sys:tempImgBed": [
+    "imgVar",
+    " => ",
+    "url"
+  ],
+  "sys:tempcloudstore": [
+    "dataType"
+  ],
+  "sys:textCounter": [
+    "content"
+  ],
+  "sys:textSelectTools": [
+    "operation",
+    " => ",
+    "output"
+  ],
+  "sys:translation": [
+    "operation",
+    " => ",
+    "resultText"
+  ],
+  "sys:uiautomation": [
+    "type",
+    " ",
+    "control",
+    " ",
+    "controlOperation"
+  ],
+  "sys:userInput": [
+    "type"
+  ],
+  "sys:waitClipboardChange": [
+    "最长 ",
+    "maxWaitSeconds",
+    " 秒"
+  ],
+  "sys:waitKeyboard": [
+    "operation"
+  ],
+  "sys:websocket": [
+    "operation"
+  ],
+  "sys:webview2": [
+    "type"
+  ],
+  "sys:winservice": [
+    "operation",
+    " ",
+    "name",
+    " ",
+    "regKeyPath"
+  ],
+  "sys:writeClipboard": [
+    "type",
+    " => 剪贴板"
+  ],
+  "sys:zip": [
+    "type",
+    " ",
+    "sourcePath",
+    "sourceZipFile"
+  ]
+}

@@ -23,7 +23,9 @@ export async function GET(req: Request) {
   try {
     return await runWithQkrpcCwdAsync(cwd, async () => {
       if (op === "tree") {
-        const result = await buildActionExplorerTree();
+        const depth =
+          url.searchParams.get("depth")?.trim() === "roots" ? "roots" : "full";
+        const result = await buildActionExplorerTree({ depth });
         if (!result.ok) {
           return Response.json({ ok: false, error: result.error }, { status: 400 });
         }

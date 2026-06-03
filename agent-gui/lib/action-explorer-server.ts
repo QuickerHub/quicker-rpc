@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { readdir, readFile, rm } from "node:fs/promises";
 import { basename } from "node:path";
 import {
@@ -6,7 +7,9 @@ import {
   getActionsRootRelative,
 } from "@/lib/action-project-path";
 import {
+  applyEmbeddedSubProgramMeta,
   buildExplorerTreeFromProjectMeta,
+  type ActionEmbeddedSubProgramMeta,
   type ActionProjectMeta,
   type ActionExplorerTree,
 } from "@/lib/action-explorer-tree";
@@ -17,7 +20,7 @@ import {
 } from "@/lib/action-project-info-parse";
 import {
   listWorkspaceFiles,
-  readWorkspaceFile,
+  readWorkspaceFileForExplorer,
   resolveWorkspacePath,
   writeWorkspaceFile,
 } from "@/lib/workspace-fs";
@@ -87,61 +90,106 @@ export async function loadActionProjectMeta(): Promise<ActionProjectMeta[]> {
   );
 }
 
-async function projectMetaFromFilesystemListing(
+async function readEmbeddedSubProgramMetaEntry(
   rootPath: string,
-  entries: { path: string; kind: "file" | "directory" }[],
-): Promise<ActionProjectMeta[]> {
-  const dirNames = new Set<string>();
-  for (const entry of entries) {
-    const part = entry.path.replace(/\\/g, "/").split("/").filter(Boolean)[0];
-    if (part) dirNames.add(part);
+  actionDirName: string,
+  subDirName: string,
+  infoAbsolute: string,
+): Promise<ActionEmbeddedSubProgramMeta> {
+  const projectPath = `${rootPath}/${actionDirName}/subprograms/${subDirName}`.replace(
+    /\\/g,
+    "/",
+  );
+
+  let title: string | undefined;
+  let subProgramId: string | undefined;
+  try {
+    const raw = stripJsonBom(await readFile(infoAbsolute, "utf8"));
+    const parsed = parseActionProjectInfo(raw);
+    if (parsed.ok) {
+      title = actionProjectDisplayTitle(parsed.data);
+      subProgramId = parsed.data.id;
+    }
+  } catch {
+    /* skip unreadable info.json */
   }
 
-  const meta = await Promise.all(
-    [...dirNames].map(async (dirName): Promise<ActionProjectMeta> => {
-      const projectPath = actionProjectDirFromName(dirName);
-      let title: string | undefined;
-      let actionId: string | undefined;
+  return {
+    path: projectPath,
+    dirName: subDirName,
+    title,
+    subProgramId:
+      subProgramId
+      ?? (/^[0-9a-f-]{36}$/i.test(subDirName) ? subDirName : undefined),
+  };
+}
 
-      const infoRelative = `${dirName}/info.json`;
-      const hasInfoJson = entries.some(
-        (e) => e.kind === "file" && e.path.replace(/\\/g, "/") === infoRelative,
-      );
-      if (hasInfoJson) {
-        const infoPath = resolveWorkspacePath(`${projectPath}/info.json`);
-        if (infoPath.ok) {
-          try {
-            const raw = stripJsonBom(await readFile(infoPath.absolute, "utf8"));
-            const parsed = parseActionProjectInfo(raw);
-            if (parsed.ok) {
-              title = actionProjectDisplayTitle(parsed.data);
-              actionId = parsed.data.id;
-            }
-          } catch {
-            /* skip unreadable info.json */
-          }
-        }
+async function loadEmbeddedSubProgramMeta(): Promise<ActionEmbeddedSubProgramMeta[]> {
+  const rootPath = getActionsRootRelative();
+  const resolved = resolveWorkspacePath(rootPath);
+  if (!resolved.ok) return [];
+
+  let actionDirNames: string[] = [];
+  try {
+    actionDirNames = await readdir(resolved.absolute, { withFileTypes: true }).then(
+      (items) => items.filter((entry) => entry.isDirectory()).map((entry) => entry.name),
+    );
+  } catch {
+    return [];
+  }
+
+  const nested = await Promise.all(
+    actionDirNames.map(async (actionDirName) => {
+      const subProgramsRoot = join(resolved.absolute, actionDirName, "subprograms");
+      if (!existsSync(subProgramsRoot)) return [] as ActionEmbeddedSubProgramMeta[];
+
+      let subDirNames: string[] = [];
+      try {
+        subDirNames = await readdir(subProgramsRoot, { withFileTypes: true }).then(
+          (items) => items.filter((entry) => entry.isDirectory()).map((entry) => entry.name),
+        );
+      } catch {
+        return [] as ActionEmbeddedSubProgramMeta[];
       }
 
-      return {
-        dirName,
-        path: projectPath,
-        title,
-        actionId:
-          actionId
-          ?? (/^[0-9a-f-]{36}$/i.test(dirName) ? dirName : undefined),
-      };
+      const entries = await Promise.all(
+        subDirNames.map(async (subDirName) => {
+          const infoAbsolute = join(subProgramsRoot, subDirName, "info.json");
+          if (!existsSync(infoAbsolute)) return null;
+          return readEmbeddedSubProgramMetaEntry(
+            rootPath,
+            actionDirName,
+            subDirName,
+            infoAbsolute,
+          );
+        }),
+      );
+      return entries.filter((entry): entry is ActionEmbeddedSubProgramMeta => entry !== null);
     }),
   );
 
-  return meta.sort((a, b) =>
+  return nested.flat().sort((a, b) =>
     (a.title ?? a.dirName).localeCompare(b.title ?? b.dirName, undefined, {
       sensitivity: "base",
     }),
   );
 }
 
-export async function buildActionExplorerTree(): Promise<
+export type BuildActionExplorerTreeOptions = {
+  /** roots: project folders only (fast first paint); full: include file tree (default). */
+  depth?: "roots" | "full";
+};
+
+function emptyActionExplorerTree(rootPath: string): ActionExplorerTree {
+  return {
+    rootPath,
+    rootLabel: "动作项目",
+    children: [],
+  };
+}
+
+/** Fast path: top-level action projects from info.json only (no recursive file scan). */
+export async function buildActionExplorerTreeRoots(): Promise<
   | { ok: true; tree: ActionExplorerTree }
   | { ok: false; error: string }
 > {
@@ -152,39 +200,57 @@ export async function buildActionExplorerTree(): Promise<
   }
 
   if (!existsSync(resolved.absolute)) {
-    return {
-      ok: true,
-      tree: {
-        rootPath,
-        rootLabel: "动作项目",
-        children: [],
-      },
-    };
+    return { ok: true, tree: emptyActionExplorerTree(rootPath) };
   }
 
-  const listed = await listWorkspaceFiles(rootPath, {
-    recursive: true,
-    maxEntries: 500,
-    includeFileSizes: false,
-  });
+  const projectMeta = await loadActionProjectMeta();
+  const children = buildExplorerTreeFromProjectMeta(rootPath, projectMeta, [], []);
+  return { ok: true, tree: { ...emptyActionExplorerTree(rootPath), children } };
+}
+
+export async function buildActionExplorerTree(
+  options?: BuildActionExplorerTreeOptions,
+): Promise<
+  | { ok: true; tree: ActionExplorerTree }
+  | { ok: false; error: string }
+> {
+  if (options?.depth === "roots") {
+    return buildActionExplorerTreeRoots();
+  }
+
+  const rootPath = getActionsRootRelative();
+  const resolved = resolveWorkspacePath(rootPath);
+  if (!resolved.ok) {
+    return { ok: false, error: resolved.error };
+  }
+
+  if (!existsSync(resolved.absolute)) {
+    return { ok: true, tree: emptyActionExplorerTree(rootPath) };
+  }
+
+  const [listed, projectMeta, embeddedSubProgramMeta] = await Promise.all([
+    listWorkspaceFiles(rootPath, {
+      recursive: true,
+      maxEntries: 500,
+      includeFileSizes: false,
+    }),
+    loadActionProjectMeta(),
+    loadEmbeddedSubProgramMeta(),
+  ]);
   if (!listed.ok) {
     return { ok: false, error: listed.error };
   }
 
-  const projectMeta = await projectMetaFromFilesystemListing(
-    rootPath,
-    listed.entries,
-  );
   const children = buildExplorerTreeFromProjectMeta(
     rootPath,
     projectMeta,
     listed.entries,
+    embeddedSubProgramMeta,
   );
   return {
     ok: true,
     tree: {
-      rootPath,
-      rootLabel: "动作项目",
+      ...emptyActionExplorerTree(rootPath),
       children,
     },
   };
@@ -194,7 +260,7 @@ export async function readWorkspaceFileForApi(
   path: string,
   options?: { offset?: number; limit?: number },
 ) {
-  return readWorkspaceFile(path, options);
+  return readWorkspaceFileForExplorer(path, options);
 }
 
 export async function writeWorkspaceFileForApi(path: string, content: string) {

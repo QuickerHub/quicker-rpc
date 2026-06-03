@@ -28,6 +28,7 @@ type WatchSession = {
   rebuildCooldownUntil: number;
   lastTreeSignature: string | null;
   lastTree: ActionExplorerTree | null;
+  lastTreeBuiltAt: number;
   subscribers: Set<WatchSubscriber>;
   idleTimer: ReturnType<typeof setTimeout> | null;
 };
@@ -35,6 +36,8 @@ type WatchSession = {
 const DEBOUNCE_MS = 250;
 const IDLE_DISPOSE_MS = 30_000;
 const REBUILD_COOLDOWN_MS = 400;
+/** Skip redundant rebuild when a new SSE client connects shortly after the last build. */
+const SUBSCRIBE_REBUILD_MAX_AGE_MS = 8_000;
 
 const sessions = new Map<string, WatchSession>();
 
@@ -126,6 +129,7 @@ async function rebuildAndNotify(session: WatchSession): Promise<void> {
       }
       session.lastTreeSignature = signature;
       session.lastTree = result.tree;
+      session.lastTreeBuiltAt = Date.now();
       notifySubscribers(session, {
         ok: true,
         type: "tree",
@@ -210,6 +214,7 @@ function getOrCreateSession(cwd: string): WatchSession {
     rebuildCooldownUntil: 0,
     lastTreeSignature: null,
     lastTree: null,
+    lastTreeBuiltAt: 0,
     subscribers: new Set(),
     idleTimer: null,
   };
@@ -244,6 +249,10 @@ export function subscribeActionExplorerWatch(
     // New SSE clients need the latest tree even when rebuild dedupes by signature.
     if (state.session.lastTree) {
       subscriber.send({ ok: true, type: "tree", tree: state.session.lastTree });
+    }
+    const cacheAge = Date.now() - state.session.lastTreeBuiltAt;
+    if (state.session.lastTree && cacheAge < SUBSCRIBE_REBUILD_MAX_AGE_MS) {
+      return;
     }
     await rebuildAndNotify(state.session);
   });

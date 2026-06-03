@@ -27,6 +27,7 @@ import {
 import {
   actionProjectFileToolSuccess,
   resolveActionProjectFileForTool,
+  resolveActionProjectFilesScopeForTool,
 } from "@/lib/action-project-file.server";
 import {
   formatAutoSyncedNote,
@@ -34,8 +35,12 @@ import {
 } from "@/lib/workspace-action-resolve.server";
 import { listWorkspaceActionProjects } from "@/lib/action-explorer-server";
 import {
+  DEFAULT_READ_CHARS,
   editWorkspaceFile,
+  getWorkspaceFileInfo,
+  grepWorkspacePath,
   readWorkspaceFile,
+  readWorkspaceFileSnapshot,
   writeWorkspaceFile,
 } from "@/lib/workspace-fs";
 import {
@@ -47,6 +52,42 @@ import {
 } from "@/lib/qkrpc";
 
 const returnModeSchema = z.enum(["full", "structure", "metadata"]);
+
+/** Partial read for large UTF-8 files (chars or 1-based lines). */
+const workspaceReadSliceSchema = {
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe(`UTF-16 char offset (default 0). Prefer startLine for scripts.`),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(200_000)
+    .optional()
+    .describe(`Max chars when using offset (default ${DEFAULT_READ_CHARS}).`),
+  startLine: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe("1-based start line (preferred for large files)."),
+  endLine: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe("1-based inclusive end line (with startLine)."),
+  maxLines: z
+    .number()
+    .int()
+    .min(1)
+    .max(2_000)
+    .optional()
+    .describe("Max lines when using startLine (default 400)."),
+};
 
 export const quickerTools = {
   [DOCS_GET_TOOL]: tool({
@@ -312,16 +353,95 @@ export const quickerTools = {
     },
   }),
 
+  workspace_action_file_info: tool({
+    description:
+      "File metadata before editing: size, line count, readRecommended (lineRange/charRange). Use before file_read on large scripts. data.json: read_data mode=summary.",
+    inputSchema: z.object({
+      id: z.string().uuid().describe("Action GUID"),
+      path: z.string().describe("files/… (e.g. files/main.cs)"),
+    }),
+    execute: async ({ id, path }) => {
+      const resolved = await resolveActionProjectFileForTool(id, path);
+      if (!resolved.ok) {
+        return formatLocalToolResult(
+          { action: "file-info", success: false, errorMessage: resolved.error },
+          false,
+          resolved.error,
+        );
+      }
+      const info = await getWorkspaceFileInfo(resolved.resolved.path);
+      if (!info.ok) {
+        return formatLocalToolResult(
+          { action: "file-info", success: false, errorMessage: info.error },
+          false,
+          info.error,
+        );
+      }
+      return formatLocalToolResult(
+        actionProjectFileToolSuccess("file-info", resolved.resolved, {
+          sizeBytes: info.sizeBytes,
+          lineCount: info.lineCount,
+          lineCountCapped: info.lineCountCapped,
+          exceedsEditLimit: info.exceedsEditLimit,
+          readRecommended: info.readRecommended,
+        }),
+      );
+    },
+  }),
+
+  workspace_action_file_search: tool({
+    description:
+      "Search literal text under files/ (id + optional path default files). Returns line/column — then file_read(startLine) and file_edit(unique oldString). Not for data.json.",
+    inputSchema: z.object({
+      id: z.string().uuid().describe("Action GUID"),
+      path: z
+        .string()
+        .optional()
+        .describe('Scope: "files", "files/subdir", or "files/foo.cs" (default files)'),
+      query: z.string().min(1).describe("Literal substring to find"),
+      maxMatches: z.number().int().min(1).max(50).optional(),
+      caseInsensitive: z.boolean().optional(),
+    }),
+    execute: async ({ id, path, query, maxMatches, caseInsensitive }) => {
+      const resolved = await resolveActionProjectFilesScopeForTool(id, path);
+      if (!resolved.ok) {
+        return formatLocalToolResult(
+          { action: "file-search", success: false, errorMessage: resolved.error },
+          false,
+          resolved.error,
+        );
+      }
+      const result = await grepWorkspacePath(resolved.resolved.path, query, {
+        maxMatches,
+        caseInsensitive,
+        literal: true,
+      });
+      if (!result.ok) {
+        return formatLocalToolResult(
+          { action: "file-search", success: false, errorMessage: result.error },
+          false,
+          result.error,
+        );
+      }
+      return formatLocalToolResult(
+        actionProjectFileToolSuccess("file-search", resolved.resolved, {
+          matches: result.matches,
+          truncated: result.truncated,
+          filesScanned: result.filesScanned,
+        }),
+      );
+    },
+  }),
+
   workspace_action_file_read: tool({
     description:
-      "Read UTF-8 file in action project files/ (id + path e.g. files/main.cs). data.json: workspace_action_read_data.",
+      "Read a slice of files/ UTF-8 text. Large files: file_info → file_search → file_read(startLine/maxLines) → file_edit(unique oldString). Prefer startLine over offset. data.json: read_data (summary first).",
     inputSchema: z.object({
       id: z.string().uuid().describe("Action GUID"),
       path: z.string().describe("files/… under the action project"),
-      offset: z.number().int().min(0).optional(),
-      limit: z.number().int().min(1).max(200_000).optional(),
+      ...workspaceReadSliceSchema,
     }),
-    execute: async ({ id, path, offset, limit }) => {
+    execute: async ({ id, path, offset, limit, startLine, endLine, maxLines }) => {
       const resolved = await resolveActionProjectFileForTool(id, path);
       if (!resolved.ok) {
         return formatLocalToolResult(
@@ -333,6 +453,9 @@ export const quickerTools = {
       const result = await readWorkspaceFile(resolved.resolved.path, {
         offset,
         limit,
+        startLine,
+        endLine,
+        maxLines,
       });
       if (!result.ok) {
         return formatLocalToolResult(
@@ -346,6 +469,10 @@ export const quickerTools = {
           content: result.content,
           truncated: result.truncated,
           totalChars: result.totalChars,
+          totalLines: result.totalLines,
+          startLine: result.startLine,
+          endLine: result.endLine,
+          readHint: result.readHint,
         }),
       );
     },
@@ -353,7 +480,7 @@ export const quickerTools = {
 
   workspace_action_file_write: tool({
     description:
-      "Write action file in files/ (id + path). Long scripts: then workspace_action_edit_data file ref, patch.",
+      "Create or fully replace a files/ resource (new file or intentional rewrite). For small edits use file_edit. Then edit_data file ref + patch.",
     inputSchema: z.object({
       id: z.string().uuid().describe("Action GUID"),
       path: z.string().describe("files/… under the action project"),
@@ -369,9 +496,9 @@ export const quickerTools = {
         );
       }
       const targetPath = resolved.resolved.path;
-      const readBefore = await readWorkspaceFile(targetPath);
-      const previousContent = readBefore.ok ? readBefore.content : "";
-      const previousTruncated = readBefore.ok ? readBefore.truncated === true : false;
+      const snapshot = await readWorkspaceFileSnapshot(targetPath);
+      const previousContent = snapshot.ok ? snapshot.content : "";
+      const previousTruncated = snapshot.ok ? snapshot.truncated === true : false;
 
       const result = await writeWorkspaceFile(targetPath, content);
       if (!result.ok) {
@@ -393,11 +520,14 @@ export const quickerTools = {
 
   workspace_action_file_edit: tool({
     description:
-      "Search/replace in action files/ (id + path, exact oldString). Full rewrite: workspace_action_file_write.",
+      "Exact search/replace in files/ (oldString must be unique unless replaceAll). Copy oldString from file_read slice. Fails with line numbers if ambiguous. Full replace: file_write.",
     inputSchema: z.object({
       id: z.string().uuid().describe("Action GUID"),
       path: z.string().describe("files/… under the action project"),
-      oldString: z.string().min(1),
+      oldString: z
+        .string()
+        .min(1)
+        .describe("Exact text from disk; include surrounding lines for uniqueness"),
       newString: z.string(),
       replaceAll: z.boolean().optional(),
     }),
@@ -418,7 +548,13 @@ export const quickerTools = {
       );
       if (!result.ok) {
         return formatLocalToolResult(
-          { action: "file-edit", success: false, errorMessage: result.error },
+          {
+            action: "file-edit",
+            success: false,
+            errorMessage: result.error,
+            matchCount: result.matchCount,
+            matchLines: result.matchLines,
+          },
           false,
           result.error,
         );
@@ -426,6 +562,7 @@ export const quickerTools = {
       return formatLocalToolResult(
         actionProjectFileToolSuccess("file-edit", resolved.resolved, {
           replacements: result.replacements,
+          matchLines: result.matchLines,
         }),
       );
     },
@@ -433,17 +570,16 @@ export const quickerTools = {
 
   workspace_action_read_data: tool({
     description:
-      "Read action data.json by GUID. mode=summary: outline/validation only. mode=content (default): file text (offset/limit). Syncs via extract when missing locally. After edit_data/write_data call qkrpc_action_patch.",
+      "Read data.json. Prefer mode=summary for structure/validation; mode=content only for JSON anchors (startLine or offset/limit slice). After edit_data/write_data → qkrpc_action_patch. Do not re-read to verify.",
     inputSchema: z.object({
       id: z.string().uuid().describe("Quicker action GUID"),
       mode: z
         .enum(["content", "summary"])
         .optional()
-        .describe("summary = outline only; content = full/partial text"),
-      offset: z.number().int().min(0).optional(),
-      limit: z.number().int().min(1).max(200_000).optional(),
+        .describe("summary (preferred before edits) or content slice"),
+      ...workspaceReadSliceSchema,
     }),
-    execute: async ({ id, mode, offset, limit }) => {
+    execute: async ({ id, mode, offset, limit, startLine, endLine, maxLines }) => {
       if (mode === "summary") {
         const result = await getActionProjectDataSummary(id);
         if (!result.ok) {
@@ -475,6 +611,9 @@ export const quickerTools = {
       const result = await readWorkspaceFile(resolved.resolved.path, {
         offset,
         limit,
+        startLine,
+        endLine,
+        maxLines,
       });
       if (!result.ok) {
         return formatLocalToolResult(
@@ -493,6 +632,10 @@ export const quickerTools = {
         content: result.content,
         truncated: result.truncated,
         totalChars: result.totalChars,
+        totalLines: result.totalLines,
+        startLine: result.startLine,
+        endLine: result.endLine,
+        readHint: result.readHint,
         ...(syncNote ? { workspaceSyncNote: syncNote } : {}),
       });
     },
@@ -514,9 +657,9 @@ export const quickerTools = {
           resolved.error,
         );
       }
-      const readBefore = await readWorkspaceFile(resolved.resolved.path);
-      const previousContent = readBefore.ok ? readBefore.content : "";
-      const previousTruncated = readBefore.ok ? readBefore.truncated === true : false;
+      const snapshot = await readWorkspaceFileSnapshot(resolved.resolved.path);
+      const previousContent = snapshot.ok ? snapshot.content : "";
+      const previousTruncated = snapshot.ok ? snapshot.truncated === true : false;
 
       const result = await writeWorkspaceFile(resolved.resolved.path, content);
       if (!result.ok) {
@@ -545,10 +688,10 @@ export const quickerTools = {
 
   workspace_action_edit_data: tool({
     description:
-      "Search/replace inside an action's data.json by action GUID (exact oldString match). Response includes replacements + projectSummary. Then qkrpc_action_patch({ id }) to save — do not call a separate validate step first.",
+      "Exact search/replace in data.json (oldString unique unless replaceAll). Prefer summary + small anchors; copy oldString from read_data slice. Returns projectSummary. Then qkrpc_action_patch({ id }).",
     inputSchema: z.object({
       id: z.string().uuid().describe("Quicker action GUID"),
-      oldString: z.string().min(1),
+      oldString: z.string().min(1).describe("Exact JSON fragment from read_data"),
       newString: z.string(),
       replaceAll: z.boolean().optional(),
     }),
@@ -569,7 +712,13 @@ export const quickerTools = {
       );
       if (!result.ok) {
         return formatLocalToolResult(
-          { action: "action-data-edit", success: false, errorMessage: result.error },
+          {
+            action: "action-data-edit",
+            success: false,
+            errorMessage: result.error,
+            matchCount: result.matchCount,
+            matchLines: result.matchLines,
+          },
           false,
           result.error,
         );
@@ -583,6 +732,7 @@ export const quickerTools = {
         projectDir: resolved.resolved.projectDir,
         path: result.path,
         replacements: result.replacements,
+        matchLines: result.matchLines,
         projectSummary: summaryResult.ok ? summaryResult.summary : undefined,
         ...(syncNote ? { workspaceSyncNote: syncNote } : {}),
       });

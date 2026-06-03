@@ -112,6 +112,55 @@ export function collectStepRunnerKeysFromSteps(steps: readonly ActionStep[]): st
 }
 
 /** Fetch catalog entries for keys missing from the initial search slice (limit 200). */
+/** Fetch full schemas (inputParamDefs) for catalog items used by steps but loaded without defs. */
+export async function hydrateMissingStepRunnerItems(
+  keys: readonly string[],
+  items: readonly StepRunnerItem[],
+  signal?: AbortSignal,
+): Promise<StepRunnerItem[]> {
+  const missingKeys = keys.filter((key) => {
+    if (!key) return false;
+    const item = resolveRunnerItemForStepKey(items, key);
+    if (!item) return true;
+    return (item.inputParamDefs?.length ?? 0) === 0;
+  });
+  if (missingKeys.length === 0) {
+    return [...items];
+  }
+
+  const uniqueMissing = [...new Set(missingKeys)];
+  const fetched = await Promise.all(
+    uniqueMissing.map(async (key) => {
+      try {
+        return await fetchStepRunnerDetailItem(key, undefined, signal);
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  const detailByKey = new Map<string, StepRunnerItem>();
+  for (const detail of fetched) {
+    const k = (detail?.key ?? "").trim();
+    if (!k || (detail.inputParamDefs?.length ?? 0) === 0) {
+      continue;
+    }
+    detailByKey.set(k, detail);
+  }
+
+  if (detailByKey.size === 0) {
+    return [...items];
+  }
+
+  const merged = items.map((item) => detailByKey.get(item.key) ?? item);
+  for (const [key, detail] of detailByKey) {
+    if (!merged.some((item) => item.key === key)) {
+      merged.push(detail);
+    }
+  }
+  return merged;
+}
+
 export async function hydrateMissingStepRunnerEntries(
   keys: readonly string[],
   lookup: StepRunnerLookup,

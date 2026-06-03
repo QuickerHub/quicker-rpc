@@ -39,6 +39,10 @@ type FileEditorCardProps = {
   showContent?: boolean;
   onOpenInExplorer?: () => void;
   showHeader?: boolean;
+  /** Fill workspace main editor pane; scroll inside CodeMirror. */
+  fillAvailable?: boolean;
+  /** Show gutter line numbers; defaults to on when fillAvailable. */
+  lineNumbers?: boolean;
 };
 
 function langBadgeLabel(path: string): string {
@@ -98,8 +102,11 @@ export function FileEditorCard({
   showContent = true,
   onOpenInExplorer,
   showHeader = true,
+  fillAvailable = false,
+  lineNumbers,
 }: FileEditorCardProps) {
   const compact = variant === "compact";
+  const showLineNumbers = lineNumbers ?? fillAvailable;
   const [revealed, setRevealed] = useState(() => !foldSnapshot);
   const [expanded, setExpanded] = useState(false);
 
@@ -151,6 +158,7 @@ export function FileEditorCard({
           : "",
         expanded ? "file-editor-card--expanded" : "",
         lineClamp ? "file-editor-card--collapsed" : "",
+        fillAvailable ? "file-editor-card--fill" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -232,7 +240,12 @@ export function FileEditorCard({
               added={diff.added}
             />
           ) : (
-            <CodeMirrorPreview path={path} content={content} />
+            <CodeMirrorPreview
+              path={path}
+              content={content}
+              fillAvailable={fillAvailable}
+              lineNumbers={showLineNumbers}
+            />
           )}
         </div>
       ) : null}

@@ -131,3 +131,25 @@ export function matchesVariableListFilter(
     (v.group ?? "").toLowerCase().includes(qq)
   );
 }
+
+export function navigateVariableSelectionVertically(
+  orderedIds: readonly string[],
+  selectedId: string,
+  direction: -1 | 1,
+): string | null {
+  if (orderedIds.length === 0) {
+    return null;
+  }
+  const anchorId = orderedIds.includes(selectedId)
+    ? selectedId
+    : orderedIds[direction === 1 ? 0 : orderedIds.length - 1]!;
+  const idx = orderedIds.indexOf(anchorId);
+  if (idx < 0) {
+    return orderedIds[direction === 1 ? 0 : orderedIds.length - 1] ?? null;
+  }
+  const nextIdx = idx + direction;
+  if (nextIdx < 0 || nextIdx >= orderedIds.length) {
+    return null;
+  }
+  return orderedIds[nextIdx] ?? null;
+}

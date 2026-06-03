@@ -4954,12 +4954,88 @@ body.workspace-explorer-pane-resizing * {
 }
 
 .workspace-main-editor .workspace-explorer-editor-inner {
-  overflow: auto;
+  overflow: hidden;
 }
 
 /* Visual action editor manages scroll internally (step list / variables). */
 .workspace-main-editor .workspace-explorer-editor-inner:has(.action-project-data-editor) {
   overflow: hidden;
+}
+
+/* Workspace file preview: fill pane height, scroll inside CodeMirror. */
+.workspace-main-editor .workspace-explorer-editor-inner > .file-editor-card--fill {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace-main-editor .file-editor-card--fill .file-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-main-editor .file-editor-cm--fill {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-main-editor .file-editor-cm--fill > .cm-theme,
+.workspace-main-editor .file-editor-cm--fill .cm-theme,
+.workspace-main-editor .file-editor-cm--fill .cm-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100% !important;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-main-editor .file-editor-cm--fill .cm-scroller {
+  overflow: auto !important;
+  min-height: 0;
+}
+
+.file-editor-cm--with-status {
+  display: flex;
+  flex-direction: column;
+}
+
+.file-editor-cm--with-status.file-editor-cm--fill > .cm-theme,
+.file-editor-cm--with-status.file-editor-cm--fill .cm-theme {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.text-editor-status-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 3px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  background: color-mix(in srgb, var(--panel, var(--bg)) 94%, transparent);
+  font-size: 11px;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--foreground, var(--text)) 62%, transparent);
+  user-select: none;
+}
+
+.text-editor-status-bar-item {
+  white-space: nowrap;
+}
+
+.text-editor-status-bar-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
 }
 
 .workspace-explorer-editor-inner {
@@ -5018,6 +5094,10 @@ body.workspace-explorer-pane-resizing * {
 
 .workspace-explorer-hint--err {
   color: var(--destructive, #f07178);
+}
+
+.workspace-explorer-hint--warn {
+  color: var(--warning, #e5c07b);
 }
 
 /* Structured info.json editor (workspace explorer) */

@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ExplorerFileIcon,
   ExplorerFolderIcon,
   ExplorerTreeChevron,
 } from "@/components/workspace/ExplorerTreeIcons";
+import { loadExplorerPanelView, storeExplorerPanelView } from "@/lib/explorer-prefs";
 import { useDocsViewer } from "@/lib/docs-viewer";
-import { useWorkspaceExplorerShell } from "@/lib/workspace-explorer";
+import {
+  useWorkspaceExplorerShell,
+  useWorkspaceExplorerTree,
+} from "@/lib/workspace-explorer";
 
 export function DocsCatalogTree() {
   const {
@@ -18,15 +22,34 @@ export function DocsCatalogTree() {
     selectTopic,
     refreshCatalog,
   } = useDocsViewer();
+  const { cwd } = useWorkspaceExplorerTree();
   const { setPanelOpen } = useWorkspaceExplorerShell();
   const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    const trimmed = cwd.trim();
+    if (!trimmed) return;
+    const saved = loadExplorerPanelView(trimmed);
+    setExpanded(saved?.docsExpanded ?? false);
+  }, [cwd]);
+
+  const toggleExpanded = useCallback(() => {
+    setExpanded((value) => {
+      const next = !value;
+      const trimmed = cwd.trim();
+      if (trimmed) {
+        storeExplorerPanelView(trimmed, { docsExpanded: next });
+      }
+      return next;
+    });
+  }, [cwd]);
 
   return (
     <div className="explorer-tree explorer-tree--docs">
       <button
         type="button"
         className="explorer-tree-row explorer-tree-row--root"
-        onClick={() => setExpanded((value) => !value)}
+        onClick={toggleExpanded}
       >
         <ExplorerTreeChevron expanded={expanded} />
         <span className="explorer-tree-icon explorer-tree-icon--dir">

@@ -8,15 +8,17 @@ import type { ExplorerTreeNode } from "@/lib/action-explorer-tree";
 
 import {
 
-  actionProjectDataJsonPath,
-
   displayNodeLabel,
 
   displayNodeSubtitle,
 
+  explorerProgramDataJsonPath,
+
   isActionProjectFolderNode,
 
   isActionProjectRootNode,
+
+  isEmbeddedSubProgramRootNode,
 
   isExplorerTreePathExpanded,
 
@@ -64,9 +66,6 @@ type TreeNodeProps = {
 
   onSelect: (node: ExplorerTreeNode) => void;
 
-  /** Highlight a folder row without opening / fetching a file. */
-  onSelectDirectory?: (node: ExplorerTreeNode) => void;
-
   onProjectRemoved?: () => void;
 
 };
@@ -93,8 +92,6 @@ function TreeNodeRow({
 
   onSelect,
 
-  onSelectDirectory,
-
   onProjectRemoved,
 
 }: TreeNodeProps) {
@@ -103,12 +100,16 @@ function TreeNodeRow({
 
   const isProjectRoot = isActionProjectRootNode(node, rootPath);
 
-  const hasTitle = isFolderRow && (Boolean(node.title?.trim()) || isProjectRoot);
+  const isSubProgramRoot = isEmbeddedSubProgramRootNode(node);
+
+  const isProgramRoot = isProjectRoot || isSubProgramRoot;
+
+  const hasTitle = isFolderRow && (Boolean(node.title?.trim()) || isProgramRoot);
 
   const nodePath = normalizeExplorerTreePath(node.path);
   const expanded = isExplorerTreePathExpanded(expandedPaths, nodePath);
 
-  const dataJsonPath = actionProjectDataJsonPath(node, rootPath);
+  const dataJsonPath = explorerProgramDataJsonPath(node, rootPath);
 
   const selected =
 
@@ -143,10 +144,8 @@ function TreeNodeRow({
           onClick={() => {
             if (isFolderRow) {
               onToggleExpanded(nodePath);
-              if (isProjectRoot) {
+              if (isProgramRoot) {
                 onSelect(node);
-              } else {
-                onSelectDirectory?.(node);
               }
               return;
             }
@@ -275,8 +274,6 @@ function TreeNodeRow({
 
               onSelect={onSelect}
 
-              onSelectDirectory={onSelectDirectory}
-
               onProjectRemoved={onProjectRemoved}
 
             />
@@ -306,8 +303,6 @@ function treeNodeRowPropsEqual(prev: TreeNodeProps, next: TreeNodeProps): boolea
   if (prev.onToggleExpanded !== next.onToggleExpanded) return false;
 
   if (prev.onSelect !== next.onSelect) return false;
-
-  if (prev.onSelectDirectory !== next.onSelectDirectory) return false;
 
   if (prev.onProjectRemoved !== next.onProjectRemoved) return false;
 
@@ -347,12 +342,11 @@ type ActionProjectTreeProps = {
 
   selectedPath: string | null;
 
+  childrenLoading?: boolean;
+
   onToggleExpanded: (path: string) => void;
 
   onSelect: (node: ExplorerTreeNode) => void;
-
-  /** Highlight a folder row without opening / fetching a file. */
-  onSelectDirectory?: (node: ExplorerTreeNode) => void;
 
   onProjectRemoved?: () => void;
 
@@ -374,11 +368,11 @@ export const ActionProjectTree = memo(function ActionProjectTree({
 
   selectedPath,
 
+  childrenLoading = false,
+
   onToggleExpanded,
 
   onSelect,
-
-  onSelectDirectory,
 
   onProjectRemoved,
 
@@ -419,13 +413,21 @@ export const ActionProjectTree = memo(function ActionProjectTree({
 
         <span className="explorer-tree-name">{rootLabel}</span>
 
-        <span className="explorer-tree-meta">{nodes.length} 项</span>
+        <span className="explorer-tree-meta">
+          {childrenLoading && nodes.length === 0 ? "…" : `${nodes.length} 项`}
+        </span>
 
       </button>
 
       {rootExpanded
 
-        ? nodes.map((node) => (
+        ? childrenLoading && nodes.length === 0
+          ? (
+              <p className="workspace-explorer-hint workspace-explorer-hint--nested">
+                加载中…
+              </p>
+            )
+          : nodes.map((node) => (
             <ActionProjectTreeProjectRow
               key={node.path}
               node={node}
@@ -436,7 +438,6 @@ export const ActionProjectTree = memo(function ActionProjectTree({
               selectedPath={selectedPath}
               onToggleExpanded={onToggleExpanded}
               onSelect={onSelect}
-              onSelectDirectory={onSelectDirectory}
               onProjectRemoved={onProjectRemoved}
             />
           ))

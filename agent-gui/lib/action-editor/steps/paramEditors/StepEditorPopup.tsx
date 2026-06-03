@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo, type JSX } from "react";
 import { createPortal } from "react-dom";
-import type { ActionStep, ActionSubProgram, ActionVariable } from "@/lib/action-editor/types/common";
+import { preloadMonacoExpressionEditor } from "../expression/ExpressionEditor";
+import type { ActionStep, ActionSubProgram, ActionVariable, ActionStepParam } from "@/lib/action-editor/types/common";
 import type { StepRunnerInputParamDef, StepRunnerOutputParamDef, StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import { ensureParamValue, StepInputParamField } from "./StepInputParamField";
 import { StepOutputParamField } from "./StepOutputParamField";
@@ -21,6 +22,15 @@ import {
 import { areStepParamsEqualAfterCompaction, compactActionStepParams } from "../actionStepSerialization";
 import { StepEditorDiscardDialog } from "./StepEditorDiscardDialog";
 import { resolveStepControlFieldLiteral } from "@/lib/action-editor/api/stepRunnerSchemaMap";
+import {
+  buildStepEditorDraft,
+  draftParamsFingerprint,
+  inferControlFieldKeyFromStep,
+  mergeRunnerSchemaIntoStepDraft,
+  runnerSchemaFingerprint,
+  stepEditorDraftFingerprint,
+} from "./stepEditorDraftSync";
+import type { ActionProjectWorkspaceContext } from "./FormDefEditorDialog";
 
 export type StepEditorPopupProps = {
   open: boolean;
@@ -30,6 +40,8 @@ export type StepEditorPopupProps = {
   subPrograms?: ActionSubProgram[];
   /** Same base URL as step runner catalog / gRPC-Web (empty = same-origin). */
   designerHostBaseUrl: string;
+  /** Workspace project dir for external form.json editing. */
+  workspaceContext?: ActionProjectWorkspaceContext;
   runnerItem: StepRunnerItem | undefined;
   runnerTitle: string;
   onClose: () => void;
@@ -140,6 +152,18 @@ function isParamDefVisible(
   return tryEvaluateVisibleExpression(expr, paramValues);
 }
 
+function StepEditorPopupBodySkeleton({ message }: { message: string }): JSX.Element {
+  return (
+    <div className="step-editor-popup-skeleton" aria-busy="true" aria-live="polite">
+      <div className="step-editor-popup-skeleton-row">
+        <div className="step-editor-popup-skeleton-label" />
+        <div className="step-editor-popup-skeleton-field" />
+      </div>
+      <p className="step-editor-popup-loading">{message}</p>
+    </div>
+  );
+}
+
 function mergeGlobalSubProgramIoVariableRows(resp: {
   inputs: readonly ActionVariable[];
   outputs: readonly ActionVariable[];
@@ -157,12 +181,53 @@ function mergeGlobalSubProgramIoVariableRows(resp: {
   return merged;
 }
 
+type StepInputParamRowProps = {
+  def: StepRunnerInputParamDef;
+  variables: ActionVariable[];
+  param: ReturnType<typeof ensureParamValue>;
+  paramKey: string;
+  workspaceContext?: ActionProjectWorkspaceContext;
+  setParam: (key: string, value: ActionStepParam) => void;
+};
+
+const StepInputParamRow = memo(function StepInputParamRow({
+  def,
+  variables,
+  param,
+  paramKey,
+  workspaceContext,
+  setParam,
+}: StepInputParamRowProps): JSX.Element {
+  const onChange = useCallback(
+    (next: ActionStepParam) => setParam(paramKey, next),
+    [paramKey, setParam],
+  );
+  return (
+    <StepInputParamField
+      def={def}
+      variables={variables}
+      param={param}
+      onChange={onChange}
+      workspace={workspaceContext}
+    />
+  );
+}, (prev, next) =>
+  prev.def === next.def
+  && prev.paramKey === next.paramKey
+  && prev.variables === next.variables
+  && prev.workspaceContext === next.workspaceContext
+  && prev.setParam === next.setParam
+  && (prev.param.varKey ?? "") === (next.param.varKey ?? "")
+  && (prev.param.value ?? "") === (next.param.value ?? "")
+  && (prev.param.file ?? "") === (next.param.file ?? ""));
+
 export function StepEditorPopup({
   open,
   step,
   variables,
   subPrograms = [],
   designerHostBaseUrl,
+  workspaceContext,
   runnerItem,
   runnerTitle,
   onClose,
@@ -170,47 +235,59 @@ export function StepEditorPopup({
 }: StepEditorPopupProps): JSX.Element | null {
   const [hydratedRunnerItem, setHydratedRunnerItem] = useState<StepRunnerItem | undefined>(runnerItem);
   const [loadingRunnerSchema, setLoadingRunnerSchema] = useState(false);
+  const runnerItemRef = useRef(runnerItem);
+  runnerItemRef.current = runnerItem;
+  const draftSyncRef = useRef({ stepFp: "", runnerFp: "" });
+  /** Last successfully fetched `runnerKey\\0controlLiteral` (controlLiteral empty = base schema). */
+  const loadedSchemaKeyRef = useRef("");
+  const hydratedRunnerRef = useRef(hydratedRunnerItem);
+  hydratedRunnerRef.current = hydratedRunnerItem;
+  const controlFieldKeyRef = useRef("");
+  /** undefined = popup closed / not seeded; null = base schema; string = filtered by control field. */
+  const [schemaControlLiteral, setSchemaControlLiteral] = useState<string | null | undefined>(
+    undefined,
+  );
+  const runnerDefsCacheRef = useRef<{
+    fp: string;
+    input: StepRunnerInputParamDef[];
+    output: StepRunnerOutputParamDef[];
+  }>({ fp: "", input: [], output: [] });
 
-  const controlFieldKey = useMemo(() => {
-    const fromRunner = hydratedRunnerItem?.inputParamDefs?.find((d) => d.isControlField)?.key;
-    if (fromRunner) return fromRunner;
-    if (step?.inputParams?.type != null) return "type";
-    if (step?.inputParams?.operation != null) return "operation";
-    return runnerItem?.inputParamDefs?.find((d) => d.isControlField)?.key ?? "";
-  }, [hydratedRunnerItem, runnerItem, step]);
+  const controlFieldKey = useMemo(
+    () => inferControlFieldKeyFromStep(step, runnerItemRef.current ?? runnerItem),
+    [step, runnerItem],
+  );
+  controlFieldKeyRef.current = controlFieldKey;
 
-  const controlFieldLiteral = useMemo(() => {
-    if (!step || !controlFieldKey) return undefined;
-    return resolveStepControlFieldLiteral(step, controlFieldKey);
-  }, [step, controlFieldKey]);
+  const resolvedSchemaControlLiteral = useMemo((): string | null | undefined => {
+    if (!open || !step) {
+      return undefined;
+    }
+    if (schemaControlLiteral !== undefined) {
+      return schemaControlLiteral;
+    }
+    const cfKey = inferControlFieldKeyFromStep(step, runnerItemRef.current ?? runnerItem);
+    return resolveStepControlFieldLiteral(step, cfKey) ?? null;
+  }, [open, step, schemaControlLiteral, runnerItem]);
 
   useEffect(() => {
     if (!open || !step) {
-      setHydratedRunnerItem(runnerItem);
-      setLoadingRunnerSchema(false);
+      setSchemaControlLiteral(undefined);
+      loadedSchemaKeyRef.current = "";
       return;
     }
-    if ((runnerItem?.inputParamDefs?.length ?? 0) > 0 && !controlFieldKey) {
-      setHydratedRunnerItem(runnerItem);
-      setLoadingRunnerSchema(false);
+    const cfKey = inferControlFieldKeyFromStep(step, runnerItemRef.current ?? runnerItem);
+    const literal = resolveStepControlFieldLiteral(step, cfKey);
+    setSchemaControlLiteral(literal ?? null);
+    loadedSchemaKeyRef.current = "";
+  }, [open, step?.stepId]);
+
+  useEffect(() => {
+    if (!open) {
       return;
     }
-    const key = (step.stepRunnerKey ?? "").trim();
-    if (!key) {
-      setHydratedRunnerItem(runnerItem);
-      setLoadingRunnerSchema(false);
-      return;
-    }
-    const ac = new AbortController();
-    setLoadingRunnerSchema(true);
-    void fetchStepRunnerDetailItem(key, controlFieldLiteral, ac.signal).then((detail) => {
-      if (!ac.signal.aborted) {
-        setHydratedRunnerItem(detail ?? runnerItem);
-        setLoadingRunnerSchema(false);
-      }
-    });
-    return () => ac.abort();
-  }, [open, step, runnerItem, controlFieldKey, controlFieldLiteral]);
+    void preloadMonacoExpressionEditor();
+  }, [open]);
 
   const resolvedSubProgramRow = useMemo(() => {
     if (!step) {
@@ -334,82 +411,140 @@ export function StepEditorPopup({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
 
+  const bootstrapDraft = useMemo((): ActionStep | null => {
+    if (!open || !step) {
+      return null;
+    }
+    return buildStepEditorDraft(step, editorRunnerItem);
+  }, [open, step, editorRunnerItem]);
+
+  const effectiveDraft = draft ?? bootstrapDraft;
+
   const isDirty = useMemo(() => {
-    if (!step || !draft) {
+    if (!step || !effectiveDraft) {
       return false;
     }
-    return !areStepParamsEqualAfterCompaction(step, draft, editorRunnerItem);
-  }, [step, draft, editorRunnerItem]);
+    return !areStepParamsEqualAfterCompaction(step, effectiveDraft, editorRunnerItem);
+  }, [step, effectiveDraft, editorRunnerItem]);
 
   useEffect(() => {
     if (!open || !step) {
+      draftSyncRef.current = { stepFp: "", runnerFp: "" };
       return;
     }
-    const d = structuredClone(step);
-    if (!d.outputParams) {
-      d.outputParams = {};
+
+    const stepFp = stepEditorDraftFingerprint(step);
+    const runnerFp = runnerSchemaFingerprint(editorRunnerItem);
+    const { stepFp: prevStepFp, runnerFp: prevRunnerFp } = draftSyncRef.current;
+
+    if (stepFp !== prevStepFp) {
+      draftSyncRef.current = { stepFp, runnerFp };
+      setDraft(buildStepEditorDraft(step, editorRunnerItem));
+      setShowAdvanced(false);
+      setDiscardDialogOpen(false);
+      return;
     }
-    if (editorRunnerItem?.inputParamDefs?.length) {
-      for (const def of editorRunnerItem.inputParamDefs) {
-        const k = def.key;
-        if (!k) continue;
-        d.inputParams[k] = ensureParamValue(def, d.inputParams[k]);
-      }
-    }
-    if (editorRunnerItem?.outputParamDefs?.length) {
-      for (const def of editorRunnerItem.outputParamDefs) {
-        const k = def.key;
-        if (!k) continue;
-        if (d.outputParams[k] === undefined) {
-          d.outputParams[k] = "";
+
+    if (runnerFp !== prevRunnerFp) {
+      draftSyncRef.current = { stepFp, runnerFp };
+      setDraft((prev) => {
+        const next =
+          prev != null
+            ? mergeRunnerSchemaIntoStepDraft(prev, editorRunnerItem)
+            : buildStepEditorDraft(step, editorRunnerItem);
+        if (prev != null && draftParamsFingerprint(prev) === draftParamsFingerprint(next)) {
+          return prev;
         }
-      }
+        return next;
+      });
     }
-    setDraft(d);
-    setShowAdvanced(false);
-    setDiscardDialogOpen(false);
-    // Depend on `step` (not only stepId): undo/redo restores same id with different params; draft must resync.
   }, [open, step, editorRunnerItem]);
 
-  const draftControlFieldLiteral = useMemo(() => {
-    if (!draft || !controlFieldKey) return undefined;
-    return resolveStepControlFieldLiteral(draft, controlFieldKey);
-  }, [draft, controlFieldKey]);
-
   useEffect(() => {
-    if (!open || !step || !controlFieldKey) {
-      return;
-    }
-    const draftCf = draftControlFieldLiteral;
-    if (!draftCf || draftCf === controlFieldLiteral) {
-      return;
-    }
-    const key = (step.stepRunnerKey ?? "").trim();
-    if (!key) {
-      return;
-    }
-    const ac = new AbortController();
-    setLoadingRunnerSchema(true);
-    void fetchStepRunnerDetailItem(key, draftCf, ac.signal).then((detail) => {
-      if (!ac.signal.aborted && detail) {
-        setHydratedRunnerItem(detail);
+    if (!open || !step || resolvedSchemaControlLiteral === undefined) {
+      if (!open) {
+        loadedSchemaKeyRef.current = "";
+        setHydratedRunnerItem(runnerItemRef.current);
         setLoadingRunnerSchema(false);
       }
-    });
-    return () => ac.abort();
-  }, [open, step, controlFieldKey, controlFieldLiteral, draftControlFieldLiteral]);
+      return;
+    }
 
-  const defs = editorRunnerItem?.inputParamDefs ?? [];
-  const outDefs = editorRunnerItem?.outputParamDefs ?? [];
+    const runnerKey = (step.stepRunnerKey ?? "").trim();
+    if (!runnerKey) {
+      setHydratedRunnerItem(runnerItemRef.current);
+      setLoadingRunnerSchema(false);
+      return;
+    }
+
+    const catalogItem = runnerItemRef.current;
+    const hasCatalogDefs = (catalogItem?.inputParamDefs?.length ?? 0) > 0;
+    if (hasCatalogDefs && !controlFieldKey) {
+      setHydratedRunnerItem(catalogItem);
+      loadedSchemaKeyRef.current = `${runnerKey}\0`;
+      setLoadingRunnerSchema(false);
+      return;
+    }
+
+    const fetchKey = `${runnerKey}\0${resolvedSchemaControlLiteral ?? ""}`;
+    const currentRunner = hydratedRunnerRef.current;
+    if (
+      loadedSchemaKeyRef.current === fetchKey
+      && (currentRunner?.inputParamDefs?.length ?? 0) > 0
+    ) {
+      return;
+    }
+
+    const ac = new AbortController();
+    setLoadingRunnerSchema((currentRunner?.inputParamDefs?.length ?? 0) === 0);
+    void fetchStepRunnerDetailItem(
+      runnerKey,
+      resolvedSchemaControlLiteral ?? undefined,
+      ac.signal,
+    )
+      .then((detail) => {
+        if (ac.signal.aborted) return;
+        const nextItem = detail ?? catalogItem;
+        if (!nextItem) {
+          setLoadingRunnerSchema(false);
+          return;
+        }
+        loadedSchemaKeyRef.current = fetchKey;
+        setHydratedRunnerItem((prev) => {
+          if (prev && runnerSchemaFingerprint(prev) === runnerSchemaFingerprint(nextItem)) {
+            return prev;
+          }
+          return nextItem;
+        });
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) {
+          setLoadingRunnerSchema(false);
+        }
+      });
+
+    return () => ac.abort();
+  }, [open, step?.stepId, step?.stepRunnerKey, controlFieldKey, resolvedSchemaControlLiteral]);
+
+  const runnerFp = runnerSchemaFingerprint(editorRunnerItem);
+  if (runnerFp !== runnerDefsCacheRef.current.fp) {
+    runnerDefsCacheRef.current = {
+      fp: runnerFp,
+      input: editorRunnerItem?.inputParamDefs ?? [],
+      output: editorRunnerItem?.outputParamDefs ?? [],
+    };
+  }
+  const defs = runnerDefsCacheRef.current.input;
+  const outDefs = runnerDefsCacheRef.current.output;
 
   const visibleParamValues = useMemo(() => {
-    if (!draft) {
+    if (!effectiveDraft) {
       return {};
     }
     return Object.fromEntries(
-      Object.entries(draft.inputParams).map(([key, value]) => [key, value?.value ?? ""])
+      Object.entries(effectiveDraft.inputParams).map(([key, value]) => [key, value?.value ?? ""])
     );
-  }, [draft]);
+  }, [effectiveDraft]);
 
   const visibleInputDefs = useMemo(
     () => defs.filter((d) => isParamDefVisible(d, visibleParamValues, defs)),
@@ -430,13 +565,25 @@ export function StepEditorPopup({
   const waitingGlobalSubProgramIo =
     subProgramIoFetchTarget != null && (loadingGlobalSubProgramIo || globalIoVariables === undefined);
 
-  const setParam = useCallback((key: string, value: { varKey: string; value: string }) => {
+  const setParam = useCallback((key: string, value: ActionStepParam) => {
     setDraft((prev) => {
       if (!prev) return prev;
       const next = structuredClone(prev);
-      next.inputParams = { ...next.inputParams, [key]: { varKey: value.varKey, value: value.value } };
+      const nextParam: ActionStepParam = {
+        varKey: value.varKey ?? "",
+        value: value.value ?? "",
+      };
+      const file = value.file?.trim();
+      if (file) {
+        nextParam.file = file;
+      }
+      next.inputParams = { ...next.inputParams, [key]: nextParam };
       return next;
     });
+    if (key !== controlFieldKeyRef.current) return;
+    if ((value.varKey ?? "").trim().length > 0) return;
+    const literal = (value.value ?? "").trim();
+    setSchemaControlLiteral(literal.length > 0 ? literal : null);
   }, []);
 
   const setOutputParam = useCallback((key: string, varName: string) => {
@@ -449,22 +596,22 @@ export function StepEditorPopup({
   }, []);
 
   const popupHeadingRunner = useMemo(() => {
-    if (!draft) {
+    if (!effectiveDraft) {
       return runnerTitle;
     }
-    if ((draft.stepRunnerKey ?? "").trim() !== SUBPROGRAM_STEP_RUNNER_KEY) {
+    if ((effectiveDraft.stepRunnerKey ?? "").trim() !== SUBPROGRAM_STEP_RUNNER_KEY) {
       return runnerTitle;
     }
     if (globalIoDisplayName.trim().length > 0) {
       return globalIoDisplayName.trim();
     }
-    const t = resolveSubProgramStepListTitle(draft, subPrograms);
+    const t = resolveSubProgramStepListTitle(effectiveDraft, subPrograms);
     return t ?? runnerTitle;
-  }, [draft, runnerTitle, subPrograms, globalIoDisplayName, resolvedSubProgramRow]);
+  }, [effectiveDraft, runnerTitle, subPrograms, globalIoDisplayName, resolvedSubProgramRow]);
 
   const handleApply = (): void => {
-    if (!draft) return;
-    if (onApply(compactActionStepParams(draft, editorRunnerItem)) === false) {
+    if (!effectiveDraft) return;
+    if (onApply(compactActionStepParams(effectiveDraft, editorRunnerItem)) === false) {
       return;
     }
     setDiscardDialogOpen(false);
@@ -515,12 +662,12 @@ export function StepEditorPopup({
         !event.repeat &&
         (event.key === "s" || event.key === "S")
       ) {
-        if (draft == null) {
+        if (draft == null && effectiveDraft == null) {
           return;
         }
         event.preventDefault();
         event.stopPropagation();
-        if (onApply(compactActionStepParams(draft, editorRunnerItem)) === false) {
+        if (onApply(compactActionStepParams(effectiveDraft!, editorRunnerItem)) === false) {
           return;
         }
         onClose();
@@ -528,20 +675,19 @@ export function StepEditorPopup({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [open, step, draft, editorRunnerItem, discardDialogOpen, dismiss, onApply, onClose]);
+  }, [open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, dismiss, onApply, onClose]);
 
   if (!open || !step) {
     return null;
   }
 
   const waitingRunnerSchema = loadingRunnerSchema && (hydratedRunnerItem?.inputParamDefs?.length ?? 0) === 0;
+  const bodyPending = effectiveDraft == null || waitingGlobalSubProgramIo || waitingRunnerSchema;
+  const loadingMessage = waitingGlobalSubProgramIo ? "正在加载子程序参数…" : "正在加载步骤参数…";
 
-  const body =
-    draft == null || waitingGlobalSubProgramIo || waitingRunnerSchema ? (
-      <div className="step-editor-popup-loading">
-        {waitingGlobalSubProgramIo ? "正在加载子程序参数…" : "正在加载步骤参数…"}
-      </div>
-    ) : (
+  const body = bodyPending ? (
+    <StepEditorPopupBodySkeleton message={loadingMessage} />
+  ) : (
       <>
         <div className="step-editor-popup-params">
           {!hasAnyParams ? (
@@ -553,15 +699,17 @@ export function StepEditorPopup({
             <>
               {basicDefs.map((def) => {
                 const key = def.key;
-                const cur = draft.inputParams[key];
+                const cur = effectiveDraft!.inputParams[key];
                 const param = ensureParamValue(def, cur);
                 return (
-                  <StepInputParamField
+                  <StepInputParamRow
                     key={`in-${key}`}
                     def={def}
+                    paramKey={key}
                     variables={variables}
                     param={param}
-                    onChange={(next) => setParam(key, next)}
+                    workspaceContext={workspaceContext}
+                    setParam={setParam}
                   />
                 );
               })}
@@ -575,7 +723,7 @@ export function StepEditorPopup({
                         key={`out-${key}`}
                         def={def}
                         variables={variables}
-                        value={draft.outputParams[key] ?? ""}
+                        value={effectiveDraft!.outputParams[key] ?? ""}
                         onChange={(next) => setOutputParam(key, next)}
                       />
                     );
@@ -593,15 +741,17 @@ export function StepEditorPopup({
                     <>
                       {advancedDefs.map((def) => {
                         const key = def.key;
-                        const cur = draft.inputParams[key];
+                        const cur = effectiveDraft!.inputParams[key];
                         const param = ensureParamValue(def, cur);
                         return (
-                          <StepInputParamField
+                          <StepInputParamRow
                             key={`in-adv-${key}`}
                             def={def}
+                            paramKey={key}
                             variables={variables}
                             param={param}
-                            onChange={(next) => setParam(key, next)}
+                            workspaceContext={workspaceContext}
+                            setParam={setParam}
                           />
                         );
                       })}
@@ -615,7 +765,7 @@ export function StepEditorPopup({
                                 key={`out-adv-${key}`}
                                 def={def}
                                 variables={variables}
-                                value={draft.outputParams[key] ?? ""}
+                                value={effectiveDraft!.outputParams[key] ?? ""}
                                 onChange={(next) => setOutputParam(key, next)}
                               />
                             );
@@ -656,7 +806,11 @@ export function StepEditorPopup({
               ×
             </button>
           </header>
-          <div className="step-editor-popup-body">{body}</div>
+          <div
+            className={`step-editor-popup-body${bodyPending ? " step-editor-popup-body--pending" : ""}`}
+          >
+            {body}
+          </div>
           <footer className="step-editor-popup-footer">
             <button type="button" className="step-editor-popup-btn secondary" onClick={dismiss}>
               取消
@@ -667,7 +821,7 @@ export function StepEditorPopup({
               aria-keyshortcuts="Alt+S"
               title="快捷键：Alt+S"
               onClick={handleApply}
-              disabled={draft == null}
+              disabled={effectiveDraft == null}
             >
               确定
             </button>

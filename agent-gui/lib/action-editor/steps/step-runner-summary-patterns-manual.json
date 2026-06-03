@@ -1,0 +1,12 @@
+{
+  "sys:csscript": ["script:60"],
+  "sys:jsscript": ["script:60"],
+  "sys:pythonscript": ["script:60"],
+  "sys:runScript": ["type", " ", "script:60"],
+  "sys:subprogram": ["subProgram"],
+  "sys:windowOperations": ["type!", " ", "showCmd"],
+  "sys:playRecords": ["data:40", " ", "speed"],
+  "sys:mathocr": ["vendor", " ", "image"],
+  "sys:smtp": ["to", " ", "subject:50"],
+  "sys:ai": ["prompt:60"]
+}

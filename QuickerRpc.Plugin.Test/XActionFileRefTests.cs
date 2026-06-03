@@ -567,4 +567,75 @@ public sealed class XActionFileRefTests
         Assert.ThrowsException<ArgumentException>(() =>
             XActionFileRefPath.NormalizeRelativePath("../escape.txt"));
     }
+
+    [TestMethod]
+    public void EmbeddedSubProgram_export_compile_roundtrip()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-embedded-sub-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            var subPrograms = new JArray
+            {
+                new JObject
+                {
+                    ["id"] = "11111111-1111-1111-1111-111111111111",
+                    ["name"] = "InnerSub",
+                    ["description"] = "test",
+                    ["icon"] = "",
+                    ["steps"] = new JArray
+                    {
+                        new JObject
+                        {
+                            ["stepId"] = "s-sub-1",
+                            ["stepRunnerKey"] = "sys:comment",
+                            ["inputParams"] = new JObject
+                            {
+                                ["text"] = new JObject { ["value"] = "hello sub" },
+                            },
+                        },
+                    },
+                    ["variables"] = new JArray(),
+                    ["subPrograms"] = new JArray(),
+                },
+            };
+
+            var exportResult = ActionEmbeddedSubProgramExporter.Export(subPrograms, root);
+            Assert.IsTrue(exportResult.Success, exportResult.ErrorMessage);
+            Assert.AreEqual(1, exportResult.WrittenSubProgramDirectories.Count);
+
+            var subRel = exportResult.WrittenSubProgramDirectories[0];
+            var subKey = subRel.Split('/').Last();
+            var subDir = QuickerProjectLayout.GetActionEmbeddedSubProgramDirectory(root, subKey);
+            var infoPath = QuickerProjectLayout.GetInfoPath(subDir);
+            var infoJson = File.ReadAllText(infoPath);
+            StringAssert.Contains(infoJson, "\"kind\": \"embedded-subprogram\"");
+            StringAssert.Contains(infoJson, "\"name\": \"InnerSub\"");
+            StringAssert.Contains(infoJson, "\"id\": \"11111111-1111-1111-1111-111111111111\"");
+
+            var rootData = new JObject
+            {
+                ["steps"] = new JArray(),
+                ["variables"] = new JArray(),
+            };
+            QuickerProjectFiles.WriteData(root, rootData);
+
+            var compileResult = XActionFileRefCompiler.Compile(rootData, root);
+            Assert.IsTrue(compileResult.Success, compileResult.ErrorMessage);
+            var compiledSubs = compileResult.CompiledData!["subPrograms"] as JArray;
+            Assert.IsNotNull(compiledSubs);
+            Assert.AreEqual(1, compiledSubs!.Count);
+            Assert.AreEqual("InnerSub", compiledSubs[0]!["name"]?.ToString());
+            var subSteps = compiledSubs[0]!["steps"] as JArray;
+            Assert.IsNotNull(subSteps);
+            Assert.AreEqual(1, subSteps!.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
 }

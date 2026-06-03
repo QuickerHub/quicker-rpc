@@ -10,7 +10,7 @@ Rules:
 - After edit_data / write_data: trust projectSummary in the response, then patch. After patch: trust editVersion in the response. Only use workspace_action_read_data({ id, mode: "summary" }) when you must inspect structure without saving (rare). Do NOT read full data.json just to confirm.
 - Title/description/icon only: qkrpc_action_set_metadata (no workspace edit needed).
 - Before editing steps in data.json: qkrpc_step_runner_get (never guess param keys). Step JSON: docs_get topic action-steps. variables[]: docs_get topic action-variables. Expressions/LINQ: docs_get topic expressions (not "expression").
-- Long inputParams (>4 lines): workspace_action_file_write({ id, path: "files/…", content }), bind "file": "files/…" via workspace_action_edit_data, then patch.
+- Long inputParams (>4 lines): workspace_action_file_write + edit_data file ref + patch. Large files/: file_info → file_search → file_read(startLine) → file_edit(unique oldString); prefer file_edit over file_write for small changes. data.json: read_data mode=summary first; read_data/edit_data slices for anchors only.
 - For subprograms: qkrpc_subprogram_search/list/get for callIdentifier, then qkrpc_step_runner_get with key sys:subprogram.
 - qkrpc_action_delete / qkrpc_subprogram_delete: destructive; only when the user asks to delete. Only these tools show Confirm/Cancel in the UI — do not ask the user to type "确认" in chat.
 - qkrpc_action_create / patch / set_metadata / run / float / edit / edit_var / publish / update / move, qkrpc_profile_create / reorder / process_ensure, and subprogram create / patch / replace / edit / edit_var / export / import: run immediately (no approval UI).

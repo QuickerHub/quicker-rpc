@@ -1,7 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { memo, useEffect, useState } from "react";
+import type { ReactNode, RefObject } from "react";
+import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
 import { faVectorSpecToBundledIconifyId } from "./faVectorToIconifyFallback";
 import { FaVectorSvg, IconEmptyPlaceholder, iconSlotFrameStyle } from "./FaVectorSvg";
 import { IconifyIconSlot } from "./IconifyIconSlot";
@@ -23,6 +23,46 @@ export type IconControlProps = {
   resourceBaseUrl?: string;
 };
 
+function useRasterIconLoadState(src: string | null): {
+  imgRef: RefObject<HTMLImageElement>;
+  imgBroken: boolean;
+  imgLoaded: boolean;
+  onLoad: () => void;
+  onError: () => void;
+} {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [imgBroken, setImgBroken] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
+
+  useLayoutEffect(() => {
+    setImgBroken(false);
+    const img = imgRef.current;
+    if (!src || !img) {
+      setImgLoaded(false);
+      return;
+    }
+    if (img.complete) {
+      const ok = img.naturalWidth > 0;
+      setImgLoaded(ok);
+      setImgBroken(!ok);
+    } else {
+      setImgLoaded(false);
+    }
+  }, [src]);
+
+  const onLoad = useCallback(() => {
+    setImgLoaded(true);
+    setImgBroken(false);
+  }, []);
+
+  const onError = useCallback(() => {
+    setImgLoaded(false);
+    setImgBroken(true);
+  }, []);
+
+  return { imgRef, imgBroken, imgLoaded, onLoad, onError };
+}
+
 /**
  * Renders Quicker icon strings:
  * - `http(s)://` remote image URL (native img; on error uses fallback)
@@ -41,13 +81,8 @@ export const IconControl = memo(function IconControl({
   const trimmedSpec = (spec ?? "").trim();
   const httpIconUrl = parseHttpOrHttpsIconUrl(spec);
   const asset = parseQuickerAssetIcon(spec);
-  const [imgBroken, setImgBroken] = useState(false);
-  const [imgLoaded, setImgLoaded] = useState(false);
-
-  useEffect(() => {
-    setImgBroken(false);
-    setImgLoaded(false);
-  }, [spec]);
+  const rasterSrc = httpIconUrl ?? (asset ? buildResIconRequestUrl(asset.path) : null);
+  const { imgRef, imgBroken, imgLoaded, onLoad, onError } = useRasterIconLoadState(rasterSrc);
 
   if (!trimmedSpec) {
     return <IconEmptyPlaceholder size={size} className={className} title={title} />;
@@ -57,6 +92,7 @@ export const IconControl = memo(function IconControl({
     return (
       <span className={className} title={title} style={{ ...iconSlotFrameStyle(size), position: "relative" }}>
         <img
+          ref={imgRef}
           src={httpIconUrl}
           alt=""
           width={size}
@@ -70,8 +106,8 @@ export const IconControl = memo(function IconControl({
             maxHeight: "100%",
             opacity: imgLoaded ? 1 : 0,
           }}
-          onLoad={() => setImgLoaded(true)}
-          onError={() => setImgBroken(true)}
+          onLoad={onLoad}
+          onError={onError}
         />
       </span>
     );
@@ -104,6 +140,7 @@ export const IconControl = memo(function IconControl({
         style={{ ...iconSlotFrameStyle(size), position: "relative" }}
       >
         <img
+          ref={imgRef}
           src={src}
           alt=""
           width={size}
@@ -116,8 +153,8 @@ export const IconControl = memo(function IconControl({
             maxHeight: "100%",
             opacity: imgLoaded ? 1 : 0,
           }}
-          onLoad={() => setImgLoaded(true)}
-          onError={() => setImgBroken(true)}
+          onLoad={onLoad}
+          onError={onError}
         />
       </span>
     );

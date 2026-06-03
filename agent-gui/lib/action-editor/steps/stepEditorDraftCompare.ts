@@ -1,7 +1,14 @@
 import type { ActionStep, ActionStepParam } from "@/lib/action-editor/types/common";
 
-function normalizeActionStepParam(p: ActionStepParam | undefined): { varKey: string; value: string } {
-  return { varKey: p?.varKey ?? "", value: p?.value ?? "" };
+function normalizeActionStepParam(
+  p: ActionStepParam | undefined,
+): { varKey: string; value: string; file?: string } {
+  const file = p?.file?.trim();
+  return {
+    varKey: p?.varKey ?? "",
+    value: p?.value ?? "",
+    ...(file ? { file } : {}),
+  };
 }
 
 export function areInputParamsEqual(
@@ -14,7 +21,11 @@ export function areInputParamsEqual(
   for (const k of keys) {
     const va = normalizeActionStepParam(a[k]);
     const vb = normalizeActionStepParam(b[k]);
-    if (va.varKey !== vb.varKey || va.value !== vb.value) {
+    if (
+      va.varKey !== vb.varKey ||
+      va.value !== vb.value ||
+      (va.file ?? "") !== (vb.file ?? "")
+    ) {
       return false;
     }
   }

@@ -13,10 +13,19 @@ export type WorkspaceReadResponse = {
   totalChars?: number;
 };
 
+export type FetchActionExplorerTreeOptions = {
+  /** roots: project folders only; full: complete file tree (default). */
+  depth?: "roots" | "full";
+};
+
 export async function fetchActionExplorerTree(
   cwd: string,
+  options?: FetchActionExplorerTreeOptions,
 ): Promise<{ ok: true; tree: ActionExplorerTree } | { ok: false; error: string }> {
   const params = new URLSearchParams({ op: "tree", cwd });
+  if (options?.depth === "roots") {
+    params.set("depth", "roots");
+  }
   const res = await fetch(`/api/workspace?${params}`, { cache: "no-store" });
   const data = (await res.json()) as {
     ok: boolean;

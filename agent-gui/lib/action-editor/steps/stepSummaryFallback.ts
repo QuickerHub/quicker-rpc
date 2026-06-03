@@ -1,4 +1,14 @@
+import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import type { ActionStep } from "@/lib/action-editor/types/common";
+import autoPatterns from "@/lib/action-editor/steps/step-runner-summary-patterns.json";
+import manualPatterns from "@/lib/action-editor/steps/step-runner-summary-patterns-manual.json";
+import { buildSummaryFromParts } from "@/lib/action-editor/steps/stepSummaryFromParts";
+import { buildDynamicStepSummary } from "@/lib/action-editor/steps/stepSummaryDynamic";
+
+const STEP_SUMMARY_PATTERNS: Readonly<Record<string, readonly string[]>> = {
+  ...autoPatterns,
+  ...manualPatterns,
+};
 
 function truncateOneLine(text: string, max: number): string {
   const one = text.replace(/\s+/g, " ").trim();
@@ -24,21 +34,44 @@ function firstShortParamValue(step: ActionStep): string {
   return "";
 }
 
+function buildPatternSummary(step: ActionStep, runnerItem?: StepRunnerItem | null): string {
+  const key = (step.stepRunnerKey ?? "").trim();
+  const parts = STEP_SUMMARY_PATTERNS[key];
+  if (!parts || parts.length === 0) {
+    return "";
+  }
+
+  if (runnerItem) {
+    const dynamic = buildDynamicStepSummary(key, step, runnerItem);
+    if (dynamic) {
+      return dynamic;
+    }
+  }
+
+  const inputDefs = runnerItem?.inputParamDefs ?? [];
+  const outputDefs = runnerItem?.outputParamDefs ?? [];
+  return buildSummaryFromParts(parts, step, inputDefs, outputDefs).trim();
+}
+
 /** Client-side one-line summary when Quicker GetSummary RPC is unavailable. */
-export function buildClientStepSummary(step: ActionStep): string {
+export function buildClientStepSummary(
+  step: ActionStep,
+  runnerItem?: StepRunnerItem | null,
+): string {
+  const fromPattern = buildPatternSummary(step, runnerItem);
+  if (fromPattern) {
+    return fromPattern;
+  }
+
   const key = (step.stepRunnerKey ?? "").trim().toLowerCase();
 
-  if (key === "delay") {
+  if (key === "delay" || key === "sys:delay") {
     const fromStep = step.delayMs;
     if (typeof fromStep === "number" && fromStep > 0) {
       return `${Math.round(fromStep)} ms`;
     }
-    const fromParam = pickParamValue(step, "delay", "ms", "milliseconds");
+    const fromParam = pickParamValue(step, "delay", "delayMs", "ms", "milliseconds");
     if (fromParam) return fromParam.endsWith("ms") ? fromParam : `${fromParam} ms`;
-  }
-
-  if (key === "sys:csscript" || key === "sys:runscript") {
-    return pickParamValue(step, "script", "code", "command", "text", "expression", "content");
   }
 
   if (key === "sys:evalexpression" || key === "expressions") {
@@ -50,11 +83,8 @@ export function buildClientStepSummary(step: ActionStep): string {
   }
 
   if (key === "sys:subprogram") {
-    return pickParamValue(step, "subProgram", "subprogram", "name");
+    return pickParamValue(step, "subProgram", "subprogram", "name", "summary");
   }
-
-  const note = (step.note ?? "").trim();
-  if (note) return truncateOneLine(note, 120);
 
   return firstShortParamValue(step);
 }

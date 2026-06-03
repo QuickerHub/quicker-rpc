@@ -339,11 +339,13 @@ export function VarOrValueParamEditor({
       >
         {selectedVariable ? (
           <>
-            <IconControl
-              spec={actionVariableIconStr(selectedVariable.varType ?? CsVarType.Any)}
-              size={16}
-              resourceBaseUrl={backendBaseUrl}
-            />
+            <span className="step-param-varorvalue-display-icon" aria-hidden="true">
+              <IconControl
+                spec={actionVariableIconStr(selectedVariable.varType ?? CsVarType.Any)}
+                size={16}
+                resourceBaseUrl={backendBaseUrl}
+              />
+            </span>
             <span className="step-param-varorvalue-title">{actionVariableRowKey(selectedVariable)}</span>
             <span className="step-param-varorvalue-muted">
               {(selectedVariable.desc ?? "").trim() || (param.varKey ?? "")}

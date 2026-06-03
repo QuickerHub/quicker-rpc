@@ -18,7 +18,8 @@ import {
 export function WorkspaceExplorerPanel() {
   const { panelOpen, togglePanel, panelWidth, setPanelWidth } =
     useWorkspaceExplorerShell();
-  const { treeLoading, refreshTree, setSelectedPath } = useWorkspaceExplorerTree();
+  const { treeLoading, treeChildrenLoading, refreshTree, setSelectedPath } =
+    useWorkspaceExplorerTree();
 
   const handleResizePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -95,7 +96,7 @@ export function WorkspaceExplorerPanel() {
             onClick={() => {
               void refreshTree();
             }}
-            disabled={treeLoading}
+            disabled={treeLoading || treeChildrenLoading}
             aria-label="刷新动作项目"
             title="刷新动作项目（通常会自动同步）"
           >

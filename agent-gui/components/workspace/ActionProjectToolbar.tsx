@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { invokeActionCommand } from "@/lib/action-command-client";
+import { pushAppMessage } from "@/lib/app-messages";
 
 type ActionProjectToolbarProps = {
   actionId: string;
@@ -9,14 +10,14 @@ type ActionProjectToolbarProps = {
   className?: string;
 };
 
+const TOOLBAR_MESSAGE_ID = "action-project-toolbar";
+
 export function ActionProjectToolbar({
   actionId,
   className,
 }: ActionProjectToolbarProps) {
   const [param, setParam] = useState("");
   const [runBusy, setRunBusy] = useState(false);
-  const [runStatusText, setRunStatusText] = useState<string | null>(null);
-  const [runStatusErr, setRunStatusErr] = useState(false);
 
   const runCommand = useCallback(
     async (
@@ -25,16 +26,22 @@ export function ActionProjectToolbar({
     ) => {
       if (runBusy) return;
       setRunBusy(true);
-      setRunStatusText(null);
-      setRunStatusErr(false);
       const result = await fn();
       setRunBusy(false);
       if (result.ok) {
-        setRunStatusText(result.message ?? label);
-        setRunStatusErr(false);
+        pushAppMessage({
+          id: TOOLBAR_MESSAGE_ID,
+          kind: "success",
+          body: result.message ?? label,
+          autoDismissMs: 3500,
+        });
       } else {
-        setRunStatusText(result.error ?? "操作失败");
-        setRunStatusErr(true);
+        pushAppMessage({
+          id: TOOLBAR_MESSAGE_ID,
+          kind: "error",
+          body: result.error ?? "操作失败",
+          autoDismissMs: 6000,
+        });
       }
     },
     [runBusy],
@@ -127,17 +134,6 @@ export function ActionProjectToolbar({
           }}
         />
       </label>
-
-      {runStatusText ? (
-        <p
-          className={`project-info-toolbar-status${
-            runStatusErr ? " project-info-toolbar-status--err" : ""
-          }`}
-          role="status"
-        >
-          {runStatusText}
-        </p>
-      ) : null}
     </footer>
   );
 }

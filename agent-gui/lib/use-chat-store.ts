@@ -94,6 +94,7 @@ export function useChatStore() {
   const [defaultCwd, setDefaultCwd] = useState("");
   const [defaultCwdProfile, setDefaultCwdProfile] =
     useState<DefaultWorkingDirectoryProfile>("documents");
+  const [defaultCwdReady, setDefaultCwdReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +119,10 @@ export function useChatStore() {
         }
       } catch {
         /* optional default cwd */
+      } finally {
+        if (!cancelled) {
+          setDefaultCwdReady(true);
+        }
       }
     })();
     return () => {
@@ -132,5 +137,5 @@ export function useChatStore() {
     notifyChatStoreListeners();
   }, []);
 
-  return { store, defaultCwd, defaultCwdProfile, updateStore };
+  return { store, defaultCwd, defaultCwdProfile, defaultCwdReady, updateStore };
 }

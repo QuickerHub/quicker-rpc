@@ -166,6 +166,10 @@
       "description": "CLI：qkrpc action extract/apply 与 .quicker/actions/{actionId} 目录。",
       "profiles": ["cli"]
     },
+    "action-embedded-subprograms": {
+      "description": "动作内子程序：.quicker/actions/{id}/subprograms/{subId} 外置布局与 extract/apply 组装。",
+      "profiles": ["cli"]
+    },
     "form-spec": {
       "description": "sys:form 多字段表单：qkrpc.form.v1 语法与 qkrpc form validate/build。Use when authoring sys:form; do not hand-write native formDef JSON.",
       "allowed-tools": "qkrpc_form_validate qkrpc_form_build qkrpc_step_runner_get workspace_action_edit_data qkrpc_action_patch",

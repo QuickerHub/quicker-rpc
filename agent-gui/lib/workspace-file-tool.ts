@@ -14,6 +14,8 @@ export const WORKSPACE_FILE_TOOLS = new Set([
   "workspace_action_file_read",
   "workspace_action_file_write",
   "workspace_action_file_edit",
+  "workspace_action_file_info",
+  "workspace_action_file_search",
 ]);
 
 export function isWorkspaceFileTool(toolName: string): boolean {
@@ -248,6 +250,20 @@ export function summarizeWorkspaceFileTool(
     return `${pathHint ?? "data.json"} · ${steps} 步 · ${vars} 变量${validated}`;
   }
 
+  if (isRecord(output.data)) {
+    const data = output.data;
+    if (data.action === "file-info" && typeof data.sizeBytes === "number") {
+      const lines =
+        typeof data.lineCount === "number" ? ` · ${data.lineCount} 行` : "";
+      return `${pathHint ?? "file"} · ${data.sizeBytes} B${lines}`;
+    }
+    if (data.action === "file-search" && Array.isArray(data.matches)) {
+      const n = data.matches.length;
+      const trunc = data.truncated === true ? " · 已截断" : "";
+      return `${pathHint ?? "files"} · ${n} 处匹配${trunc}`;
+    }
+  }
+
   const payload = parseWorkspaceFilePayload(toolName, output.data);
   if (!payload) {
     return pathHint ?? null;
@@ -382,6 +398,10 @@ export function workspaceFileToolDisplayName(toolName: string): string | null {
       return "write";
     case "workspace_action_file_edit":
       return "edit";
+    case "workspace_action_file_info":
+      return "info";
+    case "workspace_action_file_search":
+      return "search";
     default:
       return null;
   }

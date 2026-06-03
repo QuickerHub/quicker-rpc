@@ -43,9 +43,13 @@ test("programWire roundtrip varType and file ref", () => {
 });
 
 test("isActionProjectDataPath", async () => {
-  const { isActionProjectDataPath, actionProjectInfoPathFromDataPath } = await import(
-    "@/lib/action-project-data-parse"
-  );
+  const {
+    isActionProjectDataPath,
+    isEmbeddedSubProgramDataPath,
+    actionProjectInfoPathFromDataPath,
+    actionIdFromDataPath,
+    embeddedSubProgramProjectDirFromDataPath,
+  } = await import("@/lib/action-project-data-parse");
   assert.equal(
     isActionProjectDataPath(".quicker/actions/my-action/data.json"),
     true,
@@ -54,5 +58,22 @@ test("isActionProjectDataPath", async () => {
   assert.equal(
     actionProjectInfoPathFromDataPath(".quicker/actions/guid/data.json"),
     ".quicker/actions/guid/info.json",
+  );
+
+  const subData =
+    ".quicker/actions/846b4132-ad73-42e8-b2f9-c42fe718ae20/subprograms/039e60db-424c-4653-8798-01feb36b1aa0/data.json";
+  assert.equal(isActionProjectDataPath(subData), true);
+  assert.equal(isEmbeddedSubProgramDataPath(subData), true);
+  assert.equal(
+    actionProjectInfoPathFromDataPath(subData),
+    ".quicker/actions/846b4132-ad73-42e8-b2f9-c42fe718ae20/subprograms/039e60db-424c-4653-8798-01feb36b1aa0/info.json",
+  );
+  assert.equal(
+    actionIdFromDataPath(subData),
+    "846b4132-ad73-42e8-b2f9-c42fe718ae20",
+  );
+  assert.equal(
+    embeddedSubProgramProjectDirFromDataPath(subData),
+    ".quicker/actions/846b4132-ad73-42e8-b2f9-c42fe718ae20/subprograms/039e60db-424c-4653-8798-01feb36b1aa0",
   );
 });

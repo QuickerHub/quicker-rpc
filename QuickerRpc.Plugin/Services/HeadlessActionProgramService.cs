@@ -92,6 +92,13 @@ public sealed class HeadlessActionProgramService
             default:
                 compressedRoot = XActionProgramService.Compress(mode, steps, variables, catalog, omitDefaultLiteralInputs: true);
                 omitApplied = true;
+                if (subPrograms.Count > 0)
+                {
+                    compressedRoot["subPrograms"] = ActionEmbeddedSubProgramWire.CompressFromNative(
+                        subPrograms,
+                        catalog,
+                        omitDefaultLiteralInputs: true);
+                }
                 break;
         }
 

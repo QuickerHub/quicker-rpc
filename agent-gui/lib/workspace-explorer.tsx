@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -16,12 +17,13 @@ import {
 import type { ActionExplorerTree, ExplorerTreeNode } from "@/lib/action-explorer-tree";
 import {
   computeExplorerTreeSignature,
+  createActionExplorerTreeShell,
   findExplorerTreeNode,
   getAncestorDirectoryPaths,
   isExplorerTreeDirectoryPath,
   normalizeExplorerTreePath,
 } from "@/lib/action-explorer-tree";
-import { loadExplorerOpen, loadExplorerWidth, storeExplorerOpen, storeExplorerWidth, EXPLORER_DEFAULT_WIDTH, clampExplorerWidth } from "@/lib/explorer-prefs";
+import { loadExplorerOpen, loadExplorerWidth, loadExplorerPanelView, storeExplorerOpen, storeExplorerPanelView, storeExplorerWidth, EXPLORER_DEFAULT_WIDTH, clampExplorerWidth } from "@/lib/explorer-prefs";
 import {
   getWorkspaceFileEditorPreview,
   isWorkspaceExplorerFileTool,
@@ -34,6 +36,7 @@ import {
   writeWorkspaceFileApi,
 } from "@/lib/workspace-explorer-api";
 import type { StructuredToolResult } from "@/lib/tool-result";
+import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
 import { basenamePath } from "@/lib/workspace-file-tool";
 import {
   clearWorkspaceMainEditorDoc,
@@ -138,10 +141,85 @@ function clearCollapsedAncestors(collapsed: Set<string>, filePath: string): void
   }
 }
 
+function expandExplorerRootByDefault(
+  rootPath: string,
+  autoExpandedRootRef: MutableRefObject<string | null>,
+  collapsedPathsRef: MutableRefObject<Set<string>>,
+  setExpandedPaths: Dispatch<SetStateAction<Set<string>>>,
+): void {
+  const normalizedRoot = normalizeExplorerPath(rootPath);
+  if (autoExpandedRootRef.current === normalizedRoot) return;
+  autoExpandedRootRef.current = normalizedRoot;
+  setExpandedPaths((prev) => {
+    if (prev.has(normalizedRoot) || collapsedPathsRef.current.has(normalizedRoot)) {
+      return prev;
+    }
+    const next = new Set(prev);
+    next.add(normalizedRoot);
+    return next;
+  });
+}
+
+function restoreExplorerActionTreeView(
+  cwd: string,
+  rootPath: string,
+  autoExpandedRootRef: MutableRefObject<string | null>,
+  collapsedPathsRef: MutableRefObject<Set<string>>,
+  setExpandedPaths: Dispatch<SetStateAction<Set<string>>>,
+): void {
+  const normalizedRoot = normalizeExplorerPath(rootPath);
+  autoExpandedRootRef.current = normalizedRoot;
+
+  const saved = loadExplorerPanelView(cwd);
+  if (saved) {
+    collapsedPathsRef.current = new Set(
+      saved.actionTree.collapsedPaths.map(normalizeExplorerPath),
+    );
+    const expanded = saved.actionTree.expandedPaths.map(normalizeExplorerPath);
+    setExpandedPaths(
+      new Set(expanded.length > 0 ? expanded : [normalizedRoot]),
+    );
+    return;
+  }
+
+  collapsedPathsRef.current = new Set();
+  setExpandedPaths((prev) => {
+    if (prev.has(normalizedRoot) || collapsedPathsRef.current.has(normalizedRoot)) {
+      return prev;
+    }
+    const next = new Set(prev);
+    next.add(normalizedRoot);
+    return next;
+  });
+}
+
+const EXPLORER_TREE_VIEW_PERSIST_MS = 250;
+
+function applyExplorerTreeShell(
+  treeRef: MutableRefObject<ActionExplorerTree | null>,
+  treeSignatureRef: MutableRefObject<string | null>,
+  setters: {
+    setTree: Dispatch<SetStateAction<ActionExplorerTree | null>>;
+    setTreeError: Dispatch<SetStateAction<string | null>>;
+    setTreeChildrenLoading: Dispatch<SetStateAction<boolean>>;
+  },
+): ActionExplorerTree {
+  const shell = createActionExplorerTreeShell();
+  const signature = computeExplorerTreeSignature(shell);
+  treeRef.current = shell;
+  treeSignatureRef.current = signature;
+  setters.setTree(shell);
+  setters.setTreeError((err) => (err === null ? err : null));
+  setters.setTreeChildrenLoading(true);
+  return shell;
+}
+
 export type WorkspaceExplorerTreeContextValue = {
   cwd: string;
   tree: ActionExplorerTree | null;
   treeLoading: boolean;
+  /** True while project rows under the actions root are still loading. */
+  treeChildrenLoading: boolean;
   treeError: string | null;
   refreshTree: (options?: { silent?: boolean }) => Promise<void>;
   expandedPaths: Set<string>;
@@ -296,25 +374,57 @@ export const workspaceExplorerEditorStateRef: MutableRefObject<{
 /** Scoped to the right explorer panel so fs-watch tree updates do not re-render the chat column. */
 export function WorkspaceExplorerPanelProvider({
   cwd,
+  cwdPending = false,
   children,
 }: {
   cwd: string;
+  /** True while default workspace cwd is still resolving on first load. */
+  cwdPending?: boolean;
   children: ReactNode;
 }) {
   const { panelOpen, setPanelOpen, togglePanel } = useWorkspaceExplorerShell();
-  const [tree, setTree] = useState<ActionExplorerTree | null>(null);
+  const initialShell = useMemo(() => createActionExplorerTreeShell(), []);
+  const [tree, setTree] = useState<ActionExplorerTree | null>(() => initialShell);
   const [treeLoading, setTreeLoading] = useState(false);
+  const [treeChildrenLoading, setTreeChildrenLoading] = useState(true);
   const [treeError, setTreeError] = useState<string | null>(null);
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() =>
+    new Set([normalizeExplorerPath(initialShell.rootPath)]),
+  );
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [tabs, setTabs] = useState<ExplorerFileTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const cwdRef = useRef(cwd);
+  const cwdPendingRef = useRef(cwdPending);
   const treeRef = useRef<ActionExplorerTree | null>(null);
   const treeSignatureRef = useRef<string | null>(null);
   const fileContentCacheRef = useRef<Map<string, CachedFileContent>>(new Map());
   /** User-collapsed folders; expandPath must not re-open them until user expands or opens a file inside. */
   const collapsedPathsRef = useRef<Set<string>>(new Set());
+  /** Auto-expand actions root once per workspace cwd. */
+  const autoExpandedRootRef = useRef<string | null>(
+    normalizeExplorerPath(initialShell.rootPath),
+  );
+  const expandedPathsRef = useRef(expandedPaths);
+  expandedPathsRef.current = expandedPaths;
+  const persistTreeViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const schedulePersistExplorerTreeView = useCallback(() => {
+    const activeCwd = cwdRef.current.trim();
+    if (!activeCwd) return;
+    if (persistTreeViewTimerRef.current) {
+      clearTimeout(persistTreeViewTimerRef.current);
+    }
+    persistTreeViewTimerRef.current = setTimeout(() => {
+      persistTreeViewTimerRef.current = null;
+      storeExplorerPanelView(activeCwd, {
+        actionTree: {
+          expandedPaths: [...expandedPathsRef.current],
+          collapsedPaths: [...collapsedPathsRef.current],
+        },
+      });
+    }, EXPLORER_TREE_VIEW_PERSIST_MS);
+  }, []);
 
   const readFileCache = useCallback((path: string): CachedFileContent | undefined => {
     return fileContentCacheRef.current.get(normalizeExplorerPath(path));
@@ -334,7 +444,8 @@ export function WorkspaceExplorerPanelProvider({
 
   useEffect(() => {
     cwdRef.current = cwd;
-  }, [cwd]);
+    cwdPendingRef.current = cwdPending;
+  }, [cwd, cwdPending]);
 
   /** Manual fallback when watch is unavailable; normal updates use fs watch SSE. */
   const refreshTree = useCallback(async (options?: { silent?: boolean }) => {
@@ -343,7 +454,9 @@ export function WorkspaceExplorerPanelProvider({
       setTree(null);
       treeRef.current = null;
       treeSignatureRef.current = null;
-      setTreeError("未设置工作目录");
+      if (!cwdPendingRef.current) {
+        setTreeError("未设置工作目录");
+      }
       return;
     }
     const silent = options?.silent ?? false;
@@ -388,45 +501,120 @@ export function WorkspaceExplorerPanelProvider({
   const applyTreeUpdateRef = useRef(applyTreeUpdate);
   applyTreeUpdateRef.current = applyTreeUpdate;
 
+  useLayoutEffect(() => {
+    const activeCwd = cwd.trim();
+    const shell = createActionExplorerTreeShell();
+    if (!activeCwd) {
+      if (cwdPending) {
+        expandExplorerRootByDefault(
+          shell.rootPath,
+          autoExpandedRootRef,
+          collapsedPathsRef,
+          setExpandedPaths,
+        );
+      }
+      return;
+    }
+    autoExpandedRootRef.current = null;
+    restoreExplorerActionTreeView(
+      activeCwd,
+      shell.rootPath,
+      autoExpandedRootRef,
+      collapsedPathsRef,
+      setExpandedPaths,
+    );
+  }, [cwd, cwdPending]);
+
   useEffect(() => {
     const activeCwd = cwd.trim();
     if (!activeCwd) {
-      setTree(null);
       treeRef.current = null;
       treeSignatureRef.current = null;
-      setTreeError("未设置工作目录");
-      setTreeLoading(false);
+      if (!cwdPending) {
+        autoExpandedRootRef.current = null;
+        setTree(null);
+        setTreeError("未设置工作目录");
+        setTreeChildrenLoading(false);
+        setTreeLoading(false);
+      } else {
+        applyExplorerTreeShell(treeRef, treeSignatureRef, {
+          setTree,
+          setTreeError,
+          setTreeChildrenLoading,
+        });
+      }
       return;
     }
 
     let cancelled = false;
+    let unsubscribeWatch: (() => void) | undefined;
     treeRef.current = null;
     treeSignatureRef.current = null;
-    setTree(null);
-    setTreeLoading(true);
     setTreeError(null);
+    setTreeLoading(false);
 
-    // Primary tree source: server fs.watch on `.quicker/actions` → SSE rebuild.
-    const unsubscribe = subscribeActionExplorerTreeWatch(activeCwd, {
-      onTree: (tree) => {
-        if (cancelled) return;
-        applyTreeUpdateRef.current(tree);
-      },
-      onError: (error) => {
-        if (cancelled) return;
-        setTreeError((prev) => (prev === error ? prev : error));
-        setTreeLoading(false);
-      },
+    applyExplorerTreeShell(treeRef, treeSignatureRef, {
+      setTree,
+      setTreeError,
+      setTreeChildrenLoading,
     });
 
-    // Fallback when SSE reconnects without a cached snapshot (see action-explorer-watch).
-    void refreshTree({ silent: true });
+    void (async () => {
+      const roots = await fetchActionExplorerTree(activeCwd, { depth: "roots" });
+      if (cancelled) return;
+      if (roots.ok) {
+        applyTreeUpdateRef.current(roots.tree);
+      }
+
+      const full = await fetchActionExplorerTree(activeCwd);
+      if (cancelled) return;
+      if (full.ok) {
+        applyTreeUpdateRef.current(full.tree);
+      } else if (!roots.ok) {
+        setTreeError(full.error);
+      }
+
+      setTreeChildrenLoading(false);
+
+      if (cancelled) return;
+      unsubscribeWatch = subscribeActionExplorerTreeWatch(activeCwd, {
+        onTree: (tree) => {
+          if (cancelled) return;
+          applyTreeUpdateRef.current(tree);
+        },
+        onError: (error) => {
+          if (cancelled) return;
+          setTreeError((prev) => (prev === error ? prev : error));
+        },
+      });
+    })();
 
     return () => {
       cancelled = true;
-      unsubscribe();
+      unsubscribeWatch?.();
     };
-  }, [cwd, refreshTree]);
+  }, [cwd, cwdPending]);
+
+  useEffect(() => {
+    const activeCwd = cwd.trim();
+    if (!activeCwd) return;
+    schedulePersistExplorerTreeView();
+    return () => {
+      if (persistTreeViewTimerRef.current) {
+        clearTimeout(persistTreeViewTimerRef.current);
+        persistTreeViewTimerRef.current = null;
+        const latestCwd = cwdRef.current.trim();
+        if (latestCwd) {
+          storeExplorerPanelView(latestCwd, {
+            actionTree: {
+              expandedPaths: [...expandedPathsRef.current],
+              collapsedPaths: [...collapsedPathsRef.current],
+            },
+          });
+        }
+      }
+    };
+  }, [cwd, expandedPaths, schedulePersistExplorerTreeView]);
 
   const expandPath = useCallback((path: string) => {
     clearCollapsedAncestors(collapsedPathsRef.current, path);
@@ -618,8 +806,13 @@ export function WorkspaceExplorerPanelProvider({
       clearWorkspaceMainEditorDoc();
       openWorkspaceMainEditorTab(meta?.tabLabel ?? basenamePath(normalizedPath));
 
-      if (content === undefined) {
-        void loadFileContent(normalizedPath, { background: resolvedContent !== "" });
+      const needsFullReload =
+        content === undefined
+        || (resolvedMeta.truncated === true && isActionProjectDataPath(normalizedPath));
+      if (needsFullReload) {
+        void loadFileContent(normalizedPath, {
+          background: resolvedContent !== "" && !resolvedMeta.truncated,
+        });
       }
     },
     [expandPath, loadFileContent, readFileCache, setPanelOpen, writeFileCache],
@@ -738,6 +931,7 @@ export function WorkspaceExplorerPanelProvider({
       cwd,
       tree,
       treeLoading,
+      treeChildrenLoading,
       treeError,
       refreshTree,
       expandedPaths,
@@ -750,6 +944,7 @@ export function WorkspaceExplorerPanelProvider({
       cwd,
       tree,
       treeLoading,
+      treeChildrenLoading,
       treeError,
       refreshTree,
       expandedPaths,

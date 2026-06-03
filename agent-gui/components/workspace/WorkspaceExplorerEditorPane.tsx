@@ -45,14 +45,6 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
     );
   }
 
-  if (selectedIsDirectory) {
-    return (
-      <p className="workspace-explorer-hint">
-        已选择文件夹，请点击其中的文件以预览
-      </p>
-    );
-  }
-
   if (activeTab.error) {
     return (
       <p className="workspace-explorer-hint workspace-explorer-hint--err">
@@ -100,6 +92,8 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
             <ActionProjectDataEditor
               path={activeTab.path}
               content={activeTab.content}
+              truncated={activeTab.truncated}
+              totalChars={activeTab.totalChars}
               cwd={cwd}
               onSave={(nextContent) => onSaveWorkspaceFile(activeTab.path, nextContent)}
               onSaved={onRefreshTree}
@@ -120,6 +114,7 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
               path={activeTab.path}
               content={activeTab.content}
               showHeader={false}
+              fillAvailable
             />
             {activeTab.truncated ? (
               <p className="file-editor-footnote file-editor-footnote--warn">

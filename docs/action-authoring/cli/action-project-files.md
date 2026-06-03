@@ -8,9 +8,13 @@
 .quicker/
   actions/{actionId}/     # 默认目录名 = 动作 GUID
     info.json             # proto ActionProjectInfo (see action_project.proto)
-    data.json             # steps + variables
+    data.json             # steps + variables（不含内联 subPrograms）
     files/                # inputParams.*.file、variables[].defaultValueFile 外置
-  subprograms/{name}/
+    subprograms/{subId}/  # 动作内子程序（见 action-embedded-subprograms）
+      info.json
+      data.json
+      files/
+  subprograms/{name}/     # 全局公共子程序
 ```
 
 ## file 外置
@@ -44,4 +48,4 @@ qkrpc subprogram import --dir .quicker/subprograms/my-sub --json
 
 ## 相关
 
-`authoring-workflow` · `patch-workflow` · `overview`
+`action-embedded-subprograms` · `authoring-workflow` · `patch-workflow` · `overview`

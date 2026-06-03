@@ -20,6 +20,7 @@ import {
   lineNumbers,
   drawSelection,
 } from "@codemirror/view";
+import { quickerTextCodeMirror } from "@/lib/quicker-text-codemirror";
 import { guessFileLanguage } from "@/lib/workspace-file-tool";
 
 /** Maps Lezer highlight tags to theme.css `--code-token-*` tokens (VS Code palette). */
@@ -220,6 +221,8 @@ export function getCodeMirrorLanguageExtension(
       return sql();
     case "csharp":
       return cpp();
+    case "text":
+      return quickerTextCodeMirror();
     default:
       return [];
   }

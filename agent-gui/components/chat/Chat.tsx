@@ -1113,7 +1113,8 @@ function ChatPanel({
 }
 
 export function Chat() {
-  const { store, defaultCwd, defaultCwdProfile, updateStore } = useChatStore();
+  const { store, defaultCwd, defaultCwdProfile, defaultCwdReady, updateStore } =
+    useChatStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [mainView, setMainView] = useState<AppMainView>("chat");
   const [settingsTabOpen, setSettingsTabOpen] = useState(false);
@@ -1208,6 +1209,7 @@ export function Chat() {
 
   const activeThread = getActiveThread(store);
   const workingDirectory = store.workingDirectory.trim() || defaultCwd;
+  const cwdPending = !store.workingDirectory.trim() && !defaultCwdReady;
 
   return (
     <WorkspaceExplorerShellProvider>
@@ -1227,13 +1229,17 @@ export function Chat() {
             store={store}
             defaultCwd={defaultCwd}
             defaultCwdProfile={defaultCwdProfile}
+            defaultCwdReady={defaultCwdReady}
             onChange={updateStore}
             onActivateThread={handleActivateThread}
             onShowChatView={() => setMainView("chat")}
           />
         </div>
         <div className="app-main-column">
-          <WorkspaceExplorerPanelProvider cwd={workingDirectory}>
+          <WorkspaceExplorerPanelProvider
+            cwd={workingDirectory}
+            cwdPending={cwdPending}
+          >
             <DocsViewerProvider>
               <WorkspaceMainEditorTabBridgeRegistrar
                 onOpenTab={openWorkspaceEditorTab}

@@ -80,6 +80,33 @@ test("patchActionProjectInfoText proto action title", () => {
   assert.equal(parsed.data.title, "新标题");
 });
 
+test("parseActionProjectInfo embedded action subprogram without CallIdentifier", () => {
+  const result = parseActionProjectInfo(`{
+    "Id": "039e60db-424c-4653-8798-01feb36b1aa0",
+    "Name": "查询使用记录",
+    "SummaryExpression": "$$",
+    "IsLocalEdited": true,
+    "TemplateRevision": 0
+  }`);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.data.kind, "embedded-subprogram");
+  assert.equal(result.data.name, "查询使用记录");
+  assert.equal(result.data.id, "039e60db-424c-4653-8798-01feb36b1aa0");
+});
+
+test("parseActionProjectInfo embedded subprogram proto camelCase", () => {
+  const result = parseActionProjectInfo(`{
+    "kind": "embedded-subprogram",
+    "id": "039e60db-424c-4653-8798-01feb36b1aa0",
+    "name": "查询使用记录"
+  }`);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.data.kind, "embedded-subprogram");
+  assert.equal(result.data.name, "查询使用记录");
+});
+
 test("projectDirNameFromInfoPath", () => {
   assert.equal(
     projectDirNameFromInfoPath(".quicker/actions/a2adb839-673d/info.json"),

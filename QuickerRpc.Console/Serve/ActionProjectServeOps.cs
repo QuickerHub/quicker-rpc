@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.XAction.Project;
@@ -77,6 +78,25 @@ internal static class ActionProjectServeOps
                 return Fail("EXPORT_FAILED", exportResult.ErrorMessage ?? "export failed.");
             }
 
+            var subPrograms = latestData["subPrograms"] as JArray;
+            exportResult.ExportedData.Remove("subPrograms");
+            var subExportResult = ActionEmbeddedSubProgramExporter.Export(
+                subPrograms,
+                projectDir,
+                exportOptions,
+                templateData);
+            if (!subExportResult.Success)
+            {
+                return Fail(
+                    "SUBPROGRAM_EXPORT_FAILED",
+                    subExportResult.ErrorMessage ?? "embedded subprogram export failed.");
+            }
+
+            var allWarnings = exportResult.Warnings
+                .Concat(subExportResult.Warnings)
+                .ToList();
+            exportResult.Warnings = allWarnings;
+
             var info = ActionProjectInfoMapper.FromMetadataGet(
                 actionId.Trim(),
                 fullResponse.EditVersion ?? 0L,
@@ -108,6 +128,7 @@ internal static class ActionProjectServeOps
                     editVersion = info.EditVersion,
                     autoExternalizeMinLines = exportOptions.AutoExternalizeMinLines,
                     writtenFiles,
+                    embeddedSubProgramDirectories = subExportResult.WrittenSubProgramDirectories,
                     warnings = exportResult.Warnings,
                 },
             });
@@ -327,11 +348,17 @@ internal static class ActionProjectServeOps
         var root = JObject.Parse(compressedJson);
         var steps = root["steps"] as JArray ?? new JArray();
         var variables = root["variables"] as JArray ?? new JArray();
-        return new JObject
+        var body = new JObject
         {
             ["steps"] = steps,
             ["variables"] = variables,
         };
+        if (root["subPrograms"] is JArray subPrograms && subPrograms.Count > 0)
+        {
+            body["subPrograms"] = subPrograms;
+        }
+
+        return body;
     }
 
     private static string? ResolveWorkspaceRoot(JsonElement args) =>

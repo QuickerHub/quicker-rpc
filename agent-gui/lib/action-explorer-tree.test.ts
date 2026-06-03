@@ -1,15 +1,19 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  actionEmbeddedSubProgramDataJsonPath,
   actionProjectDataJsonPath,
   actionProjectInfoJsonPath,
+  applyEmbeddedSubProgramMeta,
   buildExplorerTree,
   buildExplorerTreeFromProjectMeta,
+  createActionExplorerTreeShell,
   displayNodeLabel,
   displayNodeSubtitle,
   findExplorerTreeNode,
   isActionProjectFolderNode,
   isActionProjectRootNode,
+  isEmbeddedSubProgramRootNode,
   isExplorerTreeDirectoryPath,
   isHiddenExplorerTreeNode,
   resolveActionProjectId,
@@ -17,6 +21,13 @@ import {
 
 const ROOT = ".quicker/actions";
 const ACTION_ID = "cbb222eb-9672-4892-ba29-355a70d6b912";
+
+test("createActionExplorerTreeShell exposes empty actions root", () => {
+  const shell = createActionExplorerTreeShell();
+  assert.equal(shell.rootPath, ROOT);
+  assert.equal(shell.rootLabel, "动作项目");
+  assert.deepEqual(shell.children, []);
+});
 
 test("buildExplorerTree shows action title for guid directory", () => {
   const tree = buildExplorerTree(ROOT, [
@@ -238,4 +249,61 @@ test("actionProjectInfoJsonPath for project root", () => {
     actionProjectInfoJsonPath({ name: "data.json", path: `${ROOT}/foo/data.json`, kind: "file" }, ROOT),
     null,
   );
+});
+
+const SUB_ID = "039e60db-424c-4653-8798-01feb36b1aa0";
+
+test("embedded subprogram root shows title and hides info/data.json", () => {
+  const projectPath = `${ROOT}/${ACTION_ID}`;
+  const subPath = `${projectPath}/subprograms/${SUB_ID}`;
+  const meta = [
+    {
+      path: subPath,
+      dirName: SUB_ID,
+      title: "查询使用记录",
+      subProgramId: SUB_ID,
+    },
+  ];
+  const tree = buildExplorerTree(
+    projectPath,
+    [
+      { path: `subprograms/${SUB_ID}/info.json`, kind: "file" },
+      { path: `subprograms/${SUB_ID}/data.json`, kind: "file" },
+      { path: `subprograms/${SUB_ID}/files/a.txt`, kind: "file" },
+    ],
+    [],
+    meta,
+  );
+  const subRoot =
+    tree.find((n) => n.name === "subprograms")?.children?.find((n) => n.name === SUB_ID);
+  assert.ok(subRoot);
+  assert.equal(displayNodeLabel(subRoot!, ROOT), "查询使用记录");
+  assert.ok(isEmbeddedSubProgramRootNode(subRoot!));
+  const childNames = (subRoot!.children ?? []).map((c) => c.name);
+  assert.ok(!childNames.includes("info.json"));
+  assert.ok(!childNames.includes("data.json"));
+  assert.ok(childNames.includes("files"));
+  assert.equal(actionEmbeddedSubProgramDataJsonPath(subRoot!), `${subPath}/data.json`);
+});
+
+test("applyEmbeddedSubProgramMeta enriches nested nodes", () => {
+  const subPath = `${ROOT}/${ACTION_ID}/subprograms/${SUB_ID}`;
+  const nodes: import("./action-explorer-tree").ExplorerTreeNode[] = [
+    {
+      name: SUB_ID,
+      path: subPath,
+      kind: "directory",
+      children: [],
+    },
+  ];
+  const enriched = applyEmbeddedSubProgramMeta(nodes, [
+    {
+      path: subPath,
+      dirName: SUB_ID,
+      title: "查询使用记录",
+      subProgramId: SUB_ID,
+    },
+  ]);
+  assert.equal(enriched[0]?.title, "查询使用记录");
+  assert.equal(displayNodeLabel(enriched[0]!, ROOT), "查询使用记录");
 });

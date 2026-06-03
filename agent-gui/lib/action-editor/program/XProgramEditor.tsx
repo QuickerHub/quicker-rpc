@@ -25,16 +25,24 @@ import {
 } from "@/lib/action-editor/program/xProgramHistory";
 import { normalizeLoadedProgramBodyIds } from "@/lib/action-editor/program/normalizeLoadedProgramBodyIds";
 
+import type { XProgramEditorSurface } from "@/lib/action-editor/program/xProgramEditorSurface";
+import type { ActionProjectWorkspaceContext } from "@/lib/action-editor/steps/paramEditors/FormDefEditorDialog";
+
 export type XProgramEditorProps = {
   initialPresent: XProgramPresent;
   onPresentChange?: (present: XProgramPresent, meta: { dirty: boolean }) => void;
   baselineFingerprint: string;
+  /** Main action body vs embedded subprogram body. */
+  programSurface?: XProgramEditorSurface;
+  workspaceContext?: ActionProjectWorkspaceContext;
 };
 
 function XProgramEditorInner({
   initialPresent,
   onPresentChange,
   baselineFingerprint,
+  programSurface = "main",
+  workspaceContext,
 }: XProgramEditorProps): JSX.Element {
   const { showToast } = useToast();
   const [hist, dispatch] = useReducer(
@@ -137,7 +145,7 @@ function XProgramEditorInner({
           steps={hist.present.steps}
           onCommitSteps={commitSteps}
           variables={hist.present.variables}
-          programSurface="main"
+          programSurface={programSurface}
           onCommitProgram={(present) =>
             dispatch({ type: "commitProgram", present: cloneXProgramPresent(present) })
           }
@@ -145,11 +153,12 @@ function XProgramEditorInner({
             showToast(message, { variant: variant === "error" ? "error" : "info" })
           }
           subPrograms={[]}
+          workspaceContext={workspaceContext}
         />
       </div>
       <div className="x-program-editor-variables">
         <VariableEditor
-          programSurface="main"
+          programSurface={programSurface}
           variables={hist.present.variables}
           steps={hist.present.steps}
           onCommitVariables={commitVariables}

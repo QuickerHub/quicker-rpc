@@ -42,6 +42,21 @@ public static class XActionFileRefCompiler
                 CompileVariables(variablesClone, projectDir);
             }
 
+            var subProgramResult = ActionEmbeddedSubProgramCompiler.Compile(projectDir);
+            if (!subProgramResult.Success)
+            {
+                return Fail(subProgramResult.ErrorMessage ?? "subprogram compile failed.");
+            }
+
+            if (subProgramResult.SubPrograms.Count > 0)
+            {
+                clone["subPrograms"] = subProgramResult.SubPrograms;
+            }
+            else
+            {
+                clone.Remove("subPrograms");
+            }
+
             return new CompileResult { Success = true, CompiledData = clone };
         }
         catch (Exception ex)

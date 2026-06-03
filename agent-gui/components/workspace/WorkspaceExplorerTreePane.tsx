@@ -4,16 +4,14 @@ import { memo, useCallback } from "react";
 
 import { ActionProjectTree } from "@/components/workspace/ActionProjectTree";
 import {
-  actionProjectDataJsonPath,
   displayNodeLabel,
+  explorerProgramDataJsonPath,
   normalizeExplorerTreePath,
   type ExplorerTreeNode,
 } from "@/lib/action-explorer-tree";
 import { useDocsViewer } from "@/lib/docs-viewer";
-import { isExplorerTreeDirectoryPath } from "@/lib/action-explorer-tree";
 import {
   workspaceExplorerActionsRef,
-  workspaceExplorerEditorStateRef,
   useWorkspaceExplorerTree,
 } from "@/lib/workspace-explorer";
 
@@ -26,7 +24,7 @@ export const WorkspaceExplorerTreePane = memo(function WorkspaceExplorerTreePane
   const {
     cwd,
     tree,
-    treeLoading,
+    treeChildrenLoading,
     treeError,
     expandedPaths,
     toggleExpanded,
@@ -35,29 +33,10 @@ export const WorkspaceExplorerTreePane = memo(function WorkspaceExplorerTreePane
   } = useWorkspaceExplorerTree();
   const { clearActiveTopic } = useDocsViewer();
 
-  const handleSelectDirectory = useCallback(
-    (node: ExplorerTreeNode) => {
-      const normalizedPath = normalizeExplorerTreePath(node.path);
-      setSelectedPath(normalizedPath);
-      const { activeTab, closeTab } = workspaceExplorerEditorStateRef.current;
-      const tabPath = activeTab?.path
-        ? normalizeExplorerTreePath(activeTab.path)
-        : null;
-      if (
-        activeTab?.error
-        || tabPath === normalizedPath
-        || isExplorerTreeDirectoryPath(tree, tabPath)
-      ) {
-        closeTab("__preview__");
-      }
-    },
-    [setSelectedPath, tree],
-  );
-
   const handleSelectNode = useCallback(
     (node: ExplorerTreeNode) => {
       clearActiveTopic();
-      const dataPath = actionProjectDataJsonPath(node, tree?.rootPath);
+      const dataPath = explorerProgramDataJsonPath(node, tree?.rootPath);
       const normalizedPath = normalizeExplorerTreePath(node.path);
       setSelectedPath(normalizedPath);
       const { openFile } = workspaceExplorerActionsRef.current;
@@ -74,10 +53,7 @@ export const WorkspaceExplorerTreePane = memo(function WorkspaceExplorerTreePane
     [clearActiveTopic, setSelectedPath, tree?.rootPath],
   );
 
-  if (treeLoading && !tree) {
-    return <p className="workspace-explorer-hint">加载中…</p>;
-  }
-  if (treeError) {
+  if (treeError && !tree) {
     return (
       <p className="workspace-explorer-hint workspace-explorer-hint--err">{treeError}</p>
     );
@@ -87,17 +63,24 @@ export const WorkspaceExplorerTreePane = memo(function WorkspaceExplorerTreePane
   }
 
   return (
-    <ActionProjectTree
-      rootPath={tree.rootPath}
-      rootLabel={tree.rootLabel}
-      cwd={cwd}
-      nodes={tree.children}
-      expandedPaths={expandedPaths}
-      selectedPath={selectedPath}
-      onToggleExpanded={toggleExpanded}
-      onSelect={handleSelectNode}
-      onSelectDirectory={handleSelectDirectory}
-      onProjectRemoved={onProjectRemoved}
-    />
+    <>
+      {treeError ? (
+        <p className="workspace-explorer-hint workspace-explorer-hint--err workspace-explorer-hint--nested">
+          {treeError}
+        </p>
+      ) : null}
+      <ActionProjectTree
+        rootPath={tree.rootPath}
+        rootLabel={tree.rootLabel}
+        cwd={cwd}
+        nodes={tree.children}
+        childrenLoading={treeChildrenLoading}
+        expandedPaths={expandedPaths}
+        selectedPath={selectedPath}
+        onToggleExpanded={toggleExpanded}
+        onSelect={handleSelectNode}
+        onProjectRemoved={onProjectRemoved}
+      />
+    </>
   );
 });

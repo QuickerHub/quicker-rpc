@@ -27,7 +27,8 @@ import {
   actionVariableRowKey,
   actionVarTypeLabel,
   actionVarTypeZhLabel,
-  matchesVariableListFilter
+  matchesVariableListFilter,
+  navigateVariableSelectionVertically,
 } from "./actionVariableUi";
 import {
   buildActionStepsClipboardJson,
@@ -960,6 +961,17 @@ export default function VariableEditor({
     setSingleSelection(stamped[0]?.id ?? "");
   }, [flushVariableFormSync, onCommitVariables, setSingleSelection]);
 
+  const scrollVariableRowIntoView = useCallback((variableId: string): void => {
+    queueMicrotask(() => {
+      const list = variableListRef.current;
+      const row = list?.querySelector(`[data-variable-id="${CSS.escape(variableId)}"]`);
+      if (row instanceof HTMLElement) {
+        row.scrollIntoView({ block: "nearest", inline: "nearest" });
+        row.focus({ preventScroll: true });
+      }
+    });
+  }, []);
+
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
@@ -981,6 +993,9 @@ export default function VariableEditor({
         }
         return;
       }
+      if (variableFormRef.current?.contains(ae ?? null)) {
+        return;
+      }
       if (
         (event.ctrlKey || event.metaKey) &&
         !event.altKey &&
@@ -995,6 +1010,40 @@ export default function VariableEditor({
         setSelectedIds(ids);
         setSelectedId(ids[ids.length - 1] ?? "");
         setSelectionAnchorId(ids[0] ?? "");
+        return;
+      }
+      if (
+        (event.key === "ArrowUp" || event.key === "ArrowDown") &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !typePickerOpen
+      ) {
+        const navigationIds = visibleVariables.map((v) => v.id);
+        if (navigationIds.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const direction: -1 | 1 = event.key === "ArrowUp" ? -1 : 1;
+        const nextId =
+          navigateVariableSelectionVertically(navigationIds, selectedId, direction) ??
+          (!navigationIds.includes(selectedId)
+            ? (navigationIds[direction === 1 ? 0 : navigationIds.length - 1] ?? null)
+            : null);
+        if (!nextId) {
+          return;
+        }
+        if (event.shiftKey) {
+          selectItem(nextId, {
+            additive: false,
+            rangeSelect: true,
+            orderedIds: navigationIds,
+          });
+        } else {
+          setSingleSelection(nextId);
+        }
+        scrollVariableRowIntoView(nextId);
         return;
       }
       if (event.key === "Delete" || event.key === "Backspace") {
@@ -1030,13 +1079,17 @@ export default function VariableEditor({
     handleRemove,
     onStepHighlightFilter,
     pasteFromClipboard,
+    scrollVariableRowIntoView,
+    selectItem,
     selectedId,
     selectedIds,
     setSelectedId,
     setSelectedIds,
     setSelectionAnchorId,
+    setSingleSelection,
+    typePickerOpen,
     variables,
-    visibleVariables
+    visibleVariables,
   ]);
 
   useLayoutEffect(() => {

@@ -2,10 +2,12 @@ import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import type { ActionStep, ActionStepParam, ActionSubProgram } from "@/lib/action-editor/types/common";
 import { resolveRunnerItemForStepKey } from "./stepRunnerCatalog";
 
-function normalizeParam(param: ActionStepParam | undefined): { varKey: string; value: string } {
+function normalizeParam(param: ActionStepParam | undefined): { varKey: string; value: string; file?: string } {
+  const file = param?.file?.trim();
   return {
     varKey: param?.varKey ?? "",
-    value: param?.value ?? ""
+    value: param?.value ?? "",
+    ...(file ? { file } : {}),
   };
 }
 
@@ -20,7 +22,11 @@ function compactInputParams(
   const out: { [key: string]: ActionStepParam } = {};
   for (const [key, raw] of Object.entries(params ?? {})) {
     const param = normalizeParam(raw);
-    if (param.varKey !== "" || param.value !== getDefaultInputValue(runnerItem, key)) {
+    if (
+      param.varKey !== "" ||
+      param.value !== getDefaultInputValue(runnerItem, key) ||
+      param.file
+    ) {
       out[key] = param;
     }
   }
@@ -91,7 +97,7 @@ export function areStepParamsEqualAfterCompaction(
   for (const key of inputKeys) {
     const av = normalizeParam(a.inputParams[key]);
     const bv = normalizeParam(b.inputParams[key]);
-    if (av.varKey !== bv.varKey || av.value !== bv.value) {
+    if (av.varKey !== bv.varKey || av.value !== bv.value || (av.file ?? "") !== (bv.file ?? "")) {
       return false;
     }
   }

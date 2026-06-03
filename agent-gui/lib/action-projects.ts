@@ -110,6 +110,8 @@ export function shouldRefreshExplorerAfterTool(
     "workspace_action_file_read",
     "workspace_action_file_write",
     "workspace_action_file_edit",
+    "workspace_action_file_info",
+    "workspace_action_file_search",
     "workspace_action_read_data",
     "workspace_action_write_data",
     "workspace_action_edit_data",

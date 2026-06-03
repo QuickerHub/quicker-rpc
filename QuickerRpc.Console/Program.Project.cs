@@ -106,6 +106,27 @@ internal static partial class Program
                     .ConfigureAwait(false);
             }
 
+            var subPrograms = latestData["subPrograms"] as JArray;
+            exportResult.ExportedData.Remove("subPrograms");
+            var subExportResult = ActionEmbeddedSubProgramExporter.Export(
+                subPrograms,
+                projectDir,
+                exportOptions,
+                templateData);
+            if (!subExportResult.Success)
+            {
+                return await EmitErrorAndFailAsync(
+                        options.Json,
+                        "SUBPROGRAM_EXPORT_FAILED",
+                        subExportResult.ErrorMessage ?? "embedded subprogram export failed.")
+                    .ConfigureAwait(false);
+            }
+
+            var allWarnings = exportResult.Warnings
+                .Concat(subExportResult.Warnings)
+                .ToList();
+            exportResult.Warnings = allWarnings;
+
             var info = ActionProjectInfoMapper.FromMetadataGet(
                 actionId,
                 fullResponse.EditVersion ?? 0L,
@@ -136,6 +157,7 @@ internal static partial class Program
                     editVersion = info.EditVersion,
                     autoExternalizeMinLines = exportOptions.AutoExternalizeMinLines,
                     writtenFiles,
+                    embeddedSubProgramDirectories = subExportResult.WrittenSubProgramDirectories,
                     warnings = exportResult.Warnings,
                 },
                 exportResult.Warnings);
@@ -607,11 +629,17 @@ internal static partial class Program
         var root = JObject.Parse(compressedJson);
         var steps = root["steps"] as JArray ?? new JArray();
         var variables = root["variables"] as JArray ?? new JArray();
-        return new JObject
+        var body = new JObject
         {
             ["steps"] = steps,
             ["variables"] = variables,
         };
+        if (root["subPrograms"] is JArray subPrograms && subPrograms.Count > 0)
+        {
+            body["subPrograms"] = subPrograms;
+        }
+
+        return body;
     }
 
     private static void WriteProjectSuccess(bool json, string action, object payload, IEnumerable<string>? warnings)

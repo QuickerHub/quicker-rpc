@@ -14,12 +14,18 @@ import { ActionProjectMetaSummary } from "@/components/workspace/ActionProjectMe
 import { ActionProjectSyncBar } from "@/components/workspace/ActionProjectSyncBar";
 import { ActionProjectToolbar } from "@/components/workspace/ActionProjectToolbar";
 import { actionProjectDirFromName } from "@/lib/action-project-path-shared";
-import { actionProjectInfoPathFromDataPath } from "@/lib/action-project-data-parse";
+import {
+  actionIdFromDataPath,
+  actionProjectInfoPathFromDataPath,
+  embeddedSubProgramProjectDirFromDataPath,
+  isEmbeddedSubProgramDataPath,
+} from "@/lib/action-project-data-parse";
 import { resolveActionIdFromProject } from "@/lib/action-project-id";
 import {
   parseActionProjectInfo,
   type ParsedActionProjectInfo,
 } from "@/lib/action-project-info-parse";
+import { MAX_READ_CHARS } from "@/lib/workspace-file-helpers";
 import { basenamePath } from "@/lib/workspace-file-tool";
 import { fetchWorkspaceFile } from "@/lib/workspace-explorer-api";
 import type { XProgramPresent } from "@/lib/action-editor/program/xProgramHistory";
@@ -43,6 +49,9 @@ type EditorTab = "visual" | "source";
 export type ActionProjectDataEditorProps = {
   path: string;
   content: string;
+  /** When true, content may be an agent slice — editor refetches full file from workspace API. */
+  truncated?: boolean;
+  totalChars?: number;
   cwd: string;
   onSave: (nextContent: string) => Promise<{ ok: boolean; error?: string }>;
   onSaved?: () => void;
@@ -63,12 +72,17 @@ function displayTitleFromProjectInfo(
 export function ActionProjectDataEditor({
   path,
   content,
+  truncated = false,
+  totalChars,
   cwd,
   onSave,
   onSaved,
   onSynced,
 }: ActionProjectDataEditorProps): JSX.Element {
   const [tab, setTab] = useState<EditorTab>("visual");
+  const [editorContent, setEditorContent] = useState(content);
+  const [contentTruncated, setContentTruncated] = useState(truncated);
+  const [reloadError, setReloadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -78,20 +92,64 @@ export function ActionProjectDataEditor({
   const baselineRef = useRef("");
   const presentRef = useRef<XProgramPresent>({ steps: [], variables: [] });
 
-  const parsed = useMemo(() => parseProgramWireJson(content), [content]);
+  useEffect(() => {
+    setEditorContent(content);
+    setContentTruncated(truncated);
+  }, [content, truncated]);
+
+  useEffect(() => {
+    if (!truncated || !cwd.trim()) return;
+    let cancelled = false;
+    setReloadError(null);
+    void (async () => {
+      const result = await fetchWorkspaceFile(cwd, path);
+      if (cancelled) return;
+      if (!result.ok) {
+        setReloadError(result.error);
+        return;
+      }
+      setEditorContent(result.content);
+      setContentTruncated(result.truncated);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cwd, path, truncated]);
+
+  const parsed = useMemo(
+    () => parseProgramWireJson(editorContent),
+    [editorContent],
+  );
+  const isEmbeddedSubProgram = useMemo(() => isEmbeddedSubProgramDataPath(path), [path]);
+  const parentActionId = useMemo(() => actionIdFromDataPath(path), [path]);
   const projectFolder = useMemo(() => {
     const normalized = path.replace(/\\/g, "/");
     const parent = normalized.replace(/\/data\.json$/i, "");
     return basenamePath(parent);
   }, [path]);
-  const actionId = useMemo(
-    () => resolveActionIdFromProject(projectFolder) ?? "",
-    [projectFolder],
-  );
-  const projectDirectory = useMemo(
-    () => (projectFolder ? actionProjectDirFromName(projectFolder) : undefined),
-    [projectFolder],
-  );
+  const actionId = useMemo(() => {
+    if (isEmbeddedSubProgram) return "";
+    return resolveActionIdFromProject(projectFolder) ?? "";
+  }, [isEmbeddedSubProgram, projectFolder]);
+  const syncActionId = isEmbeddedSubProgram ? (parentActionId ?? "") : actionId;
+  const projectDirectory = useMemo(() => {
+    if (isEmbeddedSubProgram) {
+      return embeddedSubProgramProjectDirFromDataPath(path);
+    }
+    return projectFolder ? actionProjectDirFromName(projectFolder) : undefined;
+  }, [isEmbeddedSubProgram, path, projectFolder]);
+  const syncProjectDirectory = useMemo(() => {
+    if (isEmbeddedSubProgram && parentActionId) {
+      return actionProjectDirFromName(parentActionId);
+    }
+    return projectDirectory;
+  }, [isEmbeddedSubProgram, parentActionId, projectDirectory]);
+  const workspaceContext = useMemo(() => {
+    const projectDir = projectDirectory?.trim();
+    const activeCwd = cwd.trim();
+    if (!projectDir || !activeCwd) return undefined;
+    return { cwd: activeCwd, projectDir };
+  }, [cwd, projectDirectory]);
   const infoJsonPath = useMemo(() => actionProjectInfoPathFromDataPath(path), [path]);
 
   useEffect(() => {
@@ -130,7 +188,7 @@ export function ActionProjectDataEditor({
     baselineRef.current = fingerprintProgramWire(parsed.present);
     presentRef.current = parsed.present;
     setDirty(false);
-  }, [content, parsed]);
+  }, [editorContent, parsed]);
 
   const handlePresentChange = useCallback((present: XProgramPresent, meta: { dirty: boolean }) => {
     presentRef.current = present;
@@ -152,6 +210,26 @@ export function ActionProjectDataEditor({
     setDirty(false);
     onSaved?.();
   }, [onSave, onSaved, parsed.ok]);
+
+  if (contentTruncated) {
+    return (
+      <div className="action-project-data-editor">
+        <p className="workspace-explorer-hint workspace-explorer-hint--warn">
+          data.json 过大，工作区编辑器仅加载前 {MAX_READ_CHARS.toLocaleString()} 个字符
+          {totalChars !== undefined
+            ? `（文件约 ${totalChars.toLocaleString()} 字符）`
+            : ""}
+          。请用 Agent 的{" "}
+          <code>workspace_action_read_data</code> / <code>edit_data</code> 分片编辑，或在本页「源码
+          JSON」查看片段。
+        </p>
+        {reloadError ? (
+          <p className="workspace-explorer-hint workspace-explorer-hint--err">{reloadError}</p>
+        ) : null}
+        <FileEditorCard path={path} content={editorContent} showHeader={false} fillAvailable />
+      </div>
+    );
+  }
 
   if (!parsed.ok) {
     return (
@@ -180,6 +258,18 @@ export function ActionProjectDataEditor({
                 cwd={cwd}
                 actionId={actionId}
                 projectDirectory={projectDirectory}
+                className="action-project-data-editor-sync"
+                onSynced={handleSynced}
+              />
+            </div>
+          </div>
+        ) : syncActionId ? (
+          <div className="action-project-data-editor-actions">
+            <div className="action-project-data-editor-actions-row">
+              <ActionProjectSyncBar
+                cwd={cwd}
+                actionId={syncActionId}
+                projectDirectory={syncProjectDirectory}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
               />
@@ -231,11 +321,13 @@ export function ActionProjectDataEditor({
               initialPresent={parsed.present}
               baselineFingerprint={baselineRef.current || fingerprintProgramWire(parsed.present)}
               onPresentChange={handlePresentChange}
+              programSurface={isEmbeddedSubProgram ? "subProgram" : "main"}
+              workspaceContext={workspaceContext}
             />
           </ThemeProvider>
         </div>
       ) : (
-        <FileEditorCard path={path} content={content} showHeader={false} />
+        <FileEditorCard path={path} content={editorContent} showHeader={false} fillAvailable />
       )}
     </div>
   );

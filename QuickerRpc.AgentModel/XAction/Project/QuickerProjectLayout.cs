@@ -11,6 +11,8 @@ public static class QuickerProjectLayout
     public const string SubProgramsDirName = "subprograms";
     public const string InfoFileName = "info.json";
     public const string DataFileName = "data.json";
+    public const string FilesDirName = "files";
+    public const string ActionEmbeddedSubProgramsDirName = "subprograms";
 
     public static string GetQuickerRoot(string? workspaceRoot = null) =>
         Path.Combine(workspaceRoot ?? Directory.GetCurrentDirectory(), QuickerRootDirName);
@@ -39,6 +41,20 @@ public static class QuickerProjectLayout
 
     public static string GetDataPath(string projectDirectory) =>
         Path.Combine(projectDirectory, DataFileName);
+
+    /// <summary>Relative segment: <c>subprograms/{subProgramKey}</c> under an action project.</summary>
+    public static string GetActionEmbeddedSubProgramRelativeDirectory(string subProgramKey) =>
+        Path.Combine(ActionEmbeddedSubProgramsDirName, SanitizeDirectoryName(subProgramKey))
+            .Replace('\\', '/');
+
+    public static string GetActionEmbeddedSubProgramDirectory(string actionProjectDirectory, string subProgramKey) =>
+        Path.Combine(
+            ResolveProjectDirectory(actionProjectDirectory),
+            ActionEmbeddedSubProgramsDirName,
+            SanitizeDirectoryName(subProgramKey));
+
+    public static string GetActionEmbeddedSubProgramsRoot(string actionProjectDirectory) =>
+        Path.Combine(ResolveProjectDirectory(actionProjectDirectory), ActionEmbeddedSubProgramsDirName);
 
     /// <summary>Resolves <paramref name="dir"/> to an absolute project directory.</summary>
     public static string ResolveProjectDirectory(string dir)

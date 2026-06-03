@@ -14,6 +14,16 @@ const MonacoExpressionEditor = lazy(async () => {
   return { default: mod.MonacoExpressionEditor };
 });
 
+let monacoExpressionEditorPreload: Promise<void> | null = null;
+
+/** Warm Monaco chunk before step popup fields mount to avoid inline height jumps. */
+export function preloadMonacoExpressionEditor(): Promise<void> {
+  if (!monacoExpressionEditorPreload) {
+    monacoExpressionEditorPreload = import("./MonacoExpressionEditor").then(() => undefined);
+  }
+  return monacoExpressionEditorPreload;
+}
+
 function ExpressionEditorFallback({ multiline, className }: Pick<ExpressionEditorProps, "multiline" | "className">): JSX.Element {
   const rootClass = [
     "expression-editor",
@@ -25,7 +35,13 @@ function ExpressionEditorFallback({ multiline, className }: Pick<ExpressionEdito
     .filter(Boolean)
     .join(" ");
 
-  return <div className={rootClass} aria-hidden="true" />;
+  return (
+    <div
+      className={rootClass}
+      style={multiline ? { minHeight: 40 } : { height: 22, minHeight: 22 }}
+      aria-hidden="true"
+    />
+  );
 }
 
 /**

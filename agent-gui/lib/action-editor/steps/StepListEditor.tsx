@@ -68,6 +68,7 @@ import {
   designerHostGrpcGetSharedSubProgramIo
 } from "../shared/designerHostGrpcApi";
 import { StepEditorPopup } from "./paramEditors/StepEditorPopup";
+import type { ActionProjectWorkspaceContext } from "./paramEditors/FormDefEditorDialog";
 import { StepQuickInsert, type StepQuickInsertHandle } from "./StepQuickInsert";
 import { quickInsertCandidateToStep, type QuickInsertCandidate } from "./stepQuickInsertCandidates";
 import { areStepParamsEqualAfterCompaction, compactActionStepParams } from "./actionStepSerialization";
@@ -76,6 +77,7 @@ import {
   collectStepRunnerKeysFromSteps,
   fetchStepRunnersItems,
   hydrateMissingStepRunnerEntries,
+  hydrateMissingStepRunnerItems,
   resolveRunnerItemForStepKey,
   type StepRunnerLookup
 } from "./stepRunnerCatalog";
@@ -240,6 +242,7 @@ export type StepListEditorProps = {
   notifyClipboard?: (message: string, variant: "error" | "info") => void;
   /** Action sub program rows (GetAction); used for quick-insert search. */
   subPrograms?: ActionSubProgram[];
+  workspaceContext?: ActionProjectWorkspaceContext;
 };
 
 export default function StepListEditor({
@@ -249,7 +252,8 @@ export default function StepListEditor({
   onCommitProgram,
   programSurface = "main",
   notifyClipboard,
-  subPrograms = []
+  subPrograms = [],
+  workspaceContext,
 }: StepListEditorProps): JSX.Element {
   const stepIdManagerRef = useRef<StepIdManager>(new StepIdManager());
   const [runnerLookup, setRunnerLookup] = useState<StepRunnerLookup>({});
@@ -321,6 +325,8 @@ export default function StepListEditor({
   );
   const runnerLookupRef = useRef(runnerLookup);
   runnerLookupRef.current = runnerLookup;
+  const runnerItemsRef = useRef(runnerItems);
+  runnerItemsRef.current = runnerItems;
 
   useEffect(() => {
     const keys = collectStepRunnerKeysFromSteps(steps);
@@ -347,6 +353,33 @@ export default function StepListEditor({
       ac.abort();
     };
   }, [stepRunnerKeysKey, backendBaseUrl, runnerItems.length]);
+
+  useEffect(() => {
+    const keys = collectStepRunnerKeysFromSteps(steps);
+    if (keys.length === 0) return;
+
+    let cancelled = false;
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        const prev = runnerItemsRef.current;
+        const hydrated = await hydrateMissingStepRunnerItems(keys, prev, ac.signal);
+        if (cancelled) return;
+        const prevDefs = prev.reduce((n, item) => n + (item.inputParamDefs?.length ?? 0), 0);
+        const nextDefs = hydrated.reduce((n, item) => n + (item.inputParamDefs?.length ?? 0), 0);
+        if (nextDefs > prevDefs) {
+          setRunnerItems(hydrated);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [stepRunnerKeysKey, backendBaseUrl]);
 
   useEffect(() => {
     const specs = new Set<string>();
@@ -1490,10 +1523,11 @@ export default function StepListEditor({
           const rawTitleFallback = resolvedSubName ?? view.runnerName;
           const primaryRunnerName =
             spLabel != null && spLabel.displayName.length > 0 ? spLabel.displayName : rawTitleFallback;
+          const runnerItem = resolveRunnerItemForStepKey(runnerItems, step.stepRunnerKey);
           const noteTrim = (step.note ?? "").trim();
           const summaryTrim =
             (summariesByStepId[step.stepId] ?? "").trim()
-            || buildClientStepSummary(step).trim();
+            || buildClientStepSummary(step, runnerItem).trim();
           const secondaryText = noteTrim.length > 0 ? noteTrim : summaryTrim;
           const titleSuffix =
             (globalSpId != null || sharedSpIdent != null) && rawTitleFallback !== primaryRunnerName
@@ -1791,6 +1825,7 @@ export default function StepListEditor({
         variables={variables}
         subPrograms={subPrograms}
         designerHostBaseUrl={backendBaseUrl}
+        workspaceContext={workspaceContext}
         runnerItem={popupRunnerItem}
         runnerTitle={popupRunnerTitle}
         onClose={closeStepEditor}

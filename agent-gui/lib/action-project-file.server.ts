@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { actionProjectDirFromName, findActionProjectDirectory } from "@/lib/action-project-path";
 import { enrichActionProjectResolveError, guardWorkspaceActionId } from "@/lib/action-scope";
 import { syncActionToWorkspace } from "@/lib/action-project-workflow";
@@ -46,6 +47,122 @@ export function validateActionProjectResourceRelativePath(
   }
 
   return { ok: true, normalized: segments.join("/") };
+}
+
+/** files/ root, subdirectory, or a single file — for search/info listing. */
+export function validateActionProjectFilesScopePath(
+  inputPath: string,
+):
+  | { ok: true; normalized: string; kind: "file" | "directory" }
+  | { ok: false; error: string } {
+  const trimmed = inputPath.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!trimmed) {
+    return { ok: true, normalized: "files", kind: "directory" };
+  }
+
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith(".quicker/")) {
+    return { ok: false, error: "path must be project-relative (e.g. files/ or files/main.cs)." };
+  }
+  if (lower === "data.json" || lower === "info.json") {
+    return { ok: false, error: "use workspace_action_*_data for data.json." };
+  }
+  if (!lower.startsWith("files")) {
+    return { ok: false, error: "path must be under files/ (e.g. files or files/main.cs)." };
+  }
+
+  if (lower === "files" || lower === "files/") {
+    return { ok: true, normalized: "files", kind: "directory" };
+  }
+
+  const segments = trimmed.split("/").filter(Boolean);
+  for (const segment of segments) {
+    if (segment === "." || segment === "..") {
+      return { ok: false, error: "path must not contain . or .. segments." };
+    }
+  }
+
+  const last = segments[segments.length - 1] ?? "";
+  const kind: "file" | "directory" =
+    last.includes(".") && last !== "files" ? "file" : "directory";
+  return { ok: true, normalized: segments.join("/"), kind };
+}
+
+export async function resolveActionProjectFilesScopeForTool(
+  requestedId: string,
+  relativePath: string | undefined,
+): Promise<
+  | { ok: true; resolved: ResolvedActionProjectFile & { scopeKind: "file" | "directory" } }
+  | { ok: false; error: string }
+> {
+  const validated = validateActionProjectFilesScopePath(relativePath ?? "files");
+  if (!validated.ok) {
+    return { ok: false, error: validated.error };
+  }
+
+  const scope = getRequestActionScope();
+  const guard = guardWorkspaceActionId(requestedId, scope);
+  if (!guard.ok) {
+    return { ok: false, error: guard.error };
+  }
+
+  const actionId = guard.id;
+  let projectDir = await findActionProjectDirectory(actionId);
+  let autoSynced = false;
+
+  if (!projectDir) {
+    const byGuidDir = actionProjectDirFromName(actionId);
+    const infoResolved = resolveWorkspacePath(`${byGuidDir}/info.json`);
+    if (infoResolved.ok && existsSync(infoResolved.absolute)) {
+      projectDir = byGuidDir;
+    }
+  }
+
+  if (!projectDir) {
+    const sync = await syncActionToWorkspace(actionId);
+    if (sync.ok) {
+      projectDir = sync.manifest.projectDirectory;
+      autoSynced = true;
+    }
+  }
+
+  if (!projectDir) {
+    return {
+      ok: false,
+      error: enrichActionProjectResolveError(
+        `No .quicker/actions project for action ${actionId}. Run qkrpc_action_get({ id }) or qkrpc_action_create first.`,
+        scope,
+        actionId,
+      ),
+    };
+  }
+
+  const workspaceRelative = `${projectDir}/${validated.normalized}`;
+  const resolved = resolveWorkspacePath(workspaceRelative);
+  if (!resolved.ok) {
+    return { ok: false, error: resolved.error };
+  }
+
+  let scopeKind: "file" | "directory" = validated.kind;
+  if (existsSync(resolved.absolute)) {
+    const st = await stat(resolved.absolute);
+    scopeKind = st.isDirectory() ? "directory" : "file";
+  } else if (validated.normalized !== "files" && !validated.normalized.endsWith("/")) {
+    const last = validated.normalized.split("/").pop() ?? "";
+    scopeKind = last.includes(".") ? "file" : "directory";
+  }
+
+  return {
+    ok: true,
+    resolved: {
+      actionId,
+      projectDir,
+      path: resolved.relative,
+      resourcePath: validated.normalized,
+      autoSynced: autoSynced || undefined,
+      scopeKind,
+    },
+  };
 }
 
 export type ResolvedActionProjectFile = {
@@ -127,7 +244,7 @@ export async function resolveActionProjectFileForTool(
 
 /** Compact success payload for workspace_action_file_* (path is canonical). */
 export function actionProjectFileToolSuccess(
-  action: "file-read" | "file-write" | "file-edit",
+  action: "file-read" | "file-write" | "file-edit" | "file-info" | "file-search",
   resolved: ResolvedActionProjectFile,
   body: Record<string, unknown>,
 ): Record<string, unknown> {

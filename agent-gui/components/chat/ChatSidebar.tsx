@@ -32,6 +32,7 @@ type ChatSidebarProps = {
   store: ChatStoreData;
   defaultCwd: string;
   defaultCwdProfile: DefaultWorkingDirectoryProfile;
+  defaultCwdReady?: boolean;
   onChange: (next: ChatStoreData) => void;
   onActivateThread: (threadId: string) => void;
   onShowChatView: () => void;
@@ -114,6 +115,7 @@ export function ChatSidebar({
   store,
   defaultCwd,
   defaultCwdProfile,
+  defaultCwdReady = true,
   onChange,
   onActivateThread,
   onShowChatView,
@@ -122,9 +124,11 @@ export function ChatSidebar({
   const activeThread = useMemo(() => getActiveThread(store), [store]);
   const sortedThreads = useMemo(() => sortThreads(store.threads), [store.threads]);
   const effectiveCwd = store.workingDirectory.trim() || defaultCwd;
-  const cwdFallbackLabel = defaultCwd
-    ? defaultCwdFallbackLabel(defaultCwdProfile)
-    : "未设置";
+  const cwdFallbackLabel = !defaultCwdReady
+    ? "…"
+    : defaultCwd
+      ? defaultCwdFallbackLabel(defaultCwdProfile)
+      : "未设置";
   const [cwdDialogOpen, setCwdDialogOpen] = useState(false);
 
   const commit = useCallback(

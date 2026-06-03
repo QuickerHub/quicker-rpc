@@ -38,6 +38,8 @@ Quicker 库  ←—— qkrpc_action_patch({ id }) ——  .quicker/actions/{acti
 | 整份替换 data.json | **`workspace_action_write_data({ id, content })`** |
 | 局部改 data.json | **`workspace_action_edit_data({ id, oldString, newString })`** |
 | 读/写/改 files/ 外置资源 | **`workspace_action_file_*({ id, path: "files/…" })`** |
+| 大文件元数据 | **`workspace_action_file_info`** — 行数、建议用 `startLine` 分片读 |
+| 在 files/ 内定位 | **`workspace_action_file_search`** — 命中行号 → `file_read` → `file_edit` |
 | 拉取并同步磁盘 | **`qkrpc_action_get({ id })`**（非空程序体才 extract）→ **`workspaceProject`** |
 | 新建落盘 | **`qkrpc_action_create`** → 仅 **`info.json`**；**勿**紧接再 get |
 | 写回 Quicker | **`qkrpc_action_patch({ id })`** — **仅 id**，无内联 JSON |
@@ -70,6 +72,17 @@ get(模板) → read / file_read(模板) → get(目标) → write / file_write(
 `file` 与 `value` / `varKey` 互斥。路径相对 **项目目录**，用 `/`，禁止 `..`。
 
 外置项见 `workspaceProject.fileRefCount`；清单用 **`workspace_action_projects`** 或 **`action validate`**。
+
+## 大文件编辑（Agent）
+
+```text
+file_info → file_search（可选）→ file_read(startLine/maxLines) → file_edit(唯一 oldString)
+```
+
+- **`file_read`**：默认约 16k 字符；大脚本用 **`startLine` + `maxLines`**（或 `endLine`），响应含 **`readHint`** 续读。
+- **`file_edit`**：`oldString` 须唯一（否则返回匹配行号）；禁止用 **`file_write`** 改大文件中的一小段。
+- **`read_data`**：改前优先 **`mode: "summary"`**；仅锚点用 **`content` + startLine/offset**。
+- **`write_*` 响应**：`previousContent` 仅为 diff 快照（截断），不是全文。
 
 ## 与 CLI 的区别
 

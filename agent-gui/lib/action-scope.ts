@@ -26,6 +26,8 @@ const ACTION_ID_TOOLS = new Set([
   "workspace_action_file_read",
   "workspace_action_file_write",
   "workspace_action_file_edit",
+  "workspace_action_file_info",
+  "workspace_action_file_search",
 ]);
 
 export type ScopedActionRef = {

@@ -1,13 +1,24 @@
 import type { WorkspaceListEntry } from "@/lib/workspace-fs";
+import { getActionsRootRelative } from "@/lib/action-project-path-shared";
 
 export type ExplorerTreeNode = {
   name: string;
   path: string;
   kind: "file" | "directory";
-  /** Action project display title (top-level project dirs only). */
+  /** Display title from info.json (action project root or embedded subprogram root). */
   title?: string;
   actionId?: string;
+  /** Embedded subprogram id from info.json (subprograms/{id} dirs). */
+  subProgramId?: string;
   children?: ExplorerTreeNode[];
+};
+
+export type ActionEmbeddedSubProgramMeta = {
+  /** Workspace-relative path to subprograms/{id} directory. */
+  path: string;
+  dirName: string;
+  title?: string;
+  subProgramId?: string;
 };
 
 export type ActionExplorerTree = {
@@ -16,13 +27,24 @@ export type ActionExplorerTree = {
   children: ExplorerTreeNode[];
 };
 
+export const ACTION_EXPLORER_ROOT_LABEL = "动作项目";
+
+/** Placeholder tree: root folder only, children loaded asynchronously. */
+export function createActionExplorerTreeShell(): ActionExplorerTree {
+  return {
+    rootPath: getActionsRootRelative(),
+    rootLabel: ACTION_EXPLORER_ROOT_LABEL,
+    children: [],
+  };
+}
+
 /** Compact change-detection key (faster than JSON.stringify for large trees). */
 export function computeExplorerTreeSignature(tree: ActionExplorerTree): string {
   const lines: string[] = [tree.rootPath, tree.rootLabel];
   const walk = (nodes: ExplorerTreeNode[]) => {
     for (const node of nodes) {
       lines.push(
-        `${node.path}\t${node.kind}\t${node.title ?? ""}\t${node.actionId ?? ""}\t${node.children?.length ?? 0}`,
+        `${node.path}\t${node.kind}\t${node.title ?? ""}\t${node.actionId ?? ""}\t${node.subProgramId ?? ""}\t${node.children?.length ?? 0}`,
       );
       if (node.children?.length) walk(node.children);
     }
@@ -46,6 +68,7 @@ export function buildExplorerTree(
   basePath: string,
   entries: WorkspaceListEntry[],
   projectMeta: ActionProjectMeta[] = [],
+  embeddedSubProgramMeta: ActionEmbeddedSubProgramMeta[] = [],
 ): ExplorerTreeNode[] {
   const metaByDir = new Map<string, ActionProjectMeta>();
   for (const m of projectMeta) {
@@ -100,7 +123,72 @@ export function buildExplorerTree(
   }
 
   const fromFiles = sortTree(toPublicList(rootMap));
-  return filterHiddenExplorerNodes(fromFiles, null, normalizedBase);
+  const withSubPrograms = applyEmbeddedSubProgramMeta(fromFiles, embeddedSubProgramMeta);
+  return filterHiddenExplorerNodes(withSubPrograms, null, normalizedBase);
+}
+
+function embeddedSubProgramDirKey(path: string): string | null {
+  const normalized = normalizeExplorerTreePath(path).toLowerCase();
+  const marker = "/subprograms/";
+  const idx = normalized.lastIndexOf(marker);
+  if (idx < 0) return null;
+  const dirName = normalized.slice(idx + marker.length).split("/")[0];
+  return dirName || null;
+}
+
+/** Attach info.json titles to action-embedded subprogram directory nodes. */
+export function applyEmbeddedSubProgramMeta(
+  nodes: ExplorerTreeNode[],
+  meta: ActionEmbeddedSubProgramMeta[] = [],
+): ExplorerTreeNode[] {
+  if (meta.length === 0) {
+    return nodes.map((node) => ({
+      ...node,
+      children: node.children
+        ? applyEmbeddedSubProgramMeta(node.children, meta)
+        : undefined,
+    }));
+  }
+
+  const metaByPath = new Map<string, ActionEmbeddedSubProgramMeta>();
+  for (const item of meta) {
+    const normalizedPath = normalizeExplorerTreePath(item.path);
+    metaByPath.set(normalizedPath, item);
+    metaByPath.set(item.dirName, item);
+    metaByPath.set(item.dirName.toLowerCase(), item);
+    metaByPath.set(`subprograms/${item.dirName}`.toLowerCase(), item);
+    if (item.subProgramId) {
+      metaByPath.set(item.subProgramId, item);
+      metaByPath.set(item.subProgramId.toLowerCase(), item);
+    }
+  }
+
+  const enrich = (node: ExplorerTreeNode): ExplorerTreeNode => {
+    let next = node;
+    if (isEmbeddedSubProgramRootNode(node)) {
+      const key = normalizeExplorerTreePath(node.path);
+      const dirKey = embeddedSubProgramDirKey(node.path);
+      const hit =
+        metaByPath.get(key)
+        ?? (dirKey ? metaByPath.get(dirKey) : undefined)
+        ?? metaByPath.get(node.name)
+        ?? metaByPath.get(node.name.toLowerCase());
+      if (hit) {
+        next = {
+          ...node,
+          title: hit.title ?? node.title,
+          subProgramId: hit.subProgramId ?? node.subProgramId,
+        };
+      }
+    }
+
+    return {
+      ...next,
+      children: next.children?.map(enrich),
+    };
+  };
+
+  return nodes.map(enrich);
 }
 
 /**
@@ -111,6 +199,7 @@ export function buildExplorerTreeFromProjectMeta(
   actionsRoot: string,
   projectMeta: ActionProjectMeta[],
   entries: WorkspaceListEntry[] = [],
+  embeddedSubProgramMeta: ActionEmbeddedSubProgramMeta[] = [],
 ): ExplorerTreeNode[] {
   const normalizedRoot = actionsRoot.replace(/\\/g, "/").replace(/\/+$/, "");
   const entriesByDir = new Map<string, WorkspaceListEntry[]>();
@@ -141,7 +230,7 @@ export function buildExplorerTreeFromProjectMeta(
     const childEntries = entriesByDir.get(dirName) ?? [];
     const children =
       childEntries.length > 0
-        ? buildExplorerTree(projectPath, childEntries, [])
+        ? buildExplorerTree(projectPath, childEntries, [], embeddedSubProgramMeta)
         : undefined;
 
     nodes.push({
@@ -156,10 +245,11 @@ export function buildExplorerTreeFromProjectMeta(
     });
   }
 
-  return filterHiddenExplorerNodes(sortTree(nodes), null, normalizedRoot);
+  const withSubPrograms = applyEmbeddedSubProgramMeta(sortTree(nodes), embeddedSubProgramMeta);
+  return filterHiddenExplorerNodes(withSubPrograms, null, normalizedRoot);
 }
 
-/** Hide info.json / data.json under action project roots (opened via project row click). */
+/** Hide info.json / data.json under action or embedded subprogram project roots. */
 export function isHiddenExplorerTreeNode(
   node: ExplorerTreeNode,
   parent: ExplorerTreeNode | null,
@@ -169,7 +259,10 @@ export function isHiddenExplorerTreeNode(
   const leaf = node.name.toLowerCase();
   if (leaf !== "info.json" && leaf !== "data.json") return false;
   if (!parent || parent.kind !== "directory") return false;
-  return isActionProjectRootNode(parent, actionsRoot);
+  return (
+    isActionProjectRootNode(parent, actionsRoot)
+    || isEmbeddedSubProgramRootNode(parent)
+  );
 }
 
 function filterHiddenExplorerNodes(
@@ -315,6 +408,15 @@ export function isActionProjectRootNode(
   return rel.length > 0 && !rel.includes("/");
 }
 
+/** Direct child of `subprograms/` under an action project (one segment after subprograms). */
+export function isEmbeddedSubProgramRootNode(node: ExplorerTreeNode): boolean {
+  if (node.kind !== "directory") return false;
+  const normalized = normalizeExplorerTreePath(node.path);
+  if (!normalized.includes("/subprograms/")) return false;
+  const after = normalized.split("/subprograms/")[1] ?? "";
+  return after.length > 0 && !after.includes("/");
+}
+
 /** Relative path to a project root's info.json, or null if not a project root. */
 export function actionProjectInfoJsonPath(
   node: ExplorerTreeNode,
@@ -333,6 +435,25 @@ export function actionProjectDataJsonPath(
   return `${node.path.replace(/\\/g, "/")}/data.json`;
 }
 
+/** Relative path to embedded subprogram data.json, or null if not a subprogram root. */
+export function actionEmbeddedSubProgramDataJsonPath(
+  node: ExplorerTreeNode,
+): string | null {
+  if (!isEmbeddedSubProgramRootNode(node)) return null;
+  return `${node.path.replace(/\\/g, "/")}/data.json`;
+}
+
+/** Open target for a tree row (action root or embedded subprogram root). */
+export function explorerProgramDataJsonPath(
+  node: ExplorerTreeNode,
+  actionsRoot = ACTIONS_ROOT_SUFFIX,
+): string | null {
+  return (
+    actionProjectDataJsonPath(node, actionsRoot)
+    ?? actionEmbeddedSubProgramDataJsonPath(node)
+  );
+}
+
 export function formatShortActionId(actionId: string): string {
   const id = actionId.trim();
   if (id.length <= 13) return id;
@@ -343,7 +464,7 @@ export function displayNodeLabel(
   node: ExplorerTreeNode,
   actionsRoot = ACTIONS_ROOT_SUFFIX,
 ): string {
-  if (isActionProjectRootNode(node, actionsRoot)) {
+  if (isProgramRootNode(node, actionsRoot)) {
     const title = node.title?.trim();
     if (title) return title;
     if (!/^[0-9a-f-]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(node.name)) {
@@ -358,10 +479,18 @@ export function displayNodeSubtitle(
   node: ExplorerTreeNode,
   actionsRoot = ACTIONS_ROOT_SUFFIX,
 ): string | null {
-  if (!isActionProjectRootNode(node, actionsRoot)) return null;
+  if (!isProgramRootNode(node, actionsRoot)) return null;
   if (node.title?.trim()) return null;
-  const id = node.actionId?.trim();
+  const id = (node.subProgramId ?? node.actionId)?.trim();
   if (!id) return null;
   if (id.toLowerCase() === node.name.toLowerCase()) return null;
   return formatShortActionId(id);
+}
+
+function isProgramRootNode(
+  node: ExplorerTreeNode,
+  actionsRoot: string,
+): boolean {
+  return isActionProjectRootNode(node, actionsRoot)
+    || isEmbeddedSubProgramRootNode(node);
 }

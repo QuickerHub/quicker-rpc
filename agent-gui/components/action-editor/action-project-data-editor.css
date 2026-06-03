@@ -94,11 +94,6 @@
   width: auto;
 }
 
-.action-project-data-editor-toolbar .project-info-toolbar-status {
-  flex: 1 1 100%;
-  margin: 0.15rem 0 0;
-}
-
 .action-project-data-editor-sync {
   margin: 0;
   padding: 0 0 0 0.55rem;
@@ -208,5 +203,12 @@
 .workspace-main-editor .action-project-data-editor > .file-editor-card .file-editor-body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-main-editor .action-project-data-editor > .file-editor-card.file-editor-card--fill .file-editor-cm--fill .cm-scroller {
+  overflow: auto !important;
+  min-height: 0;
 }

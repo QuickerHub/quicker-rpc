@@ -9,7 +9,7 @@ import {
 
 export type { ActionProjectInfo };
 
-export type ActionProjectInfoKind = "action" | "subprogram";
+export type ActionProjectInfoKind = "action" | "subprogram" | "embedded-subprogram";
 
 /** View model for the structured info editor (actions use proto; subprograms stay JSON). */
 export type ParsedActionProjectInfo = {
@@ -68,6 +68,62 @@ function actionInfoToParsed(data: ActionProjectInfo): ParsedActionProjectInfo {
     editVersion: editVersionToNumber(data.editVersion),
     extra: {},
   };
+}
+
+function parseEmbeddedSubProgramInfo(content: string): ParseActionProjectInfoResult {
+  const trimmed = stripJsonBom(content).trim();
+  if (!trimmed) return { ok: false, error: "文件为空" };
+
+  let obj: unknown;
+  try {
+    obj = JSON.parse(trimmed) as unknown;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "无效的 JSON";
+    return { ok: false, error: message };
+  }
+
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
+    return { ok: false, error: "info.json 必须是 JSON 对象" };
+  }
+
+  const record = obj as Record<string, unknown>;
+  const extra: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (
+      /^(kind|id|title|name|description|icon|summaryexpression|islocaledited|isprotected|templateid|templaterevision|useserverversion|sharedid|createtimeutc|lastedittimeutc|sharetimeutc)$/i.test(
+        key.trim(),
+      )
+    ) {
+      continue;
+    }
+    extra[key] = value;
+  }
+
+  return {
+    ok: true,
+    data: {
+      kind: "embedded-subprogram",
+      id: pickString(record, "id", "Id"),
+      name: pickString(record, "name", "Name"),
+      title: pickString(record, "title", "Title"),
+      description: pickString(record, "description", "Description"),
+      icon: pickString(record, "icon", "Icon"),
+      extra,
+    },
+  };
+}
+
+function isEmbeddedSubProgramInfoRecord(record: Record<string, unknown>): boolean {
+  const kind = pickString(record, "kind", "Kind")?.toLowerCase();
+  if (kind === "embedded-subprogram") return true;
+
+  const callIdentifier = pickString(record, "callIdentifier", "CallIdentifier");
+  if (callIdentifier) return false;
+
+  const name = pickString(record, "name", "Name");
+  const title = pickString(record, "title", "Title");
+  const id = pickString(record, "id", "Id");
+  return Boolean(id && name && !title);
 }
 
 function parseSubProgramInfo(content: string): ParseActionProjectInfoResult {
@@ -136,6 +192,10 @@ export function parseActionProjectInfo(content: string): ParseActionProjectInfoR
   }
 
   const record = peek as Record<string, unknown>;
+  if (isEmbeddedSubProgramInfoRecord(record)) {
+    return parseEmbeddedSubProgramInfo(content);
+  }
+
   const callIdentifier = pickString(record, "callIdentifier", "CallIdentifier");
   const name = pickString(record, "name", "Name");
   const title = pickString(record, "title", "Title");
@@ -158,6 +218,9 @@ export function actionProjectDisplayTitle(
 ): string | undefined {
   if (data.kind === "action") {
     return data.title ?? data.name;
+  }
+  if (data.kind === "embedded-subprogram") {
+    return data.name ?? data.title;
   }
   return data.name ?? data.title;
 }
