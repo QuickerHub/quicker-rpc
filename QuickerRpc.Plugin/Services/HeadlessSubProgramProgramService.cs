@@ -11,6 +11,7 @@ using Quicker.Domain.Actions.X.SubPrograms;
 using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.AgentModel.XAction;
 using QuickerRpc.AgentModel.XAction.Compression;
+using QuickerRpc.AgentModel.XAction.Project;
 using QuickerRpc.Contracts.Rpc;
 using StorageActionStep = global::Quicker.Domain.Actions.X.Storage.ActionStep;
 using StorageActionVariable = global::Quicker.Domain.Actions.X.Storage.ActionVariable;
@@ -198,6 +199,12 @@ public sealed class HeadlessSubProgramProgramService
             return FailPatch("Headless subprogram save unavailable.");
         }
 
+        var formPreprocess = XActionProgramService.PreprocessPatch(patch, projectDirectory: null);
+        if (!formPreprocess.Success)
+        {
+            return FailPatch(formPreprocess.ErrorMessage ?? "form spec compile failed.");
+        }
+
         if (!_subPrograms.TryGetByIdOrName(key, out var subProgram, out var loadError))
         {
             return FailPatch(loadError ?? $"Subprogram not found: {key}");
@@ -298,6 +305,12 @@ public sealed class HeadlessSubProgramProgramService
         if (stepsToken is not JArray steps || variablesToken is not JArray variables)
         {
             return FailPatch("program must contain steps and variables JSON arrays.");
+        }
+
+        var formCompile = XActionFormSpecCompiler.Compile(body, projectDirectory: null);
+        if (!formCompile.Success)
+        {
+            return FailPatch(formCompile.ErrorMessage ?? "form spec compile failed.");
         }
 
         if (_subPrograms is null)

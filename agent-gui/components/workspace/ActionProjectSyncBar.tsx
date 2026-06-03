@@ -24,6 +24,7 @@ type ActionProjectSyncBarProps = {
   /** Block pull/push while info.json title/description edits are unsaved. */
   blocked?: boolean;
   blockReason?: string;
+  className?: string;
   onSynced?: () => void;
 };
 
@@ -47,6 +48,7 @@ export function ActionProjectSyncBar({
   projectDirectory,
   blocked = false,
   blockReason,
+  className,
   onSynced,
 }: ActionProjectSyncBarProps) {
   const [busy, setBusy] = useState<"status" | "pull" | "push" | null>(null);
@@ -206,7 +208,10 @@ export function ActionProjectSyncBar({
     statusText && (statusErr || syncState !== "in_sync") ? statusText : null;
 
   return (
-    <section className="project-info-sync" aria-label="与 Quicker 同步">
+    <section
+      className={["project-info-sync", className].filter(Boolean).join(" ")}
+      aria-label="与 Quicker 同步"
+    >
       <div className="project-info-sync-actions">
         <button
           type="button"

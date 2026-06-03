@@ -59,8 +59,12 @@ import { DocsViewerProvider } from "@/lib/docs-viewer";
 import {
   WorkspaceExplorerPanelProvider,
   WorkspaceExplorerShellProvider,
+  workspaceExplorerActionsRef,
+  workspaceExplorerEditorStateRef,
 } from "@/lib/workspace-explorer";
 import { WorkspaceExplorerPanel } from "@/components/workspace/WorkspaceExplorerPanel";
+import { WorkspaceMainEditorPanel } from "@/components/workspace/WorkspaceMainEditorPanel";
+import { WorkspaceMainEditorTabBridgeRegistrar } from "@/components/workspace/WorkspaceMainEditorTabBridgeRegistrar";
 import { useChatStore } from "@/lib/use-chat-store";
 import { ContextUsage } from "./ContextUsage";
 import {
@@ -84,7 +88,10 @@ import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
 import { EmptyChatPrompts } from "@/components/chat/EmptyChatPrompts";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
-import { useUserMessageStickyMarkers } from "@/lib/use-user-message-sticky";
+import { findUserTurnStartIndices } from "@/lib/last-user-turn-index";
+import { useMessagesScrollportHeight } from "@/lib/use-messages-scrollport-height";
+import { useMsgTurnStickyActive } from "@/lib/use-msg-turn-sticky-active";
+import { UserMessageComposerChrome } from "./UserMessageComposerChrome";
 import { useAutoThreadTitle } from "@/lib/use-auto-thread-title";
 import { useComposerMessageQueue } from "@/lib/use-composer-message-queue";
 import type { AppMainView } from "@/lib/app-main-view";
@@ -310,6 +317,7 @@ function ChatPanel({
     return () => window.removeEventListener(LLM_KEYS_UPDATED_EVENT, onKeysUpdated);
   }, [syncLlmProviderFromApi]);
   const messagesRef = useRef<HTMLElement>(null);
+  const msgTurnRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<ComposerMarkupFieldHandle>(null);
   const persistRef = useRef(onPersist);
@@ -456,7 +464,6 @@ function ChatPanel({
     sendMessageSafe,
   );
   const qkrpcOk = ping.status === "ok";
-  const composerLocked = !qkrpcOk;
 
   const { pinToBottom } = useMessagesStickScroll(messagesRef, {
     visible,
@@ -465,7 +472,12 @@ function ChatPanel({
     busy,
   });
 
-  useUserMessageStickyMarkers(messagesRef, visible, messages);
+  useMessagesScrollportHeight(messagesRef, visible);
+
+  const userTurnStarts = useMemo(
+    () => findUserTurnStartIndices(messages),
+    [messages],
+  );
 
   useEffect(() => {
     const container = messagesRef.current;
@@ -573,8 +585,7 @@ function ChatPanel({
   const beginEditFromUserMessage = useCallback(
     (message: AgentUIMessage) => {
       if (
-        composerLocked
-        || !canEditUserMessage(message, userMessageDrafts)
+        !canEditUserMessage(message, userMessageDrafts)
         || hasNonCollapsedTextSelection()
       ) {
         return;
@@ -596,7 +607,6 @@ function ChatPanel({
     },
     [
       clearError,
-      composerLocked,
       draftMessage,
       editAnchorMessageId,
       messages,
@@ -674,11 +684,10 @@ function ChatPanel({
 
   const runQuickPrompt = useCallback(
     (text: string) => {
-      if (composerLocked) return;
       pinToBottom();
       enqueueOrSend(text);
     },
-    [composerLocked, enqueueOrSend, pinToBottom],
+    [enqueueOrSend, pinToBottom],
   );
 
   const respondToAllPendingApprovals = useCallback(
@@ -727,6 +736,13 @@ function ChatPanel({
     [status, messages, qkrpcOk, qkrpcLoading, pendingApprovalCount],
   );
 
+  const lastTurnFillScrollport = useMsgTurnStickyActive(
+    messagesRef,
+    msgTurnRef,
+    userTurnStarts.length > 0,
+    [messages, error, status, agentActivity],
+  );
+
   const lastVisibleMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const message = messages[i];
@@ -748,7 +764,6 @@ function ChatPanel({
       !visible
       || !isEmptyThread
       || editAnchorMessageId
-      || composerLocked
       || busy
     ) {
       return;
@@ -761,10 +776,138 @@ function ChatPanel({
     visible,
     isEmptyThread,
     editAnchorMessageId,
-    composerLocked,
     busy,
     threadId,
   ]);
+
+  const renderChatMessage = useCallback(
+    (
+      message: AgentUIMessage,
+      messageIndex: number,
+      stickyPrompt = false,
+    ) => {
+      const lastMessage = messages[messages.length - 1];
+      if (
+        agentActivity
+        && message.id === lastMessage?.id
+        && isPlaceholderAssistantMessage(message)
+      ) {
+        return null;
+      }
+
+      const isUser = message.role === "user";
+      const isEditAnchor = message.id === editAnchorMessageId;
+      const isAfterEditAnchor =
+        editAnchorIndex >= 0 && messageIndex > editAnchorIndex;
+      const hasLocalDraft = userMessageHasLocalDraft(message, userMessageDrafts);
+      const userEditable =
+        isUser && canEditUserMessage(message, userMessageDrafts);
+
+      if (isUser) {
+        const userText = isEditAnchor
+          ? draftMessage
+          : resolveUserMessageDisplayText(message, userMessageDrafts);
+
+        const userArticleClass = `msg msg--user${message.id === lastVisibleMessageId && !agentActivity ? " msg--last" : ""}${isEditAnchor ? " msg--edit-anchor" : ""}${hasLocalDraft ? " msg--local-draft" : ""}${isAfterEditAnchor ? " msg--branch-cutoff" : ""}`;
+        const userComposer = (
+          <UserMessageComposerChrome
+            message={message}
+            messageId={message.id}
+            userTextOverride={userText}
+            interactive={userEditable && !isEditAnchor}
+            isEditAnchor={isEditAnchor}
+            title={
+              isEditAnchor
+                ? "在下方输入框编辑；Enter 发送并从此处继续"
+                : userEditable
+                  ? "点击在下方输入框编辑；失焦保存草稿"
+                  : undefined
+            }
+            onClick={
+              isEditAnchor
+                ? () => focusComposerAtEnd()
+                : userEditable
+                  ? () => beginEditFromUserMessage(message)
+                  : undefined
+            }
+            onKeyDown={
+              userEditable && !isEditAnchor
+                ? (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      beginEditFromUserMessage(message);
+                    }
+                  }
+                : undefined
+            }
+          />
+        );
+
+        if (stickyPrompt) {
+          return (
+            <div key={message.id} className="msg-turn__prompt">
+              <article className={userArticleClass}>{userComposer}</article>
+            </div>
+          );
+        }
+
+        return (
+          <article key={message.id} className={userArticleClass}>
+            {userComposer}
+          </article>
+        );
+      }
+
+      return (
+        <article
+          key={message.id}
+          className={`msg msg--assistant${message.id === lastVisibleMessageId && !agentActivity ? " msg--last" : ""}${isEditAnchor ? " msg--edit-anchor" : ""}${hasLocalDraft ? " msg--local-draft" : ""}${isAfterEditAnchor ? " msg--branch-cutoff" : ""}`}
+        >
+          <div className="msg-content">
+            <div className="parts">
+              <MessageParts message={message} />
+            </div>
+          </div>
+        </article>
+      );
+    },
+    [
+      agentActivity,
+      beginEditFromUserMessage,
+      draftMessage,
+      editAnchorIndex,
+      editAnchorMessageId,
+      focusComposerAtEnd,
+      lastVisibleMessageId,
+      messages,
+      userMessageDrafts,
+    ],
+  );
+
+  const agentActivityBlock = agentActivity ? (
+    <article
+      className="msg msg--assistant msg--activity msg--last"
+      aria-busy="true"
+    >
+      <div className="msg-content">
+        <AgentActivityLine activity={agentActivity} />
+      </div>
+    </article>
+  ) : null;
+
+  const errorBanner = error ? (
+    <div className="error-banner" role="alert">
+      <span>{formatChatError(error)}</span>
+      <button
+        type="button"
+        className="error-banner-dismiss"
+        onClick={() => clearError()}
+        aria-label="关闭错误提示"
+      >
+        ×
+      </button>
+    </div>
+  ) : null;
 
   return (
     <div
@@ -776,101 +919,38 @@ function ChatPanel({
         ref={messagesRef}
         className={`messages${agentActivity ? " messages--agent-busy" : ""}`}
       >
-        {messages.map((message, messageIndex) => {
-          const lastMessage = messages[messages.length - 1];
-          if (
-            agentActivity
-            && message.id === lastMessage?.id
-            && isPlaceholderAssistantMessage(message)
-          ) {
-            return null;
-          }
-
-          const isUser = message.role === "user";
-          const isEditAnchor = message.id === editAnchorMessageId;
-          const isAfterEditAnchor =
-            editAnchorIndex >= 0 && messageIndex > editAnchorIndex;
-          const hasLocalDraft = userMessageHasLocalDraft(message, userMessageDrafts);
-          const userEditable =
-            isUser
-            && canEditUserMessage(message, userMessageDrafts)
-            && !composerLocked;
-
-          return (
-            <article
-              key={message.id}
-              className={`msg msg--${isUser ? "user" : "assistant"}${message.id === lastVisibleMessageId && !agentActivity ? " msg--last" : ""}${isEditAnchor ? " msg--edit-anchor" : ""}${hasLocalDraft ? " msg--local-draft" : ""}${isAfterEditAnchor ? " msg--branch-cutoff" : ""}`}
-            >
+        {userTurnStarts.length === 0 ? (
+          <>
+            {messages.map((message, messageIndex) =>
+              renderChatMessage(message, messageIndex),
+            )}
+            {agentActivityBlock}
+            {errorBanner}
+          </>
+        ) : (
+          userTurnStarts.map((startIndex, turnIndex) => {
+            const endIndex = userTurnStarts[turnIndex + 1] ?? messages.length;
+            const isLastTurn = turnIndex === userTurnStarts.length - 1;
+            return (
               <div
-                className={`msg-content${userEditable && !isEditAnchor ? " msg-content--editable" : ""}${isEditAnchor ? " msg-content--edit-active" : ""}`}
-                role={userEditable && !isEditAnchor ? "button" : undefined}
-                tabIndex={userEditable && !isEditAnchor ? 0 : undefined}
-                title={
-                  isEditAnchor
-                    ? "在下方输入框编辑；Enter 发送并从此处继续"
-                    : userEditable
-                      ? "点击在下方输入框编辑；失焦保存草稿"
-                      : undefined
-                }
-                onClick={
-                  isEditAnchor
-                    ? () => focusComposerAtEnd()
-                    : userEditable
-                      ? () => beginEditFromUserMessage(message)
-                      : undefined
-                }
-                onKeyDown={
-                  userEditable && !isEditAnchor
-                    ? (event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          beginEditFromUserMessage(message);
-                        }
-                      }
-                    : undefined
-                }
+                key={messages[startIndex]!.id}
+                ref={isLastTurn ? msgTurnRef : undefined}
+                className={`msg-turn${isLastTurn && lastTurnFillScrollport ? " msg-turn--fill-scrollport" : ""}`}
               >
-                <div className="parts">
-                  <MessageParts
-                    message={message}
-                    userTextOverride={
-                      isUser
-                        ? isEditAnchor
-                          ? draftMessage
-                          : resolveUserMessageDisplayText(
-                              message,
-                              userMessageDrafts,
-                            )
-                        : undefined
-                    }
-                  />
-                </div>
+                {messages
+                  .slice(startIndex, endIndex)
+                  .map((message, offset) =>
+                    renderChatMessage(
+                      message,
+                      startIndex + offset,
+                      offset === 0,
+                    ),
+                  )}
+                {isLastTurn ? agentActivityBlock : null}
+                {isLastTurn ? errorBanner : null}
               </div>
-            </article>
-          );
-        })}
-        {agentActivity && (
-          <article
-            className="msg msg--assistant msg--activity msg--last"
-            aria-busy="true"
-          >
-            <div className="msg-content">
-              <AgentActivityLine activity={agentActivity} />
-            </div>
-          </article>
-        )}
-        {error && (
-          <div className="error-banner" role="alert">
-            <span>{formatChatError(error)}</span>
-            <button
-              type="button"
-              className="error-banner-dismiss"
-              onClick={() => clearError()}
-              aria-label="关闭错误提示"
-            >
-              ×
-            </button>
-          </div>
+            );
+          })
         )}
         <div ref={messagesEndRef} className="messages-anchor" aria-hidden />
       </main>
@@ -908,7 +988,6 @@ function ChatPanel({
         )}
         {isEmptyThread && !editAnchorMessageId && (
           <EmptyChatPrompts
-            disabled={composerLocked}
             onRun={runQuickPrompt}
           />
         )}
@@ -931,8 +1010,6 @@ function ChatPanel({
                     ? `Agent 完成后将发送已排队的 ${queueLength} 条消息…`
                     : "描述你想在 Quicker 里做的事…（@ 引用动作）"
               }
-              disabled={composerLocked}
-              qkrpcOk={qkrpcOk}
               onChange={setDraftMessage}
               onSubmit={submitComposer}
             />
@@ -944,12 +1021,10 @@ function ChatPanel({
                   tagCount={draftTagCount}
                   embeddedTagIds={draftTagIds}
                   onSelect={insertDraftActionTag}
-                  disabled={composerLocked}
                 />
                 <ToolSelector
                   enabledTools={enabledTools}
                   onChange={setEnabledTools}
-                  disabled={composerLocked}
                 />
                 <ModelSelector
                   providerId={llmProvider}
@@ -958,7 +1033,6 @@ function ChatPanel({
                     storeLlmProvider(id);
                   }}
                   onNeedSettings={onOpenSettings}
-                  disabled={composerLocked}
                 />
                 <span className="composer-hint">
                   {editAnchorMessageId
@@ -1008,7 +1082,7 @@ function ChatPanel({
                 <button
                   type="submit"
                   className="composer-btn composer-btn--send"
-                  disabled={!canSend || composerLocked}
+                  disabled={!canSend}
                   aria-label={busy ? "加入发送队列" : "发送"}
                   title={busy ? "加入发送队列" : "发送"}
                 >
@@ -1043,6 +1117,8 @@ export function Chat() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [mainView, setMainView] = useState<AppMainView>("chat");
   const [settingsTabOpen, setSettingsTabOpen] = useState(false);
+  const [workspaceEditorTabOpen, setWorkspaceEditorTabOpen] = useState(false);
+  const [workspaceEditorTabLabel, setWorkspaceEditorTabLabel] = useState("文件");
   const [settingsFocusProviderId, setSettingsFocusProviderId] = useState<
     LlmProviderId | undefined
   >(undefined);
@@ -1113,6 +1189,23 @@ export function Chat() {
     setSettingsFocusProviderId(undefined);
   }, []);
 
+  const closeWorkspaceEditorTab = useCallback(() => {
+    workspaceExplorerEditorStateRef.current.closeTab("__preview__");
+    setWorkspaceEditorTabOpen(false);
+    setMainView((view) => (view === "workspace-editor" ? "chat" : view));
+  }, []);
+
+  const openWorkspaceEditorTab = useCallback((label: string) => {
+    setWorkspaceEditorTabLabel(label.trim() || "文件");
+    setWorkspaceEditorTabOpen(true);
+    setMainView("workspace-editor");
+  }, []);
+
+  const dismissWorkspaceEditorTab = useCallback(() => {
+    setWorkspaceEditorTabOpen(false);
+    setMainView((view) => (view === "workspace-editor" ? "chat" : view));
+  }, []);
+
   const activeThread = getActiveThread(store);
   const workingDirectory = store.workingDirectory.trim() || defaultCwd;
 
@@ -1140,53 +1233,67 @@ export function Chat() {
           />
         </div>
         <div className="app-main-column">
-          <ChatTitlebar
-            store={store}
-            mainView={mainView}
-            settingsTabOpen={settingsTabOpen}
-            onChange={updateStore}
-            onMainViewChange={setMainView}
-            onOpenSettingsTab={openSettingsTab}
-            onCloseSettingsTab={closeSettingsTab}
-          />
-          <DocsViewerProvider>
-            <div className="app-content-row">
-              <div className="app-main-shell">
-                {mainView === "settings" && settingsTabOpen ? (
-                  <AppSettingsPanel
-                    active
-                    ping={ping}
-                    onRefreshPing={refreshPing}
-                    versionRefreshKey={connectTick}
-                    focusProviderId={settingsFocusProviderId}
-                  />
-                ) : (
-                  <div className="app-main-stack">
-                    {getOpenTabThreads(store).map((thread) => (
-                      <ChatPanel
-                        key={thread.id}
-                        threadId={thread.id}
-                        initialMessages={thread.messages}
-                        workingDirectory={workingDirectory}
-                        visible={thread.id === activeThread.id}
-                        threadTitle={thread.title}
-                        titleGenerated={thread.titleGenerated ?? false}
-                        titleManual={thread.titleManual ?? false}
-                        ping={ping}
-                        connectTick={connectTick}
-                        onOpenSettings={openSettingsTab}
-                        onPersist={persistMessages}
-                        onAutoTitle={handleAutoTitle}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-              <WorkspaceExplorerPanelProvider cwd={workingDirectory}>
+          <WorkspaceExplorerPanelProvider cwd={workingDirectory}>
+            <DocsViewerProvider>
+              <WorkspaceMainEditorTabBridgeRegistrar
+                onOpenTab={openWorkspaceEditorTab}
+                onCloseTab={dismissWorkspaceEditorTab}
+              />
+              <ChatTitlebar
+                store={store}
+                mainView={mainView}
+                settingsTabOpen={settingsTabOpen}
+                workspaceEditorTabOpen={workspaceEditorTabOpen}
+                workspaceEditorTabLabel={workspaceEditorTabLabel}
+                onChange={updateStore}
+                onMainViewChange={setMainView}
+                onOpenSettingsTab={openSettingsTab}
+                onCloseSettingsTab={closeSettingsTab}
+                onSelectWorkspaceEditor={() => setMainView("workspace-editor")}
+                onCloseWorkspaceEditorTab={closeWorkspaceEditorTab}
+              />
+              <div className="app-content-row">
+                <div className="app-main-shell">
+                  {mainView === "settings" && settingsTabOpen ? (
+                    <AppSettingsPanel
+                      active
+                      ping={ping}
+                      onRefreshPing={refreshPing}
+                      versionRefreshKey={connectTick}
+                      focusProviderId={settingsFocusProviderId}
+                    />
+                  ) : mainView === "workspace-editor" && workspaceEditorTabOpen ? (
+                    <WorkspaceMainEditorPanel
+                      onRefreshTree={() => {
+                        void workspaceExplorerActionsRef.current.refreshTree();
+                      }}
+                    />
+                  ) : (
+                    <div className="app-main-stack">
+                      {getOpenTabThreads(store).map((thread) => (
+                        <ChatPanel
+                          key={thread.id}
+                          threadId={thread.id}
+                          initialMessages={thread.messages}
+                          workingDirectory={workingDirectory}
+                          visible={thread.id === activeThread.id}
+                          threadTitle={thread.title}
+                          titleGenerated={thread.titleGenerated ?? false}
+                          titleManual={thread.titleManual ?? false}
+                          ping={ping}
+                          connectTick={connectTick}
+                          onOpenSettings={openSettingsTab}
+                          onPersist={persistMessages}
+                          onAutoTitle={handleAutoTitle}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <WorkspaceExplorerPanel />
-              </WorkspaceExplorerPanelProvider>
-            </div>
-          </DocsViewerProvider>
+              </div>
+            </DocsViewerProvider>
+          </WorkspaceExplorerPanelProvider>
         </div>
       </div>
     </WorkspaceExplorerShellProvider>

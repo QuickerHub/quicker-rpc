@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "endpoints": [
+    {
+      "apiKey": "sk-...",
+      "baseURL": "https://ai98pro.xyz/v1",
+      "model": "gpt-5.5"
+    },
+    {
+      "apiKey": "sk-...",
+      "baseURL": "https://ai98pro.xyz/v1",
+      "model": "gpt-5.5"
+    },
+    {
+      "apiKey": "sk-...",
+      "baseURL": "https://api.bingleimuzi.eu.cc/v1",
+      "model": "gpt-5.5"
+    }
+  ]
+}

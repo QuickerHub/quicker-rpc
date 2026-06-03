@@ -168,6 +168,29 @@ export function resolveLlmConfigProvider(
   return entry ? { ...entry, source: "config" } : undefined;
 }
 
+/** Primary endpoint plus fallbacks (apiKey may be empty when keys are bundled). */
+export function resolveLlmConfigEndpointSlots(
+  providerId: LlmProviderId = LLM_PROVIDER_ID,
+): LlmEndpointConfig[] {
+  if (providerId !== LLM_PROVIDER_ID) return [];
+  const entry = resolveLlmConfigProvider(providerId);
+  if (!entry) return [];
+
+  const slots: LlmEndpointConfig[] = [];
+  const primary: LlmEndpointConfig = {};
+  if (entry.apiKey) primary.apiKey = entry.apiKey;
+  if (entry.baseURL) primary.baseURL = entry.baseURL;
+  if (entry.model) primary.model = entry.model;
+  if (primary.apiKey || primary.baseURL || primary.model) {
+    slots.push(primary);
+  }
+
+  for (const fallback of entry.fallbacks ?? []) {
+    slots.push({ ...fallback });
+  }
+  return slots;
+}
+
 export function getLlmConfigDefaultProvider(): LlmProviderId {
   return LLM_PROVIDER_ID;
 }

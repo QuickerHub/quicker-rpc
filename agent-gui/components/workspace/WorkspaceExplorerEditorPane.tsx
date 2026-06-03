@@ -4,11 +4,15 @@ import { memo } from "react";
 import { DocsViewerPanel } from "@/components/chat/DocsViewerTabs";
 import { FileEditorCard } from "@/components/chat/FileEditorCard";
 import { ActionProjectInfoEditor } from "@/components/workspace/ActionProjectInfoEditor";
+import { ActionProjectDataEditor } from "@/components/action-editor/ActionProjectDataEditor";
+import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
 import { isActionProjectInfoPath } from "@/lib/action-project-info-parse";
 import type { ExplorerFileTab } from "@/lib/workspace-explorer";
+import { formatWorkspaceFetchError } from "@/lib/workspace-explorer-api";
 type WorkspaceExplorerEditorPaneProps = {
   showDoc: boolean;
   activeTab: ExplorerFileTab | null;
+  selectedIsDirectory?: boolean;
   showEditorSkeleton: boolean;
   cwd: string;
   onSaveWorkspaceFile: (
@@ -22,6 +26,7 @@ type WorkspaceExplorerEditorPaneProps = {
 export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditorPane({
   showDoc,
   activeTab,
+  selectedIsDirectory = false,
   showEditorSkeleton,
   cwd,
   onSaveWorkspaceFile,
@@ -33,13 +38,25 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
   }
 
   if (!activeTab) {
-    return <p className="workspace-explorer-hint">选择文档或文件以预览</p>;
+    return (
+      <p className="workspace-explorer-hint">
+        {selectedIsDirectory ? "已选择文件夹，请点击其中的文件以预览" : "选择文档或文件以预览"}
+      </p>
+    );
+  }
+
+  if (selectedIsDirectory) {
+    return (
+      <p className="workspace-explorer-hint">
+        已选择文件夹，请点击其中的文件以预览
+      </p>
+    );
   }
 
   if (activeTab.error) {
     return (
       <p className="workspace-explorer-hint workspace-explorer-hint--err">
-        {activeTab.error}
+        {formatWorkspaceFetchError(new Error(activeTab.error))}
       </p>
     );
   }
@@ -62,6 +79,25 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
         isActionProjectInfoPath(activeTab.path) ? (
           <>
             <ActionProjectInfoEditor
+              path={activeTab.path}
+              content={activeTab.content}
+              cwd={cwd}
+              onSave={(nextContent) => onSaveWorkspaceFile(activeTab.path, nextContent)}
+              onSaved={onRefreshTree}
+              onSynced={onActionProjectSynced}
+            />
+            {activeTab.truncated ? (
+              <p className="file-editor-footnote file-editor-footnote--warn">
+                内容已截断
+                {activeTab.totalChars !== undefined
+                  ? ` · 文件共 ${activeTab.totalChars} 字符`
+                  : ""}
+              </p>
+            ) : null}
+          </>
+        ) : isActionProjectDataPath(activeTab.path) ? (
+          <>
+            <ActionProjectDataEditor
               path={activeTab.path}
               content={activeTab.content}
               cwd={cwd}

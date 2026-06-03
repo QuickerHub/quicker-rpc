@@ -2,19 +2,25 @@
 
 
 
-import { memo, useCallback } from "react";
+import { memo } from "react";
 
 import type { ExplorerTreeNode } from "@/lib/action-explorer-tree";
 
 import {
 
-  actionProjectInfoJsonPath,
+  actionProjectDataJsonPath,
 
   displayNodeLabel,
 
   displayNodeSubtitle,
 
+  isActionProjectFolderNode,
+
   isActionProjectRootNode,
+
+  isExplorerTreePathExpanded,
+
+  normalizeExplorerTreePath,
 
 } from "@/lib/action-explorer-tree";
 
@@ -32,13 +38,7 @@ import {
 
 } from "@/components/workspace/ExplorerTreeIcons";
 
-import {
-
-  isActionProjectImportingInMap,
-
-  useActionProjectImportStore,
-
-} from "@/lib/action-project-import-state";
+import { useActionProjectImporting } from "@/lib/action-project-import-state";
 
 import { ActionProjectTreeDelete } from "@/components/workspace/ActionProjectTreeDelete";
 
@@ -63,6 +63,9 @@ type TreeNodeProps = {
   onToggleExpanded: (path: string) => void;
 
   onSelect: (node: ExplorerTreeNode) => void;
+
+  /** Highlight a folder row without opening / fetching a file. */
+  onSelectDirectory?: (node: ExplorerTreeNode) => void;
 
   onProjectRemoved?: () => void;
 
@@ -90,25 +93,28 @@ function TreeNodeRow({
 
   onSelect,
 
+  onSelectDirectory,
+
   onProjectRemoved,
 
 }: TreeNodeProps) {
 
-  const isDir = node.kind === "directory";
+  const isFolderRow = isActionProjectFolderNode(node);
 
   const isProjectRoot = isActionProjectRootNode(node, rootPath);
 
-  const hasTitle = isDir && (Boolean(node.title?.trim()) || isProjectRoot);
+  const hasTitle = isFolderRow && (Boolean(node.title?.trim()) || isProjectRoot);
 
-  const expanded = expandedPaths.has(node.path);
+  const nodePath = normalizeExplorerTreePath(node.path);
+  const expanded = isExplorerTreePathExpanded(expandedPaths, nodePath);
 
-  const infoJsonPath = actionProjectInfoJsonPath(node, rootPath);
+  const dataJsonPath = actionProjectDataJsonPath(node, rootPath);
 
   const selected =
 
-    selectedPath === node.path
+    selectedPath === nodePath
 
-    || (infoJsonPath !== null && selectedPath === infoJsonPath);
+    || (dataJsonPath !== null && selectedPath === dataJsonPath);
 
   const label = displayNodeLabel(node, rootPath);
 
@@ -134,7 +140,18 @@ function TreeNodeRow({
 
           style={{ paddingLeft: `${0.45 + depth * 0.85}rem` }}
 
-          onClick={() => onSelect(node)}
+          onClick={() => {
+            if (isFolderRow) {
+              onToggleExpanded(nodePath);
+              if (isProjectRoot) {
+                onSelect(node);
+              } else {
+                onSelectDirectory?.(node);
+              }
+              return;
+            }
+            onSelect(node);
+          }}
 
           title={
 
@@ -148,7 +165,7 @@ function TreeNodeRow({
 
         >
 
-          {isDir ? (
+          {isFolderRow ? (
 
             <span
 
@@ -158,7 +175,7 @@ function TreeNodeRow({
 
                 e.stopPropagation();
 
-                onToggleExpanded(node.path);
+                onToggleExpanded(nodePath);
 
               }}
 
@@ -182,13 +199,13 @@ function TreeNodeRow({
 
           )}
 
-          <span className={`explorer-tree-icon${isDir ? " explorer-tree-icon--dir" : " explorer-tree-icon--file"}${importing ? " explorer-tree-icon--busy" : ""}`}>
+          <span className={`explorer-tree-icon${isFolderRow ? " explorer-tree-icon--dir" : " explorer-tree-icon--file"}${importing ? " explorer-tree-icon--busy" : ""}`}>
 
             {importing ? (
 
               <ExplorerImportSpinner />
 
-            ) : isDir ? (
+            ) : isFolderRow ? (
 
               <ExplorerFolderIcon expanded={expanded} />
 
@@ -232,7 +249,7 @@ function TreeNodeRow({
 
       </div>
 
-      {isDir && expanded
+      {isFolderRow && expanded
 
         ? node.children?.map((child) => (
 
@@ -257,6 +274,8 @@ function TreeNodeRow({
               onToggleExpanded={onToggleExpanded}
 
               onSelect={onSelect}
+
+              onSelectDirectory={onSelectDirectory}
 
               onProjectRemoved={onProjectRemoved}
 
@@ -288,11 +307,13 @@ function treeNodeRowPropsEqual(prev: TreeNodeProps, next: TreeNodeProps): boolea
 
   if (prev.onSelect !== next.onSelect) return false;
 
+  if (prev.onSelectDirectory !== next.onSelectDirectory) return false;
+
   if (prev.onProjectRemoved !== next.onProjectRemoved) return false;
 
-  const path = prev.node.path;
+  if (prev.expandedPaths !== next.expandedPaths) return false;
 
-  return prev.expandedPaths.has(path) === next.expandedPaths.has(path);
+  return true;
 
 }
 
@@ -300,7 +321,17 @@ function treeNodeRowPropsEqual(prev: TreeNodeProps, next: TreeNodeProps): boolea
 
 const MemoTreeNodeRow = memo(TreeNodeRow, treeNodeRowPropsEqual);
 
+type ProjectTreeNodeRowProps = Omit<TreeNodeProps, "importing">;
 
+/** Subscribes to import state only for this action project row. */
+function ActionProjectTreeProjectRow(props: ProjectTreeNodeRowProps) {
+  const importing = useActionProjectImporting(
+    isActionProjectRootNode(props.node, props.rootPath)
+      ? props.node.actionId
+      : undefined,
+  );
+  return <MemoTreeNodeRow {...props} importing={importing} />;
+}
 
 type ActionProjectTreeProps = {
 
@@ -318,9 +349,10 @@ type ActionProjectTreeProps = {
 
   onToggleExpanded: (path: string) => void;
 
-  onExpandPath: (path: string) => void;
-
   onSelect: (node: ExplorerTreeNode) => void;
+
+  /** Highlight a folder row without opening / fetching a file. */
+  onSelectDirectory?: (node: ExplorerTreeNode) => void;
 
   onProjectRemoved?: () => void;
 
@@ -344,31 +376,15 @@ export const ActionProjectTree = memo(function ActionProjectTree({
 
   onToggleExpanded,
 
-  onExpandPath,
-
   onSelect,
+
+  onSelectDirectory,
 
   onProjectRemoved,
 
 }: ActionProjectTreeProps) {
-
-  const importStore = useActionProjectImportStore();
-
-  const rootExpanded = expandedPaths.has(rootPath);
-
-
-
-  const resolveImporting = useCallback(
-
-    (node: ExplorerTreeNode) =>
-
-      isActionProjectImportingInMap(importStore, node.actionId),
-
-    [importStore],
-
-  );
-
-
+  const normalizedRootPath = normalizeExplorerTreePath(rootPath);
+  const rootExpanded = isExplorerTreePathExpanded(expandedPaths, normalizedRootPath);
 
   return (
 
@@ -380,7 +396,7 @@ export const ActionProjectTree = memo(function ActionProjectTree({
 
         className="explorer-tree-row explorer-tree-row--root"
 
-        onClick={() => onExpandPath(rootPath)}
+        onClick={() => onToggleExpanded(normalizedRootPath)}
 
       >
 
@@ -388,7 +404,7 @@ export const ActionProjectTree = memo(function ActionProjectTree({
           className="explorer-tree-chevron-hit"
           onClick={(e) => {
             e.stopPropagation();
-            onToggleExpanded(rootPath);
+            onToggleExpanded(normalizedRootPath);
           }}
           role="presentation"
         >
@@ -410,33 +426,19 @@ export const ActionProjectTree = memo(function ActionProjectTree({
       {rootExpanded
 
         ? nodes.map((node) => (
-
-            <MemoTreeNodeRow
-
+            <ActionProjectTreeProjectRow
               key={node.path}
-
               node={node}
-
               depth={1}
-
               rootPath={rootPath}
-
               cwd={cwd}
-
               expandedPaths={expandedPaths}
-
               selectedPath={selectedPath}
-
-              importing={resolveImporting(node)}
-
               onToggleExpanded={onToggleExpanded}
-
               onSelect={onSelect}
-
+              onSelectDirectory={onSelectDirectory}
               onProjectRemoved={onProjectRemoved}
-
             />
-
           ))
 
         : null}

@@ -1,5 +1,14 @@
 export type ThemePreference = "system" | "light" | "dark";
 
+export const THEME_OPTIONS: ReadonlyArray<{
+  value: ThemePreference;
+  label: string;
+}> = [
+  { value: "system", label: "系统" },
+  { value: "light", label: "浅色" },
+  { value: "dark", label: "深色" },
+] as const;
+
 export const THEME_STORAGE_KEY = "agent-gui-theme";
 
 /** Inline script for layout.tsx — prevents theme flash before hydration. */

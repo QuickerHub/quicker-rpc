@@ -111,8 +111,13 @@ function legacyDocsRoot(): string {
   return join(resolveAgentGuiRoot(), LEGACY_DOCS_DIR);
 }
 
+const TOPIC_ALIASES: Record<string, string> = {
+  expression: "expressions",
+};
+
 function normalizeTopic(topic: string): string {
-  return topic.trim().replace(/\/+$/, "").toLowerCase();
+  const key = topic.trim().replace(/\/+$/, "").toLowerCase();
+  return TOPIC_ALIASES[key] ?? key;
 }
 
 function extractTitle(markdown: string): string {

@@ -82,7 +82,51 @@ public static class XActionFileRefValidator
             CollectFileRefsFromSteps(steps, projectDir, entries);
         }
 
+        if (data["variables"] is JArray variables)
+        {
+            CollectFileRefsFromVariables(variables, projectDir, entries);
+        }
+
         return entries;
+    }
+
+    private static void CollectFileRefsFromVariables(
+        JArray variables,
+        string projectDir,
+        IList<FileRefEntry> entries)
+    {
+        foreach (var token in variables)
+        {
+            if (token is not JObject varObj)
+            {
+                continue;
+            }
+
+            var varKey = varObj.Value<string>("key") ?? varObj.Value<string>("Key") ?? "variable";
+            if (!TryReadNonEmptyString(
+                    varObj[XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty],
+                    out var relativePath))
+            {
+                continue;
+            }
+
+            var fullPath = XActionFileRefPath.ResolveFullPath(projectDir, relativePath!);
+            long? sizeBytes = null;
+            var exists = File.Exists(fullPath);
+            if (exists)
+            {
+                sizeBytes = new FileInfo(fullPath).Length;
+            }
+
+            entries.Add(new FileRefEntry
+            {
+                StepRef = $"variable {varKey}",
+                ParamName = "defaultValue",
+                RelativePath = relativePath!,
+                Exists = exists,
+                SizeBytes = sizeBytes,
+            });
+        }
     }
 
     private static void CollectFileRefsFromSteps(JArray steps, string projectDir, IList<FileRefEntry> entries)

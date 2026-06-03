@@ -18,7 +18,13 @@ import {
 
 import { useWorkspaceExplorerActions } from "@/lib/workspace-explorer";
 
-import { isQkrpcToolResult, type QkrpcToolResult } from "./tool-output";
+import { type QkrpcToolResult } from "./tool-output";
+import {
+  ToolDetailsIconButton,
+  ToolResultPopup,
+  toolCanShowDetails,
+  useToolResultPopup,
+} from "./ToolResultPopup";
 
 
 
@@ -67,7 +73,8 @@ export function WorkspaceFileOpenRow({
   errorText,
 
 }: WorkspaceFileOpenRowProps) {
-
+  const popup = useToolResultPopup();
+  const canShowDetails = toolCanShowDetails(input, output, errorText, isRunning);
   const { openFileFromTool, revealPath, setPanelOpen } = useWorkspaceExplorerActions();
 
 
@@ -115,47 +122,44 @@ export function WorkspaceFileOpenRow({
 
 
   return (
-
-    <div
-
-      className={`tool-card tool-card--file-open tool-card--preview${inBatch ? " tool-card--nested" : ""}${isRunning ? " tool-card--running" : ""}`}
-
-    >
-
-      <button
-
-        type="button"
-
-        className="tool-file-open-btn"
-
-        onClick={handleOpen}
-
-        aria-label={`打开 ${fileLabel}`}
-
+    <>
+      <div
+        className={`tool-card tool-card--file-open tool-card--preview tool-card--with-details${inBatch ? " tool-card--nested" : ""}${isRunning ? " tool-card--running" : ""}`}
       >
-
-        <span className="tool-title">
-
-          <span className="tool-name">{displayName}</span>
-
-          <span
-
-            className={`tool-meta${isRunning ? " tool-meta--running" : ""}${state === "output-error" ? " tool-meta--err" : ""}`}
-
+        <div className="tool-card-actions">
+          <button
+            type="button"
+            className="tool-file-open-btn"
+            onClick={handleOpen}
+            aria-label={`打开 ${fileLabel}`}
           >
-
-            {subtitle}
-
-          </span>
-
-        </span>
-
-      </button>
-
-      {errorText ? <pre className="tool-error">{errorText}</pre> : null}
-
-    </div>
-
+            <span className="tool-title">
+              <span className="tool-name">{displayName}</span>
+              <span
+                className={`tool-meta${isRunning ? " tool-meta--running" : ""}${state === "output-error" ? " tool-meta--err" : ""}`}
+              >
+                {subtitle}
+              </span>
+            </span>
+          </button>
+          {canShowDetails ? (
+            <ToolDetailsIconButton onClick={popup.openPopup} />
+          ) : null}
+        </div>
+        {errorText ? <pre className="tool-error">{errorText}</pre> : null}
+      </div>
+      <ToolResultPopup
+        open={popup.open}
+        onClose={popup.closePopup}
+        title={displayName}
+        subtitle={subtitle}
+        toolName={toolName}
+        input={input}
+        output={output}
+        errorText={errorText}
+        followTail={isRunning}
+      />
+    </>
   );
 
 }

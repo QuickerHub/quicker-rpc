@@ -97,19 +97,23 @@ async function fetchMissingSpecs(specs: string[]): Promise<void> {
 function scheduleFlush(): void {
   if (flushScheduled) return;
   flushScheduled = true;
-  queueMicrotask(() => {
-    flushScheduled = false;
-    const batch = [...flushQueue];
-    flushQueue = new Set();
-    const missing = batch.filter((s) => !memory.has(s));
-    if (missing.length === 0) return;
-
-    const run = async () => {
-      await fetchMissingSpecs(missing);
-    };
-    inFlight = run().finally(() => {
-      inFlight = null;
-      if (flushQueue.size > 0) scheduleFlush();
+  inFlight = new Promise<void>((resolve) => {
+    queueMicrotask(() => {
+      flushScheduled = false;
+      const batch = [...flushQueue];
+      flushQueue = new Set();
+      const missing = batch.filter((s) => !memory.has(s));
+      if (missing.length === 0) {
+        resolve();
+        inFlight = null;
+        if (flushQueue.size > 0) scheduleFlush();
+        return;
+      }
+      void fetchMissingSpecs(missing).finally(() => {
+        resolve();
+        inFlight = null;
+        if (flushQueue.size > 0) scheduleFlush();
+      });
     });
   });
 }
@@ -123,9 +127,14 @@ export function ensureFaIconsResolved(specs: Iterable<string | undefined>): void
   if (flushQueue.size > 0) scheduleFlush();
 }
 
-/** Await in-flight resolve (tests / optional). */
+/** Await pending + in-flight FA resolves (safe to call right after ensureFaIconsResolved). */
 export async function flushFaIconCache(): Promise<void> {
-  if (inFlight) await inFlight;
+  if (flushQueue.size > 0) {
+    scheduleFlush();
+  }
+  while (inFlight) {
+    await inFlight;
+  }
 }
 
 loadPersisted();

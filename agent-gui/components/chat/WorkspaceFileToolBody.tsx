@@ -23,6 +23,12 @@ import {
   ToolPayloadView,
   type QkrpcToolResult,
 } from "./tool-output";
+import {
+  ToolDetailsIconButton,
+  ToolResultPopup,
+  toolCanShowDetails,
+  useToolResultPopup,
+} from "./ToolResultPopup";
 
 function FileListView({ payload }: { payload: Extract<WorkspaceFilePayload, { action: "file-list" }> }) {
   const dirs = payload.entries.filter((e) => e.isDirectory);
@@ -99,16 +105,16 @@ function FileEditorPreviewBody({
   const stat = !embedded && showCodeBlock
     ? (() => {
     switch (toolName) {
-      case "workspace_file_read":
+      case "workspace_action_file_read":
       case "workspace_action_read_data":
         return buildReadStat(preview.content, input);
-      case "workspace_file_write":
+      case "workspace_action_file_write":
       case "workspace_action_write_data":
         if (preview.diff && preview.diff.removed.length > 0) {
           return buildEditStat(preview.diff.removed, preview.diff.added);
         }
         return buildWriteStat(preview.content);
-      case "workspace_file_edit":
+      case "workspace_action_file_edit":
       case "workspace_action_edit_data":
         return buildEditStat(
           preview.diff?.removed ?? "",
@@ -214,11 +220,19 @@ export function WorkspaceFileEditorRow({
   inBatch?: boolean;
   errorText?: string;
 }) {
+  const popup = useToolResultPopup();
+  const canShowDetails = toolCanShowDetails(input, output, errorText, running);
   const failed = output && !output.ok;
   return (
+    <>
     <div
-      className={`tool-card tool-card--file-editor tool-card--preview${inBatch ? " tool-card--nested" : ""}${running ? " tool-card--running" : ""}`}
+      className={`tool-card tool-card--file-editor tool-card--preview tool-card--with-details${inBatch ? " tool-card--nested" : ""}${running ? " tool-card--running" : ""}`}
     >
+      {canShowDetails ? (
+        <div className="tool-card-actions tool-card-actions--corner">
+          <ToolDetailsIconButton onClick={popup.openPopup} />
+        </div>
+      ) : null}
       {failed ? (
         <FileEditorPreview
           toolName={toolName}
@@ -251,6 +265,18 @@ export function WorkspaceFileEditorRow({
       )}
       {errorText ? <pre className="tool-error">{errorText}</pre> : null}
     </div>
+    <ToolResultPopup
+      open={popup.open}
+      onClose={popup.closePopup}
+      title={displayName}
+      subtitle={meta}
+      toolName={toolName}
+      input={input}
+      output={output}
+      errorText={errorText}
+      followTail={running}
+    />
+    </>
   );
 }
 

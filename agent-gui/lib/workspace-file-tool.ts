@@ -4,12 +4,16 @@ import {
   isWorkspaceExplorerFileTool,
 } from "@/lib/action-project-data-tools";
 import { countLineDiffStats } from "@/lib/file-line-diff";
+import {
+  fileIconKindToLanguage,
+  resolveFileIconKind,
+} from "@/lib/file-icon-kind";
 import { isStructuredToolResult } from "@/lib/tool-result";
 
 export const WORKSPACE_FILE_TOOLS = new Set([
-  "workspace_file_read",
-  "workspace_file_write",
-  "workspace_file_edit",
+  "workspace_action_file_read",
+  "workspace_action_file_write",
+  "workspace_action_file_edit",
 ]);
 
 export function isWorkspaceFileTool(toolName: string): boolean {
@@ -94,30 +98,7 @@ export function formatCharCount(n: number): string {
 }
 
 export function guessFileLanguage(path: string): string | undefined {
-  const base = basenamePath(path);
-  const lower = base.toLowerCase();
-  if (lower.endsWith(".eval.cs")) return "csharp";
-  const dot = base.lastIndexOf(".");
-  if (dot < 0) return undefined;
-  const ext = base.slice(dot + 1).toLowerCase();
-  const map: Record<string, string> = {
-    json: "json",
-    cs: "csharp",
-    md: "markdown",
-    txt: "text",
-    js: "javascript",
-    ts: "typescript",
-    tsx: "tsx",
-    jsx: "jsx",
-    css: "css",
-    html: "html",
-    xml: "xml",
-    yaml: "yaml",
-    yml: "yaml",
-    ps1: "powershell",
-    sh: "shell",
-  };
-  return map[ext];
+  return fileIconKindToLanguage(resolveFileIconKind(basenamePath(path)));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -152,12 +133,12 @@ export function parseWorkspaceFilePayload(
   if (!isRecord(data)) return null;
 
   switch (toolName) {
-    case "workspace_file_read": {
+    case "workspace_action_file_read": {
       const read = parseWorkspaceFileReadPayload(data);
       if (read) return read;
       break;
     }
-    case "workspace_file_write":
+    case "workspace_action_file_write":
       if (
         data.action === "file-write"
         && typeof data.path === "string"
@@ -170,7 +151,7 @@ export function parseWorkspaceFilePayload(
         };
       }
       break;
-    case "workspace_file_edit":
+    case "workspace_action_file_edit":
       if (
         data.action === "file-edit"
         && typeof data.path === "string"
@@ -395,11 +376,11 @@ export function workspaceFileToolDisplayName(toolName: string): string | null {
   const actionData = actionProjectDataToolDisplayName(toolName);
   if (actionData) return actionData;
   switch (toolName) {
-    case "workspace_file_read":
+    case "workspace_action_file_read":
       return "read";
-    case "workspace_file_write":
+    case "workspace_action_file_write":
       return "write";
-    case "workspace_file_edit":
+    case "workspace_action_file_edit":
       return "edit";
     default:
       return null;
@@ -408,9 +389,9 @@ export function workspaceFileToolDisplayName(toolName: string): string | null {
 
 export function isWorkspaceFileEditorTool(toolName: string): boolean {
   return (
-    toolName === "workspace_file_read"
-    || toolName === "workspace_file_write"
-    || toolName === "workspace_file_edit"
+    toolName === "workspace_action_file_read"
+    || toolName === "workspace_action_file_write"
+    || toolName === "workspace_action_file_edit"
     || toolName === "workspace_action_read_data"
     || toolName === "workspace_action_write_data"
     || toolName === "workspace_action_edit_data"
@@ -419,7 +400,7 @@ export function isWorkspaceFileEditorTool(toolName: string): boolean {
 
 export function isWorkspaceFileReadTool(toolName: string): boolean {
   return (
-    toolName === "workspace_file_read"
+    toolName === "workspace_action_file_read"
     || toolName === "workspace_action_read_data"
   );
 }
@@ -504,7 +485,7 @@ export function getWorkspaceFileEditorPreview(
   const inputPath = readInputPath(input);
 
   switch (toolName) {
-    case "workspace_file_read": {
+    case "workspace_action_file_read": {
       const payload = parseWorkspaceFilePayload(toolName, data);
       if (payload?.action !== "file-read") {
         if (inputPath) {
@@ -519,7 +500,7 @@ export function getWorkspaceFileEditorPreview(
         totalChars: payload.totalChars,
       };
     }
-    case "workspace_file_write": {
+    case "workspace_action_file_write": {
       const content = readInputString(input, "content");
       const payload = parseWorkspaceFilePayload(toolName, data);
       const path = payload?.action === "file-write"
@@ -541,7 +522,7 @@ export function getWorkspaceFileEditorPreview(
             : undefined,
       };
     }
-    case "workspace_file_edit":
+    case "workspace_action_file_edit":
     case "workspace_action_edit_data": {
       const oldString = readInputString(input, "oldString");
       const newString = readInputString(input, "newString");

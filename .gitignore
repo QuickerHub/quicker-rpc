@@ -33,6 +33,7 @@ agent-gui/src-tauri/gen/
 !.env.example
 !**/.env.example
 llm-config.json
+agent-gui/llm-publish.config.json
 llm-bundled-secrets.json
 
 # Publish output, keep release scripts and changelogs

@@ -10,7 +10,7 @@ type ToolFailureDetailsProps = {
   followTail?: boolean;
 };
 
-/** Request/response JSON for failed tool calls (debug). */
+/** Request/response payload for tool result popup (all states). */
 export function ToolFailureDetails({
   toolName,
   input,

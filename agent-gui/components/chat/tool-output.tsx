@@ -26,8 +26,14 @@ import {
   formatWorkspaceToolMetaLine,
   parseWorkspaceToolDisplay,
 } from "@/lib/action-project-display";
+import {
+  formatJsonDisplayText,
+  shouldUseJsonEditor,
+  tryParseJsonString,
+} from "@/lib/format-json-display";
 import { ActionListView } from "./ActionListView";
 import { ActionProjectsView } from "./ActionProjectsView";
+import { ToolJsonEditor } from "./ToolJsonEditor";
 import { FaSearchPlainText } from "./FaSearchPlainText";
 import { parseSearchActionSummaries } from "@/lib/agent-api";
 import {
@@ -254,7 +260,7 @@ export function buildToolSummaryMeta(
   }
 }
 
-function JsonBlock({
+function JsonBlockPre({
   value,
   followTail = false,
 }: {
@@ -262,10 +268,7 @@ function JsonBlock({
   followTail?: boolean;
 }) {
   const preRef = useRef<HTMLPreElement>(null);
-  const text =
-    typeof value === "string"
-      ? value
-      : JSON.stringify(value, null, 2) ?? String(value);
+  const text = formatJsonDisplayText(value);
 
   useLayoutEffect(() => {
     if (!followTail) return;
@@ -279,6 +282,30 @@ function JsonBlock({
       {text}
     </pre>
   );
+}
+
+function JsonBlock({
+  value,
+  followTail = false,
+}: {
+  value: unknown;
+  followTail?: boolean;
+}) {
+  if (shouldUseJsonEditor(value)) {
+    return <ToolJsonEditor value={value} followTail={followTail} />;
+  }
+  return <JsonBlockPre value={value} followTail={followTail} />;
+}
+
+function valueNeedsBlockLayout(value: unknown): boolean {
+  if (typeof value === "object" && value !== null) {
+    return shouldUseJsonEditor(value);
+  }
+  if (typeof value === "string") {
+    const parsed = tryParseJsonString(value);
+    return shouldUseJsonEditor(parsed ?? value);
+  }
+  return false;
 }
 
 /** Top-level data is a small flat object (no nested structures). */
@@ -418,12 +445,15 @@ function CompactSuccessBody({
 function KeyValueRows({
   entries,
 }: {
-  entries: Array<{ key: string; value: ReactNode }>;
+  entries: Array<{ key: string; value: ReactNode; block?: boolean }>;
 }) {
   return (
     <dl className="tool-kv">
-      {entries.map(({ key, value }) => (
-        <div key={key} className="tool-kv-row">
+      {entries.map(({ key, value, block }) => (
+        <div
+          key={key}
+          className={`tool-kv-row${block ? " tool-kv-row--block" : ""}`}
+        >
           <dt>{key}</dt>
           <dd>{value}</dd>
         </div>
@@ -432,7 +462,7 @@ function KeyValueRows({
   );
 }
 
-function renderValueCell(v: unknown): ReactNode {
+function renderValueCell(v: unknown, followTail = false): ReactNode {
   if (v === null || v === undefined) {
     return <span className="tool-muted">—</span>;
   }
@@ -440,11 +470,27 @@ function renderValueCell(v: unknown): ReactNode {
     return v ? "true" : "false";
   }
   if (typeof v === "object") {
+    if (shouldUseJsonEditor(v)) {
+      return <ToolJsonEditor value={v} followTail={followTail} />;
+    }
     return (
       <pre className="tool-json tool-json--inline" tabIndex={0}>
-        {JSON.stringify(v, null, 2)}
+        {formatJsonDisplayText(v)}
       </pre>
     );
+  }
+  if (typeof v === "string") {
+    const parsed = tryParseJsonString(v);
+    if (parsed !== null) {
+      if (shouldUseJsonEditor(parsed)) {
+        return <ToolJsonEditor value={parsed} followTail={followTail} />;
+      }
+      return (
+        <pre className="tool-json tool-json--inline" tabIndex={0}>
+          {formatJsonDisplayText(parsed)}
+        </pre>
+      );
+    }
   }
   return String(v);
 }
@@ -472,7 +518,8 @@ function ShallowObjectView({
     .slice(0, 12)
     .map(([key, value]) => ({
       key,
-      value: renderValueCell(value),
+      value: renderValueCell(value, followTail),
+      block: valueNeedsBlockLayout(value),
     }));
 
   if (entries.length === 0) {

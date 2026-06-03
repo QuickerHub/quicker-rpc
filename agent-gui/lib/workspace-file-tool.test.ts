@@ -78,7 +78,7 @@ test("buildWriteStat is add-only lines", () => {
 });
 
 test("parses file-read payload", () => {
-  const payload = parseWorkspaceFilePayload("workspace_file_read", {
+  const payload = parseWorkspaceFilePayload("workspace_action_file_read", {
     action: "file-read",
     path: ".quicker/actions/foo/info.json",
     content: '{\n  "Id": "abc"\n}',
@@ -119,7 +119,7 @@ test("summarizes read result", () => {
     totalChars: 11,
   });
   const summary = summarizeWorkspaceFileTool(
-    "workspace_file_read",
+    "workspace_action_file_read",
     output,
     { path: ".quicker/actions/foo/info.json" },
   );
@@ -136,6 +136,8 @@ test("guesses language from extension", () => {
   assert.equal(guessFileLanguage("data.json"), "json");
   assert.equal(guessFileLanguage("script.cs"), "csharp");
   assert.equal(guessFileLanguage("files/clip.eval.cs"), "csharp");
+  assert.equal(guessFileLanguage("files/main.js"), "javascript");
+  assert.equal(guessFileLanguage("files/main.py"), "python");
   assert.equal(basenamePath("a/b/c.txt"), "c.txt");
   assert.ok(formatCharCount(1500).includes("k"));
 });

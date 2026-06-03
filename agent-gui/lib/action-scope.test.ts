@@ -28,9 +28,10 @@ test("extractActionScopeFromMessages reads latest user qka pin", () => {
   assert.ok(
     formatActionScopeForSystem(scope).includes("e0ac442e-6241-4f89-9a20-494dee157b89"),
   );
+  assert.ok(!formatActionScopeForSystem(scope).includes("binding"));
 });
 
-test("guardWorkspaceActionId rejects id when single pin differs", () => {
+test("guardWorkspaceActionId allows any GUID (no pin lock)", () => {
   const scope = extractActionScopeFromMessages(
     [
       {
@@ -46,39 +47,12 @@ test("guardWorkspaceActionId rejects id when single pin differs", () => {
     ],
     [],
   );
-  const guard = guardWorkspaceActionId(
-    "c132ca4a-9b1f-4ef4-9b38-105a78b5f5de",
-    scope,
-  );
+  const otherId = "c132ca4a-9b1f-4ef4-9b38-105a78b5f5de";
+  const guard = guardWorkspaceActionId(otherId, scope);
+  assert.deepEqual(guard, { ok: true, id: otherId });
+});
+
+test("guardWorkspaceActionId rejects invalid id", () => {
+  const guard = guardWorkspaceActionId("not-a-uuid", undefined);
   assert.equal(guard.ok, false);
-  if (!guard.ok) {
-    assert.ok(guard.error.includes("mismatch"));
-    assert.ok(guard.error.includes("e0ac442e"));
-  }
-});
-
-test("guardWorkspaceActionId allows pinned id", () => {
-  const scope = extractActionScopeFromMessages(
-    [
-      {
-        id: "u1",
-        role: "user",
-        parts: [
-          {
-            type: "text",
-            text: '<qka id="e0ac442e-6241-4f89-9a20-494dee157b89">A</qka>',
-          },
-        ],
-      },
-    ],
-    [],
-  );
-  const guard = guardWorkspaceActionId(
-    "e0ac442e-6241-4f89-9a20-494dee157b89",
-    scope,
-  );
-  assert.deepEqual(guard, {
-    ok: true,
-    id: "e0ac442e-6241-4f89-9a20-494dee157b89",
-  });
 });

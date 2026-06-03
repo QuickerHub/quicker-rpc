@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  actionProjectDataJsonPath,
   actionProjectInfoJsonPath,
   buildExplorerTree,
   buildExplorerTreeFromProjectMeta,
   displayNodeLabel,
   displayNodeSubtitle,
+  findExplorerTreeNode,
+  isActionProjectFolderNode,
   isActionProjectRootNode,
+  isExplorerTreeDirectoryPath,
   isHiddenExplorerTreeNode,
   resolveActionProjectId,
 } from "./action-explorer-tree";
@@ -36,7 +40,7 @@ test("buildExplorerTree shows action title for guid directory", () => {
   assert.ok(isActionProjectRootNode(project, ROOT));
   const childNames = (project.children ?? []).map((c) => c.name);
   assert.ok(!childNames.includes("info.json"), "info.json is hidden in tree");
-  assert.ok(childNames.includes("data.json"));
+  assert.ok(!childNames.includes("data.json"), "data.json is hidden in tree");
 });
 
 test("displayNodeLabel uses untitled placeholder when info has no title", () => {
@@ -87,7 +91,7 @@ test("buildExplorerTreeFromProjectMeta attaches file children under meta root", 
   assert.equal(displayNodeLabel(project, ROOT), "QuickerRpc 管理");
   const childNames = (project.children ?? []).map((c) => c.name);
   assert.ok(!childNames.includes("info.json"));
-  assert.ok(childNames.includes("data.json"));
+  assert.ok(!childNames.includes("data.json"));
 });
 
 test("buildExplorerTree supports legacy slug directory names", () => {
@@ -106,7 +110,7 @@ test("buildExplorerTree supports legacy slug directory names", () => {
   assert.equal(displayNodeLabel(project, ROOT), "QuickerRpc 管理");
 });
 
-test("isHiddenExplorerTreeNode only for project info.json", () => {
+test("isHiddenExplorerTreeNode only for project info.json and data.json", () => {
   const project = {
     name: ACTION_ID,
     path: `${ROOT}/${ACTION_ID}`,
@@ -118,7 +122,13 @@ test("isHiddenExplorerTreeNode only for project info.json", () => {
     path: `${ROOT}/${ACTION_ID}/info.json`,
     kind: "file" as const,
   };
+  const data = {
+    name: "data.json",
+    path: `${ROOT}/${ACTION_ID}/data.json`,
+    kind: "file" as const,
+  };
   assert.equal(isHiddenExplorerTreeNode(info, project, ROOT), true);
+  assert.equal(isHiddenExplorerTreeNode(data, project, ROOT), true);
   assert.equal(
     isHiddenExplorerTreeNode(
       { name: "info.json", path: `${ROOT}/${ACTION_ID}/files/info.json`, kind: "file" },
@@ -147,6 +157,73 @@ test("resolveActionProjectId prefers meta id then guid dir name", () => {
       actionId: ACTION_ID,
     }),
     ACTION_ID,
+  );
+});
+
+test("findExplorerTreeNode resolves nested directory", () => {
+  const tree = {
+    rootPath: ROOT,
+    rootLabel: "动作项目",
+    children: [
+      {
+        name: ACTION_ID,
+        path: `${ROOT}/${ACTION_ID}`,
+        kind: "directory" as const,
+        children: [
+          {
+            name: "files",
+            path: `${ROOT}/${ACTION_ID}/files`,
+            kind: "directory" as const,
+            children: [
+              {
+                name: "a.txt",
+                path: `${ROOT}/${ACTION_ID}/files/a.txt`,
+                kind: "file" as const,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  assert.equal(
+    findExplorerTreeNode(tree, `${ROOT}/${ACTION_ID}/files`)?.kind,
+    "directory",
+  );
+  assert.equal(
+    findExplorerTreeNode(tree, `${ROOT}/${ACTION_ID}/files/a.txt`)?.name,
+    "a.txt",
+  );
+  assert.equal(isExplorerTreeDirectoryPath(tree, `${ROOT}/${ACTION_ID}/files`), true);
+  assert.equal(isExplorerTreeDirectoryPath(tree, `${ROOT}/${ACTION_ID}/files/a.txt`), false);
+  assert.equal(
+    isExplorerTreeDirectoryPath(null, `${ROOT}/${ACTION_ID}/files`),
+    true,
+  );
+});
+
+test("files folder is not project root even when actionsRoot param is project path", () => {
+  const projectRoot = `${ROOT}/${ACTION_ID}`;
+  const filesNode = {
+    name: "files",
+    path: `${projectRoot}/files`,
+    kind: "directory" as const,
+  };
+  assert.equal(isActionProjectRootNode(filesNode, projectRoot), false);
+  assert.equal(actionProjectInfoJsonPath(filesNode, projectRoot), null);
+  assert.equal(isActionProjectFolderNode(filesNode), true);
+});
+
+test("actionProjectDataJsonPath for project root", () => {
+  const node = {
+    name: "foo",
+    path: `${ROOT}/foo`,
+    kind: "directory" as const,
+  };
+  assert.equal(actionProjectDataJsonPath(node, ROOT), `${ROOT}/foo/data.json`);
+  assert.equal(
+    actionProjectDataJsonPath({ name: "data.json", path: `${ROOT}/foo/data.json`, kind: "file" }, ROOT),
+    null,
   );
 });
 

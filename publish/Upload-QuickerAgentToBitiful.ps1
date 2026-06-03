@@ -10,6 +10,7 @@ param(
     [string]$RepoRoot = '',
     [string]$Tag = '',
     [string]$Version = '',
+    [switch]$UseLocal,
     [switch]$DryRun
 )
 
@@ -54,43 +55,67 @@ else {
 
 $setupName = Get-QuickerAgentSetupName -Version $semver
 $localInstaller = Join-Path $RepoRoot "publish\$setupName"
-$downloadDir = Join-Path $env:TEMP "qkrpc-bitiful-$semver"
+$downloadDir = Join-Path $env:TEMP "qkrpc-bitiful-$semver-$(Get-Random -Maximum 999999)"
 
 function Resolve-InstallerPath {
-    if (Test-Path -LiteralPath $localInstaller) {
-        Write-Host "Using local installer: $localInstaller" -ForegroundColor Cyan
+    if ($UseLocal) {
+        if (-not (Test-Path -LiteralPath $localInstaller)) {
+            throw "Local installer not found: $localInstaller"
+        }
+
+        Assert-QuickerAgentInstallerFile -Path $localInstaller
+        Write-Host "Using local installer (-UseLocal): $localInstaller" -ForegroundColor Cyan
         return (Resolve-Path -LiteralPath $localInstaller).Path
     }
 
-    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-        throw @"
-Installer not found: $localInstaller
-Install GitHub CLI (gh) or place the file under publish/ after Publish-QuickerAgent.ps1 / CI release.
-"@
+    if ((Test-Path -LiteralPath $localInstaller) -and -not (Test-QuickerAgentInstallerFile -Path $localInstaller)) {
+        $sizeMb = [math]::Round((Get-Item -LiteralPath $localInstaller).Length / 1MB, 2)
+        Write-Warning "Ignoring stale local installer ($sizeMb MB): $localInstaller"
     }
-
-    if (Test-Path -LiteralPath $downloadDir) {
-        Remove-Item -LiteralPath $downloadDir -Recurse -Force
-    }
-
-    New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
-    Write-Host "Downloading $setupName from GitHub Release $Tag..." -ForegroundColor Cyan
 
     if ($DryRun) {
-        Write-Host "[DryRun] gh release download $Tag --repo QuickerHub/quicker-rpc --pattern $setupName -D $downloadDir" -ForegroundColor DarkGray
+        $url = Get-QuickerAgentPinnedSetupDownloadUrl -Tag $Tag -Version $semver
+        Write-Host "[DryRun] Download $url -> $downloadDir\$setupName" -ForegroundColor DarkGray
+        if (Test-QuickerAgentInstallerFile -Path $localInstaller) {
+            return (Resolve-Path -LiteralPath $localInstaller).Path
+        }
+
         return $localInstaller
     }
 
+    New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
+    $downloaded = Join-Path $downloadDir $setupName
+
+    try {
+        return Download-QuickerAgentInstallerFromRelease -Tag $Tag -Version $semver -DestinationPath $downloaded
+    }
+    catch {
+        Write-Warning "Direct download failed: $($_.Exception.Message)"
+    }
+
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        if (Test-QuickerAgentInstallerFile -Path $localInstaller) {
+            Write-Warning 'gh not found; falling back to valid local installer.'
+            return (Resolve-Path -LiteralPath $localInstaller).Path
+        }
+
+        throw @"
+Failed to download installer for $Tag.
+Install GitHub CLI (gh) or run Publish-QuickerAgent.ps1 locally.
+"@
+    }
+
+    Write-Host "Retrying via gh release download..." -ForegroundColor Cyan
     gh release download $Tag --repo 'QuickerHub/quicker-rpc' --pattern $setupName -D $downloadDir
     if ($LASTEXITCODE -ne 0) {
         throw "gh release download failed ($LASTEXITCODE) for $Tag / $setupName"
     }
 
-    $downloaded = Join-Path $downloadDir $setupName
     if (-not (Test-Path -LiteralPath $downloaded)) {
         throw "Downloaded installer missing: $downloaded"
     }
 
+    Assert-QuickerAgentInstallerFile -Path $downloaded
     return (Resolve-Path -LiteralPath $downloaded).Path
 }
 

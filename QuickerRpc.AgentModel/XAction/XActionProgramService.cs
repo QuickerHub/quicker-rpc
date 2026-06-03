@@ -2,6 +2,7 @@ using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.AgentModel.XAction.Compression;
 using QuickerRpc.AgentModel.XAction.Patch;
+using QuickerRpc.AgentModel.XAction.Project;
 using QuickerRpc.AgentModel.XAction.Validation;
 
 namespace QuickerRpc.AgentModel.XAction;
@@ -57,4 +58,10 @@ public static class XActionProgramService
         JArray variables,
         JObject patch) =>
         XActionPatchApplier.Apply(steps, variables, patch);
+
+    /// <summary>Compile <c>formDef.file</c> / legacy <c>formSpec</c> on patch steps before apply (in-memory only).</summary>
+    public static XActionFormSpecCompiler.CompileResult PreprocessPatch(
+        JObject patch,
+        string? projectDirectory = null) =>
+        XActionFormSpecCompiler.CompilePatch(patch, projectDirectory);
 }

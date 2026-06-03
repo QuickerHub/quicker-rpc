@@ -51,8 +51,7 @@ export type ComposerMarkupFieldHandle = {
 type ComposerMarkupFieldProps = {
   value: string;
   placeholder: string;
-  disabled: boolean;
-  qkrpcOk: boolean;
+  disabled?: boolean;
   onChange: (value: string) => void;
   onSubmit: () => void;
 };
@@ -87,7 +86,7 @@ export const ComposerMarkupField = forwardRef<
   ComposerMarkupFieldHandle,
   ComposerMarkupFieldProps
 >(function ComposerMarkupField(
-  { value, placeholder, disabled, qkrpcOk, onChange, onSubmit },
+  { value, placeholder, disabled = false, onChange, onSubmit },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);

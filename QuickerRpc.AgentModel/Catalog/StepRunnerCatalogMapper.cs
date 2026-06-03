@@ -81,6 +81,7 @@ public static class StepRunnerCatalogMapper
             Name = row.Name ?? string.Empty,
             Description = TrimToNull(row.Description),
             Snippet = retrieval.Snippet,
+            Icon = TrimToNull(row.Icon),
         };
 
         if (rank.Control is not null)
@@ -119,6 +120,7 @@ public static class StepRunnerCatalogMapper
             StepRunnerKey = runner.Key ?? string.Empty,
             Name = runner.Name ?? string.Empty,
             Description = TrimToNull(runner.Description),
+            Icon = TrimToNull(runner.Icon),
             ControlField = MapControlFieldOrNull(runner.InputParamDefs),
             VisibilityFilteringAvailable = filteringAvailable
         };

@@ -12,7 +12,39 @@ namespace QuickerRpc.Plugin.Services;
 /// <summary>Maps Quicker step runners to <see cref="StepRunnerCatalog"/> via reflection.</summary>
 internal static class StepRunnerCatalogFromQuicker
 {
+    private static StepRunnerCatalog? _cachedCatalog;
+    private static readonly object CatalogLock = new();
+
     public static StepRunnerCatalog Build()
+    {
+        var cached = _cachedCatalog;
+        if (cached is not null)
+        {
+            return cached;
+        }
+
+        lock (CatalogLock)
+        {
+            if (_cachedCatalog is not null)
+            {
+                return _cachedCatalog;
+            }
+
+            _cachedCatalog = BuildCore();
+            return _cachedCatalog;
+        }
+    }
+
+    /// <summary>Force rebuild after plugin step-runner registration changes.</summary>
+    internal static void InvalidateCache()
+    {
+        lock (CatalogLock)
+        {
+            _cachedCatalog = null;
+        }
+    }
+
+    private static StepRunnerCatalog BuildCore()
     {
         var items = new List<StepRunnerDefinition>();
         if (!QuickerInternalAccess.IsInQuicker)

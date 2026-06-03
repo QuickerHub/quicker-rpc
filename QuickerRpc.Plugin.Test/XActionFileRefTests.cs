@@ -226,6 +226,119 @@ public sealed class XActionFileRefTests
     }
 
     [TestMethod]
+    public void AutoExternalize_jsscript_uses_js_extension()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-auto-ext-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var longValue = string.Join("\n", Enumerable.Range(1, 6).Select(i => $"console.log({i});"));
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-1",
+                        ["stepRunnerKey"] = "sys:jsscript",
+                        ["inputParams"] = new JObject
+                        {
+                            ["script"] = new JObject { ["value"] = longValue },
+                        },
+                    },
+                },
+                ["variables"] = new JArray(),
+            };
+
+            var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 4);
+            Assert.AreEqual(1, result.WrittenFiles.Count);
+            StringAssert.EndsWith(result.WrittenFiles[0], ".js");
+            Assert.IsTrue(result.WrittenFiles[0].Contains("jsscript", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void AutoExternalize_pythonscript_uses_py_extension()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-auto-ext-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var longValue = string.Join("\n", Enumerable.Range(1, 6).Select(i => $"x{i} = {i}"));
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-1",
+                        ["stepRunnerKey"] = "sys:pythonscript",
+                        ["inputParams"] = new JObject
+                        {
+                            ["script"] = new JObject { ["value"] = longValue },
+                        },
+                    },
+                },
+                ["variables"] = new JArray(),
+            };
+
+            var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 4);
+            Assert.AreEqual(1, result.WrittenFiles.Count);
+            StringAssert.EndsWith(result.WrittenFiles[0], ".py");
+            Assert.IsTrue(result.WrittenFiles[0].Contains("pythonscript", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void AutoExternalize_runscript_uses_ps1_extension()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-auto-ext-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var longValue = string.Join("\n", Enumerable.Range(1, 6).Select(i => $"Write-Host {i}"));
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-1",
+                        ["stepRunnerKey"] = "sys:runScript",
+                        ["inputParams"] = new JObject
+                        {
+                            ["script"] = new JObject { ["value"] = longValue },
+                        },
+                    },
+                },
+                ["variables"] = new JArray(),
+            };
+
+            var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 4);
+            Assert.AreEqual(1, result.WrittenFiles.Count);
+            StringAssert.EndsWith(result.WrittenFiles[0], ".ps1");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void AutoExternalize_skips_short_values()
     {
         var data = new JObject
@@ -323,6 +436,121 @@ public sealed class XActionFileRefTests
             Assert.AreEqual(1, result.StepCount);
             Assert.AreEqual(1, result.FileRefs.Count);
             Assert.IsTrue(result.FileRefs[0].Exists);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void AutoExternalize_variable_long_default_by_line_count()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-var-ext-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var longValue = string.Join("\n", Enumerable.Range(1, 6).Select(i => $"item {i}"));
+            var data = new JObject
+            {
+                ["steps"] = new JArray(),
+                ["variables"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["key"] = "searchList",
+                        ["type"] = 0,
+                        ["defaultValue"] = longValue,
+                    },
+                },
+            };
+
+            var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 4);
+            Assert.AreEqual(1, result.ResourceFiles.Count);
+            Assert.AreEqual("files/searchlist-default1.txt", result.ResourceFiles[0].RelativePath);
+
+            var variable = data["variables"]![0] as JObject;
+            Assert.AreEqual("files/searchlist-default1.txt", variable!.Value<string>("defaultValueFile"));
+            Assert.IsNull(variable["defaultValue"]);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void AutoExternalize_variable_long_single_line_by_char_count()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-var-ext-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var longValue = new string('x', 300);
+            var data = new JObject
+            {
+                ["steps"] = new JArray(),
+                ["variables"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["key"] = "urls",
+                        ["type"] = 0,
+                        ["defaultValue"] = longValue,
+                    },
+                },
+            };
+
+            var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 100, minChars: 240);
+            Assert.AreEqual(1, result.ResourceFiles.Count);
+            var variable = data["variables"]![0] as JObject;
+            Assert.IsNotNull(variable!["defaultValueFile"]);
+            Assert.IsNull(variable["defaultValue"]);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void Compile_resolves_variable_defaultValueFile()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-var-file-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            var defaultPath = Path.Combine(root, "files", "urls-default1.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(defaultPath)!);
+            const string content = "line1\r\nline2";
+            File.WriteAllText(defaultPath, content, System.Text.Encoding.UTF8);
+
+            var data = new JObject
+            {
+                ["steps"] = new JArray(),
+                ["variables"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["key"] = "urls",
+                        ["type"] = 0,
+                        ["defaultValueFile"] = "files/urls-default1.txt",
+                    },
+                },
+            };
+
+            var result = XActionFileRefCompiler.Compile(data, root);
+            Assert.IsTrue(result.Success, result.ErrorMessage);
+            var variable = result.CompiledData!["variables"]![0] as JObject;
+            Assert.AreEqual(content, variable!.Value<string>("defaultValue"));
+            Assert.IsNull(variable["defaultValueFile"]);
         }
         finally
         {

@@ -7,6 +7,8 @@ export type FloatingMenuLayout = {
   transform?: string;
 };
 
+export type FloatingMenuAlign = "start" | "end";
+
 const GAP_PX = 4;
 const VIEWPORT_PAD_PX = 8;
 const MIN_MENU_HEIGHT_PX = 72;
@@ -15,18 +17,22 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-/** Align menu end (right edge) with anchor end; flip above when needed. */
+/**
+ * @param align `"end"` — menu right edge with anchor right (default);
+ *              `"start"` — menu left edge with anchor left.
+ */
 export function computeFloatingMenuLayout(
   anchor: DOMRect,
   menuWidth: number,
   menuMaxHeight = 280,
+  align: FloatingMenuAlign = "end",
 ): FloatingMenuLayout {
   const width = Math.min(
     menuWidth,
     window.innerWidth - 2 * VIEWPORT_PAD_PX,
   );
   const left = clamp(
-    anchor.right - width,
+    align === "start" ? anchor.left : anchor.right - width,
     VIEWPORT_PAD_PX,
     window.innerWidth - width - VIEWPORT_PAD_PX,
   );

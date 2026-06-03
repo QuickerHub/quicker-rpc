@@ -5,6 +5,7 @@ import { isBundledAgentRuntime } from "@/lib/default-working-directory";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
 import { runQkrpc } from "@/lib/qkrpc";
+import { mustNotSpawnCli } from "@/lib/qkrpc-transport";
 
 export type AppVersionSnapshot = {
   quickerAgent: string;
@@ -56,6 +57,17 @@ export function resolveQuickerAgentVersion(): string {
 }
 
 export async function resolveQkrpcCliVersion(): Promise<string | null> {
+  if (mustNotSpawnCli()) {
+    const fromCwd = readQuickerRpcVersionFromJson(process.cwd());
+    if (fromCwd) return fromCwd;
+    const repo = resolveQuickerRpcRepoRoot();
+    if (repo) {
+      const fromRepo = readQuickerRpcVersionFromJson(repo);
+      if (fromRepo) return fromRepo;
+    }
+    return null;
+  }
+
   const result = await runQkrpc(["help", "--json"], { timeoutMs: 8_000 });
   if (!result.ok) return null;
   const parsed = result.parsed;

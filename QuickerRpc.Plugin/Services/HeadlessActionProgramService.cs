@@ -9,6 +9,7 @@ using QuickerRpc.AgentModel.LocalTime;
 using QuickerRpc.AgentModel.XAction;
 using QuickerRpc.AgentModel.XAction.Compression;
 using QuickerRpc.AgentModel.XAction.Patch;
+using QuickerRpc.AgentModel.XAction.Project;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Plugin.Services;
@@ -147,6 +148,12 @@ public sealed class HeadlessActionProgramService
         if (stepsToken is not JArray steps || variablesToken is not JArray variables)
         {
             return FailApply("xAction must contain steps and variables JSON arrays.");
+        }
+
+        var formCompile = XActionFormSpecCompiler.Compile(xAction, projectDirectory: null);
+        if (!formCompile.Success)
+        {
+            return FailApply(formCompile.ErrorMessage ?? "form spec compile failed.");
         }
 
         if (_actions is null || !_actions.IsAvailable)
@@ -311,6 +318,12 @@ public sealed class HeadlessActionProgramService
         if (!hasMeta && !hasProgramPatch)
         {
             return FailPatch("patch must contain steps/variables arrays and/or title, description, icon.");
+        }
+
+        var formPreprocess = XActionProgramService.PreprocessPatch(programPatch, projectDirectory: null);
+        if (!formPreprocess.Success)
+        {
+            return FailPatch(formPreprocess.ErrorMessage ?? "form spec compile failed.");
         }
 
         if (_actions is null || !_actions.IsAvailable)
@@ -556,6 +569,7 @@ public sealed class HeadlessActionProgramService
                     ControlFieldKey = x.ControlFieldKey,
                     ControlFieldValue = x.ControlFieldValue,
                     ControlFieldName = x.ControlFieldName,
+                    Icon = x.Icon,
                 })
                 .ToList(),
         };

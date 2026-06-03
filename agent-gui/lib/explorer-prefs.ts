@@ -2,7 +2,7 @@ export const EXPLORER_OPEN_STORAGE_KEY = "agent-gui-explorer-open";
 export const EXPLORER_WIDTH_STORAGE_KEY = "agent-gui-explorer-width";
 export const EXPLORER_TREE_SHARE_STORAGE_KEY = "agent-gui-explorer-tree-share";
 
-export const EXPLORER_DEFAULT_WIDTH = 360;
+export const EXPLORER_DEFAULT_WIDTH = 240;
 export const EXPLORER_MIN_WIDTH = 220;
 export const EXPLORER_MAX_WIDTH = 720;
 

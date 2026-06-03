@@ -54,6 +54,34 @@ test("write/read/edit workspace files under cwd", async () => {
   }
 });
 
+test("readWorkspaceFile truncates large files without loading entire content", async () => {
+  const root = await mkdtemp(join(tmpdir(), "agent-gui-ws-"));
+  try {
+    await runWithQkrpcCwd(root, async () => {
+      const body = "line\n".repeat(250_000);
+      await writeFile(join(root, "big.txt"), body, "utf8");
+
+      const read = await readWorkspaceFile("big.txt");
+      assert.equal(read.ok, true);
+      if (read.ok) {
+        assert.equal(read.content.length, 200_000);
+        assert.equal(read.truncated, true);
+        assert.equal(read.totalChars, undefined);
+      }
+
+      const partial = await readWorkspaceFile("big.txt", { offset: 10, limit: 5 });
+      assert.equal(partial.ok, true);
+      if (partial.ok) {
+        assert.equal(partial.content, body.slice(10, 15));
+        assert.equal(partial.truncated, true);
+        assert.equal(partial.totalChars, body.length);
+      }
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("editWorkspaceFile fails when oldString is missing", async () => {
   const root = await mkdtemp(join(tmpdir(), "agent-gui-ws-"));
   try {

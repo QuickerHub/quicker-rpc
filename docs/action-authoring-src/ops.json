@@ -109,12 +109,12 @@
     },
     "authoring-workflow": {
       "description": "Quicker 动作编辑 P1–P7 主流程。Use before the first action edit in a session.",
-      "allowed-tools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
+      "allowed-tools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
       "metadata": { "phase": "P1-P7" }
     },
     "workspace-editing": {
-      "description": ".quicker/actions workspace layout; workspace_file_* for files/; long step params via file refs; qkrpc_action_patch save. Use when editing data.json on disk.",
-      "allowed-tools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
+      "description": ".quicker/actions layout; workspace_action_*_data and workspace_action_file_* (id + files/…); patch saves. Use when editing on disk.",
+      "allowed-tools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
       "compatibility": "QuickerAgent; requires working directory in sidebar"
     },
     "action-variables": {
@@ -124,7 +124,7 @@
     },
     "action-steps": {
       "description": "data.json steps[]：stepRunnerKey、inputParams/outputParams、ifSteps；长 inputParams.value (>4 lines) use files/ + file ref not inline value. Use before step-runner get.",
-      "allowed-tools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_action_patch",
+      "allowed-tools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit qkrpc_action_patch",
       "metadata": { "phase": "P5-P6" }
     },
     "patch-workflow": {
@@ -165,6 +165,11 @@
     "action-project-files": {
       "description": "CLI：qkrpc action extract/apply 与 .quicker/actions/{actionId} 目录。",
       "profiles": ["cli"]
+    },
+    "form-spec": {
+      "description": "sys:form 多字段表单：qkrpc.form.v1 语法与 qkrpc form validate/build。Use when authoring sys:form; do not hand-write native formDef JSON.",
+      "allowed-tools": "qkrpc_form_validate qkrpc_form_build qkrpc_step_runner_get workspace_action_edit_data qkrpc_action_patch",
+      "metadata": { "phase": "P5-P6" }
     }
   },
   "ops": {
@@ -321,6 +326,16 @@
       "cli": "qkrpc fa search [--query {{query}}] --json",
       "agent": "qkrpc_fa_search({ query?: \"{{query}}\" })",
       "defaults": { "query": "keyword" }
+    },
+    "form.validate": {
+      "cli": "qkrpc form validate --file {{file}} --json",
+      "agent": "qkrpc_form_validate({ file: \"{{file}}\" })",
+      "defaults": { "file": "form.json" }
+    },
+    "form.build": {
+      "cli": "qkrpc form build --file {{file}} --json",
+      "agent": "qkrpc_form_build({ file: \"{{file}}\" })",
+      "defaults": { "file": "form.json" }
     },
     "action.move": {
       "cli": "qkrpc action move --id {{id}} --profile {{profile}} [--row {{row}} --col {{col}}] [--swap] --json",

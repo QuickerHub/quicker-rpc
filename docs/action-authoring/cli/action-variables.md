@@ -18,6 +18,8 @@
 
 `defaultValue` 在 JSON 里 **始终是字符串**（`"42"`、`"true"`）。可写 `"varType": "integer"` 等，保存时宿主会规范为 `type`。
 
+长默认值（超过 **4 行** 或 **240 字符**）在 `action extract` / `validate` 时会外置为 `defaultValueFile`（如 `files/myvar-default1.txt`），`apply`/`patch` 前自动读回为 `defaultValue`。`defaultValueFile` 与内联 `defaultValue` 互斥。
+
 ## 与步骤的关系
 
 步骤通过 `inputParams.varKey` 读取变量、通过 `outputParams` 的字符串值写入变量（含 `dictVar.key`）。完整步骤 JSON 见 **`action-steps`**；表达式里引用变量见 **`expressions`**（只用 `{varKey}`，勿写 `v_` 前缀）。

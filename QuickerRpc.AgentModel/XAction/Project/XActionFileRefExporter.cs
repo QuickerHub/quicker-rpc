@@ -35,6 +35,13 @@ public static class XActionFileRefExporter
         public string RelativeFile { get; set; } = "";
     }
 
+    private sealed class VariableFileRefSlot
+    {
+        public string Key { get; set; } = "";
+
+        public string RelativeFile { get; set; } = "";
+    }
+
     public static ExportResult Export(
         JObject latestData,
         string projectDirectory,
@@ -51,6 +58,9 @@ public static class XActionFileRefExporter
         var valueIndex = BuildValueIndex(latestSteps);
         var warnings = new List<string>();
         var resourceFiles = new List<ActionProjectResourceFile>();
+
+        XActionFormDefReversibleExporter.Apply(output, templateData, resourceFiles, warnings, projectDir);
+        ActionProjectFormDefFileExporter.EnsureUtf8FormDefResourceFiles(output, projectDir, resourceFiles);
 
         if (templateData is null)
         {
@@ -69,8 +79,45 @@ public static class XActionFileRefExporter
         }
 
         var fileRefs = CollectFileRefs(templateSteps);
+        var variableFileRefs = CollectVariableFileRefs(templateData["variables"] as JArray);
+        var variableDefaults = BuildVariableDefaultIndex(output["variables"] as JArray);
+
+        foreach (var slot in variableFileRefs)
+        {
+            if (!variableDefaults.TryGetValue(slot.Key, out var value))
+            {
+                warnings.Add(
+                    $"file ref {slot.RelativeFile} (variable {slot.Key}, defaultValue): no matching default in latest program.");
+                continue;
+            }
+
+            try
+            {
+                resourceFiles.Add(new ActionProjectResourceFile
+                {
+                    RelativePath = slot.RelativeFile,
+                    Content = value,
+                });
+
+                if (!TryApplyVariableFileRef(output["variables"] as JArray, slot))
+                {
+                    warnings.Add(
+                        $"file ref {slot.RelativeFile} (variable {slot.Key}): variable not found in latest program.");
+                }
+            }
+            catch (Exception ex)
+            {
+                return Fail($"failed to write {slot.RelativeFile}: {ex.Message}");
+            }
+        }
+
         foreach (var slot in fileRefs)
         {
+            if (XActionFormDefReversibleExporter.IsFormDefParamKey(slot.ParamKey))
+            {
+                continue;
+            }
+
             if (!valueIndex.TryGetValue(slot.StepId, out var paramMap)
                 || !paramMap.TryGetValue(slot.ParamKey, out var value))
             {
@@ -105,6 +152,7 @@ public static class XActionFileRefExporter
             return autoFail;
         }
 
+        ActionProjectFormDefFileExporter.EnsureUtf8FormDefResourceFiles(output, projectDir, resourceFiles);
         return BuildSuccess(output, resourceFiles, warnings);
     }
 
@@ -136,7 +184,8 @@ public static class XActionFileRefExporter
             return null;
         }
 
-        var auto = XActionFileRefAutoExternalizer.Apply(output, projectDir, minLines);
+        var minChars = options?.AutoExternalizeMinChars ?? 0;
+        var auto = XActionFileRefAutoExternalizer.Apply(output, projectDir, minLines, minChars);
         resourceFiles.AddRange(auto.ResourceFiles);
         warnings.AddRange(auto.Warnings);
         return null;
@@ -279,6 +328,99 @@ public static class XActionFileRefExporter
                 CollectFileRefsRecursive(elseSteps, list);
             }
         }
+    }
+
+    private static Dictionary<string, string> BuildVariableDefaultIndex(JArray? variables)
+    {
+        var index = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (variables is null)
+        {
+            return index;
+        }
+
+        foreach (var token in variables)
+        {
+            if (token is not JObject varObj)
+            {
+                continue;
+            }
+
+            var key = varObj.Value<string>("key") ?? varObj.Value<string>("Key");
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            var value = varObj.Value<string>("defaultValue")
+                ?? varObj.Value<string>("default_value")
+                ?? varObj.Value<string>("DefaultValue")
+                ?? string.Empty;
+            index[key] = value;
+        }
+
+        return index;
+    }
+
+    private static List<VariableFileRefSlot> CollectVariableFileRefs(JArray? variables)
+    {
+        var list = new List<VariableFileRefSlot>();
+        if (variables is null)
+        {
+            return list;
+        }
+
+        foreach (var token in variables)
+        {
+            if (token is not JObject varObj)
+            {
+                continue;
+            }
+
+            var key = varObj.Value<string>("key") ?? varObj.Value<string>("Key");
+            var file = varObj.Value<string>(XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty)?.Trim();
+            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrEmpty(file))
+            {
+                continue;
+            }
+
+            list.Add(new VariableFileRefSlot
+            {
+                Key = key,
+                RelativeFile = XActionFileRefPath.NormalizeRelativePath(file),
+            });
+        }
+
+        return list;
+    }
+
+    private static bool TryApplyVariableFileRef(JArray? variables, VariableFileRefSlot slot)
+    {
+        if (variables is null)
+        {
+            return false;
+        }
+
+        foreach (var token in variables)
+        {
+            if (token is not JObject varObj)
+            {
+                continue;
+            }
+
+            var key = varObj.Value<string>("key") ?? varObj.Value<string>("Key");
+            if (!string.Equals(key, slot.Key, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            varObj.Remove("defaultValue");
+            varObj.Remove("default_value");
+            varObj.Remove("DefaultValue");
+            varObj[XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty] = slot.RelativeFile;
+            return true;
+        }
+
+        return false;
     }
 
     private static ExportResult Fail(string message) =>

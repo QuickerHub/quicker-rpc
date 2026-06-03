@@ -2,10 +2,22 @@
 
 export type ToolGroupId = "read" | "write" | "destructive";
 
+/** Functional domain for tool picker sub-sections (within a permission group). */
+export type ToolCategoryId =
+  | "docs"
+  | "workspace"
+  | "action"
+  | "subprogram"
+  | "catalog"
+  | "layout"
+  | "runtime"
+  | "delete";
+
 export type ToolMeta = {
   id: string;
   label: string;
   group: ToolGroupId;
+  category: ToolCategoryId;
   /** Shown in tool picker; destructive tools always need approval when enabled. */
   description?: string;
 };
@@ -16,191 +28,241 @@ export const TOOL_GROUP_LABELS: Record<ToolGroupId, string> = {
   destructive: "危险",
 };
 
+export const TOOL_CATEGORY_LABELS: Record<ToolCategoryId, string> = {
+  docs: "编写指南",
+  workspace: "工作区",
+  action: "动作",
+  subprogram: "子程序",
+  catalog: "步骤与资源",
+  layout: "动作页与布局",
+  runtime: "运行",
+  delete: "删除",
+};
+
+/** Category order within each permission group in the tool picker. */
+export const TOOL_CATEGORY_ORDER_BY_GROUP: Record<ToolGroupId, ToolCategoryId[]> = {
+  read: ["docs", "workspace", "action", "subprogram", "catalog"],
+  write: ["action", "subprogram", "workspace", "layout", "runtime"],
+  destructive: ["delete"],
+};
+
 export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
-  { id: "docs_get", label: "指南", group: "read", description: "本地 authoring 指南（按 topic）" },
-  { id: "docs_get_reference", label: "指南附录", group: "read", description: "references/ 大表等附录" },
-  { id: "docs_search", label: "搜索指南", group: "read", description: "本地文档搜索" },
-  { id: "docs_index", label: "指南索引", group: "read", description: "列出全部主题" },
-  { id: "workspace_file_read", label: "读文件", group: "read", description: "工作目录内 UTF-8 文件" },
+  { id: "docs_get", label: "指南", group: "read", category: "docs", description: "本地 authoring 指南（按 topic）" },
+  { id: "docs_get_reference", label: "指南附录", group: "read", category: "docs", description: "references/ 大表等附录" },
+  { id: "docs_search", label: "搜索指南", group: "read", category: "docs", description: "本地文档搜索" },
+  { id: "docs_index", label: "指南索引", group: "read", category: "docs", description: "列出全部主题" },
+  { id: "workspace_action_file_read", label: "读动作文件", group: "read", category: "workspace", description: "files/ 外置资源" },
   {
     id: "workspace_action_projects",
     label: "动作项目",
     group: "read",
+    category: "workspace",
     description: "扫描 .quicker/actions 本地项目",
   },
   {
     id: "workspace_action_read_data",
     label: "读 data.json",
     group: "read",
+    category: "workspace",
     description: "按动作 ID 读取 data.json（mode=summary 仅摘要）",
   },
-  { id: "qkrpc_action_list", label: "列出动作", group: "read" },
-  { id: "qkrpc_action_search", label: "搜索动作", group: "read" },
-  { id: "qkrpc_action_get", label: "读取动作", group: "read" },
-  { id: "qkrpc_subprogram_list", label: "列出子程序", group: "read" },
-  { id: "qkrpc_subprogram_search", label: "搜索子程序", group: "read" },
-  { id: "qkrpc_subprogram_get", label: "读取子程序", group: "read" },
-  { id: "qkrpc_step_runner_search", label: "搜索步骤模块", group: "read" },
-  { id: "qkrpc_step_runner_get", label: "步骤模块 schema", group: "read" },
-  { id: "qkrpc_fa_search", label: "搜索图标", group: "read" },
-  { id: "qkrpc_fa_resolve", label: "解析图标", group: "read", description: "fa: → SVG path" },
+  { id: "qkrpc_action_list", label: "列出动作", group: "read", category: "action" },
+  { id: "qkrpc_action_search", label: "搜索动作", group: "read", category: "action" },
+  { id: "qkrpc_action_get", label: "读取动作", group: "read", category: "action" },
+  { id: "qkrpc_subprogram_list", label: "列出子程序", group: "read", category: "subprogram" },
+  { id: "qkrpc_subprogram_search", label: "搜索子程序", group: "read", category: "subprogram" },
+  { id: "qkrpc_subprogram_get", label: "读取子程序", group: "read", category: "subprogram" },
+  { id: "qkrpc_step_runner_search", label: "搜索步骤模块", group: "read", category: "catalog" },
+  { id: "qkrpc_step_runner_get", label: "步骤模块 schema", group: "read", category: "catalog" },
+  { id: "qkrpc_fa_search", label: "搜索图标", group: "read", category: "catalog" },
+  { id: "qkrpc_fa_resolve", label: "解析图标", group: "read", category: "catalog", description: "fa: → SVG path" },
   {
     id: "qkrpc_action_create",
     label: "创建动作",
     group: "write",
+    category: "action",
     description: "新建虚拟页动作",
   },
   {
     id: "qkrpc_action_patch",
     label: "保存动作",
     group: "write",
+    category: "action",
     description: "校验并写回 Quicker（edit/write data 后直接调用，勿单独 validate）",
   },
   {
     id: "qkrpc_action_set_metadata",
     label: "更新元数据",
     group: "write",
+    category: "action",
     description: "标题/描述/图标",
   },
   {
     id: "workspace_action_write_data",
     label: "写 data.json",
     group: "write",
+    category: "action",
     description: "按动作 ID 写入 data.json",
   },
   {
     id: "workspace_action_edit_data",
     label: "改 data.json",
     group: "write",
+    category: "action",
     description: "按动作 ID 替换 data.json 片段",
-  },
-  {
-    id: "workspace_file_write",
-    label: "写文件",
-    group: "write",
-    description: "按相对路径写文件（脚本等）",
-  },
-  {
-    id: "workspace_file_edit",
-    label: "改文件",
-    group: "write",
-    description: "工作目录内 search/replace 编辑",
   },
   {
     id: "qkrpc_action_publish",
     label: "分享/发布动作",
     group: "write",
+    category: "action",
     description: "首次分享到 getquicker 或更新已分享动作",
   },
   {
     id: "qkrpc_action_update",
     label: "更新分享动作",
     group: "write",
+    category: "action",
     description: "已分享动作更新（兼容别名，同 publish 后端）",
-  },
-  {
-    id: "qkrpc_action_run",
-    label: "运行动作",
-    group: "write",
-    description: "执行本地动作",
   },
   {
     id: "qkrpc_action_move",
     label: "移动动作",
     group: "write",
+    category: "action",
     description: "移到其他动作页/格子",
-  },
-  {
-    id: "qkrpc_profile_create",
-    label: "创建全局页",
-    group: "write",
-    description: "新建空白全局动作页",
-  },
-  {
-    id: "qkrpc_profile_reorder",
-    label: "调整全局页顺序",
-    group: "write",
-    description: "移到 _global 之后",
-  },
-  {
-    id: "qkrpc_process_ensure",
-    label: "虚拟进程/归集",
-    group: "write",
-    description: "创建虚拟进程动作页，可选按子程序引用批量移动作",
   },
   {
     id: "qkrpc_action_float",
     label: "悬浮按钮",
     group: "write",
+    category: "action",
     description: "显示动作悬浮按钮",
   },
   {
     id: "qkrpc_action_edit",
     label: "打开动作编辑器",
     group: "write",
+    category: "action",
     description: "Quicker 设计器 UI",
   },
   {
     id: "qkrpc_action_edit_var",
     label: "编辑变量默认值",
     group: "write",
+    category: "action",
     description: "无头修改变量默认值",
   },
   {
     id: "qkrpc_subprogram_create",
     label: "创建子程序",
     group: "write",
+    category: "subprogram",
     description: "新建公共子程序",
   },
   {
     id: "qkrpc_subprogram_patch",
     label: "修补子程序",
     group: "write",
+    category: "subprogram",
     description: "修改子程序步骤/变量",
   },
   {
     id: "qkrpc_subprogram_replace",
     label: "替换子程序",
     group: "write",
+    category: "subprogram",
     description: "整体替换子程序",
   },
   {
     id: "qkrpc_subprogram_export",
     label: "导出子程序",
     group: "write",
+    category: "subprogram",
     description: "导出 .quicker 项目",
   },
   {
     id: "qkrpc_subprogram_import",
     label: "导入子程序",
     group: "write",
+    category: "subprogram",
     description: "从 .quicker 项目导入",
   },
   {
     id: "qkrpc_subprogram_edit",
     label: "打开子程序编辑器",
     group: "write",
+    category: "subprogram",
     description: "Quicker 子程序 UI",
   },
   {
     id: "qkrpc_subprogram_edit_var",
     label: "编辑子程序变量",
     group: "write",
+    category: "subprogram",
     description: "设计器 UI 修改变量",
+  },
+  {
+    id: "workspace_action_file_write",
+    label: "写动作外置文件",
+    group: "write",
+    category: "workspace",
+    description: "写入动作 files/",
+  },
+  {
+    id: "workspace_action_file_edit",
+    label: "改动作外置文件",
+    group: "write",
+    category: "workspace",
+    description: "改动作 files/",
+  },
+  {
+    id: "qkrpc_profile_create",
+    label: "创建全局页",
+    group: "write",
+    category: "layout",
+    description: "新建空白全局动作页",
+  },
+  {
+    id: "qkrpc_profile_reorder",
+    label: "调整全局页顺序",
+    group: "write",
+    category: "layout",
+    description: "移到 _global 之后",
+  },
+  {
+    id: "qkrpc_process_ensure",
+    label: "虚拟进程/归集",
+    group: "write",
+    category: "layout",
+    description: "创建虚拟进程动作页，可选按子程序引用批量移动作",
+  },
+  {
+    id: "qkrpc_action_run",
+    label: "运行动作",
+    group: "write",
+    category: "runtime",
+    description: "执行本地动作",
   },
   {
     id: "qkrpc_action_delete",
     label: "删除动作",
     group: "destructive",
+    category: "delete",
     description: "永久删除，需确认",
   },
   {
     id: "qkrpc_subprogram_delete",
     label: "删除子程序",
     group: "destructive",
+    category: "delete",
     description: "永久删除，需确认",
   },
 ];
+
+export function toolsInCategory(group: ToolGroupId, category: ToolCategoryId): ToolMeta[] {
+  return QKRPC_TOOL_REGISTRY.filter((t) => t.group === group && t.category === category);
+}
 
 export const ALL_QKRPC_TOOL_IDS = QKRPC_TOOL_REGISTRY.map((t) => t.id);
 

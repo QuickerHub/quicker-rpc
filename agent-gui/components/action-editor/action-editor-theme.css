@@ -1,0 +1,262 @@
+/**
+ * Action Designer color tokens (CSS custom properties).
+ * Switch theme via html[data-theme="dark"|"light"] (see ThemeContext).
+ */
+:root {
+  color-scheme: dark;
+
+  --ad-font-sans: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+
+  --ad-bg-canvas: #1f1f1f;
+  /* Home / landing scroll surface (matches editor canvas in dark). */
+  --ad-bg-home: var(--ad-bg-canvas);
+  --ad-fg-primary: #e8e8e8;
+  /* Body / tab labels (sidebar segments, list section titles). */
+  --ad-fg-default: var(--ad-fg-primary);
+  --ad-border-focus: var(--ad-accent);
+  --ad-scrollbar-thumb: #4a4a4a;
+  --ad-scrollbar-thumb-hover: #5a5a5a;
+  --ad-border-default: #343434;
+  --ad-bg-topbar: #272727;
+  --ad-bg-panel: #2b2b2b;
+  --ad-fg-muted: #9a9a9a;
+  --ad-bg-menu: #2a2a2a;
+  --ad-border-strong: #4a4a4a;
+  --ad-bg-menu-hover: #3a3a3a;
+  --ad-fg-danger-soft: #e8a0a0;
+  --ad-accent: #4f9bd8;
+  --ad-bg-active-filter: #1f3344;
+  --ad-fg-variable-type: #8aa6bd;
+  --ad-fg-variable-in: #7ec97e;
+  --ad-fg-variable-output: #e57373;
+  --ad-fg-variable-io: #9cb9d1;
+  --ad-fg-variable-state: #d4a84b;
+  --ad-fg-variable-key: #e8e8e8;
+  --ad-fg-label: #cfcfcf;
+  --ad-bg-input: #242424;
+  --ad-border-input: #3c3c3c;
+  --ad-fg-input: #efefef;
+  --ad-border-subtle: #3b3b3b;
+  --ad-bg-step-list: #000000;
+  --ad-accent-line: #73b0e2;
+  --ad-bg-drop-zone: #1f2b34;
+  --ad-border-panel: #3d3d3d;
+  --ad-border-children: #252525;
+  --ad-fg-branch: #b7a46c;
+  --ad-fg-placeholder: #8e8e8e;
+  --ad-fg-secondary: #d6d6d6;
+  --ad-fg-list-body: #d8d8d8;
+  --ad-bg-hover-soft: #313131;
+  --ad-bg-selected-row: #2f3943;
+  /* StepListEditor row selection (same as selected-row in dark). */
+  --ad-bg-step-row-selected: var(--ad-bg-selected-row);
+  --ad-step-row-selected-ring: none;
+  --ad-bg-list-selected: #1f3a54;
+  --ad-accent-bright: #79b2ef;
+  --ad-fg-ban: #ff7979;
+  --ad-fg-step-title: #d7d7d7;
+  --ad-step-disabled-filter: saturate(0.65) brightness(0.65);
+  --ad-fg-step-title-disabled: #8e8e8e;
+  --ad-fg-note-disabled: #6e737a;
+  --ad-fg-step-row-disabled: #848484;
+  --ad-fg-branch-disabled: #8a7f5c;
+  --ad-fg-param-label-disabled: #8a9199;
+  --ad-fg-param-hint-disabled: #6e737a;
+  --ad-fg-step-accent-disabled: #6a8aaa;
+  --ad-fg-row-action-disabled: #7a8086;
+  --ad-fg-note: #9ea3a9;
+  --ad-fg-row-action: #bfc3c8;
+  --ad-fg-warn-soft: #d68b8b;
+  --ad-bg-list: #232323;
+  /* VariableEditor list: darker well + slightly raised rows (vs generic listbox). */
+  --ad-bg-variable-list-well: #171717;
+  --ad-bg-variable-list-item: #242424;
+  --ad-bg-variable-list-item-hover: #303030;
+  /* Match VariableEditor list row hover. */
+  --ad-bg-step-row-hover: var(--ad-bg-variable-list-item-hover);
+  --ad-bg-list-hover: #2e2e2e;
+  --ad-bg-list-selected-hover: #274d70;
+  --ad-border-selected: #376a95;
+  --ad-fg-hint: #8a8a8a;
+  --ad-fg-form-muted: #b8b8b8;
+  --ad-fg-section: #c8c8c8;
+  --ad-fg-error-text: #d59b9b;
+  --ad-border-tab-sep: #323232;
+  --ad-bg-tab: #262626;
+  --ad-bg-tab-active: #1f2f42;
+  --ad-fg-tab-active: #76b2f1;
+  --ad-bg-tree-selected: #2a3640;
+  --ad-fg-expand-muted: #a8a8a8;
+  --ad-fg-subtitle: #c7c7c7;
+  --ad-fg-success: #6ca66c;
+  --ad-bg-mark: #35506b;
+  --ad-fg-mark: #dff0ff;
+  --ad-bg-toast: #2d2d30;
+  --ad-border-toast: #3f3f46;
+  --ad-border-toast-error: #8b4d3c;
+  --ad-bg-toast-error: #3a2520;
+  --ad-border-toast-warn: #7a6a2e;
+  --ad-bg-toast-warn: #3a3520;
+  --ad-border-toast-info: #3a5a7a;
+  --ad-bg-toast-info: #252a32;
+  --ad-fg-dismiss: #b0b0b0;
+  --ad-fg-on-emphasis: #ffffff;
+  --ad-bg-button-secondary: #333333;
+  --ad-fg-param-label: #c8d0d8;
+  --ad-fg-param-hint: #8a9199;
+  --ad-fg-button-secondary: #e0e0e0;
+  --ad-bg-button-primary: #2f5f8f;
+  --ad-border-button-primary: #3a7ab8;
+  --ad-fg-popup-ghost: #d0d0d0;
+  --ad-bg-icon-btn: #252525;
+  --ad-fg-icon-btn: #9bc4ef;
+  --ad-border-popup-divider: #3a3a3a;
+  --ad-overlay-hover: rgba(255, 255, 255, 0.08);
+  --ad-shadow-popover: 0 6px 18px rgba(0, 0, 0, 0.35);
+  --ad-shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --ad-shadow-popup: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --ad-backdrop-popup: rgba(0, 0, 0, 0.55);
+  --ad-drag-preview-fg: #dfeaf6;
+
+  /* Main editor document tabs (VS Code–like editor group tab bar). */
+  --ad-editor-tab-bar-bg: #252526;
+  --ad-editor-tab-row-border: #1e1e1e;
+  --ad-editor-tab-active-bg: #1e1e1e;
+  --ad-editor-tab-hover-bg: #2a2d2e;
+  --ad-editor-tab-inactive-fg: #969696;
+  --ad-editor-tab-active-fg: #cccccc;
+  --ad-editor-tab-sep: rgba(128, 128, 128, 0.22);
+  --ad-editor-tab-active-top: #0078d4;
+  --ad-editor-tab-close-fg: #c5c5c5;
+  --ad-editor-tab-close-hover-bg: rgba(255, 255, 255, 0.1);
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+
+  --ad-bg-canvas: #e8e8e8;
+  /* Home: align with top bar; white cards sit on this surface. */
+  --ad-bg-home: var(--ad-bg-topbar);
+  --ad-fg-primary: #1a1a1a;
+  --ad-fg-default: var(--ad-fg-primary);
+  --ad-border-focus: var(--ad-accent);
+  --ad-scrollbar-thumb: #b8b8b8;
+  --ad-scrollbar-thumb-hover: #9a9a9a;
+  --ad-border-default: #c8c8c8;
+  --ad-bg-topbar: #f3f3f3;
+  --ad-bg-panel: #ffffff;
+  --ad-fg-muted: #6e6e6e;
+  --ad-bg-menu: #ffffff;
+  --ad-border-strong: #bdbdbd;
+  --ad-bg-menu-hover: #e8e8e8;
+  --ad-fg-danger-soft: #b84c4c;
+  --ad-accent: #2b7abf;
+  --ad-bg-active-filter: #d6e8f7;
+  --ad-fg-variable-type: #4a6a8a;
+  --ad-fg-variable-in: #2d8a3e;
+  --ad-fg-variable-output: #c62828;
+  --ad-fg-variable-io: #4a6a8a;
+  --ad-fg-variable-state: #9a7a22;
+  --ad-fg-variable-key: #1a1a1a;
+  --ad-fg-label: #2d2d2d;
+  --ad-bg-input: #ffffff;
+  --ad-border-input: #c4c4c4;
+  --ad-fg-input: #1a1a1a;
+  --ad-border-subtle: #c4c4c4;
+  --ad-accent-line: #2b7abf;
+  --ad-bg-drop-zone: #d6e8f7;
+  --ad-border-panel: #d0d0d0;
+  --ad-border-children: #e0e0e0;
+  --ad-fg-branch: #8a7220;
+  --ad-fg-placeholder: #757575;
+  --ad-fg-secondary: #303030;
+  --ad-fg-list-body: #242424;
+  --ad-bg-hover-soft: #ebebeb;
+  --ad-bg-selected-row: #d6e8f7;
+  /* Step row: same fill as --ad-bg-selected-row; contrast from --ad-step-row-selected-ring. */
+  --ad-bg-step-row-selected: var(--ad-bg-selected-row);
+  --ad-step-row-selected-ring: inset 0 0 0 1px rgba(24, 90, 145, 0.42);
+  --ad-bg-list-selected: #c9e2f7;
+  --ad-accent-bright: #1f6fad;
+  --ad-fg-ban: #d92d2d;
+  --ad-fg-step-title: #454a50;
+  --ad-step-disabled-filter: saturate(0.82) brightness(0.9);
+  --ad-fg-step-title-disabled: #9aa1a9;
+  --ad-fg-note-disabled: #a8aeb5;
+  --ad-fg-step-row-disabled: #9aa1a9;
+  --ad-fg-branch-disabled: #b5ad92;
+  --ad-fg-param-label-disabled: #9aa3ad;
+  --ad-fg-param-hint-disabled: #a8aeb5;
+  --ad-fg-step-accent-disabled: #8aa8c4;
+  --ad-fg-row-action-disabled: #a8aeb5;
+  --ad-fg-note: #5c636a;
+  --ad-fg-row-action: #4a5056;
+  --ad-fg-warn-soft: #b84c4c;
+  --ad-bg-list: #ffffff;
+  --ad-bg-variable-list-well: #d3d3d3;
+  /* Step list well: match variable list “well” so the two columns read as one surface in light mode. */
+  --ad-bg-step-list: var(--ad-bg-variable-list-well);
+  --ad-bg-variable-list-item: #ffffff;
+  --ad-bg-variable-list-item-hover: #eef0f4;
+  /* Match VariableEditor list row hover. */
+  --ad-bg-step-row-hover: var(--ad-bg-variable-list-item-hover);
+  --ad-bg-list-hover: #ebebeb;
+  --ad-bg-list-selected-hover: #b8daf6;
+  --ad-border-selected: #6ba3d4;
+  --ad-fg-hint: #666666;
+  --ad-fg-form-muted: #5a5a5a;
+  --ad-fg-section: #333333;
+  --ad-fg-error-text: #a84848;
+  /* Toolbox: align tab strip + icon buttons with panel (avoid gray “blocks” on white). */
+  --ad-border-tab-sep: #ececec;
+  --ad-bg-tab: #ffffff;
+  --ad-bg-tab-active: #e8f2fc;
+  --ad-fg-tab-active: #1a5a94;
+  --ad-bg-tree-selected: #d6e8f7;
+  --ad-fg-expand-muted: #5a5a5a;
+  --ad-fg-subtitle: #404040;
+  --ad-fg-success: #2d7a3e;
+  --ad-bg-mark: #b8d4f0;
+  --ad-fg-mark: #0f3a5c;
+  --ad-bg-toast: #ffffff;
+  --ad-border-toast: #c8c8c8;
+  --ad-border-toast-error: #c46a5a;
+  --ad-bg-toast-error: #fdecea;
+  --ad-border-toast-warn: #c4a860;
+  --ad-bg-toast-warn: #faf6e6;
+  --ad-border-toast-info: #6a8ab0;
+  --ad-bg-toast-info: #eef4fa;
+  --ad-fg-dismiss: #555555;
+  --ad-fg-on-emphasis: #ffffff;
+  --ad-bg-button-secondary: #e8e8e8;
+  --ad-fg-param-label: #2a3440;
+  --ad-fg-param-hint: #5a6168;
+  --ad-fg-button-secondary: #1a1a1a;
+  --ad-bg-button-primary: #2b7abf;
+  --ad-border-button-primary: #1f6fad;
+  --ad-fg-popup-ghost: #333333;
+  --ad-bg-icon-btn: #ffffff;
+  --ad-fg-icon-btn: #1a5a94;
+  --ad-border-popup-divider: #d8d8d8;
+  --ad-overlay-hover: rgba(0, 0, 0, 0.06);
+  --ad-shadow-popover: 0 6px 18px rgba(0, 0, 0, 0.12);
+  --ad-shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --ad-shadow-popup: 0 12px 40px rgba(0, 0, 0, 0.18);
+  --ad-backdrop-popup: rgba(0, 0, 0, 0.35);
+  --ad-drag-preview-fg: #0f2a44;
+
+  --ad-editor-tab-bar-bg: #f3f3f3;
+  --ad-editor-tab-row-border: #e8e8e8;
+  --ad-editor-tab-active-bg: #ffffff;
+  --ad-editor-tab-hover-bg: #e8e8e8;
+  --ad-editor-tab-inactive-fg: #616161;
+  --ad-editor-tab-active-fg: #333333;
+  --ad-editor-tab-sep: rgba(0, 0, 0, 0.08);
+  --ad-editor-tab-active-top: #0078d4;
+  --ad-editor-tab-close-fg: #424242;
+  --ad-editor-tab-close-hover-bg: rgba(0, 0, 0, 0.06);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}

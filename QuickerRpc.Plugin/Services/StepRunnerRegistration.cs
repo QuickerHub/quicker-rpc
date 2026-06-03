@@ -33,6 +33,7 @@ internal static class StepRunnerRegistration
             {
                 RegisterEvalExpression(logger);
                 _registered = true;
+                StepRunnerCatalogFromQuicker.InvalidateCache();
             }
             catch (Exception ex)
             {

@@ -62,8 +62,8 @@
 参数键名（`script`、`expression`、`code` 等）以 **`qkrpc_step_runner_get`** 为准；是否支持 `file` 以 schema 为准（多数长文本参数支持）。
 
 ```text
-workspace_file_write({ path: "files/main.cs", content: "…" })        // sys:csscript 等
-workspace_file_write({ path: "files/clip.eval.cs", content: "…" })  // sys:evalexpression
+workspace_action_file_write({ id, path: "files/main.cs", content: "…" })        // sys:csscript 等
+workspace_action_file_write({ id, path: "files/clip.eval.cs", content: "…" })  // sys:evalexpression
   → data.json: "expression": { "file": "files/clip.eval.cs" }
   → qkrpc_action_patch({ id })
 ```

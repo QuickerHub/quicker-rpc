@@ -6,10 +6,12 @@ import { invokeActionCommand } from "@/lib/action-command-client";
 type ActionProjectToolbarProps = {
   actionId: string;
   displayTitle?: string;
+  className?: string;
 };
 
 export function ActionProjectToolbar({
   actionId,
+  className,
 }: ActionProjectToolbarProps) {
   const [param, setParam] = useState("");
   const [runBusy, setRunBusy] = useState(false);
@@ -67,7 +69,10 @@ export function ActionProjectToolbar({
   );
 
   return (
-    <footer className="project-info-toolbar" aria-label="动作项目操作">
+    <footer
+      className={["project-info-toolbar", className].filter(Boolean).join(" ")}
+      aria-label="动作项目操作"
+    >
       <div className="project-info-toolbar-actions">
         <button
           type="button"

@@ -12,6 +12,7 @@ import {
 import type { ActionAuthoringTopicMeta } from "@/lib/action-authoring-docs";
 import { fetchDocByTopic, fetchDocsCatalog } from "@/lib/docs-catalog-api";
 import type { DocsGetDoc } from "@/lib/docs-tool";
+import { openWorkspaceMainEditorTab } from "@/lib/workspace-main-editor-tab";
 
 export type DocViewerEntry = {
   topic: string;
@@ -116,13 +117,16 @@ export function DocsViewerProvider({ children }: { children: ReactNode }) {
       },
     }));
     setActiveTopicId(doc.topic);
+    openWorkspaceMainEditorTab(doc.title);
   }, []);
 
   const selectTopic = useCallback(
     (topic: string, titleHint?: string) => {
       setActiveTopicId(topic);
       const meta = catalogTopics.find((t) => t.topic === topic);
-      void loadTopic(topic, titleHint ?? meta?.title);
+      const title = titleHint ?? meta?.title ?? topic;
+      void loadTopic(topic, title);
+      openWorkspaceMainEditorTab(title);
     },
     [catalogTopics, loadTopic],
   );

@@ -14,7 +14,13 @@ import {
   type SetStateAction,
 } from "react";
 import type { ActionExplorerTree, ExplorerTreeNode } from "@/lib/action-explorer-tree";
-import { getAncestorDirectoryPaths } from "@/lib/action-explorer-tree";
+import {
+  computeExplorerTreeSignature,
+  findExplorerTreeNode,
+  getAncestorDirectoryPaths,
+  isExplorerTreeDirectoryPath,
+  normalizeExplorerTreePath,
+} from "@/lib/action-explorer-tree";
 import { loadExplorerOpen, loadExplorerWidth, storeExplorerOpen, storeExplorerWidth, EXPLORER_DEFAULT_WIDTH, clampExplorerWidth } from "@/lib/explorer-prefs";
 import {
   getWorkspaceFileEditorPreview,
@@ -23,10 +29,17 @@ import {
 import {
   fetchActionExplorerTree,
   fetchWorkspaceFile,
+  formatWorkspaceFetchError,
   subscribeActionExplorerTreeWatch,
   writeWorkspaceFileApi,
 } from "@/lib/workspace-explorer-api";
 import type { StructuredToolResult } from "@/lib/tool-result";
+import { basenamePath } from "@/lib/workspace-file-tool";
+import {
+  clearWorkspaceMainEditorDoc,
+  closeWorkspaceMainEditorTab,
+  openWorkspaceMainEditorTab,
+} from "@/lib/workspace-main-editor-tab";
 
 export type ExplorerFileTab = {
   id: string;
@@ -52,7 +65,7 @@ export function queueRevealActionProjectById(actionId: string): void {
 
 function isWorkspaceFileWriteTool(toolName: string): boolean {
   return (
-    toolName === "workspace_file_write"
+    toolName === "workspace_action_file_write"
     || toolName === "workspace_action_write_data"
   );
 }
@@ -64,11 +77,7 @@ type CachedFileContent = {
 };
 
 function normalizeExplorerPath(path: string): string {
-  return path.replace(/\\/g, "/");
-}
-
-function explorerTreeSignature(tree: ActionExplorerTree): string {
-  return JSON.stringify(tree);
+  return normalizeExplorerTreePath(path);
 }
 
 function applyExplorerTreeSnapshot(
@@ -81,7 +90,7 @@ function applyExplorerTreeSnapshot(
     setTreeLoading: Dispatch<SetStateAction<boolean>>;
   },
 ): boolean {
-  const signature = explorerTreeSignature(nextTree);
+  const signature = computeExplorerTreeSignature(nextTree);
   if (treeSignatureRef.current === signature) {
     return false;
   }
@@ -93,28 +102,44 @@ function applyExplorerTreeSnapshot(
   return true;
 }
 
-function addPathsToExpandedSet(prev: Set<string>, path: string): Set<string> {
-  const normalized = path.replace(/\\/g, "/");
+function addPathsToExpandedSet(
+  prev: Set<string>,
+  path: string,
+  collapsed: ReadonlySet<string>,
+): Set<string> {
+  const normalized = normalizeExplorerPath(path);
   let changed = false;
   const next = new Set(prev);
-  if (!next.has(normalized)) {
-    next.add(normalized);
-    changed = true;
-  }
-  for (const dir of getAncestorDirectoryPaths(normalized)) {
-    if (!next.has(dir)) {
-      next.add(dir);
+  const addDir = (dir: string) => {
+    const key = normalizeExplorerPath(dir);
+    if (collapsed.has(key)) return;
+    if (!next.has(key)) {
+      next.add(key);
       changed = true;
     }
+  };
+  addDir(normalized);
+  for (const dir of getAncestorDirectoryPaths(normalized)) {
+    addDir(dir);
   }
   return changed ? next : prev;
 }
 
-type WorkspaceExplorerContextValue = {
+function removeExpandedDescendants(next: Set<string>, dirPath: string): void {
+  const prefix = `${normalizeExplorerPath(dirPath)}/`;
+  for (const p of [...next]) {
+    if (p.startsWith(prefix)) next.delete(p);
+  }
+}
+
+function clearCollapsedAncestors(collapsed: Set<string>, filePath: string): void {
+  for (const dir of getAncestorDirectoryPaths(normalizeExplorerPath(filePath))) {
+    collapsed.delete(normalizeExplorerPath(dir));
+  }
+}
+
+export type WorkspaceExplorerTreeContextValue = {
   cwd: string;
-  panelOpen: boolean;
-  setPanelOpen: (open: boolean) => void;
-  togglePanel: () => void;
   tree: ActionExplorerTree | null;
   treeLoading: boolean;
   treeError: string | null;
@@ -124,10 +149,18 @@ type WorkspaceExplorerContextValue = {
   expandPath: (path: string) => void;
   selectedPath: string | null;
   setSelectedPath: (path: string | null) => void;
+};
+
+export type WorkspaceExplorerEditorContextValue = {
+  cwd: string;
   tabs: ExplorerFileTab[];
   activeTabId: string | null;
   activeTab: ExplorerFileTab | null;
-  openFile: (path: string, content?: string, meta?: { truncated?: boolean; totalChars?: number }) => void;
+  openFile: (
+    path: string,
+    content?: string,
+    meta?: { truncated?: boolean; totalChars?: number; revealInTree?: boolean },
+  ) => void;
   openFileFromTool: (toolName: string, input: unknown, output?: StructuredToolResult) => void;
   closeTab: (id: string) => void;
   setActiveTabId: (id: string | null) => void;
@@ -140,6 +173,17 @@ type WorkspaceExplorerContextValue = {
   revealActionProjectById: (actionId: string) => void;
 };
 
+type WorkspaceExplorerContextValue = WorkspaceExplorerTreeContextValue &
+  WorkspaceExplorerEditorContextValue & {
+    panelOpen: boolean;
+    setPanelOpen: (open: boolean) => void;
+    togglePanel: () => void;
+  };
+
+const WorkspaceExplorerTreeContext =
+  createContext<WorkspaceExplorerTreeContextValue | null>(null);
+const WorkspaceExplorerEditorContext =
+  createContext<WorkspaceExplorerEditorContextValue | null>(null);
 const WorkspaceExplorerContext = createContext<WorkspaceExplorerContextValue | null>(null);
 
 type WorkspaceExplorerShellContextValue = {
@@ -241,6 +285,14 @@ const stubExplorerActions: WorkspaceExplorerActions = {
 export const workspaceExplorerActionsRef: MutableRefObject<WorkspaceExplorerActions> =
   { current: stubExplorerActions };
 
+/** Latest editor snapshot for tree UI (avoids tree pane subscribing to tab state). */
+export const workspaceExplorerEditorStateRef: MutableRefObject<{
+  activeTab: ExplorerFileTab | null;
+  closeTab: (id: string) => void;
+}> = {
+  current: { activeTab: null, closeTab: () => {} },
+};
+
 /** Scoped to the right explorer panel so fs-watch tree updates do not re-render the chat column. */
 export function WorkspaceExplorerPanelProvider({
   cwd,
@@ -261,6 +313,8 @@ export function WorkspaceExplorerPanelProvider({
   const treeRef = useRef<ActionExplorerTree | null>(null);
   const treeSignatureRef = useRef<string | null>(null);
   const fileContentCacheRef = useRef<Map<string, CachedFileContent>>(new Map());
+  /** User-collapsed folders; expandPath must not re-open them until user expands or opens a file inside. */
+  const collapsedPathsRef = useRef<Set<string>>(new Set());
 
   const readFileCache = useCallback((path: string): CachedFileContent | undefined => {
     return fileContentCacheRef.current.get(normalizeExplorerPath(path));
@@ -375,14 +429,25 @@ export function WorkspaceExplorerPanelProvider({
   }, [cwd, refreshTree]);
 
   const expandPath = useCallback((path: string) => {
-    setExpandedPaths((prev) => addPathsToExpandedSet(prev, path));
+    clearCollapsedAncestors(collapsedPathsRef.current, path);
+    setExpandedPaths((prev) =>
+      addPathsToExpandedSet(prev, path, collapsedPathsRef.current),
+    );
   }, []);
 
   const toggleExpanded = useCallback((path: string) => {
+    const normalized = normalizeExplorerPath(path);
     setExpandedPaths((prev) => {
       const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
+      const collapsed = collapsedPathsRef.current;
+      if (next.has(normalized)) {
+        next.delete(normalized);
+        removeExpandedDescendants(next, normalized);
+        collapsed.add(normalized);
+      } else {
+        next.add(normalized);
+        collapsed.delete(normalized);
+      }
       return next;
     });
   }, []);
@@ -403,6 +468,17 @@ export function WorkspaceExplorerPanelProvider({
       const normalizedPath = normalizeExplorerPath(path);
       const background = options?.background ?? false;
 
+      if (isExplorerTreeDirectoryPath(treeRef.current, normalizedPath)) {
+        setTabs((prev) => {
+          const tab = prev.find((t) => t.id === PREVIEW_TAB_ID);
+          if (tab?.path !== normalizedPath) return prev;
+          return [];
+        });
+        setActiveTabId((active) => (active === PREVIEW_TAB_ID ? null : active));
+        closeWorkspaceMainEditorTab();
+        return;
+      }
+
       if (!background) {
         setTabs((prev) => {
           const tab = prev.find((t) => t.id === PREVIEW_TAB_ID);
@@ -411,8 +487,22 @@ export function WorkspaceExplorerPanelProvider({
         });
       }
 
-      const result = await fetchWorkspaceFile(activeCwd, normalizedPath);
+      let result: Awaited<ReturnType<typeof fetchWorkspaceFile>>;
+      try {
+        result = await fetchWorkspaceFile(activeCwd, normalizedPath);
+      } catch (error) {
+        result = { ok: false, error: formatWorkspaceFetchError(error) };
+      }
       if (!result.ok) {
+        if (result.error.includes("not a file:")) {
+          setTabs((prev) => {
+            const tab = prev.find((t) => t.id === PREVIEW_TAB_ID);
+            if (tab?.path !== normalizedPath) return prev;
+            return [];
+          });
+          setActiveTabId((active) => (active === PREVIEW_TAB_ID ? null : active));
+          return;
+        }
         setTabs((prev) => {
           const tab = prev.find((t) => t.id === PREVIEW_TAB_ID);
           if (tab?.path !== normalizedPath) return prev;
@@ -456,9 +546,29 @@ export function WorkspaceExplorerPanelProvider({
     (
       path: string,
       content?: string,
-      meta?: { truncated?: boolean; totalChars?: number },
+      meta?: {
+        truncated?: boolean;
+        totalChars?: number;
+        /** When false, do not force ancestor dirs open (e.g. action project row toggle). */
+        revealInTree?: boolean;
+        /** Titlebar tab label (defaults to file basename). */
+        tabLabel?: string;
+      },
     ) => {
       const normalizedPath = normalizeExplorerPath(path);
+      const treeSnapshot = treeRef.current;
+      const treeNode = treeSnapshot
+        ? findExplorerTreeNode(treeSnapshot, normalizedPath)
+        : null;
+      if (
+        treeNode?.kind === "directory"
+        || isExplorerTreeDirectoryPath(treeSnapshot, normalizedPath)
+      ) {
+        setPanelOpen(true);
+        setSelectedPath(normalizedPath);
+        return;
+      }
+
       const cached = readFileCache(normalizedPath);
       const resolvedContent = content ?? cached?.content ?? "";
       const resolvedMeta = {
@@ -475,7 +585,9 @@ export function WorkspaceExplorerPanelProvider({
       }
 
       setPanelOpen(true);
-      expandPath(normalizedPath);
+      if (meta?.revealInTree !== false) {
+        expandPath(normalizedPath);
+      }
       setSelectedPath((prev) => (prev === normalizedPath ? prev : normalizedPath));
       setTabs((prev) => {
         const existing = prev.find((tab) => tab.id === PREVIEW_TAB_ID);
@@ -503,6 +615,9 @@ export function WorkspaceExplorerPanelProvider({
       });
       setActiveTabId((prev) => (prev === PREVIEW_TAB_ID ? prev : PREVIEW_TAB_ID));
 
+      clearWorkspaceMainEditorDoc();
+      openWorkspaceMainEditorTab(meta?.tabLabel ?? basenamePath(normalizedPath));
+
       if (content === undefined) {
         void loadFileContent(normalizedPath, { background: resolvedContent !== "" });
       }
@@ -523,8 +638,9 @@ export function WorkspaceExplorerPanelProvider({
       });
       if (!project) return false;
 
-      const infoPath = `${project.path.replace(/\\/g, "/")}/info.json`;
-      openFile(infoPath);
+      const dataPath = `${project.path.replace(/\\/g, "/")}/data.json`;
+      const tabLabel = project.title?.trim() || project.name;
+      openFile(dataPath, undefined, { tabLabel });
       return true;
     },
     [openFile],
@@ -561,7 +677,7 @@ export function WorkspaceExplorerPanelProvider({
 
       if (
         output?.ok
-        && (toolName === "workspace_file_edit"
+        && (toolName === "workspace_action_file_edit"
           || toolName === "workspace_action_edit_data"
           || isWorkspaceFileWriteTool(toolName))
       ) {
@@ -609,6 +725,7 @@ export function WorkspaceExplorerPanelProvider({
       return [];
     });
     setActiveTabId((active) => (active === id ? null : active));
+    closeWorkspaceMainEditorTab();
   }, []);
 
   const activeTab = useMemo(
@@ -616,12 +733,9 @@ export function WorkspaceExplorerPanelProvider({
     [tabs, activeTabId],
   );
 
-  const value = useMemo(
-    () => ({
+  const treeValue = useMemo(
+    (): WorkspaceExplorerTreeContextValue => ({
       cwd,
-      panelOpen,
-      setPanelOpen,
-      togglePanel,
       tree,
       treeLoading,
       treeError,
@@ -631,6 +745,23 @@ export function WorkspaceExplorerPanelProvider({
       expandPath,
       selectedPath,
       setSelectedPath,
+    }),
+    [
+      cwd,
+      tree,
+      treeLoading,
+      treeError,
+      refreshTree,
+      expandedPaths,
+      toggleExpanded,
+      expandPath,
+      selectedPath,
+    ],
+  );
+
+  const editorValue = useMemo(
+    (): WorkspaceExplorerEditorContextValue => ({
+      cwd,
       tabs,
       activeTabId,
       activeTab,
@@ -645,17 +776,6 @@ export function WorkspaceExplorerPanelProvider({
     }),
     [
       cwd,
-      panelOpen,
-      setPanelOpen,
-      togglePanel,
-      tree,
-      treeLoading,
-      treeError,
-      refreshTree,
-      expandedPaths,
-      toggleExpanded,
-      expandPath,
-      selectedPath,
       tabs,
       activeTabId,
       activeTab,
@@ -669,6 +789,17 @@ export function WorkspaceExplorerPanelProvider({
     ],
   );
 
+  const mergedValue = useMemo(
+    (): WorkspaceExplorerContextValue => ({
+      ...treeValue,
+      ...editorValue,
+      panelOpen,
+      setPanelOpen,
+      togglePanel,
+    }),
+    [treeValue, editorValue, panelOpen, setPanelOpen, togglePanel],
+  );
+
   workspaceExplorerActionsRef.current = {
     openFile,
     openFileFromTool,
@@ -677,17 +808,43 @@ export function WorkspaceExplorerPanelProvider({
     setPanelOpen,
     refreshTree,
   };
+  workspaceExplorerEditorStateRef.current = { activeTab, closeTab };
 
   return (
-    <WorkspaceExplorerContext.Provider value={value}>
-      {children}
-    </WorkspaceExplorerContext.Provider>
+    <WorkspaceExplorerTreeContext.Provider value={treeValue}>
+      <WorkspaceExplorerEditorContext.Provider value={editorValue}>
+        <WorkspaceExplorerContext.Provider value={mergedValue}>
+          {children}
+        </WorkspaceExplorerContext.Provider>
+      </WorkspaceExplorerEditorContext.Provider>
+    </WorkspaceExplorerTreeContext.Provider>
   );
 }
 
 /** @deprecated Scope to the explorer panel only via WorkspaceExplorerPanelProvider. */
 export const WorkspaceExplorerProvider = WorkspaceExplorerPanelProvider;
 
+export function useWorkspaceExplorerTree(): WorkspaceExplorerTreeContextValue {
+  const ctx = useContext(WorkspaceExplorerTreeContext);
+  if (!ctx) {
+    throw new Error(
+      "useWorkspaceExplorerTree must be used within WorkspaceExplorerPanelProvider",
+    );
+  }
+  return ctx;
+}
+
+export function useWorkspaceExplorerEditor(): WorkspaceExplorerEditorContextValue {
+  const ctx = useContext(WorkspaceExplorerEditorContext);
+  if (!ctx) {
+    throw new Error(
+      "useWorkspaceExplorerEditor must be used within WorkspaceExplorerPanelProvider",
+    );
+  }
+  return ctx;
+}
+
+/** Full explorer state — prefer tree/editor hooks in panel UI to reduce re-renders. */
 export function useWorkspaceExplorer(): WorkspaceExplorerContextValue {
   const ctx = useContext(WorkspaceExplorerContext);
   if (!ctx) {

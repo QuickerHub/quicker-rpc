@@ -11,6 +11,9 @@ import {
   getOpenTabThreads,
   selectThread,
 } from "@/lib/chat-store";
+import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
+import { isAgentGuiDebugMode } from "@/lib/agent-gui-debug";
+import { useDocsViewer } from "@/lib/docs-viewer";
 import { ExplorerPanelToggle } from "@/components/workspace/WorkspaceExplorerPanel";
 import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
@@ -20,10 +23,14 @@ type ChatTitlebarProps = {
   store: ChatStoreData;
   mainView: AppMainView;
   settingsTabOpen: boolean;
+  workspaceEditorTabOpen: boolean;
+  workspaceEditorTabLabel: string;
   onChange: (next: ChatStoreData) => void;
   onMainViewChange: (view: AppMainView) => void;
   onOpenSettingsTab: () => void;
   onCloseSettingsTab: () => void;
+  onSelectWorkspaceEditor: () => void;
+  onCloseWorkspaceEditorTab: () => void;
 };
 
 function IconChatTab() {
@@ -52,6 +59,20 @@ function IconPlus() {
   );
 }
 
+function IconFileTab() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path
+        d="M4 1.75h3.25L10.5 4.75V11.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2.75a1 1 0 0 1 1-1Z"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinejoin="round"
+      />
+      <path d="M7.25 1.75V5H10.5" stroke="currentColor" strokeWidth="1.15" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function IconClose() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
@@ -75,15 +96,21 @@ export function ChatTitlebar({
   store,
   mainView,
   settingsTabOpen,
+  workspaceEditorTabOpen,
+  workspaceEditorTabLabel,
   onChange,
   onMainViewChange,
   onOpenSettingsTab,
   onCloseSettingsTab,
+  onSelectWorkspaceEditor,
+  onCloseWorkspaceEditorTab,
 }: ChatTitlebarProps) {
   const tabsRef = useRef<HTMLDivElement>(null);
+  const { clearActiveTopic } = useDocsViewer();
   const activeThread = useMemo(() => getActiveThread(store), [store]);
   const tabThreads = useMemo(() => getOpenTabThreads(store), [store]);
   const settingsActive = mainView === "settings";
+  const workspaceEditorActive = mainView === "workspace-editor" && workspaceEditorTabOpen;
 
   const commit = useCallback(
     (next: ChatStoreData) => {
@@ -96,6 +123,16 @@ export function ChatTitlebar({
     onMainViewChange("chat");
     if (threadId === activeThread.id && mainView === "chat") return;
     commit(selectThread(store, threadId));
+  };
+
+  const handleSelectWorkspaceEditor = () => {
+    if (!workspaceEditorTabOpen) return;
+    onSelectWorkspaceEditor();
+  };
+
+  const handleCloseWorkspaceEditor = () => {
+    clearActiveTopic();
+    onCloseWorkspaceEditorTab();
   };
 
   const handleSelectSettings = () => {
@@ -144,6 +181,11 @@ export function ChatTitlebar({
       return;
     }
 
+    if (workspaceEditorActive) {
+      active.scrollIntoView({ block: "nearest", inline: "end" });
+      return;
+    }
+
     const tabIndex = tabThreads.findIndex((t) => t.id === activeThread.id);
     const isLast = tabIndex === tabThreads.length - 1;
     const isFirst = tabIndex === 0;
@@ -151,7 +193,7 @@ export function ChatTitlebar({
       block: "nearest",
       inline: isLast ? "end" : isFirst ? "start" : "nearest",
     });
-  }, [activeThread.id, tabThreads.length, settingsActive, settingsTabOpen]);
+  }, [activeThread.id, tabThreads.length, settingsActive, settingsTabOpen, workspaceEditorActive, workspaceEditorTabOpen]);
 
   const isTauri = useTauriShell();
   const platform = useShellPlatform();
@@ -168,7 +210,7 @@ export function ChatTitlebar({
     <header className={titlebarClass}>
       <div className="titlebar-tabs" ref={tabsRef} role="tablist" aria-label="主标签">
         {tabThreads.map((thread) => {
-          const active = !settingsActive && thread.id === activeThread.id;
+          const active = !settingsActive && !workspaceEditorActive && thread.id === activeThread.id;
           const titleText = plainTitleText(thread.title);
           return (
             <div
@@ -204,6 +246,40 @@ export function ChatTitlebar({
             </div>
           );
         })}
+
+        {workspaceEditorTabOpen ? (
+          <div
+            className={`titlebar-tab titlebar-tab--workspace${workspaceEditorActive ? " titlebar-tab--active" : ""}`}
+            data-active={workspaceEditorActive ? "true" : undefined}
+            data-tab-kind="workspace-editor"
+          >
+            <button
+              type="button"
+              role="tab"
+              className="titlebar-tab-main"
+              aria-selected={workspaceEditorActive}
+              title={workspaceEditorTabLabel}
+              onClick={handleSelectWorkspaceEditor}
+            >
+              <span className="titlebar-tab-icon">
+                <IconFileTab />
+              </span>
+              <span className="titlebar-tab-label">{workspaceEditorTabLabel}</span>
+            </button>
+            <button
+              type="button"
+              className="titlebar-tab-close"
+              aria-label={`关闭 ${workspaceEditorTabLabel}`}
+              title="关闭"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCloseWorkspaceEditor();
+              }}
+            >
+              <IconClose />
+            </button>
+          </div>
+        ) : null}
 
         {settingsTabOpen && (
           <div
@@ -261,6 +337,7 @@ export function ChatTitlebar({
           .join(" ")}
       >
         <ExplorerPanelToggle className="ws-icon-btn" />
+        {isAgentGuiDebugMode() ? <TitlebarThemeSwitcher /> : null}
         {!settingsTabOpen && (
           <button
             type="button"

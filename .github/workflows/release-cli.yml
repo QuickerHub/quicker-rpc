@@ -170,18 +170,22 @@ jobs:
       - name: Build QuickerAgent installer
         shell: pwsh
         env:
+          BUNDLED_LLM_CONFIG: ${{ secrets.BUNDLED_LLM_CONFIG }}
           BUNDLED_LLM_BINGLEIMUZI_API_KEY: ${{ secrets.BUNDLED_LLM_BINGLEIMUZI_API_KEY }}
           BUNDLED_LLM_AI98PRO_API_KEY: ${{ secrets.BUNDLED_LLM_AI98PRO_API_KEY }}
           AGENT_GUI_DEFAULT_CWD: ${{ github.workspace }}
         run: |
-          $bundledKey = $env:BUNDLED_LLM_BINGLEIMUZI_API_KEY
-          if ([string]::IsNullOrWhiteSpace($bundledKey)) {
-            $bundledKey = $env:BUNDLED_LLM_AI98PRO_API_KEY
+          $hasConfig = -not [string]::IsNullOrWhiteSpace($env:BUNDLED_LLM_CONFIG)
+          $legacyKey = $env:BUNDLED_LLM_BINGLEIMUZI_API_KEY
+          if ([string]::IsNullOrWhiteSpace($legacyKey)) {
+            $legacyKey = $env:BUNDLED_LLM_AI98PRO_API_KEY
           }
-          if ([string]::IsNullOrWhiteSpace($bundledKey)) {
-            throw 'GitHub secret BUNDLED_LLM_BINGLEIMUZI_API_KEY (or legacy BUNDLED_LLM_AI98PRO_API_KEY) is required for QuickerAgent release builds.'
+          if (-not $hasConfig -and [string]::IsNullOrWhiteSpace($legacyKey)) {
+            throw 'GitHub secret BUNDLED_LLM_CONFIG (preferred) or legacy BUNDLED_LLM_BINGLEIMUZI_API_KEY is required for QuickerAgent release builds.'
           }
-          $env:BUNDLED_LLM_BINGLEIMUZI_API_KEY = $bundledKey
+          if (-not $hasConfig) {
+            $env:BUNDLED_LLM_BINGLEIMUZI_API_KEY = $legacyKey
+          }
           pwsh -NoProfile -File ./publish/Publish-QuickerAgent.ps1 -SkipQkrpcBuild
 
       - name: Upload agent artifacts

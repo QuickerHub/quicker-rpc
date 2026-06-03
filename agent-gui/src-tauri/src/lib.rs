@@ -216,6 +216,9 @@ fn spawn_node_server(app_dir: &Path, node_exe: &Path, host: &str, port: u16) -> 
     if let Ok(mode) = std::env::var("QKRPC_TRANSPORT") {
         cmd.env("QKRPC_TRANSPORT", mode);
     }
+    if let Ok(bin) = std::env::var("QKRPC_BIN") {
+        cmd.env("QKRPC_BIN", bin);
+    }
 
     configure_hidden_child(&mut cmd);
     cmd.spawn().map_err(|e| format!("spawn node server: {e}"))
@@ -275,6 +278,8 @@ fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<St
     std::env::set_var("QKRPC_HTTP_URL", &qkrpc_url);
     std::env::set_var("QKRPC_TRANSPORT", "http");
     let qkrpc_dir = resource.join("qkrpc");
+    let qkrpc_exe = qkrpc_dir.join(if cfg!(windows) { "qkrpc.exe" } else { "qkrpc" });
+    std::env::set_var("QKRPC_BIN", &qkrpc_exe);
     let qkrpc_child = spawn_qkrpc(&qkrpc_dir, host, qkrpc_port)?;
     wait_qkrpc_serve_listening(host, qkrpc_port, 45_000)?;
 

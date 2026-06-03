@@ -16,6 +16,21 @@ export type ActionExplorerTree = {
   children: ExplorerTreeNode[];
 };
 
+/** Compact change-detection key (faster than JSON.stringify for large trees). */
+export function computeExplorerTreeSignature(tree: ActionExplorerTree): string {
+  const lines: string[] = [tree.rootPath, tree.rootLabel];
+  const walk = (nodes: ExplorerTreeNode[]) => {
+    for (const node of nodes) {
+      lines.push(
+        `${node.path}\t${node.kind}\t${node.title ?? ""}\t${node.actionId ?? ""}\t${node.children?.length ?? 0}`,
+      );
+      if (node.children?.length) walk(node.children);
+    }
+  };
+  walk(tree.children);
+  return lines.join("\n");
+}
+
 export type ActionProjectMeta = {
   dirName: string;
   path: string;
@@ -144,14 +159,15 @@ export function buildExplorerTreeFromProjectMeta(
   return filterHiddenExplorerNodes(sortTree(nodes), null, normalizedRoot);
 }
 
-/** Hide info.json under action project roots (opened via project row click). */
+/** Hide info.json / data.json under action project roots (opened via project row click). */
 export function isHiddenExplorerTreeNode(
   node: ExplorerTreeNode,
   parent: ExplorerTreeNode | null,
   actionsRoot: string,
 ): boolean {
   if (node.kind !== "file") return false;
-  if (node.name.toLowerCase() !== "info.json") return false;
+  const leaf = node.name.toLowerCase();
+  if (leaf !== "info.json" && leaf !== "data.json") return false;
   if (!parent || parent.kind !== "directory") return false;
   return isActionProjectRootNode(parent, actionsRoot);
 }
@@ -203,6 +219,62 @@ function sortTree(nodes: ExplorerTreeNode[]): ExplorerTreeNode[] {
     });
 }
 
+/** Canonical path keys for explorer expand/collapse state. */
+export function normalizeExplorerTreePath(path: string): string {
+  return path.replace(/\\/g, "/");
+}
+
+/** Find a node by canonical path (for selection / open guards). */
+export function findExplorerTreeNode(
+  tree: ActionExplorerTree,
+  path: string,
+): ExplorerTreeNode | null {
+  const target = normalizeExplorerTreePath(path);
+  const walk = (nodes: ExplorerTreeNode[]): ExplorerTreeNode | null => {
+    for (const node of nodes) {
+      if (normalizeExplorerTreePath(node.path) === target) return node;
+      if (node.children?.length) {
+        const found = walk(node.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  return walk(tree.children);
+}
+
+/** Known action-project folder segments (no file extension). */
+const ACTION_PROJECT_DIRECTORY_LEAVES = new Set(["files"]);
+
+/** Folder row in the tree (directory or known folder name like `files`). */
+export function isActionProjectFolderNode(node: ExplorerTreeNode): boolean {
+  if (node.kind === "directory") return true;
+  const leaf = normalizeExplorerTreePath(node.path).split("/").pop() ?? "";
+  return ACTION_PROJECT_DIRECTORY_LEAVES.has(leaf);
+}
+
+export function isExplorerTreeDirectoryPath(
+  tree: ActionExplorerTree | null | undefined,
+  path: string | null | undefined,
+): boolean {
+  if (!path?.trim()) return false;
+  const normalized = normalizeExplorerTreePath(path).replace(/\/+$/, "");
+  if (tree) {
+    const node = findExplorerTreeNode(tree, normalized);
+    if (node?.kind === "directory") return true;
+  }
+  if (!normalized.includes(".quicker/actions/")) return false;
+  const leaf = normalized.split("/").pop() ?? "";
+  return ACTION_PROJECT_DIRECTORY_LEAVES.has(leaf);
+}
+
+export function isExplorerTreePathExpanded(
+  expandedPaths: Set<string>,
+  path: string,
+): boolean {
+  return expandedPaths.has(normalizeExplorerTreePath(path));
+}
+
 export function getAncestorDirectoryPaths(filePath: string): string[] {
   const parts = filePath.replace(/\\/g, "/").split("/").filter(Boolean);
   if (parts.length <= 1) return [];
@@ -226,12 +298,17 @@ export function resolveActionProjectId(node: ExplorerTreeNode): string | undefin
   return fromMeta || undefined;
 }
 
+/**
+ * True only for direct children of `.quicker/actions` (one path segment).
+ * Ignores a mistaken `actionsRoot` such as a project directory path.
+ */
 export function isActionProjectRootNode(
   node: ExplorerTreeNode,
-  actionsRoot = ACTIONS_ROOT_SUFFIX,
+  _actionsRoot = ACTIONS_ROOT_SUFFIX,
 ): boolean {
+  void _actionsRoot;
   if (node.kind !== "directory") return false;
-  const normalizedRoot = actionsRoot.replace(/\\/g, "/").replace(/\/+$/, "");
+  const normalizedRoot = ACTIONS_ROOT_SUFFIX.replace(/\\/g, "/").replace(/\/+$/, "");
   const normalizedPath = node.path.replace(/\\/g, "/");
   if (!normalizedPath.startsWith(`${normalizedRoot}/`)) return false;
   const rel = normalizedPath.slice(normalizedRoot.length + 1);
@@ -245,6 +322,15 @@ export function actionProjectInfoJsonPath(
 ): string | null {
   if (!isActionProjectRootNode(node, actionsRoot)) return null;
   return `${node.path.replace(/\\/g, "/")}/info.json`;
+}
+
+/** Relative path to a project root's data.json (step editor), or null if not a project root. */
+export function actionProjectDataJsonPath(
+  node: ExplorerTreeNode,
+  actionsRoot = ACTIONS_ROOT_SUFFIX,
+): string | null {
+  if (!isActionProjectRootNode(node, actionsRoot)) return null;
+  return `${node.path.replace(/\\/g, "/")}/data.json`;
 }
 
 export function formatShortActionId(actionId: string): string {

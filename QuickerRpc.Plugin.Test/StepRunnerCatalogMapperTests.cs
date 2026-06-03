@@ -45,6 +45,51 @@ public sealed class StepRunnerCatalogMapperTests
         };
 
     [TestMethod]
+    public void Search_includes_runner_icon()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new()
+                {
+                    Key = "sys:form",
+                    Name = "多字段表单",
+                    Icon = "fa:Light_WindowMaximize",
+                },
+            },
+        };
+
+        var result = StepRunnerCatalogMapper.Search(catalog, "form", maxResults: 10);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(1, result.MatchCount);
+        Assert.AreEqual("fa:Light_WindowMaximize", result.Items[0].Icon);
+    }
+
+    [TestMethod]
+    public void GetDetail_includes_runner_icon()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new()
+                {
+                    Key = "sys:form",
+                    Name = "多字段表单",
+                    Icon = "fa:Light_WindowMaximize",
+                },
+            },
+        };
+
+        var result = StepRunnerCatalogMapper.GetDetail(catalog, "sys:form");
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual("fa:Light_WindowMaximize", result.Schema!.Icon);
+    }
+
+    [TestMethod]
     public void Search_matched_control_selection_sets_control_field_fields()
     {
         var catalog = CreateWindowOperationsCatalog();

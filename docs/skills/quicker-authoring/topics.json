@@ -14,7 +14,7 @@
       "topic": "action-steps",
       "description": "data.json steps[]：stepRunnerKey、inputParams/outputParams、ifSteps；长 inputParams.value (>4 lines) use files/ + file ref not inline value. Use before step-runner get.",
       "source": "references/action-steps.md",
-      "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_action_patch",
+      "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit qkrpc_action_patch",
       "metadata": {
         "phase": "P5-P6"
       }
@@ -32,7 +32,7 @@
       "topic": "authoring-workflow",
       "description": "Quicker 动作编辑 P1–P7 主流程。Use before the first action edit in a session.",
       "source": "references/authoring-workflow.md",
-      "allowedTools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
+      "allowedTools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
       "metadata": {
         "phase": "P1-P7"
       }
@@ -44,6 +44,15 @@
       "allowedTools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch",
       "metadata": {
         "phase": "P4"
+      }
+    },
+    {
+      "topic": "form-spec",
+      "description": "sys:form 多字段表单：qkrpc.form.v1 语法与 qkrpc form validate/build。Use when authoring sys:form; do not hand-write native formDef JSON.",
+      "source": "references/form-spec.md",
+      "allowedTools": "qkrpc_form_validate qkrpc_form_build qkrpc_step_runner_get workspace_action_edit_data qkrpc_action_patch",
+      "metadata": {
+        "phase": "P5-P6"
       }
     },
     {
@@ -91,9 +100,9 @@
     },
     {
       "topic": "workspace-editing",
-      "description": ".quicker/actions workspace layout; workspace_file_* for files/; long step params via file refs; qkrpc_action_patch save. Use when editing data.json on disk.",
+      "description": ".quicker/actions layout; workspace_action_*_data and workspace_action_file_* (id + files/…); patch saves. Use when editing on disk.",
       "source": "references/workspace-editing.md",
-      "allowedTools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
+      "allowedTools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
       "compatibility": "QuickerAgent; requires working directory in sidebar"
     }
   ],

@@ -12,9 +12,9 @@ export function isActionProjectDataTool(toolName: string): boolean {
 
 export function isWorkspaceExplorerFileTool(toolName: string): boolean {
   return (
-    toolName === "workspace_file_read"
-    || toolName === "workspace_file_write"
-    || toolName === "workspace_file_edit"
+    toolName === "workspace_action_file_read"
+    || toolName === "workspace_action_file_write"
+    || toolName === "workspace_action_file_edit"
     || isActionProjectDataTool(toolName)
   );
 }

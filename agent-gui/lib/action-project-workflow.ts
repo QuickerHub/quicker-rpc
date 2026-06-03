@@ -210,7 +210,12 @@ export async function readActionProjectManifest(
   if (!resolvedInfo.ok) return { error: resolvedInfo.error };
 
   if (!existsSync(resolvedInfo.absolute)) {
-    return { error: `Project not found at ${dir}.` };
+    const root = resolveWorkspaceRoot();
+    return {
+      error: root
+        ? `Project not found at ${dir} (expected under workspace ${root}). Re-run qkrpc_action_get after setting the sidebar workspace folder.`
+        : `Project not found at ${dir}. Set a workspace folder in the sidebar, then qkrpc_action_get.`,
+    };
   }
 
   const infoRaw = stripJsonBom(await readFile(resolvedInfo.absolute, "utf8"));
@@ -248,11 +253,13 @@ export async function readActionProjectManifest(
   let fileRefs: ActionProjectManifest["fileRefs"] = [];
 
   if (hasDataJson) {
+    const projectResolved = resolveWorkspacePath(dir);
+    const validateDir = projectResolved.ok ? projectResolved.absolute : dir;
     const validateResult = await runQkrpcForTool([
       "action",
       "validate",
       "--dir",
-      dir,
+      validateDir,
     ]);
     const validatePayload = parseQkrpcPayload(validateResult) as ValidatePayload | null;
     fileRefs =
@@ -402,11 +409,25 @@ export async function syncActionToWorkspace(
     return { ok: false, reason: "invalid_id", error: "actionId must be a GUID." };
   }
 
-  const extractArgs = ["action", "extract", "--id", id];
-  const extractDir = options?.projectDirectory?.trim();
-  if (extractDir) {
-    extractArgs.push("--dir", extractDir);
+  const projectDirRel =
+    options?.projectDirectory?.trim() || actionProjectDirFromName(id);
+  const resolvedProject = resolveWorkspacePath(projectDirRel);
+  if (!resolvedProject.ok) {
+    return {
+      ok: false,
+      reason: "no_cwd",
+      error: resolvedProject.error,
+    };
   }
+
+  const extractArgs = [
+    "action",
+    "extract",
+    "--id",
+    id,
+    "--dir",
+    resolvedProject.absolute,
+  ];
   const extractResult = await runQkrpcForTool(extractArgs);
   if (!extractResult.ok) {
     return {
@@ -430,12 +451,17 @@ export async function syncActionToWorkspace(
     };
   }
 
-  const manifest = await readActionProjectManifest(id, projectDir);
+  const manifest = await readActionProjectManifest(id, projectDirRel);
   if ("error" in manifest) {
+    const extractAbs =
+      typeof extractPayload?.projectDirectoryAbsolute === "string"
+        ? extractPayload.projectDirectoryAbsolute
+        : undefined;
+    const hint = extractAbs ? ` Extract target was ${extractAbs}.` : "";
     return {
       ok: false,
       reason: "manifest_failed",
-      error: manifest.error,
+      error: `${manifest.error}${hint}`,
     };
   }
 
@@ -644,8 +670,8 @@ export async function saveActionFromWorkspace(options: {
     );
   }
 
-  const projectDir = await resolveActionProjectDirectory(actionId);
-  if (!projectDir) {
+  const projectDirRel = await resolveActionProjectDirectory(actionId);
+  if (!projectDirRel) {
     const message = `No .quicker/actions project for action ${actionId}. Create with qkrpc_action_create or sync a non-empty action with qkrpc_action_get, then write data.json before patch.`;
     return formatLocalToolResult(
       { action: "action-save", success: false, errorMessage: message },
@@ -654,11 +680,25 @@ export async function saveActionFromWorkspace(options: {
     );
   }
 
+  const projectResolved = resolveWorkspacePath(projectDirRel);
+  if (!projectResolved.ok) {
+    return formatLocalToolResult(
+      {
+        action: "action-save",
+        success: false,
+        errorMessage: projectResolved.error,
+      },
+      false,
+      projectResolved.error,
+    );
+  }
+  const projectDirAbs = projectResolved.absolute;
+
   const validateResult = await runQkrpcForTool([
     "action",
     "validate",
     "--dir",
-    projectDir,
+    projectDirAbs,
   ]);
   const validatePayload = parseQkrpcPayload(validateResult);
   const validateFailed =
@@ -674,7 +714,8 @@ export async function saveActionFromWorkspace(options: {
         action: "action-save",
         success: false,
         phase: "validate",
-        projectDirectory: projectDir,
+        projectDirectory: projectDirRel,
+        projectDirectoryAbsolute: projectDirAbs,
         errorMessage: message,
         validation: validatePayload ?? validateResult.parsed,
       },
@@ -683,7 +724,7 @@ export async function saveActionFromWorkspace(options: {
     );
   }
 
-  const applyArgs = ["action", "apply", "--dir", projectDir];
+  const applyArgs = ["action", "apply", "--dir", projectDirAbs];
   if (options.force) applyArgs.push("--force");
 
   const applyResult = await runQkrpcForTool(applyArgs);
@@ -697,7 +738,7 @@ export async function saveActionFromWorkspace(options: {
       ? applyPayload.editVersion
       : undefined;
   if (newVersion != null) {
-    await syncEditVersionOnDisk(projectDir, newVersion);
+    await syncEditVersionOnDisk(projectDirRel, newVersion);
   }
 
   return formatQkrpcResultForAgent(applyResult);

@@ -299,6 +299,14 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("query", "Filter: AND with spaces, OR with |, * wildcard.", shortName: "q"), Option("limit", "Max results (unique glyphs default, or rows with --expand).", defaultValue: "40"), Option("expand", "No compress: all style rows (Solid/Regular/Light/…)."), Option("all-styles", "Alias for --expand."), Option("json", "Structured output: names[] (Light_*|Brands_*). Spec: fa:{name} or fa:{name}:{#color} (action-icons)."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
 
+                Cmd("form validate", "Validate qkrpc.form.v1 spec (no Quicker connection).", "qkrpc form validate --file <path|-> [--json]",
+
+                    opts: new[] { Option("spec", "Inline form spec JSON."), Option("file", "Form spec file or - for stdin."), Option("json", "Structured output.") }),
+
+                Cmd("form build", "Compile qkrpc.form.v1 to sys:form step JSON.", "qkrpc form build --file <path|-> [--json]",
+
+                    opts: new[] { Option("spec", "Inline form spec JSON."), Option("file", "Form spec file or - for stdin."), Option("json", "Structured output: nativeFormJson + step.") }),
+
             },
 
         };

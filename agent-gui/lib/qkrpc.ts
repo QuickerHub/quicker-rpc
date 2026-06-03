@@ -3,41 +3,111 @@ import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { argvToInvoke } from "@/lib/qkrpc-argv";
-import { resolveDefaultWorkingDirectory } from "@/lib/default-working-directory";
+import {
+  isBundledAgentRuntime,
+  resolveDefaultWorkingDirectory,
+} from "@/lib/default-working-directory";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
-import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
+import { invokeQkrpcHttp, resolveQkrpcHttpBase } from "@/lib/qkrpc-http";
 import {
   invalidateServeProbeCache,
   isCliTransportForced,
   isHttpTransportForced,
-  shouldUseHttpTransport,
+  mustNotSpawnCli,
 } from "@/lib/qkrpc-transport";
 import type { QkrpcRunResult } from "@/lib/qkrpc-types";
 
 const require = createRequire(import.meta.url);
-const { resolveQkrpcBin, resolveUserInstalledQkrpcExe } = require("./qkrpc-bin.mjs") as {
+const {
+  resolveQkrpcBin,
+  resolveQkrpcFromPath,
+  resolveUserInstalledQkrpcExe,
+} = require("./qkrpc-bin.mjs") as {
   resolveQkrpcBin: (agentGuiRoot: string) => string | null;
+  resolveQkrpcFromPath: () => string | null;
   resolveUserInstalledQkrpcExe: () => string | null;
 };
 
 export type { QkrpcRunResult } from "@/lib/qkrpc-types";
 
 const MAX_STDOUT_CHARS = 120_000;
-const AGENT_GUI_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const QKRPC_EXE = process.platform === "win32" ? "qkrpc.exe" : "qkrpc";
 
-function resolveBin(): string {
-  const resolved = resolveQkrpcBin(AGENT_GUI_ROOT);
+function resolveBin(): string | null {
+  const configured = process.env.QKRPC_BIN?.trim();
+  if (configured && existsSync(configured)) {
+    return configured;
+  }
+
+  const agentGuiRoot = resolveAgentGuiRoot();
+  const resolved = resolveQkrpcBin(agentGuiRoot);
   if (resolved && existsSync(resolved)) {
     return resolved;
   }
-  const userExe = resolveUserInstalledQkrpcExe();
+
+  const userExe = resolveUserInstalledQkrpcExe() ?? resolveQkrpcFromPath();
   if (userExe) {
     return userExe;
   }
-  return join(AGENT_GUI_ROOT, ".runtime", "qkrpc", "qkrpc.exe");
+
+  if (!isBundledAgentRuntime()) {
+    const staged = join(agentGuiRoot, ".runtime", "qkrpc", QKRPC_EXE);
+    if (existsSync(staged)) {
+      return staged;
+    }
+  }
+
+  return null;
+}
+
+function formatQkrpcMissingMessage(): string {
+  if (isBundledAgentRuntime()) {
+    return [
+      "找不到 qkrpc 可执行文件。",
+      "请重新安装 QuickerAgent，或从 GitHub Releases 安装 qkrpc-win-x64-setup.exe；",
+      "并确认 Quicker 已运行且已加载 QuickerRpc 插件。",
+    ].join(" ");
+  }
+  return "找不到 qkrpc。请在 quicker-rpc 仓库根目录运行: pwsh ./build.ps1 -t，或安装 qkrpc CLI 到 %LOCALAPPDATA%\\Programs\\qkrpc\\。";
+}
+
+function formatOpNotOnServeMessage(args: string[]): string {
+  const cmd = args.filter((a) => a !== "--json").join(" ");
+  return [
+    `命令未通过 qkrpc serve 暴露，无法执行: ${cmd}`,
+    "请升级 qkrpc / QuickerAgent，或设置 QKRPC_TRANSPORT=cli 强制子进程（仅调试）。",
+  ].join(" ");
+}
+
+function formatServeUnreachableMessage(): string {
+  return [
+    `无法连接 qkrpc serve（${resolveQkrpcHttpBase()}）。`,
+    "请确认 Quicker 已运行、QuickerRpc 插件已加载，且 serve 已启动。",
+  ].join(" ");
+}
+
+function serveTransportError(stderr: string): QkrpcRunResult {
+  return {
+    ok: false,
+    exitCode: 1,
+    stdout: "",
+    stderr,
+    parsed: null,
+    truncated: false,
+  };
+}
+
+function formatSpawnError(err: Error, bin: string): string {
+  if (!err.message.includes("ENOENT")) {
+    return err.message;
+  }
+  if (isBundledAgentRuntime()) {
+    return `spawn ${bin} ENOENT — ${formatQkrpcMissingMessage()}`;
+  }
+  return `${err.message}（开发环境请在仓库根目录运行: pwsh ./build.ps1 -t）`;
 }
 
 function resolveCwd(): string {
@@ -99,13 +169,66 @@ function shouldRetryHttpActionQuery(args: string[], parsed: unknown): boolean {
   return count === 0;
 }
 
+function isStepRunnerCatalogArgv(args: string[]): boolean {
+  return args[0] === "step-runner" && (args[1] === "search" || args[1] === "get");
+}
+
+function readPayloadObject(parsed: unknown): Record<string, unknown> | null {
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const root = parsed as Record<string, unknown>;
+  const data =
+    typeof root.payload === "object" && root.payload !== null
+      ? (root.payload as Record<string, unknown>)
+      : root;
+  return data;
+}
+
+function readIconField(obj: Record<string, unknown>): string {
+  const icon = obj.icon ?? obj.Icon;
+  return typeof icon === "string" ? icon.trim() : "";
+}
+
+/** Stale qkrpc serve may omit icon on step-runner DTOs; retry via CLI spawn. */
+function shouldRetryHttpStepRunnerMissingIcons(op: string, parsed: unknown): boolean {
+  if (op !== "step-runner.search" && op !== "step-runner.get") return false;
+  const payload = readPayloadObject(parsed);
+  if (!payload) return false;
+
+  if (op === "step-runner.get") {
+    const schema = payload.schema ?? payload.Schema;
+    if (typeof schema === "object" && schema !== null && !Array.isArray(schema)) {
+      return readIconField(schema as Record<string, unknown>).length === 0;
+    }
+    const schemaJson = payload.schemaJson ?? payload.SchemaJson;
+    if (typeof schemaJson === "string" && schemaJson.trim()) {
+      try {
+        const schemaObj = JSON.parse(schemaJson) as Record<string, unknown>;
+        return readIconField(schemaObj).length === 0;
+      } catch {
+        return true;
+      }
+    }
+    return true;
+  }
+
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  if (items.length === 0) return false;
+  for (const raw of items) {
+    if (typeof raw !== "object" || raw === null) continue;
+    if (readIconField(raw as Record<string, unknown>).length > 0) return false;
+  }
+  return true;
+}
+
 async function tryHttpInvoke(
   args: string[],
   options?: { timeoutMs?: number },
+  transport?: { serveOnly: boolean },
 ): Promise<QkrpcRunResult | "skip"> {
+  const serveOnly = transport?.serveOnly ?? false;
   const invoke = argvToInvoke(args);
   if (!invoke) {
-    return "skip";
+    return serveOnly ? serveTransportError(formatOpNotOnServeMessage(args)) : "skip";
   }
 
   const httpResult = await invokeQkrpcHttp(invoke, {
@@ -114,19 +237,27 @@ async function tryHttpInvoke(
 
   if (httpResult === null) {
     invalidateServeProbeCache();
-    return "skip";
+    return serveOnly
+      ? serveTransportError(formatServeUnreachableMessage())
+      : "skip";
   }
 
-  if (httpResult.ok && !shouldRetryHttpActionQuery(args, httpResult.parsed)) {
-    return httpResult;
-  }
-
-  if (httpResult.ok && shouldRetryHttpActionQuery(args, httpResult.parsed)) {
+  if (httpResult.ok) {
+    if (shouldRetryHttpStepRunnerMissingIcons(invoke.op, httpResult.parsed)) {
+      invalidateServeProbeCache();
+      return "skip";
+    }
+    if (!shouldRetryHttpActionQuery(args, httpResult.parsed)) {
+      return httpResult;
+    }
+    if (serveOnly || isHttpTransportForced()) {
+      return httpResult;
+    }
     invalidateServeProbeCache();
     return "skip";
   }
 
-  if (isHttpTransportForced()) {
+  if (isHttpTransportForced() || serveOnly) {
     return httpResult;
   }
 
@@ -138,19 +269,40 @@ export async function runQkrpc(
   args: string[],
   options?: { stdin?: string; timeoutMs?: number; json?: boolean },
 ): Promise<QkrpcRunResult> {
+  const serveOnly = mustNotSpawnCli();
+  const stepRunnerCatalog = isStepRunnerCatalogArgv(args);
+
   if (!options?.stdin && !isCliTransportForced()) {
-    const useHttp = await shouldUseHttpTransport();
-    if (useHttp) {
-      const http = await tryHttpInvoke(args, options);
-      if (http !== "skip") {
-        return http;
-      }
+    const http = await tryHttpInvoke(args, options, { serveOnly });
+    if (http !== "skip") {
+      return http;
     }
   }
 
+  if (serveOnly && !stepRunnerCatalog) {
+    if (options?.stdin) {
+      return serveTransportError(
+        "stdin 模式不支持 qkrpc serve；请通过 HTTP 传入 JSON body（action.patch / replace 等）。",
+      );
+    }
+    return serveTransportError(formatServeUnreachableMessage());
+  }
+
+  // Per-request qkrpc.exe subprocess — only when QKRPC_TRANSPORT=cli|spawn (local debug).
   const json = options?.json !== false;
   const finalArgs = json && !args.includes("--json") ? [...args, "--json"] : [...args];
   const bin = resolveBin();
+  if (!bin) {
+    const message = formatQkrpcMissingMessage();
+    return {
+      ok: false,
+      exitCode: 1,
+      stdout: "",
+      stderr: message,
+      parsed: null,
+      truncated: false,
+    };
+  }
   const cwd = resolveCwd();
   const timeoutMs = options?.timeoutMs ?? 120_000;
   const useStdin = Boolean(options?.stdin);
@@ -192,14 +344,11 @@ export async function runQkrpc(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      const hint = err.message.includes("ENOENT")
-        ? `${err.message} (run pwsh ../build.ps1 -t from repo root)`
-        : err.message;
       resolve({
         ok: false,
         exitCode: -1,
         stdout: "",
-        stderr: hint,
+        stderr: formatSpawnError(err, bin),
         parsed: null,
         truncated: false,
       });
@@ -335,21 +484,34 @@ async function runQkrpcWithJsonPayloadOnce(
   const invoke = argvToInvoke(filtered);
   const httpSpec = invoke ? HTTP_JSON_BODY_OPS[invoke.op] : undefined;
 
+  const serveOnly = mustNotSpawnCli();
+
   if (httpSpec && !isCliTransportForced()) {
-    const useHttp = await shouldUseHttpTransport();
-    if (useHttp) {
-      const httpResult = await invokeQkrpcHttp(
-        {
-          op: invoke!.op,
-          args: { ...invoke!.args, [httpSpec.argKey]: jsonObject },
-        },
-        { timeoutMs },
-      );
-      if (httpResult?.ok) {
-        return httpResult;
-      }
-      invalidateServeProbeCache();
+    const httpResult = await invokeQkrpcHttp(
+      {
+        op: invoke!.op,
+        args: { ...invoke!.args, [httpSpec.argKey]: jsonObject },
+      },
+      { timeoutMs },
+    );
+    if (httpResult?.ok) {
+      return httpResult;
     }
+    if (serveOnly) {
+      return (
+        httpResult
+        ?? serveTransportError(formatServeUnreachableMessage())
+      );
+    }
+    invalidateServeProbeCache();
+  }
+
+  if (serveOnly) {
+    return serveTransportError(
+      invoke
+        ? formatServeUnreachableMessage()
+        : formatOpNotOnServeMessage(filtered),
+    );
   }
 
   const fileFlag = httpSpec?.fileFlag ?? "patch-file";

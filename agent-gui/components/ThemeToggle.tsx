@@ -2,12 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getStoredTheme, setStoredTheme, type ThemePreference } from "@/lib/theme";
-
-const OPTIONS: Array<{ value: ThemePreference; label: string }> = [
-  { value: "system", label: "系统" },
-  { value: "light", label: "浅色" },
-  { value: "dark", label: "深色" },
-];
+import { THEME_OPTIONS } from "@/lib/theme-constants";
 
 export function ThemeToggle() {
   const [preference, setPreference] = useState<ThemePreference>("system");
@@ -36,7 +31,7 @@ export function ThemeToggle() {
       role="group"
       aria-label="主题"
     >
-      {OPTIONS.map(({ value, label }) => (
+      {THEME_OPTIONS.map(({ value, label }) => (
         <button
           key={value}
           type="button"

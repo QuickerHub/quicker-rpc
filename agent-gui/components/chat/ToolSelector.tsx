@@ -6,7 +6,11 @@ import {
   defaultEnabledToolIds,
   QKRPC_TOOL_REGISTRY,
   storeEnabledTools,
+  TOOL_CATEGORY_LABELS,
+  TOOL_CATEGORY_ORDER_BY_GROUP,
   TOOL_GROUP_LABELS,
+  toolsInCategory,
+  type ToolCategoryId,
   type ToolGroupId,
 } from "@/lib/tool-registry";
 
@@ -17,6 +21,10 @@ type ToolSelectorProps = {
 };
 
 const GROUP_ORDER: ToolGroupId[] = ["read", "write", "destructive"];
+
+function countEnabledInSet(ids: string[], enabledSet: Set<string>): number {
+  return ids.filter((id) => enabledSet.has(id)).length;
+}
 
 export function ToolSelector({
   enabledTools,
@@ -30,6 +38,7 @@ export function ToolSelector({
   const writeOff = !GROUP_ORDER.slice(1).some((g) =>
     QKRPC_TOOL_REGISTRY.some((t) => t.group === g && enabledSet.has(t.id)),
   );
+  const totalTools = QKRPC_TOOL_REGISTRY.length;
 
   useEffect(() => {
     if (!open) return;
@@ -40,27 +49,41 @@ export function ToolSelector({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  const toggle = (id: string) => {
-    const next = new Set(enabledTools);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+  const applyIds = (next: Set<string>) => {
     const ids = QKRPC_TOOL_REGISTRY.map((t) => t.id).filter((x) => next.has(x));
     if (ids.length === 0) return;
     onChange(ids);
     storeEnabledTools(ids);
   };
 
-  const setGroup = (group: ToolGroupId, on: boolean) => {
+  const toggle = (id: string) => {
     const next = new Set(enabledTools);
-    for (const t of QKRPC_TOOL_REGISTRY) {
-      if (t.group !== group) continue;
-      if (on) next.add(t.id);
-      else next.delete(t.id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    applyIds(next);
+  };
+
+  const setTools = (toolIds: string[], on: boolean) => {
+    const next = new Set(enabledTools);
+    for (const id of toolIds) {
+      if (on) next.add(id);
+      else next.delete(id);
     }
-    const ids = QKRPC_TOOL_REGISTRY.map((t) => t.id).filter((x) => next.has(x));
-    if (ids.length === 0) return;
-    onChange(ids);
-    storeEnabledTools(ids);
+    applyIds(next);
+  };
+
+  const setGroup = (group: ToolGroupId, on: boolean) => {
+    setTools(
+      QKRPC_TOOL_REGISTRY.filter((t) => t.group === group).map((t) => t.id),
+      on,
+    );
+  };
+
+  const setCategory = (group: ToolGroupId, category: ToolCategoryId, on: boolean) => {
+    setTools(
+      toolsInCategory(group, category).map((t) => t.id),
+      on,
+    );
   };
 
   const resetAll = () => {
@@ -92,21 +115,42 @@ export function ToolSelector({
           aria-label="工具选择"
         >
           <div className="tool-selector-header">
-            <span>可用工具</span>
+            <div className="tool-selector-header-main">
+              <span>可用工具</span>
+              <span className="tool-selector-header-meta">
+                {enabledTools.length}/{totalTools} 已启用
+              </span>
+            </div>
             <button type="button" className="tool-selector-link" onClick={resetAll}>
               全部启用
             </button>
           </div>
 
           {GROUP_ORDER.map((group) => {
-            const items = QKRPC_TOOL_REGISTRY.filter((t) => t.group === group);
-            const allOn = items.every((t) => enabledSet.has(t.id));
+            const groupTools = QKRPC_TOOL_REGISTRY.filter((t) => t.group === group);
+            const groupIds = groupTools.map((t) => t.id);
+            const groupEnabled = countEnabledInSet(groupIds, enabledSet);
+            const allOn = groupEnabled === groupIds.length;
+            const categories = TOOL_CATEGORY_ORDER_BY_GROUP[group].filter(
+              (category) => toolsInCategory(group, category).length > 0,
+            );
+
             return (
-              <section key={group} className="tool-selector-group">
+              <section
+                key={group}
+                className={`tool-selector-group tool-selector-group--${group}`}
+              >
                 <div className="tool-selector-group-head">
-                  <span className={`tool-selector-group-label tool-selector-group-label--${group}`}>
-                    {TOOL_GROUP_LABELS[group]}
-                  </span>
+                  <div className="tool-selector-group-title">
+                    <span
+                      className={`tool-selector-group-label tool-selector-group-label--${group}`}
+                    >
+                      {TOOL_GROUP_LABELS[group]}
+                    </span>
+                    <span className="tool-selector-group-count">
+                      {groupEnabled}/{groupIds.length}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     className="tool-selector-link"
@@ -115,28 +159,55 @@ export function ToolSelector({
                     {allOn ? "全关" : "全开"}
                   </button>
                 </div>
-                <ul className="tool-selector-list">
-                  {items.map((t) => (
-                    <li key={t.id}>
-                      <label className="tool-selector-item">
-                        <input
-                          type="checkbox"
-                          className="tool-selector-checkbox"
-                          checked={enabledSet.has(t.id)}
-                          onChange={() => toggle(t.id)}
-                        />
-                        <span className="tool-selector-item-body">
-                          <span className="tool-selector-item-label">{t.label}</span>
-                          {t.description && (
-                            <span className="tool-selector-item-desc">
-                              {t.description}
-                            </span>
-                          )}
-                        </span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
+
+                {categories.map((category) => {
+                  const items = toolsInCategory(group, category);
+                  const itemIds = items.map((t) => t.id);
+                  const categoryEnabled = countEnabledInSet(itemIds, enabledSet);
+                  const categoryAllOn = categoryEnabled === itemIds.length;
+                  const showCategoryHead = categories.length > 1;
+
+                  return (
+                    <div key={category} className="tool-selector-category">
+                      {showCategoryHead && (
+                        <div className="tool-selector-category-head">
+                          <span className="tool-selector-category-label">
+                            {TOOL_CATEGORY_LABELS[category]}
+                          </span>
+                          <button
+                            type="button"
+                            className="tool-selector-link tool-selector-link--subtle"
+                            onClick={() => setCategory(group, category, !categoryAllOn)}
+                          >
+                            {categoryAllOn ? "全关" : "全开"}
+                          </button>
+                        </div>
+                      )}
+                      <ul className="tool-selector-list">
+                        {items.map((t) => (
+                          <li key={t.id}>
+                            <label className="tool-selector-item">
+                              <input
+                                type="checkbox"
+                                className="tool-selector-checkbox"
+                                checked={enabledSet.has(t.id)}
+                                onChange={() => toggle(t.id)}
+                              />
+                              <span className="tool-selector-item-body">
+                                <span className="tool-selector-item-label">{t.label}</span>
+                                {t.description && (
+                                  <span className="tool-selector-item-desc">
+                                    {t.description}
+                                  </span>
+                                )}
+                              </span>
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
               </section>
             );
           })}

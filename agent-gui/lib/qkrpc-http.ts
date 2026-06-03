@@ -1,5 +1,26 @@
 import type { QkrpcInvoke } from "@/lib/qkrpc-argv";
+import { getRequestCwd } from "@/lib/qkrpc-request-context";
 import type { QkrpcRunResult } from "@/lib/qkrpc-types";
+
+const WORKSPACE_PROJECT_OPS = new Set([
+  "action.extract",
+  "action.apply",
+  "action.validate",
+]);
+
+function attachWorkspaceRoot(invoke: QkrpcInvoke): QkrpcInvoke {
+  if (!WORKSPACE_PROJECT_OPS.has(invoke.op)) {
+    return invoke;
+  }
+  const cwd = getRequestCwd()?.trim();
+  if (!cwd) {
+    return invoke;
+  }
+  if (typeof invoke.args.workspaceRoot === "string" && invoke.args.workspaceRoot.trim()) {
+    return invoke;
+  }
+  return { ...invoke, args: { ...invoke.args, workspaceRoot: cwd } };
+}
 
 const DEFAULT_HTTP_BASE = "http://127.0.0.1:9477";
 
@@ -46,14 +67,15 @@ export async function invokeQkrpcHttp(
   const timeoutMs = options?.timeoutMs ?? 120_000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs + 5_000);
+  const invokeWithWorkspace = attachWorkspaceRoot(invoke);
 
   try {
     const res = await fetch(`${base}/v1/invoke`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        op: invoke.op,
-        args: invoke.args,
+        op: invokeWithWorkspace.op,
+        args: invokeWithWorkspace.args,
         timeoutSeconds: Math.max(1, Math.ceil(timeoutMs / 1000)),
       }),
       signal: controller.signal,
@@ -138,7 +160,7 @@ export async function fetchQkrpcHealth(options?: {
     });
     const text = await res.text();
     if (!text.trim()) {
-      // Port open but not qkrpc serve (or broken handler) — fall back to CLI ping.
+      // Port open but not qkrpc serve (or broken handler).
       return null;
     }
     let body: ServeHealthBody;

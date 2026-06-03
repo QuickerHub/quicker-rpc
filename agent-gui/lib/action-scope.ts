@@ -4,6 +4,7 @@ import {
   type UIMessage,
 } from "ai";
 import { parseUserMessageContent } from "@/lib/compose-user-message";
+import { qkrpcRequestContext } from "@/lib/qkrpc-request-context";
 import { isStructuredToolResult } from "@/lib/tool-result";
 
 const UUID_RE =
@@ -12,12 +13,6 @@ const UUID_RE =
 const QKA_TAG_RE =
   /<qka\s+id="([^"]+)"[^>]*>([^<]*)<\/qka>/gi;
 
-const WORKSPACE_ACTION_TOOLS = new Set([
-  "workspace_action_read_data",
-  "workspace_action_write_data",
-  "workspace_action_edit_data",
-]);
-
 const ACTION_ID_TOOLS = new Set([
   "qkrpc_action_get",
   "qkrpc_action_patch",
@@ -25,7 +20,12 @@ const ACTION_ID_TOOLS = new Set([
   "qkrpc_action_set_metadata",
   "qkrpc_action_delete",
   "qkrpc_action_run",
-  ...WORKSPACE_ACTION_TOOLS,
+  "workspace_action_read_data",
+  "workspace_action_write_data",
+  "workspace_action_edit_data",
+  "workspace_action_file_read",
+  "workspace_action_file_write",
+  "workspace_action_file_edit",
 ]);
 
 export type ScopedActionRef = {
@@ -34,15 +34,12 @@ export type ScopedActionRef = {
   source: "user-tag" | "tool";
 };
 
+/** Optional chat context for prompts (no edit restrictions). */
 export type ActionScopeHint = {
-  /** Single action the user @-pinned in the latest user turn (hard bind). */
   pinnedLatest?: ScopedActionRef;
-  /** All @-pinned actions in the latest user turn. */
   pinnedLatestAll: ScopedActionRef[];
-  /** Most recent action id from tool inputs/outputs in the thread. */
   lastToolActionId?: string;
   lastToolActionTitle?: string;
-  /** Action ids with a local .quicker/actions project (when cwd is set). */
   localProjectIds: string[];
 };
 
@@ -124,7 +121,6 @@ function readTitleFromToolOutput(output: unknown): string | undefined {
   return typeof title === "string" && title.trim() ? title.trim() : undefined;
 }
 
-/** Build action scope from chat messages (call before streamText). */
 export function extractActionScopeFromMessages(
   messages: UIMessage[],
   localProjectIds: string[] = [],
@@ -139,8 +135,7 @@ export function extractActionScopeFromMessages(
       const textParts = (message.parts ?? [])
         .filter((p): p is { type: "text"; text: string } => p.type === "text")
         .map((p) => p.text);
-      const combined = textParts.join("\n");
-      pinnedLatestAll = extractTagsFromUserText(combined);
+      pinnedLatestAll = extractTagsFromUserText(textParts.join("\n"));
       break;
     }
   }
@@ -173,15 +168,16 @@ export function extractActionScopeFromMessages(
   };
 }
 
+/** Default id for optional auto-sync hints (not enforced). */
 export function getPrimaryActionId(scope: ActionScopeHint | undefined): string | undefined {
   if (!scope) return undefined;
   return scope.pinnedLatest?.id ?? scope.lastToolActionId;
 }
 
-/** Hard guard: reject workspace_action_* id when it conflicts with user @ pin. */
+/** Validate action GUID only; no @-pin or scope whitelist. */
 export function guardWorkspaceActionId(
   requestedId: string,
-  scope: ActionScopeHint | undefined,
+  _scope?: ActionScopeHint,
 ):
   | { ok: true; id: string }
   | { ok: false; error: string } {
@@ -189,79 +185,29 @@ export function guardWorkspaceActionId(
   if (!isUuid(id)) {
     return { ok: false, error: "id must be a Quicker action GUID." };
   }
-  if (!scope) return { ok: true, id };
-
-  const pinned = scope.pinnedLatestAll;
-  if (pinned.length === 1) {
-    const expected = pinned[0]!.id;
-    if (normalizeId(id) !== normalizeId(expected)) {
-      const label = pinned[0]!.title ? `「${pinned[0]!.title}」` : expected;
-      return {
-        ok: false,
-        error:
-          `Action id mismatch: the user pinned ${label} (${expected}) in the latest message, but the tool used ${id}. Use the pinned id only.`,
-      };
-    }
-    return { ok: true, id: expected };
-  }
-
-  if (pinned.length > 1) {
-    const allowed = new Set(pinned.map((p) => normalizeId(p.id)));
-    if (!allowed.has(normalizeId(id))) {
-      const list = pinned
-        .map((p) => `${p.title ?? p.id} (${p.id})`)
-        .join("; ");
-      return {
-        ok: false,
-        error:
-          `Multiple actions pinned in the latest user message: ${list}. Use one of these ids.`,
-      };
-    }
-  }
-
   return { ok: true, id };
 }
 
+/** Optional context for the model (not edit restrictions). */
 export function formatActionScopeForSystem(scope: ActionScopeHint | undefined): string {
   if (!scope) return "";
 
-  const lines: string[] = [
-    "## Action scope (binding)",
-    "- workspace_action_read_data / write_data / edit_data read and write **local** .quicker/actions/{id}/data.json only.",
-    "- When the user @-pins exactly one action in their latest message, use **only** that id for workspace_action_* — do not substitute ids from search/create.",
-  ];
-
-  if (scope.pinnedLatest) {
-    const p = scope.pinnedLatest;
-    lines.push(
-      `- **Pinned (latest user message):** ${p.title ?? "action"} → \`${p.id}\` (required for workspace_action_*).`,
-    );
-  } else if (scope.pinnedLatestAll.length > 1) {
-    lines.push("- **Pinned (latest user message, pick one):**");
+  const lines: string[] = [];
+  if (scope.pinnedLatestAll.length > 0) {
+    lines.push("## @ actions (latest user message)");
     for (const p of scope.pinnedLatestAll) {
-      lines.push(`  - ${p.title ?? "action"} → \`${p.id}\``);
+      lines.push(`- ${p.title ?? "action"} → \`${p.id}\``);
     }
   }
-
   if (scope.lastToolActionId) {
     const label = scope.lastToolActionTitle
       ? `${scope.lastToolActionTitle} → `
       : "";
-    lines.push(
-      `- **Last action tool in thread:** ${label}\`${scope.lastToolActionId}\` (continue this unless the user pinned a different action).`,
-    );
+    lines.push(`- Last action in thread: ${label}\`${scope.lastToolActionId}\``);
   }
-
   if (scope.localProjectIds.length > 0) {
     lines.push(
-      `- **Synced local projects:** ${scope.localProjectIds.map((id) => `\`${id}\``).join(", ")}.`,
-    );
-    lines.push(
-      "- If workspace_action_* fails with no local project, call qkrpc_action_get({ id }) for that same id before read_data (auto-sync may run when id matches pinned scope).",
-    );
-  } else {
-    lines.push(
-      "- No local .quicker/actions projects in the current working directory — call qkrpc_action_get({ id }) before workspace_action_read_data.",
+      `- Local .quicker/actions: ${scope.localProjectIds.map((id) => `\`${id}\``).join(", ")}`,
     );
   }
 
@@ -270,20 +216,19 @@ export function formatActionScopeForSystem(scope: ActionScopeHint | undefined): 
 
 export function enrichActionProjectResolveError(
   baseError: string,
-  scope: ActionScopeHint | undefined,
-  requestedId: string,
+  _scope?: ActionScopeHint,
+  _requestedId?: string,
 ): string {
-  const parts = [baseError];
-  const primary = getPrimaryActionId(scope);
-  if (primary && normalizeId(primary) !== normalizeId(requestedId)) {
-    parts.push(
-      `Hint: the conversation scope points to ${primary}; you used ${requestedId}.`,
-    );
+  return baseError;
+}
+
+export function registerLocalActionProject(actionId: string): void {
+  const id = actionId.trim();
+  if (!isUuid(id)) return;
+  const scope = qkrpcRequestContext.getStore()?.actionScope;
+  if (!scope) return;
+  const key = normalizeId(id);
+  if (!scope.localProjectIds.some((existing) => normalizeId(existing) === key)) {
+    scope.localProjectIds.push(id);
   }
-  if (scope?.localProjectIds.length) {
-    parts.push(
-      `Local synced ids: ${scope.localProjectIds.join(", ")}.`,
-    );
-  }
-  return parts.join(" ");
 }

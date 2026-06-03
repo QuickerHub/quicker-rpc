@@ -7,7 +7,7 @@ import {
 
 test("action project data tool helpers", () => {
   assert.equal(isActionProjectDataTool("workspace_action_write_data"), true);
-  assert.equal(isActionProjectDataTool("workspace_file_write"), false);
+  assert.equal(isActionProjectDataTool("workspace_action_file_write"), false);
   assert.equal(
     actionProjectDataToolDisplayName("workspace_action_write_data"),
     "write-data",

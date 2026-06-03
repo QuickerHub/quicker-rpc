@@ -59,15 +59,26 @@ pnpm quicker-agent:publish
 
 ### 发布时注入 LLM Key（混淆进安装包）
 
-真实 API Key **不要**写入 `llm-config.json` 或仓库。发布 QuickerAgent 前设置环境变量：
+真实 API Key **不要**写入 `llm-config.json` 或仓库。推荐复制 `llm-publish.config.example.json` → `llm-publish.config.json`，填入多组 endpoint：
+
+```json
+{
+  "version": 1,
+  "endpoints": [
+    { "apiKey": "sk-...", "baseURL": "https://api.bingleimuzi.eu.cc/v1", "model": "gpt-5.5" },
+    { "apiKey": "sk-...", "baseURL": "https://ai98pro.xyz/v1", "model": "gpt-5.5" }
+  ]
+}
+```
+
+本地发布：
 
 ```powershell
-$env:BUNDLED_LLM_BINGLEIMUZI_API_KEY = 'sk-...'
-# 可选：$env:BUNDLED_LLM_PROVIDERS = 'bingleimuzi'
+$env:BUNDLED_LLM_CONFIG_PATH = 'agent-gui/llm-publish.config.json'
 pnpm quicker-agent:publish
 ```
 
-CI（`.github/workflows/release-cli.yml`）使用 GitHub Secret `BUNDLED_LLM_BINGLEIMUZI_API_KEY`（仍兼容旧名 `BUNDLED_LLM_AI98PRO_API_KEY`）。构建时 `tauri-prepare` 会生成：
+CI（`.github/workflows/release-cli.yml`）将整个 JSON 存为 GitHub Secret **`BUNDLED_LLM_CONFIG`**（单行 JSON 即可，无需多个 `BUNDLED_LLM_*_API_KEY` 环境变量）。仍兼容旧版单 Key secret。构建时 `tauri-prepare` 会生成：
 
 | 文件 | 说明 |
 |------|------|
@@ -85,7 +96,7 @@ CI（`.github/workflows/release-cli.yml`）使用 GitHub Secret `BUNDLED_LLM_BIN
 | `publish/quicker-agent-win-x64-setup.exe` | latest 别名（与上者同文件，须刚跑过 publish） |
 | `agent-gui/src-tauri/target/release/quicker-agent.exe` | 可执行文件 |
 
-安装后无需单独安装 Node / qkrpc；仍需 Quicker 插件。安装包内已含 `llm-config.json` 与混淆后的 `llm-bundled-secrets.json`（发布构建时通过 `BUNDLED_LLM_BINGLEIMUZI_API_KEY` 注入，勿提交仓库）。DeepSeek 等需自备 Key 的模型可在设置中填写。
+安装后无需单独安装 Node / qkrpc；仍需 Quicker 插件。安装包内已含 `llm-config.json` 与混淆后的 `llm-bundled-secrets.json`（发布构建时通过 `BUNDLED_LLM_CONFIG` 或 legacy `BUNDLED_LLM_*_API_KEY` 注入，勿提交仓库）。DeepSeek 等需自备 Key 的模型可在设置中填写。
 
 应用图标源文件：`app-icon.svg`（来自 Quicker.Designer：`Quicker.DesignerHost.WPF.Demo/app-icon.svg`）。修改后重新生成 Tauri / 安装包图标：
 

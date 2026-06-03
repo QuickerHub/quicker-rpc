@@ -135,6 +135,12 @@ internal static partial class Program
             return await EmitErrorAndFailAsync(options.Json, "INVALID_PATCH_JSON", parseError!).ConfigureAwait(false);
         }
 
+        if (!QkrpcPatchPreprocess.TryPreprocessPatch(patchObj!, options.PatchFile, out var preprocessError))
+        {
+            return await EmitErrorAndFailAsync(options.Json, "FORM_SPEC_COMPILE_FAILED", preprocessError!)
+                .ConfigureAwait(false);
+        }
+
         try
         {
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
@@ -203,6 +209,12 @@ internal static partial class Program
         if (!TryParseJsonObject(jsonText!, "program", out var programObj, out var parseError))
         {
             return await EmitErrorAndFailAsync(options.Json, "INVALID_PROGRAM_JSON", parseError!).ConfigureAwait(false);
+        }
+
+        if (!QkrpcPatchPreprocess.TryPreprocessProgram(programObj!, options.ProgramFile, out var preprocessError))
+        {
+            return await EmitErrorAndFailAsync(options.Json, "FORM_SPEC_COMPILE_FAILED", preprocessError!)
+                .ConfigureAwait(false);
         }
 
         try

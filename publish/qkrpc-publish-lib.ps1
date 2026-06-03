@@ -341,6 +341,42 @@ function Get-QuickerAgentSetupName {
     return "quicker-agent-$semver-x64-setup.exe"
 }
 
+function Get-QuickerAgentMinInstallerBytes {
+    return 50MB
+}
+
+function Test-QuickerAgentInstallerFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $false
+    }
+
+    return (Get-Item -LiteralPath $Path).Length -ge (Get-QuickerAgentMinInstallerBytes)
+}
+
+function Assert-QuickerAgentInstallerFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "Installer not found: $Path"
+    }
+
+    $item = Get-Item -LiteralPath $Path
+    $minBytes = Get-QuickerAgentMinInstallerBytes
+    if ($item.Length -lt $minBytes) {
+        $sizeMb = [math]::Round($item.Length / 1MB, 2)
+        $minMb = [math]::Round($minBytes / 1MB, 0)
+        throw "Installer too small ($sizeMb MB < $minMb MB): $Path"
+    }
+}
+
 function Get-QkrpcLatestAgentSetupName {
     return 'quicker-agent-win-x64-setup.exe'
 }
@@ -358,6 +394,50 @@ function Get-QkrpcPinnedAgentSetupDownloadUrl {
     }
 
     return "https://github.com/QuickerHub/quicker-rpc/releases/download/$normalizedTag/quicker-agent-win-x64-setup.exe"
+}
+
+function Get-QuickerAgentPinnedSetupDownloadUrl {
+    param(
+        [Parameter(Mandatory = $true)][string]$Tag,
+        [Parameter(Mandatory = $true)][string]$Version
+    )
+
+    $normalizedTag = $Tag.Trim()
+    if (-not $normalizedTag.StartsWith('v')) {
+        $normalizedTag = "v$normalizedTag"
+    }
+
+    $setupName = Get-QuickerAgentSetupName -Version $Version
+    return "https://github.com/QuickerHub/quicker-rpc/releases/download/$normalizedTag/$setupName"
+}
+
+function Download-QuickerAgentInstallerFromRelease {
+    param(
+        [Parameter(Mandatory = $true)][string]$Tag,
+        [Parameter(Mandatory = $true)][string]$Version,
+        [Parameter(Mandatory = $true)][string]$DestinationPath
+    )
+
+    $url = Get-QuickerAgentPinnedSetupDownloadUrl -Tag $Tag -Version $Version
+    $destDir = Split-Path -Parent $DestinationPath
+    if (-not (Test-Path -LiteralPath $destDir)) {
+        New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+    }
+
+    Write-Host "Downloading from $url ..." -ForegroundColor Cyan
+
+    if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+        & curl.exe --fail --location --retry 3 --retry-delay 2 --output $DestinationPath $url
+        if ($LASTEXITCODE -ne 0) {
+            throw "curl download failed ($LASTEXITCODE): $url"
+        }
+    }
+    else {
+        Invoke-WebRequest -Uri $url -OutFile $DestinationPath -UseBasicParsing
+    }
+
+    Assert-QuickerAgentInstallerFile -Path $DestinationPath
+    return (Resolve-Path -LiteralPath $DestinationPath).Path
 }
 
 function Get-QkrpcLatestSetupDownloadUrl {

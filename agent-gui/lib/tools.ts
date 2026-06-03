@@ -13,6 +13,7 @@ import {
   DOCS_SEARCH_TOOL,
 } from "@/lib/docs-tool";
 import { formatLocalToolResult } from "@/lib/tool-result";
+import { registerLocalActionProject } from "@/lib/action-scope";
 import {
   augmentActionGetWithWorkspace,
   bootstrapActionProjectForCreate,
@@ -23,6 +24,10 @@ import {
   saveActionFromWorkspace,
   syncActionToWorkspace,
 } from "@/lib/action-project-workflow";
+import {
+  actionProjectFileToolSuccess,
+  resolveActionProjectFileForTool,
+} from "@/lib/action-project-file.server";
 import {
   formatAutoSyncedNote,
   resolveWorkspaceActionForTool,
@@ -204,6 +209,9 @@ export const quickerTools = {
             error:
               "Action has no steps or variables; skipped extract to avoid writing an empty data.json.",
           };
+      if (sync.ok) {
+        registerLocalActionProject(id);
+      }
       return augmentActionGetWithWorkspace(getResult, sync);
     },
   }),
@@ -304,16 +312,28 @@ export const quickerTools = {
     },
   }),
 
-  workspace_file_read: tool({
+  workspace_action_file_read: tool({
     description:
-      "Read a UTF-8 file by relative path. For action data.json use workspace_action_read_data({ id }) instead of manual paths.",
+      "Read UTF-8 file in action project files/ (id + path e.g. files/main.cs). data.json: workspace_action_read_data.",
     inputSchema: z.object({
-      path: z.string().describe("Relative path from working directory"),
+      id: z.string().uuid().describe("Action GUID"),
+      path: z.string().describe("files/… under the action project"),
       offset: z.number().int().min(0).optional(),
       limit: z.number().int().min(1).max(200_000).optional(),
     }),
-    execute: async ({ path, offset, limit }) => {
-      const result = await readWorkspaceFile(path, { offset, limit });
+    execute: async ({ id, path, offset, limit }) => {
+      const resolved = await resolveActionProjectFileForTool(id, path);
+      if (!resolved.ok) {
+        return formatLocalToolResult(
+          { action: "file-read", success: false, errorMessage: resolved.error },
+          false,
+          resolved.error,
+        );
+      }
+      const result = await readWorkspaceFile(resolved.resolved.path, {
+        offset,
+        limit,
+      });
       if (!result.ok) {
         return formatLocalToolResult(
           { action: "file-read", success: false, errorMessage: result.error },
@@ -321,30 +341,39 @@ export const quickerTools = {
           result.error,
         );
       }
-      return formatLocalToolResult({
-        action: "file-read",
-        success: true,
-        path: result.path,
-        content: result.content,
-        truncated: result.truncated,
-        totalChars: result.totalChars,
-      });
+      return formatLocalToolResult(
+        actionProjectFileToolSuccess("file-read", resolved.resolved, {
+          content: result.content,
+          truncated: result.truncated,
+          totalChars: result.totalChars,
+        }),
+      );
     },
   }),
 
-  workspace_file_write: tool({
+  workspace_action_file_write: tool({
     description:
-      "Write a UTF-8 file under the workspace (e.g. files/*.cs for scripts, files/*.eval.cs for sys:evalexpression). Use for long step scripts/strings (more than 4 lines), then reference in data.json as inputParams.{key}.file. For steps[]/variables[] body use workspace_action_write_data({ id }) — not hand-written data.json paths.",
+      "Write action file in files/ (id + path). Long scripts: then workspace_action_edit_data file ref, patch.",
     inputSchema: z.object({
-      path: z.string().describe("Relative path from working directory"),
+      id: z.string().uuid().describe("Action GUID"),
+      path: z.string().describe("files/… under the action project"),
       content: z.string(),
     }),
-    execute: async ({ path, content }) => {
-      const readBefore = await readWorkspaceFile(path);
+    execute: async ({ id, path, content }) => {
+      const resolved = await resolveActionProjectFileForTool(id, path);
+      if (!resolved.ok) {
+        return formatLocalToolResult(
+          { action: "file-write", success: false, errorMessage: resolved.error },
+          false,
+          resolved.error,
+        );
+      }
+      const targetPath = resolved.resolved.path;
+      const readBefore = await readWorkspaceFile(targetPath);
       const previousContent = readBefore.ok ? readBefore.content : "";
       const previousTruncated = readBefore.ok ? readBefore.truncated === true : false;
 
-      const result = await writeWorkspaceFile(path, content);
+      const result = await writeWorkspaceFile(targetPath, content);
       if (!result.ok) {
         return formatLocalToolResult(
           { action: "file-write", success: false, errorMessage: result.error },
@@ -352,28 +381,41 @@ export const quickerTools = {
           result.error,
         );
       }
-      return formatLocalToolResult({
-        action: "file-write",
-        success: true,
-        path: result.path,
-        bytesWritten: result.bytesWritten,
-        previousContent,
-        previousTruncated: previousTruncated || undefined,
-      });
+      return formatLocalToolResult(
+        actionProjectFileToolSuccess("file-write", resolved.resolved, {
+          bytesWritten: result.bytesWritten,
+          previousContent,
+          previousTruncated: previousTruncated || undefined,
+        }),
+      );
     },
   }),
 
-  workspace_file_edit: tool({
+  workspace_action_file_edit: tool({
     description:
-      "Replace text in a workspace file (exact oldString match). Prefer for small edits; use file_write for full rewrites.",
+      "Search/replace in action files/ (id + path, exact oldString). Full rewrite: workspace_action_file_write.",
     inputSchema: z.object({
-      path: z.string(),
+      id: z.string().uuid().describe("Action GUID"),
+      path: z.string().describe("files/… under the action project"),
       oldString: z.string().min(1),
       newString: z.string(),
       replaceAll: z.boolean().optional(),
     }),
-    execute: async ({ path, oldString, newString, replaceAll }) => {
-      const result = await editWorkspaceFile(path, oldString, newString, replaceAll);
+    execute: async ({ id, path, oldString, newString, replaceAll }) => {
+      const resolved = await resolveActionProjectFileForTool(id, path);
+      if (!resolved.ok) {
+        return formatLocalToolResult(
+          { action: "file-edit", success: false, errorMessage: resolved.error },
+          false,
+          resolved.error,
+        );
+      }
+      const result = await editWorkspaceFile(
+        resolved.resolved.path,
+        oldString,
+        newString,
+        replaceAll,
+      );
       if (!result.ok) {
         return formatLocalToolResult(
           { action: "file-edit", success: false, errorMessage: result.error },
@@ -381,18 +423,17 @@ export const quickerTools = {
           result.error,
         );
       }
-      return formatLocalToolResult({
-        action: "file-edit",
-        success: true,
-        path: result.path,
-        replacements: result.replacements,
-      });
+      return formatLocalToolResult(
+        actionProjectFileToolSuccess("file-edit", resolved.resolved, {
+          replacements: result.replacements,
+        }),
+      );
     },
   }),
 
   workspace_action_read_data: tool({
     description:
-      "Read action data.json by GUID. id must match the user @-pinned action in the latest message when present (otherwise scope mismatch error). mode=summary returns stepsOutline/variableKeys + validation (only when you must check without saving). mode=content (default) returns file text; use offset/limit for fragments. Requires local .quicker/actions/{id}/ — auto-syncs via extract when id matches conversation scope. After edit_data/write_data go straight to qkrpc_action_patch — do not validate separately first.",
+      "Read action data.json by GUID. mode=summary: outline/validation only. mode=content (default): file text (offset/limit). Syncs via extract when missing locally. After edit_data/write_data call qkrpc_action_patch.",
     inputSchema: z.object({
       id: z.string().uuid().describe("Quicker action GUID"),
       mode: z

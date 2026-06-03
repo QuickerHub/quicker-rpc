@@ -1,11 +1,70 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { StringDecoder } from "node:string_decoder";
 import { dirname, join, normalize, relative, resolve, sep } from "node:path";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
 import { resolveDefaultWorkingDirectory } from "@/lib/default-working-directory";
 
 const MAX_READ_CHARS = 200_000;
 const MAX_LIST_ENTRIES = 500;
+const STREAM_READ_CHUNK_BYTES = 64 * 1024;
+
+type ReadUtf8SliceResult = {
+  content: string;
+  truncated: boolean;
+  totalChars?: number;
+};
+
+async function readUtf8FileSlice(
+  absolutePath: string,
+  charOffset: number,
+  charLimit: number,
+  fileSizeBytes: number,
+): Promise<ReadUtf8SliceResult> {
+  if (fileSizeBytes === 0) {
+    return { content: "", truncated: false, totalChars: 0 };
+  }
+
+  if (charOffset > 0 || fileSizeBytes <= charLimit * 4) {
+    const raw = await readFile(absolutePath, "utf8");
+    const slice = raw.slice(charOffset, charOffset + charLimit);
+    return {
+      content: slice,
+      truncated: charOffset > 0 || raw.length > charOffset + charLimit,
+      totalChars: raw.length,
+    };
+  }
+
+  const handle = await open(absolutePath, "r");
+  try {
+    const decoder = new StringDecoder("utf8");
+    let decoded = "";
+    let byteOffset = 0;
+
+    while (byteOffset < fileSizeBytes && decoded.length < charLimit) {
+      const toRead = Math.min(STREAM_READ_CHUNK_BYTES, fileSizeBytes - byteOffset);
+      const buffer = Buffer.allocUnsafe(toRead);
+      const { bytesRead } = await handle.read(buffer, 0, toRead, byteOffset);
+      if (bytesRead === 0) break;
+      byteOffset += bytesRead;
+      decoded += decoder.write(buffer.subarray(0, bytesRead));
+    }
+
+    const reachedEof = byteOffset >= fileSizeBytes;
+    if (reachedEof) {
+      decoded += decoder.end();
+    }
+
+    const truncated = !reachedEof || decoded.length > charLimit;
+    return {
+      content: decoded.slice(0, charLimit),
+      truncated,
+      totalChars: reachedEof ? decoded.length : undefined,
+    };
+  } finally {
+    await handle.close();
+  }
+}
 
 export type WorkspacePathResult =
   | { ok: true; absolute: string; relative: string }
@@ -44,7 +103,7 @@ export async function readWorkspaceFile(
   inputPath: string,
   options?: { offset?: number; limit?: number },
 ): Promise<
-  | { ok: true; path: string; content: string; truncated: boolean; totalChars: number }
+  | { ok: true; path: string; content: string; truncated: boolean; totalChars?: number }
   | { ok: false; error: string }
 > {
   const resolved = resolveWorkspacePath(inputPath);
@@ -59,18 +118,21 @@ export async function readWorkspaceFile(
     return { ok: false, error: `not a file: ${resolved.relative}` };
   }
 
-  const raw = await readFile(resolved.absolute, "utf8");
   const offset = Math.max(0, options?.offset ?? 0);
   const limit = options?.limit ?? MAX_READ_CHARS;
-  const slice = raw.slice(offset, offset + limit);
-  const truncated = offset > 0 || raw.length > offset + limit;
+  const slice = await readUtf8FileSlice(
+    resolved.absolute,
+    offset,
+    limit,
+    fileStat.size,
+  );
 
   return {
     ok: true,
     path: resolved.relative,
-    content: slice,
-    truncated,
-    totalChars: raw.length,
+    content: slice.content,
+    truncated: slice.truncated,
+    totalChars: slice.totalChars,
   };
 }
 

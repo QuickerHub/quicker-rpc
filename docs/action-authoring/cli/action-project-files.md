@@ -9,7 +9,7 @@
   actions/{actionId}/     # 默认目录名 = 动作 GUID
     info.json             # proto ActionProjectInfo (see action_project.proto)
     data.json             # steps + variables
-    files/                # inputParams.*.file 外置
+    files/                # inputParams.*.file、variables[].defaultValueFile 外置
   subprograms/{name}/
 ```
 
@@ -22,6 +22,14 @@
 ```
 
 `file` 与 `value` / `varKey` 互斥。路径相对项目目录，`/` 分隔，禁止 `..`。
+
+变量长默认值：
+
+```json
+{ "key": "urls", "type": 0, "defaultValueFile": "files/urls-default1.txt" }
+```
+
+`defaultValueFile` 与内联 `defaultValue` 互斥；`apply` 前解析为 `defaultValue` 字符串。
 
 ## 命令
 

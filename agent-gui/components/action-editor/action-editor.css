@@ -1,0 +1,3030 @@
+/* Action editor layout + step/variable UI */
+.x-program-editor {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.x-program-editor-toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 3px;
+  border-bottom: 1px solid var(--ad-border-default);
+  flex-shrink: 0;
+  background: var(--ad-bg-panel, transparent);
+}
+
+.x-program-editor-toolbar-hint {
+  font-size: 10px;
+  color: var(--ad-fg-muted);
+  margin-left: 6px;
+  user-select: none;
+}
+
+.x-program-host .x-program-editor-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  font-size: 13px;
+  color: var(--ad-fg-muted);
+}
+
+.x-program-editor-steps,
+.x-program-editor-variables {
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.x-program-editor-steps {
+  padding-right: 8px;
+}
+
+.x-program-editor-variables {
+  border-left: 1px solid var(--ad-border-default);
+  padding-left: 8px;
+}
+
+.x-program-editor-steps .step-editor,
+.x-program-editor-variables .variable-editor {
+  flex: 1;
+  min-height: 0;
+}
+
+/* --- Sub program list (Web Action Designer) --- */
+
+.subprogram-list-editor {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+}
+
+.subprogram-list-toolbar {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.subprogram-list-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ad-fg-section);
+}
+
+.subprogram-list-count {
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+}
+
+.subprogram-filter-row {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.subprogram-filter-addon {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.subprogram-filter-row .subprogram-filter-box {
+  flex: 1;
+  min-width: 0;
+}
+
+.subprogram-empty {
+  padding: 12px 8px;
+  font-size: 12px;
+  color: var(--ad-fg-muted);
+  text-align: center;
+}
+
+.subprogram-list-hint {
+  flex: 0 0 auto;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--ad-fg-muted);
+  padding: 0 2px 2px;
+}
+
+.listbox.subprogram-listbox {
+  flex: 1;
+  min-height: 0;
+  padding: 3px;
+  gap: 1px;
+  overflow: auto;
+}
+
+.listbox.subprogram-listbox .listbox-item.subprogram-row {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 5px 6px;
+  text-align: left;
+  border-radius: 0;
+  appearance: none;
+  font: inherit;
+  color: var(--ad-fg-list-body);
+  cursor: pointer;
+  background: var(--ad-bg-variable-list-item);
+  border: 1px solid transparent;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.listbox.subprogram-listbox .listbox-item.subprogram-row:hover {
+  background: var(--ad-bg-variable-list-item-hover);
+}
+
+.listbox.subprogram-listbox .listbox-item.subprogram-row.selected {
+  background: var(--ad-bg-list-selected);
+  border-color: var(--ad-border-selected);
+}
+
+.listbox.subprogram-listbox .listbox-item.subprogram-row.selected:hover {
+  background: var(--ad-bg-list-selected-hover);
+}
+
+.listbox.subprogram-listbox .listbox-item.subprogram-row:focus-visible {
+  outline: 1px solid var(--ad-accent);
+  outline-offset: -1px;
+}
+
+.listbox.subprogram-listbox .listbox-item.subprogram-row[draggable="true"] {
+  cursor: grab;
+}
+
+.listbox.subprogram-listbox .listbox-item.subprogram-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.subprogram-row-leading {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.subprogram-row-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.subprogram-row-title-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.subprogram-row > .subprogram-row-body > .subprogram-row-title-row > .subprogram-row-name,
+.subprogram-row > .subprogram-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ad-fg-variable-key);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.subprogram-row-meta {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--ad-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.subprogram-row-revision {
+  flex: 0 0 auto;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 500;
+  color: var(--ad-fg-muted);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--ad-bg-chip, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--ad-border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.subprogram-kind-badge {
+  flex: 0 0 auto;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+
+.subprogram-kind-badge--internal {
+  color: #6aaded;
+  background: rgba(106, 173, 237, 0.12);
+}
+
+.subprogram-kind-badge--global {
+  color: #0f8f22;
+  background: rgba(15, 143, 34, 0.12);
+}
+
+.subprogram-kind-badge--shared {
+  color: #c9a227;
+  background: rgba(201, 162, 39, 0.14);
+}
+
+.subprogram-kind-badge--muted {
+  color: var(--ad-fg-muted);
+  background: rgba(154, 164, 178, 0.12);
+}
+
+.listbox.subprogram-listbox .listbox-item.subprogram-row--network {
+  min-height: 40px;
+}
+
+.network-subprogram-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 0;
+}
+
+.network-subprogram-panel > .subprogram-network-search {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 6px;
+}
+
+.network-subprogram-panel > .subprogram-list-editor {
+  flex: 1;
+  min-height: 0;
+}
+
+.variable-editor {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 4px;
+}
+
+.variable-editor[tabindex="-1"]:focus,
+.variable-editor[tabindex="-1"]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Toolbar is fixed height; list + form split remaining space (list >= 50% of this region). */
+.variable-editor > .variable-toolbar {
+  flex: 0 0 auto;
+}
+
+.variable-editor-main {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: minmax(50%, 1fr) minmax(0, 1fr);
+  gap: 6px;
+}
+
+.variable-editor-main > .variable-listbox,
+.variable-editor-main > .variable-form,
+.variable-editor-main > .variable-empty {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.step-editor {
+  height: 100%;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 10px;
+  min-height: 0;
+  /* Keep bottom bar (Note / Delay / Enabled) off the panel edge. */
+  padding-bottom: 12px;
+}
+
+/* Keyboard-event sink only (programmatic focus after Delete); not a tab stop â€?hide browser ring. */
+.step-editor[tabindex="-1"]:focus,
+.step-editor[tabindex="-1"]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.variable-editor-main > .listbox,
+.step-editor > .step-listbox.root {
+  min-height: 0;
+}
+
+.variable-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.variable-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.variable-toolbar-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+}
+
+.variable-toolbar-sort-wrap {
+  position: relative;
+}
+
+.variable-sort-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  min-width: 200px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--ad-bg-menu);
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 6px;
+  box-shadow: var(--ad-shadow-popover);
+}
+
+.variable-sort-menu button {
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ad-fg-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.variable-sort-menu button:hover {
+  background: var(--ad-bg-menu-hover);
+}
+
+.variable-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+}
+
+.variable-toolbar-btn--danger {
+  color: var(--ad-fg-danger-soft);
+}
+
+.variable-toolbar-btn--active {
+  border-color: var(--ad-accent);
+  background: var(--ad-bg-active-filter);
+}
+
+.variable-filter-row {
+  display: flex;
+  align-items: center;
+}
+
+.variable-filter-row .variable-filter-box {
+  flex: 1;
+  min-width: 0;
+}
+
+.listbox-item.variable-row {
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+/* Phrasing-only row (inside <button>): flags + VarType icon, same order as WPF VariableListControl. */
+.variable-row-leading {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--ad-fg-variable-type);
+}
+
+.variable-row-type-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-left: 1px;
+}
+
+.variable-row-icon--in {
+  color: var(--ad-fg-variable-in);
+}
+
+.variable-row-icon--out {
+  color: var(--ad-fg-variable-output);
+}
+
+.variable-row-icon--state {
+  color: var(--ad-fg-variable-state);
+}
+
+.variable-row-body {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.variable-row-group {
+  font-size: 11px;
+  color: var(--ad-fg-variable-io);
+}
+
+.variable-row-key {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ad-fg-variable-key);
+}
+
+.variable-row-lock {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 2px;
+  color: var(--ad-fg-variable-state);
+  opacity: 0.95;
+}
+
+.variable-row-desc {
+  flex: 1 1 100%;
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variable-row-meta {
+  display: inline-block;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--ad-fg-variable-io);
+  margin-left: auto;
+}
+
+/* Compact variable rows (VariableEditor list only; beats generic .listbox). */
+.listbox.variable-listbox {
+  padding: 3px;
+  gap: 1px;
+}
+
+.listbox.variable-listbox .listbox-item.variable-row {
+  padding: 3px 5px;
+  gap: 5px;
+  align-items: center;
+  border-radius: 0;
+  appearance: none;
+  font: inherit;
+  color: var(--ad-fg-list-body);
+  background: var(--ad-bg-variable-list-item);
+  border: 1px solid transparent;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.listbox.variable-listbox .listbox-item.variable-row:hover {
+  background: var(--ad-bg-variable-list-item-hover);
+}
+
+.listbox.variable-listbox .listbox-item.variable-row.selected {
+  background: var(--ad-bg-list-selected);
+  border-color: var(--ad-border-selected);
+}
+
+.listbox.variable-listbox .listbox-item.variable-row.selected:hover {
+  background: var(--ad-bg-list-selected-hover);
+}
+
+.listbox.variable-listbox .listbox-item.variable-row:focus-visible {
+  outline: 1px solid var(--ad-accent);
+  outline-offset: -1px;
+}
+
+.listbox.variable-listbox .variable-row-leading {
+  gap: 2px;
+  font-size: 9px;
+}
+
+.listbox.variable-listbox .variable-row-body {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.listbox.variable-listbox .variable-row-group {
+  font-size: 10px;
+  padding: 0 3px;
+  line-height: 1.2;
+  border-radius: 2px;
+  flex-shrink: 0;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listbox.variable-listbox .variable-row-key {
+  font-size: 11px;
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listbox.variable-listbox .variable-row-body:not(:has(.variable-row-desc)) .variable-row-key {
+  flex: 1 1 auto;
+}
+
+.listbox.variable-listbox .variable-row-body:has(.variable-row-desc) .variable-row-key {
+  flex-shrink: 0;
+  max-width: 42%;
+}
+
+.listbox.variable-listbox .variable-row-lock {
+  margin-left: 1px;
+  flex-shrink: 0;
+}
+
+.listbox.variable-listbox .variable-row-desc {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.listbox.variable-listbox .variable-row-meta {
+  font-size: 10px;
+  margin-left: 2px;
+  line-height: 1.2;
+}
+
+.variable-form label.variable-form-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ad-fg-label);
+}
+
+.variable-form label.variable-form-check .variable-form-field-label {
+  font-weight: 500;
+  line-height: 1.35;
+  display: inline-flex;
+  align-items: center;
+  min-height: 14px;
+  align-self: center;
+}
+
+.variable-form label.variable-form-check input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  accent-color: var(--ad-accent);
+}
+
+.variable-form-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ad-fg-hint);
+  line-height: 1.4;
+}
+
+.variable-actions button,
+.variable-form input:not([type="checkbox"]),
+.variable-form select,
+.step-form input {
+  background: var(--ad-bg-input);
+  border: 1px solid var(--ad-border-input);
+  color: var(--ad-fg-input);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.variable-actions button {
+  height: 28px;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.variable-toolbar-btn:hover:not(:disabled) {
+  background: var(--ad-bg-menu-hover);
+}
+
+.variable-actions button:disabled,
+.variable-toolbar-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.step-listbox {
+  border: none;
+  background: var(--ad-bg-step-list);
+  border-radius: 0;
+  /* Extra bottom inset so the last row sits clearly above the list well edge. */
+  padding: 2px 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+}
+
+.step-listbox.root {
+  padding-right: 2px;
+  padding-bottom: 16px;
+}
+
+.step-listbox.root::after {
+  content: "";
+  display: block;
+  height: 10px;
+  flex-shrink: 0;
+}
+
+.step-listbox.nested {
+  margin-top: 0;
+  margin-bottom: 0;
+  border: none;
+  border-radius: 0;
+  padding: 2px 0;
+  overflow: visible;
+  /* Same well color as root list (single continuous surface). */
+  background: var(--ad-bg-step-list);
+}
+
+.step-node-block .step-listbox.nested {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: none;
+  margin-right: 0;
+  box-sizing: border-box;
+}
+
+.step-listbox.drop-container-active {
+  border: none;
+  background: var(--ad-bg-drop-zone);
+  box-shadow: inset 0 0 0 1px var(--ad-accent-line);
+}
+
+.step-node-block {
+  --step-rail-width: 2px;
+  margin: 0;
+  flex-shrink: 0;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--step-rail-width) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  /* Panel fill lives on .step-node-main so the rail can stay transparent and show the list well. */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.step-node-rail {
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+  background: transparent;
+}
+
+/* Only this blockâ€™s rail â€?avoid highlighting nested descendantsâ€?rails. */
+.step-node-block--selected > .step-node-rail {
+  background: var(--ad-accent);
+}
+
+.step-node-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--ad-bg-panel);
+}
+
+.step-node-main--disabled {
+  filter: var(--ad-step-disabled-filter);
+}
+
+/* Disabled step subtree: fade titles, notes, and param copy (includes nested branch steps). */
+.step-node-main--disabled .step-row {
+  color: var(--ad-fg-step-row-disabled);
+}
+
+.step-node-main--disabled .step-row .step-titles .primary {
+  color: var(--ad-fg-step-title-disabled);
+}
+
+.step-node-main--disabled .step-row .step-titles .step-note {
+  color: var(--ad-fg-note-disabled);
+}
+
+.step-node-main--disabled .step-row .step-row-delay,
+.step-node-main--disabled .step-row:hover .step-row-delay,
+.step-node-main--disabled .step-row.selected .step-row-delay {
+  color: var(--ad-fg-note-disabled);
+}
+
+.step-node-main--disabled .branch-title {
+  color: var(--ad-fg-branch-disabled);
+}
+
+.step-node-main--disabled .step-param-label,
+.step-node-main--disabled .step-param-inline-title,
+.step-node-main--disabled .step-param-inputvar-title {
+  color: var(--ad-fg-param-label-disabled);
+}
+
+.step-node-main--disabled .step-param-hint,
+.step-node-main--disabled .step-param-inputvar-desc {
+  color: var(--ad-fg-param-hint-disabled);
+}
+
+.step-node-main--disabled .step-row .expand,
+.step-node-main--disabled .step-row .icon {
+  color: var(--ad-fg-step-accent-disabled);
+}
+
+.step-node-main--disabled .step-row .icon.icon--global-subprogram {
+  color: var(--ad-fg-step-accent-disabled);
+}
+
+.step-node-main--disabled .row-actions .action {
+  color: var(--ad-fg-row-action-disabled);
+}
+
+.step-node-main--disabled .row-actions .action.danger {
+  color: var(--ad-fg-row-action-disabled);
+}
+
+.step-children {
+  margin-left: 10px;
+  margin-top: 0;
+  padding-bottom: 4px;
+  border-top: 1px solid var(--ad-border-children);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.branch-box {
+  margin-top: 0;
+}
+
+.branch-box.else-branch {
+  margin-top: 0;
+}
+
+.branch-title {
+  margin: 0 0 1px 4px;
+  padding: 0;
+  line-height: 1.1;
+  font-size: 11px;
+  color: var(--ad-fg-branch);
+  letter-spacing: 0.2px;
+}
+
+/* Empty branch: thin hit strip; hover only feedback, no default border. */
+.step-listbox-drop-placeholder {
+  box-sizing: border-box;
+  flex-shrink: 0;
+  height: 16px;
+  min-height: 16px;
+  margin: 1px 4px 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+
+.step-listbox-drop-placeholder:focus-visible {
+  outline: 1px solid var(--ad-accent);
+  outline-offset: 1px;
+}
+
+.step-listbox-drop-placeholder:hover {
+  background: var(--ad-bg-drop-zone);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ad-border-input) 50%, transparent);
+}
+
+/* Root list end: invisible until hover/focus; click opens quick insert (strip hidden while insert UI open). */
+.step-listbox-root-insert-hit {
+  box-sizing: border-box;
+  flex-shrink: 0;
+  height: 24px;
+  min-height: 24px;
+  margin: 2px 8px 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  outline: none;
+}
+
+.step-listbox-root-insert-hit:hover {
+  background: var(--ad-bg-drop-zone);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ad-border-input) 50%, transparent);
+}
+
+.step-listbox-root-insert-hit:focus-visible {
+  outline: 1px solid var(--ad-accent);
+  outline-offset: 1px;
+}
+
+/* Full-width row for inline A/B insert between step blocks. */
+.step-quick-insert-slot {
+  align-self: stretch;
+  width: 100%;
+  min-width: 0;
+  margin: 2px 0;
+}
+
+.step-quick-insert {
+  position: relative;
+  z-index: 4;
+  margin: 4px 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.step-quick-insert-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 26px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  background: var(--ad-bg-input);
+  border: 1px solid var(--ad-accent-line);
+  color: var(--ad-fg-input);
+}
+
+.step-quick-insert-input:focus-visible {
+  outline: 1px solid var(--ad-accent);
+  outline-offset: 1px;
+}
+
+.step-quick-insert-list {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  border-radius: 6px;
+  background: var(--ad-bg-menu);
+  border: 1px solid var(--ad-border-strong);
+  box-shadow: var(--ad-shadow-popover);
+}
+
+.step-quick-insert-option {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--ad-fg-primary);
+}
+
+.step-quick-insert-option--active,
+.step-quick-insert-option:hover {
+  background: var(--ad-bg-menu-hover);
+}
+
+.step-quick-insert-option-label {
+  font-weight: 500;
+}
+
+.step-quick-insert-option-desc {
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-quick-insert-option-label mark,
+.step-quick-insert-option-desc mark {
+  /* Use theme search/mark tokens (light fill + readable fg), not accent-line solid fill. */
+  background: var(--ad-bg-mark);
+  color: var(--ad-fg-mark);
+  padding: 0 0.12em;
+  border-radius: 2px;
+}
+
+.step-quick-insert-empty {
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+}
+
+.step-quick-insert-status {
+  list-style: none;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+  pointer-events: none;
+}
+
+.step-row {
+  width: 100%;
+  min-height: 26px;
+  box-sizing: border-box;
+  border: 0;
+  border-bottom: 0;
+  background: transparent;
+  color: var(--ad-fg-secondary);
+  padding: 0 6px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+}
+
+.step-row[draggable="true"] {
+  cursor: grab;
+}
+
+.step-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.step-row:focus,
+.step-row:focus-visible {
+  outline: none;
+}
+
+.step-row:hover {
+  background: var(--ad-bg-step-row-hover, var(--ad-bg-hover-soft));
+}
+
+.step-row.selected {
+  background: var(--ad-bg-step-row-selected);
+  box-shadow: var(--ad-step-row-selected-ring);
+}
+
+.step-row.insert-before {
+  box-shadow: none;
+}
+
+.step-row.insert-after {
+  box-shadow: none;
+}
+
+.step-row.insert-before::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: -2px;
+  height: 2px;
+  background: var(--ad-accent-line);
+  border-radius: 0;
+}
+
+.step-row.insert-after::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: -2px;
+  height: 2px;
+  background: var(--ad-accent-line);
+  border-radius: 0;
+}
+
+.step-row.disabled {
+  opacity: 1;
+}
+
+.step-row .expand {
+  color: var(--ad-accent-bright);
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.step-row .expand .expand-triangle {
+  display: block;
+}
+
+.step-row .icon {
+  color: var(--ad-accent-bright);
+  font-size: 16px;
+  flex: 0 0 auto;
+}
+
+/* Global (%%id) subprogram rows: green icon; #0f8f22 = RGB from Android AARRGGBB #FF0F8F22 */
+.step-row .icon.icon--global-subprogram,
+.subprogram-row-leading .icon.icon--global-subprogram {
+  color: #0f8f22;
+}
+
+.step-row .icon.icon--global-subprogram svg path,
+.subprogram-row-leading .icon.icon--global-subprogram svg path {
+  fill: currentColor !important;
+}
+
+/* Network (@@id@version@title) subprogram call rows */
+.step-row .icon.icon--network-subprogram,
+.subprogram-row-leading .icon.icon--network-subprogram {
+  color: #c9a227;
+}
+
+.step-row .icon.icon--network-subprogram svg path,
+.subprogram-row-leading .icon.icon--network-subprogram svg path {
+  fill: currentColor !important;
+}
+
+.step-row .ban {
+  color: var(--ad-fg-ban);
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+
+.step-row .step-titles {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  align-self: stretch;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.step-row .step-titles .primary {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 45%;
+  font-size: 12px;
+  color: var(--ad-fg-step-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding-right: 0;
+}
+
+.step-row .step-titles .step-note {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--ad-fg-note);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.step-row .step-row-trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.step-row .step-row-delay {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ad-fg-muted);
+  line-height: 22px;
+  user-select: none;
+}
+
+.row-actions {
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+  flex: 0 0 auto;
+}
+
+.step-row:hover .row-actions,
+.step-row.selected .row-actions {
+  opacity: 1;
+}
+
+.step-row:hover .step-row-delay,
+.step-row.selected .step-row-delay {
+  color: var(--ad-fg-secondary);
+}
+
+.row-actions .action {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0;
+  font-size: 11px;
+  color: var(--ad-fg-row-action);
+  background: transparent;
+  cursor: pointer;
+}
+
+.row-actions .action.danger {
+  color: var(--ad-fg-warn-soft);
+}
+
+.listbox {
+  border: 1px solid var(--ad-border-subtle);
+  background: var(--ad-bg-list);
+  border-radius: 6px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* After generic .listbox so background wins (VariableEditor variable list). */
+.listbox.variable-listbox {
+  background: var(--ad-bg-variable-list-well);
+}
+
+/* List-like scroll hosts (scrollbar chrome is global on *). */
+.step-listbox.root,
+.listbox,
+.toolbox-tree,
+[role="listbox"] {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.listbox-item {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ad-fg-list-body);
+  padding: 7px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  position: relative;
+}
+
+.listbox-item:hover {
+  background: var(--ad-bg-list-hover);
+}
+
+.listbox-item.selected {
+  background: var(--ad-bg-list-selected);
+  border-color: var(--ad-border-selected);
+}
+
+.listbox-item.insert-before::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: -2px;
+  height: 2px;
+  background: var(--ad-accent-line);
+}
+
+.listbox-item.insert-after::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: -2px;
+  height: 2px;
+  background: var(--ad-accent-line);
+}
+
+.listbox-item .name {
+  font-size: 12px;
+}
+
+.listbox-item .meta {
+  font-size: 11px;
+  color: var(--ad-fg-variable-io);
+}
+
+.variable-form {
+  display: grid;
+  gap: 8px;
+}
+
+.variable-form--multi-bulk {
+  gap: 10px;
+}
+
+.variable-form-multi-bulk-names {
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+  margin: -2px 0 2px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.step-form {
+  display: grid;
+  gap: 8px;
+}
+
+/* Single compact row: Note (label+input) | Delay (label+input) | Enabled; wraps on narrow width. */
+.step-form--compact {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 4px;
+}
+
+.step-form-inline-group {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.step-form-inline-label {
+  flex: 0 0 auto;
+  margin-left: 2px;
+  font-size: 11px;
+  color: var(--ad-fg-form-muted);
+  white-space: nowrap;
+}
+
+.step-form-note-block {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.step-form-note-input {
+  flex: 1 1 0;
+  min-width: 72px;
+}
+
+.step-form-delay-block {
+  flex: 0 0 auto;
+}
+
+.step-form-delay-input {
+  width: 64px;
+  box-sizing: border-box;
+}
+
+.step-form-enabled-block {
+  flex: 0 0 auto;
+}
+
+.variable-form label {
+  display: grid;
+  gap: 4px;
+}
+
+.variable-form span {
+  font-size: 11px;
+  color: var(--ad-fg-form-muted);
+}
+
+.variable-form .variable-form-field-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ad-fg-list-body);
+}
+
+.variable-form .variable-form-help {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ad-fg-hint);
+}
+
+.variable-form .variable-form-help--warn {
+  color: var(--ad-fg-warn-soft);
+}
+
+.variable-form .variable-form-help--indented {
+  margin-left: 22px;
+  margin-top: -2px;
+}
+
+.variable-form-section-title {
+  margin: 6px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ad-fg-section);
+}
+
+.variable-form-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.variable-form-check-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toolbox {
+  height: 100%;
+  display: grid;
+  /* toolbar | body (panel-title removed) */
+  grid-template-rows: auto 1fr;
+  gap: 8px;
+  min-height: 0;
+}
+
+.toolbox-toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px;
+}
+
+.toolbox-toolbar .filter-box::placeholder {
+  font-size: 11px;
+  letter-spacing: -0.01em;
+}
+
+.filter-box {
+  box-sizing: border-box;
+  height: 28px;
+  border: 1px solid var(--ad-border-subtle);
+  background: var(--ad-bg-input);
+  color: var(--ad-fg-list-body);
+  padding: 0 8px;
+  outline: none;
+  border-radius: 6px;
+}
+
+/* Filter inputs (toolbox, variable list, sub program list): low-contrast focus â€?avoid loud accent ring. */
+.filter-box:focus,
+.filter-box:focus-visible {
+  outline: none;
+  border-color: var(--ad-border-strong);
+  box-shadow: none;
+}
+
+/* Unified focus highlight for form fields in editors (variables, steps, param popup). */
+.variable-form input:not([type="checkbox"]):focus,
+.variable-form input:not([type="checkbox"]):focus-visible,
+.variable-form select:focus,
+.variable-form select:focus-visible,
+.step-form input:not([type="checkbox"]):focus,
+.step-form input:not([type="checkbox"]):focus-visible,
+.step-param-control:focus,
+.step-param-control:focus-visible {
+  outline: none;
+  border-color: var(--ad-accent);
+  box-shadow: inset 0 0 0 1px var(--ad-accent);
+}
+
+.toolbox-icon-btn {
+  box-sizing: border-box;
+  height: 28px;
+  width: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--ad-border-subtle);
+  border-radius: 6px;
+  background: var(--ad-bg-icon-btn);
+  color: var(--ad-fg-icon-btn);
+  cursor: pointer;
+}
+
+.toolbox-icon-btn:hover {
+  background: var(--ad-bg-hover-soft);
+}
+
+.toolbox-icon-btn:focus {
+  outline: none;
+}
+
+.toolbox-icon-btn:focus-visible {
+  outline: none;
+  border-color: var(--ad-accent);
+  box-shadow: 0 0 0 1px var(--ad-accent);
+}
+
+.toolbox-body {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  border: 1px solid var(--ad-border-subtle);
+  overflow: hidden;
+}
+
+.toolbox-tabs {
+  border-right: 1px solid var(--ad-border-subtle);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.toolbox-tab {
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--ad-border-tab-sep);
+  background: var(--ad-bg-tab);
+  color: var(--ad-fg-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbox-tab-icon {
+  color: inherit;
+}
+
+.toolbox-tab:hover:not(.active) {
+  background: var(--ad-bg-hover-soft);
+}
+
+.toolbox-tab.active {
+  background: var(--ad-bg-tab-active);
+  color: var(--ad-fg-tab-active);
+}
+
+.toolbox-tree {
+  min-height: 0;
+  padding: 4px 2px;
+  overflow-y: auto;
+}
+
+.toolbox-tree-loading,
+.toolbox-tree-empty {
+  padding: 10px 8px;
+  font-size: 12px;
+  color: var(--ad-fg-muted);
+}
+
+.toolbox-node-wrap {
+  display: grid;
+}
+
+.toolbox-node {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  cursor: grab;
+  border-radius: 2px;
+}
+
+.toolbox-node:hover {
+  background: var(--ad-bg-hover-soft);
+}
+
+.toolbox-node.selected {
+  background: var(--ad-bg-tree-selected);
+}
+
+.toolbox-node:focus-visible {
+  outline: 1px solid var(--ad-accent);
+  outline-offset: -1px;
+}
+
+.toolbox-expand {
+  box-sizing: border-box;
+  width: 14px;
+  min-width: 14px;
+  height: 17px;
+  border: 0;
+  background: transparent;
+  color: var(--ad-fg-expand-muted);
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.toolbox-expand:hover {
+  color: var(--ad-fg-section);
+}
+
+.toolbox-expand:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.toolbox-expand:disabled:hover {
+  color: var(--ad-fg-expand-muted);
+}
+
+.toolbox-expand.hidden {
+  visibility: hidden;
+}
+
+/* Thin line chevron; two paths in TSX (no rotate), centroid (5,5) in 10Ã—10 viewBox */
+.toolbox-chevron {
+  display: flex;
+  width: 10px;
+  height: 10px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.toolbox-expand svg {
+  display: block;
+}
+
+.toolbox-node-icon {
+  color: var(--ad-accent-bright);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  flex-shrink: 0;
+  transform: translateY(0.5px);
+}
+
+.toolbox-node-icon svg {
+  display: block;
+}
+
+.toolbox-node-name {
+  font-size: 12px;
+  color: var(--ad-fg-step-title);
+}
+
+.toolbox-sub-list {
+  margin-left: 20px;
+}
+
+.toolbox-sub-item {
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ad-fg-subtitle);
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  cursor: grab;
+}
+
+.toolbox-sub-item:hover {
+  background: var(--ad-bg-hover-soft);
+}
+
+.toolbox-sub-item:active {
+  cursor: grabbing;
+}
+
+.toolbox-sub-item.selected {
+  background: var(--ad-bg-tree-selected);
+}
+
+.toolbox-sub-item:focus-visible {
+  outline: 1px solid var(--ad-accent);
+  outline-offset: -1px;
+}
+
+.toolbox-sub-dot {
+  color: var(--ad-fg-success);
+}
+
+.toolbox-mark {
+  background: var(--ad-bg-mark);
+  color: var(--ad-fg-mark);
+  padding: 0 1px;
+}
+
+.toolbox-search-html mark {
+  background: var(--ad-bg-mark);
+  color: var(--ad-fg-mark);
+  padding: 0 1px;
+}
+
+.toolbox-search-row-desc {
+  margin: 0 0 0 20px;
+  padding: 0 4px 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ad-fg-muted);
+}
+
+.toolbox-tree-search-status {
+  padding: 8px;
+  font-size: 12px;
+  color: var(--ad-fg-muted);
+}
+
+/* Drag preview clone (setDragImage); off-screen, narrow width â€?not full listbox. */
+.toolbox-drag-ghost-snapshot {
+  position: fixed !important;
+  left: 0 !important;
+  top: -4000px !important;
+  z-index: 2147483647;
+  box-sizing: border-box !important;
+  width: max-content !important;
+  max-width: 260px !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 4px 10px !important;
+  pointer-events: none !important;
+  cursor: grabbing !important;
+  background: var(--ad-bg-panel) !important;
+  color: var(--ad-fg-step-title) !important;
+  border: 1px solid var(--ad-border-default) !important;
+  border-radius: 4px !important;
+  box-shadow: var(--ad-shadow-popover) !important;
+  opacity: 0.999;
+}
+
+.toolbox-drag-ghost-snapshot .toolbox-node-name,
+.toolbox-drag-ghost-snapshot.toolbox-sub-item {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variable-form input:not([type="checkbox"]),
+.variable-form select {
+  height: 30px;
+  padding: 0 8px;
+}
+
+.variable-form .variable-form-type-select-icon {
+  color: var(--ad-fg-variable-type);
+  flex: 0 0 auto;
+}
+
+.variable-form .variable-form-type-picker {
+  position: relative;
+}
+
+.variable-form .variable-form-type-picker-trigger {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--ad-border-input);
+  border-radius: 4px;
+  background: var(--ad-bg-input);
+  color: var(--ad-fg-input);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.variable-form .variable-form-type-picker-trigger:hover {
+  background: var(--ad-bg-hover-soft);
+}
+
+.variable-form .variable-form-type-picker-trigger[aria-expanded="true"] {
+  border-color: var(--ad-accent);
+  box-shadow: inset 0 0 0 1px var(--ad-accent);
+}
+
+.variable-form .variable-form-type-picker-value {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.variable-form .variable-form-type-picker-title {
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.variable-form .variable-form-type-picker-caret {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  position: relative;
+  font-size: 0;
+  line-height: 0;
+  color: var(--ad-fg-muted);
+  flex: 0 0 auto;
+}
+
+.variable-form .variable-form-type-picker-caret::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: translate(-50%, -62%) rotate(45deg);
+  pointer-events: none;
+}
+
+.variable-form-type-picker-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  max-height: 320px;
+  overflow: auto;
+  padding: 3px;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 6px;
+  background: var(--ad-bg-menu);
+  box-shadow: var(--ad-shadow-popover);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.variable-form-type-picker-popup--portal {
+  position: fixed;
+  top: auto;
+  left: auto;
+  right: auto;
+  z-index: 3000;
+}
+
+.variable-form-type-picker-popup--down {
+  transform-origin: top center;
+}
+
+.variable-form-type-picker-popup--up {
+  transform-origin: bottom center;
+}
+
+.variable-form-type-picker-option {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ad-fg-list-body);
+  min-height: 24px;
+  padding: 2px 6px;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+}
+
+.variable-form-type-picker-option:hover {
+  background: var(--ad-bg-menu-hover);
+}
+
+.variable-form-type-picker-option.selected {
+  background: var(--ad-bg-list-selected);
+  border-color: var(--ad-border-selected);
+}
+
+.variable-form-type-picker-option-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.variable-form-type-picker-option-title {
+  min-width: 0;
+}
+
+.variable-form-type-picker-option-tag {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 0 4px;
+  border-radius: 2px;
+  color: var(--ad-fg-variable-io);
+  background: color-mix(in srgb, var(--ad-accent) 18%, transparent);
+}
+
+.step-form input {
+  height: 30px;
+  padding: 0 8px;
+}
+
+.step-form--compact input {
+  height: 26px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+
+.step-form .checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-form .checkbox input {
+  width: 14px;
+  height: 14px;
+}
+
+.step-form--compact .checkbox span {
+  font-size: 11px;
+  color: var(--ad-fg-form-muted);
+}
+
+.variable-empty {
+  font-size: 12px;
+  color: var(--ad-fg-placeholder);
+  padding-left: 8px;
+}
+
+/* VS Codeâ€“like bottom-right toasts */
+.toast-host {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: min(440px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.toast-item {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 10px 10px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ad-fg-primary);
+  background: var(--ad-bg-toast);
+  border: 1px solid var(--ad-border-toast);
+  box-shadow: var(--ad-shadow-toast);
+}
+
+.toast-item--error {
+  border-color: var(--ad-border-toast-error);
+  background: var(--ad-bg-toast-error);
+}
+
+.toast-item--warning {
+  border-color: var(--ad-border-toast-warn);
+  background: var(--ad-bg-toast-warn);
+}
+
+.toast-item--info {
+  border-color: var(--ad-border-toast-info);
+  background: var(--ad-bg-toast-info);
+}
+
+.toast-item-body {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.toast-item-dismiss {
+  flex-shrink: 0;
+  margin: -4px -4px -4px 0;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ad-fg-dismiss);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.toast-item-dismiss:hover {
+  color: var(--ad-fg-on-emphasis);
+  background: var(--ad-overlay-hover);
+}
+
+/* Step parameter editor (double-click step row) */
+.step-editor-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: var(--ad-backdrop-popup);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.step-editor-popup {
+  width: min(600px, 100%);
+  max-height: min(86vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: var(--ad-bg-panel);
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 6px;
+  box-shadow: var(--ad-shadow-popup);
+  color: var(--ad-fg-primary);
+}
+
+.step-editor-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ad-border-panel);
+}
+
+.step-editor-popup-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.step-editor-popup-close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ad-fg-section);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.step-editor-popup-close:hover {
+  background: var(--ad-overlay-hover);
+  color: var(--ad-fg-on-emphasis);
+}
+
+.step-editor-popup-body {
+  padding: 12px 14px;
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.step-editor-popup-loading {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ad-fg-muted);
+}
+
+.step-editor-popup-params {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.step-editor-popup-section-title {
+  margin: 4px 0 0 0;
+  padding-bottom: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ad-fg-muted);
+  border-bottom: 1px solid var(--ad-border-popup-divider);
+}
+
+.step-editor-popup-section-title:first-child {
+  margin-top: 0;
+}
+
+.step-editor-popup-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ad-fg-muted);
+}
+
+.step-editor-popup-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ad-border-popup-divider);
+}
+
+.step-editor-popup-advanced-toggle {
+  align-self: flex-start;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11px;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 4px;
+  background: var(--ad-bg-button-secondary);
+  color: var(--ad-fg-popup-ghost);
+  cursor: pointer;
+}
+
+.step-param-row {
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  gap: 8px 10px;
+  align-items: start;
+}
+
+.step-param-row--inline {
+  /* Same first column width as other rows; boolean title lives beside checkbox in col 2. */
+  grid-template-columns: 108px 1fr;
+  align-items: start;
+}
+
+.step-param-label {
+  font-size: 12px;
+  color: var(--ad-fg-param-label);
+  text-align: right;
+  padding-top: 6px;
+}
+
+.step-param-label--activates-field {
+  cursor: pointer;
+  user-select: none;
+}
+
+.step-param-label--activates-field:hover {
+  color: var(--ad-fg-primary);
+}
+
+/* Keeps grid column width aligned with labeled param rows. */
+.step-param-inline-col1-spacer {
+  display: block;
+  min-height: 1px;
+}
+
+/* Boolean: row1 = checkbox + title; row2 = description under checkbox. */
+.step-param-inline-bool {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.step-param-inline-bool-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Shrink-wrap: do not use a full-row <label> (avoids toggling from the left grid spacer). */
+.step-param-inline-bool-title-label {
+  display: inline-block;
+  max-width: 100%;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.step-param-inline-bool-desc-label {
+  display: inline-block;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+.step-param-inline-title {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ad-fg-param-label);
+  line-height: 1.35;
+}
+
+.step-param-inline-bool-title-label .step-param-inline-title {
+  flex: none;
+  display: inline;
+}
+
+.step-param-checkbox {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--ad-accent);
+}
+
+.step-param-hint--below-check {
+  display: block;
+  max-width: 100%;
+  padding-left: 0;
+  line-height: 1.35;
+}
+
+.step-param-control {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--ad-border-input);
+  border-radius: 4px;
+  background: var(--ad-bg-input);
+  color: var(--ad-fg-input);
+  font-size: 12px;
+}
+
+.step-param-control--multiline {
+  min-height: 64px;
+  max-height: 180px;
+  resize: vertical;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.step-param-field-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.step-param-output-target {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Output param: variable picker (left, capped width) + description on one line; hint ellipsizes in remaining space. */
+.step-param-output-picker-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.step-param-output-picker-row .step-param-variable-picker {
+  flex: 0 1 auto;
+  min-width: 72px;
+  max-width: min(260px, calc(100% - 80px));
+  align-self: center;
+}
+
+.step-param-hint--output-inline {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-param-variable-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.step-param-variable-picker-btn {
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--ad-border-input);
+  border-radius: 4px;
+  background: var(--ad-bg-input);
+  color: var(--ad-fg-input);
+  text-align: left;
+  cursor: pointer;
+}
+
+.step-param-variable-picker-input {
+  cursor: pointer;
+  user-select: text;
+}
+
+.step-param-variable-picker-display {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  pointer-events: none;
+  min-width: 0;
+}
+
+.step-param-variable-picker-input::selection {
+  color: var(--ad-fg-on-emphasis);
+  background: var(--ad-accent);
+}
+
+.step-param-variable-picker-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 6px;
+  background: var(--ad-bg-menu);
+  box-shadow: var(--ad-shadow-popover);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.step-param-variable-picker-popup--portal {
+  position: fixed;
+  z-index: 20050;
+}
+
+.step-param-variable-picker-popup--down {
+  transform-origin: top center;
+}
+
+.step-param-variable-picker-popup--up {
+  transform-origin: bottom center;
+}
+
+.step-param-variable-picker-option {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ad-fg-input);
+  padding: 4px 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.step-param-variable-picker-option:hover {
+  background: var(--ad-bg-menu-hover);
+}
+
+.step-param-variable-picker-option.selected {
+  background: var(--ad-bg-list-selected);
+  border-color: var(--ad-border-selected);
+}
+
+.step-param-variable-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.step-param-variable-picker-item-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-param-variable-picker-item-main {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.step-param-variable-picker-item-title {
+  font-size: 12px;
+  line-height: 1.35;
+  flex: 0 0 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.step-param-variable-picker-item-desc {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ad-fg-muted);
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.step-param-variable-picker-placeholder {
+  font-size: 12px;
+  color: var(--ad-fg-muted);
+}
+
+.step-param-variable-picker-orphan {
+  padding: 4px 6px;
+  font-size: 11px;
+  color: var(--ad-fg-warn-soft);
+}
+
+.step-param-output-target--dict {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.step-param-output-target--dict .step-param-output-picker-row {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.step-param-control--dict-key {
+  flex: 0 0 120px;
+  width: 120px;
+}
+
+.step-param-hint {
+  font-size: 11px;
+  color: var(--ad-fg-param-hint);
+  line-height: 1.35;
+}
+
+/* VarAndValueParamEditor (UseVarOrInput), aligned with Quicker Generic.xaml VarAndValueParamEditor. */
+.step-param-varorvalue {
+  min-width: 0;
+  width: 100%;
+}
+
+.step-param-varorvalue-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 30px;
+  border: 1px solid var(--ad-border-input);
+  border-radius: 4px;
+  background: var(--ad-bg-input);
+  overflow: hidden;
+}
+
+.step-param-varorvalue-shell:focus-within {
+  border-color: var(--ad-border-strong);
+}
+
+.step-param-varorvalue-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.step-param-varorvalue-display {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: none;
+  background: var(--ad-bg-input);
+  color: var(--ad-fg-input);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.step-param-varorvalue-display--enum {
+  padding-left: 4px;
+}
+
+.step-param-varorvalue-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.step-param-varorvalue-input .step-param-expression-editor {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.step-param-varorvalue-input .expression-editor.expression-editor--inline {
+  padding: 3px 6px;
+}
+
+.step-param-varorvalue-input .expression-editor.expression-editor--multiline {
+  padding: 4px 6px;
+}
+
+.step-param-varorvalue-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.step-param-varorvalue-muted {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.step-param-varorvalue-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #666;
+}
+
+.step-param-varorvalue-toggle {
+  flex: 0 0 28px;
+  width: 28px;
+  position: relative;
+  border: none;
+  border-left: 1px solid var(--ad-border-input);
+  border-radius: 0;
+  background: var(--ad-bg-button-secondary);
+  color: var(--ad-fg-button-secondary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.step-param-varorvalue-toggle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: translate(-50%, -62%) rotate(45deg);
+  pointer-events: none;
+}
+
+.step-param-varorvalue-popup {
+  position: fixed;
+  z-index: 20060;
+  border: 1px solid var(--ad-accent, #1e90ff);
+  border-radius: 6px;
+  background: var(--ad-bg-menu);
+  box-shadow: var(--ad-shadow-popover);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.step-param-varorvalue-popup-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+}
+
+.step-param-varorvalue-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ad-fg-input);
+  padding: 4px 6px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.step-param-varorvalue-option:hover {
+  background: var(--ad-bg-menu-hover);
+}
+
+.step-param-varorvalue-option.selected {
+  background: var(--ad-bg-list-selected);
+  border-color: var(--ad-border-selected);
+}
+
+.step-param-varorvalue-option-label {
+  font-size: 12px;
+  color: var(--ad-fg-input);
+}
+
+.step-param-varorvalue-empty {
+  padding: 5px 8px;
+  font-size: 12px;
+  color: var(--ad-fg-muted);
+}
+
+.step-param-varorvalue-popup-filter-wrap {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--ad-border-default);
+  padding: 6px;
+}
+
+.step-param-varorvalue-popup-filter {
+  width: 100%;
+}
+
+html[data-theme="light"] .step-param-varorvalue-toggle {
+  background: #f9f9f9;
+}
+
+.step-param-inputvar {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+}
+
+.step-param-inputvar-btn {
+  flex: 0 0 12px;
+  width: 12px;
+  min-height: 30px;
+  position: relative;
+  border: 1px solid var(--ad-border-input);
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  background: var(--ad-bg-button-secondary);
+  color: var(--ad-fg-button-secondary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.step-param-inputvar-btn--right {
+  flex-basis: 24px;
+  width: 24px;
+  border-left: none;
+  border-right: 1px solid var(--ad-border-input);
+  border-radius: 0 4px 4px 0;
+}
+
+.step-param-inputvar-btn--right::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: translate(-50%, -62%) rotate(45deg);
+  pointer-events: none;
+}
+
+html[data-theme="light"] .step-param-inputvar-btn {
+  background: #F9F9F9;
+}
+
+html[data-theme="light"] .step-editor-popup-btn.secondary {
+  background: #F9F9F9;
+}
+
+.step-param-inputvar-display {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  border: 1px solid var(--ad-border-input);
+  border-radius: 4px;
+  background: var(--ad-bg-input);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+  cursor: pointer;
+}
+
+.step-param-inputvar > .step-param-control {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+  padding: 4px 6px;
+}
+
+.step-param-inputvar-title {
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 0 auto;
+}
+
+.step-param-inputvar-desc {
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--ad-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.step-param-inputvar-popup {
+  position: fixed;
+  z-index: 20060;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 6px;
+  background: var(--ad-bg-menu);
+  box-shadow: var(--ad-shadow-popover);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.step-param-inputvar-popup-list {
+  max-height: 220px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+}
+
+.step-param-inputvar-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ad-fg-input);
+  padding: 4px 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.step-param-inputvar-option:hover {
+  background: var(--ad-bg-menu-hover);
+}
+
+.step-param-inputvar-option.selected {
+  background: var(--ad-bg-list-selected);
+  border-color: var(--ad-border-selected);
+}
+
+.step-param-inputvar-option-empty {
+  font-size: 12px;
+  color: var(--ad-fg-muted);
+}
+
+.step-param-inputvar-popup-filter-wrap {
+  border-top: 1px solid var(--ad-border-default);
+  padding: 6px;
+}
+
+.step-param-inputvar-popup-filter {
+  width: 100%;
+}
+
+.step-param-enum-popup {
+  position: fixed;
+  z-index: 20060;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 6px;
+  background: var(--ad-bg-menu);
+  box-shadow: var(--ad-shadow-popover);
+  padding: 3px;
+  max-height: 240px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.step-param-enum-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ad-fg-input);
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.step-param-enum-option-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-param-enum-option-key {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+  white-space: nowrap;
+}
+
+.step-param-enum-option:hover {
+  background: var(--ad-bg-menu-hover);
+}
+
+.step-param-enum-option.selected {
+  background: var(--ad-bg-list-selected);
+  border-color: var(--ad-border-selected);
+}
+
+.step-param-enum-empty {
+  padding: 5px 8px;
+  font-size: 12px;
+  color: var(--ad-fg-muted);
+}
+
+.step-editor-popup-footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ad-border-panel);
+}
+
+.step-editor-popup-btn {
+  min-width: 72px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--ad-border-strong);
+}
+
+.step-editor-popup-btn.secondary {
+  background: var(--ad-bg-button-secondary);
+  color: var(--ad-fg-button-secondary);
+}
+
+.step-editor-popup-btn.primary {
+  background: var(--ad-bg-button-primary);
+  border-color: var(--ad-border-button-primary);
+  color: var(--ad-fg-on-emphasis);
+}
+
+.step-editor-popup-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.step-param-expression-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.step-param-expression-editor {
+  border: 1px solid var(--ad-border-input);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.step-param-expression-editor .expression-editor.expression-editor--multiline {
+  padding: 4px 6px;
+}
+
+/* In VarOrValue shell, keep joints with side buttons as square corners. */
+.step-param-inputvar .step-param-expression-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.step-param-inputvar .step-param-expression-editor {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
+.step-param-subprogram-literal {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.step-param-subprogram-select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.step-param-subprogram-manual-btn {
+  align-self: flex-start;
+  margin: 0;
+  padding: 2px 0;
+  font-size: 12px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--ad-accent, #6aaded);
+  text-decoration: underline;
+}
+
+.step-param-subprogram-manual-btn:hover {
+  filter: brightness(1.08);
+}
+
+.step-param-subprogram-raw {
+  min-width: 0;
+}
+
+/* ExpressionEditor: Monaco (C# + Quicker `{var}` placeholders). */
+.expression-editor {
+  background-color: var(--ad-bg-input);
+}
+
+.expression-editor.expression-editor--inline {
+  padding: 0;
+}
+
+.expression-editor--monaco {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.expression-editor--monaco.expression-editor--multiline {
+  min-height: 40px;
+  max-height: 208px;
+}
+
+.expression-editor--monaco.expression-editor--loading {
+  min-height: 22px;
+}
+
+.expression-editor--monaco .monaco-editor,
+.expression-editor--monaco .monaco-editor .overflow-guard {
+  width: 100% !important;
+}
+
+.expression-editor--monaco .monaco-editor,
+.expression-editor--monaco .monaco-editor-background,
+.expression-editor--monaco .monaco-editor .margin,
+.expression-editor--monaco .monaco-editor .sticky-widget,
+.expression-editor--monaco .monaco-editor .sticky-widget-lines,
+.expression-editor--monaco .monaco-editor .sticky-line-content {
+  background-color: var(--ad-bg-input) !important;
+}
+
+/* Hide current-line highlight when the field is not focused (Monaco keeps cursor line on blur). */
+.expression-editor--monaco:not(:focus-within) .monaco-editor .view-overlays .current-line {
+  border: none !important;
+  background-color: transparent !important;
+}
+
+.expression-editor-placeholder {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  color: var(--ad-fg-placeholder);
+  font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.expression-editor--inline .expression-editor-placeholder {
+  left: 6px;
+  top: 2px;
+  right: 6px;
+}
+
+.expression-editor--multiline .expression-editor-placeholder {
+  left: 6px;
+  top: 4px;
+  right: 6px;
+}
+
+.expression-editor-monaco-loading {
+  width: 100%;
+  height: 100%;
+  min-height: 18px;
+}
+
+.step-param-expression-editor:focus-within {
+  border-color: var(--ad-border-input);
+  box-shadow: none;
+}

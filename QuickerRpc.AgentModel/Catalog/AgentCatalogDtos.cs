@@ -24,6 +24,10 @@ public sealed class StepRunnerSearchItem
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ControlFieldName { get; set; }
+
+    /// <summary>Quicker icon spec, e.g. fa:Light_WindowMaximize.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Icon { get; set; }
 }
 
 public sealed class SearchStepRunnersResult
@@ -122,6 +126,10 @@ public sealed class StepRunnerAgentSchema
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Description { get; set; }
+
+    /// <summary>Quicker icon spec, e.g. fa:Light_WindowMaximize.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Icon { get; set; }
 
     public ControlFieldSchema? ControlField { get; set; }
 

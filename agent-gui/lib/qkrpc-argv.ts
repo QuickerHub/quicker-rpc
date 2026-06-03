@@ -231,6 +231,37 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         },
       };
     }
+    if (verb === "extract") {
+      return {
+        op: "action.extract",
+        args: {
+          id: flagStr(flags, "id"),
+          dir: flagStr(flags, "dir"),
+          minLines: flagInt(flags, "min-lines"),
+          noAutoFiles: flagBool(flags, "no-auto-files") || undefined,
+        },
+      };
+    }
+    if (verb === "validate") {
+      return {
+        op: "action.validate",
+        args: {
+          id: flagStr(flags, "id"),
+          dir: flagStr(flags, "dir"),
+        },
+      };
+    }
+    if (verb === "apply") {
+      return {
+        op: "action.apply",
+        args: {
+          id: flagStr(flags, "id"),
+          dir: flagStr(flags, "dir"),
+          expectedEditVersion: flagInt(flags, "expected-edit-version"),
+          force: flagBool(flags, "force") || undefined,
+        },
+      };
+    }
     return null;
   }
 
@@ -357,6 +388,25 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
     }
     if (verb === "delete") {
       return { op: "subprogram.delete", args: { id: flagStr(flags, "id") } };
+    }
+    if (verb === "export") {
+      return {
+        op: "subprogram.export",
+        args: {
+          id: flagStr(flags, "id") ?? flagStr(flags, "code"),
+          dir: flagStr(flags, "dir"),
+        },
+      };
+    }
+    if (verb === "import") {
+      return {
+        op: "subprogram.import",
+        args: {
+          dir: flagStr(flags, "dir"),
+          expectedEditVersion: flagInt(flags, "expected-edit-version"),
+          force: flagBool(flags, "force"),
+        },
+      };
     }
     return null;
   }

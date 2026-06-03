@@ -2,7 +2,10 @@ import { watch, type FSWatcher } from "node:fs";
 import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { buildActionExplorerTree } from "@/lib/action-explorer-server";
-import type { ActionExplorerTree } from "@/lib/action-explorer-tree";
+import {
+  computeExplorerTreeSignature,
+  type ActionExplorerTree,
+} from "@/lib/action-explorer-tree";
 import { getActionsRootRelative } from "@/lib/action-project-path-shared";
 import { runWithQkrpcCwdAsync } from "@/lib/qkrpc-request-context";
 import { resolveWorkspacePath, resolveWorkspaceRoot } from "@/lib/workspace-fs";
@@ -23,7 +26,8 @@ type WatchSession = {
   rebuildInFlight: Promise<void> | null;
   rebuilding: boolean;
   rebuildCooldownUntil: number;
-  lastTreeJson: string | null;
+  lastTreeSignature: string | null;
+  lastTree: ActionExplorerTree | null;
   subscribers: Set<WatchSubscriber>;
   idleTimer: ReturnType<typeof setTimeout> | null;
 };
@@ -116,11 +120,12 @@ async function rebuildAndNotify(session: WatchSession): Promise<void> {
         });
         return;
       }
-      const treeJson = JSON.stringify(result.tree);
-      if (session.lastTreeJson === treeJson) {
+      const signature = computeExplorerTreeSignature(result.tree);
+      if (session.lastTreeSignature === signature) {
         return;
       }
-      session.lastTreeJson = treeJson;
+      session.lastTreeSignature = signature;
+      session.lastTree = result.tree;
       notifySubscribers(session, {
         ok: true,
         type: "tree",
@@ -203,7 +208,8 @@ function getOrCreateSession(cwd: string): WatchSession {
     rebuildInFlight: null,
     rebuilding: false,
     rebuildCooldownUntil: 0,
-    lastTreeJson: null,
+    lastTreeSignature: null,
+    lastTree: null,
     subscribers: new Set(),
     idleTimer: null,
   };
@@ -235,15 +241,9 @@ export function subscribeActionExplorerWatch(
     state.session = getOrCreateSession(trimmed);
     state.session.subscribers.add(subscriber);
     ensureWatchers(state.session);
-    // New SSE clients must get a snapshot even when the tree JSON is unchanged
-    // (rebuildAndNotify skips broadcast when lastTreeJson matches).
-    if (state.session.lastTreeJson) {
-      try {
-        const tree = JSON.parse(state.session.lastTreeJson) as ActionExplorerTree;
-        subscriber.send({ ok: true, type: "tree", tree });
-      } catch {
-        /* fall through to rebuild */
-      }
+    // New SSE clients need the latest tree even when rebuild dedupes by signature.
+    if (state.session.lastTree) {
+      subscriber.send({ ok: true, type: "tree", tree: state.session.lastTree });
     }
     await rebuildAndNotify(state.session);
   });

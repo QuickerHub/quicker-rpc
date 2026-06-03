@@ -152,6 +152,9 @@ public sealed class QuickerRpcStepRunnerSearchItem
     public string? ControlFieldValue { get; set; }
 
     public string? ControlFieldName { get; set; }
+
+    /// <summary>Quicker icon spec, e.g. fa:Light_WindowMaximize.</summary>
+    public string? Icon { get; set; }
 }
 
 public sealed class QuickerRpcSearchStepRunnersResult

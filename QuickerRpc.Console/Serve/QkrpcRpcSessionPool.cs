@@ -53,6 +53,8 @@ internal sealed class QkrpcRpcSessionPool : IAsyncDisposable
                 await _session.DisposeAsync().ConfigureAwait(false);
                 _session = null;
             }
+
+            StepRunnerServeCache.Clear();
         }
         finally
         {

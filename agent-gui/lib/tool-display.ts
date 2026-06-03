@@ -5,7 +5,7 @@ import {
   parseStepRunnerSearchFromQkrpcData,
 } from "./step-runner-tool";
 
-/** Chat tool rows: no expandable JSON / inline previews; one static summary row. */
+/** Chat tool rows: summary in thread; full payload in click-to-open popup. */
 export function shouldUseStaticToolRow(options: {
   hasFileEditorPreview: boolean;
   hasReadFilePreview: boolean;

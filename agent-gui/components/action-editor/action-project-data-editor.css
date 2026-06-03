@@ -1,0 +1,212 @@
+.action-project-data-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  gap: 8px;
+}
+
+.workspace-main-editor .action-project-data-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.action-project-data-editor-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel, var(--bg)) 92%, transparent);
+  overflow: hidden;
+}
+
+.action-project-data-editor-header .action-project-meta-summary {
+  margin: 0;
+  padding: 0.55rem 0.65rem 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+}
+
+.action-project-meta-summary-description {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.action-project-data-editor-actions {
+  padding: 0.45rem 0.65rem 0.5rem;
+  min-width: 0;
+}
+
+.action-project-data-editor-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  min-width: 0;
+}
+
+/* Flatten stacked toolbar + sync into one compact row (data.json editor only). */
+.action-project-data-editor-toolbar {
+  margin: 0;
+  padding: 0;
+  border-top: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.45rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.action-project-data-editor-toolbar .project-info-toolbar-actions {
+  margin-bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.action-project-data-editor-toolbar .project-info-toolbar-param {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1 1 9rem;
+  min-width: 7rem;
+  max-width: 14rem;
+}
+
+.action-project-data-editor-toolbar .project-info-toolbar-param-label {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.action-project-data-editor-toolbar .project-info-toolbar-param-input {
+  flex: 1 1 4rem;
+  min-width: 0;
+  width: auto;
+}
+
+.action-project-data-editor-toolbar .project-info-toolbar-status {
+  flex: 1 1 100%;
+  margin: 0.15rem 0 0;
+}
+
+.action-project-data-editor-sync {
+  margin: 0;
+  padding: 0 0 0 0.55rem;
+  border-top: none;
+  border-left: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  flex: 0 0 auto;
+}
+
+.action-project-data-editor-sync .project-info-sync-actions {
+  gap: 0.35rem;
+}
+
+.action-project-data-editor-sync .project-info-sync-status {
+  margin: 0.25rem 0 0;
+  max-width: 16rem;
+  font-size: 0.65rem;
+  line-height: 1.3;
+}
+
+@media (max-width: 640px) {
+  .action-project-data-editor-actions-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .action-project-data-editor-sync {
+    padding-left: 0;
+    border-left: none;
+    border-top: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+    padding-top: 0.45rem;
+  }
+
+  .action-project-data-editor-toolbar .project-info-toolbar-param {
+    max-width: none;
+  }
+}
+
+.action-project-data-editor-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+
+.action-project-data-editor-tab {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+}
+
+.action-project-data-editor-tab.active {
+  color: var(--text);
+  background: var(--hover-overlay);
+}
+
+.action-project-data-editor-tab-actions {
+  margin-left: auto;
+}
+
+.action-project-data-editor-save {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.action-project-data-editor-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-project-data-editor-visual {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.action-project-data-editor-visual .x-program-editor {
+  flex: 1 1 auto;
+  min-height: 280px;
+}
+
+.workspace-main-editor .action-project-data-editor-visual .x-program-editor {
+  min-height: 0;
+}
+
+/* Source JSON tab: scroll within remaining height below toolbar/tabs. */
+.workspace-main-editor .action-project-data-editor > .file-editor-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace-main-editor .action-project-data-editor > .file-editor-card .file-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}

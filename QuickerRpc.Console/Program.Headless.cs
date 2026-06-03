@@ -108,10 +108,10 @@ internal static partial class Program
     private static async Task<int> RunStepRunnerSearchAsync(StepRunnerOptions options)
     {
         var keyword = (options.Query ?? string.Empty).Trim();
+        // Empty query lists the catalog (same as backend Search with no filter).
         if (string.IsNullOrWhiteSpace(keyword))
         {
-            return await EmitErrorAndFailAsync(options.Json, "MISSING_QUERY", "Provide --query <keyword>.")
-                .ConfigureAwait(false);
+            keyword = string.Empty;
         }
 
         try
@@ -330,6 +330,12 @@ internal static partial class Program
             return await EmitErrorAndFailAsync(options.Json, "INVALID_PATCH_JSON", parseError!).ConfigureAwait(false);
         }
 
+        if (!QkrpcPatchPreprocess.TryPreprocessPatch(patchObj!, options.PatchFile, out var preprocessError))
+        {
+            return await EmitErrorAndFailAsync(options.Json, "FORM_SPEC_COMPILE_FAILED", preprocessError!)
+                .ConfigureAwait(false);
+        }
+
         try
         {
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
@@ -397,6 +403,12 @@ internal static partial class Program
         if (!TryParseJsonObject(jsonText!, "xaction", out var xActionObj, out var parseError))
         {
             return await EmitErrorAndFailAsync(options.Json, "INVALID_XACTION_JSON", parseError!).ConfigureAwait(false);
+        }
+
+        if (!QkrpcPatchPreprocess.TryPreprocessProgram(xActionObj!, options.XActionFile, out var preprocessError))
+        {
+            return await EmitErrorAndFailAsync(options.Json, "FORM_SPEC_COMPILE_FAILED", preprocessError!)
+                .ConfigureAwait(false);
         }
 
         try

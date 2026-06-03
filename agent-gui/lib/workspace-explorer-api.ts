@@ -10,7 +10,7 @@ export type WorkspaceReadResponse = {
   path: string;
   content: string;
   truncated: boolean;
-  totalChars: number;
+  totalChars?: number;
 };
 
 export async function fetchActionExplorerTree(
@@ -72,20 +72,32 @@ export function subscribeActionExplorerTreeWatch(
   };
 }
 
+export function formatWorkspaceFetchError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("fetch failed") || message.includes("Failed to fetch")) {
+    return "无法连接工作区 API（请确认 agent-gui 开发服务未在重载中）";
+  }
+  return message || "Failed to read file";
+}
+
 export async function fetchWorkspaceFile(
   cwd: string,
   path: string,
 ): Promise<WorkspaceReadResponse | { ok: false; error: string }> {
-  const params = new URLSearchParams({ op: "read", cwd, path });
-  const res = await fetch(`/api/workspace?${params}`, { cache: "no-store" });
-  const data = (await res.json()) as WorkspaceReadResponse & {
-    ok: boolean;
-    error?: string;
-  };
-  if (!data.ok) {
-    return { ok: false, error: data.error ?? "Failed to read file" };
+  try {
+    const params = new URLSearchParams({ op: "read", cwd, path });
+    const res = await fetch(`/api/workspace?${params}`, { cache: "no-store" });
+    const data = (await res.json()) as WorkspaceReadResponse & {
+      ok: boolean;
+      error?: string;
+    };
+    if (!data.ok) {
+      return { ok: false, error: data.error ?? "Failed to read file" };
+    }
+    return data;
+  } catch (error) {
+    return { ok: false, error: formatWorkspaceFetchError(error) };
   }
-  return data;
 }
 
 export async function deleteActionProjectApi(

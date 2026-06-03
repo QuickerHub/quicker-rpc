@@ -10,7 +10,12 @@ from pathlib import Path
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 from boto3.s3.transfer import TransferConfig
+
+# Bitiful S3-compatible API can produce truncated objects with boto3 multipart upload.
+# Keep agent installers (~70 MiB) on a single-part upload.
+_SINGLE_PART_THRESHOLD_BYTES = 256 * 1024 * 1024
 
 
 def parse_semver_from_setup_name(file_name: str) -> str:
@@ -18,6 +23,28 @@ def parse_semver_from_setup_name(file_name: str) -> str:
     if not marker or marker == file_name:
         raise RuntimeError(f"Unable to parse semver from file name: {file_name}")
     return marker
+
+
+def verify_remote_object_size(
+    s3_client,
+    *,
+    bucket_name: str,
+    object_key: str,
+    expected_size: int,
+) -> None:
+    try:
+        head = s3_client.head_object(Bucket=bucket_name, Key=object_key)
+    except ClientError as exc:
+        raise RuntimeError(
+            f"Uploaded object missing or unreadable: s3://{bucket_name}/{object_key}"
+        ) from exc
+
+    remote_size = int(head["ContentLength"])
+    if remote_size != expected_size:
+        raise RuntimeError(
+            f"Bitiful size mismatch for {object_key}: remote={remote_size} bytes, "
+            f"local={expected_size} bytes"
+        )
 
 
 def upload_quicker_agent_installer(
@@ -31,6 +58,13 @@ def upload_quicker_agent_installer(
 ) -> tuple[str, str, str]:
     if not local_file.is_file():
         raise FileNotFoundError(f"Installer not found: {local_file}")
+
+    local_size = local_file.stat().st_size
+    min_bytes = 50 * 1024 * 1024
+    if local_size < min_bytes:
+        raise RuntimeError(
+            f"Installer too small ({local_size // (1024 * 1024)} MiB < 50 MiB): {local_file}"
+        )
 
     prefix = object_prefix.strip().strip("/")
     object_key = f"{prefix}/{local_file.name}"
@@ -46,13 +80,12 @@ def upload_quicker_agent_installer(
         config=Config(signature_version="s3v4", retries={"max_attempts": 5}),
     )
     transfer_config = TransferConfig(
-        multipart_threshold=8 * 1024 * 1024,
-        max_concurrency=10,
-        multipart_chunksize=8 * 1024 * 1024,
-        use_threads=True,
+        multipart_threshold=_SINGLE_PART_THRESHOLD_BYTES,
+        max_concurrency=1,
+        use_threads=False,
     )
 
-    print(f"Uploading {local_file.name} ({local_file.stat().st_size // (1024 * 1024)} MiB)...")
+    print(f"Uploading {local_file.name} ({local_size // (1024 * 1024)} MiB)...")
     s3_client.upload_file(
         str(local_file),
         bucket_name,
@@ -60,6 +93,13 @@ def upload_quicker_agent_installer(
         ExtraArgs={"ContentType": "application/vnd.microsoft.portable-executable"},
         Config=transfer_config,
     )
+    verify_remote_object_size(
+        s3_client,
+        bucket_name=bucket_name,
+        object_key=object_key,
+        expected_size=local_size,
+    )
+
     s3_client.put_object(
         Bucket=bucket_name,
         Key=version_txt_key,

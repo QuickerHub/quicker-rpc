@@ -5,12 +5,19 @@ import {
   getLocalProviderApiKey,
   getLocalProviderConfig,
 } from "@/lib/llm-local-secrets";
-import { getBundledProviderApiKey } from "@/lib/llm-bundled-secrets";
+import { getBundledEndpoints, getBundledProviderApiKey } from "@/lib/llm-bundled-secrets";
 import {
+  resolveLlmConfigEndpointSlots,
   resolveLlmConfigProvider,
   type LlmEndpointConfig,
   type LlmEndpointFallback,
 } from "@/lib/llm-config";
+import {
+  endpointFingerprint,
+  getStickyEndpoint,
+  setStickyEndpoint,
+} from "@/lib/llm-endpoint-pref";
+import { loadPublishConfigEndpoints } from "@/lib/llm-publish-config";
 import {
   CUSTOM_PROVIDER_ID,
   getLlmProviderMeta,
@@ -126,9 +133,13 @@ function hasDirectApiKey(): boolean {
 }
 
 function hasConfiguredFallbacks(): boolean {
-  return Boolean(
-    resolveLlmConfigProvider(LLM_PROVIDER_ID)?.fallbacks?.some((fb) => fb.apiKey),
-  );
+  const entry = resolveLlmConfigProvider(LLM_PROVIDER_ID);
+  if (entry?.fallbacks?.some((fb) => fb.apiKey)) return true;
+  if (getBundledEndpoints(LLM_PROVIDER_ID).length > 1) return true;
+  if ((entry?.fallbacks?.length ?? 0) > 0 && getBundledEndpoints(LLM_PROVIDER_ID).length > 0) {
+    return true;
+  }
+  return false;
 }
 
 export function isLlmProviderConfigured(providerId: LlmProviderId): boolean {
@@ -191,6 +202,79 @@ function resolvePreset(providerId: LlmProviderId): ResolvedLlmConfig {
   };
 }
 
+function normalizeOrderedEndpoints(
+  endpoints: LlmEndpointConfig[],
+  meta: ReturnType<typeof getLlmProviderMeta>,
+): LlmEndpointConfig[] {
+  return endpoints
+    .map((endpoint) => ({
+      apiKey: endpoint.apiKey.trim(),
+      baseURL: endpoint.baseURL ?? meta.defaultBaseURL,
+      model: endpoint.model ?? meta.defaultModel,
+    }))
+    .filter((endpoint) => endpoint.apiKey);
+}
+
+function resolveGpt55EndpointConfigs(): LlmEndpointConfig[] {
+  const meta = getLlmProviderMeta(LLM_PROVIDER_ID);
+  const local = getLocalProviderConfig(LLM_PROVIDER_ID);
+  if (local?.apiKey?.trim()) {
+    return [{
+      apiKey: local.apiKey.trim(),
+      baseURL: local.baseURL ?? meta.defaultBaseURL,
+      model: local.model ?? meta.defaultModel,
+    }];
+  }
+
+  const fromConfig = resolveLlmConfigProvider(LLM_PROVIDER_ID);
+  if (fromConfig?.apiKey) {
+    const chain: LlmEndpointConfig[] = [{
+      apiKey: fromConfig.apiKey,
+      baseURL: fromConfig.baseURL ?? meta.defaultBaseURL,
+      model: fromConfig.model ?? meta.defaultModel,
+    }];
+    for (const fallback of fromConfig.fallbacks ?? []) {
+      if (!fallback.apiKey) continue;
+      chain.push({
+        apiKey: fallback.apiKey,
+        baseURL: fallback.baseURL ?? meta.defaultBaseURL,
+        model: fallback.model ?? meta.defaultModel,
+      });
+    }
+    return chain;
+  }
+
+  const bundled = getBundledEndpoints(LLM_PROVIDER_ID);
+  if (bundled.length > 0) {
+    return normalizeOrderedEndpoints(bundled, meta);
+  }
+
+  const publish = loadPublishConfigEndpoints();
+  if (publish.length > 0) {
+    return normalizeOrderedEndpoints(publish, meta);
+  }
+
+  const configSlots = resolveLlmConfigEndpointSlots(LLM_PROVIDER_ID);
+  const inlineConfigChain = configSlots
+    .filter((slot) => slot.apiKey?.trim())
+    .map((slot) => ({
+      apiKey: slot.apiKey!.trim(),
+      baseURL: slot.baseURL ?? meta.defaultBaseURL,
+      model: slot.model ?? meta.defaultModel,
+    }));
+  if (inlineConfigChain.length > 0) {
+    return inlineConfigChain;
+  }
+
+  const envKey = envFirst(...GPT55_ENV_API_KEYS);
+  if (!envKey) return [];
+  return [{
+    apiKey: envKey,
+    baseURL: envFirst(...GPT55_ENV_BASE_URLS) ?? meta.defaultBaseURL,
+    model: envFirst(...GPT55_ENV_MODELS) ?? meta.defaultModel,
+  }];
+}
+
 function appendFallbackEndpoints(
   providerId: LlmProviderId,
   chain: ResolvedLlmEndpoint[],
@@ -200,6 +284,7 @@ function appendFallbackEndpoints(
   if (!fallbacks?.length) return;
   const meta = getLlmProviderMeta(providerId);
   for (const fallback of fallbacks) {
+    if (!fallback.apiKey) continue;
     chain.push(
       toEndpoint(
         providerId,
@@ -212,7 +297,7 @@ function appendFallbackEndpoints(
 }
 
 /** Primary endpoint plus configured fallbacks (deduped by apiKey + baseURL). */
-export function resolveLlmEndpointChain(
+function buildLlmEndpointChain(
   providerOverride?: LlmProviderId,
 ): ResolvedLlmEndpoint[] {
   const directKey = getLocalDirectApiKey() ?? process.env.LLM_API_KEY?.trim();
@@ -229,6 +314,23 @@ export function resolveLlmEndpointChain(
         clientName: meta.clientName,
       },
     ];
+  }
+
+  if (providerId === LLM_PROVIDER_ID) {
+    const configs = resolveGpt55EndpointConfigs();
+    const chain = configs.map((config) => toEndpoint(
+      providerId,
+      config.apiKey,
+      config.baseURL,
+      config.model,
+    ));
+    if (!chain.length) {
+      throw new Error(
+        `LLM provider "${providerId}" has no API key. `
+        + "Configure it in Settings or ask your administrator.",
+      );
+    }
+    return dedupeEndpoints(chain);
   }
 
   const chain: ResolvedLlmEndpoint[] = [];
@@ -251,6 +353,55 @@ export function resolveLlmEndpointChain(
     );
   }
 
+  return dedupeEndpoints(chain);
+}
+
+export function resolveLlmEndpointChain(
+  providerOverride?: LlmProviderId,
+): ResolvedLlmEndpoint[] {
+  const providerId = providerOverride ?? getLlmProviderId();
+  return applyStickyEndpointOrder(
+    buildLlmEndpointChain(providerOverride),
+    providerId,
+  );
+}
+
+function applyStickyEndpointOrder(
+  chain: ResolvedLlmEndpoint[],
+  providerId: LlmProviderId,
+): ResolvedLlmEndpoint[] {
+  if (chain.length <= 1) return chain;
+  const sticky = getStickyEndpoint(providerId);
+  if (!sticky) return chain;
+  const stickyKey = endpointFingerprint(sticky);
+  const index = chain.findIndex(
+    (endpoint) => endpointFingerprint(endpoint) === stickyKey,
+  );
+  if (index <= 0) return chain;
+  const reordered = [...chain];
+  const [preferred] = reordered.splice(index, 1);
+  reordered.unshift(preferred);
+  return reordered;
+}
+
+function rememberSuccessfulEndpoint(
+  providerId: LlmProviderId,
+  endpoint: ResolvedLlmEndpoint,
+  naturalChain: ResolvedLlmEndpoint[],
+  index: number,
+): void {
+  if (naturalChain.length <= 1) return;
+  const naturalPrimary = naturalChain[0];
+  if (endpointFingerprint(endpoint) !== endpointFingerprint(naturalPrimary)) {
+    setStickyEndpoint(providerId, endpoint);
+    return;
+  }
+  if (index > 0 && getStickyEndpoint(providerId)) {
+    setStickyEndpoint(providerId, endpoint);
+  }
+}
+
+function dedupeEndpoints(chain: ResolvedLlmEndpoint[]): ResolvedLlmEndpoint[] {
   const seen = new Set<string>();
   return chain.filter((endpoint) => {
     const key = `${endpoint.baseURL}\0${endpoint.apiKey}`;
@@ -329,7 +480,9 @@ export type ResolvedChatModel = {
 export async function resolveChatModelForRequest(
   providerOverride?: LlmProviderId,
 ): Promise<ResolvedChatModel> {
-  const chain = resolveLlmEndpointChain(providerOverride);
+  const providerId = providerOverride ?? getLlmProviderId();
+  const naturalChain = buildLlmEndpointChain(providerOverride);
+  const chain = applyStickyEndpointOrder(naturalChain, providerId);
   if (chain.length === 1) {
     const endpoint = chain[0];
     return {
@@ -344,9 +497,18 @@ export async function resolveChatModelForRequest(
     const endpoint = chain[index];
     try {
       await probeLlmEndpoint(endpoint);
-      if (index > 0) {
+      const configIndex = naturalChain.findIndex(
+        (candidate) => endpointFingerprint(candidate) === endpointFingerprint(endpoint),
+      );
+      rememberSuccessfulEndpoint(
+        providerId,
+        endpoint,
+        naturalChain,
+        configIndex >= 0 ? configIndex : index,
+      );
+      if (configIndex > 0) {
         console.warn(
-          `[llm] using fallback endpoint #${index + 1}: ${endpoint.baseURL}`,
+          `[llm] using fallback endpoint #${configIndex + 1}/${naturalChain.length}: ${endpoint.baseURL}`,
         );
       }
       return {
@@ -374,7 +536,9 @@ export async function runLlmWithEndpointFallback<T>(
   providerOverride: LlmProviderId | undefined,
   run: (model: LanguageModel, modelId: string) => Promise<T>,
 ): Promise<{ result: T; modelId: string }> {
-  const chain = resolveLlmEndpointChain(providerOverride);
+  const providerId = providerOverride ?? getLlmProviderId();
+  const naturalChain = buildLlmEndpointChain(providerOverride);
+  const chain = applyStickyEndpointOrder(naturalChain, providerId);
   let lastError: unknown;
 
   for (let index = 0; index < chain.length; index += 1) {
@@ -382,9 +546,18 @@ export async function runLlmWithEndpointFallback<T>(
     try {
       const model = createChatModelFromEndpoint(endpoint);
       const result = await run(model, endpoint.modelId);
-      if (index > 0) {
+      const configIndex = naturalChain.findIndex(
+        (candidate) => endpointFingerprint(candidate) === endpointFingerprint(endpoint),
+      );
+      rememberSuccessfulEndpoint(
+        providerId,
+        endpoint,
+        naturalChain,
+        configIndex >= 0 ? configIndex : index,
+      );
+      if (configIndex > 0) {
         console.warn(
-          `[llm] using fallback endpoint #${index + 1}: ${endpoint.baseURL}`,
+          `[llm] using fallback endpoint #${configIndex + 1}/${naturalChain.length}: ${endpoint.baseURL}`,
         );
       }
       return { result, modelId: endpoint.modelId };

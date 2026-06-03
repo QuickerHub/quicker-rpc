@@ -8,6 +8,12 @@ import {
 import { FileEditorCard } from "./FileEditorCard";
 import { ToolSummaryTitle } from "@/components/chat/ToolSummaryTitle";
 import { type QkrpcToolResult } from "./tool-output";
+import {
+  ToolDetailsIconButton,
+  ToolResultPopup,
+  toolCanShowDetails,
+  useToolResultPopup,
+} from "./ToolResultPopup";
 
 type WorkspaceFileReadRowProps = {
   toolName: string;
@@ -33,6 +39,8 @@ function WorkspaceFileReadRowInner({
   inBatch = false,
   errorText,
 }: WorkspaceFileReadRowProps) {
+  const popup = useToolResultPopup();
+  const canShowDetails = toolCanShowDetails(input, output, errorText, running);
   const failed = output && !output.ok;
 
   const preview = useMemo(
@@ -46,17 +54,23 @@ function WorkspaceFileReadRowInner({
   );
 
   return (
+    <>
     <div
-      className={`tool-card tool-card--file-read tool-card--preview${inBatch ? " tool-card--nested" : ""}${running ? " tool-card--running" : ""}`}
+      className={`tool-card tool-card--file-read tool-card--preview tool-card--with-details${inBatch ? " tool-card--nested" : ""}${running ? " tool-card--running" : ""}`}
     >
-      <div className="tool-summary tool-summary--static">
-        <ToolSummaryTitle
-          displayName={displayName}
-          meta={meta}
-          isRunning={running}
-          state={state}
-          showChevron={false}
-        />
+      <div className="tool-card-actions tool-card-actions--summary">
+        <div className="tool-summary tool-summary--static">
+          <ToolSummaryTitle
+            displayName={displayName}
+            meta={meta}
+            isRunning={running}
+            state={state}
+            showChevron={false}
+          />
+        </div>
+        {canShowDetails ? (
+          <ToolDetailsIconButton onClick={popup.openPopup} />
+        ) : null}
       </div>
       {preview ? (
         <>
@@ -91,6 +105,18 @@ function WorkspaceFileReadRowInner({
       ) : null}
       {errorText ? <pre className="tool-error">{errorText}</pre> : null}
     </div>
+    <ToolResultPopup
+      open={popup.open}
+      onClose={popup.closePopup}
+      title={displayName}
+      subtitle={meta}
+      toolName={toolName}
+      input={input}
+      output={output}
+      errorText={errorText}
+      followTail={running}
+    />
+    </>
   );
 }
 

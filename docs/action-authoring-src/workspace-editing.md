@@ -37,7 +37,7 @@ Quicker 库  ←—— qkrpc_action_patch({ id }) ——  .quicker/actions/{acti
 | 改后保存 | **`qkrpc_action_patch({ id })`** — **直接调用**（内置 validate → apply），**勿**先单独校验 |
 | 整份替换 data.json | **`workspace_action_write_data({ id, content })`** |
 | 局部改 data.json | **`workspace_action_edit_data({ id, oldString, newString })`** |
-| 读/写/改 files/ 下文件 | **`workspace_file_read` / `write` / `edit`** |
+| 读/写/改 files/ 外置资源 | **`workspace_action_file_*({ id, path: "files/…" })`** |
 | 拉取并同步磁盘 | **`qkrpc_action_get({ id })`**（非空程序体才 extract）→ **`workspaceProject`** |
 | 新建落盘 | **`qkrpc_action_create`** → 仅 **`info.json`**；**勿**紧接再 get |
 | 写回 Quicker | **`qkrpc_action_patch({ id })`** — **仅 id**，无内联 JSON |
@@ -50,8 +50,11 @@ qkrpc_action_create → workspace_action_write_data | edit_data → qkrpc_action
 
 # 已有（非空）
 qkrpc_action_get → workspace_action_read_data → qkrpc_step_runner_get
-  → workspace_action_edit_data | write_data → [可选] workspace_file_*
+  → workspace_action_edit_data | write_data → [可选] workspace_action_file_*
   → qkrpc_action_patch
+
+# 复制成与另一动作相同（单 @ 多为模板）
+get(模板) → read / file_read(模板) → get(目标) → write / file_write(目标) → patch(目标)
 ```
 
 ## file 外置（长 `inputParams`）
@@ -69,8 +72,8 @@ qkrpc_action_get → workspace_action_read_data → qkrpc_step_runner_get
 {{#only-agent}}
 | 步骤 | 工具 |
 |------|------|
-| 写外置文件 | **`workspace_file_write`** / **`workspace_file_edit`**（路径如 `files/foo.cs`） |
-| 改 `data.json` 绑定 | **`workspace_action_edit_data`** — `"paramKey": { "file": "files/foo.cs" }` |
+| 写外置文件 | **`workspace_action_file_write({ id, path, content })`** |
+| 改 `data.json` 绑定 | **`workspace_action_edit_data`** — `{ "file": "files/…" }` |
 | 保存 | **`qkrpc_action_patch({ id })`** |
 {{/only-agent}}
 
@@ -85,8 +88,8 @@ qkrpc_action_get → workspace_action_read_data → qkrpc_step_runner_get
 
 ## 禁止
 
-- 用 **`workspace_file_*`** 读写 **`data.json`**（用 **`workspace_action_*_data`**）
-- 手动拼 `.quicker/actions/...` 路径（一律传 **action GUID**）
+- **`workspace_action_file_*`** 改 **`data.json`**（用 **`workspace_action_*_data`**）
+- 手写 **`.quicker/actions/...`** 全路径（传 **GUID** + `files/…`）
 - patch 成功后仅为核对再 **`get`**
 - 改后用全量 **`workspace_action_read_data`** 仅为验证（用 validate / summary / edit 响应的 **projectSummary**）
 

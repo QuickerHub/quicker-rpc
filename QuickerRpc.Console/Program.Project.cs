@@ -213,6 +213,7 @@ internal static partial class Program
                     .ConfigureAwait(false);
             }
 
+            ActionProjectFormDefNormalizer.TryApplyToProject(projectDir);
             var data = QuickerProjectFiles.ReadData(projectDir);
             var validateResult = XActionFileRefValidator.Validate(data, projectDir);
             if (!validateResult.Success)

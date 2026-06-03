@@ -29,7 +29,19 @@ public static class XActionFileRefCompiler
         var stepsClone = (JArray)clone["steps"]!;
         try
         {
+            var formResult = XActionFormSpecCompiler.Compile(clone, projectDir);
+            if (!formResult.Success)
+            {
+                return Fail(formResult.ErrorMessage ?? "form spec compile failed.");
+            }
+
             CompileSteps(stepsClone, projectDir);
+
+            if (clone["variables"] is JArray variablesClone)
+            {
+                CompileVariables(variablesClone, projectDir);
+            }
+
             return new CompileResult { Success = true, CompiledData = clone };
         }
         catch (Exception ex)
@@ -83,6 +95,11 @@ public static class XActionFileRefCompiler
                 continue;
             }
 
+            if (IsFormDefParamHandledByFormCompiler(prop.Name))
+            {
+                continue;
+            }
+
             if (hasValue)
             {
                 throw new InvalidOperationException($"{paramRef}: 'file' and 'value' are mutually exclusive.");
@@ -102,6 +119,48 @@ public static class XActionFileRefCompiler
             var text = File.ReadAllText(fullPath, System.Text.Encoding.UTF8);
             paramObj.Remove("file");
             paramObj["value"] = text;
+        }
+    }
+
+    private static void CompileVariables(JArray variables, string projectDir)
+    {
+        foreach (var token in variables)
+        {
+            if (token is not JObject varObj)
+            {
+                continue;
+            }
+
+            var varKey = varObj.Value<string>("key") ?? varObj.Value<string>("Key") ?? "variable";
+            if (!TryReadNonEmptyString(
+                    varObj[XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty],
+                    out var filePath))
+            {
+                continue;
+            }
+
+            var hasInline = TryReadNonEmptyString(varObj["defaultValue"], out _)
+                || TryReadNonEmptyString(varObj["default_value"], out _)
+                || TryReadNonEmptyString(varObj["DefaultValue"], out _);
+            if (hasInline)
+            {
+                throw new InvalidOperationException(
+                    $"variable {varKey}: '{XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty}' and defaultValue are mutually exclusive.");
+            }
+
+            var fullPath = XActionFileRefPath.ResolveFullPath(projectDir, filePath!);
+            if (!File.Exists(fullPath))
+            {
+                throw new FileNotFoundException(
+                    $"variable {varKey}: file not found: {filePath}",
+                    fullPath);
+            }
+
+            var text = File.ReadAllText(fullPath, System.Text.Encoding.UTF8);
+            varObj.Remove(XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty);
+            varObj.Remove("default_value");
+            varObj.Remove("DefaultValue");
+            varObj["defaultValue"] = text;
         }
     }
 
@@ -127,6 +186,10 @@ public static class XActionFileRefCompiler
         value = token?.Type == JTokenType.String ? token.Value<string>()?.Trim() : null;
         return !string.IsNullOrEmpty(value);
     }
+
+    private static bool IsFormDefParamHandledByFormCompiler(string paramName) =>
+        string.Equals(paramName, "formDef", StringComparison.Ordinal)
+        || string.Equals(paramName, "dynamicFormForDictDef", StringComparison.Ordinal);
 
     private static CompileResult Fail(string message) =>
         new CompileResult { Success = false, ErrorMessage = message };

@@ -78,6 +78,9 @@ internal static class ServeInvokeDispatcher
             "action.float" => await ActionFloatAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit" => await ActionEditAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit-var" => await ActionEditVarAsync(rpc, args, token).ConfigureAwait(false),
+            "action.extract" => await ActionProjectServeOps.ExtractAsync(rpc, args, token).ConfigureAwait(false),
+            "action.validate" => ActionProjectServeOps.Validate(args),
+            "action.apply" => await ActionProjectServeOps.ApplyAsync(rpc, args, token).ConfigureAwait(false),
             "profile.create" => await ProfileCreateAsync(rpc, args, token).ConfigureAwait(false),
             "profile.reorder" => await ProfileReorderAsync(rpc, args, token).ConfigureAwait(false),
             "process.ensure" => await ProcessEnsureAsync(rpc, args, token).ConfigureAwait(false),
@@ -90,6 +93,8 @@ internal static class ServeInvokeDispatcher
             "subprogram.edit" => await SubprogramEditAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.edit-var" => await SubprogramEditVarAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.delete" => await SubprogramDeleteAsync(rpc, args, token).ConfigureAwait(false),
+            "subprogram.export" => await SubProgramProjectServeOps.ExportAsync(rpc, args, token).ConfigureAwait(false),
+            "subprogram.import" => await SubProgramProjectServeOps.ImportAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.search" => await StepRunnerSearchAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.get" => await StepRunnerGetAsync(rpc, args, token).ConfigureAwait(false),
             "fa.search" => await FaSearchAsync(rpc, args, token).ConfigureAwait(false),
@@ -992,7 +997,14 @@ internal static class ServeInvokeDispatcher
         }
 
         var limit = ServeJsonArgs.GetInt(args, "limit");
-        var response = await rpc.SearchStepRunnersAsync(query.Trim(), limit, token).ConfigureAwait(false);
+        var trimmedQuery = query.Trim();
+        if (StepRunnerServeCache.TryGetSearch(trimmedQuery, limit, out var cached) && cached is not null)
+        {
+            return Ok(new { ok = cached.Success, action = "step-runner-search", payload = cached });
+        }
+
+        var response = await rpc.SearchStepRunnersAsync(trimmedQuery, limit, token).ConfigureAwait(false);
+        StepRunnerServeCache.SetSearch(trimmedQuery, limit, response);
         return Ok(new { ok = response.Success, action = "step-runner-search", payload = response });
     }
 
@@ -1007,9 +1019,17 @@ internal static class ServeInvokeDispatcher
             return Fail("MISSING_KEY", "args.key is required.");
         }
 
+        var trimmedKey = key.Trim();
+        var controlField = ServeJsonArgs.GetString(args, "controlField");
+        if (StepRunnerServeCache.TryGetDetail(trimmedKey, controlField, out var cached) && cached is not null)
+        {
+            return Ok(new { ok = cached.Success, action = "step-runner-get", payload = cached });
+        }
+
         var response = await rpc
-            .GetStepRunnerDetailAsync(key.Trim(), ServeJsonArgs.GetString(args, "controlField"), token)
+            .GetStepRunnerDetailAsync(trimmedKey, controlField, token)
             .ConfigureAwait(false);
+        StepRunnerServeCache.SetDetail(trimmedKey, controlField, response);
         return Ok(new { ok = response.Success, action = "step-runner-get", payload = response });
     }
 

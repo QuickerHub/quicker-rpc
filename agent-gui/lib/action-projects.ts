@@ -107,9 +107,9 @@ export function shouldRefreshExplorerAfterTool(
   }
 
   const fileTools = new Set([
-    "workspace_file_read",
-    "workspace_file_write",
-    "workspace_file_edit",
+    "workspace_action_file_read",
+    "workspace_action_file_write",
+    "workspace_action_file_edit",
     "workspace_action_read_data",
     "workspace_action_write_data",
     "workspace_action_edit_data",

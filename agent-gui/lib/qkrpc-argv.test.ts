@@ -59,6 +59,84 @@ test("argvToInvoke maps action update for legacy compat", () => {
   });
 });
 
+test("argvToInvoke maps action validate and apply for workspace save", () => {
+  assert.deepEqual(
+    argvToInvoke([
+      "action",
+      "validate",
+      "--dir",
+      "D:\\ws\\.quicker\\actions\\846b4132-ad73-42e8-b2f9-c42fe718ae20",
+      "--json",
+    ]),
+    {
+      op: "action.validate",
+      args: {
+        id: undefined,
+        dir: "D:\\ws\\.quicker\\actions\\846b4132-ad73-42e8-b2f9-c42fe718ae20",
+      },
+    },
+  );
+  assert.deepEqual(
+    argvToInvoke([
+      "action",
+      "apply",
+      "--id",
+      "846b4132-ad73-42e8-b2f9-c42fe718ae20",
+      "--dir",
+      ".quicker/actions/846b4132-ad73-42e8-b2f9-c42fe718ae20",
+      "--force",
+      "--json",
+    ]),
+    {
+      op: "action.apply",
+      args: {
+        id: "846b4132-ad73-42e8-b2f9-c42fe718ae20",
+        dir: ".quicker/actions/846b4132-ad73-42e8-b2f9-c42fe718ae20",
+        expectedEditVersion: undefined,
+        force: true,
+      },
+    },
+  );
+});
+
+test("argvToInvoke maps subprogram export and import", () => {
+  assert.deepEqual(
+    argvToInvoke([
+      "subprogram",
+      "export",
+      "--id",
+      "MySub",
+      "--dir",
+      ".quicker/subprograms/MySub",
+      "--json",
+    ]),
+    {
+      op: "subprogram.export",
+      args: { id: "MySub", dir: ".quicker/subprograms/MySub" },
+    },
+  );
+  assert.deepEqual(
+    argvToInvoke([
+      "subprogram",
+      "import",
+      "--dir",
+      "D:\\ws\\.quicker\\subprograms\\MySub",
+      "--expected-edit-version",
+      "3",
+      "--force",
+      "--json",
+    ]),
+    {
+      op: "subprogram.import",
+      args: {
+        dir: "D:\\ws\\.quicker\\subprograms\\MySub",
+        expectedEditVersion: 3,
+        force: true,
+      },
+    },
+  );
+});
+
 test("argvToInvoke maps process ensure with move-actions", () => {
   const invoke = argvToInvoke([
     "process",

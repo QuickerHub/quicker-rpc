@@ -3,12 +3,12 @@
   "providers": {
     "default": {
       "apiKey": "",
-      "baseURL": "https://api.bingleimuzi.eu.cc/v1",
+      "baseURL": "https://ai98pro.xyz/v1",
       "model": "gpt-5.5",
       "fallbacks": [
         {
-          "apiKey": "sk-...",
-          "baseURL": "https://ai98pro.xyz/v1",
+          "apiKey": "",
+          "baseURL": "https://api.bingleimuzi.eu.cc/v1",
           "model": "gpt-5.5"
         }
       ]

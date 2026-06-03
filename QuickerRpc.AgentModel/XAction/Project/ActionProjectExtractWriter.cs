@@ -21,6 +21,7 @@ public static class ActionProjectExtractWriter
         Directory.CreateDirectory(projectDir);
         QuickerProjectFiles.WriteActionInfo(projectDir, info);
         ActionProjectResourceFile.WriteAll(projectDir, resourceFiles);
+        ActionProjectFormSpecFileNormalizer.RewriteProjectFormSpecFiles(projectDir);
         QuickerProjectFiles.WriteData(projectDir, exportedData);
         return CollectWrittenPaths(resourceFiles);
     }

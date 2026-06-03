@@ -35,7 +35,8 @@ internal static partial class Program
             SubProgramOptions,
             StepRunnerOptions,
             FaOptions,
-            GuideOptions>(args);
+            GuideOptions,
+            FormOptions>(args);
         return await result
             .MapResult(
                 (PingOptions o) => RunPingAsync(o),
@@ -47,6 +48,7 @@ internal static partial class Program
                 (StepRunnerOptions o) => RunStepRunnerAsync(o),
                 (FaOptions o) => RunFaAsync(o),
                 (GuideOptions o) => RunGuideAsync(o),
+                (FormOptions o) => RunFormAsync(o),
                 _ => Task.FromResult(ExitCodes.Error))
             .ConfigureAwait(false);
     }
@@ -1375,6 +1377,22 @@ public sealed class GuideOptions
 
     [Option("limit", Default = 10, HelpText = "Max results for guide search.")]
     public int Limit { get; set; }
+
+    [Option("json", HelpText = "Emit JSON for automation.")]
+    public bool Json { get; set; }
+}
+
+[Verb("form", HelpText = "Validate and compile qkrpc.form.v1 multi-field form specs for sys:form.")]
+public sealed class FormOptions
+{
+    [Value(0, MetaName = "command", Required = true, HelpText = "validate | build")]
+    public string? Command { get; set; }
+
+    [Option("spec", HelpText = "Inline form spec JSON.")]
+    public string? Spec { get; set; }
+
+    [Option("file", HelpText = "Form spec JSON file path, or - for stdin.")]
+    public string? File { get; set; }
 
     [Option("json", HelpText = "Emit JSON for automation.")]
     public bool Json { get; set; }

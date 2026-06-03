@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import {
   cpSync,
   existsSync,
@@ -17,6 +18,32 @@ export function resolveUserInstalledQkrpcExe() {
   if (!localAppData) return null;
   const exe = join(localAppData, "Programs", "qkrpc", QKRPC_EXE);
   return existsSync(exe) ? exe : null;
+}
+
+/** qkrpc on PATH (terminal `qkrpc` works but setup dir is missing). */
+export function resolveQkrpcFromPath() {
+  try {
+    if (process.platform === "win32") {
+      const out = execSync("where.exe qkrpc", {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+      for (const line of out.split(/\r?\n/)) {
+        const candidate = line.trim();
+        if (candidate && existsSync(candidate)) {
+          return candidate;
+        }
+      }
+      return null;
+    }
+    const out = execSync("command -v qkrpc", {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    return out && existsSync(out) ? out : null;
+  } catch {
+    return null;
+  }
 }
 
 /** User-installed CLI (`build.ps1 -t` / setup.exe). Agent-gui must not run serve from here. */
@@ -50,9 +77,18 @@ function listConsoleReleaseOutputDirs(agentGuiRoot) {
   return dirs;
 }
 
+/** Tauri bundle: resources/qkrpc next to resources/app (Node cwd). */
+function resolveTauriBundledQkrpcDir(agentGuiRoot) {
+  const sibling = join(agentGuiRoot, "..", "qkrpc");
+  const exe = join(sibling, QKRPC_EXE);
+  return existsSync(exe) ? sibling : null;
+}
+
 /** Source directories that ship a full self-contained qkrpc runtime. */
 export function listBundledQkrpcSourceDirs(agentGuiRoot) {
+  const tauriBundled = resolveTauriBundledQkrpcDir(agentGuiRoot);
   return [
+    ...(tauriBundled ? [tauriBundled] : []),
     join(agentGuiRoot, "qkrpc"),
     join(agentGuiRoot, "..", "publish", "cli"),
     ...listConsoleReleaseOutputDirs(agentGuiRoot),
@@ -137,7 +173,7 @@ export function resolveQkrpcBin(agentGuiRoot) {
   if (sourceDir) return join(sourceDir, QKRPC_EXE);
 
   // CLI spawn from Next.js API routes: safe to use user install (serve still uses staged copy).
-  const userExe = resolveUserInstalledQkrpcExe();
+  const userExe = resolveUserInstalledQkrpcExe() ?? resolveQkrpcFromPath();
   if (userExe) return userExe;
 
   if (allowUserInstalledQkrpc()) return QKRPC_EXE;

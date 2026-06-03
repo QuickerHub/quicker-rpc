@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo } from "react";
 import {
   getToolOrDynamicToolName,
   isToolOrDynamicToolUIPart,
@@ -15,7 +15,6 @@ import {
 } from "@/lib/workspace-file-tool";
 import {
   hasFailedStructuredToolOutput,
-  shouldShowToolDebugDetails,
   shouldUseStaticToolRow,
 } from "@/lib/tool-display";
 import {
@@ -24,11 +23,16 @@ import {
   isQkrpcToolResult,
   summarizeToolOutput,
 } from "./tool-output";
-import { parseDocsGetDoc } from "@/lib/docs-tool";
+import { parseDocsGetDoc, DOCS_GET_REFERENCE_TOOL } from "@/lib/docs-tool";
 import { useDocsViewer } from "@/lib/docs-viewer";
+import { getToolMeta } from "@/lib/tool-registry";
 import { ToolSummaryTitle } from "@/components/chat/ToolSummaryTitle";
-import { ToolDisclosure } from "./ToolDisclosure";
-import { ToolFailureDetails } from "./ToolFailureDetails";
+import { DocsToolPopup } from "./DocsToolPopup";
+import {
+  ToolResultPopup,
+  toolCanShowDetails,
+  useToolResultPopup,
+} from "./ToolResultPopup";
 import { WorkspaceFileOpenRow } from "./WorkspaceFileOpenRow";
 import { WorkspaceFileEditorRow } from "./WorkspaceFileToolBody";
 import { WorkspaceFileReadRow } from "./WorkspaceFileReadRow";
@@ -71,13 +75,12 @@ function ToolPartInner({
   const errorText = "errorText" in part ? part.errorText : undefined;
   const isError =
     state === "output-error" || hasFailedStructuredToolOutput(output);
-  const showDebugDetails = shouldShowToolDebugDetails(state, output);
-
-  const isDocsGet =
-    name === "docs_get"
+  const isDocsWithMarkdown =
+    (name === "docs_get" || name === DOCS_GET_REFERENCE_TOOL)
     && output !== undefined
     && isQkrpcToolResult(output);
-  const docsDoc = isDocsGet && output ? parseDocsGetDoc(output) : null;
+  const docsDoc =
+    isDocsWithMarkdown && output ? parseDocsGetDoc(output) : null;
   const isDocsOpenable = Boolean(docsDoc);
 
   const isWorkspaceFile = isWorkspaceExplorerFileTool(name);
@@ -94,9 +97,16 @@ function ToolPartInner({
     && !isWorkspaceFileEditorTool(name)
     && Boolean(workspaceFileOutput);
 
-  if (showDebugDetails) {
+  if (
+    shouldUseStaticToolRow({
+      hasFileEditorPreview: hasWorkspaceFileEditorPreview,
+      hasReadFilePreview: hasReadFilePreview,
+      isDocsOpenable: isDocsOpenable && isQkrpcToolResult(output),
+      isWorkspaceFileOpenRow,
+    })
+  ) {
     return (
-      <ToolDebugCard
+      <PopupToolRow
         toolName={name}
         displayName={displayName}
         meta={meta}
@@ -111,31 +121,10 @@ function ToolPartInner({
     );
   }
 
-  if (
-    shouldUseStaticToolRow({
-      hasFileEditorPreview: hasWorkspaceFileEditorPreview,
-      hasReadFilePreview: hasReadFilePreview,
-      isDocsOpenable: isDocsOpenable && isQkrpcToolResult(output),
-      isWorkspaceFileOpenRow,
-    })
-  ) {
-    return (
-      <StaticToolRow
-        displayName={displayName}
-        meta={meta}
-        isRunning={isRunning}
-        state={state}
-        inBatch={inBatch}
-        errorText={errorText}
-      />
-    );
-  }
-
   if (isDocsOpenable && docsDoc && isQkrpcToolResult(output)) {
     return (
       <DocsToolOpenRow
-        displayName={displayName}
-        meta={meta}
+        toolName={name}
         isRunning={isRunning}
         state={state}
         doc={docsDoc}
@@ -193,21 +182,24 @@ function ToolPartInner({
   }
 
   return (
-    <StaticToolRow
+    <PopupToolRow
+      toolName={name}
       displayName={displayName}
       meta={meta}
       isRunning={isRunning}
       state={state}
       isError={isError}
-      inBatch={inBatch}
+      input={input}
+      output={output}
       errorText={errorText}
+      inBatch={inBatch}
     />
   );
 }
 
 export const ToolPart = memo(ToolPartInner);
 
-function ToolDebugCard({
+function PopupToolRow({
   toolName,
   displayName,
   meta,
@@ -224,142 +216,112 @@ function ToolDebugCard({
   meta: string;
   isRunning: boolean;
   state: string;
-  isError: boolean;
+  isError?: boolean;
   input?: unknown;
   output?: unknown;
   errorText?: string;
   inBatch?: boolean;
 }) {
-  const [open, setOpen] = useState(true);
-  const hasBody =
-    input !== undefined || output !== undefined || Boolean(errorText);
-
-  if (!hasBody) {
-    return (
-      <StaticToolRow
-        displayName={displayName}
-        meta={meta}
-        isRunning={isRunning}
-        state={state}
-        isError={isError}
-        inBatch={inBatch}
-        errorText={errorText}
-      />
-    );
-  }
+  const popup = useToolResultPopup();
+  const canOpen = toolCanShowDetails(input, output, errorText, isRunning);
+  const err = isError ?? state === "output-error";
 
   return (
-    <ToolDisclosure
-      className={`tool-card tool-card--debug${inBatch ? " tool-card--nested" : ""}`}
-      open={open}
-      onOpenChange={setOpen}
-      summaryClassName="tool-summary"
-      expandedClassName="tool-card--expanded"
-      collapsedClassName="tool-card--collapsed"
-      summary={
-        <ToolSummaryTitle
-          displayName={displayName}
-          meta={meta}
-          isRunning={isRunning}
-          state={state}
-          isError={isError}
-          showChevron
-        />
-      }
-    >
-      <ToolFailureDetails
+    <>
+      <div
+        className={`tool-card tool-card--summary-only${inBatch ? " tool-card--nested" : ""}${err ? " tool-card--err" : ""}`}
+      >
+        <button
+          type="button"
+          className={`tool-summary${canOpen ? "" : " tool-summary--static"}`}
+          disabled={!canOpen}
+          onClick={() => canOpen && popup.openPopup()}
+          aria-label={canOpen ? `查看 ${displayName} 详情` : undefined}
+        >
+          <ToolSummaryTitle
+            displayName={displayName}
+            meta={meta}
+            isRunning={isRunning}
+            state={state}
+            isError={err}
+            showChevron={canOpen}
+          />
+        </button>
+        {errorText && !canOpen ? (
+          <pre className="tool-error">{errorText}</pre>
+        ) : null}
+      </div>
+      <ToolResultPopup
+        open={popup.open}
+        onClose={popup.closePopup}
+        title={displayName}
+        subtitle={meta}
         toolName={toolName}
         input={input}
         output={output}
         errorText={errorText}
         followTail={isRunning}
       />
-    </ToolDisclosure>
-  );
-}
-
-function StaticToolRow({
-  displayName,
-  meta,
-  isRunning,
-  state,
-  isError,
-  inBatch,
-  errorText,
-}: {
-  displayName: string;
-  meta: string;
-  isRunning: boolean;
-  state: string;
-  isError?: boolean;
-  inBatch?: boolean;
-  errorText?: string;
-}) {
-  return (
-    <div
-      className={`tool-card tool-card--summary-only${inBatch ? " tool-card--nested" : ""}`}
-    >
-      <div className="tool-summary tool-summary--static">
-        <ToolSummaryTitle
-          displayName={displayName}
-          meta={meta}
-          isRunning={isRunning}
-          state={state}
-          isError={isError}
-          showChevron={false}
-        />
-      </div>
-      {errorText ? <pre className="tool-error">{errorText}</pre> : null}
-    </div>
+    </>
   );
 }
 
 function DocsToolOpenRow({
-  displayName,
-  meta,
+  toolName,
   isRunning,
   state,
   doc,
   inBatch,
   errorText,
 }: {
-  displayName: string;
-  meta: string;
+  toolName: string;
   isRunning: boolean;
   state: string;
   doc: NonNullable<ReturnType<typeof parseDocsGetDoc>>;
   inBatch?: boolean;
   errorText?: string;
 }) {
-  const { openDoc, activeTopicId } = useDocsViewer();
+  const { openDoc } = useDocsViewer();
   const { setPanelOpen } = useWorkspaceExplorerActions();
-  const isActive = activeTopicId === doc.topic;
+  const popup = useToolResultPopup();
+  const toolLabel = getToolMeta(toolName)?.label ?? "指南";
+  const canOpen = Boolean(doc.markdown?.trim()) && !isRunning;
 
-  const handleOpen = () => {
+  const handleOpenInExplorer = () => {
     openDoc(doc);
     setPanelOpen(true);
+    popup.closePopup();
   };
 
   return (
-    <div
-      className={`tool-card tool-card--docs tool-card--docs-open tool-card--preview${inBatch ? " tool-card--nested" : ""}${isActive ? " tool-card--docs-active" : ""}`}
-    >
-      <button
-        type="button"
-        className="tool-docs-open-btn"
-        onClick={handleOpen}
-        aria-label={`在右侧打开 ${doc.title}`}
+    <>
+      <div
+        className={`tool-card tool-card--docs tool-card--docs-open tool-card--preview${inBatch ? " tool-card--nested" : ""}`}
       >
-        <span className="tool-title">
-          <span className="tool-name">{displayName}</span>
-          <span
-            className={`tool-meta${isRunning ? " tool-meta--running" : ""}${state === "output-error" ? " tool-meta--err" : ""}`}
-          >
-            {meta}
-          </span>
-        </span>
-      </button>
-      {errorText ? <pre className="tool-error">{errorText}</pre> : null}
-    </div>
+        <button
+          type="button"
+          className={`tool-summary tool-docs-open-btn${canOpen ? "" : " tool-summary--static"}`}
+          disabled={!canOpen}
+          onClick={() => canOpen && popup.openPopup()}
+          aria-label={canOpen ? `查看 ${doc.title}` : undefined}
+        >
+          <ToolSummaryTitle
+            displayName={doc.title}
+            meta={doc.topic}
+            isRunning={isRunning}
+            state={state}
+            showChevron={canOpen}
+          />
+        </button>
+        {errorText ? <pre className="tool-error">{errorText}</pre> : null}
+      </div>
+      <DocsToolPopup
+        open={popup.open}
+        onClose={popup.closePopup}
+        doc={doc}
+        toolLabel={toolLabel}
+        onOpenInExplorer={handleOpenInExplorer}
+      />
+    </>
   );
 }
