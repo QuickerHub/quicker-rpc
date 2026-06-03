@@ -45,6 +45,10 @@ publish/**
 !publish/Publish-AgentGui.ps1
 !publish/Publish-QuickerAgent.ps1
 !publish/Build-AgentGuiLocal.ps1
+!publish/Upload-QuickerAgentToBitiful.ps1
+!publish/Sync-QuickerAgentActionDoc.ps1
+!publish/bitiful_upload.py
+!publish/.env.example
 !publish/changelogs/
 !publish/changelogs/**
 **/publish/*.zip
