@@ -1,10 +1,12 @@
 import { isToolOrDynamicToolUIPart } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 
+type AgentUIMessagePart = AgentUIMessage["parts"][number];
+
 export const INTERRUPTED_TOOL_ERROR_TEXT =
   "Stopped by user before the tool finished.";
 
-export function isIncompleteToolPart(part: unknown): boolean {
+export function isIncompleteToolPart(part: AgentUIMessagePart): boolean {
   if (!isToolOrDynamicToolUIPart(part)) return false;
   return (
     part.state === "input-streaming"
