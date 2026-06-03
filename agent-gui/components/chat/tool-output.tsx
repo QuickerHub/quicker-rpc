@@ -26,6 +26,7 @@ import {
   formatWorkspaceToolMetaLine,
   parseWorkspaceToolDisplay,
 } from "@/lib/action-project-display";
+import { ActionListView } from "./ActionListView";
 import { ActionProjectsView } from "./ActionProjectsView";
 import { FaSearchPlainText } from "./FaSearchPlainText";
 import { parseSearchActionSummaries } from "@/lib/agent-api";
