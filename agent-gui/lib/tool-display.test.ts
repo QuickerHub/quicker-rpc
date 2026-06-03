@@ -71,7 +71,6 @@ test("shouldShowToolDebugDetails for framework errors and qkrpc failures", () =>
 test("shouldUseStaticToolRow defaults to static chat rows", () => {
   assert.equal(
     shouldUseStaticToolRow({
-      needsApprovalUi: false,
       hasFileEditorPreview: false,
       hasReadFilePreview: false,
       isDocsOpenable: false,
@@ -81,8 +80,7 @@ test("shouldUseStaticToolRow defaults to static chat rows", () => {
   );
   assert.equal(
     shouldUseStaticToolRow({
-      needsApprovalUi: true,
-      hasFileEditorPreview: false,
+      hasFileEditorPreview: true,
       hasReadFilePreview: false,
       isDocsOpenable: false,
       isWorkspaceFileOpenRow: false,

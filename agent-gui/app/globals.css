@@ -407,43 +407,154 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
 }
 
 .app-settings-page-inner {
-  max-width: 960px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   width: 100%;
-  padding: 1rem 1.25rem 2rem;
+  padding: 0.65rem 0.85rem 1rem;
   box-sizing: border-box;
 }
 
+.app-settings-page-head {
+  margin-bottom: 0.65rem;
+}
+
+.app-settings-page-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.app-settings-top-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+@media (max-width: 640px) {
+  .app-settings-top-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.app-settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg) 12%);
+}
+
 .app-settings-section-block + .app-settings-section-block {
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
   border-top: 1px solid var(--border);
 }
 
+.app-settings-section-block--compact {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+}
+
 .app-settings-section-head {
-  margin-bottom: 0.85rem;
+  margin-bottom: 0.55rem;
+}
+
+.app-settings-section-head--compact {
+  margin-bottom: 0.15rem;
+}
+
+.app-settings-section-head--inline {
+  margin-bottom: 0.45rem;
 }
 
 .app-settings-section-title {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--text);
 }
 
 .app-settings-section-hint {
   display: block;
-  margin-top: 0.25rem;
-  font-size: 0.72rem;
+  margin-top: 0.2rem;
+  font-size: 0.68rem;
   color: var(--muted);
   line-height: 1.35;
+}
+
+.app-settings-page .app-settings-ping-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  flex-wrap: wrap;
 }
 
 .app-settings-page .app-settings-ping {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  margin-bottom: 0.65rem;
+  margin-bottom: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.app-settings-page .ws-settings-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.55rem;
+}
+
+.app-settings-page .ws-settings-group {
+  padding: 0.5rem 0.55rem;
+  gap: 0.38rem;
+}
+
+.app-settings-page .ws-settings-group-head {
+  margin-bottom: 0.05rem;
+}
+
+.app-settings-page .ws-settings-footnote {
+  margin-top: 0.4rem;
+  font-size: 0.6rem;
+}
+
+.app-settings-version-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 0.45rem 0.85rem;
+}
+
+.app-settings-version-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.app-settings-version-label {
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.app-settings-version-value {
+  font-size: 0.76rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-settings-version-value--mono {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
 }
 
 .app-settings-page .app-settings-ping-text {
@@ -2055,6 +2166,114 @@ html.sidebar-collapsed-init .app-shell {
 
 .error-banner-dismiss:hover {
   opacity: 1;
+}
+
+.app-message-host {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 10050;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: min(22rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.app-message {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--popup-bg);
+  box-shadow: var(--popup-shadow);
+  pointer-events: auto;
+  animation: app-message-in 0.18s ease-out;
+}
+
+@keyframes app-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.app-message-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-message:has(.app-message-actions) .app-message-main {
+  padding-right: 1.1rem;
+}
+
+.app-message-title {
+  margin: 0 0 0.2rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.app-message-body {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+.app-message--success .app-message-title {
+  color: var(--ok);
+}
+
+.app-message--warning .app-message-title {
+  color: color-mix(in srgb, var(--text) 70%, #c9a227);
+}
+
+.app-message--error .app-message-title {
+  color: var(--error-banner-text);
+}
+
+.app-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.app-message-action {
+  font-size: 0.74rem;
+  padding: 0.3rem 0.65rem;
+}
+
+.app-message-dismiss {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0 0.1rem;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.app-message-dismiss:hover {
+  opacity: 1;
+  color: var(--text);
+}
+
+.app-message-dismiss--with-actions {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
 }
 
 .composer {
@@ -4033,6 +4252,49 @@ body.workspace-explorer-resizing * {
   cursor: col-resize !important;
 }
 
+.workspace-explorer-pane-split {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace-explorer-pane-resizer {
+  flex: 0 0 5px;
+  position: relative;
+  z-index: 2;
+  margin: -2px 0;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.workspace-explorer-pane-resizer::after {
+  content: "";
+  position: absolute;
+  left: 0.35rem;
+  right: 0.35rem;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: color-mix(in srgb, var(--border) 55%, transparent);
+  pointer-events: none;
+}
+
+.workspace-explorer-pane-resizer:hover,
+.workspace-explorer-pane-resizer:active {
+  background: color-mix(in srgb, var(--accent-border) 35%, transparent);
+}
+
+body.workspace-explorer-pane-resizing {
+  cursor: row-resize !important;
+  user-select: none;
+}
+
+body.workspace-explorer-pane-resizing * {
+  cursor: row-resize !important;
+}
+
 .workspace-explorer-head {
   display: flex;
   align-items: center;
@@ -4086,9 +4348,8 @@ body.workspace-explorer-resizing * {
 
 .workspace-explorer-tree-pane {
   --explorer-tree-root-pad-left: 0.35rem;
-  flex: 0 1 auto;
-  max-height: 44%;
-  min-height: 0;
+  flex: 0 0 33.33%;
+  min-height: 4.5rem;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -4103,7 +4364,7 @@ body.workspace-explorer-resizing * {
 
 .workspace-explorer-tree-section--docs {
   flex: 0 0 auto;
-  max-height: 9.5rem;
+  max-height: min(9.5rem, 45%);
   border-bottom: none;
   background: color-mix(in srgb, var(--foreground) 1.5%, transparent);
 }
@@ -4172,8 +4433,8 @@ body.workspace-explorer-resizing * {
 }
 
 .workspace-explorer-editor-pane {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 0;
+  min-height: 4.5rem;
   overflow: auto;
   padding: 0.3rem;
 }
@@ -5033,6 +5294,17 @@ body.workspace-explorer-resizing * {
   color: color-mix(in srgb, #c9a227 78%, var(--text));
 }
 
+.explorer-tree-icon--busy .explorer-tree-svg--spinner {
+  color: var(--accent, #3b82f6);
+  animation: explorer-import-spin 0.85s linear infinite;
+}
+
+@keyframes explorer-import-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .explorer-tree-svg--file,
 .explorer-tree-svg--file-json {
   color: color-mix(in srgb, var(--accent, #3dd68c) 45%, var(--muted));
@@ -5577,6 +5849,35 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.approval-hint-workspace {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.35rem 0.5rem;
+  margin-top: 0.45rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.approval-hint-workspace input {
+  margin-top: 0.15rem;
+  accent-color: var(--composer-send-bg);
+}
+
+.approval-hint-workspace-text {
+  flex: 1 1 12rem;
+}
+
+.approval-hint-workspace-detail {
+  flex: 1 1 100%;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
 }
 
 .approval-hint-actions {

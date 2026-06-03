@@ -143,7 +143,9 @@ public sealed class QuickerRpcStepRunnerSearchItem
 
     public string Name { get; set; } = string.Empty;
 
-    public string Description { get; set; } = string.Empty;
+    public string? Description { get; set; }
+
+    public string? Snippet { get; set; }
 
     public string? ControlFieldKey { get; set; }
 

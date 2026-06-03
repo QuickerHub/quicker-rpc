@@ -17,47 +17,53 @@ public sealed class QuickerRpcService : IQuickerRpcService
 {
     public const int CurrentProtocolVersion = 1;
 
-    private readonly ActionUpdateService _actionUpdateService;
+    private readonly ActionPublishService _actionPublishService;
     private readonly ActionSearchService _actionSearchService;
     private readonly SubProgramSearchService _subProgramSearchService;
     private readonly ActionDeleteService _actionDeleteService;
     private readonly ActionMoveService _actionMoveService;
+    private readonly GlobalProfileCreateService _globalProfileCreateService;
+    private readonly VirtualProcessCreateService _virtualProcessCreateService;
     private readonly ActionCreateService _actionCreateService;
     private readonly ActionEditService _actionEditService;
     private readonly ActionRunService _actionRunService;
     private readonly ActionFloatService _actionFloatService;
-    private readonly DesignerVariableEditService _designerVariableEditService;
+    private readonly HeadlessVariableEditService _headlessVariableEditService;
     private readonly HeadlessActionProgramService _headlessActionProgramService;
     private readonly HeadlessSubProgramProgramService _headlessSubProgramProgramService;
     private readonly FontAwesomeIconSearchService _fontAwesomeIconSearchService;
     private readonly IPopupMessageService _popup;
 
     public QuickerRpcService(
-        ActionUpdateService actionUpdateService,
+        ActionPublishService actionPublishService,
         ActionSearchService actionSearchService,
         SubProgramSearchService subProgramSearchService,
         ActionDeleteService actionDeleteService,
         ActionMoveService actionMoveService,
+        GlobalProfileCreateService globalProfileCreateService,
+        VirtualProcessCreateService virtualProcessCreateService,
         ActionCreateService actionCreateService,
         ActionEditService actionEditService,
         ActionRunService actionRunService,
         ActionFloatService actionFloatService,
-        DesignerVariableEditService designerVariableEditService,
+        HeadlessVariableEditService headlessVariableEditService,
         HeadlessActionProgramService headlessActionProgramService,
         HeadlessSubProgramProgramService headlessSubProgramProgramService,
         FontAwesomeIconSearchService fontAwesomeIconSearchService,
         IPopupMessageService popup)
     {
-        _actionUpdateService = actionUpdateService;
+        _actionPublishService = actionPublishService;
         _actionSearchService = actionSearchService;
         _subProgramSearchService = subProgramSearchService;
         _actionDeleteService = actionDeleteService;
         _actionMoveService = actionMoveService;
+        _globalProfileCreateService = globalProfileCreateService;
+        _virtualProcessCreateService = virtualProcessCreateService;
         _actionCreateService = actionCreateService;
         _actionEditService = actionEditService;
         _actionRunService = actionRunService;
         _actionFloatService = actionFloatService;
-        _designerVariableEditService = designerVariableEditService;
+        _headlessVariableEditService = headlessVariableEditService;
         _headlessActionProgramService = headlessActionProgramService;
         _headlessSubProgramProgramService = headlessSubProgramProgramService;
         _fontAwesomeIconSearchService = fontAwesomeIconSearchService;
@@ -76,6 +82,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         return Task.FromResult(CurrentProtocolVersion);
     }
 
+    /// <summary>Legacy RPC/CLI update entry; delegates to <see cref="PublishSharedActionAsync"/>.</summary>
     public Task<QuickerRpcActionUpdateResult> UpdateSharedActionAsync(
         string actionId,
         string? changeLog = null,
@@ -90,23 +97,77 @@ public sealed class QuickerRpcService : IQuickerRpcService
             });
         }
 
+        return MapPublishToUpdateResultAsync(
+            PublishSharedActionAsync(
+                actionId,
+                new QuickerRpcActionPublishRequest { ChangeLog = changeLog },
+                cancellationToken),
+            actionId.Trim());
+    }
+
+    private static async Task<QuickerRpcActionUpdateResult> MapPublishToUpdateResultAsync(
+        Task<QuickerRpcActionPublishResult> publishTask,
+        string actionId)
+    {
+        var publish = await publishTask.ConfigureAwait(false);
+        return new QuickerRpcActionUpdateResult
+        {
+            Ok = publish.Ok,
+            ActionId = publish.SharedActionId ?? publish.ActionId ?? actionId,
+            Message = publish.Message,
+        };
+    }
+
+    public Task<QuickerRpcActionPublishResult> PublishSharedActionAsync(
+        string actionId,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            return Task.FromResult(new QuickerRpcActionPublishResult
+            {
+                Ok = false,
+                Message = "actionId is required.",
+            });
+        }
+
+        request ??= new QuickerRpcActionPublishRequest();
+
         return InvokeOnDispatcherAsync(
             async () =>
             {
-                var result = await _actionUpdateService
-                    .UpdateSharedActionAsync(actionId.Trim(), changeLog ?? string.Empty)
-                    .ConfigureAwait(true);
+                QuickerRpcActionPublishResult result;
+                try
+                {
+                    result = await _actionPublishService
+                        .PublishSharedActionAsync(actionId.Trim(), request, cancellationToken)
+                        .ConfigureAwait(true);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    result = new QuickerRpcActionPublishResult
+                    {
+                        Ok = false,
+                        ActionId = actionId.Trim(),
+                        Message = ex.Message,
+                    };
+                }
 
                 if (result.Ok)
                 {
-                    var text = string.IsNullOrWhiteSpace(result.Message)
-                        ? $"动作已更新：{result.ActionId}"
-                        : result.Message;
+                    var text = string.Equals(result.Mode, "update", StringComparison.OrdinalIgnoreCase)
+                        ? (string.IsNullOrWhiteSpace(result.Message)
+                            ? $"动作已更新：{result.SharedActionId ?? result.ActionId}"
+                            : result.Message)
+                        : (string.IsNullOrWhiteSpace(result.Message)
+                            ? $"动作已分享：{result.ShareUrl}"
+                            : result.Message);
                     _popup.Success(text);
                 }
                 else
                 {
-                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "更新动作失败" : result.Message);
+                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "分享动作失败" : result.Message);
                 }
 
                 return result;
@@ -301,6 +362,73 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
+    public Task<QuickerRpcCreateGlobalProfilesResult> CreateGlobalProfilesAsync(
+        int count = 1,
+        bool insertAfterFirstPage = false,
+        CancellationToken cancellationToken = default)
+    {
+        return InvokeOnDispatcherAsync(
+            () =>
+            {
+                var result = _globalProfileCreateService.CreateGlobalProfiles(count, insertAfterFirstPage);
+                if (result.Ok)
+                {
+                    _popup.Success(result.Message);
+                }
+                else
+                {
+                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "创建全局动作页失败" : result.Message);
+                }
+
+                return Task.FromResult(result);
+            },
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcCreateGlobalProfilesResult> ReorderGlobalProfilesAfterFirstAsync(
+        IReadOnlyList<string> profileIds,
+        CancellationToken cancellationToken = default)
+    {
+        return InvokeOnDispatcherAsync(
+            () =>
+            {
+                var result = _globalProfileCreateService.ReorderGlobalProfilesAfterFirst(profileIds);
+                if (result.Ok)
+                {
+                    _popup.Success(result.Message);
+                }
+                else
+                {
+                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "调整全局动作页顺序失败" : result.Message);
+                }
+
+                return Task.FromResult(result);
+            },
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcCreateVirtualProcessResult> EnsureCeaCoreRunVirtualProcessAsync(
+        bool moveMatchingActions = false,
+        CancellationToken cancellationToken = default)
+    {
+        return InvokeOnDispatcherAsync(
+            () =>
+            {
+                var result = _virtualProcessCreateService.EnsureCeaCoreRunVirtualProcess(moveMatchingActions);
+                if (result.Ok)
+                {
+                    _popup.Success(result.Message);
+                }
+                else
+                {
+                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "创建虚拟进程失败" : result.Message);
+                }
+
+                return Task.FromResult(result);
+            },
+            cancellationToken);
+    }
+
     public Task<QuickerRpcMoveActionResult> MoveActionAsync(
         string actionId,
         string targetProfile,
@@ -455,7 +583,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         return InvokeOnDispatcherAsync(
             async () =>
             {
-                var result = await _designerVariableEditService
+                var result = await _headlessVariableEditService
                     .EditVariableAsync(subProgramIdOrName.Trim(), variableKey.Trim(), defaultValue ?? string.Empty)
                     .ConfigureAwait(true);
 

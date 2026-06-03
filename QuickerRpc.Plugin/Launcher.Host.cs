@@ -19,15 +19,18 @@ public static partial class Launcher
 
                 services.AddSingleton<IPopupMessageService>(PopupMessage.Default);
                 services.AddSingleton<ActionUpdateService>();
+                services.AddSingleton<ActionPublishService>();
                 services.AddSingleton<ActionSearchService>();
                 services.AddSingleton<SubProgramSearchService>();
                 services.AddSingleton<ActionDeleteService>();
                 services.AddSingleton<ActionMoveService>();
+                services.AddSingleton<GlobalProfileCreateService>();
+                services.AddSingleton<VirtualProcessCreateService>();
                 services.AddSingleton<ActionCreateService>();
                 services.AddSingleton<ActionEditService>();
                 services.AddSingleton<ActionRunService>();
                 services.AddSingleton<ActionFloatService>();
-                services.AddSingleton<DesignerVariableEditService>();
+                services.AddSingleton<HeadlessVariableEditService>();
                 services.AddSingleton<HeadlessActionProgramService>();
                 services.AddSingleton<HeadlessSubProgramProgramService>();
                 services.AddSingleton<FontAwesomeIconSearchService>();

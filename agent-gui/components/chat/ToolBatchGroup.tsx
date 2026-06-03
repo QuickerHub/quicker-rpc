@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ChatAddToolApproveResponseFunction } from "ai";
 import {
   buildToolBatchSummary,
   shouldCollapseToolBatchWhenIdle,
@@ -18,15 +17,11 @@ import { ToolPart } from "./ToolPart";
 type ToolBatchGroupProps = {
   messageId: string;
   items: ToolUiPartAnalysis[];
-  addToolApprovalResponse?: ChatAddToolApproveResponseFunction;
-  approvalDisabled?: boolean;
 };
 
 export function ToolBatchGroup({
   messageId,
   items,
-  addToolApprovalResponse,
-  approvalDisabled,
 }: ToolBatchGroupProps) {
   const summary = useMemo(() => buildToolBatchSummary(items), [items]);
   const [userOpen, setUserOpen] = useState(() => summary.needsAttention);
@@ -97,8 +92,6 @@ export function ToolBatchGroup({
             partIndex={item.index}
             part={item.part}
             inBatch
-            addToolApprovalResponse={addToolApprovalResponse}
-            approvalDisabled={approvalDisabled}
           />
         ))}
       </div>

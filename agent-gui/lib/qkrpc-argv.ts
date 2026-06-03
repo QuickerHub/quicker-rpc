@@ -144,6 +144,22 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         },
       };
     }
+    if (verb === "publish") {
+      return {
+        op: "action.publish",
+        args: {
+          id: flagStr(flags, "id"),
+          title: flagStr(flags, "title"),
+          description: flagStr(flags, "description"),
+          note: flagStr(flags, "share-note") ?? flagStr(flags, "note"),
+          tags: flagStr(flags, "tags"),
+          keywords: flagStr(flags, "keywords"),
+          changelog: flagStr(flags, "changelog"),
+          private: flagBool(flags, "private") || undefined,
+          noSubmitReview: flagBool(flags, "no-submit-review") || undefined,
+        },
+      };
+    }
     if (verb === "float") {
       return {
         op: "action.float",
@@ -200,6 +216,49 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
           param: flagStr(flags, "param"),
           wait: flagBool(flags, "wait"),
           debug: flagBool(flags, "debug"),
+        },
+      };
+    }
+    if (verb === "move") {
+      return {
+        op: "action.move",
+        args: {
+          id: flagStr(flags, "id"),
+          profile: flagStr(flags, "profile"),
+          row: flagInt(flags, "row"),
+          col: flagInt(flags, "col"),
+          swap: flagBool(flags, "swap"),
+        },
+      };
+    }
+    return null;
+  }
+
+  if (positional[0] === "profile") {
+    const verb = positional[1];
+    if (verb === "create") {
+      return {
+        op: "profile.create",
+        args: {
+          scope: flagStr(flags, "scope"),
+          count: flagInt(flags, "count"),
+          afterFirst: flagBool(flags, "after-first"),
+        },
+      };
+    }
+    if (verb === "reorder") {
+      const idsRaw = flagStr(flags, "ids");
+      const profileIds = idsRaw
+        ? idsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+        : undefined;
+      const singleId = flagStr(flags, "id");
+      return {
+        op: "profile.reorder",
+        args: {
+          scope: flagStr(flags, "scope"),
+          afterFirst: flagBool(flags, "after-first"),
+          profileIds:
+            profileIds ?? (singleId ? [singleId] : undefined),
         },
       };
     }

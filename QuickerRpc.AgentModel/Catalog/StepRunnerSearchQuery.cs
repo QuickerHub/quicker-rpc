@@ -154,7 +154,7 @@ public sealed class StepRunnerSearchQuery
             : 0;
     }
 
-    private static string GetMatchSurface(StepRunnerDefinition row)
+    public static string GetMatchSurface(StepRunnerDefinition row)
     {
         var parts = new List<string>
         {
@@ -163,6 +163,12 @@ public sealed class StepRunnerSearchQuery
             row.Description ?? string.Empty,
             row.Category ?? string.Empty
         };
+
+        var keywordExtra = StepRunnerRetrievalBuilder.GetKeywordExtensions(row);
+        if (keywordExtra.Length > 0)
+        {
+            parts.Add(keywordExtra);
+        }
 
         var control = StepRunnerInputParamVisibility.TryFindControlField(row.InputParamDefs);
         if (control is not null)
@@ -194,7 +200,7 @@ public sealed class StepRunnerSearchQuery
         return raw.Length == 0 ? string.Empty : MatchNormalization.Replace(raw, string.Empty);
     }
 
-    private static bool LegacyRowMatchesSurface(string surface, string[] patterns)
+    public static bool LegacyRowMatchesSurface(string surface, string[] patterns)
     {
         if (patterns.Length == 0)
         {
@@ -268,7 +274,7 @@ public sealed class StepRunnerSearchQuery
         return BranchMatchesSurface(GetMatchSurface(row), branchTokens);
     }
 
-    private static bool BranchMatchesSurface(string surface, string[] branchTokens)
+    public static bool BranchMatchesSurface(string surface, string[] branchTokens)
     {
         if (branchTokens.Length == 0)
         {
@@ -291,7 +297,7 @@ public sealed class StepRunnerSearchQuery
         return true;
     }
 
-    private static bool TokenMatches(string surface, string token)
+    public static bool TokenMatches(string surface, string token)
     {
         if (token.Length == 0)
         {

@@ -1,15 +1,19 @@
 "use client";
 
 import { useDocsViewer } from "@/lib/docs-viewer";
+import { useDelayedTrue } from "@/lib/use-delayed-true";
 
 import { MarkdownMessage } from "./MarkdownMessage";
 
 export function DocsViewerPanel() {
   const { activeDoc } = useDocsViewer();
+  const showSkeleton = useDelayedTrue(
+    Boolean(activeDoc?.loading && !activeDoc?.markdown),
+  );
 
   if (!activeDoc) return null;
 
-  if (activeDoc.loading && !activeDoc.markdown) {
+  if (showSkeleton) {
     return (
       <div
         className="workspace-explorer-editor-skeleton"

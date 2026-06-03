@@ -95,6 +95,25 @@ export function ExplorerFolderIcon({ expanded }: { expanded: boolean }) {
   );
 }
 
+export function ExplorerImportSpinner() {
+  return (
+    <span className="explorer-tree-icon explorer-tree-icon--importing" aria-hidden>
+      <svg className="explorer-tree-svg explorer-tree-svg--spinner" viewBox="0 0 16 16" width={16} height={16}>
+        <circle
+          cx="8"
+          cy="8"
+          r="5.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeDasharray="20 12"
+        />
+      </svg>
+    </span>
+  );
+}
+
 export function ExplorerFileIcon({ name }: { name: string }) {
   const ext = name.includes(".") ? name.split(".").pop()?.toLowerCase() : "";
 

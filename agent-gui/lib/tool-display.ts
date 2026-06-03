@@ -7,13 +7,11 @@ import {
 
 /** Chat tool rows: no expandable JSON / inline previews; one static summary row. */
 export function shouldUseStaticToolRow(options: {
-  needsApprovalUi: boolean;
   hasFileEditorPreview: boolean;
   hasReadFilePreview: boolean;
   isDocsOpenable: boolean;
   isWorkspaceFileOpenRow: boolean;
 }): boolean {
-  if (options.needsApprovalUi) return false;
   if (options.hasFileEditorPreview) return false;
   if (options.hasReadFilePreview) return false;
   if (options.isDocsOpenable) return false;
@@ -39,11 +37,9 @@ export function hasFailedStructuredToolOutput(output: unknown): boolean {
 export function shouldShowToolDebugDetails(
   state: string,
   output: unknown,
-  needsApprovalUi = false,
 ): boolean {
   return shouldDefaultExpandToolDetails(
     state,
-    needsApprovalUi,
     hasFailedStructuredToolOutput(output),
   );
 }
@@ -51,10 +47,8 @@ export function shouldShowToolDebugDetails(
 /** Expand raw request/response details by default (errors only). */
 export function shouldDefaultExpandToolDetails(
   state: string,
-  needsApprovalUi: boolean,
   hasFailedToolOutput = false,
 ): boolean {
-  if (needsApprovalUi) return true;
   return state === "output-error" || hasFailedToolOutput;
 }
 

@@ -119,7 +119,8 @@ public sealed class XActionFileRefTests
 
             var result = XActionFileRefExporter.Export(latest, root, template);
             Assert.IsTrue(result.Success, result.ErrorMessage);
-            Assert.AreEqual(1, result.WrittenFiles.Count);
+            Assert.AreEqual(1, result.ResourceFiles.Count);
+            ActionProjectResourceFile.WriteAll(root, result.ResourceFiles);
 
             var written = File.ReadAllText(
                 Path.Combine(root, "scripts", "main.cs"),
@@ -164,8 +165,9 @@ public sealed class XActionFileRefTests
             };
 
             var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 10);
-            Assert.AreEqual(1, result.WrittenFiles.Count);
-            Assert.AreEqual("files/csscript1.cs", result.WrittenFiles[0]);
+            Assert.AreEqual(1, result.ResourceFiles.Count);
+            Assert.AreEqual("files/csscript1.cs", result.ResourceFiles[0].RelativePath);
+            ActionProjectResourceFile.WriteAll(root, result.ResourceFiles);
 
             var param = data["steps"]![0]!["inputParams"]!["code"] as JObject;
             Assert.AreEqual("files/csscript1.cs", param!.Value<string>("file"));

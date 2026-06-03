@@ -7,7 +7,7 @@ import {
 } from "@/lib/llm-providers";
 import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
 import {
-  USER_PROVIDER_UI,
+  USER_EDITABLE_PROVIDER_UI,
   type UserSettingsField,
 } from "@/lib/llm-user-providers";
 
@@ -41,7 +41,7 @@ type ProviderDraft = {
 
 function emptyProviderDrafts(): Partial<Record<LlmProviderId, ProviderDraft>> {
   return Object.fromEntries(
-    USER_PROVIDER_UI.map((spec) => [spec.id, { apiKey: "", baseURL: "", model: "" }]),
+    USER_EDITABLE_PROVIDER_UI.map((spec) => [spec.id, { apiKey: "", baseURL: "", model: "" }]),
   ) as Partial<Record<LlmProviderId, ProviderDraft>>;
 }
 
@@ -49,7 +49,7 @@ function draftsFromStatus(
   providers: Partial<Record<LlmProviderId, ProviderConfigStatus>>,
 ): Partial<Record<LlmProviderId, ProviderDraft>> {
   return Object.fromEntries(
-    USER_PROVIDER_UI.map((spec) => [
+    USER_EDITABLE_PROVIDER_UI.map((spec) => [
       spec.id,
       {
         apiKey: "",
@@ -189,10 +189,10 @@ export function LlmKeysSettingsSection({
 
   return (
     <section className="app-settings-section-block">
-      <header className="app-settings-section-head">
+      <header className="app-settings-section-head app-settings-section-head--inline">
         <h2 className="app-settings-section-title">模型与 API Key</h2>
         <p className="app-settings-section-hint">
-          OpenAI 为默认内置配置（不可编辑）；DeepSeek 仅支持填写 API Key
+          DeepSeek 仅需 API Key；自定义模型可改 Model / Base URL。默认 OpenAI 模型无需配置。
         </p>
       </header>
 
@@ -200,7 +200,7 @@ export function LlmKeysSettingsSection({
 
       {!loading && (
         <div className="ws-settings-fields">
-          {USER_PROVIDER_UI.map((spec) => {
+          {USER_EDITABLE_PROVIDER_UI.map((spec) => {
             const meta = getLlmProviderMeta(spec.id);
             const st = status?.providers[spec.id];
             const editableApiKey = spec.settingsFields.includes("apiKey");

@@ -13,6 +13,11 @@ import {
   isUserInstalledQkrpcPath,
   resolveQkrpcBin,
 } from "./lib/qkrpc-bin.mjs";
+import {
+  reconcileStaleQkrpcServe,
+  stopTrackedQkrpcServe,
+  trackQkrpcServeChild,
+} from "./lib/qkrpc-serve-lifecycle.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -134,12 +139,7 @@ async function waitForHealth(base, maxMs = 45_000) {
 }
 
 function stopQkrpcChild() {
-  if (!qkrpcChild || qkrpcChild.killed) return;
-  try {
-    qkrpcChild.kill();
-  } catch {
-    // ignore
-  }
+  stopTrackedQkrpcServe(root, qkrpcChild);
   qkrpcChild = null;
 }
 
@@ -156,6 +156,8 @@ async function ensureBundledQkrpcServe(host) {
   if (process.env.AGENT_GUI_SKIP_QKRPC === "1") {
     return null;
   }
+
+  reconcileStaleQkrpcServe(root);
 
   const configured = process.env.QKRPC_HTTP_URL?.trim()
     ?? process.env.QKRPC_HTTP?.trim();
@@ -224,6 +226,7 @@ async function ensureBundledQkrpcServe(host) {
       env: process.env,
     },
   );
+  trackQkrpcServeChild(root, qkrpcChild, { runtimeDir: qkrpcDir, port });
 
   qkrpcChild.stdout?.on("data", (chunk) => {
     const line = chunk.toString().trimEnd();

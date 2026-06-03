@@ -135,17 +135,29 @@ qkrpc serve [--host 127.0.0.1] [--port 9477] [--timeout 120] [--no-bootstrap]
 列出/筛选本地 XAction（Agent 摘要）。
 
 ```powershell
-qkrpc action list [--query <keyword>] [--scope <scope>] [--limit 30] [--sort relevance|lastEdit|title] [--json]
+qkrpc action list [--query <keyword|uses:SubName>] [--scope <scope>] [--limit 30] [--sort relevance|lastEdit|title] [--json]
 ```
 
 无 `--query` 时默认 `--sort lastEdit`（全库按最后编辑时间取前 N 条）。有 `--query` 时默认按相关度排序。
 
-### `qkrpc action search`
-
-按 Quicker 主搜索框评分搜索。
+**引用查找**（查找调用了某公共子程序的动作）：
 
 ```powershell
-qkrpc action search --query <keyword> [--scope <scope>] [--limit 20] [--json]
+qkrpc action list --query uses:CeaCore_Run --json
+qkrpc action search --query uses-only:CeaCore_Run --scope global --json
+```
+
+| 查询前缀 | 含义 |
+|----------|------|
+| `uses:<idOrName>` / `ref:<idOrName>` | 任一步调用该公共子程序（`sys:subprogram`） |
+| `uses-only:<idOrName>` | 所有步骤均为对该子程序的专用包装 |
+
+### `qkrpc action search`
+
+按 Quicker 主搜索框评分搜索；同样支持 `uses:` / `uses-only:` 引用查找。
+
+```powershell
+qkrpc action search --query <keyword|uses:SubName> [--scope <scope>] [--limit 20] [--json]
 ```
 
 ### `--scope` 取值
@@ -182,7 +194,7 @@ qkrpc action edit --id <guid> [--json]
 
 ### `qkrpc action edit-var`
 
-通过设计器 UI 修改变量默认值（支持公共子程序）。
+通过无头 patch 修改变量默认值（支持本地动作与公共子程序，不打开设计器）。
 
 ```powershell
 qkrpc action edit-var --id <id> --var <key> --value <val> [--json]

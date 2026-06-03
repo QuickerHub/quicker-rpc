@@ -1,9 +1,15 @@
 export const EXPLORER_OPEN_STORAGE_KEY = "agent-gui-explorer-open";
 export const EXPLORER_WIDTH_STORAGE_KEY = "agent-gui-explorer-width";
+export const EXPLORER_TREE_SHARE_STORAGE_KEY = "agent-gui-explorer-tree-share";
 
 export const EXPLORER_DEFAULT_WIDTH = 360;
 export const EXPLORER_MIN_WIDTH = 220;
 export const EXPLORER_MAX_WIDTH = 720;
+
+/** Tree : editor default height ratio = 1 : 2 → tree gets 1/3 of the split area. */
+export const EXPLORER_DEFAULT_TREE_SHARE = 1 / 3;
+export const EXPLORER_MIN_TREE_SHARE = 0.18;
+export const EXPLORER_MAX_TREE_SHARE = 0.72;
 
 export const CHAT_MAIN_MIN_WIDTH = 400;
 
@@ -63,6 +69,38 @@ export function storeExplorerOpen(open: boolean): void {
     } else {
       localStorage.setItem(EXPLORER_OPEN_STORAGE_KEY, "0");
     }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clampExplorerTreeShare(share: number): number {
+  if (!Number.isFinite(share)) return EXPLORER_DEFAULT_TREE_SHARE;
+  return Math.min(
+    EXPLORER_MAX_TREE_SHARE,
+    Math.max(EXPLORER_MIN_TREE_SHARE, share),
+  );
+}
+
+export function loadExplorerTreeShare(): number {
+  if (typeof window === "undefined") return EXPLORER_DEFAULT_TREE_SHARE;
+  try {
+    const raw = localStorage.getItem(EXPLORER_TREE_SHARE_STORAGE_KEY);
+    if (!raw) return EXPLORER_DEFAULT_TREE_SHARE;
+    const parsed = Number.parseFloat(raw);
+    return clampExplorerTreeShare(parsed);
+  } catch {
+    return EXPLORER_DEFAULT_TREE_SHARE;
+  }
+}
+
+export function storeExplorerTreeShare(share: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(
+      EXPLORER_TREE_SHARE_STORAGE_KEY,
+      String(clampExplorerTreeShare(share)),
+    );
   } catch {
     /* ignore */
   }

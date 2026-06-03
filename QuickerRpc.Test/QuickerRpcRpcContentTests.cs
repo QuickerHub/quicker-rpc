@@ -47,8 +47,8 @@ public sealed class QuickerRpcRpcContentTests
         Assert.IsTrue(result.Success, result.ErrorMessage ?? "GetStepRunnerDetail failed.");
         Assert.IsFalse(string.IsNullOrWhiteSpace(result.SchemaJson), "SchemaJson is empty.");
         Assert.IsTrue(
-            result.SchemaJson.IndexOf("\"Inputs\"", System.StringComparison.Ordinal) >= 0,
-            "SchemaJson should contain Inputs array.");
+            result.SchemaJson.IndexOf("\"inputs\"", System.StringComparison.Ordinal) >= 0,
+            "SchemaJson should contain inputs array.");
     }
 
     [TestMethod]
@@ -94,23 +94,25 @@ public sealed class QuickerRpcRpcContentTests
         CollectionAssert.DoesNotContain(moveExKeys, "x");
         CollectionAssert.Contains(moveKeys, "x");
         CollectionAssert.DoesNotContain(moveKeys, "area");
-        Assert.IsTrue(
-            moveEx.SchemaJson!.IndexOf("\"VisibilityFilteringAvailable\":true", System.StringComparison.Ordinal) >= 0,
-            "Expected visibility filtering metadata.");
+        Assert.IsFalse(
+            moveEx.SchemaJson!.IndexOf("\"visibilityFilteringAvailable\":true", System.StringComparison.OrdinalIgnoreCase) >= 0,
+            "True visibilityFilteringAvailable should be omitted.");
     }
 
     private static System.Collections.Generic.List<string> ExtractInputKeys(string schemaJson)
     {
         using var doc = System.Text.Json.JsonDocument.Parse(schemaJson);
         var list = new System.Collections.Generic.List<string>();
-        if (!doc.RootElement.TryGetProperty("Inputs", out var inputs))
+        if (!doc.RootElement.TryGetProperty("inputs", out var inputs)
+            && !doc.RootElement.TryGetProperty("Inputs", out inputs))
         {
             return list;
         }
 
         foreach (var item in inputs.EnumerateArray())
         {
-            if (item.TryGetProperty("Key", out var key))
+            if (item.TryGetProperty("key", out var key)
+                || item.TryGetProperty("Key", out key))
             {
                 list.Add(key.GetString() ?? string.Empty);
             }

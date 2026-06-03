@@ -7,6 +7,7 @@ import {
   statSync,
 } from "node:fs";
 import { dirname, join, normalize } from "node:path";
+import { reconcileStaleQkrpcServe } from "./qkrpc-serve-lifecycle.mjs";
 
 const QKRPC_EXE = process.platform === "win32" ? "qkrpc.exe" : "qkrpc";
 
@@ -70,6 +71,12 @@ function stagedRuntimeDir(agentGuiRoot) {
   return join(agentGuiRoot, ".runtime", "qkrpc");
 }
 
+function isStagedRuntimeExe(agentGuiRoot, exePath) {
+  const runtimeDir = normalize(stagedRuntimeDir(agentGuiRoot)).toLowerCase();
+  const normalized = normalize(exePath).toLowerCase();
+  return normalized.startsWith(`${runtimeDir}${process.platform === "win32" ? "\\" : "/"}`);
+}
+
 /**
  * Copy bundled qkrpc into agent-gui/.runtime/qkrpc so serve does not lock
  * publish/cli or the user install under %LOCALAPPDATA%\\Programs\\qkrpc.
@@ -81,6 +88,8 @@ export function ensureStagedQkrpcRuntime(agentGuiRoot) {
   const runtimeDir = stagedRuntimeDir(agentGuiRoot);
   const stagedExe = join(runtimeDir, QKRPC_EXE);
   const sourceExe = join(sourceDir, QKRPC_EXE);
+
+  reconcileStaleQkrpcServe(agentGuiRoot, { runtimeDir });
 
   let needsSync = !existsSync(stagedExe);
   if (!needsSync) {
@@ -106,18 +115,22 @@ export function ensureStagedQkrpcRuntime(agentGuiRoot) {
  * AGENT_GUI_USE_INSTALLED_QKRPC=1.
  */
 export function resolveQkrpcBin(agentGuiRoot) {
+  const staged = ensureStagedQkrpcRuntime(agentGuiRoot);
+
   const configured = process.env.QKRPC_BIN?.trim();
   if (configured && existsSync(configured)) {
     if (isUserInstalledQkrpcPath(configured) && !allowUserInstalledQkrpc()) {
       console.warn(
         `qkrpc: ignoring QKRPC_BIN (user install): ${configured}`,
       );
+    } else if (staged && isStagedRuntimeExe(agentGuiRoot, configured)) {
+      // start.mjs pins QKRPC_BIN to the staged copy; re-sync from publish/cli before use.
+      return staged.exe;
     } else {
       return configured;
     }
   }
 
-  const staged = ensureStagedQkrpcRuntime(agentGuiRoot);
   if (staged) return staged.exe;
 
   const sourceDir = resolveBundledQkrpcSourceDir(agentGuiRoot);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 import type { PingState } from "@/lib/use-qkrpc-ping";
 import type { PinnedAction } from "@/lib/action-context";
 import type { RecentActionItem } from "@/lib/recent-actions";
@@ -67,7 +68,7 @@ export function ActionTagSelector({
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<PickerView>("recent");
   const rootRef = useRef<HTMLDivElement>(null);
-  const panelId = useId();
+  const panelId = useMountedAriaControlsId();
   const { state: recent, reload: reloadRecent } = useRecentActions(refreshKey);
   const { state: agent, reload: reloadAgent } = useAgentActions(
     open && view === "agent",

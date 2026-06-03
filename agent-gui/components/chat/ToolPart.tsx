@@ -4,7 +4,6 @@ import { memo, useState } from "react";
 import {
   getToolOrDynamicToolName,
   isToolOrDynamicToolUIPart,
-  type ChatAddToolApproveResponseFunction,
   type UIMessage,
 } from "ai";
 import {
@@ -25,7 +24,6 @@ import {
   isQkrpcToolResult,
   summarizeToolOutput,
 } from "./tool-output";
-import { ToolApprovalActions } from "./ToolApprovalActions";
 import { parseDocsGetDoc } from "@/lib/docs-tool";
 import { useDocsViewer } from "@/lib/docs-viewer";
 import { ToolSummaryTitle } from "@/components/chat/ToolSummaryTitle";
@@ -43,16 +41,12 @@ type ToolPartProps = {
   partIndex: number;
   part: Part;
   inBatch?: boolean;
-  addToolApprovalResponse?: ChatAddToolApproveResponseFunction;
-  approvalDisabled?: boolean;
 };
 
 function ToolPartInner({
   partIndex,
   part,
   inBatch = false,
-  addToolApprovalResponse,
-  approvalDisabled,
 }: ToolPartProps) {
   if (!isToolOrDynamicToolUIPart(part)) return null;
 
@@ -86,12 +80,6 @@ function ToolPartInner({
   const docsDoc = isDocsGet && output ? parseDocsGetDoc(output) : null;
   const isDocsOpenable = Boolean(docsDoc);
 
-  const needsApprovalUi =
-    state === "approval-requested"
-    && "approval" in part
-    && part.approval?.id
-    && addToolApprovalResponse;
-
   const isWorkspaceFile = isWorkspaceExplorerFileTool(name);
   const workspaceFileOutput =
     output !== undefined && isQkrpcToolResult(output) ? output : undefined;
@@ -104,36 +92,7 @@ function ToolPartInner({
   const isWorkspaceFileOpenRow =
     isWorkspaceFile
     && !isWorkspaceFileEditorTool(name)
-    && Boolean(workspaceFileOutput)
-    && !needsApprovalUi;
-
-  if (needsApprovalUi) {
-    return (
-      <div
-        className={`tool-card tool-card--approval${inBatch ? " tool-card--nested" : ""}`}
-      >
-        <div className="tool-summary tool-summary--static">
-          <ToolSummaryTitle
-            displayName={displayName}
-            meta={meta}
-            isRunning={isRunning}
-            state={state}
-            showChevron={false}
-          />
-        </div>
-        <div className="tool-body tool-body--approval">
-          <ToolApprovalActions
-            toolName={name}
-            input={input}
-            approvalId={part.approval!.id}
-            addToolApprovalResponse={addToolApprovalResponse}
-            disabled={approvalDisabled}
-          />
-        </div>
-        {errorText ? <pre className="tool-error">{errorText}</pre> : null}
-      </div>
-    );
-  }
+    && Boolean(workspaceFileOutput);
 
   if (showDebugDetails) {
     return (
@@ -154,9 +113,8 @@ function ToolPartInner({
 
   if (
     shouldUseStaticToolRow({
-      needsApprovalUi: false,
-      hasFileEditorPreview: hasWorkspaceFileEditorPreview && !needsApprovalUi,
-      hasReadFilePreview: hasReadFilePreview && !needsApprovalUi,
+      hasFileEditorPreview: hasWorkspaceFileEditorPreview,
+      hasReadFilePreview: hasReadFilePreview,
       isDocsOpenable: isDocsOpenable && isQkrpcToolResult(output),
       isWorkspaceFileOpenRow,
     })

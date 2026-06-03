@@ -15,10 +15,18 @@ public interface IQuickerRpcService
     /// <summary>Bump when breaking RPC contract changes.</summary>
     Task<int> GetProtocolVersionAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Upload / refresh a shared action in Quicker (same as ActionEditMgr.UpdateSharedActionAsync).</summary>
+    /// <summary>
+    /// Refresh a shared action. Forwards to <see cref="PublishSharedActionAsync"/> (same implementation).
+    /// </summary>
     Task<QuickerRpcActionUpdateResult> UpdateSharedActionAsync(
         string actionId,
         string? changeLog = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Share or refresh a local/shared action on getquicker.net (first publish or update).</summary>
+    Task<QuickerRpcActionPublishResult> PublishSharedActionAsync(
+        string actionId,
+        QuickerRpcActionPublishRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>Search or list recent local actions for agent workflows.</summary>
@@ -101,6 +109,24 @@ public interface IQuickerRpcService
         int? targetRow = null,
         int? targetCol = null,
         bool allowSwap = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Create blank global action profile pages (AddProfile on _global).</summary>
+    Task<QuickerRpcCreateGlobalProfilesResult> CreateGlobalProfilesAsync(
+        int count = 1,
+        bool insertAfterFirstPage = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Move existing global profile tabs to sit right after the first global page.</summary>
+    Task<QuickerRpcCreateGlobalProfilesResult> ReorderGlobalProfilesAfterFirstAsync(
+        IReadOnlyList<string> profileIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ensure the CeaCore Run virtual process exists and optionally move actions that call CeaCore_Run.
+    /// </summary>
+    Task<QuickerRpcCreateVirtualProcessResult> EnsureCeaCoreRunVirtualProcessAsync(
+        bool moveMatchingActions = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -291,6 +317,48 @@ public sealed class QuickerRpcActionUpdateResult
     public string? ActionId { get; set; }
 }
 
+public sealed class QuickerRpcActionPublishRequest
+{
+    public string? Title { get; set; }
+
+    public string? Description { get; set; }
+
+    /// <summary>Share page intro (markdown).</summary>
+    public string? Note { get; set; }
+
+    public string? Tags { get; set; }
+
+    public string? Keywords { get; set; }
+
+    public string? ChangeLog { get; set; }
+
+    public bool IsPublic { get; set; } = true;
+
+    public bool SubmitReview { get; set; } = true;
+}
+
+public sealed class QuickerRpcActionPublishResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>Local action id.</summary>
+    public string? ActionId { get; set; }
+
+    /// <summary>Shared action library id on getquicker.net.</summary>
+    public string? SharedActionId { get; set; }
+
+    public string? ShareUrl { get; set; }
+
+    public int Revision { get; set; }
+
+    public bool IsPublic { get; set; }
+
+    /// <summary>publish = first share; update = refresh existing share.</summary>
+    public string? Mode { get; set; }
+}
+
 public sealed class QuickerRpcMoveActionResult
 {
     public bool Ok { get; set; }
@@ -371,4 +439,64 @@ public sealed class QuickerRpcFloatActionResult
     public string? ActionId { get; set; }
 
     public string? ActionTitle { get; set; }
+}
+
+public sealed class QuickerRpcCreateGlobalProfilesResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? InsertAfterProfileId { get; set; }
+
+    public string? InsertAfterProfileName { get; set; }
+
+    public IList<QuickerRpcCreatedProfileItem> Items { get; set; } = new List<QuickerRpcCreatedProfileItem>();
+}
+
+public sealed class QuickerRpcCreatedProfileItem
+{
+    public string ProfileId { get; set; } = string.Empty;
+
+    public string ProfileName { get; set; } = string.Empty;
+
+    public int ListOrder { get; set; }
+}
+
+public sealed class QuickerRpcCreateVirtualProcessResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string ExeFile { get; set; } = string.Empty;
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    public string? Scope { get; set; }
+
+    public string? ProfileId { get; set; }
+
+    public string? ProfileName { get; set; }
+
+    public bool CreatedProcess { get; set; }
+
+    public bool CreatedProfile { get; set; }
+
+    public bool InExeSettingsDict { get; set; }
+
+    public IList<QuickerRpcMovedActionItem> MovedActions { get; set; } = new List<QuickerRpcMovedActionItem>();
+}
+
+public sealed class QuickerRpcMovedActionItem
+{
+    public string ActionId { get; set; } = string.Empty;
+
+    public string ActionTitle { get; set; } = string.Empty;
+
+    public string SourceProfileName { get; set; } = string.Empty;
+
+    public int TargetRow { get; set; }
+
+    public int TargetCol { get; set; }
 }

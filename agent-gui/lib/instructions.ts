@@ -51,7 +51,11 @@ Rules:
 
 
 
-- qkrpc_action_create / patch / set_metadata / run / float / edit / edit_var / update, and subprogram create / patch / replace / edit / edit_var / export / import: run immediately (no approval UI).
+- qkrpc_action_create / patch / set_metadata / run / float / edit / edit_var / publish / update / move, qkrpc_profile_create / reorder, and subprogram create / patch / replace / edit / edit_var / export / import: run immediately (no approval UI).
+
+- Share to getquicker.net: prefer qkrpc_action_publish({ id, ... }). Auto-detects first publish vs refresh. Updating an already-shared action requires changelog. First publish needs title + description (or on action metadata), Quicker logged in, and a non-system icon for public shares. qkrpc_action_update is a legacy alias (changelog only; same backend).
+
+- Global action pages: qkrpc_profile_create({ afterFirst: true }) for blank tabs after _global; qkrpc_profile_reorder({ profileIds }) to fix tab order. Move actions between pages with qkrpc_action_move (profile id/name; row+col together or omit for first empty slot). Use qkrpc_action_list scope global to find profileId/profileName.
 
 
 

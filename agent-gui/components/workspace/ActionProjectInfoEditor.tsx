@@ -213,14 +213,10 @@ function InfoBody({
   const projectDirectory = projectDir
     ? actionProjectDirFromName(projectDir)
     : undefined;
-  const [linkedActionId, setLinkedActionId] = useState<string | undefined>(() =>
-    resolveActionIdFromProject(projectDir, data),
+  const linkedActionId = useMemo(
+    () => resolveActionIdFromProject(projectDir, data),
+    [projectDir, data.id],
   );
-
-  useEffect(() => {
-    const resolved = resolveActionIdFromProject(projectDir, data);
-    if (resolved) setLinkedActionId(resolved);
-  }, [path, projectDir, data.id]);
 
   const showProjectDir =
     !!projectDir
@@ -398,6 +394,7 @@ function InfoBody({
         {data.kind === "action" && linkedActionId ? (
           <>
             <ActionProjectSyncBar
+              key={linkedActionId}
               cwd={cwd}
               actionId={linkedActionId}
               projectDirectory={projectDirectory}
@@ -438,6 +435,7 @@ export function ActionProjectInfoEditor({
   return (
     <div className="project-info-editor-wrap">
       <InfoBody
+        key={path}
         data={parsed.data}
         path={path}
         content={content}

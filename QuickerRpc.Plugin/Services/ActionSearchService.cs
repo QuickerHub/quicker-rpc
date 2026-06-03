@@ -41,6 +41,25 @@ public sealed class ActionSearchService
             return SearchRecentActions(scopeValue, maxCount);
         }
 
+        if (ActionSearchQuery.TryParseSubProgramReference(keyword, out var subProgramSearch))
+        {
+            if (!ActionSubProgramCallScanner.TryResolveSubProgram(
+                    subProgramSearch.SubProgramRef,
+                    out _,
+                    out _,
+                    out var resolveError))
+            {
+                return new QuickerRpcActionSearchResult
+                {
+                    Ok = false,
+                    Scope = scopeValue,
+                    Message = resolveError ?? $"Subprogram not found: {subProgramSearch.SubProgramRef}",
+                };
+            }
+
+            return SearchSubProgramReference(subProgramSearch, keyword, scopeValue, maxCount);
+        }
+
         if (!string.IsNullOrWhiteSpace(scopeValue) && ProfileManagerAccessor.TryCreate() is null)
         {
             return new QuickerRpcActionSearchResult
@@ -87,7 +106,48 @@ public sealed class ActionSearchService
         }
     }
 
-    private static IReadOnlyList<QuickerRpcActionSummary> SearchScopedCatalog(string keyword, string scope, int limit)
+    private QuickerRpcActionSearchResult SearchSubProgramReference(
+        SubProgramReferenceSearch search,
+        string query,
+        string? scope,
+        int maxCount)
+    {
+        if (!string.IsNullOrWhiteSpace(scope) && ProfileManagerAccessor.TryCreate() is null)
+        {
+            return new QuickerRpcActionSearchResult
+            {
+                Ok = false,
+                Message = "ProfileManager unavailable (scope filter requires Quicker runtime).",
+            };
+        }
+
+        try
+        {
+            var limit = NormalizeMaxCount(maxCount);
+            var items = SearchScopedCatalog(query, scope ?? string.Empty, limit);
+            return new QuickerRpcActionSearchResult
+            {
+                Ok = true,
+                Scope = scope,
+                Message = items.Count == 0
+                    ? search.DedicatedOnly
+                        ? $"No actions dedicated to subprogram '{search.SubProgramRef}'."
+                        : $"No actions call subprogram '{search.SubProgramRef}'."
+                    : string.Empty,
+                Items = items.ToList(),
+            };
+        }
+        catch (Exception ex)
+        {
+            return new QuickerRpcActionSearchResult
+            {
+                Ok = false,
+                Message = ex.Message,
+            };
+        }
+    }
+
+    private static IReadOnlyList<QuickerRpcActionSummary> SearchScopedCatalog(string keyword, string? scope, int limit)
     {
         return ActionCatalogSearch.Match(keyword, scope, limit)
             .Select(x => new QuickerRpcActionSummary

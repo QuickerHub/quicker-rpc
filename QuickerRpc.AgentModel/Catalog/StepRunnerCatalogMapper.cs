@@ -20,11 +20,12 @@ public static class StepRunnerCatalogMapper
         }
 
         var ordered = query
-            .Select(r => (r, score: StepRunnerSearchQuery.ComputeSortScore(r, searchQuery)))
-            .OrderByDescending(x => x.score)
+            .Select(r => (r, rank: StepRunnerKeywordSearch.ComputeRank(r, searchQuery)))
+            .OrderByDescending(x => x.rank.TotalScore)
+            .ThenByDescending(x => x.rank.ControlScore)
             .ThenBy(x => x.r.Name, StringComparer.OrdinalIgnoreCase)
             .Take(limit)
-            .Select(x => ToSearchItem(x.r, searchQuery))
+            .Select(x => ToSearchItem(x.r, x.rank))
             .ToList();
 
         return new SearchStepRunnersResult
@@ -71,56 +72,25 @@ public static class StepRunnerCatalogMapper
         }
     }
 
-    private static StepRunnerSearchItem ToSearchItem(StepRunnerDefinition row, StepRunnerSearchQuery searchQuery)
+    private static StepRunnerSearchItem ToSearchItem(StepRunnerDefinition row, StepRunnerSearchRankResult rank)
     {
+        var retrieval = StepRunnerRetrievalBuilder.Build(row);
         var item = new StepRunnerSearchItem
         {
             Key = row.Key ?? string.Empty,
             Name = row.Name ?? string.Empty,
-            Description = row.Description ?? string.Empty
+            Description = TrimToNull(row.Description),
+            Snippet = retrieval.Snippet,
         };
 
-        var matched = TryGetMatchedControlSelection(row, searchQuery);
-        if (matched is not null)
+        if (rank.Control is not null)
         {
-            item.ControlFieldKey = matched.Value.Key;
-            item.ControlFieldValue = matched.Value.Value;
-            item.ControlFieldName = matched.Value.Name;
+            item.ControlFieldKey = rank.Control.Key;
+            item.ControlFieldValue = rank.Control.Value;
+            item.ControlFieldName = rank.Control.Name;
         }
 
         return item;
-    }
-
-    private static (string Key, string Value, string Name)? TryGetMatchedControlSelection(
-        StepRunnerDefinition row,
-        StepRunnerSearchQuery searchQuery)
-    {
-        var control = StepRunnerInputParamVisibility.TryFindControlField(row.InputParamDefs);
-        if (control is null || searchQuery.IsEmpty)
-        {
-            return null;
-        }
-
-        (string Key, string Value, string Name)? best = null;
-        var bestScore = 0;
-        foreach (var si in control.SelectionItems)
-        {
-            var value = (si.Value ?? string.Empty).Trim();
-            var name = (si.Name ?? string.Empty).Trim();
-            if (value.Length == 0 && name.Length == 0)
-            {
-                continue;
-            }
-
-            var score = StepRunnerSearchQuery.ScoreControlSelectionMatch(name, value, searchQuery);
-            if (score > bestScore)
-            {
-                bestScore = score;
-                best = (control.Key ?? string.Empty, value, name);
-            }
-        }
-
-        return bestScore > 0 ? best : null;
     }
 
     private static StepRunnerAgentSchema MapAgentSchema(
@@ -148,7 +118,7 @@ public static class StepRunnerCatalogMapper
         {
             StepRunnerKey = runner.Key ?? string.Empty,
             Name = runner.Name ?? string.Empty,
-            Description = runner.Description ?? string.Empty,
+            Description = TrimToNull(runner.Description),
             ControlField = MapControlFieldOrNull(runner.InputParamDefs),
             VisibilityFilteringAvailable = filteringAvailable
         };
@@ -161,17 +131,15 @@ public static class StepRunnerCatalogMapper
         else if (hasControl)
         {
             dto.AgentGuidance =
-                "This step has a control field. Pass --control-field <value> to step-runner get "
-                + "(values: "
+                "Pass --control-field <value> (values: "
                 + StepRunnerInputParamVisibility.FormatValidControlValues(control!)
-                + ") so Inputs only lists parameters visible for that mode.";
+                + ") to filter inputs.";
         }
 
         if (hasControl && appliedValue.Length > 0 && !filteringAvailable)
         {
             dto.AgentGuidance =
-                "Visibility rules are not available for this StepRunner in the current Quicker session; "
-                + "returning all Inputs. Prefer the control-field value from search or ControlField.Selection.";
+                "Input visibility rules unavailable; returning all inputs. Prefer control-field from search.";
         }
 
         var controlKey = control?.Key;
@@ -217,8 +185,8 @@ public static class StepRunnerCatalogMapper
         var dto = new ControlFieldSchema
         {
             Key = control.Key ?? string.Empty,
-            Title = control.Name ?? string.Empty,
-            Purpose = control.Description ?? string.Empty
+            Title = TrimToNull(control.Name),
+            Purpose = TrimToNull(control.Description),
         };
         foreach (var si in control.SelectionItems)
         {
@@ -226,7 +194,7 @@ public static class StepRunnerCatalogMapper
                 new ControlFieldSelection
                 {
                     Key = si.Value ?? string.Empty,
-                    Name = si.Name ?? string.Empty
+                    Name = si.Name ?? string.Empty,
                 });
         }
 
@@ -238,8 +206,8 @@ public static class StepRunnerCatalogMapper
         var dto = new AgentInputParamSchema
         {
             Key = p.Key ?? string.Empty,
-            Title = p.Name ?? string.Empty,
-            Purpose = p.Description ?? string.Empty,
+            Title = TrimToNull(p.Name),
+            Purpose = TrimToNull(p.Description),
             IsControlField = p.IsControlField,
             ValueType = VarTypeNames.Format(p.VarType),
             Required = p.IsRequired
@@ -270,8 +238,8 @@ public static class StepRunnerCatalogMapper
         var dto = new AgentOutputParamSchema
         {
             Key = p.Key ?? string.Empty,
-            Title = p.Name ?? string.Empty,
-            Purpose = p.Description ?? string.Empty,
+            Title = TrimToNull(p.Name),
+            Purpose = TrimToNull(p.Description),
             ValueType = VarTypeNames.Format(p.VarType)
         };
 
@@ -297,10 +265,10 @@ public static class StepRunnerCatalogMapper
             var o = new AgentParamOption
             {
                 Key = si.Value ?? string.Empty,
-                Name = si.Name ?? string.Empty
+                Name = TrimToNull(si.Name),
             };
-            var hint = (si.Description ?? string.Empty).Trim();
-            if (hint.Length > 0)
+            var hint = TrimToNull(si.Description);
+            if (hint is not null)
             {
                 o.Hint = hint;
             }
@@ -309,5 +277,15 @@ public static class StepRunnerCatalogMapper
         }
 
         return list.Count > 0 ? list : null;
+    }
+
+    private static string? TrimToNull(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim();
     }
 }

@@ -71,12 +71,16 @@ internal static class ServeInvokeDispatcher
             "action.replace" => await ActionReplaceAsync(rpc, args, token).ConfigureAwait(false),
             "action.set-metadata" => await ActionSetMetadataAsync(rpc, args, token).ConfigureAwait(false),
             "action.update" => await ActionUpdateAsync(rpc, args, token).ConfigureAwait(false),
+            "action.publish" => await ActionPublishAsync(rpc, args, token).ConfigureAwait(false),
             "action.move" => await ActionMoveAsync(rpc, args, token).ConfigureAwait(false),
             "action.delete" => await ActionDeleteAsync(rpc, args, token).ConfigureAwait(false),
             "action.run" => await ActionRunAsync(rpc, args, token).ConfigureAwait(false),
             "action.float" => await ActionFloatAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit" => await ActionEditAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit-var" => await ActionEditVarAsync(rpc, args, token).ConfigureAwait(false),
+            "profile.create" => await ProfileCreateAsync(rpc, args, token).ConfigureAwait(false),
+            "profile.reorder" => await ProfileReorderAsync(rpc, args, token).ConfigureAwait(false),
+            "process.ensure-ceacore" => await ProcessEnsureCeaCoreAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.search" => await SubprogramSearchAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.list" => await SubprogramListAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.create" => await SubprogramCreateAsync(rpc, args, token).ConfigureAwait(false),
@@ -478,6 +482,44 @@ internal static class ServeInvokeDispatcher
         });
     }
 
+    private static async Task<ServeInvokeResponse> ActionPublishAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var request = new QuickerRpcActionPublishRequest
+        {
+            Title = ServeJsonArgs.GetString(args, "title"),
+            Description = ServeJsonArgs.GetString(args, "description"),
+            Note = ServeJsonArgs.GetString(args, "note", "shareNote"),
+            Tags = ServeJsonArgs.GetString(args, "tags"),
+            Keywords = ServeJsonArgs.GetString(args, "keywords"),
+            ChangeLog = ServeJsonArgs.GetString(args, "changelog"),
+            IsPublic = !ServeJsonArgs.GetBool(args, "private"),
+            SubmitReview = !ServeJsonArgs.GetBool(args, "noSubmitReview"),
+        };
+
+        var response = await rpc.PublishSharedActionAsync(id.Trim(), request, token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "publish",
+            mode = response.Mode ?? "publish",
+            actionId = response.ActionId ?? id.Trim(),
+            sharedId = response.SharedActionId,
+            shareUrl = response.ShareUrl,
+            revision = response.Revision,
+            isPublic = response.IsPublic,
+            message = response.Message,
+        });
+    }
+
     private static async Task<ServeInvokeResponse> ActionFloatAsync(
         IQuickerRpcService rpc,
         JsonElement args,
@@ -587,6 +629,117 @@ internal static class ServeInvokeDispatcher
             .ListGlobalSubProgramsAsync(ServeJsonArgs.GetString(args, "query"), limit, token)
             .ConfigureAwait(false);
         return Ok(new { ok = response.Ok, action = "subprogram-list", items = response.Items, message = response.Message });
+    }
+
+    private static async Task<ServeInvokeResponse> ProfileCreateAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var scope = ServeJsonArgs.GetString(args, "scope") ?? string.Empty;
+        if (!string.Equals(scope, "global", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(scope, "全局", StringComparison.OrdinalIgnoreCase))
+        {
+            return Fail("UNSUPPORTED_SCOPE", "args.scope must be global.");
+        }
+
+        var count = ServeJsonArgs.GetInt(args, "count") ?? 1;
+        if (count <= 0 || count > 20)
+        {
+            return Fail("INVALID_COUNT", "args.count must be between 1 and 20.");
+        }
+
+        var afterFirst = ServeJsonArgs.GetBool(args, "afterFirst")
+            || ServeJsonArgs.GetBool(args, "after-first");
+        var response = await rpc.CreateGlobalProfilesAsync(count, afterFirst, token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "profile-create",
+            scope = "global",
+            count,
+            afterFirst,
+            insertAfterProfileId = response.InsertAfterProfileId,
+            insertAfterProfileName = response.InsertAfterProfileName,
+            items = response.Items,
+            message = response.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ProfileReorderAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var scope = ServeJsonArgs.GetString(args, "scope") ?? string.Empty;
+        if (!string.Equals(scope, "global", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(scope, "全局", StringComparison.OrdinalIgnoreCase))
+        {
+            return Fail("UNSUPPORTED_SCOPE", "args.scope must be global.");
+        }
+
+        if (!ServeJsonArgs.GetBool(args, "afterFirst") && !ServeJsonArgs.GetBool(args, "after-first"))
+        {
+            return Fail("MISSING_AFTER_FIRST", "args.afterFirst must be true.");
+        }
+
+        var ids = ServeJsonArgs.GetStringList(args, "profileIds");
+        if (ids.Count == 0)
+        {
+            ids = ServeJsonArgs.GetStringList(args, "ids");
+        }
+
+        var single = ServeJsonArgs.GetString(args, "profileId", "id");
+        if (ids.Count == 0 && !string.IsNullOrWhiteSpace(single))
+        {
+            ids = new[] { single.Trim() };
+        }
+
+        if (ids.Count == 0)
+        {
+            return Fail("MISSING_PROFILE_IDS", "args.profileIds is required.");
+        }
+
+        var response = await rpc.ReorderGlobalProfilesAfterFirstAsync(ids.ToList(), token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "profile-reorder",
+            scope = "global",
+            afterFirst = true,
+            profileIds = ids,
+            insertAfterProfileId = response.InsertAfterProfileId,
+            insertAfterProfileName = response.InsertAfterProfileName,
+            items = response.Items,
+            message = response.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ProcessEnsureCeaCoreAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var moveMatchingActions = ServeJsonArgs.GetBool(args, "moveMatchingActions")
+            || ServeJsonArgs.GetBool(args, "move-matching-actions")
+            || ServeJsonArgs.GetBool(args, "moveActions")
+            || ServeJsonArgs.GetBool(args, "move-actions");
+
+        var response = await rpc.EnsureCeaCoreRunVirtualProcessAsync(moveMatchingActions, token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "process-ensure-ceacore",
+            exeFile = response.ExeFile,
+            displayName = response.DisplayName,
+            scope = response.Scope,
+            profileId = response.ProfileId,
+            profileName = response.ProfileName,
+            createdProcess = response.CreatedProcess,
+            createdProfile = response.CreatedProfile,
+            movedActions = response.MovedActions,
+            message = response.Message,
+        });
     }
 
     private static async Task<ServeInvokeResponse> SubprogramCreateAsync(

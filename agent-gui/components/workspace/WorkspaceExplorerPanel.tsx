@@ -2,25 +2,25 @@
 
 
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  clampExplorerTreeShare,
   clampExplorerWidth,
+  EXPLORER_DEFAULT_TREE_SHARE,
+  EXPLORER_MAX_TREE_SHARE,
+  EXPLORER_MIN_TREE_SHARE,
+  loadExplorerTreeShare,
   maxExplorerWidthForLayout,
+  storeExplorerTreeShare,
   storeExplorerWidth,
 } from "@/lib/explorer-prefs";
-
-import { DocsViewerPanel } from "@/components/chat/DocsViewerTabs";
 
 import { ActionProjectTree } from "@/components/workspace/ActionProjectTree";
 
 import { DocsCatalogTree } from "@/components/workspace/DocsCatalogTree";
 
-import { FileEditorCard } from "@/components/chat/FileEditorCard";
-
-import { ActionProjectInfoEditor } from "@/components/workspace/ActionProjectInfoEditor";
-
-import { isActionProjectInfoPath } from "@/lib/action-project-info-parse";
+import { WorkspaceExplorerEditorPane } from "@/components/workspace/WorkspaceExplorerEditorPane";
 
 import { useDocsViewer } from "@/lib/docs-viewer";
 
@@ -36,6 +36,8 @@ import {
   type ExplorerTreeNode,
 
 } from "@/lib/action-explorer-tree";
+
+import { useDelayedTrue } from "@/lib/use-delayed-true";
 
 
 
@@ -61,6 +63,8 @@ export function WorkspaceExplorerPanel() {
 
     toggleExpanded,
 
+    expandPath,
+
     selectedPath,
 
     setSelectedPath,
@@ -84,6 +88,13 @@ export function WorkspaceExplorerPanel() {
 
 
   const { panelWidth, setPanelWidth } = useWorkspaceExplorerShell();
+  const paneSplitRef = useRef<HTMLDivElement>(null);
+  // SSR/hydration: keep default until mount; localStorage differs from server default.
+  const [treeShare, setTreeShare] = useState(EXPLORER_DEFAULT_TREE_SHARE);
+
+  useEffect(() => {
+    setTreeShare(loadExplorerTreeShare());
+  }, []);
 
   const handleResizePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -125,6 +136,44 @@ export function WorkspaceExplorerPanel() {
     [panelWidth, setPanelWidth],
   );
 
+  const handlePaneResizePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      const splitEl = paneSplitRef.current;
+      if (!splitEl) return;
+      const startRect = splitEl.getBoundingClientRect();
+      let latestShare = treeShare;
+      document.body.classList.add("workspace-explorer-pane-resizing");
+
+      const onMove = (ev: PointerEvent) => {
+        const rect = splitEl.getBoundingClientRect();
+        const height = rect.height;
+        if (height <= 0) return;
+        const offsetY = ev.clientY - rect.top;
+        latestShare = clampExplorerTreeShare(offsetY / height);
+        setTreeShare(latestShare);
+      };
+
+      const onUp = () => {
+        document.body.classList.remove("workspace-explorer-pane-resizing");
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+        storeExplorerTreeShare(latestShare);
+      };
+
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+
+      if (startRect.height > 0) {
+        const offsetY = e.clientY - startRect.top;
+        latestShare = clampExplorerTreeShare(offsetY / startRect.height);
+        setTreeShare(latestShare);
+      }
+    },
+    [treeShare],
+  );
+
   const handleProjectRemoved = useCallback(() => {
 
     closeTab("__preview__");
@@ -141,6 +190,10 @@ export function WorkspaceExplorerPanel() {
     if (path) void loadFileContent(path);
   }, [activeTab?.path, loadFileContent, refreshTree]);
 
+  const handleRefreshTree = useCallback(() => {
+    void refreshTree();
+  }, [refreshTree]);
+
 
 
   const handleSelectNode = useCallback(
@@ -152,34 +205,32 @@ export function WorkspaceExplorerPanel() {
       const infoPath = actionProjectInfoJsonPath(node, tree?.rootPath);
 
       if (infoPath) {
-
+        setSelectedPath(node.path);
+        expandPath(node.path);
         openFile(infoPath);
-
         return;
-
       }
-
-
 
       setSelectedPath(node.path);
 
       if (node.kind === "directory") {
-
-        toggleExpanded(node.path);
-
+        expandPath(node.path);
         return;
-
       }
 
       openFile(node.path);
 
     },
 
-    [clearActiveTopic, openFile, setSelectedPath, toggleExpanded, tree?.rootPath],
+    [clearActiveTopic, expandPath, openFile, setSelectedPath, tree?.rootPath],
 
   );
 
 
+
+  const showEditorSkeleton = useDelayedTrue(
+    Boolean(activeTab?.loading && !activeTab?.content),
+  );
 
   if (!panelOpen) return null;
 
@@ -258,7 +309,11 @@ export function WorkspaceExplorerPanel() {
 
 
 
-      <div className="workspace-explorer-tree-pane">
+      <div ref={paneSplitRef} className="workspace-explorer-pane-split">
+      <div
+        className="workspace-explorer-tree-pane"
+        style={{ flex: `0 0 ${(treeShare * 100).toFixed(2)}%` }}
+      >
 
         <div className="workspace-explorer-tree-section workspace-explorer-tree-section--docs">
 
@@ -292,9 +347,9 @@ export function WorkspaceExplorerPanel() {
 
               selectedPath={selectedPath}
 
-              activeTabId={activeTabId}
-
               onToggleExpanded={toggleExpanded}
+
+              onExpandPath={expandPath}
 
               onSelect={handleSelectNode}
 
@@ -312,142 +367,28 @@ export function WorkspaceExplorerPanel() {
 
       </div>
 
-
+      <div
+        className="workspace-explorer-pane-resizer"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="调整树与预览区高度"
+        aria-valuemin={Math.round(EXPLORER_MIN_TREE_SHARE * 100)}
+        aria-valuemax={Math.round(EXPLORER_MAX_TREE_SHARE * 100)}
+        aria-valuenow={Math.round(treeShare * 100)}
+        onPointerDown={handlePaneResizePointerDown}
+      />
 
       <div className="workspace-explorer-editor-pane">
-
-        {showDoc ? (
-
-          <DocsViewerPanel />
-
-        ) : activeTab ? (
-
-          activeTab.error ? (
-
-            <p className="workspace-explorer-hint workspace-explorer-hint--err">
-
-              {activeTab.error}
-
-            </p>
-
-          ) : (
-
-            <div
-
-              className={`workspace-explorer-editor-inner${
-
-                activeTab.loading && !activeTab.content
-
-                  ? " workspace-explorer-editor-inner--loading"
-
-                  : ""
-
-              }`}
-
-            >
-
-              {activeTab.loading && !activeTab.content ? (
-
-                <div
-
-                  className="workspace-explorer-editor-skeleton"
-
-                  aria-busy="true"
-
-                  aria-label="加载中"
-
-                />
-
-              ) : null}
-
-              {activeTab.content ? (
-
-                isActionProjectInfoPath(activeTab.path) ? (
-
-                  <>
-
-                    <ActionProjectInfoEditor
-
-                      path={activeTab.path}
-
-                      content={activeTab.content}
-
-                      cwd={cwd}
-
-                      onSave={(nextContent) =>
-
-                        saveWorkspaceFile(activeTab.path, nextContent)}
-
-                      onSaved={() => void refreshTree()}
-
-                      onSynced={handleActionProjectSynced}
-
-                    />
-
-                    {activeTab.truncated ? (
-
-                      <p className="file-editor-footnote file-editor-footnote--warn">
-
-                        内容已截断
-
-                        {activeTab.totalChars !== undefined
-
-                          ? ` · 文件共 ${activeTab.totalChars} 字符`
-
-                          : ""}
-
-                      </p>
-
-                    ) : null}
-
-                  </>
-
-                ) : (
-
-                  <>
-
-                    <FileEditorCard
-
-                      path={activeTab.path}
-
-                      content={activeTab.content}
-
-                      showHeader={false}
-
-                    />
-
-                    {activeTab.truncated ? (
-
-                      <p className="file-editor-footnote file-editor-footnote--warn">
-
-                        内容已截断
-
-                        {activeTab.totalChars !== undefined
-
-                          ? ` · 文件共 ${activeTab.totalChars} 字符`
-
-                          : ""}
-
-                      </p>
-
-                    ) : null}
-
-                  </>
-
-                )
-
-              ) : null}
-
-            </div>
-
-          )
-
-        ) : (
-
-          <p className="workspace-explorer-hint">选择文档或文件以预览</p>
-
-        )}
-
+        <WorkspaceExplorerEditorPane
+          showDoc={showDoc}
+          activeTab={activeTab}
+          showEditorSkeleton={showEditorSkeleton}
+          cwd={cwd}
+          onSaveWorkspaceFile={saveWorkspaceFile}
+          onRefreshTree={handleRefreshTree}
+          onActionProjectSynced={handleActionProjectSynced}
+        />
+      </div>
       </div>
 
     </aside>

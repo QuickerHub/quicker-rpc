@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AppMessageHost } from "@/components/AppMessageHost";
 import { QuickerAgentUpdateChecker } from "@/components/QuickerAgentUpdateChecker";
 import { TauriDialogPatch } from "@/components/TauriDialogPatch";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -28,6 +29,7 @@ export default function RootLayout({
         <ThemeProvider>
           <TauriDialogPatch />
           <QuickerAgentUpdateChecker />
+          <AppMessageHost />
           {children}
         </ThemeProvider>
       </body>

@@ -37,4 +37,4 @@ qkagent push --code <sharedId> --json
 
 前置：`.env` 作者账号、`qkagent.exe` 可用。详见 quicker-agent 的 `action-doc-workflow` Skill。
 
-**Bitiful 下载链接**：`page.html` 用 `{{QUICKER_AGENT_SEMVER}}` 占位符，**勿手写版本号**。发布时由 quicker-rpc 的 `publish/Sync-QuickerAgentActionDoc.ps1`（或 `Publish-GitHubRelease.ps1 -WaitForCi`）按 `version.json` 替换并 `qkagent push`。勿用 Bitiful 的 `quicker-agent-win-x64-setup.exe` 固定别名。
+**Bitiful 下载链接**：`page.html` 用 `{{QUICKER_AGENT_SEMVER}}` 占位符，**勿手写版本号**。发布时由 quicker-rpc 的 `publish/Sync-QuickerAgentActionDoc.ps1`（或 `Publish-GitHubRelease.ps1 -WaitForCi`）替换并 `qkagent push`；未设环境变量时 `action_doc_builder` 会回退读取 Bitiful `version.txt`。勿用 Bitiful 的 `quicker-agent-win-x64-setup.exe` 固定别名。

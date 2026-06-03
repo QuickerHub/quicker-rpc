@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 import {
   defaultEnabledToolIds,
   QKRPC_TOOL_REGISTRY,
@@ -24,7 +25,7 @@ export function ToolSelector({
 }: ToolSelectorProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const panelId = useId();
+  const panelId = useMountedAriaControlsId();
   const enabledSet = new Set(enabledTools);
   const writeOff = !GROUP_ORDER.slice(1).some((g) =>
     QKRPC_TOOL_REGISTRY.some((t) => t.group === g && enabledSet.has(t.id)),

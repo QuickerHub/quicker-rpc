@@ -79,7 +79,7 @@ pwsh -NoProfile -File ./publish/Upload-QuickerAgentToBitiful.ps1 -Tag vX.Y.Z
 pwsh -NoProfile -File ./publish/Sync-QuickerAgentActionDoc.ps1 -Push
 ```
 
-`page.html` 使用占位符 `{{QUICKER_AGENT_SEMVER}}`，由脚本按 `version.json` 替换。**Bitiful 上传完成后**再 sync 动作页。
+`page.html` 使用占位符 `{{QUICKER_AGENT_SEMVER}}`，由 `Sync-QuickerAgentActionDoc.ps1` 替换（默认 Bitiful `version.txt`；`-WaitForCi` 内传 `-Version` 与 Release 一致）。**Bitiful 上传完成后**再 sync 动作页。
 
 | 参数 | 用途 |
 |------|------|

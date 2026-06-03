@@ -87,16 +87,40 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "工作目录内 search/replace 编辑",
   },
   {
-    id: "qkrpc_action_update",
-    label: "发布分享动作",
+    id: "qkrpc_action_publish",
+    label: "分享/发布动作",
     group: "write",
-    description: "上传/更新分享动作",
+    description: "首次分享到 getquicker 或更新已分享动作",
+  },
+  {
+    id: "qkrpc_action_update",
+    label: "更新分享动作",
+    group: "write",
+    description: "已分享动作更新（兼容别名，同 publish 后端）",
   },
   {
     id: "qkrpc_action_run",
     label: "运行动作",
     group: "write",
     description: "执行本地动作",
+  },
+  {
+    id: "qkrpc_action_move",
+    label: "移动动作",
+    group: "write",
+    description: "移到其他动作页/格子",
+  },
+  {
+    id: "qkrpc_profile_create",
+    label: "创建全局页",
+    group: "write",
+    description: "新建空白全局动作页",
+  },
+  {
+    id: "qkrpc_profile_reorder",
+    label: "调整全局页顺序",
+    group: "write",
+    description: "移到 _global 之后",
   },
   {
     id: "qkrpc_action_float",

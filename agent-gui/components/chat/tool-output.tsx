@@ -165,6 +165,19 @@ export function summarizeToolOutput(
         ? d.message.slice(0, 60)
         : "已删除动作";
     }
+    if (
+      (toolName === "qkrpc_action_publish" || toolName === "qkrpc_action_update")
+      && output.ok
+    ) {
+      const mode = typeof d.mode === "string" ? d.mode : undefined;
+      const url = typeof d.shareUrl === "string" ? d.shareUrl.trim() : "";
+      const msg = typeof d.message === "string" ? d.message.trim() : "";
+      if (mode === "publish" && url) return `首次分享 · ${url}`;
+      if (mode === "update" || d.action === "update") {
+        return msg ? `已更新 · ${msg.slice(0, 48)}` : "已更新分享";
+      }
+      if (msg) return msg.slice(0, 60);
+    }
     if (typeof d.actionId === "string") {
       return `action ${d.actionId.slice(0, 8)}…`;
     }

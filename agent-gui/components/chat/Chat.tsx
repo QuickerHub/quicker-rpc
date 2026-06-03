@@ -27,6 +27,19 @@ import {
   loadStoredEnabledTools,
 } from "@/lib/tool-registry";
 import {
+  buildApprovalDockCopy,
+  extractApprovalTargetId,
+  type PendingToolApproval,
+} from "@/lib/tool-approval-display";
+import {
+  findWorkspaceProjectsInTree,
+  type WorkspaceActionProjectHit,
+} from "@/lib/workspace-action-project-lookup";
+import {
+  deleteActionProjectApi,
+  fetchActionExplorerTree,
+} from "@/lib/workspace-explorer-api";
+import {
   applySidebarCollapsed,
   loadSidebarCollapsed,
 } from "@/lib/sidebar-prefs";
@@ -75,6 +88,7 @@ import { useUserMessageStickyMarkers } from "@/lib/use-user-message-sticky";
 import { useAutoThreadTitle } from "@/lib/use-auto-thread-title";
 import { useComposerMessageQueue } from "@/lib/use-composer-message-queue";
 import type { AppMainView } from "@/lib/app-main-view";
+import { useActionProjectImportFromMessages } from "@/lib/action-project-import-from-messages";
 import { useQkrpcPing, type PingState } from "@/lib/use-qkrpc-ping";
 import {
   canEditUserMessage,
@@ -89,6 +103,7 @@ import {
   upsertUserMessageDraft,
   userMessageHasLocalDraft,
 } from "@/lib/user-message-edit";
+import { repairInterruptedToolCalls } from "@/lib/repair-interrupted-tool-calls";
 
 function formatChatError(error: Error): string {
   const message = error.message?.trim();
@@ -117,28 +132,6 @@ function formatChatError(error: Error): string {
     return `${message.slice(0, 480)}…（响应过长，完整内容见 Network → /api/chat）`;
   }
   return message;
-}
-
-type PendingToolApproval = {
-  id: string;
-  toolName: string;
-  label: string;
-  input: unknown;
-  destructive: boolean;
-};
-
-function summarizeApprovalTarget(toolName: string, input: unknown): string {
-  if (typeof input !== "object" || input === null) return "即将执行此操作";
-
-  const o = input as Record<string, unknown>;
-  if (typeof o.id === "string") {
-    if (toolName === "qkrpc_action_delete") return `动作 ${o.id}`;
-    if (toolName === "qkrpc_subprogram_delete") return `子程序 ${o.id}`;
-    return o.id;
-  }
-  if (typeof o.title === "string") return o.title;
-  if (typeof o.query === "string") return o.query;
-  return "即将执行此操作";
 }
 
 function collectPendingApprovals(
@@ -176,48 +169,63 @@ function collectPendingApprovals(
 function ApprovalDock({
   approvals,
   disabled,
+  workspaceHits,
+  deleteWorkspaceToo,
+  onDeleteWorkspaceTooChange,
   onApproveAll,
   onDenyAll,
 }: {
   approvals: PendingToolApproval[];
   disabled: boolean;
-  onApproveAll: () => void;
+  workspaceHits: WorkspaceActionProjectHit[];
+  deleteWorkspaceToo: boolean;
+  onDeleteWorkspaceTooChange: (value: boolean) => void;
+  onApproveAll: (options: { deleteWorkspace: boolean }) => void;
   onDenyAll: () => void;
 }) {
-  const destructive = approvals.some((approval) => approval.destructive);
-  const labels = [...new Set(approvals.map((approval) => approval.label))];
-  const title =
-    labels.length === 1
-      ? `${labels[0]} ${approvals.length} 个待确认`
-      : `${approvals.length} 个操作待确认`;
-  const targets = approvals
-    .slice(0, 3)
-    .map((approval) => summarizeApprovalTarget(approval.toolName, approval.input));
-  const targetText =
-    targets.length === 0
-      ? "请确认是否继续。"
-      : `${targets.join("、")}${approvals.length > targets.length ? ` 等 ${approvals.length} 项` : ""}`;
+  const copy = buildApprovalDockCopy(approvals, {
+    workspaceActionProjectCount: workspaceHits.length,
+  });
 
   return (
     <div
-      className={`approval-hint${destructive ? " approval-hint--destructive" : ""}`}
+      className={`approval-hint${copy.destructive ? " approval-hint--destructive" : ""}`}
       role="group"
-      aria-label={title}
+      aria-label={copy.title}
     >
       <div className="approval-hint-main">
-        <div className="approval-hint-title">
-          {destructive ? "危险操作" : "需要确认"}：{title}
-        </div>
-        <div className="approval-hint-summary">{targetText}</div>
+        <div className="approval-hint-title">{copy.title}</div>
+        <div className="approval-hint-summary">{copy.summary}</div>
+        {copy.workspaceDelete ? (
+          <label className="approval-hint-workspace">
+            <input
+              type="checkbox"
+              checked={deleteWorkspaceToo}
+              disabled={disabled}
+              onChange={(event) => onDeleteWorkspaceTooChange(event.target.checked)}
+            />
+            <span className="approval-hint-workspace-text">
+              {copy.workspaceDelete.checkboxLabel}
+            </span>
+            {copy.workspaceDelete.detail ? (
+              <span className="approval-hint-workspace-detail">
+                {copy.workspaceDelete.detail}
+              </span>
+            ) : null}
+          </label>
+        ) : null}
       </div>
       <div className="approval-hint-actions">
         <button
           type="button"
-          className={`approval-hint-btn approval-hint-btn--approve${destructive ? " approval-hint-btn--danger" : ""}`}
+          className={`approval-hint-btn approval-hint-btn--approve${copy.destructive ? " approval-hint-btn--danger" : ""}`}
           disabled={disabled}
-          onClick={onApproveAll}
+          onClick={() =>
+            onApproveAll({
+              deleteWorkspace: deleteWorkspaceToo && workspaceHits.length > 0,
+            })}
         >
-          {approvals.length > 1 ? "全部确认" : destructive ? "确认删除" : "确认执行"}
+          {copy.approveLabel}
         </button>
         <button
           type="button"
@@ -225,7 +233,7 @@ function ApprovalDock({
           disabled={disabled}
           onClick={onDenyAll}
         >
-          全部取消
+          {copy.denyLabel}
         </button>
       </div>
     </div>
@@ -351,6 +359,18 @@ function ChatPanel({
         lastAssistantMessageIsCompleteWithApprovalResponses,
     });
 
+  const repairToolCalls = useCallback(() => {
+    setMessages((prev) => repairInterruptedToolCalls(prev));
+  }, [setMessages]);
+
+  const sendMessageSafe = useCallback(
+    (payload: Parameters<typeof sendMessage>[0]) => {
+      repairToolCalls();
+      sendMessage(payload);
+    },
+    [repairToolCalls, sendMessage],
+  );
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const prev = lastPersistedRef.current;
@@ -365,6 +385,8 @@ function ChatPanel({
     }, 400);
     return () => window.clearTimeout(timer);
   }, [threadId, messages]);
+
+  useActionProjectImportFromMessages(messages);
 
   useAutoThreadTitle({
     threadId,
@@ -383,10 +405,55 @@ function ChatPanel({
   );
   const pendingApprovalCount = pendingApprovals.length;
 
+  const pendingActionDeleteIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const approval of pendingApprovals) {
+      if (approval.toolName !== "qkrpc_action_delete") continue;
+      const id = extractApprovalTargetId(approval.input);
+      if (id) ids.push(id);
+    }
+    return ids;
+  }, [pendingApprovals]);
+  const pendingActionDeleteKey = pendingActionDeleteIds.join("\0");
+
+  const [workspaceDeleteHits, setWorkspaceDeleteHits] = useState<
+    WorkspaceActionProjectHit[]
+  >([]);
+  const [deleteWorkspaceToo, setDeleteWorkspaceToo] = useState(false);
+
+  useEffect(() => {
+    const cwd = workingDirectory.trim();
+    if (!cwd || pendingActionDeleteIds.length === 0) {
+      setWorkspaceDeleteHits([]);
+      setDeleteWorkspaceToo(false);
+      return;
+    }
+
+    let cancelled = false;
+    void fetchActionExplorerTree(cwd).then((result) => {
+      if (cancelled) return;
+      if (!result.ok) {
+        setWorkspaceDeleteHits([]);
+        return;
+      }
+      setWorkspaceDeleteHits(
+        findWorkspaceProjectsInTree(result.tree, pendingActionDeleteIds),
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workingDirectory, pendingActionDeleteKey]);
+
+  useEffect(() => {
+    setDeleteWorkspaceToo(false);
+  }, [pendingActionDeleteKey, workspaceDeleteHits.length]);
+
   const busy = status === "submitted" || status === "streaming";
   const { queueLength, enqueueOrSend, clearQueue } = useComposerMessageQueue(
     busy,
-    sendMessage,
+    sendMessageSafe,
   );
   const qkrpcOk = ping.status === "ok";
   const composerLocked = !qkrpcOk;
@@ -615,7 +682,7 @@ function ChatPanel({
   );
 
   const respondToAllPendingApprovals = useCallback(
-    (approved: boolean) => {
+    (approved: boolean, options?: { deleteWorkspace?: boolean }) => {
       for (const approval of pendingApprovals) {
         addToolApprovalResponse({
           id: approval.id,
@@ -623,8 +690,28 @@ function ChatPanel({
           reason: approved ? "用户点击批量确认" : "用户批量取消",
         });
       }
+
+      if (
+        approved
+        && options?.deleteWorkspace
+        && workspaceDeleteHits.length > 0
+      ) {
+        const cwd = workingDirectory.trim();
+        if (cwd) {
+          void Promise.all(
+            workspaceDeleteHits.map((hit) =>
+              deleteActionProjectApi(cwd, hit.projectPath),
+            ),
+          );
+        }
+      }
     },
-    [addToolApprovalResponse, pendingApprovals],
+    [
+      addToolApprovalResponse,
+      pendingApprovals,
+      workspaceDeleteHits,
+      workingDirectory,
+    ],
   );
 
   const qkrpcLoading = ping.status === "loading";
@@ -756,8 +843,6 @@ function ChatPanel({
                             )
                         : undefined
                     }
-                    addToolApprovalResponse={addToolApprovalResponse}
-                    approvalDisabled={busy}
                   />
                 </div>
               </div>
@@ -795,7 +880,11 @@ function ChatPanel({
         <ApprovalDock
           approvals={pendingApprovals}
           disabled={busy}
-          onApproveAll={() => respondToAllPendingApprovals(true)}
+          workspaceHits={workspaceDeleteHits}
+          deleteWorkspaceToo={deleteWorkspaceToo}
+          onDeleteWorkspaceTooChange={setDeleteWorkspaceToo}
+          onApproveAll={(options) =>
+            respondToAllPendingApprovals(true, options)}
           onDenyAll={() => respondToAllPendingApprovals(false)}
         />
       )}
@@ -894,6 +983,8 @@ function ChatPanel({
                     onClick={() => {
                       clearQueue();
                       stop();
+                      repairToolCalls();
+                      clearError();
                     }}
                     aria-label="停止生成"
                     title={queueLength > 0 ? "停止并清空排队" : "停止生成"}
@@ -1066,6 +1157,7 @@ export function Chat() {
                     active
                     ping={ping}
                     onRefreshPing={refreshPing}
+                    versionRefreshKey={connectTick}
                     focusProviderId={settingsFocusProviderId}
                   />
                 ) : (

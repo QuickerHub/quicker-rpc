@@ -64,9 +64,7 @@ public sealed class ActionProjectRoundTripTests
         var export = XActionFileRefExporter.Export(latestData, projectDir, templateData, options);
         Assert.IsTrue(export.Success, export.ErrorMessage);
 
-        Directory.CreateDirectory(projectDir);
-        QuickerProjectFiles.WriteData(projectDir, export.ExportedData!);
-        QuickerProjectFiles.WriteActionInfo(
+        ActionProjectExtractWriter.Write(
             projectDir,
             new ActionProjectInfo
             {
@@ -74,7 +72,9 @@ public sealed class ActionProjectRoundTripTests
                 Title = "RoundTrip Test",
                 EditVersion = editVersion,
                 ExportedUtc = Timestamp.FromDateTime(DateTime.UtcNow),
-            });
+            },
+            export.ExportedData!,
+            export.ResourceFiles);
 
         Assert.IsTrue(File.Exists(QuickerProjectLayout.GetInfoPath(projectDir)));
         Assert.IsTrue(File.Exists(QuickerProjectLayout.GetDataPath(projectDir)));
@@ -196,7 +196,8 @@ public sealed class ActionProjectRoundTripTests
             var latest = SampleCsscriptStep("s-1", "code", isFile: false, "version B");
             var second = XActionFileRefExporter.Export(latest, projectDir, template);
             Assert.IsTrue(second.Success, second.ErrorMessage);
-            Assert.AreEqual(1, second.WrittenFiles.Count);
+            Assert.AreEqual(1, second.ResourceFiles.Count);
+            ActionProjectResourceFile.WriteAll(projectDir, second.ResourceFiles);
 
             var onDisk = File.ReadAllText(
                 Path.Combine(projectDir, "files", "manual.cs"),

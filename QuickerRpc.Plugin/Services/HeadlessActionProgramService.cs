@@ -446,6 +446,21 @@ public sealed class HeadlessActionProgramService
         var limit = ActionSummarySort.ClampLimit(maxResults);
         var sortMode = ActionSummarySort.Resolve(sort, queryValue.Length == 0);
         var queryIsEmpty = queryValue.Length == 0;
+
+        if (!queryIsEmpty
+            && ActionSearchQuery.TryParseSubProgramReference(queryValue, out var subProgramSearch)
+            && !ActionSubProgramCallScanner.TryResolveSubProgram(
+                subProgramSearch.SubProgramRef,
+                out _,
+                out _,
+                out var resolveError))
+        {
+            return new QuickerRpcSearchActionSummariesResult
+            {
+                Success = false,
+                ErrorMessage = resolveError ?? $"Subprogram not found: {subProgramSearch.SubProgramRef}",
+            };
+        }
         var limitInMatch = !queryIsEmpty && sortMode == ActionSummarySortMode.Relevance;
         // Empty query: library-wide recent edits (composer @-mention, monitor). With query: XAction summaries for agent list/search.
         Func<ActionItem, bool>? actionFilter = queryIsEmpty
@@ -537,6 +552,7 @@ public sealed class HeadlessActionProgramService
                     Key = x.Key,
                     Name = x.Name,
                     Description = x.Description,
+                    Snippet = x.Snippet,
                     ControlFieldKey = x.ControlFieldKey,
                     ControlFieldValue = x.ControlFieldValue,
                     ControlFieldName = x.ControlFieldName,
@@ -569,7 +585,7 @@ public sealed class HeadlessActionProgramService
             ErrorMessage = mapped.ErrorMessage,
             SchemaJson = mapped.Schema is null
                 ? null
-                : JsonConvert.SerializeObject(mapped.Schema, Formatting.None),
+                : StepRunnerAgentSchemaJson.Serialize(mapped.Schema),
         };
     }
 

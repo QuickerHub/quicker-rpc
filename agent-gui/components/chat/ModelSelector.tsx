@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 import {
   DEEPSEEK_PROVIDER_ID,
   type LlmProviderId,
@@ -118,7 +119,7 @@ export function ModelSelector({
   const [directOverride, setDirectOverride] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const panelId = useId();
+  const panelId = useMountedAriaControlsId();
 
   const refreshOptions = useCallback(async () => {
     const data = await fetchLlmOptions();

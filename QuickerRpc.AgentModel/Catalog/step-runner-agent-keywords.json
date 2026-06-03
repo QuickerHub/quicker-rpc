@@ -1,0 +1,1415 @@
+{
+  "sys:if": {
+    "keywords": [
+      "if",
+      "else",
+      "condition",
+      "branch",
+      "条件",
+      "如果",
+      "否则"
+    ],
+    "snippet": "Conditional steps with optional else branch"
+  },
+  "sys:simpleIf": {
+    "keywords": [
+      "if",
+      "condition",
+      "条件",
+      "如果",
+      "simple if"
+    ],
+    "notFor": [
+      "else"
+    ],
+    "snippet": "Simple if without else structure"
+  },
+  "sys:each": {
+    "keywords": [
+      "foreach",
+      "loop",
+      "list iterate",
+      "每个",
+      "遍历",
+      "循环列表"
+    ],
+    "snippet": "Iterate each item in a list"
+  },
+  "sys:repeat": {
+    "keywords": [
+      "for loop",
+      "repeat",
+      "times",
+      "重复",
+      "循环次数"
+    ],
+    "snippet": "Repeat steps N times or until condition"
+  },
+  "sys:break": {
+    "keywords": [
+      "break",
+      "exit loop",
+      "跳出循环"
+    ],
+    "snippet": "Break out of each/repeat loop"
+  },
+  "sys:continue": {
+    "keywords": [
+      "continue",
+      "next iteration",
+      "continue loop",
+      "下一次循环"
+    ],
+    "snippet": "Skip to next loop iteration"
+  },
+  "sys:stop": {
+    "keywords": [
+      "return",
+      "stop action",
+      "exit",
+      "停止",
+      "返回"
+    ],
+    "snippet": "Stop action or return from subprogram"
+  },
+  "sys:group": {
+    "keywords": [
+      "group steps",
+      "step group",
+      "步骤组"
+    ],
+    "snippet": "Group related steps for enable/disable"
+  },
+  "sys:comment": {
+    "keywords": [
+      "comment",
+      "note",
+      "annotation",
+      "注释"
+    ],
+    "notFor": [
+      "clipboard",
+      "http",
+      "write"
+    ],
+    "rankBias": -20,
+    "snippet": "Comment-only step for documentation"
+  },
+  "sys:delay": {
+    "keywords": [
+      "sleep",
+      "wait",
+      "delay",
+      "等待",
+      "延时"
+    ],
+    "snippet": "Wait for specified milliseconds"
+  },
+  "sys:waitClipboardChange": {
+    "keywords": [
+      "wait clipboard",
+      "clipboard changed",
+      "等待剪贴板"
+    ],
+    "snippet": "Wait until clipboard content changes"
+  },
+  "sys:waitKeyboard": {
+    "keywords": [
+      "wait key",
+      "keyboard wait",
+      "等待按键"
+    ],
+    "snippet": "Wait for user key press"
+  },
+  "sys:fileSystemWatch": {
+    "keywords": [
+      "file watch",
+      "filesystem watcher",
+      "文件监控",
+      "目录监控"
+    ],
+    "snippet": "Watch file create/change/delete events"
+  },
+  "sys:stateStorage": {
+    "keywords": [
+      "state",
+      "persist",
+      "badge",
+      "状态存取"
+    ],
+    "snippet": "Read/write action state and badge"
+  },
+  "sys:dependencycheck": {
+    "keywords": [
+      "dependency",
+      "download package",
+      "依赖"
+    ],
+    "snippet": "Check and download dependency packages"
+  },
+  "sys:winservice": {
+    "keywords": [
+      "windows service",
+      "registry",
+      "regedit",
+      "服务",
+      "注册表"
+    ],
+    "snippet": "Query Windows services or registry"
+  },
+  "sys:clouddata": {
+    "keywords": [
+      "cloud state",
+      "network state",
+      "global state",
+      "云状态",
+      "网络数据"
+    ],
+    "snippet": "Read/write Quicker cloud key-value state"
+  },
+  "sys:MsgBox": {
+    "keywords": [
+      "message box",
+      "dialog",
+      "alert",
+      "confirm",
+      "弹窗",
+      "提示框"
+    ],
+    "snippet": "Show message or confirmation dialog"
+  },
+  "sys:notify": {
+    "keywords": [
+      "toast",
+      "notification",
+      "notify",
+      "提示消息"
+    ],
+    "snippet": "Transient notification message"
+  },
+  "sys:showText": {
+    "keywords": [
+      "text window",
+      "show text window",
+      "文本窗口"
+    ],
+    "notFor": [
+      "active window",
+      "foreground input"
+    ],
+    "snippet": "Show text in a dedicated window"
+  },
+  "sys:outputText": {
+    "keywords": [
+      "send text to window",
+      "type to active window",
+      "foreground input",
+      "发送文本到窗口"
+    ],
+    "notFor": [
+      "message box",
+      "dialog"
+    ],
+    "snippet": "Output text to the active foreground window"
+  },
+  "sys:userInput": {
+    "keywords": [
+      "user input",
+      "prompt input",
+      "用户输入"
+    ],
+    "snippet": "Prompt user for text input"
+  },
+  "sys:select": {
+    "keywords": [
+      "user select",
+      "pick option",
+      "用户选择"
+    ],
+    "snippet": "Let user pick one option"
+  },
+  "sys:showmenu": {
+    "keywords": [
+      "menu",
+      "context menu",
+      "显示菜单"
+    ],
+    "snippet": "Show a menu for user selection"
+  },
+  "sys:form": {
+    "keywords": [
+      "form",
+      "multi field",
+      "表单"
+    ],
+    "snippet": "Edit multiple variables in a form"
+  },
+  "sys:showWaitWin": {
+    "keywords": [
+      "wait window",
+      "progress wait",
+      "等待窗口"
+    ],
+    "snippet": "Show wait-for-user-operation window"
+  },
+  "sys:reportProgress": {
+    "keywords": [
+      "progress bar",
+      "progress",
+      "进度条"
+    ],
+    "snippet": "Show or update progress bar"
+  },
+  "sys:customwindow": {
+    "keywords": [
+      "custom window",
+      "wpf window",
+      "自定义窗口"
+    ],
+    "snippet": "Create/show custom WPF window UI"
+  },
+  "sys:custompanel": {
+    "keywords": [
+      "floating panel",
+      "action panel",
+      "操作窗",
+      "悬浮窗"
+    ],
+    "snippet": "Show custom floating action panel"
+  },
+  "sys:getClipboardText": {
+    "keywords": [
+      "read clipboard",
+      "get clipboard text",
+      "clipboard read",
+      "读取剪贴板",
+      "获取剪贴板文本"
+    ],
+    "notFor": [
+      "write",
+      "paste into clipboard",
+      "写入"
+    ],
+    "snippet": "Read text from clipboard into a variable"
+  },
+  "sys:writeClipboard": {
+    "keywords": [
+      "write clipboard",
+      "set clipboard",
+      "clipboard write",
+      "paste",
+      "写入剪贴板",
+      "复制到剪贴板"
+    ],
+    "notFor": [
+      "read",
+      "get clipboard",
+      "读取"
+    ],
+    "snippet": "Write text or image to clipboard"
+  },
+  "sys:getClipboardImage": {
+    "keywords": [
+      "clipboard image",
+      "get clipboard image",
+      "剪贴板图片"
+    ],
+    "snippet": "Read image from clipboard"
+  },
+  "sys:getClipboardFiles": {
+    "keywords": [
+      "clipboard files",
+      "copied files",
+      "剪贴板文件"
+    ],
+    "snippet": "Get file paths from clipboard"
+  },
+  "sys:fileToClipboard": {
+    "keywords": [
+      "files to clipboard",
+      "copy files clipboard",
+      "文件放入剪贴板"
+    ],
+    "snippet": "Put files onto clipboard"
+  },
+  "sys:getSelectedText": {
+    "keywords": [
+      "selected text",
+      "selection",
+      "选中文本"
+    ],
+    "snippet": "Get currently selected text"
+  },
+  "sys:textSelectTools": {
+    "keywords": [
+      "select text helper",
+      "pick file text",
+      "辅助选择",
+      "选取文本"
+    ],
+    "snippet": "Helper tools to select content and get text"
+  },
+  "sys:getSelectedFiles": {
+    "keywords": [
+      "selected files",
+      "explorer selection",
+      "desktop selection",
+      "选中文件"
+    ],
+    "snippet": "Get selected files/folders from Explorer or desktop"
+  },
+  "sys:readFile": {
+    "keywords": [
+      "read file",
+      "load file",
+      "读取文件"
+    ],
+    "snippet": "Read text or image from file"
+  },
+  "sys:WriteTextFile": {
+    "keywords": [
+      "write file",
+      "save text file",
+      "写入文本文件"
+    ],
+    "snippet": "Write text to a file"
+  },
+  "sys:fileOperation": {
+    "keywords": [
+      "file operation",
+      "copy file",
+      "move file",
+      "delete file",
+      "文件操作"
+    ],
+    "snippet": "File/folder copy, move, delete, etc."
+  },
+  "sys:selectFile": {
+    "keywords": [
+      "file picker",
+      "open file dialog",
+      "选择文件"
+    ],
+    "snippet": "Pick file via dialog"
+  },
+  "sys:selectFolder": {
+    "keywords": [
+      "folder picker",
+      "select directory",
+      "选择文件夹"
+    ],
+    "snippet": "Pick folder via dialog"
+  },
+  "sys:zip": {
+    "keywords": [
+      "zip",
+      "unzip",
+      "compress",
+      "解压",
+      "压缩"
+    ],
+    "snippet": "Zip compress or extract archive"
+  },
+  "sys:GenTempFilePath": {
+    "keywords": [
+      "temp file path",
+      "temporary file",
+      "临时文件路径"
+    ],
+    "snippet": "Generate random temp file path"
+  },
+  "sys:getExplorerPath": {
+    "keywords": [
+      "explorer path",
+      "current folder",
+      "资源管理器路径"
+    ],
+    "snippet": "Get Explorer current folder path"
+  },
+  "sys:getFolderPath": {
+    "keywords": [
+      "special folder",
+      "known folder",
+      "系统路径"
+    ],
+    "snippet": "Get Windows special folder path"
+  },
+  "sys:SelectFileInExplorer": {
+    "keywords": [
+      "reveal in explorer",
+      "locate file",
+      "定位文件"
+    ],
+    "snippet": "Select/highlight file in Explorer"
+  },
+  "sys:everythingsearch": {
+    "keywords": [
+      "everything search",
+      "file search everything",
+      "Everything搜索"
+    ],
+    "snippet": "Search files via Everything"
+  },
+  "sys:checkPathExists": {
+    "keywords": [
+      "path exists",
+      "file exists",
+      "folder exists",
+      "检查路径",
+      "文件是否存在"
+    ],
+    "snippet": "Check if file/folder exists; optional file metadata"
+  },
+  "sys:pathExtraction": {
+    "keywords": [
+      "path parse",
+      "filename",
+      "directory name",
+      "路径提取",
+      "文件名"
+    ],
+    "snippet": "Extract file name, folder, extension from paths"
+  },
+  "sys:stringProcess": {
+    "keywords": [
+      "string process",
+      "text transform",
+      "replace string",
+      "文本处理"
+    ],
+    "notFor": [
+      "linq",
+      "expression",
+      "表达式",
+      "assign"
+    ],
+    "rankBias": -12,
+    "snippet": "Built-in string operations (prefer sys:evalexpression for logic; search 文本处理 to use this module)"
+  },
+  "sys:htmlExtract": {
+    "keywords": [
+      "html extract",
+      "parse html",
+      "提取HTML"
+    ],
+    "snippet": "Extract content from HTML"
+  },
+  "sys:jsonExtract": {
+    "keywords": [
+      "json",
+      "jsonpath",
+      "parse json",
+      "提取JSON",
+      "JSON解析"
+    ],
+    "snippet": "Extract fields from JSON text"
+  },
+  "sys:regexExtract": {
+    "keywords": [
+      "regex",
+      "regular expression",
+      "regexp",
+      "正则",
+      "正则提取"
+    ],
+    "snippet": "Extract text with regular expressions"
+  },
+  "sys:strReplace": {
+    "keywords": [
+      "replace text",
+      "find replace",
+      "substitute",
+      "替换文本",
+      "文本替换"
+    ],
+    "notFor": [
+      "linq",
+      "expression",
+      "表达式"
+    ],
+    "rankBias": -10,
+    "snippet": "Replace substrings in text (built-in replace modes)"
+  },
+  "sys:splitString": {
+    "keywords": [
+      "split text",
+      "text to list",
+      "delimiter",
+      "拆分文本",
+      "文本转列表"
+    ],
+    "notFor": [
+      "linq",
+      "expression",
+      "表达式"
+    ],
+    "rankBias": -8,
+    "snippet": "Split text into a list by delimiter"
+  },
+  "sys:joinList": {
+    "keywords": [
+      "join list",
+      "list to text",
+      "concat list",
+      "列表合并",
+      "列表转文本"
+    ],
+    "notFor": [
+      "linq",
+      "expression",
+      "表达式"
+    ],
+    "rankBias": -8,
+    "snippet": "Join list items into a single text string"
+  },
+  "sys:formatString": {
+    "keywords": [
+      "format string",
+      "concat variables",
+      "combine text",
+      "组合文本",
+      "拼接变量"
+    ],
+    "notFor": [
+      "linq",
+      "expression",
+      "表达式",
+      "assign",
+      "赋值"
+    ],
+    "rankBias": -18,
+    "snippet": "Combine variables into text (prefer sys:evalexpression for assign/format logic)"
+  },
+  "sys:textCounter": {
+    "keywords": [
+      "word count",
+      "char count",
+      "line count",
+      "字数统计"
+    ],
+    "snippet": "Count lines, characters, words in text"
+  },
+  "sys:strCompare": {
+    "keywords": [
+      "string compare",
+      "text compare",
+      "比较文本"
+    ],
+    "notFor": [
+      "linq",
+      "expression",
+      "表达式"
+    ],
+    "rankBias": -10,
+    "snippet": "Compare two text strings (legacy compare step)"
+  },
+  "sys:charInfo": {
+    "keywords": [
+      "character info",
+      "unicode",
+      "char code",
+      "字符信息"
+    ],
+    "snippet": "Get character metadata (category, code point, etc.)"
+  },
+  "sys:translation": {
+    "keywords": [
+      "translate",
+      "translation",
+      "dictionary",
+      "翻译",
+      "机器翻译"
+    ],
+    "snippet": "Machine translation via third-party APIs (paid feature)"
+  },
+  "sys:listOperations": {
+    "keywords": [
+      "list operation",
+      "add to list",
+      "remove from list",
+      "列表操作"
+    ],
+    "notFor": [
+      "linq",
+      "expression",
+      "表达式"
+    ],
+    "rankBias": -10,
+    "snippet": "List step UI modes (prefer sys:evalexpression for LINQ; search 列表操作 for this module)"
+  },
+  "sys:manageList": {
+    "keywords": [
+      "sort list",
+      "manage list ui",
+      "管理列表"
+    ],
+    "snippet": "Manually sort/edit list in UI"
+  },
+  "sys:dictOperations": {
+    "keywords": [
+      "dictionary",
+      "dict operation",
+      "词典操作"
+    ],
+    "notFor": [
+      "linq",
+      "expression",
+      "表达式"
+    ],
+    "rankBias": -10,
+    "snippet": "Dictionary step (prefer sys:evalexpression for logic; search 词典 for this module)"
+  },
+  "sys:tableoperation": {
+    "keywords": [
+      "table",
+      "data table",
+      "表格"
+    ],
+    "snippet": "Table variable operations"
+  },
+  "sys:dboperation": {
+    "keywords": [
+      "sql",
+      "database query",
+      "数据库"
+    ],
+    "snippet": "Run SQL and return results"
+  },
+  "sys:enc": {
+    "keywords": [
+      "encrypt",
+      "decrypt",
+      "hash",
+      "md5",
+      "aes",
+      "加密",
+      "解密",
+      "哈希"
+    ],
+    "snippet": "Encrypt, decrypt, or hash text/data"
+  },
+  "sys:numCompare": {
+    "keywords": [
+      "compare numbers",
+      "number compare",
+      "比较数字"
+    ],
+    "notFor": [
+      "linq",
+      "expression",
+      "表达式"
+    ],
+    "rankBias": -10,
+    "snippet": "Compare two numbers (legacy; prefer evalexpression for logic)"
+  },
+  "sys:numberprocess": {
+    "keywords": [
+      "number format",
+      "number to text",
+      "round",
+      "数字转换"
+    ],
+    "snippet": "Format or convert numbers (to text, rounding, etc.)"
+  },
+  "sys:randomNum": {
+    "keywords": [
+      "random number",
+      "rand",
+      "随机数"
+    ],
+    "snippet": "Generate random numbers"
+  },
+  "sys:newGuid": {
+    "keywords": [
+      "guid",
+      "uuid",
+      "new id",
+      "生成Guid"
+    ],
+    "snippet": "Generate a new GUID string"
+  },
+  "sys:getCurrentTime": {
+    "keywords": [
+      "current time",
+      "now",
+      "datetime",
+      "unix timestamp",
+      "日期时间",
+      "当前时间"
+    ],
+    "snippet": "Get or parse date/time (incl. unix timestamp)"
+  },
+  "sys:computeTime": {
+    "keywords": [
+      "time math",
+      "date add",
+      "date diff",
+      "时间计算",
+      "日期运算"
+    ],
+    "snippet": "Date/time arithmetic on DateTime values"
+  },
+  "sys:sendKeys": {
+    "keywords": [
+      "send keys",
+      "keystroke",
+      "hotkey",
+      "模拟按键"
+    ],
+    "snippet": "Send keys/text with parameters"
+  },
+  "sys:keyInput": {
+    "keywords": [
+      "keyboard input",
+      "type keys",
+      "录入按键"
+    ],
+    "snippet": "Simulate keyboard typing"
+  },
+  "sys:keyoperation": {
+    "keywords": [
+      "key state",
+      "keyboard state",
+      "caps lock",
+      "按键状态",
+      "单键"
+    ],
+    "snippet": "Query or control a single key state"
+  },
+  "sys:mouse": {
+    "keywords": [
+      "mouse click",
+      "mouse move",
+      "鼠标"
+    ],
+    "snippet": "Simulate mouse input"
+  },
+  "sys:inputScript": {
+    "keywords": [
+      "input script",
+      "multi-step input",
+      "多步骤输入"
+    ],
+    "snippet": "Multi-step keyboard input script"
+  },
+  "sys:record": {
+    "keywords": [
+      "record macro",
+      "record input",
+      "录制键鼠",
+      "录宏"
+    ],
+    "snippet": "Record keyboard/mouse actions for replay"
+  },
+  "sys:playRecords": {
+    "keywords": [
+      "replay macro",
+      "playback input",
+      "重放键鼠",
+      "宏回放"
+    ],
+    "snippet": "Replay recorded keyboard/mouse macro"
+  },
+  "sys:imeControl": {
+    "keywords": [
+      "ime",
+      "input method",
+      "chinese english input",
+      "输入法"
+    ],
+    "snippet": "Get or switch IME Chinese/English state"
+  },
+  "sys:getWindowTitle": {
+    "keywords": [
+      "window title",
+      "find window",
+      "窗口标题",
+      "查找窗口"
+    ],
+    "snippet": "Get window info or find window by criteria"
+  },
+  "sys:activateProcessMainWindow": {
+    "keywords": [
+      "activate window",
+      "foreground window",
+      "激活窗口"
+    ],
+    "snippet": "Bring process main window to front"
+  },
+  "sys:checkProcessExists": {
+    "keywords": [
+      "process exists",
+      "is running",
+      "进程"
+    ],
+    "snippet": "Check if process is running"
+  },
+  "sys:getActiveProcessInfo": {
+    "keywords": [
+      "active process",
+      "foreground process",
+      "前台进程"
+    ],
+    "snippet": "Get foreground window process info"
+  },
+  "sys:restoreActiveWindow": {
+    "keywords": [
+      "restore focus",
+      "active window",
+      "恢复窗口",
+      "焦点"
+    ],
+    "snippet": "Restore previous foreground window focus"
+  },
+  "sys:windowOperations": {
+    "keywords": [
+      "window operation",
+      "move window",
+      "resize window",
+      "窗口操作",
+      "移动窗口"
+    ],
+    "controlRankBias": {
+      "move_ex": 8,
+      "move": 4
+    },
+    "snippet": "Move, resize, or change window state"
+  },
+  "sys:sendMessage": {
+    "keywords": [
+      "sendmessage",
+      "win32 message",
+      "window message",
+      "窗口消息"
+    ],
+    "snippet": "Send Win32 SendMessage to a window"
+  },
+  "sys:uiautomation": {
+    "keywords": [
+      "ui automation",
+      "click button",
+      "UIA",
+      "界面自动化"
+    ],
+    "snippet": "Automate Win32 UI controls"
+  },
+  "sys:flauiautomation": {
+    "keywords": [
+      "flaui",
+      "ui automation flaui",
+      "FlaUI"
+    ],
+    "snippet": "UI automation via FlaUI"
+  },
+  "sys:searchBmp": {
+    "keywords": [
+      "find image on screen",
+      "image search",
+      "ocr screen",
+      "找图",
+      "找色"
+    ],
+    "snippet": "Find image/color/text on screen"
+  },
+  "sys:http": {
+    "keywords": [
+      "http",
+      "https",
+      "rest",
+      "api request",
+      "web request",
+      "HTTP请求"
+    ],
+    "snippet": "Send HTTP request and capture response"
+  },
+  "sys:download": {
+    "keywords": [
+      "download file",
+      "http download",
+      "下载文件"
+    ],
+    "snippet": "Download file from URL"
+  },
+  "sys:websocket": {
+    "keywords": [
+      "websocket",
+      "ws",
+      "WebSocket"
+    ],
+    "snippet": "WebSocket client operations"
+  },
+  "sys:httpserver": {
+    "keywords": [
+      "http server",
+      "local server",
+      "file server",
+      "HTTP服务器",
+      "本地服务"
+    ],
+    "snippet": "Start temporary local HTTP/file server"
+  },
+  "sys:smtp": {
+    "keywords": [
+      "smtp",
+      "send email",
+      "mail",
+      "邮件",
+      "发邮件"
+    ],
+    "snippet": "Send email via SMTP"
+  },
+  "sys:basic-ocr": {
+    "keywords": [
+      "ocr",
+      "text from image",
+      "OCR"
+    ],
+    "snippet": "OCR text from image"
+  },
+  "sys:mathocr": {
+    "keywords": [
+      "math ocr",
+      "formula recognition",
+      "latex",
+      "公式识别"
+    ],
+    "snippet": "Recognize math formulas from images"
+  },
+  "sys:ai": {
+    "keywords": [
+      "ai",
+      "llm",
+      "openai",
+      "AI调用"
+    ],
+    "snippet": "Call third-party AI services"
+  },
+  "sys:tempcloudstore": {
+    "keywords": [
+      "cloud upload",
+      "temp url",
+      "临时云存储"
+    ],
+    "snippet": "Upload temp content and get URL"
+  },
+  "sys:tempImgBed": {
+    "keywords": [
+      "temp image host",
+      "image bed",
+      "upload image url",
+      "临时图床"
+    ],
+    "snippet": "Upload image to temporary Quicker image host"
+  },
+  "sys:cloud_oss": {
+    "keywords": [
+      "oss",
+      "cloud storage",
+      "image host",
+      "upload cloud",
+      "云存储",
+      "图床"
+    ],
+    "snippet": "Upload files via third-party cloud/OSS providers"
+  },
+  "sys:openUrl": {
+    "keywords": [
+      "open url",
+      "browser",
+      "打开网址"
+    ],
+    "snippet": "Open URL in browser"
+  },
+  "sys:chromecontrol": {
+    "keywords": [
+      "chrome",
+      "edge",
+      "firefox",
+      "browser control",
+      "浏览器控制",
+      "网页"
+    ],
+    "snippet": "Control Chrome/Edge/Firefox (open URL, tabs, etc.)"
+  },
+  "sys:getChromeUrl": {
+    "keywords": [
+      "browser url",
+      "current tab url",
+      "浏览器网址"
+    ],
+    "snippet": "Get active browser tab URL"
+  },
+  "sys:webview2": {
+    "keywords": [
+      "webview2",
+      "embedded browser",
+      "edge webview",
+      "WebView2",
+      "内嵌浏览器"
+    ],
+    "snippet": "Open/control WebView2 embedded browser window"
+  },
+  "sys:run": {
+    "keywords": [
+      "run program",
+      "open file",
+      "shell execute",
+      "运行",
+      "打开"
+    ],
+    "snippet": "Run exe, open file/folder/URL"
+  },
+  "sys:subprogram": {
+    "keywords": [
+      "subprogram",
+      "call sub",
+      "子程序",
+      "公共子程序"
+    ],
+    "snippet": "Call shared or local subprogram"
+  },
+  "sys:runAction": {
+    "keywords": [
+      "run action",
+      "trigger action",
+      "运行动作"
+    ],
+    "snippet": "Run or stop another Quicker action"
+  },
+  "sys:evalexpression": {
+    "keywords": [
+      "expression",
+      "csharp expression",
+      "linq",
+      "eval",
+      "表达式",
+      "计算",
+      "assign",
+      "赋值",
+      "set variable",
+      "变量赋值"
+    ],
+    "notFor": [
+      "http",
+      "clipboard",
+      "ui"
+    ],
+    "rankBias": 20,
+    "snippet": "Evaluate C# expression / LINQ / assign ({var}=value); preferred over assign & compute steps"
+  },
+  "sys:assign": {
+    "keywords": [
+      "assign",
+      "赋值",
+      "set variable"
+    ],
+    "notFor": [
+      "linq",
+      "expression",
+      "表达式"
+    ],
+    "rankBias": -35,
+    "snippet": "Deprecated assign step; use sys:evalexpression instead"
+  },
+  "sys:compute": {
+    "keywords": [
+      "compute",
+      "calculate",
+      "math"
+    ],
+    "notFor": [
+      "linq",
+      "expression",
+      "表达式",
+      "eval",
+      "assign",
+      "赋值",
+      "计算"
+    ],
+    "rankBias": -28,
+    "snippet": "Legacy numeric step (prefer sys:evalexpression)"
+  },
+  "sys:csscript": {
+    "keywords": [
+      "csharp script",
+      "c# code",
+      "csscript",
+      "C#代码",
+      "exec",
+      "c# script",
+      "运行C#"
+    ],
+    "notFor": [
+      "linq",
+      "simple assign",
+      "expression"
+    ],
+    "rankBias": 10,
+    "snippet": "Run C# script step (Exec); common for complex logic beyond evalexpression"
+  },
+  "sys:pythonscript": {
+    "keywords": [
+      "python",
+      "python script",
+      "py",
+      "运行Python"
+    ],
+    "snippet": "Run Python script step"
+  },
+  "sys:jsscript": {
+    "keywords": [
+      "javascript",
+      "js script",
+      "nodejs",
+      "运行Javascript"
+    ],
+    "snippet": "Run JavaScript script step"
+  },
+  "sys:runScript": {
+    "keywords": [
+      "powershell",
+      "cmd",
+      "batch",
+      "run script",
+      "脚本",
+      "ps1"
+    ],
+    "snippet": "Run PowerShell/CMD or user script file"
+  },
+  "sys:shelloperation": {
+    "keywords": [
+      "shell file",
+      "recycle bin",
+      "Shell操作"
+    ],
+    "snippet": "Windows Shell file operations"
+  },
+  "sys:excelreadwrite": {
+    "keywords": [
+      "excel file",
+      "xlsx",
+      "read excel",
+      "write excel",
+      "Excel读写"
+    ],
+    "snippet": "Load/save Excel workbook files"
+  },
+  "sys:excelRange": {
+    "keywords": [
+      "excel cell",
+      "excel range",
+      "spreadsheet",
+      "Excel区域",
+      "单元格"
+    ],
+    "snippet": "Read/write Excel ranges and cells"
+  },
+  "sys:excelObjects": {
+    "keywords": [
+      "excel object",
+      "excel app",
+      "workbook",
+      "Excel对象"
+    ],
+    "snippet": "Excel application/workbook/sheet object operations"
+  },
+  "sys:officehelper": {
+    "keywords": [
+      "office",
+      "vba",
+      "word excel powerpoint",
+      "Office辅助",
+      "VBA"
+    ],
+    "snippet": "Helper ops for Office apps (e.g. run VBA)"
+  },
+  "sys:adobesoftscontrol": {
+    "keywords": [
+      "adobe",
+      "photoshop",
+      "illustrator",
+      "premiere",
+      "Adobe",
+      "Adobe控制"
+    ],
+    "snippet": "Control Adobe apps (JS script, etc.)"
+  },
+  "sys:autocadcontrol": {
+    "keywords": [
+      "autocad",
+      "cad",
+      "AutoCAD",
+      "CAD控制"
+    ],
+    "snippet": "Send commands to AutoCAD"
+  },
+  "sys:rhinocontrol": {
+    "keywords": [
+      "rhino",
+      "rhinoceros",
+      "3d cad",
+      "Rhino控制"
+    ],
+    "snippet": "Send commands/scripts to Rhino"
+  },
+  "sys:screenCapture": {
+    "keywords": [
+      "screenshot",
+      "screen capture",
+      "截图"
+    ],
+    "snippet": "Capture screen region"
+  },
+  "sys:screenCapturePro": {
+    "keywords": [
+      "screenshot pro",
+      "region capture",
+      "截图Pro"
+    ],
+    "snippet": "Interactive region screenshot"
+  },
+  "sys:WriteImageFile": {
+    "keywords": [
+      "save image file",
+      "write image",
+      "写入图片"
+    ],
+    "snippet": "Write image variable to file"
+  },
+  "sys:imgProcess": {
+    "keywords": [
+      "image process",
+      "image transform",
+      "图片处理"
+    ],
+    "snippet": "Image processing operations"
+  },
+  "sys:imageinfo": {
+    "keywords": [
+      "image metadata",
+      "exif",
+      "image size",
+      "图片信息",
+      "exif"
+    ],
+    "snippet": "Read image dimensions or EXIF metadata"
+  },
+  "sys:imgToBase64": {
+    "keywords": [
+      "base64",
+      "image base64",
+      "file base64",
+      "图片转base64"
+    ],
+    "snippet": "Convert image/file to or from Base64 text"
+  },
+  "sys:color": {
+    "keywords": [
+      "color picker",
+      "screen color",
+      "hex rgb",
+      "取色",
+      "颜色转换"
+    ],
+    "snippet": "Pick screen color or convert color values"
+  },
+  "sys:createQrCode": {
+    "keywords": [
+      "qr code",
+      "qrcode generate",
+      "二维码",
+      "生成二维码"
+    ],
+    "snippet": "Encode text into a QR code image"
+  },
+  "sys:readQrCode": {
+    "keywords": [
+      "read qr",
+      "scan qrcode",
+      "decode qr",
+      "识别二维码"
+    ],
+    "snippet": "Decode QR code from image"
+  },
+  "sys:showImage": {
+    "keywords": [
+      "show image",
+      "display image",
+      "显示图片"
+    ],
+    "snippet": "Display image on screen"
+  },
+  "sys:whiteboard": {
+    "keywords": [
+      "whiteboard",
+      "handwriting",
+      "draw",
+      "手写板",
+      "手写"
+    ],
+    "snippet": "Hand-draw content and output as image"
+  },
+  "sys:playSound": {
+    "keywords": [
+      "play sound",
+      "beep",
+      "audio file",
+      "播放声音",
+      "提示音"
+    ],
+    "snippet": "Play built-in or file sound"
+  },
+  "sys:recordSound": {
+    "keywords": [
+      "record audio",
+      "speech recognition",
+      "voice",
+      "录音",
+      "语音识别"
+    ],
+    "snippet": "Record audio or run speech recognition"
+  },
+  "sys:audioControl": {
+    "keywords": [
+      "audio device",
+      "sound output",
+      "default speaker",
+      "音频",
+      "音频设备"
+    ],
+    "snippet": "List or set default audio output devices"
+  },
+  "sys:quickeroperations": {
+    "keywords": [
+      "quicker api",
+      "quicker operation",
+      "Quicker操作"
+    ],
+    "snippet": "Invoke Quicker built-in features"
+  },
+  "sys:getActionInfo": {
+    "keywords": [
+      "action info",
+      "get action metadata",
+      "动作信息"
+    ],
+    "snippet": "Read running or specified action info"
+  },
+  "sys:getQuickerInfo": {
+    "keywords": [
+      "quicker version",
+      "quicker info",
+      "Quicker信息"
+    ],
+    "snippet": "Quicker version, theme, trigger context"
+  },
+  "sys:getSysInfo": {
+    "keywords": [
+      "system info",
+      "windows info",
+      "os version",
+      "系统信息"
+    ],
+    "snippet": "Read Windows/system environment info"
+  }
+}

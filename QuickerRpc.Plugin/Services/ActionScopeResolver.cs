@@ -28,6 +28,9 @@ internal static class ActionScopeResolver
             "taskbar" or "任务栏" => ProfilesByExeFile(manager, ActionProfile.ExeName_Taskbar),
             "desktop" or "桌面" => ProfilesByExeFile(manager, ActionProfile.ExeName_Desktop),
             "agent" or "qkrpc" => ProfilesByExeFile(manager, QkrpcVirtualActionHost.VirtualExeFile),
+            "ceacore" or "ceacore-run" or "ceacore_run" => ProfilesByExeFile(
+                manager,
+                CeaCoreRunVirtualActionHost.VirtualExeFile),
             _ => ResolveCustomScope(manager, trimmed),
         };
     }
@@ -97,5 +100,6 @@ internal static class ActionScopeResolver
         || string.Equals(value, ActionProfile.ExeName_Common, StringComparison.OrdinalIgnoreCase)
         || string.Equals(value, ActionProfile.ExeName_Taskbar, StringComparison.OrdinalIgnoreCase)
         || string.Equals(value, ActionProfile.ExeName_Desktop, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(value, QkrpcVirtualActionHost.VirtualExeFile, StringComparison.OrdinalIgnoreCase);
+        || string.Equals(value, QkrpcVirtualActionHost.VirtualExeFile, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(value, CeaCoreRunVirtualActionHost.VirtualExeFile, StringComparison.OrdinalIgnoreCase);
 }

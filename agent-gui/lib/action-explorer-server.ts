@@ -97,41 +97,42 @@ async function projectMetaFromFilesystemListing(
     if (part) dirNames.add(part);
   }
 
-  const meta: ActionProjectMeta[] = [];
-  for (const dirName of dirNames) {
-    const projectPath = actionProjectDirFromName(dirName);
-    let title: string | undefined;
-    let actionId: string | undefined;
+  const meta = await Promise.all(
+    [...dirNames].map(async (dirName): Promise<ActionProjectMeta> => {
+      const projectPath = actionProjectDirFromName(dirName);
+      let title: string | undefined;
+      let actionId: string | undefined;
 
-    const infoRelative = `${dirName}/info.json`;
-    const hasInfoJson = entries.some(
-      (e) => e.kind === "file" && e.path.replace(/\\/g, "/") === infoRelative,
-    );
-    if (hasInfoJson) {
-      const infoPath = resolveWorkspacePath(`${projectPath}/info.json`);
-      if (infoPath.ok) {
-        try {
-          const raw = stripJsonBom(await readFile(infoPath.absolute, "utf8"));
-          const parsed = parseActionProjectInfo(raw);
-          if (parsed.ok) {
-            title = actionProjectDisplayTitle(parsed.data);
-            actionId = parsed.data.id;
+      const infoRelative = `${dirName}/info.json`;
+      const hasInfoJson = entries.some(
+        (e) => e.kind === "file" && e.path.replace(/\\/g, "/") === infoRelative,
+      );
+      if (hasInfoJson) {
+        const infoPath = resolveWorkspacePath(`${projectPath}/info.json`);
+        if (infoPath.ok) {
+          try {
+            const raw = stripJsonBom(await readFile(infoPath.absolute, "utf8"));
+            const parsed = parseActionProjectInfo(raw);
+            if (parsed.ok) {
+              title = actionProjectDisplayTitle(parsed.data);
+              actionId = parsed.data.id;
+            }
+          } catch {
+            /* skip unreadable info.json */
           }
-        } catch {
-          /* skip unreadable info.json */
         }
       }
-    }
 
-    meta.push({
-      dirName,
-      path: projectPath,
-      title,
-      actionId:
-        actionId
-        ?? (/^[0-9a-f-]{36}$/i.test(dirName) ? dirName : undefined),
-    });
-  }
+      return {
+        dirName,
+        path: projectPath,
+        title,
+        actionId:
+          actionId
+          ?? (/^[0-9a-f-]{36}$/i.test(dirName) ? dirName : undefined),
+      };
+    }),
+  );
 
   return meta.sort((a, b) =>
     (a.title ?? a.dirName).localeCompare(b.title ?? b.dirName, undefined, {
@@ -164,6 +165,7 @@ export async function buildActionExplorerTree(): Promise<
   const listed = await listWorkspaceFiles(rootPath, {
     recursive: true,
     maxEntries: 500,
+    includeFileSizes: false,
   });
   if (!listed.ok) {
     return { ok: false, error: listed.error };

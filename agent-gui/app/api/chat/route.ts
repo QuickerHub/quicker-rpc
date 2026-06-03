@@ -20,6 +20,7 @@ import { expandUserMessageForModel } from "@/lib/compose-user-message";
 import { isTextUIPart } from "ai";
 import { resolveModelContextLimit } from "@/lib/llm-context-limits";
 import { prepareCompressedContext } from "@/lib/context-compression";
+import { repairInterruptedToolCalls } from "@/lib/repair-interrupted-tool-calls";
 
 export const maxDuration = 120;
 
@@ -74,7 +75,9 @@ async function handleChatPost(req: Request) {
   const tools = pickEnabledTools(quickerTools, enabledTools);
   const cwd = (workingDirectory ?? workspaceRoot)?.trim() || undefined;
 
-  const messagesForModel: AgentUIMessage[] = messages.map((message) => {
+  const repairedMessages = repairInterruptedToolCalls(messages);
+
+  const messagesForModel: AgentUIMessage[] = repairedMessages.map((message) => {
     if (message.role !== "user") return message;
     return {
       ...message,
@@ -128,7 +131,7 @@ async function handleChatPost(req: Request) {
     });
 
     return result.toUIMessageStreamResponse({
-      originalMessages: messages,
+      originalMessages: repairedMessages,
       messageMetadata: ({ part }) => {
         if (part.type === "start") {
           return {

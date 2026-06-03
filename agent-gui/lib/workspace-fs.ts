@@ -143,7 +143,12 @@ export type WorkspaceListEntry = {
 
 export async function listWorkspaceFiles(
   inputPath: string,
-  options?: { recursive?: boolean; maxEntries?: number },
+  options?: {
+    recursive?: boolean;
+    maxEntries?: number;
+    /** When false, skip per-file stat (faster explorer tree scans). Default true. */
+    includeFileSizes?: boolean;
+  },
 ): Promise<
   | { ok: true; path: string; entries: WorkspaceListEntry[]; truncated: boolean }
   | { ok: false; error: string }
@@ -157,6 +162,7 @@ export async function listWorkspaceFiles(
 
   const rootStat = await stat(resolved.absolute);
   const maxEntries = Math.min(options?.maxEntries ?? 200, MAX_LIST_ENTRIES);
+  const includeFileSizes = options?.includeFileSizes ?? true;
   const entries: WorkspaceListEntry[] = [];
   let truncated = false;
 
@@ -181,12 +187,16 @@ export async function listWorkspaceFiles(
       }
 
       if (entry.isFile()) {
-        const full = join(dir, entry.name);
-        const fileStat = await stat(full);
+        let sizeBytes: number | undefined;
+        if (includeFileSizes) {
+          const full = join(dir, entry.name);
+          const fileStat = await stat(full);
+          sizeBytes = fileStat.size;
+        }
         entries.push({
           path: rel,
           kind: "file",
-          sizeBytes: fileStat.size,
+          sizeBytes,
         });
         if (entries.length >= maxEntries) {
           truncated = true;

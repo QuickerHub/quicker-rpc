@@ -3,6 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActionProjectSyncState } from "@/lib/action-project-sync-types";
 import {
+  readActionProjectSyncCache,
+  writeActionProjectSyncCache,
+} from "@/lib/action-project-sync-cache";
+import {
+  beginActionProjectImport,
+  endActionProjectImport,
+} from "@/lib/action-project-import-state";
+import {
   fetchActionProjectSyncStatus,
   pullActionProjectFromQuicker,
   pushActionProjectToQuickerApi,
@@ -24,6 +32,15 @@ function stateClassName(state: ActionProjectSyncState | null): string {
   return ` project-info-sync-status--${state.replace(/_/g, "-")}`;
 }
 
+function initialSyncUi(cwd: string, actionId: string) {
+  const cached = readActionProjectSyncCache(cwd, actionId);
+  return {
+    statusText: cached?.message ?? null,
+    statusErr: cached?.error ?? false,
+    syncState: cached?.state ?? null,
+  };
+}
+
 export function ActionProjectSyncBar({
   cwd,
   actionId,
@@ -33,10 +50,10 @@ export function ActionProjectSyncBar({
   onSynced,
 }: ActionProjectSyncBarProps) {
   const [busy, setBusy] = useState<"status" | "pull" | "push" | null>(null);
-  const [statusText, setStatusText] = useState<string | null>(null);
-  const [statusErr, setStatusErr] = useState(false);
-  const [syncState, setSyncState] = useState<ActionProjectSyncState | null>(null);
+  const [syncUi, setSyncUi] = useState(() => initialSyncUi(cwd, actionId));
+  const { statusText, statusErr, syncState } = syncUi;
   const mountedRef = useRef(true);
+  const statusRequestRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -45,30 +62,62 @@ export function ActionProjectSyncBar({
     };
   }, []);
 
-  const runStatusCheck = useCallback(async () => {
-    if (!cwd.trim()) {
-      setStatusText("未设置工作目录");
-      setStatusErr(true);
-      setSyncState(null);
-      return;
-    }
-    setBusy("status");
-    const result = await fetchActionProjectSyncStatus(cwd, actionId);
-    if (!mountedRef.current) return;
-    setBusy(null);
-    if (!result.ok) {
-      setStatusText(result.error);
-      setStatusErr(true);
-      setSyncState(null);
-      return;
-    }
-    setSyncState(result.status.state);
-    setStatusText(result.status.message);
-    setStatusErr(false);
-  }, [actionId, cwd]);
+  const applyStatusResult = useCallback(
+    (
+      result:
+        | { ok: true; status: { state: ActionProjectSyncState; message: string } }
+        | { ok: false; error: string },
+    ) => {
+      if (!result.ok) {
+        setSyncUi({
+          statusText: result.error,
+          statusErr: true,
+          syncState: null,
+        });
+        writeActionProjectSyncCache(cwd, actionId, {
+          state: null,
+          message: result.error,
+          error: true,
+        });
+        return;
+      }
+      setSyncUi({
+        statusText: result.status.message,
+        statusErr: false,
+        syncState: result.status.state,
+      });
+      writeActionProjectSyncCache(cwd, actionId, {
+        state: result.status.state,
+        message: result.status.message,
+        error: false,
+      });
+    },
+    [actionId, cwd],
+  );
+
+  const runStatusCheck = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+      const requestId = ++statusRequestRef.current;
+
+      if (!cwd.trim()) {
+        applyStatusResult({ ok: false, error: "未设置工作目录" });
+        return;
+      }
+
+      if (!silent) setBusy("status");
+
+      const result = await fetchActionProjectSyncStatus(cwd, actionId);
+      if (!mountedRef.current || statusRequestRef.current !== requestId) return;
+
+      if (!silent) setBusy(null);
+      applyStatusResult(result);
+    },
+    [actionId, applyStatusResult, cwd],
+  );
 
   useEffect(() => {
-    void runStatusCheck();
+    void runStatusCheck({ silent: true });
   }, [runStatusCheck, actionId]);
 
   const runOp = useCallback(
@@ -78,26 +127,57 @@ export function ActionProjectSyncBar({
     ) => {
       if (busy || blocked) return;
       if (!cwd.trim()) {
-        setStatusText("未设置工作目录");
-        setStatusErr(true);
+        applyStatusResult({ ok: false, error: "未设置工作目录" });
         return;
       }
       setBusy(op);
-      setStatusErr(false);
-      const result = await fn();
+      if (op === "pull") {
+        beginActionProjectImport(actionId, {
+          projectDirectory,
+          source: "pull",
+        });
+      }
+      let result: { ok: true; message: string } | { ok: false; error: string };
+      try {
+        result = await fn();
+      } finally {
+        if (op === "pull") {
+          endActionProjectImport(actionId);
+        }
+      }
       if (!mountedRef.current) return;
       setBusy(null);
       if (!result.ok) {
-        setStatusText(result.error);
-        setStatusErr(true);
+        setSyncUi((prev) => ({
+          ...prev,
+          statusText: result.error,
+          statusErr: true,
+        }));
+        writeActionProjectSyncCache(cwd, actionId, {
+          state: syncState,
+          message: result.error,
+          error: true,
+        });
         return;
       }
-      setStatusText(result.message);
-      setStatusErr(false);
+      setSyncUi((prev) => ({
+        ...prev,
+        statusText: result.message,
+        statusErr: false,
+      }));
       onSynced?.();
-      await runStatusCheck();
+      await runStatusCheck({ silent: true });
     },
-    [actionId, blocked, busy, cwd, onSynced, runStatusCheck],
+    [
+      actionId,
+      applyStatusResult,
+      blocked,
+      busy,
+      cwd,
+      onSynced,
+      runStatusCheck,
+      syncState,
+    ],
   );
 
   const pull = useCallback(
@@ -122,6 +202,9 @@ export function ActionProjectSyncBar({
         ? "请先保存标题/描述修改"
         : undefined;
 
+  const visibleStatusText =
+    statusText && (statusErr || syncState !== "in_sync") ? statusText : null;
+
   return (
     <section className="project-info-sync" aria-label="与 Quicker 同步">
       <div className="project-info-sync-actions">
@@ -129,7 +212,7 @@ export function ActionProjectSyncBar({
           type="button"
           className="project-info-sync-btn"
           disabled={busy !== null}
-          onClick={() => void runStatusCheck()}
+          onClick={() => void runStatusCheck({ silent: false })}
           title="对比 info.json 的 editVersion 与 Quicker 中动作版本"
         >
           {busy === "status" ? "检查中…" : "检查"}
@@ -161,12 +244,14 @@ export function ActionProjectSyncBar({
           {busy === "push" ? "提交中…" : "提交"}
         </button>
       </div>
-      {statusText ? (
+      {visibleStatusText ? (
         <p
-          className={`project-info-sync-status${statusErr ? " project-info-sync-status--err" : ""}${stateClassName(syncState)}`}
+          className={`project-info-sync-status${
+            statusErr ? " project-info-sync-status--err" : ""
+          }${stateClassName(syncState)}`}
           role="status"
         >
-          {statusText}
+          {visibleStatusText}
         </p>
       ) : null}
     </section>

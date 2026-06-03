@@ -27,8 +27,8 @@ quickerorg/Quicker/QuickerPc/Quicker.Mcp  →  ../../../../quicker-rpc/QuickerRp
 - **Single source**: compression, patch, step-runner schema DTOs (`QuickerRpc.AgentModel.Catalog` / `.XAction`).
 - **Host-only**: `Quicker.Mcp/Catalog/StepRunnerCatalogFromGrpc.cs` maps gRPC → `StepRunnerCatalog`.
 - **Host-only**: `McpStepCatalogMapper.Search` still uses Designer `StepQuickInsertCatalog` (pinyin / `|` / `*`).
+- **Agent step-runner search**: curated `Catalog/step-runner-agent-keywords.json` + `StepRunnerKeywordSearch` (field-weighted keywords, `snippet` in results; no pinyin).
 
 ## Next steps
 
 - Plugin: headless editing via `qkrpc action get/patch/replace` + `HeadlessActionProgramService`
-- Port advanced `step_runner_search` (| OR, * wildcards) into AgentModel (optional)

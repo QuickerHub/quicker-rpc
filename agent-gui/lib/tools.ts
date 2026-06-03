@@ -140,7 +140,7 @@ export const quickerTools = {
 
   qkrpc_action_list: tool({
     description:
-      "List local Quicker actions (scope/query/limit). UI renders the result table in chat — do not repeat the list as a markdown table in your reply; summarize count and next steps only.",
+      "List local Quicker actions (scope/query/limit). Query uses:<subProgramName> finds actions calling that global subprogram; uses-only: for dedicated wrappers. UI renders the result table in chat — do not repeat the list as a markdown table in your reply; summarize count and next steps only.",
     inputSchema: z.object({
       query: z.string().optional(),
       scope: z.string().optional().describe("e.g. agent, chrome, global"),
@@ -163,7 +163,7 @@ export const quickerTools = {
 
   qkrpc_action_search: tool({
     description:
-      "Search local actions (main search scoring). UI renders results in chat — do not duplicate as a markdown table; give a short summary only.",
+      "Search local actions (main search scoring). Query uses:<subProgramName> or uses-only:<name> finds actions referencing a global subprogram. UI renders results in chat — do not duplicate as a markdown table; give a short summary only.",
     inputSchema: z.object({
       query: z.string(),
       scope: z.string().optional(),
@@ -575,11 +575,50 @@ export const quickerTools = {
     },
   }),
 
-  qkrpc_action_update: tool({
-    description: "Upload or refresh a shared action on Quicker.net.",
+  qkrpc_action_publish: tool({
+    description:
+      "Share or refresh an action on getquicker.net. Auto-detects first publish vs update. First publish: local action id, title + description (or from action metadata), optional note/tags/keywords; Quicker must be logged in; public share needs custom icon (not _system). Update existing share: id (local or shared GUID) + changelog required.",
     inputSchema: z.object({
-      id: z.string().uuid().describe("Shared action GUID"),
-      changelog: z.string().optional(),
+      id: z.string().uuid().describe("Local action GUID (first publish) or local/shared GUID (update)"),
+      title: z.string().optional().describe("Share title (first publish; defaults to action title)"),
+      description: z.string().optional().describe("Short description (first publish; defaults to action description)"),
+      note: z.string().optional().describe("Share page intro markdown (Note)"),
+      tags: z.string().optional().describe("Comma-separated tags"),
+      keywords: z.string().optional().describe("Comma-separated search keywords"),
+      changelog: z.string().optional().describe("Change log markdown (required when updating an existing share)"),
+      isPublic: z.boolean().optional().describe("Public share (default true; set false for private)"),
+      submitReview: z.boolean().optional().describe("Submit for review on first publish (default true)"),
+    }),
+    execute: async ({
+      id,
+      title,
+      description,
+      note,
+      tags,
+      keywords,
+      changelog,
+      isPublic,
+      submitReview,
+    }) => {
+      const args = ["action", "publish", "--id", id];
+      if (title) args.push("--title", title);
+      if (description) args.push("--description", description);
+      if (note) args.push("--share-note", note);
+      if (tags) args.push("--tags", tags);
+      if (keywords) args.push("--keywords", keywords);
+      if (changelog) args.push("--changelog", changelog);
+      if (isPublic === false) args.push("--private");
+      if (submitReview === false) args.push("--no-submit-review");
+      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+    },
+  }),
+
+  qkrpc_action_update: tool({
+    description:
+      "Legacy alias: refresh an already-shared action on getquicker.net (changelog required). Prefer qkrpc_action_publish for first share or update.",
+    inputSchema: z.object({
+      id: z.string().uuid().describe("Local or shared action GUID"),
+      changelog: z.string().optional().describe("Change log markdown (required for update)"),
     }),
     execute: async ({ id, changelog }) => {
       const args = ["action", "update", "--id", id];
@@ -612,7 +651,7 @@ export const quickerTools = {
 
   qkrpc_action_edit_var: tool({
     description:
-      "Edit a variable default via the Quicker designer UI (action or subprogram).",
+      "Edit a variable default headlessly (local action or global subprogram; no designer UI).",
     inputSchema: z.object({
       id: z.string().describe("Action GUID or subprogram id/name"),
       var: z.string().describe("Variable key"),
@@ -700,6 +739,68 @@ export const quickerTools = {
       if (param) args.push("--param", param);
       if (wait) args.push("--wait");
       if (debug) args.push("--debug");
+      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+    },
+  }),
+
+  qkrpc_action_move: tool({
+    description:
+      "Move a local action to another profile (action page). Target profile is id or name (e.g. _global). Omit row/col for first empty slot; provide both row and col for a specific cell. Use swap only when the user accepts swapping with an occupied slot.",
+    inputSchema: z.object({
+      id: z.string().uuid().describe("Action GUID"),
+      profile: z
+        .string()
+        .describe("Target profile id, name, or scope (e.g. _global)"),
+      row: z.number().int().min(0).optional(),
+      col: z.number().int().min(0).optional(),
+      swap: z.boolean().optional(),
+    }),
+    execute: async ({ id, profile, row, col, swap }) => {
+      const args = ["action", "move", "--id", id, "--profile", profile];
+      if (row != null) args.push("--row", String(row));
+      if (col != null) args.push("--col", String(col));
+      if (swap) args.push("--swap");
+      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+    },
+  }),
+
+  qkrpc_profile_create: tool({
+    description:
+      "Create blank global action profile pages (tabs). Use afterFirst to insert immediately after _global (first global page); required for reserved slots near the top.",
+    inputSchema: z.object({
+      count: z.number().int().min(1).max(20).optional(),
+      afterFirst: z
+        .boolean()
+        .optional()
+        .describe("Insert after _global instead of appending to the end"),
+    }),
+    execute: async ({ count, afterFirst }) => {
+      const args = ["profile", "create", "--scope", "global"];
+      if (count != null) args.push("--count", String(count));
+      if (afterFirst) args.push("--after-first");
+      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+    },
+  }),
+
+  qkrpc_profile_reorder: tool({
+    description:
+      "Move existing global profile tabs to sit right after _global. Pass profileIds in the desired tab order.",
+    inputSchema: z.object({
+      profileIds: z
+        .array(z.string().uuid())
+        .min(1)
+        .describe("Profile GUIDs to move, in order"),
+    }),
+    execute: async ({ profileIds }) => {
+      const args = [
+        "profile",
+        "reorder",
+        "--scope",
+        "global",
+        "--after-first",
+        "--ids",
+        profileIds.join(","),
+      ];
       return formatQkrpcResultForAgent(await runQkrpcForTool(args));
     },
   }),
@@ -829,7 +930,7 @@ export const quickerTools = {
   }),
 
   qkrpc_subprogram_edit_var: tool({
-    description: "Edit a subprogram variable default via the designer UI.",
+    description: "Edit a subprogram variable default headlessly (no designer UI).",
     inputSchema: z.object({
       id: z.string().describe("Subprogram id or name"),
       var: z.string().describe("Variable key"),

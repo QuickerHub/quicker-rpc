@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 
@@ -20,6 +19,9 @@ public static class XActionFileRefExporter
         public JObject? ExportedData { get; set; }
 
         public IReadOnlyList<string> WrittenFiles { get; set; } = Array.Empty<string>();
+
+        public IReadOnlyList<ActionProjectResourceFile> ResourceFiles { get; set; } =
+            Array.Empty<ActionProjectResourceFile>();
 
         public IReadOnlyList<string> Warnings { get; set; } = Array.Empty<string>();
     }
@@ -48,23 +50,17 @@ public static class XActionFileRefExporter
         var output = (JObject)latestData.DeepClone();
         var valueIndex = BuildValueIndex(latestSteps);
         var warnings = new List<string>();
-        var writtenFiles = new List<string>();
+        var resourceFiles = new List<ActionProjectResourceFile>();
 
         if (templateData is null)
         {
-            var autoOnly = ApplyAutoExternalize(output, projectDir, options, writtenFiles, warnings);
+            var autoOnly = ApplyAutoExternalize(output, projectDir, options, resourceFiles, warnings);
             if (autoOnly is not null)
             {
                 return autoOnly;
             }
 
-            return new ExportResult
-            {
-                Success = true,
-                ExportedData = output,
-                WrittenFiles = writtenFiles,
-                Warnings = warnings,
-            };
+            return BuildSuccess(output, resourceFiles, warnings);
         }
 
         if (templateData["steps"] is not JArray templateSteps)
@@ -85,15 +81,11 @@ public static class XActionFileRefExporter
 
             try
             {
-                var fullPath = XActionFileRefPath.ResolveFullPath(projectDir, slot.RelativeFile);
-                var dir = Path.GetDirectoryName(fullPath);
-                if (!string.IsNullOrEmpty(dir))
+                resourceFiles.Add(new ActionProjectResourceFile
                 {
-                    Directory.CreateDirectory(dir);
-                }
-
-                File.WriteAllText(fullPath, value, System.Text.Encoding.UTF8);
-                writtenFiles.Add(slot.RelativeFile);
+                    RelativePath = slot.RelativeFile,
+                    Content = value,
+                });
 
                 if (!TryApplyFileRef(output["steps"] as JArray, slot))
                 {
@@ -107,26 +99,35 @@ public static class XActionFileRefExporter
             }
         }
 
-        var autoFail = ApplyAutoExternalize(output, projectDir, options, writtenFiles, warnings);
+        var autoFail = ApplyAutoExternalize(output, projectDir, options, resourceFiles, warnings);
         if (autoFail is not null)
         {
             return autoFail;
         }
 
-        return new ExportResult
+        return BuildSuccess(output, resourceFiles, warnings);
+    }
+
+    private static ExportResult BuildSuccess(
+        JObject output,
+        List<ActionProjectResourceFile> resourceFiles,
+        List<string> warnings) =>
+        new()
         {
             Success = true,
             ExportedData = output,
-            WrittenFiles = writtenFiles,
+            ResourceFiles = resourceFiles,
+            WrittenFiles = resourceFiles
+                .Select(f => XActionFileRefPath.NormalizeRelativePath(f.RelativePath))
+                .ToList(),
             Warnings = warnings,
         };
-    }
 
     private static ExportResult? ApplyAutoExternalize(
         JObject output,
         string projectDir,
         XActionFileRefExportOptions? options,
-        List<string> writtenFiles,
+        List<ActionProjectResourceFile> resourceFiles,
         List<string> warnings)
     {
         var minLines = options?.AutoExternalizeMinLines ?? 0;
@@ -136,7 +137,7 @@ public static class XActionFileRefExporter
         }
 
         var auto = XActionFileRefAutoExternalizer.Apply(output, projectDir, minLines);
-        writtenFiles.AddRange(auto.WrittenFiles);
+        resourceFiles.AddRange(auto.ResourceFiles);
         warnings.AddRange(auto.Warnings);
         return null;
     }

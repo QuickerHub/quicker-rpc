@@ -79,7 +79,6 @@ function applyExplorerTreeSnapshot(
     setTree: Dispatch<SetStateAction<ActionExplorerTree | null>>;
     setTreeError: Dispatch<SetStateAction<string | null>>;
     setTreeLoading: Dispatch<SetStateAction<boolean>>;
-    setExpandedPaths: Dispatch<SetStateAction<Set<string>>>;
   },
 ): boolean {
   const signature = explorerTreeSignature(nextTree);
@@ -91,7 +90,6 @@ function applyExplorerTreeSnapshot(
   setters.setTree(nextTree);
   setters.setTreeError((err) => (err === null ? err : null));
   setters.setTreeLoading(false);
-  setters.setExpandedPaths((prev) => addPathsToExpandedSet(prev, nextTree.rootPath));
   return true;
 }
 
@@ -312,7 +310,6 @@ export function WorkspaceExplorerPanelProvider({
         setTree,
         setTreeError,
         setTreeLoading,
-        setExpandedPaths,
       });
     } finally {
       setTreeLoading(false);
@@ -326,7 +323,6 @@ export function WorkspaceExplorerPanelProvider({
       setTree,
       setTreeError,
       setTreeLoading,
-      setExpandedPaths,
     });
     if (!changed) return;
     // Defer reveal until after tree state commits (avoids nested updates with openFile).

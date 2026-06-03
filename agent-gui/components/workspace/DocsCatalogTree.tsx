@@ -7,7 +7,7 @@ import {
   ExplorerTreeChevron,
 } from "@/components/workspace/ExplorerTreeIcons";
 import { useDocsViewer } from "@/lib/docs-viewer";
-import { useWorkspaceExplorer } from "@/lib/workspace-explorer";
+import { useWorkspaceExplorerShell } from "@/lib/workspace-explorer";
 
 export function DocsCatalogTree() {
   const {
@@ -18,7 +18,7 @@ export function DocsCatalogTree() {
     selectTopic,
     refreshCatalog,
   } = useDocsViewer();
-  const { setPanelOpen } = useWorkspaceExplorer();
+  const { setPanelOpen } = useWorkspaceExplorerShell();
   const [expanded, setExpanded] = useState(false);
 
   return (

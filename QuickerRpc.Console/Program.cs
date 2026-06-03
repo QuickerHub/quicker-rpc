@@ -30,6 +30,8 @@ internal static partial class Program
             PingOptions,
             ServeOptions,
             ActionOptions,
+            ProfileOptions,
+            ProcessOptions,
             SubProgramOptions,
             StepRunnerOptions,
             FaOptions,
@@ -39,6 +41,8 @@ internal static partial class Program
                 (PingOptions o) => RunPingAsync(o),
                 (ServeOptions o) => RunServeAsync(o),
                 (ActionOptions o) => RunActionAsync(o),
+                (ProfileOptions o) => RunProfileAsync(o),
+                (ProcessOptions o) => RunProcessAsync(o),
                 (SubProgramOptions o) => RunSubProgramAsync(o),
                 (StepRunnerOptions o) => RunStepRunnerAsync(o),
                 (FaOptions o) => RunFaAsync(o),
@@ -219,6 +223,7 @@ internal static partial class Program
         return verb switch
         {
             "update" => await RunActionUpdateAsync(options).ConfigureAwait(false),
+            "publish" => await RunActionPublishAsync(options).ConfigureAwait(false),
             "search" => await RunActionSearchAsync(options).ConfigureAwait(false),
             "list" => await RunActionListAsync(options).ConfigureAwait(false),
             "get" => await RunActionGetAsync(options).ConfigureAwait(false),
@@ -246,11 +251,12 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|update|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
+            "Use: action create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|publish|update|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
 
+    /// <summary>Legacy CLI entry; forwards to <see cref="PublishSharedActionAsync"/> via RPC.</summary>
     private static async Task<int> RunActionUpdateAsync(ActionOptions options)
     {
         var actionId = (options.Id ?? options.Code ?? string.Empty).Trim();
@@ -312,6 +318,95 @@ internal static partial class Program
         catch (Exception ex)
         {
             await EmitErrorAsync(options.Json, "UPDATE_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
+
+    private static async Task<int> RunActionPublishAsync(ActionOptions options)
+    {
+        var actionId = (options.Id ?? options.Code ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            await EmitErrorAsync(options.Json, "MISSING_ACTION_ID", "Provide --id or --code <actionId>.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        var (changelogOk, changelog, changelogErrorCode, changelogErrorMessage) = ResolveChangelog(options);
+        if (!changelogOk)
+        {
+            await EmitErrorAsync(options.Json, changelogErrorCode!, changelogErrorMessage!).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        var (noteOk, note, noteErrorCode, noteErrorMessage) = ResolveShareNote(options);
+        if (!noteOk)
+        {
+            await EmitErrorAsync(options.Json, noteErrorCode!, noteErrorMessage!).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        var request = new QuickerRpcActionPublishRequest
+        {
+            Title = options.Title,
+            Description = options.Description,
+            Note = note,
+            Tags = options.Tags,
+            Keywords = options.Keywords,
+            ChangeLog = changelog,
+            IsPublic = !options.Private,
+            SubmitReview = !options.NoSubmitReview,
+        };
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var result = await session.Proxy
+                .PublishSharedActionAsync(actionId, request, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "publish",
+                        mode = result.Mode ?? "publish",
+                        actionId = result.ActionId ?? actionId,
+                        sharedId = result.SharedActionId,
+                        shareUrl = result.ShareUrl,
+                        revision = result.Revision,
+                        isPublic = result.IsPublic,
+                        message = result.Message,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else if (result.Ok)
+            {
+                global::System.Console.WriteLine(result.Message);
+            }
+            else
+            {
+                global::System.Console.Error.WriteLine(result.Message);
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "PUBLISH_FAILED", ex.Message).ConfigureAwait(false);
             return ExitCodes.Error;
         }
     }
@@ -915,6 +1010,39 @@ internal static partial class Program
         }
     }
 
+    private static (bool Ok, string? ShareNote, string? ErrorCode, string? ErrorMessage) ResolveShareNote(
+        ActionOptions options)
+    {
+        var hasInline = !string.IsNullOrWhiteSpace(options.ShareNote);
+        var hasFile = !string.IsNullOrWhiteSpace(options.NoteFile);
+
+        if (hasInline && hasFile)
+        {
+            return (false, null, "CONFLICTING_SHARE_NOTE", "Use either --share-note or --note-file, not both.");
+        }
+
+        if (!hasFile)
+        {
+            return (true, options.ShareNote, null, null);
+        }
+
+        var path = options.NoteFile!.Trim();
+        if (!File.Exists(path))
+        {
+            return (false, null, "NOTE_FILE_NOT_FOUND", $"Note file not found: {path}");
+        }
+
+        try
+        {
+            var text = File.ReadAllText(path, Encoding.UTF8).TrimEnd();
+            return (true, text, null, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, null, "NOTE_FILE_READ_FAILED", ex.Message);
+        }
+    }
+
     private sealed class RpcClientSession : IAsyncDisposable
     {
         private readonly NamedPipeClientStream _pipe;
@@ -971,10 +1099,10 @@ public sealed class PingOptions
 [Verb("action", HelpText = "Quicker action operations via RPC.")]
 public sealed class ActionOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | extract | apply | validate | export | import | list | search | update | move | delete | edit | run | float | edit-var")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | extract | apply | validate | export | import | list | search | publish | update | move | delete | edit | run | float | edit-var")]
     public string? Command { get; set; }
 
-    [Option("id", HelpText = "Shared action id (GUID).")]
+    [Option("id", HelpText = "Action id (GUID). publish/update: local or shared id.")]
     public string? Id { get; set; }
 
     [Option("code", HelpText = "Alias for --id.")]
@@ -985,6 +1113,24 @@ public sealed class ActionOptions
 
     [Option('f', "changelog-file", HelpText = "Read change log from a UTF-8 text file.")]
     public string? ChangelogFile { get; set; }
+
+    [Option("share-note", HelpText = "Share page intro (Note) markdown for action publish.")]
+    public string? ShareNote { get; set; }
+
+    [Option("note-file", HelpText = "Read share page intro (Note) from a UTF-8 markdown file.")]
+    public string? NoteFile { get; set; }
+
+    [Option("tags", HelpText = "Comma-separated tags for action publish.")]
+    public string? Tags { get; set; }
+
+    [Option("keywords", HelpText = "Keywords for action publish.")]
+    public string? Keywords { get; set; }
+
+    [Option("private", HelpText = "Non-public share (action publish only).")]
+    public bool Private { get; set; }
+
+    [Option("no-submit-review", HelpText = "Do not auto-submit public action for review (action publish).")]
+    public bool NoSubmitReview { get; set; }
 
     [Option('q', "query", HelpText = "Search keyword for action search/list.")]
     public string? Query { get; set; }

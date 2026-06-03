@@ -1,9 +1,10 @@
 #!/usr/bin/env pwsh
-# Build and push QuickerAgent getquicker action page (aa5917ad) with QUICKER_AGENT_SEMVER from version.json.
+# Build and push QuickerAgent getquicker action page (aa5917ad) with QUICKER_AGENT_SEMVER.
+# Default version: Bitiful version.txt (not version.json). Pass -Version to override.
 #
 # Examples:
 #   pwsh ./publish/Sync-QuickerAgentActionDoc.ps1 -Push
-#   pwsh ./publish/Sync-QuickerAgentActionDoc.ps1 -Version 0.9.0 -Push
+#   pwsh ./publish/Sync-QuickerAgentActionDoc.ps1 -Version 0.9.2 -Push
 
 [CmdletBinding()]
 param(
@@ -23,13 +24,9 @@ if (-not $RepoRoot) {
 }
 
 if (-not $Version) {
-    $versionFile = Join-Path $RepoRoot 'version.json'
-    if (-not (Test-Path -LiteralPath $versionFile)) {
-        throw "version.json not found: $versionFile"
-    }
-
-    $json = Get-Content -LiteralPath $versionFile -Raw | ConvertFrom-Json
-    $Version = [string]$json.QuickerRpc
+    # Action page download links must match Bitiful (version.txt), not unreleased version.json bumps.
+    $Version = Get-QuickerAgentBitifulPublishedSemVer
+    Write-Host "Version from Bitiful version.txt: $Version" -ForegroundColor DarkCyan
 }
 
 $semver = Get-QuickerRpcSemVerFromVersion -Version $Version

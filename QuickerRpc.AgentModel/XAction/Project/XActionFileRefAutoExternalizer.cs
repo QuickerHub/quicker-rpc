@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
 using Newtonsoft.Json.Linq;
 
 namespace QuickerRpc.AgentModel.XAction.Project;
@@ -17,6 +15,9 @@ public static class XActionFileRefAutoExternalizer
     public sealed class ApplyResult
     {
         public IReadOnlyList<string> WrittenFiles { get; set; } = Array.Empty<string>();
+
+        public IReadOnlyList<ActionProjectResourceFile> ResourceFiles { get; set; } =
+            Array.Empty<ActionProjectResourceFile>();
 
         public IReadOnlyList<string> Warnings { get; set; } = Array.Empty<string>();
     }
@@ -38,14 +39,17 @@ public static class XActionFileRefAutoExternalizer
 
         var projectDir = QuickerProjectLayout.ResolveProjectDirectory(projectDirectory);
         var slugCounters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var writtenFiles = new List<string>();
+        var resourceFiles = new List<ActionProjectResourceFile>();
         var warnings = new List<string>();
 
-        ExternalizeSteps(steps, projectDir, minLines, slugCounters, writtenFiles, warnings);
+        ExternalizeSteps(steps, projectDir, minLines, slugCounters, resourceFiles, warnings);
 
         return new ApplyResult
         {
-            WrittenFiles = writtenFiles,
+            ResourceFiles = resourceFiles,
+            WrittenFiles = resourceFiles
+                .Select(f => XActionFileRefPath.NormalizeRelativePath(f.RelativePath))
+                .ToList(),
             Warnings = warnings,
         };
     }
@@ -55,7 +59,7 @@ public static class XActionFileRefAutoExternalizer
         string projectDir,
         int minLines,
         Dictionary<string, int> slugCounters,
-        List<string> writtenFiles,
+        List<ActionProjectResourceFile> resourceFiles,
         List<string> warnings)
     {
         foreach (var token in steps)
@@ -74,18 +78,18 @@ public static class XActionFileRefAutoExternalizer
                     projectDir,
                     minLines,
                     slugCounters,
-                    writtenFiles,
+                    resourceFiles,
                     warnings);
             }
 
             if (step["ifSteps"] is JArray ifSteps)
             {
-                ExternalizeSteps(ifSteps, projectDir, minLines, slugCounters, writtenFiles, warnings);
+                ExternalizeSteps(ifSteps, projectDir, minLines, slugCounters, resourceFiles, warnings);
             }
 
             if (step["elseSteps"] is JArray elseSteps)
             {
-                ExternalizeSteps(elseSteps, projectDir, minLines, slugCounters, writtenFiles, warnings);
+                ExternalizeSteps(elseSteps, projectDir, minLines, slugCounters, resourceFiles, warnings);
             }
         }
     }
@@ -96,7 +100,7 @@ public static class XActionFileRefAutoExternalizer
         string projectDir,
         int minLines,
         Dictionary<string, int> slugCounters,
-        List<string> writtenFiles,
+        List<ActionProjectResourceFile> resourceFiles,
         List<string> warnings)
     {
         foreach (var prop in inputParams.Properties().ToList())
@@ -136,15 +140,11 @@ public static class XActionFileRefAutoExternalizer
             try
             {
                 relativePath = XActionFileRefPath.NormalizeRelativePath(relativePath);
-                var fullPath = XActionFileRefPath.ResolveFullPath(projectDir, relativePath);
-                var dir = Path.GetDirectoryName(fullPath);
-                if (!string.IsNullOrEmpty(dir))
+                resourceFiles.Add(new ActionProjectResourceFile
                 {
-                    Directory.CreateDirectory(dir);
-                }
-
-                File.WriteAllText(fullPath, value, Encoding.UTF8);
-                writtenFiles.Add(relativePath);
+                    RelativePath = relativePath,
+                    Content = value,
+                });
 
                 paramObj.Remove("value");
                 paramObj["file"] = relativePath;

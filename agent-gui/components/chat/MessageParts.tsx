@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { isTextUIPart, type ChatAddToolApproveResponseFunction } from "ai";
+import { isTextUIPart } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { InlineUserMessage } from "./InlineUserMessage";
 import { MarkdownMessage } from "./MarkdownMessage";
@@ -14,15 +14,11 @@ type MessagePartsProps = {
   message: AgentUIMessage;
   /** Local unsent user-message edit; does not change chat context until send. */
   userTextOverride?: string;
-  addToolApprovalResponse?: ChatAddToolApproveResponseFunction;
-  approvalDisabled?: boolean;
 };
 
 export function MessageParts({
   message,
   userTextOverride,
-  addToolApprovalResponse,
-  approvalDisabled,
 }: MessagePartsProps) {
   const segments = useMemo(
     () => segmentMessageParts(message.parts),
@@ -59,8 +55,6 @@ export function MessageParts({
               messageId={message.id}
               partIndex={index}
               part={part}
-              addToolApprovalResponse={addToolApprovalResponse}
-              approvalDisabled={approvalDisabled}
             />
           );
         }
@@ -74,8 +68,6 @@ export function MessageParts({
             key={batchKey}
             messageId={message.id}
             items={segment.items}
-            addToolApprovalResponse={addToolApprovalResponse}
-            approvalDisabled={approvalDisabled}
           />
         );
       })}

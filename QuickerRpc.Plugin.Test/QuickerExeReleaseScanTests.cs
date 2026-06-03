@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using QuickerRpc.Plugin.Reflection;
@@ -61,6 +62,35 @@ public sealed class QuickerExeReleaseScanTests
             "SaveEditingAction",
             QuickerExeReflectionProbe.InstanceMethodFlags,
             WriteLine);
+    }
+
+    [TestMethod]
+    public void Scan_ShareActionAsync_signature_on_WebConnector()
+    {
+        if (!TryLoadRelease(out var assembly))
+        {
+            return;
+        }
+
+        var vmType = assembly.GetType("Quicker.Common.Vm.SharedActionVm");
+        var dtoType = assembly.GetType("Quicker.Common.Vm.SharedActionDto");
+        var apiResultType = assembly.GetType("Quicker.Common.Vm.ApiResult`1")?.MakeGenericType(dtoType!);
+        var taskType = typeof(System.Threading.Tasks.Task<>).MakeGenericType(apiResultType!);
+
+        var method = assembly
+            .GetTypes()
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
+            .FirstOrDefault(m =>
+                m.GetParameters().Length == 1
+                && m.GetParameters()[0].ParameterType == vmType
+                && m.ReturnType == taskType);
+
+        if (method is null)
+        {
+            Assert.Fail("Release Quicker.exe: ShareActionAsync(SharedActionVm) not resolved by signature.");
+        }
+
+        QuickerAssemblyReflection.WriteMethodDetail(method, WriteLine);
     }
 
     private bool TryLoadRelease(out Assembly assembly)

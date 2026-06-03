@@ -137,13 +137,30 @@ internal static class QkrpcCliHelp
 
                     opts: ActionProjectImportOpts()),
 
-                Cmd("action list", "List/search actions (agent summaries).", "qkrpc action list [--query <keyword>] [--scope chrome|global|common|...] [--limit 30] [--sort relevance|lastEdit|title] [--json]",
+                Cmd("action list", "List/search actions (agent summaries). Query prefix uses:<subProgram> finds callers; uses-only: for dedicated wrappers.", "qkrpc action list [--query <keyword|uses:SubName>] [--scope chrome|global|common|...] [--limit 30] [--sort relevance|lastEdit|title] [--json]",
 
-                    opts: new[] { Option("query", "Optional filter.", shortName: "q"), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("sort", "relevance (default with --query) | lastEdit (default without --query) | title."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
+                    opts: new[] { Option("query", "Title filter, or uses:<subProgramIdOrName> / uses-only:<name> for subprogram reference lookup.", shortName: "q"), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("sort", "relevance (default with --query) | lastEdit (default without --query) | title."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
 
-                Cmd("action update", "Upload or refresh a shared action.", "qkrpc action update --id <guid> [--changelog <text>] [--json]",
+                Cmd("action publish", "Share or refresh an action on getquicker.net (auto-detects first publish vs update).", "qkrpc action publish --id <guid> [--title <text>] [--description <text>] [--changelog <text>] [--note-file <path>] [--json]",
 
-                    opts: new[] { Option("id", "Shared action GUID."), Option("changelog", "Change log text."), Option("json", "Structured output.") }),
+                    opts: new[]
+                    {
+                        Option("id", "Local action GUID or shared action GUID (update)."),
+                        Option("title", "Share title (first publish; defaults to action title)."),
+                        Option("description", "Short description (first publish; defaults to action description)."),
+                        Option("share-note", "Share page intro (Note) markdown."),
+                        Option("note-file", "Share page intro (Note) UTF-8 file."),
+                        Option("tags", "Comma-separated tags."),
+                        Option("keywords", "Search keywords."),
+                        Option("changelog", "Required when updating an already-shared action."),
+                        Option("changelog-file", "Changelog UTF-8 file (update)."),
+                        Option("private", "Non-public share (first publish)."),
+                        Option("json", "Structured output."),
+                    }),
+
+                Cmd("action update", "Alias for action publish (refresh shared action; pass --changelog).", "qkrpc action update --id <guid> [--changelog <text>] [--json]",
+
+                    opts: new[] { Option("id", "Local or shared action GUID."), Option("changelog", "Change log text."), Option("changelog-file", "Changelog UTF-8 file."), Option("json", "Structured output.") }),
 
                 Cmd("action move", "Move a local action to another profile; defaults to the first empty slot.", "qkrpc action move --id <guid> --profile <profileIdOrName> [--row N --col N] [--swap] [--json]",
 
@@ -160,9 +177,9 @@ internal static class QkrpcCliHelp
                         Option("no-bootstrap", "Skip auto-start."),
                     }),
 
-                Cmd("action search", "Search local actions (main search box scoring).", "qkrpc action search --query <keyword> [--scope chrome|global|common|...] [--limit 20] [--json]",
+                Cmd("action search", "Search local actions (main search box scoring). Query prefix uses:<subProgram> finds callers.", "qkrpc action search --query <keyword|uses:SubName> [--scope chrome|global|common|...] [--limit 20] [--json]",
 
-                    opts: new[] { Option("query", "Keyword.", shortName: "q"), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),
+                    opts: new[] { Option("query", "Keyword, or uses:<subProgramIdOrName> / uses-only:<name> for subprogram reference lookup.", shortName: "q"), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),
 
                 Cmd("subprogram search", "Search global subprograms (returns callIdentifier for sys:subprogram).", "qkrpc subprogram search --query <keyword> [--limit 20] [--json]",
 
@@ -171,6 +188,41 @@ internal static class QkrpcCliHelp
                 Cmd("subprogram list", "List global subprograms.", "qkrpc subprogram list [--query <keyword>] [--limit 30] [--json]",
 
                     opts: new[] { Option("query", "Optional filter.", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output.") }),
+
+                Cmd("profile create", "Create blank global action profile pages.", "qkrpc profile create --scope global [--count N] [--after-first] [--json]",
+
+                    opts: new[]
+                    {
+                        Option("scope", "Profile scope (global)."),
+                        Option("count", "Number of blank pages (1-20).", defaultValue: "1"),
+                        Option("after-first", "Insert after the first global page (_global)."),
+                        Option("json", "Structured output."),
+                        Option("timeout", "Seconds.", defaultValue: "10"),
+                        Option("no-bootstrap", "Skip auto-start."),
+                    }),
+
+                Cmd("profile reorder", "Move existing global profile tabs after the first page.", "qkrpc profile reorder --scope global --after-first --id <profileGuid> [--id <profileGuid>...] [--json]",
+
+                    opts: new[]
+                    {
+                        Option("scope", "Profile scope (global)."),
+                        Option("after-first", "Insert after the first global page (_global)."),
+                        Option("id", "Profile id to move (repeatable)."),
+                        Option("ids", "Comma-separated profile ids."),
+                        Option("json", "Structured output."),
+                        Option("timeout", "Seconds.", defaultValue: "10"),
+                        Option("no-bootstrap", "Skip auto-start."),
+                    }),
+
+                Cmd("process ensure-ceacore", "Create CeaCore Run virtual process (@CeaCore 001). Find callers: action search --query uses:CeaCore_Run. Use --move-actions to collect dedicated actions.", "qkrpc process ensure-ceacore [--move-actions] [--json]",
+
+                    opts: new[]
+                    {
+                        Option("move-actions", "Move actions whose steps are only CeaCore_Run subprogram calls."),
+                        Option("json", "Structured output."),
+                        Option("timeout", "Seconds.", defaultValue: "30"),
+                        Option("no-bootstrap", "Skip auto-start."),
+                    }),
 
                 Cmd("subprogram create", "Create a global subprogram.", "qkrpc subprogram create --name <name> [--description <text>] [--json]",
 
@@ -200,7 +252,7 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Subprogram id or name."), Option("json", "Structured output.") }),
 
-                Cmd("subprogram edit-var", "Edit subprogram variable default via designer UI.", "qkrpc subprogram edit-var --id <idOrName> --var <key> --value <val> [--json]",
+                Cmd("subprogram edit-var", "Edit subprogram variable default headlessly.", "qkrpc subprogram edit-var --id <idOrName> --var <key> --value <val> [--json]",
 
                     opts: new[] { Option("id", "Subprogram id or name."), Option("var", "Variable key."), Option("value", "New default."), Option("json", "Structured output.") }),
 
@@ -224,7 +276,7 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Action GUID."), Option("json", "Structured output.") }),
 
-                Cmd("action edit-var", "Edit variable default via designer UI.", "qkrpc action edit-var --id <id> --var <key> --value <val> [--json]",
+                Cmd("action edit-var", "Edit variable default headlessly.", "qkrpc action edit-var --id <id> --var <key> --value <val> [--json]",
 
                     opts: new[] { Option("id", "Subprogram or action id."), Option("var", "Variable key."), Option("value", "New default."), Option("json", "Structured output.") }),
 

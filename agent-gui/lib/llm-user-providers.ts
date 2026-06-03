@@ -26,6 +26,11 @@ export const USER_PROVIDER_UI: readonly UserProviderUiSpec[] = [
   { id: CUSTOM_PROVIDER_ID, settingsFields: ["model", "baseURL", "apiKey"] },
 ] as const;
 
+/** Settings panel: providers the user can configure (excludes built-in defaults). */
+export const USER_EDITABLE_PROVIDER_UI = USER_PROVIDER_UI.filter(
+  (spec) => spec.settingsFields.length > 0,
+) as readonly UserProviderUiSpec[];
+
 export function isUserModelSelectorProvider(id: LlmProviderId): boolean {
   return (USER_MODEL_SELECTOR_IDS as readonly LlmProviderId[]).includes(id);
 }

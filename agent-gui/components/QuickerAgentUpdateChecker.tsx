@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { pushAppMessage } from "@/lib/app-messages";
 import { checkQuickerAgentUpdate } from "@/lib/quicker-agent-update";
 import { isTauriShell } from "@/lib/tauri-shell";
+
+const UPDATE_MESSAGE_ID = "quicker-agent-update";
 
 async function openDownloadUrl(url: string): Promise<void> {
   try {
@@ -15,24 +18,27 @@ async function openDownloadUrl(url: string): Promise<void> {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-async function promptForUpdate(
+function notifyUpdateAvailable(
   installedVersion: string,
   remoteVersion: string,
   downloadUrl: string,
-): Promise<void> {
-  const { ask } = await import("@tauri-apps/plugin-dialog");
-  const message =
-    `QuickerAgent 有新版本 ${remoteVersion}（当前 ${installedVersion}）。\n` +
-    "是否打开浏览器下载最新安装包？";
-  const confirmed = await ask(message, {
-    title: "QuickerAgent 更新",
+): void {
+  pushAppMessage({
+    id: UPDATE_MESSAGE_ID,
     kind: "info",
-    okLabel: "下载",
-    cancelLabel: "稍后",
+    title: "QuickerAgent 更新",
+    body: `有新版本 ${remoteVersion}（当前 ${installedVersion}）`,
+    actions: [
+      {
+        label: "下载",
+        primary: true,
+        onClick: () => openDownloadUrl(downloadUrl),
+      },
+      {
+        label: "稍后",
+      },
+    ],
   });
-  if (confirmed) {
-    await openDownloadUrl(downloadUrl);
-  }
 }
 
 /** On each QuickerAgent (Tauri) launch, compare with Bitiful version.txt and prompt if newer. */
@@ -54,13 +60,13 @@ export function QuickerAgentUpdateChecker() {
           controller.signal,
         );
         if (!update) return;
-        await promptForUpdate(
+        notifyUpdateAvailable(
           update.installedVersion,
           update.remoteVersion,
           update.downloadUrl,
         );
       } catch {
-        // Ignore network / dialog errors on startup.
+        // Ignore network errors on startup.
       }
     })();
 

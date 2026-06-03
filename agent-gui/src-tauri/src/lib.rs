@@ -13,12 +13,16 @@ use tauri::{
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
+mod win_job;
+
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 struct BackendState {
     qkrpc: Mutex<Option<Child>>,
     node: Mutex<Option<Child>>,
+    #[cfg(windows)]
+    job: Mutex<Option<win_job::KillOnCloseJob>>,
 }
 
 impl BackendState {
@@ -26,20 +30,51 @@ impl BackendState {
         Self {
             qkrpc: Mutex::new(None),
             node: Mutex::new(None),
+            #[cfg(windows)]
+            job: Mutex::new(win_job::KillOnCloseJob::new().ok()),
+        }
+    }
+
+    fn kill_child_tree(child: &mut Child) {
+        #[cfg(windows)]
+        {
+            let pid = child.id();
+            let _ = Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/T", "/F"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .creation_flags(CREATE_NO_WINDOW)
+                .status();
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = child.kill();
         }
     }
 
     fn shutdown(&self) {
         if let Ok(mut guard) = self.qkrpc.lock() {
             if let Some(mut child) = guard.take() {
-                let _ = child.kill();
+                Self::kill_child_tree(&mut child);
             }
         }
         if let Ok(mut guard) = self.node.lock() {
             if let Some(mut child) = guard.take() {
-                let _ = child.kill();
+                Self::kill_child_tree(&mut child);
             }
         }
+    }
+
+    fn track_child(&self, child: Child) -> Result<Child, String> {
+        #[cfg(windows)]
+        if let Ok(job_guard) = self.job.lock() {
+            if let Some(job) = job_guard.as_ref() {
+                if let Err(err) = job.assign_child(&child) {
+                    eprintln!("child job assign failed: {err}");
+                }
+            }
+        }
+        Ok(child)
     }
 }
 
@@ -246,8 +281,9 @@ fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<St
     let node_child = spawn_node_server(&runtime, &node_exe, host, ui_port)?;
     wait_http_200(host, ui_port, "/", 60_000)?;
 
+    let qkrpc_child = state.track_child(qkrpc_child)?;
     *state.qkrpc.lock().map_err(|e| e.to_string())? = Some(qkrpc_child);
-    *state.node.lock().map_err(|e| e.to_string())? = Some(node_child);
+    *state.node.lock().map_err(|e| e.to_string())? = Some(state.track_child(node_child)?);
 
     Ok(format!("http://{host}:{ui_port}"))
 }
@@ -317,8 +353,8 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
-            if matches!(event, RunEvent::Exit) {
-                app.state::<BackendState>().shutdown();
+            if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
+                app.state::<BackendState>().inner().shutdown();
             }
         });
 }

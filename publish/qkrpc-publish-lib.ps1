@@ -283,6 +283,22 @@ function Get-QuickerAgentBitifulVersionTxtUrl {
     return "$(Get-QuickerAgentBitifulDownloadPrefix)/version.txt"
 }
 
+function Get-QuickerAgentBitifulPublishedSemVer {
+    $url = Get-QuickerAgentBitifulVersionTxtUrl
+    try {
+        $text = (Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 15).Content.Trim()
+    }
+    catch {
+        throw "Failed to read Bitiful version.txt ($url): $($_.Exception.Message)"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        throw "Bitiful version.txt is empty: $url"
+    }
+
+    return $text
+}
+
 function Get-QuickerAgentBitifulSetupUrl {
     param([string]$Version)
 

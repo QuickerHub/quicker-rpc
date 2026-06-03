@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Quicker.Common;
+using Quicker.Domain.Profiles;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -18,6 +19,11 @@ internal static class ActionCatalogSearch
         if (keyword.Length == 0)
         {
             return ListRecentByLastEdit(scope, maxResults, actionFilter);
+        }
+
+        if (ActionSearchQuery.TryParseSubProgramReference(keyword, out var subProgramSearch))
+        {
+            return MatchSubProgramReference(subProgramSearch, scope, maxResults, actionFilter, limitResults);
         }
 
         var scored = new List<(int Score, ActionCatalogEntry Entry)>();
@@ -55,6 +61,63 @@ internal static class ActionCatalogSearch
 
         var max = ClampLimit(maxResults);
         return ordered.Take(max).ToList();
+    }
+
+    private static IReadOnlyList<(int Score, ActionCatalogEntry Entry)> MatchSubProgramReference(
+        SubProgramReferenceSearch search,
+        string? scope,
+        int maxResults,
+        Func<ActionItem, bool>? actionFilter,
+        bool limitResults)
+    {
+        var matches = search.DedicatedOnly
+            ? ActionSubProgramCallScanner.FindActionsDedicatedToSubProgram(search.SubProgramRef)
+            : ActionSubProgramCallScanner.FindActionsCallingSubProgram(search.SubProgramRef);
+
+        HashSet<string>? allowedProfileIds = null;
+        if (!string.IsNullOrWhiteSpace(scope))
+        {
+            var manager = ProfileManagerAccessor.TryCreate()?.Instance;
+            if (manager is not null)
+            {
+                allowedProfileIds = new HashSet<string>(
+                    ActionScopeResolver.ResolveProfiles(manager, scope)
+                        .Select(p => (p.Id ?? string.Empty).Trim())
+                        .Where(id => id.Length > 0),
+                    StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        var scored = new List<(int Score, ActionCatalogEntry Entry)>();
+        foreach (var entry in matches)
+        {
+            if (actionFilter is not null && !actionFilter(entry.Action))
+            {
+                continue;
+            }
+
+            if (allowedProfileIds is not null)
+            {
+                var profileId = (entry.Profile?.Id ?? string.Empty).Trim();
+                if (profileId.Length == 0 || !allowedProfileIds.Contains(profileId))
+                {
+                    continue;
+                }
+            }
+
+            scored.Add((ActionSearchQuery.SubProgramReferenceScore, entry));
+        }
+
+        var ordered = scored
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Entry.Action.Title, StringComparer.OrdinalIgnoreCase);
+
+        if (!limitResults)
+        {
+            return ordered.ToList();
+        }
+
+        return ordered.Take(ClampLimit(maxResults)).ToList();
     }
 
     /// <summary>

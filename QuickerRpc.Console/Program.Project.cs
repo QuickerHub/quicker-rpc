@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Proto.V1;
@@ -105,9 +106,6 @@ internal static partial class Program
                     .ConfigureAwait(false);
             }
 
-            Directory.CreateDirectory(projectDir);
-            QuickerProjectFiles.WriteData(projectDir, exportResult.ExportedData);
-
             var info = ActionProjectInfoMapper.FromMetadataGet(
                 actionId,
                 fullResponse.EditVersion ?? 0L,
@@ -117,7 +115,12 @@ internal static partial class Program
                 info.Id = actionId;
             }
 
-            QuickerProjectFiles.WriteActionInfo(projectDir, info);
+            var writtenFiles = ActionProjectExtractWriter.Write(
+                projectDir,
+                info,
+                exportResult.ExportedData,
+                exportResult.ResourceFiles);
+            exportResult.WrittenFiles = writtenFiles;
 
             var projectDirectoryRelative = ActionProjectCatalog.GetRelativeProjectDirectory(projectDir);
 
@@ -132,7 +135,7 @@ internal static partial class Program
                     actionId = ActionProjectIdentity.FromInfoOrDirectory(info, projectDir) ?? actionId,
                     editVersion = info.EditVersion,
                     autoExternalizeMinLines = exportOptions.AutoExternalizeMinLines,
-                    writtenFiles = exportResult.WrittenFiles,
+                    writtenFiles,
                     warnings = exportResult.Warnings,
                 },
                 exportResult.Warnings);
@@ -448,9 +451,6 @@ internal static partial class Program
                     .ConfigureAwait(false);
             }
 
-            Directory.CreateDirectory(projectDir);
-            QuickerProjectFiles.WriteData(projectDir, exportResult.ExportedData);
-
             var metaRoot = metaResponse.Success && !string.IsNullOrWhiteSpace(metaResponse.CompressedJson)
                 ? JObject.Parse(metaResponse.CompressedJson)
                 : null;
@@ -465,7 +465,13 @@ internal static partial class Program
                 EditVersion = fullResponse.EditVersion,
                 ExportedUtc = DateTime.UtcNow.ToString("o"),
             };
+            Directory.CreateDirectory(projectDir);
             QuickerProjectFiles.WriteSubProgramInfo(projectDir, info);
+            ActionProjectResourceFile.WriteAll(projectDir, exportResult.ResourceFiles);
+            QuickerProjectFiles.WriteData(projectDir, exportResult.ExportedData);
+            var subWrittenFiles = exportResult.ResourceFiles
+                .Select(f => XActionFileRefPath.NormalizeRelativePath(f.RelativePath))
+                .ToList();
 
             WriteProjectSuccess(
                 options.Json,
@@ -478,7 +484,7 @@ internal static partial class Program
                     name = info.Name,
                     callIdentifier = info.CallIdentifier,
                     editVersion = info.EditVersion,
-                    writtenFiles = exportResult.WrittenFiles,
+                    writtenFiles = subWrittenFiles,
                     warnings = exportResult.Warnings,
                 },
                 exportResult.Warnings);

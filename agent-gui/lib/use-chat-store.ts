@@ -15,16 +15,26 @@ let cachedStore: ChatStoreData | undefined;
 /** Stable reference for SSR / hydration (must not allocate per call). */
 let serverSnapshot: ChatStoreData | undefined;
 
+/** Until true, client getSnapshot matches getServerSnapshot (React hydration rule). */
+let storeHydrated = false;
+
+function readChatStoreFromClient(): ChatStoreData {
+  try {
+    return loadChatStore();
+  } catch {
+    return defaultChatStore();
+  }
+}
+
 function getChatStoreSnapshot(): ChatStoreData {
   if (typeof window === "undefined") {
     return getChatStoreServerSnapshot();
   }
+  if (!storeHydrated) {
+    return getChatStoreServerSnapshot();
+  }
   if (!cachedStore) {
-    try {
-      cachedStore = loadChatStore();
-    } catch {
-      cachedStore = defaultChatStore();
-    }
+    cachedStore = readChatStoreFromClient();
   }
   return cachedStore;
 }
@@ -36,6 +46,13 @@ function getChatStoreServerSnapshot(): ChatStoreData {
   return serverSnapshot;
 }
 
+function hydrateChatStoreFromClient(): void {
+  if (storeHydrated) return;
+  storeHydrated = true;
+  cachedStore = readChatStoreFromClient();
+  notifyChatStoreListeners();
+}
+
 const listeners = new Set<() => void>();
 
 function subscribeChatStore(onStoreChange: () => void): () => void {
@@ -44,7 +61,9 @@ function subscribeChatStore(onStoreChange: () => void): () => void {
   const onStorage = (event: StorageEvent) => {
     if (event.key === CHAT_STORAGE_KEY) {
       cachedStore = undefined;
-      onStoreChange();
+      if (storeHydrated) {
+        onStoreChange();
+      }
     }
   };
   window.addEventListener("storage", onStorage);
@@ -67,6 +86,10 @@ export function useChatStore() {
     getChatStoreSnapshot,
     getChatStoreServerSnapshot,
   );
+
+  useEffect(() => {
+    hydrateChatStoreFromClient();
+  }, []);
 
   const [defaultCwd, setDefaultCwd] = useState("");
   const [defaultCwdProfile, setDefaultCwdProfile] =

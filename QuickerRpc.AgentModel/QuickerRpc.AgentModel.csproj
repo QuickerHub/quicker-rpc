@@ -29,6 +29,9 @@
     <Protobuf Include="Protos\action_project.proto" GrpcServices="None" ProtoRoot="Protos" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Catalog\step-runner-agent-keywords.json" />
+  </ItemGroup>
+  <ItemGroup>
     <EmbeddedResource Include="$(RepoRoot)docs\action-authoring\cli\*.md">
       <Link>Docs\ActionAuthoring\%(Filename)%(Extension)</Link>
       <LogicalName>QuickerRpc.AgentModel.Docs.ActionAuthoring.%(Filename)%(Extension)</LogicalName>
