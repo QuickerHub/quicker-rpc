@@ -4,6 +4,12 @@
 
 import { useCallback } from "react";
 
+import {
+  clampExplorerWidth,
+  maxExplorerWidthForLayout,
+  storeExplorerWidth,
+} from "@/lib/explorer-prefs";
+
 import { DocsViewerPanel } from "@/components/chat/DocsViewerTabs";
 
 import { ActionProjectTree } from "@/components/workspace/ActionProjectTree";
@@ -77,6 +83,48 @@ export function WorkspaceExplorerPanel() {
 
 
 
+  const { panelWidth, setPanelWidth } = useWorkspaceExplorerShell();
+
+  const handleResizePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      const startX = e.clientX;
+      const startWidth = panelWidth;
+      let latestWidth = startWidth;
+      document.body.classList.add("workspace-explorer-resizing");
+
+      const onMove = (ev: PointerEvent) => {
+        const shell = document.querySelector<HTMLElement>(".app-shell");
+        let maxWidth = Infinity;
+        if (shell) {
+          const sidebarVar = getComputedStyle(shell)
+            .getPropertyValue("--ws-sidebar-width")
+            .trim();
+          const sidebarPx = Number.parseFloat(sidebarVar) || 0;
+          maxWidth = maxExplorerWidthForLayout(
+            shell.getBoundingClientRect().width,
+            sidebarPx,
+          );
+        }
+        const raw = startWidth + (startX - ev.clientX);
+        latestWidth = clampExplorerWidth(Math.min(maxWidth, raw));
+        setPanelWidth(latestWidth, false);
+      };
+
+      const onUp = () => {
+        document.body.classList.remove("workspace-explorer-resizing");
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+        storeExplorerWidth(latestWidth);
+      };
+
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+    },
+    [panelWidth, setPanelWidth],
+  );
+
   const handleProjectRemoved = useCallback(() => {
 
     closeTab("__preview__");
@@ -143,7 +191,18 @@ export function WorkspaceExplorerPanel() {
 
   return (
 
-    <aside className="workspace-explorer" aria-label="工作区资源管理器">
+    <aside
+      className="workspace-explorer"
+      aria-label="工作区资源管理器"
+      style={{ width: panelWidth, flex: `0 0 ${panelWidth}px` }}
+    >
+      <div
+        className="workspace-explorer-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整资源管理器宽度"
+        onPointerDown={handleResizePointerDown}
+      />
 
       <div className="workspace-explorer-head">
 

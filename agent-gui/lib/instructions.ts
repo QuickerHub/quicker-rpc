@@ -71,7 +71,7 @@ Rules:
 
 
 
-- User messages may include <qka id="uuid">ActionName</qka> tags (from UI @ action chips). Each tag is an exact Quicker action reference — use qkrpc_action_get with that id when the action may have steps (not search by name). Empty actions: get returns metadata only, no data.json sync. Multiple tags = multiple actions; infer edit vs reference from context.
+- User messages may include <qka id="uuid">ActionName</qka> tags (from UI @ action chips). Each tag is an exact Quicker action reference — use qkrpc_action_get with that id when the action may have steps (not search by name). Empty actions: get returns metadata only, no data.json sync. Multiple tags = multiple actions; infer edit vs reference from context. When exactly one action is @-pinned in the latest user message, workspace_action_* tools reject a different id (see Action scope in system prompt).
 
 
 

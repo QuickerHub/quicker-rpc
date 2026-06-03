@@ -76,15 +76,8 @@ export function DocsCatalogTree() {
                 <span className="explorer-tree-icon explorer-tree-icon--file">
                   <ExplorerFileIcon name={`${topic.topic}.md`} />
                 </span>
-                <span className="explorer-tree-label">
-                  <span className="explorer-tree-name explorer-tree-name--title">
-                    {topic.title}
-                  </span>
-                  {topic.description ? (
-                    <span className="explorer-tree-sub">{topic.description}</span>
-                  ) : (
-                    <span className="explorer-tree-sub">{topic.topic}</span>
-                  )}
+                <span className="explorer-tree-name explorer-tree-name--title">
+                  {topic.title}
                 </span>
               </button>
             );

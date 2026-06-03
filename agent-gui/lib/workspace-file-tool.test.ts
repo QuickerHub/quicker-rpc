@@ -41,7 +41,7 @@ test("parseWorkspaceFileReadPayload accepts action-data-read", () => {
   assert.ok(payload?.path.includes("data.json"));
 });
 
-test("buildEditStat uses diff-style line counts", () => {
+test("buildEditStat uses line-diff insert/delete counts", () => {
   assert.deepEqual(buildEditStat("old", "new"), {
     label: "+1 -1",
     kind: "neutral",
@@ -59,6 +59,12 @@ test("buildEditStat uses diff-style line counts", () => {
     kind: "add",
     addLines: 1,
     removeLines: 0,
+  });
+  assert.deepEqual(buildEditStat("a\nb\nc", "a\nB\nc"), {
+    label: "+1 -1",
+    kind: "neutral",
+    addLines: 1,
+    removeLines: 1,
   });
 });
 

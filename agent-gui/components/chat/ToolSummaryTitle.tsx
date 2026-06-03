@@ -6,18 +6,22 @@ export function ToolSummaryTitle({
   isRunning,
   state,
   showChevron,
+  isError,
 }: {
   displayName: string;
   meta: string;
   isRunning: boolean;
   state: string;
   showChevron?: boolean;
+  /** Structured qkrpc failure while state is still output-available. */
+  isError?: boolean;
 }) {
+  const err = isError ?? state === "output-error";
   return (
     <span className="tool-title">
       <span className="tool-name">{displayName}</span>
       <span
-        className={`tool-meta${isRunning ? " tool-meta--running" : ""}${state === "output-error" ? " tool-meta--err" : ""}${state === "approval-requested" ? " tool-meta--approval" : ""}`}
+        className={`tool-meta${isRunning ? " tool-meta--running" : ""}${err ? " tool-meta--err" : ""}${state === "approval-requested" ? " tool-meta--approval" : ""}`}
       >
         {meta}
       </span>

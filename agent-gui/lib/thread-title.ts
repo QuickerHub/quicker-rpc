@@ -4,6 +4,33 @@ import { parseUserMessageContent } from "@/lib/compose-user-message";
 
 const MAX_TITLE_CHARS = 36;
 const MAX_CONTEXT_CHARS = 1_200;
+const DEFAULT_THREAD_TITLE = "新对话";
+
+/** First user turn as a short title (tags → action names; no LLM). */
+export function deriveProvisionalThreadTitle(
+  messages: AgentUIMessage[],
+): string {
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+    for (const part of message.parts) {
+      if (!isTextUIPart(part)) continue;
+      const raw = part.text.trim();
+      if (!raw) continue;
+
+      const { tags, body } = parseUserMessageContent(raw);
+      let line = "";
+      if (tags.length > 0) {
+        const tagHint = tags.map((t) => t.title).join("、");
+        line = body ? `${tagHint}：${body}` : tagHint;
+      } else {
+        line = body || raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      }
+      if (!line) continue;
+      return sanitizeThreadTitle(line);
+    }
+  }
+  return DEFAULT_THREAD_TITLE;
+}
 
 /** Plain user/assistant text for title generation (no tool parts). */
 export function extractTitleConversationText(
@@ -48,8 +75,12 @@ export function extractTitleConversationText(
   return `${text.slice(0, MAX_CONTEXT_CHARS)}…`;
 }
 
+function stripReasoningWrappers(text: string): string {
+  return text.replace(/[\s\S]*?<\/think>/gi, "").trim();
+}
+
 export function sanitizeThreadTitle(raw: string): string {
-  let title = raw
+  let title = stripReasoningWrappers(raw)
     .trim()
     .replace(/^["'「『【]+/, "")
     .replace(/["'」』】]+$/, "")
@@ -57,7 +88,7 @@ export function sanitizeThreadTitle(raw: string): string {
     .replace(/\s+/g, " ")
     .trim();
 
-  if (!title) return "新对话";
+  if (!title) return DEFAULT_THREAD_TITLE;
   if (title.length > MAX_TITLE_CHARS) {
     return `${title.slice(0, MAX_TITLE_CHARS - 1)}…`;
   }

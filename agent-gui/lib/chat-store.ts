@@ -1,4 +1,5 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
+import { deriveProvisionalThreadTitle } from "@/lib/thread-title";
 
 export type ChatThread = {
   id: string;
@@ -37,17 +38,9 @@ export function createId(): string {
   return `id-${now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** @deprecated Use deriveProvisionalThreadTitle — kept for imports. */
 export function deriveThreadTitle(messages: AgentUIMessage[]): string {
-  for (const message of messages) {
-    if (message.role !== "user") continue;
-    for (const part of message.parts) {
-      if (part.type === "text" && part.text.trim()) {
-        const text = part.text.trim().replace(/\s+/g, " ");
-        return text.length > 36 ? `${text.slice(0, 36)}…` : text;
-      }
-    }
-  }
-  return "新对话";
+  return deriveProvisionalThreadTitle(messages);
 }
 
 function createThread(): ChatThread {
@@ -655,7 +648,7 @@ export function updateThreadTitle(
   title: string,
 ): ChatStoreData {
   const trimmed = title.trim();
-  if (!trimmed) return data;
+  if (!trimmed || trimmed === "新对话") return data;
   return {
     ...data,
     threads: data.threads.map((thread) => {

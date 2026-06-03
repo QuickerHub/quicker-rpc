@@ -41,6 +41,7 @@ import {
 import { AppSettingsPanel } from "@/components/chat/AppSettingsPanel";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ChatTitlebar } from "@/components/chat/ChatTitlebar";
+import { SidebarToggle } from "@/components/chat/SidebarToggle";
 import { DocsViewerProvider } from "@/lib/docs-viewer";
 import {
   WorkspaceExplorerPanelProvider,
@@ -236,6 +237,7 @@ type ChatPanelProps = {
   initialMessages: AgentUIMessage[];
   workingDirectory: string;
   visible?: boolean;
+  threadTitle: string;
   titleGenerated: boolean;
   titleManual: boolean;
   ping: PingState;
@@ -250,6 +252,7 @@ function ChatPanel({
   initialMessages,
   workingDirectory,
   visible = true,
+  threadTitle,
   titleGenerated,
   titleManual,
   ping,
@@ -368,6 +371,7 @@ function ChatPanel({
     messages,
     status,
     llmProvider,
+    currentTitle: threadTitle,
     titleGenerated,
     titleManual,
     onTitle: onAutoTitle,
@@ -1027,18 +1031,14 @@ export function Chat() {
       className={`app-shell${sidebarCollapsed ? " app-shell--sidebar-collapsed" : ""}`}
       suppressHydrationWarning
     >
-        <ChatTitlebar
-          store={store}
-          sidebarOpen={!sidebarCollapsed}
-          mainView={mainView}
-          settingsTabOpen={settingsTabOpen}
-          onToggleSidebar={toggleSidebar}
-          onChange={updateStore}
-          onMainViewChange={setMainView}
-          onOpenSettingsTab={openSettingsTab}
-          onCloseSettingsTab={closeSettingsTab}
-        />
-        <div className="app-body">
+        <div className="app-shell-toggle-slot">
+          <SidebarToggle
+            sidebarOpen={!sidebarCollapsed}
+            onClick={toggleSidebar}
+            className="shell-sidebar-toggle"
+          />
+        </div>
+        <div className="workspace-rail" aria-hidden={sidebarCollapsed}>
           <ChatSidebar
             store={store}
             defaultCwd={defaultCwd}
@@ -1046,7 +1046,17 @@ export function Chat() {
             onChange={updateStore}
             onActivateThread={handleActivateThread}
             onShowChatView={() => setMainView("chat")}
-            collapsed={sidebarCollapsed}
+          />
+        </div>
+        <div className="app-main-column">
+          <ChatTitlebar
+            store={store}
+            mainView={mainView}
+            settingsTabOpen={settingsTabOpen}
+            onChange={updateStore}
+            onMainViewChange={setMainView}
+            onOpenSettingsTab={openSettingsTab}
+            onCloseSettingsTab={closeSettingsTab}
           />
           <DocsViewerProvider>
             <div className="app-content-row">
@@ -1067,6 +1077,7 @@ export function Chat() {
                         initialMessages={thread.messages}
                         workingDirectory={workingDirectory}
                         visible={thread.id === activeThread.id}
+                        threadTitle={thread.title}
                         titleGenerated={thread.titleGenerated ?? false}
                         titleManual={thread.titleManual ?? false}
                         ping={ping}

@@ -5,6 +5,7 @@ import {
   type ToolUIPart,
   type UIMessage,
 } from "ai";
+import { hasFailedStructuredToolOutput } from "@/lib/tool-display";
 import {
   buildToolSummaryMeta,
   formatToolDisplayName,
@@ -61,7 +62,8 @@ export function analyzeToolUiPart(
     "output" in part && part.output !== undefined ? part.output : undefined;
   const isRunning = isToolUiPartRunning(state);
   const summary =
-    state === "output-available" && output !== undefined
+    output !== undefined
+    && (state === "output-available" || hasFailedStructuredToolOutput(output))
       ? summarizeToolOutput(name, output, input)
       : null;
   const runningMeta =
@@ -72,7 +74,8 @@ export function analyzeToolUiPart(
   const needsAttention =
     isRunning
     || state === "approval-requested"
-    || state === "output-error";
+    || state === "output-error"
+    || hasFailedStructuredToolOutput(output);
 
   return {
     part,
@@ -143,7 +146,13 @@ export function buildToolBatchSummary(items: ToolUiPartAnalysis[]): {
   const n = items.length;
   const running = items.filter((i) => i.isRunning).length;
   const approval = items.filter((i) => i.state === "approval-requested").length;
-  const errors = items.filter((i) => i.state === "output-error").length;
+  const errors = items.filter(
+    (i) =>
+      i.state === "output-error"
+      || ("output" in i.part
+        && i.part.output !== undefined
+        && hasFailedStructuredToolOutput(i.part.output)),
+  ).length;
 
   let meta: string;
   if (running > 0) {
@@ -160,4 +169,12 @@ export function buildToolBatchSummary(items: ToolUiPartAnalysis[]): {
   const needsAttention = items.some((i) => i.needsAttention);
 
   return { title, meta, allTerminal, needsAttention };
+}
+
+/** Collapse batch UI when every tool finished and none need attention (errors stay open). */
+export function shouldCollapseToolBatchWhenIdle(summary: {
+  allTerminal: boolean;
+  needsAttention: boolean;
+}): boolean {
+  return summary.allTerminal && !summary.needsAttention;
 }

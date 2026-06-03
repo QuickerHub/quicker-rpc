@@ -31,6 +31,23 @@ export function toolHasInlinePreview(_toolName: string): boolean {
   return false;
 }
 
+export function hasFailedStructuredToolOutput(output: unknown): boolean {
+  return isStructuredToolResult(output) && !output.ok;
+}
+
+/** Show expandable request/response JSON for debugging failed tool calls. */
+export function shouldShowToolDebugDetails(
+  state: string,
+  output: unknown,
+  needsApprovalUi = false,
+): boolean {
+  return shouldDefaultExpandToolDetails(
+    state,
+    needsApprovalUi,
+    hasFailedStructuredToolOutput(output),
+  );
+}
+
 /** Expand raw request/response details by default (errors only). */
 export function shouldDefaultExpandToolDetails(
   state: string,

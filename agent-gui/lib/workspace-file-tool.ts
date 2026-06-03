@@ -3,6 +3,7 @@ import {
   isActionProjectDataTool,
   isWorkspaceExplorerFileTool,
 } from "@/lib/action-project-data-tools";
+import { countLineDiffStats } from "@/lib/file-line-diff";
 import { isStructuredToolResult } from "@/lib/tool-result";
 
 export const WORKSPACE_FILE_TOOLS = new Set([
@@ -294,8 +295,10 @@ export function summarizeWorkspaceFileTool(
             && typeof (input as Record<string, unknown>).content === "string"
             ? ((input as Record<string, unknown>).content as string)
             : "";
-        const addLines = countLines(newContent);
-        const remLines = countLines(data.previousContent);
+        const { addLines, removeLines: remLines } = countLineDiffStats(
+          data.previousContent,
+          newContent,
+        );
         return `${basenamePath(payload.path)} · +${addLines} -${remLines}`;
       }
       return `${basenamePath(payload.path)} · 写入 ${payload.bytesWritten} 字节`;

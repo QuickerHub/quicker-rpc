@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { shouldCollapseToolBatchWhenIdle } from "../components/chat/tool-part-layout.ts";
 import {
+  hasFailedStructuredToolOutput,
   isSummaryOnlyToolResult,
   parseSingleIdInput,
   shouldOmitCompactToolResultBody,
+  shouldShowToolDebugDetails,
   shouldSkipRedundantToolRequest,
   shouldUseStaticToolRow,
 } from "./tool-display";
@@ -17,6 +20,53 @@ const deleteOutput = {
     actionId: "7fe120c4-cbb1-42cc-b60c-d8c5d961a7c4",
   },
 };
+
+test("shouldCollapseToolBatchWhenIdle when all tools finished without errors", () => {
+  assert.equal(
+    shouldCollapseToolBatchWhenIdle({ allTerminal: true, needsAttention: false }),
+    true,
+  );
+  assert.equal(
+    shouldCollapseToolBatchWhenIdle({ allTerminal: true, needsAttention: true }),
+    false,
+  );
+  assert.equal(
+    shouldCollapseToolBatchWhenIdle({ allTerminal: false, needsAttention: false }),
+    false,
+  );
+});
+
+test("hasFailedStructuredToolOutput detects ok:false results", () => {
+  assert.equal(
+    hasFailedStructuredToolOutput({ ok: false, exitCode: 1, data: { error: "x" } }),
+    true,
+  );
+  assert.equal(
+    hasFailedStructuredToolOutput({ ok: true, exitCode: 0, data: {} }),
+    false,
+  );
+});
+
+test("shouldShowToolDebugDetails for framework errors and qkrpc failures", () => {
+  assert.equal(
+    shouldShowToolDebugDetails("output-error", undefined),
+    true,
+  );
+  assert.equal(
+    shouldShowToolDebugDetails(
+      "output-available",
+      { ok: false, exitCode: 1, data: { error: "pipe" } },
+    ),
+    true,
+  );
+  assert.equal(
+    shouldShowToolDebugDetails(
+      "output-available",
+      { ok: true, exitCode: 0, data: {} },
+    ),
+    false,
+  );
+});
 
 test("shouldUseStaticToolRow defaults to static chat rows", () => {
   assert.equal(

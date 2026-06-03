@@ -4,6 +4,7 @@ import { isTextUIPart } from "ai";
 import { useEffect, useRef } from "react";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import type { LlmProviderId } from "@/lib/llm-providers";
+import { deriveProvisionalThreadTitle } from "@/lib/thread-title";
 
 function hasUserTextMessage(messages: AgentUIMessage[]): boolean {
   for (const message of messages) {
@@ -15,11 +16,25 @@ function hasUserTextMessage(messages: AgentUIMessage[]): boolean {
   return false;
 }
 
+function pickThreadTitle(
+  messages: AgentUIMessage[],
+  apiTitle: string | undefined,
+): string | null {
+  const trimmed = apiTitle?.trim();
+  if (trimmed && trimmed !== "新对话") return trimmed;
+
+  const provisional = deriveProvisionalThreadTitle(messages);
+  if (provisional && provisional !== "新对话") return provisional;
+
+  return trimmed || null;
+}
+
 type UseAutoThreadTitleOptions = {
   threadId: string;
   messages: AgentUIMessage[];
   status: string;
   llmProvider: LlmProviderId;
+  currentTitle: string;
   titleGenerated: boolean;
   titleManual: boolean;
   onTitle: (threadId: string, title: string) => void;
@@ -30,6 +45,7 @@ export function useAutoThreadTitle({
   messages,
   status,
   llmProvider,
+  currentTitle,
   titleGenerated,
   titleManual,
   onTitle,
@@ -39,7 +55,8 @@ export function useAutoThreadTitle({
   onTitleRef.current = onTitle;
 
   useEffect(() => {
-    if (titleManual || titleGenerated) return;
+    if (titleManual) return;
+    if (titleGenerated && currentTitle.trim() !== "新对话") return;
     if (status !== "ready") return;
     if (!hasUserTextMessage(messages)) return;
     if (inflightRef.current) return;
@@ -54,14 +71,22 @@ export function useAutoThreadTitle({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ messages, llmProvider }),
         });
-        if (cancelled || !res.ok) return;
 
-        const data = (await res.json()) as { title?: unknown };
-        if (typeof data.title !== "string" || !data.title.trim()) return;
+        let apiTitle: string | undefined;
+        if (res.ok) {
+          const data = (await res.json()) as { title?: unknown };
+          if (typeof data.title === "string") apiTitle = data.title;
+        }
 
-        onTitleRef.current(threadId, data.title.trim());
+        if (cancelled) return;
+        const title = pickThreadTitle(messages, apiTitle);
+        if (!title) return;
+
+        onTitleRef.current(threadId, title);
       } catch {
-        /* keep provisional title from first user message */
+        if (cancelled) return;
+        const fallback = pickThreadTitle(messages, undefined);
+        if (fallback) onTitleRef.current(threadId, fallback);
       } finally {
         if (!cancelled) inflightRef.current = false;
       }
@@ -75,6 +100,7 @@ export function useAutoThreadTitle({
     messages,
     status,
     llmProvider,
+    currentTitle,
     titleGenerated,
     titleManual,
   ]);

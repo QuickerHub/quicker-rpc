@@ -42,8 +42,8 @@ npx --yes serve quicker-agent-web/dist -l 3456
 
 ## 下载 URL
 
-- QuickerAgent（Bitiful latest 别名）：`https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/quicker-agent-win-x64-setup.exe`
+- QuickerAgent（Bitiful，先读 version.txt）：`https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/version.txt` → `quicker-agent-<版本>-x64-setup.exe`
 - QuickerAgent（版本归档示例）：`https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/quicker-agent-0.8.5-x64-setup.exe`
 - qkrpc CLI（GitHub latest）：`https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64-setup.exe`
 
-`release-cli.yml` 会上传版本名安装包（如 `quicker-agent-0.8.5-x64-setup.exe`），并同步更新 `quicker-agent-win-x64-setup.exe` 作为 latest 别名。
+`release-cli.yml` 默认**不在 CI 上传 Bitiful**（海外 runner 直传国内 OSS 慢）。维护者用 `publish/Upload-QuickerAgentToBitiful.ps1` 本地上传；`-WaitForCi` 会自动调用。需恢复 CI 上传时在仓库 Variables 设 `BITIFUL_UPLOAD_IN_CI=true`。

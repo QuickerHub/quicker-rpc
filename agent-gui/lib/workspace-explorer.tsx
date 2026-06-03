@@ -15,7 +15,7 @@ import {
 } from "react";
 import type { ActionExplorerTree, ExplorerTreeNode } from "@/lib/action-explorer-tree";
 import { getAncestorDirectoryPaths } from "@/lib/action-explorer-tree";
-import { loadExplorerOpen, storeExplorerOpen } from "@/lib/explorer-prefs";
+import { loadExplorerOpen, loadExplorerWidth, storeExplorerOpen, storeExplorerWidth, EXPLORER_DEFAULT_WIDTH, clampExplorerWidth } from "@/lib/explorer-prefs";
 import {
   getWorkspaceFileEditorPreview,
   isWorkspaceExplorerFileTool,
@@ -148,6 +148,8 @@ type WorkspaceExplorerShellContextValue = {
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
   togglePanel: () => void;
+  panelWidth: number;
+  setPanelWidth: (width: number, persist?: boolean) => void;
 };
 
 const WorkspaceExplorerShellContext =
@@ -160,9 +162,11 @@ export function WorkspaceExplorerShellProvider({
   children: ReactNode;
 }) {
   const [panelOpen, setPanelOpenState] = useState(true);
+  const [panelWidth, setPanelWidthState] = useState(EXPLORER_DEFAULT_WIDTH);
 
   useEffect(() => {
     setPanelOpenState(loadExplorerOpen());
+    setPanelWidthState(loadExplorerWidth());
   }, []);
 
   const setPanelOpen = useCallback((open: boolean) => {
@@ -181,9 +185,15 @@ export function WorkspaceExplorerShellProvider({
     });
   }, []);
 
+  const setPanelWidth = useCallback((width: number, persist = true) => {
+    const next = clampExplorerWidth(width);
+    setPanelWidthState(next);
+    if (persist) storeExplorerWidth(next);
+  }, []);
+
   const shellValue = useMemo(
-    () => ({ panelOpen, setPanelOpen, togglePanel }),
-    [panelOpen, setPanelOpen, togglePanel],
+    () => ({ panelOpen, setPanelOpen, togglePanel, panelWidth, setPanelWidth }),
+    [panelOpen, setPanelOpen, togglePanel, panelWidth, setPanelWidth],
   );
 
   workspaceExplorerActionsRef.current = {

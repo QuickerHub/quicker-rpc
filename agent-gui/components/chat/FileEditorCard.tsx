@@ -5,20 +5,19 @@
 import { useMemo, useState } from "react";
 
 import { resolveHighlightLanguage, tokenizeCode } from "@/lib/code-highlight";
-
 import {
-
+  computeLineDiff,
+  countLineDiffStats,
+  countUnifiedDiffDisplayLines,
+  lineDiffGutterSymbol,
+} from "@/lib/file-line-diff";
+import {
   basenamePath,
-
   countLines,
-
   formatWorkspacePathLabel,
-
   guessFileLanguage,
-
   splitFileSnapshotHeaderMeta,
   shouldShowFileSnapshotHeaderDetail,
-
 } from "@/lib/workspace-file-tool";
 
 
@@ -248,52 +247,47 @@ function HighlightedCode({
 
 
 
-function DiffBlock({
+function DiffLineContent({ text, path }: { text: string; path: string }) {
+  const display = text.length > 0 ? text : " ";
+  return <HighlightedCode code={display} path={path} />;
+}
 
+function UnifiedDiffView({
   removed,
-
   added,
-
   path,
-
 }: {
-
   removed: string;
-
   added: string;
-
   path: string;
-
 }) {
-
-  return (
-
-    <div className="file-editor-diff">
-
-      {removed ? (
-
-        <pre className="file-editor-diff-chunk file-editor-diff-chunk--remove">
-
-          <HighlightedCode code={removed} path={path} />
-
-        </pre>
-
-      ) : null}
-
-      {added ? (
-
-        <pre className="file-editor-diff-chunk file-editor-diff-chunk--add">
-
-          <HighlightedCode code={added} path={path} />
-
-        </pre>
-
-      ) : null}
-
-    </div>
-
+  const rows = useMemo(
+    () => computeLineDiff(removed, added),
+    [removed, added],
   );
 
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="file-editor-diff" role="region" aria-label="文件差异">
+      {rows.map((row, index) => (
+        <div
+          key={index}
+          className={`file-editor-diff-line file-editor-diff-line--${row.kind}`}
+        >
+          <span
+            className="file-editor-diff-gutter"
+            aria-hidden
+          >
+            {lineDiffGutterSymbol(row.kind)}
+          </span>
+          <pre className="file-editor-diff-content">
+            <DiffLineContent text={row.text} path={path} />
+          </pre>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 
@@ -349,15 +343,10 @@ export function FileEditorCard({
     : null;
 
   const previewLineCount = useMemo(() => {
-
     if (diff) {
-
-      return Math.max(countLines(diff.added), countLines(diff.removed));
-
+      return countUnifiedDiffDisplayLines(diff.removed, diff.added);
     }
-
     return countLines(content);
-
   }, [content, diff]);
 
 
@@ -511,7 +500,7 @@ export function FileEditorCard({
 
           {diff ? (
 
-            <DiffBlock removed={diff.removed} added={diff.added} path={path} />
+            <UnifiedDiffView removed={diff.removed} added={diff.added} path={path} />
 
           ) : (
 
@@ -616,10 +605,7 @@ export function buildReadStat(
 
 
 export function buildEditStat(removed: string, added: string): FileEditorStat {
-
-  const addLines = countLines(added);
-
-  const remLines = countLines(removed);
+  const { addLines, removeLines: remLines } = countLineDiffStats(removed, added);
 
   if (addLines === 0 && remLines === 0) {
 

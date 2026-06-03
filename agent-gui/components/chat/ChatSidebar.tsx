@@ -12,6 +12,7 @@ import {
   sortThreads,
 } from "@/lib/chat-store";
 import type { DefaultWorkingDirectoryProfile } from "@/lib/default-working-directory";
+import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { nativeConfirm } from "@/lib/native-confirm";
 
 function defaultCwdFallbackLabel(profile: DefaultWorkingDirectoryProfile): string {
@@ -34,7 +35,6 @@ type ChatSidebarProps = {
   onChange: (next: ChatStoreData) => void;
   onActivateThread: (threadId: string) => void;
   onShowChatView: () => void;
-  collapsed: boolean;
   disabled?: boolean;
 };
 
@@ -117,7 +117,6 @@ export function ChatSidebar({
   onChange,
   onActivateThread,
   onShowChatView,
-  collapsed,
   disabled = false,
 }: ChatSidebarProps) {
   const activeThread = useMemo(() => getActiveThread(store), [store]);
@@ -154,16 +153,12 @@ export function ChatSidebar({
   };
 
   return (
-    <aside
-      className="workspace-sidebar"
-      aria-label="对话侧栏"
-      aria-hidden={collapsed}
-      data-collapsed={collapsed ? "true" : "false"}
-    >
+    <aside className="workspace-sidebar" aria-label="对话侧栏">
       <div className="workspace-sidebar-inner">
-        <div className="ws-section ws-section--grow">
-          <div className="ws-section-head">
+        <div className="ws-section ws-section--grow ws-section--rail-primary">
+          <div className="ws-section-head ws-section-head--titlebar">
             <span className="ws-section-title">对话</span>
+            <TitlebarDragRegion className="ws-section-head-drag" />
             <button
               type="button"
               className="ws-icon-btn"

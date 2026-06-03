@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import {
   getToolOrDynamicToolName,
   isToolOrDynamicToolUIPart,
@@ -14,7 +14,11 @@ import {
   isWorkspaceFileReadTool,
   workspaceFileRunningMeta,
 } from "@/lib/workspace-file-tool";
-import { shouldUseStaticToolRow } from "@/lib/tool-display";
+import {
+  hasFailedStructuredToolOutput,
+  shouldShowToolDebugDetails,
+  shouldUseStaticToolRow,
+} from "@/lib/tool-display";
 import {
   buildToolSummaryMeta,
   formatToolDisplayName,
@@ -25,6 +29,8 @@ import { ToolApprovalActions } from "./ToolApprovalActions";
 import { parseDocsGetDoc } from "@/lib/docs-tool";
 import { useDocsViewer } from "@/lib/docs-viewer";
 import { ToolSummaryTitle } from "@/components/chat/ToolSummaryTitle";
+import { ToolDisclosure } from "./ToolDisclosure";
+import { ToolFailureDetails } from "./ToolFailureDetails";
 import { WorkspaceFileOpenRow } from "./WorkspaceFileOpenRow";
 import { WorkspaceFileEditorRow } from "./WorkspaceFileToolBody";
 import { WorkspaceFileReadRow } from "./WorkspaceFileReadRow";
@@ -59,7 +65,8 @@ function ToolPartInner({
   const isRunning =
     state === "input-streaming" || state === "input-available";
   const summary =
-    state === "output-available" && output !== undefined
+    output !== undefined
+    && (state === "output-available" || hasFailedStructuredToolOutput(output))
       ? summarizeToolOutput(name, output, input)
       : null;
   const runningMeta =
@@ -68,6 +75,9 @@ function ToolPartInner({
       : null;
   const meta = runningMeta ?? buildToolSummaryMeta(state, summary);
   const errorText = "errorText" in part ? part.errorText : undefined;
+  const isError =
+    state === "output-error" || hasFailedStructuredToolOutput(output);
+  const showDebugDetails = shouldShowToolDebugDetails(state, output);
 
   const isDocsGet =
     name === "docs_get"
@@ -122,6 +132,23 @@ function ToolPartInner({
         </div>
         {errorText ? <pre className="tool-error">{errorText}</pre> : null}
       </div>
+    );
+  }
+
+  if (showDebugDetails) {
+    return (
+      <ToolDebugCard
+        toolName={name}
+        displayName={displayName}
+        meta={meta}
+        isRunning={isRunning}
+        state={state}
+        isError={isError}
+        input={input}
+        output={output}
+        errorText={errorText}
+        inBatch={inBatch}
+      />
     );
   }
 
@@ -213,6 +240,7 @@ function ToolPartInner({
       meta={meta}
       isRunning={isRunning}
       state={state}
+      isError={isError}
       inBatch={inBatch}
       errorText={errorText}
     />
@@ -221,11 +249,83 @@ function ToolPartInner({
 
 export const ToolPart = memo(ToolPartInner);
 
+function ToolDebugCard({
+  toolName,
+  displayName,
+  meta,
+  isRunning,
+  state,
+  isError,
+  input,
+  output,
+  errorText,
+  inBatch,
+}: {
+  toolName: string;
+  displayName: string;
+  meta: string;
+  isRunning: boolean;
+  state: string;
+  isError: boolean;
+  input?: unknown;
+  output?: unknown;
+  errorText?: string;
+  inBatch?: boolean;
+}) {
+  const [open, setOpen] = useState(true);
+  const hasBody =
+    input !== undefined || output !== undefined || Boolean(errorText);
+
+  if (!hasBody) {
+    return (
+      <StaticToolRow
+        displayName={displayName}
+        meta={meta}
+        isRunning={isRunning}
+        state={state}
+        isError={isError}
+        inBatch={inBatch}
+        errorText={errorText}
+      />
+    );
+  }
+
+  return (
+    <ToolDisclosure
+      className={`tool-card tool-card--debug${inBatch ? " tool-card--nested" : ""}`}
+      open={open}
+      onOpenChange={setOpen}
+      summaryClassName="tool-summary"
+      expandedClassName="tool-card--expanded"
+      collapsedClassName="tool-card--collapsed"
+      summary={
+        <ToolSummaryTitle
+          displayName={displayName}
+          meta={meta}
+          isRunning={isRunning}
+          state={state}
+          isError={isError}
+          showChevron
+        />
+      }
+    >
+      <ToolFailureDetails
+        toolName={toolName}
+        input={input}
+        output={output}
+        errorText={errorText}
+        followTail={isRunning}
+      />
+    </ToolDisclosure>
+  );
+}
+
 function StaticToolRow({
   displayName,
   meta,
   isRunning,
   state,
+  isError,
   inBatch,
   errorText,
 }: {
@@ -233,6 +333,7 @@ function StaticToolRow({
   meta: string;
   isRunning: boolean;
   state: string;
+  isError?: boolean;
   inBatch?: boolean;
   errorText?: string;
 }) {
@@ -246,6 +347,7 @@ function StaticToolRow({
           meta={meta}
           isRunning={isRunning}
           state={state}
+          isError={isError}
           showChevron={false}
         />
       </div>

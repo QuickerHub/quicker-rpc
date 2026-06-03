@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatAddToolApproveResponseFunction } from "ai";
 import {
   buildToolBatchSummary,
+  shouldCollapseToolBatchWhenIdle,
   type ToolUiPartAnalysis,
 } from "./tool-part-layout";
 import {
@@ -29,12 +30,28 @@ export function ToolBatchGroup({
 }: ToolBatchGroupProps) {
   const summary = useMemo(() => buildToolBatchSummary(items), [items]);
   const [userOpen, setUserOpen] = useState(() => summary.needsAttention);
+  const wasIdleRef = useRef(shouldCollapseToolBatchWhenIdle(summary));
 
   const batchRunning = items.some((i) => i.isRunning);
   const batchErr = items.some((i) => i.state === "output-error");
   const batchApproval = items.some((i) => i.state === "approval-requested");
   const workspaceFileBatch = isWorkspaceFileOpenBatch(items);
   const forcedOpen = batchApproval ? true : null;
+
+  useEffect(() => {
+    if (forcedOpen) return;
+    const idle = shouldCollapseToolBatchWhenIdle(summary);
+
+    if (summary.needsAttention && !idle) {
+      setUserOpen(true);
+    }
+
+    if (idle && !wasIdleRef.current) {
+      setUserOpen(false);
+    }
+
+    wasIdleRef.current = idle;
+  }, [forcedOpen, summary]);
 
   if (workspaceFileBatch && !batchApproval) {
     return (

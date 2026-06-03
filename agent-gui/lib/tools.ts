@@ -23,7 +23,10 @@ import {
   saveActionFromWorkspace,
   syncActionToWorkspace,
 } from "@/lib/action-project-workflow";
-import { resolveActionDataJsonPath } from "@/lib/action-project-data-file.server";
+import {
+  formatAutoSyncedNote,
+  resolveWorkspaceActionForTool,
+} from "@/lib/workspace-action-resolve.server";
 import { listWorkspaceActionProjects } from "@/lib/action-explorer-server";
 import {
   editWorkspaceFile,
@@ -389,7 +392,7 @@ export const quickerTools = {
 
   workspace_action_read_data: tool({
     description:
-      "Read action data.json by GUID. mode=summary returns stepsOutline/variableKeys + validation (only when you must check without saving). mode=content (default) returns file text; use offset/limit for fragments. After edit_data/write_data go straight to qkrpc_action_patch — do not validate separately first.",
+      "Read action data.json by GUID. id must match the user @-pinned action in the latest message when present (otherwise scope mismatch error). mode=summary returns stepsOutline/variableKeys + validation (only when you must check without saving). mode=content (default) returns file text; use offset/limit for fragments. Requires local .quicker/actions/{id}/ — auto-syncs via extract when id matches conversation scope. After edit_data/write_data go straight to qkrpc_action_patch — do not validate separately first.",
     inputSchema: z.object({
       id: z.string().uuid().describe("Quicker action GUID"),
       mode: z
@@ -420,7 +423,7 @@ export const quickerTools = {
         });
       }
 
-      const resolved = await resolveActionDataJsonPath(id);
+      const resolved = await resolveWorkspaceActionForTool(id);
       if (!resolved.ok) {
         return formatLocalToolResult(
           { action: "action-data-read", success: false, errorMessage: resolved.error },
@@ -439,6 +442,7 @@ export const quickerTools = {
           result.error,
         );
       }
+      const syncNote = formatAutoSyncedNote(resolved.autoSynced);
       return formatLocalToolResult({
         action: "action-data-read",
         success: true,
@@ -448,6 +452,7 @@ export const quickerTools = {
         content: result.content,
         truncated: result.truncated,
         totalChars: result.totalChars,
+        ...(syncNote ? { workspaceSyncNote: syncNote } : {}),
       });
     },
   }),
@@ -460,7 +465,7 @@ export const quickerTools = {
       content: z.string().describe("Full data.json UTF-8 text"),
     }),
     execute: async ({ id, content }) => {
-      const resolved = await resolveActionDataJsonPath(id);
+      const resolved = await resolveWorkspaceActionForTool(id);
       if (!resolved.ok) {
         return formatLocalToolResult(
           { action: "action-data-write", success: false, errorMessage: resolved.error },
@@ -481,6 +486,7 @@ export const quickerTools = {
         );
       }
       const summaryResult = await getActionProjectDataSummary(id);
+      const syncNote = formatAutoSyncedNote(resolved.autoSynced);
       return formatLocalToolResult({
         action: "action-data-write",
         success: true,
@@ -491,6 +497,7 @@ export const quickerTools = {
         previousContent,
         previousTruncated: previousTruncated || undefined,
         projectSummary: summaryResult.ok ? summaryResult.summary : undefined,
+        ...(syncNote ? { workspaceSyncNote: syncNote } : {}),
       });
     },
   }),
@@ -505,7 +512,7 @@ export const quickerTools = {
       replaceAll: z.boolean().optional(),
     }),
     execute: async ({ id, oldString, newString, replaceAll }) => {
-      const resolved = await resolveActionDataJsonPath(id);
+      const resolved = await resolveWorkspaceActionForTool(id);
       if (!resolved.ok) {
         return formatLocalToolResult(
           { action: "action-data-edit", success: false, errorMessage: resolved.error },
@@ -527,6 +534,7 @@ export const quickerTools = {
         );
       }
       const summaryResult = await getActionProjectDataSummary(id);
+      const syncNote = formatAutoSyncedNote(resolved.autoSynced);
       return formatLocalToolResult({
         action: "action-data-edit",
         success: true,
@@ -535,6 +543,7 @@ export const quickerTools = {
         path: result.path,
         replacements: result.replacements,
         projectSummary: summaryResult.ok ? summaryResult.summary : undefined,
+        ...(syncNote ? { workspaceSyncNote: syncNote } : {}),
       });
     },
   }),

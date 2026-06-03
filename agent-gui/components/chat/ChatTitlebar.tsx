@@ -11,7 +11,6 @@ import {
   getOpenTabThreads,
   selectThread,
 } from "@/lib/chat-store";
-import { SidebarToggle } from "@/components/chat/SidebarToggle";
 import { ExplorerPanelToggle } from "@/components/workspace/WorkspaceExplorerPanel";
 import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
@@ -19,10 +18,8 @@ import { useShellPlatform, useTauriShell } from "@/lib/tauri-shell";
 
 type ChatTitlebarProps = {
   store: ChatStoreData;
-  sidebarOpen: boolean;
   mainView: AppMainView;
   settingsTabOpen: boolean;
-  onToggleSidebar: () => void;
   onChange: (next: ChatStoreData) => void;
   onMainViewChange: (view: AppMainView) => void;
   onOpenSettingsTab: () => void;
@@ -76,10 +73,8 @@ function plainTitleText(raw: string): string {
 
 export function ChatTitlebar({
   store,
-  sidebarOpen,
   mainView,
   settingsTabOpen,
-  onToggleSidebar,
   onChange,
   onMainViewChange,
   onOpenSettingsTab,
@@ -171,14 +166,6 @@ export function ChatTitlebar({
 
   return (
     <header className={titlebarClass}>
-      <SidebarToggle
-        sidebarOpen={sidebarOpen}
-        onClick={onToggleSidebar}
-        className="shell-sidebar-toggle"
-      />
-
-      <TitlebarDragRegion className="titlebar-drag-spacer--lead" />
-
       <div className="titlebar-tabs" ref={tabsRef} role="tablist" aria-label="主标签">
         {tabThreads.map((thread) => {
           const active = !settingsActive && thread.id === activeThread.id;

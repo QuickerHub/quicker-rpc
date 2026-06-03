@@ -5,6 +5,7 @@ import { isLlmProviderHidden } from "@/lib/llm-config";
 import { parseLlmProviderId } from "@/lib/llm-providers";
 import { isUserModelSelectorProvider } from "@/lib/llm-user-providers";
 import {
+  deriveProvisionalThreadTitle,
   extractTitleConversationText,
   sanitizeThreadTitle,
   THREAD_TITLE_SYSTEM_PROMPT,
@@ -25,9 +26,10 @@ export async function POST(req: Request) {
     return Response.json({ title: "新对话" });
   }
 
+  const provisional = deriveProvisionalThreadTitle(messages);
   const context = extractTitleConversationText(messages);
   if (!context.trim()) {
-    return Response.json({ title: "新对话" });
+    return Response.json({ title: provisional });
   }
 
   const providerOverride = parseLlmProviderId(llmProvider);
@@ -49,14 +51,22 @@ export async function POST(req: Request) {
         model,
         system: THREAD_TITLE_SYSTEM_PROMPT,
         prompt: context,
-        maxOutputTokens: 40,
+        maxOutputTokens: 128,
         temperature: 0.2,
       }),
     );
 
-    return Response.json({ title: sanitizeThreadTitle(result.text) });
+    const generated = sanitizeThreadTitle(result.text);
+    const title =
+      generated === "新对话" && provisional !== "新对话"
+        ? provisional
+        : generated;
+    return Response.json({ title });
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return Response.json({ error: message }, { status: 500 });
+    console.warn("[/api/chat/title]", e);
+    return Response.json({
+      title: provisional,
+      warning: e instanceof Error ? e.message : String(e),
+    });
   }
 }

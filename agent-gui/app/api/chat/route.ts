@@ -4,7 +4,12 @@ import {
 } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { buildSystemInstructions } from "@/lib/instructions";
-import { runWithQkrpcCwd } from "@/lib/qkrpc-request-context";
+import {
+  extractActionScopeFromMessages,
+  formatActionScopeForSystem,
+} from "@/lib/action-scope";
+import { listWorkspaceActionProjects } from "@/lib/action-explorer-server";
+import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
 import { resolveChatModelForRequest } from "@/lib/llm";
 import { isLlmProviderHidden } from "@/lib/llm-config";
 import { parseLlmProviderId } from "@/lib/llm-providers";
@@ -69,21 +74,36 @@ async function handleChatPost(req: Request) {
   const tools = pickEnabledTools(quickerTools, enabledTools);
   const cwd = (workingDirectory ?? workspaceRoot)?.trim() || undefined;
 
-  return runWithQkrpcCwd(cwd, async () => {
-    const messagesForModel: AgentUIMessage[] = messages.map((message) => {
-      if (message.role !== "user") return message;
-      return {
-        ...message,
-        parts: message.parts.map((part) => {
-          if (!isTextUIPart(part)) return part;
-          return {
-            ...part,
-            text: expandUserMessageForModel(part.text),
-          };
-        }),
-      };
-    });
+  const messagesForModel: AgentUIMessage[] = messages.map((message) => {
+    if (message.role !== "user") return message;
+    return {
+      ...message,
+      parts: message.parts.map((part) => {
+        if (!isTextUIPart(part)) return part;
+        return {
+          ...part,
+          text: expandUserMessageForModel(part.text),
+        };
+      }),
+    };
+  });
 
+  return runWithAgentRequestContextAsync({ cwd }, async () => {
+    const localProjectIds: string[] = [];
+    if (cwd) {
+      const listed = await listWorkspaceActionProjects();
+      if (listed.ok) {
+        for (const project of listed.projects) {
+          if (project.actionId) localProjectIds.push(project.actionId);
+        }
+      }
+    }
+    const actionScope = extractActionScopeFromMessages(
+      messagesForModel,
+      localProjectIds,
+    );
+
+    return runWithAgentRequestContextAsync({ cwd, actionScope }, async () => {
     const contextLimit = resolveModelContextLimit(modelId).tokens;
     const preparedContext = await prepareCompressedContext({
       messages: messagesForModel,
@@ -91,9 +111,14 @@ async function handleChatPost(req: Request) {
       contextLimit,
     });
 
+    const scopeBlock = formatActionScopeForSystem(actionScope);
+    const baseSystem = await buildSystemInstructions(cwd);
+    const systemWithScope = scopeBlock
+      ? `${baseSystem}\n\n${scopeBlock}`
+      : baseSystem;
     const system = preparedContext.systemSuffix
-      ? `${await buildSystemInstructions(cwd)}\n\n${preparedContext.systemSuffix}`
-      : await buildSystemInstructions(cwd);
+      ? `${systemWithScope}\n\n${preparedContext.systemSuffix}`
+      : systemWithScope;
     const result = streamText({
       model,
       system,
@@ -128,6 +153,7 @@ async function handleChatPost(req: Request) {
         }
         return undefined;
       },
+    });
     });
   });
 }
