@@ -44,6 +44,7 @@ publish/**
 !publish/Publish-GitHubRelease.ps1
 !publish/Publish-AgentGui.ps1
 !publish/Publish-QuickerAgent.ps1
+!publish/Build-AgentGuiLocal.ps1
 !publish/changelogs/
 !publish/changelogs/**
 **/publish/*.zip

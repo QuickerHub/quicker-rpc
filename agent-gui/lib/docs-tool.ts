@@ -17,6 +17,7 @@ export function isDocsTool(toolName: string): boolean {
 export type DocsGetDoc = {
   topic: string;
   title: string;
+  description?: string;
   markdown: string;
 };
 
@@ -30,7 +31,11 @@ export function parseDocsGetDoc(output: StructuredToolResult): DocsGetDoc | null
   const title = typeof d.title === "string" && d.title.trim()
     ? d.title.trim()
     : topic;
-  return { topic, title, markdown: d.markdown };
+  const description =
+    typeof d.description === "string" && d.description.trim()
+      ? d.description.trim()
+      : undefined;
+  return { topic, title, description, markdown: d.markdown };
 }
 
 export function parseDocsGetMarkdown(output: StructuredToolResult): string | null {

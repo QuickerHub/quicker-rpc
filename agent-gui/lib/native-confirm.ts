@@ -36,7 +36,7 @@ export function applyTauriConfirmPatch(): void {
     });
     return result === "Ok";
   };
-  window.confirm = patched as typeof window.confirm;
+  window.confirm = patched as unknown as typeof window.confirm;
 }
 
 /** Ok/Cancel dialog; uses Tauri native dialog in desktop shell, window.confirm in browser. */

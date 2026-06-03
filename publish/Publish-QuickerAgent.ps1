@@ -106,13 +106,18 @@ Push-Location $agentGuiDir
 try {
     if (-not (Test-Path -LiteralPath 'node_modules') -or $env:CI -eq 'true') {
         Write-Host 'pnpm install (agent-gui)...' -ForegroundColor Cyan
-        pnpm install --frozen-lockfile --config.node-linker=hoisted
+        pnpm install --frozen-lockfile --config.node-linker=hoisted --config.symlink=false
         if ($LASTEXITCODE -ne 0) { throw "pnpm install failed ($LASTEXITCODE)" }
     }
 
-    if ($env:CI -eq 'true' -and -not [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+    # Avoid Next/webpack scanning the real user profile (e.g. Documents/My Pictures EPERM on Windows).
+    if (-not [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
         $env:USERPROFILE = $env:RUNNER_TEMP
         $env:HOME = $env:RUNNER_TEMP
+    }
+    elseif ($IsWindows -and -not [string]::IsNullOrWhiteSpace($env:TEMP)) {
+        $env:USERPROFILE = $env:TEMP
+        $env:HOME = $env:TEMP
     }
 
     Write-Host 'tauri build (NSIS installer)...' -ForegroundColor Cyan

@@ -1,18 +1,15 @@
-import type { HTMLAttributes } from "react";
-
 /** React props that disable OS/browser spell & grammar checking in plain-text editors. */
 export const plainTextEditableProps = {
   spellCheck: false,
   autoCorrect: "off",
   autoCapitalize: "off",
-  autoComplete: "off",
   translate: "no",
   lang: "und",
   "data-gramm": "false",
   "data-gramm_editor": "false",
   "data-enable-grammarly": "false",
   "data-ms-editor": "false",
-} as const satisfies HTMLAttributes<HTMLElement>;
+} as const;
 
 /** Re-apply on mount — some WebView2 builds ignore React spellCheck until the property is set on the DOM node. */
 export function applyPlainTextEditableDom(el: HTMLElement | null): void {
