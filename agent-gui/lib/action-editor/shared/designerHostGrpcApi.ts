@@ -137,7 +137,7 @@ export async function fetchStepRunnerDetailItem(
     );
     const item = data.item;
     if (isMappedStepRunnerItem(item)) {
-      return item as StepRunnerItem;
+      return item as unknown as StepRunnerItem;
     }
     return mapAgentSchemaToStepRunnerItem(item);
   } catch {

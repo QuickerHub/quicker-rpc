@@ -141,7 +141,8 @@ export async function hydrateMissingStepRunnerItems(
 
   const detailByKey = new Map<string, StepRunnerItem>();
   for (const detail of fetched) {
-    const k = (detail?.key ?? "").trim();
+    if (!detail) continue;
+    const k = (detail.key ?? "").trim();
     if (!k || (detail.inputParamDefs?.length ?? 0) === 0) {
       continue;
     }

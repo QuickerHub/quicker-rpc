@@ -177,8 +177,7 @@ export function resolveLlmConfigEndpointSlots(
   if (!entry) return [];
 
   const slots: LlmEndpointConfig[] = [];
-  const primary: LlmEndpointConfig = {};
-  if (entry.apiKey) primary.apiKey = entry.apiKey;
+  const primary: LlmEndpointConfig = { apiKey: entry.apiKey ?? "" };
   if (entry.baseURL) primary.baseURL = entry.baseURL;
   if (entry.model) primary.model = entry.model;
   if (primary.apiKey || primary.baseURL || primary.model) {

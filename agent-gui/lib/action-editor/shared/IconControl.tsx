@@ -24,7 +24,7 @@ export type IconControlProps = {
 };
 
 function useRasterIconLoadState(src: string | null): {
-  imgRef: RefObject<HTMLImageElement>;
+  imgRef: RefObject<HTMLImageElement | null>;
   imgBroken: boolean;
   imgLoaded: boolean;
   onLoad: () => void;
