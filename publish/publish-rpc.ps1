@@ -67,12 +67,11 @@ Write-Host "Version (version.json): $quickerRpcVersion ($semver)" -ForegroundCol
 $publishDir = Join-Path $repoRoot 'publish\cli'
 if (Test-Path -LiteralPath $publishDir) {
     Write-Host "Cleaning previous publish output..." -ForegroundColor Yellow
-    Remove-Item -LiteralPath (Join-Path $publishDir '*') -Recurse -Force -ErrorAction SilentlyContinue
+    # Remove the whole folder so stale net8 runtime DLLs cannot survive a net10 publish.
+    Remove-Item -LiteralPath $publishDir -Recurse -Force
 }
-else {
-    Write-Host "Creating publish directory: $publishDir" -ForegroundColor Yellow
-    New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
-}
+Write-Host "Creating publish directory: $publishDir" -ForegroundColor Yellow
+New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
 
 $dotnetQuiet = @('-v:q', '--nologo')
 
