@@ -12,18 +12,20 @@
 
 | 场景 | 工具 |
 |------|------|
-| 新建 | qkrpc_action_create({ title: "动作名", icon?: "fa:Light_*" }) → `actionId`、`editVersion` |
+| 新建 | qkrpc_action_create({ title: "动作名", icon?: "fa:Light_*" }) → `actionId`、`editVersion`、**`workspaceProject`**（仅落盘 `info.json`） |
 | 已有 | qkrpc_action_list({ query: "名", scope?: "agent" }) / qkrpc_action_search({ query: "名", scope?: "agent" }) |
 
 记下 **`actionId`**（GUID）。`<qka id="…">` 标签直接用该 id。`scope` 等见 list/search 工具说明。
 
+**新建后勿再 `qkrpc_action_get`**：用 create 返回的 id/version，直接 **`workspace_action_*_data`** 写 `data.json`，再 **`qkrpc_action_patch`**。
+
 ## P2 读取与工作区
 
-1. qkrpc_action_get({ id: "<guid>", returnMode: "structure" }) — 步骤树摘要（`stepId` 仅压缩视图临时 id；改步骤直接编辑 `data.json` 的 `steps[]`）
-2. 要改盘：qkrpc_action_get({ id: "<guid>", returnMode: "full" }) 或默认 get 会 **同步** `.quicker/actions/{actionId}/`，看响应 **`workspaceProject`**
+1. **已有动作**且程序体非空：`qkrpc_action_get` — 响应含步骤树摘要；**自动 extract** 到 `.quicker/actions/{actionId}/`（见 **`workspaceProject`**）
+2. **空动作**（0 步 0 变量）：get **不**写入 `data.json`（`workspaceSyncSkipped`）；先在工作区写好内容或仅在 Quicker 内编辑后再 get
 3. 本地项目列表：**`workspace_action_projects`**
 
-字段说明（`returnMode`、`compressed`）：**`qkrpc_action_get`** description。布局与工具表：**`workspace-editing`**。
+`returnMode` 等见 **`qkrpc_action_get`** description；布局与工具表：**`workspace-editing`**。
 
 ## P3 元数据（可选）
 
@@ -49,7 +51,8 @@ qkrpc_action_set_metadata({ id: "<guid>", icon: "fa:Light_<Name>", expectedEditV
 step-modules（可选）→ step-runner search（一次 OR|通配）→ step-runner get（必须）
 ```
 
-- `schema.Inputs[].Key` = **`inputParams` 键名**（以 get 为准）。
+- 步骤 JSON 形状（`inputParams` / `outputParams` / `ifSteps`）：**`action-steps`**。
+- **长 `inputParams.value`**（超过 4 行脚本/字符串）：先 **`files/`** + `"file": "files/…"`，勿整段写入 `data.json`（**`workspace-editing`**）。
 - 有 **ControlField**：search 可能带 `controlFieldValue`；get 须传 **`controlField`**。
 - 语法：**`step-runner-search`**。
 
@@ -68,16 +71,7 @@ qkrpc_action_patch({ id: "<guid>" })
 
 （仅 `{ id }`，无 patch 对象。）调公共子程序步骤：**`subprogram-workflow`**。
 
-首步示例（写入 `data.json` 的 `steps[]`）：
-
-```json
-{
-  "stepRunnerKey": "sys:MsgBox",
-  "inputParams": { "message": { "value": "hello" } }
-}
-```
-
-变量定义在 `variables[]`，见 **`variables`**。
+写入 `data.json` 的 `steps[]` 示例见 **`action-steps`**；变量声明见 **`action-variables`**。
 
 ## P7 保存后
 
@@ -94,4 +88,4 @@ edit_data / write_data 响应中的 projectSummary
 
 ## 相关
 
-`overview` · `workspace-editing` · `variables` · `implementation-fallback` · `expressions` · `subprogram-workflow` · `step-runner-search` · `step-modules`
+`overview` · `workspace-editing` · `action-variables` · `action-steps` · `implementation-fallback` · `expressions` · `subprogram-workflow` · `step-runner-search` · `step-modules`

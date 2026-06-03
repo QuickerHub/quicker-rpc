@@ -8,7 +8,7 @@
 ```text
 .quicker/
   actions/{actionId}/     # 默认目录名 = 动作 GUID
-    info.json             # id, title, icon, editVersion
+    info.json             # proto ActionProjectInfo (see action_project.proto)
     data.json             # steps + variables
     files/                # inputParams.*.file 外置
   subprograms/{name}/

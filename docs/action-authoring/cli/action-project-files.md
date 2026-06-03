@@ -7,7 +7,7 @@
 ```text
 .quicker/
   actions/{actionId}/     # 默认目录名 = 动作 GUID
-    info.json             # id, title, icon, editVersion
+    info.json             # proto ActionProjectInfo (see action_project.proto)
     data.json             # steps + variables
     files/                # inputParams.*.file 外置
   subprograms/{name}/
@@ -26,7 +26,7 @@
 ## 命令
 
 ```powershell
-qkrpc action extract --id <guid> [--dir .quicker/actions/<guid>] [--min-lines 10] --json
+qkrpc action extract --id <guid> [--dir .quicker/actions/<guid>] [--min-lines 4] --json
 qkrpc action apply --id <guid> [--dir .quicker/actions/<guid>] [--expected-edit-version <N>] [--force] --json
 qkrpc subprogram export --id <nameOrId> --dir .quicker/subprograms/my-sub --json
 qkrpc subprogram import --dir .quicker/subprograms/my-sub --json

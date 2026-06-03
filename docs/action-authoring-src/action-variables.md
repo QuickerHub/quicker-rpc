@@ -1,8 +1,13 @@
 # 动作变量（variables[]）
 
-**何时读**：编辑 `data.json` 里的 **`variables[]`** 或步骤里的 `varKey` / `outputParams` 绑定时。
+**何时读**：编辑 `data.json` 里的 **`variables[]`**。步骤里如何绑 `inputParams` / `outputParams` 见 **`action-steps`**。
 
+{{#only-agent}}
+**Agent**：用 **`workspace_action_read_data` / `write_data` / `edit_data`** 改 `data.json` 里的 **`variables[]`**（传 action GUID），保存 **`qkrpc_action_patch({ id })`**。勿传内联 patch JSON。
+{{/only-agent}}
+{{#only-cli}}
 **CLI**：`action patch` 的 `variables[]` 操作见 **`patch-workflow`**。
+{{/only-cli}}
 
 稳定标识：**`key`**（不要用临时 `id`）。
 
@@ -18,14 +23,9 @@
 
 `defaultValue` 在 JSON 里 **始终是字符串**（`"42"`、`"true"`）。可写 `"varType": "integer"` 等，保存时宿主会规范为 `type`。
 
-## 绑定
+## 与步骤的关系
 
-```json
-"inputParams": { "text": { "varKey": "userName" } },
-"outputParams": { "result": "myVar" }
-```
-
-表达式里引用变量见 **`expressions`**（只用 `{varKey}`，勿写 `v_` 前缀）。
+步骤通过 `inputParams.varKey` 读取变量、通过 `outputParams` 的字符串值写入变量（含 `dictVar.key`）。完整步骤 JSON 见 **`action-steps`**；表达式里引用变量见 **`expressions`**（只用 `{varKey}`，勿写 `v_` 前缀）。
 
 ## `quicker_in_param`（勿进 variables[]）
 
@@ -33,4 +33,4 @@
 
 ## 相关
 
-`workspace-editing` · `expressions` · `authoring-workflow` · `overview`
+`action-steps` · `workspace-editing` · `expressions` · `authoring-workflow` · `overview`

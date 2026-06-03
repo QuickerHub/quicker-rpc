@@ -12,12 +12,21 @@
 
 **CLI 默认路径**：`action get` → `step-runner get` → `action patch --patch-file`（或 extract/apply 改磁盘）。
 
+## P0 前置
+
+Quicker 运行中且已加载 QuickerRpc 插件。终端直接 `qkrpc <子命令> --json`（命名管道，每次调用即可）。**`qkrpc serve` 仅 agent-gui** 持久 HTTP，普通 CLI/脚本无需常驻。
+
+```powershell
+qkrpc help --json
+qkrpc guide get --topic authoring-workflow --json
+```
+
 ## 编辑链路（P0–P7）
 
 ```text
 阶段  目的
 ────  ─────────────────────────────────────────
- P0   Quicker + 插件 + 工作目录（Agent）
+ P0   Quicker + 插件（见上文「P0 前置」）
  P1   定位 actionId（create / list / search）
  P2   读取并同步工作区（get → .quicker/actions/{actionId}/）
  P3   元数据（可选：set-metadata）
@@ -34,6 +43,7 @@
 | 主题 | 何时读 |
 |------|--------|
 | **`authoring-workflow`** | 按 P1–P7 执行（主流程） |
+| **`action-steps`** | P5–P6：`steps[]` 形状、`inputParams` / `outputParams`、条件分支 |
 | **`expressions`** | P4 **首选**：`$=`、`$$`、`sys:evalexpression`（LINQ/字符串/多变量） |
 | **`implementation-fallback`** | P4：表达式不够或无模块时的回退（csscript / runScript） |
 | **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
@@ -41,13 +51,14 @@
 | **`step-modules`** | P5：常用 stepRunnerKey（大表 `docs_get_reference`） |
 | **`patch-workflow`** | P6：内联 patch JSON |
 | **`action-project-files`** | CLI 磁盘 extract/apply |
-| **`cli-setup`** | P0、docs_index |
 
 ## 常见错误（由 qkrpc 返回说明）
 
 | 场景 | 对策 |
 |------|------|
 | 猜 `inputParams` 键名 | **`step-runner get`** |
+| 长脚本/字符串塞进 `value` | 超过 4 行用 **`files/`** + `"file": "files/…"`（**`action-steps`**） |
+| `outputParams` 写成 `{ "varKey": "…" }` | 输出值为 **变量 key 字符串**（可 `dictVar.key`），见 **`action-steps`** |
 | 猜 `callIdentifier` | `qkrpc_subprogram_search` / `get` |
 | 猜 icon | `qkrpc_fa_search` |
 | 保存后反复 get 确认 | 用响应里的 **`editVersion`**、**`addedSteps`**（增量 patch） |

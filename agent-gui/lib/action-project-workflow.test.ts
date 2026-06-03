@@ -4,6 +4,7 @@ import {
   augmentActionGetWithWorkspace,
   buildWorkspaceProjectSummary,
   parseDataJsonOutline,
+  programHasBodyFromGetPayload,
 } from "@/lib/action-project-workflow";
 import {
   formatWorkspaceToolMetaLine,
@@ -22,6 +23,55 @@ const sampleManifest: ActionProjectManifest = {
   fileRefs: [{ path: "files/csscript1.cs", exists: true, paramName: "code" }],
   files: [{ path: "files/csscript1.cs", kind: "file", sizeBytes: 42 }],
 };
+
+test("programHasBodyFromGetPayload detects empty vs non-empty compressed", () => {
+  assert.equal(programHasBodyFromGetPayload({ compressed: { steps: [], variables: [] } }), false);
+  assert.equal(
+    programHasBodyFromGetPayload({
+      compressed: { steps: [{ stepRunnerKey: "sys:MsgBox" }], variables: [] },
+    }),
+    true,
+  );
+  assert.equal(
+    programHasBodyFromGetPayload({
+      compressed: JSON.stringify({
+        steps: [{ stepRunnerKey: "sys:if", ifSteps: [{ stepRunnerKey: "sys:delay" }] }],
+        variables: [],
+      }),
+    }),
+    true,
+  );
+  assert.equal(programHasBodyFromGetPayload(null), true);
+});
+
+test("augmentActionGetWithWorkspace marks empty_program skip", () => {
+  const getResult: QkrpcRunResult = {
+    ok: true,
+    exitCode: 0,
+    stdout: "",
+    stderr: "",
+    truncated: false,
+    parsed: {
+      ok: true,
+      payload: {
+        success: true,
+        actionId: sampleManifest.actionId,
+        editVersion: 1,
+        compressed: { title: "Empty", steps: [], variables: [] },
+      },
+    },
+  };
+  const augmented = augmentActionGetWithWorkspace(getResult, {
+    ok: false,
+    reason: "empty_program",
+    error: "skipped",
+  });
+  const data = augmented.data as {
+    payload?: { workspaceSyncSkipped?: boolean; workspaceSyncReason?: string };
+  };
+  assert.equal(data.payload?.workspaceSyncSkipped, true);
+  assert.equal(data.payload?.workspaceSyncReason, "empty_program");
+});
 
 test("parseDataJsonOutline extracts step keys and variable keys", () => {
   const outline = parseDataJsonOutline(

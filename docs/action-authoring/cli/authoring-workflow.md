@@ -12,7 +12,7 @@
 
 | 场景 | 命令 |
 |------|------|
-| 新建 | qkrpc action create --title "动作名" [--icon fa:Light_*] --json → `actionId`、`editVersion` |
+| 新建 | qkrpc action create --title "动作名" [--icon fa:Light_*] --json → `actionId`、`editVersion`、**`workspaceProject`**（仅落盘 `info.json`） |
 | 已有 | qkrpc action list --query "名" [--scope agent] --json / qkrpc action search --query "名" [--scope agent] --json |
 
 记下 **`actionId`**（GUID）。`<qka id="…">` 标签直接用该 id。`scope` 等见 list/search 工具说明。
@@ -50,7 +50,8 @@ qkrpc action set-metadata --id <guid> --icon fa:Light_<Name> --expected-edit-ver
 step-modules（可选）→ step-runner search（一次 OR|通配）→ step-runner get（必须）
 ```
 
-- `schema.Inputs[].Key` = **`inputParams` 键名**（以 get 为准）。
+- 步骤 JSON 形状（`inputParams` / `outputParams` / `ifSteps`）：**`action-steps`**。
+- **长 `inputParams.value`**（超过 4 行脚本/字符串）：先 **`files/`** + `"file": "files/…"`，勿整段写入 `data.json`（**`workspace-editing`**）。
 - 有 **ControlField**：search 可能带 `controlFieldValue`；get 须传 **`--control-field <value>`**。
 - 语法：**`step-runner-search`**。
 

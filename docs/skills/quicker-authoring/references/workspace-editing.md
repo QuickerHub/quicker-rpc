@@ -6,11 +6,13 @@
 
 ```text
 Quicker 库  ←—— qkrpc_action_patch({ id }) ——  .quicker/actions/{actionId}/
-              ←—— qkrpc_action_get({ id })  ——   （自动 extract，勿手动）
+              ←—— qkrpc_action_get({ id })  ——   有步骤/变量时 extract（空动作跳过 data.json）
+              ←—— qkrpc_action_create       ——   仅写 info.json（勿再 get）
 ```
 
 - 目录名默认 **= actionId（GUID）**；旧项目可能是可读名，以 `info.json` 里的 `id` 为准。
-- **`data.json`**：仅 **`steps`** + **`variables[]`**（压缩 XAction 形状，无 `subPrograms` 数组）。
+- **`info.json`**：标题、图标、`editVersion` 等；**create** 后即有，**get** 不覆盖空程序体到 `data.json`。
+- **`data.json`**：仅 **`steps`** + **`variables[]`**（压缩 XAction 形状，无 `subPrograms` 数组）。步骤字段见 **`action-steps`**。
 - **`info.json`**：id、title、icon、editVersion 等元数据。
 - **`files/`**：长脚本等外置内容；`data.json` 里用 `"file": "files/…"` 引用（与 `value` / `varKey` 互斥）。
 
@@ -36,29 +38,41 @@ Quicker 库  ←—— qkrpc_action_patch({ id }) ——  .quicker/actions/{acti
 | 整份替换 data.json | **`workspace_action_write_data({ id, content })`** |
 | 局部改 data.json | **`workspace_action_edit_data({ id, oldString, newString })`** |
 | 读/写/改 files/ 下文件 | **`workspace_file_read` / `write` / `edit`** |
-| 拉取并同步磁盘 | **`qkrpc_action_get({ id })`** → 响应 **`workspaceProject`**（`projectDirectory`、步/变量计数等摘要；完整流程见本文） |
+| 拉取并同步磁盘 | **`qkrpc_action_get({ id })`**（非空程序体才 extract）→ **`workspaceProject`** |
+| 新建落盘 | **`qkrpc_action_create`** → 仅 **`info.json`**；**勿**紧接再 get |
 | 写回 Quicker | **`qkrpc_action_patch({ id })`** — **仅 id**，无内联 JSON |
 
 ## 典型链
 
 ```text
-qkrpc_action_get
-  → workspace_action_read_data
-  → qkrpc_step_runner_get（每个新步骤或改参）
-  → workspace_action_edit_data | write_data
-  → [可选] workspace_file_* 改 scripts
-  → qkrpc_action_patch          # 勿在此之前单独 validate
+# 新建
+qkrpc_action_create → workspace_action_write_data | edit_data → qkrpc_action_patch
+
+# 已有（非空）
+qkrpc_action_get → workspace_action_read_data → qkrpc_step_runner_get
+  → workspace_action_edit_data | write_data → [可选] workspace_file_*
+  → qkrpc_action_patch
 ```
 
-## file 外置
+## file 外置（长 `inputParams`）
 
-`data.json` 中（保存时由 **`qkrpc_action_patch`** 编译 file 引用进 Quicker）：
+**规则**：**超过 4 行**或很长字符串/脚本 → 放 **`files/`**，`data.json` 只写 `"file": "files/…"`，勿用长 `"value"`（见 **`action-steps`**）。
+
+`data.json` 引用（**`qkrpc_action_patch`** 时编译进 Quicker）：
 
 ```json
 "script": { "file": "files/main.cs" }
 ```
 
-路径相对 **项目目录**，用 `/`，禁止 `..`。外置项见 `workspaceProject.fileRefCount`；清单细节用 **`workspace_action_projects`** 或 **`action validate`**。
+`file` 与 `value` / `varKey` 互斥。路径相对 **项目目录**，用 `/`，禁止 `..`。
+
+| 步骤 | 工具 |
+|------|------|
+| 写外置文件 | **`workspace_file_write`** / **`workspace_file_edit`**（路径如 `files/foo.cs`） |
+| 改 `data.json` 绑定 | **`workspace_action_edit_data`** — `"paramKey": { "file": "files/foo.cs" }` |
+| 保存 | **`qkrpc_action_patch({ id })`** |
+
+外置项见 `workspaceProject.fileRefCount`；清单用 **`workspace_action_projects`** 或 **`action validate`**。
 
 ## 与 CLI 的区别
 
@@ -76,4 +90,4 @@ qkrpc_action_get
 
 ## 相关
 
-`authoring-workflow` · `variables` · `overview`
+`authoring-workflow` · `action-steps` · `action-variables` · `overview`

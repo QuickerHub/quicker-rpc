@@ -2,6 +2,24 @@
   "skillName": "quicker-authoring",
   "topics": [
     {
+      "topic": "action-steps",
+      "description": "data.json steps[]：stepRunnerKey、inputParams/outputParams、ifSteps；长 inputParams.value (>4 lines) use files/ + file ref not inline value. Use before step-runner get.",
+      "source": "references/action-steps.md",
+      "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_action_patch",
+      "metadata": {
+        "phase": "P5-P6"
+      }
+    },
+    {
+      "topic": "action-variables",
+      "description": "data.json 中 variables[] 的类型、defaultValue；quicker_in_param 边界。步骤参数绑定见 action-steps。Use when editing action variables.",
+      "source": "references/action-variables.md",
+      "allowedTools": "workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_step_runner_get",
+      "metadata": {
+        "phase": "P2-P6"
+      }
+    },
+    {
       "topic": "authoring-workflow",
       "description": "Quicker 动作编辑 P1–P7 主流程。Use before the first action edit in a session.",
       "source": "references/authoring-workflow.md",
@@ -9,12 +27,6 @@
       "metadata": {
         "phase": "P1-P7"
       }
-    },
-    {
-      "topic": "cli-setup",
-      "description": "QuickerAgent 环境前置与 docs_get/docs_search/docs_index 用法。Use when setting up agent-ui or explaining how to read local authoring guides.",
-      "source": "references/cli-setup.md",
-      "allowedTools": "docs_get docs_search docs_index"
     },
     {
       "topic": "expressions",
@@ -36,8 +48,9 @@
     },
     {
       "topic": "overview",
-      "description": "Quicker 动作无头编辑总览与 P0–P7 专题索引。Use when starting action editing or choosing which guide topic to read next.",
+      "description": "Quicker 动作无头编辑总览：P0 环境、docs 工具、P0–P7 索引。Use when starting action editing or choosing which guide topic to read next.",
       "source": "SKILL.md",
+      "allowedTools": "docs_get docs_search docs_index",
       "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
     },
     {
@@ -68,17 +81,8 @@
       }
     },
     {
-      "topic": "variables",
-      "description": "data.json 中 variables[] 的类型、defaultValue、varKey/outputParams 绑定；quicker_in_param 边界。Use when editing action variables.",
-      "source": "references/variables.md",
-      "allowedTools": "workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_step_runner_get",
-      "metadata": {
-        "phase": "P2-P6"
-      }
-    },
-    {
       "topic": "workspace-editing",
-      "description": ".quicker/actions/{actionId} 工作区布局、workspace_* 工具分工、file 外置与 qkrpc_action_patch 保存。Use when editing data.json or files/ on disk in agent-ui.",
+      "description": ".quicker/actions workspace layout; workspace_file_* for files/; long step params via file refs; qkrpc_action_patch save. Use when editing data.json on disk.",
       "source": "references/workspace-editing.md",
       "allowedTools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
       "compatibility": "QuickerAgent; requires working directory in sidebar"

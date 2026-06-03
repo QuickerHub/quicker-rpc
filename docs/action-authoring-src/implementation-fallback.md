@@ -15,6 +15,8 @@
 
 **禁止**：能用 **`sys:evalexpression`** 解决的逻辑（Split/LINQ/赋值/JSON 等）却写 **`sys:csscript`** 整段 `Exec` 样板。无专用模块时也 **先表达式、后 csscript**，勿默认长 PowerShell。
 
+**`sys:csscript`**（及其它长脚本参数）：脚本放 **`files/*.cs`**，`inputParams` 用 **`{ "file": "files/…" }`**，勿在 `data.json` 里塞超长 `"value"`（**`action-steps`**）。
+
 ## 决策
 
 ```text

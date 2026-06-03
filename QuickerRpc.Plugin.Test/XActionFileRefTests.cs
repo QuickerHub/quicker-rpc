@@ -186,6 +186,44 @@ public sealed class XActionFileRefTests
     }
 
     [TestMethod]
+    public void AutoExternalize_evalexpression_uses_eval_cs_extension()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-auto-ext-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var longValue = string.Join("\n", Enumerable.Range(1, 6).Select(i => $"var x{i} = {i};"));
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-1",
+                        ["stepRunnerKey"] = "sys:evalexpression",
+                        ["inputParams"] = new JObject
+                        {
+                            ["expression"] = new JObject { ["value"] = longValue },
+                        },
+                    },
+                },
+                ["variables"] = new JArray(),
+            };
+
+            var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 4);
+            Assert.AreEqual(1, result.WrittenFiles.Count);
+            StringAssert.EndsWith(result.WrittenFiles[0], ".eval.cs");
+            Assert.IsTrue(result.WrittenFiles[0].Contains("evalexpression", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void AutoExternalize_skips_short_values()
     {
         var data = new JObject

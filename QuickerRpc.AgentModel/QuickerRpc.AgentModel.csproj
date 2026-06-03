@@ -26,6 +26,7 @@
     <Protobuf Include="Protos\x_action_program.proto" GrpcServices="None" ProtoRoot="Protos" />
     <Protobuf Include="Protos\agent_compressed_program.proto" GrpcServices="None" ProtoRoot="Protos" />
     <Protobuf Include="Protos\agent_api.proto" GrpcServices="None" ProtoRoot="Protos" />
+    <Protobuf Include="Protos\action_project.proto" GrpcServices="None" ProtoRoot="Protos" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(RepoRoot)docs\action-authoring\cli\*.md">

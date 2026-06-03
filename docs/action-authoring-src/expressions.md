@@ -18,9 +18,11 @@
 
 ```json
 "script": {
-  "value": "//.cs\nusing System;\nusing System.Linq;\n...\npublic static void Exec(Quicker.Public.IStepContext context)\n{\n    var clipText = context.GetVarValue(\"clipText\") as string ?? \"\";\n    ...\n    context.SetVarValue(\"processedText\", processedText);\n}"
+  "value": "//.cs\nusing System;\nusing System.Linq;\n...\npublic static void Exec(...)\n{ ... }"
 }
 ```
+
+**反例（难维护）** — 长脚本/长字符串写在 `value` 里（超过 4 行）：应 **`files/` + `"file": "files/…"`**（**`action-steps`**）。`sys:evalexpression` 的短多行 `expression` 可内联；更长且支持 `file` 时外置为 **`files/*.eval.cs`**（便于编辑器 C# 高亮），勿用 `.cs` 与 C# 脚本混名。
 
 **正例（推荐）** — 同逻辑用 **`sys:evalexpression`**（键名以 step-runner get 为准）：
 
@@ -89,7 +91,7 @@ $=string.Equals({quicker_in_param}, "verbose", StringComparison.OrdinalIgnoreCas
 |------|------|
 | `expression` | C# 表达式/脚本；`{var}`；可选 `$=`；`{var}=value` 形式赋值 |
 | `onUiThread` | 在 UI 线程执行（有死锁风险） |
-| `output` | 返回值；赋值会直接更新动作变量 |
+| `output` | 返回值写入的动作变量；`outputParams` 绑定见 **`action-steps`**（如 `"output": "clipText"` 或 `"config.title"` 写入词典键） |
 
 `$=` 若创建窗口、访问 WPF 或 Quicker 主界面，须在 **UI 线程** 执行：用本步骤的 `onUiThread`，或子程序调用扩展表达式时将该子程序的 UI 线程参数设为 `true`（键名以 step-runner get 为准）。
 

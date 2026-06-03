@@ -2118,7 +2118,8 @@ html.sidebar-collapsed-init .app-shell .workspace-sidebar {
 .composer-popup,
 .tool-selector-panel,
 .app-settings-panel,
-.context-popup {
+.context-popup,
+.explorer-tree-delete-menu {
   position: absolute;
   z-index: 100;
   border: 1px solid var(--border);
@@ -4675,17 +4676,13 @@ button.tool-batch-summary:disabled {
 }
 
 .explorer-tree-delete-menu {
-  position: absolute;
   right: 0;
   top: calc(100% + 0.2rem);
-  z-index: 40;
+  z-index: 120;
   min-width: 12.5rem;
   max-width: 16rem;
   padding: 0.35rem;
-  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--background);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 14%, transparent);
 }
 
 .explorer-tree-delete-menu-title {

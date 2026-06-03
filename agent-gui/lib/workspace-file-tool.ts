@@ -94,6 +94,8 @@ export function formatCharCount(n: number): string {
 
 export function guessFileLanguage(path: string): string | undefined {
   const base = basenamePath(path);
+  const lower = base.toLowerCase();
+  if (lower.endsWith(".eval.cs")) return "csharp";
   const dot = base.lastIndexOf(".");
   if (dot < 0) return undefined;
   const ext = base.slice(dot + 1).toLowerCase();
@@ -280,8 +282,24 @@ export function summarizeWorkspaceFileTool(
       const trunc = payload.truncated ? " · 已截断" : "";
       return `${name} · ${lines} 行 · ${size}${trunc}`;
     }
-    case "file-write":
+    case "file-write": {
+      const data = output.data;
+      if (
+        isRecord(data)
+        && typeof data.previousContent === "string"
+        && data.previousContent.length > 0
+      ) {
+        const newContent =
+          typeof input === "object" && input !== null
+            && typeof (input as Record<string, unknown>).content === "string"
+            ? ((input as Record<string, unknown>).content as string)
+            : "";
+        const addLines = countLines(newContent);
+        const remLines = countLines(data.previousContent);
+        return `${basenamePath(payload.path)} · +${addLines} -${remLines}`;
+      }
       return `${basenamePath(payload.path)} · 写入 ${payload.bytesWritten} 字节`;
+    }
     case "file-edit":
       return `${basenamePath(payload.path)} · ${payload.replacements} 处替换`;
     case "file-list": {
@@ -428,6 +446,8 @@ export type WorkspaceFileEditorPreview = {
   content: string;
   diff?: { removed: string; added: string };
   truncated?: boolean;
+  /** Pre-write snapshot was truncated (diff may be incomplete). */
+  previousSnapshotTruncated?: boolean;
   totalChars?: number;
   replacements?: number;
 };
@@ -449,6 +469,27 @@ export function buildWritePreviewDiff(
 ): { removed: string; added: string } | undefined {
   if (!content) return undefined;
   return { removed: "", added: content };
+}
+
+function readToolDataString(
+  data: unknown,
+  key: string,
+): string | undefined {
+  if (!isRecord(data)) return undefined;
+  const value = data[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+/** Diff for full-file write when a pre-write snapshot is available. */
+export function buildWriteDiffFromSnapshot(
+  previousContent: string | undefined,
+  nextContent: string,
+): { removed: string; added: string } | undefined {
+  if (!nextContent && previousContent === undefined) return undefined;
+  const removed = previousContent ?? "";
+  const added = nextContent;
+  if (!removed && !added) return undefined;
+  return { removed, added };
 }
 
 /** Build editor preview from tool input/output (works while running if input is available). */
@@ -482,10 +523,19 @@ export function getWorkspaceFileEditorPreview(
         ? payload.path
         : inputPath;
       if (!path || content === undefined) return path ? { path, content: "" } : null;
+      const body = content;
+      const previousContent = readToolDataString(data, "previousContent");
       return {
         path,
-        content,
-        diff: buildWritePreviewDiff(content),
+        content: body,
+        diff:
+          previousContent !== undefined
+            ? buildWriteDiffFromSnapshot(previousContent, body)
+            : buildWritePreviewDiff(body),
+        previousSnapshotTruncated:
+          isRecord(data) && data.previousTruncated === true
+            ? true
+            : undefined,
       };
     }
     case "workspace_file_edit":
@@ -532,18 +582,31 @@ export function getWorkspaceFileEditorPreview(
       const path = payload?.action === "file-write" ? payload.path : undefined;
       const id = readInputActionId(input);
       const body = content ?? "";
+      const previousContent = readToolDataString(data, "previousContent");
+      const diff =
+        previousContent !== undefined
+          ? buildWriteDiffFromSnapshot(previousContent, body)
+          : buildWritePreviewDiff(body);
       if (path) {
         return {
           path,
           content: body,
-          diff: buildWritePreviewDiff(body),
+          diff,
+          previousSnapshotTruncated:
+            isRecord(data) && data.previousTruncated === true
+              ? true
+              : undefined,
         };
       }
       if (!id) return null;
       return {
         path: formatActionDataJsonPath(id),
         content: body,
-        diff: buildWritePreviewDiff(body),
+        diff,
+        previousSnapshotTruncated:
+          isRecord(data) && data.previousTruncated === true
+            ? true
+            : undefined,
       };
     }
     default:

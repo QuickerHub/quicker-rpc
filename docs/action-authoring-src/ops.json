@@ -17,8 +17,8 @@
       "agent": "聊天工具列表（无需单独 help 工具）"
     },
     "connectivity.p0": {
-      "cli": "连通问题看命令 stderr，或 `qkrpc serve` 后 `GET http://127.0.0.1:9477/health`",
-      "agent": "页头绿点表示 RPC 状态；qkrpc 类工具失败时检查 Quicker + 插件或 `qkrpc serve`"
+      "cli": "连通问题看命令 stderr；确认 Quicker 已运行且已加载插件（CLI 每次子命令连命名管道，无需 `qkrpc serve`）",
+      "agent": "页头绿点表示 RPC 状态；失败时检查 Quicker + 插件。agent-gui 优先 `qkrpc serve`（`GET http://127.0.0.1:9477/health`），未启动时回退 CLI 子进程"
     },
     "errors.source": {
       "cli": "由 qkrpc 返回说明",
@@ -56,17 +56,9 @@
       "cli": "**`step-runner search`**",
       "agent": "**`qkrpc_step_runner_search`**"
     },
-    "cli-setup.intro": {
-      "cli": "Quicker 运行中且已加载 QuickerRpc 插件。高频调用可先 `qkrpc serve`（默认 `http://127.0.0.1:9477`）。",
-      "agent": "Quicker 运行中且已加载 QuickerRpc 插件。推荐 `qkrpc serve`（agent-ui 优先 HTTP）。文档用 **`docs_get` / `docs_search` / `docs_index`** 本地工具，不经 qkrpc。"
-    },
-    "cli-setup.title": {
-      "cli": "CLI setup for agents",
-      "agent": "Agent setup（agent-ui）"
-    },
-    "cli-setup.agent.p0": {
-      "cli": "",
-      "agent": "按需读文档（系统提示已含核心规则，勿在会话开头连续 `docs_get` 多篇全文）：\n\n| 工具 | 用途 |\n|------|------|\n| `docs_index` | 列出全部主题 id |\n| `docs_get` | `topic`: 如 `overview`、`authoring-workflow` |\n| `docs_search` | `query`: 关键词检索主题 |"
+    "overview.p0": {
+      "cli": "Quicker 运行中且已加载 QuickerRpc 插件。终端直接 `qkrpc <子命令> --json`（命名管道，每次调用即可）。**`qkrpc serve` 仅 agent-gui** 持久 HTTP，普通 CLI/脚本无需常驻。",
+      "agent": "Quicker 运行中且已加载 QuickerRpc 插件。agent-gui 优先 **`qkrpc serve`**（`http://127.0.0.1:9477`），未启动时回退 CLI 子进程。指南用 **`docs_get` / `docs_search` / `docs_index`** 本地 skill，不经 `qkrpc guide`。"
     },
     "patch.invoke": {
       "cli": "**`action patch`**",
@@ -111,7 +103,8 @@
   },
   "topics": {
     "overview": {
-      "description": "Quicker 动作无头编辑总览与 P0–P7 专题索引。Use when starting action editing or choosing which guide topic to read next.",
+      "description": "Quicker 动作无头编辑总览：P0 环境、docs 工具、P0–P7 索引。Use when starting action editing or choosing which guide topic to read next.",
+      "allowed-tools": "docs_get docs_search docs_index",
       "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
     },
     "authoring-workflow": {
@@ -120,18 +113,19 @@
       "metadata": { "phase": "P1-P7" }
     },
     "workspace-editing": {
-      "description": ".quicker/actions/{actionId} 工作区布局、workspace_* 工具分工、file 外置与 qkrpc_action_patch 保存。Use when editing data.json or files/ on disk in agent-ui.",
+      "description": ".quicker/actions workspace layout; workspace_file_* for files/; long step params via file refs; qkrpc_action_patch save. Use when editing data.json on disk.",
       "allowed-tools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
       "compatibility": "QuickerAgent; requires working directory in sidebar"
     },
-    "variables": {
-      "description": "data.json 中 variables[] 的类型、defaultValue、varKey/outputParams 绑定；quicker_in_param 边界。Use when editing action variables.",
+    "action-variables": {
+      "description": "data.json 中 variables[] 的类型、defaultValue；quicker_in_param 边界。步骤参数绑定见 action-steps。Use when editing action variables.",
       "allowed-tools": "workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_step_runner_get",
       "metadata": { "phase": "P2-P6" }
     },
-    "cli-setup": {
-      "description": "QuickerAgent 环境前置与 docs_get/docs_search/docs_index 用法。Use when setting up agent-ui or explaining how to read local authoring guides.",
-      "allowed-tools": "docs_get docs_search docs_index"
+    "action-steps": {
+      "description": "data.json steps[]：stepRunnerKey、inputParams/outputParams、ifSteps；长 inputParams.value (>4 lines) use files/ + file ref not inline value. Use before step-runner get.",
+      "allowed-tools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_action_patch",
+      "metadata": { "phase": "P5-P6" }
     },
     "patch-workflow": {
       "description": "CLI 内联 action patch JSON 形状（qkrpc action patch --patch-file）。",
@@ -240,7 +234,7 @@
       "defaults": { "id": "<guid>", "dir": ".quicker/actions/<guid>" }
     },
     "action.extract": {
-      "cli": "qkrpc action extract --id {{id}} [--dir {{dir}}] [--min-lines 10] --json",
+      "cli": "qkrpc action extract --id {{id}} [--dir {{dir}}] [--min-lines 4] --json",
       "agent": null,
       "agentNote": "（agent-gui 内部：qkrpc_action_get 自动 extract，勿手动调用）",
       "defaults": { "id": "<guid>", "dir": ".quicker/actions/<guid>" }

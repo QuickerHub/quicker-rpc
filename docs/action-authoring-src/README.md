@@ -13,7 +13,7 @@ Optional large sections: `references/{topic}.{name}.md` — included inline for 
 | `*.md` | Topic templates with markers |
 | `ops.json` | Operation + phrase registry (`cli` / `agent` strings) |
 
-**Agent 主路径**：`overview` → `authoring-workflow` → `workspace-editing`；领域规则见 `variables`、`expressions` 等。CLI 专用：`patch-workflow`、`action-project-files`（`profiles: ["cli"]`）。
+**Agent 主路径**：`overview` → `authoring-workflow` → `workspace-editing`；领域规则见 `action-steps`、`action-variables`、`expressions` 等。CLI 专用：`patch-workflow`、`action-project-files`（`profiles: ["cli"]`）。
 
 ## Markers
 

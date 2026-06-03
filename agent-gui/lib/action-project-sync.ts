@@ -10,6 +10,10 @@ import {
 } from "@/lib/action-project-workflow";
 import { runQkrpcForTool } from "@/lib/qkrpc";
 import {
+  readCompressedFromGetPayload,
+  readEditVersionFromGetPayload,
+} from "@/lib/action-project-info-from-get";
+import {
   compareActionEditVersions,
   formatSyncStatusMessage,
   type ActionProjectSyncState,
@@ -19,32 +23,10 @@ import {
 export type { ActionProjectSyncState, ActionProjectSyncStatus } from "@/lib/action-project-sync-types";
 export { compareActionEditVersions, formatSyncStatusMessage } from "@/lib/action-project-sync-types";
 
-function readEditVersion(obj: Record<string, unknown> | null): number | undefined {
-  if (!obj) return undefined;
-  for (const key of ["editVersion", "EditVersion"]) {
-    const value = obj[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-  }
-  const compressed = obj.compressed;
-  if (typeof compressed === "object" && compressed !== null) {
-    const c = compressed as Record<string, unknown>;
-    for (const key of ["editVersion", "EditVersion"]) {
-      const value = c[key];
-      if (typeof value === "number" && Number.isFinite(value)) return value;
-    }
-  }
-  return undefined;
-}
-
 function readRemoteTitle(obj: Record<string, unknown> | null): string | undefined {
   if (!obj) return undefined;
-  const compressed = obj.compressed;
-  if (typeof compressed === "object" && compressed !== null) {
-    const c = compressed as Record<string, unknown>;
-    const title = c.title ?? c.Title;
-    if (typeof title === "string" && title.trim()) return title.trim();
-  }
-  const title = obj.title ?? obj.Title;
+  const compressed = readCompressedFromGetPayload(obj);
+  const title = compressed?.title ?? compressed?.Title ?? obj.title ?? obj.Title;
   if (typeof title === "string" && title.trim()) return title.trim();
   return undefined;
 }
@@ -72,7 +54,7 @@ export async function fetchRemoteActionEditVersion(
   const payload = parseQkrpcPayload(getResult);
   return {
     ok: true,
-    editVersion: readEditVersion(payload),
+    editVersion: readEditVersionFromGetPayload(payload),
     title: readRemoteTitle(payload),
   };
 }

@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { actionProjectDirFromName } from "@/lib/action-project-path-shared";
 import {
   findActionProjectDirectory,
   resolveActionProjectDirectory,
@@ -18,6 +19,10 @@ import {
 import { resolveWorkspacePath, resolveWorkspaceRoot } from "@/lib/workspace-fs";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { buildWorkspaceProjectSummary } from "@/lib/action-project-display";
+import {
+  actionProjectInfoFromMetadataGet,
+  formatActionProjectInfoProto,
+} from "@/lib/action-project-info";
 
 export type {
   WorkspaceProjectSummary,
@@ -61,9 +66,71 @@ export type WorkspaceSyncResult =
   | { ok: true; manifest: ActionProjectManifest }
   | {
       ok: false;
-      reason: "no_cwd" | "invalid_id" | "extract_failed" | "manifest_failed";
+      reason:
+        | "no_cwd"
+        | "invalid_id"
+        | "get_failed"
+        | "extract_failed"
+        | "manifest_failed"
+        | "empty_program";
       error: string;
     };
+
+function countNestedSteps(steps: unknown): number {
+  if (!Array.isArray(steps)) return 0;
+  let total = 0;
+  for (const entry of steps) {
+    if (typeof entry !== "object" || entry === null) continue;
+    total += 1;
+    const step = entry as Record<string, unknown>;
+    total += countNestedSteps(step.ifSteps);
+    total += countNestedSteps(step.elseSteps);
+  }
+  return total;
+}
+
+function parseCompressedProgramRoot(
+  payload: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (!payload) return null;
+  const embedded = payload.compressed ?? payload.Compressed;
+  if (typeof embedded === "string") {
+    try {
+      const parsed = JSON.parse(embedded) as unknown;
+      return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof embedded === "object" && embedded !== null && !Array.isArray(embedded)) {
+    return embedded as Record<string, unknown>;
+  }
+  const json = payload.compressedJson ?? payload.CompressedJson;
+  if (typeof json === "string") {
+    try {
+      const parsed = JSON.parse(json) as unknown;
+      return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** True when get payload has at least one step or variable (else skip disk extract). */
+export function programHasBodyFromGetPayload(
+  payload: Record<string, unknown> | null,
+): boolean {
+  const root = parseCompressedProgramRoot(payload);
+  if (!root) return true;
+  const stepCount = countNestedSteps(root.steps);
+  const variableCount = Array.isArray(root.variables) ? root.variables.length : 0;
+  return stepCount > 0 || variableCount > 0;
+}
 
 
 type ValidatePayload = {
@@ -169,37 +236,56 @@ export async function readActionProjectManifest(
     };
   }
 
-  const validateResult = await runQkrpcForTool([
-    "action",
-    "validate",
-    "--dir",
-    dir,
-  ]);
-  const validatePayload = parseQkrpcPayload(validateResult) as ValidatePayload | null;
+  const dataPath = join(dir, "data.json");
+  const resolvedData = resolveWorkspacePath(dataPath);
+  const hasDataJson =
+    resolvedData.ok && existsSync(resolvedData.absolute);
 
-  const fileRefs =
-    validatePayload?.fileRefs?.map((entry) => ({
-      stepRef: entry.stepRef,
-      paramName: entry.paramName,
-      path: entry.relativePath ?? "",
-      exists: entry.exists === true,
-      sizeBytes: entry.sizeBytes,
-    })) ?? [];
+  let stepCount: number | undefined;
+  let variableCount: number | undefined;
+  let validated: boolean | undefined;
+  let validationError: string | undefined;
+  let fileRefs: ActionProjectManifest["fileRefs"] = [];
+
+  if (hasDataJson) {
+    const validateResult = await runQkrpcForTool([
+      "action",
+      "validate",
+      "--dir",
+      dir,
+    ]);
+    const validatePayload = parseQkrpcPayload(validateResult) as ValidatePayload | null;
+    fileRefs =
+      validatePayload?.fileRefs?.map((entry) => ({
+        stepRef: entry.stepRef,
+        paramName: entry.paramName,
+        path: entry.relativePath ?? "",
+        exists: entry.exists === true,
+        sizeBytes: entry.sizeBytes,
+      })) ?? [];
+    stepCount = validatePayload?.stepCount;
+    variableCount = validatePayload?.variableCount;
+    validated = validatePayload?.success === true;
+    validationError =
+      validatePayload?.success === true
+        ? undefined
+        : validatePayload?.error
+          || (validateResult.ok ? undefined : validateResult.stderr)
+          || undefined;
+  } else {
+    stepCount = 0;
+    variableCount = 0;
+  }
 
   return {
     projectDirectory: dir,
     actionId: id,
     title: infoParsed.data.title,
     editVersion: infoParsed.data.editVersion,
-    stepCount: validatePayload?.stepCount,
-    variableCount: validatePayload?.variableCount,
-    validated: validatePayload?.success === true,
-    validationError:
-      validatePayload?.success === true
-        ? undefined
-        : validatePayload?.error
-          || (validateResult.ok ? undefined : validateResult.stderr)
-          || undefined,
+    stepCount,
+    variableCount,
+    validated,
+    validationError,
     fileRefs,
     files: await listProjectFiles(dir),
   };
@@ -356,6 +442,86 @@ export async function syncActionToWorkspace(
   return { ok: true, manifest };
 }
 
+/** After create: info.json only (metadata from internal action get; no data.json extract). */
+export async function bootstrapActionProjectForCreate(
+  actionId: string,
+): Promise<WorkspaceSyncResult> {
+  const cwd = getWorkingDirectory();
+  if (!cwd) {
+    return {
+      ok: false,
+      reason: "no_cwd",
+      error:
+        "Working directory not set — set a workspace folder in the sidebar before creating actions on disk.",
+    };
+  }
+
+  const id = actionId.trim();
+  if (!isUuid(id)) {
+    return { ok: false, reason: "invalid_id", error: "actionId must be a GUID." };
+  }
+
+  const getResult = await runQkrpcForTool([
+    "action",
+    "get",
+    "--id",
+    id,
+    "--return-mode",
+    "metadata",
+  ]);
+  if (!getResult.ok) {
+    return {
+      ok: false,
+      reason: "get_failed",
+      error: getResult.stderr || "action get (metadata) failed after create",
+    };
+  }
+
+  const getPayload = parseQkrpcPayload(getResult);
+  if (!getPayload) {
+    return {
+      ok: false,
+      reason: "get_failed",
+      error: "action get (metadata) returned no JSON payload",
+    };
+  }
+
+  if (getPayload.success === false) {
+    const message =
+      typeof getPayload.error === "string"
+        ? getPayload.error
+        : typeof getPayload.errorMessage === "string"
+          ? getPayload.errorMessage
+          : "action get (metadata) failed";
+    return { ok: false, reason: "get_failed", error: message };
+  }
+
+  const projectDir = actionProjectDirFromName(id);
+  const resolvedDir = resolveWorkspacePath(projectDir);
+  if (!resolvedDir.ok) {
+    return { ok: false, reason: "manifest_failed", error: resolvedDir.error };
+  }
+
+  await mkdir(resolvedDir.absolute, { recursive: true });
+
+  const infoPath = join(projectDir, "info.json");
+  const resolvedInfo = resolveWorkspacePath(infoPath);
+  if (!resolvedInfo.ok) {
+    return { ok: false, reason: "manifest_failed", error: resolvedInfo.error };
+  }
+
+  const info = actionProjectInfoFromMetadataGet(id, getPayload);
+
+  await writeFile(resolvedInfo.absolute, formatActionProjectInfoProto(info), "utf8");
+
+  const manifest = await readActionProjectManifest(id, projectDir);
+  if ("error" in manifest) {
+    return { ok: false, reason: "manifest_failed", error: manifest.error };
+  }
+
+  return { ok: true, manifest };
+}
+
 function stripCompressedBody(payload: Record<string, unknown>): Record<string, unknown> {
   const next = { ...payload };
   if ("compressed" in next) {
@@ -406,6 +572,7 @@ export function augmentActionGetWithWorkspace(
     return { ...base, data: merged };
   }
 
+  const skipped = sync.reason === "empty_program";
   return {
     ...base,
     data: {
@@ -413,8 +580,15 @@ export function augmentActionGetWithWorkspace(
       payload: {
         ...payload,
         workspaceSynced: false,
+        workspaceSyncSkipped: skipped || undefined,
         workspaceSyncError: sync.error,
         workspaceSyncReason: sync.reason,
+        ...(skipped
+          ? {
+              workspaceSyncNote:
+                "程序体为空，未写入 data.json。编辑已有内容后再 get，或新建后用 create 的 actionId 直接 write_data / edit_data。",
+            }
+          : {}),
       },
     },
   };
@@ -470,21 +644,14 @@ export async function saveActionFromWorkspace(options: {
     );
   }
 
-  let projectDir = await resolveActionProjectDirectory(actionId);
-  let autoSynced = false;
+  const projectDir = await resolveActionProjectDirectory(actionId);
   if (!projectDir) {
-    // Auto bootstrap project on first save so "new action then patch" works.
-    const sync = await syncActionToWorkspace(actionId);
-    if (!sync.ok) {
-      const message = `No .quicker/actions project found for action ${actionId}, and auto-sync failed: ${sync.error}`;
-      return formatLocalToolResult(
-        { action: "action-save", success: false, errorMessage: message },
-        false,
-        message,
-      );
-    }
-    projectDir = sync.manifest.projectDirectory;
-    autoSynced = true;
+    const message = `No .quicker/actions project for action ${actionId}. Create with qkrpc_action_create or sync a non-empty action with qkrpc_action_get, then write data.json before patch.`;
+    return formatLocalToolResult(
+      { action: "action-save", success: false, errorMessage: message },
+      false,
+      message,
+    );
   }
 
   const validateResult = await runQkrpcForTool([
@@ -533,21 +700,5 @@ export async function saveActionFromWorkspace(options: {
     await syncEditVersionOnDisk(projectDir, newVersion);
   }
 
-  const result = formatQkrpcResultForAgent(applyResult);
-  if (!autoSynced) {
-    return result;
-  }
-
-  const data =
-    typeof result.data === "object" && result.data !== null
-      ? (result.data as Record<string, unknown>)
-      : {};
-  return {
-    ...result,
-    data: {
-      ...data,
-      autoSyncedProject: true,
-      projectDirectory: projectDir,
-    },
-  };
+  return formatQkrpcResultForAgent(applyResult);
 }

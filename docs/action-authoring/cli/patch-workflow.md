@@ -53,7 +53,11 @@ qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <
 | `add` | 必填 + 控制字段 + 与 catalog Default 不同的普通参数 |
 | `update` | 仅改动的键；换模块时对旧键写 `null` |
 | 值 | `{ "value": "..." }` · `{ "varKey": "k" }` · `null` 删键 |
-| 大文本 | `data.json` 中 `{ "file": "files/…" }` → **`action-project-files`** |
+| 长 `value`（超过 4 行脚本/字符串） | 写入 `files/`，`data.json` 用 `{ "file": "files/…" }`（勿超长内联 `value`）→ **`action-project-files`** / **`action-steps`** |
+
+## outputParams / inputParams
+
+键名与值形状见 **`action-steps`**（输出为变量 key 字符串，输入为 `{ "value" }` / `{ "varKey" }` 对象）。
 
 ## 保存后
 
@@ -67,4 +71,4 @@ qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <
 
 ## 相关
 
-`authoring-workflow` · `action-project-files` · `variables` · `overview`
+`authoring-workflow` · `action-steps` · `action-project-files` · `action-variables` · `overview`

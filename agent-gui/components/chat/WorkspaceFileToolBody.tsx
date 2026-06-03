@@ -104,6 +104,9 @@ function FileEditorPreviewBody({
         return buildReadStat(preview.content, input);
       case "workspace_file_write":
       case "workspace_action_write_data":
+        if (preview.diff && preview.diff.removed.length > 0) {
+          return buildEditStat(preview.diff.removed, preview.diff.added);
+        }
         return buildWriteStat(preview.content);
       case "workspace_file_edit":
       case "workspace_action_edit_data":
@@ -140,6 +143,11 @@ function FileEditorPreviewBody({
           {preview.totalChars !== undefined
             ? ` · 文件共 ${preview.totalChars} 字符`
             : ""}
+        </p>
+      ) : null}
+      {showCodeBlock && preview.previousSnapshotTruncated ? (
+        <p className="file-editor-footnote file-editor-footnote--warn">
+          写入前快照已截断，diff 可能不完整
         </p>
       ) : null}
     </>

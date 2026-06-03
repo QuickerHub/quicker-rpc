@@ -2,8 +2,10 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Google.Protobuf.WellKnownTypes;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.Proto.V1;
 
 namespace QuickerRpc.AgentModel.XAction.Project;
 
@@ -22,8 +24,7 @@ public static class QuickerProjectFiles
     {
         var path = QuickerProjectLayout.GetInfoPath(projectDirectory);
         var json = File.ReadAllText(path, Utf8NoBom);
-        return JsonConvert.DeserializeObject<ActionProjectInfo>(json, JsonSettings)
-               ?? throw new InvalidOperationException($"Failed to parse {path}.");
+        return ActionProjectInfoJson.Parse(json);
     }
 
     public static SubProgramProjectInfo ReadSubProgramInfo(string projectDirectory)
@@ -35,7 +36,7 @@ public static class QuickerProjectFiles
     }
 
     public static void WriteActionInfo(string projectDirectory, ActionProjectInfo info) =>
-        WriteJson(QuickerProjectLayout.GetInfoPath(projectDirectory), info);
+        ActionProjectInfoJson.Write(QuickerProjectLayout.GetInfoPath(projectDirectory), info);
 
     public static void WriteSubProgramInfo(string projectDirectory, SubProgramProjectInfo info) =>
         WriteJson(QuickerProjectLayout.GetInfoPath(projectDirectory), info);

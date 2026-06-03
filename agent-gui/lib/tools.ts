@@ -15,8 +15,11 @@ import {
 import { formatLocalToolResult } from "@/lib/tool-result";
 import {
   augmentActionGetWithWorkspace,
+  bootstrapActionProjectForCreate,
   buildWorkspaceProjectSummary,
   getActionProjectDataSummary,
+  parseQkrpcPayload,
+  programHasBodyFromGetPayload,
   saveActionFromWorkspace,
   syncActionToWorkspace,
 } from "@/lib/action-project-workflow";
@@ -173,7 +176,7 @@ export const quickerTools = {
 
   qkrpc_action_get: tool({
     description:
-      "Read action by GUID. returnMode: structure (default) | full | metadata — see docs_get topic workspace-editing. Syncs to .quicker/actions/{id}. Response: editVersion + compressed metadata; steps/variables on disk (workspaceProject summary). Edit steps via workspace_action_*_data on data.json steps[]. inputParams keys require qkrpc_step_runner_get.",
+      "Read action by GUID. returnMode: structure (default) | full | metadata — see docs_get topic workspace-editing. Syncs to .quicker/actions/{id} only when the action has steps or variables (empty programs skip writing data.json). Response: editVersion + compressed metadata; workspaceProject when synced. Edit disk via workspace_action_*_data. inputParams keys require qkrpc_step_runner_get.",
     inputSchema: z.object({
       id: z.string().uuid(),
       returnMode: returnModeSchema
@@ -189,13 +192,22 @@ export const quickerTools = {
       if (!getResult.ok) {
         return formatQkrpcResultForAgent(getResult);
       }
-      const sync = await syncActionToWorkspace(id);
+      const payload = parseQkrpcPayload(getResult);
+      const sync = programHasBodyFromGetPayload(payload)
+        ? await syncActionToWorkspace(id)
+        : {
+            ok: false as const,
+            reason: "empty_program" as const,
+            error:
+              "Action has no steps or variables; skipped extract to avoid writing an empty data.json.",
+          };
       return augmentActionGetWithWorkspace(getResult, sync);
     },
   }),
 
   qkrpc_action_create: tool({
-    description: "Create a new action on the qkrpc virtual action page.",
+    description:
+      "Create a new action on the qkrpc virtual action page. Bootstraps .quicker/actions/{actionId}/info.json only (no data.json). Do not call qkrpc_action_get afterward — use returned actionId/editVersion and workspace_action_*_data, then qkrpc_action_patch.",
     inputSchema: z.object({
       title: z.string().optional(),
       description: z.string().optional(),
@@ -219,22 +231,49 @@ export const quickerTools = {
       if (!createResult.ok) {
         return formatQkrpcResultForAgent(createResult);
       }
-      const parsed = createResult.parsed as Record<string, unknown> | null;
+      const payload = parseQkrpcPayload(createResult);
       const actionId =
-        typeof parsed?.actionId === "string" ? parsed.actionId : undefined;
+        typeof payload?.actionId === "string" ? payload.actionId : undefined;
       if (!actionId) {
         return formatQkrpcResultForAgent(createResult);
       }
-      const sync = await syncActionToWorkspace(actionId);
-      if (!sync.ok) {
-        return formatQkrpcResultForAgent(createResult);
-      }
-      return formatLocalToolResult({
-        ...((parsed ?? {}) as Record<string, unknown>),
+      const sync = await bootstrapActionProjectForCreate(actionId);
+      const editVersion =
+        sync.ok && sync.manifest.editVersion != null
+          ? sync.manifest.editVersion
+          : typeof payload?.editVersion === "number"
+            ? payload.editVersion
+            : undefined;
+      const base = {
+        ...((payload ?? {}) as Record<string, unknown>),
         action: "create",
         ok: true,
+        actionId,
+        editVersion,
+      };
+      if (!sync.ok) {
+        return formatLocalToolResult(
+          {
+            ...base,
+            workspaceSynced: false,
+            workspaceSyncError: sync.error,
+            workspaceSyncReason: sync.reason,
+            workspaceNote:
+              sync.reason === "no_cwd"
+                ? "Quicker 中已创建动作，但未落盘：请先在侧栏设置工作目录，再重试 create 或手动 extract。"
+                : sync.reason === "get_failed"
+                  ? "Quicker 中已创建动作，但 metadata get 失败，info.json 未写入。"
+                  : "Quicker 中已创建动作，但 info.json 未写入工作区。",
+          },
+          true,
+        );
+      }
+      return formatLocalToolResult({
+        ...base,
         workspaceSynced: true,
         workspaceProject: buildWorkspaceProjectSummary(sync.manifest),
+        workspaceNote:
+          "已用内部 metadata get 写入 info.json（无 data.json）。下一步 workspace_action_write_data / edit_data，再 qkrpc_action_patch；勿再对 Agent 调用 qkrpc_action_get。",
       });
     },
   }),
@@ -292,12 +331,16 @@ export const quickerTools = {
 
   workspace_file_write: tool({
     description:
-      "Write a UTF-8 file by relative path. For action steps/variables use workspace_action_write_data({ id, content }) instead of manual .quicker/actions/.../data.json paths.",
+      "Write a UTF-8 file under the workspace (e.g. files/*.cs for scripts, files/*.eval.cs for sys:evalexpression). Use for long step scripts/strings (more than 4 lines), then reference in data.json as inputParams.{key}.file. For steps[]/variables[] body use workspace_action_write_data({ id }) — not hand-written data.json paths.",
     inputSchema: z.object({
       path: z.string().describe("Relative path from working directory"),
       content: z.string(),
     }),
     execute: async ({ path, content }) => {
+      const readBefore = await readWorkspaceFile(path);
+      const previousContent = readBefore.ok ? readBefore.content : "";
+      const previousTruncated = readBefore.ok ? readBefore.truncated === true : false;
+
       const result = await writeWorkspaceFile(path, content);
       if (!result.ok) {
         return formatLocalToolResult(
@@ -311,6 +354,8 @@ export const quickerTools = {
         success: true,
         path: result.path,
         bytesWritten: result.bytesWritten,
+        previousContent,
+        previousTruncated: previousTruncated || undefined,
       });
     },
   }),
@@ -423,6 +468,10 @@ export const quickerTools = {
           resolved.error,
         );
       }
+      const readBefore = await readWorkspaceFile(resolved.resolved.path);
+      const previousContent = readBefore.ok ? readBefore.content : "";
+      const previousTruncated = readBefore.ok ? readBefore.truncated === true : false;
+
       const result = await writeWorkspaceFile(resolved.resolved.path, content);
       if (!result.ok) {
         return formatLocalToolResult(
@@ -439,6 +488,8 @@ export const quickerTools = {
         projectDir: resolved.resolved.projectDir,
         path: result.path,
         bytesWritten: result.bytesWritten,
+        previousContent,
+        previousTruncated: previousTruncated || undefined,
         projectSummary: summaryResult.ok ? summaryResult.summary : undefined,
       });
     },

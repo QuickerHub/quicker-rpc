@@ -1,8 +1,10 @@
 using System;
 using System.IO;
 using System.Linq;
+using Google.Protobuf.WellKnownTypes;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.Proto.V1;
 using QuickerRpc.AgentModel.XAction.Project;
 
 namespace QuickerRpc.Plugin.Test;
@@ -52,7 +54,7 @@ public sealed class ActionProjectRoundTripTests
         JObject latestData,
         long editVersion,
         JObject? templateData = null,
-        int autoExternalizeMinLines = 10)
+        int autoExternalizeMinLines = XActionFileRefExportOptions.DefaultAutoExternalizeMinLines)
     {
         var projectDir = GetProjectDir(workspaceRoot, TestDirectoryName);
         var options = new XActionFileRefExportOptions
@@ -71,7 +73,7 @@ public sealed class ActionProjectRoundTripTests
                 Id = actionId,
                 Title = "RoundTrip Test",
                 EditVersion = editVersion,
-                ExportedUtc = DateTime.UtcNow.ToString("o"),
+                ExportedUtc = Timestamp.FromDateTime(DateTime.UtcNow),
             });
 
         Assert.IsTrue(File.Exists(QuickerProjectLayout.GetInfoPath(projectDir)));
@@ -116,7 +118,7 @@ public sealed class ActionProjectRoundTripTests
         try
         {
             var latest = SampleCsscriptStep("s-1", "code", isFile: false, "return 1;");
-            ExtractToProject(workspace, actionId, latest, editVersion: 1, autoExternalizeMinLines: 10);
+            ExtractToProject(workspace, actionId, latest, editVersion: 1);
 
             var projectDir = GetProjectDir(workspace, TestDirectoryName);
             var data = QuickerProjectFiles.ReadData(projectDir);

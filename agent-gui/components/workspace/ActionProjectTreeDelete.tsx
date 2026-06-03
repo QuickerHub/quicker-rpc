@@ -107,7 +107,7 @@ export function ActionProjectTreeDelete({
       {menuOpen ? (
         <div
           id={menuId}
-          className="explorer-tree-delete-menu"
+          className="composer-popup explorer-tree-delete-menu"
           role="menu"
           aria-label={`删除 ${displayTitle}`}
         >

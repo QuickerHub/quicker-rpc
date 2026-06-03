@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using QuickerRpc.AgentModel.Proto.V1;
 
 namespace QuickerRpc.AgentModel.XAction.Project;
 

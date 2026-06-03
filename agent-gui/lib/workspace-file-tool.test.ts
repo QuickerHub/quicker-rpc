@@ -6,6 +6,7 @@ import {
   formatActionDataJsonPath,
   formatCharCount,
   formatWorkspacePathLabel,
+  buildWriteDiffFromSnapshot,
   buildWritePreviewDiff,
   getWorkspaceFileEditorPreview,
   guessFileLanguage,
@@ -128,6 +129,7 @@ test("formatWorkspacePathLabel keeps parent path segments", () => {
 test("guesses language from extension", () => {
   assert.equal(guessFileLanguage("data.json"), "json");
   assert.equal(guessFileLanguage("script.cs"), "csharp");
+  assert.equal(guessFileLanguage("files/clip.eval.cs"), "csharp");
   assert.equal(basenamePath("a/b/c.txt"), "c.txt");
   assert.ok(formatCharCount(1500).includes("k"));
 });
@@ -181,6 +183,17 @@ test("buildWritePreviewDiff is add-only", () => {
   assert.equal(buildWritePreviewDiff(""), undefined);
 });
 
+test("buildWriteDiffFromSnapshot shows removed and added blocks", () => {
+  assert.deepEqual(buildWriteDiffFromSnapshot('{"a":1}', '{"b":2}'), {
+    removed: '{"a":1}',
+    added: '{"b":2}',
+  });
+  assert.deepEqual(buildWriteDiffFromSnapshot("", '{"steps":[]}'), {
+    removed: "",
+    added: '{"steps":[]}',
+  });
+});
+
 test("getWorkspaceFileEditorPreview snapshots write-data from input", () => {
   const preview = getWorkspaceFileEditorPreview(
     "workspace_action_write_data",
@@ -191,6 +204,25 @@ test("getWorkspaceFileEditorPreview snapshots write-data from input", () => {
   assert.equal(preview!.content, '{"steps":[]}');
   assert.deepEqual(preview!.diff, { removed: "", added: '{"steps":[]}' });
   assert.ok(preview!.path.includes("data.json"));
+});
+
+test("getWorkspaceFileEditorPreview write-data uses pre-write snapshot", () => {
+  const preview = getWorkspaceFileEditorPreview(
+    "workspace_action_write_data",
+    { id: "a2adb839-673d-44c5-a725-854700cedb50", content: '{"steps":[1]}' },
+    {
+      action: "action-data-write",
+      success: true,
+      path: ".quicker/actions/a2adb839-673d-44c5-a725-854700cedb50/data.json",
+      previousContent: '{"steps":[]}',
+      bytesWritten: 14,
+    },
+  );
+  assert.ok(preview);
+  assert.deepEqual(preview!.diff, {
+    removed: '{"steps":[]}',
+    added: '{"steps":[1]}',
+  });
 });
 
 test("parses action-data-write payload", () => {

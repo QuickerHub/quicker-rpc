@@ -205,6 +205,11 @@ public static class XActionFileRefAutoExternalizer
         var runner = (stepRunnerKey ?? string.Empty).ToLowerInvariant();
         var param = (paramKey ?? string.Empty).ToLowerInvariant();
 
+        if (runner.Contains("evalexpression"))
+        {
+            return ".eval.cs";
+        }
+
         if (runner.Contains("csscript") || param is "code" or "script")
         {
             return ".cs";

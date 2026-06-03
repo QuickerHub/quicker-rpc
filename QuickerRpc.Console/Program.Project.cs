@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text.Json;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.Proto.V1;
 using QuickerRpc.AgentModel.XAction.Project;
 using QuickerRpc.Contracts.Rpc;
 
@@ -41,7 +42,9 @@ internal static partial class Program
         var exportOptions = new XActionFileRefExportOptions
         {
             AutoExternalizeMinLines = forExtract && !options.NoAutoFiles
-                ? (options.MinLines > 0 ? options.MinLines : 10)
+                ? (options.MinLines > 0
+                    ? options.MinLines
+                    : XActionFileRefExportOptions.DefaultAutoExternalizeMinLines)
                 : 0,
         };
 
@@ -105,14 +108,15 @@ internal static partial class Program
             Directory.CreateDirectory(projectDir);
             QuickerProjectFiles.WriteData(projectDir, exportResult.ExportedData);
 
-            var info = new ActionProjectInfo
+            var info = ActionProjectInfoMapper.FromMetadataGet(
+                actionId,
+                fullResponse.EditVersion,
+                metaRoot);
+            if (string.IsNullOrWhiteSpace(info.Id))
             {
-                Title = title,
-                Description = metaRoot?.Value<string>("description"),
-                Icon = metaRoot?.Value<string>("icon"),
-                EditVersion = fullResponse.EditVersion,
-                ExportedUtc = DateTime.UtcNow.ToString("o"),
-            };
+                info.Id = actionId;
+            }
+
             QuickerProjectFiles.WriteActionInfo(projectDir, info);
 
             var projectDirectoryRelative = ActionProjectCatalog.GetRelativeProjectDirectory(projectDir);

@@ -12,7 +12,6 @@ import { invokeActionCommand } from "@/lib/action-command-client";
 import { resolveActionIdFromProject } from "@/lib/action-project-id";
 import { actionProjectDirFromName } from "@/lib/action-project-path-shared";
 import {
-  isPromotedInfoJsonKey,
   parseActionProjectInfo,
   patchActionProjectInfoText,
   projectDirNameFromInfoPath,
@@ -226,7 +225,8 @@ function InfoBody({
   const showProjectDir =
     !!projectDir
     && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectDir);
-  const extraEntries = Object.entries(data.extra).filter(([key]) => !isPromotedInfoJsonKey(key));
+  const extraEntries =
+    data.kind === "subprogram" ? Object.entries(data.extra) : [];
 
   const displayField: InfoJsonTextField = data.kind === "action" ? "title" : "name";
   const displayValue =

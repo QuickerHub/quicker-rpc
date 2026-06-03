@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using Google.Protobuf.WellKnownTypes;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using QuickerRpc.AgentModel.Proto.V1;
 using QuickerRpc.AgentModel.XAction.Project;
 
 namespace QuickerRpc.Plugin.Test;
@@ -133,7 +135,7 @@ public sealed class ActionProjectCatalogTests
             Directory.CreateDirectory(projectDir);
             QuickerProjectFiles.WriteActionInfo(
                 projectDir,
-                new ActionProjectInfo { Title = "Title Only" });
+                new ActionProjectInfo { Id = actionId, Title = "Title Only" });
             QuickerProjectFiles.WriteData(
                 projectDir,
                 new Newtonsoft.Json.Linq.JObject
@@ -177,6 +179,53 @@ public sealed class ActionProjectCatalogTests
                 workspaceRoot: workspace);
 
             Assert.AreEqual(first, second);
+        }
+        finally
+        {
+            if (Directory.Exists(workspace))
+            {
+                Directory.Delete(workspace, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void ReadActionInfo_parses_metadata_get_snapshot()
+    {
+        var workspace = CreateWorkspace();
+        var actionId = Guid.NewGuid().ToString();
+        try
+        {
+            var projectDir = ActionProjectCatalog.AllocateNewProjectDirectory(
+                actionId,
+                "Meta Snapshot",
+                workspace);
+            Directory.CreateDirectory(projectDir);
+            var infoPath = QuickerProjectLayout.GetInfoPath(projectDir);
+            File.WriteAllText(
+                infoPath,
+                $$"""
+                {
+                  "success": true,
+                  "actionId": "{{actionId}}",
+                  "editVersion": 42,
+                  "returnMode": "metadata",
+                  "compressed": {
+                    "title": "Meta Snapshot",
+                    "description": "desc",
+                    "icon": "fa:Light_Bolt",
+                    "stepCount": 0,
+                    "variableCount": 0
+                  }
+                }
+                """);
+
+            var info = QuickerProjectFiles.ReadActionInfo(projectDir);
+            Assert.AreEqual(actionId, info.Id);
+            Assert.AreEqual("Meta Snapshot", info.Title);
+            Assert.AreEqual("desc", info.Description);
+            Assert.AreEqual("fa:Light_Bolt", info.Icon);
+            Assert.AreEqual(42L, info.EditVersion);
         }
         finally
         {

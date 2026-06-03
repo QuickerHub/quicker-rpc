@@ -1040,7 +1040,7 @@ public sealed class ActionOptions
     [Option("dir", HelpText = "Local .quicker project directory (extract/apply default: .quicker/actions/{actionId}).")]
     public string? Dir { get; set; }
 
-    [Option("min-lines", Default = 10, HelpText = "For extract: externalize value strings with more than N lines.")]
+    [Option("min-lines", Default = 4, HelpText = "For extract: externalize value strings with more than N lines.")]
     public int MinLines { get; set; }
 
     [Option("no-auto-files", HelpText = "For extract: disable auto file refs for long inline values.")]

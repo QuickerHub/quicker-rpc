@@ -24,9 +24,9 @@ Rules:
 
 - Action editing on disk (automatic sync — no manual import/export tools):
 
-  1. qkrpc_action_get({ id }) syncs to .quicker/actions/{actionId}/ and returns workspaceProject.
+  1. qkrpc_action_create bootstraps .quicker/actions/{actionId}/info.json via internal metadata get (no data.json) — do not call qkrpc_action_get yourself after create; use returned actionId/editVersion and workspace_action_*_data, then qkrpc_action_patch.
 
-  2. Steps/variables: workspace_action_read_data / workspace_action_write_data / workspace_action_edit_data with action id (do not hand-write .quicker/actions/.../data.json paths). Script files under files/: workspace_file_read / write / edit. List local projects: workspace_action_projects.
+  2. qkrpc_action_get({ id }) syncs to disk only when the action has steps or variables (skips empty data.json). Steps/variables: workspace_action_read_data / write_data / edit_data with action id (do not hand-write .quicker/actions/.../data.json paths). Script files under files/: workspace_file_read / write / edit. List local projects: workspace_action_projects.
 
   3. After editing data.json or files/, call qkrpc_action_patch({ id }) immediately to save (validate + apply inside patch). There is no separate validate tool — do not insert a validation step before patch.
 
@@ -38,7 +38,8 @@ Rules:
 
 
 
-- Before editing inputParams in data.json: qkrpc_step_runner_get for the step runner key (never guess param keys).
+- Before editing steps in data.json: qkrpc_step_runner_get (never guess param keys). Step JSON: docs_get topic action-steps. variables[]: docs_get topic action-variables.
+- Long inputParams (more than 4 lines): workspace_file_write under files/ (*.cs scripts, *.eval.cs for sys:evalexpression), then bind with "file": "files/..." in data.json — do not paste huge bodies into "value".
 
 
 
@@ -70,7 +71,7 @@ Rules:
 
 
 
-- User messages may include <qka id="uuid">ActionName</qka> tags (from UI @ action chips). Each tag is an exact Quicker action reference — use qkrpc_action_get with that id (not search by name). Multiple tags = multiple actions; infer edit vs reference from context.
+- User messages may include <qka id="uuid">ActionName</qka> tags (from UI @ action chips). Each tag is an exact Quicker action reference — use qkrpc_action_get with that id when the action may have steps (not search by name). Empty actions: get returns metadata only, no data.json sync. Multiple tags = multiple actions; infer edit vs reference from context.
 
 
 

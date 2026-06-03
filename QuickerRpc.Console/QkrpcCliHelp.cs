@@ -117,7 +117,7 @@ internal static class QkrpcCliHelp
 
                     opts: ActionReplaceOpts()),
 
-                Cmd("action extract", "Extract action to .quicker/actions/{name} (auto file refs for values >10 lines). Dir from title or --dir; id in info.json.", "qkrpc action extract --id <guid> [--dir <path>] [--min-lines 10] [--no-auto-files] [--json]",
+                Cmd("action extract", "Extract action to .quicker/actions/{name} (auto file refs for values >4 lines). Dir from title or --dir; id in info.json.", "qkrpc action extract --id <guid> [--dir <path>] [--min-lines 4] [--no-auto-files] [--json]",
 
                     opts: ActionExtractOpts()),
 
@@ -380,7 +380,7 @@ internal static class QkrpcCliHelp
 
             Option("dir", "Override project directory (e.g. .quicker/actions/<name>). Default: title slug or existing project."),
 
-            Option("min-lines", "Externalize inline values with more than N lines.", defaultValue: "10"),
+            Option("min-lines", "Externalize inline values with more than N lines.", defaultValue: "4"),
 
             Option("no-auto-files", "Keep all inputParams inline."),
 
