@@ -34,7 +34,7 @@ import {
 import { IconControl } from "../shared/IconControl";
 import { dragGhostInlineColors } from "../shared/themeCssVars";
 import { useMultiSelect } from "../shared/useMultiSelect";
-import { buildActionStepNodeView } from "./actionStepNodeView";
+import { buildActionStepNodeView, stepHasBranchBox } from "./actionStepNodeView";
 import {
   applyStepsDropReorder,
   collectVisualStepOrderIds,
@@ -50,7 +50,6 @@ import {
   resolveNextSelectionAfterDelete,
   resolveStepListAnchorKey,
   resolveVisualKeyboardMoveDropIndicator,
-  stepHasBranchBox,
   toggleStepCollapsedInTree,
   updateStepById,
   type DropIndicator

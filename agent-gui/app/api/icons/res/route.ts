@@ -45,7 +45,7 @@ export async function GET(req: Request) {
 
   const bytes = await tryReadPublicIcon(relPath);
   if (bytes) {
-    return new Response(bytes, {
+    return new Response(new Uint8Array(bytes), {
       headers: {
         "Content-Type": contentTypeForPath(relPath),
         "Cache-Control": "public, max-age=86400, immutable",
