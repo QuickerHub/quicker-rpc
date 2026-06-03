@@ -4,6 +4,54 @@ function Get-QkrpcDefaultInstallDir {
     return Join-Path $env:LOCALAPPDATA 'Programs\qkrpc'
 }
 
+function Get-ExpectedGoogleProtobufAssemblyVersion {
+    param([string]$RepoRoot)
+
+    $propsPath = Join-Path $RepoRoot 'Directory.Packages.props'
+    if (-not (Test-Path -LiteralPath $propsPath)) {
+        throw "Directory.Packages.props not found: $propsPath"
+    }
+
+    $xml = [xml](Get-Content -LiteralPath $propsPath -Raw)
+    $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+    $ns.AddNamespace('ms', 'http://schemas.microsoft.com/developer/msbuild/2003')
+    $node = $xml.Project.ItemGroup.PackageVersion | Where-Object { $_.Include -eq 'Google.Protobuf' } | Select-Object -First 1
+    if (-not $node -or [string]::IsNullOrWhiteSpace($node.Version)) {
+        throw 'Directory.Packages.props missing PackageVersion for Google.Protobuf.'
+    }
+
+    $semver = $node.Version.Trim()
+    $parts = $semver -split '\.'
+    if ($parts.Count -lt 3) {
+        throw "Google.Protobuf package version must be major.minor.patch: $semver"
+    }
+
+    return [Version]::new([int]$parts[0], [int]$parts[1], [int]$parts[2], 0)
+}
+
+function Assert-QkrpcPublishGoogleProtobuf {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PublishDir,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot
+    )
+
+    $dllPath = Join-Path $PublishDir 'Google.Protobuf.dll'
+    if (-not (Test-Path -LiteralPath $dllPath)) {
+        throw "Publish output missing Google.Protobuf.dll: $PublishDir"
+    }
+
+    $expected = Get-ExpectedGoogleProtobufAssemblyVersion -RepoRoot $RepoRoot
+    $actual = [System.Reflection.AssemblyName]::GetAssemblyName($dllPath).Version
+    if ($actual -ne $expected) {
+        throw "Google.Protobuf.dll version mismatch in publish output: expected $expected, got $actual ($dllPath)"
+    }
+
+    Write-Host "Verified Google.Protobuf.dll ($actual) in publish output." -ForegroundColor DarkGray
+}
+
 function Remove-StaleQkrpcUserPaths {
     param(
         [string]$InstallDir = (Get-QkrpcDefaultInstallDir)
@@ -90,6 +138,184 @@ function Get-QuickerRpcCliSetupName {
 
 function Get-QkrpcLatestCliSetupName {
     return 'qkrpc-win-x64-setup.exe'
+}
+
+function Get-GitHubRepoSlug {
+    param([string]$Root = '')
+
+    if (-not $Root) {
+        $Root = Split-Path -Parent $PSScriptRoot
+    }
+
+    $remote = git -C $Root remote get-url origin 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($remote)) {
+        return 'QuickerHub/quicker-rpc'
+    }
+
+    if ($remote -match 'github\.com[:/](?<owner>[^/]+)/(?<repo>[^/]+?)(?:\.git)?$') {
+        return "$($Matches.owner)/$($Matches.repo)"
+    }
+
+    return 'QuickerHub/quicker-rpc'
+}
+
+function Import-DotEnvFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [switch]$OverwriteExisting
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        if ($line -match '^\s*#' -or $line -match '^\s*$') {
+            continue
+        }
+
+        if ($line -notmatch '^(?<key>[^=]+)=(?<val>.*)$') {
+            continue
+        }
+
+        $key = $Matches.key.Trim()
+        if ([string]::IsNullOrWhiteSpace($key)) {
+            continue
+        }
+
+        if (-not $OverwriteExisting -and -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($key, 'Process'))) {
+            continue
+        }
+
+        $value = $Matches.val.Trim().Trim('"').Trim("'")
+        [Environment]::SetEnvironmentVariable($key, $value, 'Process')
+    }
+}
+
+function Import-BitifulEnvFromFiles {
+    param([string]$PublishDir = '')
+
+    if (-not $PublishDir) {
+        $PublishDir = $PSScriptRoot
+    }
+
+    Import-DotEnvFile -Path (Join-Path $PublishDir '.env')
+    Import-DotEnvFile -Path (Join-Path $PublishDir '.env.bitiful')
+}
+
+function Test-BitifulConfigured {
+    return -not [string]::IsNullOrWhiteSpace($env:BITIFUL_ACCESS_KEY) -and
+        -not [string]::IsNullOrWhiteSpace($env:BITIFUL_SECRET_KEY) -and
+        -not [string]::IsNullOrWhiteSpace($env:BITIFUL_BUCKET_NAME)
+}
+
+function Invoke-QuickerAgentBitifulUpload {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstallerPath,
+
+        [string]$PublishDir = ''
+    )
+
+    if (-not $PublishDir) {
+        $PublishDir = $PSScriptRoot
+    }
+
+    if (-not (Test-Path -LiteralPath $InstallerPath)) {
+        throw "Installer not found: $InstallerPath"
+    }
+
+    if (-not (Test-BitifulConfigured)) {
+        throw 'Bitiful credentials not configured (BITIFUL_ACCESS_KEY, BITIFUL_SECRET_KEY, BITIFUL_BUCKET_NAME).'
+    }
+
+    $uploadScript = Join-Path $PublishDir 'bitiful_upload.py'
+    if (-not (Test-Path -LiteralPath $uploadScript)) {
+        throw "bitiful_upload.py not found: $uploadScript"
+    }
+
+    $resolvedInstaller = (Resolve-Path -LiteralPath $InstallerPath -ErrorAction Stop).Path
+    $endpointUrl = if ([string]::IsNullOrWhiteSpace($env:BITIFUL_ENDPOINT_URL)) {
+        'https://s3.bitiful.net'
+    }
+    else {
+        $env:BITIFUL_ENDPOINT_URL.Trim()
+    }
+
+    $objectPrefix = if ([string]::IsNullOrWhiteSpace($env:BITIFUL_OBJECT_PREFIX)) {
+        'quicker-rpc/quicker-agent'
+    }
+    else {
+        $env:BITIFUL_OBJECT_PREFIX.Trim()
+    }
+
+    if (Get-Command uv -ErrorAction SilentlyContinue) {
+        & uv run --with boto3 python $uploadScript $resolvedInstaller `
+            --endpoint-url $endpointUrl `
+            --object-prefix $objectPrefix
+    }
+    elseif (Get-Command python -ErrorAction SilentlyContinue) {
+        & python -m pip install --disable-pip-version-check --quiet boto3
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Failed to install boto3. Install uv or pip install boto3.'
+        }
+
+        & python $uploadScript $resolvedInstaller `
+            --endpoint-url $endpointUrl `
+            --object-prefix $objectPrefix
+    }
+    else {
+        throw 'Neither uv nor python found. Install uv (recommended) or Python 3 with pip.'
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Bitiful upload failed with exit code $LASTEXITCODE"
+    }
+}
+
+function Get-QuickerAgentBitifulDownloadPrefix {
+    return 'https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent'
+}
+
+function Get-QuickerAgentBitifulVersionTxtUrl {
+    return "$(Get-QuickerAgentBitifulDownloadPrefix)/version.txt"
+}
+
+function Get-QuickerAgentBitifulSetupUrl {
+    param([string]$Version)
+
+    $semver = Get-QuickerRpcSemVerFromVersion -Version $Version
+    $fileName = Get-QuickerAgentSetupName -Version $semver
+    return "$(Get-QuickerAgentBitifulDownloadPrefix)/$fileName"
+}
+
+function Get-QuickerAgentActionDocSharedId {
+    return 'aa5917ad-1256-4c73-7022-08debe3efcbe'
+}
+
+function Resolve-QuickerAgentRepoRoot {
+    param([string]$QuickerRpcRepoRoot = '')
+
+    if ($env:QUICKER_AGENT_REPO) {
+        $candidate = $env:QUICKER_AGENT_REPO.Trim()
+        if (Test-Path -LiteralPath (Join-Path $candidate 'actions\README.md')) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+
+    if ($QuickerRpcRepoRoot) {
+        $sibling = Join-Path (Split-Path -Parent $QuickerRpcRepoRoot) 'quicker-agent'
+        if (Test-Path -LiteralPath (Join-Path $sibling 'actions\README.md')) {
+            return (Resolve-Path -LiteralPath $sibling).Path
+        }
+    }
+
+    throw @'
+quicker-agent repo not found. Set QUICKER_AGENT_REPO to the repo root (contains actions/README.md),
+or clone quicker-agent as a sibling of quicker-rpc (../quicker-agent).
+'@
 }
 
 function Get-QuickerAgentSetupName {

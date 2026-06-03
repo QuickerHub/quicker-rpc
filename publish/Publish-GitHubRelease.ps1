@@ -19,6 +19,8 @@ param(
     [switch]$AllowEmptyChangelog,
     [switch]$LocalBuild,
     [switch]$WaitForCi,
+    [switch]$SkipSyncQuickerAgentActionDoc,
+    [switch]$SkipBitifulUpload,
     [switch]$SkipBuild,
     [switch]$SkipTag,
     [switch]$Draft,
@@ -69,21 +71,6 @@ function Assert-GhAvailable {
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
         throw 'GitHub CLI (gh) not found. Install from https://cli.github.com/ and run gh auth login.'
     }
-}
-
-function Get-GitHubRepoSlug {
-    param([string]$Root)
-
-    $remote = git -C $Root remote get-url origin 2>$null
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($remote)) {
-        return 'QuickerHub/quicker-rpc'
-    }
-
-    if ($remote -match 'github\.com[:/](?<owner>[^/]+)/(?<repo>[^/]+?)(?:\.git)?$') {
-        return "$($Matches.owner)/$($Matches.repo)"
-    }
-
-    return 'QuickerHub/quicker-rpc'
 }
 
 function Get-ReleaseAssetPaths {
@@ -314,10 +301,62 @@ if ($WaitForCi) {
     Wait-ReleaseCliWorkflow -RepoSlug $repoSlug -Tag $tagName
     Write-Host ''
     Write-Host "Release completed: $releaseUrl" -ForegroundColor Green
+
+    if (-not $SkipBitifulUpload) {
+        $bitifulScript = Join-Path $PSScriptRoot 'Upload-QuickerAgentToBitiful.ps1'
+        if (-not (Test-Path -LiteralPath $bitifulScript)) {
+            throw "Upload-QuickerAgentToBitiful.ps1 not found: $bitifulScript"
+        }
+
+        Write-Host ''
+        Write-Host 'Uploading QuickerAgent installer to Bitiful (local network)...' -ForegroundColor Cyan
+        Import-BitifulEnvFromFiles -PublishDir $PSScriptRoot
+        if (Test-BitifulConfigured) {
+            if ($DryRun) {
+                & pwsh -NoProfile -File $bitifulScript -RepoRoot $RepoRoot -Tag $tagName -Version $quickerRpcVersion -DryRun
+            }
+            else {
+                & pwsh -NoProfile -File $bitifulScript -RepoRoot $RepoRoot -Tag $tagName -Version $quickerRpcVersion
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Upload-QuickerAgentToBitiful.ps1 failed with exit code $LASTEXITCODE"
+                }
+            }
+        }
+        else {
+            Write-Warning @'
+Bitiful credentials not found; skipped local upload.
+Copy publish/.env.example to publish/.env, or set BITIFUL_* env vars.
+Run: pwsh ./publish/Upload-QuickerAgentToBitiful.ps1 -Tag <tag>
+'@
+        }
+    }
+
+    if (-not $SkipSyncQuickerAgentActionDoc) {
+        $syncScript = Join-Path $PSScriptRoot 'Sync-QuickerAgentActionDoc.ps1'
+        if (-not (Test-Path -LiteralPath $syncScript)) {
+            throw "Sync-QuickerAgentActionDoc.ps1 not found: $syncScript"
+        }
+
+        Write-Host ''
+        Write-Host 'Syncing QuickerAgent action page (Bitiful links from version.json)...' -ForegroundColor Cyan
+        if ($DryRun) {
+            & pwsh -NoProfile -File $syncScript -RepoRoot $RepoRoot -Version $semantic -DryRun
+        }
+        else {
+            & pwsh -NoProfile -File $syncScript -RepoRoot $RepoRoot -Version $semantic -Push
+            if ($LASTEXITCODE -ne 0) {
+                throw "Sync-QuickerAgentActionDoc.ps1 failed with exit code $LASTEXITCODE"
+            }
+        }
+    }
 }
 else {
     Write-Host ''
-    Write-Host 'Tip: pass -WaitForCi to block until the workflow finishes.' -ForegroundColor DarkGray
+    Write-Host 'Tip: pass -WaitForCi to block until the workflow finishes (includes local Bitiful upload + action page sync).' -ForegroundColor DarkGray
+    if (-not $SkipSyncQuickerAgentActionDoc) {
+        Write-Host 'Tip: after CI, run: pwsh ./publish/Upload-QuickerAgentToBitiful.ps1 -Tag <tag>' -ForegroundColor DarkGray
+        Write-Host 'Tip: then: pwsh ./publish/Sync-QuickerAgentActionDoc.ps1 -Push' -ForegroundColor DarkGray
+    }
 }
 
 Write-Host ''

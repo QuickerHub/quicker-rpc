@@ -19,7 +19,11 @@ metadata:
 4. `pwsh ./build.ps1 -Publish -NoVersion` → Quicker 依赖 **quicker.rpc** 上传（版本与 `version.json` 一致，不再 bump）
 5. `qkrpc action list --limit 1 --json` 确认插件在线（或已 `qkrpc serve` 且 `/health` 为 ok）
 6. `qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog-file publish/changelogs/vX.Y.Z.md --json`
-7. 汇报 Release URL、Quicker 包版本、action update 结果、用户安装命令
+7. **QuickerAgent 动作页（getquicker）**：`page.html` 用占位符 `{{QUICKER_AGENT_SEMVER}}`（勿手写版本号）。**本地 Bitiful 上传后**执行：
+   - 推荐：`pwsh ./publish/Publish-GitHubRelease.ps1 -WaitForCi`（CI 结束后**自动**本地上传 Bitiful → `Sync-QuickerAgentActionDoc.ps1 -Push`）
+   - 或手动：`pwsh ./publish/Upload-QuickerAgentToBitiful.ps1 -Tag vX.Y.Z`，再 `Sync-QuickerAgentActionDoc.ps1 -Push`
+   - 需在 **quicker-agent** 兄弟仓库（或 `QUICKER_AGENT_REPO`）；Bitiful 凭证见 `publish/.env.example`（复制为 `publish/.env`）
+8. 汇报 Release URL、Quicker 包版本、action update / 动作页 sync 结果、用户安装命令
 
 ## 仓库与产物
 
@@ -31,7 +35,8 @@ metadata:
 | Quicker 包 | `quicker.rpc`（`build.ps1 -Publish -NoVersion`） |
 | 分享动作 ID | `f5c76108-3ce9-433f-8cd0-8f0d9c562052` |
 | CLI Release | `qkrpc-{semver}-win-x64-setup.exe`、`qkrpc-win-x64-setup.exe`（latest）、zip 便携包 |
-| Agent Release | `quicker-agent-{semver}-x64-setup.exe`、`quicker-agent-win-x64-setup.exe`（latest，Tauri NSIS，CI 构建） |
+| Agent Release | `quicker-agent-{semver}-x64-setup.exe`（GitHub Release + **本地** Bitiful）；Bitiful 另更新 `version.txt`，**勿**上传 `quicker-agent-win-x64-setup.exe` 固定别名 |
+| QuickerAgent 动作页 | `aa5917ad-1256-4c73-7022-08debe3efcbe`；源文件 `quicker-agent/actions/.../page.html`（`{{QUICKER_AGENT_SEMVER}}` 由 `Sync-QuickerAgentActionDoc.ps1` 填充） |
 
 ## 用户安装 CLI
 
@@ -42,7 +47,9 @@ metadata:
 | 命令 | 用途 |
 |------|------|
 | `publish/Publish-GitHubRelease.ps1` | 校验 changelog、**push tag**；CI 构建 zip/setup 并发布 Release |
-| `publish/Publish-GitHubRelease.ps1 -WaitForCi` | 同上，并等待 `release-cli.yml` 完成 |
+| `publish/Publish-GitHubRelease.ps1 -WaitForCi` | 同上，并等待 `release-cli.yml` 完成；随后**本地上传 Bitiful** + sync QuickerAgent 动作页（`-SkipBitifulUpload` / `-SkipSyncQuickerAgentActionDoc` 可跳过） |
+| `publish/Upload-QuickerAgentToBitiful.ps1 -Tag vX.Y.Z` | 从 GitHub Release 下载安装包并上传 Bitiful（国内网络，比 CI 海外直传快） |
+| `publish/Sync-QuickerAgentActionDoc.ps1 -Push` | 将 `version.json` 版本写入 quicker-agent `page.html` 并 `qkagent push`（Bitiful 上传后执行） |
 | `publish/Publish-GitHubRelease.ps1 -LocalBuild` | 本地构建 + `gh release`（需 Inno Setup，CI 不可用时） |
 | `publish/Build-QkrpcSetup.ps1` | Inno Setup 编译（CI 与 `-LocalBuild` 共用） |
 | `build.ps1 -Publish -NoVersion` | qkbuild 上传 Quicker 依赖，**不**改 `version.json`（自动 SkipCliPackaging） |
@@ -63,6 +70,7 @@ metadata:
 
 - .NET 10 SDK、`gh auth login`
 - `qkbuild` 与 build-tools `.env`（`-p -n` 上传）
+- Bitiful：`publish/.env`（见 `publish/.env.example`）或 `BITIFUL_*` 环境变量
 - Quicker 运行中 + QuickerRpc 插件已 Register（`qkrpc action list --limit 1 --json` 成功即可）
 
 ## 禁止

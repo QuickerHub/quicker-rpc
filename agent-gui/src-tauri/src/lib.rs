@@ -11,6 +11,7 @@ use std::os::windows::process::CommandExt;
 use tauri::{
     AppHandle, Manager, RunEvent, TitleBarStyle, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -51,11 +52,50 @@ fn find_port(host: &str, start: u16) -> Result<u16, String> {
     Err(format!("no free port from {start} on {host}"))
 }
 
-fn wait_http_ok(host: &str, port: u16, path: &str, max_ms: u64) -> Result<(), String> {
+/// UI server: any HTTP 200 on `/`.
+fn wait_http_200(host: &str, port: u16, path: &str, max_ms: u64) -> Result<(), String> {
+    wait_http_response(host, port, path, max_ms, HttpReadyMode::Status200)
+}
+
+/// qkrpc serve: process is up when `/health` returns JSON with `"ok":` (true or false).
+/// Do not require Quicker/plugin — otherwise the app never opens on a fresh machine.
+fn wait_qkrpc_serve_listening(host: &str, port: u16, max_ms: u64) -> Result<(), String> {
+    wait_http_response(host, port, "/health", max_ms, HttpReadyMode::QkrpcHealthJson)
+}
+
+#[derive(Clone, Copy)]
+enum HttpReadyMode {
+    Status200,
+    QkrpcHealthJson,
+}
+
+fn http_response_matches(mode: HttpReadyMode, response: &str) -> bool {
+    match mode {
+        HttpReadyMode::Status200 => {
+            response.contains("HTTP/1.1 200") || response.contains("HTTP/1.0 200")
+        }
+        HttpReadyMode::QkrpcHealthJson => {
+            let has_json_ok = response.contains("\"ok\":true") || response.contains("\"ok\":false");
+            if !has_json_ok {
+                return false;
+            }
+            response.contains("HTTP/1.1 200")
+                || response.contains("HTTP/1.0 200")
+                || response.contains("HTTP/1.1 503")
+                || response.contains("HTTP/1.0 503")
+        }
+    }
+}
+
+fn wait_http_response(
+    host: &str,
+    port: u16,
+    path: &str,
+    max_ms: u64,
+    mode: HttpReadyMode,
+) -> Result<(), String> {
     let deadline = Instant::now() + Duration::from_millis(max_ms);
-    let request = format!(
-        "GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
-    );
+    let request = format!("GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n");
 
     while Instant::now() < deadline {
         if let Ok(mut stream) = std::net::TcpStream::connect((host, port)) {
@@ -65,10 +105,7 @@ fn wait_http_ok(host: &str, port: u16, path: &str, max_ms: u64) -> Result<(), St
                 let mut buf = vec![0u8; 2048];
                 if let Ok(n) = stream.read(&mut buf) {
                     let text = String::from_utf8_lossy(&buf[..n]);
-                    if text.contains("200") && text.contains("\"ok\":true") {
-                        return Ok(());
-                    }
-                    if text.contains("200") && path != "/health" {
+                    if http_response_matches(mode, &text) {
                         return Ok(());
                     }
                 }
@@ -112,8 +149,15 @@ fn spawn_qkrpc(qkrpc_dir: &Path, host: &str, port: u16) -> Result<Child, String>
     }
 
     let mut cmd = Command::new(&exe);
-    cmd.args(["serve", "--host", host, "--port", &port.to_string()])
-        .current_dir(qkrpc_dir);
+    cmd.args([
+        "serve",
+        "--host",
+        host,
+        "--port",
+        &port.to_string(),
+        "--no-bootstrap",
+    ])
+    .current_dir(qkrpc_dir);
     configure_hidden_child(&mut cmd);
     cmd.spawn().map_err(|e| format!("spawn qkrpc: {e}"))
 }
@@ -197,15 +241,27 @@ fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<St
     std::env::set_var("QKRPC_TRANSPORT", "http");
     let qkrpc_dir = resource.join("qkrpc");
     let qkrpc_child = spawn_qkrpc(&qkrpc_dir, host, qkrpc_port)?;
-    wait_http_ok(host, qkrpc_port, "/health", 45_000)?;
+    wait_qkrpc_serve_listening(host, qkrpc_port, 45_000)?;
 
     let node_child = spawn_node_server(&runtime, &node_exe, host, ui_port)?;
-    wait_http_ok(host, ui_port, "/", 60_000)?;
+    wait_http_200(host, ui_port, "/", 60_000)?;
 
     *state.qkrpc.lock().map_err(|e| e.to_string())? = Some(qkrpc_child);
     *state.node.lock().map_err(|e| e.to_string())? = Some(node_child);
 
     Ok(format!("http://{host}:{ui_port}"))
+}
+
+fn show_startup_error(app: &AppHandle, detail: &str) {
+    let message = format!(
+        "QuickerAgent 无法完成启动。\r\n\r\n{detail}\r\n\r\n\
+         请确认已安装本程序自带运行时；若未运行 Quicker，可先启动 Quicker 并加载 QuickerRpc 插件后再试。"
+    );
+    app.dialog()
+        .message(message)
+        .title("QuickerAgent 启动失败")
+        .kind(MessageDialogKind::Error)
+        .blocking_show();
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -226,9 +282,21 @@ pub fn run() {
                 return Ok(());
             }
 
+            if let Some(win) = app.get_webview_window("main") {
+                apply_titlebar_chrome_existing(&win);
+                let _ = win.center();
+                let _ = win.show();
+            }
+
             let handle = app.handle().clone();
             let state = app.state::<BackendState>();
-            let url = start_production_backends(&handle, state.inner())?;
+            let url = match start_production_backends(&handle, state.inner()) {
+                Ok(url) => url,
+                Err(err) => {
+                    show_startup_error(&handle, &err);
+                    return Err(err.into());
+                }
+            };
             let external: url::Url = url.parse().expect("valid UI url");
 
             if let Some(placeholder) = app.get_webview_window("main") {

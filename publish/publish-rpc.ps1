@@ -84,6 +84,8 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
+Assert-QkrpcPublishGoogleProtobuf -PublishDir $publishDir -RepoRoot $repoRoot
+
 if (-not $SkipPackaging) {
     Write-Host "Publishing QuickerRpc plugin (Release, net472)..." -ForegroundColor Green
     $pluginCsproj = Join-Path $repoRoot 'QuickerRpc.Plugin\QuickerRpc.Plugin.csproj'

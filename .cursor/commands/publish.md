@@ -68,7 +68,28 @@ qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog-file p
 
 前置：Quicker 已运行且 QuickerRpc 插件已加载（`qkrpc action list --limit 1 --json` 成功即可）。
 
-## 阶段五：发布后汇报
+## 阶段五：QuickerAgent → Bitiful + 动作页
+
+CI **默认不再**从海外 runner 上传 Bitiful（慢）。`-WaitForCi` 会在 CI 完成后**本机**上传（需 `publish/.env` 或 `BITIFUL_*` 环境变量）。
+
+```powershell
+# 推荐：阶段二 -WaitForCi 已包含本地上传 + 动作页 sync
+# 或手动：
+pwsh -NoProfile -File ./publish/Upload-QuickerAgentToBitiful.ps1 -Tag vX.Y.Z
+pwsh -NoProfile -File ./publish/Sync-QuickerAgentActionDoc.ps1 -Push
+```
+
+`page.html` 使用占位符 `{{QUICKER_AGENT_SEMVER}}`，由脚本按 `version.json` 替换。**Bitiful 上传完成后**再 sync 动作页。
+
+| 参数 | 用途 |
+|------|------|
+| `-WaitForCi` 内 | 自动 `Upload-QuickerAgentToBitiful` → `Sync-QuickerAgentActionDoc -Push` |
+| `-SkipBitifulUpload` | 跳过本地上传 |
+| `-SkipSyncQuickerAgentActionDoc` | 跳过动作页 push |
+
+凭证：复制 `publish/.env.example` → `publish/.env`。若需在 CI 恢复海外上传，在 GitHub 仓库 Variables 设 `BITIFUL_UPLOAD_IN_CI=true`。
+
+## 阶段六：发布后汇报
 
 1. Release URL、tag、`qkrpc-win-x64-setup.exe` / zip 资产。
 2. Quicker 依赖版本（`version.json` 四段 → quicker.rpc 前三段目录）。

@@ -219,98 +219,27 @@ jobs:
         id: bitiful
         shell: pwsh
         env:
+          BITIFUL_UPLOAD_IN_CI: ${{ vars.BITIFUL_UPLOAD_IN_CI }}
           BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}
           BITIFUL_SECRET_KEY: ${{ secrets.BITIFUL_SECRET_KEY }}
           BITIFUL_BUCKET_NAME: ${{ secrets.BITIFUL_BUCKET_NAME }}
         run: |
-          $configured =
+          $uploadInCi = ($env:BITIFUL_UPLOAD_IN_CI -eq 'true')
+          $secretsPresent =
             -not [string]::IsNullOrWhiteSpace($env:BITIFUL_ACCESS_KEY) -and
             -not [string]::IsNullOrWhiteSpace($env:BITIFUL_SECRET_KEY) -and
             -not [string]::IsNullOrWhiteSpace($env:BITIFUL_BUCKET_NAME)
+          $configured = $uploadInCi -and $secretsPresent
           if ($configured) {
             "configured=true" >> $env:GITHUB_OUTPUT
-            Write-Host 'Bitiful upload enabled (secrets present).'
+            Write-Host 'Bitiful upload enabled in CI (BITIFUL_UPLOAD_IN_CI=true).'
+          } elseif ($secretsPresent -and -not $uploadInCi) {
+            "configured=false" >> $env:GITHUB_OUTPUT
+            Write-Host 'Bitiful CI upload skipped (default). Run publish/Upload-QuickerAgentToBitiful.ps1 locally after release.'
           } else {
             "configured=false" >> $env:GITHUB_OUTPUT
             Write-Host 'Bitiful secrets not configured; upload steps will be skipped.'
           }
-
-      - name: Setup Python for Bitiful upload
-        if: steps.bitiful.outputs.configured == 'true'
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-
-      # bash heredoc (python - <<'PY') is not valid in pwsh on windows-latest
-      - name: Upload QuickerAgent installer to Bitiful
-        if: steps.bitiful.outputs.configured == 'true'
-        shell: bash
-        env:
-          BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}
-          BITIFUL_SECRET_KEY: ${{ secrets.BITIFUL_SECRET_KEY }}
-          BITIFUL_BUCKET_NAME: ${{ secrets.BITIFUL_BUCKET_NAME }}
-          BITIFUL_ENDPOINT_URL: ${{ vars.BITIFUL_ENDPOINT_URL }}
-          BITIFUL_OBJECT_PREFIX: ${{ vars.BITIFUL_OBJECT_PREFIX }}
-          AGENT_SETUP_NAME: ${{ needs.metadata.outputs.agent_setup_name }}
-        run: |
-          python -m pip install --disable-pip-version-check --quiet boto3
-          python - <<'PY'
-          import os
-          from pathlib import Path
-          import boto3
-          from botocore.config import Config
-
-          workspace = Path.cwd()
-          local_file = workspace / "publish" / os.environ["AGENT_SETUP_NAME"]
-          if not local_file.exists():
-              raise FileNotFoundError(f"Installer not found: {local_file}")
-
-          endpoint_url = (os.getenv("BITIFUL_ENDPOINT_URL") or "https://s3.bitiful.net").strip()
-          prefix = (os.getenv("BITIFUL_OBJECT_PREFIX") or "quicker-rpc/quicker-agent").strip().strip("/")
-          object_key = f"{prefix}/{local_file.name}"
-          version_txt_key = f"{prefix}/version.txt"
-          file_name = local_file.name
-          version_marker = file_name.replace("quicker-agent-", "").replace("-x64-setup.exe", "").strip()
-          if not version_marker or version_marker == file_name:
-              raise RuntimeError(f"Unable to parse semver from file name: {file_name}")
-
-          s3_client = boto3.client(
-              "s3",
-              endpoint_url=endpoint_url,
-              aws_access_key_id=os.environ["BITIFUL_ACCESS_KEY"],
-              aws_secret_access_key=os.environ["BITIFUL_SECRET_KEY"],
-              region_name="us-east-1",
-              config=Config(signature_version="s3v4", retries={"max_attempts": 3}),
-          )
-          s3_client.upload_file(
-              str(local_file),
-              os.environ["BITIFUL_BUCKET_NAME"],
-              object_key,
-              ExtraArgs={"ContentType": "application/vnd.microsoft.portable-executable"},
-          )
-          s3_client.put_object(
-              Bucket=os.environ["BITIFUL_BUCKET_NAME"],
-              Key=version_txt_key,
-              Body=version_marker.encode("utf-8"),
-              ContentType="text/plain; charset=utf-8",
-              CacheControl="no-cache, no-store, must-revalidate",
-          )
-
-          object_url = f"{endpoint_url.rstrip('/')}/{os.environ['BITIFUL_BUCKET_NAME']}/{object_key}"
-          version_txt_url = f"{endpoint_url.rstrip('/')}/{os.environ['BITIFUL_BUCKET_NAME']}/{version_txt_key}"
-          print(f"Uploaded to Bitiful: {object_key}")
-          print(f"URL: {object_url}")
-          print(f"Updated version marker: {version_txt_key} -> {version_marker}")
-          print(f"Version URL: {version_txt_url}")
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
-              summary.write("### Bitiful upload\n")
-              summary.write(f"- File: `{local_file.name}`\n")
-              summary.write(f"- Object key: `{object_key}`\n")
-              summary.write(f"- URL: {object_url}\n")
-              summary.write(f"- Version key: `{version_txt_key}`\n")
-              summary.write(f"- Version value: `{version_marker}`\n")
-              summary.write(f"- Version URL: {version_txt_url}\n")
-          PY
 
       - name: Generate release notes
         id: notes
@@ -346,3 +275,34 @@ jobs:
             publish/quicker-agent-win-x64-setup.exe
           draft: false
           prerelease: false
+
+      # Optional: overseas runner → Bitiful is slow; default off (upload locally via Upload-QuickerAgentToBitiful.ps1).
+      - name: Setup Python for Bitiful upload
+        if: steps.bitiful.outputs.configured == 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Upload QuickerAgent installer to Bitiful
+        if: steps.bitiful.outputs.configured == 'true'
+        shell: pwsh
+        env:
+          BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}
+          BITIFUL_SECRET_KEY: ${{ secrets.BITIFUL_SECRET_KEY }}
+          BITIFUL_BUCKET_NAME: ${{ secrets.BITIFUL_BUCKET_NAME }}
+          BITIFUL_ENDPOINT_URL: ${{ vars.BITIFUL_ENDPOINT_URL }}
+          BITIFUL_OBJECT_PREFIX: ${{ vars.BITIFUL_OBJECT_PREFIX }}
+        run: |
+          python -m pip install --disable-pip-version-check --quiet boto3
+          $installer = Join-Path $PWD "publish/${{ needs.metadata.outputs.agent_setup_name }}"
+          python ./publish/bitiful_upload.py $installer
+          $endpoint = if ($env:BITIFUL_ENDPOINT_URL) { $env:BITIFUL_ENDPOINT_URL.Trim() } else { 'https://s3.bitiful.net' }
+          $prefix = if ($env:BITIFUL_OBJECT_PREFIX) { $env:BITIFUL_OBJECT_PREFIX.Trim().Trim('/') } else { 'quicker-rpc/quicker-agent' }
+          $objectKey = "$prefix/${{ needs.metadata.outputs.agent_setup_name }}"
+          $objectUrl = "$($endpoint.TrimEnd('/'))/$($env:BITIFUL_BUCKET_NAME)/$objectKey"
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value @"
+          ### Bitiful upload (CI)
+          - File: ``${{ needs.metadata.outputs.agent_setup_name }}``
+          - Object key: ``$objectKey``
+          - URL: $objectUrl
+          "@

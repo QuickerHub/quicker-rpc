@@ -100,7 +100,8 @@ function normalizeBase(url) {
   return url.replace(/\/$/, "");
 }
 
-async function checkHealth(base, timeoutMs = 3000) {
+/** qkrpc serve is up when /health returns JSON with boolean ok (Quicker may be offline). */
+async function checkQkrpcListening(base, timeoutMs = 3000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -109,14 +110,18 @@ async function checkHealth(base, timeoutMs = 3000) {
       signal: controller.signal,
       cache: "no-store",
     });
-    if (!res.ok) return false;
+    if (res.status !== 200 && res.status !== 503) return false;
     const body = await res.json();
-    return body?.ok === true;
+    return typeof body?.ok === "boolean";
   } catch {
     return false;
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function checkHealth(base, timeoutMs = 3000) {
+  return checkQkrpcListening(base, timeoutMs);
 }
 
 async function waitForHealth(base, maxMs = 45_000) {
@@ -211,7 +216,7 @@ async function ensureBundledQkrpcServe(host) {
   console.log(`qkrpc: starting staged serve at ${base} (${exe})`);
   qkrpcChild = spawn(
     exe,
-    ["serve", "--host", host, "--port", String(port)],
+    ["serve", "--host", host, "--port", String(port), "--no-bootstrap"],
     {
       cwd: qkrpcDir,
       stdio: ["ignore", "pipe", "pipe"],

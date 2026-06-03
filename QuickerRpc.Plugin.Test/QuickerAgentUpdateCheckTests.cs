@@ -40,4 +40,26 @@ public sealed class QuickerAgentUpdateCheckServiceTests
         StringAssert.Contains(url, "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/");
         StringAssert.Contains(url, "quicker-agent-0.8.6-x64-setup.exe");
     }
+
+    [TestMethod]
+    public void BuildNotifyMessage_when_not_installed_mentions_download()
+    {
+        var message = QuickerAgentUpdateCheckService.BuildNotifyMessage(new QuickerAgentUpdateCheckResult
+        {
+            IsNotInstalled = true,
+            RemoteVersion = "0.9.0",
+        });
+
+        StringAssert.Contains(message, "未检测到 QuickerAgent");
+        StringAssert.Contains(message, "0.9.0");
+        StringAssert.Contains(message, "下载");
+    }
+
+    [TestMethod]
+    public void ShouldNotify_is_true_when_not_installed()
+    {
+        var result = new QuickerAgentUpdateCheckResult { IsNotInstalled = true, RemoteVersion = "0.9.0" };
+        Assert.IsTrue(result.ShouldNotify);
+        Assert.IsFalse(result.HasUpdate);
+    }
 }

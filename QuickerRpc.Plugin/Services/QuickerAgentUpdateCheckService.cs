@@ -8,7 +8,7 @@ using QuickerRpc.Plugin.Quicker;
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Compares locally installed QuickerAgent with Bitiful <c>version.txt</c> and notifies when newer.
+/// Compares locally installed QuickerAgent with Bitiful <c>version.txt</c>; notifies when newer or not installed.
 /// </summary>
 public sealed class QuickerAgentUpdateCheckService
 {
@@ -42,7 +42,7 @@ public sealed class QuickerAgentUpdateCheckService
             try
             {
                 var result = await CheckForUpdateAsync().ConfigureAwait(false);
-                if (result is null || !result.HasUpdate)
+                if (result is null || !result.ShouldNotify)
                 {
                     return;
                 }
@@ -54,7 +54,7 @@ public sealed class QuickerAgentUpdateCheckService
 
                 _lastNotifiedRemoteVersion = result.RemoteVersion;
                 var downloadUrl = result.DownloadUrl;
-                var message = BuildUpdateMessage(result);
+                var message = BuildNotifyMessage(result);
                 QuickerDispatcherInvoke.OnUiThreadIfNeeded(() =>
                     PopupMessage.InformationWithClick(
                         message,
@@ -73,16 +73,25 @@ public sealed class QuickerAgentUpdateCheckService
 
     internal async Task<QuickerAgentUpdateCheckResult?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
-        if (!QuickerAgentInstallProbe.TryGetInstalledVersion(out var installedVersion, out _))
-        {
-            _logger.LogDebug("QuickerAgent is not installed; skip update check.");
-            return null;
-        }
-
         var remoteVersion = await FetchRemoteVersionAsync(cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(remoteVersion))
         {
             return null;
+        }
+
+        var downloadUrl = BuildVersionedDownloadUrl(remoteVersion);
+
+        if (!QuickerAgentInstallProbe.TryGetInstalledVersion(out var installedVersion, out _))
+        {
+            _logger.LogDebug(
+                "QuickerAgent is not installed; offer download for {RemoteVersion}.",
+                remoteVersion);
+            return new QuickerAgentUpdateCheckResult
+            {
+                IsNotInstalled = true,
+                RemoteVersion = remoteVersion,
+                DownloadUrl = downloadUrl,
+            };
         }
 
         var hasUpdate = SemVerUtility.Compare(remoteVersion, installedVersion) > 0;
@@ -91,7 +100,7 @@ public sealed class QuickerAgentUpdateCheckService
             HasUpdate = hasUpdate,
             InstalledVersion = installedVersion!,
             RemoteVersion = remoteVersion,
-            DownloadUrl = BuildVersionedDownloadUrl(remoteVersion),
+            DownloadUrl = downloadUrl,
         };
     }
 
@@ -121,14 +130,26 @@ public sealed class QuickerAgentUpdateCheckService
     internal static string BuildVersionedDownloadUrl(string remoteVersion) =>
         $"{DownloadPrefix}/quicker-agent-{remoteVersion.Trim()}-x64-setup.exe";
 
-    private static string BuildUpdateMessage(QuickerAgentUpdateCheckResult result) =>
-        $"QuickerAgent 有新版本 {result.RemoteVersion}（当前已安装 {result.InstalledVersion}）。\r\n" +
-        "点击本通知下载最新版。";
+    internal static string BuildNotifyMessage(QuickerAgentUpdateCheckResult result)
+    {
+        if (result.IsNotInstalled)
+        {
+            return $"未检测到 QuickerAgent，推荐安装 {result.RemoteVersion}。\r\n" +
+                   "点击本通知下载安装包。";
+        }
+
+        return $"QuickerAgent 有新版本 {result.RemoteVersion}（当前已安装 {result.InstalledVersion}）。\r\n" +
+               "点击本通知下载最新版。";
+    }
 }
 
 internal sealed class QuickerAgentUpdateCheckResult
 {
     public bool HasUpdate { get; set; }
+
+    public bool IsNotInstalled { get; set; }
+
+    public bool ShouldNotify => HasUpdate || IsNotInstalled;
 
     public string InstalledVersion { get; set; } = string.Empty;
 
