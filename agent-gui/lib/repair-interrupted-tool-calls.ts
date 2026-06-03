@@ -1,12 +1,19 @@
-import { isToolOrDynamicToolUIPart } from "ai";
+import {
+  isToolOrDynamicToolUIPart,
+  type DynamicToolUIPart,
+  type ToolUIPart,
+} from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 
 type AgentUIMessagePart = AgentUIMessage["parts"][number];
+type AgentToolUIPart = ToolUIPart | DynamicToolUIPart;
 
 export const INTERRUPTED_TOOL_ERROR_TEXT =
   "Stopped by user before the tool finished.";
 
-export function isIncompleteToolPart(part: AgentUIMessagePart): boolean {
+export function isIncompleteToolPart(
+  part: AgentUIMessagePart,
+): part is AgentToolUIPart {
   if (!isToolOrDynamicToolUIPart(part)) return false;
   return (
     part.state === "input-streaming"
@@ -53,16 +60,17 @@ export function repairInterruptedToolCalls(
             approved: false as const,
             reason: INTERRUPTED_TOOL_ERROR_TEXT,
           },
-        };
+        } satisfies AgentUIMessagePart;
       }
 
       const input = "input" in part ? part.input : undefined;
+      const { approval: _ignoredApproval, ...rest } = part;
       return {
-        ...part,
+        ...rest,
         state: "output-error" as const,
         input,
         errorText: INTERRUPTED_TOOL_ERROR_TEXT,
-      };
+      } satisfies AgentUIMessagePart;
     });
 
     if (!messageChanged) return message;
