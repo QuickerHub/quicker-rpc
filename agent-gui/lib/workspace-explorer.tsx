@@ -237,7 +237,12 @@ export type WorkspaceExplorerEditorContextValue = {
   openFile: (
     path: string,
     content?: string,
-    meta?: { truncated?: boolean; totalChars?: number; revealInTree?: boolean },
+    meta?: {
+      truncated?: boolean;
+      totalChars?: number;
+      revealInTree?: boolean;
+      tabLabel?: string;
+    },
   ) => void;
   openFileFromTool: (toolName: string, input: unknown, output?: StructuredToolResult) => void;
   closeTab: (id: string) => void;
