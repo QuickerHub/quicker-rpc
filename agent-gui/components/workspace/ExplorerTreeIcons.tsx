@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 
 /** VS Code–style tree twistie: chevron-right, rotated 90° when expanded. */
 export function ExplorerTreeChevron({
-  expanded,
+  expanded = false,
   hidden,
 }: {
-  expanded: boolean;
+  expanded?: boolean;
   hidden?: boolean;
 }) {
   if (hidden) {
