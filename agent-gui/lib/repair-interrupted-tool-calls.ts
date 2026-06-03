@@ -64,13 +64,13 @@ export function repairInterruptedToolCalls(
       }
 
       const input = "input" in part ? part.input : undefined;
-      const { approval: _ignoredApproval, ...rest } = part;
       return {
-        ...rest,
+        ...part,
         state: "output-error" as const,
         input,
         errorText: INTERRUPTED_TOOL_ERROR_TEXT,
-      } satisfies AgentUIMessagePart;
+        approval: undefined,
+      } as AgentUIMessagePart;
     });
 
     if (!messageChanged) return message;

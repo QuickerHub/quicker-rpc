@@ -805,6 +805,63 @@ export const quickerTools = {
     },
   }),
 
+  qkrpc_process_ensure: tool({
+    description:
+      "Ensure a Quicker virtual process and its dedicated action page (scene/action management). Optionally move actions that call a global subprogram into that page (collectSubProgramName + moveActions). See docs_get topic action-organization-workflow.",
+    inputSchema: z.object({
+      exeFile: z
+        .string()
+        .describe("Virtual process key (ExeFile), e.g. _ceacore_run"),
+      displayName: z
+        .string()
+        .describe("Display name in scene/action management"),
+      profileNamePrefix: z
+        .string()
+        .describe('Prefix for auto-created action page names, e.g. "@CeaCore "'),
+      collectSubProgramName: z
+        .string()
+        .optional()
+        .describe("Required with moveActions: global subprogram id/name"),
+      moveActions: z
+        .boolean()
+        .optional()
+        .describe("Move matching actions into the virtual page"),
+      moveAny: z
+        .boolean()
+        .optional()
+        .describe(
+          "With moveActions: move any action with a matching call (default: dedicated wrappers only)",
+        ),
+    }),
+    execute: async ({
+      exeFile,
+      displayName,
+      profileNamePrefix,
+      collectSubProgramName,
+      moveActions,
+      moveAny,
+    }) => {
+      const args = [
+        "process",
+        "ensure",
+        "--exe",
+        exeFile,
+        "--name",
+        displayName,
+        "--profile-prefix",
+        profileNamePrefix,
+      ];
+      if (moveActions) {
+        args.push("--move-actions");
+        if (collectSubProgramName) {
+          args.push("--collect-subprogram", collectSubProgramName);
+        }
+        if (moveAny) args.push("--move-any");
+      }
+      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+    },
+  }),
+
   qkrpc_subprogram_list: tool({
     description:
       "List global subprograms (optional query filter). Returns callIdentifier for sys:subprogram.",

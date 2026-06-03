@@ -28,7 +28,7 @@ Quicker 运行中且已加载 QuickerRpc 插件。agent-gui 优先 **`qkrpc serv
 | 工具 | 用途 |
 |------|------|
 | `docs_index` | 主题列表 |
-| `docs_get` | 如 `authoring-workflow`、`workspace-editing`、`action-steps` |
+| `docs_get` | 如 `authoring-workflow`、`action-organization-workflow`、`workspace-editing`、`action-steps` |
 | `docs_search` | 关键词检索 |
 
 ## 编辑链路（P0–P7）
@@ -59,6 +59,7 @@ Quicker 运行中且已加载 QuickerRpc 插件。agent-gui 优先 **`qkrpc serv
 | **`expressions`** | P4 **首选**：`$=`、`$$`、`sys:evalexpression`（LINQ/字符串/多变量） |
 | **`implementation-fallback`** | P4：表达式不够或无模块时的回退（csscript / runScript） |
 | **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
+| **`action-organization-workflow`** | 整理动作页：移动、全局 tab、虚拟进程归集（不改程序体） |
 | **`step-runner-search`** | P5：目录搜索 OR/通配 |
 | **`step-modules`** | P5：常用 stepRunnerKey（大表 `docs_get_reference`） |
 

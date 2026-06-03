@@ -214,11 +214,16 @@ internal static class QkrpcCliHelp
                         Option("no-bootstrap", "Skip auto-start."),
                     }),
 
-                Cmd("process ensure-ceacore", "Create CeaCore Run virtual process (@CeaCore 001). Find callers: action search --query uses:CeaCore_Run. Use --move-actions to collect dedicated actions.", "qkrpc process ensure-ceacore [--move-actions] [--json]",
+                Cmd("process ensure", "Create/ensure a virtual process tab with an initial action page. Find callers: action search --query uses:<SubName>.", "qkrpc process ensure --exe <key> --name <displayName> --profile-prefix <prefix> [--collect-subprogram <idOrName>] [--move-actions] [--move-any] [--json]",
 
                     opts: new[]
                     {
-                        Option("move-actions", "Move actions whose steps are only CeaCore_Run subprogram calls."),
+                        Option("exe", "Virtual process key (ExeFile), e.g. _my_app."),
+                        Option("name", "Display name in scene/action management."),
+                        Option("profile-prefix", "Action page name prefix (e.g. \"@MyApp \")."),
+                        Option("collect-subprogram", "Subprogram id/name for --move-actions."),
+                        Option("move-actions", "Move matching actions into the new page (requires --collect-subprogram)."),
+                        Option("move-any", "Move any caller (default: dedicated subprogram wrappers only)."),
                         Option("json", "Structured output."),
                         Option("timeout", "Seconds.", defaultValue: "30"),
                         Option("no-bootstrap", "Skip auto-start."),

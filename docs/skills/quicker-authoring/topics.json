@@ -2,6 +2,15 @@
   "skillName": "quicker-authoring",
   "topics": [
     {
+      "topic": "action-organization-workflow",
+      "description": "整理动作位置：list/search（含 uses: 引用查找）、move、全局页 create/reorder、虚拟进程 process ensure 批量归集。Use when tidying action pages, moving actions, or grouping by subprogram reference — not for editing steps.",
+      "source": "references/action-organization-workflow.md",
+      "allowedTools": "qkrpc_action_list qkrpc_action_search qkrpc_action_move qkrpc_profile_create qkrpc_profile_reorder qkrpc_process_ensure",
+      "metadata": {
+        "phase": "organize"
+      }
+    },
+    {
       "topic": "action-steps",
       "description": "data.json steps[]：stepRunnerKey、inputParams/outputParams、ifSteps；长 inputParams.value (>4 lines) use files/ + file ref not inline value. Use before step-runner get.",
       "source": "references/action-steps.md",

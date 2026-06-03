@@ -157,6 +157,11 @@
       "allowed-tools": "qkrpc_subprogram_search qkrpc_subprogram_get qkrpc_step_runner_get qkrpc_action_patch",
       "metadata": { "phase": "P5-P6" }
     },
+    "action-organization-workflow": {
+      "description": "整理动作位置：list/search（含 uses: 引用查找）、move、全局页 create/reorder、虚拟进程 process ensure 批量归集。Use when tidying action pages, moving actions, or grouping by subprogram reference — not for editing steps.",
+      "allowed-tools": "qkrpc_action_list qkrpc_action_search qkrpc_action_move qkrpc_profile_create qkrpc_profile_reorder qkrpc_process_ensure",
+      "metadata": { "phase": "organize" }
+    },
     "action-project-files": {
       "description": "CLI：qkrpc action extract/apply 与 .quicker/actions/{actionId} 目录。",
       "profiles": ["cli"]
@@ -316,6 +321,31 @@
       "cli": "qkrpc fa search [--query {{query}}] --json",
       "agent": "qkrpc_fa_search({ query?: \"{{query}}\" })",
       "defaults": { "query": "keyword" }
+    },
+    "action.move": {
+      "cli": "qkrpc action move --id {{id}} --profile {{profile}} [--row {{row}} --col {{col}}] [--swap] --json",
+      "agent": "qkrpc_action_move({ id: \"{{id}}\", profile: \"{{profile}}\", row?: {{row}}, col?: {{col}}, swap?: true })",
+      "defaults": { "id": "<guid>", "profile": "_global", "row": "0", "col": "0" }
+    },
+    "profile.create": {
+      "cli": "qkrpc profile create --scope global [--count {{count}}] [--after-first] --json",
+      "agent": "qkrpc_profile_create({ count?: {{count}}, afterFirst: true })",
+      "defaults": { "count": "1" }
+    },
+    "profile.reorder": {
+      "cli": "qkrpc profile reorder --scope global --after-first --ids {{profileIds}} --json",
+      "agent": "qkrpc_profile_reorder({ profileIds: [\"{{profileIds}}\"] })",
+      "defaults": { "profileIds": "<guid1>,<guid2>" }
+    },
+    "process.ensure": {
+      "cli": "qkrpc process ensure --exe {{exe}} --name \"{{name}}\" --profile-prefix \"{{profilePrefix}}\" [--collect-subprogram {{collectSubProgram}} --move-actions [--move-any]] --json",
+      "agent": "qkrpc_process_ensure({ exeFile: \"{{exe}}\", displayName: \"{{name}}\", profileNamePrefix: \"{{profilePrefix}}\", collectSubProgramName?: \"{{collectSubProgram}}\", moveActions?: true, moveAny?: true })",
+      "defaults": { "exe": "_my_app", "name": "My App", "profilePrefix": "@MyApp ", "collectSubProgram": "MySub" }
+    },
+    "action.search.uses": {
+      "cli": "qkrpc action search --query \"uses:{{subProgram}}\" [--scope {{scope}}] --json",
+      "agent": "qkrpc_action_search({ query: \"uses:{{subProgram}}\", scope?: \"{{scope}}\" })",
+      "defaults": { "subProgram": "SubName", "scope": "global" }
     }
   }
 }

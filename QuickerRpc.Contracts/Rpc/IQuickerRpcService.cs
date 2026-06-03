@@ -123,10 +123,15 @@ public interface IQuickerRpcService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Ensure the CeaCore Run virtual process exists and optionally move actions that call CeaCore_Run.
+    /// Ensure a Quicker virtual process (custom ExeFile tab) exists and optionally move actions
+    /// that call <paramref name="collectSubProgramName"/> into its first action page.
     /// </summary>
-    Task<QuickerRpcCreateVirtualProcessResult> EnsureCeaCoreRunVirtualProcessAsync(
-        bool moveMatchingActions = false,
+    Task<QuickerRpcCreateVirtualProcessResult> EnsureVirtualProcessAsync(
+        string exeFile,
+        string displayName,
+        string profileNamePrefix,
+        string? collectSubProgramName = null,
+        bool dedicatedSubProgramOnly = true,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -159,7 +164,7 @@ public interface IQuickerRpcService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Edit a variable default value and save via ActionDesignerWindow.
+    /// Edit a variable default value headlessly (patch save).
     /// Accepts a global subprogram id/name or a local action id.
     /// </summary>
     Task<QuickerRpcSubProgramVariableEditResult> EditGlobalSubProgramVariableAsync(

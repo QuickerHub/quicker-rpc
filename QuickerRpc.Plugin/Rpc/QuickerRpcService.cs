@@ -407,14 +407,50 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
-    public Task<QuickerRpcCreateVirtualProcessResult> EnsureCeaCoreRunVirtualProcessAsync(
-        bool moveMatchingActions = false,
+    public Task<QuickerRpcCreateVirtualProcessResult> EnsureVirtualProcessAsync(
+        string exeFile,
+        string displayName,
+        string profileNamePrefix,
+        string? collectSubProgramName = null,
+        bool dedicatedSubProgramOnly = true,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(exeFile))
+        {
+            return Task.FromResult(new QuickerRpcCreateVirtualProcessResult
+            {
+                Ok = false,
+                Message = "exeFile is required.",
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return Task.FromResult(new QuickerRpcCreateVirtualProcessResult
+            {
+                Ok = false,
+                Message = "displayName is required.",
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(profileNamePrefix))
+        {
+            return Task.FromResult(new QuickerRpcCreateVirtualProcessResult
+            {
+                Ok = false,
+                Message = "profileNamePrefix is required.",
+            });
+        }
+
         return InvokeOnDispatcherAsync(
             () =>
             {
-                var result = _virtualProcessCreateService.EnsureCeaCoreRunVirtualProcess(moveMatchingActions);
+                var result = _virtualProcessCreateService.EnsureVirtualProcess(
+                    exeFile.Trim(),
+                    displayName.Trim(),
+                    profileNamePrefix.Trim(),
+                    string.IsNullOrWhiteSpace(collectSubProgramName) ? null : collectSubProgramName.Trim(),
+                    dedicatedSubProgramOnly);
                 if (result.Ok)
                 {
                     _popup.Success(result.Message);

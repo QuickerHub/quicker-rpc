@@ -58,3 +58,32 @@ test("argvToInvoke maps action update for legacy compat", () => {
     },
   });
 });
+
+test("argvToInvoke maps process ensure with move-actions", () => {
+  const invoke = argvToInvoke([
+    "process",
+    "ensure",
+    "--exe",
+    "_ceacore_run",
+    "--name",
+    "CeaCore Run",
+    "--profile-prefix",
+    "@CeaCore ",
+    "--collect-subprogram",
+    "CeaCore_Run",
+    "--move-actions",
+    "--move-any",
+    "--json",
+  ]);
+  assert.deepEqual(invoke, {
+    op: "process.ensure",
+    args: {
+      exeFile: "_ceacore_run",
+      displayName: "CeaCore Run",
+      profileNamePrefix: "@CeaCore ",
+      collectSubProgramName: "CeaCore_Run",
+      moveActions: true,
+      moveAny: true,
+    },
+  });
+});

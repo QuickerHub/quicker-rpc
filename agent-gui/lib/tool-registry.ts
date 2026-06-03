@@ -123,6 +123,12 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "移到 _global 之后",
   },
   {
+    id: "qkrpc_process_ensure",
+    label: "虚拟进程/归集",
+    group: "write",
+    description: "创建虚拟进程动作页，可选按子程序引用批量移动作",
+  },
+  {
     id: "qkrpc_action_float",
     label: "悬浮按钮",
     group: "write",
@@ -138,7 +144,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     id: "qkrpc_action_edit_var",
     label: "编辑变量默认值",
     group: "write",
-    description: "设计器 UI 修改变量",
+    description: "无头修改变量默认值",
   },
   {
     id: "qkrpc_subprogram_create",

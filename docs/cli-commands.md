@@ -170,9 +170,33 @@ qkrpc action search --query <keyword|uses:SubName> [--scope <scope>] [--limit 20
 | `chrome` / `chrome.exe` | 指定进程下的动作页（含附加通用页） |
 | `taskbar` / `desktop` | 任务栏 / 桌面 |
 | `agent` / `qkrpc` | qkrpc 自动创建的虚拟页 |
+| `_` 开头的 ExeFile（如 `_ceacore_run`） | 自定义虚拟进程（见 `process ensure`） |
 | 动作页 GUID 或名称 | 指定单个动作页 |
 
 列表/搜索响应含 `exeFile`、`profileName`、`profileId`。
+
+### `qkrpc process ensure`
+
+创建或确保 Quicker **虚拟进程**（场景与动作管理左侧自定义进程）及首个动作页。
+
+```powershell
+qkrpc process ensure --exe <key> --name <displayName> --profile-prefix "<prefix> " [--json]
+
+# 可选：将调用某公共子程序的动作迁入该虚拟页
+qkrpc process ensure --exe _ceacore_run --name "CeaCore Run" --profile-prefix "@CeaCore " `
+  --collect-subprogram CeaCore_Run --move-actions --json
+```
+
+| 参数 | 说明 |
+|------|------|
+| `--exe` | 虚拟进程键（ExeFile），建议 `_` 前缀，如 `_my_app` |
+| `--name` | 左侧列表显示名 |
+| `--profile-prefix` | 动作页名前缀（会自动加 `001` 序号） |
+| `--collect-subprogram` | 与 `--move-actions` 联用：要归集的公共子程序 id/名 |
+| `--move-actions` | 迁移匹配动作到新建页（需 `--collect-subprogram`） |
+| `--move-any` | 默认仅迁移「专用包装」动作；加此开关则迁移任一步调用者 |
+
+查找调用方：`qkrpc action search --query uses:<SubName> --json`
 
 ---
 

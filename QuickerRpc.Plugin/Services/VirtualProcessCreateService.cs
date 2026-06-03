@@ -24,16 +24,6 @@ public sealed class VirtualProcessCreateService
         _actionMoveService = actionMoveService;
     }
 
-    public QuickerRpcCreateVirtualProcessResult EnsureCeaCoreRunVirtualProcess(bool moveMatchingActions)
-    {
-        return EnsureVirtualProcess(
-            CeaCoreRunVirtualActionHost.VirtualExeFile,
-            CeaCoreRunVirtualActionHost.DisplayName,
-            CeaCoreRunVirtualActionHost.ProfileNamePrefix,
-            moveMatchingActions ? CeaCoreRunVirtualActionHost.SubProgramName : null,
-            dedicatedSubProgramOnly: true);
-    }
-
     public QuickerRpcCreateVirtualProcessResult EnsureVirtualProcess(
         string exeFile,
         string displayName,
@@ -157,10 +147,7 @@ public sealed class VirtualProcessCreateService
         }
     }
 
-    private static string ScopeTokenForExe(string exeFile) =>
-        string.Equals(exeFile, CeaCoreRunVirtualActionHost.VirtualExeFile, StringComparison.OrdinalIgnoreCase)
-            ? CeaCoreRunVirtualActionHost.Scope
-            : exeFile;
+    private static string ScopeTokenForExe(string exeFile) => exeFile;
 
     private static IList<ActionProfile> ListVirtualPages(ProfileManager manager, string exeFile)
     {

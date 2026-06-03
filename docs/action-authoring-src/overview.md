@@ -27,7 +27,7 @@
 | 工具 | 用途 |
 |------|------|
 | `docs_index` | 主题列表 |
-| `docs_get` | 如 `authoring-workflow`、`workspace-editing`、`action-steps` |
+| `docs_get` | 如 `authoring-workflow`、`action-organization-workflow`、`workspace-editing`、`action-steps` |
 | `docs_search` | 关键词检索 |
 {{/only-agent}}
 
@@ -66,7 +66,8 @@
 {{/only-agent}}| **`expressions`** | P4 **首选**：`$=`、`$$`、`sys:evalexpression`（LINQ/字符串/多变量） |
 | **`implementation-fallback`** | P4：表达式不够或无模块时的回退（csscript / runScript） |
 | **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
-| **`step-runner-search`** | P5：目录搜索 OR/通配 |
+{{#only-agent}}| **`action-organization-workflow`** | 整理动作页：移动、全局 tab、虚拟进程归集（不改程序体） |
+{{/only-agent}}| **`step-runner-search`** | P5：目录搜索 OR/通配 |
 | **`step-modules`** | P5：常用 stepRunnerKey（大表 `docs_get_reference`） |
 {{#only-cli}}| **`patch-workflow`** | P6：内联 patch JSON |
 | **`action-project-files`** | CLI 磁盘 extract/apply |

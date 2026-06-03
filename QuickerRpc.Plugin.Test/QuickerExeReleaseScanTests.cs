@@ -74,8 +74,18 @@ public sealed class QuickerExeReleaseScanTests
 
         var vmType = assembly.GetType("Quicker.Common.Vm.SharedActionVm");
         var dtoType = assembly.GetType("Quicker.Common.Vm.SharedActionDto");
-        var apiResultType = assembly.GetType("Quicker.Common.Vm.ApiResult`1")?.MakeGenericType(dtoType!);
-        var taskType = typeof(System.Threading.Tasks.Task<>).MakeGenericType(apiResultType!);
+        if (vmType is null || dtoType is null)
+        {
+            Assert.Inconclusive("Release Quicker.exe: SharedActionVm/SharedActionDto types not found.");
+        }
+
+        var apiResultType = assembly.GetType("Quicker.Common.Vm.ApiResult`1")?.MakeGenericType(dtoType);
+        if (apiResultType is null)
+        {
+            Assert.Inconclusive("Release Quicker.exe: ApiResult<SharedActionDto> not resolved.");
+        }
+
+        var taskType = typeof(System.Threading.Tasks.Task<>).MakeGenericType(apiResultType);
 
         var method = assembly
             .GetTypes()

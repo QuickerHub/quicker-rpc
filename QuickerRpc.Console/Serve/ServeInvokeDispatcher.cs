@@ -80,7 +80,7 @@ internal static class ServeInvokeDispatcher
             "action.edit-var" => await ActionEditVarAsync(rpc, args, token).ConfigureAwait(false),
             "profile.create" => await ProfileCreateAsync(rpc, args, token).ConfigureAwait(false),
             "profile.reorder" => await ProfileReorderAsync(rpc, args, token).ConfigureAwait(false),
-            "process.ensure-ceacore" => await ProcessEnsureCeaCoreAsync(rpc, args, token).ConfigureAwait(false),
+            "process.ensure" => await ProcessEnsureAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.search" => await SubprogramSearchAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.list" => await SubprogramListAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.create" => await SubprogramCreateAsync(rpc, args, token).ConfigureAwait(false),
@@ -715,21 +715,67 @@ internal static class ServeInvokeDispatcher
         });
     }
 
-    private static async Task<ServeInvokeResponse> ProcessEnsureCeaCoreAsync(
+    private static async Task<ServeInvokeResponse> ProcessEnsureAsync(
         IQuickerRpcService rpc,
         JsonElement args,
         CancellationToken token)
     {
-        var moveMatchingActions = ServeJsonArgs.GetBool(args, "moveMatchingActions")
+        var exeFile = ServeJsonArgs.GetString(args, "exeFile")
+            ?? ServeJsonArgs.GetString(args, "exe")
+            ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(exeFile))
+        {
+            return Fail("MISSING_EXE", "args.exeFile is required.");
+        }
+
+        var displayName = ServeJsonArgs.GetString(args, "displayName")
+            ?? ServeJsonArgs.GetString(args, "name")
+            ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return Fail("MISSING_NAME", "args.displayName is required.");
+        }
+
+        var profilePrefix = ServeJsonArgs.GetString(args, "profileNamePrefix")
+            ?? ServeJsonArgs.GetString(args, "profile-prefix")
+            ?? ServeJsonArgs.GetString(args, "profilePrefix")
+            ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(profilePrefix))
+        {
+            return Fail("MISSING_PROFILE_PREFIX", "args.profileNamePrefix is required.");
+        }
+
+        var moveActions = ServeJsonArgs.GetBool(args, "moveMatchingActions")
             || ServeJsonArgs.GetBool(args, "move-matching-actions")
             || ServeJsonArgs.GetBool(args, "moveActions")
             || ServeJsonArgs.GetBool(args, "move-actions");
+        var collectSubProgram = ServeJsonArgs.GetString(args, "collectSubProgramName")
+            ?? ServeJsonArgs.GetString(args, "collect-subprogram")
+            ?? ServeJsonArgs.GetString(args, "collectSubProgram");
+        if (moveActions && string.IsNullOrWhiteSpace(collectSubProgram))
+        {
+            return Fail("MISSING_COLLECT_SUBPROGRAM", "args.collectSubProgramName is required when moveActions is true.");
+        }
 
-        var response = await rpc.EnsureCeaCoreRunVirtualProcessAsync(moveMatchingActions, token).ConfigureAwait(false);
+        var moveAny = ServeJsonArgs.GetBool(args, "moveAny")
+            || ServeJsonArgs.GetBool(args, "move-any");
+        var dedicatedOnly = !moveAny;
+        if (!moveActions)
+        {
+            collectSubProgram = null;
+        }
+
+        var response = await rpc.EnsureVirtualProcessAsync(
+            exeFile.Trim(),
+            displayName.Trim(),
+            profilePrefix.Trim(),
+            string.IsNullOrWhiteSpace(collectSubProgram) ? null : collectSubProgram.Trim(),
+            dedicatedOnly,
+            token).ConfigureAwait(false);
         return Ok(new
         {
             ok = response.Ok,
-            action = "process-ensure-ceacore",
+            action = "process-ensure",
             exeFile = response.ExeFile,
             displayName = response.DisplayName,
             scope = response.Scope,
@@ -737,6 +783,7 @@ internal static class ServeInvokeDispatcher
             profileName = response.ProfileName,
             createdProcess = response.CreatedProcess,
             createdProfile = response.CreatedProfile,
+            inExeSettingsDict = response.InExeSettingsDict,
             movedActions = response.MovedActions,
             message = response.Message,
         });

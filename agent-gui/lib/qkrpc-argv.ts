@@ -265,6 +265,27 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
     return null;
   }
 
+  if (positional[0] === "process") {
+    const verb = positional[1];
+    if (verb === "ensure") {
+      const moveActions =
+        flagBool(flags, "move-actions") || flagBool(flags, "moveActions");
+      return {
+        op: "process.ensure",
+        args: {
+          exeFile: flagStr(flags, "exe"),
+          displayName: flagStr(flags, "name"),
+          profileNamePrefix: flagStr(flags, "profile-prefix"),
+          collectSubProgramName: flagStr(flags, "collect-subprogram"),
+          moveActions: moveActions || undefined,
+          moveAny:
+            flagBool(flags, "move-any") || flagBool(flags, "moveAny") || undefined,
+        },
+      };
+    }
+    return null;
+  }
+
   if (positional[0] === "subprogram") {
     const verb = positional[1];
     if (verb === "search") {
