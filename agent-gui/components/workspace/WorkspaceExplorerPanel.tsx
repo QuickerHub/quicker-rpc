@@ -69,6 +69,8 @@ export function WorkspaceExplorerPanel() {
 
     saveWorkspaceFile,
 
+    loadFileContent,
+
   } = useWorkspaceExplorer();
 
   const { activeDoc, clearActiveTopic } = useDocsViewer();
@@ -84,6 +86,12 @@ export function WorkspaceExplorerPanel() {
     void refreshTree();
 
   }, [closeTab, refreshTree, setSelectedPath]);
+
+  const handleActionProjectSynced = useCallback(() => {
+    void refreshTree();
+    const path = activeTab?.path;
+    if (path) void loadFileContent(path);
+  }, [activeTab?.path, loadFileContent, refreshTree]);
 
 
 
@@ -310,6 +318,10 @@ export function WorkspaceExplorerPanel() {
                       onSave={(nextContent) =>
 
                         saveWorkspaceFile(activeTab.path, nextContent)}
+
+                      onSaved={() => void refreshTree()}
+
+                      onSynced={handleActionProjectSynced}
 
                     />
 

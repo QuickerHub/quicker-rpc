@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { buildActionExplorerTree } from "@/lib/action-explorer-server";
 import type { ActionExplorerTree } from "@/lib/action-explorer-tree";
-import { getActionsRootRelative } from "@/lib/action-project-path";
+import { getActionsRootRelative } from "@/lib/action-project-path-shared";
 import { runWithQkrpcCwdAsync } from "@/lib/qkrpc-request-context";
 import { resolveWorkspacePath, resolveWorkspaceRoot } from "@/lib/workspace-fs";
 
@@ -235,6 +235,16 @@ export function subscribeActionExplorerWatch(
     state.session = getOrCreateSession(trimmed);
     state.session.subscribers.add(subscriber);
     ensureWatchers(state.session);
+    // New SSE clients must get a snapshot even when the tree JSON is unchanged
+    // (rebuildAndNotify skips broadcast when lastTreeJson matches).
+    if (state.session.lastTreeJson) {
+      try {
+        const tree = JSON.parse(state.session.lastTreeJson) as ActionExplorerTree;
+        subscriber.send({ ok: true, type: "tree", tree });
+      } catch {
+        /* fall through to rebuild */
+      }
+    }
     await rebuildAndNotify(state.session);
   });
 

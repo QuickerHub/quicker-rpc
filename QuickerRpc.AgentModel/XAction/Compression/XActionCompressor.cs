@@ -590,10 +590,10 @@ public static class XActionCompressor
                 continue;
             }
 
+            var key = variableObj["key"]?.ToString() ?? string.Empty;
             var entry = new JObject
             {
-                ["id"] = variableObj["id"]?.ToString() ?? string.Empty,
-                ["key"] = variableObj["key"]?.ToString() ?? string.Empty
+                ["key"] = key
             };
 
             if (!TryReadVarType(variableObj["varType"] ?? variableObj["type"], out var numericVarType))
@@ -607,7 +607,7 @@ public static class XActionCompressor
                 entry["varType"] = varTypeName;
             }
 
-            if (!string.IsNullOrWhiteSpace(entry["id"]?.ToString()) || !string.IsNullOrWhiteSpace(entry["key"]?.ToString()))
+            if (!string.IsNullOrWhiteSpace(key))
             {
                 output.Add(entry);
             }

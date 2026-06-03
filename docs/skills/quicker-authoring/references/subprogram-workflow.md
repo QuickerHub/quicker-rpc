@@ -28,7 +28,8 @@ subprogram search/get → callIdentifier
 ```
 
 → `qkrpc_step_runner_get({ key: "sys:subprogram" })`
-→ `qkrpc_action_patch` 添加步骤，`inputParams.subProgram.value = callIdentifier`
+→ `workspace_action_edit_data` 写入 `data.json` 步骤（`inputParams.subProgram.value = callIdentifier`）
+→ `qkrpc_action_patch({ id })`
 
 保存：**`qkrpc_action_patch({ id })`**（先 **`workspace_action_*_data`** 改步骤，见 **`workspace-editing`**）。
 

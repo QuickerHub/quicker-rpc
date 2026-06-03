@@ -47,6 +47,7 @@ export function subscribeActionExplorerTreeWatch(
     try {
       const data = JSON.parse(event.data) as {
         ok?: boolean;
+        type?: string;
         tree?: ActionExplorerTree;
         error?: string;
       };
@@ -54,12 +55,16 @@ export function subscribeActionExplorerTreeWatch(
         handlers.onTree(data.tree);
         return;
       }
-      if (!data.ok && data.error) {
+      if (data.ok === false && data.error) {
         handlers.onError(data.error);
       }
     } catch {
       handlers.onError("Invalid explorer watch payload");
     }
+  };
+
+  source.onerror = () => {
+    handlers.onError("资源管理器实时连接中断，正在重试…");
   };
 
   return () => {

@@ -38,7 +38,11 @@ qkrpc action set-metadata --id <guid> --icon fa:Light_<Name> --expected-edit-ver
 
 ## P4 实现选型
 
-读 **`implementation-fallback`**。要点：计算/比较/赋值 → **`expressions`**；UI/IO → P5 专用模块；无模块 → **`sys:csscript`**。
+读 **`expressions`** 与 **`implementation-fallback`**。要点：
+
+1. **数据逻辑默认表达式**：Split/LINQ/JSON/多变量赋值 → **`$=` 或 `sys:evalexpression`**（勿先写 `sys:csscript` 整段 `Exec`）。
+2. **UI/IO** → P5 专用模块（剪贴板、HTTP、文件等）。
+3. **表达式仍不够** → **`sys:csscript`**；极短系统命令 → `sys:runScript`。
 
 ## P5 步骤 schema（每个新/改步骤）
 
@@ -65,14 +69,13 @@ qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <
 
 ## P7 保存后
 
-以 patch 响应的 **`editVersion`**、**`addedSteps`** 为准；勿仅为核对再 get 或全量 **`workspace_action_read_data`**。
+以 patch 响应的 **`editVersion`**、**`addedSteps`** 为准（增量 patch 时）；extract/apply 路径以 apply 响应为准。勿仅为核对再 get。
 
 验证优先：
 
 ```text
 edit_data / write_data 响应中的 projectSummary
-  或 qkrpc_action_validate({ id })
-  或 workspace_action_read_data({ id, mode: "summary" })
+  或 workspace_action_read_data({ id, mode: "summary" })   # 仅不保存时诊断
 ```
 
 需要精确 JSON 片段时再 **`read_data` + `offset`/`limit`**（改前读取或定位锚点）。

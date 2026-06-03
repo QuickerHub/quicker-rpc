@@ -19,7 +19,7 @@
 
 ## P2 读取与工作区
 
-1. qkrpc_action_get({ id: "<guid>", returnMode: "structure" }) — 步骤树、`stepId`（临时 id，patch 后用 `addedSteps`）
+1. qkrpc_action_get({ id: "<guid>", returnMode: "structure" }) — 步骤树摘要（`stepId` 仅压缩视图临时 id；改步骤直接编辑 `data.json` 的 `steps[]`）
 2. 要改盘：qkrpc_action_get({ id: "<guid>", returnMode: "full" }) 或默认 get 会 **同步** `.quicker/actions/{actionId}/`，看响应 **`workspaceProject`**
 3. 本地项目列表：**`workspace_action_projects`**
 
@@ -37,7 +37,11 @@ qkrpc_action_set_metadata({ id: "<guid>", icon: "fa:Light_<Name>", expectedEditV
 
 ## P4 实现选型
 
-读 **`implementation-fallback`**。要点：计算/比较/赋值 → **`expressions`**；UI/IO → P5 专用模块；无模块 → **`sys:csscript`**。
+读 **`expressions`** 与 **`implementation-fallback`**。要点：
+
+1. **数据逻辑默认表达式**：Split/LINQ/JSON/多变量赋值 → **`$=` 或 `sys:evalexpression`**（勿先写 `sys:csscript` 整段 `Exec`）。
+2. **UI/IO** → P5 专用模块（剪贴板、HTTP、文件等）。
+3. **表达式仍不够** → **`sys:csscript`**；极短系统命令 → `sys:runScript`。
 
 ## P5 步骤 schema（每个新/改步骤）
 
@@ -77,14 +81,13 @@ qkrpc_action_patch({ id: "<guid>" })
 
 ## P7 保存后
 
-以 patch 响应的 **`editVersion`**、**`addedSteps`** 为准；勿仅为核对再 get 或全量 **`workspace_action_read_data`**。
+以 **`qkrpc_action_patch`** 响应的 **`editVersion`**，以及 **`workspace_action_edit_data` / `write_data`** 响应里的 **`projectSummary`** 为准；勿仅为核对再 get 或全量 **`workspace_action_read_data`**。改完 disk 后 **直接 patch**，勿先单独校验。
 
 验证优先：
 
 ```text
 edit_data / write_data 响应中的 projectSummary
-  或 qkrpc_action_validate({ id })
-  或 workspace_action_read_data({ id, mode: "summary" })
+  或 workspace_action_read_data({ id, mode: "summary" })   # 仅不保存时诊断
 ```
 
 需要精确 JSON 片段时再 **`read_data` + `offset`/`limit`**（改前读取或定位锚点）。

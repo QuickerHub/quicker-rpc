@@ -27,10 +27,10 @@ compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
  P1   定位 actionId（create / list / search）
  P2   读取并同步工作区（get → .quicker/actions/{actionId}/）
  P3   元数据（可选：set-metadata）
- P4   实现选型（表达式 vs 专用步骤 vs C#）
+ P4   实现选型（**表达式优先** → 专用步骤 → csscript）
  P5   每步：step-runner get（禁止猜 inputParams 键名）
  P6   编辑 data.json / files/ → 保存到 Quicker
- P7   以 patch 响应 editVersion / addedSteps 为准
+ P7   保存后以 editVersion 为准（勿反复 get 确认）
 ```
 
 **逐步操作**：**`authoring-workflow`**。**工作区工具与目录**：**`workspace-editing`**。
@@ -42,8 +42,8 @@ compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
 | **`authoring-workflow`** | 按 P1–P7 执行（主流程） |
 | **`workspace-editing`** | `.quicker` 布局、workspace 工具、file 外置、禁止项 |
 | **`variables`** | `variables[]` 类型、绑定、`quicker_in_param` 边界 |
-| **`implementation-fallback`** | P4：无合适步骤模块时怎么选 |
-| **`expressions`** | `$=`、`$$`、evalexpression、Z.Expressions |
+| **`expressions`** | P4 **首选**：`$=`、`$$`、`sys:evalexpression`（LINQ/字符串/多变量） |
+| **`implementation-fallback`** | P4：表达式不够或无模块时的回退（csscript / runScript） |
 | **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
 | **`step-runner-search`** | P5：目录搜索 OR/通配 |
 | **`step-modules`** | P5：常用 stepRunnerKey（大表 `docs_get_reference`） |
@@ -56,6 +56,7 @@ compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
 | 猜 `inputParams` 键名 | **`qkrpc_step_runner_get`** |
 | 猜 `callIdentifier` | `qkrpc_subprogram_search` / `get` |
 | 猜 icon | `qkrpc_fa_search` |
-| patch 后反复 get 确认 | 用响应里的 `editVersion`、`addedSteps` |
+| 保存后反复 get 确认 | 用 **`editVersion`**、`projectSummary`；改完 **直接 `qkrpc_action_patch`**（内置校验） |
+| 传内联 patch JSON（`op` / add / update） | 改 **`data.json`** + **`qkrpc_action_patch({ id })`**（见 **`workspace-editing`**） |
 | 手写 `.quicker/.../data.json` 路径 | `workspace_action_*_data({ id })` |
 

@@ -1,5 +1,8 @@
 # Patch workflow（CLI）
 
+{{#only-agent}}
+**Agent 不用增量 patch JSON**（无 `op` / add / update / remove）。改 **`data.json`** / `files/`，保存 **`qkrpc_action_patch({ id })`** — 见 **`workspace-editing`**。
+{{/only-agent}}
 {{#only-cli}}
 {{#ref patch.invoke}}：一次调用 = 一次保存。前置：每个新/改步骤先 {{#ref step-runner.get.invoke}}（**`authoring-workflow`** P5）。
 

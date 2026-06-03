@@ -5,7 +5,7 @@
       "topic": "authoring-workflow",
       "description": "Quicker 动作编辑 P1–P7 主流程。Use before the first action edit in a session.",
       "source": "references/authoring-workflow.md",
-      "allowedTools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_validate qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
+      "allowedTools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
       "metadata": {
         "phase": "P1-P7"
       }
@@ -18,13 +18,16 @@
     },
     {
       "topic": "expressions",
-      "description": "Quicker 参数表达式（$=、$$）与 sys:evalexpression 步骤。Use when using eval expressions instead of dedicated step modules.",
+      "description": "P4 首选：$=、$$ 与 sys:evalexpression（LINQ/字符串/JSON/多变量赋值）。Prefer before sys:csscript for data transforms.",
       "source": "references/expressions.md",
-      "allowedTools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch"
+      "allowedTools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch",
+      "metadata": {
+        "phase": "P4"
+      }
     },
     {
       "topic": "implementation-fallback",
-      "description": "无专用模块时的实现选型：表达式 vs sys:csscript vs sys:runScript。Use when no step module fits or choosing between expression and script steps.",
+      "description": "P4 回退选型：须先排除 expressions/evalexpression，再考虑 sys:csscript vs runScript。Use when no dedicated step module fits after checking expressions.",
       "source": "references/implementation-fallback.md",
       "allowedTools": "qkrpc_step_runner_search qkrpc_step_runner_get qkrpc_action_patch",
       "metadata": {
@@ -77,7 +80,7 @@
       "topic": "workspace-editing",
       "description": ".quicker/actions/{actionId} 工作区布局、workspace_* 工具分工、file 外置与 qkrpc_action_patch 保存。Use when editing data.json or files/ on disk in agent-ui.",
       "source": "references/workspace-editing.md",
-      "allowedTools": "qkrpc_action_get qkrpc_action_validate qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
+      "allowedTools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_file_read workspace_file_write workspace_file_edit",
       "compatibility": "QuickerAgent; requires working directory in sidebar"
     }
   ],

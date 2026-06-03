@@ -77,7 +77,6 @@ internal static class TypedXActionCompressor
     {
         var result = new AgentCompressedVariable
         {
-            Id = variable.Id ?? string.Empty,
             Key = variable.Key ?? string.Empty,
         };
 

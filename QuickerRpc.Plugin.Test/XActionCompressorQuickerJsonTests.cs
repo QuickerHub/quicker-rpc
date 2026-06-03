@@ -44,4 +44,43 @@ public sealed class XActionCompressorQuickerJsonTests
         Assert.IsFalse(step.Properties().Any(p => p.Name == "disabled"));
         Assert.IsFalse(step.Properties().Any(p => p.Name == "Disabled"));
     }
+
+    [TestMethod]
+    public void Compress_Variables_omit_ephemeral_id()
+    {
+        var variables = new JArray
+        {
+            new JObject
+            {
+                ["id"] = "v-1",
+                ["key"] = "userName",
+                ["type"] = 0,
+                ["defaultValue"] = "hello",
+            },
+        };
+
+        var catalog = new StepRunnerCatalog { Items = new System.Collections.Generic.List<StepRunnerDefinition>() };
+        var compressed = XActionCompressor.Compress(new JArray(), variables, catalog, omitDefaultLiteralInputs: true);
+
+        var variable = (JObject)compressed["variables"]![0]!;
+        Assert.AreEqual("userName", variable["key"]?.ToString());
+        Assert.IsFalse(variable.Properties().Any(p => p.Name == "id"));
+        Assert.AreEqual("hello", variable["defaultValue"]?.ToString());
+    }
+
+    [TestMethod]
+    public void CompressStructure_Variables_omit_id()
+    {
+        var variables = new JArray
+        {
+            new JObject { ["id"] = "v-2", ["key"] = "count", ["type"] = 12 },
+        };
+
+        var compressed = XActionCompressor.CompressStructure(new JArray(), variables);
+        var variable = (JObject)compressed["variables"]![0]!;
+
+        Assert.AreEqual("count", variable["key"]?.ToString());
+        Assert.AreEqual("integer", variable["varType"]?.ToString());
+        Assert.IsFalse(variable.Properties().Any(p => p.Name == "id"));
+    }
 }

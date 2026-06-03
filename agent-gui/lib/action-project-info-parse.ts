@@ -11,7 +11,6 @@ export type ParsedActionProjectInfo = {
   icon?: string;
   callIdentifier?: string;
   editVersion?: number;
-  exportedUtc?: string;
   /** Keys present in JSON but not mapped to known fields. */
   extra: Record<string, unknown>;
 };
@@ -95,7 +94,6 @@ export function parseActionProjectInfo(content: string): ParseActionProjectInfoR
       icon: pickString(record, "icon", "Icon"),
       callIdentifier,
       editVersion: pickLong(record, "editVersion", "EditVersion"),
-      exportedUtc: pickString(record, "exportedUtc", "ExportedUtc"),
       extra,
     },
   };
@@ -118,15 +116,6 @@ export function projectDirNameFromInfoPath(path: string): string | undefined {
   const file = parts[parts.length - 1]?.toLowerCase();
   if (file !== "info.json") return undefined;
   return parts[parts.length - 2];
-}
-
-export function formatExportedUtc(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
 }
 
 export type InfoJsonTextField = "title" | "name" | "description";

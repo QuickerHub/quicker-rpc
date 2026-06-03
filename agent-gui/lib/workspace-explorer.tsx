@@ -90,7 +90,7 @@ function applyExplorerTreeSnapshot(
   treeRef.current = nextTree;
   setters.setTree(nextTree);
   setters.setTreeError((err) => (err === null ? err : null));
-  setters.setTreeLoading((loading) => (loading ? false : loading));
+  setters.setTreeLoading(false);
   setters.setExpandedPaths((prev) => addPathsToExpandedSet(prev, nextTree.rootPath));
   return true;
 }
@@ -286,7 +286,7 @@ export function WorkspaceExplorerPanelProvider({
     }
     const silent = options?.silent ?? false;
     if (!silent) {
-      setTreeLoading((loading) => (loading ? loading : true));
+      setTreeLoading(true);
     }
     setTreeError((err) => (err === null ? err : null));
     try {
@@ -305,9 +305,7 @@ export function WorkspaceExplorerPanelProvider({
         setExpandedPaths,
       });
     } finally {
-      if (!silent) {
-        setTreeLoading((loading) => (loading ? false : loading));
-      }
+      setTreeLoading(false);
     }
   }, []);
 
@@ -357,15 +355,18 @@ export function WorkspaceExplorerPanelProvider({
       onError: (error) => {
         if (cancelled) return;
         setTreeError((prev) => (prev === error ? prev : error));
-        setTreeLoading((loading) => (loading ? false : loading));
+        setTreeLoading(false);
       },
     });
+
+    // Fallback when SSE reconnects without a cached snapshot (see action-explorer-watch).
+    void refreshTree({ silent: true });
 
     return () => {
       cancelled = true;
       unsubscribe();
     };
-  }, [cwd]);
+  }, [cwd, refreshTree]);
 
   const expandPath = useCallback((path: string) => {
     setExpandedPaths((prev) => addPathsToExpandedSet(prev, path));

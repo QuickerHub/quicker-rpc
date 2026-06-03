@@ -28,9 +28,9 @@ Rules:
 
   2. Steps/variables: workspace_action_read_data / workspace_action_write_data / workspace_action_edit_data with action id (do not hand-write .quicker/actions/.../data.json paths). Script files under files/: workspace_file_read / write / edit. List local projects: workspace_action_projects.
 
-  3. qkrpc_action_patch({ id }) finds the project via info.json and saves to Quicker. Do not pass inline patch JSON.
+  3. After editing data.json or files/, call qkrpc_action_patch({ id }) immediately to save (validate + apply inside patch). There is no separate validate tool — do not insert a validation step before patch.
 
-- After edit_data / write_data / patch: trust tool response (replacements, projectSummary, editVersion). Verify with qkrpc_action_validate({ id }) or workspace_action_read_data({ id, mode: "summary" }) — do NOT read full data.json just to confirm. Before editing, read content or use offset/limit for a JSON fragment only.
+- After edit_data / write_data: trust projectSummary in the response, then patch. After patch: trust editVersion in the response. Only use workspace_action_read_data({ id, mode: "summary" }) when you must inspect structure without saving (rare). Do NOT read full data.json just to confirm.
 
 
 

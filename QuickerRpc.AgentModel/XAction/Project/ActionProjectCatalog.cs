@@ -24,6 +24,13 @@ public static class ActionProjectCatalog
 
         foreach (var dir in Directory.EnumerateDirectories(actionsRoot))
         {
+            var dirName = Path.GetFileName(dir);
+            if (string.Equals(dirName, needle, StringComparison.OrdinalIgnoreCase)
+                && ActionProjectIdentity.LooksLikeActionId(dirName))
+            {
+                return dir;
+            }
+
             if (!TryReadActionId(dir, out var existingId))
             {
                 continue;
@@ -133,7 +140,7 @@ public static class ActionProjectCatalog
             }
 
             var info = QuickerProjectFiles.ReadActionInfo(projectDir);
-            actionId = info.Id?.Trim();
+            actionId = ActionProjectIdentity.FromInfoOrDirectory(info, projectDir);
             return !string.IsNullOrWhiteSpace(actionId);
         }
         catch

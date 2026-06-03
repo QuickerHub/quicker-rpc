@@ -1,4 +1,4 @@
-export type ActionCommandOp = "run" | "edit" | "float" | "delete";
+export type ActionCommandOp = "run" | "edit" | "float" | "delete" | "set-metadata";
 
 export type ActionCommandBody = {
   op: ActionCommandOp;
@@ -6,6 +6,9 @@ export type ActionCommandBody = {
   param?: string;
   debug?: boolean;
   wait?: boolean;
+  title?: string;
+  description?: string;
+  expectedEditVersion?: number;
 };
 
 /** Quicker library has no such action — safe to skip RPC delete and remove workspace project only. */

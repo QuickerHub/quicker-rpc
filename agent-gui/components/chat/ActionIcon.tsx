@@ -12,10 +12,17 @@ export type ActionIconProps = {
 
 function ActionIconPlaceholder({ className }: { className?: string }) {
   return (
-    <span
+    <svg
       className={`action-icon action-icon--placeholder${className ? ` ${className}` : ""}`}
+      viewBox="0 0 24 24"
       aria-hidden
-    />
+    >
+      <path
+        fill="currentColor"
+        opacity="0.5"
+        d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"
+      />
+    </svg>
   );
 }
 

@@ -31,8 +31,8 @@ Quicker 库  ←—— qkrpc_action_patch({ id }) ——  .quicker/actions/{acti
 | 目的 | 工具 |
 |------|------|
 | 列出本地动作项目 | **`workspace_action_projects`** |
-| 读 steps + variables | **`workspace_action_read_data({ id })`** — 改前读内容；**`mode: "summary"`** 仅摘要/校验 |
-| 校验项目（改后） | **`qkrpc_action_validate({ id })`** 或 **`read_data` + `mode: "summary"`** |
+| 读 steps + variables | **`workspace_action_read_data({ id })`** — 改前读内容；**`mode: "summary"`** 仅在不保存时看结构/校验 |
+| 改后保存 | **`qkrpc_action_patch({ id })`** — **直接调用**（内置 validate → apply），**勿**先单独校验 |
 | 整份替换 data.json | **`workspace_action_write_data({ id, content })`** |
 | 局部改 data.json | **`workspace_action_edit_data({ id, oldString, newString })`** |
 | 读/写/改 files/ 下文件 | **`workspace_file_read` / `write` / `edit`** |
@@ -47,12 +47,12 @@ qkrpc_action_get
   → qkrpc_step_runner_get（每个新步骤或改参）
   → workspace_action_edit_data | write_data
   → [可选] workspace_file_* 改 scripts
-  → qkrpc_action_patch
+  → qkrpc_action_patch          # 勿在此之前单独 validate
 ```
 
 ## file 外置
 
-`data.json` 中（保存前由 patch 编译进 Quicker）：
+`data.json` 中（保存时由 **`qkrpc_action_patch`** 编译 file 引用进 Quicker）：
 
 ```json
 "script": { "file": "files/main.cs" }

@@ -29,7 +29,7 @@
 
 ## `quicker_in_param`（勿进 variables[]）
 
-运行入参由 Quicker 注入为 **`quicker_in_param`**，**不在** `variables[]` 声明，也 **不要** patch/`add` 该键。完整说明见 **`expressions`** 专题。
+运行入参由 Quicker 注入为 **`quicker_in_param`**，**不在** `variables[]` 声明，也 **不要** 写入 `data.json` 的 `variables[]`。完整说明见 **`expressions`** 专题。
 
 ## 相关
 

@@ -37,12 +37,6 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
   { id: "qkrpc_action_list", label: "列出动作", group: "read" },
   { id: "qkrpc_action_search", label: "搜索动作", group: "read" },
   { id: "qkrpc_action_get", label: "读取动作", group: "read" },
-  {
-    id: "qkrpc_action_validate",
-    label: "校验动作项目",
-    group: "read",
-    description: "校验 data.json 与外置 file，返回步/变量摘要",
-  },
   { id: "qkrpc_subprogram_list", label: "列出子程序", group: "read" },
   { id: "qkrpc_subprogram_search", label: "搜索子程序", group: "read" },
   { id: "qkrpc_subprogram_get", label: "读取子程序", group: "read" },
@@ -60,7 +54,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     id: "qkrpc_action_patch",
     label: "保存动作",
     group: "write",
-    description: "从工作区 .quicker 项目写回 Quicker",
+    description: "校验并写回 Quicker（edit/write data 后直接调用，勿单独 validate）",
   },
   {
     id: "qkrpc_action_set_metadata",

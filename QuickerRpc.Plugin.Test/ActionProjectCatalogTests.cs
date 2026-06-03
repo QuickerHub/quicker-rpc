@@ -120,6 +120,42 @@ public sealed class ActionProjectCatalogTests
     }
 
     [TestMethod]
+    public void FindActionProjectDirectoryByActionId_matches_guid_folder_without_info_id()
+    {
+        var workspace = CreateWorkspace();
+        var actionId = Guid.NewGuid().ToString();
+        try
+        {
+            var projectDir = ActionProjectCatalog.AllocateNewProjectDirectory(
+                actionId,
+                "Title Only",
+                workspace);
+            Directory.CreateDirectory(projectDir);
+            QuickerProjectFiles.WriteActionInfo(
+                projectDir,
+                new ActionProjectInfo { Title = "Title Only" });
+            QuickerProjectFiles.WriteData(
+                projectDir,
+                new Newtonsoft.Json.Linq.JObject
+                {
+                    ["steps"] = new Newtonsoft.Json.Linq.JArray(),
+                    ["variables"] = new Newtonsoft.Json.Linq.JArray(),
+                });
+
+            var found = ActionProjectCatalog.FindActionProjectDirectoryByActionId(actionId, workspace);
+            Assert.IsNotNull(found);
+            Assert.AreEqual(projectDir, found);
+        }
+        finally
+        {
+            if (Directory.Exists(workspace))
+            {
+                Directory.Delete(workspace, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void ResolveExtractProjectDirectory_reuses_existing_directory_for_same_action()
     {
         var workspace = CreateWorkspace();

@@ -215,14 +215,34 @@ jobs:
           name: agent-artifacts
           path: publish
 
+      - name: Detect Bitiful upload config
+        id: bitiful
+        shell: pwsh
+        env:
+          BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}
+          BITIFUL_SECRET_KEY: ${{ secrets.BITIFUL_SECRET_KEY }}
+          BITIFUL_BUCKET_NAME: ${{ secrets.BITIFUL_BUCKET_NAME }}
+        run: |
+          $configured =
+            -not [string]::IsNullOrWhiteSpace($env:BITIFUL_ACCESS_KEY) -and
+            -not [string]::IsNullOrWhiteSpace($env:BITIFUL_SECRET_KEY) -and
+            -not [string]::IsNullOrWhiteSpace($env:BITIFUL_BUCKET_NAME)
+          if ($configured) {
+            "configured=true" >> $env:GITHUB_OUTPUT
+            Write-Host 'Bitiful upload enabled (secrets present).'
+          } else {
+            "configured=false" >> $env:GITHUB_OUTPUT
+            Write-Host 'Bitiful secrets not configured; upload steps will be skipped.'
+          }
+
       - name: Setup Python for Bitiful upload
-        if: ${{ secrets.BITIFUL_ACCESS_KEY != '' && secrets.BITIFUL_SECRET_KEY != '' && secrets.BITIFUL_BUCKET_NAME != '' }}
+        if: steps.bitiful.outputs.configured == 'true'
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
       - name: Upload QuickerAgent installer to Bitiful
-        if: ${{ secrets.BITIFUL_ACCESS_KEY != '' && secrets.BITIFUL_SECRET_KEY != '' && secrets.BITIFUL_BUCKET_NAME != '' }}
+        if: steps.bitiful.outputs.configured == 'true'
         shell: pwsh
         env:
           BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}

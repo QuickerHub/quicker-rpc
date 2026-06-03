@@ -93,7 +93,7 @@
 | `sys:ai` | AI 调用 | 调用第三方AI服务 |
 | `sys:tempcloudstore` | 临时云存储 | 将文本、文件、图片临时保存到云端并得到网址。 |
 ## 运行程序与脚本
-无专用模块时：**先 `sys:csscript`**，不要默认 PowerShell。`sys:runScript` 仅用于极短系统命令或用户已有脚本（见 **`implementation-fallback`**）。
+无专用模块时：**先 `expressions` / `sys:evalexpression`**（LINQ、字符串、多变量赋值），**再 `sys:csscript`**；勿默认 PowerShell。`sys:runScript` 仅用于极短系统命令或用户已有脚本（见 **`implementation-fallback`**）。
 | stepRunnerKey | name | description |
 |---------------|------|-------------|
 | `sys:run` | 运行或打开 | 运行软件或命令，打开文件、文件夹或网址。效果类似于在Windows"运行"对话框中执行命令。 |
@@ -122,7 +122,8 @@
 ## 易混淆项
 | 场景 | 选用 | 说明 |
 |------|------|------|
-| 赋值/计算/比较等 | **`expressions`** | 勿用已下架于本表的 `sys:assign` 等 |
+| 赋值/计算/比较/LINQ/字符串变换 | **`expressions`** / **`sys:evalexpression`** | 勿用 `sys:csscript` 写简单 `Exec`；勿用已下架 `sys:assign` |
+| 复杂 C#（需独立 .cs、长生命周期逻辑） | `sys:csscript` | 表达式模块无法表达时再用 |
 | 向**前台活动窗口**输入文字 | `sys:outputText`（发送文本到窗口） | 非 `sys:showText`（独立文本窗口） |
 | 需要 else 分支 | `sys:if` | `sys:simpleIf` 无 else 结构 |
 | 多文件操作 | `sys:fileOperation` | 用 `type` 选子操作 |

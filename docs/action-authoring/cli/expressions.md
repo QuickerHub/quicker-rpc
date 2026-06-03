@@ -1,6 +1,41 @@
 # 表达式与插值
 
-**何时读**：**`overview`** P4 — 纯计算/比较/赋值优先于专用步骤。`inputParams` 键名仍须 **`step-runner get`**；无合适模块见 **`implementation-fallback`**（复杂逻辑用 **`sys:csscript`**，勿默认长 `sys:runScript`）。
+**何时读**：**`overview`** P4 — **默认首选**。凡 C# 能写的数据变换（Split、LINQ、JSON、多变量赋值）优先 **`$=` / `sys:evalexpression`**，再考虑专用步骤；仅当表达式 **不够** 时才 **`sys:csscript`**（见 **`implementation-fallback`**）。`inputParams` 键名仍须 **`step-runner get`**。
+
+## 优先于 `sys:csscript`
+
+下列需求 **不要** 写 `sys:csscript` + `Exec(Quicker.Public.IStepContext context)` 样板 — 用 **`sys:evalexpression`** 一步完成（支持多语句、LINQ、隐式 `using`，见下文 Z.Expressions）：
+
+| 典型需求 | 推荐 |
+|----------|------|
+| 字符串 Split / Trim / Join | `sys:evalexpression` |
+| LINQ（Where / Distinct / OrderBy / Select） | `sys:evalexpression` |
+| 一次更新多个动作变量 | `sys:evalexpression` 内 `{var}=…` |
+| JSON 序列化/反序列化 | `$=` 或 `sys:evalexpression`（`JsonConvert` 已注册） |
+| 需独立 `.cs` 文件、复杂类、长时间维护的库代码 | `sys:csscript` |
+
+**反例（低效）** — 剪贴板文本去空行、去重、排序后写回变量，却用 csscript：
+
+```json
+"script": {
+  "value": "//.cs\nusing System;\nusing System.Linq;\n...\npublic static void Exec(Quicker.Public.IStepContext context)\n{\n    var clipText = context.GetVarValue(\"clipText\") as string ?? \"\";\n    ...\n    context.SetVarValue(\"processedText\", processedText);\n}"
+}
+```
+
+**正例（推荐）** — 同逻辑用 **`sys:evalexpression`**（键名以 step-runner get 为准）：
+
+```json
+{
+  "stepRunnerKey": "sys:evalexpression",
+  "inputParams": {
+    "expression": {
+      "value": "var lines = {clipText}.Split(new[] { \"\\r\\n\", \"\\n\", \"\\r\" }, StringSplitOptions.None);\nvar beforeCount = lines.Length;\nvar result = lines\n  .Select(l => l.TrimEnd('\\r', '\\n'))\n  .Where(l => !string.IsNullOrWhiteSpace(l))\n  .Distinct(StringComparer.OrdinalIgnoreCase)\n  .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)\n  .ToList();\n{beforeCount} = beforeCount;\n{afterCount} = result.Count;\n{processedText} = string.Join(Environment.NewLine, result);"
+    }
+  }
+}
+```
+
+前置：用剪贴板/变量模块把文本写入 `{clipText}`；表达式里只用 `{varKey}`，勿写 `context.GetVarValue`。
 
 ## `inputParams.value` 前缀
 
@@ -23,7 +58,7 @@
 
 ## `quicker_in_param`（动作运行入参）
 
-Quicker **注入的运行时变量**，不在动作的 `variables[]` 里定义，也 **不要** 用 patch 去 `add` 它。
+Quicker **注入的运行时变量**，不在动作的 `variables[]` 里定义，也 **不要** 写入 `data.json` 的 `variables[]`。
 
 | 项 | 说明 |
 |----|------|

@@ -6,21 +6,23 @@
 
 | 级 | 手段 | 适用 |
 |----|------|------|
-| 1 | `$=` / `$$`（**expressions**） | 单步内运算、拼接、比较 |
-| 2 | `sys:evalexpression` | 多行赋值、分支前准备 |
-| 3 | 专用模块（**step-modules** → step-runner get） | 剪贴板、HTTP、文件等 |
-| 4 | **`sys:csscript`** | 无模块时 **默认**（C#） |
+| 1 | `$=` / `$$`（**expressions**） | 参数内运算、拼接、比较、条件字段 |
+| 2 | **`sys:evalexpression`** | 多行 C#、LINQ、字符串处理、**一次写多个变量** |
+| 3 | 专用模块（**step-modules** → step-runner get） | 剪贴板、HTTP、文件、UI 等 |
+| 4 | **`sys:csscript`** | 表达式 **仍无法表达** 时（需 `Exec`、复杂类型、外部 API 编排） |
 | 5 | `sys:runScript` | 极短 PS/CMD 或用户已有脚本 |
 | 6 | `sys:run` | 外部 exe |
 
-无专用模块时优先 **`sys:csscript`**，勿默认长 PowerShell。
+**禁止**：能用 **`sys:evalexpression`** 解决的逻辑（Split/LINQ/赋值/JSON 等）却写 **`sys:csscript`** 整段 `Exec` 样板。无专用模块时也 **先表达式、后 csscript**，勿默认长 PowerShell。
 
 ## 决策
 
 ```text
-仅计算/比较/赋值？ → expressions / evalexpression
-step-modules 有 key？ → step-runner get → 写入 data.json → 保存
-否则 → step-runner search（一次 OR|*）→ get → 仍无则 csscript
+字符串/LINQ/多变量赋值/JSON 变换？ → expressions（$= 或 sys:evalexpression）
+仅计算/比较/单参数赋值？           → $= / $$ 或 evalexpression
+step-modules 有 key？              → step-runner get → 写入 data.json → 保存
+否则                               → step-runner search（一次 OR|*）→ get
+仍无合适模块且表达式不够？         → sys:csscript
 ```
 
 ## 相关

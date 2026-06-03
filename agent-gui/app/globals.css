@@ -1639,7 +1639,7 @@ html.sidebar-collapsed-init .app-shell .workspace-sidebar {
   position: relative;
   flex: 1 1 100%;
   min-width: 6rem;
-  min-height: 1.5rem;
+  min-height: 1.15rem;
 }
 
 .composer-inline-placeholder {
@@ -1647,8 +1647,8 @@ html.sidebar-collapsed-init .app-shell .workspace-sidebar {
   inset: 0;
   color: var(--muted);
   font: inherit;
-  font-size: 0.9rem;
-  line-height: 1.45;
+  font-size: 0.8125rem;
+  line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-word;
   pointer-events: none;
@@ -1657,13 +1657,13 @@ html.sidebar-collapsed-init .app-shell .workspace-sidebar {
 
 .composer-inline-input {
   position: relative;
-  min-height: 1.5rem;
+  min-height: 1.15rem;
   max-height: 12rem;
   overflow-y: auto;
   outline: none;
   font: inherit;
-  font-size: 0.9rem;
-  line-height: 1.45;
+  font-size: 0.8125rem;
+  line-height: 1.4;
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
@@ -3453,6 +3453,7 @@ button.tool-batch-summary:disabled {
 
 .action-icon--placeholder {
   display: block;
+  color: var(--muted);
 }
 
 .action-list-id code {
@@ -3978,7 +3979,7 @@ button.tool-batch-summary:disabled {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 0.55rem;
+  padding: 0.3rem;
 }
 
 .workspace-explorer-editor-inner {
@@ -4007,8 +4008,10 @@ button.tool-batch-summary:disabled {
   }
 }
 
-.workspace-explorer-editor-pane .file-editor-pre {
+.workspace-explorer-editor-pane .file-editor-pre,
+.workspace-explorer-editor-pane .file-editor-diff-chunk {
   max-height: none;
+  padding: 0.3rem 0.4rem;
 }
 
 .workspace-explorer-editor-pane .file-editor-card:not(.file-editor-card--compact) {
@@ -4035,13 +4038,156 @@ button.tool-batch-summary:disabled {
 .project-info-editor-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.5rem;
   min-width: 0;
 }
 
+.project-info-main-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  padding: 0.5rem 0.55rem 0.45rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+  background: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.project-info-main-card--dirty {
+  border-color: color-mix(in srgb, var(--accent, #3dd68c) 38%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #3dd68c) 12%, transparent);
+}
+
+.project-info-section-label {
+  display: block;
+  margin: 0;
+  padding-top: 0.12rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.project-info-save-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
+}
+
+.project-info-save-footer .project-info-save-hint {
+  flex: 1;
+  text-align: left;
+}
+
+.project-info-save-hint {
+  min-width: 0;
+  font-size: 0.65rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-info-save-btn {
+  flex-shrink: 0;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25;
+  border: 1px solid var(--accent-border);
+  border-radius: 0.35rem;
+  background: var(--accent-subtle);
+  color: var(--accent-hover-text, var(--text));
+  cursor: pointer;
+}
+
+.project-info-save-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent, #3dd68c) 18%, transparent);
+}
+
+.project-info-save-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.project-info-sync {
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
+}
+
+.project-info-sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.project-info-sync-btn {
+  flex-shrink: 0;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.7rem;
+  line-height: 1.25;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--surface, var(--bg));
+  color: var(--text);
+  cursor: pointer;
+}
+
+.project-info-sync-btn:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--hover-overlay);
+}
+
+.project-info-sync-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.project-info-sync-btn--pull {
+  border-color: color-mix(in srgb, var(--accent-border) 55%, var(--border));
+}
+
+.project-info-sync-btn--push {
+  border-color: color-mix(in srgb, var(--accent-border) 75%, var(--border));
+  background: var(--accent-subtle);
+}
+
+.project-info-sync-status {
+  margin: 0.4rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.project-info-sync-status--err {
+  color: var(--destructive, #f07178);
+}
+
+.project-info-sync-status--in-sync {
+  color: color-mix(in srgb, var(--accent-hover-text, var(--text)) 70%, var(--muted));
+}
+
+.project-info-sync-status--quicker-ahead {
+  color: color-mix(in srgb, var(--accent-border) 80%, var(--text));
+}
+
+.project-info-sync-status--disk-ahead {
+  color: color-mix(in srgb, var(--accent-border) 80%, var(--text));
+}
+
 .project-info-toolbar {
-  margin-top: 0.75rem;
-  padding-top: 0.65rem;
+  margin-top: 0.5rem;
+  padding-top: 0.55rem;
   border-top: 1px solid var(--border);
 }
 
@@ -4144,9 +4290,10 @@ button.tool-batch-summary:disabled {
 
 .project-info-header {
   display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  margin-bottom: 0.55rem;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin-bottom: 0;
+  padding-bottom: 0.35rem;
 }
 
 .project-info-icon-anchor {
@@ -4159,10 +4306,10 @@ button.tool-batch-summary:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.125rem;
+  height: 2.125rem;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: color-mix(in srgb, var(--foreground) 5%, transparent);
   border: 1px solid var(--border);
   color: inherit;
@@ -4221,16 +4368,24 @@ button.tool-batch-summary:disabled {
   word-break: break-all;
 }
 
+.project-info-value-muted {
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .project-info-icon-wrap .project-info-icon.action-icon,
-.project-info-icon-wrap .project-info-icon.action-icon--svg {
-  width: 1.45rem;
-  height: 1.45rem;
+.project-info-icon-wrap .project-info-icon.action-icon--svg,
+.project-info-icon-wrap .project-info-icon.action-icon--placeholder {
+  width: 1.25rem;
+  height: 1.25rem;
   margin: 0;
 }
 
 .project-info-heading {
   min-width: 0;
   flex: 1;
+  padding-top: 0.05rem;
 }
 
 .project-info-title {
@@ -4254,20 +4409,45 @@ button.tool-batch-summary:disabled {
   background: transparent;
 }
 
+.project-info-title--editable {
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.32;
+  word-break: break-word;
+  padding: 0.05rem 0.15rem;
+  margin: -0.05rem -0.15rem;
+  border-radius: 4px;
+}
+
+.project-info-title--editable:focus {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #3dd68c) 35%, transparent);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
 .project-info-description-block {
-  margin: 0 0 0.75rem;
-  padding: 0.55rem 0.65rem;
-  border-radius: 0.45rem;
-  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
-  background: color-mix(in srgb, var(--foreground) 2.5%, transparent);
-  transition:
-    border-color 0.12s ease,
-    background 0.12s ease;
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  column-gap: 0.35rem;
+  align-items: start;
+  margin: 0;
+  padding: 0.4rem 0 0;
+  border: none;
+  border-radius: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  background: transparent;
 }
 
 .project-info-description-block:focus-within {
-  border-color: color-mix(in srgb, var(--accent, #3dd68c) 35%, var(--border));
-  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  border-color: color-mix(in srgb, var(--border) 88%, transparent);
+  background: transparent;
+}
+
+.project-info-main-card:focus-within {
+  border-color: color-mix(in srgb, var(--accent, #3dd68c) 28%, var(--border));
+}
+
+.project-info-main-card--dirty:focus-within {
+  border-color: color-mix(in srgb, var(--accent, #3dd68c) 42%, var(--border));
 }
 
 .project-info-description-block .project-info-editable:focus {
@@ -4280,39 +4460,34 @@ button.tool-batch-summary:disabled {
   pointer-events: none;
 }
 
-.project-info-title--editable {
-  font-size: 0.88rem;
-  font-weight: 600;
-  line-height: 1.35;
-  word-break: break-word;
-  padding: 0.1rem 0.2rem;
-  margin: -0.1rem -0.2rem;
-}
-
-.project-info-title--editable:focus {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #3dd68c) 35%, transparent);
-  background: color-mix(in srgb, var(--foreground) 4%, transparent);
-}
-
 .project-info-description--editable {
   display: block;
   width: 100%;
   margin: 0;
-  font-size: 0.8rem;
-  line-height: 1.62;
-  letter-spacing: 0.01em;
-  color: color-mix(in srgb, var(--text) 90%, var(--muted));
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--text) 92%, var(--muted));
   word-break: break-word;
   overflow-wrap: anywhere;
   text-wrap: pretty;
-  min-height: 2.6em;
+  min-height: 2.25em;
+  max-height: 9.5em;
+  overflow-y: auto;
   white-space: pre-wrap;
-  padding: 0;
+  padding: 0.05rem 0.1rem;
+  margin-left: -0.1rem;
+  border-radius: 3px;
+}
+
+.project-info-description--editable:focus {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #3dd68c) 28%, transparent);
 }
 
 .project-info-save-error {
-  margin: 0 0 0.5rem;
+  margin: 0;
   font-size: 0.72rem;
+  line-height: 1.35;
   color: var(--destructive, #f07178);
 }
 

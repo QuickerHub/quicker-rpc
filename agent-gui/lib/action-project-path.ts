@@ -1,16 +1,22 @@
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { parseActionProjectInfo, stripJsonBom } from "@/lib/action-project-info-parse";
+import {
+  actionProjectDirFromName,
+  defaultActionProjectDir,
+  getActionsRootRelative,
+  joinActionProjectPath,
+} from "@/lib/action-project-path-shared";
 import { resolveWorkspacePath, resolveWorkspaceRoot } from "@/lib/workspace-fs";
+
+export {
+  actionProjectDirFromName,
+  defaultActionProjectDir,
+  getActionsRootRelative,
+  joinActionProjectPath,
+} from "@/lib/action-project-path-shared";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Relative path `.quicker/actions/{directoryName}`. */
-export function actionProjectDirFromName(directoryName: string): string {
-  const name = directoryName.trim().replace(/\\/g, "/").replace(/\/+$/, "");
-  return `.quicker/actions/${name.split("/").pop() ?? name}`;
-}
 
 /** Scan .quicker/actions subdirs; match action id in each info.json. */
 export async function findActionProjectDirectory(
@@ -32,6 +38,10 @@ export async function findActionProjectDirectory(
   }
 
   for (const name of entries) {
+    if (name.trim().toLowerCase() === id.toLowerCase()) {
+      return actionProjectDirFromName(name);
+    }
+
     const projectDir = actionProjectDirFromName(name);
     const infoPath = resolveWorkspacePath(`${projectDir}/info.json`);
     if (!infoPath.ok) continue;
@@ -58,20 +68,6 @@ export async function resolveActionProjectDirectory(
   return findActionProjectDirectory(actionId);
 }
 
-/** @deprecated Use findActionProjectDirectory — directory name is not the action id. */
-export function defaultActionProjectDir(_actionId: string): string {
-  void _actionId;
-  return ".quicker/actions";
-}
-
-export function getActionsRootRelative(): string {
-  return ".quicker/actions";
-}
-
 export function getWorkspaceRoot(): string {
   return resolveWorkspaceRoot();
-}
-
-export function joinActionProjectPath(directoryName: string): string {
-  return join(getActionsRootRelative(), directoryName).replace(/\\/g, "/");
 }

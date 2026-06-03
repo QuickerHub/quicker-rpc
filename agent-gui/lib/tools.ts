@@ -173,7 +173,7 @@ export const quickerTools = {
 
   qkrpc_action_get: tool({
     description:
-      "Read action by GUID. returnMode: structure (default) | full | metadata — see docs_get topic workspace-editing. Syncs to .quicker/actions/{id}. Response: editVersion + compressed metadata; steps/variables on disk (workspaceProject summary). stepId is temporary; after patch use addedSteps. inputParams keys require qkrpc_step_runner_get.",
+      "Read action by GUID. returnMode: structure (default) | full | metadata — see docs_get topic workspace-editing. Syncs to .quicker/actions/{id}. Response: editVersion + compressed metadata; steps/variables on disk (workspaceProject summary). Edit steps via workspace_action_*_data on data.json steps[]. inputParams keys require qkrpc_step_runner_get.",
     inputSchema: z.object({
       id: z.string().uuid(),
       returnMode: returnModeSchema
@@ -191,38 +191,6 @@ export const quickerTools = {
       }
       const sync = await syncActionToWorkspace(id);
       return augmentActionGetWithWorkspace(getResult, sync);
-    },
-  }),
-
-  qkrpc_action_validate: tool({
-    description:
-      "Validate local .quicker/actions/{id} project (data.json + file refs). Returns stepCount, variableCount, stepsOutline — prefer over workspace_action_read_data after edit/patch when you only need to verify structure.",
-    inputSchema: z.object({
-      id: z.string().uuid().describe("Quicker action GUID"),
-    }),
-    execute: async ({ id }) => {
-      const result = await getActionProjectDataSummary(id);
-      if (!result.ok) {
-        return formatLocalToolResult(
-          {
-            action: "action-validate",
-            success: false,
-            errorMessage: result.error,
-          },
-          false,
-          result.error,
-        );
-      }
-      const { summary } = result;
-      return formatLocalToolResult(
-        {
-          action: "action-validate",
-          success: summary.validated,
-          ...summary,
-        },
-        summary.validated,
-        summary.validationError,
-      );
     },
   }),
 
@@ -273,7 +241,7 @@ export const quickerTools = {
 
   qkrpc_action_replace: tool({
     description:
-      "Replace action steps/variables entirely (one save). Prefer patch for partial edits.",
+      "Replace action steps/variables entirely in Quicker (inline JSON). Prefer workspace_action_write_data + qkrpc_action_patch for agent editing.",
     inputSchema: z.object({
       id: z.string().uuid(),
       xaction: z
@@ -376,7 +344,7 @@ export const quickerTools = {
 
   workspace_action_read_data: tool({
     description:
-      "Read action data.json by GUID. mode=summary returns stepsOutline/variableKeys + validation (for post-edit verification — do NOT read full JSON just to confirm). mode=content (default) returns file text; use offset/limit for fragments. Before first edit you may need content; after edit_data trust replacements + projectSummary or qkrpc_action_validate.",
+      "Read action data.json by GUID. mode=summary returns stepsOutline/variableKeys + validation (only when you must check without saving). mode=content (default) returns file text; use offset/limit for fragments. After edit_data/write_data go straight to qkrpc_action_patch — do not validate separately first.",
     inputSchema: z.object({
       id: z.string().uuid().describe("Quicker action GUID"),
       mode: z
@@ -441,7 +409,7 @@ export const quickerTools = {
 
   workspace_action_write_data: tool({
     description:
-      "Write full data.json (steps + variables[]) by action GUID. defaultValue must be strings; use numeric type (or varType normalized on save). Then qkrpc_action_patch to sync to Quicker.",
+      "Write full data.json (steps + variables[]) by action GUID. defaultValue must be strings; use numeric type (or varType normalized on save). Then qkrpc_action_patch({ id }) immediately — patch validates internally.",
     inputSchema: z.object({
       id: z.string().uuid().describe("Quicker action GUID"),
       content: z.string().describe("Full data.json UTF-8 text"),
@@ -478,7 +446,7 @@ export const quickerTools = {
 
   workspace_action_edit_data: tool({
     description:
-      "Search/replace inside an action's data.json by action GUID (exact oldString match). Response includes replacements + projectSummary — use that or qkrpc_action_validate to verify; do not read full data.json afterward.",
+      "Search/replace inside an action's data.json by action GUID (exact oldString match). Response includes replacements + projectSummary. Then qkrpc_action_patch({ id }) to save — do not call a separate validate step first.",
     inputSchema: z.object({
       id: z.string().uuid().describe("Quicker action GUID"),
       oldString: z.string().min(1),
@@ -607,7 +575,7 @@ export const quickerTools = {
 
   qkrpc_action_patch: tool({
     description:
-      "Save action from workspace project to Quicker (after editing data.json / files/ on disk). Validates, compiles file refs, replaces — no inline JSON.",
+      "Save action from workspace to Quicker (after editing data.json / files/). Runs validate + apply in one step — call directly after edit_data/write_data; no separate validate tool. No inline patch JSON.",
     inputSchema: z.object({
       id: z.string().uuid(),
       force: z.boolean().optional(),

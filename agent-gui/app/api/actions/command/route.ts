@@ -8,6 +8,9 @@ type CommandBody = {
   param?: string;
   debug?: boolean;
   wait?: boolean;
+  title?: string;
+  description?: string;
+  expectedEditVersion?: number;
 };
 
 const QKRPC_TIMEOUT_MS = 120_000;
@@ -82,6 +85,23 @@ export async function POST(req: Request) {
       ["action", "delete", "--id", id, "--yes", "--json"],
       { timeoutMs: QKRPC_TIMEOUT_MS },
     );
+    if (!result.ok) {
+      return Response.json(
+        { ok: false, error: formatError(result), data: result.parsed },
+        { status: 502 },
+      );
+    }
+    return Response.json({ ok: true, data: result.parsed });
+  }
+
+  if (op === "set-metadata") {
+    const args = ["action", "set-metadata", "--id", id, "--json"];
+    if (body.title !== undefined) args.push("--title", body.title);
+    if (body.description !== undefined) args.push("--description", body.description);
+    if (body.expectedEditVersion != null) {
+      args.push("--expected-edit-version", String(body.expectedEditVersion));
+    }
+    const result = await runQkrpc(args, { timeoutMs: QKRPC_TIMEOUT_MS });
     if (!result.ok) {
       return Response.json(
         { ok: false, error: formatError(result), data: result.parsed },

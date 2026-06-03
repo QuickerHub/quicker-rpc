@@ -107,7 +107,6 @@ internal static partial class Program
 
             var info = new ActionProjectInfo
             {
-                Id = fullResponse.ActionId ?? actionId,
                 Title = title,
                 Description = metaRoot?.Value<string>("description"),
                 Icon = metaRoot?.Value<string>("icon"),
@@ -126,7 +125,7 @@ internal static partial class Program
                     success = true,
                     projectDirectory = projectDirectoryRelative,
                     projectDirectoryAbsolute = projectDir,
-                    actionId = info.Id,
+                    actionId = ActionProjectIdentity.FromInfoOrDirectory(info, projectDir) ?? actionId,
                     editVersion = info.EditVersion,
                     autoExternalizeMinLines = exportOptions.AutoExternalizeMinLines,
                     writtenFiles = exportResult.WrittenFiles,
@@ -187,10 +186,13 @@ internal static partial class Program
             }
 
             var info = QuickerProjectFiles.ReadActionInfo(projectDir);
-            var actionId = (info.Id ?? string.Empty).Trim();
-            if (actionId.Length == 0)
+            var actionId = ActionProjectIdentity.FromInfoOrDirectory(info, projectDir);
+            if (string.IsNullOrWhiteSpace(actionId))
             {
-                return await EmitErrorAndFailAsync(options.Json, "MISSING_ACTION_ID", "info.json must contain id.")
+                return await EmitErrorAndFailAsync(
+                        options.Json,
+                        "MISSING_ACTION_ID",
+                        "Cannot resolve action id: use a GUID project folder name, info.json id, or pass --id.")
                     .ConfigureAwait(false);
             }
 
@@ -200,7 +202,7 @@ internal static partial class Program
                 return await EmitErrorAndFailAsync(
                         options.Json,
                         "ACTION_ID_MISMATCH",
-                        $"--id {explicitId} does not match info.json id {actionId}.")
+                        $"--id {explicitId} does not match project action id {actionId}.")
                     .ConfigureAwait(false);
             }
 
@@ -302,10 +304,13 @@ internal static partial class Program
             }
 
             var info = QuickerProjectFiles.ReadActionInfo(projectDir);
-            var actionId = (info.Id ?? string.Empty).Trim();
-            if (actionId.Length == 0)
+            var actionId = ActionProjectIdentity.FromInfoOrDirectory(info, projectDir);
+            if (string.IsNullOrWhiteSpace(actionId))
             {
-                return await EmitErrorAndFailAsync(options.Json, "MISSING_ACTION_ID", "info.json must contain id.")
+                return await EmitErrorAndFailAsync(
+                        options.Json,
+                        "MISSING_ACTION_ID",
+                        "Cannot resolve action id: use a GUID project folder name, info.json id, or pass --id.")
                     .ConfigureAwait(false);
             }
 
@@ -315,7 +320,7 @@ internal static partial class Program
                 return await EmitErrorAndFailAsync(
                         options.Json,
                         "ACTION_ID_MISMATCH",
-                        $"--id {explicitId} does not match info.json id {actionId}.")
+                        $"--id {explicitId} does not match project action id {actionId}.")
                     .ConfigureAwait(false);
             }
 

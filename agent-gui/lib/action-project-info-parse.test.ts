@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  formatExportedUtc,
   isActionProjectInfoPath,
   parseActionProjectInfo,
   patchActionProjectInfoText,
@@ -55,10 +54,6 @@ test("projectDirNameFromInfoPath", () => {
     projectDirNameFromInfoPath(".quicker/actions/a2adb839-673d/info.json"),
     "a2adb839-673d",
   );
-});
-
-test("formatExportedUtc returns input when invalid", () => {
-  assert.equal(formatExportedUtc("not-a-date"), "not-a-date");
 });
 
 test("patchActionProjectInfoText preserves PascalCase keys", () => {

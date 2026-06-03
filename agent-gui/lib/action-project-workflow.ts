@@ -9,6 +9,7 @@ import {
   parseActionProjectInfo,
   stripJsonBom,
 } from "@/lib/action-project-info-parse";
+import { resolveActionIdFromProject } from "@/lib/action-project-id";
 import {
   formatQkrpcResultForAgent,
   runQkrpcForTool,
@@ -154,14 +155,17 @@ export async function readActionProjectManifest(
     return { error: `${infoPath} is not an action project.` };
   }
 
-  const id = (infoParsed.data.id ?? actionId).trim();
+  const dirName = dir.replace(/\\/g, "/").split("/").filter(Boolean).pop();
+  const id = resolveActionIdFromProject(dirName, infoParsed.data) ?? actionId.trim();
   if (!isUuid(id)) {
-    return { error: `${infoPath} must contain a valid action id.` };
+    return {
+      error: `Cannot resolve action id for ${dir} (use a GUID folder name or pass --id).`,
+    };
   }
 
   if (id.toLowerCase() !== actionId.trim().toLowerCase()) {
     return {
-      error: `Project info.json id ${id} does not match requested action ${actionId}.`,
+      error: `Project action id ${id} does not match requested action ${actionId}.`,
     };
   }
 
@@ -292,9 +296,10 @@ export async function getActionProjectDataSummary(
   };
 }
 
-/** Internal: export action from Quicker into .quicker/actions/{name}/ (id in info.json). */
+/** Internal: export action from Quicker into .quicker/actions/{dir}/ (action id = folder name when GUID). */
 export async function syncActionToWorkspace(
   actionId: string,
+  options?: { projectDirectory?: string },
 ): Promise<WorkspaceSyncResult> {
   const cwd = getWorkingDirectory();
   if (!cwd) {
@@ -311,12 +316,12 @@ export async function syncActionToWorkspace(
     return { ok: false, reason: "invalid_id", error: "actionId must be a GUID." };
   }
 
-  const extractResult = await runQkrpcForTool([
-    "action",
-    "extract",
-    "--id",
-    id,
-  ]);
+  const extractArgs = ["action", "extract", "--id", id];
+  const extractDir = options?.projectDirectory?.trim();
+  if (extractDir) {
+    extractArgs.push("--dir", extractDir);
+  }
+  const extractResult = await runQkrpcForTool(extractArgs);
   if (!extractResult.ok) {
     return {
       ok: false,

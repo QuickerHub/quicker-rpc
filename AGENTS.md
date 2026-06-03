@@ -69,9 +69,9 @@ qkrpc action set-metadata --id <guid> --icon "fa:Light_<Name>" --expected-edit-v
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
 ```
 
-**调用公共子程序**：`subprogram search/get` 取 **`callIdentifier`**（通常 `%%{guid}`）→ `step-runner get --key sys:subprogram` → `action patch` 写 `inputParams.subProgram`。
+**调用公共子程序**：`subprogram search/get` 取 **`callIdentifier`** → `step-runner get --key sys:subprogram` → CLI 用 `action patch` 写步骤；agent-gui 用 `workspace_action_edit_data` 改 `data.json` 后 `qkrpc_action_patch({ id })`。
 
-**禁止**：未 `step-runner get` 就猜 `inputParams` 键名；未 `subprogram get/search` 就猜 `callIdentifier`；未 `fa search` 就猜图标 spec（见 **`guide get --topic action-icons`**）；patch 写与目录 **Default** 相同的**普通**参数（控制字段除外）；patch 成功后仅为验证再 `action get`。无专用模块时**禁止**默认用长 PowerShell — 见 `guide get --topic implementation-fallback`（**`sys:csscript` 优先**，`sys:runScript` 仅极简单系统命令或用户脚本）。
+**禁止**：未 `step-runner get` 就猜 `inputParams` 键名；未 `subprogram get/search` 就猜 `callIdentifier`；未 `fa search` 就猜图标 spec（见 **`guide get --topic action-icons`**）；patch 写与目录 **Default** 相同的**普通**参数（控制字段除外）；patch 成功后仅为验证再 `action get`。表达式/计算/LINQ **优先 `expressions` / `sys:evalexpression`**；无专用模块见 `guide get --topic implementation-fallback`（**先表达式，再 `sys:csscript`**；`sys:runScript` 仅极简单系统命令或用户脚本）。
 
 退出码：0 成功，1 失败。大 JSON 用 `--patch-file -` 从 stdin 读。
 

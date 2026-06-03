@@ -11,6 +11,9 @@ type EditableInlineProps = {
   placeholder?: string;
   className?: string;
   multiline?: boolean;
+  /** When false, blur does not call onCommit (use explicit save). Default true. */
+  commitOnBlur?: boolean;
+  onDraftChange?: (value: string) => void;
   onCommit: (value: string) => void | Promise<void>;
 };
 
@@ -19,6 +22,8 @@ export function EditableInline({
   placeholder,
   className,
   multiline = false,
+  commitOnBlur = true,
+  onDraftChange,
   onCommit,
 }: EditableInlineProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -39,16 +44,26 @@ export function EditableInline({
     el.dataset.empty = display ? "false" : "true";
   }, [value]);
 
+  const readDraft = useCallback(() => {
+    const el = ref.current;
+    if (!el) return value;
+    const raw = el.innerText.replace(/\r\n/g, "\n");
+    return multiline ? raw.replace(/\n+$/g, "") : raw.replace(/\n/g, " ").trim();
+  }, [multiline, value]);
+
   const commit = useCallback(async () => {
     const el = ref.current;
     if (!el) return;
-    const raw = el.innerText.replace(/\r\n/g, "\n");
-    const next = multiline ? raw.replace(/\n+$/g, "") : raw.replace(/\n/g, " ").trim();
+    const next = readDraft();
     if (next !== value) {
       await onCommit(next);
     }
     el.dataset.empty = next ? "false" : "true";
-  }, [multiline, onCommit, value]);
+  }, [onCommit, readDraft, value]);
+
+  const notifyDraft = useCallback(() => {
+    onDraftChange?.(readDraft());
+  }, [onDraftChange, readDraft]);
 
   const onKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -84,9 +99,14 @@ export function EditableInline({
       onFocus={() => {
         editingRef.current = true;
       }}
+      onInput={notifyDraft}
       onBlur={() => {
         editingRef.current = false;
-        void commit();
+        if (commitOnBlur) {
+          void commit();
+        } else {
+          notifyDraft();
+        }
       }}
       onKeyDown={onKeyDown}
     />

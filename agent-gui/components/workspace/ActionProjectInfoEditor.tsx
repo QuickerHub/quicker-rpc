@@ -2,11 +2,16 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActionIcon } from "@/components/chat/ActionIcon";
+import { FaIconProvider } from "@/components/chat/FaIconProvider";
+import { resolveActionProjectIconSpec } from "@/lib/action-project-icon";
 import { FileEditorCard } from "@/components/chat/FileEditorCard";
+import { ActionProjectSyncBar } from "@/components/workspace/ActionProjectSyncBar";
 import { ActionProjectToolbar } from "@/components/workspace/ActionProjectToolbar";
 import { EditableInline } from "@/components/workspace/EditableInline";
+import { invokeActionCommand } from "@/lib/action-command-client";
+import { resolveActionIdFromProject } from "@/lib/action-project-id";
+import { actionProjectDirFromName } from "@/lib/action-project-path-shared";
 import {
-  formatExportedUtc,
   isPromotedInfoJsonKey,
   parseActionProjectInfo,
   patchActionProjectInfoText,
@@ -20,6 +25,8 @@ type ActionProjectInfoEditorProps = {
   content: string;
   cwd: string;
   onSave: (nextContent: string) => Promise<{ ok: boolean; error?: string }>;
+  onSaved?: () => void;
+  onSynced?: () => void;
 };
 
 function CopyableText({
@@ -90,7 +97,7 @@ function ProjectInfoMetaPopup({
 
   useEffect(() => {
     setOpen(false);
-  }, [data.id, data.icon]);
+  }, [data.icon]);
 
   useEffect(() => {
     if (!open) return;
@@ -112,52 +119,55 @@ function ProjectInfoMetaPopup({
     };
   }, [open, close]);
 
-  const hasMeta = Boolean(data.id || data.icon);
-  if (!hasMeta) {
+  const displayIconSpec = resolveActionProjectIconSpec(data.icon);
+  const hasStoredIcon = Boolean(data.icon?.trim());
+
+  const iconButton = (
+    <ActionIcon spec={displayIconSpec} className="project-info-icon" />
+  );
+
+  if (!hasStoredIcon) {
     return (
-      <div className="project-info-icon-wrap project-info-icon-wrap--static">
-        <ActionIcon spec={data.icon} className="project-info-icon" />
-      </div>
+      <FaIconProvider specs={[displayIconSpec]}>
+        <div className="project-info-icon-wrap project-info-icon-wrap--static">
+          {iconButton}
+        </div>
+      </FaIconProvider>
     );
   }
 
   return (
-    <div className="project-info-icon-anchor" ref={wrapRef}>
-      <button
-        type="button"
-        className="project-info-icon-wrap"
-        aria-label="项目元数据"
-        aria-expanded={open}
-        aria-controls={popupId}
-        title="点击查看 Id、Icon 等"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <ActionIcon spec={data.icon} className="project-info-icon" />
-      </button>
-
-      {open ? (
-        <div
-          id={popupId}
-          className="composer-popup project-info-meta-popup"
-          role="dialog"
-          aria-label="项目元数据"
+    <FaIconProvider specs={[displayIconSpec]}>
+      <div className="project-info-icon-anchor" ref={wrapRef}>
+        <button
+          type="button"
+          className="project-info-icon-wrap"
+          aria-label="图标"
+          aria-expanded={open}
+          aria-controls={popupId}
+          title="点击查看 Icon"
+          onClick={() => setOpen((v) => !v)}
         >
-          <p className="project-info-meta-popup-title">项目信息</p>
-          <dl className="project-info-meta-popup-fields">
-            {data.id ? (
-              <InfoField label="Id" mono>
-                <CopyableText value={data.id} label="Id" />
-              </InfoField>
-            ) : null}
-            {data.icon ? (
+          {iconButton}
+        </button>
+
+        {open ? (
+          <div
+            id={popupId}
+            className="composer-popup project-info-meta-popup"
+            role="dialog"
+            aria-label="图标"
+          >
+            <p className="project-info-meta-popup-title">图标</p>
+            <dl className="project-info-meta-popup-fields">
               <InfoField label="Icon" mono>
-                <CopyableText value={data.icon} label="Icon" />
+                <CopyableText value={data.icon!} label="Icon" />
               </InfoField>
-            ) : null}
-          </dl>
-        </div>
-      ) : null}
-    </div>
+            </dl>
+          </div>
+        ) : null}
+      </div>
+    </FaIconProvider>
   );
 }
 
@@ -184,18 +194,35 @@ function InfoBody({
   content,
   cwd,
   onSave,
+  onSaved,
+  onSynced,
 }: {
   data: ParsedActionProjectInfo;
   path: string;
   content: string;
   cwd: string;
   onSave: (nextContent: string) => Promise<{ ok: boolean; error?: string }>;
+  onSaved?: () => void;
+  onSynced?: () => void;
 }) {
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     setSaveError(null);
   }, [path]);
   const projectDir = projectDirNameFromInfoPath(path);
+  const projectDirectory = projectDir
+    ? actionProjectDirFromName(projectDir)
+    : undefined;
+  const [linkedActionId, setLinkedActionId] = useState<string | undefined>(() =>
+    resolveActionIdFromProject(projectDir, data),
+  );
+
+  useEffect(() => {
+    const resolved = resolveActionIdFromProject(projectDir, data);
+    if (resolved) setLinkedActionId(resolved);
+  }, [path, projectDir, data.id]);
+
   const showProjectDir =
     !!projectDir
     && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectDir);
@@ -206,69 +233,150 @@ function InfoBody({
     data.kind === "action" ? (data.title ?? "") : (data.name ?? data.title ?? "");
   const descriptionValue = data.description ?? "";
 
-  const commitField = useCallback(
-    async (field: InfoJsonTextField, value: string) => {
-      const patched = patchActionProjectInfoText(content, field, value);
-      if (!patched.ok) {
-        setSaveError(patched.error);
+  const [draftTitle, setDraftTitle] = useState(displayValue);
+  const [draftDescription, setDraftDescription] = useState(descriptionValue);
+
+  useEffect(() => {
+    setDraftTitle(displayValue);
+    setDraftDescription(descriptionValue);
+    setSaveError(null);
+  }, [path, displayValue, descriptionValue]);
+
+  const isDirty =
+    draftTitle !== displayValue || draftDescription !== descriptionValue;
+
+  const buildPatchedContent = useCallback(() => {
+    let nextContent = content;
+    if (draftTitle !== displayValue) {
+      const patched = patchActionProjectInfoText(nextContent, displayField, draftTitle);
+      if (!patched.ok) return patched;
+      nextContent = patched.content;
+    }
+    if (draftDescription !== descriptionValue) {
+      const patched = patchActionProjectInfoText(nextContent, "description", draftDescription);
+      if (!patched.ok) return patched;
+      nextContent = patched.content;
+    }
+    return { ok: true as const, content: nextContent };
+  }, [
+    content,
+    descriptionValue,
+    displayField,
+    displayValue,
+    draftDescription,
+    draftTitle,
+  ]);
+
+  const handleSave = useCallback(async () => {
+    if (!isDirty || saving) return;
+    setSaving(true);
+    setSaveError(null);
+
+    const patched = buildPatchedContent();
+    if (!patched.ok) {
+      setSaveError(patched.error);
+      setSaving(false);
+      return;
+    }
+
+    const fileResult = await onSave(patched.content);
+    if (!fileResult.ok) {
+      setSaveError(fileResult.error ?? "保存失败");
+      setSaving(false);
+      return;
+    }
+
+    if (data.kind === "action" && linkedActionId) {
+      const metaResult = await invokeActionCommand({
+        op: "set-metadata",
+        id: linkedActionId,
+        title: draftTitle,
+        description: draftDescription,
+        expectedEditVersion: data.editVersion,
+      });
+      if (!metaResult.ok) {
+        setSaveError(`已写入 info.json，同步 Quicker 失败：${metaResult.error}`);
+        setSaving(false);
         return;
       }
-      const result = await onSave(patched.content);
-      if (!result.ok) {
-        setSaveError(result.error ?? "保存失败");
-        return;
-      }
-      setSaveError(null);
-    },
-    [content, onSave],
-  );
+    }
+
+    setSaving(false);
+    onSaved?.();
+  }, [
+    buildPatchedContent,
+    data.editVersion,
+    linkedActionId,
+    data.kind,
+    draftDescription,
+    draftTitle,
+    isDirty,
+    onSave,
+    onSaved,
+    saving,
+  ]);
+
+  const noopCommit = useCallback(async () => {}, []);
 
   return (
     <article className="project-info-editor">
-        <header className="project-info-header">
-          <ProjectInfoMetaPopup data={data} />
-          <div className="project-info-heading">
-            <EditableInline
-              className="project-info-title project-info-title--editable"
-              value={displayValue}
-              placeholder="（无标题）"
-              onCommit={(value) => commitField(displayField, value)}
-            />
-            {showProjectDir ? (
-              <p className="project-info-folder" title={path}>
-                {projectDir}
-              </p>
-            ) : null}
-          </div>
-        </header>
+        <div
+          className={`project-info-main-card${isDirty ? " project-info-main-card--dirty" : ""}`}
+        >
+          <header className="project-info-header">
+            <ProjectInfoMetaPopup data={data} />
+            <div className="project-info-heading">
+              <EditableInline
+                className="project-info-title project-info-title--editable"
+                value={displayValue}
+                placeholder="（无标题）"
+                commitOnBlur={false}
+                onDraftChange={setDraftTitle}
+                onCommit={noopCommit}
+              />
+              {showProjectDir ? (
+                <p className="project-info-folder" title={path}>
+                  {projectDir}
+                </p>
+              ) : null}
+            </div>
+          </header>
 
-        <section className="project-info-description-block" aria-label="描述">
-          <EditableInline
-            className="project-info-description project-info-description--editable"
-            value={descriptionValue}
-            placeholder="添加描述…"
-            multiline
-            onCommit={(value) => commitField("description", value)}
-          />
-        </section>
+          <section className="project-info-description-block" aria-label="描述">
+            <span className="project-info-section-label">描述</span>
+            <EditableInline
+              className="project-info-description project-info-description--editable"
+              value={descriptionValue}
+              placeholder="添加描述…"
+              multiline
+              commitOnBlur={false}
+              onDraftChange={setDraftDescription}
+              onCommit={noopCommit}
+            />
+          </section>
+
+          {isDirty ? (
+            <div className="project-info-save-footer">
+              <span className="project-info-save-hint">有未保存的修改</span>
+              <button
+                type="button"
+                className="project-info-save-btn"
+                disabled={saving}
+                onClick={() => void handleSave()}
+              >
+                {saving ? "保存中…" : "保存"}
+              </button>
+            </div>
+          ) : null}
+        </div>
 
         {saveError ? <p className="project-info-save-error">{saveError}</p> : null}
 
-        {data.callIdentifier || data.exportedUtc ? (
+        {data.callIdentifier ? (
           <dl className="project-info-fields">
-            {data.callIdentifier ? (
-              <InfoField label="调用" mono>
-                <CopyableText value={data.callIdentifier} label="调用标识" />
-              </InfoField>
-            ) : null}
-
-            {data.exportedUtc ? (
-              <InfoField label="Exported">
-                <time dateTime={data.exportedUtc} title={data.exportedUtc}>
-                  {formatExportedUtc(data.exportedUtc)}
-                </time>
-              </InfoField>
-            ) : null}
+            <InfoField label="调用" mono>
+              <CopyableText value={data.callIdentifier} label="调用标识" />
+            </InfoField>
           </dl>
         ) : null}
 
@@ -287,8 +395,22 @@ function InfoBody({
           </section>
         ) : null}
 
-        {data.kind === "action" && data.id ? (
-          <ActionProjectToolbar actionId={data.id} />
+        {data.kind === "action" && linkedActionId ? (
+          <>
+            <ActionProjectSyncBar
+              cwd={cwd}
+              actionId={linkedActionId}
+              projectDirectory={projectDirectory}
+              blocked={isDirty}
+              blockReason="请先保存标题/描述，再拉取或提交步骤"
+              onSynced={onSynced}
+            />
+            <ActionProjectToolbar actionId={linkedActionId} />
+          </>
+        ) : data.kind === "action" ? (
+          <p className="project-info-sync-status project-info-sync-status--err">
+            无法解析动作 Id：请将项目文件夹改为动作 GUID，或从 Agent 拉取到 GUID 目录。
+          </p>
         ) : null}
     </article>
   );
@@ -299,6 +421,8 @@ export function ActionProjectInfoEditor({
   content,
   cwd,
   onSave,
+  onSaved,
+  onSynced,
 }: ActionProjectInfoEditorProps) {
   const parsed = useMemo(() => parseActionProjectInfo(content), [content]);
 
@@ -319,6 +443,8 @@ export function ActionProjectInfoEditor({
         content={content}
         cwd={cwd}
         onSave={onSave}
+        onSaved={onSaved}
+        onSynced={onSynced}
       />
     </div>
   );

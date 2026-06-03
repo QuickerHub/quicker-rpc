@@ -54,26 +54,10 @@ function readStringField(record: Record<string, unknown>, key: string): string |
   return text.length > 0 ? text : undefined;
 }
 
-function readPatchTitleFromInput(input: unknown): string | undefined {
+function readTitleFromToolInput(input: unknown): string | undefined {
   if (typeof input !== "object" || input === null) return undefined;
   const root = input as Record<string, unknown>;
-  const patch =
-    typeof root.patch === "object" && root.patch !== null
-      ? (root.patch as Record<string, unknown>)
-      : undefined;
-  if (!patch) return undefined;
-
-  // qkrpc action patch supports top-level metadata fields.
-  const topLevelTitle = readStringField(patch, "title");
-  if (topLevelTitle) return topLevelTitle;
-
-  // Some payloads may carry title under metadata.
-  const metadata =
-    typeof patch.metadata === "object" && patch.metadata !== null
-      ? (patch.metadata as Record<string, unknown>)
-      : undefined;
-  if (!metadata) return undefined;
-  return readStringField(metadata, "title");
+  return readStringField(root, "title");
 }
 
 function readTitleFromToolOutput(output: unknown): string | undefined {
@@ -112,7 +96,7 @@ function findRecentActionTitle(messages: UIMessage[], actionId: string): string 
       const inputId = typeof input?.id === "string" ? input.id : undefined;
       if (!inputId || inputId !== actionId) continue;
 
-      const titleFromInput = readPatchTitleFromInput(part.input);
+      const titleFromInput = readTitleFromToolInput(part.input);
       if (titleFromInput) return titleFromInput;
 
       const titleFromOutput = readTitleFromToolOutput(part.output);
@@ -126,7 +110,7 @@ function parsePatchToolPart(part: {
   state?: string;
   input?: unknown;
   output?: unknown;
-}): { actionId: string; actionTitle?: string; editVersion?: number } | null {
+}): { actionId: string; editVersion?: number } | null {
   if (part.state !== "output-available") return null;
   const input =
     typeof part.input === "object" && part.input !== null
@@ -139,7 +123,6 @@ function parsePatchToolPart(part: {
   if (!actionId) return null;
   return {
     actionId,
-    actionTitle: readPatchTitleFromInput(part.input),
     editVersion: readEditVersionFromPatchOutput(part.output),
   };
 }
@@ -173,7 +156,7 @@ export function findActionPatchFollowUp(
   if (!parsed) return null;
   return {
     actionId: parsed.actionId,
-    actionTitle: parsed.actionTitle ?? findRecentActionTitle(messages, parsed.actionId),
+    actionTitle: findRecentActionTitle(messages, parsed.actionId),
     editVersion: parsed.editVersion,
   };
 }
