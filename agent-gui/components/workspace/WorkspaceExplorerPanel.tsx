@@ -12,13 +12,13 @@ import {
 import {
   useWorkspaceExplorerShell,
   useWorkspaceExplorerTree,
-  workspaceExplorerEditorStateRef,
+  workspaceExplorerActionsRef,
 } from "@/lib/workspace-explorer";
 
 export function WorkspaceExplorerPanel() {
   const { panelOpen, togglePanel, panelWidth, setPanelWidth } =
     useWorkspaceExplorerShell();
-  const { treeLoading, treeChildrenLoading, refreshTree, setSelectedPath } =
+  const { treeLoading, treeChildrenLoading, refreshTree } =
     useWorkspaceExplorerTree();
 
   const handleResizePointerDown = useCallback(
@@ -62,10 +62,8 @@ export function WorkspaceExplorerPanel() {
   );
 
   const handleProjectRemoved = useCallback(() => {
-    workspaceExplorerEditorStateRef.current.closeTab("__preview__");
-    setSelectedPath(null);
-    void refreshTree();
-  }, [refreshTree, setSelectedPath]);
+    workspaceExplorerActionsRef.current.notifyProjectRemoved();
+  }, []);
 
   const handleRefreshTree = useCallback(() => {
     void refreshTree();
@@ -97,8 +95,8 @@ export function WorkspaceExplorerPanel() {
               void refreshTree();
             }}
             disabled={treeLoading || treeChildrenLoading}
-            aria-label="刷新动作项目"
-            title="刷新动作项目（通常会自动同步）"
+            aria-label="刷新工程目录"
+            title="刷新动作/子程序项目（通常会自动同步）"
           >
             ↻
           </button>

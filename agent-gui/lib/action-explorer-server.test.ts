@@ -154,3 +154,47 @@ test("buildActionExplorerTree loads embedded subprogram titles (temp fixture)", 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("buildSubProgramExplorerTreeRoots returns global subprogram projects", async () => {
+  const root = join(tmpdir(), `qkrpc-sub-explorer-${Date.now()}`);
+  const subName = "demo-sub";
+
+  try {
+    await mkdir(join(root, ".quicker", "subprograms", subName, "files"), {
+      recursive: true,
+    });
+    await writeFile(
+      join(root, ".quicker", "subprograms", subName, "info.json"),
+      JSON.stringify(
+        {
+          Id: "%%abc",
+          Name: "演示子程序",
+          CallIdentifier: "%%abc",
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    await runWithQkrpcCwdAsync(root, async () => {
+      const { buildSubProgramExplorerTreeRoots, buildSubProgramExplorerTree } =
+        await import("./subprogram-explorer-server.ts");
+      const { isGlobalSubProgramRootNode } = await import("./action-explorer-tree.ts");
+      const roots = await buildSubProgramExplorerTreeRoots();
+      assert.equal(roots.ok, true);
+      if (!roots.ok) return;
+      assert.equal(roots.tree.rootLabel, "公共子程序");
+      assert.equal(roots.tree.children.length, 1);
+      assert.equal(roots.tree.children[0]?.title, "演示子程序");
+      assert.ok(isGlobalSubProgramRootNode(roots.tree.children[0]!));
+
+      const full = await buildSubProgramExplorerTree();
+      assert.equal(full.ok, true);
+      if (!full.ok) return;
+      assert.ok((full.tree.children[0]?.children?.length ?? 0) > 0);
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

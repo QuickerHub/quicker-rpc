@@ -27,3 +27,17 @@ test("resolveResIconSvg returns svg markup", () => {
   assert.ok(svg);
   assert.match(svg!, /<svg/);
 });
+
+test("resolveResIconToIconifyId maps Steps/msgbox.png", () => {
+  assert.equal(resolveResIconToIconifyId("Steps/msgbox.png"), "mdi:message-alert-outline");
+});
+
+test("resolveResIconSvg returns svg for Steps/msgbox.png", () => {
+  const svg = resolveResIconSvg("Steps/msgbox.png");
+  assert.ok(svg);
+  assert.match(svg!, /<svg/);
+});
+
+test("resolveResIconToIconifyId falls back for unknown Steps assets", () => {
+  assert.equal(resolveResIconToIconifyId("Steps/custom_step.png"), "mdi:play-circle-outline");
+});

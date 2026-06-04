@@ -33,7 +33,8 @@ import {
 } from "@/lib/tool-approval-display";
 import {
   findWorkspaceProjectsInTree,
-  type WorkspaceActionProjectHit,
+  findWorkspaceSubProgramsInTree,
+  type WorkspaceDeleteProjectHit,
 } from "@/lib/workspace-action-project-lookup";
 import {
   deleteActionProjectApi,
@@ -187,14 +188,19 @@ function ApprovalDock({
 }: {
   approvals: PendingToolApproval[];
   disabled: boolean;
-  workspaceHits: WorkspaceActionProjectHit[];
+  workspaceHits: WorkspaceDeleteProjectHit[];
   deleteWorkspaceToo: boolean;
   onDeleteWorkspaceTooChange: (value: boolean) => void;
   onApproveAll: (options: { deleteWorkspace: boolean }) => void;
   onDenyAll: () => void;
 }) {
+  const actionWorkspaceHits = workspaceHits.filter((h) => h.kind === "action");
+  const subprogramWorkspaceHits = workspaceHits.filter(
+    (h) => h.kind === "subprogram",
+  );
   const copy = buildApprovalDockCopy(approvals, {
-    workspaceActionProjectCount: workspaceHits.length,
+    workspaceActionProjectCount: actionWorkspaceHits.length,
+    workspaceSubProgramProjectCount: subprogramWorkspaceHits.length,
   });
 
   return (
@@ -435,16 +441,32 @@ function ChatPanel({
     }
     return ids;
   }, [pendingApprovals]);
-  const pendingActionDeleteKey = pendingActionDeleteIds.join("\0");
+  const pendingSubprogramDeleteIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const approval of pendingApprovals) {
+      if (approval.toolName !== "qkrpc_subprogram_delete") continue;
+      const id = extractApprovalTargetId(approval.input);
+      if (id) ids.push(id);
+    }
+    return ids;
+  }, [pendingApprovals]);
+  const pendingWorkspaceDeleteKey = [
+    ...pendingActionDeleteIds,
+    ...pendingSubprogramDeleteIds,
+  ].join("\0");
 
   const [workspaceDeleteHits, setWorkspaceDeleteHits] = useState<
-    WorkspaceActionProjectHit[]
+    WorkspaceDeleteProjectHit[]
   >([]);
   const [deleteWorkspaceToo, setDeleteWorkspaceToo] = useState(false);
 
   useEffect(() => {
     const cwd = workingDirectory.trim();
-    if (!cwd || pendingActionDeleteIds.length === 0) {
+    if (
+      !cwd
+      || (pendingActionDeleteIds.length === 0
+        && pendingSubprogramDeleteIds.length === 0)
+    ) {
       setWorkspaceDeleteHits([]);
       setDeleteWorkspaceToo(false);
       return;
@@ -457,19 +479,23 @@ function ChatPanel({
         setWorkspaceDeleteHits([]);
         return;
       }
-      setWorkspaceDeleteHits(
-        findWorkspaceProjectsInTree(result.tree, pendingActionDeleteIds),
-      );
+      setWorkspaceDeleteHits([
+        ...findWorkspaceProjectsInTree(result.tree, pendingActionDeleteIds),
+        ...findWorkspaceSubProgramsInTree(
+          result.subprogramTree,
+          pendingSubprogramDeleteIds,
+        ),
+      ]);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [workingDirectory, pendingActionDeleteKey]);
+  }, [workingDirectory, pendingWorkspaceDeleteKey]);
 
   useEffect(() => {
     setDeleteWorkspaceToo(false);
-  }, [pendingActionDeleteKey, workspaceDeleteHits.length]);
+  }, [pendingWorkspaceDeleteKey, workspaceDeleteHits.length]);
 
   const busy = status === "submitted" || status === "streaming";
   const { queueLength, enqueueOrSend, clearQueue } = useComposerMessageQueue(

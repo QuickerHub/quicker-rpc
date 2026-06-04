@@ -1,14 +1,26 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   getActionProjectDataSummary,
   parseDataJsonOutline,
+  parseQkrpcPayload,
+  programHasBodyFromGetPayload,
   saveActionFromWorkspace,
   type ActionProjectDataSummary,
 } from "@/lib/action-project-workflow";
-import { stripJsonBom } from "@/lib/action-project-info-parse";
-import { formatQkrpcResultForAgent, runQkrpcForTool } from "@/lib/qkrpc";
+import {
+  readCompressedFromGetPayload,
+  readEditVersionFromGetPayload,
+} from "@/lib/action-project-info-from-get";
+import { bootstrapWorkspaceProjectOnCreate } from "@/lib/workspace-project-disk";
+import { buildWorkspaceProjectSummary } from "@/lib/action-project-display";
+import {
+  actionProjectDisplayTitle,
+  parseActionProjectInfo,
+  stripJsonBom,
+} from "@/lib/action-project-info-parse";
+import { formatQkrpcResultForAgent, runQkrpcForTool, type QkrpcRunResult } from "@/lib/qkrpc";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { resolveWorkspacePath, resolveWorkspaceRoot } from "@/lib/workspace-fs";
 import {
@@ -54,16 +66,145 @@ export type SubProgramSyncResult =
   | { ok: true; manifest: SubProgramProjectManifest }
   | {
       ok: false;
-      reason: "no_cwd" | "export_failed" | "manifest_failed";
+      reason:
+        | "no_cwd"
+        | "export_failed"
+        | "manifest_failed"
+        | "empty_program"
+        | "invalid_create"
+        | "get_failed";
       error: string;
     };
 
+export type SubProgramCreateHints = {
+  description?: string;
+  icon?: string;
+};
+
+/** Build info.json fields from `subprogram get --return-mode metadata`. */
+export function subprogramProjectInfoFromMetadataGet(
+  subProgramKey: string,
+  payload: Record<string, unknown>,
+  hints?: SubProgramCreateHints,
+): SubProgramProjectInfo {
+  const compressed = readCompressedFromGetPayload(payload);
+  const id =
+    (typeof payload.subProgramId === "string" && payload.subProgramId.trim())
+    || (typeof payload.SubProgramId === "string" && payload.SubProgramId.trim())
+    || subProgramKey.trim();
+  const name = (
+    String(payload.name ?? payload.Name ?? "").trim()
+    || String(
+      compressed?.title
+        ?? compressed?.Title
+        ?? compressed?.name
+        ?? compressed?.Name
+        ?? "",
+    ).trim()
+  );
+  const callIdentifier = String(
+    payload.callIdentifier ?? payload.CallIdentifier ?? "",
+  ).trim();
+
+  return {
+    id,
+    name: name || undefined,
+    description:
+      String(
+        compressed?.description
+          ?? compressed?.Description
+          ?? payload.description
+          ?? payload.Description
+          ?? hints?.description
+          ?? "",
+      ).trim() || undefined,
+    icon:
+      String(
+        compressed?.icon
+          ?? compressed?.Icon
+          ?? payload.icon
+          ?? payload.Icon
+          ?? hints?.icon
+          ?? "",
+      ).trim() || undefined,
+    callIdentifier: callIdentifier || undefined,
+    editVersion: readEditVersionFromGetPayload(payload),
+    exportedUtc: new Date().toISOString(),
+  };
+}
+
+/** Fallback info.json fields from `subprogram create` JSON when metadata get is unavailable. */
+export function subprogramProjectInfoFromCreateResponse(
+  createPayload: Record<string, unknown>,
+  hints?: SubProgramCreateHints,
+): SubProgramProjectInfo | null {
+  const id = String(
+    createPayload.subProgramId ?? createPayload.SubProgramId ?? "",
+  ).trim();
+  if (!id) return null;
+
+  const name = String(createPayload.name ?? createPayload.Name ?? "").trim();
+  const callIdentifier = String(
+    createPayload.callIdentifier ?? createPayload.CallIdentifier ?? "",
+  ).trim();
+
+  return {
+    id,
+    name: name || undefined,
+    description:
+      String(
+        hints?.description
+          ?? createPayload.description
+          ?? createPayload.Description
+          ?? "",
+      ).trim() || undefined,
+    icon:
+      String(
+        hints?.icon ?? createPayload.icon ?? createPayload.Icon ?? "",
+      ).trim() || undefined,
+    callIdentifier: callIdentifier || undefined,
+    editVersion: readEditVersionFromGetPayload(createPayload),
+    exportedUtc: new Date().toISOString(),
+  };
+}
+
+export function formatSubProgramProjectInfo(
+  info: SubProgramProjectInfo,
+  trailingNewline = true,
+): string {
+  const record: Record<string, unknown> = {};
+  if (info.id?.trim()) record.Id = info.id.trim();
+  if (info.name?.trim()) record.Name = info.name.trim();
+  if (info.description?.trim()) record.Description = info.description.trim();
+  if (info.icon?.trim()) record.Icon = info.icon.trim();
+  if (info.callIdentifier?.trim()) {
+    record.CallIdentifier = info.callIdentifier.trim();
+  }
+  if (info.editVersion != null && Number.isFinite(info.editVersion)) {
+    record.EditVersion = info.editVersion;
+  }
+  if (info.exportedUtc?.trim()) record.ExportedUtc = info.exportedUtc.trim();
+  return `${JSON.stringify(record, null, 2)}${trailingNewline ? "\n" : ""}`;
+}
+
 function parseSubProgramInfo(raw: string): SubProgramProjectInfo | null {
-  try {
-    return JSON.parse(stripJsonBom(raw)) as SubProgramProjectInfo;
-  } catch {
+  const parsed = parseActionProjectInfo(raw);
+  if (!parsed.ok) return null;
+  if (
+    parsed.data.kind !== "subprogram"
+    && parsed.data.kind !== "embedded-subprogram"
+  ) {
     return null;
   }
+  const data = parsed.data;
+  return {
+    id: data.id,
+    name: actionProjectDisplayTitle(data),
+    description: data.description,
+    icon: data.icon,
+    callIdentifier: data.callIdentifier,
+    editVersion: data.editVersion,
+  };
 }
 
 export async function readSubProgramProjectManifest(
@@ -143,6 +284,94 @@ export async function syncSubprogramToWorkspace(
   }
 
   return { ok: true, manifest };
+}
+
+/** After create: metadata get → info.json; empty data.json (no full export). */
+export async function bootstrapSubprogramProjectForCreate(
+  createPayload: Record<string, unknown>,
+  hints?: SubProgramCreateHints,
+): Promise<SubProgramSyncResult> {
+  const createInfo = subprogramProjectInfoFromCreateResponse(createPayload, hints);
+  if (!createInfo?.id?.trim()) {
+    return {
+      ok: false,
+      reason: "invalid_create",
+      error: "subprogram create response missing subProgramId.",
+    };
+  }
+
+  const key = createInfo.id;
+  let info = createInfo;
+
+  const getResult = await runQkrpcForTool([
+    "subprogram",
+    "get",
+    "--id",
+    key,
+    "--return-mode",
+    "metadata",
+  ]);
+  if (getResult.ok) {
+    const getPayload = parseQkrpcPayload(getResult);
+    if (getPayload && getPayload.success !== false) {
+      info = subprogramProjectInfoFromMetadataGet(key, getPayload, hints);
+    }
+  }
+
+  const projectDir = globalSubProgramProjectDir(key);
+  const written = await bootstrapWorkspaceProjectOnCreate(
+    projectDir,
+    formatSubProgramProjectInfo(info),
+  );
+  if (!written.ok) {
+    return {
+      ok: false,
+      reason: written.reason,
+      error: written.error,
+    };
+  }
+
+  const manifest = await readSubProgramProjectManifest(key);
+  if ("error" in manifest) {
+    return { ok: false, reason: "manifest_failed", error: manifest.error };
+  }
+
+  return { ok: true, manifest };
+}
+
+/** Backfill info.json Name/title from Quicker when disk project only has id. */
+async function repairSubprogramInfoIfMissingName(
+  projectPath: string,
+  info: SubProgramProjectInfo | null,
+): Promise<SubProgramProjectInfo | null> {
+  const key = info?.id?.trim();
+  if (!key || info?.name?.trim()) return info;
+
+  const getResult = await runQkrpcForTool([
+    "subprogram",
+    "get",
+    "--id",
+    key,
+    "--return-mode",
+    "metadata",
+  ]);
+  if (!getResult.ok) return info;
+
+  const getPayload = parseQkrpcPayload(getResult);
+  if (!getPayload || getPayload.success === false) return info;
+
+  const enriched = subprogramProjectInfoFromMetadataGet(key, getPayload);
+  if (!enriched.name?.trim()) return info;
+
+  const infoResolved = resolveWorkspacePath(`${projectPath}/info.json`);
+  if (!infoResolved.ok) return info;
+
+  await writeFile(
+    infoResolved.absolute,
+    formatSubProgramProjectInfo(enriched),
+    "utf8",
+  );
+  return enriched;
 }
 
 async function summarizeProjectDataJson(
@@ -399,6 +628,8 @@ export async function listWorkspaceSubProgramProjects(): Promise<
       continue;
     }
 
+    info = await repairSubprogramInfoIfMissingName(projectPath, info);
+
     projects.push({
       dirName,
       path: projectPath,
@@ -409,5 +640,108 @@ export async function listWorkspaceSubProgramProjects(): Promise<
     });
   }
 
-  return { ok: true, root, projects };
+  return {
+    ok: true,
+    root,
+    projects: projects.sort((a, b) =>
+      (a.name ?? a.dirName).localeCompare(b.name ?? b.dirName, undefined, {
+        sensitivity: "base",
+      }),
+    ),
+  };
+}
+
+function stripCompressedBody(payload: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...payload };
+  if ("compressed" in next) {
+    const compressed = next.compressed;
+    if (typeof compressed === "object" && compressed !== null) {
+      const c = compressed as Record<string, unknown>;
+      next.compressed = {
+        name: c.name ?? c.Name,
+        description: c.description ?? c.Description,
+        icon: c.icon ?? c.Icon,
+      };
+    } else {
+      delete next.compressed;
+    }
+  }
+  return next;
+}
+
+/** Merge subprogram get RPC result with automatic workspace export context. */
+export function augmentSubprogramGetWithWorkspace(
+  getResult: QkrpcRunResult,
+  sync: SubProgramSyncResult,
+): Record<string, unknown> {
+  const base = formatQkrpcResultForAgent(getResult);
+  if (!getResult.ok) return base;
+
+  const root =
+    typeof base.data === "object" && base.data !== null
+      ? ({ ...(base.data as Record<string, unknown>) } as Record<string, unknown>)
+      : {};
+
+  const payload =
+    typeof root.payload === "object" && root.payload !== null
+      ? ({ ...(root.payload as Record<string, unknown>) } as Record<string, unknown>)
+      : root;
+
+  if (sync.ok) {
+    const editing = buildWorkspaceProjectSummary({
+      projectDirectory: sync.manifest.projectDirectory,
+      title: sync.manifest.name,
+      editVersion: sync.manifest.editVersion,
+      fileRefs: [],
+    });
+    const slimPayload = stripCompressedBody(payload);
+    const merged = {
+      ...root,
+      payload: {
+        ...slimPayload,
+        workspaceSynced: true,
+        workspaceProject: editing,
+        subProgramId: sync.manifest.subProgramId,
+        callIdentifier: sync.manifest.callIdentifier,
+      },
+    };
+    return { ...base, data: merged };
+  }
+
+  const skipped = sync.reason === "empty_program";
+  return {
+    ...base,
+    data: {
+      ...root,
+      payload: {
+        ...payload,
+        workspaceSynced: false,
+        workspaceSyncSkipped: skipped || undefined,
+        workspaceSyncError: sync.error,
+        workspaceSyncReason: sync.reason,
+        ...(skipped
+          ? {
+              workspaceSyncNote:
+                "子程序体为空，未写入 data.json。编辑已有内容后再 get，或新建后直接 write_data / edit_data。",
+            }
+          : {}),
+      },
+    },
+  };
+}
+
+export async function syncSubprogramGetToWorkspace(
+  subProgramKey: string,
+  getResult: QkrpcRunResult,
+): Promise<SubProgramSyncResult> {
+  const payload = parseQkrpcPayload(getResult);
+  if (!programHasBodyFromGetPayload(payload)) {
+    return {
+      ok: false,
+      reason: "empty_program",
+      error:
+        "Subprogram has no steps or variables; skipped export to avoid writing an empty data.json.",
+    };
+  }
+  return syncSubprogramToWorkspace(subProgramKey);
 }

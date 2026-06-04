@@ -2,10 +2,12 @@
 
 import { useMemo } from "react";
 import {
+  finalizeAssistantRenderUnits,
+  groupAssistantRenderUnits,
   hasAssistantActionLinks,
   parseAssistantMessageSegments,
 } from "@/lib/action-link-markup";
-import { ActionLinkChip } from "@/components/chat/ActionLinkChip";
+import { ActionLinkBar } from "@/components/chat/ActionLinkBar";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 
 type AssistantRichMessageProps = {
@@ -17,38 +19,36 @@ export function AssistantRichMessage({
   content,
   workingDirectory,
 }: AssistantRichMessageProps) {
-  const segments = useMemo(
-    () => parseAssistantMessageSegments(content),
-    [content],
-  );
+  const units = useMemo(() => {
+    if (!hasAssistantActionLinks(content)) return null;
+    const segments = parseAssistantMessageSegments(content);
+    return finalizeAssistantRenderUnits(groupAssistantRenderUnits(segments));
+  }, [content]);
 
   if (!content.trim()) {
     return null;
   }
 
-  if (!hasAssistantActionLinks(content)) {
+  if (!units) {
     return <MarkdownMessage content={content} variant="assistant" />;
   }
 
   return (
-    <div className="assistant-rich-message markdown-body markdown-body--assistant">
-      {segments.map((segment, index) => {
-        if (segment.type === "link") {
+    <div className="assistant-rich-message">
+      {units.map((unit, index) => {
+        if (unit.kind === "link-bar") {
           return (
-            <ActionLinkChip
-              key={`link-${segment.link.actionId}-${segment.link.op}-${index}`}
-              link={segment.link}
+            <ActionLinkBar
+              key={`bar-${index}`}
+              links={unit.links}
               workingDirectory={workingDirectory}
             />
           );
         }
-        if (!segment.text.trim()) {
-          return null;
-        }
         return (
           <MarkdownMessage
-            key={`text-${index}`}
-            content={segment.text}
+            key={`md-${index}`}
+            content={unit.text}
             variant="assistant"
           />
         );

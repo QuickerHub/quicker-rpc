@@ -6,12 +6,19 @@ import {
   computeExplorerTreeSignature,
   type ActionExplorerTree,
 } from "@/lib/action-explorer-tree";
+import { buildSubProgramExplorerTree } from "@/lib/subprogram-explorer-server";
 import { getActionsRootRelative } from "@/lib/action-project-path-shared";
+import { getGlobalSubProgramsRootRelative } from "@/lib/workspace-program-target";
 import { runWithQkrpcCwdAsync } from "@/lib/qkrpc-request-context";
 import { resolveWorkspacePath, resolveWorkspaceRoot } from "@/lib/workspace-fs";
 
 export type ActionExplorerWatchEvent =
-  | { ok: true; type: "tree"; tree: ActionExplorerTree }
+  | {
+      ok: true;
+      type: "tree";
+      tree: ActionExplorerTree;
+      subprogramTree: ActionExplorerTree;
+    }
   | { ok: false; type: "error"; error: string };
 
 type WatchSubscriber = {
@@ -28,6 +35,7 @@ type WatchSession = {
   rebuildCooldownUntil: number;
   lastTreeSignature: string | null;
   lastTree: ActionExplorerTree | null;
+  lastSubprogramTree: ActionExplorerTree | null;
   lastTreeBuiltAt: number;
   subscribers: Set<WatchSubscriber>;
   idleTimer: ReturnType<typeof setTimeout> | null;
@@ -45,11 +53,13 @@ function sessionKey(cwd: string): string {
   return resolveWorkspaceRoot().replace(/\\/g, "/").toLowerCase();
 }
 
-function isActionsRelativePath(relativePath: string): boolean {
+function isQuickerWorkspaceRelativePath(relativePath: string): boolean {
   const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
   return (
     normalized === ".quicker/actions"
     || normalized.startsWith(".quicker/actions/")
+    || normalized === ".quicker/subprograms"
+    || normalized.startsWith(".quicker/subprograms/")
     || normalized === ".quicker"
   );
 }
@@ -62,9 +72,17 @@ function shouldHandleWatchFilename(filename: string | null | Buffer): boolean {
   if (!normalized) return true;
   return (
     normalized.includes("actions")
+    || normalized.includes("subprograms")
     || normalized.startsWith(".quicker")
     || !normalized.includes("/")
   );
+}
+
+function computeCombinedTreeSignature(
+  actionTree: ActionExplorerTree,
+  subprogramTree: ActionExplorerTree,
+): string {
+  return `${computeExplorerTreeSignature(actionTree)}\n---\n${computeExplorerTreeSignature(subprogramTree)}`;
 }
 
 function stopWatchers(session: WatchSession): void {
@@ -114,26 +132,42 @@ async function rebuildAndNotify(session: WatchSession): Promise<void> {
   session.rebuildInFlight = runWithQkrpcCwdAsync(session.cwd, async () => {
     session.rebuilding = true;
     try {
-      const result = await buildActionExplorerTree();
-      if (!result.ok) {
+      const [actionResult, subprogramResult] = await Promise.all([
+        buildActionExplorerTree(),
+        buildSubProgramExplorerTree(),
+      ]);
+      if (!actionResult.ok) {
         notifySubscribers(session, {
           ok: false,
           type: "error",
-          error: result.error,
+          error: actionResult.error,
         });
         return;
       }
-      const signature = computeExplorerTreeSignature(result.tree);
+      if (!subprogramResult.ok) {
+        notifySubscribers(session, {
+          ok: false,
+          type: "error",
+          error: subprogramResult.error,
+        });
+        return;
+      }
+      const signature = computeCombinedTreeSignature(
+        actionResult.tree,
+        subprogramResult.tree,
+      );
       if (session.lastTreeSignature === signature) {
         return;
       }
       session.lastTreeSignature = signature;
-      session.lastTree = result.tree;
+      session.lastTree = actionResult.tree;
+      session.lastSubprogramTree = subprogramResult.tree;
       session.lastTreeBuiltAt = Date.now();
       notifySubscribers(session, {
         ok: true,
         type: "tree",
-        tree: result.tree,
+        tree: actionResult.tree,
+        subprogramTree: subprogramResult.tree,
       });
     } finally {
       session.rebuilding = false;
@@ -159,19 +193,20 @@ function scheduleRebuild(session: WatchSession): void {
 function ensureWatchers(session: WatchSession): void {
   if (session.watchers.length > 0) return;
 
-  const actionsRoot = getActionsRootRelative();
-  const resolved = resolveWorkspacePath(actionsRoot);
-  if (!resolved.ok) return;
-
   const watchTargets: string[] = [];
-  if (existsSync(resolved.absolute)) {
-    watchTargets.push(resolved.absolute);
-  } else {
+  for (const rootRel of [getActionsRootRelative(), getGlobalSubProgramsRootRelative()]) {
+    const resolved = resolveWorkspacePath(rootRel);
+    if (!resolved.ok) continue;
+    if (existsSync(resolved.absolute)) {
+      watchTargets.push(resolved.absolute);
+      continue;
+    }
     const parent = dirname(resolved.absolute);
     if (existsSync(parent)) watchTargets.push(parent);
   }
 
-  for (const target of watchTargets) {
+  const uniqueTargets = [...new Set(watchTargets)];
+  for (const target of uniqueTargets) {
     try {
       const watcher = watch(
         target,
@@ -214,6 +249,7 @@ function getOrCreateSession(cwd: string): WatchSession {
     rebuildCooldownUntil: 0,
     lastTreeSignature: null,
     lastTree: null,
+    lastSubprogramTree: null,
     lastTreeBuiltAt: 0,
     subscribers: new Set(),
     idleTimer: null,
@@ -247,11 +283,20 @@ export function subscribeActionExplorerWatch(
     state.session.subscribers.add(subscriber);
     ensureWatchers(state.session);
     // New SSE clients need the latest tree even when rebuild dedupes by signature.
-    if (state.session.lastTree) {
-      subscriber.send({ ok: true, type: "tree", tree: state.session.lastTree });
+    if (state.session.lastTree && state.session.lastSubprogramTree) {
+      subscriber.send({
+        ok: true,
+        type: "tree",
+        tree: state.session.lastTree,
+        subprogramTree: state.session.lastSubprogramTree,
+      });
     }
     const cacheAge = Date.now() - state.session.lastTreeBuiltAt;
-    if (state.session.lastTree && cacheAge < SUBSCRIBE_REBUILD_MAX_AGE_MS) {
+    if (
+      state.session.lastTree
+      && state.session.lastSubprogramTree
+      && cacheAge < SUBSCRIBE_REBUILD_MAX_AGE_MS
+    ) {
       return;
     }
     await rebuildAndNotify(state.session);
@@ -267,7 +312,7 @@ export function subscribeActionExplorerWatch(
   };
 }
 
-/** Test helper: whether a relative path is under .quicker/actions. */
+/** Test helper: whether a relative path is under .quicker/actions or subprograms. */
 export function isActionExplorerWatchPath(relativePath: string): boolean {
-  return isActionsRelativePath(relativePath);
+  return isQuickerWorkspaceRelativePath(relativePath);
 }

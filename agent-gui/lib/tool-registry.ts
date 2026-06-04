@@ -188,7 +188,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "创建子程序",
     group: "write",
     category: "subprogram",
-    description: "新建公共子程序",
+    description: "新建公共子程序并写入工作区 info.json",
   },
   {
     id: "qkrpc_subprogram_patch",

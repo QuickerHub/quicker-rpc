@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { CodeMirrorPreview } from "@/components/chat/CodeMirrorPreview";
-import { CodeMirrorUnifiedDiff } from "@/components/chat/CodeMirrorUnifiedDiff";
+import { CodeMirrorLineDiffView } from "@/components/chat/CodeMirrorLineDiffView";
 import {
-  buildCollapsedDiffTexts,
+  buildInterleavedDiffDisplay,
   countLineDiffStats,
 } from "@/lib/file-line-diff";
 import { fileIconKindToBadgeLabel, resolveFileIconKind } from "@/lib/file-icon-kind";
@@ -34,13 +34,16 @@ type FileEditorCardProps = {
   running?: boolean;
   stat?: FileEditorStat;
   diff?: { removed: string; added: string };
+  /** collapsed: chat preview; full: popup / expanded diff without folding */
+  diffMode?: "collapsed" | "full";
   variant?: "compact" | "full";
   foldSnapshot?: boolean;
   summaryMeta?: string;
   headerRunning?: boolean;
   headerError?: boolean;
   showContent?: boolean;
-  onOpenInExplorer?: () => void;
+  /** Compact header click — open preview popup, etc. */
+  onOpenPreview?: () => void;
   showHeader?: boolean;
   /** Fill workspace main editor pane; scroll inside CodeMirror. */
   fillAvailable?: boolean;
@@ -97,13 +100,14 @@ export function FileEditorCard({
   running = false,
   stat,
   diff,
+  diffMode = "collapsed",
   variant = "full",
   foldSnapshot = false,
   summaryMeta,
   headerRunning = false,
   headerError = false,
   showContent = true,
-  onOpenInExplorer,
+  onOpenPreview,
   showHeader = true,
   fillAvailable = false,
   lineNumbers,
@@ -127,10 +131,12 @@ export function FileEditorCard({
     [diff],
   );
 
-  const diffCollapsed = useMemo(
-    () => (diff ? buildCollapsedDiffTexts(diff.removed, diff.added) : null),
-    [diff],
-  );
+  const diffDisplay = useMemo(() => {
+    if (!diff) return null;
+    return buildInterleavedDiffDisplay(diff.removed, diff.added, {
+      minEqualCollapse: diffMode === "full" ? 999_999 : undefined,
+    });
+  }, [diff, diffMode]);
 
   const diffStat = useMemo(
     () =>
@@ -143,16 +149,14 @@ export function FileEditorCard({
   const headerStat = diffStat ?? stat;
 
   const previewLineCount = useMemo(() => {
-    if (diffCollapsed) return diffCollapsed.displayLineCount;
+    if (diffDisplay) return diffDisplay.displayLineCount;
     return countLines(content);
-  }, [content, diffCollapsed]);
+  }, [content, diffDisplay]);
 
   const showBody = showContent && (!compact || revealed);
-  const lineClamp =
-    compact
-    && showBody
-    && previewLineCount > FILE_SNAPSHOT_PREVIEW_LINES
-    && !expanded;
+  const isCompactPreview = compact && showBody && !expanded;
+  const showPreviewFade =
+    isCompactPreview && previewLineCount > FILE_SNAPSHOT_PREVIEW_LINES;
   const showToggle =
     showContent
     && compact
@@ -178,19 +182,20 @@ export function FileEditorCard({
           ? "file-editor-card--folded"
           : "",
         expanded ? "file-editor-card--expanded" : "",
-        lineClamp ? "file-editor-card--collapsed" : "",
+        isCompactPreview ? "file-editor-card--preview" : "",
+        showPreviewFade ? "file-editor-card--preview-fade" : "",
         fillAvailable ? "file-editor-card--fill" : "",
       ]
         .filter(Boolean)
         .join(" ")}
       title={path}
     >
-      {showHeader && compact && onOpenInExplorer ? (
+      {showHeader && compact && onOpenPreview ? (
         <button
           type="button"
           className="file-editor-header file-editor-header--compact file-editor-header-open"
-          onClick={onOpenInExplorer}
-          aria-label={`在右侧打开 ${fileName}`}
+          onClick={onOpenPreview}
+          aria-label={`查看 ${fileName}`}
         >
           <span
             className={`file-snapshot-lang file-snapshot-lang--${snapshotLangClass(path)}`}
@@ -254,11 +259,15 @@ export function FileEditorCard({
 
       {showBody ? (
         <div className="file-editor-body">
-          {diffCollapsed ? (
-            <CodeMirrorUnifiedDiff
+          {diff ? (
+            <CodeMirrorLineDiffView
               path={path}
-              removed={diffCollapsed.removed}
-              added={diffCollapsed.added}
+              removed={diff.removed}
+              added={diff.added}
+              collapse={diffMode !== "full"}
+              scrollToFirstChange={isCompactPreview}
+              fillAvailable={fillAvailable}
+              lineNumbers={showLineNumbers}
             />
           ) : (
             <CodeMirrorPreview

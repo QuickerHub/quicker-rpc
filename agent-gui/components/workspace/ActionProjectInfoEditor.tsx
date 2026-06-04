@@ -7,6 +7,7 @@ import { resolveActionProjectIconSpec } from "@/lib/action-project-icon";
 import { FileEditorCard } from "@/components/chat/FileEditorCard";
 import { ActionProjectSyncBar } from "@/components/workspace/ActionProjectSyncBar";
 import { ActionProjectToolbar } from "@/components/workspace/ActionProjectToolbar";
+import { ProgramProjectDeleteControl } from "@/components/workspace/ProgramProjectDeleteControl";
 import { EditableInline } from "@/components/workspace/EditableInline";
 import { invokeActionCommand } from "@/lib/action-command-client";
 import { resolveActionIdFromProject } from "@/lib/action-project-id";
@@ -18,6 +19,11 @@ import {
   type InfoJsonTextField,
   type ParsedActionProjectInfo,
 } from "@/lib/action-project-info-parse";
+import {
+  isEmbeddedSubProgramDataPath,
+  isGlobalSubProgramDataPath,
+} from "@/lib/action-project-data-parse";
+import type { ProgramProjectDeleteKind } from "@/lib/use-program-project-delete";
 
 type ActionProjectInfoEditorProps = {
   path: string;
@@ -241,6 +247,50 @@ function InfoBody({
   const isDirty =
     draftTitle !== displayValue || draftDescription !== descriptionValue;
 
+  const deleteTarget = useMemo((): {
+    kind: ProgramProjectDeleteKind;
+    projectPath: string;
+    quickerId?: string;
+    displayTitle: string;
+  } | null => {
+    const normalizedPath = path.replace(/\\/g, "/");
+    const projectPath = normalizedPath.replace(/\/info\.json$/i, "");
+    if (!projectPath) return null;
+
+    const title =
+      displayValue.trim()
+      || projectDir?.trim()
+      || "（无标题）";
+
+    if (isGlobalSubProgramDataPath(`${projectPath}/data.json`)) {
+      const quickerId =
+        data.id?.trim()
+        || data.name?.trim()
+        || projectDir?.trim()
+        || undefined;
+      return { kind: "global_subprogram", projectPath, quickerId, displayTitle: title };
+    }
+
+    if (isEmbeddedSubProgramDataPath(`${projectPath}/data.json`)) {
+      return { kind: "embedded_subprogram", projectPath, displayTitle: title };
+    }
+
+    if (data.kind === "action") {
+      const quickerId = linkedActionId?.trim() || undefined;
+      return { kind: "action", projectPath, quickerId, displayTitle: title };
+    }
+
+    return null;
+  }, [
+    data.id,
+    data.kind,
+    data.name,
+    displayValue,
+    linkedActionId,
+    path,
+    projectDir,
+  ]);
+
   const buildPatchedContent = useCallback(() => {
     let nextContent = content;
     if (draftTitle !== displayValue) {
@@ -336,6 +386,16 @@ function InfoBody({
                 </p>
               ) : null}
             </div>
+            {deleteTarget ? (
+              <ProgramProjectDeleteControl
+                kind={deleteTarget.kind}
+                quickerId={deleteTarget.quickerId}
+                projectPath={deleteTarget.projectPath}
+                cwd={cwd}
+                displayTitle={deleteTarget.displayTitle}
+                className="project-info-header-delete"
+              />
+            ) : null}
           </header>
 
           <section className="project-info-description-block" aria-label="描述">

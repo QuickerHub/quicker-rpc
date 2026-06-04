@@ -15,7 +15,7 @@ import {
   useWorkspaceExplorerTree,
 } from "@/lib/workspace-explorer";
 
-/** Action-project tree — subscribes to tree context only (not editor tabs). */
+/** Action + global subprogram project trees. */
 export const WorkspaceExplorerTreePane = memo(function WorkspaceExplorerTreePane({
   onProjectRemoved,
 }: {
@@ -24,6 +24,7 @@ export const WorkspaceExplorerTreePane = memo(function WorkspaceExplorerTreePane
   const {
     cwd,
     tree,
+    subprogramTree,
     treeChildrenLoading,
     treeError,
     expandedPaths,
@@ -34,16 +35,16 @@ export const WorkspaceExplorerTreePane = memo(function WorkspaceExplorerTreePane
   const { clearActiveTopic } = useDocsViewer();
 
   const handleSelectNode = useCallback(
-    (node: ExplorerTreeNode) => {
+    (node: ExplorerTreeNode, rootPath?: string) => {
       clearActiveTopic();
-      const dataPath = explorerProgramDataJsonPath(node, tree?.rootPath);
+      const dataPath = explorerProgramDataJsonPath(node, rootPath ?? tree?.rootPath);
       const normalizedPath = normalizeExplorerTreePath(node.path);
       setSelectedPath(normalizedPath);
       const { openFile } = workspaceExplorerActionsRef.current;
       if (dataPath) {
         openFile(dataPath, undefined, {
           revealInTree: false,
-          tabLabel: displayNodeLabel(node, tree?.rootPath),
+          tabLabel: displayNodeLabel(node, rootPath ?? tree?.rootPath),
         });
         return;
       }
@@ -53,13 +54,13 @@ export const WorkspaceExplorerTreePane = memo(function WorkspaceExplorerTreePane
     [clearActiveTopic, setSelectedPath, tree?.rootPath],
   );
 
-  if (treeError && !tree) {
+  if (treeError && !tree && !subprogramTree) {
     return (
       <p className="workspace-explorer-hint workspace-explorer-hint--err">{treeError}</p>
     );
   }
-  if (!tree) {
-    return <p className="workspace-explorer-hint">未找到 .quicker/actions</p>;
+  if (!tree || !subprogramTree) {
+    return <p className="workspace-explorer-hint">未找到 .quicker 工程目录</p>;
   }
 
   return (
@@ -78,7 +79,19 @@ export const WorkspaceExplorerTreePane = memo(function WorkspaceExplorerTreePane
         expandedPaths={expandedPaths}
         selectedPath={selectedPath}
         onToggleExpanded={toggleExpanded}
-        onSelect={handleSelectNode}
+        onSelect={(node) => handleSelectNode(node, tree.rootPath)}
+        onProjectRemoved={onProjectRemoved}
+      />
+      <ActionProjectTree
+        rootPath={subprogramTree.rootPath}
+        rootLabel={subprogramTree.rootLabel}
+        cwd={cwd}
+        nodes={subprogramTree.children}
+        childrenLoading={treeChildrenLoading}
+        expandedPaths={expandedPaths}
+        selectedPath={selectedPath}
+        onToggleExpanded={toggleExpanded}
+        onSelect={(node) => handleSelectNode(node, subprogramTree.rootPath)}
         onProjectRemoved={onProjectRemoved}
       />
     </>

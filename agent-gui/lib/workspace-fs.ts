@@ -232,6 +232,13 @@ export async function readWorkspaceFile(
   if (!resolved.ok) return resolved;
 
   if (!existsSync(resolved.absolute)) {
+    const { materializeProgramDataJsonIfNeeded } = await import(
+      "@/lib/workspace-project-disk"
+    );
+    await materializeProgramDataJsonIfNeeded(resolved.relative);
+  }
+
+  if (!existsSync(resolved.absolute)) {
     return { ok: false, error: `file not found: ${resolved.relative}` };
   }
 
@@ -306,6 +313,13 @@ export async function readWorkspaceFileForExplorer(
 
   const resolved = resolveWorkspacePath(inputPath);
   if (!resolved.ok) return resolved;
+
+  if (!existsSync(resolved.absolute)) {
+    const { materializeProgramDataJsonIfNeeded } = await import(
+      "@/lib/workspace-project-disk"
+    );
+    await materializeProgramDataJsonIfNeeded(resolved.relative);
+  }
 
   if (!existsSync(resolved.absolute)) {
     return { ok: false, error: `file not found: ${resolved.relative}` };

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  actionProjectInfoFromCreateResponse,
   actionProjectInfoFromMetadataGet,
   formatActionProjectInfoProto,
   parseActionProjectInfoProto,
@@ -24,6 +25,18 @@ const metadataPayload = {
     stepOutline: [] as unknown[],
   },
 };
+
+test("actionProjectInfoFromCreateResponse uses create payload and hints", () => {
+  const info = actionProjectInfoFromCreateResponse(
+    { actionId, editVersion: 42 },
+    { title: "新动作", description: "说明", icon: "fa:Light_Bolt" },
+  );
+  assert.equal(info.id, actionId);
+  assert.equal(info.title, "新动作");
+  assert.equal(info.description, "说明");
+  assert.equal(info.icon, "fa:Light_Bolt");
+  assert.equal(Number(info.editVersion), 42);
+});
 
 test("actionProjectInfoFromMetadataGet builds proto without snapshot", () => {
   const info = actionProjectInfoFromMetadataGet(actionId, metadataPayload);

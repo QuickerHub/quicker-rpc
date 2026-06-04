@@ -10,8 +10,10 @@ import formatListCheckbox from "@iconify/icons-mdi/format-list-checkbox";
 import imageOutline from "@iconify/icons-mdi/image-outline";
 import keyboard from "@iconify/icons-mdi/keyboard";
 import layersOutline from "@iconify/icons-mdi/layers-outline";
+import messageAlertOutline from "@iconify/icons-mdi/message-alert-outline";
 import mouse from "@iconify/icons-mdi/mouse";
 import numeric from "@iconify/icons-mdi/numeric";
+import playCircleOutline from "@iconify/icons-mdi/play-circle-outline";
 import table from "@iconify/icons-mdi/table";
 import toggleSwitch from "@iconify/icons-mdi/toggle-switch";
 import { resolveActionDesignerResIconRelativePath } from "./parseQuickerAssetIcon";
@@ -29,8 +31,10 @@ export const RES_ICON_BUNDLED: Record<string, IconifyIcon> = {
   "mdi:image-outline": imageOutline,
   "mdi:keyboard": keyboard,
   "mdi:layers-outline": layersOutline,
+  "mdi:message-alert-outline": messageAlertOutline,
   "mdi:mouse": mouse,
   "mdi:numeric": numeric,
+  "mdi:play-circle-outline": playCircleOutline,
   "mdi:table": table,
   "mdi:toggle-switch": toggleSwitch,
 };
@@ -57,11 +61,18 @@ const RES_PATH_TO_ICONIFY = new Map<string, string>([
   ["var/formfordict.png", "mdi:file-document-outline"],
   ["var/object.png", "mdi:cube-outline"],
   ["var/any.png", "mdi:layers-outline"],
+  ["steps/msgbox.png", "mdi:message-alert-outline"],
+  ["steps/common_step.png", "mdi:play-circle-outline"],
 ]);
 
 export function resolveResIconToIconifyId(logicalPath: string): string | null {
   const rel = resolveActionDesignerResIconRelativePath(logicalPath);
-  return RES_PATH_TO_ICONIFY.get(rel.toLowerCase()) ?? null;
+  const mapped = RES_PATH_TO_ICONIFY.get(rel.toLowerCase());
+  if (mapped) return mapped;
+  if (rel.toLowerCase().startsWith("steps/")) {
+    return "mdi:play-circle-outline";
+  }
+  return null;
 }
 
 export function getResIconBundled(iconId: string): IconifyIcon | undefined {

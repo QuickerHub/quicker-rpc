@@ -21,6 +21,50 @@ export function editVersionToNumber(
   return Number.isFinite(n) ? n : undefined;
 }
 
+export type ActionProjectCreateHints = {
+  title?: string;
+  description?: string;
+  icon?: string;
+};
+
+/** Build proto info from `action create` JSON (plus optional request fields). */
+export function actionProjectInfoFromCreateResponse(
+  createPayload: Record<string, unknown>,
+  hints?: ActionProjectCreateHints,
+): ActionProjectInfo {
+  const actionId = String(
+    createPayload.actionId
+      ?? createPayload.ActionId
+      ?? "",
+  ).trim();
+  const editVersionRaw = createPayload.editVersion ?? createPayload.EditVersion;
+  const editVersion =
+    typeof editVersionRaw === "number" && Number.isFinite(editVersionRaw)
+      ? BigInt(Math.trunc(editVersionRaw))
+      : 0n;
+
+  return create(ActionProjectInfoSchema, {
+    id: actionId,
+    title: String(
+      hints?.title
+        ?? createPayload.title
+        ?? createPayload.Title
+        ?? "",
+    ),
+    description: String(
+      hints?.description
+        ?? createPayload.description
+        ?? createPayload.Description
+        ?? "",
+    ),
+    icon: String(
+      hints?.icon ?? createPayload.icon ?? createPayload.Icon ?? "",
+    ),
+    editVersion,
+    exportedUtc: timestampNow(),
+  });
+}
+
 /** Build proto info from `action get --return-mode metadata` (title/description/icon only). */
 export function actionProjectInfoFromMetadataGet(
   actionId: string,

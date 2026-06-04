@@ -109,7 +109,9 @@ step-modules（可选）→ step-runner search（一次 OR|通配）→ step-run
 ## P7 保存后
 
 {{#only-agent}}
-以 **`qkrpc_action_patch`** 响应的 **`editVersion`**，以及 **`workspace_action_edit_data` / `write_data`** 响应里的 **`projectSummary`** 为准；勿仅为核对再 get 或全量 **`workspace_action_read_data`**。改完 disk 后 **直接 patch**，勿先单独校验。
+以 **`qkrpc_action_patch`** / **`workspace_program_patch`** 响应的 **`editVersion`**，以及 **`workspace_action_edit_data` / `write_data`** 响应里的 **`projectSummary`** 为准；勿仅为核对再 get 或全量 **`workspace_action_read_data`**。改完 disk 后 **直接 patch**，勿先单独校验。
+
+**回复用户（动作 create/patch 成功后）**：正文先写简短结论（改了什么、`editVersion`、下一步）；**所有** `<qka-link id="{actionId}" op="run|edit|float|workspace">` 放在消息**最末一行**（UI 在文末渲染横向按钮条）。勿在列表或段落中间插入 qka-link；勿重复贴动作表。示例见系统指令中的 qka-link 说明。
 {{/only-agent}}
 {{#only-cli}}
 以 patch 响应的 **`editVersion`**、**`addedSteps`** 为准（增量 patch 时）；extract/apply 路径以 apply 响应为准。勿仅为核对再 get。

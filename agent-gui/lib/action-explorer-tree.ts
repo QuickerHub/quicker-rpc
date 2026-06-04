@@ -1,5 +1,6 @@
 import type { WorkspaceListEntry } from "@/lib/workspace-fs";
 import { getActionsRootRelative } from "@/lib/action-project-path-shared";
+import { getGlobalSubProgramsRootRelative } from "@/lib/workspace-program-target";
 
 export type ExplorerTreeNode = {
   name: string;
@@ -28,12 +29,22 @@ export type ActionExplorerTree = {
 };
 
 export const ACTION_EXPLORER_ROOT_LABEL = "动作项目";
+export const SUBPROGRAM_EXPLORER_ROOT_LABEL = "公共子程序";
 
 /** Placeholder tree: root folder only, children loaded asynchronously. */
 export function createActionExplorerTreeShell(): ActionExplorerTree {
   return {
     rootPath: getActionsRootRelative(),
     rootLabel: ACTION_EXPLORER_ROOT_LABEL,
+    children: [],
+  };
+}
+
+/** Placeholder tree for global subprogram projects. */
+export function createSubProgramExplorerTreeShell(): ActionExplorerTree {
+  return {
+    rootPath: getGlobalSubProgramsRootRelative(),
+    rootLabel: SUBPROGRAM_EXPLORER_ROOT_LABEL,
     children: [],
   };
 }
@@ -58,6 +69,13 @@ export type ActionProjectMeta = {
   path: string;
   title?: string;
   actionId?: string;
+};
+
+export type GlobalSubProgramProjectMeta = {
+  dirName: string;
+  path: string;
+  name?: string;
+  subProgramId?: string;
 };
 
 type InternalNode = ExplorerTreeNode & {
@@ -317,6 +335,59 @@ export function buildExplorerTreeFromProjectMeta(
   return filterHiddenExplorerNodes(withSubPrograms, null, normalizedRoot);
 }
 
+/**
+ * Build global subprogram-project tree from local info.json scan + workspace file listing.
+ */
+export function buildGlobalSubProgramExplorerTreeFromProjectMeta(
+  subprogramsRoot: string,
+  projectMeta: GlobalSubProgramProjectMeta[],
+  entries: WorkspaceListEntry[] = [],
+): ExplorerTreeNode[] {
+  const normalizedRoot = subprogramsRoot.replace(/\\/g, "/").replace(/\/+$/, "");
+  const entriesByDir = new Map<string, WorkspaceListEntry[]>();
+
+  for (const entry of entries) {
+    const parts = entry.path.replace(/\\/g, "/").split("/").filter(Boolean);
+    if (parts.length === 0) continue;
+    const dirName = parts[0]!;
+    if (!entriesByDir.has(dirName)) {
+      entriesByDir.set(dirName, []);
+    }
+    const rest = parts.slice(1).join("/");
+    if (rest) {
+      entriesByDir.get(dirName)!.push({ ...entry, path: rest });
+    }
+  }
+
+  const metaByDir = new Map(projectMeta.map((m) => [m.dirName, m]));
+  const dirNames = new Set<string>([
+    ...projectMeta.map((m) => m.dirName),
+    ...entriesByDir.keys(),
+  ]);
+
+  const nodes: ExplorerTreeNode[] = [];
+  for (const dirName of dirNames) {
+    const meta = metaByDir.get(dirName);
+    const projectPath = meta?.path ?? `${normalizedRoot}/${dirName}`;
+    const childEntries = entriesByDir.get(dirName) ?? [];
+    const children =
+      childEntries.length > 0
+        ? buildExplorerTree(projectPath, childEntries, [], [])
+        : undefined;
+
+    nodes.push({
+      name: dirName,
+      path: projectPath,
+      kind: "directory",
+      title: meta?.name,
+      subProgramId: meta?.subProgramId ?? dirName,
+      children,
+    });
+  }
+
+  return filterHiddenExplorerNodes(sortTree(nodes), null, normalizedRoot);
+}
+
 /** Hide info.json / data.json under action or embedded subprogram project roots. */
 export function isHiddenExplorerTreeNode(
   node: ExplorerTreeNode,
@@ -330,6 +401,7 @@ export function isHiddenExplorerTreeNode(
   return (
     isActionProjectRootNode(parent, actionsRoot)
     || isEmbeddedSubProgramRootNode(parent)
+    || isGlobalSubProgramRootNode(parent)
   );
 }
 
@@ -424,7 +496,12 @@ export function isExplorerTreeDirectoryPath(
     const node = findExplorerTreeNode(tree, normalized);
     if (node?.kind === "directory") return true;
   }
-  if (!normalized.includes(".quicker/actions/")) return false;
+  if (
+    !normalized.includes(".quicker/actions/")
+    && !normalized.includes(".quicker/subprograms/")
+  ) {
+    return false;
+  }
   const leaf = normalized.split("/").pop() ?? "";
   return ACTION_PROJECT_DIRECTORY_LEAVES.has(leaf);
 }
@@ -447,6 +524,7 @@ export function getAncestorDirectoryPaths(filePath: string): string[] {
 }
 
 const ACTIONS_ROOT_SUFFIX = ".quicker/actions";
+const SUBPROGRAMS_ROOT_SUFFIX = ".quicker/subprograms";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -480,9 +558,21 @@ export function isActionProjectRootNode(
 export function isEmbeddedSubProgramRootNode(node: ExplorerTreeNode): boolean {
   if (node.kind !== "directory") return false;
   const normalized = normalizeExplorerTreePath(node.path);
-  if (!normalized.includes("/subprograms/")) return false;
+  if (!normalized.includes("/actions/") || !normalized.includes("/subprograms/")) {
+    return false;
+  }
   const after = normalized.split("/subprograms/")[1] ?? "";
   return after.length > 0 && !after.includes("/");
+}
+
+/** Direct child of `.quicker/subprograms` (global subprogram project root). */
+export function isGlobalSubProgramRootNode(node: ExplorerTreeNode): boolean {
+  if (node.kind !== "directory") return false;
+  const normalizedRoot = SUBPROGRAMS_ROOT_SUFFIX.replace(/\\/g, "/").replace(/\/+$/, "");
+  const normalizedPath = node.path.replace(/\\/g, "/");
+  if (!normalizedPath.startsWith(`${normalizedRoot}/`)) return false;
+  const rel = normalizedPath.slice(normalizedRoot.length + 1);
+  return rel.length > 0 && !rel.includes("/");
 }
 
 /** Relative path to a project root's info.json, or null if not a project root. */
@@ -511,6 +601,12 @@ export function actionEmbeddedSubProgramDataJsonPath(
   return `${node.path.replace(/\\/g, "/")}/data.json`;
 }
 
+/** Relative path to global subprogram data.json, or null if not a project root. */
+export function globalSubProgramDataJsonPath(node: ExplorerTreeNode): string | null {
+  if (!isGlobalSubProgramRootNode(node)) return null;
+  return `${node.path.replace(/\\/g, "/")}/data.json`;
+}
+
 /** Open target for a tree row (action root or embedded subprogram root). */
 export function explorerProgramDataJsonPath(
   node: ExplorerTreeNode,
@@ -519,6 +615,7 @@ export function explorerProgramDataJsonPath(
   return (
     actionProjectDataJsonPath(node, actionsRoot)
     ?? actionEmbeddedSubProgramDataJsonPath(node)
+    ?? globalSubProgramDataJsonPath(node)
   );
 }
 
@@ -560,5 +657,6 @@ function isProgramRootNode(
   actionsRoot: string,
 ): boolean {
   return isActionProjectRootNode(node, actionsRoot)
-    || isEmbeddedSubProgramRootNode(node);
+    || isEmbeddedSubProgramRootNode(node)
+    || isGlobalSubProgramRootNode(node);
 }

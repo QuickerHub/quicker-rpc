@@ -43,6 +43,46 @@ test("parseWorkspaceFileReadPayload accepts action-data-read", () => {
   assert.ok(payload?.path.includes("data.json"));
 });
 
+test("parseWorkspaceFileReadPayload accepts program-data-read", () => {
+  const payload = parseWorkspaceFileReadPayload({
+    action: "program-data-read",
+    success: true,
+    path: ".quicker/actions/abc/data.json",
+    content: '{"steps":[1]}',
+  });
+  assert.equal(payload?.content, '{"steps":[1]}');
+});
+
+test("getWorkspaceFileEditorPreview read_data summary returns null", () => {
+  const preview = getWorkspaceFileEditorPreview(
+    "workspace_action_read_data",
+    { id: "7176c17a-0000-0000-0000-000000000001", mode: "summary" },
+    {
+      action: "program-data-summary",
+      success: true,
+      stepCount: 3,
+      variableCount: 2,
+      validated: true,
+    },
+  );
+  assert.equal(preview, null);
+});
+
+test("getWorkspaceFileEditorPreview read_data content shows slice", () => {
+  const preview = getWorkspaceFileEditorPreview(
+    "workspace_action_read_data",
+    { id: "7176c17a-0000-0000-0000-000000000001", mode: "content", startLine: 1, maxLines: 5 },
+    {
+      action: "program-data-read",
+      success: true,
+      path: ".quicker/actions/7176c17a-0000-0000-0000-000000000001/data.json",
+      content: '{\n  "steps": []\n}',
+    },
+  );
+  assert.ok(preview);
+  assert.equal(preview!.content, '{\n  "steps": []\n}');
+});
+
 test("buildEditStat uses line-diff insert/delete counts", () => {
   assert.deepEqual(buildEditStat("old", "new"), {
     label: "+1 -1",
@@ -110,6 +150,22 @@ test("summarizes action-data-summary read mode", () => {
   assert.ok(summary?.includes("5 步"));
   assert.ok(summary?.includes("2 变量"));
   assert.ok(summary?.includes("已校验"));
+});
+
+test("summarizes program-data-summary read mode", () => {
+  const output = formatLocalToolResult({
+    action: "program-data-summary",
+    success: true,
+    stepCount: 4,
+    variableCount: 1,
+  });
+  const summary = summarizeWorkspaceFileTool(
+    "workspace_action_read_data",
+    output,
+    { id: "7176c17a-0000-0000-0000-000000000001", mode: "summary" },
+  );
+  assert.ok(summary?.includes("4 步"));
+  assert.ok(summary?.includes("1 变量"));
 });
 
 test("summarizes read result with line range", () => {

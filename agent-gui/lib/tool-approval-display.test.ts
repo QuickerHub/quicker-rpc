@@ -34,3 +34,21 @@ test("buildApprovalDockCopy adds workspace delete prompt when projects exist", (
   assert.match(copy.workspaceDelete!.checkboxLabel, /工作区/);
   assert.match(copy.workspaceDelete!.detail ?? "", /Quicker 动作库/);
 });
+
+const subprogramDelete = (id: string) => ({
+  id: `approval-sub-${id}`,
+  toolName: "qkrpc_subprogram_delete",
+  label: "删除子程序",
+  input: { id },
+  destructive: true,
+});
+
+test("buildApprovalDockCopy adds workspace delete prompt for subprograms", () => {
+  const copy = buildApprovalDockCopy(
+    [subprogramDelete("58830061-a69f-4306-83e3-5ffbab98471b")],
+    { workspaceSubProgramProjectCount: 1 },
+  );
+  assert.ok(copy.workspaceDelete);
+  assert.match(copy.workspaceDelete!.checkboxLabel, /\.quicker\/subprograms/);
+  assert.match(copy.workspaceDelete!.detail ?? "", /公共子程序库/);
+});

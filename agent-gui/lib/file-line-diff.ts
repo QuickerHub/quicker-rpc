@@ -73,8 +73,7 @@ export function countLineDiffStats(
 }
 
 export function countUnifiedDiffDisplayLines(oldText: string, newText: string): number {
-  const collapsed = buildCollapsedDiffTexts(oldText, newText);
-  return collapsed.displayLineCount;
+  return buildInterleavedDiffDisplay(oldText, newText).displayLineCount;
 }
 
 export const FILE_DIFF_CONTEXT_LINES = 3;
@@ -178,4 +177,150 @@ function gutterSymbol(kind: LineDiffKind): string {
 
 export function lineDiffGutterSymbol(kind: LineDiffKind): string {
   return gutterSymbol(kind);
+}
+
+export type InterleavedDiffDisplay = {
+  text: string;
+  lineKinds: LineDiffKind[];
+  displayLineCount: number;
+};
+
+/** 1-based line of first delete/insert in interleaved display (for compact preview scroll). */
+export function firstChangedDisplayLineNumber(lineKinds: LineDiffKind[]): number {
+  for (let i = 0; i < lineKinds.length; i++) {
+    if (lineKinds[i] === "insert" || lineKinds[i] === "delete") {
+      return i + 1;
+    }
+  }
+  return 1;
+}
+
+function shouldUseBlockReplaceDiff(rows: LineDiffRow[]): boolean {
+  let equalCount = 0;
+  for (const row of rows) {
+    if (row.kind === "equal") equalCount++;
+  }
+  const changeCount = rows.length - equalCount;
+  if (changeCount < 4) return false;
+  return changeCount >= equalCount * 2;
+}
+
+function buildBlockReplaceDisplay(
+  oldText: string,
+  newText: string,
+  options?: { contextLines?: number; minEqualCollapse?: number },
+): InterleavedDiffDisplay {
+  const contextLines = options?.contextLines ?? FILE_DIFF_CONTEXT_LINES;
+  const minCollapse = options?.minEqualCollapse ?? FILE_DIFF_MIN_EQUAL_COLLAPSE;
+  const oldLines = splitLinesForDiff(oldText);
+  const newLines = splitLinesForDiff(newText);
+
+  const emitLines = (
+    lines: string[],
+    kind: LineDiffKind,
+    outLines: string[],
+    outKinds: LineDiffKind[],
+  ): void => {
+    if (lines.length >= minCollapse) {
+      const head = lines.slice(0, contextLines);
+      const tail = lines.slice(lines.length - contextLines);
+      const omitted = lines.length - head.length - tail.length;
+      for (const line of head) {
+        outLines.push(line);
+        outKinds.push(kind);
+      }
+      outLines.push(`… ${omitted} 行已省略 …`);
+      outKinds.push("equal");
+      for (const line of tail) {
+        outLines.push(line);
+        outKinds.push(kind);
+      }
+      return;
+    }
+    for (const line of lines) {
+      outLines.push(line);
+      outKinds.push(kind);
+    }
+  };
+
+  const outLines: string[] = [];
+  const outKinds: LineDiffKind[] = [];
+  emitLines(oldLines, "delete", outLines, outKinds);
+  emitLines(newLines, "insert", outLines, outKinds);
+
+  let addLines = 0;
+  let removeLines = 0;
+  for (const kind of outKinds) {
+    if (kind === "insert") addLines++;
+    if (kind === "delete") removeLines++;
+  }
+
+  return {
+    text: joinDiffLines(outLines),
+    lineKinds: outKinds,
+    displayLineCount: outLines.length,
+  };
+}
+
+/** Single-column diff: − deleted lines, + inserted, context collapsed (no merge overlap). */
+export function buildInterleavedDiffDisplay(
+  oldText: string,
+  newText: string,
+  options?: { contextLines?: number; minEqualCollapse?: number },
+): InterleavedDiffDisplay {
+  const contextLines = options?.contextLines ?? FILE_DIFF_CONTEXT_LINES;
+  const minCollapse = options?.minEqualCollapse ?? FILE_DIFF_MIN_EQUAL_COLLAPSE;
+  const rows = computeLineDiff(oldText, newText);
+
+  if (shouldUseBlockReplaceDiff(rows)) {
+    return buildBlockReplaceDisplay(oldText, newText, options);
+  }
+
+  const outLines: string[] = [];
+  const outKinds: LineDiffKind[] = [];
+  let idx = 0;
+
+  while (idx < rows.length) {
+    if (rows[idx].kind === "equal") {
+      let end = idx;
+      while (end < rows.length && rows[end].kind === "equal") end++;
+      const run = rows.slice(idx, end);
+      if (run.length >= minCollapse) {
+        const head = run.slice(0, contextLines);
+        const tail = run.slice(run.length - contextLines);
+        const omitted = run.length - head.length - tail.length;
+        for (const row of head) {
+          outLines.push(row.text);
+          outKinds.push("equal");
+        }
+        outLines.push(`… ${omitted} 行未修改 …`);
+        outKinds.push("equal");
+        for (const row of tail) {
+          outLines.push(row.text);
+          outKinds.push("equal");
+        }
+      } else {
+        for (const row of run) {
+          outLines.push(row.text);
+          outKinds.push("equal");
+        }
+      }
+      idx = end;
+      continue;
+    }
+
+    let end = idx;
+    while (end < rows.length && rows[end].kind !== "equal") end++;
+    for (let k = idx; k < end; k++) {
+      outLines.push(rows[k].text);
+      outKinds.push(rows[k].kind);
+    }
+    idx = end;
+  }
+
+  return {
+    text: joinDiffLines(outLines),
+    lineKinds: outKinds,
+    displayLineCount: outLines.length,
+  };
 }

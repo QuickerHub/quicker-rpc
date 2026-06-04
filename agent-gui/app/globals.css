@@ -3627,6 +3627,66 @@ button.tool-summary:disabled .tool-chevron {
   font-size: 0.88rem;
 }
 
+.tool-file-editor-popup-panel {
+  width: min(56rem, calc(100vw - 2rem));
+  max-height: min(92vh, 52rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.tool-file-editor-popup-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  background: var(--code-bg-overlay);
+}
+
+.tool-file-editor-popup-body .file-editor-card {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+.tool-file-editor-popup-body .file-editor-card--fill {
+  min-height: min(72vh, 40rem);
+}
+
+.tool-file-editor-popup-body .file-editor-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tool-file-editor-popup-body .file-editor-cm,
+.tool-file-editor-popup-body .file-editor-cm .cm-theme,
+.tool-file-editor-popup-body .file-editor-cm .cm-editor {
+  flex: 1;
+  min-height: 0;
+  max-height: none !important;
+  height: 100%;
+}
+
+.tool-file-editor-popup-body .file-editor-cm .cm-scroller {
+  overflow: auto !important;
+  max-height: none;
+}
+
+.tool-file-editor-popup-footnote {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.35rem 0.75rem 0.5rem;
+}
+
 .tool-docs-popup-body .markdown-body pre,
 .tool-docs-popup-body .markdown-body code {
   font-size: 0.78rem;
@@ -4630,6 +4690,11 @@ button.tool-summary:disabled .tool-chevron {
 
 .file-editor-cm--diff .cm-editor {
   max-height: min(440px, 52vh);
+}
+
+/* Line-interleaved diff (CodeMirrorLineDiffView) */
+.file-editor-cm--line-diff .cm-scroller {
+  font-variant-ligatures: none;
 }
 
 .file-editor-footnote {
@@ -5807,6 +5872,86 @@ body.workspace-explorer-pane-resizing * {
   color: var(--error-banner-text, #c62828);
 }
 
+.program-project-delete-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.program-project-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.project-info-header-delete {
+  margin-left: auto;
+  align-self: flex-start;
+}
+
+.program-project-delete-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--background, #000) 35%, transparent);
+}
+
+.program-project-delete-dialog {
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 0;
+  overflow: hidden;
+}
+
+.program-project-delete-header {
+  padding: 0.85rem 1rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.program-project-delete-header h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.program-project-delete-body {
+  padding: 0.75rem 1rem;
+}
+
+.program-project-delete-desc {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.program-project-delete-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.program-project-delete-checkbox input {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.program-project-delete-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  padding: 0.65rem 1rem 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
 .explorer-tree-row {
   display: flex;
   align-items: center;
@@ -6014,7 +6159,7 @@ body.workspace-explorer-pane-resizing * {
 }
 
 .tool-card--file-editor .file-editor-card {
-  margin: 0 0.35rem 0.35rem;
+  margin: 0 0.2rem 0.25rem;
 }
 
 .tool-card--file-editor .file-editor-card--folded {
@@ -6271,17 +6416,39 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   overflow: hidden;
 }
 
-.file-editor-card--compact.file-editor-card--collapsed .file-editor-cm .cm-editor {
-  max-height: calc(0.72rem * 1.45 * 4 + 0.8rem);
+/* Chat compact preview: clamp height, no scroll inside CodeMirror */
+.file-editor-card--compact.file-editor-card--preview .file-editor-body {
+  overflow: hidden;
 }
 
-.file-editor-card--compact.file-editor-card--collapsed .file-editor-body::after {
+.file-editor-card--compact.file-editor-card--preview .file-editor-cm .cm-scroller {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+.file-editor-card--compact.file-editor-card--preview .file-editor-cm .cm-editor,
+.file-editor-card--compact.file-editor-card--preview .file-editor-cm--diff .cm-editor {
+  max-height: calc(0.72rem * 1.45 * 4 + 0.35rem);
+}
+
+.file-editor-card--compact.file-editor-card--preview .file-editor-cm .cm-content {
+  padding: 0 0.35rem 0.2rem;
+}
+
+/* Compact diff preview: gutter symbols hidden; avoids scroll vs lineBlockAt drift */
+.file-editor-card--compact.file-editor-card--preview
+  .file-editor-cm--line-diff
+  .cm-gutters {
+  display: none !important;
+}
+
+.file-editor-card--compact.file-editor-card--preview-fade .file-editor-body::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 1.6rem;
+  height: 1.25rem;
   pointer-events: none;
   background: linear-gradient(
     180deg,
@@ -6290,9 +6457,13 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   );
 }
 
-.file-editor-card--compact.file-editor-card--expanded .file-editor-cm .cm-editor {
+.file-editor-card--compact.file-editor-card--expanded .file-editor-cm .cm-scroller {
+  overflow: auto !important;
+}
+
+.file-editor-card--compact.file-editor-card--expanded .file-editor-cm .cm-editor,
+.file-editor-card--compact.file-editor-card--expanded .file-editor-cm--diff .cm-editor {
   max-height: min(360px, 45vh);
-  overflow: auto;
 }
 
 .file-editor-card--compact.file-editor-card--expanded .file-editor-body::after {
@@ -6764,18 +6935,36 @@ button.file-editor-header-open.file-editor-header--compact:hover {
 }
 
 /* Assistant summary: <qka-link id="…" op="run|edit|float|workspace"> */
-.assistant-rich-message {
-  display: block;
+.assistant-rich-message .markdown-body {
+  margin-bottom: 0.25rem;
 }
 
-.assistant-rich-message > .markdown-body {
-  display: inline;
+.action-link-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.15rem;
+  margin: 0.15rem 0 0.35rem;
+}
+
+.action-link-bar__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.action-link-bar__sep {
+  margin: 0 0.1rem;
+  font-size: 0.72rem;
+  line-height: 1;
+  color: var(--muted);
+  user-select: none;
 }
 
 .action-link-chip {
   display: inline-flex;
   align-items: center;
-  margin: 0 0.12rem;
+  margin: 0;
   padding: 0.12rem 0.5rem;
   font-size: 0.74rem;
   font-weight: 600;

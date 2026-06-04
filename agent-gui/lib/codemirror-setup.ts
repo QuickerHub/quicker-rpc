@@ -133,19 +133,28 @@ export function workspaceCodeMirrorTheme(): Extension {
       borderRadius: "2px",
       padding: "0 1px",
     },
-    /* Unified merge view — align with file-editor-stat add/remove colors */
+    /* Unified merge view — background + gutter bar; no underline on inserts */
     ".cm-changedLine, .cm-insertedLine": {
-      backgroundColor: "color-mix(in srgb, var(--code-diff-insert) 12%, transparent)",
+      textDecoration: "none",
+      backgroundColor: "color-mix(in srgb, var(--code-diff-insert) 10%, transparent)",
+      boxShadow:
+        "inset 3px 0 0 color-mix(in srgb, var(--code-diff-insert) 70%, transparent)",
     },
-    ".cm-changedText": {
-      backgroundColor: "color-mix(in srgb, var(--code-diff-insert) 18%, transparent)",
+    ".cm-changedText, .cm-insertedText": {
+      textDecoration: "none",
+      backgroundColor: "color-mix(in srgb, var(--code-diff-insert) 22%, transparent)",
+      borderRadius: "2px",
     },
     ".cm-deletedChunk, .cm-deletedLine": {
+      textDecoration: "none",
       backgroundColor: "color-mix(in srgb, var(--code-diff-remove) 10%, transparent)",
+      boxShadow:
+        "inset 3px 0 0 color-mix(in srgb, var(--code-diff-remove) 65%, transparent)",
     },
     ".cm-deletedText": {
-      backgroundColor: "color-mix(in srgb, var(--code-diff-remove) 16%, transparent)",
+      backgroundColor: "color-mix(in srgb, var(--code-diff-remove) 18%, transparent)",
       textDecoration: "line-through",
+      textDecorationColor: "color-mix(in srgb, var(--code-diff-remove) 85%, transparent)",
     },
     ".cm-deletedLineGutter": {
       color: "var(--code-diff-remove)",
@@ -161,7 +170,10 @@ export function workspaceCodeMirrorTheme(): Extension {
       backgroundColor: "color-mix(in srgb, var(--foreground) 6%, transparent)",
     },
     ".cm-mergeA .cm-changedLine, .cm-mergeB .cm-changedLine": {
-      backgroundColor: "color-mix(in srgb, var(--code-diff-insert) 12%, transparent)",
+      textDecoration: "none",
+      backgroundColor: "color-mix(in srgb, var(--code-diff-insert) 10%, transparent)",
+      boxShadow:
+        "inset 3px 0 0 color-mix(in srgb, var(--code-diff-insert) 70%, transparent)",
     },
   });
 }

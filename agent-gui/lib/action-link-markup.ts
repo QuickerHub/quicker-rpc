@@ -19,6 +19,13 @@ export type AssistantMessageSegment =
   | { type: "text"; text: string }
   | { type: "link"; link: ParsedActionLink };
 
+export type AssistantRenderUnit =
+  | { kind: "markdown"; text: string }
+  | { kind: "link-bar"; links: ParsedActionLink[] };
+
+/** Whitespace / punctuation between adjacent qka-link tags (not rendered). */
+const LINK_SEPARATOR_RE = /^[\s·•|,，、\-–—]*$/;
+
 const QKA_LINK_RE = /<qka-link\s+([^>]*?)(?:\/>|>([\s\S]*?)<\/qka-link>)/gi;
 
 const GUID_RE =
@@ -121,6 +128,54 @@ export function parseAssistantMessageSegments(
   return coalesceTextSegments(segments);
 }
 
+export function isLinkSeparatorText(text: string): boolean {
+  return LINK_SEPARATOR_RE.test(text);
+}
+
+/** Group parsed segments into markdown blocks and one horizontal link bar per run. */
+export function groupAssistantRenderUnits(
+  segments: AssistantMessageSegment[],
+): AssistantRenderUnit[] {
+  const units: AssistantRenderUnit[] = [];
+  let i = 0;
+
+  while (i < segments.length) {
+    const seg = segments[i]!;
+    if (seg.type === "link") {
+      const links: ParsedActionLink[] = [];
+      while (i < segments.length) {
+        const cur = segments[i]!;
+        if (cur.type === "link") {
+          links.push(cur.link);
+          i++;
+          continue;
+        }
+        if (cur.type === "text" && isLinkSeparatorText(cur.text)) {
+          i++;
+          continue;
+        }
+        break;
+      }
+      if (links.length > 0) {
+        units.push({ kind: "link-bar", links });
+      }
+      continue;
+    }
+
+    let text = seg.text;
+    i++;
+    while (i < segments.length && segments[i]!.type === "text") {
+      text += segments[i]!.text;
+      i++;
+    }
+    if (text.trim()) {
+      units.push({ kind: "markdown", text });
+    }
+  }
+
+  return units;
+}
+
 function coalesceTextSegments(
   segments: AssistantMessageSegment[],
 ): AssistantMessageSegment[] {
@@ -156,8 +211,32 @@ export function formatActionLinkMarkup(
   return `<qka-link id="${id}" op="${op}">${text}</qka-link>`;
 }
 
+/** Move all link bars to the end (UI fallback when the model misplaces tags). */
+export function finalizeAssistantRenderUnits(
+  units: AssistantRenderUnit[],
+): AssistantRenderUnit[] {
+  const leading: AssistantRenderUnit[] = [];
+  const links: ParsedActionLink[] = [];
+
+  for (const unit of units) {
+    if (unit.kind === "link-bar") {
+      links.push(...unit.links);
+    } else {
+      leading.push(unit);
+    }
+  }
+
+  if (links.length === 0) {
+    return leading;
+  }
+  return [...leading, { kind: "link-bar", links }];
+}
+
 /** Prompt snippet for system instructions (assistant completion summaries). */
-export const ACTION_LINK_SUMMARY_PROMPT = `After successfully creating or patching an action (workspace_program_patch / qkrpc_action_patch with target=action), end your reply with a one-line summary and inline action links — do not paste action tables or repeat full tool JSON.
-Use <qka-link id="{actionGuid}" op="{op}">label</qka-link> (paired tags). ops: run | edit | float | workspace. Example:
-已完成修改。<qka-link id="…" op="run">运行</qka-link> · <qka-link id="…" op="edit">Quicker 编辑</qka-link> · <qka-link id="…" op="float">悬浮</qka-link> · <qka-link id="…" op="workspace">工作区</qka-link>
-Use the real action GUID from the patch/create response. Self-closing with label="…" is also accepted.`;
+export const ACTION_LINK_SUMMARY_PROMPT = `After successfully creating or patching an action (workspace_program_patch / qkrpc_action_patch with target=action), close with a brief text summary then action links — do not paste action tables or repeat full tool JSON.
+Placement (required): put every <qka-link> at the **very end** of the message — after all explanation, bullets, and next steps. The UI renders them as one horizontal button bar below your text. Never interleave qka-link inside lists or mid-paragraph.
+Format: <qka-link id="{actionGuid}" op="{op}">label</qka-link>. ops: run | edit | float | workspace. Use the real GUID from patch/create. Self-closing with label="…" is OK. Separate tags with · or newlines on the last line only.
+Example (links only on the last line):
+已完成修改，editVersion 已更新。
+
+<qka-link id="…" op="run">运行</qka-link> · <qka-link id="…" op="edit">Quicker 编辑</qka-link> · <qka-link id="…" op="float">悬浮</qka-link> · <qka-link id="…" op="workspace">工作区</qka-link>`;

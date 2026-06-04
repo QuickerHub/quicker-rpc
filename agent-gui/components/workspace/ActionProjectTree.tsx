@@ -20,6 +20,8 @@ import {
 
   isEmbeddedSubProgramRootNode,
 
+  isGlobalSubProgramRootNode,
+
   isExplorerTreePathExpanded,
 
   normalizeExplorerTreePath,
@@ -100,7 +102,7 @@ function TreeNodeRow({
 
   const isProjectRoot = isActionProjectRootNode(node, rootPath);
 
-  const isSubProgramRoot = isEmbeddedSubProgramRootNode(node);
+  const isSubProgramRoot = isEmbeddedSubProgramRootNode(node) || isGlobalSubProgramRootNode(node);
 
   const isProgramRoot = isProjectRoot || isSubProgramRoot;
 
@@ -323,7 +325,9 @@ function ActionProjectTreeProjectRow(props: ProjectTreeNodeRowProps) {
   const importing = useActionProjectImporting(
     isActionProjectRootNode(props.node, props.rootPath)
       ? props.node.actionId
-      : undefined,
+      : isGlobalSubProgramRootNode(props.node)
+        ? props.node.subProgramId ?? props.node.name
+        : undefined,
   );
   return <MemoTreeNodeRow {...props} importing={importing} />;
 }

@@ -10,6 +10,7 @@ import {
   parseHttpOrHttpsIconUrl,
   parseQuickerAssetIcon
 } from "./parseQuickerAssetIcon";
+import { resolveResIconToIconifyId } from "./resIconCatalog";
 import { parseIconifyIconId } from "./parseIconifySpec";
 
 export type IconControlProps = {
@@ -175,6 +176,18 @@ export const IconControl = memo(function IconControl({
 
   // Do not parse res: / asset paths as fa: (colon breaks fa body into "res" + garbage).
   if (asset && imgBroken) {
+    const iconifyId = resolveResIconToIconifyId(asset.path);
+    if (iconifyId) {
+      return (
+        <IconifyIconSlot
+          iconId={iconifyId}
+          size={size}
+          className={className}
+          title={title}
+          fallback={fallback}
+        />
+      );
+    }
     if (fallback === null || fallback === undefined) {
       return <IconEmptyPlaceholder size={size} className={className} title={title} />;
     }

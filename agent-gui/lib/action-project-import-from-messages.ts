@@ -12,6 +12,7 @@ import {
 } from "@/lib/action-project-import-state";
 const IMPORT_TOOLS = new Set([
   "qkrpc_action_get",
+  "qkrpc_subprogram_get",
   "workspace_action_read_data",
   "workspace_action_write_data",
   "workspace_action_edit_data",
@@ -46,7 +47,10 @@ function collectRunningImports(messages: UIMessage[]): ActionProjectImportEntry[
       seen.add(key);
       entries.push({
         actionId,
-        source: toolName === "qkrpc_action_get" ? "tool" : "resolve",
+        source:
+          toolName === "qkrpc_action_get" || toolName === "qkrpc_subprogram_get"
+            ? "tool"
+            : "resolve",
       });
     }
   }

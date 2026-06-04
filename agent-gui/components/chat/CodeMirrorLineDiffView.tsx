@@ -1,0 +1,102 @@
+"use client";
+
+import { useMemo } from "react";
+import CodeMirror from "@uiw/react-codemirror";
+import { createDiffLineKindsExtension } from "@/lib/codemirror-diff-extensions";
+import {
+  buildInterleavedDiffDisplay,
+  FILE_DIFF_CONTEXT_LINES,
+  FILE_DIFF_MIN_EQUAL_COLLAPSE,
+  firstChangedDisplayLineNumber,
+} from "@/lib/file-line-diff";
+import {
+  buildPreviewCodeMirrorExtensions,
+  workspaceCodeMirrorUiTheme,
+} from "@/lib/codemirror-setup";
+
+type CodeMirrorLineDiffViewProps = {
+  path: string;
+  removed: string;
+  added: string;
+  /** Override language; defaults to guess from path (e.g. json for data.json). */
+  language?: string;
+  /** When true, fold long unchanged runs (chat preview). */
+  collapse?: boolean;
+  /** Scroll to first insert/delete line after mount (compact preview). */
+  scrollToFirstChange?: boolean;
+  className?: string;
+  maxHeight?: string;
+  minHeight?: string;
+  lineNumbers?: boolean;
+  fillAvailable?: boolean;
+};
+
+export function CodeMirrorLineDiffView({
+  path,
+  removed,
+  added,
+  language,
+  collapse = true,
+  scrollToFirstChange = false,
+  className,
+  maxHeight,
+  minHeight,
+  lineNumbers = false,
+  fillAvailable = false,
+}: CodeMirrorLineDiffViewProps) {
+  const display = useMemo(
+    () =>
+      buildInterleavedDiffDisplay(removed, added, {
+        contextLines: FILE_DIFF_CONTEXT_LINES,
+        minEqualCollapse: collapse ? FILE_DIFF_MIN_EQUAL_COLLAPSE : 999_999,
+      }),
+    [removed, added, collapse],
+  );
+
+  const extensions = useMemo(
+    () => [
+      ...buildPreviewCodeMirrorExtensions(path, { language, lineNumbers }),
+      createDiffLineKindsExtension(display.lineKinds, { scrollToFirstChange }),
+    ],
+    [path, language, lineNumbers, display.lineKinds, scrollToFirstChange],
+  );
+
+  const editorHeight = fillAvailable ? "100%" : "auto";
+
+  return (
+    <div
+      className={[
+        "file-editor-cm",
+        "file-editor-cm--diff",
+        "file-editor-cm--line-diff",
+        fillAvailable ? "file-editor-cm--fill" : "",
+        className ?? "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      style={{
+        maxHeight: fillAvailable ? undefined : maxHeight,
+        minHeight: fillAvailable ? undefined : minHeight,
+      }}
+      role="region"
+      aria-label="文件差异"
+    >
+      <CodeMirror
+        key={
+          scrollToFirstChange
+            ? `compact-${firstChangedDisplayLineNumber(display.lineKinds)}-${display.displayLineCount}`
+            : "full"
+        }
+        value={display.text}
+        extensions={extensions}
+        theme={workspaceCodeMirrorUiTheme}
+        editable={false}
+        readOnly
+        basicSetup={false}
+        height={editorHeight}
+        maxHeight={fillAvailable ? undefined : maxHeight}
+        minHeight={fillAvailable ? undefined : minHeight}
+      />
+    </div>
+  );
+}

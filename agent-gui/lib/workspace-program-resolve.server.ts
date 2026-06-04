@@ -4,6 +4,7 @@ import { syncActionToWorkspace } from "@/lib/action-project-workflow";
 import { getRequestActionScope } from "@/lib/qkrpc-request-context";
 import { syncSubprogramToWorkspace } from "@/lib/subprogram-project-workflow";
 import { resolveWorkspacePath } from "@/lib/workspace-fs";
+import { writeEmptyProgramDataJsonIfMissing } from "@/lib/workspace-project-disk";
 import {
   formatWorkspaceProgramLabel,
   parseWorkspaceProgramTarget,
@@ -56,6 +57,15 @@ async function ensureProgramProjectOnDisk(
   const resolved = resolveWorkspacePath(dataPath);
   if (resolved.ok && existsSync(resolved.absolute)) {
     return { ok: true, autoSynced: false };
+  }
+
+  const infoResolved = resolveWorkspacePath(`${projectDir}/info.json`);
+  if (infoResolved.ok && existsSync(infoResolved.absolute)) {
+    const empty = await writeEmptyProgramDataJsonIfMissing(projectDir);
+    const dataAfter = resolveWorkspacePath(dataPath);
+    if (empty.ok && dataAfter.ok && existsSync(dataAfter.absolute)) {
+      return { ok: true, autoSynced: false };
+    }
   }
 
   switch (target.kind) {

@@ -5,6 +5,10 @@ import {
   readWorkspaceFileForApi,
   writeWorkspaceFileForApi,
 } from "@/lib/action-explorer-server";
+import {
+  buildSubProgramExplorerTree,
+  deleteSubProgramProjectFromWorkspace,
+} from "@/lib/subprogram-explorer-server";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +29,24 @@ export async function GET(req: Request) {
       if (op === "tree") {
         const depth =
           url.searchParams.get("depth")?.trim() === "roots" ? "roots" : "full";
-        const result = await buildActionExplorerTree({ depth });
-        if (!result.ok) {
-          return Response.json({ ok: false, error: result.error }, { status: 400 });
+        const [actionResult, subprogramResult] = await Promise.all([
+          buildActionExplorerTree({ depth }),
+          buildSubProgramExplorerTree({ depth }),
+        ]);
+        if (!actionResult.ok) {
+          return Response.json({ ok: false, error: actionResult.error }, { status: 400 });
         }
-        return Response.json({ ok: true, tree: result.tree });
+        if (!subprogramResult.ok) {
+          return Response.json(
+            { ok: false, error: subprogramResult.error },
+            { status: 400 },
+          );
+        }
+        return Response.json({
+          ok: true,
+          tree: actionResult.tree,
+          subprogramTree: subprogramResult.tree,
+        });
       }
 
       if (op === "read") {
@@ -99,7 +116,10 @@ export async function POST(req: Request) {
             { status: 400 },
           );
         }
-        const result = await deleteActionProjectFromWorkspace(projectPath);
+        const normalized = projectPath.replace(/\\/g, "/");
+        const result = normalized.startsWith(".quicker/subprograms/")
+          ? await deleteSubProgramProjectFromWorkspace(projectPath)
+          : await deleteActionProjectFromWorkspace(projectPath);
         if (!result.ok) {
           return Response.json({ ok: false, error: result.error }, { status: 400 });
         }

@@ -20,9 +20,12 @@ import { resolveWorkspacePath, resolveWorkspaceRoot } from "@/lib/workspace-fs";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { buildWorkspaceProjectSummary } from "@/lib/action-project-display";
 import {
+  actionProjectInfoFromCreateResponse,
   actionProjectInfoFromMetadataGet,
   formatActionProjectInfoProto,
+  type ActionProjectCreateHints,
 } from "@/lib/action-project-info";
+import { bootstrapWorkspaceProjectOnCreate } from "@/lib/workspace-project-disk";
 
 export type {
   WorkspaceProjectSummary,
@@ -71,6 +74,7 @@ export type WorkspaceSyncResult =
       reason:
         | "no_cwd"
         | "invalid_id"
+        | "invalid_create"
         | "get_failed"
         | "extract_failed"
         | "manifest_failed"
@@ -498,79 +502,40 @@ export async function syncActionToWorkspace(
   };
 }
 
-/** After create: info.json only (metadata from internal action get; no data.json extract). */
+/** After create: mkdir + info.json from create response (no extra get/extract). */
 export async function bootstrapActionProjectForCreate(
-  actionId: string,
+  createPayload: Record<string, unknown>,
+  hints?: ActionProjectCreateHints,
 ): Promise<WorkspaceSyncResult> {
-  const cwd = getWorkingDirectory();
-  if (!cwd) {
+  const actionId = String(
+    createPayload.actionId ?? createPayload.ActionId ?? "",
+  ).trim();
+  if (!actionId) {
     return {
       ok: false,
-      reason: "no_cwd",
-      error:
-        "Working directory not set — set a workspace folder in the sidebar before creating actions on disk.",
+      reason: "invalid_create",
+      error: "action create response missing actionId.",
     };
   }
-
-  const id = actionId.trim();
-  if (!isUuid(id)) {
+  if (!isUuid(actionId)) {
     return { ok: false, reason: "invalid_id", error: "actionId must be a GUID." };
   }
 
-  const getResult = await runQkrpcForTool([
-    "action",
-    "get",
-    "--id",
-    id,
-    "--return-mode",
-    "metadata",
-  ]);
-  if (!getResult.ok) {
+  const projectDir = actionProjectDirFromName(actionId);
+  const info = actionProjectInfoFromCreateResponse(createPayload, hints);
+  const written = await bootstrapWorkspaceProjectOnCreate(
+    projectDir,
+    formatActionProjectInfoProto(info),
+  );
+  if (!written.ok) {
     return {
       ok: false,
-      reason: "get_failed",
-      error: getResult.stderr || "action get (metadata) failed after create",
+      reason: written.reason,
+      error: written.error,
     };
   }
 
-  const getPayload = parseQkrpcPayload(getResult);
-  if (!getPayload) {
-    return {
-      ok: false,
-      reason: "get_failed",
-      error: "action get (metadata) returned no JSON payload",
-    };
-  }
-
-  if (getPayload.success === false) {
-    const message =
-      typeof getPayload.error === "string"
-        ? getPayload.error
-        : typeof getPayload.errorMessage === "string"
-          ? getPayload.errorMessage
-          : "action get (metadata) failed";
-    return { ok: false, reason: "get_failed", error: message };
-  }
-
-  const projectDir = actionProjectDirFromName(id);
-  const resolvedDir = resolveWorkspacePath(projectDir);
-  if (!resolvedDir.ok) {
-    return { ok: false, reason: "manifest_failed", error: resolvedDir.error };
-  }
-
-  await mkdir(resolvedDir.absolute, { recursive: true });
-
-  const infoPath = join(projectDir, "info.json");
-  const resolvedInfo = resolveWorkspacePath(infoPath);
-  if (!resolvedInfo.ok) {
-    return { ok: false, reason: "manifest_failed", error: resolvedInfo.error };
-  }
-
-  const info = actionProjectInfoFromMetadataGet(id, getPayload);
-
-  await writeFile(resolvedInfo.absolute, formatActionProjectInfoProto(info), "utf8");
-
-  const manifest = await readActionProjectManifest(id, projectDir);
+  const manifest = await readActionProjectManifest(actionId, projectDir);
   if ("error" in manifest) {
     return { ok: false, reason: "manifest_failed", error: manifest.error };
   }

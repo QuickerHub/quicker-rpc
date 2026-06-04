@@ -258,7 +258,7 @@ export const quickerTools = {
 
   qkrpc_action_create: tool({
     description:
-      "Create a new action on the qkrpc virtual action page. Bootstraps .quicker/actions/{actionId}/info.json only (no data.json). Do not call qkrpc_action_get afterward — use returned actionId/editVersion and workspace_action_*_data, then qkrpc_action_patch.",
+      "Create a new action on the qkrpc virtual action page. Bootstraps .quicker/actions/{actionId}/info.json + empty data.json from the create response. Do not call qkrpc_action_get afterward — use returned actionId/editVersion and workspace_action_*_data or the main editor, then workspace_program_patch.",
     inputSchema: z.object({
       title: z.string().optional(),
       description: z.string().optional(),
@@ -288,7 +288,11 @@ export const quickerTools = {
       if (!actionId) {
         return formatQkrpcResultForAgent(createResult);
       }
-      const sync = await bootstrapActionProjectForCreate(actionId);
+      const sync = await bootstrapActionProjectForCreate(payload ?? {}, {
+        title,
+        description,
+        icon,
+      });
       const editVersion =
         sync.ok && sync.manifest.editVersion != null
           ? sync.manifest.editVersion
@@ -312,8 +316,8 @@ export const quickerTools = {
             workspaceNote:
               sync.reason === "no_cwd"
                 ? "Quicker 中已创建动作，但未落盘：请先在侧栏设置工作目录，再重试 create 或手动 extract。"
-                : sync.reason === "get_failed"
-                  ? "Quicker 中已创建动作，但 metadata get 失败，info.json 未写入。"
+                : sync.reason === "invalid_create"
+                  ? "Quicker 中已创建动作，但 create 响应缺少 actionId，info.json 未写入。"
                   : "Quicker 中已创建动作，但 info.json 未写入工作区。",
           },
           true,
@@ -324,7 +328,7 @@ export const quickerTools = {
         workspaceSynced: true,
         workspaceProject: buildWorkspaceProjectSummary(sync.manifest),
         workspaceNote:
-          "已用内部 metadata get 写入 info.json（无 data.json）。下一步 workspace_action_write_data / edit_data，再 qkrpc_action_patch；勿再对 Agent 调用 qkrpc_action_get。",
+          "已用 create 返回值写入 info.json 与空 data.json。下一步在编辑器或 workspace_action_edit_data 添加步骤，再 workspace_program_patch；勿再对 Agent 调用 qkrpc_action_get。",
       });
     },
   }),
@@ -791,7 +795,8 @@ export const quickerTools = {
   }),
 
   qkrpc_subprogram_create: tool({
-    description: "Create a new global subprogram.",
+    description:
+      "Create a new global subprogram. Bootstraps .quicker/subprograms/{subProgramId}/ via internal metadata get (info.json with title) + empty data.json. Use returned subProgramId/editVersion/callIdentifier and workspace_action_*_data (target=global_subprogram) or the main editor, then workspace_program_patch.",
     inputSchema: z.object({
       name: z.string(),
       description: z.string().optional(),
@@ -804,7 +809,82 @@ export const quickerTools = {
       const args = ["subprogram", "create", "--name", name];
       if (description) args.push("--description", description);
       if (icon) args.push("--icon", icon);
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+      const createResult = await runQkrpcForTool(args);
+      if (!createResult.ok) {
+        return formatQkrpcResultForAgent(createResult);
+      }
+      const payload = parseQkrpcPayload(createResult);
+      const subProgramId =
+        typeof payload?.subProgramId === "string"
+          ? payload.subProgramId
+          : undefined;
+      if (!subProgramId) {
+        return formatQkrpcResultForAgent(createResult);
+      }
+      const { bootstrapSubprogramProjectForCreate } = await import(
+        "@/lib/subprogram-project-workflow"
+      );
+      const sync = await bootstrapSubprogramProjectForCreate(payload ?? {}, {
+        description,
+        icon,
+      });
+      const editVersion =
+        sync.ok && sync.manifest.editVersion != null
+          ? sync.manifest.editVersion
+          : typeof payload?.editVersion === "number"
+            ? payload.editVersion
+            : undefined;
+      const callIdentifier =
+        sync.ok && sync.manifest.callIdentifier
+          ? sync.manifest.callIdentifier
+          : typeof payload?.callIdentifier === "string"
+            ? payload.callIdentifier
+            : undefined;
+      const base = {
+        ...((payload ?? {}) as Record<string, unknown>),
+        action: "subprogram-create",
+        ok: true,
+        subProgramId,
+        name:
+          sync.ok && sync.manifest.name
+            ? sync.manifest.name
+            : typeof payload?.name === "string"
+              ? payload.name
+              : name,
+        callIdentifier,
+        editVersion,
+      };
+      if (!sync.ok) {
+        return formatLocalToolResult(
+          {
+            ...base,
+            workspaceSynced: false,
+            workspaceSyncError: sync.error,
+            workspaceSyncReason: sync.reason,
+            workspaceNote:
+              sync.reason === "no_cwd"
+                ? "Quicker 中已创建子程序，但未落盘：请先在侧栏设置工作目录，再重试 create 或手动 export。"
+                : sync.reason === "invalid_create"
+                  ? "Quicker 中已创建子程序，但 create 响应缺少 subProgramId，info.json 未写入。"
+                  : sync.reason === "get_failed"
+                    ? "Quicker 中已创建子程序，但 metadata get 失败，info.json 未写入完整标题。"
+                    : "Quicker 中已创建子程序，但 info.json 未写入工作区。",
+          },
+          true,
+        );
+      }
+      return formatLocalToolResult({
+        ...base,
+        workspaceSynced: true,
+        workspaceProject: buildWorkspaceProjectSummary({
+          projectDirectory: sync.manifest.projectDirectory,
+          title: sync.manifest.name,
+          editVersion: sync.manifest.editVersion,
+          fileRefs: [],
+        }),
+        workspaceNote:
+          "已用 metadata get 写入 info.json（含标题）与空 data.json。下一步在编辑器或 workspace_action_edit_data（target=global_subprogram）添加步骤，再 workspace_program_patch。",
+      });
     },
   }),
 
@@ -950,7 +1030,8 @@ export const quickerTools = {
   }),
 
   qkrpc_subprogram_get: tool({
-    description: "Read compressed subprogram by id or name.",
+    description:
+      "Read compressed subprogram by id or name. Syncs via subprogram export to .quicker/subprograms/{id|name}/ when the subprogram has steps or variables. Edit disk via workspace_action_*_data with target=global_subprogram.",
     inputSchema: z.object({
       id: z.string().describe("Subprogram id or name"),
       returnMode: returnModeSchema.optional(),
@@ -958,7 +1039,14 @@ export const quickerTools = {
     execute: async ({ id, returnMode }) => {
       const args = ["subprogram", "get", "--id", id];
       if (returnMode) args.push("--return-mode", returnMode);
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+      const getResult = await runQkrpcForTool(args);
+      if (!getResult.ok) {
+        return formatQkrpcResultForAgent(getResult);
+      }
+      const { augmentSubprogramGetWithWorkspace, syncSubprogramGetToWorkspace } =
+        await import("@/lib/subprogram-project-workflow");
+      const sync = await syncSubprogramGetToWorkspace(id, getResult);
+      return augmentSubprogramGetWithWorkspace(getResult, sync);
     },
   }),
 

@@ -111,12 +111,36 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+const PROGRAM_DATA_READ_ACTIONS = new Set([
+  "program-data-read",
+  "action-data-read",
+]);
+
+const PROGRAM_DATA_SUMMARY_ACTIONS = new Set([
+  "program-data-summary",
+  "action-data-summary",
+]);
+
+function isProgramDataReadAction(action: unknown): boolean {
+  return typeof action === "string" && PROGRAM_DATA_READ_ACTIONS.has(action);
+}
+
+function isProgramDataSummaryAction(action: unknown): boolean {
+  return typeof action === "string" && PROGRAM_DATA_SUMMARY_ACTIONS.has(action);
+}
+
+function readInputReadDataMode(input: unknown): "content" | "summary" | undefined {
+  if (typeof input !== "object" || input === null) return undefined;
+  const mode = (input as Record<string, unknown>).mode;
+  return mode === "content" || mode === "summary" ? mode : undefined;
+}
+
 export function parseWorkspaceFileReadPayload(
   data: unknown,
 ): WorkspaceFileReadPayload | null {
   if (!isRecord(data)) return null;
   if (
-    (data.action === "file-read" || data.action === "action-data-read")
+    (data.action === "file-read" || isProgramDataReadAction(data.action))
     && typeof data.path === "string"
     && typeof data.content === "string"
   ) {
@@ -251,7 +275,10 @@ export function parseWorkspaceFilePayload(
   const actionDataRead = parseWorkspaceFileReadPayload(data);
   if (actionDataRead) return actionDataRead;
 
-  if (data.action === "action-data-write" && typeof data.path === "string") {
+  if (
+    (data.action === "action-data-write" || data.action === "program-data-write")
+    && typeof data.path === "string"
+  ) {
     const bytesWritten =
       typeof data.bytesWritten === "number"
         ? data.bytesWritten
@@ -266,7 +293,7 @@ export function parseWorkspaceFilePayload(
     };
   }
   if (
-    data.action === "action-data-edit"
+    (data.action === "action-data-edit" || data.action === "program-data-edit")
     && typeof data.path === "string"
     && typeof data.replacements === "number"
   ) {
@@ -322,7 +349,7 @@ export function summarizeWorkspaceFileTool(
     return err ? `${prefix} · ${err.slice(0, 72)}` : `${prefix} · 失败`;
   }
 
-  if (isRecord(output.data) && output.data.action === "action-data-summary") {
+  if (isRecord(output.data) && isProgramDataSummaryAction(output.data.action)) {
     const steps = typeof output.data.stepCount === "number" ? output.data.stepCount : "?";
     const vars =
       typeof output.data.variableCount === "number" ? output.data.variableCount : "?";
@@ -694,11 +721,10 @@ export function getWorkspaceFileEditorPreview(
       };
     }
     case "workspace_action_read_data": {
-      if (
-        isRecord(data)
-        && data.action === "action-data-summary"
-        && data.success === true
-      ) {
+      if (isRecord(data) && isProgramDataSummaryAction(data.action)) {
+        return null;
+      }
+      if (!data && readInputReadDataMode(input) === "summary") {
         return null;
       }
       const payload = parseWorkspaceFilePayload(toolName, data);
@@ -711,9 +737,11 @@ export function getWorkspaceFileEditorPreview(
         };
       }
       const id = readInputActionId(input);
-      return id
-        ? { path: formatActionDataJsonPath(id), content: "" }
-        : null;
+      if (!id) return null;
+      if (!data) {
+        return { path: formatActionDataJsonPath(id), content: "" };
+      }
+      return null;
     }
     case "workspace_action_write_data": {
       const content = readInputString(input, "content");

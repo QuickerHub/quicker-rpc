@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import {
   getWorkspaceFileEditorPreview,
   isWorkspaceExplorerFileTool,
@@ -12,11 +12,11 @@ import {
   type WorkspaceFilePayload,
 } from "@/lib/workspace-file-tool";
 import { useWorkspaceExplorerActions } from "@/lib/workspace-explorer";
+import { FileEditorCard } from "./FileEditorCard";
 import {
-  buildReadStat,
-  buildWriteStat,
-  FileEditorCard,
-} from "./FileEditorCard";
+  FileEditorPreviewPopup,
+  fileEditorStatFromPreview,
+} from "./FileEditorPreviewPopup";
 import {
   formatToolDisplayName,
   ToolPayloadView,
@@ -77,7 +77,7 @@ function FileEditorPreviewBody({
   output,
   running = false,
   layout = "chip",
-  onOpenInExplorer,
+  onOpenPreview,
 }: {
   toolName: string;
   summaryMeta: string;
@@ -88,7 +88,7 @@ function FileEditorPreviewBody({
   running?: boolean;
   /** chip: compact file header; details-body: code block only inside tool details */
   layout?: "chip" | "details-body";
-  onOpenInExplorer?: () => void;
+  onOpenPreview?: () => void;
 }) {
   const preview = getWorkspaceFileEditorPreview(
     toolName,
@@ -101,25 +101,10 @@ function FileEditorPreviewBody({
   const embedded = layout === "details-body";
   const showCodeBlock = shouldShowFileEditorCodeBlockInChat(toolName);
 
-  const stat = !embedded && showCodeBlock
-    ? (() => {
-    switch (toolName) {
-      case "workspace_action_file_read":
-      case "workspace_action_read_data":
-        return buildReadStat(preview.content, input);
-      case "workspace_action_file_write":
-      case "workspace_action_write_data":
-        if (preview.diff) return undefined;
-        return buildWriteStat(preview.content);
-      case "workspace_action_file_edit":
-      case "workspace_action_edit_data":
-        if (preview.diff) return undefined;
-        return undefined;
-      default:
-        return undefined;
-    }
-  })()
-    : undefined;
+  const stat =
+    !embedded && showCodeBlock
+      ? fileEditorStatFromPreview(toolName, preview, input)
+      : undefined;
 
   return (
     <>
@@ -136,7 +121,7 @@ function FileEditorPreviewBody({
         summaryMeta={embedded || isWorkspaceFileReadTool(toolName) ? "" : summaryMeta}
         headerRunning={headerRunning}
         headerError={headerError}
-        onOpenInExplorer={embedded ? undefined : onOpenInExplorer}
+        onOpenPreview={embedded ? undefined : onOpenPreview}
       />
       {showCodeBlock && preview.truncated ? (
         <p className="file-editor-footnote file-editor-footnote--warn">
@@ -156,14 +141,20 @@ function FileEditorPreviewBody({
 }
 
 function FileEditorPreviewWithExplorer(
-  props: Omit<Parameters<typeof FileEditorPreviewBody>[0], "onOpenInExplorer">,
+  props: Omit<Parameters<typeof FileEditorPreviewBody>[0], "onOpenPreview">,
 ) {
-  const preview = getWorkspaceFileEditorPreview(
-    props.toolName,
-    props.input,
-    props.output?.ok ? props.output.data : undefined,
+  const preview = useMemo(
+    () =>
+      getWorkspaceFileEditorPreview(
+        props.toolName,
+        props.input,
+        props.output?.ok ? props.output.data : undefined,
+      ),
+    [props.toolName, props.input, props.output],
   );
+  const previewPopup = useToolResultPopup();
   const { openFileFromTool, revealPath, setPanelOpen } = useWorkspaceExplorerActions();
+
   const handleOpenInExplorer = useCallback(() => {
     if (!preview?.path) return;
     if (props.output?.ok && isWorkspaceExplorerFileTool(props.toolName)) {
@@ -182,11 +173,36 @@ function FileEditorPreviewWithExplorer(
     setPanelOpen,
   ]);
 
-  return <FileEditorPreviewBody {...props} onOpenInExplorer={handleOpenInExplorer} />;
+  const popupStat = preview
+    ? fileEditorStatFromPreview(props.toolName, preview, props.input)
+    : undefined;
+
+  return (
+    <>
+      <FileEditorPreviewBody
+        {...props}
+        onOpenPreview={preview ? previewPopup.openPopup : undefined}
+      />
+      {preview ? (
+        <FileEditorPreviewPopup
+          open={previewPopup.open}
+          onClose={previewPopup.closePopup}
+          path={preview.path}
+          content={preview.content}
+          diff={preview.diff}
+          stat={popupStat}
+          truncated={preview.truncated}
+          totalChars={preview.totalChars}
+          previousSnapshotTruncated={preview.previousSnapshotTruncated}
+          onOpenInExplorer={handleOpenInExplorer}
+        />
+      ) : null}
+    </>
+  );
 }
 
 function FileEditorPreview(
-  props: Omit<Parameters<typeof FileEditorPreviewBody>[0], "onOpenInExplorer">,
+  props: Omit<Parameters<typeof FileEditorPreviewBody>[0], "onOpenPreview">,
 ) {
   if (props.layout === "details-body") {
     return <FileEditorPreviewBody {...props} />;

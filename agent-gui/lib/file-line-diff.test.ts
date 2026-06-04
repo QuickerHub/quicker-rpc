@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   buildCollapsedDiffTexts,
+  buildInterleavedDiffDisplay,
   computeLineDiff,
   countLineDiffStats,
   countUnifiedDiffDisplayLines,
+  firstChangedDisplayLineNumber,
 } from "./file-line-diff";
 
 test("countLineDiffStats counts insert/delete not whole file lines", () => {
@@ -42,8 +44,61 @@ test("remove-only yields delete rows", () => {
   });
 });
 
-test("countUnifiedDiffDisplayLines uses collapsed display height", () => {
-  assert.equal(countUnifiedDiffDisplayLines("a\nb", "a\nB"), 2);
+test("countUnifiedDiffDisplayLines uses interleaved line count", () => {
+  assert.equal(countUnifiedDiffDisplayLines("a\nb", "a\nB"), 3);
+});
+
+test("buildInterleavedDiffDisplay lists deletes and inserts on separate lines", () => {
+  const display = buildInterleavedDiffDisplay(
+    '{\n  "variables": []\n}\n',
+    '{\n  "variables": [\n    { "key": "title" }\n  ]\n}\n',
+    { minEqualCollapse: 999 },
+  );
+  assert.ok(display.lineKinds.includes("delete"));
+  assert.ok(display.lineKinds.includes("insert"));
+  assert.ok(!display.text.includes('[]} "'));
+});
+
+test("buildInterleavedDiffDisplay uses block mode for heavy data.json rewrite", () => {
+  const old = `{
+  "steps": [],
+  "variables": []
+}
+`;
+  const neu = `{
+  "variables": [
+    { "key": "title", "type": 0, "defaultValue": "" },
+    { "key": "tags", "type": 0, "defaultValue": "" }
+  ],
+  "steps": [
+    { "stepRunnerKey": "sys:form", "inputParams": {} },
+    { "stepRunnerKey": "sys:notify", "inputParams": {} }
+  ]
+}
+`;
+  const display = buildInterleavedDiffDisplay(old, neu, { minEqualCollapse: 999 });
+  assert.ok(!display.text.includes("变更前"));
+  assert.ok(!display.text.includes("变更后"));
+  assert.ok(!display.text.includes('[]\n{'));
+  const firstDelete = display.lineKinds.indexOf("delete");
+  const firstInsert = display.lineKinds.indexOf("insert");
+  assert.ok(firstDelete >= 0 && firstInsert > firstDelete);
+});
+
+test("firstChangedDisplayLineNumber skips leading equal context", () => {
+  const oldLines = Array.from({ length: 20 }, (_, i) => `line ${i}`);
+  const newLines = [...oldLines];
+  newLines[10] = "LINE 10";
+  const display = buildInterleavedDiffDisplay(
+    `${oldLines.join("\n")}\n`,
+    `${newLines.join("\n")}\n`,
+    { minEqualCollapse: 3 },
+  );
+  const idx = display.lineKinds.findIndex(
+    (k) => k === "delete" || k === "insert",
+  );
+  assert.ok(idx >= 0);
+  assert.equal(firstChangedDisplayLineNumber(display.lineKinds), idx + 1);
 });
 
 test("buildCollapsedDiffTexts folds long unchanged runs", () => {

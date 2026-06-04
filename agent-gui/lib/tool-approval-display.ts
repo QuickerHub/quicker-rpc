@@ -53,10 +53,11 @@ function formatShortId(id: string): string {
 }
 
 function buildDeleteDockCopy(
-  entityLabel: string,
+  entity: "action" | "subprogram",
   items: PendingToolApproval[],
   workspaceHitCount = 0,
 ): ApprovalDockCopy {
+  const entityLabel = entity === "action" ? "动作" : "子程序";
   const count = items.length;
   const ids = items
     .map((item) => extractApprovalTargetId(item.input))
@@ -82,30 +83,39 @@ function buildDeleteDockCopy(
     summary,
     approveLabel: count > 1 ? `确认删除 ${count} 项` : "确认删除",
     denyLabel: count > 1 ? "全部取消" : "取消",
-    workspaceDelete: buildWorkspaceDeleteCopy(entityLabel, workspaceHitCount, count),
+    workspaceDelete: buildWorkspaceDeleteCopy(
+      entity,
+      workspaceHitCount,
+      count,
+    ),
   };
 }
 
 function buildWorkspaceDeleteCopy(
-  entityLabel: string,
+  entity: "action" | "subprogram",
   workspaceHitCount: number,
   pendingDeleteCount: number,
 ): ApprovalDockCopy["workspaceDelete"] {
-  if (workspaceHitCount <= 0 || entityLabel !== "动作") return undefined;
+  if (workspaceHitCount <= 0) return undefined;
+
+  const folder =
+    entity === "action" ? ".quicker/actions" : ".quicker/subprograms";
+  const entityNoun = entity === "action" ? "动作" : "子程序";
+  const libraryLabel =
+    entity === "action" ? "Quicker 动作库" : "Quicker 公共子程序库";
 
   const checkboxLabel =
     workspaceHitCount === 1
-      ? "同时删除工作区中的动作项目（.quicker/actions）"
-      : `同时删除工作区中的 ${workspaceHitCount} 个动作项目（.quicker/actions）`;
-  if (!checkboxLabel) return undefined;
+      ? `同时删除工作区中的${entityNoun}项目（${folder}）`
+      : `同时删除工作区中的 ${workspaceHitCount} 个${entityNoun}项目（${folder}）`;
 
   let detail: string | undefined;
   if (workspaceHitCount < pendingDeleteCount) {
-    detail = `已检测到 ${workspaceHitCount} / ${pendingDeleteCount} 个待删动作在工作区有本地项目；未勾选时仅删除 Quicker 动作库。`;
+    detail = `已检测到 ${workspaceHitCount} / ${pendingDeleteCount} 个待删${entityNoun}在工作区有本地项目；未勾选时仅删除 ${libraryLabel}。`;
   } else if (pendingDeleteCount > 1) {
-    detail = "勾选后将一并移除对应 .quicker/actions 目录；未勾选时仅删除 Quicker 动作库。";
+    detail = `勾选后将一并移除对应 ${folder} 目录；未勾选时仅删除 ${libraryLabel}。`;
   } else {
-    detail = "勾选后将一并移除 .quicker/actions 目录；未勾选时仅删除 Quicker 动作库。";
+    detail = `勾选后将一并移除 ${folder} 目录；未勾选时仅删除 ${libraryLabel}。`;
   }
 
   return {
@@ -117,9 +127,14 @@ function buildWorkspaceDeleteCopy(
 
 export function buildApprovalDockCopy(
   approvals: PendingToolApproval[],
-  options?: { workspaceActionProjectCount?: number },
+  options?: {
+    workspaceActionProjectCount?: number;
+    workspaceSubProgramProjectCount?: number;
+  },
 ): ApprovalDockCopy {
   const workspaceActionProjectCount = options?.workspaceActionProjectCount ?? 0;
+  const workspaceSubProgramProjectCount =
+    options?.workspaceSubProgramProjectCount ?? 0;
   const count = approvals.length;
   const destructive = approvals.some((approval) => approval.destructive);
   const actionDeletes = approvals.filter(
@@ -130,10 +145,18 @@ export function buildApprovalDockCopy(
   );
 
   if (actionDeletes.length === count) {
-    return buildDeleteDockCopy("动作", actionDeletes, workspaceActionProjectCount);
+    return buildDeleteDockCopy(
+      "action",
+      actionDeletes,
+      workspaceActionProjectCount,
+    );
   }
   if (subprogramDeletes.length === count) {
-    return buildDeleteDockCopy("子程序", subprogramDeletes);
+    return buildDeleteDockCopy(
+      "subprogram",
+      subprogramDeletes,
+      workspaceSubProgramProjectCount,
+    );
   }
 
   const labels = [...new Set(approvals.map((approval) => approval.label))];

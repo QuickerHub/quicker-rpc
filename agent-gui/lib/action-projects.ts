@@ -99,6 +99,9 @@ export function shouldRefreshExplorerAfterTool(
     toolName === "qkrpc_action_get"
     || toolName === "qkrpc_action_create"
     || toolName === "qkrpc_action_patch"
+    || toolName === "qkrpc_subprogram_get"
+    || toolName === "qkrpc_subprogram_create"
+    || toolName === "qkrpc_subprogram_patch"
     || toolName === "workspace_program_patch"
   ) {
     const data = output.data;

@@ -13,12 +13,15 @@ import { FileEditorCard } from "@/components/chat/FileEditorCard";
 import { ActionProjectMetaSummary } from "@/components/workspace/ActionProjectMetaSummary";
 import { ActionProjectSyncBar } from "@/components/workspace/ActionProjectSyncBar";
 import { ActionProjectToolbar } from "@/components/workspace/ActionProjectToolbar";
+import { ProgramProjectDeleteControl } from "@/components/workspace/ProgramProjectDeleteControl";
 import { actionProjectDirFromName } from "@/lib/action-project-path-shared";
 import {
   actionIdFromDataPath,
   actionProjectInfoPathFromDataPath,
   embeddedSubProgramProjectDirFromDataPath,
+  globalSubProgramProjectDirFromDataPath,
   isEmbeddedSubProgramDataPath,
+  isGlobalSubProgramDataPath,
 } from "@/lib/action-project-data-parse";
 import { resolveActionIdFromProject } from "@/lib/action-project-id";
 import {
@@ -37,6 +40,7 @@ import {
   parseProgramWireJson,
   serializeProgramWireJson,
 } from "@/lib/action-editor/wire/programWire";
+import type { ProgramProjectDeleteKind } from "@/lib/use-program-project-delete";
 import { ThemeProvider } from "@/lib/action-editor/shared/ThemeContext";
 import "@/components/action-editor/action-editor-theme.css";
 import "@/components/action-editor/action-editor.css";
@@ -134,6 +138,7 @@ export function ActionProjectDataEditor({
     return fingerprintProgramWire(normalizedPresent);
   }, [normalizedPresent]);
   const isEmbeddedSubProgram = useMemo(() => isEmbeddedSubProgramDataPath(path), [path]);
+  const isGlobalSubProgram = useMemo(() => isGlobalSubProgramDataPath(path), [path]);
   const parentActionId = useMemo(() => actionIdFromDataPath(path), [path]);
   const projectFolder = useMemo(() => {
     const normalized = path.replace(/\\/g, "/");
@@ -141,16 +146,19 @@ export function ActionProjectDataEditor({
     return basenamePath(parent);
   }, [path]);
   const actionId = useMemo(() => {
-    if (isEmbeddedSubProgram) return "";
+    if (isEmbeddedSubProgram || isGlobalSubProgram) return "";
     return resolveActionIdFromProject(projectFolder) ?? "";
-  }, [isEmbeddedSubProgram, projectFolder]);
+  }, [isEmbeddedSubProgram, isGlobalSubProgram, projectFolder]);
   const syncActionId = isEmbeddedSubProgram ? (parentActionId ?? "") : actionId;
   const projectDirectory = useMemo(() => {
     if (isEmbeddedSubProgram) {
       return embeddedSubProgramProjectDirFromDataPath(path);
     }
+    if (isGlobalSubProgram) {
+      return globalSubProgramProjectDirFromDataPath(path);
+    }
     return projectFolder ? actionProjectDirFromName(projectFolder) : undefined;
-  }, [isEmbeddedSubProgram, path, projectFolder]);
+  }, [isEmbeddedSubProgram, isGlobalSubProgram, path, projectFolder]);
   const syncProjectDirectory = useMemo(() => {
     if (isEmbeddedSubProgram && parentActionId) {
       return actionProjectDirFromName(parentActionId);
@@ -194,6 +202,46 @@ export function ActionProjectDataEditor({
   const metaTitle = displayTitleFromProjectInfo(projectInfo, projectFolder);
   const metaDescription = projectInfo?.description?.trim() ?? "";
   const metaIcon = projectInfo?.icon;
+
+  const deleteTarget = useMemo((): {
+    kind: ProgramProjectDeleteKind;
+    projectPath: string;
+    quickerId?: string;
+    displayTitle: string;
+  } | null => {
+    const projectPath = projectDirectory?.trim();
+    if (!projectPath) return null;
+
+    const title = metaTitle || projectFolder;
+
+    if (isGlobalSubProgram) {
+      const quickerId =
+        projectInfo?.id?.trim()
+        || projectInfo?.name?.trim()
+        || projectFolder.trim()
+        || undefined;
+      return { kind: "global_subprogram", projectPath, quickerId, displayTitle: title };
+    }
+
+    if (isEmbeddedSubProgram) {
+      return { kind: "embedded_subprogram", projectPath, displayTitle: title };
+    }
+
+    const quickerId =
+      actionId.trim()
+      || resolveActionIdFromProject(projectFolder)
+      || undefined;
+    return { kind: "action", projectPath, quickerId, displayTitle: title };
+  }, [
+    actionId,
+    isEmbeddedSubProgram,
+    isGlobalSubProgram,
+    metaTitle,
+    projectDirectory,
+    projectFolder,
+    projectInfo?.id,
+    projectInfo?.name,
+  ]);
 
   useEffect(() => {
     if (!parsed.ok || !normalizedPresent) return;
@@ -274,6 +322,15 @@ export function ActionProjectDataEditor({
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
               />
+              {deleteTarget ? (
+                <ProgramProjectDeleteControl
+                  kind={deleteTarget.kind}
+                  quickerId={deleteTarget.quickerId}
+                  projectPath={deleteTarget.projectPath}
+                  cwd={cwd}
+                  displayTitle={deleteTarget.displayTitle}
+                />
+              ) : null}
             </div>
           </div>
         ) : syncActionId ? (
@@ -285,6 +342,27 @@ export function ActionProjectDataEditor({
                 projectDirectory={syncProjectDirectory}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
+              />
+              {deleteTarget ? (
+                <ProgramProjectDeleteControl
+                  kind={deleteTarget.kind}
+                  quickerId={deleteTarget.quickerId}
+                  projectPath={deleteTarget.projectPath}
+                  cwd={cwd}
+                  displayTitle={deleteTarget.displayTitle}
+                />
+              ) : null}
+            </div>
+          </div>
+        ) : deleteTarget ? (
+          <div className="action-project-data-editor-actions">
+            <div className="action-project-data-editor-actions-row">
+              <ProgramProjectDeleteControl
+                kind={deleteTarget.kind}
+                quickerId={deleteTarget.quickerId}
+                projectPath={deleteTarget.projectPath}
+                cwd={cwd}
+                displayTitle={deleteTarget.displayTitle}
               />
             </div>
           </div>

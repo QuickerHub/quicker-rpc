@@ -1,8 +1,12 @@
 import type { ActionExplorerTree } from "./action-explorer-tree";
-import { resolveActionProjectId } from "./action-explorer-tree";
+import {
+  isGlobalSubProgramRootNode,
+  resolveActionProjectId,
+} from "./action-explorer-tree";
 
-export type WorkspaceActionProjectHit = {
-  actionId: string;
+export type WorkspaceDeleteProjectHit = {
+  kind: "action" | "subprogram";
+  id: string;
   projectPath: string;
   title?: string;
 };
@@ -11,44 +15,92 @@ export function normalizeActionId(id: string): string {
   return id.trim().toLowerCase();
 }
 
+function collectLookupKeys(raw: Iterable<string>): Set<string> {
+  const wanted = new Set<string>();
+  for (const value of raw) {
+    const normalized = normalizeActionId(value);
+    if (normalized) wanted.add(normalized);
+  }
+  return wanted;
+}
+
+function nodeMatchesLookupKeys(
+  nodeKeys: Iterable<string | undefined>,
+  wanted: Set<string>,
+): boolean {
+  for (const raw of nodeKeys) {
+    const normalized = normalizeActionId(raw ?? "");
+    if (normalized && wanted.has(normalized)) return true;
+  }
+  return false;
+}
+
 /** Match pending delete ids against top-level .quicker/actions project rows. */
 export function findWorkspaceProjectsInTree(
   tree: ActionExplorerTree | null | undefined,
   actionIds: Iterable<string>,
-): WorkspaceActionProjectHit[] {
+): WorkspaceDeleteProjectHit[] {
   if (!tree?.children?.length) return [];
 
-  const wanted = new Set<string>();
-  for (const raw of actionIds) {
-    const normalized = normalizeActionId(raw);
-    if (normalized) wanted.add(normalized);
-  }
+  const wanted = collectLookupKeys(actionIds);
   if (wanted.size === 0) return [];
 
-  const hits: WorkspaceActionProjectHit[] = [];
+  const hits: WorkspaceDeleteProjectHit[] = [];
   for (const node of tree.children) {
     const actionId = resolveActionProjectId(node);
     if (!actionId) continue;
     if (!wanted.has(normalizeActionId(actionId))) continue;
     hits.push({
-      actionId,
+      kind: "action",
+      id: actionId,
       projectPath: node.path.replace(/\\/g, "/"),
       title: node.title?.trim() || undefined,
     });
   }
 
   hits.sort((a, b) =>
-    (a.title ?? a.actionId).localeCompare(b.title ?? b.actionId, undefined, {
+    (a.title ?? a.id).localeCompare(b.title ?? b.id, undefined, {
       sensitivity: "base",
     }),
   );
   return hits;
 }
 
-export function workspaceDeleteCheckboxLabel(hitCount: number): string {
-  if (hitCount <= 0) return "";
-  if (hitCount === 1) {
-    return "同时删除工作区中的动作项目（.quicker/actions）";
+/** Match pending delete ids/names against top-level .quicker/subprograms project rows. */
+export function findWorkspaceSubProgramsInTree(
+  tree: ActionExplorerTree | null | undefined,
+  subProgramKeys: Iterable<string>,
+): WorkspaceDeleteProjectHit[] {
+  if (!tree?.children?.length) return [];
+
+  const wanted = collectLookupKeys(subProgramKeys);
+  if (wanted.size === 0) return [];
+
+  const hits: WorkspaceDeleteProjectHit[] = [];
+  for (const node of tree.children) {
+    if (!isGlobalSubProgramRootNode(node)) continue;
+    if (
+      !nodeMatchesLookupKeys(
+        [node.subProgramId, node.actionId, node.name, node.title],
+        wanted,
+      )
+    ) {
+      continue;
+    }
+    const id = (node.subProgramId ?? node.name).trim();
+    if (!id) continue;
+    hits.push({
+      kind: "subprogram",
+      id,
+      projectPath: node.path.replace(/\\/g, "/"),
+      title: node.title?.trim() || undefined,
+    });
   }
-  return `同时删除工作区中的 ${hitCount} 个动作项目（.quicker/actions）`;
+
+  hits.sort((a, b) =>
+    (a.title ?? a.id).localeCompare(b.title ?? b.id, undefined, {
+      sensitivity: "base",
+    }),
+  );
+  return hits;
 }

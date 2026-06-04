@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  finalizeAssistantRenderUnits,
+  groupAssistantRenderUnits,
   hasAssistantActionLinks,
   parseAssistantMessageSegments,
   parseActionLinkFromAttrs,
@@ -32,6 +34,48 @@ describe("action-link-markup", () => {
       assert.equal(segments[2].link.op, "edit");
       assert.equal(segments[2].link.label, "编辑");
     }
+  });
+
+  it("groups consecutive links into one link-bar", () => {
+    const text = [
+      "已完成修改。\n",
+      `<qka-link id="${GUID}" op="run">运行</qka-link>`,
+      "\n",
+      `<qka-link id="${GUID}" op="edit">Quicker 编辑</qka-link>`,
+      "\n",
+      `<qka-link id="${GUID}" op="float">悬浮</qka-link>`,
+      "\n",
+      `<qka-link id="${GUID}" op="workspace">工作区</qka-link>`,
+    ].join("");
+    const units = groupAssistantRenderUnits(parseAssistantMessageSegments(text));
+    assert.equal(units.length, 2);
+    assert.equal(units[0]?.kind, "markdown");
+    assert.equal(units[1]?.kind, "link-bar");
+    if (units[1]?.kind === "link-bar") {
+      assert.equal(units[1].links.length, 4);
+    }
+  });
+
+  it("finalize moves link-bar to the end", () => {
+    const units = [
+      { kind: "markdown" as const, text: "intro" },
+      {
+        kind: "link-bar" as const,
+        links: [
+          {
+            actionId: GUID,
+            op: "run" as const,
+            label: "运行",
+          },
+        ],
+      },
+      { kind: "markdown" as const, text: "more text" },
+    ];
+    const out = finalizeAssistantRenderUnits(units);
+    assert.equal(out.length, 3);
+    assert.equal(out[0]?.kind, "markdown");
+    assert.equal(out[1]?.kind, "markdown");
+    assert.equal(out[2]?.kind, "link-bar");
   });
 
   it("rejects invalid id or op", () => {

@@ -1,8 +1,13 @@
 import type { ActionExplorerTree } from "@/lib/action-explorer-tree";
 
 export type ActionExplorerWatchHandlers = {
-  onTree: (tree: ActionExplorerTree) => void;
+  onTree: (tree: ActionExplorerTree, subprogramTree: ActionExplorerTree) => void;
   onError: (error: string) => void;
+};
+
+export type WorkspaceExplorerTrees = {
+  tree: ActionExplorerTree;
+  subprogramTree: ActionExplorerTree;
 };
 
 export type WorkspaceReadResponse = {
@@ -21,7 +26,10 @@ export type FetchActionExplorerTreeOptions = {
 export async function fetchActionExplorerTree(
   cwd: string,
   options?: FetchActionExplorerTreeOptions,
-): Promise<{ ok: true; tree: ActionExplorerTree } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; tree: ActionExplorerTree; subprogramTree: ActionExplorerTree }
+  | { ok: false; error: string }
+> {
   const params = new URLSearchParams({ op: "tree", cwd });
   if (options?.depth === "roots") {
     params.set("depth", "roots");
@@ -30,12 +38,13 @@ export async function fetchActionExplorerTree(
   const data = (await res.json()) as {
     ok: boolean;
     tree?: ActionExplorerTree;
+    subprogramTree?: ActionExplorerTree;
     error?: string;
   };
-  if (!data.ok || !data.tree) {
+  if (!data.ok || !data.tree || !data.subprogramTree) {
     return { ok: false, error: data.error ?? "Failed to load explorer tree" };
   }
-  return { ok: true, tree: data.tree };
+  return { ok: true, tree: data.tree, subprogramTree: data.subprogramTree };
 }
 
 /** Live explorer tree via filesystem watch (SSE). */
@@ -58,10 +67,11 @@ export function subscribeActionExplorerTreeWatch(
         ok?: boolean;
         type?: string;
         tree?: ActionExplorerTree;
+        subprogramTree?: ActionExplorerTree;
         error?: string;
       };
-      if (data.ok && data.tree) {
-        handlers.onTree(data.tree);
+      if (data.ok && data.tree && data.subprogramTree) {
+        handlers.onTree(data.tree, data.subprogramTree);
         return;
       }
       if (data.ok === false && data.error) {
