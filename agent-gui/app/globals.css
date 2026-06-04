@@ -6763,6 +6763,48 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   color: var(--err);
 }
 
+/* Assistant summary: <qka-link id="…" op="run|edit|float|workspace"> */
+.assistant-rich-message {
+  display: block;
+}
+
+.assistant-rich-message > .markdown-body {
+  display: inline;
+}
+
+.action-link-chip {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0.12rem;
+  padding: 0.12rem 0.5rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--accent-hover-text, var(--text));
+  vertical-align: baseline;
+  cursor: pointer;
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.action-link-chip:hover:not(:disabled) {
+  background: var(--hover-overlay);
+  border-color: var(--accent);
+}
+
+.action-link-chip:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.action-link-chip--workspace {
+  border-style: dashed;
+}
+
 /* Tool picker (composer) */
 .tool-selector {
   position: relative;

@@ -17,10 +17,39 @@ function notify(): void {
   }
 }
 
-function loadPersisted(): void {
-  if (typeof sessionStorage === "undefined") return;
+function getLocalStorageSafe(): Storage | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (typeof window === "undefined" || !window.localStorage) {
+      return null;
+    }
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** One-time migration from sessionStorage (older builds). */
+function migrateLegacySessionCache(ls: Storage): string | null {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    const legacy = sessionStorage.getItem(STORAGE_KEY);
+    if (!legacy) return null;
+    ls.setItem(STORAGE_KEY, legacy);
+    sessionStorage.removeItem(STORAGE_KEY);
+    return legacy;
+  } catch {
+    return null;
+  }
+}
+
+function loadPersisted(): void {
+  const ls = getLocalStorageSafe();
+  if (!ls) return;
+  try {
+    let raw = ls.getItem(STORAGE_KEY);
+    if (!raw) {
+      raw = migrateLegacySessionCache(ls);
+    }
     if (!raw) return;
     const items = JSON.parse(raw) as FaIconGeometry[];
     if (!Array.isArray(items)) return;
@@ -35,13 +64,14 @@ function loadPersisted(): void {
 }
 
 function schedulePersist(): void {
-  if (typeof sessionStorage === "undefined") return;
+  const ls = getLocalStorageSafe();
+  if (!ls) return;
   if (persistTimer !== null) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     persistTimer = null;
     try {
       const items = [...memory.values()].slice(-MAX_PERSISTED);
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      ls.setItem(STORAGE_KEY, JSON.stringify(items));
     } catch {
       /* quota or private mode */
     }

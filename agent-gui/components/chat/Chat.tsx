@@ -878,7 +878,10 @@ function ChatPanel({
         >
           <div className="msg-content">
             <div className="parts">
-              <MessageParts message={message} />
+              <MessageParts
+                message={message}
+                workingDirectory={workingDirectory}
+              />
             </div>
           </div>
         </article>
@@ -894,6 +897,7 @@ function ChatPanel({
       lastVisibleMessageId,
       messages,
       userMessageDrafts,
+      workingDirectory,
     ],
   );
 

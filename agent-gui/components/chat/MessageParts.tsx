@@ -3,8 +3,8 @@
 import { useMemo } from "react";
 import { isTextUIPart } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
+import { AssistantRichMessage } from "./AssistantRichMessage";
 import { InlineUserMessage } from "./InlineUserMessage";
-import { MarkdownMessage } from "./MarkdownMessage";
 import { segmentMessageParts } from "./tool-part-layout";
 import { ToolBatchGroup } from "./ToolBatchGroup";
 import { ToolPart } from "./ToolPart";
@@ -14,11 +14,13 @@ type MessagePartsProps = {
   message: AgentUIMessage;
   /** Local unsent user-message edit; does not change chat context until send. */
   userTextOverride?: string;
+  workingDirectory?: string;
 };
 
 export function MessageParts({
   message,
   userTextOverride,
+  workingDirectory,
 }: MessagePartsProps) {
   const segments = useMemo(
     () => segmentMessageParts(message.parts),
@@ -38,10 +40,10 @@ export function MessageParts({
           }
           if (!part.text.trim()) return null;
           return (
-            <MarkdownMessage
+            <AssistantRichMessage
               key={index}
               content={part.text}
-              variant="assistant"
+              workingDirectory={workingDirectory}
             />
           );
         }
