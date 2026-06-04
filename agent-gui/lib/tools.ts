@@ -32,6 +32,10 @@ import {
 } from "@/lib/qkrpc";
 import { LLM_SETTINGS_TOOL, LLM_SETTINGS_TOOL_DEF } from "@/lib/llm-settings-tool";
 import { DEV_FRONTEND_CHECK_TOOL, DEV_FRONTEND_CHECK_TOOL_DEF } from "@/lib/dev-frontend-check-tool";
+import {
+  WORKSPACE_PROGRAM_DIAGNOSTICS_TOOL,
+  workspaceProgramDiagnosticsTool,
+} from "@/lib/workspace-program-diagnostics-tool.server";
 import { SHELL_EXEC_TOOL, SHELL_EXEC_TOOL_DEF } from "@/lib/shell-tool";
 import { workspaceProgramIdSchema } from "@/lib/workspace-program-schema";
 import {
@@ -89,6 +93,7 @@ export const quickerTools = {
   [SHELL_EXEC_TOOL]: SHELL_EXEC_TOOL_DEF,
   [LLM_SETTINGS_TOOL]: LLM_SETTINGS_TOOL_DEF,
   [DEV_FRONTEND_CHECK_TOOL]: DEV_FRONTEND_CHECK_TOOL_DEF,
+  [WORKSPACE_PROGRAM_DIAGNOSTICS_TOOL]: workspaceProgramDiagnosticsTool,
   [DOCS_GET_TOOL]: tool({
     description:
       'Read the local authoring guide by topic id (single skill; start with "authoring-workflow" or "overview").',

@@ -33,6 +33,7 @@ import {
 } from "@/lib/format-json-display";
 import { ActionListView } from "./ActionListView";
 import { ActionProjectsView } from "./ActionProjectsView";
+import { StepRunnerSearchResultView } from "./StepRunnerSearchResultView";
 import { ToolJsonEditor } from "./ToolJsonEditor";
 import { FaSearchPlainText } from "./FaSearchPlainText";
 import { parseSearchActionSummaries } from "@/lib/agent-api";
@@ -62,7 +63,9 @@ import {
   isStepRunnerGetTool,
   isStepRunnerSearchTool,
   parseStepRunnerGetFromQkrpcData,
+  type StepRunnerGetMeta,
   parseStepRunnerSearchFromQkrpcData,
+  parseStepRunnerSearchResult,
 } from "@/lib/step-runner-tool";
 
 export type QkrpcToolResult = {
@@ -162,6 +165,12 @@ export function summarizeToolOutput(
       if (detail) return formatStepRunnerGetMetaLine(detail);
     }
     if (isStepRunnerSearchTool(toolName)) {
+      const searchResult = parseStepRunnerSearchResult(output.data, input);
+      if (searchResult) {
+        return formatStepRunnerSearchMetaLine(searchResult, {
+          controlFieldItemCount: searchResult.controlFieldItemCount,
+        });
+      }
       const search = parseStepRunnerSearchFromQkrpcData(output.data, input);
       if (search) return formatStepRunnerSearchMetaLine(search);
     }
@@ -469,6 +478,42 @@ function CompactSuccessBody({
   );
 }
 
+function isFlatRequestParams(
+  value: unknown,
+): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).filter((k) => obj[k] !== undefined);
+  if (keys.length === 0 || keys.length > 8) return false;
+  return keys.every(
+    (k) => {
+      const v = obj[k];
+      return (
+        v === null
+        || v === undefined
+        || typeof v === "string"
+        || typeof v === "number"
+        || typeof v === "boolean"
+      );
+    },
+  );
+}
+
+function StepRunnerGetResultView({ meta }: { meta: StepRunnerGetMeta }) {
+  const entries: Array<{ key: string; value: ReactNode }> = [
+    { key: "模块", value: <code>{meta.key}</code> },
+  ];
+  if (meta.name) {
+    entries.push({ key: "名称", value: meta.name });
+  }
+  if (meta.controlField) {
+    entries.push({ key: "control", value: <code>{meta.controlField}</code> });
+  }
+  return <KeyValueRows entries={entries} />;
+}
+
 function KeyValueRows({
   entries,
 }: {
@@ -632,6 +677,14 @@ function QkrpcToolResultView({
     result.ok && toolName
       ? parseActionListFromQkrpcData(toolName, data)
       : null;
+  const stepRunnerSearch =
+    result.ok && toolName && isStepRunnerSearchTool(toolName)
+      ? parseStepRunnerSearchResult(data, input)
+      : null;
+  const stepRunnerGet =
+    result.ok && toolName && isStepRunnerGetTool(toolName)
+      ? parseStepRunnerGetFromQkrpcData(data, input)
+      : null;
   const faSearch =
     result.ok && toolName && isFaSearchTool(toolName)
       ? parseFaSearchFromQkrpcData(data)
@@ -664,7 +717,12 @@ function QkrpcToolResultView({
     && (actionMetadata.id?.trim() || (metadataRest && Object.keys(metadataRest).length > 0)),
   );
   const hasRichBody = Boolean(
-    actionList || faSearch || hasMetadataResultBody || hasWorkspaceResultBody,
+    actionList
+    || stepRunnerSearch
+    || stepRunnerGet
+    || faSearch
+    || hasMetadataResultBody
+    || hasWorkspaceResultBody,
   );
 
   let resultBody: ReactNode = null;
@@ -673,6 +731,10 @@ function QkrpcToolResultView({
       resultBody = (
         <ActionListView meta={actionList.meta} items={actionList.items} snapshot />
       );
+    } else if (stepRunnerSearch) {
+      resultBody = <StepRunnerSearchResultView result={stepRunnerSearch} />;
+    } else if (stepRunnerGet) {
+      resultBody = <StepRunnerGetResultView meta={stepRunnerGet} />;
     } else if (faSearch) {
       resultBody = (
         <FaSearchPlainText names={faSearch.names} />
@@ -747,7 +809,7 @@ function QkrpcToolResultView({
 
   return (
     <div className="tool-result">
-      {!compact && (
+      {(!compact || !result.ok) && (
         <div
           className={`tool-status-badge ${result.ok ? "tool-status-badge--ok" : "tool-status-badge--err"}`}
         >
@@ -868,6 +930,8 @@ export function ToolPayloadView({
   label,
   value,
   compact,
+  dense,
+  rawOnly,
   toolName,
   followTail = false,
   input,
@@ -876,12 +940,27 @@ export function ToolPayloadView({
   label: string;
   value: unknown;
   compact?: boolean;
+  /** Popup layout: tighter section chrome. */
+  dense?: boolean;
+  /** Popup「源码」tab: full JSON only, no tables or compact summaries. */
+  rawOnly?: boolean;
   toolName?: string;
   followTail?: boolean;
   input?: unknown;
   output?: unknown;
 }) {
   if (value === undefined) return null;
+
+  if (rawOnly) {
+    return (
+      <div className={`tool-section tool-section--raw-json${dense ? " tool-section--dense" : ""}`}>
+        <div className="tool-section-label">
+          <span>{label}</span>
+        </div>
+        <JsonBlock value={value} followTail={followTail} />
+      </div>
+    );
+  }
 
   if (label === "请求" && shouldSkipRedundantToolRequest(input ?? value, output)) {
     return null;
@@ -903,14 +982,34 @@ export function ToolPayloadView({
     return <ActionMetadataRequestSection input={value} label={label} />;
   }
 
+  if (label === "请求" && isFlatRequestParams(value)) {
+    const entries = Object.entries(value)
+      .filter(([, v]) => v !== undefined)
+      .map(([key, v]) => ({
+        key,
+        value: renderValueCell(v),
+      }));
+    return (
+      <div
+        className={`tool-section tool-section--request-compact${dense ? " tool-section--dense" : ""}`}
+      >
+        <div className="tool-section-label">
+          <span>{label}</span>
+        </div>
+        <KeyValueRows entries={entries} />
+      </div>
+    );
+  }
+
   const payloadInline = unwrapSinglePayloadField(value);
   const displayValue = payloadInline?.value ?? value;
+  const showPayloadKey = payloadInline && !dense;
 
   return (
-    <div className="tool-section">
+    <div className={`tool-section${dense ? " tool-section--dense" : ""}`}>
       <div className="tool-section-label">
         <span>{label}</span>
-        {payloadInline && (
+        {showPayloadKey && (
           <span className="tool-section-label-key">{payloadInline.fieldKey}</span>
         )}
       </div>

@@ -13,7 +13,7 @@
 ```
 {{/only-agent}}
 
-用 `items[].key` 做 {{#ref step-runner.get.invoke}}。若项含 **`controlFieldKey` / `controlFieldValue`**，get 时须传 {{#ref control-field.get}}（与排序时选中的 control 子模式一致）。
+用 `items[].key` 做 {{#ref step-runner.get.invoke}}。若项含 **`controlField`**（`{ key, value, name? }`），get 时须传 {{#ref control-field.get}}（与 `controlField.value` 一致）。
 
 结果按 **匹配分 + 加权分** 降序：
 

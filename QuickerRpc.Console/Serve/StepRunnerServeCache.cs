@@ -9,6 +9,9 @@ namespace QuickerRpc.Console.Serve;
 /// </summary>
 internal static class StepRunnerServeCache
 {
+    // Bump when search item shape changes (e.g. items[].controlField).
+    private const int SearchCacheSchemaVersion = 2;
+
     private static readonly ConcurrentDictionary<string, QuickerRpcSearchStepRunnersResult> Search =
         new(StringComparer.Ordinal);
 
@@ -58,7 +61,7 @@ internal static class StepRunnerServeCache
     }
 
     private static string SearchKey(string query, int? limit) =>
-        $"{query.Trim()}\0{limit?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "*"}";
+        $"{SearchCacheSchemaVersion}\0{query.Trim()}\0{limit?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "*"}";
 
     private static string DetailKey(string stepRunnerKey, string? controlField) =>
         $"{stepRunnerKey.Trim()}\0{(controlField ?? string.Empty).Trim()}";

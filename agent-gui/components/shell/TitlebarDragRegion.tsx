@@ -29,13 +29,17 @@ export function TitlebarDragRegion({
     [isTauri, platform],
   );
 
-  if (!isTauri) return null;
-
   return (
     <div
-      className={`titlebar-drag-region titlebar-drag-spacer${className ? ` ${className}` : ""}`}
-      data-tauri-drag-region=""
-      onPointerDown={onPointerDown}
+      className={[
+        "titlebar-drag-spacer",
+        isTauri ? "titlebar-drag-region" : "titlebar-flex-spacer",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      data-tauri-drag-region={isTauri ? "" : undefined}
+      onPointerDown={isTauri ? onPointerDown : undefined}
       aria-hidden
       {...rest}
     />

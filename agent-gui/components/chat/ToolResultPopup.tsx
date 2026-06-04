@@ -1,8 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useState,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
-import { ToolFailureDetails } from "./ToolFailureDetails";
+import { toolPopupHasVisualView } from "@/lib/tool-popup-view";
+import {
+  resolveToolPopupTab,
+  storeToolPopupViewMode,
+  type ToolPopupViewMode,
+} from "@/lib/tool-popup-ui-prefs";
+import { ToolPopupBody } from "./ToolPopupBody";
 
 export function toolCanShowDetails(
   input: unknown,
@@ -62,6 +74,44 @@ type ToolResultPopupProps = {
   headerExtra?: ReactNode;
 };
 
+function ToolResultPopupTabs({
+  tab,
+  hasVisual,
+  onTabChange,
+}: {
+  tab: ToolPopupViewMode;
+  hasVisual: boolean;
+  onTabChange: (next: ToolPopupViewMode) => void;
+}) {
+  return (
+    <div className="tool-result-popup-tabs" role="tablist" aria-label="结果视图">
+      <button
+        type="button"
+        role="tab"
+        id="tool-popup-tab-visual"
+        aria-selected={tab === "visual"}
+        aria-controls="tool-popup-panel-visual"
+        className={`tool-result-popup-tab${tab === "visual" ? " tool-result-popup-tab--active" : ""}`}
+        disabled={!hasVisual}
+        onClick={() => onTabChange("visual")}
+      >
+        可视化
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="tool-popup-tab-source"
+        aria-selected={tab === "source"}
+        aria-controls="tool-popup-panel-source"
+        className={`tool-result-popup-tab${tab === "source" ? " tool-result-popup-tab--active" : ""}`}
+        onClick={() => onTabChange("source")}
+      >
+        源码
+      </button>
+    </div>
+  );
+}
+
 export function ToolResultPopup({
   open,
   onClose,
@@ -75,6 +125,18 @@ export function ToolResultPopup({
   headerExtra,
 }: ToolResultPopupProps) {
   const panelId = useId();
+  const hasVisual = toolPopupHasVisualView(toolName, input, output);
+  const [tab, setTab] = useState<ToolPopupViewMode>("visual");
+
+  const setTabPersisted = useCallback((next: ToolPopupViewMode) => {
+    setTab(next);
+    storeToolPopupViewMode(next);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    setTab(resolveToolPopupTab(hasVisual));
+  }, [open, hasVisual]);
 
   useEffect(() => {
     if (!open) return;
@@ -108,11 +170,18 @@ export function ToolResultPopup({
         aria-label={title}
       >
         <div className="tool-result-popup-head">
-          <div className="tool-result-popup-head-text">
-            <span className="tool-result-popup-title">{title}</span>
-            {subtitle ? (
-              <span className="tool-result-popup-subtitle">{subtitle}</span>
-            ) : null}
+          <div className="tool-result-popup-head-main">
+            <div className="tool-result-popup-head-text">
+              <span className="tool-result-popup-title">{title}</span>
+              {subtitle ? (
+                <span className="tool-result-popup-subtitle">{subtitle}</span>
+              ) : null}
+            </div>
+            <ToolResultPopupTabs
+              tab={tab}
+              hasVisual={hasVisual}
+              onTabChange={setTabPersisted}
+            />
           </div>
           <div className="tool-result-popup-head-actions">
             {headerExtra}
@@ -126,8 +195,16 @@ export function ToolResultPopup({
             </button>
           </div>
         </div>
-        <div className="tool-result-popup-body">
-          <ToolFailureDetails
+        <div
+          className="tool-result-popup-body"
+          role="tabpanel"
+          id={tab === "visual" ? "tool-popup-panel-visual" : "tool-popup-panel-source"}
+          aria-labelledby={
+            tab === "visual" ? "tool-popup-tab-visual" : "tool-popup-tab-source"
+          }
+        >
+          <ToolPopupBody
+            view={tab}
             toolName={toolName}
             input={input}
             output={output}

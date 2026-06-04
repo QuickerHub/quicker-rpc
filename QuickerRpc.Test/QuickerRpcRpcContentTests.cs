@@ -64,8 +64,9 @@ public sealed class QuickerRpcRpcContentTests
         Assert.IsTrue(result.Success, result.ErrorMessage ?? "SearchStepRunners failed.");
         var hit = result.Items.FirstOrDefault(i => i.Key == "sys:windowOperations");
         Assert.IsNotNull(hit, "Expected sys:windowOperations in search results.");
-        Assert.AreEqual("type", hit!.ControlFieldKey);
-        Assert.AreEqual("move_ex", hit.ControlFieldValue);
+        Assert.IsNotNull(hit!.ControlField);
+        Assert.AreEqual("type", hit.ControlField.Key);
+        Assert.AreEqual("move_ex", hit.ControlField.Value);
     }
 
     [TestMethod]

@@ -52,7 +52,7 @@ import {
   updateThreadMessages,
   updateThreadTitle,
 } from "@/lib/chat-store";
-import { AppSettingsPanel } from "@/components/chat/AppSettingsPanel";
+import { AppSettingsPopup } from "@/components/chat/AppSettingsPopup";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ChatTitlebar } from "@/components/chat/ChatTitlebar";
 import { SidebarToggle } from "@/components/chat/SidebarToggle";
@@ -721,14 +721,6 @@ function ChatPanel({
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
   }, [editAnchorMessageId, exitMessageEdit]);
 
-  const runQuickPrompt = useCallback(
-    (text: string) => {
-      pinToBottom();
-      enqueueOrSend(text);
-    },
-    [enqueueOrSend, pinToBottom],
-  );
-
   const respondToAllPendingApprovals = useCallback(
     (approved: boolean, options?: { deleteWorkspace?: boolean }) => {
       for (const approval of pendingApprovals) {
@@ -1031,7 +1023,8 @@ function ChatPanel({
         )}
         {isEmptyThread && !editAnchorMessageId && (
           <EmptyChatPrompts
-            onRun={runQuickPrompt}
+            disabled={busy}
+            onOpenSettings={() => onOpenSettings()}
           />
         )}
         <form
@@ -1160,7 +1153,7 @@ export function Chat() {
     useChatStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [mainView, setMainView] = useState<AppMainView>("chat");
-  const [settingsTabOpen, setSettingsTabOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [workspaceEditorTabOpen, setWorkspaceEditorTabOpen] = useState(false);
   const [workspaceEditorTabLabel, setWorkspaceEditorTabLabel] = useState("文件");
   const [settingsFocusProviderId, setSettingsFocusProviderId] = useState<
@@ -1206,10 +1199,9 @@ export function Chat() {
     [updateStore],
   );
 
-  const openSettingsTab = useCallback((targetProviderId?: LlmProviderId) => {
+  const openSettings = useCallback((targetProviderId?: LlmProviderId) => {
     setSettingsFocusProviderId(targetProviderId);
-    setSettingsTabOpen(true);
-    setMainView("settings");
+    setSettingsOpen(true);
   }, []);
 
   const llmSettingsAutoOpenedRef = useRef(false);
@@ -1220,16 +1212,15 @@ export function Chat() {
       const data = await fetchLlmOptions();
       if (cancelled || !data || hasConfiguredLlmOption(data)) return;
       llmSettingsAutoOpenedRef.current = true;
-      openSettingsTab();
+      openSettings();
     })();
     return () => {
       cancelled = true;
     };
-  }, [openSettingsTab]);
+  }, [openSettings]);
 
-  const closeSettingsTab = useCallback(() => {
-    setSettingsTabOpen(false);
-    setMainView("chat");
+  const closeSettings = useCallback(() => {
+    setSettingsOpen(false);
     setSettingsFocusProviderId(undefined);
   }, []);
 
@@ -1291,27 +1282,19 @@ export function Chat() {
               <ChatTitlebar
                 store={store}
                 mainView={mainView}
-                settingsTabOpen={settingsTabOpen}
+                settingsOpen={settingsOpen}
                 workspaceEditorTabOpen={workspaceEditorTabOpen}
                 workspaceEditorTabLabel={workspaceEditorTabLabel}
                 onChange={updateStore}
                 onMainViewChange={setMainView}
-                onOpenSettingsTab={openSettingsTab}
-                onCloseSettingsTab={closeSettingsTab}
+                onOpenSettings={openSettings}
+                onCloseSettings={closeSettings}
                 onSelectWorkspaceEditor={() => setMainView("workspace-editor")}
                 onCloseWorkspaceEditorTab={closeWorkspaceEditorTab}
               />
               <div className="app-content-row">
                 <div className="app-main-shell">
-                  {mainView === "settings" && settingsTabOpen ? (
-                    <AppSettingsPanel
-                      active
-                      ping={ping}
-                      onRefreshPing={refreshPing}
-                      versionRefreshKey={connectTick}
-                      focusProviderId={settingsFocusProviderId}
-                    />
-                  ) : mainView === "workspace-editor" && workspaceEditorTabOpen ? (
+                  {mainView === "workspace-editor" && workspaceEditorTabOpen ? (
                     <WorkspaceMainEditorPanel
                       onRefreshTree={() => {
                         void workspaceExplorerActionsRef.current.refreshTree();
@@ -1331,7 +1314,7 @@ export function Chat() {
                           titleManual={thread.titleManual ?? false}
                           ping={ping}
                           connectTick={connectTick}
-                          onOpenSettings={openSettingsTab}
+                          onOpenSettings={openSettings}
                           onPersist={persistMessages}
                           onAutoTitle={handleAutoTitle}
                         />
@@ -1341,6 +1324,14 @@ export function Chat() {
                 </div>
                 <WorkspaceExplorerPanel />
               </div>
+              <AppSettingsPopup
+                open={settingsOpen}
+                onClose={closeSettings}
+                ping={ping}
+                onRefreshPing={refreshPing}
+                versionRefreshKey={connectTick}
+                focusProviderId={settingsFocusProviderId}
+              />
             </DocsViewerProvider>
           </WorkspaceExplorerPanelProvider>
         </div>

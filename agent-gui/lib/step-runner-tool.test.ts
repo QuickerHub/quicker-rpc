@@ -6,6 +6,7 @@ import {
   parseStepRunnerGetFromQkrpcData,
   parseStepRunnerGetInput,
   parseStepRunnerSearchFromQkrpcData,
+  parseStepRunnerSearchResult,
 } from "./step-runner-tool.ts";
 
 test("parseStepRunnerGetInput reads key and optional controlField", () => {
@@ -76,4 +77,68 @@ test("parseStepRunnerSearchFromQkrpcData reads search payload", () => {
   assert.ok(parsed);
   assert.equal(parsed!.matchCount, 2);
   assert.equal(formatStepRunnerSearchMetaLine(parsed!), "「脚本」 · 2 个模块");
+});
+
+test("parseStepRunnerSearchResult normalizes item rows for popup table", () => {
+  const parsed = parseStepRunnerSearchResult(
+    {
+      ok: true,
+      action: "step-runner-search",
+      payload: {
+        success: true,
+        keyword: "表达式",
+        matchCount: 2,
+        items: [
+          {
+            key: "sys:evalexpression",
+            name: "执行表达式",
+            description: "执行C#表达式或脚本代码",
+          },
+          { Key: "sys:csscript", Name: "运行C#脚本" },
+        ],
+      },
+    },
+    { query: "表达式", limit: 5 },
+  );
+  assert.ok(parsed);
+  assert.equal(parsed!.items.length, 2);
+  assert.equal(parsed!.items[0]!.key, "sys:evalexpression");
+  assert.equal(parsed!.items[1]!.name, "运行C#脚本");
+});
+
+test("parseStepRunnerSearchResult reads nested controlField on items", () => {
+  const parsed = parseStepRunnerSearchResult(
+    {
+      ok: true,
+      action: "step-runner-search",
+      payload: {
+        success: true,
+        keyword: "移动",
+        matchCount: 2,
+        items: [
+          {
+            key: "sys:windowOperations",
+            name: "窗口操作",
+            controlField: { key: "type", value: "move_ex", name: "移动窗口(增强)" },
+          },
+          { key: "sys:csscript", name: "运行C#脚本" },
+        ],
+      },
+    },
+    { query: "移动", limit: 8 },
+  );
+  assert.ok(parsed);
+  assert.equal(parsed!.controlFieldItemCount, 1);
+  assert.deepEqual(parsed!.items[0]!.controlField, {
+    key: "type",
+    value: "move_ex",
+    name: "移动窗口(增强)",
+  });
+  assert.equal(parsed!.items[1]!.controlField, undefined);
+  assert.equal(
+    formatStepRunnerSearchMetaLine(parsed!, {
+      controlFieldItemCount: parsed!.controlFieldItemCount,
+    }),
+    "「移动」 · 2 个模块 · 1 含 controlField",
+  );
 });

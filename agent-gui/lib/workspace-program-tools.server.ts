@@ -28,6 +28,8 @@ import {
   resolveWorkspaceProgramFileForTool,
   resolveWorkspaceProgramFilesScopeForTool,
 } from "@/lib/workspace-program-resolve.server";
+import { scheduleProgramSyntaxLint } from "@/lib/program-syntax-lint";
+import { isStructuredToolResult } from "@/lib/tool-result";
 
 type ReadSlice = {
   offset?: number;
@@ -498,5 +500,31 @@ export async function executeWorkspaceProgramPatch(
       parsed.error,
     );
   }
-  return saveProgramFromWorkspace(parsed.target, { force: input.force });
+  const result = await saveProgramFromWorkspace(parsed.target, { force: input.force });
+  maybeScheduleSyntaxLintAfterPatch(parsed.target, result);
+  return result;
+}
+
+function maybeScheduleSyntaxLintAfterPatch(
+  target: import("@/lib/workspace-program-target").WorkspaceProgramTarget,
+  result: Record<string, unknown>,
+): void {
+  if (!isStructuredToolResult(result) || !result.ok) {
+    return;
+  }
+
+  const data = result.data;
+  if (typeof data !== "object" || data === null) {
+    return;
+  }
+
+  const record = data as Record<string, unknown>;
+  if (record.success === false || record.ok === false) {
+    return;
+  }
+
+  const editVersion =
+    typeof record.editVersion === "number" ? record.editVersion : undefined;
+
+  scheduleProgramSyntaxLint({ target, editVersion });
 }

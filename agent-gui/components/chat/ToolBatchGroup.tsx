@@ -17,15 +17,21 @@ import { ToolPart } from "./ToolPart";
 type ToolBatchGroupProps = {
   messageId: string;
   items: ToolUiPartAnalysis[];
+  /** When true, do not auto-collapse after all tools finish (tool-test page). */
+  disableAutoCollapse?: boolean;
 };
 
 export function ToolBatchGroup({
   messageId,
   items,
+  disableAutoCollapse = false,
 }: ToolBatchGroupProps) {
   const summary = useMemo(() => buildToolBatchSummary(items), [items]);
-  const [userOpen, setUserOpen] = useState(() => summary.needsAttention);
+  const [userOpen, setUserOpen] = useState(
+    () => disableAutoCollapse || summary.needsAttention,
+  );
   const wasIdleRef = useRef(shouldCollapseToolBatchWhenIdle(summary));
+  const prevDisableAutoCollapseRef = useRef(disableAutoCollapse);
 
   const batchRunning = items.some((i) => i.isRunning);
   const batchErr = items.some((i) => i.state === "output-error");
@@ -34,6 +40,19 @@ export function ToolBatchGroup({
   const forcedOpen = batchApproval ? true : null;
 
   useEffect(() => {
+    if (disableAutoCollapse && !prevDisableAutoCollapseRef.current) {
+      setUserOpen(true);
+    }
+    prevDisableAutoCollapseRef.current = disableAutoCollapse;
+
+    if (disableAutoCollapse) {
+      wasIdleRef.current = shouldCollapseToolBatchWhenIdle(summary);
+      if (summary.needsAttention && !wasIdleRef.current) {
+        setUserOpen(true);
+      }
+      return;
+    }
+
     if (forcedOpen) return;
     const idle = shouldCollapseToolBatchWhenIdle(summary);
 
@@ -46,7 +65,7 @@ export function ToolBatchGroup({
     }
 
     wasIdleRef.current = idle;
-  }, [forcedOpen, summary]);
+  }, [disableAutoCollapse, forcedOpen, summary]);
 
   if (workspaceFileBatch && !batchApproval) {
     return (

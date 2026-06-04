@@ -40,12 +40,7 @@ export function AppSettingsPanel({
   const versionKey = (versionRefreshKey ?? 0) + versionProbeTick;
 
   return (
-    <main className="app-settings-page" aria-label="设置">
-      <div className="app-settings-page-inner">
-        <header className="app-settings-page-head">
-          <h1 className="app-settings-page-title">设置</h1>
-        </header>
-
+    <div className="app-settings-panel">
         <div className="app-settings-top-grid">
           <section className="app-settings-card">
             <header className="app-settings-section-head app-settings-section-head--compact">
@@ -94,7 +89,6 @@ export function AppSettingsPanel({
           ping={ping}
           versionRefreshKey={versionKey}
         />
-      </div>
-    </main>
+    </div>
   );
 }

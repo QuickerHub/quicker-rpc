@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { SettingsGearIcon } from "@/components/SettingsGearIcon";
 import type { AppMainView } from "@/lib/app-main-view";
@@ -22,13 +23,13 @@ import { useShellPlatform, useTauriShell } from "@/lib/tauri-shell";
 type ChatTitlebarProps = {
   store: ChatStoreData;
   mainView: AppMainView;
-  settingsTabOpen: boolean;
+  settingsOpen: boolean;
   workspaceEditorTabOpen: boolean;
   workspaceEditorTabLabel: string;
   onChange: (next: ChatStoreData) => void;
   onMainViewChange: (view: AppMainView) => void;
-  onOpenSettingsTab: () => void;
-  onCloseSettingsTab: () => void;
+  onOpenSettings: () => void;
+  onCloseSettings: () => void;
   onSelectWorkspaceEditor: () => void;
   onCloseWorkspaceEditorTab: () => void;
 };
@@ -86,6 +87,26 @@ function IconClose() {
   );
 }
 
+/** Dev-only: link to /tool-test (icon to save titlebar width). */
+function IconToolTest() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path
+        d="M4.25 2.5h5.5L11 5.25v6.25a.75.75 0 0 1-.75.75H3.75A.75.75 0 0 1 3 11.5V3.25A.75.75 0 0 1 3.75 2.5h.5Z"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6.25 7.25h1.5M7 6.5v1.5"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function plainTitleText(raw: string): string {
   const withoutTags = raw.replace(/<[^>]*>/g, " ");
   const normalized = withoutTags.replace(/\s+/g, " ").trim();
@@ -95,13 +116,13 @@ function plainTitleText(raw: string): string {
 export function ChatTitlebar({
   store,
   mainView,
-  settingsTabOpen,
+  settingsOpen,
   workspaceEditorTabOpen,
   workspaceEditorTabLabel,
   onChange,
   onMainViewChange,
-  onOpenSettingsTab,
-  onCloseSettingsTab,
+  onOpenSettings,
+  onCloseSettings,
   onSelectWorkspaceEditor,
   onCloseWorkspaceEditorTab,
 }: ChatTitlebarProps) {
@@ -109,7 +130,6 @@ export function ChatTitlebar({
   const { clearActiveTopic } = useDocsViewer();
   const activeThread = useMemo(() => getActiveThread(store), [store]);
   const tabThreads = useMemo(() => getOpenTabThreads(store), [store]);
-  const settingsActive = mainView === "settings";
   const workspaceEditorActive = mainView === "workspace-editor" && workspaceEditorTabOpen;
 
   const commit = useCallback(
@@ -135,13 +155,12 @@ export function ChatTitlebar({
     onCloseWorkspaceEditorTab();
   };
 
-  const handleSelectSettings = () => {
-    if (!settingsTabOpen) {
-      onOpenSettingsTab();
-      return;
+  const handleToggleSettings = () => {
+    if (settingsOpen) {
+      onCloseSettings();
+    } else {
+      onOpenSettings();
     }
-    if (settingsActive) return;
-    onMainViewChange("settings");
   };
 
   const handleNew = () => {
@@ -176,11 +195,6 @@ export function ChatTitlebar({
     const active = root.querySelector<HTMLElement>('[data-active="true"]');
     if (!active) return;
 
-    if (settingsActive) {
-      active.scrollIntoView({ block: "nearest", inline: "end" });
-      return;
-    }
-
     if (workspaceEditorActive) {
       active.scrollIntoView({ block: "nearest", inline: "end" });
       return;
@@ -193,7 +207,7 @@ export function ChatTitlebar({
       block: "nearest",
       inline: isLast ? "end" : isFirst ? "start" : "nearest",
     });
-  }, [activeThread.id, tabThreads.length, settingsActive, settingsTabOpen, workspaceEditorActive, workspaceEditorTabOpen]);
+  }, [activeThread.id, tabThreads.length, workspaceEditorActive, workspaceEditorTabOpen]);
 
   const isTauri = useTauriShell();
   const platform = useShellPlatform();
@@ -206,11 +220,17 @@ export function ChatTitlebar({
     .filter(Boolean)
     .join(" ");
 
+  const showDevActions = isAgentGuiDebugMode();
+
   return (
     <header className={titlebarClass}>
+      <div className="titlebar-leading">
       <div className="titlebar-tabs" ref={tabsRef} role="tablist" aria-label="主标签">
         {tabThreads.map((thread) => {
-          const active = !settingsActive && !workspaceEditorActive && thread.id === activeThread.id;
+          const active =
+            mainView === "chat"
+            && !workspaceEditorActive
+            && thread.id === activeThread.id;
           const titleText = plainTitleText(thread.title);
           return (
             <div
@@ -281,40 +301,6 @@ export function ChatTitlebar({
           </div>
         ) : null}
 
-        {settingsTabOpen && (
-          <div
-            className={`titlebar-tab titlebar-tab--settings${settingsActive ? " titlebar-tab--active" : ""}`}
-            data-active={settingsActive ? "true" : undefined}
-            data-tab-kind="settings"
-          >
-            <button
-              type="button"
-              role="tab"
-              className="titlebar-tab-main"
-              aria-selected={settingsActive}
-              title="设置"
-              onClick={handleSelectSettings}
-            >
-              <span className="titlebar-tab-icon">
-                <SettingsGearIcon size={12} />
-              </span>
-              <span className="titlebar-tab-label">设置</span>
-            </button>
-            <button
-              type="button"
-              className="titlebar-tab-close"
-              aria-label="关闭设置"
-              title="关闭"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCloseSettingsTab();
-              }}
-            >
-              <IconClose />
-            </button>
-          </div>
-        )}
-
         <button
           type="button"
           className="titlebar-tab-new"
@@ -325,32 +311,52 @@ export function ChatTitlebar({
           <IconPlus />
         </button>
       </div>
+      </div>
 
       <TitlebarDragRegion />
 
-      <div
-        className={[
-          "titlebar-actions",
-          isTauri && platform !== "macos" ? "titlebar-actions--with-window-controls" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        <ExplorerPanelToggle className="ws-icon-btn" />
-        {isAgentGuiDebugMode() ? <TitlebarThemeSwitcher /> : null}
-        {!settingsTabOpen && (
-          <button
-            type="button"
-            className="ws-icon-btn ws-settings-trigger"
-            title="设置"
-            aria-label="打开设置"
-            onClick={onOpenSettingsTab}
-          >
-            <SettingsGearIcon size={16} />
-          </button>
-        )}
+      <div className="titlebar-trailing">
+        <div
+          className={[
+            "titlebar-actions",
+            isTauri && platform !== "macos" ? "titlebar-actions--with-window-controls" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          <ExplorerPanelToggle className="titlebar-action-btn ws-icon-btn" />
+          {showDevActions ? (
+            <>
+              <span className="titlebar-actions-sep" aria-hidden />
+              <div className="titlebar-actions-group" role="group" aria-label="开发工具">
+                <Link
+                  href="/tool-test"
+                  className="titlebar-action-btn ws-icon-btn"
+                  title="工具测试（直接调用，不经 LLM）"
+                  aria-label="工具测试"
+                >
+                  <IconToolTest />
+                </Link>
+                <TitlebarThemeSwitcher />
+              </div>
+            </>
+          ) : null}
+          <>
+            {showDevActions ? <span className="titlebar-actions-sep" aria-hidden /> : null}
+            <button
+              type="button"
+              className={`titlebar-action-btn ws-icon-btn ws-settings-trigger${settingsOpen ? " ws-settings-trigger--active" : ""}`}
+              title={settingsOpen ? "关闭设置" : "设置"}
+              aria-label={settingsOpen ? "关闭设置" : "打开设置"}
+              aria-pressed={settingsOpen}
+              onClick={handleToggleSettings}
+            >
+              <SettingsGearIcon size={16} />
+            </button>
+          </>
+        </div>
+        <TauriWindowControls />
       </div>
-      <TauriWindowControls />
     </header>
   );
 }

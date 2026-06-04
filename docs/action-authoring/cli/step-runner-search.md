@@ -6,7 +6,7 @@
 qkrpc step-runner search --query "剪贴板|clipboard|sys:*clip*" --json
 ```
 
-用 `items[].key` 做 **`step-runner get`**。若项含 **`controlFieldKey` / `controlFieldValue`**，get 时须传 **`--control-field <value>`**（与排序时选中的 control 子模式一致）。
+用 `items[].key` 做 **`step-runner get`**。若项含 **`controlField`**（`{ key, value, name? }`），get 时须传 **`--control-field <value>`**（与 `controlField.value` 一致）。
 
 结果按 **匹配分 + 加权分** 降序：
 

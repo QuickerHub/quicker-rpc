@@ -16,14 +16,9 @@ public sealed class StepRunnerSearchItem
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Snippet { get; set; }
 
+    /// <summary>Best-matching control-field selection from keyword ranking (when present).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ControlFieldKey { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ControlFieldValue { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ControlFieldName { get; set; }
+    public StepRunnerControlFieldMatch? ControlField { get; set; }
 
     /// <summary>Quicker icon spec, e.g. fa:Light_WindowMaximize.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

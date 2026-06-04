@@ -114,6 +114,13 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "磁盘 data.json/files 写回 Quicker（action / 公共子程序 / 动作内子程序）",
   },
   {
+    id: "workspace_program_diagnostics",
+    label: "程序语法诊断",
+    group: "read",
+    category: "workspace",
+    description: "读取 patch 后 qkrpc serve 异步生成的表达式/C# 语法检查结果",
+  },
+  {
     id: "qkrpc_action_patch",
     label: "保存动作",
     group: "write",

@@ -6,6 +6,8 @@ const WORKSPACE_PROJECT_OPS = new Set([
   "action.extract",
   "action.apply",
   "action.validate",
+  "project.lint.schedule",
+  "project.diagnostics.get",
 ]);
 
 function attachWorkspaceRoot(invoke: QkrpcInvoke): QkrpcInvoke {

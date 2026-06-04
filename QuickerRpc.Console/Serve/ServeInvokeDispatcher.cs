@@ -101,6 +101,8 @@ internal static class ServeInvokeDispatcher
             "fa.search" => await FaSearchAsync(rpc, args, token).ConfigureAwait(false),
             "expr.check" => await ExprCheckAsync(rpc, args, token).ConfigureAwait(false),
             "script.check" => await ScriptCheckAsync(rpc, args, token).ConfigureAwait(false),
+            "project.lint.schedule" => ProjectLintSchedule(pool, args, cancellationToken),
+            "project.diagnostics.get" => ProjectDiagnosticsGet(args),
             "fa.resolve" => await FaResolveAsync(rpc, args, token).ConfigureAwait(false),
             _ => Fail("UNKNOWN_OP", $"Unknown op: {op}"),
         };
@@ -1072,6 +1074,23 @@ internal static class ServeInvokeDispatcher
         var response = await rpc.ResolveFontAwesomeIconsAsync(specs, token).ConfigureAwait(false);
         return Ok(new { ok = response.Success, action = "fa-resolve", payload = response });
     }
+
+    private static ServeInvokeResponse ProjectLintSchedule(
+        QkrpcRpcSessionPool pool,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var response = ProgramSyntaxLintServeOps.Schedule(args);
+        if (response.Ok)
+        {
+            ProgramSyntaxLintServeOps.StartBackgroundLint(pool, args, cancellationToken);
+        }
+
+        return response;
+    }
+
+    private static ServeInvokeResponse ProjectDiagnosticsGet(JsonElement args) =>
+        ProgramSyntaxLintServeOps.GetDiagnostics(args);
 
     private static async Task<ServeInvokeResponse> ExprCheckAsync(
         IQuickerRpcService rpc,

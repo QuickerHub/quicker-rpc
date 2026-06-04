@@ -573,9 +573,14 @@ public sealed class HeadlessActionProgramService
                     Name = x.Name,
                     Description = x.Description,
                     Snippet = x.Snippet,
-                    ControlFieldKey = x.ControlFieldKey,
-                    ControlFieldValue = x.ControlFieldValue,
-                    ControlFieldName = x.ControlFieldName,
+                    ControlField = x.ControlField is null
+                        ? null
+                        : new QuickerRpcStepRunnerSearchControlField
+                        {
+                            Key = x.ControlField.Key,
+                            Value = x.ControlField.Value,
+                            Name = x.ControlField.Name,
+                        },
                     Icon = x.Icon,
                 })
                 .ToList(),

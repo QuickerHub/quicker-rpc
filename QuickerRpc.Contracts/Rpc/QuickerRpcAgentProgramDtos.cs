@@ -137,6 +137,15 @@ public sealed class QuickerRpcSearchActionSummariesResult
     public IList<QuickerRpcActionSummaryItem> Items { get; set; } = new List<QuickerRpcActionSummaryItem>();
 }
 
+public sealed class QuickerRpcStepRunnerSearchControlField
+{
+    public string Key { get; set; } = string.Empty;
+
+    public string Value { get; set; } = string.Empty;
+
+    public string? Name { get; set; }
+}
+
 public sealed class QuickerRpcStepRunnerSearchItem
 {
     public string Key { get; set; } = string.Empty;
@@ -147,11 +156,7 @@ public sealed class QuickerRpcStepRunnerSearchItem
 
     public string? Snippet { get; set; }
 
-    public string? ControlFieldKey { get; set; }
-
-    public string? ControlFieldValue { get; set; }
-
-    public string? ControlFieldName { get; set; }
+    public QuickerRpcStepRunnerSearchControlField? ControlField { get; set; }
 
     /// <summary>Quicker icon spec, e.g. fa:Light_WindowMaximize.</summary>
     public string? Icon { get; set; }

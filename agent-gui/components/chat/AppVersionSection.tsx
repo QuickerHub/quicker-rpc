@@ -1,26 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { formatDisplayVersion } from "@/lib/app-version-format";
 import type { PingState } from "@/lib/use-qkrpc-ping";
-import { isTauriShell } from "@/lib/tauri-shell";
-
-type VersionPayload = {
-  quickerAgent: string;
-  qkrpc: string | null;
-  runtime: "bundled" | "dev";
-};
-
-function extractProtocolVersion(ping: PingState): string | null {
-  if (ping.status !== "ok") return null;
-  const envelope = ping.data as Record<string, unknown> | null;
-  if (!envelope || typeof envelope !== "object") return null;
-  const inner = envelope.data;
-  if (typeof inner !== "object" || inner === null) return null;
-  const version = (inner as { protocolVersion?: unknown }).protocolVersion;
-  if (version === undefined || version === null) return null;
-  return String(version);
-}
+import {
+  extractProtocolVersionFromPing,
+  useAppVersionSnapshot,
+} from "@/lib/use-app-versions";
 
 type VersionRowProps = {
   label: string;
@@ -58,48 +42,16 @@ export function AppVersionSection({
   ping,
   versionRefreshKey = 0,
 }: AppVersionSectionProps) {
-  const [payload, setPayload] = useState<VersionPayload | null>(null);
-  const [tauriVersion, setTauriVersion] = useState<string | null>(null);
+  const { snapshot, agentDisplayVersion, qkrpcDisplayVersion } =
+    useAppVersionSnapshot(versionRefreshKey, active);
 
-  useEffect(() => {
-    if (!active) return;
-    if (!isTauriShell()) return;
-    void (async () => {
-      try {
-        const { getVersion } = await import("@tauri-apps/api/app");
-        const version = formatDisplayVersion((await getVersion()).trim());
-        if (version) setTauriVersion(version);
-      } catch {
-        // Browser dev or plugin unavailable.
-      }
-    })();
-  }, [active]);
-
-  useEffect(() => {
-    if (!active) return;
-    const controller = new AbortController();
-    void (async () => {
-      try {
-        const res = await fetch(`/api/settings/version?t=${versionRefreshKey}`, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        if (!res.ok) return;
-        setPayload((await res.json()) as VersionPayload);
-      } catch {
-        // Ignore fetch errors while tab is closing.
-      }
-    })();
-    return () => controller.abort();
-  }, [active, versionRefreshKey]);
-
-  const agentVersion = tauriVersion ?? payload?.quickerAgent ?? "…";
-  const qkrpcVersion = payload?.qkrpc ?? "…";
-  const protocolVersion = extractProtocolVersion(ping);
+  const agentVersion = agentDisplayVersion;
+  const qkrpcVersion = qkrpcDisplayVersion;
+  const protocolVersion = extractProtocolVersionFromPing(ping);
   const runtimeLabel =
-    payload?.runtime === "bundled"
+    snapshot?.runtime === "bundled"
       ? "安装版"
-      : payload?.runtime === "dev"
+      : snapshot?.runtime === "dev"
         ? "开发版"
         : "…";
 

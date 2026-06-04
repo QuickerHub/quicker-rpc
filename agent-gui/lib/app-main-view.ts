@@ -1,1 +1,1 @@
-export type AppMainView = "chat" | "settings" | "workspace-editor";
+export type AppMainView = "chat" | "workspace-editor";

@@ -59,7 +59,7 @@ public sealed class StepRunnerKeywordSearchRankTests
     {
         var result = StepRunnerCatalogMapper.Search(CreateWindowOperationsCatalog(), "移动窗口增强", 10);
         Assert.AreEqual("sys:windowOperations", result.Items[0].Key);
-        Assert.AreEqual("move_ex", result.Items[0].ControlFieldValue);
+        Assert.AreEqual("move_ex", result.Items[0].ControlField!.Value);
     }
 
     [TestMethod]

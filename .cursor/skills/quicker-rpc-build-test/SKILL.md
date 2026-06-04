@@ -1,17 +1,43 @@
 ---
 name: quicker-rpc-build-test
 description: >-
-  After quicker-rpc source changes, runs pwsh ./build.ps1 -t (patch test build:
-  plugin zip to Quicker test package, OSS upload, qkrpc CLI publish). Use when
-  implementing or fixing Plugin, Console, Contracts, build scripts, or RPC/CLI
-  features; when the user asks to build, test build, build -t, or reload the plugin
-  after code edits.
+  After quicker-rpc source changes, run pwsh ./build.ps1 -t (hot-reload plugin +
+  qkrpc CLI/serve) without restarting agent-gui. Use when editing Plugin, Console,
+  Contracts, AgentModel, build scripts, or RPC/CLI; when the user asks to build,
+  test build, build -t, hot update, /hot-update, reload plugin, or restart qkrpc serve.
 disable-model-invocation: false
 metadata:
   internal: true
 ---
 
 # quicker-rpc 改代码后测试构建
+
+## 热更新（agent-gui 可保持运行）
+
+改 **qkrpc（CLI/serve）** 或 **QuickerRpc 插件** 后，必须在仓库根目录执行热更新构建；**不要**只改源码就假定 agent-gui / 已打开的 `qkrpc serve` 会自动吃到新逻辑。
+
+```powershell
+# 另开终端；不必关闭 start-agent-gui.ps1 / pnpm dev
+pwsh -NoProfile -File ./build.ps1 -t
+```
+
+| 改了什么 | 热更新做什么 | agent-gui |
+|----------|----------------|-------------|
+| `QuickerRpc.Plugin/**` | `-t` → Quicker 测试包 + **重载插件 DLL**（`quicker:runaction:…`） | 保持打开；RPC 经 serve 重连管道 |
+| `QuickerRpc.Console/**`、`QuickerRpc.Contracts/**`（影响 RPC/CLI） | `-t` → 发布 `publish/cli` + **停旧 serve → 启新 serve**（默认 `9477`） | 保持打开；必要时 UI **重新检测** |
+| `QuickerRpc.AgentModel/**` | 同上（CLI 与插件均可能依赖） | 同上 |
+| 仅 `agent-gui/**` | **无需** `build.ps1 -t`；Next **HMR** + **`dev_frontend_check` 直到 ok** | 见 `.cursor/skills/quicker-agent-gui-frontend/SKILL.md` |
+| `docs/action-authoring-src/**` | 需要 `-t` 或对应生成步骤，嵌入 CLI/agent 文档 | 视是否改到 UI |
+
+要点：
+
+1. **不必重启 agent-gui**：`start.mjs` 通过 `http://127.0.0.1:9477` 调 serve；`build.ps1 -t` 会替换二进制并重启 serve，端口不变。
+2. **serve 副本**：开发时 serve 常跑在 `agent-gui/.runtime/qkrpc`，避免锁住 `publish/cli`；`-t` 仍会先 **Stop-QkrpcServe** 再启动 `publish/cli` 下的新进程。
+3. **仅插件行为、且已在 Quicker 手动 reload DLL**：已运行的 serve 可在下次请求时 **重连管道**（`QkrpcRpcSessionPool.InvalidateAsync`）；仍建议改 Plugin 后跑 **`-t`**，避免版本/方法不一致。
+4. **跳过 serve 重启**（仅当用户明确要求）：`pwsh ./build.ps1 -t -SkipQkrpcServe` — 只换插件/包，**不**换正在跑的 `qkrpc.exe`。
+5. **验证**：`GET http://127.0.0.1:9477/health` 或 `qkrpc action list --limit 1 --json`；agent-gui 侧栏 **重新检测** Quicker RPC。
+
+前置：Quicker 已启动；`-t` 失败或 RPC 报方法不存在时，确认插件重载动作已执行成功。
 
 ## 何时执行
 
@@ -71,9 +97,17 @@ pwsh -NoProfile -File ./build.ps1 -t
 - 将 `publish/cli`、`publish/plugin`、`QuickerRpc.Plugin/publish/*.zip` 提交 Git
 - 修改 `git config`
 
+## Agent 改完代码后的必做项
+
+1. 若 diff 触及 **Plugin / Console / Contracts / AgentModel**（见上文「触发 build 的路径」）→ **执行** `build.ps1 -t`（热更新），再跑相关 `dotnet test` / `qkrpc` 冒烟。
+2. 若用户正在用 **agent-gui** 验证 → 提醒无需关前端；构建完成后可点 **重新检测**。
+3. **不要**在未 `-t` 的情况下声称「已修复 RPC/CLI」，除非用户明确只做静态分析或仅改 agent-gui。
+
 ## 相关
 
+- agent-gui 前端报错捕获与修复：`.cursor/skills/quicker-agent-gui-frontend/SKILL.md`
 - 公开发布：`.cursor/skills/quicker-rpc-publish/SKILL.md`
 - 反射 / 查 Quicker 源码：`.cursor/skills/quicker-exe-type-probing/SKILL.md`
 - 入口：`build.ps1` → qkbuild + `publish/publish-rpc.ps1`（`-t` 时 `publish-rpc.ps1 -SkipPackaging`）
 - 需要本地 zip/setup 时：`pwsh ./publish/publish-rpc.ps1` 或 `build.ps1 -SkipCliPackaging:$false -t`
+- Cursor 命令：`.cursor/commands/hot-update.md`（`/hot-update`）

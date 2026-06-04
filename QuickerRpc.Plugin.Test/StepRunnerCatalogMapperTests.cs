@@ -99,9 +99,38 @@ public sealed class StepRunnerCatalogMapperTests
         Assert.AreEqual(1, result.MatchCount);
         var item = result.Items[0];
         Assert.AreEqual("sys:windowOperations", item.Key);
-        Assert.AreEqual("type", item.ControlFieldKey);
-        Assert.AreEqual("move_ex", item.ControlFieldValue);
-        Assert.AreEqual("移动窗口(增强)", item.ControlFieldName);
+        Assert.IsNotNull(item.ControlField);
+        Assert.AreEqual("type", item.ControlField.Key);
+        Assert.AreEqual("move_ex", item.ControlField.Value);
+        Assert.AreEqual("移动窗口(增强)", item.ControlField.Name);
+    }
+
+    [TestMethod]
+    public void Search_short_move_query_still_includes_control_field_on_controlled_runner()
+    {
+        var catalog = CreateWindowOperationsCatalog();
+        var result = StepRunnerCatalogMapper.Search(catalog, "移动", maxResults: 10);
+
+        Assert.IsTrue(result.Success);
+        Assert.IsTrue(result.MatchCount >= 1);
+        var item = result.Items.First(i => i.Key == "sys:windowOperations");
+        Assert.IsNotNull(item.ControlField, "Non-empty query + control runner must emit controlField.");
+        Assert.AreEqual("type", item.ControlField!.Key);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(item.ControlField.Value));
+    }
+
+    [TestMethod]
+    public void Search_empty_query_omits_control_field()
+    {
+        var catalog = CreateWindowOperationsCatalog();
+        var result = StepRunnerCatalogMapper.Search(catalog, string.Empty, maxResults: 10);
+
+        Assert.IsTrue(result.Success);
+        Assert.IsTrue(result.MatchCount >= 1);
+        foreach (var item in result.Items)
+        {
+            Assert.IsNull(item.ControlField);
+        }
     }
 
     [TestMethod]

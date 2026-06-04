@@ -323,6 +323,14 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("code", "Inline C# script."), Option("file", "Script file or - for stdin."), Option("references", "Extra assembly paths (one per line)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
+                Cmd("project.lint.schedule", "Schedule async expression/C# lint for a .quicker project (qkrpc serve). Writes .qkrpc/diagnostics.json.", "POST serve op project.lint.schedule — args: projectDir, workspaceRoot, target, id, editVersion",
+
+                    opts: new[] { Option("projectDir", "Absolute project directory."), Option("workspaceRoot", "Workspace root for path guard."), Option("target", "action | global_subprogram | embedded_subprogram."), Option("id", "Action or subprogram id."), Option("editVersion", "From last patch.") }),
+
+                Cmd("project.diagnostics.get", "Read program syntax diagnostics snapshot (qkrpc serve).", "POST serve op project.diagnostics.get — args: projectDir, waitMs, editVersion",
+
+                    opts: new[] { Option("projectDir", "Absolute project directory."), Option("waitMs", "Wait for running lint (0–120000)."), Option("editVersion", "Detect stale snapshot.") }),
+
             },
 
         };

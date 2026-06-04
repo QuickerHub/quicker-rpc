@@ -15,12 +15,15 @@ type MessagePartsProps = {
   /** Local unsent user-message edit; does not change chat context until send. */
   userTextOverride?: string;
   workingDirectory?: string;
+  /** Tool-test: keep multi-tool batches expanded (no auto-collapse when idle). */
+  keepToolBatchesExpanded?: boolean;
 };
 
 export function MessageParts({
   message,
   userTextOverride,
   workingDirectory,
+  keepToolBatchesExpanded = false,
 }: MessagePartsProps) {
   const segments = useMemo(
     () => segmentMessageParts(message.parts),
@@ -70,6 +73,7 @@ export function MessageParts({
             key={batchKey}
             messageId={message.id}
             items={segment.items}
+            disableAutoCollapse={keepToolBatchesExpanded}
           />
         );
       })}

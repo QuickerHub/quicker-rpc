@@ -3,11 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const PING_FETCH_MS = 15_000;
+const DEFAULT_POLL_INTERVAL_MS = 15_000;
 
 export type PingState =
   | { status: "loading" }
   | { status: "ok"; data: unknown }
   | { status: "error"; message: string };
+
+export type RefreshPingOptions = {
+  /** Keep current status label while re-checking (background poll). */
+  silent?: boolean;
+};
+
+export type UseQkrpcPingOptions = {
+  /** Periodic health checks; 0 disables polling (mount + boot retries only). */
+  pollIntervalMs?: number;
+  /** Skip polls while the tab is hidden (default true). */
+  pausePollWhenHidden?: boolean;
+};
 
 function formatPingError(data: unknown, fallback: string): string {
   if (typeof data === "object" && data !== null) {
@@ -26,12 +39,22 @@ function formatPingError(data: unknown, fallback: string): string {
   return fallback;
 }
 
-export function useQkrpcPing() {
+export function useQkrpcPing(options: UseQkrpcPingOptions = {}) {
+  const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  const pausePollWhenHidden = options.pausePollWhenHidden ?? true;
+
   const [ping, setPing] = useState<PingState>({ status: "loading" });
   const [connectTick, setConnectTick] = useState(0);
+  const inFlightRef = useRef(false);
+  const pingStatusRef = useRef<PingState["status"]>("loading");
 
-  const refreshPing = useCallback(async () => {
-    setPing({ status: "loading" });
+  const refreshPing = useCallback(async (opts?: RefreshPingOptions) => {
+    const silent = opts?.silent ?? false;
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    if (!silent) {
+      setPing({ status: "loading" });
+    }
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), PING_FETCH_MS);
     try {
@@ -45,6 +68,7 @@ export function useQkrpcPing() {
         try {
           data = JSON.parse(raw) as unknown;
         } catch {
+          pingStatusRef.current = "error";
           setPing({ status: "error", message: "健康检查响应无效" });
           return;
         }
@@ -55,10 +79,15 @@ export function useQkrpcPing() {
         && "ok" in data
         && (data as { ok: boolean }).ok;
       if (res.ok && ok) {
+        const prevStatus = pingStatusRef.current;
+        pingStatusRef.current = "ok";
         setPing({ status: "ok", data });
-        setConnectTick((n) => n + 1);
+        if (!silent || prevStatus !== "ok") {
+          setConnectTick((n) => n + 1);
+        }
         return;
       }
+      pingStatusRef.current = "error";
       setPing({
         status: "error",
         message: formatPingError(data, res.ok ? "未连接 Quicker" : `HTTP ${res.status}`),
@@ -70,9 +99,11 @@ export function useQkrpcPing() {
           : e instanceof Error
             ? e.message
             : String(e);
+      pingStatusRef.current = "error";
       setPing({ status: "error", message });
     } finally {
       window.clearTimeout(timer);
+      inFlightRef.current = false;
     }
   }, []);
 
@@ -87,9 +118,35 @@ export function useQkrpcPing() {
     if (pingBootRetriesRef.current >= 2) return;
     const delayMs = pingBootRetriesRef.current === 0 ? 2_000 : 5_000;
     pingBootRetriesRef.current += 1;
-    const timer = window.setTimeout(() => void refreshPing(), delayMs);
+    const timer = window.setTimeout(
+      () => void refreshPing({ silent: true }),
+      delayMs,
+    );
     return () => window.clearTimeout(timer);
   }, [ping.status, refreshPing]);
+
+  useEffect(() => {
+    if (pollIntervalMs <= 0) return;
+    const tick = () => {
+      if (pausePollWhenHidden && document.visibilityState === "hidden") {
+        return;
+      }
+      void refreshPing({ silent: true });
+    };
+    const id = window.setInterval(tick, pollIntervalMs);
+    return () => window.clearInterval(id);
+  }, [pollIntervalMs, pausePollWhenHidden, refreshPing]);
+
+  useEffect(() => {
+    if (!pausePollWhenHidden) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refreshPing({ silent: true });
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [pausePollWhenHidden, refreshPing]);
 
   return { ping, refreshPing, connectTick };
 }

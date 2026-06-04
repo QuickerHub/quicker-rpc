@@ -11,6 +11,17 @@ function unwrapPayload(data: unknown): Record<string, unknown> | null {
   return root;
 }
 
+function readSearchControlValue(item: Record<string, unknown>): string | undefined {
+  const nested = item.controlField ?? item.ControlField;
+  if (typeof nested === "object" && nested !== null && !Array.isArray(nested)) {
+    const row = nested as Record<string, unknown>;
+    const value = row.value ?? row.Value;
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  const legacy = item.controlFieldValue ?? item.ControlFieldValue;
+  return typeof legacy === "string" && legacy.trim() ? legacy.trim() : undefined;
+}
+
 function mapQuickInsertItems(items: Record<string, unknown>[]): unknown[] {
   return items.map((item) => ({
     kind: "runner",
@@ -21,7 +32,7 @@ function mapQuickInsertItems(items: Record<string, unknown>[]): unknown[] {
       stepRunnerKey: item.key ?? item.Key,
       name: item.name ?? item.Name,
       icon: item.icon ?? item.Icon,
-      controlFieldValue: item.controlFieldValue ?? item.ControlFieldValue,
+      controlFieldValue: readSearchControlValue(item),
     },
   }));
 }

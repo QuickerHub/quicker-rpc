@@ -69,7 +69,7 @@ step-modules（可选）→ step-runner search（一次 OR|通配）→ step-run
 
 - 步骤 JSON 形状（`inputParams` / `outputParams` / `ifSteps`）：**`action-steps`**。
 - **长 `inputParams.value`**（超过 4 行脚本/字符串）：先 **`files/`** + `"file": "files/…"`，勿整段写入 `data.json`（**`workspace-editing`**）。
-- 有 **ControlField**：search 可能带 `controlFieldValue`；get 须传 {{#ref control-field.get}}。
+- 有 **ControlField**：search 可能带 `controlField` 对象；get 须传 {{#ref control-field.get}}（`controlField.value`）。
 - 语法：**`step-runner-search`**。
 
 {{#only-cli}}

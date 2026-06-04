@@ -91,17 +91,47 @@ export function writeFrontendSmokeLast(result: unknown): void {
   writeJsonFile(SMOKE_LAST_PATH, result);
 }
 
+/** Fast Refresh partial updates — not representative of a clean page load. */
+function isReactRefreshTransientError(entry: ClientFrontendErrorReport): boolean {
+  const stack = entry.stack ?? "";
+  return (
+    stack.includes("performReactRefresh")
+    || stack.includes("react-refresh-runtime")
+    || stack.includes("@next/react-refresh-utils")
+  );
+}
+
 export function clientErrorsToIssues(
   errors: ClientFrontendErrorReport[],
+  options?: {
+    /** Drop errors older than this (default 10 minutes). */
+    maxAgeMs?: number;
+    now?: number;
+    /** Ignore HMR / Fast Refresh glitches (default true). */
+    omitReactRefresh?: boolean;
+  },
 ): FrontendIssue[] {
-  return errors.slice(-20).map((entry) => ({
-    kind: entry.kind === "console" ? "console" : "runtime",
-    message: entry.message,
-    stack: entry.stack,
-    source: entry.source,
-    url: entry.url,
-    at: entry.at,
-  }));
+  const now = options?.now ?? Date.now();
+  const maxAgeMs = options?.maxAgeMs ?? 10 * 60 * 1000;
+  const omitReactRefresh = options?.omitReactRefresh ?? true;
+
+  return errors
+    .filter((entry) => {
+      if (omitReactRefresh && isReactRefreshTransientError(entry)) {
+        return false;
+      }
+      const at = Date.parse(entry.at);
+      return Number.isFinite(at) && now - at <= maxAgeMs;
+    })
+    .slice(-20)
+    .map((entry) => ({
+      kind: entry.kind === "console" ? "console" : "runtime",
+      message: entry.message,
+      stack: entry.stack,
+      source: entry.source,
+      url: entry.url,
+      at: entry.at,
+    }));
 }
 
 export function mergeUniqueIssues(issues: FrontendIssue[]): FrontendIssue[] {

@@ -25,7 +25,7 @@ public static class StepRunnerCatalogMapper
             .ThenByDescending(x => x.rank.ControlScore)
             .ThenBy(x => x.r.Name, StringComparer.OrdinalIgnoreCase)
             .Take(limit)
-            .Select(x => ToSearchItem(x.r, x.rank))
+            .Select(x => ToSearchItem(x.r, x.rank, includeControlField: kw.Length > 0))
             .ToList();
 
         return new SearchStepRunnersResult
@@ -72,7 +72,10 @@ public static class StepRunnerCatalogMapper
         }
     }
 
-    private static StepRunnerSearchItem ToSearchItem(StepRunnerDefinition row, StepRunnerSearchRankResult rank)
+    private static StepRunnerSearchItem ToSearchItem(
+        StepRunnerDefinition row,
+        StepRunnerSearchRankResult rank,
+        bool includeControlField)
     {
         var retrieval = StepRunnerRetrievalBuilder.Build(row);
         var item = new StepRunnerSearchItem
@@ -84,14 +87,82 @@ public static class StepRunnerCatalogMapper
             Icon = TrimToNull(row.Icon),
         };
 
-        if (rank.Control is not null)
+        if (includeControlField)
         {
-            item.ControlFieldKey = rank.Control.Key;
-            item.ControlFieldValue = rank.Control.Value;
-            item.ControlFieldName = rank.Control.Name;
+            var control = ResolveSearchControlField(row, rank);
+            if (control is not null)
+            {
+                item.ControlField = control;
+            }
         }
 
         return item;
+    }
+
+    /// <summary>
+    /// Best-matching control selection for search hits (keyword ranking, else catalog default).
+    /// </summary>
+    private static StepRunnerControlFieldMatch? ResolveSearchControlField(
+        StepRunnerDefinition row,
+        StepRunnerSearchRankResult rank)
+    {
+        if (rank.Control is not null)
+        {
+            return rank.Control;
+        }
+
+        return DefaultControlFieldMatch(row);
+    }
+
+    private static StepRunnerControlFieldMatch? DefaultControlFieldMatch(StepRunnerDefinition row)
+    {
+        var control = StepRunnerInputParamVisibility.TryFindControlField(row.InputParamDefs);
+        if (control is null || control.SelectionItems.Count == 0)
+        {
+            return null;
+        }
+
+        var controlKey = control.Key ?? string.Empty;
+        var moduleDoc = StepRunnerRetrievalBuilder.BuildModuleOnly(row);
+        StepRunnerParamSelectionItem? best = null;
+        var bestBias = int.MinValue;
+
+        foreach (var si in control.SelectionItems)
+        {
+            var value = (si.Value ?? string.Empty).Trim();
+            if (value.Length == 0)
+            {
+                continue;
+            }
+
+            var bias = moduleDoc.ControlRankBias.TryGetValue(value, out var b) ? b : 0;
+            if (best is null || bias > bestBias)
+            {
+                bestBias = bias;
+                best = si;
+            }
+        }
+
+        best ??= control.SelectionItems.FirstOrDefault(si =>
+            (si.Value ?? string.Empty).Trim().Length > 0
+            || (si.Name ?? string.Empty).Trim().Length > 0);
+        if (best is null)
+        {
+            return null;
+        }
+
+        var resolvedValue = (best.Value ?? string.Empty).Trim();
+        if (resolvedValue.Length == 0)
+        {
+            return null;
+        }
+
+        return new StepRunnerControlFieldMatch
+        {
+            Key = controlKey,
+            Value = resolvedValue,
+            Name = TrimToNull(best.Name) ?? string.Empty,
+        };
     }
 
     private static StepRunnerAgentSchema MapAgentSchema(
