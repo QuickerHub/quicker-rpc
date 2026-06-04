@@ -14,8 +14,8 @@ export function ActionLinkChip({
   link,
   workingDirectory: cwdProp,
 }: ActionLinkChipProps) {
-  const store = useChatStore();
-  const cwd = (cwdProp ?? store.workingDirectory).trim();
+  const { store, defaultCwd } = useChatStore();
+  const cwd = (cwdProp ?? (store.workingDirectory.trim() || defaultCwd)).trim();
   const [busy, setBusy] = useState(false);
 
   const onClick = useCallback(async () => {
