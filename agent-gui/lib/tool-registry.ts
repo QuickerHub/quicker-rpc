@@ -11,6 +11,7 @@ export type ToolCategoryId =
   | "catalog"
   | "layout"
   | "runtime"
+  | "settings"
   | "delete";
 
 export type ToolMeta = {
@@ -36,13 +37,14 @@ export const TOOL_CATEGORY_LABELS: Record<ToolCategoryId, string> = {
   catalog: "步骤与资源",
   layout: "动作页与布局",
   runtime: "运行",
+  settings: "设置",
   delete: "删除",
 };
 
 /** Category order within each permission group in the tool picker. */
 export const TOOL_CATEGORY_ORDER_BY_GROUP: Record<ToolGroupId, ToolCategoryId[]> = {
   read: ["docs", "workspace", "action", "subprogram", "catalog"],
-  write: ["action", "subprogram", "workspace", "layout", "runtime"],
+  write: ["action", "subprogram", "workspace", "layout", "runtime", "settings"],
   destructive: ["delete"],
 };
 
@@ -51,6 +53,27 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
   { id: "docs_get_reference", label: "指南附录", group: "read", category: "docs", description: "references/ 大表等附录" },
   { id: "docs_search", label: "搜索指南", group: "read", category: "docs", description: "本地文档搜索" },
   { id: "docs_index", label: "指南索引", group: "read", category: "docs", description: "列出全部主题" },
+  {
+    id: "shell_exec",
+    label: "Shell",
+    group: "write",
+    category: "runtime",
+    description: "在本机工作目录执行 PowerShell/cmd/bash 命令或脚本",
+  },
+  {
+    id: "dev_frontend_check",
+    label: "前端检查",
+    group: "read",
+    category: "runtime",
+    description: "检测 agent-gui 本地 dev 页面/编译/浏览器报错（开发模式）",
+  },
+  {
+    id: "llm_settings",
+    label: "模型配置",
+    group: "write",
+    category: "settings",
+    description: "管理自定义 LLM profile 与当前选用模型",
+  },
   { id: "workspace_action_file_read", label: "读动作文件", group: "read", category: "workspace", description: "files/ 外置资源" },
   {
     id: "workspace_action_projects",
@@ -84,11 +107,18 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "新建虚拟页动作",
   },
   {
+    id: "workspace_program_patch",
+    label: "保存程序",
+    group: "write",
+    category: "workspace",
+    description: "磁盘 data.json/files 写回 Quicker（action / 公共子程序 / 动作内子程序）",
+  },
+  {
     id: "qkrpc_action_patch",
     label: "保存动作",
     group: "write",
     category: "action",
-    description: "校验并写回 Quicker（edit/write data 后直接调用，勿单独 validate）",
+    description: "保存动作 workspace（等同 workspace_program_patch target=action）",
   },
   {
     id: "qkrpc_action_set_metadata",

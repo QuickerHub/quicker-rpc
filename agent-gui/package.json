@@ -18,6 +18,8 @@
     "docs:gen": "node ../scripts/generate-authoring-docs.mjs",
     "docs:check": "node ../scripts/generate-authoring-docs.mjs --check",
     "test:context-compression": "tsx --test lib/context-compression.test.ts lib/context-compression.integration.test.ts lib/action-project-workflow.test.ts lib/action-project-roundtrip.test.ts lib/action-project-file.test.ts lib/workspace-fs.test.ts lib/action-editor/programWire.test.ts",
+    "dev:smoke": "node scripts/frontend-smoke.mjs",
+    "dev:heal-loop": "node scripts/dev-heal-loop.mjs",
     "predev": "pnpm docs:gen",
     "prebuild": "pnpm docs:gen"
   },

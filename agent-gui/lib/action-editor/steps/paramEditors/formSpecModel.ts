@@ -109,9 +109,10 @@ function parseV1Field(raw: unknown): FormSpecField | null {
         const value = typeof entry.value === "string" ? entry.value.trim() : "";
         if (!value) return null;
         const option: FormSpecFieldOption = { value };
-        if (typeof entry.label === "string" && entry.label.trim()) {
-          option.label = entry.label.trim();
-        }
+        const labelText =
+          (typeof entry.label === "string" ? entry.label.trim() : "")
+          || (typeof entry.name === "string" ? entry.name.trim() : "");
+        if (labelText) option.label = labelText;
         return option;
       })
       .filter((entry): entry is FormSpecFieldOption => entry !== null);
@@ -233,4 +234,36 @@ export function projectRelativeFilePath(projectDir: string, file: string): strin
   const base = projectDir.replace(/\\/g, "/").replace(/\/+$/, "");
   const rel = file.replace(/\\/g, "/").replace(/^\/+/, "");
   return `${base}/${rel}`;
+}
+
+export function isFormSpecFilePath(path: string): boolean {
+  const base = path.replace(/\\/g, "/").split("/").pop() ?? "";
+  return base.toLowerCase().endsWith(".form.json");
+}
+
+export type FormSpecFilePrepareResult =
+  | { ok: true; content: string; reformatted: boolean }
+  | { ok: false; error: string };
+
+/** Parse and canonicalize *.form.json before agent write/edit (2-space indent, label not name). */
+export function prepareFormSpecFileContentForWrite(
+  rawContent: string,
+): FormSpecFilePrepareResult {
+  const parsed = parseFormSpecText(rawContent);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      error: `form.json 无效：${parsed.error}。请输出完整 qkrpc.form.v1 JSON（select.options 用 value+label，勿用 name）。`,
+    };
+  }
+  if (parsed.format === "native") {
+    return {
+      ok: false,
+      error:
+        "form.json 为 Quicker 原生表单格式，Agent 请改用 qkrpc.form.v1（$schema、fields[].key/label/type）。",
+    };
+  }
+  const content = serializeFormSpec(parsed.spec);
+  const reformatted = content !== rawContent && content !== rawContent.replace(/\r\n/g, "\n");
+  return { ok: true, content, reformatted };
 }

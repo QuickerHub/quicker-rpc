@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { TextEditorStatusBar } from "@/components/chat/TextEditorStatusBar";
 import {
+  codeMirrorEditorStatsEqual,
   computeCodeMirrorEditorStats,
   createCodeMirrorStatsExtension,
   statsFromTextContent,
@@ -47,11 +48,19 @@ export function CodeMirrorPreview({
   setStatsRef.current = setStats;
 
   useEffect(() => {
-    setStats(statsFromTextContent(content));
+    setStats((prev) => {
+      const next = statsFromTextContent(content);
+      return codeMirrorEditorStatsEqual(prev, next) ? prev : next;
+    });
   }, [content]);
 
   const statsExtension = useMemo(
-    () => createCodeMirrorStatsExtension((next) => setStatsRef.current(next)),
+    () =>
+      createCodeMirrorStatsExtension((next) => {
+        setStatsRef.current((prev) =>
+          codeMirrorEditorStatsEqual(prev, next) ? prev : next,
+        );
+      }),
     [],
   );
 
@@ -91,7 +100,10 @@ export function CodeMirrorPreview({
         maxHeight={fillAvailable ? undefined : maxHeight}
         minHeight={fillAvailable ? undefined : minHeight}
         onCreateEditor={(view) => {
-          setStatsRef.current(computeCodeMirrorEditorStats(view.state));
+          const next = computeCodeMirrorEditorStats(view.state);
+          setStatsRef.current((prev) =>
+            codeMirrorEditorStatsEqual(prev, next) ? prev : next,
+          );
         }}
       />
       {showEditorStatusBar ? <TextEditorStatusBar stats={stats} /> : null}

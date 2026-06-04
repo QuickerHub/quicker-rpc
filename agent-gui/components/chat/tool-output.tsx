@@ -85,6 +85,32 @@ export function summarizeToolOutput(
 ): string | null {
   if (!isQkrpcToolResult(output)) return null;
 
+  if (toolName === "shell_exec") {
+    if (!output.ok) {
+      const d =
+        typeof output.data === "object" && output.data !== null
+          ? (output.data as Record<string, unknown>)
+          : null;
+      const blocked = d?.blocked === true;
+      const reason =
+        (typeof d?.blockReason === "string" && d.blockReason)
+        || output.stderr
+        || "shell failed";
+      return blocked ? `已拦截 · ${reason.slice(0, 72)}` : `失败 · ${reason.slice(0, 72)}`;
+    }
+    const d =
+      typeof output.data === "object" && output.data !== null
+        ? (output.data as Record<string, unknown>)
+        : null;
+    const exitCode = typeof d?.exitCode === "number" ? d.exitCode : output.exitCode;
+    const summary = typeof d?.summary === "string" ? d.summary : "shell";
+    const durationMs = typeof d?.durationMs === "number" ? d.durationMs : undefined;
+    const tail = durationMs != null ? `${durationMs}ms` : "";
+    return exitCode === 0
+      ? `exit 0 · ${summary}${tail ? ` · ${tail}` : ""}`
+      : `exit ${exitCode} · ${summary}`;
+  }
+
   if (isWorkspaceExplorerFileTool(toolName)) {
     const fileSummary = summarizeWorkspaceFileTool(toolName, output, input);
     if (fileSummary) return fileSummary;
@@ -228,6 +254,7 @@ export function formatToolState(state: string): string {
 
 /** qkrpc_step_runner_search → step runner search */
 export function formatToolDisplayName(toolName: string): string {
+  if (toolName === "shell_exec") return "shell";
   const projectsLabel = actionProjectsToolDisplayName(toolName);
   if (projectsLabel) return projectsLabel;
   const fileLabel = workspaceFileToolDisplayName(toolName);

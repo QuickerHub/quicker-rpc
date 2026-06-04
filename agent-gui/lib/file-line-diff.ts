@@ -55,7 +55,10 @@ export function computeLineDiff(oldText: string, newText: string): LineDiffRow[]
   return stack.reverse();
 }
 
-/** Count inserted/deleted lines from a real line diff (not whole-block line counts). */
+/**
+ * Insert/delete line counts from LCS line diff (fast; no CodeMirror).
+ * Used for tool-card +N/-N badges; collapse/merge view is separate.
+ */
 export function countLineDiffStats(
   oldText: string,
   newText: string,
@@ -70,7 +73,96 @@ export function countLineDiffStats(
 }
 
 export function countUnifiedDiffDisplayLines(oldText: string, newText: string): number {
-  return computeLineDiff(oldText, newText).length;
+  const collapsed = buildCollapsedDiffTexts(oldText, newText);
+  return collapsed.displayLineCount;
+}
+
+export const FILE_DIFF_CONTEXT_LINES = 3;
+export const FILE_DIFF_MIN_EQUAL_COLLAPSE = 8;
+
+export type FileDiffDisplay = {
+  /** Collapsed old side for merge/diff editor. */
+  removed: string;
+  /** Collapsed new side for merge/diff editor. */
+  added: string;
+  addLines: number;
+  removeLines: number;
+  displayLineCount: number;
+};
+
+function joinDiffLines(lines: string[]): string {
+  if (lines.length === 0) return "";
+  return `${lines.join("\n")}\n`;
+}
+
+function collapseEqualTexts(
+  texts: string[],
+  contextLines: number,
+  minCollapse: number,
+  out: string[],
+): void {
+  if (texts.length < minCollapse) {
+    out.push(...texts);
+    return;
+  }
+  const head = texts.slice(0, contextLines);
+  const tail = texts.slice(texts.length - contextLines);
+  const omitted = texts.length - head.length - tail.length;
+  out.push(...head, `… ${omitted} 行未修改 …`, ...tail);
+}
+
+const COLLAPSED_MARKER_RE = /^… \d+ 行未修改 …$/;
+
+export function isCollapsedDiffContextLine(text: string): boolean {
+  return COLLAPSED_MARKER_RE.test(text.trim());
+}
+
+/** Focus diff on changed hunks; collapse long unchanged runs (agent-style). */
+export function buildCollapsedDiffTexts(
+  oldText: string,
+  newText: string,
+  options?: { contextLines?: number; minEqualCollapse?: number },
+): FileDiffDisplay {
+  const contextLines = options?.contextLines ?? FILE_DIFF_CONTEXT_LINES;
+  const minCollapse = options?.minEqualCollapse ?? FILE_DIFF_MIN_EQUAL_COLLAPSE;
+  const rows = computeLineDiff(oldText, newText);
+  let addLines = 0;
+  let removeLines = 0;
+  for (const row of rows) {
+    if (row.kind === "insert") addLines++;
+    if (row.kind === "delete") removeLines++;
+  }
+
+  const oldLines: string[] = [];
+  const newLines: string[] = [];
+  let idx = 0;
+
+  while (idx < rows.length) {
+    if (rows[idx].kind === "equal") {
+      let end = idx;
+      while (end < rows.length && rows[end].kind === "equal") end++;
+      const texts = rows.slice(idx, end).map((row) => row.text);
+      collapseEqualTexts(texts, contextLines, minCollapse, oldLines);
+      collapseEqualTexts(texts, contextLines, minCollapse, newLines);
+      idx = end;
+      continue;
+    }
+
+    let end = idx;
+    while (end < rows.length && rows[end].kind !== "equal") end++;
+    for (let k = idx; k < end; k++) {
+      const row = rows[k];
+      if (row.kind === "delete") oldLines.push(row.text);
+      if (row.kind === "insert") newLines.push(row.text);
+    }
+    idx = end;
+  }
+
+  const removed = joinDiffLines(oldLines);
+  const added = joinDiffLines(newLines);
+  const displayLineCount = Math.max(oldLines.length, newLines.length);
+
+  return { removed, added, addLines, removeLines, displayLineCount };
 }
 
 function gutterSymbol(kind: LineDiffKind): string {

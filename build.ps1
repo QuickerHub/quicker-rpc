@@ -114,7 +114,7 @@ function Get-QkbuildInvocationArgs {
 }
 
 # Keep in sync with QuickerRpc.Contracts.Rpc.QuickerRpcBootstrap.PluginRunActionId
-$PluginRunActionUri = 'quicker:runaction:aa5917ad-1256-4c73-7022-08debe3efcbe'
+$PluginRunActionUri = 'quicker:runaction:aa5917ad-1256-4c73-7022-08debe3efcbe?plugin'
 
 function Get-QkrpcServePort {
     $raw = $env:QKRPC_PORT

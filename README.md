@@ -41,11 +41,17 @@ load {packagePath}/QuickerRpc.Plugin.{version}.dll
 type QuickerRpc.Plugin.Launcher, QuickerRpc.Plugin.{version}
 ```
 
-`Register` 会启动 RPC 服务并监听命名管道。子程序 **QuickerRpc_Run** 提供布尔入参 **`openMonitor`**（勾选后 `Launcher.Start(true)` 打开监控窗）；也可用虚拟动作页上的 **QuickerRpc 管理**（`Launcher.ShowMonitor()`）。显式启动示例：
+`Register` 会启动 RPC 服务并监听命名管道。子程序 **QuickerRpc_Run** 应使用 `Launcher.StartFromQuickerInParam(quicker_in_param, _context)`：
+
+| 条件 | 行为 |
+|------|------|
+| `_context` 为外部触发（`ActionTrigger.Extern`，含 qkrpc bootstrap） | **强制**仅启动 RPC（静默，不打开 QuickerAgent） |
+| Quicker 内点击 / `agent` / 无参 | 启动 RPC 并打开 QuickerAgent |
+| `quicker:runaction:…?plugin` | 仅 RPC（与上兼容） |
 
 ```csharp
-Launcher.Start();
-Launcher.Start(openMonitor: true);
+Launcher.StartFromQuickerInParam(quicker_in_param, _context);
+Launcher.Start(_context);
 ```
 
 ### 3. 验证环境

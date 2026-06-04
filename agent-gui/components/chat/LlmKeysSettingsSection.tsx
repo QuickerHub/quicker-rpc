@@ -28,15 +28,46 @@ type ProviderConfigStatus = {
   editableFields: readonly ProviderField[];
 };
 
+type PublicProfile = {
+  id: string;
+  title: string;
+  description?: string;
+  baseURL: string;
+  models: string[];
+  defaultModel?: string;
+  hidden?: boolean;
+  apiKey: ProviderKeyStatus;
+};
+
 type LlmSettingsResponse = {
   storagePath: string;
   providers: Record<LlmProviderId, ProviderConfigStatus>;
+  profiles: PublicProfile[];
+  activeSelection?: string;
 };
 
 type ProviderDraft = {
   apiKey: string;
   baseURL: string;
   model: string;
+};
+
+type ProfileDraft = {
+  title: string;
+  description: string;
+  apiKey: string;
+  baseURL: string;
+  modelsText: string;
+  defaultModel: string;
+};
+
+const EMPTY_PROFILE_DRAFT: ProfileDraft = {
+  title: "",
+  description: "",
+  apiKey: "",
+  baseURL: "https://api.openai.com/v1",
+  modelsText: "",
+  defaultModel: "",
 };
 
 function emptyProviderDrafts(): Partial<Record<LlmProviderId, ProviderDraft>> {
@@ -46,20 +77,16 @@ function emptyProviderDrafts(): Partial<Record<LlmProviderId, ProviderDraft>> {
 }
 
 function draftsFromStatus(
-  providers: Partial<Record<LlmProviderId, ProviderConfigStatus>>,
+  _providers: Partial<Record<LlmProviderId, ProviderConfigStatus>>,
 ): Partial<Record<LlmProviderId, ProviderDraft>> {
-  return Object.fromEntries(
-    USER_EDITABLE_PROVIDER_UI.map((spec) => [
-      spec.id,
-      {
-        apiKey: "",
-        // Do not prefill Base URL in UI; keep defaults opaque to end users.
-        baseURL: "",
-        // Do not prefill Model in UI; keep defaults opaque to end users.
-        model: "",
-      },
-    ]),
-  ) as Partial<Record<LlmProviderId, ProviderDraft>>;
+  return emptyProviderDrafts();
+}
+
+function parseModelsText(raw: string): string[] {
+  return raw
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function apiKeyStatusLabel(status: ProviderKeyStatus | undefined): string {
@@ -83,13 +110,17 @@ export function LlmKeysSettingsSection({
 }: LlmKeysSettingsSectionProps) {
   const [loading, setLoading] = useState(false);
   const [savingProviderId, setSavingProviderId] = useState<LlmProviderId | null>(null);
+  const [savingProfileId, setSavingProfileId] = useState<string | null>(null);
+  const [creatingProfile, setCreatingProfile] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedProviderId, setSavedProviderId] = useState<LlmProviderId | null>(null);
+  const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
   const [status, setStatus] = useState<LlmSettingsResponse | null>(null);
   const [draft, setDraft] = useState(emptyProviderDrafts);
-  const providerRefs = useRef<Partial<Record<LlmProviderId, HTMLElement | null>>>(
-    {},
-  );
+  const [profileDraft, setProfileDraft] = useState<ProfileDraft>(EMPTY_PROFILE_DRAFT);
+  const [profileEdits, setProfileEdits] = useState<Record<string, ProfileDraft>>({});
+  const providerRefs = useRef<Partial<Record<LlmProviderId, HTMLElement | null>>>({});
+  const profilesRef = useRef<HTMLElement | null>(null);
   const [touched, setTouched] = useState<Map<LlmProviderId, Set<ProviderField>>>(
     () => new Map(),
   );
@@ -106,6 +137,7 @@ export function LlmKeysSettingsSection({
       setStatus(data);
       setDraft(draftsFromStatus(data.providers));
       setTouched(new Map());
+      setProfileEdits({});
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -119,10 +151,13 @@ export function LlmKeysSettingsSection({
   }, [active, loadSettings]);
 
   useEffect(() => {
-    if (!active || !focusProviderId) return;
-    const el = providerRefs.current[focusProviderId];
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!active) return;
+    if (focusProviderId) {
+      const el = providerRefs.current[focusProviderId];
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    profilesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [active, focusProviderId, status]);
 
   const markTouched = (id: LlmProviderId, field: ProviderField) => {
@@ -163,12 +198,8 @@ export function LlmKeysSettingsSection({
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? res.statusText);
       }
-      const data = (await res.json()) as {
-        providers: LlmSettingsResponse["providers"];
-      };
-      setStatus((prev) =>
-        prev ? { ...prev, providers: data.providers } : prev,
-      );
+      const data = (await res.json()) as LlmSettingsResponse;
+      setStatus(data);
       setDraft((prev) => ({
         ...prev,
         [id]: { apiKey: "", baseURL: "", model: "" },
@@ -187,12 +218,129 @@ export function LlmKeysSettingsSection({
     }
   };
 
+  const handleCreateProfile = async () => {
+    setCreatingProfile(true);
+    setError(null);
+    setSavedProfileId(null);
+    try {
+      const models = parseModelsText(profileDraft.modelsText);
+      const res = await fetch("/api/settings/llm-keys", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          createProfile: {
+            title: profileDraft.title,
+            description: profileDraft.description || undefined,
+            apiKey: profileDraft.apiKey,
+            baseURL: profileDraft.baseURL,
+            models,
+            defaultModel: profileDraft.defaultModel || undefined,
+          },
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? res.statusText);
+      }
+      const data = (await res.json()) as LlmSettingsResponse;
+      setStatus(data);
+      setProfileDraft(EMPTY_PROFILE_DRAFT);
+      setSavedProfileId("new");
+      window.dispatchEvent(new CustomEvent(LLM_KEYS_UPDATED_EVENT));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreatingProfile(false);
+    }
+  };
+
+  const profileDraftFor = (profile: PublicProfile): ProfileDraft => {
+    return profileEdits[profile.id] ?? {
+      title: profile.title,
+      description: profile.description ?? "",
+      apiKey: "",
+      baseURL: profile.baseURL,
+      modelsText: profile.models.join("\n"),
+      defaultModel: profile.defaultModel ?? profile.models[0] ?? "",
+    };
+  };
+
+  const setProfileDraftFor = (profileId: string, next: ProfileDraft) => {
+    setSavedProfileId(null);
+    setProfileEdits((prev) => ({ ...prev, [profileId]: next }));
+  };
+
+  const handleSaveProfile = async (profile: PublicProfile) => {
+    const edit = profileDraftFor(profile);
+    setSavingProfileId(profile.id);
+    setError(null);
+    setSavedProfileId(null);
+    try {
+      const models = parseModelsText(edit.modelsText);
+      const res = await fetch("/api/settings/llm-keys", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updateProfile: {
+            id: profile.id,
+            title: edit.title,
+            description: edit.description,
+            baseURL: edit.baseURL,
+            models,
+            defaultModel: edit.defaultModel || undefined,
+            ...(edit.apiKey.trim() ? { apiKey: edit.apiKey.trim() } : {}),
+          },
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? res.statusText);
+      }
+      const data = (await res.json()) as LlmSettingsResponse;
+      setStatus(data);
+      setProfileEdits((prev) => {
+        const next = { ...prev };
+        delete next[profile.id];
+        return next;
+      });
+      setSavedProfileId(profile.id);
+      window.dispatchEvent(new CustomEvent(LLM_KEYS_UPDATED_EVENT));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingProfileId(null);
+    }
+  };
+
+  const handleDeleteProfile = async (profileId: string) => {
+    setSavingProfileId(profileId);
+    setError(null);
+    try {
+      const res = await fetch("/api/settings/llm-keys", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deleteProfileId: profileId }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? res.statusText);
+      }
+      const data = (await res.json()) as LlmSettingsResponse;
+      setStatus(data);
+      window.dispatchEvent(new CustomEvent(LLM_KEYS_UPDATED_EVENT));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingProfileId(null);
+    }
+  };
+
   return (
     <section className="app-settings-section-block">
       <header className="app-settings-section-head app-settings-section-head--inline">
         <h2 className="app-settings-section-title">模型与 API Key</h2>
         <p className="app-settings-section-hint">
-          DeepSeek 仅需 API Key；自定义模型可改 Model / Base URL。默认 OpenAI 模型无需配置。
+          内置 OpenAI 模型无需配置；DeepSeek 仅需 API Key。自定义 endpoint 可添加多个配置，每个配置支持同一 baseURL + Key 下的多个 model。
         </p>
       </header>
 
@@ -204,9 +352,6 @@ export function LlmKeysSettingsSection({
             const meta = getLlmProviderMeta(spec.id);
             const st = status?.providers[spec.id];
             const editableApiKey = spec.settingsFields.includes("apiKey");
-            const editableBaseURL = spec.settingsFields.includes("baseURL");
-            const editableModel = spec.settingsFields.includes("model");
-            const hasEditableFields = editableApiKey || editableBaseURL || editableModel;
             const panelTouched = (touched.get(spec.id)?.size ?? 0) > 0;
             const panelSaving = savingProviderId === spec.id;
 
@@ -223,62 +368,12 @@ export function LlmKeysSettingsSection({
                   <span className="ws-settings-group-desc">{meta.description}</span>
                 </div>
 
-                {editableModel ? (
-                  <label className="ws-settings-field">
-                    <span className="ws-settings-field-label">Model</span>
-                    <input
-                      type="text"
-                      className="ws-settings-input"
-                      value={draft[spec.id]?.model ?? ""}
-                      placeholder="gpt-4o-mini"
-                      autoComplete="off"
-                      disabled={disabled || Boolean(savingProviderId)}
-                      onChange={(e) => {
-                        markTouched(spec.id, "model");
-                        setDraft((prev) => ({
-                          ...prev,
-                          [spec.id]: {
-                            apiKey: prev[spec.id]?.apiKey ?? "",
-                            baseURL: prev[spec.id]?.baseURL ?? "",
-                            model: e.target.value,
-                          },
-                        }));
-                      }}
-                    />
-                  </label>
-                ) : (
-                  <div className="ws-settings-readonly-row">
-                    <span className="ws-settings-field-label">Model</span>
-                    <span className="ws-settings-readonly-value">
-                      {st?.model ?? meta.defaultModel}
-                    </span>
-                  </div>
-                )}
-
-                {editableBaseURL && (
-                  <label className="ws-settings-field">
-                    <span className="ws-settings-field-label">Base URL</span>
-                    <input
-                      type="text"
-                      className="ws-settings-input"
-                      value={draft[spec.id]?.baseURL ?? ""}
-                      placeholder="https://api.openai.com/v1"
-                      autoComplete="off"
-                      disabled={disabled || Boolean(savingProviderId)}
-                      onChange={(e) => {
-                        markTouched(spec.id, "baseURL");
-                        setDraft((prev) => ({
-                          ...prev,
-                          [spec.id]: {
-                            apiKey: prev[spec.id]?.apiKey ?? "",
-                            baseURL: e.target.value,
-                            model: prev[spec.id]?.model ?? "",
-                          },
-                        }));
-                      }}
-                    />
-                  </label>
-                )}
+                <div className="ws-settings-readonly-row">
+                  <span className="ws-settings-field-label">Model</span>
+                  <span className="ws-settings-readonly-value">
+                    {st?.model ?? meta.defaultModel}
+                  </span>
+                </div>
 
                 <div className="ws-settings-readonly-row">
                   <span className="ws-settings-field-label">状态</span>
@@ -316,40 +411,265 @@ export function LlmKeysSettingsSection({
                   </label>
                 )}
 
-                {hasEditableFields && (
-                  <>
-                    <div className="ws-settings-actions">
-                      <button
-                        type="button"
-                        className="ws-settings-save"
-                        disabled={
-                          disabled
-                          || loading
-                          || Boolean(savingProviderId)
-                          || !panelTouched
-                        }
-                        onClick={() => void handleSaveProvider(spec.id)}
-                      >
-                        {panelSaving ? "保存中…" : "保存配置"}
-                      </button>
-                    </div>
+                <div className="ws-settings-actions">
+                  <button
+                    type="button"
+                    className="ws-settings-save"
+                    disabled={
+                      disabled
+                      || loading
+                      || Boolean(savingProviderId)
+                      || !panelTouched
+                    }
+                    onClick={() => void handleSaveProvider(spec.id)}
+                  >
+                    {panelSaving ? "保存中…" : "保存配置"}
+                  </button>
+                </div>
 
-                    {savedProviderId === spec.id && !error && (
-                      <p className="ws-settings-ok">已保存</p>
-                    )}
-                  </>
+                {savedProviderId === spec.id && !error && (
+                  <p className="ws-settings-ok">已保存</p>
                 )}
               </section>
             );
           })}
+
+          <section className="ws-settings-group" ref={profilesRef}>
+            <div className="ws-settings-group-head">
+              <span className="ws-settings-group-title">自定义模型配置</span>
+              <span className="ws-settings-group-desc">
+                每个配置包含标题、Base URL、API Key，以及同一 endpoint 下可用的多个 model id。
+              </span>
+            </div>
+
+            {(status?.profiles ?? []).map((profile) => {
+              const edit = profileDraftFor(profile);
+              const saving = savingProfileId === profile.id;
+              return (
+                <div key={profile.id} className="ws-settings-subgroup">
+                  <div className="ws-settings-subgroup-head">
+                    <span className="ws-settings-subgroup-title">{profile.title}</span>
+                    <code className="ws-settings-subgroup-id">{profile.id.slice(0, 8)}</code>
+                  </div>
+
+                  <label className="ws-settings-field">
+                    <span className="ws-settings-field-label">标题</span>
+                    <input
+                      type="text"
+                      className="ws-settings-input"
+                      value={edit.title}
+                      disabled={disabled || saving}
+                      onChange={(e) =>
+                        setProfileDraftFor(profile.id, { ...edit, title: e.target.value })
+                      }
+                    />
+                  </label>
+
+                  <label className="ws-settings-field">
+                    <span className="ws-settings-field-label">说明</span>
+                    <input
+                      type="text"
+                      className="ws-settings-input"
+                      value={edit.description}
+                      disabled={disabled || saving}
+                      onChange={(e) =>
+                        setProfileDraftFor(profile.id, {
+                          ...edit,
+                          description: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="ws-settings-field">
+                    <span className="ws-settings-field-label">Base URL</span>
+                    <input
+                      type="text"
+                      className="ws-settings-input"
+                      value={edit.baseURL}
+                      disabled={disabled || saving}
+                      onChange={(e) =>
+                        setProfileDraftFor(profile.id, { ...edit, baseURL: e.target.value })
+                      }
+                    />
+                  </label>
+
+                  <label className="ws-settings-field">
+                    <span className="ws-settings-field-label">Models</span>
+                    <textarea
+                      className="ws-settings-input ws-settings-textarea"
+                      rows={3}
+                      value={edit.modelsText}
+                      placeholder={"gpt-4o-mini\ngpt-4o\nclaude-3-5-sonnet"}
+                      disabled={disabled || saving}
+                      onChange={(e) =>
+                        setProfileDraftFor(profile.id, {
+                          ...edit,
+                          modelsText: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="ws-settings-field">
+                    <span className="ws-settings-field-label">默认 Model</span>
+                    <input
+                      type="text"
+                      className="ws-settings-input"
+                      value={edit.defaultModel}
+                      placeholder={parseModelsText(edit.modelsText)[0] ?? "gpt-4o-mini"}
+                      disabled={disabled || saving}
+                      onChange={(e) =>
+                        setProfileDraftFor(profile.id, {
+                          ...edit,
+                          defaultModel: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="ws-settings-field">
+                    <span className="ws-settings-field-label">API Key</span>
+                    <input
+                      type="password"
+                      className="ws-settings-input"
+                      value={edit.apiKey}
+                      placeholder={
+                        profile.apiKey.configured
+                          ? profile.apiKey.masked ?? "已配置"
+                          : "sk-…"
+                      }
+                      disabled={disabled || saving}
+                      onChange={(e) =>
+                        setProfileDraftFor(profile.id, { ...edit, apiKey: e.target.value })
+                      }
+                    />
+                  </label>
+
+                  <div className="ws-settings-actions">
+                    <button
+                      type="button"
+                      className="ws-settings-save"
+                      disabled={disabled || saving}
+                      onClick={() => void handleSaveProfile(profile)}
+                    >
+                      {saving ? "保存中…" : "保存"}
+                    </button>
+                    <button
+                      type="button"
+                      className="ws-settings-action ws-settings-action--danger"
+                      disabled={disabled || saving}
+                      onClick={() => void handleDeleteProfile(profile.id)}
+                    >
+                      删除
+                    </button>
+                  </div>
+
+                  {savedProfileId === profile.id && !error && (
+                    <p className="ws-settings-ok">已保存</p>
+                  )}
+                </div>
+              );
+            })}
+
+            <div className="ws-settings-subgroup ws-settings-subgroup--new">
+              <div className="ws-settings-subgroup-head">
+                <span className="ws-settings-subgroup-title">添加配置</span>
+              </div>
+
+              <label className="ws-settings-field">
+                <span className="ws-settings-field-label">标题</span>
+                <input
+                  type="text"
+                  className="ws-settings-input"
+                  value={profileDraft.title}
+                  placeholder="My Proxy"
+                  disabled={disabled || creatingProfile}
+                  onChange={(e) =>
+                    setProfileDraft((prev) => ({ ...prev, title: e.target.value }))
+                  }
+                />
+              </label>
+
+              <label className="ws-settings-field">
+                <span className="ws-settings-field-label">说明</span>
+                <input
+                  type="text"
+                  className="ws-settings-input"
+                  value={profileDraft.description}
+                  placeholder="可选说明"
+                  disabled={disabled || creatingProfile}
+                  onChange={(e) =>
+                    setProfileDraft((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                />
+              </label>
+
+              <label className="ws-settings-field">
+                <span className="ws-settings-field-label">Base URL</span>
+                <input
+                  type="text"
+                  className="ws-settings-input"
+                  value={profileDraft.baseURL}
+                  disabled={disabled || creatingProfile}
+                  onChange={(e) =>
+                    setProfileDraft((prev) => ({ ...prev, baseURL: e.target.value }))
+                  }
+                />
+              </label>
+
+              <label className="ws-settings-field">
+                <span className="ws-settings-field-label">Models</span>
+                <textarea
+                  className="ws-settings-input ws-settings-textarea"
+                  rows={3}
+                  value={profileDraft.modelsText}
+                  placeholder={"gpt-4o-mini\ngpt-4o"}
+                  disabled={disabled || creatingProfile}
+                  onChange={(e) =>
+                    setProfileDraft((prev) => ({ ...prev, modelsText: e.target.value }))
+                  }
+                />
+              </label>
+
+              <label className="ws-settings-field">
+                <span className="ws-settings-field-label">API Key</span>
+                <input
+                  type="password"
+                  className="ws-settings-input"
+                  value={profileDraft.apiKey}
+                  placeholder="sk-…"
+                  disabled={disabled || creatingProfile}
+                  onChange={(e) =>
+                    setProfileDraft((prev) => ({ ...prev, apiKey: e.target.value }))
+                  }
+                />
+              </label>
+
+              <div className="ws-settings-actions">
+                <button
+                  type="button"
+                  className="ws-settings-save"
+                  disabled={disabled || creatingProfile}
+                  onClick={() => void handleCreateProfile()}
+                >
+                  {creatingProfile ? "添加中…" : "添加配置"}
+                </button>
+              </div>
+
+              {savedProfileId === "new" && !error && (
+                <p className="ws-settings-ok">已添加</p>
+              )}
+            </div>
+          </section>
         </div>
       )}
 
       {error && <p className="ws-settings-error">{error}</p>}
 
       <p className="ws-settings-footnote">
-        Model、API Key 与 Base URL 保存在本机应用数据目录，不会写入 `llm-config.json`。
-        输入框留空并保存将恢复系统默认值。
+        配置保存在本机应用数据目录（`llm-secrets.json`），不会写入 `llm-config.json`。
+        Agent 可通过 `llm_settings` 工具读写这些配置。
       </p>
     </section>
   );

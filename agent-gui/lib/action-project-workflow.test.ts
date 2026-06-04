@@ -24,6 +24,16 @@ const sampleManifest: ActionProjectManifest = {
   files: [{ path: "files/csscript1.cs", kind: "file", sizeBytes: 42 }],
 };
 
+test("programHasBodyFromGetPayload treats subProgramCount as non-empty body", () => {
+  assert.equal(
+    programHasBodyFromGetPayload({
+      compressed: { steps: [], variables: [], subProgramCount: 3 },
+      subProgramCount: 3,
+    }),
+    true,
+  );
+});
+
 test("programHasBodyFromGetPayload detects empty vs non-empty compressed", () => {
   assert.equal(programHasBodyFromGetPayload({ compressed: { steps: [], variables: [] } }), false);
   assert.equal(

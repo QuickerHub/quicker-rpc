@@ -27,8 +27,16 @@ import {
   parseLlmProviderId,
   type LlmProviderId,
 } from "@/lib/llm-providers";
+import {
+  isCustomProfileConfigured,
+  listCustomProfiles,
+  resolveProfileSelection,
+} from "@/lib/llm-profiles";
+import type { LlmSelection } from "@/lib/llm-selection";
+import { parseLlmSelection } from "@/lib/llm-selection";
 
 export type { LlmProviderId } from "@/lib/llm-providers";
+export type { LlmSelection } from "@/lib/llm-selection";
 
 /** First non-empty env among keys (in order). */
 function envFirst(...keys: string[]): string | undefined {
@@ -144,7 +152,8 @@ function hasConfiguredFallbacks(): boolean {
 
 export function isLlmProviderConfigured(providerId: LlmProviderId): boolean {
   if (providerId === CUSTOM_PROVIDER_ID) {
-    return Boolean(resolveApiKey(CUSTOM_PROVIDER_ID));
+    if (Boolean(resolveApiKey(CUSTOM_PROVIDER_ID))) return true;
+    return listCustomProfiles().some(isCustomProfileConfigured);
   }
   if (providerId === DEEPSEEK_PROVIDER_ID) {
     return Boolean(resolveApiKey(DEEPSEEK_PROVIDER_ID));
@@ -476,6 +485,75 @@ export type ResolvedChatModel = {
   endpoint: ResolvedLlmEndpoint;
 };
 
+function resolveProfileEndpoint(
+  profileId: string,
+  modelId: string,
+): ResolvedLlmEndpoint {
+  const resolved = resolveProfileSelection(profileId, modelId);
+  if (!resolved) {
+    throw new Error(
+      `LLM profile "${profileId}" with model "${modelId}" is not configured.`,
+    );
+  }
+  const { profile } = resolved;
+  const meta = getLlmProviderMeta(CUSTOM_PROVIDER_ID);
+  return {
+    providerId: CUSTOM_PROVIDER_ID,
+    apiKey: profile.apiKey,
+    baseURL: profile.baseURL,
+    modelId: resolved.modelId,
+    clientName: `${meta.clientName}-${profile.id.slice(0, 8)}`,
+  };
+}
+
+export function resolveSelectionEndpoint(selection: LlmSelection): ResolvedLlmEndpoint {
+  if (selection.kind === "profile") {
+    return resolveProfileEndpoint(selection.profileId, selection.modelId);
+  }
+  return resolveLlmEndpointChain(selection.providerId)[0]!;
+}
+
+export function isLlmSelectionConfigured(selection: LlmSelection): boolean {
+  if (selection.kind === "profile") {
+    const resolved = resolveProfileSelection(
+      selection.profileId,
+      selection.modelId,
+    );
+    return Boolean(resolved && isCustomProfileConfigured(resolved.profile));
+  }
+  return isLlmProviderConfigured(selection.providerId);
+}
+
+export function resolveLlmSelection(
+  rawSelection?: string,
+  legacyProvider?: LlmProviderId,
+): LlmSelection {
+  const parsed =
+    parseLlmSelection(rawSelection)
+    ?? (legacyProvider ? { kind: "builtin" as const, providerId: legacyProvider } : undefined);
+  if (parsed) return parsed;
+  return { kind: "builtin", providerId: getLlmProviderId() };
+}
+
+/** Pick the first reachable endpoint (models probe), then build the chat model. */
+export async function resolveChatModelForSelection(
+  selectionOverride?: LlmSelection,
+): Promise<ResolvedChatModel> {
+  const selection = selectionOverride ?? resolveLlmSelection();
+  if (selection.kind === "profile") {
+    const endpoint = resolveProfileEndpoint(
+      selection.profileId,
+      selection.modelId,
+    );
+    return {
+      model: createChatModelFromEndpoint(endpoint),
+      modelId: endpoint.modelId,
+      endpoint,
+    };
+  }
+  return resolveChatModelForRequest(selection.providerId);
+}
+
 /** Pick the first reachable endpoint (models probe), then build the chat model. */
 export async function resolveChatModelForRequest(
   providerOverride?: LlmProviderId,
@@ -529,6 +607,25 @@ export async function resolveChatModelForRequest(
     ? lastError.message
     : "All LLM endpoints failed";
   throw new Error(message);
+}
+
+/** Run a non-streaming LLM call with selection-aware routing. */
+export async function runLlmWithSelectionFallback<T>(
+  rawSelection: string | undefined,
+  legacyProvider: LlmProviderId | undefined,
+  run: (model: LanguageModel, modelId: string) => Promise<T>,
+): Promise<{ result: T; modelId: string }> {
+  const selection = resolveLlmSelection(rawSelection, legacyProvider);
+  if (selection.kind === "profile") {
+    const endpoint = resolveProfileEndpoint(
+      selection.profileId,
+      selection.modelId,
+    );
+    const model = createChatModelFromEndpoint(endpoint);
+    const result = await run(model, endpoint.modelId);
+    return { result, modelId: endpoint.modelId };
+  }
+  return runLlmWithEndpointFallback(selection.providerId, run);
 }
 
 /** Run a non-streaming LLM call with endpoint fallback on retryable errors. */

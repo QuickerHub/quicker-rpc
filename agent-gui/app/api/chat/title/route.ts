@@ -1,9 +1,12 @@
 import { generateText } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
-import { runLlmWithEndpointFallback } from "@/lib/llm";
+import {
+  isLlmSelectionConfigured,
+  resolveLlmSelection,
+  runLlmWithSelectionFallback,
+} from "@/lib/llm";
 import { isLlmProviderHidden } from "@/lib/llm-config";
 import { parseLlmProviderId } from "@/lib/llm-providers";
-import { isUserModelSelectorProvider } from "@/lib/llm-user-providers";
 import {
   deriveProvisionalThreadTitle,
   extractTitleConversationText,
@@ -17,9 +20,11 @@ export async function POST(req: Request) {
   const {
     messages,
     llmProvider,
+    llmSelection,
   }: {
     messages?: AgentUIMessage[];
     llmProvider?: string;
+    llmSelection?: string;
   } = await req.json();
 
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -32,21 +37,27 @@ export async function POST(req: Request) {
     return Response.json({ title: provisional });
   }
 
-  const providerOverride = parseLlmProviderId(llmProvider);
+  const selection = resolveLlmSelection(
+    llmSelection ?? llmProvider,
+    parseLlmProviderId(llmProvider),
+  );
   if (
-    providerOverride
-    && (!isUserModelSelectorProvider(providerOverride)
-      || isLlmProviderHidden(providerOverride))
+    selection.kind === "builtin"
+    && isLlmProviderHidden(selection.providerId)
   ) {
     return Response.json(
-      { error: `Provider "${providerOverride}" is not available` },
+      { error: `Provider "${selection.providerId}" is not available` },
       { status: 400 },
     );
   }
+  if (!isLlmSelectionConfigured(selection)) {
+    return Response.json({ title: provisional, warning: "Model not configured" });
+  }
 
   try {
-    const { result } = await runLlmWithEndpointFallback(
-      providerOverride,
+    const { result } = await runLlmWithSelectionFallback(
+      llmSelection ?? llmProvider,
+      parseLlmProviderId(llmProvider),
       async (model) => generateText({
         model,
         system: THREAD_TITLE_SYSTEM_PROMPT,

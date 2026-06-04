@@ -3,7 +3,6 @@
 import { isTextUIPart } from "ai";
 import { useEffect, useRef } from "react";
 import type { AgentUIMessage } from "@/lib/chat-types";
-import type { LlmProviderId } from "@/lib/llm-providers";
 import { deriveProvisionalThreadTitle } from "@/lib/thread-title";
 
 function hasUserTextMessage(messages: AgentUIMessage[]): boolean {
@@ -33,7 +32,7 @@ type UseAutoThreadTitleOptions = {
   threadId: string;
   messages: AgentUIMessage[];
   status: string;
-  llmProvider: LlmProviderId;
+  llmSelection: string;
   currentTitle: string;
   titleGenerated: boolean;
   titleManual: boolean;
@@ -44,7 +43,7 @@ export function useAutoThreadTitle({
   threadId,
   messages,
   status,
-  llmProvider,
+  llmSelection,
   currentTitle,
   titleGenerated,
   titleManual,
@@ -69,7 +68,7 @@ export function useAutoThreadTitle({
         const res = await fetch("/api/chat/title", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages, llmProvider }),
+          body: JSON.stringify({ messages, llmSelection }),
         });
 
         let apiTitle: string | undefined;
@@ -99,7 +98,7 @@ export function useAutoThreadTitle({
     threadId,
     messages,
     status,
-    llmProvider,
+    llmSelection,
     currentTitle,
     titleGenerated,
     titleManual,

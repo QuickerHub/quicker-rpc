@@ -388,6 +388,9 @@ export function StepEditorPopup({
 
   const subProgramVariablesForAugment = useMemo(() => {
     const rowVars = resolvedSubProgramRow?.variables;
+    if (subProgramIoFetchTarget != null && globalIoVariables != null && globalIoVariables.length > 0) {
+      return globalIoVariables;
+    }
     if (rowVars != null && rowVars.length > 0) {
       return rowVars;
     }

@@ -37,6 +37,13 @@ export function summarizeApprovalTarget(toolName: string, input: unknown): strin
     return formatShortId(id);
   }
   if (typeof o.title === "string") return o.title;
+  if (typeof o.command === "string" && o.command.trim()) {
+    const oneLine = o.command.trim().replace(/\s+/g, " ");
+    return oneLine.length > 80 ? `${oneLine.slice(0, 77)}…` : oneLine;
+  }
+  if (typeof o.scriptPath === "string" && o.scriptPath.trim()) {
+    return o.scriptPath.trim();
+  }
   if (typeof o.query === "string") return o.query;
   return "即将执行此操作";
 }

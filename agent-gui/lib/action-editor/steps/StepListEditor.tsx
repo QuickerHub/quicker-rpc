@@ -59,7 +59,8 @@ import {
   collectSharedSubProgramIdentifiersForFetch,
   getGlobalSubProgramLiteralIdForFetch,
   getSharedSubProgramIdentifierForFetch,
-  resolveSubProgramStepListTitle
+  resolveSubProgramStepListSecondaryText,
+  resolveSubProgramStepListTitle,
 } from "./subProgramStepResolve";
 import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import {
@@ -81,7 +82,13 @@ import {
   type StepRunnerLookup
 } from "./stepRunnerCatalog";
 import { ensureFaIconsResolved } from "@/lib/fa-icon-cache";
-import { buildClientStepSummary } from "./stepSummaryFallback";
+import {
+  collectStepParamFilePaths,
+  resolveStepListSecondarySummary,
+  type StepSummaryFileContents,
+} from "./stepSummaryFileRefs";
+import { projectRelativeFilePath } from "./paramEditors/formSpecModel";
+import { fetchWorkspaceFile } from "@/lib/workspace-explorer-api";
 import { resolveStepRowIconSpec, type SubProgramStepListLabel } from "./stepRowIconSpec";
 import { buildStepFromRunner, type ToolboxDragPayload } from "./toolboxStepFactory";
 import { StepIdManager } from "./stepIdManager";
@@ -266,7 +273,13 @@ export default function StepListEditor({
   const quickInsertActiveRef = useRef(false);
   /** Backend GetSummary per stepId; secondary row shows note if set, else backend summary (empty when none). */
   const [summariesByStepId, setSummariesByStepId] = useState<Record<string, string>>({});
+  const [fileContentsByPath, setFileContentsByPath] = useState<StepSummaryFileContents>({});
   const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
+
+  const stepFilePathsKey = useMemo(
+    () => collectStepParamFilePaths(collectAllSteps(steps)).sort().join("\0"),
+    [steps],
+  );
 
   const globalSubProgramIdsKey = useMemo(
     () => collectGlobalSubProgramLiteralIdsForFetch(collectAllSteps(steps), subPrograms).join("\0"),
@@ -459,6 +472,39 @@ export default function StepListEditor({
   }, [stepSummariesFingerprint, backendBaseUrl]);
 
   useEffect(() => {
+    if (!workspaceContext || stepFilePathsKey.length === 0) {
+      setFileContentsByPath((prev) =>
+        Object.keys(prev).length === 0 ? prev : {},
+      );
+      return;
+    }
+
+    const paths = stepFilePathsKey.split("\0").filter(Boolean);
+    let cancelled = false;
+    void (async () => {
+      const entries = await Promise.all(
+        paths.map(async (file) => {
+          const absolute = projectRelativeFilePath(workspaceContext.projectDir, file);
+          const result = await fetchWorkspaceFile(workspaceContext.cwd, absolute);
+          return [file, result.ok ? result.content : ""] as const;
+        }),
+      );
+      if (cancelled) return;
+      const next: Record<string, string> = {};
+      for (const [file, content] of entries) {
+        if (content.trim().length > 0) {
+          next[file] = content;
+        }
+      }
+      setFileContentsByPath(next);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [stepFilePathsKey, workspaceContext]);
+
+  useEffect(() => {
     const ids = collectGlobalSubProgramLiteralIdsForFetch(collectAllSteps(steps), subPrograms);
     if (ids.length === 0) {
       setGlobalSubProgramLabelsById({});
@@ -597,7 +643,7 @@ export default function StepListEditor({
       ac.abort();
       window.clearTimeout(timer);
     };
-  }, [sharedSubProgramIdsKey, backendBaseUrl, steps, subPrograms]);
+  }, [sharedSubProgramIdsKey, backendBaseUrl]);
 
   useEffect(() => {
     if (!editorTargetId) return;
@@ -627,7 +673,10 @@ export default function StepListEditor({
       return;
     }
     if (!selectedId || !findStepById(steps, selectedId)) {
-      setSingleSelection(ids[0]!);
+      const nextId = ids[0]!;
+      if (selectedId !== nextId) {
+        setSingleSelection(nextId);
+      }
     }
   }, [steps, selectedId, setSingleSelection]);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
@@ -1524,10 +1573,17 @@ export default function StepListEditor({
             spLabel != null && spLabel.displayName.length > 0 ? spLabel.displayName : rawTitleFallback;
           const runnerItem = resolveRunnerItemForStepKey(runnerItems, step.stepRunnerKey);
           const noteTrim = (step.note ?? "").trim();
-          const summaryTrim =
-            (summariesByStepId[step.stepId] ?? "").trim()
-            || buildClientStepSummary(step, runnerItem).trim();
-          const secondaryText = noteTrim.length > 0 ? noteTrim : summaryTrim;
+          const summaryTrim = resolveStepListSecondarySummary(
+            step,
+            runnerItem,
+            summariesByStepId[step.stepId] ?? "",
+            fileContentsByPath,
+          ).trim();
+          const secondaryText = resolveSubProgramStepListSecondaryText(step, subPrograms, {
+            note: noteTrim,
+            summary: summaryTrim,
+            primaryRunnerName,
+          });
           const titleSuffix =
             (globalSpId != null || sharedSpIdent != null) && rawTitleFallback !== primaryRunnerName
               ? ` (${rawTitleFallback})`

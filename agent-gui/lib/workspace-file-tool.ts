@@ -36,6 +36,10 @@ export type WorkspaceFileReadPayload = {
   content: string;
   truncated?: boolean;
   totalChars?: number;
+  totalLines?: number;
+  startLine?: number;
+  endLine?: number;
+  readHint?: string;
 };
 
 export type WorkspaceFileWritePayload = {
@@ -123,9 +127,85 @@ export function parseWorkspaceFileReadPayload(
       truncated: data.truncated === true,
       totalChars:
         typeof data.totalChars === "number" ? data.totalChars : undefined,
+      totalLines:
+        typeof data.totalLines === "number" ? data.totalLines : undefined,
+      startLine:
+        typeof data.startLine === "number" ? data.startLine : undefined,
+      endLine: typeof data.endLine === "number" ? data.endLine : undefined,
+      readHint:
+        typeof data.readHint === "string" && data.readHint.trim()
+          ? data.readHint.trim()
+          : undefined,
     };
   }
   return null;
+}
+
+function readPositiveInt(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.trunc(value)
+    : undefined;
+}
+
+/** 1-based line range label for read summaries (e.g. L12-28). */
+export function formatFileReadLineRangeLabel(
+  startLine?: number,
+  endLine?: number,
+  content?: string,
+): string | null {
+  const start = readPositiveInt(startLine);
+  if (start != null) {
+    const endRaw = readPositiveInt(endLine);
+    const end = endRaw != null && endRaw >= start ? endRaw : start;
+    return start === end ? `L${start}` : `L${start}-${end}`;
+  }
+  const lines = countLines(content ?? "");
+  if (lines <= 0) return null;
+  return lines === 1 ? "L1" : `L1-${lines}`;
+}
+
+/** Chat/tool-card subtitle for workspace file read results. */
+export function formatFileReadSummaryMeta(opts: {
+  path: string;
+  content: string;
+  truncated?: boolean;
+  totalChars?: number;
+  totalLines?: number;
+  startLine?: number;
+  endLine?: number;
+}): string {
+  const name = basenamePath(opts.path);
+  const range = formatFileReadLineRangeLabel(
+    opts.startLine,
+    opts.endLine,
+    opts.content,
+  );
+  if (range) {
+    const parts = [range];
+    if (opts.truncated) {
+      parts.push("截断");
+      if (opts.totalLines != null && opts.totalLines > 0) {
+        parts.push(`共 ${opts.totalLines} 行`);
+      }
+    }
+    return `${name} · ${parts.join(" · ")}`;
+  }
+  const size =
+    opts.totalChars !== undefined
+      ? formatCharCount(opts.totalChars)
+      : formatCharCount(opts.content.length);
+  const trunc = opts.truncated ? " · 截断" : "";
+  return `${name} · ${size}${trunc}`;
+}
+
+function readRequestedLineRangeFromInput(
+  input: unknown,
+): { startLine?: number; endLine?: number } {
+  if (typeof input !== "object" || input === null) return {};
+  const obj = input as Record<string, unknown>;
+  const startLine = readPositiveInt(obj.startLine);
+  const endLine = readPositiveInt(obj.endLine);
+  return { startLine, endLine };
 }
 
 export function parseWorkspaceFilePayload(
@@ -271,37 +351,36 @@ export function summarizeWorkspaceFileTool(
 
   switch (payload.action) {
     case "file-read": {
-      const lines = countLines(payload.content);
-      const name = basenamePath(payload.path);
-      const size =
-        payload.totalChars !== undefined
-          ? formatCharCount(payload.totalChars)
-          : formatCharCount(payload.content.length);
-      const trunc = payload.truncated ? " · 已截断" : "";
-      return `${name} · ${lines} 行 · ${size}${trunc}`;
+      return formatFileReadSummaryMeta({
+        path: payload.path,
+        content: payload.content,
+        truncated: payload.truncated,
+        totalChars: payload.totalChars,
+        totalLines: payload.totalLines,
+        startLine: payload.startLine,
+        endLine: payload.endLine,
+      });
     }
     case "file-write": {
       const data = output.data;
-      if (
-        isRecord(data)
-        && typeof data.previousContent === "string"
-        && data.previousContent.length > 0
-      ) {
-        const newContent =
-          typeof input === "object" && input !== null
-            && typeof (input as Record<string, unknown>).content === "string"
-            ? ((input as Record<string, unknown>).content as string)
-            : "";
-        const { addLines, removeLines: remLines } = countLineDiffStats(
-          data.previousContent,
-          newContent,
-        );
-        return `${basenamePath(payload.path)} · +${addLines} -${remLines}`;
+      if (isRecord(data)) {
+        const diffSuffix = formatFileDiffSummaryFromToolData(data, input);
+        if (diffSuffix) {
+          return `${basenamePath(payload.path)} · ${diffSuffix}`;
+        }
       }
       return `${basenamePath(payload.path)} · 写入 ${payload.bytesWritten} 字节`;
     }
-    case "file-edit":
+    case "file-edit": {
+      const data = output.data;
+      if (isRecord(data)) {
+        const diffSuffix = formatFileDiffSummaryFromToolData(data, input);
+        if (diffSuffix) {
+          return `${basenamePath(payload.path)} · ${diffSuffix}`;
+        }
+      }
       return `${basenamePath(payload.path)} · ${payload.replacements} 处替换`;
+    }
     case "file-list": {
       const dir =
         payload.path === "." ? "." : formatWorkspacePathLabel(payload.path);
@@ -328,11 +407,43 @@ export function formatActionDataJsonPath(actionId: string): string {
   return `.quicker/actions/${id}/data.json`;
 }
 
+function readToolResultContent(
+  data: Record<string, unknown>,
+  input?: unknown,
+): string {
+  if (typeof data.content === "string") return data.content;
+  if (typeof input === "object" && input !== null) {
+    const content = (input as Record<string, unknown>).content;
+    if (typeof content === "string") return content;
+    const newString = (input as Record<string, unknown>).newString;
+    if (typeof newString === "string") return newString;
+  }
+  return "";
+}
+
+/** +N -M from line diff of tool snapshots (matches FileEditorCard). */
+export function formatFileDiffSummaryFromToolData(
+  data: Record<string, unknown>,
+  input?: unknown,
+): string | null {
+  if (typeof data.previousContent !== "string" || data.previousContent.length === 0) {
+    return null;
+  }
+  const nextContent = readToolResultContent(data, input);
+  const { addLines, removeLines: remLines } = countLineDiffStats(
+    data.previousContent,
+    nextContent,
+  );
+  if (addLines === 0 && remLines === 0) return null;
+  return `+${addLines} -${remLines}`;
+}
+
 /** Hide redundant compact header detail (line stat / diff badge is enough). */
 export function shouldShowFileSnapshotHeaderDetail(detail: string | null): boolean {
   if (!detail) return false;
   if (detail.includes("字节") || detail.includes("字符")) return false;
   if (/\d+\s*处替换/.test(detail)) return false;
+  if (/^\+\d+\s*-\d+$/.test(detail.trim())) return false;
   return true;
 }
 
@@ -355,17 +466,27 @@ export function workspaceFileRunningMeta(
   toolName: string,
   input: unknown,
 ): string | null {
+  const { startLine, endLine } = readRequestedLineRangeFromInput(input);
+  const range = formatFileReadLineRangeLabel(startLine, endLine);
+
   if (isActionProjectDataTool(toolName)) {
     const id = readInputActionId(input);
+    if (range) {
+      return id ? `${shortActionId(id)} · data.json · ${range}…` : `data.json · ${range}…`;
+    }
     return id ? `${shortActionId(id)} · data.json…` : "data.json…";
   }
   const path = typeof input === "object" && input !== null && "path" in input
     ? (input as { path?: unknown }).path
     : undefined;
-  if (typeof path !== "string" || !path.trim()) {
-    return null;
+  if (typeof path === "string" && path.trim()) {
+    const name = basenamePath(path.trim());
+    if (range) {
+      return `${name} · ${range}…`;
+    }
+    return `${name}…`;
   }
-  return `${basenamePath(path.trim())}…`;
+  return null;
 }
 
 /** Subtitle on file-tool open rows (read/write/edit). */
@@ -521,13 +642,13 @@ export function getWorkspaceFileEditorPreview(
       };
     }
     case "workspace_action_file_write": {
-      const content = readInputString(input, "content");
+      const inputContent = readInputString(input, "content");
       const payload = parseWorkspaceFilePayload(toolName, data);
       const path = payload?.action === "file-write"
         ? payload.path
         : inputPath;
-      if (!path || content === undefined) return path ? { path, content: "" } : null;
-      const body = content;
+      if (!path || inputContent === undefined) return path ? { path, content: "" } : null;
+      const body = readToolDataString(data, "content") ?? inputContent;
       const previousContent = readToolDataString(data, "previousContent");
       return {
         path,
@@ -551,6 +672,20 @@ export function getWorkspaceFileEditorPreview(
         ? payload.path
         : inputPath;
       if (!path || !oldString) return path ? { path, content: "" } : null;
+      const previousContent = readToolDataString(data, "previousContent");
+      const writtenContent = readToolDataString(data, "content");
+      if (
+        toolName === "workspace_action_file_edit"
+        && previousContent !== undefined
+        && writtenContent !== undefined
+      ) {
+        return {
+          path,
+          content: writtenContent,
+          diff: buildWriteDiffFromSnapshot(previousContent, writtenContent),
+          replacements: payload?.action === "file-edit" ? payload.replacements : undefined,
+        };
+      }
       return {
         path,
         content: newString ?? "",

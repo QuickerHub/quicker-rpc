@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  buildCollapsedDiffTexts,
   computeLineDiff,
   countLineDiffStats,
   countUnifiedDiffDisplayLines,
@@ -41,6 +42,21 @@ test("remove-only yields delete rows", () => {
   });
 });
 
-test("countUnifiedDiffDisplayLines includes context lines", () => {
-  assert.equal(countUnifiedDiffDisplayLines("a\nb", "a\nB"), 3);
+test("countUnifiedDiffDisplayLines uses collapsed display height", () => {
+  assert.equal(countUnifiedDiffDisplayLines("a\nb", "a\nB"), 2);
+});
+
+test("buildCollapsedDiffTexts folds long unchanged runs", () => {
+  const oldLines = Array.from({ length: 20 }, (_, i) => `line ${i}`);
+  const newLines = [...oldLines];
+  newLines[10] = "LINE 10";
+  const oldText = `${oldLines.join("\n")}\n`;
+  const newText = `${newLines.join("\n")}\n`;
+  const collapsed = buildCollapsedDiffTexts(oldText, newText);
+  assert.ok(collapsed.displayLineCount < 20);
+  assert.ok(collapsed.removed.includes("行未修改"));
+  assert.deepEqual(
+    countLineDiffStats(oldText, newText),
+    { addLines: 1, removeLines: 1 },
+  );
 });

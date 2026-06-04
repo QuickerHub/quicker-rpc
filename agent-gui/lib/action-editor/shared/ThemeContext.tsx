@@ -31,7 +31,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<ActionDesignerTheme>(() => readDomTheme());
 
   useEffect(() => {
-    const sync = () => setTheme(readDomTheme());
+    const sync = () => {
+      setTheme((prev) => {
+        const next = readDomTheme();
+        return prev === next ? prev : next;
+      });
+    };
     sync();
     const observer = new MutationObserver(sync);
     observer.observe(document.documentElement, {

@@ -10,10 +10,13 @@ import {
 } from "@/lib/action-scope";
 import { listWorkspaceActionProjects } from "@/lib/action-explorer-server";
 import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
-import { resolveChatModelForRequest } from "@/lib/llm";
+import {
+  isLlmSelectionConfigured,
+  resolveChatModelForSelection,
+  resolveLlmSelection,
+} from "@/lib/llm";
 import { isLlmProviderHidden } from "@/lib/llm-config";
 import { parseLlmProviderId } from "@/lib/llm-providers";
-import { isUserModelSelectorProvider } from "@/lib/llm-user-providers";
 import { pickEnabledTools } from "@/lib/tool-registry";
 import { quickerTools } from "@/lib/tools";
 import { expandUserMessageForModel } from "@/lib/compose-user-message";
@@ -41,24 +44,33 @@ async function handleChatPost(req: Request) {
     workingDirectory,
     workspaceRoot,
     llmProvider,
+    llmSelection,
   }: {
     messages: AgentUIMessage[];
     enabledTools?: string[];
     workingDirectory?: string;
     /** @deprecated use workingDirectory */
     workspaceRoot?: string;
+    /** @deprecated use llmSelection */
     llmProvider?: string;
+    llmSelection?: string;
   } = await req.json();
 
-  const providerOverride = parseLlmProviderId(llmProvider);
+  const selection = resolveLlmSelection(llmSelection ?? llmProvider, parseLlmProviderId(llmProvider));
 
   if (
-    providerOverride
-    && (!isUserModelSelectorProvider(providerOverride)
-      || isLlmProviderHidden(providerOverride))
+    selection.kind === "builtin"
+    && isLlmProviderHidden(selection.providerId)
   ) {
     return Response.json(
-      { error: `Provider "${providerOverride}" is not available` },
+      { error: `Provider "${selection.providerId}" is not available` },
+      { status: 400 },
+    );
+  }
+
+  if (!isLlmSelectionConfigured(selection)) {
+    return Response.json(
+      { error: "Model selection is not configured" },
       { status: 400 },
     );
   }
@@ -66,7 +78,7 @@ async function handleChatPost(req: Request) {
   let model;
   let modelId: string;
   try {
-    ({ model, modelId } = await resolveChatModelForRequest(providerOverride));
+    ({ model, modelId } = await resolveChatModelForSelection(selection));
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return Response.json({ error: message }, { status: 500 });

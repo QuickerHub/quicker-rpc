@@ -1,6 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
+import {
+  migrateLegacyCustomToProfile,
+  normalizeProfiles,
+  type LlmCustomProfile,
+} from "@/lib/llm-profile-schema";
 import type { LlmProviderId } from "@/lib/llm-providers";
 import {
   CUSTOM_PROVIDER_ID,
@@ -15,9 +20,11 @@ export type LlmLocalProviderSecrets = {
 };
 
 export type LlmLocalSecrets = {
-  version: 1;
+  version: 1 | 2;
   providers: Partial<Record<LlmProviderId, LlmLocalProviderSecrets>>;
   directApiKey?: string;
+  profiles?: LlmCustomProfile[];
+  activeSelection?: string;
 };
 
 export type LlmProviderPatch = {
@@ -26,7 +33,7 @@ export type LlmProviderPatch = {
   model?: string | null;
 };
 
-const EMPTY: LlmLocalSecrets = { version: 1, providers: {} };
+const EMPTY: LlmLocalSecrets = { version: 2, providers: {} };
 
 let cache: LlmLocalSecrets | null = null;
 
@@ -78,7 +85,25 @@ function normalizeSecrets(raw: unknown): LlmLocalSecrets {
     typeof data.directApiKey === "string" && data.directApiKey.trim()
       ? data.directApiKey.trim()
       : undefined;
-  return { version: 1, providers, directApiKey };
+  const profiles = normalizeProfiles(data.profiles);
+  const activeSelection =
+    typeof data.activeSelection === "string" && data.activeSelection.trim()
+      ? data.activeSelection.trim()
+      : undefined;
+  const version = data.version === 1 ? 1 : 2;
+
+  let secrets: LlmLocalSecrets = {
+    version,
+    providers,
+    directApiKey,
+    profiles: profiles.length ? profiles : undefined,
+    activeSelection,
+  };
+  secrets = migrateLegacyCustomToProfile(secrets);
+  if (secrets.version === 1) {
+    secrets = { ...secrets, version: 2 };
+  }
+  return secrets;
 }
 
 export function loadLlmLocalSecrets(): LlmLocalSecrets {
@@ -100,11 +125,19 @@ export function loadLlmLocalSecrets(): LlmLocalSecrets {
 export function saveLlmLocalSecrets(data: LlmLocalSecrets): void {
   const path = resolveLlmSecretsPath();
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
-  cache = data;
+  writeFileSync(
+    path,
+    `${JSON.stringify({ ...data, version: 2 }, null, 2)}\n`,
+    {
+      encoding: "utf8",
+      mode: 0o600,
+    },
+  );
+  cache = { ...data, version: 2 };
+}
+
+export function invalidateLlmLocalSecretsCache(): void {
+  cache = null;
 }
 
 export function getLocalProviderConfig(

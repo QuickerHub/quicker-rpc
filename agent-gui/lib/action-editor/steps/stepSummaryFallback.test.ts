@@ -5,6 +5,16 @@ import { buildActionStepNodeView } from "@/lib/action-editor/steps/actionStepNod
 import { buildClientStepSummary } from "@/lib/action-editor/steps/stepSummaryFallback";
 import { collectStepRunnerKeysFromSteps } from "@/lib/action-editor/steps/stepRunnerCatalog";
 
+test("buildClientStepSummary omits raw %% global subprogram token", () => {
+  const step = ActionStep.fromPartial({
+    stepRunnerKey: "sys:subprogram",
+    inputParams: {
+      subProgram: { value: "%%44e8b90d-9a97-4525-8bcc-96f10d1a9c7e" },
+    },
+  });
+  assert.equal(buildClientStepSummary(step), "");
+});
+
 test("buildClientStepSummary reads csscript script param", () => {
   const step = ActionStep.fromPartial({
     stepRunnerKey: "sys:csscript",

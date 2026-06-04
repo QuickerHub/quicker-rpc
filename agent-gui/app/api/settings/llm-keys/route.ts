@@ -14,10 +14,21 @@ import {
 } from "@/lib/llm-local-secrets";
 import { isLlmProviderConfigured } from "@/lib/llm";
 import {
+  createCustomProfile,
+  deleteCustomProfile,
+  getStoredActiveSelection,
+  listAllCustomProfiles,
+  setStoredActiveSelection,
+  toPublicProfile,
+  updateCustomProfile,
+  type LlmProfilePatch,
+} from "@/lib/llm-profiles";
+import {
   getUserProviderUiSpec,
   USER_PROVIDER_UI,
   type UserSettingsField,
 } from "@/lib/llm-user-providers";
+import { formatLlmSelection, parseLlmSelection } from "@/lib/llm-selection";
 
 export const dynamic = "force-dynamic";
 
@@ -96,11 +107,16 @@ function providerConfigStatus(id: LlmProviderId): ProviderConfigStatus {
 export async function GET() {
   const secrets = loadLlmLocalSecrets();
   const direct = secrets.directApiKey;
+  const activeSelection = getStoredActiveSelection();
   return Response.json({
     storagePath: resolveLlmSecretsPath(),
     providers: Object.fromEntries(
       USER_PROVIDER_UI.map((spec) => [spec.id, providerConfigStatus(spec.id)]),
     ),
+    profiles: listAllCustomProfiles().map(toPublicProfile),
+    activeSelection: activeSelection
+      ? formatLlmSelection(activeSelection)
+      : undefined,
     direct: {
       configured: Boolean(direct?.trim() || process.env.LLM_API_KEY?.trim()),
       masked: direct ? maskSecret(direct) : undefined,
@@ -111,6 +127,17 @@ export async function GET() {
   });
 }
 
+type ProfileWriteBody = {
+  id?: string;
+  title?: string;
+  description?: string;
+  apiKey?: string;
+  baseURL?: string;
+  models?: string[];
+  defaultModel?: string;
+  hidden?: boolean;
+};
+
 type ProviderPatchBody = {
   apiKey?: string;
   baseURL?: string;
@@ -120,6 +147,10 @@ type ProviderPatchBody = {
 type PutBody = {
   providers?: Partial<Record<LlmProviderId, ProviderPatchBody>>;
   directApiKey?: string;
+  activeSelection?: string | null;
+  createProfile?: ProfileWriteBody;
+  updateProfile?: ProfileWriteBody & { id: string };
+  deleteProfileId?: string;
 };
 
 export async function PUT(req: Request) {
@@ -169,7 +200,65 @@ export async function PUT(req: Request) {
   if (typeof body.directApiKey === "string") {
     const trimmed = body.directApiKey.trim();
     directApiKey = trimmed || undefined;
-    saveLlmLocalSecrets({ version: 1, providers: current.providers, directApiKey });
+    saveLlmLocalSecrets({
+      ...current,
+      directApiKey,
+    });
+  }
+
+  if (body.activeSelection !== undefined) {
+    if (body.activeSelection === null || body.activeSelection === "") {
+      setStoredActiveSelection(undefined);
+    } else {
+      const selection = parseLlmSelection(body.activeSelection);
+      if (!selection) {
+        return Response.json({ error: "Invalid activeSelection" }, { status: 400 });
+      }
+      setStoredActiveSelection(selection);
+    }
+  }
+
+  if (body.createProfile && typeof body.createProfile === "object") {
+    const raw = body.createProfile;
+    try {
+      createCustomProfile({
+        title: raw.title ?? "Custom",
+        apiKey: raw.apiKey ?? "",
+        baseURL: raw.baseURL ?? "",
+        models: raw.models ?? [],
+        description: raw.description,
+        defaultModel: raw.defaultModel,
+        hidden: raw.hidden,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return Response.json({ error: message }, { status: 400 });
+    }
+  }
+
+  if (body.updateProfile && typeof body.updateProfile === "object") {
+    const raw = body.updateProfile;
+    if (!raw.id?.trim()) {
+      return Response.json({ error: "updateProfile.id is required" }, { status: 400 });
+    }
+    const patch: LlmProfilePatch = {};
+    if (raw.title !== undefined) patch.title = raw.title;
+    if (raw.description !== undefined) patch.description = raw.description;
+    if (raw.apiKey !== undefined) patch.apiKey = raw.apiKey;
+    if (raw.baseURL !== undefined) patch.baseURL = raw.baseURL;
+    if (raw.models !== undefined) patch.models = raw.models;
+    if (raw.defaultModel !== undefined) patch.defaultModel = raw.defaultModel;
+    if (raw.hidden !== undefined) patch.hidden = raw.hidden;
+    try {
+      updateCustomProfile(raw.id, patch);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return Response.json({ error: message }, { status: 400 });
+    }
+  }
+
+  if (typeof body.deleteProfileId === "string" && body.deleteProfileId.trim()) {
+    deleteCustomProfile(body.deleteProfileId.trim());
   }
 
   return Response.json({
@@ -177,6 +266,10 @@ export async function PUT(req: Request) {
     providers: Object.fromEntries(
       USER_PROVIDER_UI.map((spec) => [spec.id, providerConfigStatus(spec.id)]),
     ),
+    profiles: listAllCustomProfiles().map(toPublicProfile),
+    activeSelection: getStoredActiveSelection()
+      ? formatLlmSelection(getStoredActiveSelection()!)
+      : undefined,
     direct: {
       configured: Boolean(
         directApiKey?.trim() || process.env.LLM_API_KEY?.trim(),

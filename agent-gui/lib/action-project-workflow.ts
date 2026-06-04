@@ -60,6 +60,8 @@ export type ActionProjectManifest = {
     sizeBytes?: number;
   }>;
   files: ActionProjectFileEntry[];
+  /** Populated after action extract when embedded subprograms were externalized. */
+  embeddedSubProgramCount?: number;
 };
 
 export type WorkspaceSyncResult =
@@ -121,10 +123,27 @@ function parseCompressedProgramRoot(
   return null;
 }
 
-/** True when get payload has at least one step or variable (else skip disk extract). */
+function readSubProgramCountFromPayload(
+  payload: Record<string, unknown> | null,
+): number {
+  if (!payload) return 0;
+  const top = payload.subProgramCount ?? payload.SubProgramCount;
+  if (typeof top === "number" && top > 0) return top;
+  const root = parseCompressedProgramRoot(payload);
+  if (!root) return 0;
+  const nested = root.subProgramCount ?? root.SubProgramCount;
+  if (typeof nested === "number" && nested > 0) return nested;
+  const sp = root.subPrograms ?? root.SubPrograms;
+  return Array.isArray(sp) ? sp.length : 0;
+}
+
+/** True when get payload has steps, variables, or embedded subPrograms (else skip disk extract). */
 export function programHasBodyFromGetPayload(
   payload: Record<string, unknown> | null,
 ): boolean {
+  if (readSubProgramCountFromPayload(payload) > 0) {
+    return true;
+  }
   const root = parseCompressedProgramRoot(payload);
   if (!root) return true;
   const stepCount = countNestedSteps(root.steps);
@@ -181,7 +200,7 @@ async function listProjectFiles(
   const { listWorkspaceFiles } = await import("@/lib/workspace-fs");
   const listed = await listWorkspaceFiles(projectDir, {
     recursive: true,
-    maxEntries: 300,
+    maxEntries: 2000,
   });
   if (!listed.ok) return [];
   return listed.entries;
@@ -465,7 +484,18 @@ export async function syncActionToWorkspace(
     };
   }
 
-  return { ok: true, manifest };
+  const embeddedDirs = extractPayload?.embeddedSubProgramDirectories;
+  const embeddedSubProgramCount = Array.isArray(embeddedDirs)
+    ? embeddedDirs.length
+    : undefined;
+
+  return {
+    ok: true,
+    manifest: {
+      ...manifest,
+      embeddedSubProgramCount,
+    },
+  };
 }
 
 /** After create: info.json only (metadata from internal action get; no data.json extract). */

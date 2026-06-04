@@ -16,6 +16,7 @@ const QKA_TAG_RE =
 const ACTION_ID_TOOLS = new Set([
   "qkrpc_action_get",
   "qkrpc_action_patch",
+  "workspace_program_patch",
   "qkrpc_action_create",
   "qkrpc_action_set_metadata",
   "qkrpc_action_delete",

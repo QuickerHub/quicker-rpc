@@ -1,5 +1,6 @@
 import type { StepRunnerInputParamDef, StepRunnerOutputParamDef, StepRunnerSubItem } from "@/lib/action-editor/types/action_query";
 import { CsVarType, ParamVariableMode } from "@/lib/action-editor/steps/paramEditors/csStepEnums";
+import { inferStepParamMultiline } from "@/lib/action-editor/steps/paramEditors/stepParamMultiline";
 
 function readString(obj: Record<string, unknown>, ...keys: string[]): string {
   for (const key of keys) {
@@ -165,18 +166,28 @@ function mapAgentInputParamDef(
         ? controlField.selectionItems
         : [];
 
+  const description = readString(o, "purpose", "Purpose", "description", "Description");
+  const defaultValue = readString(o, "default", "Default", "defaultValue", "DefaultValue");
+  const explicitMultiLine = readBool(o, "isMultiLine", "IsMultiLine", "multiLine", "MultiLine");
+
   return {
     key,
     name: readString(o, "title", "Title", "name", "Name", "label", "Label"),
-    description: readString(o, "purpose", "Purpose", "description", "Description"),
+    description,
     varType,
     variableMode: inferVariableModeFromAgentInput(key, varType, selectionItems.length > 0, isControlField),
-    isMultiLine: varType === CsVarType.List || varType === CsVarType.Dict || varType === CsVarType.Table,
+    isMultiLine: inferStepParamMultiline({
+      key,
+      description,
+      defaultValue,
+      varType,
+      explicitMultiLine,
+    }),
     isRequired: readBool(o, "required", "Required", "isRequired", "IsRequired"),
     validationPattern: "",
     selectionItems,
     isControlField,
-    defaultValue: readString(o, "default", "Default", "defaultValue", "DefaultValue"),
+    defaultValue,
     fromOldField: "",
     isAdvanced: readBool(o, "isAdvanced", "IsAdvanced"),
     allowInput: true,
@@ -215,18 +226,28 @@ function mapInputParamDef(raw: unknown): StepRunnerInputParamDef | null {
   const o = raw as Record<string, unknown>;
   const key = readString(o, "key", "Key");
   if (!key) return null;
+  const varType = readInt(o, "varType", "VarType");
+  const description = readString(o, "description", "Description", "purpose", "Purpose");
+  const defaultValue = readString(o, "defaultValue", "DefaultValue", "default", "Default");
+  const explicitMultiLine = readBool(o, "isMultiLine", "IsMultiLine", "multiLine", "MultiLine");
   return {
     key,
     name: readString(o, "name", "Name", "label", "Label", "title", "Title"),
-    description: readString(o, "description", "Description", "purpose", "Purpose"),
-    varType: readInt(o, "varType", "VarType"),
+    description,
+    varType,
     variableMode: readInt(o, "variableMode", "VariableMode"),
-    isMultiLine: readBool(o, "isMultiLine", "IsMultiLine", "multiLine", "MultiLine"),
+    isMultiLine: inferStepParamMultiline({
+      key,
+      description,
+      defaultValue,
+      varType,
+      explicitMultiLine,
+    }),
     isRequired: readBool(o, "isRequired", "IsRequired", "required", "Required"),
     validationPattern: readString(o, "validationPattern", "ValidationPattern"),
     selectionItems: mapSelectionItems(o.selectionItems ?? o.SelectionItems ?? o.options ?? o.Options),
     isControlField: readBool(o, "isControlField", "IsControlField"),
-    defaultValue: readString(o, "defaultValue", "DefaultValue", "default", "Default"),
+    defaultValue,
     fromOldField: readString(o, "fromOldField", "FromOldField"),
     isAdvanced: readBool(o, "isAdvanced", "IsAdvanced"),
     allowInput: readBool(o, "allowInput", "AllowInput"),

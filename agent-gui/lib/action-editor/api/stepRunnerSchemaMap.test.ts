@@ -70,3 +70,21 @@ test("resolveStepControlFieldLiteral reads literal control value", () => {
   );
   assert.equal(v, "move_ex");
 });
+
+test("mapAgentSchemaToStepRunnerItem marks reference DLL input as multiline", () => {
+  const item = mapAgentSchemaToStepRunnerItem({
+    stepRunnerKey: "sys:csscript",
+    name: "运行C#代码",
+    inputs: [
+      {
+        key: "reference",
+        title: "引用DLL库",
+        purpose: "要引用的DLL文件，每行一个。",
+        valueType: "Text",
+      },
+    ],
+    outputs: [],
+  });
+  const reference = item.inputParamDefs.find((d) => d.key === "reference");
+  assert.equal(reference?.isMultiLine, true);
+});

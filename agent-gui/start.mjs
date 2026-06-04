@@ -18,6 +18,10 @@ import {
   stopTrackedQkrpcServe,
   trackQkrpcServeChild,
 } from "./lib/qkrpc-serve-lifecycle.mjs";
+import {
+  writeDevServerInfo,
+  wireNextDevOutput,
+} from "./lib/dev-frontend-log-parser.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -299,14 +303,16 @@ async function main() {
 
   if (isDev) {
     printListening(url);
+    writeDevServerInfo(root, { url, port, host });
     openBrowser(url);
     const nextBin = require.resolve("next/dist/bin/next");
     const nodeExe = resolveNodeExe();
     const child = spawn(
       nodeExe,
       [nextBin, "dev", "--port", String(port), "-H", host],
-      { cwd: root, stdio: "inherit", env: process.env },
+      { cwd: root, stdio: ["inherit", "pipe", "pipe"], env: process.env },
     );
+    wireNextDevOutput(root, child);
     child.on("exit", (code) => {
       stopQkrpcChild();
       process.exit(code ?? 1);

@@ -76,13 +76,16 @@ import { ActionTagSelector } from "./ActionTagSelector";
 import { ToolSelector } from "./ToolSelector";
 import {
   fetchLlmOptions,
-  hasConfiguredLlmProvider,
+  hasConfiguredLlmOption,
   ModelSelector,
-  pickInitialLlmProvider,
+  pickInitialLlmSelectionFromApi,
 } from "./ModelSelector";
-import type { LlmProviderId } from "@/lib/llm-providers";
-import { LLM_PROVIDER_ID } from "@/lib/llm-providers";
-import { loadStoredLlmProvider, storeLlmProvider } from "@/lib/llm-prefs";
+import { formatLlmSelection } from "@/lib/llm-selection";
+import { LLM_PROVIDER_ID, type LlmProviderId } from "@/lib/llm-providers";
+import {
+  loadStoredLlmSelectionRaw,
+  storeLlmSelectionRaw,
+} from "@/lib/llm-prefs";
 import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
 import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent-activity";
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
@@ -284,38 +287,47 @@ function ChatPanel({
     Record<string, string>
   >({});
   const [enabledTools, setEnabledTools] = useState(defaultEnabledToolIds);
-  const [llmProvider, setLlmProvider] = useState<LlmProviderId>(LLM_PROVIDER_ID);
+  const [llmSelection, setLlmSelection] = useState(
+    formatLlmSelection({ kind: "builtin", providerId: LLM_PROVIDER_ID }),
+  );
 
   useEffect(() => {
     setEnabledTools(loadStoredEnabledTools());
   }, []);
 
-  const syncLlmProviderFromApi = useCallback(async () => {
+  const syncLlmSelectionFromApi = useCallback(async () => {
     const data = await fetchLlmOptions();
     if (!data) return;
-    const initial = pickInitialLlmProvider(data, loadStoredLlmProvider());
-    setLlmProvider(initial);
-    storeLlmProvider(initial);
+    const initial = pickInitialLlmSelectionFromApi(
+      data,
+      loadStoredLlmSelectionRaw(),
+    );
+    setLlmSelection((prev) => {
+      if (prev === initial) return prev;
+      storeLlmSelectionRaw(initial);
+      return initial;
+    });
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await syncLlmProviderFromApi();
+      await syncLlmSelectionFromApi();
       if (cancelled) return;
     })();
     return () => {
       cancelled = true;
     };
-  }, [syncLlmProviderFromApi]);
+  }, [syncLlmSelectionFromApi]);
 
   useEffect(() => {
     const onKeysUpdated = () => {
-      void syncLlmProviderFromApi();
+      void syncLlmSelectionFromApi();
     };
     window.addEventListener(LLM_KEYS_UPDATED_EVENT, onKeysUpdated);
     return () => window.removeEventListener(LLM_KEYS_UPDATED_EVENT, onKeysUpdated);
-  }, [syncLlmProviderFromApi]);
+  }, [syncLlmSelectionFromApi]);
+
   const messagesRef = useRef<HTMLElement>(null);
   const msgTurnRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -329,8 +341,8 @@ function ChatPanel({
 
   const enabledToolsRef = useRef(enabledTools);
   enabledToolsRef.current = enabledTools;
-  const llmProviderRef = useRef(llmProvider);
-  llmProviderRef.current = llmProvider;
+  const llmSelectionRef = useRef(llmSelection);
+  llmSelectionRef.current = llmSelection;
   const workingDirectoryRef = useRef(workingDirectory);
   workingDirectoryRef.current = workingDirectory;
 
@@ -342,7 +354,8 @@ function ChatPanel({
         api: "/api/chat",
         body: () => ({
           enabledTools: enabledToolsRef.current,
-          llmProvider: llmProviderRef.current,
+          llmSelection: llmSelectionRef.current,
+          llmProvider: llmSelectionRef.current,
           workingDirectory: workingDirectoryRef.current.trim() || undefined,
         }),
       }),
@@ -400,7 +413,7 @@ function ChatPanel({
     threadId,
     messages,
     status,
-    llmProvider,
+    llmSelection,
     currentTitle: threadTitle,
     titleGenerated,
     titleManual,
@@ -1027,12 +1040,12 @@ function ChatPanel({
                   onChange={setEnabledTools}
                 />
                 <ModelSelector
-                  providerId={llmProvider}
-                  onChange={(id) => {
-                    setLlmProvider(id);
-                    storeLlmProvider(id);
+                  selection={llmSelection}
+                  onChange={(next) => {
+                    setLlmSelection(next);
+                    storeLlmSelectionRaw(next);
                   }}
-                  onNeedSettings={onOpenSettings}
+                  onNeedSettings={() => onOpenSettings()}
                 />
                 <span className="composer-hint">
                   {editAnchorMessageId
@@ -1047,7 +1060,7 @@ function ChatPanel({
                   <ContextUsage
                     messages={messages}
                     busy={busy}
-                    providerId={llmProvider}
+                    selection={llmSelection}
                   />
                 )}
                 {busy && (
@@ -1175,7 +1188,7 @@ export function Chat() {
     let cancelled = false;
     void (async () => {
       const data = await fetchLlmOptions();
-      if (cancelled || !data || hasConfiguredLlmProvider(data)) return;
+      if (cancelled || !data || hasConfiguredLlmOption(data)) return;
       llmSettingsAutoOpenedRef.current = true;
       openSettingsTab();
     })();

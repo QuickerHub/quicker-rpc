@@ -21,6 +21,19 @@ export function statsFromTextContent(content: string): CodeMirrorEditorStats {
   };
 }
 
+export function codeMirrorEditorStatsEqual(
+  a: CodeMirrorEditorStats,
+  b: CodeMirrorEditorStats,
+): boolean {
+  return (
+    a.lineCount === b.lineCount
+    && a.charCount === b.charCount
+    && a.selectionCharCount === b.selectionCharCount
+    && a.cursorLine === b.cursorLine
+    && a.cursorColumn === b.cursorColumn
+  );
+}
+
 export function computeCodeMirrorEditorStats(state: EditorState): CodeMirrorEditorStats {
   const doc = state.doc;
   const head = state.selection.main.head;

@@ -155,6 +155,11 @@ export function workspaceCodeMirrorTheme(): Extension {
       color: "var(--code-diff-insert)",
       backgroundColor: "color-mix(in srgb, var(--code-diff-insert) 14%, transparent)",
     },
+    ".cm-line:has(.cm-diff-collapsed-marker)": {
+      color: "color-mix(in srgb, var(--foreground) 48%, transparent)",
+      fontStyle: "italic",
+      backgroundColor: "color-mix(in srgb, var(--foreground) 6%, transparent)",
+    },
     ".cm-mergeA .cm-changedLine, .cm-mergeB .cm-changedLine": {
       backgroundColor: "color-mix(in srgb, var(--code-diff-insert) 12%, transparent)",
     },

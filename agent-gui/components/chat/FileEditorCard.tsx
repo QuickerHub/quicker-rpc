@@ -3,7 +3,10 @@
 import { useMemo, useState } from "react";
 import { CodeMirrorPreview } from "@/components/chat/CodeMirrorPreview";
 import { CodeMirrorUnifiedDiff } from "@/components/chat/CodeMirrorUnifiedDiff";
-import { countLineDiffStats, countUnifiedDiffDisplayLines } from "@/lib/file-line-diff";
+import {
+  buildCollapsedDiffTexts,
+  countLineDiffStats,
+} from "@/lib/file-line-diff";
 import { fileIconKindToBadgeLabel, resolveFileIconKind } from "@/lib/file-icon-kind";
 import {
   basenamePath,
@@ -119,12 +122,30 @@ export function FileEditorCard({
     ? headerDetailRaw
     : null;
 
+  const diffLineStats = useMemo(
+    () => (diff ? countLineDiffStats(diff.removed, diff.added) : null),
+    [diff],
+  );
+
+  const diffCollapsed = useMemo(
+    () => (diff ? buildCollapsedDiffTexts(diff.removed, diff.added) : null),
+    [diff],
+  );
+
+  const diffStat = useMemo(
+    () =>
+      diffLineStats
+        ? buildEditStatFromCounts(diffLineStats.addLines, diffLineStats.removeLines)
+        : undefined,
+    [diffLineStats],
+  );
+
+  const headerStat = diffStat ?? stat;
+
   const previewLineCount = useMemo(() => {
-    if (diff) {
-      return countUnifiedDiffDisplayLines(diff.removed, diff.added);
-    }
+    if (diffCollapsed) return diffCollapsed.displayLineCount;
     return countLines(content);
-  }, [content, diff]);
+  }, [content, diffCollapsed]);
 
   const showBody = showContent && (!compact || revealed);
   const lineClamp =
@@ -188,7 +209,7 @@ export function FileEditorCard({
                 {headerDetail}
               </span>
             ) : null}
-            {stat ? <FileEditorStatDisplay stat={stat} compact /> : null}
+            {headerStat ? <FileEditorStatDisplay stat={headerStat} compact /> : null}
           </span>
         </button>
       ) : showHeader ? (
@@ -218,14 +239,14 @@ export function FileEditorCard({
                   {headerDetail}
                 </span>
               ) : null}
-              {stat ? <FileEditorStatDisplay stat={stat} compact={compact} /> : null}
+              {headerStat ? <FileEditorStatDisplay stat={headerStat} compact={compact} /> : null}
             </span>
           ) : (
             <>
               <span className="file-editor-name" title={pathLabel}>
                 {compact ? fileName : pathLabel}
               </span>
-              {stat ? <FileEditorStatDisplay stat={stat} compact={compact} /> : null}
+              {headerStat ? <FileEditorStatDisplay stat={headerStat} compact={compact} /> : null}
             </>
           )}
         </div>
@@ -233,11 +254,11 @@ export function FileEditorCard({
 
       {showBody ? (
         <div className="file-editor-body">
-          {diff ? (
+          {diffCollapsed ? (
             <CodeMirrorUnifiedDiff
               path={path}
-              removed={diff.removed}
-              added={diff.added}
+              removed={diffCollapsed.removed}
+              added={diffCollapsed.added}
             />
           ) : (
             <CodeMirrorPreview
@@ -291,8 +312,11 @@ export function buildReadStat(content: string, input?: unknown): FileEditorStat 
   return { label: String(lines), kind: "neutral" };
 }
 
-export function buildEditStat(removed: string, added: string): FileEditorStat {
-  const { addLines, removeLines: remLines } = countLineDiffStats(removed, added);
+export function buildEditStatFromCounts(
+  addLines: number,
+  removeLines: number,
+): FileEditorStat {
+  const remLines = removeLines;
 
   if (addLines === 0 && remLines === 0) {
     return { label: "0", kind: "neutral", addLines: 0, removeLines: 0 };
@@ -319,4 +343,10 @@ export function buildEditStat(removed: string, added: string): FileEditorStat {
     addLines,
     removeLines: remLines,
   };
+}
+
+/** +/- from LCS line diff only (no diff editor / collapse). */
+export function buildEditStat(removed: string, added: string): FileEditorStat {
+  const { addLines, removeLines: remLines } = countLineDiffStats(removed, added);
+  return buildEditStatFromCounts(addLines, remLines);
 }

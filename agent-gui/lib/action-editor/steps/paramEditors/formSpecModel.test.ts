@@ -3,7 +3,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
+  isFormSpecFilePath,
   parseFormSpecText,
+  prepareFormSpecFileContentForWrite,
   serializeFormSpec,
   suggestFormSpecFileName,
   summarizeFormSpec,
@@ -81,4 +83,48 @@ test("suggestFormSpecFileName skips used names", () => {
     suggestFormSpecFileName(["files/form1.form.json", "files/form2.form.json"]),
     "files/form3.form.json",
   );
+});
+
+test("isFormSpecFilePath matches *.form.json basename", () => {
+  assert.equal(isFormSpecFilePath("files/task.form.json"), true);
+  assert.equal(isFormSpecFilePath("files/readme.json"), false);
+});
+
+test("prepareFormSpecFileContentForWrite maps option name to label", () => {
+  const raw = JSON.stringify(
+    {
+      $schema: "qkrpc.form.v1",
+      mode: "variables",
+      title: "T",
+      fields: [
+        {
+          key: "p",
+          label: "P",
+          type: "select",
+          options: [{ value: "高", name: "高" }],
+        },
+      ],
+    },
+    null,
+    0,
+  );
+  const prepared = prepareFormSpecFileContentForWrite(raw);
+  assert.equal(prepared.ok, true);
+  if (!prepared.ok) return;
+  assert.match(prepared.content, /"label": "高"/);
+  assert.doesNotMatch(prepared.content, /"name":/);
+  assert.equal(prepared.reformatted, true);
+});
+
+test("prepareFormSpecFileContentForWrite rejects invalid JSON", () => {
+  const broken = `{
+  "fields": [
+    { "key": "p", "label": "P", "type": "select", "options": [
+      { "value": "高", "name": "高" }
+      { "value": "低", "name": "低" }
+    ]}
+  ]
+}`;
+  const prepared = prepareFormSpecFileContentForWrite(broken);
+  assert.equal(prepared.ok, false);
 });

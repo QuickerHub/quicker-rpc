@@ -45,11 +45,20 @@ function humanizeModelId(modelId: string): string {
 export function getModelPickerDisplay(
   providerId: LlmProviderId,
   modelId: string,
+  profileTitle?: string,
 ): ModelPickerDisplay {
+  if (profileTitle?.trim()) {
+    return {
+      displayName: profileTitle.trim(),
+      tier: humanizeModelId(modelId),
+    };
+  }
   const meta = getLlmProviderMeta(providerId);
   if (providerId === CUSTOM_PROVIDER_ID) {
-    const tier: ModelPickerTier = "Medium";
-    return { displayName: "Custom", tier };
+    return {
+      displayName: humanizeModelId(modelId),
+      tier: "Medium",
+    };
   }
   if (providerId === DEEPSEEK_PROVIDER_ID) {
     const displayName = humanizeModelId(modelId);

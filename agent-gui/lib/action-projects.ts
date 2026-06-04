@@ -99,6 +99,7 @@ export function shouldRefreshExplorerAfterTool(
     toolName === "qkrpc_action_get"
     || toolName === "qkrpc_action_create"
     || toolName === "qkrpc_action_patch"
+    || toolName === "workspace_program_patch"
   ) {
     const data = output.data;
     if (typeof data === "object" && data !== null) {

@@ -42,6 +42,33 @@ internal static class QuickerAgentInstallProbe
         return false;
     }
 
+    public static bool TryGetExecutablePath(out string? executablePath)
+    {
+        executablePath = null;
+
+        if (TryGetFromRegistry(out _, out var installDirectory)
+            && !string.IsNullOrWhiteSpace(installDirectory))
+        {
+            var fromRegistry = Path.Combine(installDirectory, ExecutableName);
+            if (File.Exists(fromRegistry))
+            {
+                executablePath = fromRegistry;
+                return true;
+            }
+        }
+
+        foreach (var candidate in EnumerateCandidateExecutables())
+        {
+            if (File.Exists(candidate))
+            {
+                executablePath = candidate;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool TryGetFromRegistry(out string? version, out string? installDirectory)
     {
         version = null;

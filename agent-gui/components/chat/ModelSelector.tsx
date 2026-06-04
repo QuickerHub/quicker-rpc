@@ -3,38 +3,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 import {
+  CUSTOM_PROVIDER_ID,
   DEEPSEEK_PROVIDER_ID,
   type LlmProviderId,
 } from "@/lib/llm-providers";
+import type { LlmModelOption, LlmOptionsResponse } from "@/lib/llm-options-shared";
+import { pickInitialLlmSelection } from "@/lib/llm-options-shared";
 import {
   formatContextWindow,
   getModelPickerDisplay,
   matchesModelPickerQuery,
 } from "@/lib/model-picker-display";
 import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
-import { storeLlmProvider } from "@/lib/llm-prefs";
+import {
+  loadStoredLlmSelectionRaw,
+  storeLlmSelectionRaw,
+} from "@/lib/llm-prefs";
 
-type LlmProviderOption = {
-  id: LlmProviderId;
-  label: string;
-  description: string;
-  modelId: string;
-  configured: boolean;
-  contextLimit: number;
-  contextLimitSource?: "env" | "catalog" | "pattern" | "default";
-};
-
-type LlmApiResponse = {
-  defaultProvider: LlmProviderId;
-  activeProvider: LlmProviderId;
-  providers: LlmProviderOption[];
-  directOverride?: boolean;
-};
+export type { LlmModelOption, LlmOptionsResponse };
 
 type ModelSelectorProps = {
-  providerId: LlmProviderId;
-  onChange: (id: LlmProviderId) => void;
-  onNeedSettings?: (targetProviderId?: LlmProviderId) => void;
+  selection: string;
+  onChange: (selection: string) => void;
+  onNeedSettings?: () => void;
   disabled?: boolean;
 };
 
@@ -80,41 +71,53 @@ function CheckIcon() {
   );
 }
 
-export function hasConfiguredLlmProvider(data: LlmApiResponse): boolean {
-  return data.providers.some((p) => p.configured);
+function optionProviderId(option: LlmModelOption): LlmProviderId {
+  return option.providerId ?? CUSTOM_PROVIDER_ID;
 }
 
-export function pickInitialLlmProvider(
-  data: LlmApiResponse,
-  stored: LlmProviderId | undefined,
-): LlmProviderId {
-  const configured = data.providers.filter((p) => p.configured);
-  if (stored && configured.some((p) => p.id === stored)) return stored;
-  if (configured.some((p) => p.id === data.activeProvider)) {
-    return data.activeProvider;
-  }
-  if (configured.some((p) => p.id === data.defaultProvider)) {
-    return data.defaultProvider;
-  }
-  return configured[0]?.id ?? data.defaultProvider;
+function optionDisplay(option: LlmModelOption) {
+  return getModelPickerDisplay(
+    optionProviderId(option),
+    option.modelId,
+    option.kind === "profile" ? option.title ?? option.label : undefined,
+  );
 }
 
-export async function fetchLlmOptions(): Promise<LlmApiResponse | null> {
+export function hasConfiguredLlmOption(data: LlmOptionsResponse): boolean {
+  return data.options.some((o) => o.configured);
+}
+
+export function pickInitialLlmSelectionFromApi(
+  data: LlmOptionsResponse,
+  storedRaw: string | undefined,
+): string {
+  return pickInitialLlmSelection(data, storedRaw);
+}
+
+export async function fetchLlmOptions(): Promise<LlmOptionsResponse | null> {
   const res = await fetch("/api/llm");
   if (!res.ok) return null;
-  return (await res.json()) as LlmApiResponse;
+  return (await res.json()) as LlmOptionsResponse;
+}
+
+async function persistActiveSelection(selection: string): Promise<void> {
+  await fetch("/api/settings/llm-keys", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ activeSelection: selection }),
+  }).catch(() => undefined);
 }
 
 export function ModelSelector({
-  providerId,
+  selection,
   onChange,
   onNeedSettings,
   disabled,
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [hoveredId, setHoveredId] = useState<LlmProviderId | null>(null);
-  const [options, setOptions] = useState<LlmProviderOption[]>([]);
+  const [hoveredSelection, setHoveredSelection] = useState<string | null>(null);
+  const [options, setOptions] = useState<LlmModelOption[]>([]);
   const [ready, setReady] = useState(false);
   const [directOverride, setDirectOverride] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -124,7 +127,7 @@ export function ModelSelector({
   const refreshOptions = useCallback(async () => {
     const data = await fetchLlmOptions();
     if (!data) return;
-    setOptions(data.providers);
+    setOptions(data.options);
     setDirectOverride(Boolean(data.directOverride));
     setReady(true);
   }, []);
@@ -160,62 +163,61 @@ export function ModelSelector({
   useEffect(() => {
     if (!open) {
       setQuery("");
-      setHoveredId(null);
+      setHoveredSelection(null);
       return;
     }
     const t = window.setTimeout(() => searchRef.current?.focus(), 0);
     return () => window.clearTimeout(t);
   }, [open]);
 
-  const active = options.find((p) => p.id === providerId);
-  const anyConfigured = options.some((p) => p.configured);
-  const activeDisplay = active
-    ? getModelPickerDisplay(active.id, active.modelId)
-    : null;
+  const active = options.find((o) => o.selection === selection);
+  const anyConfigured = options.some((o) => o.configured);
+  const activeDisplay = active ? optionDisplay(active) : null;
 
   const filteredOptions = useMemo(() => {
-    return options.filter((p) => {
-      const display = getModelPickerDisplay(p.id, p.modelId);
+    return options.filter((o) => {
+      const display = optionDisplay(o);
       return matchesModelPickerQuery(query, {
         displayName: display.displayName,
         tier: display.tier,
-        modelId: p.modelId,
-        label: p.label,
-        description: p.description,
+        modelId: o.modelId,
+        label: o.label,
+        description: o.description,
       });
     });
   }, [options, query]);
 
-  const detailOption = hoveredId
-    ? options.find((p) => p.id === hoveredId)
+  const detailOption = hoveredSelection
+    ? options.find((o) => o.selection === hoveredSelection)
     : undefined;
 
-  const openSettings = (targetProviderId?: LlmProviderId) => {
+  const openSettings = () => {
     setOpen(false);
-    onNeedSettings?.(targetProviderId);
+    onNeedSettings?.();
   };
 
-  const select = (id: LlmProviderId) => {
-    const opt = options.find((p) => p.id === id);
+  const select = (nextSelection: string) => {
+    const opt = options.find((o) => o.selection === nextSelection);
     if (!opt?.configured) {
-      openSettings(id);
+      openSettings();
       return;
     }
-    onChange(id);
-    storeLlmProvider(id);
+    onChange(nextSelection);
+    storeLlmSelectionRaw(nextSelection);
+    void persistActiveSelection(nextSelection);
     setOpen(false);
   };
 
   const togglePanel = () => {
     if (ready && !anyConfigured) {
-      openSettings(providerId);
+      openSettings();
       return;
     }
     setOpen((v) => !v);
   };
 
   const triggerTitle = active?.configured
-    ? `${activeDisplay?.displayName ?? active.modelId}（${active.label}）`
+    ? `${activeDisplay?.displayName ?? active.modelId} · ${activeDisplay?.tier ?? active.modelId}`
     : ready && !anyConfigured
       ? "尚未配置模型，点击打开设置"
       : active && !active.configured
@@ -274,12 +276,12 @@ export function ModelSelector({
               ) {
                 return;
               }
-              setHoveredId(null);
+              setHoveredSelection(null);
             }}
           >
             <div
               className="model-picker-search-wrap"
-              onMouseEnter={() => setHoveredId(null)}
+              onMouseEnter={() => setHoveredSelection(null)}
             >
               <input
                 ref={searchRef}
@@ -303,18 +305,18 @@ export function ModelSelector({
                 <li className="model-picker-empty">无匹配模型</li>
               ) : (
                 filteredOptions.map((p) => {
-                  const display = getModelPickerDisplay(p.id, p.modelId);
-                  const selected = p.id === providerId;
-                  const showEdit = !p.configured && hoveredId === p.id;
+                  const display = optionDisplay(p);
+                  const selected = p.selection === selection;
+                  const showEdit = !p.configured && hoveredSelection === p.selection;
                   return (
                     <li
-                      key={p.id}
+                      key={p.selection}
                       role="option"
                       aria-selected={selected}
                       className={`model-picker-row${
                         selected ? " model-picker-row--selected" : ""
                       }${!p.configured ? " model-picker-row--unconfigured" : ""}`}
-                      onMouseEnter={() => setHoveredId(p.id)}
+                      onMouseEnter={() => setHoveredSelection(p.selection)}
                       onMouseLeave={(e) => {
                         const row = e.currentTarget;
                         const next = e.relatedTarget;
@@ -328,13 +330,15 @@ export function ModelSelector({
                         ) {
                           return;
                         }
-                        if (hoveredId === p.id) setHoveredId(null);
+                        if (hoveredSelection === p.selection) {
+                          setHoveredSelection(null);
+                        }
                       }}
                     >
                       <button
                         type="button"
                         className="model-picker-item"
-                        onClick={() => select(p.id)}
+                        onClick={() => select(p.selection)}
                       >
                         <span className="model-picker-item-main">
                           <span className="model-picker-item-name">
@@ -352,7 +356,7 @@ export function ModelSelector({
                         <button
                           type="button"
                           className="model-picker-item-edit"
-                          onClick={() => openSettings(p.id)}
+                          onClick={() => openSettings()}
                         >
                           配置
                         </button>
@@ -366,8 +370,8 @@ export function ModelSelector({
             <button
               type="button"
               className="model-picker-footer"
-              onMouseEnter={() => setHoveredId(null)}
-              onClick={() => openSettings(providerId)}
+              onMouseEnter={() => setHoveredSelection(null)}
+              onClick={() => openSettings()}
             >
               配置模型…
             </button>
@@ -375,8 +379,8 @@ export function ModelSelector({
             {detailOption && (
               <aside
                 className="model-picker-detail"
-                aria-label={`${getModelPickerDisplay(detailOption.id, detailOption.modelId).displayName} 详情`}
-                onMouseEnter={() => setHoveredId(detailOption.id)}
+                aria-label={`${optionDisplay(detailOption).displayName} 详情`}
+                onMouseEnter={() => setHoveredSelection(detailOption.selection)}
                 onMouseLeave={(e) => {
                   const panel = e.currentTarget;
                   const next = e.relatedTarget;
@@ -390,14 +394,11 @@ export function ModelSelector({
                   ) {
                     return;
                   }
-                  setHoveredId(null);
+                  setHoveredSelection(null);
                 }}
               >
                 {(() => {
-                  const display = getModelPickerDisplay(
-                    detailOption.id,
-                    detailOption.modelId,
-                  );
+                  const display = optionDisplay(detailOption);
                   return (
                     <>
                       <h3 className="model-picker-detail-title">
@@ -417,9 +418,10 @@ export function ModelSelector({
                       </p>
                       {!detailOption.configured && (
                         <p className="model-picker-detail-warn">
-                          {detailOption.id === DEEPSEEK_PROVIDER_ID
+                          {detailOption.kind === "builtin"
+                            && detailOption.providerId === DEEPSEEK_PROVIDER_ID
                             ? "需在设置中填写 DeepSeek API Key"
-                            : "需在设置或 llm-config.json 中配置"}
+                            : "需在设置中添加自定义配置"}
                         </p>
                       )}
                     </>
@@ -433,3 +435,18 @@ export function ModelSelector({
     </div>
   );
 }
+
+/** @deprecated use pickInitialLlmSelectionFromApi */
+export function pickInitialLlmProvider(
+  data: LlmOptionsResponse,
+  storedRaw: string | undefined,
+): string {
+  return pickInitialLlmSelectionFromApi(data, storedRaw ?? loadStoredLlmSelectionRaw());
+}
+
+/** @deprecated use hasConfiguredLlmOption */
+export function hasConfiguredLlmProvider(data: LlmOptionsResponse): boolean {
+  return hasConfiguredLlmOption(data);
+}
+
+export { pickInitialLlmSelectionFromApi as pickInitialLlmSelection };

@@ -13,7 +13,6 @@ import {
 } from "@/lib/workspace-file-tool";
 import { useWorkspaceExplorerActions } from "@/lib/workspace-explorer";
 import {
-  buildEditStat,
   buildReadStat,
   buildWriteStat,
   FileEditorCard,
@@ -110,16 +109,12 @@ function FileEditorPreviewBody({
         return buildReadStat(preview.content, input);
       case "workspace_action_file_write":
       case "workspace_action_write_data":
-        if (preview.diff && preview.diff.removed.length > 0) {
-          return buildEditStat(preview.diff.removed, preview.diff.added);
-        }
+        if (preview.diff) return undefined;
         return buildWriteStat(preview.content);
       case "workspace_action_file_edit":
       case "workspace_action_edit_data":
-        return buildEditStat(
-          preview.diff?.removed ?? "",
-          preview.diff?.added ?? preview.content,
-        );
+        if (preview.diff) return undefined;
+        return undefined;
       default:
         return undefined;
     }

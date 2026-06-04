@@ -30,6 +30,9 @@ import { basenamePath } from "@/lib/workspace-file-tool";
 import { fetchWorkspaceFile } from "@/lib/workspace-explorer-api";
 import type { XProgramPresent } from "@/lib/action-editor/program/xProgramHistory";
 import {
+  normalizeProgramPresentForEditor,
+} from "@/lib/action-editor/program/xProgramHistory";
+import {
   fingerprintProgramWire,
   parseProgramWireJson,
   serializeProgramWireJson,
@@ -120,6 +123,16 @@ export function ActionProjectDataEditor({
     () => parseProgramWireJson(editorContent),
     [editorContent],
   );
+
+  const normalizedPresent = useMemo((): XProgramPresent | null => {
+    if (!parsed.ok) return null;
+    return normalizeProgramPresentForEditor(parsed.present);
+  }, [editorContent, parsed.ok, parsed.ok ? parsed.present : null]);
+
+  const wireBaselineFingerprint = useMemo(() => {
+    if (!normalizedPresent) return "";
+    return fingerprintProgramWire(normalizedPresent);
+  }, [normalizedPresent]);
   const isEmbeddedSubProgram = useMemo(() => isEmbeddedSubProgramDataPath(path), [path]);
   const parentActionId = useMemo(() => actionIdFromDataPath(path), [path]);
   const projectFolder = useMemo(() => {
@@ -183,16 +196,16 @@ export function ActionProjectDataEditor({
   const metaIcon = projectInfo?.icon;
 
   useEffect(() => {
-    if (!parsed.ok) return;
+    if (!parsed.ok || !normalizedPresent) return;
     extraTopLevelRef.current = parsed.extraTopLevel;
-    baselineRef.current = fingerprintProgramWire(parsed.present);
-    presentRef.current = parsed.present;
+    baselineRef.current = wireBaselineFingerprint;
+    presentRef.current = normalizedPresent;
     setDirty(false);
-  }, [editorContent, parsed]);
+  }, [editorContent, parsed, normalizedPresent, wireBaselineFingerprint]);
 
   const handlePresentChange = useCallback((present: XProgramPresent, meta: { dirty: boolean }) => {
     presentRef.current = present;
-    setDirty(meta.dirty);
+    setDirty((prev) => (prev === meta.dirty ? prev : meta.dirty));
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -314,21 +327,21 @@ export function ActionProjectDataEditor({
         <p className="workspace-explorer-hint workspace-explorer-hint--err">{saveError}</p>
       ) : null}
 
-      {tab === "visual" ? (
+      {tab === "visual" && normalizedPresent ? (
         <div className="action-project-data-editor-visual x-program-host">
           <ThemeProvider>
             <XProgramEditor
-              initialPresent={parsed.present}
-              baselineFingerprint={baselineRef.current || fingerprintProgramWire(parsed.present)}
+              initialPresent={normalizedPresent}
+              baselineFingerprint={wireBaselineFingerprint}
               onPresentChange={handlePresentChange}
               programSurface={isEmbeddedSubProgram ? "subProgram" : "main"}
               workspaceContext={workspaceContext}
             />
           </ThemeProvider>
         </div>
-      ) : (
+      ) : tab === "source" ? (
         <FileEditorCard path={path} content={editorContent} showHeader={false} fillAvailable />
-      )}
+      ) : null}
     </div>
   );
 }

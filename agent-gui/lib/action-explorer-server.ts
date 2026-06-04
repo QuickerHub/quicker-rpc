@@ -231,7 +231,7 @@ export async function buildActionExplorerTree(
   const [listed, projectMeta, embeddedSubProgramMeta] = await Promise.all([
     listWorkspaceFiles(rootPath, {
       recursive: true,
-      maxEntries: 500,
+      maxEntries: 2000,
       includeFileSizes: false,
     }),
     loadActionProjectMeta(),

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { formatTokenCount } from "@/lib/chat-types";
 import { buildApiContextUsageSnapshot } from "@/lib/context-length";
-import type { LlmProviderId } from "@/lib/llm-providers";
 import { fetchLlmOptions } from "./ModelSelector";
 
 const RING_SIZE = 14;
@@ -15,7 +14,7 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 type ContextUsageProps = {
   messages: AgentUIMessage[];
   busy?: boolean;
-  providerId: LlmProviderId;
+  selection: string;
 };
 
 function lastAssistantModel(messages: AgentUIMessage[]): string | undefined {
@@ -31,7 +30,7 @@ function lastAssistantModel(messages: AgentUIMessage[]): string | undefined {
 export function ContextUsage({
   messages,
   busy,
-  providerId,
+  selection,
 }: ContextUsageProps) {
   const popupId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -44,16 +43,16 @@ export function ContextUsage({
     void (async () => {
       const data = await fetchLlmOptions();
       if (cancelled || !data) return;
-      const provider = data.providers.find((p) => p.id === providerId);
-      if (provider) {
-        setContextLimit(provider.contextLimit);
-        setActiveModelId(provider.modelId);
+      const option = data.options.find((o) => o.selection === selection);
+      if (option) {
+        setContextLimit(option.contextLimit);
+        setActiveModelId(option.modelId);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [providerId]);
+  }, [selection]);
 
   const limit = contextLimit ?? 128_000;
   const snapshot = useMemo(

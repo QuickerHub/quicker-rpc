@@ -2,13 +2,21 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from "react-dom";
 import type { ActionStepParam, ActionVariable } from "@/lib/action-editor/types/common";
 import type { StepRunnerInputParamDef, StepRunnerParamSelectionItem } from "@/lib/action-editor/types/action_query";
-import { ExpressionEditor } from "../expression/ExpressionEditor";
 import { getActionDesignerBackendBaseUrl } from "../../shared/actionDesignerBackendBaseUrl";
 import { IconControl } from "../../shared/IconControl";
 import { actionVariableIconStr, actionVariableRowKey } from "../../variables/actionVariableUi";
 import { CsVarType } from "./csStepEnums";
 import { SelectionItemLabel } from "./stepParamSelectionLabels";
 import { isStepParamVarAssignable } from "./stepParamVarAssign";
+import type { ActionProjectWorkspaceContext } from "./FormDefEditorDialog";
+import {
+  ExternalParamFileBadge,
+  ExternalParamFileExpressionEditor,
+  ExternalParamFileStatusHints,
+  useExternalParamFileEditorValue,
+  STEP_PARAM_SCRIPT_MAX_HEIGHT,
+} from "./ExternalParamFileExpressionEditor";
+import { resolveStepParamMultiline } from "./stepParamMultiline";
 
 export type VarOrValueParamEditorProps = {
   def: StepRunnerInputParamDef;
@@ -16,6 +24,7 @@ export type VarOrValueParamEditorProps = {
   param: ActionStepParam;
   onChange: (next: ActionStepParam) => void;
   multiline?: boolean;
+  workspace?: ActionProjectWorkspaceContext;
   /** Receives `openPopup` so the row label can open the mode picker. */
   openPopupRef?: MutableRefObject<(() => void) | null>;
   /** Row label element; excluded from outside-click close. */
@@ -68,6 +77,7 @@ export function VarOrValueParamEditor({
   param,
   onChange,
   multiline = false,
+  workspace,
   openPopupRef,
   activateLabelRef
 }: VarOrValueParamEditorProps): JSX.Element {
@@ -89,6 +99,11 @@ export function VarOrValueParamEditor({
     anchorTop: number;
   } | null>(null);
   const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
+  const externalFile = useExternalParamFileEditorValue(param, workspace, onChange);
+  const effectiveMultiline = useMemo(
+    () => multiline || resolveStepParamMultiline(def, param),
+    [multiline, def, param],
+  );
 
   const effectiveSelectionItems = useMemo(() => {
     if (selectionItems.length > 0) {
@@ -188,13 +203,13 @@ export function VarOrValueParamEditor({
     if (row.kind === "input") {
       setModeOverride("input");
       setPendingInputFocus(true);
-      onChange({ varKey: "", value: param.value ?? "" });
+      onChange({ ...param, varKey: "", value: param.value ?? "" });
     } else if (row.kind === "enum") {
       setModeOverride("enum");
-      onChange({ varKey: "", value: row.item.value ?? "" });
+      onChange({ varKey: "", value: row.item.value ?? "", file: undefined });
     } else {
       setModeOverride("variable");
-      onChange({ varKey: actionVariableRowKey(row.variable), value: "" });
+      onChange({ varKey: actionVariableRowKey(row.variable), value: "", file: undefined });
     }
     closePopup();
   };
@@ -370,22 +385,31 @@ export function VarOrValueParamEditor({
       </button>
     ) : (
       <div className="step-param-varorvalue-input" ref={expressionHostRef}>
-        <ExpressionEditor
+        <ExternalParamFileExpressionEditor
+          param={param}
+          workspace={workspace}
+          onChange={onChange}
           className="step-param-expression-editor"
-          value={param.value ?? ""}
           placeholder={def.defaultValue || ""}
-          multiline={multiline}
-          onChange={(value) => {
-            setModeOverride("input");
-            onChange({ ...param, varKey: "", value });
-          }}
+          multiline={effectiveMultiline}
+          maxMultilineHeight={STEP_PARAM_SCRIPT_MAX_HEIGHT}
+          fileState={externalFile}
+          omitBadge
+          onValueModeInput={() => setModeOverride("input")}
         />
       </div>
     );
 
   return (
-    <div className="step-param-varorvalue" ref={hostRef}>
-      <div className="step-param-varorvalue-shell">
+    <div
+      className={`step-param-varorvalue${externalFile.isExternalFile ? " step-param-varorvalue--external-file" : ""}`}
+      ref={hostRef}
+    >
+      <ExternalParamFileBadge state={externalFile} />
+      <ExternalParamFileStatusHints state={externalFile} />
+      <div
+        className={`step-param-varorvalue-shell${effectiveMultiline ? " step-param-varorvalue-shell--multiline" : ""}`}
+      >
         <div className="step-param-varorvalue-body">{bodyJsx}</div>
         <button
           ref={toggleRef}

@@ -6,6 +6,8 @@ export type ExpressionEditorProps = {
   disabled?: boolean;
   placeholder?: string;
   multiline?: boolean;
+  /** Cap auto-grown multiline height (px). Default matches MonacoExpressionEditor. */
+  maxMultilineHeight?: number;
   className?: string;
 };
 
@@ -53,6 +55,7 @@ export function ExpressionEditor({
   disabled = false,
   placeholder,
   multiline = false,
+  maxMultilineHeight,
   className
 }: ExpressionEditorProps): JSX.Element {
   return (
@@ -63,6 +66,7 @@ export function ExpressionEditor({
         disabled={disabled}
         placeholder={placeholder}
         multiline={multiline}
+        maxMultilineHeight={maxMultilineHeight}
         className={className}
       />
     </Suspense>

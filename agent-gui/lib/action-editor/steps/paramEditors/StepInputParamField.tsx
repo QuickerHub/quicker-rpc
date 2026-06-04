@@ -12,6 +12,12 @@ import { SelectionItemLabel } from "./stepParamSelectionLabels";
 import { isStepParamVarAssignable } from "./stepParamVarAssign";
 import { StepVariablePicker } from "./StepVariablePicker";
 import { VarOrValueParamEditor } from "./VarOrValueParamEditor";
+import {
+  ExternalParamFileExpressionEditor,
+  useExternalParamFileEditorValue,
+  STEP_PARAM_SCRIPT_MAX_HEIGHT,
+} from "./ExternalParamFileExpressionEditor";
+import { resolveStepParamMultiline } from "./stepParamMultiline";
 
 export type StepInputParamFieldProps = {
   def: StepRunnerInputParamDef;
@@ -65,17 +71,8 @@ function StepParamLabel({ label, htmlFor, onActivate, labelRef }: StepParamLabel
   return <div className={className}>{label}</div>;
 }
 
-function isMultilineVarOrValueField(def: StepRunnerInputParamDef): boolean {
-  const vt = def.varType;
-  return (
-    def.isMultiLine ||
-    vt === CsVarType.List ||
-    vt === CsVarType.Dict ||
-    vt === CsVarType.Form ||
-    vt === CsVarType.FormForDict ||
-    vt === CsVarType.Table ||
-    (def.key ?? "").toLowerCase() === "texttools"
-  );
+function isMultilineVarOrValueField(def: StepRunnerInputParamDef, param?: ActionStepParam): boolean {
+  return resolveStepParamMultiline(def, param);
 }
 
 /** Mirrors WPF InputParamEditorControl: Input is checkbox/enum-only; other types use VarAndValue. */
@@ -120,6 +117,7 @@ function StepInputParamFieldInner({
   const activateLabelRef = useRef<HTMLLabelElement | HTMLDivElement | null>(null);
   const openFieldPopupRef = useRef<(() => void) | null>(null);
   const [enumRect, setEnumRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const externalFile = useExternalParamFileEditorValue(param, workspace, onChange);
 
   const label = (def.name ?? "").trim() || def.key;
   const desc = (def.description ?? "").trim();
@@ -364,7 +362,7 @@ function StepInputParamFieldInner({
   }
 
   if (shouldUseVarOrValueEditor(def)) {
-    const multilineVarOrValue = isMultilineVarOrValueField(def);
+    const multilineVarOrValue = isMultilineVarOrValueField(def, param);
 
     return (
       <div className="step-param-row">
@@ -380,6 +378,7 @@ function StepInputParamFieldInner({
             param={param}
             onChange={onChange}
             multiline={multilineVarOrValue}
+            workspace={workspace}
             openPopupRef={openFieldPopupRef}
             activateLabelRef={activateLabelRef}
           />
@@ -432,45 +431,47 @@ function StepInputParamFieldInner({
     );
   }
 
-  const multiline = isMultilineVarOrValueField(def);
+  const multiline = isMultilineVarOrValueField(def, param);
 
   /** VarOrValue value slot: always use ExpressionEditor when enabled (literal / interpolation / $=). */
   const valueControl = ENABLE_EXPRESSION_EDITOR ? (
     <div className="step-param-expression-wrap">
-      <ExpressionEditor
+      <ExternalParamFileExpressionEditor
+        param={param}
+        workspace={workspace}
+        onChange={onChange}
         className="step-param-expression-editor"
-        value={param.value}
         placeholder={def.defaultValue || ""}
         multiline={multiline}
-        onChange={setValue}
+        maxMultilineHeight={STEP_PARAM_SCRIPT_MAX_HEIGHT}
       />
     </div>
   ) : multiline ? (
     <textarea
       className="step-param-control step-param-control--multiline"
-      value={param.value}
-      placeholder={def.defaultValue || ""}
+      value={externalFile.editorValue}
+      placeholder={externalFile.loading ? "正在读取外部文件…" : def.defaultValue || ""}
       title={desc || undefined}
       rows={multiline ? 4 : 2}
-      onChange={(event) => setValue(event.target.value)}
+      onChange={(event) => externalFile.onEditorChange(event.target.value)}
     />
   ) : vt === CsVarType.Number || vt === CsVarType.Integer ? (
     <input
       className="step-param-control"
       type="number"
-      value={param.value}
+      value={externalFile.editorValue}
       placeholder={def.defaultValue || ""}
       title={desc || undefined}
-      onChange={(event) => setValue(event.target.value)}
+      onChange={(event) => externalFile.onEditorChange(event.target.value)}
     />
   ) : (
     <input
       className="step-param-control"
       type="text"
-      value={param.value}
+      value={externalFile.editorValue}
       placeholder={def.defaultValue || ""}
       title={desc || undefined}
-      onChange={(event) => setValue(event.target.value)}
+      onChange={(event) => externalFile.onEditorChange(event.target.value)}
     />
   );
 

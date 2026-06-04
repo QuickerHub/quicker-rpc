@@ -5,6 +5,8 @@ import {
   countLines,
   formatActionDataJsonPath,
   formatCharCount,
+  formatFileDiffSummaryFromToolData,
+  formatFileReadLineRangeLabel,
   formatWorkspacePathLabel,
   buildWriteDiffFromSnapshot,
   buildWritePreviewDiff,
@@ -110,7 +112,34 @@ test("summarizes action-data-summary read mode", () => {
   assert.ok(summary?.includes("已校验"));
 });
 
-test("summarizes read result", () => {
+test("summarizes read result with line range", () => {
+  const output = formatLocalToolResult({
+    action: "file-read",
+    success: true,
+    path: ".quicker/actions/foo/files/task.form.json",
+    content: "line1\nline2\n...\nline15",
+    startLine: 1,
+    endLine: 15,
+    totalLines: 200,
+    truncated: true,
+  });
+  const summary = summarizeWorkspaceFileTool(
+    "workspace_action_file_read",
+    output,
+    {
+      path: ".quicker/actions/foo/files/task.form.json",
+      startLine: 1,
+      endLine: 15,
+    },
+  );
+  assert.ok(summary?.includes("task.form.json"));
+  assert.ok(summary?.includes("L1-15"));
+  assert.ok(summary?.includes("截断"));
+  assert.ok(summary?.includes("共 200 行"));
+  assert.equal(summary?.includes("15 行"), false);
+});
+
+test("summarizes read result without startLine as L1-N from content", () => {
   const output = formatLocalToolResult({
     action: "file-read",
     success: true,
@@ -124,7 +153,11 @@ test("summarizes read result", () => {
     { path: ".quicker/actions/foo/info.json" },
   );
   assert.ok(summary?.includes("info.json"));
-  assert.ok(summary?.includes("2 行"));
+  assert.ok(summary?.includes("L1-2"));
+});
+
+test("formatFileReadLineRangeLabel single line", () => {
+  assert.equal(formatFileReadLineRangeLabel(5, 5), "L5");
 });
 
 test("formatWorkspacePathLabel keeps parent path segments", () => {
@@ -140,6 +173,21 @@ test("guesses language from extension", () => {
   assert.equal(guessFileLanguage("files/main.py"), "python");
   assert.equal(basenamePath("a/b/c.txt"), "c.txt");
   assert.ok(formatCharCount(1500).includes("k"));
+});
+
+test("formatFileDiffSummaryFromToolData uses written content not raw input", () => {
+  const summary = formatFileDiffSummaryFromToolData(
+    {
+      previousContent: '{\n  "a": 1\n}\n',
+      content: '{\n  "a": 2\n}\n',
+    },
+    { content: '{\n  "a": 99\n}\n' },
+  );
+  assert.equal(summary, "+1 -1");
+});
+
+test("shouldShowFileSnapshotHeaderDetail hides diff badge duplicate", () => {
+  assert.equal(shouldShowFileSnapshotHeaderDetail("+42 -50"), false);
 });
 
 test("shouldShowFileSnapshotHeaderDetail hides byte, char, and replacement counts", () => {
@@ -202,6 +250,27 @@ test("buildWriteDiffFromSnapshot shows removed and added blocks", () => {
   });
 });
 
+test("getWorkspaceFileEditorPreview file-write prefers normalized content from tool output", () => {
+  const preview = getWorkspaceFileEditorPreview(
+    "workspace_action_file_write",
+    {
+      id: "9f488bbb-348c-4966-8be0-1c362b8c7a93",
+      path: "files/task.form.json",
+      content: '{"fields":[]}',
+    },
+    {
+      action: "file-write",
+      success: true,
+      path: "files/task.form.json",
+      bytesWritten: 32,
+      content: '{\n  "fields": []\n}\n',
+      previousContent: "",
+    },
+  );
+  assert.ok(preview);
+  assert.equal(preview!.content, '{\n  "fields": []\n}\n');
+});
+
 test("getWorkspaceFileEditorPreview snapshots write-data from input", () => {
   const preview = getWorkspaceFileEditorPreview(
     "workspace_action_write_data",
@@ -212,6 +281,32 @@ test("getWorkspaceFileEditorPreview snapshots write-data from input", () => {
   assert.equal(preview!.content, '{"steps":[]}');
   assert.deepEqual(preview!.diff, { removed: "", added: '{"steps":[]}' });
   assert.ok(preview!.path.includes("data.json"));
+});
+
+test("getWorkspaceFileEditorPreview file-edit uses full-file snapshot when available", () => {
+  const preview = getWorkspaceFileEditorPreview(
+    "workspace_action_file_edit",
+    {
+      id: "9f488bbb-348c-4966-8be0-1c362b8c7a93",
+      path: "files/task.form.json",
+      oldString: '"default": "中"',
+      newString: '"default": "高"',
+    },
+    {
+      action: "file-edit",
+      success: true,
+      path: "files/task.form.json",
+      replacements: 1,
+      previousContent: '{\n  "default": "中"\n}\n',
+      content: '{\n  "default": "高"\n}\n',
+    },
+  );
+  assert.ok(preview);
+  assert.equal(preview!.content, '{\n  "default": "高"\n}\n');
+  assert.deepEqual(preview!.diff, {
+    removed: '{\n  "default": "中"\n}\n',
+    added: '{\n  "default": "高"\n}\n',
+  });
 });
 
 test("getWorkspaceFileEditorPreview write-data uses pre-write snapshot", () => {

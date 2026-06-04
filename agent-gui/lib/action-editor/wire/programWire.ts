@@ -98,7 +98,8 @@ function editorStepToWire(step: ActionStep): WireStep {
   return out;
 }
 
-function wireVariableToEditor(raw: WireVariable): ActionVariable {
+/** Maps compressed program / subprogram-io variable JSON to editor ActionVariable. */
+export function wireVariableToEditor(raw: WireVariable): ActionVariable {
   return ActionVariable.fromPartial({
     id: typeof raw.id === "string" ? raw.id : "",
     key: typeof raw.key === "string" ? raw.key : "",

@@ -50,12 +50,32 @@ export function endActionProjectImport(actionId: string): void {
   notify();
 }
 
+function importMapsEqual(
+  a: ReadonlyMap<string, ActionProjectImportEntry>,
+  b: ReadonlyMap<string, ActionProjectImportEntry>,
+): boolean {
+  if (a.size !== b.size) return false;
+  for (const [id, entry] of a) {
+    const other = b.get(id);
+    if (!other) return false;
+    if (other.actionId !== entry.actionId) return false;
+    if (other.source !== entry.source) return false;
+    if ((other.projectDirectory ?? "") !== (entry.projectDirectory ?? "")) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function replaceActionProjectImports(entries: ActionProjectImportEntry[]): void {
   const next = new Map<string, ActionProjectImportEntry>();
   for (const entry of entries) {
     const id = normalizeId(entry.actionId);
     if (!id) continue;
     next.set(id, { ...entry, actionId: id });
+  }
+  if (importMapsEqual(store.byId, next)) {
+    return;
   }
   store = { byId: next };
   notify();

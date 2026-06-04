@@ -19,11 +19,12 @@ import VariableEditor from "@/lib/action-editor/variables/VariableEditor";
 import {
   cloneXProgramPresent,
   createInitialXProgramHistoryState,
+  fingerprintXProgramPresent,
+  normalizeProgramPresentForEditor,
   X_PROGRAM_HISTORY_ISOLATE_CLASS,
   xProgramHistoryReducer,
   type XProgramPresent,
 } from "@/lib/action-editor/program/xProgramHistory";
-import { normalizeLoadedProgramBodyIds } from "@/lib/action-editor/program/normalizeLoadedProgramBodyIds";
 
 import type { XProgramEditorSurface } from "@/lib/action-editor/program/xProgramEditorSurface";
 import type { ActionProjectWorkspaceContext } from "@/lib/action-editor/steps/paramEditors/FormDefEditorDialog";
@@ -54,20 +55,27 @@ function XProgramEditorInner({
   histRef.current = hist;
 
   const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
+  const initialPresentRef = useRef(initialPresent);
+  initialPresentRef.current = initialPresent;
+  const lastReportedDirtyRef = useRef<boolean | null>(null);
 
   useEffect(() => {
-    const cloned = cloneXProgramPresent(initialPresent);
-    normalizeLoadedProgramBodyIds(cloned.steps, cloned.variables);
-    dispatch({ type: "reset", present: cloned });
-  }, [baselineFingerprint, initialPresent]);
+    dispatch({
+      type: "reset",
+      present: normalizeProgramPresentForEditor(initialPresentRef.current),
+    });
+    lastReportedDirtyRef.current = null;
+  }, [baselineFingerprint]);
 
   useEffect(() => {
     const present = hist.present;
-    const fp = JSON.stringify({
-      steps: present.steps.map((s) => JSON.stringify(s)),
-      variables: present.variables.map((v) => JSON.stringify(v)),
-    });
-    onPresentChange?.(present, { dirty: fp !== baselineFingerprint });
+    const dirty =
+      fingerprintXProgramPresent(present) !== baselineFingerprint;
+    if (lastReportedDirtyRef.current === dirty) {
+      return;
+    }
+    lastReportedDirtyRef.current = dirty;
+    onPresentChange?.(present, { dirty });
   }, [hist.present, baselineFingerprint, onPresentChange]);
 
   const commitSteps = useCallback((updater: ActionStep[] | ((prev: ActionStep[]) => ActionStep[])) => {

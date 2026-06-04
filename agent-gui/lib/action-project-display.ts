@@ -7,6 +7,7 @@ export type WorkspaceProjectSummary = {
   stepCount?: number;
   variableCount?: number;
   fileRefCount?: number;
+  embeddedSubProgramCount?: number;
 };
 
 export type WorkspaceToolDisplay = {
@@ -28,6 +29,7 @@ export type WorkspaceProjectSummaryInput = {
   stepCount?: number;
   variableCount?: number;
   fileRefs: unknown[];
+  embeddedSubProgramCount?: number;
 };
 
 function readToolString(
@@ -67,6 +69,10 @@ export function buildWorkspaceProjectSummary(
     stepCount: manifest.stepCount,
     variableCount: manifest.variableCount,
     fileRefCount: fileRefCount > 0 ? fileRefCount : undefined,
+    embeddedSubProgramCount:
+      manifest.embeddedSubProgramCount != null && manifest.embeddedSubProgramCount > 0
+        ? manifest.embeddedSubProgramCount
+        : undefined,
   };
 }
 

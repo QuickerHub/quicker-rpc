@@ -11,11 +11,12 @@ export type MonacoExpressionEditorProps = {
   disabled?: boolean;
   placeholder?: string;
   multiline?: boolean;
+  maxMultilineHeight?: number;
   className?: string;
 };
 
 const MIN_MULTILINE_HEIGHT = 40;
-const MAX_MULTILINE_HEIGHT = 208;
+const DEFAULT_MAX_MULTILINE_HEIGHT = 200;
 const INLINE_HEIGHT = 22;
 const FONT_FAMILY = "'Cascadia Code', Consolas, 'Courier New', monospace";
 
@@ -73,6 +74,7 @@ export function MonacoExpressionEditor({
   disabled = false,
   placeholder,
   multiline = false,
+  maxMultilineHeight = DEFAULT_MAX_MULTILINE_HEIGHT,
   className
 }: MonacoExpressionEditorProps): JSX.Element {
   const { theme: appTheme } = useTheme();
@@ -96,14 +98,45 @@ export function MonacoExpressionEditor({
       return;
     }
     const contentHeight = editor.getContentHeight();
-    const next = Math.min(Math.max(contentHeight, MIN_MULTILINE_HEIGHT), MAX_MULTILINE_HEIGHT);
+    const cap = Math.max(MIN_MULTILINE_HEIGHT, maxMultilineHeight);
+    const next = Math.min(Math.max(contentHeight, MIN_MULTILINE_HEIGHT), cap);
     setHeight(next);
     requestAnimationFrame(() => editor.layout());
-  }, [multiline]);
+  }, [multiline, maxMultilineHeight]);
 
   useLayoutEffect(() => {
     configureMonacoWorkers();
   }, []);
+
+  useEffect(() => {
+    if (!multiline) {
+      setHeight(INLINE_HEIGHT);
+      userFixedHeightRef.current = false;
+      return;
+    }
+    setHeight(MIN_MULTILINE_HEIGHT);
+    userFixedHeightRef.current = false;
+    syncHeightFromContent();
+  }, [multiline, syncHeightFromContent]);
+
+  useEffect(() => {
+    if (!multiline) {
+      return;
+    }
+    syncHeightFromContent();
+  }, [value, multiline, syncHeightFromContent]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+    editor.updateOptions(buildEditorOptions(multiline));
+    layoutEditor();
+    if (multiline) {
+      syncHeightFromContent();
+    }
+  }, [multiline, layoutEditor, syncHeightFromContent]);
 
   useEffect(() => {
     void loader.init().then((monaco) => {
@@ -165,7 +198,15 @@ export function MonacoExpressionEditor({
     <div
       ref={hostRef}
       className={rootClass}
-      style={multiline ? { height: `${height}px`, resize: userFixedHeightRef.current ? "vertical" : "none" } : { height: `${INLINE_HEIGHT}px` }}
+      style={
+        multiline
+          ? {
+              height: `${height}px`,
+              maxHeight: `${maxMultilineHeight}px`,
+              resize: userFixedHeightRef.current ? "vertical" : "none",
+            }
+          : { height: `${INLINE_HEIGHT}px` }
+      }
       onMouseDown={(event) => {
         if (!multiline) {
           return;
@@ -183,6 +224,7 @@ export function MonacoExpressionEditor({
     >
       {showPlaceholder ? <div className="expression-editor-placeholder">{placeholder}</div> : null}
       <Editor
+        key={multiline ? "multiline" : "inline"}
         height={multiline ? height : INLINE_HEIGHT}
         language={QUICKER_EXPRESSION_LANGUAGE}
         theme={monacoTheme}

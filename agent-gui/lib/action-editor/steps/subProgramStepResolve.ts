@@ -65,16 +65,114 @@ export function resolveSubProgramStepListTitle(step: ActionStep, rows: ActionSub
     if (isNetworkSubProgramStoredValue(label)) {
       return parseNetworkSubProgramTitleFromIdentifier(label) ?? label;
     }
+    if (label.startsWith("%%") && label.length > 2) {
+      return null;
+    }
     return label;
   }
   const networkTitle = parseNetworkSubProgramTitleFromIdentifier(raw);
   if (networkTitle) {
     return networkTitle;
   }
+  if (raw.startsWith("%%") && raw.length > 2) {
+    return null;
+  }
   if (raw.length > 0) {
     return raw;
   }
   return null;
+}
+
+/** Literal-mode stored sys:subprogram target value (empty when bound via varKey). */
+export function getSubProgramStepTargetRawValue(step: ActionStep): string {
+  const p = getSubProgramStepTargetPin(step);
+  if ((p?.varKey ?? "").trim().length > 0) {
+    return "";
+  }
+  return (p?.value ?? "").trim();
+}
+
+/**
+ * True when summary/note text is only the unresolved subprogram target token (%% / @@),
+ * not useful as a step row subtitle once the primary label is resolved.
+ */
+export function isSubProgramTargetPlaceholderSummary(
+  summary: string,
+  rawTarget: string,
+  resolvedPrimaryName?: string | null,
+): boolean {
+  const s = summary.trim();
+  if (!s) {
+    return false;
+  }
+  const raw = rawTarget.trim();
+  const primary = (resolvedPrimaryName ?? "").trim();
+
+  if (raw && s === raw) {
+    return true;
+  }
+
+  if (raw.startsWith("%%")) {
+    const bare = normalizeGlobalSubProgramStoredId(raw);
+    if (s === raw || s === bare || s === `%%${bare}`) {
+      return true;
+    }
+    if (/^%%[0-9a-f-]{36}$/i.test(s) || /^[0-9a-f-]{36}$/i.test(s)) {
+      return primary.length > 0;
+    }
+  }
+
+  if (isNetworkSubProgramStoredValue(raw) || isNetworkSubProgramStoredValue(s)) {
+    const ident = isNetworkSubProgramStoredValue(raw) ? raw : s;
+    if (s === ident) {
+      return true;
+    }
+    const title = parseNetworkSubProgramTitleFromIdentifier(ident);
+    if (title && s === title && primary.length > 0 && primary === title) {
+      return true;
+    }
+  }
+
+  if (primary.length > 0 && s === primary) {
+    return true;
+  }
+
+  return false;
+}
+
+/** Step list subtitle: note wins; suppress raw %% / @@ target when primary already shows a name. */
+export function resolveSubProgramStepListSecondaryText(
+  step: ActionStep,
+  rows: ActionSubProgram[],
+  options: {
+    note: string;
+    summary: string;
+    primaryRunnerName: string;
+  },
+): string {
+  const note = options.note.trim();
+  if (note.length > 0) {
+    return note;
+  }
+
+  const summary = options.summary.trim();
+  if ((step.stepRunnerKey ?? "").trim() !== SUBPROGRAM_STEP_RUNNER_KEY) {
+    return summary;
+  }
+
+  const raw = getSubProgramStepTargetRawValue(step);
+  const resolvedTitle = resolveSubProgramStepListTitle(step, rows);
+  if (
+    isSubProgramTargetPlaceholderSummary(
+      summary,
+      raw,
+      options.primaryRunnerName || resolvedTitle,
+    )
+  ) {
+    return "";
+  }
+
+  return summary;
 }
 
 function networkSubProgramIdentifierParts(identifier: string): string[] | null {

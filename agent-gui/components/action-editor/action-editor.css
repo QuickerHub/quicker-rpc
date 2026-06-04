@@ -2489,10 +2489,29 @@
   line-height: 1.35;
 }
 
+.step-param-external-file-badge {
+  margin-bottom: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ad-fg-accent, #7eb8da);
+  background: color-mix(in srgb, var(--ad-fg-accent, #7eb8da) 12%, transparent);
+  word-break: break-all;
+}
+
+.step-param-hint--err {
+  color: var(--ad-fg-error, #e57373);
+}
+
 /* VarAndValueParamEditor (UseVarOrInput), aligned with Quicker Generic.xaml VarAndValueParamEditor. */
 .step-param-varorvalue {
   min-width: 0;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .step-param-varorvalue-shell {
@@ -2503,6 +2522,26 @@
   border-radius: 4px;
   background: var(--ad-bg-input);
   overflow: hidden;
+}
+
+.step-param-varorvalue-shell--multiline {
+  overflow: visible;
+  min-height: 40px;
+  align-items: stretch;
+}
+
+.step-param-varorvalue--external-file .step-param-external-file-badge {
+  border-radius: 4px 4px 0 0;
+  border: 1px solid var(--ad-border-input);
+  border-bottom: none;
+}
+
+.step-param-varorvalue--external-file .step-param-varorvalue-shell {
+  border-radius: 0 0 4px 4px;
+}
+
+.step-param-varorvalue-shell--multiline .step-param-varorvalue-toggle {
+  align-self: stretch;
 }
 
 .step-param-varorvalue-shell:focus-within {
@@ -2547,6 +2586,41 @@
 .step-param-varorvalue-input {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.step-param-varorvalue-shell--multiline .step-param-varorvalue-input {
+  width: 100%;
+}
+
+.step-param-varorvalue-shell--multiline .step-param-varorvalue-input .step-param-external-file-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+.step-param-varorvalue-shell--multiline .step-param-varorvalue-input .step-param-expression-editor {
+  flex: 1 1 auto;
+  min-height: 40px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.step-param-external-file-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.step-param-external-file-editor .step-param-expression-editor {
+  flex: 1 1 auto;
+  min-height: 40px;
 }
 
 .step-param-varorvalue-input .step-param-expression-editor {
@@ -3322,7 +3396,7 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
 
 .expression-editor--monaco.expression-editor--multiline {
   min-height: 40px;
-  max-height: 208px;
+  max-height: 200px;
 }
 
 .expression-editor--monaco.expression-editor--loading {

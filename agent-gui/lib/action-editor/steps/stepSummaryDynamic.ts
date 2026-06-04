@@ -4,6 +4,7 @@ import {
   buildSummaryFromParts,
   resolveInputPropertySummary,
 } from "@/lib/action-editor/steps/stepSummaryFromParts";
+import type { StepSummaryFileContents } from "@/lib/action-editor/steps/stepSummaryFileRefs";
 
 function readControlDirect(step: ActionStep, key: string): string {
   const pin = step.inputParams?.[key];
@@ -20,11 +21,15 @@ function isTruthyDirect(value: string): boolean {
 }
 
 /** Mirrors GroupStepRunnerV2.GetSummary. */
-export function buildGroupStepSummary(step: ActionStep, runnerItem: StepRunnerItem): string {
+export function buildGroupStepSummary(
+  step: ActionStep,
+  runnerItem: StepRunnerItem,
+  fileContentsByPath?: StepSummaryFileContents,
+): string {
   const inputs = runnerItem.inputParamDefs ?? [];
-  const multiThread = resolveInputPropertySummary("useMultiThread", step, inputs, { direct: true });
-  const skipError = resolveInputPropertySummary("skipErr", step, inputs, { direct: true });
-  const skipLog = resolveInputPropertySummary("skipWhenDebugging", step, inputs, { direct: true });
+  const multiThread = resolveInputPropertySummary("useMultiThread", step, inputs, { direct: true }, fileContentsByPath);
+  const skipError = resolveInputPropertySummary("skipErr", step, inputs, { direct: true }, fileContentsByPath);
+  const skipLog = resolveInputPropertySummary("skipWhenDebugging", step, inputs, { direct: true }, fileContentsByPath);
 
   const parts: string[] = [];
   if (isTruthyDirect(multiThread)) parts.push("【多线程】");
@@ -34,11 +39,15 @@ export function buildGroupStepSummary(step: ActionStep, runnerItem: StepRunnerIt
 }
 
 /** Mirrors WindowOperationStepV2.GetSummary (static pattern is close; this matches show branch). */
-export function buildWindowOperationsStepSummary(step: ActionStep, runnerItem: StepRunnerItem): string {
+export function buildWindowOperationsStepSummary(
+  step: ActionStep,
+  runnerItem: StepRunnerItem,
+  fileContentsByPath?: StepSummaryFileContents,
+): string {
   const inputs = runnerItem.inputParamDefs ?? [];
-  let value = resolveInputPropertySummary("type", step, inputs, { direct: true });
+  let value = resolveInputPropertySummary("type", step, inputs, { direct: true }, fileContentsByPath);
   if (value === "show") {
-    const showCmd = resolveInputPropertySummary("showCmd", step, inputs);
+    const showCmd = resolveInputPropertySummary("showCmd", step, inputs, {}, fileContentsByPath);
     if (showCmd) {
       value = `${value} ${showCmd}`;
     }
@@ -47,10 +56,14 @@ export function buildWindowOperationsStepSummary(step: ActionStep, runnerItem: S
 }
 
 /** Mirrors PathExtractionStepV2.GetSummary. */
-export function buildPathExtractionStepSummary(step: ActionStep, runnerItem: StepRunnerItem): string {
+export function buildPathExtractionStepSummary(
+  step: ActionStep,
+  runnerItem: StepRunnerItem,
+  fileContentsByPath?: StepSummaryFileContents,
+): string {
   const inputs = runnerItem.inputParamDefs ?? [];
   const outputs = runnerItem.outputParamDefs ?? [];
-  const operationDisplay = resolveInputPropertySummary("operation", step, inputs);
+  const operationDisplay = resolveInputPropertySummary("operation", step, inputs, {}, fileContentsByPath);
   const operationStr = readControlDirect(step, "operation");
 
   let parts: readonly string[];
@@ -74,15 +87,19 @@ export function buildPathExtractionStepSummary(step: ActionStep, runnerItem: Ste
       break;
   }
 
-  const body = buildSummaryFromParts(parts, step, inputs, outputs);
+  const body = buildSummaryFromParts(parts, step, inputs, outputs, fileContentsByPath);
   return `${operationDisplay} ${body}`.replace(/\s+/g, " ").trim();
 }
 
 /** Mirrors ExcelReadWriteStepV2.GetSummary. */
-export function buildExcelReadWriteStepSummary(step: ActionStep, runnerItem: StepRunnerItem): string {
+export function buildExcelReadWriteStepSummary(
+  step: ActionStep,
+  runnerItem: StepRunnerItem,
+  fileContentsByPath?: StepSummaryFileContents,
+): string {
   const inputs = runnerItem.inputParamDefs ?? [];
   const outputs = runnerItem.outputParamDefs ?? [];
-  const operationDisplay = resolveInputPropertySummary("operation", step, inputs);
+  const operationDisplay = resolveInputPropertySummary("operation", step, inputs, {}, fileContentsByPath);
   const operationStr = readControlDirect(step, "operation");
 
   let parts: readonly string[] | null = null;
@@ -104,7 +121,7 @@ export function buildExcelReadWriteStepSummary(step: ActionStep, runnerItem: Ste
       break;
     case "getCell":
     case "setCell": {
-      const cellAddress = resolveInputPropertySummary("cellAddress", step, inputs);
+      const cellAddress = resolveInputPropertySummary("cellAddress", step, inputs, {}, fileContentsByPath);
       parts = cellAddress ? ["cellAddress"] : ["rowIndex", ",", "cellIndex"];
       break;
     }
@@ -133,13 +150,13 @@ export function buildExcelReadWriteStepSummary(step: ActionStep, runnerItem: Ste
       break;
   }
 
-  const body = parts ? buildSummaryFromParts(parts, step, inputs, outputs) : "";
+  const body = parts ? buildSummaryFromParts(parts, step, inputs, outputs, fileContentsByPath) : "";
   return `【${operationDisplay}】${body}`.replace(/\s+/g, " ").trim();
 }
 
 const DYNAMIC_BUILDERS: Record<
   string,
-  (step: ActionStep, runnerItem: StepRunnerItem) => string
+  (step: ActionStep, runnerItem: StepRunnerItem, fileContentsByPath?: StepSummaryFileContents) => string
 > = {
   "sys:group": buildGroupStepSummary,
   "sys:windowOperations": buildWindowOperationsStepSummary,
@@ -151,10 +168,11 @@ export function buildDynamicStepSummary(
   stepRunnerKey: string,
   step: ActionStep,
   runnerItem: StepRunnerItem,
+  fileContentsByPath?: StepSummaryFileContents,
 ): string {
   const builder = DYNAMIC_BUILDERS[stepRunnerKey.trim()];
   if (!builder) {
     return "";
   }
-  return builder(step, runnerItem).trim();
+  return builder(step, runnerItem, fileContentsByPath).trim();
 }

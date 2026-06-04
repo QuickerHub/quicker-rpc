@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Quicker.Public.Interfaces;
 using QuickerRpc.Plugin.Quicker;
 using QuickerRpc.Plugin.Services;
 using Z.Expressions;
@@ -29,6 +30,8 @@ public static partial class Launcher
         .CreateLogger(typeof(Launcher));
 
     private static LauncherStatus _status = LauncherStatus.NotStarted;
+    private static volatile bool _launchQuickerAgentAfterStart;
+    private static volatile bool _silentStart;
 
     public static T GetService<T>()
         where T : class =>
@@ -40,21 +43,62 @@ public static partial class Launcher
     public static bool Register(EvalContext eval)
     {
         eval.RegisterType(typeof(Launcher));
-        Start();
+        eval.RegisterType(typeof(LauncherStartOptions));
+        eval.RegisterType(typeof(LauncherStartOptionsParser));
+        eval.RegisterType(typeof(LauncherStartOptionsResolver));
+        Start(LauncherStartOptionsParser.PluginOnly());
         return true;
     }
 
     /// <summary>Starts the RPC host without blocking the caller or UI thread.</summary>
-    public static void Start()
+    public static void Start() => Start((IActionContext?)null);
+
+    /// <summary>Starts the RPC host; uses <see cref="ActionExecuteContext.ActionTrigger"/> to force plugin-only on external runs.</summary>
+    public static void Start(IActionContext? context) => Start(context, explicitOptions: null);
+
+    /// <summary>Maps <c>quicker_in_param</c> and <paramref name="context"/>; external trigger always plugin-only.</summary>
+    public static void StartFromQuickerInParam(string? quickerInParam, IActionContext? context) =>
+        Start(LauncherStartOptionsResolver.Resolve(context, quickerInParam));
+
+    /// <summary>Legacy overload without action context.</summary>
+    public static void StartFromQuickerInParam(string? quickerInParam) =>
+        StartFromQuickerInParam(quickerInParam, context: null);
+
+    /// <summary>Starts the RPC host; optionally launches installed QuickerAgent when ready.</summary>
+    public static void Start(bool launchQuickerAgent) =>
+        Start(new LauncherStartOptions { LaunchQuickerAgent = launchQuickerAgent });
+
+    /// <summary>Starts the RPC host with explicit options and optional <paramref name="context"/>.</summary>
+    public static void Start(IActionContext? context, LauncherStartOptions? explicitOptions) =>
+        Start(LauncherStartOptionsResolver.Resolve(context, explicitOptions: explicitOptions));
+
+    /// <summary>Starts the RPC host with <see cref="LauncherStartOptions"/>.</summary>
+    public static void Start(LauncherStartOptions? options)
     {
+        if (options?.LaunchQuickerAgent == true)
+        {
+            _launchQuickerAgentAfterStart = true;
+        }
+
+        if (options?.Silent == true)
+        {
+            _silentStart = true;
+        }
+
         lock (LockObject)
         {
             if (_status == LauncherStatus.Started)
             {
                 Logger.LogInformation("QuickerRpc launcher already started");
-                QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(() =>
-                    PopupMessage.Success("动作已在运行，版本号:" + GetPluginVersion()));
-                ScheduleQuickerAgentUpdateCheck();
+                if (!_silentStart)
+                {
+                    QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(() =>
+                        PopupMessage.Success("动作已在运行，版本号:" + GetPluginVersion()));
+                    ScheduleQuickerAgentUpdateCheck();
+                }
+
+                TryLaunchQuickerAgentIfRequested();
+                _silentStart = false;
                 return;
             }
 
@@ -128,6 +172,14 @@ public static partial class Launcher
             if (statusAfterStart == LauncherStatus.Starting)
             {
                 Logger.LogInformation("QuickerRpc launcher started");
+                var silent = _silentStart;
+                _silentStart = false;
+                if (!silent)
+                {
+                    ScheduleQuickerAgentUpdateCheck();
+                }
+
+                TryLaunchQuickerAgentIfRequested();
             }
         }
         catch (Exception ex)
@@ -140,8 +192,13 @@ public static partial class Launcher
                 }
             }
 
+            var silent = _silentStart;
+            _silentStart = false;
             Logger.LogError(ex, "QuickerRpc launcher start failed");
-            QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(() => PopupMessage.Warning(ex.Message));
+            if (!silent)
+            {
+                QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(() => PopupMessage.Warning(ex.Message));
+            }
         }
     }
 
@@ -155,6 +212,17 @@ public static partial class Launcher
         {
             Logger.LogDebug(ex, "QuickerAgent update check skipped.");
         }
+    }
+
+    private static void TryLaunchQuickerAgentIfRequested()
+    {
+        if (!_launchQuickerAgentAfterStart)
+        {
+            return;
+        }
+
+        _launchQuickerAgentAfterStart = false;
+        _ = Task.Run(() => QuickerAgentLaunchService.TryLaunch(Logger));
     }
 
     public static void Stop()

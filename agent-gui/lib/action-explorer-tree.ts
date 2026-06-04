@@ -192,6 +192,71 @@ export function applyEmbeddedSubProgramMeta(
 }
 
 /**
+ * Ensure subprograms/{id}/ folders from disk scan appear even when workspace file listing truncates.
+ */
+export function injectEmbeddedSubProgramsIntoProjectTree(
+  projectPath: string,
+  children: ExplorerTreeNode[] | undefined,
+  embeddedSubProgramMeta: ActionEmbeddedSubProgramMeta[],
+): ExplorerTreeNode[] {
+  const projectKey = normalizeExplorerTreePath(projectPath).toLowerCase();
+  const prefix = `${projectKey}/subprograms/`;
+  const forProject = embeddedSubProgramMeta.filter((m) => {
+    const p = normalizeExplorerTreePath(m.path).toLowerCase();
+    return p.startsWith(prefix) && p.length > prefix.length;
+  });
+  if (forProject.length === 0) {
+    return children ?? [];
+  }
+
+  const next = [...(children ?? [])];
+  const subprogramsIdx = next.findIndex(
+    (n) => n.kind === "directory" && n.name.toLowerCase() === "subprograms",
+  );
+  let subprogramsNode: ExplorerTreeNode;
+  if (subprogramsIdx >= 0) {
+    subprogramsNode = { ...next[subprogramsIdx]! };
+    next.splice(subprogramsIdx, 1);
+  } else {
+    subprogramsNode = {
+      name: "subprograms",
+      path: `${normalizeExplorerTreePath(projectPath)}/subprograms`,
+      kind: "directory",
+    };
+  }
+
+  const subChildMap = new Map<string, ExplorerTreeNode>();
+  for (const c of subprogramsNode.children ?? []) {
+    subChildMap.set(c.name, c);
+  }
+  for (const m of forProject) {
+    const existing = subChildMap.get(m.dirName);
+    if (existing) {
+      subChildMap.set(m.dirName, {
+        ...existing,
+        title: m.title ?? existing.title,
+        subProgramId: m.subProgramId ?? existing.subProgramId,
+      });
+    } else {
+      subChildMap.set(m.dirName, {
+        name: m.dirName,
+        path: normalizeExplorerTreePath(m.path),
+        kind: "directory",
+        title: m.title,
+        subProgramId: m.subProgramId,
+      });
+    }
+  }
+
+  subprogramsNode = {
+    ...subprogramsNode,
+    children: sortTree([...subChildMap.values()]),
+  };
+  next.push(subprogramsNode);
+  return sortTree(next);
+}
+
+/**
  * Build action-project tree from local info.json scan (roots) + workspace file listing (children).
  * Project labels never come from qkrpc tool output — only from on-disk info.json.
  */
@@ -228,10 +293,13 @@ export function buildExplorerTreeFromProjectMeta(
     const meta = metaByDir.get(dirName);
     const projectPath = meta?.path ?? `${normalizedRoot}/${dirName}`;
     const childEntries = entriesByDir.get(dirName) ?? [];
-    const children =
+    const children = injectEmbeddedSubProgramsIntoProjectTree(
+      projectPath,
       childEntries.length > 0
         ? buildExplorerTree(projectPath, childEntries, [], embeddedSubProgramMeta)
-        : undefined;
+        : undefined,
+      embeddedSubProgramMeta,
+    );
 
     nodes.push({
       name: dirName,

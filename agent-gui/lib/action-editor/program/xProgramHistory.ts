@@ -1,4 +1,5 @@
 import { ActionStep, ActionVariable } from "@/lib/action-editor/types/common";
+import { normalizeLoadedProgramBodyIds } from "@/lib/action-editor/program/normalizeLoadedProgramBodyIds";
 
 export const X_PROGRAM_HISTORY_MAX = 80;
 
@@ -35,6 +36,13 @@ export function cloneXProgramPresent(p: XProgramPresent): XProgramPresent {
     steps: p.steps.map((s) => ActionStep.fromPartial(s)),
     variables: p.variables.map((v) => ActionVariable.fromPartial(v))
   };
+}
+
+/** Clone wire/editor present and assign stable step/variable ids for the visual editor. */
+export function normalizeProgramPresentForEditor(p: XProgramPresent): XProgramPresent {
+  const cloned = cloneXProgramPresent(p);
+  normalizeLoadedProgramBodyIds(cloned.steps, cloned.variables);
+  return cloned;
 }
 
 /** Stable fingerprint for comparing editor vs storage (steps + variables only). */
