@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Quicker.Common;
 using Quicker.Domain.Actions.X;
-using Quicker.Domain.Actions.X.SubPrograms;
+using Quicker.Domain.Actions.X;
 using Newtonsoft.Json.Linq;
 
 namespace QuickerRpc.Plugin.Services;

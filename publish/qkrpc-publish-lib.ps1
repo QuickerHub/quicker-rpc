@@ -608,6 +608,146 @@ function New-QkrpcReleaseNotesBody {
     return ($sections -join [Environment]::NewLine)
 }
 
+function Get-QuickerAgentPreflightScriptPath {
+    param([string]$PublishDir)
+    $path = Join-Path $PublishDir 'Publish-QuickerAgent.ps1'
+    if (-not (Test-Path -LiteralPath $path)) {
+        throw "Publish-QuickerAgent.ps1 not found: $path"
+    }
+    return $path
+}
+
+function Get-QuickerAgentPreflightLogPath {
+    param([string]$TagName)
+    $safe = ($TagName -replace '[^\w\.\-]', '_')
+    return Join-Path $env:TEMP "qkrpc-preflight-$safe.log"
+}
+
+# Start local Tauri preflight in parallel with tag push / GitHub Actions (non-blocking).
+function Start-QuickerAgentPreflightBackground {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PublishDir,
+
+        [Parameter(Mandatory = $true)]
+        [string]$TagName
+    )
+
+    $scriptPath = Get-QuickerAgentPreflightScriptPath -PublishDir $PublishDir
+    $logFile = Get-QuickerAgentPreflightLogPath -TagName $TagName
+    $errFile = "$logFile.err"
+
+    foreach ($f in @($logFile, $errFile)) {
+        if (Test-Path -LiteralPath $f) {
+            Remove-Item -LiteralPath $f -Force
+        }
+    }
+
+    $pwsh = (Get-Command pwsh -ErrorAction Stop).Source
+    $args = @(
+        '-NoProfile',
+        '-File', $scriptPath,
+        '-RepoRoot', $RepoRoot,
+        '-SkipQkrpcBuild',
+        '-PreflightOnly'
+    )
+
+    $proc = Start-Process -FilePath $pwsh `
+        -ArgumentList $args `
+        -WorkingDirectory $RepoRoot `
+        -PassThru `
+        -NoNewWindow `
+        -RedirectStandardOutput $logFile `
+        -RedirectStandardError $errFile
+
+    return [PSCustomObject]@{
+        Process = $proc
+        LogFile = $logFile
+        ErrFile = $errFile
+        TagName = $TagName
+    }
+}
+
+function Invoke-QuickerAgentPreflightBlocking {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PublishDir
+    )
+
+    $scriptPath = Get-QuickerAgentPreflightScriptPath -PublishDir $PublishDir
+    & pwsh -NoProfile -File $scriptPath -RepoRoot $RepoRoot -SkipQkrpcBuild -PreflightOnly
+    if ($LASTEXITCODE -ne 0) {
+        throw @"
+QuickerAgent preflight failed. Fix the build locally, then re-run publish.
+  pwsh ./publish/Test-QuickerAgentReleaseBuild.ps1
+"@
+    }
+}
+
+# Report local preflight status after tag/CI. Does not fail CI-only workflows.
+function Complete-QuickerAgentPreflightBackground {
+    param(
+        $Preflight,
+        [switch]$Wait,
+        [string]$TagName = ''
+    )
+
+    if (-not $Preflight) {
+        return $true
+    }
+
+    $tag = if ($TagName) { $TagName } else { $Preflight.TagName }
+    $retagTip = "pwsh ./publish/Publish-GitHubRelease.ps1 -ForceRetag -WaitForCi"
+
+    if ($Wait -and -not $Preflight.Process.HasExited) {
+        Write-Host ''
+        Write-Host "Waiting for local preflight (PID $($Preflight.Process.Id))..." -ForegroundColor Cyan
+        $Preflight.Process.WaitForExit()
+    }
+
+    if (-not $Preflight.Process.HasExited) {
+        Write-Host ''
+        Write-Host "Local preflight still running (PID $($Preflight.Process.Id))." -ForegroundColor Cyan
+        Write-Host "  stdout: $($Preflight.LogFile)" -ForegroundColor DarkGray
+        Write-Host "  stderr: $($Preflight.ErrFile)" -ForegroundColor DarkGray
+        Write-Host "Prefer fixing from the local log; CI failures are often redundant." -ForegroundColor DarkGray
+        Write-Host "When fixed: $retagTip" -ForegroundColor DarkGray
+        return $null
+    }
+
+    $exitCode = $Preflight.Process.ExitCode
+    Write-Host ''
+    if ($exitCode -eq 0) {
+        Write-Host 'Local preflight passed (Tauri build).' -ForegroundColor Green
+        return $true
+    }
+
+    Write-Host "Local preflight failed (exit $exitCode)." -ForegroundColor Yellow
+    Write-Host "  stdout: $($Preflight.LogFile)" -ForegroundColor DarkGray
+    Write-Host "  stderr: $($Preflight.ErrFile)" -ForegroundColor DarkGray
+    Write-Host "Fix locally, then re-release: $retagTip" -ForegroundColor Yellow
+    return $false
+}
+
+# Next/Tauri webpack must not scan the real user profile (EPERM on Windows special folders).
+function Set-QuickerAgentIsolatedUserProfile {
+    if (-not [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+        $env:USERPROFILE = $env:RUNNER_TEMP
+        $env:HOME = $env:RUNNER_TEMP
+        return
+    }
+    if ($IsWindows -and -not [string]::IsNullOrWhiteSpace($env:TEMP)) {
+        $env:USERPROFILE = $env:TEMP
+        $env:HOME = $env:TEMP
+    }
+}
+
 function Remove-QuickerRpcUserPath {
     param(
         [Parameter(Mandatory = $true)]

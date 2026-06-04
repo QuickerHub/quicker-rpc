@@ -7,6 +7,9 @@
 #   pwsh ./publish/Publish-GitHubRelease.ps1 -WaitForCi
 #   pwsh ./publish/Publish-GitHubRelease.ps1 -LocalBuild
 #   pwsh ./publish/Publish-GitHubRelease.ps1 -DryRun
+#   pwsh ./publish/Test-QuickerAgentReleaseBuild.ps1   # preflight only (blocking)
+#   pwsh ./publish/Publish-GitHubRelease.ps1 -SkipPreflight
+#   pwsh ./publish/Publish-GitHubRelease.ps1 -PreflightBeforeTag   # wait for Tauri before tag (old behavior)
 
 [CmdletBinding()]
 param(
@@ -23,6 +26,12 @@ param(
     [switch]$SkipBitifulUpload,
     [switch]$SkipBuild,
     [switch]$SkipTag,
+    [switch]$SkipPreflight,
+    # Block on local Tauri build before pushing tag (default: parallel with CI).
+    [switch]$PreflightBeforeTag,
+    # After tag/CI, wait for background preflight and print result.
+    [switch]$WaitForPreflight,
+    [switch]$ForceRetag,
     [switch]$Draft,
     [switch]$DryRun
 )
@@ -224,14 +233,56 @@ $workflowUrl = "https://github.com/$repoSlug/actions/workflows/release-cli.yml"
 $releaseUrl = "https://github.com/$repoSlug/releases/tag/$tagName"
 
 $tagMessage = "Release $tagName (QuickerRpc $quickerRpcVersion)"
+$preflightBackground = $null
+
+if (-not $SkipPreflight -and -not $LocalBuild) {
+    if ($DryRun) {
+        if ($PreflightBeforeTag) {
+            Write-Host '[DryRun] blocking preflight, then tag push' -ForegroundColor DarkGray
+        }
+        else {
+            Write-Host '[DryRun] start background preflight + tag push in parallel' -ForegroundColor DarkGray
+        }
+    }
+    elseif ($PreflightBeforeTag) {
+        Write-Host ''
+        Write-Host 'Preflight (blocking): local QuickerAgent Tauri build before tag push...' -ForegroundColor Cyan
+        Invoke-QuickerAgentPreflightBlocking -RepoRoot $RepoRoot -PublishDir $PSScriptRoot
+        Write-Host 'Preflight passed.' -ForegroundColor Green
+        Write-Host ''
+    }
+    else {
+        Write-Host ''
+        Write-Host 'Starting local Tauri preflight in background (parallel with tag push / GitHub Actions)...' -ForegroundColor Cyan
+        $preflightBackground = Start-QuickerAgentPreflightBackground `
+            -RepoRoot $RepoRoot `
+            -PublishDir $PSScriptRoot `
+            -TagName $tagName
+        Write-Host "  PID $($preflightBackground.Process.Id)  log: $($preflightBackground.LogFile)" -ForegroundColor DarkGray
+        Write-Host '  Local errors usually appear first; fix from the log, then -ForceRetag re-release.' -ForegroundColor DarkGray
+        Write-Host ''
+    }
+}
 
 if (-not $SkipTag) {
     $tagCheck = git -C $RepoRoot tag -l $tagName
     if ($tagCheck) {
-        throw "Tag already exists: $tagName. Delete it or use -SkipTag if the tag is already on remote."
+        if (-not $ForceRetag) {
+            throw @"
+Tag already exists: $tagName. After preflight passes, use -ForceRetag to move the tag to $Commitish, or delete the remote tag first.
+"@
+        }
+        if ($DryRun) {
+            Write-Host "[DryRun] git -C $RepoRoot tag -f -a $tagName $Commitish -m `"$tagMessage`"" -ForegroundColor DarkGray
+            Write-Host "[DryRun] git -C $RepoRoot push -f origin refs/tags/$tagName" -ForegroundColor DarkGray
+        }
+        else {
+            Write-Host "ForceRetag: moving $tagName -> $Commitish" -ForegroundColor Yellow
+            git -C $RepoRoot tag -f -a $tagName $Commitish -m $tagMessage
+            git -C $RepoRoot push -f origin "refs/tags/$tagName"
+        }
     }
-
-    if ($DryRun) {
+    elseif ($DryRun) {
         Write-Host "[DryRun] git -C $RepoRoot tag -a $tagName $Commitish -m `"$tagMessage`"" -ForegroundColor DarkGray
         Write-Host "[DryRun] git -C $RepoRoot push origin refs/tags/$tagName" -ForegroundColor DarkGray
     }
@@ -297,12 +348,20 @@ Write-Host "GitHub Actions builds qkrpc zip/setup + QuickerAgent installer and p
 Write-Host "Workflow: $workflowUrl" -ForegroundColor Cyan
 Write-Host "Release (when ready): $releaseUrl" -ForegroundColor Cyan
 
+$ciError = $null
 if ($WaitForCi) {
-    Wait-ReleaseCliWorkflow -RepoSlug $repoSlug -Tag $tagName
-    Write-Host ''
-    Write-Host "Release completed: $releaseUrl" -ForegroundColor Green
+    try {
+        Wait-ReleaseCliWorkflow -RepoSlug $repoSlug -Tag $tagName
+        Write-Host ''
+        Write-Host "Release completed: $releaseUrl" -ForegroundColor Green
+    }
+    catch {
+        $ciError = $_
+        Write-Host ''
+        Write-Host 'GitHub Actions release failed (check local preflight log first — often the same fix).' -ForegroundColor Yellow
+    }
 
-    if (-not $SkipBitifulUpload) {
+    if (-not $ciError -and -not $SkipBitifulUpload) {
         $bitifulScript = Join-Path $PSScriptRoot 'Upload-QuickerAgentToBitiful.ps1'
         if (-not (Test-Path -LiteralPath $bitifulScript)) {
             throw "Upload-QuickerAgentToBitiful.ps1 not found: $bitifulScript"
@@ -331,7 +390,7 @@ Run: pwsh ./publish/Upload-QuickerAgentToBitiful.ps1 -Tag <tag>
         }
     }
 
-    if (-not $SkipSyncQuickerAgentActionDoc) {
+    if (-not $ciError -and -not $SkipSyncQuickerAgentActionDoc) {
         $syncScript = Join-Path $PSScriptRoot 'Sync-QuickerAgentActionDoc.ps1'
         if (-not (Test-Path -LiteralPath $syncScript)) {
             throw "Sync-QuickerAgentActionDoc.ps1 not found: $syncScript"
@@ -353,12 +412,28 @@ Run: pwsh ./publish/Upload-QuickerAgentToBitiful.ps1 -Tag <tag>
 else {
     Write-Host ''
     Write-Host 'Tip: pass -WaitForCi to block until the workflow finishes (includes local Bitiful upload + action page sync).' -ForegroundColor DarkGray
+    if ($preflightBackground) {
+        Write-Host "Tip: local preflight log: $($preflightBackground.LogFile)" -ForegroundColor DarkGray
+    }
     if (-not $SkipSyncQuickerAgentActionDoc) {
         Write-Host 'Tip: after CI, run: pwsh ./publish/Upload-QuickerAgentToBitiful.ps1 -Tag <tag>' -ForegroundColor DarkGray
         Write-Host 'Tip: then: pwsh ./publish/Sync-QuickerAgentActionDoc.ps1 -Push' -ForegroundColor DarkGray
     }
 }
 
+$preflightOk = Complete-QuickerAgentPreflightBackground `
+    -Preflight $preflightBackground `
+    -Wait:($WaitForPreflight) `
+    -TagName $tagName
+
+if ($ciError) {
+    throw $ciError
+}
+
 Write-Host ''
 Write-Host 'Users can install with (after CI completes):' -ForegroundColor Yellow
 Write-Host "  $installUrl"
+
+if ($preflightOk -eq $false -and $WaitForPreflight) {
+    exit 1
+}

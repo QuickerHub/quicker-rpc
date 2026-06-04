@@ -8,6 +8,63 @@ namespace QuickerRpc.Console.Serve;
 /// <summary>Local .quicker subprogram export/import for qkrpc serve.</summary>
 internal static class SubProgramProjectServeOps
 {
+    internal static ServeInvokeResponse Validate(JsonElement args)
+    {
+        var explicitDir = ServeJsonArgs.GetString(args, "dir");
+        if (string.IsNullOrWhiteSpace(explicitDir))
+        {
+            return Fail("MISSING_DIR", "args.dir is required.");
+        }
+
+        string projectDir;
+        try
+        {
+            projectDir = QuickerProjectLayout.ResolveProjectDirectory(explicitDir);
+        }
+        catch (Exception ex)
+        {
+            return Fail("INVALID_DIR", ex.Message);
+        }
+
+        try
+        {
+            if (!File.Exists(QuickerProjectLayout.GetInfoPath(projectDir)))
+            {
+                return Fail("INFO_NOT_FOUND", $"info.json not found under {projectDir}.");
+            }
+
+            var info = QuickerProjectFiles.ReadSubProgramInfo(projectDir);
+            var subProgramId = (info.Id ?? info.Name ?? string.Empty).Trim();
+            if (subProgramId.Length == 0)
+            {
+                return Fail("MISSING_ID", "info.json must contain id or name.");
+            }
+
+            var data = QuickerProjectFiles.ReadData(projectDir);
+            var validateResult = XActionFileRefValidator.Validate(data, projectDir);
+            return Ok(new
+            {
+                ok = validateResult.Success,
+                action = "subprogram-validate",
+                payload = new
+                {
+                    success = validateResult.Success,
+                    error = validateResult.ErrorMessage,
+                    projectDirectory = projectDir,
+                    subProgramId,
+                    editVersion = info.EditVersion,
+                    stepCount = validateResult.StepCount,
+                    variableCount = validateResult.VariableCount,
+                    fileRefs = validateResult.FileRefs,
+                },
+            });
+        }
+        catch (Exception ex)
+        {
+            return Fail("SUBPROGRAM_VALIDATE_FAILED", ex.Message);
+        }
+    }
+
     internal static async Task<ServeInvokeResponse> ExportAsync(
         IQuickerRpcService rpc,
         JsonElement args,

@@ -8,6 +8,7 @@
 2. **Read** `version.json` → 记录 `QuickerRpc` 四段版本；tag 取前三段（如 `0.3.11.0` → `v0.3.11`）。
 3. 若 tag 已存在或需新版本，先改 `version.json` 并 commit，再发布。
 4. 浏览 `git log`（自上一 tag 或近几次 commit），**撰写 changelog** 写入 `publish/changelogs/vX.Y.Z.md` 并 **commit**（CI 从 tag 指向的 commit 读取此文件）。
+5. （可选）单独阻塞预检：`pwsh -NoProfile -File ./publish/Test-QuickerAgentReleaseBuild.ps1`（`block_until_ms` ≥ **600000**）。默认不必先跑——发布脚本会与 CI **并行**启动预检。
 
 **Changelog 建议结构**：
 
@@ -24,17 +25,17 @@ CLI
 - ...
 ```
 
-## 阶段二：GitHub Release（tag → CI 构建 zip + setup.exe）
+## 阶段二：GitHub Release（并行预检 + tag → CI）
 
 ```powershell
-pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1
-# 或等待 CI 完成：
 pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1 -WaitForCi
+# 修复后重发：
+pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1 -WaitForCi -ForceRetag
 ```
 
-脚本校验 `publish/changelogs/vX.Y.Z.md` 并 **push tag**；`.github/workflows/release-cli.yml` 在 Windows runner 上 `dotnet publish`、打 zip、用 Inno Setup 编译 `setup.exe` 并上传 Release 资产。
+默认：**后台**本地 Tauri 预检 + **立即**校验 changelog 并 **push tag**（与 CI 并行）。优先看 `%TEMP%\qkrpc-preflight-vX.Y.Z.log` 修错；CI 红字常与本地相同，可边修边忽略。旧顺序（先本地通过再打 tag）：`-PreflightBeforeTag`。
 
-`block_until_ms` ≥ **300000**（若使用 `-WaitForCi`，含 choco 装 Inno + 编译）。
+`block_until_ms` ≥ **600000`（`-WaitForCi` 含本地 Tauri + CI Inno + 编译）。
 
 | 参数 | 用途 |
 |------|------|
@@ -42,6 +43,10 @@ pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1 -WaitForCi
 | `-LocalBuild` | 本地构建并 `gh release upload`（需 Inno Setup；CI 不可用时） |
 | `-ChangelogFile` | 覆盖默认 `publish/changelogs/vX.Y.Z.md` |
 | `-AllowEmptyChangelog` | 跳过 changelog 校验（不推荐） |
+| `-SkipPreflight` | 不启动本地 Tauri 预检 |
+| `-PreflightBeforeTag` | 先阻塞本地 Tauri，通过后再 push tag |
+| `-WaitForPreflight` | 脚本结束前等待并汇报本地预检结果 |
+| `-ForceRetag` | 将已有 tag 移到当前 HEAD 并 `push -f` |
 | `-SkipBuild` | 仅 `-LocalBuild`：已有 zip/setup 时跳过构建 |
 | `-DryRun` | 预览 tag / 命令 |
 | `-Draft` | 草稿 Release（仅 `-LocalBuild`） |
@@ -104,3 +109,4 @@ https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64
 - 修改 `git config`
 - 未经用户确认 force push tag / 删除已有 Release
 - 未 commit `publish/changelogs/vX.Y.Z.md` 就 push tag（CI 会覆盖 Release 说明）
+- 不看 `%TEMP%\qkrpc-preflight-*.log` 就反复打 tag（应先本地修好再 `-ForceRetag`）

@@ -398,7 +398,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         },
       };
     }
-    if (verb === "import") {
+    if (verb === "import" || verb === "apply") {
       return {
         op: "subprogram.import",
         args: {
@@ -406,6 +406,12 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
           expectedEditVersion: flagInt(flags, "expected-edit-version"),
           force: flagBool(flags, "force"),
         },
+      };
+    }
+    if (verb === "validate") {
+      return {
+        op: "subprogram.validate",
+        args: { dir: flagStr(flags, "dir") },
       };
     }
     return null;

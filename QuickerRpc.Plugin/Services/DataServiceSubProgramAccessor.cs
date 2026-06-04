@@ -6,11 +6,13 @@ using Quicker.Domain;
 using Quicker.Domain.Actions.X;
 using Quicker.Domain.Actions.X.SubPrograms;
 using Quicker.Utilities;
+using QuickerRpc.Plugin.Reflection;
 
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Read/write global subprograms via <see cref="AppState.DataService"/> (save/delete via reflection on Release builds).
+/// Read global subprograms via <see cref="AppState.DataService"/>.
+/// Save/delete prefer <see cref="TriggerCommandSubProgramAccessor"/> (Sync V5 + account cloud sync); legacy DataService reflection as fallback.
 /// </summary>
 internal sealed class DataServiceSubProgramAccessor
 {
@@ -93,10 +95,15 @@ internal sealed class DataServiceSubProgramAccessor
             return false;
         }
 
+        if (TriggerCommandSubProgramAccessor.TrySave(subProgram, out error))
+        {
+            return true;
+        }
+
         var save = SaveMethod.Value;
         if (save is null)
         {
-            error = "DataService.SaveGlobalSubProgram unavailable.";
+            error = error ?? "TriggerCommandService/DataService SaveGlobalSubProgram unavailable.";
             return false;
         }
 
@@ -104,6 +111,11 @@ internal sealed class DataServiceSubProgramAccessor
         {
             subProgram.LastEditTimeUtc = AppHelper.GetUtcNowForDb();
             save.Invoke(AppState.DataService, new object[] { subProgram });
+            if (!QuickerDataServiceSubProgramReflection.MethodBodyInvokesTriggerSync(save))
+            {
+                QuickerSyncTrigger.TryTriggerAfterSubProgramSave();
+            }
+
             return true;
         }
         catch (TargetInvocationException ex)
@@ -127,16 +139,26 @@ internal sealed class DataServiceSubProgramAccessor
             return false;
         }
 
+        if (TriggerCommandSubProgramAccessor.TryDelete(subProgram, out error))
+        {
+            return true;
+        }
+
         var delete = DeleteMethod.Value;
         if (delete is null)
         {
-            error = "DataService.DeleteGlobalSubProgram unavailable.";
+            error = error ?? "TriggerCommandService/DataService DeleteGlobalSubProgram unavailable.";
             return false;
         }
 
         try
         {
             delete.Invoke(AppState.DataService, new object[] { subProgram });
+            if (!QuickerDataServiceSubProgramReflection.MethodBodyInvokesTriggerSync(delete))
+            {
+                QuickerSyncTrigger.TryTriggerAfterSubProgramSave();
+            }
+
             return true;
         }
         catch (TargetInvocationException ex)
@@ -151,12 +173,23 @@ internal sealed class DataServiceSubProgramAccessor
         }
     }
 
-    private static MethodInfo? ResolveSaveMethod() =>
-        ResolveSubProgramMethod(preferLongestIl: true);
+    private static MethodInfo? ResolveSaveMethod()
+    {
+        var dataServiceType = AppState.DataService.GetType();
+        return QuickerDataServiceSubProgramReflection.TryFindSaveGlobalSubProgramOnDataService(dataServiceType)
+            ?? ResolveSubProgramMethod(preferLongestIl: false);
+    }
 
     private static MethodInfo? ResolveDeleteMethod()
     {
         var save = SaveMethod.IsValueCreated ? SaveMethod.Value : ResolveSaveMethod();
+        var dataServiceType = AppState.DataService.GetType();
+        return QuickerDataServiceSubProgramReflection.TryFindDeleteGlobalSubProgramOnDataService(dataServiceType, save)
+            ?? ResolveSubProgramMethodByExclusion(save);
+    }
+
+    private static MethodInfo? ResolveSubProgramMethodByExclusion(MethodInfo? save)
+    {
         var candidates = GetSubProgramVoidMethods();
         return candidates
             .Where(m => !ReferenceEquals(m, save))

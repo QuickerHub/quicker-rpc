@@ -253,6 +253,14 @@ internal static class QkrpcCliHelp
 
                     opts: SubProgramProjectImportOpts()),
 
+                Cmd("subprogram apply", "Alias for subprogram import (workspace save to Quicker).", "qkrpc subprogram apply --dir <path> [--expected-edit-version N] [--force] [--json]",
+
+                    opts: SubProgramProjectImportOpts()),
+
+                Cmd("subprogram validate", "Validate .quicker subprogram project (file refs, data.json).", "qkrpc subprogram validate --dir <path> [--json]",
+
+                    opts: new[] { Option("dir", "Project directory."), Option("json", "Structured output.") }),
+
                 Cmd("subprogram edit", "Open subprogram editor UI.", "qkrpc subprogram edit --id <idOrName> [--json]",
 
                     opts: new[] { Option("id", "Subprogram id or name."), Option("json", "Structured output.") }),

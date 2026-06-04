@@ -10,11 +10,28 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 internal static class QuickerAgentLaunchService
 {
-    private const string ProcessNameWithoutExtension = "quicker-agent";
+    public static bool TryLaunchOrActivate(ILogger logger)
+    {
+        if (QuickerAgentWindowActivator.IsProcessRunning())
+        {
+            if (QuickerAgentWindowActivator.TryBringToForeground(logger))
+            {
+                logger.LogInformation("QuickerAgent already running; brought main window to foreground.");
+            }
+            else
+            {
+                logger.LogDebug("QuickerAgent already running; foreground activation did not succeed.");
+            }
+
+            return true;
+        }
+
+        return TryLaunch(logger);
+    }
 
     public static bool TryLaunch(ILogger logger)
     {
-        if (IsAlreadyRunning())
+        if (QuickerAgentWindowActivator.IsProcessRunning())
         {
             logger.LogDebug("QuickerAgent already running; skip launch.");
             return true;
@@ -44,15 +61,4 @@ internal static class QuickerAgentLaunchService
         }
     }
 
-    private static bool IsAlreadyRunning()
-    {
-        try
-        {
-            return Process.GetProcessesByName(ProcessNameWithoutExtension).Length > 0;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }

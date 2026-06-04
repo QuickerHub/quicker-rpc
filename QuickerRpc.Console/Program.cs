@@ -130,8 +130,10 @@ internal static partial class Program
             "get" => await RunSubProgramGetAsync(options).ConfigureAwait(false),
             "patch" => await RunSubProgramPatchAsync(options).ConfigureAwait(false),
             "replace" => await RunSubProgramReplaceAsync(options).ConfigureAwait(false),
+            "validate" => await RunSubProgramProjectValidateAsync(options).ConfigureAwait(false),
             "export" => await RunSubProgramExportAsync(options).ConfigureAwait(false),
             "import" => await RunSubProgramImportAsync(options).ConfigureAwait(false),
+            "apply" => await RunSubProgramImportAsync(options).ConfigureAwait(false),
             "edit" => await RunSubProgramEditAsync(options).ConfigureAwait(false),
             "delete" => await RunSubProgramDeleteAsync(options).ConfigureAwait(false),
             "edit-var" => await RunSubProgramEditVarAsync(options).ConfigureAwait(false),
@@ -144,7 +146,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_SUBPROGRAM_VERB",
-            "Use: subprogram create|get|patch|replace|export|import|list|search|edit|edit-var|delete (see qkrpc help --json)")
+            "Use: subprogram create|get|patch|replace|validate|export|import|apply|list|search|edit|edit-var|delete (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }

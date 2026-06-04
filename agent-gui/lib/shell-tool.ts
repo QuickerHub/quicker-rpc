@@ -133,12 +133,12 @@ export const SHELL_EXEC_TOOL_DEF = tool({
     + "Prefer pwsh/build.ps1/qkrpc/dotnet/git/npm in repo tasks. "
     + "Destructive commands (del/rm/git push) may require user confirmation in chat.",
   inputSchema: shellInputSchema,
-  execute: async (input) => {
+  execute: async (input: z.infer<typeof shellInputSchema>) => {
     const request = toShellRequest(input);
     const result = await runShellRequest(request);
     return formatShellToolResult(request, result);
   },
-  needsApproval: async (input) =>
+  needsApproval: async (input: z.infer<typeof shellInputSchema>) =>
     shellPolicyRequiresApproval(toShellRequest(input)),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- needsApproval callback
 } as any);

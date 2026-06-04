@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using QuickerRpc.Plugin.Reflection;
 
 namespace QuickerRpc.Plugin.Test;
 
@@ -56,6 +57,22 @@ public sealed class QuickerExeDebugScanTests
             "FloatAction",
             QuickerExeReflectionProbe.InstanceMethodFlags,
             WriteLine);
+    }
+
+    [TestMethod]
+    public void Scan_TriggerCommandService_SaveGlobalSubProgram_by_name()
+    {
+        if (!TryLoadDebug(out var assembly))
+        {
+            return;
+        }
+
+        QuickerExeReflectionProbe.ScanTriggerCommandSaveGlobalSubProgram(assembly, WriteLine);
+        var save = QuickerTriggerCommandReflection.TryFindSaveGlobalSubProgram(assembly);
+        if (save is null)
+        {
+            Assert.Inconclusive("Debug Quicker.exe: TriggerCommandService.SaveGlobalSubProgram not found.");
+        }
     }
 
     [TestMethod]

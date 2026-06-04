@@ -1,4 +1,5 @@
 using System;
+using Quicker.Domain.Actions.Runtime;
 using Quicker.Public.Interfaces;
 
 namespace QuickerRpc.Plugin;
@@ -18,6 +19,11 @@ public sealed class LauncherStartOptions
     /// Suppress success/warning popups and skip QuickerAgent update check (for qkrpc bootstrap / remote start).
     /// </summary>
     public bool Silent { get; set; }
+
+    /// <summary>
+    /// Show plugin version toast on start and when RPC is already running (e.g. <see cref="ActionTrigger.Extern"/>).
+    /// </summary>
+    public bool NotifyPluginVersion { get; set; }
 }
 
 /// <summary>
@@ -70,6 +76,16 @@ public static class LauncherStartOptionsParser
         {
             LaunchQuickerAgent = false,
             Silent = true,
+            NotifyPluginVersion = false,
+        };
+
+    /// <summary>RPC only with version toast (external / qkrpc invocation).</summary>
+    public static LauncherStartOptions PluginOnlyWithVersionNotify() =>
+        new()
+        {
+            LaunchQuickerAgent = false,
+            Silent = true,
+            NotifyPluginVersion = true,
         };
 }
 
@@ -81,9 +97,29 @@ public static class LauncherStartOptionsResolver
     public static LauncherStartOptions Resolve(
         IActionContext? context,
         string? quickerInParam = null,
+        LauncherStartOptions? explicitOptions = null) =>
+        Resolve(
+            ActionExecuteContextProbe.TryGetActionTrigger(context),
+            quickerInParam,
+            explicitOptions);
+
+    internal static LauncherStartOptions Resolve(
+        ActionTrigger? actionTrigger,
+        string? quickerInParam = null,
+        LauncherStartOptions? explicitOptions = null) =>
+        Resolve((int?)actionTrigger, quickerInParam, explicitOptions);
+
+    internal static LauncherStartOptions Resolve(
+        int? actionTrigger,
+        string? quickerInParam = null,
         LauncherStartOptions? explicitOptions = null)
     {
-        if (ActionExecuteContextProbe.IsExternInvocation(context))
+        if (actionTrigger == (int)ActionTrigger.Extern)
+        {
+            return LauncherStartOptionsParser.PluginOnlyWithVersionNotify();
+        }
+
+        if (actionTrigger == (int)ActionTrigger.AutoRun)
         {
             return LauncherStartOptionsParser.PluginOnly();
         }
@@ -93,7 +129,7 @@ public static class LauncherStartOptionsResolver
             return explicitOptions;
         }
 
-        if (context is not null || quickerInParam is not null)
+        if (actionTrigger is not null || quickerInParam is not null)
         {
             return LauncherStartOptionsParser.Parse(quickerInParam);
         }

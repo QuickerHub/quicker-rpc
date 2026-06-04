@@ -7,6 +7,7 @@ import {
   parseQkrpcPayload,
   programHasBodyFromGetPayload,
   saveActionFromWorkspace,
+  syncProjectEditVersionOnDisk,
   type ActionProjectDataSummary,
 } from "@/lib/action-project-workflow";
 import {
@@ -37,6 +38,7 @@ export type SubProgramProjectInfo = {
   icon?: string;
   callIdentifier?: string;
   editVersion?: number;
+  exportedUtc?: string;
 };
 
 export type SubProgramProjectManifest = {
@@ -565,10 +567,53 @@ export async function saveSubprogramFromWorkspace(options: {
     );
   }
 
-  const importArgs = ["subprogram", "import", "--dir", resolved.absolute];
+  const validateResult = await runQkrpcForTool([
+    "subprogram",
+    "validate",
+    "--dir",
+    resolved.absolute,
+  ]);
+  const validatePayload = parseQkrpcPayload(validateResult);
+  const validateFailed =
+    !validateResult.ok || validatePayload?.success === false;
+
+  if (validateFailed) {
+    const message =
+      (typeof validatePayload?.error === "string" && validatePayload.error)
+      || validateResult.stderr
+      || "Workspace subprogram project validation failed.";
+    return formatLocalToolResult(
+      {
+        action: "subprogram-save",
+        success: false,
+        phase: "validate",
+        projectDirectory: projectDirRel,
+        projectDirectoryAbsolute: resolved.absolute,
+        errorMessage: message,
+        validation: validatePayload ?? validateResult.parsed,
+      },
+      false,
+      message,
+    );
+  }
+
+  const importArgs = ["subprogram", "apply", "--dir", resolved.absolute];
   if (options.force) importArgs.push("--force");
 
   const importResult = await runQkrpcForTool(importArgs);
+  if (!importResult.ok) {
+    return formatQkrpcResultForAgent(importResult);
+  }
+
+  const importPayload = parseQkrpcPayload(importResult);
+  const newVersion =
+    typeof importPayload?.editVersion === "number"
+      ? importPayload.editVersion
+      : undefined;
+  if (newVersion != null) {
+    await syncProjectEditVersionOnDisk(projectDirRel, newVersion);
+  }
+
   return formatQkrpcResultForAgent(importResult);
 }
 

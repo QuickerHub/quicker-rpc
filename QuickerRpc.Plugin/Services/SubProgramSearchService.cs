@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Quicker.Domain;
 using Quicker.Domain.Actions.X;
-using Quicker.Domain.Actions.X.SubPrograms;
+using Quicker.Domain.Actions.X;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Plugin.Services;

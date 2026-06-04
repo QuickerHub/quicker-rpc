@@ -12,7 +12,9 @@
 [CmdletBinding()]
 param(
     [string]$RepoRoot = '',
-    [switch]$SkipQkrpcBuild
+    [switch]$SkipQkrpcBuild,
+    # Run pnpm tauri build only (no publish/ copy / verify). Used before GitHub Release tag push.
+    [switch]$PreflightOnly
 )
 
 Set-StrictMode -Version Latest
@@ -110,15 +112,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "pnpm install failed ($LASTEXITCODE)" }
     }
 
-    # Avoid Next/webpack scanning the real user profile (e.g. Documents/My Pictures EPERM on Windows).
-    if (-not [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
-        $env:USERPROFILE = $env:RUNNER_TEMP
-        $env:HOME = $env:RUNNER_TEMP
-    }
-    elseif ($IsWindows -and -not [string]::IsNullOrWhiteSpace($env:TEMP)) {
-        $env:USERPROFILE = $env:TEMP
-        $env:HOME = $env:TEMP
-    }
+    Set-QuickerAgentIsolatedUserProfile
 
     Write-Host 'tauri build (NSIS installer)...' -ForegroundColor Cyan
     pnpm tauri build
@@ -126,6 +120,11 @@ try {
 }
 finally {
     Pop-Location
+}
+
+if ($PreflightOnly) {
+    Write-Host 'Preflight OK: QuickerAgent Tauri build succeeded.' -ForegroundColor Green
+    exit 0
 }
 
 $bundleRoot = Join-Path $agentGuiDir 'src-tauri\target\release\bundle'

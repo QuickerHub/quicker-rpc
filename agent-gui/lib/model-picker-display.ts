@@ -50,7 +50,7 @@ export function getModelPickerDisplay(
   if (profileTitle?.trim()) {
     return {
       displayName: profileTitle.trim(),
-      tier: humanizeModelId(modelId),
+      tier: "Medium",
     };
   }
   const meta = getLlmProviderMeta(providerId);

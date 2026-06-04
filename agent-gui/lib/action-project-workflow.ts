@@ -615,7 +615,8 @@ export function augmentActionGetWithWorkspace(
   };
 }
 
-async function syncEditVersionOnDisk(
+/** Update info.json editVersion after a successful Quicker save (actions or subprograms). */
+export async function syncProjectEditVersionOnDisk(
   projectDir: string,
   editVersion: number,
 ): Promise<void> {
@@ -733,7 +734,7 @@ export async function saveActionFromWorkspace(options: {
       ? applyPayload.editVersion
       : undefined;
   if (newVersion != null) {
-    await syncEditVersionOnDisk(projectDirRel, newVersion);
+    await syncProjectEditVersionOnDisk(projectDirRel, newVersion);
   }
 
   return formatQkrpcResultForAgent(applyResult);

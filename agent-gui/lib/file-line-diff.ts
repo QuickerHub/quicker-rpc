@@ -186,7 +186,9 @@ export type InterleavedDiffDisplay = {
 };
 
 /** 1-based line of first delete/insert in interleaved display (for compact preview scroll). */
-export function firstChangedDisplayLineNumber(lineKinds: LineDiffKind[]): number {
+export function firstChangedDisplayLineNumber(
+  lineKinds: readonly LineDiffKind[],
+): number {
   for (let i = 0; i < lineKinds.length; i++) {
     if (lineKinds[i] === "insert" || lineKinds[i] === "delete") {
       return i + 1;

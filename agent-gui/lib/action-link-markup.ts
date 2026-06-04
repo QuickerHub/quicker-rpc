@@ -162,10 +162,16 @@ export function groupAssistantRenderUnits(
       continue;
     }
 
+    if (seg.type !== "text") {
+      i++;
+      continue;
+    }
     let text = seg.text;
     i++;
-    while (i < segments.length && segments[i]!.type === "text") {
-      text += segments[i]!.text;
+    while (i < segments.length) {
+      const next = segments[i]!;
+      if (next.type !== "text") break;
+      text += next.text;
       i++;
     }
     if (text.trim()) {

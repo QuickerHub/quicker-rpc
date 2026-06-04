@@ -242,8 +242,13 @@ ActionTypeManager.RunAction(tempAction, ...)
 
 `ActionDesignerWindow` 在 `IsSubProgram=true` 时：
 
-- 保存走 `DataService.SaveGlobalSubProgram` + `SQLDataMgr` 公共子程序存储（非 Profile 内 `ActionItem`）。
-- 与面板 XAction 是 **独立目录**。
+- 保存走 `TriggerCommandService.SaveGlobalSubProgram` + `ISyncService.TriggerSync`（**多账号配置云同步**，与动作页 `SaveProfile` 后 `TriggerSync` 同队列；非 getquicker 动作库分享）。
+- 读取/枚举仍可用 `DataService.GetGlobalSubProgram` / `GlobalSubPrograms`。
+- 与面板 XAction 是 **独立目录**（非 Profile 内 `ActionItem`）。
+
+**类型/调用链查证**（勿引用本仓库外的 `quickerorg` 等路径）：维护者可选 `.ref/Quicker/`（见本文档开头）；否则 `dotnet test QuickerRpc.Plugin.Test --filter SaveGlobalSubProgram` 对 **本机 `Quicker.exe`** 做反射扫描（`quicker-exe-type-probing`）。
+
+**quicker-rpc 无头保存**：`DataServiceSubProgramAccessor.TrySave` → `TriggerCommandSubProgramAccessor`（`QuickerTriggerCommandReflection` 解析 `SaveGlobalSubProgram`）；勿与 `SharedId` + `WebConnector.ShareActionAsync`（动作库分享）混淆。
 
 ---
 

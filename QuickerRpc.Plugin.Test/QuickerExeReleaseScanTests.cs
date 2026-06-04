@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -46,6 +47,25 @@ public sealed class QuickerExeReleaseScanTests
         }
 
         QuickerAssemblyReflection.WriteMethodDetail(actionItem, WriteLine);
+    }
+
+    [TestMethod]
+    public void Scan_TriggerCommandService_SaveGlobalSubProgram_signature()
+    {
+        if (!TryLoadRelease(out var assembly))
+        {
+            return;
+        }
+
+        WriteLine("Note: Release uses signature scan (not obfuscated type names).");
+        QuickerExeReflectionProbe.ScanTriggerCommandSaveGlobalSubProgram(assembly, WriteLine);
+        var save = QuickerTriggerCommandReflection.TryFindSaveGlobalSubProgram(assembly);
+        if (save is null
+            || string.Equals(save.DeclaringType?.FullName, "Quicker.Domain.Services.DataService", StringComparison.Ordinal))
+        {
+            Assert.Inconclusive(
+                "Release Quicker.exe: TriggerCommandService.SaveGlobalSubProgram not found (legacy DataService-only build).");
+        }
     }
 
     [TestMethod]
@@ -101,6 +121,24 @@ public sealed class QuickerExeReleaseScanTests
         }
 
         QuickerAssemblyReflection.WriteMethodDetail(method, WriteLine);
+    }
+
+    [TestMethod]
+    public void Scan_DataService_SaveGlobalSubProgram_wrapper()
+    {
+        if (!TryLoadRelease(out var assembly))
+        {
+            return;
+        }
+
+        QuickerExeReflectionProbe.ScanDataServiceSaveGlobalSubProgram(assembly, WriteLine);
+        var dataService = QuickerAssemblyReflection.TryGetTypeByFullName(assembly, "Quicker.Domain.Services.DataService");
+        Assert.IsNotNull(dataService);
+        var save = QuickerDataServiceSubProgramReflection.TryFindSaveGlobalSubProgramOnDataService(dataService!);
+        Assert.IsNotNull(save, "Release Quicker.exe: DataService save wrapper not resolved.");
+        Assert.IsTrue(
+            QuickerDataServiceSubProgramReflection.MethodBodyInvokesTriggerSync(save!),
+            "DataService save wrapper should invoke TriggerSync.");
     }
 
     private bool TryLoadRelease(out Assembly assembly)

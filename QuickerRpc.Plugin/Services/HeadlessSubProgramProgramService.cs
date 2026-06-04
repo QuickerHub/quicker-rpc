@@ -7,10 +7,10 @@ using Newtonsoft.Json.Linq;
 using Quicker.Domain;
 using Quicker.Domain.Actions.X;
 using Quicker.Utilities;
-using Quicker.Domain.Actions.X.SubPrograms;
 using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.AgentModel.XAction;
 using QuickerRpc.AgentModel.XAction.Compression;
+using QuickerRpc.AgentModel.XAction.Patch;
 using QuickerRpc.AgentModel.XAction.Project;
 using QuickerRpc.Contracts.Rpc;
 using StorageActionStep = global::Quicker.Domain.Actions.X.Storage.ActionStep;
@@ -199,10 +199,33 @@ public sealed class HeadlessSubProgramProgramService
             return FailPatch("Headless subprogram save unavailable.");
         }
 
-        var formPreprocess = XActionProgramService.PreprocessPatch(patch, projectDirectory: null);
+        var metaName = SubProgramPresentationUpdate.ReadOptionalPatchName(patch);
+        var metaDescription = ActionPresentationUpdate.ReadOptionalPatchString(patch["description"]);
+        var metaIcon = ActionPresentationUpdate.ReadOptionalPatchString(patch["icon"]);
+        var programPatch = (JObject)patch.DeepClone();
+        programPatch.Remove("title");
+        programPatch.Remove("name");
+        programPatch.Remove("description");
+        programPatch.Remove("icon");
+        programPatch.Remove("changeLog");
+        programPatch.Remove("changelog");
+
+        var hasMeta = metaName is not null || metaDescription is not null || metaIcon is not null;
+        var hasProgramPatch = programPatch["steps"] is JArray || programPatch["variables"] is JArray;
+        if (!hasMeta && !hasProgramPatch)
+        {
+            return FailPatch("patch must contain steps/variables arrays and/or title, name, description, icon.");
+        }
+
+        var formPreprocess = XActionProgramService.PreprocessPatch(programPatch, projectDirectory: null);
         if (!formPreprocess.Success)
         {
             return FailPatch(formPreprocess.ErrorMessage ?? "form spec compile failed.");
+        }
+
+        if (_subPrograms is null)
+        {
+            return FailPatch("Headless subprogram save unavailable.");
         }
 
         if (!_subPrograms.TryGetByIdOrName(key, out var subProgram, out var loadError))
@@ -223,38 +246,57 @@ public sealed class HeadlessSubProgramProgramService
             };
         }
 
-        var steps = SubProgramProgramSerialization.StepsToJArray(subProgram!.Steps);
-        var variables = SubProgramProgramSerialization.VariablesToJArray(subProgram.Variables);
-        var stepsClone = (JArray)steps.DeepClone();
-        var variablesClone = (JArray)variables.DeepClone();
-        XActionProgramService.EnsureEphemeralIds(stepsClone, variablesClone);
-
-        var applyResult = XActionProgramService.ApplyPatch(stepsClone, variablesClone, patch);
-        if (!applyResult.Success)
+        XActionPatchApplier.ApplyResult applyResult = new() { Success = true };
+        IList<string> inputParamWarnings = Array.Empty<string>();
+        if (hasProgramPatch)
         {
-            return FailPatch(applyResult.ErrorMessage ?? "patch apply failed.");
+            var steps = SubProgramProgramSerialization.StepsToJArray(subProgram!.Steps);
+            var variables = SubProgramProgramSerialization.VariablesToJArray(subProgram.Variables);
+            var stepsClone = (JArray)steps.DeepClone();
+            var variablesClone = (JArray)variables.DeepClone();
+            XActionProgramService.EnsureEphemeralIds(stepsClone, variablesClone);
+
+            applyResult = XActionProgramService.ApplyPatch(stepsClone, variablesClone, programPatch);
+            if (!applyResult.Success)
+            {
+                return FailPatch(applyResult.ErrorMessage ?? "patch apply failed.");
+            }
+
+            var catalog = StepRunnerCatalogFromQuicker.Build();
+            var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variablesClone);
+            XActionProgramService.NormalizeStepsInputParamKeys(stepsClone, catalog);
+            inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(stepsClone, catalog);
+
+            if (!SubProgramProgramPersistence.TrySave(
+                    subProgram.Id!,
+                    stepsClone,
+                    normalizedVariables,
+                    metaName,
+                    metaDescription,
+                    metaIcon,
+                    out var saveError))
+            {
+                return FailPatch(saveError ?? "save_failed");
+            }
+        }
+        else if (!SubProgramProgramPersistence.TryUpdatePresentation(
+                     subProgram!.Id!,
+                     metaName,
+                     metaDescription,
+                     metaIcon,
+                     out var metaSaveError))
+        {
+            return FailPatch(metaSaveError ?? "save_failed");
         }
 
-        var catalog = StepRunnerCatalogFromQuicker.Build();
-        var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variablesClone);
-        XActionProgramService.NormalizeStepsInputParamKeys(stepsClone, catalog);
-        var inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(stepsClone, catalog);
-
-        subProgram.Steps = SubProgramProgramSerialization.DeserializeSteps(stepsClone);
-        subProgram.Variables = SubProgramProgramSerialization.DeserializeVariables(normalizedVariables);
-
-        if (!_subPrograms.TrySave(subProgram, out var saveError))
-        {
-            return FailPatch(saveError ?? "save_failed");
-        }
-
-        if (!_subPrograms.TryGetByIdOrName(subProgram.Id!, out var saved, out _))
+        if (!_subPrograms.TryGetByIdOrName(subProgram!.Id!, out var saved, out _))
         {
             return FailPatch("save finished but subprogram could not be reloaded.");
         }
 
-        var compressedUpdatedSteps = CompressSteps(applyResult.UpdatedSteps, catalog, omitDefaultLiteralInputs: false);
-        var compressedAddedSteps = CompressSteps(applyResult.AddedSteps, catalog, omitDefaultLiteralInputs: false);
+        var catalogForCompress = StepRunnerCatalogFromQuicker.Build();
+        var compressedUpdatedSteps = CompressSteps(applyResult.UpdatedSteps, catalogForCompress, omitDefaultLiteralInputs: false);
+        var compressedAddedSteps = CompressSteps(applyResult.AddedSteps, catalogForCompress, omitDefaultLiteralInputs: false);
         var compressedUpdatedVariables = CompressVariables(applyResult.UpdatedVariables);
         var compressedAddedVariables = CompressVariables(applyResult.AddedVariables);
 
@@ -269,7 +311,7 @@ public sealed class HeadlessSubProgramProgramService
             UpdatedVariablesJson = compressedUpdatedVariables.ToString(Formatting.None),
             AddedVariablesJson = compressedAddedVariables.Count > 0 ? compressedAddedVariables.ToString(Formatting.None) : null,
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
-            Warnings = inputParamWarnings.Count == 0 ? new List<string>() : inputParamWarnings.ToList(),
+            Warnings = inputParamWarnings.Count > 0 ? new List<string>(inputParamWarnings) : null,
         };
     }
 
@@ -341,10 +383,11 @@ public sealed class HeadlessSubProgramProgramService
         XActionProgramService.NormalizeStepsInputParamKeys(steps, catalog);
         var inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(steps, catalog);
 
-        subProgram!.Steps = SubProgramProgramSerialization.DeserializeSteps(steps);
-        subProgram.Variables = SubProgramProgramSerialization.DeserializeVariables(normalizedVariables);
-
-        if (!_subPrograms.TrySave(subProgram, out var saveError))
+        if (!SubProgramProgramPersistence.TrySave(
+                subProgram!.Id!,
+                steps,
+                normalizedVariables,
+                out var saveError))
         {
             return FailPatch(saveError ?? "save_failed");
         }
@@ -361,7 +404,7 @@ public sealed class HeadlessSubProgramProgramService
             CallIdentifier = DataServiceSubProgramAccessor.GetCallIdentifier(saved),
             EditVersion = _subPrograms.GetEditVersion(saved),
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
-            Warnings = inputParamWarnings.Count == 0 ? new List<string>() : inputParamWarnings.ToList(),
+            Warnings = inputParamWarnings.Count > 0 ? new List<string>(inputParamWarnings) : null,
         };
     }
 

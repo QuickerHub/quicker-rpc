@@ -60,7 +60,7 @@ internal static class QuickerExeReflectionProbe
         }
 
         writeLine("  Type: " + appState.FullName);
-        foreach (var name in new[] { "ProfileStore", "DataService", "ActionEditMgr", "AppServer" })
+        foreach (var name in new[] { "ProfileStore", "DataService", "ActionEditMgr", "TriggerCommandService", "AppServer" })
         {
             var prop = appState.GetProperty(name, QuickerAssemblyReflection.StaticFlags);
             writeLine("  Property " + name + ": " + (prop is null ? "(missing)" : prop.PropertyType.FullName));
@@ -83,6 +83,62 @@ internal static class QuickerExeReflectionProbe
         writeLine("");
         writeLine("  Plugin resolver: "
                     + (actionItem is null ? "(none or ambiguous)" : actionItem.DeclaringType!.FullName + "." + actionItem.Name));
+    }
+
+    public static void ScanTriggerCommandSaveGlobalSubProgram(Assembly assembly, Action<string> writeLine)
+    {
+        writeLine("");
+        writeLine("--- SaveGlobalSubProgram(SubProgram) on TriggerCommandService (Debug name + signature) ---");
+        ScanTypeAndMethodByName(
+            assembly,
+            "Quicker.Infrastructure.Data.Services.TriggerCommandService",
+            "SaveGlobalSubProgram",
+            InstanceMethodFlags,
+            writeLine);
+
+        var matches = QuickerTriggerCommandReflection.ScanSaveGlobalSubProgramMethods(assembly);
+        writeLine("  Signature scan match count: " + matches.Count);
+        foreach (var method in matches)
+        {
+            writeLine("");
+            QuickerAssemblyReflection.WriteMethodDetail(method, writeLine);
+        }
+
+        var save = QuickerTriggerCommandReflection.TryFindSaveGlobalSubProgram(assembly);
+        writeLine("");
+        writeLine("  Plugin resolver SaveGlobalSubProgram: "
+                  + (save is null ? "(none or ambiguous)" : save.DeclaringType!.FullName + "." + save.Name));
+    }
+
+    public static void ScanDataServiceSaveGlobalSubProgram(Assembly assembly, Action<string> writeLine)
+    {
+        writeLine("");
+        writeLine("--- SaveGlobalSubProgram wrapper on DataService (SQLDataMgr + TriggerSync IL scan) ---");
+        var dataService = QuickerAssemblyReflection.TryGetTypeByFullName(assembly, "Quicker.Domain.Services.DataService");
+        if (dataService is null)
+        {
+            writeLine("  DataService type not found.");
+            return;
+        }
+
+        var save = QuickerDataServiceSubProgramReflection.TryFindSaveGlobalSubProgramOnDataService(dataService);
+        var delete = QuickerDataServiceSubProgramReflection.TryFindDeleteGlobalSubProgramOnDataService(dataService, save);
+        if (save is null)
+        {
+            writeLine("  Save wrapper not resolved.");
+            return;
+        }
+
+        QuickerAssemblyReflection.WriteMethodDetail(save, writeLine);
+        writeLine("  Invokes TriggerSync: "
+                  + QuickerDataServiceSubProgramReflection.MethodBodyInvokesTriggerSync(save));
+        if (delete is not null)
+        {
+            writeLine("");
+            QuickerAssemblyReflection.WriteMethodDetail(delete, writeLine);
+            writeLine("  Delete invokes TriggerSync: "
+                      + QuickerDataServiceSubProgramReflection.MethodBodyInvokesTriggerSync(delete));
+        }
     }
 
     public static BindingFlags StaticMethodFlags => QuickerAssemblyReflection.StaticFlags;

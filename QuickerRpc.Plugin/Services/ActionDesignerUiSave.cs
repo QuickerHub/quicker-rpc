@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -146,11 +148,136 @@ internal static class ActionDesignerUiSave
     }
 
     /// <summary>
+    /// If subprogram Action Designer is open, run <c>SaveAllData</c> + <c>DoSaveWithoutClose</c>
+    /// (same as clicking Save in ActionDesignerWindow).
+    /// </summary>
+    public static bool TryPersistOpenSubProgramDesignerOnUiThread(string subProgramId, XAction xAction, out string? error) =>
+        TryPersistOpenDesignerOnUiThread(subProgramId, xAction, isSubProgram: true, out error);
+
+    private static bool TryPersistOpenDesignerOnUiThread(
+        string entityId,
+        XAction xAction,
+        bool isSubProgram,
+        out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(entityId) || xAction is null)
+        {
+            return false;
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            return false;
+        }
+
+        var persisted = false;
+        string? localError = null;
+        dispatcher.Invoke(() =>
+        {
+            persisted = TryPersistOpenDesigner(entityId.Trim(), xAction, isSubProgram, out localError);
+        });
+
+        for (var i = 0; i < 120; i++)
+        {
+            PumpDispatcherOnce();
+        }
+
+        error = localError;
+        return persisted;
+    }
+
+    private static bool TryPersistOpenDesigner(
+        string entityId,
+        XAction xAction,
+        bool isSubProgram,
+        out string? error)
+    {
+        error = null;
+        var designer = TryFindActionDesignerWindow(entityId, isSubProgram);
+        if (designer is null)
+        {
+            return false;
+        }
+
+        WaitUntilDesignerLoaded(designer);
+        if (!designer.IsLoaded)
+        {
+            error = "Action Designer is not loaded.";
+            return false;
+        }
+
+        if (!TryApplyXActionToOpenDesigner(designer, xAction))
+        {
+            error = "Failed to apply XAction to open Action Designer.";
+            return false;
+        }
+
+        TryUpdateDesignerResultItem(designer, xAction);
+
+        var winType = designer.GetType();
+        try
+        {
+            winType.GetMethod("SaveAllData", InstanceAll)?.Invoke(designer, null);
+
+            var doSave = winType.GetMethod("DoSaveWithoutClose", InstanceAll);
+            if (doSave is not null)
+            {
+                var taskObj = doSave.Invoke(designer, null);
+                if (taskObj is Task<bool> boolTask)
+                {
+                    if (!boolTask.GetAwaiter().GetResult())
+                    {
+                        error = "DoSaveWithoutClose returned false.";
+                        return false;
+                    }
+
+                    return true;
+                }
+
+                if (taskObj is Task task)
+                {
+                    task.GetAwaiter().GetResult();
+                    return true;
+                }
+            }
+
+            if (TryTriggerPrimarySaveClick(designer))
+            {
+                return true;
+            }
+
+            error = "Action Designer save entry point not found.";
+            return false;
+        }
+        catch (TargetInvocationException ex)
+        {
+            error = ex.InnerException?.Message ?? ex.Message;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>
     /// If Action Designer is open for this action, push the saved <see cref="XAction"/> into the WPF UI (UI thread).
     /// </summary>
-    public static bool TrySyncOpenDesignerOnUiThread(string actionId, XAction xAction)
+    public static bool TrySyncOpenDesignerOnUiThread(string actionId, XAction xAction) =>
+        TrySyncOpenDesignerOnUiThread(actionId, xAction, isSubProgram: false);
+
+    /// <summary>
+    /// If subprogram Action Designer is open, push the saved program into the WPF UI (UI thread).
+    /// </summary>
+    public static bool TrySyncOpenSubProgramDesignerOnUiThread(string subProgramId, XAction xAction) =>
+        TrySyncOpenDesignerOnUiThread(subProgramId, xAction, isSubProgram: true);
+
+    private static bool TrySyncOpenDesignerOnUiThread(string entityId, XAction xAction, bool isSubProgram)
     {
-        if (string.IsNullOrWhiteSpace(actionId) || xAction is null)
+        if (string.IsNullOrWhiteSpace(entityId) || xAction is null)
         {
             return false;
         }
@@ -162,7 +289,7 @@ internal static class ActionDesignerUiSave
         }
 
         var synced = false;
-        dispatcher.Invoke(() => synced = TrySyncOpenDesigner(actionId.Trim(), xAction));
+        dispatcher.Invoke(() => synced = TrySyncOpenDesigner(entityId.Trim(), xAction, isSubProgram));
 
         for (var i = 0; i < 120; i++)
         {
@@ -172,9 +299,9 @@ internal static class ActionDesignerUiSave
         return synced;
     }
 
-    private static bool TrySyncOpenDesigner(string actionId, XAction xAction)
+    private static bool TrySyncOpenDesigner(string entityId, XAction xAction, bool isSubProgram)
     {
-        var designer = TryFindActionDesignerWindow(actionId, isSubProgram: false);
+        var designer = TryFindActionDesignerWindow(entityId, isSubProgram);
         if (designer is null)
         {
             return false;

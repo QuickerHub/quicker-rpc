@@ -15,15 +15,18 @@ metadata:
 
 1. `git status`；必要时 bump `version.json` 并 commit
 2. `git log` 自上一 tag → **撰写 changelog** → 写入 `publish/changelogs/vX.Y.Z.md` 并 **commit**
-3. `pwsh ./publish/Publish-GitHubRelease.ps1` → **push tag**；`.github/workflows/release-cli.yml` 在 GitHub Actions 编译 qkrpc zip/setup **与 QuickerAgent Tauri 安装包**并发布 Release（可选 `-WaitForCi` 等待完成）
-4. `pwsh ./build.ps1 -Publish -NoVersion` → Quicker 依赖 **quicker.rpc** 上传（版本与 `version.json` 一致，不再 bump）
-5. `qkrpc action list --limit 1 --json` 确认插件在线（或已 `qkrpc serve` 且 `/health` 为 ok）
-6. `qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog-file publish/changelogs/vX.Y.Z.md --json`
-7. **QuickerAgent 动作页（getquicker）**：`page.html` 用占位符 `{{QUICKER_AGENT_SEMVER}}`（勿手写版本号）。**本地 Bitiful 上传后**执行：
+3. `pwsh ./publish/Publish-GitHubRelease.ps1 -WaitForCi` → **默认并行**：后台启动本地 Tauri 预检 + **立即 push tag** 触发 CI。本地日志通常先报错，优先按 `%TEMP%\qkrpc-preflight-vX.Y.Z.log` 修复；CI 失败可暂忽略。修复后 `-ForceRetag` 重发。
+   - 仅本地阻塞预检：`Test-QuickerAgentReleaseBuild.ps1` 或 `-PreflightBeforeTag`
+   - 跳过预检：`-SkipPreflight`；结束后等待本地结果：`-WaitForPreflight`
+4. `.github/workflows/release-cli.yml` 在 GitHub Actions 编译 qkrpc zip/setup **与 QuickerAgent Tauri 安装包**并发布 Release（`-WaitForCi` 等待完成；CI 失败时仍会打印本地预检日志路径）
+5. `pwsh ./build.ps1 -Publish -NoVersion` → Quicker 依赖 **quicker.rpc** 上传（版本与 `version.json` 一致，不再 bump）
+6. `qkrpc action list --limit 1 --json` 确认插件在线（或已 `qkrpc serve` 且 `/health` 为 ok）
+7. `qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog-file publish/changelogs/vX.Y.Z.md --json`
+8. **QuickerAgent 动作页（getquicker）**：`page.html` 用占位符 `{{QUICKER_AGENT_SEMVER}}`（勿手写版本号）。**本地 Bitiful 上传后**执行：
    - 推荐：`pwsh ./publish/Publish-GitHubRelease.ps1 -WaitForCi`（CI 结束后**自动**本地上传 Bitiful → `Sync-QuickerAgentActionDoc.ps1 -Push`）
    - 或手动：`pwsh ./publish/Upload-QuickerAgentToBitiful.ps1 -Tag vX.Y.Z`，再 `Sync-QuickerAgentActionDoc.ps1 -Push`
    - 需在 **quicker-agent** 兄弟仓库（或 `QUICKER_AGENT_REPO`）；Bitiful 凭证见 `publish/.env.example`（复制为 `publish/.env`）
-8. 汇报 Release URL、Quicker 包版本、action update / 动作页 sync 结果、用户安装命令
+9. 汇报 Release URL、Quicker 包版本、action update / 动作页 sync 结果、用户安装命令
 
 ## 仓库与产物
 
@@ -46,7 +49,10 @@ metadata:
 
 | 命令 | 用途 |
 |------|------|
-| `publish/Publish-GitHubRelease.ps1` | 校验 changelog、**push tag**；CI 构建 zip/setup 并发布 Release |
+| `publish/Test-QuickerAgentReleaseBuild.ps1` | 仅本地 `pnpm tauri build` 预检（阻塞，单独调试） |
+| `publish/Publish-QuickerAgent.ps1 -PreflightOnly` | 同上（`-SkipQkrpcBuild` 跳过 CLI 重编） |
+| `publish/Publish-GitHubRelease.ps1` | **并行**后台 Tauri 预检 + 校验 changelog + **push tag**；CI 构建并发布 Release |
+| `publish/Publish-GitHubRelease.ps1 -PreflightBeforeTag` | 先本地 Tauri 通过再打 tag（旧顺序） |
 | `publish/Publish-GitHubRelease.ps1 -WaitForCi` | 同上，并等待 `release-cli.yml` 完成；随后**本地上传 Bitiful** + sync QuickerAgent 动作页（`-SkipBitifulUpload` / `-SkipSyncQuickerAgentActionDoc` 可跳过） |
 | `publish/Upload-QuickerAgentToBitiful.ps1 -Tag vX.Y.Z` | 从 GitHub Release 下载安装包并上传 Bitiful（国内网络，比 CI 海外直传快） |
 | `publish/Sync-QuickerAgentActionDoc.ps1 -Push` | 将 Bitiful `version.txt`（或 `-Version` / `-WaitForCi` 传入的 Release 版本）写入 quicker-agent 构建产物并 `qkagent push` |
@@ -55,7 +61,7 @@ metadata:
 | `build.ps1 -Publish -NoVersion` | qkbuild 上传 Quicker 依赖，**不**改 `version.json`（自动 SkipCliPackaging） |
 | `publish/publish-rpc.ps1` | 本地 CLI/插件构建（`-SkipSetup` 跳过安装包） |
 
-`Publish-GitHubRelease.ps1` 参数：`-LocalBuild`、`-WaitForCi`、`-SkipBuild`（仅 `-LocalBuild`）、`-SkipTag`、`-DryRun`、`-Draft`、`-TagVersion`、`-Changelog`、`-ChangelogFile`、`-AllowEmptyChangelog`
+`Publish-GitHubRelease.ps1` 参数：`-LocalBuild`、`-WaitForCi`、`-SkipPreflight`、`-PreflightBeforeTag`、`-WaitForPreflight`、`-ForceRetag`、`-SkipBuild`（仅 `-LocalBuild`）、`-SkipTag`、`-DryRun`、`-Draft`、`-TagVersion`、`-Changelog`、`-ChangelogFile`、`-AllowEmptyChangelog`
 
 ## Changelog（Agent 撰写，Release / CI / action update 共用）
 
@@ -72,6 +78,7 @@ metadata:
 - `qkbuild` 与 build-tools `.env`（`-p -n` 上传）
 - Bitiful：`publish/.env`（见 `publish/.env.example`）或 `BITIFUL_*` 环境变量
 - Quicker 运行中 + QuickerRpc 插件已 Register（`qkrpc action list --limit 1 --json` 成功即可）
+- 发布时：本机 **Rust + NSIS + pnpm**（并行预检会隔离 `USERPROFILE` 到 `%TEMP%`）；日志 `%TEMP%\qkrpc-preflight-vX.Y.Z.log`
 
 ## 禁止
 
@@ -80,6 +87,7 @@ metadata:
 - 用 `-p`（无 `-n`）在 Release 后再 bump 版本
 - 跳过 `action update` 或让用户提供 changelog 文本
 - 未 commit changelog 就 push tag（CI 会用模板覆盖 Release 说明）
+- 未看本地预检日志就反复 `-ForceRetag`（应先修 `%TEMP%\qkrpc-preflight-*.log` 里的错误）
 
 ## 相关
 

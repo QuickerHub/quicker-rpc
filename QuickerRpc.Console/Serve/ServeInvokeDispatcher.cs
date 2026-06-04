@@ -93,6 +93,7 @@ internal static class ServeInvokeDispatcher
             "subprogram.edit" => await SubprogramEditAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.edit-var" => await SubprogramEditVarAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.delete" => await SubprogramDeleteAsync(rpc, args, token).ConfigureAwait(false),
+            "subprogram.validate" => SubProgramProjectServeOps.Validate(args),
             "subprogram.export" => await SubProgramProjectServeOps.ExportAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.import" => await SubProgramProjectServeOps.ImportAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.search" => await StepRunnerSearchAsync(rpc, args, token).ConfigureAwait(false),

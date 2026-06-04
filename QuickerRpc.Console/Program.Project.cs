@@ -425,6 +425,88 @@ internal static partial class Program
         }
     }
 
+    private static async Task<int> RunSubProgramProjectValidateAsync(SubProgramOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(options.Dir))
+        {
+            return await EmitErrorAndFailAsync(options.Json, "MISSING_DIR", "Provide --dir <projectDirectory>.")
+                .ConfigureAwait(false);
+        }
+
+        var projectDir = QuickerProjectLayout.ResolveProjectDirectory(options.Dir);
+        try
+        {
+            if (!File.Exists(QuickerProjectLayout.GetInfoPath(projectDir)))
+            {
+                return await EmitErrorAndFailAsync(options.Json, "INFO_NOT_FOUND", $"info.json not found under {projectDir}.")
+                    .ConfigureAwait(false);
+            }
+
+            var info = QuickerProjectFiles.ReadSubProgramInfo(projectDir);
+            var subProgramId = (info.Id ?? info.Name ?? string.Empty).Trim();
+            if (subProgramId.Length == 0)
+            {
+                return await EmitErrorAndFailAsync(options.Json, "MISSING_ID", "info.json must contain id or name.")
+                    .ConfigureAwait(false);
+            }
+
+            var data = QuickerProjectFiles.ReadData(projectDir);
+            var validateResult = XActionFileRefValidator.Validate(data, projectDir);
+            if (!validateResult.Success)
+            {
+                if (options.Json)
+                {
+                    global::System.Console.WriteLine(JsonSerializer.Serialize(
+                        new
+                        {
+                            ok = false,
+                            action = "subprogram-validate",
+                            payload = new
+                            {
+                                success = false,
+                                error = validateResult.ErrorMessage,
+                                projectDirectory = projectDir,
+                                subProgramId,
+                                editVersion = info.EditVersion,
+                                stepCount = validateResult.StepCount,
+                                variableCount = validateResult.VariableCount,
+                                fileRefs = validateResult.FileRefs,
+                            },
+                        },
+                        QkrpcJson.CliOutput));
+                }
+                else
+                {
+                    global::System.Console.WriteLine(validateResult.ErrorMessage);
+                }
+
+                return ExitCodes.Error;
+            }
+
+            WriteProjectSuccess(
+                options.Json,
+                "subprogram-validate",
+                new
+                {
+                    success = true,
+                    projectDirectory = projectDir,
+                    subProgramId,
+                    editVersion = info.EditVersion,
+                    stepCount = validateResult.StepCount,
+                    variableCount = validateResult.VariableCount,
+                    fileRefs = validateResult.FileRefs,
+                },
+                warnings: null);
+
+            return ExitCodes.Success;
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "SUBPROGRAM_VALIDATE_FAILED", ex.Message)
+                .ConfigureAwait(false);
+        }
+    }
+
     private static async Task<int> RunSubProgramExportAsync(SubProgramOptions options)
     {
         var id = (options.Id ?? options.Code ?? string.Empty).Trim();

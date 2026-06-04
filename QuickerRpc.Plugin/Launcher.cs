@@ -32,6 +32,7 @@ public static partial class Launcher
     private static LauncherStatus _status = LauncherStatus.NotStarted;
     private static volatile bool _launchQuickerAgentAfterStart;
     private static volatile bool _silentStart;
+    private static volatile bool _notifyPluginVersion;
 
     public static T GetService<T>()
         where T : class =>
@@ -85,20 +86,32 @@ public static partial class Launcher
             _silentStart = true;
         }
 
+        if (options?.NotifyPluginVersion == true)
+        {
+            _notifyPluginVersion = true;
+        }
+
         lock (LockObject)
         {
             if (_status == LauncherStatus.Started)
             {
                 Logger.LogInformation("QuickerRpc launcher already started");
-                if (!_silentStart)
+                var notifyVersion = _notifyPluginVersion;
+                var silent = _silentStart;
+                var launchAgentUi = _launchQuickerAgentAfterStart;
+                _notifyPluginVersion = false;
+                _silentStart = false;
+
+                if (notifyVersion)
                 {
-                    QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(() =>
-                        PopupMessage.Success("动作已在运行，版本号:" + GetPluginVersion()));
+                    QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(ShowAlreadyRunningVersionPopup);
+                }
+                else if (!launchAgentUi && !silent)
+                {
                     ScheduleQuickerAgentUpdateCheck();
                 }
 
                 TryLaunchQuickerAgentIfRequested();
-                _silentStart = false;
                 return;
             }
 
@@ -173,7 +186,14 @@ public static partial class Launcher
             {
                 Logger.LogInformation("QuickerRpc launcher started");
                 var silent = _silentStart;
+                var notifyVersion = _notifyPluginVersion;
                 _silentStart = false;
+                _notifyPluginVersion = false;
+                if (notifyVersion)
+                {
+                    QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(ShowStartedVersionPopup);
+                }
+
                 if (!silent)
                 {
                     ScheduleQuickerAgentUpdateCheck();
@@ -194,6 +214,7 @@ public static partial class Launcher
 
             var silent = _silentStart;
             _silentStart = false;
+            _notifyPluginVersion = false;
             Logger.LogError(ex, "QuickerRpc launcher start failed");
             if (!silent)
             {
@@ -222,7 +243,7 @@ public static partial class Launcher
         }
 
         _launchQuickerAgentAfterStart = false;
-        _ = Task.Run(() => QuickerAgentLaunchService.TryLaunch(Logger));
+        _ = Task.Run(() => QuickerAgentLaunchService.TryLaunchOrActivate(Logger));
     }
 
     public static void Stop()
@@ -260,6 +281,12 @@ public static partial class Launcher
     {
         PopupMessage.Infomation("动作已退出，版本号:" + GetPluginVersion());
     }
+
+    private static void ShowAlreadyRunningVersionPopup() =>
+        PopupMessage.Success("动作已在运行，版本号:" + GetPluginVersion());
+
+    private static void ShowStartedVersionPopup() =>
+        PopupMessage.Success("动作已启动，版本号:" + GetPluginVersion());
 
     private static string GetPluginVersion() =>
         System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";

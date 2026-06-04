@@ -11,20 +11,26 @@ namespace QuickerRpc.Plugin;
 /// </summary>
 internal static class ActionExecuteContextProbe
 {
-    public static bool IsExternInvocation(IActionContext? context)
+    public static ActionTrigger? TryGetActionTrigger(IActionContext? context)
     {
         if (context is null)
         {
-            return false;
+            return null;
         }
 
         if (context is ActionExecuteContext executeContext)
         {
-            return executeContext.ActionTrigger == ActionTrigger.Extern;
+            return executeContext.ActionTrigger;
         }
 
-        return TryReadActionTrigger(context) == ActionTrigger.Extern;
+        return TryReadActionTrigger(context);
     }
+
+    public static bool IsExternInvocation(IActionContext? context) =>
+        TryGetActionTrigger(context) == ActionTrigger.Extern;
+
+    public static bool IsAutoRunInvocation(IActionContext? context) =>
+        TryGetActionTrigger(context) == ActionTrigger.AutoRun;
 
     private static ActionTrigger? TryReadActionTrigger(IActionContext context)
     {
