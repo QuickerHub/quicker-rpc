@@ -265,6 +265,7 @@ if (-not $SkipPreflight -and -not $LocalBuild) {
 }
 
 if (-not $SkipTag) {
+    $tagIdentity = Get-GitTagIdentityArgs -RepoRoot $RepoRoot
     $tagCheck = git -C $RepoRoot tag -l $tagName
     if ($tagCheck) {
         if (-not $ForceRetag) {
@@ -278,8 +279,8 @@ Tag already exists: $tagName. After preflight passes, use -ForceRetag to move th
         }
         else {
             Write-Host "ForceRetag: moving $tagName -> $Commitish" -ForegroundColor Yellow
-            git -C $RepoRoot tag -f -a $tagName $Commitish -m $tagMessage
-            git -C $RepoRoot push -f origin "refs/tags/$tagName"
+            Invoke-GitTag @($tagIdentity + '-C', $RepoRoot, 'tag', '-f', '-a', $tagName, $Commitish, '-m', $tagMessage)
+            Invoke-GitTag @('-C', $RepoRoot, 'push', '-f', 'origin', "refs/tags/$tagName")
         }
     }
     elseif ($DryRun) {
@@ -287,8 +288,8 @@ Tag already exists: $tagName. After preflight passes, use -ForceRetag to move th
         Write-Host "[DryRun] git -C $RepoRoot push origin refs/tags/$tagName" -ForegroundColor DarkGray
     }
     else {
-        git -C $RepoRoot tag -a $tagName $Commitish -m $tagMessage
-        git -C $RepoRoot push origin "refs/tags/$tagName"
+        Invoke-GitTag @($tagIdentity + '-C', $RepoRoot, 'tag', '-a', $tagName, $Commitish, '-m', $tagMessage)
+        Invoke-GitTag @('-C', $RepoRoot, 'push', 'origin', "refs/tags/$tagName")
     }
 }
 else {

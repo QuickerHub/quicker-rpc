@@ -315,6 +315,14 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("spec", "Inline form spec JSON."), Option("file", "Form spec file or - for stdin."), Option("json", "Structured output: nativeFormJson + step.") }),
 
+                Cmd("expr check", "Compile-check Quicker expression ($= / sys:evalexpression). Requires Quicker + plugin.", "qkrpc expr check --code <text> | --file <path|-> [--variables '{\"k\":\"string\"}'] [--json]",
+
+                    opts: new[] { Option("code", "Inline expression."), Option("file", "Expression file or - for stdin."), Option("variables", "JSON map: variable name -> C# type."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("script check", "Compile-check sys:csscript C# snippet (Roslyn). Requires Quicker + plugin.", "qkrpc script check --code <text> | --file <path|-> [--references <paths>] [--json]",
+
+                    opts: new[] { Option("code", "Inline C# script."), Option("file", "Script file or - for stdin."), Option("references", "Extra assembly paths (one per line)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
             },
 
         };

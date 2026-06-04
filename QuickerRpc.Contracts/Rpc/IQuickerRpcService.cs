@@ -228,6 +228,32 @@ public interface IQuickerRpcService
     Task<QuickerRpcResolveFontAwesomeIconsResult> ResolveFontAwesomeIconsAsync(
         IList<string> specs,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Compile-check a Quicker expression ($= / sys:evalexpression) via Z.Expressions.</summary>
+    Task<QuickerRpcCodeSyntaxCheckResult> CheckExpressionSyntaxAsync(
+        string code,
+        IDictionary<string, string>? variableTypes = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Compile-check a sys:csscript C# snippet (Roslyn / Westwind, requires Exec method).</summary>
+    Task<QuickerRpcCodeSyntaxCheckResult> CheckCSharpScriptSyntaxAsync(
+        string code,
+        string? references = null,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class QuickerRpcCodeSyntaxCheckResult
+{
+    public bool Ok { get; set; }
+
+    public bool Success { get; set; }
+
+    /// <summary>expression | csharp</summary>
+    public string? Kind { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? ErrorCode { get; set; }
 }
 
 public sealed class QuickerRpcSubProgramVariableEditResult

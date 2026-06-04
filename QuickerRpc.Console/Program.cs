@@ -36,7 +36,9 @@ internal static partial class Program
             StepRunnerOptions,
             FaOptions,
             GuideOptions,
-            FormOptions>(args);
+            FormOptions,
+            ExprOptions,
+            ScriptOptions>(args);
         return await result
             .MapResult(
                 (PingOptions o) => RunPingAsync(o),
@@ -49,6 +51,8 @@ internal static partial class Program
                 (FaOptions o) => RunFaAsync(o),
                 (GuideOptions o) => RunGuideAsync(o),
                 (FormOptions o) => RunFormAsync(o),
+                (ExprOptions o) => RunExprCommandAsync(o),
+                (ScriptOptions o) => RunScriptCommandAsync(o),
                 _ => Task.FromResult(ExitCodes.Error))
             .ConfigureAwait(false);
     }

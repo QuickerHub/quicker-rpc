@@ -1603,11 +1603,48 @@ html.sidebar-collapsed-init .app-shell {
 }
 
 .empty-chat-starters-label {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.25rem;
   font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.03em;
+}
+
+.empty-chat-starters-desc {
+  margin: 0 0 0.55rem;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.empty-chat-starters-scroll {
+  max-height: min(42vh, 280px);
+  overflow-y: auto;
+  padding-right: 0.15rem;
+  scrollbar-gutter: stable;
+}
+
+.empty-chat-starters-section + .empty-chat-starters-section {
+  margin-top: 0.65rem;
+}
+
+.empty-chat-starters-section-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.65rem;
   font-weight: 500;
   color: var(--muted);
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
+}
+
+.empty-prompt-btn__badge {
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: 500;
+  vertical-align: 0.05em;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--border) 55%, transparent);
 }
 
 .empty-prompts {

@@ -32,6 +32,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly HeadlessActionProgramService _headlessActionProgramService;
     private readonly HeadlessSubProgramProgramService _headlessSubProgramProgramService;
     private readonly FontAwesomeIconSearchService _fontAwesomeIconSearchService;
+    private readonly CodeSyntaxCheckService _codeSyntaxCheckService;
     private readonly IPopupMessageService _popup;
 
     public QuickerRpcService(
@@ -50,6 +51,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         HeadlessActionProgramService headlessActionProgramService,
         HeadlessSubProgramProgramService headlessSubProgramProgramService,
         FontAwesomeIconSearchService fontAwesomeIconSearchService,
+        CodeSyntaxCheckService codeSyntaxCheckService,
         IPopupMessageService popup)
     {
         _actionPublishService = actionPublishService;
@@ -67,6 +69,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _headlessActionProgramService = headlessActionProgramService;
         _headlessSubProgramProgramService = headlessSubProgramProgramService;
         _fontAwesomeIconSearchService = fontAwesomeIconSearchService;
+        _codeSyntaxCheckService = codeSyntaxCheckService;
         _popup = popup;
     }
 
@@ -784,6 +787,24 @@ public sealed class QuickerRpcService : IQuickerRpcService
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(_fontAwesomeIconSearchService.ResolveMany(specs));
+    }
+
+    public Task<QuickerRpcCodeSyntaxCheckResult> CheckExpressionSyntaxAsync(
+        string code,
+        IDictionary<string, string>? variableTypes = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_codeSyntaxCheckService.CheckExpression(code, variableTypes));
+    }
+
+    public Task<QuickerRpcCodeSyntaxCheckResult> CheckCSharpScriptSyntaxAsync(
+        string code,
+        string? references = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_codeSyntaxCheckService.CheckCSharpScript(code, references));
     }
 
     private static async Task<T> InvokeOnDispatcherAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)

@@ -99,6 +99,8 @@ internal static class ServeInvokeDispatcher
             "step-runner.search" => await StepRunnerSearchAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.get" => await StepRunnerGetAsync(rpc, args, token).ConfigureAwait(false),
             "fa.search" => await FaSearchAsync(rpc, args, token).ConfigureAwait(false),
+            "expr.check" => await ExprCheckAsync(rpc, args, token).ConfigureAwait(false),
+            "script.check" => await ScriptCheckAsync(rpc, args, token).ConfigureAwait(false),
             "fa.resolve" => await FaResolveAsync(rpc, args, token).ConfigureAwait(false),
             _ => Fail("UNKNOWN_OP", $"Unknown op: {op}"),
         };
@@ -1069,6 +1071,54 @@ internal static class ServeInvokeDispatcher
 
         var response = await rpc.ResolveFontAwesomeIconsAsync(specs, token).ConfigureAwait(false);
         return Ok(new { ok = response.Success, action = "fa-resolve", payload = response });
+    }
+
+    private static async Task<ServeInvokeResponse> ExprCheckAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var code = ServeJsonArgs.GetString(args, "code");
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return Fail("MISSING_CODE", "args.code is required.");
+        }
+
+        var variables = ServeJsonArgs.GetStringDictionary(args, "variables");
+        var response = await rpc.CheckExpressionSyntaxAsync(code, variables, token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "expr-check",
+            success = response.Success,
+            kind = response.Kind,
+            message = response.Message,
+            errorCode = response.ErrorCode,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ScriptCheckAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var code = ServeJsonArgs.GetString(args, "code");
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return Fail("MISSING_CODE", "args.code is required.");
+        }
+
+        var references = ServeJsonArgs.GetString(args, "references");
+        var response = await rpc.CheckCSharpScriptSyntaxAsync(code, references, token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "script-check",
+            success = response.Success,
+            kind = response.Kind,
+            message = response.Message,
+            errorCode = response.ErrorCode,
+        });
     }
 
     private static ServeInvokeResponse Ok(object data) =>

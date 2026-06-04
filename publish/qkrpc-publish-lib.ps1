@@ -608,6 +608,29 @@ function New-QkrpcReleaseNotesBody {
     return ($sections -join [Environment]::NewLine)
 }
 
+function Get-GitTagIdentityArgs {
+    param([string]$RepoRoot)
+
+    $name = (git -C $RepoRoot log -1 --format='%an' 2>$null).Trim()
+    $email = (git -C $RepoRoot log -1 --format='%ae' 2>$null).Trim()
+    if ([string]::IsNullOrWhiteSpace($name) -or [string]::IsNullOrWhiteSpace($email)) {
+        return @()
+    }
+    return @('-c', "user.name=$name", '-c', "user.email=$email")
+}
+
+function Invoke-GitTag {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$GitArgs
+    )
+
+    git @GitArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "git $($GitArgs -join ' ') failed with exit code $LASTEXITCODE"
+    }
+}
+
 function Get-QuickerAgentPreflightScriptPath {
     param([string]$PublishDir)
     $path = Join-Path $PublishDir 'Publish-QuickerAgent.ps1'

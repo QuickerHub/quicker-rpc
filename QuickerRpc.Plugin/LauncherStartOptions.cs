@@ -5,7 +5,7 @@ using Quicker.Public.Interfaces;
 namespace QuickerRpc.Plugin;
 
 /// <summary>
-/// Options for <see cref="Launcher.Start(LauncherStartOptions?)"/>.
+/// Options resolved for <see cref="Launcher.Start"/>.
 /// Exposed to Quicker expressions and subprograms (e.g. QuickerRpc_Run).
 /// </summary>
 public sealed class LauncherStartOptions
@@ -94,25 +94,26 @@ public static class LauncherStartOptionsParser
 /// </summary>
 public static class LauncherStartOptionsResolver
 {
-    public static LauncherStartOptions Resolve(
-        IActionContext? context,
-        string? quickerInParam = null,
-        LauncherStartOptions? explicitOptions = null) =>
+    public static LauncherStartOptions Resolve(IActionContext? context) =>
         Resolve(
             ActionExecuteContextProbe.TryGetActionTrigger(context),
-            quickerInParam,
-            explicitOptions);
+            ActionExecuteContextProbe.TryGetQuickerInParam(context));
+
+    public static LauncherStartOptions Resolve(
+        IActionContext? context,
+        string? quickerInParam) =>
+        Resolve(
+            ActionExecuteContextProbe.TryGetActionTrigger(context),
+            quickerInParam);
 
     internal static LauncherStartOptions Resolve(
         ActionTrigger? actionTrigger,
-        string? quickerInParam = null,
-        LauncherStartOptions? explicitOptions = null) =>
-        Resolve((int?)actionTrigger, quickerInParam, explicitOptions);
+        string? quickerInParam = null) =>
+        Resolve((int?)actionTrigger, quickerInParam);
 
     internal static LauncherStartOptions Resolve(
         int? actionTrigger,
-        string? quickerInParam = null,
-        LauncherStartOptions? explicitOptions = null)
+        string? quickerInParam = null)
     {
         if (actionTrigger == (int)ActionTrigger.Extern)
         {
@@ -124,16 +125,11 @@ public static class LauncherStartOptionsResolver
             return LauncherStartOptionsParser.PluginOnly();
         }
 
-        if (explicitOptions is not null)
-        {
-            return explicitOptions;
-        }
-
         if (actionTrigger is not null || quickerInParam is not null)
         {
             return LauncherStartOptionsParser.Parse(quickerInParam);
         }
 
-        return new LauncherStartOptions();
+        return LauncherStartOptionsParser.PluginOnly();
     }
 }

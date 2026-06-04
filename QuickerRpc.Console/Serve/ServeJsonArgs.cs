@@ -128,4 +128,29 @@ internal static class ServeJsonArgs
 
         return Array.Empty<string>();
     }
+
+    public static IDictionary<string, string>? GetStringDictionary(JsonElement args, string name)
+    {
+        if (args.ValueKind != JsonValueKind.Object || !args.TryGetProperty(name, out var prop))
+        {
+            return null;
+        }
+
+        if (prop.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var item in prop.EnumerateObject())
+        {
+            var value = ReadStringValue(item.Value);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                result[item.Name] = value!;
+            }
+        }
+
+        return result.Count > 0 ? result : null;
+    }
 }
