@@ -50,7 +50,7 @@ export const TOOL_CATEGORY_ORDER_BY_GROUP: Record<ToolGroupId, ToolCategoryId[]>
 
 export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
   { id: "docs_get", label: "指南", group: "read", category: "docs", description: "本地 authoring 指南（按 topic）" },
-  { id: "docs_get_reference", label: "指南附录", group: "read", category: "docs", description: "references/ 大表等附录" },
+  { id: "docs_get_reference", label: "指南附录", group: "read", category: "docs", description: "references/ 主题附录（若有）" },
   { id: "docs_search", label: "搜索指南", group: "read", category: "docs", description: "本地文档搜索" },
   { id: "docs_index", label: "指南索引", group: "read", category: "docs", description: "列出全部主题" },
   {
@@ -333,6 +333,22 @@ export function pickEnabledTools<T extends Record<string, unknown>>(
   for (const key of Object.keys(allTools)) {
     if (allowed.has(key)) {
       (picked as Record<string, unknown>)[key] = allTools[key];
+    }
+  }
+  return picked;
+}
+
+/** User-enabled tools plus internal chat-only tools (hidden in UI). */
+export function pickChatTools<T extends Record<string, unknown>>(
+  allTools: T,
+  enabledIds: string[] | undefined,
+  alwaysOnIds: readonly string[],
+): T {
+  const picked = pickEnabledTools(allTools, enabledIds);
+  const bag = picked as Record<string, unknown>;
+  for (const id of alwaysOnIds) {
+    if (id in allTools && !(id in bag)) {
+      bag[id] = allTools[id];
     }
   }
   return picked;

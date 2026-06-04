@@ -3,7 +3,7 @@ using QuickerRpc.AgentModel.Catalog;
 
 namespace QuickerRpc.Plugin.Test;
 
-/// <summary>Benchmark catalog: modules-table names/descriptions + common confusers for search gold cases.</summary>
+/// <summary>Benchmark catalog: representative StepRunner names/descriptions + common confusers for search gold cases.</summary>
 internal static class StepRunnerSearchBenchmarkCatalog
 {
     public static StepRunnerCatalog Build()

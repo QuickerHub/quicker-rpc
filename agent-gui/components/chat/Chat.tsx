@@ -92,12 +92,14 @@ import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
 import { EmptyChatPrompts } from "@/components/chat/EmptyChatPrompts";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
+import { useChatMessageWindow } from "@/lib/use-chat-message-window";
 import { findUserTurnStartIndices } from "@/lib/last-user-turn-index";
 import { useMessagesScrollportHeight } from "@/lib/use-messages-scrollport-height";
 import { useMsgTurnStickyActive } from "@/lib/use-msg-turn-sticky-active";
 import { UserMessageComposerChrome } from "./UserMessageComposerChrome";
-import { useAutoThreadTitle } from "@/lib/use-auto-thread-title";
+import { useThreadTitleFromTool } from "@/lib/use-thread-title-from-tool";
 import { useComposerMessageQueue } from "@/lib/use-composer-message-queue";
+import { ComposerTestPromptsPicker } from "@/components/chat/ComposerTestPromptsPicker";
 import type { AppMainView } from "@/lib/app-main-view";
 import { useActionProjectImportFromMessages } from "@/lib/action-project-import-from-messages";
 import { useQkrpcPing, type PingState } from "@/lib/use-qkrpc-ping";
@@ -351,6 +353,8 @@ function ChatPanel({
   llmSelectionRef.current = llmSelection;
   const workingDirectoryRef = useRef(workingDirectory);
   workingDirectoryRef.current = workingDirectory;
+  const titleManualRef = useRef(titleManual);
+  titleManualRef.current = titleManual;
 
   // useChat only recreates Chat when `id` changes; body must stay stable and
   // read latest composer settings via refs on each request.
@@ -363,6 +367,7 @@ function ChatPanel({
           llmSelection: llmSelectionRef.current,
           llmProvider: llmSelectionRef.current,
           workingDirectory: workingDirectoryRef.current.trim() || undefined,
+          titleManual: titleManualRef.current,
         }),
       }),
     [],
@@ -415,11 +420,11 @@ function ChatPanel({
 
   useActionProjectImportFromMessages(messages);
 
-  useAutoThreadTitle({
+  useThreadTitleFromTool({
     threadId,
+    visible,
     messages,
     status,
-    llmSelection,
     currentTitle: threadTitle,
     titleGenerated,
     titleManual,
@@ -504,7 +509,7 @@ function ChatPanel({
   );
   const qkrpcOk = ping.status === "ok";
 
-  const { pinToBottom } = useMessagesStickScroll(messagesRef, {
+  const { pinToBottom, getStickToBottom } = useMessagesStickScroll(messagesRef, {
     visible,
     threadId,
     revision: [messages, error, status],
@@ -582,6 +587,17 @@ function ChatPanel({
         : -1,
     [messages, editAnchorMessageId],
   );
+
+  const messageWindow = useChatMessageWindow({
+    containerRef: messagesRef,
+    visible,
+    threadId,
+    userTurnStarts,
+    totalMessages: messages.length,
+    editAnchorIndex,
+    revision: [messages, error, status],
+    getStickToBottom,
+  });
 
   useEffect(() => {
     setUserMessageDrafts((prev) => pruneUserMessageDrafts(messages, prev));
@@ -702,6 +718,19 @@ function ChatPanel({
     enqueueOrSend,
     pinToBottom,
   ]);
+
+  const sendTestPrompt = useCallback(
+    (text: string) => {
+      if (editAnchorMessageId) return;
+      if (!canSendComposedMessage(text)) return;
+      setDraftMessage("");
+      clearError();
+      pinToBottom();
+      enqueueOrSend(text);
+      requestAnimationFrame(() => composerRef.current?.focus());
+    },
+    [editAnchorMessageId, enqueueOrSend, pinToBottom, clearError],
+  );
 
   useEffect(() => {
     if (!editAnchorMessageId) return;
@@ -944,6 +973,29 @@ function ChatPanel({
     </div>
   ) : null;
 
+  const hiddenHistoryCount =
+    messageWindow.hiddenTurnCount > 0
+      ? messageWindow.hiddenTurnCount
+      : messageWindow.hiddenMessageCount;
+
+  const historySentinel =
+    hiddenHistoryCount > 0 ? (
+      <div
+        ref={messageWindow.historySentinelRef}
+        className="messages-history-sentinel"
+      >
+        <button
+          type="button"
+          className="messages-history-sentinel__btn"
+          onClick={messageWindow.expandHistory}
+        >
+          {messageWindow.hiddenTurnCount > 0
+            ? `加载更早的 ${messageWindow.hiddenTurnCount} 轮对话`
+            : `加载更早的 ${messageWindow.hiddenMessageCount} 条消息`}
+        </button>
+      </div>
+    ) : null;
+
   return (
     <div
       className={`app-main${isEmptyThread ? " app-main--empty" : ""}${visible ? "" : " app-main--hidden"}`}
@@ -954,16 +1006,25 @@ function ChatPanel({
         ref={messagesRef}
         className={`messages${agentActivity ? " messages--agent-busy" : ""}`}
       >
+        {historySentinel}
         {userTurnStarts.length === 0 ? (
           <>
-            {messages.map((message, messageIndex) =>
-              renderChatMessage(message, messageIndex),
-            )}
+            {messages
+              .slice(messageWindow.startMessageIndex)
+              .map((message, offset) =>
+                renderChatMessage(
+                  message,
+                  messageWindow.startMessageIndex + offset,
+                ),
+              )}
             {agentActivityBlock}
             {errorBanner}
           </>
         ) : (
-          userTurnStarts.map((startIndex, turnIndex) => {
+          userTurnStarts
+            .slice(messageWindow.startTurnIndex)
+            .map((startIndex, sliceTurnIndex) => {
+            const turnIndex = messageWindow.startTurnIndex + sliceTurnIndex;
             const endIndex = userTurnStarts[turnIndex + 1] ?? messages.length;
             const isLastTurn = turnIndex === userTurnStarts.length - 1;
             return (
@@ -1061,6 +1122,10 @@ function ChatPanel({
                 <ToolSelector
                   enabledTools={enabledTools}
                   onChange={setEnabledTools}
+                />
+                <ComposerTestPromptsPicker
+                  disabled={!qkrpcOk}
+                  onSendPrompt={sendTestPrompt}
                 />
                 <ModelSelector
                   selection={llmSelection}

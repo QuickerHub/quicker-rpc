@@ -1,4 +1,4 @@
-# qkrpc 写动作流程（Agent 必读）
+# 写动作流程
 
 规定 **P1–P7**（总览 **`overview`**）。内联 patch 见 **`patch-workflow`**；磁盘见 **`action-project-files`**。
 
@@ -47,12 +47,12 @@ qkrpc action set-metadata --id <guid> --icon fa:Light_<Name> --expected-edit-ver
 ## P5 步骤 schema（每个新/改步骤）
 
 ```text
-step-modules（可选）→ step-runner search（一次 OR|通配）→ step-runner get（必须）
+step-runner search（一次 OR|通配）→ step-runner get（必须；见 step-runner-get）
 ```
 
 - 步骤 JSON 形状（`inputParams` / `outputParams` / `ifSteps`）：**`action-steps`**。
 - **长 `inputParams.value`**（超过 4 行脚本/字符串）：先 **`files/`** + `"file": "files/…"`，勿整段写入 `data.json`（**`workspace-editing`**）。
-- 有 **ControlField**：search 可能带 `controlField` 对象；get 须传 **`--control-field <value>`**（`controlField.value`）。
+- 有 **ControlField**：非空 search 的命中项**必定**带 `items[].controlField`（无控制项则省略）；get 传 **`controlField.value`**（**`--control-field <value>`**）。未传 control 时，`controlField.selection[]` 每项含 **`visibleInputKeys`** / **`visibleOutputKeys`**（已解析 ValidFor/可见性，UI/Agent 勿再猜）。
 - 语法：**`step-runner-search`**。
 
 ```powershell
@@ -83,4 +83,4 @@ edit_data / write_data 响应中的 projectSummary
 
 ## 相关
 
-`overview` · `implementation-fallback` · `expressions` · `subprogram-workflow` · `step-runner-search` · `step-modules`
+`overview` · `implementation-fallback` · `expressions` · `subprogram-workflow` · `step-runner-search`

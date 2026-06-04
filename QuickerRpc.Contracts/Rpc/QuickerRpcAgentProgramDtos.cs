@@ -158,6 +158,9 @@ public sealed class QuickerRpcStepRunnerSearchItem
 
     public QuickerRpcStepRunnerSearchControlField? ControlField { get; set; }
 
+    /// <summary>OR (|) query: multiple matching control modes (best first).</summary>
+    public IList<QuickerRpcStepRunnerSearchControlField>? ControlFields { get; set; }
+
     /// <summary>Quicker icon spec, e.g. fa:Light_WindowMaximize.</summary>
     public string? Icon { get; set; }
 }
@@ -231,7 +234,7 @@ public sealed class QuickerRpcStepRunnerDetailResult
 
     public string? ErrorMessage { get; set; }
 
-    /// <summary>Step runner agent schema JSON.</summary>
+    /// <summary>Step runner schema JSON (agent-compressed or UI-full per RPC method).</summary>
     public string? SchemaJson { get; set; }
 }
 

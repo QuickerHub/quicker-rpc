@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace QuickerRpc.AgentModel.Catalog;
 
-/// <summary>Serializes step-runner get schema as compact camelCase JSON for agents.</summary>
+/// <summary>Serializes agent step-runner get schema (compressed, no icon).</summary>
 public static class StepRunnerAgentSchemaJson
 {
     private static readonly JsonSerializerOptions Options = new()

@@ -96,14 +96,15 @@ internal static partial class Program
         return verb switch
         {
             "search" => await RunStepRunnerSearchAsync(options).ConfigureAwait(false),
-            "get" => await RunStepRunnerGetAsync(options).ConfigureAwait(false),
+            "get" => await RunStepRunnerGetAsync(options, forAgent: true).ConfigureAwait(false),
+            "get-ui" => await RunStepRunnerGetAsync(options, forAgent: false).ConfigureAwait(false),
             _ => await ReportUnknownStepRunnerVerbAsync(options).ConfigureAwait(false),
         };
     }
 
     private static Task<int> ReportUnknownStepRunnerVerbAsync(StepRunnerOptions options) =>
         EmitErrorAndFailAsync(options.Json, "UNKNOWN_STEP_RUNNER_VERB",
-            "Use: step-runner search --query <keyword> [--limit 40] [--json] | step-runner get --key <stepRunnerKey> [--control-field <value>] [--json]");
+            "Use: step-runner search --query <keyword> [--limit 40] [--json] | step-runner get --key <key> [--control-field <value>] [--json] | step-runner get-ui --key <key> [--control-field <value>] [--json]");
 
     private static async Task<int> RunStepRunnerSearchAsync(StepRunnerOptions options)
     {
@@ -142,7 +143,7 @@ internal static partial class Program
         }
     }
 
-    private static async Task<int> RunStepRunnerGetAsync(StepRunnerOptions options)
+    private static async Task<int> RunStepRunnerGetAsync(StepRunnerOptions options, bool forAgent)
     {
         var key = (options.Key ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(key))
@@ -156,18 +157,21 @@ internal static partial class Program
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var controlField = (options.ControlField ?? string.Empty).Trim();
-            var response = await session.Proxy
-                .GetStepRunnerDetailAsync(
-                    key,
-                    controlField.Length > 0 ? controlField : null,
-                    rpcToken)
-                .ConfigureAwait(false);
+            var controlArg = controlField.Length > 0 ? controlField : null;
+            var response = forAgent
+                ? await session.Proxy
+                    .GetStepRunnerDetailAsync(key, controlArg, rpcToken)
+                    .ConfigureAwait(false)
+                : await session.Proxy
+                    .GetStepRunnerUiDetailAsync(key, controlArg, rpcToken)
+                    .ConfigureAwait(false);
             var payload = HeadlessCliResponses.ToStepRunnerDetailPayload(response);
+            var action = forAgent ? "step-runner-get" : "step-runner-get-ui";
 
             if (options.Json)
             {
                 global::System.Console.WriteLine(JsonSerializer.Serialize(
-                    new { ok = response.Success, action = "step-runner-get", payload },
+                    new { ok = response.Success, action, payload },
                     QkrpcJson.CliOutput));
             }
             else

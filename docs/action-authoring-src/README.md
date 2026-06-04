@@ -2,7 +2,9 @@
 
 **Do not edit** `docs/action-authoring/cli/` or `docs/skills/quicker-authoring/` directly — they are generated.
 
-Optional large sections: `references/{topic}.{name}.md` — included inline for CLI (`{{#include-reference}}`), emitted as `skills/quicker-authoring/references/{name}.md` for agent-ui (`docs_get_reference`).
+**模块详解子目录**（推荐）：`references/{topic}/{id}.md` → 生成 `skills/quicker-authoring/references/{topic}/{id}.md`，Agent 用 `docs_get_reference({ topic, file: id })`。
+
+可选大块附录（旧式扁平）：`references/{topic}.{name}.md` — CLI 可 `{{#include-reference}}` 内联；Agent 仍用 `docs_get_reference`（file = `name`）。
 
 **Cursor 开发**：指南在 `docs/skills/quicker-authoring/`（单 skill + references；与 QuickerAgent 安装包同源）；终端/Cursor Agent 也可用 `qkrpc guide get`。勿写入 `.cursor/skills/`（IDE 私有配置，不参与发布）。
 
@@ -11,7 +13,7 @@ Optional large sections: `references/{topic}.{name}.md` — included inline for 
 | File | Role |
 |------|------|
 | `*.md` | Topic templates with markers |
-| `ops.json` | Operation + phrase registry (`cli` / `agent` strings) |
+| `ops.json` | Topics (`title`, `description`), operations, phrases (`cli` / `agent`) |
 
 **Agent 主路径**：`overview` → `authoring-workflow` → `workspace-editing`；领域规则见 `action-steps`、`action-variables`、`expressions` 等。CLI 专用：`patch-workflow`、`action-project-files`（`profiles: ["cli"]`）。
 
@@ -19,9 +21,11 @@ Optional large sections: `references/{topic}.{name}.md` — included inline for 
 
 | Syntax | Example |
 |--------|---------|
+| `{{#topic-title}}` | H1 from `topics.{id}.title` in `ops.json` |
 | `{{#ref phrase-id}}` | `{{#ref product.intro}}` |
 | `{{@doc topic}}` | `{{@doc patch-workflow}}` |
 | `{{@ op-id key=value}}` | `{{@ action.patch id=guid N=3}}` |
+| `{{#include-reference id}}` | 内联同 topic 附录（CLI 生成时展开） |
 | `{{#only-cli}}…{{/only-cli}}` | CLI-only block |
 | `{{#only-agent}}…{{/only-agent}}` | agent-ui-only block |
 
@@ -37,7 +41,7 @@ Runs automatically before `QuickerRpc.AgentModel` build and `agent-gui` dev/buil
 Outputs:
 
 - `docs/action-authoring/cli/` → embedded by `QuickerRpc.AgentModel` (`qkrpc guide`)
-- `docs/skills/quicker-authoring/SKILL.md` + `references/*.md` + `topics.json` → read by agent-ui (`docs_get` tools; [Agent Skills](https://agentskills.io/specification) format)
+- `docs/skills/quicker-authoring/SKILL.md` + `references/{topic}/*.md` + `topics.json`（含 `referenceCatalog`）→ agent-ui `docs_get` / `docs_get_reference`
 
 ## Add an operation
 

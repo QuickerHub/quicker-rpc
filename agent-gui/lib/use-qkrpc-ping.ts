@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const PING_FETCH_MS = 15_000;
+/** Client abort; server fast path targets ~1.2s health. */
+const PING_FETCH_FAST_MS = 4_500;
+const PING_FETCH_FULL_MS = 10_000;
 const DEFAULT_POLL_INTERVAL_MS = 15_000;
+/** Poll faster while RPC is down so reconnect after hot-update feels snappy. */
+const ERROR_POLL_INTERVAL_MS = 2_500;
+
+const BOOT_RETRY_DELAYS_MS = [250, 500, 900, 1_500, 2_500, 4_000, 6_000];
 
 export type PingState =
   | { status: "loading" }
@@ -13,6 +19,8 @@ export type PingState =
 export type RefreshPingOptions = {
   /** Keep current status label while re-checking (background poll). */
   silent?: boolean;
+  /** Use short server health timeout (default true). */
+  fast?: boolean;
 };
 
 export type UseQkrpcPingOptions = {
@@ -39,29 +47,42 @@ function formatPingError(data: unknown, fallback: string): string {
   return fallback;
 }
 
+function pingUrl(fast: boolean): string {
+  return fast ? "/api/ping?fast=1" : "/api/ping?fast=0";
+}
+
 export function useQkrpcPing(options: UseQkrpcPingOptions = {}) {
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const pausePollWhenHidden = options.pausePollWhenHidden ?? true;
 
   const [ping, setPing] = useState<PingState>({ status: "loading" });
   const [connectTick, setConnectTick] = useState(0);
-  const inFlightRef = useRef(false);
   const pingStatusRef = useRef<PingState["status"]>("loading");
+  const abortRef = useRef<AbortController | null>(null);
+  const bootRetryIndexRef = useRef(0);
 
   const refreshPing = useCallback(async (opts?: RefreshPingOptions) => {
     const silent = opts?.silent ?? false;
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
+    const fast = opts?.fast ?? true;
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     if (!silent) {
       setPing({ status: "loading" });
     }
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), PING_FETCH_MS);
+
+    const timeoutMs = fast ? PING_FETCH_FAST_MS : PING_FETCH_FULL_MS;
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+
     try {
-      const res = await fetch("/api/ping", {
+      const res = await fetch(pingUrl(fast), {
         signal: controller.signal,
         cache: "no-store",
       });
+      if (controller.signal.aborted) return;
+
       const raw = await res.text();
       let data: unknown = null;
       if (raw.trim()) {
@@ -81,6 +102,7 @@ export function useQkrpcPing(options: UseQkrpcPingOptions = {}) {
       if (res.ok && ok) {
         const prevStatus = pingStatusRef.current;
         pingStatusRef.current = "ok";
+        bootRetryIndexRef.current = 0;
         setPing({ status: "ok", data });
         if (!silent || prevStatus !== "ok") {
           setConnectTick((n) => n + 1);
@@ -93,9 +115,10 @@ export function useQkrpcPing(options: UseQkrpcPingOptions = {}) {
         message: formatPingError(data, res.ok ? "未连接 Quicker" : `HTTP ${res.status}`),
       });
     } catch (e) {
+      if (controller.signal.aborted) return;
       const message =
         e instanceof Error && e.name === "AbortError"
-          ? "检测超时（请确认 pnpm dev 已启动且 qkrpc 可用）"
+          ? "检测超时（请确认 qkrpc serve 已启动）"
           : e instanceof Error
             ? e.message
             : String(e);
@@ -103,23 +126,27 @@ export function useQkrpcPing(options: UseQkrpcPingOptions = {}) {
       setPing({ status: "error", message });
     } finally {
       window.clearTimeout(timer);
-      inFlightRef.current = false;
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
     }
   }, []);
 
   useEffect(() => {
-    void refreshPing();
+    void refreshPing({ fast: true });
   }, [refreshPing]);
 
-  // start.mjs may still be launching qkrpc serve when the page first loads
-  const pingBootRetriesRef = useRef(0);
   useEffect(() => {
-    if (ping.status !== "error") return;
-    if (pingBootRetriesRef.current >= 2) return;
-    const delayMs = pingBootRetriesRef.current === 0 ? 2_000 : 5_000;
-    pingBootRetriesRef.current += 1;
+    if (ping.status !== "error") {
+      bootRetryIndexRef.current = 0;
+      return;
+    }
+    const idx = bootRetryIndexRef.current;
+    if (idx >= BOOT_RETRY_DELAYS_MS.length) return;
+    const delayMs = BOOT_RETRY_DELAYS_MS[idx]!;
+    bootRetryIndexRef.current = idx + 1;
     const timer = window.setTimeout(
-      () => void refreshPing({ silent: true }),
+      () => void refreshPing({ silent: true, fast: true }),
       delayMs,
     );
     return () => window.clearTimeout(timer);
@@ -131,22 +158,33 @@ export function useQkrpcPing(options: UseQkrpcPingOptions = {}) {
       if (pausePollWhenHidden && document.visibilityState === "hidden") {
         return;
       }
-      void refreshPing({ silent: true });
+      const fastPoll =
+        pingStatusRef.current === "error"
+        || pingStatusRef.current === "loading";
+      void refreshPing({ silent: true, fast: fastPoll });
     };
-    const id = window.setInterval(tick, pollIntervalMs);
+    const intervalMs =
+      pingStatusRef.current === "error"
+        ? Math.min(pollIntervalMs, ERROR_POLL_INTERVAL_MS)
+        : pollIntervalMs;
+    const id = window.setInterval(tick, intervalMs);
     return () => window.clearInterval(id);
-  }, [pollIntervalMs, pausePollWhenHidden, refreshPing]);
+  }, [pollIntervalMs, pausePollWhenHidden, refreshPing, ping.status]);
 
   useEffect(() => {
     if (!pausePollWhenHidden) return;
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        void refreshPing({ silent: true });
+        void refreshPing({ silent: true, fast: true });
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [pausePollWhenHidden, refreshPing]);
 
-  return { ping, refreshPing, connectTick };
+  const refreshPingNow = useCallback(() => {
+    void refreshPing({ silent: false, fast: true });
+  }, [refreshPing]);
+
+  return { ping, refreshPing, refreshPingNow, connectTick };
 }

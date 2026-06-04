@@ -12,9 +12,15 @@ export function StepRunnerSearchResultView({
 }) {
   const { query, matchCount, items, controlFieldItemCount } = result;
   const cfCount =
-    controlFieldItemCount ?? items.filter((r) => r.controlField).length;
+    controlFieldItemCount
+    ?? items.filter(
+      (r) => r.controlField || (r.controlFields?.length ?? 0) > 0,
+    ).length;
   const showControlColumn =
-    cfCount > 0 || items.some((r) => r.controlField !== undefined);
+    cfCount > 0
+    || items.some(
+      (r) => r.controlField !== undefined || (r.controlFields?.length ?? 0) > 0,
+    );
 
   return (
     <div className="step-runner-search-result">
@@ -63,9 +69,11 @@ export function StepRunnerSearchResultView({
               {items.map((row) => (
                 <tr
                   key={
-                    row.controlField
-                      ? `${row.key}\0${row.controlField.value}`
-                      : row.key
+                    row.controlFields?.length
+                      ? `${row.key}\0${row.controlFields.map((c) => c.value).join(",")}`
+                      : row.controlField
+                        ? `${row.key}\0${row.controlField.value}`
+                        : row.key
                   }
                 >
                   <td>
@@ -76,7 +84,29 @@ export function StepRunnerSearchResultView({
                   <td className="step-runner-search-name">{row.name}</td>
                   {showControlColumn ? (
                     <td className="step-runner-search-control">
-                      {row.controlField ? (
+                      {row.controlFields && row.controlFields.length > 1 ? (
+                        <ul className="step-runner-search-control__list">
+                          {row.controlFields.map((cf) => (
+                            <li key={cf.value}>
+                              <code
+                                className="step-runner-search-control__code"
+                                title={formatStepRunnerSearchControlField(cf)}
+                              >
+                                {cf.key}=
+                                <span className="step-runner-search-control__value">
+                                  {cf.value}
+                                </span>
+                                {cf.name ? (
+                                  <span className="step-runner-search-control__name">
+                                    {" "}
+                                    · {cf.name}
+                                  </span>
+                                ) : null}
+                              </code>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : row.controlField ? (
                         <code
                           className="step-runner-search-control__code"
                           title={formatStepRunnerSearchControlField(

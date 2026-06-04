@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { generateId } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
-import { MessageParts } from "@/components/chat/MessageParts";
+import { ToolTestChatMessages } from "@/components/tool-test/ToolTestChatMessages";
 import { DocsViewerProvider } from "@/lib/docs-viewer";
 import {
   WorkspaceExplorerPanelProvider,
@@ -37,6 +37,15 @@ import {
   loadToolTestKeepBatchesExpanded,
   storeToolTestKeepBatchesExpanded,
 } from "@/lib/tool-test-ui-prefs";
+import {
+  defaultStepInputJson,
+  formatToolTestInputCompact,
+} from "@/lib/tool-test-input-format";
+import { ToolTestPromptPanel } from "@/components/tool-test/ToolTestPromptPanel";
+import { ToolTestTitleResultPane } from "@/components/tool-test/ToolTestTitleResultPane";
+import type { TitleTestRunEntry } from "@/lib/tool-test-title-runs";
+
+type ToolTestSidebarTab = "tools" | "prompt";
 
 type StepInputOverrides = Record<string, string>;
 
@@ -101,6 +110,86 @@ function parseStepInputJson(raw: string, fallback: Record<string, unknown>): Rec
   return parsed as Record<string, unknown>;
 }
 
+function resolveStepInputRaw(
+  overrideKey: string,
+  step: ToolTestStep,
+  stepOverrides: StepInputOverrides,
+): string {
+  return stepOverrides[overrideKey] ?? defaultStepInputJson(step.input);
+}
+
+function ToolTestStepRow({
+  suiteId,
+  step,
+  sharedToolName,
+  stepOverrides,
+  onOverrideChange,
+  disabled,
+}: {
+  suiteId: string;
+  step: ToolTestStep;
+  sharedToolName: string | null;
+  stepOverrides: StepInputOverrides;
+  onOverrideChange: (key: string, json: string) => void;
+  disabled: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const meta = getToolMeta(step.toolName);
+  const overrideKey = `${suiteId}:${step.id}`;
+  const raw = resolveStepInputRaw(overrideKey, step, stepOverrides);
+  let compact = formatToolTestInputCompact(step.input);
+  try {
+    compact = formatToolTestInputCompact(parseStepInputJson(raw, step.input));
+  } catch {
+    /* keep preset compact label */
+  }
+  const showTool = sharedToolName === null;
+  const showBadge = showTool && meta?.group;
+
+  return (
+    <li className="tool-test-step">
+      <div className="tool-test-step__row">
+        <span className="tool-test-step__name" title={step.label}>
+          {step.label}
+        </span>
+        <code className="tool-test-step__params" title={raw}>
+          {compact}
+        </code>
+        {showTool ? (
+          <code className="tool-test-step__tool">{step.toolName}</code>
+        ) : null}
+        {showBadge ? (
+          <span
+            className={`tool-test-step__badge tool-test-step__badge--${meta!.group}`}
+          >
+            {meta!.group}
+          </span>
+        ) : null}
+        <button
+          type="button"
+          className="tool-test-step__edit"
+          disabled={disabled}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? "收起" : "参数"}
+        </button>
+      </div>
+      {expanded ? (
+        <textarea
+          className="tool-test-step__input"
+          rows={Math.min(6, Math.max(2, raw.split("\n").length))}
+          value={raw}
+          spellCheck={false}
+          disabled={disabled}
+          onChange={(e) => onOverrideChange(overrideKey, e.target.value)}
+          aria-label={`${step.label} 参数 JSON`}
+        />
+      ) : null}
+    </li>
+  );
+}
+
 function ToolTestSuiteCard({
   suite,
   runningSuiteId,
@@ -117,42 +206,46 @@ function ToolTestSuiteCard({
   disabled: boolean;
 }) {
   const busy = runningSuiteId === suite.id;
+  const firstTool = suite.steps[0]?.toolName;
+  const sharedToolName =
+    firstTool && suite.steps.every((s) => s.toolName === firstTool)
+      ? firstTool
+      : null;
+  const sharedMeta = sharedToolName ? getToolMeta(sharedToolName) : null;
+
   return (
     <section className="tool-test-suite-card">
       <header className="tool-test-suite-card__head">
         <h2 className="tool-test-suite-card__title">{suite.title}</h2>
+        {sharedToolName ? (
+          <div className="tool-test-suite-card__toolline">
+            <code className="tool-test-step__tool">{sharedToolName}</code>
+            {sharedMeta?.group ? (
+              <span
+                className={`tool-test-step__badge tool-test-step__badge--${sharedMeta.group}`}
+              >
+                {sharedMeta.group}
+              </span>
+            ) : null}
+            <span className="tool-test-suite-card__count">
+              {suite.steps.length} 步
+            </span>
+          </div>
+        ) : null}
         <p className="tool-test-suite-card__desc">{suite.description}</p>
       </header>
       <ol className="tool-test-suite-card__steps">
-        {suite.steps.map((step) => {
-          const meta = getToolMeta(step.toolName);
-          const overrideKey = `${suite.id}:${step.id}`;
-          const raw =
-            stepOverrides[overrideKey]
-            ?? JSON.stringify(step.input, null, 2);
-          return (
-            <li key={step.id} className="tool-test-step">
-              <div className="tool-test-step__label">
-                <span className="tool-test-step__name">{step.label}</span>
-                <code className="tool-test-step__tool">{step.toolName}</code>
-                {meta?.group && (
-                  <span className={`tool-test-step__badge tool-test-step__badge--${meta.group}`}>
-                    {meta.group}
-                  </span>
-                )}
-              </div>
-              <textarea
-                className="tool-test-step__input"
-                rows={Math.min(8, Math.max(3, raw.split("\n").length))}
-                value={raw}
-                spellCheck={false}
-                disabled={disabled}
-                onChange={(e) => onOverrideChange(overrideKey, e.target.value)}
-                aria-label={`${step.label} 参数 JSON`}
-              />
-            </li>
-          );
-        })}
+        {suite.steps.map((step) => (
+          <ToolTestStepRow
+            key={step.id}
+            suiteId={suite.id}
+            step={step}
+            sharedToolName={sharedToolName}
+            stepOverrides={stepOverrides}
+            onOverrideChange={onOverrideChange}
+            disabled={disabled}
+          />
+        ))}
       </ol>
       <button
         type="button"
@@ -160,7 +253,7 @@ function ToolTestSuiteCard({
         disabled={disabled || busy}
         onClick={() => onRun(suite)}
       >
-        {busy ? "测试中…" : "开始测试"}
+        {busy ? "测试中…" : `开始测试 (${suite.steps.length})`}
       </button>
     </section>
   );
@@ -170,46 +263,46 @@ function ToolTestConversation({
   messages,
   workingDirectory,
   keepToolBatchesExpanded,
+  onClearConversation,
+  clearDisabled,
 }: {
   messages: AgentUIMessage[];
   workingDirectory: string;
   keepToolBatchesExpanded: boolean;
+  onClearConversation: () => void;
+  clearDisabled?: boolean;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
 
   return (
     <main className="tool-test-conversation messages">
+      {messages.length > 0 ? (
+        <div className="tool-test-pane-toolbar tool-test-pane-toolbar--sticky">
+          <span className="tool-test-pane-toolbar__hint">
+            {messages.length} 条工具调用消息
+          </span>
+          <button
+            type="button"
+            className="tool-test-pane-toolbar__action"
+            disabled={clearDisabled}
+            onClick={onClearConversation}
+          >
+            清空对话
+          </button>
+        </div>
+      ) : null}
       {messages.length === 0 ? (
         <p className="tool-test-conversation__empty">
           选择左侧一组工具调用并点击「开始测试」，结果会以对话流形式展示（与主聊天相同的工具行 UI）。
         </p>
       ) : (
-        messages.map((message) => (
-          <div key={message.id} className="msg-turn">
-            {message.role === "user" ? (
-              <article className="msg msg--user">
-                <div className="msg-content">
-                  <MessageParts
-                    message={message}
-                    keepToolBatchesExpanded={keepToolBatchesExpanded}
-                  />
-                </div>
-              </article>
-            ) : (
-              <article className="msg msg--assistant">
-                <div className="msg-content">
-                  <div className="parts">
-                    <MessageParts
-                      message={message}
-                      workingDirectory={workingDirectory}
-                      keepToolBatchesExpanded={keepToolBatchesExpanded}
-                    />
-                  </div>
-                </div>
-              </article>
-            )}
-          </div>
-        ))
+        <div className="tool-test-conversation__body">
+          <ToolTestChatMessages
+            messages={messages}
+            workingDirectory={workingDirectory}
+            keepToolBatchesExpanded={keepToolBatchesExpanded}
+          />
+        </div>
       )}
       <div ref={endRef} className="messages-anchor" aria-hidden />
     </main>
@@ -235,6 +328,25 @@ export function ToolTestPage() {
     null,
   );
   const [lastError, setLastError] = useState<string | null>(null);
+  const [sidebarTab, setSidebarTab] = useState<ToolTestSidebarTab>("tools");
+  const [titleTestRuns, setTitleTestRuns] = useState<TitleTestRunEntry[]>([]);
+
+  const appendTitleTestRun = useCallback((entry: TitleTestRunEntry) => {
+    setTitleTestRuns((prev) => [...prev, entry]);
+  }, []);
+
+  const patchTitleTestRun = useCallback(
+    (id: string, patch: Partial<TitleTestRunEntry>) => {
+      setTitleTestRuns((prev) =>
+        prev.map((run) => (run.id === id ? { ...run, ...patch } : run)),
+      );
+    },
+    [],
+  );
+
+  const clearTitleTestRuns = useCallback(() => {
+    setTitleTestRuns([]);
+  }, []);
 
   const pingLabel = useMemo(() => {
     if (ping.status === "loading") return "RPC 检测中…";
@@ -280,9 +392,7 @@ export function ToolTestPage() {
       const assistantId = generateId();
       const toolParts = suite.steps.map((step) => {
         const overrideKey = `${suite.id}:${step.id}`;
-        const raw =
-          stepOverrides[overrideKey]
-          ?? JSON.stringify(step.input, null, 2);
+        const raw = resolveStepInputRaw(overrideKey, step, stepOverrides);
         let input: Record<string, unknown>;
         try {
           input = parseStepInputJson(raw, step.input);
@@ -310,9 +420,7 @@ export function ToolTestPage() {
               : generateId();
 
           const overrideKey = `${suite.id}:${step.id}`;
-          const raw =
-            stepOverrides[overrideKey]
-            ?? JSON.stringify(step.input, null, 2);
+          const raw = resolveStepInputRaw(overrideKey, step, stepOverrides);
           const input = parseStepInputJson(raw, step.input);
 
           let approved = false;
@@ -400,7 +508,7 @@ export function ToolTestPage() {
                   <IconBackToChat />
                 </Link>
                 <span className="tool-test-titlebar__divider" aria-hidden />
-                <span className="tool-test-titlebar__title">工具测试</span>
+                <span className="tool-test-titlebar__title">测试</span>
               </div>
               <div className="tool-test-titlebar__main-spacer" aria-hidden />
               <div className="tool-test-titlebar__right">
@@ -416,14 +524,6 @@ export function ToolTestPage() {
                   />
                   <span>保持工具批次展开</span>
                 </label>
-                <button
-                  type="button"
-                  className="tool-test-titlebar__btn"
-                  disabled={messages.length === 0 || busy}
-                  onClick={clearConversation}
-                >
-                  清空对话
-                </button>
                 {isTauri ? <TauriWindowControls /> : null}
               </div>
             </div>
@@ -477,7 +577,7 @@ export function ToolTestPage() {
                 className="tool-test-titlebar__btn"
                 title="立即检测（约每 15 秒自动刷新）"
                 disabled={ping.status === "loading"}
-                onClick={() => void refreshPing()}
+                onClick={() => void refreshPing({ silent: false, fast: true })}
               >
                 刷新 RPC
               </button>
@@ -527,26 +627,73 @@ export function ToolTestPage() {
 
           <div className="tool-test-body">
             <aside className="tool-test-sidebar">
-              <p className="tool-test-sidebar__hint">
-                每组测试按顺序调用工具；可编辑 JSON 参数后点击「开始测试」。不写 LLM，直接走与聊天相同的服务端 execute。
-              </p>
-              {TOOL_TEST_SUITES.map((suite) => (
-                <ToolTestSuiteCard
-                  key={suite.id}
-                  suite={suite}
-                  runningSuiteId={runningSuiteId}
-                  stepOverrides={stepOverrides}
-                  onOverrideChange={handleOverrideChange}
-                  onRun={runSuite}
-                  disabled={busy || pendingApproval !== null}
-                />
-              ))}
+              <div
+                className="tool-test-sidebar-tabs"
+                role="tablist"
+                aria-label="测试类型"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={sidebarTab === "tools"}
+                  className={`tool-test-sidebar-tabs__btn${sidebarTab === "tools" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
+                  onClick={() => setSidebarTab("tools")}
+                >
+                  工具套件
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={sidebarTab === "prompt"}
+                  className={`tool-test-sidebar-tabs__btn${sidebarTab === "prompt" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
+                  onClick={() => setSidebarTab("prompt")}
+                >
+                  对话标题
+                </button>
+              </div>
+
+              <div className="tool-test-sidebar-scroll">
+                {sidebarTab === "tools" ? (
+                  <>
+                    <p className="tool-test-sidebar__hint">
+                      每组测试按顺序调用工具；可编辑 JSON 参数后点击「开始测试」。不写 LLM，直接走与聊天相同的服务端 execute。
+                    </p>
+                    {TOOL_TEST_SUITES.map((suite) => (
+                      <ToolTestSuiteCard
+                        key={suite.id}
+                        suite={suite}
+                        runningSuiteId={runningSuiteId}
+                        stepOverrides={stepOverrides}
+                        onOverrideChange={handleOverrideChange}
+                        onRun={runSuite}
+                        disabled={busy || pendingApproval !== null}
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <ToolTestPromptPanel
+                    disabled={busy || pendingApproval !== null}
+                    onAppendRun={appendTitleTestRun}
+                    onPatchRun={patchTitleTestRun}
+                  />
+                )}
+              </div>
             </aside>
-            <ToolTestConversation
-              messages={messages}
-              workingDirectory={workingDirectory}
-              keepToolBatchesExpanded={keepToolBatchesExpanded}
-            />
+            {sidebarTab === "tools" ? (
+              <ToolTestConversation
+                messages={messages}
+                workingDirectory={workingDirectory}
+                keepToolBatchesExpanded={keepToolBatchesExpanded}
+                onClearConversation={clearConversation}
+                clearDisabled={busy}
+              />
+            ) : (
+              <ToolTestTitleResultPane
+                runs={titleTestRuns}
+                workingDirectory={workingDirectory}
+                onClearRuns={clearTitleTestRuns}
+              />
+            )}
           </div>
         </div>
       </DocsViewerProvider>

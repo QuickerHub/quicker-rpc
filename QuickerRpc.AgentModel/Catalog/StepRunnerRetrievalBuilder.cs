@@ -64,8 +64,59 @@ public static class StepRunnerRetrievalBuilder
             Snippet = TrimToNull(meta.Snippet) ?? TrimToNull(row.Description),
             RankBias = meta.RankBias,
             ControlRankBias = CopyControlRankBias(meta.ControlRankBias),
+            ControlKeywords = CopyControlKeywords(meta.ControlKeywords),
             SearchableText = searchable,
         };
+    }
+
+    public static IReadOnlyList<string> GetControlKeywords(
+        StepRunnerRetrievalDocument doc,
+        string? controlValue)
+    {
+        var value = (controlValue ?? string.Empty).Trim();
+        if (value.Length == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        return doc.ControlKeywords.TryGetValue(value, out var keywords) && keywords.Count > 0
+            ? keywords
+            : Array.Empty<string>();
+    }
+
+    private static Dictionary<string, IReadOnlyList<string>> CopyControlKeywords(
+        Dictionary<string, List<string>>? source)
+    {
+        if (source is null || source.Count == 0)
+        {
+            return new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+        }
+
+        var map = new Dictionary<string, IReadOnlyList<string>>(source.Count, StringComparer.Ordinal);
+        foreach (var pair in source)
+        {
+            var value = (pair.Key ?? string.Empty).Trim();
+            if (value.Length == 0 || pair.Value is null || pair.Value.Count == 0)
+            {
+                continue;
+            }
+
+            var list = new List<string>();
+            foreach (var kw in pair.Value)
+            {
+                if (!string.IsNullOrWhiteSpace(kw))
+                {
+                    list.Add(kw.Trim());
+                }
+            }
+
+            if (list.Count > 0)
+            {
+                map[value] = list;
+            }
+        }
+
+        return map;
     }
 
     private static Dictionary<string, int> CopyControlRankBias(Dictionary<string, int>? source)
@@ -88,11 +139,11 @@ public static class StepRunnerRetrievalBuilder
         return map;
     }
 
-    /// <summary>Extra lines appended to legacy match surface (keywords + notFor labels).</summary>
+    /// <summary>Extra lines appended to legacy match surface (curated keywords only; notFor is score-only).</summary>
     public static string GetKeywordExtensions(StepRunnerDefinition row)
     {
         var doc = Build(row);
-        if (doc.AgentKeywords.Count == 0 && doc.NotFor.Count == 0)
+        if (doc.AgentKeywords.Count == 0)
         {
             return string.Empty;
         }
@@ -103,14 +154,6 @@ public static class StepRunnerRetrievalBuilder
             if (!string.IsNullOrWhiteSpace(kw))
             {
                 sb.AppendLine(kw);
-            }
-        }
-
-        foreach (var nf in doc.NotFor)
-        {
-            if (!string.IsNullOrWhiteSpace(nf))
-            {
-                sb.AppendLine(nf);
             }
         }
 

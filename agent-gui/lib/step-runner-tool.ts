@@ -22,11 +22,15 @@ export type StepRunnerSearchItemRow = {
   name: string;
   description?: string;
   controlField?: StepRunnerSearchControlField;
+  /** OR (|) query: multiple matching control modes on one module. */
+  controlFields?: StepRunnerSearchControlField[];
 };
 
 export type StepRunnerSearchResult = StepRunnerSearchMeta & {
   items: StepRunnerSearchItemRow[];
   controlFieldItemCount?: number;
+  /** Items with controlFields[] (OR query). */
+  multiControlFieldCount?: number;
 };
 
 const STEP_RUNNER_GET_TOOLS = new Set(["qkrpc_step_runner_get"]);
@@ -172,17 +176,45 @@ export function formatStepRunnerGetMetaLine(meta: StepRunnerGetMeta): string {
   return parts.join(" · ");
 }
 
+function readSearchControlFieldFromObject(
+  nested: Record<string, unknown>,
+): StepRunnerSearchControlField | undefined {
+  const key = readString(nested, "key", "Key");
+  const value = readString(nested, "value", "Value");
+  if (!key || !value) return undefined;
+  const name = readString(nested, "name", "Name");
+  return name ? { key, value, name } : { key, value };
+}
+
+function readSearchControlFields(
+  row: Record<string, unknown>,
+): StepRunnerSearchControlField[] | undefined {
+  const nested = row.controlFields ?? row.ControlFields;
+  if (!Array.isArray(nested) || nested.length <= 1) {
+    return undefined;
+  }
+  const list = nested
+    .map((item) => {
+      if (typeof item !== "object" || item === null || Array.isArray(item)) {
+        return null;
+      }
+      return readSearchControlFieldFromObject(item as Record<string, unknown>);
+    })
+    .filter((cf): cf is StepRunnerSearchControlField => cf !== null);
+  return list.length > 1 ? list : undefined;
+}
+
 function readSearchControlField(
   row: Record<string, unknown>,
 ): StepRunnerSearchControlField | undefined {
+  const multi = readSearchControlFields(row);
+  if (multi?.[0]) {
+    return multi[0];
+  }
+
   const nested = row.controlField ?? row.ControlField;
   if (typeof nested === "object" && nested !== null && !Array.isArray(nested)) {
-    const cf = nested as Record<string, unknown>;
-    const key = readString(cf, "key", "Key");
-    const value = readString(cf, "value", "Value");
-    if (!key || !value) return undefined;
-    const name = readString(cf, "name", "Name");
-    return name ? { key, value, name } : { key, value };
+    return readSearchControlFieldFromObject(nested as Record<string, unknown>);
   }
   const value = readString(row, "controlFieldValue", "ControlFieldValue");
   if (!value) return undefined;
@@ -206,10 +238,16 @@ function normalizeSearchItemRow(raw: unknown): StepRunnerSearchItemRow | null {
     "snippet",
     "Snippet",
   );
+  const controlFields = readSearchControlFields(row);
   const controlField = readSearchControlField(row);
   const base: StepRunnerSearchItemRow = description
     ? { key, name, description }
     : { key, name };
+  if (controlFields) {
+    return controlField
+      ? { ...base, controlField, controlFields }
+      : { ...base, controlFields };
+  }
   return controlField ? { ...base, controlField } : base;
 }
 
@@ -235,8 +273,13 @@ export function parseStepRunnerSearchResult(
         .filter((row): row is StepRunnerSearchItemRow => row !== null)
     : [];
 
-  const controlFieldItemCount = items.filter((r) => r.controlField).length;
-  return { ...meta, items, controlFieldItemCount };
+  const controlFieldItemCount = items.filter(
+    (r) => r.controlField || (r.controlFields?.length ?? 0) > 0,
+  ).length;
+  const multiControlFieldCount = items.filter(
+    (r) => (r.controlFields?.length ?? 0) > 1,
+  ).length;
+  return { ...meta, items, controlFieldItemCount, multiControlFieldCount };
 }
 
 export function parseStepRunnerSearchFromQkrpcData(
@@ -274,7 +317,10 @@ export function parseStepRunnerSearchFromQkrpcData(
 
 export function formatStepRunnerSearchMetaLine(
   meta: StepRunnerSearchMeta,
-  options?: { controlFieldItemCount?: number },
+  options?: {
+    controlFieldItemCount?: number;
+    multiControlFieldCount?: number;
+  },
 ): string {
   const parts: string[] = [];
   if (meta.query) parts.push(`「${meta.query}」`);
@@ -282,6 +328,10 @@ export function formatStepRunnerSearchMetaLine(
   const cfCount = options?.controlFieldItemCount;
   if (cfCount !== undefined && cfCount > 0) {
     parts.push(`${cfCount} 含 controlField`);
+  }
+  const multi = options?.multiControlFieldCount;
+  if (multi !== undefined && multi > 0) {
+    parts.push(`${multi} 多 control`);
   }
   return parts.join(" · ");
 }

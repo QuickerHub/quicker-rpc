@@ -27,7 +27,7 @@ quickerorg/Quicker/QuickerPc/Quicker.Mcp  →  ../../../../quicker-rpc/QuickerRp
 - **Single source**: compression, patch, step-runner schema DTOs (`QuickerRpc.AgentModel.Catalog` / `.XAction`).
 - **Host-only**: `Quicker.Mcp/Catalog/StepRunnerCatalogFromGrpc.cs` maps gRPC → `StepRunnerCatalog`.
 - **Host-only**: `McpStepCatalogMapper.Search` still uses Designer `StepQuickInsertCatalog` (pinyin / `|` / `*`).
-- **Agent step-runner search**: curated `Catalog/step-runner-agent-keywords.json` + `StepRunnerKeywordSearch` (field-weighted keywords, `snippet` in results; no pinyin).
+- **Agent step-runner search**: curated `Catalog/step-runner-agent-keywords.json` + `StepRunnerKeywordSearch` (`keywords`, per-control `controlKeywords`, `controlRankBias`; sync via `QuickerRpc.Plugin.Test/scripts/sync-control-keywords.py`).
 
 ## Next steps
 

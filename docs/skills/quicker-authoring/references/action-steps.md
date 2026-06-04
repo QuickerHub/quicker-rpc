@@ -1,6 +1,6 @@
-# 动作步骤（data.json `steps[]`）
+# 动作步骤
 
-**何时读**：**`overview`** P5–P6 — 在 `data.json` 里增删改步骤、写 `inputParams` / `outputParams`、嵌套条件分支之前。模块键名与 schema 仍须 **`qkrpc_step_runner_get`**（**`step-runner-search`** · **`step-modules`**）。
+**何时读**：**`overview`** P5–P6 — 在 `data.json` 里增删改步骤、写 `inputParams` / `outputParams`、嵌套条件分支之前。模块键名与 schema 仍须 **`qkrpc_step_runner_get`**（**`step-runner-search`**）。
 
 **Agent**：用 **`workspace_action_*_data`** 改 `steps[]`，保存 **`qkrpc_action_patch({ id })`**。勿传内联 patch JSON（`op` / `containerPath` 等仅 CLI 见 **`patch-workflow`**）。
 
@@ -125,7 +125,7 @@ workspace_action_file_write({ id, path: "files/clip.eval.cs", content: "…" }) 
 }
 ```
 
-条件字段键名以 **`qkrpc_step_runner_get`**（`sys:if`）为准。仅需单分支、无 else 时可查 **`step-modules`** 中的 `sys:simpleIf`。
+条件字段键名以 **`qkrpc_step_runner_get`**（`sys:if`）为准。仅需单分支、无 else 时用 `sys:simpleIf`（`step-runner search` 查 `simpleIf|简单如果`）。
 
 ## 选型与禁止
 
@@ -138,4 +138,4 @@ workspace_action_file_write({ id, path: "files/clip.eval.cs", content: "…" }) 
 
 ## 相关
 
-`action-variables` · `expressions` · `authoring-workflow` · `workspace-editing` · `step-runner-search` · `step-modules` · `subprogram-workflow` · `overview`
+`action-variables` · `expressions` · `authoring-workflow` · `workspace-editing` · `step-runner-search` · `subprogram-workflow` · `overview`

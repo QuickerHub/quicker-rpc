@@ -573,23 +573,57 @@ public sealed class HeadlessActionProgramService
                     Name = x.Name,
                     Description = x.Description,
                     Snippet = x.Snippet,
-                    ControlField = x.ControlField is null
-                        ? null
-                        : new QuickerRpcStepRunnerSearchControlField
-                        {
-                            Key = x.ControlField.Key,
-                            Value = x.ControlField.Value,
-                            Name = x.ControlField.Name,
-                        },
+                    ControlField = MapSearchControlField(x.ControlField),
+                    ControlFields = MapSearchControlFields(x.ControlFields),
                     Icon = x.Icon,
                 })
                 .ToList(),
         };
     }
 
+    private static QuickerRpcStepRunnerSearchControlField? MapSearchControlField(
+        StepRunnerControlFieldMatch? match) =>
+        match is null
+            ? null
+            : new QuickerRpcStepRunnerSearchControlField
+            {
+                Key = match.Key,
+                Value = match.Value,
+                Name = string.IsNullOrWhiteSpace(match.Name) ? null : match.Name,
+            };
+
+    private static IList<QuickerRpcStepRunnerSearchControlField>? MapSearchControlFields(
+        IList<StepRunnerControlFieldMatch>? matches)
+    {
+        if (matches is null || matches.Count <= 1)
+        {
+            return null;
+        }
+
+        return matches
+            .Select(m => new QuickerRpcStepRunnerSearchControlField
+            {
+                Key = m.Key,
+                Value = m.Value,
+                Name = string.IsNullOrWhiteSpace(m.Name) ? null : m.Name,
+            })
+            .ToList();
+    }
+
     public QuickerRpcStepRunnerDetailResult GetStepRunnerDetail(
         string? stepRunnerKey,
-        string? controlFieldValue = null)
+        string? controlFieldValue = null) =>
+        GetStepRunnerDetailCore(stepRunnerKey, controlFieldValue, forAgent: true);
+
+    public QuickerRpcStepRunnerDetailResult GetStepRunnerUiDetail(
+        string? stepRunnerKey,
+        string? controlFieldValue = null) =>
+        GetStepRunnerDetailCore(stepRunnerKey, controlFieldValue, forAgent: false);
+
+    private static QuickerRpcStepRunnerDetailResult GetStepRunnerDetailCore(
+        string? stepRunnerKey,
+        string? controlFieldValue,
+        bool forAgent)
     {
         if (!QuickerHost.IsRunningInQuicker())
         {
@@ -611,7 +645,9 @@ public sealed class HeadlessActionProgramService
             ErrorMessage = mapped.ErrorMessage,
             SchemaJson = mapped.Schema is null
                 ? null
-                : StepRunnerAgentSchemaJson.Serialize(mapped.Schema),
+                : forAgent
+                    ? StepRunnerAgentSchemaJson.Serialize(mapped.Schema)
+                    : StepRunnerUiSchemaJson.Serialize(mapped.Schema),
         };
     }
 

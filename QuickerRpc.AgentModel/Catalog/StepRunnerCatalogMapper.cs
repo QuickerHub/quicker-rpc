@@ -13,7 +13,8 @@ public static class StepRunnerCatalogMapper
         var kw = (keyword ?? string.Empty).Trim();
         var searchQuery = StepRunnerSearchQuery.Parse(kw);
 
-        IEnumerable<StepRunnerDefinition> query = catalog.Items;
+        IEnumerable<StepRunnerDefinition> query = catalog.Items
+            .Where(r => !StepRunnerAgentSearchFilter.IsModuleExcludedFromSearch(r));
         if (kw.Length > 0)
         {
             query = query.Where(r => StepRunnerSearchQuery.RowMatches(r, searchQuery));
@@ -89,10 +90,18 @@ public static class StepRunnerCatalogMapper
 
         if (includeControlField)
         {
-            var control = ResolveSearchControlField(row, rank);
-            if (control is not null)
+            if (rank.MatchedControls.Count > 1)
             {
-                item.ControlField = control;
+                item.ControlFields = rank.MatchedControls;
+                item.ControlField = rank.MatchedControls[0];
+            }
+            else
+            {
+                var control = ResolveSearchControlField(row, rank);
+                if (control is not null)
+                {
+                    item.ControlField = control;
+                }
             }
         }
 
@@ -127,10 +136,12 @@ public static class StepRunnerCatalogMapper
         StepRunnerParamSelectionItem? best = null;
         var bestBias = int.MinValue;
 
+        var moduleKey = row.Key ?? string.Empty;
         foreach (var si in control.SelectionItems)
         {
             var value = (si.Value ?? string.Empty).Trim();
-            if (value.Length == 0)
+            if (value.Length == 0
+                || StepRunnerAgentSearchFilter.IsControlValueExcludedFromSearch(moduleKey, value))
             {
                 continue;
             }
@@ -172,7 +183,7 @@ public static class StepRunnerCatalogMapper
         var control = StepRunnerInputParamVisibility.TryFindControlField(runner.InputParamDefs);
         var appliedValue = (controlFieldValue ?? string.Empty).Trim();
         var hasControl = control is not null;
-        var filteringAvailable = StepRunnerInputParamVisibility.RunnerHasInputVisibilityRules(runner);
+        var filteringAvailable = StepRunnerInputParamVisibility.RunnerHasVisibilityRules(runner);
 
         if (hasControl && appliedValue.Length > 0
             && !StepRunnerInputParamVisibility.IsValidControlValue(control!, appliedValue))
@@ -192,7 +203,7 @@ public static class StepRunnerCatalogMapper
             Name = runner.Name ?? string.Empty,
             Description = TrimToNull(runner.Description),
             Icon = TrimToNull(runner.Icon),
-            ControlField = MapControlFieldOrNull(runner.InputParamDefs),
+            ControlField = MapControlFieldOrNull(runner),
             VisibilityFilteringAvailable = filteringAvailable
         };
 
@@ -206,7 +217,7 @@ public static class StepRunnerCatalogMapper
             dto.AgentGuidance =
                 "Pass --control-field <value> (values: "
                 + StepRunnerInputParamVisibility.FormatValidControlValues(control!)
-                + ") to filter inputs.";
+                + ") to filter inputs/outputs. Each controlField.selection[] entry includes visibleInputKeys and visibleOutputKeys for that mode.";
         }
 
         if (hasControl && appliedValue.Length > 0 && !filteringAvailable)
@@ -216,7 +227,7 @@ public static class StepRunnerCatalogMapper
         }
 
         var controlKey = control?.Key;
-        var filterInputs = hasControl && appliedValue.Length > 0 && filteringAvailable;
+        var filterByControl = hasControl && appliedValue.Length > 0 && filteringAvailable;
 
         foreach (var p in runner.InputParamDefs)
         {
@@ -225,7 +236,7 @@ public static class StepRunnerCatalogMapper
                 continue;
             }
 
-            if (filterInputs
+            if (filterByControl
                 && !StepRunnerInputParamVisibility.IsInputVisible(p, controlKey, appliedValue))
             {
                 continue;
@@ -241,33 +252,55 @@ public static class StepRunnerCatalogMapper
                 continue;
             }
 
+            if (filterByControl
+                && !StepRunnerInputParamVisibility.IsOutputVisible(p, controlKey, appliedValue))
+            {
+                continue;
+            }
+
             dto.Outputs.Add(MapOutput(p));
         }
 
         return dto;
     }
 
-    private static ControlFieldSchema? MapControlFieldOrNull(IList<StepRunnerInputParamDef> inputDefs)
+    private static ControlFieldSchema? MapControlFieldOrNull(StepRunnerDefinition runner)
     {
+        var inputDefs = runner.InputParamDefs;
         var control = StepRunnerInputParamVisibility.TryFindControlField(inputDefs);
         if (control is null)
         {
             return null;
         }
 
+        var controlKey = control.Key ?? string.Empty;
         var dto = new ControlFieldSchema
         {
-            Key = control.Key ?? string.Empty,
+            Key = controlKey,
             Title = TrimToNull(control.Name),
             Purpose = TrimToNull(control.Description),
         };
         foreach (var si in control.SelectionItems)
         {
+            var value = (si.Value ?? string.Empty).Trim();
+            if (value.Length == 0)
+            {
+                continue;
+            }
+
             dto.Selection.Add(
                 new ControlFieldSelection
                 {
-                    Key = si.Value ?? string.Empty,
+                    Key = value,
                     Name = si.Name ?? string.Empty,
+                    VisibleInputKeys = StepRunnerInputParamVisibility.ResolveVisibleInputKeys(
+                        inputDefs,
+                        controlKey,
+                        value),
+                    VisibleOutputKeys = StepRunnerInputParamVisibility.ResolveVisibleOutputKeys(
+                        runner.OutputParamDefs,
+                        controlKey,
+                        value),
                 });
         }
 

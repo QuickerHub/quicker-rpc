@@ -19,6 +19,7 @@ export type DocsGetDoc = {
   title: string;
   description?: string;
   markdown: string;
+  reference?: string;
 };
 
 export function parseDocsGetDoc(output: StructuredToolResult): DocsGetDoc | null {
@@ -35,7 +36,11 @@ export function parseDocsGetDoc(output: StructuredToolResult): DocsGetDoc | null
     typeof d.description === "string" && d.description.trim()
       ? d.description.trim()
       : undefined;
-  return { topic, title, description, markdown: d.markdown };
+  const reference =
+    typeof d.reference === "string" && d.reference.trim()
+      ? d.reference.trim()
+      : undefined;
+  return { topic, title, description, markdown: d.markdown, reference };
 }
 
 export function parseDocsGetMarkdown(output: StructuredToolResult): string | null {

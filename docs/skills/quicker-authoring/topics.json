@@ -3,6 +3,7 @@
   "topics": [
     {
       "topic": "action-organization-workflow",
+      "title": "动作整理",
       "description": "整理动作位置：list/search（含 uses: 引用查找）、move、全局页 create/reorder、虚拟进程 process ensure 批量归集。Use when tidying action pages, moving actions, or grouping by subprogram reference — not for editing steps.",
       "source": "references/action-organization-workflow.md",
       "allowedTools": "qkrpc_action_list qkrpc_action_search qkrpc_action_move qkrpc_profile_create qkrpc_profile_reorder qkrpc_process_ensure",
@@ -12,6 +13,7 @@
     },
     {
       "topic": "action-steps",
+      "title": "动作步骤",
       "description": "data.json steps[]：stepRunnerKey、inputParams/outputParams、ifSteps；长 inputParams.value (>4 lines) use files/ + file ref not inline value. Use before step-runner get.",
       "source": "references/action-steps.md",
       "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit qkrpc_action_patch",
@@ -21,6 +23,7 @@
     },
     {
       "topic": "action-variables",
+      "title": "动作变量",
       "description": "data.json 中 variables[] 的类型、defaultValue；quicker_in_param 边界。步骤参数绑定见 action-steps。Use when editing action variables.",
       "source": "references/action-variables.md",
       "allowedTools": "workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_step_runner_get",
@@ -30,6 +33,7 @@
     },
     {
       "topic": "authoring-workflow",
+      "title": "写动作流程",
       "description": "Quicker 动作编辑 P1–P7 主流程。Use before the first action edit in a session.",
       "source": "references/authoring-workflow.md",
       "allowedTools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
@@ -39,6 +43,7 @@
     },
     {
       "topic": "expressions",
+      "title": "表达式与插值",
       "description": "P4 首选：$=、$$ 与 sys:evalexpression（LINQ/字符串/JSON/多变量赋值）。Prefer before sys:csscript for data transforms.",
       "source": "references/expressions.md",
       "allowedTools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch",
@@ -48,6 +53,7 @@
     },
     {
       "topic": "form-spec",
+      "title": "多字段表单",
       "description": "sys:form 多字段表单：qkrpc.form.v1 语法与 qkrpc form validate/build。Use when authoring sys:form; do not hand-write native formDef JSON.",
       "source": "references/form-spec.md",
       "allowedTools": "qkrpc_form_validate qkrpc_form_build qkrpc_step_runner_get workspace_action_edit_data qkrpc_action_patch",
@@ -57,6 +63,7 @@
     },
     {
       "topic": "implementation-fallback",
+      "title": "实现选型与回退",
       "description": "P4 回退选型：须先排除 expressions/evalexpression，再考虑 sys:csscript vs runScript。Use when no dedicated step module fits after checking expressions.",
       "source": "references/implementation-fallback.md",
       "allowedTools": "qkrpc_step_runner_search qkrpc_step_runner_get qkrpc_action_patch",
@@ -66,15 +73,17 @@
     },
     {
       "topic": "overview",
+      "title": "总览",
       "description": "Quicker 动作无头编辑总览：P0 环境、docs 工具、P0–P7 索引。Use when starting action editing or choosing which guide topic to read next.",
       "source": "SKILL.md",
       "allowedTools": "docs_get docs_search docs_index",
       "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
     },
     {
-      "topic": "step-modules",
-      "description": "常用 stepRunnerKey 速查表。Use before step-runner search when a known module might fit.",
-      "source": "references/step-modules.md",
+      "topic": "step-runner-get",
+      "title": "步骤模块 schema",
+      "description": "Agent 专用 step-runner get：压缩 schema、与 search 分工；禁止 get-ui。Use after search, before writing inputParams.",
+      "source": "references/step-runner-get.md",
       "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search",
       "metadata": {
         "phase": "P5"
@@ -82,6 +91,7 @@
     },
     {
       "topic": "step-runner-search",
+      "title": "步骤模块搜索",
       "description": "step-runner 目录搜索语法（OR、通配、sys:*）。Use when finding a step module key before qkrpc_step_runner_get.",
       "source": "references/step-runner-search.md",
       "allowedTools": "qkrpc_step_runner_search qkrpc_step_runner_get",
@@ -91,6 +101,7 @@
     },
     {
       "topic": "subprogram-workflow",
+      "title": "子程序",
       "description": "公共子程序与动作内子程序的区别及调用工作流。Use when adding subprogram call steps or editing subprogram projects.",
       "source": "references/subprogram-workflow.md",
       "allowedTools": "qkrpc_subprogram_search qkrpc_subprogram_get qkrpc_step_runner_get qkrpc_action_patch",
@@ -100,13 +111,13 @@
     },
     {
       "topic": "workspace-editing",
+      "title": "工作区编辑",
       "description": ".quicker/actions layout; workspace_action_*_data and workspace_action_file_* (id + files/…); patch saves. Use when editing on disk.",
       "source": "references/workspace-editing.md",
       "allowedTools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
       "compatibility": "QuickerAgent; requires working directory in sidebar"
     }
   ],
-  "referenceFiles": {
-    "modules-table": "step-modules"
-  }
+  "referenceFiles": {},
+  "referenceCatalog": {}
 }

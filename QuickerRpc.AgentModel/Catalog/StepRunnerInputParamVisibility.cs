@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace QuickerRpc.AgentModel.Catalog;
 
-/// <summary>Resolves which StepRunner input params are visible for a control-field value.</summary>
+/// <summary>Resolves which StepRunner input/output params are visible for a control-field value.</summary>
 public static class StepRunnerInputParamVisibility
 {
     private static readonly Regex EqualityExpression = new(
@@ -14,6 +14,17 @@ public static class StepRunnerInputParamVisibility
 
     public static bool RunnerHasInputVisibilityRules(StepRunnerDefinition runner) =>
         runner.InputParamDefs.Any(p => !p.IsControlField && ParamHasVisibilityRules(p));
+
+    public static bool OutputParamHasVisibilityRules(StepRunnerOutputParamDef param) =>
+        param.ValidForValues.Count > 0
+        || param.InvalidForValues.Count > 0
+        || !string.IsNullOrWhiteSpace(param.VisibleExpression);
+
+    public static bool RunnerHasOutputVisibilityRules(StepRunnerDefinition runner) =>
+        runner.OutputParamDefs.Any(OutputParamHasVisibilityRules);
+
+    public static bool RunnerHasVisibilityRules(StepRunnerDefinition runner) =>
+        RunnerHasInputVisibilityRules(runner) || RunnerHasOutputVisibilityRules(runner);
 
     public static bool ParamHasVisibilityRules(StepRunnerInputParamDef param) =>
         param.ValidForValues.Count > 0
@@ -40,21 +51,35 @@ public static class StepRunnerInputParamVisibility
             return true;
         }
 
-        var value = controlFieldValue.Trim();
+        return IsVisibleForControlValue(
+            param.ValidForValues,
+            param.InvalidForValues,
+            param.VisibleExpression,
+            controlFieldKey,
+            controlFieldValue.Trim());
+    }
 
-        if (param.ValidForValues.Count > 0)
+    public static bool IsOutputVisible(
+        StepRunnerOutputParamDef param,
+        string? controlFieldKey,
+        string? controlFieldValue)
+    {
+        if (string.IsNullOrWhiteSpace(controlFieldValue))
         {
-            return param.ValidForValues.Any(v =>
-                string.Equals(v, value, StringComparison.OrdinalIgnoreCase));
+            return true;
         }
 
-        if (param.InvalidForValues.Count > 0)
+        if (!OutputParamHasVisibilityRules(param))
         {
-            return !param.InvalidForValues.Any(v =>
-                string.Equals(v, value, StringComparison.OrdinalIgnoreCase));
+            return true;
         }
 
-        return EvaluateVisibleExpression(param.VisibleExpression, controlFieldKey, value);
+        return IsVisibleForControlValue(
+            param.ValidForValues,
+            param.InvalidForValues,
+            param.VisibleExpression,
+            controlFieldKey,
+            controlFieldValue.Trim());
     }
 
     public static StepRunnerInputParamDef? TryFindControlField(IList<StepRunnerInputParamDef> inputDefs)
@@ -82,12 +107,94 @@ public static class StepRunnerInputParamVisibility
             string.Equals((si.Value ?? string.Empty).Trim(), value, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>Input keys visible for the given control-field value (includes control key when visible).</summary>
+    public static List<string> ResolveVisibleInputKeys(
+        IList<StepRunnerInputParamDef> inputDefs,
+        string? controlFieldKey,
+        string controlFieldValue)
+    {
+        var value = (controlFieldValue ?? string.Empty).Trim();
+        if (value.Length == 0)
+        {
+            return new List<string>();
+        }
+
+        var keys = new List<string>();
+        foreach (var p in inputDefs)
+        {
+            var key = (p.Key ?? string.Empty).Trim();
+            if (key.Length == 0)
+            {
+                continue;
+            }
+
+            if (IsInputVisible(p, controlFieldKey, value))
+            {
+                keys.Add(key);
+            }
+        }
+
+        return keys;
+    }
+
+    /// <summary>Output keys visible for the given control-field value.</summary>
+    public static List<string> ResolveVisibleOutputKeys(
+        IList<StepRunnerOutputParamDef> outputDefs,
+        string? controlFieldKey,
+        string controlFieldValue)
+    {
+        var value = (controlFieldValue ?? string.Empty).Trim();
+        if (value.Length == 0)
+        {
+            return new List<string>();
+        }
+
+        var keys = new List<string>();
+        foreach (var p in outputDefs)
+        {
+            var key = (p.Key ?? string.Empty).Trim();
+            if (key.Length == 0)
+            {
+                continue;
+            }
+
+            if (IsOutputVisible(p, controlFieldKey, value))
+            {
+                keys.Add(key);
+            }
+        }
+
+        return keys;
+    }
+
     public static string FormatValidControlValues(StepRunnerInputParamDef control) =>
         string.Join(
             ", ",
             control.SelectionItems
                 .Select(si => (si.Value ?? string.Empty).Trim())
                 .Where(v => v.Length > 0));
+
+    private static bool IsVisibleForControlValue(
+        IList<string> validForValues,
+        IList<string> invalidForValues,
+        string? visibleExpression,
+        string? controlFieldKey,
+        string controlFieldValue)
+    {
+        if (validForValues.Count > 0)
+        {
+            return validForValues.Any(v =>
+                string.Equals(v, controlFieldValue, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (invalidForValues.Count > 0)
+        {
+            return !invalidForValues.Any(v =>
+                string.Equals(v, controlFieldValue, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return EvaluateVisibleExpression(visibleExpression, controlFieldKey, controlFieldValue);
+    }
 
     private static bool EvaluateVisibleExpression(
         string? expression,

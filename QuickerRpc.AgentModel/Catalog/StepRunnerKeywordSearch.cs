@@ -23,7 +23,7 @@ public static class StepRunnerKeywordSearch
 
         var moduleDoc = StepRunnerRetrievalBuilder.BuildModuleOnly(row);
         var moduleScore = ComputeModuleScore(moduleDoc, row, query);
-        var (controlScore, control) = ComputeBestControlFieldScore(row, moduleDoc, query);
+        var (controlScore, control, matchedControls) = ComputeControlFieldScores(row, moduleDoc, query);
         var controlRankBias = ResolveControlRankBias(moduleDoc, control?.Value);
         var moduleRankBias = moduleDoc.RankBias;
         var matchScore = moduleScore + controlScore;
@@ -37,6 +37,7 @@ public static class StepRunnerKeywordSearch
             ControlRankBias = controlRankBias,
             TotalScore = total,
             Control = control,
+            MatchedControls = matchedControls,
         };
     }
 
@@ -86,21 +87,21 @@ public static class StepRunnerKeywordSearch
             : 0;
     }
 
-    private static (int Score, StepRunnerControlFieldMatch? Match) ComputeBestControlFieldScore(
-        StepRunnerDefinition row,
-        StepRunnerRetrievalDocument moduleDoc,
-        StepRunnerSearchQuery query)
+    private static (int Score, StepRunnerControlFieldMatch? Best, List<StepRunnerControlFieldMatch> Matched)
+        ComputeControlFieldScores(
+            StepRunnerDefinition row,
+            StepRunnerRetrievalDocument moduleDoc,
+            StepRunnerSearchQuery query)
     {
         var control = StepRunnerInputParamVisibility.TryFindControlField(row.InputParamDefs);
         if (control is null || control.SelectionItems.Count == 0)
         {
-            return (0, null);
+            return (0, null, new List<StepRunnerControlFieldMatch>());
         }
 
         var controlKey = control.Key ?? string.Empty;
-        var bestMatchScore = 0;
-        var bestEffective = int.MinValue;
-        StepRunnerControlFieldMatch? bestMatch = null;
+        var moduleKey = row.Key ?? string.Empty;
+        var candidates = new List<(int MatchScore, int Effective, StepRunnerControlFieldMatch Match)>();
 
         foreach (var si in control.SelectionItems)
         {
@@ -111,24 +112,57 @@ public static class StepRunnerKeywordSearch
                 continue;
             }
 
-            var matchScore = ScoreControlSelection(control, si, moduleDoc, query);
-            var effective = matchScore + ResolveControlRankBias(moduleDoc, value);
-            if (effective <= bestEffective)
+            if (StepRunnerAgentSearchFilter.IsControlValueExcludedFromSearch(moduleKey, value))
             {
                 continue;
             }
 
-            bestEffective = effective;
-            bestMatchScore = matchScore;
-            bestMatch = new StepRunnerControlFieldMatch
-            {
-                Key = controlKey,
-                Value = value,
-                Name = name,
-            };
+            var matchScore = ScoreControlSelection(control, si, moduleDoc, query);
+            var effective = matchScore + ResolveControlRankBias(moduleDoc, value);
+            candidates.Add((
+                matchScore,
+                effective,
+                new StepRunnerControlFieldMatch
+                {
+                    Key = controlKey,
+                    Value = value,
+                    Name = name,
+                }));
         }
 
-        return bestMatch is not null ? (bestMatchScore, bestMatch) : (0, null);
+        if (candidates.Count == 0)
+        {
+            return (0, null, new List<StepRunnerControlFieldMatch>());
+        }
+
+        var ordered = candidates
+            .OrderByDescending(c => c.Effective)
+            .ThenByDescending(c => c.MatchScore)
+            .ThenBy(c => c.Match.Value, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var best = ordered[0];
+        var matched = new List<StepRunnerControlFieldMatch>();
+        if (query.IsAdvanced && query.Branches.Length > 1)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var c in ordered)
+            {
+                if (c.MatchScore <= 0 || !seen.Add(c.Match.Value))
+                {
+                    continue;
+                }
+
+                matched.Add(c.Match);
+            }
+        }
+
+        if (matched.Count <= 1)
+        {
+            matched.Clear();
+        }
+
+        return (best.MatchScore, best.Match, matched);
     }
 
     private static int ScoreControlSelection(
@@ -137,7 +171,7 @@ public static class StepRunnerKeywordSearch
         StepRunnerRetrievalDocument moduleDoc,
         StepRunnerSearchQuery query)
     {
-        var surface = BuildControlSelectionSurface(control, selection);
+        var surface = BuildControlSelectionSurface(control, selection, moduleDoc);
         if (surface.Length == 0)
         {
             return 0;
@@ -174,14 +208,25 @@ public static class StepRunnerKeywordSearch
 
     private static string BuildControlSelectionSurface(
         StepRunnerInputParamDef control,
-        StepRunnerParamSelectionItem selection) =>
-        string.Join(
-            "\n",
+        StepRunnerParamSelectionItem selection,
+        StepRunnerRetrievalDocument moduleDoc)
+    {
+        var parts = new List<string>
+        {
             control.Name ?? string.Empty,
             control.Description ?? string.Empty,
             selection.Name ?? string.Empty,
             selection.Value ?? string.Empty,
-            selection.Description ?? string.Empty);
+            selection.Description ?? string.Empty,
+        };
+
+        foreach (var kw in StepRunnerRetrievalBuilder.GetControlKeywords(moduleDoc, selection.Value))
+        {
+            parts.Add(kw);
+        }
+
+        return string.Join("\n", parts);
+    }
 
     private static int ScoreControlBranch(
         string surface,
@@ -223,6 +268,76 @@ public static class StepRunnerKeywordSearch
         var phrase = string.Join(" ", normalized);
         score += ScorePhraseOnText(selectionName, phrase, exact: 42, normalized: 28);
         score += ScorePhraseOnText(selectionDesc, phrase, exact: 12, normalized: 8);
+
+        var selectionSurface = string.Join(
+            "\n",
+            selectionName,
+            selectionValue,
+            selectionDesc,
+            controlTitle,
+            controlDesc);
+        var penalizedControl = moduleDoc.ControlRankBias.TryGetValue(selectionValue, out var bias) && bias <= -15;
+        if (!penalizedControl)
+        {
+            foreach (var token in normalized)
+            {
+                if (StepRunnerSearchQuery.LegacyPatternMatchesSurface(selectionSurface, token))
+                {
+                    score += 34;
+                }
+            }
+        }
+
+        score += ScoreControlKeywordTokens(
+            moduleDoc,
+            parts.Length > 2 ? parts[2] : string.Empty,
+            selectionValue,
+            normalized);
+
+        return score;
+    }
+
+    private static int ScoreControlKeywordTokens(
+        StepRunnerRetrievalDocument moduleDoc,
+        string selectionName,
+        string selectionValue,
+        string[] tokens)
+    {
+        var keywords = StepRunnerRetrievalBuilder.GetControlKeywords(moduleDoc, selectionValue);
+        if (keywords.Count == 0 || tokens.Length == 0)
+        {
+            return 0;
+        }
+
+        var score = 0;
+        foreach (var token in tokens)
+        {
+            foreach (var kw in keywords)
+            {
+                var kwLower = (kw ?? string.Empty).Trim().ToLowerInvariant();
+                if (kwLower.Length == 0)
+                {
+                    continue;
+                }
+
+                if (string.Equals(kwLower, token, StringComparison.Ordinal)
+                    || string.Equals(StepRunnerSearchQuery.NormalizeMatchText(kwLower), StepRunnerSearchQuery.NormalizeMatchText(token), StringComparison.Ordinal))
+                {
+                    score += 36;
+                }
+                else if (kwLower.IndexOf(token, StringComparison.Ordinal) >= 0
+                    || token.IndexOf(kwLower, StringComparison.Ordinal) >= 0)
+                {
+                    score += 24;
+                }
+                else if (StepRunnerSearchQuery.LegacyPatternMatchesSurface(
+                    string.Join("\n", selectionName, kw),
+                    token))
+                {
+                    score += 20;
+                }
+            }
+        }
 
         return score;
     }

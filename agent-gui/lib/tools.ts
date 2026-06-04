@@ -37,6 +37,10 @@ import {
   workspaceProgramDiagnosticsTool,
 } from "@/lib/workspace-program-diagnostics-tool.server";
 import { SHELL_EXEC_TOOL, SHELL_EXEC_TOOL_DEF } from "@/lib/shell-tool";
+import {
+  SET_THREAD_TITLE_TOOL,
+  SET_THREAD_TITLE_TOOL_DEF,
+} from "@/lib/set-thread-title-tool";
 import { workspaceProgramIdSchema } from "@/lib/workspace-program-schema";
 import {
   executeWorkspaceProgramEditData,
@@ -90,6 +94,7 @@ const workspaceReadSliceSchema = {
 };
 
 export const quickerTools = {
+  [SET_THREAD_TITLE_TOOL]: SET_THREAD_TITLE_TOOL_DEF,
   [SHELL_EXEC_TOOL]: SHELL_EXEC_TOOL_DEF,
   [LLM_SETTINGS_TOOL]: LLM_SETTINGS_TOOL_DEF,
   [DEV_FRONTEND_CHECK_TOOL]: DEV_FRONTEND_CHECK_TOOL_DEF,
@@ -157,10 +162,10 @@ export const quickerTools = {
 
   [DOCS_GET_REFERENCE_TOOL]: tool({
     description:
-      "Read a reference appendix from the authoring skill (e.g. step-modules modules-table).",
-    inputSchema: z.object({
-      topic: z.string().describe("Skill topic id"),
-      file: z.string().describe('Reference file id without .md, e.g. "modules-table"'),
+      "Read a module-detail appendix under a topic (references/{topic}/{file}.md). List ids via docs_index (references[] on each topic) or errors.",
+      inputSchema: z.object({
+      topic: z.string().describe("Skill topic id, e.g. step-runner-get"),
+      file: z.string().describe('Appendix id without .md (when topic has references/)'),
     }),
     execute: async ({ topic, file }) => {
       const result = await getActionAuthoringReference(topic, file);
@@ -1056,7 +1061,8 @@ export const quickerTools = {
   }),
 
   qkrpc_step_runner_search: tool({
-    description: "Search StepRunner catalog (| OR, * wildcard).",
+    description:
+      "Search StepRunner catalog (| OR, * wildcard). Non-empty query: items[].controlField { key, value, name? } (best match). OR (|) may also return items[].controlFields[] when multiple control modes match — pick the value for your branch, then step-runner get; do not guess. Empty query omits controlField.",
     inputSchema: z.object({
       query: z.string(),
       limit: z.number().int().min(1).max(80).optional(),
@@ -1072,10 +1078,13 @@ export const quickerTools = {
 
   qkrpc_step_runner_get: tool({
     description:
-      "Get StepRunner schema (required before patching inputParams). Use controlField when needed.",
+      "Agent-only StepRunner schema (step-runner get, not get-ui). Required before patching inputParams. Compressed JSON without module icon. controlField: copy items[].controlField.value from search when present. Without controlField, controlField.selection[] lists each mode with visibleInputKeys. See docs_get topic step-runner-get.",
     inputSchema: z.object({
-      key: z.string().describe("StepRunner key, e.g. sys:subprogram"),
-      controlField: z.string().optional(),
+      key: z.string().describe("StepRunner key from search items[].key"),
+      controlField: z
+        .string()
+        .optional()
+        .describe("Required when search returned controlField; use controlField.value"),
     }),
     execute: async ({ key, controlField }) => {
       const args = ["step-runner", "get", "--key", key];

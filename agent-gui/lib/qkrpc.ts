@@ -188,13 +188,13 @@ function readIconField(obj: Record<string, unknown>): string {
   return typeof icon === "string" ? icon.trim() : "";
 }
 
-/** Stale qkrpc serve may omit icon on step-runner DTOs; retry via CLI spawn. */
+/** Stale qkrpc serve may omit icon on step-runner UI DTOs; retry via CLI spawn. */
 function shouldRetryHttpStepRunnerMissingIcons(op: string, parsed: unknown): boolean {
-  if (op !== "step-runner.search" && op !== "step-runner.get") return false;
+  if (op !== "step-runner.search" && op !== "step-runner.getUi") return false;
   const payload = readPayloadObject(parsed);
   if (!payload) return false;
 
-  if (op === "step-runner.get") {
+  if (op === "step-runner.getUi") {
     const schema = payload.schema ?? payload.Schema;
     if (typeof schema === "object" && schema !== null && !Array.isArray(schema)) {
       return readIconField(schema as Record<string, unknown>).length === 0;
@@ -377,12 +377,42 @@ export async function runQkrpc(
   });
 }
 
+/** Drop legacy search-level agentGuidance (moved to docs / tool descriptions). */
+function sanitizeQkrpcParsedForAgent(parsed: unknown): unknown {
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return parsed;
+  }
+  const root = parsed as Record<string, unknown>;
+  const action = root.action ?? root.Action;
+  if (action !== "step-runner-search") {
+    return parsed;
+  }
+
+  const next = { ...root };
+  delete next.agentGuidance;
+  delete next.AgentGuidance;
+
+  const payload = next.payload ?? next.Payload;
+  if (typeof payload === "object" && payload !== null && !Array.isArray(payload)) {
+    const p = { ...(payload as Record<string, unknown>) };
+    delete p.agentGuidance;
+    delete p.AgentGuidance;
+    next.payload = p;
+  }
+
+  return next;
+}
+
 export function formatQkrpcResult(result: QkrpcRunResult): Record<string, unknown> {
+  const data =
+    result.parsed != null
+      ? sanitizeQkrpcParsedForAgent(result.parsed)
+      : result.stdout;
   return {
     ok: result.ok,
     exitCode: result.exitCode,
     source: "qkrpc",
-    data: result.parsed ?? result.stdout,
+    data,
     stderr: result.stderr || undefined,
     truncated: result.truncated || undefined,
   };

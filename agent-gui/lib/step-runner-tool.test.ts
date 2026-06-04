@@ -142,3 +142,35 @@ test("parseStepRunnerSearchResult reads nested controlField on items", () => {
     "「移动」 · 2 个模块 · 1 含 controlField",
   );
 });
+
+test("parseStepRunnerSearchResult reads controlFields for OR hits", () => {
+  const parsed = parseStepRunnerSearchResult(
+    {
+      ok: true,
+      action: "step-runner-search",
+      payload: {
+        success: true,
+        keyword: "复制文件|删除文件",
+        matchCount: 1,
+        items: [
+          {
+            key: "sys:fileOperation",
+            name: "文件和目录",
+            controlField: { key: "type", value: "copyInto", name: "复制到指定目录下" },
+            controlFields: [
+              { key: "type", value: "copyInto", name: "复制到指定目录下" },
+              { key: "type", value: "deleteFile", name: "删除文件" },
+            ],
+          },
+        ],
+      },
+    },
+    { query: "复制文件|删除文件", limit: 8 },
+  );
+  assert.ok(parsed);
+  assert.equal(parsed!.multiControlFieldCount, 1);
+  assert.deepEqual(
+    parsed!.items[0]!.controlFields?.map((c) => c.value),
+    ["copyInto", "deleteFile"],
+  );
+});

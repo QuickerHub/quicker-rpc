@@ -97,7 +97,8 @@ internal static class ServeInvokeDispatcher
             "subprogram.export" => await SubProgramProjectServeOps.ExportAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.import" => await SubProgramProjectServeOps.ImportAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.search" => await StepRunnerSearchAsync(rpc, args, token).ConfigureAwait(false),
-            "step-runner.get" => await StepRunnerGetAsync(rpc, args, token).ConfigureAwait(false),
+            "step-runner.get" => await StepRunnerGetAsync(rpc, args, forAgent: true, token).ConfigureAwait(false),
+            "step-runner.getUi" => await StepRunnerGetAsync(rpc, args, forAgent: false, token).ConfigureAwait(false),
             "fa.search" => await FaSearchAsync(rpc, args, token).ConfigureAwait(false),
             "expr.check" => await ExprCheckAsync(rpc, args, token).ConfigureAwait(false),
             "script.check" => await ScriptCheckAsync(rpc, args, token).ConfigureAwait(false),
@@ -1016,6 +1017,7 @@ internal static class ServeInvokeDispatcher
     private static async Task<ServeInvokeResponse> StepRunnerGetAsync(
         IQuickerRpcService rpc,
         JsonElement args,
+        bool forAgent,
         CancellationToken token)
     {
         var key = ServeJsonArgs.GetString(args, "key") ?? string.Empty;
@@ -1026,16 +1028,47 @@ internal static class ServeInvokeDispatcher
 
         var trimmedKey = key.Trim();
         var controlField = ServeJsonArgs.GetString(args, "controlField");
-        if (StepRunnerServeCache.TryGetDetail(trimmedKey, controlField, out var cached) && cached is not null)
+        var action = forAgent ? "step-runner-get" : "step-runner-get-ui";
+        if (forAgent)
         {
-            return Ok(new { ok = cached.Success, action = "step-runner-get", payload = cached });
+            if (StepRunnerServeCache.TryGetAgentDetail(trimmedKey, controlField, out var cached) && cached is not null)
+            {
+                return Ok(new
+                {
+                    ok = cached.Success,
+                    action,
+                    payload = HeadlessCliResponses.ToStepRunnerDetailPayload(cached),
+                });
+            }
+        }
+        else if (StepRunnerServeCache.TryGetUiDetail(trimmedKey, controlField, out var cachedUi) && cachedUi is not null)
+        {
+            return Ok(new
+            {
+                ok = cachedUi.Success,
+                action,
+                payload = HeadlessCliResponses.ToStepRunnerDetailPayload(cachedUi),
+            });
         }
 
-        var response = await rpc
-            .GetStepRunnerDetailAsync(trimmedKey, controlField, token)
-            .ConfigureAwait(false);
-        StepRunnerServeCache.SetDetail(trimmedKey, controlField, response);
-        return Ok(new { ok = response.Success, action = "step-runner-get", payload = response });
+        var response = forAgent
+            ? await rpc.GetStepRunnerDetailAsync(trimmedKey, controlField, token).ConfigureAwait(false)
+            : await rpc.GetStepRunnerUiDetailAsync(trimmedKey, controlField, token).ConfigureAwait(false);
+        if (forAgent)
+        {
+            StepRunnerServeCache.SetAgentDetail(trimmedKey, controlField, response);
+        }
+        else
+        {
+            StepRunnerServeCache.SetUiDetail(trimmedKey, controlField, response);
+        }
+
+        return Ok(new
+        {
+            ok = response.Success,
+            action,
+            payload = HeadlessCliResponses.ToStepRunnerDetailPayload(response),
+        });
     }
 
     private static async Task<ServeInvokeResponse> FaSearchAsync(

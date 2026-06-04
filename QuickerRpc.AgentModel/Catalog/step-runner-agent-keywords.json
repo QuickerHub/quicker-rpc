@@ -33,7 +33,21 @@
       "遍历",
       "循环列表"
     ],
-    "snippet": "Iterate each item in a list"
+    "snippet": "Iterate each item in a list",
+    "controlKeywords": {
+      "0": [
+        "单线程（顺序执行）",
+        "0",
+        "单线程",
+        "顺序执行"
+      ],
+      "1": [
+        "多线程（同时执行）",
+        "1",
+        "多线程",
+        "同时执行"
+      ]
+    }
   },
   "sys:repeat": {
     "keywords": [
@@ -70,7 +84,19 @@
       "停止",
       "返回"
     ],
-    "snippet": "Stop action or return from subprogram"
+    "snippet": "Stop action or return from subprogram",
+    "controlKeywords": {
+      "default": [
+        "默认：停止动作或从子程序返回",
+        "default"
+      ],
+      "forcestop": [
+        "停止动作：停止整个动作(即使在子程序中)",
+        "forcestop",
+        "停止动作：停止整个动作",
+        "即使在子程序中"
+      ]
+    }
   },
   "sys:group": {
     "keywords": [
@@ -119,7 +145,19 @@
       "keyboard wait",
       "等待按键"
     ],
-    "snippet": "Wait for user key press"
+    "snippet": "Wait for user key press",
+    "controlKeywords": {
+      "waitKeyDown": [
+        "等待按下",
+        "waitKeyDown",
+        "wait key down"
+      ],
+      "waitAllKeyUp": [
+        "等待所有按键抬起",
+        "waitAllKeyUp",
+        "wait all key up"
+      ]
+    }
   },
   "sys:fileSystemWatch": {
     "keywords": [
@@ -128,7 +166,19 @@
       "文件监控",
       "目录监控"
     ],
-    "snippet": "Watch file create/change/delete events"
+    "snippet": "Watch file create/change/delete events",
+    "controlKeywords": {
+      "wait": [
+        "等待事件发生",
+        "wait"
+      ],
+      "callback": [
+        "持续监控（事件发生后调用子程序）",
+        "callback",
+        "持续监控",
+        "事件发生后调用子程序"
+      ]
+    }
   },
   "sys:stateStorage": {
     "keywords": [
@@ -137,7 +187,46 @@
       "badge",
       "状态存取"
     ],
-    "snippet": "Read/write action state and badge"
+    "snippet": "Read/write action state and badge",
+    "controlKeywords": {
+      "readActionState": [
+        "读取动作状态",
+        "readActionState",
+        "read action state"
+      ],
+      "saveActionState": [
+        "写入动作状态",
+        "saveActionState",
+        "save action state"
+      ],
+      "UpdateActionBadge": [
+        "设置徽标文字",
+        "UpdateActionBadge",
+        "update action badge"
+      ],
+      "UpdateOverlyIcon": [
+        "设置徽标图标",
+        "UpdateOverlyIcon",
+        "update overly icon"
+      ],
+      "UpdateContextMenu": [
+        "设置附加的右键菜单项",
+        "UpdateContextMenu",
+        "update context menu"
+      ],
+      "readGlobalState": [
+        "【谨慎使用】读取全局状态",
+        "readGlobalState",
+        "read global state",
+        "谨慎使用】读取全局状态"
+      ],
+      "saveGlobalState": [
+        "【谨慎使用】写入全局状态",
+        "saveGlobalState",
+        "save global state",
+        "谨慎使用】写入全局状态"
+      ]
+    }
   },
   "sys:dependencycheck": {
     "keywords": [
@@ -155,7 +244,24 @@
       "服务",
       "注册表"
     ],
-    "snippet": "Query Windows services or registry"
+    "snippet": "Query Windows services or registry",
+    "controlKeywords": {
+      "getServiceInfo": [
+        "获取某个服务的信息",
+        "getServiceInfo",
+        "get service info"
+      ],
+      "getServiceList": [
+        "获取Windows服务列表",
+        "getServiceList",
+        "get service list"
+      ],
+      "getRegValue": [
+        "获取注册表项值",
+        "getRegValue",
+        "get reg value"
+      ]
+    }
   },
   "sys:clouddata": {
     "keywords": [
@@ -165,7 +271,19 @@
       "云状态",
       "网络数据"
     ],
-    "snippet": "Read/write Quicker cloud key-value state"
+    "snippet": "Read/write Quicker cloud key-value state",
+    "controlKeywords": {
+      "readGlobalState": [
+        "从网络读取数据",
+        "readGlobalState",
+        "read global state"
+      ],
+      "saveGlobalState": [
+        "写入数据到网络",
+        "saveGlobalState",
+        "save global state"
+      ]
+    }
   },
   "sys:MsgBox": {
     "keywords": [
@@ -176,7 +294,17 @@
       "弹窗",
       "提示框"
     ],
-    "snippet": "Show message or confirmation dialog"
+    "snippet": "Show message or confirmation dialog",
+    "controlKeywords": {
+      "default": [
+        "标准",
+        "default"
+      ],
+      "custom": [
+        "自定义",
+        "custom"
+      ]
+    }
   },
   "sys:notify": {
     "keywords": [
@@ -185,7 +313,21 @@
       "notify",
       "提示消息"
     ],
-    "snippet": "Transient notification message"
+    "snippet": "Transient notification message",
+    "controlKeywords": {
+      "Default": [
+        "默认（显示在屏幕底部）",
+        "Default",
+        "默认",
+        "显示在屏幕底部"
+      ],
+      "Style2": [
+        "风格2（显示在屏幕右侧）",
+        "Style2",
+        "风格2",
+        "显示在屏幕右侧"
+      ]
+    }
   },
   "sys:showText": {
     "keywords": [
@@ -197,7 +339,47 @@
       "active window",
       "foreground input"
     ],
-    "snippet": "Show text in a dedicated window"
+    "snippet": "Show text in a dedicated window",
+    "controlKeywords": {
+      "NO_WAIT": [
+        "显示窗口，不等待关闭（立即开始执行后续的步骤）",
+        "NO_WAIT",
+        "显示窗口，不等待关闭",
+        "立即开始执行后续的步骤"
+      ],
+      "WAIT": [
+        "显示窗口，等待关闭",
+        "WAIT"
+      ],
+      "CLOSE_WINDOW": [
+        "关闭窗口",
+        "CLOSE_WINDOW"
+      ],
+      "GET_WIN_INFO": [
+        "获取窗口信息",
+        "GET_WIN_INFO"
+      ],
+      "APPEND_TEXT": [
+        "追加内容",
+        "APPEND_TEXT"
+      ],
+      "ACTIVATE_WINDOW": [
+        "显示和激活窗口",
+        "ACTIVATE_WINDOW"
+      ],
+      "WAIT_CLOSE": [
+        "等待窗口关闭",
+        "WAIT_CLOSE"
+      ],
+      "GET_ALL_WINDOWS": [
+        "获取所有文本窗口",
+        "GET_ALL_WINDOWS"
+      ],
+      "GET_ACTION_WINDOWS": [
+        "获取当前动作创建的所有文本窗口",
+        "GET_ACTION_WINDOWS"
+      ]
+    }
   },
   "sys:outputText": {
     "keywords": [
@@ -210,7 +392,19 @@
       "message box",
       "dialog"
     ],
-    "snippet": "Output text to the active foreground window"
+    "snippet": "Output text to the active foreground window",
+    "controlKeywords": {
+      "input": [
+        "模拟输入",
+        "input"
+      ],
+      "paste": [
+        "复制到剪贴板后粘贴(Ctrl+V)",
+        "paste",
+        "复制到剪贴板后粘贴",
+        "Ctrl+V"
+      ]
+    }
   },
   "sys:userInput": {
     "keywords": [
@@ -218,7 +412,25 @@
       "prompt input",
       "用户输入"
     ],
-    "snippet": "Prompt user for text input"
+    "snippet": "Prompt user for text input",
+    "controlKeywords": {
+      "text": [
+        "单行文本",
+        "text"
+      ],
+      "multiline": [
+        "多行文本",
+        "multiline"
+      ],
+      "number": [
+        "数字",
+        "number"
+      ],
+      "date_time": [
+        "日期时间",
+        "date_time"
+      ]
+    }
   },
   "sys:select": {
     "keywords": [
@@ -226,7 +438,17 @@
       "pick option",
       "用户选择"
     ],
-    "snippet": "Let user pick one option"
+    "snippet": "Let user pick one option",
+    "controlKeywords": {
+      "single": [
+        "单选",
+        "single"
+      ],
+      "multi": [
+        "多选",
+        "multi"
+      ]
+    }
   },
   "sys:showmenu": {
     "keywords": [
@@ -242,7 +464,23 @@
       "multi field",
       "表单"
     ],
-    "snippet": "Edit multiple variables in a form"
+    "snippet": "Edit multiple variables in a form",
+    "controlKeywords": {
+      "variables": [
+        "编辑动作变量的值",
+        "variables"
+      ],
+      "dict": [
+        "编辑词典数据",
+        "dict"
+      ],
+      "dict_dynamic": [
+        "编辑词典数据（动态）",
+        "dict_dynamic",
+        "编辑词典数据",
+        "动态"
+      ]
+    }
   },
   "sys:showWaitWin": {
     "keywords": [
@@ -250,7 +488,37 @@
       "progress wait",
       "等待窗口"
     ],
-    "snippet": "Show wait-for-user-operation window"
+    "snippet": "Show wait-for-user-operation window",
+    "controlKeywords": {
+      "show": [
+        "显示窗口",
+        "show"
+      ],
+      "update": [
+        "更新窗口",
+        "update"
+      ],
+      "check": [
+        "检查是否关闭",
+        "check"
+      ],
+      "close": [
+        "关闭窗口(如果还开着的话)",
+        "close",
+        "关闭窗口",
+        "如果还开着的话"
+      ],
+      "waitClose": [
+        "等待用户关闭",
+        "waitClose",
+        "wait close"
+      ],
+      "showAndWaitClose": [
+        "显示窗口并等待用户关闭",
+        "showAndWaitClose",
+        "show and wait close"
+      ]
+    }
   },
   "sys:reportProgress": {
     "keywords": [
@@ -258,7 +526,21 @@
       "progress",
       "进度条"
     ],
-    "snippet": "Show or update progress bar"
+    "snippet": "Show or update progress bar",
+    "controlKeywords": {
+      "REQUEST_ID": [
+        "创建进度条",
+        "REQUEST_ID"
+      ],
+      "UPDATE_PROGRESS": [
+        "更新进度",
+        "UPDATE_PROGRESS"
+      ],
+      "REMOVE": [
+        "去除进度条",
+        "REMOVE"
+      ]
+    }
   },
   "sys:customwindow": {
     "keywords": [
@@ -266,7 +548,27 @@
       "wpf window",
       "自定义窗口"
     ],
-    "snippet": "Create/show custom WPF window UI"
+    "snippet": "Create/show custom WPF window UI",
+    "controlKeywords": {
+      "ShowAndWaitClose": [
+        "显示窗口并等待关闭",
+        "ShowAndWaitClose",
+        "show and wait close"
+      ],
+      "Show": [
+        "显示窗口",
+        "Show"
+      ],
+      "Close": [
+        "关闭窗口",
+        "Close"
+      ],
+      "GetWindows": [
+        "获取窗口列表",
+        "GetWindows",
+        "get windows"
+      ]
+    }
   },
   "sys:custompanel": {
     "keywords": [
@@ -275,7 +577,29 @@
       "操作窗",
       "悬浮窗"
     ],
-    "snippet": "Show custom floating action panel"
+    "snippet": "Show custom floating action panel",
+    "controlKeywords": {
+      "show_fixed_panel": [
+        "显示操作窗",
+        "show_fixed_panel"
+      ],
+      "show_fixed_panel_wait_close": [
+        "显示操作窗并等待关闭",
+        "show_fixed_panel_wait_close"
+      ],
+      "close_fixed_panel": [
+        "关闭操作窗",
+        "close_fixed_panel"
+      ],
+      "toggle_collapse": [
+        "切换展开状态",
+        "toggle_collapse"
+      ],
+      "get_panel_info": [
+        "获取操作窗状态",
+        "get_panel_info"
+      ]
+    }
   },
   "sys:getClipboardText": {
     "keywords": [
@@ -290,7 +614,33 @@
       "paste into clipboard",
       "写入"
     ],
-    "snippet": "Read text from clipboard into a variable"
+    "snippet": "Read text from clipboard into a variable",
+    "controlKeywords": {
+      "UnicodeText": [
+        "纯文本（默认）",
+        "UnicodeText",
+        "unicode text",
+        "纯文本",
+        "默认"
+      ],
+      "Rtf": [
+        "Rtf"
+      ],
+      "Html": [
+        "Html"
+      ],
+      "CommaSeparatedValue": [
+        "逗号分隔的值（csv）",
+        "CommaSeparatedValue",
+        "comma separated value",
+        "逗号分隔的值",
+        "csv"
+      ],
+      "Custom": [
+        "自定义格式名",
+        "Custom"
+      ]
+    }
   },
   "sys:writeClipboard": {
     "keywords": [
@@ -306,7 +656,48 @@
       "get clipboard",
       "读取"
     ],
-    "snippet": "Write text or image to clipboard"
+    "snippet": "Write text or image to clipboard",
+    "controlKeywords": {
+      "auto": [
+        "自动（纯文本或图片）",
+        "auto",
+        "自动",
+        "纯文本或图片"
+      ],
+      "html": [
+        "HTML片段",
+        "html"
+      ],
+      "text": [
+        "纯文本",
+        "text"
+      ],
+      "image": [
+        "图片",
+        "image"
+      ],
+      "rtf": [
+        "Rtf"
+      ],
+      "csv": [
+        "Csv"
+      ],
+      "custom": [
+        "自定义格式",
+        "custom"
+      ],
+      "clear": [
+        "清空剪贴板",
+        "clear"
+      ],
+      "clearHistory": [
+        "清空剪贴板历史(Win10+)",
+        "clearHistory",
+        "clear history",
+        "清空剪贴板历史",
+        "Win10+"
+      ]
+    }
   },
   "sys:getClipboardImage": {
     "keywords": [
@@ -338,7 +729,29 @@
       "selection",
       "选中文本"
     ],
-    "snippet": "Get currently selected text"
+    "snippet": "Get currently selected text",
+    "controlKeywords": {
+      "UnicodeText": [
+        "纯文本（默认）",
+        "UnicodeText",
+        "unicode text",
+        "纯文本",
+        "默认"
+      ],
+      "Rtf": [
+        "Rtf"
+      ],
+      "Html": [
+        "Html"
+      ],
+      "CommaSeparatedValue": [
+        "逗号分隔的值（csv）",
+        "CommaSeparatedValue",
+        "comma separated value",
+        "逗号分隔的值",
+        "csv"
+      ]
+    }
   },
   "sys:textSelectTools": {
     "keywords": [
@@ -347,7 +760,131 @@
       "辅助选择",
       "选取文本"
     ],
-    "snippet": "Helper tools to select content and get text"
+    "snippet": "Helper tools to select content and get text",
+    "controlKeywords": {
+      "SelectSingleFile": [
+        "选取文件",
+        "SelectSingleFile",
+        "select single file"
+      ],
+      "SelectMultiFile": [
+        "选取(多个)文件",
+        "SelectMultiFile",
+        "select multi file",
+        "选取",
+        "多个)文件"
+      ],
+      "SelectSingleFolder": [
+        "选取文件夹",
+        "SelectSingleFolder",
+        "select single folder"
+      ],
+      "SelectSavePath": [
+        "选择保存路径",
+        "SelectSavePath",
+        "select save path"
+      ],
+      "SelectProcessPath": [
+        "选择窗口的进程路径",
+        "SelectProcessPath",
+        "select process path"
+      ],
+      "SelectProcessName": [
+        "选择进程名",
+        "SelectProcessName",
+        "select process name"
+      ],
+      "SelectProfileExe": [
+        "选择场景标识",
+        "SelectProfileExe",
+        "select profile exe"
+      ],
+      "SelectWindowHandle": [
+        "选择窗口句柄",
+        "SelectWindowHandle",
+        "select window handle"
+      ],
+      "SelectKeyName": [
+        "从键盘输入键名",
+        "SelectKeyName",
+        "select key name"
+      ],
+      "SelectSendKeysData": [
+        "从键盘输入模拟按键B的内容",
+        "SelectSendKeysData",
+        "select send keys data"
+      ],
+      "SelectKeyCode": [
+        "从键盘输入键码数字",
+        "SelectKeyCode",
+        "select key code"
+      ],
+      "SelectLocationArea": [
+        "选取区域",
+        "SelectLocationArea",
+        "select location area"
+      ],
+      "SelectLocationPoint": [
+        "选取坐标位置",
+        "SelectLocationPoint",
+        "select location point"
+      ],
+      "SelectRelativePoint": [
+        "选取窗口坐标位置",
+        "SelectRelativePoint",
+        "select relative point"
+      ],
+      "CaptureToFile": [
+        "截图并获取路径",
+        "CaptureToFile",
+        "capture to file"
+      ],
+      "SelectIcon": [
+        "选取矢量图标",
+        "SelectIcon",
+        "select icon"
+      ],
+      "SelectActionId": [
+        "选取动作ID",
+        "SelectActionId",
+        "select action id"
+      ],
+      "SelectActionName": [
+        "选取动作名称",
+        "SelectActionName",
+        "select action name"
+      ],
+      "SelectControlXPath": [
+        "选择窗口控件，获取其XPath",
+        "SelectControlXPath",
+        "select control xpath"
+      ],
+      "OperationItemEditor": [
+        "操作项编辑器",
+        "OperationItemEditor",
+        "operation item editor"
+      ],
+      "SelectBluetoothDevice": [
+        "已配对的蓝牙设备",
+        "SelectBluetoothDevice",
+        "select bluetooth device"
+      ],
+      "SelectBluetoothLEDevice": [
+        "低功耗蓝牙设备",
+        "SelectBluetoothLEDevice",
+        "select bluetooth ledevice"
+      ],
+      "SelectNetworkProfile": [
+        "网络连接",
+        "SelectNetworkProfile",
+        "select network profile"
+      ],
+      "SelectWebElementSelector": [
+        "网页元素的CSS选择器",
+        "SelectWebElementSelector",
+        "select web element selector"
+      ]
+    }
   },
   "sys:getSelectedFiles": {
     "keywords": [
@@ -356,7 +893,19 @@
       "desktop selection",
       "选中文件"
     ],
-    "snippet": "Get selected files/folders from Explorer or desktop"
+    "snippet": "Get selected files/folders from Explorer or desktop",
+    "controlKeywords": {
+      "getSelection": [
+        "获取选择的文件",
+        "getSelection",
+        "get selection"
+      ],
+      "setSelection": [
+        "设置选择的文件",
+        "setSelection",
+        "set selection"
+      ]
+    }
   },
   "sys:readFile": {
     "keywords": [
@@ -364,7 +913,17 @@
       "load file",
       "读取文件"
     ],
-    "snippet": "Read text or image from file"
+    "snippet": "Read text or image from file",
+    "controlKeywords": {
+      "text": [
+        "文本",
+        "text"
+      ],
+      "image": [
+        "图片",
+        "image"
+      ]
+    }
   },
   "sys:WriteTextFile": {
     "keywords": [
@@ -377,12 +936,138 @@
   "sys:fileOperation": {
     "keywords": [
       "file operation",
-      "copy file",
-      "move file",
-      "delete file",
+      "文件和目录",
       "文件操作"
     ],
-    "snippet": "File/folder copy, move, delete, etc."
+    "obsoleteControlValues": [
+      "copyFile",
+      "moveFile"
+    ],
+    "controlRankBias": {
+      "copyInto": 8,
+      "moveInto": 14,
+      "deleteFile": 6,
+      "recycleNoUi": 5,
+      "enumFiles": 4,
+      "rename": 3,
+      "copyFile": -12,
+      "moveFile": -24
+    },
+    "snippet": "File/folder copy, move, delete, etc.",
+    "controlKeywords": {
+      "copyInto": [
+        "复制到指定目录下",
+        "copyInto",
+        "copy into",
+        "copy to folder",
+        "复制到",
+        "复制文件到"
+      ],
+      "copyIntoWithShell": [
+        "复制到指定目录下(Windows)",
+        "copyIntoWithShell",
+        "copy into with shell",
+        "复制到指定目录下",
+        "Windows"
+      ],
+      "copyTo": [
+        "复制为（指定结果名称或路径）",
+        "copyTo",
+        "copy to",
+        "复制为",
+        "指定结果名称或路径"
+      ],
+      "moveInto": [
+        "移动到指定目录下",
+        "moveInto",
+        "move into",
+        "move to folder",
+        "移动文件",
+        "移动文件到",
+        "移动到"
+      ],
+      "moveIntoWithShell": [
+        "移动到指定目录下(Windows)",
+        "moveIntoWithShell",
+        "move into with shell",
+        "移动到指定目录下",
+        "Windows"
+      ],
+      "rename": [
+        "移动/重命名为（指定结果名称或完整路径）",
+        "rename",
+        "移动",
+        "重命名为",
+        "指定结果名称或完整路径",
+        "rename file",
+        "重命名",
+        "移动重命名"
+      ],
+      "deleteFile": [
+        "删除文件（不支持文件夹）",
+        "deleteFile",
+        "delete file",
+        "删除文件",
+        "不支持文件夹"
+      ],
+      "deleteEmptyFolder": [
+        "删除空文件夹",
+        "deleteEmptyFolder",
+        "delete empty folder"
+      ],
+      "recycle": [
+        "移入回收站",
+        "recycle"
+      ],
+      "recycleNoUi": [
+        "移入回收站（安静模式，自动确认操作）",
+        "recycleNoUi",
+        "recycle no ui",
+        "移入回收站",
+        "安静模式，自动确认操作",
+        "recycle bin silent",
+        "回收站安静"
+      ],
+      "makeDir": [
+        "创建文件夹",
+        "makeDir",
+        "make dir"
+      ],
+      "createFile": [
+        "创建空文件",
+        "createFile",
+        "create file"
+      ],
+      "enumFiles": [
+        "获取文件夹内的文件",
+        "enumFiles",
+        "enum files",
+        "list files",
+        "枚举文件",
+        "列出文件"
+      ],
+      "enumDirs": [
+        "获取文件夹内的子文件夹",
+        "enumDirs",
+        "enum dirs"
+      ],
+      "copyFile": [
+        "复制文件/文件夹（自动）【不建议使用】",
+        "copyFile",
+        "copy file",
+        "复制文件",
+        "文件夹",
+        "自动",
+        "不建议使用",
+        "copy file auto"
+      ],
+      "moveFile": [
+        "移动/重命名文件(夹)（自动）【不建议使用】",
+        "moveFile",
+        "move file auto",
+        "deprecated move file"
+      ]
+    }
   },
   "sys:selectFile": {
     "keywords": [
@@ -390,7 +1075,24 @@
       "open file dialog",
       "选择文件"
     ],
-    "snippet": "Pick file via dialog"
+    "snippet": "Pick file via dialog",
+    "controlKeywords": {
+      "openFile": [
+        "打开单个文件",
+        "openFile",
+        "open file"
+      ],
+      "openMultiFile": [
+        "打开多个文件",
+        "openMultiFile",
+        "open multi file"
+      ],
+      "saveFile": [
+        "保存文件",
+        "saveFile",
+        "save file"
+      ]
+    }
   },
   "sys:selectFolder": {
     "keywords": [
@@ -408,7 +1110,17 @@
       "解压",
       "压缩"
     ],
-    "snippet": "Zip compress or extract archive"
+    "snippet": "Zip compress or extract archive",
+    "controlKeywords": {
+      "Zip": [
+        "创建Zip文件",
+        "Zip"
+      ],
+      "Unzip": [
+        "解压缩Zip文件",
+        "Unzip"
+      ]
+    }
   },
   "sys:GenTempFilePath": {
     "keywords": [
@@ -424,7 +1136,19 @@
       "current folder",
       "资源管理器路径"
     ],
-    "snippet": "Get Explorer current folder path"
+    "snippet": "Get Explorer current folder path",
+    "controlKeywords": {
+      "getPath": [
+        "获取路径",
+        "getPath",
+        "get path"
+      ],
+      "setPath": [
+        "设置路径",
+        "setPath",
+        "set path"
+      ]
+    }
   },
   "sys:getFolderPath": {
     "keywords": [
@@ -468,7 +1192,44 @@
       "路径提取",
       "文件名"
     ],
-    "snippet": "Extract file name, folder, extension from paths"
+    "snippet": "Extract file name, folder, extension from paths",
+    "controlKeywords": {
+      "getInfo": [
+        "提取文件路径信息",
+        "getInfo",
+        "get info"
+      ],
+      "changeExt": [
+        "更改扩展名，其它不变",
+        "changeExt",
+        "change ext"
+      ],
+      "changeName": [
+        "更改文件名(含扩展名)，所在目录不变",
+        "changeName",
+        "change name",
+        "更改文件名",
+        "含扩展名)，所在目录不变"
+      ],
+      "changeNameWithoutExt": [
+        "更改文件名(不含扩展名和所在目录)",
+        "changeNameWithoutExt",
+        "change name without ext",
+        "更改文件名",
+        "不含扩展名和所在目录"
+      ],
+      "changeDir": [
+        "更改所在目录，文件名不变",
+        "changeDir",
+        "change dir"
+      ],
+      "combine": [
+        "合并路径 (拼接)",
+        "combine",
+        "合并路径",
+        "拼接"
+      ]
+    }
   },
   "sys:stringProcess": {
     "keywords": [
@@ -484,7 +1245,200 @@
       "assign"
     ],
     "rankBias": -12,
-    "snippet": "Built-in string operations (prefer sys:evalexpression for logic; search 文本处理 to use this module)"
+    "snippet": "Built-in string operations (prefer sys:evalexpression for logic; search 文本处理 to use this module)",
+    "controlKeywords": {
+      "toUpper": [
+        "英文转大写",
+        "toUpper",
+        "to upper"
+      ],
+      "toLower": [
+        "英文转小写",
+        "toLower",
+        "to lower"
+      ],
+      "reverse": [
+        "前后反转",
+        "reverse"
+      ],
+      "substring": [
+        "截取",
+        "substring"
+      ],
+      "trimStart": [
+        "去除前面空白字符",
+        "trimStart",
+        "trim start"
+      ],
+      "trimEnd": [
+        "去除后面空白字符",
+        "trimEnd",
+        "trim end"
+      ],
+      "trim": [
+        "去除前后空白字符",
+        "trim"
+      ],
+      "urlEncode": [
+        "URL编码",
+        "urlEncode",
+        "url encode"
+      ],
+      "urlDecode": [
+        "URL解码 (+解码为空格)",
+        "urlDecode",
+        "url decode",
+        "URL解码",
+        "+解码为空格"
+      ],
+      "urlDataDecode": [
+        "URL数据解码 (保留+号)",
+        "urlDataDecode",
+        "url data decode",
+        "URL数据解码",
+        "保留+号"
+      ],
+      "htmlEncode": [
+        "Html编码",
+        "htmlEncode",
+        "html encode"
+      ],
+      "htmlDecode": [
+        "Html解码",
+        "htmlDecode",
+        "html decode"
+      ],
+      "intercappedToSentence": [
+        "组合词拆分成句子(thisIsChina=>this Is China)",
+        "intercappedToSentence",
+        "intercapped to sentence",
+        "组合词拆分成句子",
+        "thisIsChina=>this",
+        "Is",
+        "China"
+      ],
+      "base64Encode": [
+        "Base64编码",
+        "base64Encode"
+      ],
+      "base64Decode": [
+        "Base64解码",
+        "base64Decode"
+      ],
+      "removeEmptyLine": [
+        "去除空行",
+        "removeEmptyLine",
+        "remove empty line"
+      ],
+      "mergeEmptyLine": [
+        "合并多个空行",
+        "mergeEmptyLine",
+        "merge empty line"
+      ],
+      "sortLinesAsc": [
+        "排序多行A-Z",
+        "sortLinesAsc",
+        "sort lines asc"
+      ],
+      "sortLinesDesc": [
+        "排序多行Z-A",
+        "sortLinesDesc",
+        "sort lines desc"
+      ],
+      "reverseLines": [
+        "翻转多行顺序",
+        "reverseLines",
+        "reverse lines"
+      ],
+      "toTitleCase": [
+        "首字母大写",
+        "toTitleCase",
+        "to title case"
+      ],
+      "formatJson": [
+        "格式化JSON",
+        "formatJson",
+        "format json"
+      ],
+      "md5": [
+        "计算MD5哈希",
+        "md5"
+      ],
+      "sha256Hash": [
+        "计算SHA256哈希",
+        "sha256Hash"
+      ],
+      "sha1Hash": [
+        "计算SHA1哈希",
+        "sha1Hash"
+      ],
+      "escapeJson": [
+        "转义文本为合法Json值",
+        "escapeJson",
+        "escape json"
+      ],
+      "DecodeUnicode": [
+        "解码Unicode字串(\\uXXXX转普通字符)",
+        "DecodeUnicode",
+        "decode unicode",
+        "解码Unicode字串",
+        "\\uXXXX转普通字符"
+      ],
+      "convertEncoding": [
+        "转换编码",
+        "convertEncoding",
+        "convert encoding"
+      ],
+      "toCnNum": [
+        "金额数字转换为大写",
+        "toCnNum",
+        "to cn num"
+      ],
+      "cn2num": [
+        "中文转数字",
+        "cn2num"
+      ],
+      "num2cn": [
+        "数字转中文",
+        "num2cn"
+      ],
+      "ExpandEnvironmentVariables": [
+        "替换环境变量",
+        "ExpandEnvironmentVariables",
+        "expand environment variables"
+      ],
+      "padLeft": [
+        "从左侧补齐长度",
+        "padLeft",
+        "pad left"
+      ],
+      "padRight": [
+        "从右侧补齐长度",
+        "padRight",
+        "pad right"
+      ],
+      "insert": [
+        "插入内容",
+        "insert"
+      ],
+      "append": [
+        "追加内容",
+        "append"
+      ],
+      "remove": [
+        "移除内容",
+        "remove"
+      ],
+      "removeZeroWidthChars": [
+        "移除零宽字符",
+        "removeZeroWidthChars",
+        "remove zero width chars"
+      ],
+      "html2text": [
+        "HTML转纯文本",
+        "html2text"
+      ]
+    }
   },
   "sys:htmlExtract": {
     "keywords": [
@@ -492,7 +1446,19 @@
       "parse html",
       "提取HTML"
     ],
-    "snippet": "Extract content from HTML"
+    "snippet": "Extract content from HTML",
+    "controlKeywords": {
+      "extractText": [
+        "提取文本内容",
+        "extractText",
+        "extract text"
+      ],
+      "extractTable": [
+        "提取表格内容",
+        "extractTable",
+        "extract table"
+      ]
+    }
   },
   "sys:jsonExtract": {
     "keywords": [
@@ -512,7 +1478,21 @@
       "正则",
       "正则提取"
     ],
-    "snippet": "Extract text with regular expressions"
+    "snippet": "Extract text with regular expressions",
+    "controlKeywords": {
+      "0": [
+        "各匹配项的值",
+        "0"
+      ],
+      "1": [
+        "第一个匹配项的组",
+        "1"
+      ],
+      "2": [
+        "各匹配项的组",
+        "2"
+      ]
+    }
   },
   "sys:strReplace": {
     "keywords": [
@@ -528,7 +1508,27 @@
       "表达式"
     ],
     "rankBias": -10,
-    "snippet": "Replace substrings in text (built-in replace modes)"
+    "controlRankBias": {
+      "single": 6,
+      "regex": 3
+    },
+    "snippet": "Replace substrings in text (built-in replace modes)",
+    "controlKeywords": {
+      "single": [
+        "普通（替换一种内容）",
+        "single",
+        "普通",
+        "替换一种内容",
+        "replace once",
+        "单次替换"
+      ],
+      "batch": [
+        "批量（替换多种内容）",
+        "batch",
+        "批量",
+        "替换多种内容"
+      ]
+    }
   },
   "sys:splitString": {
     "keywords": [
@@ -601,7 +1601,41 @@
       "表达式"
     ],
     "rankBias": -10,
-    "snippet": "Compare two text strings (legacy compare step)"
+    "snippet": "Compare two text strings (legacy compare step)",
+    "controlKeywords": {
+      ">": [
+        ">"
+      ],
+      "=": [
+        "="
+      ],
+      "<": [
+        "<"
+      ],
+      "contains": [
+        "包含",
+        "contains"
+      ],
+      "startsWith": [
+        "以指定内容开始",
+        "startsWith",
+        "starts with"
+      ],
+      "endsWith": [
+        "以指定内容结束",
+        "endsWith",
+        "ends with"
+      ],
+      "match": [
+        "正则匹配",
+        "match"
+      ],
+      "pinyinMatch": [
+        "包含指定内容，或匹配拼音、拼音首字母",
+        "pinyinMatch",
+        "pinyin match"
+      ]
+    }
   },
   "sys:charInfo": {
     "keywords": [
@@ -620,7 +1654,21 @@
       "翻译",
       "机器翻译"
     ],
-    "snippet": "Machine translation via third-party APIs (paid feature)"
+    "snippet": "Machine translation via third-party APIs (paid feature)",
+    "controlKeywords": {
+      "single": [
+        "单厂商文字翻译",
+        "single"
+      ],
+      "multiple": [
+        "多厂商文字翻译",
+        "multiple"
+      ],
+      "en2zh_dict": [
+        "英汉词典",
+        "en2zh_dict"
+      ]
+    }
   },
   "sys:listOperations": {
     "keywords": [
@@ -635,7 +1683,230 @@
       "表达式"
     ],
     "rankBias": -10,
-    "snippet": "List step UI modes (prefer sys:evalexpression for LINQ; search 列表操作 for this module)"
+    "controlRankBias": {
+      "append": 6,
+      "insertAt": 5,
+      "remove": 4,
+      "getAt": 4,
+      "removeByMatch": -52,
+      "removeByNotMatch": -48
+    },
+    "snippet": "List step UI modes (prefer sys:evalexpression for LINQ; search 列表操作 for this module)",
+    "controlKeywords": {
+      "none": [
+        "无操作（仅用于获取列表信息）",
+        "none",
+        "无操作",
+        "仅用于获取列表信息"
+      ],
+      "getAt": [
+        "读取某位置元素",
+        "getAt",
+        "get at",
+        "get list item",
+        "获取元素"
+      ],
+      "append": [
+        "添加元素到末尾",
+        "append",
+        "add to list",
+        "添加",
+        "添加元素"
+      ],
+      "insertAt": [
+        "插入元素",
+        "insertAt",
+        "insert at",
+        "insert list",
+        "插入"
+      ],
+      "setAt": [
+        "设置/更新某序号元素",
+        "setAt",
+        "set at",
+        "设置",
+        "更新某序号元素"
+      ],
+      "remove": [
+        "去除元素(指定值，有多个时去除第一个)",
+        "remove",
+        "去除元素",
+        "指定值，有多个时去除第一个",
+        "remove from list",
+        "删除元素"
+      ],
+      "removeAllByValue": [
+        "去除元素(指定值，有多个时去除全部)",
+        "removeAllByValue",
+        "remove all by value",
+        "去除元素",
+        "指定值，有多个时去除全部"
+      ],
+      "removeAt": [
+        "去除元素(指定位置)",
+        "removeAt",
+        "remove at",
+        "去除元素",
+        "指定位置"
+      ],
+      "removeByMatch": [
+        "去除元素(匹配正则表达式的项)",
+        "removeByMatch",
+        "remove by match",
+        "去除元素",
+        "匹配正则表达式的项"
+      ],
+      "removeByNotMatch": [
+        "去除元素(不匹配正则表达式的项)",
+        "removeByNotMatch",
+        "remove by not match",
+        "去除元素",
+        "不匹配正则表达式的项"
+      ],
+      "clear": [
+        "清空列表",
+        "clear"
+      ],
+      "sortAsc": [
+        "排序A-Z（输出到结果）",
+        "sortAsc",
+        "sort asc",
+        "排序A-Z",
+        "输出到结果"
+      ],
+      "sortDesc": [
+        "排序Z-A（输出到结果）",
+        "sortDesc",
+        "sort desc",
+        "排序Z-A",
+        "输出到结果"
+      ],
+      "sortAscNature": [
+        "自然排序A-Z（输出到结果）",
+        "sortAscNature",
+        "sort asc nature",
+        "自然排序A-Z",
+        "输出到结果"
+      ],
+      "FileSizeAsc": [
+        "排序文件列表：文件大小（从小到大）",
+        "FileSizeAsc",
+        "file size asc",
+        "排序文件列表：文件大小",
+        "从小到大"
+      ],
+      "FileSizeDesc": [
+        "排序文件列表：文件大小（从大到小）",
+        "FileSizeDesc",
+        "file size desc",
+        "排序文件列表：文件大小",
+        "从大到小"
+      ],
+      "CreationTimeDesc": [
+        "排序文件列表：创建时间（从新到旧）",
+        "CreationTimeDesc",
+        "creation time desc",
+        "排序文件列表：创建时间",
+        "从新到旧"
+      ],
+      "CreationTimeAsc": [
+        "排序文件列表：创建时间（从旧到新）",
+        "CreationTimeAsc",
+        "creation time asc",
+        "排序文件列表：创建时间",
+        "从旧到新"
+      ],
+      "LastAccessTimeDesc": [
+        "排序文件列表：最后访问时间（从晚到早）",
+        "LastAccessTimeDesc",
+        "last access time desc",
+        "排序文件列表：最后访问时间",
+        "从晚到早"
+      ],
+      "LastAccessTimeAsc": [
+        "排序文件列表：最后访问时间（从早到晚）",
+        "LastAccessTimeAsc",
+        "last access time asc",
+        "排序文件列表：最后访问时间",
+        "从早到晚"
+      ],
+      "LastWriteTimeDesc": [
+        "排序文件列表：最后写入时间（从晚到早）",
+        "LastWriteTimeDesc",
+        "last write time desc",
+        "排序文件列表：最后写入时间",
+        "从晚到早"
+      ],
+      "LastWriteTimeAsc": [
+        "排序文件列表：最后写入时间（从早到晚）",
+        "LastWriteTimeAsc",
+        "last write time asc",
+        "排序文件列表：最后写入时间",
+        "从早到晚"
+      ],
+      "reverse": [
+        "倒置",
+        "reverse"
+      ],
+      "sub": [
+        "截取（输出到结果）",
+        "sub",
+        "截取",
+        "输出到结果"
+      ],
+      "concat": [
+        "拼接（输出到结果）",
+        "concat",
+        "拼接",
+        "输出到结果"
+      ],
+      "distinct": [
+        "去除重复（输出到结果）",
+        "distinct",
+        "去除重复",
+        "输出到结果"
+      ],
+      "indexOf": [
+        "获取值的序号",
+        "indexOf",
+        "index of"
+      ],
+      "filterByRegex": [
+        "筛选（正则,输出到结果）",
+        "filterByRegex",
+        "filter by regex",
+        "筛选",
+        "正则,输出到结果"
+      ],
+      "filterByDefault": [
+        "筛选（模糊匹配,输出到结果）",
+        "filterByDefault",
+        "filter by default",
+        "筛选",
+        "模糊匹配,输出到结果"
+      ],
+      "filterByContains": [
+        "筛选（包含）",
+        "filterByContains",
+        "filter by contains",
+        "筛选",
+        "包含"
+      ],
+      "filterByStarts": [
+        "筛选（开始）",
+        "filterByStarts",
+        "filter by starts",
+        "筛选",
+        "开始"
+      ],
+      "filterByEnds": [
+        "筛选（结束）",
+        "filterByEnds",
+        "filter by ends",
+        "筛选",
+        "结束"
+      ]
+    }
   },
   "sys:manageList": {
     "keywords": [
@@ -657,7 +1928,81 @@
       "表达式"
     ],
     "rankBias": -10,
-    "snippet": "Dictionary step (prefer sys:evalexpression for logic; search 词典 for this module)"
+    "controlRankBias": {
+      "get": 6,
+      "set": 5,
+      "remove": 4
+    },
+    "snippet": "Dictionary step (prefer sys:evalexpression for logic; search 词典 for this module)",
+    "controlKeywords": {
+      "get": [
+        "取值",
+        "get",
+        "dict get",
+        "读取词典",
+        "获取键值"
+      ],
+      "set": [
+        "设置值 (文本类型)",
+        "set",
+        "设置值",
+        "文本类型",
+        "dict set",
+        "设置词典"
+      ],
+      "setOriginValue": [
+        "设置值 (变量原始类型)",
+        "setOriginValue",
+        "set origin value",
+        "设置值",
+        "变量原始类型"
+      ],
+      "remove": [
+        "删除一项",
+        "remove",
+        "dict remove",
+        "删除键"
+      ],
+      "clear": [
+        "清空",
+        "clear"
+      ],
+      "keyList": [
+        "获取键(Key)列表",
+        "keyList",
+        "key list",
+        "获取键",
+        "Key)列表"
+      ],
+      "valueList": [
+        "获取值列表",
+        "valueList",
+        "value list"
+      ],
+      "reverse": [
+        "翻转键值",
+        "reverse"
+      ],
+      "queryStringToDict": [
+        "查询字符串转换为词典(name1=value1&name2=value2...)",
+        "queryStringToDict",
+        "query string to dict",
+        "查询字符串转换为词典",
+        "name1=value1&name2=value2..."
+      ],
+      "dictToQueryString": [
+        "词典转换为查询字符串",
+        "dictToQueryString",
+        "dict to query string"
+      ],
+      "dictToQueryStringNoEncode": [
+        "词典转换为查询字符串(不对键和值进行URL编码)",
+        "dictToQueryStringNoEncode",
+        "dict to query string no encode",
+        "词典转换为查询字符串",
+        "不对键和值进行URL编码"
+      ]
+    }
   },
   "sys:tableoperation": {
     "keywords": [
@@ -665,7 +2010,69 @@
       "data table",
       "表格"
     ],
-    "snippet": "Table variable operations"
+    "snippet": "Table variable operations",
+    "controlKeywords": {
+      "info": [
+        "获取信息",
+        "info"
+      ],
+      "addRow": [
+        "添加行",
+        "addRow",
+        "add row"
+      ],
+      "update": [
+        "更新行",
+        "update"
+      ],
+      "manage": [
+        "查看或编辑数据",
+        "manage"
+      ],
+      "select": [
+        "查询或筛选行(Select)",
+        "select",
+        "查询或筛选行"
+      ],
+      "clear": [
+        "清除所有行",
+        "clear"
+      ],
+      "deleteRows": [
+        "删除符合条件的行",
+        "deleteRows",
+        "delete rows"
+      ],
+      "deleteColumns": [
+        "删除列",
+        "deleteColumns",
+        "delete columns"
+      ],
+      "importCsv": [
+        "从CSV文本加载数据",
+        "importCsv",
+        "import csv"
+      ],
+      "importJson": [
+        "从Json文本加载数据",
+        "importJson",
+        "import json"
+      ],
+      "importExcel": [
+        "从Excel工作表加载数据",
+        "importExcel",
+        "import excel"
+      ],
+      "export_text": [
+        "导出文本数据",
+        "export_text"
+      ],
+      "exportExcel": [
+        "导出Excel文件",
+        "exportExcel",
+        "export excel"
+      ]
+    }
   },
   "sys:dboperation": {
     "keywords": [
@@ -673,7 +2080,24 @@
       "database query",
       "数据库"
     ],
-    "snippet": "Run SQL and return results"
+    "snippet": "Run SQL and return results",
+    "controlKeywords": {
+      "Query": [
+        "Query：查询并返回结果数据",
+        "Query"
+      ],
+      "Execute": [
+        "Execute：执行并返回影响的行数",
+        "Execute"
+      ],
+      "ExecuteScalar": [
+        "ExecuteScalar：执行并返回单个值(首行首列的值)",
+        "ExecuteScalar",
+        "execute scalar",
+        "ExecuteScalar：执行并返回单个值",
+        "首行首列的值"
+      ]
+    }
   },
   "sys:enc": {
     "keywords": [
@@ -686,7 +2110,65 @@
       "解密",
       "哈希"
     ],
-    "snippet": "Encrypt, decrypt, or hash text/data"
+    "snippet": "Encrypt, decrypt, or hash text/data",
+    "controlKeywords": {
+      "enc_des": [
+        "DES 加密",
+        "enc_des",
+        "DES",
+        "加密"
+      ],
+      "dec_des": [
+        "DES 解密",
+        "dec_des",
+        "DES",
+        "解密"
+      ],
+      "enc_aes": [
+        "AES 加密",
+        "enc_aes",
+        "AES",
+        "加密"
+      ],
+      "dec_aes": [
+        "AES 解密",
+        "dec_aes",
+        "AES",
+        "解密"
+      ],
+      "enc_rsa": [
+        "RSA 加密",
+        "enc_rsa",
+        "RSA",
+        "加密"
+      ],
+      "dec_rsa": [
+        "RSA 解密",
+        "dec_rsa",
+        "RSA",
+        "解密"
+      ],
+      "hash_hmac": [
+        "键控哈希 HMAC",
+        "hash_hmac",
+        "键控哈希",
+        "HMAC"
+      ],
+      "hash": [
+        "哈希（MD5、SHA1等）",
+        "hash",
+        "哈希",
+        "MD5、SHA1等"
+      ],
+      "local_enc": [
+        "自用加密",
+        "local_enc"
+      ],
+      "local_dec": [
+        "自用解密",
+        "local_dec"
+      ]
+    }
   },
   "sys:numCompare": {
     "keywords": [
@@ -709,7 +2191,24 @@
       "round",
       "数字转换"
     ],
-    "snippet": "Format or convert numbers (to text, rounding, etc.)"
+    "snippet": "Format or convert numbers (to text, rounding, etc.)",
+    "controlKeywords": {
+      "toString": [
+        "数字转换为文本",
+        "toString",
+        "to string"
+      ],
+      "toInteger": [
+        "取整",
+        "toInteger",
+        "to integer"
+      ],
+      "baseConversion": [
+        "进制转换",
+        "baseConversion",
+        "base conversion"
+      ]
+    }
   },
   "sys:randomNum": {
     "keywords": [
@@ -737,7 +2236,37 @@
       "日期时间",
       "当前时间"
     ],
-    "snippet": "Get or parse date/time (incl. unix timestamp)"
+    "snippet": "Get or parse date/time (incl. unix timestamp)",
+    "controlKeywords": {
+      "currTime": [
+        "当前时间",
+        "currTime",
+        "curr time"
+      ],
+      "fromString": [
+        "从文本转换",
+        "fromString",
+        "from string"
+      ],
+      "fromUnixTimeStamp": [
+        "从Unix时间戳转换(秒)",
+        "fromUnixTimeStamp",
+        "from unix time stamp",
+        "从Unix时间戳转换"
+      ],
+      "Source_UnixTimeStampMs": [
+        "从Unix时间戳转换(毫秒)",
+        "Source_UnixTimeStampMs",
+        "source_unix time stamp ms",
+        "从Unix时间戳转换",
+        "毫秒"
+      ],
+      "fromVar": [
+        "时间变量",
+        "fromVar",
+        "from var"
+      ]
+    }
   },
   "sys:computeTime": {
     "keywords": [
@@ -747,7 +2276,36 @@
       "时间计算",
       "日期运算"
     ],
-    "snippet": "Date/time arithmetic on DateTime values"
+    "snippet": "Date/time arithmetic on DateTime values",
+    "controlKeywords": {
+      "getdate": [
+        "取日期值（去除当天的时间部分）",
+        "getdate",
+        "取日期值",
+        "去除当天的时间部分"
+      ],
+      "timespan": [
+        "计算时间差（日期时间2 减 日期时间）",
+        "timespan",
+        "计算时间差",
+        "日期时间2",
+        "日期时间"
+      ],
+      "endtime": [
+        "计算结束时间",
+        "endtime"
+      ],
+      "localToUtc": [
+        "本地时间转换为UTC时间",
+        "localToUtc",
+        "local to utc"
+      ],
+      "utcToLocal": [
+        "UTC时间转换为本地时间",
+        "utcToLocal",
+        "utc to local"
+      ]
+    }
   },
   "sys:sendKeys": {
     "keywords": [
@@ -774,15 +2332,183 @@
       "按键状态",
       "单键"
     ],
-    "snippet": "Query or control a single key state"
+    "snippet": "Query or control a single key state",
+    "controlKeywords": {
+      "get_key_state": [
+        "获取按键状态",
+        "get_key_state"
+      ],
+      "key_down": [
+        "按下按键",
+        "key_down"
+      ],
+      "key_up": [
+        "抬起按键",
+        "key_up"
+      ],
+      "key_keydown_v1": [
+        "按下Quicker虚拟键V1",
+        "key_keydown_v1"
+      ],
+      "key_keyup_v1": [
+        "抬起Quicker虚拟键V1",
+        "key_keyup_v1"
+      ]
+    }
   },
   "sys:mouse": {
     "keywords": [
-      "mouse click",
-      "mouse move",
+      "mouse input",
+      "simulate mouse",
+      "鼠标输入",
       "鼠标"
     ],
-    "snippet": "Simulate mouse input"
+    "controlRankBias": {
+      "click": 6,
+      "dbclick": 4,
+      "moveTo": 5,
+      "move": 4,
+      "moveToXy": 4,
+      "scroll": 3
+    },
+    "snippet": "Simulate mouse input",
+    "controlKeywords": {
+      "restore": [
+        "还原鼠标位置",
+        "restore",
+        "restore cursor",
+        "还原鼠标"
+      ],
+      "move": [
+        "移动距离",
+        "move",
+        "mouse move distance"
+      ],
+      "moveTo": [
+        "移动到(x,y分别指定)",
+        "moveTo",
+        "move to",
+        "移动到",
+        "x,y分别指定",
+        "move mouse to",
+        "移动鼠标到"
+      ],
+      "moveToXy": [
+        "移动到(x,y一同指定)",
+        "moveToXy",
+        "move to xy",
+        "移动到",
+        "x,y一同指定"
+      ],
+      "click": [
+        "单击",
+        "click",
+        "mouse click",
+        "鼠标点击"
+      ],
+      "dbclick": [
+        "双击",
+        "dbclick",
+        "double click"
+      ],
+      "down": [
+        "按下",
+        "down"
+      ],
+      "up": [
+        "抬起",
+        "up"
+      ],
+      "scroll": [
+        "滚动",
+        "scroll",
+        "mouse wheel",
+        "滚轮"
+      ],
+      "ctrlDown": [
+        "按下Ctrl",
+        "ctrlDown",
+        "ctrl down"
+      ],
+      "ctrlUp": [
+        "松开Ctrl",
+        "ctrlUp",
+        "ctrl up"
+      ],
+      "shiftDown": [
+        "按下Shift",
+        "shiftDown",
+        "shift down"
+      ],
+      "shiftUp": [
+        "松开Shift",
+        "shiftUp",
+        "shift up"
+      ],
+      "toWinTL": [
+        "移动到窗口位置：相对于窗口左上角",
+        "toWinTL",
+        "to win tl"
+      ],
+      "toWinTR": [
+        "移动到窗口位置：相对于窗口右上角",
+        "toWinTR",
+        "to win tr"
+      ],
+      "toWinBL": [
+        "移动到窗口位置：相对于窗口左下角",
+        "toWinBL",
+        "to win bl"
+      ],
+      "toWinBR": [
+        "移动到窗口位置：相对于窗口右下角",
+        "toWinBR",
+        "to win br"
+      ],
+      "toWinCenter": [
+        "移动到窗口位置：窗口中心",
+        "toWinCenter",
+        "to win center"
+      ],
+      "moveToWinXy": [
+        "移动到窗口位置：xy一同指定",
+        "moveToWinXy",
+        "move to win xy"
+      ],
+      "locateByBitmap": [
+        "移动到位图位置(图片文件)",
+        "locateByBitmap",
+        "locate by bitmap",
+        "移动到位图位置",
+        "图片文件"
+      ],
+      "locateByBitmapVar": [
+        "移动到位图位置(图片变量)",
+        "locateByBitmapVar",
+        "locate by bitmap var",
+        "移动到位图位置",
+        "图片变量"
+      ],
+      "getMouseOriginPosition": [
+        "获取鼠标位置(弹出面板前位置)",
+        "getMouseOriginPosition",
+        "get mouse origin position",
+        "获取鼠标位置",
+        "弹出面板前位置"
+      ],
+      "getMouseCurrentPosition": [
+        "获取鼠标位置及指针类型(当前位置)",
+        "getMouseCurrentPosition",
+        "get mouse current position",
+        "获取鼠标位置及指针类型",
+        "当前位置"
+      ],
+      "showIndicator": [
+        "显示鼠标位置提示",
+        "showIndicator",
+        "show indicator"
+      ]
+    }
   },
   "sys:inputScript": {
     "keywords": [
@@ -817,7 +2543,25 @@
       "chinese english input",
       "输入法"
     ],
-    "snippet": "Get or switch IME Chinese/English state"
+    "snippet": "Get or switch IME Chinese/English state",
+    "controlKeywords": {
+      "ENABLE": [
+        "切换为中文",
+        "ENABLE"
+      ],
+      "DISABLE": [
+        "切换为英文",
+        "DISABLE"
+      ],
+      "RESTORE": [
+        "恢复",
+        "RESTORE"
+      ],
+      "GET_STATE": [
+        "是否为中文状态？",
+        "GET_STATE"
+      ]
+    }
   },
   "sys:getWindowTitle": {
     "keywords": [
@@ -826,7 +2570,68 @@
       "窗口标题",
       "查找窗口"
     ],
-    "snippet": "Get window info or find window by criteria"
+    "snippet": "Get window info or find window by criteria",
+    "controlKeywords": {
+      "foreground": [
+        "前台窗口",
+        "foreground"
+      ],
+      "selectWindow": [
+        "选择一个窗口",
+        "selectWindow",
+        "select window"
+      ],
+      "pointing": [
+        "弹出面板前鼠标位置的窗口（可能为子窗口）",
+        "pointing",
+        "弹出面板前鼠标位置的窗口",
+        "可能为子窗口"
+      ],
+      "pointing_root": [
+        "弹出面板前鼠标位置窗口的根窗口",
+        "pointing_root"
+      ],
+      "pointing_now": [
+        "当前鼠标位置的窗口（可能为子窗口）",
+        "pointing_now",
+        "当前鼠标位置的窗口",
+        "可能为子窗口"
+      ],
+      "pointing_now_root": [
+        "当前鼠标位置窗口的根窗口",
+        "pointing_now_root"
+      ],
+      "fromHwnd": [
+        "句柄指定的窗口",
+        "fromHwnd",
+        "from hwnd"
+      ],
+      "findWindow": [
+        "查找顶层窗口 (单个窗口)",
+        "findWindow",
+        "find window",
+        "查找顶层窗口",
+        "单个窗口"
+      ],
+      "top_windows": [
+        "所有顶层窗口",
+        "top_windows"
+      ],
+      "findChildWindow": [
+        "查找子窗口/控件 (单个窗口)",
+        "findChildWindow",
+        "find child window",
+        "查找子窗口",
+        "控件",
+        "单个窗口"
+      ],
+      "child_windows": [
+        "查找子窗口 (多个窗口)",
+        "child_windows",
+        "查找子窗口",
+        "多个窗口"
+      ]
+    }
   },
   "sys:activateProcessMainWindow": {
     "keywords": [
@@ -870,10 +2675,69 @@
       "移动窗口"
     ],
     "controlRankBias": {
-      "move_ex": 8,
-      "move": 4
+      "move": 6,
+      "move_ex": 4
     },
-    "snippet": "Move, resize, or change window state"
+    "snippet": "Move, resize, or change window state",
+    "controlKeywords": {
+      "move": [
+        "移动窗口",
+        "move",
+        "move window",
+        "移动"
+      ],
+      "move_ex": [
+        "移动窗口(增强)",
+        "move_ex",
+        "move window enhanced",
+        "移动窗口增强"
+      ],
+      "setTopmost": [
+        "置顶窗口",
+        "setTopmost",
+        "set topmost"
+      ],
+      "toggleTopMost": [
+        "切换置顶状态",
+        "toggleTopMost",
+        "toggle top most"
+      ],
+      "removeTopmost": [
+        "取消置顶窗口",
+        "removeTopmost",
+        "remove topmost"
+      ],
+      "setBottom": [
+        "置底窗口",
+        "setBottom",
+        "set bottom"
+      ],
+      "show": [
+        "设置显示状态",
+        "show"
+      ],
+      "SET_FOREGROUND": [
+        "设置为前台窗口",
+        "SET_FOREGROUND"
+      ],
+      "close": [
+        "关闭",
+        "close"
+      ],
+      "kill": [
+        "强制关闭",
+        "kill"
+      ],
+      "set_trans": [
+        "设置或更新透明度",
+        "set_trans"
+      ],
+      "setBorderColor": [
+        "设置边框颜色",
+        "setBorderColor",
+        "set border color"
+      ]
+    }
   },
   "sys:sendMessage": {
     "keywords": [
@@ -882,7 +2746,28 @@
       "window message",
       "窗口消息"
     ],
-    "snippet": "Send Win32 SendMessage to a window"
+    "snippet": "Send Win32 SendMessage to a window",
+    "controlKeywords": {
+      "SendMessage": [
+        "SendMessage(等待返回，LParam为数字)",
+        "SendMessage",
+        "send message",
+        "等待返回，LParam为数字"
+      ],
+      "SendMessageTextLParam": [
+        "SendMessage(等待返回，LParam为文本)",
+        "SendMessageTextLParam",
+        "send message text lparam",
+        "SendMessage",
+        "等待返回，LParam为文本"
+      ],
+      "PostMessage": [
+        "PostMessage(不等待返回)",
+        "PostMessage",
+        "post message",
+        "不等待返回"
+      ]
+    }
   },
   "sys:uiautomation": {
     "keywords": [
@@ -891,7 +2776,44 @@
       "UIA",
       "界面自动化"
     ],
-    "snippet": "Automate Win32 UI controls"
+    "snippet": "Automate Win32 UI controls",
+    "controlKeywords": {
+      "TriggerMenu": [
+        "触发窗口菜单",
+        "TriggerMenu",
+        "trigger menu"
+      ],
+      "TriggerControl": [
+        "触发窗口控件",
+        "TriggerControl",
+        "trigger control"
+      ],
+      "GetControlInfo": [
+        "获取窗口控件信息",
+        "GetControlInfo",
+        "get control info"
+      ],
+      "GetCursorPointControlInfo": [
+        "获取鼠标指针位置控件信息",
+        "GetCursorPointControlInfo",
+        "get cursor point control info"
+      ],
+      "GetFocusedControlInfo": [
+        "获取焦点控件信息",
+        "GetFocusedControlInfo",
+        "get focused control info"
+      ],
+      "GetControlInfoByPosition": [
+        "获取指定位置控件信息",
+        "GetControlInfoByPosition",
+        "get control info by position"
+      ],
+      "UpdateSaveAsDialogPath": [
+        "更新\"另存为\"或\"打开\"对话框的路径",
+        "UpdateSaveAsDialogPath",
+        "update save as dialog path"
+      ]
+    }
   },
   "sys:flauiautomation": {
     "keywords": [
@@ -899,7 +2821,39 @@
       "ui automation flaui",
       "FlaUI"
     ],
-    "snippet": "UI automation via FlaUI"
+    "snippet": "UI automation via FlaUI",
+    "controlKeywords": {
+      "TriggerMenu": [
+        "触发窗口菜单",
+        "TriggerMenu",
+        "trigger menu"
+      ],
+      "TriggerControl": [
+        "触发窗口控件",
+        "TriggerControl",
+        "trigger control"
+      ],
+      "GetControlInfo": [
+        "获取窗口控件信息",
+        "GetControlInfo",
+        "get control info"
+      ],
+      "GetCursorPointControlInfo": [
+        "获取鼠标指针位置控件信息",
+        "GetCursorPointControlInfo",
+        "get cursor point control info"
+      ],
+      "GetControlInfoByPosition": [
+        "获取指定位置控件信息",
+        "GetControlInfoByPosition",
+        "get control info by position"
+      ],
+      "GetFocusedControlInfo": [
+        "获取焦点控件信息",
+        "GetFocusedControlInfo",
+        "get focused control info"
+      ]
+    }
   },
   "sys:searchBmp": {
     "keywords": [
@@ -909,7 +2863,33 @@
       "找图",
       "找色"
     ],
-    "snippet": "Find image/color/text on screen"
+    "snippet": "Find image/color/text on screen",
+    "controlKeywords": {
+      "locateByBitmapFile": [
+        "查找图片(文件)",
+        "locateByBitmapFile",
+        "locate by bitmap file",
+        "查找图片",
+        "文件"
+      ],
+      "locateByBitmapVar": [
+        "查找图片(变量)",
+        "locateByBitmapVar",
+        "locate by bitmap var",
+        "查找图片",
+        "变量"
+      ],
+      "locateByColor": [
+        "查找颜色",
+        "locateByColor",
+        "locate by color"
+      ],
+      "locateByText": [
+        "查找文字",
+        "locateByText",
+        "locate by text"
+      ]
+    }
   },
   "sys:http": {
     "keywords": [
@@ -920,7 +2900,30 @@
       "web request",
       "HTTP请求"
     ],
-    "snippet": "Send HTTP request and capture response"
+    "snippet": "Send HTTP request and capture response",
+    "controlKeywords": {
+      "GET": [
+        "GET"
+      ],
+      "POST": [
+        "POST"
+      ],
+      "PUT": [
+        "PUT"
+      ],
+      "DELETE": [
+        "DELETE"
+      ],
+      "PATCH": [
+        "PATCH"
+      ],
+      "HEAD": [
+        "HEAD"
+      ],
+      "OPTIONS": [
+        "OPTIONS"
+      ]
+    }
   },
   "sys:download": {
     "keywords": [
@@ -936,7 +2939,48 @@
       "ws",
       "WebSocket"
     ],
-    "snippet": "WebSocket client operations"
+    "snippet": "WebSocket client operations",
+    "controlKeywords": {
+      "CreateClient": [
+        "客户端：连接到Websocket服务",
+        "CreateClient",
+        "create client"
+      ],
+      "SendMsgToServer": [
+        "客户端：向Websocket服务发送消息",
+        "SendMsgToServer",
+        "send msg to server"
+      ],
+      "GetClientState": [
+        "客户端：获取连接状态",
+        "GetClientState",
+        "get client state"
+      ],
+      "CloseClient": [
+        "客户端：关闭连接",
+        "CloseClient",
+        "close client"
+      ],
+      "SendTextToClient": [
+        "服务器：向连接的客户端发送文本",
+        "SendTextToClient",
+        "send text to client"
+      ],
+      "SendFileToClient": [
+        "服务器：向连接的客户端发送文件(二进制方式)",
+        "SendFileToClient",
+        "send file to client",
+        "服务器：向连接的客户端发送文件",
+        "二进制方式"
+      ],
+      "SendFileToClientBase64": [
+        "服务器：向连接的客户端发送文件(Base64方式)",
+        "SendFileToClientBase64",
+        "send file to client base64",
+        "服务器：向连接的客户端发送文件",
+        "Base64方式"
+      ]
+    }
   },
   "sys:httpserver": {
     "keywords": [
@@ -946,7 +2990,24 @@
       "HTTP服务器",
       "本地服务"
     ],
-    "snippet": "Start temporary local HTTP/file server"
+    "snippet": "Start temporary local HTTP/file server",
+    "controlKeywords": {
+      "CreateFileServer": [
+        "创建文件服务器",
+        "CreateFileServer",
+        "create file server"
+      ],
+      "CloseServer": [
+        "关闭服务",
+        "CloseServer",
+        "close server"
+      ],
+      "GetServerState": [
+        "获取服务状态",
+        "GetServerState",
+        "get server state"
+      ]
+    }
   },
   "sys:smtp": {
     "keywords": [
@@ -964,7 +3025,48 @@
       "text from image",
       "OCR"
     ],
-    "snippet": "OCR text from image"
+    "snippet": "OCR text from image",
+    "controlKeywords": {
+      "QuickerServerOcr": [
+        "Quicker OCR引擎",
+        "QuickerServerOcr",
+        "quicker server ocr",
+        "Quicker",
+        "OCR引擎"
+      ],
+      "WindowsOcr": [
+        "Windows10/11 内置OCR引擎",
+        "WindowsOcr",
+        "windows ocr",
+        "Windows10",
+        "11",
+        "内置OCR引擎"
+      ],
+      "baidu-basic": [
+        "百度通用文字识别（自定义帐号）",
+        "baidu-basic",
+        "百度通用文字识别",
+        "自定义帐号"
+      ],
+      "baidu-quicker": [
+        "百度通用文字识别（Quicker帐号）",
+        "baidu-quicker",
+        "百度通用文字识别",
+        "Quicker帐号"
+      ],
+      "baidu-custom": [
+        "百度自定义接口识别（自定义帐号）",
+        "baidu-custom",
+        "百度自定义接口识别",
+        "自定义帐号"
+      ],
+      "table_quicker": [
+        "表格识别（Quicker服务）",
+        "table_quicker",
+        "表格识别",
+        "Quicker服务"
+      ]
+    }
   },
   "sys:mathocr": {
     "keywords": [
@@ -973,7 +3075,21 @@
       "latex",
       "公式识别"
     ],
-    "snippet": "Recognize math formulas from images"
+    "snippet": "Recognize math formulas from images",
+    "controlKeywords": {
+      "Mathpix": [
+        "图片识别(Mathpix)",
+        "Mathpix",
+        "图片识别"
+      ],
+      "MathpixStrokes": [
+        "手写并识别(Mathpix)",
+        "MathpixStrokes",
+        "mathpix strokes",
+        "手写并识别",
+        "Mathpix"
+      ]
+    }
   },
   "sys:ai": {
     "keywords": [
@@ -982,7 +3098,15 @@
       "openai",
       "AI调用"
     ],
-    "snippet": "Call third-party AI services"
+    "snippet": "Call third-party AI services",
+    "controlKeywords": {
+      "chat": [
+        "Chat"
+      ],
+      "completions": [
+        "Completions"
+      ]
+    }
   },
   "sys:tempcloudstore": {
     "keywords": [
@@ -990,7 +3114,22 @@
       "temp url",
       "临时云存储"
     ],
-    "snippet": "Upload temp content and get URL"
+    "snippet": "Upload temp content and get URL",
+    "controlKeywords": {
+      "text": [
+        "文本内容",
+        "text"
+      ],
+      "file": [
+        "文件",
+        "file"
+      ],
+      "imageVar": [
+        "图片变量",
+        "imageVar",
+        "image var"
+      ]
+    }
   },
   "sys:tempImgBed": {
     "keywords": [
@@ -1010,7 +3149,13 @@
       "云存储",
       "图床"
     ],
-    "snippet": "Upload files via third-party cloud/OSS providers"
+    "snippet": "Upload files via third-party cloud/OSS providers",
+    "controlKeywords": {
+      "Upload": [
+        "上传",
+        "Upload"
+      ]
+    }
   },
   "sys:openUrl": {
     "keywords": [
@@ -1018,7 +3163,65 @@
       "browser",
       "打开网址"
     ],
-    "snippet": "Open URL in browser"
+    "snippet": "Open URL in browser",
+    "controlKeywords": {
+      "default": [
+        "(系统默认浏览器)",
+        "default",
+        "系统默认浏览器"
+      ],
+      "iexplore.exe": [
+        "IE浏览器",
+        "iexplore.exe"
+      ],
+      "microsoft-edge:": [
+        "Edge",
+        "microsoft-edge:"
+      ],
+      "msedgeApp": [
+        "Edge App模式",
+        "msedgeApp",
+        "msedge app",
+        "Edge",
+        "App模式"
+      ],
+      "msedgeIncognito": [
+        "Edge InPrivate窗口",
+        "msedgeIncognito",
+        "msedge incognito",
+        "Edge",
+        "InPrivate窗口"
+      ],
+      "chrome": [
+        "Chrome"
+      ],
+      "chromeApp": [
+        "Chrome App模式",
+        "chromeApp",
+        "chrome app",
+        "Chrome",
+        "App模式"
+      ],
+      "chromeIncognito": [
+        "Chrome 无痕窗口",
+        "chromeIncognito",
+        "chrome incognito",
+        "Chrome",
+        "无痕窗口"
+      ],
+      "local": [
+        "本地浏览器窗口",
+        "local"
+      ],
+      "custom": [
+        "*自定义浏览器程序*",
+        "custom"
+      ],
+      "current": [
+        "*前台浏览器程序*",
+        "current"
+      ]
+    }
   },
   "sys:chromecontrol": {
     "keywords": [
@@ -1029,7 +3232,86 @@
       "浏览器控制",
       "网页"
     ],
-    "snippet": "Control Chrome/Edge/Firefox (open URL, tabs, etc.)"
+    "snippet": "Control Chrome/Edge/Firefox (open URL, tabs, etc.)",
+    "controlKeywords": {
+      "OpenUrl": [
+        "打开网址",
+        "OpenUrl",
+        "open url"
+      ],
+      "WaitTabComplete": [
+        "等待加载完成",
+        "WaitTabComplete",
+        "wait tab complete"
+      ],
+      "ActivateTab": [
+        "激活标签页",
+        "ActivateTab",
+        "activate tab"
+      ],
+      "CloseTab": [
+        "关闭标签页",
+        "CloseTab",
+        "close tab"
+      ],
+      "GetTabInfo": [
+        "获得标签页信息",
+        "GetTabInfo",
+        "get tab info"
+      ],
+      "RunScript": [
+        "对标签页运行脚本 (扩展需开启“允许运行用户脚本”选项)",
+        "RunScript",
+        "run script",
+        "对标签页运行脚本",
+        "扩展需开启“允许运行用户脚本”选项"
+      ],
+      "PickElement": [
+        "选择元素 (返回CSS选择器)",
+        "PickElement",
+        "pick element",
+        "选择元素",
+        "返回CSS选择器"
+      ],
+      "GetElementInfo": [
+        "获取元素信息",
+        "GetElementInfo",
+        "get element info"
+      ],
+      "UpdateElement": [
+        "更新元素信息",
+        "UpdateElement",
+        "update element"
+      ],
+      "TriggerEvent": [
+        "触发事件",
+        "TriggerEvent",
+        "trigger event"
+      ],
+      "Wait": [
+        "等待网页变化 (MV3版扩展)",
+        "Wait",
+        "等待网页变化",
+        "MV3版扩展"
+      ],
+      "SetBrowser": [
+        "浏览器：设置连接的浏览器",
+        "SetBrowser",
+        "set browser"
+      ],
+      "BackgroundScript": [
+        "浏览器：运行后台脚本",
+        "BackgroundScript",
+        "background script"
+      ],
+      "BackgroundCommand": [
+        "浏览器：运行后台命令 (MV3版扩展)",
+        "BackgroundCommand",
+        "background command",
+        "浏览器：运行后台命令",
+        "MV3版扩展"
+      ]
+    }
   },
   "sys:getChromeUrl": {
     "keywords": [
@@ -1047,7 +3329,72 @@
       "WebView2",
       "内嵌浏览器"
     ],
-    "snippet": "Open/control WebView2 embedded browser window"
+    "snippet": "Open/control WebView2 embedded browser window",
+    "controlKeywords": {
+      "OpenUrl": [
+        "打开网页",
+        "OpenUrl",
+        "open url"
+      ],
+      "OpenAndWaitLoad": [
+        "打开网页并等待加载完成",
+        "OpenAndWaitLoad",
+        "open and wait load"
+      ],
+      "OpenUrlAndWaitClose": [
+        "打开网页并等待窗口关闭",
+        "OpenUrlAndWaitClose",
+        "open url and wait close"
+      ],
+      "SendMessage": [
+        "发送消息",
+        "SendMessage",
+        "send message"
+      ],
+      "ExecuteScript": [
+        "执行脚本",
+        "ExecuteScript",
+        "execute script"
+      ],
+      "CheckWindowState": [
+        "获取窗口状态",
+        "CheckWindowState",
+        "check window state"
+      ],
+      "Close": [
+        "关闭窗口(如果尚未关闭)",
+        "Close",
+        "关闭窗口",
+        "如果尚未关闭"
+      ],
+      "Reload": [
+        "重新加载/刷新",
+        "Reload",
+        "重新加载",
+        "刷新"
+      ],
+      "Stop": [
+        "停止加载",
+        "Stop"
+      ],
+      "CheckInstalled": [
+        "检查是否安装WebView2",
+        "CheckInstalled",
+        "check installed"
+      ],
+      "MultiTab_OpenUrl": [
+        "【多标签】打开网址",
+        "MultiTab_OpenUrl",
+        "multi tab_open url",
+        "多标签】打开网址"
+      ],
+      "MultiColumn_OpenUrl": [
+        "【多列】打开网址",
+        "MultiColumn_OpenUrl",
+        "multi column_open url",
+        "多列】打开网址"
+      ]
+    }
   },
   "sys:run": {
     "keywords": [
@@ -1074,7 +3421,43 @@
       "trigger action",
       "运行动作"
     ],
-    "snippet": "Run or stop another Quicker action"
+    "snippet": "Run or stop another Quicker action",
+    "controlKeywords": {
+      "StartAction": [
+        "运行动作",
+        "StartAction",
+        "start action"
+      ],
+      "StopAction": [
+        "停止动作",
+        "StopAction",
+        "stop action"
+      ],
+      "ShowActionContextMenu": [
+        "显示动作右键菜单",
+        "ShowActionContextMenu",
+        "show action context menu"
+      ],
+      "StartCurrentAction": [
+        "运行当前动作（注意避免产生循环或递归）",
+        "StartCurrentAction",
+        "start current action",
+        "运行当前动作",
+        "注意避免产生循环或递归"
+      ],
+      "StopOtherInstance": [
+        "停止当前动作的其它实例",
+        "StopOtherInstance",
+        "stop other instance"
+      ],
+      "GetRunningActionCount": [
+        "获取动作运行个数（自己编写动作时可用）",
+        "GetRunningActionCount",
+        "get running action count",
+        "获取动作运行个数",
+        "自己编写动作时可用"
+      ]
+    }
   },
   "sys:evalexpression": {
     "keywords": [
@@ -1098,6 +3481,7 @@
     "snippet": "Evaluate C# expression / LINQ / assign ({var}=value); preferred over assign & compute steps"
   },
   "sys:assign": {
+    "obsolete": true,
     "keywords": [
       "assign",
       "赋值",
@@ -1112,6 +3496,7 @@
     "snippet": "Deprecated assign step; use sys:evalexpression instead"
   },
   "sys:compute": {
+    "obsolete": true,
     "keywords": [
       "compute",
       "calculate",
@@ -1145,7 +3530,37 @@
       "expression"
     ],
     "rankBias": 10,
-    "snippet": "Run C# script step (Exec); common for complex logic beyond evalexpression"
+    "snippet": "Run C# script step (Exec); common for complex logic beyond evalexpression",
+    "controlKeywords": {
+      "normal_roslyn": [
+        "普通模式v2 (Roslyn)",
+        "normal_roslyn",
+        "普通模式v2",
+        "Roslyn"
+      ],
+      "normal": [
+        "普通模式v1 (CodeDOM)",
+        "normal",
+        "普通模式v1",
+        "CodeDOM"
+      ],
+      "low_permission_roslyn": [
+        "低权限模式v2 (Roslyn)",
+        "low_permission_roslyn",
+        "低权限模式v2",
+        "Roslyn"
+      ],
+      "low_permission": [
+        "低权限模式v1 (CodeDOM)",
+        "low_permission",
+        "低权限模式v1",
+        "CodeDOM"
+      ],
+      "generate_assembly": [
+        "生成程序集",
+        "generate_assembly"
+      ]
+    }
   },
   "sys:pythonscript": {
     "keywords": [
@@ -1174,7 +3589,69 @@
       "脚本",
       "ps1"
     ],
-    "snippet": "Run PowerShell/CMD or user script file"
+    "controlRankBias": {
+      "PS": 8,
+      "CMD_C": 4,
+      "CMD_K": 3,
+      "BAT": 1
+    },
+    "snippet": "Run PowerShell/CMD or user script file",
+    "controlKeywords": {
+      "CMD_K": [
+        "CMD命令 (完成后保留窗口)",
+        "CMD_K",
+        "CMD命令",
+        "完成后保留窗口",
+        "cmd keep open"
+      ],
+      "CMD_C": [
+        "CMD命令 (完成后关闭窗口)",
+        "CMD_C",
+        "CMD命令",
+        "完成后关闭窗口",
+        "cmd",
+        "command prompt"
+      ],
+      "CMD_H": [
+        "CMD命令 (隐藏命令行窗口)",
+        "CMD_H",
+        "CMD命令",
+        "隐藏命令行窗口"
+      ],
+      "BAT": [
+        "BAT批处理脚本(.bat)",
+        "BAT",
+        "BAT批处理脚本",
+        ".bat",
+        "batch",
+        "bat file"
+      ],
+      "CMD_F": [
+        "CMD批处理脚本(.cmd)",
+        "CMD_F",
+        "CMD批处理脚本",
+        ".cmd"
+      ],
+      "PS": [
+        "PowerShell脚本(.ps1)",
+        "PS",
+        "PowerShell脚本",
+        ".ps1",
+        "powershell",
+        "ps1",
+        "pwsh"
+      ],
+      "AHK": [
+        "AutoHotKey脚本(.ahk)",
+        "AHK",
+        "AutoHotKey脚本",
+        ".ahk"
+      ],
+      "CUSTOM": [
+        "自定义脚本类型",
+        "CUSTOM"
+      ]
+    }
   },
   "sys:shelloperation": {
     "keywords": [
@@ -1182,7 +3659,35 @@
       "recycle bin",
       "Shell操作"
     ],
-    "snippet": "Windows Shell file operations"
+    "snippet": "Windows Shell file operations",
+    "controlKeywords": {
+      "getverb": [
+        "获取文件的可用动词列表(verb)",
+        "getverb",
+        "获取文件的可用动词列表",
+        "verb"
+      ],
+      "execverb": [
+        "对文件执行动词(verb)",
+        "execverb",
+        "对文件执行动词",
+        "verb"
+      ],
+      "gettitles": [
+        "获取文件的可用菜单标题列表",
+        "gettitles"
+      ],
+      "execbytitle": [
+        "对文件执行菜单(指定菜单标题)",
+        "execbytitle",
+        "对文件执行菜单",
+        "指定菜单标题"
+      ],
+      "showmenu": [
+        "显示系统上下文菜单",
+        "showmenu"
+      ]
+    }
   },
   "sys:excelreadwrite": {
     "keywords": [
@@ -1192,7 +3697,89 @@
       "write excel",
       "Excel读写"
     ],
-    "snippet": "Load/save Excel workbook files"
+    "snippet": "Load/save Excel workbook files",
+    "controlKeywords": {
+      "load": [
+        "打开Workbook",
+        "load"
+      ],
+      "newWorkbook": [
+        "创建Workbook",
+        "newWorkbook",
+        "new workbook"
+      ],
+      "save": [
+        "保存Workbook",
+        "save"
+      ],
+      "getSheet": [
+        "获取Sheet",
+        "getSheet",
+        "get sheet"
+      ],
+      "createSheet": [
+        "创建Sheet",
+        "createSheet",
+        "create sheet"
+      ],
+      "getRow": [
+        "获取行",
+        "getRow",
+        "get row"
+      ],
+      "getCellByValue": [
+        "查找单元格（根据值）",
+        "getCellByValue",
+        "get cell by value",
+        "查找单元格",
+        "根据值"
+      ],
+      "getCell": [
+        "读取单元格",
+        "getCell",
+        "get cell"
+      ],
+      "setCell": [
+        "写入单元格",
+        "setCell",
+        "set cell"
+      ],
+      "writeData": [
+        "写入多行数据",
+        "writeData",
+        "write data"
+      ],
+      "mergeCells": [
+        "合并单元格",
+        "mergeCells",
+        "merge cells"
+      ],
+      "freezePane": [
+        "冻结窗格",
+        "freezePane",
+        "freeze pane"
+      ],
+      "autoFilter": [
+        "自动筛选",
+        "autoFilter",
+        "auto filter"
+      ],
+      "setStyle": [
+        "设置区域单元格样式",
+        "setStyle",
+        "set style"
+      ],
+      "readData": [
+        "批量提取数据",
+        "readData",
+        "read data"
+      ],
+      "batchReplace": [
+        "批量模板替换",
+        "batchReplace",
+        "batch replace"
+      ]
+    }
   },
   "sys:excelRange": {
     "keywords": [
@@ -1202,7 +3789,48 @@
       "Excel区域",
       "单元格"
     ],
-    "snippet": "Read/write Excel ranges and cells"
+    "snippet": "Read/write Excel ranges and cells",
+    "controlKeywords": {
+      "SetValue": [
+        "设置值",
+        "SetValue",
+        "set value"
+      ],
+      "SetFormula": [
+        "设置公式",
+        "SetFormula",
+        "set formula"
+      ],
+      "SetNumberFormat": [
+        "设置数值格式",
+        "SetNumberFormat",
+        "set number format"
+      ],
+      "SetCellSize": [
+        "行高,列宽",
+        "SetCellSize",
+        "set cell size"
+      ],
+      "SetStyle": [
+        "设置格式",
+        "SetStyle",
+        "set style"
+      ],
+      "CallMethod": [
+        "调用方法",
+        "CallMethod",
+        "call method"
+      ],
+      "Replace": [
+        "替换内容",
+        "Replace"
+      ],
+      "GetRangeInfo": [
+        "获取区域信息",
+        "GetRangeInfo",
+        "get range info"
+      ]
+    }
   },
   "sys:excelObjects": {
     "keywords": [
@@ -1211,7 +3839,47 @@
       "workbook",
       "Excel对象"
     ],
-    "snippet": "Excel application/workbook/sheet object operations"
+    "snippet": "Excel application/workbook/sheet object operations",
+    "controlKeywords": {
+      "ApplicationInfo": [
+        "获取当前Excel应用信息",
+        "ApplicationInfo",
+        "application info"
+      ],
+      "OpenFile": [
+        "工作簿: 打开工作簿",
+        "OpenFile",
+        "open file",
+        "工作簿:",
+        "打开工作簿"
+      ],
+      "SaveWorkbook": [
+        "工作簿: 保存工作簿",
+        "SaveWorkbook",
+        "save workbook",
+        "工作簿:",
+        "保存工作簿"
+      ],
+      "CloseWorkbook": [
+        "工作簿: 关闭工作簿",
+        "CloseWorkbook",
+        "close workbook",
+        "工作簿:",
+        "关闭工作簿"
+      ],
+      "CreateWorkbook": [
+        "工作簿: 创建工作簿",
+        "CreateWorkbook",
+        "create workbook",
+        "工作簿:",
+        "创建工作簿"
+      ],
+      "SelectWorksheet": [
+        "工作表：选择工作表",
+        "SelectWorksheet",
+        "select worksheet"
+      ]
+    }
   },
   "sys:officehelper": {
     "keywords": [
@@ -1221,7 +3889,31 @@
       "Office辅助",
       "VBA"
     ],
-    "snippet": "Helper ops for Office apps (e.g. run VBA)"
+    "snippet": "Helper ops for Office apps (e.g. run VBA)",
+    "controlKeywords": {
+      "execVBA": [
+        "执行VBA宏代码",
+        "execVBA",
+        "exec vba"
+      ],
+      "setFormats": [
+        "设置格式/对象属性赋值",
+        "setFormats",
+        "set formats",
+        "设置格式",
+        "对象属性赋值"
+      ],
+      "executeMsoCommand": [
+        "执行界面命令",
+        "executeMsoCommand",
+        "execute mso command"
+      ],
+      "getProgId": [
+        "获取ProgId",
+        "getProgId",
+        "get prog id"
+      ]
+    }
   },
   "sys:adobesoftscontrol": {
     "keywords": [
@@ -1232,7 +3924,17 @@
       "Adobe",
       "Adobe控制"
     ],
-    "snippet": "Control Adobe apps (JS script, etc.)"
+    "snippet": "Control Adobe apps (JS script, etc.)",
+    "controlKeywords": {
+      "dojavascript": [
+        "执行js脚本",
+        "dojavascript"
+      ],
+      "dojavascriptfile": [
+        "执行js脚本文件",
+        "dojavascriptfile"
+      ]
+    }
   },
   "sys:autocadcontrol": {
     "keywords": [
@@ -1241,7 +3943,19 @@
       "AutoCAD",
       "CAD控制"
     ],
-    "snippet": "Send commands to AutoCAD"
+    "snippet": "Send commands to AutoCAD",
+    "controlKeywords": {
+      "SendCommand": [
+        "执行命令",
+        "SendCommand",
+        "send command"
+      ],
+      "ReadVariable": [
+        "读取变量",
+        "ReadVariable",
+        "read variable"
+      ]
+    }
   },
   "sys:rhinocontrol": {
     "keywords": [
@@ -1250,7 +3964,14 @@
       "3d cad",
       "Rhino控制"
     ],
-    "snippet": "Send commands/scripts to Rhino"
+    "snippet": "Send commands/scripts to Rhino",
+    "controlKeywords": {
+      "RunScript": [
+        "执行脚本",
+        "RunScript",
+        "run script"
+      ]
+    }
   },
   "sys:screenCapture": {
     "keywords": [
@@ -1258,7 +3979,38 @@
       "screen capture",
       "截图"
     ],
-    "snippet": "Capture screen region"
+    "snippet": "Capture screen region",
+    "controlKeywords": {
+      "select": [
+        "选择区域",
+        "select"
+      ],
+      "full_screen": [
+        "所有屏幕",
+        "full_screen"
+      ],
+      "primary_screen": [
+        "主屏幕",
+        "primary_screen"
+      ],
+      "fixed_area": [
+        "固定区域",
+        "fixed_area"
+      ],
+      "window": [
+        "窗口 (屏幕可见内容)",
+        "window",
+        "窗口",
+        "屏幕可见内容"
+      ],
+      "windowBackground": [
+        "窗口 (支持后台显示)",
+        "windowBackground",
+        "window background",
+        "窗口",
+        "支持后台显示"
+      ]
+    }
   },
   "sys:screenCapturePro": {
     "keywords": [
@@ -1282,7 +4034,49 @@
       "image transform",
       "图片处理"
     ],
-    "snippet": "Image processing operations"
+    "snippet": "Image processing operations",
+    "controlKeywords": {
+      "resize_percent": [
+        "缩放图片(指定比例)",
+        "resize_percent",
+        "缩放图片",
+        "指定比例"
+      ],
+      "resize_pixel": [
+        "缩小图片(指定像素)",
+        "resize_pixel",
+        "缩小图片",
+        "指定像素"
+      ],
+      "Clone": [
+        "复制图片",
+        "Clone"
+      ],
+      "Invert": [
+        "反色",
+        "Invert"
+      ],
+      "GrayScale": [
+        "灰度",
+        "GrayScale",
+        "gray scale"
+      ],
+      "Rotate": [
+        "旋转",
+        "Rotate"
+      ],
+      "Filters": [
+        "组合处理",
+        "Filters"
+      ],
+      "GenerateIco": [
+        "生成图标文件(.ico)",
+        "GenerateIco",
+        "generate ico",
+        "生成图标文件",
+        ".ico"
+      ]
+    }
   },
   "sys:imageinfo": {
     "keywords": [
@@ -1292,7 +4086,17 @@
       "图片信息",
       "exif"
     ],
-    "snippet": "Read image dimensions or EXIF metadata"
+    "snippet": "Read image dimensions or EXIF metadata",
+    "controlKeywords": {
+      "var": [
+        "图片变量",
+        "var"
+      ],
+      "file": [
+        "图片文件",
+        "file"
+      ]
+    }
   },
   "sys:imgToBase64": {
     "keywords": [
@@ -1301,7 +4105,19 @@
       "file base64",
       "图片转base64"
     ],
-    "snippet": "Convert image/file to or from Base64 text"
+    "snippet": "Convert image/file to or from Base64 text",
+    "controlKeywords": {
+      "imgToBase64": [
+        "图片或文件转Base64文本",
+        "imgToBase64",
+        "img to base64"
+      ],
+      "base64ToImg": [
+        "Base64文本转图片",
+        "base64ToImg",
+        "base64to img"
+      ]
+    }
   },
   "sys:color": {
     "keywords": [
@@ -1311,7 +4127,31 @@
       "取色",
       "颜色转换"
     ],
-    "snippet": "Pick screen color or convert color values"
+    "snippet": "Pick screen color or convert color values",
+    "controlKeywords": {
+      "fromString": [
+        "通过文本指定颜色",
+        "fromString",
+        "from string"
+      ],
+      "selectFromScreen": [
+        "从屏幕选取颜色",
+        "selectFromScreen",
+        "select from screen"
+      ],
+      "fromScreenPosition": [
+        "取屏幕指定位置颜色",
+        "fromScreenPosition",
+        "from screen position"
+      ],
+      "editOrSelectColor": [
+        "编辑/选择颜色",
+        "editOrSelectColor",
+        "edit or select color",
+        "编辑",
+        "选择颜色"
+      ]
+    }
   },
   "sys:createQrCode": {
     "keywords": [
@@ -1337,7 +4177,36 @@
       "display image",
       "显示图片"
     ],
-    "snippet": "Display image on screen"
+    "snippet": "Display image on screen",
+    "controlKeywords": {
+      "file": [
+        "显示：图片文件或网络图片",
+        "file"
+      ],
+      "var": [
+        "显示：变量中的图片",
+        "var"
+      ],
+      "clipboard": [
+        "显示：剪贴板图片",
+        "clipboard"
+      ],
+      "closeWindow": [
+        "关闭图片窗口",
+        "closeWindow",
+        "close window"
+      ],
+      "getState": [
+        "获取图片窗口信息",
+        "getState",
+        "get state"
+      ],
+      "getImageWindows": [
+        "获取所有图片窗口标识",
+        "getImageWindows",
+        "get image windows"
+      ]
+    }
   },
   "sys:whiteboard": {
     "keywords": [
@@ -1357,7 +4226,23 @@
       "播放声音",
       "提示音"
     ],
-    "snippet": "Play built-in or file sound"
+    "snippet": "Play built-in or file sound",
+    "controlKeywords": {
+      "LOCAL": [
+        "内置声音提示",
+        "LOCAL"
+      ],
+      "EXTERN": [
+        "电脑文件或网络文件",
+        "EXTERN"
+      ],
+      "TTS": [
+        "朗读文本（系统TTS）",
+        "TTS",
+        "朗读文本",
+        "系统TTS"
+      ]
+    }
   },
   "sys:recordSound": {
     "keywords": [
@@ -1367,7 +4252,21 @@
       "录音",
       "语音识别"
     ],
-    "snippet": "Record audio or run speech recognition"
+    "snippet": "Record audio or run speech recognition",
+    "controlKeywords": {
+      "record": [
+        "录制外部声音",
+        "record"
+      ],
+      "record_internal": [
+        "录制正在播放的声音",
+        "record_internal"
+      ],
+      "short_voice_input": [
+        "短语音输入",
+        "short_voice_input"
+      ]
+    }
   },
   "sys:audioControl": {
     "keywords": [
@@ -1377,7 +4276,49 @@
       "音频",
       "音频设备"
     ],
-    "snippet": "List or set default audio output devices"
+    "snippet": "List or set default audio output devices",
+    "controlKeywords": {
+      "GetOutputDeviceList": [
+        "获取输出设备列表",
+        "GetOutputDeviceList",
+        "get output device list"
+      ],
+      "GetOutputDefaultDevice": [
+        "获取默认输出设备信息",
+        "GetOutputDefaultDevice",
+        "get output default device"
+      ],
+      "GetInputDeviceList": [
+        "获取输入设备列表",
+        "GetInputDeviceList",
+        "get input device list"
+      ],
+      "GetInputDefaultDevice": [
+        "获取默认输入设备信息",
+        "GetInputDefaultDevice",
+        "get input default device"
+      ],
+      "GetDeviceById": [
+        "获取指定设备的信息",
+        "GetDeviceById",
+        "get device by id"
+      ],
+      "SetDefaultDeviceById": [
+        "设置默认设备",
+        "SetDefaultDeviceById",
+        "set default device by id"
+      ],
+      "SetDeviceMute": [
+        "设置静音",
+        "SetDeviceMute",
+        "set device mute"
+      ],
+      "SetDeviceVolume": [
+        "设置音量",
+        "SetDeviceVolume",
+        "set device volume"
+      ]
+    }
   },
   "sys:quickeroperations": {
     "keywords": [
@@ -1385,7 +4326,186 @@
       "quicker operation",
       "Quicker操作"
     ],
-    "snippet": "Invoke Quicker built-in features"
+    "snippet": "Invoke Quicker built-in features",
+    "controlKeywords": {
+      "showPanel": [
+        "显示面板",
+        "showPanel",
+        "show panel"
+      ],
+      "showSearch": [
+        "显示搜索框",
+        "showSearch",
+        "show search"
+      ],
+      "closeSearch": [
+        "关闭搜索框",
+        "closeSearch",
+        "close search"
+      ],
+      "showCircleMenu": [
+        "显示轮盘菜单 (点击)",
+        "showCircleMenu",
+        "show circle menu",
+        "显示轮盘菜单",
+        "点击"
+      ],
+      "togglePause": [
+        "禁用/启用",
+        "togglePause",
+        "toggle pause",
+        "禁用",
+        "启用"
+      ],
+      "runLastAction": [
+        "运行最后使用的动作",
+        "runLastAction",
+        "run last action"
+      ],
+      "startAppVoiceInput": [
+        "启动App语音输入",
+        "startAppVoiceInput",
+        "start app voice input"
+      ],
+      "stopAllActions": [
+        "停止运行中的动作",
+        "stopAllActions",
+        "stop all actions"
+      ],
+      "reinstallMouseHook": [
+        "重新加载键鼠挂钩",
+        "reinstallMouseHook",
+        "reinstall mouse hook"
+      ],
+      "ResetKeyboard": [
+        "重置键盘状态",
+        "ResetKeyboard",
+        "reset keyboard"
+      ],
+      "showDashboardWindow": [
+        "显示仪表盘窗口",
+        "showDashboardWindow",
+        "show dashboard window"
+      ],
+      "toggleTextFloatWindow": [
+        "开启/关闭文本悬浮窗功能",
+        "toggleTextFloatWindow",
+        "toggle text float window",
+        "开启",
+        "关闭文本悬浮窗功能"
+      ],
+      "showConfigWindow": [
+        "显示设置窗口",
+        "showConfigWindow",
+        "show config window"
+      ],
+      "showExeSettingWindow": [
+        "显示场景与动作管理窗口",
+        "showExeSettingWindow",
+        "show exe setting window"
+      ],
+      "closeAllFloatWindow": [
+        "关闭所有悬浮按钮",
+        "closeAllFloatWindow",
+        "close all float window"
+      ],
+      "loadProfile": [
+        "加载动作页",
+        "loadProfile",
+        "load profile"
+      ],
+      "loadExeProfiles": [
+        "加载指定应用程序的所有动作页（锁定切换）",
+        "loadExeProfiles",
+        "load exe profiles",
+        "加载指定应用程序的所有动作页",
+        "锁定切换"
+      ],
+      "loadExeProfilesNoLock": [
+        "加载指定应用程序的所有动作页（不锁定切换）",
+        "loadExeProfilesNoLock",
+        "load exe profiles no lock",
+        "加载指定应用程序的所有动作页",
+        "不锁定切换"
+      ],
+      "ToggleLockPanel": [
+        "锁定/解锁 动作页自动切换",
+        "ToggleLockPanel",
+        "toggle lock panel",
+        "锁定",
+        "解锁",
+        "动作页自动切换"
+      ],
+      "editAction": [
+        "编辑动作",
+        "editAction",
+        "edit action"
+      ],
+      "RestartQuicker": [
+        "重启Quicker",
+        "RestartQuicker",
+        "restart quicker"
+      ],
+      "SetPushActiveClient": [
+        "推送服务：设置为活动客户端",
+        "SetPushActiveClient",
+        "set push active client"
+      ],
+      "StartSearchWithAction": [
+        "使用当前动作进行实时搜索",
+        "StartSearchWithAction",
+        "start search with action"
+      ],
+      "SearchWithCertainAction": [
+        "使用指定动作进行实时搜索",
+        "SearchWithCertainAction",
+        "search with certain action"
+      ],
+      "operation_show_context_menu": [
+        "显示剪贴板上下文菜单",
+        "operation_show_context_menu"
+      ],
+      "LoadSkin": [
+        "加载外观/切换主题(专业版功能)",
+        "LoadSkin",
+        "load skin",
+        "加载外观",
+        "切换主题",
+        "专业版功能"
+      ],
+      "ExitQuicker": [
+        "退出Quicker",
+        "ExitQuicker",
+        "exit quicker"
+      ],
+      "FloatAction": [
+        "悬浮动作(专业版功能)",
+        "FloatAction",
+        "float action",
+        "悬浮动作",
+        "专业版功能"
+      ],
+      "ToggleFloatButtons": [
+        "切换所有悬浮按钮显示",
+        "ToggleFloatButtons",
+        "toggle float buttons"
+      ],
+      "ShowHideImageWindows": [
+        "显示或隐藏所有图片窗口",
+        "ShowHideImageWindows",
+        "show hide image windows"
+      ],
+      "RemoveAction": [
+        "删除当前动作",
+        "RemoveAction",
+        "remove action"
+      ],
+      "GetActionInfo": [
+        "根据ID获取动作信息",
+        "GetActionInfo",
+        "get action info"
+      ]
+    }
   },
   "sys:getActionInfo": {
     "keywords": [

@@ -23,7 +23,6 @@ public static class StepRunnerAgentSchemaCompressor
             StepRunnerKey = source.StepRunnerKey ?? string.Empty,
             Name = source.Name ?? string.Empty,
             Description = TrimToNull(source.Description),
-            Icon = TrimToNull(source.Icon),
             AgentGuidance = TrimToNull(source.AgentGuidance),
         };
 
@@ -73,6 +72,12 @@ public static class StepRunnerAgentSchemaCompressor
             {
                 Key = item.Key ?? string.Empty,
                 Name = item.Name ?? string.Empty,
+                VisibleInputKeys = item.VisibleInputKeys is null || item.VisibleInputKeys.Count == 0
+                    ? new List<string>()
+                    : new List<string>(item.VisibleInputKeys),
+                VisibleOutputKeys = item.VisibleOutputKeys is null || item.VisibleOutputKeys.Count == 0
+                    ? new List<string>()
+                    : new List<string>(item.VisibleOutputKeys),
             });
         }
 

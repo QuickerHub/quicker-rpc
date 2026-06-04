@@ -5,7 +5,7 @@ allowed-tools: docs_get docs_search docs_index
 compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
 ---
 
-# Overview（动作编辑入口）
+# 总览
 
 无头编辑 XAction：**agent-ui 工具** + QuickerRpc 插件。流程专题见 **`docs_index`**；参数/字段以各工具 description 为准，勿在回复中粘贴指南全文。
 
@@ -50,18 +50,18 @@ Quicker 运行中且已加载 QuickerRpc 插件。agent-gui 优先 **`qkrpc serv
 
 ## 专题索引（按阶段）
 
-| 主题 | 何时读 |
-|------|--------|
-| **`authoring-workflow`** | 按 P1–P7 执行（主流程） |
-| **`action-steps`** | P5–P6：`steps[]` 形状、`inputParams` / `outputParams`、条件分支 |
-| **`workspace-editing`** | `.quicker` 布局、workspace 工具、file 外置、禁止项 |
-| **`action-variables`** | `variables[]` 类型、`quicker_in_param` 边界 |
-| **`expressions`** | P4 **首选**：`$=`、`$$`、`sys:evalexpression`（LINQ/字符串/多变量） |
-| **`implementation-fallback`** | P4：表达式不够或无模块时的回退（csscript / runScript） |
-| **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
-| **`action-organization-workflow`** | 整理动作页：移动、全局 tab、虚拟进程归集（不改程序体） |
-| **`step-runner-search`** | P5：目录搜索 OR/通配 |
-| **`step-modules`** | P5：常用 stepRunnerKey（大表 `docs_get_reference`） |
+| 标题 | topic | 何时读 |
+|------|-------|--------|
+| 写动作流程 | **`authoring-workflow`** | 按 P1–P7 执行（主流程） |
+| 动作步骤 | **`action-steps`** | P5–P6：`steps[]` 形状、`inputParams` / `outputParams`、条件分支 |
+| 工作区编辑 | **`workspace-editing`** | `.quicker` 布局、workspace 工具、file 外置、禁止项 |
+| 动作变量 | **`action-variables`** | `variables[]` 类型、`quicker_in_param` 边界 |
+| 表达式与插值 | **`expressions`** | P4 **首选**：`$=`、`$$`、`sys:evalexpression`（LINQ/字符串/多变量） |
+| 实现选型与回退 | **`implementation-fallback`** | P4：表达式不够或无模块时的回退（csscript / runScript） |
+| 子程序 | **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
+| 动作整理 | **`action-organization-workflow`** | 整理动作页：移动、全局 tab、虚拟进程归集（不改程序体） |
+| 步骤模块搜索 | **`step-runner-search`** | P5：目录搜索 OR/通配 |
+| 步骤模块 schema | **`step-runner-get`** | P5：Agent 只用 `get`（禁止 `get-ui`）；与 search 分工 |
 
 ## 常见错误（由工具返回的 `errorMessage` / stderr）
 

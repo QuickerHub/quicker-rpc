@@ -252,10 +252,18 @@ qkrpc step-runner search --query <keyword> [--limit 40] [--json]
 
 ### `qkrpc step-runner get`
 
-读取步骤 schema。**写 patch 的 inputParams 前必查**，禁止猜键名。
+**Agent 专用**：压缩 schema（无 `icon`、省略冗余 control 选项）。**写 patch 的 inputParams 前必查**，禁止猜键名。
 
 ```powershell
-qkrpc step-runner get --key <stepRunnerKey> [--json]
+qkrpc step-runner get --key <stepRunnerKey> [--control-field <value>] [--json]
+```
+
+### `qkrpc step-runner get-ui`
+
+**前端 action-editor 专用**：完整 schema（含 `icon`、control 枚举选项）。**不要**给 LLM 工具用。
+
+```powershell
+qkrpc step-runner get-ui --key <stepRunnerKey> [--control-field <value>] [--json]
 ```
 
 ---

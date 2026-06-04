@@ -1,4 +1,4 @@
-# Overview（动作编辑入口）
+# 总览
 
 无头编辑 XAction：**`qkrpc`** + QuickerRpc 插件。命令表：qkrpc help --json。流程：**`authoring-workflow`**、**`overview`**。
 
@@ -40,17 +40,17 @@ qkrpc guide get --topic authoring-workflow --json
 
 ## 专题索引（按阶段）
 
-| 主题 | 何时读 |
-|------|--------|
-| **`authoring-workflow`** | 按 P1–P7 执行（主流程） |
-| **`action-steps`** | P5–P6：`steps[]` 形状、`inputParams` / `outputParams`、条件分支 |
-| **`expressions`** | P4 **首选**：`$=`、`$$`、`sys:evalexpression`（LINQ/字符串/多变量） |
-| **`implementation-fallback`** | P4：表达式不够或无模块时的回退（csscript / runScript） |
-| **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
-| **`step-runner-search`** | P5：目录搜索 OR/通配 |
-| **`step-modules`** | P5：常用 stepRunnerKey（大表 `docs_get_reference`） |
-| **`patch-workflow`** | P6：内联 patch JSON |
-| **`action-project-files`** | CLI 磁盘 extract/apply |
+| 标题 | topic | 何时读 |
+|------|-------|--------|
+| 写动作流程 | **`authoring-workflow`** | 按 P1–P7 执行（主流程） |
+| 动作步骤 | **`action-steps`** | P5–P6：`steps[]` 形状、`inputParams` / `outputParams`、条件分支 |
+| 表达式与插值 | **`expressions`** | P4 **首选**：`$=`、`$$`、`sys:evalexpression`（LINQ/字符串/多变量） |
+| 实现选型与回退 | **`implementation-fallback`** | P4：表达式不够或无模块时的回退（csscript / runScript） |
+| 子程序 | **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
+| 步骤模块搜索 | **`step-runner-search`** | P5：目录搜索 OR/通配 |
+| 步骤模块 schema | **`step-runner-get`** | P5：Agent 只用 `get`（禁止 `get-ui`）；与 search 分工 |
+| Patch 工作流（CLI） | **`patch-workflow`** | P6：内联 patch JSON |
+| 工作区项目（CLI） | **`action-project-files`** | CLI 磁盘 extract/apply |
 
 ## 常见错误（由 qkrpc 返回说明）
 

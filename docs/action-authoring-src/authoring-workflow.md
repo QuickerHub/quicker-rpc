@@ -1,4 +1,4 @@
-# {{#ref authoring.title}}
+# {{#topic-title}}
 
 规定 **P1–P7**（总览 **`overview`**）。{{#only-agent}}磁盘编辑细节见 **`workspace-editing`**。{{/only-agent}}{{#only-cli}}内联 patch 见 **`patch-workflow`**；磁盘见 **`action-project-files`**。{{/only-cli}}
 
@@ -64,12 +64,12 @@
 ## P5 步骤 schema（每个新/改步骤）
 
 ```text
-step-modules（可选）→ step-runner search（一次 OR|通配）→ step-runner get（必须）
+step-runner search（一次 OR|通配）→ step-runner get（必须；见 step-runner-get）
 ```
 
 - 步骤 JSON 形状（`inputParams` / `outputParams` / `ifSteps`）：**`action-steps`**。
 - **长 `inputParams.value`**（超过 4 行脚本/字符串）：先 **`files/`** + `"file": "files/…"`，勿整段写入 `data.json`（**`workspace-editing`**）。
-- 有 **ControlField**：search 可能带 `controlField` 对象；get 须传 {{#ref control-field.get}}（`controlField.value`）。
+- 有 **ControlField**：非空 search 的命中项**必定**带 `items[].controlField`（无控制项则省略）；get 传 **`controlField.value`**（{{#ref control-field.get}}）。未传 control 时，`controlField.selection[]` 每项含 **`visibleInputKeys`** / **`visibleOutputKeys`**（已解析 ValidFor/可见性，UI/Agent 勿再猜）。
 - 语法：**`step-runner-search`**。
 
 {{#only-cli}}
@@ -128,4 +128,4 @@ edit_data / write_data 响应中的 projectSummary
 
 ## 相关
 
-`overview`{{#only-agent}} · `workspace-editing` · `action-variables` · `action-steps`{{/only-agent}} · `implementation-fallback` · `expressions` · `subprogram-workflow` · `step-runner-search` · `step-modules`
+`overview`{{#only-agent}} · `workspace-editing` · `action-variables` · `action-steps`{{/only-agent}} · `implementation-fallback` · `expressions` · `subprogram-workflow` · `step-runner-search`

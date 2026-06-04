@@ -169,6 +169,7 @@ export function summarizeToolOutput(
       if (searchResult) {
         return formatStepRunnerSearchMetaLine(searchResult, {
           controlFieldItemCount: searchResult.controlFieldItemCount,
+          multiControlFieldCount: searchResult.multiControlFieldCount,
         });
       }
       const search = parseStepRunnerSearchFromQkrpcData(output.data, input);

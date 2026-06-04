@@ -74,6 +74,11 @@ public sealed class StepRunnerSearchQuery
 
     public static bool RowMatches(StepRunnerDefinition row, StepRunnerSearchQuery query)
     {
+        if (query.IsEmpty)
+        {
+            return true;
+        }
+
         if (query.IsAdvanced)
         {
             if (query.Branches.Length == 0)
@@ -81,10 +86,69 @@ public sealed class StepRunnerSearchQuery
                 return true;
             }
 
-            return query.Branches.Any(branch => BranchMatches(row, branch));
+            return query.Branches.Any(branch =>
+                BranchMatches(row, branch) && !BranchTokensHitNotFor(row, branch));
         }
 
-        return LegacyRowMatches(row, query.LegacyPatterns);
+        return !LegacyPatternsHitNotFor(row, query.LegacyPatterns)
+            && LegacyRowMatches(row, query.LegacyPatterns);
+    }
+
+    /// <summary>
+    /// When any query token matches a curated <c>notFor</c> label, hide the module from agent search
+    /// (legacy steps like compute/formatString; prefer sys:evalexpression).
+    /// </summary>
+    private static bool LegacyPatternsHitNotFor(StepRunnerDefinition row, string[] patterns) =>
+        TryGetNotForLabels(row, out var notFor) && AnyQueryTokenHitsNotFor(notFor, patterns);
+
+    private static bool BranchTokensHitNotFor(StepRunnerDefinition row, string[] branchTokens) =>
+        TryGetNotForLabels(row, out var notFor) && AnyQueryTokenHitsNotFor(notFor, branchTokens);
+
+    private static bool TryGetNotForLabels(
+        StepRunnerDefinition row,
+        out IReadOnlyList<string> notFor)
+    {
+        notFor = Array.Empty<string>();
+        var key = (row.Key ?? string.Empty).Trim();
+        if (key.Length == 0
+            || !StepRunnerAgentKeywordCatalog.TryGet(key, out var entry)
+            || entry.NotFor.Count == 0)
+        {
+            return false;
+        }
+
+        notFor = entry.NotFor;
+        return true;
+    }
+
+    private static bool AnyQueryTokenHitsNotFor(IReadOnlyList<string> notFor, string[] queryTokens)
+    {
+        foreach (var token in queryTokens)
+        {
+            var q = (token ?? string.Empty).Trim().ToLowerInvariant();
+            if (q.Length == 0)
+            {
+                continue;
+            }
+
+            foreach (var nf in notFor)
+            {
+                var label = (nf ?? string.Empty).Trim().ToLowerInvariant();
+                if (label.Length == 0)
+                {
+                    continue;
+                }
+
+                if (string.Equals(label, q, StringComparison.Ordinal)
+                    || LegacyPatternMatchesSurface(label, q)
+                    || LegacyPatternMatchesSurface(q, label))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public static int ComputeSortScore(StepRunnerDefinition row, StepRunnerSearchQuery query)
@@ -171,10 +235,18 @@ public sealed class StepRunnerSearchQuery
         }
 
         var control = StepRunnerInputParamVisibility.TryFindControlField(row.InputParamDefs);
+        var moduleKey = row.Key ?? string.Empty;
         if (control is not null)
         {
             foreach (var si in control.SelectionItems)
             {
+                var value = (si.Value ?? string.Empty).Trim();
+                if (value.Length > 0
+                    && StepRunnerAgentSearchFilter.IsControlValueExcludedFromSearch(moduleKey, value))
+                {
+                    continue;
+                }
+
                 parts.Add(si.Name ?? string.Empty);
                 parts.Add(si.Value ?? string.Empty);
                 parts.Add(si.Description ?? string.Empty);
@@ -191,7 +263,56 @@ public sealed class StepRunnerSearchQuery
             return true;
         }
 
-        return LegacyRowMatchesSurface(GetMatchSurface(row), patterns);
+        if (LegacyRowMatchesSurface(GetMatchSurface(row), patterns))
+        {
+            return true;
+        }
+
+        return LegacyRowMatchesAnyControlKeywords(row, patterns);
+    }
+
+    private static bool LegacyRowMatchesAnyControlKeywords(StepRunnerDefinition row, string[] patterns)
+    {
+        var key = row.Key ?? string.Empty;
+        if (key.Length == 0
+            || !StepRunnerAgentKeywordCatalog.TryGet(key, out var meta)
+            || meta.ControlKeywords.Count == 0)
+        {
+            return false;
+        }
+
+        var control = StepRunnerInputParamVisibility.TryFindControlField(row.InputParamDefs);
+        if (control is null)
+        {
+            return false;
+        }
+
+        foreach (var si in control.SelectionItems)
+        {
+            var value = (si.Value ?? string.Empty).Trim();
+            if (value.Length == 0
+                || StepRunnerAgentSearchFilter.IsControlValueExcludedFromSearch(key, value)
+                || !meta.ControlKeywords.TryGetValue(value, out var keywords)
+                || keywords is null
+                || keywords.Count == 0)
+            {
+                continue;
+            }
+
+            var surface = string.Join(
+                "\n",
+                si.Name ?? string.Empty,
+                si.Value ?? string.Empty,
+                si.Description ?? string.Empty,
+                string.Join("\n", keywords));
+
+            if (LegacyRowMatchesSurface(surface, patterns))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static string NormalizeMatchText(string? text)
@@ -207,12 +328,90 @@ public sealed class StepRunnerSearchQuery
             return true;
         }
 
+        return patterns.All(p => LegacyPatternMatchesSurface(surface, p));
+    }
+
+    /// <summary>
+    /// Legacy token match: substring (incl. normalized), then CJK 2-char AND for compounds like 移动文件.
+    /// </summary>
+    public static bool LegacyPatternMatchesSurface(string surface, string pattern)
+    {
+        if (pattern.Length == 0)
+        {
+            return true;
+        }
+
+        if (LegacySubstringMatchesSurface(surface, pattern))
+        {
+            return true;
+        }
+
+        if (!IsCjkCompoundQuery(pattern))
+        {
+            return false;
+        }
+
+        var chunks = SplitCjkBigrams(pattern);
+        return chunks.Length >= 2
+            && chunks.All(chunk => LegacySubstringMatchesSurface(surface, chunk));
+    }
+
+    private static bool LegacySubstringMatchesSurface(string surface, string pattern)
+    {
         var lower = surface.ToLowerInvariant();
+        if (lower.IndexOf(pattern, StringComparison.Ordinal) >= 0)
+        {
+            return true;
+        }
+
         var normalizedSurface = NormalizeMatchText(surface);
-        return patterns.All(p =>
-            lower.IndexOf(p, StringComparison.Ordinal) >= 0
-            || (!string.IsNullOrEmpty(normalizedSurface)
-                && normalizedSurface.IndexOf(NormalizeMatchText(p), StringComparison.Ordinal) >= 0));
+        var normalizedPattern = NormalizeMatchText(pattern);
+        return normalizedPattern.Length > 0
+            && normalizedSurface.Length > 0
+            && normalizedSurface.IndexOf(normalizedPattern, StringComparison.Ordinal) >= 0;
+    }
+
+    private static bool IsCjkCompoundQuery(string pattern)
+    {
+        if (pattern.Length < 4)
+        {
+            return false;
+        }
+
+        var han = 0;
+        foreach (var ch in pattern)
+        {
+            if (IsCjkUnified(ch))
+            {
+                han++;
+            }
+            else if (!char.IsWhiteSpace(ch))
+            {
+                return false;
+            }
+        }
+
+        return han == pattern.Length;
+    }
+
+    private static bool IsCjkUnified(char ch) =>
+        ch is >= '\u4e00' and <= '\u9fff'
+        or >= '\u3400' and <= '\u4dbf';
+
+    private static string[] SplitCjkBigrams(string text)
+    {
+        if (text.Length == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var chunks = new List<string>();
+        for (var i = 0; i < text.Length; i += 2)
+        {
+            chunks.Add(text.Length - i >= 2 ? text.Substring(i, 2) : text.Substring(i, 1));
+        }
+
+        return chunks.ToArray();
     }
 
     private static int LegacyComputeSortScore(StepRunnerDefinition row, string[] patterns)

@@ -53,12 +53,21 @@ export function CodeMirrorLineDiffView({
     [removed, added, collapse],
   );
 
+  const lintSourceText = useMemo(
+    () => `${removed}\n${added}`,
+    [removed, added],
+  );
+
   const extensions = useMemo(
     () => [
-      ...buildPreviewCodeMirrorExtensions(path, { language, lineNumbers }),
+      ...buildPreviewCodeMirrorExtensions(path, {
+        language,
+        lineNumbers,
+        lintSourceText,
+      }),
       createDiffLineKindsExtension(display.lineKinds, { scrollToFirstChange }),
     ],
-    [path, language, lineNumbers, display.lineKinds, scrollToFirstChange],
+    [path, language, lineNumbers, lintSourceText, display.lineKinds, scrollToFirstChange],
   );
 
   const editorHeight = fillAvailable ? "100%" : "auto";

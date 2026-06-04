@@ -225,6 +225,9 @@ internal static class StepRunnerCatalogFromQuicker
                     Description = ReadString(p, "Description") ?? string.Empty,
                     VarType = ReadEnumInt(p, "Type"),
                     CustomTypeName = ReadString(p, "CustomTypeName") ?? string.Empty,
+                    ValidForValues = MapStringCollection(ReadProperty(p, "ValidForList")),
+                    InvalidForValues = MapStringCollection(ReadProperty(p, "InvalidForList")),
+                    VisibleExpression = ReadString(p, "VisibleExpression") ?? string.Empty,
                 });
         }
 

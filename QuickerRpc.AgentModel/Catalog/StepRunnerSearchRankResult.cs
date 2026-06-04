@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace QuickerRpc.AgentModel.Catalog;
 
 /// <summary>Ranking breakdown for one step-runner search hit.</summary>
@@ -16,6 +18,9 @@ public sealed class StepRunnerSearchRankResult
     public int ControlRankBias { get; set; }
 
     public StepRunnerControlFieldMatch? Control { get; set; }
+
+    /// <summary>OR (|) queries: every control selection that matched a branch (best first).</summary>
+    public List<StepRunnerControlFieldMatch> MatchedControls { get; set; } = new();
 }
 
 /// <summary>Best-matching control-field selection for search output.</summary>

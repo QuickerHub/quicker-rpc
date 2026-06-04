@@ -9,13 +9,16 @@ namespace QuickerRpc.Console.Serve;
 /// </summary>
 internal static class StepRunnerServeCache
 {
-    // Bump when search item shape changes (e.g. items[].controlField).
-    private const int SearchCacheSchemaVersion = 2;
+    // Bump when search match/rank behavior changes (9: controlFields for OR queries).
+    private const int SearchCacheSchemaVersion = 9;
 
     private static readonly ConcurrentDictionary<string, QuickerRpcSearchStepRunnersResult> Search =
         new(StringComparer.Ordinal);
 
-    private static readonly ConcurrentDictionary<string, QuickerRpcStepRunnerDetailResult> Get =
+    private static readonly ConcurrentDictionary<string, QuickerRpcStepRunnerDetailResult> GetAgent =
+        new(StringComparer.Ordinal);
+
+    private static readonly ConcurrentDictionary<string, QuickerRpcStepRunnerDetailResult> GetUi =
         new(StringComparer.Ordinal);
 
     public static bool TryGetSearch(string query, int? limit, out QuickerRpcSearchStepRunnersResult? result)
@@ -33,15 +36,15 @@ internal static class StepRunnerServeCache
         Search[SearchKey(query, limit)] = result;
     }
 
-    public static bool TryGetDetail(
+    public static bool TryGetAgentDetail(
         string stepRunnerKey,
         string? controlField,
         out QuickerRpcStepRunnerDetailResult? result)
     {
-        return Get.TryGetValue(DetailKey(stepRunnerKey, controlField), out result);
+        return GetAgent.TryGetValue(DetailKey("agent", stepRunnerKey, controlField), out result);
     }
 
-    public static void SetDetail(
+    public static void SetAgentDetail(
         string stepRunnerKey,
         string? controlField,
         QuickerRpcStepRunnerDetailResult result)
@@ -51,18 +54,42 @@ internal static class StepRunnerServeCache
             return;
         }
 
-        Get[DetailKey(stepRunnerKey, controlField)] = result;
+        GetAgent[DetailKey("agent", stepRunnerKey, controlField)] = result;
+    }
+
+    public static bool TryGetUiDetail(
+        string stepRunnerKey,
+        string? controlField,
+        out QuickerRpcStepRunnerDetailResult? result)
+    {
+        return GetUi.TryGetValue(DetailKey("ui", stepRunnerKey, controlField), out result);
+    }
+
+    public static void SetUiDetail(
+        string stepRunnerKey,
+        string? controlField,
+        QuickerRpcStepRunnerDetailResult result)
+    {
+        if (!result.Success)
+        {
+            return;
+        }
+
+        GetUi[DetailKey("ui", stepRunnerKey, controlField)] = result;
     }
 
     public static void Clear()
     {
         Search.Clear();
-        Get.Clear();
+        GetAgent.Clear();
+        GetUi.Clear();
     }
 
     private static string SearchKey(string query, int? limit) =>
         $"{SearchCacheSchemaVersion}\0{query.Trim()}\0{limit?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "*"}";
 
-    private static string DetailKey(string stepRunnerKey, string? controlField) =>
-        $"{stepRunnerKey.Trim()}\0{(controlField ?? string.Empty).Trim()}";
+    private const int GetCacheSchemaVersion = 3;
+
+    private static string DetailKey(string channel, string stepRunnerKey, string? controlField) =>
+        $"{GetCacheSchemaVersion}\0{channel}\0{stepRunnerKey.Trim()}\0{(controlField ?? string.Empty).Trim()}";
 }

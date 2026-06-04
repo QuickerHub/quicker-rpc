@@ -9,6 +9,7 @@ import manualPatterns from "@/lib/action-editor/steps/step-runner-summary-patter
 import { buildSummaryFromParts } from "@/lib/action-editor/steps/stepSummaryFromParts";
 import { buildDynamicStepSummary } from "@/lib/action-editor/steps/stepSummaryDynamic";
 import type { StepSummaryFileContents } from "@/lib/action-editor/steps/stepSummaryFileRefs";
+import { filterRunnerItemDefsForStep } from "@/lib/action-editor/steps/stepParamVisibility";
 
 const STEP_SUMMARY_PATTERNS: Readonly<Record<string, readonly string[]>> = {
   ...autoPatterns,
@@ -74,15 +75,19 @@ function buildPatternSummary(
     return "";
   }
 
-  if (runnerItem) {
-    const dynamic = buildDynamicStepSummary(key, step, runnerItem, fileContentsByPath);
+  const scopedRunner = runnerItem
+    ? filterRunnerItemDefsForStep(runnerItem, step)
+    : undefined;
+
+  if (scopedRunner) {
+    const dynamic = buildDynamicStepSummary(key, step, scopedRunner, fileContentsByPath);
     if (dynamic) {
       return dynamic;
     }
   }
 
-  const inputDefs = runnerItem?.inputParamDefs ?? [];
-  const outputDefs = runnerItem?.outputParamDefs ?? [];
+  const inputDefs = scopedRunner?.inputParamDefs ?? [];
+  const outputDefs = scopedRunner?.outputParamDefs ?? [];
   return buildSummaryFromParts(parts, step, inputDefs, outputDefs, fileContentsByPath).trim();
 }
 
@@ -114,7 +119,11 @@ export function buildClientStepSummary(
     return buildSubProgramClientStepSummary(step, fileContentsByPath);
   }
 
-  const fromPattern = buildPatternSummary(step, runnerItem, fileContentsByPath);
+  const scopedRunner = runnerItem
+    ? filterRunnerItemDefsForStep(runnerItem, step)
+    : undefined;
+
+  const fromPattern = buildPatternSummary(step, scopedRunner, fileContentsByPath);
   if (fromPattern) {
     return fromPattern;
   }

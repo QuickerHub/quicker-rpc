@@ -293,13 +293,17 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Subprogram or action id."), Option("var", "Variable key."), Option("value", "New default."), Option("json", "Structured output.") }),
 
-                Cmd("step-runner search", "Search StepRunner catalog (| OR, * wildcard). Use when step-modules has no match.", "qkrpc step-runner search --query <keyword> [--limit 40] [--json]",
+                Cmd("step-runner search", "Search StepRunner catalog (| OR, * wildcard). Non-empty query: items[].controlField on control-field modules (use value for get --control-field). Primary way to pick stepRunnerKey before get.", "qkrpc step-runner search --query <keyword> [--limit 40] [--json]",
 
                     opts: new[] { Option("query", "Filter: AND with spaces, OR with |, * wildcard.", shortName: "q"), Option("limit", "Max results.", defaultValue: "40"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
-                Cmd("step-runner get", "StepRunner schema: input param keys/types (required before patch inputParams). Use --control-field when ControlField exists.", "qkrpc step-runner get --key <stepRunnerKey> [--control-field <value>] [--json]",
+                Cmd("step-runner get", "Agent step-runner schema (compressed, no icon): input keys/types before patch. Use --control-field when search returned controlField.", "qkrpc step-runner get --key <stepRunnerKey> [--control-field <value>] [--json]",
 
-                    opts: new[] { Option("key", "StepRunner key."), Option("control-field", "Control-field value (from search or ControlField.Selection)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+                    opts: new[] { Option("key", "StepRunner key."), Option("control-field", "Control-field value (from search items[].controlField.value)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("step-runner get-ui", "UI step-runner schema (full JSON with icon and control options). For action-editor only; agents use step-runner get.", "qkrpc step-runner get-ui --key <stepRunnerKey> [--control-field <value>] [--json]",
+
+                    opts: new[] { Option("key", "StepRunner key."), Option("control-field", "Control-field value."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("fa resolve", "Resolve fa: specs to SVG path data (for UIs).", "qkrpc fa resolve --spec fa:Light_Flask [--json] | qkrpc fa resolve --specs '[\"fa:Light_A\"]' --json",
                     opts: new[] { Option("spec", "Single fa: icon spec."), Option("specs", "JSON array of fa: specs (batch, max 80 unique)."), Option("json", "Structured output: items[] with path, width, height."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),

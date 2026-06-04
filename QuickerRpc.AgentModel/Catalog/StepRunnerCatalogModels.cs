@@ -88,6 +88,12 @@ public sealed class StepRunnerOutputParamDef
     public int VarType { get; set; }
 
     public string CustomTypeName { get; set; } = string.Empty;
+
+    public IList<string> ValidForValues { get; set; } = new List<string>();
+
+    public IList<string> InvalidForValues { get; set; } = new List<string>();
+
+    public string VisibleExpression { get; set; } = string.Empty;
 }
 
 public sealed class StepRunnerParamSelectionItem

@@ -1,4 +1,4 @@
-# Patch workflow（CLI）
+# Patch 工作流（CLI）
 
 **`action patch`**：一次调用 = 一次保存。前置：每个新/改步骤先 **`step-runner get`**（**`authoring-workflow`** P5）。
 

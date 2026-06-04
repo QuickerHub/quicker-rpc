@@ -26,6 +26,7 @@ public enum ProgramSyntaxCheckKind
 {
     Expression,
     CSharp,
+    Interpolation,
 }
 
 public sealed class ProgramSyntaxCheckItem

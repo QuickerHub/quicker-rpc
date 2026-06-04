@@ -20,6 +20,10 @@ public sealed class StepRunnerSearchItem
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public StepRunnerControlFieldMatch? ControlField { get; set; }
 
+    /// <summary>OR (|) query: multiple matching control modes on this module (best first).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<StepRunnerControlFieldMatch>? ControlFields { get; set; }
+
     /// <summary>Quicker icon spec, e.g. fa:Light_WindowMaximize.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Icon { get; set; }
@@ -43,6 +47,16 @@ public sealed class ControlFieldSelection
     public string Key { get; set; } = string.Empty;
 
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Input param keys visible when this control value is selected (from ValidFor / visibility rules).
+    /// </summary>
+    public List<string> VisibleInputKeys { get; set; } = new();
+
+    /// <summary>
+    /// Output param keys visible when this control value is selected.
+    /// </summary>
+    public List<string> VisibleOutputKeys { get; set; } = new();
 }
 
 public sealed class ControlFieldSchema

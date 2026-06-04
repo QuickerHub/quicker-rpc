@@ -26,6 +26,10 @@ function catalogCacheKey(baseUrl: string): string {
 const stepRunnersItemsInflight = new Map<string, Promise<StepRunnerItem[]>>();
 const stepRunnersItemsCache = new Map<string, StepRunnerItem[]>();
 
+import {
+  collectStepRunnerSchemaRequestsFromSteps,
+  stepRunnerSchemaCacheKey,
+} from "@/lib/action-editor/steps/stepParamVisibility";
 import { designerHostGrpcGetStepRunners, fetchStepRunnerDetailItem } from "../shared/designerHostGrpcApi";
 
 /**
@@ -111,55 +115,102 @@ export function collectStepRunnerKeysFromSteps(steps: readonly ActionStep[]): st
   return [...keys];
 }
 
-/** Fetch catalog entries for keys missing from the initial search slice (limit 200). */
-/** Fetch full schemas (inputParamDefs) for catalog items used by steps but loaded without defs. */
+/**
+ * Per-step schema cache (key or key\\0controlLiteral) from get-ui with control filter.
+ * Falls back to catalog item when a variant is not loaded yet.
+ */
+export function resolveRunnerItemForStep(
+  step: ActionStep,
+  catalogItems: readonly StepRunnerItem[],
+  schemaByCacheKey: Readonly<Record<string, StepRunnerItem>>,
+): StepRunnerItem | undefined {
+  const cacheKey = stepRunnerSchemaCacheKey(step);
+  if (cacheKey && schemaByCacheKey[cacheKey]?.inputParamDefs?.length) {
+    return schemaByCacheKey[cacheKey];
+  }
+  return resolveRunnerItemForStepKey(catalogItems, step.stepRunnerKey);
+}
+
+/** Fetch full schemas for steps (control-aware) and catalog entries still missing defs. */
 export async function hydrateMissingStepRunnerItems(
-  keys: readonly string[],
+  steps: readonly ActionStep[],
   items: readonly StepRunnerItem[],
+  schemaByCacheKey: Readonly<Record<string, StepRunnerItem>>,
   signal?: AbortSignal,
-): Promise<StepRunnerItem[]> {
-  const missingKeys = keys.filter((key) => {
+): Promise<{
+  catalogItems: StepRunnerItem[];
+  schemaByCacheKey: Record<string, StepRunnerItem>;
+}> {
+  const nextSchemas: Record<string, StepRunnerItem> = { ...schemaByCacheKey };
+  const requests = collectStepRunnerSchemaRequestsFromSteps(steps);
+
+  await Promise.all(
+    requests.map(async (req) => {
+      const cacheKey = req.controlLiteral
+        ? `${req.key}\0${req.controlLiteral}`
+        : req.key;
+      if ((nextSchemas[cacheKey]?.inputParamDefs?.length ?? 0) > 0) {
+        return;
+      }
+      try {
+        const detail = await fetchStepRunnerDetailItem(
+          req.key,
+          req.controlLiteral,
+          signal,
+        );
+        if (detail && (detail.inputParamDefs?.length ?? 0) > 0) {
+          nextSchemas[cacheKey] = detail;
+        }
+      } catch {
+        /* ignore per-step failures */
+      }
+    }),
+  );
+
+  const missingKeys = collectStepRunnerKeysFromSteps(steps).filter((key) => {
     if (!key) return false;
     const item = resolveRunnerItemForStepKey(items, key);
     if (!item) return true;
     return (item.inputParamDefs?.length ?? 0) === 0;
   });
-  if (missingKeys.length === 0) {
-    return [...items];
-  }
 
+  let merged = [...items];
   const uniqueMissing = [...new Set(missingKeys)];
-  const fetched = await Promise.all(
-    uniqueMissing.map(async (key) => {
-      try {
-        return await fetchStepRunnerDetailItem(key, undefined, signal);
-      } catch {
-        return null;
+  if (uniqueMissing.length > 0) {
+    const fetched = await Promise.all(
+      uniqueMissing.map(async (key) => {
+        try {
+          return await fetchStepRunnerDetailItem(key, undefined, signal);
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    const detailByKey = new Map<string, StepRunnerItem>();
+    for (const detail of fetched) {
+      if (!detail) continue;
+      const k = (detail.key ?? "").trim();
+      if (!k || (detail.inputParamDefs?.length ?? 0) === 0) {
+        continue;
       }
-    }),
-  );
-
-  const detailByKey = new Map<string, StepRunnerItem>();
-  for (const detail of fetched) {
-    if (!detail) continue;
-    const k = (detail.key ?? "").trim();
-    if (!k || (detail.inputParamDefs?.length ?? 0) === 0) {
-      continue;
+      detailByKey.set(k, detail);
+      if (!nextSchemas[k]) {
+        nextSchemas[k] = detail;
+      }
     }
-    detailByKey.set(k, detail);
-  }
 
-  if (detailByKey.size === 0) {
-    return [...items];
-  }
-
-  const merged = items.map((item) => detailByKey.get(item.key) ?? item);
-  for (const [key, detail] of detailByKey) {
-    if (!merged.some((item) => item.key === key)) {
-      merged.push(detail);
+    if (detailByKey.size > 0) {
+      merged = items.map((item) => detailByKey.get(item.key) ?? item);
+      for (const [key, detail] of detailByKey) {
+        if (!merged.some((item) => item.key === key)) {
+          merged.push(detail);
+        }
+      }
     }
   }
-  return merged;
+
+  return { catalogItems: merged, schemaByCacheKey: nextSchemas };
 }
 
 export async function hydrateMissingStepRunnerEntries(

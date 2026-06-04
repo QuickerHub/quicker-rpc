@@ -129,10 +129,57 @@ function inferVariableModeFromAgentInput(
   return ParamVariableMode.UseVarOrInput;
 }
 
+type ControlFieldSelectionHint = {
+  value: string;
+  name: string;
+  description: string;
+  visibleInputKeys?: string[];
+  visibleOutputKeys?: string[];
+};
+
 type ControlFieldHint = {
   key: string;
-  selectionItems: NonNullable<StepRunnerInputParamDef["selectionItems"]>;
+  selectionItems: ControlFieldSelectionHint[];
 };
+
+function mapControlFieldSelectionItems(raw: unknown): ControlFieldSelectionHint[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ControlFieldSelectionHint[] = [];
+  for (const item of raw) {
+    if (typeof item !== "object" || item === null) continue;
+    const o = item as Record<string, unknown>;
+    const value = readString(o, "value", "Value", "key", "Key");
+    if (!value) continue;
+    const visibleInputKeys = readStringArray(
+      o,
+      "visibleInputKeys",
+      "VisibleInputKeys",
+    );
+    const visibleOutputKeys = readStringArray(
+      o,
+      "visibleOutputKeys",
+      "VisibleOutputKeys",
+    );
+    out.push({
+      value,
+      name: readString(o, "name", "Name", "label", "Label", "title", "Title") ?? "",
+      description: readString(
+        o,
+        "description",
+        "Description",
+        "hint",
+        "Hint",
+        "purpose",
+        "Purpose",
+      ) ?? "",
+      visibleInputKeys:
+        visibleInputKeys.length > 0 ? visibleInputKeys : undefined,
+      visibleOutputKeys:
+        visibleOutputKeys.length > 0 ? visibleOutputKeys : undefined,
+    });
+  }
+  return out;
+}
 
 function readControlFieldHint(schema: Record<string, unknown>): ControlFieldHint | null {
   const raw = schema.controlField ?? schema.ControlField;
@@ -140,8 +187,42 @@ function readControlFieldHint(schema: Record<string, unknown>): ControlFieldHint
   const o = raw as Record<string, unknown>;
   const key = readString(o, "key", "Key");
   if (!key) return null;
-  const selectionItems = mapSelectionItems(o.selection ?? o.Selection);
+  const selectionItems = mapControlFieldSelectionItems(o.selection ?? o.Selection);
   return { key, selectionItems };
+}
+
+function applyValidForFromControlVisibleKeys(
+  controlField: ControlFieldHint,
+  paramKeysByMode: (sel: ControlFieldSelectionHint) => string[] | undefined,
+  defs: Array<
+    Pick<
+      StepRunnerInputParamDef | StepRunnerOutputParamDef,
+      "key" | "validForList" | "invalidForList" | "visibleExpression"
+    >
+  >,
+): void {
+  const byParam = new Map<string, string[]>();
+  for (const sel of controlField.selectionItems) {
+    const mode = sel.value.trim();
+    if (!mode) continue;
+    for (const paramKey of paramKeysByMode(sel) ?? []) {
+      const k = paramKey.trim();
+      if (!k || k === controlField.key) continue;
+      const modes = byParam.get(k) ?? [];
+      if (!modes.some((m) => m.toLowerCase() === mode.toLowerCase())) {
+        modes.push(mode);
+      }
+      byParam.set(k, modes);
+    }
+  }
+
+  for (const def of defs) {
+    const modes = byParam.get(def.key);
+    if (!modes?.length) continue;
+    def.validForList = modes;
+    def.invalidForList = [];
+    def.visibleExpression = "";
+  }
 }
 
 function mapAgentInputParamDef(
@@ -341,6 +422,24 @@ export function mapAgentSchemaToStepRunnerItem(schema: Record<string, unknown>) 
       const mapped = isAgentOutputs ? mapAgentOutputParamDef(row) : mapOutputParamDef(row);
       if (mapped) outputParamDefs.push(mapped);
     }
+  }
+
+  if (
+    controlField
+    && controlField.selectionItems.some(
+      (s) => (s.visibleInputKeys?.length ?? 0) > 0 || (s.visibleOutputKeys?.length ?? 0) > 0,
+    )
+  ) {
+    applyValidForFromControlVisibleKeys(
+      controlField,
+      (s) => s.visibleInputKeys,
+      inputParamDefs,
+    );
+    applyValidForFromControlVisibleKeys(
+      controlField,
+      (s) => s.visibleOutputKeys,
+      outputParamDefs,
+    );
   }
 
   const stepType = readString(schema, "stepType", "StepType");

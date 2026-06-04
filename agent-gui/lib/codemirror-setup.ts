@@ -20,6 +20,7 @@ import {
   lineNumbers,
   drawSelection,
 } from "@codemirror/view";
+import { createInterpolationLintExtension } from "@/lib/codemirror-interpolation-lint";
 import { quickerTextCodeMirror } from "@/lib/quicker-text-codemirror";
 import { guessFileLanguage } from "@/lib/workspace-file-tool";
 
@@ -247,7 +248,12 @@ export function getCodeMirrorLanguageExtension(
 
 export function buildPreviewCodeMirrorExtensions(
   path: string,
-  options?: { language?: string; lineNumbers?: boolean },
+  options?: {
+    language?: string;
+    lineNumbers?: boolean;
+    /** Source for $$ interpolation lint (defaults to editor doc). */
+    lintSourceText?: string;
+  },
 ): Extension[] {
   const extensions: Extension[] = [
     ...readonlyCodeMirrorExtensions(),
@@ -255,6 +261,13 @@ export function buildPreviewCodeMirrorExtensions(
   ];
   if (options?.lineNumbers) {
     extensions.push(lineNumbers());
+  }
+  const interpolationLint = createInterpolationLintExtension(
+    options?.lintSourceText ?? "",
+    path,
+  );
+  if (interpolationLint) {
+    extensions.push(interpolationLint);
   }
   return extensions;
 }

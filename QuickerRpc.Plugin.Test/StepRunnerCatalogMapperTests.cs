@@ -40,6 +40,12 @@ public sealed class StepRunnerCatalogMapperTests
                         new() { Key = "showCmd", ValidForValues = new List<string> { "show" } },
                         new() { Key = "stopIfFail" },
                     },
+                    OutputParamDefs = new List<StepRunnerOutputParamDef>
+                    {
+                        new() { Key = "ok", ValidForValues = new List<string> { "move", "move_ex" } },
+                        new() { Key = "pos", ValidForValues = new List<string> { "move" } },
+                        new() { Key = "region", ValidForValues = new List<string> { "move_ex" } },
+                    },
                 },
             },
         };
@@ -120,6 +126,15 @@ public sealed class StepRunnerCatalogMapperTests
     }
 
     [TestMethod]
+    public void Search_non_empty_query_omits_agent_guidance()
+    {
+        var catalog = CreateWindowOperationsCatalog();
+        var result = StepRunnerCatalogMapper.Search(catalog, "移动", maxResults: 10);
+
+        Assert.IsTrue(result.Success);
+    }
+
+    [TestMethod]
     public void Search_empty_query_omits_control_field()
     {
         var catalog = CreateWindowOperationsCatalog();
@@ -131,6 +146,7 @@ public sealed class StepRunnerCatalogMapperTests
         {
             Assert.IsNull(item.ControlField);
         }
+
     }
 
     [TestMethod]
@@ -145,6 +161,10 @@ public sealed class StepRunnerCatalogMapperTests
         CollectionAssert.Contains(keys, "area");
         CollectionAssert.DoesNotContain(keys, "x");
         CollectionAssert.DoesNotContain(keys, "width");
+        var outKeys = result.Schema.Outputs.Select(o => o.Key).ToList();
+        CollectionAssert.Contains(outKeys, "ok");
+        CollectionAssert.Contains(outKeys, "region");
+        CollectionAssert.DoesNotContain(outKeys, "pos");
         Assert.AreEqual("move_ex", result.Schema.AppliedControlFieldValue);
         Assert.IsTrue(result.Schema.VisibilityFilteringAvailable);
     }
@@ -159,6 +179,9 @@ public sealed class StepRunnerCatalogMapperTests
         var keys = result.Schema!.Inputs.Select(i => i.Key).ToList();
         CollectionAssert.Contains(keys, "x");
         CollectionAssert.DoesNotContain(keys, "area");
+        var outKeys = result.Schema!.Outputs.Select(o => o.Key).ToList();
+        CollectionAssert.Contains(outKeys, "pos");
+        CollectionAssert.DoesNotContain(outKeys, "region");
     }
 
     [TestMethod]
@@ -170,6 +193,29 @@ public sealed class StepRunnerCatalogMapperTests
         Assert.IsFalse(result.Success);
         StringAssert.Contains(result.ErrorMessage!, "Invalid control field value");
         StringAssert.Contains(result.ErrorMessage!, "move_ex");
+    }
+
+    [TestMethod]
+    public void GetDetail_control_field_selection_includes_visible_input_keys_per_mode()
+    {
+        var catalog = CreateWindowOperationsCatalog();
+        var result = StepRunnerCatalogMapper.GetDetail(catalog, "sys:windowOperations");
+
+        Assert.IsTrue(result.Success);
+        var selection = result.Schema!.ControlField!.Selection;
+        var move = selection.First(s => s.Key == "move");
+        var moveEx = selection.First(s => s.Key == "move_ex");
+
+        CollectionAssert.Contains(move.VisibleInputKeys, "x");
+        CollectionAssert.Contains(move.VisibleInputKeys, "type");
+        CollectionAssert.DoesNotContain(move.VisibleInputKeys, "area");
+
+        CollectionAssert.Contains(moveEx.VisibleInputKeys, "area");
+        CollectionAssert.DoesNotContain(moveEx.VisibleInputKeys, "x");
+
+        CollectionAssert.Contains(move.VisibleOutputKeys, "pos");
+        CollectionAssert.DoesNotContain(move.VisibleOutputKeys, "region");
+        CollectionAssert.Contains(moveEx.VisibleOutputKeys, "region");
     }
 
     [TestMethod]

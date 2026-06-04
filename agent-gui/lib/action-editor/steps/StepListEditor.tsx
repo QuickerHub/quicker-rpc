@@ -78,9 +78,10 @@ import {
   fetchStepRunnersItems,
   hydrateMissingStepRunnerEntries,
   hydrateMissingStepRunnerItems,
-  resolveRunnerItemForStepKey,
+  resolveRunnerItemForStep,
   type StepRunnerLookup
 } from "./stepRunnerCatalog";
+import { collectStepRunnerSchemaRequestsFromSteps } from "./stepParamVisibility";
 import { ensureFaIconsResolved } from "@/lib/fa-icon-cache";
 import {
   collectStepParamFilePaths,
@@ -264,6 +265,9 @@ export default function StepListEditor({
   const stepIdManagerRef = useRef<StepIdManager>(new StepIdManager());
   const [runnerLookup, setRunnerLookup] = useState<StepRunnerLookup>({});
   const [runnerItems, setRunnerItems] = useState<StepRunnerItem[]>([]);
+  const [runnerSchemaByCacheKey, setRunnerSchemaByCacheKey] = useState<
+    Record<string, StepRunnerItem>
+  >({});
   const [editorTargetId, setEditorTargetId] = useState<string | null>(null);
   /** Toolbox drag: edit before insert; cleared on cancel or after confirm. */
   const [pendingToolboxInsert, setPendingToolboxInsert] = useState<PendingToolboxInsert | null>(null);
@@ -339,6 +343,17 @@ export default function StepListEditor({
   runnerLookupRef.current = runnerLookup;
   const runnerItemsRef = useRef(runnerItems);
   runnerItemsRef.current = runnerItems;
+  const runnerSchemaByCacheKeyRef = useRef(runnerSchemaByCacheKey);
+  runnerSchemaByCacheKeyRef.current = runnerSchemaByCacheKey;
+
+  const stepSchemaRequestsKey = useMemo(
+    () =>
+      collectStepRunnerSchemaRequestsFromSteps(steps)
+        .map((r) => `${r.key}\0${r.controlLiteral ?? ""}`)
+        .sort()
+        .join("\u0002"),
+    [steps],
+  );
 
   useEffect(() => {
     const keys = collectStepRunnerKeysFromSteps(steps);
@@ -367,20 +382,39 @@ export default function StepListEditor({
   }, [stepRunnerKeysKey, backendBaseUrl, runnerItems.length]);
 
   useEffect(() => {
-    const keys = collectStepRunnerKeysFromSteps(steps);
-    if (keys.length === 0) return;
+    if (stepSchemaRequestsKey.length === 0) return;
 
     let cancelled = false;
     const ac = new AbortController();
     void (async () => {
       try {
         const prev = runnerItemsRef.current;
-        const hydrated = await hydrateMissingStepRunnerItems(keys, prev, ac.signal);
+        const prevSchemas = runnerSchemaByCacheKeyRef.current;
+        const { catalogItems, schemaByCacheKey } = await hydrateMissingStepRunnerItems(
+          steps,
+          prev,
+          prevSchemas,
+          ac.signal,
+        );
         if (cancelled) return;
         const prevDefs = prev.reduce((n, item) => n + (item.inputParamDefs?.length ?? 0), 0);
-        const nextDefs = hydrated.reduce((n, item) => n + (item.inputParamDefs?.length ?? 0), 0);
+        const nextDefs = catalogItems.reduce(
+          (n, item) => n + (item.inputParamDefs?.length ?? 0),
+          0,
+        );
+        const prevSchemaDefs = Object.values(prevSchemas).reduce(
+          (n, item) => n + (item.inputParamDefs?.length ?? 0),
+          0,
+        );
+        const nextSchemaDefs = Object.values(schemaByCacheKey).reduce(
+          (n, item) => n + (item.inputParamDefs?.length ?? 0),
+          0,
+        );
         if (nextDefs > prevDefs) {
-          setRunnerItems(hydrated);
+          setRunnerItems(catalogItems);
+        }
+        if (nextSchemaDefs > prevSchemaDefs) {
+          setRunnerSchemaByCacheKey(schemaByCacheKey);
         }
       } catch {
         /* ignore */
@@ -391,7 +425,7 @@ export default function StepListEditor({
       cancelled = true;
       ac.abort();
     };
-  }, [stepRunnerKeysKey, backendBaseUrl]);
+  }, [stepSchemaRequestsKey, backendBaseUrl, steps]);
 
   useEffect(() => {
     const specs = new Set<string>();
@@ -825,8 +859,11 @@ export default function StepListEditor({
     return findStepById(steps, editorTargetId);
   }, [editorTargetId, steps, pendingToolboxInsert]);
   const popupRunnerItem = useMemo(
-    () => (popupStep ? resolveRunnerItemForStepKey(runnerItems, popupStep.stepRunnerKey) : undefined),
-    [popupStep, runnerItems]
+    () =>
+      popupStep
+        ? resolveRunnerItemForStep(popupStep, runnerItems, runnerSchemaByCacheKey)
+        : undefined,
+    [popupStep, runnerItems, runnerSchemaByCacheKey],
   );
   const popupRunnerTitle = useMemo(() => {
     if (!popupStep) return "";
@@ -1571,7 +1608,11 @@ export default function StepListEditor({
           const rawTitleFallback = resolvedSubName ?? view.runnerName;
           const primaryRunnerName =
             spLabel != null && spLabel.displayName.length > 0 ? spLabel.displayName : rawTitleFallback;
-          const runnerItem = resolveRunnerItemForStepKey(runnerItems, step.stepRunnerKey);
+          const runnerItem = resolveRunnerItemForStep(
+            step,
+            runnerItems,
+            runnerSchemaByCacheKey,
+          );
           const noteTrim = (step.note ?? "").trim();
           const summaryTrim = resolveStepListSecondarySummary(
             step,

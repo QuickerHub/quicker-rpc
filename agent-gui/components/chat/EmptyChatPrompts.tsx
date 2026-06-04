@@ -59,7 +59,7 @@ export function EmptyChatPrompts({
       >
         <IconToolTest />
         <span className="empty-chat-shortcut-btn__label">测试</span>
-        <span className="empty-chat-shortcut-btn__hint">直接调用工具，不经 LLM</span>
+        <span className="empty-chat-shortcut-btn__hint">工具套件与标题/Prompt 测试</span>
       </Link>
     </div>
   );

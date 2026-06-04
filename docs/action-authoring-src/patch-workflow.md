@@ -1,4 +1,4 @@
-# Patch workflow（CLI）
+# {{#topic-title}}
 
 {{#only-agent}}
 **Agent 不用增量 patch JSON**（无 `op` / add / update / remove）。改 **`data.json`** / `files/`，保存 **`qkrpc_action_patch({ id })`** — 见 **`workspace-editing`**。

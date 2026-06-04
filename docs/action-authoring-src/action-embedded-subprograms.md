@@ -1,4 +1,4 @@
-# 动作内子程序（工作区外置）
+# {{#topic-title}}
 
 **何时读**：动作含 **内部子程序**（非全局 `.quicker/subprograms/`），需 extract/apply 或 agent-gui 按子程序路径编辑。
 

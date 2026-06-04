@@ -211,8 +211,14 @@ public interface IQuickerRpcService
         int? maxResults = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Get StepRunner schema for authoring ActionStep inputParams.</summary>
+    /// <summary>Agent step-runner schema (compressed JSON, no icon). For UI use <see cref="GetStepRunnerUiDetailAsync"/>.</summary>
     Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerDetailAsync(
+        string stepRunnerKey,
+        string? controlFieldValue = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>UI step-runner schema (full JSON with icon and control options). Not for LLM tools.</summary>
+    Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerUiDetailAsync(
         string stepRunnerKey,
         string? controlFieldValue = null,
         CancellationToken cancellationToken = default);

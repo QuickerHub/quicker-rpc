@@ -1,4 +1,4 @@
-# Overview（动作编辑入口）
+# {{#topic-title}}
 
 {{#ref product.intro}}
 
@@ -57,20 +57,20 @@
 
 ## 专题索引（按阶段）
 
-| 主题 | 何时读 |
-|------|--------|
-| **`authoring-workflow`** | 按 P1–P7 执行（主流程） |
-| **`action-steps`** | P5–P6：`steps[]` 形状、`inputParams` / `outputParams`、条件分支 |
-{{#only-agent}}| **`workspace-editing`** | `.quicker` 布局、workspace 工具、file 外置、禁止项 |
-| **`action-variables`** | `variables[]` 类型、`quicker_in_param` 边界 |
-{{/only-agent}}| **`expressions`** | P4 **首选**：`$=`、`$$`、`sys:evalexpression`（LINQ/字符串/多变量） |
-| **`implementation-fallback`** | P4：表达式不够或无模块时的回退（csscript / runScript） |
-| **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
-{{#only-agent}}| **`action-organization-workflow`** | 整理动作页：移动、全局 tab、虚拟进程归集（不改程序体） |
-{{/only-agent}}| **`step-runner-search`** | P5：目录搜索 OR/通配 |
-| **`step-modules`** | P5：常用 stepRunnerKey（大表 `docs_get_reference`） |
-{{#only-cli}}| **`patch-workflow`** | P6：内联 patch JSON |
-| **`action-project-files`** | CLI 磁盘 extract/apply |
+| 标题 | topic | 何时读 |
+|------|-------|--------|
+| 写动作流程 | **`authoring-workflow`** | 按 P1–P7 执行（主流程） |
+| 动作步骤 | **`action-steps`** | P5–P6：`steps[]` 形状、`inputParams` / `outputParams`、条件分支 |
+{{#only-agent}}| 工作区编辑 | **`workspace-editing`** | `.quicker` 布局、workspace 工具、file 外置、禁止项 |
+| 动作变量 | **`action-variables`** | `variables[]` 类型、`quicker_in_param` 边界 |
+{{/only-agent}}| 表达式与插值 | **`expressions`** | P4 **首选**：`$=`、`$$`、`sys:evalexpression`（LINQ/字符串/多变量） |
+| 实现选型与回退 | **`implementation-fallback`** | P4：表达式不够或无模块时的回退（csscript / runScript） |
+| 子程序 | **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
+{{#only-agent}}| 动作整理 | **`action-organization-workflow`** | 整理动作页：移动、全局 tab、虚拟进程归集（不改程序体） |
+{{/only-agent}}| 步骤模块搜索 | **`step-runner-search`** | P5：目录搜索 OR/通配 |
+| 步骤模块 schema | **`step-runner-get`** | P5：Agent 只用 `get`（禁止 `get-ui`）；与 search 分工 |
+{{#only-cli}}| Patch 工作流（CLI） | **`patch-workflow`** | P6：内联 patch JSON |
+| 工作区项目（CLI） | **`action-project-files`** | CLI 磁盘 extract/apply |
 {{/only-cli}}
 
 ## 常见错误（{{#ref errors.source}}）

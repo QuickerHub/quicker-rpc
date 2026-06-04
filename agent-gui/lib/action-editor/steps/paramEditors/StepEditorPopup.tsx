@@ -31,6 +31,7 @@ import {
   stepEditorDraftFingerprint,
 } from "./stepEditorDraftSync";
 import type { ActionProjectWorkspaceContext } from "./FormDefEditorDialog";
+import { isParamDefVisibleForStep } from "@/lib/action-editor/steps/stepParamVisibility";
 
 export type StepEditorPopupProps = {
   open: boolean;
@@ -48,109 +49,6 @@ export type StepEditorPopupProps = {
   /** Return false to keep the dialog open (e.g. insert target became invalid). */
   onApply: (next: ActionStep) => boolean | void;
 };
-
-function parseExpressionBody(raw: string): string {
-  const expr = raw.trim();
-  return expr.startsWith("$=") ? expr.slice(2).trim() : expr;
-}
-
-function tryEvaluateVisibleExpression(expression: string, paramValues: Record<string, string>): boolean {
-  const body = parseExpressionBody(expression);
-  if (!body) {
-    return true;
-  }
-
-  // Keep parity with desktop behavior: "{key}" can be referenced as variable key.
-  const normalizedBody = Object.keys(paramValues).reduce(
-    (acc, key) => acc.split(`{${key}}`).join(key),
-    body
-  );
-
-  const variableNames = Object.keys(paramValues);
-  const variableValues = variableNames.map((name) => paramValues[name]);
-  try {
-    const evaluator = new Function(
-      ...variableNames,
-      `return Boolean(${normalizedBody});`
-    ) as (...args: string[]) => boolean;
-    return evaluator(...variableValues);
-  } catch {
-    return true;
-  }
-}
-
-function normalizeConditionList(list: string[] | undefined): string[] {
-  return (list ?? []).map((x) => (x ?? "").trim()).filter((x) => x.length > 0);
-}
-
-function equalsIgnoreCase(a: string | null | undefined, b: string | null | undefined): boolean {
-  return (a ?? "").localeCompare(b ?? "", "en", { sensitivity: "accent" }) === 0;
-}
-
-function findControlParamKeyForConditionList(list: string[], inputDefs: StepRunnerInputParamDef[]): string | null {
-  for (const def of inputDefs) {
-    const items = def.selectionItems ?? [];
-    if (items.length === 0) {
-      continue;
-    }
-    const valueSet = new Set(items.map((x) => (x.value ?? "").trim().toLowerCase()).filter((x) => x.length > 0));
-    if (list.every((x) => valueSet.has(x.toLowerCase()))) {
-      return def.key;
-    }
-  }
-  return null;
-}
-
-function resolveCompareValueForConditionList(
-  validList: string[],
-  invalidList: string[],
-  inputDefs: StepRunnerInputParamDef[],
-  paramValues: Record<string, string>
-): string {
-  const conditionList = validList.length > 0 ? validList : invalidList;
-  if (conditionList.length === 0) {
-    return "";
-  }
-
-  const matchedControlKey = findControlParamKeyForConditionList(conditionList, inputDefs);
-  if (matchedControlKey) {
-    return paramValues[matchedControlKey] ?? "";
-  }
-
-  // Keep compatibility with legacy behavior: fallback to the last enum control field value.
-  let legacyFallback = "";
-  for (const def of inputDefs) {
-    if (def.isControlField && (def.selectionItems?.length ?? 0) > 0) {
-      const currentValue = paramValues[def.key];
-      if (currentValue != null) {
-        legacyFallback = currentValue;
-      }
-    }
-  }
-  return legacyFallback;
-}
-
-function isParamDefVisible(
-  def: Pick<StepRunnerInputParamDef | StepRunnerOutputParamDef, "visibleExpression" | "validForList" | "invalidForList">,
-  paramValues: Record<string, string>,
-  inputDefs: StepRunnerInputParamDef[]
-): boolean {
-  const validList = normalizeConditionList(def.validForList);
-  const invalidList = normalizeConditionList(def.invalidForList);
-  if (validList.length > 0 || invalidList.length > 0) {
-    const compareValue = resolveCompareValueForConditionList(validList, invalidList, inputDefs, paramValues);
-    if (validList.length > 0) {
-      return validList.some((x) => equalsIgnoreCase(x, compareValue));
-    }
-    return !invalidList.some((x) => equalsIgnoreCase(x, compareValue));
-  }
-
-  const expr = (def.visibleExpression ?? "").trim();
-  if (!expr) {
-    return true;
-  }
-  return tryEvaluateVisibleExpression(expr, paramValues);
-}
 
 function StepEditorPopupBodySkeleton({ message }: { message: string }): JSX.Element {
   return (
@@ -550,14 +448,14 @@ export function StepEditorPopup({
   }, [effectiveDraft]);
 
   const visibleInputDefs = useMemo(
-    () => defs.filter((d) => isParamDefVisible(d, visibleParamValues, defs)),
+    () => defs.filter((d) => isParamDefVisibleForStep(d, visibleParamValues, defs)),
     [defs, visibleParamValues]
   );
   const basicDefs = useMemo(() => visibleInputDefs.filter((d) => !d.isAdvanced), [visibleInputDefs]);
   const advancedDefs = useMemo(() => visibleInputDefs.filter((d) => d.isAdvanced), [visibleInputDefs]);
 
   const visibleOutputDefs = useMemo(
-    () => outDefs.filter((d) => isParamDefVisible(d, visibleParamValues, defs)),
+    () => outDefs.filter((d) => isParamDefVisibleForStep(d, visibleParamValues, defs)),
     [outDefs, visibleParamValues]
   );
   const basicOutDefs = useMemo(() => visibleOutputDefs.filter((d) => !d.isAdvanced), [visibleOutputDefs]);

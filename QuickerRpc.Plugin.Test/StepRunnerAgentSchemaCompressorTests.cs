@@ -17,6 +17,7 @@ public sealed class StepRunnerAgentSchemaCompressorTests
                 {
                     Key = "sys:windowOperations",
                     Name = "窗口操作",
+                    Icon = "fa:Light_Window:#6aaded",
                     InputParamDefs = new List<StepRunnerInputParamDef>
                     {
                         new()
@@ -66,9 +67,24 @@ public sealed class StepRunnerAgentSchemaCompressorTests
         var json = StepRunnerAgentSchemaJson.Serialize(mapped.Schema!);
 
         StringAssert.Contains(json, "\"controlField\"");
+        StringAssert.Contains(json, "\"visibleInputKeys\"");
+        StringAssert.Contains(json, "\"visibleOutputKeys\"");
         StringAssert.Contains(json, "\"agentGuidance\"");
         StringAssert.Contains(json, "--control-field");
         Assert.IsTrue(json.IndexOf("This step has a control field", System.StringComparison.Ordinal) < 0);
+    }
+
+    [TestMethod]
+    public void Agent_serialize_omits_icon_ui_serialize_keeps_icon()
+    {
+        var mapped = StepRunnerCatalogMapper.GetDetail(CreateWindowOperationsCatalog(), "sys:windowOperations");
+        Assert.IsTrue(mapped.Success);
+
+        var agentJson = StepRunnerAgentSchemaJson.Serialize(mapped.Schema!);
+        var uiJson = StepRunnerUiSchemaJson.Serialize(mapped.Schema!);
+
+        Assert.IsTrue(agentJson.IndexOf("\"icon\"", System.StringComparison.Ordinal) < 0);
+        StringAssert.Contains(uiJson, "\"icon\":\"fa:Light_Window:#6aaded\"");
     }
 
     [TestMethod]

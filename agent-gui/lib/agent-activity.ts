@@ -4,6 +4,7 @@ import {
   isToolOrDynamicToolUIPart,
   type UIMessage,
 } from "ai";
+import { isHiddenChatTool } from "@/lib/hidden-chat-tools";
 import { QKRPC_TOOL_REGISTRY } from "@/lib/tool-registry";
 
 function formatToolDisplayName(toolName: string): string {
@@ -87,12 +88,14 @@ export function resolveAgentActivity(input: {
 
   for (const part of lastAssistant.parts) {
     if (!isToolOrDynamicToolUIPart(part)) continue;
+    const toolName = getToolOrDynamicToolName(part);
+    if (isHiddenChatTool(toolName)) continue;
     const state = "state" in part ? part.state : "";
     if (state === "approval-requested") {
       needsApproval = true;
     }
     if (state === "input-streaming" || state === "input-available") {
-      runningTool = getToolOrDynamicToolName(part);
+      runningTool = toolName;
     }
   }
 
@@ -138,7 +141,9 @@ export function isPlaceholderAssistantMessage(message: UIMessage): boolean {
       if (part.text.trim().length > 0) return false;
       continue;
     }
-    if (isToolOrDynamicToolUIPart(part)) return false;
+    if (isToolOrDynamicToolUIPart(part)) {
+      if (!isHiddenChatTool(getToolOrDynamicToolName(part))) return false;
+    }
   }
 
   return true;

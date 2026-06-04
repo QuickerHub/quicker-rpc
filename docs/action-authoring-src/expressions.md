@@ -1,4 +1,4 @@
-# 表达式与插值
+# {{#topic-title}}
 
 **何时读**：**`overview`** P4 — **默认首选**。凡 C# 能写的数据变换（Split、LINQ、JSON、多变量赋值）优先 **`$=` / `sys:evalexpression`**，再考虑专用步骤；仅当表达式 **不够** 时才 **`sys:csscript`**（见 **`implementation-fallback`**）。`inputParams` 键名仍须 {{#ref step-runner.get.invoke}}。
 
@@ -48,6 +48,8 @@
 | `$=` | C# 表达式 | `"$={count} + 1"` |
 
 `varKey` 的值以 `$$` / `$=` 开头时会在运行时求值（除非该参数有 `SkipEval`）。
+
+**Lint**：字面量 `value` 里写了已定义变量名的 `{varKey}` 却没有整段以 `$$`（或 `$=`）开头时，`project.lint` / `workspace_program_diagnostics` 会给出 **warning**（未定义的 `{…}` 不提示）。agent-gui 编辑 `data.json` 时会在对应 `{varKey}` 下划线标出。
 
 ## 动作变量写法
 

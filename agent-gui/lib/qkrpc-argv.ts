@@ -434,6 +434,15 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         },
       };
     }
+    if (verb === "get-ui") {
+      return {
+        op: "step-runner.getUi",
+        args: {
+          key: flagStr(flags, "key"),
+          controlField: flagStr(flags, "control-field"),
+        },
+      };
+    }
     return null;
   }
 

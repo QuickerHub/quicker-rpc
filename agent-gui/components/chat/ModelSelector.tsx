@@ -1,6 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
+import {
+  computeFloatingMenuLayout,
+  type FloatingMenuLayout,
+} from "@/lib/floating-menu-layout";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 import {
   CUSTOM_PROVIDER_ID,
@@ -28,6 +40,11 @@ type ModelSelectorProps = {
   onNeedSettings?: () => void;
   disabled?: boolean;
 };
+
+/** Matches .model-picker-panel { width: min(15.5rem, …) } */
+const MODEL_PICKER_MENU_WIDTH_PX = 248;
+/** Matches min(22rem, 52vh) upper bound used in CSS */
+const MODEL_PICKER_MENU_MAX_HEIGHT_PX = 352;
 
 function ChevronDownIcon() {
   return (
@@ -120,7 +137,10 @@ export function ModelSelector({
   const [options, setOptions] = useState<LlmModelOption[]>([]);
   const [ready, setReady] = useState(false);
   const [directOverride, setDirectOverride] = useState(false);
+  const [panelLayout, setPanelLayout] = useState<FloatingMenuLayout | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const panelId = useMountedAriaControlsId();
 
@@ -151,10 +171,40 @@ export function ModelSelector({
     return () => window.removeEventListener(LLM_KEYS_UPDATED_EVENT, onKeysUpdated);
   }, [refreshOptions]);
 
+  const updatePanelLayout = useCallback(() => {
+    const button = triggerRef.current;
+    if (!button) return;
+    setPanelLayout(
+      computeFloatingMenuLayout(
+        button.getBoundingClientRect(),
+        MODEL_PICKER_MENU_WIDTH_PX,
+        MODEL_PICKER_MENU_MAX_HEIGHT_PX,
+        "start",
+      ),
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelLayout(null);
+      return;
+    }
+    updatePanelLayout();
+    window.addEventListener("resize", updatePanelLayout);
+    window.addEventListener("scroll", updatePanelLayout, true);
+    return () => {
+      window.removeEventListener("resize", updatePanelLayout);
+      window.removeEventListener("scroll", updatePanelLayout, true);
+    };
+  }, [open, updatePanelLayout]);
+
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
@@ -224,9 +274,204 @@ export function ModelSelector({
         ? `${active.modelId} 未配置，点击打开设置`
         : "选择对话模型";
 
+  const pickerPanel = (
+    <div
+      id={panelId}
+      className="model-picker-panel composer-popup"
+      role="dialog"
+      aria-label="模型选择"
+      style={
+        panelLayout
+          ? { maxHeight: panelLayout.maxHeight }
+          : undefined
+      }
+      onMouseLeave={(e) => {
+        const next = e.relatedTarget;
+        if (
+          next instanceof Node
+          && e.currentTarget.contains(next)
+        ) {
+          return;
+        }
+        setHoveredSelection(null);
+      }}
+    >
+      <div
+        className="model-picker-search-wrap"
+        onMouseEnter={() => setHoveredSelection(null)}
+      >
+        <input
+          ref={searchRef}
+          type="search"
+          className="model-picker-search"
+          placeholder="搜索模型"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="搜索模型"
+        />
+      </div>
+
+      {directOverride && (
+        <p className="model-picker-note">
+          服务器使用 LLM_API_KEY 直连；选择仍切换各 preset 的 model/baseURL。
+        </p>
+      )}
+
+      <ul className="model-picker-list" role="listbox">
+        {filteredOptions.length === 0 ? (
+          <li className="model-picker-empty">无匹配模型</li>
+        ) : (
+          filteredOptions.map((p) => {
+            const display = optionDisplay(p);
+            const selected = p.selection === selection;
+            const showEdit = !p.configured && hoveredSelection === p.selection;
+            return (
+              <li
+                key={p.selection}
+                role="option"
+                aria-selected={selected}
+                className={`model-picker-row${
+                  selected ? " model-picker-row--selected" : ""
+                }${!p.configured ? " model-picker-row--unconfigured" : ""}`}
+                onMouseEnter={() => setHoveredSelection(p.selection)}
+                onMouseLeave={(e) => {
+                  const row = e.currentTarget;
+                  const next = e.relatedTarget;
+                  if (
+                    row instanceof Element
+                    && next instanceof Node
+                    && row
+                      .closest(".model-picker-panel")
+                      ?.querySelector(".model-picker-detail")
+                      ?.contains(next)
+                  ) {
+                    return;
+                  }
+                  if (hoveredSelection === p.selection) {
+                    setHoveredSelection(null);
+                  }
+                }}
+              >
+                <button
+                  type="button"
+                  className="model-picker-item"
+                  onClick={() => select(p.selection)}
+                >
+                  <span className="model-picker-item-main">
+                    <span className="model-picker-item-name">
+                      {display.displayName}
+                    </span>
+                    <span className="model-picker-item-tier">
+                      {display.tier}
+                    </span>
+                  </span>
+                  <span className="model-picker-item-trail">
+                    {selected && <CheckIcon />}
+                  </span>
+                </button>
+                {showEdit && (
+                  <button
+                    type="button"
+                    className="model-picker-item-edit"
+                    onClick={() => openSettings()}
+                  >
+                    配置
+                  </button>
+                )}
+              </li>
+            );
+          })
+        )}
+      </ul>
+
+      <button
+        type="button"
+        className="model-picker-footer"
+        onMouseEnter={() => setHoveredSelection(null)}
+        onClick={() => openSettings()}
+      >
+        配置模型…
+      </button>
+
+      {detailOption && (
+        <aside
+          className="model-picker-detail"
+          aria-label={`${optionDisplay(detailOption).displayName} 详情`}
+          onMouseEnter={() => setHoveredSelection(detailOption.selection)}
+          onMouseLeave={(e) => {
+            const panel = e.currentTarget;
+            const next = e.relatedTarget;
+            if (
+              panel instanceof Element
+              && next instanceof Node
+              && panel
+                .closest(".model-picker-panel")
+                ?.querySelector(".model-picker-list")
+                ?.contains(next)
+            ) {
+              return;
+            }
+            setHoveredSelection(null);
+          }}
+        >
+          {(() => {
+            const display = optionDisplay(detailOption);
+            return (
+              <>
+                <h3 className="model-picker-detail-title">
+                  {display.displayName}
+                </h3>
+                <p className="model-picker-detail-desc">
+                  {detailOption.description}
+                </p>
+                <p className="model-picker-detail-meta">
+                  {formatContextWindow(detailOption.contextLimit)}
+                </p>
+                <p className="model-picker-detail-model">
+                  <span className="model-picker-detail-model-label">
+                    Model
+                  </span>
+                  <code>{detailOption.modelId}</code>
+                </p>
+                {!detailOption.configured && (
+                  <p className="model-picker-detail-warn">
+                    {detailOption.kind === "builtin"
+                      && detailOption.providerId === DEEPSEEK_PROVIDER_ID
+                      ? "需在设置中填写 DeepSeek API Key"
+                      : "需在设置中添加自定义配置"}
+                  </p>
+                )}
+              </>
+            );
+          })()}
+        </aside>
+      )}
+    </div>
+  );
+
+  const pickerFloat =
+    open && panelLayout ? (
+      <div
+        ref={panelRef}
+        className="model-picker-float model-picker-float--portal"
+        role="presentation"
+        style={{
+          position: "fixed",
+          top: panelLayout.top,
+          left: panelLayout.left,
+          maxHeight: panelLayout.maxHeight,
+          transform: panelLayout.transform,
+          zIndex: 260,
+        }}
+      >
+        {pickerPanel}
+      </div>
+    ) : null;
+
   return (
     <div className="model-picker" ref={rootRef}>
       <button
+        ref={triggerRef}
         type="button"
         className={`model-picker-trigger${open ? " model-picker-trigger--open" : ""}${
           ready && !anyConfigured ? " model-picker-trigger--unconfigured" : ""
@@ -261,177 +506,9 @@ export function ModelSelector({
         <ChevronDownIcon />
       </button>
 
-      {open && (
-        <div className="model-picker-float" role="presentation">
-          <div
-            id={panelId}
-            className="model-picker-panel composer-popup"
-            role="dialog"
-            aria-label="模型选择"
-            onMouseLeave={(e) => {
-              const next = e.relatedTarget;
-              if (
-                next instanceof Node
-                && e.currentTarget.contains(next)
-              ) {
-                return;
-              }
-              setHoveredSelection(null);
-            }}
-          >
-            <div
-              className="model-picker-search-wrap"
-              onMouseEnter={() => setHoveredSelection(null)}
-            >
-              <input
-                ref={searchRef}
-                type="search"
-                className="model-picker-search"
-                placeholder="搜索模型"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                aria-label="搜索模型"
-              />
-            </div>
-
-            {directOverride && (
-              <p className="model-picker-note">
-                服务器使用 LLM_API_KEY 直连；选择仍切换各 preset 的 model/baseURL。
-              </p>
-            )}
-
-            <ul className="model-picker-list" role="listbox">
-              {filteredOptions.length === 0 ? (
-                <li className="model-picker-empty">无匹配模型</li>
-              ) : (
-                filteredOptions.map((p) => {
-                  const display = optionDisplay(p);
-                  const selected = p.selection === selection;
-                  const showEdit = !p.configured && hoveredSelection === p.selection;
-                  return (
-                    <li
-                      key={p.selection}
-                      role="option"
-                      aria-selected={selected}
-                      className={`model-picker-row${
-                        selected ? " model-picker-row--selected" : ""
-                      }${!p.configured ? " model-picker-row--unconfigured" : ""}`}
-                      onMouseEnter={() => setHoveredSelection(p.selection)}
-                      onMouseLeave={(e) => {
-                        const row = e.currentTarget;
-                        const next = e.relatedTarget;
-                        if (
-                          row instanceof Element
-                          && next instanceof Node
-                          && row
-                            .closest(".model-picker-panel")
-                            ?.querySelector(".model-picker-detail")
-                            ?.contains(next)
-                        ) {
-                          return;
-                        }
-                        if (hoveredSelection === p.selection) {
-                          setHoveredSelection(null);
-                        }
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="model-picker-item"
-                        onClick={() => select(p.selection)}
-                      >
-                        <span className="model-picker-item-main">
-                          <span className="model-picker-item-name">
-                            {display.displayName}
-                          </span>
-                          <span className="model-picker-item-tier">
-                            {display.tier}
-                          </span>
-                        </span>
-                        <span className="model-picker-item-trail">
-                          {selected && <CheckIcon />}
-                        </span>
-                      </button>
-                      {showEdit && (
-                        <button
-                          type="button"
-                          className="model-picker-item-edit"
-                          onClick={() => openSettings()}
-                        >
-                          配置
-                        </button>
-                      )}
-                    </li>
-                  );
-                })
-              )}
-            </ul>
-
-            <button
-              type="button"
-              className="model-picker-footer"
-              onMouseEnter={() => setHoveredSelection(null)}
-              onClick={() => openSettings()}
-            >
-              配置模型…
-            </button>
-
-            {detailOption && (
-              <aside
-                className="model-picker-detail"
-                aria-label={`${optionDisplay(detailOption).displayName} 详情`}
-                onMouseEnter={() => setHoveredSelection(detailOption.selection)}
-                onMouseLeave={(e) => {
-                  const panel = e.currentTarget;
-                  const next = e.relatedTarget;
-                  if (
-                    panel instanceof Element
-                    && next instanceof Node
-                    && panel
-                      .closest(".model-picker-panel")
-                      ?.querySelector(".model-picker-list")
-                      ?.contains(next)
-                  ) {
-                    return;
-                  }
-                  setHoveredSelection(null);
-                }}
-              >
-                {(() => {
-                  const display = optionDisplay(detailOption);
-                  return (
-                    <>
-                      <h3 className="model-picker-detail-title">
-                        {display.displayName}
-                      </h3>
-                      <p className="model-picker-detail-desc">
-                        {detailOption.description}
-                      </p>
-                      <p className="model-picker-detail-meta">
-                        {formatContextWindow(detailOption.contextLimit)}
-                      </p>
-                      <p className="model-picker-detail-model">
-                        <span className="model-picker-detail-model-label">
-                          Model
-                        </span>
-                        <code>{detailOption.modelId}</code>
-                      </p>
-                      {!detailOption.configured && (
-                        <p className="model-picker-detail-warn">
-                          {detailOption.kind === "builtin"
-                            && detailOption.providerId === DEEPSEEK_PROVIDER_ID
-                            ? "需在设置中填写 DeepSeek API Key"
-                            : "需在设置中添加自定义配置"}
-                        </p>
-                      )}
-                    </>
-                  );
-                })()}
-              </aside>
-            )}
-          </div>
-        </div>
-      )}
+      {typeof document !== "undefined" && pickerFloat
+        ? createPortal(pickerFloat, document.body)
+        : null}
     </div>
   );
 }

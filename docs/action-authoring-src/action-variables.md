@@ -1,4 +1,4 @@
-# 动作变量（variables[]）
+# {{#topic-title}}
 
 **何时读**：编辑 `data.json` 里的 **`variables[]`**。步骤里如何绑 `inputParams` / `outputParams` 见 **`action-steps`**。
 

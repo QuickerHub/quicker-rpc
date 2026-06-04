@@ -11,6 +11,7 @@ import {
   formatToolDisplayName,
   summarizeToolOutput,
 } from "./tool-output";
+import { isHiddenChatTool } from "@/lib/hidden-chat-tools";
 import {
   isWorkspaceExplorerFileTool,
   workspaceFileRunningMeta,
@@ -117,7 +118,10 @@ export function segmentMessageParts(
   for (let index = 0; index < parts.length; index++) {
     const part = parts[index]!;
     if (isToolUiPart(part)) {
-      pending.push(analyzeToolUiPart(part, index));
+      const name = getToolOrDynamicToolName(part);
+      if (!isHiddenChatTool(name)) {
+        pending.push(analyzeToolUiPart(part, index));
+      }
       continue;
     }
     flushTools();

@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 KEYWORDS_PATH = ROOT / "QuickerRpc.AgentModel" / "Catalog" / "step-runner-agent-keywords.json"
 
-# Curated entries for modules not in modules-table.md (live Quicker catalog).
+# Curated entries for modules missing from live catalog scrape (extensions, etc.).
 NEW: dict[str, dict] = {
     "sys:adobesoftscontrol": {
         "keywords": ["adobe", "photoshop", "illustrator", "premiere", "Adobe", "Adobe控制"],

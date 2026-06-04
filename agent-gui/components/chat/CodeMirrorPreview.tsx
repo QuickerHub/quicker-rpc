@@ -66,10 +66,14 @@ export function CodeMirrorPreview({
 
   const extensions = useMemo(
     () => [
-      ...buildPreviewCodeMirrorExtensions(path, { language, lineNumbers }),
+      ...buildPreviewCodeMirrorExtensions(path, {
+        language,
+        lineNumbers,
+        lintSourceText: content,
+      }),
       statsExtension,
     ],
-    [path, language, lineNumbers, statsExtension],
+    [path, language, lineNumbers, content, statsExtension],
   );
 
   const editorHeight = fillAvailable ? "100%" : "auto";

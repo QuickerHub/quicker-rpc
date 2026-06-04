@@ -1,6 +1,6 @@
 import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import type { ActionStep, ActionStepParam, ActionSubProgram } from "@/lib/action-editor/types/common";
-import { resolveRunnerItemForStepKey } from "./stepRunnerCatalog";
+import { resolveRunnerItemForStep } from "./stepRunnerCatalog";
 
 function normalizeParam(param: ActionStepParam | undefined): { varKey: string; value: string; file?: string } {
   const file = param?.file?.trim();
@@ -57,22 +57,28 @@ export function compactActionStepParams(
 
 export function compactActionStepTree(
   step: ActionStep,
-  runnerItems: readonly StepRunnerItem[]
+  runnerItems: readonly StepRunnerItem[],
+  schemaByCacheKey: Readonly<Record<string, StepRunnerItem>> = {},
 ): ActionStep {
-  const runnerItem = resolveRunnerItemForStepKey(runnerItems, step.stepRunnerKey);
+  const runnerItem = resolveRunnerItemForStep(step, runnerItems, schemaByCacheKey);
   const compacted = compactActionStepParams(step, runnerItem);
   return {
     ...compacted,
-    ifSteps: (step.ifSteps ?? []).map((child) => compactActionStepTree(child, runnerItems)),
-    elseSteps: (step.elseSteps ?? []).map((child) => compactActionStepTree(child, runnerItems))
+    ifSteps: (step.ifSteps ?? []).map((child) =>
+      compactActionStepTree(child, runnerItems, schemaByCacheKey),
+    ),
+    elseSteps: (step.elseSteps ?? []).map((child) =>
+      compactActionStepTree(child, runnerItems, schemaByCacheKey),
+    ),
   };
 }
 
 export function compactActionSteps(
   steps: readonly ActionStep[],
-  runnerItems: readonly StepRunnerItem[]
+  runnerItems: readonly StepRunnerItem[],
+  schemaByCacheKey: Readonly<Record<string, StepRunnerItem>> = {},
 ): ActionStep[] {
-  return steps.map((step) => compactActionStepTree(step, runnerItems));
+  return steps.map((step) => compactActionStepTree(step, runnerItems, schemaByCacheKey));
 }
 
 export function compactActionSubPrograms(

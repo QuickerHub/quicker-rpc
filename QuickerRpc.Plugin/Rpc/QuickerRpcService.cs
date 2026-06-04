@@ -771,6 +771,19 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
+    public Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerUiDetailAsync(
+        string stepRunnerKey,
+        string? controlFieldValue = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(
+                _headlessActionProgramService.GetStepRunnerUiDetail(stepRunnerKey, controlFieldValue)),
+            cancellationToken);
+    }
+
     public Task<QuickerRpcSearchFontAwesomeIconsResult> SearchFontAwesomeIconsAsync(
         string? query,
         int maxResults = 40,

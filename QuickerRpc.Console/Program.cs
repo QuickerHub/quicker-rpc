@@ -1310,7 +1310,7 @@ public sealed class SubProgramOptions
 [Verb("step-runner", HelpText = "StepRunner catalog for headless XAction authoring.")]
 public sealed class StepRunnerOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "search | get")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "search | get | get-ui")]
     public string? Command { get; set; }
 
     [Option('q', "query", HelpText = "Search keyword for step-runner search.")]

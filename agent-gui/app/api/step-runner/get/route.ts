@@ -37,7 +37,7 @@ export async function GET(req: Request) {
     return Response.json({ ok: false, error: "key is required" }, { status: 400 });
   }
 
-  const args = ["step-runner", "get", "--key", key, "--json"];
+  const args = ["step-runner", "get-ui", "--key", key, "--json"];
   if (controlField) {
     args.push("--control-field", controlField);
   }
@@ -45,7 +45,7 @@ export async function GET(req: Request) {
   const result = await runQkrpc(args, { timeoutMs: 60_000 });
   if (!result.ok) {
     return Response.json(
-      { ok: false, error: result.stderr || "step-runner get failed" },
+      { ok: false, error: result.stderr || "step-runner get-ui failed" },
       { status: 503 },
     );
   }

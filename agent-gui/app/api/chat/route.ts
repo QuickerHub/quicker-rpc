@@ -17,7 +17,12 @@ import {
 } from "@/lib/llm";
 import { isLlmProviderHidden } from "@/lib/llm-config";
 import { parseLlmProviderId } from "@/lib/llm-providers";
-import { pickEnabledTools } from "@/lib/tool-registry";
+import { pickChatTools } from "@/lib/tool-registry";
+import {
+  SET_THREAD_TITLE_TOOL,
+  buildThreadTitleAgentInstruction,
+  buildTitleTestChatInstruction,
+} from "@/lib/set-thread-title-tool";
 import { quickerTools } from "@/lib/tools";
 import { expandUserMessageForModel } from "@/lib/compose-user-message";
 import { isTextUIPart } from "ai";
@@ -45,6 +50,8 @@ async function handleChatPost(req: Request) {
     workspaceRoot,
     llmProvider,
     llmSelection,
+    titleManual,
+    titleTestOnly,
   }: {
     messages: AgentUIMessage[];
     enabledTools?: string[];
@@ -54,6 +61,9 @@ async function handleChatPost(req: Request) {
     /** @deprecated use llmSelection */
     llmProvider?: string;
     llmSelection?: string;
+    titleManual?: boolean;
+    /** Tool-test: production title path via set_thread_title only. */
+    titleTestOnly?: boolean;
   } = await req.json();
 
   const selection = resolveLlmSelection(llmSelection ?? llmProvider, parseLlmProviderId(llmProvider));
@@ -84,7 +94,10 @@ async function handleChatPost(req: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 
-  const tools = pickEnabledTools(quickerTools, enabledTools);
+  const titleTest = titleTestOnly === true;
+  const tools = titleTest
+    ? { [SET_THREAD_TITLE_TOOL]: quickerTools[SET_THREAD_TITLE_TOOL] }
+    : pickChatTools(quickerTools, enabledTools, [SET_THREAD_TITLE_TOOL]);
   const cwd = (workingDirectory ?? workspaceRoot)?.trim() || undefined;
 
   const repairedMessages = repairInterruptedToolCalls(messages);
@@ -131,15 +144,28 @@ async function handleChatPost(req: Request) {
     const systemWithScope = scopeBlock
       ? `${baseSystem}\n\n${scopeBlock}`
       : baseSystem;
-    const system = preparedContext.systemSuffix
-      ? `${systemWithScope}\n\n${preparedContext.systemSuffix}`
-      : systemWithScope;
+    const titleInstruction = titleTest
+      ? buildTitleTestChatInstruction()
+      : buildThreadTitleAgentInstruction({
+          messages: repairedMessages,
+          titleManual: titleManual === true,
+        });
+    const system = [
+      titleTest
+        ? "You are running in title-test mode for Quicker Agent GUI (/tool-test)."
+        : null,
+      systemWithScope,
+      titleInstruction,
+      preparedContext.systemSuffix,
+    ]
+      .filter((block): block is string => Boolean(block?.trim()))
+      .join("\n\n");
     const result = streamText({
       model,
       system,
       messages: preparedContext.modelMessages,
       tools,
-      stopWhen: stepCountIs(25),
+      stopWhen: stepCountIs(titleTest ? 3 : 25),
     });
 
     return result.toUIMessageStreamResponse({

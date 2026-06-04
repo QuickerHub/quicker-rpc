@@ -4,7 +4,9 @@
     "filePath"
   ],
   "sys:MsgBox": [
-    "message"
+    "operation",
+    " ",
+    "message:120"
   ],
   "sys:SelectFileInExplorer": [
     "path"

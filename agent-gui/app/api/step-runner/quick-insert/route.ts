@@ -22,19 +22,66 @@ function readSearchControlValue(item: Record<string, unknown>): string | undefin
   return typeof legacy === "string" && legacy.trim() ? legacy.trim() : undefined;
 }
 
+function readSearchControlValues(
+  item: Record<string, unknown>,
+): string[] {
+  const multi = item.controlFields ?? item.ControlFields;
+  if (Array.isArray(multi) && multi.length > 0) {
+    const values: string[] = [];
+    for (const row of multi) {
+      if (typeof row !== "object" || row === null || Array.isArray(row)) {
+        continue;
+      }
+      const r = row as Record<string, unknown>;
+      const value = r.value ?? r.Value;
+      if (typeof value === "string" && value.trim()) {
+        values.push(value.trim());
+      }
+    }
+    if (values.length > 0) {
+      return values;
+    }
+  }
+  const single = readSearchControlValue(item);
+  return single ? [single] : [];
+}
+
 function mapQuickInsertItems(items: Record<string, unknown>[]): unknown[] {
-  return items.map((item) => ({
-    kind: "runner",
-    id: item.key ?? item.Key,
-    label: item.name ?? item.Name ?? item.key ?? item.Key,
-    description: item.description ?? item.Description ?? "",
-    payload: {
-      stepRunnerKey: item.key ?? item.Key,
-      name: item.name ?? item.Name,
-      icon: item.icon ?? item.Icon,
-      controlFieldValue: readSearchControlValue(item),
-    },
-  }));
+  const out: unknown[] = [];
+  for (const item of items) {
+    const key = item.key ?? item.Key;
+    const name = item.name ?? item.Name ?? key;
+    const controls = readSearchControlValues(item);
+    if (controls.length === 0) {
+      out.push({
+        kind: "runner",
+        id: key,
+        label: name,
+        description: item.description ?? item.Description ?? "",
+        payload: {
+          stepRunnerKey: key,
+          name,
+          icon: item.icon ?? item.Icon,
+        },
+      });
+      continue;
+    }
+    for (const controlFieldValue of controls) {
+      out.push({
+        kind: "runner",
+        id: `${String(key)}\0${controlFieldValue}`,
+        label: controls.length > 1 ? `${name} · ${controlFieldValue}` : name,
+        description: item.description ?? item.Description ?? "",
+        payload: {
+          stepRunnerKey: key,
+          name,
+          icon: item.icon ?? item.Icon,
+          controlFieldValue,
+        },
+      });
+    }
+  }
+  return out;
 }
 
 export async function GET(req: Request) {

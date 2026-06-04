@@ -1,6 +1,6 @@
-# 动作步骤（data.json `steps[]`）
+# 动作步骤
 
-**何时读**：**`overview`** P5–P6 — 在 `data.json` 里增删改步骤、写 `inputParams` / `outputParams`、嵌套条件分支之前。模块键名与 schema 仍须 **`step-runner get`**（**`step-runner-search`** · **`step-modules`**）。
+**何时读**：**`overview`** P5–P6 — 在 `data.json` 里增删改步骤、写 `inputParams` / `outputParams`、嵌套条件分支之前。模块键名与 schema 仍须 **`step-runner get`**（**`step-runner-search`**）。
 
 **CLI**：可直接改磁盘 `data.json`，或 **`patch-workflow`** 用 `op` / `containerPath` / `stepId` 增量改树。
 
@@ -118,7 +118,7 @@
 }
 ```
 
-条件字段键名以 **`step-runner get`**（`sys:if`）为准。仅需单分支、无 else 时可查 **`step-modules`** 中的 `sys:simpleIf`。
+条件字段键名以 **`step-runner get`**（`sys:if`）为准。仅需单分支、无 else 时用 `sys:simpleIf`（`step-runner search` 查 `simpleIf|简单如果`）。
 
 ## 选型与禁止
 
@@ -135,4 +135,4 @@
 
 ## 相关
 
-`action-variables` · `expressions` · `authoring-workflow` · `workspace-editing` · `patch-workflow` · `step-runner-search` · `step-modules` · `subprogram-workflow` · `overview`
+`action-variables` · `expressions` · `authoring-workflow` · `workspace-editing` · `patch-workflow` · `step-runner-search` · `subprogram-workflow` · `overview`

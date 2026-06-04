@@ -98,10 +98,14 @@ function buildTopicManifestEntry(opsData, topic) {
   if (!meta?.description) {
     throw new Error(`Missing topics.${topic}.description in ops.json`);
   }
+  if (!meta?.title) {
+    throw new Error(`Missing topics.${topic}.title in ops.json`);
+  }
 
   /** @type {Record<string, unknown>} */
   const entry = {
     topic,
+    title: String(meta.title).trim(),
     description: String(meta.description).trim(),
     source: topic === "overview" ? "SKILL.md" : `references/${topic}.md`,
   };
@@ -156,27 +160,66 @@ async function loadSource() {
   return { opsData, files };
 }
 
+/** @param {string} markdown */
+function extractMarkdownTitle(markdown) {
+  for (const line of markdown.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("# ")) {
+      return trimmed.slice(2).trim();
+    }
+  }
+  return "";
+}
+
 /**
  * @param {string} topic
- * @returns {Promise<Map<string, string>>}
+ * @returns {Promise<Map<string, { src: string, outRel: string }>>}
  */
 async function loadReferenceMap(topic) {
-  /** @type {Map<string, string>} */
+  /** @type {Map<string, { src: string, outRel: string }>} */
   const map = new Map();
+
   let entries;
   try {
     entries = await fs.readdir(SRC_REF);
   } catch {
-    return map;
+    entries = [];
   }
 
   const prefix = `${topic}.`;
   for (const fname of entries) {
     if (!fname.startsWith(prefix) || !fname.endsWith(".md")) continue;
     const refName = fname.slice(prefix.length, -3);
-    const raw = normalizeEol(await fs.readFile(path.join(SRC_REF, fname), "utf8"));
-    map.set(refName, raw);
+    const raw = normalizeEol(
+      await fs.readFile(path.join(SRC_REF, fname), "utf8"),
+    );
+    map.set(refName, { src: raw, outRel: `${refName}.md` });
   }
+
+  const topicDir = path.join(SRC_REF, topic);
+  try {
+    const subEntries = await fs.readdir(topicDir);
+    for (const fname of subEntries) {
+      if (!fname.endsWith(".md") || fname.toLowerCase() === "readme.md") {
+        continue;
+      }
+      const refName = fname.slice(0, -3);
+      if (map.has(refName)) {
+        throw new Error(
+          `Duplicate reference id "${refName}" for topic ${topic} (flat + subdir)`,
+        );
+      }
+      const raw = normalizeEol(
+        await fs.readFile(path.join(topicDir, fname), "utf8"),
+      );
+      map.set(refName, { src: raw, outRel: `${topic}/${refName}.md` });
+    }
+  } catch (err) {
+    if (/** @type {NodeJS.ErrnoException} */ (err).code !== "ENOENT") {
+      throw err;
+    }
+  }
+
   return map;
 }
 
@@ -192,6 +235,8 @@ async function computeOutputs(opsData, files) {
   const topicManifest = [];
   /** @type {Record<string, string>} */
   const referenceFiles = {};
+  /** @type {Record<string, { id: string, title: string, path: string }[]>} */
+  const referenceCatalog = {};
 
   /** @type {string | null} */
   let overviewBody = null;
@@ -222,20 +267,34 @@ async function computeOutputs(opsData, files) {
       `${agentBody.trimEnd()}\n`,
     );
 
-    for (const [refName, refSrc] of refMap) {
+    for (const [refName, refEntry] of refMap) {
       const refAgent = renderDoc(
-        refSrc,
+        refEntry.src,
         opsData,
         "agent",
         `${file}#ref:${refName}`,
         refMap,
       );
       outputs.set(
-        `skills/references/${refName}.md`,
+        `skills/references/${refEntry.outRel}`,
         `${refAgent.trimEnd()}\n`,
       );
       referenceFiles[refName] = topic;
+      if (!referenceCatalog[topic]) {
+        referenceCatalog[topic] = [];
+      }
+      referenceCatalog[topic].push({
+        id: refName,
+        title: extractMarkdownTitle(refAgent) || refName,
+        path: refEntry.outRel,
+      });
     }
+  }
+
+  for (const list of Object.values(referenceCatalog)) {
+    list.sort((a, b) =>
+      a.id.localeCompare(b.id, undefined, { sensitivity: "base" }),
+    );
   }
 
   if (overviewBody == null) {
@@ -253,6 +312,7 @@ async function computeOutputs(opsData, files) {
         skillName: SKILL_NAME,
         topics: topicManifest,
         referenceFiles,
+        referenceCatalog,
       },
       null,
       2,
@@ -398,6 +458,41 @@ async function removeLegacyAgentOutputs() {
   }
 }
 
+/**
+ * @param {string} dir
+ * @param {Set<string>} expectedRel
+ * @param {string} relPrefix
+ */
+async function pruneReferenceTree(dir, expectedRel, relPrefix) {
+  let entries;
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const ent of entries) {
+    const rel = relPrefix ? `${relPrefix}/${ent.name}` : ent.name;
+    const full = path.join(dir, ent.name);
+    if (ent.isDirectory()) {
+      await pruneReferenceTree(full, expectedRel, rel);
+      try {
+        const left = await fs.readdir(full);
+        if (left.length === 0) {
+          await fs.rmdir(full);
+        }
+      } catch {
+        // ignore
+      }
+      continue;
+    }
+    if (!ent.name.endsWith(".md")) continue;
+    if (!expectedRel.has(rel.toLowerCase())) {
+      await fs.rm(full, { force: true });
+    }
+  }
+}
+
 /** Drop stale cli/*.md, references/*.md, and legacy per-topic skill dirs. */
 async function pruneOrphanOutputs(topicFiles, opsData) {
   const topics = new Set(
@@ -410,13 +505,16 @@ async function pruneOrphanOutputs(topicFiles, opsData) {
       .map((t) => t.toLowerCase()),
   );
   /** @type {Set<string>} */
-  const expectedReferenceFiles = new Set(agentReferenceTopics);
+  const expectedReferenceRelPaths = new Set();
+  for (const t of agentReferenceTopics) {
+    expectedReferenceRelPaths.add(`${t}.md`);
+  }
   for (const file of topicFiles) {
     const topic = file.replace(/\.md$/i, "");
     if (isCliOnlyTopic(opsData, topic)) continue;
     const refMap = await loadReferenceMap(topic);
-    for (const refName of refMap.keys()) {
-      expectedReferenceFiles.add(refName.toLowerCase());
+    for (const refEntry of refMap.values()) {
+      expectedReferenceRelPaths.add(refEntry.outRel.toLowerCase());
     }
   }
 
@@ -432,18 +530,11 @@ async function pruneOrphanOutputs(topicFiles, opsData) {
     // ignore
   }
 
-  const refDir = path.join(OUT_SKILLS, "references");
-  try {
-    for (const f of await fs.readdir(refDir)) {
-      if (!f.endsWith(".md")) continue;
-      const key = f.replace(/\.md$/i, "").toLowerCase();
-      if (!expectedReferenceFiles.has(key)) {
-        await fs.rm(path.join(refDir, f), { force: true });
-      }
-    }
-  } catch {
-    // ignore
-  }
+  await pruneReferenceTree(
+    path.join(OUT_SKILLS, "references"),
+    expectedReferenceRelPaths,
+    "",
+  );
 
   try {
     for (const ent of await fs.readdir(OUT_SKILLS, { withFileTypes: true })) {
@@ -540,8 +631,33 @@ async function check() {
  * @param {Profile} profile
  * @param {string} file
  */
+/** @param {string} file */
+function topicIdFromFile(file) {
+  const base = file.includes("#") ? file.split("#")[0] : file;
+  return base.replace(/\.md$/i, "");
+}
+
+/**
+ * @param {Record<string, unknown>} opsData
+ * @param {string} topic
+ */
+function getTopicTitle(opsData, topic) {
+  const topics = /** @type {Record<string, Record<string, unknown>>} */ (
+    opsData.topics ?? {}
+  );
+  const meta = topics[topic];
+  if (!meta?.title) {
+    throw new Error(`Missing topics.${topic}.title in ops.json`);
+  }
+  return String(meta.title).trim();
+}
+
 function renderDoc(text, opsData, profile, file, refMap = new Map()) {
   let out = text;
+
+  out = out.replace(/\{\{#topic-title\}\}/g, () =>
+    getTopicTitle(opsData, topicIdFromFile(file)),
+  );
 
   out = out.replace(
     /\{\{#only-cli\}\}([\s\S]*?)\{\{\/only-cli\}\}/g,
@@ -553,12 +669,12 @@ function renderDoc(text, opsData, profile, file, refMap = new Map()) {
   );
 
   out = out.replace(/\{\{#include-reference\s+([\w-]+)\}\}/g, (_, refName) => {
-    const refSrc = refMap.get(refName);
-    if (!refSrc) {
+    const refEntry = refMap.get(refName);
+    if (!refEntry) {
       throw new Error(`Missing reference ${refName} for ${file}`);
     }
     return renderDoc(
-      refSrc,
+      refEntry.src,
       opsData,
       profile,
       `${file}#ref:${refName}`,

@@ -50,17 +50,36 @@ test("mapAgentSchemaToStepRunnerItem merges controlField selection into type enu
     controlField: {
       key: "type",
       selection: [
-        { key: "move", name: "移动窗口" },
-        { key: "move_ex", name: "移动窗口(增强)" },
+        {
+          key: "move",
+          name: "移动窗口",
+          visibleInputKeys: ["type", "x", "y"],
+        },
+        {
+          key: "move_ex",
+          name: "移动窗口(增强)",
+          visibleInputKeys: ["type", "area"],
+          visibleOutputKeys: ["result"],
+        },
       ],
     },
-    inputs: [{ key: "type", title: "类型", valueType: "Enum", default: "move" }],
-    outputs: [],
+    inputs: [
+      { key: "type", title: "类型", valueType: "Enum", default: "move" },
+      { key: "x", title: "X", valueType: "Number" },
+      { key: "area", title: "区域", valueType: "Text" },
+    ],
+    outputs: [{ key: "result", title: "结果", valueType: "Boolean" }],
   });
   const typeDef = item.inputParamDefs.find((d) => d.key === "type");
   assert.equal(typeDef?.isControlField, true);
   assert.equal(typeDef?.selectionItems?.length, 2);
   assert.equal(typeDef?.selectionItems?.[0]?.value, "move");
+  const xDef = item.inputParamDefs.find((d) => d.key === "x");
+  const areaDef = item.inputParamDefs.find((d) => d.key === "area");
+  assert.deepEqual(xDef?.validForList, ["move"]);
+  assert.deepEqual(areaDef?.validForList, ["move_ex"]);
+  const resultDef = item.outputParamDefs.find((d) => d.key === "result");
+  assert.deepEqual(resultDef?.validForList, ["move_ex"]);
 });
 
 test("resolveStepControlFieldLiteral reads literal control value", () => {

@@ -77,4 +77,12 @@ public sealed class StepRunnerKeywordSearchTests
         Assert.IsTrue(entry.Keywords.Count > 0);
         StringAssert.Contains(entry.Snippet!, "clipboard");
     }
+
+    [TestMethod]
+    public void AgentKeywordCatalog_loads_control_keywords_for_file_operation()
+    {
+        Assert.IsTrue(StepRunnerAgentKeywordCatalog.TryGet("sys:fileOperation", out var entry));
+        Assert.IsTrue(entry.ControlKeywords.TryGetValue("moveInto", out var moveInto));
+        CollectionAssert.Contains(moveInto, "移动文件");
+    }
 }

@@ -124,6 +124,8 @@ internal static class ProgramSyntaxLintServeOps
 
             var items = ProgramSyntaxCollector.Collect(projectDirectory, data);
             var issues = new List<ProgramSyntaxIssue>();
+            var variableKeys = InterpolationPrefixLint.CollectVariableKeys(data["variables"] as JArray);
+            issues.AddRange(InterpolationPrefixLint.Analyze(data, variableKeys));
             var checkedCount = 0;
             var skipped = 0;
 
@@ -189,8 +191,10 @@ internal static class ProgramSyntaxLintServeOps
                 CompletedAt = DateTime.UtcNow.ToString("o"),
                 Summary = new ProgramDiagnosticsSummary
                 {
-                    ErrorCount = issues.Count,
-                    WarningCount = 0,
+                    ErrorCount = issues.Count(i =>
+                        i.Severity == ProgramSyntaxIssueSeverity.Error),
+                    WarningCount = issues.Count(i =>
+                        i.Severity == ProgramSyntaxIssueSeverity.Warning),
                     Checked = checkedCount,
                     Skipped = skipped,
                 },

@@ -24,6 +24,9 @@ public sealed class StepRunnerRetrievalDocument
     public IReadOnlyDictionary<string, int> ControlRankBias { get; set; } =
         new Dictionary<string, int>(System.StringComparer.Ordinal);
 
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> ControlKeywords { get; set; } =
+        new Dictionary<string, IReadOnlyList<string>>(System.StringComparer.Ordinal);
+
     /// <summary>Lowercased searchable blob (key, names, keywords, control modes).</summary>
     public string SearchableText { get; set; } = string.Empty;
 }

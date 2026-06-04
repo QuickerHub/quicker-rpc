@@ -33,6 +33,8 @@ export function useMessagesStickScroll(
     stickToBottomRef.current = true;
   }, []);
 
+  const getStickToBottom = useCallback(() => stickToBottomRef.current, []);
+
   useEffect(() => {
     stickToBottomRef.current = true;
   }, [threadId]);
@@ -64,5 +66,5 @@ export function useMessagesStickScroll(
     });
   }, [containerRef, revision, busy, visible, threadId]);
 
-  return { pinToBottom };
+  return { pinToBottom, getStickToBottom };
 }
