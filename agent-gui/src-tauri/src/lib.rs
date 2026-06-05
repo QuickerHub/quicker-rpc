@@ -13,6 +13,10 @@ use tauri::{
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
+mod global_shortcut;
+mod launcher;
+mod voice_plugin;
+mod voice_plugin_install;
 mod win_job;
 
 #[cfg(windows)]
@@ -310,18 +314,40 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![
+            launcher::launcher_show,
+            launcher::launcher_hide,
+            launcher::launcher_toggle,
+            launcher::launcher_expand,
+            voice_plugin::voice_plugin_status,
+            voice_plugin::voice_plugin_install,
+            voice_plugin::voice_plugin_start_runtime,
+            voice_plugin::voice_plugin_stop_runtime,
+        ])
         .manage(BackendState::new())
+        .manage(voice_plugin::VoicePluginState::new())
         .setup(|app| {
+            #[cfg(desktop)]
+            if let Err(err) = global_shortcut::init(app.handle()) {
+                eprintln!("[global-shortcut] init failed: {err}");
+            }
+
             #[cfg(debug_assertions)]
             {
+                app.manage(launcher::UiBaseUrl(Mutex::new(
+                    launcher::default_dev_ui_base_url(),
+                )));
                 // `tauri dev` uses devUrl + start.mjs from beforeDevCommand.
                 if let Some(win) = app.get_webview_window("main") {
                     apply_titlebar_chrome_existing(&win);
                     let _ = win.center();
                     let _ = win.show();
                 }
+                launcher::prepare_configured_launcher_window(app.handle(), false);
                 return Ok(());
             }
+
+            launcher::close_configured_launcher_window(app.handle());
 
             if let Some(win) = app.get_webview_window("main") {
                 apply_titlebar_chrome_existing(&win);
@@ -339,6 +365,7 @@ pub fn run() {
                 }
             };
             let external: url::Url = url.parse().expect("valid UI url");
+            app.manage(launcher::UiBaseUrl(Mutex::new(url.clone())));
 
             if let Some(placeholder) = app.get_webview_window("main") {
                 let _ = placeholder.close();
@@ -360,6 +387,9 @@ pub fn run() {
         .run(|app, event| {
             if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
                 app.state::<BackendState>().inner().shutdown();
+                app.state::<voice_plugin::VoicePluginState>()
+                    .inner()
+                    .shutdown();
             }
         });
 }

@@ -13,11 +13,13 @@ import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 type AssistantRichMessageProps = {
   content: string;
   workingDirectory?: string;
+  onSendPrompt?: (text: string) => void;
 };
 
 export function AssistantRichMessage({
   content,
   workingDirectory,
+  onSendPrompt,
 }: AssistantRichMessageProps) {
   const units = useMemo(() => {
     if (!hasAssistantActionLinks(content)) return null;
@@ -42,6 +44,7 @@ export function AssistantRichMessage({
               key={`bar-${index}`}
               links={unit.links}
               workingDirectory={workingDirectory}
+              onSendPrompt={onSendPrompt}
             />
           );
         }

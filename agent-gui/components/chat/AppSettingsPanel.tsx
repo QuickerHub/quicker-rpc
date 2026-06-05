@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountUsageSection } from "@/components/chat/AccountUsageSection";
 import { AppVersionSection } from "@/components/chat/AppVersionSection";
 import { LlmKeysSettingsSection } from "@/components/chat/LlmKeysSettingsSection";
+import { VoiceInputSettingsSection } from "@/components/chat/VoiceInputSettingsSection";
 import type { LlmProviderId } from "@/lib/llm-providers";
 import type { PingState } from "@/lib/use-qkrpc-ping";
 
@@ -86,6 +87,8 @@ export function AppSettingsPanel({
           focusProviderId={focusProviderId}
           disabled={disabled}
         />
+
+        <VoiceInputSettingsSection active={active} disabled={disabled} />
 
         <AppVersionSection
           active={active}

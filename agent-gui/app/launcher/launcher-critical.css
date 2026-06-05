@@ -1,0 +1,108 @@
+/* Critical launcher styles — transparent by default (Tauri); web uses --web modifier. */
+.launcher-route-shell {
+  box-sizing: border-box;
+  min-height: 100vh;
+  height: 100%;
+  width: 100%;
+  background: transparent;
+  color: #e8eaed;
+}
+
+html.launcher-html,
+html.launcher-html body {
+  min-height: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #e8eaed !important;
+}
+
+html.launcher-html--transparent body {
+  pointer-events: none;
+}
+
+html.launcher-html--transparent [data-launcher-hit],
+html.launcher-html--transparent .titlebar-drag-region {
+  pointer-events: auto;
+}
+
+.launcher-route-shell .launcher-root {
+  background: transparent !important;
+}
+
+html.launcher-html--web .launcher-route-shell,
+html.launcher-html--web.launcher-html,
+html.launcher-html--web body {
+  background: #1a1d23 !important;
+  background-color: #1a1d23 !important;
+}
+
+html.launcher-html--web .launcher-route-shell .launcher-root {
+  background: #1a1d23 !important;
+}
+
+[data-theme="light"] html.launcher-html--web .launcher-route-shell,
+[data-theme="light"] html.launcher-html--web.launcher-html,
+[data-theme="light"] html.launcher-html--web body,
+[data-theme="light"] html.launcher-html--web .launcher-route-shell .launcher-root {
+  background: #f7f8fb !important;
+  background-color: #f7f8fb !important;
+  color: #1f2937 !important;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) html.launcher-html--web .launcher-route-shell,
+  :root:not([data-theme="dark"]) html.launcher-html--web.launcher-html,
+  :root:not([data-theme="dark"]) html.launcher-html--web body,
+  :root:not([data-theme="dark"]) html.launcher-html--web .launcher-route-shell .launcher-root {
+    background: #f7f8fb !important;
+    background-color: #f7f8fb !important;
+    color: #1f2937 !important;
+  }
+}
+
+html.launcher-html--transparent .launcher-composer .composer-surface,
+.launcher-route-shell .launcher-composer .composer-surface {
+  background: rgba(37, 42, 51, 0.82) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+[data-theme="light"] html.launcher-html--transparent .launcher-route-shell .launcher-composer .composer-surface,
+[data-theme="light"] .launcher-route-shell .launcher-composer .composer-surface {
+  background: rgba(255, 255, 255, 0.82) !important;
+  border: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+html.launcher-html--web .launcher-route-shell .launcher-composer .composer-surface {
+  background: #252a33 !important;
+  border: 1px solid #3a4150 !important;
+}
+
+[data-theme="light"] html.launcher-html--web .launcher-route-shell .launcher-composer .composer-surface {
+  background: #ffffff !important;
+  border: 1px solid #d6dce5 !important;
+}
+
+html.launcher-html--transparent .launcher-route-shell .launcher-transcript,
+.launcher-route-shell .launcher-transcript {
+  background: rgba(35, 39, 47, 0.72) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="light"] html.launcher-html--transparent .launcher-route-shell .launcher-transcript,
+[data-theme="light"] .launcher-route-shell .launcher-transcript {
+  background: rgba(255, 255, 255, 0.74) !important;
+  border: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+html.launcher-html--web .launcher-route-shell .launcher-transcript {
+  background: #23272f !important;
+  border: 1px solid #3a4150 !important;
+}
+
+[data-theme="light"] html.launcher-html--web .launcher-route-shell .launcher-transcript {
+  background: #ffffff !important;
+  border: 1px solid #d6dce5 !important;
+}

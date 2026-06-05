@@ -59,8 +59,12 @@ function collectRunningImports(messages: UIMessage[]): ActionProjectImportEntry[
 }
 
 /** Mirror in-flight action get / workspace sync tools as explorer import spinners. */
-export function useActionProjectImportFromMessages(messages: UIMessage[]): void {
+export function useActionProjectImportFromMessages(
+  messages: UIMessage[],
+  enabled = true,
+): void {
   useEffect(() => {
+    if (!enabled) return;
     replaceActionProjectImports(collectRunningImports(messages));
-  }, [messages]);
+  }, [enabled, messages]);
 }

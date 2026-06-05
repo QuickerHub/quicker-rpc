@@ -64,6 +64,7 @@ export function ToolTestAutoFixPanel({
 
   const activeRunIdRef = useRef<string | null>(null);
   const latestMessagesRef = useRef<AgentUIMessage[]>([]);
+  const lastPatchedChatMessagesRef = useRef<AgentUIMessage[] | null>(null);
 
   useEffect(() => {
     const next = getAutoFixScenario(scenarioId)?.userPrompt ?? "";
@@ -117,6 +118,8 @@ export function ToolTestAutoFixPanel({
     latestMessagesRef.current = chatMessages as unknown as AgentUIMessage[];
     const runId = activeRunIdRef.current;
     if (!runId) return;
+    if (lastPatchedChatMessagesRef.current === chatMessages) return;
+    lastPatchedChatMessagesRef.current = chatMessages;
     onPatchRun(runId, { chatMessages: latestMessagesRef.current });
   }, [chatMessages, onPatchRun]);
 

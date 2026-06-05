@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { basenamePath } from "@/lib/workspace-file-tool";
 import { useWorkspaceExplorerEditor } from "@/lib/workspace-explorer";
 
@@ -118,6 +119,7 @@ export function WorkspaceExplorerFileTabs() {
           </div>
         );
       })}
+      <TitlebarDragRegion className="titlebar-drag-fill" />
     </div>
   );
 }

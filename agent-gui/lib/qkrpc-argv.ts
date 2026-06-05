@@ -55,6 +55,19 @@ function flagBool(flags: Record<string, string | boolean>, name: string): boolea
   return flags[name] === true;
 }
 
+function parseJsonFlag(
+  flags: Record<string, string | boolean>,
+  name: string,
+): unknown | undefined {
+  const raw = flagStr(flags, name);
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
 export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
   const filtered = argv.filter((a) => a !== "--json");
   const { positional, flags } = parseFlags(filtered);
@@ -503,6 +516,16 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
           value: flagStr(flags, "value"),
         },
       };
+    }
+    if (verb === "apply") {
+      const parsed = parseJsonFlag(flags, "changes");
+      if (Array.isArray(parsed)) {
+        return { op: "settings.apply", args: { changes: parsed } };
+      }
+      if (parsed && typeof parsed === "object") {
+        return { op: "settings.apply", args: { patch: parsed } };
+      }
+      return { op: "settings.apply", args: {} };
     }
     if (verb === "pages") {
       return { op: "settings.pages", args: {} };

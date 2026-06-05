@@ -5,6 +5,7 @@ import {
 } from "@/lib/compose-user-message";
 
 export const COMPOSER_TAG_CLASS = "composer-prompt-tag";
+export const COMPOSER_VOICE_STREAM_ATTR = "data-composer-voice-stream";
 
 export function isComposerTagElement(el: Element): boolean {
   return (
@@ -364,6 +365,89 @@ function insertFragmentAtSelection(
 function prepareComposerPasteRoot(root: HTMLElement): void {
   root.focus();
   ensureCaretInRoot(root);
+}
+
+export function findComposerVoiceStream(root: HTMLElement): HTMLElement | null {
+  return root.querySelector(`[${COMPOSER_VOICE_STREAM_ATTR}]`);
+}
+
+function insertNodeAtComposerSelection(root: HTMLElement, node: Node): void {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || !root.contains(selection.anchorNode)) {
+    root.append(node);
+    placeCaretAtEnd(root);
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  range.insertNode(node);
+  range.setStartAfter(node);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function replaceVoiceStreamSpan(
+  root: HTMLElement,
+  span: HTMLElement,
+  text: string,
+): void {
+  const parent = span.parentNode;
+  if (!parent) return;
+
+  const next = document.createDocumentFragment();
+  if (text) {
+    appendTextWithNewlines(next, text.replace(/\r\n?/g, "\n"));
+  }
+  parent.insertBefore(next, span);
+  span.remove();
+  placeCaretAtEnd(root);
+}
+
+/** Begin a live voice transcription region at the current caret. */
+export function beginComposerVoiceStream(root: HTMLElement): boolean {
+  if (findComposerVoiceStream(root)) return true;
+
+  const span = document.createElement("span");
+  span.setAttribute(COMPOSER_VOICE_STREAM_ATTR, "1");
+  span.append(document.createTextNode(""));
+  insertNodeAtComposerSelection(root, span);
+  return true;
+}
+
+/** Replace in-progress voice text (partial ASR). */
+export function updateComposerVoiceStream(
+  root: HTMLElement,
+  text: string,
+): boolean {
+  const span = findComposerVoiceStream(root);
+  if (!span) return false;
+  span.textContent = text.replace(/\r\n?/g, "\n");
+  placeCaretAtEnd(root);
+  return true;
+}
+
+/** Finalize voice stream as plain text in the composer. */
+export function endComposerVoiceStream(
+  root: HTMLElement,
+  finalText?: string,
+): boolean {
+  const span = findComposerVoiceStream(root);
+  if (!span) return false;
+  const text =
+    finalText !== undefined ? finalText : (span.textContent ?? "");
+  replaceVoiceStreamSpan(root, span, text);
+  return true;
+}
+
+/** Drop in-progress voice text without inserting. */
+export function cancelComposerVoiceStream(root: HTMLElement): boolean {
+  const span = findComposerVoiceStream(root);
+  if (!span) return false;
+  span.remove();
+  ensureCaretInRoot(root);
+  return true;
 }
 
 /** Plain-text paste via execCommand so Ctrl+Z can revert it. */

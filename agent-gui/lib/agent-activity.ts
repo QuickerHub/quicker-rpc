@@ -1,5 +1,6 @@
 import {
   getToolOrDynamicToolName,
+  isReasoningUIPart,
   isTextUIPart,
   isToolOrDynamicToolUIPart,
   type UIMessage,
@@ -15,6 +16,7 @@ export type AgentActivityPhase =
   | "connecting"
   | "reconnecting"
   | "planning"
+  | "reasoning"
   | "tool"
   | "writing"
   | "approval";
@@ -117,6 +119,16 @@ export function resolveAgentActivity(input: {
     return { phase: "writing", label: "正在生成回复…" };
   }
 
+  const hasStreamingReasoning = lastAssistant.parts.some(
+    (part) =>
+      isReasoningUIPart(part)
+      && part.text.trim().length > 0
+      && part.state === "streaming",
+  );
+  if (hasStreamingReasoning) {
+    return { phase: "reasoning", label: "正在思考…" };
+  }
+
   return { phase: "planning", label: "规划下一步…" };
 }
 
@@ -138,6 +150,10 @@ export function isPlaceholderAssistantMessage(message: UIMessage): boolean {
 
   for (const part of message.parts) {
     if (isTextUIPart(part)) {
+      if (part.text.trim().length > 0) return false;
+      continue;
+    }
+    if (isReasoningUIPart(part)) {
       if (part.text.trim().length > 0) return false;
       continue;
     }

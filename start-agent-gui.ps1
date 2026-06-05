@@ -1,5 +1,6 @@
 #!/usr/bin/env pwsh
 # Start agent-gui web dev server (Next.js + qkrpc via start.mjs --dev).
+# Dev also auto-starts quicker-voice-runtime on :6016 when voice-asr-runtime is present (uv).
 # Kills any prior agent-gui dev session before starting (port + process scan).
 # Prerequisite: Quicker + QuickerRpc plugin; qkrpc serve on :9477 (pwsh ./build.ps1 -t starts it).
 # Examples:

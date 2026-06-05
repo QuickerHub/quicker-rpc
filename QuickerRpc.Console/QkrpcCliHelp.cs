@@ -360,6 +360,10 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("key", "scope:path."), Option("value", "New value (bool/int/string/enum)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
+                Cmd("settings apply", "Update multiple Quicker settings headlessly (no UI).", "qkrpc settings apply --changes-file changes.json [--json] | qkrpc settings apply --changes '{\"userSettings:EnableCircleMenu\":\"false\"}'",
+
+                    opts: new[] { Option("changes", "JSON array [{key,value}] or object map."), Option("changes-file", "Path to JSON file (or -)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
                 Cmd("settings pages", "List openable Quicker settings pages and UI targets.", "qkrpc settings pages [--json]",
 
                     opts: new[] { Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),

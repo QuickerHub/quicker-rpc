@@ -186,6 +186,7 @@ async function handleChatPost(req: Request) {
 
     return result.toUIMessageStreamResponse({
       originalMessages: repairedMessages,
+      sendReasoning: true,
       messageMetadata: ({ part }) => {
         if (part.type === "start") {
           return {

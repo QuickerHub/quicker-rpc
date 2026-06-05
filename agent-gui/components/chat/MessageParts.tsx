@@ -5,6 +5,7 @@ import { isTextUIPart } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { AssistantRichMessage } from "./AssistantRichMessage";
 import { InlineUserMessage } from "./InlineUserMessage";
+import { ReasoningPart } from "./ReasoningPart";
 import { segmentMessageParts } from "./tool-part-layout";
 import { ToolBatchGroup } from "./ToolBatchGroup";
 import { ToolPart } from "./ToolPart";
@@ -17,6 +18,7 @@ type MessagePartsProps = {
   workingDirectory?: string;
   /** Tool-test: keep multi-tool batches expanded (no auto-collapse when idle). */
   keepToolBatchesExpanded?: boolean;
+  onSendPrompt?: (text: string) => void;
 };
 
 export function MessageParts({
@@ -24,6 +26,7 @@ export function MessageParts({
   userTextOverride,
   workingDirectory,
   keepToolBatchesExpanded = false,
+  onSendPrompt,
 }: MessagePartsProps) {
   const segments = useMemo(
     () => segmentMessageParts(message.parts),
@@ -33,6 +36,18 @@ export function MessageParts({
   return (
     <>
       {segments.map((segment) => {
+        if (segment.kind === "reasoning") {
+          const lead = segment.items[0];
+          if (!lead) return null;
+          const keyIndexes = segment.items.map((item) => item.index).join("-");
+          return (
+            <ReasoningPart
+              key={`reasoning-${message.id}-${keyIndexes}`}
+              items={segment.items}
+            />
+          );
+        }
+
         if (segment.kind === "text") {
           const { part, index } = segment;
           if (!isTextUIPart(part)) return null;
@@ -47,6 +62,7 @@ export function MessageParts({
               key={index}
               content={part.text}
               workingDirectory={workingDirectory}
+              onSendPrompt={onSendPrompt}
             />
           );
         }

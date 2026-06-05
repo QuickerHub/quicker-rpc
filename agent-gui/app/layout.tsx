@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
-import { AppConfirmHost } from "@/components/AppConfirmHost";
-import { AppMessageHost } from "@/components/AppMessageHost";
-import { DevErrorCaptureGate } from "@/components/dev/DevErrorCaptureGate";
-import { QuickerAgentUpdateChecker } from "@/components/QuickerAgentUpdateChecker";
+import { RootLayoutExtras } from "@/components/RootLayoutExtras";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { SIDEBAR_INIT_SCRIPT } from "@/lib/sidebar-prefs";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-constants";
@@ -26,10 +23,7 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>
-          <DevErrorCaptureGate />
-          <QuickerAgentUpdateChecker />
-          <AppConfirmHost />
-          <AppMessageHost />
+          <RootLayoutExtras />
           {children}
         </ThemeProvider>
       </body>

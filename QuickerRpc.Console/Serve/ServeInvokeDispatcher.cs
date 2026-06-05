@@ -112,6 +112,7 @@ internal static class ServeInvokeDispatcher
             "settings.list" => await SettingsListAsync(rpc, args, token).ConfigureAwait(false),
             "settings.get" => await SettingsGetAsync(rpc, args, token).ConfigureAwait(false),
             "settings.set" => await SettingsSetAsync(rpc, args, token).ConfigureAwait(false),
+            "settings.apply" => await SettingsApplyAsync(rpc, args, token).ConfigureAwait(false),
             "settings.pages" => await SettingsPagesAsync(rpc, token).ConfigureAwait(false),
             "settings.open" => await SettingsOpenAsync(rpc, args, token).ConfigureAwait(false),
             _ => Fail("UNKNOWN_OP", $"Unknown op: {op}"),
@@ -242,6 +243,29 @@ internal static class ServeInvokeDispatcher
             key = result.Key,
             type = result.Type,
             value = result.Value,
+            message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> SettingsApplyAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var changes = SettingsChangesParser.ParseFromServeArgs(args, out var parseError);
+        if (changes is null)
+        {
+            return Fail("INVALID_CHANGES", parseError ?? "Invalid changes.");
+        }
+
+        var result = await rpc.ApplySettingsAsync(changes, cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "settings-apply",
+            appliedCount = result.AppliedCount,
+            failedCount = result.FailedCount,
+            results = result.Results,
             message = result.Message,
         });
     }

@@ -246,6 +246,11 @@
       "agent": "quicker_settings({ action: \"set\", key: \"{{key}}\", value: \"{{value}}\" })",
       "defaults": { "key": "userSettings:EnableCircleMenu", "value": "true" }
     },
+    "settings.apply": {
+      "cli": "qkrpc settings apply --changes-file {{file}} --json",
+      "agent": "quicker_settings({ action: \"apply\", patch: { ... } })",
+      "defaults": { "file": "settings-patch.json" }
+    },
     "action.create": {
       "cli": "qkrpc action create --title \"{{title}}\" [--icon {{icon}}] --json",
       "agent": "qkrpc_action_create({ title: \"{{title}}\", icon?: \"{{icon}}\" })",

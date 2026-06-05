@@ -8,11 +8,13 @@ import { ActionLinkBar } from "@/components/chat/ActionLinkBar";
 type TurnActionLinkCardProps = {
   turnMessages: AgentUIMessage[];
   workingDirectory?: string;
+  onSendPrompt?: (text: string) => void;
 };
 
 export function TurnActionLinkCard({
   turnMessages,
   workingDirectory,
+  onSendPrompt,
 }: TurnActionLinkCardProps) {
   const links = useMemo(
     () => resolveTurnActionLinkFallback(turnMessages),
@@ -23,7 +25,11 @@ export function TurnActionLinkCard({
 
   return (
     <div className="msg-turn-action-link" role="region" aria-label="动作快捷卡片">
-      <ActionLinkBar links={links} workingDirectory={workingDirectory} />
+      <ActionLinkBar
+        links={links}
+        workingDirectory={workingDirectory}
+        onSendPrompt={onSendPrompt}
+      />
     </div>
   );
 }

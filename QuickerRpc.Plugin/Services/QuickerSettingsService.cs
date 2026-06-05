@@ -145,6 +145,59 @@ public sealed class QuickerSettingsService
         };
     }
 
+    public QuickerRpcApplySettingsResult Apply(IList<QuickerRpcSettingChangeItem> changes)
+    {
+        if (changes is null || changes.Count == 0)
+        {
+            return new QuickerRpcApplySettingsResult
+            {
+                Ok = false,
+                Message = "At least one change is required.",
+            };
+        }
+
+        var results = new List<QuickerRpcSetSettingResult>(changes.Count);
+        var applied = 0;
+        var failed = 0;
+        foreach (var change in changes)
+        {
+            var key = (change?.Key ?? string.Empty).Trim();
+            if (key.Length == 0 || change?.Value is null)
+            {
+                failed++;
+                results.Add(new QuickerRpcSetSettingResult
+                {
+                    Ok = false,
+                    Key = key,
+                    Message = "Each change requires key and value.",
+                });
+                continue;
+            }
+
+            var result = Set(key, change.Value);
+            results.Add(result);
+            if (result.Ok)
+            {
+                applied++;
+            }
+            else
+            {
+                failed++;
+            }
+        }
+
+        return new QuickerRpcApplySettingsResult
+        {
+            Ok = failed == 0,
+            AppliedCount = applied,
+            FailedCount = failed,
+            Results = results,
+            Message = failed == 0
+                ? $"Applied {applied} setting(s)."
+                : $"Applied {applied}, failed {failed}.",
+        };
+    }
+
     private static IReadOnlyList<QuickerRpcSettingCatalogItem> SearchCatalog(string query, int limit)
     {
         if (query.Length == 0)

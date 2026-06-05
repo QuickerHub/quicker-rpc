@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 /** True when the UI runs inside a Tauri webview (not plain browser). */
 export function isTauriShell(): boolean {
   if (typeof window === "undefined") return false;
-  return "__TAURI_INTERNALS__" in window;
+  return "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
 }
 
 /** SSR-safe: false until after mount, then matches {@link isTauriShell}. */

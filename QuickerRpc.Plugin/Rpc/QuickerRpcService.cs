@@ -919,6 +919,16 @@ public sealed class QuickerRpcService : IQuickerRpcService
             ?? new QuickerRpcSetSettingResult { Ok = false, Message = "Settings set unavailable." });
     }
 
+    public Task<QuickerRpcApplySettingsResult> ApplySettingsAsync(
+        IList<QuickerRpcSettingChangeItem> changes,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _settingsService.Apply(changes))
+            ?? new QuickerRpcApplySettingsResult { Ok = false, Message = "Settings apply unavailable." });
+    }
+
     public Task<QuickerRpcListSettingsPagesResult> ListSettingsPagesAsync(
         CancellationToken cancellationToken = default)
     {

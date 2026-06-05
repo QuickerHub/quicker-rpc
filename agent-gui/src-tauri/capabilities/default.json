@@ -2,19 +2,30 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default permissions for QuickerAgent",
-  "windows": ["main", "agent"],
+  "windows": ["main", "agent", "launcher"],
   "remote": {
     "urls": ["http://127.0.0.1:*", "http://localhost:*"]
   },
   "permissions": [
     "core:default",
     "core:window:default",
+    "core:window:allow-create",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-size",
+    "core:window:allow-set-focus",
+    "core:window:allow-center",
+    "core:window:allow-is-visible",
+    "core:window:allow-set-always-on-top",
+    "core:webview:allow-create-webview-window",
     "core:window:allow-start-dragging",
+    "core:window:allow-set-ignore-cursor-events",
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     "dialog:default",
     "dialog:allow-message",
-    "opener:default"
+    "opener:default",
+    "global-shortcut:default"
   ]
 }

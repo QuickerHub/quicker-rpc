@@ -1,5 +1,7 @@
 import {
   getToolOrDynamicToolName,
+  isReasoningUIPart,
+  isTextUIPart,
   isToolOrDynamicToolUIPart,
   type DynamicToolUIPart,
   type ToolUIPart,
@@ -91,8 +93,14 @@ export function analyzeToolUiPart(
   };
 }
 
+export type ReasoningSegmentItem = {
+  part: UIMessage["parts"][number];
+  index: number;
+};
+
 export type MessagePartSegment =
   | { kind: "text"; part: UIMessage["parts"][number]; index: number }
+  | { kind: "reasoning"; items: ReasoningSegmentItem[] }
   | { kind: "tool"; item: ToolUiPartAnalysis }
   | { kind: "tool-batch"; items: ToolUiPartAnalysis[] };
 
@@ -102,23 +110,31 @@ export function segmentMessageParts(
   parts: UIMessage["parts"],
 ): MessagePartSegment[] {
   const segments: MessagePartSegment[] = [];
-  let pending: ToolUiPartAnalysis[] = [];
+  let pendingTools: ToolUiPartAnalysis[] = [];
+  let pendingReasoning: ReasoningSegmentItem[] = [];
+
+  const flushReasoning = () => {
+    if (pendingReasoning.length === 0) return;
+    segments.push({ kind: "reasoning", items: pendingReasoning });
+    pendingReasoning = [];
+  };
 
   const flushTools = () => {
-    if (pending.length === 0) return;
-    if (pending.length >= MIN_TOOLS_IN_BATCH) {
-      segments.push({ kind: "tool-batch", items: pending });
+    if (pendingTools.length === 0) return;
+    if (pendingTools.length >= MIN_TOOLS_IN_BATCH) {
+      segments.push({ kind: "tool-batch", items: pendingTools });
     } else {
-      for (const item of pending) {
+      for (const item of pendingTools) {
         segments.push({ kind: "tool", item });
       }
     }
-    pending = [];
+    pendingTools = [];
   };
 
   for (let index = 0; index < parts.length; index++) {
     const part = parts[index]!;
     if (isToolUiPart(part)) {
+      flushReasoning();
       const name = getToolOrDynamicToolName(part);
       if (!isHiddenChatTool(name)) {
         const item = analyzeToolUiPart(part, index);
@@ -126,14 +142,24 @@ export function segmentMessageParts(
           flushTools();
           segments.push({ kind: "tool", item });
         } else {
-          pending.push(item);
+          pendingTools.push(item);
         }
       }
       continue;
     }
+    if (isReasoningUIPart(part)) {
+      flushTools();
+      // Keep empty streaming placeholders in the batch so segment keys stay stable.
+      pendingReasoning.push({ part, index });
+      continue;
+    }
+    flushReasoning();
     flushTools();
-    segments.push({ kind: "text", part, index });
+    if (isTextUIPart(part)) {
+      segments.push({ kind: "text", part, index });
+    }
   }
+  flushReasoning();
   flushTools();
   return segments;
 }

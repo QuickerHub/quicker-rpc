@@ -23,6 +23,8 @@ dist/
 target/
 agent-gui/src-tauri/target/
 agent-gui/src-tauri/resources/
+!agent-gui/src-tauri/resources/voice-plugin-channel.json
+!agent-gui/src-tauri/resources/voice-plugin-manifest.json
 agent-gui/src-tauri/gen/
 
 # Local app/runtime state
@@ -47,6 +49,9 @@ publish/**
 !publish/Publish-QuickerAgent.ps1
 !publish/Build-AgentGuiLocal.ps1
 !publish/Upload-QuickerAgentToBitiful.ps1
+!publish/Publish-VoiceAsrRelease.ps1
+!publish/Sync-VoicePluginChannel.ps1
+!publish/Upload-VoiceAsrToBitiful.ps1
 !publish/Sync-QuickerAgentActionDoc.ps1
 !publish/bitiful_upload.py
 !publish/.env.example
@@ -65,6 +70,13 @@ temp/
 
 # Local qkrpc action/subprogram projects (export/import)
 .quicker/
+
+# voice-asr-runtime (Python / uv)
+voice-asr-runtime/.venv/
+voice-asr-runtime/build/
+voice-asr-runtime/models/*
+!voice-asr-runtime/models/.gitkeep
+!voice-asr-runtime/models/README.md
 
 # MSBuild stamp for action-authoring doc generation (local only)
 docs/action-authoring/.generated.stamp

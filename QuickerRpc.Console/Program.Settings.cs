@@ -15,6 +15,7 @@ internal static partial class Program
             "list" => await RunSettingsListAsync(options).ConfigureAwait(false),
             "get" => await RunSettingsGetAsync(options).ConfigureAwait(false),
             "set" => await RunSettingsSetAsync(options).ConfigureAwait(false),
+            "apply" => await RunSettingsApplyAsync(options).ConfigureAwait(false),
             "pages" => await RunSettingsPagesAsync(options).ConfigureAwait(false),
             "open" => await RunSettingsOpenAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownSettingsVerbAsync(options).ConfigureAwait(false),
@@ -26,7 +27,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_SETTINGS_VERB",
-            "Use: settings search|list|get|set|pages|open (see qkrpc help --json)")
+            "Use: settings search|list|get|set|apply|pages|open (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -265,6 +266,77 @@ internal static partial class Program
         }
     }
 
+    private static async Task<int> RunSettingsApplyAsync(SettingsOptions options)
+    {
+        var resolved = QkrpcJsonPayload.Resolve(options.Changes, options.ChangesFile, "changes");
+        if (!resolved.Ok)
+        {
+            await EmitErrorAsync(options.Json, resolved.ErrorCode!, resolved.ErrorMessage!)
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        var parsed = SettingsChangesParser.ParseJson(resolved.Text!);
+        if (!parsed.Ok)
+        {
+            await EmitErrorAsync(options.Json, parsed.ErrorCode!, parsed.ErrorMessage!)
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var result = await session.Proxy
+                .ApplySettingsAsync(parsed.Changes, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "settings-apply",
+                        appliedCount = result.AppliedCount,
+                        failedCount = result.FailedCount,
+                        results = result.Results.Select(r => new
+                        {
+                            r.Ok,
+                            r.Key,
+                            r.Type,
+                            r.Value,
+                            r.Message,
+                        }),
+                        message = result.Message,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else
+            {
+                global::System.Console.WriteLine(result.Message);
+                foreach (var item in result.Results)
+                {
+                    var status = item.Ok ? "ok" : "fail";
+                    global::System.Console.WriteLine($"  [{status}] {item.Key} = {item.Value} — {item.Message}");
+                }
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "SETTINGS_APPLY_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
+
     private static async Task<int> RunSettingsPagesAsync(SettingsOptions options)
     {
         try
@@ -364,7 +436,7 @@ internal static partial class Program
 [Verb("settings", HelpText = "Quicker application settings (search, read, write, open UI).")]
 public sealed class SettingsOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "search | list | get | set | pages | open")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "search | list | get | set | apply | pages | open")]
     public string? Command { get; set; }
 
     [Option('q', "query", HelpText = "Search keyword (settings search).")]
@@ -387,6 +459,12 @@ public sealed class SettingsOptions
 
     [Option("value", HelpText = "New value (settings set).")]
     public string? Value { get; set; }
+
+    [Option("changes", HelpText = "JSON array [{key,value}] or object map for settings apply.")]
+    public string? Changes { get; set; }
+
+    [Option("changes-file", HelpText = "Path to JSON changes file (or - for stdin) for settings apply.")]
+    public string? ChangesFile { get; set; }
 
     [Option("limit", Default = 30, HelpText = "Max results (search/list).")]
     public int Limit { get; set; }

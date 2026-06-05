@@ -47,6 +47,94 @@ def verify_remote_object_size(
         )
 
 
+def upload_release_asset(
+    local_file: Path,
+    *,
+    access_key: str,
+    secret_key: str,
+    bucket_name: str,
+    endpoint_url: str = "https://s3.bitiful.net",
+    object_prefix: str = "quicker-rpc/voice-asr",
+    content_type: str = "application/zip",
+) -> tuple[str, str]:
+    if not local_file.is_file():
+        raise FileNotFoundError(f"Asset not found: {local_file}")
+
+    local_size = local_file.stat().st_size
+    if local_size < 1024:
+        raise RuntimeError(f"Asset too small ({local_size} bytes): {local_file}")
+
+    prefix = object_prefix.strip().strip("/")
+    object_key = f"{prefix}/{local_file.name}"
+
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url=endpoint_url.rstrip("/"),
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name="us-east-1",
+        config=Config(signature_version="s3v4", retries={"max_attempts": 5}),
+    )
+    transfer_config = TransferConfig(
+        multipart_threshold=_SINGLE_PART_THRESHOLD_BYTES,
+        max_concurrency=1,
+        use_threads=False,
+    )
+
+    print(f"Uploading {local_file.name} ({local_size // (1024 * 1024)} MiB)...")
+    s3_client.upload_file(
+        str(local_file),
+        bucket_name,
+        object_key,
+        ExtraArgs={"ContentType": content_type},
+        Config=transfer_config,
+    )
+    verify_remote_object_size(
+        s3_client,
+        bucket_name=bucket_name,
+        object_key=object_key,
+        expected_size=local_size,
+    )
+
+    base = endpoint_url.rstrip("/")
+    object_url = f"{base}/{bucket_name}/{object_key}"
+    return object_key, object_url
+
+
+def write_version_txt(
+    version: str,
+    *,
+    access_key: str,
+    secret_key: str,
+    bucket_name: str,
+    endpoint_url: str = "https://s3.bitiful.net",
+    object_prefix: str = "quicker-rpc/voice-asr",
+) -> str:
+    prefix = object_prefix.strip().strip("/")
+    version_txt_key = f"{prefix}/version.txt"
+    marker = version.strip()
+    if not marker:
+        raise RuntimeError("version marker is empty")
+
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url=endpoint_url.rstrip("/"),
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name="us-east-1",
+        config=Config(signature_version="s3v4", retries={"max_attempts": 5}),
+    )
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=version_txt_key,
+        Body=marker.encode("utf-8"),
+        ContentType="text/plain; charset=utf-8",
+        CacheControl="no-cache, no-store, must-revalidate",
+    )
+    base = endpoint_url.rstrip("/")
+    return f"{base}/{bucket_name}/{version_txt_key}"
+
+
 def upload_quicker_agent_installer(
     local_file: Path,
     *,
@@ -114,19 +202,7 @@ def upload_quicker_agent_installer(
     return object_key, object_url, version_txt_url
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Upload QuickerAgent installer to Bitiful.")
-    parser.add_argument("installer", type=Path, help="Path to quicker-agent-<semver>-x64-setup.exe")
-    parser.add_argument(
-        "--endpoint-url",
-        default=os.getenv("BITIFUL_ENDPOINT_URL", "https://s3.bitiful.net"),
-    )
-    parser.add_argument(
-        "--object-prefix",
-        default=os.getenv("BITIFUL_OBJECT_PREFIX", "quicker-rpc/quicker-agent"),
-    )
-    args = parser.parse_args(argv)
-
+def _load_bitiful_credentials() -> tuple[str, str, str]:
     access_key = os.getenv("BITIFUL_ACCESS_KEY", "").strip()
     secret_key = os.getenv("BITIFUL_SECRET_KEY", "").strip()
     bucket_name = os.getenv("BITIFUL_BUCKET_NAME", "").strip()
@@ -140,16 +216,103 @@ def main(argv: list[str] | None = None) -> int:
         if not value
     ]
     if missing:
-        print(f"Missing Bitiful credentials: {', '.join(missing)}", file=sys.stderr)
+        raise RuntimeError(f"Missing Bitiful credentials: {', '.join(missing)}")
+    return access_key, secret_key, bucket_name
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Upload QuickerHub release assets to Bitiful.")
+    parser.add_argument(
+        "path",
+        type=Path,
+        help="Installer (.exe) or release asset (.zip)",
+    )
+    parser.add_argument(
+        "--asset",
+        action="store_true",
+        help="Upload as generic release asset (skip installer validation)",
+    )
+    parser.add_argument(
+        "--version",
+        default="",
+        help="Write version.txt after upload (voice-asr release version)",
+    )
+    parser.add_argument(
+        "--write-version-only",
+        action="store_true",
+        help="Only write version.txt (requires --version)",
+    )
+    parser.add_argument(
+        "--endpoint-url",
+        default=os.getenv("BITIFUL_ENDPOINT_URL", "https://s3.bitiful.net"),
+    )
+    parser.add_argument(
+        "--object-prefix",
+        default="",
+        help="S3 object prefix (default from BITIFUL_OBJECT_PREFIX or quicker-agent)",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        access_key, secret_key, bucket_name = _load_bitiful_credentials()
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
         return 1
 
+    endpoint_url = args.endpoint_url.strip()
+    default_prefix = (
+        "quicker-rpc/voice-asr"
+        if args.asset or args.write_version_only
+        else os.getenv("BITIFUL_OBJECT_PREFIX", "quicker-rpc/quicker-agent")
+    )
+    object_prefix = (args.object_prefix or default_prefix).strip()
+    local_path = args.path.resolve()
+
+    if args.write_version_only:
+        if not args.version.strip():
+            print("--write-version-only requires --version", file=sys.stderr)
+            return 1
+        version_txt_url = write_version_txt(
+            args.version.strip(),
+            access_key=access_key,
+            secret_key=secret_key,
+            bucket_name=bucket_name,
+            endpoint_url=endpoint_url,
+            object_prefix=object_prefix,
+        )
+        print(f"Version URL: {version_txt_url}")
+        return 0
+
+    if args.asset:
+        object_key, object_url = upload_release_asset(
+            local_path,
+            access_key=access_key,
+            secret_key=secret_key,
+            bucket_name=bucket_name,
+            endpoint_url=endpoint_url,
+            object_prefix=object_prefix,
+        )
+        print(f"Uploaded: {object_key}")
+        print(f"URL: {object_url}")
+        if args.version.strip():
+            version_txt_url = write_version_txt(
+                args.version.strip(),
+                access_key=access_key,
+                secret_key=secret_key,
+                bucket_name=bucket_name,
+                endpoint_url=endpoint_url,
+                object_prefix=object_prefix,
+            )
+            print(f"Version URL: {version_txt_url}")
+        return 0
+
     object_key, object_url, version_txt_url = upload_quicker_agent_installer(
-        args.installer.resolve(),
+        local_path,
         access_key=access_key,
         secret_key=secret_key,
         bucket_name=bucket_name,
-        endpoint_url=args.endpoint_url.strip(),
-        object_prefix=args.object_prefix.strip(),
+        endpoint_url=endpoint_url,
+        object_prefix=object_prefix,
     )
     print(f"Uploaded: {object_key}")
     print(f"URL: {object_url}")

@@ -1,0 +1,14 @@
+{
+  "id": "voice-asr",
+  "name": "本地语音输入",
+  "pluginVersion": "1.0.0",
+  "engine": "quicker-voice-runtime",
+  "minHostVersion": "0.10.0",
+  "protocolVersion": 1,
+  "ws": { "host": "127.0.0.1", "port": 6016 },
+  "runtime": {
+    "exe": "runtime/quicker-voice-runtime.exe",
+    "cwd": ".",
+    "healthPath": "/health"
+  }
+}

@@ -22,6 +22,10 @@ import {
   writeDevServerInfo,
   wireNextDevOutput,
 } from "./lib/dev-frontend-log-parser.mjs";
+import {
+  ensureVoiceRuntime,
+  stopTrackedVoiceRuntime,
+} from "./lib/voice-runtime-lifecycle.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -37,6 +41,8 @@ function resolveNodeExe() {
 
 /** @type {import('node:child_process').ChildProcess | null} */
 let qkrpcChild = null;
+/** @type {import('node:child_process').ChildProcess | null} */
+let voiceChild = null;
 
 function listenProbe(port, host) {
   return new Promise((resolve, reject) => {
@@ -147,9 +153,15 @@ function stopQkrpcChild() {
   qkrpcChild = null;
 }
 
+function stopVoiceChild() {
+  stopTrackedVoiceRuntime(root, voiceChild);
+  voiceChild = null;
+}
+
 function registerShutdown() {
   const onExit = () => {
     stopQkrpcChild();
+    stopVoiceChild();
   };
   process.on("SIGINT", onExit);
   process.on("SIGTERM", onExit);
@@ -296,6 +308,10 @@ async function main() {
 
   await ensureBundledQkrpcServe(host);
 
+  if (isDev) {
+    voiceChild = await ensureVoiceRuntime(root, host);
+  }
+
   const port = await resolveUiPort(host);
   process.env.PORT = String(port);
   process.env.HOSTNAME = host;
@@ -315,6 +331,7 @@ async function main() {
     wireNextDevOutput(root, child);
     child.on("exit", (code) => {
       stopQkrpcChild();
+      stopVoiceChild();
       process.exit(code ?? 1);
     });
     return;
@@ -328,6 +345,7 @@ async function main() {
 
 main().catch((err) => {
   stopQkrpcChild();
+  stopVoiceChild();
   console.error(err);
   process.exit(1);
 });

@@ -24,6 +24,8 @@ llm-bundled-secrets.json
 # tauri
 src-tauri/target/
 src-tauri/resources/
+!src-tauri/resources/voice-plugin-channel.json
+!src-tauri/resources/voice-plugin-manifest.json
 src-tauri/gen/
 
 # ad-hoc debug log captures (manual stdout/stderr redirects during local dev)

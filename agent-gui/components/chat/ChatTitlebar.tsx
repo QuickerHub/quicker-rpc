@@ -23,6 +23,7 @@ import {
 import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { useShellPlatform, useTauriShell } from "@/lib/tauri-shell";
+import { openLauncherWindow } from "@/lib/launcher/launcher-window";
 
 type ChatTitlebarProps = {
   store: ChatStoreData;
@@ -97,6 +98,28 @@ function plainTitleText(raw: string): string {
   return normalized || "新对话";
 }
 
+function IconLauncher() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path
+        d="M3.25 4.5h7.5M3.25 7h5M3.25 9.5h7.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+      <rect
+        x="2"
+        y="2.75"
+        width="10"
+        height="8.5"
+        rx="1.75"
+        stroke="currentColor"
+        strokeWidth="1.15"
+      />
+    </svg>
+  );
+}
+
 function TitlebarChromeActions({
   isTauri,
   platform,
@@ -121,6 +144,15 @@ function TitlebarChromeActions({
           .join(" ")}
       >
         <ExplorerPanelToggle className="titlebar-action-btn ws-icon-btn" />
+        <button
+          type="button"
+          className="titlebar-action-btn ws-icon-btn"
+          title="快速输入（独立小窗，Enter 发送一次性指令）"
+          aria-label="快速输入"
+          onClick={() => openLauncherWindow()}
+        >
+          <IconLauncher />
+        </button>
         {showDevActions ? (
           <>
             <span className="titlebar-actions-sep" aria-hidden />
@@ -311,12 +343,14 @@ export function ChatTitlebar({
                 >
                   <IconPlus />
                 </button>
+                <TitlebarDragRegion className="titlebar-drag-fill" />
               </div>
             </div>
 
             {showEditorPane ? (
               <div className="titlebar-editor-zone">
                 <WorkspaceExplorerFileTabs />
+                <TitlebarDragRegion className="titlebar-drag-fill" />
               </div>
             ) : null}
           </div>
@@ -327,7 +361,9 @@ export function ChatTitlebar({
             className="titlebar-explorer-spacer"
             style={{ width: panelWidth, flex: `0 0 ${panelWidth}px` }}
             aria-hidden
-          />
+          >
+            <TitlebarDragRegion className="titlebar-drag-fill titlebar-drag-fill--block" />
+          </div>
         ) : null}
       </div>
 
@@ -344,18 +380,15 @@ export function ChatTitlebar({
           </div>
         </div>
       ) : (
-        <>
-          <TitlebarDragRegion />
-          <div className="titlebar-trailing">
-            <TitlebarChromeActions
-              isTauri={isTauri}
-              platform={platform}
-              showDevActions={showDevActions}
-              settingsOpen={settingsOpen}
-              onToggleSettings={handleToggleSettings}
-            />
-          </div>
-        </>
+        <div className="titlebar-trailing">
+          <TitlebarChromeActions
+            isTauri={isTauri}
+            platform={platform}
+            showDevActions={showDevActions}
+            settingsOpen={settingsOpen}
+            onToggleSettings={handleToggleSettings}
+          />
+        </div>
       )}
     </header>
   );

@@ -7,6 +7,7 @@ import { ActionLinkCard } from "@/components/chat/ActionLinkCard";
 type ActionLinkBarProps = {
   links: ParsedActionLink[];
   workingDirectory?: string;
+  onSendPrompt?: (text: string) => void;
 };
 
 function groupLinksByActionId(
@@ -33,7 +34,11 @@ function groupLinksByActionId(
   }));
 }
 
-export function ActionLinkBar({ links, workingDirectory }: ActionLinkBarProps) {
+export function ActionLinkBar({
+  links,
+  workingDirectory,
+  onSendPrompt,
+}: ActionLinkBarProps) {
   const [dismissedIds, setDismissedIds] = useState(() => new Set<string>());
 
   const dismissCard = useCallback((actionId: string) => {
@@ -62,6 +67,7 @@ export function ActionLinkBar({ links, workingDirectory }: ActionLinkBarProps) {
           links={group.links}
           workingDirectory={workingDirectory}
           onDismissed={() => dismissCard(group.actionId)}
+          onSendPrompt={onSendPrompt}
         />
       ))}
     </div>

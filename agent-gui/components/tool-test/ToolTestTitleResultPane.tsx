@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { formatTokenCount } from "@/lib/chat-types";
 import { isNearVerbatimThreadTitle } from "@/lib/thread-title";
 import { extractThreadTitleFromMessages } from "@/lib/thread-title-tool-messages";
 import type { TitleTestRunEntry } from "@/lib/tool-test-title-runs";
-import { formatTitleTestRunTime } from "@/lib/tool-test-title-runs";
-import { ToolTestChatMessages } from "@/components/tool-test/ToolTestChatMessages";
+import { ToolTestConversationCard } from "@/components/tool-test/ToolTestConversationCard";
+import { ToolTestRunsPaneShell } from "@/components/tool-test/ToolTestRunsPaneShell";
 import { buildTitleTestDisplayMessages } from "@/lib/tool-test-title-display";
 
 type ToolTestTitleResultPaneProps = {
@@ -32,8 +32,10 @@ function TitleTestRunCard({
   run: TitleTestRunEntry;
   workingDirectory?: string;
 }) {
-  const chatEndRef = useRef<HTMLDivElement>(null);
   const messages = buildTitleTestDisplayMessages(run);
+  const liveMessageCount = run.chatMessages?.length ?? 0;
+  const liveLastPartCount =
+    run.chatMessages?.[liveMessageCount - 1]?.parts.length ?? 0;
   const titleFromTool = extractThreadTitleFromMessages(run.chatMessages ?? []);
   const generatedTitle =
     run.status === "running"
@@ -46,45 +48,11 @@ function TitleTestRunCard({
     && generatedTitle !== "—"
     && isNearVerbatimThreadTitle(generatedTitle, run.userText.trim());
 
-  useEffect(() => {
-    if (run.status !== "running") return;
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, run.status]);
-
-  return (
-    <article
-      className={`tool-test-title-run tool-test-title-run--embed${run.status === "running" ? " tool-test-title-run--running" : ""}`}
-    >
-      <header className="tool-test-title-run__head">
-        <div className="tool-test-title-run__head-main">
-          <span className="tool-test-title-run__case">{run.triggerLabel ?? "测试"}</span>
-          <span className="tool-test-title-run__title-pill" title="set_thread_title">
-            {generatedTitle}
-          </span>
-        </div>
-        <time className="tool-test-title-run__time" dateTime={new Date(run.at).toISOString()}>
-          {formatTitleTestRunTime(run.at)}
-        </time>
-      </header>
-
-      <div className="tool-test-title-run__chat" aria-label="内嵌对话流">
-        <ToolTestChatMessages
-          messages={messages}
-          workingDirectory={workingDirectory}
-          keepToolBatchesExpanded
-          emptyHint={
-            run.status === "running" && !run.requestPayload?.trim() && !run.userText.trim()
-              ? "等待 /api/chat 流式消息…"
-              : undefined
-          }
-          endRef={chatEndRef}
-        />
-      </div>
-
+  const footer = (
+    <>
       {usageLine ? (
         <p className="tool-test-title-run__tokens">{usageLine}</p>
       ) : null}
-
       <dl className="tool-test-title-run__meta">
         <div>
           <dt>路径 / 模型</dt>
@@ -123,7 +91,27 @@ function TitleTestRunCard({
           </div>
         ) : null}
       </dl>
-    </article>
+    </>
+  );
+
+  return (
+    <ToolTestConversationCard
+      label={run.triggerLabel ?? "标题测试"}
+      badge={generatedTitle}
+      badgeTitle="set_thread_title"
+      status={run.status}
+      statusLabels={{ running: "（流式中…）" }}
+      at={run.at}
+      messages={messages}
+      workingDirectory={workingDirectory}
+      emptyHint={
+        run.status === "running" && !run.requestPayload?.trim() && !run.userText.trim()
+          ? "等待 /api/chat 流式消息…"
+          : undefined
+      }
+      streamTick={liveLastPartCount + liveMessageCount}
+      footer={footer}
+    />
   );
 }
 
@@ -138,44 +126,28 @@ export function ToolTestTitleResultPane({
     endRef.current?.scrollIntoView({ behavior: runs.length > 1 ? "smooth" : "auto" });
   }, [runs.length, runs[runs.length - 1]?.status, runs[runs.length - 1]?.chatMessages?.length]);
 
-  return (
-    <main className="tool-test-title-pane">
-      <header className="tool-test-title-pane__head">
-        <h2 className="tool-test-title-pane__heading">对话流记录</h2>
-        <div className="tool-test-pane-toolbar">
-          <p className="tool-test-title-pane__sub">
-            {runs.length === 0
-              ? "左侧选对话模型并点情景"
-              : `共 ${runs.length} 次 · 内嵌真实 /api/chat 消息（set_thread_title 已隐藏）`}
-          </p>
-          {runs.length > 0 ? (
-            <button
-              type="button"
-              className="tool-test-pane-toolbar__action"
-              onClick={onClearRuns}
-            >
-              清空记录
-            </button>
-          ) : null}
-        </div>
-      </header>
+  const subText =
+    runs.length === 0
+      ? "左侧选对话模型并点情景"
+      : `共 ${runs.length} 场对话 · /api/chat（set_thread_title 已隐藏）`;
 
-      <div className="tool-test-title-stream">
-        {runs.length === 0 ? (
-          <p className="tool-test-title-pane__empty">
-            每次测试右侧会显示与主聊天相同的用户/助手消息与工具行；标题显示在卡片顶部。
-          </p>
-        ) : (
-          runs.map((run) => (
-            <TitleTestRunCard
-              key={run.id}
-              run={run}
-              workingDirectory={workingDirectory}
-            />
-          ))
-        )}
-        <div ref={endRef} className="tool-test-title-stream__anchor" aria-hidden />
-      </div>
-    </main>
+  return (
+    <ToolTestRunsPaneShell
+      heading="标题对话"
+      subText={subText}
+      emptyText="每次情景会在右侧新增一场对话；标题显示在卡片顶栏。清理时会尝试删除对话里创建或编辑过的动作。"
+      runs={runs}
+      workingDirectory={workingDirectory}
+      onClearRuns={onClearRuns}
+      streamAnchorRef={endRef}
+    >
+      {runs.map((run) => (
+        <TitleTestRunCard
+          key={run.id}
+          run={run}
+          workingDirectory={workingDirectory}
+        />
+      ))}
+    </ToolTestRunsPaneShell>
   );
 }

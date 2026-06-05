@@ -1,0 +1,10 @@
+{
+  "runtimeVersion": "0.1.0",
+  "runtimeZipUrl": "https://github.com/QuickerHub/voice-asr-runtime/releases/download/v0.1.0/voice-asr-runtime-0.1.0-win-x64.zip",
+  "modelZipUrl": "https://github.com/QuickerHub/voice-asr-runtime/releases/download/v0.1.0/voice-asr-model-sensevoice-0.1.0-win-x64.zip",
+  "runtimeZipMirrorUrl": "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/voice-asr-runtime-0.1.0-win-x64.zip",
+  "modelZipMirrorUrl": "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/voice-asr-model-sensevoice-0.1.0-win-x64.zip",
+  "runtimeZipSha256": "82a196541ed2b31edda44170e69815ef93f3f6fdf7b0336925dfc86246b53d8c",
+  "modelZipSha256": "6d269a6aef59e8cae04596a1cc29623eec8d174c2ad5322ec8e0e2b4bf17ffec"
+}
+

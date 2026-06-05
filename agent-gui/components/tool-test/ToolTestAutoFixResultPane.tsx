@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import type { AutoFixRunEntry } from "@/lib/tool-test-autofix-runs";
-import { formatAutoFixRunTime } from "@/lib/tool-test-autofix-runs";
-import { ToolTestChatMessages } from "@/components/tool-test/ToolTestChatMessages";
+import { ToolTestConversationCard } from "@/components/tool-test/ToolTestConversationCard";
+import { ToolTestRunsPaneShell } from "@/components/tool-test/ToolTestRunsPaneShell";
 
 type ToolTestAutoFixResultPaneProps = {
   runs: AutoFixRunEntry[];
@@ -18,70 +18,45 @@ function AutoFixRunCard({
   run: AutoFixRunEntry;
   workingDirectory?: string;
 }) {
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const partCount =
+    run.chatMessages[run.chatMessages.length - 1]?.parts.length ?? 0;
 
-  useEffect(() => {
-    if (run.status !== "running") return;
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [run.status, run.chatMessages.length]);
+  const footer = (
+    <dl className="tool-test-title-run__meta">
+      <div>
+        <dt>路径 / 模型</dt>
+        <dd>
+          生产 · /api/chat 流式{" · "}
+          {run.result?.modelId
+            ? `${run.llmModelLabel} (${run.result.modelId})`
+            : run.llmModelLabel}
+        </dd>
+      </div>
+      {run.result?.error ? (
+        <div>
+          <dt>错误</dt>
+          <dd className="tool-test-title-result__error">{run.result.error}</dd>
+        </div>
+      ) : null}
+    </dl>
+  );
 
   return (
-    <article
-      className={`tool-test-title-run tool-test-title-run--embed${run.status === "running" ? " tool-test-title-run--running" : ""}`}
-    >
-      <header className="tool-test-title-run__head">
-        <div className="tool-test-title-run__head-main">
-          <span className="tool-test-title-run__case">{run.scenarioLabel}</span>
-          <span className="tool-test-title-run__title-pill" title="自动修复场景">
-            {run.status === "running"
-              ? "（流式中…）"
-              : run.status === "done"
-                ? "完成"
-                : run.status === "error"
-                  ? "失败"
-                  : "—"}
-          </span>
-        </div>
-        <time
-          className="tool-test-title-run__time"
-          dateTime={new Date(run.at).toISOString()}
-        >
-          {formatAutoFixRunTime(run.at)}
-        </time>
-      </header>
-
-      <div className="tool-test-title-run__chat" aria-label="内嵌对话流">
-        <ToolTestChatMessages
-          messages={run.chatMessages}
-          workingDirectory={workingDirectory}
-          keepToolBatchesExpanded
-          emptyHint={
-            run.status === "running" && !run.requestPayload?.trim()
-              ? "等待 /api/chat 流式消息…"
-              : undefined
-          }
-          endRef={chatEndRef}
-        />
-      </div>
-
-      <dl className="tool-test-title-run__meta">
-        <div>
-          <dt>路径 / 模型</dt>
-          <dd>
-            生产 · /api/chat 流式{" · "}
-            {run.result?.modelId
-              ? `${run.llmModelLabel} (${run.result.modelId})`
-              : run.llmModelLabel}
-          </dd>
-        </div>
-        {run.result?.error ? (
-          <div>
-            <dt>错误</dt>
-            <dd className="tool-test-title-result__error">{run.result.error}</dd>
-          </div>
-        ) : null}
-      </dl>
-    </article>
+    <ToolTestConversationCard
+      label={run.scenarioLabel}
+      badgeTitle="自动修复场景"
+      status={run.status === "idle" ? "done" : run.status}
+      at={run.at}
+      messages={run.chatMessages}
+      workingDirectory={workingDirectory}
+      emptyHint={
+        run.status === "running" && !run.requestPayload?.trim()
+          ? "等待 /api/chat 流式消息…"
+          : undefined
+      }
+      streamTick={partCount}
+      footer={footer}
+    />
   );
 }
 
@@ -98,43 +73,28 @@ export function ToolTestAutoFixResultPane({
     });
   }, [runs.length, runs[runs.length - 1]?.status, runs[runs.length - 1]?.chatMessages?.length]);
 
-  return (
-    <main className="tool-test-title-pane">
-      <header className="tool-test-title-pane__head">
-        <h2 className="tool-test-title-pane__heading">自动修复记录</h2>
-        <div className="tool-test-pane-toolbar">
-          <p className="tool-test-title-pane__sub">
-            {runs.length === 0 ? "左侧选场景并运行" : `共 ${runs.length} 次 · 内嵌真实 /api/chat 消息`}
-          </p>
-          {runs.length > 0 ? (
-            <button
-              type="button"
-              className="tool-test-pane-toolbar__action"
-              onClick={onClearRuns}
-            >
-              清空记录
-            </button>
-          ) : null}
-        </div>
-      </header>
+  const subText =
+    runs.length === 0
+      ? "左侧选场景并运行"
+      : `共 ${runs.length} 场对话 · 造错→修复链路`;
 
-      <div className="tool-test-title-stream">
-        {runs.length === 0 ? (
-          <p className="tool-test-title-pane__empty">
-            每次场景会展示与主聊天相同的用户/助手消息与工具行；用于复现“造错→修复→再检查”的完整链路。
-          </p>
-        ) : (
-          runs.map((run) => (
-            <AutoFixRunCard
-              key={run.id}
-              run={run}
-              workingDirectory={workingDirectory}
-            />
-          ))
-        )}
-        <div ref={endRef} className="tool-test-title-stream__anchor" aria-hidden />
-      </div>
-    </main>
+  return (
+    <ToolTestRunsPaneShell
+      heading="修复对话"
+      subText={subText}
+      emptyText="每次「运行场景」都会在右侧新增一场完整 /api/chat 对话。清理时会尝试删除对话里创建或编辑过的动作。"
+      runs={runs}
+      workingDirectory={workingDirectory}
+      onClearRuns={onClearRuns}
+      streamAnchorRef={endRef}
+    >
+      {runs.map((run) => (
+        <AutoFixRunCard
+          key={run.id}
+          run={run}
+          workingDirectory={workingDirectory}
+        />
+      ))}
+    </ToolTestRunsPaneShell>
   );
 }
-

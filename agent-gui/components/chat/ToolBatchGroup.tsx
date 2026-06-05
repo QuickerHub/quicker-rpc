@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildToolBatchSummary,
-  shouldCollapseToolBatchWhenIdle,
   type ToolUiPartAnalysis,
 } from "./tool-part-layout";
 import {
@@ -27,10 +26,12 @@ export function ToolBatchGroup({
   disableAutoCollapse = false,
 }: ToolBatchGroupProps) {
   const summary = useMemo(() => buildToolBatchSummary(items), [items]);
+  const batchIdle = summary.allTerminal && !summary.needsAttention;
+  const batchNeedsAttention = summary.needsAttention;
   const [userOpen, setUserOpen] = useState(
-    () => disableAutoCollapse || summary.needsAttention,
+    () => disableAutoCollapse || batchNeedsAttention,
   );
-  const wasIdleRef = useRef(shouldCollapseToolBatchWhenIdle(summary));
+  const wasIdleRef = useRef(batchIdle);
   const prevDisableAutoCollapseRef = useRef(disableAutoCollapse);
 
   const batchRunning = items.some((i) => i.isRunning);
@@ -41,31 +42,30 @@ export function ToolBatchGroup({
 
   useEffect(() => {
     if (disableAutoCollapse && !prevDisableAutoCollapseRef.current) {
-      setUserOpen(true);
+      setUserOpen((open) => (open ? open : true));
     }
     prevDisableAutoCollapseRef.current = disableAutoCollapse;
 
     if (disableAutoCollapse) {
-      wasIdleRef.current = shouldCollapseToolBatchWhenIdle(summary);
-      if (summary.needsAttention && !wasIdleRef.current) {
-        setUserOpen(true);
+      wasIdleRef.current = batchIdle;
+      if (batchNeedsAttention && !batchIdle) {
+        setUserOpen((open) => (open ? open : true));
       }
       return;
     }
 
     if (forcedOpen) return;
-    const idle = shouldCollapseToolBatchWhenIdle(summary);
 
-    if (summary.needsAttention && !idle) {
-      setUserOpen(true);
+    if (batchNeedsAttention && !batchIdle) {
+      setUserOpen((open) => (open ? open : true));
     }
 
-    if (idle && !wasIdleRef.current) {
-      setUserOpen(false);
+    if (batchIdle && !wasIdleRef.current) {
+      setUserOpen((open) => (open ? false : open));
     }
 
-    wasIdleRef.current = idle;
-  }, [disableAutoCollapse, forcedOpen, summary]);
+    wasIdleRef.current = batchIdle;
+  }, [disableAutoCollapse, forcedOpen, batchIdle, batchNeedsAttention]);
 
   if (workspaceFileBatch && !batchApproval) {
     return (

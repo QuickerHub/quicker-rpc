@@ -52,6 +52,22 @@ import {
   updateThreadMessages,
   updateThreadTitle,
 } from "@/lib/chat-store";
+import {
+  postLauncherSessionSync,
+  subscribeLauncherBridge,
+} from "@/lib/launcher/launcher-bridge";
+import {
+  queueLauncherSubmit,
+  subscribeLauncherSubmit,
+  takeLauncherSubmit,
+} from "@/lib/launcher/launcher-submit-queue";
+import {
+  clearEphemeralLauncherRuns,
+  getEphemeralLauncherRuns,
+  getLauncherSessionForThread,
+  startEphemeralLauncherRun,
+  subscribeEphemeralLauncherRuns,
+} from "@/lib/launcher/launcher-session";
 import { AppSettingsPopup } from "@/components/chat/AppSettingsPopup";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ChatTitlebar } from "@/components/chat/ChatTitlebar";
@@ -70,6 +86,7 @@ import {
   ComposerMarkupField,
   type ComposerMarkupFieldHandle,
 } from "./ComposerMarkupField";
+import { ComposerPrimaryActionButton } from "./ComposerPrimaryActionButton";
 import { MessageParts } from "./MessageParts";
 import { TurnActionLinkCard } from "./TurnActionLinkCard";
 import { ActionTagSelector } from "./ActionTagSelector";
@@ -98,7 +115,11 @@ import { useMsgTurnStickyActive } from "@/lib/use-msg-turn-sticky-active";
 import { UserMessageComposerChrome } from "./UserMessageComposerChrome";
 import { useThreadTitleFromTool } from "@/lib/use-thread-title-from-tool";
 import { useComposerMessageQueue } from "@/lib/use-composer-message-queue";
+import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
+import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
+import { useGlobalVoiceToggle } from "@/lib/voice-input/use-global-voice-toggle";
 import { ComposerTestPromptsPicker } from "@/components/chat/ComposerTestPromptsPicker";
+import { isAgentGuiDebugMode } from "@/lib/agent-gui-debug";
 import { useActionProjectImportFromMessages } from "@/lib/action-project-import-from-messages";
 import { useQkrpcPing, type PingState } from "@/lib/use-qkrpc-ping";
 import {
@@ -261,6 +282,7 @@ type ChatPanelProps = {
   initialMessages: AgentUIMessage[];
   workingDirectory: string;
   visible?: boolean;
+  ephemeral?: boolean;
   threadTitle: string;
   titleGenerated: boolean;
   titleManual: boolean;
@@ -276,6 +298,7 @@ function ChatPanel({
   initialMessages,
   workingDirectory,
   visible = true,
+  ephemeral = false,
   threadTitle,
   titleGenerated,
   titleManual,
@@ -338,6 +361,7 @@ function ChatPanel({
   const msgTurnRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<ComposerMarkupFieldHandle>(null);
+  const voiceInterruptRef = useRef<() => void>(() => {});
   const persistRef = useRef(onPersist);
   persistRef.current = onPersist;
   const lastPersistedRef = useRef<{
@@ -402,6 +426,7 @@ function ChatPanel({
   );
 
   useEffect(() => {
+    if (ephemeral) return;
     const timer = window.setTimeout(() => {
       const prev = lastPersistedRef.current;
       if (
@@ -414,19 +439,19 @@ function ChatPanel({
       persistRef.current(threadId, messages);
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [threadId, messages]);
+  }, [ephemeral, threadId, messages]);
 
-  useActionProjectImportFromMessages(messages);
+  useActionProjectImportFromMessages(messages, !ephemeral);
 
   useThreadTitleFromTool({
     threadId,
-    visible,
+    visible: ephemeral ? false : visible,
     messages,
     status,
     currentTitle: threadTitle,
     titleGenerated,
     titleManual,
-    onTitle: onAutoTitle,
+    onTitle: ephemeral ? () => {} : onAutoTitle,
   });
 
   const pendingApprovals = useMemo(
@@ -513,6 +538,44 @@ function ChatPanel({
     revision: [messages, error, status],
     busy,
   });
+
+  useEffect(() => {
+    const drainLauncherSubmit = () => {
+      const text = takeLauncherSubmit(threadId);
+      if (text === null) return;
+      if (!getLauncherSessionForThread(threadId)) return;
+      voiceInterruptRef.current();
+      clearError();
+      if (visible) pinToBottom();
+      enqueueOrSend(text);
+    };
+    drainLauncherSubmit();
+    return subscribeLauncherSubmit(drainLauncherSubmit);
+  }, [threadId, visible, enqueueOrSend, pinToBottom, clearError]);
+
+  useEffect(() => {
+    const sessionId = getLauncherSessionForThread(threadId);
+    if (!sessionId) return;
+
+    const timer = window.setTimeout(() => {
+      postLauncherSessionSync({
+        sessionId,
+        threadId,
+        messages,
+        status,
+        error: error?.message ?? null,
+        pendingApprovalCount,
+      });
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    threadId,
+    messages,
+    status,
+    error,
+    pendingApprovalCount,
+  ]);
 
   useMessagesScrollportHeight(messagesRef, visible);
 
@@ -668,13 +731,18 @@ function ChatPanel({
     ],
   );
 
+  const readComposerText = useCallback(() => {
+    return (composerRef.current?.getValue() ?? draftMessage).trim();
+  }, [draftMessage]);
+
   const commitBranchMessageEdit = useCallback(() => {
     void (async () => {
     if (!editAnchorMessageId) return;
     const anchorIndex = findMessageIndex(messages, editAnchorMessageId);
     if (anchorIndex < 0) return;
 
-    const text = draftMessage.trim();
+    voiceInterruptRef.current();
+    const text = readComposerText();
     if (!canSendComposedMessage(text)) return;
 
     const removedCount = countMessagesRemovedOnBranch(messages, anchorIndex);
@@ -691,7 +759,7 @@ function ChatPanel({
     })();
   }, [
     editAnchorMessageId,
-    draftMessage,
+    readComposerText,
     enqueueOrSend,
     messages,
     pinToBottom,
@@ -699,18 +767,19 @@ function ChatPanel({
   ]);
 
   const submitComposer = useCallback(() => {
+    voiceInterruptRef.current();
     if (editAnchorMessageId) {
       commitBranchMessageEdit();
       return;
     }
-    const text = draftMessage.trim();
+    const text = readComposerText();
     if (!canSendComposedMessage(text)) return;
     setDraftMessage("");
     pinToBottom();
     enqueueOrSend(text);
     requestAnimationFrame(() => composerRef.current?.focus());
   }, [
-    draftMessage,
+    readComposerText,
     editAnchorMessageId,
     commitBranchMessageEdit,
     enqueueOrSend,
@@ -721,6 +790,7 @@ function ChatPanel({
     (text: string) => {
       if (editAnchorMessageId) return;
       if (!canSendComposedMessage(text)) return;
+      voiceInterruptRef.current();
       setDraftMessage("");
       clearError();
       pinToBottom();
@@ -729,6 +799,61 @@ function ChatPanel({
     },
     [editAnchorMessageId, enqueueOrSend, pinToBottom, clearError],
   );
+
+  const voiceInput = useVoiceInput({
+    enabled: true,
+    onStreamBegin: () => {
+      composerRef.current?.beginVoiceStream();
+    },
+    onStreamUpdate: (text) => {
+      composerRef.current?.updateVoiceStream(text);
+    },
+    onStreamEnd: (finalText) => {
+      composerRef.current?.endVoiceStream(finalText);
+    },
+    onStreamInterrupt: () => {
+      composerRef.current?.endVoiceStream();
+    },
+    onStreamCancel: () => {
+      composerRef.current?.cancelVoiceStream();
+    },
+  });
+
+  voiceInterruptRef.current = voiceInput.interruptVoiceInput;
+
+  const openVoiceSettings = useCallback(() => {
+    onOpenSettings();
+    requestAnimationFrame(() => {
+      document
+        .getElementById("voice-input-settings")
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }, [onOpenSettings]);
+
+  const focusComposer = useCallback(() => {
+    requestAnimationFrame(() => composerRef.current?.focus());
+  }, []);
+
+  useComposerVoiceToggleShortcut({
+    enabled: !editAnchorMessageId,
+    phase: voiceInput.phase,
+    canUse: voiceInput.canUse,
+    pluginStatus: voiceInput.pluginStatus,
+    onStart: voiceInput.startVoiceInput,
+    onStop: voiceInput.stopVoiceInput,
+    onUnavailable: openVoiceSettings,
+  });
+
+  useGlobalVoiceToggle({
+    enabled: !editAnchorMessageId,
+    phase: voiceInput.phase,
+    canUse: voiceInput.canUse,
+    pluginStatus: voiceInput.pluginStatus,
+    onStart: voiceInput.startVoiceInput,
+    onStop: voiceInput.stopVoiceInput,
+    onUnavailable: openVoiceSettings,
+    onGlobalActivate: focusComposer,
+  });
 
   useEffect(() => {
     if (!editAnchorMessageId) return;
@@ -926,6 +1051,7 @@ function ChatPanel({
               <MessageParts
                 message={message}
                 workingDirectory={workingDirectory}
+                onSendPrompt={sendTestPrompt}
               />
             </div>
           </div>
@@ -943,6 +1069,7 @@ function ChatPanel({
       messages,
       userMessageDrafts,
       workingDirectory,
+      sendTestPrompt,
     ],
   );
 
@@ -1043,6 +1170,7 @@ function ChatPanel({
                 <TurnActionLinkCard
                   turnMessages={messages.slice(startIndex, endIndex)}
                   workingDirectory={workingDirectory}
+                  onSendPrompt={sendTestPrompt}
                 />
                 {isLastTurn ? agentActivityBlock : null}
                 {isLastTurn ? errorBanner : null}
@@ -1111,6 +1239,7 @@ function ChatPanel({
               }
               onChange={setDraftMessage}
               onSubmit={submitComposer}
+              onUserEdit={voiceInput.interruptVoiceInput}
             />
             <div className="composer-toolbar">
               <div className="composer-toolbar-left">
@@ -1125,10 +1254,12 @@ function ChatPanel({
                   enabledTools={enabledTools}
                   onChange={setEnabledTools}
                 />
-                <ComposerTestPromptsPicker
-                  disabled={!qkrpcOk}
-                  onSendPrompt={sendTestPrompt}
-                />
+                {isAgentGuiDebugMode() ? (
+                  <ComposerTestPromptsPicker
+                    disabled={!qkrpcOk}
+                    onSendPrompt={sendTestPrompt}
+                  />
+                ) : null}
                 <ModelSelector
                   selection={llmSelection}
                   onChange={(next) => {
@@ -1138,11 +1269,21 @@ function ChatPanel({
                   onNeedSettings={() => onOpenSettings()}
                 />
                 <span className="composer-hint">
-                  {editAnchorMessageId
-                    ? "Enter 发送并分支"
-                    : queueLength > 0
-                      ? `已排队 ${queueLength} 条`
-                      : "Shift+Enter 换行"}
+                  {voiceInput.errorHint ? (
+                    <span className="composer-voice-hint composer-voice-hint--err" role="status">
+                      {voiceInput.errorHint}
+                    </span>
+                  ) : voiceInput.statusHint ? (
+                    <span className="composer-voice-hint" role="status">
+                      {voiceInput.statusHint}
+                    </span>
+                  ) : editAnchorMessageId ? (
+                    "Enter 发送并分支"
+                  ) : queueLength > 0 ? (
+                    `已排队 ${queueLength} 条`
+                  ) : (
+                    "Shift+Enter 换行"
+                  )}
                 </span>
               </div>
               <div className="composer-toolbar-actions">
@@ -1182,29 +1323,16 @@ function ChatPanel({
                     </svg>
                   </button>
                 )}
-                <button
-                  type="submit"
-                  className="composer-btn composer-btn--send"
-                  disabled={!canSend}
-                  aria-label={busy ? "加入发送队列" : "发送"}
-                  title={busy ? "加入发送队列" : "发送"}
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    aria-hidden
-                  >
-                    <path
-                      d="M8 3v10M8 3l4 4M8 3L4 7"
-                      stroke="currentColor"
-                      strokeWidth="1.75"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
+                <ComposerPrimaryActionButton
+                  canSend={canSend}
+                  agentBusy={busy}
+                  phase={voiceInput.phase}
+                  pluginStatus={voiceInput.pluginStatus}
+                  canUseVoice={voiceInput.canUse}
+                  onVoiceStart={voiceInput.startVoiceInput}
+                  onVoiceStop={voiceInput.stopVoiceInput}
+                  onUnavailableClick={openVoiceSettings}
+                />
               </div>
             </div>
             </div>
@@ -1223,6 +1351,9 @@ export function Chat() {
   const [settingsFocusProviderId, setSettingsFocusProviderId] = useState<
     LlmProviderId | undefined
   >(undefined);
+  const [ephemeralLauncherRuns, setEphemeralLauncherRuns] = useState(
+    getEphemeralLauncherRuns,
+  );
   const { ping, refreshPing, connectTick } = useQkrpcPing();
   const storeRef = useRef(store);
   storeRef.current = store;
@@ -1265,6 +1396,25 @@ export function Chat() {
   const openSettings = useCallback((targetProviderId?: LlmProviderId) => {
     setSettingsFocusProviderId(targetProviderId);
     setSettingsOpen(true);
+  }, []);
+
+  useEffect(() => {
+    return subscribeEphemeralLauncherRuns(() => {
+      setEphemeralLauncherRuns(getEphemeralLauncherRuns());
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribeLauncherBridge((message) => {
+      if (message.type === "composer:submit") {
+        const threadId = startEphemeralLauncherRun(message.sessionId);
+        queueLauncherSubmit(threadId, message.text);
+        return;
+      }
+      if (message.type === "launcher:session-clear") {
+        clearEphemeralLauncherRuns();
+      }
+    });
   }, []);
 
   const llmSettingsAutoOpenedRef = useRef(false);
@@ -1346,6 +1496,24 @@ export function Chat() {
                         onOpenSettings={openSettings}
                         onPersist={persistMessages}
                         onAutoTitle={handleAutoTitle}
+                      />
+                    ))}
+                    {ephemeralLauncherRuns.map((run) => (
+                      <ChatPanel
+                        key={run.threadId}
+                        threadId={run.threadId}
+                        initialMessages={[]}
+                        workingDirectory={workingDirectory}
+                        visible={false}
+                        ephemeral
+                        threadTitle=""
+                        titleGenerated={false}
+                        titleManual={false}
+                        ping={ping}
+                        connectTick={connectTick}
+                        onOpenSettings={openSettings}
+                        onPersist={() => {}}
+                        onAutoTitle={() => {}}
                       />
                     ))}
                   </AppMainWorkspaceSplit>

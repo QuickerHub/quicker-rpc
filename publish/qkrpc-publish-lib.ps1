@@ -279,6 +279,135 @@ function Get-QuickerAgentBitifulDownloadPrefix {
     return 'https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent'
 }
 
+function Get-VoiceAsrBitifulDownloadPrefix {
+    return 'https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr'
+}
+
+function Get-VoiceAsrBitifulVersionTxtUrl {
+    return "$(Get-VoiceAsrBitifulDownloadPrefix)/version.txt"
+}
+
+function Get-VoiceAsrBitifulAssetUrl {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FileName
+    )
+
+    $name = $FileName.Trim().Trim('/')
+    if ([string]::IsNullOrWhiteSpace($name)) {
+        throw 'FileName is required.'
+    }
+
+    return "$(Get-VoiceAsrBitifulDownloadPrefix)/$name"
+}
+
+function Get-VoiceAsrRuntimeZipName {
+    param([string]$Version = '0.1.0')
+    return "voice-asr-runtime-$Version-win-x64.zip"
+}
+
+function Get-VoiceAsrModelZipName {
+    param([string]$Version = '0.1.0')
+    return "voice-asr-model-sensevoice-$Version-win-x64.zip"
+}
+
+function Invoke-VoiceAsrBitifulUpload {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RuntimeZipPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ModelZipPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Version,
+
+        [string]$PublishDir = ''
+    )
+
+    if (-not $PublishDir) {
+        $PublishDir = $PSScriptRoot
+    }
+
+    foreach ($path in @($RuntimeZipPath, $ModelZipPath)) {
+        if (-not (Test-Path -LiteralPath $path)) {
+            throw "Asset not found: $path"
+        }
+    }
+
+    if (-not (Test-BitifulConfigured)) {
+        throw 'Bitiful credentials not configured (BITIFUL_ACCESS_KEY, BITIFUL_SECRET_KEY, BITIFUL_BUCKET_NAME).'
+    }
+
+    $uploadScript = Join-Path $PublishDir 'bitiful_upload.py'
+    if (-not (Test-Path -LiteralPath $uploadScript)) {
+        throw "bitiful_upload.py not found: $uploadScript"
+    }
+
+    $endpointUrl = if ([string]::IsNullOrWhiteSpace($env:BITIFUL_ENDPOINT_URL)) {
+        'https://s3.bitiful.net'
+    }
+    else {
+        $env:BITIFUL_ENDPOINT_URL.Trim()
+    }
+
+    $objectPrefix = if ([string]::IsNullOrWhiteSpace($env:BITIFUL_VOICE_ASR_OBJECT_PREFIX)) {
+        'quicker-rpc/voice-asr'
+    }
+    else {
+        $env:BITIFUL_VOICE_ASR_OBJECT_PREFIX.Trim()
+    }
+
+    function Invoke-BitifulAssetUpload {
+        param([string]$AssetPath)
+
+        $resolved = (Resolve-Path -LiteralPath $AssetPath -ErrorAction Stop).Path
+        $commonArgs = @(
+            $uploadScript, $resolved,
+            '--asset',
+            '--endpoint-url', $endpointUrl,
+            '--object-prefix', $objectPrefix
+        )
+
+        if (Get-Command uv -ErrorAction SilentlyContinue) {
+            & uv run --no-sync --with boto3 python @commonArgs
+        }
+        elseif (Get-Command python -ErrorAction SilentlyContinue) {
+            & python -m pip install --disable-pip-version-check --quiet boto3
+            if ($LASTEXITCODE -ne 0) {
+                throw 'Failed to install boto3. Install uv or pip install boto3.'
+            }
+            & python @commonArgs
+        }
+        else {
+            throw 'Neither uv nor python found. Install uv (recommended) or Python 3 with pip.'
+        }
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Bitiful upload failed with exit code $LASTEXITCODE"
+        }
+    }
+
+    Invoke-BitifulAssetUpload -AssetPath $RuntimeZipPath
+    Invoke-BitifulAssetUpload -AssetPath $ModelZipPath
+
+    $versionArgs = @(
+        $uploadScript, $RuntimeZipPath,
+        '--write-version-only',
+        '--endpoint-url', $endpointUrl,
+        '--object-prefix', $objectPrefix,
+        '--version', $Version.Trim()
+    )
+    if (Get-Command uv -ErrorAction SilentlyContinue) {
+        & uv run --no-sync --with boto3 python @versionArgs | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Bitiful version.txt upload failed ($LASTEXITCODE)" }
+    }
+    else {
+        & python @versionArgs | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Bitiful version.txt upload failed ($LASTEXITCODE)" }
+    }
+}
+
 function Get-QuickerAgentBitifulVersionTxtUrl {
     return "$(Get-QuickerAgentBitifulDownloadPrefix)/version.txt"
 }

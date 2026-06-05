@@ -75,6 +75,7 @@ export function ToolTestPromptPanel({
   const activeRunIdRef = useRef<string | null>(null);
   const titleCapturedRef = useRef(false);
   const streamStartedRef = useRef(false);
+  const lastPatchedChatMessagesRef = useRef<AgentUIMessage[] | null>(null);
   const llmSelectionRef = useRef(llmSelection);
   llmSelectionRef.current = llmSelection;
   const workingDirectoryRef = useRef(workingDirectory);
@@ -140,6 +141,7 @@ export function ToolTestPromptPanel({
       });
       setRunning(false);
       activeRunIdRef.current = null;
+      lastPatchedChatMessagesRef.current = null;
     },
     [onPatchRun],
   );
@@ -147,6 +149,8 @@ export function ToolTestPromptPanel({
   useEffect(() => {
     const runId = activeRunIdRef.current;
     if (!runId || !running) return;
+    if (lastPatchedChatMessagesRef.current === chatMessages) return;
+    lastPatchedChatMessagesRef.current = chatMessages;
     onPatchRun(runId, { chatMessages: chatMessages });
   }, [chatMessages, running, onPatchRun]);
 
@@ -206,6 +210,7 @@ export function ToolTestPromptPanel({
       setMessages([]);
       streamStartedRef.current = false;
       titleCapturedRef.current = false;
+      lastPatchedChatMessagesRef.current = null;
       activeRunIdRef.current = entry.id;
       setRunning(true);
 

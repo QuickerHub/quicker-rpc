@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { generateId } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
-import { ToolTestChatMessages } from "@/components/tool-test/ToolTestChatMessages";
 import { DocsViewerProvider } from "@/lib/docs-viewer";
 import {
   WorkspaceExplorerPanelProvider,
@@ -22,7 +21,6 @@ import {
   type ToolTestSuite,
 } from "@/lib/tool-test-suites";
 import {
-  createAssistantToolMessage,
   createRunningToolPart,
   createUserTestMessage,
   toolPartToError,
@@ -44,9 +42,17 @@ import { ToolTestTitleResultPane } from "@/components/tool-test/ToolTestTitleRes
 import type { TitleTestRunEntry } from "@/lib/tool-test-title-runs";
 import { ToolTestAutoFixPanel } from "@/components/tool-test/ToolTestAutoFixPanel";
 import { ToolTestAutoFixResultPane } from "@/components/tool-test/ToolTestAutoFixResultPane";
+import {
+  ToolTestPromptChatPane,
+  ToolTestPromptChatProvider,
+  ToolTestPromptChatSidebar,
+} from "@/components/tool-test/ToolTestPromptChatSection";
+import { ToolTestSuiteResultPane } from "@/components/tool-test/ToolTestSuiteResultPane";
+import type { ToolSuiteRunEntry } from "@/lib/tool-test-suite-runs";
+import { createToolSuiteRunId } from "@/lib/tool-test-suite-runs";
 import type { AutoFixRunEntry } from "@/lib/tool-test-autofix-runs";
 
-type ToolTestSidebarTab = "tools" | "prompt" | "auto-fix";
+type ToolTestSidebarTab = "tools" | "prompt" | "prompt-chat" | "auto-fix";
 
 type StepInputOverrides = Record<string, string>;
 
@@ -160,66 +166,17 @@ function ToolTestSuiteCard({
   );
 }
 
-function ToolTestConversation({
-  messages,
-  workingDirectory,
-  keepToolBatchesExpanded,
-  onClearConversation,
-  clearDisabled,
-}: {
-  messages: AgentUIMessage[];
-  workingDirectory: string;
-  keepToolBatchesExpanded: boolean;
-  onClearConversation: () => void;
-  clearDisabled?: boolean;
-}) {
-  const endRef = useRef<HTMLDivElement>(null);
-
-  return (
-    <main className="tool-test-conversation messages">
-      {messages.length > 0 ? (
-        <div className="tool-test-pane-toolbar tool-test-pane-toolbar--sticky">
-          <span className="tool-test-pane-toolbar__hint">
-            {messages.length} 条工具调用消息
-          </span>
-          <button
-            type="button"
-            className="tool-test-pane-toolbar__action"
-            disabled={clearDisabled}
-            onClick={onClearConversation}
-          >
-            清空对话
-          </button>
-        </div>
-      ) : null}
-      {messages.length === 0 ? (
-        <p className="tool-test-conversation__empty">
-          选择左侧一组工具调用并点击「开始测试」，结果会以对话流形式展示（与主聊天相同的工具行 UI）。
-        </p>
-      ) : (
-        <div className="tool-test-conversation__body">
-          <ToolTestChatMessages
-            messages={messages}
-            workingDirectory={workingDirectory}
-            keepToolBatchesExpanded={keepToolBatchesExpanded}
-          />
-        </div>
-      )}
-      <div ref={endRef} className="messages-anchor" aria-hidden />
-    </main>
-  );
-}
-
 export function ToolTestPage() {
-  const { store } = useChatStore();
-  const workingDirectory = store.workingDirectory.trim();
+  const { store, defaultCwd } = useChatStore();
+  const workingDirectory =
+    store.workingDirectory.trim() || defaultCwd.trim();
   const { ping, refreshPing, connectTick } = useQkrpcPing();
   const { agentDisplayVersion, qkrpcDisplayVersion } =
     useAppVersionSnapshot(connectTick);
   const protocolVersion = extractProtocolVersionFromPing(ping);
   const isTauri = useTauriShell();
 
-  const [messages, setMessages] = useState<AgentUIMessage[]>([]);
+  const [toolSuiteRuns, setToolSuiteRuns] = useState<ToolSuiteRunEntry[]>([]);
   const [runningSuiteId, setRunningSuiteId] = useState<string | null>(null);
   const [stepOverrides, setStepOverrides] = useState<StepInputOverrides>({});
   const [keepToolBatchesExpanded, setKeepToolBatchesExpanded] = useState(
@@ -229,7 +186,7 @@ export function ToolTestPage() {
     null,
   );
   const [lastError, setLastError] = useState<string | null>(null);
-  const [sidebarTab, setSidebarTab] = useState<ToolTestSidebarTab>("tools");
+  const [sidebarTab, setSidebarTab] = useState<ToolTestSidebarTab>("prompt-chat");
   const [titleTestRuns, setTitleTestRuns] = useState<TitleTestRunEntry[]>([]);
   const [autoFixRuns, setAutoFixRuns] = useState<AutoFixRunEntry[]>([]);
   const [detailSuite, setDetailSuite] = useState<ToolTestSuite | null>(null);
@@ -278,14 +235,46 @@ export function ToolTestPage() {
     setStepOverrides((prev) => ({ ...prev, [key]: json }));
   }, []);
 
-  const scrollConversationEnd = useCallback(() => {
+  const patchToolSuiteRun = useCallback(
+    (id: string, patch: Partial<ToolSuiteRunEntry>) => {
+      setToolSuiteRuns((prev) =>
+        prev.map((run) => (run.id === id ? { ...run, ...patch } : run)),
+      );
+    },
+    [],
+  );
+
+  const clearToolSuiteRuns = useCallback(() => {
+    setToolSuiteRuns([]);
+  }, []);
+
+  const scrollRunsEnd = useCallback(() => {
     requestAnimationFrame(() => {
-      const el = document.querySelector(".tool-test-conversation");
+      const el = document.querySelector(".tool-test-title-stream");
       if (el instanceof HTMLElement) {
         el.scrollTop = el.scrollHeight;
       }
     });
   }, []);
+
+  const syncSuiteRunMessages = useCallback(
+    (runId: string, assistantId: string, parts: AgentUIMessage["parts"]) => {
+      setToolSuiteRuns((prev) =>
+        prev.map((run) => {
+          if (run.id !== runId) return run;
+          return {
+            ...run,
+            chatMessages: updateAssistantMessageParts(
+              run.chatMessages,
+              assistantId,
+              parts,
+            ),
+          };
+        }),
+      );
+    },
+    [],
+  );
 
   const requestApproval = useCallback(
     (suiteId: string, step: ToolTestStep, toolCallId: string) =>
@@ -308,6 +297,7 @@ export function ToolTestPage() {
       setRunningSuiteId(suite.id);
       setLastError(null);
 
+      const runId = createToolSuiteRunId();
       const userMsg = createUserTestMessage(`▶ 测试：${suite.title}`);
       const assistantId = generateId();
       const toolParts = suite.steps.map((step) => {
@@ -323,12 +313,25 @@ export function ToolTestPage() {
         return createRunningToolPart(step.toolName, input);
       });
 
-      setMessages((prev) => [
-        ...prev,
+      const initialMessages: AgentUIMessage[] = [
         userMsg,
         { id: assistantId, role: "assistant", parts: toolParts },
+      ];
+
+      setToolSuiteRuns((prev) => [
+        ...prev,
+        {
+          id: runId,
+          at: Date.now(),
+          suiteId: suite.id,
+          suiteTitle: suite.title,
+          status: "running",
+          chatMessages: initialMessages,
+        },
       ]);
-      scrollConversationEnd();
+      scrollRunsEnd();
+
+      let runFailed = false;
 
       try {
         for (let i = 0; i < suite.steps.length; i++) {
@@ -361,10 +364,8 @@ export function ToolTestPage() {
             const ok = await requestApproval(suite.id, step, toolCallId);
             if (!ok) {
               toolParts[i] = toolPartToError(part, "已取消执行");
-              setMessages((prev) =>
-                updateAssistantMessageParts(prev, assistantId, [...toolParts]),
-              );
-              scrollConversationEnd();
+              syncSuiteRunMessages(runId, assistantId, [...toolParts]);
+              scrollRunsEnd();
               continue;
             }
             approved = true;
@@ -385,33 +386,155 @@ export function ToolTestPage() {
             toolParts[i] = toolPartToError(part, "未知执行结果");
           }
 
-          setMessages((prev) =>
-            updateAssistantMessageParts(prev, assistantId, [...toolParts]),
-          );
-          scrollConversationEnd();
+          syncSuiteRunMessages(runId, assistantId, [...toolParts]);
+          scrollRunsEnd();
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setLastError(msg);
+        runFailed = true;
+        patchToolSuiteRun(runId, { status: "error", error: msg });
       } finally {
+        if (!runFailed) {
+          patchToolSuiteRun(runId, { status: "done" });
+        }
         setRunningSuiteId(null);
       }
     },
     [
       runningSuiteId,
-      scrollConversationEnd,
+      scrollRunsEnd,
       stepOverrides,
       requestApproval,
       workingDirectory,
+      patchToolSuiteRun,
+      syncSuiteRunMessages,
     ],
   );
 
   const clearConversation = useCallback(() => {
-    setMessages([]);
+    clearToolSuiteRuns();
     setLastError(null);
-  }, []);
+  }, [clearToolSuiteRuns]);
 
   const busy = runningSuiteId !== null;
+  const panelDisabled = busy || pendingApproval !== null;
+
+  const sidebarTabs = (
+    <div
+      className="tool-test-sidebar-tabs"
+      role="tablist"
+      aria-label="测试类型"
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected={sidebarTab === "prompt-chat"}
+        className={`tool-test-sidebar-tabs__btn${sidebarTab === "prompt-chat" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
+        onClick={() => setSidebarTab("prompt-chat")}
+        title="Prompt 与多轮对话"
+      >
+        对话
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={sidebarTab === "tools"}
+        className={`tool-test-sidebar-tabs__btn${sidebarTab === "tools" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
+        onClick={() => setSidebarTab("tools")}
+        title="工具调用套件"
+      >
+        工具
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={sidebarTab === "prompt"}
+        className={`tool-test-sidebar-tabs__btn${sidebarTab === "prompt" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
+        onClick={() => setSidebarTab("prompt")}
+        title="set_thread_title 标题测试"
+      >
+        标题
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={sidebarTab === "auto-fix"}
+        className={`tool-test-sidebar-tabs__btn${sidebarTab === "auto-fix" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
+        onClick={() => setSidebarTab("auto-fix")}
+        title="造错→修复场景"
+      >
+        修复
+      </button>
+    </div>
+  );
+
+  const sidebarScroll =
+    sidebarTab === "tools" ? (
+      <>
+        {TOOL_TEST_SUITES.map((suite) => (
+          <ToolTestSuiteCard
+            key={suite.id}
+            suite={suite}
+            runningSuiteId={runningSuiteId}
+            onRun={runSuite}
+            onShowDetail={setDetailSuite}
+            disabled={panelDisabled}
+          />
+        ))}
+        <ToolTestSuiteDetailDialog
+          open={detailSuite !== null}
+          suite={detailSuite}
+          stepOverrides={stepOverrides}
+          onOverrideChange={handleOverrideChange}
+          disabled={panelDisabled}
+          onClose={() => setDetailSuite(null)}
+        />
+      </>
+    ) : sidebarTab === "prompt" ? (
+      <ToolTestPromptPanel
+        disabled={panelDisabled}
+        workingDirectory={workingDirectory}
+        onAppendRun={appendTitleTestRun}
+        onPatchRun={patchTitleTestRun}
+      />
+    ) : sidebarTab === "prompt-chat" ? (
+      <ToolTestPromptChatSidebar disabled={panelDisabled} />
+    ) : (
+      <ToolTestAutoFixPanel
+        disabled={panelDisabled}
+        workingDirectory={workingDirectory}
+        onAppendRun={appendAutoFixRun}
+        onPatchRun={patchAutoFixRun}
+      />
+    );
+
+  const mainPane =
+    sidebarTab === "tools" ? (
+      <ToolTestSuiteResultPane
+        runs={toolSuiteRuns}
+        workingDirectory={workingDirectory}
+        keepToolBatchesExpanded={keepToolBatchesExpanded}
+        onClearRuns={clearConversation}
+      />
+    ) : sidebarTab === "prompt" ? (
+      <ToolTestTitleResultPane
+        runs={titleTestRuns}
+        workingDirectory={workingDirectory}
+        onClearRuns={clearTitleTestRuns}
+      />
+    ) : sidebarTab === "prompt-chat" ? (
+      <ToolTestPromptChatPane
+        workingDirectory={workingDirectory}
+        keepToolBatchesExpanded={keepToolBatchesExpanded}
+      />
+    ) : (
+      <ToolTestAutoFixResultPane
+        runs={autoFixRuns}
+        workingDirectory={workingDirectory}
+        onClearRuns={clearAutoFixRuns}
+      />
+    );
 
   return (
     <WorkspaceExplorerShellProvider>
@@ -511,6 +634,9 @@ export function ToolTestPage() {
               {workingDirectory ? (
                 <span className="tool-test-titlebar__cwd" title={workingDirectory}>
                   cwd: {workingDirectory}
+                  {!store.workingDirectory.trim() && defaultCwd.trim()
+                    ? " (默认)"
+                    : ""}
                 </span>
               ) : (
                 <span className="tool-test-titlebar__cwd tool-test-titlebar__cwd--muted">
@@ -552,99 +678,25 @@ export function ToolTestPage() {
           )}
 
           <div className="tool-test-body">
-            <aside className="tool-test-sidebar">
-              <div
-                className="tool-test-sidebar-tabs"
-                role="tablist"
-                aria-label="测试类型"
+            {sidebarTab === "prompt-chat" ? (
+              <ToolTestPromptChatProvider
+                workingDirectory={workingDirectory}
+                disabled={panelDisabled}
               >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={sidebarTab === "tools"}
-                  className={`tool-test-sidebar-tabs__btn${sidebarTab === "tools" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
-                  onClick={() => setSidebarTab("tools")}
-                >
-                  工具套件
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={sidebarTab === "prompt"}
-                  className={`tool-test-sidebar-tabs__btn${sidebarTab === "prompt" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
-                  onClick={() => setSidebarTab("prompt")}
-                >
-                  对话标题
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={sidebarTab === "auto-fix"}
-                  className={`tool-test-sidebar-tabs__btn${sidebarTab === "auto-fix" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
-                  onClick={() => setSidebarTab("auto-fix")}
-                >
-                  自动修复
-                </button>
-              </div>
-
-              <div className="tool-test-sidebar-scroll">
-                {sidebarTab === "tools" ? (
-                  <>
-                    {TOOL_TEST_SUITES.map((suite) => (
-                      <ToolTestSuiteCard
-                        key={suite.id}
-                        suite={suite}
-                        runningSuiteId={runningSuiteId}
-                        onRun={runSuite}
-                        onShowDetail={setDetailSuite}
-                        disabled={busy || pendingApproval !== null}
-                      />
-                    ))}
-                    <ToolTestSuiteDetailDialog
-                      open={detailSuite !== null}
-                      suite={detailSuite}
-                      stepOverrides={stepOverrides}
-                      onOverrideChange={handleOverrideChange}
-                      disabled={busy || pendingApproval !== null}
-                      onClose={() => setDetailSuite(null)}
-                    />
-                  </>
-                ) : sidebarTab === "prompt" ? (
-                  <ToolTestPromptPanel
-                    disabled={busy || pendingApproval !== null}
-                    onAppendRun={appendTitleTestRun}
-                    onPatchRun={patchTitleTestRun}
-                  />
-                ) : (
-                  <ToolTestAutoFixPanel
-                    disabled={busy || pendingApproval !== null}
-                    workingDirectory={workingDirectory}
-                    onAppendRun={appendAutoFixRun}
-                    onPatchRun={patchAutoFixRun}
-                  />
-                )}
-              </div>
-            </aside>
-            {sidebarTab === "tools" ? (
-              <ToolTestConversation
-                messages={messages}
-                workingDirectory={workingDirectory}
-                keepToolBatchesExpanded={keepToolBatchesExpanded}
-                onClearConversation={clearConversation}
-                clearDisabled={busy}
-              />
-            ) : sidebarTab === "prompt" ? (
-              <ToolTestTitleResultPane
-                runs={titleTestRuns}
-                workingDirectory={workingDirectory}
-                onClearRuns={clearTitleTestRuns}
-              />
+                <aside className="tool-test-sidebar">
+                  {sidebarTabs}
+                  <div className="tool-test-sidebar-scroll">{sidebarScroll}</div>
+                </aside>
+                {mainPane}
+              </ToolTestPromptChatProvider>
             ) : (
-              <ToolTestAutoFixResultPane
-                runs={autoFixRuns}
-                workingDirectory={workingDirectory}
-                onClearRuns={clearAutoFixRuns}
-              />
+              <>
+                <aside className="tool-test-sidebar">
+                  {sidebarTabs}
+                  <div className="tool-test-sidebar-scroll">{sidebarScroll}</div>
+                </aside>
+                {mainPane}
+              </>
             )}
           </div>
         </div>

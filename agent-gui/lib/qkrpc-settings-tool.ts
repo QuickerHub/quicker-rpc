@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { formatQkrpcResultForAgent, runQkrpcForTool } from "@/lib/qkrpc";
+import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
 
 export const QUICKER_SETTINGS_TOOL = "quicker_settings";
 
@@ -22,9 +23,15 @@ const settingsActionSchema = z.enum([
   "list",
   "get",
   "set",
+  "apply",
   "pages",
   "open",
 ]);
+
+const settingChangeSchema = z.object({
+  key: z.string(),
+  value: z.string(),
+});
 
 const settingsScopeSchema = z
   .enum(["userSettings", "userPreference", "globalSettings", "exeSettings"])
@@ -39,6 +46,8 @@ export type QuickerSettingsToolInput = {
   value?: string;
   page?: string;
   exe?: string;
+  changes?: Array<{ key: string; value: string }>;
+  patch?: Record<string, string>;
 };
 
 function buildSettingsArgs(
@@ -132,6 +141,38 @@ export async function executeQuickerSettingsTool(
         ),
       );
     }
+    case "apply": {
+      const changes = input.changes?.length
+        ? input.changes
+        : input.patch
+          ? Object.entries(input.patch).map(([key, value]) => ({ key, value }))
+          : [];
+      if (changes.length === 0) {
+        return formatQkrpcResultForAgent({
+          ok: false,
+          exitCode: 1,
+          stdout: "",
+          stderr: "changes[] or patch{} is required when action=apply",
+          parsed: null,
+          truncated: false,
+        });
+      }
+      const http = await invokeQkrpcHttp({
+        op: "settings.apply",
+        args: { changes },
+      });
+      if (http) {
+        return formatQkrpcResultForAgent(http);
+      }
+      return formatQkrpcResultForAgent(
+        await runQkrpcForTool([
+          "settings",
+          "apply",
+          "--changes",
+          JSON.stringify(changes),
+        ]),
+      );
+    }
     case "pages":
       return formatQkrpcResultForAgent(
         await runQkrpcForTool(["settings", "pages"]),
@@ -171,14 +212,15 @@ export async function executeQuickerSettingsTool(
 
 export const QUICKER_SETTINGS_TOOL_DEF = tool({
   description:
-    "Quicker application settings and UI (via qkrpc serve). "
-    + "action=open: settings page/window (recycle-bin/动作回收站, AppSettings/常规设置, search). "
-    + "Action recycle bin is a settings page — NOT action list scope. "
-    + "action=search/list/get/set for preferences; action=pages lists open targets. "
-    + "See docs topic quicker-ui.",
+    "Quicker application settings (headless read/write; no Quicker UI required for get/set/apply). "
+    + "action=search: find keys by keyword (returns key, type, writable). "
+    + "action=get/set: single key scope:path (e.g. userSettings:EnableCircleMenu). "
+    + "action=apply: batch update via changes[] or patch map. "
+    + "action=open: show settings UI (recycle-bin, AppSettings, search) — only when user wants UI. "
+    + "Boolean values: true/false or 1/0. See docs topic quicker-ui.",
   inputSchema: z.object({
     action: settingsActionSchema.describe(
-      "search | list | get | set | pages | open",
+      "search | list | get | set | apply | pages | open",
     ),
     query: z
       .string()
@@ -199,6 +241,14 @@ export const QUICKER_SETTINGS_TOOL_DEF = tool({
       .string()
       .optional()
       .describe("exeFile for action=open page exe-settings"),
+    changes: z
+      .array(settingChangeSchema)
+      .optional()
+      .describe("Batch changes for action=apply"),
+    patch: z
+      .record(z.string())
+      .optional()
+      .describe("Alternative batch map for action=apply (key → value)"),
   }),
   execute: executeQuickerSettingsTool,
 });

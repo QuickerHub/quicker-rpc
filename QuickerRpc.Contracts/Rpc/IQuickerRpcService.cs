@@ -288,6 +288,11 @@ public interface IQuickerRpcService
         string value,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Update multiple Quicker settings in one call (continues on partial failure).</summary>
+    Task<QuickerRpcApplySettingsResult> ApplySettingsAsync(
+        IList<QuickerRpcSettingChangeItem> changes,
+        CancellationToken cancellationToken = default);
+
     /// <summary>List openable Quicker settings pages and UI targets.</summary>
     Task<QuickerRpcListSettingsPagesResult> ListSettingsPagesAsync(
         CancellationToken cancellationToken = default);
@@ -424,6 +429,26 @@ public sealed class QuickerRpcSetSettingResult
     public string? Value { get; set; }
 
     public string Message { get; set; } = string.Empty;
+}
+
+public sealed class QuickerRpcSettingChangeItem
+{
+    public string Key { get; set; } = string.Empty;
+
+    public string Value { get; set; } = string.Empty;
+}
+
+public sealed class QuickerRpcApplySettingsResult
+{
+    public bool Ok { get; set; }
+
+    public string? Message { get; set; }
+
+    public int AppliedCount { get; set; }
+
+    public int FailedCount { get; set; }
+
+    public IList<QuickerRpcSetSettingResult> Results { get; set; } = new List<QuickerRpcSetSettingResult>();
 }
 
 public sealed class QuickerRpcCodeSyntaxCheckResult
