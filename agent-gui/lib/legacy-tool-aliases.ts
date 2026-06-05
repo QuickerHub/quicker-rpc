@@ -5,6 +5,8 @@ import {
   DOCS_GET_TOOL,
   DOCS_INDEX_TOOL,
   DOCS_SEARCH_TOOL,
+} from "@/lib/docs-tool";
+import {
   executeDocsTool,
 } from "@/lib/docs-tool.server";
 import {

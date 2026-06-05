@@ -31,6 +31,8 @@ import {
 import { scheduleProgramSyntaxLint } from "@/lib/program-syntax-lint";
 import {
   buildValuePrefixWarningFields,
+} from "@/lib/program-value-prefix-guard";
+import {
   scanProgramValuePrefixWarnings,
 } from "@/lib/quicker-interpolation-lint";
 import { isStructuredToolResult } from "@/lib/tool-result";

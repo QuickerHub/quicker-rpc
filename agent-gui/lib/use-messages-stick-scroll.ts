@@ -25,7 +25,7 @@ export function useMessagesStickScroll(
     revision: unknown;
     busy: boolean;
   },
-): { pinToBottom: () => void } {
+): { pinToBottom: () => void; getStickToBottom: () => boolean } {
   const stickToBottomRef = useRef(true);
 
   /** Stable identity — safe to call from handlers declared before this hook in the component. */

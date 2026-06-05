@@ -29,6 +29,8 @@ export type LlmSelection =
 
 export const LLM_AUTO_SELECTION = "auto" as const;
 
+export { LLM_AUTO_LABEL } from "@/lib/llm-auto";
+
 export const LLM_SELECTION_STORAGE_KEY = "agent-gui-llm-selection";
 
 const BUILTIN_PROVIDER_IDS = new Set<LlmProviderId>([
