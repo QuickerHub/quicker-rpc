@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { getVoiceWsPort, setVoiceWsPort } from "@/lib/voice-input/voice-input-config";
 import { fetchVoiceRuntimeHealth } from "@/lib/voice-input/voice-input-health";
 import {
   isVoiceInputMockEnabled,
@@ -15,7 +16,7 @@ function mapHealthToStatus(
   health: Awaited<ReturnType<typeof fetchVoiceRuntimeHealth>>,
 ): VoicePluginStatus {
   if (!health?.ok) return "not_installed";
-  if (health.modelLoaded && health.modelId !== "stub") return "running";
+  if (health.ready) return "running";
   return "starting";
 }
 
@@ -29,13 +30,26 @@ export function useVoicePluginStatus(active = true): VoicePluginStatus {
       return;
     }
 
+    const port = getVoiceWsPort();
+    const health = await fetchVoiceRuntimeHealth(port);
+    if (health?.ready) {
+      setStatus("running");
+      return;
+    }
+    if (health?.ok) {
+      setStatus("starting");
+      return;
+    }
+
     const tauriDto = await fetchTauriVoicePluginStatus();
     if (tauriDto) {
+      if (tauriDto.wsPort > 0) {
+        setVoiceWsPort(tauriDto.wsPort);
+      }
       setStatus(tauriDto.status);
       return;
     }
 
-    const health = await fetchVoiceRuntimeHealth();
     setStatus(mapHealthToStatus(health));
   }, []);
 

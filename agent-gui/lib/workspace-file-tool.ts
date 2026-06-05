@@ -353,6 +353,43 @@ export function parseWorkspaceFilePayload(
   return null;
 }
 
+/** Short failure label for tool cards; full errorMessage stays in tool output for the agent. */
+export function summarizeWorkspaceToolFailureUser(
+  data: unknown,
+  stderr?: string,
+): string {
+  if (isRecord(data)) {
+    const err =
+      typeof data.errorMessage === "string"
+        ? data.errorMessage
+        : typeof stderr === "string"
+          ? stderr
+          : "";
+    if (/oldString not found/i.test(err)) {
+      return "未找到匹配";
+    }
+    if (typeof data.matchCount === "number" && data.matchCount === 0) {
+      return "未找到匹配";
+    }
+
+    const action = typeof data.action === "string" ? data.action : "";
+    if (action === "file-read" || action === "program-data-read") {
+      return "读取失败";
+    }
+    if (action === "file-write" || action === "program-data-write") {
+      return "写入失败";
+    }
+    if (action === "file-edit" || action === "program-data-edit") {
+      return "编辑失败";
+    }
+    if (action === "program-patch") {
+      return "提交失败";
+    }
+  }
+
+  return "失败";
+}
+
 export function summarizeWorkspaceFileTool(
   toolName: string,
   output: unknown,
@@ -369,12 +406,8 @@ export function summarizeWorkspaceFileTool(
       : null;
 
   if (!output.ok) {
-    const err =
-      isRecord(output.data) && typeof output.data.errorMessage === "string"
-        ? output.data.errorMessage
-        : output.stderr;
     const prefix = pathHint ?? "文件";
-    return err ? `${prefix} · ${err.slice(0, 72)}` : `${prefix} · 失败`;
+    return `${prefix} · ${summarizeWorkspaceToolFailureUser(output.data, output.stderr)}`;
   }
 
   if (isRecord(output.data) && isProgramDataSummaryAction(output.data.action)) {

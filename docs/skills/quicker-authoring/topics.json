@@ -118,6 +118,16 @@
       }
     },
     {
+      "topic": "step-modules",
+      "title": "步骤模块用法",
+      "description": "Quicker 步骤模块精简参考：分类目录、用途、控制模式与 KC 文档摘要。Use after step-runner search, before/alongside qkrpc_step_runner_get; docs_get_reference topic step-modules.",
+      "source": "references/step-modules.md",
+      "allowedTools": "qkrpc_step_runner_search qkrpc_step_runner_get docs",
+      "metadata": {
+        "phase": "P4-P5"
+      }
+    },
+    {
       "topic": "step-runner-get",
       "title": "步骤模块 schema",
       "description": "Agent 专用 step-runner get：压缩 schema、与 search 分工；禁止 get-ui。Use after search, before writing inputParams.",
@@ -156,6 +166,280 @@
       "compatibility": "QuickerAgent; requires working directory in sidebar"
     }
   ],
-  "referenceFiles": {},
-  "referenceCatalog": {}
+  "referenceFiles": {
+    "adobesoftscontrol": "step-modules",
+    "ai": "step-modules",
+    "autocadcontrol": "step-modules",
+    "basic-ocr": "step-modules",
+    "chromecontrol": "step-modules",
+    "cloud_oss": "step-modules",
+    "csscript": "step-modules",
+    "custompanel": "step-modules",
+    "customwindow": "step-modules",
+    "dboperation": "step-modules",
+    "download": "step-modules",
+    "enc": "step-modules",
+    "excelObjects": "step-modules",
+    "excelRange": "step-modules",
+    "excelreadwrite": "step-modules",
+    "fileOperation": "step-modules",
+    "flauiautomation": "step-modules",
+    "form": "step-modules",
+    "htmlExtract": "step-modules",
+    "http": "step-modules",
+    "httpserver": "step-modules",
+    "imgProcess": "step-modules",
+    "inputScript": "step-modules",
+    "jsonExtract": "step-modules",
+    "jsscript": "step-modules",
+    "mathocr": "step-modules",
+    "officehelper": "step-modules",
+    "playRecords": "step-modules",
+    "pythonscript": "step-modules",
+    "record": "step-modules",
+    "regexExtract": "step-modules",
+    "rhinocontrol": "step-modules",
+    "runScript": "step-modules",
+    "searchBmp": "step-modules",
+    "smtp": "step-modules",
+    "stringProcess": "step-modules",
+    "subprogram": "step-modules",
+    "tableoperation": "step-modules",
+    "tempcloudstore": "step-modules",
+    "translation": "step-modules",
+    "uiautomation": "step-modules",
+    "websocket": "step-modules",
+    "webview2": "step-modules",
+    "zip": "step-modules",
+    "_catalog": "step-modules"
+  },
+  "referenceCatalog": {
+    "step-modules": [
+      {
+        "id": "_catalog",
+        "title": "步骤模块目录",
+        "path": "step-modules/_catalog.md"
+      },
+      {
+        "id": "adobesoftscontrol",
+        "title": "sys:adobesoftscontrol",
+        "path": "step-modules/adobesoftscontrol.md"
+      },
+      {
+        "id": "ai",
+        "title": "sys:ai",
+        "path": "step-modules/ai.md"
+      },
+      {
+        "id": "autocadcontrol",
+        "title": "sys:autocadcontrol",
+        "path": "step-modules/autocadcontrol.md"
+      },
+      {
+        "id": "basic-ocr",
+        "title": "sys:basic-ocr",
+        "path": "step-modules/basic-ocr.md"
+      },
+      {
+        "id": "chromecontrol",
+        "title": "sys:chromecontrol",
+        "path": "step-modules/chromecontrol.md"
+      },
+      {
+        "id": "cloud_oss",
+        "title": "sys:cloud_oss",
+        "path": "step-modules/cloud_oss.md"
+      },
+      {
+        "id": "csscript",
+        "title": "sys:csscript",
+        "path": "step-modules/csscript.md"
+      },
+      {
+        "id": "custompanel",
+        "title": "sys:custompanel",
+        "path": "step-modules/custompanel.md"
+      },
+      {
+        "id": "customwindow",
+        "title": "sys:customwindow",
+        "path": "step-modules/customwindow.md"
+      },
+      {
+        "id": "dboperation",
+        "title": "sys:dboperation",
+        "path": "step-modules/dboperation.md"
+      },
+      {
+        "id": "download",
+        "title": "sys:download",
+        "path": "step-modules/download.md"
+      },
+      {
+        "id": "enc",
+        "title": "sys:enc",
+        "path": "step-modules/enc.md"
+      },
+      {
+        "id": "excelObjects",
+        "title": "sys:excelObjects",
+        "path": "step-modules/excelObjects.md"
+      },
+      {
+        "id": "excelRange",
+        "title": "sys:excelRange",
+        "path": "step-modules/excelRange.md"
+      },
+      {
+        "id": "excelreadwrite",
+        "title": "sys:excelreadwrite",
+        "path": "step-modules/excelreadwrite.md"
+      },
+      {
+        "id": "fileOperation",
+        "title": "sys:fileOperation",
+        "path": "step-modules/fileOperation.md"
+      },
+      {
+        "id": "flauiautomation",
+        "title": "sys:flauiautomation",
+        "path": "step-modules/flauiautomation.md"
+      },
+      {
+        "id": "form",
+        "title": "sys:form",
+        "path": "step-modules/form.md"
+      },
+      {
+        "id": "htmlExtract",
+        "title": "sys:htmlExtract",
+        "path": "step-modules/htmlExtract.md"
+      },
+      {
+        "id": "http",
+        "title": "sys:http",
+        "path": "step-modules/http.md"
+      },
+      {
+        "id": "httpserver",
+        "title": "sys:httpserver",
+        "path": "step-modules/httpserver.md"
+      },
+      {
+        "id": "imgProcess",
+        "title": "sys:imgProcess",
+        "path": "step-modules/imgProcess.md"
+      },
+      {
+        "id": "inputScript",
+        "title": "sys:inputScript",
+        "path": "step-modules/inputScript.md"
+      },
+      {
+        "id": "jsonExtract",
+        "title": "sys:jsonExtract",
+        "path": "step-modules/jsonExtract.md"
+      },
+      {
+        "id": "jsscript",
+        "title": "sys:jsscript",
+        "path": "step-modules/jsscript.md"
+      },
+      {
+        "id": "mathocr",
+        "title": "sys:mathocr",
+        "path": "step-modules/mathocr.md"
+      },
+      {
+        "id": "officehelper",
+        "title": "sys:officehelper",
+        "path": "step-modules/officehelper.md"
+      },
+      {
+        "id": "playRecords",
+        "title": "sys:playRecords",
+        "path": "step-modules/playRecords.md"
+      },
+      {
+        "id": "pythonscript",
+        "title": "sys:pythonscript",
+        "path": "step-modules/pythonscript.md"
+      },
+      {
+        "id": "record",
+        "title": "sys:record",
+        "path": "step-modules/record.md"
+      },
+      {
+        "id": "regexExtract",
+        "title": "sys:regexExtract",
+        "path": "step-modules/regexExtract.md"
+      },
+      {
+        "id": "rhinocontrol",
+        "title": "sys:rhinocontrol",
+        "path": "step-modules/rhinocontrol.md"
+      },
+      {
+        "id": "runScript",
+        "title": "sys:runScript",
+        "path": "step-modules/runScript.md"
+      },
+      {
+        "id": "searchBmp",
+        "title": "sys:searchBmp",
+        "path": "step-modules/searchBmp.md"
+      },
+      {
+        "id": "smtp",
+        "title": "sys:smtp",
+        "path": "step-modules/smtp.md"
+      },
+      {
+        "id": "stringProcess",
+        "title": "sys:stringProcess",
+        "path": "step-modules/stringProcess.md"
+      },
+      {
+        "id": "subprogram",
+        "title": "sys:subprogram",
+        "path": "step-modules/subprogram.md"
+      },
+      {
+        "id": "tableoperation",
+        "title": "sys:tableoperation",
+        "path": "step-modules/tableoperation.md"
+      },
+      {
+        "id": "tempcloudstore",
+        "title": "sys:tempcloudstore",
+        "path": "step-modules/tempcloudstore.md"
+      },
+      {
+        "id": "translation",
+        "title": "sys:translation",
+        "path": "step-modules/translation.md"
+      },
+      {
+        "id": "uiautomation",
+        "title": "sys:uiautomation",
+        "path": "step-modules/uiautomation.md"
+      },
+      {
+        "id": "websocket",
+        "title": "sys:websocket",
+        "path": "step-modules/websocket.md"
+      },
+      {
+        "id": "webview2",
+        "title": "sys:webview2",
+        "path": "step-modules/webview2.md"
+      },
+      {
+        "id": "zip",
+        "title": "sys:zip",
+        "path": "step-modules/zip.md"
+      }
+    ]
+  }
 }

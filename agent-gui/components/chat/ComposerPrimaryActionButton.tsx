@@ -89,7 +89,11 @@ function ComposerVoiceStopDiskButton({
       aria-label={title}
       aria-keyshortcuts={ariaKeyshortcuts}
       title={title}
-      onClick={onClick}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onClick();
+      }}
     >
       <span className="composer-stop-square" aria-hidden />
     </button>

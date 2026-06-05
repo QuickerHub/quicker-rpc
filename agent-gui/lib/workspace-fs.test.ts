@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
@@ -123,6 +123,33 @@ test("readWorkspaceFile supports startLine slices", async () => {
         assert.equal(slice.endLine, 3);
         assert.equal(slice.truncated, false);
       }
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("editWorkspaceFile preserves $$ in newString (replace literal, not pattern)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "agent-gui-ws-"));
+  try {
+    await runWithQkrpcCwd(root, async () => {
+      const before = [
+        "{",
+        '  "message": { "value": "Count: {n}" }',
+        "}",
+        "",
+      ].join("\n");
+      await writeFile(join(root, "data.json"), before, "utf8");
+
+      const edit = await editWorkspaceFile(
+        "data.json",
+        '"value": "Count: {n}"',
+        '"value": "$$Count: {n}"',
+      );
+      assert.equal(edit.ok, true);
+
+      const after = await readFile(join(root, "data.json"), "utf8");
+      assert.match(after, /"value": "\$\$Count: \{n\}"/);
     });
   } finally {
     await rm(root, { recursive: true, force: true });

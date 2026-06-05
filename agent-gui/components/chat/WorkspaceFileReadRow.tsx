@@ -111,16 +111,6 @@ function WorkspaceFileReadRowInner({
           ) : null}
         </div>
       ) : null}
-      {failed ? (
-        <p className="file-editor-footnote file-editor-footnote--err">
-          {typeof output?.data === "object"
-          && output.data !== null
-          && "errorMessage" in output.data
-          && typeof (output.data as { errorMessage: unknown }).errorMessage === "string"
-            ? (output.data as { errorMessage: string }).errorMessage
-            : output?.stderr ?? "操作失败"}
-        </p>
-      ) : null}
       {errorText ? <pre className="tool-error">{errorText}</pre> : null}
     </div>
     <ToolResultPopup

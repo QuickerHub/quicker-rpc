@@ -35,6 +35,7 @@ export class VoiceMicRecorder {
   private stream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
   private processor: ScriptProcessorNode | null = null;
+  private silentGain: GainNode | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
   private chunks: Uint8Array[] = [];
   private startedAt = 0;
@@ -63,9 +64,15 @@ export class VoiceMicRecorder {
     });
 
     this.audioContext = new AudioContext();
+    if (this.audioContext.state === "suspended") {
+      await this.audioContext.resume();
+    }
     const inputRate = this.audioContext.sampleRate;
     this.source = this.audioContext.createMediaStreamSource(this.stream);
     this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+    const silentGain = this.audioContext.createGain();
+    silentGain.gain.value = 0;
+    this.silentGain = silentGain;
 
     this.processor.onaudioprocess = (event) => {
       const input = event.inputBuffer.getChannelData(0);
@@ -76,7 +83,8 @@ export class VoiceMicRecorder {
     };
 
     this.source.connect(this.processor);
-    this.processor.connect(this.audioContext.destination);
+    this.processor.connect(silentGain);
+    silentGain.connect(this.audioContext.destination);
   }
 
   async stop(): Promise<VoiceMicRecorderStopResult> {
@@ -100,8 +108,10 @@ export class VoiceMicRecorder {
 
   dispose(): void {
     this.processor?.disconnect();
+    this.silentGain?.disconnect();
     this.source?.disconnect();
     this.processor = null;
+    this.silentGain = null;
     this.source = null;
 
     if (this.audioContext) {

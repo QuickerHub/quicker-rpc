@@ -91,14 +91,20 @@ import { MessageParts } from "./MessageParts";
 import { TurnActionLinkCard } from "./TurnActionLinkCard";
 import { ActionTagSelector } from "./ActionTagSelector";
 import { ToolSelector } from "./ToolSelector";
+import { ChatModeSelector } from "./ChatModeSelector";
 import {
   fetchLlmOptions,
   hasConfiguredLlmOption,
   ModelSelector,
+  pickInitialLauncherLlmSelectionFromApi,
   pickInitialLlmSelectionFromApi,
 } from "./ModelSelector";
 import { formatLlmSelection } from "@/lib/llm-selection";
 import { LLM_PROVIDER_ID, type LlmProviderId } from "@/lib/llm-providers";
+import {
+  loadLauncherLlmSelectionRaw,
+  storeLauncherLlmSelectionRaw,
+} from "@/lib/launcher/launcher-llm-prefs";
 import {
   loadStoredLlmSelectionRaw,
   storeLlmSelectionRaw,
@@ -117,9 +123,19 @@ import { useThreadTitleFromTool } from "@/lib/use-thread-title-from-tool";
 import { useComposerMessageQueue } from "@/lib/use-composer-message-queue";
 import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
 import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
-import { useGlobalVoiceToggle } from "@/lib/voice-input/use-global-voice-toggle";
+import { useLauncherGlobalShortcut } from "@/lib/launcher/use-launcher-global-shortcut";
 import { ComposerTestPromptsPicker } from "@/components/chat/ComposerTestPromptsPicker";
 import { isAgentGuiDebugMode } from "@/lib/agent-gui-debug";
+import {
+  CHAT_MODE_AGENT,
+  CHAT_MODE_LAUNCHER,
+  resolveEnabledToolsForChatMode,
+  type ChatMode,
+} from "@/lib/chat-mode";
+import {
+  loadStoredChatMode,
+  storeChatMode,
+} from "@/lib/chat-mode-prefs";
 import { useActionProjectImportFromMessages } from "@/lib/action-project-import-from-messages";
 import { useQkrpcPing, type PingState } from "@/lib/use-qkrpc-ping";
 import {
@@ -316,27 +332,39 @@ function ChatPanel({
     Record<string, string>
   >({});
   const [enabledTools, setEnabledTools] = useState(defaultEnabledToolIds);
+  const [chatMode, setChatMode] = useState<ChatMode>(() =>
+    ephemeral ? CHAT_MODE_LAUNCHER : loadStoredChatMode(),
+  );
   const [llmSelection, setLlmSelection] = useState(
     formatLlmSelection({ kind: "builtin", providerId: LLM_PROVIDER_ID }),
   );
 
   useEffect(() => {
     setEnabledTools(loadStoredEnabledTools());
-  }, []);
+    if (!ephemeral) {
+      setChatMode(loadStoredChatMode());
+    }
+  }, [ephemeral]);
 
   const syncLlmSelectionFromApi = useCallback(async () => {
     const data = await fetchLlmOptions();
     if (!data) return;
-    const initial = pickInitialLlmSelectionFromApi(
-      data,
-      loadStoredLlmSelectionRaw(),
-    );
+    const initial = ephemeral
+      ? pickInitialLauncherLlmSelectionFromApi(
+          data,
+          loadLauncherLlmSelectionRaw(),
+        )
+      : pickInitialLlmSelectionFromApi(data, loadStoredLlmSelectionRaw());
     setLlmSelection((prev) => {
       if (prev === initial) return prev;
-      storeLlmSelectionRaw(initial);
+      if (ephemeral) {
+        storeLauncherLlmSelectionRaw(initial);
+      } else {
+        storeLlmSelectionRaw(initial);
+      }
       return initial;
     });
-  }, []);
+  }, [ephemeral]);
 
   useEffect(() => {
     let cancelled = false;
@@ -371,6 +399,8 @@ function ChatPanel({
 
   const enabledToolsRef = useRef(enabledTools);
   enabledToolsRef.current = enabledTools;
+  const chatModeRef = useRef(chatMode);
+  chatModeRef.current = chatMode;
   const llmSelectionRef = useRef(llmSelection);
   llmSelectionRef.current = llmSelection;
   const workingDirectoryRef = useRef(workingDirectory);
@@ -385,7 +415,12 @@ function ChatPanel({
       new DefaultChatTransport({
         api: "/api/chat",
         body: () => ({
-          enabledTools: enabledToolsRef.current,
+          chatMode: chatModeRef.current,
+          enabledTools: resolveEnabledToolsForChatMode(
+            chatModeRef.current,
+            enabledToolsRef.current,
+            loadStoredEnabledTools,
+          ),
           llmSelection: llmSelectionRef.current,
           llmProvider: llmSelectionRef.current,
           workingDirectory: workingDirectoryRef.current.trim() || undefined,
@@ -541,13 +576,18 @@ function ChatPanel({
 
   useEffect(() => {
     const drainLauncherSubmit = () => {
-      const text = takeLauncherSubmit(threadId);
-      if (text === null) return;
+      const pending = takeLauncherSubmit(threadId);
+      if (!pending) return;
       if (!getLauncherSessionForThread(threadId)) return;
+      if (pending.llmSelection) {
+        setLlmSelection(pending.llmSelection);
+        llmSelectionRef.current = pending.llmSelection;
+        storeLauncherLlmSelectionRaw(pending.llmSelection);
+      }
       voiceInterruptRef.current();
       clearError();
       if (visible) pinToBottom();
-      enqueueOrSend(text);
+      enqueueOrSend(pending.text);
     };
     drainLauncherSubmit();
     return subscribeLauncherSubmit(drainLauncherSubmit);
@@ -830,10 +870,6 @@ function ChatPanel({
     });
   }, [onOpenSettings]);
 
-  const focusComposer = useCallback(() => {
-    requestAnimationFrame(() => composerRef.current?.focus());
-  }, []);
-
   useComposerVoiceToggleShortcut({
     enabled: !editAnchorMessageId,
     phase: voiceInput.phase,
@@ -842,17 +878,6 @@ function ChatPanel({
     onStart: voiceInput.startVoiceInput,
     onStop: voiceInput.stopVoiceInput,
     onUnavailable: openVoiceSettings,
-  });
-
-  useGlobalVoiceToggle({
-    enabled: !editAnchorMessageId,
-    phase: voiceInput.phase,
-    canUse: voiceInput.canUse,
-    pluginStatus: voiceInput.pluginStatus,
-    onStart: voiceInput.startVoiceInput,
-    onStop: voiceInput.stopVoiceInput,
-    onUnavailable: openVoiceSettings,
-    onGlobalActivate: focusComposer,
   });
 
   useEffect(() => {
@@ -1250,10 +1275,21 @@ function ChatPanel({
                   embeddedTagIds={draftTagIds}
                   onSelect={insertDraftActionTag}
                 />
-                <ToolSelector
-                  enabledTools={enabledTools}
-                  onChange={setEnabledTools}
-                />
+                {!ephemeral ? (
+                  <ChatModeSelector
+                    mode={chatMode}
+                    onChange={(next) => {
+                      setChatMode(next);
+                      storeChatMode(next);
+                    }}
+                  />
+                ) : null}
+                {isAgentGuiDebugMode() ? (
+                  <ToolSelector
+                    enabledTools={enabledTools}
+                    onChange={setEnabledTools}
+                  />
+                ) : null}
                 {isAgentGuiDebugMode() ? (
                   <ComposerTestPromptsPicker
                     disabled={!qkrpcOk}
@@ -1355,6 +1391,7 @@ export function Chat() {
     getEphemeralLauncherRuns,
   );
   const { ping, refreshPing, connectTick } = useQkrpcPing();
+  useLauncherGlobalShortcut();
   const storeRef = useRef(store);
   storeRef.current = store;
 
@@ -1408,7 +1445,7 @@ export function Chat() {
     return subscribeLauncherBridge((message) => {
       if (message.type === "composer:submit") {
         const threadId = startEphemeralLauncherRun(message.sessionId);
-        queueLauncherSubmit(threadId, message.text);
+        queueLauncherSubmit(threadId, message.text, message.llmSelection);
         return;
       }
       if (message.type === "launcher:session-clear") {

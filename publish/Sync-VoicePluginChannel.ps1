@@ -6,7 +6,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
 
-    [string]$Tag = '',
+    [string]$RuntimeTag = '',
+    [string]$ModelTag = 'model-sensevoice',
     [string]$VoiceRoot = '',
     [string]$RepoRoot = '',
     [string]$ChannelPath = ''
@@ -31,7 +32,7 @@ if (-not (Test-Path -LiteralPath $manifestScript)) {
 }
 
 $generated = Join-Path $VoiceRoot 'publish/voice-plugin-channel.generated.json'
-& pwsh -NoProfile -File $manifestScript -Version $Version -Tag $Tag -OutputPath $generated | Out-Null
+& pwsh -NoProfile -File $manifestScript -Version $Version -RuntimeTag $RuntimeTag -ModelTag $ModelTag -OutputPath $generated | Out-Null
 if (-not (Test-Path -LiteralPath $generated)) {
     throw "Manifest generation failed: $generated"
 }

@@ -3458,22 +3458,6 @@ html.launcher-html--transparent body {
   background-color: transparent !important;
 }
 
-/* Pass mouse events through empty transparent regions (Tauri overlay). */
-html.launcher-html--transparent body {
-  pointer-events: none;
-}
-
-html.launcher-html--transparent [data-launcher-hit],
-html.launcher-html--transparent .titlebar-drag-region,
-html.launcher-html--transparent :is(
-  .tool-selector-panel,
-  .action-tag-selector-panel,
-  .model-picker-float--portal,
-  .composer-popup
-) {
-  pointer-events: auto;
-}
-
 html.launcher-html--web,
 html.launcher-html--web body {
   background: var(--bg);
@@ -4351,6 +4335,102 @@ html.launcher-html--transparent .launcher-shell :is(
   font-size: 0.875rem;
   color: var(--text);
   line-height: 1.45;
+}
+
+.launcher-settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem 1rem;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .launcher-settings-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.launcher-settings-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.launcher-settings-shortcut-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.launcher-settings-shortcut-btn {
+  min-width: 9rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.launcher-settings-shortcut-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.launcher-settings-shortcut-btn--recording {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.launcher-settings-shortcut-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.launcher-settings-reset-btn {
+  flex-shrink: 0;
+}
+
+.launcher-settings-auto-voice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 92%, var(--bg) 8%);
+  cursor: pointer;
+}
+
+.launcher-settings-auto-voice input {
+  margin-right: 0.35rem;
+}
+
+.launcher-settings-auto-voice-text {
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.launcher-settings-auto-voice-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.launcher-settings-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.launcher-settings-error {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--danger, #c0392b);
 }
 
 @media (max-width: 520px) {
@@ -10559,6 +10639,54 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   padding: 0.05rem 0.35rem;
   border-radius: 4px;
   background: var(--hover-overlay);
+  color: var(--text);
+}
+
+.chat-mode-selector-panel {
+  min-width: 11.5rem;
+}
+
+.chat-mode-selector-list {
+  padding: 0.35rem 0.5rem 0.5rem;
+}
+
+.chat-mode-selector-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.chat-mode-selector-item:hover {
+  background: var(--hover-overlay);
+}
+
+.chat-mode-selector-item--selected {
+  border-color: var(--composer-focus-border);
+  background: color-mix(in srgb, var(--composer-focus-border) 12%, transparent);
+}
+
+.chat-mode-selector-item-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.chat-mode-selector-item-desc {
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.chat-mode-selector-trigger--launcher {
   color: var(--text);
 }
 

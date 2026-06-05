@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isTauriShell } from "@/lib/tauri-shell";
 import {
   mockStreamVoiceSession,
   startMockVoicePartialSession,
@@ -14,14 +15,31 @@ import {
 import { useVoicePluginStatus } from "@/lib/voice-input/use-voice-plugin-status";
 import { VoiceMicRecorder } from "@/lib/voice-input/voice-input-recorder";
 import { VoiceWsSession } from "@/lib/voice-input/voice-input-ws-client";
+import {
+  broadcastVoiceInterrupt,
+  createVoiceCoordinationSourceId,
+  subscribeVoiceInterrupt,
+} from "@/lib/voice-input/voice-input-coordination";
 import type {
   VoicePluginStatus,
   VoiceSessionPhase,
+  VoiceTranscribeResult,
 } from "@/lib/voice-input/voice-input-types";
 
 const MAX_RECORDING_MS = 120_000;
 const TRANSCRIBE_TIMEOUT_MS = 15_000;
 
+type VoiceLiveSession = {
+  endSession(): Promise<VoiceTranscribeResult>;
+  cancel(reason?: string): void;
+  close(): void;
+  detachAbortSignal(): void;
+};
+
+function canStartVoiceCapture(status: VoicePluginStatus): boolean {
+  if (isVoiceInputMockEnabled()) return true;
+  return canUseVoiceInput(status);
+}
 export type UseVoiceInputOptions = {
   enabled?: boolean;
   onStreamBegin: () => void;
@@ -80,10 +98,11 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
   const errorTimerRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const recorderRef = useRef<VoiceMicRecorder | null>(null);
-  const wsSessionRef = useRef<VoiceWsSession | null>(null);
+  const voiceSessionRef = useRef<VoiceLiveSession | null>(null);
   const setupPromiseRef = useRef<Promise<void> | null>(null);
   const mockPartialRef = useRef<MockVoicePartialSession | null>(null);
   const interruptedByUserEditRef = useRef(false);
+  const voiceSourceIdRef = useRef(createVoiceCoordinationSourceId());
 
   const pushStreamText = useCallback((text: string) => {
     if (!text.trim()) return;
@@ -106,8 +125,8 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
     mockPartialRef.current = null;
     recorderRef.current?.dispose();
     recorderRef.current = null;
-    wsSessionRef.current?.close();
-    wsSessionRef.current = null;
+    voiceSessionRef.current?.close();
+    voiceSessionRef.current = null;
     abortRef.current = null;
   }, []);
 
@@ -158,16 +177,16 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
   const finishRuntimeSession = useCallback(
     async (signal: AbortSignal) => {
       const recorder = recorderRef.current;
-      const wsSession = wsSessionRef.current;
-      if (!recorder || !wsSession) {
-        throw new Error("语音会话未就绪");
+      const voiceSession = voiceSessionRef.current;
+      if (!recorder || !voiceSession) {
+        return;
       }
 
       await recorder.stop();
       recorderRef.current = null;
 
-      const result = await wsSession.endSession();
-      wsSessionRef.current = null;
+      const result = await voiceSession.endSession();
+      voiceSessionRef.current = null;
 
       if (signal.aborted) return;
       if (!result.text.trim()) {
@@ -186,6 +205,12 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
 
     clearTimers();
     const recordedMs = Math.max(0, Date.now() - recordStartedAtRef.current);
+
+    // Only abort in-flight WS/mic setup — never tear down an established session.
+    if (setupPromiseRef.current) {
+      abortRef.current?.abort();
+    }
+
     setPhase("transcribing");
     setStatusHint("识别中…");
 
@@ -194,7 +219,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
 
     const timeoutId = window.setTimeout(() => {
       controller.abort();
-      wsSessionRef.current?.cancel("timeout");
+      voiceSessionRef.current?.cancel("timeout");
     }, TRANSCRIBE_TIMEOUT_MS);
 
     try {
@@ -208,6 +233,10 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
             onStreamCancelRef.current?.();
             return;
           }
+        }
+        if (!recorderRef.current || !voiceSessionRef.current) {
+          onStreamCancelRef.current?.();
+          return;
         }
         await finishRuntimeSession(controller.signal);
       }
@@ -242,8 +271,21 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
   ]);
 
   const stopVoiceInput = useCallback(() => {
+    const phase = phaseRef.current;
+    if (phase === "idle") return;
+    if (phase === "transcribing") {
+      clearTimers();
+      abortRef.current?.abort();
+      voiceSessionRef.current?.cancel("user_stop");
+      cleanupLiveSession();
+      setupPromiseRef.current = null;
+      streamStartedRef.current = false;
+      setPhase("idle");
+      setStatusHint(null);
+      return;
+    }
     void finishSession();
-  }, [finishSession]);
+  }, [cleanupLiveSession, clearTimers, finishSession]);
 
   const interruptVoiceInput = useCallback(() => {
     const phase = phaseRef.current;
@@ -273,10 +315,12 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
   const startVoiceInput = useCallback(() => {
     if (!enabled) return;
     if (phaseRef.current !== "idle") return;
-    if (!isVoiceInputMockEnabled() && !canUseVoiceInput(pluginStatus)) {
+    if (!canStartVoiceCapture(pluginStatus)) {
       showError(`语音不可用：${voicePluginStatusLabel(pluginStatus)}`);
       return;
     }
+
+    broadcastVoiceInterrupt(voiceSourceIdRef.current);
 
     clearError();
     streamStartedRef.current = false;
@@ -318,7 +362,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
         });
         await wsSession.connect();
         await wsSession.startSession();
-        wsSessionRef.current = wsSession;
+        voiceSessionRef.current = wsSession;
 
         const recorder = new VoiceMicRecorder();
         await recorder.start((chunk) => wsSession.sendAudio(chunk));
@@ -329,8 +373,11 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
 
       try {
         await setup;
+        voiceSessionRef.current?.detachAbortSignal();
         if (phaseRef.current !== "recording") {
           cleanupLiveSession();
+        } else {
+          abortRef.current = null;
         }
       } catch (err) {
         cleanupLiveSession();
@@ -361,6 +408,12 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
   ]);
 
   useEffect(() => {
+    return subscribeVoiceInterrupt(voiceSourceIdRef.current, () => {
+      interruptVoiceInput();
+    });
+  }, [interruptVoiceInput]);
+
+  useEffect(() => {
     return () => {
       clearTimers();
       abortRef.current?.abort();
@@ -371,7 +424,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
     };
   }, [cleanupLiveSession, clearTimers]);
 
-  const canUse = enabled && canUseVoiceInput(pluginStatus);
+  const canUse = enabled && canStartVoiceCapture(pluginStatus);
 
   return {
     phase,

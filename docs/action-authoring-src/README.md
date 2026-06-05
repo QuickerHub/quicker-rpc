@@ -15,7 +15,7 @@
 | `*.md` | Topic templates with markers |
 | `ops.json` | Topics (`title`, `description`), operations, phrases (`cli` / `agent`) |
 
-**Agent 主路径**：`overview` → `authoring-workflow` → `workspace-editing`；领域规则见 `action-steps`、`action-variables`、`expressions` 等。CLI 专用：`patch-workflow`、`action-project-files`（`profiles: ["cli"]`）。
+**Agent 主路径**：`overview` → `authoring-workflow` → `workspace-editing`；领域规则见 `action-steps`、`action-variables`、`expressions` 等。模块用法见 **`step-modules`** + `references/step-modules/`（由 `node scripts/generate-step-module-refs.mjs` 从 [KC Help](https://getquicker.net/KC/Help) 生成）。CLI 专用：`patch-workflow`、`action-project-files`（`profiles: ["cli"]`）。
 
 ## Markers
 

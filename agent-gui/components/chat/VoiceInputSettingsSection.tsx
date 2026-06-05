@@ -57,7 +57,7 @@ export function VoiceInputSettingsSection({
     setHealthLine(
       `Runtime ${health.runtimeVersion ?? "?"} · 模型 ${health.modelId ?? "stub"} · ready=${health.ready ? "是" : "否"}`,
     );
-  }, []);
+  }, [status]);
 
   useEffect(() => {
     if (!active) return;
@@ -263,7 +263,7 @@ export function VoiceInputSettingsSection({
 
       {status === "not_installed" && inTauri && !installBusy ? (
         <p className="voice-settings-hint">
-          点击「一键安装」后，应用会自动下载语音识别服务与模型、完成配置并启动（约 240 MB，仅安装时需要网络；完成后可离线使用）。
+          点击「一键安装」后，应用会优先从 ModelScope 下载识别模型，语音识别服务仍优先使用国内镜像（Bitiful）；模型仅在 ModelScope 不可用时才回退到 Bitiful / GitHub 备用包（约 240 MB，仅安装时需要网络；完成后可离线使用）。
         </p>
       ) : null}
 

@@ -301,14 +301,17 @@ function Get-VoiceAsrBitifulAssetUrl {
     return "$(Get-VoiceAsrBitifulDownloadPrefix)/$name"
 }
 
+function Get-VoiceAsrModelReleaseTag {
+    return 'model-sensevoice'
+}
+
 function Get-VoiceAsrRuntimeZipName {
     param([string]$Version = '0.1.0')
     return "voice-asr-runtime-$Version-win-x64.zip"
 }
 
 function Get-VoiceAsrModelZipName {
-    param([string]$Version = '0.1.0')
-    return "voice-asr-model-sensevoice-$Version-win-x64.zip"
+    return 'voice-asr-model-sensevoice.zip'
 }
 
 function Invoke-VoiceAsrBitifulUpload {
@@ -317,10 +320,11 @@ function Invoke-VoiceAsrBitifulUpload {
         [string]$RuntimeZipPath,
 
         [Parameter(Mandatory = $true)]
-        [string]$ModelZipPath,
-
-        [Parameter(Mandatory = $true)]
         [string]$Version,
+
+        [string]$ModelZipPath = '',
+
+        [switch]$PublishModel,
 
         [string]$PublishDir = ''
     )
@@ -329,9 +333,13 @@ function Invoke-VoiceAsrBitifulUpload {
         $PublishDir = $PSScriptRoot
     }
 
-    foreach ($path in @($RuntimeZipPath, $ModelZipPath)) {
-        if (-not (Test-Path -LiteralPath $path)) {
-            throw "Asset not found: $path"
+    if (-not (Test-Path -LiteralPath $RuntimeZipPath)) {
+        throw "Runtime asset not found: $RuntimeZipPath"
+    }
+
+    if ($PublishModel) {
+        if ([string]::IsNullOrWhiteSpace($ModelZipPath) -or -not (Test-Path -LiteralPath $ModelZipPath)) {
+            throw "Model asset not found: $ModelZipPath (required with -PublishModel)"
         }
     }
 
@@ -389,7 +397,9 @@ function Invoke-VoiceAsrBitifulUpload {
     }
 
     Invoke-BitifulAssetUpload -AssetPath $RuntimeZipPath
-    Invoke-BitifulAssetUpload -AssetPath $ModelZipPath
+    if ($PublishModel) {
+        Invoke-BitifulAssetUpload -AssetPath $ModelZipPath
+    }
 
     $versionArgs = @(
         $uploadScript, $RuntimeZipPath,

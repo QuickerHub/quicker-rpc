@@ -35,8 +35,9 @@ export type ProgramValuePrefixWarning = {
 };
 
 export const VALUE_PREFIX_AGENT_RULE =
-  "If a string uses {varName} from variables[], it MUST start with $$ (interpolation) or $= (C#). "
-  + "Pure literals without {vars} need no prefix. Use {\"varKey\":\"key\"} to bind a variable directly (no prefix). "
+  "If interpolation is intended and the string uses {varName} from variables[], it MUST start with $$ (interpolation) or $= (C#). "
+  + "If the user wants literal braces (e.g. \"{a} {test}\"), leave as-is. "
+  + "Use {\"varKey\":\"key\"} to bind a variable directly (no prefix). "
   + "SkipEval fields (expression/script/code) are exempt.";
 
 function containsDefinedVariable(
@@ -79,14 +80,18 @@ function buildFixExample(
   variables: string[],
 ): string {
   const trimmed = value.trimStart();
-  const body = trimmed.startsWith("$$") || trimmed.startsWith("$=")
-    ? trimmed.replace(/^\$\$?=?/, "")
-    : trimmed;
+  let body = trimmed;
+  if (trimmed.startsWith("$$") || trimmed.startsWith("$=")) {
+    body = trimmed.replace(/^\$\$?=?/, "");
+  } else if (trimmed.startsWith("$")) {
+    // Partial/wrong single-$ prefix from a bad edit_data replace
+    body = trimmed.slice(1);
+  }
   const sample = variables[0] ?? "varName";
   if (prefix === "$=") {
-    return `$={${sample}} + 1`;
+    return body.includes("{") ? `$=${body}` : `$={${sample}} + 1`;
   }
-  return `$$text {${sample}}`;
+  return body.length > 0 ? `${prefix}${body}` : `${prefix}text {${sample}}`;
 }
 
 function charIndexToLine(text: string, index: number): number {
@@ -350,7 +355,8 @@ export function formatValuePrefixWarningsMessage(
     ? `Do NOT read data.json from line 1 or mode=summary first. Use each warning's read slice (e.g. ${firstRead}).\n`
     : "";
   return (
-    `${warnings.length} value/defaultValue string(s) use {variable} without required $$ or $= prefix at the start. Fix before patch.\n`
+    `${warnings.length} value/defaultValue string(s) contain {variable} without $$ or $= at the start. `
+    + "Warning only — cannot tell literal text from missing prefix; add prefix only when interpolation is intended.\n"
     + readLead
     + `${VALUE_PREFIX_AGENT_RULE}\n`
     + lines.join("\n")

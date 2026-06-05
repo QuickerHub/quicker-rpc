@@ -51,6 +51,7 @@ qkrpc guide get --topic authoring-workflow --json
 | 操作项文本语法 | **`common-operation-item`** | P3：动作右键菜单 `ContextMenuData`、`[图标]标题(提示)\|数据`、子菜单 |
 | 步骤模块搜索 | **`step-runner-search`** | P5：目录搜索 OR/通配 |
 | 步骤模块 schema | **`step-runner-get`** | P5：Agent 只用 `get`（禁止 `get-ui`）；与 search 分工 |
+| 步骤模块用法 | **`step-modules`** | P4–P5：模块用途/模式/KC 摘要；`docs_get_reference` + `_catalog` |
 | 工作区目录与外置 | **`action-project-files`** | `.quicker/actions` 布局、`file` 引用形状 |
 | Patch 工作流（CLI） | **`patch-workflow`** | P6：内联 patch JSON |
 

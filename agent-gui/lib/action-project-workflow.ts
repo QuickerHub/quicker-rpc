@@ -698,29 +698,11 @@ export async function saveActionFromWorkspace(options: {
   }
   const projectDirAbs = projectResolved.absolute;
 
-  const { guardProjectValuePrefixes } = await import(
-    "@/lib/program-value-prefix-guard"
-  );
+  const { augmentToolResultWithPrefixWarnings, guardProjectValuePrefixes } =
+    await import("@/lib/program-value-prefix-guard");
   const prefixGuard = await guardProjectValuePrefixes(projectDirAbs, {
     force: options.force,
   });
-  if (!prefixGuard.ok) {
-    return formatLocalToolResult(
-      {
-        action: "action-save",
-        success: false,
-        phase: "value-prefix",
-        projectDirectory: projectDirRel,
-        projectDirectoryAbsolute: projectDirAbs,
-        valuePrefixWarningCount: prefixGuard.warnings.length,
-        valuePrefixWarnings: prefixGuard.warnings.slice(0, 12),
-        firstFixRead: prefixGuard.warnings.find((w) => w.read)?.read,
-        errorMessage: prefixGuard.message,
-      },
-      false,
-      prefixGuard.message,
-    );
-  }
 
   const validateResult = await runQkrpcForTool([
     "action",
@@ -769,5 +751,8 @@ export async function saveActionFromWorkspace(options: {
     await syncProjectEditVersionOnDisk(projectDirRel, newVersion);
   }
 
-  return formatQkrpcResultForAgent(applyResult);
+  return augmentToolResultWithPrefixWarnings(
+    formatQkrpcResultForAgent(applyResult),
+    prefixGuard.warnings,
+  );
 }

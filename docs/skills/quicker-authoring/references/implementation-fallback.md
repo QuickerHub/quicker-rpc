@@ -22,7 +22,7 @@
 ```text
 字符串/LINQ/多变量赋值/JSON 变换？ → expressions（$= 或 sys:evalexpression）
 仅计算/比较/单参数赋值？           → $= / $$ 或 evalexpression
-已知 stepRunnerKey？              → step-runner get → 写入 data.json → 保存
+已知 stepRunnerKey？              → step-runner get → docs_get_reference(step-modules) → 写入 data.json
 否则                               → step-runner search（一次 OR|*）→ get
 仍无合适模块且表达式不够？         → sys:csscript
 ```

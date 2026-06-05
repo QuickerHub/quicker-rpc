@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { isTauriShell } from "@/lib/tauri-shell";
 import { isVoiceInputToggleShortcut } from "@/lib/voice-input/voice-input-shortcuts";
 import { runVoiceToggleAction } from "@/lib/voice-input/voice-toggle-action";
 import type {
@@ -19,7 +18,7 @@ type UseComposerVoiceToggleShortcutOptions = {
   onUnavailable?: () => void;
 };
 
-/** Toggle voice input via Ctrl/Cmd+Shift+V while the page has focus (browser only). */
+/** Toggle voice input via Ctrl/Cmd+Shift+V while the page has focus. */
 export function useComposerVoiceToggleShortcut({
   enabled = true,
   phase,
@@ -30,7 +29,7 @@ export function useComposerVoiceToggleShortcut({
   onUnavailable,
 }: UseComposerVoiceToggleShortcutOptions): void {
   useEffect(() => {
-    if (!enabled || isTauriShell()) return;
+    if (!enabled) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (!isVoiceInputToggleShortcut(event)) return;

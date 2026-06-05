@@ -6,6 +6,7 @@ import { AccountUsageSection } from "@/components/chat/AccountUsageSection";
 import { AppVersionSection } from "@/components/chat/AppVersionSection";
 import { LlmKeysSettingsSection } from "@/components/chat/LlmKeysSettingsSection";
 import { VoiceInputSettingsSection } from "@/components/chat/VoiceInputSettingsSection";
+import { LauncherSettingsSection } from "@/components/chat/LauncherSettingsSection";
 import type { LlmProviderId } from "@/lib/llm-providers";
 import type { PingState } from "@/lib/use-qkrpc-ping";
 
@@ -81,6 +82,8 @@ export function AppSettingsPanel({
             </div>
           </section>
         </div>
+
+        <LauncherSettingsSection active={active} disabled={disabled} />
 
         <LlmKeysSettingsSection
           active={active}

@@ -1,9 +1,11 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
 use std::time::{Duration, Instant};
 
-use tauri::{AppHandle, Emitter, Manager, Size, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Emitter, Manager, Monitor, PhysicalPosition, Position, Size, WebviewUrl,
+    WebviewWindow, WebviewWindowBuilder,
+};
 
 pub const LAUNCHER_LABEL: &str = "launcher";
 pub const LAUNCHER_HIDDEN_EVENT: &str = "launcher:hidden";
@@ -11,11 +13,19 @@ pub const LAUNCHER_SHOWN_EVENT: &str = "launcher:shown";
 
 const LAUNCHER_WIDTH: f64 = 680.0;
 const LAUNCHER_HEIGHT: f64 = 520.0;
-const LAUNCHER_BLUR_HIDE_DELAY: Duration = Duration::from_millis(120);
-const LAUNCHER_BLUR_SUPPRESS_AFTER_SHOW: Duration = Duration::from_millis(450);
+const LAUNCHER_BLUR_SUPPRESS_AFTER_SHOW: Duration = Duration::from_millis(900);
+
+/// Match `globals.css` launcher composer stack (field + toolbar + bottom padding @ 16px root).
+const LAUNCHER_ROOT_FONT_PX: f64 = 16.0;
+const LAUNCHER_EDGE_BOTTOM_REM: f64 = 0.65;
+const LAUNCHER_COMPOSER_FIELD_REM: f64 = 3.55;
+const LAUNCHER_COMPOSER_TOOLBAR_REM: f64 = 2.2;
 
 static LAUNCHER_WINDOW_HANDLERS_REGISTERED: AtomicBool = AtomicBool::new(false);
+static LAUNCHER_CHROME_APPLIED: AtomicBool = AtomicBool::new(false);
 static LAUNCHER_SUPPRESS_BLUR_UNTIL: Mutex<Option<Instant>> = Mutex::new(None);
+static LAUNCHER_HAD_STABLE_FOCUS: AtomicBool = AtomicBool::new(false);
+static LAUNCHER_EMIT_SHOWN_ON_FOCUS: AtomicBool = AtomicBool::new(false);
 
 pub struct UiBaseUrl(pub Mutex<String>);
 
@@ -58,18 +68,86 @@ fn apply_launcher_size(window: &WebviewWindow, expanded: bool) {
                     x: old_pos.x,
                     y: old_pos.y - dy,
                 }));
-                return;
             }
+            // Size unchanged — keep position; re-centering here caused focus loss + blur-hide.
+            return;
         }
     }
 
-    let _ = window.center();
+    position_launcher_window(window);
+}
+
+fn resolve_launcher_monitor(window: &WebviewWindow) -> Option<Monitor> {
+    let app = window.app_handle();
+    if let Ok(cursor) = app.cursor_position() {
+        if let Ok(Some(monitor)) = window.monitor_from_point(cursor.x, cursor.y) {
+            return Some(monitor);
+        }
+    }
+    window
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| window.current_monitor().ok().flatten())
+}
+
+fn launcher_composer_center_from_top_logical(window_height_logical: f64) -> f64 {
+    let edge_bottom = LAUNCHER_EDGE_BOTTOM_REM * LAUNCHER_ROOT_FONT_PX;
+    let composer_height =
+        (LAUNCHER_COMPOSER_FIELD_REM + LAUNCHER_COMPOSER_TOOLBAR_REM) * LAUNCHER_ROOT_FONT_PX;
+    window_height_logical - edge_bottom - composer_height / 2.0
+}
+
+fn position_launcher_window(window: &WebviewWindow) {
+    let Some(monitor) = resolve_launcher_monitor(window) else {
+        let _ = window.center();
+        return;
+    };
+
+    let Ok(outer_size) = window.outer_size() else {
+        let _ = window.center();
+        return;
+    };
+
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let window_height_logical = outer_size.height as f64 / scale;
+    let anchor_from_top_logical = launcher_composer_center_from_top_logical(window_height_logical);
+    let anchor_from_top_physical = (anchor_from_top_logical * scale).round() as i32;
+
+    let work = monitor.work_area();
+    let work_center_y = work.position.y + work.size.height as i32 / 2;
+
+    let x = work.position.x + (work.size.width as i32 - outer_size.width as i32) / 2;
+    let mut y = work_center_y - anchor_from_top_physical;
+
+    let min_y = work.position.y;
+    let max_y = work.position.y + work.size.height as i32 - outer_size.height as i32;
+    y = y.clamp(min_y, max_y);
+
+    let _ = window.set_position(Position::Physical(PhysicalPosition { x, y }));
+}
+
+fn apply_launcher_chrome_once(window: &WebviewWindow) {
+    if LAUNCHER_CHROME_APPLIED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    apply_launcher_chrome(window);
+}
+
+fn reset_launcher_window_state() {
+    LAUNCHER_WINDOW_HANDLERS_REGISTERED.store(false, Ordering::SeqCst);
+    LAUNCHER_CHROME_APPLIED.store(false, Ordering::SeqCst);
+    LAUNCHER_HAD_STABLE_FOCUS.store(false, Ordering::SeqCst);
+    if let Ok(mut guard) = LAUNCHER_SUPPRESS_BLUR_UNTIL.lock() {
+        *guard = None;
+    }
 }
 
 fn apply_launcher_chrome(window: &WebviewWindow) {
     let _ = window.set_decorations(false);
     let _ = window.set_shadow(false);
     let _ = window.set_always_on_top(true);
+    let _ = window.set_skip_taskbar(true);
     let _ = window.set_maximizable(false);
     let _ = window.set_resizable(false);
 
@@ -82,7 +160,30 @@ fn apply_launcher_chrome(window: &WebviewWindow) {
     }
 
     #[cfg(windows)]
-    disable_launcher_dwm_snap(window);
+    {
+        disable_launcher_dwm_snap(window);
+        disable_launcher_dwm_transition(window);
+    }
+}
+
+#[cfg(windows)]
+fn disable_launcher_dwm_transition(window: &WebviewWindow) {
+    use windows_sys::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_TRANSITIONS_FORCEDISABLED,
+    };
+
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    let disabled: i32 = 1;
+    unsafe {
+        DwmSetWindowAttribute(
+            hwnd.0,
+            DWMWA_TRANSITIONS_FORCEDISABLED as u32,
+            &disabled as *const _ as *const _,
+            std::mem::size_of::<i32>() as u32,
+        );
+    }
 }
 
 #[cfg(windows)]
@@ -128,11 +229,20 @@ fn register_launcher_window_handlers(window: &WebviewWindow) {
                 }
             }
             tauri::WindowEvent::Focused(true) => {
+                LAUNCHER_HAD_STABLE_FOCUS.store(true, Ordering::SeqCst);
                 suppress_launcher_blur_hide_for(LAUNCHER_BLUR_SUPPRESS_AFTER_SHOW);
-                let _ = guard_window.emit(LAUNCHER_SHOWN_EVENT, ());
+                if LAUNCHER_EMIT_SHOWN_ON_FOCUS.swap(false, Ordering::SeqCst) {
+                    let _ = guard_window.emit(LAUNCHER_SHOWN_EVENT, ());
+                }
             }
             tauri::WindowEvent::Focused(false) => {
-                schedule_launcher_hide_on_blur(&guard_window);
+                if !LAUNCHER_HAD_STABLE_FOCUS.load(Ordering::SeqCst) {
+                    return;
+                }
+                if blur_hide_is_suppressed() {
+                    return;
+                }
+                hide_launcher_window(&guard_window);
             }
             _ => {}
         }
@@ -153,33 +263,22 @@ fn blur_hide_is_suppressed() -> bool {
         .is_some_and(|until| Instant::now() < until)
 }
 
-fn schedule_launcher_hide_on_blur(window: &WebviewWindow) {
-    let window = window.clone();
-    thread::spawn(move || {
-        thread::sleep(LAUNCHER_BLUR_HIDE_DELAY);
-        if blur_hide_is_suppressed() {
-            return;
-        }
-        if window.is_focused().unwrap_or(true) {
-            return;
-        }
-        if !window.is_visible().unwrap_or(false) {
-            return;
-        }
-        hide_launcher_window(&window);
-    });
-}
-
 fn hide_launcher_window(window: &WebviewWindow) {
+    LAUNCHER_HAD_STABLE_FOCUS.store(false, Ordering::SeqCst);
     if let Ok(mut guard) = LAUNCHER_SUPPRESS_BLUR_UNTIL.lock() {
         *guard = None;
     }
+    let _ = window.set_ignore_cursor_events(false);
     let _ = window.hide();
     let _ = window.emit(LAUNCHER_HIDDEN_EVENT, ());
 }
 
 fn show_launcher_window(window: &WebviewWindow) {
+    LAUNCHER_HAD_STABLE_FOCUS.store(false, Ordering::SeqCst);
+    LAUNCHER_EMIT_SHOWN_ON_FOCUS.store(true, Ordering::SeqCst);
     suppress_launcher_blur_hide_for(LAUNCHER_BLUR_SUPPRESS_AFTER_SHOW);
+    let _ = window.set_ignore_cursor_events(false);
+    position_launcher_window(window);
     let _ = window.show();
     let _ = window.set_focus();
 }
@@ -207,10 +306,11 @@ fn build_launcher_window(app: &AppHandle, expanded: bool) -> Result<WebviewWindo
         .shadow(false)
         .transparent(true)
         .always_on_top(true)
+        .skip_taskbar(true)
         .build()
         .map_err(|err| err.to_string())?;
 
-    apply_launcher_chrome(&window);
+    apply_launcher_chrome_once(&window);
     register_launcher_window_handlers(&window);
 
     Ok(window)
@@ -218,8 +318,10 @@ fn build_launcher_window(app: &AppHandle, expanded: bool) -> Result<WebviewWindo
 
 fn ensure_launcher_window(app: &AppHandle, expanded: bool) -> Result<WebviewWindow, String> {
     if let Some(window) = app.get_webview_window(LAUNCHER_LABEL) {
-        apply_launcher_chrome(&window);
-        apply_launcher_size(&window, expanded);
+        apply_launcher_chrome_once(&window);
+        if expanded {
+            apply_launcher_size(&window, expanded);
+        }
         show_launcher_window(&window);
         return Ok(window);
     }
@@ -233,7 +335,7 @@ pub fn prepare_configured_launcher_window(app: &AppHandle, visible: bool) {
         return;
     };
 
-    apply_launcher_chrome(&window);
+    apply_launcher_chrome_once(&window);
     apply_launcher_size(&window, false);
     register_launcher_window_handlers(&window);
 
@@ -247,7 +349,7 @@ pub fn prepare_configured_launcher_window(app: &AppHandle, visible: bool) {
 pub fn close_configured_launcher_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(LAUNCHER_LABEL) {
         let _ = window.close();
-        LAUNCHER_WINDOW_HANDLERS_REGISTERED.store(false, Ordering::SeqCst);
+        reset_launcher_window_state();
     }
 }
 

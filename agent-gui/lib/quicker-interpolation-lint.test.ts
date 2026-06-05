@@ -65,6 +65,24 @@ test("scanProgramValuePrefixWarnings flags inline value", () => {
   assert.equal(hits.length, 1);
   assert.equal(hits[0]?.suggestedPrefix, "$$");
   assert.match(hits[0]?.location ?? "", /inputParams\.message/);
+  assert.equal(hits[0]?.fixExample, "$$Count: {lineCount}");
+});
+
+test("buildFixExample strips erroneous single-$ prefix", () => {
+  const data = {
+    variables: [{ key: "n", type: "integer" }],
+    steps: [
+      {
+        stepRunnerKey: "sys:MsgBox",
+        inputParams: {
+          message: { value: "$Count: {n}" },
+        },
+      },
+    ],
+  };
+  const hits = scanProgramValuePrefixWarnings(JSON.stringify(data));
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0]?.fixExample, "$$Count: {n}");
 });
 
 test("scanProgramValuePrefixWarnings skips varKey binding", () => {
@@ -137,6 +155,7 @@ test("formatValuePrefixWarningsMessage tells agent not to read from line 1", () 
   );
   const warnings = scanProgramValuePrefixWarnings(jsonText);
   const msg = formatValuePrefixWarningsMessage(warnings);
+  assert.match(msg, /Warning only/);
   assert.match(msg, /Do NOT read data\.json from line 1/);
   assert.match(msg, /workspace_program/);
 });

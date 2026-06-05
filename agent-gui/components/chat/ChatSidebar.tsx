@@ -20,7 +20,7 @@ function defaultCwdFallbackLabel(profile: DefaultWorkingDirectoryProfile): strin
     case "repo":
       return "默认（quicker-rpc 仓库根）";
     case "documents":
-      return "默认（文档/QuickerAgent）";
+      return "默认（文档/QuickerAgent/workspace）";
     case "env":
       return "默认（已配置）";
     default:

@@ -1,5 +1,15 @@
 /** Tool metadata for UI selection and approval hints. */
 
+import {
+  LAUNCHER_TOOL_IDS,
+  defaultLauncherToolIds,
+} from "@/lib/chat-mode";
+
+export {
+  defaultLauncherToolIds,
+  LAUNCHER_TOOL_IDS,
+} from "@/lib/chat-mode";
+
 export type ToolGroupId = "read" | "write" | "destructive";
 
 /** Functional domain for tool picker sub-sections (within a permission group). */

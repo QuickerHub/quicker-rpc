@@ -8,7 +8,12 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Monorepo: trace from repo root so standalone build does not walk the runner profile (e.g. Documents).
   outputFileTracingRoot: path.join(agentGuiRoot, ".."),
-  serverExternalPackages: ["@tauri-apps/api", "@tauri-apps/plugin-dialog", "@tauri-apps/plugin-opener"],
+  serverExternalPackages: [
+    "@tauri-apps/api",
+    "@tauri-apps/plugin-dialog",
+    "@tauri-apps/plugin-global-shortcut",
+    "@tauri-apps/plugin-opener",
+  ],
   async rewrites() {
     return [
       {

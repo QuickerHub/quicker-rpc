@@ -201,6 +201,12 @@
       "description": "CommonOperationItem 多行文本：动作 ContextMenuData 右键菜单、[图标]标题(提示)|数据、子菜单与 quicker_in_param。Use when editing action context menus or SelectionItems-shaped text.",
       "allowed-tools": "qkrpc_action_get qkrpc_action_set_metadata qkrpc_action_patch qkrpc_fa_search workspace_action_read_data workspace_action_edit_data",
       "metadata": { "phase": "P3" }
+    },
+    "step-modules": {
+      "title": "步骤模块用法",
+      "description": "Quicker 步骤模块精简参考：分类目录、用途、控制模式与 KC 文档摘要。Use after step-runner search, before/alongside qkrpc_step_runner_get; docs_get_reference topic step-modules.",
+      "allowed-tools": "qkrpc_step_runner_search qkrpc_step_runner_get docs",
+      "metadata": { "phase": "P4-P5" }
     }
   },
   "ops": {

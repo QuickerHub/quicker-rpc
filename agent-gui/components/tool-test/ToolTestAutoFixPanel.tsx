@@ -63,8 +63,8 @@ export function ToolTestAutoFixPanel({
   const [customPrompt, setCustomPrompt] = useState(() => getAutoFixScenario(scenarioId)?.userPrompt ?? "");
 
   const activeRunIdRef = useRef<string | null>(null);
-  const latestMessagesRef = useRef<AgentUIMessage[]>([]);
-  const lastPatchedChatMessagesRef = useRef<AgentUIMessage[] | null>(null);
+  const streamStartedRef = useRef(false);
+  const lastPatchedMessagesKeyRef = useRef("");
 
   useEffect(() => {
     const next = getAutoFixScenario(scenarioId)?.userPrompt ?? "";
@@ -110,40 +110,73 @@ export function ToolTestAutoFixPanel({
     [workingDirectory],
   );
 
-  const { messages: chatMessages, sendMessage, setMessages, status } = useChat({
+  const { messages: chatMessages, sendMessage, setMessages, status } = useChat<AgentUIMessage>({
+    id: "tool-test-autofix-chat",
+    messages: [],
     transport: chatTransport,
+    experimental_throttle: 80,
   });
 
+  const finishRun = useCallback(
+    (
+      runId: string,
+      patch: Pick<AutoFixRunEntry, "status" | "result" | "chatMessages">,
+    ) => {
+      onPatchRun(runId, patch);
+      activeRunIdRef.current = null;
+      streamStartedRef.current = false;
+      lastPatchedMessagesKeyRef.current = "";
+      setRunning(false);
+    },
+    [onPatchRun],
+  );
+
   useEffect(() => {
-    latestMessagesRef.current = chatMessages as unknown as AgentUIMessage[];
-    const runId = activeRunIdRef.current;
-    if (!runId) return;
-    if (lastPatchedChatMessagesRef.current === chatMessages) return;
-    lastPatchedChatMessagesRef.current = chatMessages;
-    onPatchRun(runId, { chatMessages: latestMessagesRef.current });
-  }, [chatMessages, onPatchRun]);
+    if (status === "submitted" || status === "streaming") {
+      streamStartedRef.current = true;
+    }
+  }, [status]);
 
   useEffect(() => {
     const runId = activeRunIdRef.current;
-    if (!runId) return;
-    if (status === "streaming") return;
-    if (status === "ready") {
-      onPatchRun(runId, {
+    if (!runId || !running) return;
+
+    const messages = chatMessages as AgentUIMessage[];
+    const last = messages[messages.length - 1];
+    const partCount = last?.parts.length ?? 0;
+    const lastPart = last?.parts[partCount - 1];
+    const lastPartTextLen =
+      lastPart && "text" in lastPart && typeof lastPart.text === "string"
+        ? lastPart.text.length
+        : 0;
+    const messagesKey = `${messages.length}:${last?.id ?? ""}:${partCount}:${lastPartTextLen}`;
+    if (lastPatchedMessagesKeyRef.current === messagesKey) return;
+    lastPatchedMessagesKeyRef.current = messagesKey;
+    onPatchRun(runId, { chatMessages: messages });
+  }, [chatMessages, onPatchRun, running]);
+
+  useEffect(() => {
+    const runId = activeRunIdRef.current;
+    if (!runId || !running) return;
+    if (status === "streaming" || status === "submitted") return;
+
+    const messages = chatMessages as AgentUIMessage[];
+    if (status === "ready" && streamStartedRef.current) {
+      finishRun(runId, {
         status: "done",
         result: { source: "chat" },
+        chatMessages: messages,
       });
-      activeRunIdRef.current = null;
-      setRunning(false);
+      return;
     }
     if (status === "error") {
-      onPatchRun(runId, {
+      finishRun(runId, {
         status: "error",
         result: { source: "chat", error: "Chat request failed" },
+        chatMessages: messages,
       });
-      activeRunIdRef.current = null;
-      setRunning(false);
     }
-  }, [onPatchRun, status]);
+  }, [chatMessages, finishRun, running, status]);
 
   const runScenario = useCallback(async () => {
     if (running) return;
@@ -163,6 +196,8 @@ export function ToolTestAutoFixPanel({
 
     onAppendRun(run);
     activeRunIdRef.current = run.id;
+    streamStartedRef.current = false;
+    lastPatchedMessagesKeyRef.current = "";
     setRunning(true);
 
     setMessages([]);

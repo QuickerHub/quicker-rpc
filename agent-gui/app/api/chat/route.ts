@@ -17,7 +17,13 @@ import {
 } from "@/lib/llm";
 import { isLlmProviderHidden } from "@/lib/llm-config";
 import { parseLlmProviderId } from "@/lib/llm-providers";
-import { pickChatTools } from "@/lib/tool-registry";
+import {
+  CHAT_MODE_LAUNCHER,
+  maxStepsForChatMode,
+  resolveChatMode,
+  resolveEnabledToolsForChatMode,
+} from "@/lib/chat-mode";
+import { defaultEnabledToolIds, pickChatTools } from "@/lib/tool-registry";
 import {
   SET_THREAD_TITLE_TOOL,
   buildThreadTitleAgentInstruction,
@@ -30,6 +36,11 @@ import { resolveModelContextLimit } from "@/lib/llm-context-limits";
 import { prepareCompressedContext } from "@/lib/context-compression";
 import { repairInterruptedToolCalls } from "@/lib/repair-interrupted-tool-calls";
 import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
+import {
+  buildLauncherCommandCachePromptBlock,
+  extractLastUserMessageText,
+} from "@/lib/launcher/launcher-command-cache.server";
+import { tryRespondWithLauncherCacheDirect } from "@/lib/launcher/launcher-cache-direct.server";
 
 export const maxDuration = 120;
 
@@ -53,6 +64,7 @@ async function handleChatPost(req: Request) {
     llmSelection,
     titleManual,
     titleTestOnly,
+    chatMode: chatModeRaw,
   }: {
     messages: AgentUIMessage[];
     enabledTools?: string[];
@@ -65,9 +77,27 @@ async function handleChatPost(req: Request) {
     titleManual?: boolean;
     /** Tool-test: production title path via set_thread_title only. */
     titleTestOnly?: boolean;
+    /** agent = full authoring; launcher = quick commands (fixed tools + prompt). */
+    chatMode?: string;
   } = await req.json();
 
+  const chatMode = resolveChatMode(chatModeRaw);
+
   const selection = resolveLlmSelection(llmSelection ?? llmProvider, parseLlmProviderId(llmProvider));
+  const cwd = (workingDirectory ?? workspaceRoot)?.trim() || undefined;
+  const repairedMessages = repairInterruptedToolCalls(messages);
+  const titleTest = titleTestOnly === true;
+
+  if (chatMode === CHAT_MODE_LAUNCHER && !titleTest) {
+    const direct = await runWithAgentRequestContextAsync({ cwd }, async () =>
+      tryRespondWithLauncherCacheDirect({
+        userText: extractLastUserMessageText(repairedMessages),
+        repairedMessages,
+        cwd,
+      }),
+    );
+    if (direct) return direct;
+  }
 
   if (
     selection.kind === "builtin"
@@ -95,14 +125,16 @@ async function handleChatPost(req: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 
-  const titleTest = titleTestOnly === true;
+  const resolvedEnabledTools = resolveEnabledToolsForChatMode(
+    chatMode,
+    enabledTools,
+    defaultEnabledToolIds,
+  );
   const tools = titleTest
     ? { [SET_THREAD_TITLE_TOOL]: quickerTools[SET_THREAD_TITLE_TOOL] }
-    : pickChatTools(quickerTools, enabledTools, [SET_THREAD_TITLE_TOOL]);
-  const cwd = (workingDirectory ?? workspaceRoot)?.trim() || undefined;
-
-  const repairedMessages = repairInterruptedToolCalls(messages);
-
+    : pickChatTools(quickerTools, resolvedEnabledTools, [
+        ...(chatMode === "launcher" ? [] : [SET_THREAD_TITLE_TOOL]),
+      ]);
   const messagesForModel: AgentUIMessage[] = repairedMessages.map((message) => {
     if (message.role !== "user") return message;
     return {
@@ -145,21 +177,30 @@ async function handleChatPost(req: Request) {
     });
 
     const scopeBlock = formatActionScopeForSystem(actionScope);
-    const baseSystem = await buildSystemInstructions(cwd);
+    const baseSystem = await buildSystemInstructions(cwd, chatMode);
+    const launcherCacheBlock =
+      chatMode === CHAT_MODE_LAUNCHER
+        ? await buildLauncherCommandCachePromptBlock(
+            extractLastUserMessageText(repairedMessages),
+          )
+        : undefined;
     const systemWithScope = scopeBlock
       ? `${baseSystem}\n\n${scopeBlock}`
       : baseSystem;
     const titleInstruction = titleTest
       ? buildTitleTestChatInstruction()
-      : buildThreadTitleAgentInstruction({
-          messages: repairedMessages,
-          titleManual: titleManual === true,
-        });
+      : chatMode === "launcher"
+        ? null
+        : buildThreadTitleAgentInstruction({
+            messages: repairedMessages,
+            titleManual: titleManual === true,
+          });
     const system = [
       titleTest
         ? "You are running in title-test mode for Quicker Agent GUI (/tool-test)."
         : null,
       systemWithScope,
+      launcherCacheBlock,
       titleInstruction,
       preparedContext.systemSuffix,
     ]
@@ -170,7 +211,7 @@ async function handleChatPost(req: Request) {
       system,
       messages: preparedContext.modelMessages,
       tools,
-      stopWhen: stepCountIs(titleTest ? 3 : 25),
+      stopWhen: stepCountIs(titleTest ? 3 : maxStepsForChatMode(chatMode)),
       onFinish: ({ totalUsage }) => {
         recordManagedLlmUsageAsync({
           selection,

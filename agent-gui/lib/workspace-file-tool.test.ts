@@ -23,6 +23,7 @@ import {
   shouldShowFileSnapshotHeaderDetail,
   splitFileSnapshotHeaderMeta,
   summarizeWorkspaceFileTool,
+  summarizeWorkspaceToolFailureUser,
   workspaceFileToolDisplayName,
 } from "./workspace-file-tool";
 import { formatLocalToolResult } from "./tool-result";
@@ -141,6 +142,47 @@ test("parses file-read payload", () => {
   if (payload?.action !== "file-read") return;
   assert.ok(payload.path.includes("info.json"));
   assert.equal(countLines(payload.content), 3);
+});
+
+test("summarizeWorkspaceToolFailureUser ignores prefix warnings on success", () => {
+  const longAgentMsg =
+    "1 value/defaultValue string(s) contain {variable} without $$ or $= at the start.";
+  assert.equal(
+    summarizeWorkspaceToolFailureUser(
+      {
+        action: "program-data-write",
+        valuePrefixWarningCount: 3,
+        errorMessage: longAgentMsg,
+      },
+      longAgentMsg,
+    ),
+    "写入失败",
+  );
+  assert.equal(
+    summarizeWorkspaceToolFailureUser(
+      { action: "file-edit", errorMessage: "oldString not found in data.json" },
+      "oldString not found in data.json",
+    ),
+    "未找到匹配",
+  );
+  assert.equal(
+    summarizeWorkspaceFileTool(
+      "workspace_program",
+      formatLocalToolResult(
+        {
+          action: "program-data-write",
+          success: true,
+          path: ".quicker/actions/abc/data.json",
+          bytesWritten: 100,
+          valuePrefixWarningCount: 1,
+          valuePrefixWarningMessage: longAgentMsg,
+        },
+        true,
+      ),
+      { action: "write_data", id: "abc" },
+    ),
+    "data.json · 写入 100 字节",
+  );
 });
 
 test("summarizes action-data-summary read mode", () => {

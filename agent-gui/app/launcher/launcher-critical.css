@@ -19,15 +19,6 @@ html.launcher-html body {
   color: #e8eaed !important;
 }
 
-html.launcher-html--transparent body {
-  pointer-events: none;
-}
-
-html.launcher-html--transparent [data-launcher-hit],
-html.launcher-html--transparent .titlebar-drag-region {
-  pointer-events: auto;
-}
-
 .launcher-route-shell .launcher-root {
   background: transparent !important;
 }

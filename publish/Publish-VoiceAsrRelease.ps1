@@ -6,8 +6,10 @@ param(
     [string]$RepoRoot = '',
     [string]$Version = '',
     [switch]$SkipBuild,
+    [switch]$PublishModel,
     [switch]$UploadBitiful,
     [switch]$UpdateChannelJson,
+    [switch]$UseLocalVoiceRoot,
     [switch]$ForceRetag,
     [switch]$Draft,
     [switch]$DryRun
@@ -31,8 +33,10 @@ $argsList = @(
 )
 if ($Version) { $argsList += @('-Version', $Version) }
 if ($SkipBuild) { $argsList += '-SkipBuild' }
+if ($PublishModel) { $argsList += '-PublishModel' }
 if ($UploadBitiful) { $argsList += '-UploadBitiful' }
 if ($UpdateChannelJson) { $argsList += '-UpdateChannelJson' }
+if ($UseLocalVoiceRoot) { $argsList += '-UseLocalVoiceRoot' }
 if ($ForceRetag) { $argsList += '-ForceRetag' }
 if ($Draft) { $argsList += '-Draft' }
 if ($DryRun) { $argsList += '-DryRun' }

@@ -15,7 +15,7 @@ function defaultHint(
     case "repo":
       return `留空使用 quicker-rpc 仓库根：${defaultCwd}`;
     case "documents":
-      return `留空使用 Documents/QuickerAgent：${defaultCwd}`;
+      return `留空使用 Documents/QuickerAgent/workspace：${defaultCwd}`;
     case "env":
       return `留空使用已配置默认：${defaultCwd}`;
     default:

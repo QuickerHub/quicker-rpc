@@ -1,26 +1,35 @@
 "use client";
 
-type PendingLauncherSubmit = {
+export type PendingLauncherSubmit = {
   threadId: string;
   text: string;
+  llmSelection?: string;
 };
 
 let pending: PendingLauncherSubmit | null = null;
 const listeners = new Set<() => void>();
 
-export function queueLauncherSubmit(threadId: string, text: string): void {
-  pending = { threadId, text: text.trim() };
+export function queueLauncherSubmit(
+  threadId: string,
+  text: string,
+  llmSelection?: string,
+): void {
+  pending = {
+    threadId,
+    text: text.trim(),
+    llmSelection: llmSelection?.trim() || undefined,
+  };
   for (const listener of listeners) {
     listener();
   }
 }
 
-/** Returns and clears pending text when threadId matches. */
-export function takeLauncherSubmit(threadId: string): string | null {
+/** Returns and clears pending submit when threadId matches. */
+export function takeLauncherSubmit(threadId: string): PendingLauncherSubmit | null {
   if (!pending || pending.threadId !== threadId) return null;
-  const text = pending.text;
+  const snapshot = pending;
   pending = null;
-  return text;
+  return snapshot;
 }
 
 export function subscribeLauncherSubmit(listener: () => void): () => void {

@@ -31,16 +31,37 @@ const DEFAULT_SETTINGS_JSON: &str =
 
 const MODEL_SUBDIR: &str = "sensevoice";
 
-fn plugin_root() -> PathBuf {
-    if let Ok(profile) = std::env::var("USERPROFILE") {
-        return PathBuf::from(profile)
-            .join("Documents")
-            .join("QuickerAgent")
-            .join("plugins")
-            .join("voice-asr");
-    }
-    PathBuf::from("Documents/QuickerAgent/plugins/voice-asr")
+#[derive(Debug, Deserialize)]
+struct ModelFileSpec {
+    size: u64,
+    sha256: String,
 }
+
+#[derive(Debug, Deserialize)]
+struct SenseVoiceModelIdentity {
+    id: String,
+    #[serde(default, rename = "modelscopeResolveBase")]
+    modelscope_resolve_base: Option<String>,
+    files: std::collections::HashMap<String, ModelFileSpec>,
+}
+
+const DEFAULT_MODELSCOPE_RESOLVE_BASE: &str =
+    "https://www.modelscope.cn/models/pengzhendong/sherpa-onnx-sense-voice-zh-en-ja-ko-yue/resolve/master";
+
+fn load_sensevoice_identity() -> Result<SenseVoiceModelIdentity, String> {
+    let raw = include_str!("../resources/voice-sensevoice-model-identity.json");
+    serde_json::from_str(raw).map_err(|e| format!("voice sensevoice model identity invalid: {e}"))
+}
+
+fn modelscope_resolve_base(identity: &SenseVoiceModelIdentity) -> &str {
+    identity
+        .modelscope_resolve_base
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(DEFAULT_MODELSCOPE_RESOLVE_BASE)
+}
+
+use crate::quicker_agent_paths::voice_plugin_root;
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -112,11 +133,35 @@ fn model_dir(root: &Path) -> PathBuf {
     root.join("models").join(MODEL_SUBDIR)
 }
 
-fn model_dir_ready(dir: &Path) -> bool {
-    if !dir.join("tokens.txt").is_file() {
-        return false;
+fn verify_sensevoice_model_identity(dir: &Path) -> Result<(), String> {
+    let identity = load_sensevoice_identity()?;
+
+    for (name, spec) in &identity.files {
+        let path = dir.join(name);
+        if !path.is_file() {
+            return Err(format!("模型文件缺失 {name}（期望 {}）", identity.id));
+        }
+        let meta = fs::metadata(&path).map_err(|e| format!("无法读取 {}: {e}", path.display()))?;
+        if meta.len() != spec.size {
+            return Err(format!(
+                "模型 {name} 大小不匹配（期望 {} 字节，实际 {}）",
+                spec.size,
+                meta.len()
+            ));
+        }
+        let actual = sha256_hex_file(&path)?;
+        if !actual.eq_ignore_ascii_case(spec.sha256.trim()) {
+            return Err(format!(
+                "模型 {name} 校验失败（非 {}）",
+                identity.id
+            ));
+        }
     }
-    dir.join("model.int8.onnx").is_file() || dir.join("model.onnx").is_file()
+    Ok(())
+}
+
+fn model_dir_ready(dir: &Path) -> bool {
+    verify_sensevoice_model_identity(dir).is_ok()
 }
 
 fn runtime_ready(root: &Path) -> bool {
@@ -395,7 +440,60 @@ fn install_runtime_from_url(
     Ok(())
 }
 
-fn install_model_from_url(
+fn install_model_from_modelscope(app: &AppHandle, root: &Path) -> Result<(), String> {
+    let identity = load_sensevoice_identity()?;
+    let dest = model_dir(root);
+    remove_dir_all(&dest)?;
+    fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+
+    emit_progress(
+        app,
+        "model",
+        50,
+        &format!("正在从 ModelScope 下载识别模型（{}）…", identity.id),
+    );
+
+    let base = modelscope_resolve_base(&identity).trim_end_matches('/');
+    let mut file_names: Vec<String> = identity.files.keys().cloned().collect();
+    file_names.sort_by(|a, b| {
+        identity.files[a].size.cmp(&identity.files[b].size)
+    });
+
+    let file_count = file_names.len().max(1) as u8;
+    for (index, name) in file_names.iter().enumerate() {
+        let spec = identity
+            .files
+            .get(name)
+            .ok_or_else(|| format!("模型配置缺少 {name}"))?;
+        let url = format!("{base}/{name}");
+        let label = if name == "model.int8.onnx" {
+            "识别模型 (ModelScope)"
+        } else {
+            "识别模型词表 (ModelScope)"
+        };
+        let span = 85_u8.saturating_sub(50);
+        let start = 50 + (span * index as u8 / file_count);
+        let end = 50 + (span * (index as u8 + 1) / file_count);
+        download_file(
+            app,
+            "model",
+            label,
+            &url,
+            &dest.join(name),
+            start.max(50),
+            end.max(start + 1).min(85),
+        )?;
+        let actual = sha256_hex_file(&dest.join(name))?;
+        if !actual.eq_ignore_ascii_case(spec.sha256.trim()) {
+            return Err(format!("ModelScope 下载的 {name} 校验失败"));
+        }
+    }
+
+    verify_sensevoice_model_identity(&dest)?;
+    Ok(())
+}
+
+fn install_model_from_zip_channel(
     app: &AppHandle,
     channel: &VoicePluginChannel,
     root: &Path,
@@ -406,7 +504,15 @@ fn install_model_from_url(
         channel.model_zip_mirror_url.as_deref(),
         &channel.model_zip_url,
     );
-    download_file_with_fallback(app, "model", "识别模型", &urls, &zip_path, 50, 85)?;
+    download_file_with_fallback(
+        app,
+        "model",
+        "识别模型 (备用包)",
+        &urls,
+        &zip_path,
+        50,
+        85,
+    )?;
     verify_sha256(
         &zip_path,
         channel.model_zip_sha256.as_deref(),
@@ -415,11 +521,35 @@ fn install_model_from_url(
     let dest = model_dir(root);
     extract_zip(app, &zip_path, &dest, "识别模型")?;
     normalize_model_layout(&dest)?;
+    verify_sensevoice_model_identity(&dest)?;
     Ok(())
 }
 
+fn install_model_from_network(
+    app: &AppHandle,
+    channel: &VoicePluginChannel,
+    root: &Path,
+    temp_dir: &Path,
+) -> Result<(), String> {
+    match install_model_from_modelscope(app, root) {
+        Ok(()) => return Ok(()),
+        Err(modelscope_err) => {
+            emit_progress(
+                app,
+                "model",
+                50,
+                "ModelScope 不可用，正在切换 Bitiful / GitHub 备用源…",
+            );
+            let _ = remove_dir_all(&model_dir(root));
+            install_model_from_zip_channel(app, channel, root, temp_dir).map_err(|zip_err| {
+                format!("ModelScope: {modelscope_err} | 备用包: {zip_err}")
+            })
+        }
+    }
+}
+
 pub fn run_voice_plugin_install(app: &AppHandle) -> Result<PathBuf, String> {
-    let root = plugin_root();
+    let root = voice_plugin_root();
     if is_installed(&root) {
         return Err("语音插件已安装".into());
     }
@@ -459,9 +589,10 @@ pub fn run_voice_plugin_install(app: &AppHandle) -> Result<PathBuf, String> {
                 let dest = model_dir(&root);
                 extract_zip(app, &zip, &dest, "识别模型")?;
                 normalize_model_layout(&dest)?;
+                verify_sensevoice_model_identity(&dest)?;
             } else {
                 let channel = load_channel()?;
-                install_model_from_url(app, &channel, &root, &temp_dir)?;
+                install_model_from_network(app, &channel, &root, &temp_dir)?;
             }
         }
 

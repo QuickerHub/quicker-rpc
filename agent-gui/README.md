@@ -21,7 +21,9 @@ pnpm install
 copy llm-config.example.json llm-config.json
 # 编辑 llm-config.json；一般无需配置 QKRPC_* 
 
-**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；Tauri 安装版为 **`Documents/QuickerAgent`**（首次启动自动创建）。可用 `AGENT_GUI_DEFAULT_CWD` 覆盖。
+**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；Tauri 安装版为 **`Documents/QuickerAgent/workspace`**（与插件目录分离，首次启动自动创建）。可用 `AGENT_GUI_DEFAULT_CWD` 覆盖。
+
+**插件与依赖资源存储**（安装目录、下载源、内嵌配置）：[`docs/agent-gui-plugin-storage.md`](../docs/agent-gui-plugin-storage.md)
 
 pnpm dev
 ```

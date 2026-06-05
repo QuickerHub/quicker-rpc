@@ -206,16 +206,27 @@ export class VoiceWsSession {
     this.close();
   }
 
-  close(): void {
+  detachAbortSignal(): void {
     if (this.signal && this.abortListener) {
       this.signal.removeEventListener("abort", this.abortListener);
     }
     this.abortListener = null;
+  }
+
+  close(): void {
+    this.detachAbortSignal();
     if (this.ws) {
       this.ws.onmessage = null;
       this.ws.onerror = null;
       this.ws.onclose = null;
       if (this.ws.readyState === WebSocket.OPEN) {
+        if (this.started && !this.ended) {
+          sendJson(this.ws, {
+            type: "session.cancel",
+            sessionId: this.sessionId,
+            reason: "closed",
+          });
+        }
         this.ws.close();
       }
       this.ws = null;

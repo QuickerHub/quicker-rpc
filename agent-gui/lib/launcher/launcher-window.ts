@@ -72,15 +72,16 @@ export function toggleLauncherWindow(): void {
 
 export function dismissLauncherWindow(): void {
   if (typeof window === "undefined") return;
-  postLauncherSessionClear();
   if (isTauriShell()) {
     void isLauncherTauriWindow().then((isLauncherWindow) => {
       if (isLauncherWindow) {
+        // Hide first; session clears on launcher:hidden (avoids UI collapse before hide).
         tauriLauncherHide();
       }
     });
     return;
   }
+  postLauncherSessionClear();
   if (isLauncherRoute()) {
     if (window.opener && !window.opener.closed) {
       window.close();

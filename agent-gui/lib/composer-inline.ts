@@ -407,7 +407,10 @@ function replaceVoiceStreamSpan(
 
 /** Begin a live voice transcription region at the current caret. */
 export function beginComposerVoiceStream(root: HTMLElement): boolean {
-  if (findComposerVoiceStream(root)) return true;
+  const existing = findComposerVoiceStream(root);
+  if (existing) {
+    existing.remove();
+  }
 
   const span = document.createElement("span");
   span.setAttribute(COMPOSER_VOICE_STREAM_ATTR, "1");

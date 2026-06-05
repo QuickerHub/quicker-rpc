@@ -7,6 +7,27 @@ export function normalizeEditEol(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
 
+/**
+ * Literal substring replace. Avoid String.replace/replaceAll — `$` in the
+ * replacement is special (`$$` → one `$`), which breaks Quicker `$$` prefixes.
+ */
+export function replaceLiteralSubstring(
+  haystack: string,
+  needle: string,
+  replacement: string,
+  replaceAll = false,
+): string {
+  if (!needle) return haystack;
+  if (!replaceAll) {
+    const idx = haystack.indexOf(needle);
+    if (idx < 0) return haystack;
+    return (
+      haystack.slice(0, idx) + replacement + haystack.slice(idx + needle.length)
+    );
+  }
+  return haystack.split(needle).join(replacement);
+}
+
 /** Keep LF edits but write back with CRLF when the file on disk used CRLF. */
 export function restoreFileEol(text: string, originalContent: string): string {
   if (!originalContent.includes("\r\n")) return text;

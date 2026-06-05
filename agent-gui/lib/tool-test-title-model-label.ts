@@ -1,7 +1,7 @@
 import type { LlmOptionsResponse } from "@/lib/llm-options-shared";
 import { getModelPickerDisplay } from "@/lib/model-picker-display";
 import { CUSTOM_PROVIDER_ID, parseLlmProviderId } from "@/lib/llm-providers";
-import { parseLlmSelection } from "@/lib/llm-selection";
+import { LLM_AUTO_LABEL, LLM_AUTO_SELECTION, parseLlmSelection } from "@/lib/llm-selection";
 
 /** Human-readable model name for a stored selection string. */
 export function resolveLlmSelectionLabel(
@@ -12,8 +12,15 @@ export function resolveLlmSelectionLabel(
   if (!trimmed) return "未选择模型";
 
   const parsed = parseLlmSelection(trimmed);
-  if (parsed?.kind === "profile" && options?.models) {
-    const hit = options.models.find(
+  const optionList = options?.options;
+
+  if (parsed?.kind === "auto") {
+    const hit = optionList?.find((o) => o.selection === LLM_AUTO_SELECTION);
+    return hit?.label ?? LLM_AUTO_LABEL;
+  }
+
+  if (parsed?.kind === "profile" && optionList) {
+    const hit = optionList.find(
       (m) =>
         m.profileId === parsed.profileId && m.modelId === parsed.modelId,
     );
@@ -28,8 +35,8 @@ export function resolveLlmSelectionLabel(
   }
 
   const providerId = parseLlmProviderId(trimmed);
-  if (providerId && options?.models) {
-    const hit = options.models.find(
+  if (providerId && optionList) {
+    const hit = optionList.find(
       (m) => (m.providerId ?? parseLlmProviderId(trimmed)) === providerId,
     );
     if (hit) {

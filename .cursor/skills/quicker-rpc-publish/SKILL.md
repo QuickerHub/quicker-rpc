@@ -54,8 +54,8 @@ metadata:
 | `publish/Publish-GitHubRelease.ps1` | **并行**后台 Tauri 预检 + 校验 changelog + **push tag**；CI 构建并发布 Release |
 | `publish/Publish-GitHubRelease.ps1 -PreflightBeforeTag` | 先本地 Tauri 通过再打 tag（旧顺序） |
 | `publish/Publish-GitHubRelease.ps1 -WaitForCi` | 同上，并等待 `release-cli.yml` 完成；随后**本地上传 Bitiful** + sync QuickerAgent 动作页（`-SkipBitifulUpload` / `-SkipSyncQuickerAgentActionDoc` 可跳过） |
-| `publish/Upload-VoiceAsrToBitiful.ps1 -Version X.Y.Z` | voice-asr runtime + model zips → Bitiful（国内镜像） |
-| `publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -UploadBitiful -UpdateChannelJson` | voice-asr 本地一条龙：GitHub Release + Bitiful + channel.json |
+| `publish/Upload-VoiceAsrToBitiful.ps1 -Version X.Y.Z` | voice-asr Bitiful mirror (local fallback; CI uploads on tag push) |
+| `publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -UploadBitiful -UpdateChannelJson` | voice-asr local pipeline (Bitiful optional; CI handles mirror on tag) |
 | `publish/Sync-QuickerAgentActionDoc.ps1 -Push` | 将 Bitiful `version.txt`（或 `-Version` / `-WaitForCi` 传入的 Release 版本）写入 quicker-agent 构建产物并 `qkagent push` |
 | `publish/Publish-GitHubRelease.ps1 -LocalBuild` | 本地构建 + `gh release`（需 Inno Setup，CI 不可用时） |
 | `publish/Build-QkrpcSetup.ps1` | Inno Setup 编译（CI 与 `-LocalBuild` 共用） |

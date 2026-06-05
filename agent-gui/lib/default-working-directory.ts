@@ -1,33 +1,17 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { isQuickerRpcRepoRoot, resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
+import {
+  resolveReleaseDefaultWorkingDirectory,
+  resolveUserDocumentsDirectory,
+} from "@/lib/quicker-agent-paths";
 
 export type DefaultWorkingDirectoryProfile = "env" | "repo" | "documents";
 
-const RELEASE_WORKSPACE_DIRNAME = "QuickerAgent";
-
-/** User Documents folder (OS-specific). */
-export function resolveUserDocumentsDirectory(): string {
-  const home = process.env.USERPROFILE?.trim() || homedir();
-  const oneDrive = process.env.OneDrive?.trim();
-  if (process.platform === "win32") {
-    const docs = join(home, "Documents");
-    if (existsSync(docs)) return docs;
-    if (oneDrive && existsSync(join(oneDrive, "Documents"))) {
-      return join(oneDrive, "Documents");
-    }
-    return docs;
-  }
-  const xdg = process.env.XDG_DOCUMENTS_DIR?.trim();
-  if (xdg && existsSync(xdg)) return xdg;
-  return join(homedir(), "Documents");
-}
-
-/** Release default: Documents/QuickerAgent (directory created on demand, not at module load). */
-export function resolveReleaseDefaultWorkingDirectory(): string {
-  return join(resolveUserDocumentsDirectory(), RELEASE_WORKSPACE_DIRNAME);
-}
+export {
+  resolveReleaseDefaultWorkingDirectory,
+  resolveUserDocumentsDirectory,
+} from "@/lib/quicker-agent-paths";
 
 /** Ensure release workspace exists (call from API/runtime only, not during `next build`). */
 export function ensureReleaseWorkspaceDirectory(): string {
@@ -41,7 +25,7 @@ export function ensureReleaseWorkspaceDirectory(): string {
 /**
  * Default qkrpc / agent working directory when the user leaves workspace empty.
  * - Dev (quicker-rpc checkout): repo root (parent of agent-gui, has version.json)
- * - Release (Tauri bundle): Documents/QuickerAgent
+ * - Release (Tauri bundle): Documents/QuickerAgent/workspace
  * - Override: AGENT_GUI_DEFAULT_CWD
  */
 export function resolveDefaultWorkingDirectory(): string {

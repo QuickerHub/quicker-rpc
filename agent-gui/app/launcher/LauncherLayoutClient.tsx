@@ -4,7 +4,6 @@ import { useEffect, useLayoutEffect } from "react";
 import { DocsViewerProvider } from "@/lib/docs-viewer";
 import { applyTheme, getStoredTheme } from "@/lib/theme";
 import { isLauncherTransparentShell } from "@/lib/launcher/launcher-shell-init";
-import { useLauncherClickThrough } from "@/lib/launcher/use-launcher-click-through";
 import { useLauncherTauriHidden } from "@/lib/launcher/use-launcher-tauri-hidden";
 
 export function LauncherLayoutClient({
@@ -12,7 +11,6 @@ export function LauncherLayoutClient({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  useLauncherClickThrough();
   useLauncherTauriHidden();
 
   useLayoutEffect(() => {

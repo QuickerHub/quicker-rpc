@@ -1,10 +1,10 @@
 import type { LlmProviderId } from "@/lib/llm-providers";
-import { parseLlmSelection } from "@/lib/llm-selection";
-
+import { LLM_PROVIDER_ID } from "@/lib/llm-providers";
+import { parseLlmSelection, LLM_AUTO_SELECTION } from "@/lib/llm-selection";
 /** Client-safe LLM picker types (no fs/crypto imports). */
 export type LlmModelOption = {
   selection: string;
-  kind: "builtin" | "profile";
+  kind: "builtin" | "profile" | "auto";
   providerId?: LlmProviderId;
   profileId?: string;
   label: string;
@@ -54,6 +54,31 @@ export function pickInitialLlmSelection(
   ) {
     return data.defaultSelection;
   }
+
+  return configured[0]?.selection ?? data.defaultSelection;
+}
+
+/** Launcher composer: prefer stored launcher choice, else Auto, else GPT-5.5. */
+export function pickInitialLauncherLlmSelection(
+  data: LlmOptionsResponse,
+  storedRaw: string | undefined,
+): string {
+  const configured = data.options.filter((o) => o.configured);
+
+  if (storedRaw && configured.some((o) => o.selection === storedRaw)) {
+    return storedRaw;
+  }
+
+  const auto = configured.find((o) => o.selection === LLM_AUTO_SELECTION);
+  if (auto) return auto.selection;
+
+  const openAi = configured.find(
+    (o) =>
+      o.kind === "builtin"
+      && o.providerId === LLM_PROVIDER_ID
+      && o.configured,
+  );
+  if (openAi) return openAi.selection;
 
   return configured[0]?.selection ?? data.defaultSelection;
 }

@@ -8,6 +8,7 @@ export type LauncherSubmitMessage = {
   type: "composer:submit";
   text: string;
   sessionId: string;
+  llmSelection?: string;
 };
 
 export type LauncherSessionSyncMessage = {
@@ -48,11 +49,16 @@ function postLauncherMessage(message: LauncherBridgeMessage): void {
   channel.close();
 }
 
-export function postLauncherSubmit(text: string, sessionId: string): void {
+export function postLauncherSubmit(
+  text: string,
+  sessionId: string,
+  llmSelection?: string,
+): void {
   postLauncherMessage({
     type: "composer:submit",
     text,
     sessionId,
+    llmSelection: llmSelection?.trim() || undefined,
   });
 }
 
@@ -102,6 +108,10 @@ export function subscribeLauncherBridge(
         type: "composer:submit",
         text: payload.text.trim(),
         sessionId: payload.sessionId,
+        llmSelection:
+          typeof payload.llmSelection === "string"
+            ? payload.llmSelection.trim()
+            : undefined,
       });
       return;
     }

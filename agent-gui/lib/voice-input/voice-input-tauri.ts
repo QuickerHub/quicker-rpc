@@ -51,3 +51,4 @@ export async function tauriVoicePluginInstall(): Promise<TauriVoicePluginStatusD
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<TauriVoicePluginStatusDto>("voice_plugin_install");
 }
+

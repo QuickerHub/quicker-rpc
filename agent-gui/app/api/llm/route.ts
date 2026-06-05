@@ -52,7 +52,22 @@ export async function POST(req: Request) {
   }
 
   try {
-    const config = selection.kind === "profile"
+    const config = selection.kind === "auto"
+      ? (() => {
+        const snapshot = buildLlmOptionsResponse();
+        const key = body.selection ?? body.provider;
+        const opt = key ? findLlmModelOption(snapshot.options, key) : undefined;
+        return {
+          providerId: CUSTOM_PROVIDER_ID,
+          modelId: opt?.modelId ?? "openai/gpt-oss-20b",
+          contextLimit: opt?.contextLimit
+            ?? resolveModelContextLimit(
+              opt?.modelId ?? "openai/gpt-oss-20b",
+              CUSTOM_PROVIDER_ID,
+            ).tokens,
+        };
+      })()
+      : selection.kind === "profile"
       ? (() => {
         const snapshot = buildLlmOptionsResponse();
         const key = body.selection ?? body.provider;

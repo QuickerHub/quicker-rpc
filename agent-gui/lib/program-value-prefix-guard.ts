@@ -49,25 +49,60 @@ export async function scanProjectDirectoryValuePrefixWarnings(
   return warnings;
 }
 
+/** Agent-facing fields attached to successful write/edit/patch when lint finds possible prefix issues. */
+export function buildValuePrefixWarningFields(
+  warnings: ProgramValuePrefixWarning[],
+): Record<string, unknown> {
+  if (warnings.length === 0) {
+    return {};
+  }
+  return {
+    valuePrefixWarningCount: warnings.length,
+    valuePrefixWarnings: warnings.slice(0, 12),
+    firstFixRead: warnings.find((w) => w.read)?.read,
+    valuePrefixWarningMessage: formatValuePrefixWarningsMessage(warnings),
+  };
+}
+
+export function augmentToolResultWithPrefixWarnings(
+  result: Record<string, unknown>,
+  warnings: ProgramValuePrefixWarning[],
+): Record<string, unknown> {
+  if (warnings.length === 0) {
+    return result;
+  }
+  const ok = result.ok === true;
+  const data = result.data;
+  if (!ok || typeof data !== "object" || data === null) {
+    return result;
+  }
+  return {
+    ...result,
+    data: {
+      ...(data as Record<string, unknown>),
+      ...buildValuePrefixWarningFields(warnings),
+    },
+  };
+}
+
+/** Non-blocking scan before patch; literal `{var}` text is allowed — warnings only. */
 export async function guardProjectValuePrefixes(
   projectDirAbs: string,
   options?: { force?: boolean },
-): Promise<
-  | { ok: true }
-  | { ok: false; warnings: ProgramValuePrefixWarning[]; message: string }
-> {
+): Promise<{
+  warnings: ProgramValuePrefixWarning[];
+  message: string;
+}> {
   if (options?.force) {
-    return { ok: true };
+    return { warnings: [], message: "" };
   }
 
   const warnings = await scanProjectDirectoryValuePrefixWarnings(projectDirAbs);
-  if (warnings.length === 0) {
-    return { ok: true };
-  }
-
   return {
-    ok: false,
     warnings,
-    message: formatValuePrefixWarningsMessage(warnings),
+    message:
+      warnings.length > 0
+        ? formatValuePrefixWarningsMessage(warnings)
+        : "",
   };
 }

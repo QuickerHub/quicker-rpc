@@ -15,6 +15,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 mod global_shortcut;
 mod launcher;
+mod quicker_agent_paths;
 mod voice_plugin;
 mod voice_plugin_install;
 mod win_job;
@@ -344,6 +345,7 @@ pub fn run() {
                     let _ = win.show();
                 }
                 launcher::prepare_configured_launcher_window(app.handle(), false);
+                voice_plugin::spawn_voice_runtime_background(app.handle().clone());
                 return Ok(());
             }
 
@@ -380,6 +382,7 @@ pub fn run() {
                     .visible(true),
             )
             .build()?;
+            voice_plugin::spawn_voice_runtime_background(handle.clone());
             Ok(())
         })
         .build(tauri::generate_context!())

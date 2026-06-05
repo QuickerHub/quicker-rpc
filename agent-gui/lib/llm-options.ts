@@ -12,6 +12,7 @@ import {
   listProfileModelOptions,
 } from "@/lib/llm-profiles";
 import { formatLlmSelection } from "@/lib/llm-selection";
+import { buildAutoModelOption } from "@/lib/llm-auto";
 import { USER_MODEL_SELECTOR_IDS } from "@/lib/llm-user-providers";
 import {
   getChatModelId,
@@ -26,6 +27,7 @@ export type { LlmModelOption, LlmOptionsResponse } from "@/lib/llm-options-share
 export {
   findLlmModelOption,
   pickInitialLlmSelection,
+  pickInitialLauncherLlmSelection,
 } from "@/lib/llm-options-shared";
 
 function envModelForProvider(id: LlmProviderId): string {
@@ -83,7 +85,9 @@ function profileOptions(): LlmModelOption[] {
 }
 
 export function buildLlmModelOptions(): LlmModelOption[] {
-  return [...builtinOptions(), ...profileOptions()];
+  const auto = buildAutoModelOption();
+  const rest = [...builtinOptions(), ...profileOptions()];
+  return auto ? [auto, ...rest] : rest;
 }
 
 export function pickDefaultSelection(options: LlmModelOption[]): string {

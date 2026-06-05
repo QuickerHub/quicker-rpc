@@ -23,6 +23,7 @@ import {
   buildEditNotFoundMessage,
   isJsonEditPath,
   normalizeEditEol,
+  replaceLiteralSubstring,
   resolveUniqueEditNeedle,
   restoreFileEol,
   tryJsonDocumentEdit,
@@ -641,9 +642,11 @@ export async function editWorkspaceFile(
       resolvedNeedle.needle === oldString
         ? content
         : normalizeEditEol(content);
-    const nextRaw = haystack.replaceAll(
+    const nextRaw = replaceLiteralSubstring(
+      haystack,
       resolvedNeedle.needle,
       restoreFileEol(newString, content),
+      true,
     );
     await writeFile(resolved.absolute, restoreFileEol(nextRaw, content), "utf8");
     return {
@@ -658,9 +661,12 @@ export async function editWorkspaceFile(
     const { needle, haystack } = resolvedNeedle;
     const matchCount = countSubstringOccurrences(haystack, needle);
     const newText = restoreFileEol(newString, content);
-    const nextRaw = replaceAll
-      ? haystack.replaceAll(needle, newText)
-      : haystack.replace(needle, newText);
+    const nextRaw = replaceLiteralSubstring(
+      haystack,
+      needle,
+      newText,
+      replaceAll,
+    );
     const next = restoreFileEol(nextRaw, content);
     await writeFile(resolved.absolute, next, "utf8");
     const matchLines = replaceAll

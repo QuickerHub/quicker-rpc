@@ -7,16 +7,12 @@ import {
   parseUserMessageSegments,
 } from "@/lib/compose-user-message";
 import type { AgentUIMessage } from "@/lib/chat-types";
+import { useQkrpcPing } from "@/lib/use-qkrpc-ping";
+import { LLM_AUTO_SELECTION } from "@/lib/llm-selection";
 import {
-  defaultEnabledToolIds,
-  loadStoredEnabledTools,
-} from "@/lib/tool-registry";
-import { formatLlmSelection } from "@/lib/llm-selection";
-import { LLM_PROVIDER_ID } from "@/lib/llm-providers";
-import {
-  loadStoredLlmSelectionRaw,
-  storeLlmSelectionRaw,
-} from "@/lib/llm-prefs";
+  loadLauncherLlmSelectionRaw,
+  storeLauncherLlmSelectionRaw,
+} from "@/lib/launcher/launcher-llm-prefs";
 import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
 import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
 import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
@@ -24,10 +20,9 @@ import { useGlobalVoiceToggle } from "@/lib/voice-input/use-global-voice-toggle"
 import { useLauncherTauriHidden } from "@/lib/launcher/use-launcher-tauri-hidden";
 import { LAUNCHER_SHOWN_EVENT } from "@/lib/launcher/launcher-tauri-events";
 import { isTauriShell } from "@/lib/tauri-shell";
-import { useQkrpcPing } from "@/lib/use-qkrpc-ping";
 import {
   fetchLlmOptions,
-  pickInitialLlmSelectionFromApi,
+  pickInitialLauncherLlmSelectionFromApi,
   ModelSelector,
 } from "@/components/chat/ModelSelector";
 import {
@@ -36,7 +31,6 @@ import {
 } from "@/components/chat/ComposerMarkupField";
 import { ComposerPrimaryActionButton } from "@/components/chat/ComposerPrimaryActionButton";
 import { ActionTagSelector } from "@/components/chat/ActionTagSelector";
-import { ToolSelector } from "@/components/chat/ToolSelector";
 import { LauncherTranscript } from "@/components/launcher/LauncherTranscript";
 import {
   createLauncherSessionId,
@@ -48,7 +42,6 @@ import {
   dismissLauncherWindow,
 } from "@/lib/launcher/launcher-window";
 import { LauncherDragRegion } from "@/components/launcher/LauncherDragRegion";
-import { LAUNCHER_HIT_TARGET_ATTR } from "@/lib/launcher/launcher-hit-target";
 
 type LauncherSessionState = {
   sessionId: string;
@@ -59,7 +52,7 @@ type LauncherSessionState = {
 };
 
 type LauncherComposerProps = {
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string, llmSelection: string) => void;
   agentBusy?: boolean;
   disabled?: boolean;
 };
@@ -70,27 +63,20 @@ function LauncherComposer({
   disabled = false,
 }: LauncherComposerProps) {
   const [draftMessage, setDraftMessage] = useState("");
-  const [enabledTools, setEnabledTools] = useState(defaultEnabledToolIds);
-  const [llmSelection, setLlmSelection] = useState(
-    formatLlmSelection({ kind: "builtin", providerId: LLM_PROVIDER_ID }),
-  );
+  const [llmSelection, setLlmSelection] = useState(LLM_AUTO_SELECTION);
   const composerRef = useRef<ComposerMarkupFieldHandle>(null);
   const { ping, connectTick } = useQkrpcPing();
-
-  useEffect(() => {
-    setEnabledTools(loadStoredEnabledTools());
-  }, []);
 
   const syncLlmSelectionFromApi = useCallback(async () => {
     const data = await fetchLlmOptions();
     if (!data) return;
-    const initial = pickInitialLlmSelectionFromApi(
+    const initial = pickInitialLauncherLlmSelectionFromApi(
       data,
-      loadStoredLlmSelectionRaw(),
+      loadLauncherLlmSelectionRaw(),
     );
     setLlmSelection((prev) => {
       if (prev === initial) return prev;
-      storeLlmSelectionRaw(initial);
+      storeLauncherLlmSelectionRaw(initial);
       return initial;
     });
   }, []);
@@ -188,9 +174,10 @@ function LauncherComposer({
     const text = readComposerText();
     if (!canSendComposedMessage(text)) return;
     setDraftMessage("");
-    onSubmit(text);
+    onSubmit(text, llmSelection);
+    storeLauncherLlmSelectionRaw(llmSelection);
     requestAnimationFrame(() => composerRef.current?.focus());
-  }, [disabled, voiceInput, readComposerText, onSubmit]);
+  }, [disabled, voiceInput, readComposerText, onSubmit, llmSelection]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -250,15 +237,12 @@ function LauncherComposer({
                 embeddedTagIds={draftTagIds}
                 onSelect={insertDraftActionTag}
               />
-              <ToolSelector
-                enabledTools={enabledTools}
-                onChange={setEnabledTools}
-              />
               <ModelSelector
                 selection={llmSelection}
+                persistGlobalSelection={false}
                 onChange={(next) => {
                   setLlmSelection(next);
-                  storeLlmSelectionRaw(next);
+                  storeLauncherLlmSelectionRaw(next);
                 }}
                 onNeedSettings={() => {
                   if (typeof window === "undefined") return;
@@ -354,7 +338,7 @@ export function LauncherPanel() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const handleSubmit = useCallback((text: string) => {
+  const handleSubmit = useCallback((text: string, llmSelection: string) => {
     const sessionId = createLauncherSessionId();
     setSession({
       sessionId,
@@ -363,7 +347,7 @@ export function LauncherPanel() {
       error: null,
       pendingApprovalCount: 0,
     });
-    postLauncherSubmit(text, sessionId);
+    postLauncherSubmit(text, sessionId, llmSelection);
   }, []);
 
   const busy =
@@ -379,7 +363,6 @@ export function LauncherPanel() {
             <section
               ref={transcriptRef}
               className="launcher-transcript"
-              {...{ [LAUNCHER_HIT_TARGET_ATTR]: "" }}
               aria-label="指令执行进度"
               aria-live="polite"
             >
@@ -397,10 +380,7 @@ export function LauncherPanel() {
             </section>
           ) : null}
         </div>
-        <footer
-          className="composer launcher-composer"
-          {...{ [LAUNCHER_HIT_TARGET_ATTR]: "" }}
-        >
+        <footer className="composer launcher-composer">
           <LauncherComposer
             onSubmit={handleSubmit}
             agentBusy={busy}

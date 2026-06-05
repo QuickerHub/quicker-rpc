@@ -33,6 +33,7 @@ import {
 } from "@/lib/llm-profiles";
 import type { LlmSelection } from "@/lib/llm-selection";
 import { parseLlmSelection } from "@/lib/llm-selection";
+import { resolveAutoLlmEndpoint } from "@/lib/llm-auto";
 
 export type { LlmProviderId } from "@/lib/llm-providers";
 export type { LlmSelection } from "@/lib/llm-selection";
@@ -640,6 +641,22 @@ function resolveProfileEndpoint(
 }
 
 export function resolveSelectionEndpoint(selection: LlmSelection): ResolvedLlmEndpoint {
+  if (selection.kind === "auto") {
+    const auto = resolveAutoLlmEndpoint();
+    if (!auto) {
+      throw new Error(
+        "Auto model is not configured. Add the nvidia group to llm-dev.config.json "
+        + "or set NVIDIA_API_KEY.",
+      );
+    }
+    return {
+      providerId: CUSTOM_PROVIDER_ID,
+      apiKey: auto.apiKey,
+      baseURL: auto.baseURL,
+      modelId: auto.modelId,
+      clientName: auto.clientName,
+    };
+  }
   if (selection.kind === "profile") {
     return resolveProfileEndpoint(selection.profileId, selection.modelId);
   }
@@ -647,6 +664,9 @@ export function resolveSelectionEndpoint(selection: LlmSelection): ResolvedLlmEn
 }
 
 export function isLlmSelectionConfigured(selection: LlmSelection): boolean {
+  if (selection.kind === "auto") {
+    return Boolean(resolveAutoLlmEndpoint());
+  }
   if (selection.kind === "profile") {
     const resolved = resolveProfileSelection(
       selection.profileId,
@@ -673,6 +693,14 @@ export async function resolveChatModelForSelection(
   selectionOverride?: LlmSelection,
 ): Promise<ResolvedChatModel> {
   const selection = selectionOverride ?? resolveLlmSelection();
+  if (selection.kind === "auto") {
+    const endpoint = resolveSelectionEndpoint(selection);
+    return {
+      model: createChatModelFromEndpoint(endpoint),
+      modelId: endpoint.modelId,
+      endpoint,
+    };
+  }
   if (selection.kind === "profile") {
     const endpoint = resolveProfileEndpoint(
       selection.profileId,
@@ -749,11 +777,8 @@ export async function runLlmWithSelectionFallback<T>(
   run: (model: LanguageModel, modelId: string) => Promise<T>,
 ): Promise<{ result: T; modelId: string }> {
   const selection = resolveLlmSelection(rawSelection, legacyProvider);
-  if (selection.kind === "profile") {
-    const endpoint = resolveProfileEndpoint(
-      selection.profileId,
-      selection.modelId,
-    );
+  if (selection.kind === "auto" || selection.kind === "profile") {
+    const endpoint = resolveSelectionEndpoint(selection);
     const model = createChatModelFromEndpoint(endpoint);
     const result = await run(model, endpoint.modelId);
     return { result, modelId: endpoint.modelId };

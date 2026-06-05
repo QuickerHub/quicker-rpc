@@ -122,5 +122,7 @@ export async function confirmBranchUserMessageEdit(
     removedCount === 1
       ? "并删除之后的 1 条消息"
       : `并删除之后的 ${removedCount} 条消息`;
-  return nativeConfirm(`将从此消息处重新对话，${suffix}。确定继续？`);
+  return nativeConfirm(`将从此消息处重新对话，${suffix}。确定继续？`, {
+    defaultConfirm: true,
+  });
 }

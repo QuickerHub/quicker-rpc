@@ -267,16 +267,6 @@ export function WorkspaceFileEditorRow({
           running={running}
         />
       )}
-      {failed && (
-        <p className="file-editor-footnote file-editor-footnote--err">
-          {typeof output?.data === "object"
-          && output.data !== null
-          && "errorMessage" in output.data
-          && typeof (output.data as { errorMessage: unknown }).errorMessage === "string"
-            ? (output.data as { errorMessage: string }).errorMessage
-            : output?.stderr ?? "操作失败"}
-        </p>
-      )}
       {errorText ? <pre className="tool-error">{errorText}</pre> : null}
     </div>
     <ToolResultPopup
@@ -319,13 +309,6 @@ export function WorkspaceFileToolBody({
     const path = typeof input === "object" && input !== null && "path" in input
       ? String((input as { path: unknown }).path ?? "")
       : "";
-    const err =
-      typeof output.data === "object"
-      && output.data !== null
-      && "errorMessage" in output.data
-      && typeof (output.data as { errorMessage: unknown }).errorMessage === "string"
-        ? (output.data as { errorMessage: string }).errorMessage
-        : output.stderr;
 
     return (
       <>
@@ -335,7 +318,6 @@ export function WorkspaceFileToolBody({
             <span className="file-editor-name">{path}</span>
           </div>
         ) : null}
-        <p className="file-editor-footnote file-editor-footnote--err">{err ?? "操作失败"}</p>
       </>
     );
   }

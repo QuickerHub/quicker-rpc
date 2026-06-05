@@ -19,7 +19,10 @@ import {
   type LlmProviderId,
 } from "@/lib/llm-providers";
 import type { LlmModelOption, LlmOptionsResponse } from "@/lib/llm-options-shared";
-import { pickInitialLlmSelection } from "@/lib/llm-options-shared";
+import {
+  pickInitialLauncherLlmSelection,
+  pickInitialLlmSelection,
+} from "@/lib/llm-options-shared";
 import {
   formatContextWindow,
   getModelPickerDisplay,
@@ -38,6 +41,8 @@ type ModelSelectorProps = {
   onChange: (selection: string) => void;
   onNeedSettings?: () => void;
   disabled?: boolean;
+  /** When false, only onChange runs (launcher-local model prefs). */
+  persistGlobalSelection?: boolean;
 };
 
 /** Matches .model-picker-panel { width: min(15.5rem, …) } */
@@ -92,6 +97,12 @@ function optionProviderId(option: LlmModelOption): LlmProviderId {
 }
 
 function optionDisplay(option: LlmModelOption) {
+  if (option.kind === "auto") {
+    return {
+      displayName: option.label,
+      tier: "Fast" as const,
+    };
+  }
   return getModelPickerDisplay(
     optionProviderId(option),
     option.modelId,
@@ -108,6 +119,13 @@ export function pickInitialLlmSelectionFromApi(
   storedRaw: string | undefined,
 ): string {
   return pickInitialLlmSelection(data, storedRaw);
+}
+
+export function pickInitialLauncherLlmSelectionFromApi(
+  data: LlmOptionsResponse,
+  storedRaw: string | undefined,
+): string {
+  return pickInitialLauncherLlmSelection(data, storedRaw);
 }
 
 export async function fetchLlmOptions(): Promise<LlmOptionsResponse | null> {
@@ -129,6 +147,7 @@ export function ModelSelector({
   onChange,
   onNeedSettings,
   disabled,
+  persistGlobalSelection = true,
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -252,8 +271,10 @@ export function ModelSelector({
       return;
     }
     onChange(nextSelection);
-    storeLlmSelectionRaw(nextSelection);
-    void persistActiveSelection(nextSelection);
+    if (persistGlobalSelection) {
+      storeLlmSelectionRaw(nextSelection);
+      void persistActiveSelection(nextSelection);
+    }
     setOpen(false);
   };
 

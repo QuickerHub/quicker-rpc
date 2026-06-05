@@ -36,7 +36,7 @@ function startFrontend() {
     ["dev"],
     {
       stdio: "inherit",
-      shell: false,
+      shell: process.platform === "win32",
       env: {
         ...process.env,
         AGENT_GUI_PORT: String(port),
@@ -55,8 +55,18 @@ function startFrontend() {
   });
 }
 
+async function waitForFrontend(maxAttempts = 15, intervalMs = 1000) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (await hasRunningFrontend()) return true;
+    if (attempt + 1 < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+  return false;
+}
+
 async function main() {
-  if (await hasRunningFrontend()) {
+  if (await waitForFrontend()) {
     holdProcess();
     return;
   }

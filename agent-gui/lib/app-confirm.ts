@@ -8,6 +8,8 @@ export type AppConfirmOptions = {
   cancelLabel?: string;
   /** When true, primary button uses danger styling. */
   danger?: boolean;
+  /** When true, focus the confirm button on open (default: cancel). */
+  defaultConfirm?: boolean;
 };
 
 type AppConfirmRequest = {
@@ -17,6 +19,7 @@ type AppConfirmRequest = {
   confirmLabel: string;
   cancelLabel: string;
   danger: boolean;
+  defaultConfirm: boolean;
   resolve: (confirmed: boolean) => void;
 };
 
@@ -53,6 +56,7 @@ export function appConfirm(
       confirmLabel: options?.confirmLabel ?? "确定",
       cancelLabel: options?.cancelLabel ?? "取消",
       danger: options?.danger ?? false,
+      defaultConfirm: options?.defaultConfirm ?? false,
       resolve,
     });
     showNext();

@@ -2,10 +2,25 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   buildEditNotFoundMessage,
+  replaceLiteralSubstring,
   resolveUniqueEditNeedle,
   restoreFileEol,
   tryJsonDocumentEdit,
 } from "./workspace-edit-match.ts";
+
+test("replaceLiteralSubstring preserves $$ (unlike String.replace)", () => {
+  const haystack = '"value": "Count: {n}"';
+  const needle = '"value": "Count: {n}"';
+  const replacement = '"value": "$$Count: {n}"';
+  assert.equal(
+    haystack.replace(needle, replacement),
+    '"value": "$Count: {n}"',
+  );
+  assert.equal(
+    replaceLiteralSubstring(haystack, needle, replacement),
+    '"value": "$$Count: {n}"',
+  );
+});
 
 test("resolveUniqueEditNeedle matches across CRLF vs LF", () => {
   const content = '{\r\n  "steps": [],\r\n  "variables": []\r\n}\r\n';

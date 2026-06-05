@@ -13,10 +13,15 @@ export function AppConfirmHost() {
   const titleId = useId();
   const descId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!request) return;
-    cancelRef.current?.focus();
+    if (request.defaultConfirm) {
+      confirmRef.current?.focus();
+    } else {
+      cancelRef.current?.focus();
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -67,6 +72,7 @@ export function AppConfirmHost() {
             {request.cancelLabel}
           </button>
           <button
+            ref={confirmRef}
             type="button"
             className={
               request.danger

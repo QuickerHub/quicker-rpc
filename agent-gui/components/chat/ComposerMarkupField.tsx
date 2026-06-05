@@ -429,6 +429,19 @@ export const ComposerMarkupField = forwardRef<
     const root = rootRef.current;
     if (!root) return;
 
+    if (!disabled) {
+      const mentionOnly =
+        mentionOpen
+        && (event.key === "ArrowDown"
+          || event.key === "ArrowUp"
+          || event.key === "Enter"
+          || event.key === "Tab"
+          || event.key === "Escape");
+      if (!mentionOnly) {
+        notifyUserEdit();
+      }
+    }
+
     if (mentionOpen) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -489,6 +502,7 @@ export const ComposerMarkupField = forwardRef<
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) {
           e.preventDefault();
+          if (!disabled) notifyUserEdit();
           rootRef.current?.focus();
         }
       }}
@@ -505,6 +519,9 @@ export const ComposerMarkupField = forwardRef<
         data-placeholder={placeholder}
         onInput={handleInput}
         onBeforeInput={handleBeforeInput}
+        onMouseDown={() => {
+          if (!disabled) notifyUserEdit();
+        }}
         onBlur={handleBlur}
         onPaste={handlePaste}
         onCopy={handleCopy}

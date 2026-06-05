@@ -14,6 +14,12 @@ describe("llm-selection", () => {
     assert.deepEqual(parseLlmSelection("deepseek"), selection);
   });
 
+  it("round-trips auto selection", () => {
+    const selection = { kind: "auto" as const };
+    assert.equal(formatLlmSelection(selection), "auto");
+    assert.deepEqual(parseLlmSelection("auto"), selection);
+  });
+
   it("round-trips profile selections", () => {
     const selection = profileSelection("abc-123", "gpt-4o/mini");
     const encoded = formatLlmSelection(selection);
