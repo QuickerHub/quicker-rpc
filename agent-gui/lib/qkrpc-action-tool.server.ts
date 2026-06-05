@@ -12,6 +12,7 @@ import {
 import { QKRPC_ACTION_TOOL } from "@/lib/qkrpc-action-tool";
 import {
   formatQkrpcResultForAgent,
+  qkrpcValidationError,
   runQkrpcForTool,
   runQkrpcWithPatchFileForTool,
   runQkrpcWithProgramForTool,
@@ -77,7 +78,6 @@ export type QkrpcActionToolInput = {
   count?: number;
   afterFirst?: boolean;
   profileIds?: string[];
-  profileId?: string;
   exeFile?: string;
   displayName?: string;
   profileNamePrefix?: string;
@@ -101,12 +101,7 @@ export async function executeQkrpcActionTool(
     }
     case "search": {
       if (!input.query?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "query is required for search",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("query is required for search"));
       }
       const args = ["action", "search", "--query", input.query];
       if (input.scope) args.push("--scope", input.scope);
@@ -115,12 +110,7 @@ export async function executeQkrpcActionTool(
     }
     case "get": {
       if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id is required for get",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for get"));
       }
       const args = ["action", "get", "--id", input.id];
       args.push("--return-mode", input.returnMode ?? "structure");
@@ -203,12 +193,7 @@ export async function executeQkrpcActionTool(
     }
     case "replace": {
       if (!input.id?.trim() || !input.xaction) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id and xaction are required for replace",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id and xaction are required for replace"));
       }
       const base = ["action", "replace", "--id", input.id];
       if (input.expectedEditVersion != null) {
@@ -221,12 +206,7 @@ export async function executeQkrpcActionTool(
     }
     case "publish": {
       if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id is required for publish",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for publish"));
       }
       const args = ["action", "publish", "--id", input.id];
       if (input.title) args.push("--title", input.title);
@@ -241,12 +221,7 @@ export async function executeQkrpcActionTool(
     }
     case "float": {
       if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id is required for float",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for float"));
       }
       return formatQkrpcResultForAgent(
         await runQkrpcForTool(["action", "float", "--id", input.id]),
@@ -254,12 +229,7 @@ export async function executeQkrpcActionTool(
     }
     case "edit": {
       if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id is required for edit",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for edit"));
       }
       return formatQkrpcResultForAgent(
         await runQkrpcForTool(["action", "edit", "--id", input.id]),
@@ -267,12 +237,7 @@ export async function executeQkrpcActionTool(
     }
     case "edit_var": {
       if (!input.id?.trim() || !input.var || input.value == null) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id, var, and value are required for edit_var",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id, var, and value are required for edit_var"));
       }
       return formatQkrpcResultForAgent(
         await runQkrpcForTool([
@@ -289,12 +254,7 @@ export async function executeQkrpcActionTool(
     }
     case "set_metadata": {
       if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id is required for set_metadata",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for set_metadata"));
       }
       const args = ["action", "set-metadata", "--id", input.id];
       if (input.title != null) args.push("--title", input.title);
@@ -308,12 +268,7 @@ export async function executeQkrpcActionTool(
     }
     case "run": {
       if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id is required for run",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for run"));
       }
       const args = ["action", "run", "--id", input.id];
       if (input.param) args.push("--param", input.param);
@@ -323,12 +278,7 @@ export async function executeQkrpcActionTool(
     }
     case "move": {
       if (!input.id?.trim() || !input.profile?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id and profile are required for move",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id and profile are required for move"));
       }
       const args = ["action", "move", "--id", input.id, "--profile", input.profile];
       if (input.row != null) args.push("--row", String(input.row));
@@ -371,12 +321,7 @@ export async function executeQkrpcActionTool(
     }
     case "profile_reorder": {
       if (!input.profileIds?.length) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "profileIds is required for profile_reorder",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("profileIds is required for profile_reorder"));
       }
       const args = [
         "profile",
@@ -395,12 +340,9 @@ export async function executeQkrpcActionTool(
         || !input.displayName?.trim()
         || !input.profileNamePrefix?.trim()
       ) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "exeFile, displayName, and profileNamePrefix are required",
-        });
+        return formatQkrpcResultForAgent(
+          qkrpcValidationError("exeFile, displayName, and profileNamePrefix are required"),
+        );
       }
       const args = [
         "process",
@@ -422,12 +364,9 @@ export async function executeQkrpcActionTool(
       return formatQkrpcResultForAgent(await runQkrpcForTool(args));
     }
     default:
-      return formatQkrpcResultForAgent({
-        ok: false,
-        exitCode: 1,
-        stdout: "",
-        stderr: `Unknown action: ${String((input as { action?: string }).action)}`,
-      });
+      return formatQkrpcResultForAgent(
+        qkrpcValidationError(`Unknown action: ${String((input as { action?: string }).action)}`),
+      );
   }
 }
 
@@ -473,7 +412,6 @@ export const QKRPC_ACTION_TOOL_DEF = tool({
     count: z.number().int().min(1).max(20).optional(),
     afterFirst: z.boolean().optional(),
     profileIds: z.array(z.string()).optional(),
-    profileId: z.string().optional(),
     exeFile: z.string().optional(),
     displayName: z.string().optional(),
     profileNamePrefix: z.string().optional(),

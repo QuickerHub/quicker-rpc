@@ -26,6 +26,8 @@ src-tauri/target/
 src-tauri/resources/
 !src-tauri/resources/voice-plugin-channel.json
 !src-tauri/resources/voice-plugin-manifest.json
+!src-tauri/resources/voice-sensevoice-model-identity.json
+!src-tauri/voice-plugin-metadata/
 src-tauri/gen/
 
 # ad-hoc debug log captures (manual stdout/stderr redirects during local dev)

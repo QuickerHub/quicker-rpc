@@ -19,6 +19,24 @@ const repoRoot = join(agentGuiRoot, "..");
 const tauriRoot = join(agentGuiRoot, "src-tauri");
 const resourcesDir = join(tauriRoot, "resources");
 const appDir = join(resourcesDir, "app");
+const voiceMetadataSrc = join(tauriRoot, "voice-plugin-metadata");
+
+const VOICE_RESOURCE_FILES = [
+  "voice-plugin-manifest.json",
+  "voice-plugin-channel.json",
+  "voice-sensevoice-model-identity.json",
+];
+
+function stageVoiceResourceFiles() {
+  for (const name of VOICE_RESOURCE_FILES) {
+    const src = join(voiceMetadataSrc, name);
+    if (!existsSync(src)) {
+      throw new Error(`Missing voice plugin metadata: ${src}`);
+    }
+    cpSync(src, join(resourcesDir, name));
+  }
+  console.log(`voice plugin metadata staged (${VOICE_RESOURCE_FILES.length} files)`);
+}
 
 const NODE_VERSION = process.env.TAURI_NODE_VERSION ?? "22.14.0";
 
@@ -114,6 +132,14 @@ function resolveStandaloneSrc() {
   throw new Error(`Run pnpm build first. Missing standalone server.js under ${base}`);
 }
 
+function stripNestedBundleArtifacts(appRoot) {
+  const nested = join(appRoot, "src-tauri");
+  if (existsSync(nested)) {
+    rmSync(nested, { recursive: true, force: true });
+    console.log(`Removed traced src-tauri from staged app: ${nested}`);
+  }
+}
+
 function stageNextStandalone() {
   const standaloneSrc = resolveStandaloneSrc();
 
@@ -123,6 +149,7 @@ function stageNextStandalone() {
   mkdirSync(appDir, { recursive: true });
 
   cpSync(standaloneSrc, appDir, { recursive: true });
+  stripNestedBundleArtifacts(appDir);
 
   const staticSrc = join(agentGuiRoot, ".next", "static");
   const staticDst = join(appDir, ".next", "static");
@@ -183,6 +210,7 @@ function main() {
   console.log("tauri-prepare: staging runtime for Tauri bundle...");
   clearStaleBundledResources();
   stageNextStandalone();
+  stageVoiceResourceFiles();
   ensureBundledNode();
   stageQkrpcRuntime();
   syncTauriVersion();

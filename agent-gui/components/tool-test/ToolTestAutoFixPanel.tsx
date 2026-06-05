@@ -19,6 +19,7 @@ import {
   type AutoFixRunEntry,
 } from "@/lib/tool-test-autofix-runs";
 import { resolveLlmSelectionLabel } from "@/lib/tool-test-title-model-label";
+import { LLM_AUTO_SELECTION } from "@/lib/llm-selection";
 import { loadStoredLlmSelectionRaw, storeLlmSelectionRaw } from "@/lib/llm-prefs";
 
 type ToolTestAutoFixPanelProps = {
@@ -57,7 +58,9 @@ export function ToolTestAutoFixPanel({
   const [running, setRunning] = useState(false);
   const [scenarioId, setScenarioId] = useState(() => AUTO_FIX_SCENARIOS[0]?.id ?? "value-prefix");
   const [llmOptions, setLlmOptions] = useState<LlmOptionsResponse | null>(null);
-  const [llmSelection, setLlmSelection] = useState(() => loadStoredLlmSelectionRaw());
+  const [llmSelection, setLlmSelection] = useState(
+    () => loadStoredLlmSelectionRaw() ?? LLM_AUTO_SELECTION,
+  );
   const llmSelectionRef = useRef(llmSelection);
   llmSelectionRef.current = llmSelection;
   const [customPrompt, setCustomPrompt] = useState(() => getAutoFixScenario(scenarioId)?.userPrompt ?? "");

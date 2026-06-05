@@ -7,6 +7,7 @@ import {
 import { QKRPC_SUBPROGRAM_TOOL } from "@/lib/qkrpc-subprogram-tool";
 import {
   formatQkrpcResultForAgent,
+  qkrpcValidationError,
   runQkrpcForTool,
   runQkrpcWithPatchFileForTool,
   runQkrpcWithProgramForTool,
@@ -58,12 +59,7 @@ export async function executeQkrpcSubprogramTool(
     }
     case "search": {
       if (!input.query?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "query is required for search",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("query is required for search"));
       }
       const args = ["subprogram", "search", "--query", input.query];
       if (input.limit != null) args.push("--limit", String(input.limit));
@@ -71,12 +67,7 @@ export async function executeQkrpcSubprogramTool(
     }
     case "get": {
       if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id is required for get",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for get"));
       }
       const args = ["subprogram", "get", "--id", input.id];
       if (input.returnMode) args.push("--return-mode", input.returnMode);
@@ -91,12 +82,7 @@ export async function executeQkrpcSubprogramTool(
     }
     case "create": {
       if (!input.name?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "name is required for create",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("name is required for create"));
       }
       const args = ["subprogram", "create", "--name", input.name];
       if (input.description) args.push("--description", input.description);
@@ -180,12 +166,7 @@ export async function executeQkrpcSubprogramTool(
     }
     case "patch": {
       if (!input.id?.trim() || !input.patch) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id and patch are required for patch",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id and patch are required for patch"));
       }
       const base = ["subprogram", "patch", "--id", input.id];
       if (input.expectedEditVersion != null) {
@@ -198,12 +179,7 @@ export async function executeQkrpcSubprogramTool(
     }
     case "replace": {
       if (!input.id?.trim() || !input.program) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id and program are required for replace",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id and program are required for replace"));
       }
       const base = ["subprogram", "replace", "--id", input.id];
       if (input.expectedEditVersion != null) {
@@ -216,12 +192,7 @@ export async function executeQkrpcSubprogramTool(
     }
     case "export": {
       if (!input.id?.trim() || !input.dir?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id and dir are required for export",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id and dir are required for export"));
       }
       return formatQkrpcResultForAgent(
         await runQkrpcForTool([
@@ -236,12 +207,7 @@ export async function executeQkrpcSubprogramTool(
     }
     case "import": {
       if (!input.dir?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "dir is required for import",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("dir is required for import"));
       }
       const args = ["subprogram", "import", "--dir", input.dir];
       if (input.expectedEditVersion != null) {
@@ -252,12 +218,7 @@ export async function executeQkrpcSubprogramTool(
     }
     case "edit": {
       if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id is required for edit",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for edit"));
       }
       return formatQkrpcResultForAgent(
         await runQkrpcForTool(["subprogram", "edit", "--id", input.id]),
@@ -265,12 +226,7 @@ export async function executeQkrpcSubprogramTool(
     }
     case "edit_var": {
       if (!input.id?.trim() || !input.var || input.value == null) {
-        return formatQkrpcResultForAgent({
-          ok: false,
-          exitCode: 1,
-          stdout: "",
-          stderr: "id, var, and value are required for edit_var",
-        });
+        return formatQkrpcResultForAgent(qkrpcValidationError("id, var, and value are required for edit_var"));
       }
       return formatQkrpcResultForAgent(
         await runQkrpcForTool([
@@ -286,12 +242,9 @@ export async function executeQkrpcSubprogramTool(
       );
     }
     default:
-      return formatQkrpcResultForAgent({
-        ok: false,
-        exitCode: 1,
-        stdout: "",
-        stderr: `Unknown action: ${String((input as { action?: string }).action)}`,
-      });
+      return formatQkrpcResultForAgent(
+        qkrpcValidationError(`Unknown action: ${String((input as { action?: string }).action)}`),
+      );
   }
 }
 

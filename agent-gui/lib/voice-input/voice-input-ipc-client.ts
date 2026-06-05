@@ -97,7 +97,7 @@ export class VoiceIpcSession {
       const result = await tauriVoiceIpcSessionEnd({ sessionId: this.sessionId });
       return {
         text: result.text,
-        confidence: result.confidence,
+        confidence: result.confidence ?? undefined,
       };
     } finally {
       this.close();

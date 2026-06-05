@@ -899,14 +899,23 @@ function Complete-QuickerAgentPreflightBackground {
 
 # Next/Tauri webpack must not scan the real user profile (EPERM on Windows special folders).
 function Set-QuickerAgentIsolatedUserProfile {
+    $realProfile = [Environment]::GetFolderPath('UserProfile')
     if (-not [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
         $env:USERPROFILE = $env:RUNNER_TEMP
         $env:HOME = $env:RUNNER_TEMP
-        return
     }
-    if ($IsWindows -and -not [string]::IsNullOrWhiteSpace($env:TEMP)) {
+    elseif ($IsWindows -and -not [string]::IsNullOrWhiteSpace($env:TEMP)) {
         $env:USERPROFILE = $env:TEMP
         $env:HOME = $env:TEMP
+    }
+    else {
+        return
+    }
+
+    # Rust/cargo must not use the isolated temp profile (corrupt registry under %TEMP%\.cargo).
+    if (-not [string]::IsNullOrWhiteSpace($realProfile)) {
+        $env:CARGO_HOME = Join-Path $realProfile '.cargo'
+        $env:RUSTUP_HOME = Join-Path $realProfile '.rustup'
     }
 }
 

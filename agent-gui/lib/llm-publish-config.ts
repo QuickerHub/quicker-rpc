@@ -19,8 +19,8 @@ import {
   type LlmProviderId,
 } from "@/lib/llm-providers";
 
-let publishCache: LlmEndpointGroupsConfig | null | undefined;
-let devCache: LlmEndpointGroupsConfig | null | undefined;
+let publishCache: LlmEndpointGroupsConfig | undefined;
+let devCache: LlmEndpointGroupsConfig | undefined;
 
 /** Dev-only: merge publish + dev JSON configs into bundled endpoint resolution. */
 export function isDevPublishConfigMergedIntoBundled(): boolean {

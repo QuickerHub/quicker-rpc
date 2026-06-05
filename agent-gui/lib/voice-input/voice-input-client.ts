@@ -30,5 +30,6 @@ export async function transcribePushToTalk(
     language: input.language,
     streaming: input.streaming,
     signal: input.signal,
+    recordedMs: input.recordedMs,
   });
 }

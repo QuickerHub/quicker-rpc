@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { AutoFixRunEntry } from "@/lib/tool-test-autofix-runs";
+import type { ToolTestConversationStatus } from "@/lib/tool-test-conversation-run";
 import { ToolTestConversationCard } from "@/components/tool-test/ToolTestConversationCard";
 import { ToolTestRunsPaneShell } from "@/components/tool-test/ToolTestRunsPaneShell";
 
@@ -78,12 +79,21 @@ export function ToolTestAutoFixResultPane({
       ? "左侧选场景并运行"
       : `共 ${runs.length} 场对话 · 造错→修复链路`;
 
+  const shellRuns = useMemo(
+    () =>
+      runs.map((run) => ({
+        status: (run.status === "idle" ? "done" : run.status) as ToolTestConversationStatus,
+        chatMessages: run.chatMessages,
+      })),
+    [runs],
+  );
+
   return (
     <ToolTestRunsPaneShell
       heading="修复对话"
       subText={subText}
       emptyText="每次「运行场景」都会在右侧新增一场完整 /api/chat 对话。清理时会尝试删除对话里创建或编辑过的动作。"
-      runs={runs}
+      runs={shellRuns}
       workingDirectory={workingDirectory}
       onClearRuns={onClearRuns}
       streamAnchorRef={endRef}

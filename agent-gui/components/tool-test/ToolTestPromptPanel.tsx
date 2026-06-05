@@ -113,7 +113,7 @@ export function ToolTestPromptPanel({
     let cancelled = false;
     void (async () => {
       const data = await fetchLlmOptions();
-      if (cancelled) return;
+      if (cancelled || !data) return;
       setLlmOptions(data);
       const initial = pickInitialLlmSelectionFromApi(
         data,

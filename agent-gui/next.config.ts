@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Monorepo: trace from repo root so standalone build does not walk the runner profile (e.g. Documents).
   outputFileTracingRoot: path.join(agentGuiRoot, ".."),
+  outputFileTracingExcludes: {
+    "*": [
+      "agent-gui/src-tauri/**",
+      "agent-gui/.next/**",
+      "publish/**",
+      "voice-asr-runtime/**",
+    ],
+  },
   serverExternalPackages: [
     "@tauri-apps/api",
     "@tauri-apps/plugin-dialog",

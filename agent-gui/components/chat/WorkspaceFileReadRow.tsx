@@ -89,11 +89,11 @@ function WorkspaceFileReadRowInner({
           <ToolDetailsIconButton onClick={popup.openPopup} />
         ) : null}
       </div>
-      {showInlinePreview ? (
+      {showInlinePreview && preview ? (
         <div className="tool-body tool-body--file-read">
           <FileEditorCard
-            path={preview!.path}
-            content={preview!.content}
+            path={preview.path}
+            content={preview.content}
             running={running}
             stat={readStat}
             variant="compact"

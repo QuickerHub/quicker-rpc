@@ -14,7 +14,9 @@ param(
     [string]$RepoRoot = '',
     [switch]$SkipQkrpcBuild,
     # Run pnpm tauri build only (no publish/ copy / verify). Used before GitHub Release tag push.
-    [switch]$PreflightOnly
+    [switch]$PreflightOnly,
+    # Reuse existing .next/standalone (skip pnpm build; run tauri-prepare + tauri bundle only).
+    [switch]$SkipNextBuild
 )
 
 Set-StrictMode -Version Latest
@@ -88,6 +90,60 @@ function Resolve-QuickerAgentSetupExe {
     return ($candidates | Sort-Object LastWriteTime -Descending | Select-Object -First 1)
 }
 
+function Test-NextStandaloneReady {
+    param([string]$AgentGuiDir)
+    $base = Join-Path $AgentGuiDir '.next\standalone'
+    if (Test-Path -LiteralPath (Join-Path $base 'server.js')) { return $true }
+    if (Test-Path -LiteralPath (Join-Path $base 'agent-gui\server.js')) { return $true }
+    return $false
+}
+
+function Invoke-QuickerAgentStagedTauriBuild {
+    param(
+        [string]$AgentGuiDir,
+        [switch]$SkipNextBuild
+    )
+
+    Push-Location $AgentGuiDir
+    try {
+        Set-QuickerAgentIsolatedUserProfile
+
+        if ($SkipNextBuild) {
+            if (-not (Test-NextStandaloneReady -AgentGuiDir $AgentGuiDir)) {
+                throw 'SkipNextBuild set but .next/standalone is missing; run without -SkipNextBuild first.'
+            }
+            Write-Host 'Skipping next build (reuse .next/standalone)' -ForegroundColor DarkCyan
+        }
+        else {
+            Write-Host 'next build (production)...' -ForegroundColor Cyan
+            pnpm build
+            if ($LASTEXITCODE -ne 0) { throw "pnpm build failed ($LASTEXITCODE)" }
+        }
+
+        Write-Host 'tauri-prepare (stage app + qkrpc + node)...' -ForegroundColor Cyan
+        node scripts/tauri-prepare.mjs
+        if ($LASTEXITCODE -ne 0) { throw "tauri-prepare failed ($LASTEXITCODE)" }
+
+        $confPath = Join-Path $AgentGuiDir 'src-tauri\tauri.conf.json'
+        $conf = Get-Content -LiteralPath $confPath -Raw | ConvertFrom-Json
+        $savedBeforeBuild = [string]$conf.build.beforeBuildCommand
+        $conf.build.beforeBuildCommand = ''
+        Set-Content -LiteralPath $confPath -Value (($conf | ConvertTo-Json -Depth 100) + "`n") -Encoding utf8NoBOM
+        try {
+            Write-Host 'tauri build (NSIS installer)...' -ForegroundColor Cyan
+            pnpm tauri build
+            if ($LASTEXITCODE -ne 0) { throw "tauri build failed ($LASTEXITCODE)" }
+        }
+        finally {
+            $conf.build.beforeBuildCommand = $savedBeforeBuild
+            Set-Content -LiteralPath $confPath -Value (($conf | ConvertTo-Json -Depth 100) + "`n") -Encoding utf8NoBOM
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 $agentGuiDir = Join-Path $RepoRoot 'agent-gui'
 if (-not (Test-Path -LiteralPath $agentGuiDir)) {
     throw "agent-gui not found: $agentGuiDir"
@@ -111,16 +167,12 @@ try {
         pnpm install --frozen-lockfile --config.node-linker=hoisted --config.symlink=false
         if ($LASTEXITCODE -ne 0) { throw "pnpm install failed ($LASTEXITCODE)" }
     }
-
-    Set-QuickerAgentIsolatedUserProfile
-
-    Write-Host 'tauri build (NSIS installer)...' -ForegroundColor Cyan
-    pnpm tauri build
-    if ($LASTEXITCODE -ne 0) { throw "tauri build failed ($LASTEXITCODE)" }
 }
 finally {
     Pop-Location
 }
+
+Invoke-QuickerAgentStagedTauriBuild -AgentGuiDir $agentGuiDir -SkipNextBuild:$SkipNextBuild
 
 if ($PreflightOnly) {
     Write-Host 'Preflight OK: QuickerAgent Tauri build succeeded.' -ForegroundColor Green

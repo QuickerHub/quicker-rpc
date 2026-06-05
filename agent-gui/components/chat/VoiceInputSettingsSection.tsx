@@ -145,10 +145,10 @@ export function VoiceInputSettingsSection({
       }
       await recorder.start();
       await new Promise((r) => window.setTimeout(r, 1500));
-      const { pcm, recordedMs } = await recorder.stop();
+      const { pcm, durationMs } = await recorder.stop();
       const result = await transcribePcmViaWebSocket(pcm, {
         language: "zh-CN",
-        recordedMs,
+        recordedMs: durationMs,
       });
       setTestResult(result.text.trim() || "（空结果）");
     } catch (err) {

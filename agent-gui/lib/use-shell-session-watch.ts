@@ -8,6 +8,7 @@ export type ShellSessionWatchState = {
   status: "idle" | "running" | "success" | "error";
   exitCode?: number;
   commandLine?: string;
+  shell?: string;
 };
 
 type ShellSessionSnapshot = {
@@ -35,6 +36,7 @@ function snapshotToWatchState(
     status: snapshot.status,
     exitCode: snapshot.exitCode,
     commandLine: snapshot.commandLine,
+    shell: snapshot.shell,
   };
 }
 
@@ -47,6 +49,7 @@ function watchStateEqual(
     && a.status === b.status
     && a.exitCode === b.exitCode
     && a.commandLine === b.commandLine
+    && a.shell === b.shell
   );
 }
 

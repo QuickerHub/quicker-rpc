@@ -63,7 +63,7 @@ function LauncherComposer({
   disabled = false,
 }: LauncherComposerProps) {
   const [draftMessage, setDraftMessage] = useState("");
-  const [llmSelection, setLlmSelection] = useState(LLM_AUTO_SELECTION);
+  const [llmSelection, setLlmSelection] = useState<string>(LLM_AUTO_SELECTION);
   const composerRef = useRef<ComposerMarkupFieldHandle>(null);
   const { ping, connectTick } = useQkrpcPing();
 

@@ -98,6 +98,44 @@ export type WorkspaceProgramToolInput = {
   maxLines?: number;
 };
 
+function resolveProgramToolInput(
+  input: WorkspaceProgramToolInput,
+):
+  | { ok: true; parsed: ParsedWorkspaceProgramInput }
+  | { ok: false; error: string } {
+  if (!input.target || input.target === "all") {
+    return {
+      ok: false,
+      error: "target is required (action | global_subprogram | embedded_subprogram).",
+    };
+  }
+  if (!input.id?.trim()) {
+    return { ok: false, error: "id is required." };
+  }
+  const parsed = parseWorkspaceProgramTarget({
+    target: input.target,
+    id: input.id.trim(),
+    subProgramId: input.subProgramId,
+  });
+  if (!parsed.ok) return parsed;
+  return {
+    ok: true,
+    parsed: {
+      target: input.target,
+      id: input.id.trim(),
+      subProgramId: input.subProgramId,
+    },
+  };
+}
+
+function programInputError(error: string): Record<string, unknown> {
+  return formatLocalToolResult(
+    { action: "workspace_program", success: false, errorMessage: error },
+    false,
+    error,
+  );
+}
+
 async function executeDiagnostics(
   input: WorkspaceProgramToolInput,
 ): Promise<Record<string, unknown>> {
@@ -171,24 +209,92 @@ export async function executeWorkspaceProgramTool(
         target: (input.target as "action" | "global_subprogram" | "all" | undefined)
           ?? "all",
       });
-    case "read_data":
-      return executeWorkspaceProgramReadData(input);
-    case "write_data":
-      return executeWorkspaceProgramWriteData(input);
-    case "edit_data":
-      return executeWorkspaceProgramEditData(input);
-    case "file_read":
-      return executeWorkspaceProgramFileRead(input);
-    case "file_write":
-      return executeWorkspaceProgramFileWrite(input);
-    case "file_edit":
-      return executeWorkspaceProgramFileEdit(input);
-    case "file_info":
-      return executeWorkspaceProgramFileInfo(input);
-    case "file_search":
-      return executeWorkspaceProgramFileSearch(input);
-    case "patch":
-      return executeWorkspaceProgramPatch(input);
+    case "read_data": {
+      const resolved = resolveProgramToolInput(input);
+      if (!resolved.ok) return programInputError(resolved.error);
+      return executeWorkspaceProgramReadData({ ...input, ...resolved.parsed });
+    }
+    case "write_data": {
+      const resolved = resolveProgramToolInput(input);
+      if (!resolved.ok) return programInputError(resolved.error);
+      if (input.content == null) {
+        return programInputError("content is required for write_data.");
+      }
+      return executeWorkspaceProgramWriteData({
+        ...resolved.parsed,
+        content: input.content,
+      });
+    }
+    case "edit_data": {
+      const resolved = resolveProgramToolInput(input);
+      if (!resolved.ok) return programInputError(resolved.error);
+      if (input.oldString == null || input.newString == null) {
+        return programInputError("oldString and newString are required for edit_data.");
+      }
+      return executeWorkspaceProgramEditData({
+        ...resolved.parsed,
+        oldString: input.oldString,
+        newString: input.newString,
+        replaceAll: input.replaceAll,
+      });
+    }
+    case "file_read": {
+      const resolved = resolveProgramToolInput(input);
+      if (!resolved.ok) return programInputError(resolved.error);
+      if (!input.path?.trim()) return programInputError("path is required for file_read.");
+      return executeWorkspaceProgramFileRead({ ...input, ...resolved.parsed, path: input.path });
+    }
+    case "file_write": {
+      const resolved = resolveProgramToolInput(input);
+      if (!resolved.ok) return programInputError(resolved.error);
+      if (!input.path?.trim() || input.content == null) {
+        return programInputError("path and content are required for file_write.");
+      }
+      return executeWorkspaceProgramFileWrite({
+        ...input,
+        ...resolved.parsed,
+        path: input.path,
+        content: input.content,
+      });
+    }
+    case "file_edit": {
+      const resolved = resolveProgramToolInput(input);
+      if (!resolved.ok) return programInputError(resolved.error);
+      if (!input.path?.trim() || input.oldString == null || input.newString == null) {
+        return programInputError("path, oldString, and newString are required for file_edit.");
+      }
+      return executeWorkspaceProgramFileEdit({
+        ...input,
+        ...resolved.parsed,
+        path: input.path,
+        oldString: input.oldString,
+        newString: input.newString,
+        replaceAll: input.replaceAll,
+      });
+    }
+    case "file_info": {
+      const resolved = resolveProgramToolInput(input);
+      if (!resolved.ok) return programInputError(resolved.error);
+      if (!input.path?.trim()) return programInputError("path is required for file_info.");
+      return executeWorkspaceProgramFileInfo({ ...input, ...resolved.parsed, path: input.path });
+    }
+    case "file_search": {
+      const resolved = resolveProgramToolInput(input);
+      if (!resolved.ok) return programInputError(resolved.error);
+      if (!input.query?.trim()) return programInputError("query is required for file_search.");
+      return executeWorkspaceProgramFileSearch({
+        ...input,
+        ...resolved.parsed,
+        query: input.query,
+        maxMatches: input.maxMatches,
+        caseInsensitive: input.caseInsensitive,
+      });
+    }
+    case "patch": {
+      const resolved = resolveProgramToolInput(input);
+      if (!resolved.ok) return programInputError(resolved.error);
+      return executeWorkspaceProgramPatch({ ...input, ...resolved.parsed, force: input.force });
+    }
     case "diagnostics":
       return executeDiagnostics(input);
     default:

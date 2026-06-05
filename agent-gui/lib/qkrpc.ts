@@ -100,6 +100,11 @@ function serveTransportError(stderr: string): QkrpcRunResult {
   };
 }
 
+/** Validation error before spawning qkrpc (tool layer). */
+export function qkrpcValidationError(stderr: string): QkrpcRunResult {
+  return serveTransportError(stderr);
+}
+
 function formatSpawnError(err: Error, bin: string): string {
   if (!err.message.includes("ENOENT")) {
     return err.message;

@@ -1,0 +1,14 @@
+{
+  "id": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
+  "modelscopeResolveBase": "https://www.modelscope.cn/models/pengzhendong/sherpa-onnx-sense-voice-zh-en-ja-ko-yue/resolve/master",
+  "files": {
+    "model.int8.onnx": {
+      "size": 239233841,
+      "sha256": "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51"
+    },
+    "tokens.txt": {
+      "size": 315894,
+      "sha256": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc"
+    }
+  }
+}

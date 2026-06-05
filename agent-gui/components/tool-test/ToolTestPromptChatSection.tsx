@@ -110,7 +110,7 @@ export function ToolTestPromptChatProvider({
     let cancelled = false;
     void (async () => {
       const data = await fetchLlmOptions();
-      if (cancelled) return;
+      if (cancelled || !data) return;
       const initial = pickInitialLlmSelectionFromApi(
         data,
         loadStoredLlmSelectionRaw(),

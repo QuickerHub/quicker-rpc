@@ -44,10 +44,10 @@ function resolveAutoFromGroupsConfig(): AutoLlmEndpoint | undefined {
   const endpoint = chain[0];
   if (!endpoint?.apiKey?.trim()) return undefined;
 
+  const groupDef = config.groups.get(LLM_AUTO_GROUP_ID);
   const modelId =
     endpoint.model?.trim()
-    ?? resolveGroupModel(config, LLM_AUTO_GROUP_ID)
-    ?? config.groups.get(LLM_AUTO_GROUP_ID)?.model?.trim()
+    ?? (groupDef ? resolveGroupModel(LLM_AUTO_GROUP_ID, groupDef, chain) : undefined)
     ?? LLM_AUTO_DEFAULT_MODEL_ID;
 
   return endpointFromConfig(endpoint, modelId);
