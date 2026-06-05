@@ -59,6 +59,11 @@ public static class XActionFileRefExporter
         var warnings = new List<string>();
         var resourceFiles = new List<ActionProjectResourceFile>();
 
+        if (templateData is not null)
+        {
+            AppendCompatibilityFixes(warnings, WorkspaceProgramCompatibility.Normalize(templateData));
+        }
+
         XActionFormDefReversibleExporter.Apply(output, templateData, resourceFiles, warnings, projectDir);
         ActionProjectFormDefFileExporter.EnsureUtf8FormDefResourceFiles(output, projectDir, resourceFiles);
 
@@ -159,8 +164,10 @@ public static class XActionFileRefExporter
     private static ExportResult BuildSuccess(
         JObject output,
         List<ActionProjectResourceFile> resourceFiles,
-        List<string> warnings) =>
-        new()
+        List<string> warnings)
+    {
+        AppendCompatibilityFixes(warnings, WorkspaceProgramCompatibility.Normalize(output));
+        return new ExportResult
         {
             Success = true,
             ExportedData = output,
@@ -170,6 +177,17 @@ public static class XActionFileRefExporter
                 .ToList(),
             Warnings = warnings,
         };
+    }
+
+    private static void AppendCompatibilityFixes(
+        List<string> warnings,
+        IReadOnlyList<string> fixes)
+    {
+        foreach (var fix in fixes)
+        {
+            warnings.Add($"compatibility: {fix}");
+        }
+    }
 
     private static ExportResult? ApplyAutoExternalize(
         JObject output,
@@ -351,11 +369,9 @@ public static class XActionFileRefExporter
                 continue;
             }
 
-            var value = varObj.Value<string>("defaultValue")
-                ?? varObj.Value<string>("default_value")
-                ?? varObj.Value<string>("DefaultValue")
-                ?? string.Empty;
-            index[key] = value;
+            index[key] = VariableDefaultValueRef.TryGetInlineString(varObj, out var inline)
+                ? inline ?? string.Empty
+                : string.Empty;
         }
 
         return index;
@@ -377,8 +393,9 @@ public static class XActionFileRefExporter
             }
 
             var key = varObj.Value<string>("key") ?? varObj.Value<string>("Key");
-            var file = varObj.Value<string>(XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty)?.Trim();
-            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrEmpty(file))
+            if (string.IsNullOrWhiteSpace(key)
+                || !VariableDefaultValueRef.TryGetFilePath(varObj, out var file)
+                || string.IsNullOrEmpty(file))
             {
                 continue;
             }
@@ -413,10 +430,7 @@ public static class XActionFileRefExporter
                 continue;
             }
 
-            varObj.Remove("defaultValue");
-            varObj.Remove("default_value");
-            varObj.Remove("DefaultValue");
-            varObj[XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty] = slot.RelativeFile;
+            VariableDefaultValueRef.SetFileRef(varObj, slot.RelativeFile);
             return true;
         }
 

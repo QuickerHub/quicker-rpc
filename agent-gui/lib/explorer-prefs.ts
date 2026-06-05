@@ -5,8 +5,11 @@ export const EXPLORER_PANEL_VIEW_STORAGE_KEY = "agent-gui-explorer-panel-view";
 
 export const EXPLORER_PANEL_VIEW_MAX_WORKSPACES = 24;
 
-export const EXPLORER_DEFAULT_WIDTH = 240;
-export const EXPLORER_MIN_WIDTH = 220;
+/** Previous defaults — migrate stored width so existing users get the narrower panel. */
+const LEGACY_EXPLORER_DEFAULT_WIDTHS: number[] = [240, 180];
+
+export const EXPLORER_DEFAULT_WIDTH = 140;
+export const EXPLORER_MIN_WIDTH = 128;
 export const EXPLORER_MAX_WIDTH = 720;
 
 /** Tree : editor default height ratio = 1 : 2 → tree gets 1/3 of the split area. */
@@ -37,7 +40,11 @@ export function loadExplorerWidth(): number {
     const raw = localStorage.getItem(EXPLORER_WIDTH_STORAGE_KEY);
     if (!raw) return EXPLORER_DEFAULT_WIDTH;
     const parsed = Number.parseInt(raw, 10);
-    return clampExplorerWidth(parsed);
+    const width = clampExplorerWidth(parsed);
+    if (LEGACY_EXPLORER_DEFAULT_WIDTHS.includes(width)) {
+      return EXPLORER_DEFAULT_WIDTH;
+    }
+    return width;
   } catch {
     return EXPLORER_DEFAULT_WIDTH;
   }

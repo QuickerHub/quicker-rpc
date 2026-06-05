@@ -74,7 +74,7 @@ type ToolResultPopupProps = {
   headerExtra?: ReactNode;
 };
 
-function ToolResultPopupTabs({
+export function ToolResultPopupTabs({
   tab,
   hasVisual,
   onTabChange,
@@ -106,7 +106,7 @@ function ToolResultPopupTabs({
         className={`tool-result-popup-tab${tab === "source" ? " tool-result-popup-tab--active" : ""}`}
         onClick={() => onTabChange("source")}
       >
-        源码
+        原始响应
       </button>
     </div>
   );

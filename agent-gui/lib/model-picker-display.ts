@@ -62,7 +62,7 @@ export function getModelPickerDisplay(
   }
   if (providerId === DEEPSEEK_PROVIDER_ID) {
     const displayName = humanizeModelId(modelId);
-    const tier: ModelPickerTier = "Fast";
+    const tier: ModelPickerTier = /pro/i.test(modelId) ? "High" : "Fast";
     return { displayName, tier };
   }
   if (providerId === LLM_PROVIDER_ID) {

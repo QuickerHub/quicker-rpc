@@ -63,6 +63,8 @@ qkrpc_step_runner_get({ key: "sys:MsgBox" })
 
 ## P6 写入
 
+**前缀**：`inputParams` 的 `value` 与 `variables[].defaultValue` **内联字符串**若含已声明变量的 `{name}`，整段须以 **`$$` 或 `$=`** 开头；直接绑变量用 **`varKey`**（见 **`expressions`**）。
+
 按 **`workspace-editing`** 改 `data.json` / `files/`，再：
 
 ```text
@@ -77,7 +79,7 @@ qkrpc_action_patch({ id: "<guid>" })
 
 以 **`qkrpc_action_patch`** / **`workspace_program_patch`** 响应的 **`editVersion`**，以及 **`workspace_action_edit_data` / `write_data`** 响应里的 **`projectSummary`** 为准；勿仅为核对再 get 或全量 **`workspace_action_read_data`**。改完 disk 后 **直接 patch**，勿先单独校验。
 
-**回复用户（动作 create/patch 成功后）**：正文先写简短结论（改了什么、`editVersion`、下一步）；**所有** `<qka-link id="{actionId}" op="run|edit|float|workspace">` 放在消息**最末一行**（UI 在文末渲染横向按钮条）。勿在列表或段落中间插入 qka-link；勿重复贴动作表。示例见系统指令中的 qka-link 说明。
+**回复用户（动作 patch 成功后）**：正文写简短结论（改了什么、`editVersion`、下一步）即可。**勿**输出 `<qka-link>` 或重复贴动作表——agent-gui 会根据本回合内成功的 **`workspace_program_patch`** / **`qkrpc_action_patch`**（`target=action`）工具结果，在回合末**自动**显示动作快捷卡片（运行 / 编辑 / 悬浮 / 工作区 / 调试）。
 
 验证优先：
 

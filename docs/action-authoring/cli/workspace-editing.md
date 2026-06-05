@@ -14,7 +14,7 @@ Quicker 库  ←—— qkrpc_action_patch({ id }) ——  .quicker/actions/{acti
 - **`info.json`**：标题、图标、`editVersion` 等；**create** 后即有，**get** 不覆盖空程序体到 `data.json`。
 - **`data.json`**：仅 **`steps`** + **`variables[]`**（压缩 XAction 形状，无 `subPrograms` 数组）。步骤字段见 **`action-steps`**。
 - **`info.json`**：id、title、icon、editVersion 等元数据。
-- **`files/`**：长脚本等外置内容；`data.json` 里用 `"file": "files/…"` 引用（与 `value` / `varKey` 互斥）。
+- **`files/`**：长脚本等外置内容；`data.json` 里用 `{ "file": "files/…" }`（与 `value` / `varKey` **三选一**，见 **`action-steps`**）。
 
 ## 目录
 
@@ -69,7 +69,7 @@ get(模板) → read / file_read(模板) → get(目标) → write / file_write(
 "script": { "file": "files/main.cs" }
 ```
 
-`file` 与 `value` / `varKey` 互斥。路径相对 **项目目录**，用 `/`，禁止 `..`。
+`inputParams` 绑定 **三选一**（`value` / `varKey` / `file`）。路径相对 **项目目录**，用 `/`，禁止 `..`。
 
 外置项见 `workspaceProject.fileRefCount`；清单用 **`workspace_action_projects`** 或 **`action validate`**。
 

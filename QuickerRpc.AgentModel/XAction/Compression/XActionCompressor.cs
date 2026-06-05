@@ -3,6 +3,7 @@ using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Catalog;
+using QuickerRpc.AgentModel.XAction.Project;
 using QuickerRpc.AgentModel.XAction.Proto;
 
 namespace QuickerRpc.AgentModel.XAction.Compression;
@@ -22,7 +23,13 @@ public static class XActionCompressor
     {
         var native = XActionDataJsonParser.ParseProgramBody(steps, variables);
         var compressed = TypedXActionCompressor.CompressProgram(native, catalog, omitDefaultLiteralInputs);
-        return AgentCompressedProgramJson.ToJObject(compressed);
+        var result = AgentCompressedProgramJson.ToJObject(compressed);
+        if (result["variables"] is JArray variablesOut)
+        {
+            VariableDefaultValueNormalizer.EnsureQuickerRuntimeDefaults(variablesOut);
+        }
+
+        return result;
     }
 
     public static JObject CompressStructure(JArray steps, JArray variables)
@@ -110,6 +117,7 @@ public static class XActionCompressor
             outVariables.Add(CompressVariable(variable));
         }
 
+        VariableDefaultValueNormalizer.EnsureQuickerRuntimeDefaults(outVariables);
         return outVariables;
     }
 
@@ -126,8 +134,12 @@ public static class XActionCompressor
         return CompressVariable(native.Variables[0]);
     }
 
-    public static JObject CompressVariable(QuickerRpc.AgentModel.Proto.V1.XVariableData variable) =>
-        AgentCompressedProgramJson.ToJObject(TypedXActionCompressor.CompressVariable(variable));
+    public static JObject CompressVariable(QuickerRpc.AgentModel.Proto.V1.XVariableData variable)
+    {
+        var result = AgentCompressedProgramJson.ToJObject(TypedXActionCompressor.CompressVariable(variable));
+        VariableDefaultValueNormalizer.EnsureQuickerRuntimeDefaults(result);
+        return result;
+    }
 
     public static JArray NormalizeVariablesForSave(JArray variables)
     {
@@ -161,6 +173,7 @@ public static class XActionCompressor
         result.Remove("varType");
         result.Remove("var_type");
         result.Remove("csharpType");
+        VariableDefaultValueNormalizer.EnsureQuickerRuntimeDefaults(result);
         return result;
     }
 

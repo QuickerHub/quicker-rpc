@@ -1,8 +1,6 @@
 # 动作步骤
 
-**何时读**：**`overview`** P5–P6 — 在 `data.json` 里增删改步骤、写 `inputParams` / `outputParams`、嵌套条件分支之前。模块键名与 schema 仍须 **`step-runner get`**（**`step-runner-search`**）。
-
-**CLI**：可直接改磁盘 `data.json`，或 **`patch-workflow`** 用 `op` / `containerPath` / `stepId` 增量改树。
+**何时读**：编写 `data.json` 的 **`steps[]`**、`inputParams` / `outputParams`、条件分支 `ifSteps` / `elseSteps`。模块键名须与 step-runner schema 一致（**`step-runner-get`**）。
 
 ## 顶层形状
 
@@ -30,7 +28,7 @@
 
 ## `inputParams`
 
-每个参数键对应一个对象（与输出形状不同）：
+每个参数键对应一个对象（与输出形状不同）。绑定方式 **三选一**（同一参数对象内只写其中一种）：
 
 ```json
 "inputParams": {
@@ -40,13 +38,18 @@
 }
 ```
 
-| 子字段 | 含义 |
-|--------|------|
-| `value` | 短字面量，或短 `$=` / `$$`（**`expressions`**） |
-| `varKey` | 读已有动作变量的 **`key`** |
-| `file` | 外置文件（相对项目目录，`/`）；与 `value` / `varKey` **互斥** |
+| 方式 | 形状 | 含义 |
+|------|------|------|
+| 字面量 / 表达式 | `{ "value": "…" }` | 短字面量，或带 `$$` / `$=` 前缀的插值/表达式（**`expressions`**） |
+| 变量绑定 | `{ "varKey": "…" }` | 直接读动作变量：值为变量的 **`key` 字符串**（非表达式，无前缀求值） |
+| 外置文件 | `{ "file": "…" }` | 正文路径（**字符串**，相对项目根，`/`） |
 
-写入时只填 schema 要求的键；与目录 Default 相同的普通参数可省略（控制字段除外）。
+**`file`（workspace）**：外置时写 `"<paramKey>": { "file": "files/…" }`（`file` 的值是路径，不是整段脚本）。**勿**写成 `"<paramKey>": "files/…"`（缺对象包裹），**勿**在同一对象里写 `value`、`varKey`、`file` 中的多个字段。
+
+- 正文在磁盘 `files/`（或其它相对路径，如 `scripts/…`）；**`data.json` 在 patch 前保留 `file` 引用**。
+- **`workspace_program_patch`** 时宿主读取该文件，编译为 Quicken 侧的 **`value` 内联字符串**（从 Quicker 拉回工作区时可再导出为 `file`，见 **`action-project-files`**）。
+
+`value` 与 `varKey` 的区别及 `SkipEval` 见 **`expressions`**。只填 schema 要求的键；与目录 Default 相同的普通参数可省略（控制字段除外）。
 
 ## 长文本：优先 `file` 外置
 
@@ -54,18 +57,17 @@
 
 | 启发式 | 做法 |
 |--------|------|
-| `value` **超过 4 行**，或明显很长（整段脚本/HTML/PS） | 写入 **`files/`**，`inputParams` 用 **`"file": "files/…"`** |
-| `sys:evalexpression` 长 `expression` | **`files/*.eval.cs`**（extract 自动；手改也应用此扩展名） |
+| `value` **超过 4 行**，或明显很长（整段脚本/HTML/PS） | 正文写入 **`files/`**（`workspace_action_file_write`），`inputParams` 写 **`{ "file": "files/…" }`** |
+| `sys:evalexpression` 长 `expression` | **`files/*.eval.cs`**（勿与 `sys:csscript` 的 `.cs` 混用） |
 | 一两行表达式、短文本 | `"value": "…"` 即可 |
 | 绑定变量 | `"varKey": "…"` |
+| **`sys:form` 的 `formDef`** | **默认** `{ "file": "files/*.form.json" }`（`qkrpc.form.v1`，通常很长）→ **`form-spec`** |
 
-参数键名（`script`、`expression`、`code` 等）以 **`step-runner get`** 为准；是否支持 `file` 以 schema 为准（多数长文本参数支持）。
-
-`action extract` 默认 **`--min-lines 4`**（超过 4 行的 `value`）会自动拆到 `files/`；手改或 patch 前也应主动外置。
+参数键名（`script`、`expression`、`code` 等）以 step-runner schema 为准；是否支持 `file` 以该参数定义为准（多数长文本参数支持）。
 
 ## `outputParams`
 
-每个输出键的值是 **字符串**，表示写入目标：
+每个输出键的值是 **字符串**（不是 `inputParams` 那种 `{ "varKey": "…" }` 对象），表示写入目标：
 
 ```json
 "outputParams": {
@@ -126,13 +128,8 @@
 |------|------|
 | 先 get 再写参 | 每个新/改步骤 **`step-runner get`** |
 | 数据逻辑 | P4 优先 **`expressions`** / `sys:evalexpression`，勿默认长 **`sys:csscript`** |
-| 猜键名 | 禁止；未知键 patch 可能进 `warnings[]` |
-| 保存后核对 | 勿仅为确认再全量 get（**`authoring-workflow`** P7） |
-
-## CLI 增量改树
-
-`action patch` 的 `steps[]` 支持 `op: add|update|remove|move`、`containerPath`（如 `"1/if"`）、`after` / `before` 锚点 — 见 **`patch-workflow`**。磁盘 `data.json` 则直接编辑 `steps[]` 后 `action apply`。
+| 猜键名 | 禁止；键名须来自 step-runner schema |
 
 ## 相关
 
-`action-variables` · `expressions` · `authoring-workflow` · `workspace-editing` · `patch-workflow` · `step-runner-search` · `subprogram-workflow` · `overview`
+`action-variables` · `expressions` · `action-project-files` · `step-runner-search` · `subprogram-workflow` · `overview`

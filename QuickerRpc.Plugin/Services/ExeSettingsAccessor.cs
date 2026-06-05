@@ -141,6 +141,45 @@ internal static class ExeSettingsAccessor
         return false;
     }
 
+    public static bool TryRemoveProfileId(string exeFile, string profileId, out string? error)
+    {
+        error = null;
+        var id = (profileId ?? string.Empty).Trim();
+        if (id.Length == 0)
+        {
+            error = "profileId is required.";
+            return false;
+        }
+
+        var exe = (exeFile ?? string.Empty).Trim();
+        if (exe.Length == 0)
+        {
+            error = "exeFile is required.";
+            return false;
+        }
+
+        if (!TryGetExeSettings(exe, out var settings, out error) || settings is null)
+        {
+            return true;
+        }
+
+        var list = EnsureMutableProfileList(settings);
+        if (list is null)
+        {
+            return true;
+        }
+
+        for (var i = list.Count - 1; i >= 0; i--)
+        {
+            if (string.Equals(list[i]?.ToString(), id, StringComparison.OrdinalIgnoreCase))
+            {
+                list.RemoveAt(i);
+            }
+        }
+
+        return TrySaveExeSettings(settings, out error);
+    }
+
     public static bool TryAppendProfileId(ExeSettings settings, string profileId, out string? error)
     {
         error = null;

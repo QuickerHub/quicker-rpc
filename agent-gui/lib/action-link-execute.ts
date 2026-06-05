@@ -49,6 +49,30 @@ export async function executeActionLinkOp(
     return { ok: true };
   }
 
+  if (op === "debug") {
+    const result = await invokeActionCommand({
+      op: "run",
+      id: actionId,
+      debug: true,
+    });
+    if (result.ok) {
+      pushAppMessage({
+        id: TOAST_ID,
+        kind: "success",
+        body: successMessage("debug"),
+        autoDismissMs: 3500,
+      });
+      return { ok: true };
+    }
+    pushAppMessage({
+      id: TOAST_ID,
+      kind: "error",
+      body: result.error ?? "操作失败",
+      autoDismissMs: 6000,
+    });
+    return { ok: false, error: result.error ?? "操作失败" };
+  }
+
   const commandOp = op;
   const result = await invokeActionCommand({ op: commandOp, id: actionId });
   if (result.ok) {
@@ -69,10 +93,12 @@ export async function executeActionLinkOp(
   return { ok: false, error: result.error ?? "操作失败" };
 }
 
-function successMessage(op: "run" | "edit" | "float"): string {
+function successMessage(op: "run" | "debug" | "edit" | "float"): string {
   switch (op) {
     case "run":
       return "已运行动作";
+    case "debug":
+      return "已启动调试运行（Quicker 步骤调试器）";
     case "edit":
       return "已在 Quicker 中打开动作编辑器";
     case "float":

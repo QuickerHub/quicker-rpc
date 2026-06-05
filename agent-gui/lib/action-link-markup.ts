@@ -2,6 +2,7 @@
 
 export const ACTION_LINK_OPS = [
   "run",
+  "debug",
   "edit",
   "float",
   "workspace",
@@ -54,18 +55,51 @@ export function normalizeActionId(id: string): string | null {
   return trimmed;
 }
 
+const ACTION_LINK_OP_ALIASES: Record<string, ActionLinkOp> = {
+  folat: "float",
+  floating: "float",
+  workspace_edit: "workspace",
+  ws: "workspace",
+};
+
 export function parseActionLinkOp(raw: string | undefined): ActionLinkOp | null {
   const op = raw?.trim().toLowerCase();
   if (!op) return null;
-  return (ACTION_LINK_OPS as readonly string[]).includes(op)
-    ? (op as ActionLinkOp)
+  const mapped = ACTION_LINK_OP_ALIASES[op] ?? op;
+  return (ACTION_LINK_OPS as readonly string[]).includes(mapped)
+    ? (mapped as ActionLinkOp)
     : null;
+}
+
+/** Comma/space-separated ops from `use="run,edit,float"`. */
+export function parseActionLinkUseList(raw: string | undefined): ActionLinkOp[] {
+  if (!raw?.trim()) return [];
+  const ops: ActionLinkOp[] = [];
+  for (const part of raw.split(/[,，\s·•|]+/)) {
+    const op = parseActionLinkOp(part);
+    if (op && !ops.includes(op)) {
+      ops.push(op);
+    }
+  }
+  return ops;
+}
+
+function parseActionLinkLabelsList(
+  raw: string | undefined,
+  opCount: number,
+): string[] | undefined {
+  if (!raw?.trim()) return undefined;
+  const labels = raw.split(/[,，]/).map((s) => s.trim());
+  if (labels.length !== opCount) return undefined;
+  return labels;
 }
 
 export function defaultActionLinkLabel(op: ActionLinkOp): string {
   switch (op) {
     case "run":
       return "运行";
+    case "debug":
+      return "调试";
     case "edit":
       return "编辑";
     case "float":
@@ -73,6 +107,29 @@ export function defaultActionLinkLabel(op: ActionLinkOp): string {
     case "workspace":
       return "工作区";
   }
+}
+
+export function parseActionLinksFromAttrs(
+  attrs: Record<string, string>,
+  innerText: string,
+): ParsedActionLink[] {
+  const actionId = normalizeActionId(attrs.id ?? "");
+  if (!actionId) return [];
+
+  const useOps = parseActionLinkUseList(attrs.use);
+  if (useOps.length > 0) {
+    const labelOverrides = parseActionLinkLabelsList(attrs.labels, useOps.length);
+    return useOps.map((op, index) => ({
+      actionId,
+      op,
+      label:
+        labelOverrides?.[index]
+        || defaultActionLinkLabel(op),
+    }));
+  }
+
+  const single = parseActionLinkFromAttrs(attrs, innerText);
+  return single ? [single] : [];
 }
 
 export function parseActionLinkFromAttrs(
@@ -111,11 +168,11 @@ export function parseAssistantMessageSegments(
     if (match.index > last) {
       segments.push({ type: "text", text: text.slice(last, match.index) });
     }
-    const link = parseActionLinkFromAttrs(
+    const links = parseActionLinksFromAttrs(
       parseHtmlAttrs(match[1]),
       match[2] ?? "",
     );
-    if (link) {
+    for (const link of links) {
       segments.push({ type: "link", link });
     }
     last = match.index + match[0].length;
@@ -217,6 +274,30 @@ export function formatActionLinkMarkup(
   return `<qka-link id="${id}" op="${op}">${text}</qka-link>`;
 }
 
+/** One tag → horizontal button bar (preferred in assistant summaries). */
+export function formatActionLinkBarMarkup(
+  actionId: string,
+  ops: readonly ActionLinkOp[] = ACTION_LINK_OPS,
+  labels?: readonly string[],
+): string {
+  const id = normalizeActionId(actionId);
+  if (!id) {
+    throw new Error(`Invalid action id for qka-link: ${actionId}`);
+  }
+  if (ops.length === 0) {
+    throw new Error("At least one action link op is required.");
+  }
+  const use = ops.join(",");
+  if (labels?.length) {
+    if (labels.length !== ops.length) {
+      throw new Error("labels count must match ops count.");
+    }
+    const escaped = labels.map((l) => l.replace(/"/g, ""));
+    return `<qka-link id="${id}" use="${use}" labels="${escaped.join(",")}"/>`;
+  }
+  return `<qka-link id="${id}" use="${use}"/>`;
+}
+
 /** Move all link bars to the end (UI fallback when the model misplaces tags). */
 export function finalizeAssistantRenderUnits(
   units: AssistantRenderUnit[],
@@ -239,10 +320,4 @@ export function finalizeAssistantRenderUnits(
 }
 
 /** Prompt snippet for system instructions (assistant completion summaries). */
-export const ACTION_LINK_SUMMARY_PROMPT = `After successfully creating or patching an action (workspace_program_patch / qkrpc_action_patch with target=action), close with a brief text summary then action links — do not paste action tables or repeat full tool JSON.
-Placement (required): put every <qka-link> at the **very end** of the message — after all explanation, bullets, and next steps. The UI renders them as one horizontal button bar below your text. Never interleave qka-link inside lists or mid-paragraph.
-Format: <qka-link id="{actionGuid}" op="{op}">label</qka-link>. ops: run | edit | float | workspace. Use the real GUID from patch/create. Self-closing with label="…" is OK. Separate tags with · or newlines on the last line only.
-Example (links only on the last line):
-已完成修改，editVersion 已更新。
-
-<qka-link id="…" op="run">运行</qka-link> · <qka-link id="…" op="edit">Quicker 编辑</qka-link> · <qka-link id="…" op="float">悬浮</qka-link> · <qka-link id="…" op="workspace">工作区</qka-link>`;
+export const ACTION_LINK_SUMMARY_PROMPT = `After successfully patching an action (workspace_program_patch / qkrpc_action_patch with target=action), close with a brief text summary (what changed, editVersion, next steps). Do not output <qka-link> tags, action tables, or repeat full tool JSON — agent-gui automatically shows an action shortcut card at the end of the turn from successful patch tool results (run / edit / float / workspace + 调试).`;

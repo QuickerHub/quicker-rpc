@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   finalizeAssistantRenderUnits,
+  formatActionLinkBarMarkup,
   groupAssistantRenderUnits,
   hasAssistantActionLinks,
+  parseActionLinkUseList,
   parseAssistantMessageSegments,
   parseActionLinkFromAttrs,
+  parseActionLinksFromAttrs,
 } from "./action-link-markup";
 
 const GUID = "846b4132-ad73-42e8-b2f9-c42fe718ae20";
@@ -34,6 +37,46 @@ describe("action-link-markup", () => {
       assert.equal(segments[2].link.op, "edit");
       assert.equal(segments[2].link.label, "编辑");
     }
+  });
+
+  it("parses single tag with use attribute into link-bar", () => {
+    const text = `Done.\n<qka-link id="${GUID}" use="run,edit,float,workspace"/>`;
+    const units = groupAssistantRenderUnits(parseAssistantMessageSegments(text));
+    assert.equal(units.length, 2);
+    assert.equal(units[1]?.kind, "link-bar");
+    if (units[1]?.kind === "link-bar") {
+      assert.deepEqual(
+        units[1].links.map((l) => l.op),
+        ["run", "edit", "float", "workspace"],
+      );
+      assert.equal(units[1].links[0]?.label, "运行");
+      assert.equal(units[1].links[1]?.label, "编辑");
+    }
+  });
+
+  it("parses use with custom labels", () => {
+    const links = parseActionLinksFromAttrs(
+      {
+        id: GUID,
+        use: "run,workspace",
+        labels: "启动,打开项目",
+      },
+      "",
+    );
+    assert.equal(links.length, 2);
+    assert.equal(links[0]?.label, "启动");
+    assert.equal(links[1]?.label, "打开项目");
+  });
+
+  it("parseActionLinkUseList accepts aliases", () => {
+    assert.deepEqual(parseActionLinkUseList("run, folat"), ["run", "float"]);
+  });
+
+  it("formatActionLinkBarMarkup", () => {
+    assert.equal(
+      formatActionLinkBarMarkup(GUID, ["run", "edit"]),
+      `<qka-link id="${GUID}" use="run,edit"/>`,
+    );
   });
 
   it("groups consecutive links into one link-bar", () => {
@@ -87,5 +130,11 @@ describe("action-link-markup", () => {
       parseActionLinkFromAttrs({ id: GUID, op: "delete" }, ""),
       null,
     );
+  });
+
+  it("parses debug op", () => {
+    const link = parseActionLinkFromAttrs({ id: GUID, op: "debug" }, "");
+    assert.equal(link?.op, "debug");
+    assert.equal(link?.label, "调试");
   });
 });

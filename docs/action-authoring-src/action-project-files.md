@@ -1,53 +1,40 @@
 # {{#topic-title}}
 
-{{#only-cli}}
-**何时读**：用 **extract/apply** 或手改 `.quicker` 目录，而非内联 patch JSON。
+**何时读**：需要 **`.quicker/actions/{actionId}/`** 目录布局，或在 `data.json` / `files/` 里写 **`{ "file": "…" }`** 外置引用时。步骤与变量字段见 **`action-steps`**、**`action-variables`**。
 
-## 目录
+## 目录布局
 
 ```text
 .quicker/
-  actions/{actionId}/     # 默认目录名 = 动作 GUID
-    info.json             # proto ActionProjectInfo (see action_project.proto)
-    data.json             # steps + variables（不含内联 subPrograms）
-    files/                # inputParams.*.file、variables[].defaultValueFile 外置
-    subprograms/{subId}/  # 动作内子程序（见 action-embedded-subprograms）
+  actions/{actionId}/     # 目录名通常为动作 GUID
+    info.json             # 动作元数据（标题、图标等）
+    data.json             # steps + variables（动作内子程序见 action-embedded-subprograms）
+    files/                # inputParams.*.file、variables[].defaultValue.file 等外置正文
+    subprograms/{subId}/  # 动作内子程序（各自 info.json、data.json、files/）
       info.json
       data.json
       files/
-  subprograms/{name}/     # 全局公共子程序
+  subprograms/{name}/     # 全局公共子程序（另一棵树，见 subprogram-workflow）
 ```
 
-## file 外置
+## `file` 外置引用
 
-`data.json` 中（import/apply 前解析为 `value`）：
+`data.json` 中下列位置可用 **`{ "file": "<相对路径>" }`**（保存进 Quicker 前由宿主解析为内联 `value` 字符串）：
 
-```json
-"script": { "file": "files/main.cs" }
-```
+| 位置 | 示例 |
+|------|------|
+| `inputParams.*` | `"script": { "file": "files/main.cs" }` |
+| `variables[].defaultValue` | `"defaultValue": { "file": "files/urls-default1.txt" }` |
 
-`file` 与 `value` / `varKey` 互斥。路径相对项目目录，`/` 分隔，禁止 `..`。
+规则：
 
-变量长默认值：
+- **`inputParams.*`**：`value` / `varKey` / `file` **三选一**（见 **`action-steps`**）。
+- **`variables[].defaultValue`**：内联字符串与 `{ "file": "…" }` **二选一**（见 **`action-variables`**）。
+- 路径相对**当前**动作或子程序项目根，`/` 分隔，禁止 `..`。
+- 正文存放在对应 `files/` 下的文件中。
 
-```json
-{ "key": "urls", "type": 0, "defaultValueFile": "files/urls-default1.txt" }
-```
-
-`defaultValueFile` 与内联 `defaultValue` 互斥；`apply` 前解析为 `defaultValue` 字符串。
-
-## 命令
-
-```powershell
-{{@ action.extract}}
-{{@ action.apply}}
-{{@ subprogram.export}}
-{{@ subprogram.import}}
-```
-
-内联 patch JSON：**`patch-workflow`**。
+长文本（脚本、`expression`、多行默认值等）宜外置，扩展名约定见 **`action-steps`**（如 `*.eval.cs` 与 `sys:evalexpression`）。**`sys:form` 的 `formDef`** 默认 **`{ "file": "files/*.form.json" }`**（`qkrpc.form.v1`），见 **`form-spec`**。
 
 ## 相关
 
-`action-embedded-subprograms` · `authoring-workflow` · `patch-workflow` · `overview`
-{{/only-cli}}
+`action-variables` · `action-steps` · `action-embedded-subprograms` · `overview`

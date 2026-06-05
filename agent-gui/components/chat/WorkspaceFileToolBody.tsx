@@ -195,6 +195,9 @@ function FileEditorPreviewWithExplorer(
           totalChars={preview.totalChars}
           previousSnapshotTruncated={preview.previousSnapshotTruncated}
           onOpenInExplorer={handleOpenInExplorer}
+          toolName={props.toolName}
+          input={props.input}
+          output={props.output}
         />
       ) : null}
     </>

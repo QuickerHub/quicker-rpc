@@ -33,6 +33,8 @@ import {
 } from "@/lib/format-json-display";
 import { ActionListView } from "./ActionListView";
 import { ActionProjectsView } from "./ActionProjectsView";
+import { FileEditorCard } from "./FileEditorCard";
+import { ProgramDiagnosticsResultView } from "./ProgramDiagnosticsResultView";
 import { StepRunnerSearchResultView } from "./StepRunnerSearchResultView";
 import { ToolJsonEditor } from "./ToolJsonEditor";
 import { FaSearchPlainText } from "./FaSearchPlainText";
@@ -58,6 +60,11 @@ import {
   workspaceFileToolDisplayName,
 } from "@/lib/workspace-file-tool";
 import {
+  formatProgramDiagnosticsMetaLine,
+  isProgramDiagnosticsTool,
+  parseProgramDiagnosticsFromToolData,
+} from "@/lib/program-diagnostics-view";
+import {
   formatStepRunnerGetMetaLine,
   formatStepRunnerSearchMetaLine,
   isStepRunnerGetTool,
@@ -67,6 +74,11 @@ import {
   parseStepRunnerSearchFromQkrpcData,
   parseStepRunnerSearchResult,
 } from "@/lib/step-runner-tool";
+import {
+  formatShellExitMeta,
+  parseShellToolView,
+  summarizeShellToolInput,
+} from "@/lib/shell-tool-view";
 
 export type QkrpcToolResult = {
   ok: boolean;
@@ -89,29 +101,11 @@ export function summarizeToolOutput(
   if (!isQkrpcToolResult(output)) return null;
 
   if (toolName === "shell_exec") {
-    if (!output.ok) {
-      const d =
-        typeof output.data === "object" && output.data !== null
-          ? (output.data as Record<string, unknown>)
-          : null;
-      const blocked = d?.blocked === true;
-      const reason =
-        (typeof d?.blockReason === "string" && d.blockReason)
-        || output.stderr
-        || "shell failed";
-      return blocked ? `已拦截 · ${reason.slice(0, 72)}` : `失败 · ${reason.slice(0, 72)}`;
-    }
-    const d =
-      typeof output.data === "object" && output.data !== null
-        ? (output.data as Record<string, unknown>)
-        : null;
-    const exitCode = typeof d?.exitCode === "number" ? d.exitCode : output.exitCode;
-    const summary = typeof d?.summary === "string" ? d.summary : "shell";
-    const durationMs = typeof d?.durationMs === "number" ? d.durationMs : undefined;
-    const tail = durationMs != null ? `${durationMs}ms` : "";
-    return exitCode === 0
-      ? `exit 0 · ${summary}${tail ? ` · ${tail}` : ""}`
-      : `exit ${exitCode} · ${summary}`;
+    const view = parseShellToolView(output);
+    if (view) return formatShellExitMeta(view);
+    const inputSummary = summarizeShellToolInput(input);
+    if (inputSummary) return inputSummary.slice(0, 96);
+    return output.ok ? "完成" : "失败";
   }
 
   if (isWorkspaceExplorerFileTool(toolName)) {
@@ -178,6 +172,10 @@ export function summarizeToolOutput(
     if (isActionProjectsTool(toolName)) {
       const projects = parseActionProjectsFromToolData(output.data);
       if (projects) return formatActionProjectsMetaLine(projects);
+    }
+    if (isProgramDiagnosticsTool(toolName)) {
+      const diagnostics = parseProgramDiagnosticsFromToolData(output.data);
+      if (diagnostics) return formatProgramDiagnosticsMetaLine(diagnostics);
     }
     const workspaceDisplay = parseWorkspaceToolDisplay(output.data);
     if (
@@ -264,7 +262,7 @@ export function formatToolState(state: string): string {
 
 /** qkrpc_step_runner_search → step runner search */
 export function formatToolDisplayName(toolName: string): string {
-  if (toolName === "shell_exec") return "shell";
+  if (toolName === "shell_exec") return "终端";
   const projectsLabel = actionProjectsToolDisplayName(toolName);
   if (projectsLabel) return projectsLabel;
   const fileLabel = workspaceFileToolDisplayName(toolName);
@@ -363,26 +361,62 @@ function shouldShowRawJsonDetails(
   if (result.truncated || result.stderr) return true;
   if (!result.ok) return true;
   if (hasRichBody) return false;
-  if (parseWorkspaceFileReadPayload(result.data)) return true;
+  const fileRead = parseWorkspaceFileReadPayload(result.data);
+  if (fileRead?.content) return false;
+  if (fileRead) return true;
   return !isShallowPrimitiveData(result.data);
 }
 
 function WorkspaceFileReadResultView({
   payload,
   data,
+  compact = false,
+  followTail = false,
 }: {
   payload: WorkspaceFileReadPayload;
   data: Record<string, unknown>;
+  compact?: boolean;
+  followTail?: boolean;
 }) {
-  const lines = countLines(payload.content);
-  const size =
-    payload.totalChars !== undefined
-      ? formatCharCount(payload.totalChars)
-      : formatCharCount(payload.content.length);
+  if (payload.content) {
+    const range =
+      payload.startLine != null
+        ? payload.endLine != null && payload.endLine >= payload.startLine
+          ? payload.startLine === payload.endLine
+            ? `L${payload.startLine}`
+            : `L${payload.startLine}-${payload.endLine}`
+          : `L${payload.startLine}`
+        : null;
+    return (
+      <>
+        <FileEditorCard
+          path={payload.path}
+          content={payload.content}
+          variant={compact ? "compact" : "full"}
+          showHeader
+          showContent
+          fillAvailable={!compact}
+          lineNumbers
+          foldSnapshot={false}
+          summaryMeta={range ?? undefined}
+          running={followTail}
+        />
+        {payload.truncated ? (
+          <p className="file-editor-footnote file-editor-footnote--warn">
+            内容已截断
+            {payload.totalChars !== undefined
+              ? ` · 文件共 ${payload.totalChars} 字符`
+              : ""}
+            {payload.readHint ? ` · ${payload.readHint}` : ""}
+          </p>
+        ) : null}
+      </>
+    );
+  }
+
   const actionId =
     typeof data.actionId === "string" ? data.actionId.trim() : "";
   const entries: Array<{ key: string; value: ReactNode }> = [];
-
   if (actionId) {
     entries.push({ key: "action", value: <code>{actionId}</code> });
   }
@@ -392,17 +426,7 @@ function WorkspaceFileReadResultView({
       <code title={payload.path}>{formatWorkspacePathLabel(payload.path)}</code>
     ),
   });
-  entries.push({
-    key: "规模",
-    value: `${lines} 行 · ${size}${payload.truncated ? " · 已截断" : ""}`,
-  });
-
-  return (
-    <>
-      <KeyValueRows entries={entries} />
-      <p className="tool-muted tool-hint">完整 data.json 见下方 JSON</p>
-    </>
-  );
+  return <KeyValueRows entries={entries} />;
 }
 
 function ActionMetadataResultBody({
@@ -690,6 +714,10 @@ function QkrpcToolResultView({
     result.ok && toolName && isFaSearchTool(toolName)
       ? parseFaSearchFromQkrpcData(data)
       : null;
+  const programDiagnostics =
+    toolName && isProgramDiagnosticsTool(toolName)
+      ? parseProgramDiagnosticsFromToolData(data)
+      : null;
   const workspaceDisplay =
     result.ok ? parseWorkspaceToolDisplay(data) : null;
   const hasWorkspaceResultBody = Boolean(
@@ -717,13 +745,23 @@ function QkrpcToolResultView({
     actionMetadata
     && (actionMetadata.id?.trim() || (metadataRest && Object.keys(metadataRest).length > 0)),
   );
+  const fileReadPayload =
+    result.ok
+    && typeof data === "object"
+    && data !== null
+    && !Array.isArray(data)
+      ? parseWorkspaceFileReadPayload(data)
+      : null;
+  const hasFileReadContentBody = Boolean(fileReadPayload?.content);
   const hasRichBody = Boolean(
     actionList
     || stepRunnerSearch
     || stepRunnerGet
     || faSearch
+    || programDiagnostics
     || hasMetadataResultBody
-    || hasWorkspaceResultBody,
+    || hasWorkspaceResultBody
+    || hasFileReadContentBody,
   );
 
   let resultBody: ReactNode = null;
@@ -740,6 +778,8 @@ function QkrpcToolResultView({
       resultBody = (
         <FaSearchPlainText names={faSearch.names} />
       );
+    } else if (programDiagnostics) {
+      resultBody = <ProgramDiagnosticsResultView view={programDiagnostics} />;
     } else if (hasWorkspaceResultBody && workspaceDisplay) {
       resultBody = <WorkspaceToolResultView display={workspaceDisplay} />;
     } else if (actionMetadata) {
@@ -763,12 +803,13 @@ function QkrpcToolResultView({
       && data !== null
       && !Array.isArray(data)
     ) {
-      const fileRead = parseWorkspaceFileReadPayload(data);
-      if (fileRead) {
+      if (fileReadPayload) {
         resultBody = (
           <WorkspaceFileReadResultView
-            payload={fileRead}
+            payload={fileReadPayload}
             data={data as Record<string, unknown>}
+            compact={compact}
+            followTail={followTail}
           />
         );
       }

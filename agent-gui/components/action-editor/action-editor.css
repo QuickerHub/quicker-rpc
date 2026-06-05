@@ -2,7 +2,7 @@
 .x-program-editor {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 260px;
+  grid-template-columns: 1fr;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 0;
   min-height: 0;
@@ -28,6 +28,11 @@
   user-select: none;
 }
 
+.x-program-editor-toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0.5rem;
+}
+
 .x-program-host .x-program-editor-loading {
   flex: 1;
   display: flex;
@@ -38,9 +43,9 @@
   color: var(--ad-fg-muted);
 }
 
-.x-program-editor-steps,
-.x-program-editor-variables {
+.x-program-editor-body {
   grid-row: 2;
+  position: relative;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -49,19 +54,121 @@
 }
 
 .x-program-editor-steps {
-  padding-right: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.x-program-editor-variables {
-  border-left: 1px solid var(--ad-border-default);
-  padding-left: 8px;
-}
-
-.x-program-editor-steps .step-editor,
-.x-program-editor-variables .variable-editor {
+.x-program-editor-steps .step-editor {
   flex: 1;
   min-height: 0;
 }
+
+.x-program-editor-variables-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+  height: 22px;
+  padding: 0 0.45rem 0 0.35rem;
+  border: 1px solid var(--ad-border-default);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--ad-bg-panel, var(--panel-bg)) 92%, transparent);
+  color: var(--ad-fg-section, var(--text));
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.x-program-editor-variables-toggle:hover {
+  background: color-mix(in srgb, var(--ad-accent, var(--accent)) 10%, var(--ad-bg-panel, var(--panel-bg)));
+  border-color: color-mix(in srgb, var(--ad-accent, var(--accent)) 35%, var(--ad-border-default));
+}
+
+.x-program-editor-variables-toggle--active {
+  border-color: color-mix(in srgb, var(--ad-accent, var(--accent)) 45%, var(--ad-border-default));
+  background: color-mix(in srgb, var(--ad-accent, var(--accent)) 14%, var(--ad-bg-panel, var(--panel-bg)));
+}
+
+.x-program-editor-variables-toggle-label {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  user-select: none;
+}
+
+.x-program-editor-variables-toggle-count {
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.1rem 0.2rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ad-accent, var(--accent)) 18%, transparent);
+  color: var(--ad-fg-section, var(--text));
+}
+
+.x-program-editor-variables-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: color-mix(in srgb, var(--foreground, #000) 12%, transparent);
+  cursor: default;
+}
+
+.x-program-editor-variables-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  width: min(280px, calc(100% - 1.5rem));
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--ad-border-default);
+  background: var(--ad-bg-panel, var(--panel-bg));
+  box-shadow: -4px 0 16px color-mix(in srgb, var(--foreground, #000) 10%, transparent);
+}
+
+.x-program-editor-variables-drawer-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.55rem;
+  border-bottom: 1px solid var(--ad-border-default);
+}
+
+.x-program-editor-variables-drawer-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ad-fg-section);
+}
+
+.x-program-editor-variables-drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-left: 8px;
+}
+
+.x-program-editor-variables-drawer-body .variable-editor {
+  flex: 1;
+  min-height: 0;
+}
+
 
 /* --- Sub program list (Web Action Designer) --- */
 

@@ -10,6 +10,8 @@ import type {
   AgentUIMessage,
   ContextCompressionMetadata,
 } from "@/lib/chat-types";
+import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
+import type { LlmSelection } from "@/lib/llm-selection";
 
 const COMPRESSION_TRIGGER_RATIO = 0.7;
 const ESTIMATE_TRIGGER_RATIO = 0.85;
@@ -148,6 +150,10 @@ function renderCompressionSystemSuffix(summary: string): string {
 async function createSummary(
   model: LanguageModel,
   messagesToCompress: AgentUIMessage[],
+  usageTracking?: {
+    selection: LlmSelection;
+    modelId: string;
+  },
 ): Promise<string | null> {
   const source = buildSummarySource(messagesToCompress).trim();
   if (!source) return null;
@@ -158,6 +164,17 @@ async function createSummary(
     maxOutputTokens: MAX_SUMMARY_OUTPUT_TOKENS,
     temperature: 0.1,
   });
+  if (usageTracking) {
+    recordManagedLlmUsageAsync({
+      selection: usageTracking.selection,
+      modelId: usageTracking.modelId,
+      source: "compression",
+      inputTokens: result.usage?.inputTokens,
+      outputTokens: result.usage?.outputTokens,
+      totalTokens: result.usage?.totalTokens,
+      reasoningTokens: result.usage?.reasoningTokens,
+    });
+  }
   const summary = result.text.trim();
   return summary || null;
 }
@@ -219,6 +236,10 @@ export type PrepareCompressedContextOptions = {
   messages: AgentUIMessage[];
   model: LanguageModel;
   contextLimit: number;
+  usageTracking?: {
+    selection: LlmSelection;
+    modelId: string;
+  };
   /** Test hook: override LLM summarization of older messages. */
   summarizeOlderMessages?: (
     model: LanguageModel,
@@ -229,10 +250,19 @@ export type PrepareCompressedContextOptions = {
 export async function prepareCompressedContext(
   options: PrepareCompressedContextOptions,
 ): Promise<CompressionPreparation> {
-  const { messages, model, contextLimit, summarizeOlderMessages } = options;
+  const {
+    messages,
+    model,
+    contextLimit,
+    usageTracking,
+    summarizeOlderMessages,
+  } = options;
   const summarize =
     summarizeOlderMessages
-    ?? ((languageModel, olderMessages) => createSummary(languageModel, olderMessages));
+    ?? ((
+      languageModel,
+      olderMessages,
+    ) => createSummary(languageModel, olderMessages, usageTracking));
   const baseModelMessages = await convertToModelMessages(messages);
   const basePruned = safePruneMessages(baseModelMessages);
   const splitIndex = resolveContextSplitIndex(messages);

@@ -39,15 +39,13 @@ import {
 import type { StructuredToolResult } from "@/lib/tool-result";
 import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
 import { basenamePath } from "@/lib/workspace-file-tool";
-import {
-  clearWorkspaceMainEditorDoc,
-  closeWorkspaceMainEditorTab,
-  openWorkspaceMainEditorTab,
-} from "@/lib/workspace-main-editor-tab";
+import { clearWorkspaceMainEditorDoc } from "@/lib/workspace-main-editor-tab";
 
 export type ExplorerFileTab = {
   id: string;
   path: string;
+  /** Tab title (defaults to file basename). */
+  label?: string;
   content: string;
   truncated?: boolean;
   totalChars?: number;
@@ -737,7 +735,6 @@ export function WorkspaceExplorerPanelProvider({
           return [];
         });
         setActiveTabId((active) => (active === PREVIEW_TAB_ID ? null : active));
-        closeWorkspaceMainEditorTab();
         return;
       }
 
@@ -866,6 +863,7 @@ export function WorkspaceExplorerPanelProvider({
           && existing.totalChars === resolvedMeta.totalChars
           && !existing.error
           && (content !== undefined || existing.content !== "" || existing.loading)
+          && (!meta?.tabLabel || existing.label === meta.tabLabel)
         ) {
           return prev;
         }
@@ -873,6 +871,7 @@ export function WorkspaceExplorerPanelProvider({
           {
             id: PREVIEW_TAB_ID,
             path: normalizedPath,
+            label: meta?.tabLabel ?? existing?.label,
             content: resolvedContent,
             truncated: resolvedMeta.truncated,
             totalChars: resolvedMeta.totalChars,
@@ -884,7 +883,6 @@ export function WorkspaceExplorerPanelProvider({
       setActiveTabId((prev) => (prev === PREVIEW_TAB_ID ? prev : PREVIEW_TAB_ID));
 
       clearWorkspaceMainEditorDoc();
-      openWorkspaceMainEditorTab(meta?.tabLabel ?? basenamePath(normalizedPath));
 
       const needsFullReload =
         content === undefined
@@ -998,7 +996,6 @@ export function WorkspaceExplorerPanelProvider({
       return [];
     });
     setActiveTabId((active) => (active === id ? null : active));
-    closeWorkspaceMainEditorTab();
   }, []);
 
   const notifyProjectRemoved = useCallback(() => {

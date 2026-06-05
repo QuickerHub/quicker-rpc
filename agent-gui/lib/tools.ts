@@ -439,7 +439,8 @@ export const quickerTools = {
   workspace_action_read_data: tool({
     description:
       "Read data.json. target=action (default) | global_subprogram | embedded_subprogram (subProgramId required). "
-      + "Prefer mode=summary; after edit/write → workspace_program_patch or qkrpc_action_patch.",
+      + "When valuePrefixWarnings or diagnostics supply startLine/endLine/read, use mode=content with that slice — do not read from line 1 or summary first. "
+      + "mode=summary only for initial structure discovery; after edit/write → workspace_program_patch.",
     inputSchema: z.object({
       ...workspaceProgramIdSchema,
       mode: z
@@ -454,7 +455,8 @@ export const quickerTools = {
   workspace_action_write_data: tool({
     description:
       "Write full data.json (steps + variables[]). target selects project root. "
-      + "Then workspace_program_patch / qkrpc_action_patch immediately.",
+      + "Any value/defaultValue that uses {varName} MUST start with $$ or $= (see docs_get expressions). "
+      + "Fails with valuePrefixWarnings (each has startLine/endLine/read slice) if missing. Then workspace_program_patch when success=true.",
     inputSchema: z.object({
       ...workspaceProgramIdSchema,
       content: z.string().describe("Full data.json UTF-8 text"),
@@ -464,11 +466,15 @@ export const quickerTools = {
 
   workspace_action_edit_data: tool({
     description:
-      "Exact search/replace in data.json. target: action | global_subprogram | embedded_subprogram. "
-      + "Then workspace_program_patch / qkrpc_action_patch.",
+      "Search/replace in data.json (exact match, then JSON-aware merge: append steps, merge variables by key). "
+      + "Use oldString from a recent read_data slice — empty {steps:[],variables:[]} anchors fail once the file has content. "
+      + "target: action | global_subprogram | embedded_subprogram. valuePrefixWarnings include read slice — use it before re-read. Then workspace_program_patch.",
     inputSchema: z.object({
       ...workspaceProgramIdSchema,
-      oldString: z.string().min(1).describe("Exact JSON fragment from read_data"),
+      oldString: z
+        .string()
+        .min(1)
+        .describe("Fragment from read_data; for +steps use {\"steps\":[]} anchor to append"),
       newString: z.string(),
       replaceAll: z.boolean().optional(),
     }),
@@ -491,6 +497,7 @@ export const quickerTools = {
   workspace_program_patch: tool({
     description:
       "Save workspace program to Quicker after editing data.json / files/. "
+      + "Blocked (phase=value-prefix) if any value/defaultValue uses {var} without $$ or $= at start — fix and re-run write/edit first. "
       + "target=action → action apply; global_subprogram → subprogram import; "
       + "embedded_subprogram → parent action apply (compiles subprograms/{id}/).",
     inputSchema: z.object({
@@ -672,7 +679,7 @@ export const quickerTools = {
 
   qkrpc_action_move: tool({
     description:
-      "Move a local action to another profile (action page). Target profile is id or name (e.g. _global). Omit row/col for first empty slot; provide both row and col for a specific cell. Use swap only when the user accepts swapping with an occupied slot.",
+      "Move a local action to another profile (action page). Target profile is id or name (e.g. _global). Omit row/col for first empty slot; provide both row and col for a specific cell. When the target page has no empty slot or the cell is occupied, the tool returns needsUserChoice with options — ask the user, then retry with onNoEmptySlot or onOccupiedSlot (or swap).",
     inputSchema: z.object({
       id: z.string().uuid().describe("Action GUID"),
       profile: z
@@ -681,12 +688,32 @@ export const quickerTools = {
       row: z.number().int().min(0).optional(),
       col: z.number().int().min(0).optional(),
       swap: z.boolean().optional(),
+      onNoEmptySlot: z
+        .enum(["ask", "cancel", "createPageAfter"])
+        .optional()
+        .describe(
+          "When target page is full: ask (default) returns choices; createPageAfter inserts a blank page after target; cancel aborts",
+        ),
+      onOccupiedSlot: z
+        .enum(["ask", "cancel", "swap"])
+        .optional()
+        .describe(
+          "When target row/col is occupied: ask (default) returns choices; swap exchanges; cancel aborts",
+        ),
     }),
-    execute: async ({ id, profile, row, col, swap }) => {
+    execute: async ({ id, profile, row, col, swap, onNoEmptySlot, onOccupiedSlot }) => {
       const args = ["action", "move", "--id", id, "--profile", profile];
       if (row != null) args.push("--row", String(row));
       if (col != null) args.push("--col", String(col));
       if (swap) args.push("--swap");
+      if (onNoEmptySlot === "createPageAfter") {
+        args.push("--on-no-empty-slot", "create-page-after");
+      } else if (onNoEmptySlot != null) {
+        args.push("--on-no-empty-slot", onNoEmptySlot);
+      }
+      if (onOccupiedSlot != null) {
+        args.push("--on-occupied-slot", onOccupiedSlot);
+      }
       return formatQkrpcResultForAgent(await runQkrpcForTool(args));
     },
   }),
@@ -705,6 +732,39 @@ export const quickerTools = {
       const args = ["profile", "create", "--scope", "global"];
       if (count != null) args.push("--count", String(count));
       if (afterFirst) args.push("--after-first");
+      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+    },
+  }),
+
+  qkrpc_profile_delete: tool({
+    description:
+      "Delete empty action profile pages (tabs). Fails when the page still has actions or is protected (_global etc.). Pass profileId or exact profileName; batch via profileIds.",
+    inputSchema: z.object({
+      profileId: z
+        .string()
+        .optional()
+        .describe("Single profile GUID or exact profile name"),
+      profileIds: z
+        .array(z.string())
+        .min(1)
+        .optional()
+        .describe("Batch delete by profile GUIDs or exact names"),
+    }),
+    execute: async ({ profileId, profileIds }) => {
+      const ids = profileIds?.length
+        ? profileIds
+        : profileId
+          ? [profileId]
+          : [];
+      if (ids.length === 0) {
+        return { ok: false, message: "profileId or profileIds is required." };
+      }
+      const args = ["profile", "delete"];
+      if (ids.length === 1) {
+        args.push("--id", ids[0]!);
+      } else {
+        args.push("--ids", ids.join(","));
+      }
       return formatQkrpcResultForAgent(await runQkrpcForTool(args));
     },
   }),

@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getLlmProviderMeta,
+  resolveDeepSeekModelId,
+  DEEPSEEK_PROVIDER_ID,
   type LlmProviderId,
 } from "@/lib/llm-providers";
 import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
 import {
+  getProviderModelOptions,
   USER_EDITABLE_PROVIDER_UI,
   type UserSettingsField,
 } from "@/lib/llm-user-providers";
@@ -340,7 +343,7 @@ export function LlmKeysSettingsSection({
       <header className="app-settings-section-head app-settings-section-head--inline">
         <h2 className="app-settings-section-title">模型与 API Key</h2>
         <p className="app-settings-section-hint">
-          内置 OpenAI 模型无需配置；DeepSeek 仅需 API Key。自定义 endpoint 可添加多个配置，每个配置支持同一 baseURL + Key 下的多个 model。
+          内置 OpenAI 模型无需配置；DeepSeek 需填写 API Key 并选择 V4 Flash 或 V4 Pro。自定义 endpoint 可添加多个配置，每个配置支持同一 baseURL + Key 下的多个 model。
         </p>
       </header>
 
@@ -352,6 +355,14 @@ export function LlmKeysSettingsSection({
             const meta = getLlmProviderMeta(spec.id);
             const st = status?.providers[spec.id];
             const editableApiKey = spec.settingsFields.includes("apiKey");
+            const editableModel = spec.settingsFields.includes("model");
+            const modelOptions = getProviderModelOptions(spec.id);
+            const rawModel =
+              draft[spec.id]?.model || st?.model || meta.defaultModel;
+            const resolvedModel =
+              spec.id === DEEPSEEK_PROVIDER_ID
+                ? resolveDeepSeekModelId(rawModel)
+                : rawModel;
             const panelTouched = (touched.get(spec.id)?.size ?? 0) > 0;
             const panelSaving = savingProviderId === spec.id;
 
@@ -368,12 +379,41 @@ export function LlmKeysSettingsSection({
                   <span className="ws-settings-group-desc">{meta.description}</span>
                 </div>
 
-                <div className="ws-settings-readonly-row">
-                  <span className="ws-settings-field-label">Model</span>
-                  <span className="ws-settings-readonly-value">
-                    {st?.model ?? meta.defaultModel}
-                  </span>
-                </div>
+                {editableModel && modelOptions ? (
+                  <label className="ws-settings-field">
+                    <span className="ws-settings-field-label">Model</span>
+                    <select
+                      className="ws-settings-input"
+                      value={resolvedModel}
+                      disabled={disabled || Boolean(savingProviderId)}
+                      onChange={(e) => {
+                        markTouched(spec.id, "model");
+                        setDraft((prev) => ({
+                          ...prev,
+                          [spec.id]: {
+                            apiKey: prev[spec.id]?.apiKey ?? "",
+                            baseURL: prev[spec.id]?.baseURL ?? "",
+                            model: e.target.value,
+                          },
+                        }));
+                      }}
+                    >
+                      {modelOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.id}
+                          {option.label ? ` (${option.label})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <div className="ws-settings-readonly-row">
+                    <span className="ws-settings-field-label">Model</span>
+                    <span className="ws-settings-readonly-value">
+                      {st?.model ?? meta.defaultModel}
+                    </span>
+                  </div>
+                )}
 
                 <div className="ws-settings-readonly-row">
                   <span className="ws-settings-field-label">状态</span>

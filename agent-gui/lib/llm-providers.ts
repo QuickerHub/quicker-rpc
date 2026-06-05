@@ -31,10 +31,29 @@ export const GPT55_PROVIDER: LlmProviderMeta = {
 /** DeepSeek official API default (V4 Flash; replaces deprecated deepseek-chat). */
 export const DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash" as const;
 
+export const DEEPSEEK_MODEL_IDS = [
+  "deepseek-v4-flash",
+  "deepseek-v4-pro",
+] as const;
+
+export type DeepSeekModelId = (typeof DEEPSEEK_MODEL_IDS)[number];
+
+/** Selectable DeepSeek models in settings. */
+export const DEEPSEEK_MODEL_OPTIONS: readonly { id: DeepSeekModelId; label: string }[] = [
+  { id: "deepseek-v4-flash", label: "V4 Flash" },
+  { id: "deepseek-v4-pro", label: "V4 Pro" },
+];
+
 const DEEPSEEK_LEGACY_MODEL_IDS = new Set([
   "deepseek-chat",
   "deepseek-reasoner",
 ]);
+
+const DEEPSEEK_KNOWN_MODEL_IDS = new Set<string>(DEEPSEEK_MODEL_IDS);
+
+export function isKnownDeepSeekModelId(modelId: string): boolean {
+  return DEEPSEEK_KNOWN_MODEL_IDS.has(modelId.trim().toLowerCase());
+}
 
 export const DEEPSEEK_PROVIDER: LlmProviderMeta = {
   id: DEEPSEEK_PROVIDER_ID,
@@ -42,7 +61,7 @@ export const DEEPSEEK_PROVIDER: LlmProviderMeta = {
   defaultBaseURL: "https://api.deepseek.com/v1",
   defaultModel: DEEPSEEK_DEFAULT_MODEL,
   clientName: "deepseek-official",
-  description: "DeepSeek 官方 API（默认 deepseek-v4-flash，需在设置中填写 Key）",
+  description: "DeepSeek 官方 API（V4 Flash / V4 Pro，需在设置中填写 Key）",
 };
 
 export const CUSTOM_PROVIDER: LlmProviderMeta = {
@@ -58,8 +77,12 @@ export const CUSTOM_PROVIDER: LlmProviderMeta = {
 export function resolveDeepSeekModelId(modelId: string | undefined): string {
   const trimmed = modelId?.trim();
   if (!trimmed) return DEEPSEEK_DEFAULT_MODEL;
-  if (DEEPSEEK_LEGACY_MODEL_IDS.has(trimmed.toLowerCase())) {
+  const lower = trimmed.toLowerCase();
+  if (DEEPSEEK_LEGACY_MODEL_IDS.has(lower)) {
     return DEEPSEEK_DEFAULT_MODEL;
+  }
+  if (DEEPSEEK_KNOWN_MODEL_IDS.has(lower)) {
+    return lower;
   }
   return trimmed;
 }

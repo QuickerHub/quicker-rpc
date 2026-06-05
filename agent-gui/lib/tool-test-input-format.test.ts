@@ -16,6 +16,16 @@ test("formatToolTestInputCompact shows empty query", () => {
   assert.equal(formatToolTestInputCompact({ query: "", limit: 5 }), 'q="" n=5');
 });
 
+test("formatToolTestInputCompact prefers shell description over command", () => {
+  assert.equal(
+    formatToolTestInputCompact({
+      description: "验证前端检查接口",
+      command: "Invoke-RestMethod http://127.0.0.1:3000/api/dev/frontend-check",
+    }),
+    "验证前端检查接口",
+  );
+});
+
 test("formatToolTestInputCompact shows OR and wildcard query", () => {
   assert.equal(
     formatToolTestInputCompact({ query: "表达式|evalexpression", limit: 8 }),

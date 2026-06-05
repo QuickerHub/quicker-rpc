@@ -29,6 +29,10 @@ type CodeMirrorPreviewProps = {
   lineNumbers?: boolean;
   /** Show bottom status bar; defaults to on when fillAvailable. */
   showStatusBar?: boolean;
+  /** Monospace plain text without syntax highlighting. */
+  plain?: boolean;
+  /** Dark terminal command palette (shell_exec command pane). */
+  terminalDark?: boolean;
 };
 
 export function CodeMirrorPreview({
@@ -41,6 +45,8 @@ export function CodeMirrorPreview({
   fillAvailable = false,
   lineNumbers = false,
   showStatusBar,
+  plain = false,
+  terminalDark = false,
 }: CodeMirrorPreviewProps) {
   const showEditorStatusBar = showStatusBar ?? fillAvailable;
   const [stats, setStats] = useState<CodeMirrorEditorStats>(() => statsFromTextContent(content));
@@ -69,11 +75,13 @@ export function CodeMirrorPreview({
       ...buildPreviewCodeMirrorExtensions(path, {
         language,
         lineNumbers,
-        lintSourceText: content,
+        plain,
+        terminalDark,
+        lintSourceText: plain ? "" : content,
       }),
       statsExtension,
     ],
-    [path, language, lineNumbers, content, statsExtension],
+    [path, language, lineNumbers, plain, terminalDark, content, statsExtension],
   );
 
   const editorHeight = fillAvailable ? "100%" : "auto";

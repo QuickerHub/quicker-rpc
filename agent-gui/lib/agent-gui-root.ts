@@ -3,6 +3,8 @@ import { basename, join } from "node:path";
 
 /** Directory containing agent-gui package (when cwd is repo root or agent-gui). */
 export function resolveAgentGuiRoot(): string {
+  const override = process.env.AGENT_GUI_ROOT?.trim();
+  if (override) return override;
   const cwd = process.cwd();
   if (basename(cwd) === "agent-gui") return cwd;
   const nested = join(cwd, "agent-gui");

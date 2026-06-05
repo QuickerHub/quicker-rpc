@@ -27,6 +27,8 @@
 仍无合适模块且表达式不够？         → sys:csscript
 ```
 
+步骤与参数写入 **`data.json`** / **`files/`** 的形状见 **`action-steps`**、**`action-project-files`**。
+
 ## 易混淆项
 
 | 场景 | 选用 | 说明 |

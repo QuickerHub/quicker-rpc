@@ -12,6 +12,7 @@ import {
   summarizeToolOutput,
 } from "./tool-output";
 import { isHiddenChatTool } from "@/lib/hidden-chat-tools";
+import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 import {
   isWorkspaceExplorerFileTool,
   workspaceFileRunningMeta,
@@ -120,7 +121,13 @@ export function segmentMessageParts(
     if (isToolUiPart(part)) {
       const name = getToolOrDynamicToolName(part);
       if (!isHiddenChatTool(name)) {
-        pending.push(analyzeToolUiPart(part, index));
+        const item = analyzeToolUiPart(part, index);
+        if (name === SHELL_EXEC_TOOL) {
+          flushTools();
+          segments.push({ kind: "tool", item });
+        } else {
+          pending.push(item);
+        }
       }
       continue;
     }

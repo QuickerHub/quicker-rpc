@@ -55,7 +55,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
   { id: "docs_index", label: "指南索引", group: "read", category: "docs", description: "列出全部主题" },
   {
     id: "shell_exec",
-    label: "Shell",
+    label: "终端",
     group: "write",
     category: "runtime",
     description: "在本机工作目录执行 PowerShell/cmd/bash 命令或脚本",
@@ -75,6 +75,20 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "管理自定义 LLM profile 与当前选用模型",
   },
   { id: "workspace_action_file_read", label: "读动作文件", group: "read", category: "workspace", description: "files/ 外置资源" },
+  {
+    id: "workspace_action_file_info",
+    label: "动作文件信息",
+    group: "read",
+    category: "workspace",
+    description: "files/ 大小与行数",
+  },
+  {
+    id: "workspace_action_file_search",
+    label: "搜索动作文件",
+    group: "read",
+    category: "workspace",
+    description: "files/ 字面量搜索",
+  },
   {
     id: "workspace_action_projects",
     label: "动作项目",
@@ -252,6 +266,13 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     group: "write",
     category: "workspace",
     description: "改动作 files/",
+  },
+  {
+    id: "qkrpc_profile_delete",
+    label: "删除空白动作页",
+    group: "write",
+    category: "action",
+    description: "删除无动作的动作页",
   },
   {
     id: "qkrpc_profile_create",

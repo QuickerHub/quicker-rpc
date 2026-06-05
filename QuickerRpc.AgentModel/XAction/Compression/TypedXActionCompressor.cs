@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.AgentModel.Proto.V1;
 
+using QuickerRpc.AgentModel.XAction.Project;
+
 namespace QuickerRpc.AgentModel.XAction.Compression;
 
 /// <summary>Compresses <see cref="XActionData"/> into agent wire protobuf (serialized via <see cref="Proto.AgentCompressedProgramJson"/>).</summary>
@@ -86,7 +88,13 @@ internal static class TypedXActionCompressor
             result.VarType = varTypeName;
         }
 
-        if (!string.IsNullOrEmpty(variable.DefaultValue))
+        if (variable.Type is VariableDefaultValueNormalizer.VarTypeText or VariableDefaultValueNormalizer.VarTypeAny)
+        {
+            result.DefaultValue = string.IsNullOrEmpty(variable.DefaultValue)
+                ? string.Empty
+                : variable.DefaultValue;
+        }
+        else if (!string.IsNullOrEmpty(variable.DefaultValue))
         {
             result.DefaultValue = variable.DefaultValue;
         }

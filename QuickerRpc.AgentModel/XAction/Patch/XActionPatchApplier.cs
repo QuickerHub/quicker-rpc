@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 using QuickerRpc.AgentModel.XAction.Compression;
+using QuickerRpc.AgentModel.XAction.Project;
 
 
 
@@ -182,6 +183,7 @@ public static class XActionPatchApplier
 
         XActionCompressor.EnsureEphemeralStepIds(steps);
 
+        VariableDefaultValueNormalizer.EnsureQuickerRuntimeDefaults(variables);
         XActionCompressor.EnsureEphemeralVariableIds(variables);
 
 
@@ -219,6 +221,7 @@ public static class XActionPatchApplier
 
         XActionCompressor.EnsureEphemeralStepIds(steps);
 
+        VariableDefaultValueNormalizer.EnsureQuickerRuntimeDefaults(variables);
         XActionCompressor.EnsureEphemeralVariableIds(variables);
 
         return result;

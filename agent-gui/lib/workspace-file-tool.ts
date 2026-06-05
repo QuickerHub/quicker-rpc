@@ -129,6 +129,11 @@ function isProgramDataSummaryAction(action: unknown): boolean {
   return typeof action === "string" && PROGRAM_DATA_SUMMARY_ACTIONS.has(action);
 }
 
+/** read_data / read with mode=summary tool result (outline only, no file body). */
+export function isWorkspaceReadDataSummaryResult(data: unknown): boolean {
+  return isRecord(data) && isProgramDataSummaryAction(data.action);
+}
+
 function readInputReadDataMode(input: unknown): "content" | "summary" | undefined {
   if (typeof input !== "object" || input === null) return undefined;
   const mode = (input as Record<string, unknown>).mode;
@@ -354,7 +359,7 @@ export function summarizeWorkspaceFileTool(
     const vars =
       typeof output.data.variableCount === "number" ? output.data.variableCount : "?";
     const validated = output.data.validated === true ? " · 已校验" : "";
-    return `${pathHint ?? "data.json"} · ${steps} 步 · ${vars} 变量${validated}`;
+    return `${steps} 步 · ${vars} 变量${validated}`;
   }
 
   if (isRecord(output.data)) {
@@ -432,6 +437,57 @@ function shortActionId(actionId: string): string {
 export function formatActionDataJsonPath(actionId: string): string {
   const id = actionId.trim();
   return `.quicker/actions/${id}/data.json`;
+}
+
+/** Compact text preview for read_data mode=summary (chat code block). */
+export function formatProgramDataSummaryPreview(
+  data: Record<string, unknown>,
+): string {
+  const stepCount =
+    typeof data.stepCount === "number" ? data.stepCount : "?";
+  const variableCount =
+    typeof data.variableCount === "number" ? data.variableCount : "?";
+  const lines: string[] = [
+    `steps: ${stepCount}, variables: ${variableCount}`,
+  ];
+  if (data.validated === false && typeof data.validationError === "string") {
+    lines.push(`validation: ${data.validationError.trim()}`);
+  } else if (data.validated === true) {
+    lines.push("validation: ok");
+  }
+  const outline = Array.isArray(data.stepsOutline) ? data.stepsOutline : [];
+  for (const row of outline.slice(0, 48)) {
+    if (!isRecord(row)) continue;
+    const index = typeof row.index === "number" ? row.index : "?";
+    const key =
+      typeof row.stepRunnerKey === "string" && row.stepRunnerKey.trim()
+        ? row.stepRunnerKey.trim()
+        : "?";
+    lines.push(`  [${index}] ${key}`);
+  }
+  if (outline.length > 48) {
+    lines.push(`  … +${outline.length - 48} more steps`);
+  }
+  const variableKeys = Array.isArray(data.variableKeys)
+    ? data.variableKeys.filter(
+        (k): k is string => typeof k === "string" && k.trim().length > 0,
+      )
+    : [];
+  if (variableKeys.length > 0) {
+    const shown = variableKeys.slice(0, 24).join(", ");
+    const more =
+      variableKeys.length > 24 ? ` … +${variableKeys.length - 24}` : "";
+    lines.push(`variables: ${shown}${more}`);
+  }
+  const prefixWarnings =
+    typeof data.valuePrefixWarningCount === "number"
+      && data.valuePrefixWarningCount > 0
+      ? data.valuePrefixWarningCount
+      : 0;
+  if (prefixWarnings > 0) {
+    lines.push(`valuePrefixWarnings: ${prefixWarnings}`);
+  }
+  return lines.join("\n");
 }
 
 function readToolResultContent(
@@ -722,18 +778,19 @@ export function getWorkspaceFileEditorPreview(
     }
     case "workspace_action_read_data": {
       if (isRecord(data) && isProgramDataSummaryAction(data.action)) {
-        return null;
-      }
-      if (!data && readInputReadDataMode(input) === "summary") {
-        return null;
-      }
-      const payload = parseWorkspaceFilePayload(toolName, data);
-      if (payload?.action === "file-read") {
+        const id = readInputActionId(input);
         return {
-          path: payload.path,
-          content: payload.content,
-          truncated: payload.truncated,
-          totalChars: payload.totalChars,
+          path: id ? formatActionDataJsonPath(id) : "data.json",
+          content: formatProgramDataSummaryPreview(data),
+        };
+      }
+      const read = parseWorkspaceFileReadPayload(data);
+      if (read) {
+        return {
+          path: read.path,
+          content: read.content,
+          truncated: read.truncated,
+          totalChars: read.totalChars,
         };
       }
       const id = readInputActionId(input);

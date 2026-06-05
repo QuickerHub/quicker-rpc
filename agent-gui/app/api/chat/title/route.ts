@@ -20,6 +20,7 @@ import {
   THREAD_TITLE_RETRY_USER_PROMPT_SUFFIX,
   THREAD_TITLE_SYSTEM_PROMPT,
 } from "@/lib/thread-title";
+import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
 
 export const maxDuration = 30;
 
@@ -139,6 +140,15 @@ export async function POST(req: Request) {
       generated === "新对话" && provisional !== "新对话"
         ? provisional
         : generated;
+
+    recordManagedLlmUsageAsync({
+      selection,
+      modelId,
+      source: "title",
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      totalTokens: totalInputTokens + totalOutputTokens,
+    });
 
     return Response.json({
       title,

@@ -29,6 +29,7 @@ import { isTextUIPart } from "ai";
 import { resolveModelContextLimit } from "@/lib/llm-context-limits";
 import { prepareCompressedContext } from "@/lib/context-compression";
 import { repairInterruptedToolCalls } from "@/lib/repair-interrupted-tool-calls";
+import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
 
 export const maxDuration = 120;
 
@@ -137,6 +138,10 @@ async function handleChatPost(req: Request) {
       messages: messagesForModel,
       model,
       contextLimit,
+      usageTracking: {
+        selection,
+        modelId,
+      },
     });
 
     const scopeBlock = formatActionScopeForSystem(actionScope);
@@ -166,6 +171,17 @@ async function handleChatPost(req: Request) {
       messages: preparedContext.modelMessages,
       tools,
       stopWhen: stepCountIs(titleTest ? 3 : 25),
+      onFinish: ({ totalUsage }) => {
+        recordManagedLlmUsageAsync({
+          selection,
+          modelId,
+          source: "chat",
+          inputTokens: totalUsage.inputTokens,
+          outputTokens: totalUsage.outputTokens,
+          totalTokens: totalUsage.totalTokens,
+          reasoningTokens: totalUsage.reasoningTokens,
+        });
+      },
     });
 
     return result.toUIMessageStreamResponse({

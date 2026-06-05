@@ -589,7 +589,15 @@ internal static partial class Program
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var result = await session.Proxy
-                .MoveActionAsync(actionId, targetProfile, options.Row, options.Col, options.Swap, rpcToken)
+                .MoveActionAsync(
+                    actionId,
+                    targetProfile,
+                    options.Row,
+                    options.Col,
+                    options.Swap,
+                    options.OnNoEmptySlot,
+                    options.OnOccupiedSlot,
+                    rpcToken)
                 .ConfigureAwait(false);
 
             if (options.Json)
@@ -599,6 +607,9 @@ internal static partial class Program
                     {
                         ok = result.Ok,
                         action = "move",
+                        needsUserChoice = result.NeedsUserChoice,
+                        conflictReason = result.ConflictReason,
+                        choices = result.Choices,
                         actionId = result.ActionId ?? actionId,
                         actionTitle = result.ActionTitle,
                         sourceProfileId = result.SourceProfileId,
@@ -611,6 +622,11 @@ internal static partial class Program
                         targetCol = result.TargetCol,
                         swappedActionId = result.SwappedActionId,
                         swappedActionTitle = result.SwappedActionTitle,
+                        occupiedActionId = result.OccupiedActionId,
+                        occupiedActionTitle = result.OccupiedActionTitle,
+                        createdProfile = result.CreatedProfile,
+                        createdProfileId = result.CreatedProfileId,
+                        createdProfileName = result.CreatedProfileName,
                         message = result.Message,
                     },
                     QkrpcJson.CliOutput));
@@ -1175,6 +1191,12 @@ public sealed class ActionOptions
 
     [Option("swap", HelpText = "Allow action move to swap with an occupied target position.")]
     public bool Swap { get; set; }
+
+    [Option("on-no-empty-slot", HelpText = "When target page has no empty slot: ask (default) | cancel | create-page-after.")]
+    public string? OnNoEmptySlot { get; set; }
+
+    [Option("on-occupied-slot", HelpText = "When target row/col is occupied: ask (default) | cancel | swap.")]
+    public string? OnOccupiedSlot { get; set; }
 
     [Option("return-mode", HelpText = "For action get: full | structure | metadata.")]
     public string? ReturnMode { get; set; }

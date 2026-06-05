@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Text.Json;
 using CommandLine;
 using QuickerRpc.Contracts.Rpc;
@@ -13,10 +14,11 @@ internal static partial class Program
         return verb switch
         {
             "check" => RunExprAsync(options),
+            "run" => RunExprExecuteAsync(options),
             _ => EmitErrorAndFailAsync(
                 options.Json,
                 "UNKNOWN_EXPR_VERB",
-                "Use: expr check --code <text> | --file <path> [--variables '{\"k\":\"string\"}'] [--json]"),
+                "Use: expr check | expr run --code <text> | --file <path> [--variables '{\"k\":...}'] [--json]"),
         };
     }
 
@@ -42,6 +44,76 @@ internal static partial class Program
                 ParseVariableTypes(options.Variables),
                 token))
             .ConfigureAwait(false);
+
+    private static async Task<int> RunExprExecuteAsync(ExprOptions options)
+    {
+        var (ok, text, errorCode, errorMessage) = QkrpcJsonPayload.Resolve(
+            options.Code,
+            options.File,
+            "code");
+        if (!ok)
+        {
+            return await EmitErrorAndFailAsync(options.Json, errorCode!, errorMessage!).ConfigureAwait(false);
+        }
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap)
+                .ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var variablesJson = ResolveVariablesJson(options);
+            if (variablesJson is null)
+            {
+                return await EmitErrorAndFailAsync(
+                    options.Json,
+                    "INVALID_VARIABLES",
+                    "Provide --variables JSON or --variables-file path.").ConfigureAwait(false);
+            }
+
+            var result = await session.Proxy
+                .ExecuteExpressionAsync(text!, variablesJson, options.OnUiThread, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "expr-run",
+                        success = result.Success,
+                        message = result.Message,
+                        errorCode = result.ErrorCode,
+                        resultJson = result.ResultJson,
+                        resultType = result.ResultType,
+                        variablesJson = result.VariablesJson,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else if (result.Success)
+            {
+                if (!string.IsNullOrEmpty(result.ResultJson))
+                {
+                    global::System.Console.WriteLine(result.ResultJson);
+                }
+
+                if (!string.IsNullOrEmpty(result.VariablesJson))
+                {
+                    global::System.Console.Error.WriteLine("variables: " + result.VariablesJson);
+                }
+            }
+            else
+            {
+                global::System.Console.Error.WriteLine(result.Message);
+            }
+
+            return result.Success ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "EXPR_RUN_FAILED", ex.Message).ConfigureAwait(false);
+        }
+    }
 
     private static async Task<int> RunScriptAsync(ScriptOptions options) =>
         await RunCodeCheckAsync(
@@ -102,6 +174,22 @@ internal static partial class Program
         }
     }
 
+    private static string? ResolveVariablesJson(ExprOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.VariablesFile))
+        {
+            var path = Path.GetFullPath(options.VariablesFile.Trim());
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            return File.ReadAllText(path);
+        }
+
+        return string.IsNullOrWhiteSpace(options.Variables) ? "{}" : options.Variables;
+    }
+
     private static IDictionary<string, string>? ParseVariableTypes(string? variablesJson)
     {
         if (string.IsNullOrWhiteSpace(variablesJson))
@@ -127,10 +215,10 @@ internal interface ICodeCheckCliOptions
     bool NoBootstrap { get; }
 }
 
-[Verb("expr", HelpText = "Check Quicker expression syntax ($= / sys:evalexpression) via plugin.")]
+[Verb("expr", HelpText = "Check or run Quicker expressions ($= / sys:evalexpression) via plugin.")]
 public sealed class ExprOptions : ICodeCheckCliOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "check")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "check | run")]
     public string? Command { get; set; }
 
     [Option("code", HelpText = "Inline expression code.")]
@@ -139,8 +227,14 @@ public sealed class ExprOptions : ICodeCheckCliOptions
     [Option("file", HelpText = "Expression file path, or - for stdin.")]
     public string? File { get; set; }
 
-    [Option("variables", HelpText = "JSON object: variable name -> C# type name (e.g. {\"n\":\"int\"}).")]
+    [Option("variables", HelpText = "check: JSON name->C# type; run: JSON name->value (e.g. {\"clipText\":\"a\\nb\"}).")]
     public string? Variables { get; set; }
+
+    [Option("variables-file", HelpText = "run: JSON file with variable values (avoids shell escaping).")]
+    public string? VariablesFile { get; set; }
+
+    [Option("on-ui-thread", HelpText = "run: execute on UI thread (may deadlock).")]
+    public bool OnUiThread { get; set; }
 
     [Option("json", HelpText = "Emit JSON for automation.")]
     public bool Json { get; set; }

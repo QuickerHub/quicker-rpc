@@ -141,7 +141,9 @@ function TreeNodeRow({
 
           className={`explorer-tree-row${selected ? " explorer-tree-row--selected" : ""}`}
 
-          style={{ paddingLeft: `${0.45 + depth * 0.85}rem` }}
+          style={{
+            paddingLeft: `calc(var(--explorer-tree-indent-base, 0.28rem) + ${depth} * var(--explorer-tree-indent-step, 0.52rem))`,
+          }}
 
           onClick={() => {
             if (isFolderRow) {

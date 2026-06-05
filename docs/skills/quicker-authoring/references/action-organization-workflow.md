@@ -33,7 +33,9 @@ qkrpc_action_search({ query: "uses:MySub", scope?: "agent" })
 ```text
 action move --id <guid> --profile <profileId|profileName|scope>
   [--row N --col M]   # 指定格子；须同时提供
-  [--swap]            # 目标格已有动作时交换（默认失败）
+  [--swap]            # 目标格已有动作时交换
+  [--on-no-empty-slot ask|cancel|create-page-after]
+  [--on-occupied-slot ask|cancel|swap]
 ```
 
 ```text
@@ -45,9 +47,11 @@ qkrpc_action_move({ id: "<guid>", profile: "<profileId>", row?: 0, col?: 1, swap
 |------|------|
 | 移到某页第一个空位 | 只传 `profile` |
 | 精确放到 (0,1) | `row` + `col` 一起传 |
-| 与占用格交换 | 加 `swap: true`（用户接受覆盖时再开） |
+| 与占用格交换 | `swap: true` 或 `onOccupiedSlot: "swap"` |
+| 目标页已满 | 默认 `needsUserChoice`：问用户后重试 `onNoEmptySlot: "createPageAfter"` 或 `"cancel"` |
+| 目标页已满且用户同意新建页 | `onNoEmptySlot: "createPageAfter"`（在目标页后插入空白页再移动） |
 
-## O3 全局动作页：新建与排序
+## O3 全局动作页：新建、删除与排序
 
 **新建空白页**（常用于把 `_global` 上的动作迁出）：
 
@@ -55,6 +59,13 @@ qkrpc_action_move({ id: "<guid>", profile: "<profileId>", row?: 0, col?: 1, swap
 qkrpc_profile_create({ count?: 1, afterFirst: true })
 ```
 `afterFirst: true` → 插在 `_global` **之后**（保留顶部保留位）。创建后 list `scope=global` 取新 `profileId`。
+
+**删除空白页**（页内无任何动作；`_global` 等受保护页会失败）：
+
+```text
+qkrpc_profile_delete({ profileId?: "<profileId>", profileIds?: ["<guid1>,<guid2>"] })
+qkrpc_profile_delete({ profileId?: "<profileId>", profileIds?: ["[guid1,guid2]"] })
+```
 
 **调整已有 tab 顺序**（移到 `_global` 后面）：
 
@@ -127,6 +138,7 @@ process ensure --exe _ceacore_run --name "CeaCore Run" --profile-prefix "@CeaCor
 - **destructive 无关**：move / profile / process ensure 可立即执行（无确认 UI）。
 - 目标页不存在时先用 **O3** 或 **O4** 创建；虚拟进程页在 Quicker「场景与动作管理」左侧应可见（需插件写入 ExeSettings）。
 - 批量移动前先用 **O1** 确认列表；`swap` 会交换占用格——仅在用户明确接受时使用。
+- 目标页无空位时默认返回 `needsUserChoice`（不弹 Quicker 错误）；Agent 应向用户展示选项后带 `onNoEmptySlot` / `onOccupiedSlot` 重试。
 
 ## 相关
 

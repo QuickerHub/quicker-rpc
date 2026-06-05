@@ -20,6 +20,8 @@
 
 Search **不**再附带 `agentGuidance` 长文（避免每次检索重复占 context）。流程说明在 **`authoring-workflow`**、**`action-steps`**、系统提示。
 
+`inputParams` 绑定形状（`value` / `varKey` / 外置 **`{ "file": "files/…" }`**）见 **`action-steps`**、**`action-project-files`**；get 的 schema 只列参数键名，不重复 file 规则。
+
 ## 调用
 
 ```powershell

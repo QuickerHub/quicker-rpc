@@ -46,7 +46,7 @@ const APPROVAL_PATTERNS: RegExp[] = [
   /\b(kill|stop-process|taskkill)\b/i,
   /\b(move-item|mv|ren|rename-item)\b/i,
   /\b(copy-item|cp|xcopy|robocopy)\b/i,
-  /\b(set-content|out-file|>|>>)\b/i,
+  /\b(set-content|out-file)\b/i,
 ];
 
 function collectInspectText(request: ShellRunRequest): string {

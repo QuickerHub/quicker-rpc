@@ -23,6 +23,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly ActionDeleteService _actionDeleteService;
     private readonly ActionMoveService _actionMoveService;
     private readonly GlobalProfileCreateService _globalProfileCreateService;
+    private readonly ProfileDeleteService _profileDeleteService;
     private readonly VirtualProcessCreateService _virtualProcessCreateService;
     private readonly ActionCreateService _actionCreateService;
     private readonly ActionEditService _actionEditService;
@@ -33,6 +34,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly HeadlessSubProgramProgramService _headlessSubProgramProgramService;
     private readonly FontAwesomeIconSearchService _fontAwesomeIconSearchService;
     private readonly CodeSyntaxCheckService _codeSyntaxCheckService;
+    private readonly ExpressionExecuteService _expressionExecuteService;
     private readonly IPopupMessageService _popup;
 
     public QuickerRpcService(
@@ -42,6 +44,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         ActionDeleteService actionDeleteService,
         ActionMoveService actionMoveService,
         GlobalProfileCreateService globalProfileCreateService,
+        ProfileDeleteService profileDeleteService,
         VirtualProcessCreateService virtualProcessCreateService,
         ActionCreateService actionCreateService,
         ActionEditService actionEditService,
@@ -52,6 +55,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         HeadlessSubProgramProgramService headlessSubProgramProgramService,
         FontAwesomeIconSearchService fontAwesomeIconSearchService,
         CodeSyntaxCheckService codeSyntaxCheckService,
+        ExpressionExecuteService expressionExecuteService,
         IPopupMessageService popup)
     {
         _actionPublishService = actionPublishService;
@@ -60,6 +64,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _actionDeleteService = actionDeleteService;
         _actionMoveService = actionMoveService;
         _globalProfileCreateService = globalProfileCreateService;
+        _profileDeleteService = profileDeleteService;
         _virtualProcessCreateService = virtualProcessCreateService;
         _actionCreateService = actionCreateService;
         _actionEditService = actionEditService;
@@ -70,6 +75,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _headlessSubProgramProgramService = headlessSubProgramProgramService;
         _fontAwesomeIconSearchService = fontAwesomeIconSearchService;
         _codeSyntaxCheckService = codeSyntaxCheckService;
+        _expressionExecuteService = expressionExecuteService;
         _popup = popup;
     }
 
@@ -83,6 +89,12 @@ public sealed class QuickerRpcService : IQuickerRpcService
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(CurrentProtocolVersion);
+    }
+
+    public Task<QuickerRpcAccountInfo> GetQuickerAccountAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(QuickerAccountAccessor.TryGetAccountInfo());
     }
 
     /// <summary>Legacy RPC/CLI update entry; delegates to <see cref="PublishSharedActionAsync"/>.</summary>
@@ -410,6 +422,28 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
+    public Task<QuickerRpcDeleteProfileResult> DeleteEmptyProfilesAsync(
+        IReadOnlyList<string> profileIdsOrNames,
+        CancellationToken cancellationToken = default)
+    {
+        return InvokeOnDispatcherAsync(
+            () =>
+            {
+                var result = _profileDeleteService.DeleteEmptyProfiles(profileIdsOrNames);
+                if (result.Ok)
+                {
+                    _popup.Success(result.Message);
+                }
+                else
+                {
+                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "删除动作页失败" : result.Message);
+                }
+
+                return Task.FromResult(result);
+            },
+            cancellationToken);
+    }
+
     public Task<QuickerRpcCreateVirtualProcessResult> EnsureVirtualProcessAsync(
         string exeFile,
         string displayName,
@@ -474,6 +508,8 @@ public sealed class QuickerRpcService : IQuickerRpcService
         int? targetRow = null,
         int? targetCol = null,
         bool allowSwap = false,
+        string? onNoEmptySlot = null,
+        string? onOccupiedSlot = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(actionId))
@@ -503,12 +539,14 @@ public sealed class QuickerRpcService : IQuickerRpcService
                     targetProfile.Trim(),
                     targetRow,
                     targetCol,
-                    allowSwap);
+                    allowSwap,
+                    onNoEmptySlot,
+                    onOccupiedSlot);
                 if (result.Ok)
                 {
                     _popup.Success(result.Message);
                 }
-                else
+                else if (!result.NeedsUserChoice)
                 {
                     _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "移动动作失败" : result.Message);
                 }
@@ -809,6 +847,16 @@ public sealed class QuickerRpcService : IQuickerRpcService
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(_codeSyntaxCheckService.CheckExpression(code, variableTypes));
+    }
+
+    public Task<QuickerRpcExpressionExecuteResult> ExecuteExpressionAsync(
+        string code,
+        string? variablesJson = null,
+        bool onUiThread = false,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_expressionExecuteService.Execute(code, variablesJson, onUiThread));
     }
 
     public Task<QuickerRpcCodeSyntaxCheckResult> CheckCSharpScriptSyntaxAsync(

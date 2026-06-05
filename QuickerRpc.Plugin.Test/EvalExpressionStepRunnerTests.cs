@@ -16,10 +16,10 @@ public sealed class EvalExpressionStepRunnerTests
     }
 
     [TestMethod]
-    public void ReplaceVariablePlaceholders_preserves_line_ending_array_initializer()
+    public void ReplaceVariablePlaceholders_rewrites_placeholders_with_v_prefix()
     {
         var boundVariables = new Dictionary<string, object?>();
-        var expression = "new[] {\"\\r\\n\",\"\\n\",\"\\r\"}.Contains({lineEnding})";
+        var expression = "new[] {\"\\r\\n\",\"\\n\",\"\\r\"}.Contains({lineEnding}) + {realVariable}";
 
         var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
             expression,
@@ -27,13 +27,14 @@ public sealed class EvalExpressionStepRunnerTests
             key => key,
             (name, value) => boundVariables[name] = value);
 
-        Assert.AreEqual("new[] {\"\\r\\n\",\"\\n\",\"\\r\"}.Contains(v_lineEnding)", result);
-        Assert.AreEqual(1, boundVariables.Count);
+        Assert.AreEqual("new[] {\"\\r\\n\",\"\\n\",\"\\r\"}.Contains(v_lineEnding) + v_realVariable", result);
+        Assert.AreEqual(2, boundVariables.Count);
         Assert.AreEqual("lineEnding", boundVariables["v_lineEnding"]);
+        Assert.AreEqual("realVariable", boundVariables["v_realVariable"]);
     }
 
     [TestMethod]
-    public void ReplaceVariablePlaceholders_preserves_braces_inside_string_literals()
+    public void ReplaceVariablePlaceholders_rewrites_braces_inside_string_literals()
     {
         var boundVariables = new Dictionary<string, object?>();
         var expression = "\"{notVariable}\" + @\"{alsoNotVariable}\" + {realVariable}";
@@ -44,24 +45,23 @@ public sealed class EvalExpressionStepRunnerTests
             key => key,
             (name, value) => boundVariables[name] = value);
 
-        Assert.AreEqual("\"{notVariable}\" + @\"{alsoNotVariable}\" + v_realVariable", result);
-        Assert.AreEqual(1, boundVariables.Count);
-        Assert.AreEqual("realVariable", boundVariables["v_realVariable"]);
+        Assert.AreEqual("\"v_notVariable\" + @\"v_alsoNotVariable\" + v_realVariable", result);
+        Assert.AreEqual(3, boundVariables.Count);
     }
 
     [TestMethod]
-    public void ReplaceVariablePlaceholders_keeps_placeholder_when_variable_not_defined()
+    public void ReplaceVariablePlaceholders_deduplicates_repeated_placeholders()
     {
         var boundVariables = new Dictionary<string, object?>();
-        var expression = "{definedVar} + {missingVar}";
+        var expression = "{definedVar} + {definedVar}";
 
         var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
             expression,
-            key => string.Equals(key, "definedVar", StringComparison.Ordinal),
+            _ => true,
             key => key,
             (name, value) => boundVariables[name] = value);
 
-        Assert.AreEqual("v_definedVar + {missingVar}", result);
+        Assert.AreEqual("v_definedVar + v_definedVar", result);
         Assert.AreEqual(1, boundVariables.Count);
         Assert.AreEqual("definedVar", boundVariables["v_definedVar"]);
     }

@@ -19,6 +19,7 @@ import {
   parseStepRunnerSearchResult,
 } from "@/lib/step-runner-tool";
 import { isStructuredToolResult } from "@/lib/tool-result";
+import { parseProgramDiagnosticsFromToolData } from "@/lib/program-diagnostics-view";
 import { parseWorkspaceFileReadPayload } from "@/lib/workspace-file-tool";
 
 /** Whether the popup can show a structured visual body (not only raw JSON). */
@@ -29,6 +30,7 @@ export function toolPopupHasVisualView(
 ): boolean {
   if (isStructuredToolResult(output)) {
     const data = output.data;
+    if (parseProgramDiagnosticsFromToolData(data)) return true;
     if (parseActionListFromQkrpcData(toolName, data)) return true;
     if (isActionProjectsTool(toolName) && parseActionProjectsFromToolData(data)) {
       return true;

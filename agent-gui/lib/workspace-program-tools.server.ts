@@ -29,7 +29,12 @@ import {
   resolveWorkspaceProgramFilesScopeForTool,
 } from "@/lib/workspace-program-resolve.server";
 import { scheduleProgramSyntaxLint } from "@/lib/program-syntax-lint";
+import {
+  formatValuePrefixWarningsMessage,
+  scanProgramValuePrefixWarnings,
+} from "@/lib/quicker-interpolation-lint";
 import { isStructuredToolResult } from "@/lib/tool-result";
+import { readFile } from "node:fs/promises";
 
 type ReadSlice = {
   offset?: number;
@@ -143,6 +148,23 @@ export async function executeWorkspaceProgramWriteData(
   const summaryResult =
     parsed.ok ? await getProgramProjectDataSummary(parsed.target) : null;
   const syncNote = formatProgramAutoSyncedNote(resolved.autoSynced);
+  const prefixWarnings = scanProgramValuePrefixWarnings(input.content);
+  if (prefixWarnings.length > 0) {
+    const message = formatValuePrefixWarningsMessage(prefixWarnings);
+    return formatLocalToolResult(
+      {
+        action: "program-data-write",
+        success: false,
+        valuePrefixWarningCount: prefixWarnings.length,
+        valuePrefixWarnings: prefixWarnings.slice(0, 12),
+        firstFixRead: prefixWarnings.find((w) => w.read)?.read,
+        errorMessage: message,
+        projectSummary: summaryResult?.ok ? summaryResult.summary : undefined,
+      },
+      false,
+      message,
+    );
+  }
 
   return formatLocalToolResult({
     action: "program-data-write",
@@ -201,6 +223,32 @@ export async function executeWorkspaceProgramEditData(
     parsed.ok ? await getProgramProjectDataSummary(parsed.target) : null;
   const syncNote = formatProgramAutoSyncedNote(resolved.autoSynced);
 
+  let prefixWarnings: ReturnType<typeof scanProgramValuePrefixWarnings> = [];
+  try {
+    const raw = await readFile(resolved.resolved.path, "utf8");
+    prefixWarnings = scanProgramValuePrefixWarnings(raw);
+  } catch {
+    /* ignore read errors; edit already succeeded */
+  }
+  if (prefixWarnings.length > 0) {
+    const message = formatValuePrefixWarningsMessage(prefixWarnings);
+    return formatLocalToolResult(
+      {
+        action: "program-data-edit",
+        success: false,
+        replacements: result.replacements,
+        matchLines: result.matchLines,
+        valuePrefixWarningCount: prefixWarnings.length,
+        valuePrefixWarnings: prefixWarnings.slice(0, 12),
+        firstFixRead: prefixWarnings.find((w) => w.read)?.read,
+        errorMessage: message,
+        projectSummary: summaryResult?.ok ? summaryResult.summary : undefined,
+      },
+      false,
+      message,
+    );
+  }
+
   return formatLocalToolResult({
     action: "program-data-edit",
     success: true,
@@ -211,6 +259,7 @@ export async function executeWorkspaceProgramEditData(
     path: result.path,
     replacements: result.replacements,
     matchLines: result.matchLines,
+    editStrategy: result.editStrategy,
     projectSummary: summaryResult?.ok ? summaryResult.summary : undefined,
     ...(syncNote ? { workspaceSyncNote: syncNote } : {}),
   });

@@ -7,8 +7,9 @@
 | 层级 | 内容 |
 |------|------|
 | **工具 description** | 参数名、返回值、字段约束（权威来源） |
-| **流程文档（本目录）** | P0–P7 顺序、workspace 分工、表达式/变量等领域规则 |
-| **CLI 专用** | `patch-workflow`、`action-project-files`（内联 JSON / extract·apply） |
+| **流程文档（本目录）** | P0–P7 顺序、工具与工作区分工（`authoring-workflow`、`workspace-editing` 等） |
+| **动作文件定义** | `action-variables`、`action-steps`、`expressions`、`action-project-files` — 仅 `data.json` / 目录结构，不涉及工具行为 |
+| **CLI 专用** | `patch-workflow`（内联 patch JSON） |
 
 **CLI 默认路径**：`action get` → `step-runner get` → `action patch --patch-file`（或 extract/apply 改磁盘）。
 
@@ -49,16 +50,18 @@ qkrpc guide get --topic authoring-workflow --json
 | 子程序 | **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
 | 步骤模块搜索 | **`step-runner-search`** | P5：目录搜索 OR/通配 |
 | 步骤模块 schema | **`step-runner-get`** | P5：Agent 只用 `get`（禁止 `get-ui`）；与 search 分工 |
+| 工作区目录与外置 | **`action-project-files`** | `.quicker/actions` 布局、`file` 引用形状 |
 | Patch 工作流（CLI） | **`patch-workflow`** | P6：内联 patch JSON |
-| 工作区项目（CLI） | **`action-project-files`** | CLI 磁盘 extract/apply |
 
 ## 常见错误（由 qkrpc 返回说明）
 
 | 场景 | 对策 |
 |------|------|
-| 猜 `inputParams` 键名 | **`step-runner get`** |
-| 长脚本/字符串塞进 `value` | 超过 4 行用 **`files/`** + `"file": "files/…"`（**`action-steps`**） |
-| `outputParams` 写成 `{ "varKey": "…" }` | 输出值为 **变量 key 字符串**（可 `dictVar.key`），见 **`action-steps`** |
-| 猜 `callIdentifier` | `qkrpc_subprogram_search` / `get` |
-| 猜 icon | `qkrpc_fa_search` |
-| 保存后反复 get 确认 | 用响应里的 **`editVersion`**、**`addedSteps`**（增量 patch） |
+| `value` / 内联 `defaultValue` 含 `{var}` 却未以 `$$`/`$=` 开头 | 运行时不会展开；改为 `$$…` / `$=…` 或 `varKey`（**`expressions`**） |
+| 猜 `inputParams` 键名 | 键名须与 step-runner schema 一致（**`step-runner-get`**） |
+| 长脚本/字符串塞进 `value` | 超过约 4 行用 **`files/`** + `{ "file": "files/…" }`（**`action-steps`**、**`action-project-files`**） |
+| `outputParams` 误用 input 形状 `{ "varKey": "…" }` | 应写 `"outputKey": "clipText"` 等 **字符串**（可 `dictVar.key`），见 **`action-steps`** |
+| 使用废弃的 `defaultValueFile` | 改为 `defaultValue: { "file": "files/…" }`（**`action-variables`**） |
+| 猜 `callIdentifier`、图标 spec | 须从子程序定义 / 图标目录取得，勿手写（流程见 **`subprogram-workflow`**、**`action-icons`**） |
+
+| 保存后反复 get 确认 | 以 patch / apply 响应中的 **`editVersion`** 为准（**`authoring-workflow`** P7） |

@@ -3,9 +3,11 @@
 import { memo, useMemo } from "react";
 import {
   getWorkspaceFileEditorPreview,
+  isWorkspaceReadDataSummaryResult,
   shouldShowFileEditorCodeBlockInChat,
 } from "@/lib/workspace-file-tool";
 import { FileEditorCard } from "./FileEditorCard";
+import { fileEditorStatFromPreview } from "./FileEditorPreviewPopup";
 import { ToolSummaryTitle } from "@/components/chat/ToolSummaryTitle";
 import { type QkrpcToolResult } from "./tool-output";
 import {
@@ -53,6 +55,21 @@ function WorkspaceFileReadRowInner({
     [toolName, input, output],
   );
 
+  const readStat = useMemo(
+    () =>
+      preview && output?.ok
+        ? fileEditorStatFromPreview(toolName, preview, input)
+        : undefined,
+    [toolName, preview, input, output],
+  );
+
+  const showCode = shouldShowFileEditorCodeBlockInChat(toolName);
+  const isDataSummary =
+    toolName === "workspace_action_read_data"
+    && output?.ok
+    && isWorkspaceReadDataSummaryResult(output.data);
+  const showInlinePreview = Boolean(preview && showCode && !isDataSummary);
+
   return (
     <>
     <div
@@ -72,18 +89,19 @@ function WorkspaceFileReadRowInner({
           <ToolDetailsIconButton onClick={popup.openPopup} />
         ) : null}
       </div>
-      {preview ? (
-        <>
+      {showInlinePreview ? (
+        <div className="tool-body tool-body--file-read">
           <FileEditorCard
-            path={preview.path}
-            content={preview.content}
+            path={preview!.path}
+            content={preview!.content}
             running={running}
+            stat={readStat}
             variant="compact"
             foldSnapshot={false}
-            showContent={shouldShowFileEditorCodeBlockInChat(toolName)}
+            showContent
             showHeader={false}
           />
-          {shouldShowFileEditorCodeBlockInChat(toolName) && preview.truncated ? (
+          {preview.truncated ? (
             <p className="file-editor-footnote file-editor-footnote--warn">
               内容已截断
               {preview.totalChars !== undefined
@@ -91,7 +109,7 @@ function WorkspaceFileReadRowInner({
                 : ""}
             </p>
           ) : null}
-        </>
+        </div>
       ) : null}
       {failed ? (
         <p className="file-editor-footnote file-editor-footnote--err">

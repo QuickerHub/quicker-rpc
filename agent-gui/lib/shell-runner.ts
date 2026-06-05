@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { resolveDefaultWorkingDirectory } from "@/lib/default-working-directory";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
-import { evaluateShellPolicy } from "@/lib/shell-policy";
+import { evaluateShellPolicy, summarizeShellRequest } from "@/lib/shell-policy";
+import { normalizeShellRunRequest } from "@/lib/shell-request-normalize";
 import {
   DEFAULT_SHELL_TIMEOUT_MS,
   MAX_SHELL_OUTPUT_CHARS,
@@ -15,6 +16,11 @@ import {
   type ShellRunResult,
 } from "@/lib/shell-types";
 import { resolveWorkspacePath } from "@/lib/workspace-fs";
+import {
+  appendShellSessionOutput,
+  beginShellSession,
+  finishShellSession,
+} from "@/lib/shell-session-registry.server";
 
 function truncate(text: string): { text: string; truncated: boolean } {
   if (text.length <= MAX_SHELL_OUTPUT_CHARS) {
@@ -175,8 +181,17 @@ async function runProcess(
   cwd: string,
   timeoutMs: number,
   env?: Record<string, string>,
+  sessionId?: string,
 ): Promise<ShellRunResult> {
   const started = Date.now();
+  if (sessionId) {
+    beginShellSession({
+      id: sessionId,
+      commandLine: invocation.commandLine,
+      cwd,
+      shell: invocation.shell,
+    });
+  }
 
   return new Promise((resolvePromise) => {
     const child = spawn(invocation.executable, invocation.args, {
@@ -194,6 +209,7 @@ async function runProcess(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (sessionId) finishShellSession(sessionId, result);
       resolvePromise(result);
     };
 
@@ -216,10 +232,14 @@ async function runProcess(
     }, timeoutMs);
 
     child.stdout?.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf8");
+      const text = chunk.toString("utf8");
+      stdout += text;
+      if (sessionId) appendShellSessionOutput(sessionId, "stdout", text);
     });
     child.stderr?.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString("utf8");
+      const text = chunk.toString("utf8");
+      stderr += text;
+      if (sessionId) appendShellSessionOutput(sessionId, "stderr", text);
     });
 
     child.on("error", (error) => {
@@ -273,47 +293,83 @@ async function materializeInlineScript(
   return { dir, path };
 }
 
-export async function runShellRequest(request: ShellRunRequest): Promise<ShellRunResult> {
-  const policy = evaluateShellPolicy(request);
+export type ShellRunOptions = {
+  /** Stream stdout/stderr to shell session registry (toolCallId). */
+  sessionId?: string;
+};
+
+function publishShellSessionResult(
+  sessionId: string | undefined,
+  result: ShellRunResult,
+  meta: { commandLine: string; cwd: string; shell: ShellRunResult["shell"] },
+): void {
+  if (!sessionId) return;
+  beginShellSession({
+    id: sessionId,
+    commandLine: meta.commandLine,
+    cwd: meta.cwd,
+    shell: meta.shell,
+  });
+  finishShellSession(sessionId, result);
+}
+
+export async function runShellRequest(
+  request: ShellRunRequest,
+  options?: ShellRunOptions,
+): Promise<ShellRunResult> {
+  const normalized = normalizeShellRunRequest(request);
+  const sessionId = options?.sessionId?.trim() || undefined;
+  const policy = evaluateShellPolicy(normalized);
   if (!policy.allowed) {
-    return {
+    const blocked: ShellRunResult = {
       ok: false,
       exitCode: 1,
       stdout: "",
       stderr: policy.reason ?? "shell command blocked by policy",
       truncated: false,
-      shell: resolveEffectiveShell(request.shell),
-      cwd: resolveShellCwd(request.cwd),
+      shell: resolveEffectiveShell(normalized.shell),
+      cwd: resolveShellCwd(normalized.cwd),
       commandLine: "",
       durationMs: 0,
       blocked: true,
       blockReason: policy.reason,
     };
+    publishShellSessionResult(sessionId, blocked, {
+      commandLine: summarizeShellRequest(normalized),
+      cwd: blocked.cwd,
+      shell: blocked.shell,
+    });
+    return blocked;
   }
 
-  const shell = resolveEffectiveShell(request.shell);
-  const cwd = resolveShellCwd(request.cwd);
-  const timeoutMs = normalizeTimeout(request.timeoutMs);
+  const shell = resolveEffectiveShell(normalized.shell);
+  const cwd = resolveShellCwd(normalized.cwd);
+  const summaryLine = summarizeShellRequest(normalized);
+  const timeoutMs = normalizeTimeout(normalized.timeoutMs);
 
-  if (request.command?.trim()) {
-    const invocation = buildShellInvocation(shell, request.command.trim());
-    return runProcess(invocation, cwd, timeoutMs, request.env);
+  if (normalized.command?.trim()) {
+    const invocation = buildShellInvocation(shell, normalized.command.trim());
+    return runProcess(invocation, cwd, timeoutMs, normalized.env, sessionId);
   }
 
-  if (request.script?.trim()) {
-    const materialized = await materializeInlineScript(request.script, shell);
+  if (normalized.script?.trim()) {
+    const materialized = await materializeInlineScript(normalized.script, shell);
     try {
-      const invocation = buildScriptFileInvocation(shell, materialized.path, request.args);
-      return await runProcess(invocation, cwd, timeoutMs, request.env);
+      const invocation = buildScriptFileInvocation(
+        shell,
+        materialized.path,
+        normalized.args,
+      );
+      return await runProcess(invocation, cwd, timeoutMs, normalized.env, sessionId);
     } finally {
       await rm(materialized.dir, { recursive: true, force: true });
     }
   }
 
-  if (request.scriptPath?.trim()) {
-    const resolved = resolveWorkspacePath(request.scriptPath.trim());
+  if (normalized.scriptPath?.trim()) {
+    const resolved = resolveWorkspacePath(normalized.scriptPath.trim());
     if (!resolved.ok) {
-      return {
+      const failed: ShellRunResult = {
         ok: false,
         exitCode: 1,
         stdout: "",
@@ -321,12 +377,18 @@ export async function runShellRequest(request: ShellRunRequest): Promise<ShellRu
         truncated: false,
         shell,
         cwd,
-        commandLine: "",
+        commandLine: summaryLine,
         durationMs: 0,
       };
+      publishShellSessionResult(sessionId, failed, {
+        commandLine: summaryLine,
+        cwd,
+        shell,
+      });
+      return failed;
     }
     if (!existsSync(resolved.absolute)) {
-      return {
+      const failed: ShellRunResult = {
         ok: false,
         exitCode: 1,
         stdout: "",
@@ -334,19 +396,25 @@ export async function runShellRequest(request: ShellRunRequest): Promise<ShellRu
         truncated: false,
         shell,
         cwd,
-        commandLine: "",
+        commandLine: summaryLine,
         durationMs: 0,
       };
+      publishShellSessionResult(sessionId, failed, {
+        commandLine: summaryLine,
+        cwd,
+        shell,
+      });
+      return failed;
     }
     const invocation = buildScriptFileInvocation(
       shell,
       resolved.absolute,
-      request.args ?? [],
+      normalized.args ?? [],
     );
-    return runProcess(invocation, cwd, timeoutMs, request.env);
+    return runProcess(invocation, cwd, timeoutMs, normalized.env, sessionId);
   }
 
-  return {
+  const failed: ShellRunResult = {
     ok: false,
     exitCode: 1,
     stdout: "",
@@ -354,9 +422,15 @@ export async function runShellRequest(request: ShellRunRequest): Promise<ShellRu
     truncated: false,
     shell,
     cwd,
-    commandLine: "",
+    commandLine: summaryLine,
     durationMs: 0,
   };
+  publishShellSessionResult(sessionId, failed, {
+    commandLine: summaryLine,
+    cwd,
+    shell,
+  });
+  return failed;
 }
 
 export function shellPolicyRequiresApproval(request: ShellRunRequest): boolean {

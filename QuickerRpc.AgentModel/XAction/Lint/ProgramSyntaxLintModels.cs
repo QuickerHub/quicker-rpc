@@ -37,6 +37,10 @@ public sealed class ProgramSyntaxCheckItem
 
     public string? StepRef { get; set; }
 
+    public string? StepPath { get; set; }
+
+    public string? StepId { get; set; }
+
     public string? StepRunnerKey { get; set; }
 
     public string? ParamName { get; set; }
@@ -48,9 +52,27 @@ public sealed class ProgramSyntaxCheckItem
     public IReadOnlyDictionary<string, string>? VariableTypes { get; set; }
 }
 
+public sealed class ProgramSyntaxReadHint
+{
+    public string Tool { get; set; } = string.Empty;
+
+    public string? Path { get; set; }
+
+    public int? StartLine { get; set; }
+
+    public int? EndLine { get; set; }
+
+    public string? Mode { get; set; }
+}
+
 public sealed class ProgramSyntaxIssueLocation
 {
     public string? StepRef { get; set; }
+
+    public string? StepId { get; set; }
+
+    /// <summary>Patch-style path in <c>steps[]</c> (e.g. <c>0</c>, <c>2/if/1</c>).</summary>
+    public string? StepPath { get; set; }
 
     public string? StepRunnerKey { get; set; }
 
@@ -59,6 +81,15 @@ public sealed class ProgramSyntaxIssueLocation
     public string? VariableKey { get; set; }
 
     public string? File { get; set; }
+
+    public int? Line { get; set; }
+
+    public int? Column { get; set; }
+
+    /// <summary>Logical path inside <c>data.json</c> for search/read_data anchors.</summary>
+    public string? DataJsonPath { get; set; }
+
+    public ProgramSyntaxReadHint? Read { get; set; }
 }
 
 public sealed class ProgramSyntaxIssue
@@ -72,6 +103,9 @@ public sealed class ProgramSyntaxIssue
     public string Message { get; set; } = string.Empty;
 
     public ProgramSyntaxIssueLocation Location { get; set; } = new();
+
+    /// <summary>One-line location + suggested read tool for agents.</summary>
+    public string? LocationSummary { get; set; }
 }
 
 public sealed class ProgramDiagnosticsSummary

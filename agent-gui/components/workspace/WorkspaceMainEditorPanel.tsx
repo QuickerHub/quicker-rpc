@@ -11,7 +11,7 @@ export const WorkspaceMainEditorPanel = memo(function WorkspaceMainEditorPanel({
   onRefreshTree: () => void;
 }) {
   return (
-    <div className="workspace-main-editor">
+    <div className="workspace-main-editor workspace-main-editor--fill">
       <WorkspaceExplorerEditorArea onRefreshTree={onRefreshTree} />
     </div>
   );

@@ -6,6 +6,7 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
   type JSX,
 } from "react";
 import type { ActionStep, ActionVariable } from "@/lib/action-editor/types/common";
@@ -124,9 +125,24 @@ function XProgramEditorInner({
 
   const canUndo = hist.past.length > 0;
   const canRedo = hist.future.length > 0;
+  const [variablesOpen, setVariablesOpen] = useState(false);
+  const variableCount = hist.present.variables.length;
+
+  useEffect(() => {
+    if (!variablesOpen) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setVariablesOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [variablesOpen]);
 
   return (
-    <div className="x-program-editor">
+    <div
+      className={`x-program-editor${variablesOpen ? " x-program-editor--variables-open" : ""}`}
+    >
       <div className="x-program-editor-toolbar" role="toolbar" aria-label="程序编辑">
         <button
           type="button"
@@ -147,33 +163,85 @@ function XProgramEditorInner({
           <IconControl spec={AD_ICONIFY_SPEC.redo} size={12} resourceBaseUrl={backendBaseUrl} />
         </button>
         <span className="x-program-editor-toolbar-hint">步骤与变量共用一条撤销/重做历史</span>
+        <span className="x-program-editor-toolbar-spacer" aria-hidden />
+        <button
+          type="button"
+          className={`x-program-editor-variables-toggle${variablesOpen ? " x-program-editor-variables-toggle--active" : ""}`}
+          title={variablesOpen ? "收起变量" : "编辑变量"}
+          aria-label={variablesOpen ? "收起变量面板" : "打开变量面板"}
+          aria-expanded={variablesOpen}
+          onClick={() => setVariablesOpen((open) => !open)}
+        >
+          <IconControl
+            spec={AD_ICONIFY_SPEC.variableInput}
+            size={12}
+            resourceBaseUrl={backendBaseUrl}
+          />
+          <span className="x-program-editor-variables-toggle-label">变量</span>
+          {variableCount > 0 ? (
+            <span className="x-program-editor-variables-toggle-count">{variableCount}</span>
+          ) : null}
+        </button>
       </div>
-      <div className="x-program-editor-steps">
-        <StepListEditor
-          steps={hist.present.steps}
-          onCommitSteps={commitSteps}
-          variables={hist.present.variables}
-          programSurface={programSurface}
-          onCommitProgram={(present) =>
-            dispatch({ type: "commitProgram", present: cloneXProgramPresent(present) })
-          }
-          notifyClipboard={(message, variant) =>
-            showToast(message, { variant: variant === "error" ? "error" : "info" })
-          }
-          subPrograms={[]}
-          workspaceContext={workspaceContext}
-        />
-      </div>
-      <div className="x-program-editor-variables">
-        <VariableEditor
-          programSurface={programSurface}
-          variables={hist.present.variables}
-          steps={hist.present.steps}
-          onCommitVariables={commitVariables}
-          onStepHighlightFilter={(filterText) => {
-            showToast(`步骤高亮筛选（占位）：${filterText}`, { variant: "info" });
-          }}
-        />
+      <div className="x-program-editor-body">
+        <div className="x-program-editor-steps">
+          <StepListEditor
+            steps={hist.present.steps}
+            onCommitSteps={commitSteps}
+            variables={hist.present.variables}
+            programSurface={programSurface}
+            onCommitProgram={(present) =>
+              dispatch({ type: "commitProgram", present: cloneXProgramPresent(present) })
+            }
+            notifyClipboard={(message, variant) =>
+              showToast(message, { variant: variant === "error" ? "error" : "info" })
+            }
+            subPrograms={[]}
+            workspaceContext={workspaceContext}
+          />
+        </div>
+
+        {variablesOpen ? (
+          <>
+            <button
+              type="button"
+              className="x-program-editor-variables-backdrop"
+              aria-label="关闭变量面板"
+              onClick={() => setVariablesOpen(false)}
+            />
+            <div
+              className="x-program-editor-variables-drawer"
+              role="dialog"
+              aria-label="变量"
+            >
+              <div className="x-program-editor-variables-drawer-head">
+                <span className="x-program-editor-variables-drawer-title">变量</span>
+                <button
+                  type="button"
+                  className="variable-toolbar-btn"
+                  title="关闭"
+                  aria-label="关闭变量面板"
+                  onClick={() => setVariablesOpen(false)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="x-program-editor-variables-drawer-body">
+                <VariableEditor
+                  programSurface={programSurface}
+                  variables={hist.present.variables}
+                  steps={hist.present.steps}
+                  onCommitVariables={commitVariables}
+                  onStepHighlightFilter={(filterText) => {
+                    showToast(`步骤高亮筛选（占位）：${filterText}`, {
+                      variant: "info",
+                    });
+                  }}
+                />
+              </div>
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   );

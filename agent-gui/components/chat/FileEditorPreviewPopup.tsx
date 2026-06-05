@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useId } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  resolveToolPopupTab,
+  storeToolPopupViewMode,
+  type ToolPopupViewMode,
+} from "@/lib/tool-popup-ui-prefs";
 import {
   basenamePath,
   formatWorkspacePathLabel,
@@ -13,6 +18,8 @@ import {
   FileEditorCard,
   type FileEditorStat,
 } from "./FileEditorCard";
+import { ToolResultPopupTabs } from "./ToolResultPopup";
+import { ToolPayloadView } from "./tool-output";
 
 export type FileEditorPreviewPopupProps = {
   open: boolean;
@@ -25,6 +32,10 @@ export type FileEditorPreviewPopupProps = {
   totalChars?: number;
   previousSnapshotTruncated?: boolean;
   onOpenInExplorer?: () => void;
+  /** When set, header tabs switch between file preview and raw tool I/O. */
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
 };
 
 function formatPopupSubtitle(
@@ -54,9 +65,19 @@ export function FileEditorPreviewPopup({
   totalChars,
   previousSnapshotTruncated,
   onOpenInExplorer,
+  toolName,
+  input,
+  output,
 }: FileEditorPreviewPopupProps) {
   const panelId = useId();
   const fileName = basenamePath(path);
+  const hasRawPayload = input !== undefined || output !== undefined;
+  const [tab, setTab] = useState<ToolPopupViewMode>("visual");
+
+  const setTabPersisted = useCallback((next: ToolPopupViewMode) => {
+    setTab(next);
+    storeToolPopupViewMode(next);
+  }, []);
 
   const stat =
     statProp
@@ -65,6 +86,11 @@ export function FileEditorPreviewPopup({
       : content
         ? buildWriteStat(content)
         : undefined);
+
+  useEffect(() => {
+    if (!open) return;
+    setTab(resolveToolPopupTab(true));
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -100,10 +126,19 @@ export function FileEditorPreviewPopup({
         aria-label={fileName}
       >
         <div className="tool-result-popup-head">
-          <div className="tool-result-popup-head-text">
-            <span className="tool-result-popup-title">{fileName}</span>
-            {subtitle ? (
-              <span className="tool-result-popup-subtitle">{subtitle}</span>
+          <div className="tool-result-popup-head-main">
+            <div className="tool-result-popup-head-text">
+              <span className="tool-result-popup-title">{fileName}</span>
+              {subtitle ? (
+                <span className="tool-result-popup-subtitle">{subtitle}</span>
+              ) : null}
+            </div>
+            {hasRawPayload ? (
+              <ToolResultPopupTabs
+                tab={tab}
+                hasVisual
+                onTabChange={setTabPersisted}
+              />
             ) : null}
           </div>
           <div className="tool-result-popup-head-actions">
@@ -126,30 +161,67 @@ export function FileEditorPreviewPopup({
             </button>
           </div>
         </div>
-        <div className="tool-file-editor-popup-body">
-          <FileEditorCard
-            path={path}
-            content={content}
-            stat={stat}
-            diff={diff}
-            diffMode="full"
-            variant="full"
-            showHeader={false}
-            showContent
-            fillAvailable
-            lineNumbers
-          />
-          {truncated ? (
-            <p className="file-editor-footnote file-editor-footnote--warn tool-file-editor-popup-footnote">
-              内容已截断
-              {totalChars !== undefined ? ` · 文件共 ${totalChars} 字符` : ""}
-            </p>
-          ) : null}
-          {previousSnapshotTruncated ? (
-            <p className="file-editor-footnote file-editor-footnote--warn tool-file-editor-popup-footnote">
-              写入前快照已截断，diff 可能不完整
-            </p>
-          ) : null}
+        <div
+          className={`tool-file-editor-popup-body${tab === "source" ? " tool-file-editor-popup-body--source" : ""}`}
+          role={hasRawPayload ? "tabpanel" : undefined}
+          aria-labelledby={
+            hasRawPayload
+              ? tab === "visual"
+                ? "tool-popup-tab-visual"
+                : "tool-popup-tab-source"
+              : undefined
+          }
+        >
+          {tab === "source" && hasRawPayload ? (
+            <div className="tool-body tool-body--debug tool-body--popup-source">
+              {input !== undefined ? (
+                <ToolPayloadView
+                  label="请求"
+                  value={input}
+                  rawOnly
+                  toolName={toolName}
+                  input={input}
+                  output={output}
+                />
+              ) : null}
+              {output !== undefined ? (
+                <ToolPayloadView
+                  label="结果"
+                  value={output}
+                  rawOnly
+                  toolName={toolName}
+                  input={input}
+                  output={output}
+                />
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <FileEditorCard
+                path={path}
+                content={content}
+                stat={stat}
+                diff={diff}
+                diffMode="full"
+                variant="full"
+                showHeader={false}
+                showContent
+                fillAvailable
+                lineNumbers
+              />
+              {truncated ? (
+                <p className="file-editor-footnote file-editor-footnote--warn tool-file-editor-popup-footnote">
+                  内容已截断
+                  {totalChars !== undefined ? ` · 文件共 ${totalChars} 字符` : ""}
+                </p>
+              ) : null}
+              {previousSnapshotTruncated ? (
+                <p className="file-editor-footnote file-editor-footnote--warn tool-file-editor-popup-footnote">
+                  写入前快照已截断，diff 可能不完整
+                </p>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
     </div>

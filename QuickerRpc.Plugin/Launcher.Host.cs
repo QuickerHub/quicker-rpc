@@ -25,6 +25,7 @@ public static partial class Launcher
                 services.AddSingleton<ActionDeleteService>();
                 services.AddSingleton<ActionMoveService>();
                 services.AddSingleton<GlobalProfileCreateService>();
+                services.AddSingleton<ProfileDeleteService>();
                 services.AddSingleton<VirtualProcessCreateService>();
                 services.AddSingleton<ActionCreateService>();
                 services.AddSingleton<ActionEditService>();
@@ -35,6 +36,7 @@ public static partial class Launcher
                 services.AddSingleton<HeadlessSubProgramProgramService>();
                 services.AddSingleton<FontAwesomeIconSearchService>();
                 services.AddSingleton<CodeSyntaxCheckService>();
+                services.AddSingleton<ExpressionExecuteService>();
                 services.AddSingleton<QuickerAgentUpdateCheckService>();
                 services.AddSingleton<QuickerRpcService>();
                 services.AddSingleton<IQuickerRpcService>(sp => sp.GetRequiredService<QuickerRpcService>());

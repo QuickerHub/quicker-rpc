@@ -5,10 +5,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { computeFloatingMenuLayout } from "@/lib/floating-menu-layout";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
-import {
-  TITLE_TEST_EXAMPLE_GROUPS,
-  type TitleTestExample,
-} from "@/lib/tool-test-title-examples";
+import { COMPOSER_TEST_PROMPT_GROUPS } from "@/lib/composer-test-prompts";
+import type { TitleTestExample } from "@/lib/tool-test-title-examples";
 import { truncateTitleTestSnippet } from "@/lib/tool-test-title-runs";
 
 const MENU_WIDTH_PX = 380;
@@ -25,10 +23,7 @@ function resolveSendText(example: TitleTestExample): string {
 }
 
 function resolvePreviewText(example: TitleTestExample): string {
-  const user = example.userText.trim();
-  const assistant = example.assistantText?.trim();
-  if (!assistant) return user;
-  return `${user} · /tool-test 另含助手参考`;
+  return example.userText.trim();
 }
 
 function IconTestPrompts() {
@@ -115,7 +110,7 @@ export function ComposerTestPromptsPicker({
         id={panelId}
         className="composer-popup composer-test-prompts-panel composer-test-prompts-panel--portal"
         role="dialog"
-        aria-label="测试样例 Prompt"
+        aria-label="写动作样例 Prompt"
         style={{
           position: "fixed",
           top: panelLayout.top,
@@ -127,13 +122,13 @@ export function ComposerTestPromptsPicker({
         }}
       >
         <div className="composer-test-prompts-panel__head">
-          <span className="composer-test-prompts-panel__title">测试 Prompt</span>
+          <span className="composer-test-prompts-panel__title">写动作样例</span>
           <span className="composer-test-prompts-panel__hint">
-            点击即发用户句；对话正常流式，不会在生成标题后自动中止
+            稍复杂的编动作需求；点击即发送，走完整对话
           </span>
         </div>
         <div className="composer-test-prompts-panel__scroll">
-          {TITLE_TEST_EXAMPLE_GROUPS.map((group) => (
+          {COMPOSER_TEST_PROMPT_GROUPS.map((group) => (
             <section
               key={group.id}
               className="composer-test-prompts-group"
@@ -192,7 +187,7 @@ export function ComposerTestPromptsPicker({
         aria-expanded={open}
         aria-controls={panelId}
         aria-haspopup="dialog"
-        title="测试 Prompt 样例（点击发送，不自动中止对话）"
+        title="写动作样例（点击发送）"
         onClick={() => setOpen((v) => !v)}
       >
         <IconTestPrompts />

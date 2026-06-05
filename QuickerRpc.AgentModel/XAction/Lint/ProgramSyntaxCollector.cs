@@ -39,56 +39,45 @@ public static class ProgramSyntaxCollector
 
         if (data["steps"] is JArray steps)
         {
-            CollectSteps(steps, projectDir, variableTypes, items);
+            ProgramSyntaxStepPaths.Walk(
+                steps,
+                (step, stepPath, stepId, runnerKey) =>
+                    CollectStepInputParams(step, stepPath, stepId, runnerKey, projectDir, variableTypes, items));
         }
 
         CollectVariableDefaults(data["variables"] as JArray, projectDir, variableTypes, items);
         return items;
     }
 
-    private static void CollectSteps(
-        JArray steps,
+    private static void CollectStepInputParams(
+        JObject step,
+        string stepPath,
+        string stepId,
+        string runnerKey,
         string projectDir,
         IReadOnlyDictionary<string, string> variableTypes,
         IList<ProgramSyntaxCheckItem> items)
     {
-        foreach (var token in steps)
+        if (step["inputParams"] is not JObject inputParams)
         {
-            if (token is not JObject step)
-            {
-                continue;
-            }
-
-            var stepRef = DescribeStep(step);
-            var runnerKey = (step.Value<string>("stepRunnerKey") ?? string.Empty).Trim();
-
-            if (step["inputParams"] is JObject inputParams)
-            {
-                CollectInputParams(
-                    inputParams,
-                    projectDir,
-                    stepRef,
-                    runnerKey,
-                    variableTypes,
-                    items);
-            }
-
-            if (step["ifSteps"] is JArray ifSteps)
-            {
-                CollectSteps(ifSteps, projectDir, variableTypes, items);
-            }
-
-            if (step["elseSteps"] is JArray elseSteps)
-            {
-                CollectSteps(elseSteps, projectDir, variableTypes, items);
-            }
+            return;
         }
+
+        CollectInputParams(
+            inputParams,
+            projectDir,
+            stepId,
+            stepPath,
+            runnerKey,
+            variableTypes,
+            items);
     }
 
     private static void CollectInputParams(
         JObject inputParams,
         string projectDir,
-        string stepRef,
+        string stepId,
+        string stepPath,
         string runnerKey,
         IReadOnlyDictionary<string, string> variableTypes,
         IList<ProgramSyntaxCheckItem> items)
@@ -112,7 +101,9 @@ public static class ProgramSyntaxCollector
                 {
                     Kind = ProgramSyntaxCheckKind.Expression,
                     Code = code,
-                    StepRef = stepRef,
+                    StepRef = stepId,
+                    StepId = stepId,
+                    StepPath = stepPath,
                     StepRunnerKey = runnerKey,
                     ParamName = paramName,
                     File = file,
@@ -127,7 +118,9 @@ public static class ProgramSyntaxCollector
                 {
                     Kind = ProgramSyntaxCheckKind.CSharp,
                     Code = code,
-                    StepRef = stepRef,
+                    StepRef = stepId,
+                    StepId = stepId,
+                    StepPath = stepPath,
                     StepRunnerKey = runnerKey,
                     ParamName = paramName,
                     File = file,
@@ -304,9 +297,7 @@ public static class ProgramSyntaxCollector
         code = string.Empty;
         file = null;
 
-        if (TryReadNonEmptyString(
-                varObj[XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty],
-                out var filePath))
+        if (VariableDefaultValueRef.TryGetFilePath(varObj, out var filePath))
         {
             file = filePath;
             var fullPath = XActionFileRefPath.ResolveFullPath(projectDir, filePath!);
@@ -314,27 +305,13 @@ public static class ProgramSyntaxCollector
             return true;
         }
 
-        if (TryReadNonEmptyString(varObj["defaultValue"], out var inline)
-            || TryReadNonEmptyString(varObj["default_value"], out inline)
-            || TryReadNonEmptyString(varObj["DefaultValue"], out inline))
+        if (VariableDefaultValueRef.TryGetInlineString(varObj, out var inline))
         {
             code = inline ?? string.Empty;
             return code.Length > 0;
         }
 
         return false;
-    }
-
-    private static string DescribeStep(JObject step)
-    {
-        var stepId = step.Value<string>("stepId");
-        if (!string.IsNullOrWhiteSpace(stepId))
-        {
-            return stepId!;
-        }
-
-        var runner = step.Value<string>("stepRunnerKey");
-        return string.IsNullOrWhiteSpace(runner) ? "step" : $"step ({runner})";
     }
 
     private static bool TryReadNonEmptyString(JToken? token, out string? value)

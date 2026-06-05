@@ -36,6 +36,9 @@ import {
 import { WorkspaceFileOpenRow } from "./WorkspaceFileOpenRow";
 import { WorkspaceFileEditorRow } from "./WorkspaceFileToolBody";
 import { WorkspaceFileReadRow } from "./WorkspaceFileReadRow";
+import { ShellToolRow } from "./ShellToolRow";
+import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
+import { summarizeShellToolInput } from "@/lib/shell-tool-view";
 import { useWorkspaceExplorerActions } from "@/lib/workspace-explorer";
 
 type Part = UIMessage["parts"][number];
@@ -68,9 +71,11 @@ function ToolPartInner({
       ? summarizeToolOutput(name, output, input)
       : null;
   const runningMeta =
-    isRunning && isWorkspaceExplorerFileTool(name)
-      ? workspaceFileRunningMeta(name, input)
-      : null;
+    isRunning && name === SHELL_EXEC_TOOL
+      ? summarizeShellToolInput(input)
+      : isRunning && isWorkspaceExplorerFileTool(name)
+        ? workspaceFileRunningMeta(name, input)
+        : null;
   const meta = runningMeta ?? buildToolSummaryMeta(state, summary);
   const errorText = "errorText" in part ? part.errorText : undefined;
   const isError =
@@ -96,6 +101,27 @@ function ToolPartInner({
     isWorkspaceFile
     && !isWorkspaceFileEditorTool(name)
     && Boolean(workspaceFileOutput);
+
+  const toolCallId =
+    "toolCallId" in part && typeof part.toolCallId === "string"
+      ? part.toolCallId
+      : undefined;
+
+  if (name === SHELL_EXEC_TOOL) {
+    return (
+      <ShellToolRow
+        state={state}
+        input={input}
+        output={
+          output !== undefined && isQkrpcToolResult(output) ? output : undefined
+        }
+        running={isRunning}
+        inBatch={inBatch}
+        errorText={errorText}
+        toolCallId={toolCallId}
+      />
+    );
+  }
 
   if (
     shouldUseStaticToolRow({

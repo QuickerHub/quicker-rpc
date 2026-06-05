@@ -12,6 +12,7 @@ internal static partial class Program
         return verb switch
         {
             "create" => await RunProfileCreateAsync(options).ConfigureAwait(false),
+            "delete" => await RunProfileDeleteAsync(options).ConfigureAwait(false),
             "reorder" => await RunProfileReorderAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownProfileVerbAsync(options).ConfigureAwait(false),
         };
@@ -99,12 +100,82 @@ internal static partial class Program
         }
     }
 
+    private static async Task<int> RunProfileDeleteAsync(ProfileOptions options)
+    {
+        var ids = (options.Ids ?? Array.Empty<string>())
+            .Select(id => (id ?? string.Empty).Trim())
+            .Where(id => id.Length > 0)
+            .ToList();
+        if (ids.Count == 0 && !string.IsNullOrWhiteSpace(options.Id))
+        {
+            ids.Add(options.Id.Trim());
+        }
+
+        if (ids.Count == 0)
+        {
+            await EmitErrorAsync(options.Json, "MISSING_PROFILE_IDS", "Provide --id <profileGuid> or --ids <guid1,guid2>.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var result = await session.Proxy
+                .DeleteEmptyProfilesAsync(ids, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "profile-delete",
+                        deleted = result.Deleted,
+                        failures = result.Failures,
+                        message = result.Message,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else if (result.Ok)
+            {
+                global::System.Console.WriteLine(result.Message);
+                foreach (var item in result.Deleted)
+                {
+                    global::System.Console.WriteLine($"  {item.ProfileName} ({item.ProfileId})");
+                }
+            }
+            else
+            {
+                global::System.Console.Error.WriteLine(result.Message);
+                foreach (var failure in result.Failures)
+                {
+                    global::System.Console.Error.WriteLine($"  {failure.ProfileRef}: {failure.Message}");
+                }
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "PROFILE_DELETE_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
+
     private static async Task<int> ReportUnknownProfileVerbAsync(ProfileOptions options)
     {
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_PROFILE_VERB",
-            "Use: profile create|reorder (see qkrpc help --json)")
+            "Use: profile create|delete|reorder (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -184,10 +255,10 @@ internal static partial class Program
 [Verb("profile", HelpText = "Quicker action profile (page) operations via RPC.")]
 public sealed class ProfileOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "create | reorder")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "create | delete | reorder")]
     public string? Command { get; set; }
 
-    [Option("id", HelpText = "Profile id (reorder) or single profile id.")]
+    [Option("id", HelpText = "Profile id or exact profile name (delete/reorder).")]
     public string? Id { get; set; }
 
     [Option("ids", Separator = ',', HelpText = "Comma-separated profile ids for reorder.")]

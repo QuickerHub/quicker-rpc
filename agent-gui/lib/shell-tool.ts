@@ -1,7 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { formatLocalToolResult } from "@/lib/tool-result";
-import { shellModeLabel, summarizeShellRequest } from "@/lib/shell-policy";
+import { summarizeShellRequest } from "@/lib/shell-policy";
+import { normalizeShellRunRequest } from "@/lib/shell-request-normalize";
+import { buildShellCombinedOutput } from "@/lib/shell-tool-view";
 import {
   runShellRequest,
   shellPolicyRequiresApproval,
@@ -12,12 +14,21 @@ import {
   type ShellRunRequest,
 } from "@/lib/shell-types";
 
-export const SHELL_EXEC_TOOL = "shell_exec";
+import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
+
+export { SHELL_EXEC_TOOL };
 
 const shellKindSchema = z.enum(["auto", "powershell", "cmd", "bash"]);
 
 const shellInputSchema = z
   .object({
+    description: z
+      .string()
+      .optional()
+      .describe(
+        "Short human-readable label for the chat UI (what this step does). "
+        + "Required for user-facing clarity — do not rely on the raw command alone.",
+      ),
     command: z
       .string()
       .optional()
@@ -102,25 +113,27 @@ function formatShellToolResult(
   request: ShellRunRequest,
   result: Awaited<ReturnType<typeof runShellRequest>>,
 ) {
-  const summary = summarizeShellRequest(request);
+  const normalized = normalizeShellRunRequest(request);
+  const summary = summarizeShellRequest(normalized);
+  const output = buildShellCombinedOutput(result.stdout, result.stderr);
+  const data: Record<string, unknown> = {
+    commandLine: result.commandLine || summary,
+  };
+  if (result.shell) data.shell = result.shell;
+  if (result.cwd) data.cwd = result.cwd;
+  if (result.durationMs != null && result.durationMs > 0) {
+    data.durationMs = result.durationMs;
+  }
+  if (result.timedOut) data.timedOut = true;
+  if (result.blocked) {
+    data.blocked = true;
+    if (result.blockReason) data.blockReason = result.blockReason;
+  }
+  if (output) data.output = output;
+  if (result.truncated) data.truncated = true;
+
   return formatLocalToolResult(
-    {
-      action: "shell-exec",
-      success: result.ok,
-      summary,
-      mode: shellModeLabel(request.mode),
-      shell: result.shell,
-      cwd: result.cwd,
-      commandLine: result.commandLine,
-      exitCode: result.exitCode,
-      durationMs: result.durationMs,
-      timedOut: result.timedOut ?? false,
-      blocked: result.blocked ?? false,
-      blockReason: result.blockReason,
-      stdout: result.stdout,
-      stderr: result.stderr || undefined,
-      truncated: result.truncated,
-    },
+    data,
     result.ok,
     result.ok ? undefined : result.stderr || result.blockReason || "shell command failed",
   );
@@ -129,13 +142,19 @@ function formatShellToolResult(
 export const SHELL_EXEC_TOOL_DEF = tool({
   description:
     "Run a local shell command or script in the agent working directory. "
+    + "Always set description to a short human-readable label (what this step does); "
+    + "the chat UI shows description instead of the raw command. "
     + "Use command for one-liners; script for inline PowerShell/bash; scriptPath for files under cwd. "
     + "Prefer pwsh/build.ps1/qkrpc/dotnet/git/npm in repo tasks. "
     + "Destructive commands (del/rm/git push) may require user confirmation in chat.",
   inputSchema: shellInputSchema,
-  execute: async (input: z.infer<typeof shellInputSchema>) => {
+  execute: async (
+    input: z.infer<typeof shellInputSchema>,
+    options?: { toolCallId?: string },
+  ) => {
     const request = toShellRequest(input);
-    const result = await runShellRequest(request);
+    const sessionId = options?.toolCallId?.trim() || undefined;
+    const result = await runShellRequest(request, { sessionId });
     return formatShellToolResult(request, result);
   },
   needsApproval: async (input: z.infer<typeof shellInputSchema>) =>

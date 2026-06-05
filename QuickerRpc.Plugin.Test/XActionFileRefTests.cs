@@ -141,6 +141,146 @@ public sealed class XActionFileRefTests
     }
 
     [TestMethod]
+    public void Export_migrates_template_defaultValueFile_and_writes_defaultValue_file_shape()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-export-var-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            const string defaultBody = "line1\nline2\nline3";
+            var latest = new JObject
+            {
+                ["steps"] = new JArray(),
+                ["variables"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["key"] = "urls",
+                        ["type"] = 0,
+                        ["defaultValue"] = defaultBody,
+                    },
+                },
+            };
+
+            var template = new JObject
+            {
+                ["steps"] = new JArray(),
+                ["variables"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["key"] = "urls",
+                        ["type"] = 0,
+                        ["defaultValueFile"] = "files/urls-default1.txt",
+                    },
+                },
+            };
+
+            var result = XActionFileRefExporter.Export(latest, root, template);
+            Assert.IsTrue(result.Success, result.ErrorMessage);
+            Assert.IsTrue(
+                result.Warnings.Any(w => w.Contains("defaultValueFile", StringComparison.Ordinal)),
+                "expected compatibility warning");
+            var variable = result.ExportedData!["variables"]![0] as JObject;
+            Assert.AreEqual(
+                "files/urls-default1.txt",
+                (variable!["defaultValue"] as JObject)?.Value<string>("file"));
+            Assert.IsNull(variable["defaultValueFile"]);
+            Assert.AreEqual(1, result.ResourceFiles.Count);
+            Assert.AreEqual(defaultBody, result.ResourceFiles[0].Content);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void Export_without_template_normalizes_legacy_defaultValueFile_on_output()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-export-legacy-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var latest = new JObject
+            {
+                ["steps"] = new JArray(),
+                ["variables"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["key"] = "blob",
+                        ["type"] = 0,
+                        ["defaultValueFile"] = "files/blob-default1.txt",
+                    },
+                },
+            };
+
+            var result = XActionFileRefExporter.Export(latest, root, templateData: null);
+            Assert.IsTrue(result.Success, result.ErrorMessage);
+            Assert.IsTrue(result.Warnings.Any(w => w.StartsWith("compatibility:", StringComparison.Ordinal)));
+
+            var variable = result.ExportedData!["variables"]![0] as JObject;
+            Assert.AreEqual(
+                "files/blob-default1.txt",
+                (variable!["defaultValue"] as JObject)?.Value<string>("file"));
+            Assert.IsNull(variable["defaultValueFile"]);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void AutoExternalize_migrates_legacy_defaultValueFile_then_keeps_file_ref()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-var-legacy-ext-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "files"));
+            File.WriteAllText(
+                Path.Combine(root, "files", "blob-default1.txt"),
+                "existing",
+                System.Text.Encoding.UTF8);
+
+            var data = new JObject
+            {
+                ["steps"] = new JArray(),
+                ["variables"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["key"] = "blob",
+                        ["type"] = 0,
+                        ["defaultValueFile"] = "files/blob-default1.txt",
+                    },
+                },
+            };
+
+            var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 100, minChars: 10_000);
+            Assert.AreEqual(0, result.ResourceFiles.Count);
+
+            var variable = data["variables"]![0] as JObject;
+            Assert.AreEqual(
+                "files/blob-default1.txt",
+                (variable!["defaultValue"] as JObject)?.Value<string>("file"));
+            Assert.IsNull(variable["defaultValueFile"]);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void AutoExternalize_writes_long_values_to_files()
     {
         var root = Path.Combine(Path.GetTempPath(), "qkrpc-auto-ext-" + Guid.NewGuid().ToString("N"));
@@ -472,8 +612,10 @@ public sealed class XActionFileRefTests
             Assert.AreEqual("files/searchlist-default1.txt", result.ResourceFiles[0].RelativePath);
 
             var variable = data["variables"]![0] as JObject;
-            Assert.AreEqual("files/searchlist-default1.txt", variable!.Value<string>("defaultValueFile"));
-            Assert.IsNull(variable["defaultValue"]);
+            Assert.AreEqual(
+                "files/searchlist-default1.txt",
+                (variable!["defaultValue"] as JObject)?.Value<string>("file"));
+            Assert.IsNull(variable["defaultValueFile"]);
         }
         finally
         {
@@ -508,8 +650,8 @@ public sealed class XActionFileRefTests
             var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 100, minChars: 240);
             Assert.AreEqual(1, result.ResourceFiles.Count);
             var variable = data["variables"]![0] as JObject;
-            Assert.IsNotNull(variable!["defaultValueFile"]);
-            Assert.IsNull(variable["defaultValue"]);
+            Assert.IsNotNull((variable!["defaultValue"] as JObject)?["file"]);
+            Assert.IsNull(variable["defaultValueFile"]);
         }
         finally
         {
@@ -521,7 +663,7 @@ public sealed class XActionFileRefTests
     }
 
     [TestMethod]
-    public void Compile_resolves_variable_defaultValueFile()
+    public void Compile_resolves_variable_defaultValue_file_object()
     {
         var root = Path.Combine(Path.GetTempPath(), "qkrpc-var-file-" + Guid.NewGuid().ToString("N"));
         try
@@ -530,6 +672,47 @@ public sealed class XActionFileRefTests
             var defaultPath = Path.Combine(root, "files", "urls-default1.txt");
             Directory.CreateDirectory(Path.GetDirectoryName(defaultPath)!);
             const string content = "line1\r\nline2";
+            File.WriteAllText(defaultPath, content, System.Text.Encoding.UTF8);
+
+            var data = new JObject
+            {
+                ["steps"] = new JArray(),
+                ["variables"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["key"] = "urls",
+                        ["type"] = 0,
+                        ["defaultValue"] = new JObject { ["file"] = "files/urls-default1.txt" },
+                    },
+                },
+            };
+
+            var result = XActionFileRefCompiler.Compile(data, root);
+            Assert.IsTrue(result.Success, result.ErrorMessage);
+            var variable = result.CompiledData!["variables"]![0] as JObject;
+            Assert.AreEqual(content, variable!.Value<string>("defaultValue"));
+            Assert.IsFalse(variable["defaultValue"] is JObject);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void Compile_migrates_legacy_defaultValueFile()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-var-file-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            var defaultPath = Path.Combine(root, "files", "urls-default1.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(defaultPath)!);
+            const string content = "legacy";
             File.WriteAllText(defaultPath, content, System.Text.Encoding.UTF8);
 
             var data = new JObject

@@ -27,7 +27,7 @@
 仍无合适模块且表达式不够？         → sys:csscript
 ```
 
-写入步骤/参数：**`workspace_action_edit_data`** 或 **`write_data`**，再 **`qkrpc_action_patch({ id })`**（见 **`workspace-editing`**）。
+步骤与参数写入 **`data.json`** / **`files/`** 的形状见 **`action-steps`**、**`action-project-files`**。
 
 ## 易混淆项
 

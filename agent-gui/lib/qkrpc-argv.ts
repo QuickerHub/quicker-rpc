@@ -220,6 +220,8 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
       };
     }
     if (verb === "move") {
+      const onNoEmptySlot = flagStr(flags, "on-no-empty-slot");
+      const onOccupiedSlot = flagStr(flags, "on-occupied-slot");
       return {
         op: "action.move",
         args: {
@@ -228,6 +230,12 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
           row: flagInt(flags, "row"),
           col: flagInt(flags, "col"),
           swap: flagBool(flags, "swap"),
+          onNoEmptySlot: onNoEmptySlot
+            ? onNoEmptySlot.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
+            : undefined,
+          onOccupiedSlot: onOccupiedSlot
+            ? onOccupiedSlot.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
+            : undefined,
         },
       };
     }
@@ -274,6 +282,21 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
           scope: flagStr(flags, "scope"),
           count: flagInt(flags, "count"),
           afterFirst: flagBool(flags, "after-first"),
+        },
+      };
+    }
+    if (verb === "delete") {
+      const idsRaw = flagStr(flags, "ids");
+      const profileIds = idsRaw
+        ? idsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+        : undefined;
+      const singleId = flagStr(flags, "id");
+      return {
+        op: "profile.delete",
+        args: {
+          id: singleId,
+          profileIds:
+            profileIds ?? (singleId ? [singleId] : undefined),
         },
       };
     }

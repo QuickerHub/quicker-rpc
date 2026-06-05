@@ -35,6 +35,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="6.0.0" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="QuickerRpc.Plugin.Test" />
   </ItemGroup>
   <Import Project="..\qkref.props" />

@@ -35,7 +35,6 @@ type ChatSidebarProps = {
   defaultCwdReady?: boolean;
   onChange: (next: ChatStoreData) => void;
   onActivateThread: (threadId: string) => void;
-  onShowChatView: () => void;
   disabled?: boolean;
 };
 
@@ -118,7 +117,6 @@ export function ChatSidebar({
   defaultCwdReady = true,
   onChange,
   onActivateThread,
-  onShowChatView,
   disabled = false,
 }: ChatSidebarProps) {
   const activeThread = useMemo(() => getActiveThread(store), [store]);
@@ -140,7 +138,6 @@ export function ChatSidebar({
 
   const handleNewThread = () => {
     commit(addThread(store));
-    onShowChatView();
   };
 
   const handleRenameThread = (threadId: string, currentTitle: string) => {

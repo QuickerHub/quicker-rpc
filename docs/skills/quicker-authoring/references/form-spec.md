@@ -1,22 +1,10 @@
 # 多字段表单
 
-**何时读**：写 `sys:form` 步骤前。工作区 **不要**手写 Quicker 原生 `formDef.value`（PascalCase `FieldKey` JSON）；用 **`qkrpc.form.v1`** 描述字段，保存时由 `qkrpc` 编译进 Quicker。
+**何时读**：在 `data.json` 里编写 **`sys:form`** 步骤的表单定义。表单 spec 通常是**长 JSON** — workspace **默认**用 **`formDef.file`**（或 `dynamicFormForDictDef.file`）指向 **`files/*.form.json`**，正文为 **`qkrpc.form.v1`**。**不要**在 `data.json` 里长期内联大段 `formDef.value`（也不要手写 Quicker 原生 PascalCase `FieldKey` JSON）。
 
-## 工作流
+## `data.json` 中的步骤
 
-```powershell
-qkrpc step-runner get --key sys:form --control-field variables --json
-qkrpc form validate --file form.json --json
-qkrpc form build --file form.json --json
-qkrpc action apply --dir .quicker/actions/<guid> --json
-```
-
-1. 在 `data.json` 的 `sys:form` 步骤写 **`inputParams.formDef.file`**（或 `dynamicFormForDictDef.file`），指向 **`files/*.form.json`**（`qkrpc.form.v1`）。
-2. **`action apply`** / **`qkrpc_action_patch`** 仅在发往 Quicker 时编译为原生 `formDef.value`；**磁盘 `data.json` 仍保留 `formDef.file`**，不会写入编译后的 JSON。
-3. **`action get` / `extract`** 将 Quicker 内原生 `formDef` **反编译**为 `files/*.form.json`（`qkrpc.form.v1`），并写回 `formDef.file`（可逆；re-extract 会刷新 spec 文件，不会用原生 JSON 覆盖）。
-4. 可选：`qkrpc form validate|build` 单独校验或预览。
-
-### data.json 写法（推荐）
+**默认形状**（与 **`action-project-files`**、**`action-steps`** 长参数外置一致）：
 
 ```json
 {
@@ -29,17 +17,26 @@ qkrpc action apply --dir .quicker/actions/<guid> --json
 }
 ```
 
-`files/login.form.json` 内容为 `qkrpc.form.v1`（见下文）。步骤上已写的 `title` / `operation` / `dictVar` 优先于 spec 内同名字段。
+`files/login.form.json` 内容为 **`qkrpc.form.v1`**（见下文）。步骤上已写的 `title` / `operation` / `dictVar` 优先于 spec 内同名字段。
 
-### 其它写法
+### `formDef` / `dynamicFormForDictDef`（默认 `file`）
 
-| 写法 | 说明 |
+`formDef` 参数对象与其它 `inputParams` 一样 **三选一**（`value` / `varKey` / `file`），但 **`sys:form` 几乎总是选 `file`** — spec 字段多、JSON 长，内联进 `data.json` 难维护。
+
+| 形状 | 说明 |
 |------|------|
-| `formDef.value` 为 **已编译** 原生 JSON | 短表单或从 Quicker 拉回的结构；patch 时原样提交 |
-| `formDef.value` 为 **qkrpc.form.v1** 对象/字符串 | apply/patch 时编译为原生 `value`（仍不写回磁盘） |
-| 遗留 `formSpec` | 仍支持，会编译为 `formDef`；新动作请用 `formDef.file` |
+| **`{ "file": "files/….form.json" }`** | **默认**；用 `workspace_action_file_write` / `file_edit` 维护正文，`data.json` 只保留路径 |
+| `value` 内联 **qkrpc.form.v1** 对象或 JSON 字符串 | 仅极短表单；保存进 Quicker 前会编译为原生 `formDef.value` |
+| `value` 为 **已编译** 原生 JSON | 多见于刚从 Quicker 导出、尚未反编译；**应**尽快转为 `formDef.file` + `.form.json` |
+| 遗留 **`formSpec`** | 旧动作兼容；**新动作勿用**，改用 `formDef.file` |
 
-**勿**在已有 `formDef.file` 时再写 `formSpec`（二者互斥）。**勿**在 `data.json` 里手写 PascalCase 原生 `formDef.value` 代替 `.form.json` 文件。
+**勿**在已有 `formDef.file` 时再写 `formSpec`。**勿**把大段表单 JSON 长期写在 `data.json` 的 `formDef.value` 里（用 `file` 外置）。
+
+### 编译与磁盘
+
+- 保存进 Quicker 时：`qkrpc.form.v1`（或 `formSpec`）→ 内存中的原生 **`formDef.value`** / **`dynamicFormForDictDef.value`**。
+- **磁盘 `data.json` 保留 `formDef.file`**，不把编译后的原生 JSON 写回 `data.json`。
+- 从 Quicker 拉回工作区时：原生 `formDef` 可 **反编译** 为 `files/*.form.json` 并写回 `formDef.file`（可逆；复杂 `VisibleExpression` 等可能无法无损还原）。
 
 ## FormSpec 形状（qkrpc.form.v1）
 
@@ -87,25 +84,15 @@ qkrpc action apply --dir .quicker/actions/<guid> --json
 | `pattern` | 仅 text-like；须为合法正则 |
 | `visibleWhen` | `{ "field": "otherKey", "eq": "x" }` 或 `{ "ne": "x" }`（二选一） |
 
-## 往返（可逆）
+## 编译进 Quicker 后的参数
 
-```text
-编辑: data.json formDef.file + files/*.form.json (qkrpc.form.v1)
-  → apply/patch: 编译为原生 formDef.value 写入 Quicker（磁盘不变）
-  → get/extract: 原生 formDef → 反编译回 qkrpc.form.v1 + formDef.file
-```
-
-复杂 `VisibleExpression` 等无法无损还原时，extract 会打 warning 并省略对应字段属性。
-
-## 编译结果（仅发往 Quicker 的内存副本）
-
-| mode | 参数 |
+| mode | 目标 |
 |------|------|
 | `variables` | `formDef.value` = 原生 `{ "fields": [...] }` JSON |
-| `dict_dynamic` | `dynamicFormForDictDef.value` + `dictVar.varKey` |
+| `dict_dynamic` | `dynamicFormForDictDef.value` + `dictVar` 绑定 |
 
 原生字段使用 Quicker `FormField` 属性名（PascalCase）：`FieldKey`、`Label`、`InputMethod`、`SelectionItems` 等。
 
 ## 相关
 
-`step-runner get sys:form` · `action-steps` · `workspace-editing` · `authoring-workflow`
+`action-steps` · `action-project-files` · `step-runner-get` · `overview`

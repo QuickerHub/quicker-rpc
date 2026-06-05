@@ -1,5 +1,7 @@
 import {
+  DEEPSEEK_PROVIDER_ID,
   getLlmProviderMeta,
+  isKnownDeepSeekModelId,
   type LlmProviderId,
 } from "@/lib/llm-providers";
 import { resolveLlmConfigProvider } from "@/lib/llm-config";
@@ -184,9 +186,20 @@ export async function PUT(req: Request) {
           : null;
       }
       if ("model" in raw && spec.settingsFields.includes("model")) {
-        patch.model = typeof raw.model === "string"
+        const modelValue = typeof raw.model === "string"
           ? raw.model.trim() || null
           : null;
+        if (
+          modelValue
+          && spec.id === DEEPSEEK_PROVIDER_ID
+          && !isKnownDeepSeekModelId(modelValue)
+        ) {
+          return Response.json(
+            { error: `Invalid DeepSeek model: ${modelValue}` },
+            { status: 400 },
+          );
+        }
+        patch.model = modelValue;
       }
 
       if (Object.keys(patch).length > 0) {

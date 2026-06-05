@@ -60,11 +60,9 @@ import { DocsViewerProvider } from "@/lib/docs-viewer";
 import {
   WorkspaceExplorerPanelProvider,
   WorkspaceExplorerShellProvider,
-  workspaceExplorerActionsRef,
-  workspaceExplorerEditorStateRef,
 } from "@/lib/workspace-explorer";
 import { WorkspaceExplorerPanel } from "@/components/workspace/WorkspaceExplorerPanel";
-import { WorkspaceMainEditorPanel } from "@/components/workspace/WorkspaceMainEditorPanel";
+import { AppMainWorkspaceSplit } from "@/components/workspace/AppMainWorkspaceSplit";
 import { WorkspaceMainEditorTabBridgeRegistrar } from "@/components/workspace/WorkspaceMainEditorTabBridgeRegistrar";
 import { useChatStore } from "@/lib/use-chat-store";
 import { ContextUsage } from "./ContextUsage";
@@ -73,6 +71,7 @@ import {
   type ComposerMarkupFieldHandle,
 } from "./ComposerMarkupField";
 import { MessageParts } from "./MessageParts";
+import { TurnActionLinkCard } from "./TurnActionLinkCard";
 import { ActionTagSelector } from "./ActionTagSelector";
 import { ToolSelector } from "./ToolSelector";
 import {
@@ -100,7 +99,6 @@ import { UserMessageComposerChrome } from "./UserMessageComposerChrome";
 import { useThreadTitleFromTool } from "@/lib/use-thread-title-from-tool";
 import { useComposerMessageQueue } from "@/lib/use-composer-message-queue";
 import { ComposerTestPromptsPicker } from "@/components/chat/ComposerTestPromptsPicker";
-import type { AppMainView } from "@/lib/app-main-view";
 import { useActionProjectImportFromMessages } from "@/lib/action-project-import-from-messages";
 import { useQkrpcPing, type PingState } from "@/lib/use-qkrpc-ping";
 import {
@@ -1042,6 +1040,10 @@ function ChatPanel({
                       offset === 0,
                     ),
                   )}
+                <TurnActionLinkCard
+                  turnMessages={messages.slice(startIndex, endIndex)}
+                  workingDirectory={workingDirectory}
+                />
                 {isLastTurn ? agentActivityBlock : null}
                 {isLastTurn ? errorBanner : null}
               </div>
@@ -1217,10 +1219,7 @@ export function Chat() {
   const { store, defaultCwd, defaultCwdProfile, defaultCwdReady, updateStore } =
     useChatStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const [mainView, setMainView] = useState<AppMainView>("chat");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [workspaceEditorTabOpen, setWorkspaceEditorTabOpen] = useState(false);
-  const [workspaceEditorTabLabel, setWorkspaceEditorTabLabel] = useState("文件");
   const [settingsFocusProviderId, setSettingsFocusProviderId] = useState<
     LlmProviderId | undefined
   >(undefined);
@@ -1259,7 +1258,6 @@ export function Chat() {
   const handleActivateThread = useCallback(
     (threadId: string) => {
       updateStore(openThread(storeRef.current, threadId));
-      setMainView("chat");
     },
     [updateStore],
   );
@@ -1289,23 +1287,6 @@ export function Chat() {
     setSettingsFocusProviderId(undefined);
   }, []);
 
-  const closeWorkspaceEditorTab = useCallback(() => {
-    workspaceExplorerEditorStateRef.current.closeTab("__preview__");
-    setWorkspaceEditorTabOpen(false);
-    setMainView((view) => (view === "workspace-editor" ? "chat" : view));
-  }, []);
-
-  const openWorkspaceEditorTab = useCallback((label: string) => {
-    setWorkspaceEditorTabLabel(label.trim() || "文件");
-    setWorkspaceEditorTabOpen(true);
-    setMainView("workspace-editor");
-  }, []);
-
-  const dismissWorkspaceEditorTab = useCallback(() => {
-    setWorkspaceEditorTabOpen(false);
-    setMainView((view) => (view === "workspace-editor" ? "chat" : view));
-  }, []);
-
   const activeThread = getActiveThread(store);
   const workingDirectory = store.workingDirectory.trim() || defaultCwd;
   const cwdPending = !store.workingDirectory.trim() && !defaultCwdReady;
@@ -1331,7 +1312,6 @@ export function Chat() {
             defaultCwdReady={defaultCwdReady}
             onChange={updateStore}
             onActivateThread={handleActivateThread}
-            onShowChatView={() => setMainView("chat")}
           />
         </div>
         <div className="app-main-column">
@@ -1340,52 +1320,35 @@ export function Chat() {
             cwdPending={cwdPending}
           >
             <DocsViewerProvider>
-              <WorkspaceMainEditorTabBridgeRegistrar
-                onOpenTab={openWorkspaceEditorTab}
-                onCloseTab={dismissWorkspaceEditorTab}
-              />
+              <WorkspaceMainEditorTabBridgeRegistrar />
               <ChatTitlebar
                 store={store}
-                mainView={mainView}
                 settingsOpen={settingsOpen}
-                workspaceEditorTabOpen={workspaceEditorTabOpen}
-                workspaceEditorTabLabel={workspaceEditorTabLabel}
                 onChange={updateStore}
-                onMainViewChange={setMainView}
                 onOpenSettings={openSettings}
                 onCloseSettings={closeSettings}
-                onSelectWorkspaceEditor={() => setMainView("workspace-editor")}
-                onCloseWorkspaceEditorTab={closeWorkspaceEditorTab}
               />
               <div className="app-content-row">
                 <div className="app-main-shell">
-                  {mainView === "workspace-editor" && workspaceEditorTabOpen ? (
-                    <WorkspaceMainEditorPanel
-                      onRefreshTree={() => {
-                        void workspaceExplorerActionsRef.current.refreshTree();
-                      }}
-                    />
-                  ) : (
-                    <div className="app-main-stack">
-                      {getOpenTabThreads(store).map((thread) => (
-                        <ChatPanel
-                          key={thread.id}
-                          threadId={thread.id}
-                          initialMessages={thread.messages}
-                          workingDirectory={workingDirectory}
-                          visible={thread.id === activeThread.id}
-                          threadTitle={thread.title}
-                          titleGenerated={thread.titleGenerated ?? false}
-                          titleManual={thread.titleManual ?? false}
-                          ping={ping}
-                          connectTick={connectTick}
-                          onOpenSettings={openSettings}
-                          onPersist={persistMessages}
-                          onAutoTitle={handleAutoTitle}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  <AppMainWorkspaceSplit>
+                    {getOpenTabThreads(store).map((thread) => (
+                      <ChatPanel
+                        key={thread.id}
+                        threadId={thread.id}
+                        initialMessages={thread.messages}
+                        workingDirectory={workingDirectory}
+                        visible={thread.id === activeThread.id}
+                        threadTitle={thread.title}
+                        titleGenerated={thread.titleGenerated ?? false}
+                        titleManual={thread.titleManual ?? false}
+                        ping={ping}
+                        connectTick={connectTick}
+                        onOpenSettings={openSettings}
+                        onPersist={persistMessages}
+                        onAutoTitle={handleAutoTitle}
+                      />
+                    ))}
+                  </AppMainWorkspaceSplit>
                 </div>
                 <WorkspaceExplorerPanel />
               </div>

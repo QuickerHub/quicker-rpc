@@ -1,7 +1,17 @@
 "use client";
 
+import { isStructuredToolResult } from "@/lib/tool-result";
 import type { ToolPopupViewMode } from "@/lib/tool-popup-ui-prefs";
+import {
+  getWorkspaceFileEditorPreview,
+  isWorkspaceFileReadTool,
+} from "@/lib/workspace-file-tool";
+import { parseProgramDiagnosticsFromToolOutput } from "@/lib/program-diagnostics-view";
+import { FileEditorCard } from "./FileEditorCard";
+import { ProgramDiagnosticsResultView } from "./ProgramDiagnosticsResultView";
 import { ToolPayloadView } from "./tool-output";
+import { ShellToolPopupBody } from "./ShellToolPopupBody";
+import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 
 export type { ToolPopupViewMode };
 
@@ -50,6 +60,82 @@ export function ToolPopupBody({
             output={output}
             followTail={followTail}
           />
+        ) : null}
+        {errorText ? <pre className="tool-error">{errorText}</pre> : null}
+      </div>
+    );
+  }
+
+  if (toolName === SHELL_EXEC_TOOL) {
+    return (
+      <ShellToolPopupBody
+        input={input}
+        output={output}
+        errorText={errorText}
+        followTail={followTail}
+      />
+    );
+  }
+
+  const diagnosticsView = parseProgramDiagnosticsFromToolOutput(output);
+
+  if (diagnosticsView) {
+    return (
+      <div className="tool-body tool-body--debug tool-body--popup-diagnostics">
+        {hasInput ? (
+          <ToolPayloadView
+            label="请求"
+            value={input}
+            dense
+            toolName={toolName}
+            input={input}
+            output={output}
+          />
+        ) : null}
+        <ProgramDiagnosticsResultView view={diagnosticsView} />
+        {errorText ? <pre className="tool-error">{errorText}</pre> : null}
+      </div>
+    );
+  }
+
+  const filePreview =
+    isWorkspaceFileReadTool(toolName)
+    && isStructuredToolResult(output)
+    && output.ok
+      ? getWorkspaceFileEditorPreview(toolName, input, output.data)
+      : null;
+
+  if (filePreview?.content) {
+    return (
+      <div className="tool-body tool-body--debug tool-body--popup-file-read">
+        {hasInput ? (
+          <ToolPayloadView
+            label="请求"
+            value={input}
+            dense
+            toolName={toolName}
+            input={input}
+            output={output}
+          />
+        ) : null}
+        <FileEditorCard
+          path={filePreview.path}
+          content={filePreview.content}
+          variant="full"
+          showHeader
+          showContent
+          fillAvailable
+          lineNumbers
+          foldSnapshot={false}
+          running={followTail}
+        />
+        {filePreview.truncated ? (
+          <p className="file-editor-footnote file-editor-footnote--warn">
+            内容已截断
+            {filePreview.totalChars !== undefined
+              ? ` · 文件共 ${filePreview.totalChars} 字符`
+              : ""}
+          </p>
         ) : null}
         {errorText ? <pre className="tool-error">{errorText}</pre> : null}
       </div>

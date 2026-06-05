@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.XAction.Project;
 
 namespace QuickerRpc.AgentModel.XAction.Lint;
 
@@ -37,7 +38,10 @@ public static class InterpolationPrefixLint
 
         if (data["steps"] is JArray steps)
         {
-            AnalyzeSteps(steps, keySet, issues);
+            ProgramSyntaxStepPaths.Walk(
+                steps,
+                (step, stepPath, stepId, runnerKey) =>
+                    AnalyzeStepInputParams(step, stepPath, stepId, runnerKey, keySet, issues));
         }
 
         if (data["variables"] is JArray variables)
@@ -73,55 +77,40 @@ public static class InterpolationPrefixLint
         return keys;
     }
 
-    private static void AnalyzeSteps(
-        JArray steps,
+    private static void AnalyzeStepInputParams(
+        JObject step,
+        string stepPath,
+        string stepId,
+        string runnerKey,
         IReadOnlyCollection<string> variableKeys,
         IList<ProgramSyntaxIssue> issues)
     {
-        foreach (var token in steps)
+        if (step["inputParams"] is not JObject inputParams)
         {
-            if (token is not JObject step)
+            return;
+        }
+
+        foreach (var prop in inputParams.Properties())
+        {
+            if (SkipParamNames.Contains(prop.Name))
             {
                 continue;
             }
 
-            var stepRef = DescribeStep(step);
-            var runnerKey = (step.Value<string>("stepRunnerKey") ?? string.Empty).Trim();
-
-            if (step["inputParams"] is JObject inputParams)
+            if (!TryReadParamString(prop.Value, out var text))
             {
-                foreach (var prop in inputParams.Properties())
-                {
-                    if (SkipParamNames.Contains(prop.Name))
-                    {
-                        continue;
-                    }
-
-                    if (!TryReadParamString(prop.Value, out var text))
-                    {
-                        continue;
-                    }
-
-                    AnalyzeLiteral(
-                        text,
-                        variableKeys,
-                        issues,
-                        stepRef,
-                        runnerKey,
-                        prop.Name,
-                        variableKey: null);
-                }
+                continue;
             }
 
-            if (step["ifSteps"] is JArray ifSteps)
-            {
-                AnalyzeSteps(ifSteps, variableKeys, issues);
-            }
-
-            if (step["elseSteps"] is JArray elseSteps)
-            {
-                AnalyzeSteps(elseSteps, variableKeys, issues);
-            }
+            AnalyzeLiteral(
+                text,
+                variableKeys,
+                issues,
+                stepPath,
+                stepId,
+                runnerKey,
+                prop.Name,
+                variableKey: null);
         }
     }
 
@@ -152,7 +141,8 @@ public static class InterpolationPrefixLint
                 text,
                 variableKeys,
                 issues,
-                stepRef: null,
+                stepPath: null,
+                stepId: null,
                 stepRunnerKey: null,
                 paramName: "defaultValue",
                 variableKey: varKey);
@@ -163,7 +153,8 @@ public static class InterpolationPrefixLint
         string text,
         IReadOnlyCollection<string> variableKeys,
         IList<ProgramSyntaxIssue> issues,
-        string? stepRef,
+        string? stepPath,
+        string? stepId,
         string? stepRunnerKey,
         string? paramName,
         string? variableKey)
@@ -183,22 +174,15 @@ public static class InterpolationPrefixLint
                 continue;
             }
 
-            issues.Add(new ProgramSyntaxIssue
-            {
-                Severity = ProgramSyntaxIssueSeverity.Warning,
-                Kind = ProgramSyntaxCheckKind.Interpolation,
-                Code = "MISSING_INTERPOLATION_PREFIX",
-                Message =
-                    $"Use $$ prefix for string interpolation (e.g. $$…{{{name}}}…); "
-                    + $"bare {{{name}}} in a literal value will not expand.",
-                Location = new ProgramSyntaxIssueLocation
-                {
-                    StepRef = stepRef,
-                    StepRunnerKey = stepRunnerKey,
-                    ParamName = paramName,
-                    VariableKey = variableKey,
-                },
-            });
+            issues.Add(ProgramSyntaxIssueFactory.CreateInterpolationWarning(
+                stepPath,
+                stepId,
+                stepRunnerKey,
+                paramName,
+                variableKey,
+                "MISSING_INTERPOLATION_PREFIX",
+                $"Use $$ prefix for string interpolation (e.g. $$…{{{name}}}…); "
+                + $"bare {{{name}}} in a literal value will not expand."));
         }
     }
 
@@ -240,27 +224,18 @@ public static class InterpolationPrefixLint
     private static bool TryReadVariableDefault(JObject varObj, out string text)
     {
         text = string.Empty;
-        if (TryReadNonEmptyString(varObj["defaultValue"], out var inline)
-            || TryReadNonEmptyString(varObj["default_value"], out inline)
-            || TryReadNonEmptyString(varObj["DefaultValue"], out inline))
+        if (VariableDefaultValueRef.HasFileRef(varObj))
+        {
+            return false;
+        }
+
+        if (VariableDefaultValueRef.TryGetInlineString(varObj, out var inline))
         {
             text = inline ?? string.Empty;
             return text.Length > 0;
         }
 
         return false;
-    }
-
-    private static string DescribeStep(JObject step)
-    {
-        var stepId = step.Value<string>("stepId");
-        if (!string.IsNullOrWhiteSpace(stepId))
-        {
-            return stepId!;
-        }
-
-        var runner = step.Value<string>("stepRunnerKey");
-        return string.IsNullOrWhiteSpace(runner) ? "step" : $"step ({runner})";
     }
 
     private static bool TryReadNonEmptyString(JToken? token, out string? value)

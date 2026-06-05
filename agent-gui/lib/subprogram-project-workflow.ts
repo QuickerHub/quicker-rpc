@@ -567,6 +567,30 @@ export async function saveSubprogramFromWorkspace(options: {
     );
   }
 
+  const { guardProjectValuePrefixes } = await import(
+    "@/lib/program-value-prefix-guard"
+  );
+  const prefixGuard = await guardProjectValuePrefixes(resolved.absolute, {
+    force: options.force,
+  });
+  if (!prefixGuard.ok) {
+    return formatLocalToolResult(
+      {
+        action: "subprogram-save",
+        success: false,
+        phase: "value-prefix",
+        projectDirectory: projectDirRel,
+        projectDirectoryAbsolute: resolved.absolute,
+        valuePrefixWarningCount: prefixGuard.warnings.length,
+        valuePrefixWarnings: prefixGuard.warnings.slice(0, 12),
+        firstFixRead: prefixGuard.warnings.find((w) => w.read)?.read,
+        errorMessage: prefixGuard.message,
+      },
+      false,
+      prefixGuard.message,
+    );
+  }
+
   const validateResult = await runQkrpcForTool([
     "subprogram",
     "validate",

@@ -26,6 +26,29 @@ export function formatToolTestInputCompact(input: Record<string, unknown>): stri
   if ("clearCaptured" in input) {
     parts.push(`clearCaptured=${String(input.clearCaptured)}`);
   }
+  const shellDescription =
+    "description" in input && typeof input.description === "string"
+      ? input.description.trim()
+      : "";
+  if (shellDescription) {
+    parts.push(
+      shellDescription.length > 56
+        ? `${shellDescription.slice(0, 53)}…`
+        : shellDescription,
+    );
+  }
+  if (!shellDescription && "command" in input && typeof input.command === "string") {
+    const cmd = input.command.trim().replace(/\s+/g, " ");
+    parts.push(`cmd=${cmd.length > 48 ? `${cmd.slice(0, 45)}…` : cmd}`);
+  }
+  if (!shellDescription && "script" in input && typeof input.script === "string") {
+    const first = input.script.trim().split(/\r?\n/)[0] ?? "";
+    const line = first.replace(/\s+/g, " ");
+    parts.push(`script=${line.length > 40 ? `${line.slice(0, 37)}…` : line}`);
+  }
+  if (!shellDescription && "scriptPath" in input && typeof input.scriptPath === "string") {
+    parts.push(`path=${input.scriptPath}`);
+  }
 
   if (parts.length > 0) {
     return parts.join(" ");

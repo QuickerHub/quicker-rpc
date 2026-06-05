@@ -16,7 +16,6 @@ import {
   useAppVersionSnapshot,
 } from "@/lib/use-app-versions";
 import { useChatStore } from "@/lib/use-chat-store";
-import { getToolMeta } from "@/lib/tool-registry";
 import {
   TOOL_TEST_SUITES,
   type ToolTestStep,
@@ -37,11 +36,10 @@ import {
   loadToolTestKeepBatchesExpanded,
   storeToolTestKeepBatchesExpanded,
 } from "@/lib/tool-test-ui-prefs";
-import {
-  defaultStepInputJson,
-  formatToolTestInputCompact,
-} from "@/lib/tool-test-input-format";
+import { defaultStepInputJson } from "@/lib/tool-test-input-format";
 import { ToolTestPromptPanel } from "@/components/tool-test/ToolTestPromptPanel";
+import { ToolTestSuiteDetailDialog } from "@/components/tool-test/ToolTestSuiteDetailDialog";
+import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 import { ToolTestTitleResultPane } from "@/components/tool-test/ToolTestTitleResultPane";
 import type { TitleTestRunEntry } from "@/lib/tool-test-title-runs";
 
@@ -118,143 +116,43 @@ function resolveStepInputRaw(
   return stepOverrides[overrideKey] ?? defaultStepInputJson(step.input);
 }
 
-function ToolTestStepRow({
-  suiteId,
-  step,
-  sharedToolName,
-  stepOverrides,
-  onOverrideChange,
-  disabled,
-}: {
-  suiteId: string;
-  step: ToolTestStep;
-  sharedToolName: string | null;
-  stepOverrides: StepInputOverrides;
-  onOverrideChange: (key: string, json: string) => void;
-  disabled: boolean;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const meta = getToolMeta(step.toolName);
-  const overrideKey = `${suiteId}:${step.id}`;
-  const raw = resolveStepInputRaw(overrideKey, step, stepOverrides);
-  let compact = formatToolTestInputCompact(step.input);
-  try {
-    compact = formatToolTestInputCompact(parseStepInputJson(raw, step.input));
-  } catch {
-    /* keep preset compact label */
-  }
-  const showTool = sharedToolName === null;
-  const showBadge = showTool && meta?.group;
-
-  return (
-    <li className="tool-test-step">
-      <div className="tool-test-step__row">
-        <span className="tool-test-step__name" title={step.label}>
-          {step.label}
-        </span>
-        <code className="tool-test-step__params" title={raw}>
-          {compact}
-        </code>
-        {showTool ? (
-          <code className="tool-test-step__tool">{step.toolName}</code>
-        ) : null}
-        {showBadge ? (
-          <span
-            className={`tool-test-step__badge tool-test-step__badge--${meta!.group}`}
-          >
-            {meta!.group}
-          </span>
-        ) : null}
-        <button
-          type="button"
-          className="tool-test-step__edit"
-          disabled={disabled}
-          aria-expanded={expanded}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? "收起" : "参数"}
-        </button>
-      </div>
-      {expanded ? (
-        <textarea
-          className="tool-test-step__input"
-          rows={Math.min(6, Math.max(2, raw.split("\n").length))}
-          value={raw}
-          spellCheck={false}
-          disabled={disabled}
-          onChange={(e) => onOverrideChange(overrideKey, e.target.value)}
-          aria-label={`${step.label} 参数 JSON`}
-        />
-      ) : null}
-    </li>
-  );
-}
-
 function ToolTestSuiteCard({
   suite,
   runningSuiteId,
-  stepOverrides,
-  onOverrideChange,
   onRun,
+  onShowDetail,
   disabled,
 }: {
   suite: ToolTestSuite;
   runningSuiteId: string | null;
-  stepOverrides: StepInputOverrides;
-  onOverrideChange: (stepId: string, json: string) => void;
   onRun: (suite: ToolTestSuite) => void;
+  onShowDetail: (suite: ToolTestSuite) => void;
   disabled: boolean;
 }) {
   const busy = runningSuiteId === suite.id;
-  const firstTool = suite.steps[0]?.toolName;
-  const sharedToolName =
-    firstTool && suite.steps.every((s) => s.toolName === firstTool)
-      ? firstTool
-      : null;
-  const sharedMeta = sharedToolName ? getToolMeta(sharedToolName) : null;
 
   return (
-    <section className="tool-test-suite-card">
-      <header className="tool-test-suite-card__head">
-        <h2 className="tool-test-suite-card__title">{suite.title}</h2>
-        {sharedToolName ? (
-          <div className="tool-test-suite-card__toolline">
-            <code className="tool-test-step__tool">{sharedToolName}</code>
-            {sharedMeta?.group ? (
-              <span
-                className={`tool-test-step__badge tool-test-step__badge--${sharedMeta.group}`}
-              >
-                {sharedMeta.group}
-              </span>
-            ) : null}
-            <span className="tool-test-suite-card__count">
-              {suite.steps.length} 步
-            </span>
-          </div>
-        ) : null}
-        <p className="tool-test-suite-card__desc">{suite.description}</p>
-      </header>
-      <ol className="tool-test-suite-card__steps">
-        {suite.steps.map((step) => (
-          <ToolTestStepRow
-            key={step.id}
-            suiteId={suite.id}
-            step={step}
-            sharedToolName={sharedToolName}
-            stepOverrides={stepOverrides}
-            onOverrideChange={onOverrideChange}
-            disabled={disabled}
-          />
-        ))}
-      </ol>
-      <button
-        type="button"
-        className="tool-test-suite-card__run"
-        disabled={disabled || busy}
-        onClick={() => onRun(suite)}
-      >
-        {busy ? "测试中…" : `开始测试 (${suite.steps.length})`}
-      </button>
+    <section className="tool-test-suite-card tool-test-suite-card--compact">
+      <span className="tool-test-suite-card__label">{suite.title}</span>
+      <div className="tool-test-suite-card__actions">
+        <button
+          type="button"
+          className="tool-test-suite-card__detail"
+          disabled={disabled}
+          onClick={() => onShowDetail(suite)}
+          aria-label={`${suite.title} 详情`}
+        >
+          详情
+        </button>
+        <button
+          type="button"
+          className="tool-test-suite-card__run"
+          disabled={disabled || busy}
+          onClick={() => onRun(suite)}
+        >
+          {busy ? "…" : "开始"}
+        </button>
+      </div>
     </section>
   );
 }
@@ -330,6 +228,7 @@ export function ToolTestPage() {
   const [lastError, setLastError] = useState<string | null>(null);
   const [sidebarTab, setSidebarTab] = useState<ToolTestSidebarTab>("tools");
   const [titleTestRuns, setTitleTestRuns] = useState<TitleTestRunEntry[]>([]);
+  const [detailSuite, setDetailSuite] = useState<ToolTestSuite | null>(null);
 
   const appendTitleTestRun = useCallback((entry: TitleTestRunEntry) => {
     setTitleTestRuns((prev) => [...prev, entry]);
@@ -422,6 +321,12 @@ export function ToolTestPage() {
           const overrideKey = `${suite.id}:${step.id}`;
           const raw = resolveStepInputRaw(overrideKey, step, stepOverrides);
           const input = parseStepInputJson(raw, step.input);
+
+          if (step.toolName === SHELL_EXEC_TOOL) {
+            await new Promise<void>((resolve) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+            });
+          }
 
           let approved = false;
           let result = await callToolExecuteApi({
@@ -655,20 +560,24 @@ export function ToolTestPage() {
               <div className="tool-test-sidebar-scroll">
                 {sidebarTab === "tools" ? (
                   <>
-                    <p className="tool-test-sidebar__hint">
-                      每组测试按顺序调用工具；可编辑 JSON 参数后点击「开始测试」。不写 LLM，直接走与聊天相同的服务端 execute。
-                    </p>
                     {TOOL_TEST_SUITES.map((suite) => (
                       <ToolTestSuiteCard
                         key={suite.id}
                         suite={suite}
                         runningSuiteId={runningSuiteId}
-                        stepOverrides={stepOverrides}
-                        onOverrideChange={handleOverrideChange}
                         onRun={runSuite}
+                        onShowDetail={setDetailSuite}
                         disabled={busy || pendingApproval !== null}
                       />
                     ))}
+                    <ToolTestSuiteDetailDialog
+                      open={detailSuite !== null}
+                      suite={detailSuite}
+                      stepOverrides={stepOverrides}
+                      onOverrideChange={handleOverrideChange}
+                      disabled={busy || pendingApproval !== null}
+                      onClose={() => setDetailSuite(null)}
+                    />
                   </>
                 ) : (
                   <ToolTestPromptPanel

@@ -82,6 +82,7 @@ internal static class ServeInvokeDispatcher
             "action.validate" => ActionProjectServeOps.Validate(args),
             "action.apply" => await ActionProjectServeOps.ApplyAsync(rpc, args, token).ConfigureAwait(false),
             "profile.create" => await ProfileCreateAsync(rpc, args, token).ConfigureAwait(false),
+            "profile.delete" => await ProfileDeleteAsync(rpc, args, token).ConfigureAwait(false),
             "profile.reorder" => await ProfileReorderAsync(rpc, args, token).ConfigureAwait(false),
             "process.ensure" => await ProcessEnsureAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.search" => await SubprogramSearchAsync(rpc, args, token).ConfigureAwait(false),
@@ -101,10 +102,12 @@ internal static class ServeInvokeDispatcher
             "step-runner.getUi" => await StepRunnerGetAsync(rpc, args, forAgent: false, token).ConfigureAwait(false),
             "fa.search" => await FaSearchAsync(rpc, args, token).ConfigureAwait(false),
             "expr.check" => await ExprCheckAsync(rpc, args, token).ConfigureAwait(false),
+            "expr.run" => await ExprRunAsync(rpc, args, token).ConfigureAwait(false),
             "script.check" => await ScriptCheckAsync(rpc, args, token).ConfigureAwait(false),
             "project.lint.schedule" => ProjectLintSchedule(pool, args, cancellationToken),
             "project.diagnostics.get" => ProjectDiagnosticsGet(args),
             "fa.resolve" => await FaResolveAsync(rpc, args, token).ConfigureAwait(false),
+            "quicker.account.get" => await QuickerAccountGetAsync(rpc, token).ConfigureAwait(false),
             _ => Fail("UNKNOWN_OP", $"Unknown op: {op}"),
         };
     }
@@ -125,6 +128,21 @@ internal static class ServeInvokeDispatcher
             pong,
             protocolVersion = version,
             pipe = QuickerRpcPipeNames.ServerPipe,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> QuickerAccountGetAsync(
+        IQuickerRpcService rpc,
+        CancellationToken cancellationToken)
+    {
+        var account = await rpc.GetQuickerAccountAsync(cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = account.Ok,
+            action = "quicker-account-get",
+            loggedIn = account.LoggedIn,
+            userId = account.UserId,
+            message = account.Message,
         });
     }
 
@@ -419,12 +437,17 @@ internal static class ServeInvokeDispatcher
                 row,
                 col,
                 ServeJsonArgs.GetBool(args, "swap") || ServeJsonArgs.GetBool(args, "allowSwap"),
+                ServeJsonArgs.GetString(args, "onNoEmptySlot", "on-no-empty-slot"),
+                ServeJsonArgs.GetString(args, "onOccupiedSlot", "on-occupied-slot"),
                 token)
             .ConfigureAwait(false);
         return Ok(new
         {
             ok = response.Ok,
             action = "move",
+            needsUserChoice = response.NeedsUserChoice,
+            conflictReason = response.ConflictReason,
+            choices = response.Choices,
             message = response.Message,
             actionId = response.ActionId,
             actionTitle = response.ActionTitle,
@@ -438,6 +461,11 @@ internal static class ServeInvokeDispatcher
             targetCol = response.TargetCol,
             swappedActionId = response.SwappedActionId,
             swappedActionTitle = response.SwappedActionTitle,
+            occupiedActionId = response.OccupiedActionId,
+            occupiedActionTitle = response.OccupiedActionTitle,
+            createdProfile = response.CreatedProfile,
+            createdProfileId = response.CreatedProfileId,
+            createdProfileName = response.CreatedProfileName,
         });
     }
 
@@ -673,6 +701,39 @@ internal static class ServeInvokeDispatcher
             insertAfterProfileId = response.InsertAfterProfileId,
             insertAfterProfileName = response.InsertAfterProfileName,
             items = response.Items,
+            message = response.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ProfileDeleteAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var ids = ServeJsonArgs.GetStringList(args, "profileIds");
+        if (ids.Count == 0)
+        {
+            ids = ServeJsonArgs.GetStringList(args, "ids");
+        }
+
+        var single = ServeJsonArgs.GetString(args, "profileId", "id", "profile");
+        if (ids.Count == 0 && !string.IsNullOrWhiteSpace(single))
+        {
+            ids = new[] { single.Trim() };
+        }
+
+        if (ids.Count == 0)
+        {
+            return Fail("MISSING_PROFILE_IDS", "args.id or args.profileIds is required.");
+        }
+
+        var response = await rpc.DeleteEmptyProfilesAsync(ids.ToList(), token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "profile-delete",
+            deleted = response.Deleted,
+            failures = response.Failures,
             message = response.Message,
         });
     }
@@ -1146,6 +1207,36 @@ internal static class ServeInvokeDispatcher
             kind = response.Kind,
             message = response.Message,
             errorCode = response.ErrorCode,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ExprRunAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var code = ServeJsonArgs.GetString(args, "code");
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return Fail("MISSING_CODE", "args.code is required.");
+        }
+
+        var variablesJson = ServeJsonArgs.GetObject(args, "variables")?.GetRawText();
+        var onUiThread = ServeJsonArgs.GetBool(args, "onUiThread")
+            || ServeJsonArgs.GetBool(args, "on_ui_thread");
+        var response = await rpc
+            .ExecuteExpressionAsync(code, variablesJson, onUiThread, token)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "expr-run",
+            success = response.Success,
+            message = response.Message,
+            errorCode = response.ErrorCode,
+            resultJson = response.ResultJson,
+            resultType = response.ResultType,
+            variablesJson = response.VariablesJson,
         });
     }
 

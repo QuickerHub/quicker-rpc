@@ -56,8 +56,14 @@ public sealed class ProgramSyntaxCollectorTests
 
             var items = ProgramSyntaxCollector.Collect(root, data);
             Assert.AreEqual(3, items.Count);
-            Assert.IsTrue(items.Any(i => i.Kind == ProgramSyntaxCheckKind.Expression && i.StepRef == "s-1"));
-            Assert.IsTrue(items.Any(i => i.Kind == ProgramSyntaxCheckKind.CSharp && i.File == "files/run.cs"));
+            Assert.IsTrue(items.Any(i =>
+                i.Kind == ProgramSyntaxCheckKind.Expression
+                && i.StepRef == "s-1"
+                && i.StepPath == "0"));
+            Assert.IsTrue(items.Any(i =>
+                i.Kind == ProgramSyntaxCheckKind.CSharp
+                && i.File == "files/run.cs"
+                && i.StepPath == "1"));
             Assert.IsTrue(items.Any(i => i.VariableKey == "n"));
         }
         finally

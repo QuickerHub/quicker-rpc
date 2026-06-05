@@ -333,6 +333,8 @@ export type ActionProjectDataSummary = {
   variableKeys: string[];
   fileRefCount: number;
   missingFileRefs: number;
+  valuePrefixWarningCount?: number;
+  valuePrefixWarnings?: import("@/lib/quicker-interpolation-lint").ProgramValuePrefixWarning[];
 };
 
 export function parseDataJsonOutline(raw: string): {
@@ -385,14 +387,17 @@ export async function getActionProjectDataSummary(
     return { ok: false, error: `data.json not found under ${manifest.projectDirectory}.` };
   }
 
-  const outline = parseDataJsonOutline(
-    await readFile(resolvedData.absolute, "utf8"),
-  );
+  const raw = await readFile(resolvedData.absolute, "utf8");
+  const outline = parseDataJsonOutline(raw);
   if ("error" in outline) {
     return { ok: false, error: outline.error };
   }
 
   const missingFileRefs = manifest.fileRefs.filter((ref) => !ref.exists).length;
+  const { scanProgramValuePrefixWarnings } = await import(
+    "@/lib/quicker-interpolation-lint"
+  );
+  const valuePrefixWarnings = scanProgramValuePrefixWarnings(raw);
 
   return {
     ok: true,
@@ -408,6 +413,9 @@ export async function getActionProjectDataSummary(
       variableKeys: outline.variableKeys,
       fileRefCount: manifest.fileRefs.length,
       missingFileRefs,
+      valuePrefixWarningCount: valuePrefixWarnings.length,
+      valuePrefixWarnings:
+        valuePrefixWarnings.length > 0 ? valuePrefixWarnings.slice(0, 12) : undefined,
     },
   };
 }
@@ -689,6 +697,30 @@ export async function saveActionFromWorkspace(options: {
     );
   }
   const projectDirAbs = projectResolved.absolute;
+
+  const { guardProjectValuePrefixes } = await import(
+    "@/lib/program-value-prefix-guard"
+  );
+  const prefixGuard = await guardProjectValuePrefixes(projectDirAbs, {
+    force: options.force,
+  });
+  if (!prefixGuard.ok) {
+    return formatLocalToolResult(
+      {
+        action: "action-save",
+        success: false,
+        phase: "value-prefix",
+        projectDirectory: projectDirRel,
+        projectDirectoryAbsolute: projectDirAbs,
+        valuePrefixWarningCount: prefixGuard.warnings.length,
+        valuePrefixWarnings: prefixGuard.warnings.slice(0, 12),
+        firstFixRead: prefixGuard.warnings.find((w) => w.read)?.read,
+        errorMessage: prefixGuard.message,
+      },
+      false,
+      prefixGuard.message,
+    );
+  }
 
   const validateResult = await runQkrpcForTool([
     "action",

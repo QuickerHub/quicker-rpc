@@ -39,6 +39,14 @@ public static class XActionFileRefCompiler
 
             if (clone["variables"] is JArray variablesClone)
             {
+                foreach (var token in variablesClone)
+                {
+                    if (token is JObject varObj)
+                    {
+                        VariableDefaultValueRef.MigrateLegacyFileProperty(varObj);
+                    }
+                }
+
                 CompileVariables(variablesClone, projectDir);
             }
 
@@ -147,20 +155,15 @@ public static class XActionFileRefCompiler
             }
 
             var varKey = varObj.Value<string>("key") ?? varObj.Value<string>("Key") ?? "variable";
-            if (!TryReadNonEmptyString(
-                    varObj[XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty],
-                    out var filePath))
+            if (!VariableDefaultValueRef.TryGetFilePath(varObj, out var filePath))
             {
                 continue;
             }
 
-            var hasInline = TryReadNonEmptyString(varObj["defaultValue"], out _)
-                || TryReadNonEmptyString(varObj["default_value"], out _)
-                || TryReadNonEmptyString(varObj["DefaultValue"], out _);
-            if (hasInline)
+            if (VariableDefaultValueRef.TryGetInlineString(varObj, out _))
             {
                 throw new InvalidOperationException(
-                    $"variable {varKey}: '{XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty}' and defaultValue are mutually exclusive.");
+                    $"variable {varKey}: defaultValue inline string and defaultValue.file are mutually exclusive.");
             }
 
             var fullPath = XActionFileRefPath.ResolveFullPath(projectDir, filePath!);
@@ -172,9 +175,9 @@ public static class XActionFileRefCompiler
             }
 
             var text = File.ReadAllText(fullPath, System.Text.Encoding.UTF8);
-            varObj.Remove(XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty);
             varObj.Remove("default_value");
             varObj.Remove("DefaultValue");
+            varObj.Remove(VariableDefaultValueRef.LegacyDefaultValueFileProperty);
             varObj["defaultValue"] = text;
         }
     }

@@ -7,8 +7,9 @@
 | 层级 | 内容 |
 |------|------|
 | **工具 description** | 参数名、返回值、字段约束（权威来源） |
-| **流程文档（本目录）** | P0–P7 顺序、workspace 分工、表达式/变量等领域规则 |
-| **CLI 专用** | `patch-workflow`、`action-project-files`（内联 JSON / extract·apply） |
+| **流程文档（本目录）** | P0–P7 顺序、工具与工作区分工（`authoring-workflow`、`workspace-editing` 等） |
+| **动作文件定义** | `action-variables`、`action-steps`、`expressions`、`action-project-files` — 仅 `data.json` / 目录结构，不涉及工具行为 |
+| **CLI 专用** | `patch-workflow`（内联 patch JSON） |
 
 {{#only-agent}}
 **Agent 默认路径**：**`qkrpc_action_create`**（仅 `info.json`）或 **`qkrpc_action_get`**（非空才 extract）→ **`workspace_*`** 改 `data.json` → **`qkrpc_action_patch({ id })`**。新建后**勿**再 get；勿传内联 patch JSON。
@@ -69,22 +70,22 @@
 {{#only-agent}}| 动作整理 | **`action-organization-workflow`** | 整理动作页：移动、全局 tab、虚拟进程归集（不改程序体） |
 {{/only-agent}}| 步骤模块搜索 | **`step-runner-search`** | P5：目录搜索 OR/通配 |
 | 步骤模块 schema | **`step-runner-get`** | P5：Agent 只用 `get`（禁止 `get-ui`）；与 search 分工 |
+| 工作区目录与外置 | **`action-project-files`** | `.quicker/actions` 布局、`file` 引用形状 |
 {{#only-cli}}| Patch 工作流（CLI） | **`patch-workflow`** | P6：内联 patch JSON |
-| 工作区项目（CLI） | **`action-project-files`** | CLI 磁盘 extract/apply |
 {{/only-cli}}
 
 ## 常见错误（{{#ref errors.source}}）
 
 | 场景 | 对策 |
 |------|------|
-| 猜 `inputParams` 键名 | {{#ref step-runner.get.invoke}} |
-| 长脚本/字符串塞进 `value` | 超过 4 行用 **`files/`** + `"file": "files/…"`（**`action-steps`**） |
-| `outputParams` 写成 `{ "varKey": "…" }` | 输出值为 **变量 key 字符串**（可 `dictVar.key`），见 **`action-steps`** |
-| 猜 `callIdentifier` | `qkrpc_subprogram_search` / `get` |
-| 猜 icon | `qkrpc_fa_search` |
-| 保存后反复 get 确认 | {{#only-agent}}用 **`editVersion`**、`projectSummary`；改完 **直接 `qkrpc_action_patch`**（内置校验）{{/only-agent}}{{#only-cli}}用响应里的 **`editVersion`**、**`addedSteps`**（增量 patch）{{/only-cli}} |
-{{#only-agent}}| 传内联 patch JSON（`op` / add / update） | 改 **`data.json`** + **`qkrpc_action_patch({ id })`**（见 **`workspace-editing`**） |
-| 手写 `.quicker/.../data.json` 路径 | `workspace_action_*_data({ id })` |
-| create 后再 **`action_get`** | 用 create 返回值；直接 **`workspace_action_*_data`** → patch |
-| 对空动作 **get** 期望落盘 | 空程序不写 `data.json`；先 write_data 或编辑后再 get |
+| `value` / 内联 `defaultValue` 含 `{var}` 却未以 `$$`/`$=` 开头 | 运行时不会展开；改为 `$$…` / `$=…` 或 `varKey`（**`expressions`**） |
+| 猜 `inputParams` 键名 | 键名须与 step-runner schema 一致（**`step-runner-get`**） |
+| 长脚本/字符串塞进 `value` | 超过约 4 行用 **`files/`** + `{ "file": "files/…" }`（**`action-steps`**、**`action-project-files`**） |
+| `outputParams` 误用 input 形状 `{ "varKey": "…" }` | 应写 `"outputKey": "clipText"` 等 **字符串**（可 `dictVar.key`），见 **`action-steps`** |
+| 使用废弃的 `defaultValueFile` | 改为 `defaultValue: { "file": "files/…" }`（**`action-variables`**） |
+| 猜 `callIdentifier`、图标 spec | 须从子程序定义 / 图标目录取得，勿手写（流程见 **`subprogram-workflow`**、**`action-icons`**） |
+{{#only-agent}}| 保存后反复 get 确认 | 以 patch / 编辑响应中的 **`editVersion`** 为准（**`authoring-workflow`** P7） |
+| 传内联 patch JSON（`op` / add / update） | Agent 改磁盘 **`data.json`** 后 patch（**`workspace-editing`**） |
 {{/only-agent}}
+{{#only-cli}}| 保存后反复 get 确认 | 以 patch / apply 响应中的 **`editVersion`** 为准（**`authoring-workflow`** P7） |
+{{/only-cli}}

@@ -13,6 +13,15 @@ describe("shell-policy", () => {
     assert.equal(verdict.requiresApproval, false);
   });
 
+  it("does not require approval for comparison operators", () => {
+    const verdict = evaluateShellPolicy({
+      mode: "command",
+      command: "if ($count -gt 0) { Write-Output ok }",
+    });
+    assert.equal(verdict.allowed, true);
+    assert.equal(verdict.requiresApproval, false);
+  });
+
   it("requires approval for destructive remove-item", () => {
     const verdict = evaluateShellPolicy({
       mode: "command",

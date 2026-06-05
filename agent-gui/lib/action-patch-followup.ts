@@ -4,8 +4,10 @@ import {
   type UIMessage,
 } from "ai";
 import { isStructuredToolResult } from "@/lib/tool-result";
-
-const ACTION_PATCH_TOOL = "qkrpc_action_patch";
+import {
+  ACTION_SAVE_TOOL_NAMES,
+  parseSuccessfulActionPatchFromToolPart,
+} from "@/lib/turn-action-link";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -111,18 +113,10 @@ function parsePatchToolPart(part: {
   input?: unknown;
   output?: unknown;
 }): { actionId: string; editVersion?: number } | null {
-  if (part.state !== "output-available") return null;
-  const input =
-    typeof part.input === "object" && part.input !== null
-      ? (part.input as Record<string, unknown>)
-      : undefined;
-  const idFromInput = typeof input?.id === "string" ? input.id : undefined;
-  const actionId =
-    (idFromInput && isUuid(idFromInput) ? idFromInput : undefined)
-    ?? readActionIdFromPatchOutput(part.output);
-  if (!actionId) return null;
+  const parsed = parseSuccessfulActionPatchFromToolPart(part);
+  if (!parsed) return null;
   return {
-    actionId,
+    actionId: parsed.actionId,
     editVersion: readEditVersionFromPatchOutput(part.output),
   };
 }
@@ -150,7 +144,7 @@ export function findActionPatchFollowUp(
   messages: UIMessage[],
 ): ActionPatchFollowUpContext | null {
   const last = findLastToolCall(messages);
-  if (!last || last.toolName !== ACTION_PATCH_TOOL) return null;
+  if (!last || !ACTION_SAVE_TOOL_NAMES.has(last.toolName)) return null;
   if (!isToolOrDynamicToolUIPart(last.part)) return null;
   const parsed = parsePatchToolPart(last.part);
   if (!parsed) return null;

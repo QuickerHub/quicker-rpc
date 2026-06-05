@@ -12,8 +12,9 @@ public static class XActionFileRefAutoExternalizer
 {
     public const string DefaultFilesSubdir = "files";
 
-    /// <summary>Workspace-only: <c>variables[].defaultValueFile</c> (resolved to <c>defaultValue</c> on apply).</summary>
-    public const string VariableDefaultValueFileProperty = "defaultValueFile";
+    /// <summary>Deprecated; use <see cref="VariableDefaultValueRef"/>.</summary>
+    public const string VariableDefaultValueFileProperty =
+        VariableDefaultValueRef.LegacyDefaultValueFileProperty;
 
     public sealed class ApplyResult
     {
@@ -202,7 +203,9 @@ public static class XActionFileRefAutoExternalizer
                 continue;
             }
 
-            if (TryReadNonEmptyString(varObj[VariableDefaultValueFileProperty], out _))
+            VariableDefaultValueRef.MigrateLegacyFileProperty(varObj);
+
+            if (VariableDefaultValueRef.HasFileRef(varObj))
             {
                 continue;
             }
@@ -238,10 +241,7 @@ public static class XActionFileRefAutoExternalizer
                     Content = value,
                 });
 
-                varObj.Remove("defaultValue");
-                varObj.Remove("default_value");
-                varObj.Remove("DefaultValue");
-                varObj[VariableDefaultValueFileProperty] = relativePath;
+                VariableDefaultValueRef.SetFileRef(varObj, relativePath);
             }
             catch (Exception ex)
             {
@@ -264,9 +264,9 @@ public static class XActionFileRefAutoExternalizer
         minLines > 0 && CountLines(value) > minLines;
 
     private static string? ReadVariableDefaultValue(JObject varObj) =>
-        varObj.Value<string>("defaultValue")
-        ?? varObj.Value<string>("default_value")
-        ?? varObj.Value<string>("DefaultValue");
+        VariableDefaultValueRef.TryGetInlineString(varObj, out var inline)
+            ? inline
+            : null;
 
     private static bool TryReadNonEmptyString(JToken? token, out string? value)
     {

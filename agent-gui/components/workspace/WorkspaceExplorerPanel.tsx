@@ -65,10 +65,6 @@ export function WorkspaceExplorerPanel() {
     workspaceExplorerActionsRef.current.notifyProjectRemoved();
   }, []);
 
-  const handleRefreshTree = useCallback(() => {
-    void refreshTree();
-  }, [refreshTree]);
-
   if (!panelOpen) return null;
 
   return (

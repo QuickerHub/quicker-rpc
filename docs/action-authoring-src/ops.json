@@ -175,18 +175,18 @@
       "metadata": { "phase": "organize" }
     },
     "action-project-files": {
-      "title": "工作区项目（CLI）",
-      "description": "CLI：qkrpc action extract/apply 与 .quicker/actions/{actionId} 目录。",
-      "profiles": ["cli"]
+      "title": "工作区项目布局",
+      "description": ".quicker/actions/{actionId} 目录、data.json 与 files/ 外置 {file} 引用形状。Use when authoring file refs on disk.",
+      "metadata": { "phase": "P2-P6" }
     },
     "action-embedded-subprograms": {
-      "title": "动作内子程序（CLI）",
-      "description": "动作内子程序：.quicker/actions/{id}/subprograms/{subId} 外置布局与 extract/apply 组装。",
-      "profiles": ["cli"]
+      "title": "动作内子程序",
+      "description": "动作内子程序：subprograms/{subId}/ 目录与根 data.json 不含内联 subPrograms 的磁盘模型。",
+      "metadata": { "phase": "P2-P6" }
     },
     "form-spec": {
       "title": "多字段表单",
-      "description": "sys:form 多字段表单：qkrpc.form.v1 语法与 qkrpc form validate/build。Use when authoring sys:form; do not hand-write native formDef JSON.",
+      "description": "sys:form：默认 formDef.file + files/*.form.json (qkrpc.form.v1)；长表单勿内联 formDef.value。Use when authoring sys:form.",
       "allowed-tools": "qkrpc_form_validate qkrpc_form_build qkrpc_step_runner_get workspace_action_edit_data qkrpc_action_patch",
       "metadata": { "phase": "P5-P6" }
     }
@@ -369,6 +369,11 @@
       "cli": "qkrpc profile create --scope global [--count {{count}}] [--after-first] --json",
       "agent": "qkrpc_profile_create({ count?: {{count}}, afterFirst: true })",
       "defaults": { "count": "1" }
+    },
+    "profile.delete": {
+      "cli": "qkrpc profile delete --id {{id}} [--ids {{profileIds}}] --json",
+      "agent": "qkrpc_profile_delete({ profileId?: \"{{id}}\", profileIds?: [\"{{profileIds}}\"] })",
+      "defaults": { "id": "<profileId>", "profileIds": "<guid1>,<guid2>" }
     },
     "profile.reorder": {
       "cli": "qkrpc profile reorder --scope global --after-first --ids {{profileIds}} --json",

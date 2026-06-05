@@ -22,6 +22,12 @@ import {
 } from "@codemirror/view";
 import { createInterpolationLintExtension } from "@/lib/codemirror-interpolation-lint";
 import { quickerTextCodeMirror } from "@/lib/quicker-text-codemirror";
+import {
+  powerShellCodeMirror,
+  shellCodeMirror,
+  terminalShellHighlightStyle,
+} from "@/lib/shell-command-codemirror";
+import { terminalTranscriptCodeMirror } from "@/lib/terminal-transcript-codemirror";
 import { guessFileLanguage } from "@/lib/workspace-file-tool";
 
 /** Maps Lezer highlight tags to theme.css `--code-token-*` tokens (VS Code palette). */
@@ -102,7 +108,7 @@ export function workspaceCodeMirrorTheme(): Extension {
       fontFamily: "var(--font-mono)",
     },
     ".cm-content": {
-      padding: "0.55rem 0.7rem",
+      padding: "0.4rem 0.45rem",
       caretColor: "transparent",
     },
     ".cm-scroller": {
@@ -197,6 +203,60 @@ export function readonlyCodeMirrorExtensions(): Extension[] {
   ];
 }
 
+/** Shell command pane on dark terminal background (#161b22). */
+export function readonlyTerminalCommandCodeMirrorExtensions(): Extension[] {
+  return [
+    drawSelection(),
+    syntaxHighlighting(terminalShellHighlightStyle, { fallback: true }),
+    EditorState.readOnly.of(true),
+    EditorView.editable.of(false),
+    EditorView.lineWrapping,
+    EditorView.theme({
+      "&": {
+        backgroundColor: "transparent",
+        color: "#8b949e",
+        fontSize: "0.78rem",
+        fontFamily: "var(--font-mono, ui-monospace, monospace)",
+        fontWeight: "400",
+      },
+      ".cm-content": {
+        padding: 0,
+        caretColor: "transparent",
+      },
+      ".cm-scroller": {
+        overflow: "visible",
+        fontFamily: "inherit",
+        lineHeight: "1.42",
+      },
+      ".cm-cursor": { display: "none !important" },
+    }),
+  ];
+}
+
+/** Terminal output body: monospace plain text on dark background, no syntax tokens. */
+export function readonlyPlainCodeMirrorExtensions(): Extension[] {
+  return [
+    drawSelection(),
+    EditorState.readOnly.of(true),
+    EditorView.editable.of(false),
+    EditorView.lineWrapping,
+    EditorView.theme({
+      "&": {
+        backgroundColor: "transparent",
+        color: "#8b949e",
+        fontWeight: "400",
+      },
+      ".cm-content": {
+        fontFamily: "var(--font-mono, ui-monospace, monospace)",
+        fontSize: "0.78rem",
+        lineHeight: "1.42",
+        fontWeight: "400",
+      },
+      ".cm-cursor": { display: "none !important" },
+    }),
+  ];
+}
+
 export function getCodeMirrorLanguageExtension(
   path: string,
   language?: string,
@@ -241,6 +301,13 @@ export function getCodeMirrorLanguageExtension(
       return cpp();
     case "text":
       return quickerTextCodeMirror();
+    case "terminal":
+      return terminalTranscriptCodeMirror();
+    case "powershell":
+      return powerShellCodeMirror();
+    case "bash":
+    case "shell":
+      return shellCodeMirror();
     default:
       return [];
   }
@@ -251,14 +318,25 @@ export function buildPreviewCodeMirrorExtensions(
   options?: {
     language?: string;
     lineNumbers?: boolean;
+    /** Monospace plain text without syntax highlighting (terminal stdout). */
+    plain?: boolean;
+    /** Dark terminal command row (shell_exec command pane). */
+    terminalDark?: boolean;
     /** Source for $$ interpolation lint (defaults to editor doc). */
     lintSourceText?: string;
   },
 ): Extension[] {
-  const extensions: Extension[] = [
-    ...readonlyCodeMirrorExtensions(),
-    getCodeMirrorLanguageExtension(path, options?.language),
-  ];
+  const extensions: Extension[] = options?.plain
+    ? [...readonlyPlainCodeMirrorExtensions()]
+    : options?.terminalDark
+      ? [
+        ...readonlyTerminalCommandCodeMirrorExtensions(),
+        getCodeMirrorLanguageExtension(path, options?.language),
+      ]
+      : [
+        ...readonlyCodeMirrorExtensions(),
+        getCodeMirrorLanguageExtension(path, options?.language),
+      ];
   if (options?.lineNumbers) {
     extensions.push(lineNumbers());
   }

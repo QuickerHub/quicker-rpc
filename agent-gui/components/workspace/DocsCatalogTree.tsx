@@ -124,7 +124,7 @@ export function DocsCatalogTree() {
                   <button
                     type="button"
                     className={`explorer-tree-row explorer-tree-row--topic${topicSelected ? " explorer-tree-row--selected" : ""}`}
-                    style={{ paddingLeft: hasRefs ? "0.35rem" : "1.3rem" }}
+                    style={{ paddingLeft: hasRefs ? "0.25rem" : "0.95rem" }}
                     onClick={() => {
                       selectTopic(topic.topic, topic.title);
                       setPanelOpen(true);
@@ -165,7 +165,7 @@ export function DocsCatalogTree() {
                           key={ref.id}
                           type="button"
                           className={`explorer-tree-row${refSelected ? " explorer-tree-row--selected" : ""}`}
-                          style={{ paddingLeft: "2.1rem" }}
+                          style={{ paddingLeft: "1.5rem" }}
                           onClick={() => {
                             selectReference(topic.topic, ref.id, ref.title);
                             setPanelOpen(true);

@@ -15,6 +15,9 @@ public interface IQuickerRpcService
     /// <summary>Bump when breaking RPC contract changes.</summary>
     Task<int> GetProtocolVersionAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Current Quicker account (for managed LLM usage fingerprinting).</summary>
+    Task<QuickerRpcAccountInfo> GetQuickerAccountAsync(CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Refresh a shared action. Forwards to <see cref="PublishSharedActionAsync"/> (same implementation).
     /// </summary>
@@ -109,6 +112,8 @@ public interface IQuickerRpcService
         int? targetRow = null,
         int? targetCol = null,
         bool allowSwap = false,
+        string? onNoEmptySlot = null,
+        string? onOccupiedSlot = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Create blank global action profile pages (AddProfile on _global).</summary>
@@ -120,6 +125,11 @@ public interface IQuickerRpcService
     /// <summary>Move existing global profile tabs to sit right after the first global page.</summary>
     Task<QuickerRpcCreateGlobalProfilesResult> ReorderGlobalProfilesAfterFirstAsync(
         IReadOnlyList<string> profileIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Delete empty action profile pages (tabs). Fails when the page still has actions or is protected.</summary>
+    Task<QuickerRpcDeleteProfileResult> DeleteEmptyProfilesAsync(
+        IReadOnlyList<string> profileIdsOrNames,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -241,6 +251,13 @@ public interface IQuickerRpcService
         IDictionary<string, string>? variableTypes = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Execute a Quicker expression ($= / sys:evalexpression) via Z.Expressions inside Quicker.</summary>
+    Task<QuickerRpcExpressionExecuteResult> ExecuteExpressionAsync(
+        string code,
+        string? variablesJson = null,
+        bool onUiThread = false,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Compile-check a sys:csscript C# snippet (Roslyn / Westwind, requires Exec method).</summary>
     Task<QuickerRpcCodeSyntaxCheckResult> CheckCSharpScriptSyntaxAsync(
         string code,
@@ -260,6 +277,25 @@ public sealed class QuickerRpcCodeSyntaxCheckResult
     public string Message { get; set; } = string.Empty;
 
     public string? ErrorCode { get; set; }
+}
+
+public sealed class QuickerRpcExpressionExecuteResult
+{
+    public bool Ok { get; set; }
+
+    public bool Success { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? ErrorCode { get; set; }
+
+    /// <summary>JSON-serialized expression return value (last statement), if any.</summary>
+    public string? ResultJson { get; set; }
+
+    public string? ResultType { get; set; }
+
+    /// <summary>JSON object: action variable keys updated during execution (includes inputs).</summary>
+    public string? VariablesJson { get; set; }
 }
 
 public sealed class QuickerRpcSubProgramVariableEditResult
@@ -396,11 +432,28 @@ public sealed class QuickerRpcActionPublishResult
     public string? Mode { get; set; }
 }
 
+public sealed class QuickerRpcMoveActionChoice
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Label { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+}
+
 public sealed class QuickerRpcMoveActionResult
 {
     public bool Ok { get; set; }
 
     public string Message { get; set; } = string.Empty;
+
+    /// <summary>True when the caller must pick a resolution (retry with onNoEmptySlot / onOccupiedSlot / swap).</summary>
+    public bool NeedsUserChoice { get; set; }
+
+    /// <summary>no_empty_slot | occupied_slot</summary>
+    public string? ConflictReason { get; set; }
+
+    public IList<QuickerRpcMoveActionChoice> Choices { get; set; } = new List<QuickerRpcMoveActionChoice>();
 
     public string? ActionId { get; set; }
 
@@ -425,6 +478,16 @@ public sealed class QuickerRpcMoveActionResult
     public string? SwappedActionId { get; set; }
 
     public string? SwappedActionTitle { get; set; }
+
+    public string? OccupiedActionId { get; set; }
+
+    public string? OccupiedActionTitle { get; set; }
+
+    public bool CreatedProfile { get; set; }
+
+    public string? CreatedProfileId { get; set; }
+
+    public string? CreatedProfileName { get; set; }
 }
 
 public sealed class QuickerRpcCreateActionResult
@@ -500,6 +563,39 @@ public sealed class QuickerRpcCreatedProfileItem
     public int ListOrder { get; set; }
 }
 
+public sealed class QuickerRpcDeleteProfileResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public IList<QuickerRpcDeletedProfileItem> Deleted { get; set; } = new List<QuickerRpcDeletedProfileItem>();
+
+    public IList<QuickerRpcDeleteProfileFailure> Failures { get; set; } = new List<QuickerRpcDeleteProfileFailure>();
+}
+
+public sealed class QuickerRpcDeletedProfileItem
+{
+    public string ProfileId { get; set; } = string.Empty;
+
+    public string ProfileName { get; set; } = string.Empty;
+
+    public string? ExeFile { get; set; }
+}
+
+public sealed class QuickerRpcDeleteProfileFailure
+{
+    public string ProfileRef { get; set; } = string.Empty;
+
+    public string? ProfileId { get; set; }
+
+    public string? ProfileName { get; set; }
+
+    public int ActionCount { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+}
+
 public sealed class QuickerRpcCreateVirtualProcessResult
 {
     public bool Ok { get; set; }
@@ -536,4 +632,15 @@ public sealed class QuickerRpcMovedActionItem
     public int TargetRow { get; set; }
 
     public int TargetCol { get; set; }
+}
+
+public sealed class QuickerRpcAccountInfo
+{
+    public bool Ok { get; set; } = true;
+
+    public bool LoggedIn { get; set; }
+
+    public string? UserId { get; set; }
+
+    public string? Message { get; set; }
 }

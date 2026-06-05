@@ -162,7 +162,7 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Local or shared action GUID."), Option("changelog", "Change log text."), Option("changelog-file", "Changelog UTF-8 file."), Option("json", "Structured output.") }),
 
-                Cmd("action move", "Move a local action to another profile; defaults to the first empty slot.", "qkrpc action move --id <guid> --profile <profileIdOrName> [--row N --col N] [--swap] [--json]",
+                Cmd("action move", "Move a local action to another profile; defaults to the first empty slot. When the page is full, default asks via needsUserChoice JSON.", "qkrpc action move --id <guid> --profile <profileIdOrName> [--row N --col N] [--swap] [--on-no-empty-slot ask|cancel|create-page-after] [--on-occupied-slot ask|cancel|swap] [--json]",
 
                     opts: new[]
                     {
@@ -172,6 +172,8 @@ internal static class QkrpcCliHelp
                         Option("row", "Target row. Must be used with --col."),
                         Option("col", "Target column. Must be used with --row."),
                         Option("swap", "Exchange with the action at target row/col if occupied."),
+                        Option("on-no-empty-slot", "No empty slot: ask (default) | cancel | create-page-after."),
+                        Option("on-occupied-slot", "Occupied cell: ask (default) | cancel | swap."),
                         Option("json", "Structured output."),
                         Option("timeout", "Seconds.", defaultValue: "10"),
                         Option("no-bootstrap", "Skip auto-start."),
@@ -188,6 +190,17 @@ internal static class QkrpcCliHelp
                 Cmd("subprogram list", "List global subprograms.", "qkrpc subprogram list [--query <keyword>] [--limit 30] [--json]",
 
                     opts: new[] { Option("query", "Optional filter.", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output.") }),
+
+                Cmd("profile delete", "Delete empty action profile pages (tabs). Fails when the page still has actions or is protected.", "qkrpc profile delete --id <profileIdOrName> [--ids <guid1,guid2>] [--json]",
+
+                    opts: new[]
+                    {
+                        Option("id", "Profile GUID or exact profile name."),
+                        Option("ids", "Comma-separated profile GUIDs or names."),
+                        Option("json", "Structured output."),
+                        Option("timeout", "Seconds.", defaultValue: "10"),
+                        Option("no-bootstrap", "Skip auto-start."),
+                    }),
 
                 Cmd("profile create", "Create blank global action profile pages.", "qkrpc profile create --scope global [--count N] [--after-first] [--json]",
 
@@ -322,6 +335,10 @@ internal static class QkrpcCliHelp
                 Cmd("expr check", "Compile-check Quicker expression ($= / sys:evalexpression). Requires Quicker + plugin.", "qkrpc expr check --code <text> | --file <path|-> [--variables '{\"k\":\"string\"}'] [--json]",
 
                     opts: new[] { Option("code", "Inline expression."), Option("file", "Expression file or - for stdin."), Option("variables", "JSON map: variable name -> C# type."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("expr run", "Execute Quicker expression ($= / sys:evalexpression) in Quicker via Z.Expressions.", "qkrpc expr run --code <text> | --file <path|-> [--variables-file vars.json] [--on-ui-thread] [--json]",
+
+                    opts: new[] { Option("code", "Inline expression."), Option("file", "Expression file or - for stdin."), Option("variables", "JSON map: variable name -> value."), Option("variables-file", "JSON file with variable values."), Option("on-ui-thread", "Run on UI thread."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("script check", "Compile-check sys:csscript C# snippet (Roslyn). Requires Quicker + plugin.", "qkrpc script check --code <text> | --file <path|-> [--references <paths>] [--json]",
 

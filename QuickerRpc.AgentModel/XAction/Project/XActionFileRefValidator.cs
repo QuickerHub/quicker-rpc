@@ -103,9 +103,7 @@ public static class XActionFileRefValidator
             }
 
             var varKey = varObj.Value<string>("key") ?? varObj.Value<string>("Key") ?? "variable";
-            if (!TryReadNonEmptyString(
-                    varObj[XActionFileRefAutoExternalizer.VariableDefaultValueFileProperty],
-                    out var relativePath))
+            if (!VariableDefaultValueRef.TryGetFilePath(varObj, out var relativePath))
             {
                 continue;
             }

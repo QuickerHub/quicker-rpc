@@ -17,7 +17,7 @@ export type ToolTestSuite = {
 export const TOOL_TEST_SUITES: ToolTestSuite[] = [
   {
     id: "docs",
-    title: "编写指南（本地）",
+    title: "编写指南",
     description: "docs_index → docs_get overview，不经过 qkrpc",
     steps: [
       {
@@ -36,7 +36,7 @@ export const TOOL_TEST_SUITES: ToolTestSuite[] = [
   },
   {
     id: "step-runner-search-control",
-    title: "步骤搜索 · controlField",
+    title: "步骤搜索",
     description:
       "单词/短语 query：非空时带 controlField、rankBias 对照。组合语法（OR|、通配 *）见下一卡片",
     steps: [
@@ -122,7 +122,7 @@ export const TOOL_TEST_SUITES: ToolTestSuite[] = [
   },
   {
     id: "step-runner-search-combined",
-    title: "步骤搜索 · 组合 query",
+    title: "步骤搜索（组合）",
     description:
       "高级语法：OR (a|b)、通配 (*clip*、sys:mouse*)、AND (空格)。结果里核对 controlField 与排序",
     steps: [
@@ -172,7 +172,7 @@ export const TOOL_TEST_SUITES: ToolTestSuite[] = [
   },
   {
     id: "catalog-read",
-    title: "目录只读（qkrpc）",
+    title: "目录只读",
     description: "动作列表、步骤模块搜索、图标搜索",
     steps: [
       {
@@ -210,7 +210,7 @@ export const TOOL_TEST_SUITES: ToolTestSuite[] = [
   },
   {
     id: "dev-check",
-    title: "前端健康检查",
+    title: "前端检查",
     description: "dev_frontend_check（开发模式）",
     steps: [
       {
@@ -218,6 +218,57 @@ export const TOOL_TEST_SUITES: ToolTestSuite[] = [
         label: "检查 dev 页面",
         toolName: "dev_frontend_check",
         input: { clearCaptured: false },
+      },
+    ],
+  },
+  {
+    id: "shell",
+    title: "终端测试",
+    description:
+      "只读/回显命令，验证内联终端卡片 UI；需侧栏工作目录。破坏性命令会弹出确认",
+    steps: [
+      {
+        id: "git-version",
+        label: "Git 版本",
+        toolName: "shell_exec",
+        input: { description: "检查 Git 版本", command: "git --version" },
+      },
+      {
+        id: "pwsh-echo",
+        label: "PowerShell 回显",
+        toolName: "shell_exec",
+        input: {
+          description: "PowerShell 回显测试",
+          command: "Write-Output 'shell-test-ok'",
+        },
+      },
+      {
+        id: "inline-script",
+        label: "内联脚本",
+        toolName: "shell_exec",
+        input: {
+          description: "运行内联 PowerShell 脚本",
+          script: "Write-Output 'inline-script-ok'",
+        },
+      },
+      {
+        id: "cwd-location",
+        label: "当前目录",
+        toolName: "shell_exec",
+        input: {
+          description: "获取当前工作目录",
+          command: "Get-Location | Select-Object -ExpandProperty Path",
+        },
+      },
+      {
+        id: "frontend-check-json",
+        label: "前端检查 JSON",
+        toolName: "shell_exec",
+        input: {
+          description: "验证 /tool-test 前端检查接口",
+          command:
+            "Invoke-RestMethod 'http://127.0.0.1:3000/api/dev/frontend-check?paths=%2Ftool-test' | ConvertTo-Json -Depth 5",
+        },
       },
     ],
   },

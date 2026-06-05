@@ -167,14 +167,12 @@ internal static class ProgramSyntaxLintServeOps
 
                 if (!result.Success)
                 {
-                    issues.Add(new ProgramSyntaxIssue
-                    {
-                        Severity = ProgramSyntaxIssueSeverity.Error,
-                        Kind = item.Kind,
-                        Code = result.ErrorCode ?? "COMPILE_ERROR",
-                        Message = result.Message,
-                        Location = ToLocation(item),
-                    });
+                    issues.Add(ProgramSyntaxIssueFactory.Create(
+                        item,
+                        ProgramSyntaxIssueSeverity.Error,
+                        item.Kind,
+                        result.ErrorCode ?? "COMPILE_ERROR",
+                        result.Message ?? "Compile error"));
                 }
             }
 
@@ -288,24 +286,12 @@ internal static class ProgramSyntaxLintServeOps
     }
 
     private static ProgramSyntaxIssue MissingFileIssue(ProgramSyntaxCheckItem item) =>
-        new()
-        {
-            Severity = ProgramSyntaxIssueSeverity.Error,
-            Kind = item.Kind,
-            Code = "FILE_NOT_FOUND",
-            Message = $"Referenced file not found: {item.File}",
-            Location = ToLocation(item),
-        };
-
-    private static ProgramSyntaxIssueLocation ToLocation(ProgramSyntaxCheckItem item) =>
-        new()
-        {
-            StepRef = item.StepRef,
-            StepRunnerKey = item.StepRunnerKey,
-            ParamName = item.ParamName,
-            VariableKey = item.VariableKey,
-            File = item.File,
-        };
+        ProgramSyntaxIssueFactory.Create(
+            item,
+            ProgramSyntaxIssueSeverity.Error,
+            item.Kind,
+            "FILE_NOT_FOUND",
+            $"Referenced file not found: {item.File}");
 
     private static object BuildDiagnosticsPayload(ProgramDiagnosticsDocument doc, string projectDir) =>
         new

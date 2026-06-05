@@ -19,6 +19,14 @@ import {
   MAX_READ_LINES,
   resolveReadWindow,
 } from "@/lib/workspace-file-helpers";
+import {
+  buildEditNotFoundMessage,
+  isJsonEditPath,
+  normalizeEditEol,
+  resolveUniqueEditNeedle,
+  restoreFileEol,
+  tryJsonDocumentEdit,
+} from "@/lib/workspace-edit-match";
 
 export {
   DEFAULT_READ_CHARS,
@@ -581,7 +589,13 @@ export async function editWorkspaceFile(
   newString: string,
   replaceAll = false,
 ): Promise<
-  | { ok: true; path: string; replacements: number; matchLines?: number[] }
+  | {
+      ok: true;
+      path: string;
+      replacements: number;
+      matchLines?: number[];
+      editStrategy?: string;
+    }
   | { ok: false; error: string; matchCount?: number; matchLines?: number[] }
 > {
   if (!oldString) {
@@ -610,35 +624,93 @@ export async function editWorkspaceFile(
   }
 
   const content = await readFile(resolved.absolute, "utf8");
-  const matchCount = countSubstringOccurrences(content, oldString);
-  if (matchCount === 0) {
+  const resolvedNeedle = resolveUniqueEditNeedle(content, oldString);
+
+  if (resolvedNeedle.kind === "ambiguous") {
+    if (!replaceAll) {
+      return {
+        ok: false,
+        error:
+          `oldString matches ${resolvedNeedle.matchCount} times in ${resolved.relative} (lines: ${resolvedNeedle.matchLines.join(", ")}). `
+          + "Use a longer unique oldString from file_read, or replaceAll=true when intentional.",
+        matchCount: resolvedNeedle.matchCount,
+        matchLines: resolvedNeedle.matchLines,
+      };
+    }
+    const haystack =
+      resolvedNeedle.needle === oldString
+        ? content
+        : normalizeEditEol(content);
+    const nextRaw = haystack.replaceAll(
+      resolvedNeedle.needle,
+      restoreFileEol(newString, content),
+    );
+    await writeFile(resolved.absolute, restoreFileEol(nextRaw, content), "utf8");
     return {
-      ok: false,
-      error: `oldString not found in ${resolved.relative}. Read a slice with file_read (startLine/offset) before editing.`,
-      matchCount: 0,
+      ok: true,
+      path: resolved.relative,
+      replacements: resolvedNeedle.matchCount,
+      editStrategy: "replace-all",
     };
   }
 
-  if (!replaceAll && matchCount > 1) {
-    const matchLines = lineNumbersForMatches(content, oldString, 5);
+  if (resolvedNeedle.kind === "unique") {
+    const { needle, haystack } = resolvedNeedle;
+    const matchCount = countSubstringOccurrences(haystack, needle);
+    const newText = restoreFileEol(newString, content);
+    const nextRaw = replaceAll
+      ? haystack.replaceAll(needle, newText)
+      : haystack.replace(needle, newText);
+    const next = restoreFileEol(nextRaw, content);
+    await writeFile(resolved.absolute, next, "utf8");
+    const matchLines = replaceAll
+      ? undefined
+      : lineNumbersForMatches(haystack, needle, 1);
+    let editStrategy = "exact";
+    if (haystack !== content) editStrategy = "normalized-eol";
+    else if (resolvedNeedle.eolNormalized) editStrategy = "normalized-eol";
     return {
-      ok: false,
-      error:
-        `oldString matches ${matchCount} times in ${resolved.relative} (lines: ${matchLines.join(", ")}). `
-        + "Use a longer unique oldString from file_read, or replaceAll=true when intentional.",
-      matchCount,
+      ok: true,
+      path: resolved.relative,
+      replacements: matchCount,
       matchLines,
+      editStrategy,
     };
   }
 
-  const replacements = matchCount;
-  const next = replaceAll
-    ? content.replaceAll(oldString, newString)
-    : content.replace(oldString, newString);
+  if (isJsonEditPath(resolved.relative)) {
+    const jsonEdit = tryJsonDocumentEdit(content, oldString, newString);
+    if (jsonEdit?.ok) {
+      await writeFile(
+        resolved.absolute,
+        restoreFileEol(jsonEdit.next, content),
+        "utf8",
+      );
+      return {
+        ok: true,
+        path: resolved.relative,
+        replacements: 1,
+        editStrategy: jsonEdit.strategy,
+      };
+    }
+    if (jsonEdit && !jsonEdit.ok) {
+      return {
+        ok: false,
+        error: buildEditNotFoundMessage(resolved.relative, content, oldString, {
+          hint: jsonEdit.hint,
+          steps: jsonEdit.steps,
+          variables: jsonEdit.variables,
+        }),
+        matchCount: 0,
+      };
+    }
+  }
 
-  await writeFile(resolved.absolute, next, "utf8");
-  const matchLines = replaceAll ? undefined : lineNumbersForMatches(content, oldString, 1);
-  return { ok: true, path: resolved.relative, replacements, matchLines };
+  return {
+    ok: false,
+    error: buildEditNotFoundMessage(resolved.relative, content, oldString),
+    matchCount: 0,
+  };
 }
 
 export type WorkspaceListEntry = {

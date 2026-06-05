@@ -18,7 +18,10 @@ export const workspaceProgramDiagnosticsTool = tool({
     "Read compile diagnostics for expressions (sys:evalexpression, $=) and C# scripts (sys:csscript) "
     + "after workspace_program_patch. Checks run asynchronously in qkrpc serve; this tool only reads "
     + "the latest .qkrpc/diagnostics.json snapshot. Call when editing is done (use waitMs up to 30000). "
-    + "Fix reported issues via workspace_action_edit_data / workspace_action_file_edit, then patch again.",
+    + "Each issue includes location (stepPath, stepId, paramName, file, line/column, dataJsonPath) and "
+    + "locationSummary plus location.read — use workspace_action_file_read(path, startLine, endLine) for "
+    + "file-backed code, or workspace_action_read_data(mode=content) and search dataJsonPath for inline values. "
+    + "Fix issues, patch again, then re-run.",
   inputSchema: z.object({
     target: z
       .enum(["action", "global_subprogram", "embedded_subprogram"])
@@ -83,7 +86,7 @@ export const workspaceProgramDiagnosticsTool = tool({
         : status === "stale"
           ? "Diagnostics are stale (data.json changed); patch again to reschedule lint."
           : errorCount > 0
-            ? "Fix issues at location (step/param/file), patch, then re-run this tool."
+            ? "Fix issues using issues[].locationSummary / location.read, patch, then re-run this tool."
             : undefined;
 
     return formatLocalToolResult(

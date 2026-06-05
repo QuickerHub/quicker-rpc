@@ -17,6 +17,7 @@ import {
   hasWorkspaceFileEditorPreviewInChat,
   hasWorkspaceFileChipInChat,
   isWorkspaceFileReadTool,
+  isWorkspaceReadDataSummaryResult,
   shouldFoldFileSnapshotInChat,
   shouldShowFileEditorCodeBlockInChat,
   shouldShowFileSnapshotHeaderDetail,
@@ -53,7 +54,7 @@ test("parseWorkspaceFileReadPayload accepts program-data-read", () => {
   assert.equal(payload?.content, '{"steps":[1]}');
 });
 
-test("getWorkspaceFileEditorPreview read_data summary returns null", () => {
+test("getWorkspaceFileEditorPreview read_data summary shows outline", () => {
   const preview = getWorkspaceFileEditorPreview(
     "workspace_action_read_data",
     { id: "7176c17a-0000-0000-0000-000000000001", mode: "summary" },
@@ -63,9 +64,17 @@ test("getWorkspaceFileEditorPreview read_data summary returns null", () => {
       stepCount: 3,
       variableCount: 2,
       validated: true,
+      stepsOutline: [
+        { index: 0, stepRunnerKey: "sys:MsgBox" },
+        { index: 1, stepRunnerKey: "sys:clipboard" },
+      ],
+      variableKeys: ["clip"],
     },
   );
-  assert.equal(preview, null);
+  assert.ok(preview);
+  assert.match(preview!.content, /steps: 3/);
+  assert.match(preview!.content, /sys:MsgBox/);
+  assert.match(preview!.content, /variables: clip/);
 });
 
 test("getWorkspaceFileEditorPreview read_data content shows slice", () => {
@@ -270,9 +279,20 @@ test("splitFileSnapshotHeaderMeta strips basename prefix", () => {
 test("read tools use collapsible tool summary with expandable code body", () => {
   assert.equal(isWorkspaceFileReadTool("workspace_action_read_data"), true);
   assert.equal(hasWorkspaceFileEditorPreviewInChat("workspace_action_read_data"), false);
+  assert.equal(shouldShowFileEditorCodeBlockInChat("workspace_action_read_data"), true);
   assert.equal(hasWorkspaceFileChipInChat("workspace_action_read_data"), false);
   assert.equal(hasWorkspaceFileChipInChat("workspace_action_write_data"), true);
-  assert.equal(shouldShowFileEditorCodeBlockInChat("workspace_action_read_data"), true);
+});
+
+test("isWorkspaceReadDataSummaryResult detects summary payloads", () => {
+  assert.equal(
+    isWorkspaceReadDataSummaryResult({ action: "program-data-summary" }),
+    true,
+  );
+  assert.equal(
+    isWorkspaceReadDataSummaryResult({ action: "file-read", path: "x" }),
+    false,
+  );
 });
 
 test("shouldFoldFileSnapshotInChat only for read", () => {
