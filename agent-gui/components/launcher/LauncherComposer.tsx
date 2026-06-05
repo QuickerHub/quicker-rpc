@@ -22,6 +22,8 @@ import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
 import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
 import { useGlobalVoiceToggle } from "@/lib/voice-input/use-global-voice-toggle";
 import { useLauncherTauriHidden } from "@/lib/launcher/use-launcher-tauri-hidden";
+import { LAUNCHER_SHOWN_EVENT } from "@/lib/launcher/launcher-tauri-events";
+import { isTauriShell } from "@/lib/tauri-shell";
 import { useQkrpcPing } from "@/lib/use-qkrpc-ping";
 import {
   fetchLlmOptions,
@@ -195,6 +197,22 @@ function LauncherComposer({
       composerRef.current?.focus();
     });
     return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!isTauriShell()) return;
+
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      unlisten = await listen(LAUNCHER_SHOWN_EVENT, () => {
+        requestAnimationFrame(() => composerRef.current?.focus());
+      });
+    })();
+
+    return () => {
+      unlisten?.();
+    };
   }, []);
 
   const busy = agentBusy;
