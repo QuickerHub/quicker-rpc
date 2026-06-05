@@ -24,6 +24,14 @@ const required = [
   { rel: "app/server.js", minBytes: 100 },
   { rel: "app/.next/BUILD_ID", minBytes: 1 },
   { rel: "app/llm-config.json", minBytes: 10 },
+  {
+    rel: "app/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js",
+    minBytes: 10_000,
+  },
+  {
+    rel: "app/node_modules/next/dist/server/app-render/dynamic-access-async-storage.external.js",
+    minBytes: 100,
+  },
   { rel: "node/node.exe", minBytes: 40 * 1024 * 1024 },
   { rel: "qkrpc/qkrpc.exe", minBytes: 100 * 1024 },
 ];

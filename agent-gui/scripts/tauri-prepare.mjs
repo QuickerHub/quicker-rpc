@@ -133,11 +133,78 @@ function resolveStandaloneSrc() {
 }
 
 function stripNestedBundleArtifacts(appRoot) {
-  const nested = join(appRoot, "src-tauri");
-  if (existsSync(nested)) {
-    rmSync(nested, { recursive: true, force: true });
-    console.log(`Removed traced src-tauri from staged app: ${nested}`);
+  for (const name of ["src-tauri", "agent-gui"]) {
+    const nested = join(appRoot, name);
+    if (existsSync(nested)) {
+      rmSync(nested, { recursive: true, force: true });
+      console.log(`Removed traced ${name} from staged app: ${nested}`);
+    }
   }
+}
+
+/** Monorepo standalone file tracing often omits API route runtimes; merge from full next package. */
+function ensureNextStandaloneRuntimes(appRoot) {
+  const srcNext = join(agentGuiRoot, "node_modules", "next", "dist");
+  const dstNext = join(appRoot, "node_modules", "next", "dist");
+  const mergeDirs = [
+    ["compiled", "next-server"],
+    ["server", "app-render"],
+  ];
+
+  for (const parts of mergeDirs) {
+    const rel = join(...parts);
+    const src = join(srcNext, rel);
+    const dest = join(dstNext, rel);
+    if (!existsSync(src)) {
+      throw new Error(`Missing Next.js runtime source: ${src}`);
+    }
+    if (existsSync(dest)) {
+      rmSync(dest, { recursive: true, force: true });
+    }
+    mkdirSync(dirname(dest), { recursive: true });
+    cpSync(src, dest, { recursive: true });
+  }
+
+  console.log("Next standalone runtimes merged (next-server + app-render)");
+}
+
+/** Rewrite CI/build-machine absolute paths so standalone works after install. */
+function patchStandaloneServerEntry(appRoot) {
+  const serverPath = join(appRoot, "server.js");
+  let src = readFileSync(serverPath, "utf8");
+  const marker =
+    "process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(nextConfig)";
+  if (!src.includes(marker)) {
+    throw new Error(`server.js missing standalone config marker: ${serverPath}`);
+  }
+  if (src.includes("patchMonorepoStandalonePaths")) {
+    console.log("server.js already patched for portable standalone paths");
+    return;
+  }
+
+  const patchBlock = `const fs = require('fs')
+
+function patchMonorepoStandalonePaths(root, cfg) {
+  if (!cfg || typeof cfg !== 'object') return cfg
+  cfg.outputFileTracingRoot = root
+  if (cfg.turbopack && typeof cfg.turbopack === 'object') cfg.turbopack.root = root
+  return cfg
+}
+
+patchMonorepoStandalonePaths(dir, nextConfig)
+const rsfPath = path.join(dir, '.next', 'required-server-files.json')
+if (fs.existsSync(rsfPath)) {
+  const rsf = JSON.parse(fs.readFileSync(rsfPath, 'utf8').replace(/^\\uFEFF/, ''))
+  rsf.appDir = dir
+  rsf.relativeAppDir = '.'
+  patchMonorepoStandalonePaths(dir, rsf.config)
+  fs.writeFileSync(rsfPath, JSON.stringify(rsf))
+}
+
+`;
+
+  writeFileSync(serverPath, src.replace(marker, patchBlock + marker), "utf8");
+  console.log("server.js patched for portable standalone paths");
 }
 
 function stageNextStandalone() {
@@ -174,6 +241,8 @@ function stageNextStandalone() {
   cpSync(join(agentGuiRoot, ".env.example"), join(appDir, ".env.example"));
 
   prepareBundledLlmRuntime(appDir);
+  ensureNextStandaloneRuntimes(appDir);
+  patchStandaloneServerEntry(appDir);
 
   console.log(`Next standalone staged: ${appDir}`);
 }
