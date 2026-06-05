@@ -130,10 +130,14 @@ jobs:
       - name: Isolate USERPROFILE for Windows builds
         shell: pwsh
         run: |
-          # Avoid Next/webpack scanning the runner profile (Documents junctions → EPERM).
+          # Next/webpack must not scan the runner profile; Rust/cargo must stay on the real profile
+          # (otherwise rust-cache saves D:\a\_temp\.cargo + multi-GB target and Post Rust cache fails).
+          $realProfile = $env:USERPROFILE
           $t = $env:RUNNER_TEMP
           "USERPROFILE=$t" >> $env:GITHUB_ENV
           "HOME=$t" >> $env:GITHUB_ENV
+          "CARGO_HOME=$realProfile\.cargo" >> $env:GITHUB_ENV
+          "RUSTUP_HOME=$realProfile\.rustup" >> $env:GITHUB_ENV
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -154,6 +158,9 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: agent-gui/src-tauri
+          # Release Tauri target/ is multi-GB; saving it on Windows often fails (tar/zstd/size).
+          cache-targets: false
+          shared-key: release-build-agent
 
       - name: Ensure NSIS (Tauri bundler)
         shell: pwsh
