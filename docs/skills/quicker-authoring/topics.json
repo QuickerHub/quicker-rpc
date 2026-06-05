@@ -167,6 +167,7 @@
     }
   ],
   "referenceFiles": {
+    "_catalog": "step-modules",
     "adobesoftscontrol": "step-modules",
     "ai": "step-modules",
     "autocadcontrol": "step-modules",
@@ -210,8 +211,7 @@
     "uiautomation": "step-modules",
     "websocket": "step-modules",
     "webview2": "step-modules",
-    "zip": "step-modules",
-    "_catalog": "step-modules"
+    "zip": "step-modules"
   },
   "referenceCatalog": {
     "step-modules": [

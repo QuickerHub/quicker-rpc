@@ -25,6 +25,18 @@ function normalizeEol(text) {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
 
+/** Stable key order for JSON snapshots (CI vs local readdir). */
+function sortRecordKeys(record) {
+  /** @type {Record<string, string>} */
+  const sorted = {};
+  for (const key of Object.keys(record).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" }),
+  )) {
+    sorted[key] = record[key];
+  }
+  return sorted;
+}
+
 /** @typedef {'cli' | 'agent'} Profile */
 
 /**
@@ -181,7 +193,9 @@ async function loadReferenceMap(topic) {
 
   let entries;
   try {
-    entries = await fs.readdir(SRC_REF);
+    entries = (await fs.readdir(SRC_REF)).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" }),
+    );
   } catch {
     entries = [];
   }
@@ -198,7 +212,9 @@ async function loadReferenceMap(topic) {
 
   const topicDir = path.join(SRC_REF, topic);
   try {
-    const subEntries = await fs.readdir(topicDir);
+    const subEntries = (await fs.readdir(topicDir)).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" }),
+    );
     for (const fname of subEntries) {
       if (!fname.endsWith(".md") || fname.toLowerCase() === "readme.md") {
         continue;
@@ -311,7 +327,7 @@ async function computeOutputs(opsData, files) {
       {
         skillName: SKILL_NAME,
         topics: topicManifest,
-        referenceFiles,
+        referenceFiles: sortRecordKeys(referenceFiles),
         referenceCatalog,
       },
       null,
@@ -424,7 +440,7 @@ async function findStale(expected) {
       stale.push(rel);
       continue;
     }
-    if (existing !== content) {
+    if (normalizeEol(existing) !== content) {
       stale.push(rel);
     }
   }
