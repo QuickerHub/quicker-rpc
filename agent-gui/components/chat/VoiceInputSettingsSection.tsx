@@ -19,6 +19,7 @@ import {
 } from "@/lib/voice-input/use-voice-settings-panel-state";
 import { VoiceMicRecorder } from "@/lib/voice-input/voice-input-recorder";
 import { transcribePcmViaWebSocket } from "@/lib/voice-input/voice-input-ws-client";
+import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
 
 type VoiceInputSettingsSectionProps = {
@@ -58,7 +59,7 @@ function contextHint(params: {
     return "插件已安装；点 Composer 麦克风可启动并使用。";
   }
   if (panel.runtimePhase === "error") {
-    return panel.hostStatus?.message ?? "语音服务异常，可尝试重新启动。";
+    return panel.hostStatus?.message ?? panel.runtimeDetail ?? "语音服务异常，可尝试重新安装或重启应用。";
   }
   return null;
 }
@@ -75,6 +76,7 @@ export function VoiceInputSettingsSection({
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const [reinstallBusy, setReinstallBusy] = useState(false);
   const [preferNetwork, setPreferNetwork] = useState(false);
+  const [installBusy, setInstallBusy] = useState(false);
   const devExperienceEnabled = useDevExperienceEnabled();
   const inTauri = isTauriShell();
 
@@ -152,6 +154,21 @@ export function VoiceInputSettingsSection({
       || panel.runtimePhase === "error");
   const canStopRuntime = inTauri && !mockEnabled && panel.runtimeOnline;
   const canTestMic = !mockEnabled && panel.runtimeOnline;
+  const canInstall =
+    inTauri
+    && !mockEnabled
+    && !panel.hostLoading
+    && panel.runtimePhase !== "downloading"
+    && !panel.pluginInstalled
+    && panel.runtimePhase !== "running";
+
+  const handleInstall = () => {
+    if (installBusy || disabled) return;
+    setInstallBusy(true);
+    void requestVoicePluginSetup()
+      .then(() => notifyVoiceConfigChanged())
+      .finally(() => setInstallBusy(false));
+  };
 
   const hint = useMemo(
     () => contextHint({ panel, inTauri, mockEnabled }),
@@ -182,6 +199,16 @@ export function VoiceInputSettingsSection({
         </div>
 
         <div className="voice-settings-actions">
+          {canInstall ? (
+            <button
+              type="button"
+              className="app-settings-action"
+              disabled={disabled || installBusy}
+              onClick={handleInstall}
+            >
+              {installBusy ? "安装中…" : "安装语音组件"}
+            </button>
+          ) : null}
           {canStartRuntime ? (
             <button
               type="button"

@@ -113,49 +113,72 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
       return;
     }
 
-    const port = getVoiceWsPort();
-    const [hostStatus, health] = await Promise.all([
-      inTauri
-        ? fetchTauriVoicePluginStatus()
-        : useDevVoiceHost
-          ? fetchDevVoicePluginHostStatus()
-          : Promise.resolve(null),
-      fetchVoiceRuntimeHealth(port),
-    ]);
+    try {
+      const port = getVoiceWsPort();
+      const [hostResult, healthResult] = await Promise.allSettled([
+        inTauri
+          ? fetchTauriVoicePluginStatus()
+          : useDevVoiceHost
+            ? fetchDevVoicePluginHostStatus()
+            : Promise.resolve(null),
+        fetchVoiceRuntimeHealth(port),
+      ]);
 
-    if (hostStatus?.status === "downloading") {
+      const hostStatus =
+        hostResult.status === "fulfilled" ? hostResult.value : null;
+      const health =
+        healthResult.status === "fulfilled" ? healthResult.value : null;
+
+      if (hostStatus?.status === "downloading") {
+        setSnapshot(
+          buildSnapshot({
+            hostStatus,
+            hostLoading: false,
+            runtimePhase: "downloading",
+            runtimeDetail: hostStatus.message,
+          }),
+        );
+        return;
+      }
+
+      let runtimePhase: VoicePluginStatus;
+      if (health?.ready) {
+        runtimePhase = "running";
+      } else if (health?.ok) {
+        runtimePhase = "starting";
+      } else if (hostStatus?.installed) {
+        runtimePhase = "installed";
+      } else if (hostStatus?.status === "error") {
+        runtimePhase = "error";
+      } else if (inTauri && !hostStatus) {
+        runtimePhase = "error";
+      } else {
+        runtimePhase = "not_installed";
+      }
+
+      const runtimeDetail =
+        inTauri && !hostStatus && runtimePhase === "error"
+          ? "无法读取语音插件状态，请重启 QuickerAgent 或点「安装」重试"
+          : buildRuntimeDetail(health, port);
+
       setSnapshot(
         buildSnapshot({
           hostStatus,
           hostLoading: false,
-          runtimePhase: "downloading",
-          runtimeDetail: hostStatus.message,
+          runtimePhase,
+          runtimeDetail,
         }),
       );
-      return;
+    } catch {
+      setSnapshot(
+        buildSnapshot({
+          hostStatus: null,
+          hostLoading: false,
+          runtimePhase: "error",
+          runtimeDetail: "检测失败，请点「重新检测」或重启应用",
+        }),
+      );
     }
-
-    let runtimePhase: VoicePluginStatus;
-    if (health?.ready) {
-      runtimePhase = "running";
-    } else if (health?.ok) {
-      runtimePhase = "starting";
-    } else if (hostStatus?.installed) {
-      runtimePhase = "installed";
-    } else if (hostStatus?.status === "error") {
-      runtimePhase = "error";
-    } else {
-      runtimePhase = "not_installed";
-    }
-
-    setSnapshot(
-      buildSnapshot({
-        hostStatus,
-        hostLoading: false,
-        runtimePhase,
-        runtimeDetail: buildRuntimeDetail(health, port),
-      }),
-    );
   }, [inTauri, useDevVoiceHost]);
 
   useEffect(() => {

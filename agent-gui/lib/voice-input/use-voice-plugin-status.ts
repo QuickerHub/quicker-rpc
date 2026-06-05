@@ -31,58 +31,70 @@ export function useVoicePluginStatus(active = true): VoicePluginStatus {
       return;
     }
 
-    const port = getVoiceWsPort();
-    const tauriDto = await fetchTauriVoicePluginStatus();
-    const devDto =
-      !tauriDto && process.env.NODE_ENV === "development"
-        ? await fetchDevVoicePluginHostStatus()
-        : null;
-    const hostDto = tauriDto ?? devDto;
-    const health = await fetchVoiceRuntimeHealth(port);
+    try {
+      const port = getVoiceWsPort();
+      const [tauriResult, devResult, healthResult] = await Promise.allSettled([
+        fetchTauriVoicePluginStatus(),
+        process.env.NODE_ENV === "development"
+          ? fetchDevVoicePluginHostStatus()
+          : Promise.resolve(null),
+        fetchVoiceRuntimeHealth(port),
+      ]);
 
-    if (hostDto) {
-      if (hostDto.wsPort > 0) {
-        setVoiceWsPort(hostDto.wsPort);
-      }
-      if (hostDto.status === "downloading") {
-        setStatus("downloading");
-        return;
-      }
-      if (hostDto.installed) {
-        if (health?.ready) {
-          setStatus("running");
+      const tauriDto =
+        tauriResult.status === "fulfilled" ? tauriResult.value : null;
+      const devDto =
+        devResult.status === "fulfilled" ? devResult.value : null;
+      const health =
+        healthResult.status === "fulfilled" ? healthResult.value : null;
+      const hostDto = tauriDto ?? devDto;
+
+      if (hostDto) {
+        if (hostDto.wsPort > 0) {
+          setVoiceWsPort(hostDto.wsPort);
+        }
+        if (hostDto.status === "downloading") {
+          setStatus("downloading");
           return;
         }
-        if (health?.ok) {
-          setStatus("starting");
+        if (hostDto.installed) {
+          if (health?.ready) {
+            setStatus("running");
+            return;
+          }
+          if (health?.ok) {
+            setStatus("starting");
+            return;
+          }
+          setStatus(hostDto.status === "error" ? "error" : "installed");
           return;
         }
-        setStatus(hostDto.status === "error" ? "error" : "installed");
+      }
+
+      // External/dev runtime on :6016 — usable even when plugin zip is not installed.
+      if (health?.ready) {
+        setStatus("running");
         return;
       }
-    }
+      if (health?.ok) {
+        setStatus("starting");
+        return;
+      }
 
-    // External/dev runtime on :6016 — usable even when plugin zip is not installed.
-    if (health?.ready) {
-      setStatus("running");
-      return;
-    }
-    if (health?.ok) {
-      setStatus("starting");
-      return;
-    }
+      if (tauriDto) {
+        setStatus(tauriDto.status);
+        return;
+      }
 
-    if (tauriDto) {
-      setStatus(tauriDto.status);
-      return;
-    }
+      if (devDto) {
+        setStatus(devDto.status);
+        return;
+      }
 
-    if (devDto) {
-      setStatus(devDto.status);
-      return;
+      setStatus(mapHealthToStatus(health));
+    } catch {
+      setStatus("error");
     }
-
-    setStatus(mapHealthToStatus(health));
   }, []);
 
   useEffect(() => {

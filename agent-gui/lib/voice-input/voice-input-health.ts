@@ -10,14 +10,20 @@ export type VoiceRuntimeHealth = {
   ready: boolean;
 };
 
+const HEALTH_FETCH_TIMEOUT_MS = 5_000;
+
 export async function fetchVoiceRuntimeHealth(
   port?: number,
   signal?: AbortSignal,
 ): Promise<VoiceRuntimeHealth | null> {
   try {
+    const timeoutSignal =
+      typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+        ? AbortSignal.timeout(HEALTH_FETCH_TIMEOUT_MS)
+        : undefined;
     const res = await fetch(buildVoiceHealthUrl(port), {
       cache: "no-store",
-      signal,
+      signal: signal ?? timeoutSignal,
       headers: { Accept: "application/json" },
     });
     if (!res.ok) return null;

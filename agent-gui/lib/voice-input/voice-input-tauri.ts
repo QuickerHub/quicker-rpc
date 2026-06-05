@@ -1,5 +1,11 @@
+"use client";
+
+import { invoke } from "@tauri-apps/api/core";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
+import { withPromiseTimeout } from "@/lib/promise-timeout";
 import { isTauriShell } from "@/lib/tauri-shell";
+
+const TAURI_INVOKE_TIMEOUT_MS = 12_000;
 
 export type TauriVoicePluginStatusDto = {
   status: VoicePluginStatus;
@@ -16,24 +22,37 @@ export type VoiceInstallProgressEvent = {
   message: string;
 };
 
+async function invokeVoicePluginStatus(): Promise<TauriVoicePluginStatusDto> {
+  return withPromiseTimeout(
+    invoke<TauriVoicePluginStatusDto>("voice_plugin_status"),
+    TAURI_INVOKE_TIMEOUT_MS,
+    "语音插件状态检测超时",
+  );
+}
+
 export async function fetchTauriVoicePluginStatus(): Promise<TauriVoicePluginStatusDto | null> {
   if (!isTauriShell()) return null;
   try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<TauriVoicePluginStatusDto>("voice_plugin_status");
+    return await invokeVoicePluginStatus();
   } catch {
     return null;
   }
 }
 
 export async function tauriVoicePluginStartRuntime(): Promise<TauriVoicePluginStatusDto> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<TauriVoicePluginStatusDto>("voice_plugin_start_runtime");
+  return withPromiseTimeout(
+    invoke<TauriVoicePluginStatusDto>("voice_plugin_start_runtime"),
+    TAURI_INVOKE_TIMEOUT_MS,
+    "启动语音服务超时",
+  );
 }
 
 export async function tauriVoicePluginStopRuntime(): Promise<TauriVoicePluginStatusDto> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<TauriVoicePluginStatusDto>("voice_plugin_stop_runtime");
+  return withPromiseTimeout(
+    invoke<TauriVoicePluginStatusDto>("voice_plugin_stop_runtime"),
+    TAURI_INVOKE_TIMEOUT_MS,
+    "停止语音服务超时",
+  );
 }
 
 export async function listenVoicePluginInstallProgress(
@@ -48,8 +67,11 @@ export async function listenVoicePluginInstallProgress(
 }
 
 export async function tauriVoicePluginInstall(): Promise<TauriVoicePluginStatusDto> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<TauriVoicePluginStatusDto>("voice_plugin_install");
+  return withPromiseTimeout(
+    invoke<TauriVoicePluginStatusDto>("voice_plugin_install"),
+    10 * 60_000,
+    "语音插件安装超时",
+  );
 }
 
 const VOICE_READY_STATUSES = new Set<VoicePluginStatus>([
@@ -142,7 +164,6 @@ export async function tauriVoiceIpcSessionStart(params: {
   language?: string;
   streaming?: boolean;
 }): Promise<void> {
-  const { invoke } = await import("@tauri-apps/api/core");
   return invoke("voice_ipc_session_start", params);
 }
 
@@ -150,14 +171,12 @@ export async function tauriVoiceIpcSessionSendAudio(params: {
   sessionId: string;
   pcm: Uint8Array;
 }): Promise<void> {
-  const { invoke } = await import("@tauri-apps/api/core");
   return invoke("voice_ipc_session_send_audio", params);
 }
 
 export async function tauriVoiceIpcSessionEnd(params: {
   sessionId: string;
 }): Promise<VoiceIpcFinalDto> {
-  const { invoke } = await import("@tauri-apps/api/core");
   return invoke<VoiceIpcFinalDto>("voice_ipc_session_end", params);
 }
 
@@ -165,7 +184,5 @@ export async function tauriVoiceIpcSessionCancel(params: {
   sessionId: string;
   reason?: string;
 }): Promise<void> {
-  const { invoke } = await import("@tauri-apps/api/core");
   return invoke("voice_ipc_session_cancel", params);
 }
-

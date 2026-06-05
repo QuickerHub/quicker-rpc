@@ -221,6 +221,10 @@ async function runVoicePluginInstallFlow(
   }
 
   const initial = await fetchHostStatus();
+  if (!initial && isTauriShell()) {
+    showInstallError("无法读取语音插件状态，请重启 QuickerAgent 后重试。");
+    return false;
+  }
   if (!force && initial && isCaptureReadyStatus(initial.status)) {
     return true;
   }
