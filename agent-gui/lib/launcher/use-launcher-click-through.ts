@@ -3,9 +3,15 @@
 import { useEffect, useRef } from "react";
 import { isLauncherTransparentShell } from "@/lib/launcher/launcher-shell-init";
 import { isLauncherHitTarget } from "@/lib/launcher/launcher-hit-target";
+import {
+  LAUNCHER_HIDDEN_EVENT,
+  LAUNCHER_SHOWN_EVENT,
+} from "@/lib/launcher/launcher-tauri-events";
 import { isTauriShell } from "@/lib/tauri-shell";
 
 const POLL_MS = 32;
+/** Do not enable click-through immediately after focus — lets the user click the composer. */
+const CLICK_THROUGH_GRACE_MS = 350;
 
 async function clientPointFromGlobalCursor(): Promise<{ x: number; y: number } | null> {
   const { getCurrentWindow, cursorPosition } = await import("@tauri-apps/api/window");
@@ -27,10 +33,11 @@ function isInsideViewport(x: number, y: number): boolean {
 
 /**
  * Tauri transparent launcher: pass mouse events through visually empty regions.
- * CSS pointer-events helps; setIgnoreCursorEvents + cursor polling handles Windows WebView2.
+ * Only active while the launcher window is focused, and never during the post-show grace period.
  */
 export function useLauncherClickThrough(): void {
   const draggingRef = useRef(false);
+  const focusSinceRef = useRef(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -44,6 +51,9 @@ export function useLauncherClickThrough(): void {
     let onPointerMove: ((event: PointerEvent) => void) | null = null;
     let onPointerDown: ((event: PointerEvent) => void) | null = null;
     let onPointerUp: (() => void) | null = null;
+    let unlistenFocus: (() => void) | null = null;
+    let unlistenShown: (() => void) | null = null;
+    let unlistenHidden: (() => void) | null = null;
 
     const stopPoll = () => {
       if (pollTimer != null) {
@@ -52,30 +62,70 @@ export function useLauncherClickThrough(): void {
       }
     };
 
+    const resetInteraction = async () => {
+      focusSinceRef.current = Date.now();
+      ignoring = false;
+      stopPoll();
+      if (win) {
+        await win.setIgnoreCursorEvents(false);
+      }
+    };
+
     void (async () => {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      const { listen } = await import("@tauri-apps/api/event");
       if (disposed) return;
 
       win = getCurrentWindow();
       if (win.label !== "launcher") return;
+
+      await resetInteraction();
+
+      unlistenFocus = await win.onFocusChanged(({ payload: focused }) => {
+        if (focused) {
+          void resetInteraction();
+        } else {
+          ignoring = false;
+          stopPoll();
+        }
+      });
+
+      unlistenShown = await listen(LAUNCHER_SHOWN_EVENT, () => {
+        void resetInteraction();
+      });
+
+      unlistenHidden = await listen(LAUNCHER_HIDDEN_EVENT, () => {
+        void resetInteraction();
+      });
 
       const applyAt = async (clientX: number, clientY: number) => {
         if (!win || disposed) return;
 
         if (draggingRef.current) {
           if (ignoring) {
-            ignoring = false;
-            await win.setIgnoreCursorEvents(false);
-            stopPoll();
+            await resetInteraction();
+          }
+          return;
+        }
+
+        const focused = await win.isFocused();
+        if (!focused || !document.hasFocus()) {
+          if (ignoring) {
+            await resetInteraction();
+          }
+          return;
+        }
+
+        if (Date.now() - focusSinceRef.current < CLICK_THROUGH_GRACE_MS) {
+          if (ignoring) {
+            await resetInteraction();
           }
           return;
         }
 
         if (!isInsideViewport(clientX, clientY)) {
           if (ignoring) {
-            ignoring = false;
-            await win.setIgnoreCursorEvents(false);
-            stopPoll();
+            await resetInteraction();
           }
           return;
         }
@@ -118,18 +168,10 @@ export function useLauncherClickThrough(): void {
         draggingRef.current = false;
       };
 
-      await win.setIgnoreCursorEvents(false);
-      ignoring = false;
-
       window.addEventListener("pointermove", onPointerMove, { passive: true });
       window.addEventListener("pointerdown", onPointerDown, { passive: true });
       window.addEventListener("pointerup", onPointerUp, { passive: true });
       window.addEventListener("pointercancel", onPointerUp, { passive: true });
-
-      const initial = await clientPointFromGlobalCursor();
-      if (initial) {
-        await applyAt(initial.x, initial.y);
-      }
     })();
 
     return () => {
@@ -146,6 +188,9 @@ export function useLauncherClickThrough(): void {
         window.removeEventListener("pointerup", onPointerUp);
         window.removeEventListener("pointercancel", onPointerUp);
       }
+      unlistenFocus?.();
+      unlistenShown?.();
+      unlistenHidden?.();
       void win?.setIgnoreCursorEvents(false);
     };
   }, []);

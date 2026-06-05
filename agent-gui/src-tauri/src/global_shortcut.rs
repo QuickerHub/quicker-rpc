@@ -38,7 +38,6 @@ fn dispatch_voice_toggle(app: &AppHandle) -> Result<(), String> {
     let launcher = app
         .get_webview_window(crate::launcher::LAUNCHER_LABEL)
         .ok_or_else(|| "launcher window not found".to_string())?;
-    let _ = launcher.set_focus();
     launcher
         .emit(GLOBAL_VOICE_TOGGLE_EVENT, ())
         .map_err(|err| err.to_string())?;

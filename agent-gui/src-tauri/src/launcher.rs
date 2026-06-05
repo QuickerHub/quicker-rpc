@@ -1,18 +1,21 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager, Size, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 pub const LAUNCHER_LABEL: &str = "launcher";
 pub const LAUNCHER_HIDDEN_EVENT: &str = "launcher:hidden";
+pub const LAUNCHER_SHOWN_EVENT: &str = "launcher:shown";
 
 const LAUNCHER_WIDTH: f64 = 680.0;
 const LAUNCHER_HEIGHT: f64 = 520.0;
-const LAUNCHER_BLUR_HIDE_DELAY: Duration = Duration::from_millis(80);
+const LAUNCHER_BLUR_HIDE_DELAY: Duration = Duration::from_millis(120);
+const LAUNCHER_BLUR_SUPPRESS_AFTER_SHOW: Duration = Duration::from_millis(450);
 
 static LAUNCHER_WINDOW_HANDLERS_REGISTERED: AtomicBool = AtomicBool::new(false);
+static LAUNCHER_SUPPRESS_BLUR_UNTIL: Mutex<Option<Instant>> = Mutex::new(None);
 
 pub struct UiBaseUrl(pub Mutex<String>);
 
@@ -124,6 +127,10 @@ fn register_launcher_window_handlers(window: &WebviewWindow) {
                     apply_launcher_size(&guard_window, false);
                 }
             }
+            tauri::WindowEvent::Focused(true) => {
+                suppress_launcher_blur_hide_for(LAUNCHER_BLUR_SUPPRESS_AFTER_SHOW);
+                let _ = guard_window.emit(LAUNCHER_SHOWN_EVENT, ());
+            }
             tauri::WindowEvent::Focused(false) => {
                 schedule_launcher_hide_on_blur(&guard_window);
             }
@@ -132,10 +139,27 @@ fn register_launcher_window_handlers(window: &WebviewWindow) {
     });
 }
 
+fn suppress_launcher_blur_hide_for(duration: Duration) {
+    if let Ok(mut guard) = LAUNCHER_SUPPRESS_BLUR_UNTIL.lock() {
+        *guard = Some(Instant::now() + duration);
+    }
+}
+
+fn blur_hide_is_suppressed() -> bool {
+    LAUNCHER_SUPPRESS_BLUR_UNTIL
+        .lock()
+        .ok()
+        .and_then(|guard| *guard)
+        .is_some_and(|until| Instant::now() < until)
+}
+
 fn schedule_launcher_hide_on_blur(window: &WebviewWindow) {
     let window = window.clone();
     thread::spawn(move || {
         thread::sleep(LAUNCHER_BLUR_HIDE_DELAY);
+        if blur_hide_is_suppressed() {
+            return;
+        }
         if window.is_focused().unwrap_or(true) {
             return;
         }
@@ -147,8 +171,17 @@ fn schedule_launcher_hide_on_blur(window: &WebviewWindow) {
 }
 
 fn hide_launcher_window(window: &WebviewWindow) {
+    if let Ok(mut guard) = LAUNCHER_SUPPRESS_BLUR_UNTIL.lock() {
+        *guard = None;
+    }
     let _ = window.hide();
     let _ = window.emit(LAUNCHER_HIDDEN_EVENT, ());
+}
+
+fn show_launcher_window(window: &WebviewWindow) {
+    suppress_launcher_blur_hide_for(LAUNCHER_BLUR_SUPPRESS_AFTER_SHOW);
+    let _ = window.show();
+    let _ = window.set_focus();
 }
 
 fn resolve_launcher_webview_url(app: &AppHandle) -> Result<WebviewUrl, String> {
@@ -187,8 +220,7 @@ fn ensure_launcher_window(app: &AppHandle, expanded: bool) -> Result<WebviewWind
     if let Some(window) = app.get_webview_window(LAUNCHER_LABEL) {
         apply_launcher_chrome(&window);
         apply_launcher_size(&window, expanded);
-        let _ = window.show();
-        let _ = window.set_focus();
+        show_launcher_window(&window);
         return Ok(window);
     }
 
@@ -206,8 +238,7 @@ pub fn prepare_configured_launcher_window(app: &AppHandle, visible: bool) {
     register_launcher_window_handlers(&window);
 
     if visible {
-        let _ = window.show();
-        let _ = window.set_focus();
+        show_launcher_window(&window);
     } else {
         let _ = window.hide();
     }
@@ -250,8 +281,7 @@ pub fn launcher_toggle(app: AppHandle) -> Result<(), String> {
 pub fn launcher_expand(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(LAUNCHER_LABEL) {
         apply_launcher_size(&window, true);
-        let _ = window.show();
-        let _ = window.set_focus();
+        show_launcher_window(&window);
         return Ok(());
     }
     ensure_launcher_window(&app, true)?;
