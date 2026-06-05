@@ -97,7 +97,7 @@ internal static class ActionDesignerProgramAccess
         JArray variables,
         string subProgramsJson,
         out string? error) =>
-        TrySave(actionId, steps, variables, subProgramsJson, title: null, description: null, icon: null, out error);
+        TrySave(actionId, steps, variables, subProgramsJson, title: null, description: null, icon: null, contextMenuData: null, out error);
 
     public static bool TrySave(
         string actionId,
@@ -107,6 +107,7 @@ internal static class ActionDesignerProgramAccess
         string? title,
         string? description,
         string? icon,
+        string? contextMenuData,
         out string? error)
     {
         error = null;
@@ -123,9 +124,9 @@ internal static class ActionDesignerProgramAccess
             return false;
         }
 
-        if (title is not null || description is not null || icon is not null)
+        if (title is not null || description is not null || icon is not null || contextMenuData is not null)
         {
-            if (!ActionPresentationUpdate.TryApply(live, title, description, icon, out error))
+            if (!ActionPresentationUpdate.TryApply(live, title, description, icon, contextMenuData, out error))
             {
                 return false;
             }
@@ -152,12 +153,13 @@ internal static class ActionDesignerProgramAccess
         return true;
     }
 
-    /// <summary>Update title / description / icon only (does not change XAction program body).</summary>
+    /// <summary>Update title / description / icon / context menu only (does not change XAction program body).</summary>
     public static bool TryUpdatePresentation(
         string actionId,
         string? title,
         string? description,
         string? icon,
+        string? contextMenuData,
         out string? error)
     {
         error = null;
@@ -174,7 +176,7 @@ internal static class ActionDesignerProgramAccess
             return false;
         }
 
-        if (!ActionPresentationUpdate.TryApply(live, title, description, icon, out error))
+        if (!ActionPresentationUpdate.TryApply(live, title, description, icon, contextMenuData, out error))
         {
             return false;
         }

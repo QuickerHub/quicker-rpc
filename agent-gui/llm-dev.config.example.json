@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "groups": {
+    "deepseek": {
+      "label": "DeepSeek",
+      "model": "deepseek-v4-flash"
+    }
+  },
+  "endpoints": [
+    {
+      "group": "deepseek",
+      "apiKey": "sk-...",
+      "baseURL": "https://api.deepseek.com/v1",
+      "model": "deepseek-v4-flash"
+    }
+  ]
+}

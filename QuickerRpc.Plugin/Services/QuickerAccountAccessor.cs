@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Quicker.Common.Vm.Account;
 using Quicker.Domain;
 using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Plugin.Reflection;
@@ -16,6 +15,8 @@ internal static class QuickerAccountAccessor
 {
     private const string RuntimeDataStoreTypeName = "Quicker.Domain.Services.Data.RuntimeDataStore";
 
+    private const string AccountUserInfoTypeName = "Quicker.Common.Vm.Account.UserInfo";
+
     public static QuickerRpcAccountInfo TryGetAccountInfo()
     {
         if (!QuickerHost.IsRunningInQuicker())
@@ -25,24 +26,29 @@ internal static class QuickerAccountAccessor
 
         try
         {
-            var userInfo = TryResolveUserInfo();
-            if (userInfo is null)
+            var sysInfo = QuickerDispatcherInvoke.OnUiThreadIfNeeded(QuickerSysInfoAccessor.TryRead);
+            if (!string.IsNullOrWhiteSpace(sysInfo?.UnionId))
             {
-                return NotLoggedIn("UserInfo unavailable.");
+                return BuildLoggedIn(
+                    sysInfo!.UnionId!.Trim(),
+                    userName: null,
+                    nickName: null);
             }
 
-            var userId = userInfo.UserId?.Trim();
-            if (string.IsNullOrEmpty(userId))
+            var resolved = QuickerDispatcherInvoke.OnUiThreadIfNeeded(TryResolveUserInfoSafe);
+            if (resolved?.Info is { } storeInfo)
             {
-                return NotLoggedIn("Quicker account is not logged in.");
+                var userId = storeInfo.UserId?.Trim();
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    return BuildLoggedIn(
+                        userId,
+                        TrimOrNull(storeInfo.UserName),
+                        TrimOrNull(storeInfo.NickName));
+                }
             }
 
-            return new QuickerRpcAccountInfo
-            {
-                Ok = true,
-                LoggedIn = true,
-                UserId = userId,
-            };
+            return NotLoggedIn("Quicker account is not logged in.");
         }
         catch (Exception ex)
         {
@@ -50,33 +56,163 @@ internal static class QuickerAccountAccessor
         }
     }
 
-    private static UserInfo? TryResolveUserInfo()
+    private static QuickerRpcAccountInfo BuildLoggedIn(
+        string userId,
+        string? userName,
+        string? nickName) =>
+        new()
+        {
+            Ok = true,
+            LoggedIn = true,
+            UserId = userId,
+            UserName = userName,
+            NickName = nickName,
+        };
+
+    private sealed class ResolvedUserInfo
     {
-        var assembly = typeof(AppState).Assembly;
+        public string? UserId { get; set; }
+
+        public string? UserName { get; set; }
+
+        public string? NickName { get; set; }
+    }
+
+    private sealed class UserInfoResolution
+    {
+        public bool FoundStore { get; set; }
+
+        public ResolvedUserInfo? Info { get; set; }
+    }
+
+    private static UserInfoResolution? TryResolveUserInfoSafe()
+    {
+        try
+        {
+            return TryResolveUserInfo();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static UserInfoResolution? TryResolveUserInfo()
+    {
+        var assembly = ResolveQuickerAssembly();
         var runtimeType = QuickerAssemblyReflection.TryGetTypeByFullName(assembly, RuntimeDataStoreTypeName);
         if (runtimeType is not null)
         {
-            var store = TryGetRuntimeDataStore(runtimeType);
-            var fromStore = ReadUserInfo(store, runtimeType);
+            var fromNamedStore = TryReadStoreUserInfo(runtimeType);
+            if (fromNamedStore is not null)
+            {
+                return fromNamedStore;
+            }
+        }
+
+        var fromScan = TryResolveFromAssemblyScan(assembly);
+        if (fromScan is not null)
+        {
+            return fromScan;
+        }
+
+        foreach (var root in EnumerateAccountSearchRoots())
+        {
+            var fromGraph = FindUserInfoOnObject(root, maxDepth: 8);
+            if (fromGraph is not null)
+            {
+                return new UserInfoResolution
+                {
+                    FoundStore = true,
+                    Info = fromGraph,
+                };
+            }
+        }
+
+        return runtimeType is not null
+            ? new UserInfoResolution { FoundStore = false, Info = null }
+            : null;
+    }
+
+    private static UserInfoResolution? TryReadStoreUserInfo(Type runtimeType)
+    {
+        var store = TryGetRuntimeDataStore(runtimeType);
+        if (store is null)
+        {
+            return null;
+        }
+
+        return new UserInfoResolution
+        {
+            FoundStore = true,
+            Info = ReadUserInfo(store, runtimeType),
+        };
+    }
+
+    private static UserInfoResolution? TryResolveFromAssemblyScan(Assembly assembly)
+    {
+        foreach (var type in QuickerAssemblyReflection.EnumerateTypes(assembly))
+        {
+            if (type is null || !type.IsClass || type.IsAbstract)
+            {
+                continue;
+            }
+
+            if (type.GetProperty("UserInfo", QuickerAssemblyReflection.InstanceFlags) is null)
+            {
+                continue;
+            }
+
+            var fromStore = TryReadStoreUserInfo(type);
             if (fromStore is not null)
             {
                 return fromStore;
             }
         }
 
-        return FindUserInfoOnObject(AppState.DataService, maxDepth: 4);
+        return null;
+    }
+
+    private static IEnumerable<object> EnumerateAccountSearchRoots()
+    {
+        if (AppState.DataService is { } dataService)
+        {
+            yield return dataService;
+        }
+
+        foreach (var propertyName in new[] { "AppServer", "PushClient", "UserPreference" })
+        {
+            object? value;
+            try
+            {
+                value = typeof(AppState)
+                    .GetProperty(propertyName, QuickerAssemblyReflection.StaticFlags)
+                    ?.GetValue(null);
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (value is not null)
+            {
+                yield return value;
+            }
+        }
+    }
+
+    private static Assembly ResolveQuickerAssembly()
+    {
+        if (QuickerAssemblyReflection.TryResolveQuickerEntryAssembly(out var quicker))
+        {
+            return quicker;
+        }
+
+        return typeof(AppState).Assembly;
     }
 
     private static object? TryGetRuntimeDataStore(Type runtimeType)
     {
-        var storeField = runtimeType
-            .GetFields(QuickerAssemblyReflection.StaticFlags)
-            .FirstOrDefault(field => field.IsStatic && field.FieldType == runtimeType);
-        if (storeField?.GetValue(null) is { } storeFromField)
-        {
-            return storeFromField;
-        }
-
         foreach (var storeMethod in runtimeType
                      .GetMethods(QuickerAssemblyReflection.StaticFlags)
                      .Where(method =>
@@ -97,23 +233,50 @@ internal static class QuickerAccountAccessor
             }
         }
 
+        foreach (var storeField in runtimeType
+                     .GetFields(QuickerAssemblyReflection.StaticFlags)
+                     .Where(field => field.IsStatic && field.FieldType == runtimeType))
+        {
+            try
+            {
+                if (storeField.GetValue(null) is { } storeFromField)
+                {
+                    return storeFromField;
+                }
+            }
+            catch
+            {
+                // Try the next candidate accessor.
+            }
+        }
+
         return null;
     }
 
-    private static UserInfo? ReadUserInfo(object? store, Type runtimeType)
+    private static ResolvedUserInfo? ReadUserInfo(object store, Type runtimeType)
     {
-        if (store is null)
+        var userInfoProperty = runtimeType.GetProperty(
+            "UserInfo",
+            QuickerAssemblyReflection.InstanceFlags);
+        if (userInfoProperty is null)
         {
             return null;
         }
 
-        var userInfoProperty = runtimeType.GetProperty(
-            "UserInfo",
-            QuickerAssemblyReflection.InstanceFlags);
-        return userInfoProperty?.GetValue(store) as UserInfo;
+        object? value;
+        try
+        {
+            value = userInfoProperty.GetValue(store);
+        }
+        catch
+        {
+            return null;
+        }
+
+        return ParseUserInfoObject(value);
     }
 
-    private static UserInfo? FindUserInfoOnObject(object? root, int maxDepth)
+    private static ResolvedUserInfo? FindUserInfoOnObject(object? root, int maxDepth)
     {
         if (root is null || maxDepth < 0)
         {
@@ -151,12 +314,17 @@ internal static class QuickerAccountAccessor
                     continue;
                 }
 
-                if (value is UserInfo userInfo)
+                if (value is null)
                 {
-                    return userInfo;
+                    continue;
                 }
 
-                if (value is not null && ShouldTraverse(value.GetType()) && depth < maxDepth)
+                if (LooksLikeUserInfo(value))
+                {
+                    return ParseUserInfoObject(value);
+                }
+
+                if (ShouldTraverse(value.GetType()) && depth < maxDepth)
                 {
                     queue.Enqueue((value, depth + 1));
                 }
@@ -164,6 +332,54 @@ internal static class QuickerAccountAccessor
         }
 
         return null;
+    }
+
+    private static bool LooksLikeUserInfo(object value)
+    {
+        var type = value.GetType();
+        if (string.Equals(type.FullName, AccountUserInfoTypeName, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var userId = type.GetProperty("UserId", QuickerAssemblyReflection.InstanceFlags);
+        var userName = type.GetProperty("UserName", QuickerAssemblyReflection.InstanceFlags);
+        return userId?.PropertyType == typeof(string)
+               && userName?.PropertyType == typeof(string);
+    }
+
+    private static ResolvedUserInfo? ParseUserInfoObject(object? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var type = value.GetType();
+        return new ResolvedUserInfo
+        {
+            UserId = ReadStringProperty(value, type, "UserId"),
+            UserName = ReadStringProperty(value, type, "UserName"),
+            NickName = ReadStringProperty(value, type, "NickName"),
+        };
+    }
+
+    private static string? ReadStringProperty(object target, Type type, string propertyName)
+    {
+        var property = type.GetProperty(propertyName, QuickerAssemblyReflection.InstanceFlags);
+        if (property?.PropertyType != typeof(string))
+        {
+            return null;
+        }
+
+        try
+        {
+            return property.GetValue(target) as string;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static bool ShouldTraverse(Type type)
@@ -175,6 +391,12 @@ internal static class QuickerAccountAccessor
 
         var ns = type.Namespace ?? string.Empty;
         return ns.StartsWith("Quicker.", StringComparison.Ordinal);
+    }
+
+    private static string? TrimOrNull(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
 
     private static QuickerRpcAccountInfo NotLoggedIn(string? message = null) =>

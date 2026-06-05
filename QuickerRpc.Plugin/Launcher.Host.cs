@@ -37,6 +37,8 @@ public static partial class Launcher
                 services.AddSingleton<FontAwesomeIconSearchService>();
                 services.AddSingleton<CodeSyntaxCheckService>();
                 services.AddSingleton<ExpressionExecuteService>();
+                services.AddSingleton<QuickerSettingsService>();
+                services.AddSingleton<QuickerSettingsUiService>();
                 services.AddSingleton<QuickerAgentUpdateCheckService>();
                 services.AddSingleton<QuickerRpcService>();
                 services.AddSingleton<IQuickerRpcService>(sp => sp.GetRequiredService<QuickerRpcService>());

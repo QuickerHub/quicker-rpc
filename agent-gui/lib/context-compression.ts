@@ -108,10 +108,12 @@ function summarizePart(
   }
 
   if (
-    part.type === "tool-qkrpc_action_get"
+    part.type === "tool-qkrpc_action"
+    || part.type === "tool-qkrpc_action_get"
     || part.type === "tool-qkrpc_action_list"
     || part.type === "tool-qkrpc_action_patch"
     || part.type === "tool-qkrpc_action_create"
+    || part.type === "tool-workspace_program"
   ) {
     const state = "state" in part ? String(part.state ?? "unknown") : "unknown";
     return `[tool:${part.type}] state=${state}`;

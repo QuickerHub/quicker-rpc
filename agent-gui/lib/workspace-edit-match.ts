@@ -246,7 +246,7 @@ function tryJsonDocumentEditOnce(
         hint:
           "data.json already has content (see steps/variables counts). "
           + "oldString looks like an empty template from an earlier read — use "
-          + "workspace_action_read_data mode=content (or startLine slice) and "
+          + "workspace_program read_data mode=content (or startLine slice) and "
           + "edit a fragment that exists on disk now.",
         steps: counts.steps,
         variables: counts.variables,

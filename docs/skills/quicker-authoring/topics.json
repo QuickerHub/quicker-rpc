@@ -60,6 +60,16 @@
       }
     },
     {
+      "topic": "common-operation-item",
+      "title": "操作项文本语法",
+      "description": "CommonOperationItem 多行文本：动作 ContextMenuData 右键菜单、[图标]标题(提示)|数据、子菜单与 quicker_in_param。Use when editing action context menus or SelectionItems-shaped text.",
+      "source": "references/common-operation-item.md",
+      "allowedTools": "qkrpc_action_get qkrpc_action_set_metadata qkrpc_action_patch qkrpc_fa_search workspace_action_read_data workspace_action_edit_data",
+      "metadata": {
+        "phase": "P3"
+      }
+    },
+    {
       "topic": "expressions",
       "title": "表达式与插值",
       "description": "P4 首选：$=、$$ 与 sys:evalexpression（LINQ/字符串/JSON/多变量赋值）。Prefer before sys:csscript for data transforms.",
@@ -94,8 +104,18 @@
       "title": "总览",
       "description": "Quicker 动作无头编辑总览：P0 环境、docs 工具、P0–P7 索引。Use when starting action editing or choosing which guide topic to read next.",
       "source": "SKILL.md",
-      "allowedTools": "docs_get docs_search docs_index",
+      "allowedTools": "docs",
       "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
+    },
+    {
+      "topic": "quicker-ui",
+      "title": "打开 Quicker 界面",
+      "description": "打开 Quicker 设置页与常用窗口（动作回收站、常规设置、搜索框、进程场景设置）。Use when the user asks to open a Quicker UI page/window.",
+      "source": "references/quicker-ui.md",
+      "allowedTools": "quicker_settings docs",
+      "metadata": {
+        "phase": "ui"
+      }
     },
     {
       "topic": "step-runner-get",

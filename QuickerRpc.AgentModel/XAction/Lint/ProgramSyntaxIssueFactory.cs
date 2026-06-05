@@ -4,6 +4,8 @@ namespace QuickerRpc.AgentModel.XAction.Lint;
 
 public static class ProgramSyntaxIssueFactory
 {
+    private const string WorkspaceProgramTool = "workspace_program";
+
     public static ProgramSyntaxIssue Create(
         ProgramSyntaxCheckItem item,
         ProgramSyntaxIssueSeverity severity,
@@ -100,7 +102,8 @@ public static class ProgramSyntaxIssueFactory
             var end = line.HasValue ? line.Value + 4 : (int?)null;
             return new ProgramSyntaxReadHint
             {
-                Tool = "workspace_action_file_read",
+                Tool = WorkspaceProgramTool,
+                Action = "file_read",
                 Path = item.File,
                 StartLine = start,
                 EndLine = end,
@@ -111,7 +114,8 @@ public static class ProgramSyntaxIssueFactory
         {
             return new ProgramSyntaxReadHint
             {
-                Tool = "workspace_action_read_data",
+                Tool = WorkspaceProgramTool,
+                Action = "read_data",
                 Mode = "content",
             };
         }
@@ -167,27 +171,51 @@ public static class ProgramSyntaxIssueFactory
 
     private static string FormatReadHint(ProgramSyntaxReadHint read)
     {
-        if (read.Tool == "workspace_action_file_read" && !string.IsNullOrWhiteSpace(read.Path))
+        var action = ResolveReadAction(read);
+        if (action == "file_read" && !string.IsNullOrWhiteSpace(read.Path))
         {
-            if (read.StartLine is > 0 && read.EndLine is > 0)
+            var args = new System.Collections.Generic.List<string>
             {
-                return
-                    $"read workspace_action_file_read(path={read.Path}, startLine={read.StartLine}, endLine={read.EndLine})";
-            }
-
+                "action: \"file_read\"",
+                $"path: \"{EscapeJsonString(read.Path)}\"",
+            };
             if (read.StartLine is > 0)
             {
-                return $"read workspace_action_file_read(path={read.Path}, startLine={read.StartLine})";
+                args.Add($"startLine: {read.StartLine.Value}");
             }
 
-            return $"read workspace_action_file_read(path={read.Path})";
+            if (read.EndLine is > 0)
+            {
+                args.Add($"endLine: {read.EndLine.Value}");
+            }
+
+            return $"read workspace_program({{ {string.Join(", ", args)} }})";
         }
 
-        if (read.Tool == "workspace_action_read_data")
+        if (action == "read_data")
         {
-            return "read workspace_action_read_data(mode=content) then locate dataJsonPath";
+            var mode = string.IsNullOrWhiteSpace(read.Mode) ? "content" : read.Mode;
+            return $"read workspace_program({{ action: \"read_data\", mode: \"{EscapeJsonString(mode)}\" }}) then locate dataJsonPath";
         }
 
         return string.IsNullOrWhiteSpace(read.Tool) ? "read (see location)" : $"read {read.Tool}";
     }
+
+    private static string? ResolveReadAction(ProgramSyntaxReadHint read)
+    {
+        if (!string.IsNullOrWhiteSpace(read.Action))
+        {
+            return read.Action;
+        }
+
+        return read.Tool switch
+        {
+            "workspace_action_file_read" => "file_read",
+            "workspace_action_read_data" => "read_data",
+            _ => null,
+        };
+    }
+
+    private static string EscapeJsonString(string value) =>
+        value.Replace("\\", "\\\\").Replace("\"", "\\\"");
 }

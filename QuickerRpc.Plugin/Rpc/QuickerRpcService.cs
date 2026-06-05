@@ -35,6 +35,8 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly FontAwesomeIconSearchService _fontAwesomeIconSearchService;
     private readonly CodeSyntaxCheckService _codeSyntaxCheckService;
     private readonly ExpressionExecuteService _expressionExecuteService;
+    private readonly QuickerSettingsService _settingsService;
+    private readonly QuickerSettingsUiService _settingsUiService;
     private readonly IPopupMessageService _popup;
 
     public QuickerRpcService(
@@ -56,6 +58,8 @@ public sealed class QuickerRpcService : IQuickerRpcService
         FontAwesomeIconSearchService fontAwesomeIconSearchService,
         CodeSyntaxCheckService codeSyntaxCheckService,
         ExpressionExecuteService expressionExecuteService,
+        QuickerSettingsService settingsService,
+        QuickerSettingsUiService settingsUiService,
         IPopupMessageService popup)
     {
         _actionPublishService = actionPublishService;
@@ -76,6 +80,8 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _fontAwesomeIconSearchService = fontAwesomeIconSearchService;
         _codeSyntaxCheckService = codeSyntaxCheckService;
         _expressionExecuteService = expressionExecuteService;
+        _settingsService = settingsService;
+        _settingsUiService = settingsUiService;
         _popup = popup;
     }
 
@@ -745,6 +751,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         string? title = null,
         string? description = null,
         string? icon = null,
+        string? contextMenuData = null,
         long? expectedEditVersion = null,
         bool force = false,
         CancellationToken cancellationToken = default)
@@ -764,6 +771,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
                 title,
                 description,
                 icon,
+                contextMenuData,
                 expectedEditVersion,
                 force)),
             cancellationToken);
@@ -866,6 +874,69 @@ public sealed class QuickerRpcService : IQuickerRpcService
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(_codeSyntaxCheckService.CheckCSharpScript(code, references));
+    }
+
+    public Task<QuickerRpcSearchSettingsResult> SearchSettingsAsync(
+        string? query,
+        int maxResults = 30,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _settingsService.Search(query, maxResults))
+            ?? new QuickerRpcSearchSettingsResult { Ok = false, Message = "Settings search unavailable." });
+    }
+
+    public Task<QuickerRpcListSettingsResult> ListSettingsAsync(
+        string? scope = null,
+        int maxResults = 100,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _settingsService.List(scope, maxResults))
+            ?? new QuickerRpcListSettingsResult { Ok = false, Message = "Settings list unavailable." });
+    }
+
+    public Task<QuickerRpcGetSettingResult> GetSettingAsync(
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _settingsService.Get(key))
+            ?? new QuickerRpcGetSettingResult { Ok = false, Message = "Settings get unavailable." });
+    }
+
+    public Task<QuickerRpcSetSettingResult> SetSettingAsync(
+        string key,
+        string value,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _settingsService.Set(key, value))
+            ?? new QuickerRpcSetSettingResult { Ok = false, Message = "Settings set unavailable." });
+    }
+
+    public Task<QuickerRpcListSettingsPagesResult> ListSettingsPagesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _settingsUiService.ListPages())
+            ?? new QuickerRpcListSettingsPagesResult { Ok = false, Message = "Settings pages unavailable." });
+    }
+
+    public Task<QuickerRpcOpenSettingsUiResult> OpenSettingsUiAsync(
+        string target,
+        string? exeFile = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _settingsUiService.Open(target, exeFile))
+            ?? new QuickerRpcOpenSettingsUiResult { Ok = false, Message = "Open settings UI unavailable." });
     }
 
     private static async Task<T> InvokeOnDispatcherAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)

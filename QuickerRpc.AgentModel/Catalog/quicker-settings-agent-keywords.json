@@ -1,0 +1,3563 @@
+{
+  "userSettings:ShowStartupTip": {
+    "keywords": [
+      "ShowStartupTip",
+      "show",
+      "startup",
+      "tip"
+    ],
+    "snippet": "Quicker setting ShowStartupTip"
+  },
+  "userSettings:IsAppEnabled": {
+    "keywords": [
+      "IsAppEnabled",
+      "is",
+      "app",
+      "enabled"
+    ],
+    "snippet": "Quicker setting IsAppEnabled"
+  },
+  "userSettings:ConnectionCode": {
+    "keywords": [
+      "ConnectionCode",
+      "connection",
+      "code"
+    ],
+    "snippet": "Quicker setting ConnectionCode"
+  },
+  "userSettings:ShowVoiceInputButtonOnTitleBar": {
+    "keywords": [
+      "ShowVoiceInputButtonOnTitleBar",
+      "show",
+      "voice",
+      "input",
+      "button",
+      "on",
+      "title",
+      "bar"
+    ],
+    "snippet": "Quicker setting ShowVoiceInputButtonOnTitleBar"
+  },
+  "userSettings:Port": {
+    "keywords": [
+      "Port",
+      "port"
+    ],
+    "snippet": "Quicker setting Port"
+  },
+  "userSettings:IsAutoMinimize": {
+    "keywords": [
+      "自动最小化",
+      "最小化",
+      "托盘",
+      "启动最小化",
+      "IsAutoMinimize",
+      "is",
+      "auto",
+      "minimize"
+    ],
+    "snippet": "Quicker setting IsAutoMinimize",
+    "title": "启动后自动最小化",
+    "pageId": "AppSettings"
+  },
+  "userSettings:StopAllWhiteList": {
+    "keywords": [
+      "StopAllWhiteList",
+      "stop",
+      "all",
+      "white",
+      "list"
+    ],
+    "snippet": "Quicker setting StopAllWhiteList"
+  },
+  "userSettings:RecvImageCopyToClipboard": {
+    "keywords": [
+      "RecvImageCopyToClipboard",
+      "recv",
+      "image",
+      "copy",
+      "to",
+      "clipboard"
+    ],
+    "snippet": "Quicker setting RecvImageCopyToClipboard"
+  },
+  "userSettings:RecvImagePasteToWindow": {
+    "keywords": [
+      "RecvImagePasteToWindow",
+      "recv",
+      "image",
+      "paste",
+      "to",
+      "window"
+    ],
+    "snippet": "Quicker setting RecvImagePasteToWindow"
+  },
+  "userSettings:RecvImageOpenFolder": {
+    "keywords": [
+      "RecvImageOpenFolder",
+      "recv",
+      "image",
+      "open",
+      "folder"
+    ],
+    "snippet": "Quicker setting RecvImageOpenFolder"
+  },
+  "userSettings:RecvImageOpenWithDefaultProgram": {
+    "keywords": [
+      "RecvImageOpenWithDefaultProgram",
+      "recv",
+      "image",
+      "open",
+      "with",
+      "default",
+      "program"
+    ],
+    "snippet": "Quicker setting RecvImageOpenWithDefaultProgram"
+  },
+  "userSettings:RecvImageOpenWithProgram": {
+    "keywords": [
+      "RecvImageOpenWithProgram",
+      "recv",
+      "image",
+      "open",
+      "with",
+      "program"
+    ],
+    "snippet": "Quicker setting RecvImageOpenWithProgram"
+  },
+  "userSettings:RecvFileFolder": {
+    "keywords": [
+      "RecvFileFolder",
+      "recv",
+      "file",
+      "folder"
+    ],
+    "snippet": "Quicker setting RecvFileFolder"
+  },
+  "userSettings:ShowRunningCountOnTrayIcon": {
+    "keywords": [
+      "托盘",
+      "运行次数",
+      "tray icon",
+      "任务栏",
+      "ShowRunningCountOnTrayIcon",
+      "show",
+      "running",
+      "count",
+      "on",
+      "tray",
+      "icon"
+    ],
+    "snippet": "Quicker setting ShowRunningCountOnTrayIcon",
+    "title": "托盘图标显示运行次数"
+  },
+  "userSettings:OpenPopWithMiddleClick": {
+    "keywords": [
+      "OpenPopWithMiddleClick",
+      "open",
+      "pop",
+      "with",
+      "middle",
+      "click"
+    ],
+    "snippet": "Quicker setting OpenPopWithMiddleClick"
+  },
+  "userSettings:OpenPopWithXButton1Click": {
+    "keywords": [
+      "OpenPopWithXButton1Click",
+      "open",
+      "pop",
+      "with",
+      "xbutton1click"
+    ],
+    "snippet": "Quicker setting OpenPopWithXButton1Click"
+  },
+  "userSettings:OpenPopWithXButton2Click": {
+    "keywords": [
+      "OpenPopWithXButton2Click",
+      "open",
+      "pop",
+      "with",
+      "xbutton2click"
+    ],
+    "snippet": "Quicker setting OpenPopWithXButton2Click"
+  },
+  "userSettings:OpenPopWithCtrlMiddleClick": {
+    "keywords": [
+      "OpenPopWithCtrlMiddleClick",
+      "open",
+      "pop",
+      "with",
+      "ctrl",
+      "middle",
+      "click"
+    ],
+    "snippet": "Quicker setting OpenPopWithCtrlMiddleClick"
+  },
+  "userSettings:OpenPopWithCtrlClick": {
+    "keywords": [
+      "OpenPopWithCtrlClick",
+      "open",
+      "pop",
+      "with",
+      "ctrl",
+      "click"
+    ],
+    "snippet": "Quicker setting OpenPopWithCtrlClick"
+  },
+  "userSettings:OpenPopWithCtrlRightClick": {
+    "keywords": [
+      "OpenPopWithCtrlRightClick",
+      "open",
+      "pop",
+      "with",
+      "ctrl",
+      "right",
+      "click"
+    ],
+    "snippet": "Quicker setting OpenPopWithCtrlRightClick"
+  },
+  "userSettings:OpenPopWithLongRightPress": {
+    "keywords": [
+      "OpenPopWithLongRightPress",
+      "open",
+      "pop",
+      "with",
+      "long",
+      "right",
+      "press"
+    ],
+    "snippet": "Quicker setting OpenPopWithLongRightPress"
+  },
+  "userSettings:OpenPopWithLongMiddlePress": {
+    "keywords": [
+      "OpenPopWithLongMiddlePress",
+      "open",
+      "pop",
+      "with",
+      "long",
+      "middle",
+      "press"
+    ],
+    "snippet": "Quicker setting OpenPopWithLongMiddlePress"
+  },
+  "userSettings:OpenPopWithRightPressMove": {
+    "keywords": [
+      "OpenPopWithRightPressMove",
+      "open",
+      "pop",
+      "with",
+      "right",
+      "press",
+      "move"
+    ],
+    "snippet": "Quicker setting OpenPopWithRightPressMove"
+  },
+  "userSettings:DisableAutoSwitchAfterPopup": {
+    "keywords": [
+      "DisableAutoSwitchAfterPopup",
+      "disable",
+      "auto",
+      "switch",
+      "after",
+      "popup"
+    ],
+    "snippet": "Quicker setting DisableAutoSwitchAfterPopup"
+  },
+  "userSettings:EnableCircleMenu": {
+    "keywords": [
+      "圆圈菜单",
+      "轮盘菜单",
+      "circle menu",
+      "圆形菜单",
+      "手势菜单",
+      "EnableCircleMenu",
+      "enable",
+      "circle",
+      "menu"
+    ],
+    "snippet": "是否启用鼠标圆圈菜单（轮盘）触发方式",
+    "title": "启用圆圈菜单",
+    "pageId": "CircleMenuSettingPage"
+  },
+  "userSettings:RightBtnPopupDelayMs": {
+    "keywords": [
+      "RightBtnPopupDelayMs",
+      "right",
+      "btn",
+      "popup",
+      "delay",
+      "ms"
+    ],
+    "snippet": "Quicker setting RightBtnPopupDelayMs"
+  },
+  "userSettings:MoveTriggerDistance": {
+    "keywords": [
+      "MoveTriggerDistance",
+      "move",
+      "trigger",
+      "distance"
+    ],
+    "snippet": "Quicker setting MoveTriggerDistance"
+  },
+  "userSettings:DoubleClickInterval": {
+    "keywords": [
+      "DoubleClickInterval",
+      "double",
+      "click",
+      "interval"
+    ],
+    "snippet": "Quicker setting DoubleClickInterval"
+  },
+  "userSettings:EnableReleaseOnButtonTrigger": {
+    "keywords": [
+      "EnableReleaseOnButtonTrigger",
+      "enable",
+      "release",
+      "on",
+      "button",
+      "trigger"
+    ],
+    "snippet": "Quicker setting EnableReleaseOnButtonTrigger"
+  },
+  "userSettings:OpenPopWithWheelLeft": {
+    "keywords": [
+      "OpenPopWithWheelLeft",
+      "open",
+      "pop",
+      "with",
+      "wheel",
+      "left"
+    ],
+    "snippet": "Quicker setting OpenPopWithWheelLeft"
+  },
+  "userSettings:OpenWithGlobalHotkey": {
+    "keywords": [
+      "全局快捷键",
+      "热键",
+      "hotkey",
+      "弹出快捷键",
+      "唤醒",
+      "OpenWithGlobalHotkey",
+      "open",
+      "with",
+      "global"
+    ],
+    "snippet": "Quicker setting OpenWithGlobalHotkey",
+    "title": "全局快捷键弹出",
+    "pageId": "FunctionHotkeys"
+  },
+  "userSettings:SpecialExeList": {
+    "keywords": [
+      "SpecialExeList",
+      "special",
+      "exe",
+      "list"
+    ],
+    "snippet": "Quicker setting SpecialExeList"
+  },
+  "userSettings:ToMousePosWhenOpenByKeyboard": {
+    "keywords": [
+      "ToMousePosWhenOpenByKeyboard",
+      "to",
+      "mouse",
+      "pos",
+      "when",
+      "open",
+      "by",
+      "keyboard"
+    ],
+    "snippet": "Quicker setting ToMousePosWhenOpenByKeyboard"
+  },
+  "userSettings:DisableOnFullscreenApp": {
+    "keywords": [
+      "全屏",
+      "fullscreen",
+      "游戏全屏",
+      "禁用触发",
+      "DisableOnFullscreenApp",
+      "disable",
+      "on",
+      "app"
+    ],
+    "snippet": "Quicker setting DisableOnFullscreenApp",
+    "title": "全屏应用时禁用"
+  },
+  "userSettings:AllowedFullscreenProcesses": {
+    "keywords": [
+      "AllowedFullscreenProcesses",
+      "allowed",
+      "fullscreen",
+      "processes"
+    ],
+    "snippet": "Quicker setting AllowedFullscreenProcesses"
+  },
+  "userSettings:ActiveCursorPositionWindowWhenPopupWithKeyboard": {
+    "keywords": [
+      "ActiveCursorPositionWindowWhenPopupWithKeyboard",
+      "active",
+      "cursor",
+      "position",
+      "window",
+      "when",
+      "popup",
+      "with",
+      "keyboard"
+    ],
+    "snippet": "Quicker setting ActiveCursorPositionWindowWhenPopupWithKeyboard"
+  },
+  "userSettings:KeepActionLocalIconAndName": {
+    "keywords": [
+      "KeepActionLocalIconAndName",
+      "keep",
+      "action",
+      "local",
+      "icon",
+      "and",
+      "name"
+    ],
+    "snippet": "Quicker setting KeepActionLocalIconAndName"
+  },
+  "userSettings:RememberLastConfigPage": {
+    "keywords": [
+      "RememberLastConfigPage",
+      "remember",
+      "last",
+      "config",
+      "page"
+    ],
+    "snippet": "Quicker setting RememberLastConfigPage"
+  },
+  "userSettings:EnableUiAutomation": {
+    "keywords": [
+      "EnableUiAutomation",
+      "enable",
+      "ui",
+      "automation"
+    ],
+    "snippet": "Quicker setting EnableUiAutomation"
+  },
+  "userSettings:ReplaceCapsToCtrlSpace": {
+    "keywords": [
+      "ReplaceCapsToCtrlSpace",
+      "replace",
+      "caps",
+      "to",
+      "ctrl",
+      "space"
+    ],
+    "snippet": "Quicker setting ReplaceCapsToCtrlSpace"
+  },
+  "userSettings:RemapKeyCapsLock": {
+    "keywords": [
+      "RemapKeyCapsLock",
+      "remap",
+      "key",
+      "caps",
+      "lock"
+    ],
+    "snippet": "Quicker setting RemapKeyCapsLock"
+  },
+  "userSettings:RemapKeyPauseBreak": {
+    "keywords": [
+      "RemapKeyPauseBreak",
+      "remap",
+      "key",
+      "pause",
+      "break"
+    ],
+    "snippet": "Quicker setting RemapKeyPauseBreak"
+  },
+  "userSettings:RemapKeyPrintScreen": {
+    "keywords": [
+      "RemapKeyPrintScreen",
+      "remap",
+      "key",
+      "print",
+      "screen"
+    ],
+    "snippet": "Quicker setting RemapKeyPrintScreen"
+  },
+  "userSettings:EnableWinAppUsageCounter": {
+    "keywords": [
+      "EnableWinAppUsageCounter",
+      "enable",
+      "win",
+      "app",
+      "usage",
+      "counter"
+    ],
+    "snippet": "Quicker setting EnableWinAppUsageCounter"
+  },
+  "userSettings:EnableSwitchDesk": {
+    "keywords": [
+      "EnableSwitchDesk",
+      "enable",
+      "switch",
+      "desk"
+    ],
+    "snippet": "Quicker setting EnableSwitchDesk"
+  },
+  "userSettings:EnableSwitchDeskOnScreenBottom": {
+    "keywords": [
+      "EnableSwitchDeskOnScreenBottom",
+      "enable",
+      "switch",
+      "desk",
+      "on",
+      "screen",
+      "bottom"
+    ],
+    "snippet": "Quicker setting EnableSwitchDeskOnScreenBottom"
+  },
+  "userSettings:EnableChangeVolume": {
+    "keywords": [
+      "EnableChangeVolume",
+      "enable",
+      "change",
+      "volume"
+    ],
+    "snippet": "Quicker setting EnableChangeVolume"
+  },
+  "userSettings:EnableChangeVolumeOnScreenBottom": {
+    "keywords": [
+      "EnableChangeVolumeOnScreenBottom",
+      "enable",
+      "change",
+      "volume",
+      "on",
+      "screen",
+      "bottom"
+    ],
+    "snippet": "Quicker setting EnableChangeVolumeOnScreenBottom"
+  },
+  "userSettings:ExternScreenCaptureHotkey": {
+    "keywords": [
+      "ExternScreenCaptureHotkey",
+      "extern",
+      "screen",
+      "capture",
+      "hotkey"
+    ],
+    "snippet": "Quicker setting ExternScreenCaptureHotkey"
+  },
+  "userSettings:EnableAdjScreenBrightnessUseCtrlScroll": {
+    "keywords": [
+      "EnableAdjScreenBrightnessUseCtrlScroll",
+      "enable",
+      "adj",
+      "screen",
+      "brightness",
+      "use",
+      "ctrl",
+      "scroll"
+    ],
+    "snippet": "Quicker setting EnableAdjScreenBrightnessUseCtrlScroll"
+  },
+  "userSettings:EnableSwitchVirtualDeskUseX1HScroll": {
+    "keywords": [
+      "EnableSwitchVirtualDeskUseX1HScroll",
+      "enable",
+      "switch",
+      "virtual",
+      "desk",
+      "use",
+      "x1hscroll"
+    ],
+    "snippet": "Quicker setting EnableSwitchVirtualDeskUseX1HScroll"
+  },
+  "userSettings:EnableReverseVScroll": {
+    "keywords": [
+      "EnableReverseVScroll",
+      "enable",
+      "reverse",
+      "vscroll"
+    ],
+    "snippet": "Quicker setting EnableReverseVScroll"
+  },
+  "userSettings:CornerActionTopLeft": {
+    "keywords": [
+      "CornerActionTopLeft",
+      "corner",
+      "action",
+      "top",
+      "left"
+    ],
+    "snippet": "Quicker setting CornerActionTopLeft"
+  },
+  "userSettings:CornerActionTopRight": {
+    "keywords": [
+      "CornerActionTopRight",
+      "corner",
+      "action",
+      "top",
+      "right"
+    ],
+    "snippet": "Quicker setting CornerActionTopRight"
+  },
+  "userSettings:CornerActionBottomLeft": {
+    "keywords": [
+      "CornerActionBottomLeft",
+      "corner",
+      "action",
+      "bottom",
+      "left"
+    ],
+    "snippet": "Quicker setting CornerActionBottomLeft"
+  },
+  "userSettings:CornerActionBottomRight": {
+    "keywords": [
+      "CornerActionBottomRight",
+      "corner",
+      "action",
+      "bottom",
+      "right"
+    ],
+    "snippet": "Quicker setting CornerActionBottomRight"
+  },
+  "userSettings:CornerActionDelay": {
+    "keywords": [
+      "CornerActionDelay",
+      "corner",
+      "action",
+      "delay"
+    ],
+    "snippet": "Quicker setting CornerActionDelay"
+  },
+  "userSettings:CopyOrPasteWithLeftPlusRight": {
+    "keywords": [
+      "CopyOrPasteWithLeftPlusRight",
+      "copy",
+      "or",
+      "paste",
+      "with",
+      "left",
+      "plus",
+      "right"
+    ],
+    "snippet": "Quicker setting CopyOrPasteWithLeftPlusRight"
+  },
+  "userSettings:ShowMessageAfterCopyPaste": {
+    "keywords": [
+      "ShowMessageAfterCopyPaste",
+      "show",
+      "message",
+      "after",
+      "copy",
+      "paste"
+    ],
+    "snippet": "Quicker setting ShowMessageAfterCopyPaste"
+  },
+  "userSettings:PasteWithLeftPlusX": {
+    "keywords": [
+      "PasteWithLeftPlusX",
+      "paste",
+      "with",
+      "left",
+      "plus",
+      "x"
+    ],
+    "snippet": "Quicker setting PasteWithLeftPlusX"
+  },
+  "userSettings:UiSettings.BackgroundColor": {
+    "keywords": [
+      "BackgroundColor",
+      "background",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.BackgroundColor"
+  },
+  "userSettings:UiSettings.ToolbarColor": {
+    "keywords": [
+      "ToolbarColor",
+      "toolbar",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.ToolbarColor"
+  },
+  "userSettings:UiSettings.ToolbarBtnColor": {
+    "keywords": [
+      "ToolbarBtnColor",
+      "toolbar",
+      "btn",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.ToolbarBtnColor"
+  },
+  "userSettings:UiSettings.ButtonSize": {
+    "keywords": [
+      "ButtonSize",
+      "button",
+      "size"
+    ],
+    "snippet": "Quicker setting UiSettings.ButtonSize"
+  },
+  "userSettings:UiSettings.ButtonCornerRadius": {
+    "keywords": [
+      "ButtonCornerRadius",
+      "button",
+      "corner",
+      "radius"
+    ],
+    "snippet": "Quicker setting UiSettings.ButtonCornerRadius"
+  },
+  "userSettings:UiSettings.ButtonSpace": {
+    "keywords": [
+      "ButtonSpace",
+      "button",
+      "space"
+    ],
+    "snippet": "Quicker setting UiSettings.ButtonSpace"
+  },
+  "userSettings:UiSettings.FrameBorderWidth": {
+    "keywords": [
+      "FrameBorderWidth",
+      "frame",
+      "border",
+      "width"
+    ],
+    "snippet": "Quicker setting UiSettings.FrameBorderWidth"
+  },
+  "userSettings:UiSettings.HideLabelIfHasIcon": {
+    "keywords": [
+      "HideLabelIfHasIcon",
+      "hide",
+      "label",
+      "if",
+      "has",
+      "icon"
+    ],
+    "snippet": "Quicker setting UiSettings.HideLabelIfHasIcon"
+  },
+  "userSettings:UiSettings.ButtonBgColor": {
+    "keywords": [
+      "ButtonBgColor",
+      "button",
+      "bg",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.ButtonBgColor"
+  },
+  "userSettings:UiSettings.InvalidButtonBgColor": {
+    "keywords": [
+      "InvalidButtonBgColor",
+      "invalid",
+      "button",
+      "bg",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.InvalidButtonBgColor"
+  },
+  "userSettings:UiSettings.BlurMode": {
+    "keywords": [
+      "BlurMode",
+      "blur",
+      "mode"
+    ],
+    "snippet": "Quicker setting UiSettings.BlurMode"
+  },
+  "userSettings:UiSettings.RoundCornerMode": {
+    "keywords": [
+      "RoundCornerMode",
+      "round",
+      "corner",
+      "mode"
+    ],
+    "snippet": "Quicker setting UiSettings.RoundCornerMode"
+  },
+  "userSettings:UiSettings.BlurOpacity": {
+    "keywords": [
+      "BlurOpacity",
+      "blur",
+      "opacity"
+    ],
+    "snippet": "Quicker setting UiSettings.BlurOpacity"
+  },
+  "userSettings:UiSettings.HoverColor": {
+    "keywords": [
+      "HoverColor",
+      "hover",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.HoverColor"
+  },
+  "userSettings:UiSettings.EmptyHoverColor": {
+    "keywords": [
+      "EmptyHoverColor",
+      "empty",
+      "hover",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.EmptyHoverColor"
+  },
+  "userSettings:UiSettings.LabelColor": {
+    "keywords": [
+      "LabelColor",
+      "label",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.LabelColor"
+  },
+  "userSettings:UiSettings.DefaultIconColor": {
+    "keywords": [
+      "DefaultIconColor",
+      "default",
+      "icon",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.DefaultIconColor"
+  },
+  "userSettings:UiSettings.DefaultIconColorForOtherUi": {
+    "keywords": [
+      "DefaultIconColorForOtherUi",
+      "default",
+      "icon",
+      "color",
+      "for",
+      "other",
+      "ui"
+    ],
+    "snippet": "Quicker setting UiSettings.DefaultIconColorForOtherUi"
+  },
+  "userSettings:UiSettings.KeyTipColor": {
+    "keywords": [
+      "KeyTipColor",
+      "key",
+      "tip",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.KeyTipColor"
+  },
+  "userSettings:UiSettings.EnableZoomEffect": {
+    "keywords": [
+      "EnableZoomEffect",
+      "enable",
+      "zoom",
+      "effect"
+    ],
+    "snippet": "Quicker setting UiSettings.EnableZoomEffect"
+  },
+  "userSettings:UiSettings.FontFamily1": {
+    "keywords": [
+      "FontFamily1",
+      "font",
+      "family1"
+    ],
+    "snippet": "Quicker setting UiSettings.FontFamily1"
+  },
+  "userSettings:UiSettings.FontFamily2": {
+    "keywords": [
+      "FontFamily2",
+      "font",
+      "family2"
+    ],
+    "snippet": "Quicker setting UiSettings.FontFamily2"
+  },
+  "userSettings:UiSettings.FontSize": {
+    "keywords": [
+      "FontSize",
+      "font",
+      "size"
+    ],
+    "snippet": "Quicker setting UiSettings.FontSize"
+  },
+  "userSettings:UiSettings.FontWeight": {
+    "keywords": [
+      "FontWeight",
+      "font",
+      "weight"
+    ],
+    "snippet": "Quicker setting UiSettings.FontWeight"
+  },
+  "userSettings:UiSettings.BackgroundImage": {
+    "keywords": [
+      "BackgroundImage",
+      "background",
+      "image"
+    ],
+    "snippet": "Quicker setting UiSettings.BackgroundImage"
+  },
+  "userSettings:UiSettings.BackgroundImageOpacity": {
+    "keywords": [
+      "BackgroundImageOpacity",
+      "background",
+      "image",
+      "opacity"
+    ],
+    "snippet": "Quicker setting UiSettings.BackgroundImageOpacity"
+  },
+  "userSettings:UiSettings.EnableShadow": {
+    "keywords": [
+      "EnableShadow",
+      "enable",
+      "shadow"
+    ],
+    "snippet": "Quicker setting UiSettings.EnableShadow"
+  },
+  "userSettings:UiSettings.EnableResizeFont": {
+    "keywords": [
+      "EnableResizeFont",
+      "enable",
+      "resize",
+      "font"
+    ],
+    "snippet": "Quicker setting UiSettings.EnableResizeFont"
+  },
+  "userSettings:UiSettings.CircleMenu.LabelColor": {
+    "keywords": [
+      "LabelColor",
+      "label",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.CircleMenu.LabelColor"
+  },
+  "userSettings:UiSettings.CircleMenu.ButtonBgColor": {
+    "keywords": [
+      "ButtonBgColor",
+      "button",
+      "bg",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.CircleMenu.ButtonBgColor"
+  },
+  "userSettings:UiSettings.CircleMenu.ButtonHoverColor": {
+    "keywords": [
+      "ButtonHoverColor",
+      "button",
+      "hover",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.CircleMenu.ButtonHoverColor"
+  },
+  "userSettings:UiSettings.CircleMenu.ButtonSpaceColor": {
+    "keywords": [
+      "ButtonSpaceColor",
+      "button",
+      "space",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.CircleMenu.ButtonSpaceColor"
+  },
+  "userSettings:UiSettings.CircleMenu.IndicateLineColor": {
+    "keywords": [
+      "IndicateLineColor",
+      "indicate",
+      "line",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.CircleMenu.IndicateLineColor"
+  },
+  "userSettings:UiSettings.CircleMenu.DefaultIconColor": {
+    "keywords": [
+      "DefaultIconColor",
+      "default",
+      "icon",
+      "color"
+    ],
+    "snippet": "Quicker setting UiSettings.CircleMenu.DefaultIconColor"
+  },
+  "userSettings:UiSettings.CircleMenu.BgOpacity": {
+    "keywords": [
+      "BgOpacity",
+      "bg",
+      "opacity"
+    ],
+    "snippet": "Quicker setting UiSettings.CircleMenu.BgOpacity"
+  },
+  "userSettings:UiSettings.CircleMenu.BgFill": {
+    "keywords": [
+      "BgFill",
+      "bg",
+      "fill"
+    ],
+    "snippet": "Quicker setting UiSettings.CircleMenu.BgFill"
+  },
+  "userSettings:UiSettings.CircleMenu.BgOverlyOpacity": {
+    "keywords": [
+      "BgOverlyOpacity",
+      "bg",
+      "overly",
+      "opacity"
+    ],
+    "snippet": "Quicker setting UiSettings.CircleMenu.BgOverlyOpacity"
+  },
+  "userSettings:UiSettings.CircleMenu.BgOverlyFill": {
+    "keywords": [
+      "BgOverlyFill",
+      "bg",
+      "overly",
+      "fill"
+    ],
+    "snippet": "Quicker setting UiSettings.CircleMenu.BgOverlyFill"
+  },
+  "userSettings:UiSettings.CircleMenu.ShowShadow": {
+    "keywords": [
+      "ShowShadow",
+      "show",
+      "shadow"
+    ],
+    "snippet": "Quicker setting UiSettings.CircleMenu.ShowShadow"
+  },
+  "userSettings:SwitchUiSettingsBasedOnTheme": {
+    "keywords": [
+      "SwitchUiSettingsBasedOnTheme",
+      "switch",
+      "ui",
+      "settings",
+      "based",
+      "on",
+      "theme"
+    ],
+    "snippet": "Quicker setting SwitchUiSettingsBasedOnTheme"
+  },
+  "userSettings:DarkUiSettings.BackgroundColor": {
+    "keywords": [
+      "BackgroundColor",
+      "background",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.BackgroundColor"
+  },
+  "userSettings:DarkUiSettings.ToolbarColor": {
+    "keywords": [
+      "ToolbarColor",
+      "toolbar",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.ToolbarColor"
+  },
+  "userSettings:DarkUiSettings.ToolbarBtnColor": {
+    "keywords": [
+      "ToolbarBtnColor",
+      "toolbar",
+      "btn",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.ToolbarBtnColor"
+  },
+  "userSettings:DarkUiSettings.ButtonSize": {
+    "keywords": [
+      "ButtonSize",
+      "button",
+      "size"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.ButtonSize"
+  },
+  "userSettings:DarkUiSettings.ButtonCornerRadius": {
+    "keywords": [
+      "ButtonCornerRadius",
+      "button",
+      "corner",
+      "radius"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.ButtonCornerRadius"
+  },
+  "userSettings:DarkUiSettings.ButtonSpace": {
+    "keywords": [
+      "ButtonSpace",
+      "button",
+      "space"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.ButtonSpace"
+  },
+  "userSettings:DarkUiSettings.FrameBorderWidth": {
+    "keywords": [
+      "FrameBorderWidth",
+      "frame",
+      "border",
+      "width"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.FrameBorderWidth"
+  },
+  "userSettings:DarkUiSettings.HideLabelIfHasIcon": {
+    "keywords": [
+      "HideLabelIfHasIcon",
+      "hide",
+      "label",
+      "if",
+      "has",
+      "icon"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.HideLabelIfHasIcon"
+  },
+  "userSettings:DarkUiSettings.ButtonBgColor": {
+    "keywords": [
+      "ButtonBgColor",
+      "button",
+      "bg",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.ButtonBgColor"
+  },
+  "userSettings:DarkUiSettings.InvalidButtonBgColor": {
+    "keywords": [
+      "InvalidButtonBgColor",
+      "invalid",
+      "button",
+      "bg",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.InvalidButtonBgColor"
+  },
+  "userSettings:DarkUiSettings.BlurMode": {
+    "keywords": [
+      "BlurMode",
+      "blur",
+      "mode"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.BlurMode"
+  },
+  "userSettings:DarkUiSettings.RoundCornerMode": {
+    "keywords": [
+      "RoundCornerMode",
+      "round",
+      "corner",
+      "mode"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.RoundCornerMode"
+  },
+  "userSettings:DarkUiSettings.BlurOpacity": {
+    "keywords": [
+      "BlurOpacity",
+      "blur",
+      "opacity"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.BlurOpacity"
+  },
+  "userSettings:DarkUiSettings.HoverColor": {
+    "keywords": [
+      "HoverColor",
+      "hover",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.HoverColor"
+  },
+  "userSettings:DarkUiSettings.EmptyHoverColor": {
+    "keywords": [
+      "EmptyHoverColor",
+      "empty",
+      "hover",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.EmptyHoverColor"
+  },
+  "userSettings:DarkUiSettings.LabelColor": {
+    "keywords": [
+      "LabelColor",
+      "label",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.LabelColor"
+  },
+  "userSettings:DarkUiSettings.DefaultIconColor": {
+    "keywords": [
+      "DefaultIconColor",
+      "default",
+      "icon",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.DefaultIconColor"
+  },
+  "userSettings:DarkUiSettings.DefaultIconColorForOtherUi": {
+    "keywords": [
+      "DefaultIconColorForOtherUi",
+      "default",
+      "icon",
+      "color",
+      "for",
+      "other",
+      "ui"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.DefaultIconColorForOtherUi"
+  },
+  "userSettings:DarkUiSettings.KeyTipColor": {
+    "keywords": [
+      "KeyTipColor",
+      "key",
+      "tip",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.KeyTipColor"
+  },
+  "userSettings:DarkUiSettings.EnableZoomEffect": {
+    "keywords": [
+      "EnableZoomEffect",
+      "enable",
+      "zoom",
+      "effect"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.EnableZoomEffect"
+  },
+  "userSettings:DarkUiSettings.FontFamily1": {
+    "keywords": [
+      "FontFamily1",
+      "font",
+      "family1"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.FontFamily1"
+  },
+  "userSettings:DarkUiSettings.FontFamily2": {
+    "keywords": [
+      "FontFamily2",
+      "font",
+      "family2"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.FontFamily2"
+  },
+  "userSettings:DarkUiSettings.FontSize": {
+    "keywords": [
+      "FontSize",
+      "font",
+      "size"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.FontSize"
+  },
+  "userSettings:DarkUiSettings.FontWeight": {
+    "keywords": [
+      "FontWeight",
+      "font",
+      "weight"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.FontWeight"
+  },
+  "userSettings:DarkUiSettings.BackgroundImage": {
+    "keywords": [
+      "BackgroundImage",
+      "background",
+      "image"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.BackgroundImage"
+  },
+  "userSettings:DarkUiSettings.BackgroundImageOpacity": {
+    "keywords": [
+      "BackgroundImageOpacity",
+      "background",
+      "image",
+      "opacity"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.BackgroundImageOpacity"
+  },
+  "userSettings:DarkUiSettings.EnableShadow": {
+    "keywords": [
+      "EnableShadow",
+      "enable",
+      "shadow"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.EnableShadow"
+  },
+  "userSettings:DarkUiSettings.EnableResizeFont": {
+    "keywords": [
+      "EnableResizeFont",
+      "enable",
+      "resize",
+      "font"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.EnableResizeFont"
+  },
+  "userSettings:DarkUiSettings.CircleMenu.LabelColor": {
+    "keywords": [
+      "LabelColor",
+      "label",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.CircleMenu.LabelColor"
+  },
+  "userSettings:DarkUiSettings.CircleMenu.ButtonBgColor": {
+    "keywords": [
+      "ButtonBgColor",
+      "button",
+      "bg",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.CircleMenu.ButtonBgColor"
+  },
+  "userSettings:DarkUiSettings.CircleMenu.ButtonHoverColor": {
+    "keywords": [
+      "ButtonHoverColor",
+      "button",
+      "hover",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.CircleMenu.ButtonHoverColor"
+  },
+  "userSettings:DarkUiSettings.CircleMenu.ButtonSpaceColor": {
+    "keywords": [
+      "ButtonSpaceColor",
+      "button",
+      "space",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.CircleMenu.ButtonSpaceColor"
+  },
+  "userSettings:DarkUiSettings.CircleMenu.IndicateLineColor": {
+    "keywords": [
+      "IndicateLineColor",
+      "indicate",
+      "line",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.CircleMenu.IndicateLineColor"
+  },
+  "userSettings:DarkUiSettings.CircleMenu.DefaultIconColor": {
+    "keywords": [
+      "DefaultIconColor",
+      "default",
+      "icon",
+      "color"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.CircleMenu.DefaultIconColor"
+  },
+  "userSettings:DarkUiSettings.CircleMenu.BgOpacity": {
+    "keywords": [
+      "BgOpacity",
+      "bg",
+      "opacity"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.CircleMenu.BgOpacity"
+  },
+  "userSettings:DarkUiSettings.CircleMenu.BgFill": {
+    "keywords": [
+      "BgFill",
+      "bg",
+      "fill"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.CircleMenu.BgFill"
+  },
+  "userSettings:DarkUiSettings.CircleMenu.BgOverlyOpacity": {
+    "keywords": [
+      "BgOverlyOpacity",
+      "bg",
+      "overly",
+      "opacity"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.CircleMenu.BgOverlyOpacity"
+  },
+  "userSettings:DarkUiSettings.CircleMenu.BgOverlyFill": {
+    "keywords": [
+      "BgOverlyFill",
+      "bg",
+      "overly",
+      "fill"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.CircleMenu.BgOverlyFill"
+  },
+  "userSettings:DarkUiSettings.CircleMenu.ShowShadow": {
+    "keywords": [
+      "ShowShadow",
+      "show",
+      "shadow"
+    ],
+    "snippet": "Quicker setting DarkUiSettings.CircleMenu.ShowShadow"
+  },
+  "userSettings:EnablePinFunc": {
+    "keywords": [
+      "EnablePinFunc",
+      "enable",
+      "pin",
+      "func"
+    ],
+    "snippet": "Quicker setting EnablePinFunc"
+  },
+  "userSettings:ShowCopyPasteButton": {
+    "keywords": [
+      "ShowCopyPasteButton",
+      "show",
+      "copy",
+      "paste",
+      "button"
+    ],
+    "snippet": "Quicker setting ShowCopyPasteButton"
+  },
+  "userSettings:ShowLockProfileButton": {
+    "keywords": [
+      "ShowLockProfileButton",
+      "show",
+      "lock",
+      "profile",
+      "button"
+    ],
+    "snippet": "Quicker setting ShowLockProfileButton"
+  },
+  "userSettings:ShowMenuWhenLeftClickEmptyButton": {
+    "keywords": [
+      "ShowMenuWhenLeftClickEmptyButton",
+      "show",
+      "menu",
+      "when",
+      "left",
+      "click",
+      "empty",
+      "button"
+    ],
+    "snippet": "Quicker setting ShowMenuWhenLeftClickEmptyButton"
+  },
+  "userSettings:HideContextProcessIcon": {
+    "keywords": [
+      "HideContextProcessIcon",
+      "hide",
+      "context",
+      "process",
+      "icon"
+    ],
+    "snippet": "Quicker setting HideContextProcessIcon"
+  },
+  "userSettings:HidePanelToolTip": {
+    "keywords": [
+      "HidePanelToolTip",
+      "hide",
+      "panel",
+      "tool",
+      "tip"
+    ],
+    "snippet": "Quicker setting HidePanelToolTip"
+  },
+  "userSettings:EnableTextCommand": {
+    "keywords": [
+      "文本命令",
+      "text command",
+      "命令词",
+      "快捷命令",
+      "EnableTextCommand",
+      "enable",
+      "text",
+      "command"
+    ],
+    "snippet": "Quicker setting EnableTextCommand",
+    "title": "启用文本命令",
+    "pageId": "TextCommandSettingPage"
+  },
+  "userSettings:TextCommandTriggerAfterDelimiter": {
+    "keywords": [
+      "TextCommandTriggerAfterDelimiter",
+      "text",
+      "command",
+      "trigger",
+      "after",
+      "delimiter"
+    ],
+    "snippet": "Quicker setting TextCommandTriggerAfterDelimiter"
+  },
+  "userSettings:TextCommandDelimiterChars": {
+    "keywords": [
+      "TextCommandDelimiterChars",
+      "text",
+      "command",
+      "delimiter",
+      "chars"
+    ],
+    "snippet": "Quicker setting TextCommandDelimiterChars"
+  },
+  "userSettings:TextCommandTriggerKey": {
+    "keywords": [
+      "TextCommandTriggerKey",
+      "text",
+      "command",
+      "trigger",
+      "key"
+    ],
+    "snippet": "Quicker setting TextCommandTriggerKey"
+  },
+  "userSettings:TextCommandAutoDisableIme": {
+    "keywords": [
+      "TextCommandAutoDisableIme",
+      "text",
+      "command",
+      "auto",
+      "disable",
+      "ime"
+    ],
+    "snippet": "Quicker setting TextCommandAutoDisableIme"
+  },
+  "userSettings:TextCommandBlackList": {
+    "keywords": [
+      "TextCommandBlackList",
+      "text",
+      "command",
+      "black",
+      "list"
+    ],
+    "snippet": "Quicker setting TextCommandBlackList"
+  },
+  "userSettings:KeyTriggers": {
+    "keywords": [
+      "KeyTriggers",
+      "key",
+      "triggers"
+    ],
+    "snippet": "Quicker setting KeyTriggers"
+  },
+  "userSettings:HotKeysData": {
+    "keywords": [
+      "HotKeysData",
+      "hot",
+      "keys",
+      "data"
+    ],
+    "snippet": "Quicker setting HotKeysData"
+  },
+  "userSettings:OpenPopupWithCircle": {
+    "keywords": [
+      "OpenPopupWithCircle",
+      "open",
+      "popup",
+      "with",
+      "circle"
+    ],
+    "snippet": "Quicker setting OpenPopupWithCircle"
+  },
+  "userSettings:OpenPopupWithZ": {
+    "keywords": [
+      "OpenPopupWithZ",
+      "open",
+      "popup",
+      "with",
+      "z"
+    ],
+    "snippet": "Quicker setting OpenPopupWithZ"
+  },
+  "userSettings:AutoFreeMemory": {
+    "keywords": [
+      "AutoFreeMemory",
+      "auto",
+      "free",
+      "memory"
+    ],
+    "snippet": "Quicker setting AutoFreeMemory"
+  },
+  "userSettings:AutoRunTasks": {
+    "keywords": [
+      "AutoRunTasks",
+      "auto",
+      "run",
+      "tasks"
+    ],
+    "snippet": "Quicker setting AutoRunTasks"
+  },
+  "userSettings:AutoRunTaskList": {
+    "keywords": [
+      "AutoRunTaskList",
+      "auto",
+      "run",
+      "task",
+      "list"
+    ],
+    "snippet": "Quicker setting AutoRunTaskList"
+  },
+  "userSettings:TriggerTasks": {
+    "keywords": [
+      "TriggerTasks",
+      "trigger",
+      "tasks"
+    ],
+    "snippet": "Quicker setting TriggerTasks"
+  },
+  "userSettings:EnableKeyTriggerWhenPopupByMouse": {
+    "keywords": [
+      "EnableKeyTriggerWhenPopupByMouse",
+      "enable",
+      "key",
+      "trigger",
+      "when",
+      "popup",
+      "by",
+      "mouse"
+    ],
+    "snippet": "Quicker setting EnableKeyTriggerWhenPopupByMouse"
+  },
+  "userSettings:EnableTextFloatingPanel": {
+    "keywords": [
+      "EnableTextFloatingPanel",
+      "enable",
+      "text",
+      "floating",
+      "panel"
+    ],
+    "snippet": "Quicker setting EnableTextFloatingPanel"
+  },
+  "userSettings:EnableCyclePaging": {
+    "keywords": [
+      "EnableCyclePaging",
+      "enable",
+      "cycle",
+      "paging"
+    ],
+    "snippet": "Quicker setting EnableCyclePaging"
+  },
+  "userSettings:CircleMenuTrigger": {
+    "keywords": [
+      "CircleMenuTrigger",
+      "circle",
+      "menu",
+      "trigger"
+    ],
+    "snippet": "Quicker setting CircleMenuTrigger"
+  },
+  "userSettings:GestureTrigger": {
+    "keywords": [
+      "GestureTrigger",
+      "gesture",
+      "trigger"
+    ],
+    "snippet": "Quicker setting GestureTrigger"
+  },
+  "userSettings:GestureHideTrack": {
+    "keywords": [
+      "GestureHideTrack",
+      "gesture",
+      "hide",
+      "track"
+    ],
+    "snippet": "Quicker setting GestureHideTrack"
+  },
+  "userSettings:GestureMinScore": {
+    "keywords": [
+      "GestureMinScore",
+      "gesture",
+      "min",
+      "score"
+    ],
+    "snippet": "Quicker setting GestureMinScore"
+  },
+  "userSettings:ActivateGestureStartPositionWindow": {
+    "keywords": [
+      "ActivateGestureStartPositionWindow",
+      "activate",
+      "gesture",
+      "start",
+      "position",
+      "window"
+    ],
+    "snippet": "Quicker setting ActivateGestureStartPositionWindow"
+  },
+  "userSettings:GestureStrokeThickness": {
+    "keywords": [
+      "GestureStrokeThickness",
+      "gesture",
+      "stroke",
+      "thickness"
+    ],
+    "snippet": "Quicker setting GestureStrokeThickness"
+  },
+  "userSettings:GestureEnableHideEffect": {
+    "keywords": [
+      "GestureEnableHideEffect",
+      "gesture",
+      "enable",
+      "hide",
+      "effect"
+    ],
+    "snippet": "Quicker setting GestureEnableHideEffect"
+  },
+  "userSettings:GestureShowActionName": {
+    "keywords": [
+      "GestureShowActionName",
+      "gesture",
+      "show",
+      "action",
+      "name"
+    ],
+    "snippet": "Quicker setting GestureShowActionName"
+  },
+  "userSettings:GestureShowActionNameAtFixedPosition": {
+    "keywords": [
+      "GestureShowActionNameAtFixedPosition",
+      "gesture",
+      "show",
+      "action",
+      "name",
+      "at",
+      "fixed",
+      "position"
+    ],
+    "snippet": "Quicker setting GestureShowActionNameAtFixedPosition"
+  },
+  "userSettings:GestureEnableMouseEffect": {
+    "keywords": [
+      "GestureEnableMouseEffect",
+      "gesture",
+      "enable",
+      "mouse",
+      "effect"
+    ],
+    "snippet": "Quicker setting GestureEnableMouseEffect"
+  },
+  "userSettings:GestureHintListDelayMs": {
+    "keywords": [
+      "GestureHintListDelayMs",
+      "gesture",
+      "hint",
+      "list",
+      "delay",
+      "ms"
+    ],
+    "snippet": "Quicker setting GestureHintListDelayMs"
+  },
+  "userSettings:GestureEnableTriggerByKey": {
+    "keywords": [
+      "GestureEnableTriggerByKey",
+      "gesture",
+      "enable",
+      "trigger",
+      "by",
+      "key"
+    ],
+    "snippet": "Quicker setting GestureEnableTriggerByKey"
+  },
+  "userSettings:GesturePlaybackUnknownGesture": {
+    "keywords": [
+      "GesturePlaybackUnknownGesture",
+      "gesture",
+      "playback",
+      "unknown"
+    ],
+    "snippet": "Quicker setting GesturePlaybackUnknownGesture"
+  },
+  "userSettings:GestureRepeatKey": {
+    "keywords": [
+      "GestureRepeatKey",
+      "gesture",
+      "repeat",
+      "key"
+    ],
+    "snippet": "Quicker setting GestureRepeatKey"
+  },
+  "userSettings:CircleMenuSize": {
+    "keywords": [
+      "CircleMenuSize",
+      "circle",
+      "menu",
+      "size"
+    ],
+    "snippet": "Quicker setting CircleMenuSize"
+  },
+  "userSettings:CircleMenuFontSize": {
+    "keywords": [
+      "CircleMenuFontSize",
+      "circle",
+      "menu",
+      "font",
+      "size"
+    ],
+    "snippet": "Quicker setting CircleMenuFontSize"
+  },
+  "userSettings:CirclemMenuCircle2ActionCount": {
+    "keywords": [
+      "CirclemMenuCircle2ActionCount",
+      "circlem",
+      "menu",
+      "circle2action",
+      "count"
+    ],
+    "snippet": "Quicker setting CirclemMenuCircle2ActionCount"
+  },
+  "userSettings:CircleMenuHideLabelIfHaveIcon": {
+    "keywords": [
+      "CircleMenuHideLabelIfHaveIcon",
+      "circle",
+      "menu",
+      "hide",
+      "label",
+      "if",
+      "have",
+      "icon"
+    ],
+    "snippet": "Quicker setting CircleMenuHideLabelIfHaveIcon"
+  },
+  "userSettings:CircleMenuShowLabelInCenterWhenHideLabel": {
+    "keywords": [
+      "CircleMenuShowLabelInCenterWhenHideLabel",
+      "circle",
+      "menu",
+      "show",
+      "label",
+      "in",
+      "center",
+      "when",
+      "hide"
+    ],
+    "snippet": "Quicker setting CircleMenuShowLabelInCenterWhenHideLabel"
+  },
+  "userSettings:CircleMenuLimitInScreen": {
+    "keywords": [
+      "CircleMenuLimitInScreen",
+      "circle",
+      "menu",
+      "limit",
+      "in",
+      "screen"
+    ],
+    "snippet": "Quicker setting CircleMenuLimitInScreen"
+  },
+  "userSettings:CircleMenuAutoMoveCursor": {
+    "keywords": [
+      "CircleMenuAutoMoveCursor",
+      "circle",
+      "menu",
+      "auto",
+      "move",
+      "cursor"
+    ],
+    "snippet": "Quicker setting CircleMenuAutoMoveCursor"
+  },
+  "userSettings:CircleMenuShowExternalWhenPopup": {
+    "keywords": [
+      "CircleMenuShowExternalWhenPopup",
+      "circle",
+      "menu",
+      "show",
+      "external",
+      "when",
+      "popup"
+    ],
+    "snippet": "Quicker setting CircleMenuShowExternalWhenPopup"
+  },
+  "userSettings:CircleMenuRepeatKey": {
+    "keywords": [
+      "CircleMenuRepeatKey",
+      "circle",
+      "menu",
+      "repeat",
+      "key"
+    ],
+    "snippet": "Quicker setting CircleMenuRepeatKey"
+  },
+  "userSettings:CircleMenuTimeoutMs": {
+    "keywords": [
+      "CircleMenuTimeoutMs",
+      "circle",
+      "menu",
+      "timeout",
+      "ms"
+    ],
+    "snippet": "Quicker setting CircleMenuTimeoutMs"
+  },
+  "userSettings:CtrlInsertProcesses": {
+    "keywords": [
+      "CtrlInsertProcesses",
+      "ctrl",
+      "insert",
+      "processes"
+    ],
+    "snippet": "Quicker setting CtrlInsertProcesses"
+  },
+  "userSettings:ShowActionNewVersionTip": {
+    "keywords": [
+      "ShowActionNewVersionTip",
+      "show",
+      "action",
+      "new",
+      "version",
+      "tip"
+    ],
+    "snippet": "Quicker setting ShowActionNewVersionTip"
+  },
+  "userSettings:ShowNewExeSettingTips": {
+    "keywords": [
+      "ShowNewExeSettingTips",
+      "show",
+      "new",
+      "exe",
+      "setting",
+      "tips"
+    ],
+    "snippet": "Quicker setting ShowNewExeSettingTips"
+  },
+  "userSettings:EnableHookDetector": {
+    "keywords": [
+      "EnableHookDetector",
+      "enable",
+      "hook",
+      "detector"
+    ],
+    "snippet": "Quicker setting EnableHookDetector"
+  },
+  "userSettings:RestoreOriginEventIfMouseDownTimeout": {
+    "keywords": [
+      "RestoreOriginEventIfMouseDownTimeout",
+      "restore",
+      "origin",
+      "event",
+      "if",
+      "mouse",
+      "down",
+      "timeout"
+    ],
+    "snippet": "Quicker setting RestoreOriginEventIfMouseDownTimeout"
+  },
+  "userSettings:TrayIconType": {
+    "keywords": [
+      "TrayIconType",
+      "tray",
+      "icon",
+      "type"
+    ],
+    "snippet": "Quicker setting TrayIconType"
+  },
+  "userSettings:QuickRunItems": {
+    "keywords": [
+      "QuickRunItems",
+      "quick",
+      "run",
+      "items"
+    ],
+    "snippet": "Quicker setting QuickRunItems"
+  },
+  "userSettings:LoadFloatButtonState": {
+    "keywords": [
+      "LoadFloatButtonState",
+      "load",
+      "float",
+      "button",
+      "state"
+    ],
+    "snippet": "Quicker setting LoadFloatButtonState"
+  },
+  "userSettings:FloatButtonBindProcessByDefault": {
+    "keywords": [
+      "FloatButtonBindProcessByDefault",
+      "float",
+      "button",
+      "bind",
+      "process",
+      "by",
+      "default"
+    ],
+    "snippet": "Quicker setting FloatButtonBindProcessByDefault"
+  },
+  "userSettings:FloatPanelPinnedByDefault": {
+    "keywords": [
+      "FloatPanelPinnedByDefault",
+      "float",
+      "panel",
+      "pinned",
+      "by",
+      "default"
+    ],
+    "snippet": "Quicker setting FloatPanelPinnedByDefault"
+  },
+  "userSettings:FloatUseLeftButtonOnPanel": {
+    "keywords": [
+      "FloatUseLeftButtonOnPanel",
+      "float",
+      "use",
+      "left",
+      "button",
+      "on",
+      "panel"
+    ],
+    "snippet": "Quicker setting FloatUseLeftButtonOnPanel"
+  },
+  "userSettings:DisableMiddleClickCloseFloat": {
+    "keywords": [
+      "DisableMiddleClickCloseFloat",
+      "disable",
+      "middle",
+      "click",
+      "close",
+      "float"
+    ],
+    "snippet": "Quicker setting DisableMiddleClickCloseFloat"
+  },
+  "userSettings:FixFloatButtonSize": {
+    "keywords": [
+      "FixFloatButtonSize",
+      "fix",
+      "float",
+      "button",
+      "size"
+    ],
+    "snippet": "Quicker setting FixFloatButtonSize"
+  },
+  "userSettings:PowerKeys_DelayBeforeCtrlKey": {
+    "keywords": [
+      "PowerKeys_DelayBeforeCtrlKey",
+      "power",
+      "keys",
+      "delay",
+      "before",
+      "ctrl",
+      "key"
+    ],
+    "snippet": "Quicker setting PowerKeys_DelayBeforeCtrlKey"
+  },
+  "userSettings:PowerKeys_ContinuousInputCheckTime": {
+    "keywords": [
+      "PowerKeys_ContinuousInputCheckTime",
+      "power",
+      "keys",
+      "continuous",
+      "input",
+      "check",
+      "time"
+    ],
+    "snippet": "Quicker setting PowerKeys_ContinuousInputCheckTime"
+  },
+  "userSettings:PowerKeys_HintWindowDelay": {
+    "keywords": [
+      "PowerKeys_HintWindowDelay",
+      "power",
+      "keys",
+      "hint",
+      "window",
+      "delay"
+    ],
+    "snippet": "Quicker setting PowerKeys_HintWindowDelay"
+  },
+  "userSettings:PowerKeys_CancelLongPressKeyDelayMs": {
+    "keywords": [
+      "PowerKeys_CancelLongPressKeyDelayMs",
+      "power",
+      "keys",
+      "cancel",
+      "long",
+      "press",
+      "key",
+      "delay",
+      "ms"
+    ],
+    "snippet": "Quicker setting PowerKeys_CancelLongPressKeyDelayMs"
+  },
+  "userSettings:PowerKeys_IgnoreAllInjectedKeys": {
+    "keywords": [
+      "PowerKeys_IgnoreAllInjectedKeys",
+      "power",
+      "keys",
+      "ignore",
+      "all",
+      "injected"
+    ],
+    "snippet": "Quicker setting PowerKeys_IgnoreAllInjectedKeys"
+  },
+  "userSettings:PowerKeys_IgnoreUnknownKey": {
+    "keywords": [
+      "PowerKeys_IgnoreUnknownKey",
+      "power",
+      "keys",
+      "ignore",
+      "unknown",
+      "key"
+    ],
+    "snippet": "Quicker setting PowerKeys_IgnoreUnknownKey"
+  },
+  "userSettings:PowerKeys_AllowLeftSysKeys": {
+    "keywords": [
+      "PowerKeys_AllowLeftSysKeys",
+      "power",
+      "keys",
+      "allow",
+      "left",
+      "sys"
+    ],
+    "snippet": "Quicker setting PowerKeys_AllowLeftSysKeys"
+  },
+  "userSettings:PowerKeys_EnableBlackList": {
+    "keywords": [
+      "PowerKeys_EnableBlackList",
+      "power",
+      "keys",
+      "enable",
+      "black",
+      "list"
+    ],
+    "snippet": "Quicker setting PowerKeys_EnableBlackList"
+  },
+  "userSettings:PowerKeys_AutoResetKeyboardState": {
+    "keywords": [
+      "PowerKeys_AutoResetKeyboardState",
+      "power",
+      "keys",
+      "auto",
+      "reset",
+      "keyboard",
+      "state"
+    ],
+    "snippet": "Quicker setting PowerKeys_AutoResetKeyboardState"
+  },
+  "userSettings:DefaultBrowser": {
+    "keywords": [
+      "默认浏览器",
+      "browser",
+      "浏览器",
+      "DefaultBrowser",
+      "default"
+    ],
+    "snippet": "Quicker setting DefaultBrowser",
+    "title": "默认浏览器",
+    "pageId": "AppSettings"
+  },
+  "userSettings:EnableBrowserContextMenu": {
+    "keywords": [
+      "EnableBrowserContextMenu",
+      "enable",
+      "browser",
+      "context",
+      "menu"
+    ],
+    "snippet": "Quicker setting EnableBrowserContextMenu"
+  },
+  "userSettings:EnableWebPageActions": {
+    "keywords": [
+      "EnableWebPageActions",
+      "enable",
+      "web",
+      "page",
+      "actions"
+    ],
+    "snippet": "Quicker setting EnableWebPageActions"
+  },
+  "userSettings:EnableWebPageActionsForActionPage": {
+    "keywords": [
+      "EnableWebPageActionsForActionPage",
+      "enable",
+      "web",
+      "page",
+      "actions",
+      "for",
+      "action"
+    ],
+    "snippet": "Quicker setting EnableWebPageActionsForActionPage"
+  },
+  "userSettings:TryUseUIAutomationGetSelectedText": {
+    "keywords": [
+      "TryUseUIAutomationGetSelectedText",
+      "try",
+      "use",
+      "uiautomation",
+      "get",
+      "selected",
+      "text"
+    ],
+    "snippet": "Quicker setting TryUseUIAutomationGetSelectedText"
+  },
+  "userSettings:EnableLeftButtonPlus": {
+    "keywords": [
+      "左键增强",
+      "左键+",
+      "left button plus",
+      "鼠标左键",
+      "EnableLeftButtonPlus",
+      "enable",
+      "left",
+      "button",
+      "plus"
+    ],
+    "snippet": "Quicker setting EnableLeftButtonPlus",
+    "title": "启用左键增强",
+    "pageId": "LeftButtonPlusSettingPage"
+  },
+  "userSettings:LeftButtonLongPressExpireTime": {
+    "keywords": [
+      "LeftButtonLongPressExpireTime",
+      "left",
+      "button",
+      "long",
+      "press",
+      "expire",
+      "time"
+    ],
+    "snippet": "Quicker setting LeftButtonLongPressExpireTime"
+  },
+  "userSettings:LeftButtonPlusBlackList": {
+    "keywords": [
+      "LeftButtonPlusBlackList",
+      "left",
+      "button",
+      "plus",
+      "black",
+      "list"
+    ],
+    "snippet": "Quicker setting LeftButtonPlusBlackList"
+  },
+  "userSettings:LeftButtonPlusActions": {
+    "keywords": [
+      "LeftButtonPlusActions",
+      "left",
+      "button",
+      "plus",
+      "actions"
+    ],
+    "snippet": "Quicker setting LeftButtonPlusActions"
+  },
+  "userSettings:X1ButtonPlusActions": {
+    "keywords": [
+      "X1ButtonPlusActions",
+      "x1button",
+      "plus",
+      "actions"
+    ],
+    "snippet": "Quicker setting X1ButtonPlusActions"
+  },
+  "userSettings:X2ButtonPlusActions": {
+    "keywords": [
+      "X2ButtonPlusActions",
+      "x2button",
+      "plus",
+      "actions"
+    ],
+    "snippet": "Quicker setting X2ButtonPlusActions"
+  },
+  "userSettings:RightButtonPlusActions": {
+    "keywords": [
+      "RightButtonPlusActions",
+      "right",
+      "button",
+      "plus",
+      "actions"
+    ],
+    "snippet": "Quicker setting RightButtonPlusActions"
+  },
+  "userSettings:EnableAutoBackupActions": {
+    "keywords": [
+      "自动备份",
+      "备份动作",
+      "action backup",
+      "EnableAutoBackupActions",
+      "enable",
+      "auto",
+      "backup",
+      "actions"
+    ],
+    "snippet": "Quicker setting EnableAutoBackupActions",
+    "title": "自动备份动作",
+    "pageId": "ActionRecycleBinSettingPage"
+  },
+  "userSettings:EnableAutoBackupActionsWhenEditing": {
+    "keywords": [
+      "EnableAutoBackupActionsWhenEditing",
+      "enable",
+      "auto",
+      "backup",
+      "actions",
+      "when",
+      "editing"
+    ],
+    "snippet": "Quicker setting EnableAutoBackupActionsWhenEditing"
+  },
+  "userSettings:EnableActionStateBackup": {
+    "keywords": [
+      "EnableActionStateBackup",
+      "enable",
+      "action",
+      "state",
+      "backup"
+    ],
+    "snippet": "Quicker setting EnableActionStateBackup"
+  },
+  "userSettings:ScreenShotSettings.IsEnabled": {
+    "keywords": [
+      "IsEnabled",
+      "is",
+      "enabled"
+    ],
+    "snippet": "Quicker setting ScreenShotSettings.IsEnabled"
+  },
+  "userSettings:ScreenShotSettings.Trigger": {
+    "keywords": [
+      "Trigger",
+      "trigger"
+    ],
+    "snippet": "Quicker setting ScreenShotSettings.Trigger"
+  },
+  "userSettings:ScreenShotSettings.AdornKey": {
+    "keywords": [
+      "AdornKey",
+      "adorn",
+      "key"
+    ],
+    "snippet": "Quicker setting ScreenShotSettings.AdornKey"
+  },
+  "userSettings:ScreenShotSettings.PinImage": {
+    "keywords": [
+      "PinImage",
+      "pin",
+      "image"
+    ],
+    "snippet": "Quicker setting ScreenShotSettings.PinImage"
+  },
+  "userSettings:ScreenShotSettings.AutoCopy": {
+    "keywords": [
+      "AutoCopy",
+      "auto",
+      "copy"
+    ],
+    "snippet": "Quicker setting ScreenShotSettings.AutoCopy"
+  },
+  "userSettings:ScreenShotSettings.AutoSave": {
+    "keywords": [
+      "AutoSave",
+      "auto",
+      "save"
+    ],
+    "snippet": "Quicker setting ScreenShotSettings.AutoSave"
+  },
+  "userSettings:ScreenShotSettings.AutoRunAction": {
+    "keywords": [
+      "AutoRunAction",
+      "auto",
+      "run",
+      "action"
+    ],
+    "snippet": "Quicker setting ScreenShotSettings.AutoRunAction"
+  },
+  "userSettings:ScreenShotSettings.ImageSearchUrls": {
+    "keywords": [
+      "ImageSearchUrls",
+      "image",
+      "search",
+      "urls"
+    ],
+    "snippet": "Quicker setting ScreenShotSettings.ImageSearchUrls"
+  },
+  "userSettings:ScreenShotSettings.AutoShowMenu": {
+    "keywords": [
+      "AutoShowMenu",
+      "auto",
+      "show",
+      "menu"
+    ],
+    "snippet": "Quicker setting ScreenShotSettings.AutoShowMenu"
+  },
+  "userSettings:ScreenShotSettings.CloseImageAfterTriggerMenu": {
+    "keywords": [
+      "CloseImageAfterTriggerMenu",
+      "close",
+      "image",
+      "after",
+      "trigger",
+      "menu"
+    ],
+    "snippet": "Quicker setting ScreenShotSettings.CloseImageAfterTriggerMenu"
+  },
+  "userSettings:ContextMenuSettings.EnableControlLongCTrigger": {
+    "keywords": [
+      "EnableControlLongCTrigger",
+      "enable",
+      "control",
+      "long",
+      "ctrigger"
+    ],
+    "snippet": "Quicker setting ContextMenuSettings.EnableControlLongCTrigger"
+  },
+  "userSettings:ContextMenuSettings.TriggerIntervalMs": {
+    "keywords": [
+      "TriggerIntervalMs",
+      "trigger",
+      "interval",
+      "ms"
+    ],
+    "snippet": "Quicker setting ContextMenuSettings.TriggerIntervalMs"
+  },
+  "userSettings:ContextMenuSettings.ImageSearchUrls": {
+    "keywords": [
+      "ImageSearchUrls",
+      "image",
+      "search",
+      "urls"
+    ],
+    "snippet": "Quicker setting ContextMenuSettings.ImageSearchUrls"
+  },
+  "userSettings:ContextMenuSettings.TextSearchUrls": {
+    "keywords": [
+      "TextSearchUrls",
+      "text",
+      "search",
+      "urls"
+    ],
+    "snippet": "Quicker setting ContextMenuSettings.TextSearchUrls"
+  },
+  "userSettings:ContextMenuSettings.FileMoveTargets": {
+    "keywords": [
+      "FileMoveTargets",
+      "file",
+      "move",
+      "targets"
+    ],
+    "snippet": "Quicker setting ContextMenuSettings.FileMoveTargets"
+  },
+  "userSettings:ContextMenuSettings.UseWindowsShellMoveInto": {
+    "keywords": [
+      "UseWindowsShellMoveInto",
+      "use",
+      "windows",
+      "shell",
+      "move",
+      "into"
+    ],
+    "snippet": "Quicker setting ContextMenuSettings.UseWindowsShellMoveInto"
+  },
+  "userSettings:SyncIgnoreNetworkState": {
+    "keywords": [
+      "SyncIgnoreNetworkState",
+      "sync",
+      "ignore",
+      "network",
+      "state"
+    ],
+    "snippet": "Quicker setting SyncIgnoreNetworkState"
+  },
+  "userSettings:SearchSettings.ImeControl": {
+    "keywords": [
+      "ImeControl",
+      "ime",
+      "control"
+    ],
+    "snippet": "Quicker setting SearchSettings.ImeControl"
+  },
+  "userSettings:SearchSettings.HintTriggerKey": {
+    "keywords": [
+      "HintTriggerKey",
+      "hint",
+      "trigger",
+      "key"
+    ],
+    "snippet": "Quicker setting SearchSettings.HintTriggerKey"
+  },
+  "userSettings:SearchSettings.MaxVisibleItemCount": {
+    "keywords": [
+      "MaxVisibleItemCount",
+      "max",
+      "visible",
+      "item",
+      "count"
+    ],
+    "snippet": "Quicker setting SearchSettings.MaxVisibleItemCount"
+  },
+  "userSettings:SearchSettings.EnableCacheWords": {
+    "keywords": [
+      "EnableCacheWords",
+      "enable",
+      "cache",
+      "words"
+    ],
+    "snippet": "Quicker setting SearchSettings.EnableCacheWords"
+  },
+  "userSettings:SearchSettings.SearchSettingTrigger": {
+    "keywords": [
+      "SearchSettingTrigger",
+      "search",
+      "setting",
+      "trigger"
+    ],
+    "snippet": "Quicker setting SearchSettings.SearchSettingTrigger"
+  },
+  "userSettings:SearchSettings.DefaultSearchProcessor": {
+    "keywords": [
+      "DefaultSearchProcessor",
+      "default",
+      "search",
+      "processor"
+    ],
+    "snippet": "Quicker setting SearchSettings.DefaultSearchProcessor"
+  },
+  "userSettings:SearchSettings.AutoFillClipTextSeconds": {
+    "keywords": [
+      "AutoFillClipTextSeconds",
+      "auto",
+      "fill",
+      "clip",
+      "text",
+      "seconds"
+    ],
+    "snippet": "Quicker setting SearchSettings.AutoFillClipTextSeconds"
+  },
+  "userSettings:SearchSettings.AutoFillMaxLength": {
+    "keywords": [
+      "AutoFillMaxLength",
+      "auto",
+      "fill",
+      "max",
+      "length"
+    ],
+    "snippet": "Quicker setting SearchSettings.AutoFillMaxLength"
+  },
+  "userSettings:SearchSettings.PluginSettings": {
+    "keywords": [
+      "PluginSettings",
+      "plugin",
+      "settings"
+    ],
+    "snippet": "Quicker setting SearchSettings.PluginSettings"
+  },
+  "userSettings:SearchSettings.ShowFileThumbnail": {
+    "keywords": [
+      "ShowFileThumbnail",
+      "show",
+      "file",
+      "thumbnail"
+    ],
+    "snippet": "Quicker setting SearchSettings.ShowFileThumbnail"
+  },
+  "userSettings:SearchSettings.LoadPrevSearchText": {
+    "keywords": [
+      "LoadPrevSearchText",
+      "load",
+      "prev",
+      "search",
+      "text"
+    ],
+    "snippet": "Quicker setting SearchSettings.LoadPrevSearchText"
+  },
+  "userSettings:DefaultModifiedKeyDownDelay": {
+    "keywords": [
+      "DefaultModifiedKeyDownDelay",
+      "default",
+      "modified",
+      "key",
+      "down",
+      "delay"
+    ],
+    "snippet": "Quicker setting DefaultModifiedKeyDownDelay"
+  },
+  "userSettings:ToolboxSearchImeState": {
+    "keywords": [
+      "ToolboxSearchImeState",
+      "toolbox",
+      "search",
+      "ime",
+      "state"
+    ],
+    "snippet": "Quicker setting ToolboxSearchImeState"
+  },
+  "userSettings:AfterEditRunningAction": {
+    "keywords": [
+      "AfterEditRunningAction",
+      "after",
+      "edit",
+      "running",
+      "action"
+    ],
+    "snippet": "Quicker setting AfterEditRunningAction"
+  },
+  "userSettings:ActionMenuLayout": {
+    "keywords": [
+      "ActionMenuLayout",
+      "action",
+      "menu",
+      "layout"
+    ],
+    "snippet": "Quicker setting ActionMenuLayout"
+  },
+  "userSettings:EnableTreeTools": {
+    "keywords": [
+      "EnableTreeTools",
+      "enable",
+      "tree",
+      "tools"
+    ],
+    "snippet": "Quicker setting EnableTreeTools"
+  },
+  "userSettings:ShowParamDescAsToolTip": {
+    "keywords": [
+      "ShowParamDescAsToolTip",
+      "show",
+      "param",
+      "desc",
+      "as",
+      "tool",
+      "tip"
+    ],
+    "snippet": "Quicker setting ShowParamDescAsToolTip"
+  },
+  "userSettings:AutoExpandAdvancedParams": {
+    "keywords": [
+      "AutoExpandAdvancedParams",
+      "auto",
+      "expand",
+      "advanced",
+      "params"
+    ],
+    "snippet": "Quicker setting AutoExpandAdvancedParams"
+  },
+  "userSettings:EnableExpressionCompletion": {
+    "keywords": [
+      "EnableExpressionCompletion",
+      "enable",
+      "expression",
+      "completion"
+    ],
+    "snippet": "Quicker setting EnableExpressionCompletion"
+  },
+  "userSettings:EnableExpressionValidation": {
+    "keywords": [
+      "EnableExpressionValidation",
+      "enable",
+      "expression",
+      "validation"
+    ],
+    "snippet": "Quicker setting EnableExpressionValidation"
+  },
+  "userSettings:NewActionDefaultIcon": {
+    "keywords": [
+      "NewActionDefaultIcon",
+      "new",
+      "action",
+      "default",
+      "icon"
+    ],
+    "snippet": "Quicker setting NewActionDefaultIcon"
+  },
+  "userSettings:ImeToEnHotkey": {
+    "keywords": [
+      "输入法",
+      "英文",
+      "IME",
+      "切换英文",
+      "ImeToEnHotkey",
+      "ime",
+      "to",
+      "en",
+      "hotkey"
+    ],
+    "snippet": "Quicker setting ImeToEnHotkey",
+    "title": "切换英文输入法热键"
+  },
+  "userSettings:ImeToZhHotkey": {
+    "keywords": [
+      "输入法",
+      "中文",
+      "IME",
+      "切换中文",
+      "ImeToZhHotkey",
+      "ime",
+      "to",
+      "zh",
+      "hotkey"
+    ],
+    "snippet": "Quicker setting ImeToZhHotkey",
+    "title": "切换中文输入法热键"
+  },
+  "userSettings:PenButton1Action": {
+    "keywords": [
+      "PenButton1Action",
+      "pen",
+      "button1action"
+    ],
+    "snippet": "Quicker setting PenButton1Action"
+  },
+  "userSettings:PenButton2Action": {
+    "keywords": [
+      "PenButton2Action",
+      "pen",
+      "button2action"
+    ],
+    "snippet": "Quicker setting PenButton2Action"
+  },
+  "userSettings:DefaultExplorerSoftware": {
+    "keywords": [
+      "DefaultExplorerSoftware",
+      "default",
+      "explorer",
+      "software"
+    ],
+    "snippet": "Quicker setting DefaultExplorerSoftware"
+  },
+  "userSettings:AlwaysUseClipboardToGetSelectedFiles": {
+    "keywords": [
+      "AlwaysUseClipboardToGetSelectedFiles",
+      "always",
+      "use",
+      "clipboard",
+      "to",
+      "get",
+      "selected",
+      "files"
+    ],
+    "snippet": "Quicker setting AlwaysUseClipboardToGetSelectedFiles"
+  },
+  "userSettings:CustomSelectInExplorerCommand": {
+    "keywords": [
+      "CustomSelectInExplorerCommand",
+      "custom",
+      "select",
+      "in",
+      "explorer",
+      "command"
+    ],
+    "snippet": "Quicker setting CustomSelectInExplorerCommand"
+  },
+  "userSettings:CustomOpenFolderCommand": {
+    "keywords": [
+      "CustomOpenFolderCommand",
+      "custom",
+      "open",
+      "folder",
+      "command"
+    ],
+    "snippet": "Quicker setting CustomOpenFolderCommand"
+  },
+  "userSettings:BasicOcrSettings.AllowUseQBean": {
+    "keywords": [
+      "AllowUseQBean",
+      "allow",
+      "use",
+      "qbean"
+    ],
+    "snippet": "Quicker setting BasicOcrSettings.AllowUseQBean"
+  },
+  "userSettings:BasicOcrSettings.BaiduApiKey": {
+    "keywords": [
+      "BaiduApiKey",
+      "baidu",
+      "api",
+      "key"
+    ],
+    "snippet": "Quicker setting BasicOcrSettings.BaiduApiKey"
+  },
+  "userSettings:BasicOcrSettings.BaiduSecretKey": {
+    "keywords": [
+      "BaiduSecretKey",
+      "baidu",
+      "secret",
+      "key"
+    ],
+    "snippet": "Quicker setting BasicOcrSettings.BaiduSecretKey"
+  },
+  "userSettings:BasicOcrSettings.AlwaysUseOwnKey": {
+    "keywords": [
+      "AlwaysUseOwnKey",
+      "always",
+      "use",
+      "own",
+      "key"
+    ],
+    "snippet": "Quicker setting BasicOcrSettings.AlwaysUseOwnKey"
+  },
+  "userSettings:HotkeyModeAfterPause": {
+    "keywords": [
+      "HotkeyModeAfterPause",
+      "hotkey",
+      "mode",
+      "after",
+      "pause"
+    ],
+    "snippet": "Quicker setting HotkeyModeAfterPause"
+  },
+  "userSettings:WebsocketServerSettings.IsEnabled": {
+    "keywords": [
+      "IsEnabled",
+      "is",
+      "enabled"
+    ],
+    "snippet": "Quicker setting WebsocketServerSettings.IsEnabled"
+  },
+  "userSettings:WebsocketServerSettings.Port": {
+    "keywords": [
+      "Port",
+      "port"
+    ],
+    "snippet": "Quicker setting WebsocketServerSettings.Port"
+  },
+  "userSettings:WebsocketServerSettings.Password": {
+    "keywords": [
+      "Password",
+      "password"
+    ],
+    "snippet": "Quicker setting WebsocketServerSettings.Password"
+  },
+  "userSettings:WebsocketServerSettings.EnableSecure": {
+    "keywords": [
+      "EnableSecure",
+      "enable",
+      "secure"
+    ],
+    "snippet": "Quicker setting WebsocketServerSettings.EnableSecure"
+  },
+  "userSettings:HideAllEmptyWaitKeyNotifyWindow": {
+    "keywords": [
+      "HideAllEmptyWaitKeyNotifyWindow",
+      "hide",
+      "all",
+      "empty",
+      "wait",
+      "key",
+      "notify",
+      "window"
+    ],
+    "snippet": "Quicker setting HideAllEmptyWaitKeyNotifyWindow"
+  },
+  "userSettings:DisableCloseTextWindowByEsc": {
+    "keywords": [
+      "DisableCloseTextWindowByEsc",
+      "disable",
+      "close",
+      "text",
+      "window",
+      "by",
+      "esc"
+    ],
+    "snippet": "Quicker setting DisableCloseTextWindowByEsc"
+  },
+  "userSettings:MatchSpaceAsWildcard": {
+    "keywords": [
+      "MatchSpaceAsWildcard",
+      "match",
+      "space",
+      "as",
+      "wildcard"
+    ],
+    "snippet": "Quicker setting MatchSpaceAsWildcard"
+  },
+  "userSettings:MatchUpperCaseEqual": {
+    "keywords": [
+      "MatchUpperCaseEqual",
+      "match",
+      "upper",
+      "case",
+      "equal"
+    ],
+    "snippet": "Quicker setting MatchUpperCaseEqual"
+  },
+  "userSettings:CustomPanelWindowDbClickAction": {
+    "keywords": [
+      "CustomPanelWindowDbClickAction",
+      "custom",
+      "panel",
+      "window",
+      "db",
+      "click",
+      "action"
+    ],
+    "snippet": "Quicker setting CustomPanelWindowDbClickAction"
+  },
+  "userSettings:GlobalSettings": {
+    "keywords": [
+      "GlobalSettings",
+      "global",
+      "settings"
+    ],
+    "snippet": "Quicker setting GlobalSettings"
+  },
+  "userPreference:SettingsHotKeyGroupBy": {
+    "keywords": [
+      "设置分组",
+      "快捷键分组",
+      "settings hotkey",
+      "SettingsHotKeyGroupBy",
+      "settings",
+      "hot",
+      "key",
+      "group",
+      "by"
+    ],
+    "snippet": "Quicker setting SettingsHotKeyGroupBy",
+    "title": "设置页快捷键分组"
+  },
+  "userPreference:LastEditingPowerKey": {
+    "keywords": [
+      "LastEditingPowerKey",
+      "last",
+      "editing",
+      "power",
+      "key"
+    ],
+    "snippet": "Quicker setting LastEditingPowerKey"
+  },
+  "userPreference:SkipConfirmationWhenBatchUpdateActions": {
+    "keywords": [
+      "批量更新",
+      "跳过确认",
+      "确认对话框",
+      "更新动作",
+      "SkipConfirmationWhenBatchUpdateActions",
+      "skip",
+      "confirmation",
+      "when",
+      "batch",
+      "update",
+      "actions"
+    ],
+    "snippet": "Quicker setting SkipConfirmationWhenBatchUpdateActions",
+    "title": "批量更新动作时跳过确认"
+  },
+  "exeSettings:Exe": {
+    "keywords": [
+      "Exe",
+      "exe"
+    ],
+    "snippet": "Quicker setting Exe"
+  },
+  "exeSettings:Name": {
+    "keywords": [
+      "Name",
+      "name"
+    ],
+    "snippet": "Quicker setting Name"
+  },
+  "exeSettings:Path": {
+    "keywords": [
+      "Path",
+      "path"
+    ],
+    "snippet": "Quicker setting Path"
+  },
+  "exeSettings:UrlPattern": {
+    "keywords": [
+      "UrlPattern",
+      "url",
+      "pattern"
+    ],
+    "snippet": "Quicker setting UrlPattern"
+  },
+  "exeSettings:IconUrl": {
+    "keywords": [
+      "IconUrl",
+      "icon",
+      "url"
+    ],
+    "snippet": "Quicker setting IconUrl"
+  },
+  "exeSettings:ProfileList": {
+    "keywords": [
+      "ProfileList",
+      "profile",
+      "list"
+    ],
+    "snippet": "Quicker setting ProfileList"
+  },
+  "exeSettings:DisableMiddleButton": {
+    "keywords": [
+      "DisableMiddleButton",
+      "disable",
+      "middle",
+      "button"
+    ],
+    "snippet": "Quicker setting DisableMiddleButton"
+  },
+  "exeSettings:AttachAllCommonProfiles": {
+    "keywords": [
+      "AttachAllCommonProfiles",
+      "attach",
+      "all",
+      "common",
+      "profiles"
+    ],
+    "snippet": "Quicker setting AttachAllCommonProfiles"
+  },
+  "exeSettings:AttachProfiles": {
+    "keywords": [
+      "AttachProfiles",
+      "attach",
+      "profiles"
+    ],
+    "snippet": "Quicker setting AttachProfiles"
+  },
+  "exeSettings:ReturnToFirstPage": {
+    "keywords": [
+      "ReturnToFirstPage",
+      "return",
+      "to",
+      "first",
+      "page"
+    ],
+    "snippet": "Quicker setting ReturnToFirstPage"
+  },
+  "exeSettings:CircleMenuActions": {
+    "keywords": [
+      "CircleMenuActions",
+      "circle",
+      "menu",
+      "actions"
+    ],
+    "snippet": "Quicker setting CircleMenuActions"
+  },
+  "exeSettings:AliasExeList": {
+    "keywords": [
+      "AliasExeList",
+      "alias",
+      "exe",
+      "list"
+    ],
+    "snippet": "Quicker setting AliasExeList"
+  },
+  "exeSettings:DisableCircleMenu": {
+    "keywords": [
+      "DisableCircleMenu",
+      "disable",
+      "circle",
+      "menu"
+    ],
+    "snippet": "Quicker setting DisableCircleMenu"
+  },
+  "exeSettings:DisableGesture": {
+    "keywords": [
+      "DisableGesture",
+      "disable",
+      "gesture"
+    ],
+    "snippet": "Quicker setting DisableGesture"
+  },
+  "exeSettings:GestureActions": {
+    "keywords": [
+      "GestureActions",
+      "gesture",
+      "actions"
+    ],
+    "snippet": "Quicker setting GestureActions"
+  },
+  "exeSettings:LeftButtonPlusActions": {
+    "keywords": [
+      "LeftButtonPlusActions",
+      "left",
+      "button",
+      "plus",
+      "actions"
+    ],
+    "snippet": "Quicker setting LeftButtonPlusActions"
+  },
+  "exeSettings:KeyActionItems": {
+    "keywords": [
+      "KeyActionItems",
+      "key",
+      "action",
+      "items"
+    ],
+    "snippet": "Quicker setting KeyActionItems"
+  },
+  "exeSettings:HotkeyWatcherItems": {
+    "keywords": [
+      "HotkeyWatcherItems",
+      "hotkey",
+      "watcher",
+      "items"
+    ],
+    "snippet": "Quicker setting HotkeyWatcherItems"
+  },
+  "exeSettings:MouseActions": {
+    "keywords": [
+      "MouseActions",
+      "mouse",
+      "actions"
+    ],
+    "snippet": "Quicker setting MouseActions"
+  },
+  "exeSettings:DisableAdvancedMouseTriggers": {
+    "keywords": [
+      "DisableAdvancedMouseTriggers",
+      "disable",
+      "advanced",
+      "mouse",
+      "triggers"
+    ],
+    "snippet": "Quicker setting DisableAdvancedMouseTriggers"
+  },
+  "userSettings:EnableGesture": {
+    "keywords": [
+      "手势",
+      "mouse gesture",
+      "划动",
+      "手势触发",
+      "EnableGesture",
+      "enable",
+      "gesture"
+    ],
+    "snippet": "Quicker setting EnableGesture",
+    "title": "启用手势",
+    "pageId": "GesturesSettingPage"
+  },
+  "userSettings:OpenPopupWithMiddleClick": {
+    "keywords": [
+      "中键",
+      "滚轮键",
+      "middle click",
+      "弹出面板",
+      "中键弹出",
+      "OpenPopupWithMiddleClick",
+      "open",
+      "popup",
+      "with",
+      "middle",
+      "click"
+    ],
+    "snippet": "鼠标中键点击时弹出 Quicker 面板",
+    "title": "中键弹出面板"
+  },
+  "userSettings:OpenPopupWithRightPressMove": {
+    "keywords": [
+      "右键",
+      "right click",
+      "右键弹出",
+      "按住右键",
+      "OpenPopupWithRightPressMove",
+      "open",
+      "popup",
+      "with",
+      "right",
+      "press",
+      "move"
+    ],
+    "snippet": "Quicker setting OpenPopupWithRightPressMove",
+    "title": "右键移动弹出面板"
+  },
+  "page:BasicInfo": {
+    "title": "常规",
+    "keywords": [
+      "basic",
+      "info"
+    ],
+    "snippet": "Quicker settings page: BasicInfo",
+    "pageId": "BasicInfo",
+    "kind": "page"
+  },
+  "page:PanelPopupSettings": {
+    "title": "弹出面板",
+    "keywords": [
+      "panel",
+      "popup",
+      "settings"
+    ],
+    "snippet": "Quicker settings page: PanelPopupSettings",
+    "pageId": "PanelPopupSettings",
+    "kind": "page"
+  },
+  "page:PanelTriggerKeySettings": {
+    "title": "动作触发按键",
+    "keywords": [
+      "panel",
+      "trigger",
+      "key",
+      "settings"
+    ],
+    "snippet": "Quicker settings page: PanelTriggerKeySettings",
+    "pageId": "PanelTriggerKeySettings",
+    "kind": "page"
+  },
+  "page:FunctionHotkeys": {
+    "title": "功能快捷键",
+    "keywords": [
+      "function",
+      "hotkeys"
+    ],
+    "snippet": "Quicker settings page: FunctionHotkeys",
+    "pageId": "FunctionHotkeys",
+    "kind": "page"
+  },
+  "page:BlackListSettings": {
+    "title": "黑名单",
+    "keywords": [
+      "黑名单",
+      "blacklist",
+      "排除进程",
+      "black",
+      "list",
+      "settings"
+    ],
+    "snippet": "Quicker settings page: BlackListSettings",
+    "pageId": "BlackListSettings",
+    "kind": "page"
+  },
+  "page:UISettingsPage": {
+    "title": "界面设置",
+    "keywords": [
+      "界面",
+      "UI",
+      "主题",
+      "外观",
+      "深色模式",
+      "uisettings",
+      "page"
+    ],
+    "snippet": "Quicker settings page: UISettingsPage",
+    "pageId": "UISettingsPage",
+    "kind": "page"
+  },
+  "page:BlockOptions": {
+    "title": "组合动作模块选项",
+    "keywords": [
+      "block",
+      "options"
+    ],
+    "snippet": "Quicker settings page: BlockOptions",
+    "pageId": "BlockOptions",
+    "kind": "page"
+  },
+  "page:ActionDesignerSettingsPage": {
+    "title": "动作设计相关选项",
+    "keywords": [
+      "action",
+      "designer",
+      "settings",
+      "page"
+    ],
+    "snippet": "Quicker settings page: ActionDesignerSettingsPage",
+    "pageId": "ActionDesignerSettingsPage",
+    "kind": "page"
+  },
+  "page:HelperFunctionsSettingPage": {
+    "title": "常用辅助功能",
+    "keywords": [
+      "helper",
+      "functions",
+      "setting",
+      "page"
+    ],
+    "snippet": "Quicker settings page: HelperFunctionsSettingPage",
+    "pageId": "HelperFunctionsSettingPage",
+    "kind": "page"
+  },
+  "page:AboutSettingPage": {
+    "title": "关于Quicker",
+    "keywords": [
+      "about",
+      "setting",
+      "page"
+    ],
+    "snippet": "Quicker settings page: AboutSettingPage",
+    "pageId": "AboutSettingPage",
+    "kind": "page"
+  },
+  "page:PrivacyPolicy": {
+    "title": "隐私声明",
+    "keywords": [
+      "privacy",
+      "policy"
+    ],
+    "snippet": "Quicker settings page: PrivacyPolicy",
+    "pageId": "PrivacyPolicy",
+    "kind": "page"
+  },
+  "page:UsageStatisticsInfoPage": {
+    "title": "用量统计",
+    "keywords": [
+      "usage",
+      "statistics",
+      "info",
+      "page"
+    ],
+    "snippet": "Quicker settings page: UsageStatisticsInfoPage",
+    "pageId": "UsageStatisticsInfoPage",
+    "kind": "page"
+  },
+  "page:CircleMenuSettingPage": {
+    "title": "圆圈菜单设置",
+    "keywords": [
+      "圆圈菜单",
+      "轮盘",
+      "circle menu",
+      "圆形菜单",
+      "circle",
+      "menu",
+      "setting",
+      "page"
+    ],
+    "snippet": "Quicker settings page: CircleMenuSettingPage",
+    "pageId": "CircleMenuSettingPage",
+    "kind": "page"
+  },
+  "page:CircleMenuManagePage": {
+    "title": "轮盘动作管理",
+    "keywords": [
+      "circle",
+      "menu",
+      "manage",
+      "page"
+    ],
+    "snippet": "Quicker settings page: CircleMenuManagePage",
+    "pageId": "CircleMenuManagePage",
+    "kind": "page"
+  },
+  "page:GesturesSettingPage": {
+    "title": "手势设置",
+    "keywords": [
+      "手势",
+      "mouse gesture",
+      "划动",
+      "gestures",
+      "setting",
+      "page"
+    ],
+    "snippet": "Quicker settings page: GesturesSettingPage",
+    "pageId": "GesturesSettingPage",
+    "kind": "page"
+  },
+  "page:GesturesManagePage": {
+    "title": "手势管理",
+    "keywords": [
+      "gestures",
+      "manage",
+      "page"
+    ],
+    "snippet": "Quicker settings page: GesturesManagePage",
+    "pageId": "GesturesManagePage",
+    "kind": "page"
+  },
+  "page:LeftButtonPlusSettingPage": {
+    "title": "左键辅助",
+    "keywords": [
+      "left",
+      "button",
+      "plus",
+      "setting",
+      "page"
+    ],
+    "snippet": "Quicker settings page: LeftButtonPlusSettingPage",
+    "pageId": "LeftButtonPlusSettingPage",
+    "kind": "page"
+  },
+  "page:ActionHotkeysSettingPage": {
+    "title": "动作快捷键",
+    "keywords": [
+      "action",
+      "hotkeys",
+      "setting",
+      "page"
+    ],
+    "snippet": "Quicker settings page: ActionHotkeysSettingPage",
+    "pageId": "ActionHotkeysSettingPage",
+    "kind": "page"
+  },
+  "page:HotkeyWatcherSettingsPage": {
+    "title": "热键联动",
+    "keywords": [
+      "hotkey",
+      "watcher",
+      "settings",
+      "page"
+    ],
+    "snippet": "Quicker settings page: HotkeyWatcherSettingsPage",
+    "pageId": "HotkeyWatcherSettingsPage",
+    "kind": "page"
+  },
+  "page:PowerKeysManagementPage": {
+    "title": "扩展热键",
+    "keywords": [
+      "power",
+      "keys",
+      "management",
+      "page"
+    ],
+    "snippet": "Quicker settings page: PowerKeysManagementPage",
+    "pageId": "PowerKeysManagementPage",
+    "kind": "page"
+  },
+  "page:PowerKeysSettingsPage": {
+    "title": "高级按键",
+    "keywords": [
+      "高级按键",
+      "power keys",
+      "按键增强",
+      "power",
+      "keys",
+      "settings",
+      "page"
+    ],
+    "snippet": "Quicker settings page: PowerKeysSettingsPage",
+    "pageId": "PowerKeysSettingsPage",
+    "kind": "page"
+  },
+  "page:KeyActionManagePage": {
+    "title": "按键双击",
+    "keywords": [
+      "key",
+      "action",
+      "manage",
+      "page"
+    ],
+    "snippet": "Quicker settings page: KeyActionManagePage",
+    "pageId": "KeyActionManagePage",
+    "kind": "page"
+  },
+  "page:TextCommandManagePage": {
+    "title": "文本指令管理",
+    "keywords": [
+      "text",
+      "command",
+      "manage",
+      "page"
+    ],
+    "snippet": "Quicker settings page: TextCommandManagePage",
+    "pageId": "TextCommandManagePage",
+    "kind": "page"
+  },
+  "page:TextCommandSettingPage": {
+    "title": "文本命令",
+    "keywords": [
+      "文本命令",
+      "命令词",
+      "text command",
+      "text",
+      "command",
+      "setting",
+      "page"
+    ],
+    "snippet": "Quicker settings page: TextCommandSettingPage",
+    "pageId": "TextCommandSettingPage",
+    "kind": "page"
+  },
+  "page:SearchSettings": {
+    "title": "搜索设置",
+    "keywords": [
+      "搜索",
+      "search",
+      "启动器搜索",
+      "settings"
+    ],
+    "snippet": "Quicker settings page: SearchSettings",
+    "pageId": "SearchSettings",
+    "kind": "page"
+  },
+  "page:ContextMenuGeneralSettings": {
+    "title": "上下文菜单基本参数设置",
+    "keywords": [
+      "context",
+      "menu",
+      "general",
+      "settings"
+    ],
+    "snippet": "Quicker settings page: ContextMenuGeneralSettings",
+    "pageId": "ContextMenuGeneralSettings",
+    "kind": "page"
+  },
+  "page:TextContextMenuSettings": {
+    "title": "文本上下文菜单",
+    "keywords": [
+      "text",
+      "context",
+      "menu",
+      "settings"
+    ],
+    "snippet": "Quicker settings page: TextContextMenuSettings",
+    "pageId": "TextContextMenuSettings",
+    "kind": "page"
+  },
+  "page:ImageContextMenuSettings": {
+    "title": "图片上下文菜单",
+    "keywords": [
+      "image",
+      "context",
+      "menu",
+      "settings"
+    ],
+    "snippet": "Quicker settings page: ImageContextMenuSettings",
+    "pageId": "ImageContextMenuSettings",
+    "kind": "page"
+  },
+  "page:FileContextMenuSettings": {
+    "title": "文件上下文菜单",
+    "keywords": [
+      "file",
+      "context",
+      "menu",
+      "settings"
+    ],
+    "snippet": "Quicker settings page: FileContextMenuSettings",
+    "pageId": "FileContextMenuSettings",
+    "kind": "page"
+  },
+  "page:AutoRunActions": {
+    "title": "自动运行动作",
+    "keywords": [
+      "auto",
+      "run",
+      "actions"
+    ],
+    "snippet": "Quicker settings page: AutoRunActions",
+    "pageId": "AutoRunActions",
+    "kind": "page"
+  },
+  "page:EventTriggerSettingsPage": {
+    "title": "事件触发",
+    "keywords": [
+      "event",
+      "trigger",
+      "settings",
+      "page"
+    ],
+    "snippet": "Quicker settings page: EventTriggerSettingsPage",
+    "pageId": "EventTriggerSettingsPage",
+    "kind": "page"
+  },
+  "page:MouseActionManagePage": {
+    "title": "高级鼠标触发",
+    "keywords": [
+      "mouse",
+      "action",
+      "manage",
+      "page"
+    ],
+    "snippet": "Quicker settings page: MouseActionManagePage",
+    "pageId": "MouseActionManagePage",
+    "kind": "page"
+  },
+  "page:BasicTriggers": {
+    "title": "按键触发",
+    "keywords": [
+      "basic",
+      "triggers"
+    ],
+    "snippet": "Quicker settings page: BasicTriggers",
+    "pageId": "BasicTriggers",
+    "kind": "page"
+  },
+  "page:QuickCaptureSettings": {
+    "title": "快速截图",
+    "keywords": [
+      "quick",
+      "capture",
+      "settings"
+    ],
+    "snippet": "Quicker settings page: QuickCaptureSettings",
+    "pageId": "QuickCaptureSettings",
+    "kind": "page"
+  },
+  "page:AppSettings": {
+    "title": "基本选项",
+    "keywords": [
+      "基本选项",
+      "常规",
+      "general",
+      "应用设置",
+      "app",
+      "settings"
+    ],
+    "snippet": "Quicker settings page: AppSettings",
+    "pageId": "AppSettings",
+    "kind": "page"
+  },
+  "page:BasicToolsSettingPage": {
+    "title": "工具",
+    "keywords": [
+      "basic",
+      "tools",
+      "setting",
+      "page"
+    ],
+    "snippet": "Quicker settings page: BasicToolsSettingPage",
+    "pageId": "BasicToolsSettingPage",
+    "kind": "page"
+  },
+  "page:SyncSettingPage": {
+    "title": "数据同步",
+    "keywords": [
+      "sync",
+      "setting",
+      "page"
+    ],
+    "snippet": "Quicker settings page: SyncSettingPage",
+    "pageId": "SyncSettingPage",
+    "kind": "page"
+  },
+  "page:UpdateActionsPage": {
+    "title": "批量更新动作",
+    "keywords": [
+      "update",
+      "actions",
+      "page"
+    ],
+    "snippet": "Quicker settings page: UpdateActionsPage",
+    "pageId": "UpdateActionsPage",
+    "kind": "page"
+  },
+  "page:ActionRecycleBinSettingPage": {
+    "title": "动作回收站",
+    "keywords": [
+      "action",
+      "recycle",
+      "bin",
+      "setting",
+      "page"
+    ],
+    "snippet": "Quicker settings page: ActionRecycleBinSettingPage",
+    "pageId": "ActionRecycleBinSettingPage",
+    "kind": "page"
+  }
+}

@@ -205,12 +205,13 @@ public interface IQuickerRpcService
         bool force = false,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Update action title, description, and/or icon (headless save; does not change program body).</summary>
+    /// <summary>Update action title, description, icon, and/or context menu (headless save; does not change program body).</summary>
     Task<QuickerRpcUpdateActionMetadataResult> UpdateActionMetadataAsync(
         string actionId,
         string? title = null,
         string? description = null,
         string? icon = null,
+        string? contextMenuData = null,
         long? expectedEditVersion = null,
         bool force = false,
         CancellationToken cancellationToken = default);
@@ -263,6 +264,166 @@ public interface IQuickerRpcService
         string code,
         string? references = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Search Quicker settings catalog and settings pages by keyword.</summary>
+    Task<QuickerRpcSearchSettingsResult> SearchSettingsAsync(
+        string? query,
+        int maxResults = 30,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>List known Quicker setting keys (optionally filtered by scope).</summary>
+    Task<QuickerRpcListSettingsResult> ListSettingsAsync(
+        string? scope = null,
+        int maxResults = 100,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Read a Quicker setting value by key (scope:path, e.g. userSettings:EnableCircleMenu).</summary>
+    Task<QuickerRpcGetSettingResult> GetSettingAsync(
+        string key,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Update a Quicker setting value and persist it.</summary>
+    Task<QuickerRpcSetSettingResult> SetSettingAsync(
+        string key,
+        string value,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>List openable Quicker settings pages and UI targets.</summary>
+    Task<QuickerRpcListSettingsPagesResult> ListSettingsPagesAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Open a Quicker settings page or related UI (search, exe-settings, etc.).</summary>
+    Task<QuickerRpcOpenSettingsUiResult> OpenSettingsUiAsync(
+        string target,
+        string? exeFile = null,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class QuickerRpcSettingsPageInfo
+{
+    public string Target { get; set; } = string.Empty;
+
+    public string? PageId { get; set; }
+
+    public string? Title { get; set; }
+
+    public string? Snippet { get; set; }
+
+    public string? Keywords { get; set; }
+
+    public IList<string> Aliases { get; set; } = new List<string>();
+}
+
+public sealed class QuickerRpcListSettingsPagesResult
+{
+    public bool Ok { get; set; }
+
+    public string? Message { get; set; }
+
+    public IList<QuickerRpcSettingsPageInfo> Pages { get; set; } = new List<QuickerRpcSettingsPageInfo>();
+}
+
+public sealed class QuickerRpcOpenSettingsUiResult
+{
+    public bool Ok { get; set; }
+
+    public string Target { get; set; } = string.Empty;
+
+    public string? PageId { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+}
+
+public sealed class QuickerRpcSettingCatalogItem
+{
+    public string Key { get; set; } = string.Empty;
+
+    public string Scope { get; set; } = string.Empty;
+
+    public string Path { get; set; } = string.Empty;
+
+    public string Type { get; set; } = string.Empty;
+
+    public bool Writable { get; set; } = true;
+
+    public string? Title { get; set; }
+
+    public string? Description { get; set; }
+
+    public string? Snippet { get; set; }
+
+    public string? PageId { get; set; }
+
+    public string? PageTitle { get; set; }
+
+    public string? Keywords { get; set; }
+}
+
+public sealed class QuickerRpcSettingPageSummary
+{
+    public string PageId { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+
+    public string? Keywords { get; set; }
+}
+
+public sealed class QuickerRpcSearchSettingsResult
+{
+    public bool Ok { get; set; }
+
+    public string Query { get; set; } = string.Empty;
+
+    public string? Message { get; set; }
+
+    public IList<QuickerRpcSettingCatalogItem> Items { get; set; } = new List<QuickerRpcSettingCatalogItem>();
+
+    public IList<QuickerRpcSettingPageSummary> Pages { get; set; } = new List<QuickerRpcSettingPageSummary>();
+}
+
+public sealed class QuickerRpcListSettingsResult
+{
+    public bool Ok { get; set; }
+
+    public string? Scope { get; set; }
+
+    public string? Message { get; set; }
+
+    public IList<QuickerRpcSettingCatalogItem> Items { get; set; } = new List<QuickerRpcSettingCatalogItem>();
+}
+
+public sealed class QuickerRpcGetSettingResult
+{
+    public bool Ok { get; set; }
+
+    public string Key { get; set; } = string.Empty;
+
+    public string? Scope { get; set; }
+
+    public string? Path { get; set; }
+
+    public string? ExeFile { get; set; }
+
+    public string? Type { get; set; }
+
+    public string? Value { get; set; }
+
+    public string? Message { get; set; }
+}
+
+public sealed class QuickerRpcSetSettingResult
+{
+    public bool Ok { get; set; }
+
+    public string Key { get; set; } = string.Empty;
+
+    public string? Type { get; set; }
+
+    public string? Value { get; set; }
+
+    public string Message { get; set; } = string.Empty;
 }
 
 public sealed class QuickerRpcCodeSyntaxCheckResult
@@ -641,6 +802,10 @@ public sealed class QuickerRpcAccountInfo
     public bool LoggedIn { get; set; }
 
     public string? UserId { get; set; }
+
+    public string? UserName { get; set; }
+
+    public string? NickName { get; set; }
 
     public string? Message { get; set; }
 }

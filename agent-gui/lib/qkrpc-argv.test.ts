@@ -2,6 +2,35 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { argvToInvoke } from "./qkrpc-argv.ts";
 
+test("argvToInvoke maps settings open and pages", () => {
+  assert.deepEqual(argvToInvoke(["settings", "pages", "--json"]), {
+    op: "settings.pages",
+    args: {},
+  });
+  assert.deepEqual(
+    argvToInvoke([
+      "settings",
+      "open",
+      "--page",
+      "recycle-bin",
+      "--exe",
+      "_global",
+      "--json",
+    ]),
+    {
+      op: "settings.open",
+      args: { page: "recycle-bin", exe: "_global" },
+    },
+  );
+  assert.deepEqual(
+    argvToInvoke(["settings", "search", "--query", "圆圈", "--limit", "10", "--json"]),
+    {
+      op: "settings.search",
+      args: { query: "圆圈", maxResults: 10 },
+    },
+  );
+});
+
 test("argvToInvoke maps action publish with share metadata", () => {
   const invoke = argvToInvoke([
     "action",

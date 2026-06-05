@@ -48,6 +48,7 @@ qkrpc guide get --topic authoring-workflow --json
 | 表达式与插值 | **`expressions`** | P4 **首选**：`$=`、`$$`、`sys:evalexpression`（LINQ/字符串/多变量） |
 | 实现选型与回退 | **`implementation-fallback`** | P4：表达式不够或无模块时的回退（csscript / runScript） |
 | 子程序 | **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
+| 操作项文本语法 | **`common-operation-item`** | P3：动作右键菜单 `ContextMenuData`、`[图标]标题(提示)\|数据`、子菜单 |
 | 步骤模块搜索 | **`step-runner-search`** | P5：目录搜索 OR/通配 |
 | 步骤模块 schema | **`step-runner-get`** | P5：Agent 只用 `get`（禁止 `get-ui`）；与 search 分工 |
 | 工作区目录与外置 | **`action-project-files`** | `.quicker/actions` 布局、`file` 引用形状 |

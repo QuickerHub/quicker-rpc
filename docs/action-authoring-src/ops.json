@@ -102,10 +102,16 @@
     }
   },
   "topics": {
+    "quicker-ui": {
+      "title": "打开 Quicker 界面",
+      "description": "打开 Quicker 设置页与常用窗口（动作回收站、常规设置、搜索框、进程场景设置）。Use when the user asks to open a Quicker UI page/window.",
+      "allowed-tools": "quicker_settings docs",
+      "metadata": { "phase": "ui" }
+    },
     "overview": {
       "title": "总览",
       "description": "Quicker 动作无头编辑总览：P0 环境、docs 工具、P0–P7 索引。Use when starting action editing or choosing which guide topic to read next.",
-      "allowed-tools": "docs_get docs_search docs_index",
+      "allowed-tools": "docs",
       "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
     },
     "authoring-workflow": {
@@ -189,6 +195,12 @@
       "description": "sys:form：默认 formDef.file + files/*.form.json (qkrpc.form.v1)；长表单勿内联 formDef.value。Use when authoring sys:form.",
       "allowed-tools": "qkrpc_form_validate qkrpc_form_build qkrpc_step_runner_get workspace_action_edit_data qkrpc_action_patch",
       "metadata": { "phase": "P5-P6" }
+    },
+    "common-operation-item": {
+      "title": "操作项文本语法",
+      "description": "CommonOperationItem 多行文本：动作 ContextMenuData 右键菜单、[图标]标题(提示)|数据、子菜单与 quicker_in_param。Use when editing action context menus or SelectionItems-shaped text.",
+      "allowed-tools": "qkrpc_action_get qkrpc_action_set_metadata qkrpc_action_patch qkrpc_fa_search workspace_action_read_data workspace_action_edit_data",
+      "metadata": { "phase": "P3" }
     }
   },
   "ops": {
@@ -198,17 +210,41 @@
     },
     "docs.get": {
       "cli": "qkrpc guide get --topic {{topic}} --json",
-      "agent": "docs_get({ topic: \"{{topic}}\" })",
+      "agent": "docs({ action: \"get\", topic: \"{{topic}}\" })",
       "defaults": { "topic": "overview" }
     },
     "docs.search": {
       "cli": "qkrpc guide search --query {{query}} --json",
-      "agent": "docs_search({ query: \"{{query}}\" })",
+      "agent": "docs({ action: \"search\", query: \"{{query}}\" })",
       "defaults": { "query": "keyword" }
     },
     "docs.index": {
       "cli": "qkrpc guide search [--limit 50] --json",
-      "agent": "docs_index()"
+      "agent": "docs({ action: \"index\" })"
+    },
+    "settings.pages": {
+      "cli": "qkrpc settings pages --json",
+      "agent": "quicker_settings({ action: \"pages\" })"
+    },
+    "settings.open": {
+      "cli": "qkrpc settings open --page {{page}} [--exe {{exe}}] --json",
+      "agent": "quicker_settings({ action: \"open\", page: \"{{page}}\", exe?: \"{{exe}}\" })",
+      "defaults": { "page": "recycle-bin", "exe": "_global" }
+    },
+    "settings.search": {
+      "cli": "qkrpc settings search --query {{query}} [--limit {{limit}}] --json",
+      "agent": "quicker_settings({ action: \"search\", query: \"{{query}}\", limit?: {{limit}} })",
+      "defaults": { "query": "keyword", "limit": "30" }
+    },
+    "settings.get": {
+      "cli": "qkrpc settings get --key {{key}} --json",
+      "agent": "quicker_settings({ action: \"get\", key: \"{{key}}\" })",
+      "defaults": { "key": "userSettings:EnableCircleMenu" }
+    },
+    "settings.set": {
+      "cli": "qkrpc settings set --key {{key}} --value {{value}} --json",
+      "agent": "quicker_settings({ action: \"set\", key: \"{{key}}\", value: \"{{value}}\" })",
+      "defaults": { "key": "userSettings:EnableCircleMenu", "value": "true" }
     },
     "action.create": {
       "cli": "qkrpc action create --title \"{{title}}\" [--icon {{icon}}] --json",

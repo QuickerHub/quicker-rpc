@@ -281,7 +281,7 @@ export function ActionProjectDataEditor({
             ? `（文件约 ${totalChars.toLocaleString()} 字符）`
             : ""}
           。请用 Agent 的{" "}
-          <code>workspace_action_read_data</code> / <code>edit_data</code> 分片编辑，或在本页「源码
+          <code>workspace_program</code>（<code>read_data</code> / <code>edit_data</code>）分片编辑，或在本页「源码
           JSON」查看片段。
         </p>
         {reloadError ? (

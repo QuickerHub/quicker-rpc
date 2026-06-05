@@ -12,7 +12,7 @@ const TOAST_ID = "action-link-chip";
 export async function executeActionLinkOp(
   actionId: string,
   op: ActionLinkOp,
-  options?: { cwd?: string },
+  options?: { cwd?: string; param?: string },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const cwd = options?.cwd?.trim() ?? "";
 
@@ -49,11 +49,14 @@ export async function executeActionLinkOp(
     return { ok: true };
   }
 
+  const param = options?.param?.trim() || undefined;
+
   if (op === "debug") {
     const result = await invokeActionCommand({
       op: "run",
       id: actionId,
       debug: true,
+      param,
     });
     if (result.ok) {
       pushAppMessage({
@@ -74,7 +77,11 @@ export async function executeActionLinkOp(
   }
 
   const commandOp = op;
-  const result = await invokeActionCommand({ op: commandOp, id: actionId });
+  const result = await invokeActionCommand({
+    op: commandOp,
+    id: actionId,
+    param: commandOp === "run" ? param : undefined,
+  });
   if (result.ok) {
     pushAppMessage({
       id: TOAST_ID,

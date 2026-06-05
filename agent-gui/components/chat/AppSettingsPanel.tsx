@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AccountUsageSection } from "@/components/chat/AccountUsageSection";
 import { AppVersionSection } from "@/components/chat/AppVersionSection";
 import { LlmKeysSettingsSection } from "@/components/chat/LlmKeysSettingsSection";
 import type { LlmProviderId } from "@/lib/llm-providers";
@@ -41,6 +42,8 @@ export function AppSettingsPanel({
 
   return (
     <div className="app-settings-panel">
+        <AccountUsageSection active={active} disabled={disabled} />
+
         <div className="app-settings-top-grid">
           <section className="app-settings-card">
             <header className="app-settings-section-head app-settings-section-head--compact">

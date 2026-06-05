@@ -344,7 +344,7 @@ export async function formatSkillCatalogForPrompt(): Promise<string> {
   if (topics.length === 0) return "";
 
   const lines = [
-    "Authoring guide (single local skill — docs_get by topic; module detail appendices via docs_get_reference with topic + file id):",
+    "Authoring guide (single local skill — docs by action=get|search|index; topic appendices via reference on get):",
   ];
   for (const t of topics) {
     const desc = t.description.trim() || t.title;

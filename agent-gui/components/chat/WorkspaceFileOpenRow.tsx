@@ -168,20 +168,16 @@ export function WorkspaceFileOpenRow({
 
 /** Collapsed batch row for non-editor file tools only (editor tools show inline snapshots). */
 export function isWorkspaceFileOpenBatch(
-
-  items: Array<{ name: string }>,
-
+  items: Array<{ name: string; part?: { input?: unknown } }>,
 ): boolean {
-
   return (
     items.length > 0
     && items.every(
       (item) =>
-        isWorkspaceExplorerFileTool(item.name)
-        && !isWorkspaceFileEditorTool(item.name),
+        isWorkspaceExplorerFileTool(item.name, item.part?.input)
+        && !isWorkspaceFileEditorTool(item.name, item.part?.input),
     )
   );
-
 }
 
 

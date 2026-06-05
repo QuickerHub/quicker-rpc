@@ -12,14 +12,15 @@ test("every registry entry has id", () => {
   }
 });
 
-test("workspace write/edit data tools are registered and default-on", () => {
+test("consolidated workspace/action/subprogram tools are registered and default-on", () => {
   for (const id of [
-    "workspace_action_write_data",
-    "workspace_action_edit_data",
-    "workspace_action_read_data",
+    "workspace_program",
+    "qkrpc_action",
+    "qkrpc_subprogram",
   ]) {
     assert.ok(ALL_QKRPC_TOOL_IDS.includes(id), `${id} missing from registry`);
   }
   const enabled = resolveEnabledToolsFromPrefs([], []);
-  assert.ok(enabled.includes("workspace_action_write_data"));
+  assert.ok(enabled.includes("workspace_program"));
+  assert.ok(enabled.includes("qkrpc_action"));
 });

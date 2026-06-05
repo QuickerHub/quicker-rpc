@@ -69,7 +69,7 @@ export function analyzeToolUiPart(
       ? summarizeToolOutput(name, output, input)
       : null;
   const runningMeta =
-    isRunning && isWorkspaceExplorerFileTool(name)
+    isRunning && isWorkspaceExplorerFileTool(name, input)
       ? workspaceFileRunningMeta(name, input)
       : null;
   const meta = runningMeta ?? buildToolSummaryMeta(state, summary);
@@ -83,7 +83,7 @@ export function analyzeToolUiPart(
     part,
     index,
     name,
-    displayName: formatToolDisplayName(name),
+    displayName: formatToolDisplayName(name, input),
     state,
     meta,
     isRunning,

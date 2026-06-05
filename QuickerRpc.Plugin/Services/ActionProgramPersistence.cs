@@ -26,6 +26,7 @@ internal static class ActionProgramPersistence
         string? title,
         string? description,
         string? icon,
+        string? contextMenuData,
         out string? error) =>
         ActionDesignerProgramAccess.TrySave(
             actionId,
@@ -35,6 +36,7 @@ internal static class ActionProgramPersistence
             title,
             description,
             icon,
+            contextMenuData,
             out error);
 
     public static bool TryUpdatePresentation(
@@ -42,8 +44,15 @@ internal static class ActionProgramPersistence
         string? title,
         string? description,
         string? icon,
+        string? contextMenuData,
         out string? error) =>
-        ActionDesignerProgramAccess.TryUpdatePresentation(actionId, title, description, icon, out error);
+        ActionDesignerProgramAccess.TryUpdatePresentation(
+            actionId,
+            title,
+            description,
+            icon,
+            contextMenuData,
+            out error);
 
     internal static bool TryGetLiveActionItem(string actionId, out ActionItem? action) =>
         DataServiceActionAccess.TryFindActionWithPayload(actionId, out action)

@@ -2,16 +2,16 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import {
-  migrateLegacyCustomToProfile,
   normalizeProfiles,
   type LlmCustomProfile,
 } from "@/lib/llm-profile-schema";
-import type { LlmProviderId } from "@/lib/llm-providers";
 import {
   CUSTOM_PROVIDER_ID,
   DEEPSEEK_PROVIDER_ID,
   LLM_PROVIDER_ID,
+  type LlmProviderId,
 } from "@/lib/llm-providers";
+import { migrateLlmLocalSecrets } from "@/lib/llm-secrets-migration";
 
 export type LlmLocalProviderSecrets = {
   apiKey?: string;
@@ -62,7 +62,7 @@ function normalizeProviderEntry(raw: unknown): LlmLocalProviderSecrets | undefin
   return entry;
 }
 
-function normalizeSecrets(raw: unknown): LlmLocalSecrets {
+function parseRawLlmSecrets(raw: unknown): LlmLocalSecrets {
   if (typeof raw !== "object" || raw === null) return { ...EMPTY };
   const data = raw as Partial<LlmLocalSecrets>;
   const providers: Partial<Record<LlmProviderId, LlmLocalProviderSecrets>> = {};
@@ -92,18 +92,17 @@ function normalizeSecrets(raw: unknown): LlmLocalSecrets {
       : undefined;
   const version = data.version === 1 ? 1 : 2;
 
-  let secrets: LlmLocalSecrets = {
+  return {
     version,
     providers,
     directApiKey,
     profiles: profiles.length ? profiles : undefined,
     activeSelection,
   };
-  secrets = migrateLegacyCustomToProfile(secrets);
-  if (secrets.version === 1) {
-    secrets = { ...secrets, version: 2 };
-  }
-  return secrets;
+}
+
+function normalizeSecrets(raw: unknown): LlmLocalSecrets {
+  return migrateLlmLocalSecrets(parseRawLlmSecrets(raw)).secrets;
 }
 
 export function loadLlmLocalSecrets(): LlmLocalSecrets {
@@ -114,8 +113,15 @@ export function loadLlmLocalSecrets(): LlmLocalSecrets {
     return cache;
   }
   try {
-    cache = normalizeSecrets(JSON.parse(readFileSync(path, "utf8")) as unknown);
-    return cache;
+    const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    const parsed = parseRawLlmSecrets(raw);
+    const { secrets, changed } = migrateLlmLocalSecrets(parsed);
+    if (changed) {
+      saveLlmLocalSecrets(secrets);
+    } else {
+      cache = secrets;
+    }
+    return secrets;
   } catch {
     cache = { ...EMPTY };
     return cache;
@@ -203,3 +209,5 @@ export function maskSecret(value: string): string {
   if (trimmed.length <= 8) return "••••••••";
   return `${trimmed.slice(0, 4)}…${trimmed.slice(-4)}`;
 }
+
+export { normalizeSecrets, parseRawLlmSecrets };

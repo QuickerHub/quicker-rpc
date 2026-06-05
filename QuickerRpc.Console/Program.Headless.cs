@@ -254,12 +254,15 @@ internal static partial class Program
                 .ConfigureAwait(false);
         }
 
-        if (options.Title is null && options.Description is null && options.Icon is null)
+        if (options.Title is null
+            && options.Description is null
+            && options.Icon is null
+            && options.ContextMenuData is null)
         {
             return await EmitErrorAndFailAsync(
                     options.Json,
                     "MISSING_METADATA",
-                    "Provide at least one of --title, --description, or --icon.")
+                    "Provide at least one of --title, --description, --icon, or --context-menu-data.")
                 .ConfigureAwait(false);
         }
 
@@ -273,6 +276,7 @@ internal static partial class Program
                     options.Title,
                     options.Description,
                     options.Icon,
+                    options.ContextMenuData,
                     options.ExpectedEditVersion,
                     options.Force,
                     rpcToken)

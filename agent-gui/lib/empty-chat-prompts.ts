@@ -125,21 +125,21 @@ export const EMPTY_CHAT_ACTION_PROMPTS: readonly EmptyChatPrompt[] = [
     category: "workspace",
     label: "外置 eval.cs",
     hint: "files/*.eval.cs + file 引用",
-    text: "新建动作：剪贴板 JSON 校验，合法则缩进 2 空格写回，否则显示错误。表达式逻辑超过 4 行则 workspace_action_file_write 到 files/clip.eval.cs，data.json 用 file 引用；改完后 workspace_program_patch。",
+    text: "新建动作：剪贴板 JSON 校验，合法则缩进 2 空格写回，否则显示错误。表达式逻辑超过 4 行则 workspace_program file_write 到 files/clip.eval.cs，data.json 用 file 引用；改完后 workspace_program patch。",
   },
   {
     id: "workspace-edit-data-add-step",
     category: "workspace",
     label: "edit_data 增一步",
     hint: "summary → edit_data → patch",
-    text: "在侧边栏工作目录中任选已有非空动作（若无则先创建一个并写入一步「显示文本」）。对该动作：workspace_action_read_data mode=summary，用 workspace_action_edit_data 在 steps 末尾增加一步「读剪贴板到变量 clip」，step-runner get 后再改，最后 patch。patch 后不要 action_get 全量确认。",
+    text: "在侧边栏工作目录中任选已有非空动作（若无则先创建一个并写入一步「显示文本」）。对该动作：workspace_program read_data mode=summary，用 workspace_program edit_data 在 steps 末尾增加一步「读剪贴板到变量 clip」，step-runner get 后再改，最后 patch。patch 后不要 action_get 全量确认。",
   },
   {
     id: "workspace-file-edit-small",
     category: "workspace",
     label: "file_edit 小改",
     hint: "file_search → file_edit",
-    text: "若当前工作区有动作的 files/ 下 .eval.cs 或 .cs：用 workspace_action_file_search 定位，workspace_action_file_read 看片段，再用 workspace_action_file_edit 做一处注释行小改（unique oldString），然后 patch。若没有外置文件则新建带 eval.cs 的表达式动作再演示 file_edit。",
+    text: "若当前工作区有动作的 files/ 下 .eval.cs 或 .cs：用 workspace_program file_search 定位，file_read 看片段，再用 file_edit 做一处注释行小改（unique oldString），然后 patch。若没有外置文件则新建带 eval.cs 的表达式动作再演示 file_edit。",
   },
 
   // --- subprogram ---

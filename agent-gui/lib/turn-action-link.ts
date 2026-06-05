@@ -13,6 +13,7 @@ import {
   type ParsedActionLink,
 } from "@/lib/action-link-markup";
 import { isStructuredToolResult } from "@/lib/tool-result";
+import { readWorkspaceProgramAction } from "@/lib/workspace-program-tool";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,7 +22,15 @@ const UUID_RE =
 export const ACTION_SAVE_TOOL_NAMES = new Set([
   "workspace_program_patch",
   "qkrpc_action_patch",
+  "workspace_program",
 ]);
+
+function isActionPatchTool(toolName: string, input?: unknown): boolean {
+  if (toolName === "workspace_program") {
+    return readWorkspaceProgramAction(input) === "patch";
+  }
+  return ACTION_SAVE_TOOL_NAMES.has(toolName);
+}
 
 const DEFAULT_CARD_OPS: readonly ActionLinkOp[] = [
   "run",
@@ -134,7 +143,7 @@ export function findLastSuccessfulActionPatchInTurn(
     for (const part of message.parts ?? []) {
       if (!isToolOrDynamicToolUIPart(part)) continue;
       const toolName = getToolOrDynamicToolName(part);
-      if (!ACTION_SAVE_TOOL_NAMES.has(toolName)) continue;
+      if (!isActionPatchTool(toolName, part.input)) continue;
       const parsed = parseSuccessfulActionPatchFromToolPart(part);
       if (parsed) last = parsed;
     }

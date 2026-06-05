@@ -73,6 +73,7 @@ internal static class HeadlessCliResponses
             title = response.Title,
             description = response.Description,
             icon = response.Icon,
+            contextMenuData = response.ContextMenuData,
             updatedUtc = response.UpdatedUtc,
         };
 

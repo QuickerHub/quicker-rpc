@@ -16,7 +16,9 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 public sealed class ExpressionExecuteService
 {
-    private static readonly Regex VariablePlaceholderPattern = new(@"{([^}{\s]+)}", RegexOptions.Compiled);
+    private static readonly Regex VariablePlaceholderPattern = new(
+        @"\{([a-zA-Z_][a-zA-Z0-9_]*)\}",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public QuickerRpcExpressionExecuteResult Execute(
         string code,

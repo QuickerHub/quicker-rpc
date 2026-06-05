@@ -42,8 +42,11 @@ import { ToolTestSuiteDetailDialog } from "@/components/tool-test/ToolTestSuiteD
 import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 import { ToolTestTitleResultPane } from "@/components/tool-test/ToolTestTitleResultPane";
 import type { TitleTestRunEntry } from "@/lib/tool-test-title-runs";
+import { ToolTestAutoFixPanel } from "@/components/tool-test/ToolTestAutoFixPanel";
+import { ToolTestAutoFixResultPane } from "@/components/tool-test/ToolTestAutoFixResultPane";
+import type { AutoFixRunEntry } from "@/lib/tool-test-autofix-runs";
 
-type ToolTestSidebarTab = "tools" | "prompt";
+type ToolTestSidebarTab = "tools" | "prompt" | "auto-fix";
 
 type StepInputOverrides = Record<string, string>;
 
@@ -228,6 +231,7 @@ export function ToolTestPage() {
   const [lastError, setLastError] = useState<string | null>(null);
   const [sidebarTab, setSidebarTab] = useState<ToolTestSidebarTab>("tools");
   const [titleTestRuns, setTitleTestRuns] = useState<TitleTestRunEntry[]>([]);
+  const [autoFixRuns, setAutoFixRuns] = useState<AutoFixRunEntry[]>([]);
   const [detailSuite, setDetailSuite] = useState<ToolTestSuite | null>(null);
 
   const appendTitleTestRun = useCallback((entry: TitleTestRunEntry) => {
@@ -245,6 +249,23 @@ export function ToolTestPage() {
 
   const clearTitleTestRuns = useCallback(() => {
     setTitleTestRuns([]);
+  }, []);
+
+  const appendAutoFixRun = useCallback((entry: AutoFixRunEntry) => {
+    setAutoFixRuns((prev) => [...prev, entry]);
+  }, []);
+
+  const patchAutoFixRun = useCallback(
+    (id: string, patch: Partial<AutoFixRunEntry>) => {
+      setAutoFixRuns((prev) =>
+        prev.map((run) => (run.id === id ? { ...run, ...patch } : run)),
+      );
+    },
+    [],
+  );
+
+  const clearAutoFixRuns = useCallback(() => {
+    setAutoFixRuns([]);
   }, []);
 
   const pingLabel = useMemo(() => {
@@ -555,6 +576,15 @@ export function ToolTestPage() {
                 >
                   对话标题
                 </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={sidebarTab === "auto-fix"}
+                  className={`tool-test-sidebar-tabs__btn${sidebarTab === "auto-fix" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
+                  onClick={() => setSidebarTab("auto-fix")}
+                >
+                  自动修复
+                </button>
               </div>
 
               <div className="tool-test-sidebar-scroll">
@@ -579,11 +609,18 @@ export function ToolTestPage() {
                       onClose={() => setDetailSuite(null)}
                     />
                   </>
-                ) : (
+                ) : sidebarTab === "prompt" ? (
                   <ToolTestPromptPanel
                     disabled={busy || pendingApproval !== null}
                     onAppendRun={appendTitleTestRun}
                     onPatchRun={patchTitleTestRun}
+                  />
+                ) : (
+                  <ToolTestAutoFixPanel
+                    disabled={busy || pendingApproval !== null}
+                    workingDirectory={workingDirectory}
+                    onAppendRun={appendAutoFixRun}
+                    onPatchRun={patchAutoFixRun}
                   />
                 )}
               </div>
@@ -596,11 +633,17 @@ export function ToolTestPage() {
                 onClearConversation={clearConversation}
                 clearDisabled={busy}
               />
-            ) : (
+            ) : sidebarTab === "prompt" ? (
               <ToolTestTitleResultPane
                 runs={titleTestRuns}
                 workingDirectory={workingDirectory}
                 onClearRuns={clearTitleTestRuns}
+              />
+            ) : (
+              <ToolTestAutoFixResultPane
+                runs={autoFixRuns}
+                workingDirectory={workingDirectory}
+                onClearRuns={clearAutoFixRuns}
               />
             )}
           </div>

@@ -16,7 +16,6 @@ import {
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 import {
   CUSTOM_PROVIDER_ID,
-  DEEPSEEK_PROVIDER_ID,
   type LlmProviderId,
 } from "@/lib/llm-providers";
 import type { LlmModelOption, LlmOptionsResponse } from "@/lib/llm-options-shared";
@@ -435,10 +434,9 @@ export function ModelSelector({
                 </p>
                 {!detailOption.configured && (
                   <p className="model-picker-detail-warn">
-                    {detailOption.kind === "builtin"
-                      && detailOption.providerId === DEEPSEEK_PROVIDER_ID
-                      ? "需在设置中填写 DeepSeek API Key"
-                      : "需在设置中添加自定义配置"}
+                    {detailOption.kind === "profile"
+                      ? "需在设置中添加自定义配置"
+                      : "当前模型 endpoint 未配置"}
                   </p>
                 )}
               </>

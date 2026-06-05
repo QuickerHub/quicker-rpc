@@ -33,6 +33,8 @@ type CodeMirrorPreviewProps = {
   plain?: boolean;
   /** Dark terminal command palette (shell_exec command pane). */
   terminalDark?: boolean;
+  /** Default true; compact chat code snapshots use false. */
+  lineWrapping?: boolean;
 };
 
 export function CodeMirrorPreview({
@@ -47,6 +49,7 @@ export function CodeMirrorPreview({
   showStatusBar,
   plain = false,
   terminalDark = false,
+  lineWrapping = true,
 }: CodeMirrorPreviewProps) {
   const showEditorStatusBar = showStatusBar ?? fillAvailable;
   const [stats, setStats] = useState<CodeMirrorEditorStats>(() => statsFromTextContent(content));
@@ -77,11 +80,12 @@ export function CodeMirrorPreview({
         lineNumbers,
         plain,
         terminalDark,
+        lineWrapping,
         lintSourceText: plain ? "" : content,
       }),
       statsExtension,
     ],
-    [path, language, lineNumbers, plain, terminalDark, content, statsExtension],
+    [path, language, lineNumbers, plain, terminalDark, lineWrapping, content, statsExtension],
   );
 
   const editorHeight = fillAvailable ? "100%" : "auto";

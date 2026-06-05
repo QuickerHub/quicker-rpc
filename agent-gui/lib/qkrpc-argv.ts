@@ -469,6 +469,59 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
     return null;
   }
 
+  if (positional[0] === "settings") {
+    const verb = positional[1];
+    if (verb === "search") {
+      return {
+        op: "settings.search",
+        args: {
+          query: flagStr(flags, "query"),
+          maxResults: flagInt(flags, "limit"),
+        },
+      };
+    }
+    if (verb === "list") {
+      return {
+        op: "settings.list",
+        args: {
+          scope: flagStr(flags, "scope"),
+          maxResults: flagInt(flags, "limit"),
+        },
+      };
+    }
+    if (verb === "get") {
+      return {
+        op: "settings.get",
+        args: { key: flagStr(flags, "key") },
+      };
+    }
+    if (verb === "set") {
+      return {
+        op: "settings.set",
+        args: {
+          key: flagStr(flags, "key"),
+          value: flagStr(flags, "value"),
+        },
+      };
+    }
+    if (verb === "pages") {
+      return { op: "settings.pages", args: {} };
+    }
+    if (verb === "open") {
+      return {
+        op: "settings.open",
+        args: {
+          page:
+            flagStr(flags, "page")
+            ?? flagStr(flags, "target")
+            ?? flagStr(flags, "page-id"),
+          exe: flagStr(flags, "exe") ?? flagStr(flags, "exe-file"),
+        },
+      };
+    }
+    return null;
+  }
+
   if (positional[0] === "fa") {
     const verb = positional[1];
     if (verb === "search") {

@@ -1,20 +1,47 @@
 {
-  "version": 1,
+  "version": 2,
+  "groups": {
+    "gpt55": {
+      "label": "OpenAI",
+      "model": "gpt-5.5",
+      "sponsor": {
+        "name": "CL",
+        "url": "https://getquicker.net/User/Actions/3-CL"
+      }
+    },
+    "deepseek": {
+      "label": "DeepSeek",
+      "model": "deepseek-v4-pro",
+      "sponsor": {
+        "name": "冰雷木子",
+        "url": "https://getquicker.net/User/Actions/749380-%E5%86%B0%E9%9B%B7%E6%9C%A8%E5%AD%90"
+      }
+    }
+  },
   "endpoints": [
     {
+      "group": "gpt55",
       "apiKey": "sk-...",
       "baseURL": "https://ai98pro.xyz/v1",
       "model": "gpt-5.5"
     },
     {
+      "group": "gpt55",
       "apiKey": "sk-...",
       "baseURL": "https://ai98pro.xyz/v1",
       "model": "gpt-5.5"
     },
     {
+      "group": "gpt55",
       "apiKey": "sk-...",
       "baseURL": "https://api.bingleimuzi.eu.cc/v1",
       "model": "gpt-5.5"
+    },
+    {
+      "group": "deepseek",
+      "apiKey": "sk-...",
+      "baseURL": "https://api.bingleimuzi.eu.cc/v1",
+      "model": "deepseek-v4-pro"
     }
   ]
 }

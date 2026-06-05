@@ -28,8 +28,8 @@ export const GPT55_PROVIDER: LlmProviderMeta = {
   description: "默认对话模型 gpt-5.5（内置 endpoint fallback）",
 };
 
-/** DeepSeek official API default (V4 Flash; replaces deprecated deepseek-chat). */
-export const DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash" as const;
+/** DeepSeek built-in default (V4 Pro via bundled endpoint). */
+export const DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-pro" as const;
 
 export const DEEPSEEK_MODEL_IDS = [
   "deepseek-v4-flash",
@@ -58,10 +58,10 @@ export function isKnownDeepSeekModelId(modelId: string): boolean {
 export const DEEPSEEK_PROVIDER: LlmProviderMeta = {
   id: DEEPSEEK_PROVIDER_ID,
   label: "DeepSeek",
-  defaultBaseURL: "https://api.deepseek.com/v1",
+  defaultBaseURL: "https://api.bingleimuzi.eu.cc/v1",
   defaultModel: DEEPSEEK_DEFAULT_MODEL,
   clientName: "deepseek-official",
-  description: "DeepSeek 官方 API（V4 Flash / V4 Pro，需在设置中填写 Key）",
+  description: "默认 DeepSeek V4 Pro（内置 endpoint，免配置 Key）",
 };
 
 export const CUSTOM_PROVIDER: LlmProviderMeta = {

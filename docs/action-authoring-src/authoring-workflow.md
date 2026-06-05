@@ -42,7 +42,7 @@
 
 ## P3 元数据（可选）
 
-只改标题/说明/图标、不动程序体：
+只改标题/说明/图标（及扩展字段如右键菜单）、不动程序体：
 
 {{#only-cli}}```powershell
 {{@ action.set-metadata}}
@@ -52,6 +52,8 @@
 ```{{/only-agent}}
 
 图标：`qkrpc_fa_search`；`fa:Light_Name` 或 `http(s)` URL（见 set-metadata 工具说明）。
+
+**右键菜单**：`ContextMenuData` 为 CommonOperationItem 多行文本；选中项数据 → `{quicker_in_param}`。语法见 **`common-operation-item`**。
 
 ## P4 实现选型
 

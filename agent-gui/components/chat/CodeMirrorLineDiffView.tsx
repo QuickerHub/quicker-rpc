@@ -29,6 +29,8 @@ type CodeMirrorLineDiffViewProps = {
   minHeight?: string;
   lineNumbers?: boolean;
   fillAvailable?: boolean;
+  /** Default true; compact chat code snapshots use false. */
+  lineWrapping?: boolean;
 };
 
 export function CodeMirrorLineDiffView({
@@ -43,6 +45,7 @@ export function CodeMirrorLineDiffView({
   minHeight,
   lineNumbers = false,
   fillAvailable = false,
+  lineWrapping = true,
 }: CodeMirrorLineDiffViewProps) {
   const display = useMemo(
     () =>
@@ -63,11 +66,12 @@ export function CodeMirrorLineDiffView({
       ...buildPreviewCodeMirrorExtensions(path, {
         language,
         lineNumbers,
+        lineWrapping,
         lintSourceText,
       }),
       createDiffLineKindsExtension(display.lineKinds, { scrollToFirstChange }),
     ],
-    [path, language, lineNumbers, lintSourceText, display.lineKinds, scrollToFirstChange],
+    [path, language, lineNumbers, lineWrapping, lintSourceText, display.lineKinds, scrollToFirstChange],
   );
 
   const editorHeight = fillAvailable ? "100%" : "auto";

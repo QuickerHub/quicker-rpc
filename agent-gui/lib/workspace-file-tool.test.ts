@@ -23,6 +23,7 @@ import {
   shouldShowFileSnapshotHeaderDetail,
   splitFileSnapshotHeaderMeta,
   summarizeWorkspaceFileTool,
+  workspaceFileToolDisplayName,
 } from "./workspace-file-tool";
 import { formatLocalToolResult } from "./tool-result";
 import {
@@ -278,10 +279,49 @@ test("splitFileSnapshotHeaderMeta strips basename prefix", () => {
 
 test("read tools use collapsible tool summary with expandable code body", () => {
   assert.equal(isWorkspaceFileReadTool("workspace_action_read_data"), true);
+  assert.equal(
+    isWorkspaceFileReadTool("workspace_program", { action: "file_read" }),
+    true,
+  );
+  assert.equal(
+    isWorkspaceFileReadTool("workspace_program", { action: "read_data" }),
+    true,
+  );
   assert.equal(hasWorkspaceFileEditorPreviewInChat("workspace_action_read_data"), false);
+  assert.equal(
+    hasWorkspaceFileEditorPreviewInChat("workspace_program", { action: "file_read" }),
+    false,
+  );
+  assert.equal(
+    hasWorkspaceFileEditorPreviewInChat("workspace_program", { action: "file_write" }),
+    true,
+  );
   assert.equal(shouldShowFileEditorCodeBlockInChat("workspace_action_read_data"), true);
+  assert.equal(
+    shouldShowFileEditorCodeBlockInChat("workspace_program", { action: "file_write" }),
+    true,
+  );
   assert.equal(hasWorkspaceFileChipInChat("workspace_action_read_data"), false);
   assert.equal(hasWorkspaceFileChipInChat("workspace_action_write_data"), true);
+  assert.equal(
+    hasWorkspaceFileChipInChat("workspace_program", { action: "file_write" }),
+    true,
+  );
+});
+
+test("workspace_program sub-actions resolve display names", () => {
+  assert.equal(
+    workspaceFileToolDisplayName("workspace_program", { action: "file_read" }),
+    "read",
+  );
+  assert.equal(
+    workspaceFileToolDisplayName("workspace_program", { action: "file_write" }),
+    "write",
+  );
+  assert.equal(
+    workspaceFileToolDisplayName("workspace_program", { action: "read_data" }),
+    "read-data",
+  );
 });
 
 test("isWorkspaceReadDataSummaryResult detects summary payloads", () => {

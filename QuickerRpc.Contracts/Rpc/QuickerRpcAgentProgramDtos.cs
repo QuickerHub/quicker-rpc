@@ -82,6 +82,8 @@ public sealed class QuickerRpcUpdateActionMetadataResult
 
     public string? Icon { get; set; }
 
+    public string? ContextMenuData { get; set; }
+
     public string? UpdatedUtc { get; set; }
 }
 
@@ -97,7 +99,7 @@ public sealed class QuickerRpcApplyActionPatchResult
 
     public bool? VersionConflict { get; set; }
 
-    /// <summary>True when patch JSON included title, description, and/or icon.</summary>
+    /// <summary>True when patch JSON included title, description, icon, and/or contextMenuData.</summary>
     public bool? PresentationUpdated { get; set; }
 
     /// <summary>Compressed patched steps JSON array.</summary>

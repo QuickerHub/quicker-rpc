@@ -28,13 +28,15 @@ qkrpc action get --id <guid> --return-mode metadata --json
 
 ## P3 元数据（可选）
 
-只改标题/说明/图标、不动程序体：
+只改标题/说明/图标（及扩展字段如右键菜单）、不动程序体：
 
 ```powershell
 qkrpc action set-metadata --id <guid> --icon fa:Light_<Name> --expected-edit-version <N> --json
 ```
 
 图标：`qkrpc_fa_search`；`fa:Light_Name` 或 `http(s)` URL（见 set-metadata 工具说明）。
+
+**右键菜单**：`ContextMenuData` 为 CommonOperationItem 多行文本；选中项数据 → `{quicker_in_param}`。语法见 **`common-operation-item`**。
 
 ## P4 实现选型
 

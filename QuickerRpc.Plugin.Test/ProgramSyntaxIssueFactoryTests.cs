@@ -31,9 +31,11 @@ public sealed class ProgramSyntaxIssueFactoryTests
         Assert.AreEqual(12, issue.Location.Line);
         Assert.AreEqual(5, issue.Location.Column);
         Assert.IsNotNull(issue.Location.Read);
-        Assert.AreEqual("workspace_action_read_data", issue.Location.Read!.Tool);
+        Assert.AreEqual("workspace_program", issue.Location.Read!.Tool);
+        Assert.AreEqual("read_data", issue.Location.Read.Action);
         Assert.IsTrue(issue.LocationSummary!.Contains("2/if/0"));
-        Assert.IsTrue(issue.LocationSummary.Contains("workspace_action_read_data"));
+        Assert.IsTrue(issue.LocationSummary.Contains("workspace_program"));
+        Assert.IsTrue(issue.LocationSummary.Contains("read_data"));
     }
 
     [TestMethod]
@@ -59,7 +61,8 @@ public sealed class ProgramSyntaxIssueFactoryTests
         Assert.AreEqual("steps[1].inputParams.script.file", issue.Location.DataJsonPath);
         Assert.AreEqual(20, issue.Location.Line);
         Assert.AreEqual(3, issue.Location.Column);
-        Assert.AreEqual("workspace_action_file_read", issue.Location.Read!.Tool);
+        Assert.AreEqual("workspace_program", issue.Location.Read!.Tool);
+        Assert.AreEqual("file_read", issue.Location.Read.Action);
         Assert.AreEqual("files/run.cs", issue.Location.Read.Path);
         Assert.AreEqual(16, issue.Location.Read.StartLine);
         Assert.AreEqual(24, issue.Location.Read.EndLine);

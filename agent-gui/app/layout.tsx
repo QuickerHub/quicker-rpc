@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
+import { AppConfirmHost } from "@/components/AppConfirmHost";
 import { AppMessageHost } from "@/components/AppMessageHost";
 import { DevErrorCaptureGate } from "@/components/dev/DevErrorCaptureGate";
 import { QuickerAgentUpdateChecker } from "@/components/QuickerAgentUpdateChecker";
-import { TauriDialogPatch } from "@/components/TauriDialogPatch";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { TAURI_CONFIRM_PATCH_SCRIPT } from "@/lib/native-confirm";
 import { SIDEBAR_INIT_SCRIPT } from "@/lib/sidebar-prefs";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-constants";
 import "./globals.css";
@@ -24,13 +23,12 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: SIDEBAR_INIT_SCRIPT }} />
-        <script dangerouslySetInnerHTML={{ __html: TAURI_CONFIRM_PATCH_SCRIPT }} />
       </head>
       <body>
         <ThemeProvider>
-          <TauriDialogPatch />
           <DevErrorCaptureGate />
           <QuickerAgentUpdateChecker />
+          <AppConfirmHost />
           <AppMessageHost />
           {children}
         </ThemeProvider>

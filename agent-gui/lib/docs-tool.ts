@@ -1,17 +1,39 @@
 import type { StructuredToolResult } from "@/lib/tool-result";
 
+/** Consolidated authoring guide tool. */
+export const DOCS_TOOL = "docs";
+
+/** @deprecated Use docs with action=get */
 export const DOCS_GET_TOOL = "docs_get";
+/** @deprecated Use docs with action=get + reference */
 export const DOCS_GET_REFERENCE_TOOL = "docs_get_reference";
+/** @deprecated Use docs with action=search */
 export const DOCS_SEARCH_TOOL = "docs_search";
+/** @deprecated Use docs with action=index */
 export const DOCS_INDEX_TOOL = "docs_index";
 
 export function isDocsTool(toolName: string): boolean {
   return (
-    toolName === DOCS_GET_TOOL
+    toolName === DOCS_TOOL
+    || toolName === DOCS_GET_TOOL
     || toolName === DOCS_GET_REFERENCE_TOOL
     || toolName === DOCS_SEARCH_TOOL
     || toolName === DOCS_INDEX_TOOL
   );
+}
+
+export function isDocsGetOpenableTool(
+  toolName: string,
+  input?: unknown,
+): boolean {
+  if (toolName === DOCS_GET_TOOL || toolName === DOCS_GET_REFERENCE_TOOL) {
+    return true;
+  }
+  if (toolName !== DOCS_TOOL) return false;
+  if (typeof input === "object" && input !== null && !Array.isArray(input)) {
+    return (input as Record<string, unknown>).action === "get";
+  }
+  return false;
 }
 
 export type DocsGetDoc = {
@@ -56,10 +78,12 @@ export function summarizeDocsToolOutput(
   if (typeof data !== "object" || data === null) return null;
   const d = data as Record<string, unknown>;
 
-  if (
-    (toolName === DOCS_GET_TOOL || toolName === DOCS_GET_REFERENCE_TOOL)
-    && typeof d.title === "string"
-  ) {
+  const isGet =
+    toolName === DOCS_GET_TOOL
+    || toolName === DOCS_GET_REFERENCE_TOOL
+    || (toolName === DOCS_TOOL && d.docsAction === "get");
+
+  if (isGet && typeof d.title === "string") {
     const topic = typeof d.topic === "string" ? d.topic : "";
     const ref =
       typeof d.reference === "string" && d.reference
@@ -68,13 +92,21 @@ export function summarizeDocsToolOutput(
     return topic ? `${d.title} · ${topic}${ref}` : `${d.title}${ref}`;
   }
 
-  if (toolName === DOCS_SEARCH_TOOL && Array.isArray(d.items)) {
+  const isSearch =
+    toolName === DOCS_SEARCH_TOOL
+    || (toolName === DOCS_TOOL && d.docsAction === "search");
+
+  if (isSearch && Array.isArray(d.items)) {
     const n = typeof d.matchCount === "number" ? d.matchCount : d.items.length;
     const kw = typeof d.keyword === "string" && d.keyword ? ` · ${d.keyword}` : "";
     return `${n} 个主题${kw}`;
   }
 
-  if (toolName === DOCS_INDEX_TOOL && Array.isArray(d.topics)) {
+  const isIndex =
+    toolName === DOCS_INDEX_TOOL
+    || (toolName === DOCS_TOOL && d.docsAction === "index");
+
+  if (isIndex && Array.isArray(d.topics)) {
     return `${d.topics.length} 个主题`;
   }
 

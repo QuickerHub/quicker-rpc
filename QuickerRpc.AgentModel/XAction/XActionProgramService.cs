@@ -19,6 +19,7 @@ public static class XActionProgramService
         string? title = null,
         string? description = null,
         string? icon = null,
+        string? contextMenuData = null,
         int subProgramCount = 0)
     {
         switch (mode)
@@ -32,6 +33,7 @@ public static class XActionProgramService
                     title,
                     description,
                     icon,
+                    contextMenuData,
                     subProgramCount);
             default:
                 return XActionCompressor.Compress(steps, variables, catalog, omitDefaultLiteralInputs);

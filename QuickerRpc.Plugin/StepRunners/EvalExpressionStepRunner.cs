@@ -22,7 +22,9 @@ internal sealed class EvalExpressionStepRunner : IStepRunner
 {
     public const string StepKey = "sys:evalexpression";
 
-    private static readonly Regex VariablePlaceholderPattern = new(@"{([^}{\s]+)}", RegexOptions.Compiled);
+    private static readonly Regex VariablePlaceholderPattern = new(
+        @"\{([a-zA-Z_][a-zA-Z0-9_]*)\}",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly StepInParamDef ExpressionParam = new()
     {

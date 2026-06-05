@@ -23,7 +23,7 @@ import {
   isQkrpcToolResult,
   summarizeToolOutput,
 } from "./tool-output";
-import { parseDocsGetDoc, DOCS_GET_REFERENCE_TOOL } from "@/lib/docs-tool";
+import { parseDocsGetDoc, isDocsGetOpenableTool } from "@/lib/docs-tool";
 import { useDocsViewer } from "@/lib/docs-viewer";
 import { getToolMeta } from "@/lib/tool-registry";
 import { ToolSummaryTitle } from "@/components/chat/ToolSummaryTitle";
@@ -62,7 +62,7 @@ function ToolPartInner({
   const input = "input" in part ? part.input : undefined;
   const output =
     "output" in part && part.output !== undefined ? part.output : undefined;
-  const displayName = formatToolDisplayName(name);
+  const displayName = formatToolDisplayName(name, input);
   const isRunning =
     state === "input-streaming" || state === "input-available";
   const summary =
@@ -73,7 +73,7 @@ function ToolPartInner({
   const runningMeta =
     isRunning && name === SHELL_EXEC_TOOL
       ? summarizeShellToolInput(input)
-      : isRunning && isWorkspaceExplorerFileTool(name)
+      : isRunning && isWorkspaceExplorerFileTool(name, input)
         ? workspaceFileRunningMeta(name, input)
         : null;
   const meta = runningMeta ?? buildToolSummaryMeta(state, summary);
@@ -81,25 +81,25 @@ function ToolPartInner({
   const isError =
     state === "output-error" || hasFailedStructuredToolOutput(output);
   const isDocsWithMarkdown =
-    (name === "docs_get" || name === DOCS_GET_REFERENCE_TOOL)
+    isDocsGetOpenableTool(name, input)
     && output !== undefined
     && isQkrpcToolResult(output);
   const docsDoc =
     isDocsWithMarkdown && output ? parseDocsGetDoc(output) : null;
   const isDocsOpenable = Boolean(docsDoc);
 
-  const isWorkspaceFile = isWorkspaceExplorerFileTool(name);
+  const isWorkspaceFile = isWorkspaceExplorerFileTool(name, input);
   const workspaceFileOutput =
     output !== undefined && isQkrpcToolResult(output) ? output : undefined;
   const hasWorkspaceFileEditorPreview =
-    hasWorkspaceFileEditorPreviewInChat(name)
+    hasWorkspaceFileEditorPreviewInChat(name, input)
     && (workspaceFileOutput !== undefined || isRunning);
   const hasReadFilePreview =
-    isWorkspaceFileReadTool(name)
+    isWorkspaceFileReadTool(name, input)
     && (workspaceFileOutput !== undefined || isRunning);
   const isWorkspaceFileOpenRow =
     isWorkspaceFile
-    && !isWorkspaceFileEditorTool(name)
+    && !isWorkspaceFileEditorTool(name, input)
     && Boolean(workspaceFileOutput);
 
   const toolCallId =

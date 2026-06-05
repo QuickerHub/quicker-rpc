@@ -69,7 +69,7 @@ public sealed class HeadlessActionProgramService
         var catalog = StepRunnerCatalogFromQuicker.Build();
         var wireMode = XActionGetReturnModeParser.ToWire(mode);
         var editVersion = _actions.GetEditVersion(action!);
-        var (title, description, icon) = _actions.GetPresentation(action!);
+        var (title, description, icon, contextMenuData) = _actions.GetPresentation(action!);
 
         JObject compressedRoot;
         bool? omitApplied = null;
@@ -87,6 +87,7 @@ public sealed class HeadlessActionProgramService
                     title: title,
                     description: description,
                     icon: icon,
+                    contextMenuData: contextMenuData,
                     subProgramCount: subPrograms.Count);
                 break;
             default:
@@ -223,6 +224,7 @@ public sealed class HeadlessActionProgramService
         string? title,
         string? description,
         string? icon,
+        string? contextMenuData,
         long? expectedEditVersion,
         bool force)
     {
@@ -255,7 +257,13 @@ public sealed class HeadlessActionProgramService
             };
         }
 
-        if (!ActionProgramPersistence.TryUpdatePresentation(id, title, description, icon, out var saveError))
+        if (!ActionProgramPersistence.TryUpdatePresentation(
+                id,
+                title,
+                description,
+                icon,
+                contextMenuData,
+                out var saveError))
         {
             return FailMetadata(saveError ?? "save_failed");
         }
@@ -265,7 +273,7 @@ public sealed class HeadlessActionProgramService
             return FailMetadata("save finished but action could not be reloaded.");
         }
 
-        var (savedTitle, savedDescription, savedIcon) = _actions.GetPresentation(saved!);
+        var (savedTitle, savedDescription, savedIcon, savedContextMenuData) = _actions.GetPresentation(saved!);
         return new QuickerRpcUpdateActionMetadataResult
         {
             Success = true,
@@ -274,6 +282,7 @@ public sealed class HeadlessActionProgramService
             Title = savedTitle,
             Description = savedDescription,
             Icon = savedIcon,
+            ContextMenuData = savedContextMenuData,
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
         };
     }
@@ -308,10 +317,12 @@ public sealed class HeadlessActionProgramService
         var metaTitle = ActionPresentationUpdate.ReadOptionalPatchString(patch["title"]);
         var metaDescription = ActionPresentationUpdate.ReadOptionalPatchString(patch["description"]);
         var metaIcon = ActionPresentationUpdate.ReadOptionalPatchString(patch["icon"]);
+        var metaContextMenuData = ActionPresentationUpdate.ReadOptionalPatchString(patch["contextMenuData"]);
         var programPatch = (JObject)patch.DeepClone();
         programPatch.Remove("title");
         programPatch.Remove("description");
         programPatch.Remove("icon");
+        programPatch.Remove("contextMenuData");
 
         var isProgramReplace = XActionPatchApplier.IsProgramReplaceMode(patch);
         if (isProgramReplace
@@ -320,11 +331,14 @@ public sealed class HeadlessActionProgramService
             return FailPatch("replace patch requires steps and variables JSON arrays (same as action replace).");
         }
 
-        var hasMeta = metaTitle is not null || metaDescription is not null || metaIcon is not null;
+        var hasMeta = metaTitle is not null
+                      || metaDescription is not null
+                      || metaIcon is not null
+                      || metaContextMenuData is not null;
         var hasProgramPatch = programPatch["steps"] is JArray || programPatch["variables"] is JArray;
         if (!hasMeta && !hasProgramPatch)
         {
-            return FailPatch("patch must contain steps/variables arrays and/or title, description, icon.");
+            return FailPatch("patch must contain steps/variables arrays and/or title, description, icon, contextMenuData.");
         }
 
         var formPreprocess = XActionProgramService.PreprocessPatch(programPatch, projectDirectory: null);
@@ -398,13 +412,20 @@ public sealed class HeadlessActionProgramService
                     metaTitle,
                     metaDescription,
                     metaIcon,
+                    metaContextMenuData,
                     _actionEditMgr,
                     out var saveError))
             {
                 return FailPatch(saveError ?? "save_failed");
             }
         }
-        else if (!ActionProgramPersistence.TryUpdatePresentation(id, metaTitle, metaDescription, metaIcon, out var metaSaveError))
+        else if (!ActionProgramPersistence.TryUpdatePresentation(
+                     id,
+                     metaTitle,
+                     metaDescription,
+                     metaIcon,
+                     metaContextMenuData,
+                     out var metaSaveError))
         {
             return FailPatch(metaSaveError ?? "save_failed");
         }

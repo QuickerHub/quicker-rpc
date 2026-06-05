@@ -1,7 +1,18 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
-import type { LlmEndpointConfig } from "@/lib/llm-config";
+import {
+  dedupeEndpointConfigs,
+  type LlmEndpointConfig,
+} from "@/lib/llm-config";
+import {
+  getProviderEndpointChain,
+  inferLlmEndpointGroupsConfig,
+  mergeLlmEndpointGroupsConfigs,
+  type LlmEndpointGroupsConfig,
+} from "@/lib/llm-endpoint-groups";
+import { filterEndpointsForProvider } from "@/lib/llm-endpoint-provider";
+import { loadMergedPublishGroupsConfig } from "@/lib/llm-publish-config";
 import { decodeSecret } from "@/lib/llm-secret-cipher";
 import { LLM_PROVIDER_ID, type LlmProviderId } from "@/lib/llm-providers";
 
@@ -9,6 +20,7 @@ type BundledEndpointSecret = {
   enc: string;
   baseURL?: string;
   model?: string;
+  group?: string;
 };
 
 type BundledSecretsFileV1 = {
@@ -48,10 +60,7 @@ function loadBundledSecretsFile(): BundledSecretsFile | null {
       return cache;
     }
     const data = raw as Partial<BundledSecretsFile>;
-    if (
-      data.version !== 1
-      && data.version !== 2
-    ) {
+    if (data.version !== 1 && data.version !== 2) {
       cache = null;
       return cache;
     }
@@ -84,36 +93,73 @@ function decodeBundledEndpoint(
     if (typeof endpoint.model === "string" && endpoint.model.trim()) {
       next.model = endpoint.model.trim();
     }
+    if (typeof endpoint.group === "string" && endpoint.group.trim()) {
+      next.group = endpoint.group.trim();
+    }
     return next;
   } catch {
     return undefined;
   }
 }
 
+function decodeAllBundledEndpoints(file: BundledSecretsFile): LlmEndpointConfig[] {
+  if (file.version !== 2 || !Array.isArray(file.endpoints) || !file.endpoints.length) {
+    const enc = file.providers?.[LLM_PROVIDER_ID]?.enc;
+    if (typeof enc !== "string" || !enc.trim()) return [];
+    try {
+      const apiKey = decodeSecret(enc, file.appVersion, LLM_PROVIDER_ID).trim();
+      return apiKey ? [{ apiKey }] : [];
+    } catch {
+      return [];
+    }
+  }
+
+  const decoded: LlmEndpointConfig[] = [];
+  for (let index = 0; index < file.endpoints.length; index += 1) {
+    const endpoint = decodeBundledEndpoint(file, file.endpoints[index], index);
+    if (endpoint) decoded.push(endpoint);
+  }
+  return decoded;
+}
+
+export function loadBundledOnlyEndpoints(
+  providerId?: LlmProviderId,
+): LlmEndpointConfig[] {
+  const file = loadBundledSecretsFile();
+  const all = file ? decodeAllBundledEndpoints(file) : [];
+  if (providerId) {
+    return filterEndpointsForProvider(all, providerId);
+  }
+  return all;
+}
+
+function loadBundledGroupsConfig(): LlmEndpointGroupsConfig {
+  const file = loadBundledSecretsFile();
+  const endpoints = file ? decodeAllBundledEndpoints(file) : [];
+  return inferLlmEndpointGroupsConfig(endpoints);
+}
+
+/** Bundled secrets + publish (+ dev) merged by group. */
+export function loadMergedBuiltinGroupsConfig(): LlmEndpointGroupsConfig {
+  return mergeLlmEndpointGroupsConfigs(
+    loadBundledGroupsConfig(),
+    loadMergedPublishGroupsConfig(),
+  );
+}
+
+/** Dev: append publish (+ dev) JSON configs after bundled/Tauri endpoints. */
+export function mergeBundledWithPublishEndpoints(
+  bundled: readonly LlmEndpointConfig[],
+  publish: readonly LlmEndpointConfig[],
+): LlmEndpointConfig[] {
+  if (!publish.length) return [...bundled];
+  return dedupeEndpointConfigs([...bundled, ...publish]);
+}
+
 export function getBundledEndpoints(
   providerId: LlmProviderId = LLM_PROVIDER_ID,
 ): LlmEndpointConfig[] {
-  if (providerId !== LLM_PROVIDER_ID) return [];
-  const file = loadBundledSecretsFile();
-  if (!file) return [];
-
-  if (file.version === 2 && Array.isArray(file.endpoints) && file.endpoints.length) {
-    const decoded: LlmEndpointConfig[] = [];
-    for (let index = 0; index < file.endpoints.length; index += 1) {
-      const endpoint = decodeBundledEndpoint(file, file.endpoints[index], index);
-      if (endpoint) decoded.push(endpoint);
-    }
-    if (decoded.length) return decoded;
-  }
-
-  const enc = file.providers?.[LLM_PROVIDER_ID]?.enc;
-  if (typeof enc !== "string" || !enc.trim()) return [];
-  try {
-    const apiKey = decodeSecret(enc, file.appVersion, LLM_PROVIDER_ID).trim();
-    return apiKey ? [{ apiKey }] : [];
-  } catch {
-    return [];
-  }
+  return getProviderEndpointChain(loadMergedBuiltinGroupsConfig(), providerId);
 }
 
 export function hasBundledProviderApiKey(

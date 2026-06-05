@@ -11,10 +11,14 @@ export type ParsedFaSearch = {
   names: string[];
 };
 
-const FA_SEARCH_TOOLS = new Set(["qkrpc_fa_search"]);
-
-export function isFaSearchTool(toolName: string): boolean {
-  return FA_SEARCH_TOOLS.has(toolName);
+export function isFaSearchTool(toolName: string, input?: unknown): boolean {
+  if (toolName === "qkrpc_fa_search") return true;
+  if (toolName !== "qkrpc_fa") return false;
+  if (typeof input === "object" && input !== null && !Array.isArray(input)) {
+    const action = (input as Record<string, unknown>).action;
+    return action === "search" || action === undefined;
+  }
+  return false;
 }
 
 function unwrapPayload(data: unknown): Record<string, unknown> | null {

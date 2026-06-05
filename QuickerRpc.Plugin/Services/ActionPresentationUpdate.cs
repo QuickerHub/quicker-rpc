@@ -2,14 +2,17 @@ using Quicker.Common;
 
 namespace QuickerRpc.Plugin.Services;
 
-/// <summary>Apply title / description / icon on <see cref="ActionItem"/> (null field = omit).</summary>
+/// <summary>Apply title / description / icon / context menu on <see cref="ActionItem"/> (null field = omit).</summary>
 internal static class ActionPresentationUpdate
 {
+    public const int MaxContextMenuDataLength = 1500;
+
     public static bool TryApply(
         ActionItem action,
         string? title,
         string? description,
         string? icon,
+        string? contextMenuData,
         out string? error)
     {
         error = null;
@@ -45,9 +48,21 @@ internal static class ActionPresentationUpdate
             changed = true;
         }
 
+        if (contextMenuData is not null)
+        {
+            if (contextMenuData.Length > MaxContextMenuDataLength)
+            {
+                error = $"contextMenuData exceeds max length ({MaxContextMenuDataLength}).";
+                return false;
+            }
+
+            action.ContextMenuData = contextMenuData;
+            changed = true;
+        }
+
         if (!changed)
         {
-            error = "At least one of title, description, or icon must be provided.";
+            error = "At least one of title, description, icon, or contextMenuData must be provided.";
             return false;
         }
 

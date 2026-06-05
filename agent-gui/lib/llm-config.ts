@@ -2,6 +2,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import {
+  parseBuiltinSponsorsMap,
+  type LlmBuiltinSponsorsMap,
+} from "@/lib/llm-builtin-sponsors";
+import {
   getLlmProviderMeta,
   LLM_PROVIDER_ID,
   type LlmProviderId,
@@ -11,7 +15,31 @@ export type LlmEndpointConfig = {
   apiKey: string;
   baseURL?: string;
   model?: string;
+  /** Fallback group id (see `groups` in llm-*-config.json). */
+  group?: string;
 };
+
+/** Stable dedupe key for endpoint fallback chains. */
+export function endpointConfigFingerprint(endpoint: LlmEndpointConfig): string {
+  const base = (endpoint.baseURL ?? "").trim().replace(/\/$/, "");
+  return `${base}\0${endpoint.apiKey.trim()}`;
+}
+
+export function dedupeEndpointConfigs(
+  endpoints: readonly LlmEndpointConfig[],
+): LlmEndpointConfig[] {
+  const seen = new Set<string>();
+  const out: LlmEndpointConfig[] = [];
+  for (const endpoint of endpoints) {
+    const apiKey = endpoint.apiKey?.trim();
+    if (!apiKey) continue;
+    const key = endpointConfigFingerprint({ ...endpoint, apiKey });
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...endpoint, apiKey });
+  }
+  return out;
+}
 
 /** @deprecated alias */
 export type LlmEndpointFallback = LlmEndpointConfig;
@@ -34,6 +62,8 @@ export type LlmConfigFile = {
   defaultProvider?: LlmProviderId;
   /** GPT-5.5 endpoint config (`providers.default` in llm-config.json). */
   provider?: LlmProviderEntry;
+  /** Built-in model sponsors copied from publish config at bundle time. */
+  sponsors?: LlmBuiltinSponsorsMap;
 };
 
 export type ResolvedLlmProviderEntry = LlmProviderEntry & {
@@ -127,7 +157,14 @@ function readProviderEntry(raw: unknown): LlmProviderEntry | undefined {
 function normalizeConfig(raw: unknown): LlmConfigFile {
   if (typeof raw !== "object" || raw === null) return { ...EMPTY };
   const provider = readProviderEntry(raw);
-  return provider ? { version: 1, provider } : { ...EMPTY };
+  const sponsors = parseBuiltinSponsorsMap(raw);
+  const hasSponsors = Object.keys(sponsors).length > 0;
+  if (!provider && !hasSponsors) return { ...EMPTY };
+  return {
+    version: 1,
+    ...(provider ? { provider } : {}),
+    ...(hasSponsors ? { sponsors } : {}),
+  };
 }
 
 export function loadLlmConfig(): LlmConfigFile {
@@ -148,6 +185,10 @@ export function loadLlmConfig(): LlmConfigFile {
 
 export function invalidateLlmConfigCache(): void {
   cache = null;
+}
+
+export function loadLlmConfigSponsors(): LlmBuiltinSponsorsMap {
+  return loadLlmConfig().sponsors ?? {};
 }
 
 export function saveLlmConfig(data: LlmConfigFile): void {

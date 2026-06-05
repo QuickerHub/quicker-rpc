@@ -103,14 +103,43 @@ function readPublishConfigRaw() {
   return null;
 }
 
-function endpointsFromPublishConfig(raw) {
+/** @param {unknown} raw */
+function readPublishSponsors(raw) {
+  if (typeof raw !== "object" || raw === null) return {};
+  const sponsors = /** @type {Record<string, unknown>} */ (raw).sponsors;
+  if (typeof sponsors !== "object" || sponsors === null) return {};
+  /** @type {Record<string, { name: string, url: string }>} */
+  const out = {};
+  for (const id of ["bingleimuzi", "deepseek"]) {
+    const entry = sponsors[id];
+    if (typeof entry !== "object" || entry === null) continue;
+    const data = /** @type {Record<string, unknown>} */ (entry);
+    const name = typeof data.name === "string" ? data.name.trim() : "";
+    const url = typeof data.url === "string" ? data.url.trim() : "";
+    if (!name || !url || !/^https?:\/\//i.test(url)) continue;
+    out[id] = { name, url };
+  }
+  return out;
+}
+
+function isDeepSeekPublishEndpoint(endpoint, defaults) {
+  const model = (endpoint.model ?? defaults.model ?? "").trim().toLowerCase();
+  return model.startsWith("deepseek");
+}
+
+function endpointsFromPublishConfig(raw, { gptOnly = false } = {}) {
   if (typeof raw !== "object" || raw === null) return [];
   const data = /** @type {Record<string, unknown>} */ (raw);
   const defaults = readExampleDefaults();
   if (Array.isArray(data.endpoints)) {
     return data.endpoints
       .map((entry) => normalizePublishEndpoint(entry, defaults))
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((endpoint) => {
+        const deepseek = isDeepSeekPublishEndpoint(endpoint, defaults);
+        if (gptOnly) return !deepseek;
+        return true;
+      });
   }
   return [];
 }
@@ -146,8 +175,8 @@ function envKeyForProvider(providerId) {
   return undefined;
 }
 
-function resolvePublishEndpoints() {
-  const fromConfig = endpointsFromPublishConfig(readPublishConfigRaw());
+function resolvePublishEndpoints({ gptOnly = false } = {}) {
+  const fromConfig = endpointsFromPublishConfig(readPublishConfigRaw(), { gptOnly });
   if (fromConfig.length) return fromConfig;
 
   const defaults = readExampleDefaults();
@@ -160,10 +189,12 @@ function resolvePublishEndpoints() {
     endpoints.push({
       apiKey,
       baseURL: defaults.baseURL,
-      model: defaults.model,
+      model: providerId === "deepseek" ? "deepseek-v4-pro" : defaults.model,
     });
   }
-  return endpoints;
+  return gptOnly
+    ? endpoints.filter((endpoint) => !isDeepSeekPublishEndpoint(endpoint, defaults))
+    : endpoints;
 }
 
 /**
@@ -215,6 +246,11 @@ function stageBundledLlmConfig(outputDir, endpoints) {
       default: providerEntry,
     },
   };
+  const publishRaw = readPublishConfigRaw();
+  const sponsors = readPublishSponsors(publishRaw);
+  if (Object.keys(sponsors).length > 0) {
+    config.sponsors = sponsors;
+  }
   const outPath = join(outputDir, "llm-config.json");
   writeFileSync(outPath, `${JSON.stringify(config, null, 2)}\n`, {
     encoding: "utf8",
@@ -226,9 +262,15 @@ function stageBundledLlmConfig(outputDir, endpoints) {
 /**
  * @param {string} outputDir Next standalone app dir (resources/app)
  */
-export function embedBundledLlmSecrets(outputDir) {
+export function prepareBundledLlmRuntime(outputDir) {
+  const gptEndpoints = resolvePublishEndpoints({ gptOnly: true });
+  const allEndpoints = resolvePublishEndpoints();
+  stageBundledLlmConfig(outputDir, gptEndpoints);
+  return embedBundledLlmSecretsWithEndpoints(outputDir, allEndpoints);
+}
+
+function embedBundledLlmSecretsWithEndpoints(outputDir, endpoints) {
   const appVersion = readSemver();
-  const endpoints = resolvePublishEndpoints();
   const outPath = join(outputDir, "llm-bundled-secrets.json");
 
   if (endpoints.length === 0) {
@@ -276,13 +318,8 @@ export function embedBundledLlmSecrets(outputDir) {
   return { wrote: true, path: outPath, endpoints: endpoints.length };
 }
 
-/**
- * @param {string} outputDir
- */
-export function prepareBundledLlmRuntime(outputDir) {
-  const endpoints = resolvePublishEndpoints();
-  stageBundledLlmConfig(outputDir, endpoints);
-  return embedBundledLlmSecrets(outputDir);
+export function embedBundledLlmSecrets(outputDir) {
+  return embedBundledLlmSecretsWithEndpoints(outputDir, resolvePublishEndpoints());
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

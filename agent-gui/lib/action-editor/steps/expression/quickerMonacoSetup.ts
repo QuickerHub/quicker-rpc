@@ -3,8 +3,8 @@ import { conf as csharpConf, language as csharpLanguage } from "monaco-editor/es
 
 const LANGUAGE_ID = "quicker-expression";
 
-/** `{varKey}` placeholder — not `{ var }` with surrounding spaces. */
-const PLACEHOLDER_RE = /\{[^{}\s][^{}]*\}/;
+/** `{varKey}` placeholder — identifier only, not C# `{ "a", "b" }` array literals. */
+const PLACEHOLDER_RE = /\{[a-zA-Z_][a-zA-Z0-9_]*\}/;
 const PREFIX_RE = /^(\$=|\$\$)/;
 const GLOBALS_RE = /\b(_qk|_context|_eval)\b/;
 

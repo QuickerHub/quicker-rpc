@@ -1,7 +1,7 @@
 ---
 name: quicker-authoring
 description: "Quicker 动作无头编辑总览：P0 环境、docs 工具、P0–P7 索引。Use when starting action editing or choosing which guide topic to read next."
-allowed-tools: docs_get docs_search docs_index
+allowed-tools: docs
 compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
 ---
 
@@ -61,6 +61,7 @@ Quicker 运行中且已加载 QuickerRpc 插件。agent-gui 优先 **`qkrpc serv
 | 实现选型与回退 | **`implementation-fallback`** | P4：表达式不够或无模块时的回退（csscript / runScript） |
 | 子程序 | **`subprogram-workflow`** | 公共子程序 vs 动作内子程序 |
 | 动作整理 | **`action-organization-workflow`** | 整理动作页：移动、全局 tab、虚拟进程归集（不改程序体） |
+| 操作项文本语法 | **`common-operation-item`** | P3：动作右键菜单 `ContextMenuData`、`[图标]标题(提示)\|数据`、子菜单 |
 | 步骤模块搜索 | **`step-runner-search`** | P5：目录搜索 OR/通配 |
 | 步骤模块 schema | **`step-runner-get`** | P5：Agent 只用 `get`（禁止 `get-ui`）；与 search 分工 |
 | 工作区目录与外置 | **`action-project-files`** | `.quicker/actions` 布局、`file` 引用形状 |

@@ -1,33 +1,24 @@
 /** Client-safe tool ids / labels (no Node fs imports). */
 
-export const ACTION_PROJECT_DATA_TOOLS = new Set([
-  "workspace_action_read_data",
-  "workspace_action_write_data",
-  "workspace_action_edit_data",
-]);
+export {
+  isActionProjectDataTool,
+  isWorkspaceExplorerFileTool,
+} from "@/lib/workspace-program-tool";
 
-export function isActionProjectDataTool(toolName: string): boolean {
-  return ACTION_PROJECT_DATA_TOOLS.has(toolName);
-}
-
-export function isWorkspaceExplorerFileTool(toolName: string): boolean {
-  return (
-    toolName === "workspace_action_file_read"
-    || toolName === "workspace_action_file_write"
-    || toolName === "workspace_action_file_edit"
-    || isActionProjectDataTool(toolName)
-  );
-}
-
-export function actionProjectDataToolDisplayName(toolName: string): string | null {
-  switch (toolName) {
-    case "workspace_action_read_data":
-      return "read-data";
-    case "workspace_action_write_data":
-      return "write-data";
-    case "workspace_action_edit_data":
-      return "edit-data";
-    default:
-      return null;
+export function actionProjectDataToolDisplayName(
+  toolName: string,
+  input?: unknown,
+): string | null {
+  if (toolName === "workspace_action_read_data") return "read-data";
+  if (toolName === "workspace_action_write_data") return "write-data";
+  if (toolName === "workspace_action_edit_data") return "edit-data";
+  if (toolName !== "workspace_program") return null;
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return null;
   }
+  const action = (input as Record<string, unknown>).action;
+  if (action === "read_data") return "read-data";
+  if (action === "write_data") return "write-data";
+  if (action === "edit_data") return "edit-data";
+  return null;
 }

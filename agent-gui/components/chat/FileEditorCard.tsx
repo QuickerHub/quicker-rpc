@@ -131,12 +131,14 @@ export function FileEditorCard({
     [diff],
   );
 
+  const showFullDiff = diffMode === "full" || expanded;
+
   const diffDisplay = useMemo(() => {
     if (!diff) return null;
     return buildInterleavedDiffDisplay(diff.removed, diff.added, {
-      minEqualCollapse: diffMode === "full" ? 999_999 : undefined,
+      minEqualCollapse: showFullDiff ? 999_999 : undefined,
     });
-  }, [diff, diffMode]);
+  }, [diff, showFullDiff]);
 
   const diffStat = useMemo(
     () =>
@@ -264,10 +266,11 @@ export function FileEditorCard({
               path={path}
               removed={diff.removed}
               added={diff.added}
-              collapse={diffMode !== "full"}
+              collapse={!showFullDiff}
               scrollToFirstChange={isCompactPreview}
               fillAvailable={fillAvailable}
               lineNumbers={showLineNumbers}
+              lineWrapping={!isCompactPreview}
             />
           ) : (
             <CodeMirrorPreview
@@ -275,6 +278,7 @@ export function FileEditorCard({
               content={content}
               fillAvailable={fillAvailable}
               lineNumbers={showLineNumbers}
+              lineWrapping={!isCompactPreview}
             />
           )}
         </div>

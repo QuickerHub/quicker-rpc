@@ -31,6 +31,11 @@ import {
   type UserSettingsField,
 } from "@/lib/llm-user-providers";
 import { formatLlmSelection, parseLlmSelection } from "@/lib/llm-selection";
+import { resolveBuiltinModelSponsors } from "@/lib/llm-builtin-sponsors.server";
+import {
+  listBuiltinGroupDisplayRows,
+  resolveMergedBuiltinDisplayModel,
+} from "@/lib/llm-builtin-display";
 
 export const dynamic = "force-dynamic";
 
@@ -41,21 +46,16 @@ type ProviderKeyStatus = {
 };
 
 type ProviderConfigStatus = {
-  baseURL: string;
   model: string;
-  defaultBaseURL: string;
   defaultModel: string;
   apiKey: ProviderKeyStatus;
   editableFields: readonly UserSettingsField[];
+  baseURL?: string;
+  defaultBaseURL?: string;
 };
 
 function resolveProviderModel(id: LlmProviderId): string {
-  const meta = getLlmProviderMeta(id);
-  return (
-    getLocalProviderConfig(id)?.model
-    ?? resolveLlmConfigProvider(id)?.model
-    ?? meta.defaultModel
-  );
+  return resolveMergedBuiltinDisplayModel(id);
 }
 
 function resolveProviderBaseURL(id: LlmProviderId): string {
@@ -96,22 +96,29 @@ function providerKeyStatus(id: LlmProviderId): ProviderKeyStatus {
 
 function providerConfigStatus(id: LlmProviderId): ProviderConfigStatus {
   const meta = getLlmProviderMeta(id);
-  return {
-    baseURL: resolveProviderBaseURL(id),
+  const editableFields = getUserProviderUiSpec(id)?.settingsFields ?? [];
+  const status: ProviderConfigStatus = {
     model: resolveProviderModel(id),
-    defaultBaseURL: meta.defaultBaseURL,
     defaultModel: meta.defaultModel,
     apiKey: providerKeyStatus(id),
-    editableFields: getUserProviderUiSpec(id)?.settingsFields ?? [],
+    editableFields,
   };
+  if (editableFields.includes("baseURL")) {
+    status.baseURL = resolveProviderBaseURL(id);
+    status.defaultBaseURL = meta.defaultBaseURL;
+  }
+  return status;
 }
 
 export async function GET() {
   const secrets = loadLlmLocalSecrets();
   const direct = secrets.directApiKey;
   const activeSelection = getStoredActiveSelection();
+  const sponsors = resolveBuiltinModelSponsors();
+  const builtinGroups = listBuiltinGroupDisplayRows();
   return Response.json({
     storagePath: resolveLlmSecretsPath(),
+    sponsors,
     providers: Object.fromEntries(
       USER_PROVIDER_UI.map((spec) => [spec.id, providerConfigStatus(spec.id)]),
     ),
@@ -119,6 +126,7 @@ export async function GET() {
     activeSelection: activeSelection
       ? formatLlmSelection(activeSelection)
       : undefined,
+    ...(builtinGroups.length ? { builtinGroups } : {}),
     direct: {
       configured: Boolean(direct?.trim() || process.env.LLM_API_KEY?.trim()),
       masked: direct ? maskSecret(direct) : undefined,
@@ -274,8 +282,13 @@ export async function PUT(req: Request) {
     deleteCustomProfile(body.deleteProfileId.trim());
   }
 
+  const sponsors = resolveBuiltinModelSponsors();
+  const builtinGroups = listBuiltinGroupDisplayRows();
+
   return Response.json({
     ok: true,
+    sponsors,
+    ...(builtinGroups.length ? { builtinGroups } : {}),
     providers: Object.fromEntries(
       USER_PROVIDER_UI.map((spec) => [spec.id, providerConfigStatus(spec.id)]),
     ),

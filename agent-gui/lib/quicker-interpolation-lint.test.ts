@@ -138,5 +138,5 @@ test("formatValuePrefixWarningsMessage tells agent not to read from line 1", () 
   const warnings = scanProgramValuePrefixWarnings(jsonText);
   const msg = formatValuePrefixWarningsMessage(warnings);
   assert.match(msg, /Do NOT read data\.json from line 1/);
-  assert.match(msg, /workspace_action_read_data/);
+  assert.match(msg, /workspace_program/);
 });

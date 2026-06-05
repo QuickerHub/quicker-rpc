@@ -299,6 +299,121 @@ public sealed class QuickerRpcRpcContentTests
     }
 
     [TestMethod]
+    public async Task Rpc_UpdateActionMetadata_sets_and_restores_context_menu()
+    {
+        await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);
+        var ctSetup = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
+        var actionId = QuickerRpcTestSettings.TestActionId
+            ?? await QuickerRpcRpcTestAction.EnsureActionIdAsync(session.Rpc, TestContext, ctSetup).ConfigureAwait(false);
+
+        var ct = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
+        var before = await session.Rpc
+            .GetCompressedActionByIdAsync(actionId, returnMode: "metadata", cancellationToken: ct)
+            .ConfigureAwait(false);
+        Assert.IsTrue(before.Success, before.ErrorMessage);
+        var beforeRoot = QuickerRpcCompressedJsonAssert.ParseRequired(before.CompressedJson);
+        var originalMenu = beforeRoot["contextMenuData"]?.ToString() ?? string.Empty;
+        var stepCountBefore = QuickerRpcCompressedJsonAssert.MetadataStepCount(beforeRoot);
+        var editVersion = before.EditVersion;
+
+        const string testMenu = "[fa:Light_Cog]设置|settings";
+        var updated = await session.Rpc
+            .UpdateActionMetadataAsync(
+                actionId,
+                title: null,
+                description: null,
+                icon: null,
+                contextMenuData: testMenu,
+                expectedEditVersion: editVersion,
+                force: false,
+                cancellationToken: ct)
+            .ConfigureAwait(false);
+        Assert.IsTrue(updated.Success, updated.ErrorMessage ?? "UpdateActionMetadata failed.");
+        Assert.AreEqual(testMenu, updated.ContextMenuData);
+
+        var after = await session.Rpc
+            .GetCompressedActionByIdAsync(actionId, returnMode: "metadata", cancellationToken: ct)
+            .ConfigureAwait(false);
+        Assert.IsTrue(after.Success, after.ErrorMessage);
+        var afterRoot = QuickerRpcCompressedJsonAssert.ParseRequired(after.CompressedJson);
+        Assert.AreEqual(testMenu, afterRoot["contextMenuData"]?.ToString());
+        Assert.AreEqual(
+            stepCountBefore,
+            QuickerRpcCompressedJsonAssert.MetadataStepCount(afterRoot),
+            "set-metadata contextMenuData must not change program steps.");
+
+        var restored = await session.Rpc
+            .UpdateActionMetadataAsync(
+                actionId,
+                title: null,
+                description: null,
+                icon: null,
+                contextMenuData: originalMenu,
+                expectedEditVersion: after.EditVersion,
+                force: false,
+                cancellationToken: ct)
+            .ConfigureAwait(false);
+        Assert.IsTrue(restored.Success, restored.ErrorMessage ?? "Restore context menu failed.");
+    }
+
+    [TestMethod]
+    public async Task Rpc_ActionPatch_updates_and_restores_context_menu()
+    {
+        await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);
+        var ctSetup = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
+        var actionId = QuickerRpcTestSettings.TestActionId
+            ?? await QuickerRpcRpcTestAction.EnsureActionIdAsync(session.Rpc, TestContext, ctSetup).ConfigureAwait(false);
+
+        var ct = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
+        var before = await session.Rpc
+            .GetCompressedActionByIdAsync(actionId, returnMode: "metadata", cancellationToken: ct)
+            .ConfigureAwait(false);
+        Assert.IsTrue(before.Success, before.ErrorMessage);
+        var beforeRoot = QuickerRpcCompressedJsonAssert.ParseRequired(before.CompressedJson);
+        var originalMenu = beforeRoot["contextMenuData"]?.ToString() ?? string.Empty;
+        var stepCountBefore = QuickerRpcCompressedJsonAssert.MetadataStepCount(beforeRoot);
+        var editVersion = before.EditVersion;
+
+        const string patchMenu = "快速|quick\r\n重置|reset";
+        var patchJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { contextMenuData = patchMenu });
+        var patched = await session.Rpc
+            .ApplyActionPatchToActionAsync(
+                actionId,
+                patchJson,
+                expectedEditVersion: editVersion,
+                force: false,
+                cancellationToken: ct)
+            .ConfigureAwait(false);
+        Assert.IsTrue(patched.Success, patched.ErrorMessage ?? "ApplyActionPatch failed.");
+        Assert.IsTrue(patched.PresentationUpdated == true, "Expected presentationUpdated for contextMenuData patch.");
+
+        var after = await session.Rpc
+            .GetCompressedActionByIdAsync(actionId, returnMode: "metadata", cancellationToken: ct)
+            .ConfigureAwait(false);
+        Assert.IsTrue(after.Success, after.ErrorMessage);
+        var afterRoot = QuickerRpcCompressedJsonAssert.ParseRequired(after.CompressedJson);
+        Assert.AreEqual(patchMenu, afterRoot["contextMenuData"]?.ToString());
+        Assert.AreEqual(
+            stepCountBefore,
+            QuickerRpcCompressedJsonAssert.MetadataStepCount(afterRoot),
+            "Patching contextMenuData must not change program steps.");
+
+        var restoreJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { contextMenuData = originalMenu });
+        var restored = await session.Rpc
+            .ApplyActionPatchToActionAsync(
+                actionId,
+                restoreJson,
+                expectedEditVersion: after.EditVersion,
+                force: false,
+                cancellationToken: ct)
+            .ConfigureAwait(false);
+        Assert.IsTrue(restored.Success, restored.ErrorMessage ?? "Restore context menu patch failed.");
+        Assert.AreEqual(originalMenu, QuickerRpcCompressedJsonAssert.ParseRequired(
+            (await session.Rpc.GetCompressedActionByIdAsync(actionId, returnMode: "metadata", cancellationToken: ct)
+                .ConfigureAwait(false)).CompressedJson)["contextMenuData"]?.ToString());
+    }
+
+    [TestMethod]
     public async Task Rpc_ListGlobalSubPrograms_returns_entries()
     {
         await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);

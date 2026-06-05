@@ -105,11 +105,11 @@ internal static class QkrpcCliHelp
 
                     opts: ActionHeadlessOpts()),
 
-                Cmd("action patch", "Apply partial XAction patch (one call = one save). Patch JSON may also include title, description, icon. On success use response; do not action_get only to verify.", "qkrpc action patch --id <guid> --patch-file <path|-> [--expected-edit-version N] [--force] [--json]",
+                Cmd("action patch", "Apply partial XAction patch (one call = one save). Patch JSON may also include title, description, icon, contextMenuData. On success use response; do not action_get only to verify.", "qkrpc action patch --id <guid> --patch-file <path|-> [--expected-edit-version N] [--force] [--json]",
 
                     opts: ActionPatchOpts()),
 
-                Cmd("action set-metadata", "Update action title, description, and/or icon (does not change steps/variables).", "qkrpc action set-metadata --id <guid> [--title <text>] [--description <text>] [--icon <spec|url>] [--expected-edit-version N] [--force] [--json]",
+                Cmd("action set-metadata", "Update action title, description, icon, and/or context menu (does not change steps/variables).", "qkrpc action set-metadata --id <guid> [--title <text>] [--description <text>] [--icon <spec|url>] [--context-menu-data <text>] [--expected-edit-version N] [--force] [--json]",
 
                     opts: ActionSetMetadataOpts()),
 
@@ -344,6 +344,30 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("code", "Inline C# script."), Option("file", "Script file or - for stdin."), Option("references", "Extra assembly paths (one per line)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
+                Cmd("settings search", "Search Quicker settings keys and settings pages by keyword.", "qkrpc settings search --query <keyword> [--limit 30] [--json]",
+
+                    opts: new[] { Option("query", "Keyword (Chinese/English/property name).", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("settings list", "List known setting keys (optionally by scope).", "qkrpc settings list [--scope userSettings] [--limit 100] [--json]",
+
+                    opts: new[] { Option("scope", "userSettings | userPreference | globalSettings | exeSettings."), Option("limit", "Max results.", defaultValue: "100"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("settings get", "Read a Quicker setting value.", "qkrpc settings get --key userSettings:EnableCircleMenu [--json]",
+
+                    opts: new[] { Option("key", "scope:path (exeSettings:<exe>:<path> for per-exe settings)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("settings set", "Update and persist a Quicker setting value.", "qkrpc settings set --key userSettings:EnableCircleMenu --value true [--json]",
+
+                    opts: new[] { Option("key", "scope:path."), Option("value", "New value (bool/int/string/enum)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("settings pages", "List openable Quicker settings pages and UI targets.", "qkrpc settings pages [--json]",
+
+                    opts: new[] { Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("settings open", "Open a Quicker settings page or related UI.", "qkrpc settings open --page ActionRecycleBinSettingPage [--json] | qkrpc settings open --page recycle-bin | qkrpc settings open --page search",
+
+                    opts: new[] { Option("page", "SettingPageId or alias (recycle-bin, AppSettings, 动作回收站, search, settings)."), Option("target", "Alias for --page."), Option("exe", "With exe-settings / process-settings target."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
                 Cmd("project.lint.schedule", "Schedule async expression/C# lint for a .quicker project (qkrpc serve). Writes .qkrpc/diagnostics.json.", "POST serve op project.lint.schedule — args: projectDir, workspaceRoot, target, id, editVersion",
 
                     opts: new[] { Option("projectDir", "Absolute project directory."), Option("workspaceRoot", "Workspace root for path guard."), Option("target", "action | global_subprogram | embedded_subprogram."), Option("id", "Action or subprogram id."), Option("editVersion", "From last patch.") }),
@@ -419,6 +443,8 @@ internal static class QkrpcCliHelp
             Option("description", "New description (pass empty string to clear)."),
 
             Option("icon", "Icon: fa:Light_Name[:#color] or absolute http(s) image URL."),
+
+            Option("context-menu-data", "Context menu lines (CommonOperationItem text; empty string clears)."),
 
             Option("expected-edit-version", "From action get."),
 

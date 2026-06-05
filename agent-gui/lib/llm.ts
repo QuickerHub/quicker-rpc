@@ -17,7 +17,6 @@ import {
   getStickyEndpoint,
   setStickyEndpoint,
 } from "@/lib/llm-endpoint-pref";
-import { loadPublishConfigEndpoints } from "@/lib/llm-publish-config";
 import {
   CUSTOM_PROVIDER_ID,
   getLlmProviderMeta,
@@ -78,6 +77,8 @@ function resolveApiKey(providerId: LlmProviderId): string | undefined {
   if (providerId === DEEPSEEK_PROVIDER_ID) {
     const local = getLocalProviderApiKey(DEEPSEEK_PROVIDER_ID);
     if (local) return local;
+    const bundled = getBundledProviderApiKey(DEEPSEEK_PROVIDER_ID);
+    if (bundled) return bundled;
     return envFirst(...DEEPSEEK_ENV_API_KEYS);
   }
 
@@ -98,17 +99,23 @@ function resolveBaseURL(providerId: LlmProviderId): string | undefined {
     );
   }
   if (providerId === DEEPSEEK_PROVIDER_ID) {
+    const bundled = getBundledEndpoints(DEEPSEEK_PROVIDER_ID);
     return (
       getLocalProviderConfig(DEEPSEEK_PROVIDER_ID)?.baseURL
+      ?? bundled[0]?.baseURL
       ?? envFirst(...DEEPSEEK_ENV_BASE_URLS)
     );
   }
 
+  const bundled = getBundledEndpoints(LLM_PROVIDER_ID);
   const fromLocal = getLocalProviderConfig(LLM_PROVIDER_ID)?.baseURL;
   if (fromLocal) return fromLocal;
   const fromConfig = resolveLlmConfigProvider(LLM_PROVIDER_ID)?.baseURL;
   if (fromConfig) return fromConfig;
-  return envFirst(...GPT55_ENV_BASE_URLS);
+  return (
+    bundled[0]?.baseURL
+    ?? envFirst(...GPT55_ENV_BASE_URLS)
+  );
 }
 
 function resolveModelId(providerId: LlmProviderId): string | undefined {
@@ -119,21 +126,29 @@ function resolveModelId(providerId: LlmProviderId): string | undefined {
     );
   }
   if (providerId === DEEPSEEK_PROVIDER_ID) {
+    const bundled = getBundledEndpoints(DEEPSEEK_PROVIDER_ID);
     const raw =
       getLocalProviderConfig(DEEPSEEK_PROVIDER_ID)?.model
+      ?? bundled[0]?.model
       ?? envFirst(...DEEPSEEK_ENV_MODELS);
     return raw ? resolveDeepSeekModelId(raw) : undefined;
   }
 
+  const bundled = getBundledEndpoints(LLM_PROVIDER_ID);
   const fromLocal = getLocalProviderConfig(LLM_PROVIDER_ID)?.model;
   if (fromLocal) return fromLocal;
   const fromConfig = resolveLlmConfigProvider(LLM_PROVIDER_ID)?.model;
   if (fromConfig) return fromConfig;
-  return envFirst(...GPT55_ENV_MODELS);
+  return (
+    bundled[0]?.model
+    ?? envFirst(...GPT55_ENV_MODELS)
+  );
 }
 
 export function getLlmProviderId(): LlmProviderId {
-  return parseLlmProviderId(process.env.LLM_PROVIDER) ?? LLM_PROVIDER_ID;
+  const raw = process.env.LLM_PROVIDER?.trim();
+  if (!raw) return LLM_PROVIDER_ID;
+  return parseLlmProviderId(raw) ?? LLM_PROVIDER_ID;
 }
 
 function hasDirectApiKey(): boolean {
@@ -224,9 +239,11 @@ function normalizeOrderedEndpoints(
     .filter((endpoint) => endpoint.apiKey);
 }
 
-function resolveGpt55EndpointConfigs(): LlmEndpointConfig[] {
-  const meta = getLlmProviderMeta(LLM_PROVIDER_ID);
-  const local = getLocalProviderConfig(LLM_PROVIDER_ID);
+function resolveBuiltinEndpointConfigs(
+  providerId: typeof LLM_PROVIDER_ID | typeof DEEPSEEK_PROVIDER_ID,
+): LlmEndpointConfig[] {
+  const meta = getLlmProviderMeta(providerId);
+  const local = getLocalProviderConfig(providerId);
   if (local?.apiKey?.trim()) {
     return [{
       apiKey: local.apiKey.trim(),
@@ -235,52 +252,63 @@ function resolveGpt55EndpointConfigs(): LlmEndpointConfig[] {
     }];
   }
 
-  const fromConfig = resolveLlmConfigProvider(LLM_PROVIDER_ID);
-  if (fromConfig?.apiKey) {
-    const chain: LlmEndpointConfig[] = [{
-      apiKey: fromConfig.apiKey,
-      baseURL: fromConfig.baseURL ?? meta.defaultBaseURL,
-      model: fromConfig.model ?? meta.defaultModel,
-    }];
-    for (const fallback of fromConfig.fallbacks ?? []) {
-      if (!fallback.apiKey) continue;
-      chain.push({
-        apiKey: fallback.apiKey,
-        baseURL: fallback.baseURL ?? meta.defaultBaseURL,
-        model: fallback.model ?? meta.defaultModel,
-      });
+  if (providerId === LLM_PROVIDER_ID) {
+    const fromConfig = resolveLlmConfigProvider(LLM_PROVIDER_ID);
+    if (fromConfig?.apiKey) {
+      const chain: LlmEndpointConfig[] = [{
+        apiKey: fromConfig.apiKey,
+        baseURL: fromConfig.baseURL ?? meta.defaultBaseURL,
+        model: fromConfig.model ?? meta.defaultModel,
+      }];
+      for (const fallback of fromConfig.fallbacks ?? []) {
+        if (!fallback.apiKey) continue;
+        chain.push({
+          apiKey: fallback.apiKey,
+          baseURL: fallback.baseURL ?? meta.defaultBaseURL,
+          model: fallback.model ?? meta.defaultModel,
+        });
+      }
+      return chain;
     }
-    return chain;
   }
 
-  const bundled = getBundledEndpoints(LLM_PROVIDER_ID);
+  const bundled = getBundledEndpoints(providerId);
   if (bundled.length > 0) {
     return normalizeOrderedEndpoints(bundled, meta);
   }
 
-  const publish = loadPublishConfigEndpoints();
-  if (publish.length > 0) {
-    return normalizeOrderedEndpoints(publish, meta);
+  if (providerId === LLM_PROVIDER_ID) {
+    const configSlots = resolveLlmConfigEndpointSlots(LLM_PROVIDER_ID);
+    const inlineConfigChain = configSlots
+      .filter((slot) => slot.apiKey?.trim())
+      .map((slot) => ({
+        apiKey: slot.apiKey!.trim(),
+        baseURL: slot.baseURL ?? meta.defaultBaseURL,
+        model: slot.model ?? meta.defaultModel,
+      }));
+    if (inlineConfigChain.length > 0) {
+      return inlineConfigChain;
+    }
   }
 
-  const configSlots = resolveLlmConfigEndpointSlots(LLM_PROVIDER_ID);
-  const inlineConfigChain = configSlots
-    .filter((slot) => slot.apiKey?.trim())
-    .map((slot) => ({
-      apiKey: slot.apiKey!.trim(),
-      baseURL: slot.baseURL ?? meta.defaultBaseURL,
-      model: slot.model ?? meta.defaultModel,
-    }));
-  if (inlineConfigChain.length > 0) {
-    return inlineConfigChain;
-  }
-
-  const envKey = envFirst(...GPT55_ENV_API_KEYS);
+  const envKeys = providerId === DEEPSEEK_PROVIDER_ID
+    ? DEEPSEEK_ENV_API_KEYS
+    : GPT55_ENV_API_KEYS;
+  const envBaseURLs = providerId === DEEPSEEK_PROVIDER_ID
+    ? DEEPSEEK_ENV_BASE_URLS
+    : GPT55_ENV_BASE_URLS;
+  const envModels = providerId === DEEPSEEK_PROVIDER_ID
+    ? DEEPSEEK_ENV_MODELS
+    : GPT55_ENV_MODELS;
+  const envKey = envFirst(...envKeys);
   if (!envKey) return [];
+  const model = envFirst(...envModels) ?? meta.defaultModel;
   return [{
     apiKey: envKey,
-    baseURL: envFirst(...GPT55_ENV_BASE_URLS) ?? meta.defaultBaseURL,
-    model: envFirst(...GPT55_ENV_MODELS) ?? meta.defaultModel,
+    baseURL: envFirst(...envBaseURLs) ?? meta.defaultBaseURL,
+    model: providerId === DEEPSEEK_PROVIDER_ID
+      ? resolveDeepSeekModelId(model)
+      : model,
   }];
 }
 
@@ -313,20 +341,20 @@ function buildLlmEndpointChain(
   const providerId = providerOverride ?? getLlmProviderId();
   const meta = getLlmProviderMeta(providerId);
 
-  if (directKey && providerId === LLM_PROVIDER_ID) {
-    return [
-      {
-        providerId,
-        apiKey: directKey,
-        baseURL: process.env.LLM_BASE_URL?.trim() ?? meta.defaultBaseURL,
-        modelId: process.env.LLM_MODEL?.trim() ?? meta.defaultModel,
-        clientName: meta.clientName,
-      },
-    ];
-  }
+  if (providerId === LLM_PROVIDER_ID || providerId === DEEPSEEK_PROVIDER_ID) {
+    if (directKey && providerId === LLM_PROVIDER_ID) {
+      return [
+        {
+          providerId,
+          apiKey: directKey,
+          baseURL: process.env.LLM_BASE_URL?.trim() ?? meta.defaultBaseURL,
+          modelId: process.env.LLM_MODEL?.trim() ?? meta.defaultModel,
+          clientName: meta.clientName,
+        },
+      ];
+    }
 
-  if (providerId === LLM_PROVIDER_ID) {
-    const configs = resolveGpt55EndpointConfigs();
+    const configs = resolveBuiltinEndpointConfigs(providerId);
     const chain = configs.map((config) => toEndpoint(
       providerId,
       config.apiKey,
@@ -455,16 +483,121 @@ function readHttpStatus(error: Error): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
-async function probeLlmEndpoint(endpoint: ResolvedLlmEndpoint): Promise<void> {
+async function probeLlmEndpoint(
+  endpoint: ResolvedLlmEndpoint,
+  timeoutMs = 10_000,
+): Promise<void> {
   const base = endpoint.baseURL.replace(/\/$/, "");
   const response = await fetch(`${base}/models`, {
     headers: { Authorization: `Bearer ${endpoint.apiKey}` },
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) {
     throw new Error(
       `LLM endpoint unavailable (${endpoint.baseURL}): HTTP ${response.status}`,
     );
+  }
+}
+
+export type LlmProviderProbeResult = {
+  configured: boolean;
+  reachable: boolean;
+  modelId?: string;
+  baseURL?: string;
+  message?: string;
+  latencyMs?: number;
+};
+
+/** Probe configured endpoints (same chain/fallback as chat) without creating a model. */
+export async function probeLlmProviderAvailability(
+  providerId: LlmProviderId,
+  options?: { timeoutMs?: number },
+): Promise<LlmProviderProbeResult> {
+  if (!isLlmProviderConfigured(providerId)) {
+    return { configured: false, reachable: false, message: "未配置" };
+  }
+
+  let naturalChain: ResolvedLlmEndpoint[];
+  try {
+    naturalChain = buildLlmEndpointChain(providerId);
+  } catch (error) {
+    return {
+      configured: true,
+      reachable: false,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (naturalChain.length === 0) {
+    return {
+      configured: true,
+      reachable: false,
+      message: "无可用 endpoint",
+    };
+  }
+
+  const chain = applyStickyEndpointOrder(naturalChain, providerId);
+  const timeoutMs = options?.timeoutMs ?? 10_000;
+  let lastError: unknown;
+
+  for (const endpoint of chain) {
+    const started = Date.now();
+    try {
+      await probeLlmEndpoint(endpoint, timeoutMs);
+      return {
+        configured: true,
+        reachable: true,
+        modelId: endpoint.modelId,
+        baseURL: endpoint.baseURL,
+        latencyMs: Date.now() - started,
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  return {
+    configured: true,
+    reachable: false,
+    message: lastError instanceof Error ? lastError.message : "所有 endpoint 不可用",
+  };
+}
+
+/** Probe a single endpoint config (settings split view). */
+export async function probeLlmEndpointConfig(
+  providerId: LlmProviderId,
+  config: LlmEndpointConfig,
+  options?: { timeoutMs?: number },
+): Promise<LlmProviderProbeResult> {
+  const meta = getLlmProviderMeta(providerId);
+  const apiKey = config.apiKey?.trim();
+  if (!apiKey) {
+    return { configured: false, reachable: false, message: "未配置" };
+  }
+
+  const endpoint = toEndpoint(
+    providerId,
+    apiKey,
+    config.baseURL ?? meta.defaultBaseURL,
+    config.model,
+  );
+  const timeoutMs = options?.timeoutMs ?? 10_000;
+  const started = Date.now();
+  try {
+    await probeLlmEndpoint(endpoint, timeoutMs);
+    return {
+      configured: true,
+      reachable: true,
+      modelId: endpoint.modelId,
+      baseURL: endpoint.baseURL,
+      latencyMs: Date.now() - started,
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      reachable: false,
+      message: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 

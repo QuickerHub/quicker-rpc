@@ -9,17 +9,16 @@ import {
   resolveFileIconKind,
 } from "@/lib/file-icon-kind";
 import { isStructuredToolResult } from "@/lib/tool-result";
+import {
+  effectiveWorkspaceToolId,
+  isWorkspaceFileTool as isWorkspaceFileToolName,
+  LEGACY_WORKSPACE_FILE_TOOLS,
+} from "@/lib/workspace-program-tool";
 
-export const WORKSPACE_FILE_TOOLS = new Set([
-  "workspace_action_file_read",
-  "workspace_action_file_write",
-  "workspace_action_file_edit",
-  "workspace_action_file_info",
-  "workspace_action_file_search",
-]);
+export const WORKSPACE_FILE_TOOLS = LEGACY_WORKSPACE_FILE_TOOLS;
 
-export function isWorkspaceFileTool(toolName: string): boolean {
-  return WORKSPACE_FILE_TOOLS.has(toolName);
+export function isWorkspaceFileTool(toolName: string, input?: unknown): boolean {
+  return isWorkspaceFileToolName(toolName, input);
 }
 
 export { isWorkspaceExplorerFileTool };
@@ -327,6 +326,30 @@ export function parseWorkspaceFilePayload(
     };
   }
 
+  if (
+    data.action === "file-write"
+    && typeof data.path === "string"
+    && typeof data.bytesWritten === "number"
+  ) {
+    return {
+      action: "file-write",
+      path: data.path,
+      bytesWritten: data.bytesWritten,
+    };
+  }
+
+  if (
+    data.action === "file-edit"
+    && typeof data.path === "string"
+    && typeof data.replacements === "number"
+  ) {
+    return {
+      action: "file-edit",
+      path: data.path,
+      replacements: data.replacements,
+    };
+  }
+
   return null;
 }
 
@@ -339,7 +362,7 @@ export function summarizeWorkspaceFileTool(
 
   const actionId = readInputActionId(input);
   const inputPath = getWorkspaceFilePathFromInput(toolName, input);
-  const pathHint = isActionProjectDataTool(toolName) && actionId
+  const pathHint = isActionProjectDataTool(toolName, input) && actionId
     ? `data.json · ${shortActionId(actionId)}`
     : inputPath
       ? basenamePath(inputPath)
@@ -552,7 +575,7 @@ export function workspaceFileRunningMeta(
   const { startLine, endLine } = readRequestedLineRangeFromInput(input);
   const range = formatFileReadLineRangeLabel(startLine, endLine);
 
-  if (isActionProjectDataTool(toolName)) {
+  if (isActionProjectDataTool(toolName, input)) {
     const id = readInputActionId(input);
     if (range) {
       return id ? `${shortActionId(id)} · data.json · ${range}…` : `data.json · ${range}…`;
@@ -592,10 +615,16 @@ export function workspaceFileOpenRowSubtitle(
   return basenamePath(path);
 }
 
-export function workspaceFileToolDisplayName(toolName: string): string | null {
-  const actionData = actionProjectDataToolDisplayName(toolName);
+export function workspaceFileToolDisplayName(
+  toolName: string,
+  input?: unknown,
+): string | null {
+  const actionData = actionProjectDataToolDisplayName(toolName, input);
   if (actionData) return actionData;
-  switch (toolName) {
+  const effective = input !== undefined
+    ? effectiveWorkspaceToolId(toolName, input)
+    : toolName;
+  switch (effective) {
     case "workspace_action_file_read":
       return "read";
     case "workspace_action_file_write":
@@ -611,42 +640,69 @@ export function workspaceFileToolDisplayName(toolName: string): string | null {
   }
 }
 
-export function isWorkspaceFileEditorTool(toolName: string): boolean {
+export function isWorkspaceFileEditorTool(
+  toolName: string,
+  input?: unknown,
+): boolean {
+  const effective = input !== undefined
+    ? effectiveWorkspaceToolId(toolName, input)
+    : toolName;
   return (
-    toolName === "workspace_action_file_read"
-    || toolName === "workspace_action_file_write"
-    || toolName === "workspace_action_file_edit"
-    || toolName === "workspace_action_read_data"
-    || toolName === "workspace_action_write_data"
-    || toolName === "workspace_action_edit_data"
+    effective === "workspace_action_file_read"
+    || effective === "workspace_action_file_write"
+    || effective === "workspace_action_file_edit"
+    || effective === "workspace_action_read_data"
+    || effective === "workspace_action_write_data"
+    || effective === "workspace_action_edit_data"
   );
 }
 
-export function isWorkspaceFileReadTool(toolName: string): boolean {
+export function isWorkspaceFileReadTool(
+  toolName: string,
+  input?: unknown,
+): boolean {
+  const effective = input !== undefined
+    ? effectiveWorkspaceToolId(toolName, input)
+    : toolName;
   return (
-    toolName === "workspace_action_file_read"
-    || toolName === "workspace_action_read_data"
+    effective === "workspace_action_file_read"
+    || effective === "workspace_action_read_data"
   );
 }
 
 /** All file editor tools may render an inline code block when expanded in chat. */
-export function shouldShowFileEditorCodeBlockInChat(toolName: string): boolean {
-  return isWorkspaceFileEditorTool(toolName);
+export function shouldShowFileEditorCodeBlockInChat(
+  toolName: string,
+  input?: unknown,
+): boolean {
+  return isWorkspaceFileEditorTool(toolName, input);
 }
 
 /** Write/edit inline snapshot in chat. */
-export function hasWorkspaceFileEditorPreviewInChat(toolName: string): boolean {
-  return isWorkspaceFileEditorTool(toolName) && !isWorkspaceFileReadTool(toolName);
+export function hasWorkspaceFileEditorPreviewInChat(
+  toolName: string,
+  input?: unknown,
+): boolean {
+  return (
+    isWorkspaceFileEditorTool(toolName, input)
+    && !isWorkspaceFileReadTool(toolName, input)
+  );
 }
 
 /** Write/edit inline file chip in chat (read uses collapsible tool summary row). */
-export function hasWorkspaceFileChipInChat(toolName: string): boolean {
-  return hasWorkspaceFileEditorPreviewInChat(toolName);
+export function hasWorkspaceFileChipInChat(
+  toolName: string,
+  input?: unknown,
+): boolean {
+  return hasWorkspaceFileEditorPreviewInChat(toolName, input);
 }
 
 /** Read: folded file chip until expand; write/edit show clamped preview by default. */
-export function shouldFoldFileSnapshotInChat(toolName: string): boolean {
-  return isWorkspaceFileReadTool(toolName);
+export function shouldFoldFileSnapshotInChat(
+  toolName: string,
+  input?: unknown,
+): boolean {
+  return isWorkspaceFileReadTool(toolName, input);
 }
 
 export type WorkspaceFileEditorPreview = {
@@ -706,6 +762,11 @@ export function getWorkspaceFileEditorPreview(
   input: unknown,
   data: unknown,
 ): WorkspaceFileEditorPreview | null {
+  const effectiveTool = effectiveWorkspaceToolId(toolName, input);
+  if (effectiveTool !== toolName) {
+    return getWorkspaceFileEditorPreview(effectiveTool, input, data);
+  }
+
   const inputPath = readInputPath(input);
 
   switch (toolName) {

@@ -4,6 +4,10 @@ import {
   type ActionSummaryItem,
 } from "@/lib/agent-api";
 import { formatLastEditDisplay } from "@/lib/format-action-time";
+import {
+  actionListSourceFromTool,
+  isActionListTool as isActionListToolName,
+} from "@/lib/qkrpc-action-tool";
 
 export type ActionListRow = {
   id: string;
@@ -28,10 +32,8 @@ export type ParsedActionList = {
   items: ActionListRow[];
 };
 
-const ACTION_LIST_TOOLS = new Set(["qkrpc_action_list", "qkrpc_action_search"]);
-
-export function isActionListTool(toolName: string): boolean {
-  return ACTION_LIST_TOOLS.has(toolName);
+export function isActionListTool(toolName: string, input?: unknown): boolean {
+  return isActionListToolName(toolName, input);
 }
 
 function unwrapEnvelope(data: unknown): Record<string, unknown> | null {
@@ -119,14 +121,16 @@ function searchItemToRow(raw: unknown): ActionListRow | null {
   };
 }
 
-/** Parse qkrpc_action_list / qkrpc_action_search tool result data for UI rendering. */
+/** Parse qkrpc_action list/search tool result data for UI rendering. */
 export function parseActionListFromQkrpcData(
   toolName: string,
   data: unknown,
+  input?: unknown,
 ): ParsedActionList | null {
-  if (!isActionListTool(toolName)) return null;
+  if (!isActionListTool(toolName, input)) return null;
 
-  if (toolName === "qkrpc_action_list") {
+  const source = actionListSourceFromTool(toolName, input);
+  if (source === "list") {
     const parsed = parseSearchActionSummaries(data);
     if (!parsed) {
       const fromRaw = parseListFromRawPayload(data);

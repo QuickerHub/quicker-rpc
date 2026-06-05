@@ -148,7 +148,7 @@ export function ChatSidebar({
 
   const handleDeleteThread = (threadId: string) => {
     void (async () => {
-      if (!(await nativeConfirm("删除此对话？"))) return;
+      if (!(await nativeConfirm("删除此对话？", { danger: true }))) return;
       commit(deleteThread(store, threadId));
     })();
   };

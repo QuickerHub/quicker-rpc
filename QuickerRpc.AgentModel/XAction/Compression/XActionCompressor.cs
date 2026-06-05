@@ -47,6 +47,7 @@ public static class XActionCompressor
         string? title,
         string? description,
         string? icon,
+        string? contextMenuData,
         int subProgramCount)
     {
         return new JObject
@@ -54,6 +55,7 @@ public static class XActionCompressor
             ["title"] = title ?? string.Empty,
             ["description"] = description ?? string.Empty,
             ["icon"] = icon ?? string.Empty,
+            ["contextMenuData"] = contextMenuData ?? string.Empty,
             ["stepCount"] = CountStepsRecursive(steps),
             ["variableCount"] = variables.Count,
             ["subProgramCount"] = subProgramCount,

@@ -30,6 +30,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Catalog\step-runner-agent-keywords.json" />
+    <EmbeddedResource Include="Catalog\quicker-settings-agent-keywords.json" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(RepoRoot)docs\action-authoring\cli\*.md">

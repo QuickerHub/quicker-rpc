@@ -73,8 +73,12 @@ internal sealed class LegacyActionProgramAccessor
 
     public long GetEditVersion(ActionItem action) => ActionDesignerProgramAccess.GetEditVersionMs(action);
 
-    public (string Title, string Description, string Icon) GetPresentation(ActionItem action) =>
-        (action.Title ?? string.Empty, action.Description ?? string.Empty, action.Icon ?? string.Empty);
+    public (string Title, string Description, string Icon, string ContextMenuData) GetPresentation(ActionItem action) =>
+        (
+            action.Title ?? string.Empty,
+            action.Description ?? string.Empty,
+            action.Icon ?? string.Empty,
+            action.ContextMenuData ?? string.Empty);
 
     public string GetActionId(ActionItem action) => (action.Id ?? string.Empty).Trim();
 
@@ -85,7 +89,7 @@ internal sealed class LegacyActionProgramAccessor
         string subProgramsJson,
         ActionEditMgrAccessor? actionEditMgr,
         out string? error) =>
-        TryApplyPayloadAndSave(sourceAction, steps, variables, subProgramsJson, null, null, null, actionEditMgr, out error);
+        TryApplyPayloadAndSave(sourceAction, steps, variables, subProgramsJson, null, null, null, null, actionEditMgr, out error);
 
     public bool TryApplyPayloadAndSave(
         ActionItem sourceAction,
@@ -95,6 +99,7 @@ internal sealed class LegacyActionProgramAccessor
         string? title,
         string? description,
         string? icon,
+        string? contextMenuData,
         ActionEditMgrAccessor? actionEditMgr,
         out string? error)
     {
@@ -107,6 +112,7 @@ internal sealed class LegacyActionProgramAccessor
             title,
             description,
             icon,
+            contextMenuData,
             out error);
     }
 }

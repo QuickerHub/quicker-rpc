@@ -45,7 +45,8 @@ public sealed class InterpolationPrefixLintTests
         Assert.AreEqual("message", issues[0].Location.ParamName);
         Assert.AreEqual("0", issues[0].Location.StepPath);
         Assert.IsNotNull(issues[0].LocationSummary);
-        Assert.IsTrue(issues[0].LocationSummary!.Contains("workspace_action_read_data"));
+        Assert.IsTrue(issues[0].LocationSummary!.Contains("workspace_program"));
+        Assert.IsTrue(issues[0].LocationSummary.Contains("read_data"));
     }
 
     [TestMethod]

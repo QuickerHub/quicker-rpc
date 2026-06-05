@@ -7,7 +7,7 @@ option csharp_namespace = "QuickerRpc.AgentModel.Proto.V1";
 import "google/protobuf/timestamp.proto";
 
 // Canonical on-disk model for `.quicker/actions/{id}/info.json` (camelCase JSON).
-// User-editable: title, description, icon. Other fields sync from Quicker (id, editVersion, exportedUtc).
+// User-editable: title, description, icon, context_menu_data. Other fields sync from Quicker.
 message ActionProjectInfo {
   string id = 1 [json_name = "id"];
   string title = 2;
@@ -15,4 +15,5 @@ message ActionProjectInfo {
   string icon = 4;
   int64 edit_version = 5 [json_name = "editVersion"];
   google.protobuf.Timestamp exported_utc = 6 [json_name = "exportedUtc"];
+  string context_menu_data = 7 [json_name = "contextMenuData"];
 }

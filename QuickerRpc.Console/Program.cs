@@ -38,7 +38,8 @@ internal static partial class Program
             GuideOptions,
             FormOptions,
             ExprOptions,
-            ScriptOptions>(args);
+            ScriptOptions,
+            SettingsOptions>(args);
         return await result
             .MapResult(
                 (PingOptions o) => RunPingAsync(o),
@@ -53,6 +54,7 @@ internal static partial class Program
                 (FormOptions o) => RunFormAsync(o),
                 (ExprOptions o) => RunExprCommandAsync(o),
                 (ScriptOptions o) => RunScriptCommandAsync(o),
+                (SettingsOptions o) => RunSettingsAsync(o),
                 _ => Task.FromResult(ExitCodes.Error))
             .ConfigureAwait(false);
     }
@@ -1176,6 +1178,9 @@ public sealed class ActionOptions
 
     [Option("icon", HelpText = "Icon: fa:Light_Name[:#color] or absolute http(s) image URL.")]
     public string? Icon { get; set; }
+
+    [Option("context-menu-data", HelpText = "Action context menu definition (CommonOperationItem lines; \"\" clears).")]
+    public string? ContextMenuData { get; set; }
 
     [Option("profile-id", HelpText = "Optional virtual action page id for action create.")]
     public string? ProfileId { get; set; }

@@ -320,4 +320,4 @@ export function finalizeAssistantRenderUnits(
 }
 
 /** Prompt snippet for system instructions (assistant completion summaries). */
-export const ACTION_LINK_SUMMARY_PROMPT = `After successfully patching an action (workspace_program_patch / qkrpc_action_patch with target=action), close with a brief text summary (what changed, editVersion, next steps). Do not output <qka-link> tags, action tables, or repeat full tool JSON — agent-gui automatically shows an action shortcut card at the end of the turn from successful patch tool results (run / edit / float / workspace + 调试).`;
+export const ACTION_LINK_SUMMARY_PROMPT = `After successfully patching an action (workspace_program action=patch / legacy qkrpc_action_patch with target=action), close with a brief text summary (what changed, editVersion, next steps). Do not output <qka-link> tags, action tables, or repeat full tool JSON — agent-gui automatically shows an action shortcut card at the end of the turn from successful patch tool results (run / edit / float / workspace + 调试).`;

@@ -19,8 +19,8 @@ export const workspaceProgramDiagnosticsTool = tool({
     + "after workspace_program_patch. Checks run asynchronously in qkrpc serve; this tool only reads "
     + "the latest .qkrpc/diagnostics.json snapshot. Call when editing is done (use waitMs up to 30000). "
     + "Each issue includes location (stepPath, stepId, paramName, file, line/column, dataJsonPath) and "
-    + "locationSummary plus location.read — use workspace_action_file_read(path, startLine, endLine) for "
-    + "file-backed code, or workspace_action_read_data(mode=content) and search dataJsonPath for inline values. "
+    + "locationSummary plus location.read — use workspace_program({ action: \"file_read\", path, startLine, endLine }) for "
+    + "file-backed code, or workspace_program({ action: \"read_data\", mode: \"content\" }) and search dataJsonPath for inline values. "
     + "Fix issues, patch again, then re-run.",
   inputSchema: z.object({
     target: z

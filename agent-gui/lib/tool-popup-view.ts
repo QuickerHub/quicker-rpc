@@ -31,8 +31,8 @@ export function toolPopupHasVisualView(
   if (isStructuredToolResult(output)) {
     const data = output.data;
     if (parseProgramDiagnosticsFromToolData(data)) return true;
-    if (parseActionListFromQkrpcData(toolName, data)) return true;
-    if (isActionProjectsTool(toolName) && parseActionProjectsFromToolData(data)) {
+    if (parseActionListFromQkrpcData(toolName, data, input)) return true;
+    if (isActionProjectsTool(toolName, input) && parseActionProjectsFromToolData(data)) {
       return true;
     }
     if (isStepRunnerSearchTool(toolName) && parseStepRunnerSearchResult(data, input)) {
@@ -85,5 +85,5 @@ export function toolPopupHasVisualView(
     if (Object.keys(rest).length > 0) return true;
   }
 
-  return isActionListTool(toolName);
+  return isActionListTool(toolName, input);
 }

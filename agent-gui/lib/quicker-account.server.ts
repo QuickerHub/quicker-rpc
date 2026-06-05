@@ -3,6 +3,8 @@ import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
 export type QuickerAccountSnapshot = {
   loggedIn: boolean;
   userId?: string;
+  userName?: string;
+  nickName?: string;
   message?: string;
 };
 
@@ -10,6 +12,8 @@ type QuickerAccountRpcPayload = {
   ok?: boolean;
   loggedIn?: boolean;
   userId?: string;
+  userName?: string;
+  nickName?: string;
   message?: string;
 };
 
@@ -26,10 +30,14 @@ function normalizeAccountPayload(
     };
   }
   const userId = payload.userId?.trim();
+  const userName = payload.userName?.trim();
+  const nickName = payload.nickName?.trim();
   const loggedIn = payload.loggedIn === true && Boolean(userId);
   return {
     loggedIn,
     userId: loggedIn ? userId : undefined,
+    userName: loggedIn ? userName || undefined : undefined,
+    nickName: loggedIn ? nickName || undefined : undefined,
     message: payload.message?.trim() || undefined,
   };
 }

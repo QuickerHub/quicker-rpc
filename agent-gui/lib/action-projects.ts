@@ -1,4 +1,18 @@
 import { isStructuredToolResult } from "@/lib/tool-result";
+import {
+  isQkrpcActionCreateTool,
+  isQkrpcActionGetTool,
+} from "@/lib/qkrpc-action-tool";
+import {
+  isQkrpcSubprogramCreateTool,
+  isQkrpcSubprogramGetTool,
+  isQkrpcSubprogramPatchTool,
+} from "@/lib/qkrpc-subprogram-tool";
+import {
+  isActionProjectsTool,
+  LEGACY_WORKSPACE_PATCH_TOOL,
+  readWorkspaceProgramAction,
+} from "@/lib/workspace-program-tool";
 
 export const WORKSPACE_ACTION_PROJECTS_TOOL = "workspace_action_projects";
 
@@ -14,12 +28,13 @@ export type ParsedActionProjects = {
   projects: ActionProjectRow[];
 };
 
-export function isActionProjectsTool(toolName: string): boolean {
-  return toolName === WORKSPACE_ACTION_PROJECTS_TOOL;
-}
+export { isActionProjectsTool };
 
-export function actionProjectsToolDisplayName(toolName: string): string | null {
-  return isActionProjectsTool(toolName) ? "projects" : null;
+export function actionProjectsToolDisplayName(
+  toolName: string,
+  input?: unknown,
+): string | null {
+  return isActionProjectsTool(toolName, input) ? "projects" : null;
 }
 
 export function parseActionProjectsFromToolData(
@@ -88,21 +103,28 @@ export function parseActionIdFromSyncedToolOutput(
   return readString(obj, "id", "Id");
 }
 
+function isWorkspacePatchTool(toolName: string, input?: unknown): boolean {
+  if (toolName === LEGACY_WORKSPACE_PATCH_TOOL) return true;
+  if (toolName !== "workspace_program") return false;
+  return readWorkspaceProgramAction(input) === "patch";
+}
+
 export function shouldRefreshExplorerAfterTool(
   toolName: string,
   output: unknown,
+  input?: unknown,
 ): boolean {
   if (!isStructuredToolResult(output) || !output.ok) return false;
-  if (isActionProjectsTool(toolName)) return true;
+  if (isActionProjectsTool(toolName, input)) return true;
 
   if (
-    toolName === "qkrpc_action_get"
-    || toolName === "qkrpc_action_create"
+    isQkrpcActionGetTool(toolName, input)
+    || isQkrpcActionCreateTool(toolName, input)
     || toolName === "qkrpc_action_patch"
-    || toolName === "qkrpc_subprogram_get"
-    || toolName === "qkrpc_subprogram_create"
-    || toolName === "qkrpc_subprogram_patch"
-    || toolName === "workspace_program_patch"
+    || isQkrpcSubprogramGetTool(toolName, input)
+    || isQkrpcSubprogramCreateTool(toolName, input)
+    || isQkrpcSubprogramPatchTool(toolName, input)
+    || isWorkspacePatchTool(toolName, input)
   ) {
     const data = output.data;
     if (typeof data === "object" && data !== null) {
@@ -120,5 +142,19 @@ export function shouldRefreshExplorerAfterTool(
     "workspace_action_write_data",
     "workspace_action_edit_data",
   ]);
-  return fileTools.has(toolName);
+  if (fileTools.has(toolName)) return true;
+  if (toolName === "workspace_program") {
+    const action = readWorkspaceProgramAction(input);
+    return (
+      action === "file_read"
+      || action === "file_write"
+      || action === "file_edit"
+      || action === "file_info"
+      || action === "file_search"
+      || action === "read_data"
+      || action === "write_data"
+      || action === "edit_data"
+    );
+  }
+  return false;
 }

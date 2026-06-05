@@ -18,19 +18,19 @@ export const TOOL_TEST_SUITES: ToolTestSuite[] = [
   {
     id: "docs",
     title: "编写指南",
-    description: "docs_index → docs_get overview，不经过 qkrpc",
+    description: "docs index → docs get overview，不经过 qkrpc",
     steps: [
       {
         id: "docs-index",
         label: "列出主题",
-        toolName: "docs_index",
-        input: {},
+        toolName: "docs",
+        input: { action: "index" },
       },
       {
         id: "docs-overview",
         label: "overview 主题",
-        toolName: "docs_get",
-        input: { topic: "overview" },
+        toolName: "docs",
+        input: { action: "get", topic: "overview" },
       },
     ],
   },
@@ -190,8 +190,8 @@ export const TOOL_TEST_SUITES: ToolTestSuite[] = [
       {
         id: "fa-search",
         label: "搜索图标",
-        toolName: "qkrpc_fa_search",
-        input: { query: "robot", limit: 5 },
+        toolName: "qkrpc_fa",
+        input: { action: "search", query: "robot", limit: 5 },
       },
     ],
   },

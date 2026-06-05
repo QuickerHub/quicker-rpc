@@ -49,6 +49,7 @@ import {
   shouldOmitCompactToolResultBody,
   shouldSkipRedundantToolRequest,
 } from "@/lib/tool-display";
+import { getToolMeta } from "@/lib/tool-registry";
 import {
   countLines,
   formatCharCount,
@@ -59,6 +60,7 @@ import {
   type WorkspaceFileReadPayload,
   workspaceFileToolDisplayName,
 } from "@/lib/workspace-file-tool";
+import { workspaceProgramToolDisplayName } from "@/lib/workspace-program-tool";
 import {
   formatProgramDiagnosticsMetaLine,
   isProgramDiagnosticsTool,
@@ -108,7 +110,7 @@ export function summarizeToolOutput(
     return output.ok ? "完成" : "失败";
   }
 
-  if (isWorkspaceExplorerFileTool(toolName)) {
+  if (isWorkspaceExplorerFileTool(toolName, input)) {
     const fileSummary = summarizeWorkspaceFileTool(toolName, output, input);
     if (fileSummary) return fileSummary;
   }
@@ -146,11 +148,11 @@ export function summarizeToolOutput(
     if (Array.isArray(d.actions)) {
       return `${d.actions.length} 个动作`;
     }
-    if (isActionListTool(toolName)) {
-      const list = parseActionListFromQkrpcData(toolName, output.data);
+    if (isActionListTool(toolName, input)) {
+      const list = parseActionListFromQkrpcData(toolName, output.data, input);
       if (list) return formatActionListMetaLine(list.meta);
     }
-    if (isFaSearchTool(toolName)) {
+    if (isFaSearchTool(toolName, input)) {
       const fa = parseFaSearchFromQkrpcData(output.data);
       if (fa) return formatFaSearchMetaLine(fa.meta);
     }
@@ -169,11 +171,11 @@ export function summarizeToolOutput(
       const search = parseStepRunnerSearchFromQkrpcData(output.data, input);
       if (search) return formatStepRunnerSearchMetaLine(search);
     }
-    if (isActionProjectsTool(toolName)) {
+    if (isActionProjectsTool(toolName, input)) {
       const projects = parseActionProjectsFromToolData(output.data);
       if (projects) return formatActionProjectsMetaLine(projects);
     }
-    if (isProgramDiagnosticsTool(toolName)) {
+    if (isProgramDiagnosticsTool(toolName, input)) {
       const diagnostics = parseProgramDiagnosticsFromToolData(output.data);
       if (diagnostics) return formatProgramDiagnosticsMetaLine(diagnostics);
     }
@@ -261,12 +263,16 @@ export function formatToolState(state: string): string {
 }
 
 /** qkrpc_step_runner_search → step runner search */
-export function formatToolDisplayName(toolName: string): string {
+export function formatToolDisplayName(toolName: string, input?: unknown): string {
   if (toolName === "shell_exec") return "终端";
-  const projectsLabel = actionProjectsToolDisplayName(toolName);
-  if (projectsLabel) return projectsLabel;
-  const fileLabel = workspaceFileToolDisplayName(toolName);
+  const fileLabel = workspaceFileToolDisplayName(toolName, input);
   if (fileLabel) return fileLabel;
+  const projectsLabel = actionProjectsToolDisplayName(toolName, input);
+  if (projectsLabel) return projectsLabel;
+  const programLabel = workspaceProgramToolDisplayName(toolName, input);
+  if (programLabel) return programLabel.replace(/-/g, " ");
+  const meta = getToolMeta(toolName);
+  if (meta?.label) return meta.label;
   return toolName.replace(/^qkrpc_/, "").replace(/_/g, " ");
 }
 
@@ -700,7 +706,7 @@ function QkrpcToolResultView({
   const data = result.data;
   const actionList =
     result.ok && toolName
-      ? parseActionListFromQkrpcData(toolName, data)
+      ? parseActionListFromQkrpcData(toolName, data, input)
       : null;
   const stepRunnerSearch =
     result.ok && toolName && isStepRunnerSearchTool(toolName)
@@ -715,7 +721,7 @@ function QkrpcToolResultView({
       ? parseFaSearchFromQkrpcData(data)
       : null;
   const programDiagnostics =
-    toolName && isProgramDiagnosticsTool(toolName)
+    toolName && isProgramDiagnosticsTool(toolName, input)
       ? parseProgramDiagnosticsFromToolData(data)
       : null;
   const workspaceDisplay =
@@ -915,7 +921,7 @@ export function ActionListToolBody({
   output: QkrpcToolResult;
   toolName: string;
 }) {
-  const list = parseActionListFromQkrpcData(toolName, output.data);
+  const list = parseActionListFromQkrpcData(toolName, output.data, input);
   if (!output.ok || !list) {
     return (
       <ToolPayloadView label="结果" value={output} compact toolName={toolName} />

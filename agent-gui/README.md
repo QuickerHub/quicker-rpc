@@ -59,7 +59,14 @@ pnpm quicker-agent:publish
 
 ### 发布时注入 LLM Key（混淆进安装包）
 
-真实 API Key **不要**写入 `llm-config.json` 或仓库。推荐复制 `llm-publish.config.example.json` → `llm-publish.config.json`，填入多组 endpoint：
+真实 API Key **不要**写入 `llm-config.json` 或仓库。推荐：
+
+| 文件 | 用途 |
+|------|------|
+| `llm-publish.config.json` | 发布用 endpoint（复制 `llm-publish.config.example.json`） |
+| `llm-dev.config.json` | **仅本地开发**：个人 endpoint（复制 `llm-dev.config.example.json`） |
+
+`pnpm dev` 时会将 **dev + publish** 合并进内置 fallback（dev 优先），便于调试自定义节点；Tauri 发布仍只打包 publish 配置。
 
 ```json
 {
@@ -67,6 +74,21 @@ pnpm quicker-agent:publish
   "endpoints": [
     { "apiKey": "sk-...", "baseURL": "https://api.bingleimuzi.eu.cc/v1", "model": "gpt-5.5" },
     { "apiKey": "sk-...", "baseURL": "https://ai98pro.xyz/v1", "model": "gpt-5.5" }
+  ]
+}
+```
+
+开发环境 DeepSeek 官方示例（`llm-dev.config.json`）：
+
+```json
+{
+  "version": 1,
+  "endpoints": [
+    {
+      "apiKey": "sk-...",
+      "baseURL": "https://api.deepseek.com/v1",
+      "model": "deepseek-v4-flash"
+    }
   ]
 }
 ```

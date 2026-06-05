@@ -192,15 +192,20 @@ export function workspaceSyntaxHighlighting(): Extension {
   return syntaxHighlighting(workspaceHighlightStyle, { fallback: true });
 }
 
-export function readonlyCodeMirrorExtensions(): Extension[] {
-  return [
+export function readonlyCodeMirrorExtensions(options?: {
+  lineWrapping?: boolean;
+}): Extension[] {
+  const extensions: Extension[] = [
     drawSelection(),
     workspaceSyntaxHighlighting(),
     EditorState.readOnly.of(true),
     EditorView.editable.of(false),
-    EditorView.lineWrapping,
     workspaceCodeMirrorTheme(),
   ];
+  if (options?.lineWrapping !== false) {
+    extensions.push(EditorView.lineWrapping);
+  }
+  return extensions;
 }
 
 /** Shell command pane on dark terminal background (#161b22). */
@@ -324,6 +329,8 @@ export function buildPreviewCodeMirrorExtensions(
     terminalDark?: boolean;
     /** Source for $$ interpolation lint (defaults to editor doc). */
     lintSourceText?: string;
+    /** Default true; compact chat code snapshots use false (one row per source line). */
+    lineWrapping?: boolean;
   },
 ): Extension[] {
   const extensions: Extension[] = options?.plain
@@ -334,7 +341,9 @@ export function buildPreviewCodeMirrorExtensions(
         getCodeMirrorLanguageExtension(path, options?.language),
       ]
       : [
-        ...readonlyCodeMirrorExtensions(),
+        ...readonlyCodeMirrorExtensions({
+          lineWrapping: options?.lineWrapping,
+        }),
         getCodeMirrorLanguageExtension(path, options?.language),
       ];
   if (options?.lineNumbers) {

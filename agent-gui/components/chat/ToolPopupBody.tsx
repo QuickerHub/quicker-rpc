@@ -99,7 +99,7 @@ export function ToolPopupBody({
   }
 
   const filePreview =
-    isWorkspaceFileReadTool(toolName)
+    isWorkspaceFileReadTool(toolName, input)
     && isStructuredToolResult(output)
     && output.ok
       ? getWorkspaceFileEditorPreview(toolName, input, output.data)
@@ -158,7 +158,6 @@ export function ToolPopupBody({
         <ToolPayloadView
           label="结果"
           value={output}
-          compact
           dense
           toolName={toolName}
           input={input}

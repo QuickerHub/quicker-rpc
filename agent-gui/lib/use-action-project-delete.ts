@@ -57,6 +57,7 @@ export function useActionProjectDelete({
       const name = displayTitle?.trim() || projectPath.split("/").pop() || projectPath;
       const ok = await nativeConfirm(
         `在工作区删除动作项目「${name}」？\n\n仅删除本地 .quicker/actions 目录，不会删除 Quicker 内的动作。`,
+        { danger: true },
       );
       if (!ok) return false;
     }
@@ -78,6 +79,7 @@ export function useActionProjectDelete({
       const name = displayTitle?.trim() || actionId;
       const ok = await nativeConfirm(
         `直接删除动作「${name}」？\n\n将同时从工作区与 Quicker 中移除，此操作不可撤销。`,
+        { danger: true },
       );
       if (!ok) return false;
     }

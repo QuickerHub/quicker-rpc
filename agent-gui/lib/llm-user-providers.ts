@@ -21,7 +21,7 @@ export type UserProviderUiSpec = {
 /** Providers / fields exposed in the settings dialog (not llm-config.json). */
 export const USER_PROVIDER_UI: readonly UserProviderUiSpec[] = [
   { id: LLM_PROVIDER_ID, settingsFields: [] },
-  { id: DEEPSEEK_PROVIDER_ID, settingsFields: ["apiKey", "model"] },
+  { id: DEEPSEEK_PROVIDER_ID, settingsFields: [] },
 ] as const;
 
 /** Settings panel: providers the user can configure (excludes built-in defaults). */

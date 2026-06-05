@@ -28,6 +28,7 @@ export function ActionLinkCard({
   const metaState = useActionMetadata(actionId);
   const [busyOp, setBusyOp] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [runParam, setRunParam] = useState("");
   const cardBusy = busyOp !== null || deleteBusy;
 
   const title =
@@ -41,32 +42,31 @@ export function ActionLinkCard({
   const iconSpec =
     metaState.status === "ok" ? metaState.meta.icon : undefined;
 
-  const onOp = useCallback(
-    async (link: ParsedActionLink) => {
+  const runLink = links.find((link) => link.op === "run");
+  const debugLink = links.find((link) => link.op === "debug");
+  const showDebugButton = !debugLink;
+  const showRun = Boolean(runLink);
+  const showDebug = Boolean(debugLink) || showDebugButton;
+  const otherLinks = links.filter(
+    (link) => link.op !== "run" && link.op !== "debug",
+  );
+
+  const invokeOp = useCallback(
+    async (op: ParsedActionLink["op"]) => {
       if (cardBusy) return;
-      setBusyOp(link.op);
+      setBusyOp(op);
       try {
-        await executeActionLinkOp(link.actionId, link.op, {
+        const param = runParam.trim() || undefined;
+        await executeActionLinkOp(actionId, op, {
           cwd: cwd || undefined,
+          param,
         });
       } finally {
         setBusyOp(null);
       }
     },
-    [cardBusy, cwd],
+    [actionId, cardBusy, cwd, runParam],
   );
-
-  const onDebug = useCallback(async () => {
-    if (cardBusy) return;
-    setBusyOp("debug");
-    try {
-      await executeActionLinkOp(actionId, "debug", { cwd: cwd || undefined });
-    } finally {
-      setBusyOp(null);
-    }
-  }, [actionId, cardBusy, cwd]);
-
-  const showDebugButton = !links.some((link) => link.op === "debug");
 
   const displayTitle =
     metaState.status === "ok" ? metaState.meta.title : formatActionIdShort(actionId);
@@ -103,42 +103,84 @@ export function ActionLinkCard({
         </div>
       </header>
 
-      <div className="action-link-card-actions" role="group" aria-label="快捷操作">
-        <div className="action-link-card-actions-main">
-          {links.map((link, index) => (
-            <button
-              key={`${link.op}-${index}`}
-              type="button"
-              className={`action-link-card-btn action-link-card-btn--${link.op}${
-                link.op === "run" ? " action-link-card-btn--primary" : ""
-              }`}
-              disabled={cardBusy}
-              title={`${link.label} · ${link.actionId}`}
-              onClick={() => void onOp(link)}
-            >
-              {link.label}
-            </button>
-          ))}
-          {showDebugButton ? (
-            <button
-              type="button"
-              className="action-link-card-btn action-link-card-btn--debug"
-              disabled={cardBusy}
-              title="带参数调试运行并打开 Quicker 步骤调试器"
-              onClick={() => void onDebug()}
-            >
-              调试
-            </button>
-          ) : null}
+      <div className="action-link-card-toolbar" role="group" aria-label="快捷操作">
+        {showRun || showDebug ? (
+          <div className="action-link-card-run-cluster">
+            <div className="action-link-card-segmented" role="group" aria-label="运行">
+              {showRun ? (
+                <button
+                  type="button"
+                  className="action-link-card-btn action-link-card-btn--segment action-link-card-btn--segment-primary"
+                  disabled={cardBusy}
+                  title={`${runLink?.label ?? "运行"} · ${actionId}`}
+                  onClick={() => void invokeOp("run")}
+                >
+                  {runLink?.label ?? "运行"}
+                </button>
+              ) : null}
+              {showDebug ? (
+                <button
+                  type="button"
+                  className="action-link-card-btn action-link-card-btn--segment"
+                  disabled={cardBusy}
+                  title="带参数调试运行并打开 Quicker 步骤调试器"
+                  onClick={() => void invokeOp("debug")}
+                >
+                  {debugLink?.label ?? "调试"}
+                </button>
+              ) : null}
+            </div>
+            <div className="action-link-card-param-wrap">
+              <span className="action-link-card-param-prefix" aria-hidden>
+                参数
+              </span>
+              <input
+                type="text"
+                className="action-link-card-param-input"
+                value={runParam}
+                disabled={cardBusy}
+                placeholder="可选"
+                title="传给 Quicker 的运行/调试参数（--param）"
+                aria-label="运行参数"
+                onChange={(event) => setRunParam(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && showRun && !cardBusy) {
+                    event.preventDefault();
+                    void invokeOp("run");
+                  }
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
+        <div
+          className={`action-link-card-ops-row${
+            showRun || showDebug ? " action-link-card-ops-row--split" : ""
+          }`}
+        >
+          <div className="action-link-card-ops-main">
+            {otherLinks.map((link, index) => (
+              <button
+                key={`${link.op}-${index}`}
+                type="button"
+                className={`action-link-card-btn action-link-card-btn--ghost action-link-card-btn--${link.op}`}
+                disabled={cardBusy}
+                title={`${link.label} · ${link.actionId}`}
+                onClick={() => void invokeOp(link.op)}
+              >
+                {link.label}
+              </button>
+            ))}
+          </div>
+          <ActionLinkCardDelete
+            actionId={actionId}
+            cwd={cwd}
+            displayTitle={displayTitle}
+            disabled={cardBusy}
+            onBusyChange={setDeleteBusy}
+            onDismissed={onDismissed}
+          />
         </div>
-        <ActionLinkCardDelete
-          actionId={actionId}
-          cwd={cwd}
-          displayTitle={displayTitle}
-          disabled={cardBusy}
-          onBusyChange={setDeleteBusy}
-          onDismissed={onDismissed}
-        />
       </div>
     </article>
   );

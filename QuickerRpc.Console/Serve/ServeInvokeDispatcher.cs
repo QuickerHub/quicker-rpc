@@ -108,6 +108,12 @@ internal static class ServeInvokeDispatcher
             "project.diagnostics.get" => ProjectDiagnosticsGet(args),
             "fa.resolve" => await FaResolveAsync(rpc, args, token).ConfigureAwait(false),
             "quicker.account.get" => await QuickerAccountGetAsync(rpc, token).ConfigureAwait(false),
+            "settings.search" => await SettingsSearchAsync(rpc, args, token).ConfigureAwait(false),
+            "settings.list" => await SettingsListAsync(rpc, args, token).ConfigureAwait(false),
+            "settings.get" => await SettingsGetAsync(rpc, args, token).ConfigureAwait(false),
+            "settings.set" => await SettingsSetAsync(rpc, args, token).ConfigureAwait(false),
+            "settings.pages" => await SettingsPagesAsync(rpc, token).ConfigureAwait(false),
+            "settings.open" => await SettingsOpenAsync(rpc, args, token).ConfigureAwait(false),
             _ => Fail("UNKNOWN_OP", $"Unknown op: {op}"),
         };
     }
@@ -142,7 +148,133 @@ internal static class ServeInvokeDispatcher
             action = "quicker-account-get",
             loggedIn = account.LoggedIn,
             userId = account.UserId,
+            userName = account.UserName,
+            nickName = account.NickName,
             message = account.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> SettingsSearchAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var query = ServeJsonArgs.GetString(args, "query");
+        var maxResults = ServeJsonArgs.GetInt(args, "maxResults") ?? 30;
+        var result = await rpc.SearchSettingsAsync(query, maxResults, cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "settings-search",
+            query = result.Query,
+            items = result.Items,
+            pages = result.Pages,
+            message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> SettingsListAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var scope = ServeJsonArgs.GetString(args, "scope");
+        var maxResults = ServeJsonArgs.GetInt(args, "maxResults") ?? 100;
+        var result = await rpc.ListSettingsAsync(scope, maxResults, cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "settings-list",
+            scope = result.Scope,
+            items = result.Items,
+            message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> SettingsGetAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var key = ServeJsonArgs.GetString(args, "key") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return Fail("MISSING_KEY", "args.key is required.");
+        }
+
+        var result = await rpc.GetSettingAsync(key, cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "settings-get",
+            key = result.Key,
+            scope = result.Scope,
+            path = result.Path,
+            exeFile = result.ExeFile,
+            type = result.Type,
+            value = result.Value,
+            message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> SettingsSetAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var key = ServeJsonArgs.GetString(args, "key") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return Fail("MISSING_KEY", "args.key is required.");
+        }
+
+        var value = ServeJsonArgs.GetString(args, "value");
+        if (value is null)
+        {
+            return Fail("MISSING_VALUE", "args.value is required.");
+        }
+
+        var result = await rpc.SetSettingAsync(key, value, cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "settings-set",
+            key = result.Key,
+            type = result.Type,
+            value = result.Value,
+            message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> SettingsPagesAsync(
+        IQuickerRpcService rpc,
+        CancellationToken cancellationToken)
+    {
+        var result = await rpc.ListSettingsPagesAsync(cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "settings-pages",
+            pages = result.Pages,
+            message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> SettingsOpenAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var target = ServeJsonArgs.GetString(args, "page", "target", "pageId") ?? "settings";
+        var exeFile = ServeJsonArgs.GetString(args, "exe", "exeFile");
+        var result = await rpc.OpenSettingsUiAsync(target, exeFile, cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "settings-open",
+            target = result.Target,
+            pageId = result.PageId,
+            message = result.Message,
         });
     }
 
@@ -381,6 +513,7 @@ internal static class ServeInvokeDispatcher
                 ServeJsonArgs.GetString(args, "title"),
                 ServeJsonArgs.GetString(args, "description"),
                 ServeJsonArgs.GetString(args, "icon"),
+                ServeJsonArgs.GetString(args, "contextMenuData"),
                 ServeJsonArgs.GetLong(args, "expectedEditVersion"),
                 ServeJsonArgs.GetBool(args, "force"),
                 token)

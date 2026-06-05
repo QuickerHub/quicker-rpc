@@ -3,6 +3,7 @@
 import type { ProgramDiagnosticsView } from "@/lib/program-diagnostics-view";
 import {
   formatProgramDiagnosticsStatusLabel,
+  formatProgramDiagnosticsReadLine,
   type ProgramDiagnosticsIssue,
 } from "@/lib/program-diagnostics-view";
 
@@ -18,18 +19,7 @@ function SeverityBadge({ severity }: { severity: ProgramDiagnosticsIssue["severi
 
 function IssueRow({ issue }: { issue: ProgramDiagnosticsIssue }) {
   const read = issue.location?.read;
-  const readLine =
-    read?.tool === "workspace_action_file_read" && read.path
-      ? read.startLine != null && read.endLine != null
-        ? `${read.path} L${read.startLine}-${read.endLine}`
-        : read.startLine != null
-          ? `${read.path} L${read.startLine}`
-          : read.path
-      : read?.tool === "workspace_action_read_data"
-        ? "read_data mode=content"
-        : read?.tool
-          ? read.tool
-          : null;
+  const readLine = read ? formatProgramDiagnosticsReadLine(read) : null;
 
   return (
     <li className="program-diagnostics-issue">

@@ -99,7 +99,7 @@ function FileEditorPreviewBody({
   if (!preview) return null;
 
   const embedded = layout === "details-body";
-  const showCodeBlock = shouldShowFileEditorCodeBlockInChat(toolName);
+  const showCodeBlock = shouldShowFileEditorCodeBlockInChat(toolName, input);
 
   const stat =
     !embedded && showCodeBlock
@@ -115,10 +115,10 @@ function FileEditorPreviewBody({
         stat={stat}
         diff={preview.diff}
         variant="compact"
-        foldSnapshot={embedded ? false : shouldFoldFileSnapshotInChat(toolName)}
+        foldSnapshot={embedded ? false : shouldFoldFileSnapshotInChat(toolName, input)}
         showContent={showCodeBlock}
         showHeader={!embedded}
-        summaryMeta={embedded || isWorkspaceFileReadTool(toolName) ? "" : summaryMeta}
+        summaryMeta={embedded || isWorkspaceFileReadTool(toolName, input) ? "" : summaryMeta}
         headerRunning={headerRunning}
         headerError={headerError}
         onOpenPreview={embedded ? undefined : onOpenPreview}
@@ -157,7 +157,7 @@ function FileEditorPreviewWithExplorer(
 
   const handleOpenInExplorer = useCallback(() => {
     if (!preview?.path) return;
-    if (props.output?.ok && isWorkspaceExplorerFileTool(props.toolName)) {
+    if (props.output?.ok && isWorkspaceExplorerFileTool(props.toolName, props.input)) {
       openFileFromTool(props.toolName, props.input, props.output);
     } else {
       revealPath(preview.path);
@@ -303,11 +303,11 @@ export function WorkspaceFileToolBody({
   output: QkrpcToolResult;
   toolName: string;
 }) {
-  if (isWorkspaceFileEditorTool(toolName)) {
+  if (isWorkspaceFileEditorTool(toolName, input)) {
     return (
       <WorkspaceFileEditorRow
         toolName={toolName}
-        displayName={formatToolDisplayName(toolName)}
+        displayName={formatToolDisplayName(toolName, input)}
         meta=""
         input={input}
         output={output}

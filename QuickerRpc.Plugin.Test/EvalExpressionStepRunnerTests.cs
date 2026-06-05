@@ -16,6 +16,26 @@ public sealed class EvalExpressionStepRunnerTests
     }
 
     [TestMethod]
+    public void ReplaceVariablePlaceholders_ignores_csharp_array_initializer_literals()
+    {
+        var boundVariables = new Dictionary<string, object?>();
+        var expression =
+            "var lines = {clipText}.Split(new[] { \"\\r\\n\", \"\\r\", \"\\n\" }, StringSplitOptions.None)";
+
+        var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
+            expression,
+            _ => true,
+            key => key,
+            (name, value) => boundVariables[name] = value);
+
+        Assert.AreEqual(
+            "var lines = v_clipText.Split(new[] { \"\\r\\n\", \"\\r\", \"\\n\" }, StringSplitOptions.None)",
+            result);
+        Assert.AreEqual(1, boundVariables.Count);
+        Assert.AreEqual("clipText", boundVariables["v_clipText"]);
+    }
+
+    [TestMethod]
     public void ReplaceVariablePlaceholders_rewrites_placeholders_with_v_prefix()
     {
         var boundVariables = new Dictionary<string, object?>();

@@ -35,6 +35,9 @@ public static class ActionProjectInfoMapper
         info.Icon = compressedMetadata.Value<string>("icon")
                     ?? compressedMetadata.Value<string>("Icon")
                     ?? string.Empty;
+        info.ContextMenuData = compressedMetadata.Value<string>("contextMenuData")
+                               ?? compressedMetadata.Value<string>("ContextMenuData")
+                               ?? string.Empty;
 
         return info;
     }
@@ -59,6 +62,9 @@ public static class ActionProjectInfoMapper
             Title = root.Value<string>("Title") ?? root.Value<string>("title") ?? string.Empty,
             Description = root.Value<string>("Description") ?? root.Value<string>("description") ?? string.Empty,
             Icon = root.Value<string>("Icon") ?? root.Value<string>("icon") ?? string.Empty,
+            ContextMenuData = root.Value<string>("ContextMenuData")
+                              ?? root.Value<string>("contextMenuData")
+                              ?? string.Empty,
             EditVersion = root.Value<long?>("EditVersion") ?? root.Value<long?>("editVersion") ?? 0L,
         };
 

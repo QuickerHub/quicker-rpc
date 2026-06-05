@@ -95,7 +95,7 @@ function charIndexToLine(text: string, index: number): number {
 }
 
 function formatReadDataSliceHint(startLine: number, endLine: number): string {
-  return `workspace_action_read_data({ id, mode: "content", startLine: ${startLine}, endLine: ${endLine} })`;
+  return `workspace_program({ action: "read_data", mode: "content", startLine: ${startLine}, endLine: ${endLine} })`;
 }
 
 function lineRangeForValueLiteral(

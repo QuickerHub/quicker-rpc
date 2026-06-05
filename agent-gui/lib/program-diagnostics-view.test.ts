@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   formatProgramDiagnosticsMetaLine,
+  formatProgramDiagnosticsReadLine,
   parseProgramDiagnosticsFromToolData,
 } from "./program-diagnostics-view.ts";
 
@@ -37,7 +38,11 @@ test("parseProgramDiagnosticsFromToolData reads issues from serve payload", () =
           stepRunnerKey: "sys:evalexpression",
           paramName: "expression",
           dataJsonPath: "steps[0].inputParams.expression",
-          read: { tool: "workspace_action_read_data", mode: "content" },
+          read: {
+            tool: "workspace_program",
+            action: "read_data",
+            mode: "content",
+          },
         },
       },
     ],
@@ -47,6 +52,26 @@ test("parseProgramDiagnosticsFromToolData reads issues from serve payload", () =
   assert.equal(view!.issues.length, 1);
   assert.equal(view!.issues[0]?.severity, "error");
   assert.equal(view!.issues[0]?.code, "EXPR_SYNTAX");
+});
+
+test("formatProgramDiagnosticsReadLine supports workspace_program and legacy tools", () => {
+  assert.equal(
+    formatProgramDiagnosticsReadLine({
+      tool: "workspace_program",
+      action: "file_read",
+      path: "files/process.eval.cs",
+      startLine: 1,
+      endLine: 9,
+    }),
+    "files/process.eval.cs L1-9",
+  );
+  assert.equal(
+    formatProgramDiagnosticsReadLine({
+      tool: "workspace_action_read_data",
+      mode: "content",
+    }),
+    "read_data mode=content",
+  );
 });
 
 test("formatProgramDiagnosticsMetaLine", () => {

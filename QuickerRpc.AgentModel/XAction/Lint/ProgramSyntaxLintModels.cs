@@ -56,6 +56,9 @@ public sealed class ProgramSyntaxReadHint
 {
     public string Tool { get; set; } = string.Empty;
 
+    /// <summary>workspace_program sub-action, e.g. file_read, read_data.</summary>
+    public string? Action { get; set; }
+
     public string? Path { get; set; }
 
     public int? StartLine { get; set; }

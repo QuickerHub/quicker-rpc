@@ -5,7 +5,7 @@ import {
   type ToolExecutionOptions,
 } from "@ai-sdk/provider-utils";
 import { generateId } from "ai";
-import { quickerTools } from "@/lib/tools";
+import { allQuickerTools } from "@/lib/tools";
 import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
 
 export type DirectToolExecuteResult =
@@ -14,7 +14,7 @@ export type DirectToolExecuteResult =
   | { needsApproval: true; toolName: string; message: string };
 
 function resolveTool(toolName: string): Tool | undefined {
-  const tools = quickerTools as Record<string, Tool>;
+  const tools = allQuickerTools as Record<string, Tool>;
   return tools[toolName];
 }
 

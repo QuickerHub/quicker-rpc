@@ -1,6 +1,10 @@
 import { isStructuredToolResult } from "@/lib/tool-result";
+import {
+  isProgramDiagnosticsTool as isProgramDiagnosticsToolName,
+  WORKSPACE_PROGRAM_DIAGNOSTICS_TOOL,
+} from "@/lib/workspace-program-tool";
 
-export const WORKSPACE_PROGRAM_DIAGNOSTICS_TOOL = "workspace_program_diagnostics";
+export { WORKSPACE_PROGRAM_DIAGNOSTICS_TOOL };
 
 const DIAGNOSTICS_ACTIONS = new Set([
   "program-diagnostics",
@@ -9,6 +13,7 @@ const DIAGNOSTICS_ACTIONS = new Set([
 
 export type ProgramDiagnosticsReadHint = {
   tool?: string;
+  action?: string;
   path?: string;
   startLine?: number;
   endLine?: number;
@@ -72,6 +77,7 @@ function readSeverity(value: unknown): "error" | "warning" {
 function readReadHint(value: unknown): ProgramDiagnosticsReadHint | undefined {
   if (!isRecord(value)) return undefined;
   const tool = readString(value.tool);
+  const action = readString(value.action);
   const path = readString(value.path);
   const mode = readString(value.mode);
   const startLine =
@@ -82,8 +88,37 @@ function readReadHint(value: unknown): ProgramDiagnosticsReadHint | undefined {
     typeof value.endLine === "number" && value.endLine > 0
       ? Math.trunc(value.endLine)
       : undefined;
-  if (!tool && !path && !mode && startLine == null) return undefined;
-  return { tool, path, mode, startLine, endLine };
+  if (!tool && !action && !path && !mode && startLine == null) return undefined;
+  return { tool, action, path, mode, startLine, endLine };
+}
+
+function resolveReadAction(read: ProgramDiagnosticsReadHint): string | undefined {
+  if (read.action) return read.action;
+  if (read.tool === "workspace_action_file_read") return "file_read";
+  if (read.tool === "workspace_action_read_data") return "read_data";
+  if (read.tool === "workspace_program" && read.path) return "file_read";
+  if (read.tool === "workspace_program" && read.mode) return "read_data";
+  return undefined;
+}
+
+/** Compact read hint for diagnostics issue rows (supports legacy read.tool values). */
+export function formatProgramDiagnosticsReadLine(
+  read: ProgramDiagnosticsReadHint,
+): string | null {
+  const action = resolveReadAction(read);
+  if (action === "file_read" && read.path) {
+    if (read.startLine != null && read.endLine != null) {
+      return `${read.path} L${read.startLine}-${read.endLine}`;
+    }
+    if (read.startLine != null) {
+      return `${read.path} L${read.startLine}`;
+    }
+    return read.path;
+  }
+  if (action === "read_data") {
+    return `read_data mode=${read.mode ?? "content"}`;
+  }
+  return read.tool ?? null;
 }
 
 function readLocation(value: unknown): ProgramDiagnosticsIssue["location"] {
@@ -143,8 +178,11 @@ function isDiagnosticsPayload(data: Record<string, unknown>): boolean {
   return readString(data.schema) === "qkrpc.program-diagnostics.v1";
 }
 
-export function isProgramDiagnosticsTool(toolName: string): boolean {
-  return toolName === WORKSPACE_PROGRAM_DIAGNOSTICS_TOOL;
+export function isProgramDiagnosticsTool(
+  toolName: string,
+  input?: unknown,
+): boolean {
+  return isProgramDiagnosticsToolName(toolName, input);
 }
 
 export function parseProgramDiagnosticsFromToolData(

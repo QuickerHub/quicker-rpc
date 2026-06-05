@@ -1,6 +1,7 @@
 import {
   CUSTOM_PROVIDER_ID,
   getLlmProviderMeta,
+  LLM_PROVIDER_ID,
   type LlmProviderId,
 } from "@/lib/llm-providers";
 import { resolveModelContextLimit } from "@/lib/llm-context-limits";
@@ -86,11 +87,23 @@ export function buildLlmModelOptions(): LlmModelOption[] {
 }
 
 export function pickDefaultSelection(options: LlmModelOption[]): string {
+  const openAi = options.find(
+    (o) =>
+      o.kind === "builtin"
+      && o.providerId === LLM_PROVIDER_ID
+      && o.configured,
+  );
+  if (openAi) return openAi.selection;
+
   const defaultProvider = getLlmProviderId();
   const builtinDefault = options.find(
-    (o) => o.kind === "builtin" && o.providerId === defaultProvider,
+    (o) => o.kind === "builtin" && o.providerId === defaultProvider && o.configured,
   );
   if (builtinDefault) return builtinDefault.selection;
+
+  const firstConfigured = options.find((o) => o.configured);
+  if (firstConfigured) return firstConfigured.selection;
+
   return options[0]?.selection ?? formatLlmSelection({
     kind: "builtin",
     providerId: defaultProvider,
@@ -116,8 +129,6 @@ export function pickActiveSelection(options: LlmModelOption[]): string {
     /* ignore */
   }
 
-  const firstConfigured = options.find((o) => o.configured);
-  if (firstConfigured) return firstConfigured.selection;
   return pickDefaultSelection(options);
 }
 
