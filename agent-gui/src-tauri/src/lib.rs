@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-use tauri::{
-    AppHandle, Manager, RunEvent, TitleBarStyle, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-};
+use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+#[cfg(target_os = "macos")]
+use tauri::TitleBarStyle;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 mod global_shortcut;
@@ -333,8 +333,7 @@ pub fn run() {
                 eprintln!("[global-shortcut] init failed: {err}");
             }
 
-            #[cfg(debug_assertions)]
-            {
+            if cfg!(debug_assertions) {
                 app.manage(launcher::UiBaseUrl(Mutex::new(
                     launcher::default_dev_ui_base_url(),
                 )));
@@ -346,9 +345,8 @@ pub fn run() {
                 }
                 launcher::prepare_configured_launcher_window(app.handle(), false);
                 voice_plugin::spawn_voice_runtime_background(app.handle().clone());
-                return Ok(());
-            }
-
+                Ok(())
+            } else {
             launcher::close_configured_launcher_window(app.handle());
 
             if let Some(win) = app.get_webview_window("main") {
@@ -384,6 +382,7 @@ pub fn run() {
             .build()?;
             voice_plugin::spawn_voice_runtime_background(handle.clone());
             Ok(())
+            }
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

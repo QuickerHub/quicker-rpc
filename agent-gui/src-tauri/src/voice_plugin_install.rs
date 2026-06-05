@@ -8,7 +8,8 @@ use tauri::{AppHandle, Emitter};
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct VoicePluginChannel {
-    runtime_version: String,
+    #[serde(rename = "runtimeVersion")]
+    _runtime_version: String,
     runtime_zip_url: String,
     model_zip_url: String,
     runtime_zip_mirror_url: Option<String>,
