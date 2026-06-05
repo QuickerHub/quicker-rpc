@@ -1,6 +1,7 @@
 name: Action authoring docs
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'docs/action-authoring-src/**'
