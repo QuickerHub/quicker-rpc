@@ -3,13 +3,16 @@ use sha2::{Digest, Sha256};
 use std::fs::{self, File};
 use std::io::{copy, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter};
+
+static VOICE_INSTALL_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct VoicePluginChannel {
     #[serde(rename = "runtimeVersion")]
-    _runtime_version: String,
+    runtime_version: String,
     runtime_zip_url: String,
     model_zip_url: String,
     runtime_zip_mirror_url: Option<String>,
@@ -88,6 +91,74 @@ fn packaged_model_dir() -> Option<PathBuf> {
 fn load_channel() -> Result<VoicePluginChannel, String> {
     let raw = include_str!("../resources/voice-plugin-channel.json");
     serde_json::from_str(raw).map_err(|e| format!("voice plugin channel config invalid: {e}"))
+}
+
+pub fn channel_runtime_version() -> Result<String, String> {
+    Ok(load_channel()?.runtime_version.trim().to_string())
+}
+
+fn runtime_version_path(root: &Path) -> PathBuf {
+    root.join("runtime-version.txt")
+}
+
+pub fn read_installed_runtime_version(root: &Path) -> Option<String> {
+    let raw = fs::read_to_string(runtime_version_path(root)).ok()?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn write_runtime_version(root: &Path, version: &str) -> Result<(), String> {
+    fs::write(runtime_version_path(root), format!("{}\n", version.trim()))
+        .map_err(|e| e.to_string())
+}
+
+fn staging_root(root: &Path) -> PathBuf {
+    root.join(".staging")
+}
+
+fn staging_runtime_dir(root: &Path) -> PathBuf {
+    staging_root(root).join("runtime")
+}
+
+fn staging_pending_path(root: &Path) -> PathBuf {
+    staging_root(root).join("pending-runtime.json")
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PendingRuntimeStaging {
+    runtime_version: String,
+}
+
+pub fn voice_install_in_progress() -> bool {
+    VOICE_INSTALL_IN_FLIGHT.load(Ordering::SeqCst)
+}
+
+pub fn needs_runtime_update(root: &Path) -> bool {
+    if !is_installed(root) {
+        return false;
+    }
+    let Ok(channel_version) = channel_runtime_version() else {
+        return false;
+    };
+    match read_installed_runtime_version(root) {
+        Some(installed) => installed != channel_version,
+        None => {
+            // Legacy installs: backfill version marker without re-downloading.
+            let _ = write_runtime_version(root, &channel_version);
+            false
+        }
+    }
+}
+
+pub fn has_staged_runtime_update(root: &Path) -> bool {
+    staging_runtime_dir(root)
+        .join("quicker-voice-runtime.exe")
+        .is_file()
 }
 
 fn emit_progress(app: &AppHandle, phase: &str, percent: u8, message: &str) {
@@ -549,10 +620,111 @@ fn install_model_from_network(
     }
 }
 
+pub fn stage_runtime_upgrade(app: &AppHandle) -> Result<(), String> {
+    let root = voice_plugin_root();
+    if !is_installed(&root) || !needs_runtime_update(&root) {
+        return Ok(());
+    }
+    if has_staged_runtime_update(&root) {
+        return Ok(());
+    }
+
+    let channel = load_channel()?;
+    let temp_dir = std::env::temp_dir().join(format!(
+        "quicker-voice-asr-upgrade-{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
+
+    let staging = staging_runtime_dir(&root);
+    remove_dir_all(&staging)?;
+
+    let result = (|| {
+        emit_progress(app, "prepare", 5, "准备更新语音识别服务…");
+        let zip_path = temp_dir.join("runtime.zip");
+        let urls = download_urls(
+            channel.runtime_zip_mirror_url.as_deref(),
+            &channel.runtime_zip_url,
+        );
+        download_file_with_fallback(
+            app,
+            "runtime",
+            "语音识别服务",
+            &urls,
+            &zip_path,
+            10,
+            85,
+        )?;
+        verify_sha256(
+            &zip_path,
+            channel.runtime_zip_sha256.as_deref(),
+            "语音识别服务",
+        )?;
+        extract_zip(app, &zip_path, &staging, "语音识别服务")?;
+        if !staging.join("quicker-voice-runtime.exe").is_file() {
+            return Err("Runtime 更新包无效".into());
+        }
+        fs::create_dir_all(staging_root(&root)).map_err(|e| e.to_string())?;
+        let pending = PendingRuntimeStaging {
+            runtime_version: channel.runtime_version.clone(),
+        };
+        let json = serde_json::to_string_pretty(&pending).map_err(|e| e.to_string())?;
+        fs::write(staging_pending_path(&root), json).map_err(|e| e.to_string())?;
+        emit_progress(
+            app,
+            "ready",
+            100,
+            "语音服务更新已下载，退出后将自动安装",
+        );
+        Ok(())
+    })();
+
+    let _ = fs::remove_dir_all(&temp_dir);
+    result
+}
+
+pub fn apply_pending_runtime_upgrade() -> Result<(), String> {
+    let root = voice_plugin_root();
+    if !has_staged_runtime_update(&root) {
+        return Ok(());
+    }
+
+    let pending_raw = fs::read_to_string(staging_pending_path(&root)).ok();
+    let pending: Option<PendingRuntimeStaging> = pending_raw
+        .as_deref()
+        .and_then(|raw| serde_json::from_str(raw).ok());
+    let staging = staging_runtime_dir(&root);
+    let live = runtime_dir(&root);
+
+    remove_dir_all(&live)?;
+    copy_dir_recursive(&staging, &live)?;
+    if let Some(pending) = pending {
+        write_runtime_version(&root, &pending.runtime_version)?;
+    } else if let Ok(version) = channel_runtime_version() {
+        write_runtime_version(&root, &version)?;
+    }
+
+    remove_dir_all(&staging_root(&root))?;
+    Ok(())
+}
+
 pub fn run_voice_plugin_install(app: &AppHandle) -> Result<PathBuf, String> {
+    if VOICE_INSTALL_IN_FLIGHT
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("语音插件正在安装中，请稍候".into());
+    }
+
+    let result = run_voice_plugin_install_inner(app);
+    VOICE_INSTALL_IN_FLIGHT.store(false, Ordering::SeqCst);
+    result
+}
+
+fn run_voice_plugin_install_inner(app: &AppHandle) -> Result<PathBuf, String> {
     let root = voice_plugin_root();
     if is_installed(&root) {
-        return Err("语音插件已安装".into());
+        return Ok(root);
     }
 
     emit_progress(app, "prepare", 5, "准备安装…");
@@ -602,6 +774,10 @@ pub fn run_voice_plugin_install(app: &AppHandle) -> Result<PathBuf, String> {
 
         if !is_installed(&root) {
             return Err("安装未完成，请重试".into());
+        }
+
+        if let Ok(version) = channel_runtime_version() {
+            write_runtime_version(&root, &version)?;
         }
 
         emit_progress(app, "done", 100, "安装完成，正在启动…");

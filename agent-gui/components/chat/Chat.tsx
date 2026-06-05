@@ -70,6 +70,7 @@ import {
 } from "@/lib/launcher/launcher-session";
 import { AppSettingsPopup } from "@/components/chat/AppSettingsPopup";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
+import { ReleasePreviewBanner } from "@/components/dev/ReleasePreviewBanner";
 import { ChatTitlebar } from "@/components/chat/ChatTitlebar";
 import { SidebarToggle } from "@/components/chat/SidebarToggle";
 import { DocsViewerProvider } from "@/lib/docs-viewer";
@@ -101,6 +102,7 @@ import {
 } from "./ModelSelector";
 import { formatLlmSelection } from "@/lib/llm-selection";
 import { LLM_PROVIDER_ID, type LlmProviderId } from "@/lib/llm-providers";
+import type { AppSettingsTabId } from "@/lib/app-settings-tabs";
 import {
   loadLauncherLlmSelectionRaw,
   storeLauncherLlmSelectionRaw,
@@ -123,9 +125,10 @@ import { useThreadTitleFromTool } from "@/lib/use-thread-title-from-tool";
 import { useComposerMessageQueue } from "@/lib/use-composer-message-queue";
 import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
 import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
+import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 import { useLauncherGlobalShortcut } from "@/lib/launcher/use-launcher-global-shortcut";
 import { ComposerTestPromptsPicker } from "@/components/chat/ComposerTestPromptsPicker";
-import { isAgentGuiDebugMode } from "@/lib/agent-gui-debug";
+import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 import {
   CHAT_MODE_AGENT,
   CHAT_MODE_LAUNCHER,
@@ -304,7 +307,7 @@ type ChatPanelProps = {
   titleManual: boolean;
   ping: PingState;
   connectTick: number;
-  onOpenSettings: (targetProviderId?: LlmProviderId) => void;
+  onOpenSettings: (targetProviderId?: LlmProviderId, tab?: AppSettingsTabId) => void;
   onPersist: (threadId: string, messages: AgentUIMessage[]) => void;
   onAutoTitle: (threadId: string, title: string) => void;
 };
@@ -338,6 +341,7 @@ function ChatPanel({
   const [llmSelection, setLlmSelection] = useState(
     formatLlmSelection({ kind: "builtin", providerId: LLM_PROVIDER_ID }),
   );
+  const devExperienceEnabled = useDevExperienceEnabled();
 
   useEffect(() => {
     setEnabledTools(loadStoredEnabledTools());
@@ -861,14 +865,9 @@ function ChatPanel({
 
   voiceInterruptRef.current = voiceInput.interruptVoiceInput;
 
-  const openVoiceSettings = useCallback(() => {
-    onOpenSettings();
-    requestAnimationFrame(() => {
-      document
-        .getElementById("voice-input-settings")
-        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
-  }, [onOpenSettings]);
+  const handleVoiceSetup = useCallback(() => {
+    void requestVoicePluginSetup();
+  }, []);
 
   useComposerVoiceToggleShortcut({
     enabled: !editAnchorMessageId,
@@ -877,7 +876,7 @@ function ChatPanel({
     pluginStatus: voiceInput.pluginStatus,
     onStart: voiceInput.startVoiceInput,
     onStop: voiceInput.stopVoiceInput,
-    onUnavailable: openVoiceSettings,
+    onUnavailable: handleVoiceSetup,
   });
 
   useEffect(() => {
@@ -1284,13 +1283,13 @@ function ChatPanel({
                     }}
                   />
                 ) : null}
-                {isAgentGuiDebugMode() ? (
+                {devExperienceEnabled ? (
                   <ToolSelector
                     enabledTools={enabledTools}
                     onChange={setEnabledTools}
                   />
                 ) : null}
-                {isAgentGuiDebugMode() ? (
+                {devExperienceEnabled ? (
                   <ComposerTestPromptsPicker
                     disabled={!qkrpcOk}
                     onSendPrompt={sendTestPrompt}
@@ -1367,7 +1366,7 @@ function ChatPanel({
                   canUseVoice={voiceInput.canUse}
                   onVoiceStart={voiceInput.startVoiceInput}
                   onVoiceStop={voiceInput.stopVoiceInput}
-                  onUnavailableClick={openVoiceSettings}
+                  onVoiceSetup={handleVoiceSetup}
                 />
               </div>
             </div>
@@ -1386,6 +1385,9 @@ export function Chat() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsFocusProviderId, setSettingsFocusProviderId] = useState<
     LlmProviderId | undefined
+  >(undefined);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<
+    AppSettingsTabId | undefined
   >(undefined);
   const [ephemeralLauncherRuns, setEphemeralLauncherRuns] = useState(
     getEphemeralLauncherRuns,
@@ -1430,8 +1432,18 @@ export function Chat() {
     [updateStore],
   );
 
-  const openSettings = useCallback((targetProviderId?: LlmProviderId) => {
+  const openSettings = useCallback((
+    targetProviderId?: LlmProviderId,
+    tab?: AppSettingsTabId,
+  ) => {
     setSettingsFocusProviderId(targetProviderId);
+    if (tab) {
+      setSettingsInitialTab(tab);
+    } else if (targetProviderId) {
+      setSettingsInitialTab("models");
+    } else {
+      setSettingsInitialTab(undefined);
+    }
     setSettingsOpen(true);
   }, []);
 
@@ -1472,6 +1484,7 @@ export function Chat() {
   const closeSettings = useCallback(() => {
     setSettingsOpen(false);
     setSettingsFocusProviderId(undefined);
+    setSettingsInitialTab(undefined);
   }, []);
 
   const activeThread = getActiveThread(store);
@@ -1515,6 +1528,7 @@ export function Chat() {
                 onOpenSettings={openSettings}
                 onCloseSettings={closeSettings}
               />
+              <ReleasePreviewBanner />
               <div className="app-content-row">
                 <div className="app-main-shell">
                   <AppMainWorkspaceSplit>
@@ -1564,6 +1578,7 @@ export function Chat() {
                 onRefreshPing={refreshPing}
                 versionRefreshKey={connectTick}
                 focusProviderId={settingsFocusProviderId}
+                initialTab={settingsInitialTab}
               />
             </DocsViewerProvider>
           </WorkspaceExplorerPanelProvider>

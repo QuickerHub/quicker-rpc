@@ -18,12 +18,13 @@ import {
   LLM_PROVIDER_ID,
   type LlmProviderId,
 } from "@/lib/llm-providers";
+import { isReleasePreviewActive } from "@/lib/release-preview.server";
 
 let publishCache: LlmEndpointGroupsConfig | undefined;
-let devCache: LlmEndpointGroupsConfig | undefined;
 
 /** Dev-only: merge publish + dev JSON configs into bundled endpoint resolution. */
 export function isDevPublishConfigMergedIntoBundled(): boolean {
+  if (isReleasePreviewActive()) return false;
   return process.env.NODE_ENV === "development";
 }
 
@@ -77,9 +78,7 @@ function loadPublishConfigCache(): LlmEndpointGroupsConfig {
 }
 
 function loadDevConfigCache(): LlmEndpointGroupsConfig {
-  if (devCache !== undefined) return devCache;
-  devCache = parseLlmEndpointGroupsConfig(readDevConfigRaw());
-  return devCache;
+  return parseLlmEndpointGroupsConfig(readDevConfigRaw());
 }
 
 export function loadPublishGroupsConfig(): LlmEndpointGroupsConfig {
@@ -103,7 +102,6 @@ export function loadPublishOnlyConfigEndpoints(): LlmEndpointConfig[] {
 
 export function invalidatePublishConfigCache(): void {
   publishCache = undefined;
-  devCache = undefined;
 }
 
 /** Dev overlay on publish: dev endpoints first; dev group defs win. */

@@ -10,6 +10,11 @@ export type AppMessageAction = {
   onClick?: () => void | Promise<void>;
 };
 
+export type AppMessageProgress = {
+  percent: number;
+  message?: string;
+};
+
 export type AppMessageInput = {
   /** Stable id — replaces an existing toast with the same id. */
   id?: string;
@@ -17,6 +22,8 @@ export type AppMessageInput = {
   title?: string;
   body: string;
   actions?: AppMessageAction[];
+  /** When set, renders an inline progress bar (for long-running tasks). */
+  progress?: AppMessageProgress;
   /** Default true. */
   dismissible?: boolean;
   autoDismissMs?: number;
@@ -28,6 +35,7 @@ export type AppMessage = {
   title?: string;
   body: string;
   actions: AppMessageAction[];
+  progress?: AppMessageProgress;
   dismissible: boolean;
   autoDismissMs?: number;
   createdAt: number;
@@ -66,6 +74,7 @@ function normalizeInput(input: AppMessageInput): AppMessage {
     title: input.title,
     body: input.body,
     actions: input.actions ?? [],
+    progress: input.progress,
     dismissible: input.dismissible !== false,
     autoDismissMs: input.autoDismissMs,
     createdAt: Date.now(),

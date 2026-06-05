@@ -1,9 +1,19 @@
 import type { PinnedAction } from "@/lib/action-context";
 import { formatActionQkaForModel } from "@/lib/action-qka-prompt";
+import { normalizeActionId } from "@/lib/action-link-markup";
+import { formatActionIdShort } from "@/lib/action-patch-followup";
 
 /** Stored in chat history; expanded to {@link formatActionQkaForModel} before the model. */
 const ACTION_TAG_RE = new RegExp(
   "<qkrpc-action-tag\\s+([^>]*?)\\s*(?:/>|></qkrpc-action-tag>)",
+  "gi",
+);
+
+const QKA_LINK_TAG_RE =
+  /<qka-link\s+([^>]*?)(?:\/>|>([\s\S]*?)<\/qka-link>)/gi;
+
+const INLINE_USER_MARKUP_RE = new RegExp(
+  `${ACTION_TAG_RE.source}|${QKA_LINK_TAG_RE.source}`,
   "gi",
 );
 
@@ -94,17 +104,27 @@ export function composeUserMessageDisplay(
 
 /** Expand stored markup to model-facing <qka> tags before convertToModelMessages. */
 export function expandUserMessageForModel(text: string): string {
-  if (!text.includes("<qkrpc-action-tag")) {
+  if (!text.includes("<qkrpc-action-tag") && !text.includes("<qka-link")) {
     return text.trim();
   }
 
   let expandedAny = false;
-  const expanded = text.replace(ACTION_TAG_RE, (_full, attrStr: string) => {
-    const action = pinnedActionFromTagAttrs(parseHtmlAttrs(attrStr));
-    if (!action) return "";
-    expandedAny = true;
-    return formatActionQkaForModel(action);
-  });
+  const expanded = text
+    .replace(ACTION_TAG_RE, (_full, attrStr: string) => {
+      const action = pinnedActionFromTagAttrs(parseHtmlAttrs(attrStr));
+      if (!action) return "";
+      expandedAny = true;
+      return formatActionQkaForModel(action);
+    })
+    .replace(QKA_LINK_TAG_RE, (_full, attrStr: string, innerText: string) => {
+      const action = pinnedActionFromQkaLinkAttrs(
+        parseHtmlAttrs(attrStr),
+        innerText ?? "",
+      );
+      if (!action) return "";
+      expandedAny = true;
+      return formatActionQkaForModel(action);
+    });
 
   return expandedAny ? expanded.trim() : text.trim();
 }
@@ -113,17 +133,42 @@ export type UserMessageSegment =
   | { type: "tag"; action: PinnedAction }
   | { type: "text"; text: string };
 
+function pinnedActionFromQkaLinkAttrs(
+  attrs: Record<string, string>,
+  innerText: string,
+): PinnedAction | null {
+  const id = normalizeActionId(attrs.id ?? "");
+  if (!id) return null;
+  const title = innerText.trim() || formatActionIdShort(id);
+  return { id, title };
+}
+
+function segmentFromInlineMarkupMatch(match: RegExpExecArray): UserMessageSegment | null {
+  if (match[1] !== undefined) {
+    const action = pinnedActionFromTagAttrs(parseHtmlAttrs(match[1]));
+    return action ? { type: "tag", action } : null;
+  }
+  if (match[2] !== undefined) {
+    const action = pinnedActionFromQkaLinkAttrs(
+      parseHtmlAttrs(match[2]),
+      match[3] ?? "",
+    );
+    return action ? { type: "tag", action } : null;
+  }
+  return null;
+}
+
 function parseInlineTagSegments(text: string): UserMessageSegment[] {
   const segments: UserMessageSegment[] = [];
-  const re = new RegExp(ACTION_TAG_RE.source, "gi");
+  const re = new RegExp(INLINE_USER_MARKUP_RE.source, "gi");
   let last = 0;
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
     if (match.index > last) {
       segments.push({ type: "text", text: text.slice(last, match.index) });
     }
-    const action = pinnedActionFromTagAttrs(parseHtmlAttrs(match[1]));
-    if (action) segments.push({ type: "tag", action });
+    const segment = segmentFromInlineMarkupMatch(match);
+    if (segment) segments.push(segment);
     last = match.index + match[0].length;
   }
   if (last < text.length) {
@@ -136,7 +181,7 @@ function parseInlineTagSegments(text: string): UserMessageSegment[] {
 export function parseUserMessageSegments(text: string): UserMessageSegment[] {
   if (!text) return [];
 
-  if (text.includes("<qkrpc-action-tag")) {
+  if (text.includes("<qkrpc-action-tag") || text.includes("<qka-link")) {
     return parseInlineTagSegments(text);
   }
 
@@ -196,6 +241,7 @@ export function canSendComposedMessage(draft: string): boolean {
 /** Clipboard / paste round-trip uses stored markup or legacy action lines. */
 export function hasPasteableUserMessageFormat(text: string): boolean {
   if (text.includes("<qkrpc-action-tag")) return true;
+  if (text.includes("<qka-link")) return true;
   return /^\[动作:\s*[^\]]+\]\s*actionId=/m.test(text);
 }
 

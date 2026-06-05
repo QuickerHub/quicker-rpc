@@ -25,6 +25,7 @@ import {
   updateCustomProfile,
   type LlmProfilePatch,
 } from "@/lib/llm-profiles";
+import { withReleasePreviewRoute } from "@/lib/release-preview.server";
 import {
   getUserProviderUiSpec,
   USER_PROVIDER_UI,
@@ -111,6 +112,7 @@ function providerConfigStatus(id: LlmProviderId): ProviderConfigStatus {
 }
 
 export async function GET() {
+  return withReleasePreviewRoute(async () => {
   const secrets = loadLlmLocalSecrets();
   const direct = secrets.directApiKey;
   const activeSelection = getStoredActiveSelection();
@@ -134,6 +136,7 @@ export async function GET() {
         ? ("env" as const)
         : undefined,
     },
+  });
   });
 }
 
@@ -164,6 +167,7 @@ type PutBody = {
 };
 
 export async function PUT(req: Request) {
+  return withReleasePreviewRoute(async () => {
   let body: PutBody;
   try {
     body = (await req.json()) as PutBody;
@@ -305,5 +309,6 @@ export async function PUT(req: Request) {
         ? ("env" as const)
         : undefined,
     },
+  });
   });
 }

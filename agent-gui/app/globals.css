@@ -511,6 +511,47 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
   flex-shrink: 0;
 }
 
+.release-preview-toggle--active {
+  color: var(--accent-fg, #fff);
+  background: color-mix(in srgb, var(--accent, #2563eb) 88%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #2563eb) 40%, transparent);
+}
+
+.release-preview-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  min-height: 1.75rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  background: color-mix(in srgb, var(--accent, #2563eb) 12%, var(--app-bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent, #2563eb) 28%, var(--border));
+  color: var(--text-muted);
+}
+
+.release-preview-banner__text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.release-preview-banner__exit {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.72rem;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.release-preview-banner__exit:hover {
+  background: var(--surface-hover);
+}
+
 .titlebar-actions .titlebar-action-btn.ws-icon-btn {
   width: 24px;
   height: 24px;
@@ -697,6 +738,44 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
 .app-settings-popup-close:hover {
   background: var(--hover-overlay);
   color: var(--text);
+}
+
+.app-settings-tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.15rem;
+  padding: 0 0.65rem;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.app-settings-tab {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.app-settings-tab:hover {
+  color: var(--text);
+}
+
+.app-settings-tab--active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.app-settings-tab-panel[hidden] {
+  display: none;
 }
 
 .app-settings-popup-body {
@@ -3341,6 +3420,92 @@ html.sidebar-collapsed-init .app-shell {
   }
 }
 
+.app-message--progress {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent-subtle) 35%, var(--popup-bg));
+}
+
+.app-message-progress {
+  margin-top: 0.15rem;
+}
+
+.app-message-progress-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.35rem;
+}
+
+.app-message-progress-pct {
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.app-message-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 85%, transparent);
+  overflow: hidden;
+}
+
+.app-message-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--accent),
+    color-mix(in srgb, var(--accent) 65%, #ffffff)
+  );
+  transition: width 0.35s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.app-message-progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  animation: app-message-progress-shimmer 1.25s ease-in-out infinite;
+}
+
+.app-message-progress-fill--indeterminate {
+  width: 42% !important;
+  animation: app-message-progress-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes app-message-progress-shimmer {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes app-message-progress-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.app-message-progress-msg {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
 .app-message-main {
   flex: 1;
   min-width: 0;
@@ -4166,11 +4331,13 @@ html.launcher-html--transparent .launcher-shell :is(
   }
 }
 
-.composer-btn--voice-unavailable {
+.composer-btn--voice-unavailable,
+.composer-btn--voice-setup {
   opacity: 0.45;
 }
 
-.composer-btn--primary-action.composer-btn--voice-unavailable {
+.composer-btn--primary-action.composer-btn--voice-unavailable,
+.composer-btn--primary-action.composer-btn--voice-setup {
   background: color-mix(in srgb, var(--text) 38%, var(--composer-input-bg, var(--bg)));
   color: color-mix(in srgb, var(--composer-input-bg, var(--bg)) 55%, var(--text-muted));
 }
@@ -4271,70 +4438,185 @@ html.launcher-html--transparent .launcher-shell :is(
   }
 }
 
-.voice-settings-status-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
+.voice-settings-row {
+  align-items: flex-start;
+  gap: 0.75rem;
 }
 
-.voice-settings-status-text {
-  font-size: 0.875rem;
+.voice-settings-ping {
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.voice-settings-status-label {
+  display: block;
+  font-weight: 500;
+}
+
+.voice-settings-status-sub {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
   color: var(--text-muted);
+  word-break: break-word;
 }
 
 .voice-settings-actions {
-  margin-bottom: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.voice-settings-install-progress {
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent-subtle) 40%, var(--popup-bg));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.voice-settings-install-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.voice-settings-install-progress-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.voice-settings-install-progress-pct {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.voice-settings-progress-track {
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 85%, transparent);
+  overflow: hidden;
+}
+
+.voice-settings-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--accent),
+    color-mix(in srgb, var(--accent) 65%, #ffffff)
+  );
+  transition: width 0.35s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.voice-settings-progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  animation: voice-install-shimmer 1.25s ease-in-out infinite;
+}
+
+.voice-settings-progress-fill--indeterminate {
+  width: 42% !important;
+  animation: voice-install-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes voice-install-shimmer {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes voice-install-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.voice-settings-install-progress-msg {
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
+.voice-settings-install-progress--error {
+  border-color: color-mix(in srgb, var(--danger, #e5484d) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger, #e5484d) 8%, var(--popup-bg));
+}
+
+.voice-settings-install-progress--error .voice-settings-install-progress-pct {
+  color: var(--danger, #e5484d);
 }
 
 .voice-settings-hint {
-  margin: 0 0 0.75rem;
-  font-size: 0.875rem;
+  margin: 0.65rem 0 0;
+  font-size: 0.8125rem;
   color: var(--text-muted);
   line-height: 1.45;
+}
+
+.voice-settings-dev {
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.voice-settings-dev summary {
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-muted);
+}
+
+.voice-settings-dev[open] summary {
+  margin-bottom: 0.5rem;
 }
 
 .voice-settings-mock-toggle {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.5rem;
-  font-size: 0.8125rem;
-  color: var(--text-muted);
+  margin-bottom: 0.35rem;
   cursor: pointer;
 }
 
 .voice-settings-mock-toggle input {
-  margin-top: 0.15rem;
-}
-
-.voice-settings-health {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.8125rem;
-}
-
-.voice-settings-dev-cmd code {
-  font-size: 0.8125rem;
-}
-
-.voice-settings-inline-action {
-  margin-left: auto;
-  padding: 0.15rem 0.5rem;
-  font-size: 0.8125rem;
-}
-
-.voice-settings-test-row {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+  margin: 0;
 }
 
 .voice-settings-test-result {
-  margin: 0;
-  font-size: 0.875rem;
+  margin: 0.65rem 0 0;
+  font-size: 0.8125rem;
   color: var(--text);
   line-height: 1.45;
+}
+
+.voice-settings-dev code {
+  font-size: 0.8125rem;
 }
 
 .launcher-settings-row {

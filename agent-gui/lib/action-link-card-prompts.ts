@@ -1,4 +1,4 @@
-import { formatActionLinkBarMarkup } from "@/lib/action-link-markup";
+import { formatActionTagMarkup } from "@/lib/compose-user-message";
 
 export type ActionLinkCardPrompt = {
   id: string;
@@ -34,8 +34,8 @@ export const ACTION_LINK_CARD_PROMPTS: ActionLinkCardPrompt[] = [
   },
 ];
 
-function actionRefMarkup(actionId: string, use: "edit" | "workspace" = "edit"): string {
-  return formatActionLinkBarMarkup(actionId, [use]);
+function actionRefMarkup(actionId: string, title: string): string {
+  return formatActionTagMarkup({ id: actionId, title: title.trim() || actionId });
 }
 
 export function buildActionLinkCardPromptMessage(
@@ -47,22 +47,22 @@ export function buildActionLinkCardPromptMessage(
     case "move-panel":
       return [
         `帮我把动作「${title}」放到我指定的面板或分组；需要我补充信息时先问我。`,
-        actionRefMarkup(ctx.actionId, "edit"),
+        actionRefMarkup(ctx.actionId, title),
       ].join("\n");
     case "improve-meta":
       return [
         `请优化动作「${title}」的标题、说明和图标；先确认我的偏好再修改。`,
-        actionRefMarkup(ctx.actionId, "edit"),
+        actionRefMarkup(ctx.actionId, title),
       ].join("\n");
     case "hotkey":
       return [
         `帮动作「${title}」设置合适的快捷键；先检查冲突再给出建议。`,
-        actionRefMarkup(ctx.actionId, "edit"),
+        actionRefMarkup(ctx.actionId, title),
       ].join("\n");
     case "explain":
       return [
         `用通俗语言解释动作「${title}」的步骤逻辑，并指出可改进之处。`,
-        actionRefMarkup(ctx.actionId, "workspace"),
+        actionRefMarkup(ctx.actionId, title),
       ].join("\n");
     default:
       return null;

@@ -52,7 +52,10 @@ export function voiceInputButtonTitle(
   if (phase === "transcribing") return "识别中…";
   if (canUse) return appendVoiceInputShortcutHint("语音输入", platform);
   if (pluginStatus === "not_installed") {
-    return "本地语音输入未安装（打开设置）";
+    return appendVoiceInputShortcutHint("安装语音输入", platform);
+  }
+  if (pluginStatus === "downloading") {
+    return "正在安装语音输入…";
   }
   return `语音不可用：${voicePluginStatusLabel(pluginStatus)}`;
 }

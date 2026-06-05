@@ -5,6 +5,7 @@ import {
 } from "@/lib/llm-builtin-display";
 import { probeLlmEndpointConfig, probeLlmProviderAvailability } from "@/lib/llm";
 import { USER_MODEL_SELECTOR_IDS } from "@/lib/llm-user-providers";
+import { withReleasePreviewRoute } from "@/lib/release-preview.server";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,7 @@ async function probeGroupAvailability(
 }
 
 export async function GET() {
+  return withReleasePreviewRoute(async () => {
   const groups = listBuiltinGroupDisplayRows();
   const timeoutMs = 8_000;
 
@@ -80,5 +82,6 @@ export async function GET() {
     mode: "merged",
     checkedAt: new Date().toISOString(),
     providers: Object.fromEntries(entries),
+  });
   });
 }

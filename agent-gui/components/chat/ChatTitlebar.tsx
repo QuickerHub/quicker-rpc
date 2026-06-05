@@ -12,7 +12,8 @@ import {
   selectThread,
 } from "@/lib/chat-store";
 import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
-import { isAgentGuiDebugMode } from "@/lib/agent-gui-debug";
+import { ReleasePreviewToggle } from "@/components/dev/ReleasePreviewToggle";
+import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 import { ExplorerPanelToggle } from "@/components/workspace/WorkspaceExplorerPanel";
 import { WorkspaceExplorerFileTabs } from "@/components/workspace/WorkspaceExplorerFileTabs";
 import { useDocsViewer } from "@/lib/docs-viewer";
@@ -153,6 +154,7 @@ function TitlebarChromeActions({
         >
           <IconLauncher />
         </button>
+        <ReleasePreviewToggle />
         {showDevActions ? (
           <>
             <span className="titlebar-actions-sep" aria-hidden />
@@ -274,7 +276,7 @@ export function ChatTitlebar({
     .filter(Boolean)
     .join(" ");
 
-  const showDevActions = isAgentGuiDebugMode();
+  const showDevActions = useDevExperienceEnabled();
 
   return (
     <header

@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useId } from "react";
+import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppSettingsPanel } from "@/components/chat/AppSettingsPanel";
+import {
+  APP_SETTINGS_TABS,
+  DEFAULT_APP_SETTINGS_TAB,
+  type AppSettingsTabId,
+} from "@/lib/app-settings-tabs";
 import type { LlmProviderId } from "@/lib/llm-providers";
 import type { PingState } from "@/lib/use-qkrpc-ping";
 
@@ -13,7 +18,17 @@ type AppSettingsPopupProps = {
   onRefreshPing: () => void;
   versionRefreshKey?: number;
   focusProviderId?: LlmProviderId;
+  initialTab?: AppSettingsTabId;
 };
+
+function resolveOpenTab(
+  initialTab: AppSettingsTabId | undefined,
+  focusProviderId: LlmProviderId | undefined,
+): AppSettingsTabId {
+  if (initialTab) return initialTab;
+  if (focusProviderId) return "models";
+  return DEFAULT_APP_SETTINGS_TAB;
+}
 
 export function AppSettingsPopup({
   open,
@@ -22,8 +37,15 @@ export function AppSettingsPopup({
   onRefreshPing,
   versionRefreshKey,
   focusProviderId,
+  initialTab,
 }: AppSettingsPopupProps) {
   const panelId = useId();
+  const [activeTab, setActiveTab] = useState<AppSettingsTabId>(DEFAULT_APP_SETTINGS_TAB);
+
+  useEffect(() => {
+    if (!open) return;
+    setActiveTab(resolveOpenTab(initialTab, focusProviderId));
+  }, [open, initialTab, focusProviderId]);
 
   useEffect(() => {
     if (!open) return;
@@ -67,9 +89,32 @@ export function AppSettingsPopup({
             ×
           </button>
         </div>
+
+        <div className="app-settings-tabs" role="tablist" aria-label="设置分类">
+          {APP_SETTINGS_TABS.map((tab) => {
+            const selected = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                id={`app-settings-tab-btn-${tab.id}`}
+                role="tab"
+                aria-selected={selected}
+                aria-controls={`app-settings-tab-${tab.id}`}
+                tabIndex={selected ? 0 : -1}
+                className={`app-settings-tab${selected ? " app-settings-tab--active" : ""}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
         <div className="app-settings-popup-body">
           <AppSettingsPanel
             active
+            activeTab={activeTab}
             ping={ping}
             onRefreshPing={onRefreshPing}
             versionRefreshKey={versionRefreshKey}

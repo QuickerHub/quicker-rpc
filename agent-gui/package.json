@@ -19,6 +19,8 @@
     "docs:check": "node ../scripts/generate-authoring-docs.mjs --check",
     "test:context-compression": "tsx --test lib/context-compression.test.ts lib/context-compression.integration.test.ts lib/action-project-workflow.test.ts lib/action-project-roundtrip.test.ts lib/action-project-file.test.ts lib/workspace-fs.test.ts lib/action-editor/programWire.test.ts",
     "test:voice-input": "tsx --test lib/voice-input/voice-input-plugin-status.test.ts",
+    "test:voice-install-trigger": "node scripts/test-voice-plugin-auto-install.mjs trigger-check",
+    "voice:install-test": "node scripts/test-voice-plugin-auto-install.mjs status",
     "voice:dev-server": "uv run --directory ../voice-asr-runtime quicker-voice-runtime",
     "voice:download-model": "uv run --directory ../voice-asr-runtime download-asr-model",
     "dev:smoke": "node scripts/frontend-smoke.mjs",

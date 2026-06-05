@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { SettingsGearIcon } from "@/components/SettingsGearIcon";
+import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 
 type EmptyChatPromptsProps = {
   disabled?: boolean;
@@ -32,6 +33,8 @@ export function EmptyChatPrompts({
   disabled = false,
   onOpenSettings,
 }: EmptyChatPromptsProps) {
+  const devExperienceEnabled = useDevExperienceEnabled();
+
   return (
     <div
       className="empty-chat-shortcuts"
@@ -48,6 +51,7 @@ export function EmptyChatPrompts({
         <span className="empty-chat-shortcut-btn__label">设置</span>
         <span className="empty-chat-shortcut-btn__hint">模型、工具、工作目录</span>
       </button>
+      {devExperienceEnabled ? (
       <Link
         href="/tool-test"
         className={`empty-chat-shortcut-btn empty-chat-shortcut-btn--link${disabled ? " empty-chat-shortcut-btn--disabled" : ""}`}
@@ -61,6 +65,7 @@ export function EmptyChatPrompts({
         <span className="empty-chat-shortcut-btn__label">测试</span>
         <span className="empty-chat-shortcut-btn__hint">工具套件与标题/Prompt 测试</span>
       </Link>
+      ) : null}
     </div>
   );
 }

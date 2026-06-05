@@ -22,8 +22,8 @@ type ComposerPrimaryActionButtonProps = {
   disabled?: boolean;
   onVoiceStart: () => void;
   onVoiceStop: () => void;
-  /** Only when voice is truly unavailable (e.g. runtime not installed). */
-  onUnavailableClick?: () => void;
+  /** When voice runtime is not ready (install / start). */
+  onVoiceSetup?: () => void;
 };
 
 function ComposerSendIcon() {
@@ -163,7 +163,7 @@ function ComposerVoiceMicButton({
   disabled,
   platform,
   onVoiceStart,
-  onUnavailableClick,
+  onVoiceSetup,
 }: {
   phase: VoiceSessionPhase;
   pluginStatus: VoicePluginStatus;
@@ -171,12 +171,10 @@ function ComposerVoiceMicButton({
   disabled?: boolean;
   platform: ReturnType<typeof useShellPlatform>;
   onVoiceStart: () => void;
-  onUnavailableClick?: () => void;
+  onVoiceSetup?: () => void;
 }) {
   const voiceBusy = phase === "transcribing";
-  const openSettingsOnClick =
-    !canUseVoice && pluginStatus === "not_installed";
-  const unavailable = openSettingsOnClick;
+  const needsSetup = !canUseVoice && !voiceBusy;
   const title = voiceInputButtonTitle(
     pluginStatus,
     phase,
@@ -192,8 +190,8 @@ function ComposerVoiceMicButton({
     if (disabled || voiceBusy) return;
     event.preventDefault();
 
-    if (openSettingsOnClick) {
-      onUnavailableClick?.();
+    if (needsSetup) {
+      onVoiceSetup?.();
       return;
     }
 
@@ -204,7 +202,7 @@ function ComposerVoiceMicButton({
     "composer-btn",
     "composer-btn--voice",
     "composer-btn--primary-action",
-    unavailable ? "composer-btn--voice-unavailable" : "",
+    needsSetup ? "composer-btn--voice-setup" : "",
     voiceBusy ? "composer-btn--voice-busy" : "",
   ]
     .filter(Boolean)
@@ -234,7 +232,7 @@ export function ComposerPrimaryActionButton({
   disabled = false,
   onVoiceStart,
   onVoiceStop,
-  onUnavailableClick,
+  onVoiceSetup,
 }: ComposerPrimaryActionButtonProps) {
   const platform = useShellPlatform();
   const voiceRecording = phase === "recording";
@@ -262,7 +260,7 @@ export function ComposerPrimaryActionButton({
         disabled={disabled}
         platform={platform}
         onVoiceStart={onVoiceStart}
-        onUnavailableClick={onUnavailableClick}
+        onVoiceSetup={onVoiceSetup}
       />
       {canSend ? (
         <ComposerSendButton disabled={disabled} agentBusy={agentBusy} />

@@ -45,6 +45,40 @@ function AppMessageActions({
   );
 }
 
+function AppMessageProgressBar({
+  progress,
+}: {
+  progress: NonNullable<AppMessage["progress"]>;
+}) {
+  const percent = Math.max(0, Math.min(100, Math.round(progress.percent)));
+  const indeterminate = percent <= 0;
+
+  return (
+    <div className="app-message-progress" aria-hidden={false}>
+      <div className="app-message-progress-head">
+        <span className="app-message-progress-pct">{percent}%</span>
+      </div>
+      <div
+        className="app-message-progress-track"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+      >
+        <div
+          className={`app-message-progress-fill${
+            indeterminate ? " app-message-progress-fill--indeterminate" : ""
+          }`}
+          style={indeterminate ? undefined : { width: `${percent}%` }}
+        />
+      </div>
+      {progress.message ? (
+        <p className="app-message-progress-msg">{progress.message}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function AppMessageCard({
   message,
   onDismiss,
@@ -54,7 +88,9 @@ function AppMessageCard({
 }) {
   return (
     <div
-      className={`app-message app-message--${message.kind}`}
+      className={`app-message app-message--${message.kind}${
+        message.progress ? " app-message--progress" : ""
+      }`}
       role={message.kind === "error" ? "alert" : "status"}
       aria-live="polite"
     >
@@ -62,7 +98,11 @@ function AppMessageCard({
         {message.title ? (
           <p className="app-message-title">{message.title}</p>
         ) : null}
-        <p className="app-message-body">{message.body}</p>
+        {message.progress ? (
+          <AppMessageProgressBar progress={message.progress} />
+        ) : (
+          <p className="app-message-body">{message.body}</p>
+        )}
         <AppMessageActions message={message} onDismiss={onDismiss} />
       </div>
       {message.dismissible ? (

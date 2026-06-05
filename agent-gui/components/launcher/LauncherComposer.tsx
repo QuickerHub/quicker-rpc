@@ -16,6 +16,7 @@ import {
 import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
 import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
 import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
+import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 import { useGlobalVoiceToggle } from "@/lib/voice-input/use-global-voice-toggle";
 import { useLauncherTauriHidden } from "@/lib/launcher/use-launcher-tauri-hidden";
 import { LAUNCHER_SHOWN_EVENT } from "@/lib/launcher/launcher-tauri-events";
@@ -119,6 +120,10 @@ function LauncherComposer({
     },
   });
 
+  const handleVoiceSetup = useCallback(() => {
+    void requestVoicePluginSetup();
+  }, []);
+
   useComposerVoiceToggleShortcut({
     enabled: !disabled,
     phase: voiceInput.phase,
@@ -126,7 +131,7 @@ function LauncherComposer({
     pluginStatus: voiceInput.pluginStatus,
     onStart: voiceInput.startVoiceInput,
     onStop: voiceInput.stopVoiceInput,
-    onUnavailable: () => window.open("/", "_blank"),
+    onUnavailable: handleVoiceSetup,
   });
 
   const activateLauncherForGlobalVoice = useCallback(() => {
@@ -141,7 +146,7 @@ function LauncherComposer({
     pluginStatus: voiceInput.pluginStatus,
     onStart: voiceInput.startVoiceInput,
     onStop: voiceInput.stopVoiceInput,
-    onUnavailable: () => window.open("/", "_blank"),
+    onUnavailable: handleVoiceSetup,
     onGlobalActivate: activateLauncherForGlobalVoice,
   });
 
@@ -273,7 +278,7 @@ function LauncherComposer({
                 canUseVoice={voiceInput.canUse && !disabled}
                 onVoiceStart={voiceInput.startVoiceInput}
                 onVoiceStop={voiceInput.stopVoiceInput}
-                onUnavailableClick={() => window.open("/", "_blank")}
+                onVoiceSetup={handleVoiceSetup}
               />
             </div>
           </div>

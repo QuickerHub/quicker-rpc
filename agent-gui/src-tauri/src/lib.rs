@@ -16,6 +16,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 mod global_shortcut;
 mod launcher;
 mod quicker_agent_paths;
+mod quicker_agent_updater;
 mod voice_plugin;
 mod voice_plugin_install;
 mod win_job;
@@ -324,6 +325,9 @@ pub fn run() {
             voice_plugin::voice_plugin_install,
             voice_plugin::voice_plugin_start_runtime,
             voice_plugin::voice_plugin_stop_runtime,
+            quicker_agent_updater::quicker_agent_update_status,
+            quicker_agent_updater::quicker_agent_update_skip_version,
+            quicker_agent_updater::quicker_agent_update_apply_and_exit,
         ])
         .manage(BackendState::new())
         .manage(voice_plugin::VoicePluginState::new())
@@ -381,6 +385,7 @@ pub fn run() {
             )
             .build()?;
             voice_plugin::spawn_voice_runtime_background(handle.clone());
+            quicker_agent_updater::spawn_background_update_check(handle.clone());
             Ok(())
             }
         })
@@ -392,6 +397,10 @@ pub fn run() {
                 app.state::<voice_plugin::VoicePluginState>()
                     .inner()
                     .shutdown();
+                if let Err(err) = voice_plugin_install::apply_pending_runtime_upgrade() {
+                    eprintln!("[voice-plugin] apply runtime upgrade failed: {err}");
+                }
+                quicker_agent_updater::apply_pending_on_exit();
             }
         });
 }

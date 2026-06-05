@@ -7,6 +7,7 @@ import {
   isVoiceInputMockEnabled,
   resolveVoicePluginStatusSync,
 } from "@/lib/voice-input/voice-input-plugin-status";
+import { fetchDevVoicePluginHostStatus } from "@/lib/voice-input/voice-input-dev-install";
 import { fetchTauriVoicePluginStatus } from "@/lib/voice-input/voice-input-tauri";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
 
@@ -31,7 +32,37 @@ export function useVoicePluginStatus(active = true): VoicePluginStatus {
     }
 
     const port = getVoiceWsPort();
+    const tauriDto = await fetchTauriVoicePluginStatus();
+    const devDto =
+      !tauriDto && process.env.NODE_ENV === "development"
+        ? await fetchDevVoicePluginHostStatus()
+        : null;
+    const hostDto = tauriDto ?? devDto;
     const health = await fetchVoiceRuntimeHealth(port);
+
+    if (hostDto) {
+      if (hostDto.wsPort > 0) {
+        setVoiceWsPort(hostDto.wsPort);
+      }
+      if (hostDto.status === "downloading") {
+        setStatus("downloading");
+        return;
+      }
+      if (hostDto.installed) {
+        if (health?.ready) {
+          setStatus("running");
+          return;
+        }
+        if (health?.ok) {
+          setStatus("starting");
+          return;
+        }
+        setStatus(hostDto.status === "error" ? "error" : "installed");
+        return;
+      }
+    }
+
+    // External/dev runtime on :6016 — usable even when plugin zip is not installed.
     if (health?.ready) {
       setStatus("running");
       return;
@@ -41,12 +72,13 @@ export function useVoicePluginStatus(active = true): VoicePluginStatus {
       return;
     }
 
-    const tauriDto = await fetchTauriVoicePluginStatus();
     if (tauriDto) {
-      if (tauriDto.wsPort > 0) {
-        setVoiceWsPort(tauriDto.wsPort);
-      }
       setStatus(tauriDto.status);
+      return;
+    }
+
+    if (devDto) {
+      setStatus(devDto.status);
       return;
     }
 

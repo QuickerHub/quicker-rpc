@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 
 const DevErrorCapture = dynamic(
   () => import("./DevErrorCapture").then((mod) => mod.DevErrorCapture),
@@ -8,6 +9,7 @@ const DevErrorCapture = dynamic(
 );
 
 export function DevErrorCaptureGate() {
-  if (process.env.NODE_ENV !== "development") return null;
+  const devExperienceEnabled = useDevExperienceEnabled();
+  if (!devExperienceEnabled) return null;
   return <DevErrorCapture />;
 }

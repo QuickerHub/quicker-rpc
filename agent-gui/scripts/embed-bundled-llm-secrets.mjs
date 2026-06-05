@@ -73,7 +73,7 @@ function normalizePublishEndpoint(raw, defaults) {
   const data = /** @type {Record<string, unknown>} */ (raw);
   const apiKey = typeof data.apiKey === "string" ? data.apiKey.trim() : "";
   if (!apiKey) return null;
-  /** @type {{ apiKey: string, baseURL?: string, model?: string }} */
+  /** @type {{ apiKey: string, baseURL?: string, model?: string, group?: string }} */
   const endpoint = { apiKey };
   const baseURL =
     typeof data.baseURL === "string" && data.baseURL.trim()
@@ -83,8 +83,13 @@ function normalizePublishEndpoint(raw, defaults) {
     typeof data.model === "string" && data.model.trim()
       ? data.model.trim()
       : defaults.model;
+  const group =
+    typeof data.group === "string" && data.group.trim()
+      ? data.group.trim()
+      : undefined;
   if (baseURL) endpoint.baseURL = baseURL;
   if (model) endpoint.model = model;
+  if (group) endpoint.group = group;
   return endpoint;
 }
 
@@ -123,8 +128,41 @@ function readPublishSponsors(raw) {
 }
 
 function isDeepSeekPublishEndpoint(endpoint, defaults) {
+  if (endpoint.group?.trim().toLowerCase() === "deepseek") return true;
   const model = (endpoint.model ?? defaults.model ?? "").trim().toLowerCase();
   return model.startsWith("deepseek");
+}
+
+/** @param {unknown} raw */
+function readPublishGroups(raw) {
+  if (typeof raw !== "object" || raw === null) return null;
+  const groups = /** @type {Record<string, unknown>} */ (raw).groups;
+  if (typeof groups !== "object" || groups === null) return null;
+  /** @type {Record<string, Record<string, unknown>>} */
+  const out = {};
+  for (const [groupId, defRaw] of Object.entries(groups)) {
+    const id = groupId.trim();
+    if (!id || typeof defRaw !== "object" || defRaw === null) continue;
+    const data = /** @type {Record<string, unknown>} */ (defRaw);
+    /** @type {Record<string, unknown>} */
+    const def = {};
+    if (typeof data.label === "string" && data.label.trim()) {
+      def.label = data.label.trim();
+    }
+    if (typeof data.model === "string" && data.model.trim()) {
+      def.model = data.model.trim();
+    }
+    if (typeof data.sponsor === "object" && data.sponsor !== null) {
+      const sponsor = /** @type {Record<string, unknown>} */ (data.sponsor);
+      const name = typeof sponsor.name === "string" ? sponsor.name.trim() : "";
+      const url = typeof sponsor.url === "string" ? sponsor.url.trim() : "";
+      if (name && url && /^https?:\/\//i.test(url)) {
+        def.sponsor = { name, url };
+      }
+    }
+    if (Object.keys(def).length > 0) out[id] = def;
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 function endpointsFromPublishConfig(raw, { gptOnly = false } = {}) {
@@ -199,54 +237,76 @@ function resolvePublishEndpoints({ gptOnly = false } = {}) {
 
 /**
  * @param {string} outputDir
- * @param {{ apiKey: string, baseURL?: string, model?: string }[]} endpoints
+ * @param {{ apiKey: string, baseURL?: string, model?: string, group?: string }[]} endpoints
+ * @param {{ apiKey: string, baseURL?: string, model?: string, group?: string }[]} allEndpoints
  */
-function stageBundledLlmConfig(outputDir, endpoints) {
+function stageBundledLlmConfig(outputDir, endpoints, allEndpoints) {
   const defaults = readExampleDefaults();
+  const publishRaw = readPublishConfigRaw();
+  const publishGroups = readPublishGroups(publishRaw);
+
   /** @type {Record<string, unknown>} */
-  let providerEntry;
-  if (endpoints.length === 0) {
-    const examplePath = join(agentGuiRoot, "llm-config.example.json");
-    if (!existsSync(examplePath)) {
-      throw new Error(`Missing ${examplePath}`);
-    }
-    const config = JSON.parse(readFileSync(examplePath, "utf8"));
-    providerEntry =
-      config?.providers?.default
-      ?? config?.providers?.bingleimuzi
-      ?? {};
-    if (typeof providerEntry === "object" && providerEntry !== null) {
-      providerEntry = { ...providerEntry, apiKey: "" };
-      if (Array.isArray(providerEntry.fallbacks)) {
-        providerEntry.fallbacks = providerEntry.fallbacks.map((fb) => ({
-          ...fb,
-          apiKey: "",
-        }));
-      }
-    }
+  let config;
+  if (publishGroups) {
+    config = {
+      version: 2,
+      groups: publishGroups,
+      endpoints: allEndpoints.map((ep) => {
+        /** @type {Record<string, string>} */
+        const next = {
+          baseURL: ep.baseURL ?? defaults.baseURL,
+          model: ep.model ?? defaults.model,
+        };
+        if (ep.group) next.group = ep.group;
+        return next;
+      }),
+    };
   } else {
-    const [primary, ...fallbacks] = endpoints;
-    providerEntry = {
-      baseURL: primary.baseURL ?? defaults.baseURL,
-      model: primary.model ?? defaults.model,
-      fallbacks: fallbacks.map((fb) => ({
-        baseURL: fb.baseURL ?? defaults.baseURL,
-        model: fb.model ?? defaults.model,
+    /** @type {Record<string, unknown>} */
+    let providerEntry;
+    if (endpoints.length === 0) {
+      const examplePath = join(agentGuiRoot, "llm-config.example.json");
+      if (!existsSync(examplePath)) {
+        throw new Error(`Missing ${examplePath}`);
+      }
+      const exampleConfig = JSON.parse(readFileSync(examplePath, "utf8"));
+      providerEntry =
+        exampleConfig?.providers?.default
+        ?? exampleConfig?.providers?.bingleimuzi
+        ?? {};
+      if (typeof providerEntry === "object" && providerEntry !== null) {
+        providerEntry = { ...providerEntry, apiKey: "" };
+        if (Array.isArray(providerEntry.fallbacks)) {
+          providerEntry.fallbacks = providerEntry.fallbacks.map((fb) => ({
+            ...fb,
+            apiKey: "",
+          }));
+        }
+      }
+    } else {
+      const [primary, ...fallbacks] = endpoints;
+      providerEntry = {
+        baseURL: primary.baseURL ?? defaults.baseURL,
+        model: primary.model ?? defaults.model,
+        fallbacks: fallbacks.map((fb) => ({
+          baseURL: fb.baseURL ?? defaults.baseURL,
+          model: fb.model ?? defaults.model,
+        })),
+      };
+    }
+
+    config = {
+      version: 1,
+      endpoints: endpoints.map((ep) => ({
+        baseURL: ep.baseURL ?? defaults.baseURL,
+        model: ep.model ?? defaults.model,
       })),
+      providers: {
+        default: providerEntry,
+      },
     };
   }
 
-  const config = {
-    version: 1,
-    endpoints: endpoints.map((ep) => ({
-      baseURL: ep.baseURL ?? defaults.baseURL,
-      model: ep.model ?? defaults.model,
-    })),
-    providers: {
-      default: providerEntry,
-    },
-  };
-  const publishRaw = readPublishConfigRaw();
   const sponsors = readPublishSponsors(publishRaw);
   if (Object.keys(sponsors).length > 0) {
     config.sponsors = sponsors;
@@ -265,7 +325,7 @@ function stageBundledLlmConfig(outputDir, endpoints) {
 export function prepareBundledLlmRuntime(outputDir) {
   const gptEndpoints = resolvePublishEndpoints({ gptOnly: true });
   const allEndpoints = resolvePublishEndpoints();
-  stageBundledLlmConfig(outputDir, gptEndpoints);
+  stageBundledLlmConfig(outputDir, gptEndpoints, allEndpoints);
   return embedBundledLlmSecretsWithEndpoints(outputDir, allEndpoints);
 }
 
@@ -280,7 +340,7 @@ function embedBundledLlmSecretsWithEndpoints(outputDir, endpoints) {
     return { wrote: false, path: outPath, endpoints: 0 };
   }
 
-  /** @type {{ enc: string, baseURL?: string, model?: string }[]} */
+  /** @type {{ enc: string, baseURL?: string, model?: string, group?: string }[]} */
   const bundledEndpoints = endpoints.map((endpoint, index) => {
     const next = {
       enc: encodeSecret(
@@ -291,6 +351,7 @@ function embedBundledLlmSecretsWithEndpoints(outputDir, endpoints) {
     };
     if (endpoint.baseURL) next.baseURL = endpoint.baseURL;
     if (endpoint.model) next.model = endpoint.model;
+    if (endpoint.group) next.group = endpoint.group;
     return next;
   });
 

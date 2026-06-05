@@ -13,7 +13,6 @@ export type VoiceToggleActionOptions = {
 export function runVoiceToggleAction({
   phase,
   canUse,
-  pluginStatus,
   onStart,
   onStop,
   onUnavailable,
@@ -29,7 +28,5 @@ export function runVoiceToggleAction({
     return;
   }
 
-  if (pluginStatus === "not_installed") {
-    onUnavailable?.();
-  }
+  onUnavailable?.();
 }

@@ -16,6 +16,10 @@
         "name": "冰雷木子",
         "url": "https://getquicker.net/User/Actions/749380-%E5%86%B0%E9%9B%B7%E6%9C%A8%E5%AD%90"
       }
+    },
+    "nvidia": {
+      "label": "NVIDIA NIM",
+      "model": "openai/gpt-oss-20b"
     }
   },
   "endpoints": [
@@ -42,6 +46,12 @@
       "apiKey": "sk-...",
       "baseURL": "https://api.bingleimuzi.eu.cc/v1",
       "model": "deepseek-v4-pro"
+    },
+    {
+      "group": "nvidia",
+      "apiKey": "nvapi-...",
+      "baseURL": "https://integrate.api.nvidia.com/v1",
+      "model": "openai/gpt-oss-20b"
     }
   ]
 }

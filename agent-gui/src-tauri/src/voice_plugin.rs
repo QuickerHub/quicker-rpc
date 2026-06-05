@@ -365,6 +365,17 @@ fn model_ready_at(root: &Path) -> bool {
 fn build_status(state: &VoicePluginState) -> VoicePluginStatusDto {
     reconcile_child(state);
 
+    if crate::voice_plugin_install::voice_install_in_progress() {
+        return VoicePluginStatusDto {
+            status: "downloading".into(),
+            installed: false,
+            running: false,
+            ws_port: 0,
+            plugin_dir: Some(voice_plugin_root().to_string_lossy().into_owned()),
+            message: Some("正在下载并安装语音插件…".into()),
+        };
+    }
+
     let root = voice_plugin_root();
     let manifest_path = root.join("manifest.json");
     let manifest = read_manifest(&root);
@@ -536,15 +547,45 @@ pub fn ensure_voice_runtime(app: &AppHandle) {
     if status.running {
         return;
     }
-    if status.status == "not_installed" {
+    if status.status == "not_installed" || status.status == "downloading" {
         return;
     }
     let _ = start_runtime_inner(state.inner());
 }
 
+fn run_background_voice_tasks(app: &AppHandle) {
+    if cfg!(debug_assertions) {
+        ensure_voice_runtime(app);
+        return;
+    }
+
+    let root = voice_plugin_root();
+    let installed = root.join("manifest.json").is_file()
+        && root.join("runtime/quicker-voice-runtime.exe").is_file()
+        && model_ready_at(&root);
+
+    if !installed {
+        if let Err(err) = crate::voice_plugin_install::run_voice_plugin_install(app) {
+            eprintln!("[voice-plugin] background install failed: {err}");
+            return;
+        }
+        let state = app.state::<VoicePluginState>();
+        let _ = start_runtime_inner(state.inner());
+        return;
+    }
+
+    if crate::voice_plugin_install::needs_runtime_update(&root) {
+        if let Err(err) = crate::voice_plugin_install::stage_runtime_upgrade(app) {
+            eprintln!("[voice-plugin] runtime upgrade staging failed: {err}");
+        }
+    }
+
+    ensure_voice_runtime(app);
+}
+
 pub fn spawn_voice_runtime_background(app: AppHandle) {
     std::thread::spawn(move || {
-        ensure_voice_runtime(&app);
+        run_background_voice_tasks(&app);
     });
 }
 

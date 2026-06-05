@@ -36,6 +36,7 @@ import { resolveModelContextLimit } from "@/lib/llm-context-limits";
 import { prepareCompressedContext } from "@/lib/context-compression";
 import { repairInterruptedToolCalls } from "@/lib/repair-interrupted-tool-calls";
 import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
+import { withReleasePreviewRoute } from "@/lib/release-preview.server";
 import {
   buildLauncherCommandCachePromptBlock,
   extractLastUserMessageText,
@@ -46,7 +47,7 @@ export const maxDuration = 120;
 
 export async function POST(req: Request) {
   try {
-    return await handleChatPost(req);
+    return await withReleasePreviewRoute(() => handleChatPost(req));
   } catch (e) {
     console.error("[/api/chat]", e);
     const message = e instanceof Error ? e.message : String(e);

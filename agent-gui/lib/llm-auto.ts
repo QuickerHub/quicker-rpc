@@ -6,7 +6,7 @@ import {
 } from "@/lib/llm-endpoint-groups";
 import type { LlmModelOption } from "@/lib/llm-options-shared";
 import { CUSTOM_PROVIDER_ID } from "@/lib/llm-providers";
-import { loadMergedPublishGroupsConfig } from "@/lib/llm-publish-config";
+import { loadMergedBuiltinGroupsConfig } from "@/lib/llm-bundled-secrets";
 import { LLM_AUTO_SELECTION } from "@/lib/llm-selection";
 
 export type AutoLlmEndpoint = {
@@ -39,7 +39,7 @@ function endpointFromConfig(
 }
 
 function resolveAutoFromGroupsConfig(): AutoLlmEndpoint | undefined {
-  const config = loadMergedPublishGroupsConfig();
+  const config = loadMergedBuiltinGroupsConfig();
   const chain = getGroupEndpointChain(config, LLM_AUTO_GROUP_ID);
   const endpoint = chain[0];
   if (!endpoint?.apiKey?.trim()) return undefined;

@@ -1,118 +1,106 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { isTauriShell } from "@/lib/tauri-shell";
-import { getVoiceWsPort } from "@/lib/voice-input/voice-input-config";
-import { fetchVoiceRuntimeHealth } from "@/lib/voice-input/voice-input-health";
+import { useEffect, useMemo, useState } from "react";
+import { useDevExperienceEnabled } from "@/lib/release-preview.client";
+import { isTauriShell, useShellPlatform } from "@/lib/tauri-shell";
 import {
   isVoiceInputMockEnabled,
   setVoiceInputMockEnabled,
-  voicePluginStatusLabel,
 } from "@/lib/voice-input/voice-input-plugin-status";
+import { formatVoiceInputToggleShortcut } from "@/lib/voice-input/voice-input-shortcuts";
+import { devVoicePluginInstall } from "@/lib/voice-input/voice-input-dev-install";
 import {
-  listenVoicePluginInstallProgress,
-  tauriVoicePluginInstall,
   tauriVoicePluginStartRuntime,
   tauriVoicePluginStopRuntime,
 } from "@/lib/voice-input/voice-input-tauri";
-import { useVoicePluginStatus } from "@/lib/voice-input/use-voice-plugin-status";
+import {
+  useVoiceSettingsPanelState,
+  type VoiceSettingsPanelSnapshot,
+} from "@/lib/voice-input/use-voice-settings-panel-state";
 import { VoiceMicRecorder } from "@/lib/voice-input/voice-input-recorder";
 import { transcribePcmViaWebSocket } from "@/lib/voice-input/voice-input-ws-client";
+import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
 
 type VoiceInputSettingsSectionProps = {
   active: boolean;
   disabled?: boolean;
 };
 
+function statusDotClass(runtimePhase: VoicePluginStatus, hostLoading: boolean): string {
+  if (hostLoading || runtimePhase === "downloading") return "loading";
+  if (runtimePhase === "running") return "ok";
+  if (runtimePhase === "starting") return "loading";
+  if (runtimePhase === "error") return "err";
+  return "";
+}
+
+function contextHint(params: {
+  panel: VoiceSettingsPanelSnapshot;
+  inTauri: boolean;
+  mockEnabled: boolean;
+}): string | null {
+  const { panel, inTauri, mockEnabled } = params;
+  if (mockEnabled) {
+    return "Mock 模式：Composer 点麦克风会填充样例文本。";
+  }
+  if (panel.runtimePhase === "downloading") {
+    return "正在安装，右下角可查看进度。";
+  }
+  if (!panel.pluginInstalled) {
+    if (panel.runtimeOnline) {
+      return inTauri
+        ? "当前由外部 Runtime 提供服务。点 Composer 麦克风可安装离线组件。"
+        : "当前由 dev Runtime 提供服务。点 Composer 麦克风可测试安装流程。";
+    }
+    return "点 Composer 麦克风即可安装（约 240 MB，需联网）。";
+  }
+  if (panel.runtimePhase === "installed" || panel.runtimePhase === "stopped") {
+    return "插件已安装；点 Composer 麦克风可启动并使用。";
+  }
+  if (panel.runtimePhase === "error") {
+    return panel.hostStatus?.message ?? "语音服务异常，可尝试重新启动。";
+  }
+  return null;
+}
+
 export function VoiceInputSettingsSection({
   active,
   disabled = false,
 }: VoiceInputSettingsSectionProps) {
-  const status = useVoicePluginStatus(active);
+  const platform = useShellPlatform();
+  const panel = useVoiceSettingsPanelState(active);
   const [mockEnabled, setMockEnabled] = useState(false);
-  const [healthLine, setHealthLine] = useState<string | null>(null);
-  const [hostMessage, setHostMessage] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [runtimeBusy, setRuntimeBusy] = useState(false);
-  const [installBusy, setInstallBusy] = useState(false);
-  const [installProgress, setInstallProgress] = useState<string | null>(null);
-  const isDev = process.env.NODE_ENV === "development";
+  const [reinstallBusy, setReinstallBusy] = useState(false);
+  const [preferNetwork, setPreferNetwork] = useState(false);
+  const devExperienceEnabled = useDevExperienceEnabled();
   const inTauri = isTauriShell();
 
   const notifyVoiceConfigChanged = () => {
     window.dispatchEvent(new Event("voice-input-config-changed"));
   };
 
-  const refreshHealth = useCallback(async () => {
-    if (isVoiceInputMockEnabled()) {
-      setHealthLine("mock 模式（不连接 Runtime）");
-      return;
-    }
-    const health = await fetchVoiceRuntimeHealth();
-    if (!health) {
-      setHealthLine(`未检测到 ws://127.0.0.1:${getVoiceWsPort()}/health`);
-      return;
-    }
-    setHealthLine(
-      `Runtime ${health.runtimeVersion ?? "?"} · 模型 ${health.modelId ?? "stub"} · ready=${health.ready ? "是" : "否"}`,
-    );
-  }, [status]);
-
   useEffect(() => {
     if (!active) return;
     setMockEnabled(isVoiceInputMockEnabled());
-    void refreshHealth();
-    const onChange = () => {
-      setMockEnabled(isVoiceInputMockEnabled());
-      void refreshHealth();
-    };
+    const onChange = () => setMockEnabled(isVoiceInputMockEnabled());
     window.addEventListener("voice-input-mock-changed", onChange);
-    window.addEventListener("voice-input-config-changed", onChange);
-    return () => {
-      window.removeEventListener("voice-input-mock-changed", onChange);
-      window.removeEventListener("voice-input-config-changed", onChange);
-    };
-  }, [active, refreshHealth]);
+    return () => window.removeEventListener("voice-input-mock-changed", onChange);
+  }, [active]);
 
   const handleMockToggle = () => {
     setVoiceInputMockEnabled(!mockEnabled);
-  };
-
-  const handleInstall = async () => {
-    if (installBusy || disabled || !inTauri) return;
-    setInstallBusy(true);
-    setInstallProgress("准备安装…");
-    setHostMessage(null);
-    let unlisten: (() => void) | undefined;
-    try {
-      unlisten = await listenVoicePluginInstallProgress((event) => {
-        setInstallProgress(event.message || `${event.phase} ${event.percent}%`);
-      });
-      const dto = await tauriVoicePluginInstall();
-      setHostMessage(dto.message);
-      notifyVoiceConfigChanged();
-      await refreshHealth();
-    } catch (err) {
-      setHostMessage(err instanceof Error ? err.message : "安装失败");
-    } finally {
-      await unlisten?.();
-      setInstallBusy(false);
-      setInstallProgress(null);
-    }
+    notifyVoiceConfigChanged();
   };
 
   const handleStartRuntime = async () => {
     if (runtimeBusy || disabled || !inTauri) return;
     setRuntimeBusy(true);
-    setHostMessage(null);
     try {
-      const dto = await tauriVoicePluginStartRuntime();
-      setHostMessage(dto.message);
+      await tauriVoicePluginStartRuntime();
       notifyVoiceConfigChanged();
-      await refreshHealth();
-    } catch (err) {
-      setHostMessage(err instanceof Error ? err.message : "启动失败");
     } finally {
       setRuntimeBusy(false);
     }
@@ -122,12 +110,8 @@ export function VoiceInputSettingsSection({
     if (runtimeBusy || disabled || !inTauri) return;
     setRuntimeBusy(true);
     try {
-      const dto = await tauriVoicePluginStopRuntime();
-      setHostMessage(dto.message);
+      await tauriVoicePluginStopRuntime();
       notifyVoiceConfigChanged();
-      await refreshHealth();
-    } catch (err) {
-      setHostMessage(err instanceof Error ? err.message : "停止失败");
     } finally {
       setRuntimeBusy(false);
     }
@@ -140,7 +124,7 @@ export function VoiceInputSettingsSection({
     const recorder = new VoiceMicRecorder();
     try {
       if (isVoiceInputMockEnabled()) {
-        setTestResult("mock 模式下请在 Composer 点击麦克风测试（会自动填充样例文本）");
+        setTestResult("请在 Composer 点麦克风测试 mock 识别。");
         return;
       }
       await recorder.start();
@@ -159,116 +143,97 @@ export function VoiceInputSettingsSection({
     }
   };
 
-  const canInstall =
-    inTauri && status === "not_installed" && !mockEnabled && !installBusy;
-  const showInstallWizard = canInstall || installBusy;
   const canStartRuntime =
-    inTauri &&
-    !mockEnabled &&
-    (status === "installed" || status === "stopped" || status === "error");
-  const canStopRuntime =
-    inTauri && !mockEnabled && (status === "running" || status === "starting");
+    inTauri
+    && !mockEnabled
+    && panel.pluginInstalled
+    && (panel.runtimePhase === "installed"
+      || panel.runtimePhase === "stopped"
+      || panel.runtimePhase === "error");
+  const canStopRuntime = inTauri && !mockEnabled && panel.runtimeOnline;
+  const canTestMic = !mockEnabled && panel.runtimeOnline;
+
+  const hint = useMemo(
+    () => contextHint({ panel, inTauri, mockEnabled }),
+    [panel, inTauri, mockEnabled],
+  );
 
   return (
     <section
       id="voice-input-settings"
       className="app-settings-card app-settings-card--voice"
     >
-      <header className="app-settings-section-head">
+      <header className="app-settings-section-head app-settings-section-head--compact">
         <h2 className="app-settings-section-title">本地语音输入</h2>
         <p className="app-settings-section-desc">
-          Composer 点击麦克风开始说话，实时写入输入框；再点停止。协议见 docs/voice-input-plugin.md
+          Composer 内按 {formatVoiceInputToggleShortcut(platform)} 或点麦克风说话，文字实时写入输入框。
         </p>
       </header>
 
-      <div className="voice-settings-status-row">
-        <span
-          className={`ping-dot ${status === "running" ? "ok" : status === "starting" || status === "downloading" ? "loading" : ""}`}
-        />
-        <span className="voice-settings-status-text">
-          状态：{voicePluginStatusLabel(status)}
-        </span>
-        <button
-          type="button"
-          className="app-settings-action voice-settings-inline-action"
-          disabled={disabled}
-          onClick={() => void refreshHealth()}
-        >
-          重新检测
-        </button>
+      <div className="app-settings-ping-row voice-settings-row">
+        <div className="app-settings-ping voice-settings-ping">
+          <span className={`ping-dot ${statusDotClass(panel.runtimePhase, panel.hostLoading)}`} />
+          <span className="app-settings-ping-text">
+            <span className="voice-settings-status-label">{panel.displayLabel}</span>
+            {panel.displaySubline ? (
+              <span className="voice-settings-status-sub">{panel.displaySubline}</span>
+            ) : null}
+          </span>
+        </div>
+
+        <div className="voice-settings-actions">
+          {canStartRuntime ? (
+            <button
+              type="button"
+              className="app-settings-action"
+              disabled={disabled || runtimeBusy}
+              onClick={() => void handleStartRuntime()}
+            >
+              {runtimeBusy ? "启动中…" : "启动"}
+            </button>
+          ) : null}
+          {canStopRuntime ? (
+            <button
+              type="button"
+              className="app-settings-action"
+              disabled={disabled || runtimeBusy}
+              onClick={() => void handleStopRuntime()}
+            >
+              {runtimeBusy ? "停止中…" : "停止"}
+            </button>
+          ) : null}
+          {canTestMic ? (
+            <button
+              type="button"
+              className="app-settings-action"
+              disabled={disabled || testing}
+              onClick={() => void handleTestMic()}
+            >
+              {testing ? "测试中…" : "测试麦克风"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="app-settings-action"
+            disabled={disabled}
+            onClick={() => notifyVoiceConfigChanged()}
+          >
+            重新检测
+          </button>
+        </div>
       </div>
 
-      {healthLine ? (
-        <p className="voice-settings-hint voice-settings-health">{healthLine}</p>
-      ) : null}
+      {hint ? <p className="voice-settings-hint">{hint}</p> : null}
 
-      {hostMessage ? (
-        <p className="voice-settings-hint" role="status">
-          {hostMessage}
+      {testResult ? (
+        <p className="voice-settings-test-result" role="status">
+          识别结果：{testResult}
         </p>
       ) : null}
 
-      {installProgress ? (
-        <p className="voice-settings-hint" role="status">
-          {installProgress}
-        </p>
-      ) : null}
-
-      <div className="voice-settings-actions">
-        {showInstallWizard ? (
-          <button
-            type="button"
-            className="app-settings-action"
-            disabled={disabled || installBusy}
-            onClick={() => void handleInstall()}
-          >
-            {installBusy ? "安装中…" : "一键安装"}
-          </button>
-        ) : null}
-        {canStartRuntime ? (
-          <button
-            type="button"
-            className="app-settings-action"
-            disabled={disabled || runtimeBusy}
-            onClick={() => void handleStartRuntime()}
-          >
-            {runtimeBusy ? "启动中…" : "启动 Runtime"}
-          </button>
-        ) : null}
-        {canStopRuntime ? (
-          <button
-            type="button"
-            className="app-settings-action"
-            disabled={disabled || runtimeBusy}
-            onClick={() => void handleStopRuntime()}
-          >
-            {runtimeBusy ? "停止中…" : "停止 Runtime"}
-          </button>
-        ) : null}
-      </div>
-
-      {status === "running" || status === "starting" || mockEnabled ? (
-        <p className="voice-settings-hint">
-          在聊天输入框点击麦克风开始说话，识别文字会实时写入输入框；再点停止结束。
-        </p>
-      ) : null}
-
-      {status === "not_installed" && !mockEnabled && !inTauri ? (
-        <p className="voice-settings-hint">
-          桌面版（Tauri）可在本页一键安装；浏览器开发：<code>start-agent-gui.ps1</code> /{" "}
-          <code>pnpm dev</code> 会自动启动语音 Runtime（<code>6016</code>），或手动{" "}
-          <code>pnpm voice:dev-server</code>。
-        </p>
-      ) : null}
-
-      {status === "not_installed" && inTauri && !installBusy ? (
-        <p className="voice-settings-hint">
-          点击「一键安装」后，应用会优先从 ModelScope 下载识别模型，语音识别服务仍优先使用国内镜像（Bitiful）；模型仅在 ModelScope 不可用时才回退到 Bitiful / GitHub 备用包（约 240 MB，仅安装时需要网络；完成后可离线使用）。
-        </p>
-      ) : null}
-
-      {isDev ? (
-        <>
+      {devExperienceEnabled ? (
+        <details className="voice-settings-dev">
+          <summary>开发者选项</summary>
           <label className="voice-settings-mock-toggle">
             <input
               type="checkbox"
@@ -276,32 +241,46 @@ export function VoiceInputSettingsSection({
               disabled={disabled}
               onChange={handleMockToggle}
             />
-            <span>开发：mock 识别（不连 Runtime，自动填充样例文本，无需说话）</span>
+            <span>Mock 识别（不连 Runtime）</span>
           </label>
-          <p className="voice-settings-hint voice-settings-dev-cmd">
-            联调 Runtime：仓库根目录{" "}
-            <code>cd voice-asr-runtime &amp;&amp; uv run quicker-voice-runtime</code>
-            ，或 <code>pnpm voice:dev-server</code>（在 agent-gui 下）。默认使用真实麦克风，仅在勾选
-            mock 时自动填充样例。
+          <label className="voice-settings-mock-toggle">
+            <input
+              type="checkbox"
+              checked={preferNetwork}
+              disabled={disabled || reinstallBusy}
+              onChange={(event) => setPreferNetwork(event.target.checked)}
+            />
+            <span>强制网络下载（跳过本地 voice-asr-runtime 复制）</span>
+          </label>
+          {panel.pluginInstalled ? (
+            <button
+              type="button"
+              className="app-settings-action"
+              disabled={disabled || reinstallBusy}
+              onClick={() => {
+                if (reinstallBusy || disabled) return;
+                setReinstallBusy(true);
+                void devVoicePluginInstall({
+                  force: true,
+                  preferNetwork,
+                })
+                  .then(() => notifyVoiceConfigChanged())
+                  .finally(() => setReinstallBusy(false));
+              }}
+            >
+              {reinstallBusy ? "安装中…" : "重新安装"}
+            </button>
+          ) : null}
+          {panel.hostStatus?.pluginDir ? (
+            <p className="voice-settings-hint">
+              插件目录：<code>{panel.hostStatus.pluginDir}</code>
+            </p>
+          ) : null}
+          <p className="voice-settings-hint">
+            联调 Runtime：<code>pnpm voice:dev-server</code>
           </p>
-        </>
+        </details>
       ) : null}
-
-      <div className="voice-settings-test-row">
-        <button
-          type="button"
-          className="app-settings-action"
-          disabled={disabled || testing || status !== "running" || mockEnabled}
-          onClick={() => void handleTestMic()}
-        >
-          {testing ? "测试中…" : "测试麦克风（约 1.5s）"}
-        </button>
-        {testResult ? (
-          <p className="voice-settings-test-result" role="status">
-            {testResult}
-          </p>
-        ) : null}
-      </div>
     </section>
   );
 }

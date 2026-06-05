@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isTauriShell } from "@/lib/tauri-shell";
 import {
   mockStreamVoiceSession,
   startMockVoicePartialSession,

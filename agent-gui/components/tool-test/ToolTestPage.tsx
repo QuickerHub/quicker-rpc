@@ -51,6 +51,7 @@ import { ToolTestSuiteResultPane } from "@/components/tool-test/ToolTestSuiteRes
 import type { ToolSuiteRunEntry } from "@/lib/tool-test-suite-runs";
 import { createToolSuiteRunId } from "@/lib/tool-test-suite-runs";
 import type { AutoFixRunEntry } from "@/lib/tool-test-autofix-runs";
+import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 
 type ToolTestSidebarTab = "tools" | "prompt" | "prompt-chat" | "auto-fix";
 
@@ -190,6 +191,17 @@ export function ToolTestPage() {
   const [titleTestRuns, setTitleTestRuns] = useState<TitleTestRunEntry[]>([]);
   const [autoFixRuns, setAutoFixRuns] = useState<AutoFixRunEntry[]>([]);
   const [detailSuite, setDetailSuite] = useState<ToolTestSuite | null>(null);
+  const [voiceInstallBusy, setVoiceInstallBusy] = useState(false);
+
+  const handleVoiceInstallTest = useCallback(() => {
+    if (voiceInstallBusy) return;
+    setVoiceInstallBusy(true);
+    void requestVoicePluginSetup({
+      skipConfirm: true,
+      force: true,
+      preferNetwork: process.env.NODE_ENV === "development",
+    }).finally(() => setVoiceInstallBusy(false));
+  }, [voiceInstallBusy]);
 
   const appendTitleTestRun = useCallback((entry: TitleTestRunEntry) => {
     setTitleTestRuns((prev) => [...prev, entry]);
@@ -629,6 +641,16 @@ export function ToolTestPage() {
                 onClick={() => void refreshPing({ silent: false, fast: true })}
               >
                 刷新 RPC
+              </button>
+              <span className="tool-test-titlebar__meta-sep" aria-hidden />
+              <button
+                type="button"
+                className="tool-test-titlebar__btn"
+                title="跳过确认，强制走安装/下载流程（dev 下优先网络下载）"
+                disabled={voiceInstallBusy}
+                onClick={handleVoiceInstallTest}
+              >
+                {voiceInstallBusy ? "语音安装中…" : "测试语音安装"}
               </button>
               <span className="tool-test-titlebar__meta-sep" aria-hidden />
               {workingDirectory ? (
