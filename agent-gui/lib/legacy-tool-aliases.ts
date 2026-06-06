@@ -27,7 +27,6 @@ import {
   executeQkrpcActionIdTool,
   executeQkrpcActionManageTool,
   executeQkrpcActionQueryTool,
-  executeQkrpcActionTool,
 } from "@/lib/qkrpc-action-tool.server";
 import {
   executeQkrpcSubprogramIdTool,
@@ -159,7 +158,7 @@ export const legacyQuickerToolAliases = {
       changelog: z.string().optional(),
     }),
     execute: async ({ id, changelog }) =>
-      executeQkrpcActionTool({ action: "publish", id, changelog }),
+      executeQkrpcActionIdTool({ action: "publish", id, changelog }),
   }),
 
   qkrpc_action_patch: tool({
