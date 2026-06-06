@@ -2,6 +2,10 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
+import {
+  fetchVoiceRuntimeHealth,
+  isVoiceRuntimeModelReady,
+} from "@/lib/voice-input/voice-input-health";
 import { withPromiseTimeout } from "@/lib/promise-timeout";
 import { isTauriShell } from "@/lib/tauri-shell";
 
@@ -83,6 +87,29 @@ function isVoiceCaptureReady(status: VoicePluginStatus): boolean {
   return VOICE_READY_STATUSES.has(status);
 }
 
+async function verifyRuntimeModelReady(
+  dto: TauriVoicePluginStatusDto,
+  onProgress?: (message: string) => void,
+): Promise<boolean> {
+  if (dto.wsPort <= 0) return false;
+  onProgress?.("正在加载语音识别模型…");
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const health = await fetchVoiceRuntimeHealth(dto.wsPort);
+    if (isVoiceRuntimeModelReady(health)) return true;
+    if (dto.status === "running" && attempt >= 8) break;
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+  }
+  return false;
+}
+
+async function finalizeVoiceReady(
+  dto: TauriVoicePluginStatusDto | null | undefined,
+  onProgress?: (message: string) => void,
+): Promise<boolean> {
+  if (!dto || !isVoiceCaptureReady(dto.status)) return false;
+  return verifyRuntimeModelReady(dto, onProgress);
+}
+
 /** Install/start voice plugin when needed (Tauri release). Returns true when capture can begin. */
 export async function ensureVoicePluginReady(
   onProgress?: (message: string) => void,
@@ -94,7 +121,7 @@ export async function ensureVoicePluginReady(
   if (!dto) return false;
 
   if (isVoiceCaptureReady(dto.status)) {
-    return true;
+    return finalizeVoiceReady(dto, onProgress);
   }
 
   if (dto.status === "downloading") {
@@ -105,7 +132,7 @@ export async function ensureVoicePluginReady(
         dto = await tauriVoicePluginStartRuntime();
       }
     }
-    return dto ? isVoiceCaptureReady(dto.status) : false;
+    return finalizeVoiceReady(dto, onProgress);
   }
 
   if (dto.status === "not_installed" || !dto.installed) {
@@ -119,13 +146,13 @@ export async function ensureVoicePluginReady(
     } finally {
       await unlisten?.();
     }
-    return dto ? isVoiceCaptureReady(dto.status) : false;
+    return finalizeVoiceReady(dto, onProgress);
   }
 
   if (dto.status === "installed" || dto.status === "stopped") {
     onProgress?.("正在启动语音服务…");
     dto = await tauriVoicePluginStartRuntime();
-    return isVoiceCaptureReady(dto.status);
+    return finalizeVoiceReady(dto, onProgress);
   }
 
   return false;

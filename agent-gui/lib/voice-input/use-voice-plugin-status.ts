@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getVoiceWsPort, setVoiceWsPort } from "@/lib/voice-input/voice-input-config";
-import { fetchVoiceRuntimeHealth } from "@/lib/voice-input/voice-input-health";
+import { fetchVoiceRuntimeHealth, isVoiceRuntimeModelReady } from "@/lib/voice-input/voice-input-health";
 import {
   isVoiceInputMockEnabled,
   resolveVoicePluginStatusSync,
@@ -57,8 +57,12 @@ export function useVoicePluginStatus(active = true): VoicePluginStatus {
           setStatus("downloading");
           return;
         }
+        if (hostDto.installed && hostDto.status === "running" && isVoiceRuntimeModelReady(health)) {
+          setStatus("running");
+          return;
+        }
         if (hostDto.installed) {
-          if (health?.ready) {
+          if (isVoiceRuntimeModelReady(health)) {
             setStatus("running");
             return;
           }
@@ -69,16 +73,20 @@ export function useVoicePluginStatus(active = true): VoicePluginStatus {
           setStatus(hostDto.status === "error" ? "error" : "installed");
           return;
         }
+        setStatus(hostDto.status === "error" ? "error" : "not_installed");
+        return;
       }
 
-      // External/dev runtime on :6016 — usable even when plugin zip is not installed.
-      if (health?.ready) {
-        setStatus("running");
-        return;
-      }
-      if (health?.ok) {
-        setStatus("starting");
-        return;
+      // Dev browser: external runtime on :6016 without a packaged plugin install.
+      if (process.env.NODE_ENV === "development") {
+        if (isVoiceRuntimeModelReady(health)) {
+          setStatus("running");
+          return;
+        }
+        if (health?.ok) {
+          setStatus("starting");
+          return;
+        }
       }
 
       if (tauriDto) {

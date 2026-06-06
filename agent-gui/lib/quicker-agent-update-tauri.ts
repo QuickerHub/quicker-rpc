@@ -41,6 +41,11 @@ export async function applyQuickerAgentUpdateAndExit(): Promise<void> {
   await invoke("quicker_agent_update_apply_and_exit");
 }
 
+export async function exitQuickerAgentForPendingUpdateInstall(): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("quicker_agent_update_exit_for_install");
+}
+
 export async function listenQuickerAgentUpdateProgress(
   onProgress: (event: QuickerAgentUpdateProgressEvent) => void,
 ): Promise<() => void> {

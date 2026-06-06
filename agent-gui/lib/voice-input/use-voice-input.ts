@@ -7,6 +7,9 @@ import {
   type MockVoicePartialSession,
 } from "@/lib/voice-input/voice-input-mock";
 import {
+  isStubVoiceTranscript,
+} from "@/lib/voice-input/voice-input-health";
+import {
   canUseVoiceInput,
   isVoiceInputMockEnabled,
   voicePluginStatusLabel,
@@ -191,6 +194,11 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
       if (!result.text.trim()) {
         onStreamCancelRef.current?.();
         showError("未识别到内容，请重试");
+        return;
+      }
+      if (isStubVoiceTranscript(result.text)) {
+        onStreamCancelRef.current?.();
+        showError("语音识别模型未加载，请在设置中重新安装语音组件");
         return;
       }
       pushStreamText(result.text);

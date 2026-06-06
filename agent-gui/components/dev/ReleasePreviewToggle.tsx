@@ -26,16 +26,18 @@ function IconReleasePreview() {
   );
 }
 
-/** Dev titlebar: one-click switch to release-like UI + LLM config. */
-export function ReleasePreviewToggle() {
+/** Dev: one-click switch to release-like UI + LLM config. */
+export function ReleasePreviewToggle({ className }: { className?: string }) {
   const { active, toggle } = useReleasePreviewToggle();
 
   if (!isAgentGuiDebugMode()) return null;
 
+  const base = className ?? "titlebar-action-btn ws-icon-btn";
+
   return (
     <button
       type="button"
-      className={`titlebar-action-btn ws-icon-btn release-preview-toggle${active ? " release-preview-toggle--active" : ""}`}
+      className={`${base} release-preview-toggle${active ? " release-preview-toggle--active" : ""}`}
       title={
         active
           ? "退出 Release 预览（恢复开发界面）"

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+#[cfg(not(test))]
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter};
@@ -14,6 +15,7 @@ const DOWNLOAD_PREFIX: &str =
     "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent";
 
 static DOWNLOAD_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
+static UPDATE_APPLY_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +46,12 @@ struct PendingUpdateManifest {
 }
 
 fn updates_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("QUICKER_AGENT_TEST_UPDATES_DIR") {
+        let trimmed = dir.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
+        }
+    }
     quicker_agent_app_data_dir().join("updates")
 }
 
@@ -171,10 +179,16 @@ fn download_setup(
     app: &AppHandle,
     url: &str,
     dest: &Path,
+    remote_version: &str,
     percent_start: u8,
     percent_end: u8,
 ) -> Result<(), String> {
-    emit_progress(app, "downloading", percent_start, "正在下载 QuickerAgent 更新…");
+    emit_progress(
+        app,
+        "downloading",
+        percent_start,
+        &format!("正在下载 QuickerAgent {remote_version}…"),
+    );
 
     let response = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(900))
@@ -209,7 +223,7 @@ fn download_setup(
                 "downloading",
                 pct.min(percent_end as u64) as u8,
                 &format!(
-                    "正在下载 QuickerAgent 更新… {} / {} MB",
+                    "正在下载 QuickerAgent {remote_version}… {} / {} MB",
                     downloaded / (1024 * 1024),
                     total / (1024 * 1024)
                 ),
@@ -303,7 +317,20 @@ fn run_background_update(app: &AppHandle) {
             let _ = fs::remove_file(&setup_path);
         }
 
-        download_setup(app, &download_url, &setup_path, 5, 95)?;
+        emit_status(
+            app,
+            &QuickerAgentUpdateStatusDto {
+                phase: "downloading".into(),
+                installed_version: installed.clone(),
+                remote_version: Some(remote.clone()),
+                download_url: Some(download_url.clone()),
+                download_percent: 5,
+                message: Some(format!("正在下载 QuickerAgent {remote}…")),
+                pending_apply_on_exit: false,
+            },
+        );
+
+        download_setup(app, &download_url, &setup_path, &remote, 5, 95)?;
 
         if !setup_path.is_file() {
             return Err("更新包下载未完成".into());
@@ -356,8 +383,26 @@ pub fn spawn_background_update_check(app: AppHandle) {
     std::thread::spawn(move || run_background_update(&app));
 }
 
+fn try_begin_update_apply() -> bool {
+    UPDATE_APPLY_IN_FLIGHT
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
+}
+
+fn apply_update_once(setup: &Path, silent: bool) -> Result<(), String> {
+    if !try_begin_update_apply() {
+        return Ok(());
+    }
+    // Clear before spawn so Exit handler cannot read the same pending manifest.
+    clear_pending_manifest();
+    spawn_setup_installer(setup, silent)
+}
+
 pub fn apply_pending_on_exit() {
-    if cfg!(debug_assertions) {
+    if cfg!(all(debug_assertions, not(test))) {
+        return;
+    }
+    if UPDATE_APPLY_IN_FLIGHT.load(Ordering::SeqCst) {
         return;
     }
     let Some(manifest) = read_pending_manifest() else {
@@ -369,15 +414,125 @@ pub fn apply_pending_on_exit() {
         return;
     }
 
-    #[cfg(windows)]
+    let _ = apply_update_once(&setup, true);
+}
+
+#[cfg(test)]
+static TEST_SPAWN_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+fn spawn_setup_installer(setup: &Path, silent: bool) -> Result<(), String> {
+    #[cfg(test)]
     {
-        let _ = Command::new(&setup)
-            .args(["/S", "/R"])
-            .spawn();
+        let _ = (setup, silent);
+        TEST_SPAWN_COUNT.fetch_add(1, Ordering::SeqCst);
+        return Ok(());
     }
-    #[cfg(not(windows))]
+    #[cfg(all(windows, not(test)))]
     {
-        let _ = Command::new(&setup).spawn();
+        let mut cmd = Command::new(setup);
+        if silent {
+            cmd.args(["/S", "/R"]);
+        } else {
+            cmd.arg("/R");
+        }
+        cmd.spawn()
+            .map_err(|e| format!("无法启动安装程序: {e}"))?;
+        Ok(())
+    }
+    #[cfg(all(not(windows), not(test)))]
+    {
+        let _ = silent;
+        Command::new(setup)
+            .spawn()
+            .map_err(|e| format!("无法启动安装程序: {e}"))?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod update_apply_tests {
+    use super::*;
+    use std::sync::{Mutex, MutexGuard};
+    use std::sync::atomic::Ordering;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    static TEST_MUTEX: Mutex<()> = Mutex::new(());
+
+    fn lock_tests() -> MutexGuard<'static, ()> {
+        TEST_MUTEX.lock().expect("update apply test mutex")
+    }
+
+    fn reset_apply_state() {
+        UPDATE_APPLY_IN_FLIGHT.store(false, Ordering::SeqCst);
+        TEST_SPAWN_COUNT.store(0, Ordering::SeqCst);
+    }
+
+    fn test_updates_root() -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("quicker-agent-update-test-{stamp}"));
+        std::fs::create_dir_all(&dir).expect("create test updates dir");
+        dir
+    }
+
+    fn write_pending(manifest: &PendingUpdateManifest) {
+        write_pending_manifest(manifest).expect("write pending manifest");
+    }
+
+    fn seed_setup_file(root: &Path) -> PathBuf {
+        let setup = root.join("fake-setup.exe");
+        std::fs::write(&setup, b"test").expect("write fake setup");
+        setup
+    }
+
+    #[test]
+    fn update_apply_try_begin_only_allows_one_apply() {
+        let _guard = lock_tests();
+        reset_apply_state();
+        assert!(try_begin_update_apply());
+        assert!(!try_begin_update_apply());
+    }
+
+    #[test]
+    fn update_apply_apply_and_exit_then_pending_on_exit_spawns_once() {
+        let _guard = lock_tests();
+        reset_apply_state();
+        let root = test_updates_root();
+        std::env::set_var("QUICKER_AGENT_TEST_UPDATES_DIR", &root);
+        let setup = seed_setup_file(&root);
+        write_pending(&PendingUpdateManifest {
+            remote_version: "9.9.9".into(),
+            setup_path: setup.to_string_lossy().into_owned(),
+            download_url: "file://test".into(),
+        });
+
+        apply_update_once(&setup, false).expect("first apply");
+        apply_pending_on_exit();
+
+        assert_eq!(TEST_SPAWN_COUNT.load(Ordering::SeqCst), 1);
+        assert!(read_pending_manifest().is_none());
+
+        std::env::remove_var("QUICKER_AGENT_TEST_UPDATES_DIR");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn update_apply_double_apply_update_once_spawns_once() {
+        let _guard = lock_tests();
+        reset_apply_state();
+        let root = test_updates_root();
+        std::env::set_var("QUICKER_AGENT_TEST_UPDATES_DIR", &root);
+        let setup = seed_setup_file(&root);
+
+        apply_update_once(&setup, false).expect("first apply");
+        apply_update_once(&setup, false).expect("second apply noop");
+
+        assert_eq!(TEST_SPAWN_COUNT.load(Ordering::SeqCst), 1);
+
+        std::env::remove_var("QUICKER_AGENT_TEST_UPDATES_DIR");
+        let _ = std::fs::remove_dir_all(root);
     }
 }
 
@@ -407,20 +562,17 @@ pub fn quicker_agent_update_apply_and_exit(app: AppHandle) -> Result<(), String>
         return Err("更新包不存在，请重新启动应用以下载".into());
     }
 
-    #[cfg(windows)]
-    {
-        Command::new(&setup)
-            .args(["/S", "/R"])
-            .spawn()
-            .map_err(|e| format!("无法启动安装程序: {e}"))?;
-    }
-    #[cfg(not(windows))]
-    {
-        Command::new(&setup)
-            .spawn()
-            .map_err(|e| format!("无法启动安装程序: {e}"))?;
-    }
+    apply_update_once(&setup, false)?;
 
+    app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn quicker_agent_update_exit_for_install(app: AppHandle) -> Result<(), String> {
+    if cfg!(debug_assertions) {
+        return Err("开发模式不支持自动安装".into());
+    }
     app.exit(0);
     Ok(())
 }

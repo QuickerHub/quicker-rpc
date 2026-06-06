@@ -29,6 +29,7 @@ internal static partial class Program
         var result = Parser.Default.ParseArguments<
             PingOptions,
             ServeOptions,
+            McpOptions,
             ActionOptions,
             ProfileOptions,
             ProcessOptions,
@@ -44,6 +45,7 @@ internal static partial class Program
             .MapResult(
                 (PingOptions o) => RunPingAsync(o),
                 (ServeOptions o) => RunServeAsync(o),
+                (McpOptions o) => RunMcpAsync(o),
                 (ActionOptions o) => RunActionAsync(o),
                 (ProfileOptions o) => RunProfileAsync(o),
                 (ProcessOptions o) => RunProcessAsync(o),
@@ -1091,6 +1093,37 @@ internal static partial class Program
             await _pipe.DisposeAsync().ConfigureAwait(false);
         }
     }
+}
+
+[Verb("mcp", HelpText = "MCP server over stdio, or install MCP config (qkrpc mcp install).")]
+public sealed class McpOptions
+{
+    [Value(0, MetaName = "command", HelpText = "Optional: install (writes Cursor/Claude MCP config). Omit to run stdio MCP server.")]
+    public string? Command { get; set; }
+
+    [Option("timeout", Default = 120, HelpText = "Default per-tool RPC timeout in seconds (serve mode).")]
+    public int TimeoutSeconds { get; set; }
+
+    [Option("no-bootstrap", HelpText = "Do not auto-start plugin when pipe is unavailable.")]
+    public bool NoBootstrap { get; set; }
+
+    [Option("cursor", HelpText = "Install: write ~/.cursor/mcp.json")]
+    public bool Cursor { get; set; }
+
+    [Option("claude", HelpText = "Install: write Claude Desktop config")]
+    public bool Claude { get; set; }
+
+    [Option("project", HelpText = "Install: also write .cursor/mcp.json in current directory")]
+    public bool Project { get; set; }
+
+    [Option("workspace", HelpText = "Install: QKRPC_WORKSPACE_ROOT (default: current directory)")]
+    public string? Workspace { get; set; }
+
+    [Option("skill-source", HelpText = "Install: path to quicker-authoring skill directory")]
+    public string? SkillSource { get; set; }
+
+    [Option("skip-skill", HelpText = "Install: do not copy quicker-authoring skill")]
+    public bool SkipSkill { get; set; }
 }
 
 [Verb("serve", HelpText = "Run local HTTP API with a persistent Quicker RPC connection (for agent-gui).")]

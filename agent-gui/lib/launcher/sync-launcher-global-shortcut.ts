@@ -6,6 +6,7 @@ import { isValidTauriShortcut } from "@/lib/launcher/launcher-shortcut-format";
 import { isTauriShell } from "@/lib/tauri-shell";
 
 let registeredShortcut: string | null = null;
+let syncTail: Promise<void> = Promise.resolve();
 
 export type LauncherShortcutSyncResult = {
   ok: boolean;
@@ -13,7 +14,21 @@ export type LauncherShortcutSyncResult = {
   error?: string;
 };
 
-export async function syncLauncherGlobalShortcut(): Promise<LauncherShortcutSyncResult> {
+function enqueueShortcutOp<T>(operation: () => Promise<T>): Promise<T> {
+  const run = syncTail.then(operation, operation);
+  syncTail = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+function isAlreadyRegisteredError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /already registered/i.test(message);
+}
+
+async function syncLauncherGlobalShortcutInner(): Promise<LauncherShortcutSyncResult> {
   const shortcut = loadLauncherShortcut();
   if (!isTauriShell()) {
     return { ok: true, shortcut };
@@ -52,12 +67,20 @@ export async function syncLauncherGlobalShortcut(): Promise<LauncherShortcutSync
     registeredShortcut = shortcut;
     return { ok: true, shortcut };
   } catch (err) {
+    if (isAlreadyRegisteredError(err) && (await isRegistered(shortcut))) {
+      registeredShortcut = shortcut;
+      return { ok: true, shortcut };
+    }
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, shortcut, error: message };
   }
 }
 
-export async function unregisterLauncherGlobalShortcut(): Promise<void> {
+export function syncLauncherGlobalShortcut(): Promise<LauncherShortcutSyncResult> {
+  return enqueueShortcutOp(syncLauncherGlobalShortcutInner);
+}
+
+async function unregisterLauncherGlobalShortcutInner(): Promise<void> {
   if (!isTauriShell() || !registeredShortcut) return;
   try {
     const { unregister, isRegistered } = await import(
@@ -70,4 +93,8 @@ export async function unregisterLauncherGlobalShortcut(): Promise<void> {
     // ignore teardown errors
   }
   registeredShortcut = null;
+}
+
+export function unregisterLauncherGlobalShortcut(): Promise<void> {
+  return enqueueShortcutOp(unregisterLauncherGlobalShortcutInner);
 }

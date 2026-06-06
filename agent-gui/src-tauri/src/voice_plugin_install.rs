@@ -246,6 +246,11 @@ fn is_installed(root: &Path) -> bool {
     root.join("manifest.json").is_file() && runtime_ready(root) && model_dir_ready(&model_dir(root))
 }
 
+/// Strict install check shared by host status and background tasks.
+pub fn is_voice_asr_installed(root: &Path) -> bool {
+    is_installed(root)
+}
+
 fn write_plugin_metadata(root: &Path) -> Result<(), String> {
     fs::create_dir_all(root).map_err(|e| e.to_string())?;
     fs::write(root.join("manifest.json"), MANIFEST_JSON).map_err(|e| e.to_string())?;

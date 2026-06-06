@@ -31,11 +31,14 @@ import {
   LAUNCHER_COMMAND_CACHE_TOOL,
   LAUNCHER_COMMAND_CACHE_TOOL_DEF,
 } from "@/lib/launcher/launcher-command-cache-tool";
+import { BROWSER_TOOL_DEF } from "@/lib/browser-tool.server";
+import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 
 export const quickerTools = {
   [SET_THREAD_TITLE_TOOL]: SET_THREAD_TITLE_TOOL_DEF,
   [LAUNCHER_COMMAND_CACHE_TOOL]: LAUNCHER_COMMAND_CACHE_TOOL_DEF,
   [SHELL_EXEC_TOOL]: SHELL_EXEC_TOOL_DEF,
+  [BROWSER_TOOL]: BROWSER_TOOL_DEF,
   [LLM_SETTINGS_TOOL]: LLM_SETTINGS_TOOL_DEF,
   [DEV_FRONTEND_CHECK_TOOL]: DEV_FRONTEND_CHECK_TOOL_DEF,
   [DOCS_TOOL]: DOCS_TOOL_DEF,

@@ -10,6 +10,22 @@ export type VoiceRuntimeHealth = {
   ready: boolean;
 };
 
+/** True when runtime has a real ASR model loaded (not stub / placeholder). */
+export function isVoiceRuntimeModelReady(
+  health: VoiceRuntimeHealth | null | undefined,
+): boolean {
+  if (!health?.ok) return false;
+  if (!health.ready || !health.modelLoaded) return false;
+  const modelId = health.modelId?.trim().toLowerCase();
+  if (!modelId || modelId === "stub") return false;
+  return true;
+}
+
+export function isStubVoiceTranscript(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.startsWith("[stub]");
+}
+
 const HEALTH_FETCH_TIMEOUT_MS = 5_000;
 
 export async function fetchVoiceRuntimeHealth(

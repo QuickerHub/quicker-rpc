@@ -93,6 +93,16 @@ fn find_port(host: &str, start: u16) -> Result<u16, String> {
     Err(format!("no free port from {start} on {host}"))
 }
 
+/// Reuse an existing qkrpc serve when /health already responds on the default port.
+fn resolve_qkrpc_port(host: &str) -> Result<(u16, bool), String> {
+    const DEFAULT_PORT: u16 = 9477;
+    if wait_qkrpc_serve_listening(host, DEFAULT_PORT, 2_000).is_ok() {
+        return Ok((DEFAULT_PORT, false));
+    }
+    let port = find_port(host, DEFAULT_PORT)?;
+    Ok((port, true))
+}
+
 /// UI server: any HTTP 200 on `/`.
 fn wait_http_200(host: &str, port: u16, path: &str, max_ms: u64) -> Result<(), String> {
     wait_http_response(host, port, path, max_ms, HttpReadyMode::Status200)
@@ -175,6 +185,35 @@ fn resource_root(app: &AppHandle) -> Result<PathBuf, String> {
 
 fn app_runtime_dir(resource: &Path) -> PathBuf {
     resource.join("app")
+}
+
+fn bundled_qkrpc_healthy(dir: &Path) -> bool {
+    let kestrel = dir.join("Microsoft.AspNetCore.Server.Kestrel.Core.dll");
+    kestrel.is_file()
+        && std::fs::metadata(&kestrel)
+            .map(|m| m.len() > 100_000)
+            .unwrap_or(false)
+}
+
+fn resolve_qkrpc_dir(resource: &Path) -> PathBuf {
+    let bundled = resource.join("qkrpc");
+    if bundled_qkrpc_healthy(&bundled) {
+        return bundled;
+    }
+
+    #[cfg(windows)]
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        let fallback = PathBuf::from(local).join("Programs").join("qkrpc");
+        if bundled_qkrpc_healthy(&fallback) {
+            eprintln!(
+                "bundled qkrpc corrupt; using fallback {}",
+                fallback.display()
+            );
+            return fallback;
+        }
+    }
+
+    bundled
 }
 
 fn configure_hidden_child(cmd: &mut Command) {
@@ -277,23 +316,37 @@ fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<St
         ));
     }
 
-    let qkrpc_port = find_port(host, 9477)?;
+    let (qkrpc_port, should_spawn_qkrpc) = resolve_qkrpc_port(host)?;
     let ui_port = find_port(host, 3000)?;
 
     let qkrpc_url = format!("http://{host}:{qkrpc_port}");
     std::env::set_var("QKRPC_HTTP_URL", &qkrpc_url);
     std::env::set_var("QKRPC_TRANSPORT", "http");
-    let qkrpc_dir = resource.join("qkrpc");
+    let qkrpc_dir = resolve_qkrpc_dir(&resource);
     let qkrpc_exe = qkrpc_dir.join(if cfg!(windows) { "qkrpc.exe" } else { "qkrpc" });
     std::env::set_var("QKRPC_BIN", &qkrpc_exe);
-    let qkrpc_child = spawn_qkrpc(&qkrpc_dir, host, qkrpc_port)?;
-    wait_qkrpc_serve_listening(host, qkrpc_port, 45_000)?;
+
+    let qkrpc_child = if should_spawn_qkrpc {
+        if !bundled_qkrpc_healthy(&qkrpc_dir) {
+            return Err(format!(
+                "bundled qkrpc is corrupt (missing Kestrel). Run: pwsh agent-gui/scripts/Repair-QuickerAgentResources.ps1\npath: {}",
+                qkrpc_dir.display()
+            ));
+        }
+        let child = spawn_qkrpc(&qkrpc_dir, host, qkrpc_port)?;
+        wait_qkrpc_serve_listening(host, qkrpc_port, 45_000)?;
+        Some(child)
+    } else {
+        None
+    };
 
     let node_child = spawn_node_server(&runtime, &node_exe, host, ui_port)?;
     wait_http_200(host, ui_port, "/", 60_000)?;
 
-    let qkrpc_child = state.track_child(qkrpc_child)?;
-    *state.qkrpc.lock().map_err(|e| e.to_string())? = Some(qkrpc_child);
+    if let Some(qkrpc_child) = qkrpc_child {
+        *state.qkrpc.lock().map_err(|e| e.to_string())? =
+            Some(state.track_child(qkrpc_child)?);
+    }
     *state.node.lock().map_err(|e| e.to_string())? = Some(state.track_child(node_child)?);
 
     Ok(format!("http://{host}:{ui_port}"))
@@ -328,6 +381,7 @@ pub fn run() {
             quicker_agent_updater::quicker_agent_update_status,
             quicker_agent_updater::quicker_agent_update_skip_version,
             quicker_agent_updater::quicker_agent_update_apply_and_exit,
+            quicker_agent_updater::quicker_agent_update_exit_for_install,
         ])
         .manage(BackendState::new())
         .manage(voice_plugin::VoicePluginState::new())
@@ -392,7 +446,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
-            if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
+            if matches!(event, RunEvent::Exit) {
                 app.state::<BackendState>().inner().shutdown();
                 app.state::<voice_plugin::VoicePluginState>()
                     .inner()

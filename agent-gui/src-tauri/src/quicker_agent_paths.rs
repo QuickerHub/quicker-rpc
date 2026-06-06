@@ -65,10 +65,24 @@ fn plugin_installed_at(root: &Path) -> bool {
     root.join("manifest.json").is_file()
 }
 
-/// Resolve voice-asr plugin directory; prefers existing install (legacy or app data).
+fn voice_asr_layout_ready(root: &Path) -> bool {
+    root.join("manifest.json").is_file()
+        && root.join("runtime/quicker-voice-runtime.exe").is_file()
+        && root.join("models/sensevoice/tokens.txt").is_file()
+        && (root.join("models/sensevoice/model.int8.onnx").is_file()
+            || root.join("models/sensevoice/model.onnx").is_file())
+}
+
+/// Resolve voice-asr plugin directory; prefer a fully installed tree over manifest-only stubs.
 pub fn voice_plugin_root() -> PathBuf {
     let primary = primary_voice_plugin_root();
     let legacy = legacy_voice_plugin_root();
+    if voice_asr_layout_ready(&primary) {
+        return primary;
+    }
+    if voice_asr_layout_ready(&legacy) {
+        return legacy;
+    }
     if plugin_installed_at(&primary) {
         return primary;
     }

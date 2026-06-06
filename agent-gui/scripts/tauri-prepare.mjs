@@ -88,6 +88,13 @@ function stageQkrpcRuntime() {
   const dest = join(resourcesDir, "qkrpc");
   if (existsSync(dest)) rmSync(dest, { recursive: true, force: true });
   cpSync(cliDir, dest, { recursive: true });
+  const kestrel = join(dest, "Microsoft.AspNetCore.Server.Kestrel.Core.dll");
+  const size = existsSync(kestrel) ? readFileSync(kestrel).length : 0;
+  if (size < 100_000) {
+    throw new Error(
+      `Bundled qkrpc looks corrupt after copy (${kestrel} size=${size}). Re-run publish-rpc.ps1.`,
+    );
+  }
   console.log(`qkrpc runtime: ${dest}`);
 }
 

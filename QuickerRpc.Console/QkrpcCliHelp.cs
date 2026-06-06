@@ -76,6 +76,22 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("host", "Bind address.", defaultValue: "127.0.0.1"), Option("port", "HTTP port.", defaultValue: "9477"), Option("timeout", "Per-request RPC timeout (seconds).", defaultValue: "120"), Option("no-bootstrap", "Skip auto-start.") }),
 
+                Cmd("mcp", "MCP server over stdio (Cursor, Claude Desktop).", "qkrpc mcp [--timeout 120] [--no-bootstrap]",
+
+                    opts: new[] { Option("timeout", "Per-tool RPC timeout (seconds).", defaultValue: "120"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("mcp install", "Install MCP config + quicker-authoring skill.", "qkrpc mcp install [--cursor] [--claude] [--project] [--workspace <path>] [--skill-source <dir>] [--skip-skill]",
+
+                    opts: new[]
+                    {
+                        Option("cursor", "Write ~/.cursor/mcp.json (default when neither --cursor nor --claude)."),
+                        Option("claude", "Write Claude Desktop config."),
+                        Option("project", "Also write .cursor/mcp.json in cwd."),
+                        Option("workspace", "QKRPC_WORKSPACE_ROOT for MCP env."),
+                        Option("skill-source", "Path to quicker-authoring skill directory."),
+                        Option("skip-skill", "Skip skill copy."),
+                    }),
+
                 Cmd("ping", "Check QuickerRpc plugin connectivity.", "qkrpc ping [--json] [--timeout 10] [--no-bootstrap]",
 
                     opts: JsonTimeoutBootstrap()),

@@ -105,21 +105,6 @@ fn child_still_running(child: &mut Child) -> bool {
     }
 }
 
-fn first_model_dir(root: &Path) -> Option<PathBuf> {
-    let models = root.join("models");
-    if !models.is_dir() {
-        return None;
-    }
-    let mut dirs: Vec<PathBuf> = std::fs::read_dir(&models)
-        .ok()?
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .filter(|p| p.is_dir())
-        .collect();
-    dirs.sort();
-    dirs.into_iter().next()
-}
-
 fn configure_hidden_child(cmd: &mut Command) {
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -159,8 +144,28 @@ fn voice_runtime_ready(port: u16) -> bool {
     let Ok(body) = resp.json::<serde_json::Value>() else {
         return false;
     };
-    body.get("ok").and_then(|v| v.as_bool()) == Some(true)
-        && body.get("ready").and_then(|v| v.as_bool()) == Some(true)
+    if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+        return false;
+    }
+    if body.get("ready").and_then(|v| v.as_bool()) != Some(true) {
+        return false;
+    }
+    if body.get("modelLoaded").and_then(|v| v.as_bool()) != Some(true) {
+        return false;
+    }
+    match body.get("modelId").and_then(|v| v.as_str()) {
+        Some(id) if !id.eq_ignore_ascii_case("stub") && !id.trim().is_empty() => true,
+        _ => false,
+    }
+}
+
+fn resolve_voice_model_dir(root: &Path) -> Option<PathBuf> {
+    let sensevoice = root.join("models").join("sensevoice");
+    if model_ready_at(root) {
+        Some(sensevoice)
+    } else {
+        None
+    }
 }
 
 fn wait_voice_runtime_ready(port: u16, max_ms: u64) -> Result<(), String> {
@@ -172,7 +177,7 @@ fn wait_voice_runtime_ready(port: u16, max_ms: u64) -> Result<(), String> {
         thread::sleep(Duration::from_millis(300));
     }
     Err(format!(
-        "语音 Runtime 未在 {DEFAULT_VOICE_WS_HOST}:{port} 就绪（/health）"
+        "语音 Runtime 已启动但识别模型未加载（{DEFAULT_VOICE_WS_HOST}:{port}/health）。请在设置中重新安装语音组件。"
     ))
 }
 
@@ -211,14 +216,18 @@ fn kill_listener_on_port(port: u16) {
 fn kill_listener_on_port(_port: u16) {}
 
 fn running_status_dto(
-    installed: bool,
+    fully_installed: bool,
     plugin_dir: Option<String>,
     port: u16,
 ) -> VoicePluginStatusDto {
     VoicePluginStatusDto {
-        status: "running".into(),
-        installed,
-        running: true,
+        status: if fully_installed {
+            "running".into()
+        } else {
+            "starting".into()
+        },
+        installed: fully_installed,
+        running: fully_installed,
         ws_port: port,
         plugin_dir,
         message: None,
@@ -245,8 +254,9 @@ fn spawn_installed_runtime_ws(root: &Path, exe_rel: &str, port: u16) -> Result<C
         &port.to_string(),
     ])
     .current_dir(root);
-    if let Some(model_dir) = first_model_dir(root) {
+    if let Some(model_dir) = resolve_voice_model_dir(root) {
         cmd.env("QUICKER_VOICE_MODEL_DIR", &model_dir);
+        cmd.env("QUICKER_VOICE_MODEL_TYPE", "sensevoice");
         cmd.env("QUICKER_VOICE_AUTO_DOWNLOAD_MODEL", "0");
     }
     cmd.env("QUICKER_VOICE_HOST", DEFAULT_VOICE_WS_HOST);
@@ -323,7 +333,7 @@ fn reconcile_child(state: &VoicePluginState) {
 
 fn ws_status_from_child(
     state: &VoicePluginState,
-    installed: bool,
+    fully_installed: bool,
     plugin_dir: Option<String>,
     port: u16,
 ) -> Option<VoicePluginStatusDto> {
@@ -337,18 +347,11 @@ fn ws_status_from_child(
         return None;
     }
     if voice_runtime_ready(port) {
-        return Some(VoicePluginStatusDto {
-            status: "running".into(),
-            installed,
-            running: true,
-            ws_port: port,
-            plugin_dir,
-            message: None,
-        });
+        return Some(running_status_dto(fully_installed, plugin_dir, port));
     }
     Some(VoicePluginStatusDto {
         status: "starting".into(),
-        installed,
+        installed: fully_installed,
         running: false,
         ws_port: port,
         plugin_dir,
@@ -377,49 +380,34 @@ fn build_status(state: &VoicePluginState) -> VoicePluginStatusDto {
     }
 
     let root = voice_plugin_root();
-    let manifest_path = root.join("manifest.json");
-    let manifest = read_manifest(&root);
-    let exe_rel = runtime_exe_relative(manifest.as_ref());
-    let runtime_exe = root.join(&exe_rel);
-    let installed_manifest = manifest_path.is_file();
-    let installed_exe = runtime_exe.is_file();
-    let installed_model = model_ready_at(&root);
+    let fully_installed = crate::voice_plugin_install::is_voice_asr_installed(&root);
     let dev_dir = dev_runtime_dir();
-    let installed =
-        (installed_manifest && installed_exe && installed_model) || dev_dir.is_some();
-    let plugin_dir = if installed_manifest {
+    let plugin_dir = if fully_installed {
+        Some(root.to_string_lossy().into_owned())
+    } else if let Some(dev) = dev_dir.as_ref() {
+        Some(dev.to_string_lossy().into_owned())
+    } else if root.join("manifest.json").is_file() {
         Some(root.to_string_lossy().into_owned())
     } else {
-        dev_dir.as_ref().map(|p| p.to_string_lossy().into_owned())
+        None
     };
 
     let port = voice_ws_port();
-    if voice_runtime_ready(port) {
-        return running_status_dto(installed, plugin_dir.clone(), port);
+    if fully_installed && voice_runtime_ready(port) {
+        return running_status_dto(true, plugin_dir.clone(), port);
     }
 
-    if let Some(dto) = ws_status_from_child(state, installed, plugin_dir.clone(), port) {
+    if let Some(dto) = ws_status_from_child(state, fully_installed, plugin_dir.clone(), port) {
         return dto;
     }
 
-    if installed_manifest && installed_exe && !installed_model {
-        return VoicePluginStatusDto {
-            status: "not_installed".into(),
-            installed: false,
-            running: false,
-            ws_port: 0,
-            plugin_dir: Some(root.to_string_lossy().into_owned()),
-            message: Some("识别模型未安装，请点击「一键安装」继续".into()),
-        };
-    }
-
-    if installed_manifest && installed_exe {
+    if fully_installed {
         return VoicePluginStatusDto {
             status: "installed".into(),
             installed: true,
             running: false,
             ws_port: 0,
-            plugin_dir: Some(root.to_string_lossy().into_owned()),
+            plugin_dir,
             message: Some("已安装，点击「启动 Runtime」或设置页启动".into()),
         };
     }
@@ -437,15 +425,21 @@ fn build_status(state: &VoicePluginState) -> VoicePluginStatusDto {
         };
     }
 
+    let has_partial = root.join("manifest.json").is_file()
+        || root.join("runtime/quicker-voice-runtime.exe").is_file()
+        || model_ready_at(&root);
+
     VoicePluginStatusDto {
         status: "not_installed".into(),
         installed: false,
         running: false,
         ws_port: 0,
-        plugin_dir: None,
-        message: Some(
-            "未安装。点击下方「安装」，将自动下载并配置语音服务与识别模型（约 240 MB，仅需一次）。".into(),
-        ),
+        plugin_dir,
+        message: Some(if has_partial {
+            "语音组件未完整安装，请点击「安装」继续。".into()
+        } else {
+            "未安装。点击下方「安装」，将自动下载并配置语音服务与识别模型（约 240 MB，仅需一次）。".into()
+        }),
     }
 }
 
@@ -468,13 +462,14 @@ fn start_runtime_inner(state: &VoicePluginState) -> VoicePluginStatusDto {
     };
 
     let port = voice_ws_port();
-    if voice_runtime_ready(port) {
-        return running_status_dto(build_status(state).installed, plugin_dir.clone(), port);
+    let fully_installed = crate::voice_plugin_install::is_voice_asr_installed(&root);
+    if fully_installed && voice_runtime_ready(port) {
+        return running_status_dto(true, plugin_dir.clone(), port);
     }
 
     if let Some(dto) = ws_status_from_child(
         state,
-        build_status(state).installed,
+        fully_installed,
         plugin_dir.clone(),
         port,
     ) {
@@ -495,7 +490,7 @@ fn start_runtime_inner(state: &VoicePluginState) -> VoicePluginStatusDto {
 
     kill_listener_on_port(port);
 
-    let spawn_result = if root.join("manifest.json").is_file() {
+    let spawn_result = if fully_installed {
         let exe_rel = runtime_exe_relative(manifest.as_ref());
         spawn_installed_runtime_ws(&root, &exe_rel, port)
     } else if let Some(dev_dir) = dev_runtime_dir() {
@@ -508,7 +503,11 @@ fn start_runtime_inner(state: &VoicePluginState) -> VoicePluginStatusDto {
         Ok(child) => {
             store_runtime_child(state, child);
             match wait_voice_runtime_ready(port, VOICE_RUNTIME_READY_WAIT_MS) {
-                Ok(()) => running_status_dto(build_status(state).installed, plugin_dir, port),
+                Ok(()) => running_status_dto(
+                    crate::voice_plugin_install::is_voice_asr_installed(&root),
+                    plugin_dir,
+                    port,
+                ),
                 Err(err) => {
                     let mut dto = build_status(state);
                     if dto.status == "starting" {
@@ -560,9 +559,7 @@ fn run_background_voice_tasks(app: &AppHandle) {
     }
 
     let root = voice_plugin_root();
-    let installed = root.join("manifest.json").is_file()
-        && root.join("runtime/quicker-voice-runtime.exe").is_file()
-        && model_ready_at(&root);
+    let installed = crate::voice_plugin_install::is_voice_asr_installed(&root);
 
     if !installed {
         if let Err(err) = crate::voice_plugin_install::run_voice_plugin_install(app) {

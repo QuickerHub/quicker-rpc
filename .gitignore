@@ -78,5 +78,19 @@ voice-asr-runtime/models/*
 !voice-asr-runtime/models/.gitkeep
 !voice-asr-runtime/models/README.md
 
+# browser-runtime (Python / uv)
+browser-runtime/.venv/
+browser-runtime/build/
+browser-runtime/dist/
+browser-runtime/*.egg-info/
+browser-runtime/**/__pycache__/
+browser-runtime/.pytest_cache/
+browser-runtime/.mypy_cache/
+browser-runtime/.ruff_cache/
+browser-runtime/.playwright/
+browser-runtime/playwright-browsers/
+browser-runtime/publish/*.zip
+browser-runtime/publish/.env
+
 # MSBuild stamp for action-authoring doc generation (local only)
 docs/action-authoring/.generated.stamp

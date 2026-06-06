@@ -6,7 +6,7 @@ const agentGuiRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // Monorepo: trace from repo root so standalone build does not walk the runner profile (e.g. Documents).
+  // Monorepo: trace from repo root for standalone deps; use isolated USERPROFILE on Windows (see publish/qkrpc-publish-lib.ps1).
   outputFileTracingRoot: path.join(agentGuiRoot, ".."),
   outputFileTracingExcludes: {
     "*": [
@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
       "agent-gui/.next/**",
       "publish/**",
       "voice-asr-runtime/**",
+      "browser-runtime/**",
     ],
   },
   serverExternalPackages: [

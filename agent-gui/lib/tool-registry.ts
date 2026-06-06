@@ -68,6 +68,13 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "在本机工作目录执行 PowerShell/cmd/bash 命令或脚本",
   },
   {
+    id: "browser",
+    label: "浏览器",
+    group: "write",
+    category: "runtime",
+    description: "Playwright 操控本地浏览器：navigate/snapshot/click/type/fill 等",
+  },
+  {
     id: "dev_frontend_check",
     label: "前端检查",
     group: "read",

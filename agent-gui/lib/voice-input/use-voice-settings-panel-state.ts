@@ -11,6 +11,7 @@ import {
   fetchTauriVoicePluginStatus,
   type TauriVoicePluginStatusDto,
 } from "@/lib/voice-input/voice-input-tauri";
+import { resolveVoiceRuntimePhase } from "@/lib/voice-input/resolve-voice-runtime-phase";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
 
 const POLL_MS = 5_000;
@@ -141,20 +142,12 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
         return;
       }
 
-      let runtimePhase: VoicePluginStatus;
-      if (health?.ready) {
-        runtimePhase = "running";
-      } else if (health?.ok) {
-        runtimePhase = "starting";
-      } else if (hostStatus?.installed) {
-        runtimePhase = "installed";
-      } else if (hostStatus?.status === "error") {
-        runtimePhase = "error";
-      } else if (inTauri && !hostStatus) {
-        runtimePhase = "error";
-      } else {
-        runtimePhase = "not_installed";
-      }
+      let runtimePhase = resolveVoiceRuntimePhase({
+        hostStatus,
+        health,
+        inTauri,
+        allowExternalDevRuntime: useDevVoiceHost,
+      });
 
       const runtimeDetail =
         inTauri && !hostStatus && runtimePhase === "error"

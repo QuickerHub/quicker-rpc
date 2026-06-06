@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
-import { SettingsGearIcon } from "@/components/SettingsGearIcon";
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
   addThread,
@@ -11,10 +9,6 @@ import {
   getOpenTabThreads,
   selectThread,
 } from "@/lib/chat-store";
-import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
-import { ReleasePreviewToggle } from "@/components/dev/ReleasePreviewToggle";
-import { useDevExperienceEnabled } from "@/lib/release-preview.client";
-import { ExplorerPanelToggle } from "@/components/workspace/WorkspaceExplorerPanel";
 import { WorkspaceExplorerFileTabs } from "@/components/workspace/WorkspaceExplorerFileTabs";
 import { useDocsViewer } from "@/lib/docs-viewer";
 import {
@@ -24,14 +18,10 @@ import {
 import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { useShellPlatform, useTauriShell } from "@/lib/tauri-shell";
-import { openLauncherWindow } from "@/lib/launcher/launcher-window";
 
 type ChatTitlebarProps = {
   store: ChatStoreData;
-  settingsOpen: boolean;
   onChange: (next: ChatStoreData) => void;
-  onOpenSettings: () => void;
-  onCloseSettings: () => void;
 };
 
 function IconChatTab() {
@@ -73,129 +63,39 @@ function IconClose() {
   );
 }
 
-/** Dev-only: link to /tool-test (icon to save titlebar width). */
-function IconToolTest() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path
-        d="M4.25 2.5h5.5L11 5.25v6.25a.75.75 0 0 1-.75.75H3.75A.75.75 0 0 1 3 11.5V3.25A.75.75 0 0 1 3.75 2.5h.5Z"
-        stroke="currentColor"
-        strokeWidth="1.1"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M6.25 7.25h1.5M7 6.5v1.5"
-        stroke="currentColor"
-        strokeWidth="1.1"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 function plainTitleText(raw: string): string {
   const withoutTags = raw.replace(/<[^>]*>/g, " ");
   const normalized = withoutTags.replace(/\s+/g, " ").trim();
   return normalized || "新对话";
 }
 
-function IconLauncher() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path
-        d="M3.25 4.5h7.5M3.25 7h5M3.25 9.5h7.5"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-      />
-      <rect
-        x="2"
-        y="2.75"
-        width="10"
-        height="8.5"
-        rx="1.75"
-        stroke="currentColor"
-        strokeWidth="1.15"
-      />
-    </svg>
-  );
-}
-
-function TitlebarChromeActions({
+function TitlebarWindowControls({
   isTauri,
   platform,
-  showDevActions,
-  settingsOpen,
-  onToggleSettings,
 }: {
   isTauri: boolean;
   platform: ReturnType<typeof useShellPlatform>;
-  showDevActions: boolean;
-  settingsOpen: boolean;
-  onToggleSettings: () => void;
 }) {
+  if (!isTauri) return null;
+
   return (
-    <>
-      <div
-        className={[
-          "titlebar-actions",
-          isTauri && platform !== "macos" ? "titlebar-actions--with-window-controls" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        <ExplorerPanelToggle className="titlebar-action-btn ws-icon-btn" />
-        <button
-          type="button"
-          className="titlebar-action-btn ws-icon-btn"
-          title="快速输入（独立小窗，Enter 发送一次性指令）"
-          aria-label="快速输入"
-          onClick={() => openLauncherWindow()}
-        >
-          <IconLauncher />
-        </button>
-        <ReleasePreviewToggle />
-        {showDevActions ? (
-          <>
-            <span className="titlebar-actions-sep" aria-hidden />
-            <div className="titlebar-actions-group" role="group" aria-label="开发工具">
-              <Link
-                href="/tool-test"
-                className="titlebar-action-btn ws-icon-btn"
-                title="工具测试（直接调用，不经 LLM）"
-                aria-label="工具测试"
-              >
-                <IconToolTest />
-              </Link>
-              <TitlebarThemeSwitcher />
-            </div>
-          </>
-        ) : null}
-        <>
-          {showDevActions ? <span className="titlebar-actions-sep" aria-hidden /> : null}
-          <button
-            type="button"
-            className={`titlebar-action-btn ws-icon-btn ws-settings-trigger${settingsOpen ? " ws-settings-trigger--active" : ""}`}
-            title={settingsOpen ? "关闭设置" : "设置"}
-            aria-label={settingsOpen ? "关闭设置" : "打开设置"}
-            aria-pressed={settingsOpen}
-            onClick={onToggleSettings}
-          >
-            <SettingsGearIcon size={16} />
-          </button>
-        </>
-      </div>
+    <div
+      className={[
+        "titlebar-actions",
+        "titlebar-actions--window-controls-only",
+        platform !== "macos" ? "titlebar-actions--with-window-controls" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <TauriWindowControls />
-    </>
+    </div>
   );
 }
 
 export function ChatTitlebar({
   store,
-  settingsOpen,
   onChange,
-  onOpenSettings,
-  onCloseSettings,
 }: ChatTitlebarProps) {
   const tabsRef = useRef<HTMLDivElement>(null);
   const activeThread = useMemo(() => getActiveThread(store), [store]);
@@ -211,14 +111,6 @@ export function ChatTitlebar({
   const handleSelectChat = (threadId: string) => {
     if (threadId === activeThread.id) return;
     commit(selectThread(store, threadId));
-  };
-
-  const handleToggleSettings = () => {
-    if (settingsOpen) {
-      onCloseSettings();
-    } else {
-      onOpenSettings();
-    }
   };
 
   const handleNew = () => {
@@ -275,8 +167,6 @@ export function ChatTitlebar({
   ]
     .filter(Boolean)
     .join(" ");
-
-  const showDevActions = useDevExperienceEnabled();
 
   return (
     <header
@@ -369,29 +259,19 @@ export function ChatTitlebar({
         ) : null}
       </div>
 
-      {panelOpen ? (
-        <div className="titlebar-chrome titlebar-chrome--over-explorer">
-          <div className="titlebar-trailing">
-            <TitlebarChromeActions
-              isTauri={isTauri}
-              platform={platform}
-              showDevActions={showDevActions}
-              settingsOpen={settingsOpen}
-              onToggleSettings={handleToggleSettings}
-            />
+      {isTauri ? (
+        panelOpen ? (
+          <div className="titlebar-chrome titlebar-chrome--over-explorer">
+            <div className="titlebar-trailing">
+              <TitlebarWindowControls isTauri={isTauri} platform={platform} />
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="titlebar-trailing">
-          <TitlebarChromeActions
-            isTauri={isTauri}
-            platform={platform}
-            showDevActions={showDevActions}
-            settingsOpen={settingsOpen}
-            onToggleSettings={handleToggleSettings}
-          />
-        </div>
-      )}
+        ) : (
+          <div className="titlebar-trailing">
+            <TitlebarWindowControls isTauri={isTauri} platform={platform} />
+          </div>
+        )
+      ) : null}
     </header>
   );
 }

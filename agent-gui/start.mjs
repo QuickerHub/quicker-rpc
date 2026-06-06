@@ -26,6 +26,10 @@ import {
   ensureVoiceRuntime,
   stopTrackedVoiceRuntime,
 } from "./lib/voice-runtime-lifecycle.mjs";
+import {
+  ensureBrowserRuntime,
+  stopTrackedBrowserRuntime,
+} from "./lib/browser-runtime-lifecycle.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -43,6 +47,8 @@ function resolveNodeExe() {
 let qkrpcChild = null;
 /** @type {import('node:child_process').ChildProcess | null} */
 let voiceChild = null;
+/** @type {import('node:child_process').ChildProcess | null} */
+let browserChild = null;
 
 function listenProbe(port, host) {
   return new Promise((resolve, reject) => {
@@ -158,10 +164,16 @@ function stopVoiceChild() {
   voiceChild = null;
 }
 
+function stopBrowserChild() {
+  stopTrackedBrowserRuntime(root, browserChild);
+  browserChild = null;
+}
+
 function registerShutdown() {
   const onExit = () => {
     stopQkrpcChild();
     stopVoiceChild();
+    stopBrowserChild();
   };
   process.on("SIGINT", onExit);
   process.on("SIGTERM", onExit);
@@ -310,6 +322,7 @@ async function main() {
 
   if (isDev) {
     voiceChild = await ensureVoiceRuntime(root, host);
+    browserChild = await ensureBrowserRuntime(root, host);
   }
 
   const port = await resolveUiPort(host);
@@ -332,6 +345,7 @@ async function main() {
     child.on("exit", (code) => {
       stopQkrpcChild();
       stopVoiceChild();
+      stopBrowserChild();
       process.exit(code ?? 1);
     });
     return;
@@ -346,6 +360,7 @@ async function main() {
 main().catch((err) => {
   stopQkrpcChild();
   stopVoiceChild();
+  stopBrowserChild();
   console.error(err);
   process.exit(1);
 });

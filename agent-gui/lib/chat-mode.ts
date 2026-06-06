@@ -20,6 +20,7 @@ export const CHAT_MODE_DESCRIPTIONS: Record<ChatMode, string> = {
  */
 export const LAUNCHER_TOOL_IDS = [
   "docs",
+  "browser",
   "qkrpc_action",
   "qkrpc_subprogram",
   "qkrpc_fa",

@@ -80,6 +80,8 @@ import {
 } from "@/lib/workspace-explorer";
 import { WorkspaceExplorerPanel } from "@/components/workspace/WorkspaceExplorerPanel";
 import { AppMainWorkspaceSplit } from "@/components/workspace/AppMainWorkspaceSplit";
+import { EmbeddedBrowserProvider } from "@/lib/embedded-browser-context";
+import { useBrowserPanelMessageSync } from "@/lib/use-browser-panel-message-sync";
 import { WorkspaceMainEditorTabBridgeRegistrar } from "@/components/workspace/WorkspaceMainEditorTabBridgeRegistrar";
 import { useChatStore } from "@/lib/use-chat-store";
 import { ContextUsage } from "./ContextUsage";
@@ -114,7 +116,7 @@ import {
 import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
 import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent-activity";
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
-import { EmptyChatPrompts } from "@/components/chat/EmptyChatPrompts";
+import { ComposerShortcutCards } from "@/components/chat/ComposerShortcutCards";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
 import { useChatMessageWindow } from "@/lib/use-chat-message-window";
 import { findUserTurnStartIndices } from "@/lib/last-user-turn-index";
@@ -307,6 +309,8 @@ type ChatPanelProps = {
   titleManual: boolean;
   ping: PingState;
   connectTick: number;
+  settingsOpen: boolean;
+  onToggleSettings: () => void;
   onOpenSettings: (targetProviderId?: LlmProviderId, tab?: AppSettingsTabId) => void;
   onPersist: (threadId: string, messages: AgentUIMessage[]) => void;
   onAutoTitle: (threadId: string, title: string) => void;
@@ -323,6 +327,8 @@ function ChatPanel({
   titleManual,
   ping,
   connectTick,
+  settingsOpen,
+  onToggleSettings,
   onOpenSettings,
   onPersist,
   onAutoTitle,
@@ -481,6 +487,7 @@ function ChatPanel({
   }, [ephemeral, threadId, messages]);
 
   useActionProjectImportFromMessages(messages, !ephemeral);
+  useBrowserPanelMessageSync(messages);
 
   useThreadTitleFromTool({
     threadId,
@@ -1236,12 +1243,11 @@ function ChatPanel({
             </button>
           </div>
         )}
-        {isEmptyThread && !editAnchorMessageId && (
-          <EmptyChatPrompts
-            disabled={busy}
-            onOpenSettings={() => onOpenSettings()}
-          />
-        )}
+        <ComposerShortcutCards
+          settingsOpen={settingsOpen}
+          onToggleSettings={onToggleSettings}
+          disabled={busy}
+        />
         <form
           className="composer-form"
           onSubmit={(e) => {
@@ -1487,6 +1493,14 @@ export function Chat() {
     setSettingsInitialTab(undefined);
   }, []);
 
+  const toggleSettings = useCallback(() => {
+    if (settingsOpen) {
+      closeSettings();
+    } else {
+      openSettings();
+    }
+  }, [settingsOpen, closeSettings, openSettings]);
+
   const activeThread = getActiveThread(store);
   const workingDirectory = store.workingDirectory.trim() || defaultCwd;
   const cwdPending = !store.workingDirectory.trim() && !defaultCwdReady;
@@ -1520,13 +1534,11 @@ export function Chat() {
             cwdPending={cwdPending}
           >
             <DocsViewerProvider>
+              <EmbeddedBrowserProvider>
               <WorkspaceMainEditorTabBridgeRegistrar />
               <ChatTitlebar
                 store={store}
-                settingsOpen={settingsOpen}
                 onChange={updateStore}
-                onOpenSettings={openSettings}
-                onCloseSettings={closeSettings}
               />
               <ReleasePreviewBanner />
               <div className="app-content-row">
@@ -1544,6 +1556,8 @@ export function Chat() {
                         titleManual={thread.titleManual ?? false}
                         ping={ping}
                         connectTick={connectTick}
+                        settingsOpen={settingsOpen}
+                        onToggleSettings={toggleSettings}
                         onOpenSettings={openSettings}
                         onPersist={persistMessages}
                         onAutoTitle={handleAutoTitle}
@@ -1562,6 +1576,8 @@ export function Chat() {
                         titleManual={false}
                         ping={ping}
                         connectTick={connectTick}
+                        settingsOpen={settingsOpen}
+                        onToggleSettings={toggleSettings}
                         onOpenSettings={openSettings}
                         onPersist={() => {}}
                         onAutoTitle={() => {}}
@@ -1580,6 +1596,7 @@ export function Chat() {
                 focusProviderId={settingsFocusProviderId}
                 initialTab={settingsInitialTab}
               />
+              </EmbeddedBrowserProvider>
             </DocsViewerProvider>
           </WorkspaceExplorerPanelProvider>
         </div>

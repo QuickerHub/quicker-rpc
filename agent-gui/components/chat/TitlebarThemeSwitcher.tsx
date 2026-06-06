@@ -29,7 +29,15 @@ function IconTheme() {
   );
 }
 
-export function TitlebarThemeSwitcher() {
+export function TitlebarThemeSwitcher({
+  triggerClassName,
+  variant = "icon",
+  disabled = false,
+}: {
+  triggerClassName?: string;
+  variant?: "icon" | "card";
+  disabled?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [preference, setPreference] = useState<ThemePreference>("system");
   const [panelLayout, setPanelLayout] = useState<{
@@ -133,19 +141,37 @@ export function TitlebarThemeSwitcher() {
       </div>
     ) : null;
 
+  const triggerClass =
+    variant === "card"
+      ? [
+          "composer-shortcut-btn",
+          open ? "composer-shortcut-btn--active" : "",
+          disabled ? "composer-shortcut-btn--disabled" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : `${triggerClassName ?? "ws-icon-btn"} titlebar-theme-trigger${open ? " titlebar-theme-trigger--open" : ""}`;
+
   return (
-    <div className="titlebar-theme-switcher">
+    <div className={`titlebar-theme-switcher${variant === "card" ? " titlebar-theme-switcher--card" : ""}`}>
       <button
         ref={buttonRef}
         type="button"
-        className={`ws-icon-btn titlebar-theme-trigger${open ? " titlebar-theme-trigger--open" : ""}`}
+        className={triggerClass}
         aria-expanded={open}
         aria-controls={panelId}
         aria-haspopup="menu"
         title="切换主题（仅开发模式）"
+        disabled={disabled}
         onClick={() => setOpen((v) => !v)}
       >
         <IconTheme />
+        {variant === "card" ? (
+          <>
+            <span className="composer-shortcut-btn__label">主题</span>
+            <span className="composer-shortcut-btn__hint">浅色 / 深色 / 跟随系统</span>
+          </>
+        ) : null}
       </button>
       {typeof document !== "undefined" && panel
         ? createPortal(panel, document.body)
