@@ -7,6 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { resolveBrowserRuntimeRoot } from "./browser-runtime-root.mjs";
 import { isProcessAlive, killProcessTree } from "./qkrpc-serve-lifecycle.mjs";
 
 const STATE_FILE = "browser-runtime.json";
@@ -196,8 +197,8 @@ export function stopTrackedBrowserRuntime(agentGuiRoot, child) {
 }
 
 /**
- * Dev-only: ensure Node browser-runtime is listening (reuse or spawn).
- * @param {string} agentGuiRoot
+ * Ensure Node browser-runtime is listening (reuse or spawn).
+ * @param {string} [agentGuiRoot]
  * @param {string} host
  * @returns {Promise<import('node:child_process').ChildProcess | null>}
  */
@@ -206,6 +207,7 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
     return null;
   }
 
+  const runtimeRoot = resolveBrowserRuntimeRoot(agentGuiRoot ?? process.cwd());
   const port = resolveBrowserPort();
   const base = `http://${host}:${port}`;
 
@@ -214,9 +216,9 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
     return null;
   }
 
-  reconcileStaleBrowserRuntime(agentGuiRoot);
+  reconcileStaleBrowserRuntime(runtimeRoot);
 
-  const entry = join(agentGuiRoot, "browser-runtime", "server.mjs");
+  const entry = join(runtimeRoot, "browser-runtime", "server.mjs");
   if (!existsSync(entry)) {
     console.warn(
       "browser: browser-runtime/server.mjs not found — skip auto-start (set AGENT_GUI_SKIP_BROWSER_RUNTIME=1 to silence)",
@@ -229,7 +231,7 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
     process.execPath,
     [entry, "--host", host, "--port", String(port)],
     {
-      cwd: agentGuiRoot,
+      cwd: runtimeRoot,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
       env: {
@@ -267,7 +269,7 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
     return null;
   }
 
-  trackBrowserRuntimeChild(agentGuiRoot, child, { port });
+  trackBrowserRuntimeChild(runtimeRoot, child, { port });
 
   try {
     await waitForBrowserRuntimeHealth(base);
@@ -277,7 +279,7 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
     console.warn(
       `browser: ${err instanceof Error ? err.message : String(err)} — browser tool may be unavailable`,
     );
-    stopTrackedBrowserRuntime(agentGuiRoot, child);
+    stopTrackedBrowserRuntime(runtimeRoot, child);
     return null;
   }
 }

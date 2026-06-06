@@ -4,8 +4,14 @@
   "description": "Default permissions for QuickerAgent",
   "windows": ["main", "agent", "launcher"],
   "remote": {
-    "urls": ["http://127.0.0.1:*", "http://localhost:*"]
+    "urls": [
+      "http://127.0.0.1:*",
+      "http://localhost:*",
+      "https://*:*",
+      "http://*:*"
+    ]
   },
+  "webviews": ["main", "agent", "launcher", "workspace-browser"],
   "permissions": [
     "core:default",
     "core:window:default",

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRef } from "react";
 import {
   IconBrowserBack,
   IconBrowserForward,
@@ -11,17 +10,18 @@ import { useEmbeddedBrowser } from "@/lib/embedded-browser-context";
 import { useEmbeddedBrowserNav } from "@/lib/use-embedded-browser-nav";
 import { useTauriShell } from "@/lib/tauri-shell";
 
-/** Side-panel browser: Tauri child WebView + Playwright sync for Agent tools. */
+/** Side-panel browser: native Tauri child WebView2 (human browsing only). */
 export function WorkspaceEmbeddedBrowser() {
-  const { snapshot, applySnapshot } = useEmbeddedBrowser();
-  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const { snapshot, navigateSeq, navigateUrl, applySnapshot } =
+    useEmbeddedBrowser();
   const isTauri = useTauriShell();
 
   const nav = useEmbeddedBrowserNav({
     snapshot,
+    navigateSeq,
+    navigateUrl,
     applySnapshot,
-    enabled: true,
-    viewportRef,
+    enabled: isTauri,
   });
 
   return (
@@ -41,7 +41,10 @@ export function WorkspaceEmbeddedBrowser() {
           </span>
         )}
         {isTauri ? (
-          <span className="workspace-embedded-browser__badge" title="Tauri WebView2 子视图">
+          <span
+            className="workspace-embedded-browser__badge"
+            title="Tauri WebView2 子视图"
+          >
             WebView
           </span>
         ) : null}
@@ -52,7 +55,7 @@ export function WorkspaceEmbeddedBrowser() {
           <button
             type="button"
             className="workspace-explorer-action"
-            disabled={nav.busy || nav.bootstrapping || !isTauri}
+            disabled={!isTauri || !nav.canGoBack}
             aria-label="后退"
             title="后退"
             onClick={nav.goBack}
@@ -62,7 +65,7 @@ export function WorkspaceEmbeddedBrowser() {
           <button
             type="button"
             className="workspace-explorer-action"
-            disabled={nav.busy || nav.bootstrapping || !isTauri}
+            disabled={!isTauri || !nav.canGoForward}
             aria-label="前进"
             title="前进"
             onClick={nav.goForward}
@@ -72,7 +75,7 @@ export function WorkspaceEmbeddedBrowser() {
           <button
             type="button"
             className="workspace-explorer-action"
-            disabled={nav.busy || nav.bootstrapping || !isTauri}
+            disabled={!isTauri || !nav.frameUrl}
             aria-label="刷新"
             title="刷新"
             onClick={nav.reload}
@@ -83,44 +86,23 @@ export function WorkspaceEmbeddedBrowser() {
         <input
           className="workspace-embedded-browser__url"
           value={nav.urlDraft}
-          disabled={nav.busy || nav.bootstrapping || !isTauri}
+          disabled={!isTauri}
           onChange={(e) => nav.setUrlDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") nav.submitUrl();
           }}
-          placeholder={isTauri ? "输入 URL 后 Enter" : "需要桌面版 QuickerAgent"}
+          placeholder={isTauri ? "输入 URL 后 Enter" : "需要 QuickerAgent 桌面版"}
           spellCheck={false}
           aria-label="地址栏"
         />
       </div>
 
-      {nav.runtimeError ? (
-        <div className="workspace-embedded-browser__error" role="alert">
-          <span>{nav.runtimeError}</span>
-          <button
-            type="button"
-            className="workspace-embedded-browser__error-retry"
-            onClick={() => void nav.retryBootstrap()}
-          >
-            重试
-          </button>
-        </div>
-      ) : null}
-
-      <div
-        className="workspace-embedded-browser__body embedded-browser__body"
-        ref={viewportRef}
-      >
-        {nav.bootstrapping ? (
-          <div className="embedded-browser__empty">正在初始化…</div>
-        ) : (
-          <EmbeddedWebView
-            active
-            url={nav.frameUrl}
-            reloadKey={nav.reloadKey}
-            hostRef={viewportRef}
-          />
-        )}
+      <div className="workspace-embedded-browser__body embedded-browser__body">
+        <EmbeddedWebView
+          active={isTauri}
+          url={nav.frameUrl}
+          reloadKey={nav.reloadKey}
+        />
       </div>
     </section>
   );

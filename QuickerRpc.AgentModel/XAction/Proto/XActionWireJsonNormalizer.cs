@@ -1,5 +1,6 @@
 using System.Linq;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.XAction.Project;
 
 namespace QuickerRpc.AgentModel.XAction.Proto;
 
@@ -148,23 +149,15 @@ internal static class XActionWireJsonNormalizer
 
         if (variable["type"] != null)
         {
-            result["Type"] = variable["type"]!;
+            result["Type"] = VarTypeCodec.ToNativeTypeJValue(variable["type"]);
         }
         else if (variable["Type"] != null)
         {
-            result["Type"] = variable["Type"]!;
+            result["Type"] = VarTypeCodec.ToNativeTypeJValue(variable["Type"]);
         }
         else if (variable["varType"] != null || variable["VarType"] != null)
         {
-            var varTypeToken = variable["varType"] ?? variable["VarType"];
-            if (varTypeToken!.Type == JTokenType.Integer)
-            {
-                result["Type"] = varTypeToken;
-            }
-            else
-            {
-                result["Type"] = MapVarTypeNameToInt(varTypeToken.ToString());
-            }
+            result["Type"] = VarTypeCodec.ToNativeTypeJValue(variable["varType"] ?? variable["VarType"]);
         }
 
         CopyNestedObject(result, variable, "inputParamInfo", "InputParamInfo");
@@ -194,20 +187,4 @@ internal static class XActionWireJsonNormalizer
         }
     }
 
-    private static JValue MapVarTypeNameToInt(string? name)
-    {
-        return (name ?? string.Empty).Trim().ToLowerInvariant() switch
-        {
-            "number" => new JValue(1),
-            "boolean" => new JValue(2),
-            "image" => new JValue(3),
-            "list" => new JValue(4),
-            "datetime" => new JValue(6),
-            "enum" => new JValue(9),
-            "dict" => new JValue(10),
-            "integer" => new JValue(12),
-            "table" => new JValue(13),
-            _ => new JValue(0),
-        };
-    }
 }

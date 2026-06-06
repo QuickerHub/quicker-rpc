@@ -1,0 +1,11 @@
+{
+  "id": "clipboard-history",
+  "name": "QuickerAgent Clipboard History",
+  "version": "0.1.0",
+  "description": "System clipboard monitor and history for QuickerAgent",
+  "runtime": {
+    "exe": "runtime/quicker-clipboard-history.exe",
+    "protocolVersion": 1,
+    "defaultPort": 6020
+  }
+}

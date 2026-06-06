@@ -14,6 +14,7 @@ use tauri::TitleBarStyle;
 use tauri::{AppHandle, Manager, RunEvent, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
+mod clipboard_history_plugin;
 mod global_shortcut;
 mod launcher;
 mod quicker_agent_paths;
@@ -523,6 +524,9 @@ fn spawn_production_startup(app: AppHandle) {
         emit_startup_status(&app, "正在启动语音服务…");
         voice_plugin::spawn_voice_runtime_background(app.clone());
 
+        emit_startup_status(&app, "正在启动剪贴板服务…");
+        clipboard_history_plugin::spawn_clipboard_runtime_background(app.clone());
+
         spawn_qkrpc_background(app.clone(), config.clone());
         spawn_node_background(app, config);
     });
@@ -550,8 +554,39 @@ fn show_startup_error(app: &AppHandle, detail: &str) {
         .blocking_show();
 }
 
+#[cfg(windows)]
+fn ensure_single_instance() -> bool {
+    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_ALREADY_EXISTS};
+    use windows_sys::Win32::System::Threading::CreateMutexW;
+
+    let name: Vec<u16> = "Local\\QuickerAgent.SingleInstance\0"
+        .encode_utf16()
+        .collect();
+    unsafe {
+        let handle = CreateMutexW(std::ptr::null(), 1, name.as_ptr());
+        if handle.is_null() {
+            return true;
+        }
+        if GetLastError() == ERROR_ALREADY_EXISTS {
+            CloseHandle(handle);
+            eprintln!("QuickerAgent is already running; exiting duplicate instance.");
+            return false;
+        }
+        true
+    }
+}
+
+#[cfg(not(windows))]
+fn ensure_single_instance() -> bool {
+    true
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if !ensure_single_instance() {
+        return;
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -567,9 +602,14 @@ pub fn run() {
             voice_plugin::voice_plugin_install,
             voice_plugin::voice_plugin_start_runtime,
             voice_plugin::voice_plugin_stop_runtime,
+            clipboard_history_plugin::clipboard_history_plugin_status,
+            clipboard_history_plugin::clipboard_history_runtime_health,
+            clipboard_history_plugin::clipboard_history_plugin_start_runtime,
+            clipboard_history_plugin::clipboard_history_plugin_stop_runtime,
         ])
         .manage(BackendState::new())
         .manage(voice_plugin::VoicePluginState::new())
+        .manage(clipboard_history_plugin::ClipboardHistoryPluginState::new())
         .setup(|app| {
             #[cfg(desktop)]
             if let Err(err) = global_shortcut::init(app.handle()) {
@@ -586,12 +626,22 @@ pub fn run() {
                     let _ = win.center();
                     let _ = win.show();
                 }
-                launcher::prepare_configured_launcher_window(app.handle(), false);
-                voice_plugin::spawn_voice_runtime_background(app.handle().clone());
+                if std::env::var("AGENT_GUI_VOICE_RUNTIME")
+                    .ok()
+                    .is_some_and(|value| value == "1")
+                {
+                    voice_plugin::spawn_voice_runtime_background(app.handle().clone());
+                }
+                if std::env::var("AGENT_GUI_CLIPBOARD_RUNTIME")
+                    .ok()
+                    .is_some_and(|value| value == "1")
+                {
+                    clipboard_history_plugin::spawn_clipboard_runtime_background(
+                        app.handle().clone(),
+                    );
+                }
                 Ok(())
             } else {
-                launcher::close_configured_launcher_window(app.handle());
-
                 if let Some(win) = app.get_webview_window("main") {
                     apply_titlebar_chrome_existing(&win);
                     register_startup_window_handlers(&win, app.handle());
@@ -614,6 +664,9 @@ pub fn run() {
             if matches!(event, RunEvent::Exit) {
                 app.state::<BackendState>().inner().shutdown();
                 app.state::<voice_plugin::VoicePluginState>()
+                    .inner()
+                    .shutdown();
+                app.state::<clipboard_history_plugin::ClipboardHistoryPluginState>()
                     .inner()
                     .shutdown();
                 if let Err(err) = voice_plugin_install::apply_pending_runtime_upgrade() {

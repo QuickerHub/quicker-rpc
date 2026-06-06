@@ -182,6 +182,21 @@ begin
     RegWriteStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', NewPath);
 end;
 
+function KillQkrpcProcesses(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  { taskkill exit 128 = process not found; still safe to continue }
+  if Exec('taskkill.exe', '/IM qkrpc.exe /T /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    Sleep(500);
+  Result := True;
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  Result := KillQkrpcProcesses();
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then

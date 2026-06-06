@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 const VOICE_ASR_PLUGIN_ID: &str = "voice-asr";
+const CLIPBOARD_HISTORY_PLUGIN_ID: &str = "clipboard-history";
 
 /// App-managed data root (plugins). Not the agent working directory.
 pub fn quicker_agent_app_data_dir() -> PathBuf {
@@ -71,6 +72,13 @@ fn voice_asr_layout_ready(root: &Path) -> bool {
         && root.join("models/sensevoice/tokens.txt").is_file()
         && (root.join("models/sensevoice/model.int8.onnx").is_file()
             || root.join("models/sensevoice/model.onnx").is_file())
+}
+
+/// clipboard-history plugin directory (app data).
+pub fn clipboard_history_plugin_root() -> PathBuf {
+    quicker_agent_app_data_dir()
+        .join("plugins")
+        .join(CLIPBOARD_HISTORY_PLUGIN_ID)
 }
 
 /// Resolve voice-asr plugin directory; prefer a fully installed tree over manifest-only stubs.

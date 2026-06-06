@@ -5,6 +5,7 @@ import { join } from "node:path";
 export const QUICKER_AGENT_DIRNAME = "QuickerAgent";
 export const QUICKER_AGENT_WORKSPACE_SUBDIR = "workspace";
 export const VOICE_ASR_PLUGIN_ID = "voice-asr";
+export const CLIPBOARD_HISTORY_PLUGIN_ID = "clipboard-history";
 
 /** User Documents folder (OS-specific; OneDrive-aware on Windows). */
 export function resolveUserDocumentsDirectory(): string {
@@ -56,6 +57,15 @@ export function resolveVoiceAsrPluginDirectory(): string {
     resolveQuickerAgentAppDataDirectory(),
     "plugins",
     VOICE_ASR_PLUGIN_ID,
+  );
+}
+
+/** clipboard-history plugin install directory (app data). */
+export function resolveClipboardHistoryPluginDirectory(): string {
+  return join(
+    resolveQuickerAgentAppDataDirectory(),
+    "plugins",
+    CLIPBOARD_HISTORY_PLUGIN_ID,
   );
 }
 

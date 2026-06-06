@@ -7,13 +7,15 @@ import {
   type RefObject,
 } from "react";
 import {
+  adaptChatColumnWidthForContainer,
   clampChatColumnWidth,
   defaultChatColumnWidth,
   loadChatColumnWidth,
 } from "@/lib/explorer-prefs";
+import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import { useWorkspaceExplorerShell } from "@/lib/workspace-explorer";
 
-/** Pin chat column width; side panel/header columns flex on resize. */
+/** Pin chat column width; adapt proportionally on shrink, cap growth on expand. */
 export function useAppMainSplit(
   measureRef: RefObject<HTMLElement | null>,
   panelOpen: boolean,
@@ -21,6 +23,7 @@ export function useAppMainSplit(
   const { chatColumnWidth, setChatColumnWidth } = useWorkspaceExplorerShell();
   const chatColumnWidthRef = useRef(chatColumnWidth);
   chatColumnWidthRef.current = chatColumnWidth;
+  const containerWidthRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
     const el = measureRef.current;
@@ -30,27 +33,46 @@ export function useAppMainSplit(
       const containerWidth = el.getBoundingClientRect().width;
       if (containerWidth <= 0) return;
 
-      const prev = chatColumnWidthRef.current;
-      if (prev == null) {
+      const prevContainer = containerWidthRef.current;
+      const prevChat = chatColumnWidthRef.current;
+
+      if (prevChat == null) {
         const stored = loadChatColumnWidth();
         const next =
           stored != null
             ? clampChatColumnWidth(stored, containerWidth)
             : defaultChatColumnWidth(containerWidth);
+        containerWidthRef.current = containerWidth;
         setChatColumnWidth(next, containerWidth, persistDefault && stored == null);
+        dispatchWorkspaceLayoutResize();
         return;
       }
 
-      const clamped = clampChatColumnWidth(prev, containerWidth);
-      if (clamped !== prev) {
-        setChatColumnWidth(clamped, containerWidth, false);
+      let nextChat = prevChat;
+      if (prevContainer != null && prevContainer > 0 && prevContainer !== containerWidth) {
+        nextChat = adaptChatColumnWidthForContainer(
+          prevChat,
+          prevContainer,
+          containerWidth,
+        );
+      } else {
+        nextChat = clampChatColumnWidth(prevChat, containerWidth);
+      }
+
+      containerWidthRef.current = containerWidth;
+      if (nextChat !== prevChat) {
+        setChatColumnWidth(nextChat, containerWidth, false);
+        dispatchWorkspaceLayoutResize();
       }
     };
 
     sync(true);
     const observer = new ResizeObserver(() => sync(false));
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      containerWidthRef.current = null;
+    };
   }, [measureRef, panelOpen, setChatColumnWidth]);
 
   if (!panelOpen || chatColumnWidth == null) return undefined;

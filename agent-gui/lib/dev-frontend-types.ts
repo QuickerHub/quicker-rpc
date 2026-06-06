@@ -38,6 +38,8 @@ export type DevServerInfo = {
   port: number;
   host: string;
   startedAt: string;
+  /** "webpack" | "turbopack" — Tauri dev must use webpack only. */
+  bundler?: "webpack" | "turbopack";
 };
 
 export type FrontendBuildErrorSnapshot = {

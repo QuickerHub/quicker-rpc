@@ -8,7 +8,7 @@ import {
   type RefObject,
 } from "react";
 import { buildBrowserPanelWsUrl } from "@/lib/browser-panel-stream-config";
-import { requestDevBrowserRuntimeStart } from "@/lib/browser-dev-runtime";
+import { requestBrowserRuntimeStart } from "@/lib/browser-dev-runtime";
 
 export type BrowserPanelStreamState = {
   url: string;
@@ -21,6 +21,7 @@ type UseBrowserPanelStreamOptions = {
   active: boolean;
   sessionId: string;
   hostRef: RefObject<HTMLElement | null>;
+  retryToken?: number;
   onState?: (state: BrowserPanelStreamState) => void;
 };
 
@@ -37,6 +38,7 @@ export function useBrowserPanelStream({
   active,
   sessionId,
   hostRef,
+  retryToken = 0,
   onState,
 }: UseBrowserPanelStreamOptions) {
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
@@ -69,9 +71,11 @@ export function useBrowserPanelStream({
     setConnecting(true);
     setError(null);
     try {
-      const started = await requestDevBrowserRuntimeStart();
+      const started = await requestBrowserRuntimeStart();
       if (!started) {
-        setError("无法启动 browser-runtime");
+        setError(
+          "无法启动 browser-runtime。请运行: pnpm browser:install && pnpm browser:dev-server",
+        );
         return;
       }
 
@@ -145,7 +149,7 @@ export function useBrowserPanelStream({
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, [active, connect, sessionId]);
+  }, [active, connect, retryToken, sessionId]);
 
   useEffect(() => {
     if (!active || !connected) return;

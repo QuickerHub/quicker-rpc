@@ -17,6 +17,7 @@ type EmbeddedBrowserRemoteViewProps = {
   active: boolean;
   sessionId: string;
   hostRef: RefObject<HTMLElement | null>;
+  retryToken?: number;
   onState?: (state: BrowserPanelStreamState) => void;
 };
 
@@ -25,6 +26,7 @@ export function EmbeddedBrowserRemoteView({
   active,
   sessionId,
   hostRef,
+  retryToken = 0,
   onState,
 }: EmbeddedBrowserRemoteViewProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -32,6 +34,7 @@ export function EmbeddedBrowserRemoteView({
     active,
     sessionId,
     hostRef,
+    retryToken,
     onState,
   });
 

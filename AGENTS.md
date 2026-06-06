@@ -26,6 +26,7 @@ pwsh -NoProfile -File ./build.ps1 -t
 | `docs/action-authoring-src/**` | **是** | 嵌入 CLI / agent 指南 |
 | `build.ps1`、`build.yaml`、`publish/publish-rpc.ps1` | **是** | 构建链路 |
 | 仅 `agent-gui/**` | **否** | Next HMR；**收尾必做**「前端检查」（见下节） |
+| `agent-gui/llm-publish.config.json` | **否** | 改完后 **Agent 自动** `publish/Sync-LlmPublishConfig.ps1` → GitHub Secret `BUNDLED_LLM_CONFIG`；**勿 commit**；细则：`.cursor/skills/quicker-agent-gui-llm-publish-config/SKILL.md` |
 | 仅 `README.md`、`AGENTS.md`、`.cursor/**`（未动 C#） | **否** | 文档/规则 |
 
 **不必关 agent-gui**：`-t` 会停旧 serve、装新 `qkrpc.exe`、再启 serve（端口仍为 `9477`）。Quicker 需已启动（插件重载走 `quicker:runaction:…`）。
@@ -74,7 +75,7 @@ Invoke-RestMethod http://127.0.0.1:3000/api/dev/frontend-check
 
 **用户安装：** [Releases](https://github.com/QuickerHub/quicker-rpc/releases/latest) → 下载并运行 **`qkrpc-win-x64-setup.exe`**（单文件安装包，无需脚本）。
 
-**Cursor**：改 **Plugin / Console / Contracts / AgentModel** 后 **Agent 自动** `build.ps1 -t`（见上文「开发热更新」）；也可用 **`/hot-update`**。skill：`quicker-rpc-build-test`。改 **agent-gui** → `quicker-agent-gui-frontend`（`dev_frontend_check`，**不**跑 `-t`）。公开发布 **`/publish`** → `quicker-rpc-publish`。**动作页说明** → `quicker-action-doc`。
+**Cursor**：改 **Plugin / Console / Contracts / AgentModel** 后 **Agent 自动** `build.ps1 -t`（见上文「开发热更新」）；也可用 **`/hot-update`**。skill：`quicker-rpc-build-test`。改 **agent-gui UI** → `quicker-agent-gui-frontend`（`dev_frontend_check`，**不**跑 `-t`）。改 **`llm-publish.config.json`** → `quicker-agent-gui-llm-publish-config`（`Sync-LlmPublishConfig.ps1` 或 **`/sync-llm-publish-config`**）。公开发布 **`/publish`** → `quicker-rpc-publish`。**动作页说明** → `quicker-action-doc`。
 
 | 产物 | 路径 |
 |------|------|

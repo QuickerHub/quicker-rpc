@@ -19,6 +19,8 @@ export const EXPLORER_MIN_TREE_SHARE = 0.18;
 export const EXPLORER_MAX_TREE_SHARE = 0.72;
 
 export const CHAT_MAIN_MIN_WIDTH = 400;
+/** Chat column stops auto-growing on window expand past this width. */
+export const CHAT_MAIN_MAX_WIDTH = 720;
 
 export function maxExplorerWidthForLayout(
   shellWidth: number,
@@ -73,9 +75,41 @@ export function clampChatColumnWidth(
   }
   const maxChat = Math.max(
     CHAT_MAIN_MIN_WIDTH,
-    containerWidth - EXPLORER_MIN_WIDTH,
+    Math.min(CHAT_MAIN_MAX_WIDTH, containerWidth - EXPLORER_MIN_WIDTH),
   );
   return Math.round(Math.min(maxChat, Math.max(CHAT_MAIN_MIN_WIDTH, width)));
+}
+
+/**
+ * Resize chat vs side panel when the split host width changes.
+ * - Shrink: scale both columns proportionally.
+ * - Grow: scale up until CHAT_MAIN_MAX_WIDTH, then give extra width to the side panel.
+ */
+export function adaptChatColumnWidthForContainer(
+  chatWidth: number,
+  prevContainerWidth: number,
+  nextContainerWidth: number,
+): number {
+  if (
+    !Number.isFinite(chatWidth)
+    || !Number.isFinite(prevContainerWidth)
+    || !Number.isFinite(nextContainerWidth)
+    || prevContainerWidth <= 0
+    || nextContainerWidth <= 0
+  ) {
+    return clampChatColumnWidth(chatWidth, nextContainerWidth);
+  }
+
+  if (prevContainerWidth === nextContainerWidth) {
+    return clampChatColumnWidth(chatWidth, nextContainerWidth);
+  }
+
+  const share = chatWidth / prevContainerWidth;
+  let nextChat = Math.round(share * nextContainerWidth);
+  if (nextContainerWidth > prevContainerWidth) {
+    nextChat = Math.min(nextChat, CHAT_MAIN_MAX_WIDTH);
+  }
+  return clampChatColumnWidth(nextChat, nextContainerWidth);
 }
 
 export function defaultChatColumnWidth(containerWidth: number): number {
@@ -169,6 +203,7 @@ export type ExplorerActionTreeViewState = {
 export type ExplorerPanelViewState = {
   actionTree: ExplorerActionTreeViewState;
   docsExpanded: boolean;
+  projectsExpanded: boolean;
 };
 
 type StoredExplorerPanelViews = {
@@ -249,6 +284,7 @@ export function loadExplorerPanelView(cwd: string): ExplorerPanelViewState | nul
       collapsedPaths: normalizeExplorerTreeViewPaths(entry.actionTree?.collapsedPaths),
     },
     docsExpanded: entry.docsExpanded === true,
+    projectsExpanded: entry.projectsExpanded === true,
   };
 }
 
@@ -272,6 +308,7 @@ export function storeExplorerPanelView(
       ),
     },
     docsExpanded: patch.docsExpanded ?? previous?.docsExpanded ?? false,
+    projectsExpanded: patch.projectsExpanded ?? previous?.projectsExpanded ?? false,
     lastUsed: Date.now(),
   };
 

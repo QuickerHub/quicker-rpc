@@ -166,7 +166,7 @@ public static class XActionCompressor
         var result = (JObject)variableObj.DeepClone();
         NormalizeVariablePropertyNames(result);
 
-        if (!TryReadVarType(result["varType"], out var numericVarType))
+        if (!VarTypeCodec.TryParse(result["varType"] ?? result["type"], out var numericVarType))
         {
             numericVarType = 0;
         }
@@ -278,51 +278,6 @@ public static class XActionCompressor
             13 => "table",
             _ => "object"
         };
-    }
-
-    private static bool TryReadVarType(JToken? token, out int varType)
-    {
-        varType = 0;
-        if (token == null)
-        {
-            return false;
-        }
-
-        switch (token.Type)
-        {
-            case JTokenType.Integer:
-                varType = token.Value<int>();
-                return true;
-            case JTokenType.String:
-                var raw = token.Value<string>()?.Trim() ?? string.Empty;
-                if (int.TryParse(raw, out varType))
-                {
-                    return true;
-                }
-
-                return raw.ToLowerInvariant() switch
-                {
-                    "text" => ReturnVarType(0, out varType),
-                    "number" => ReturnVarType(1, out varType),
-                    "boolean" => ReturnVarType(2, out varType),
-                    "image" => ReturnVarType(3, out varType),
-                    "list" => ReturnVarType(4, out varType),
-                    "datetime" => ReturnVarType(6, out varType),
-                    "enum" => ReturnVarType(9, out varType),
-                    "dict" => ReturnVarType(10, out varType),
-                    "integer" => ReturnVarType(12, out varType),
-                    "table" => ReturnVarType(13, out varType),
-                    _ => false
-                };
-            default:
-                return false;
-        }
-    }
-
-    private static bool ReturnVarType(int value, out int varType)
-    {
-        varType = value;
-        return true;
     }
 
     public static JObject CompressStep(
@@ -611,7 +566,7 @@ public static class XActionCompressor
                 ["key"] = key
             };
 
-            if (!TryReadVarType(variableObj["varType"] ?? variableObj["type"], out var numericVarType))
+            if (!VarTypeCodec.TryParse(variableObj["varType"] ?? variableObj["type"], out var numericVarType))
             {
                 numericVarType = 0;
             }

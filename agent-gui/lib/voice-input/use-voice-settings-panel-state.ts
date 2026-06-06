@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useReleasePreviewActive } from "@/lib/release-preview.client";
 import { isTauriShell } from "@/lib/tauri-shell";
 import { getVoiceWsPort } from "@/lib/voice-input/voice-input-config";
@@ -15,6 +15,22 @@ import { resolveVoiceRuntimePhase } from "@/lib/voice-input/resolve-voice-runtim
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
 
 const POLL_MS = 5_000;
+
+function shouldSettingsBackgroundPoll(
+  runtimePhase: VoicePluginStatus,
+  pluginInstalled: boolean,
+): boolean {
+  if (pluginInstalled && (runtimePhase === "running" || runtimePhase === "installed")) {
+    return false;
+  }
+  return (
+    runtimePhase === "not_installed"
+    || runtimePhase === "downloading"
+    || runtimePhase === "starting"
+    || runtimePhase === "error"
+    || runtimePhase === "stopped"
+  );
+}
 
 export type VoiceSettingsPanelSnapshot = {
   hostStatus: TauriVoicePluginStatusDto | null;
@@ -66,7 +82,9 @@ function buildSnapshot(params: {
 }): VoiceSettingsPanelSnapshot {
   const pluginInstalled =
     params.hostStatus?.installed === true
-    || params.runtimePhase === "running";
+    || params.runtimePhase === "running"
+    || params.runtimePhase === "installed"
+    || params.runtimePhase === "starting";
   const runtimeOnline =
     params.runtimePhase === "running" || params.runtimePhase === "starting";
 
@@ -90,7 +108,8 @@ function buildSnapshot(params: {
 export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSnapshot {
   const inTauri = isTauriShell();
   const releasePreview = useReleasePreviewActive();
-  const useDevVoiceHost = process.env.NODE_ENV === "development" && !releasePreview;
+  const useDevVoiceHost =
+    process.env.NODE_ENV === "development" && !releasePreview && !inTauri;
 
   const [snapshot, setSnapshot] = useState<VoiceSettingsPanelSnapshot>(() =>
     buildSnapshot({
@@ -100,6 +119,7 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
       runtimeDetail: null,
     }),
   );
+  const devHostProbedRef = useRef(false);
 
   const refresh = useCallback(async () => {
     if (isVoiceInputMockEnabled()) {
@@ -116,10 +136,12 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
 
     try {
       const port = getVoiceWsPort();
+      const probeDevHost =
+        useDevVoiceHost && active && !devHostProbedRef.current;
       const [hostResult, healthResult] = await Promise.allSettled([
         inTauri
           ? fetchTauriVoicePluginStatus()
-          : useDevVoiceHost
+          : probeDevHost
             ? fetchDevVoicePluginHostStatus()
             : Promise.resolve(null),
         fetchVoiceRuntimeHealth(port),
@@ -127,6 +149,9 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
 
       const hostStatus =
         hostResult.status === "fulfilled" ? hostResult.value : null;
+      if (useDevVoiceHost && probeDevHost) {
+        devHostProbedRef.current = true;
+      }
       const health =
         healthResult.status === "fulfilled" ? healthResult.value : null;
 
@@ -148,6 +173,9 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
         inTauri,
         allowExternalDevRuntime: useDevVoiceHost,
       });
+      if (useDevVoiceHost && !hostStatus && runtimePhase === "not_installed") {
+        runtimePhase = "installed";
+      }
 
       const runtimeDetail =
         inTauri && !hostStatus && runtimePhase === "error"
@@ -172,23 +200,32 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
         }),
       );
     }
-  }, [inTauri, useDevVoiceHost]);
+  }, [active, inTauri, useDevVoiceHost]);
 
   useEffect(() => {
     if (!active) return;
 
     void refresh();
-    const onChange = () => void refresh();
+    const onChange = () => {
+      devHostProbedRef.current = false;
+      void refresh();
+    };
     window.addEventListener("voice-input-mock-changed", onChange);
     window.addEventListener("voice-input-config-changed", onChange);
 
-    const timer = window.setInterval(() => void refresh(), POLL_MS);
+    const poll = shouldSettingsBackgroundPoll(
+      snapshot.runtimePhase,
+      snapshot.pluginInstalled,
+    );
+    const timer = poll
+      ? window.setInterval(() => void refresh(), POLL_MS)
+      : null;
     return () => {
-      window.clearInterval(timer);
+      if (timer !== null) window.clearInterval(timer);
       window.removeEventListener("voice-input-mock-changed", onChange);
       window.removeEventListener("voice-input-config-changed", onChange);
     };
-  }, [active, refresh]);
+  }, [active, refresh, snapshot.pluginInstalled, snapshot.runtimePhase]);
 
   return snapshot;
 }

@@ -13,6 +13,7 @@ metadata:
 
 ## 完整流程（Agent 顺序）
 
+0. 若本次或近期改过 `agent-gui/llm-publish.config.json`：先 `pwsh -NoProfile -File ./publish/Sync-LlmPublishConfig.ps1`（见 `quicker-agent-gui-llm-publish-config` skill），确保 CI `BUNDLED_LLM_CONFIG` 与本地一致
 1. `git status`；必要时 bump `version.json` 并 commit
 2. `git log` 自上一 tag → **撰写 changelog** → 写入 `publish/changelogs/vX.Y.Z.md` 并 **commit**
 3. `pwsh ./publish/Publish-GitHubRelease.ps1 -WaitForCi` → **默认并行**：后台启动本地 Tauri 预检 + **立即 push tag** 触发 CI。本地日志通常先报错，优先按 `%TEMP%\qkrpc-preflight-vX.Y.Z.log` 修复；CI 失败可暂忽略。修复后 `-ForceRetag` 重发。
@@ -49,6 +50,7 @@ metadata:
 
 | 命令 | 用途 |
 |------|------|
+| `publish/Sync-LlmPublishConfig.ps1` | `llm-publish.config.json` → GitHub Secret `BUNDLED_LLM_CONFIG`（Agent 改 publish config 后自动跑） |
 | `publish/Test-QuickerAgentReleaseBuild.ps1` | 仅本地 `pnpm tauri build` 预检（阻塞，单独调试） |
 | `publish/Publish-QuickerAgent.ps1 -PreflightOnly` | 同上（`-SkipQkrpcBuild` 跳过 CLI 重编） |
 | `publish/Publish-GitHubRelease.ps1` | **并行**后台 Tauri 预检 + 校验 changelog + **push tag**；CI 构建并发布 Release |

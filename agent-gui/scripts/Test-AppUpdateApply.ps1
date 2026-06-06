@@ -12,6 +12,8 @@
 # - Auto-update uses the official @tauri-apps/plugin-updater (Release builds only).
 # - Legacy pending.json / Rust updater tests were removed; this script needs a refresh
 #   for the official updater flow (latest.json + signed NSIS bundle).
+# - NSIS installer-hooks.nsh kills qkrpc before file copy; this script also stops qkrpc
+#   after app exit when simulating update apply on installed builds.
 
 [CmdletBinding()]
 param(
@@ -39,11 +41,14 @@ $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $AgentGuiRoot = Split-Path -Parent $ScriptDir
+$RepoRoot = Split-Path -Parent $AgentGuiRoot
 $TauriRoot = Join-Path $AgentGuiRoot 'src-tauri'
 $ReleaseExe = Join-Path $TauriRoot 'target\release\quicker-agent.exe'
 $BundleRoot = Join-Path $TauriRoot 'target\release\bundle\nsis'
 $UpdatesDir = Join-Path $env:LOCALAPPDATA 'QuickerAgent\updates'
 $PendingPath = Join-Path $UpdatesDir 'pending.json'
+
+. (Join-Path $RepoRoot 'publish\qkrpc-publish-lib.ps1')
 
 function Stop-InstalledQuickerAgent {
     Get-Process -Name 'quicker-agent' -ErrorAction SilentlyContinue | ForEach-Object {
@@ -84,14 +89,15 @@ function Wait-ForQuickerAgentUiReady {
 
 function Clear-ExternalQkrpcServe {
     param([int] $Port = 9477)
+    # Kill any qkrpc listening on the default port (including bundled serve from old installs).
     Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
         $proc = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue
         if ($null -eq $proc) { return }
-        if ($proc.Path -like '*QuickerAgent*') { return }
+        if ($proc.ProcessName -ne 'qkrpc') { return }
         Write-Host "Stopping $($proc.ProcessName) on port $Port (pid $($proc.Id))" -ForegroundColor DarkYellow
-        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+        & taskkill.exe /PID $proc.Id /T /F 2>$null | Out-Null
     }
-    Start-Sleep -Milliseconds 500
+    Stop-QkrpcProcesses | Out-Null
 }
 
 function Write-Step([string] $Message) {
@@ -450,6 +456,7 @@ function Invoke-FullTest {
         if ($ExitInstall -or -not $ManualClick) {
             Start-Sleep -Seconds 6
             $null = Request-QuickerAgentExit
+            Stop-QkrpcProcesses | Out-Null
         }
         else {
             Write-Host "ManualClick: close QuickerAgent within ${ClickWaitSec}s to trigger exit install…" -ForegroundColor Yellow
@@ -486,6 +493,7 @@ function Invoke-FullTest {
                 Start-Sleep -Milliseconds 500
             }
         }
+        Stop-QkrpcProcesses | Out-Null
     }
 
     Start-Sleep -Seconds 2

@@ -8,35 +8,33 @@
 2. LLM：复制 `llm-config.example.json` → `llm-config.json`，填写各 provider 的 `apiKey` / `model`（可选 `defaultProvider`；某 provider 加 `"hidden": true` 可从模型菜单隐藏）。**Tauri 发布版**默认通过 `BUNDLED_LLM_BINGLEIMUZI_API_KEY` 在构建时注入混淆 Key，安装包内不含明文 Key。  
 3. **开发**：Node.js 20+、pnpm、Rust（仅 Tauri 需要）  
 
-## 开发（推荐流程）
+## 开发（两种模式，二选一）
 
 ```powershell
-# 1. 仓库根目录：构建插件 + CLI，并启动 http://127.0.0.1:9477 上的 qkrpc serve
+# 0. 一次性：构建插件 + CLI（Quicker 需已运行）
 cd quicker-rpc
 pwsh ./build.ps1 -t
 
-# 2. agent-gui（会自动复用 :9477 上的 serve，或自行 staged 启动）
-cd agent-gui
-pnpm install
-copy llm-config.example.json llm-config.json
-# 编辑 llm-config.json；一般无需配置 QKRPC_* 
+# 1. 复制 LLM 配置（首次）
+copy agent-gui\llm-config.example.json agent-gui\llm-config.json
 
-**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；Tauri 安装版为 **`Documents/QuickerAgent/workspace`**（与插件目录分离，首次启动自动创建）。可用 `AGENT_GUI_DEFAULT_CWD` 覆盖。
+# 2a. 浏览器里改 UI（Turbopack，快）
+pwsh ./start-agent-gui.ps1
 
-**插件与依赖资源存储**（安装目录、下载源、内嵌配置）：[`docs/agent-gui-plugin-storage.md`](../docs/agent-gui-plugin-storage.md)
-
-pnpm dev
+# 2b. 桌面 QuickerAgent 窗口（webpack + WebView2）
+pwsh ./start-agent-gui.ps1 -Tauri
 ```
 
-`pnpm dev` = `start.mjs --dev`：优先连接本机 `qkrpc serve`（`GET /health`），否则回退为子进程 `qkrpc` CLI。界面齿轮菜单可「重新检测」Quicker 连接。默认**不会**用系统浏览器打开 localhost（`pnpm dev:browser` 或 `AGENT_GUI_OPEN_BROWSER=1` 可开启）。
+| 模式 | 命令 | 编译器 | 用途 |
+|------|------|--------|------|
+| 浏览器 | `start-agent-gui.ps1` | Turbopack | 日常改 UI、HMR 快 |
+| 桌面壳 | `start-agent-gui.ps1 -Tauri` | webpack | 测 WebView2、托盘、语音插件 |
 
-**开发性能（默认省内存）**：`pnpm dev` 使用 **Turbopack**，且**不在启动时加载**语音识别模型 / Playwright 浏览器运行时（语音在首次点击麦克风时按需启动；浏览器工具在首次调用时启动）。需要旧行为：`pnpm dev:full` 或 `pwsh ../start-agent-gui.ps1 -Full`。Turbopack 异常时：`pnpm dev:webpack`。
+**不要同时跑两种模式**（都占 `:3000`）。切换时脚本会自动清 `.next`，避免 Turbopack/webpack 混用报错。
 
-```powershell
-pnpm tauri:dev   # 桌面壳，内置 qkrpc serve + Next（不打开外部浏览器）
-```
+可选：`start-agent-gui.ps1 -Browser` 自动打开浏览器；`-Full` 启动时加载语音 runtime。高级脚本仍在 `package.json`（`dev:webpack`、`tauri:dev` 等），日常只用上面两条即可。
 
-`tauri:dev` 现已做冲突优化：优先复用 `http://127.0.0.1:3000` 上已运行的前端（`/api/ping` 健康），否则再启动一个固定 `3000` 端口的前端实例，避免与手动 `pnpm dev` 并行时端口漂移导致白屏。
+**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；Tauri 安装版为 **`Documents/QuickerAgent/workspace`**。插件与资源存储：[`docs/agent-gui-plugin-storage.md`](../docs/agent-gui-plugin-storage.md)。
 
 ## 发布（Tauri 2）
 
@@ -104,7 +102,17 @@ $env:BUNDLED_LLM_CONFIG_PATH = 'agent-gui/llm-publish.config.json'
 pnpm quicker-agent:publish
 ```
 
-CI（`.github/workflows/release-cli.yml`）将整个 JSON 存为 GitHub Secret **`BUNDLED_LLM_CONFIG`**（单行 JSON 即可，无需多个 `BUNDLED_LLM_*_API_KEY` 环境变量）。仍兼容旧版单 Key secret。构建时 `tauri-prepare` 会生成：
+CI（`.github/workflows/release-cli.yml`）将整个 JSON 存为 GitHub Secret **`BUNDLED_LLM_CONFIG`**（单行 JSON 即可，无需多个 `BUNDLED_LLM_*_API_KEY` 环境变量）。仍兼容旧版单 Key secret。
+
+改 `llm-publish.config.json` 后同步到 GitHub（需 `gh auth login`）：
+
+```powershell
+pwsh -NoProfile -File ./publish/Sync-LlmPublishConfig.ps1
+```
+
+Agent 细则：`.cursor/skills/quicker-agent-gui-llm-publish-config/SKILL.md`；Cursor 命令 **`/sync-llm-publish-config`**。
+
+构建时 `tauri-prepare` 会生成：
 
 | 文件 | 说明 |
 |------|------|

@@ -17,16 +17,17 @@ export function TitlebarDragRegion({
   const isTauri = useTauriShell();
   const platform = useShellPlatform();
 
+  const useApiDrag =
+    isTauri && (platform === "windows" || platform === "linux");
+
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!isTauri || e.button !== 0) return;
-      // WebView2: CSS drag regions are unreliable; use the window API.
-      if (platform === "windows" || platform === "linux") {
-        e.preventDefault();
-        void startWindowDrag();
-      }
+      if (!useApiDrag || e.button !== 0) return;
+      // WebView2: CSS/data-tauri-drag-region steal clicks; use startDragging only.
+      e.preventDefault();
+      void startWindowDrag();
     },
-    [isTauri, platform],
+    [useApiDrag],
   );
 
   return (
@@ -38,8 +39,8 @@ export function TitlebarDragRegion({
       ]
         .filter(Boolean)
         .join(" ")}
-      data-tauri-drag-region={isTauri ? "" : undefined}
-      onPointerDown={isTauri ? onPointerDown : undefined}
+      data-tauri-drag-region={isTauri && !useApiDrag ? "" : undefined}
+      onPointerDown={useApiDrag ? onPointerDown : undefined}
       aria-hidden
       {...rest}
     />

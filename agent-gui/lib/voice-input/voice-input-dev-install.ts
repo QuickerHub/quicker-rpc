@@ -1,5 +1,11 @@
 import type { TauriVoicePluginStatusDto } from "@/lib/voice-input/voice-input-tauri";
 
+const DEV_HOST_STATUS_MIN_INTERVAL_MS = 2_000;
+
+let devHostStatusInflight: Promise<DevVoicePluginHostStatus | null> | null = null;
+let devHostStatusLastAt = 0;
+let devHostStatusCached: DevVoicePluginHostStatus | null = null;
+
 export type DevVoiceInstallProgress = {
   phase: string;
   percent: number;
@@ -13,7 +19,7 @@ type DevVoicePluginHostStatus = TauriVoicePluginStatusDto & {
   skipped?: boolean;
 };
 
-async function fetchDevHostStatus(): Promise<DevVoicePluginHostStatus | null> {
+async function fetchDevHostStatusUncached(): Promise<DevVoicePluginHostStatus | null> {
   if (process.env.NODE_ENV !== "development") return null;
   try {
     const res = await fetch("/api/dev/voice-plugin-install", {
@@ -26,10 +32,40 @@ async function fetchDevHostStatus(): Promise<DevVoicePluginHostStatus | null> {
   }
 }
 
-/** Browser dev: same shape as Tauri host status (filesystem install state). */
-export async function fetchDevVoicePluginHostStatus(): Promise<TauriVoicePluginStatusDto | null> {
-  const body = await fetchDevHostStatus();
-  if (!body) return null;
+async function fetchDevHostStatus(): Promise<DevVoicePluginHostStatus | null> {
+  if (process.env.NODE_ENV !== "development") return null;
+
+  const now = Date.now();
+  if (devHostStatusInflight) return devHostStatusInflight;
+  if (
+    devHostStatusCached
+    && now - devHostStatusLastAt < DEV_HOST_STATUS_MIN_INTERVAL_MS
+  ) {
+    return devHostStatusCached;
+  }
+
+  devHostStatusInflight = fetchDevHostStatusUncached()
+    .then((body) => {
+      devHostStatusCached = body;
+      devHostStatusLastAt = Date.now();
+      return body;
+    })
+    .finally(() => {
+      devHostStatusInflight = null;
+    });
+
+  return devHostStatusInflight;
+}
+
+/** Drop cached host status after install completes or user triggers refresh. */
+export function invalidateDevVoicePluginHostStatusCache(): void {
+  devHostStatusCached = null;
+  devHostStatusLastAt = 0;
+}
+
+function mapDevHostBody(
+  body: DevVoicePluginHostStatus,
+): TauriVoicePluginStatusDto & { progress?: DevVoiceInstallProgress | null } {
   return {
     status: body.status,
     installed: body.installed,
@@ -37,7 +73,28 @@ export async function fetchDevVoicePluginHostStatus(): Promise<TauriVoicePluginS
     wsPort: body.wsPort,
     pluginDir: body.pluginDir,
     message: body.message,
+    progress: body.progress,
   };
+}
+
+/** Install/reinstall flows only — always hits the dev install API. */
+export async function fetchDevVoicePluginHostStatusForInstall(): Promise<
+  (TauriVoicePluginStatusDto & { progress?: DevVoiceInstallProgress | null }) | null
+> {
+  const body = await fetchDevHostStatusUncached();
+  if (!body) return null;
+  devHostStatusCached = body;
+  devHostStatusLastAt = Date.now();
+  return mapDevHostBody(body);
+}
+
+/** Browser dev: same shape as Tauri host status (filesystem install state). */
+export async function fetchDevVoicePluginHostStatus(): Promise<
+  (TauriVoicePluginStatusDto & { progress?: DevVoiceInstallProgress | null }) | null
+> {
+  const body = await fetchDevHostStatus();
+  if (!body) return null;
+  return mapDevHostBody(body);
 }
 
 export type DevVoiceInstallRequest = {
@@ -52,7 +109,7 @@ export async function devVoicePluginInstall(options?: {
   pollMs?: number;
   timeoutMs?: number;
 }): Promise<TauriVoicePluginStatusDto & { skipped?: boolean }> {
-  const pollMs = options?.pollMs ?? 300;
+  const pollMs = options?.pollMs ?? 2_000;
   const timeoutMs = options?.timeoutMs ?? 900_000;
   const deadline = Date.now() + timeoutMs;
 
@@ -91,7 +148,7 @@ export async function devVoicePluginInstall(options?: {
   }
 
   while (Date.now() < deadline) {
-    const body = await fetchDevHostStatus();
+    const body = await fetchDevHostStatusUncached();
     if (!body) {
       throw new Error("无法读取安装状态");
     }

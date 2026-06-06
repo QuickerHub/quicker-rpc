@@ -22,6 +22,8 @@ $QkrpcInstallScriptVersion = '4'
 $QkrpcGitHubRepo = 'QuickerHub/quicker-rpc'
 $QkrpcLatestZipName = 'qkrpc-win-x64.zip'
 
+. (Join-Path $PSScriptRoot 'qkrpc-publish-lib.ps1')
+
 function Get-QkrpcDefaultInstallDir {
     $root = $env:LOCALAPPDATA
     if ([string]::IsNullOrWhiteSpace($root)) {
@@ -143,6 +145,8 @@ function Install-QkrpcFromDirectory {
 
     Write-Host "Installing qkrpc to $TargetInstallDir ..." -ForegroundColor Cyan
 
+    Stop-QkrpcProcesses | Out-Null
+
     if (Test-Path -LiteralPath $TargetInstallDir) {
         Write-Host 'Removing previous install...' -ForegroundColor Yellow
         Remove-Item -LiteralPath $TargetInstallDir -Recurse -Force
@@ -205,6 +209,8 @@ function Install-QkrpcCli {
 
 function Uninstall-QkrpcCli {
     Write-Host "Uninstalling qkrpc from $InstallDir ..." -ForegroundColor Yellow
+
+    Stop-QkrpcProcesses | Out-Null
 
     if (Test-Path -LiteralPath $InstallDir) {
         Remove-Item -LiteralPath $InstallDir -Recurse -Force

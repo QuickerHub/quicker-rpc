@@ -251,7 +251,22 @@ function stageNextStandalone() {
   ensureNextStandaloneRuntimes(appDir);
   patchStandaloneServerEntry(appDir);
 
+  stageBrowserRuntime(appDir);
+
   console.log(`Next standalone staged: ${appDir}`);
+}
+
+function stageBrowserRuntime(appRoot) {
+  const src = join(agentGuiRoot, "browser-runtime");
+  const dest = join(appRoot, "browser-runtime");
+  if (!existsSync(src)) {
+    throw new Error(`Missing browser-runtime sources: ${src}`);
+  }
+  if (existsSync(dest)) {
+    rmSync(dest, { recursive: true, force: true });
+  }
+  cpSync(src, dest, { recursive: true });
+  console.log(`browser-runtime staged: ${dest}`);
 }
 
 function syncTauriVersion() {

@@ -1,9 +1,9 @@
 /**
- * Start bundled qkrpc serve (if present) + agent-gui on available ports.
+ * Start bundled qkrpc serve (if present) + agent-gui dev server.
  * Usage: node start.mjs [--dev] [--open-browser]
  */
 import { exec, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import net from "node:net";
 import { dirname, join } from "node:path";
@@ -29,9 +29,110 @@ import {
 import {
   stopTrackedBrowserRuntime,
 } from "./lib/browser-runtime-lifecycle.mjs";
+import { stopStaleAgentGuiDev } from "./scripts/stop-agent-gui-dev.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
+
+function readDocumentJs(nextDir) {
+  const documentJs = join(nextDir, "server", "pages", "_document.js");
+  if (!existsSync(documentJs)) {
+    return null;
+  }
+  try {
+    return readFileSync(documentJs, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function nextCacheHasTurbopackRuntimeChunk(nextDir) {
+  if (existsSync(join(nextDir, "turbopack"))) {
+    return true;
+  }
+  try {
+    const ssrChunks = join(nextDir, "server", "chunks", "ssr");
+    return readdirSync(ssrChunks).some((name) =>
+      name.includes("[turbopack]_runtime"),
+    );
+  } catch {
+    return false;
+  }
+}
+
+function nextCacheReferencesTurbopackRuntime(nextDir) {
+  const documentJs = readDocumentJs(nextDir);
+  return documentJs?.includes("[turbopack]_runtime") === true;
+}
+
+function nextCacheLooksLikeTurbopack(nextDir) {
+  return (
+    nextCacheHasTurbopackRuntimeChunk(nextDir)
+    || nextCacheReferencesTurbopackRuntime(nextDir)
+  );
+}
+
+/** _document.js points at [turbopack]_runtime.js but the chunk was deleted mid-dev. */
+function nextCacheHasBrokenTurbopackRuntime(nextDir) {
+  return (
+    nextCacheReferencesTurbopackRuntime(nextDir)
+    && !nextCacheHasTurbopackRuntimeChunk(nextDir)
+  );
+}
+
+function nextCacheLooksLikeWebpack(nextDir) {
+  if (existsSync(join(nextDir, "cache", "webpack"))) {
+    return true;
+  }
+  if (nextCacheLooksLikeTurbopack(nextDir)) {
+    return false;
+  }
+  try {
+    const ssrChunks = join(nextDir, "server", "chunks", "ssr");
+    return readdirSync(ssrChunks).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Turbopack/webpack artifacts must not share the same .next folder. */
+function clearNextCacheIfBundlerChanged(targetBundler) {
+  const nextDir = join(root, ".next");
+  if (!existsSync(nextDir)) {
+    return;
+  }
+
+  const infoPath = join(root, ".local", "dev-server.json");
+  let prevBundler = null;
+  try {
+    const prev = JSON.parse(readFileSync(infoPath, "utf8"));
+    prevBundler = prev?.bundler === "webpack" || prev?.bundler === "turbopack"
+      ? prev.bundler
+      : null;
+  } catch {
+    // first dev session or unreadable snapshot
+  }
+
+  const bundlerSwitched = prevBundler != null && prevBundler !== targetBundler;
+  const brokenTurbopack = nextCacheHasBrokenTurbopackRuntime(nextDir);
+  const webpackNeedsCleanCache =
+    targetBundler === "webpack" && nextCacheLooksLikeTurbopack(nextDir);
+  const turbopackNeedsCleanCache =
+    targetBundler === "turbopack"
+    && (nextCacheLooksLikeWebpack(nextDir) || brokenTurbopack);
+
+  if (bundlerSwitched || webpackNeedsCleanCache || turbopackNeedsCleanCache) {
+    rmSync(nextDir, { recursive: true, force: true });
+    const reason = brokenTurbopack
+      ? "repaired broken Turbopack runtime cache"
+      : bundlerSwitched
+        ? `was ${prevBundler}, starting ${targetBundler}`
+        : targetBundler === "webpack"
+          ? "removed stale Turbopack artifacts for webpack"
+          : "removed stale webpack artifacts for Turbopack";
+    console.log(`next: cleared .next (${reason})`);
+  }
+}
 const isDev = process.argv.includes("--dev");
 const devFullRuntimes = process.argv.includes("--full-runtimes");
 const devWebpack = process.argv.includes("--webpack");
@@ -322,6 +423,16 @@ async function main() {
   await ensureBundledQkrpcServe(host);
 
   if (isDev) {
+    if (process.env.AGENT_GUI_SKIP_KILL !== "1") {
+      // tauri-before-dev already stopped stale dev; do not kill the parent Tauri session.
+      if (process.env.AGENT_GUI_TAURI_SHELL !== "1") {
+        await stopStaleAgentGuiDev({
+          agentGuiRoot: root,
+          repoRoot: join(root, ".."),
+        });
+      }
+    }
+
     const startVoiceAtBoot =
       process.env.AGENT_GUI_VOICE_RUNTIME === "1"
       || devFullRuntimes;
@@ -341,12 +452,19 @@ async function main() {
   const url = `http://${host}:${port}`;
 
   if (isDev) {
+    const useTurbo = process.env.AGENT_GUI_TURBOPACK !== "0" && !devWebpack;
+    const bundler = useTurbo ? "turbopack" : "webpack";
+    clearNextCacheIfBundlerChanged(bundler);
     printListening(url);
-    writeDevServerInfo(root, { url, port, host });
+    writeDevServerInfo(root, {
+      url,
+      port,
+      host,
+      bundler,
+    });
     openBrowser(url);
     const nextBin = require.resolve("next/dist/bin/next");
     const nodeExe = resolveNodeExe();
-    const useTurbo = process.env.AGENT_GUI_TURBOPACK !== "0" && !devWebpack;
     const nextArgs = ["dev", "--port", String(port), "-H", host];
     if (useTurbo) {
       nextArgs.push("--turbo");

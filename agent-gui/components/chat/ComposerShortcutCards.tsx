@@ -137,7 +137,6 @@ function ShortcutCard({
     <>
       {icon}
       <span className="composer-shortcut-btn__label">{label}</span>
-      <span className="composer-shortcut-btn__hint">{hint}</span>
     </>
   );
 
@@ -146,6 +145,8 @@ function ShortcutCard({
       <Link
         href={href}
         className={className}
+        title={hint}
+        aria-label={`${label}：${hint}`}
         aria-disabled={disabled || undefined}
         tabIndex={disabled ? -1 : undefined}
         onClick={(e) => {
@@ -161,6 +162,8 @@ function ShortcutCard({
     <button
       type="button"
       className={className}
+      title={hint}
+      aria-label={`${label}：${hint}`}
       disabled={disabled}
       aria-pressed={active}
       onClick={onClick}
@@ -194,13 +197,13 @@ export function ComposerShortcutCards({
       <ShortcutCard
         label="设置"
         hint="模型、工具、工作目录"
-        icon={<SettingsGearIcon size={16} />}
+        icon={<SettingsGearIcon size={15} />}
         active={settingsOpen}
         disabled={disabled}
         onClick={onToggleSettings}
       />
       <ShortcutCard
-        label="资源管理"
+        label="资源"
         hint="动作与子程序工程目录"
         icon={<IconExplorer />}
         active={explorerOpen}
@@ -216,7 +219,7 @@ export function ComposerShortcutCards({
         onClick={toggleBrowser}
       />
       <ShortcutCard
-        label="快速输入"
+        label="小窗"
         hint="独立小窗，Enter 一次性发送"
         icon={<IconLauncher />}
         disabled={disabled}
@@ -226,6 +229,8 @@ export function ComposerShortcutCards({
         <Link
           href="/tool-test"
           className={`composer-shortcut-btn composer-shortcut-btn--link${disabled ? " composer-shortcut-btn--disabled" : ""}`}
+          title="工具套件与 Prompt 测试"
+          aria-label="测试：工具套件与 Prompt 测试"
           aria-disabled={disabled || undefined}
           tabIndex={disabled ? -1 : undefined}
           onClick={(e) => {
@@ -234,12 +239,11 @@ export function ComposerShortcutCards({
         >
           <IconToolTest />
           <span className="composer-shortcut-btn__label">测试</span>
-          <span className="composer-shortcut-btn__hint">工具套件与 Prompt 测试</span>
         </Link>
       ) : null}
       {showReleasePreview ? (
         <ShortcutCard
-          label="Release 预览"
+          label="预览"
           hint="查看发布版用户所见界面"
           icon={<IconReleasePreview />}
           active={releasePreviewActive}

@@ -14,6 +14,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+. (Join-Path $RepoRoot 'publish\qkrpc-publish-lib.ps1')
+
 $KestrelDll = 'Microsoft.AspNetCore.Server.Kestrel.Core.dll'
 
 function Test-QkrpcBundleHealthy([string] $Dir) {
@@ -40,7 +43,8 @@ Write-Host "Repairing bundled qkrpc:" -ForegroundColor Cyan
 Write-Host "  from $SourceDir"
 Write-Host "  to   $TargetDir"
 
-Get-Process -Name 'quicker-agent','qkrpc' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Get-Process -Name 'quicker-agent' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Stop-QkrpcProcesses | Out-Null
 Start-Sleep -Seconds 1
 
 robocopy $SourceDir $TargetDir /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null

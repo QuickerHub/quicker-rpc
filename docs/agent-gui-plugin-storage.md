@@ -14,7 +14,8 @@
 | 语音插件安装 | `agent-gui/src-tauri/src/voice_plugin_install.rs` |
 | 语音插件运行 | `agent-gui/src-tauri/src/voice_plugin.rs` |
 | 语音插件设计 | [`docs/voice-input-plugin.md`](voice-input-plugin.md) |
-| Runtime 子项目 | [`voice-asr-runtime/`](../voice-asr-runtime/) |
+| 剪贴板插件设计 | [`docs/clipboard-history-plugin.md`](clipboard-history-plugin.md) |
+| Runtime 子项目 | [`voice-asr-runtime/`](../voice-asr-runtime/)、[`clipboard-history-runtime/`](../clipboard-history-runtime/) |
 
 ---
 

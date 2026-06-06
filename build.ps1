@@ -253,8 +253,9 @@ else {
 }
 
 Push-Location $PSScriptRoot
+$shouldStartQkrpcServe = -not $SkipQkrpcServe
 try {
-    if (-not $SkipQkrpcServe) {
+    if ($shouldStartQkrpcServe) {
         Write-Host "=== Stop qkrpc serve (pre-build) ===" -ForegroundColor Cyan
         Stop-QkrpcServe
     }
@@ -292,13 +293,18 @@ try {
         exit $LASTEXITCODE
     }
 
-    if (-not $SkipQkrpcServe) {
+    if ($shouldStartQkrpcServe) {
         Start-QkrpcServe -RepoRoot $PSScriptRoot
+        $shouldStartQkrpcServe = $false
     }
 
     Invoke-QuickerRpcPluginRunAction
     exit 0
 }
 finally {
+    if ($shouldStartQkrpcServe) {
+        Write-Warning "Build did not finish; restarting qkrpc serve from existing publish/cli so agent-gui can reconnect."
+        Start-QkrpcServe -RepoRoot $PSScriptRoot
+    }
     Pop-Location
 }

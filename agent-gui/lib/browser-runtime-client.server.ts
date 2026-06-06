@@ -39,11 +39,9 @@ export async function checkBrowserRuntimeHealth(timeoutMs = 3000): Promise<boole
   }
 }
 
-async function startBrowserRuntimeDev(): Promise<void> {  if (process.env.AGENT_GUI_SKIP_BROWSER_RUNTIME === "1") {
+async function startBrowserRuntime(): Promise<void> {
+  if (process.env.AGENT_GUI_SKIP_BROWSER_RUNTIME === "1") {
     throw new Error("Browser runtime disabled (AGENT_GUI_SKIP_BROWSER_RUNTIME=1)");
-  }
-  if (process.env.NODE_ENV !== "development") {
-    throw new Error("Browser runtime auto-start is dev-only");
   }
 
   const lifecycle = await import("@/lib/browser-runtime-lifecycle.mjs");
@@ -63,7 +61,7 @@ export async function ensureBrowserRuntimeReady(): Promise<void> {
   if (await checkBrowserRuntimeHealth()) return;
 
   if (!ensureInFlight) {
-    ensureInFlight = startBrowserRuntimeDev().finally(() => {
+    ensureInFlight = startBrowserRuntime().finally(() => {
       ensureInFlight = null;
     });
   }

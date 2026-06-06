@@ -3,7 +3,11 @@
 import { appConfirm } from "@/lib/app-confirm";
 import { dismissAppMessage, pushAppMessage } from "@/lib/app-messages";
 import { isTauriShell } from "@/lib/tauri-shell";
-import { devVoicePluginInstall } from "@/lib/voice-input/voice-input-dev-install";
+import {
+  devVoicePluginInstall,
+  fetchDevVoicePluginHostStatusForInstall,
+  invalidateDevVoicePluginHostStatusCache,
+} from "@/lib/voice-input/voice-input-dev-install";
 import { requestDevVoiceRuntimeStart } from "@/lib/voice-input/voice-input-dev-runtime";
 import { fetchVoiceRuntimeHealth } from "@/lib/voice-input/voice-input-health";
 import { getVoiceWsPort } from "@/lib/voice-input/voice-input-config";
@@ -49,6 +53,7 @@ function normalizeProgress(event: {
 }
 
 function notifyVoiceConfigChanged(): void {
+  invalidateDevVoicePluginHostStatusCache();
   window.dispatchEvent(new Event("voice-input-config-changed"));
 }
 
@@ -93,26 +98,14 @@ async function fetchHostStatus(): Promise<TauriVoicePluginStatusDto | null> {
 
   if (process.env.NODE_ENV !== "development") return null;
 
-  try {
-    const res = await fetch("/api/dev/voice-plugin-install", { cache: "no-store" });
-    if (!res.ok) return null;
-    const body = (await res.json()) as TauriVoicePluginStatusDto & {
-      progress?: { percent?: number; message?: string; phase?: string } | null;
-    };
-    if (body.progress) {
-      showInstallProgress(normalizeProgress(body.progress));
-    }
-    return {
-      status: body.status,
-      installed: body.installed,
-      running: body.running,
-      wsPort: body.wsPort,
-      pluginDir: body.pluginDir,
-      message: body.message,
-    };
-  } catch {
-    return null;
+  const body = await fetchDevVoicePluginHostStatusForInstall();
+  if (!body) return null;
+
+  if (body.progress) {
+    showInstallProgress(normalizeProgress(body.progress));
   }
+  const { progress: _progress, ...dto } = body;
+  return dto;
 }
 
 async function isRuntimeReady(): Promise<boolean> {
@@ -150,9 +143,9 @@ async function waitForHostReady(
       }
 
       if (process.env.NODE_ENV === "development" && !isTauriShell()) {
-        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        await new Promise((resolve) => window.setTimeout(resolve, 2_000));
       } else {
-        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+        await new Promise((resolve) => window.setTimeout(resolve, 1_000));
       }
     }
 

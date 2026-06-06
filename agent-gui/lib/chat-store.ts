@@ -425,9 +425,16 @@ export function getActiveThread(data: ChatStoreData): ChatThread {
 
 export function getOpenTabThreads(data: ChatStoreData): ChatThread[] {
   const byId = new Map(data.threads.map((t) => [t.id, t]));
-  return data.openTabIds
-    .map((id) => byId.get(id))
-    .filter((t): t is ChatThread => t !== undefined);
+  const seen = new Set<string>();
+  const threads: ChatThread[] = [];
+  for (const id of data.openTabIds) {
+    if (seen.has(id)) continue;
+    const thread = byId.get(id);
+    if (!thread) continue;
+    seen.add(id);
+    threads.push(thread);
+  }
+  return threads;
 }
 
 export function sortThreads(threads: ChatThread[]): ChatThread[] {

@@ -76,10 +76,12 @@ test("storeExplorerPanelView persists per workspace and merges patches", () => {
   ]);
   assert.deepEqual(repoA?.actionTree.collapsedPaths, [".quicker/actions/a2"]);
   assert.equal(repoA?.docsExpanded, true);
+  assert.equal(repoA?.projectsExpanded, false);
 
   storeExplorerPanelView("D:\\repo-a", { docsExpanded: false });
   const repoAUpdated = loadExplorerPanelView("D:/repo-a");
   assert.equal(repoAUpdated?.docsExpanded, false);
+  assert.equal(repoAUpdated?.projectsExpanded, false);
   assert.deepEqual(repoAUpdated?.actionTree.expandedPaths, [
     ".quicker/actions",
     ".quicker/actions/a1",
@@ -92,4 +94,25 @@ test("storeExplorerPanelView persists per workspace and merges patches", () => {
 test("loadExplorerPanelView returns null for unknown workspace", () => {
   installBrowserStorage();
   assert.equal(loadExplorerPanelView("d:/missing"), null);
+});
+
+test("storeExplorerPanelView persists collapsed action roots", () => {
+  installBrowserStorage();
+
+  storeExplorerPanelView("D:\\repo-a", {
+    actionTree: {
+      expandedPaths: [],
+      collapsedPaths: [".quicker/actions", ".quicker/subprograms"],
+    },
+    docsExpanded: false,
+    projectsExpanded: false,
+  });
+
+  const saved = loadExplorerPanelView("d:/repo-a");
+  assert.deepEqual(saved?.actionTree.expandedPaths, []);
+  assert.deepEqual(saved?.actionTree.collapsedPaths, [
+    ".quicker/actions",
+    ".quicker/subprograms",
+  ]);
+  assert.equal(saved?.projectsExpanded, false);
 });

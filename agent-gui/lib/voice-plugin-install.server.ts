@@ -498,12 +498,13 @@ export function getVoicePluginHostStatus(): VoicePluginHostStatus {
   };
 
   if (installInFlight) {
+    const installedDuringInstall = isInstalled(root);
     return {
       ...base,
-      status: "downloading",
-      installed: false,
+      status: installedDuringInstall ? "installed" : "downloading",
+      installed: installedDuringInstall,
       running: false,
-      wsPort: 0,
+      wsPort: port,
       pluginDir: root,
       message: installProgress?.message ?? "正在安装…",
       progress: installProgress,

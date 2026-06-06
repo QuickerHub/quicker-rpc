@@ -5,6 +5,7 @@ import { useCallback, type CSSProperties } from "react";
 import { WorkspaceEmbeddedBrowser } from "@/components/browser/WorkspaceEmbeddedBrowser";
 import { WorkspaceExplorerEditorArea } from "@/components/workspace/WorkspaceExplorerEditorArea";
 import { WorkspaceResourceManager } from "@/components/workspace/WorkspaceResourceManager";
+import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import { storeChatColumnWidth } from "@/lib/explorer-prefs";
 import {
   isSidePanelEditorView,
@@ -37,10 +38,12 @@ export function WorkspaceExplorerPanel() {
         if (containerWidth <= 0) return;
         latestChatWidth = startChatWidth + (ev.clientX - startX);
         setChatColumnWidth(latestChatWidth, containerWidth, false);
+        dispatchWorkspaceLayoutResize();
       };
 
       const onUp = () => {
         document.body.classList.remove("workspace-explorer-resizing");
+        dispatchWorkspaceLayoutResize();
         document.removeEventListener("pointermove", onMove);
         document.removeEventListener("pointerup", onUp);
         const containerWidth = splitHost.getBoundingClientRect().width;

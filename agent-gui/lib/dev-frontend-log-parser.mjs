@@ -99,17 +99,41 @@ export function clearBuildErrorOnCompiled(agentGuiRoot, chunk) {
   );
 }
 
+/** Sync dev-server.json when Next prints its listening URL (wins over stale snapshots). */
+function syncDevServerFromNextLog(agentGuiRoot, chunk) {
+  const text = chunk.replace(/\u001b\[[0-9;]*m/g, "");
+  const match = text.match(/- Local:\s+(https?:\/\/[^\s]+)/);
+  if (!match) return;
+  try {
+    const url = new URL(match[1]);
+    const host = url.hostname || "127.0.0.1";
+    const port = Number(url.port || (url.protocol === "https:" ? 443 : 80));
+    if (!Number.isFinite(port) || port <= 0) return;
+    writeDevServerInfo(agentGuiRoot, {
+      url: url.origin,
+      port,
+      host,
+      bundler:
+        process.env.AGENT_GUI_TURBOPACK === "0" ? "webpack" : "turbopack",
+    });
+  } catch {
+    // ignore malformed URL in dev log
+  }
+}
+
 /** @param {string} agentGuiRoot @param {import('node:child_process').ChildProcess} child */
 export function wireNextDevOutput(agentGuiRoot, child) {
   child.stdout?.on("data", (chunk) => {
     const text = chunk.toString();
     process.stdout.write(chunk);
+    syncDevServerFromNextLog(agentGuiRoot, text);
     appendNextDevLogChunk(agentGuiRoot, text);
     clearBuildErrorOnCompiled(agentGuiRoot, text);
   });
   child.stderr?.on("data", (chunk) => {
     const text = chunk.toString();
     process.stderr.write(chunk);
+    syncDevServerFromNextLog(agentGuiRoot, text);
     appendNextDevLogChunk(agentGuiRoot, text);
     clearBuildErrorOnCompiled(agentGuiRoot, text);
   });

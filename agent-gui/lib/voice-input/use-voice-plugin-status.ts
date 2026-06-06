@@ -1,25 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getVoiceWsPort, setVoiceWsPort } from "@/lib/voice-input/voice-input-config";
 import { fetchVoiceRuntimeHealth, isVoiceRuntimeModelReady } from "@/lib/voice-input/voice-input-health";
 import {
   isVoiceInputMockEnabled,
   resolveVoicePluginStatusSync,
 } from "@/lib/voice-input/voice-input-plugin-status";
-import { fetchDevVoicePluginHostStatus } from "@/lib/voice-input/voice-input-dev-install";
 import { fetchTauriVoicePluginStatus } from "@/lib/voice-input/voice-input-tauri";
+import { isTauriShell } from "@/lib/tauri-shell";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
 
-const POLL_MS = 5_000;
-const POLL_MS_IDLE = 30_000;
+const POLL_MS_STARTING = 5_000;
+const POLL_MS_PROBE = 30_000;
+
+/** Background poll only while state may change; stable installed/running use events. */
+function shouldBackgroundPoll(status: VoicePluginStatus): boolean {
+  return (
+    status === "not_installed"
+    || status === "downloading"
+    || status === "starting"
+    || status === "error"
+    || status === "stopped"
+  );
+}
 
 function mapHealthToStatus(
   health: Awaited<ReturnType<typeof fetchVoiceRuntimeHealth>>,
+  assumeInstalledInDev: boolean,
 ): VoicePluginStatus {
-  if (!health?.ok) return "not_installed";
-  if (health.ready) return "running";
-  return "starting";
+  if (isVoiceRuntimeModelReady(health)) return "running";
+  if (health?.ok) return "starting";
+  return assumeInstalledInDev ? "installed" : "not_installed";
 }
 
 /** Polls mock / HTTP health / Tauri plugin host for composer + settings UI. */
@@ -34,73 +46,59 @@ export function useVoicePluginStatus(active = true): VoicePluginStatus {
 
     try {
       const port = getVoiceWsPort();
-      const [tauriResult, devResult, healthResult] = await Promise.allSettled([
-        fetchTauriVoicePluginStatus(),
-        process.env.NODE_ENV === "development"
-          ? fetchDevVoicePluginHostStatus()
-          : Promise.resolve(null),
-        fetchVoiceRuntimeHealth(port),
-      ]);
+      const inTauri = isTauriShell();
+      const assumeInstalledInDev =
+        process.env.NODE_ENV === "development" && !inTauri;
 
-      const tauriDto =
-        tauriResult.status === "fulfilled" ? tauriResult.value : null;
-      const devDto =
-        devResult.status === "fulfilled" ? devResult.value : null;
-      const health =
-        healthResult.status === "fulfilled" ? healthResult.value : null;
-      const hostDto = tauriDto ?? devDto;
+      if (inTauri) {
+        const [tauriResult, healthResult] = await Promise.allSettled([
+          fetchTauriVoicePluginStatus(),
+          fetchVoiceRuntimeHealth(port),
+        ]);
+        const tauriDto =
+          tauriResult.status === "fulfilled" ? tauriResult.value : null;
+        const health =
+          healthResult.status === "fulfilled" ? healthResult.value : null;
 
-      if (hostDto) {
-        if (hostDto.wsPort > 0) {
-          setVoiceWsPort(hostDto.wsPort);
-        }
-        if (hostDto.status === "downloading") {
-          setStatus("downloading");
-          return;
-        }
-        if (hostDto.installed && hostDto.status === "running" && isVoiceRuntimeModelReady(health)) {
-          setStatus("running");
-          return;
-        }
-        if (hostDto.installed) {
-          if (isVoiceRuntimeModelReady(health)) {
+        if (tauriDto) {
+          if (tauriDto.wsPort > 0) {
+            setVoiceWsPort(tauriDto.wsPort);
+          }
+          if (tauriDto.status === "downloading") {
+            setStatus("downloading");
+            return;
+          }
+          if (
+            tauriDto.installed
+            && tauriDto.status === "running"
+            && isVoiceRuntimeModelReady(health)
+          ) {
             setStatus("running");
             return;
           }
-          if (health?.ok) {
-            setStatus("starting");
+          if (tauriDto.installed) {
+            if (isVoiceRuntimeModelReady(health)) {
+              setStatus("running");
+              return;
+            }
+            if (health?.ok) {
+              setStatus("starting");
+              return;
+            }
+            setStatus(tauriDto.status === "error" ? "error" : "installed");
             return;
           }
-          setStatus(hostDto.status === "error" ? "error" : "installed");
+          setStatus(tauriDto.status === "error" ? "error" : "not_installed");
           return;
         }
-        setStatus(hostDto.status === "error" ? "error" : "not_installed");
+
+        setStatus(mapHealthToStatus(health, false));
         return;
       }
 
-      // Dev browser: external runtime on :6016 without a packaged plugin install.
-      if (process.env.NODE_ENV === "development") {
-        if (isVoiceRuntimeModelReady(health)) {
-          setStatus("running");
-          return;
-        }
-        if (health?.ok) {
-          setStatus("starting");
-          return;
-        }
-      }
-
-      if (tauriDto) {
-        setStatus(tauriDto.status);
-        return;
-      }
-
-      if (devDto) {
-        setStatus(devDto.status);
-        return;
-      }
-
-      setStatus(mapHealthToStatus(health));
+      // Browser dev: plugin bundle is expected on disk; probe runtime health only.
+      const health = await fetchVoiceRuntimeHealth(port);
+      setStatus(mapHealthToStatus(health, assumeInstalledInDev));
     } catch {
       setStatus("error");
     }
@@ -115,18 +113,19 @@ export function useVoicePluginStatus(active = true): VoicePluginStatus {
     window.addEventListener("voice-input-config-changed", onChange);
     window.addEventListener("storage", onChange);
 
-    const pollMs =
-      status === "running" || status === "starting" || status === "downloading"
-        ? POLL_MS
-        : POLL_MS_IDLE;
-    const timer = window.setInterval(() => void refresh(), pollMs);
-
     return () => {
-      window.clearInterval(timer);
       window.removeEventListener("voice-input-mock-changed", onChange);
       window.removeEventListener("voice-input-config-changed", onChange);
       window.removeEventListener("storage", onChange);
     };
+  }, [active, refresh]);
+
+  useEffect(() => {
+    if (!active || !shouldBackgroundPoll(status)) return;
+
+    const pollMs = status === "starting" ? POLL_MS_STARTING : POLL_MS_PROBE;
+    const timer = window.setInterval(() => void refresh(), pollMs);
+    return () => window.clearInterval(timer);
   }, [active, refresh, status]);
 
   return status;

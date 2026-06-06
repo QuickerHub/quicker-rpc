@@ -22,11 +22,14 @@ export function useLauncherGlobalShortcut(): void {
       });
     };
 
-    sync();
+    const timer = window.setTimeout(() => {
+      sync();
+    }, 2_000);
     window.addEventListener(LAUNCHER_PREFS_CHANGED_EVENT, sync);
 
     return () => {
       disposed = true;
+      window.clearTimeout(timer);
       window.removeEventListener(LAUNCHER_PREFS_CHANGED_EVENT, sync);
     };
   }, []);

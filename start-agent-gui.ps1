@@ -1,14 +1,18 @@
 #!/usr/bin/env pwsh
-# Start agent-gui web dev server (Next.js + qkrpc via start.mjs --dev).
-# Dev also auto-starts quicker-voice-runtime on :6016 when voice-asr-runtime is present (uv).
-# Kills any prior agent-gui dev session before starting (port + process scan).
-# Prerequisite: Quicker + QuickerRpc plugin; qkrpc serve on :9477 (pwsh ./build.ps1 -t starts it).
-# Examples:
-#   pwsh ./start-agent-gui.ps1
-#   pwsh ./start-agent-gui.ps1 -Browser
-#   pwsh ./start-agent-gui.ps1 -SkipKill
+# QuickerAgent — unified dev launcher (pick ONE mode; do not run both at once).
+#
+#   pwsh ./start-agent-gui.ps1           # Browser UI @ :3000 (Turbopack, fast HMR)
+#   pwsh ./start-agent-gui.ps1 -Tauri    # Desktop QuickerAgent (webpack + WebView2)
+#
+# Optional:
+#   -Browser   open http://127.0.0.1:3000 after start (browser mode only)
+#   -Full      eager-start voice runtime at boot (browser mode)
+#   -SkipKill  do not stop prior dev on :3000
+#
+# Prerequisite: Quicker + QuickerRpc plugin; qkrpc serve on :9477 (pwsh ./build.ps1 -t).
 
 param(
+    [switch]$Tauri,
     [switch]$Browser,
     [switch]$SkipKill,
     [switch]$Full
@@ -61,65 +65,36 @@ function Stop-AgentGuiDev {
         [string]$RepoRoot
     )
 
-    $agentGuiNorm = (Resolve-Path -LiteralPath $AgentGuiRoot).Path.ToLower()
-    $repoNorm = (Resolve-Path -LiteralPath $RepoRoot).Path.ToLower()
-    $stopped = [System.Collections.Generic.HashSet[int]]::new()
+    $stopScript = Join-Path $AgentGuiRoot 'scripts/stop-agent-gui-dev.mjs'
+    if (-not (Test-Path -LiteralPath $stopScript)) {
+        Write-Warning "Missing $stopScript; skip stopping prior dev."
+        return
+    }
 
-    foreach ($proc in (Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)) {
-        if ($proc.ProcessId -eq $PID) {
-            continue
-        }
+    node $stopScript
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+}
 
-        $cmd = $proc.CommandLine
-        if ([string]::IsNullOrWhiteSpace($cmd)) {
-            continue
-        }
+function Ensure-AgentGuiDeps {
+    param([string]$AgentGuiRoot)
 
-        $cmdLower = $cmd.ToLower()
-        $isAgentGuiDev = $false
-
-        if ($proc.Name -eq 'pwsh.exe' -and $cmdLower -match 'start-agent-gui\.ps1') {
-            $isAgentGuiDev = $cmdLower -like "*$repoNorm*"
-        }
-        elseif ($proc.Name -in @('node.exe', 'pnpm.exe', 'cmd.exe')) {
-            if ($cmdLower -like "*$agentGuiNorm*") {
-                $isAgentGuiDev = (
-                    $cmdLower -match 'start\.mjs' -or
-                    $cmdLower -match '\bnext(\.cmd)?\b' -or
-                    $cmdLower -match '\bdev(:browser)?\b'
-                )
-            }
-        }
-
-        if (-not $isAgentGuiDev) {
-            continue
-        }
-
-        if (Stop-ProcessTree -ProcessId $proc.ProcessId) {
-            $null = $stopped.Add($proc.ProcessId)
+    if (-not (Test-Path -LiteralPath (Join-Path $AgentGuiRoot 'node_modules'))) {
+        Write-Host "Running pnpm install in agent-gui ..." -ForegroundColor Yellow
+        pnpm --dir $AgentGuiRoot install
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
         }
     }
 
-    $port = Get-AgentGuiDevPort
-    try {
-        $listeners = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop)
-        foreach ($conn in $listeners) {
-            $ownerPid = [int]$conn.OwningProcess
-            if ($ownerPid -le 0 -or $ownerPid -eq $PID) {
-                continue
-            }
-            if (Stop-ProcessTree -ProcessId $ownerPid) {
-                $null = $stopped.Add($ownerPid)
-            }
-        }
-    }
-    catch {
-        # Get-NetTCPConnection unavailable or port free
+    $llmConfig = Join-Path $AgentGuiRoot 'llm-config.json'
+    if (-not (Test-Path -LiteralPath $llmConfig)) {
+        Write-Warning "Missing agent-gui/llm-config.json — copy from llm-config.example.json before chatting."
     }
 
-    if ($stopped.Count -gt 0) {
-        Write-Host "Stopped prior agent-gui dev (PID(s): $(@($stopped) -join ', '))." -ForegroundColor Yellow
-        Start-Sleep -Seconds 1
+    if (-not (Test-QkrpcServeHealth)) {
+        Write-Warning "qkrpc serve not healthy at http://127.0.0.1:9477 — run pwsh ./build.ps1 -t first (start.mjs will try staged qkrpc)."
     }
 }
 
@@ -132,33 +107,66 @@ try {
 
     if (-not $SkipKill) {
         Stop-AgentGuiDev -AgentGuiRoot $agentGui -RepoRoot $PSScriptRoot
+        Remove-Item Env:AGENT_GUI_SKIP_KILL -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:AGENT_GUI_SKIP_KILL = '1'
     }
 
-    if (-not (Test-Path -LiteralPath (Join-Path $agentGui 'node_modules'))) {
-        Write-Host "Running pnpm install in agent-gui ..." -ForegroundColor Yellow
-        pnpm --dir agent-gui install
-        if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
+    Ensure-AgentGuiDeps -AgentGuiRoot $agentGui
+
+    $nextDir = Join-Path $agentGui '.next'
+    $documentJs = Join-Path $nextDir 'server/pages/_document.js'
+    $ssrChunks = Join-Path $nextDir 'server/chunks/ssr'
+    $hasBrokenTurbopack = $false
+    if ((Test-Path -LiteralPath $documentJs) -and
+        (Select-String -LiteralPath $documentJs -Pattern '\[turbopack\]_runtime' -Quiet -ErrorAction SilentlyContinue)) {
+        $hasRuntimeChunk = (Test-Path -LiteralPath (Join-Path $nextDir 'turbopack')) -or
+            ((Test-Path -LiteralPath $ssrChunks) -and
+             (Get-ChildItem -LiteralPath $ssrChunks -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -match '\[turbopack\]_runtime' } |
+              Select-Object -First 1))
+        if (-not $hasRuntimeChunk) {
+            $hasBrokenTurbopack = $true
         }
     }
-
-    $llmConfig = Join-Path $agentGui 'llm-config.json'
-    if (-not (Test-Path -LiteralPath $llmConfig)) {
-        Write-Warning "Missing agent-gui/llm-config.json — copy from llm-config.example.json before chatting."
+    if ($hasBrokenTurbopack) {
+        Remove-Item -LiteralPath $nextDir -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "Cleared broken Turbopack .next cache." -ForegroundColor Yellow
     }
 
-    if (-not (Test-QkrpcServeHealth)) {
-        Write-Warning "qkrpc serve not healthy at http://127.0.0.1:9477 — run pwsh ./build.ps1 -t first (or start.mjs will try staged qkrpc)."
+    if ($Tauri) {
+        $nextDir = Join-Path $agentGui '.next'
+        $documentJs = Join-Path $nextDir 'server/pages/_document.js'
+        $hasTurbopackCache = (Test-Path -LiteralPath (Join-Path $nextDir 'turbopack')) -or
+            ((Test-Path -LiteralPath $documentJs) -and
+             (Select-String -LiteralPath $documentJs -Pattern '\[turbopack\]_runtime' -Quiet -ErrorAction SilentlyContinue))
+        if ($hasTurbopackCache) {
+            Remove-Item -LiteralPath $nextDir -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "Cleared Turbopack .next before webpack Tauri dev." -ForegroundColor Yellow
+        }
+
+        Write-Host ""
+        Write-Host "=== QuickerAgent desktop (webpack + Tauri) ===" -ForegroundColor Cyan
+        Write-Host "  UI: http://127.0.0.1:3000 inside WebView2" -ForegroundColor DarkGray
+        Write-Host "  Do not run browser mode in parallel." -ForegroundColor DarkGray
+        Write-Host ""
+        pnpm --dir $agentGui tauri:dev
+        exit $LASTEXITCODE
     }
 
     if ($Full) {
         $env:AGENT_GUI_VOICE_RUNTIME = '1'
-        Write-Host "Dev mode: full runtimes (voice at boot). Default dev skips voice/browser for lower RAM." -ForegroundColor DarkGray
+        Write-Host "Voice runtime: eager-start at boot (-Full)." -ForegroundColor DarkGray
     }
 
     $devScript = if ($Browser) { 'dev:browser' } elseif ($Full) { 'dev:full' } else { 'dev' }
-    Write-Host "=== agent-gui ($devScript) ===" -ForegroundColor Cyan
-    pnpm --dir agent-gui $devScript
+    Write-Host ""
+    Write-Host "=== QuickerAgent browser dev (Turbopack) ===" -ForegroundColor Cyan
+    Write-Host "  UI: http://127.0.0.1:3000" -ForegroundColor DarkGray
+    Write-Host "  Desktop shell: pwsh ./start-agent-gui.ps1 -Tauri" -ForegroundColor DarkGray
+    Write-Host ""
+    pnpm --dir $agentGui $devScript
     exit $LASTEXITCODE
 }
 finally {

@@ -39,12 +39,15 @@ function resolveBaseUrl(explicit?: string): string {
   const trimmed = explicit?.trim();
   if (trimmed) return trimmed.replace(/\/$/, "");
 
+  // Prefer the live Next dev process (frontend-check runs inside it).
+  const port = process.env.PORT?.trim();
+  const host = process.env.HOSTNAME?.trim() || "127.0.0.1";
+  if (port) return `http://${host}:${port}`;
+
   const fromFile = readDevServerInfo()?.url?.trim();
   if (fromFile) return fromFile.replace(/\/$/, "");
 
-  const port = process.env.PORT?.trim() || "3000";
-  const host = process.env.HOSTNAME?.trim() || "127.0.0.1";
-  return `http://${host}:${port}`;
+  return "http://127.0.0.1:3000";
 }
 
 function extractIssuesFromHtml(html: string, url: string): FrontendIssue[] {

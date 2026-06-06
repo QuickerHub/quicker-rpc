@@ -11,7 +11,7 @@
     "start": "node ./start.mjs",
     "lint": "next lint",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "node scripts/tauri-dev.mjs",
     "tauri:build": "tauri build",
     "tauri:prepare": "node scripts/tauri-prepare.mjs",
     "tauri:verify-bundle": "node scripts/verify-tauri-bundle.mjs",

@@ -4,6 +4,46 @@ function Get-QkrpcDefaultInstallDir {
     return Join-Path $env:LOCALAPPDATA 'Programs\qkrpc'
 }
 
+function Stop-QkrpcProcesses {
+    param(
+        [switch] $ServeOnly,
+        [int] $GraceMs = 500
+    )
+
+    $stopped = [System.Collections.Generic.List[int]]::new()
+    $procs = Get-CimInstance Win32_Process -Filter "Name = 'qkrpc.exe'" -ErrorAction SilentlyContinue
+    foreach ($proc in $procs) {
+        if ($ServeOnly) {
+            $cmd = $proc.CommandLine
+            if ([string]::IsNullOrWhiteSpace($cmd) -or $cmd -notmatch '\bserve\b') {
+                continue
+            }
+        }
+
+        $procId = $proc.ProcessId
+        try {
+            & taskkill.exe /PID $procId /T /F 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                $stopped.Add($procId) | Out-Null
+                continue
+            }
+        }
+        catch {
+            # fall through to Stop-Process
+        }
+
+        Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+        $stopped.Add($procId) | Out-Null
+    }
+
+    if ($stopped.Count -gt 0) {
+        Write-Host "Stopped qkrpc (PID(s): $($stopped -join ', '))" -ForegroundColor DarkYellow
+        Start-Sleep -Milliseconds $GraceMs
+    }
+
+    return $stopped.Count
+}
+
 function Get-ExpectedGoogleProtobufAssemblyVersion {
     param([string]$RepoRoot)
 
@@ -109,6 +149,8 @@ function Install-QkrpcFromDirectory {
     }
 
     Write-Host "Installing qkrpc to $InstallDir ..." -ForegroundColor Cyan
+
+    Stop-QkrpcProcesses | Out-Null
 
     if (Test-Path -LiteralPath $InstallDir) {
         Write-Host 'Removing previous install...' -ForegroundColor Yellow

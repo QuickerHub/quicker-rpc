@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -20,14 +21,26 @@ import { EMPTY_BROWSER_PANEL_SNAPSHOT } from "@/lib/browser-panel-types";
 import { workspaceExplorerActionsRef } from "@/lib/workspace-explorer";
 import { SIDE_PANEL_VIEW_BROWSER } from "@/lib/workspace-side-panel-view";
 
+export type ApplySnapshotOptions = {
+  /** Open/focus the side-panel browser tab. */
+  openPanel?: boolean;
+  /** Load URL into the Tauri child WebView (never on cold start replay). */
+  navigate?: boolean;
+};
+
 type EmbeddedBrowserContextValue = {
   open: boolean;
   width: number;
   snapshot: BrowserPanelSnapshot;
+  navigateSeq: number;
+  navigateUrl: string | null;
   setOpen: (open: boolean) => void;
   toggleOpen: () => void;
   setWidth: (width: number) => void;
-  applySnapshot: (patch: Partial<BrowserPanelSnapshot>) => void;
+  applySnapshot: (
+    patch: Partial<BrowserPanelSnapshot>,
+    options?: ApplySnapshotOptions,
+  ) => void;
   resetSnapshot: () => void;
 };
 
@@ -41,6 +54,9 @@ export function EmbeddedBrowserProvider({ children }: { children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<BrowserPanelSnapshot>(
     EMPTY_BROWSER_PANEL_SNAPSHOT,
   );
+  const [navigateSeq, setNavigateSeq] = useState(0);
+  const [navigateUrl, setNavigateUrl] = useState<string | null>(null);
+  const navigateSeqRef = useRef(0);
 
   const setOpen = useCallback((next: boolean) => {
     setOpenState(next);
@@ -61,14 +77,26 @@ export function EmbeddedBrowserProvider({ children }: { children: ReactNode }) {
     storeBrowserPanelWidth(clamped);
   }, []);
 
-  const applySnapshot = useCallback((patch: Partial<BrowserPanelSnapshot>) => {
-    setSnapshot((prev) => ({ ...prev, ...patch }));
-    if (patch.url || patch.previewBase64) {
-      setOpenState(true);
-      storeBrowserPanelOpen(true);
-      workspaceExplorerActionsRef.current.focusSidePanelView(SIDE_PANEL_VIEW_BROWSER);
-    }
-  }, []);
+  const applySnapshot = useCallback(
+    (patch: Partial<BrowserPanelSnapshot>, options?: ApplySnapshotOptions) => {
+      setSnapshot((prev) => ({ ...prev, ...patch }));
+      const openPanel = options?.openPanel === true;
+      const navigate = options?.navigate === true;
+      if (openPanel && (patch.url || patch.previewBase64)) {
+        setOpenState(true);
+        storeBrowserPanelOpen(true);
+        workspaceExplorerActionsRef.current.focusSidePanelView(
+          SIDE_PANEL_VIEW_BROWSER,
+        );
+      }
+      if (navigate && patch.url?.trim()) {
+        navigateSeqRef.current += 1;
+        setNavigateSeq(navigateSeqRef.current);
+        setNavigateUrl(patch.url.trim());
+      }
+    },
+    [],
+  );
 
   const resetSnapshot = useCallback(() => {
     setSnapshot(EMPTY_BROWSER_PANEL_SNAPSHOT);
@@ -79,13 +107,26 @@ export function EmbeddedBrowserProvider({ children }: { children: ReactNode }) {
       open,
       width,
       snapshot,
+      navigateSeq,
+      navigateUrl,
       setOpen,
       toggleOpen,
       setWidth,
       applySnapshot,
       resetSnapshot,
     }),
-    [open, width, snapshot, setOpen, toggleOpen, setWidth, applySnapshot, resetSnapshot],
+    [
+      open,
+      width,
+      snapshot,
+      navigateSeq,
+      navigateUrl,
+      setOpen,
+      toggleOpen,
+      setWidth,
+      applySnapshot,
+      resetSnapshot,
+    ],
   );
 
   return (

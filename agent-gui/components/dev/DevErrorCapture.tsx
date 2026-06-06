@@ -5,6 +5,20 @@ import type { ClientFrontendErrorReport } from "@/lib/dev-frontend-types";
 
 const REPORT_ENDPOINT = "/api/dev/frontend-errors";
 const FLUSH_MS = 800;
+export const REACT_HOOKS_FAULT_EVENT = "qa-react-hooks-fault";
+
+function isReactHooksFaultMessage(message: string): boolean {
+  return (
+    message.includes("order of Hooks")
+    || message.includes("Should have a queue")
+    || message.includes("invalid-hook-call")
+  );
+}
+
+function notifyReactHooksFault(message: string): void {
+  if (!isReactHooksFaultMessage(message)) return;
+  window.dispatchEvent(new CustomEvent(REACT_HOOKS_FAULT_EVENT, { detail: { message } }));
+}
 
 function shouldCapture(): boolean {
   return process.env.NODE_ENV === "development";
@@ -48,9 +62,11 @@ export function DevErrorCapture() {
     const pageUrl = window.location.href;
 
     const onError = (event: ErrorEvent) => {
+      const message = event.message || "Unknown error";
+      notifyReactHooksFault(message);
       queueReport({
         kind: "error",
-        message: event.message || "Unknown error",
+        message,
         stack: event.error instanceof Error ? event.error.stack : undefined,
         source: event.filename,
         line: event.lineno,
@@ -92,6 +108,7 @@ export function DevErrorCapture() {
         .join(" ")
         .trim();
       if (!message) return;
+      notifyReactHooksFault(message);
       queueReport({
         kind: "console",
         message: message.slice(0, 4000),

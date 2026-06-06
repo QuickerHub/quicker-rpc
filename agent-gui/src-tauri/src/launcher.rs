@@ -134,6 +134,7 @@ fn apply_launcher_chrome_once(window: &WebviewWindow) {
     apply_launcher_chrome(window);
 }
 
+#[allow(dead_code)]
 fn reset_launcher_window_state() {
     LAUNCHER_WINDOW_HANDLERS_REGISTERED.store(false, Ordering::SeqCst);
     LAUNCHER_CHROME_APPLIED.store(false, Ordering::SeqCst);
@@ -331,6 +332,7 @@ fn ensure_launcher_window(app: &AppHandle, expanded: bool) -> Result<WebviewWind
 }
 
 /// Dev: window from tauri.conf uses devUrl + /launcher. Prod: close placeholder, create External URL later.
+#[allow(dead_code)]
 pub fn prepare_configured_launcher_window(app: &AppHandle, visible: bool) {
     let Some(window) = app.get_webview_window(LAUNCHER_LABEL) else {
         return;
@@ -347,6 +349,7 @@ pub fn prepare_configured_launcher_window(app: &AppHandle, visible: bool) {
     }
 }
 
+#[allow(dead_code)]
 pub fn close_configured_launcher_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(LAUNCHER_LABEL) {
         let _ = window.close();

@@ -86,7 +86,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
   onStreamInterruptRef.current = onStreamInterrupt;
   onStreamCancelRef.current = onStreamCancel;
 
-  const pluginStatus = useVoicePluginStatus(true);
+  const pluginStatus = useVoicePluginStatus(enabled);
   const [phase, setPhase] = useState<VoiceSessionPhase>("idle");
   const [statusHint, setStatusHint] = useState<string | null>(null);
   const [errorHint, setErrorHint] = useState<string | null>(null);
