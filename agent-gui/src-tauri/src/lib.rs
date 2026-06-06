@@ -8,15 +8,14 @@ use std::time::{Duration, Instant};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 #[cfg(target_os = "macos")]
 use tauri::TitleBarStyle;
+use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 mod global_shortcut;
 mod launcher;
 mod quicker_agent_paths;
-mod quicker_agent_updater;
 mod voice_plugin;
 mod voice_plugin_install;
 mod win_job;
@@ -111,7 +110,13 @@ fn wait_http_200(host: &str, port: u16, path: &str, max_ms: u64) -> Result<(), S
 /// qkrpc serve: process is up when `/health` returns JSON with `"ok":` (true or false).
 /// Do not require Quicker/plugin — otherwise the app never opens on a fresh machine.
 fn wait_qkrpc_serve_listening(host: &str, port: u16, max_ms: u64) -> Result<(), String> {
-    wait_http_response(host, port, "/health", max_ms, HttpReadyMode::QkrpcHealthJson)
+    wait_http_response(
+        host,
+        port,
+        "/health",
+        max_ms,
+        HttpReadyMode::QkrpcHealthJson,
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -242,7 +247,12 @@ fn spawn_qkrpc(qkrpc_dir: &Path, host: &str, port: u16) -> Result<Child, String>
     cmd.spawn().map_err(|e| format!("spawn qkrpc: {e}"))
 }
 
-fn spawn_node_server(app_dir: &Path, node_exe: &Path, host: &str, port: u16) -> Result<Child, String> {
+fn spawn_node_server(
+    app_dir: &Path,
+    node_exe: &Path,
+    host: &str,
+    port: u16,
+) -> Result<Child, String> {
     let server_js = app_dir.join("server.js");
     if !server_js.is_file() {
         return Err(format!("server.js not found: {}", server_js.display()));
@@ -270,7 +280,9 @@ fn spawn_node_server(app_dir: &Path, node_exe: &Path, host: &str, port: u16) -> 
 }
 
 /// Extends web content into the title bar: frameless on Windows/Linux, overlay on macOS.
-fn apply_titlebar_chrome(builder: WebviewWindowBuilder<'_, tauri::Wry, AppHandle>) -> WebviewWindowBuilder<'_, tauri::Wry, AppHandle> {
+fn apply_titlebar_chrome(
+    builder: WebviewWindowBuilder<'_, tauri::Wry, AppHandle>,
+) -> WebviewWindowBuilder<'_, tauri::Wry, AppHandle> {
     #[cfg(target_os = "macos")]
     {
         builder
@@ -300,11 +312,9 @@ fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<St
     let host = "127.0.0.1";
     let resource = resource_root(app)?;
     let runtime = app_runtime_dir(&resource);
-    let node_exe = resource.join("node").join(if cfg!(windows) {
-        "node.exe"
-    } else {
-        "node"
-    });
+    let node_exe = resource
+        .join("node")
+        .join(if cfg!(windows) { "node.exe" } else { "node" });
 
     if !node_exe.is_file() {
         return Err(format!("bundled node not found: {}", node_exe.display()));
@@ -344,8 +354,7 @@ fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<St
     wait_http_200(host, ui_port, "/", 60_000)?;
 
     if let Some(qkrpc_child) = qkrpc_child {
-        *state.qkrpc.lock().map_err(|e| e.to_string())? =
-            Some(state.track_child(qkrpc_child)?);
+        *state.qkrpc.lock().map_err(|e| e.to_string())? = Some(state.track_child(qkrpc_child)?);
     }
     *state.node.lock().map_err(|e| e.to_string())? = Some(state.track_child(node_child)?);
 
@@ -367,6 +376,8 @@ fn show_startup_error(app: &AppHandle, detail: &str) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -375,13 +386,10 @@ pub fn run() {
             launcher::launcher_toggle,
             launcher::launcher_expand,
             voice_plugin::voice_plugin_status,
+            voice_plugin::voice_runtime_health,
             voice_plugin::voice_plugin_install,
             voice_plugin::voice_plugin_start_runtime,
             voice_plugin::voice_plugin_stop_runtime,
-            quicker_agent_updater::quicker_agent_update_status,
-            quicker_agent_updater::quicker_agent_update_skip_version,
-            quicker_agent_updater::quicker_agent_update_apply_and_exit,
-            quicker_agent_updater::quicker_agent_update_exit_for_install,
         ])
         .manage(BackendState::new())
         .manage(voice_plugin::VoicePluginState::new())
@@ -405,42 +413,41 @@ pub fn run() {
                 voice_plugin::spawn_voice_runtime_background(app.handle().clone());
                 Ok(())
             } else {
-            launcher::close_configured_launcher_window(app.handle());
+                launcher::close_configured_launcher_window(app.handle());
 
-            if let Some(win) = app.get_webview_window("main") {
-                apply_titlebar_chrome_existing(&win);
-                let _ = win.center();
-                let _ = win.show();
-            }
-
-            let handle = app.handle().clone();
-            let state = app.state::<BackendState>();
-            let url = match start_production_backends(&handle, state.inner()) {
-                Ok(url) => url,
-                Err(err) => {
-                    show_startup_error(&handle, &err);
-                    return Err(err.into());
+                if let Some(win) = app.get_webview_window("main") {
+                    apply_titlebar_chrome_existing(&win);
+                    let _ = win.center();
+                    let _ = win.show();
                 }
-            };
-            let external: url::Url = url.parse().expect("valid UI url");
-            app.manage(launcher::UiBaseUrl(Mutex::new(url.clone())));
 
-            if let Some(placeholder) = app.get_webview_window("main") {
-                let _ = placeholder.close();
-            }
+                let handle = app.handle().clone();
+                let state = app.state::<BackendState>();
+                let url = match start_production_backends(&handle, state.inner()) {
+                    Ok(url) => url,
+                    Err(err) => {
+                        show_startup_error(&handle, &err);
+                        return Err(err.into());
+                    }
+                };
+                let external: url::Url = url.parse().expect("valid UI url");
+                app.manage(launcher::UiBaseUrl(Mutex::new(url.clone())));
 
-            apply_titlebar_chrome(
-                WebviewWindowBuilder::new(&handle, "agent", WebviewUrl::External(external))
-                    .title("QuickerAgent")
-                    .inner_size(1280.0, 800.0)
-                    .center()
-                    .resizable(true)
-                    .visible(true),
-            )
-            .build()?;
-            voice_plugin::spawn_voice_runtime_background(handle.clone());
-            quicker_agent_updater::spawn_background_update_check(handle.clone());
-            Ok(())
+                if let Some(placeholder) = app.get_webview_window("main") {
+                    let _ = placeholder.close();
+                }
+
+                apply_titlebar_chrome(
+                    WebviewWindowBuilder::new(&handle, "agent", WebviewUrl::External(external))
+                        .title("QuickerAgent")
+                        .inner_size(1280.0, 800.0)
+                        .center()
+                        .resizable(true)
+                        .visible(true),
+                )
+                .build()?;
+                voice_plugin::spawn_voice_runtime_background(handle.clone());
+                Ok(())
             }
         })
         .build(tauri::generate_context!())
@@ -454,7 +461,6 @@ pub fn run() {
                 if let Err(err) = voice_plugin_install::apply_pending_runtime_upgrade() {
                     eprintln!("[voice-plugin] apply runtime upgrade failed: {err}");
                 }
-                quicker_agent_updater::apply_pending_on_exit();
             }
         });
 }

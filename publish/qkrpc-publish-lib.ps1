@@ -216,6 +216,8 @@ function Invoke-QuickerAgentBitifulUpload {
         [Parameter(Mandatory = $true)]
         [string]$InstallerPath,
 
+        [string]$LatestJsonPath = '',
+
         [string]$PublishDir = ''
     )
 
@@ -272,6 +274,25 @@ function Invoke-QuickerAgentBitifulUpload {
 
     if ($LASTEXITCODE -ne 0) {
         throw "Bitiful upload failed with exit code $LASTEXITCODE"
+    }
+
+    if ($LatestJsonPath -and (Test-Path -LiteralPath $LatestJsonPath)) {
+        $latestResolved = (Resolve-Path -LiteralPath $LatestJsonPath -ErrorAction Stop).Path
+        $uploadArgs = @(
+            $latestResolved,
+            '--asset',
+            '--endpoint-url', $endpointUrl,
+            '--object-prefix', $objectPrefix
+        )
+        if (Get-Command uv -ErrorAction SilentlyContinue) {
+            & uv run --with boto3 python $uploadScript @uploadArgs
+        }
+        else {
+            & python $uploadScript @uploadArgs
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "Bitiful latest.json upload failed with exit code $LASTEXITCODE"
+        }
     }
 }
 
@@ -444,6 +465,119 @@ function Get-QuickerAgentBitifulSetupUrl {
     $semver = Get-QuickerRpcSemVerFromVersion -Version $Version
     $fileName = Get-QuickerAgentSetupName -Version $semver
     return "$(Get-QuickerAgentBitifulDownloadPrefix)/$fileName"
+}
+
+function Get-QuickerAgentBitifulLatestJsonUrl {
+    return "$(Get-QuickerAgentBitifulDownloadPrefix)/latest.json"
+}
+
+function Import-TauriSigningPrivateKey {
+    param([string]$PublishDir = '')
+
+    if (-not [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+        return
+    }
+
+    if (-not $PublishDir) {
+        $PublishDir = $PSScriptRoot
+    }
+
+    $keyPath = if (-not [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY_PATH)) {
+        $env:TAURI_SIGNING_PRIVATE_KEY_PATH.Trim()
+    }
+    else {
+        Join-Path $PublishDir '.tauri\quicker-agent.key'
+    }
+
+    if (-not (Test-Path -LiteralPath $keyPath)) {
+        throw @"
+Tauri updater signing key not found: $keyPath
+Run: pnpm exec tauri signer generate -w publish/.tauri/quicker-agent.key -f --ci
+Or set TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PATH in publish/.env
+"@
+    }
+
+    $resolvedKeyPath = (Resolve-Path -LiteralPath $keyPath).Path
+    $keyContent = (Get-Content -LiteralPath $resolvedKeyPath -Raw).Trim()
+    if ([string]::IsNullOrWhiteSpace($keyContent)) {
+        throw "Tauri updater signing key file is empty: $resolvedKeyPath"
+    }
+
+    $env:TAURI_SIGNING_PRIVATE_KEY = $keyContent
+    $env:TAURI_SIGNING_PRIVATE_KEY_PATH = $resolvedKeyPath
+    if ($null -eq $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+        $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ''
+    }
+}
+
+function Resolve-QuickerAgentUpdaterSigFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SetupExePath
+    )
+
+    $sigPath = "$SetupExePath.sig"
+    if (-not (Test-Path -LiteralPath $sigPath)) {
+        throw "Updater signature not found: $sigPath (ensure createUpdaterArtifacts=true and TAURI_SIGNING_PRIVATE_KEY is set during tauri build)"
+    }
+
+    return (Resolve-Path -LiteralPath $sigPath).Path
+}
+
+function New-QuickerAgentUpdaterLatestJson {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SemVer,
+        [Parameter(Mandatory = $true)]
+        [string]$SigFilePath,
+        [Parameter(Mandatory = $true)]
+        [string]$SetupUrl,
+        [string]$Notes = ''
+    )
+
+    $signature = (Get-Content -LiteralPath $SigFilePath -Raw).Trim()
+    if ([string]::IsNullOrWhiteSpace($signature)) {
+        throw "Updater signature file is empty: $SigFilePath"
+    }
+
+    $releaseNotes = if ([string]::IsNullOrWhiteSpace($Notes)) {
+        "QuickerAgent $SemVer"
+    }
+    else {
+        $Notes.Trim()
+    }
+
+    $payload = [ordered]@{
+        version  = $SemVer
+        notes    = $releaseNotes
+        pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
+        platforms = [ordered]@{
+            'windows-x86_64' = [ordered]@{
+                signature = $signature
+                url       = $SetupUrl
+            }
+        }
+    }
+
+    return ($payload | ConvertTo-Json -Depth 5)
+}
+
+function Write-QuickerAgentUpdaterLatestJson {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SetupExePath,
+        [Parameter(Mandatory = $true)]
+        [string]$SemVer,
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationPath,
+        [string]$Notes = ''
+    )
+
+    $sigFile = Resolve-QuickerAgentUpdaterSigFile -SetupExePath $SetupExePath
+    $setupUrl = Get-QuickerAgentBitifulSetupUrl -Version $SemVer
+    $json = New-QuickerAgentUpdaterLatestJson -SemVer $SemVer -SigFilePath $sigFile -SetupUrl $setupUrl -Notes $Notes
+    Set-Content -LiteralPath $DestinationPath -Value ($json + "`n") -Encoding utf8NoBOM
+    return $DestinationPath
 }
 
 function Get-QuickerAgentActionDocSharedId {

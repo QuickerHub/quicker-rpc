@@ -11,22 +11,6 @@ import {
   useDevExperienceEnabled,
   useReleasePreviewToggle,
 } from "@/lib/release-preview.client";
-import { useWorkspaceExplorerShell } from "@/lib/workspace-explorer";
-
-function IconExplorer() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M10 2.5H13.5V13.5H10M10 2.5H2.5V13.5H10M10 2.5V13.5"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-      <path d="M10 5v6" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  );
-}
-
 function IconBrowser() {
   return (
     <svg width="16" height="16" viewBox="0 0 14 14" fill="none" aria-hidden>
@@ -179,7 +163,6 @@ export function ComposerShortcutCards({
   onToggleSettings,
   disabled = false,
 }: ComposerShortcutCardsProps) {
-  const { panelOpen, togglePanel } = useWorkspaceExplorerShell();
   const { open: browserOpen, toggleOpen: toggleBrowser } = useEmbeddedBrowser();
   const devExperienceEnabled = useDevExperienceEnabled();
   const showReleasePreview = isAgentGuiDebugMode();
@@ -195,14 +178,6 @@ export function ComposerShortcutCards({
         active={settingsOpen}
         disabled={disabled}
         onClick={onToggleSettings}
-      />
-      <ShortcutCard
-        label="资源管理器"
-        hint="工作区文件与动作项目"
-        icon={<IconExplorer />}
-        active={panelOpen}
-        disabled={disabled}
-        onClick={togglePanel}
       />
       <ShortcutCard
         label="浏览器"

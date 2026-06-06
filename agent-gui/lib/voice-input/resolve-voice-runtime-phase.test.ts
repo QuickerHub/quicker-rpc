@@ -73,6 +73,23 @@ test("resolveVoiceRuntimePhase rejects stub or unloaded model health", () => {
   );
 });
 
+test("resolveVoiceRuntimePhase infers running from health when Tauri host IPC fails", () => {
+  assert.equal(
+    resolveVoiceRuntimePhase({
+      hostStatus: null,
+      health: {
+        ok: true,
+        protocolVersion: 1,
+        modelId: "sensevoice",
+        modelLoaded: true,
+        ready: true,
+      },
+      inTauri: true,
+    }),
+    "running",
+  );
+});
+
 test("resolveVoiceRuntimePhase allows external dev runtime when enabled", () => {
   assert.equal(
     resolveVoiceRuntimePhase({

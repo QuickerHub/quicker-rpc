@@ -127,7 +127,8 @@ if ($DryRun) {
     exit 0
 }
 
-Invoke-QuickerAgentBitifulUpload -InstallerPath $installerPath -PublishDir $PSScriptRoot
+$latestJsonPath = Join-Path $RepoRoot 'publish\latest.json'
+Invoke-QuickerAgentBitifulUpload -InstallerPath $installerPath -LatestJsonPath $latestJsonPath -PublishDir $PSScriptRoot
 
 Write-Host ''
 Write-Host "Bitiful upload OK ($semver)." -ForegroundColor Green

@@ -50,13 +50,11 @@ function buildDisplayLabel(
 ): string {
   if (hostLoading) return "检测中…";
   if (runtimePhase === "downloading") return "下载中";
+  if (runtimePhase === "running") return "运行中";
+  if (runtimePhase === "starting") return "启动中";
   if (pluginInstalled) {
-    if (runtimePhase === "running") return "运行中";
-    if (runtimePhase === "starting") return "启动中";
     return "已安装";
   }
-  if (runtimePhase === "running") return "运行中（未安装）";
-  if (runtimePhase === "starting") return "启动中（未安装）";
   return "未安装";
 }
 
@@ -66,7 +64,9 @@ function buildSnapshot(params: {
   runtimePhase: VoicePluginStatus;
   runtimeDetail: string | null;
 }): VoiceSettingsPanelSnapshot {
-  const pluginInstalled = params.hostStatus?.installed === true;
+  const pluginInstalled =
+    params.hostStatus?.installed === true
+    || params.runtimePhase === "running";
   const runtimeOnline =
     params.runtimePhase === "running" || params.runtimePhase === "starting";
 

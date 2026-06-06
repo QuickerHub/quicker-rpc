@@ -9,10 +9,9 @@
 #   pwsh ./scripts/Test-AppUpdateApply.ps1 -Action reset
 #
 # Notes:
-# - Auto-update only runs in Release builds (not pnpm tauri:dev).
-# - `full` runs Rust unit tests, prepares pending.json, launches Release exe,
-#   clicks "立即更新并重启" via UI Automation when possible, and asserts
-#   at most one *setup*.exe process is spawned.
+# - Auto-update uses the official @tauri-apps/plugin-updater (Release builds only).
+# - Legacy pending.json / Rust updater tests were removed; this script needs a refresh
+#   for the official updater flow (latest.json + signed NSIS bundle).
 
 [CmdletBinding()]
 param(

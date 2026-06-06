@@ -1,5 +1,6 @@
 import { buildVoiceHealthUrl } from "@/lib/voice-input/voice-input-config";
 import { VOICE_INPUT_PROTOCOL_VERSION } from "@/lib/voice-input/voice-input-types";
+import { isTauriShell } from "@/lib/tauri-shell";
 
 export type VoiceRuntimeHealth = {
   ok: boolean;
@@ -28,10 +29,47 @@ export function isStubVoiceTranscript(text: string): boolean {
 
 const HEALTH_FETCH_TIMEOUT_MS = 5_000;
 
+type VoiceRuntimeHealthDto = {
+  ok: boolean;
+  protocolVersion: number;
+  runtimeVersion?: string;
+  modelId?: string;
+  modelLoaded: boolean;
+  ready: boolean;
+};
+
+function mapVoiceRuntimeHealthDto(dto: VoiceRuntimeHealthDto): VoiceRuntimeHealth {
+  return {
+    ok: dto.ok === true,
+    protocolVersion: dto.protocolVersion,
+    runtimeVersion: dto.runtimeVersion,
+    modelId: dto.modelId,
+    modelLoaded: dto.modelLoaded === true,
+    ready: dto.ready === true,
+  };
+}
+
+async function fetchVoiceRuntimeHealthViaTauri(): Promise<VoiceRuntimeHealth | null> {
+  if (!isTauriShell()) return null;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const dto = await invoke<VoiceRuntimeHealthDto>("voice_runtime_health");
+    if (!dto?.ok) return null;
+    return mapVoiceRuntimeHealthDto(dto);
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchVoiceRuntimeHealth(
   port?: number,
   signal?: AbortSignal,
 ): Promise<VoiceRuntimeHealth | null> {
+  if (isTauriShell()) {
+    const viaTauri = await fetchVoiceRuntimeHealthViaTauri();
+    if (viaTauri) return viaTauri;
+  }
+
   try {
     const timeoutSignal =
       typeof AbortSignal !== "undefined" && "timeout" in AbortSignal

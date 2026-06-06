@@ -61,11 +61,16 @@ def upload_release_asset(
         raise FileNotFoundError(f"Asset not found: {local_file}")
 
     local_size = local_file.stat().st_size
-    if local_size < 1024:
+    min_bytes = 1 if local_file.suffix.lower() == ".json" else 1024
+    if local_size < min_bytes:
         raise RuntimeError(f"Asset too small ({local_size} bytes): {local_file}")
 
     prefix = object_prefix.strip().strip("/")
     object_key = f"{prefix}/{local_file.name}"
+
+    resolved_content_type = content_type
+    if local_file.suffix.lower() == ".json":
+        resolved_content_type = "application/json; charset=utf-8"
 
     s3_client = boto3.client(
         "s3",
@@ -86,7 +91,7 @@ def upload_release_asset(
         str(local_file),
         bucket_name,
         object_key,
-        ExtraArgs={"ContentType": content_type},
+        ExtraArgs={"ContentType": resolved_content_type},
         Config=transfer_config,
     )
     verify_remote_object_size(
@@ -291,6 +296,7 @@ def main(argv: list[str] | None = None) -> int:
             bucket_name=bucket_name,
             endpoint_url=endpoint_url,
             object_prefix=object_prefix,
+            content_type="application/octet-stream",
         )
         print(f"Uploaded: {object_key}")
         print(f"URL: {object_url}")

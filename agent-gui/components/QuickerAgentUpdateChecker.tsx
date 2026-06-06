@@ -10,13 +10,14 @@ import {
 } from "@/lib/app-update-overlay";
 import { tryBeginAppUpdateApply } from "@/lib/app-update-apply-guard";
 import {
-  exitQuickerAgentForPendingUpdateInstall,
-  fetchQuickerAgentUpdateStatus,
-  listenQuickerAgentUpdateProgress,
-  listenQuickerAgentUpdateStatus,
-  type QuickerAgentUpdateProgressEvent,
-  type QuickerAgentUpdateStatusDto,
-} from "@/lib/quicker-agent-update-tauri";
+  checkOfficialQuickerAgentUpdate,
+  clearPendingOfficialUpdate,
+  downloadPendingOfficialUpdate,
+  getPendingOfficialUpdate,
+  installPendingOfficialUpdateOnExit,
+  isPendingOfficialUpdateDownloaded,
+  type OfficialUpdateProgress,
+} from "@/lib/quicker-agent-official-updater";
 import { checkQuickerAgentUpdate } from "@/lib/quicker-agent-update";
 import {
   listenVoicePluginInstallProgress,
@@ -70,64 +71,17 @@ function notifyDevBrowserUpdate(
   });
 }
 
-function syncAppOverlayFromStatus(status: QuickerAgentUpdateStatusDto): void {
-  if (status.remoteVersion) {
-    patchAppUpdateOverlay({ remoteVersion: status.remoteVersion });
-  }
-  if (status.installedVersion) {
-    patchAppUpdateOverlay({ installedVersion: status.installedVersion });
-  }
-
-  if (status.phase === "ready" && status.pendingApplyOnExit) {
-    patchAppUpdateOverlay({
-      phase: "ready",
-      percent: 100,
-      message: status.message ?? "更新已就绪",
-      error: null,
-    });
-    return;
-  }
-
-  if (status.phase === "error") {
-    patchAppUpdateOverlay({
-      phase: "error",
-      percent: 0,
-      message: status.message ?? "更新失败",
-      error: status.message ?? "更新失败",
-    });
-    return;
-  }
-
-  if (status.phase === "downloading") {
-    patchAppUpdateOverlay({
-      phase: "downloading",
-      percent: status.downloadPercent,
-      message: status.message ?? "正在下载 QuickerAgent 更新…",
-      error: null,
-    });
-    return;
-  }
-
-  if (status.phase === "idle") {
-    hideAppUpdateOverlaySlice();
-  }
-}
-
-function syncAppOverlayFromProgress(event: QuickerAgentUpdateProgressEvent): void {
-  if (event.phase === "ready") return;
-
-  const versionMatch = event.message.match(/QuickerAgent\s+([\d.]+)/);
-  const progress = normalizeProgress(event);
+function syncAppOverlayFromOfficialProgress(event: OfficialUpdateProgress): void {
   patchAppUpdateOverlay({
     phase: event.phase === "checking" ? "checking" : "downloading",
-    remoteVersion: versionMatch?.[1] ?? undefined,
-    percent: progress.percent,
-    message: progress.message,
+    remoteVersion: event.remoteVersion ?? undefined,
+    percent: event.percent,
+    message: event.message,
     error: null,
   });
 }
 
-/** Tauri release: Rust background download + apply on exit. Dev/browser: legacy prompt. */
+/** Tauri release: official updater plugin. Dev/browser: legacy Bitiful prompt. */
 export function QuickerAgentUpdateChecker() {
   const startedRef = useRef(false);
   const voiceRuntimeUpgradeRef = useRef(false);
@@ -138,18 +92,8 @@ export function QuickerAgentUpdateChecker() {
     startedRef.current = true;
 
     const controller = new AbortController();
-    let unlistenStatus: (() => void) | undefined;
-    let unlistenProgress: (() => void) | undefined;
     let unlistenVoice: (() => void) | undefined;
     let unlistenClose: (() => void) | undefined;
-
-    const handleAppStatus = (status: QuickerAgentUpdateStatusDto): void => {
-      syncAppOverlayFromStatus(status);
-    };
-
-    const handleAppProgress = (event: QuickerAgentUpdateProgressEvent): void => {
-      syncAppOverlayFromProgress(event);
-    };
 
     const handleVoiceProgress = (event: VoiceInstallProgressEvent): void => {
       if (event.message.includes("准备更新语音识别服务")) {
@@ -182,29 +126,25 @@ export function QuickerAgentUpdateChecker() {
         const win = getCurrentWindow();
         unlistenClose = await win.onCloseRequested(async (event) => {
           if (exitApplyTriggeredRef.current) return;
+          if (!isPendingOfficialUpdateDownloaded()) return;
 
-          const status = await fetchQuickerAgentUpdateStatus();
-          if (!status?.pendingApplyOnExit) return;
+          const update = getPendingOfficialUpdate();
+          if (!update) return;
 
           event.preventDefault();
           if (!tryBeginAppUpdateApply()) return;
 
           exitApplyTriggeredRef.current = true;
-          showApplyingAppUpdateOverlay(
-            status.installedVersion,
-            status.remoteVersion,
-          );
+          showApplyingAppUpdateOverlay("", update.version);
           try {
-            // Silent install is handled once in Rust RunEvent::Exit (apply_pending_on_exit).
-            await exitQuickerAgentForPendingUpdateInstall();
+            await installPendingOfficialUpdateOnExit();
           } catch {
             exitApplyTriggeredRef.current = false;
             patchAppUpdateOverlay({
               phase: "ready",
-              installedVersion: status.installedVersion,
-              remoteVersion: status.remoteVersion,
+              remoteVersion: update.version,
               percent: 100,
-              message: status.message ?? "更新已就绪",
+              message: "更新已就绪，可立即安装并重启",
               error: null,
             });
           }
@@ -234,32 +174,60 @@ export function QuickerAgentUpdateChecker() {
           return;
         }
 
-        unlistenStatus = await listenQuickerAgentUpdateStatus(handleAppStatus);
-        unlistenProgress = await listenQuickerAgentUpdateProgress(handleAppProgress);
         unlistenVoice = await listenVoicePluginInstallProgress(handleVoiceProgress);
 
+        const installedVersion = (await getVersion()).trim();
         patchAppUpdateOverlay({
           phase: "checking",
+          installedVersion,
           percent: 0,
           message: "正在检查 QuickerAgent 更新…",
           error: null,
         });
 
-        const status = await fetchQuickerAgentUpdateStatus();
-        if (status) {
-          handleAppStatus(status);
+        const update = await checkOfficialQuickerAgentUpdate();
+        if (!update) {
+          hideAppUpdateOverlaySlice();
+          await registerCloseHandler();
+          return;
         }
 
+        patchAppUpdateOverlay({
+          phase: "downloading",
+          installedVersion,
+          remoteVersion: update.version,
+          percent: 0,
+          message: `正在下载 QuickerAgent ${update.version}…`,
+          error: null,
+        });
+
+        await downloadPendingOfficialUpdate((progress) => {
+          syncAppOverlayFromOfficialProgress(progress);
+        });
+
+        patchAppUpdateOverlay({
+          phase: "ready",
+          installedVersion,
+          remoteVersion: update.version,
+          percent: 100,
+          message: "更新已就绪，可立即安装并重启",
+          error: null,
+        });
+
         await registerCloseHandler();
-      } catch {
-        hideAppUpdateOverlaySlice();
+      } catch (err) {
+        clearPendingOfficialUpdate();
+        patchAppUpdateOverlay({
+          phase: "error",
+          percent: 0,
+          message: err instanceof Error ? err.message : "更新失败",
+          error: err instanceof Error ? err.message : "更新失败",
+        });
       }
     })();
 
     return () => {
       controller.abort();
-      void unlistenStatus?.();
-      void unlistenProgress?.();
       void unlistenVoice?.();
       void unlistenClose?.();
     };

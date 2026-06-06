@@ -101,6 +101,7 @@ function Test-NextStandaloneReady {
 function Invoke-QuickerAgentStagedTauriBuild {
     param(
         [string]$AgentGuiDir,
+        [string]$PublishDir,
         [switch]$SkipNextBuild
     )
 
@@ -130,7 +131,9 @@ function Invoke-QuickerAgentStagedTauriBuild {
         $conf.build.beforeBuildCommand = ''
         Set-Content -LiteralPath $confPath -Value (($conf | ConvertTo-Json -Depth 100) + "`n") -Encoding utf8NoBOM
         try {
-            Write-Host 'tauri build (NSIS installer)...' -ForegroundColor Cyan
+            Write-Host 'tauri build (NSIS installer + updater artifacts)...' -ForegroundColor Cyan
+            Import-TauriSigningPrivateKey -PublishDir $PublishDir
+            $env:CI = 'true'
             pnpm tauri build
             if ($LASTEXITCODE -ne 0) { throw "tauri build failed ($LASTEXITCODE)" }
         }
@@ -172,7 +175,7 @@ finally {
     Pop-Location
 }
 
-Invoke-QuickerAgentStagedTauriBuild -AgentGuiDir $agentGuiDir -SkipNextBuild:$SkipNextBuild
+Invoke-QuickerAgentStagedTauriBuild -AgentGuiDir $agentGuiDir -PublishDir $PSScriptRoot -SkipNextBuild:$SkipNextBuild
 
 if ($PreflightOnly) {
     Write-Host 'Preflight OK: QuickerAgent Tauri build succeeded.' -ForegroundColor Green
@@ -194,6 +197,11 @@ Copy-Item -LiteralPath $setupExe.FullName -Destination $aliasPath -Force
 Write-Host "Setup:    $($setupExe.FullName)" -ForegroundColor Cyan
 Write-Host "Copied:   $versionedPath" -ForegroundColor Cyan
 Write-Host "Alias:    $aliasPath" -ForegroundColor Cyan
+
+$latestJsonPath = Join-Path $publishOut 'latest.json'
+Write-QuickerAgentUpdaterLatestJson -SetupExePath $setupExe.FullName -SemVer $expectedSemVer -DestinationPath $latestJsonPath | Out-Null
+Write-Host "Updater:  $latestJsonPath" -ForegroundColor Cyan
+Write-Host "Endpoint: $(Get-QuickerAgentBitifulLatestJsonUrl)" -ForegroundColor DarkCyan
 
 Write-Host 'Verifying bundled resources (app + node + qkrpc)...' -ForegroundColor Cyan
 Push-Location $agentGuiDir

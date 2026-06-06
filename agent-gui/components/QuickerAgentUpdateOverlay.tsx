@@ -13,9 +13,9 @@ import {
 } from "@/lib/app-update-overlay";
 import { tryBeginAppUpdateApply } from "@/lib/app-update-apply-guard";
 import {
-  applyQuickerAgentUpdateAndExit,
-  skipQuickerAgentUpdateVersion,
-} from "@/lib/quicker-agent-update-tauri";
+  installPendingOfficialUpdateAndRelaunch,
+  skipOfficialUpdateVersion,
+} from "@/lib/quicker-agent-official-updater";
 
 function UpdateProgressBar({
   percent,
@@ -98,7 +98,7 @@ function AppUpdateSection({
         ) : null}
         <UpdateProgressBar
           percent={slice.percent}
-          message={slice.message || "应用即将关闭，安装程序将显示后续进度…"}
+          message={slice.message || "应用即将关闭并完成安装…"}
           indeterminate
         />
       </section>
@@ -113,7 +113,7 @@ function AppUpdateSection({
           <p className="app-update-overlay-version">{versionLine}</p>
         ) : null}
         <p className="app-update-overlay-ready-msg">
-          更新包已下载。退出应用时将自动安装；也可立即更新并重启。
+          更新包已下载。可立即安装并重启，或在退出应用时自动安装。
         </p>
         <div className="app-update-overlay-actions">
           <button
@@ -227,21 +227,28 @@ export function QuickerAgentUpdateOverlay() {
     patchAppUpdateOverlay({
       phase: "applying",
       percent: 0,
-      message: "正在启动安装程序…",
+      message: "正在安装更新…",
       error: null,
     });
-    void applyQuickerAgentUpdateAndExit().catch(() => {
+    void installPendingOfficialUpdateAndRelaunch((progress) => {
+      patchAppUpdateOverlay({
+        phase: "applying",
+        percent: progress.percent,
+        message: progress.message,
+        error: null,
+      });
+    }).catch((err) => {
       patchAppUpdateOverlay({
         phase: "error",
-        error: "无法启动安装程序，请稍后重试。",
-        message: "无法启动安装程序，请稍后重试。",
+        error: err instanceof Error ? err.message : "无法安装更新，请稍后重试。",
+        message: err instanceof Error ? err.message : "无法安装更新，请稍后重试。",
       });
     });
   };
 
   const handleSkip = (): void => {
     if (app.remoteVersion) {
-      void skipQuickerAgentUpdateVersion(app.remoteVersion);
+      skipOfficialUpdateVersion(app.remoteVersion);
     }
     dismissReadyAppUpdateOverlay();
   };

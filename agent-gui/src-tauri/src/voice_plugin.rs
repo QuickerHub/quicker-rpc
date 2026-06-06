@@ -126,37 +126,99 @@ fn voice_health_url(port: u16) -> String {
     format!("http://{DEFAULT_VOICE_WS_HOST}:{port}/health")
 }
 
-fn voice_runtime_ready(port: u16) -> bool {
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceRuntimeHealthDto {
+    pub ok: bool,
+    pub protocol_version: u32,
+    pub runtime_version: Option<String>,
+    pub model_id: Option<String>,
+    pub model_loaded: bool,
+    pub ready: bool,
+}
+
+fn fetch_voice_runtime_health(port: u16) -> VoiceRuntimeHealthDto {
     let url = voice_health_url(port);
     let Ok(client) = reqwest::blocking::Client::builder()
         .connect_timeout(Duration::from_secs(1))
         .timeout(Duration::from_secs(3))
         .build()
     else {
-        return false;
+        return VoiceRuntimeHealthDto {
+            ok: false,
+            protocol_version: 1,
+            runtime_version: None,
+            model_id: None,
+            model_loaded: false,
+            ready: false,
+        };
     };
     let Ok(resp) = client.get(&url).send() else {
-        return false;
+        return VoiceRuntimeHealthDto {
+            ok: false,
+            protocol_version: 1,
+            runtime_version: None,
+            model_id: None,
+            model_loaded: false,
+            ready: false,
+        };
     };
     if !resp.status().is_success() {
-        return false;
+        return VoiceRuntimeHealthDto {
+            ok: false,
+            protocol_version: 1,
+            runtime_version: None,
+            model_id: None,
+            model_loaded: false,
+            ready: false,
+        };
     }
     let Ok(body) = resp.json::<serde_json::Value>() else {
-        return false;
+        return VoiceRuntimeHealthDto {
+            ok: false,
+            protocol_version: 1,
+            runtime_version: None,
+            model_id: None,
+            model_loaded: false,
+            ready: false,
+        };
     };
-    if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+    VoiceRuntimeHealthDto {
+        ok: body.get("ok").and_then(|v| v.as_bool()) == Some(true),
+        protocol_version: body
+            .get("protocolVersion")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1) as u32,
+        runtime_version: body
+            .get("runtimeVersion")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+        model_id: body
+            .get("modelId")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+        model_loaded: body.get("modelLoaded").and_then(|v| v.as_bool()) == Some(true),
+        ready: body.get("ready").and_then(|v| v.as_bool()) == Some(true),
+    }
+}
+
+fn voice_runtime_model_ready(health: &VoiceRuntimeHealthDto) -> bool {
+    if !health.ok || !health.ready || !health.model_loaded {
         return false;
     }
-    if body.get("ready").and_then(|v| v.as_bool()) != Some(true) {
-        return false;
-    }
-    if body.get("modelLoaded").and_then(|v| v.as_bool()) != Some(true) {
-        return false;
-    }
-    match body.get("modelId").and_then(|v| v.as_str()) {
+    match health.model_id.as_deref() {
         Some(id) if !id.eq_ignore_ascii_case("stub") && !id.trim().is_empty() => true,
         _ => false,
     }
+}
+
+fn voice_runtime_ready(port: u16) -> bool {
+    voice_runtime_model_ready(&fetch_voice_runtime_health(port))
+}
+
+#[tauri::command]
+pub fn voice_runtime_health() -> VoiceRuntimeHealthDto {
+    fetch_voice_runtime_health(voice_ws_port())
 }
 
 fn resolve_voice_model_dir(root: &Path) -> Option<PathBuf> {
@@ -247,13 +309,8 @@ fn spawn_installed_runtime_ws(root: &Path, exe_rel: &str, port: u16) -> Result<C
     }
 
     let mut cmd = Command::new(&exe);
-    cmd.args([
-        "--host",
-        DEFAULT_VOICE_WS_HOST,
-        "--port",
-        &port.to_string(),
-    ])
-    .current_dir(root);
+    cmd.args(["--host", DEFAULT_VOICE_WS_HOST, "--port", &port.to_string()])
+        .current_dir(root);
     if let Some(model_dir) = resolve_voice_model_dir(root) {
         cmd.env("QUICKER_VOICE_MODEL_DIR", &model_dir);
         cmd.env("QUICKER_VOICE_MODEL_TYPE", "sensevoice");
@@ -262,8 +319,7 @@ fn spawn_installed_runtime_ws(root: &Path, exe_rel: &str, port: u16) -> Result<C
     cmd.env("QUICKER_VOICE_HOST", DEFAULT_VOICE_WS_HOST);
     cmd.env("QUICKER_VOICE_PORT", port.to_string());
     configure_hidden_child(&mut cmd);
-    cmd.spawn()
-        .map_err(|e| format!("启动 Runtime 失败：{e}"))
+    cmd.spawn().map_err(|e| format!("启动 Runtime 失败：{e}"))
 }
 
 fn spawn_dev_runtime_ws(dev_dir: &Path, port: u16) -> Result<Child, String> {
@@ -419,9 +475,7 @@ fn build_status(state: &VoicePluginState) -> VoicePluginStatusDto {
             running: false,
             ws_port: 0,
             plugin_dir: Some(dev.to_string_lossy().into_owned()),
-            message: Some(
-                "开发模式：仓库 voice-asr-runtime 可用，可启动 Runtime（需 uv）".into(),
-            ),
+            message: Some("开发模式：仓库 voice-asr-runtime 可用，可启动 Runtime（需 uv）".into()),
         };
     }
 
@@ -438,7 +492,8 @@ fn build_status(state: &VoicePluginState) -> VoicePluginStatusDto {
         message: Some(if has_partial {
             "语音组件未完整安装，请点击「安装」继续。".into()
         } else {
-            "未安装。点击下方「安装」，将自动下载并配置语音服务与识别模型（约 240 MB，仅需一次）。".into()
+            "未安装。点击下方「安装」，将自动下载并配置语音服务与识别模型（约 240 MB，仅需一次）。"
+                .into()
         }),
     }
 }
@@ -467,12 +522,7 @@ fn start_runtime_inner(state: &VoicePluginState) -> VoicePluginStatusDto {
         return running_status_dto(true, plugin_dir.clone(), port);
     }
 
-    if let Some(dto) = ws_status_from_child(
-        state,
-        fully_installed,
-        plugin_dir.clone(),
-        port,
-    ) {
+    if let Some(dto) = ws_status_from_child(state, fully_installed, plugin_dir.clone(), port) {
         if dto.running {
             return dto;
         }

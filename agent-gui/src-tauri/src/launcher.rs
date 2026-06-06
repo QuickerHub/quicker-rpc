@@ -1,5 +1,5 @@
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use tauri::{
@@ -220,32 +220,30 @@ fn register_launcher_window_handlers(window: &WebviewWindow) {
     }
 
     let guard_window = window.clone();
-    window.on_window_event(move |event| {
-        match event {
-            tauri::WindowEvent::Resized(_) => {
-                if guard_window.is_maximized().unwrap_or(false) {
-                    let _ = guard_window.unmaximize();
-                    apply_launcher_size(&guard_window, false);
-                }
+    window.on_window_event(move |event| match event {
+        tauri::WindowEvent::Resized(_) => {
+            if guard_window.is_maximized().unwrap_or(false) {
+                let _ = guard_window.unmaximize();
+                apply_launcher_size(&guard_window, false);
             }
-            tauri::WindowEvent::Focused(true) => {
-                LAUNCHER_HAD_STABLE_FOCUS.store(true, Ordering::SeqCst);
-                suppress_launcher_blur_hide_for(LAUNCHER_BLUR_SUPPRESS_AFTER_SHOW);
-                if LAUNCHER_EMIT_SHOWN_ON_FOCUS.swap(false, Ordering::SeqCst) {
-                    let _ = guard_window.emit(LAUNCHER_SHOWN_EVENT, ());
-                }
-            }
-            tauri::WindowEvent::Focused(false) => {
-                if !LAUNCHER_HAD_STABLE_FOCUS.load(Ordering::SeqCst) {
-                    return;
-                }
-                if blur_hide_is_suppressed() {
-                    return;
-                }
-                hide_launcher_window(&guard_window);
-            }
-            _ => {}
         }
+        tauri::WindowEvent::Focused(true) => {
+            LAUNCHER_HAD_STABLE_FOCUS.store(true, Ordering::SeqCst);
+            suppress_launcher_blur_hide_for(LAUNCHER_BLUR_SUPPRESS_AFTER_SHOW);
+            if LAUNCHER_EMIT_SHOWN_ON_FOCUS.swap(false, Ordering::SeqCst) {
+                let _ = guard_window.emit(LAUNCHER_SHOWN_EVENT, ());
+            }
+        }
+        tauri::WindowEvent::Focused(false) => {
+            if !LAUNCHER_HAD_STABLE_FOCUS.load(Ordering::SeqCst) {
+                return;
+            }
+            if blur_hide_is_suppressed() {
+                return;
+            }
+            hide_launcher_window(&guard_window);
+        }
+        _ => {}
     });
 }
 
@@ -287,7 +285,10 @@ fn resolve_launcher_webview_url(app: &AppHandle) -> Result<WebviewUrl, String> {
     let base = app
         .try_state::<UiBaseUrl>()
         .ok_or_else(|| "UI base URL is not configured".to_string())?;
-    let base_url = base.0.lock().map_err(|_| "UI base URL lock poisoned".to_string())?;
+    let base_url = base
+        .0
+        .lock()
+        .map_err(|_| "UI base URL lock poisoned".to_string())?;
     launcher_url(&base_url)
 }
 

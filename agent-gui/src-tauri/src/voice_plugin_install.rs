@@ -30,8 +30,7 @@ pub struct VoiceInstallProgressEvent {
 }
 
 const MANIFEST_JSON: &str = include_str!("../resources/voice-plugin-manifest.json");
-const DEFAULT_SETTINGS_JSON: &str =
-    r#"{"autoStart":true,"modelId":"standard","language":"zh-CN","silentStopSeconds":0,"streamingPreview":false,"maxRecordingSeconds":120,"wsPort":6016}"#;
+const DEFAULT_SETTINGS_JSON: &str = r#"{"autoStart":true,"modelId":"standard","language":"zh-CN","silentStopSeconds":0,"streamingPreview":false,"maxRecordingSeconds":120,"wsPort":6016}"#;
 
 const MODEL_SUBDIR: &str = "sensevoice";
 
@@ -68,8 +67,7 @@ fn modelscope_resolve_base(identity: &SenseVoiceModelIdentity) -> &str {
 use crate::quicker_agent_paths::voice_plugin_root;
 
 fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../voice-asr-runtime")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../voice-asr-runtime")
 }
 
 fn packaged_runtime_dist() -> Option<PathBuf> {
@@ -181,7 +179,8 @@ fn remove_dir_all(path: &Path) -> Result<(), String> {
 
 fn copy_dir_recursive(from: &Path, to: &Path) -> Result<(), String> {
     fs::create_dir_all(to).map_err(|e| format!("创建目录失败 {}: {e}", to.display()))?;
-    for entry in fs::read_dir(from).map_err(|e| format!("读取目录失败 {}: {e}", from.display()))? {
+    for entry in fs::read_dir(from).map_err(|e| format!("读取目录失败 {}: {e}", from.display()))?
+    {
         let entry = entry.map_err(|e| e.to_string())?;
         let src = entry.path();
         let dst = to.join(entry.file_name());
@@ -223,10 +222,7 @@ fn verify_sensevoice_model_identity(dir: &Path) -> Result<(), String> {
         }
         let actual = sha256_hex_file(&path)?;
         if !actual.eq_ignore_ascii_case(spec.sha256.trim()) {
-            return Err(format!(
-                "模型 {name} 校验失败（非 {}）",
-                identity.id
-            ));
+            return Err(format!("模型 {name} 校验失败（非 {}）", identity.id));
         }
     }
     Ok(())
@@ -281,9 +277,7 @@ fn verify_sha256(path: &Path, expected: Option<&str>, label: &str) -> Result<(),
     };
     let actual = sha256_hex_file(path)?;
     if !actual.eq_ignore_ascii_case(expected) {
-        return Err(format!(
-            "{label}校验失败（sha256 不匹配）。请重试安装。"
-        ));
+        return Err(format!("{label}校验失败（sha256 不匹配）。请重试安装。"));
     }
     Ok(())
 }
@@ -297,12 +291,7 @@ fn download_file(
     percent_start: u8,
     percent_end: u8,
 ) -> Result<(), String> {
-    emit_progress(
-        app,
-        phase,
-        percent_start,
-        &format!("正在下载{label}…"),
-    );
+    emit_progress(app, phase, percent_start, &format!("正在下载{label}…"));
 
     let response = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(900))
@@ -351,10 +340,7 @@ fn download_file(
     Ok(())
 }
 
-fn download_urls(
-    mirror: Option<&str>,
-    primary: &str,
-) -> Vec<String> {
+fn download_urls(mirror: Option<&str>, primary: &str) -> Vec<String> {
     let mut urls = Vec::new();
     if let Some(url) = mirror.map(str::trim).filter(|s| !s.is_empty()) {
         urls.push(url.to_string());
@@ -386,15 +372,7 @@ fn download_file_with_fallback(
                 &format!("国内源不可用，正在切换备用下载{label}…"),
             );
         }
-        match download_file(
-            app,
-            phase,
-            label,
-            url,
-            dest,
-            percent_start,
-            percent_end,
-        ) {
+        match download_file(app, phase, label, url, dest, percent_start, percent_end) {
             Ok(()) => return Ok(()),
             Err(err) => errors.push(format!("{url}: {err}")),
         }
@@ -496,15 +474,7 @@ fn install_runtime_from_url(
         channel.runtime_zip_mirror_url.as_deref(),
         &channel.runtime_zip_url,
     );
-    download_file_with_fallback(
-        app,
-        "runtime",
-        "语音识别服务",
-        &urls,
-        &zip_path,
-        10,
-        45,
-    )?;
+    download_file_with_fallback(app, "runtime", "语音识别服务", &urls, &zip_path, 10, 45)?;
     verify_sha256(
         &zip_path,
         channel.runtime_zip_sha256.as_deref(),
@@ -532,9 +502,7 @@ fn install_model_from_modelscope(app: &AppHandle, root: &Path) -> Result<(), Str
 
     let base = modelscope_resolve_base(&identity).trim_end_matches('/');
     let mut file_names: Vec<String> = identity.files.keys().cloned().collect();
-    file_names.sort_by(|a, b| {
-        identity.files[a].size.cmp(&identity.files[b].size)
-    });
+    file_names.sort_by(|a, b| identity.files[a].size.cmp(&identity.files[b].size));
 
     let file_count = file_names.len().max(1) as u8;
     for (index, name) in file_names.iter().enumerate() {
@@ -581,20 +549,8 @@ fn install_model_from_zip_channel(
         channel.model_zip_mirror_url.as_deref(),
         &channel.model_zip_url,
     );
-    download_file_with_fallback(
-        app,
-        "model",
-        "识别模型 (备用包)",
-        &urls,
-        &zip_path,
-        50,
-        85,
-    )?;
-    verify_sha256(
-        &zip_path,
-        channel.model_zip_sha256.as_deref(),
-        "识别模型",
-    )?;
+    download_file_with_fallback(app, "model", "识别模型 (备用包)", &urls, &zip_path, 50, 85)?;
+    verify_sha256(&zip_path, channel.model_zip_sha256.as_deref(), "识别模型")?;
     let dest = model_dir(root);
     extract_zip(app, &zip_path, &dest, "识别模型")?;
     normalize_model_layout(&dest)?;
@@ -618,9 +574,8 @@ fn install_model_from_network(
                 "ModelScope 不可用，正在切换 Bitiful / GitHub 备用源…",
             );
             let _ = remove_dir_all(&model_dir(root));
-            install_model_from_zip_channel(app, channel, root, temp_dir).map_err(|zip_err| {
-                format!("ModelScope: {modelscope_err} | 备用包: {zip_err}")
-            })
+            install_model_from_zip_channel(app, channel, root, temp_dir)
+                .map_err(|zip_err| format!("ModelScope: {modelscope_err} | 备用包: {zip_err}"))
         }
     }
 }
@@ -635,10 +590,8 @@ pub fn stage_runtime_upgrade(app: &AppHandle) -> Result<(), String> {
     }
 
     let channel = load_channel()?;
-    let temp_dir = std::env::temp_dir().join(format!(
-        "quicker-voice-asr-upgrade-{}",
-        std::process::id()
-    ));
+    let temp_dir =
+        std::env::temp_dir().join(format!("quicker-voice-asr-upgrade-{}", std::process::id()));
     fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
 
     let staging = staging_runtime_dir(&root);
@@ -651,15 +604,7 @@ pub fn stage_runtime_upgrade(app: &AppHandle) -> Result<(), String> {
             channel.runtime_zip_mirror_url.as_deref(),
             &channel.runtime_zip_url,
         );
-        download_file_with_fallback(
-            app,
-            "runtime",
-            "语音识别服务",
-            &urls,
-            &zip_path,
-            10,
-            85,
-        )?;
+        download_file_with_fallback(app, "runtime", "语音识别服务", &urls, &zip_path, 10, 85)?;
         verify_sha256(
             &zip_path,
             channel.runtime_zip_sha256.as_deref(),
@@ -675,12 +620,7 @@ pub fn stage_runtime_upgrade(app: &AppHandle) -> Result<(), String> {
         };
         let json = serde_json::to_string_pretty(&pending).map_err(|e| e.to_string())?;
         fs::write(staging_pending_path(&root), json).map_err(|e| e.to_string())?;
-        emit_progress(
-            app,
-            "ready",
-            100,
-            "语音服务更新已下载，退出后将自动安装",
-        );
+        emit_progress(app, "ready", 100, "语音服务更新已下载，退出后将自动安装");
         Ok(())
     })();
 

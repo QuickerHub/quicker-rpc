@@ -10,6 +10,7 @@ import {
   selectThread,
 } from "@/lib/chat-store";
 import { WorkspaceExplorerFileTabs } from "@/components/workspace/WorkspaceExplorerFileTabs";
+import { ExplorerPanelToggle } from "@/components/workspace/WorkspaceExplorerPanel";
 import { useDocsViewer } from "@/lib/docs-viewer";
 import {
   useWorkspaceExplorerEditor,
@@ -90,6 +91,23 @@ function TitlebarWindowControls({
     >
       <TauriWindowControls />
     </div>
+  );
+}
+
+function TitlebarTrailing({
+  isTauri,
+  platform,
+}: {
+  isTauri: boolean;
+  platform: ReturnType<typeof useShellPlatform>;
+}) {
+  return (
+    <>
+      <div className="titlebar-actions">
+        <ExplorerPanelToggle className="titlebar-action-btn ws-icon-btn" />
+      </div>
+      <TitlebarWindowControls isTauri={isTauri} platform={platform} />
+    </>
   );
 }
 
@@ -259,19 +277,17 @@ export function ChatTitlebar({
         ) : null}
       </div>
 
-      {isTauri ? (
-        panelOpen ? (
-          <div className="titlebar-chrome titlebar-chrome--over-explorer">
-            <div className="titlebar-trailing">
-              <TitlebarWindowControls isTauri={isTauri} platform={platform} />
-            </div>
-          </div>
-        ) : (
+      {panelOpen ? (
+        <div className="titlebar-chrome titlebar-chrome--over-explorer">
           <div className="titlebar-trailing">
-            <TitlebarWindowControls isTauri={isTauri} platform={platform} />
+            <TitlebarTrailing isTauri={isTauri} platform={platform} />
           </div>
-        )
-      ) : null}
+        </div>
+      ) : (
+        <div className="titlebar-trailing">
+          <TitlebarTrailing isTauri={isTauri} platform={platform} />
+        </div>
+      )}
     </header>
   );
 }

@@ -46,6 +46,12 @@ export function resolveVoiceRuntimePhase(params: {
   }
 
   if (inTauri && !hostStatus) {
+    if (isVoiceRuntimeModelReady(health)) {
+      return "running";
+    }
+    if (health?.ok) {
+      return "starting";
+    }
     return "error";
   }
 

@@ -180,6 +180,8 @@ jobs:
           BUNDLED_LLM_CONFIG: ${{ secrets.BUNDLED_LLM_CONFIG }}
           BUNDLED_LLM_BINGLEIMUZI_API_KEY: ${{ secrets.BUNDLED_LLM_BINGLEIMUZI_API_KEY }}
           BUNDLED_LLM_AI98PRO_API_KEY: ${{ secrets.BUNDLED_LLM_AI98PRO_API_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           AGENT_GUI_DEFAULT_CWD: ${{ github.workspace }}
         run: |
           $hasConfig = -not [string]::IsNullOrWhiteSpace($env:BUNDLED_LLM_CONFIG)
@@ -202,6 +204,7 @@ jobs:
           path: |
             publish/${{ needs.metadata.outputs.agent_setup_name }}
             publish/quicker-agent-win-x64-setup.exe
+            publish/latest.json
           if-no-files-found: error
 
   release:
@@ -284,6 +287,7 @@ jobs:
             publish/qkrpc-win-x64-setup.exe
             publish/${{ needs.metadata.outputs.agent_setup_name }}
             publish/quicker-agent-win-x64-setup.exe
+            publish/latest.json
           draft: false
           prerelease: false
 
