@@ -264,6 +264,18 @@ function ApprovalDock({
       <div className="approval-hint-main">
         <div className="approval-hint-title">{copy.title}</div>
         <div className="approval-hint-summary">{copy.summary}</div>
+        {copy.shellCommands && copy.shellCommands.length > 0 ? (
+          <div className="approval-hint-shell-commands" aria-label="待执行的终端命令">
+            {copy.shellCommands.map((command, index) => (
+              <pre
+                key={`${index}-${command.slice(0, 24)}`}
+                className="approval-hint-shell-command"
+              >
+                {command}
+              </pre>
+            ))}
+          </div>
+        ) : null}
         {copy.workspaceDelete ? (
           <label className="approval-hint-workspace">
             <input

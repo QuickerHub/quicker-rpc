@@ -37,6 +37,7 @@ const actionSchema = z.enum([
   "move",
   "profile_create",
   "profile_delete",
+  "profile_prune",
   "profile_reorder",
   "process_ensure",
 ]);
@@ -319,6 +320,15 @@ export async function executeQkrpcActionTool(
       }
       return formatQkrpcResultForAgent(await runQkrpcForTool(args));
     }
+    case "profile_prune": {
+      const pruneScope = input.scope?.trim() || input.exeFile?.trim();
+      if (!pruneScope) {
+        return formatQkrpcResultForAgent(qkrpcValidationError("scope or exeFile is required for profile_prune"));
+      }
+      return formatQkrpcResultForAgent(
+        await runQkrpcForTool(["profile", "prune", "--scope", pruneScope]),
+      );
+    }
     case "profile_reorder": {
       if (!input.profileIds?.length) {
         return formatQkrpcResultForAgent(qkrpcValidationError("profileIds is required for profile_reorder"));
@@ -373,7 +383,7 @@ export async function executeQkrpcActionTool(
 export const QKRPC_ACTION_TOOL_DEF = tool({
   description:
     "Quicker local actions: list/search/get/create/replace/publish/set_metadata/float/edit/edit_var/run/move; "
-    + "global profile tabs (profile_create/delete/reorder); virtual process pages (process_ensure). "
+    + "global profile tabs (profile_create/delete/prune/reorder); virtual process pages (process_ensure). "
     + "list/search: UI renders the table — summarize only, no markdown table. "
     + "get syncs disk when action has steps/variables. create bootstraps .quicker/actions/{id}/ — no follow-up get. "
     + "Disk editing: workspace_program. Destructive delete: qkrpc_action_delete.",

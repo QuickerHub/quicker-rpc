@@ -218,6 +218,16 @@ internal static class QkrpcCliHelp
                         Option("no-bootstrap", "Skip auto-start."),
                     }),
 
+                Cmd("profile prune", "Delete all empty deletable action pages under a process scope (cleans up spill tabs after batch moves).", "qkrpc profile prune --scope chrome.exe [--json]",
+
+                    opts: new[]
+                    {
+                        Option("scope", "Process scope (chrome.exe, chrome, global, _my_app, …)."),
+                        Option("json", "Structured output."),
+                        Option("timeout", "Seconds.", defaultValue: "10"),
+                        Option("no-bootstrap", "Skip auto-start."),
+                    }),
+
                 Cmd("profile create", "Create blank global action profile pages.", "qkrpc profile create --scope global [--count N] [--after-first] [--json]",
 
                     opts: new[]

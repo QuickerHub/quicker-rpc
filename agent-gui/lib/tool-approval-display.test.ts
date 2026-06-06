@@ -52,3 +52,18 @@ test("buildApprovalDockCopy adds workspace delete prompt for subprograms", () =>
   assert.match(copy.workspaceDelete!.checkboxLabel, /\.quicker\/subprograms/);
   assert.match(copy.workspaceDelete!.detail ?? "", /公共子程序库/);
 });
+
+test("buildApprovalDockCopy shows full shell commands", () => {
+  const copy = buildApprovalDockCopy([
+    {
+      id: "shell-1",
+      toolName: "shell_exec",
+      label: "终端",
+      input: { command: "Remove-Item .\\tmp -Recurse -Force" },
+      destructive: false,
+    },
+  ]);
+  assert.equal(copy.title, "危险操作：终端命令");
+  assert.deepEqual(copy.shellCommands, ["Remove-Item .\\tmp -Recurse -Force"]);
+  assert.equal(copy.approveLabel, "确认执行");
+});

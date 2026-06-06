@@ -6,12 +6,17 @@ export type PendingToolApproval = {
   destructive: boolean;
 };
 
+import { formatShellApprovalCommand } from "@/lib/shell-policy";
+import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
+
 export type ApprovalDockCopy = {
   destructive: boolean;
   title: string;
   summary: string;
   approveLabel: string;
   denyLabel: string;
+  /** Full shell command bodies for shell_exec confirmations. */
+  shellCommands?: string[];
   /** When local .quicker/actions projects exist for pending action deletes. */
   workspaceDelete?: {
     count: number;
@@ -157,6 +162,30 @@ export function buildApprovalDockCopy(
       subprogramDeletes,
       workspaceSubProgramProjectCount,
     );
+  }
+
+  const shellApprovals = approvals.filter(
+    (approval) => approval.toolName === SHELL_EXEC_TOOL,
+  );
+  if (shellApprovals.length === count) {
+    const shellCommands = shellApprovals
+      .map((approval) => formatShellApprovalCommand(approval.input))
+      .filter((command): command is string => Boolean(command?.trim()));
+    const shellCount = shellCommands.length || count;
+    return {
+      destructive: true,
+      title:
+        shellCount === 1
+          ? "危险操作：终端命令"
+          : `危险操作：${shellCount} 条终端命令待确认`,
+      summary:
+        shellCount === 1
+          ? "以下命令会写入或删除本地内容，请核对完整命令后确认。"
+          : "以下命令会写入或删除本地内容，请逐条核对后确认。",
+      shellCommands,
+      approveLabel: shellCount > 1 ? `确认执行 ${shellCount} 条` : "确认执行",
+      denyLabel: shellCount > 1 ? "全部取消" : "取消",
+    };
   }
 
   const labels = [...new Set(approvals.map((approval) => approval.label))];

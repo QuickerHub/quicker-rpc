@@ -450,6 +450,37 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
+    public Task<QuickerRpcDeleteProfileResult> PruneEmptyProfilesAsync(
+        string scope,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(scope))
+        {
+            return Task.FromResult(new QuickerRpcDeleteProfileResult
+            {
+                Ok = false,
+                Message = "scope is required.",
+            });
+        }
+
+        return InvokeOnDispatcherAsync(
+            () =>
+            {
+                var result = _profileDeleteService.PruneEmptyProfiles(scope.Trim());
+                if (result.Ok)
+                {
+                    _popup.Success(result.Message);
+                }
+                else
+                {
+                    _popup.Error(string.IsNullOrWhiteSpace(result.Message) ? "清理空白动作页失败" : result.Message);
+                }
+
+                return Task.FromResult(result);
+            },
+            cancellationToken);
+    }
+
     public Task<QuickerRpcCreateVirtualProcessResult> EnsureVirtualProcessAsync(
         string exeFile,
         string displayName,

@@ -10983,9 +10983,30 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   font-size: 0.72rem;
   line-height: 1.4;
   color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.approval-hint-shell-commands {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+  max-height: min(40vh, 280px);
+  overflow: auto;
+}
+
+.approval-hint-shell-command {
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  background: color-mix(in srgb, var(--bg) 72%, var(--panel));
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
 }
 
 .approval-hint-workspace {

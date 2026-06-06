@@ -38,16 +38,47 @@ const BLOCKED_PATTERNS: { pattern: RegExp; reason: string }[] = [
   },
 ];
 
-const APPROVAL_PATTERNS: RegExp[] = [
+/** Delete / irreversible remote or repo mutations. */
+const DELETE_PATTERNS: RegExp[] = [
   /\b(remove-item|rm|del|erase|rmdir|rd)\b/i,
-  /\b(git\s+(push|reset|clean|checkout\s+-f|rebase))\b/i,
+  /\b(git\s+(push|clean|reset))\b/i,
+  /\b(git\s+checkout\s+(-f|--force))\b/i,
+  /\b(git\s+rebase)\b/i,
   /\b(npm\s+(publish|unpublish|deprecate))\b/i,
   /\b(docker\s+(rm|rmi|system\s+prune))\b/i,
-  /\b(kill|stop-process|taskkill)\b/i,
-  /\b(move-item|mv|ren|rename-item)\b/i,
-  /\b(copy-item|cp|xcopy|robocopy)\b/i,
-  /\b(set-content|out-file)\b/i,
 ];
+
+/** Local writes (files, moves, commits) — not plain read/query. */
+const WRITE_PATTERNS: RegExp[] = [
+  /\b(set-content|out-file|add-content)\b/i,
+  /\b(move-item|rename-item)\b/i,
+  /\b(new-item|mkdir|md)\b/i,
+  /\b(git\s+(commit|merge|pull))\b/i,
+];
+
+/**
+ * Single-line commands that are typically read-only.
+ * Matched only when no delete/write token appears on the same line.
+ */
+const READ_ONLY_SINGLE_LINE_PATTERNS: RegExp[] = [
+  /^git\s+(status|log|diff|show|branch|rev-parse|describe|fetch|remote|config\s+--get)\b/i,
+  /^git\s+--version\b/i,
+  /^(get-content|get-childitem|get-location|dir|ls|cat|type|select-string|findstr|where-object|measure-object|format-table|format-list)\b/i,
+  /^invoke-restmethod\b/i,
+  /^qkrpc\b/i,
+  /^dotnet\s+(build|test|restore|run|tool)\b/i,
+  /^npm\s+(run|test|ci|install|view|list|prefix|exec)\b/i,
+  /^pnpm\s+(run|test|install|exec|dev)\b/i,
+  /^pwsh(\.exe)?\b/i,
+  /^powershell(\.exe)?\b/i,
+  /^node(\.exe)?\b/i,
+  /^cargo\s+(build|test|check|run)\b/i,
+  /^uv\s+(run|sync|pip)\b/i,
+  /^(rustc?|go|gh)\b/i,
+  /^(write-output|echo)\b/i,
+];
+
+const APPROVAL_PATTERNS: RegExp[] = [...DELETE_PATTERNS, ...WRITE_PATTERNS];
 
 function collectInspectText(request: ShellRunRequest): string {
   const parts = [
@@ -57,6 +88,17 @@ function collectInspectText(request: ShellRunRequest): string {
     ...(request.args ?? []),
   ].filter((part): part is string => Boolean(part?.trim()));
   return parts.join("\n");
+}
+
+function isSingleLineReadOnly(text: string): boolean {
+  const line = text.trim();
+  if (!line || line.includes("\n")) {
+    return false;
+  }
+  if (APPROVAL_PATTERNS.some((pattern) => pattern.test(line))) {
+    return false;
+  }
+  return READ_ONLY_SINGLE_LINE_PATTERNS.some((pattern) => pattern.test(line));
 }
 
 export function evaluateShellPolicy(request: ShellRunRequest): ShellPolicyVerdict {
@@ -81,7 +123,25 @@ export function evaluateShellPolicy(request: ShellRunRequest): ShellPolicyVerdic
     }
   }
 
-  for (const pattern of APPROVAL_PATTERNS) {
+  if (isSingleLineReadOnly(text)) {
+    return {
+      allowed: true,
+      risk: "low",
+      requiresApproval: false,
+    };
+  }
+
+  for (const pattern of DELETE_PATTERNS) {
+    if (pattern.test(text)) {
+      return {
+        allowed: true,
+        risk: "high",
+        requiresApproval: true,
+      };
+    }
+  }
+
+  for (const pattern of WRITE_PATTERNS) {
     if (pattern.test(text)) {
       return {
         allowed: true,
@@ -124,4 +184,26 @@ export function shellModeLabel(mode: ShellExecMode): string {
     default:
       return mode;
   }
+}
+
+/** Full shell body for approval UI (command, inline script, or script path + args). */
+export function formatShellApprovalCommand(input: unknown): string | null {
+  if (typeof input !== "object" || input === null) {
+    return null;
+  }
+  const record = input as Record<string, unknown>;
+  if (typeof record.command === "string" && record.command.trim()) {
+    return record.command;
+  }
+  if (typeof record.script === "string" && record.script.trim()) {
+    return record.script;
+  }
+  if (typeof record.scriptPath === "string" && record.scriptPath.trim()) {
+    const path = record.scriptPath.trim();
+    const args = Array.isArray(record.args)
+      ? record.args.filter((arg): arg is string => typeof arg === "string" && arg.length > 0)
+      : [];
+    return args.length > 0 ? `${path} ${args.join(" ")}` : path;
+  }
+  return null;
 }

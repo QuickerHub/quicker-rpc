@@ -38,3 +38,39 @@ export const APP_BOOTSTRAP_SPLASH_MARKUP = `
 
 /** Skip splash on /launcher before first paint. */
 export const APP_BOOTSTRAP_SPLASH_INIT_SCRIPT = `(function(){try{if(location.pathname==="/launcher")document.documentElement.dataset.appBootSkip="1";}catch(e){}})();`;
+
+/**
+ * Inline dismiss — does not wait for React (usePathname can suspend RootLayoutExtras).
+ * Also watches for .app-shell / .launcher-route-shell and forces dismiss after timeout.
+ */
+export const APP_BOOTSTRAP_SPLASH_DISMISS_SCRIPT = `(function(){try{
+var ID="app-bootstrap-splash";
+var FADE=480;
+var MIN=420;
+var MAX=12000;
+var t0=performance.now();
+var done=false;
+function dismiss(force){
+if(done)return;
+var el=document.getElementById(ID);
+if(!el)return;
+done=true;
+var wait=force?0:Math.max(0,MIN-(performance.now()-t0));
+setTimeout(function(){
+el.classList.add("app-bootstrap-splash--fade");
+document.documentElement.dataset.appReady="1";
+setTimeout(function(){el.remove();},FADE);
+},wait);
+}
+window.__dismissAppBootstrapSplash=function(){dismiss(false);};
+if(document.documentElement.dataset.appBootSkip==="1"){dismiss(true);return;}
+function ready(){
+return document.querySelector(".app-shell,.launcher-route-shell");
+}
+if(ready()){dismiss(false);return;}
+var obs=new MutationObserver(function(){
+if(ready()){obs.disconnect();dismiss(false);}
+});
+if(document.body){obs.observe(document.body,{childList:true,subtree:true});}
+setTimeout(function(){obs.disconnect();dismiss(false);},MAX);
+}catch(e){}})();`;

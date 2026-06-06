@@ -631,6 +631,12 @@ internal static partial class Program
                         createdProfile = result.CreatedProfile,
                         createdProfileId = result.CreatedProfileId,
                         createdProfileName = result.CreatedProfileName,
+                        reusedProfile = result.ReusedProfile,
+                        reusedProfileId = result.ReusedProfileId,
+                        reusedProfileName = result.ReusedProfileName,
+                        deletedSourceProfile = result.DeletedSourceProfile,
+                        deletedSourceProfileId = result.DeletedSourceProfileId,
+                        deletedSourceProfileName = result.DeletedSourceProfileName,
                         message = result.Message,
                     },
                     QkrpcJson.CliOutput));

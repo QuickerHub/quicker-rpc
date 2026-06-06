@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateShellPolicy, summarizeShellRequest } from "@/lib/shell-policy";
+import {
+  evaluateShellPolicy,
+  formatShellApprovalCommand,
+  summarizeShellRequest,
+} from "@/lib/shell-policy";
 import { buildShellInvocation } from "@/lib/shell-runner";
 
 describe("shell-policy", () => {
@@ -8,6 +12,32 @@ describe("shell-policy", () => {
     const verdict = evaluateShellPolicy({
       mode: "command",
       command: "git status -sb",
+    });
+    assert.equal(verdict.allowed, true);
+    assert.equal(verdict.requiresApproval, false);
+  });
+
+  it("allows qkrpc and dotnet build without approval", () => {
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "qkrpc action list --limit 1 --json",
+      }).requiresApproval,
+      false,
+    );
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "dotnet build QuickerRpc.Plugin -c Release",
+      }).requiresApproval,
+      false,
+    );
+  });
+
+  it("allows pwsh build script launcher without approval", () => {
+    const verdict = evaluateShellPolicy({
+      mode: "command",
+      command: "pwsh -NoProfile -File ./build.ps1 -t",
     });
     assert.equal(verdict.allowed, true);
     assert.equal(verdict.requiresApproval, false);
@@ -22,12 +52,61 @@ describe("shell-policy", () => {
     assert.equal(verdict.requiresApproval, false);
   });
 
+  it("does not require approval for copy or process stop helpers", () => {
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "Copy-Item .\\a.txt .\\b.txt",
+      }).requiresApproval,
+      false,
+    );
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "Stop-Process -Id 1234 -Force",
+      }).requiresApproval,
+      false,
+    );
+  });
+
   it("requires approval for destructive remove-item", () => {
     const verdict = evaluateShellPolicy({
       mode: "command",
       command: "Remove-Item -Recurse .\\publish",
     });
     assert.equal(verdict.allowed, true);
+    assert.equal(verdict.requiresApproval, true);
+  });
+
+  it("requires approval for file writes", () => {
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "Set-Content .\\out.txt 'hello'",
+      }).requiresApproval,
+      true,
+    );
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "Move-Item .\\a .\\b",
+      }).requiresApproval,
+      true,
+    );
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "git commit -m test",
+      }).requiresApproval,
+      true,
+    );
+  });
+
+  it("requires approval when pwsh wraps a destructive command", () => {
+    const verdict = evaluateShellPolicy({
+      mode: "command",
+      command: 'pwsh -Command "Remove-Item .\\tmp -Recurse -Force"',
+    });
     assert.equal(verdict.requiresApproval, true);
   });
 
@@ -47,6 +126,28 @@ describe("shell-policy", () => {
         scriptPath: "scripts/build.ps1",
       }),
       "scripts/build.ps1",
+    );
+  });
+
+  it("formats full shell approval command bodies", () => {
+    assert.equal(
+      formatShellApprovalCommand({
+        command: "git status -sb",
+      }),
+      "git status -sb",
+    );
+    assert.equal(
+      formatShellApprovalCommand({
+        script: "Write-Output 1\nWrite-Output 2",
+      }),
+      "Write-Output 1\nWrite-Output 2",
+    );
+    assert.equal(
+      formatShellApprovalCommand({
+        scriptPath: "scripts/build.ps1",
+        args: ["-t"],
+      }),
+      "scripts/build.ps1 -t",
     );
   });
 });

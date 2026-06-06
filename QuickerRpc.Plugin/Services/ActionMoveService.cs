@@ -27,6 +27,7 @@ public sealed class ActionMoveService
 
     private readonly ActionEditMgrAccessor? _actionEditMgr;
     private readonly ProfileManagerAccessor? _profileManager;
+    private readonly ProfileDeleteService _profileDeleteService = new();
 
     public ActionMoveService()
     {
@@ -190,6 +191,36 @@ public sealed class ActionMoveService
 
         if (resolution == "createpageafter" || resolution == "create-page-after")
         {
+            var manager = _profileManager!.Instance;
+            var exeFile = destinationProfile.ExeFile ?? ActionProfile.ExeName_Global;
+            var siblings = ListProfilesForExe(manager, exeFile);
+            var reusable = TryFindProfileWithEmptySlot(destinationProfile, siblings);
+            if (reusable is not null)
+            {
+                workingProfile = reusable;
+                var (reuseRow, reuseCol) = reusable.FindEmptyPosition();
+                if (reuseRow < 0 || reuseCol < 0)
+                {
+                    return Fail($"Reusable action page「{reusable.Name}」has no empty slot.", id);
+                }
+
+                destinationRow = reuseRow;
+                destinationCol = reuseCol;
+                return ExecuteMove(
+                    id,
+                    action,
+                    sourceProfile,
+                    workingProfile,
+                    sourceRow,
+                    sourceCol,
+                    destinationRow,
+                    destinationCol,
+                    targetAction: null,
+                    createdProfile: false,
+                    createdPage: null,
+                    reusedProfile: reusable);
+            }
+
             var anchorName = destinationProfile.Name;
             if (!TryCreateBlankProfileAfter(destinationProfile, out createdPage, out var createError)
                 || createdPage is null)
@@ -317,7 +348,8 @@ public sealed class ActionMoveService
         ActionItem? targetAction,
         bool createdProfile,
         ActionProfile? createdPage,
-        string? insertedAfterProfileName = null)
+        string? insertedAfterProfileName = null,
+        ActionProfile? reusedProfile = null)
     {
         try
         {
@@ -350,13 +382,17 @@ public sealed class ActionMoveService
             }
 
             var message = targetAction is null ? "动作已移动。" : "动作已交换位置。";
-            if (createdProfile && createdPage is not null)
+            if (reusedProfile is not null)
+            {
+                message = $"已复用空白动作页「{reusedProfile.Name}」并移动动作。";
+            }
+            else if (createdProfile && createdPage is not null)
             {
                 var anchorName = insertedAfterProfileName ?? destinationProfile.Name;
                 message = $"已在「{anchorName}」后新建空白页并移动动作。";
             }
 
-            return new QuickerRpcMoveActionResult
+            var result = new QuickerRpcMoveActionResult
             {
                 Ok = true,
                 Message = message,
@@ -375,7 +411,13 @@ public sealed class ActionMoveService
                 CreatedProfile = createdProfile,
                 CreatedProfileId = createdPage?.Id,
                 CreatedProfileName = createdPage?.Name,
+                ReusedProfile = reusedProfile is not null,
+                ReusedProfileId = reusedProfile?.Id,
+                ReusedProfileName = reusedProfile?.Name,
             };
+
+            TryPruneEmptySourceProfile(sourceProfile, destinationProfile, result);
+            return result;
         }
         catch (Exception ex)
         {
@@ -466,6 +508,76 @@ public sealed class ActionMoveService
 
         return (row, col, PositionConflict.None);
     }
+
+    private static ActionProfile? TryFindProfileWithEmptySlot(
+        ActionProfile anchor,
+        IList<ActionProfile> siblings)
+    {
+        ActionProfile? partialAfter = null;
+        ActionProfile? partialBefore = null;
+
+        foreach (var profile in siblings.Where(p => !ReferenceEquals(p, anchor)).OrderBy(p => p.ListOrder))
+        {
+            if (CountActions(profile) == 0)
+            {
+                return profile;
+            }
+
+            var (row, col) = profile.FindEmptyPosition();
+            if (row < 0 || col < 0)
+            {
+                continue;
+            }
+
+            if (profile.ListOrder > anchor.ListOrder)
+            {
+                partialAfter ??= profile;
+            }
+            else
+            {
+                partialBefore ??= profile;
+            }
+        }
+
+        return partialAfter ?? partialBefore;
+    }
+
+    private void TryPruneEmptySourceProfile(
+        ActionProfile sourceProfile,
+        ActionProfile destinationProfile,
+        QuickerRpcMoveActionResult result)
+    {
+        if (ReferenceEquals(sourceProfile, destinationProfile))
+        {
+            return;
+        }
+
+        if (CountActions(sourceProfile) > 0)
+        {
+            return;
+        }
+
+        var sourceId = sourceProfile.Id ?? string.Empty;
+        if (sourceId.Length == 0)
+        {
+            return;
+        }
+
+        var deleteResult = _profileDeleteService.DeleteEmptyProfiles(new[] { sourceId });
+        var deleted = deleteResult.Deleted.FirstOrDefault();
+        if (deleted is null)
+        {
+            return;
+        }
+
+        result.DeletedSourceProfile = true;
+        result.DeletedSourceProfileId = deleted.ProfileId;
+        result.DeletedSourceProfileName = deleted.ProfileName;
+        result.Message += $" 已删除空白源页「{deleted.ProfileName}」。";
+    }
+
+    private static int CountActions(ActionProfile profile) =>
+        profile.ActionItems?.Count(item => item is not null) ?? 0;
 
     private bool TryCreateBlankProfileAfter(
         ActionProfile anchor,

@@ -14,7 +14,7 @@ public sealed class QkrpcMcpActionTools
     [McpServerTool(Name = "qkrpc_action")]
     [Description(
         "Quicker local actions: list/search/get/create/replace/patch/publish/set_metadata/float/edit/edit_var/run/move; "
-        + "global profile tabs (profile_create/delete/reorder); virtual process pages (process_ensure). "
+        + "global profile tabs (profile_create/delete/prune/reorder); virtual process pages (process_ensure). "
         + "Disk editing: set QKRPC_WORKSPACE_ROOT, read .quicker/README.md, edit data.json/files with file tools, qkrpc_sync push. "
         + "pull: qkrpc_sync pull. Destructive delete: qkrpc_action_delete.")]
     public async Task<string> QkrpcAction(
@@ -299,6 +299,23 @@ public sealed class QkrpcMcpActionTools
                 return await _runtime.InvokeOpAsync(
                     "profile.delete",
                     QkrpcMcpJson.ToElement(new { profileIds = ids }),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            case "profile_prune":
+            {
+                var pruneScope = !string.IsNullOrWhiteSpace(scope)
+                    ? scope.Trim()
+                    : !string.IsNullOrWhiteSpace(exeFile)
+                        ? exeFile.Trim()
+                        : string.Empty;
+                if (pruneScope.Length == 0)
+                {
+                    return ValidationError("scope or exeFile is required for profile_prune");
+                }
+
+                return await _runtime.InvokeOpAsync(
+                    "profile.prune",
+                    QkrpcMcpJson.ToElement(new { scope = pruneScope }),
                     cancellationToken).ConfigureAwait(false);
             }
             case "profile_reorder":

@@ -83,6 +83,7 @@ internal static class ServeInvokeDispatcher
             "action.apply" => await ActionProjectServeOps.ApplyAsync(rpc, args, token).ConfigureAwait(false),
             "profile.create" => await ProfileCreateAsync(rpc, args, token).ConfigureAwait(false),
             "profile.delete" => await ProfileDeleteAsync(rpc, args, token).ConfigureAwait(false),
+            "profile.prune" => await ProfilePruneAsync(rpc, args, token).ConfigureAwait(false),
             "profile.reorder" => await ProfileReorderAsync(rpc, args, token).ConfigureAwait(false),
             "process.ensure" => await ProcessEnsureAsync(rpc, args, token).ConfigureAwait(false),
             "subprogram.search" => await SubprogramSearchAsync(rpc, args, token).ConfigureAwait(false),
@@ -623,6 +624,35 @@ internal static class ServeInvokeDispatcher
             createdProfile = response.CreatedProfile,
             createdProfileId = response.CreatedProfileId,
             createdProfileName = response.CreatedProfileName,
+            reusedProfile = response.ReusedProfile,
+            reusedProfileId = response.ReusedProfileId,
+            reusedProfileName = response.ReusedProfileName,
+            deletedSourceProfile = response.DeletedSourceProfile,
+            deletedSourceProfileId = response.DeletedSourceProfileId,
+            deletedSourceProfileName = response.DeletedSourceProfileName,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ProfilePruneAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var scope = ServeJsonArgs.GetString(args, "scope", "exe", "exeFile") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(scope))
+        {
+            return Fail("MISSING_SCOPE", "args.scope is required (e.g. chrome.exe, global).");
+        }
+
+        var response = await rpc.PruneEmptyProfilesAsync(scope.Trim(), token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "profile-prune",
+            scope = scope.Trim(),
+            deleted = response.Deleted,
+            failures = response.Failures,
+            message = response.Message,
         });
     }
 

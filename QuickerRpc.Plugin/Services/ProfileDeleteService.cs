@@ -163,6 +163,88 @@ public sealed class ProfileDeleteService
         };
     }
 
+    public QuickerRpcDeleteProfileResult PruneEmptyProfiles(string scope)
+    {
+        var trimmed = (scope ?? string.Empty).Trim();
+        if (trimmed.Length == 0)
+        {
+            return Fail("Provide --scope (e.g. chrome.exe, global).");
+        }
+
+        if (_profileManager is null)
+        {
+            return Fail("Not running inside Quicker (ProfileManager unavailable).");
+        }
+
+        var manager = _profileManager.Instance;
+        var profiles = ListProfilesForPruneScope(manager, trimmed);
+        if (profiles.Count == 0)
+        {
+            return Fail($"No action pages found for scope: {trimmed}");
+        }
+
+        var emptyIds = profiles
+            .Where(profile => CountActions(profile) == 0 && manager.CanDeleteProfile(profile))
+            .Select(profile => profile.Id ?? string.Empty)
+            .Where(id => id.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (emptyIds.Count == 0)
+        {
+            return new QuickerRpcDeleteProfileResult
+            {
+                Ok = true,
+                Message = $"scope={trimmed}: 没有可删除的空白动作页。",
+            };
+        }
+
+        return DeleteEmptyProfiles(emptyIds);
+    }
+
+    private static IReadOnlyList<ActionProfile> ListProfilesForPruneScope(ProfileManager manager, string scope)
+    {
+        var key = scope.Trim().ToLowerInvariant();
+        if (key is "global" or "全局")
+        {
+            return manager.GetGlobalProfiles(filterByMachine: true)
+                .Where(p => p is not null)
+                .Cast<ActionProfile>()
+                .ToList();
+        }
+
+        var exeFile = NormalizeExeFile(scope);
+        return manager.GetValidProfilesByExe(exeFile, attachCommonProfiles: false)
+            .Where(p => p is not null
+                && string.Equals(p!.ExeFile, exeFile, StringComparison.OrdinalIgnoreCase))
+            .Cast<ActionProfile>()
+            .Distinct()
+            .ToList();
+    }
+
+    private static string NormalizeExeFile(string scope)
+    {
+        var trimmed = scope.Trim();
+        if (trimmed.Contains('\\') || trimmed.Contains('/'))
+        {
+            var fileName = trimmed.Replace('/', '\\');
+            var index = fileName.LastIndexOf('\\');
+            trimmed = index >= 0 ? fileName.Substring(index + 1) : fileName;
+        }
+
+        if (!trimmed.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(trimmed, ActionProfile.ExeName_Global, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(trimmed, ActionProfile.ExeName_Common, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(trimmed, ActionProfile.ExeName_Taskbar, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(trimmed, ActionProfile.ExeName_Desktop, StringComparison.OrdinalIgnoreCase)
+            && !(trimmed.StartsWith("_", StringComparison.Ordinal) && trimmed.IndexOf('\\') < 0 && trimmed.IndexOf('/') < 0))
+        {
+            trimmed += ".exe";
+        }
+
+        return trimmed.ToLowerInvariant();
+    }
+
     private bool TryResolveProfile(string profileRef, out ActionProfile? profile, out string? error)
     {
         profile = null;

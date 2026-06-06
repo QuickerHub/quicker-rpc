@@ -146,7 +146,8 @@ export const SHELL_EXEC_TOOL_DEF = tool({
     + "the chat UI shows description instead of the raw command. "
     + "Use command for one-liners; script for inline PowerShell/bash; scriptPath for files under cwd. "
     + "Prefer pwsh/build.ps1/qkrpc/dotnet/git/npm in repo tasks. "
-    + "Destructive commands (del/rm/git push) may require user confirmation in chat.",
+    + "Read-only commands (git status, qkrpc, dotnet build, Get-Content, etc.) run without confirmation. "
+    + "Delete/write commands (Remove-Item, Set-Content, git push/commit, Move-Item) require user confirmation in chat.",
   inputSchema: shellInputSchema,
   execute: async (
     input: z.infer<typeof shellInputSchema>,

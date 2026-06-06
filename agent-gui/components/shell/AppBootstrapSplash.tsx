@@ -1,53 +1,30 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { ensureChatStoreHydrated } from "@/lib/use-chat-store";
 
-const SPLASH_ID = "app-bootstrap-splash";
-const MIN_VISIBLE_MS = 520;
-const FADE_MS = 480;
-
-function dismissSplashElement(el: HTMLElement): void {
-  const started = performance.now();
-
-  const beginFade = (): void => {
-    const elapsed = performance.now() - started;
-    const wait = Math.max(0, MIN_VISIBLE_MS - elapsed);
-    window.setTimeout(() => {
-      el.classList.add("app-bootstrap-splash--fade");
-      document.documentElement.dataset.appReady = "1";
-      window.setTimeout(() => {
-        el.remove();
-      }, FADE_MS);
-    }, wait);
-  };
-
-  requestAnimationFrame(() => {
-    requestAnimationFrame(beginFade);
-  });
+declare global {
+  interface Window {
+    __dismissAppBootstrapSplash?: () => void;
+  }
 }
 
-/** Dismisses the server-rendered boot splash once the client shell is interactive. */
+/** Ask inline boot script to fade out the server-rendered splash (React hydration backup). */
 export function AppBootstrapSplash() {
-  const pathname = usePathname();
-
   useEffect(() => {
-    if (pathname === "/launcher") {
-      document.documentElement.dataset.appBootSkip = "1";
-      document.getElementById(SPLASH_ID)?.remove();
+    if (typeof window === "undefined") {
       return;
     }
 
-    const el = document.getElementById(SPLASH_ID);
-    if (!el) {
-      document.documentElement.dataset.appReady = "1";
+    if (window.location.pathname === "/launcher") {
+      document.documentElement.dataset.appBootSkip = "1";
+      window.__dismissAppBootstrapSplash?.();
       return;
     }
 
     ensureChatStoreHydrated();
-    dismissSplashElement(el);
-  }, [pathname]);
+    window.__dismissAppBootstrapSplash?.();
+  }, []);
 
   return null;
 }

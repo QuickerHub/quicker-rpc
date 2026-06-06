@@ -132,6 +132,11 @@ public interface IQuickerRpcService
         IReadOnlyList<string> profileIdsOrNames,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Delete all empty, deletable action profile pages under a process scope (e.g. chrome.exe, global).</summary>
+    Task<QuickerRpcDeleteProfileResult> PruneEmptyProfilesAsync(
+        string scope,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Ensure a Quicker virtual process (custom ExeFile tab) exists and optionally move actions
     /// that call <paramref name="collectSubProgramName"/> into its first action page.
@@ -674,6 +679,20 @@ public sealed class QuickerRpcMoveActionResult
     public string? CreatedProfileId { get; set; }
 
     public string? CreatedProfileName { get; set; }
+
+    /// <summary>When the move emptied the source page, qkrpc auto-deletes it when allowed.</summary>
+    public bool DeletedSourceProfile { get; set; }
+
+    public string? DeletedSourceProfileId { get; set; }
+
+    public string? DeletedSourceProfileName { get; set; }
+
+    /// <summary>True when an existing empty/sibling page was reused instead of creating a new tab.</summary>
+    public bool ReusedProfile { get; set; }
+
+    public string? ReusedProfileId { get; set; }
+
+    public string? ReusedProfileName { get; set; }
 }
 
 public sealed class QuickerRpcCreateActionResult
