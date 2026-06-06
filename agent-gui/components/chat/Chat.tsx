@@ -163,6 +163,11 @@ import {
 } from "@/lib/user-message-edit";
 import { repairInterruptedToolCalls } from "@/lib/repair-interrupted-tool-calls";
 
+/** Debounced persist after messages settle. */
+const CHAT_PERSIST_DEBOUNCE_MS = 400;
+/** Cap data loss during long streaming/tool runs when debounce keeps resetting. */
+const CHAT_PERSIST_MAX_INTERVAL_MS = 5000;
+
 function formatChatError(error: Error): string {
   const message = error.message?.trim();
   if (!message) {
@@ -466,6 +471,22 @@ function ChatPanel({
         lastAssistantMessageIsCompleteWithApprovalResponses,
     });
 
+  const messagesForPersistRef = useRef(messages);
+  messagesForPersistRef.current = messages;
+
+  const flushThreadPersist = useCallback(() => {
+    const snapshot = messagesForPersistRef.current;
+    const prev = lastPersistedRef.current;
+    if (
+      prev?.threadId === threadId
+      && threadMessagesEqual(prev.messages, snapshot)
+    ) {
+      return;
+    }
+    lastPersistedRef.current = { threadId, messages: snapshot };
+    persistRef.current(threadId, snapshot);
+  }, [threadId]);
+
   const repairToolCalls = useCallback(() => {
     setMessages((prev) => repairInterruptedToolCalls(prev));
   }, [setMessages]);
@@ -480,19 +501,39 @@ function ChatPanel({
 
   useEffect(() => {
     if (ephemeral) return;
-    const timer = window.setTimeout(() => {
-      const prev = lastPersistedRef.current;
-      if (
-        prev?.threadId === threadId
-        && threadMessagesEqual(prev.messages, messages)
-      ) {
-        return;
-      }
-      lastPersistedRef.current = { threadId, messages };
-      persistRef.current(threadId, messages);
-    }, 400);
-    return () => window.clearTimeout(timer);
-  }, [ephemeral, threadId, messages]);
+    const timer = window.setTimeout(flushThreadPersist, CHAT_PERSIST_DEBOUNCE_MS);
+    return () => {
+      window.clearTimeout(timer);
+      flushThreadPersist();
+    };
+  }, [ephemeral, flushThreadPersist, messages]);
+
+  useEffect(() => {
+    if (ephemeral) return;
+    const interval = window.setInterval(
+      flushThreadPersist,
+      CHAT_PERSIST_MAX_INTERVAL_MS,
+    );
+    const onPageHide = () => flushThreadPersist();
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("pagehide", onPageHide);
+      flushThreadPersist();
+    };
+  }, [ephemeral, flushThreadPersist, threadId]);
+
+  const prevStatusRef = useRef(status);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = status;
+    if (ephemeral) return;
+    const wasBusy = prev === "streaming" || prev === "submitted";
+    const isIdle = status === "ready" || status === "error";
+    if (wasBusy && isIdle) {
+      flushThreadPersist();
+    }
+  }, [ephemeral, flushThreadPersist, status]);
 
   useActionProjectImportFromMessages(messages, !ephemeral);
   useBrowserPanelMessageSync(messages);
@@ -860,7 +901,7 @@ function ChatPanel({
   );
 
   const voiceInput = useVoiceInput({
-    enabled: true,
+    enabled: visible && !ephemeral,
     onStreamBegin: () => {
       composerRef.current?.beginVoiceStream();
     },
@@ -1346,23 +1387,23 @@ function ChatPanel({
                   }}
                   onNeedSettings={() => onOpenSettings()}
                 />
-                <span className="composer-hint">
-                  {voiceInput.errorHint ? (
-                    <span className="composer-voice-hint composer-voice-hint--err" role="status">
+                {voiceInput.errorHint ? (
+                  <span className="composer-hint" role="status">
+                    <span className="composer-voice-hint composer-voice-hint--err">
                       {voiceInput.errorHint}
                     </span>
-                  ) : voiceInput.statusHint ? (
-                    <span className="composer-voice-hint" role="status">
+                  </span>
+                ) : voiceInput.statusHint ? (
+                  <span className="composer-hint" role="status">
+                    <span className="composer-voice-hint">
                       {voiceInput.statusHint}
                     </span>
-                  ) : editAnchorMessageId ? (
-                    "Enter 发送并分支"
-                  ) : queueLength > 0 ? (
-                    `已排队 ${queueLength} 条`
-                  ) : (
-                    "Shift+Enter 换行"
-                  )}
-                </span>
+                  </span>
+                ) : editAnchorMessageId ? (
+                  <span className="composer-hint">Enter 发送并分支</span>
+                ) : queueLength > 0 ? (
+                  <span className="composer-hint">{`已排队 ${queueLength} 条`}</span>
+                ) : null}
               </div>
               <div className="composer-toolbar-actions">
                 {!isEmptyThread && (
