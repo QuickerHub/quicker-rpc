@@ -17,10 +17,10 @@ export function WorkspaceResourceManager({
   return (
     <section
       className="workspace-resource-manager"
-      aria-label="资源管理"
+      aria-label="资源管理器"
     >
       <header className="workspace-explorer-head">
-        <span className="workspace-explorer-title">资源管理</span>
+        <span className="workspace-explorer-title">资源管理器</span>
         <div className="workspace-explorer-actions">
           <button
             type="button"

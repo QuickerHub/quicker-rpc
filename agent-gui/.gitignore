@@ -36,3 +36,6 @@ test-*-out.txt
 test-*-err.txt
 agent-run-*.txt
 crash-*.txt
+
+# Cursor MCP Playwright session dumps (console logs, page snapshots)
+.playwright-mcp/

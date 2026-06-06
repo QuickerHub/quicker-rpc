@@ -7,10 +7,9 @@
     <style>
       :root {
         color-scheme: dark;
-        --bg: #1a1a1a;
-        --fg: #e8e8e8;
-        --muted: #9a9a9a;
-        --accent: #3b82f6;
+        --text: #e8eaed;
+        --muted: #9aa3b2;
+        --accent: #4d9fff;
       }
 
       * {
@@ -23,55 +22,255 @@
         width: 100%;
         height: 100%;
         overflow: hidden;
-        background: var(--bg);
-        color: var(--fg);
+        background:
+          radial-gradient(circle at 18% -8%, rgba(77, 159, 255, 0.18), transparent 28rem),
+          radial-gradient(circle at 92% 6%, rgba(129, 140, 248, 0.12), transparent 26rem),
+          linear-gradient(180deg, #1e222a 0%, #1a1d23 48%, #161920 100%);
+        color: var(--text);
         font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
       }
 
-      .startup-shell {
+      .app-bootstrap-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      .app-bootstrap-splash__bg {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .app-bootstrap-splash__mesh {
+        position: absolute;
+        inset: -30%;
+        background:
+          conic-gradient(
+            from 210deg at 50% 50%,
+            rgba(77, 159, 255, 0.14),
+            rgba(99, 102, 241, 0.08),
+            rgba(14, 165, 233, 0.12),
+            rgba(77, 159, 255, 0.14)
+          );
+        filter: blur(48px);
+        animation: mesh 9s ease-in-out infinite;
+      }
+
+      .app-bootstrap-splash__glow {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: min(42vw, 320px);
+        height: min(42vw, 320px);
+        transform: translate(-50%, -58%);
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(77, 159, 255, 0.34) 0%, transparent 68%);
+        animation: glow 2.8s ease-in-out infinite;
+      }
+
+      .app-bootstrap-splash__grid {
+        position: absolute;
+        inset: 0;
+        opacity: 0.22;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+        background-size: 44px 44px;
+        mask-image: radial-gradient(circle at 50% 42%, black 0%, transparent 72%);
+      }
+
+      .app-bootstrap-splash__content {
+        position: relative;
+        z-index: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
-        gap: 20px;
-        width: 100%;
-        height: 100%;
+        gap: 0.85rem;
+        width: min(92vw, 360px);
+        text-align: center;
         user-select: none;
       }
 
-      .startup-logo {
-        font-size: 1.25rem;
-        font-weight: 600;
-        letter-spacing: 0.02em;
+      .app-bootstrap-splash__logo-wrap {
+        position: relative;
+        width: 112px;
+        height: 112px;
+        display: grid;
+        place-items: center;
       }
 
-      .startup-spinner {
-        width: 28px;
-        height: 28px;
-        border: 2px solid rgba(255, 255, 255, 0.12);
-        border-top-color: var(--accent);
+      .app-bootstrap-splash__mark {
+        width: 72px;
+        height: 72px;
+        color: #f8fbff;
+        filter: drop-shadow(0 0 18px rgba(77, 159, 255, 0.45));
+        animation: mark 2.4s ease-in-out infinite;
+      }
+
+      .app-bootstrap-splash__ring {
+        position: absolute;
+        inset: 4px;
         border-radius: 50%;
-        animation: spin 0.85s linear infinite;
+        border: 1px dashed rgba(77, 159, 255, 0.42);
+        animation: ring 5.5s linear infinite;
+      }
+
+      .app-bootstrap-splash__orbit {
+        position: absolute;
+        inset: 0;
+        animation: orbit 3.6s linear infinite;
+      }
+
+      .app-bootstrap-splash__orbit--b {
+        animation-duration: 5.2s;
+        animation-direction: reverse;
+      }
+
+      .app-bootstrap-splash__orbit::before {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 50%;
+        width: 7px;
+        height: 7px;
+        margin-left: -3.5px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #4d9fff, #818cf8);
+        box-shadow: 0 0 12px rgba(77, 159, 255, 0.75);
+      }
+
+      .app-bootstrap-splash__orbit--b::before {
+        top: auto;
+        bottom: 6px;
+        width: 5px;
+        height: 5px;
+        margin-left: -2.5px;
+        background: linear-gradient(135deg, #38bdf8, #6366f1);
+      }
+
+      .app-bootstrap-splash__brand {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 650;
+        letter-spacing: 0.04em;
       }
 
       .startup-message {
         margin: 0;
+        min-height: 1.25rem;
         font-size: 0.9rem;
         color: var(--muted);
       }
 
-      @keyframes spin {
+      .app-bootstrap-splash__bar {
+        width: min(220px, 72vw);
+        height: 3px;
+        margin-top: 0.35rem;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .app-bootstrap-splash__bar-fill {
+        width: 42%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, transparent, #4d9fff, #818cf8, transparent);
+        animation: bar 1.35s ease-in-out infinite;
+      }
+
+      @keyframes mesh {
+        0%,
+        100% {
+          transform: rotate(0deg) scale(1);
+        }
+        50% {
+          transform: rotate(18deg) scale(1.06);
+        }
+      }
+
+      @keyframes glow {
+        0%,
+        100% {
+          opacity: 0.55;
+          transform: translate(-50%, -58%) scale(0.94);
+        }
+        50% {
+          opacity: 1;
+          transform: translate(-50%, -58%) scale(1.06);
+        }
+      }
+
+      @keyframes mark {
+        0%,
+        100% {
+          transform: translateY(0) scale(1);
+        }
+        50% {
+          transform: translateY(-3px) scale(1.03);
+        }
+      }
+
+      @keyframes ring {
         to {
           transform: rotate(360deg);
+        }
+      }
+
+      @keyframes orbit {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes bar {
+        0% {
+          transform: translateX(-120%);
+        }
+        100% {
+          transform: translateX(280%);
         }
       }
     </style>
   </head>
   <body>
-    <div class="startup-shell" role="status" aria-live="polite" aria-busy="true">
-      <div class="startup-logo">QuickerAgent</div>
-      <div class="startup-spinner" aria-hidden="true"></div>
-      <p class="startup-message">正在启动…</p>
+    <div class="app-bootstrap-splash" role="status" aria-live="polite" aria-busy="true">
+      <div class="app-bootstrap-splash__bg" aria-hidden="true">
+        <div class="app-bootstrap-splash__mesh"></div>
+        <div class="app-bootstrap-splash__glow"></div>
+        <div class="app-bootstrap-splash__grid"></div>
+      </div>
+      <div class="app-bootstrap-splash__content">
+        <div class="app-bootstrap-splash__logo-wrap" aria-hidden="true">
+          <div class="app-bootstrap-splash__orbit app-bootstrap-splash__orbit--a"></div>
+          <div class="app-bootstrap-splash__orbit app-bootstrap-splash__orbit--b"></div>
+          <div class="app-bootstrap-splash__ring"></div>
+          <svg class="app-bootstrap-splash__mark" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(128, 128)">
+              <polygon
+                points="-77.94,-45 -77.94,45 0,90 77.94,45 77.94,-45 0,-90"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="18"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <line x1="0" y1="0" x2="-77.94" y2="-45" stroke="currentColor" stroke-width="18" stroke-linecap="round" />
+              <line x1="0" y1="0" x2="0" y2="90" stroke="currentColor" stroke-width="18" stroke-linecap="round" />
+              <line x1="0" y1="0" x2="77.94" y2="-45" stroke="currentColor" stroke-width="18" stroke-linecap="round" />
+            </g>
+          </svg>
+        </div>
+        <p class="app-bootstrap-splash__brand">QuickerAgent</p>
+        <p class="startup-message">正在启动…</p>
+        <div class="app-bootstrap-splash__bar" aria-hidden="true">
+          <div class="app-bootstrap-splash__bar-fill"></div>
+        </div>
+      </div>
     </div>
   </body>
 </html>

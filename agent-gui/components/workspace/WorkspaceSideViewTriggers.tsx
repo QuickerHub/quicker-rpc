@@ -23,8 +23,8 @@ export function WorkspaceSideViewTriggers() {
         className={`side-view-trigger-btn${explorer.active ? " side-view-trigger-btn--active" : ""}`}
         onClick={explorer.toggle}
         aria-pressed={explorer.active}
-        aria-label="资源管理"
-        title="资源管理"
+        aria-label="资源管理器"
+        title="资源管理器"
       >
         <SidePanelIconExplorer />
       </button>

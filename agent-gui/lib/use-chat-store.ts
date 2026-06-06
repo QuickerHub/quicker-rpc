@@ -53,6 +53,11 @@ function hydrateChatStoreFromClient(): void {
   notifyChatStoreListeners();
 }
 
+/** Eagerly load persisted chat store during boot splash dismiss. */
+export function ensureChatStoreHydrated(): void {
+  hydrateChatStoreFromClient();
+}
+
 const listeners = new Set<() => void>();
 
 function subscribeChatStore(onStoreChange: () => void): () => void {

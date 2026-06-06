@@ -35,8 +35,15 @@ agent-gui/src-tauri/gen/
 !.env.example
 !**/.env.example
 llm-config.json
+llm-dev.config.json
 agent-gui/llm-publish.config.json
 llm-bundled-secrets.json
+
+# IDE / MCP debug captures (Playwright session logs, page snapshots)
+.playwright-mcp/
+
+# Maintainer scratch notes (repo root only)
+/todo
 
 # Publish output, keep release scripts and changelogs
 publish/**
@@ -92,5 +99,12 @@ browser-runtime/playwright-browsers/
 browser-runtime/publish/*.zip
 browser-runtime/publish/.env
 
+# clipboard-history-runtime (Rust)
+clipboard-history-runtime/target/
+
 # MSBuild stamp for action-authoring doc generation (local only)
 docs/action-authoring/.generated.stamp
+
+# OS noise (Windows)
+Thumbs.db
+Desktop.ini
