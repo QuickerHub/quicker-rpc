@@ -8,16 +8,40 @@ export function dispatchWorkspaceLayoutResize(): void {
   window.dispatchEvent(new Event(WORKSPACE_LAYOUT_RESIZE_EVENT));
 }
 
+const LAYOUT_ROOT_SELECTORS = [
+  ".app-shell",
+  ".app-main-column",
+  ".app-content-row",
+  ".app-main-split",
+  ".app-main-body",
+  ".workspace-side-panel-body",
+  ".workspace-embedded-browser",
+] as const;
+
+export function boundsRectKey(rect: DOMRect | DOMRectReadOnly): string {
+  return [
+    Math.round(rect.left),
+    Math.round(rect.top),
+    Math.round(rect.width),
+    Math.round(rect.height),
+  ].join(",");
+}
+
 export function collectEmbeddedWebViewResizeTargets(host: HTMLElement): HTMLElement[] {
   const targets = new Set<HTMLElement>([host]);
   let parent = host.parentElement;
   while (parent) {
     targets.add(parent);
-    if (parent.classList.contains("workspace-explorer")) break;
+    if (parent.classList.contains("app-shell")) break;
     parent = parent.parentElement;
   }
-  const appMainBody = host.closest<HTMLElement>(".app-main-body");
-  if (appMainBody) targets.add(appMainBody);
+  for (const selector of LAYOUT_ROOT_SELECTORS) {
+    const el = host.closest<HTMLElement>(selector);
+    if (el) targets.add(el);
+  }
+  const titlebar = host.closest<HTMLElement>(".app-shell")
+    ?.querySelector<HTMLElement>(".app-titlebar");
+  if (titlebar) targets.add(titlebar);
   return [...targets];
 }
 

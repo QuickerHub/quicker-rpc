@@ -414,8 +414,7 @@ export function summarizeWorkspaceFileTool(
     const steps = typeof output.data.stepCount === "number" ? output.data.stepCount : "?";
     const vars =
       typeof output.data.variableCount === "number" ? output.data.variableCount : "?";
-    const validated = output.data.validated === true ? " · 已校验" : "";
-    return `${steps} 步 · ${vars} 变量${validated}`;
+    return `${steps} 步 · ${vars} 变量`;
   }
 
   if (isRecord(output.data)) {
@@ -506,11 +505,6 @@ export function formatProgramDataSummaryPreview(
   const lines: string[] = [
     `steps: ${stepCount}, variables: ${variableCount}`,
   ];
-  if (data.validated === false && typeof data.validationError === "string") {
-    lines.push(`validation: ${data.validationError.trim()}`);
-  } else if (data.validated === true) {
-    lines.push("validation: ok");
-  }
   const outline = Array.isArray(data.stepsOutline) ? data.stepsOutline : [];
   for (const row of outline.slice(0, 48)) {
     if (!isRecord(row)) continue;

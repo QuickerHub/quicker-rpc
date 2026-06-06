@@ -35,7 +35,7 @@ internal static class ActionCatalogSearch
 
         if (spec.SourceFilter is { } sourceFilter
             && !spec.HasFilterScript
-            && !spec.HasSorterScript)
+            && !spec.HasSortScript)
         {
             var legacyKeyword = spec.Keyword ?? string.Empty;
             matches = MatchSourceFilter(sourceFilter, legacyKeyword, scope, maxResults, actionFilter, limitResults);
@@ -44,7 +44,7 @@ internal static class ActionCatalogSearch
 
         if (!string.IsNullOrWhiteSpace(spec.Keyword)
             && !spec.HasFilterScript
-            && !spec.HasSorterScript
+            && !spec.HasSortScript
             && spec.SourceFilter is null)
         {
             matches = Match(
@@ -143,25 +143,43 @@ internal static class ActionCatalogSearch
         }
 
         var max = limitResults ? ClampLimit(maxResults) : int.MaxValue;
-        if (spec.HasSorterScript && scriptEvaluator is not null)
+        if (spec.HasSortScript && scriptEvaluator is not null)
         {
-            var keyed = new List<(int Score, ActionCatalogEntry Entry, object? SortKey)>(candidates.Count);
+            var keyed = new List<(int Score, ActionCatalogEntry Entry, object?[] SortKeys)>(candidates.Count);
             foreach (var item in candidates)
             {
-                if (!scriptEvaluator.TryEvaluateSorter(spec.SorterScript!, item.Row, out var sortKey, out error))
+                var sortKeys = new object?[spec.SortRules.Count];
+                for (var i = 0; i < spec.SortRules.Count; i++)
                 {
-                    error = "Sorter script error: " + error;
-                    return false;
+                    if (!scriptEvaluator.TryEvaluateSorter(spec.SortRules[i].Script, item.Row, out sortKeys[i], out error))
+                    {
+                        error = "Sort script error: " + error;
+                        return false;
+                    }
                 }
 
-                keyed.Add((item.Score, item.Entry, sortKey));
+                keyed.Add((item.Score, item.Entry, sortKeys));
             }
 
-            var sorted = spec.SortDescending
-                ? keyed.OrderByDescending(x => x.SortKey, ActionSearchSortKeyComparer.Instance)
-                : keyed.OrderBy(x => x.SortKey, ActionSearchSortKeyComparer.Instance);
+            IOrderedEnumerable<(int Score, ActionCatalogEntry Entry, object?[] SortKeys)>? sorted = null;
+            for (var i = 0; i < spec.SortRules.Count; i++)
+            {
+                var ruleIndex = i;
+                var rule = spec.SortRules[i];
+                if (sorted is null)
+                {
+                    sorted = rule.Descending
+                        ? keyed.OrderByDescending(x => x.SortKeys[ruleIndex], ActionSearchSortKeyComparer.Instance)
+                        : keyed.OrderBy(x => x.SortKeys[ruleIndex], ActionSearchSortKeyComparer.Instance);
+                    continue;
+                }
 
-            matches = sorted
+                sorted = rule.Descending
+                    ? sorted.ThenByDescending(x => x.SortKeys[ruleIndex], ActionSearchSortKeyComparer.Instance)
+                    : sorted.ThenBy(x => x.SortKeys[ruleIndex], ActionSearchSortKeyComparer.Instance);
+            }
+
+            matches = (sorted ?? keyed.OrderBy(x => 0))
                 .Take(max)
                 .Select(x => (x.Score, x.Entry))
                 .ToList();

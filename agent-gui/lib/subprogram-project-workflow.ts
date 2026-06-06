@@ -405,7 +405,6 @@ async function summarizeProjectDataJson(
       editVersion,
       stepCount: outline.stepsOutline.length,
       variableCount: outline.variableKeys.length,
-      validated: true,
       stepsOutline: outline.stepsOutline,
       variableKeys: outline.variableKeys,
       fileRefCount: 0,

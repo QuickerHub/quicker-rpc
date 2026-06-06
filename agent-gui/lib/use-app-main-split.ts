@@ -62,6 +62,8 @@ export function useAppMainSplit(
       containerWidthRef.current = containerWidth;
       if (nextChat !== prevChat) {
         setChatColumnWidth(nextChat, containerWidth, false);
+      }
+      if (nextChat !== prevChat || prevContainer !== containerWidth) {
         dispatchWorkspaceLayoutResize();
       }
     };

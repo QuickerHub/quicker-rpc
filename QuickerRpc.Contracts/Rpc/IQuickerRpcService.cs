@@ -302,10 +302,24 @@ public interface IQuickerRpcService
     Task<QuickerRpcListSettingsPagesResult> ListSettingsPagesAsync(
         CancellationToken cancellationToken = default);
 
+    /// <summary>List preset direct links for one-step settings UI open.</summary>
+    Task<QuickerRpcListSettingsDirectLinksResult> ListSettingsDirectLinksAsync(
+        CancellationToken cancellationToken = default);
+
     /// <summary>Open a Quicker settings page or related UI (search, exe-settings, etc.).</summary>
+    /// <param name="target">Page id or alias (e.g. AppSettings, recycle-bin, search).</param>
+    /// <param name="exeFile">Required for exe-settings / process-settings.</param>
+    /// <param name="searchText">Prefill text when opening the Quicker search window.</param>
+    /// <param name="query">When <paramref name="target"/> is empty: keyword search for a settings page to open.</param>
+    /// <param name="settingKey">When <paramref name="target"/> is empty: open the page that contains this setting key.</param>
+    /// <param name="preset">Preset direct link id or alias (e.g. hotkeys, recycle-bin) — preferred one-step open.</param>
     Task<QuickerRpcOpenSettingsUiResult> OpenSettingsUiAsync(
-        string target,
+        string? target,
         string? exeFile = null,
+        string? searchText = null,
+        string? query = null,
+        string? settingKey = null,
+        string? preset = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -341,7 +355,34 @@ public sealed class QuickerRpcOpenSettingsUiResult
 
     public string? PageId { get; set; }
 
+    /// <summary>Preset direct link id when opened via --preset.</summary>
+    public string? PresetId { get; set; }
+
     public string Message { get; set; } = string.Empty;
+}
+
+public sealed class QuickerRpcSettingsDirectLinkInfo
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Target { get; set; } = string.Empty;
+
+    public IList<string> Aliases { get; set; } = new List<string>();
+
+    public bool RequiresExe { get; set; }
+
+    public string? DefaultExe { get; set; }
+}
+
+public sealed class QuickerRpcListSettingsDirectLinksResult
+{
+    public bool Ok { get; set; }
+
+    public string? Message { get; set; }
+
+    public IList<QuickerRpcSettingsDirectLinkInfo> Links { get; set; } = new List<QuickerRpcSettingsDirectLinkInfo>();
 }
 
 public sealed class QuickerRpcSettingCatalogItem

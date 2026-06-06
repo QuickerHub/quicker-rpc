@@ -109,6 +109,7 @@ function summarizePart(
 
   if (
     part.type === "tool-qkrpc_action"
+    || part.type === "tool-qkrpc_action_query"
     || part.type === "tool-qkrpc_action_get"
     || part.type === "tool-qkrpc_action_list"
     || part.type === "tool-qkrpc_action_patch"

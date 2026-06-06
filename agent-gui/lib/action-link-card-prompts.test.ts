@@ -13,7 +13,8 @@ describe("buildActionLinkCardPromptMessage", () => {
       title: TITLE,
     });
     assert.ok(message);
-    assert.match(message, /帮我把动作「选中文本→记事本」/);
+    assert.match(message, /请帮我放到指定面板或分组，目标是/);
+    assert.ok(message!.startsWith("<qkrpc-action-tag"));
     assert.match(
       message,
       /<qkrpc-action-tag[^>]+data-id="d47c98d1-86be-40d0-ad02-87103f4dda1e"/,

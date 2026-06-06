@@ -19,7 +19,7 @@ type ActionLinkCardProps = {
   links: ParsedActionLink[];
   workingDirectory?: string;
   onDismissed?: () => void;
-  onSendPrompt?: (text: string) => void;
+  onInsertComposerPrompt?: (text: string) => void;
 };
 
 export function ActionLinkCard({
@@ -27,7 +27,7 @@ export function ActionLinkCard({
   links,
   workingDirectory: cwdProp,
   onDismissed,
-  onSendPrompt,
+  onInsertComposerPrompt,
 }: ActionLinkCardProps) {
   const { store, defaultCwd } = useChatStore();
   const cwd = (cwdProp ?? (store.workingDirectory.trim() || defaultCwd)).trim();
@@ -77,19 +77,19 @@ export function ActionLinkCard({
   const displayTitle =
     metaState.status === "ok" ? metaState.meta.title : formatActionIdShort(actionId);
 
-  const sendPrompt = useCallback(
+  const insertPrompt = useCallback(
     (promptId: string) => {
-      if (!onSendPrompt || cardBusy) return;
+      if (!onInsertComposerPrompt || cardBusy) return;
       const message = buildActionLinkCardPromptMessage(promptId, {
         actionId,
         title: displayTitle,
       });
-      if (message) onSendPrompt(message);
+      if (message) onInsertComposerPrompt(message);
     },
-    [actionId, cardBusy, displayTitle, onSendPrompt],
+    [actionId, cardBusy, displayTitle, onInsertComposerPrompt],
   );
 
-  const showPrompts = Boolean(onSendPrompt);
+  const showPrompts = Boolean(onInsertComposerPrompt);
 
   return (
     <article
@@ -138,7 +138,7 @@ export function ActionLinkCard({
                   className="action-link-card-prompt-btn"
                   disabled={cardBusy}
                   title={prompt.hint}
-                  onClick={() => sendPrompt(prompt.id)}
+                  onClick={() => insertPrompt(prompt.id)}
                 >
                   <span className="action-link-card-prompt-btn__label">
                     {prompt.label}

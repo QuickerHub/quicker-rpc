@@ -93,9 +93,6 @@ export async function getActionProjectSyncStatus(
     manifest.editVersion,
     remote.editVersion,
   );
-  if (manifest.validated === false && manifest.validationError) {
-    message = `${message} · 本地校验未通过`;
-  }
 
   return {
     ok: true,
@@ -105,8 +102,6 @@ export async function getActionProjectSyncStatus(
       localEditVersion: manifest.editVersion,
       remoteEditVersion: remote.editVersion,
       remoteTitle: remote.title,
-      validated: manifest.validated,
-      validationError: manifest.validationError,
       projectDirectory: manifest.projectDirectory,
     },
   };

@@ -110,6 +110,17 @@ export async function downloadPendingOfficialUpdate(
   return update;
 }
 
+function formatInstallError(err: unknown): string {
+  const text = err instanceof Error ? err.message : String(err);
+  if (/740|elevation|administrator|requires elevation|权限/i.test(text)) {
+    return "安装需要管理员权限。请关闭应用后从官网下载完整安装包手动安装，或以管理员身份运行 QuickerAgent 后再试。";
+  }
+  if (/failed to start|无法启动|installer failed/i.test(text)) {
+    return "无法启动安装程序。请退出应用后从官网下载完整安装包手动安装。";
+  }
+  return text.trim() || "无法安装更新，请稍后重试。";
+}
+
 export async function installPendingOfficialUpdateAndRelaunch(
   onProgress?: (event: OfficialUpdateProgress) => void,
 ): Promise<void> {
@@ -121,15 +132,32 @@ export async function installPendingOfficialUpdateAndRelaunch(
   onProgress?.({
     phase: "installing",
     percent: 0,
-    message: "正在安装更新…",
+    message: "正在启动安装程序…",
     remoteVersion: update.version,
   });
 
-  await update.install();
+  try {
+    await update.install();
+  } catch (err) {
+    throw new Error(formatInstallError(err));
+  }
+
   clearPendingOfficialUpdate();
 
+  onProgress?.({
+    phase: "installing",
+    percent: 100,
+    message: "安装程序已启动，应用即将重启…",
+    remoteVersion: update.version,
+  });
+
   const { relaunch } = await import("@tauri-apps/plugin-process");
-  await relaunch();
+  try {
+    await relaunch();
+  } catch {
+    const { exit } = await import("@tauri-apps/plugin-process");
+    await exit(0);
+  }
 }
 
 export async function installPendingOfficialUpdateOnExit(): Promise<void> {

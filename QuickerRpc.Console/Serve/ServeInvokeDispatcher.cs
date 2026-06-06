@@ -115,6 +115,7 @@ internal static class ServeInvokeDispatcher
             "settings.set" => await SettingsSetAsync(rpc, args, token).ConfigureAwait(false),
             "settings.apply" => await SettingsApplyAsync(rpc, args, token).ConfigureAwait(false),
             "settings.pages" => await SettingsPagesAsync(rpc, token).ConfigureAwait(false),
+            "settings.links" => await SettingsLinksAsync(rpc, token).ConfigureAwait(false),
             "settings.open" => await SettingsOpenAsync(rpc, args, token).ConfigureAwait(false),
             _ => Fail("UNKNOWN_OP", $"Unknown op: {op}"),
         };
@@ -156,32 +157,39 @@ internal static class ServeInvokeDispatcher
         });
     }
 
-    private static async Task<ServeInvokeResponse> SettingsSearchAsync(
+    private static Task<ServeInvokeResponse> SettingsSearchAsync(
         IQuickerRpcService rpc,
         JsonElement args,
-        CancellationToken cancellationToken)
-    {
-        var query = ServeJsonArgs.GetString(args, "query");
-        var maxResults = ServeJsonArgs.GetInt(args, "maxResults") ?? 30;
-        var result = await rpc.SearchSettingsAsync(query, maxResults, cancellationToken).ConfigureAwait(false);
-        return Ok(new
-        {
-            ok = result.Ok,
-            action = "settings-search",
-            query = result.Query,
-            items = result.Items,
-            pages = result.Pages,
-            message = result.Message,
-        });
-    }
+        CancellationToken cancellationToken) =>
+        SettingsListAsync(rpc, args, cancellationToken);
 
     private static async Task<ServeInvokeResponse> SettingsListAsync(
         IQuickerRpcService rpc,
         JsonElement args,
         CancellationToken cancellationToken)
     {
+        var query = ServeJsonArgs.GetString(args, "query");
         var scope = ServeJsonArgs.GetString(args, "scope");
-        var maxResults = ServeJsonArgs.GetInt(args, "maxResults") ?? 100;
+        var maxResults = ServeJsonArgs.GetInt(args, "maxResults")
+            ?? ServeJsonArgs.GetInt(args, "limit")
+            ?? 100;
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var searchResult = await rpc
+                .SearchSettingsAsync(query.Trim(), maxResults, cancellationToken)
+                .ConfigureAwait(false);
+            return Ok(new
+            {
+                ok = searchResult.Ok,
+                action = "settings-list",
+                query = searchResult.Query,
+                items = searchResult.Items,
+                pages = searchResult.Pages,
+                message = searchResult.Message,
+            });
+        }
+
         var result = await rpc.ListSettingsAsync(scope, maxResults, cancellationToken).ConfigureAwait(false);
         return Ok(new
         {
@@ -285,18 +293,39 @@ internal static class ServeInvokeDispatcher
         });
     }
 
+    private static async Task<ServeInvokeResponse> SettingsLinksAsync(
+        IQuickerRpcService rpc,
+        CancellationToken cancellationToken)
+    {
+        var result = await rpc.ListSettingsDirectLinksAsync(cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "settings-links",
+            links = result.Links,
+            message = result.Message,
+        });
+    }
+
     private static async Task<ServeInvokeResponse> SettingsOpenAsync(
         IQuickerRpcService rpc,
         JsonElement args,
         CancellationToken cancellationToken)
     {
-        var target = ServeJsonArgs.GetString(args, "page", "target", "pageId") ?? "settings";
+        var target = ServeJsonArgs.GetString(args, "page", "target", "pageId");
+        var query = ServeJsonArgs.GetString(args, "query");
+        var settingKey = ServeJsonArgs.GetString(args, "key", "settingKey");
+        var searchText = ServeJsonArgs.GetString(args, "searchText", "search-text");
+        var preset = ServeJsonArgs.GetString(args, "preset", "link");
         var exeFile = ServeJsonArgs.GetString(args, "exe", "exeFile");
-        var result = await rpc.OpenSettingsUiAsync(target, exeFile, cancellationToken).ConfigureAwait(false);
+        var result = await rpc
+            .OpenSettingsUiAsync(target, exeFile, searchText, query, settingKey, preset, cancellationToken)
+            .ConfigureAwait(false);
         return Ok(new
         {
             ok = result.Ok,
             action = "settings-open",
+            preset = result.PresetId,
             target = result.Target,
             pageId = result.PageId,
             message = result.Message,
@@ -350,10 +379,11 @@ internal static class ServeInvokeDispatcher
         var query = ServeJsonArgs.GetString(args, "query");
         var queryFile = ServeJsonArgs.GetString(args, "queryFile");
         var filter = ServeJsonArgs.GetString(args, "filter");
+        var fields = ServeJsonArgs.GetString(args, "fields");
         var scope = ServeJsonArgs.GetString(args, "scope");
         var limit = ServeJsonArgs.GetInt(args, "limit") ?? 30;
         var sort = ServeJsonArgs.GetString(args, "sort");
-        if (!ActionQueryFilter.TryResolveQuery(query, queryFile, filter, out var mergedQuery, out var queryError))
+        if (!ActionQueryFilter.TryResolveQuery(query, queryFile, filter, fields, out var mergedQuery, out var queryError))
         {
             return Fail("INVALID_QUERY", queryError ?? "Invalid query.");
         }
@@ -376,41 +406,11 @@ internal static class ServeInvokeDispatcher
         return Ok(new { ok = response.Success, action = "list", payload = payloadNode });
     }
 
-    private static async Task<ServeInvokeResponse> ActionSearchAsync(
+    private static Task<ServeInvokeResponse> ActionSearchAsync(
         QkrpcRpcSessionPool pool,
         JsonElement args,
-        CancellationToken token)
-    {
-        var query = ServeJsonArgs.GetString(args, "query") ?? string.Empty;
-        var queryFile = ServeJsonArgs.GetString(args, "queryFile");
-        var filter = ServeJsonArgs.GetString(args, "filter");
-        if (!ActionQueryFilter.TryResolveQuery(query, queryFile, filter, out var queryTrimmed, out var queryError))
-        {
-            return Fail("INVALID_QUERY", queryError ?? "Invalid query.");
-        }
-
-        queryTrimmed = queryTrimmed.Trim();
-        if (string.IsNullOrWhiteSpace(queryTrimmed))
-        {
-            return await ActionListAsync(
-                pool,
-                args,
-                token).ConfigureAwait(false);
-        }
-
-        var scope = ServeJsonArgs.GetString(args, "scope");
-        var limit = ServeJsonArgs.GetInt(args, "limit") ?? 20;
-        var rpc = await pool.GetRpcAsync(token).ConfigureAwait(false);
-        var response = await rpc.SearchActionsAsync(queryTrimmed, limit, scope, token).ConfigureAwait(false);
-        if (ShouldRetryActionQueryAfterReconnect(queryTrimmed, response.Ok, response.Items.Count))
-        {
-            await pool.InvalidateAsync().ConfigureAwait(false);
-            rpc = await pool.GetRpcAsync(token).ConfigureAwait(false);
-            response = await rpc.SearchActionsAsync(queryTrimmed, limit, scope, token).ConfigureAwait(false);
-        }
-
-        return Ok(new { ok = response.Ok, action = "search", items = response.Items, message = response.Message });
-    }
+        CancellationToken token) =>
+        ActionListAsync(pool, args, token);
 
     /// <summary>Reconnect once after plugin reload — stale serve sessions may miss pinyin/catalog matches.</summary>
     private static bool ShouldRetryActionQueryAfterReconnect(string? query, bool ok, int matchCount) =>
@@ -843,21 +843,11 @@ internal static class ServeInvokeDispatcher
         });
     }
 
-    private static async Task<ServeInvokeResponse> SubprogramSearchAsync(
+    private static Task<ServeInvokeResponse> SubprogramSearchAsync(
         IQuickerRpcService rpc,
         JsonElement args,
-        CancellationToken token)
-    {
-        var query = ServeJsonArgs.GetString(args, "query") ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return Fail("MISSING_QUERY", "args.query is required.");
-        }
-
-        var limit = ServeJsonArgs.GetInt(args, "limit") ?? 20;
-        var response = await rpc.SearchGlobalSubProgramsAsync(query.Trim(), limit, token).ConfigureAwait(false);
-        return Ok(new { ok = response.Ok, action = "subprogram-search", items = response.Items, message = response.Message });
-    }
+        CancellationToken token) =>
+        SubprogramListAsync(rpc, args, token);
 
     private static async Task<ServeInvokeResponse> SubprogramListAsync(
         IQuickerRpcService rpc,

@@ -495,6 +495,21 @@ public sealed class HeadlessActionProgramService
             };
         }
 
+        IReadOnlyList<string>? projectedFields = null;
+        if (spec.Fields.Count > 0)
+        {
+            if (!ActionSummaryFieldCatalog.TryNormalize(spec.Fields, out var normalizedFields, out var fieldError))
+            {
+                return new QuickerRpcSearchActionSummariesResult
+                {
+                    Success = false,
+                    ErrorMessage = fieldError ?? "Invalid fields.",
+                };
+            }
+
+            projectedFields = normalizedFields;
+        }
+
         if (spec.SubProgramSearch is { } subProgramSearch
             && !ActionSubProgramCallScanner.TryResolveSubProgram(
                 subProgramSearch.SubProgramRef,
@@ -520,11 +535,11 @@ public sealed class HeadlessActionProgramService
         }
 
         var queryIsEmpty = spec.IsEmpty;
-        var sortMode = spec.HasSorterScript
+        var sortMode = spec.HasSortScript
             ? ActionSummarySortMode.Relevance
             : ActionSummarySort.Resolve(sort, queryIsEmpty);
         var limitInMatch = !queryIsEmpty
-            && (spec.HasSorterScript || sortMode == ActionSummarySortMode.Relevance);
+            && (spec.HasSortScript || sortMode == ActionSummarySortMode.Relevance);
         Func<ActionItem, bool>? actionFilter = spec.ApplyXActionCatalogFilter
             ? action => _actions!.IsXAction(action)
             : null;
@@ -551,7 +566,7 @@ public sealed class HeadlessActionProgramService
             .Where(x => _actions.GetActionId(x.Match.Entry.Action).Length > 0)
             .ToList();
 
-        var ordered = spec.HasSorterScript
+        var ordered = spec.HasSortScript
             ? rows.AsEnumerable()
             : sortMode switch
             {
@@ -585,6 +600,7 @@ public sealed class HeadlessActionProgramService
                 TemplateId = ActionItemSourceHelper.GetTemplateId(action),
                 SharedActionId = ActionItemSourceHelper.GetSharedActionId(action),
                 Source = ActionItemSourceHelper.ResolveKindToken(action),
+                Score = x.Match.Score > 0 ? x.Match.Score : null,
             };
         }).ToList();
 
@@ -595,6 +611,7 @@ public sealed class HeadlessActionProgramService
             Scope = scopeValue,
             Sort = ActionSummarySort.ToApiValue(sortMode),
             MatchCount = items.Count,
+            Fields = projectedFields is null ? null : projectedFields.ToList(),
             Items = items,
         };
     }

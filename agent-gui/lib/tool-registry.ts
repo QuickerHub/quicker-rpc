@@ -96,18 +96,46 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "projects/data.json/files 读写、patch 保存、语法诊断",
   },
   {
-    id: "qkrpc_action",
-    label: "动作",
+    id: "qkrpc_action_query",
+    label: "搜索动作",
     group: "read",
     category: "action",
-    description: "list/search/get/create/replace/publish/元数据/运行/移动/动作页布局",
+    description: "list/query：关键词、JSON filter/sort、uses: 子程序引用",
+  },
+  {
+    id: "qkrpc_action",
+    label: "动作操作",
+    group: "write",
+    category: "action",
+    description: "get/run/float/edit/元数据/移动/发布/replace",
+  },
+  {
+    id: "qkrpc_action_manage",
+    label: "动作与布局",
+    group: "write",
+    category: "layout",
+    description: "create、动作页 profile_*、虚拟进程 process_ensure",
+  },
+  {
+    id: "qkrpc_subprogram_query",
+    label: "搜索子程序",
+    group: "read",
+    category: "subprogram",
+    description: "list/query 公共子程序",
   },
   {
     id: "qkrpc_subprogram",
-    label: "子程序",
-    group: "read",
+    label: "子程序操作",
+    group: "write",
     category: "subprogram",
-    description: "list/search/get/create/patch/replace/export/import",
+    description: "get/patch/replace/export/import/edit/edit_var",
+  },
+  {
+    id: "qkrpc_subprogram_manage",
+    label: "创建子程序",
+    group: "write",
+    category: "subprogram",
+    description: "create（bootstrap 工作区项目）",
   },
   { id: "qkrpc_step_runner_search", label: "搜索步骤模块", group: "read", category: "catalog" },
   { id: "qkrpc_step_runner_get", label: "步骤模块 schema", group: "read", category: "catalog" },
@@ -194,6 +222,18 @@ export function pickChatTools<T extends Record<string, unknown>>(
 
 export const TOOL_APPROVAL_STORAGE_KEY = "agent-gui-enabled-tools";
 
+const CONSOLIDATED_ACTION_TOOL_IDS = [
+  "qkrpc_action_query",
+  "qkrpc_action",
+  "qkrpc_action_manage",
+] as const;
+
+const CONSOLIDATED_SUBPROGRAM_TOOL_IDS = [
+  "qkrpc_subprogram_query",
+  "qkrpc_subprogram",
+  "qkrpc_subprogram_manage",
+] as const;
+
 const LEGACY_TOOL_ID_MAP: Record<string, string> = {
   qkrpc_guide_get: "docs",
   qkrpc_guide_search: "docs",
@@ -209,10 +249,10 @@ const LEGACY_TOOL_ID_MAP: Record<string, string> = {
   qkrpc_settings_open: "quicker_settings",
   qkrpc_fa_search: "qkrpc_fa",
   qkrpc_fa_resolve: "qkrpc_fa",
-  qkrpc_action_list: "qkrpc_action",
-  qkrpc_action_search: "qkrpc_action",
+  qkrpc_action_list: "qkrpc_action_query",
+  qkrpc_action_search: "qkrpc_action_query",
   qkrpc_action_get: "qkrpc_action",
-  qkrpc_action_create: "qkrpc_action",
+  qkrpc_action_create: "qkrpc_action_manage",
   qkrpc_action_replace: "qkrpc_action",
   qkrpc_action_publish: "qkrpc_action",
   qkrpc_action_set_metadata: "qkrpc_action",
@@ -221,16 +261,16 @@ const LEGACY_TOOL_ID_MAP: Record<string, string> = {
   qkrpc_action_edit_var: "qkrpc_action",
   qkrpc_action_run: "qkrpc_action",
   qkrpc_action_move: "qkrpc_action",
-  qkrpc_profile_create: "qkrpc_action",
-  qkrpc_profile_delete: "qkrpc_action",
-  qkrpc_profile_reorder: "qkrpc_action",
-  qkrpc_process_ensure: "qkrpc_action",
+  qkrpc_profile_create: "qkrpc_action_manage",
+  qkrpc_profile_delete: "qkrpc_action_manage",
+  qkrpc_profile_reorder: "qkrpc_action_manage",
+  qkrpc_process_ensure: "qkrpc_action_manage",
   qkrpc_action_patch: "workspace_program",
   qkrpc_action_update: "qkrpc_action",
-  qkrpc_subprogram_list: "qkrpc_subprogram",
-  qkrpc_subprogram_search: "qkrpc_subprogram",
+  qkrpc_subprogram_list: "qkrpc_subprogram_query",
+  qkrpc_subprogram_search: "qkrpc_subprogram_query",
   qkrpc_subprogram_get: "qkrpc_subprogram",
-  qkrpc_subprogram_create: "qkrpc_subprogram",
+  qkrpc_subprogram_create: "qkrpc_subprogram_manage",
   qkrpc_subprogram_patch: "qkrpc_subprogram",
   qkrpc_subprogram_replace: "qkrpc_subprogram",
   qkrpc_subprogram_export: "qkrpc_subprogram",
@@ -257,13 +297,62 @@ type StoredToolPrefsV1 = {
   registryIds: string[];
 };
 
+function expandConsolidatedToolIds(ids: string[]): string[] {
+  const out: string[] = [];
+  for (const id of ids) {
+    if (id === "qkrpc_action") {
+      out.push(...CONSOLIDATED_ACTION_TOOL_IDS);
+      continue;
+    }
+    if (id === "qkrpc_subprogram") {
+      out.push(...CONSOLIDATED_SUBPROGRAM_TOOL_IDS);
+      continue;
+    }
+    out.push(LEGACY_TOOL_ID_MAP[id] ?? id);
+  }
+  return [...new Set(out)];
+}
+
 function migrateStoredToolIds(ids: string[]): string[] {
-  const mapped = ids.map((id) => LEGACY_TOOL_ID_MAP[id] ?? id);
-  return [...new Set(mapped)];
+  return expandConsolidatedToolIds(ids);
 }
 
 function filterKnownToolIds(ids: string[]): string[] {
   return migrateStoredToolIds(ids).filter((id) => registryById.has(id));
+}
+
+function expandLegacyConsolidatedPrefs(
+  ids: string[],
+  savedRegistryIds: string[],
+): string[] {
+  const set = new Set(migrateStoredToolIds(ids));
+  if (savedRegistryIds.includes("qkrpc_action") && ids.includes("qkrpc_action")) {
+    for (const id of CONSOLIDATED_ACTION_TOOL_IDS) {
+      set.add(id);
+    }
+  }
+  if (
+    savedRegistryIds.includes("qkrpc_subprogram")
+    && ids.includes("qkrpc_subprogram")
+  ) {
+    for (const id of CONSOLIDATED_SUBPROGRAM_TOOL_IDS) {
+      set.add(id);
+    }
+  }
+  return [...set];
+}
+
+function normalizeSavedRegistryIds(ids: string[]): string[] {
+  let expanded = [...ids];
+  if (ids.includes("qkrpc_action")) {
+    expanded = expanded.filter((id) => id !== "qkrpc_action");
+    expanded.push(...CONSOLIDATED_ACTION_TOOL_IDS);
+  }
+  if (ids.includes("qkrpc_subprogram")) {
+    expanded = expanded.filter((id) => id !== "qkrpc_subprogram");
+    expanded.push(...CONSOLIDATED_SUBPROGRAM_TOOL_IDS);
+  }
+  return filterKnownToolIds(expanded);
 }
 
 /** Resolve enabled ids: new registry tools default on; explicit disables preserved. */
@@ -271,8 +360,10 @@ export function resolveEnabledToolsFromPrefs(
   enabledIds: string[],
   savedRegistryIds: string[],
 ): string[] {
-  const enabledSet = new Set(filterKnownToolIds(enabledIds));
-  const savedRegistry = new Set(filterKnownToolIds(savedRegistryIds));
+  const enabledSet = new Set(
+    filterKnownToolIds(expandLegacyConsolidatedPrefs(enabledIds, savedRegistryIds)),
+  );
+  const savedRegistry = new Set(normalizeSavedRegistryIds(savedRegistryIds));
   const resolved: string[] = [];
 
   for (const id of ALL_QKRPC_TOOL_IDS) {

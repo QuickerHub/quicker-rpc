@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using CommandLine;
 using QuickerRpc.Contracts.Rpc;
@@ -11,12 +12,13 @@ internal static partial class Program
         var verb = (options.Command ?? string.Empty).Trim().ToLowerInvariant();
         return verb switch
         {
-            "search" => await RunSettingsSearchAsync(options).ConfigureAwait(false),
+            "search" => await RunSettingsListAsync(options).ConfigureAwait(false),
             "list" => await RunSettingsListAsync(options).ConfigureAwait(false),
             "get" => await RunSettingsGetAsync(options).ConfigureAwait(false),
             "set" => await RunSettingsSetAsync(options).ConfigureAwait(false),
             "apply" => await RunSettingsApplyAsync(options).ConfigureAwait(false),
             "pages" => await RunSettingsPagesAsync(options).ConfigureAwait(false),
+            "links" => await RunSettingsLinksAsync(options).ConfigureAwait(false),
             "open" => await RunSettingsOpenAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownSettingsVerbAsync(options).ConfigureAwait(false),
         };
@@ -27,86 +29,73 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_SETTINGS_VERB",
-            "Use: settings search|list|get|set|apply|pages|open (see qkrpc help --json)")
+            "Use: settings search|list|get|set|apply|pages|links|open (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
 
-    private static async Task<int> RunSettingsSearchAsync(SettingsOptions options)
-    {
-        try
-        {
-            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
-            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
-            var result = await session.Proxy
-                .SearchSettingsAsync(options.Query, options.Limit, rpcToken)
-                .ConfigureAwait(false);
-
-            if (options.Json)
-            {
-                global::System.Console.WriteLine(JsonSerializer.Serialize(
-                    new
-                    {
-                        ok = result.Ok,
-                        action = "settings-search",
-                        query = result.Query,
-                        items = result.Items.Select(i => new
-                        {
-                            i.Key,
-                            i.Scope,
-                            i.Path,
-                            i.Type,
-                            i.Writable,
-                            i.Title,
-                            i.Snippet,
-                            i.Description,
-                            i.PageId,
-                            i.PageTitle,
-                            i.Keywords,
-                        }),
-                        pages = result.Pages,
-                        message = result.Message,
-                    },
-                    QkrpcJson.CliOutput));
-            }
-            else if (result.Ok)
-            {
-                global::System.Console.WriteLine($"settings search: {result.Query}");
-                foreach (var page in result.Pages)
-                {
-                    global::System.Console.WriteLine($"[page] {page.Title} ({page.PageId})");
-                }
-
-                foreach (var item in result.Items)
-                {
-                    global::System.Console.WriteLine($"{item.Key} ({item.Type})");
-                }
-            }
-            else
-            {
-                global::System.Console.WriteLine(result.Message ?? "settings search failed.");
-            }
-
-            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
-        }
-        catch (QuickerRpcClientException ex)
-        {
-            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
-        catch (Exception ex)
-        {
-            await EmitErrorAsync(options.Json, "SETTINGS_SEARCH_FAILED", ex.Message).ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
-    }
-
     private static async Task<int> RunSettingsListAsync(SettingsOptions options)
     {
+        var query = (options.Query ?? string.Empty).Trim();
         try
         {
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+
+            if (query.Length > 0)
+            {
+                var searchResult = await session.Proxy
+                    .SearchSettingsAsync(query, options.Limit, rpcToken)
+                    .ConfigureAwait(false);
+
+                if (options.Json)
+                {
+                    global::System.Console.WriteLine(JsonSerializer.Serialize(
+                        new
+                        {
+                            ok = searchResult.Ok,
+                            action = "settings-list",
+                            query = searchResult.Query,
+                            items = searchResult.Items.Select(i => new
+                            {
+                                i.Key,
+                                i.Scope,
+                                i.Path,
+                                i.Type,
+                                i.Writable,
+                                i.Title,
+                                i.Snippet,
+                                i.Description,
+                                i.PageId,
+                                i.PageTitle,
+                                i.Keywords,
+                            }),
+                            pages = searchResult.Pages,
+                            message = searchResult.Message,
+                        },
+                        QkrpcJson.CliOutput));
+                }
+                else if (searchResult.Ok)
+                {
+                    global::System.Console.WriteLine($"settings list: {searchResult.Query}");
+                    foreach (var page in searchResult.Pages)
+                    {
+                        global::System.Console.WriteLine($"[page] {page.Title} ({page.PageId})");
+                    }
+
+                    foreach (var item in searchResult.Items)
+                    {
+                        global::System.Console.WriteLine($"{item.Key} ({item.Type})");
+                    }
+                }
+                else
+                {
+                    global::System.Console.WriteLine(searchResult.Message ?? "settings list failed.");
+                }
+
+                return searchResult.Ok ? ExitCodes.Success : ExitCodes.Error;
+            }
+
             var result = await session.Proxy
                 .ListSettingsAsync(options.Scope, options.Limit, rpcToken)
                 .ConfigureAwait(false);
@@ -384,10 +373,69 @@ internal static partial class Program
         }
     }
 
+    private static async Task<int> RunSettingsLinksAsync(SettingsOptions options)
+    {
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var result = await session.Proxy.ListSettingsDirectLinksAsync(rpcToken).ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "settings-links",
+                        links = result.Links.Select(link => new
+                        {
+                            link.Id,
+                            link.Title,
+                            link.Target,
+                            link.Aliases,
+                            link.RequiresExe,
+                            link.DefaultExe,
+                            open = $"qkrpc settings open --preset {link.Id}",
+                        }),
+                        message = result.Message,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else if (result.Ok)
+            {
+                global::System.Console.WriteLine("settings direct links (use: qkrpc settings open --preset <id>):");
+                foreach (var link in result.Links)
+                {
+                    global::System.Console.WriteLine($"  {link.Id}\t{link.Title}\t→ {link.Target}");
+                }
+            }
+            else
+            {
+                global::System.Console.WriteLine(result.Message ?? "settings links failed.");
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "SETTINGS_LINKS_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
+
     private static async Task<int> RunSettingsOpenAsync(SettingsOptions options)
     {
         var target = (options.Page ?? options.Target ?? string.Empty).Trim();
-        if (target.Length == 0)
+        var query = (options.Query ?? string.Empty).Trim();
+        var key = (options.Key ?? string.Empty).Trim();
+        var preset = (options.Preset ?? options.Link ?? string.Empty).Trim();
+        if (preset.Length == 0 && target.Length == 0 && query.Length == 0 && key.Length == 0)
         {
             target = "settings";
         }
@@ -397,7 +445,14 @@ internal static partial class Program
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var result = await session.Proxy
-                .OpenSettingsUiAsync(target, options.Exe, rpcToken)
+                .OpenSettingsUiAsync(
+                    target.Length > 0 ? target : null,
+                    options.Exe,
+                    options.SearchText,
+                    query.Length > 0 ? query : null,
+                    key.Length > 0 ? key : null,
+                    preset.Length > 0 ? preset : null,
+                    rpcToken)
                 .ConfigureAwait(false);
 
             if (options.Json)
@@ -407,6 +462,7 @@ internal static partial class Program
                     {
                         ok = result.Ok,
                         action = "settings-open",
+                        preset = result.PresetId,
                         target = result.Target,
                         pageId = result.PageId,
                         message = result.Message,
@@ -436,11 +492,20 @@ internal static partial class Program
 [Verb("settings", HelpText = "Quicker application settings (search, read, write, open UI).")]
 public sealed class SettingsOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "search | list | get | set | apply | pages | open")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "search | list | get | set | apply | pages | links | open")]
     public string? Command { get; set; }
 
-    [Option('q', "query", HelpText = "Search keyword (settings search).")]
+    [Option("preset", HelpText = "Direct link preset for open (see settings links). Preferred one-step open.")]
+    public string? Preset { get; set; }
+
+    [Option("link", HelpText = "Alias for --preset on open.")]
+    public string? Link { get; set; }
+
+    [Option('q', "query", HelpText = "list: search keyword; open: resolve settings page by keyword when --page omitted.")]
     public string? Query { get; set; }
+
+    [Option("search-text", HelpText = "open: prefill Quicker search window (with --page search or when query opens search).")]
+    public string? SearchText { get; set; }
 
     [Option("scope", HelpText = "Scope filter: userSettings | userPreference | globalSettings | exeSettings.")]
     public string? Scope { get; set; }
@@ -454,7 +519,7 @@ public sealed class SettingsOptions
     [Option("exe", HelpText = "With open exe-settings: virtual process key or app exe name.")]
     public string? Exe { get; set; }
 
-    [Option("key", HelpText = "Setting key, e.g. userSettings:EnableCircleMenu or exeSettings:_global:ReturnToFirstPage.")]
+    [Option("key", HelpText = "Setting key for get/set, or open (opens the page containing this setting).")]
     public string? Key { get; set; }
 
     [Option("value", HelpText = "New value (settings set).")]

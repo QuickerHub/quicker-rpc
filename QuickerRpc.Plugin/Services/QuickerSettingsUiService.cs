@@ -8,7 +8,7 @@ namespace QuickerRpc.Plugin.Services;
 
 public sealed class QuickerSettingsUiService
 {
-    private static readonly IReadOnlyDictionary<string, string> PageAliases =
+    private static readonly IReadOnlyDictionary<string, string> StaticPageAliases =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["settings"] = string.Empty,
@@ -59,7 +59,18 @@ public sealed class QuickerSettingsUiService
             ["自动运行"] = "AutoRunActions",
             ["event-trigger"] = "EventTriggerSettingsPage",
             ["事件触发"] = "EventTriggerSettingsPage",
+            ["update-actions"] = "UpdateActionsPage",
+            ["批量更新动作"] = "UpdateActionsPage",
+            ["批量更新"] = "UpdateActionsPage",
         };
+
+    private static readonly Lazy<IReadOnlyDictionary<string, string>> PageAliases =
+        new(BuildPageAliases);
+
+    private readonly QuickerSettingsService _settingsService;
+
+    public QuickerSettingsUiService(QuickerSettingsService settingsService) =>
+        _settingsService = settingsService;
 
     public QuickerRpcListSettingsPagesResult ListPages()
     {
@@ -81,7 +92,15 @@ public sealed class QuickerSettingsUiService
             Target = "search",
             Title = "搜索窗口",
             Aliases = new List<string> { "search", "search-window", "搜索", "启动搜索" },
-            Snippet = "Open Quicker search box (ShowSearchWindow).",
+            Snippet = "Open Quicker search box (ShowSearchWindow). Optional searchText prefills the query.",
+        });
+
+        pages.Add(new QuickerRpcSettingsPageInfo
+        {
+            Target = "exe-settings",
+            Title = "进程/场景设置",
+            Aliases = new List<string> { "exe-settings", "process-settings", "进程设置" },
+            Snippet = "Open per-exe settings window. Requires exe (e.g. _global).",
         });
 
         return new QuickerRpcListSettingsPagesResult
@@ -91,21 +110,162 @@ public sealed class QuickerSettingsUiService
         };
     }
 
-    public QuickerRpcOpenSettingsUiResult Open(string target, string? exeFile = null)
+    public QuickerRpcListSettingsDirectLinksResult ListDirectLinks()
     {
-        var text = (target ?? string.Empty).Trim();
-        if (text.Length == 0)
+        var links = SettingsDirectLinkCatalog.ListLinks()
+            .Select(link => new QuickerRpcSettingsDirectLinkInfo
+            {
+                Id = link.Id,
+                Title = link.Title,
+                Target = link.Target,
+                Aliases = link.Aliases.ToList(),
+                RequiresExe = link.RequiresExe,
+                DefaultExe = link.DefaultExe,
+            })
+            .ToList();
+
+        return new QuickerRpcListSettingsDirectLinksResult
         {
-            text = "settings";
+            Ok = true,
+            Links = links,
+        };
+    }
+
+    /// <summary>
+    /// Open Quicker settings UI. Resolve target from preset, setting key, page, or keyword query.
+    /// </summary>
+    public QuickerRpcOpenSettingsUiResult Open(
+        string? target,
+        string? query = null,
+        string? settingKey = null,
+        string? exeFile = null,
+        string? searchText = null,
+        string? preset = null)
+    {
+        string? presetId = null;
+        var resolvedTarget = (target ?? string.Empty).Trim();
+        var resolvedQuery = (query ?? string.Empty).Trim();
+        var resolvedKey = (settingKey ?? string.Empty).Trim();
+        var resolvedSearchText = (searchText ?? string.Empty).Trim();
+        var resolvedExe = (exeFile ?? string.Empty).Trim();
+
+        if ((preset ?? string.Empty).Trim().Length > 0)
+        {
+            var presetText = preset!.Trim();
+            if (!SettingsDirectLinkCatalog.TryResolve(presetText, out var link))
+            {
+                return Fail($"Unknown settings preset: {presetText}", presetText);
+            }
+
+            presetId = link.Id;
+            resolvedTarget = link.Target;
+            if (resolvedExe.Length == 0 && !string.IsNullOrWhiteSpace(link.DefaultExe))
+            {
+                resolvedExe = link.DefaultExe!;
+            }
+
+            if (link.RequiresExe && resolvedExe.Length == 0)
+            {
+                return Fail(
+                    $"Preset '{link.Id}' requires exe (e.g. --exe _global).",
+                    link.Id);
+            }
+        }
+        else if (resolvedKey.Length > 0 && resolvedTarget.Length == 0)
+        {
+            if (!_settingsService.TryResolvePageForKey(resolvedKey, out var pageId, out var keyError))
+            {
+                return Fail(keyError ?? "Failed to resolve page for setting key.", resolvedKey);
+            }
+
+            resolvedTarget = pageId ?? string.Empty;
+        }
+        else if (resolvedTarget.Length == 0 && resolvedQuery.Length > 0)
+        {
+            var openByQuery = ResolveTargetFromQuery(resolvedQuery, out var querySearchText);
+            if (openByQuery is null)
+            {
+                return Fail($"No settings page matched query: {resolvedQuery}", resolvedQuery);
+            }
+
+            resolvedTarget = openByQuery;
+            if (resolvedSearchText.Length == 0 && querySearchText.Length > 0)
+            {
+                resolvedSearchText = querySearchText;
+            }
         }
 
+        if (resolvedTarget.Length == 0)
+        {
+            resolvedTarget = "settings";
+        }
+
+        var result = OpenResolvedTarget(resolvedTarget, resolvedExe.Length > 0 ? resolvedExe : null, resolvedSearchText);
+        if (result.Ok && presetId is not null)
+        {
+            result.PresetId = presetId;
+        }
+
+        return result;
+    }
+
+    private string? ResolveTargetFromQuery(string query, out string searchText)
+    {
+        searchText = string.Empty;
+        if (SettingsDirectLinkCatalog.TryResolve(query, out var link))
+        {
+            return link.Target;
+        }
+
+        var search = _settingsService.Search(query, 5);
+        if (search.Pages.Count > 0)
+        {
+            return search.Pages[0].PageId;
+        }
+
+        var itemWithPage = search.Items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.PageId));
+        if (itemWithPage?.PageId is { Length: > 0 } pageId)
+        {
+            return pageId;
+        }
+
+        if (IsSearchWindowIntent(query))
+        {
+            searchText = query;
+            return "search";
+        }
+
+        return null;
+    }
+
+    private static bool IsSearchWindowIntent(string query)
+    {
+        if (query.Length == 0)
+        {
+            return false;
+        }
+
+        return string.Equals(query, "search", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(query, "搜索", StringComparison.OrdinalIgnoreCase)
+               || query.Contains("搜索", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private QuickerRpcOpenSettingsUiResult OpenResolvedTarget(
+        string target,
+        string? exeFile,
+        string searchText)
+    {
+        var text = target.Trim();
         try
         {
             if (IsSearchTarget(text))
             {
-                if (QuickerSettingsUiAccessor.TryOpenSearchWindow(null, out var searchError))
+                var prefill = searchText.Length > 0 ? searchText : null;
+                if (QuickerSettingsUiAccessor.TryOpenSearchWindow(prefill, out var searchError))
                 {
-                    return Success("search", null, "Quicker 搜索窗口已打开。");
+                    return Success("search", null, prefill is null
+                        ? "Quicker 搜索窗口已打开。"
+                        : $"Quicker 搜索窗口已打开（预填：{prefill}）。");
                 }
 
                 return Fail(searchError ?? "Failed to open search window.", "search");
@@ -157,7 +317,7 @@ public sealed class QuickerSettingsUiService
         {
             PageId = pageId,
             Target = pageId,
-            Aliases = PageAliases
+            Aliases = PageAliases.Value
                 .Where(pair => string.Equals(pair.Value, pageId, StringComparison.OrdinalIgnoreCase))
                 .Select(pair => pair.Key)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -187,7 +347,7 @@ public sealed class QuickerSettingsUiService
 
     private static string? ResolvePageId(string target)
     {
-        if (PageAliases.TryGetValue(target, out var alias))
+        if (PageAliases.Value.TryGetValue(target, out var alias))
         {
             return alias;
         }
@@ -198,6 +358,50 @@ public sealed class QuickerSettingsUiService
         }
 
         return null;
+    }
+
+    private static IReadOnlyDictionary<string, string> BuildPageAliases()
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in StaticPageAliases)
+        {
+            map[pair.Key] = pair.Value;
+        }
+
+        foreach (var pair in QuickerSettingsAgentKeywordCatalog.All)
+        {
+            if (!pair.Key.StartsWith("page:", StringComparison.Ordinal)
+                || !string.Equals(pair.Value.Kind, "page", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var pageId = pair.Value.PageId ?? pair.Key.Substring("page:".Length);
+            if (pageId.Length == 0)
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(pair.Value.Title))
+            {
+                var title = pair.Value.Title.Trim();
+                if (!map.ContainsKey(title))
+                {
+                    map[title] = pageId;
+                }
+            }
+
+            foreach (var alias in pair.Value.OpenAliases)
+            {
+                var trimmed = (alias ?? string.Empty).Trim();
+                if (trimmed.Length > 0 && !map.ContainsKey(trimmed))
+                {
+                    map[trimmed] = pageId;
+                }
+            }
+        }
+
+        return map;
     }
 
     private static bool IsSearchTarget(string target) =>

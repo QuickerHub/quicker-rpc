@@ -48,7 +48,7 @@ export const EMPTY_CHAT_ACTION_PROMPTS: readonly EmptyChatPrompt[] = [
     readOnly: true,
     label: "搜索剪贴板动作",
     hint: "P1：action_search，回复勿贴动作表",
-    text: "用 qkrpc_action_search 搜索标题或说明含「剪贴板」的动作（scope 默认即可）。用一两句话总结命中数量与最相关的 3 个动作名和 id，不要输出 markdown 表格。",
+    text: "用 qkrpc_action_query 搜索标题或说明含「剪贴板」的动作（scope 默认即可）。用一两句话总结命中数量与最相关的 3 个动作名和 id，不要输出 markdown 表格。",
   },
   {
     id: "smoke-step-runner-expr",
@@ -72,7 +72,7 @@ export const EMPTY_CHAT_ACTION_PROMPTS: readonly EmptyChatPrompt[] = [
     readOnly: true,
     label: "列出本页动作",
     hint: "action_list + 简短摘要",
-    text: "qkrpc_action_list 列出当前虚拟动作页上的动作。只文字说明数量与名称/id 要点，不要重复渲染工具返回里的表格。",
+    text: "qkrpc_action_query 列出当前虚拟动作页上的动作。只文字说明数量与名称/id 要点，不要重复渲染工具返回里的表格。",
   },
 
   // --- authoring ---
@@ -148,7 +148,7 @@ export const EMPTY_CHAT_ACTION_PROMPTS: readonly EmptyChatPrompt[] = [
     category: "subprogram",
     label: "调用公共子程序",
     hint: "subprogram get + sys:subprogram",
-    text: "新建或编辑一个测试动作，增加一步调用公共子程序 QuickerRpc_Run（或 search 到的 Run 相关子程序）：先 qkrpc_subprogram_search/get 拿 callIdentifier，再 qkrpc_step_runner_get sys:subprogram，写入步骤后 patch。禁止猜 subProgram 键名。",
+    text: "新建或编辑一个测试动作，增加一步调用公共子程序 QuickerRpc_Run（或 search 到的 Run 相关子程序）：先 qkrpc_subprogram_query/get 拿 callIdentifier，再 qkrpc_step_runner_get sys:subprogram，写入步骤后 patch。禁止猜 subProgram 键名。",
   },
 
   // --- regression ---
@@ -174,7 +174,7 @@ export const EMPTY_CHAT_ACTION_PROMPTS: readonly EmptyChatPrompt[] = [
     readOnly: true,
     label: "谁引用了子程序",
     hint: "action_search uses:",
-    text: "qkrpc_action_search 查找引用公共子程序 QuickerRpc_Run 的动作（uses: 语法见工具说明）。文字总结命中动作名与 id，不要贴表格。",
+    text: "qkrpc_action_query 查找引用公共子程序 QuickerRpc_Run 的动作（uses: 语法见工具说明）。文字总结命中动作名与 id，不要贴表格。",
   },
   {
     id: "org-docs-organization",

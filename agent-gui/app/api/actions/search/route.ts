@@ -1,8 +1,4 @@
-import {
-  parseActionMentionItemsFromQkrpcJson,
-  type ActionMentionItem,
-} from "@/lib/action-mention-items";
-import { parseRecentActionsFromQkrpcJson } from "@/lib/recent-actions";
+import { parseActionMentionItemsFromQkrpcJson } from "@/lib/action-mention-items";
 import { runQkrpc } from "@/lib/qkrpc";
 
 export const dynamic = "force-dynamic";
@@ -43,18 +39,17 @@ function formatSearchError(result: {
     const msg = o.message ?? o.errorMessage ?? o.error;
     if (typeof msg === "string" && msg.trim()) return msg.trim();
   }
-  return "qkrpc action search failed";
+  return "qkrpc action list failed";
 }
 
-function recentToMentionItems(
-  items: ReturnType<typeof parseRecentActionsFromQkrpcJson>,
-): ActionMentionItem[] {
-  return items.map((item) => ({
-    id: item.id,
-    title: item.title,
-    description: item.description,
-    lastEditTimeLocal: item.lastEditTimeLocal,
-  }));
+function buildListArgv(query: string, limit: number): string[] {
+  const argv = ["action", "list", "--limit", String(query ? limit : Math.max(limit, 50))];
+  if (query) {
+    argv.push("--query", query);
+  } else {
+    argv.push("--sort", "lastEdit");
+  }
+  return argv;
 }
 
 /** Search or list recent actions for composer @-mentions. */
@@ -63,42 +58,7 @@ export async function GET(req: Request) {
   const query = url.searchParams.get("q")?.trim() ?? "";
   const limit = clampLimit(url.searchParams.get("limit"));
 
-  if (!query) {
-    const result = await runQkrpc(
-      ["action", "list", "--limit", "50", "--sort", "lastEdit"],
-      { timeoutMs: 20_000 },
-    );
-    if (!result.ok || result.parsed === null) {
-      return Response.json(
-        { ok: false, error: formatSearchError(result), items: [] },
-        { status: 503 },
-      );
-    }
-
-    const payload = unwrapPayload(result.parsed);
-    if (
-      typeof payload === "object"
-      && payload !== null
-      && "success" in payload
-      && (payload as { success?: boolean }).success === false
-    ) {
-      const msg = (payload as { errorMessage?: string }).errorMessage?.trim();
-      return Response.json(
-        { ok: false, error: msg || "action list failed", items: [] },
-        { status: 503 },
-      );
-    }
-
-    const items = recentToMentionItems(
-      parseRecentActionsFromQkrpcJson(result.parsed, limit),
-    );
-    return Response.json({ ok: true, source: "recent", items });
-  }
-
-  const result = await runQkrpc(
-    ["action", "search", "--query", query, "--limit", String(limit)],
-    { timeoutMs: 20_000 },
-  );
+  const result = await runQkrpc(buildListArgv(query, limit), { timeoutMs: 20_000 });
   if (!result.ok || result.parsed === null) {
     return Response.json(
       { ok: false, error: formatSearchError(result), items: [] },
@@ -106,6 +66,25 @@ export async function GET(req: Request) {
     );
   }
 
+  const payload = unwrapPayload(result.parsed);
+  if (
+    typeof payload === "object"
+    && payload !== null
+    && "success" in payload
+    && (payload as { success?: boolean }).success === false
+  ) {
+    const msg = (payload as { errorMessage?: string }).errorMessage?.trim();
+    return Response.json(
+      { ok: false, error: msg || "action list failed", items: [] },
+      { status: 503 },
+    );
+  }
+
   const items = parseActionMentionItemsFromQkrpcJson(result.parsed, limit);
-  return Response.json({ ok: true, source: "search", query, items });
+  return Response.json({
+    ok: true,
+    source: query ? "search" : "recent",
+    ...(query ? { query } : {}),
+    items,
+  });
 }

@@ -8,7 +8,6 @@ import {
   setVoiceInputMockEnabled,
 } from "@/lib/voice-input/voice-input-plugin-status";
 import { formatVoiceInputToggleShortcut } from "@/lib/voice-input/voice-input-shortcuts";
-import { devVoicePluginInstall } from "@/lib/voice-input/voice-input-dev-install";
 import {
   tauriVoicePluginStartRuntime,
   tauriVoicePluginStopRuntime,
@@ -287,9 +286,10 @@ export function VoiceInputSettingsSection({
               onClick={() => {
                 if (reinstallBusy || disabled) return;
                 setReinstallBusy(true);
-                void devVoicePluginInstall({
+                void requestVoicePluginSetup({
                   force: true,
                   preferNetwork,
+                  skipConfirm: true,
                 })
                   .then(() => notifyVoiceConfigChanged())
                   .finally(() => setReinstallBusy(false));

@@ -61,14 +61,46 @@ quicker_settings({
 
 ---
 
+## 直链（preset，推荐 Agent 使用）
+
+一步打开，无需先 `pages` 再 `open`。
+
+```text
+quicker_settings({ action: "links" })
+quicker_settings({ action: "open", preset: "hotkeys" })
+quicker_settings({ action: "open", preset: "recycle-bin" })
+```
+
+常用 preset id：`hotkeys`（功能快捷键）、`action-hotkeys`、`recycle-bin`、`general`、`search`、`gestures`、`circle-menu`、`update-actions`、`exe-global` 等。完整列表见 `settings links`。
+
+---
+
 ## 打开 Quicker UI（非 headless）
 
-仅当用户明确要看界面时使用 `open` / `pages`。
+仅当用户明确要看界面时使用 `open` / `pages`。推荐流程：**list --query 或 pages 发现目标 → open**。
+
+| 打开方式 | 说明 | 示例 |
+|----------|------|------|
+| **page / alias** | 设置页 id 或别名 | `recycle-bin`、`AppSettings`、`批量更新动作` |
+| **--query** | 关键词匹配设置页（无 page 时） | `--query 回收站` |
+| **--key** | 打开包含该设置项的设置页 | `--key userSettings:EnableCircleMenu` |
+| **search** | Quicker 搜索框（非设置页） | `--page search [--search-text 关键词]` |
+| **exe-settings** | 进程/场景设置 | `--page exe-settings --exe _global` |
+
+底层入口（插件反射 Quicker API）：
+
+| Quicker API | 用途 |
+|-------------|------|
+| `AppWindowManager.ShowSettingsWindow(SettingPageId?)` | 任意 `SettingPageId` 枚举页 |
+| `AppServer.ShowConfigWindow()` | 主设置窗口 |
+| `AppServer.ShowSearchWindow(text, …)` | 搜索框（可预填） |
+| `AppServer.ShowExeSettingsWindow(exeFile)` | 进程设置 |
 
 | 用途 | 工具 |
 |------|------|
 | 列出可打开页面 | `quicker_settings({ action: "pages" })` |
-| 打开 UI | `quicker_settings({ action: "open", page: "recycle-bin" })` 等 |
+| 搜索可打开页面 | `quicker_settings({ action: "list", query: "回收站" })` → `pages[]` |
+| 打开 UI | `quicker_settings({ action: "open", page \| query \| key, exe?, searchText? })` |
 
 ### 先列出可打开的页面
 
@@ -84,9 +116,17 @@ quicker_settings({
 
 `quicker_settings({ action: "open", page: "AppSettings" })`
 
-### 打开搜索窗口（不是设置页）
+### 按关键词打开设置页
 
-`quicker_settings({ action: "open", page: "search" })`
+`quicker_settings({ action: "open", query: "批量更新动作" })`
+
+### 按设置项 key 打开所在页
+
+`quicker_settings({ action: "open", key: "userSettings:EnableCircleMenu" })`
+
+### 打开搜索窗口（预填可选）
+
+`quicker_settings({ action: "open", page: "search", searchText: "我的动作" })`
 
 ### 打开进程场景设置（Exe Settings）
 

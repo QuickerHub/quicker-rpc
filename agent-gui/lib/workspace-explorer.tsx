@@ -40,6 +40,7 @@ import type { StructuredToolResult } from "@/lib/tool-result";
 import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
 import { basenamePath } from "@/lib/workspace-file-tool";
 import { clearWorkspaceMainEditorDoc } from "@/lib/workspace-main-editor-tab";
+import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import {
   SIDE_PANEL_PREVIEW_TAB_ID,
   SIDE_PANEL_VIEW_BROWSER,
@@ -305,6 +306,7 @@ export function WorkspaceExplorerShellProvider({
     setPanelOpenState((prev) => {
       if (prev === open) return prev;
       storeExplorerOpen(open);
+      queueMicrotask(() => dispatchWorkspaceLayoutResize());
       return open;
     });
   }, []);
@@ -322,6 +324,7 @@ export function WorkspaceExplorerShellProvider({
     setPanelOpenState((prev) => {
       const next = !prev;
       storeExplorerOpen(next);
+      queueMicrotask(() => dispatchWorkspaceLayoutResize());
       return next;
     });
   }, []);

@@ -7,6 +7,10 @@ test("argvToInvoke maps settings open and pages", () => {
     op: "settings.pages",
     args: {},
   });
+  assert.deepEqual(argvToInvoke(["settings", "links", "--json"]), {
+    op: "settings.links",
+    args: {},
+  });
   assert.deepEqual(
     argvToInvoke([
       "settings",
@@ -19,14 +23,64 @@ test("argvToInvoke maps settings open and pages", () => {
     ]),
     {
       op: "settings.open",
-      args: { page: "recycle-bin", exe: "_global" },
+      args: {
+        page: "recycle-bin",
+        preset: undefined,
+        query: undefined,
+        key: undefined,
+        searchText: undefined,
+        exe: "_global",
+      },
     },
   );
   assert.deepEqual(
     argvToInvoke(["settings", "search", "--query", "圆圈", "--limit", "10", "--json"]),
     {
-      op: "settings.search",
-      args: { query: "圆圈", maxResults: 10 },
+      op: "settings.list",
+      args: { query: "圆圈", scope: undefined, maxResults: 10 },
+    },
+  );
+  assert.deepEqual(
+    argvToInvoke(["settings", "list", "--scope", "userSettings", "--json"]),
+    {
+      op: "settings.list",
+      args: { scope: "userSettings", query: undefined, maxResults: undefined },
+    },
+  );
+  assert.deepEqual(
+    argvToInvoke([
+      "settings",
+      "open",
+      "--query",
+      "回收站",
+      "--search-text",
+      "test",
+      "--json",
+    ]),
+    {
+      op: "settings.open",
+      args: {
+        page: undefined,
+        preset: undefined,
+        query: "回收站",
+        key: undefined,
+        searchText: "test",
+        exe: undefined,
+      },
+    },
+  );
+  assert.deepEqual(
+    argvToInvoke(["settings", "open", "--preset", "hotkeys", "--json"]),
+    {
+      op: "settings.open",
+      args: {
+        preset: "hotkeys",
+        page: undefined,
+        query: undefined,
+        key: undefined,
+        searchText: undefined,
+        exe: undefined,
+      },
     },
   );
 });
@@ -162,6 +216,34 @@ test("argvToInvoke maps subprogram export and import", () => {
         expectedEditVersion: 3,
         force: true,
       },
+    },
+  );
+});
+
+test("argvToInvoke maps action and subprogram search to list ops", () => {
+  assert.deepEqual(
+    argvToInvoke(["action", "search", "--query", "clip", "--limit", "10", "--json"]),
+    {
+      op: "action.list",
+      args: { query: "clip", scope: undefined, limit: 10, sort: undefined, fields: undefined },
+    },
+  );
+  assert.deepEqual(argvToInvoke(["action", "list", "--sort", "lastEdit", "--json"]), {
+    op: "action.list",
+    args: { query: undefined, scope: undefined, limit: undefined, sort: "lastEdit", fields: undefined },
+  });
+  assert.deepEqual(
+    argvToInvoke(["action", "list", "--fields", "id,title", "--json"]),
+    {
+      op: "action.list",
+      args: { query: undefined, scope: undefined, limit: undefined, sort: undefined, fields: "id,title" },
+    },
+  );
+  assert.deepEqual(
+    argvToInvoke(["subprogram", "search", "--query", "clip", "--json"]),
+    {
+      op: "subprogram.list",
+      args: { query: "clip", limit: undefined },
     },
   );
 });

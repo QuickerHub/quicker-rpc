@@ -25,6 +25,7 @@ const settingsActionSchema = z.enum([
   "set",
   "apply",
   "pages",
+  "links",
   "open",
 ]);
 
@@ -45,7 +46,9 @@ export type QuickerSettingsToolInput = {
   key?: string;
   value?: string;
   page?: string;
+  preset?: string;
   exe?: string;
+  searchText?: string;
   changes?: Array<{ key: string; value: string }>;
   patch?: Record<string, string>;
 };
@@ -65,6 +68,17 @@ function buildSettingsArgs(
   return args;
 }
 
+function buildSettingsListArgs(input: QuickerSettingsToolInput): string[] {
+  return buildSettingsArgs("list", [
+    input.query?.trim() ? "--query" : undefined,
+    input.query?.trim(),
+    input.scope ? "--scope" : undefined,
+    input.scope,
+    input.limit != null ? "--limit" : undefined,
+    input.limit != null ? String(input.limit) : undefined,
+  ]);
+}
+
 export function isQuickerSettingsTool(toolName: string): boolean {
   return (
     toolName === QUICKER_SETTINGS_TOOL
@@ -81,33 +95,21 @@ export async function executeQuickerSettingsTool(
   input: QuickerSettingsToolInput,
 ): Promise<Record<string, unknown>> {
   switch (input.action) {
-    case "search": {
-      if (!input.query?.trim()) {
+    case "search":
+    case "list": {
+      if (input.action === "search" && !input.query?.trim()) {
         return formatQkrpcResultForAgent({
           ok: false,
           exitCode: 1,
           stdout: "",
-          stderr: "query is required when action=search",
+          stderr: "query is required when action=search (or use action=list to browse by scope)",
           parsed: null,
           truncated: false,
         });
       }
-      const args = buildSettingsArgs("search", [
-        "--query",
-        input.query,
-        input.limit != null ? "--limit" : undefined,
-        input.limit != null ? String(input.limit) : undefined,
-      ]);
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
-    }
-    case "list": {
-      const args = buildSettingsArgs("list", [
-        input.scope ? "--scope" : undefined,
-        input.scope,
-        input.limit != null ? "--limit" : undefined,
-        input.limit != null ? String(input.limit) : undefined,
-      ]);
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+      return formatQkrpcResultForAgent(
+        await runQkrpcForTool(buildSettingsListArgs(input)),
+      );
     }
     case "get": {
       if (!input.key?.trim()) {
@@ -177,20 +179,51 @@ export async function executeQuickerSettingsTool(
       return formatQkrpcResultForAgent(
         await runQkrpcForTool(["settings", "pages"]),
       );
+    case "links":
+      return formatQkrpcResultForAgent(
+        await runQkrpcForTool(["settings", "links"]),
+      );
     case "open": {
-      if (!input.page?.trim()) {
+      if (
+        !input.preset?.trim()
+        && !input.page?.trim()
+        && !input.query?.trim()
+        && !input.key?.trim()
+      ) {
         return formatQkrpcResultForAgent({
           ok: false,
           exitCode: 1,
           stdout: "",
-          stderr: "page is required when action=open",
+          stderr: "preset, page, query, or key is required when action=open",
           parsed: null,
           truncated: false,
         });
       }
+      const http = await invokeQkrpcHttp({
+        op: "settings.open",
+        args: {
+          preset: input.preset?.trim() || undefined,
+          page: input.page?.trim() || undefined,
+          query: input.query?.trim() || undefined,
+          key: input.key?.trim() || undefined,
+          exe: input.exe?.trim() || undefined,
+          searchText: input.searchText?.trim() || undefined,
+        },
+      });
+      if (http) {
+        return formatQkrpcResultForAgent(http);
+      }
       const args = buildSettingsArgs("open", [
-        "--page",
+        input.preset ? "--preset" : undefined,
+        input.preset,
+        input.page ? "--page" : undefined,
         input.page,
+        input.query ? "--query" : undefined,
+        input.query,
+        input.key ? "--key" : undefined,
+        input.key,
+        input.searchText ? "--search-text" : undefined,
+        input.searchText,
         input.exe ? "--exe" : undefined,
         input.exe,
       ]);
@@ -213,34 +246,44 @@ export async function executeQuickerSettingsTool(
 export const QUICKER_SETTINGS_TOOL_DEF = tool({
   description:
     "Quicker application settings (headless read/write; no Quicker UI required for get/set/apply). "
-    + "action=search: find keys by keyword (returns key, type, writable). "
+    + "action=list: browse keys by scope, or pass query to search keys and settings pages. "
+    + "action=search: alias for list with required query. "
     + "action=get/set: single key scope:path (e.g. userSettings:EnableCircleMenu). "
     + "action=apply: batch update via changes[] or patch map. "
-    + "action=open: show settings UI (recycle-bin, AppSettings, search) — only when user wants UI. "
+    + "action=links: list preset direct links (one-step open ids). "
+    + "action=open: prefer preset (hotkeys, recycle-bin, …); or page/query/key. "
     + "Boolean values: true/false or 1/0. See docs topic quicker-ui.",
   inputSchema: z.object({
     action: settingsActionSchema.describe(
-      "search | list | get | set | apply | pages | open",
+      "list | search | get | set | apply | pages | links | open",
     ),
     query: z
       .string()
       .optional()
-      .describe("Keyword for action=search"),
-    scope: settingsScopeSchema.describe("Scope for action=list"),
+      .describe("Keyword for action=list (search) or required for action=search"),
+    scope: settingsScopeSchema.describe("Scope for action=list when query is omitted"),
     limit: z.number().int().min(1).max(500).optional(),
-    key: z.string().optional().describe("Setting key for get/set"),
+    key: z.string().optional().describe("Setting key for get/set, or open (opens containing settings page)"),
     value: z
       .string()
       .optional()
       .describe("New value string for action=set"),
+    preset: z
+      .string()
+      .optional()
+      .describe("Direct link preset for action=open (see action=links). Preferred one-step open, e.g. hotkeys, recycle-bin"),
     page: z
       .string()
       .optional()
-      .describe("Page id or alias for action=open"),
+      .describe("Page id or alias for action=open (e.g. recycle-bin, AppSettings, search, exe-settings)"),
     exe: z
       .string()
       .optional()
       .describe("exeFile for action=open page exe-settings"),
+    searchText: z
+      .string()
+      .optional()
+      .describe("Prefill Quicker search window when opening search UI"),
     changes: z
       .array(settingChangeSchema)
       .optional()

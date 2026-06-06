@@ -46,14 +46,13 @@ public sealed class QkrpcMcpSubprogramTools
                     }),
                     cancellationToken).ConfigureAwait(false);
             case "search":
-                if (string.IsNullOrWhiteSpace(query))
-                {
-                    return ValidationError("query is required for search");
-                }
-
                 return await _runtime.InvokeOpAsync(
-                    "subprogram.search",
-                    QkrpcMcpJson.ToElement(new { query = query.Trim(), limit = limit ?? 30 }),
+                    "subprogram.list",
+                    QkrpcMcpJson.ToElement(new
+                    {
+                        query = string.IsNullOrWhiteSpace(query) ? null : query.Trim(),
+                        limit = limit ?? 30,
+                    }),
                     cancellationToken).ConfigureAwait(false);
             case "get":
                 if (string.IsNullOrWhiteSpace(id))

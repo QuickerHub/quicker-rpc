@@ -1,7 +1,10 @@
 namespace QuickerRpc.Console;
 
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.Json.Nodes;
+using QuickerRpc.Contracts.Rpc;
 
 internal static class ActionQueryFilter
 {
@@ -9,6 +12,7 @@ internal static class ActionQueryFilter
         string? query,
         string? queryFile,
         string? filter,
+        string? fields,
         out string resolved,
         out string? error)
     {
@@ -31,8 +35,48 @@ internal static class ActionQueryFilter
             return false;
         }
 
+        if (!ActionSummaryFieldCatalog.TryParseCsv(fields, out var parsedFields, out error))
+        {
+            return false;
+        }
+
         resolved = MergeFilter(filter, query);
+        if (parsedFields.Count > 0)
+        {
+            resolved = MergeFields(parsedFields, resolved);
+        }
+
         return true;
+    }
+
+    public static string MergeFields(IReadOnlyList<string> fields, string query)
+    {
+        if (fields.Count == 0)
+        {
+            return query;
+        }
+
+        var fieldsArray = new JsonArray();
+        foreach (var field in fields)
+        {
+            fieldsArray.Add(field);
+        }
+
+        var trimmed = (query ?? string.Empty).Trim();
+        if (trimmed.StartsWith("{", StringComparison.Ordinal))
+        {
+            var node = JsonNode.Parse(trimmed) as JsonObject ?? new JsonObject();
+            node["fields"] = fieldsArray;
+            return node.ToJsonString();
+        }
+
+        var obj = new JsonObject { ["fields"] = fieldsArray };
+        if (trimmed.Length > 0)
+        {
+            obj["keyword"] = trimmed;
+        }
+
+        return obj.ToJsonString();
     }
 
     public static string MergeFilter(string? filter, string? query)

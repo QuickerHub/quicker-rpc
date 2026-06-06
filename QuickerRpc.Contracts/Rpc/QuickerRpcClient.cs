@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
@@ -48,7 +47,11 @@ public static class QuickerRpcClient
             "验证：qkrpc ping --json",
         };
 
-        if (bootstrapAttempted)
+        if (!QuickerRpcBootstrapPolicy.IsQuickerProcessRunning())
+        {
+            hints.Insert(1, "Quicker 进程未运行，已跳过 quicker:runaction（避免重复弹窗）");
+        }
+        else if (bootstrapAttempted)
         {
             hints.Insert(1, "已尝试通过 quicker:runaction 自动启动插件，但未检测到 RPC 管道");
         }
@@ -106,6 +109,7 @@ public static class QuickerRpcClient
         try
         {
             await pipe.ConnectAsync(connectCts.Token).ConfigureAwait(false);
+            QuickerRpcBootstrapPolicy.ResetCooldown();
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -141,9 +145,16 @@ public static class QuickerRpcClient
             return false;
         }
 
-        if (!TryLaunchPluginRunAction())
+        if (!QuickerRpcBootstrapPolicy.IsQuickerProcessRunning())
         {
-            return true;
+            return false;
+        }
+
+        var recentlyAttempted = QuickerRpcBootstrapPolicy.WasBootstrapRecentlyAttempted();
+        var launched = QuickerRpcBootstrapPolicy.TryLaunchPluginRunAction();
+        if (!launched)
+        {
+            return recentlyAttempted;
         }
 
         var waitSeconds = Math.Min(BootstrapMaxWaitSeconds, Math.Max(3, timeoutSeconds));
@@ -160,22 +171,5 @@ public static class QuickerRpcClient
         }
 
         return true;
-    }
-
-    private static bool TryLaunchPluginRunAction()
-    {
-        try
-        {
-            Process.Start(
-                new ProcessStartInfo(QuickerRpcBootstrap.BuildRunActionUri())
-                {
-                    UseShellExecute = true,
-                });
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
     }
 }

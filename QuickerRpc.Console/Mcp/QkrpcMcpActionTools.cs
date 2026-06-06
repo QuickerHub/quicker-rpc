@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
+using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Console.Mcp;
 
@@ -21,6 +22,7 @@ public sealed class QkrpcMcpActionTools
         string action,
         string? query = null,
         string? filter = null,
+        string? fields = null,
         string? scope = null,
         int? limit = null,
         string? sort = null,
@@ -73,9 +75,20 @@ public sealed class QkrpcMcpActionTools
                 }
 
                 var mergedQuery = ActionQueryFilter.MergeFilter(filter, query);
+                if (!ActionSummaryFieldCatalog.TryParseCsv(fields, out var parsedFields, out var fieldsError))
+                {
+                    return ValidationError(fieldsError ?? "Invalid fields.");
+                }
+
+                if (parsedFields.Count > 0)
+                {
+                    mergedQuery = ActionQueryFilter.MergeFields(parsedFields, mergedQuery);
+                }
+
                 var args = new Dictionary<string, object?>();
                 if (!string.IsNullOrWhiteSpace(mergedQuery)) args["query"] = mergedQuery.Trim();
                 if (!string.IsNullOrWhiteSpace(filter)) args["filter"] = filter.Trim();
+                if (!string.IsNullOrWhiteSpace(fields)) args["fields"] = fields.Trim();
                 if (!string.IsNullOrWhiteSpace(scope)) args["scope"] = scope.Trim();
                 args["limit"] = limit ?? 30;
                 args["sort"] = string.IsNullOrWhiteSpace(sort)
@@ -85,27 +98,35 @@ public sealed class QkrpcMcpActionTools
                     .ConfigureAwait(false);
             }
             case "search":
+            {
                 if (!ActionQueryFilter.TryNormalizeFilter(filter, out _, out var searchFilterError))
                 {
                     return ValidationError(searchFilterError ?? "Invalid filter.");
                 }
 
                 var mergedSearchQuery = ActionQueryFilter.MergeFilter(filter, query);
-                if (string.IsNullOrWhiteSpace(mergedSearchQuery))
+                if (!ActionSummaryFieldCatalog.TryParseCsv(fields, out var searchFields, out var searchFieldsError))
                 {
-                    return ValidationError("query or filter is required for search");
+                    return ValidationError(searchFieldsError ?? "Invalid fields.");
                 }
 
-                return await _runtime.InvokeOpAsync(
-                    "action.search",
-                    QkrpcMcpJson.ToElement(new
-                    {
-                        query = mergedSearchQuery.Trim(),
-                        filter = string.IsNullOrWhiteSpace(filter) ? null : filter.Trim(),
-                        scope = string.IsNullOrWhiteSpace(scope) ? null : scope.Trim(),
-                        limit = limit ?? 30,
-                    }),
-                    cancellationToken).ConfigureAwait(false);
+                if (searchFields.Count > 0)
+                {
+                    mergedSearchQuery = ActionQueryFilter.MergeFields(searchFields, mergedSearchQuery);
+                }
+
+                var searchArgs = new Dictionary<string, object?>();
+                if (!string.IsNullOrWhiteSpace(mergedSearchQuery)) searchArgs["query"] = mergedSearchQuery.Trim();
+                if (!string.IsNullOrWhiteSpace(filter)) searchArgs["filter"] = filter.Trim();
+                if (!string.IsNullOrWhiteSpace(fields)) searchArgs["fields"] = fields.Trim();
+                if (!string.IsNullOrWhiteSpace(scope)) searchArgs["scope"] = scope.Trim();
+                searchArgs["limit"] = limit ?? 30;
+                searchArgs["sort"] = string.IsNullOrWhiteSpace(sort)
+                    ? (string.IsNullOrWhiteSpace(mergedSearchQuery) ? "lastEdit" : "relevance")
+                    : sort.Trim();
+                return await _runtime.InvokeOpAsync("action.list", QkrpcMcpJson.ToElement(searchArgs), cancellationToken)
+                    .ConfigureAwait(false);
+            }
             case "get":
                 if (string.IsNullOrWhiteSpace(id))
                 {

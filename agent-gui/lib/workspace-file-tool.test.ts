@@ -65,7 +65,6 @@ test("getWorkspaceFileEditorPreview read_data summary shows outline", () => {
       success: true,
       stepCount: 3,
       variableCount: 2,
-      validated: true,
       stepsOutline: [
         { index: 0, stepRunnerKey: "sys:MsgBox" },
         { index: 1, stepRunnerKey: "sys:clipboard" },
@@ -192,7 +191,6 @@ test("summarizes action-data-summary read mode", () => {
     actionId: "b0325000-62e5-406f-858b-bf9398da9bb1",
     stepCount: 5,
     variableCount: 2,
-    validated: true,
   });
   const summary = summarizeWorkspaceFileTool(
     "workspace_action_read_data",
@@ -201,7 +199,7 @@ test("summarizes action-data-summary read mode", () => {
   );
   assert.ok(summary?.includes("5 步"));
   assert.ok(summary?.includes("2 变量"));
-  assert.ok(summary?.includes("已校验"));
+  assert.equal(summary?.includes("已校验"), false);
 });
 
 test("summarizes program-data-summary read mode", () => {

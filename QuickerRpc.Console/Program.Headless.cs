@@ -537,7 +537,7 @@ internal static partial class Program
 
     private static async Task<int> RunActionListAsync(ActionOptions options)
     {
-        if (!ActionQueryFilter.TryResolveQuery(options.Query, options.QueryFile, options.Filter, out var query, out var filterError))
+        if (!ActionQueryFilter.TryResolveQuery(options.Query, options.QueryFile, options.Filter, options.Fields, out var query, out var filterError))
         {
             return await EmitErrorAndFailAsync(options.Json, "INVALID_QUERY", filterError ?? "Invalid query.")
                 .ConfigureAwait(false);
@@ -606,6 +606,18 @@ internal static partial class Program
     {
         if (!json)
         {
+            var fields = ResolveTerminalFields(response);
+            if (fields is not null)
+            {
+                global::System.Console.WriteLine(ActionSummaryFieldCatalog.FormatTsvHeader(fields));
+                foreach (var item in response.Items ?? Array.Empty<QuickerRpcActionSummaryItem>())
+                {
+                    global::System.Console.WriteLine(ActionSummaryFieldCatalog.FormatTsvLine(item, fields));
+                }
+
+                return;
+            }
+
             global::System.Console.WriteLine(
                 JsonSerializer.Serialize(response, QkrpcJson.CliOutput));
             return;
@@ -615,6 +627,17 @@ internal static partial class Program
         global::System.Console.WriteLine(JsonSerializer.Serialize(
             new { ok = success, action, payload = payloadNode },
             QkrpcJson.CliOutput));
+    }
+
+    private static IReadOnlyList<string>? ResolveTerminalFields(QuickerRpcSearchActionSummariesResult response)
+    {
+        if (response.Fields is { Count: > 0 } fields
+            && ActionSummaryFieldCatalog.TryNormalize(fields, out var normalized, out _))
+        {
+            return normalized;
+        }
+
+        return null;
     }
 
     private static void WriteRpcJson(bool json, string action, bool success, object payload)

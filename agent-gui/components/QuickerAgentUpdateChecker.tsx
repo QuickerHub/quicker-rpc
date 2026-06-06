@@ -3,12 +3,17 @@
 import { useEffect, useRef } from "react";
 import { pushAppMessage } from "@/lib/app-messages";
 import {
+  getAppUpdateOverlayState,
   hideAppUpdateOverlaySlice,
   patchAppUpdateOverlay,
   patchVoiceUpdateOverlay,
   showApplyingAppUpdateOverlay,
+  type AppUpdateOverlaySlice,
 } from "@/lib/app-update-overlay";
-import { tryBeginAppUpdateApply } from "@/lib/app-update-apply-guard";
+import {
+  resetAppUpdateApply,
+  tryBeginAppUpdateApply,
+} from "@/lib/app-update-apply-guard";
 import {
   checkOfficialQuickerAgentUpdate,
   clearPendingOfficialUpdate,
@@ -19,6 +24,11 @@ import {
   type OfficialUpdateProgress,
 } from "@/lib/quicker-agent-official-updater";
 import { checkQuickerAgentUpdate } from "@/lib/quicker-agent-update";
+import {
+  syncAppUpdateToast,
+  syncVoiceUpdateToast,
+  waitForAppInteractive,
+} from "@/lib/quicker-agent-update-ui";
 import {
   listenVoicePluginInstallProgress,
   type VoiceInstallProgressEvent,
@@ -71,8 +81,13 @@ function notifyDevBrowserUpdate(
   });
 }
 
+function patchAppAndSyncToast(patch: Partial<AppUpdateOverlaySlice>): void {
+  patchAppUpdateOverlay(patch);
+  syncAppUpdateToast(getAppUpdateOverlayState().app);
+}
+
 function syncAppOverlayFromOfficialProgress(event: OfficialUpdateProgress): void {
-  patchAppUpdateOverlay({
+  patchAppAndSyncToast({
     phase: event.phase === "checking" ? "checking" : "downloading",
     remoteVersion: event.remoteVersion ?? undefined,
     percent: event.percent,
@@ -86,6 +101,7 @@ export function QuickerAgentUpdateChecker() {
   const startedRef = useRef(false);
   const voiceRuntimeUpgradeRef = useRef(false);
   const exitApplyTriggeredRef = useRef(false);
+  const installedVersionRef = useRef("");
 
   useEffect(() => {
     if (startedRef.current || !isTauriShell()) return;
@@ -108,11 +124,21 @@ export function QuickerAgentUpdateChecker() {
           percent: progress.percent,
           message: progress.message,
         });
+        syncVoiceUpdateToast({
+          phase: "ready",
+          percent: progress.percent,
+          message: progress.message,
+        });
         return;
       }
 
       const progress = normalizeProgress(event);
       patchVoiceUpdateOverlay({
+        phase: "downloading",
+        percent: progress.percent,
+        message: progress.message,
+      });
+      syncVoiceUpdateToast({
         phase: "downloading",
         percent: progress.percent,
         message: progress.message,
@@ -134,7 +160,7 @@ export function QuickerAgentUpdateChecker() {
 
           event.preventDefault();
           exitApplyTriggeredRef.current = true;
-          showApplyingAppUpdateOverlay("", update.version);
+          showApplyingAppUpdateOverlay(installedVersionRef.current, update.version);
           try {
             await Promise.race([
               installPendingOfficialUpdateOnExit(),
@@ -147,7 +173,8 @@ export function QuickerAgentUpdateChecker() {
             ]);
           } catch {
             exitApplyTriggeredRef.current = false;
-            patchAppUpdateOverlay({
+            resetAppUpdateApply();
+            patchAppAndSyncToast({
               phase: "ready",
               remoteVersion: update.version,
               percent: 100,
@@ -181,10 +208,14 @@ export function QuickerAgentUpdateChecker() {
           return;
         }
 
+        await waitForAppInteractive();
+
         unlistenVoice = await listenVoicePluginInstallProgress(handleVoiceProgress);
 
         const installedVersion = (await getVersion()).trim();
-        patchAppUpdateOverlay({
+        installedVersionRef.current = installedVersion;
+
+        patchAppAndSyncToast({
           phase: "checking",
           installedVersion,
           percent: 0,
@@ -195,16 +226,24 @@ export function QuickerAgentUpdateChecker() {
         const update = await checkOfficialQuickerAgentUpdate();
         if (!update) {
           hideAppUpdateOverlaySlice();
+          syncAppUpdateToast({
+            phase: "hidden",
+            installedVersion,
+            remoteVersion: null,
+            percent: 0,
+            message: "",
+            error: null,
+          });
           await registerCloseHandler();
           return;
         }
 
-        patchAppUpdateOverlay({
+        patchAppAndSyncToast({
           phase: "downloading",
           installedVersion,
           remoteVersion: update.version,
           percent: 0,
-          message: `正在下载 QuickerAgent ${update.version}…`,
+          message: `正在后台下载 QuickerAgent ${update.version}…`,
           error: null,
         });
 
@@ -212,7 +251,7 @@ export function QuickerAgentUpdateChecker() {
           syncAppOverlayFromOfficialProgress(progress);
         });
 
-        patchAppUpdateOverlay({
+        patchAppAndSyncToast({
           phase: "ready",
           installedVersion,
           remoteVersion: update.version,
@@ -224,7 +263,8 @@ export function QuickerAgentUpdateChecker() {
         await registerCloseHandler();
       } catch (err) {
         clearPendingOfficialUpdate();
-        patchAppUpdateOverlay({
+        resetAppUpdateApply();
+        patchAppAndSyncToast({
           phase: "error",
           percent: 0,
           message: err instanceof Error ? err.message : "更新失败",

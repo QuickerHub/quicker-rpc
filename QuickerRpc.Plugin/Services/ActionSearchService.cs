@@ -175,7 +175,7 @@ public sealed class ActionSearchService
                 limit,
                 actionFilter,
                 ActionDesignerProgramAccess.GetEditVersionMs,
-                limitResults: !spec.HasSorterScript,
+                limitResults: !spec.HasSortScript,
                 out var matches,
                 out var error))
         {

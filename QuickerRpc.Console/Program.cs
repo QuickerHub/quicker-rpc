@@ -159,75 +159,8 @@ internal static partial class Program
         return ExitCodes.Error;
     }
 
-    private static async Task<int> RunSubProgramSearchAsync(SubProgramOptions options)
-    {
-        var query = (options.Query ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            await EmitErrorAsync(options.Json, "MISSING_QUERY", "Provide --query <keyword>.")
-                .ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
-
-        try
-        {
-            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
-            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
-            var result = await session.Proxy
-                .SearchGlobalSubProgramsAsync(query, options.Limit, rpcToken)
-                .ConfigureAwait(false);
-
-            if (options.Json)
-            {
-                global::System.Console.WriteLine(JsonSerializer.Serialize(
-                    new
-                    {
-                        ok = result.Ok,
-                        action = "subprogram-search",
-                        query,
-                        count = result.Items.Count,
-                        items = result.Items,
-                        message = string.IsNullOrWhiteSpace(result.Message) ? null : result.Message,
-                    },
-                    QkrpcJson.CliOutput));
-            }
-            else if (result.Ok)
-            {
-                if (result.Items.Count == 0)
-                {
-                    global::System.Console.WriteLine(result.Message);
-                }
-                else
-                {
-                    foreach (var item in result.Items)
-                    {
-                        global::System.Console.WriteLine($"{item.Id}\t{item.Name}\t{item.Description}");
-                    }
-                }
-            }
-            else
-            {
-                global::System.Console.Error.WriteLine(result.Message);
-            }
-
-            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
-        }
-        catch (QuickerRpcClientException ex)
-        {
-            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
-        catch (OperationCanceledException)
-        {
-            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
-        catch (Exception ex)
-        {
-            await EmitErrorAsync(options.Json, "SUBPROGRAM_SEARCH_FAILED", ex.Message).ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
-    }
+    private static Task<int> RunSubProgramSearchAsync(SubProgramOptions options) =>
+        RunSubProgramListAsync(options);
 
     private static async Task<int> RunActionAsync(ActionOptions options)
     {
@@ -423,82 +356,8 @@ internal static partial class Program
         }
     }
 
-    private static async Task<int> RunActionSearchAsync(ActionOptions options)
-    {
-        if (!ActionQueryFilter.TryResolveQuery(options.Query, options.QueryFile, options.Filter, out var query, out var filterError))
-        {
-            await EmitErrorAsync(options.Json, "INVALID_QUERY", filterError ?? "Invalid query.").ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
-
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            await EmitErrorAsync(options.Json, "MISSING_QUERY", "Provide --query, --query-file, or --filter library|local|published.")
-                .ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
-
-        try
-        {
-            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
-            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
-            var result = await session.Proxy
-                .SearchActionsAsync(query, options.Limit, options.Scope, rpcToken)
-                .ConfigureAwait(false);
-
-            if (options.Json)
-            {
-                global::System.Console.WriteLine(JsonSerializer.Serialize(
-                    new
-                    {
-                        ok = result.Ok,
-                        action = "search",
-                        query,
-                        scope = result.Scope,
-                        count = result.Items.Count,
-                        items = result.Items,
-                        message = string.IsNullOrWhiteSpace(result.Message) ? null : result.Message,
-                    },
-                    QkrpcJson.CliOutput));
-            }
-            else if (result.Ok)
-            {
-                if (result.Items.Count == 0)
-                {
-                    global::System.Console.WriteLine(result.Message);
-                }
-                else
-                {
-                    foreach (var item in result.Items)
-                    {
-                        global::System.Console.WriteLine(
-                            $"{item.Id}\t{item.Title}\t{item.ExeFile}\t{item.ProfileName ?? item.PageTitle}");
-                    }
-                }
-            }
-            else
-            {
-                global::System.Console.Error.WriteLine(result.Message);
-            }
-
-            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
-        }
-        catch (QuickerRpcClientException ex)
-        {
-            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
-        catch (OperationCanceledException)
-        {
-            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
-        catch (Exception ex)
-        {
-            await EmitErrorAsync(options.Json, "SEARCH_FAILED", ex.Message).ConfigureAwait(false);
-            return ExitCodes.Error;
-        }
-    }
+    private static Task<int> RunActionSearchAsync(ActionOptions options) =>
+        RunActionListAsync(options);
 
     private static async Task<int> RunActionDeleteAsync(ActionOptions options)
     {
@@ -1202,7 +1061,7 @@ public sealed class ActionOptions
     [Option("no-submit-review", HelpText = "Do not auto-submit public action for review (action publish).")]
     public bool NoSubmitReview { get; set; }
 
-    [Option('q', "query", HelpText = "Plain keyword, legacy prefix (source:library|uses:Sub), or JSON query with filter/sorter scripts.")]
+    [Option('q', "query", HelpText = "Plain keyword, legacy prefix (source:library|uses:Sub), or JSON query with filter/sort scripts.")]
     public string? Query { get; set; }
 
     [Option("query-file", HelpText = "Read --query JSON/text from a UTF-8 file.")]
@@ -1219,6 +1078,9 @@ public sealed class ActionOptions
 
     [Option("sort", HelpText = "action list: relevance | lastEdit (default when no --query) | title.")]
     public string? Sort { get; set; }
+
+    [Option("fields", HelpText = "action list: comma-separated output fields (e.g. actionId,title,profileName) or * for all. JSON query may also set fields/select/columns.")]
+    public string? Fields { get; set; }
 
     [Option("title", HelpText = "Title for action create.")]
     public string? Title { get; set; }

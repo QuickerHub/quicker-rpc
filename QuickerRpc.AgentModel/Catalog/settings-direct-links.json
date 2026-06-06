@@ -1,0 +1,124 @@
+{
+  "settings": {
+    "title": "Quicker 设置（主窗口）",
+    "target": "settings",
+    "aliases": ["config", "preferences", "设置", "偏好设置"]
+  },
+  "search": {
+    "title": "Quicker 搜索窗口",
+    "target": "search",
+    "aliases": ["search-window", "搜索", "启动搜索"]
+  },
+  "hotkeys": {
+    "title": "功能快捷键",
+    "target": "FunctionHotkeys",
+    "aliases": ["功能快捷键", "快捷键", "hotkey", "function-hotkeys"]
+  },
+  "action-hotkeys": {
+    "title": "动作快捷键",
+    "target": "ActionHotkeysSettingPage",
+    "aliases": ["动作快捷键"]
+  },
+  "hotkey-watcher": {
+    "title": "热键联动",
+    "target": "HotkeyWatcherSettingsPage",
+    "aliases": ["热键联动"]
+  },
+  "power-keys": {
+    "title": "高级按键",
+    "target": "PowerKeysSettingsPage",
+    "aliases": ["高级按键", "power-keys-manage"]
+  },
+  "recycle-bin": {
+    "title": "动作回收站",
+    "target": "ActionRecycleBinSettingPage",
+    "aliases": ["动作回收站", "回收站", "action-recycle-bin"]
+  },
+  "general": {
+    "title": "基本选项",
+    "target": "AppSettings",
+    "aliases": ["app-settings", "常规设置", "常规", "基本选项"]
+  },
+  "basic-info": {
+    "title": "常规",
+    "target": "BasicInfo",
+    "aliases": ["basic", "基本信息"]
+  },
+  "ui": {
+    "title": "界面设置",
+    "target": "UISettingsPage",
+    "aliases": ["ui-settings", "界面", "界面设置"]
+  },
+  "gestures": {
+    "title": "手势设置",
+    "target": "GesturesSettingPage",
+    "aliases": ["手势", "手势设置"]
+  },
+  "circle-menu": {
+    "title": "圆圈菜单设置",
+    "target": "CircleMenuSettingPage",
+    "aliases": ["圆圈菜单", "circle-menu-settings"]
+  },
+  "float": {
+    "title": "悬浮窗设置",
+    "target": "FloatSettings",
+    "aliases": ["悬浮窗", "float-settings"]
+  },
+  "blacklist": {
+    "title": "黑名单",
+    "target": "BlackListSettings",
+    "aliases": ["黑名单"]
+  },
+  "sync": {
+    "title": "数据同步",
+    "target": "SyncSettingPage",
+    "aliases": ["同步", "数据同步"]
+  },
+  "text-command": {
+    "title": "文本命令",
+    "target": "TextCommandSettingPage",
+    "aliases": ["文本命令", "文本指令"]
+  },
+  "search-settings": {
+    "title": "搜索设置",
+    "target": "SearchSettings",
+    "aliases": ["搜索设置", "search-settings-page"]
+  },
+  "auto-run": {
+    "title": "自动运行动作",
+    "target": "AutoRunActions",
+    "aliases": ["自动运行", "自动运行动作"]
+  },
+  "event-trigger": {
+    "title": "事件触发",
+    "target": "EventTriggerSettingsPage",
+    "aliases": ["事件触发"]
+  },
+  "update-actions": {
+    "title": "批量更新动作",
+    "target": "UpdateActionsPage",
+    "aliases": ["批量更新动作", "批量更新"]
+  },
+  "action-designer": {
+    "title": "动作设计相关选项",
+    "target": "ActionDesignerSettingsPage",
+    "aliases": ["动作编辑器", "动作设计"]
+  },
+  "context-menu": {
+    "title": "上下文菜单",
+    "target": "ContextMenuGeneralSettings",
+    "aliases": ["上下文菜单"]
+  },
+  "about": {
+    "title": "关于 Quicker",
+    "target": "AboutSettingPage",
+    "aliases": ["关于", "about-quicker"]
+  },
+  "exe-global": {
+    "title": "全局进程设置",
+    "target": "exe-settings",
+    "requiresExe": true,
+    "defaultExe": "_global",
+    "aliases": ["进程设置", "全局进程", "exe-settings-global"]
+  }
+}

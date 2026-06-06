@@ -73,6 +73,7 @@ import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ReleasePreviewBanner } from "@/components/dev/ReleasePreviewBanner";
 import { ChatConversationHeader } from "@/components/chat/ChatConversationHeader";
 import { WorkspaceSidePanelTabBar } from "@/components/workspace/WorkspaceSidePanelTabBar";
+import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import { useAppMainSplit } from "@/lib/use-app-main-split";
 import { ChatTitlebar } from "@/components/chat/ChatTitlebar";
 import { SidebarToggle } from "@/components/chat/SidebarToggle";
@@ -125,6 +126,7 @@ import { ComposerShortcutCards } from "@/components/chat/ComposerShortcutCards";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
 import { useChatMessageWindow } from "@/lib/use-chat-message-window";
 import { findUserTurnStartIndices } from "@/lib/last-user-turn-index";
+import { useForwardWheelToMessages } from "@/lib/use-forward-wheel-to-messages";
 import { useMessagesScrollportHeight } from "@/lib/use-messages-scrollport-height";
 import { useMsgTurnStickyActive } from "@/lib/use-msg-turn-sticky-active";
 import { UserMessageComposerChrome } from "./UserMessageComposerChrome";
@@ -420,6 +422,7 @@ function ChatPanel({
     return () => window.removeEventListener(LLM_KEYS_UPDATED_EVENT, onKeysUpdated);
   }, [syncLlmSelectionFromApi]);
 
+  const appMainRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLElement>(null);
   const msgTurnRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -691,6 +694,8 @@ function ChatPanel({
 
   useMessagesScrollportHeight(messagesRef, visible);
 
+  useForwardWheelToMessages(messagesRef, appMainRef, visible);
+
   const userTurnStarts = useMemo(
     () => findUserTurnStartIndices(messages),
     [messages],
@@ -910,6 +915,19 @@ function ChatPanel({
       requestAnimationFrame(() => composerRef.current?.focus());
     },
     [editAnchorMessageId, enqueueOrSend, pinToBottom, clearError],
+  );
+
+  const insertComposerPrompt = useCallback(
+    (text: string) => {
+      if (editAnchorMessageId) return;
+      const next = text.trim();
+      if (!next) return;
+      voiceInterruptRef.current();
+      clearError();
+      setDraftMessage(next);
+      requestAnimationFrame(() => composerRef.current?.focusAtEnd());
+    },
+    [editAnchorMessageId, clearError],
   );
 
   const voiceInput = useVoiceInput({
@@ -1158,7 +1176,7 @@ function ChatPanel({
               <MessageParts
                 message={message}
                 workingDirectory={workingDirectory}
-                onSendPrompt={sendTestPrompt}
+                onInsertComposerPrompt={insertComposerPrompt}
               />
             </div>
             {lastMessageMenu}
@@ -1172,12 +1190,12 @@ function ChatPanel({
       draftMessage,
       editAnchorIndex,
       editAnchorMessageId,
+      insertComposerPrompt,
       focusComposerAtEnd,
       lastVisibleMessageId,
       messages,
       userMessageDrafts,
       workingDirectory,
-      sendTestPrompt,
     ],
   );
 
@@ -1231,6 +1249,7 @@ function ChatPanel({
 
   return (
     <div
+      ref={appMainRef}
       className={`app-main${isEmptyThread ? " app-main--empty" : ""}${panelOpen ? " app-main--side-open" : ""}${visible ? "" : " app-main--hidden"}`}
       style={splitStyle}
       aria-hidden={visible ? undefined : true}
@@ -1291,7 +1310,7 @@ function ChatPanel({
                 <TurnActionLinkCard
                   turnMessages={messages.slice(startIndex, endIndex)}
                   workingDirectory={workingDirectory}
-                  onSendPrompt={sendTestPrompt}
+                  onInsertComposerPrompt={insertComposerPrompt}
                 />
                 {isLastTurn ? agentActivityBlock : null}
                 {isLastTurn ? errorBanner : null}
@@ -1506,6 +1525,7 @@ export function Chat() {
     setSidebarCollapsed((prev) => {
       const next = !prev;
       applySidebarCollapsed(next);
+      queueMicrotask(() => dispatchWorkspaceLayoutResize());
       return next;
     });
   }, []);

@@ -15,12 +15,17 @@ test("every registry entry has id", () => {
 test("consolidated workspace/action/subprogram tools are registered and default-on", () => {
   for (const id of [
     "workspace_program",
+    "qkrpc_action_query",
     "qkrpc_action",
+    "qkrpc_action_manage",
+    "qkrpc_subprogram_query",
     "qkrpc_subprogram",
+    "qkrpc_subprogram_manage",
   ]) {
     assert.ok(ALL_QKRPC_TOOL_IDS.includes(id), `${id} missing from registry`);
   }
   const enabled = resolveEnabledToolsFromPrefs([], []);
   assert.ok(enabled.includes("workspace_program"));
-  assert.ok(enabled.includes("qkrpc_action"));
+  assert.ok(enabled.includes("qkrpc_action_query"));
+  assert.ok(enabled.includes("qkrpc_subprogram_query"));
 });

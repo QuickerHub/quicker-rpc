@@ -9,121 +9,193 @@ import {
   programHasBodyFromGetPayload,
   syncActionToWorkspace,
 } from "@/lib/action-project-workflow";
-import { QKRPC_ACTION_TOOL } from "@/lib/qkrpc-action-tool";
+import {
+  QKRPC_ACTION_MANAGE_TOOL,
+  QKRPC_ACTION_QUERY_TOOL,
+  QKRPC_ACTION_TOOL,
+} from "@/lib/qkrpc-action-tool";
 import {
   formatQkrpcResultForAgent,
   qkrpcValidationError,
   runQkrpcForTool,
-  runQkrpcWithPatchFileForTool,
-  runQkrpcWithProgramForTool,
   runQkrpcWithXactionForTool,
 } from "@/lib/qkrpc";
 import { formatLocalToolResult } from "@/lib/tool-result";
 
 const returnModeSchema = z.enum(["full", "structure", "metadata"]);
 
-const actionSchema = z.enum([
-  "list",
-  "search",
-  "get",
-  "create",
-  "replace",
-  "publish",
-  "set_metadata",
-  "float",
-  "edit",
-  "edit_var",
-  "run",
-  "move",
-  "profile_create",
-  "profile_delete",
-  "profile_prune",
-  "profile_reorder",
-  "process_ensure",
+const actionQuerySchema = z.object({
+  query: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+  queryFile: z.string().optional(),
+  fields: z.union([z.string(), z.array(z.string())]).optional(),
+  scope: z.string().optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+  sort: z.enum(["relevance", "lastEdit", "title"]).optional(),
+});
+
+export type QkrpcActionQueryToolInput = z.infer<typeof actionQuerySchema>;
+
+const actionIdSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("get"),
+    id: z.string().uuid(),
+    returnMode: returnModeSchema.optional(),
+  }),
+  z.object({
+    action: z.literal("run"),
+    id: z.string(),
+    param: z.string().optional(),
+    wait: z.boolean().optional(),
+    debug: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal("float"),
+    id: z.string(),
+  }),
+  z.object({
+    action: z.literal("edit"),
+    id: z.string().uuid(),
+  }),
+  z.object({
+    action: z.literal("edit_var"),
+    id: z.string(),
+    var: z.string(),
+    value: z.string(),
+  }),
+  z.object({
+    action: z.literal("set_metadata"),
+    id: z.string().uuid(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    icon: z.string().optional(),
+    expectedEditVersion: z.number().int().optional(),
+    force: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal("move"),
+    id: z.string().uuid(),
+    profile: z.string(),
+    row: z.number().int().min(0).optional(),
+    col: z.number().int().min(0).optional(),
+    swap: z.boolean().optional(),
+    onNoEmptySlot: z.enum(["ask", "cancel", "createPageAfter"]).optional(),
+    onOccupiedSlot: z.enum(["ask", "cancel", "swap"]).optional(),
+  }),
+  z.object({
+    action: z.literal("publish"),
+    id: z.string().uuid(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    note: z.string().optional(),
+    tags: z.string().optional(),
+    keywords: z.string().optional(),
+    changelog: z.string().optional(),
+    isPublic: z.boolean().optional(),
+    submitReview: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal("replace"),
+    id: z.string().uuid(),
+    xaction: z.record(z.unknown()),
+    expectedEditVersion: z.number().int().optional(),
+    force: z.boolean().optional(),
+  }),
 ]);
 
-export type QkrpcActionToolInput = {
-  action: z.infer<typeof actionSchema>;
-  query?: string | Record<string, unknown>;
-  queryFile?: string;
-  filter?: "library" | "installed" | "local" | "published";
-  scope?: string;
-  limit?: number;
-  sort?: "relevance" | "lastEdit" | "title";
-  id?: string;
-  returnMode?: z.infer<typeof returnModeSchema>;
-  title?: string;
-  description?: string;
-  icon?: string;
-  profileId?: string;
-  xaction?: Record<string, unknown>;
-  program?: Record<string, unknown>;
-  patch?: Record<string, unknown>;
-  expectedEditVersion?: number;
-  force?: boolean;
-  note?: string;
-  tags?: string;
-  keywords?: string;
-  changelog?: string;
-  isPublic?: boolean;
-  submitReview?: boolean;
-  var?: string;
-  value?: string;
-  param?: string;
-  wait?: boolean;
-  debug?: boolean;
-  profile?: string;
-  row?: number;
-  col?: number;
-  swap?: boolean;
-  onNoEmptySlot?: "ask" | "cancel" | "createPageAfter";
-  onOccupiedSlot?: "ask" | "cancel" | "swap";
-  count?: number;
-  afterFirst?: boolean;
-  profileIds?: string[];
-  exeFile?: string;
-  displayName?: string;
-  profileNamePrefix?: string;
-  collectSubProgramName?: string;
-  moveActions?: boolean;
-  moveAny?: boolean;
-};
+export type QkrpcActionIdToolInput = z.infer<typeof actionIdSchema>;
 
-export async function executeQkrpcActionTool(
-  input: QkrpcActionToolInput,
+const actionManageSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("create"),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    icon: z.string().optional(),
+    profileId: z.string().uuid().optional(),
+  }),
+  z.object({
+    action: z.literal("profile_create"),
+    count: z.number().int().min(1).max(20).optional(),
+    afterFirst: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal("profile_delete"),
+    profileIds: z.array(z.string()).optional(),
+    profileId: z.string().optional(),
+    id: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal("profile_prune"),
+    scope: z.string().optional(),
+    exeFile: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal("profile_reorder"),
+    profileIds: z.array(z.string()).min(1),
+  }),
+  z.object({
+    action: z.literal("process_ensure"),
+    exeFile: z.string(),
+    displayName: z.string(),
+    profileNamePrefix: z.string(),
+    collectSubProgramName: z.string().optional(),
+    moveActions: z.boolean().optional(),
+    moveAny: z.boolean().optional(),
+  }),
+]);
+
+export type QkrpcActionManageToolInput = z.infer<typeof actionManageSchema>;
+
+/** @deprecated Unified input for legacy tool aliases only. */
+export type QkrpcActionToolInput = QkrpcActionQueryToolInput
+  & Partial<QkrpcActionIdToolInput>
+  & Partial<QkrpcActionManageToolInput> & {
+    action?:
+      | QkrpcActionIdToolInput["action"]
+      | QkrpcActionManageToolInput["action"]
+      | "list"
+      | "search";
+    filter?: "library" | "installed" | "local" | "published";
+    program?: Record<string, unknown>;
+    patch?: Record<string, unknown>;
+  };
+
+function serializeActionQuery(
+  query: string | Record<string, unknown> | undefined,
+): string {
+  if (query == null) return "";
+  if (typeof query === "string") return query.trim();
+  return JSON.stringify(query);
+}
+
+function serializeActionFields(
+  fields: string | string[] | undefined,
+): string {
+  if (fields == null) return "";
+  if (Array.isArray(fields)) return fields.map((f) => f.trim()).filter(Boolean).join(",");
+  return fields.trim();
+}
+
+export async function executeQkrpcActionQueryTool(
+  input: QkrpcActionQueryToolInput,
+): Promise<Record<string, unknown>> {
+  const args = ["action", "list"];
+  const serialized = serializeActionQuery(input.query);
+  if (serialized) args.push("--query", serialized);
+  if (input.queryFile) args.push("--query-file", input.queryFile);
+  const serializedFields = serializeActionFields(input.fields);
+  if (serializedFields) args.push("--fields", serializedFields);
+  if (input.scope) args.push("--scope", input.scope);
+  if (input.limit != null) args.push("--limit", String(input.limit));
+  if (input.sort) args.push("--sort", input.sort);
+  else if (!serialized && !input.queryFile) args.push("--sort", "lastEdit");
+  return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+}
+
+export async function executeQkrpcActionIdTool(
+  input: QkrpcActionIdToolInput,
 ): Promise<Record<string, unknown>> {
   switch (input.action) {
-    case "list": {
-      const args = ["action", "list"];
-      const mergedQuery = mergeActionFilter(input.filter, input.query);
-      if (mergedQuery) args.push("--query", mergedQuery);
-      if (input.queryFile) args.push("--query-file", input.queryFile);
-      if (input.filter) args.push("--filter", input.filter);
-      if (input.scope) args.push("--scope", input.scope);
-      if (input.limit != null) args.push("--limit", String(input.limit));
-      if (input.sort) args.push("--sort", input.sort);
-      else if (!mergedQuery) args.push("--sort", "lastEdit");
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
-    }
-    case "search": {
-      const mergedQuery = mergeActionFilter(input.filter, input.query);
-      if (!mergedQuery && !input.queryFile) {
-        return formatQkrpcResultForAgent(
-          qkrpcValidationError("query, queryFile, or filter is required for search"),
-        );
-      }
-      const args = ["action", "search"];
-      if (mergedQuery) args.push("--query", mergedQuery);
-      if (input.queryFile) args.push("--query-file", input.queryFile);
-      if (input.filter) args.push("--filter", input.filter);
-      if (input.scope) args.push("--scope", input.scope);
-      if (input.limit != null) args.push("--limit", String(input.limit));
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
-    }
     case "get": {
-      if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for get"));
-      }
       const args = ["action", "get", "--id", input.id];
       args.push("--return-mode", input.returnMode ?? "structure");
       const getResult = await runQkrpcForTool(args);
@@ -144,6 +216,93 @@ export async function executeQkrpcActionTool(
       }
       return augmentActionGetWithWorkspace(getResult, sync);
     }
+    case "replace": {
+      const base = ["action", "replace", "--id", input.id];
+      if (input.expectedEditVersion != null) {
+        base.push("--expected-edit-version", String(input.expectedEditVersion));
+      }
+      if (input.force) base.push("--force");
+      return formatQkrpcResultForAgent(
+        await runQkrpcWithXactionForTool(base, input.xaction),
+      );
+    }
+    case "publish": {
+      const args = ["action", "publish", "--id", input.id];
+      if (input.title) args.push("--title", input.title);
+      if (input.description) args.push("--description", input.description);
+      if (input.note) args.push("--share-note", input.note);
+      if (input.tags) args.push("--tags", input.tags);
+      if (input.keywords) args.push("--keywords", input.keywords);
+      if (input.changelog) args.push("--changelog", input.changelog);
+      if (input.isPublic === false) args.push("--private");
+      if (input.submitReview === false) args.push("--no-submit-review");
+      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+    }
+    case "float":
+      return formatQkrpcResultForAgent(
+        await runQkrpcForTool(["action", "float", "--id", input.id]),
+      );
+    case "edit":
+      return formatQkrpcResultForAgent(
+        await runQkrpcForTool(["action", "edit", "--id", input.id]),
+      );
+    case "edit_var":
+      return formatQkrpcResultForAgent(
+        await runQkrpcForTool([
+          "action",
+          "edit-var",
+          "--id",
+          input.id,
+          "--var",
+          input.var,
+          "--value",
+          input.value,
+        ]),
+      );
+    case "set_metadata": {
+      const args = ["action", "set-metadata", "--id", input.id];
+      if (input.title != null) args.push("--title", input.title);
+      if (input.description != null) args.push("--description", input.description);
+      if (input.icon != null) args.push("--icon", input.icon);
+      if (input.expectedEditVersion != null) {
+        args.push("--expected-edit-version", String(input.expectedEditVersion));
+      }
+      if (input.force) args.push("--force");
+      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+    }
+    case "run": {
+      const args = ["action", "run", "--id", input.id];
+      if (input.param) args.push("--param", input.param);
+      if (input.wait) args.push("--wait");
+      if (input.debug) args.push("--debug");
+      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+    }
+    case "move": {
+      const args = ["action", "move", "--id", input.id, "--profile", input.profile];
+      if (input.row != null) args.push("--row", String(input.row));
+      if (input.col != null) args.push("--col", String(input.col));
+      if (input.swap) args.push("--swap");
+      if (input.onNoEmptySlot === "createPageAfter") {
+        args.push("--on-no-empty-slot", "create-page-after");
+      } else if (input.onNoEmptySlot != null) {
+        args.push("--on-no-empty-slot", input.onNoEmptySlot);
+      }
+      if (input.onOccupiedSlot != null) {
+        args.push("--on-occupied-slot", input.onOccupiedSlot);
+      }
+      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+    }
+    default:
+      return formatQkrpcResultForAgent(
+        qkrpcValidationError(`Unknown action: ${String((input as { action?: string }).action)}`),
+      );
+  }
+}
+
+export async function executeQkrpcActionManageTool(
+  input: QkrpcActionManageToolInput,
+): Promise<Record<string, unknown>> {
+  switch (input.action) {
     case "create": {
       const args = ["action", "create"];
       if (input.title) args.push("--title", input.title);
@@ -203,109 +362,6 @@ export async function executeQkrpcActionTool(
           "已用 create 返回值写入 info.json 与空 data.json。下一步在编辑器或 workspace_program({ action: \"edit_data\" }) 添加步骤，再 workspace_program({ action: \"patch\" })；勿再对 Agent 调用 get。",
       });
     }
-    case "replace": {
-      if (!input.id?.trim() || !input.xaction) {
-        return formatQkrpcResultForAgent(qkrpcValidationError("id and xaction are required for replace"));
-      }
-      const base = ["action", "replace", "--id", input.id];
-      if (input.expectedEditVersion != null) {
-        base.push("--expected-edit-version", String(input.expectedEditVersion));
-      }
-      if (input.force) base.push("--force");
-      return formatQkrpcResultForAgent(
-        await runQkrpcWithXactionForTool(base, input.xaction),
-      );
-    }
-    case "publish": {
-      if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for publish"));
-      }
-      const args = ["action", "publish", "--id", input.id];
-      if (input.title) args.push("--title", input.title);
-      if (input.description) args.push("--description", input.description);
-      if (input.note) args.push("--share-note", input.note);
-      if (input.tags) args.push("--tags", input.tags);
-      if (input.keywords) args.push("--keywords", input.keywords);
-      if (input.changelog) args.push("--changelog", input.changelog);
-      if (input.isPublic === false) args.push("--private");
-      if (input.submitReview === false) args.push("--no-submit-review");
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
-    }
-    case "float": {
-      if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for float"));
-      }
-      return formatQkrpcResultForAgent(
-        await runQkrpcForTool(["action", "float", "--id", input.id]),
-      );
-    }
-    case "edit": {
-      if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for edit"));
-      }
-      return formatQkrpcResultForAgent(
-        await runQkrpcForTool(["action", "edit", "--id", input.id]),
-      );
-    }
-    case "edit_var": {
-      if (!input.id?.trim() || !input.var || input.value == null) {
-        return formatQkrpcResultForAgent(qkrpcValidationError("id, var, and value are required for edit_var"));
-      }
-      return formatQkrpcResultForAgent(
-        await runQkrpcForTool([
-          "action",
-          "edit-var",
-          "--id",
-          input.id,
-          "--var",
-          input.var,
-          "--value",
-          input.value,
-        ]),
-      );
-    }
-    case "set_metadata": {
-      if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for set_metadata"));
-      }
-      const args = ["action", "set-metadata", "--id", input.id];
-      if (input.title != null) args.push("--title", input.title);
-      if (input.description != null) args.push("--description", input.description);
-      if (input.icon != null) args.push("--icon", input.icon);
-      if (input.expectedEditVersion != null) {
-        args.push("--expected-edit-version", String(input.expectedEditVersion));
-      }
-      if (input.force) args.push("--force");
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
-    }
-    case "run": {
-      if (!input.id?.trim()) {
-        return formatQkrpcResultForAgent(qkrpcValidationError("id is required for run"));
-      }
-      const args = ["action", "run", "--id", input.id];
-      if (input.param) args.push("--param", input.param);
-      if (input.wait) args.push("--wait");
-      if (input.debug) args.push("--debug");
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
-    }
-    case "move": {
-      if (!input.id?.trim() || !input.profile?.trim()) {
-        return formatQkrpcResultForAgent(qkrpcValidationError("id and profile are required for move"));
-      }
-      const args = ["action", "move", "--id", input.id, "--profile", input.profile];
-      if (input.row != null) args.push("--row", String(input.row));
-      if (input.col != null) args.push("--col", String(input.col));
-      if (input.swap) args.push("--swap");
-      if (input.onNoEmptySlot === "createPageAfter") {
-        args.push("--on-no-empty-slot", "create-page-after");
-      } else if (input.onNoEmptySlot != null) {
-        args.push("--on-no-empty-slot", input.onNoEmptySlot);
-      }
-      if (input.onOccupiedSlot != null) {
-        args.push("--on-occupied-slot", input.onOccupiedSlot);
-      }
-      return formatQkrpcResultForAgent(await runQkrpcForTool(args));
-    }
     case "profile_create": {
       const args = ["profile", "create", "--scope", "global"];
       if (input.count != null) args.push("--count", String(input.count));
@@ -334,16 +390,15 @@ export async function executeQkrpcActionTool(
     case "profile_prune": {
       const pruneScope = input.scope?.trim() || input.exeFile?.trim();
       if (!pruneScope) {
-        return formatQkrpcResultForAgent(qkrpcValidationError("scope or exeFile is required for profile_prune"));
+        return formatQkrpcResultForAgent(
+          qkrpcValidationError("scope or exeFile is required for profile_prune"),
+        );
       }
       return formatQkrpcResultForAgent(
         await runQkrpcForTool(["profile", "prune", "--scope", pruneScope]),
       );
     }
     case "profile_reorder": {
-      if (!input.profileIds?.length) {
-        return formatQkrpcResultForAgent(qkrpcValidationError("profileIds is required for profile_reorder"));
-      }
       const args = [
         "profile",
         "reorder",
@@ -356,15 +411,6 @@ export async function executeQkrpcActionTool(
       return formatQkrpcResultForAgent(await runQkrpcForTool(args));
     }
     case "process_ensure": {
-      if (
-        !input.exeFile?.trim()
-        || !input.displayName?.trim()
-        || !input.profileNamePrefix?.trim()
-      ) {
-        return formatQkrpcResultForAgent(
-          qkrpcValidationError("exeFile, displayName, and profileNamePrefix are required"),
-        );
-      }
       const args = [
         "process",
         "ensure",
@@ -391,85 +437,84 @@ export async function executeQkrpcActionTool(
   }
 }
 
-function serializeActionQuery(query: QkrpcActionToolInput["query"]): string {
-  if (query == null) return "";
-  if (typeof query === "string") return query.trim();
-  return JSON.stringify(query);
+/** Legacy unified router for deprecated per-action tool aliases. */
+export async function executeQkrpcActionTool(
+  input: QkrpcActionToolInput,
+): Promise<Record<string, unknown>> {
+  const action = input.action;
+  if (action === "list" || action === "search") {
+    if (action === "search") {
+      const serialized = serializeActionQuery(input.query);
+      if (!serialized && !input.queryFile) {
+        return formatQkrpcResultForAgent(
+          qkrpcValidationError("query or queryFile is required for search"),
+        );
+      }
+    }
+    return executeQkrpcActionQueryTool(input);
+  }
+
+  const idActions = new Set([
+    "get",
+    "run",
+    "float",
+    "edit",
+    "edit_var",
+    "set_metadata",
+    "move",
+    "publish",
+    "replace",
+  ]);
+  if (action && idActions.has(action)) {
+    return executeQkrpcActionIdTool(input as QkrpcActionIdToolInput);
+  }
+
+  const manageActions = new Set([
+    "create",
+    "profile_create",
+    "profile_delete",
+    "profile_prune",
+    "profile_reorder",
+    "process_ensure",
+  ]);
+  if (action && manageActions.has(action)) {
+    return executeQkrpcActionManageTool(input as QkrpcActionManageToolInput);
+  }
+
+  return formatQkrpcResultForAgent(
+    qkrpcValidationError(`Unknown action: ${String(action)}`),
+  );
 }
 
-function mergeActionFilter(
-  filter: QkrpcActionToolInput["filter"],
-  query: QkrpcActionToolInput["query"],
-): string {
-  const serialized = serializeActionQuery(query);
-  const prefix =
-    filter === "library" || filter === "installed"
-      ? "source:library"
-      : filter === "local"
-        ? "source:local"
-        : filter === "published"
-          ? "source:published"
-          : "";
-  if (serialized.startsWith("{")) return serialized;
-  if (!prefix) return serialized;
-  if (!serialized) return prefix;
-  if (serialized.toLowerCase().startsWith(prefix)) return serialized;
-  return `${prefix} ${serialized}`;
-}
+const ACTION_QUERY_DESCRIPTION =
+  "Search/list Quicker actions via action list. Optional query: plain text, legacy prefixes (source:library, uses:Sub), "
+  + "or JSON { keyword?, fields?: [actionId,title,...] or \"*\", filter: { source, uses, usesOnly, keyword, script }, sort: { key, by, desc } }. "
+  + "Optional fields (or --fields) trims returned columns. Empty query returns recent actions (lastEdit). UI renders the table — summarize only, no markdown table.";
+
+export const QKRPC_ACTION_QUERY_TOOL_DEF = tool({
+  description: ACTION_QUERY_DESCRIPTION,
+  inputSchema: actionQuerySchema,
+  execute: async (input) => executeQkrpcActionQueryTool(input),
+});
 
 export const QKRPC_ACTION_TOOL_DEF = tool({
   description:
-    "Quicker local actions: list/search/get/create/replace/publish/set_metadata/float/edit/edit_var/run/move; "
-    + "global profile tabs (profile_create/delete/prune/reorder); virtual process pages (process_ensure). "
-    + "list/search query: plain text, legacy prefixes, or JSON {filter,sorter,keyword,source,uses}. Scripts use action.* (ActionId, Title, Source, ExeFile, EditMs, ...). "
-    + "list/search: UI renders the table — summarize only, no markdown table. "
-    + "get syncs disk when action has steps/variables. create bootstraps .quicker/actions/{id}/ — no follow-up get. "
-    + "Disk editing: workspace_program. Destructive delete: qkrpc_action_delete.",
-  inputSchema: z.object({
-    action: actionSchema,
-    query: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
-    queryFile: z.string().optional(),
-    filter: z.enum(["library", "installed", "local", "published"]).optional(),
-    scope: z.string().optional(),
-    limit: z.number().int().min(1).max(100).optional(),
-    sort: z.enum(["relevance", "lastEdit", "title"]).optional(),
-    id: z.string().optional(),
-    returnMode: returnModeSchema.optional(),
-    title: z.string().optional(),
-    description: z.string().optional(),
-    icon: z.string().optional(),
-    profileId: z.string().uuid().optional(),
-    xaction: z.record(z.unknown()).optional(),
-    expectedEditVersion: z.number().int().optional(),
-    force: z.boolean().optional(),
-    note: z.string().optional(),
-    tags: z.string().optional(),
-    keywords: z.string().optional(),
-    changelog: z.string().optional(),
-    isPublic: z.boolean().optional(),
-    submitReview: z.boolean().optional(),
-    var: z.string().optional(),
-    value: z.string().optional(),
-    param: z.string().optional(),
-    wait: z.boolean().optional(),
-    debug: z.boolean().optional(),
-    profile: z.string().optional(),
-    row: z.number().int().min(0).optional(),
-    col: z.number().int().min(0).optional(),
-    swap: z.boolean().optional(),
-    onNoEmptySlot: z.enum(["ask", "cancel", "createPageAfter"]).optional(),
-    onOccupiedSlot: z.enum(["ask", "cancel", "swap"]).optional(),
-    count: z.number().int().min(1).max(20).optional(),
-    afterFirst: z.boolean().optional(),
-    profileIds: z.array(z.string()).optional(),
-    exeFile: z.string().optional(),
-    displayName: z.string().optional(),
-    profileNamePrefix: z.string().optional(),
-    collectSubProgramName: z.string().optional(),
-    moveActions: z.boolean().optional(),
-    moveAny: z.boolean().optional(),
-  }),
-  execute: async (input) => executeQkrpcActionTool(input),
+    "Operate on one action by id: get (sync workspace when non-empty), run, float, edit (Quicker UI), "
+    + "edit_var, set_metadata, move, publish, replace. Disk editing uses workspace_program.",
+  inputSchema: actionIdSchema,
+  execute: async (input) => executeQkrpcActionIdTool(input),
 });
 
-export { QKRPC_ACTION_TOOL };
+export const QKRPC_ACTION_MANAGE_TOOL_DEF = tool({
+  description:
+    "Create actions and manage layout: create (bootstraps workspace project), profile_create/delete/prune/reorder, "
+    + "process_ensure (virtual process pages). See docs action-organization-workflow.",
+  inputSchema: actionManageSchema,
+  execute: async (input) => executeQkrpcActionManageTool(input),
+});
+
+export {
+  QKRPC_ACTION_MANAGE_TOOL,
+  QKRPC_ACTION_QUERY_TOOL,
+  QKRPC_ACTION_TOOL,
+};

@@ -153,9 +153,9 @@ internal static class QkrpcCliHelp
 
                     opts: ActionProjectImportOpts()),
 
-                Cmd("action list", "List/search actions. --query accepts plain text, legacy prefixes, or JSON {filter,sorter,keyword,source,uses}.", "qkrpc action list [--query <text|json>] [--query-file <path>] [--filter library|local|published] [--scope ...] [--limit 30] [--sort relevance|lastEdit|title] [--json]",
+                Cmd("action list", "List/search actions. --query accepts plain text, legacy prefixes, or JSON {filter,sort,keyword,fields}.", "qkrpc action list [--query <text|json>] [--query-file <path>] [--fields actionId,title,...] [--filter library|local|published] [--scope ...] [--limit 30] [--sort relevance|lastEdit|title] [--json]",
 
-                    opts: new[] { Option("query", "Plain keyword; legacy source:library|uses:Sub; or JSON with filter/sorter scripts (action.* fields).", shortName: "q"), Option("query-file", "UTF-8 file for --query JSON/text."), Option("filter", "Shorthand for plain query: library|installed|local|published."), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("sort", "relevance (default with --query) | lastEdit (default without --query) | title. Ignored when JSON sorter is set."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
+                    opts: new[] { Option("query", "Plain keyword; legacy prefixes; or JSON. filter: {source,uses,usesOnly,keyword,script|expr}; sort: {key,script,by,desc}; fields: [actionId,title,...] or *.", shortName: "q"), Option("query-file", "UTF-8 file for --query JSON/text."), Option("fields", "Output projection: comma-separated field names or * (also fields/select/columns in JSON query)."), Option("filter", "Shorthand for plain query: library|installed|local|published."), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("sort", "relevance (default with --query) | lastEdit (default without --query) | title. Ignored when JSON sort script is set."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("action publish", "Share or refresh an action on getquicker.net (auto-detects first publish vs update).", "qkrpc action publish --id <guid> [--title <text>] [--description <text>] [--changelog <text>] [--note-file <path>] [--json]",
 
@@ -195,17 +195,17 @@ internal static class QkrpcCliHelp
                         Option("no-bootstrap", "Skip auto-start."),
                     }),
 
-                Cmd("action search", "Search local actions. --query accepts plain text, legacy prefixes, or JSON {filter,sorter,keyword,source,uses}.", "qkrpc action search --query <text|json> [--query-file <path>] [--filter library|local|published] [--scope ...] [--limit 20] [--json]",
+                Cmd("action search", "Alias for action list (same --query/--fields semantics; empty query = recent by lastEdit).", "qkrpc action search [--query <text|json>] [--query-file <path>] [--fields actionId,title,...] [--filter library|local|published] [--scope ...] [--limit 30] [--sort relevance|lastEdit|title] [--json]",
 
-                    opts: new[] { Option("query", "Plain keyword; legacy prefixes; or JSON with filter/sorter scripts.", shortName: "q"), Option("query-file", "UTF-8 file for --query JSON/text."), Option("filter", "Shorthand for plain query: library|installed|local|published."), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),
+                    opts: new[] { Option("query", "Plain keyword; legacy prefixes; or JSON. filter: {source,uses,usesOnly,keyword,script|expr}; sort: {key,script,by,desc}; fields: [actionId,title,...] or *.", shortName: "q"), Option("query-file", "UTF-8 file for --query JSON/text."), Option("fields", "Output projection: comma-separated field names or *."), Option("filter", "Shorthand for plain query: library|installed|local|published."), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("sort", "relevance (default with --query) | lastEdit (default without --query) | title."), Option("json", "Structured output.") }),
 
-                Cmd("subprogram search", "Search global subprograms (returns callIdentifier for sys:subprogram).", "qkrpc subprogram search --query <keyword> [--limit 20] [--json]",
+                Cmd("subprogram list", "List/search global subprograms (returns callIdentifier for sys:subprogram). Empty --query lists by name; non-empty filters.", "qkrpc subprogram list [--query <keyword>] [--limit 30] [--json]",
 
-                    opts: new[] { Option("query", "Keyword.", shortName: "q"), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),
+                    opts: new[] { Option("query", "Optional keyword filter.", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output.") }),
 
-                Cmd("subprogram list", "List global subprograms.", "qkrpc subprogram list [--query <keyword>] [--limit 30] [--json]",
+                Cmd("subprogram search", "Alias for subprogram list.", "qkrpc subprogram search [--query <keyword>] [--limit 30] [--json]",
 
-                    opts: new[] { Option("query", "Optional filter.", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output.") }),
+                    opts: new[] { Option("query", "Optional keyword filter.", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output.") }),
 
                 Cmd("profile delete", "Delete empty action profile pages (tabs). Fails when the page still has actions or is protected.", "qkrpc profile delete --id <profileIdOrName> [--ids <guid1,guid2>] [--json]",
 
@@ -370,13 +370,13 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("code", "Inline C# script."), Option("file", "Script file or - for stdin."), Option("references", "Extra assembly paths (one per line)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
-                Cmd("settings search", "Search Quicker settings keys and settings pages by keyword.", "qkrpc settings search --query <keyword> [--limit 30] [--json]",
+                Cmd("settings list", "List or search Quicker settings keys (empty query = browse by scope; with --query = keyword search incl. pages).", "qkrpc settings list [--scope userSettings] [--query <keyword>] [--limit 100] [--json] | qkrpc settings search --query <keyword> (alias)",
+
+                    opts: new[] { Option("query", "Optional keyword (Chinese/English/property name); omit to list by scope.", shortName: "q"), Option("scope", "userSettings | userPreference | globalSettings | exeSettings (browse only)."), Option("limit", "Max results.", defaultValue: "100"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("settings search", "Alias for settings list --query (keyword search).", "qkrpc settings search --query <keyword> [--limit 30] [--json]",
 
                     opts: new[] { Option("query", "Keyword (Chinese/English/property name).", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
-
-                Cmd("settings list", "List known setting keys (optionally by scope).", "qkrpc settings list [--scope userSettings] [--limit 100] [--json]",
-
-                    opts: new[] { Option("scope", "userSettings | userPreference | globalSettings | exeSettings."), Option("limit", "Max results.", defaultValue: "100"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("settings get", "Read a Quicker setting value.", "qkrpc settings get --key userSettings:EnableCircleMenu [--json]",
 
@@ -394,9 +394,13 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
-                Cmd("settings open", "Open a Quicker settings page or related UI.", "qkrpc settings open --page ActionRecycleBinSettingPage [--json] | qkrpc settings open --page recycle-bin | qkrpc settings open --page search",
+                Cmd("settings links", "List preset direct links for one-step settings open.", "qkrpc settings links [--json] | qkrpc settings open --preset hotkeys",
 
-                    opts: new[] { Option("page", "SettingPageId or alias (recycle-bin, AppSettings, 动作回收站, search, settings)."), Option("target", "Alias for --page."), Option("exe", "With exe-settings / process-settings target."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+                    opts: new[] { Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("settings open", "Open Quicker settings UI. Prefer --preset for one-step open (see settings links).", "qkrpc settings open --preset hotkeys [--json] | qkrpc settings open --page recycle-bin | qkrpc settings open --query 批量更新",
+
+                    opts: new[] { Option("preset", "Direct link preset id or alias (hotkeys, recycle-bin, …)."), Option("link", "Alias for --preset."), Option("page", "SettingPageId or alias."), Option("target", "Alias for --page."), Option("query", "Resolve page by keyword when --preset/--page omitted.", shortName: "q"), Option("key", "Open page containing this setting key."), Option("search-text", "Prefill Quicker search window."), Option("exe", "With exe-settings / process-settings target."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("project.lint.schedule", "Schedule async expression/C# lint for a .quicker project (qkrpc serve). Writes .qkrpc/diagnostics.json.", "POST serve op project.lint.schedule — args: projectDir, workspaceRoot, target, id, editVersion",
 

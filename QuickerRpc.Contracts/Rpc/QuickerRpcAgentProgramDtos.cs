@@ -32,6 +32,9 @@ public sealed class QuickerRpcActionSummaryItem
 
     /// <summary>Install origin: local | library | published.</summary>
     public string? Source { get; set; }
+
+    /// <summary>Search relevance score when query matching is active.</summary>
+    public int? Score { get; set; }
 }
 
 public sealed class QuickerRpcGetCompressedActionResult
@@ -144,6 +147,9 @@ public sealed class QuickerRpcSearchActionSummariesResult
     public string? Sort { get; set; }
 
     public int MatchCount { get; set; }
+
+    /// <summary>Applied field projection (canonical names); null = full item payload.</summary>
+    public IList<string>? Fields { get; set; }
 
     public IList<QuickerRpcActionSummaryItem> Items { get; set; } = new List<QuickerRpcActionSummaryItem>();
 }

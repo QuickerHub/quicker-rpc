@@ -72,7 +72,7 @@ export async function executeWorkspaceProgramReadData(
     }
     return formatLocalToolResult({
       action: "program-data-summary",
-      success: result.summary.validated,
+      success: true,
       ...result.summary,
     });
   }
@@ -152,7 +152,7 @@ export async function executeWorkspaceProgramWriteData(
   const syncNote = formatProgramAutoSyncedNote(resolved.autoSynced);
   const prefixWarnings = scanProgramValuePrefixWarnings(input.content);
 
-  return formatLocalToolResult({
+  const response = formatLocalToolResult({
     action: "program-data-write",
     success: true,
     target: resolved.resolved.target.kind,
@@ -167,6 +167,8 @@ export async function executeWorkspaceProgramWriteData(
     ...(syncNote ? { workspaceSyncNote: syncNote } : {}),
     ...buildValuePrefixWarningFields(prefixWarnings),
   });
+  maybeScheduleSyntaxLintAfterDiskEdit(input, response);
+  return response;
 }
 
 export async function executeWorkspaceProgramEditData(
@@ -217,7 +219,7 @@ export async function executeWorkspaceProgramEditData(
   } catch {
     /* ignore read errors; edit already succeeded */
   }
-  return formatLocalToolResult({
+  const response = formatLocalToolResult({
     action: "program-data-edit",
     success: true,
     target: resolved.resolved.target.kind,
@@ -232,6 +234,8 @@ export async function executeWorkspaceProgramEditData(
     ...(syncNote ? { workspaceSyncNote: syncNote } : {}),
     ...buildValuePrefixWarningFields(prefixWarnings),
   });
+  maybeScheduleSyntaxLintAfterDiskEdit(input, response);
+  return response;
 }
 
 export async function executeWorkspaceProgramFileInfo(
@@ -379,7 +383,7 @@ export async function executeWorkspaceProgramFileWrite(
     );
   }
 
-  return formatLocalToolResult(
+  const response = formatLocalToolResult(
     programProjectFileToolSuccess("file-write", resolved.resolved, {
       bytesWritten: result.bytesWritten,
       previousContent,
@@ -388,6 +392,8 @@ export async function executeWorkspaceProgramFileWrite(
       reformatted,
     }),
   );
+  maybeScheduleSyntaxLintAfterDiskEdit(input, response);
+  return response;
 }
 
 export async function executeWorkspaceProgramFileEdit(
@@ -454,7 +460,7 @@ export async function executeWorkspaceProgramFileEdit(
     if (readBack.ok) content = readBack.content;
   }
 
-  return formatLocalToolResult(
+  const response = formatLocalToolResult(
     programProjectFileToolSuccess("file-edit", resolved.resolved, {
       replacements: result.replacements,
       matchLines: result.matchLines,
@@ -463,6 +469,8 @@ export async function executeWorkspaceProgramFileEdit(
       reformatted,
     }),
   );
+  maybeScheduleSyntaxLintAfterDiskEdit(input, response);
+  return response;
 }
 
 export async function executeWorkspaceProgramProjects(input?: {
@@ -545,4 +553,37 @@ function maybeScheduleSyntaxLintAfterPatch(
     typeof record.editVersion === "number" ? record.editVersion : undefined;
 
   scheduleProgramSyntaxLint({ target, editVersion });
+}
+
+function maybeScheduleSyntaxLintAfterDiskEdit(
+  input: ParsedWorkspaceProgramInput,
+  result: Record<string, unknown>,
+): void {
+  if (!isStructuredToolResult(result) || !result.ok) {
+    return;
+  }
+
+  const parsed = parseWorkspaceProgramTarget(input);
+  if (!parsed.ok) {
+    return;
+  }
+
+  const data = result.data;
+  if (typeof data !== "object" || data === null) {
+    return;
+  }
+
+  const record = data as Record<string, unknown>;
+  if (record.success === false) {
+    return;
+  }
+
+  const summary =
+    typeof record.projectSummary === "object" && record.projectSummary !== null
+      ? (record.projectSummary as Record<string, unknown>)
+      : null;
+  const editVersion =
+    typeof summary?.editVersion === "number" ? summary.editVersion : undefined;
+
+  scheduleProgramSyntaxLint({ target: parsed.target, editVersion });
 }

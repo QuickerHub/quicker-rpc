@@ -37,6 +37,7 @@ html.launcher-html--transparent body {
   --ws-toggle-slot-width: 36px;
   --ws-explorer-width: 140px;
   --chat-main-min-width: 400px;
+  --chat-content-max-width: 960px;
   --app-titlebar-height: 32px;
   position: relative;
   display: grid;
@@ -733,7 +734,7 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--chat-bg);
+  background: transparent;
 }
 
 .app-main-split {
@@ -761,6 +762,12 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* One gradient for stack + messages + composer (full pane width). */
+  background: var(--chat-bg);
+}
+
+.app-main-chat-pane:has(.app-main--empty) {
+  background: var(--bg);
 }
 
 .app-main-editor-pane {
@@ -972,8 +979,10 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  width: 100%;
   position: relative;
   overflow: hidden;
+  background: transparent;
 }
 
 .workspace-main-editor--fill {
@@ -1590,10 +1599,11 @@ html.sidebar-collapsed-init .app-shell {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  max-width: 960px;
-  margin: 0 auto;
   width: 100%;
+  max-width: none;
+  margin: 0;
   overflow: hidden;
+  background: transparent;
 }
 
 .app-main--side-open {
@@ -1612,6 +1622,7 @@ html.sidebar-collapsed-init .app-shell {
   flex-direction: row;
   align-items: stretch;
   min-width: 0;
+  background: transparent;
 }
 
 .app-main-split-header__chat {
@@ -1619,6 +1630,15 @@ html.sidebar-collapsed-init .app-shell {
   min-width: 0;
   display: flex;
   align-items: center;
+}
+
+.app-main-split-header__chat .chat-conversation-header {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  /* Title flush left; side-panel toggle flush right (full pane width). */
+  padding-left: 0.65rem;
+  padding-right: 0.65rem;
 }
 
 .app-main--side-open .app-main-split-header__chat {
@@ -1643,19 +1663,29 @@ html.sidebar-collapsed-init .app-shell {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  width: 100%;
   display: flex;
   flex-direction: row;
   align-items: stretch;
   overflow: hidden;
+  background: transparent;
 }
 
 .app-main-chat-column {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  width: 100%;
+  max-width: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Single --chat-bg gradient is painted on .app-main-chat-pane (full pane width). */
+  background: transparent;
+  --chat-rail-inset-inline: max(
+    1.25rem,
+    calc((100% - var(--chat-content-max-width)) / 2 + 1.25rem)
+  );
 }
 
 .app-main--side-open .app-main-chat-column {
@@ -1671,11 +1701,6 @@ html.sidebar-collapsed-init .app-shell {
   min-width: var(--explorer-min-width, 128px);
 }
 
-/* Empty thread: flat bg so shell/composer do not repaint mismatched --chat-bg gradients. */
-.app-main-shell:has(.app-main--empty) {
-  background: var(--bg);
-}
-
 .app-main--empty {
   justify-content: flex-start;
   background: transparent;
@@ -1688,6 +1713,7 @@ html.sidebar-collapsed-init .app-shell {
 
 .app-main--empty .app-main-chat-column {
   justify-content: flex-start;
+  background: transparent;
 }
 
 .app-main--empty .messages-view {
@@ -2781,29 +2807,35 @@ html.sidebar-collapsed-init .app-shell {
 .messages-view {
   position: relative;
   flex: 1;
+  min-width: 0;
   min-height: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
+  background: transparent;
   --chat-text-inset: 0.65rem;
 }
 
 .messages {
   flex: 1;
+  min-width: 0;
   min-height: 0;
+  width: 100%;
+  max-width: none;
   /* clip (not hidden) — hidden breaks position:sticky on .msg-turn__prompt */
   overflow-x: clip;
   overflow-y: auto;
   overscroll-behavior-x: none;
-  padding: 1rem 1.25rem 0;
+  padding: 1rem var(--chat-rail-inset-inline, 1.25rem) 0;
   /* Virtual spacer below last block (see .messages-anchor + .msg--last). */
   --messages-bottom-air: 5rem;
   scroll-padding-bottom: var(--messages-bottom-air);
   /* Set by useMessagesScrollportHeight for active-turn sticky range */
   --messages-scrollport-height: 0px;
   --messages-scroll-padding-top: 1rem;
-  --messages-scroll-padding-x: 1.25rem;
-  /* Inner inset for message text (matches user bubble horizontal padding). */
-  background: var(--chat-bg);
+  --messages-scroll-padding-x: var(--chat-rail-inset-inline, 1.25rem);
+  border: none;
+  background: transparent;
 }
 
 .messages-history-sentinel {
@@ -3090,8 +3122,8 @@ html.sidebar-collapsed-init .app-shell {
   max-width: 14rem;
   padding: 0.65rem 0.75rem;
   border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--border) 38%, transparent);
+  background: transparent;
   color: var(--text);
   font: inherit;
   text-align: left;
@@ -3105,12 +3137,12 @@ html.sidebar-collapsed-init .app-shell {
 
 .composer-shortcut-btn:hover:not(:disabled):not(.composer-shortcut-btn--disabled) {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .composer-shortcut-btn--active {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--panel) 82%, var(--accent) 18%);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .composer-shortcut-btn:disabled,
@@ -4171,9 +4203,12 @@ html.sidebar-collapsed-init .app-shell {
   position: relative;
   z-index: 20;
   flex-shrink: 0;
-  padding: 0.75rem 1.25rem 1.25rem;
-  border-top: 1px solid var(--border);
-  background: var(--chat-bg);
+  width: 100%;
+  max-width: none;
+  padding: 0.75rem var(--chat-rail-inset-inline, 1.25rem) 1.25rem;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .app-main--empty .composer {
@@ -4482,9 +4517,7 @@ html.launcher-html--transparent .launcher-shell :is(
   border: 1px solid var(--composer-border);
   border-radius: 10px;
   overflow: visible;
-  box-shadow:
-    0 1px 2px color-mix(in srgb, #000 5%, transparent),
-    0 14px 32px -24px color-mix(in srgb, #000 18%, transparent);
+  box-shadow: none;
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
@@ -10954,7 +10987,7 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin: 0 1.25rem -0.15rem;
+  margin: 0 var(--chat-rail-inset-inline, 1.25rem) -0.15rem;
   padding: 0.65rem 0.75rem;
   color: var(--text);
   background: color-mix(in srgb, var(--panel) 92%, var(--warn, #cca700) 8%);
@@ -14673,8 +14706,10 @@ button.file-editor-header-open.file-editor-header--compact:hover {
 }
 
 /* Boot splash — covers shell until React hydrates (see AppBootstrapSplash) */
-html[data-app-boot-skip] #app-bootstrap-splash {
+html[data-app-boot-skip] #app-bootstrap-splash,
+html[data-app-ready] #app-bootstrap-splash {
   display: none;
+  pointer-events: none;
 }
 
 .app-bootstrap-splash {

@@ -97,7 +97,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
 
   if (positional[0] === "action") {
     const verb = positional[1];
-    if (verb === "list") {
+    if (verb === "list" || verb === "search") {
       return {
         op: "action.list",
         args: {
@@ -105,16 +105,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
           scope: flagStr(flags, "scope"),
           limit: flagInt(flags, "limit"),
           sort: flagStr(flags, "sort"),
-        },
-      };
-    }
-    if (verb === "search") {
-      return {
-        op: "action.search",
-        args: {
-          query: flagStr(flags, "query"),
-          scope: flagStr(flags, "scope"),
-          limit: flagInt(flags, "limit"),
+          fields: flagStr(flags, "fields"),
         },
       };
     }
@@ -355,13 +346,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
 
   if (positional[0] === "subprogram") {
     const verb = positional[1];
-    if (verb === "search") {
-      return {
-        op: "subprogram.search",
-        args: { query: flagStr(flags, "query"), limit: flagInt(flags, "limit") },
-      };
-    }
-    if (verb === "list") {
+    if (verb === "list" || verb === "search") {
       return {
         op: "subprogram.list",
         args: { query: flagStr(flags, "query"), limit: flagInt(flags, "limit") },
@@ -484,19 +469,11 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
 
   if (positional[0] === "settings") {
     const verb = positional[1];
-    if (verb === "search") {
-      return {
-        op: "settings.search",
-        args: {
-          query: flagStr(flags, "query"),
-          maxResults: flagInt(flags, "limit"),
-        },
-      };
-    }
-    if (verb === "list") {
+    if (verb === "search" || verb === "list") {
       return {
         op: "settings.list",
         args: {
+          query: flagStr(flags, "query"),
           scope: flagStr(flags, "scope"),
           maxResults: flagInt(flags, "limit"),
         },
@@ -530,14 +507,21 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
     if (verb === "pages") {
       return { op: "settings.pages", args: {} };
     }
+    if (verb === "links") {
+      return { op: "settings.links", args: {} };
+    }
     if (verb === "open") {
       return {
         op: "settings.open",
         args: {
+          preset: flagStr(flags, "preset") ?? flagStr(flags, "link"),
           page:
             flagStr(flags, "page")
             ?? flagStr(flags, "target")
             ?? flagStr(flags, "page-id"),
+          query: flagStr(flags, "query"),
+          key: flagStr(flags, "key"),
+          searchText: flagStr(flags, "search-text"),
           exe: flagStr(flags, "exe") ?? flagStr(flags, "exe-file"),
         },
       };

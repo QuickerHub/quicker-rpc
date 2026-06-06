@@ -11,25 +11,28 @@ public sealed class QkrpcMcpSettingsTools
     public QkrpcMcpSettingsTools(QkrpcMcpRuntime runtime) => _runtime = runtime;
 
     [McpServerTool(Name = "quicker_settings")]
-    [Description("Headless Quicker app settings: search/list/get/set/apply. Use action=open only when user asks for UI.")]
+    [Description("Headless Quicker settings + open UI. open: prefer preset (links) for one-step UI.")]
     public Task<string> QuickerSettings(
         string action,
         string? query = null,
         string? key = null,
         string? valueJson = null,
         string? page = null,
+        string? preset = null,
+        string? exe = null,
+        string? searchText = null,
         CancellationToken cancellationToken = default)
     {
         var verb = (action ?? string.Empty).Trim().ToLowerInvariant();
         return verb switch
         {
             "search" => _runtime.InvokeOpAsync(
-                "settings.search",
+                "settings.list",
                 QkrpcMcpJson.ToElement(new { query = query?.Trim(), limit = 20 }),
                 cancellationToken),
             "list" => _runtime.InvokeOpAsync(
                 "settings.list",
-                QkrpcMcpJson.ToElement(new { page = page?.Trim() }),
+                QkrpcMcpJson.ToElement(new { query = query?.Trim(), limit = 20 }),
                 cancellationToken),
             "get" => string.IsNullOrWhiteSpace(key)
                 ? Task.FromResult(QkrpcMcpJson.FormatObject(new { ok = false, errorMessage = "key is required for get" }))
@@ -45,14 +48,23 @@ public sealed class QkrpcMcpSettingsTools
                     cancellationToken),
             "apply" => _runtime.InvokeOpAsync("settings.apply", default, cancellationToken),
             "pages" => _runtime.InvokeOpAsync("settings.pages", default, cancellationToken),
+            "links" => _runtime.InvokeOpAsync("settings.links", default, cancellationToken),
             "open" => _runtime.InvokeOpAsync(
                 "settings.open",
-                QkrpcMcpJson.ToElement(new { page = string.IsNullOrWhiteSpace(page) ? "AppSettings" : page.Trim() }),
+                QkrpcMcpJson.ToElement(new
+                {
+                    preset = preset?.Trim(),
+                    page = page?.Trim(),
+                    query = query?.Trim(),
+                    key = key?.Trim(),
+                    exe = exe?.Trim(),
+                    searchText = searchText?.Trim(),
+                }),
                 cancellationToken),
             _ => Task.FromResult(QkrpcMcpJson.FormatObject(new
             {
                 ok = false,
-                errorMessage = "action must be search|list|get|set|apply|pages|open",
+                errorMessage = "action must be search|list|get|set|apply|pages|links|open",
             })),
         };
     }

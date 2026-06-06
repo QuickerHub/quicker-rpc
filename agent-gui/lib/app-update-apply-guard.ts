@@ -7,6 +7,10 @@ export function tryBeginAppUpdateApply(): boolean {
   return true;
 }
 
+export function resetAppUpdateApply(): void {
+  applyStarted = false;
+}
+
 export function isAppUpdateApplyStarted(): boolean {
   return applyStarted;
 }

@@ -43,22 +43,23 @@ export const APP_BOOTSTRAP_SPLASH_INIT_SCRIPT = `(function(){try{if(location.pat
  * Inline dismiss — does not wait for React (usePathname can suspend RootLayoutExtras).
  * Also watches for .app-shell / .launcher-route-shell and forces dismiss after timeout.
  */
-export const APP_BOOTSTRAP_SPLASH_DISMISS_SCRIPT = `(function(){try{
+export const APP_BOOTSTRAP_SPLASH_DISMISS_SCRIPT = `(function(){function boot(){try{
 var ID="app-bootstrap-splash";
-var FADE=480;
-var MIN=420;
-var MAX=12000;
+var FADE=320;
+var MIN=180;
+var MAX=8000;
 var t0=performance.now();
 var done=false;
 function dismiss(force){
 if(done)return;
 var el=document.getElementById(ID);
-if(!el)return;
+if(!el){done=true;document.documentElement.dataset.appReady="1";return;}
 done=true;
+el.style.pointerEvents="none";
+document.documentElement.dataset.appReady="1";
 var wait=force?0:Math.max(0,MIN-(performance.now()-t0));
 setTimeout(function(){
 el.classList.add("app-bootstrap-splash--fade");
-document.documentElement.dataset.appReady="1";
 setTimeout(function(){el.remove();},FADE);
 },wait);
 }
@@ -67,10 +68,17 @@ if(document.documentElement.dataset.appBootSkip==="1"){dismiss(true);return;}
 function ready(){
 return document.querySelector(".app-shell,.launcher-route-shell");
 }
+function watch(){
 if(ready()){dismiss(false);return;}
 var obs=new MutationObserver(function(){
 if(ready()){obs.disconnect();dismiss(false);}
 });
-if(document.body){obs.observe(document.body,{childList:true,subtree:true});}
+var root=document.body||document.documentElement;
+obs.observe(root,{childList:true,subtree:true});
 setTimeout(function(){obs.disconnect();dismiss(false);},MAX);
-}catch(e){}})();`;
+}
+if(document.body){watch();}
+else{document.addEventListener("DOMContentLoaded",watch,{once:true});}
+}catch(e){}}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot,{once:true});}
+else{boot();}})();`;

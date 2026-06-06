@@ -243,7 +243,7 @@ export function ActionProjectSyncBar({
           title={
             blockHint
               ? blockHint
-              : "校验工作区项目并提交到 Quicker（validate → apply）"
+              : "将工作区 patch 提交到 Quicker（语法问题用 workspace_program diagnostics 检查）"
           }
         >
           {busy === "push" ? "提交中…" : "提交"}

@@ -38,32 +38,22 @@ function actionRefMarkup(actionId: string, title: string): string {
   return formatActionTagMarkup({ id: actionId, title: title.trim() || actionId });
 }
 
+/** Composer draft starter: action tag first, then an open phrase the user can finish inline. */
 export function buildActionLinkCardPromptMessage(
   promptId: string,
   ctx: ActionLinkCardPromptContext,
 ): string | null {
   const title = ctx.title.trim() || ctx.actionId;
+  const tag = actionRefMarkup(ctx.actionId, title);
   switch (promptId) {
     case "move-panel":
-      return [
-        `帮我把动作「${title}」放到我指定的面板或分组；需要我补充信息时先问我。`,
-        actionRefMarkup(ctx.actionId, title),
-      ].join("\n");
+      return `${tag}请帮我放到指定面板或分组，目标是`;
     case "improve-meta":
-      return [
-        `请优化动作「${title}」的标题、说明和图标；先确认我的偏好再修改。`,
-        actionRefMarkup(ctx.actionId, title),
-      ].join("\n");
+      return `${tag}请优化标题、说明和图标，我的偏好是`;
     case "hotkey":
-      return [
-        `帮动作「${title}」设置合适的快捷键；先检查冲突再给出建议。`,
-        actionRefMarkup(ctx.actionId, title),
-      ].join("\n");
+      return `${tag}请设置合适的快捷键，我希望使用`;
     case "explain":
-      return [
-        `用通俗语言解释动作「${title}」的步骤逻辑，并指出可改进之处。`,
-        actionRefMarkup(ctx.actionId, title),
-      ].join("\n");
+      return `${tag}请用通俗语言解释步骤逻辑，我想了解`;
     default:
       return null;
   }

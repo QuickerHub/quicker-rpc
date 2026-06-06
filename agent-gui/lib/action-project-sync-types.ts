@@ -11,8 +11,6 @@ export type ActionProjectSyncStatus = {
   localEditVersion?: number;
   remoteEditVersion?: number;
   remoteTitle?: string;
-  validated?: boolean;
-  validationError?: string;
   projectDirectory?: string;
 };
 

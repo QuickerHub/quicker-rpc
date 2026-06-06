@@ -205,7 +205,16 @@ public sealed class QuickerRpcService : IQuickerRpcService
         cancellationToken.ThrowIfCancellationRequested();
 
         return InvokeOnDispatcherAsync(
-            () => Task.FromResult(_actionSearchService.SearchActions(query, maxCount, scope)),
+            () =>
+            {
+                var sort = string.IsNullOrWhiteSpace(query) ? "lastEdit" : "relevance";
+                var summaries = _headlessActionProgramService.SearchActionSummaries(
+                    query,
+                    maxCount,
+                    scope,
+                    sort);
+                return Task.FromResult(ActionSearchResultMapper.FromSummaries(summaries));
+            },
             cancellationToken);
     }
 
@@ -216,9 +225,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        return InvokeOnDispatcherAsync(
-            () => Task.FromResult(_subProgramSearchService.Search(query, maxCount)),
-            cancellationToken);
+        return ListGlobalSubProgramsAsync(query, maxCount, cancellationToken);
     }
 
     public Task<QuickerRpcSubProgramSearchResult> ListGlobalSubProgramsAsync(
@@ -969,14 +976,26 @@ public sealed class QuickerRpcService : IQuickerRpcService
             ?? new QuickerRpcListSettingsPagesResult { Ok = false, Message = "Settings pages unavailable." });
     }
 
+    public Task<QuickerRpcListSettingsDirectLinksResult> ListSettingsDirectLinksAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_settingsUiService.ListDirectLinks());
+    }
+
     public Task<QuickerRpcOpenSettingsUiResult> OpenSettingsUiAsync(
-        string target,
+        string? target,
         string? exeFile = null,
+        string? searchText = null,
+        string? query = null,
+        string? settingKey = null,
+        string? preset = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(
-            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _settingsUiService.Open(target, exeFile))
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(
+                () => _settingsUiService.Open(target, query, settingKey, exeFile, searchText, preset))
             ?? new QuickerRpcOpenSettingsUiResult { Ok = false, Message = "Open settings UI unavailable." });
     }
 

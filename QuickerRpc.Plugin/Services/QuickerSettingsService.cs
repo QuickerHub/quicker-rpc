@@ -145,6 +145,35 @@ public sealed class QuickerSettingsService
         };
     }
 
+    public bool TryResolvePageForKey(string key, out string? pageId, out string? error)
+    {
+        pageId = null;
+        error = null;
+        var normalized = (key ?? string.Empty).Trim();
+        if (normalized.Length == 0)
+        {
+            error = "Setting key is required.";
+            return false;
+        }
+
+        var item = Catalog.Value.FirstOrDefault(entry =>
+            string.Equals(entry.Key, normalized, StringComparison.OrdinalIgnoreCase));
+        if (item is null)
+        {
+            error = $"Unknown setting key: {normalized}";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(item.PageId))
+        {
+            error = $"Setting {normalized} has no associated settings page.";
+            return false;
+        }
+
+        pageId = item.PageId;
+        return true;
+    }
+
     public QuickerRpcApplySettingsResult Apply(IList<QuickerRpcSettingChangeItem> changes)
     {
         if (changes is null || changes.Count == 0)

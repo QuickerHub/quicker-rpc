@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { actionProjectDirFromName } from "@/lib/action-project-path-shared";
@@ -53,8 +53,6 @@ export type ActionProjectManifest = {
   editVersion?: number;
   stepCount?: number;
   variableCount?: number;
-  validated?: boolean;
-  validationError?: string;
   fileRefs: Array<{
     stepRef?: string;
     paramName?: string;
@@ -156,22 +154,51 @@ export function programHasBodyFromGetPayload(
 }
 
 
-type ValidatePayload = {
-  success?: boolean;
-  projectDirectory?: string;
-  actionId?: string;
-  editVersion?: number;
-  stepCount?: number;
-  variableCount?: number;
-  fileRefs?: Array<{
-    stepRef?: string;
-    paramName?: string;
-    relativePath?: string;
-    exists?: boolean;
-    sizeBytes?: number;
-  }>;
-  error?: string;
-};
+
+function collectFileRefsFromDataJson(
+  data: Record<string, unknown>,
+  projectDirAbsolute: string,
+): ActionProjectManifest["fileRefs"] {
+  const paths = new Set<string>();
+
+  function walk(value: unknown): void {
+    if (value == null || typeof value !== "object") {
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        walk(item);
+      }
+      return;
+    }
+    const record = value as Record<string, unknown>;
+    if (typeof record.file === "string") {
+      const file = record.file.trim();
+      if (file.startsWith("files/")) {
+        paths.add(file);
+      }
+    }
+    for (const nested of Object.values(record)) {
+      walk(nested);
+    }
+  }
+
+  walk(data);
+
+  return [...paths].map((path) => {
+    const absolute = join(projectDirAbsolute, ...path.split("/"));
+    const exists = existsSync(absolute);
+    let sizeBytes: number | undefined;
+    if (exists) {
+      try {
+        sizeBytes = statSync(absolute).size;
+      } catch {
+        sizeBytes = undefined;
+      }
+    }
+    return { path, exists, sizeBytes };
+  });
+}
 
 function isUuid(value: string): boolean {
   return UUID_RE.test(value.trim());
@@ -271,37 +298,24 @@ export async function readActionProjectManifest(
 
   let stepCount: number | undefined;
   let variableCount: number | undefined;
-  let validated: boolean | undefined;
-  let validationError: string | undefined;
   let fileRefs: ActionProjectManifest["fileRefs"] = [];
 
   if (hasDataJson) {
-    const projectResolved = resolveWorkspacePath(dir);
-    const validateDir = projectResolved.ok ? projectResolved.absolute : dir;
-    const validateResult = await runQkrpcForTool([
-      "action",
-      "validate",
-      "--dir",
-      validateDir,
-    ]);
-    const validatePayload = parseQkrpcPayload(validateResult) as ValidatePayload | null;
-    fileRefs =
-      validatePayload?.fileRefs?.map((entry) => ({
-        stepRef: entry.stepRef,
-        paramName: entry.paramName,
-        path: entry.relativePath ?? "",
-        exists: entry.exists === true,
-        sizeBytes: entry.sizeBytes,
-      })) ?? [];
-    stepCount = validatePayload?.stepCount;
-    variableCount = validatePayload?.variableCount;
-    validated = validatePayload?.success === true;
-    validationError =
-      validatePayload?.success === true
-        ? undefined
-        : validatePayload?.error
-          || (validateResult.ok ? undefined : validateResult.stderr)
-          || undefined;
+    const raw = await readFile(resolvedData.absolute, "utf8");
+    const outline = parseDataJsonOutline(raw);
+    if (!("error" in outline)) {
+      stepCount = outline.stepsOutline.length;
+      variableCount = outline.variableKeys.length;
+    }
+    try {
+      const data = JSON.parse(stripJsonBom(raw)) as Record<string, unknown>;
+      const projectResolved = resolveWorkspacePath(dir);
+      if (projectResolved.ok) {
+        fileRefs = collectFileRefsFromDataJson(data, projectResolved.absolute);
+      }
+    } catch {
+      /* ignore malformed data.json; diagnostics will report issues */
+    }
   } else {
     stepCount = 0;
     variableCount = 0;
@@ -314,8 +328,6 @@ export async function readActionProjectManifest(
     editVersion: infoParsed.data.editVersion,
     stepCount,
     variableCount,
-    validated,
-    validationError,
     fileRefs,
     files: await listProjectFiles(dir),
   };
@@ -327,8 +339,6 @@ export type ActionProjectDataSummary = {
   editVersion?: number;
   stepCount?: number;
   variableCount?: number;
-  validated: boolean;
-  validationError?: string;
   stepsOutline: Array<{ index: number; stepRunnerKey: string }>;
   variableKeys: string[];
   fileRefCount: number;
@@ -405,10 +415,8 @@ export async function getActionProjectDataSummary(
       actionId: manifest.actionId,
       projectDirectory: manifest.projectDirectory,
       editVersion: manifest.editVersion,
-      stepCount: manifest.stepCount,
-      variableCount: manifest.variableCount,
-      validated: manifest.validated === true,
-      validationError: manifest.validationError,
+      stepCount: manifest.stepCount ?? outline.stepsOutline.length,
+      variableCount: manifest.variableCount ?? outline.variableKeys.length,
       stepsOutline: outline.stepsOutline,
       variableKeys: outline.variableKeys,
       fileRefCount: manifest.fileRefs.length,

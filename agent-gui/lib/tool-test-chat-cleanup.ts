@@ -23,6 +23,7 @@ const QKA_TAG_RE = /<qka\s+id="([^"]+)"/gi;
 
 const ACTION_ARTIFACT_TOOLS = new Set([
   "qkrpc_action",
+  "qkrpc_action_manage",
   "qkrpc_action_get",
   "qkrpc_action_patch",
   "qkrpc_action_create",
@@ -98,6 +99,11 @@ function shouldCollectActionIdFromTool(
   input?: unknown,
 ): boolean {
   if (ACTION_ARTIFACT_TOOLS.has(toolName)) return true;
+  if (toolName === "qkrpc_action_query") return false;
+  if (toolName === "qkrpc_action_manage") {
+    const action = readQkrpcAction(input);
+    return action === "create";
+  }
   if (toolName === "qkrpc_action") {
     const action = readQkrpcAction(input);
     return action != null && action !== "list" && action !== "search";

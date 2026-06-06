@@ -18,7 +18,7 @@ type MessagePartsProps = {
   workingDirectory?: string;
   /** Tool-test: keep multi-tool batches expanded (no auto-collapse when idle). */
   keepToolBatchesExpanded?: boolean;
-  onSendPrompt?: (text: string) => void;
+  onInsertComposerPrompt?: (text: string) => void;
 };
 
 export function MessageParts({
@@ -26,7 +26,7 @@ export function MessageParts({
   userTextOverride,
   workingDirectory,
   keepToolBatchesExpanded = false,
-  onSendPrompt,
+  onInsertComposerPrompt,
 }: MessagePartsProps) {
   const segments = useMemo(
     () => segmentMessageParts(message.parts),
@@ -62,7 +62,7 @@ export function MessageParts({
               key={index}
               content={part.text}
               workingDirectory={workingDirectory}
-              onSendPrompt={onSendPrompt}
+              onInsertComposerPrompt={onInsertComposerPrompt}
             />
           );
         }
