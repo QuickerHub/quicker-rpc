@@ -3,14 +3,33 @@
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { SettingsGearIcon } from "@/components/SettingsGearIcon";
-import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
 import { isAgentGuiDebugMode } from "@/lib/agent-gui-debug";
-import { useEmbeddedBrowser } from "@/lib/embedded-browser-context";
+import { useSidePanelBrowserToggle } from "@/lib/use-side-panel-browser-toggle";
+import { useSidePanelExplorerToggle } from "@/lib/use-side-panel-explorer-toggle";
 import { openLauncherWindow } from "@/lib/launcher/launcher-window";
 import {
   useDevExperienceEnabled,
   useReleasePreviewToggle,
 } from "@/lib/release-preview.client";
+function IconExplorer() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M3.25 2.75h5.1L11.25 5.65v7.1a.75.75 0 0 1-.75.75H3.25a.75.75 0 0 1-.75-.75V3.5a.75.75 0 0 1 .75-.75h.25Z"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8.25 2.75v2.9h3"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function IconBrowser() {
   return (
     <svg width="16" height="16" viewBox="0 0 14 14" fill="none" aria-hidden>
@@ -163,7 +182,8 @@ export function ComposerShortcutCards({
   onToggleSettings,
   disabled = false,
 }: ComposerShortcutCardsProps) {
-  const { open: browserOpen, toggleOpen: toggleBrowser } = useEmbeddedBrowser();
+  const { toggle: toggleBrowser, active: browserOpen } = useSidePanelBrowserToggle();
+  const { toggle: toggleExplorer, active: explorerOpen } = useSidePanelExplorerToggle();
   const devExperienceEnabled = useDevExperienceEnabled();
   const showReleasePreview = isAgentGuiDebugMode();
   const { active: releasePreviewActive, toggle: toggleReleasePreview } =
@@ -178,6 +198,14 @@ export function ComposerShortcutCards({
         active={settingsOpen}
         disabled={disabled}
         onClick={onToggleSettings}
+      />
+      <ShortcutCard
+        label="资源管理"
+        hint="动作与子程序工程目录"
+        icon={<IconExplorer />}
+        active={explorerOpen}
+        disabled={disabled}
+        onClick={toggleExplorer}
       />
       <ShortcutCard
         label="浏览器"
@@ -218,9 +246,6 @@ export function ComposerShortcutCards({
           disabled={disabled}
           onClick={toggleReleasePreview}
         />
-      ) : null}
-      {devExperienceEnabled ? (
-        <TitlebarThemeSwitcher variant="card" disabled={disabled} />
       ) : null}
     </div>
   );

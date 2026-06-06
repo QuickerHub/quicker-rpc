@@ -2,6 +2,7 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -10,15 +11,18 @@ use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "macos")]
 use tauri::TitleBarStyle;
-use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, RunEvent, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 mod global_shortcut;
 mod launcher;
 mod quicker_agent_paths;
+mod tray;
 mod voice_plugin;
 mod voice_plugin_install;
 mod win_job;
+
+static STARTUP_CANCELLED: AtomicBool = AtomicBool::new(false);
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -279,23 +283,6 @@ fn spawn_node_server(
     cmd.spawn().map_err(|e| format!("spawn node server: {e}"))
 }
 
-/// Extends web content into the title bar: frameless on Windows/Linux, overlay on macOS.
-fn apply_titlebar_chrome(
-    builder: WebviewWindowBuilder<'_, tauri::Wry, AppHandle>,
-) -> WebviewWindowBuilder<'_, tauri::Wry, AppHandle> {
-    #[cfg(target_os = "macos")]
-    {
-        builder
-            .decorations(true)
-            .title_bar_style(TitleBarStyle::Overlay)
-            .hidden_title(true)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        builder.decorations(false).shadow(true)
-    }
-}
-
 fn apply_titlebar_chrome_existing(window: &WebviewWindow) {
     #[cfg(target_os = "macos")]
     {
@@ -308,8 +295,20 @@ fn apply_titlebar_chrome_existing(window: &WebviewWindow) {
     }
 }
 
-fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<String, String> {
-    let host = "127.0.0.1";
+#[derive(Clone)]
+struct ProductionRuntimeConfig {
+    host: String,
+    runtime: PathBuf,
+    node_exe: PathBuf,
+    qkrpc_dir: PathBuf,
+    qkrpc_port: u16,
+    should_spawn_qkrpc: bool,
+    ui_port: u16,
+    ui_url: String,
+}
+
+fn prepare_production_runtime(app: &AppHandle) -> Result<ProductionRuntimeConfig, String> {
+    let host = "127.0.0.1".to_string();
     let resource = resource_root(app)?;
     let runtime = app_runtime_dir(&resource);
     let node_exe = resource
@@ -326,8 +325,8 @@ fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<St
         ));
     }
 
-    let (qkrpc_port, should_spawn_qkrpc) = resolve_qkrpc_port(host)?;
-    let ui_port = find_port(host, 3000)?;
+    let (qkrpc_port, should_spawn_qkrpc) = resolve_qkrpc_port(&host)?;
+    let ui_port = find_port(&host, 3000)?;
 
     let qkrpc_url = format!("http://{host}:{qkrpc_port}");
     std::env::set_var("QKRPC_HTTP_URL", &qkrpc_url);
@@ -336,29 +335,207 @@ fn start_production_backends(app: &AppHandle, state: &BackendState) -> Result<St
     let qkrpc_exe = qkrpc_dir.join(if cfg!(windows) { "qkrpc.exe" } else { "qkrpc" });
     std::env::set_var("QKRPC_BIN", &qkrpc_exe);
 
-    let qkrpc_child = if should_spawn_qkrpc {
-        if !bundled_qkrpc_healthy(&qkrpc_dir) {
-            return Err(format!(
-                "bundled qkrpc is corrupt (missing Kestrel). Run: pwsh agent-gui/scripts/Repair-QuickerAgentResources.ps1\npath: {}",
-                qkrpc_dir.display()
-            ));
-        }
-        let child = spawn_qkrpc(&qkrpc_dir, host, qkrpc_port)?;
-        wait_qkrpc_serve_listening(host, qkrpc_port, 45_000)?;
-        Some(child)
-    } else {
-        None
-    };
+    Ok(ProductionRuntimeConfig {
+        host,
+        runtime,
+        node_exe,
+        qkrpc_dir,
+        qkrpc_port,
+        should_spawn_qkrpc,
+        ui_port,
+        ui_url: format!("http://127.0.0.1:{ui_port}"),
+    })
+}
 
-    let node_child = spawn_node_server(&runtime, &node_exe, host, ui_port)?;
-    wait_http_200(host, ui_port, "/", 60_000)?;
-
-    if let Some(qkrpc_child) = qkrpc_child {
-        *state.qkrpc.lock().map_err(|e| e.to_string())? = Some(state.track_child(qkrpc_child)?);
+fn emit_startup_status(app: &AppHandle, message: &str) {
+    if STARTUP_CANCELLED.load(Ordering::SeqCst) {
+        return;
     }
-    *state.node.lock().map_err(|e| e.to_string())? = Some(state.track_child(node_child)?);
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
+    if let Ok(json) = serde_json::to_string(message) {
+        let script = format!(
+            "var m=document.querySelector('.startup-message');if(m)m.textContent={json};"
+        );
+        let _ = win.eval(&script);
+    }
+}
 
-    Ok(format!("http://{host}:{ui_port}"))
+fn spawn_qkrpc_background(app: AppHandle, config: ProductionRuntimeConfig) {
+    if !config.should_spawn_qkrpc {
+        return;
+    }
+
+    std::thread::spawn(move || {
+        emit_startup_status(&app, "正在启动 qkrpc 服务…");
+
+        if !bundled_qkrpc_healthy(&config.qkrpc_dir) {
+            eprintln!(
+                "[qkrpc] bundled runtime corrupt (missing Kestrel). \
+                 Run: pwsh agent-gui/scripts/Repair-QuickerAgentResources.ps1\npath: {}",
+                config.qkrpc_dir.display()
+            );
+            return;
+        }
+
+        let host = config.host.clone();
+        let qkrpc_dir = config.qkrpc_dir.clone();
+        let port = config.qkrpc_port;
+        let result = (|| -> Result<Child, String> {
+            let child = spawn_qkrpc(&qkrpc_dir, &host, port)?;
+            wait_qkrpc_serve_listening(&host, port, 45_000)?;
+            Ok(child)
+        })();
+
+        if STARTUP_CANCELLED.load(Ordering::SeqCst) {
+            if let Ok(mut child) = result {
+                BackendState::kill_child_tree(&mut child);
+            }
+            return;
+        }
+
+        match result {
+            Ok(child) => {
+                let state = app.state::<BackendState>();
+                match state.track_child(child) {
+                    Ok(tracked) => {
+                        if let Ok(mut guard) = state.qkrpc.lock() {
+                            *guard = Some(tracked);
+                        }
+                    }
+                    Err(err) => eprintln!("[qkrpc] track child failed: {err}"),
+                }
+            }
+            Err(err) => eprintln!("[qkrpc] background start failed: {err}"),
+        }
+    });
+}
+
+fn spawn_node_background(app: AppHandle, config: ProductionRuntimeConfig) {
+    let ui_url = config.ui_url.clone();
+    std::thread::spawn(move || {
+        emit_startup_status(&app, "正在启动界面服务…");
+
+        let host = config.host.clone();
+        let runtime = config.runtime.clone();
+        let node_exe = config.node_exe.clone();
+        let ui_port = config.ui_port;
+
+        let result = (|| -> Result<Child, String> {
+            let child = spawn_node_server(&runtime, &node_exe, &host, ui_port)?;
+            wait_http_200(&host, ui_port, "/", 60_000)?;
+            Ok(child)
+        })();
+
+        if STARTUP_CANCELLED.load(Ordering::SeqCst) {
+            if let Ok(mut child) = result {
+                BackendState::kill_child_tree(&mut child);
+            }
+            return;
+        }
+
+        match result {
+            Ok(child) => {
+                let state = app.state::<BackendState>();
+                match state.track_child(child) {
+                    Ok(tracked) => {
+                        if let Ok(mut guard) = state.node.lock() {
+                            *guard = Some(tracked);
+                        }
+                    }
+                    Err(err) => {
+                        let app_for_dialog = app.clone();
+                        let detail = format!("node server: {err}");
+                        let _ = app.run_on_main_thread(move || {
+                            show_startup_error(&app_for_dialog, &detail);
+                        });
+                        return;
+                    }
+                }
+                open_production_ui(&app, &ui_url);
+            }
+            Err(err) => {
+                let app_for_dialog = app.clone();
+                let detail = err.clone();
+                let _ = app.run_on_main_thread(move || show_startup_error(&app_for_dialog, &detail));
+            }
+        }
+    });
+}
+
+fn open_production_ui(app: &AppHandle, ui_url: &str) {
+    if STARTUP_CANCELLED.load(Ordering::SeqCst) {
+        return;
+    }
+
+    app.manage(launcher::UiBaseUrl(Mutex::new(ui_url.to_string())));
+
+    let app_for_ui = app.clone();
+    let ui_url = ui_url.to_string();
+    if let Err(err) = app.run_on_main_thread(move || {
+        if STARTUP_CANCELLED.load(Ordering::SeqCst) {
+            return;
+        }
+
+        let Some(win) = app_for_ui.get_webview_window("main") else {
+            show_startup_error(&app_for_ui, "main window missing");
+            app_for_ui.exit(1);
+            return;
+        };
+
+        let external: url::Url = match ui_url.parse() {
+            Ok(parsed) => parsed,
+            Err(err) => {
+                show_startup_error(&app_for_ui, &format!("invalid UI url: {err}"));
+                app_for_ui.exit(1);
+                return;
+            }
+        };
+
+        if let Err(err) = win.navigate(external) {
+            show_startup_error(&app_for_ui, &format!("failed to load UI: {err}"));
+            app_for_ui.exit(1);
+        }
+    }) {
+        eprintln!("open production UI callback failed: {err}");
+    }
+}
+
+fn spawn_production_startup(app: AppHandle) {
+    std::thread::spawn(move || {
+        emit_startup_status(&app, "正在初始化…");
+
+        let config = match prepare_production_runtime(&app) {
+            Ok(config) => config,
+            Err(err) => {
+                let app_for_dialog = app.clone();
+                let detail = err.clone();
+                let _ = app.run_on_main_thread(move || show_startup_error(&app_for_dialog, &detail));
+                return;
+            }
+        };
+
+        if STARTUP_CANCELLED.load(Ordering::SeqCst) {
+            return;
+        }
+
+        emit_startup_status(&app, "正在启动语音服务…");
+        voice_plugin::spawn_voice_runtime_background(app.clone());
+
+        spawn_qkrpc_background(app.clone(), config.clone());
+        spawn_node_background(app, config);
+    });
+}
+
+fn register_startup_window_handlers(window: &WebviewWindow, app: &AppHandle) {
+    let app_handle = app.clone();
+    window.on_window_event(move |event| {
+        if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+            STARTUP_CANCELLED.store(true, Ordering::SeqCst);
+            app_handle.exit(0);
+        }
+    });
 }
 
 fn show_startup_error(app: &AppHandle, detail: &str) {
@@ -417,36 +594,17 @@ pub fn run() {
 
                 if let Some(win) = app.get_webview_window("main") {
                     apply_titlebar_chrome_existing(&win);
+                    register_startup_window_handlers(&win, app.handle());
                     let _ = win.center();
                     let _ = win.show();
                 }
 
-                let handle = app.handle().clone();
-                let state = app.state::<BackendState>();
-                let url = match start_production_backends(&handle, state.inner()) {
-                    Ok(url) => url,
-                    Err(err) => {
-                        show_startup_error(&handle, &err);
-                        return Err(err.into());
-                    }
-                };
-                let external: url::Url = url.parse().expect("valid UI url");
-                app.manage(launcher::UiBaseUrl(Mutex::new(url.clone())));
-
-                if let Some(placeholder) = app.get_webview_window("main") {
-                    let _ = placeholder.close();
+                #[cfg(desktop)]
+                if let Err(err) = tray::init(app.handle()) {
+                    eprintln!("[tray] init failed: {err}");
                 }
 
-                apply_titlebar_chrome(
-                    WebviewWindowBuilder::new(&handle, "agent", WebviewUrl::External(external))
-                        .title("QuickerAgent")
-                        .inner_size(1280.0, 800.0)
-                        .center()
-                        .resizable(true)
-                        .visible(true),
-                )
-                .build()?;
-                voice_plugin::spawn_voice_runtime_background(handle.clone());
+                spawn_production_startup(app.handle().clone());
                 Ok(())
             }
         })

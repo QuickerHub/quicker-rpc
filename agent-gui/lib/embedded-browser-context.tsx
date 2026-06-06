@@ -17,6 +17,8 @@ import {
 } from "@/lib/browser-panel-prefs";
 import type { BrowserPanelSnapshot } from "@/lib/browser-panel-types";
 import { EMPTY_BROWSER_PANEL_SNAPSHOT } from "@/lib/browser-panel-types";
+import { workspaceExplorerActionsRef } from "@/lib/workspace-explorer";
+import { SIDE_PANEL_VIEW_BROWSER } from "@/lib/workspace-side-panel-view";
 
 type EmbeddedBrowserContextValue = {
   open: boolean;
@@ -64,6 +66,7 @@ export function EmbeddedBrowserProvider({ children }: { children: ReactNode }) {
     if (patch.url || patch.previewBase64) {
       setOpenState(true);
       storeBrowserPanelOpen(true);
+      workspaceExplorerActionsRef.current.focusSidePanelView(SIDE_PANEL_VIEW_BROWSER);
     }
   }, []);
 

@@ -30,6 +30,8 @@ pnpm dev
 
 `pnpm dev` = `start.mjs --dev`：优先连接本机 `qkrpc serve`（`GET /health`），否则回退为子进程 `qkrpc` CLI。界面齿轮菜单可「重新检测」Quicker 连接。默认**不会**用系统浏览器打开 localhost（`pnpm dev:browser` 或 `AGENT_GUI_OPEN_BROWSER=1` 可开启）。
 
+**开发性能（默认省内存）**：`pnpm dev` 使用 **Turbopack**，且**不在启动时加载**语音识别模型 / Playwright 浏览器运行时（语音在首次点击麦克风时按需启动；浏览器工具在首次调用时启动）。需要旧行为：`pnpm dev:full` 或 `pwsh ../start-agent-gui.ps1 -Full`。Turbopack 异常时：`pnpm dev:webpack`。
+
 ```powershell
 pnpm tauri:dev   # 桌面壳，内置 qkrpc serve + Next（不打开外部浏览器）
 ```

@@ -196,7 +196,7 @@ export function stopTrackedBrowserRuntime(agentGuiRoot, child) {
 }
 
 /**
- * Dev-only: ensure quicker-browser-runtime is listening (reuse or spawn via uv).
+ * Dev-only: ensure Node browser-runtime is listening (reuse or spawn).
  * @param {string} agentGuiRoot
  * @param {string} host
  * @returns {Promise<import('node:child_process').ChildProcess | null>}
@@ -216,20 +216,20 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
 
   reconcileStaleBrowserRuntime(agentGuiRoot);
 
-  const runtimeDir = join(agentGuiRoot, "..", "browser-runtime");
-  if (!existsSync(join(runtimeDir, "pyproject.toml"))) {
+  const entry = join(agentGuiRoot, "browser-runtime", "server.mjs");
+  if (!existsSync(entry)) {
     console.warn(
-      "browser: browser-runtime not found — skip auto-start (set AGENT_GUI_SKIP_BROWSER_RUNTIME=1 to silence)",
+      "browser: browser-runtime/server.mjs not found — skip auto-start (set AGENT_GUI_SKIP_BROWSER_RUNTIME=1 to silence)",
     );
     return null;
   }
 
-  console.log(`browser: starting quicker-browser-runtime at ${base} (uv run)`);
+  console.log(`browser: starting Node browser-runtime at ${base}`);
   const child = spawn(
-    "uv",
-    ["run", "quicker-browser-runtime", "--host", host, "--port", String(port)],
+    process.execPath,
+    [entry, "--host", host, "--port", String(port)],
     {
-      cwd: runtimeDir,
+      cwd: agentGuiRoot,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
       env: {
@@ -262,7 +262,7 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
 
   if (!child.pid) {
     console.warn(
-      "browser: could not spawn uv — install uv and browser-runtime deps, or run pnpm browser:dev-server manually",
+      "browser: could not spawn browser-runtime — run pnpm browser:install && pnpm browser:dev-server",
     );
     return null;
   }

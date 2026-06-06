@@ -52,6 +52,11 @@ let state: AppUpdateOverlayState = {
   voice: hiddenVoice,
 };
 
+const serverSnapshot: AppUpdateOverlayState = {
+  app: hiddenApp,
+  voice: hiddenVoice,
+};
+
 const listeners = new Set<() => void>();
 
 function notifyListeners(): void {
@@ -124,10 +129,7 @@ function getSnapshot(): AppUpdateOverlayState {
 }
 
 function getServerSnapshot(): AppUpdateOverlayState {
-  return {
-    app: hiddenApp,
-    voice: hiddenVoice,
-  };
+  return serverSnapshot;
 }
 
 function subscribe(onStoreChange: () => void): () => void {

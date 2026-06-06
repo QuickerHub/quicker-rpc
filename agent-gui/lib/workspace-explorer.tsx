@@ -24,7 +24,7 @@ import {
   isExplorerTreeDirectoryPath,
   normalizeExplorerTreePath,
 } from "@/lib/action-explorer-tree";
-import { loadExplorerOpen, loadExplorerWidth, loadExplorerPanelView, storeExplorerOpen, storeExplorerPanelView, storeExplorerWidth, EXPLORER_DEFAULT_WIDTH, clampExplorerWidth } from "@/lib/explorer-prefs";
+import { loadExplorerOpen, loadExplorerPanelView, loadChatColumnWidth, storeExplorerOpen, storeExplorerPanelView, storeChatColumnWidth, clampChatColumnWidth } from "@/lib/explorer-prefs";
 import {
   getWorkspaceFileEditorPreview,
   isWorkspaceExplorerFileTool,
@@ -40,6 +40,11 @@ import type { StructuredToolResult } from "@/lib/tool-result";
 import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
 import { basenamePath } from "@/lib/workspace-file-tool";
 import { clearWorkspaceMainEditorDoc } from "@/lib/workspace-main-editor-tab";
+import {
+  SIDE_PANEL_PREVIEW_TAB_ID,
+  SIDE_PANEL_VIEW_BROWSER,
+  SIDE_PANEL_VIEW_EXPLORER,
+} from "@/lib/workspace-side-panel-view";
 
 export type ExplorerFileTab = {
   id: string;
@@ -297,8 +302,15 @@ type WorkspaceExplorerShellContextValue = {
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
   togglePanel: () => void;
-  panelWidth: number;
-  setPanelWidth: (width: number, persist?: boolean) => void;
+  chatColumnWidth: number | null;
+  setChatColumnWidth: (
+    width: number,
+    containerWidth: number,
+    persist?: boolean,
+  ) => void;
+  activeSideView: string;
+  setActiveSideView: (viewId: string) => void;
+  focusSidePanelView: (viewId: string) => void;
 };
 
 const WorkspaceExplorerShellContext =
@@ -311,11 +323,14 @@ export function WorkspaceExplorerShellProvider({
   children: ReactNode;
 }) {
   const [panelOpen, setPanelOpenState] = useState(true);
-  const [panelWidth, setPanelWidthState] = useState(EXPLORER_DEFAULT_WIDTH);
+  const [chatColumnWidth, setChatColumnWidthState] = useState<number | null>(
+    null,
+  );
+  const [activeSideView, setActiveSideViewState] = useState(SIDE_PANEL_VIEW_EXPLORER);
 
   useEffect(() => {
     setPanelOpenState(loadExplorerOpen());
-    setPanelWidthState(loadExplorerWidth());
+    setChatColumnWidthState(loadChatColumnWidth());
   }, []);
 
   const setPanelOpen = useCallback((open: boolean) => {
@@ -326,6 +341,15 @@ export function WorkspaceExplorerShellProvider({
     });
   }, []);
 
+  const setActiveSideView = useCallback((viewId: string) => {
+    setActiveSideViewState((prev) => (prev === viewId ? prev : viewId));
+  }, []);
+
+  const focusSidePanelView = useCallback((viewId: string) => {
+    setPanelOpen(true);
+    setActiveSideViewState(viewId);
+  }, [setPanelOpen]);
+
   const togglePanel = useCallback(() => {
     setPanelOpenState((prev) => {
       const next = !prev;
@@ -334,20 +358,43 @@ export function WorkspaceExplorerShellProvider({
     });
   }, []);
 
-  const setPanelWidth = useCallback((width: number, persist = true) => {
-    const next = clampExplorerWidth(width);
-    setPanelWidthState(next);
-    if (persist) storeExplorerWidth(next);
-  }, []);
+  const setChatColumnWidth = useCallback(
+    (width: number, containerWidth: number, persist = false) => {
+      const next = clampChatColumnWidth(width, containerWidth);
+      setChatColumnWidthState(next);
+      if (persist) storeChatColumnWidth(next, containerWidth);
+    },
+    [],
+  );
 
   const shellValue = useMemo(
-    () => ({ panelOpen, setPanelOpen, togglePanel, panelWidth, setPanelWidth }),
-    [panelOpen, setPanelOpen, togglePanel, panelWidth, setPanelWidth],
+    () => ({
+      panelOpen,
+      setPanelOpen,
+      togglePanel,
+      chatColumnWidth,
+      setChatColumnWidth,
+      activeSideView,
+      setActiveSideView,
+      focusSidePanelView,
+    }),
+    [
+      panelOpen,
+      setPanelOpen,
+      togglePanel,
+      chatColumnWidth,
+      setChatColumnWidth,
+      activeSideView,
+      setActiveSideView,
+      focusSidePanelView,
+    ],
   );
 
   workspaceExplorerActionsRef.current = {
     ...workspaceExplorerActionsRef.current,
     setPanelOpen,
+    setActiveSideView,
+    focusSidePanelView,
   };
 
   return (
@@ -377,6 +424,8 @@ export type WorkspaceExplorerActions = Pick<
   | "refreshTree"
 > & {
   notifyProjectRemoved: () => void;
+  setActiveSideView: (viewId: string) => void;
+  focusSidePanelView: (viewId: string) => void;
 };
 
 const noop = (): void => {};
@@ -389,6 +438,8 @@ const stubExplorerActions: WorkspaceExplorerActions = {
   setPanelOpen: noop,
   refreshTree: async () => {},
   notifyProjectRemoved: noop,
+  setActiveSideView: noop,
+  focusSidePanelView: noop,
 };
 
 /** Updated by the panel provider; chat reads via useWorkspaceExplorerActions without re-rendering on tree changes. */
@@ -414,7 +465,8 @@ export function WorkspaceExplorerPanelProvider({
   cwdPending?: boolean;
   children: ReactNode;
 }) {
-  const { panelOpen, setPanelOpen, togglePanel } = useWorkspaceExplorerShell();
+  const { panelOpen, setPanelOpen, togglePanel, setActiveSideView, focusSidePanelView } =
+    useWorkspaceExplorerShell();
   const initialShell = useMemo(() => createActionExplorerTreeShell(), []);
   const initialSubprogramShell = useMemo(() => createSubProgramExplorerTreeShell(), []);
   const [tree, setTree] = useState<ActionExplorerTree | null>(() => initialShell);
@@ -831,6 +883,7 @@ export function WorkspaceExplorerPanelProvider({
       ) {
         setPanelOpen(true);
         setSelectedPath(normalizedPath);
+        setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
         return;
       }
 
@@ -854,6 +907,7 @@ export function WorkspaceExplorerPanelProvider({
         expandPath(normalizedPath);
       }
       setSelectedPath((prev) => (prev === normalizedPath ? prev : normalizedPath));
+      setActiveSideView(SIDE_PANEL_PREVIEW_TAB_ID);
       setTabs((prev) => {
         const existing = prev.find((tab) => tab.id === PREVIEW_TAB_ID);
         if (
@@ -893,7 +947,7 @@ export function WorkspaceExplorerPanelProvider({
         });
       }
     },
-    [expandPath, loadFileContent, readFileCache, setPanelOpen, writeFileCache],
+    [expandPath, loadFileContent, readFileCache, setActiveSideView, setPanelOpen, writeFileCache],
   );
 
   const revealActionProjectByIdImpl = useCallback(
@@ -996,7 +1050,9 @@ export function WorkspaceExplorerPanelProvider({
       return [];
     });
     setActiveTabId((active) => (active === id ? null : active));
-  }, []);
+    setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
+    clearWorkspaceMainEditorDoc();
+  }, [setActiveSideView]);
 
   const notifyProjectRemoved = useCallback(() => {
     closeTab(PREVIEW_TAB_ID);
@@ -1088,6 +1144,8 @@ export function WorkspaceExplorerPanelProvider({
     setPanelOpen,
     refreshTree,
     notifyProjectRemoved,
+    setActiveSideView,
+    focusSidePanelView,
   };
   workspaceExplorerEditorStateRef.current = { activeTab, closeTab };
 

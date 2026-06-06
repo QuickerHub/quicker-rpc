@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import { getStoredTheme, setStoredTheme, type ThemePreference } from "@/lib/theme";
 import { THEME_OPTIONS } from "@/lib/theme-constants";
 import { computeFloatingMenuLayout } from "@/lib/floating-menu-layout";
+import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 
 const THEME_PANEL_WIDTH_PX = 132;
@@ -38,6 +39,7 @@ export function TitlebarThemeSwitcher({
   variant?: "icon" | "card";
   disabled?: boolean;
 }) {
+  const devExperienceEnabled = useDevExperienceEnabled();
   const [open, setOpen] = useState(false);
   const [preference, setPreference] = useState<ThemePreference>("system");
   const [panelLayout, setPanelLayout] = useState<{
@@ -151,6 +153,8 @@ export function TitlebarThemeSwitcher({
           .filter(Boolean)
           .join(" ")
       : `${triggerClassName ?? "ws-icon-btn"} titlebar-theme-trigger${open ? " titlebar-theme-trigger--open" : ""}`;
+
+  if (!devExperienceEnabled) return null;
 
   return (
     <div className={`titlebar-theme-switcher${variant === "card" ? " titlebar-theme-switcher--card" : ""}`}>

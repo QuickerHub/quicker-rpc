@@ -71,12 +71,16 @@ import {
 import { AppSettingsPopup } from "@/components/chat/AppSettingsPopup";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ReleasePreviewBanner } from "@/components/dev/ReleasePreviewBanner";
+import { ChatConversationHeader } from "@/components/chat/ChatConversationHeader";
+import { WorkspaceSidePanelTabBar } from "@/components/workspace/WorkspaceSidePanelTabBar";
+import { useAppMainSplit } from "@/lib/use-app-main-split";
 import { ChatTitlebar } from "@/components/chat/ChatTitlebar";
 import { SidebarToggle } from "@/components/chat/SidebarToggle";
 import { DocsViewerProvider } from "@/lib/docs-viewer";
 import {
   WorkspaceExplorerPanelProvider,
   WorkspaceExplorerShellProvider,
+  useWorkspaceExplorerShell,
 } from "@/lib/workspace-explorer";
 import { WorkspaceExplorerPanel } from "@/components/workspace/WorkspaceExplorerPanel";
 import { AppMainWorkspaceSplit } from "@/components/workspace/AppMainWorkspaceSplit";
@@ -90,6 +94,7 @@ import {
   type ComposerMarkupFieldHandle,
 } from "./ComposerMarkupField";
 import { ComposerPrimaryActionButton } from "./ComposerPrimaryActionButton";
+import { LastMessageMoreMenu } from "./LastMessageMoreMenu";
 import { MessageParts } from "./MessageParts";
 import { TurnActionLinkCard } from "./TurnActionLinkCard";
 import { ActionTagSelector } from "./ActionTagSelector";
@@ -348,6 +353,9 @@ function ChatPanel({
     formatLlmSelection({ kind: "builtin", providerId: LLM_PROVIDER_ID }),
   );
   const devExperienceEnabled = useDevExperienceEnabled();
+  const { panelOpen } = useWorkspaceExplorerShell();
+  const appMainBodyRef = useRef<HTMLDivElement>(null);
+  const splitStyle = useAppMainSplit(appMainBodyRef, panelOpen);
 
   useEffect(() => {
     setEnabledTools(loadStoredEnabledTools());
@@ -1017,11 +1025,22 @@ function ChatPanel({
       const userEditable =
         isUser && canEditUserMessage(message, userMessageDrafts);
 
-      if (isUser) {
-        const userText = isEditAnchor
+      const userText = isUser
+        ? isEditAnchor
           ? draftMessage
-          : resolveUserMessageDisplayText(message, userMessageDrafts);
+          : resolveUserMessageDisplayText(message, userMessageDrafts)
+        : undefined;
 
+      const isLastMessage =
+        message.id === lastVisibleMessageId && !agentActivity;
+      const lastMessageMenu = isLastMessage ? (
+        <LastMessageMoreMenu
+          message={message}
+          userTextOverride={userText}
+        />
+      ) : null;
+
+      if (isUser) {
         const userArticleClass = `msg msg--user${message.id === lastVisibleMessageId && !agentActivity ? " msg--last" : ""}${isEditAnchor ? " msg--edit-anchor" : ""}${hasLocalDraft ? " msg--local-draft" : ""}${isAfterEditAnchor ? " msg--branch-cutoff" : ""}`;
         const userComposer = (
           <UserMessageComposerChrome
@@ -1060,7 +1079,10 @@ function ChatPanel({
         if (stickyPrompt) {
           return (
             <div key={message.id} className="msg-turn__prompt">
-              <article className={userArticleClass}>{userComposer}</article>
+              <article className={userArticleClass}>
+                {userComposer}
+                {lastMessageMenu}
+              </article>
             </div>
           );
         }
@@ -1068,6 +1090,7 @@ function ChatPanel({
         return (
           <article key={message.id} className={userArticleClass}>
             {userComposer}
+            {lastMessageMenu}
           </article>
         );
       }
@@ -1085,6 +1108,7 @@ function ChatPanel({
                 onSendPrompt={sendTestPrompt}
               />
             </div>
+            {lastMessageMenu}
           </div>
         </article>
       );
@@ -1154,9 +1178,22 @@ function ChatPanel({
 
   return (
     <div
-      className={`app-main${isEmptyThread ? " app-main--empty" : ""}${visible ? "" : " app-main--hidden"}`}
+      className={`app-main${isEmptyThread ? " app-main--empty" : ""}${panelOpen ? " app-main--side-open" : ""}${visible ? "" : " app-main--hidden"}`}
+      style={splitStyle}
       aria-hidden={visible ? undefined : true}
     >
+      <div className="app-main-split-header">
+        <div className="app-main-split-header__chat">
+          <ChatConversationHeader title={threadTitle} />
+        </div>
+        {panelOpen && visible ? (
+          <div className="app-main-split-header__side">
+            <WorkspaceSidePanelTabBar />
+          </div>
+        ) : null}
+      </div>
+      <div ref={appMainBodyRef} className="app-main-body">
+        <div className="app-main-chat-column">
       <div className="messages-view">
       <main
         ref={messagesRef}
@@ -1380,6 +1417,9 @@ function ChatPanel({
           </div>
         </form>
       </footer>
+        </div>
+        {visible ? <WorkspaceExplorerPanel /> : null}
+      </div>
     </div>
   );
 }
@@ -1585,7 +1625,6 @@ export function Chat() {
                     ))}
                   </AppMainWorkspaceSplit>
                 </div>
-                <WorkspaceExplorerPanel />
               </div>
               <AppSettingsPopup
                 open={settingsOpen}

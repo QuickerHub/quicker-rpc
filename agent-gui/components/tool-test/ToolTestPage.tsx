@@ -29,6 +29,7 @@ import {
 } from "@/lib/tool-test-parts";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
+import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
 import { useTauriShell } from "@/lib/tauri-shell";
 import {
   loadToolTestKeepBatchesExpanded,
@@ -585,6 +586,7 @@ export function ToolTestPage() {
                   />
                   <span>保持工具批次展开</span>
                 </label>
+                <TitlebarThemeSwitcher />
                 {isTauri ? <TauriWindowControls /> : null}
               </div>
             </div>

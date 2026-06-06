@@ -8,6 +8,7 @@ from typing import Any
 from aiohttp import web
 
 from quicker_browser_runtime.config import RuntimeConfig
+from quicker_browser_runtime.panel_stream import panel_ws_handler
 from quicker_browser_runtime.session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
@@ -87,14 +88,17 @@ class BrowserRuntimeApp:
         app = web.Application()
         app.router.add_route("OPTIONS", "/health", self.options_handler)
         app.router.add_route("OPTIONS", "/v1/invoke", self.options_handler)
+        app.router.add_route("OPTIONS", "/v1/panel/ws", self.options_handler)
         app.router.add_get("/health", self.health_handler)
         app.router.add_post("/v1/invoke", self.invoke_handler)
+        app.router.add_get("/v1/panel/ws", panel_ws_handler)
         return app
 
 
 async def run_server(config: RuntimeConfig, manager: SessionManager) -> None:
     runtime = BrowserRuntimeApp(config, manager)
     app = runtime.create_web_app()
+    app["session_manager"] = manager
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, config.host, config.port)

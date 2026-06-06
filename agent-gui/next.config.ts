@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
       "agent-gui/.next/**",
       "publish/**",
       "voice-asr-runtime/**",
-      "browser-runtime/**",
+      "../browser-runtime/**",
     ],
   },
   serverExternalPackages: [
@@ -32,6 +32,7 @@ const nextConfig: NextConfig = {
     ];
   },
   experimental: {
+    webpackMemoryOptimizations: true,
     serverActions: {
       bodySizeLimit: "4mb",
     },

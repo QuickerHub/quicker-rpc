@@ -1,0 +1,43 @@
+"use client";
+
+import {
+  SidePanelIconBrowser,
+  SidePanelIconExplorer,
+} from "@/components/workspace/side-panel-view-icons";
+import { useSidePanelBrowserToggle } from "@/lib/use-side-panel-browser-toggle";
+import { useSidePanelExplorerToggle } from "@/lib/use-side-panel-explorer-toggle";
+
+/** Icon toggles for workspace side views (Cursor-style activity buttons). */
+export function WorkspaceSideViewTriggers() {
+  const explorer = useSidePanelExplorerToggle();
+  const browser = useSidePanelBrowserToggle();
+
+  return (
+    <div
+      className="side-view-triggers"
+      role="toolbar"
+      aria-label="工作区视图"
+    >
+      <button
+        type="button"
+        className={`side-view-trigger-btn${explorer.active ? " side-view-trigger-btn--active" : ""}`}
+        onClick={explorer.toggle}
+        aria-pressed={explorer.active}
+        aria-label="资源管理"
+        title="资源管理"
+      >
+        <SidePanelIconExplorer />
+      </button>
+      <button
+        type="button"
+        className={`side-view-trigger-btn${browser.active ? " side-view-trigger-btn--active" : ""}`}
+        onClick={browser.toggle}
+        aria-pressed={browser.active}
+        aria-label="浏览器"
+        title="浏览器"
+      >
+        <SidePanelIconBrowser />
+      </button>
+    </div>
+  );
+}

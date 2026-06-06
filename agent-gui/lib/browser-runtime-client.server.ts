@@ -1,13 +1,9 @@
-import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import {
   buildBrowserHealthUrl,
   buildBrowserInvokeUrl,
   resolveBrowserHost,
   resolveBrowserPort,
 } from "@/lib/browser-config";
-import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
 
 export type BrowserInvokeResult = {
   ok: boolean;
@@ -16,7 +12,7 @@ export type BrowserInvokeResult = {
   message?: string;
 };
 
-let spawnAttempted = false;
+let ensureInFlight: Promise<void> | null = null;
 
 function normalizeBase(url: string): string {
   return url.replace(/\/$/, "");
@@ -43,87 +39,42 @@ export async function checkBrowserRuntimeHealth(timeoutMs = 3000): Promise<boole
   }
 }
 
-async function waitForBrowserRuntimeHealth(maxMs = 45_000): Promise<void> {
-  const deadline = Date.now() + maxMs;
-  while (Date.now() < deadline) {
-    if (await checkBrowserRuntimeHealth(2500)) return;
-    await new Promise((r) => setTimeout(r, 300));
+async function startBrowserRuntimeDev(): Promise<void> {  if (process.env.AGENT_GUI_SKIP_BROWSER_RUNTIME === "1") {
+    throw new Error("Browser runtime disabled (AGENT_GUI_SKIP_BROWSER_RUNTIME=1)");
   }
-  throw new Error(`browser runtime did not become ready at ${buildBrowserHealthUrl()}`);
-}
-
-function resolveBrowserRuntimeDir(): string | null {
-  const agentGuiRoot = join(process.cwd());
-  const sibling = join(agentGuiRoot, "..", "browser-runtime");
-  if (existsSync(join(sibling, "pyproject.toml"))) {
-    return sibling;
+  if (process.env.NODE_ENV !== "development") {
+    throw new Error("Browser runtime auto-start is dev-only");
   }
-  const repoRoot = resolveQuickerRpcRepoRoot();
-  if (repoRoot) {
-    const fromRepo = join(repoRoot, "browser-runtime");
-    if (existsSync(join(fromRepo, "pyproject.toml"))) {
-      return fromRepo;
-    }
-  }
-  return null;
-}
 
-async function trySpawnBrowserRuntimeDev(): Promise<boolean> {
-  if (spawnAttempted) return false;
-  if (process.env.AGENT_GUI_SKIP_BROWSER_RUNTIME === "1") return false;
-  if (process.env.NODE_ENV !== "development") return false;
-
-  const runtimeDir = resolveBrowserRuntimeDir();
-  if (!runtimeDir) return false;
-
-  spawnAttempted = true;
+  const lifecycle = await import("@/lib/browser-runtime-lifecycle.mjs");
   const host = resolveBrowserHost();
   const port = resolveBrowserPort();
+  const base = `http://${host}:${port}`;
 
-  return new Promise((resolve) => {
-    const child = spawn(
-      "uv",
-      ["run", "quicker-browser-runtime", "--host", host, "--port", String(port)],
-      {
-        cwd: runtimeDir,
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-        env: {
-          ...process.env,
-          QUICKER_BROWSER_HOST: host,
-          QUICKER_BROWSER_PORT: String(port),
-        },
-      },
-    );
+  if (await lifecycle.checkBrowserRuntimeHealth(base)) return;
 
-    child.stdout?.on("data", (chunk) => {
-      const line = chunk.toString().trimEnd();
-      if (line) console.log(`[browser] ${line}`);
-    });
-    child.stderr?.on("data", (chunk) => {
-      const line = chunk.toString().trimEnd();
-      if (line) console.error(`[browser] ${line}`);
-    });
-    child.on("error", () => resolve(false));
-
-    waitForBrowserRuntimeHealth()
-      .then(() => resolve(true))
-      .catch(() => {
-        child.kill();
-        resolve(false);
-      });
-  });
+  await lifecycle.ensureBrowserRuntime(process.cwd(), host);
+  if (!(await lifecycle.checkBrowserRuntimeHealth(base))) {
+    throw new Error(`browser runtime did not become ready at ${base}/health`);
+  }
 }
 
 export async function ensureBrowserRuntimeReady(): Promise<void> {
   if (await checkBrowserRuntimeHealth()) return;
-  const spawned = await trySpawnBrowserRuntimeDev();
-  if (spawned && (await checkBrowserRuntimeHealth())) return;
 
-  throw new Error(
-    "Browser runtime is not running. Start it with: pnpm browser:dev-server "
-    + `(or uv run --directory ../browser-runtime quicker-browser-runtime). Expected ${buildBrowserHealthUrl()}`,
-  );
+  if (!ensureInFlight) {
+    ensureInFlight = startBrowserRuntimeDev().finally(() => {
+      ensureInFlight = null;
+    });
+  }
+  await ensureInFlight;
+
+  if (!(await checkBrowserRuntimeHealth())) {
+    throw new Error(
+      "Browser runtime is not running. Start it with: pnpm browser:dev-server "
+      + `(Expected ${buildBrowserHealthUrl()})`,
+    );
+  }
 }
 
 export async function invokeBrowserRuntime(

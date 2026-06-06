@@ -4,6 +4,7 @@ import { appConfirm } from "@/lib/app-confirm";
 import { dismissAppMessage, pushAppMessage } from "@/lib/app-messages";
 import { isTauriShell } from "@/lib/tauri-shell";
 import { devVoicePluginInstall } from "@/lib/voice-input/voice-input-dev-install";
+import { requestDevVoiceRuntimeStart } from "@/lib/voice-input/voice-input-dev-runtime";
 import { fetchVoiceRuntimeHealth } from "@/lib/voice-input/voice-input-health";
 import { getVoiceWsPort } from "@/lib/voice-input/voice-input-config";
 import {
@@ -204,6 +205,9 @@ async function startRuntimeIfNeeded(
     showInstallProgress({ percent: 95, message: "正在启动语音服务…" });
     if (isTauriShell()) {
       return tauriVoicePluginStartRuntime();
+    }
+    if (process.env.NODE_ENV === "development") {
+      await requestDevVoiceRuntimeStart();
     }
   }
 

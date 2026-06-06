@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
   addThread,
@@ -9,16 +9,12 @@ import {
   getOpenTabThreads,
   selectThread,
 } from "@/lib/chat-store";
-import { WorkspaceExplorerFileTabs } from "@/components/workspace/WorkspaceExplorerFileTabs";
-import { ExplorerPanelToggle } from "@/components/workspace/WorkspaceExplorerPanel";
-import { useDocsViewer } from "@/lib/docs-viewer";
-import {
-  useWorkspaceExplorerEditor,
-  useWorkspaceExplorerShell,
-} from "@/lib/workspace-explorer";
+import { plainTitleText } from "@/lib/plain-title-text";
 import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
+import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
 import { useShellPlatform, useTauriShell } from "@/lib/tauri-shell";
+import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 
 type ChatTitlebarProps = {
   store: ChatStoreData;
@@ -64,51 +60,9 @@ function IconClose() {
   );
 }
 
-function plainTitleText(raw: string): string {
-  const withoutTags = raw.replace(/<[^>]*>/g, " ");
-  const normalized = withoutTags.replace(/\s+/g, " ").trim();
-  return normalized || "新对话";
-}
-
-function TitlebarWindowControls({
-  isTauri,
-  platform,
-}: {
-  isTauri: boolean;
-  platform: ReturnType<typeof useShellPlatform>;
-}) {
+function TitlebarWindowControls({ isTauri }: { isTauri: boolean }) {
   if (!isTauri) return null;
-
-  return (
-    <div
-      className={[
-        "titlebar-actions",
-        "titlebar-actions--window-controls-only",
-        platform !== "macos" ? "titlebar-actions--with-window-controls" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    >
-      <TauriWindowControls />
-    </div>
-  );
-}
-
-function TitlebarTrailing({
-  isTauri,
-  platform,
-}: {
-  isTauri: boolean;
-  platform: ReturnType<typeof useShellPlatform>;
-}) {
-  return (
-    <>
-      <div className="titlebar-actions">
-        <ExplorerPanelToggle className="titlebar-action-btn ws-icon-btn" />
-      </div>
-      <TitlebarWindowControls isTauri={isTauri} platform={platform} />
-    </>
-  );
+  return <TauriWindowControls />;
 }
 
 export function ChatTitlebar({
@@ -171,14 +125,13 @@ export function ChatTitlebar({
     });
   }, [activeThread.id, tabThreads.length]);
 
-  const { panelOpen, panelWidth } = useWorkspaceExplorerShell();
-  const { activeDoc } = useDocsViewer();
-  const { tabs: fileTabs } = useWorkspaceExplorerEditor();
-  const showEditorPane = fileTabs.length > 0 || activeDoc != null;
   const isTauri = useTauriShell();
   const platform = useShellPlatform();
+  const devExperienceEnabled = useDevExperienceEnabled();
+  const showTitlebarTrailing = isTauri || devExperienceEnabled;
   const titlebarClass = [
     "app-titlebar",
+    "app-titlebar--tabs-only",
     isTauri ? "app-titlebar--tauri" : "",
     isTauri && platform !== "macos" ? "app-titlebar--frameless" : "",
     isTauri && platform === "macos" ? "app-titlebar--mac-overlay" : "",
@@ -187,19 +140,10 @@ export function ChatTitlebar({
     .join(" ");
 
   return (
-    <header
-      className={titlebarClass}
-      style={
-        panelOpen
-          ? ({ "--titlebar-explorer-width": `${panelWidth}px` } as CSSProperties)
-          : undefined
-      }
-    >
+    <header className={titlebarClass}>
       <div className="titlebar-content-row">
         <div className="titlebar-main-column">
-          <div
-            className={`titlebar-main-zone${showEditorPane ? " titlebar-main-zone--editor-open" : ""}`}
-          >
+          <div className="titlebar-main-zone">
             <div className="titlebar-chat-zone">
               <div
                 className="titlebar-tabs"
@@ -256,38 +200,27 @@ export function ChatTitlebar({
                 <TitlebarDragRegion className="titlebar-drag-fill" />
               </div>
             </div>
-
-            {showEditorPane ? (
-              <div className="titlebar-editor-zone">
-                <WorkspaceExplorerFileTabs />
-                <TitlebarDragRegion className="titlebar-drag-fill" />
-              </div>
-            ) : null}
           </div>
         </div>
-
-        {panelOpen ? (
-          <div
-            className="titlebar-explorer-spacer"
-            style={{ width: panelWidth, flex: `0 0 ${panelWidth}px` }}
-            aria-hidden
-          >
-            <TitlebarDragRegion className="titlebar-drag-fill titlebar-drag-fill--block" />
-          </div>
-        ) : null}
       </div>
 
-      {panelOpen ? (
-        <div className="titlebar-chrome titlebar-chrome--over-explorer">
-          <div className="titlebar-trailing">
-            <TitlebarTrailing isTauri={isTauri} platform={platform} />
+      {showTitlebarTrailing ? (
+        <div className="titlebar-trailing titlebar-trailing--window-controls">
+          <div
+            className={[
+              "titlebar-actions",
+              isTauri && platform !== "macos"
+                ? "titlebar-actions--with-window-controls"
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            <TitlebarThemeSwitcher />
+            <TitlebarWindowControls isTauri={isTauri} />
           </div>
         </div>
-      ) : (
-        <div className="titlebar-trailing">
-          <TitlebarTrailing isTauri={isTauri} platform={platform} />
-        </div>
-      )}
+      ) : null}
     </header>
   );
 }

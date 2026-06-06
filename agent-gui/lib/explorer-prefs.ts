@@ -1,5 +1,6 @@
 export const EXPLORER_OPEN_STORAGE_KEY = "agent-gui-explorer-open";
 export const EXPLORER_WIDTH_STORAGE_KEY = "agent-gui-explorer-width";
+export const CHAT_COLUMN_WIDTH_STORAGE_KEY = "agent-gui-chat-column-width";
 export const EXPLORER_TREE_SHARE_STORAGE_KEY = "agent-gui-explorer-tree-share";
 export const EXPLORER_PANEL_VIEW_STORAGE_KEY = "agent-gui-explorer-panel-view";
 
@@ -56,6 +57,50 @@ export function storeExplorerWidth(width: number): void {
     localStorage.setItem(
       EXPLORER_WIDTH_STORAGE_KEY,
       String(clampExplorerWidth(width)),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Pinned chat column width when the in-panel side split is open. */
+export function clampChatColumnWidth(
+  width: number,
+  containerWidth: number,
+): number {
+  if (!Number.isFinite(width) || !Number.isFinite(containerWidth)) {
+    return CHAT_MAIN_MIN_WIDTH;
+  }
+  const maxChat = Math.max(
+    CHAT_MAIN_MIN_WIDTH,
+    containerWidth - EXPLORER_MIN_WIDTH,
+  );
+  return Math.round(Math.min(maxChat, Math.max(CHAT_MAIN_MIN_WIDTH, width)));
+}
+
+export function defaultChatColumnWidth(containerWidth: number): number {
+  return clampChatColumnWidth(Math.round(containerWidth / 2), containerWidth);
+}
+
+export function loadChatColumnWidth(): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(CHAT_COLUMN_WIDTH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function storeChatColumnWidth(width: number, containerWidth: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(
+      CHAT_COLUMN_WIDTH_STORAGE_KEY,
+      String(clampChatColumnWidth(width, containerWidth)),
     );
   } catch {
     /* ignore */

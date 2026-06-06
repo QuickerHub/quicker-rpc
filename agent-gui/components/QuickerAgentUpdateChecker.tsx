@@ -130,14 +130,21 @@ export function QuickerAgentUpdateChecker() {
 
           const update = getPendingOfficialUpdate();
           if (!update) return;
-
-          event.preventDefault();
           if (!tryBeginAppUpdateApply()) return;
 
+          event.preventDefault();
           exitApplyTriggeredRef.current = true;
           showApplyingAppUpdateOverlay("", update.version);
           try {
-            await installPendingOfficialUpdateOnExit();
+            await Promise.race([
+              installPendingOfficialUpdateOnExit(),
+              new Promise<never>((_, reject) => {
+                window.setTimeout(
+                  () => reject(new Error("更新安装超时，请从托盘菜单退出后手动安装")),
+                  120_000,
+                );
+              }),
+            ]);
           } catch {
             exitApplyTriggeredRef.current = false;
             patchAppUpdateOverlay({

@@ -10,7 +10,8 @@
 
 param(
     [switch]$Browser,
-    [switch]$SkipKill
+    [switch]$SkipKill,
+    [switch]$Full
 )
 
 $ErrorActionPreference = 'Stop'
@@ -150,7 +151,12 @@ try {
         Write-Warning "qkrpc serve not healthy at http://127.0.0.1:9477 — run pwsh ./build.ps1 -t first (or start.mjs will try staged qkrpc)."
     }
 
-    $devScript = if ($Browser) { 'dev:browser' } else { 'dev' }
+    if ($Full) {
+        $env:AGENT_GUI_VOICE_RUNTIME = '1'
+        Write-Host "Dev mode: full runtimes (voice at boot). Default dev skips voice/browser for lower RAM." -ForegroundColor DarkGray
+    }
+
+    $devScript = if ($Browser) { 'dev:browser' } elseif ($Full) { 'dev:full' } else { 'dev' }
     Write-Host "=== agent-gui ($devScript) ===" -ForegroundColor Cyan
     pnpm --dir agent-gui $devScript
     exit $LASTEXITCODE

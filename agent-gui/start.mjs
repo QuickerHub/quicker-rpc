@@ -27,13 +27,14 @@ import {
   stopTrackedVoiceRuntime,
 } from "./lib/voice-runtime-lifecycle.mjs";
 import {
-  ensureBrowserRuntime,
   stopTrackedBrowserRuntime,
 } from "./lib/browser-runtime-lifecycle.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const isDev = process.argv.includes("--dev");
+const devFullRuntimes = process.argv.includes("--full-runtimes");
+const devWebpack = process.argv.includes("--webpack");
 const openBrowserCli = process.argv.includes("--open-browser");
 
 /** Prefer portable Node shipped in publish package. */
@@ -321,8 +322,17 @@ async function main() {
   await ensureBundledQkrpcServe(host);
 
   if (isDev) {
-    voiceChild = await ensureVoiceRuntime(root, host);
-    browserChild = await ensureBrowserRuntime(root, host);
+    const startVoiceAtBoot =
+      process.env.AGENT_GUI_VOICE_RUNTIME === "1"
+      || devFullRuntimes;
+    if (startVoiceAtBoot) {
+      voiceChild = await ensureVoiceRuntime(root, host);
+    } else {
+      console.log(
+        "voice: skipped at dev boot (lazy-start on first use; AGENT_GUI_VOICE_RUNTIME=1 or pnpm dev:full to eager-start)",
+      );
+    }
+    // Browser runtime lazy-starts on first tool/API invoke (see browser-runtime-client.server.ts).
   }
 
   const port = await resolveUiPort(host);
@@ -336,9 +346,16 @@ async function main() {
     openBrowser(url);
     const nextBin = require.resolve("next/dist/bin/next");
     const nodeExe = resolveNodeExe();
+    const useTurbo = process.env.AGENT_GUI_TURBOPACK !== "0" && !devWebpack;
+    const nextArgs = ["dev", "--port", String(port), "-H", host];
+    if (useTurbo) {
+      nextArgs.push("--turbo");
+    } else {
+      console.log("next: webpack dev (AGENT_GUI_TURBOPACK=0)");
+    }
     const child = spawn(
       nodeExe,
-      [nextBin, "dev", "--port", String(port), "-H", host],
+      [nextBin, ...nextArgs],
       { cwd: root, stdio: ["inherit", "pipe", "pipe"], env: process.env },
     );
     wireNextDevOutput(root, child);

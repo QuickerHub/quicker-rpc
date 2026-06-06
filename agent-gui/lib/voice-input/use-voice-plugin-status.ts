@@ -12,6 +12,7 @@ import { fetchTauriVoicePluginStatus } from "@/lib/voice-input/voice-input-tauri
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
 
 const POLL_MS = 5_000;
+const POLL_MS_IDLE = 30_000;
 
 function mapHealthToStatus(
   health: Awaited<ReturnType<typeof fetchVoiceRuntimeHealth>>,
@@ -114,14 +115,19 @@ export function useVoicePluginStatus(active = true): VoicePluginStatus {
     window.addEventListener("voice-input-config-changed", onChange);
     window.addEventListener("storage", onChange);
 
-    const timer = window.setInterval(() => void refresh(), POLL_MS);
+    const pollMs =
+      status === "running" || status === "starting" || status === "downloading"
+        ? POLL_MS
+        : POLL_MS_IDLE;
+    const timer = window.setInterval(() => void refresh(), pollMs);
+
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("voice-input-mock-changed", onChange);
       window.removeEventListener("voice-input-config-changed", onChange);
       window.removeEventListener("storage", onChange);
     };
-  }, [active, refresh]);
+  }, [active, refresh, status]);
 
   return status;
 }
