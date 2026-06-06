@@ -49,14 +49,14 @@ const nextConfig: NextConfig = {
         "HotModuleReplacementPlugin",
       ]);
       config.plugins = config.plugins?.filter(
-        (plugin) =>
+        (plugin: { constructor: { name: string } } | false | 0 | "" | null | undefined) =>
           plugin != null && !blocked.has(plugin.constructor.name),
       );
       for (const rule of config.module.rules) {
         if (!("oneOf" in rule) || !Array.isArray(rule.oneOf)) continue;
         for (const one of rule.oneOf) {
           if (!one || !Array.isArray(one.use)) continue;
-          one.use = one.use.filter((loader) => {
+          one.use = one.use.filter((loader: unknown) => {
             const path =
               typeof loader === "string"
                 ? loader
