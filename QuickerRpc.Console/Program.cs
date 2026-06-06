@@ -425,10 +425,15 @@ internal static partial class Program
 
     private static async Task<int> RunActionSearchAsync(ActionOptions options)
     {
-        var query = (options.Query ?? string.Empty).Trim();
+        if (!ActionQueryFilter.TryResolveQuery(options.Query, options.QueryFile, options.Filter, out var query, out var filterError))
+        {
+            await EmitErrorAsync(options.Json, "INVALID_QUERY", filterError ?? "Invalid query.").ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
         if (string.IsNullOrWhiteSpace(query))
         {
-            await EmitErrorAsync(options.Json, "MISSING_QUERY", "Provide --query <keyword>.")
+            await EmitErrorAsync(options.Json, "MISSING_QUERY", "Provide --query, --query-file, or --filter library|local|published.")
                 .ConfigureAwait(false);
             return ExitCodes.Error;
         }
@@ -1197,8 +1202,14 @@ public sealed class ActionOptions
     [Option("no-submit-review", HelpText = "Do not auto-submit public action for review (action publish).")]
     public bool NoSubmitReview { get; set; }
 
-    [Option('q', "query", HelpText = "Search keyword for action search/list.")]
+    [Option('q', "query", HelpText = "Plain keyword, legacy prefix (source:library|uses:Sub), or JSON query with filter/sorter scripts.")]
     public string? Query { get; set; }
+
+    [Option("query-file", HelpText = "Read --query JSON/text from a UTF-8 file.")]
+    public string? QueryFile { get; set; }
+
+    [Option("filter", HelpText = "Install source filter for list/search: library|installed|local|published.")]
+    public string? Filter { get; set; }
 
     [Option("scope", HelpText = "Limit to process/scene: chrome, global, common, default, taskbar, desktop, agent, profile id/name.")]
     public string? Scope { get; set; }

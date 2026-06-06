@@ -51,4 +51,43 @@ public sealed class ActionSearchQueryTests
     {
         Assert.IsFalse(ActionSearchQuery.TryParseSubProgramReference("uses:", out _));
     }
+
+    [TestMethod]
+    public void TryParseSourceFilter_library_prefix()
+    {
+        Assert.IsTrue(ActionSearchQuery.TryParseSourceFilter("source:library", out var parsed, out var keyword));
+        Assert.AreEqual(ActionSourceFilterKind.Library, parsed.Kind);
+        Assert.AreEqual(string.Empty, keyword);
+    }
+
+    [TestMethod]
+    public void TryParseSourceFilter_library_with_keyword()
+    {
+        Assert.IsTrue(ActionSearchQuery.TryParseSourceFilter("installed:剪贴板", out var parsed, out var keyword));
+        Assert.AreEqual(ActionSourceFilterKind.Library, parsed.Kind);
+        Assert.AreEqual("剪贴板", keyword);
+    }
+
+    [TestMethod]
+    public void TryParseSourceFilter_shared_id()
+    {
+        Assert.IsTrue(
+            ActionSearchQuery.TryParseSourceFilter(
+                "shared:f5c76108-3ce9-433f-8cd0-8f0d9c562052 测试",
+                out var parsed,
+                out var keyword));
+        Assert.AreEqual(ActionSourceFilterKind.SharedId, parsed.Kind);
+        Assert.AreEqual("f5c76108-3ce9-433f-8cd0-8f0d9c562052", parsed.SharedId);
+        Assert.AreEqual("测试", keyword);
+    }
+
+    [TestMethod]
+    public void TryParseSubProgramReference_after_source_filter()
+    {
+        Assert.IsTrue(
+            ActionSearchQuery.TryParseSubProgramReference(
+                "source:local uses:CeaCore_Run",
+                out var parsed));
+        Assert.AreEqual("CeaCore_Run", parsed.SubProgramRef);
+    }
 }

@@ -485,11 +485,17 @@ public sealed class HeadlessActionProgramService
         var queryValue = (query ?? string.Empty).Trim();
         var scopeValue = string.IsNullOrWhiteSpace(scope) ? null : scope.Trim();
         var limit = ActionSummarySort.ClampLimit(maxResults);
-        var sortMode = ActionSummarySort.Resolve(sort, queryValue.Length == 0);
-        var queryIsEmpty = queryValue.Length == 0;
 
-        if (!queryIsEmpty
-            && ActionSearchQuery.TryParseSubProgramReference(queryValue, out var subProgramSearch)
+        if (!ActionSearchQuerySpec.TryParse(queryValue, out var spec, out var parseError))
+        {
+            return new QuickerRpcSearchActionSummariesResult
+            {
+                Success = false,
+                ErrorMessage = parseError ?? "Invalid action query.",
+            };
+        }
+
+        if (spec.SubProgramSearch is { } subProgramSearch
             && !ActionSubProgramCallScanner.TryResolveSubProgram(
                 subProgramSearch.SubProgramRef,
                 out _,
@@ -502,58 +508,83 @@ public sealed class HeadlessActionProgramService
                 ErrorMessage = resolveError ?? $"Subprogram not found: {subProgramSearch.SubProgramRef}",
             };
         }
-        var limitInMatch = !queryIsEmpty && sortMode == ActionSummarySortMode.Relevance;
-        // Empty query: library-wide recent edits (composer @-mention, monitor). With query: XAction summaries for agent list/search.
-        Func<ActionItem, bool>? actionFilter = queryIsEmpty
-            ? null
-            : action => _actions!.IsXAction(action);
 
-        var matches = queryIsEmpty
-            ? ActionCatalogSearch.ListRecentByLastEdit(
+        if (spec.SourceFilter is { Kind: ActionSourceFilterKind.SharedId } sharedFilter
+            && !Guid.TryParse((sharedFilter.SharedId ?? string.Empty).Trim(), out _))
+        {
+            return new QuickerRpcSearchActionSummariesResult
+            {
+                Success = false,
+                ErrorMessage = $"Invalid shared action id: {sharedFilter.SharedId}",
+            };
+        }
+
+        var queryIsEmpty = spec.IsEmpty;
+        var sortMode = spec.HasSorterScript
+            ? ActionSummarySortMode.Relevance
+            : ActionSummarySort.Resolve(sort, queryIsEmpty);
+        var limitInMatch = !queryIsEmpty
+            && (spec.HasSorterScript || sortMode == ActionSummarySortMode.Relevance);
+        Func<ActionItem, bool>? actionFilter = spec.ApplyXActionCatalogFilter
+            ? action => _actions!.IsXAction(action)
+            : null;
+
+        if (!ActionCatalogSearch.TryMatchSpec(
+                spec,
                 scopeValue,
                 limit,
                 actionFilter,
-                action => _actions.GetEditVersion(action))
-            : ActionCatalogSearch.Match(
-                queryValue,
-                scopeValue,
-                limit,
-                actionFilter,
-                limitResults: limitInMatch);
+                action => _actions!.GetEditVersion(action),
+                limitResults: limitInMatch,
+                out var matches,
+                out var matchError))
+        {
+            return new QuickerRpcSearchActionSummariesResult
+            {
+                Success = false,
+                ErrorMessage = matchError ?? "Action search failed.",
+            };
+        }
 
         var rows = matches
-            .Select(x => (Match: x, EditMs: _actions.GetEditVersion(x.Entry.Action)))
+            .Select(x => (Match: x, EditMs: _actions!.GetEditVersion(x.Entry.Action)))
             .Where(x => _actions.GetActionId(x.Match.Entry.Action).Length > 0)
             .ToList();
 
-        var ordered = sortMode switch
-        {
-            ActionSummarySortMode.LastEditDesc => queryIsEmpty
-                ? rows
-                : rows
-                    .OrderByDescending(x => x.EditMs)
+        var ordered = spec.HasSorterScript
+            ? rows.AsEnumerable()
+            : sortMode switch
+            {
+                ActionSummarySortMode.LastEditDesc => queryIsEmpty
+                    ? rows
+                    : rows
+                        .OrderByDescending(x => x.EditMs)
+                        .Take(limit),
+                ActionSummarySortMode.TitleAsc => rows
+                    .OrderBy(x => x.Match.Entry.Action.Title, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(x => _actions.GetActionId(x.Match.Entry.Action), StringComparer.Ordinal)
                     .Take(limit),
-            ActionSummarySortMode.TitleAsc => rows
-                .OrderBy(x => x.Match.Entry.Action.Title, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(x => _actions.GetActionId(x.Match.Entry.Action), StringComparer.Ordinal)
-                .Take(limit),
-            _ => rows.AsEnumerable(),
-        };
+                _ => rows.AsEnumerable(),
+            };
 
         var items = ordered.Select(x =>
         {
+            var action = x.Match.Entry.Action;
             var lastEditUtc = FormatUtcFromVersion(x.EditMs);
             return new QuickerRpcActionSummaryItem
             {
-                ActionId = _actions!.GetActionId(x.Match.Entry.Action),
-                Title = x.Match.Entry.Action.Title ?? string.Empty,
-                Description = x.Match.Entry.Action.Description ?? string.Empty,
-                Icon = x.Match.Entry.Action.Icon ?? string.Empty,
+                ActionId = _actions!.GetActionId(action),
+                Title = action.Title ?? string.Empty,
+                Description = action.Description ?? string.Empty,
+                Icon = action.Icon ?? string.Empty,
                 LastEditTimeUtc = lastEditUtc,
                 LastEditTimeLocal = LocalTimeDisplay.FormatUtcIso(lastEditUtc),
                 ProfileId = x.Match.Entry.Profile?.Id,
                 ProfileName = x.Match.Entry.Profile?.Name ?? string.Empty,
                 ExeFile = x.Match.Entry.Profile?.ExeFile,
+                TemplateId = ActionItemSourceHelper.GetTemplateId(action),
+                SharedActionId = ActionItemSourceHelper.GetSharedActionId(action),
+                Source = ActionItemSourceHelper.ResolveKindToken(action),
             };
         }).ToList();
 

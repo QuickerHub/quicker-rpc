@@ -8,6 +8,187 @@ namespace QuickerRpc.Plugin.Services;
 
 internal static class ActionCatalogSearch
 {
+    public static bool TryMatchSpec(
+        ActionSearchQuerySpec spec,
+        string? scope,
+        int maxResults,
+        Func<ActionItem, bool>? actionFilter,
+        Func<ActionItem, long> getEditMs,
+        bool limitResults,
+        out IReadOnlyList<(int Score, ActionCatalogEntry Entry)> matches,
+        out string? error)
+    {
+        matches = Array.Empty<(int, ActionCatalogEntry)>();
+        error = null;
+
+        if (spec.IsEmpty)
+        {
+            matches = ListRecentByLastEdit(scope, maxResults, actionFilter, getEditMs);
+            return true;
+        }
+
+        if (spec.SubProgramSearch is { } subProgramSearch)
+        {
+            matches = MatchSubProgramReference(subProgramSearch, scope, maxResults, actionFilter, limitResults);
+            return true;
+        }
+
+        if (spec.SourceFilter is { } sourceFilter
+            && !spec.HasFilterScript
+            && !spec.HasSorterScript)
+        {
+            var legacyKeyword = spec.Keyword ?? string.Empty;
+            matches = MatchSourceFilter(sourceFilter, legacyKeyword, scope, maxResults, actionFilter, limitResults);
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(spec.Keyword)
+            && !spec.HasFilterScript
+            && !spec.HasSorterScript
+            && spec.SourceFilter is null)
+        {
+            matches = Match(
+                spec.Keyword,
+                scope,
+                maxResults,
+                actionFilter,
+                limitResults);
+            return true;
+        }
+
+        return TryMatchWithScripts(
+            spec,
+            scope,
+            maxResults,
+            actionFilter,
+            getEditMs,
+            limitResults,
+            out matches,
+            out error);
+    }
+
+    private static bool TryMatchWithScripts(
+        ActionSearchQuerySpec spec,
+        string? scope,
+        int maxResults,
+        Func<ActionItem, bool>? actionFilter,
+        Func<ActionItem, long> getEditMs,
+        bool limitResults,
+        out IReadOnlyList<(int Score, ActionCatalogEntry Entry)> matches,
+        out string? error)
+    {
+        matches = Array.Empty<(int, ActionCatalogEntry)>();
+        error = null;
+
+        ActionSearchScriptEvaluator? scriptEvaluator = null;
+        if (spec.UsesScript)
+        {
+            if (!QuickerHost.IsRunningInQuicker())
+            {
+                error = "Script filter/sorter requires Quicker runtime (Z.Expressions).";
+                return false;
+            }
+
+            scriptEvaluator = new ActionSearchScriptEvaluator();
+        }
+
+        var keyword = spec.Keyword ?? string.Empty;
+        var keywordIsEmpty = keyword.Length == 0;
+        var candidates = new List<(int Score, ActionCatalogEntry Entry, long EditMs, ActionSearchScriptRow Row)>();
+
+        foreach (var entry in ActionCatalogEnumerator.Enumerate(scope))
+        {
+            if (actionFilter is not null && !actionFilter(entry.Action))
+            {
+                continue;
+            }
+
+            if (spec.SourceFilter is { } sourceFilter
+                && !ActionItemSourceHelper.MatchesSourceFilter(entry.Action, sourceFilter))
+            {
+                continue;
+            }
+
+            var editMs = getEditMs(entry.Action);
+            var score = keywordIsEmpty
+                ? ActionSearchQuery.SourceFilterScore
+                : ActionSearchFuzzyMatch.ComputeScore(
+                    keyword,
+                    entry.Action.Id,
+                    entry.Action.Title ?? string.Empty,
+                    entry.Action.Description,
+                    entry.Profile?.Name,
+                    entry.Profile?.ExeFile);
+            if (!keywordIsEmpty && score <= 0)
+            {
+                continue;
+            }
+
+            var row = ActionSearchScriptRow.FromEntry(entry, editMs, score);
+            if (scriptEvaluator is not null && !string.IsNullOrWhiteSpace(spec.FilterScript))
+            {
+                if (!scriptEvaluator.TryEvaluateFilter(spec.FilterScript!, row, out var matched, out error))
+                {
+                    error = "Filter script error: " + error;
+                    return false;
+                }
+
+                if (!matched)
+                {
+                    continue;
+                }
+            }
+
+            candidates.Add((score, entry, editMs, row));
+        }
+
+        var max = limitResults ? ClampLimit(maxResults) : int.MaxValue;
+        if (spec.HasSorterScript && scriptEvaluator is not null)
+        {
+            var keyed = new List<(int Score, ActionCatalogEntry Entry, object? SortKey)>(candidates.Count);
+            foreach (var item in candidates)
+            {
+                if (!scriptEvaluator.TryEvaluateSorter(spec.SorterScript!, item.Row, out var sortKey, out error))
+                {
+                    error = "Sorter script error: " + error;
+                    return false;
+                }
+
+                keyed.Add((item.Score, item.Entry, sortKey));
+            }
+
+            var sorted = spec.SortDescending
+                ? keyed.OrderByDescending(x => x.SortKey, ActionSearchSortKeyComparer.Instance)
+                : keyed.OrderBy(x => x.SortKey, ActionSearchSortKeyComparer.Instance);
+
+            matches = sorted
+                .Take(max)
+                .Select(x => (x.Score, x.Entry))
+                .ToList();
+            return true;
+        }
+
+        IEnumerable<(int Score, ActionCatalogEntry Entry, long EditMs, ActionSearchScriptRow Row)> ordered;
+        if (!keywordIsEmpty)
+        {
+            ordered = candidates
+                .OrderByDescending(x => x.Score)
+                .ThenBy(x => x.Entry.Action.Title, StringComparer.OrdinalIgnoreCase);
+        }
+        else
+        {
+            ordered = candidates
+                .OrderByDescending(x => x.EditMs)
+                .ThenBy(x => x.Entry.Action.Title, StringComparer.OrdinalIgnoreCase);
+        }
+
+        matches = ordered
+            .Take(max)
+            .Select(x => (x.Score, x.Entry))
+            .ToList();
+        return true;
+    }
+
     public static IReadOnlyList<(int Score, ActionCatalogEntry Entry)> Match(
         string? query,
         string? scope,
@@ -19,6 +200,11 @@ internal static class ActionCatalogSearch
         if (keyword.Length == 0)
         {
             return ListRecentByLastEdit(scope, maxResults, actionFilter);
+        }
+
+        if (ActionSearchQuery.TryParseSourceFilter(keyword, out var sourceFilter, out var textKeyword))
+        {
+            return MatchSourceFilter(sourceFilter, textKeyword, scope, maxResults, actionFilter, limitResults);
         }
 
         if (ActionSearchQuery.TryParseSubProgramReference(keyword, out var subProgramSearch))
@@ -61,6 +247,58 @@ internal static class ActionCatalogSearch
 
         var max = ClampLimit(maxResults);
         return ordered.Take(max).ToList();
+    }
+
+    private static IReadOnlyList<(int Score, ActionCatalogEntry Entry)> MatchSourceFilter(
+        ActionSourceFilter sourceFilter,
+        string keyword,
+        string? scope,
+        int maxResults,
+        Func<ActionItem, bool>? actionFilter,
+        bool limitResults)
+    {
+        var scored = new List<(int Score, ActionCatalogEntry Entry)>();
+        var keywordIsEmpty = keyword.Length == 0;
+
+        foreach (var entry in ActionCatalogEnumerator.Enumerate(scope))
+        {
+            if (actionFilter is not null && !actionFilter(entry.Action))
+            {
+                continue;
+            }
+
+            if (!ActionItemSourceHelper.MatchesSourceFilter(entry.Action, sourceFilter))
+            {
+                continue;
+            }
+
+            var score = keywordIsEmpty
+                ? ActionSearchQuery.SourceFilterScore
+                : ActionSearchFuzzyMatch.ComputeScore(
+                    keyword,
+                    entry.Action.Id,
+                    entry.Action.Title ?? string.Empty,
+                    entry.Action.Description,
+                    entry.Profile?.Name,
+                    entry.Profile?.ExeFile);
+            if (score <= 0)
+            {
+                continue;
+            }
+
+            scored.Add((score, entry));
+        }
+
+        var ordered = scored
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Entry.Action.Title, StringComparer.OrdinalIgnoreCase);
+
+        if (!limitResults)
+        {
+            return ordered.ToList();
+        }
+
+        return ordered.Take(ClampLimit(maxResults)).ToList();
     }
 
     private static IReadOnlyList<(int Score, ActionCatalogEntry Entry)> MatchSubProgramReference(

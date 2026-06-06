@@ -23,6 +23,15 @@ public sealed class QuickerRpcActionSummaryItem
     public string? ProfileName { get; set; }
 
     public string? ExeFile { get; set; }
+
+    /// <summary>Installed shared action id from the action library (UseTemplate / TemplateId).</summary>
+    public string? TemplateId { get; set; }
+
+    /// <summary>Shared action library id when the action has been shared/published.</summary>
+    public string? SharedActionId { get; set; }
+
+    /// <summary>Install origin: local | library | published.</summary>
+    public string? Source { get; set; }
 }
 
 public sealed class QuickerRpcGetCompressedActionResult

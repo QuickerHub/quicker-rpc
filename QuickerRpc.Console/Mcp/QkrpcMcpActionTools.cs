@@ -20,6 +20,7 @@ public sealed class QkrpcMcpActionTools
     public async Task<string> QkrpcAction(
         string action,
         string? query = null,
+        string? filter = null,
         string? scope = null,
         int? limit = null,
         string? sort = null,
@@ -66,27 +67,41 @@ public sealed class QkrpcMcpActionTools
         {
             case "list":
             {
+                if (!ActionQueryFilter.TryNormalizeFilter(filter, out _, out var filterError))
+                {
+                    return ValidationError(filterError ?? "Invalid filter.");
+                }
+
+                var mergedQuery = ActionQueryFilter.MergeFilter(filter, query);
                 var args = new Dictionary<string, object?>();
-                if (!string.IsNullOrWhiteSpace(query)) args["query"] = query.Trim();
+                if (!string.IsNullOrWhiteSpace(mergedQuery)) args["query"] = mergedQuery.Trim();
+                if (!string.IsNullOrWhiteSpace(filter)) args["filter"] = filter.Trim();
                 if (!string.IsNullOrWhiteSpace(scope)) args["scope"] = scope.Trim();
                 args["limit"] = limit ?? 30;
                 args["sort"] = string.IsNullOrWhiteSpace(sort)
-                    ? (string.IsNullOrWhiteSpace(query) ? "lastEdit" : "relevance")
+                    ? (string.IsNullOrWhiteSpace(mergedQuery) ? "lastEdit" : "relevance")
                     : sort.Trim();
                 return await _runtime.InvokeOpAsync("action.list", QkrpcMcpJson.ToElement(args), cancellationToken)
                     .ConfigureAwait(false);
             }
             case "search":
-                if (string.IsNullOrWhiteSpace(query))
+                if (!ActionQueryFilter.TryNormalizeFilter(filter, out _, out var searchFilterError))
                 {
-                    return ValidationError("query is required for search");
+                    return ValidationError(searchFilterError ?? "Invalid filter.");
+                }
+
+                var mergedSearchQuery = ActionQueryFilter.MergeFilter(filter, query);
+                if (string.IsNullOrWhiteSpace(mergedSearchQuery))
+                {
+                    return ValidationError("query or filter is required for search");
                 }
 
                 return await _runtime.InvokeOpAsync(
                     "action.search",
                     QkrpcMcpJson.ToElement(new
                     {
-                        query = query.Trim(),
+                        query = mergedSearchQuery.Trim(),
+                        filter = string.IsNullOrWhiteSpace(filter) ? null : filter.Trim(),
                         scope = string.IsNullOrWhiteSpace(scope) ? null : scope.Trim(),
                         limit = limit ?? 30,
                     }),

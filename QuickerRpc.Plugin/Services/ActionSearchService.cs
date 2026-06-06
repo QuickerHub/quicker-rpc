@@ -33,82 +33,63 @@ public sealed class ActionSearchService
             };
         }
 
-        var keyword = (query ?? string.Empty).Trim();
+        var queryValue = (query ?? string.Empty).Trim();
         var scopeValue = string.IsNullOrWhiteSpace(scope) ? null : scope.Trim();
 
-        if (string.IsNullOrEmpty(keyword))
+        if (!ActionSearchQuerySpec.TryParse(queryValue, out var spec, out var parseError))
+        {
+            return new QuickerRpcActionSearchResult
+            {
+                Ok = false,
+                Scope = scopeValue,
+                Message = parseError ?? "Invalid action query.",
+            };
+        }
+
+        if (spec.IsEmpty)
         {
             return SearchRecentActions(scopeValue, maxCount);
         }
 
-        if (ActionSearchQuery.TryParseSubProgramReference(keyword, out var subProgramSearch))
+        var useNativeMerge = !spec.IsJsonQuery
+            && !spec.UsesScript
+            && spec.SourceFilter is null
+            && spec.SubProgramSearch is null
+            && !string.IsNullOrWhiteSpace(spec.Keyword)
+            && string.IsNullOrWhiteSpace(scopeValue)
+            && _search is not null;
+
+        if (useNativeMerge)
         {
-            if (!ActionSubProgramCallScanner.TryResolveSubProgram(
-                    subProgramSearch.SubProgramRef,
-                    out _,
-                    out _,
-                    out var resolveError))
+            try
+            {
+                var limit = NormalizeMaxCount(maxCount);
+                var fromNative = EnrichSummaries(_search!(spec.Keyword!, limit));
+                var fromCatalog = SearchFromSpec(spec, scope: null, limit);
+                var items = MergeSearchResults(fromNative, fromCatalog, limit);
+                return new QuickerRpcActionSearchResult
+                {
+                    Ok = true,
+                    Scope = scopeValue,
+                    Message = items.Count == 0 ? "No matching actions." : string.Empty,
+                    Items = items.ToList(),
+                };
+            }
+            catch (Exception ex)
             {
                 return new QuickerRpcActionSearchResult
                 {
                     Ok = false,
-                    Scope = scopeValue,
-                    Message = resolveError ?? $"Subprogram not found: {subProgramSearch.SubProgramRef}",
+                    Message = ex.Message,
                 };
             }
-
-            return SearchSubProgramReference(subProgramSearch, keyword, scopeValue, maxCount);
         }
 
-        if (!string.IsNullOrWhiteSpace(scopeValue) && ProfileManagerAccessor.TryCreate() is null)
-        {
-            return new QuickerRpcActionSearchResult
-            {
-                Ok = false,
-                Message = "ProfileManager unavailable (scope filter requires Quicker runtime).",
-            };
-        }
-
-        try
-        {
-            var limit = NormalizeMaxCount(maxCount);
-            IReadOnlyList<QuickerRpcActionSummary> items;
-            if (!string.IsNullOrWhiteSpace(scopeValue))
-            {
-                items = SearchScopedCatalog(keyword, scopeValue, limit);
-            }
-            else if (_search is not null)
-            {
-                var fromNative = EnrichSummaries(_search(keyword, limit));
-                var fromCatalog = SearchScopedCatalog(keyword, scope: null, limit);
-                items = MergeSearchResults(fromNative, fromCatalog, limit);
-            }
-            else
-            {
-                items = SearchScopedCatalog(keyword, scope: null, limit);
-            }
-
-            return new QuickerRpcActionSearchResult
-            {
-                Ok = true,
-                Scope = scopeValue,
-                Message = items.Count == 0 ? "No matching actions." : string.Empty,
-                Items = items.ToList(),
-            };
-        }
-        catch (Exception ex)
-        {
-            return new QuickerRpcActionSearchResult
-            {
-                Ok = false,
-                Message = ex.Message,
-            };
-        }
+        return SearchFromSpecResult(spec, scopeValue, maxCount);
     }
 
-    private QuickerRpcActionSearchResult SearchSubProgramReference(
-        SubProgramReferenceSearch search,
-        string query,
+    private QuickerRpcActionSearchResult SearchFromSpecResult(
+        ActionSearchQuerySpec spec,
         string? scope,
         int maxCount)
     {
@@ -121,19 +102,51 @@ public sealed class ActionSearchService
             };
         }
 
+        if (spec.SubProgramSearch is { } subProgramSearch
+            && !ActionSubProgramCallScanner.TryResolveSubProgram(
+                subProgramSearch.SubProgramRef,
+                out _,
+                out _,
+                out var resolveError))
+        {
+            return new QuickerRpcActionSearchResult
+            {
+                Ok = false,
+                Scope = scope,
+                Message = resolveError ?? $"Subprogram not found: {subProgramSearch.SubProgramRef}",
+            };
+        }
+
+        if (spec.SourceFilter is { Kind: ActionSourceFilterKind.SharedId } sharedFilter
+            && !Guid.TryParse((sharedFilter.SharedId ?? string.Empty).Trim(), out _))
+        {
+            return new QuickerRpcActionSearchResult
+            {
+                Ok = false,
+                Scope = scope,
+                Message = $"Invalid shared action id: {sharedFilter.SharedId}",
+            };
+        }
+
         try
         {
             var limit = NormalizeMaxCount(maxCount);
-            var items = SearchScopedCatalog(query, scope ?? string.Empty, limit);
+            var items = SearchFromSpec(spec, scope, limit);
+            var message = string.Empty;
+            if (items.Count == 0)
+            {
+                message = spec.SubProgramSearch is { } search
+                    ? search.DedicatedOnly
+                        ? $"No actions dedicated to subprogram '{search.SubProgramRef}'."
+                        : $"No actions call subprogram '{search.SubProgramRef}'."
+                    : "No matching actions.";
+            }
+
             return new QuickerRpcActionSearchResult
             {
                 Ok = true,
                 Scope = scope,
-                Message = items.Count == 0
-                    ? search.DedicatedOnly
-                        ? $"No actions dedicated to subprogram '{search.SubProgramRef}'."
-                        : $"No actions call subprogram '{search.SubProgramRef}'."
-                    : string.Empty,
+                Message = message,
                 Items = items.ToList(),
             };
         }
@@ -147,9 +160,29 @@ public sealed class ActionSearchService
         }
     }
 
-    private static IReadOnlyList<QuickerRpcActionSummary> SearchScopedCatalog(string keyword, string? scope, int limit)
+    private static IReadOnlyList<QuickerRpcActionSummary> SearchFromSpec(
+        ActionSearchQuerySpec spec,
+        string? scope,
+        int limit)
     {
-        return ActionCatalogSearch.Match(keyword, scope, limit)
+        Func<ActionItem, bool>? actionFilter = spec.ApplyXActionCatalogFilter
+            ? ActionDesignerProgramAccess.IsXAction
+            : null;
+
+        if (!ActionCatalogSearch.TryMatchSpec(
+                spec,
+                scope,
+                limit,
+                actionFilter,
+                ActionDesignerProgramAccess.GetEditVersionMs,
+                limitResults: !spec.HasSorterScript,
+                out var matches,
+                out var error))
+        {
+            throw new InvalidOperationException(error ?? "Action search failed.");
+        }
+
+        return matches
             .Select(x => new QuickerRpcActionSummary
             {
                 Id = (x.Entry.Action.Id ?? string.Empty).Trim(),
@@ -160,9 +193,22 @@ public sealed class ActionSearchService
                 ProfileName = x.Entry.Profile?.Name,
                 ExeFile = x.Entry.Profile?.ExeFile,
                 Score = x.Score,
+                TemplateId = ActionItemSourceHelper.GetTemplateId(x.Entry.Action),
+                SharedActionId = ActionItemSourceHelper.GetSharedActionId(x.Entry.Action),
+                Source = ActionItemSourceHelper.ResolveKindToken(x.Entry.Action),
             })
             .Where(x => x.Id.Length > 0)
             .ToList();
+    }
+
+    private static IReadOnlyList<QuickerRpcActionSummary> SearchScopedCatalog(string keyword, string? scope, int limit)
+    {
+        if (!ActionSearchQuerySpec.TryParse(keyword, out var spec, out var error))
+        {
+            throw new InvalidOperationException(error ?? "Invalid action query.");
+        }
+
+        return SearchFromSpec(spec, scope, limit);
     }
 
     private static IReadOnlyList<QuickerRpcActionSummary> EnrichSummaries(IReadOnlyList<QuickerRpcActionSummary> items)
@@ -444,6 +490,9 @@ public sealed class ActionSearchService
                     ProfileName = x.Entry.Profile?.Name,
                     ExeFile = x.Entry.Profile?.ExeFile,
                     Score = x.Score,
+                    TemplateId = ActionItemSourceHelper.GetTemplateId(x.Entry.Action),
+                    SharedActionId = ActionItemSourceHelper.GetSharedActionId(x.Entry.Action),
+                    Source = ActionItemSourceHelper.ResolveKindToken(x.Entry.Action),
                 })
                 .Where(x => x.Id.Length > 0)
                 .ToList());
@@ -508,7 +557,9 @@ public sealed class ActionSearchService
             Description = NullIfEmpty(action.Description),
             PageTitle = NullIfEmpty(pageTitle),
             Score = score,
-            SharedActionId = null,
+            TemplateId = ActionItemSourceHelper.GetTemplateId(action),
+            SharedActionId = ActionItemSourceHelper.GetSharedActionId(action),
+            Source = ActionItemSourceHelper.ResolveKindToken(action),
         };
     }
 
@@ -527,7 +578,13 @@ public sealed class ActionSearchService
             Description = NullIfEmpty(ReadActionDescription(action)),
             PageTitle = NullIfEmpty(pageTitle),
             Score = score,
+            TemplateId = action is ActionItem item
+                ? ActionItemSourceHelper.GetTemplateId(item)
+                : null,
             SharedActionId = NullIfEmpty(ReadSharedActionId(action)),
+            Source = action is ActionItem typed
+                ? ActionItemSourceHelper.ResolveKindToken(typed)
+                : NullIfEmpty(ReadSharedActionId(action)) is not null ? "published" : "local",
         };
     }
 

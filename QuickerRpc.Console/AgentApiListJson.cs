@@ -27,6 +27,9 @@ internal static class AgentApiListJson
                 ["lastEditTimeLocal"] = string.IsNullOrWhiteSpace(item.LastEditTimeLocal)
                     ? LocalTimeDisplay.FormatUtcIso(item.LastEditTimeUtc)
                     : item.LastEditTimeLocal,
+                ["templateId"] = item.TemplateId ?? string.Empty,
+                ["sharedActionId"] = item.SharedActionId ?? string.Empty,
+                ["source"] = item.Source ?? string.Empty,
             });
         }
 

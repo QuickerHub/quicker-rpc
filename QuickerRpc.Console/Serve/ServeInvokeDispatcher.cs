@@ -348,10 +348,17 @@ internal static class ServeInvokeDispatcher
         CancellationToken token)
     {
         var query = ServeJsonArgs.GetString(args, "query");
+        var queryFile = ServeJsonArgs.GetString(args, "queryFile");
+        var filter = ServeJsonArgs.GetString(args, "filter");
         var scope = ServeJsonArgs.GetString(args, "scope");
         var limit = ServeJsonArgs.GetInt(args, "limit") ?? 30;
         var sort = ServeJsonArgs.GetString(args, "sort");
-        var queryTrimmed = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
+        if (!ActionQueryFilter.TryResolveQuery(query, queryFile, filter, out var mergedQuery, out var queryError))
+        {
+            return Fail("INVALID_QUERY", queryError ?? "Invalid query.");
+        }
+
+        var queryTrimmed = string.IsNullOrWhiteSpace(mergedQuery) ? null : mergedQuery.Trim();
         var session = await pool.GetSessionAsync(token).ConfigureAwait(false);
         var response = await QuickerRpcActionListCompat
             .ListAsync(session, queryTrimmed, limit, scope, sort, token)
@@ -375,7 +382,14 @@ internal static class ServeInvokeDispatcher
         CancellationToken token)
     {
         var query = ServeJsonArgs.GetString(args, "query") ?? string.Empty;
-        var queryTrimmed = query.Trim();
+        var queryFile = ServeJsonArgs.GetString(args, "queryFile");
+        var filter = ServeJsonArgs.GetString(args, "filter");
+        if (!ActionQueryFilter.TryResolveQuery(query, queryFile, filter, out var queryTrimmed, out var queryError))
+        {
+            return Fail("INVALID_QUERY", queryError ?? "Invalid query.");
+        }
+
+        queryTrimmed = queryTrimmed.Trim();
         if (string.IsNullOrWhiteSpace(queryTrimmed))
         {
             return await ActionListAsync(

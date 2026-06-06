@@ -537,11 +537,16 @@ internal static partial class Program
 
     private static async Task<int> RunActionListAsync(ActionOptions options)
     {
+        if (!ActionQueryFilter.TryResolveQuery(options.Query, options.QueryFile, options.Filter, out var query, out var filterError))
+        {
+            return await EmitErrorAndFailAsync(options.Json, "INVALID_QUERY", filterError ?? "Invalid query.")
+                .ConfigureAwait(false);
+        }
+
         try
         {
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
-            var query = (options.Query ?? string.Empty).Trim();
             var response = await QuickerRpcActionListCompat
                 .ListAsync(
                     session.Proxy,

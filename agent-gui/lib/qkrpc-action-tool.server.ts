@@ -44,7 +44,9 @@ const actionSchema = z.enum([
 
 export type QkrpcActionToolInput = {
   action: z.infer<typeof actionSchema>;
-  query?: string;
+  query?: string | Record<string, unknown>;
+  queryFile?: string;
+  filter?: "library" | "installed" | "local" | "published";
   scope?: string;
   limit?: number;
   sort?: "relevance" | "lastEdit" | "title";
@@ -93,18 +95,27 @@ export async function executeQkrpcActionTool(
   switch (input.action) {
     case "list": {
       const args = ["action", "list"];
-      if (input.query) args.push("--query", input.query);
+      const mergedQuery = mergeActionFilter(input.filter, input.query);
+      if (mergedQuery) args.push("--query", mergedQuery);
+      if (input.queryFile) args.push("--query-file", input.queryFile);
+      if (input.filter) args.push("--filter", input.filter);
       if (input.scope) args.push("--scope", input.scope);
       if (input.limit != null) args.push("--limit", String(input.limit));
       if (input.sort) args.push("--sort", input.sort);
-      else if (!input.query?.trim()) args.push("--sort", "lastEdit");
+      else if (!mergedQuery) args.push("--sort", "lastEdit");
       return formatQkrpcResultForAgent(await runQkrpcForTool(args));
     }
     case "search": {
-      if (!input.query?.trim()) {
-        return formatQkrpcResultForAgent(qkrpcValidationError("query is required for search"));
+      const mergedQuery = mergeActionFilter(input.filter, input.query);
+      if (!mergedQuery && !input.queryFile) {
+        return formatQkrpcResultForAgent(
+          qkrpcValidationError("query, queryFile, or filter is required for search"),
+        );
       }
-      const args = ["action", "search", "--query", input.query];
+      const args = ["action", "search"];
+      if (mergedQuery) args.push("--query", mergedQuery);
+      if (input.queryFile) args.push("--query-file", input.queryFile);
+      if (input.filter) args.push("--filter", input.filter);
       if (input.scope) args.push("--scope", input.scope);
       if (input.limit != null) args.push("--limit", String(input.limit));
       return formatQkrpcResultForAgent(await runQkrpcForTool(args));
@@ -380,16 +391,45 @@ export async function executeQkrpcActionTool(
   }
 }
 
+function serializeActionQuery(query: QkrpcActionToolInput["query"]): string {
+  if (query == null) return "";
+  if (typeof query === "string") return query.trim();
+  return JSON.stringify(query);
+}
+
+function mergeActionFilter(
+  filter: QkrpcActionToolInput["filter"],
+  query: QkrpcActionToolInput["query"],
+): string {
+  const serialized = serializeActionQuery(query);
+  const prefix =
+    filter === "library" || filter === "installed"
+      ? "source:library"
+      : filter === "local"
+        ? "source:local"
+        : filter === "published"
+          ? "source:published"
+          : "";
+  if (serialized.startsWith("{")) return serialized;
+  if (!prefix) return serialized;
+  if (!serialized) return prefix;
+  if (serialized.toLowerCase().startsWith(prefix)) return serialized;
+  return `${prefix} ${serialized}`;
+}
+
 export const QKRPC_ACTION_TOOL_DEF = tool({
   description:
     "Quicker local actions: list/search/get/create/replace/publish/set_metadata/float/edit/edit_var/run/move; "
     + "global profile tabs (profile_create/delete/prune/reorder); virtual process pages (process_ensure). "
+    + "list/search query: plain text, legacy prefixes, or JSON {filter,sorter,keyword,source,uses}. Scripts use action.* (ActionId, Title, Source, ExeFile, EditMs, ...). "
     + "list/search: UI renders the table — summarize only, no markdown table. "
     + "get syncs disk when action has steps/variables. create bootstraps .quicker/actions/{id}/ — no follow-up get. "
     + "Disk editing: workspace_program. Destructive delete: qkrpc_action_delete.",
   inputSchema: z.object({
     action: actionSchema,
-    query: z.string().optional(),
+    query: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    queryFile: z.string().optional(),
+    filter: z.enum(["library", "installed", "local", "published"]).optional(),
     scope: z.string().optional(),
     limit: z.number().int().min(1).max(100).optional(),
     sort: z.enum(["relevance", "lastEdit", "title"]).optional(),

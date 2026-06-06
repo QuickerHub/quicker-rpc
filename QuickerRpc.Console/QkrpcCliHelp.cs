@@ -153,9 +153,9 @@ internal static class QkrpcCliHelp
 
                     opts: ActionProjectImportOpts()),
 
-                Cmd("action list", "List/search actions (agent summaries). Query prefix uses:<subProgram> finds callers; uses-only: for dedicated wrappers.", "qkrpc action list [--query <keyword|uses:SubName>] [--scope chrome|global|common|...] [--limit 30] [--sort relevance|lastEdit|title] [--json]",
+                Cmd("action list", "List/search actions. --query accepts plain text, legacy prefixes, or JSON {filter,sorter,keyword,source,uses}.", "qkrpc action list [--query <text|json>] [--query-file <path>] [--filter library|local|published] [--scope ...] [--limit 30] [--sort relevance|lastEdit|title] [--json]",
 
-                    opts: new[] { Option("query", "Title filter, or uses:<subProgramIdOrName> / uses-only:<name> for subprogram reference lookup.", shortName: "q"), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("sort", "relevance (default with --query) | lastEdit (default without --query) | title."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
+                    opts: new[] { Option("query", "Plain keyword; legacy source:library|uses:Sub; or JSON with filter/sorter scripts (action.* fields).", shortName: "q"), Option("query-file", "UTF-8 file for --query JSON/text."), Option("filter", "Shorthand for plain query: library|installed|local|published."), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("sort", "relevance (default with --query) | lastEdit (default without --query) | title. Ignored when JSON sorter is set."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("action publish", "Share or refresh an action on getquicker.net (auto-detects first publish vs update).", "qkrpc action publish --id <guid> [--title <text>] [--description <text>] [--changelog <text>] [--note-file <path>] [--json]",
 
@@ -195,9 +195,9 @@ internal static class QkrpcCliHelp
                         Option("no-bootstrap", "Skip auto-start."),
                     }),
 
-                Cmd("action search", "Search local actions (main search box scoring). Query prefix uses:<subProgram> finds callers.", "qkrpc action search --query <keyword|uses:SubName> [--scope chrome|global|common|...] [--limit 20] [--json]",
+                Cmd("action search", "Search local actions. --query accepts plain text, legacy prefixes, or JSON {filter,sorter,keyword,source,uses}.", "qkrpc action search --query <text|json> [--query-file <path>] [--filter library|local|published] [--scope ...] [--limit 20] [--json]",
 
-                    opts: new[] { Option("query", "Keyword, or uses:<subProgramIdOrName> / uses-only:<name> for subprogram reference lookup.", shortName: "q"), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),
+                    opts: new[] { Option("query", "Plain keyword; legacy prefixes; or JSON with filter/sorter scripts.", shortName: "q"), Option("query-file", "UTF-8 file for --query JSON/text."), Option("filter", "Shorthand for plain query: library|installed|local|published."), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "20"), Option("json", "Structured output.") }),
 
                 Cmd("subprogram search", "Search global subprograms (returns callIdentifier for sys:subprogram).", "qkrpc subprogram search --query <keyword> [--limit 20] [--json]",
 
