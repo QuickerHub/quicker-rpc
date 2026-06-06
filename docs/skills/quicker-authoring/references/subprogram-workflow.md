@@ -7,31 +7,39 @@
 | | 公共子程序 | 动作内子程序 |
 |--|------------|----------------|
 | 存储 | Quicker 全局库 | 父动作 `SubPrograms[]` |
-| 磁盘（规划） | `.quicker/subprograms/{name}/` | `.quicker/actions/{actionId}/subprograms/` |
+| 磁盘 | `.quicker/subprograms/{idOrName}/` | `.quicker/actions/{actionId}/subprograms/{subProgramId}/` |
 | 调用标识 | `sys:subprogram` + `callIdentifier` 通常 `%%{guid}` | 本动作内定义（非 `%%{guid}`） |
 
 ## A. 管理公共子程序
 
 ```text
-subprogram search/get → [CLI: create/patch] → 磁盘 .quicker/subprograms/
+subprogram search/get → workspace_program 改 data.json → workspace_program patch
 ```
 
-读取：`qkrpc_subprogram_get`。创建/改体：终端 `qkrpc subprogram`（UI 未全覆盖时）。
+| 步骤 | 工具 |
+|------|------|
+| 搜索 / 读元数据 | **`qkrpc_subprogram_query`** · **`qkrpc_subprogram get`**（非空时 sync 到 `.quicker/subprograms/`） |
+| 新建 | **`qkrpc_subprogram_manage create`** → 返回 `subProgramId` / `callIdentifier` / `editVersion` + 空 `data.json` |
+| 改 `data.json` / `files/` | **`workspace_program({ action: "read_data"\|"edit_data"\|"write_data", target: "global_subprogram", id })`** |
+| 写回 Quicker | **`workspace_program({ action: "patch", target: "global_subprogram", id })`** |
+| 仅改变量默认值 | **`qkrpc_subprogram edit_var`**（如 qkbuild 更新 `version`） |
+
+**勿**用 **`qkrpc_subprogram patch --patch-file`** 或内联 `{ "op": "update" }` JSON — 直接编辑磁盘 **`data.json`**（见 **`workspace-editing`**）。
+
+维护共享基础设施子程序（如 **`依赖下载_混合模式`**、`QuickerRpc_Run`）时：先 **`get`** 同步，再 **`edit_data`** 改步骤表达式，最后 **`patch`**。
 
 ## B. 在动作里调用公共子程序
 
 ```text
 subprogram search/get → callIdentifier
   → step-runner get(sys:subprogram)
-  → 写入 data.json 步骤（inputParams.subProgram 等，键名以 get 为准）
-  → 保存
+  → workspace_program edit_data 写入 data.json 步骤
+  → workspace_program patch
 ```
 
 → `qkrpc_step_runner_get({ key: "sys:subprogram" })`
 → `workspace_action_edit_data` 写入 `data.json` 步骤（`inputParams.subProgram.value = callIdentifier`）
 → `qkrpc_action_patch({ id })`
-
-保存：**`qkrpc_action_patch({ id })`**（先 **`workspace_action_*_data`** 改步骤，见 **`workspace-editing`**）。
 
 **`callIdentifier`** 必须从 search/get 读取；未知标识会报错。
 

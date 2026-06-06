@@ -7,6 +7,7 @@ import {
   type ToolUIPart,
   type UIMessage,
 } from "ai";
+import type { ReasoningUIPart } from "ai";
 import { hasFailedStructuredToolOutput } from "@/lib/tool-display";
 import {
   buildToolSummaryMeta,
@@ -98,70 +99,184 @@ export type ReasoningSegmentItem = {
   index: number;
 };
 
+export type ActivitySegmentItem =
+  | ({ kind: "reasoning" } & ReasoningSegmentItem)
+  | ({ kind: "tool" } & ToolUiPartAnalysis);
+
 export type MessagePartSegment =
   | { kind: "text"; part: UIMessage["parts"][number]; index: number }
   | { kind: "reasoning"; items: ReasoningSegmentItem[] }
   | { kind: "tool"; item: ToolUiPartAnalysis }
-  | { kind: "tool-batch"; items: ToolUiPartAnalysis[] };
+  | { kind: "tool-batch"; items: ToolUiPartAnalysis[] }
+  | { kind: "activity-batch"; items: ActivitySegmentItem[] };
 
 const MIN_TOOLS_IN_BATCH = 2;
+
+function isReasoningSegmentStreaming(items: ReasoningSegmentItem[]): boolean {
+  return items.some(
+    ({ part }) =>
+      part != null
+      && isReasoningUIPart(part)
+      && (part as ReasoningUIPart).state === "streaming",
+  );
+}
+
+function activityHasReasoning(items: ActivitySegmentItem[]): boolean {
+  return items.some((item) => item.kind === "reasoning");
+}
+
+function activityHasTool(items: ActivitySegmentItem[]): boolean {
+  return items.some((item) => item.kind === "tool");
+}
+
+function activityToolItems(items: ActivitySegmentItem[]): ToolUiPartAnalysis[] {
+  return items.filter((item): item is ActivitySegmentItem & { kind: "tool" } =>
+    item.kind === "tool",
+  );
+}
+
+function activityReasoningItems(
+  items: ActivitySegmentItem[],
+): ReasoningSegmentItem[] {
+  return items
+    .filter((item): item is ActivitySegmentItem & { kind: "reasoning" } =>
+      item.kind === "reasoning",
+    )
+    .map(({ part, index }) => ({ part, index }));
+}
+
+function pushActivitySegment(
+  pending: ActivitySegmentItem[],
+  segment: MessagePartSegment,
+): ActivitySegmentItem[] {
+  switch (segment.kind) {
+    case "reasoning":
+      return pending.concat(
+        segment.items.map((item) => ({ kind: "reasoning" as const, ...item })),
+      );
+    case "tool":
+      return pending.concat({ kind: "tool", ...segment.item });
+    case "tool-batch":
+      return pending.concat(
+        segment.items.map((item) => ({ kind: "tool" as const, ...item })),
+      );
+    case "activity-batch":
+      return pending.concat(segment.items);
+    default:
+      return pending;
+  }
+}
+
+function flushPendingActivity(
+  pending: ActivitySegmentItem[],
+  segments: MessagePartSegment[],
+): ActivitySegmentItem[] {
+  if (pending.length === 0) return pending;
+
+  const hasReasoning = activityHasReasoning(pending);
+  const hasTool = activityHasTool(pending);
+
+  if (hasReasoning && hasTool) {
+    segments.push({ kind: "activity-batch", items: pending });
+  } else if (hasReasoning) {
+    segments.push({
+      kind: "reasoning",
+      items: activityReasoningItems(pending),
+    });
+  } else if (hasTool) {
+    const toolItems = activityToolItems(pending);
+    if (toolItems.length >= MIN_TOOLS_IN_BATCH) {
+      segments.push({ kind: "tool-batch", items: toolItems });
+    } else {
+      for (const item of toolItems) {
+        segments.push({ kind: "tool", item });
+      }
+    }
+  }
+
+  return [];
+}
+
+function mergeConsecutiveActivitySegments(
+  segments: MessagePartSegment[],
+): MessagePartSegment[] {
+  const merged: MessagePartSegment[] = [];
+  let pending: ActivitySegmentItem[] = [];
+
+  for (const segment of segments) {
+    if (segment.kind === "text") {
+      const text = isTextUIPart(segment.part) ? segment.part.text : "";
+      if (!text.trim()) continue;
+      pending = flushPendingActivity(pending, merged);
+      merged.push(segment);
+      continue;
+    }
+
+    if (segment.kind === "tool" && segment.item.name === SHELL_EXEC_TOOL) {
+      pending = flushPendingActivity(pending, merged);
+      merged.push(segment);
+      continue;
+    }
+
+    if (
+      segment.kind === "reasoning"
+      || segment.kind === "tool"
+      || segment.kind === "tool-batch"
+      || segment.kind === "activity-batch"
+    ) {
+      pending = pushActivitySegment(pending, segment);
+      continue;
+    }
+
+    pending = flushPendingActivity(pending, merged);
+    merged.push(segment);
+  }
+
+  flushPendingActivity(pending, merged);
+  return merged;
+}
 
 export function segmentMessageParts(
   parts: UIMessage["parts"],
 ): MessagePartSegment[] {
   const segments: MessagePartSegment[] = [];
-  let pendingTools: ToolUiPartAnalysis[] = [];
-  let pendingReasoning: ReasoningSegmentItem[] = [];
+  let pendingActivity: ActivitySegmentItem[] = [];
 
-  const flushReasoning = () => {
-    if (pendingReasoning.length === 0) return;
-    segments.push({ kind: "reasoning", items: pendingReasoning });
-    pendingReasoning = [];
-  };
-
-  const flushTools = () => {
-    if (pendingTools.length === 0) return;
-    if (pendingTools.length >= MIN_TOOLS_IN_BATCH) {
-      segments.push({ kind: "tool-batch", items: pendingTools });
-    } else {
-      for (const item of pendingTools) {
-        segments.push({ kind: "tool", item });
-      }
-    }
-    pendingTools = [];
+  const flushActivity = () => {
+    pendingActivity = flushPendingActivity(pendingActivity, segments);
   };
 
   for (let index = 0; index < parts.length; index++) {
     const part = parts[index]!;
     if (isToolUiPart(part)) {
-      flushReasoning();
       const name = getToolOrDynamicToolName(part);
       if (!isHiddenChatTool(name)) {
         const item = analyzeToolUiPart(part, index);
         if (name === SHELL_EXEC_TOOL) {
-          flushTools();
+          flushActivity();
           segments.push({ kind: "tool", item });
         } else {
-          pendingTools.push(item);
+          pendingActivity.push({ kind: "tool", ...item });
         }
       }
       continue;
     }
     if (isReasoningUIPart(part)) {
-      flushTools();
       // Keep empty streaming placeholders in the batch so segment keys stay stable.
-      pendingReasoning.push({ part, index });
+      pendingActivity.push({ kind: "reasoning", part, index });
       continue;
     }
-    flushReasoning();
-    flushTools();
     if (isTextUIPart(part)) {
-      segments.push({ kind: "text", part, index });
+      if (part.text.trim()) {
+        flushActivity();
+        segments.push({ kind: "text", part, index });
+      }
+      continue;
     }
+    flushActivity();
   }
-  flushReasoning();
-  flushTools();
-  return segments;
+  flushActivity();
+  return mergeConsecutiveActivitySegments(segments);
 }
 
 export function buildToolBatchSummary(items: ToolUiPartAnalysis[]): {
@@ -214,4 +329,56 @@ export function shouldCollapseToolBatchWhenIdle(summary: {
   needsAttention: boolean;
 }): boolean {
   return summary.allTerminal && !summary.needsAttention;
+}
+
+export function buildActivityBatchSummary(items: ActivitySegmentItem[]): {
+  title: string;
+  meta: string;
+  allTerminal: boolean;
+  needsAttention: boolean;
+  reasoningStreaming: boolean;
+} {
+  const reasoningItems = activityReasoningItems(items);
+  const toolItems = activityToolItems(items);
+  const reasoningStreaming = isReasoningSegmentStreaming(reasoningItems);
+  const toolSummary =
+    toolItems.length > 0 ? buildToolBatchSummary(toolItems) : null;
+
+  const n = items.length;
+  let title: string;
+  if (reasoningItems.length > 0 && toolItems.length > 0) {
+    // Prefer concrete tool names; fall back to step count when tools lack labels.
+    title = toolSummary?.title ?? `${n} 步`;
+  } else if (reasoningItems.length > 0) {
+    title =
+      reasoningItems.length > 1
+        ? `${reasoningItems.length} thoughts`
+        : "Thought";
+  } else {
+    title = toolSummary?.title ?? "工具";
+  }
+
+  let meta: string;
+  if (reasoningStreaming) {
+    meta = "执行中…";
+  } else if (toolSummary && toolSummary.needsAttention) {
+    meta = toolSummary.meta;
+  } else if (toolSummary && !toolSummary.allTerminal) {
+    meta = toolSummary.meta;
+  } else {
+    meta = `${n} 步 · 完成`;
+  }
+
+  const allTerminal = toolSummary ? toolSummary.allTerminal : !reasoningStreaming;
+  const needsAttention =
+    reasoningStreaming
+    || (toolSummary?.needsAttention ?? false);
+
+  return {
+    title,
+    meta,
+    allTerminal,
+    needsAttention,
+    reasoningStreaming,
+  };
 }

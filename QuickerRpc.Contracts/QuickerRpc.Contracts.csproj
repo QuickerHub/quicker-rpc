@@ -8,7 +8,7 @@
     <Version Condition="'$(Version)' == ''">0.1.0</Version>
     <NoWarn>$(NoWarn);VSTHRD003</NoWarn>
   </PropertyGroup>
-  <!-- netstandard2.0: short name for qkrpc; net472 Release: ProjectName.(Version).dll when suffix is enabled -->
+  <!-- netstandard2.0: short name for qkrpc; net472 Release: version-suffixed DLL shipped beside Plugin (not Costura-embedded). -->
   <PropertyGroup>
     <UseAssemblyVersionFileNameSuffix>true</UseAssemblyVersionFileNameSuffix>
     <AppendAssemblyVersionFileNameSuffix Condition="'$(TargetFramework)' != 'net472'">false</AppendAssemblyVersionFileNameSuffix>

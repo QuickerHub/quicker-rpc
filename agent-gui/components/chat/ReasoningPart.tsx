@@ -7,6 +7,8 @@ import { ToolDisclosure } from "./ToolDisclosure";
 
 type ReasoningPartProps = {
   items: ReasoningSegmentItem[];
+  /** Inside ActivityBatchGroup: no outer disclosure, parent handles collapse. */
+  inBatch?: boolean;
 };
 
 function mergeReasoningText(items: ReasoningSegmentItem[]): string {
@@ -171,11 +173,33 @@ function ReasoningPartInner({
   );
 }
 
-export function ReasoningPart({ items }: ReasoningPartProps) {
+function ReasoningBatchRow({
+  text,
+  streaming,
+}: {
+  text: string;
+  streaming: boolean;
+}) {
+  const { elapsedSec, measured } = useReasoningDuration(streaming);
+  const label = formatReasoningSummary(streaming, elapsedSec, measured, 1);
+
+  return (
+    <div className="reasoning-card reasoning-card--nested">
+      <span className="reasoning-label">{label}</span>
+      <ReasoningBody text={text} streaming={streaming} />
+    </div>
+  );
+}
+
+export function ReasoningPart({ items, inBatch = false }: ReasoningPartProps) {
   const text = mergeReasoningText(items);
   if (!text) return null;
 
   const streaming = isReasoningSegmentStreaming(items);
+
+  if (inBatch) {
+    return <ReasoningBatchRow text={text} streaming={streaming} />;
+  }
 
   return (
     <ReasoningPartInner

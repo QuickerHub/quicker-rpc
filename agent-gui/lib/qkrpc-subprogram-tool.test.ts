@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { z } from "zod";
 import {
   isQkrpcSubprogramCreateTool,
   isSubprogramListTool,
@@ -7,7 +8,18 @@ import {
   QKRPC_SUBPROGRAM_QUERY_TOOL,
   QKRPC_SUBPROGRAM_TOOL,
 } from "./qkrpc-subprogram-tool.ts";
+import { QKRPC_SUBPROGRAM_TOOL_DEF } from "@/lib/qkrpc-subprogram-tool.server";
 import { resolveEnabledToolsFromPrefs } from "./tool-registry.ts";
+
+describe("qkrpc subprogram tool JSON Schema", () => {
+  it("qkrpc_subprogram tool schema is a flat ZodObject", () => {
+    assert.ok(QKRPC_SUBPROGRAM_TOOL_DEF.inputSchema instanceof z.ZodObject);
+    assert.notEqual(
+      QKRPC_SUBPROGRAM_TOOL_DEF.inputSchema.constructor.name,
+      "ZodDiscriminatedUnion",
+    );
+  });
+});
 
 describe("qkrpc subprogram tool helpers", () => {
   it("treats qkrpc_subprogram_query as list tool", () => {

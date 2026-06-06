@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Dynamic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -35,12 +34,12 @@ public sealed class ExpressionExecuteService
 
         try
         {
-            dynamic variableDict = new ExpressionVariableBag(inputVariables);
+            var globals = new Dictionary<string, object?>(StringComparer.Ordinal);
 
             if (expression.IndexOf("{[cliptext]}", StringComparison.Ordinal) >= 0)
             {
                 expression = expression.Replace("{[cliptext]}", "vv_cliptext");
-                variableDict.vv_cliptext = ClipboardHelper.TryGetClipboardText();
+                globals["vv_cliptext"] = ClipboardHelper.TryGetClipboardText() ?? string.Empty;
             }
 
             var processedVars = new HashSet<string>(StringComparer.Ordinal);
@@ -56,35 +55,39 @@ public sealed class ExpressionExecuteService
 
                 processedVars.Add(varKey);
 
-                if (!inputVariables.TryGetValue(varKey, out var value))
-                {
-                    value = null;
-                }
-                else if (value is long l && l > int.MinValue && l < int.MaxValue)
-                {
-                    value = (int)l;
-                }
-
-                ((ExpressionVariableBag)variableDict).SetProperty(varName, value);
+                inputVariables.TryGetValue(varKey, out var value);
+                globals[varName] = ExpressionVariableResolver.NormalizeForEvalBinding(value, null);
                 return varName;
             });
 
             expression = ExpressionEvalTransforms.EnsureTypedSplitAssignment(expression);
 
             var eval = CreateExpressionEvalContext();
+            var outputVariables = new Dictionary<string, object?>(inputVariables, StringComparer.Ordinal);
             object? result;
             if (onUiThread)
             {
                 object? value = null;
-                AppHelper.RunOnUiThread(true, () => value = eval.Execute(expression, variableDict));
+                AppHelper.RunOnUiThread(
+                    true,
+                    () => value = ExpressionEvalBinding.Execute(
+                        eval,
+                        expression,
+                        globals,
+                        onVariableWritten: (varKey, writtenValue) =>
+                            outputVariables[varKey] = writtenValue));
                 result = value;
             }
             else
             {
-                result = eval.Execute(expression, variableDict);
+                result = ExpressionEvalBinding.Execute(
+                    eval,
+                    expression,
+                    globals,
+                    onVariableWritten: (varKey, writtenValue) =>
+                        outputVariables[varKey] = writtenValue);
             }
 
-            var bag = (ExpressionVariableBag)variableDict;
             return new QuickerRpcExpressionExecuteResult
             {
                 Ok = true,
@@ -92,7 +95,7 @@ public sealed class ExpressionExecuteService
                 Message = string.Empty,
                 ResultJson = SerializeJson(result),
                 ResultType = result?.GetType().FullName,
-                VariablesJson = SerializeJson(bag.ExportUserVariables()),
+                VariablesJson = SerializeJson(outputVariables),
             };
         }
         catch (Exception ex)
@@ -182,45 +185,4 @@ public sealed class ExpressionExecuteService
             Message = message,
         };
 
-    private sealed class ExpressionVariableBag : DynamicObject
-    {
-        private readonly Dictionary<string, object?> _properties = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, object?> _userVariables;
-
-        public ExpressionVariableBag(Dictionary<string, object?> seed)
-        {
-            _userVariables = seed;
-            foreach (var pair in seed)
-            {
-                _properties["v_" + pair.Key] = pair.Value;
-            }
-        }
-
-        public override bool TryGetMember(GetMemberBinder binder, out object? result) =>
-            _properties.TryGetValue(binder.Name, out result);
-
-        public override bool TrySetMember(SetMemberBinder binder, object? value)
-        {
-            _properties[binder.Name] = value!;
-
-            if (binder.Name.StartsWith("v_", StringComparison.Ordinal) && binder.Name.Length > 2)
-            {
-                var originalVarName = binder.Name.Substring(2);
-                _userVariables[originalVarName] = value;
-            }
-
-            return true;
-        }
-
-        public void SetProperty(string name, object? value)
-        {
-            _properties[name] = value!;
-            if (name.StartsWith("v_", StringComparison.Ordinal) && name.Length > 2)
-            {
-                _userVariables[name.Substring(2)] = value;
-            }
-        }
-
-        public Dictionary<string, object?> ExportUserVariables() => new(_userVariables, StringComparer.Ordinal);
-    }
 }

@@ -25,7 +25,7 @@ pwsh -NoProfile -File ./build.ps1 -t
 | `QuickerRpc.AgentModel/**` | **是** | CLI 与插件均可能依赖 |
 | `docs/action-authoring-src/**` | **是** | 嵌入 CLI / agent 指南 |
 | `build.ps1`、`build.yaml`、`publish/publish-rpc.ps1` | **是** | 构建链路 |
-| 仅 `agent-gui/**` | **否** | Next HMR；**收尾必做**「前端检查」（见下节） |
+| 仅 `agent-gui/**` | **否** | Next HMR；**收尾必做**「前端检查」（见下节）；磁盘编辑见 **`workspace_program`** |
 | `agent-gui/llm-publish.config.json` | **否** | 改完后 **Agent 自动** `publish/Sync-LlmPublishConfig.ps1` → GitHub Secret `BUNDLED_LLM_CONFIG`；**勿 commit**；细则：`.cursor/skills/quicker-agent-gui-llm-publish-config/SKILL.md` |
 | 仅 `README.md`、`AGENTS.md`、`.cursor/**`（未动 C#） | **否** | 文档/规则 |
 
@@ -96,9 +96,13 @@ Invoke-RestMethod http://127.0.0.1:3000/api/dev/frontend-check
 ## Quicker 加载插件
 
 ```text
-load {packagePath}/QuickerRpc.Plugin.{version}.dll
-type QuickerRpc.Plugin.Launcher, QuickerRpc.Plugin.{version}
+load {packagePath}/QuickerRpc.Plugin.{M.m.b.r}.dll
+type QuickerRpc.Plugin.Launcher, QuickerRpc.Plugin.{M.m.b.r}
 ```
+
+测试热更新（`build.ps1 -t`）：`version.json` 只递增**第四段** revision，DLL 仍在 `_packages/quicker.rpc/{M.m.b}/` 同目录。`QuickerRpc_Run` → `依赖下载_混合模式`：**扫描包目录内 `{zip_filename}.*.dll`，按四段版本取最高**，并回写 `version` 输出。
+
+**维护 `依赖下载_混合模式`（agent-gui）**：`qkrpc_subprogram get` → `workspace_program edit_data`（`target=global_subprogram`，`id=依赖下载_混合模式`）改 `data.json` 里 s-18 等步骤 → `workspace_program patch`。**勿**用 `subprogram patch --patch-file`。
 
 ## CLI（Agent 无头编辑）
 
@@ -123,7 +127,9 @@ qkrpc action set-metadata --id <guid> --icon "fa:Light_<Name>" --expected-edit-v
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
 ```
 
-**调用公共子程序**：`subprogram search/get` 取 **`callIdentifier`** → `step-runner get --key sys:subprogram` → CLI 用 `action patch` 写步骤；agent-gui 用 `workspace_action_edit_data` 改 `data.json` 后 `qkrpc_action_patch({ id })`。
+**调用公共子程序**：`subprogram search/get` 取 **`callIdentifier`** → `step-runner get --key sys:subprogram` → CLI 用 `action patch --patch-file` 写步骤；**agent-gui** 用 **`workspace_program edit_data`**（`target=action`）改 `data.json` 后 **`workspace_program patch`**。
+
+**agent-gui 改程序体（动作 / 公共子程序 / 动作内子程序）**：统一 **`workspace_program`**（`read_data` / `edit_data` / `write_data` / `file_*` / **`patch`** / `diagnostics`），`target` = `action` | `global_subprogram` | `embedded_subprogram`。详见 `docs get topic workspace-editing`。**禁止** Agent 使用内联 patch JSON 或 **`--patch-file`**。
 
 **Step-runner（Agent vs UI）**
 

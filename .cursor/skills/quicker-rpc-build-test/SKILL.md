@@ -91,6 +91,8 @@ pwsh -NoProfile -File ./build.ps1 -t
 | 产物 | Quicker 测试包 + 本机 CLI | GitHub Release `setup.exe` + zip |
 | `-t` 跳过 | CLI zip、Inno `setup.exe`、`publish/plugin` 二次 publish（插件已由 qkbuild 写入测试包） | — |
 
+**测试包版本**：`build.ps1 -t` 只递增 `version.json` **第四段**（revision），DLL 为 `QuickerRpc.Plugin.0.x.x.r.dll`，目录仍为 `_packages/quicker.rpc/0.x.x/`。发布时再手动 bump 第三段。
+
 ## 禁止
 
 - 用 GitHub Release 流程代替 `-t` 做日常改代码验证

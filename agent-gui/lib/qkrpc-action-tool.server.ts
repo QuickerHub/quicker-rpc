@@ -35,7 +35,8 @@ const actionQuerySchema = z.object({
 
 export type QkrpcActionQueryToolInput = z.infer<typeof actionQuerySchema>;
 
-const actionIdSchema = z.discriminatedUnion("action", [
+/** Strict parse schema (not sent to LLM — discriminatedUnion → JSON Schema type null on some providers). */
+const actionIdInputSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("get"),
     id: z.string().uuid(),
@@ -102,9 +103,52 @@ const actionIdSchema = z.discriminatedUnion("action", [
   }),
 ]);
 
-export type QkrpcActionIdToolInput = z.infer<typeof actionIdSchema>;
+export type QkrpcActionIdToolInput = z.infer<typeof actionIdInputSchema>;
 
-const actionManageSchema = z.discriminatedUnion("action", [
+/** Flat object schema for LLM tool definitions (requires top-level type: object). */
+const actionIdSchema = z.object({
+  action: z
+    .enum([
+      "get",
+      "run",
+      "float",
+      "edit",
+      "edit_var",
+      "set_metadata",
+      "move",
+      "publish",
+      "replace",
+    ])
+    .describe("Operation to perform"),
+  id: z.string().optional().describe("Action GUID or id"),
+  returnMode: returnModeSchema.optional(),
+  param: z.string().optional(),
+  wait: z.boolean().optional(),
+  debug: z.boolean().optional(),
+  var: z.string().optional(),
+  value: z.string().optional(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  icon: z.string().optional(),
+  expectedEditVersion: z.number().int().optional(),
+  force: z.boolean().optional(),
+  profile: z.string().optional(),
+  row: z.number().int().min(0).optional(),
+  col: z.number().int().min(0).optional(),
+  swap: z.boolean().optional(),
+  onNoEmptySlot: z.enum(["ask", "cancel", "createPageAfter"]).optional(),
+  onOccupiedSlot: z.enum(["ask", "cancel", "swap"]).optional(),
+  note: z.string().optional(),
+  tags: z.string().optional(),
+  keywords: z.string().optional(),
+  changelog: z.string().optional(),
+  isPublic: z.boolean().optional(),
+  submitReview: z.boolean().optional(),
+  xaction: z.record(z.unknown()).optional(),
+});
+
+/** Strict parse schema (not sent to LLM). */
+const actionManageInputSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("create"),
     title: z.string().optional(),
@@ -143,7 +187,63 @@ const actionManageSchema = z.discriminatedUnion("action", [
   }),
 ]);
 
-export type QkrpcActionManageToolInput = z.infer<typeof actionManageSchema>;
+export type QkrpcActionManageToolInput = z.infer<typeof actionManageInputSchema>;
+
+const actionManageSchema = z.object({
+  action: z
+    .enum([
+      "create",
+      "profile_create",
+      "profile_delete",
+      "profile_prune",
+      "profile_reorder",
+      "process_ensure",
+    ])
+    .describe("Operation to perform"),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  icon: z.string().optional(),
+  profileId: z.string().optional(),
+  count: z.number().int().min(1).max(20).optional(),
+  afterFirst: z.boolean().optional(),
+  profileIds: z.array(z.string()).optional(),
+  id: z.string().optional(),
+  scope: z.string().optional(),
+  exeFile: z.string().optional(),
+  displayName: z.string().optional(),
+  profileNamePrefix: z.string().optional(),
+  collectSubProgramName: z.string().optional(),
+  moveActions: z.boolean().optional(),
+  moveAny: z.boolean().optional(),
+});
+
+type ToolParseResult<T> =
+  | { success: true; data: T }
+  | { success: false; message: string };
+
+function formatZodToolInputError(error: z.ZodError): string {
+  return error.issues.map((issue) => issue.message).join("; ") || "Invalid tool input";
+}
+
+function parseActionIdToolInput(
+  input: z.infer<typeof actionIdSchema>,
+): ToolParseResult<QkrpcActionIdToolInput> {
+  const parsed = actionIdInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, message: formatZodToolInputError(parsed.error) };
+  }
+  return { success: true, data: parsed.data };
+}
+
+function parseActionManageToolInput(
+  input: z.infer<typeof actionManageSchema>,
+): ToolParseResult<QkrpcActionManageToolInput> {
+  const parsed = actionManageInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, message: formatZodToolInputError(parsed.error) };
+  }
+  return { success: true, data: parsed.data };
+}
 
 /** @deprecated Unified input for legacy tool aliases only. */
 export type QkrpcActionToolInput = QkrpcActionQueryToolInput
@@ -502,7 +602,13 @@ export const QKRPC_ACTION_TOOL_DEF = tool({
     "Operate on one action by id: get (sync workspace when non-empty), run, float, edit (Quicker UI), "
     + "edit_var, set_metadata, move, publish, replace. Disk editing uses workspace_program.",
   inputSchema: actionIdSchema,
-  execute: async (input) => executeQkrpcActionIdTool(input),
+  execute: async (input) => {
+    const parsed = parseActionIdToolInput(input);
+    if (!parsed.success) {
+      return formatQkrpcResultForAgent(qkrpcValidationError(parsed.message));
+    }
+    return executeQkrpcActionIdTool(parsed.data);
+  },
 });
 
 export const QKRPC_ACTION_MANAGE_TOOL_DEF = tool({
@@ -510,7 +616,13 @@ export const QKRPC_ACTION_MANAGE_TOOL_DEF = tool({
     "Create actions and manage layout: create (bootstraps workspace project), profile_create/delete/prune/reorder, "
     + "process_ensure (virtual process pages). See docs action-organization-workflow.",
   inputSchema: actionManageSchema,
-  execute: async (input) => executeQkrpcActionManageTool(input),
+  execute: async (input) => {
+    const parsed = parseActionManageToolInput(input);
+    if (!parsed.success) {
+      return formatQkrpcResultForAgent(qkrpcValidationError(parsed.message));
+    }
+    return executeQkrpcActionManageTool(parsed.data);
+  },
 });
 
 export {

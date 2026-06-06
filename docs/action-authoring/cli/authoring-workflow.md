@@ -78,7 +78,7 @@ qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <
 
 ```text
 edit_data / write_data 响应中的 projectSummary
-  或 workspace_action_read_data({ id, mode: "summary" })   # 仅不保存时诊断
+  或 workspace_program read_data({ mode: "summary" })   # 仅不保存时诊断
 ```
 
 需要精确 JSON 片段时再 **`read_data` + `offset`/`limit`**（改前读取或定位锚点）。

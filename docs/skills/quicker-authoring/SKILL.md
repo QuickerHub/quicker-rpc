@@ -18,7 +18,7 @@ compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
 | **动作文件定义** | `action-variables`、`action-steps`、`expressions`、`action-project-files` — 仅 `data.json` / 目录结构，不涉及工具行为 |
 | **CLI 专用** | `patch-workflow`（内联 patch JSON） |
 
-**Agent 默认路径**：**`qkrpc_action_create`**（仅 `info.json`）或 **`qkrpc_action_get`**（非空才 extract）→ **`workspace_*`** 改 `data.json` → **`qkrpc_action_patch({ id })`**。新建后**勿**再 get；勿传内联 patch JSON。
+**Agent 默认路径**：**`qkrpc_action_manage create`** / **`qkrpc_subprogram_manage create`**（仅 `info.json`+空 `data.json`）或 **`qkrpc_action_get`** / **`qkrpc_subprogram get`**（非空才 extract）→ **`workspace_program`** 改 `data.json` / `files/` → **`workspace_program patch`**。新建后**勿**再 get；**勿**内联 patch JSON / **`--patch-file`**。
 
 ## P0 前置
 
@@ -78,5 +78,5 @@ Quicker 运行中且已加载 QuickerRpc 插件。agent-gui 优先 **`qkrpc serv
 | 使用废弃的 `defaultValueFile` | 改为 `defaultValue: { "file": "files/…" }`（**`action-variables`**） |
 | 猜 `callIdentifier`、图标 spec | 须从子程序定义 / 图标目录取得，勿手写（流程见 **`subprogram-workflow`**、**`action-icons`**） |
 | 保存后反复 get 确认 | 以 patch / 编辑响应中的 **`editVersion`** 为准（**`authoring-workflow`** P7） |
-| 传内联 patch JSON（`op` / add / update） | Agent 改磁盘 **`data.json`** 后 patch（**`workspace-editing`**） |
+| 传内联 patch JSON / `--patch-file` | Agent 用 **`workspace_program edit_data`** 改磁盘 **`data.json`** 后 **`workspace_program patch`**（**`workspace-editing`**） |
 

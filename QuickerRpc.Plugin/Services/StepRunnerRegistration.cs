@@ -10,14 +10,11 @@ using QuickerRpc.Plugin.StepRunners;
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Injects plugin step runners. <c>sys:evalexpression</c> prefers built-in EvalExpressionStepV2;
-/// otherwise registers plugin backfill (with Z.Expressions Split/LINQ rewrite).
+/// Injects plugin step runners. <c>sys:evalexpression</c> uses plugin backfill with typed
+/// Z.Expressions globals (built-in EvalExpressionStepV2 uses dynamic variable bags).
 /// </summary>
 internal static class StepRunnerRegistration
 {
-    private const string BuiltInEvalExpressionTypeName =
-        "Quicker.Domain.Actions.X.BuiltinRunners.Misc.EvalExpressionStepV2";
-
     private static readonly object LockObject = new();
     private static bool _registered;
 
@@ -53,92 +50,27 @@ internal static class StepRunnerRegistration
     {
         const string key = EvalExpressionStepRunner.StepKey;
 
-        if (TryInstallBuiltInEvalExpression(logger, key))
-        {
-            return;
-        }
-
         var existing = GetRuntimeRunner(key);
-        if (existing is not null && existing is not EvalExpressionStepRunner)
+        if (existing is EvalExpressionStepRunner)
         {
-            logger?.LogInformation(
-                "Step runner {Key} already provided by Quicker ({Type}).",
-                key,
-                existing.GetType().Name);
             return;
         }
 
         var backfill = new EvalExpressionStepRunner();
         InstallRuntimeRunner(key, backfill);
-        logger?.LogInformation(
-            "Registered plugin backfill for {Key} (built-in EvalExpressionStepV2 unavailable).",
-            key);
-    }
 
-    private static bool TryInstallBuiltInEvalExpression(ILogger? logger, string key)
-    {
-        if (!TryCreateBuiltInEvalExpressionRunner(out var builtIn))
-        {
-            logger?.LogDebug("EvalExpressionStepV2 type not found; plugin backfill may be used.");
-            return false;
-        }
-
-        var existing = GetRuntimeRunner(key);
-        var builtInType = builtIn!.GetType();
-
-        if (existing?.GetType() == builtInType)
-        {
-            return true;
-        }
-
-        InstallRuntimeRunner(key, builtIn!);
-
-        if (existing is EvalExpressionStepRunner)
+        if (existing is null)
         {
             logger?.LogInformation(
-                "Replaced plugin backfill with built-in EvalExpressionStepV2 for {Key}.",
+                "Registered plugin {Key} with typed Z.Expressions globals.",
                 key);
-        }
-        else if (existing is null)
-        {
-            logger?.LogInformation("Registered built-in EvalExpressionStepV2 for {Key}.", key);
-        }
-        else
-        {
-            logger?.LogWarning(
-                "Overwrote step runner {Key} ({OldType}) with built-in EvalExpressionStepV2.",
-                key,
-                existing.GetType().Name);
+            return;
         }
 
-        return true;
-    }
-
-    private static bool TryCreateBuiltInEvalExpressionRunner(out IStepRunner? runner)
-    {
-        runner = null;
-        var type = ResolveBuiltInEvalExpressionType();
-        if (type is null)
-        {
-            return false;
-        }
-
-        runner = Activator.CreateInstance(type) as IStepRunner;
-        return runner is not null;
-    }
-
-    private static Type? ResolveBuiltInEvalExpressionType()
-    {
-        foreach (var assembly in new[] { typeof(AppState).Assembly })
-        {
-            var type = assembly.GetType(BuiltInEvalExpressionTypeName, throwOnError: false);
-            if (type is not null)
-            {
-                return type;
-            }
-        }
-
-        return Type.GetType($"{BuiltInEvalExpressionTypeName}, Quicker", throwOnError: false);
+        logger?.LogInformation(
+            "Replaced step runner {Key} ({OldType}) with plugin EvalExpressionStepRunner (typed globals).",
+            key,
+            existing.GetType().Name);
     }
 
     private static object? ResolveStepRunnerService()

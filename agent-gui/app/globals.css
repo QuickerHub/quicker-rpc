@@ -3814,6 +3814,16 @@ html.sidebar-collapsed-init .app-shell {
   opacity: 0.72;
 }
 
+.reasoning-card--nested {
+  margin: 0.04rem 0;
+  opacity: 0.72;
+}
+
+.reasoning-card--nested .reasoning-label {
+  display: block;
+  padding: 0.04rem 0.35rem 0;
+}
+
 .reasoning-summary {
   display: flex;
   align-items: baseline;
@@ -5616,7 +5626,10 @@ textarea {
   border-radius: 6px;
 }
 
-.tool-batch + .tool-batch {
+.tool-batch + .tool-batch,
+.activity-batch + .activity-batch,
+.tool-batch + .activity-batch,
+.activity-batch + .tool-batch {
   margin-top: -0.02rem;
 }
 

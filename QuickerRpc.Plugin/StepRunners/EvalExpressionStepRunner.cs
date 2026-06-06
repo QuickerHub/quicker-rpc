@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Dynamic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Quicker.Domain.Actions;
@@ -162,17 +161,15 @@ internal sealed class EvalExpressionStepRunner : IStepRunner
                 expression = expression.Substring(2);
             }
 
-            dynamic variableDict = context.IsDebugging
-                ? new DebugVariableDictionary(context)
-                : new VariableDictionary(context);
+            var globals = new Dictionary<string, object?>(StringComparer.Ordinal);
 
             if (expression.Contains("{[cliptext]}"))
             {
                 expression = expression.Replace("{[cliptext]}", "vv_cliptext");
-                variableDict.vv_cliptext = ClipboardHelper.TryGetClipboardText();
+                globals["vv_cliptext"] = ClipboardHelper.TryGetClipboardText() ?? string.Empty;
             }
 
-            var processedVars = new HashSet<string>();
+            var processedVars = new HashSet<string>(StringComparer.Ordinal);
             expression = VariablePlaceholderPattern.Replace(expression, match =>
             {
                 var varKey = match.Groups[1].Value;
@@ -185,30 +182,32 @@ internal sealed class EvalExpressionStepRunner : IStepRunner
 
                 processedVars.Add(varKey);
 
-                var value = ExpressionVariableResolver.Resolve(context, action, varKey, expression);
+                var varType = action?.Variables?.FirstOrDefault(
+                    v => string.Equals(v.Key, varKey, StringComparison.Ordinal))?.Type;
+                var rawValue = ExpressionVariableResolver.Resolve(context, action, varKey, expression);
+                var value = ExpressionVariableResolver.NormalizeForEvalBinding(rawValue, varType);
 
-                if (value == null)
+                if (value is null)
                 {
                     context.ActionLogger?.LogWarning($"变量 {varKey} 的值为null，可能会造成表达式解析出错。");
                 }
-                else if (value is long l && l > int.MinValue && l < int.MaxValue)
-                {
-                    value = (int)l;
-                }
 
-                ((VariableDictionary)variableDict).SetProperty(varName, value);
+                globals[varName] = value;
+
+                if (context.IsDebugging)
+                {
+                    context.ActionLogger?.LogInfo($"[变量读取] {{{varKey}}} -> {value}");
+                }
 
                 return varName;
             });
 
             expression = ExpressionEvalTransforms.EnsureTypedSplitAssignment(expression);
 
-            variableDict._context = context;
-
             if (context.IsDebugging)
             {
-                var dict = (VariableDictionary)variableDict;
-                context.ActionLogger?.LogInfo($"变量字典内容: {dict?.GetDebugInfo() ?? "N/A"}");
+                context.ActionLogger?.LogInfo(
+                    $"变量字典内容: {string.Join(", ", globals.Select(kvp => $"{kvp.Key}={kvp.Value}"))}");
                 context.ActionLogger?.LogInfo($"处理后的表达式: {expression}");
             }
 
@@ -219,14 +218,38 @@ internal sealed class EvalExpressionStepRunner : IStepRunner
                 AppHelper.RunOnUiThread(true, () =>
                 {
                     var evalContext = context.GetEvalContext();
-                    value = evalContext.Execute(expression, variableDict);
+                    value = ExpressionEvalBinding.Execute(
+                        evalContext,
+                        expression,
+                        globals,
+                        context,
+                        (varKey, writtenValue) =>
+                        {
+                            context.CustomData[varKey] = writtenValue!;
+                            if (context.IsDebugging)
+                            {
+                                context.ActionLogger?.LogInfo($"[变量写入] {{{varKey}}} = {writtenValue}");
+                            }
+                        });
                 });
                 result = value;
             }
             else
             {
                 var evalContext = context.GetEvalContext();
-                result = evalContext.Execute(expression, variableDict);
+                result = ExpressionEvalBinding.Execute(
+                    evalContext,
+                    expression,
+                    globals,
+                    context,
+                    (varKey, writtenValue) =>
+                    {
+                        context.CustomData[varKey] = writtenValue!;
+                        if (context.IsDebugging)
+                        {
+                            context.ActionLogger?.LogInfo($"[变量写入] {{{varKey}}} = {writtenValue}");
+                        }
+                    });
             }
 
             XActionHelper.OutputResult(OutputParam, step, context, result, action);
@@ -266,69 +289,4 @@ internal sealed class EvalExpressionStepRunner : IStepRunner
         });
     }
 
-    private class VariableDictionary(ActionExecuteContext context) : DynamicObject
-    {
-        protected readonly ActionExecuteContext Context = context;
-        private readonly Dictionary<string, object> _properties = new(StringComparer.Ordinal);
-
-        public override bool TryGetMember(GetMemberBinder binder, out object? result) =>
-            _properties.TryGetValue(binder.Name, out result);
-
-        public override bool TrySetMember(SetMemberBinder binder, object? value)
-        {
-            _properties[binder.Name] = value!;
-
-            if (binder.Name.StartsWith("v_", StringComparison.Ordinal) && binder.Name.Length > 2)
-            {
-                var originalVarName = binder.Name.Substring(2);
-                Context.CustomData[originalVarName] = value!;
-            }
-
-            return true;
-        }
-
-        public void SetProperty(string name, object? value) => _properties[name] = value!;
-
-        public string GetDebugInfo() =>
-            string.Join(", ", _properties.Select(kvp => $"{kvp.Key}={kvp.Value}"));
-    }
-
-    private sealed class DebugVariableDictionary(ActionExecuteContext context) : VariableDictionary(context)
-    {
-        public override bool TryGetMember(GetMemberBinder binder, out object? result)
-        {
-            var propertyName = binder.Name;
-            var success = base.TryGetMember(binder, out result);
-            if (!success)
-            {
-                return false;
-            }
-
-            if (propertyName.StartsWith("v_", StringComparison.Ordinal) && propertyName.Length > 2)
-            {
-                var originalVarName = propertyName.Substring(2);
-                Context.ActionLogger?.LogInfo($"[变量读取] {{{originalVarName}}} -> {result}");
-            }
-            else
-            {
-                Context.ActionLogger?.LogInfo($"[变量读取] {propertyName} = {result}");
-            }
-
-            return true;
-        }
-
-        public override bool TrySetMember(SetMemberBinder binder, object? value)
-        {
-            var propertyName = binder.Name;
-            var success = base.TrySetMember(binder, value);
-
-            if (propertyName.StartsWith("v_", StringComparison.Ordinal) && propertyName.Length > 2)
-            {
-                var originalVarName = propertyName.Substring(2);
-                Context.ActionLogger?.LogInfo($"[变量写入] {{{originalVarName}}} = {value}");
-            }
-
-            return success;
-        }
-    }
 }

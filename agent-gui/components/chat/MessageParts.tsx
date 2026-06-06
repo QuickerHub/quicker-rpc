@@ -5,6 +5,7 @@ import { isTextUIPart } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { AssistantRichMessage } from "./AssistantRichMessage";
 import { InlineUserMessage } from "./InlineUserMessage";
+import { ActivityBatchGroup } from "./ActivityBatchGroup";
 import { ReasoningPart } from "./ReasoningPart";
 import { segmentMessageParts } from "./tool-part-layout";
 import { ToolBatchGroup } from "./ToolBatchGroup";
@@ -76,6 +77,23 @@ export function MessageParts({
               messageId={message.id}
               partIndex={index}
               part={part}
+            />
+          );
+        }
+
+        if (segment.kind === "activity-batch") {
+          const batchLead = segment.items[0]!;
+          const batchKey =
+            batchLead.kind === "tool"
+              ? (readToolCallId(batchLead.part)
+                ?? `activity-${message.id}-${batchLead.index}`)
+              : `activity-${message.id}-${batchLead.index}`;
+          return (
+            <ActivityBatchGroup
+              key={batchKey}
+              messageId={message.id}
+              items={segment.items}
+              disableAutoCollapse={keepToolBatchesExpanded}
             />
           );
         }

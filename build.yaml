@@ -1,6 +1,8 @@
 # qkbuild configuration for QuickerRpc plugin package
 # Run from repo root: pwsh ./build.ps1
 # Release upload: pwsh ./build.ps1 -Publish -NoVersion
+# Test (-t): bumps version.json revision (4th field) only; DLL QuickerRpc.Plugin.M.m.b.r.dll stays under _packages/quicker.rpc/M.m.b/
+# Publish (-p): interactive version pick (or --version / --publish-version / -y); -p -n uses current version.json without prompt
 
 name: quicker-rpc
 displayName: QuickerRpc
@@ -13,9 +15,12 @@ packageName: quicker.rpc
 subprogramName: QuickerRpc_Run
 instruction: Quicker plugin RPC bridge (StreamJsonRpc named pipe)
 
-# Costura embeds Contracts, AgentModel, and NuGet deps into the plugin DLL.
+# Costura embeds NuGet deps into the plugin DLL. AgentModel + Contracts ship as version-suffixed
+# satellite DLLs so Quicker can resolve them on disk and multiple plugin revisions can coexist.
 filesToInclude:
   - "QuickerRpc.Plugin*.dll"
+  - "QuickerRpc.AgentModel*.dll"
+  - "QuickerRpc.Contracts*.dll"
 
 filesToExclude:
   - "*.pdb"

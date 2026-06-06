@@ -33,4 +33,11 @@ public sealed class ExpressionVariableResolverTests
     {
         Assert.AreEqual("42", ExpressionVariableResolver.CoerceToExpressionValue(42));
     }
+
+    [TestMethod]
+    public void NormalizeForEvalBinding_preserves_numeric_types()
+    {
+        Assert.AreEqual(42, ExpressionVariableResolver.NormalizeForEvalBinding(42, null));
+        Assert.AreEqual("hello", ExpressionVariableResolver.NormalizeForEvalBinding("hello", null));
+    }
 }

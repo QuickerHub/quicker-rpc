@@ -19,17 +19,18 @@
 记下 **`actionId`**（GUID）。`<qka id="…">` 标签直接用该 id。`scope` 等见 list/search 工具说明。
 
 {{#only-agent}}
-**新建后勿再 `qkrpc_action_get`**：用 create 返回的 id/version，直接 **`workspace_action_*_data`** 写 `data.json`，再 **`qkrpc_action_patch`**。
+**新建后勿再 `qkrpc_action get` / `qkrpc_subprogram get`**：用 create 返回的 id/version，直接 **`workspace_program edit_data|write_data`** 写 `data.json`，再 **`workspace_program patch`**。
 {{/only-agent}}
 
 ## P2 读取与工作区
 
 {{#only-agent}}
-1. **已有动作**且程序体非空：`qkrpc_action_get` — 响应含步骤树摘要；**自动 extract** 到 `.quicker/actions/{actionId}/`（见 **`workspaceProject`**）
-2. **空动作**（0 步 0 变量）：get **不**写入 `data.json`（`workspaceSyncSkipped`）；先在工作区写好内容或仅在 Quicker 内编辑后再 get
-3. 本地项目列表：**`workspace_action_projects`**
+1. **已有动作**且程序体非空：`qkrpc_action get` — **自动 extract** 到 `.quicker/actions/{actionId}/`
+2. **已有公共子程序**且非空：`qkrpc_subprogram get` — sync 到 `.quicker/subprograms/{idOrName}/`
+3. **空程序体**（0 步 0 变量）：get **不**写入 `data.json`；先 **`workspace_program write_data|edit_data`** 或 Quicker UI 编辑后再 get
+4. 本地项目列表：**`workspace_program({ action: "projects_list" })`**
 
-`returnMode` 等见 **`qkrpc_action_get`** description；布局与工具表：**`workspace-editing`**。
+布局与工具表：**`workspace-editing`**（**`target`**：`action` / `global_subprogram` / `embedded_subprogram`）。
 {{/only-agent}}
 {{#only-cli}}
 ```powershell
@@ -95,10 +96,10 @@ step-runner search（一次 OR|通配）→ step-runner get（必须；见 step-
 按 **`workspace-editing`** 改 `data.json` / `files/`，再：
 
 ```text
-{{@ action.patch}}
+workspace_program({ action: "patch", target, id [, subProgramId] })
 ```
 
-（仅 `{ id }`，无 patch 对象。）调公共子程序步骤：**`subprogram-workflow`**。
+（**勿**传 patch 对象 / **`--patch-file`**。）调公共子程序步骤：**`subprogram-workflow`**。
 
 写入 `data.json` 的 `steps[]` 示例见 **`action-steps`**；变量声明见 **`action-variables`**。
 {{/only-agent}}
@@ -113,9 +114,9 @@ step-runner search（一次 OR|通配）→ step-runner get（必须；见 step-
 ## P7 保存后
 
 {{#only-agent}}
-以 **`qkrpc_action_patch`** / **`workspace_program_patch`** 响应的 **`editVersion`**，以及 **`workspace_action_edit_data` / `write_data`** 响应里的 **`projectSummary`** 为准；勿仅为核对再 get 或全量 **`workspace_action_read_data`**。改完 disk 后 **直接 patch**，勿先单独校验。
+以 **`workspace_program patch`** 响应的 **`editVersion`**，以及 **`edit_data` / `write_data`** 响应里的 **`projectSummary`** 为准；勿仅为核对再 get 或全量 **`read_data`**。改完 disk 后 **直接 patch**，勿先单独校验。
 
-**回复用户（动作 patch 成功后）**：正文写简短结论（改了什么、`editVersion`、下一步）即可。**勿**输出 `<qka-link>` 或重复贴动作表——agent-gui 会根据本回合内成功的 **`workspace_program_patch`** / **`qkrpc_action_patch`**（`target=action`）工具结果，在回合末**自动**显示动作快捷卡片（运行 / 编辑 / 悬浮 / 工作区 / 调试）。
+**回复用户（patch 成功后）**：正文写简短结论即可。**勿**输出 `<qka-link>` 或重复贴动作表——agent-gui 会根据本回合内成功的 **`workspace_program patch`**（`target=action`）自动显示动作快捷卡片。
 {{/only-agent}}
 {{#only-cli}}
 以 patch 响应的 **`editVersion`**、**`addedSteps`** 为准（增量 patch 时）；extract/apply 路径以 apply 响应为准。勿仅为核对再 get。
@@ -125,7 +126,7 @@ step-runner search（一次 OR|通配）→ step-runner get（必须；见 step-
 
 ```text
 edit_data / write_data 响应中的 projectSummary
-  或 workspace_action_read_data({ id, mode: "summary" })   # 仅不保存时诊断
+  或 workspace_program read_data({ mode: "summary" })   # 仅不保存时诊断
 ```
 
 需要精确 JSON 片段时再 **`read_data` + `offset`/`limit`**（改前读取或定位锚点）。

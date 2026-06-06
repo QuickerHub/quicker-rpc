@@ -27,7 +27,8 @@ const subprogramQuerySchema = z.object({
 
 export type QkrpcSubprogramQueryToolInput = z.infer<typeof subprogramQuerySchema>;
 
-const subprogramIdSchema = z.discriminatedUnion("action", [
+/** Strict parse schema (not sent to LLM). */
+const subprogramIdInputSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("get"),
     id: z.string(),
@@ -70,7 +71,38 @@ const subprogramIdSchema = z.discriminatedUnion("action", [
   }),
 ]);
 
-export type QkrpcSubprogramIdToolInput = z.infer<typeof subprogramIdSchema>;
+export type QkrpcSubprogramIdToolInput = z.infer<typeof subprogramIdInputSchema>;
+
+const subprogramIdSchema = z.object({
+  action: z
+    .enum(["get", "patch", "replace", "export", "import", "edit", "edit_var"])
+    .describe("Operation to perform"),
+  id: z.string().optional(),
+  returnMode: returnModeSchema.optional(),
+  patch: z.record(z.unknown()).optional(),
+  program: z.record(z.unknown()).optional(),
+  expectedEditVersion: z.number().int().optional(),
+  force: z.boolean().optional(),
+  dir: z.string().optional(),
+  var: z.string().optional(),
+  value: z.string().optional(),
+});
+
+function formatZodToolInputError(error: z.ZodError): string {
+  return error.issues.map((issue) => issue.message).join("; ") || "Invalid tool input";
+}
+
+function parseSubprogramIdToolInput(
+  input: z.infer<typeof subprogramIdSchema>,
+):
+  | { success: true; data: QkrpcSubprogramIdToolInput }
+  | { success: false; message: string } {
+  const parsed = subprogramIdInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, message: formatZodToolInputError(parsed.error) };
+  }
+  return { success: true, data: parsed.data };
+}
 
 const subprogramManageSchema = z.object({
   action: z.literal("create"),
@@ -313,7 +345,13 @@ export const QKRPC_SUBPROGRAM_TOOL_DEF = tool({
     "Operate on one global subprogram by id: get (sync workspace when program has body), patch, replace, "
     + "export/import project dir, edit (Quicker UI), edit_var. Prefer workspace_program for disk editing.",
   inputSchema: subprogramIdSchema,
-  execute: async (input) => executeQkrpcSubprogramIdTool(input),
+  execute: async (input) => {
+    const parsed = parseSubprogramIdToolInput(input);
+    if (!parsed.success) {
+      return formatQkrpcResultForAgent(qkrpcValidationError(parsed.message));
+    }
+    return executeQkrpcSubprogramIdTool(parsed.data);
+  },
 });
 
 export const QKRPC_SUBPROGRAM_MANAGE_TOOL_DEF = tool({

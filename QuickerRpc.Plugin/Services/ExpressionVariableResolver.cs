@@ -39,14 +39,30 @@ internal static class ExpressionVariableResolver
         return value;
     }
 
-    internal static object? CoerceToExpressionValue(object? value)
+    internal static object? CoerceToExpressionValue(object? value) =>
+        NormalizeForEvalBinding(value, null, coerceUnknownToString: true);
+
+    /// <summary>
+    /// Preserve runtime types for Z.Expressions global registration (avoid dynamic inference).
+    /// </summary>
+    internal static object? NormalizeForEvalBinding(
+        object? value,
+        VarType? varType,
+        bool coerceUnknownToString = false)
     {
         if (value is null)
         {
-            return null;
+            return varType switch
+            {
+                VarType.Boolean => false,
+                VarType.Integer => 0,
+                VarType.Number => 0.0,
+                VarType.Text or VarType.Any => string.Empty,
+                _ => coerceUnknownToString ? string.Empty : null,
+            };
         }
 
-        if (value is string)
+        if (value is string or bool or int or long or double or float or decimal)
         {
             return value;
         }
@@ -56,19 +72,29 @@ internal static class ExpressionVariableResolver
             return new string(chars);
         }
 
-        if (value is IFormattable or IConvertible)
+        if (value is long l && l >= int.MinValue && l <= int.MaxValue)
         {
-            try
-            {
-                return Convert.ToString(value);
-            }
-            catch
-            {
-                // fall through
-            }
+            return (int)l;
         }
 
-        return value.ToString();
+        if (varType is VarType.Text or VarType.Any || coerceUnknownToString)
+        {
+            if (value is IFormattable or IConvertible)
+            {
+                try
+                {
+                    return Convert.ToString(value);
+                }
+                catch
+                {
+                    // fall through
+                }
+            }
+
+            return value.ToString();
+        }
+
+        return value;
     }
 
     internal static bool ShouldUseClipboardFallback(string varKey, object? value, string expressionBody)
