@@ -31,10 +31,6 @@ import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
 import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
 import { useTauriShell } from "@/lib/tauri-shell";
-import {
-  loadToolTestKeepBatchesExpanded,
-  storeToolTestKeepBatchesExpanded,
-} from "@/lib/tool-test-ui-prefs";
 import { defaultStepInputJson } from "@/lib/tool-test-input-format";
 import { ToolTestPromptPanel } from "@/components/tool-test/ToolTestPromptPanel";
 import { ToolTestSuiteDetailDialog } from "@/components/tool-test/ToolTestSuiteDetailDialog";
@@ -43,6 +39,10 @@ import { ToolTestTitleResultPane } from "@/components/tool-test/ToolTestTitleRes
 import type { TitleTestRunEntry } from "@/lib/tool-test-title-runs";
 import { ToolTestAutoFixPanel } from "@/components/tool-test/ToolTestAutoFixPanel";
 import { ToolTestAutoFixResultPane } from "@/components/tool-test/ToolTestAutoFixResultPane";
+import { ToolTestContextCompressionPanel } from "@/components/tool-test/ToolTestContextCompressionPanel";
+import { ToolTestContextCompressionResultPane } from "@/components/tool-test/ToolTestContextCompressionResultPane";
+import { ToolTestVoiceInputPanel } from "@/components/tool-test/ToolTestVoiceInputPanel";
+import { ToolTestVoiceInputResultPane } from "@/components/tool-test/ToolTestVoiceInputResultPane";
 import {
   ToolTestLauncherPanel,
   type ToolTestLauncherSubTab,
@@ -59,12 +59,22 @@ import { ToolTestSuiteResultPane } from "@/components/tool-test/ToolTestSuiteRes
 import type { ToolSuiteRunEntry } from "@/lib/tool-test-suite-runs";
 import { createToolSuiteRunId } from "@/lib/tool-test-suite-runs";
 import type { AutoFixRunEntry } from "@/lib/tool-test-autofix-runs";
+import type { ContextCompressionRunEntry } from "@/lib/tool-test-context-compression-runs";
+import type { VoiceInputRunEntry } from "@/lib/tool-test-voice-input-runs";
 import type { SettingsIntentRunEntry } from "@/lib/quicker-settings-intent-runs";
 import type { LauncherAgentRunEntry } from "@/lib/tool-test-launcher-agent-runs";
 import type { LauncherResolveRunEntry } from "@/lib/tool-test-launcher-resolve-runs";
 import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 
-type ToolTestSidebarTab = "tools" | "prompt" | "prompt-chat" | "auto-fix" | "launcher" | "action-trace";
+type ToolTestSidebarTab =
+  | "tools"
+  | "prompt"
+  | "prompt-chat"
+  | "auto-fix"
+  | "launcher"
+  | "action-trace"
+  | "context-compression"
+  | "voice-input";
 
 type StepInputOverrides = Record<string, string>;
 
@@ -191,9 +201,6 @@ export function ToolTestPage() {
   const [toolSuiteRuns, setToolSuiteRuns] = useState<ToolSuiteRunEntry[]>([]);
   const [runningSuiteId, setRunningSuiteId] = useState<string | null>(null);
   const [stepOverrides, setStepOverrides] = useState<StepInputOverrides>({});
-  const [keepToolBatchesExpanded, setKeepToolBatchesExpanded] = useState(
-    () => loadToolTestKeepBatchesExpanded(),
-  );
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(
     null,
   );
@@ -201,6 +208,10 @@ export function ToolTestPage() {
   const [sidebarTab, setSidebarTab] = useState<ToolTestSidebarTab>("prompt-chat");
   const [titleTestRuns, setTitleTestRuns] = useState<TitleTestRunEntry[]>([]);
   const [autoFixRuns, setAutoFixRuns] = useState<AutoFixRunEntry[]>([]);
+  const [contextCompressionRuns, setContextCompressionRuns] = useState<
+    ContextCompressionRunEntry[]
+  >([]);
+  const [voiceInputRuns, setVoiceInputRuns] = useState<VoiceInputRunEntry[]>([]);
   const [launcherSubTab, setLauncherSubTab] = useState<ToolTestLauncherSubTab>("agent");
   const [launcherAgentRuns, setLauncherAgentRuns] = useState<LauncherAgentRunEntry[]>([]);
   const [launcherResolveRuns, setLauncherResolveRuns] = useState<LauncherResolveRunEntry[]>([]);
@@ -250,6 +261,43 @@ export function ToolTestPage() {
 
   const clearAutoFixRuns = useCallback(() => {
     setAutoFixRuns([]);
+  }, []);
+
+  const appendContextCompressionRun = useCallback(
+    (entry: ContextCompressionRunEntry) => {
+      setContextCompressionRuns((prev) => [...prev, entry]);
+    },
+    [],
+  );
+
+  const patchContextCompressionRun = useCallback(
+    (id: string, patch: Partial<ContextCompressionRunEntry>) => {
+      setContextCompressionRuns((prev) =>
+        prev.map((run) => (run.id === id ? { ...run, ...patch } : run)),
+      );
+    },
+    [],
+  );
+
+  const clearContextCompressionRuns = useCallback(() => {
+    setContextCompressionRuns([]);
+  }, []);
+
+  const appendVoiceInputRun = useCallback((entry: VoiceInputRunEntry) => {
+    setVoiceInputRuns((prev) => [...prev, entry]);
+  }, []);
+
+  const patchVoiceInputRun = useCallback(
+    (id: string, patch: Partial<VoiceInputRunEntry>) => {
+      setVoiceInputRuns((prev) =>
+        prev.map((run) => (run.id === id ? { ...run, ...patch } : run)),
+      );
+    },
+    [],
+  );
+
+  const clearVoiceInputRuns = useCallback(() => {
+    setVoiceInputRuns([]);
   }, []);
 
   const appendSettingsIntentRun = useCallback((entry: SettingsIntentRunEntry) => {
@@ -564,6 +612,26 @@ export function ToolTestPage() {
       >
         修复
       </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={sidebarTab === "voice-input"}
+        className={`tool-test-sidebar-tabs__btn${sidebarTab === "voice-input" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
+        onClick={() => setSidebarTab("voice-input")}
+        title="语音输入启动延迟"
+      >
+        语音
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={sidebarTab === "context-compression"}
+        className={`tool-test-sidebar-tabs__btn${sidebarTab === "context-compression" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
+        onClick={() => setSidebarTab("context-compression")}
+        title="上下文压缩 dry-run / Chat"
+      >
+        压缩
+      </button>
     </div>
   );
 
@@ -613,6 +681,19 @@ export function ToolTestPage() {
       />
     ) : sidebarTab === "action-trace" ? (
       <ToolTestActionTracePanel disabled={panelDisabled} />
+    ) : sidebarTab === "context-compression" ? (
+      <ToolTestContextCompressionPanel
+        disabled={panelDisabled}
+        workingDirectory={workingDirectory}
+        onAppendRun={appendContextCompressionRun}
+        onPatchRun={patchContextCompressionRun}
+      />
+    ) : sidebarTab === "voice-input" ? (
+      <ToolTestVoiceInputPanel
+        disabled={panelDisabled}
+        onAppendRun={appendVoiceInputRun}
+        onPatchRun={patchVoiceInputRun}
+      />
     ) : (
       <ToolTestAutoFixPanel
         disabled={panelDisabled}
@@ -627,7 +708,6 @@ export function ToolTestPage() {
       <ToolTestSuiteResultPane
         runs={toolSuiteRuns}
         workingDirectory={workingDirectory}
-        keepToolBatchesExpanded={keepToolBatchesExpanded}
         onClearRuns={clearConversation}
       />
     ) : sidebarTab === "prompt" ? (
@@ -637,10 +717,7 @@ export function ToolTestPage() {
         onClearRuns={clearTitleTestRuns}
       />
     ) : sidebarTab === "prompt-chat" ? (
-      <ToolTestPromptChatPane
-        workingDirectory={workingDirectory}
-        keepToolBatchesExpanded={keepToolBatchesExpanded}
-      />
+      <ToolTestPromptChatPane workingDirectory={workingDirectory} />
     ) : sidebarTab === "launcher" ? (
       <ToolTestLauncherResultPane
         subTab={launcherSubTab}
@@ -656,6 +733,17 @@ export function ToolTestPage() {
       <ToolTestActionTraceMain
         className="tool-test-action-trace-main"
         pingOk={ping.status === "ok"}
+      />
+    ) : sidebarTab === "context-compression" ? (
+      <ToolTestContextCompressionResultPane
+        runs={contextCompressionRuns}
+        workingDirectory={workingDirectory}
+        onClearRuns={clearContextCompressionRuns}
+      />
+    ) : sidebarTab === "voice-input" ? (
+      <ToolTestVoiceInputResultPane
+        runs={voiceInputRuns}
+        onClearRuns={clearVoiceInputRuns}
       />
     ) : (
       <ToolTestAutoFixResultPane
@@ -690,18 +778,6 @@ export function ToolTestPage() {
               </div>
               <div className="tool-test-titlebar__main-spacer" aria-hidden />
               <div className="tool-test-titlebar__right">
-                <label className="tool-test-titlebar__toggle">
-                  <input
-                    type="checkbox"
-                    checked={keepToolBatchesExpanded}
-                    onChange={(e) => {
-                      const next = e.target.checked;
-                      setKeepToolBatchesExpanded(next);
-                      storeToolTestKeepBatchesExpanded(next);
-                    }}
-                  />
-                  <span>保持工具批次展开</span>
-                </label>
                 <TitlebarThemeSwitcher />
                 {isTauri ? <TauriWindowControls /> : null}
               </div>

@@ -63,7 +63,6 @@ export function ToolTestLauncherAgentChatMessages({
         <ToolTestChatMessages
           messages={messages}
           workingDirectory={workingDirectory}
-          keepToolBatchesExpanded={false}
           endRef={endRef}
         />
       </div>

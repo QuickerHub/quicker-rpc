@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  buildActivityBatchSummary,
   buildToolBatchSummary,
   segmentMessageParts,
 } from "./tool-part-layout.ts";
 
-test("segmentMessageParts groups consecutive reasoning and tools into activity-batch", () => {
+test("segmentMessageParts keeps reasoning and tools as separate ordered segments", () => {
   const parts = [
     { type: "reasoning", text: "plan", state: "done" },
     {
@@ -29,13 +28,12 @@ test("segmentMessageParts groups consecutive reasoning and tools into activity-b
 
   const segments = segmentMessageParts(parts);
 
-  assert.equal(segments.length, 2);
-  assert.equal(segments[0]?.kind, "activity-batch");
-  assert.equal(
-    segments[0]?.kind === "activity-batch" ? segments[0].items.length : 0,
-    4,
-  );
-  assert.equal(segments[1]?.kind, "text");
+  assert.equal(segments.length, 5);
+  assert.equal(segments[0]?.kind, "reasoning");
+  assert.equal(segments[1]?.kind, "tool");
+  assert.equal(segments[2]?.kind, "reasoning");
+  assert.equal(segments[3]?.kind, "tool");
+  assert.equal(segments[4]?.kind, "text");
 });
 
 test("segmentMessageParts keeps reasoning-only runs as reasoning segment", () => {
@@ -76,95 +74,6 @@ test("segmentMessageParts keeps multi-tool runs as tool-batch", () => {
   const segments = segmentMessageParts(parts);
   assert.equal(segments.length, 2);
   assert.equal(segments[0]?.kind, "tool-batch");
-});
-
-test("buildActivityBatchSummary uses tool title for mixed runs", () => {
-  const summary = buildActivityBatchSummary([
-    { kind: "reasoning", part: { type: "reasoning", text: "plan", state: "done" }, index: 0 },
-    {
-      kind: "tool",
-      part: {
-        type: "tool-qkrpc_fa_search",
-        toolCallId: "t1",
-        state: "output-available",
-        input: { query: "file" },
-        output: { ok: true },
-      },
-      index: 1,
-      name: "qkrpc_fa_search",
-      displayName: "图标",
-      state: "output-available",
-      meta: "20 个图标",
-      isRunning: false,
-      needsAttention: false,
-    },
-  ] as Parameters<typeof buildActivityBatchSummary>[0]);
-
-  assert.equal(summary.title, "图标");
-  assert.equal(summary.meta, "2 步 · 完成");
-});
-
-test("buildActivityBatchSummary aggregates write line diff when collapsed", () => {
-  const summary = buildActivityBatchSummary([
-    { kind: "reasoning", part: { type: "reasoning", text: "plan", state: "done" }, index: 0 },
-    {
-      kind: "tool",
-      part: {
-        type: "tool-workspace_action_write_data",
-        toolCallId: "t1",
-        state: "output-available",
-        input: { id: "a", content: '{\n  "a": 2\n}\n' },
-        output: {
-          ok: true,
-          exitCode: 0,
-          data: {
-            action: "program-data-write",
-            previousContent: '{\n  "a": 1\n}\n',
-            content: '{\n  "a": 2\n}\n',
-          },
-        },
-      },
-      index: 1,
-      name: "workspace_action_write_data",
-      displayName: "write-data",
-      state: "output-available",
-      meta: "data.json · +1 -1",
-      isRunning: false,
-      needsAttention: false,
-    },
-    {
-      kind: "tool",
-      part: {
-        type: "tool-workspace_program",
-        toolCallId: "t2",
-        state: "output-available",
-        input: {
-          action: "file_write",
-          path: "notes.txt",
-          content: "b\n",
-        },
-        output: {
-          ok: true,
-          exitCode: 0,
-          data: {
-            action: "file-write",
-            previousContent: "a\n",
-            content: "b\n",
-          },
-        },
-      },
-      index: 2,
-      name: "workspace_program",
-      displayName: "write",
-      state: "output-available",
-      meta: "notes.txt · +1 -1",
-      isRunning: false,
-      needsAttention: false,
-    },
-  ] as Parameters<typeof buildActivityBatchSummary>[0]);
-
-  assert.equal(summary.title, "write-data、write");
-  assert.equal(summary.meta, "+2 -2 · 完成");
 });
 
 test("buildToolBatchSummary aggregates write line diff for pure tool batches", () => {
@@ -244,15 +153,14 @@ test("segmentMessageParts ignores whitespace text between activity parts", () =>
   ] as Parameters<typeof segmentMessageParts>[0];
 
   const segments = segmentMessageParts(parts);
-  assert.equal(segments.length, 1);
-  assert.equal(segments[0]?.kind, "activity-batch");
-  assert.equal(
-    segments[0]?.kind === "activity-batch" ? segments[0].items.length : 0,
-    4,
-  );
+  assert.equal(segments.length, 4);
+  assert.equal(segments[0]?.kind, "reasoning");
+  assert.equal(segments[1]?.kind, "tool");
+  assert.equal(segments[2]?.kind, "reasoning");
+  assert.equal(segments[3]?.kind, "tool");
 });
 
-test("segmentMessageParts merges consecutive activity-batches after split", () => {
+test("segmentMessageParts merges consecutive activity across whitespace", () => {
   const segments = segmentMessageParts([
     { type: "reasoning", text: "a", state: "done" },
     {
@@ -288,12 +196,13 @@ test("segmentMessageParts merges consecutive activity-batches after split", () =
     },
   ] as Parameters<typeof segmentMessageParts>[0]);
 
-  assert.equal(segments.length, 1);
-  assert.equal(segments[0]?.kind, "activity-batch");
-  assert.equal(
-    segments[0]?.kind === "activity-batch" ? segments[0].items.length : 0,
-    7,
-  );
+  assert.equal(segments.length, 6);
+  assert.equal(segments[0]?.kind, "reasoning");
+  assert.equal(segments[1]?.kind, "tool");
+  assert.equal(segments[2]?.kind, "reasoning");
+  assert.equal(segments[3]?.kind, "tool");
+  assert.equal(segments[4]?.kind, "reasoning");
+  assert.equal(segments[5]?.kind, "tool-batch");
 });
 
 test("segmentMessageParts still splits on substantive assistant text", () => {
@@ -317,10 +226,12 @@ test("segmentMessageParts still splits on substantive assistant text", () => {
     },
   ] as Parameters<typeof segmentMessageParts>[0]);
 
-  assert.equal(segments.length, 3);
-  assert.equal(segments[0]?.kind, "activity-batch");
-  assert.equal(segments[1]?.kind, "text");
-  assert.equal(segments[2]?.kind, "activity-batch");
+  assert.equal(segments.length, 5);
+  assert.equal(segments[0]?.kind, "reasoning");
+  assert.equal(segments[1]?.kind, "tool");
+  assert.equal(segments[2]?.kind, "text");
+  assert.equal(segments[3]?.kind, "reasoning");
+  assert.equal(segments[4]?.kind, "tool");
 });
 
 test("segmentMessageParts flushes activity before shell tool", () => {
@@ -343,7 +254,8 @@ test("segmentMessageParts flushes activity before shell tool", () => {
   ] as Parameters<typeof segmentMessageParts>[0];
 
   const segments = segmentMessageParts(parts);
-  assert.equal(segments.length, 2);
-  assert.equal(segments[0]?.kind, "activity-batch");
+  assert.equal(segments.length, 3);
+  assert.equal(segments[0]?.kind, "reasoning");
   assert.equal(segments[1]?.kind, "tool");
+  assert.equal(segments[2]?.kind, "tool");
 });

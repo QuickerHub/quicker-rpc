@@ -12,6 +12,7 @@ import type {
 } from "@/lib/chat-types";
 import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
 import type { LlmSelection } from "@/lib/llm-selection";
+import { modelRequiresReasoningInHistory } from "@/lib/llm-providers";
 
 const COMPRESSION_TRIGGER_RATIO = 0.7;
 const ESTIMATE_TRIGGER_RATIO = 0.85;
@@ -226,10 +227,15 @@ function buildCompressionMetadata(
   };
 }
 
-function safePruneMessages(messages: ModelMessage[]): ModelMessage[] {
+function safePruneMessages(
+  messages: ModelMessage[],
+  modelId?: string,
+): ModelMessage[] {
+  const preserveReasoning =
+    modelId != null && modelRequiresReasoningInHistory(modelId);
   return pruneMessages({
     messages,
-    reasoning: "before-last-message",
+    reasoning: preserveReasoning ? "none" : "before-last-message",
     toolCalls: "before-last-2-messages",
     emptyMessages: "remove",
   });
@@ -243,12 +249,57 @@ export type PrepareCompressedContextOptions = {
     selection: LlmSelection;
     modelId: string;
   };
+  /** Test/dev: compress when splitIndex > 0 even below usage thresholds. */
+  force?: boolean;
   /** Test hook: override LLM summarization of older messages. */
   summarizeOlderMessages?: (
     model: LanguageModel,
     olderMessages: AgentUIMessage[],
   ) => Promise<string | null>;
 };
+
+export type ContextCompressionPreview = {
+  shouldCompress: boolean;
+  force: boolean;
+  splitIndex: number;
+  olderCount: number;
+  recentCount: number;
+  reusableSummary: string | null;
+  estimatedTokens: number;
+  latestInputTokens: number | null;
+  usageRatio: number | null;
+  estimateRatio: number;
+  contextLimit: number;
+};
+
+/** Dry-run diagnostics before calling prepareCompressedContext. */
+export function previewContextCompression(
+  messages: AgentUIMessage[],
+  contextLimit: number,
+  options?: { force?: boolean },
+): ContextCompressionPreview {
+  const splitIndex = resolveContextSplitIndex(messages);
+  const shouldCompress = shouldCompressContextMessages(messages, contextLimit);
+  const force = options?.force === true;
+  const latestInputTokens = latestAssistantUsage(messages)?.inputTokens ?? null;
+  const estimatedTokens = approximateTokensFromMessages(messages);
+  return {
+    shouldCompress,
+    force,
+    splitIndex,
+    olderCount: splitIndex,
+    recentCount: Math.max(0, messages.length - splitIndex),
+    reusableSummary: selectReusableContextSummary(messages, splitIndex),
+    estimatedTokens,
+    latestInputTokens,
+    usageRatio:
+      latestInputTokens != null && contextLimit > 0
+        ? latestInputTokens / contextLimit
+        : null,
+    estimateRatio: contextLimit > 0 ? estimatedTokens / contextLimit : 0,
+    contextLimit,
+  };
+}
 
 export async function prepareCompressedContext(
   options: PrepareCompressedContextOptions,
@@ -259,6 +310,7 @@ export async function prepareCompressedContext(
     contextLimit,
     usageTracking,
     summarizeOlderMessages,
+    force = false,
   } = options;
   const summarize =
     summarizeOlderMessages
@@ -266,10 +318,13 @@ export async function prepareCompressedContext(
       languageModel,
       olderMessages,
     ) => createSummary(languageModel, olderMessages, usageTracking));
+  const modelId = usageTracking?.modelId;
   const baseModelMessages = await convertToModelMessages(messages);
-  const basePruned = safePruneMessages(baseModelMessages);
+  const basePruned = safePruneMessages(baseModelMessages, modelId);
   const splitIndex = resolveContextSplitIndex(messages);
-  const trigger = splitIndex > 0 && shouldCompressContextMessages(messages, contextLimit);
+  const trigger =
+    splitIndex > 0
+    && (force || shouldCompressContextMessages(messages, contextLimit));
   if (!trigger) {
     return { modelMessages: basePruned, compressed: false };
   }
@@ -288,7 +343,10 @@ export async function prepareCompressedContext(
   }
 
   const recentModelMessages = await convertToModelMessages(recentMessages);
-  const prunedRecentModelMessages = safePruneMessages(recentModelMessages);
+  const prunedRecentModelMessages = safePruneMessages(
+    recentModelMessages,
+    modelId,
+  );
   const sourceInputTokens = latestAssistantUsage(messages)?.inputTokens ?? 0;
   const metadata = buildCompressionMetadata(
     summary,

@@ -4,7 +4,6 @@ import {
   type AppMessageAction,
 } from "@/lib/app-messages";
 import {
-  getAppUpdateOverlayState,
   hideAppUpdateOverlaySlice,
   patchAppUpdateOverlay,
   showApplyingAppUpdateOverlay,
@@ -23,24 +22,6 @@ import {
 
 export const APP_UPDATE_TOAST_ID = "quicker-agent-update";
 export const VOICE_UPDATE_TOAST_ID = "quicker-agent-voice-update";
-
-/** Avoid flashing a 0% bar when check/download finishes within a few hundred ms. */
-const PROGRESS_TOAST_REVEAL_MS = 450;
-
-let appProgressRevealTimer: ReturnType<typeof setTimeout> | null = null;
-let voiceProgressRevealTimer: ReturnType<typeof setTimeout> | null = null;
-
-function clearAppProgressRevealTimer(): void {
-  if (!appProgressRevealTimer) return;
-  clearTimeout(appProgressRevealTimer);
-  appProgressRevealTimer = null;
-}
-
-function clearVoiceProgressRevealTimer(): void {
-  if (!voiceProgressRevealTimer) return;
-  clearTimeout(voiceProgressRevealTimer);
-  voiceProgressRevealTimer = null;
-}
 
 function pushAppUpdateProgressToast(slice: AppUpdateOverlaySlice): void {
   pushAppMessage({
@@ -68,26 +49,6 @@ function pushVoiceUpdateProgressToast(slice: VoiceUpdateOverlaySlice): void {
     },
     dismissible: false,
   });
-}
-
-function scheduleAppProgressToastReveal(): void {
-  if (appProgressRevealTimer) return;
-  appProgressRevealTimer = setTimeout(() => {
-    appProgressRevealTimer = null;
-    const current = getAppUpdateOverlayState().app;
-    if (current.phase !== "downloading") return;
-    pushAppUpdateProgressToast(current);
-  }, PROGRESS_TOAST_REVEAL_MS);
-}
-
-function scheduleVoiceProgressToastReveal(): void {
-  if (voiceProgressRevealTimer) return;
-  voiceProgressRevealTimer = setTimeout(() => {
-    voiceProgressRevealTimer = null;
-    const current = getAppUpdateOverlayState().voice;
-    if (current.phase !== "downloading") return;
-    pushVoiceUpdateProgressToast(current);
-  }, PROGRESS_TOAST_REVEAL_MS);
 }
 
 function versionLabel(slice: Pick<AppUpdateOverlaySlice, "installedVersion" | "remoteVersion">): string {
@@ -179,7 +140,6 @@ export function syncAppUpdateToast(slice: AppUpdateOverlaySlice): void {
     || slice.phase === "applying"
     || slice.phase === "checking"
   ) {
-    clearAppProgressRevealTimer();
     dismissAppUpdateToast();
     return;
   }
@@ -189,15 +149,12 @@ export function syncAppUpdateToast(slice: AppUpdateOverlaySlice): void {
 
   if (slice.phase === "downloading") {
     if (slice.percent > 0) {
-      clearAppProgressRevealTimer();
       pushAppUpdateProgressToast(slice);
       return;
     }
-    scheduleAppProgressToastReveal();
+    dismissAppUpdateToast();
     return;
   }
-
-  clearAppProgressRevealTimer();
 
   if (slice.phase === "ready") {
     const actions: AppMessageAction[] = [
@@ -239,13 +196,11 @@ export function syncAppUpdateToast(slice: AppUpdateOverlaySlice): void {
 
 export function syncVoiceUpdateToast(slice: VoiceUpdateOverlaySlice): void {
   if (slice.phase === "hidden") {
-    clearVoiceProgressRevealTimer();
     dismissVoiceUpdateToast();
     return;
   }
 
   if (slice.phase === "ready") {
-    clearVoiceProgressRevealTimer();
     pushAppMessage({
       id: VOICE_UPDATE_TOAST_ID,
       kind: "info",
@@ -258,12 +213,11 @@ export function syncVoiceUpdateToast(slice: VoiceUpdateOverlaySlice): void {
   }
 
   if (slice.percent > 0) {
-    clearVoiceProgressRevealTimer();
     pushVoiceUpdateProgressToast(slice);
     return;
   }
 
-  scheduleVoiceProgressToastReveal();
+  dismissVoiceUpdateToast();
 }
 
 /** Wait until boot splash dismisses (or timeout) before background update work. */

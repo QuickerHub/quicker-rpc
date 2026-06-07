@@ -6,7 +6,6 @@ import { AccountUsageSection } from "@/components/chat/AccountUsageSection";
 import { AppVersionSection } from "@/components/chat/AppVersionSection";
 import { LlmKeysSettingsSection } from "@/components/chat/LlmKeysSettingsSection";
 import { VoiceInputSettingsSection } from "@/components/chat/VoiceInputSettingsSection";
-import { ClipboardHistorySettingsSection } from "@/components/clipboard/ClipboardHistorySettingsSection";
 import { LauncherSettingsSection } from "@/components/chat/LauncherSettingsSection";
 import type { AppSettingsTabId } from "@/lib/app-settings-tabs";
 import type { LlmProviderId } from "@/lib/llm-providers";
@@ -125,19 +124,6 @@ export function AppSettingsPanel({
       >
         <VoiceInputSettingsSection
           active={tabActive && activeTab === "voice"}
-          disabled={disabled}
-        />
-      </div>
-
-      <div
-        id="app-settings-tab-clipboard"
-        role="tabpanel"
-        aria-labelledby="app-settings-tab-btn-clipboard"
-        hidden={activeTab !== "clipboard"}
-        className="app-settings-tab-panel"
-      >
-        <ClipboardHistorySettingsSection
-          active={tabActive && activeTab === "clipboard"}
           disabled={disabled}
         />
       </div>

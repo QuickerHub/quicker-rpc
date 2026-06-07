@@ -26,6 +26,41 @@ public static class ProgramSyntaxIssueFactory
         };
     }
 
+    public static ProgramSyntaxIssue CreateStructureIssue(
+        ProgramSyntaxIssueSeverity severity,
+        string code,
+        string message,
+        string? stepPath,
+        string? stepId,
+        string? stepRunnerKey,
+        string? paramName,
+        string? variableKey)
+    {
+        var item = new ProgramSyntaxCheckItem
+        {
+            Kind = ProgramSyntaxCheckKind.Structural,
+            StepPath = stepPath,
+            StepRef = stepId,
+            StepId = stepId,
+            StepRunnerKey = stepRunnerKey,
+            ParamName = paramName,
+            VariableKey = variableKey,
+        };
+        return Create(item, severity, ProgramSyntaxCheckKind.Structural, code, message);
+    }
+
+    public static ProgramSyntaxIssue CreateTruncationWarning(int totalChecks, int maxChecks) =>
+        CreateStructureIssue(
+            ProgramSyntaxIssueSeverity.Warning,
+            "LINT_TRUNCATED",
+            $"Compile lint capped at {maxChecks} of {totalChecks} expression/C# snippets; "
+            + "fix reported issues and re-run diagnostics to check remaining snippets.",
+            stepPath: null,
+            stepId: null,
+            stepRunnerKey: null,
+            paramName: null,
+            variableKey: null);
+
     public static ProgramSyntaxIssue CreateInterpolationWarning(
         string? stepPath,
         string? stepId,

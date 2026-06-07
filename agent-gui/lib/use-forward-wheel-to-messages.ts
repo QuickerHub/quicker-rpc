@@ -2,16 +2,42 @@
 
 import { useEffect, type RefObject } from "react";
 
-const NESTED_VERTICAL_SCROLL_SELECTOR =
-  "textarea, [contenteditable='true'], .composer-markup-field, .user-message-composer__input, .action-trace-terminal__out, .action-trace-timeline, .workspace-side-panel, .workspace-explorer, .tool-test-action-trace-main";
+function wheelTargetElement(target: EventTarget | null): Element | null {
+  if (!target || typeof (target as Element).closest !== "function") {
+    return null;
+  }
+  return target as Element;
+}
 
-const NESTED_HORIZONTAL_SCROLL_SELECTOR =
-  ".md-table-wrap, .md-pre, .action-list-table-wrap, .tool-error";
+function isVerticallyScrollableSurface(el: HTMLElement): boolean {
+  const { overflowY } = getComputedStyle(el);
+  if (overflowY !== "auto" && overflowY !== "scroll" && overflowY !== "overlay") {
+    return false;
+  }
+  return el.scrollHeight > el.clientHeight + 1;
+}
 
-function shouldIgnoreWheelTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return true;
-  if (target.closest(NESTED_VERTICAL_SCROLL_SELECTOR)) return true;
-  if (target.closest(NESTED_HORIZONTAL_SCROLL_SELECTOR)) return true;
+function asHtmlElement(node: Element): HTMLElement | null {
+  const el = node as HTMLElement;
+  if (typeof el.scrollHeight !== "number" || typeof el.clientHeight !== "number") {
+    return null;
+  }
+  return el;
+}
+
+/** True when the event target sits inside a local vertical scroller (popup list, editor, etc.). */
+export function shouldIgnoreWheelForwardToMessages(target: EventTarget | null): boolean {
+  const el = wheelTargetElement(target);
+  if (!el) return true;
+
+  let node: Element | null = el;
+  while (node) {
+    const html = asHtmlElement(node);
+    if (html && isVerticallyScrollableSurface(html)) {
+      return true;
+    }
+    node = node.parentElement;
+  }
   return false;
 }
 
@@ -19,10 +45,11 @@ function isInsideMessagesScroller(
   target: EventTarget | null,
   messagesEl: HTMLElement,
 ): boolean {
-  return target instanceof Element && messagesEl.contains(target);
+  const el = wheelTargetElement(target);
+  return el != null && messagesEl.contains(el);
 }
 
-/** Forward wheel deltas from chrome (header, composer, gutters) to the messages scroller. */
+/** Forward wheel deltas from non-scrollable chrome to the messages scroller. */
 export function useForwardWheelToMessages(
   messagesRef: RefObject<HTMLElement | null>,
   proxyRef: RefObject<HTMLElement | null>,
@@ -37,7 +64,7 @@ export function useForwardWheelToMessages(
       const messages = messagesRef.current;
       if (!messages) return;
 
-      if (shouldIgnoreWheelTarget(event.target)) return;
+      if (shouldIgnoreWheelForwardToMessages(event.target)) return;
 
       if (isInsideMessagesScroller(event.target, messages)) return;
 

@@ -14,6 +14,11 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 use crate::quicker_agent_paths::clipboard_history_plugin_root;
 
+/// Temporarily disabled — set to `true` when clipboard-history is ready to ship again.
+pub const CLIPBOARD_HISTORY_ENABLED: bool = false;
+
+const DISABLED_MESSAGE: &str = "剪贴板历史功能已暂时关闭，不影响系统剪贴板正常使用。";
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClipboardHistoryPluginStatusDto {
@@ -53,6 +58,9 @@ fn clipboard_settings_path() -> PathBuf {
 }
 
 pub fn read_clipboard_auto_start() -> bool {
+    if !CLIPBOARD_HISTORY_ENABLED {
+        return false;
+    }
     if std::env::var("AGENT_GUI_CLIPBOARD_RUNTIME")
         .ok()
         .is_some_and(|value| value == "1")
@@ -217,6 +225,33 @@ fn kill_listener_on_port(port: u16) {
 #[cfg(not(windows))]
 fn kill_listener_on_port(_port: u16) {}
 
+#[cfg(windows)]
+fn kill_clipboard_runtime_processes() {
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", "quicker-clipboard-history.exe"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW)
+        .status();
+}
+
+#[cfg(not(windows))]
+fn kill_clipboard_runtime_processes() {}
+
+pub fn shutdown_clipboard_history(state: &ClipboardHistoryPluginState) {
+    state.shutdown();
+    kill_listener_on_port(clipboard_http_port());
+    kill_clipboard_runtime_processes();
+}
+
+pub fn ensure_clipboard_history_disabled(app: &AppHandle) {
+    if CLIPBOARD_HISTORY_ENABLED {
+        return;
+    }
+    let state = app.state::<ClipboardHistoryPluginState>();
+    shutdown_clipboard_history(state.inner());
+}
+
 fn wait_runtime_ready(port: u16, max_ms: u64) -> Result<(), String> {
     let deadline = Instant::now() + Duration::from_millis(max_ms);
     while Instant::now() < deadline {
@@ -307,6 +342,17 @@ fn reconcile_child(state: &ClipboardHistoryPluginState) {
 }
 
 fn build_status(state: &ClipboardHistoryPluginState) -> ClipboardHistoryPluginStatusDto {
+    if !CLIPBOARD_HISTORY_ENABLED {
+        return ClipboardHistoryPluginStatusDto {
+            status: "disabled".into(),
+            installed: false,
+            running: false,
+            http_port: 0,
+            plugin_dir: None,
+            message: Some(DISABLED_MESSAGE.into()),
+        };
+    }
+
     reconcile_child(state);
     let root = clipboard_history_plugin_root();
     let installed = is_installed(&root);
@@ -376,6 +422,11 @@ fn build_status(state: &ClipboardHistoryPluginState) -> ClipboardHistoryPluginSt
 }
 
 pub fn ensure_clipboard_runtime(state: &ClipboardHistoryPluginState) -> Result<ClipboardHistoryPluginStatusDto, String> {
+    if !CLIPBOARD_HISTORY_ENABLED {
+        shutdown_clipboard_history(state);
+        return Err(DISABLED_MESSAGE.into());
+    }
+
     reconcile_child(state);
     let port = clipboard_http_port();
     if fetch_runtime_health(port) {
@@ -439,8 +490,7 @@ pub fn clipboard_history_plugin_start_runtime(
 pub fn clipboard_history_plugin_stop_runtime(
     state: State<'_, ClipboardHistoryPluginState>,
 ) -> ClipboardHistoryPluginStatusDto {
-    state.shutdown();
-    kill_listener_on_port(clipboard_http_port());
+    shutdown_clipboard_history(state.inner());
     build_status(&state)
 }
 
@@ -455,6 +505,11 @@ fn ensure_clipboard_runtime_if_auto_start(app: &AppHandle) {
 }
 
 pub fn spawn_clipboard_runtime_background(app: AppHandle) {
+    if !CLIPBOARD_HISTORY_ENABLED {
+        ensure_clipboard_history_disabled(&app);
+        return;
+    }
+
     std::thread::spawn(move || {
         ensure_clipboard_runtime_if_auto_start(&app);
     });

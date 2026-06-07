@@ -68,6 +68,7 @@ async function handleChatPost(req: Request) {
     titleManual,
     titleTestOnly,
     chatMode: chatModeRaw,
+    contextCompressionForce,
   }: {
     messages: AgentUIMessage[];
     enabledTools?: string[];
@@ -80,6 +81,8 @@ async function handleChatPost(req: Request) {
     titleManual?: boolean;
     /** Tool-test: production title path via set_thread_title only. */
     titleTestOnly?: boolean;
+    /** Tool-test dev: force context compression when splitIndex > 0. */
+    contextCompressionForce?: boolean;
     /** agent = full authoring; launcher = quick commands (fixed tools + prompt). */
     chatMode?: string;
   } = await req.json();
@@ -179,6 +182,9 @@ async function handleChatPost(req: Request) {
       messages: messagesForModel,
       model,
       contextLimit,
+      force:
+        process.env.NODE_ENV !== "production"
+        && contextCompressionForce === true,
       usageTracking: {
         selection,
         modelId,

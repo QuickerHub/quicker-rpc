@@ -23,6 +23,36 @@ test("parseActionTraceEvent reads camelCase payload", () => {
   assert.equal(event?.depth, 2);
 });
 
+test("parseActionTraceEvent unwraps CLI trace envelope and PascalCase", () => {
+  const event = parseActionTraceEvent({
+    type: "trace",
+    trace: {
+      Sequence: 9,
+      Kind: "repeat_begin",
+      Depth: 3,
+      Note: "第 1 次循环。",
+      ElapsedMs: 12,
+    },
+  });
+  assert.equal(event?.kind, "repeat_begin");
+  assert.equal(event?.sequence, 9);
+  assert.equal(event?.note, "第 1 次循环。");
+  assert.equal(event?.elapsedMs, 12);
+});
+
+test("parseActionTraceEvents reads completed run JSON", () => {
+  const events = parseActionTraceEvents({
+    ok: true,
+    eventCount: 2,
+    events: [
+      { kind: "file_begin", message: "trace begin" },
+      { kind: "file_end", message: "trace end" },
+    ],
+  });
+  assert.equal(events.length, 2);
+  assert.equal(events[0]?.kind, "file_begin");
+});
+
 test("parseActionTraceEvents skips invalid items", () => {
   const events = parseActionTraceEvents([
     { kind: "info", message: "ok" },

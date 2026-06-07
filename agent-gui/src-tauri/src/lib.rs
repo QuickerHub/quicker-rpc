@@ -577,9 +577,6 @@ fn spawn_production_startup(app: AppHandle) {
         emit_startup_status(&app, "正在启动语音服务…");
         voice_plugin::spawn_voice_runtime_background(app.clone());
 
-        if clipboard_history_plugin::read_clipboard_auto_start() {
-            emit_startup_status(&app, "正在启动剪贴板服务…");
-        }
         clipboard_history_plugin::spawn_clipboard_runtime_background(app.clone());
 
         spawn_qkrpc_background(app.clone(), config.clone());
@@ -592,9 +589,10 @@ fn run_app_shutdown<R: tauri::Runtime>(app: &AppHandle<R>) {
     app.state::<voice_plugin::VoicePluginState>()
         .inner()
         .shutdown();
-    app.state::<clipboard_history_plugin::ClipboardHistoryPluginState>()
-        .inner()
-        .shutdown();
+    clipboard_history_plugin::shutdown_clipboard_history(
+        app.state::<clipboard_history_plugin::ClipboardHistoryPluginState>()
+            .inner(),
+    );
 }
 
 pub(crate) fn spawn_shutdown_and_exit<R: tauri::Runtime>(app: AppHandle<R>) {

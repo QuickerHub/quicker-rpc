@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Quicker.Public;
 using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Plugin.StepRunners;
@@ -13,6 +14,14 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 public sealed class CodeSyntaxCheckService
 {
+    private static readonly Regex BareVariableReferencePattern = new(
+        @"^[a-zA-Z_][a-zA-Z0-9_]*$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex IntParsePlaceholderPattern = new(
+        @"(?i)(?:int|Int32)\.Parse\s*\(\s*\{([a-zA-Z_][a-zA-Z0-9_]*)\}\s*\)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     public QuickerRpcCodeSyntaxCheckResult CheckExpression(
         string code,
         IDictionary<string, string>? variableTypes = null)
@@ -23,6 +32,8 @@ public sealed class CodeSyntaxCheckService
         }
 
         var expression = NormalizeExpression(code);
+        expression = NormalizeBareVariableReference(expression, variableTypes);
+        expression = NormalizeIntegerParseCalls(expression, variableTypes);
         try
         {
             var eval = CreateExpressionEvalContext();
@@ -83,6 +94,68 @@ public sealed class CodeSyntaxCheckService
         return expression;
     }
 
+    /// <summary>
+    /// Quicker variables are referenced as <c>{varKey}</c>. Agents sometimes write <c>$=varKey</c> without braces;
+    /// normalize to placeholder form before compile-check so diagnostics match runtime binding.
+    /// </summary>
+    internal static string NormalizeBareVariableReference(
+        string expression,
+        IDictionary<string, string>? variableTypes)
+    {
+        if (variableTypes is null || variableTypes.Count == 0)
+        {
+            return expression;
+        }
+
+        var trimmed = expression.Trim();
+        if (!BareVariableReferencePattern.IsMatch(trimmed))
+        {
+            return expression;
+        }
+
+        foreach (var key in variableTypes.Keys)
+        {
+            if (string.Equals(key, trimmed, StringComparison.OrdinalIgnoreCase))
+            {
+                return "{" + key + "}";
+            }
+        }
+
+        return expression;
+    }
+
+    /// <summary>
+    /// <c>int.Parse({count})</c> on an integer variable is equivalent to <c>{count}</c> at runtime;
+    /// normalize so compile-check dummy ints do not fail Parse(string) overload resolution.
+    /// </summary>
+    internal static string NormalizeIntegerParseCalls(
+        string expression,
+        IDictionary<string, string>? variableTypes)
+    {
+        if (variableTypes is null || variableTypes.Count == 0)
+        {
+            return expression;
+        }
+
+        return IntParsePlaceholderPattern.Replace(expression, match =>
+        {
+            var varKey = match.Groups[1].Value;
+            if (!variableTypes.TryGetValue(varKey, out var typeName)
+                || !IsIntegerCompileType(typeName))
+            {
+                return match.Value;
+            }
+
+            return "{" + varKey + "}";
+        });
+    }
+
+    private static bool IsIntegerCompileType(string? typeName)
+    {
+        var normalized = (typeName ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized is "int" or "integer" or "long";
+    }
+
     private static EvalContext CreateExpressionEvalContext()
     {
         var eval = EvalManager.DefaultContext.Clone();
@@ -102,10 +175,14 @@ public sealed class CodeSyntaxCheckService
         return normalized switch
         {
             "string" or "text" => string.Empty,
-            "int" or "integer" or "number" => 0,
+            "int" or "integer" => 0,
             "long" => 0L,
+            "number" => 0.0,
             "double" or "float" or "decimal" => 0.0,
             "bool" or "boolean" => false,
+            "list" => new List<object>(),
+            "datetime" => DateTime.MinValue,
+            "image" or "dict" or "table" or "object" or "any" => new object(),
             _ => new object(),
         };
     }

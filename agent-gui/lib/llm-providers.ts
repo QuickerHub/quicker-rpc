@@ -55,6 +55,13 @@ export function isKnownDeepSeekModelId(modelId: string): boolean {
   return DEEPSEEK_KNOWN_MODEL_IDS.has(modelId.trim().toLowerCase());
 }
 
+/** DeepSeek thinking mode requires reasoning_content on assistant history. */
+export function modelRequiresReasoningInHistory(modelId: string): boolean {
+  const lower = modelId.trim().toLowerCase();
+  if (lower.startsWith("deepseek-")) return true;
+  return DEEPSEEK_LEGACY_MODEL_IDS.has(lower);
+}
+
 export const DEEPSEEK_PROVIDER: LlmProviderMeta = {
   id: DEEPSEEK_PROVIDER_ID,
   label: "DeepSeek",

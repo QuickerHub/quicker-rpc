@@ -5,7 +5,7 @@ import type {
 } from "@/lib/action-editor/types/action_query";
 import type { ActionStep } from "@/lib/action-editor/types/common";
 import { resolveStepControlFieldLiteral } from "@/lib/action-editor/api/stepRunnerSchemaMap";
-import { inferControlFieldKeyFromStep } from "@/lib/action-editor/steps/paramEditors/stepEditorDraftSync";
+import { inferControlFieldKeyFromStep } from "@/lib/action-editor/steps/stepControlFieldInfer";
 
 function parseExpressionBody(raw: string): string {
   const expr = raw.trim();

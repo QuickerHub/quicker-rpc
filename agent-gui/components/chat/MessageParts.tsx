@@ -5,7 +5,6 @@ import { isTextUIPart } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { AssistantRichMessage } from "./AssistantRichMessage";
 import { InlineUserMessage } from "./InlineUserMessage";
-import { ActivityBatchGroup } from "./ActivityBatchGroup";
 import { ReasoningPart } from "./ReasoningPart";
 import { segmentMessageParts } from "./tool-part-layout";
 import { ToolBatchGroup } from "./ToolBatchGroup";
@@ -17,8 +16,6 @@ type MessagePartsProps = {
   /** Local unsent user-message edit; does not change chat context until send. */
   userTextOverride?: string;
   workingDirectory?: string;
-  /** Tool-test: keep multi-tool batches expanded (no auto-collapse when idle). */
-  keepToolBatchesExpanded?: boolean;
   onInsertComposerPrompt?: (text: string) => void;
 };
 
@@ -26,7 +23,6 @@ function MessagePartsInner({
   message,
   userTextOverride,
   workingDirectory,
-  keepToolBatchesExpanded = false,
   onInsertComposerPrompt,
 }: MessagePartsProps) {
   const segments = useMemo(
@@ -81,23 +77,6 @@ function MessagePartsInner({
           );
         }
 
-        if (segment.kind === "activity-batch") {
-          const batchLead = segment.items[0]!;
-          const batchKey =
-            batchLead.kind === "tool"
-              ? (readToolCallId(batchLead.part)
-                ?? `activity-${message.id}-${batchLead.index}`)
-              : `activity-${message.id}-${batchLead.index}`;
-          return (
-            <ActivityBatchGroup
-              key={batchKey}
-              messageId={message.id}
-              items={segment.items}
-              disableAutoCollapse={keepToolBatchesExpanded}
-            />
-          );
-        }
-
         const batchLead = segment.items[0]!;
         const batchKey =
           readToolCallId(batchLead.part)
@@ -107,7 +86,6 @@ function MessagePartsInner({
             key={batchKey}
             messageId={message.id}
             items={segment.items}
-            disableAutoCollapse={keepToolBatchesExpanded}
           />
         );
       })}

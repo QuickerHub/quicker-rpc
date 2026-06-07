@@ -74,4 +74,85 @@ public sealed class ProgramSyntaxCollectorTests
             }
         }
     }
+
+    [TestMethod]
+    public void Collect_finds_dollar_eq_in_non_evalexpression_param()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-collect-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-msg",
+                        ["stepRunnerKey"] = "sys:MsgBox",
+                        ["inputParams"] = new JObject
+                        {
+                            ["message"] = new JObject { ["value"] = "$= 1 + 2" },
+                        },
+                    },
+                },
+            };
+
+            var items = ProgramSyntaxCollector.Collect(root, data);
+            Assert.AreEqual(1, items.Count);
+            Assert.AreEqual(ProgramSyntaxCheckKind.Expression, items[0].Kind);
+            Assert.AreEqual("message", items[0].ParamName);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void Collect_maps_varType_names_for_compile_check()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-collect-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-1",
+                        ["stepRunnerKey"] = "sys:MsgBox",
+                        ["inputParams"] = new JObject
+                        {
+                            ["message"] = new JObject { ["value"] = "$= {known}" },
+                        },
+                    },
+                },
+                ["variables"] = new JArray
+                {
+                    new JObject { ["key"] = "known", ["varType"] = "integer" },
+                    new JObject { ["key"] = "files", ["varType"] = "list" },
+                },
+            };
+
+            var items = ProgramSyntaxCollector.Collect(root, data);
+            Assert.AreEqual(1, items.Count);
+            Assert.IsTrue(items[0].VariableTypes!.TryGetValue("known", out var intType));
+            Assert.AreEqual("int", intType);
+            Assert.IsTrue(items[0].VariableTypes.TryGetValue("files", out var listType));
+            Assert.AreEqual("list", listType);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
 }

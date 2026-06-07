@@ -95,7 +95,7 @@ public static class ProgramSyntaxCollector
                 continue;
             }
 
-            if (IsExpressionTarget(runnerKey, paramName))
+            if (ShouldCompileAsExpression(code, runnerKey, paramName))
             {
                 items.Add(new ProgramSyntaxCheckItem
                 {
@@ -185,6 +185,18 @@ public static class ProgramSyntaxCollector
         ExpressionRunnerKeys.Contains(runnerKey)
         || ExpressionParamKeys.Contains(paramName);
 
+    private static bool ShouldCompileAsExpression(string code, string runnerKey, string paramName)
+    {
+        var trimmed = code.TrimStart();
+        if (trimmed.StartsWith("$$", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return IsExpressionTarget(runnerKey, paramName)
+               || trimmed.StartsWith("$=", StringComparison.Ordinal);
+    }
+
     private static bool IsCSharpTarget(string runnerKey, string paramName) =>
         CSharpRunnerKeys.Contains(runnerKey)
         || (CSharpParamKeys.Contains(paramName) && runnerKey.Contains("csscript", StringComparison.OrdinalIgnoreCase));
@@ -213,16 +225,36 @@ public static class ProgramSyntaxCollector
                 continue;
             }
 
-            var type = (varObj.Value<string>("type")
-                ?? varObj.Value<string>("Type")
-                ?? "any").Trim();
-            map[key] = MapVariableType(type);
+            map[key] = MapVariableType(ResolveVarTypeName(varObj));
         }
 
         return map;
     }
 
-    private static string MapVariableType(string raw)
+    internal static string ResolveVarTypeName(JObject varObj)
+    {
+        if (VarTypeCodec.TryParse(varObj["varType"] ?? varObj["type"] ?? varObj["Type"], out var numeric))
+        {
+            return numeric switch
+            {
+                VarTypeCodec.Integer => "integer",
+                VarTypeCodec.Number => "number",
+                VarTypeCodec.Boolean => "boolean",
+                VarTypeCodec.Image => "image",
+                VarTypeCodec.List => "list",
+                VarTypeCodec.DateTime => "datetime",
+                VarTypeCodec.Dict => "dict",
+                VarTypeCodec.Table => "table",
+                VarTypeCodec.Object => "object",
+                VarTypeCodec.Any => "any",
+                _ => "text",
+            };
+        }
+
+        return "any";
+    }
+
+    internal static string MapVariableType(string raw)
     {
         var normalized = raw.Trim().ToLowerInvariant();
         return normalized switch
@@ -231,6 +263,10 @@ public static class ProgramSyntaxCollector
             "number" or "double" or "float" or "decimal" => "double",
             "integer" or "int" => "int",
             "boolean" or "bool" => "bool",
+            "list" => "list",
+            "image" => "image",
+            "datetime" => "datetime",
+            "dict" or "table" or "object" or "any" => "object",
             _ => "string",
         };
     }

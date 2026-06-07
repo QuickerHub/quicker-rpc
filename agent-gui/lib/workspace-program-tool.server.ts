@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import {
   fetchProgramDiagnostics,
+  evaluateProgramDiagnosticsPayload,
   programLabelForLint,
 } from "@/lib/program-syntax-lint";
 import { formatLocalToolResult } from "@/lib/tool-result";
@@ -165,23 +166,10 @@ async function executeDiagnostics(
   }
 
   const status = String(payload.status ?? "none");
-  const summary = payload.summary as Record<string, unknown> | undefined;
-  const errorCount =
-    typeof summary?.errorCount === "number" ? summary.errorCount : 0;
-  const ok =
-    status === "ready" && errorCount === 0
-    || status === "none"
-    || status === "running";
+  const evaluation = evaluateProgramDiagnosticsPayload(payload);
+  const { errorCount, warningCount, truncated, ok, hint } = evaluation;
 
   const label = programLabelForLint(parsed.target);
-  const hint =
-    status === "running"
-      ? "Lint still running; call again with waitMs or after a few seconds."
-      : status === "stale"
-        ? "Diagnostics are stale (data.json changed); patch again to reschedule lint."
-        : errorCount > 0
-          ? "Fix issues using issues[].locationSummary / location.read, patch, then re-run diagnostics."
-          : undefined;
 
   return formatLocalToolResult(
     {
@@ -196,7 +184,9 @@ async function executeDiagnostics(
       ? `${label}: ${errorCount} syntax error(s)`
       : status === "running"
         ? `${label}: lint in progress`
-        : undefined,
+        : status === "stale"
+          ? `${label}: diagnostics stale — patch again to reschedule lint`
+          : undefined,
   );
 }
 

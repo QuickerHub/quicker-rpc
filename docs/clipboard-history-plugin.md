@@ -1,5 +1,9 @@
 # QuickerAgent 剪贴板历史插件
 
+> **状态：已暂时废弃（2026-06）**  
+> `CLIPBOARD_HISTORY_ENABLED = false`（`agent-gui/lib/clipboard-history/clipboard-history-config.ts` 与 `clipboard_history_plugin.rs`）。  
+> 应用启动时会停止 `quicker-clipboard-history` 子进程，避免占用系统剪贴板。后续再启用时改回 `true` 并重启应用。
+
 参考 [CeaQuickerTools](https://github.com/) 的 ClipHost 能力，在 QuickerAgent 内提供**系统剪贴板历史**（独立子进程 + Web UI）。
 
 ## 架构

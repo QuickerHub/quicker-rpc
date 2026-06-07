@@ -11,7 +11,8 @@ namespace QuickerRpc.Console.Serve;
 internal static class ProgramSyntaxLintServeOps
 {
     private const int MaxIssuesReturned = 40;
-    private const int MaxChecksPerRun = 80;
+    private const int MaxChecksPerRun = 120;
+    private const int MaxConcurrentRpcChecks = 6;
 
     private static readonly ConcurrentDictionary<string, CancellationTokenSource> InFlight =
         new(StringComparer.OrdinalIgnoreCase);
@@ -44,6 +45,14 @@ internal static class ProgramSyntaxLintServeOps
             Summary = new ProgramDiagnosticsSummary(),
             Issues = new List<ProgramSyntaxIssue>(),
         };
+
+        if (QuickerProjectFiles.TryReadDataIfExists(projectDir!, out var scheduleData) && scheduleData is not null)
+        {
+            var fastIssues = ProgramStaticLint.Analyze(projectDir!, scheduleData);
+            running.Issues = fastIssues.ToList();
+            ApplyFastSummary(running.Summary, fastIssues);
+        }
+
         ProgramDiagnosticsFile.Write(projectDir!, running);
 
         var key = projectDir!;
@@ -123,56 +132,40 @@ internal static class ProgramSyntaxLintServeOps
             }
 
             var items = ProgramSyntaxCollector.Collect(projectDirectory, data);
-            var issues = new List<ProgramSyntaxIssue>();
-            var variableKeys = InterpolationPrefixLint.CollectVariableKeys(data["variables"] as JArray);
-            issues.AddRange(InterpolationPrefixLint.Analyze(data, variableKeys));
+            var issues = ProgramStaticLint.Analyze(projectDirectory, data).ToList();
+            var totalChecks = items.Count;
+            var compileBatch = items.Take(MaxChecksPerRun).ToList();
+            var truncated = Math.Max(0, totalChecks - compileBatch.Count);
             var checkedCount = 0;
-            var skipped = 0;
+            var skipped = truncated + compileBatch.Count(i => string.IsNullOrWhiteSpace(i.Code));
+
+            if (truncated > 0)
+            {
+                issues.Add(ProgramSyntaxIssueFactory.CreateTruncationWarning(totalChecks, MaxChecksPerRun));
+            }
 
             var rpc = await pool.GetRpcAsync(cancellationToken).ConfigureAwait(false);
             var token = QuickerRpcClient.CreateRpcCancellationToken(120);
 
-            foreach (var item in items.Take(MaxChecksPerRun))
+            foreach (var chunk in Chunk(compileBatch, MaxConcurrentRpcChecks))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (string.IsNullOrWhiteSpace(item.Code))
+                var tasks = chunk.Select(item => CheckItemAsync(rpc, item, token, cancellationToken)).ToList();
+                var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+
+                foreach (var result in results)
                 {
-                    if (!string.IsNullOrWhiteSpace(item.File))
+                    if (result.Skipped)
                     {
-                        issues.Add(MissingFileIssue(item));
+                        continue;
                     }
 
-                    skipped++;
-                    continue;
-                }
-
-                checkedCount++;
-                QuickerRpcCodeSyntaxCheckResult result;
-                if (item.Kind == ProgramSyntaxCheckKind.Expression)
-                {
-                    IDictionary<string, string>? variableTypes = item.VariableTypes is null
-                        ? null
-                        : new Dictionary<string, string>(item.VariableTypes);
-                    result = await rpc
-                        .CheckExpressionSyntaxAsync(item.Code, variableTypes, token)
-                        .ConfigureAwait(false);
-                }
-                else
-                {
-                    result = await rpc
-                        .CheckCSharpScriptSyntaxAsync(item.Code, references: null, token)
-                        .ConfigureAwait(false);
-                }
-
-                if (!result.Success)
-                {
-                    issues.Add(ProgramSyntaxIssueFactory.Create(
-                        item,
-                        ProgramSyntaxIssueSeverity.Error,
-                        item.Kind,
-                        result.ErrorCode ?? "COMPILE_ERROR",
-                        result.Message ?? "Compile error"));
+                    checkedCount++;
+                    if (result.CompileIssue is not null)
+                    {
+                        issues.Add(result.CompileIssue);
+                    }
                 }
             }
 
@@ -195,6 +188,12 @@ internal static class ProgramSyntaxLintServeOps
                         i.Severity == ProgramSyntaxIssueSeverity.Warning),
                     Checked = checkedCount,
                     Skipped = skipped,
+                    TotalChecks = totalChecks,
+                    Truncated = truncated,
+                    FastIssueCount = issues.Count(i =>
+                        i.Kind == ProgramSyntaxCheckKind.Structural
+                        || i.Kind == ProgramSyntaxCheckKind.Interpolation
+                        || i.Code == "FILE_NOT_FOUND"),
                 },
                 Issues = issues,
             };
@@ -285,13 +284,82 @@ internal static class ProgramSyntaxLintServeOps
         ProgramDiagnosticsFile.Write(projectDirectory, failed);
     }
 
-    private static ProgramSyntaxIssue MissingFileIssue(ProgramSyntaxCheckItem item) =>
-        ProgramSyntaxIssueFactory.Create(
-            item,
-            ProgramSyntaxIssueSeverity.Error,
-            item.Kind,
-            "FILE_NOT_FOUND",
-            $"Referenced file not found: {item.File}");
+    private sealed class ItemCheckResult
+    {
+        public bool Skipped { get; init; }
+
+        public ProgramSyntaxIssue? CompileIssue { get; init; }
+    }
+
+    private static async Task<ItemCheckResult> CheckItemAsync(
+        IQuickerRpcService rpc,
+        ProgramSyntaxCheckItem item,
+        CancellationToken rpcToken,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(item.Code))
+        {
+            return new ItemCheckResult { Skipped = true };
+        }
+
+        QuickerRpcCodeSyntaxCheckResult result;
+        if (item.Kind == ProgramSyntaxCheckKind.Expression)
+        {
+            IDictionary<string, string>? variableTypes = item.VariableTypes is null
+                ? null
+                : new Dictionary<string, string>(item.VariableTypes);
+            result = await rpc
+                .CheckExpressionSyntaxAsync(item.Code, variableTypes, rpcToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            result = await rpc
+                .CheckCSharpScriptSyntaxAsync(item.Code, references: null, rpcToken)
+                .ConfigureAwait(false);
+        }
+
+        if (!result.Success)
+        {
+            return new ItemCheckResult
+            {
+                CompileIssue = ProgramSyntaxIssueFactory.Create(
+                    item,
+                    ProgramSyntaxIssueSeverity.Error,
+                    item.Kind,
+                    result.ErrorCode ?? "COMPILE_ERROR",
+                    result.Message ?? "Compile error"),
+            };
+        }
+
+        return new ItemCheckResult();
+    }
+
+    private static void ApplyFastSummary(
+        ProgramDiagnosticsSummary summary,
+        IList<ProgramSyntaxIssue> fastIssues)
+    {
+        summary.FastIssueCount = fastIssues.Count;
+        summary.ErrorCount = fastIssues.Count(i => i.Severity == ProgramSyntaxIssueSeverity.Error);
+        summary.WarningCount = fastIssues.Count(i => i.Severity == ProgramSyntaxIssueSeverity.Warning);
+    }
+
+    private static IEnumerable<IList<T>> Chunk<T>(IList<T> source, int size)
+    {
+        for (var i = 0; i < source.Count; i += size)
+        {
+            var count = Math.Min(size, source.Count - i);
+            var slice = new List<T>(count);
+            for (var j = 0; j < count; j++)
+            {
+                slice.Add(source[i + j]);
+            }
+
+            yield return slice;
+        }
+    }
 
     private static object BuildDiagnosticsPayload(ProgramDiagnosticsDocument doc, string projectDir) =>
         new
@@ -312,6 +380,8 @@ internal static class ProgramSyntaxLintServeOps
             summary = doc.Summary,
             issues = doc.Issues.Take(MaxIssuesReturned),
             issueCount = doc.Issues.Count,
+            truncated = doc.Summary.Truncated,
+            totalChecks = doc.Summary.TotalChecks,
             projectDirectoryAbsolute = projectDir,
             diagnosticsPath = ProgramDiagnosticsFile.GetDiagnosticsPath(projectDir),
         };

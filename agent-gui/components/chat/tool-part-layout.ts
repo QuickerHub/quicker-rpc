@@ -171,33 +171,47 @@ function pushActivitySegment(
   }
 }
 
+function flushActivityItemsInOrder(
+  items: ActivitySegmentItem[],
+  segments: MessagePartSegment[],
+): void {
+  let index = 0;
+  while (index < items.length) {
+    const item = items[index]!;
+    if (item.kind === "reasoning") {
+      const reasoningRun: ReasoningSegmentItem[] = [];
+      while (index < items.length && items[index]!.kind === "reasoning") {
+        const reasoning = items[index] as ActivitySegmentItem & {
+          kind: "reasoning";
+        };
+        reasoningRun.push({ part: reasoning.part, index: reasoning.index });
+        index++;
+      }
+      segments.push({ kind: "reasoning", items: reasoningRun });
+      continue;
+    }
+
+    const toolRun: ToolUiPartAnalysis[] = [];
+    while (index < items.length && items[index]!.kind === "tool") {
+      toolRun.push(items[index] as ToolUiPartAnalysis);
+      index++;
+    }
+    if (toolRun.length >= MIN_TOOLS_IN_BATCH) {
+      segments.push({ kind: "tool-batch", items: toolRun });
+    } else {
+      for (const tool of toolRun) {
+        segments.push({ kind: "tool", item: tool });
+      }
+    }
+  }
+}
+
 function flushPendingActivity(
   pending: ActivitySegmentItem[],
   segments: MessagePartSegment[],
 ): ActivitySegmentItem[] {
   if (pending.length === 0) return pending;
-
-  const hasReasoning = activityHasReasoning(pending);
-  const hasTool = activityHasTool(pending);
-
-  if (hasReasoning && hasTool) {
-    segments.push({ kind: "activity-batch", items: pending });
-  } else if (hasReasoning) {
-    segments.push({
-      kind: "reasoning",
-      items: activityReasoningItems(pending),
-    });
-  } else if (hasTool) {
-    const toolItems = activityToolItems(pending);
-    if (toolItems.length >= MIN_TOOLS_IN_BATCH) {
-      segments.push({ kind: "tool-batch", items: toolItems });
-    } else {
-      for (const item of toolItems) {
-        segments.push({ kind: "tool", item });
-      }
-    }
-  }
-
+  flushActivityItemsInOrder(pending, segments);
   return [];
 }
 
@@ -346,6 +360,25 @@ export function shouldCollapseToolBatchWhenIdle(summary: {
   return summary.allTerminal && !summary.needsAttention;
 }
 
+function buildCompletedExploreBatchMeta(
+  items: ActivitySegmentItem[],
+  toolItems: ToolUiPartAnalysis[],
+): string {
+  const stepCount = items.length;
+  const toolCount = toolItems.length;
+  const thoughtCount = activityReasoningItems(items).length;
+  const toolLabel = `${toolCount} 工具`;
+
+  const lineDiff = aggregateWorkspaceWriteToolLineDiff(toolItems);
+  if (lineDiff) {
+    return `${formatLineDiffSummary(lineDiff)} · ${toolLabel} · 完成`;
+  }
+  if (thoughtCount > 0) {
+    return `${stepCount} 步 · ${thoughtCount} 思考 · ${toolLabel} · 完成`;
+  }
+  return `${stepCount} 步 · ${toolLabel} · 完成`;
+}
+
 export function buildActivityBatchSummary(items: ActivitySegmentItem[]): {
   title: string;
   meta: string;
@@ -359,29 +392,20 @@ export function buildActivityBatchSummary(items: ActivitySegmentItem[]): {
   const toolSummary =
     toolItems.length > 0 ? buildToolBatchSummary(toolItems) : null;
 
-  const n = items.length;
-  let title: string;
-  if (reasoningItems.length > 0 && toolItems.length > 0) {
-    // Prefer concrete tool names; fall back to step count when tools lack labels.
-    title = toolSummary?.title ?? `${n} 步`;
-  } else if (reasoningItems.length > 0) {
-    title =
-      reasoningItems.length > 1
-        ? `${reasoningItems.length} thoughts`
-        : "Thought";
-  } else {
-    title = toolSummary?.title ?? "工具";
-  }
+  const title = "浏览";
 
   let meta: string;
-  if (reasoningStreaming) {
-    meta = "执行中…";
-  } else if (toolSummary && toolSummary.needsAttention) {
+  if (reasoningStreaming && !(toolSummary?.needsAttention)) {
+    meta =
+      toolSummary && !toolSummary.allTerminal
+        ? `思考中… · ${toolSummary.meta}`
+        : "思考中…";
+  } else if (toolSummary?.needsAttention) {
     meta = toolSummary.meta;
   } else if (toolSummary && !toolSummary.allTerminal) {
     meta = toolSummary.meta;
   } else {
-    meta = buildCompletedToolBatchMeta(toolItems, `${n} 步`);
+    meta = buildCompletedExploreBatchMeta(items, toolItems);
   }
 
   const allTerminal = toolSummary ? toolSummary.allTerminal : !reasoningStreaming;

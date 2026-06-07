@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
+import { ActionTraceTimelineRowView } from "@/components/action-trace/ActionTraceTimelineRow";
+import { LoopTraceModule } from "@/components/action-trace/LoopTraceModule";
+import { RepeatStepTraceSection } from "@/components/action-trace/RepeatStepTraceSection";
 import {
-  buildActionTraceTimelineRows,
-  type ActionTraceTimelineRow,
-} from "@/lib/action-trace-timeline-model";
+  buildTimelineDisplayItems,
+  type TimelineDisplayItem,
+} from "@/lib/action-trace-timeline-collapse";
+import { buildActionTraceTimelineRows } from "@/lib/action-trace-timeline-model";
 import type { ActionTraceEvent } from "@/lib/action-trace-format";
 import { useFollowScrollTail } from "@/lib/use-follow-scroll-tail";
 
@@ -14,57 +18,46 @@ type ActionTraceTimelineProps = {
   status: "idle" | "running" | "success" | "error";
 };
 
-function kindBadge(kind: string): string {
-  switch (kind) {
-    case "step_begin":
-      return "▶";
-    case "step_end":
-      return "◀";
-    case "group_begin":
-      return "⊞";
-    case "group_end":
-      return "⊟";
-    case "repeat_begin":
-    case "repeat_end":
-      return "↻";
-    case "input":
-      return "in";
-    case "output":
-      return "out";
-    case "warning":
-      return "!";
-    case "error":
-      return "×";
-    case "var_state":
-      return "var";
-    default:
-      return "·";
+function renderDisplayItem(
+  item: TimelineDisplayItem,
+  context: {
+    events: ActionTraceEvent[];
+    rows: ReturnType<typeof buildActionTraceTimelineRows>;
+    isLive: boolean;
+    runningRowIndex: number | null;
+  },
+): ReactNode {
+  if (item.kind === "row") {
+    return (
+      <ActionTraceTimelineRowView
+        key={`row-${item.row.index}-${item.row.event.sequence ?? 0}`}
+        row={item.row}
+      />
+    );
   }
-}
 
-function TimelineRow({ row }: { row: ActionTraceTimelineRow }) {
+  if (item.kind === "repeat-step-section") {
+    return (
+      <RepeatStepTraceSection
+        key={item.model.id}
+        model={item.model}
+        rows={context.rows}
+        events={context.events}
+        isLive={context.isLive}
+        runningRowIndex={context.runningRowIndex}
+      />
+    );
+  }
+
   return (
-    <li
-      className={[
-        "action-trace-timeline__row",
-        `action-trace-timeline__row--${row.kind.replace(/_/g, "-")}`,
-        row.running ? "action-trace-timeline__row--running" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      style={{ ["--trace-depth" as string]: row.depth }}
-      data-sequence={row.event.sequence ?? row.index}
-    >
-      <span className="action-trace-timeline__badge" aria-hidden>
-        {kindBadge(row.kind)}
-      </span>
-      <span className="action-trace-timeline__label" title={row.label}>
-        {row.label}
-      </span>
-      {row.elapsedMs != null ? (
-        <span className="action-trace-timeline__elapsed">{row.elapsedMs}ms</span>
-      ) : null}
-    </li>
+    <LoopTraceModule
+      key={item.model.id}
+      model={item.model}
+      rows={context.rows}
+      events={context.events}
+      isLive={context.isLive}
+      runningRowIndex={context.runningRowIndex}
+    />
   );
 }
 
@@ -78,12 +71,21 @@ export function ActionTraceTimeline({
     () => buildActionTraceTimelineRows(events, isLive),
     [events, isLive],
   );
+  const runningRowIndex = useMemo(() => {
+    const index = rows.findIndex((row) => row.running);
+    return index >= 0 ? index : null;
+  }, [rows]);
+  const displayItems = useMemo(
+    () =>
+      buildTimelineDisplayItems(rows, events, isLive, runningRowIndex),
+    [rows, events, isLive, runningRowIndex],
+  );
   const followTail = isLive;
 
   useFollowScrollTail(
     scrollRef,
     followTail,
-    rows.length,
+    displayItems.length,
     status,
     events.length,
   );
@@ -98,6 +100,13 @@ export function ActionTraceTimeline({
     );
   }
 
+  const renderContext = {
+    events,
+    rows,
+    isLive,
+    runningRowIndex,
+  };
+
   return (
     <div
       ref={scrollRef}
@@ -109,9 +118,7 @@ export function ActionTraceTimeline({
         .join(" ")}
     >
       <ol className="action-trace-timeline__list">
-        {rows.map((row) => (
-          <TimelineRow key={`${row.index}-${row.event.sequence ?? 0}`} row={row} />
-        ))}
+        {displayItems.map((item) => renderDisplayItem(item, renderContext))}
       </ol>
     </div>
   );

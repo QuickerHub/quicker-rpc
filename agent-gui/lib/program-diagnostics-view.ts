@@ -45,6 +45,9 @@ export type ProgramDiagnosticsSummary = {
   warningCount: number;
   checked: number;
   skipped: number;
+  totalChecks?: number;
+  truncated?: number;
+  fastIssueCount?: number;
 };
 
 export type ProgramDiagnosticsView = {
@@ -169,7 +172,23 @@ function readSummary(value: unknown): ProgramDiagnosticsSummary | undefined {
     typeof value.checked === "number" ? Math.max(0, value.checked) : 0;
   const skipped =
     typeof value.skipped === "number" ? Math.max(0, value.skipped) : 0;
-  return { errorCount, warningCount, checked, skipped };
+  const totalChecks =
+    typeof value.totalChecks === "number" ? Math.max(0, value.totalChecks) : undefined;
+  const truncated =
+    typeof value.truncated === "number" ? Math.max(0, value.truncated) : undefined;
+  const fastIssueCount =
+    typeof value.fastIssueCount === "number"
+      ? Math.max(0, value.fastIssueCount)
+      : undefined;
+  return {
+    errorCount,
+    warningCount,
+    checked,
+    skipped,
+    totalChecks,
+    truncated,
+    fastIssueCount,
+  };
 }
 
 function isDiagnosticsPayload(data: Record<string, unknown>): boolean {
@@ -241,7 +260,9 @@ export function formatProgramDiagnosticsMetaLine(
   const program = view.program?.trim();
 
   if (view.status === "running") {
-    return program ? `${program} · ${statusLabel}` : statusLabel;
+    const fast = view.summary?.fastIssueCount ?? 0;
+    const suffix = fast > 0 ? ` · ${fast} 条快速检查` : "";
+    return program ? `${program} · ${statusLabel}${suffix}` : `${statusLabel}${suffix}`;
   }
   if (errors > 0 || warnings > 0) {
     const parts = [

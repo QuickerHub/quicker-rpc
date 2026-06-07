@@ -104,45 +104,117 @@ export function formatTraceEventsToText(events: ActionTraceEvent[]): string {
   return events.map((event) => formatTraceEventLine(event)).join("\n");
 }
 
-/** Parse SSE / tool JSON payload into ActionTraceEvent. */
-export function parseActionTraceEvent(raw: unknown): ActionTraceEvent | null {
+function readTraceField(
+  obj: Record<string, unknown>,
+  camelKey: string,
+  pascalKey: string,
+): unknown {
+  if (camelKey in obj) return obj[camelKey];
+  if (pascalKey in obj) return obj[pascalKey];
+  return undefined;
+}
+
+function readTraceString(
+  obj: Record<string, unknown>,
+  camelKey: string,
+  pascalKey: string,
+): string | null | undefined {
+  const value = readTraceField(obj, camelKey, pascalKey);
+  if (value == null) return value as null | undefined;
+  return typeof value === "string" ? value : undefined;
+}
+
+function readTraceNumber(
+  obj: Record<string, unknown>,
+  camelKey: string,
+  pascalKey: string,
+): number | undefined {
+  const value = readTraceField(obj, camelKey, pascalKey);
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/** Unwrap CLI / tool JSON envelopes to a raw trace event object. */
+export function unwrapActionTracePayload(raw: unknown): unknown {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return raw;
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const type = readTraceString(obj, "type", "Type");
+  if (type === "trace") {
+    const nested = readTraceField(obj, "trace", "Trace");
+    if (nested != null) return nested;
+  }
+
+  return raw;
+}
+
+/** Parse one JSON object / NDJSON line into ActionTraceEvent. */
+export function parseActionTraceEvent(raw: unknown): ActionTraceEvent | null {
+  const unwrapped = unwrapActionTracePayload(raw);
+  if (typeof unwrapped !== "object" || unwrapped === null || Array.isArray(unwrapped)) {
     return null;
   }
-  const obj = raw as Record<string, unknown>;
-  const kind = typeof obj.kind === "string" ? obj.kind : "";
+
+  const obj = unwrapped as Record<string, unknown>;
+  const kind = readTraceString(obj, "kind", "Kind") ?? "";
   if (!kind) return null;
 
-  const readString = (key: string): string | null | undefined => {
-    const value = obj[key];
-    if (value == null) return value as null | undefined;
-    return typeof value === "string" ? value : undefined;
-  };
-
   return {
-    sequence: typeof obj.sequence === "number" ? obj.sequence : undefined,
+    sequence: readTraceNumber(obj, "sequence", "Sequence"),
     kind,
-    depth: typeof obj.depth === "number" ? obj.depth : undefined,
-    stepId: readString("stepId"),
-    stepRunnerKey: readString("stepRunnerKey"),
-    stepRunnerName: readString("stepRunnerName"),
-    note: readString("note"),
-    message: readString("message"),
-    paramKey: readString("paramKey"),
-    paramExpression: readString("paramExpression"),
-    paramValue: readString("paramValue"),
-    varName: readString("varName"),
-    varKey: readString("varKey"),
-    elapsedMs: typeof obj.elapsedMs === "number" ? obj.elapsedMs : undefined,
+    depth: readTraceNumber(obj, "depth", "Depth"),
+    stepId: readTraceString(obj, "stepId", "StepId"),
+    stepRunnerKey: readTraceString(obj, "stepRunnerKey", "StepRunnerKey"),
+    stepRunnerName: readTraceString(obj, "stepRunnerName", "StepRunnerName"),
+    note: readTraceString(obj, "note", "Note"),
+    message: readTraceString(obj, "message", "Message"),
+    paramKey: readTraceString(obj, "paramKey", "ParamKey"),
+    paramExpression: readTraceString(obj, "paramExpression", "ParamExpression"),
+    paramValue: readTraceString(obj, "paramValue", "ParamValue"),
+    varName: readTraceString(obj, "varName", "VarName"),
+    varKey: readTraceString(obj, "varKey", "VarKey"),
+    elapsedMs: readTraceNumber(obj, "elapsedMs", "ElapsedMs"),
   };
 }
 
+/** Parse trace arrays or completed run JSON (`{ events: [...] }`). */
 export function parseActionTraceEvents(raw: unknown): ActionTraceEvent[] {
-  if (!Array.isArray(raw)) return [];
+  if (Array.isArray(raw)) {
+    const events: ActionTraceEvent[] = [];
+    for (const item of raw) {
+      const parsed = parseActionTraceEvent(item);
+      if (parsed) events.push(parsed);
+    }
+    return events;
+  }
+
+  if (typeof raw !== "object" || raw === null) {
+    return [];
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const nestedEvents = readTraceField(obj, "events", "Events");
+  if (Array.isArray(nestedEvents)) {
+    return parseActionTraceEvents(nestedEvents);
+  }
+
+  const single = parseActionTraceEvent(obj);
+  return single ? [single] : [];
+}
+
+/** Parse NDJSON / mixed trace text into structured events. */
+export function parseActionTraceJsonLines(text: string): ActionTraceEvent[] {
   const events: ActionTraceEvent[] = [];
-  for (const item of raw) {
-    const parsed = parseActionTraceEvent(item);
-    if (parsed) events.push(parsed);
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("//")) continue;
+    try {
+      const parsed = parseActionTraceEvent(JSON.parse(trimmed));
+      if (parsed) events.push(parsed);
+    } catch {
+      continue;
+    }
   }
   return events;
 }

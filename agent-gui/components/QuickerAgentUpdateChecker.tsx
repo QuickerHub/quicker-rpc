@@ -163,6 +163,8 @@ export function QuickerAgentUpdateChecker() {
         const installedVersion = (await getVersion()).trim();
         setAppInstalledVersion(installedVersion);
 
+        dismissAppUpdateToast();
+
         const update = await checkOfficialQuickerAgentUpdate();
         if (!update) {
           hideAppUpdateOverlaySlice();

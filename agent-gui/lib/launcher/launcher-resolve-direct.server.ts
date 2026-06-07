@@ -135,7 +135,11 @@ export function createLauncherResolveDirectStreamResponse(params: {
       writer.write({
         type: "finish",
         finishReason: "stop",
-        messageMetadata: { model: "launcher-resolve" },
+        messageMetadata: {
+          model: "launcher-resolve",
+          launcherResolveDirect: true,
+          resolveQuery: query,
+        },
       });
     },
   });

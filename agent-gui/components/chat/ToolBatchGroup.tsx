@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   buildToolBatchSummary,
+  shouldCollapseToolBatchWhenIdle,
   type ToolUiPartAnalysis,
 } from "./tool-part-layout";
 import {
@@ -16,47 +17,39 @@ import { ToolPart } from "./ToolPart";
 type ToolBatchGroupProps = {
   messageId: string;
   items: ToolUiPartAnalysis[];
-  /** When true, do not auto-collapse after all tools finish (tool-test page). */
-  disableAutoCollapse?: boolean;
 };
 
-export function ToolBatchGroup({
-  messageId,
-  items,
-  disableAutoCollapse = false,
-}: ToolBatchGroupProps) {
+export function ToolBatchGroup({ messageId, items }: ToolBatchGroupProps) {
   const summary = useMemo(() => buildToolBatchSummary(items), [items]);
-  const batchIdle = summary.allTerminal && !summary.needsAttention;
+  const batchIdle = shouldCollapseToolBatchWhenIdle(summary);
   const batchNeedsAttention = summary.needsAttention;
-  const [userOpen, setUserOpen] = useState(
-    () => disableAutoCollapse || batchNeedsAttention,
-  );
+  const [userOpen, setUserOpen] = useState(() => !batchIdle);
   const wasIdleRef = useRef(batchIdle);
-  const prevDisableAutoCollapseRef = useRef(disableAutoCollapse);
 
   const batchRunning = items.some((i) => i.isRunning);
   const batchErr = items.some((i) => i.state === "output-error");
   const batchApproval = items.some((i) => i.state === "approval-requested");
   const workspaceFileBatch = isWorkspaceFileOpenBatch(items);
   const forcedOpen = batchApproval ? true : null;
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!batchRunning) return;
+    const el = bodyRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    const frame = requestAnimationFrame(() => {
+      if (bodyRef.current) {
+        bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [batchRunning, items]);
 
   useEffect(() => {
-    if (disableAutoCollapse && !prevDisableAutoCollapseRef.current) {
-      setUserOpen((open) => (open ? open : true));
-    }
-    prevDisableAutoCollapseRef.current = disableAutoCollapse;
-
-    if (disableAutoCollapse) {
-      wasIdleRef.current = batchIdle;
-      if (batchNeedsAttention && !batchIdle) {
-        setUserOpen((open) => (open ? open : true));
-      }
-      return;
-    }
-
     if (forcedOpen) return;
 
-    if (batchNeedsAttention && !batchIdle) {
+    if (batchRunning || batchNeedsAttention) {
       setUserOpen((open) => (open ? open : true));
     }
 
@@ -65,7 +58,7 @@ export function ToolBatchGroup({
     }
 
     wasIdleRef.current = batchIdle;
-  }, [disableAutoCollapse, forcedOpen, batchIdle, batchNeedsAttention]);
+  }, [forcedOpen, batchRunning, batchIdle, batchNeedsAttention]);
 
   if (workspaceFileBatch && !batchApproval) {
     return (
@@ -103,7 +96,10 @@ export function ToolBatchGroup({
         </span>
       }
     >
-      <div className="tool-batch-body">
+      <div
+        ref={bodyRef}
+        className={`tool-batch-body${batchRunning ? " tool-batch-body--active" : ""}`}
+      >
         {items.map((item) => (
           <ToolPart
             key={readToolCallId(item.part) ?? `tool-${messageId}-${item.index}`}

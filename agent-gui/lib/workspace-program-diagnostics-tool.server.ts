@@ -3,6 +3,7 @@ import { tool } from "ai";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import {
   fetchProgramDiagnostics,
+  evaluateProgramDiagnosticsPayload,
   programLabelForLint,
 } from "@/lib/program-syntax-lint";
 import {
@@ -42,7 +43,7 @@ export const workspaceProgramDiagnosticsTool = tool({
       .min(0)
       .max(120_000)
       .optional()
-      .describe("Wait up to N ms for background lint to finish (default 0)."),
+      .describe("Wait up to N ms for background lint to finish (default 20000)."),
   }),
   execute: async (input) => {
     const parsed = parseWorkspaceProgramTarget(input as ParsedWorkspaceProgramInput);
@@ -57,7 +58,7 @@ export const workspaceProgramDiagnosticsTool = tool({
     const payload = await fetchProgramDiagnostics({
       target: parsed.target,
       editVersion: input.editVersion,
-      waitMs: input.waitMs ?? 0,
+      waitMs: input.waitMs,
     });
 
     if (!payload) {
@@ -71,23 +72,9 @@ export const workspaceProgramDiagnosticsTool = tool({
     }
 
     const status = String(payload.status ?? "none");
-    const summary = payload.summary as Record<string, unknown> | undefined;
-    const errorCount =
-      typeof summary?.errorCount === "number" ? summary.errorCount : 0;
-    const ok =
-      status === "ready" && errorCount === 0
-        || status === "none"
-        || status === "running";
+    const { errorCount, ok, hint } = evaluateProgramDiagnosticsPayload(payload);
 
     const label = programLabelForLint(parsed.target);
-    const hint =
-      status === "running"
-        ? "Lint still running; call again with waitMs or after a few seconds."
-        : status === "stale"
-          ? "Diagnostics are stale (data.json changed); patch again to reschedule lint."
-          : errorCount > 0
-            ? "Fix issues using issues[].locationSummary / location.read, patch, then re-run this tool."
-            : undefined;
 
     return formatLocalToolResult(
       {
@@ -102,7 +89,9 @@ export const workspaceProgramDiagnosticsTool = tool({
         ? `${label}: ${errorCount} syntax error(s)`
         : status === "running"
           ? `${label}: lint in progress`
-          : undefined,
+          : status === "stale"
+            ? `${label}: diagnostics stale — patch again to reschedule lint`
+            : undefined,
     );
   },
 });

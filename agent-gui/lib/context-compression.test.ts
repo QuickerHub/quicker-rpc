@@ -9,6 +9,8 @@ import {
   resolveContextSplitIndex,
   selectReusableContextSummary,
   shouldCompressContextMessages,
+  previewContextCompression,
+  prepareCompressedContext,
 } from "@/lib/context-compression";
 
 function userMessage(id: string, text: string): AgentUIMessage {
@@ -72,6 +74,20 @@ describe("resolveContextSplitIndex", () => {
   });
 });
 
+describe("previewContextCompression", () => {
+  it("reports split and threshold diagnostics", () => {
+    const messages = [
+      ...buildLongThread(16),
+      assistantMessage("a-last", "ok", { inputTokens: 90_000 }),
+    ];
+    const preview = previewContextCompression(messages, 128_000);
+    assert.equal(preview.shouldCompress, true);
+    assert.equal(preview.olderCount, 5);
+    assert.equal(preview.recentCount, 12);
+    assert.equal(preview.latestInputTokens, 90_000);
+  });
+});
+
 describe("selectReusableContextSummary", () => {
   it("reuses summary when throughMessageId still covers older slice", () => {
     const messages = [
@@ -107,6 +123,89 @@ describe("selectReusableContextSummary", () => {
     ];
     const splitIndex = resolveContextSplitIndex(messages);
     assert.equal(selectReusableContextSummary(messages, splitIndex), null);
+  });
+});
+
+describe("prepareCompressedContext reasoning history", () => {
+  it("preserves assistant reasoning for DeepSeek multi-turn", async () => {
+    const messages: AgentUIMessage[] = [
+      userMessage("u1", "hi"),
+      {
+        id: "a1",
+        role: "assistant",
+        parts: [
+          { type: "reasoning", text: "thinking", state: "done" },
+          { type: "text", text: "hello" },
+        ],
+      },
+      userMessage("u2", "again"),
+    ];
+
+    const prepared = await prepareCompressedContext({
+      messages,
+      model: {} as never,
+      contextLimit: 128_000,
+      usageTracking: {
+        selection: { kind: "builtin", providerId: "deepseek" },
+        modelId: "deepseek-v4-pro",
+      },
+    });
+
+    const assistant = prepared.modelMessages.find(
+      (message) => message.role === "assistant",
+    );
+    assert.ok(assistant);
+    assert.ok(Array.isArray(assistant.content));
+    assert.ok(
+      assistant.content.some(
+        (part) =>
+          typeof part === "object"
+          && part != null
+          && "type" in part
+          && part.type === "reasoning",
+      ),
+    );
+  });
+
+  it("prunes assistant reasoning for non-DeepSeek models", async () => {
+    const messages: AgentUIMessage[] = [
+      userMessage("u1", "hi"),
+      {
+        id: "a1",
+        role: "assistant",
+        parts: [
+          { type: "reasoning", text: "thinking", state: "done" },
+          { type: "text", text: "hello" },
+        ],
+      },
+      userMessage("u2", "again"),
+    ];
+
+    const prepared = await prepareCompressedContext({
+      messages,
+      model: {} as never,
+      contextLimit: 128_000,
+      usageTracking: {
+        selection: { kind: "builtin", providerId: "bingleimuzi" },
+        modelId: "gpt-5.5",
+      },
+    });
+
+    const assistant = prepared.modelMessages.find(
+      (message) => message.role === "assistant",
+    );
+    assert.ok(assistant);
+    assert.ok(Array.isArray(assistant.content));
+    assert.equal(
+      assistant.content.some(
+        (part) =>
+          typeof part === "object"
+          && part != null
+          && "type" in part
+          && part.type === "reasoning",
+      ),
+      false,
+    );
   });
 });
 

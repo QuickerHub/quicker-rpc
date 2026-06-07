@@ -1,10 +1,15 @@
 import { runQkrpc } from "@/lib/qkrpc";
+import { mapSearchItemToStepRunnerItem } from "@/lib/action-editor/api/stepRunnerSchemaMap";
 import {
-  mapAgentSchemaToStepRunnerItem,
-  mapSearchItemToStepRunnerItem,
-} from "@/lib/action-editor/api/stepRunnerSchemaMap";
+  hasStaticStepRunnersUiCatalog,
+  listStaticStepRunnerSearchItems,
+} from "@/lib/action-editor/data/stepRunnersUiCatalog.server";
 
 export const dynamic = "force-dynamic";
+
+function useLiveCatalog(): boolean {
+  return process.env.STEP_RUNNER_CATALOG_LIVE === "1" || !hasStaticStepRunnersUiCatalog();
+}
 
 function unwrapPayload(data: unknown): Record<string, unknown> | null {
   if (typeof data !== "object" || data === null) return null;
@@ -16,6 +21,10 @@ function unwrapPayload(data: unknown): Record<string, unknown> | null {
 }
 
 export async function GET(req: Request) {
+  if (!useLiveCatalog()) {
+    return Response.json({ ok: true, items: listStaticStepRunnerSearchItems(), source: "static" });
+  }
+
   const url = new URL(req.url);
   const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") ?? "200")));
 
@@ -37,5 +46,5 @@ export async function GET(req: Request) {
     .filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null)
     .map(mapSearchItemToStepRunnerItem);
 
-  return Response.json({ ok: true, items });
+  return Response.json({ ok: true, items, source: "live" });
 }

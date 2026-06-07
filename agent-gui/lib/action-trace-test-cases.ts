@@ -24,7 +24,8 @@ export const ACTION_TRACE_STANDALONE_CASES: ActionTraceTestCase[] = [
   {
     id: "repeat-demo",
     label: "60 次循环（长流）",
-    description: "_trace_repeat_demo：repeat × 60，约 1300+ 行，验证流式输出",
+    description:
+      "_trace_repeat_demo：repeat × 60，repeatDelayMs=120（约 7s+ 流式），验证 trace 时间线/终端逐行输出",
     actionId: "b1742f26-0b19-4e41-9540-ed83b5998b81",
     actionTitle: "_trace_repeat_demo",
     standalone: true,

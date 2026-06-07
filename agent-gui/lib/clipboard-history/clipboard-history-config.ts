@@ -1,3 +1,9 @@
+/** Temporarily disabled — re-enable when clipboard-history runtime is stable. */
+export const CLIPBOARD_HISTORY_ENABLED = false;
+
+export const CLIPBOARD_HISTORY_DISABLED_MESSAGE =
+  "剪贴板历史功能已暂时关闭，不影响系统剪贴板正常使用。";
+
 export const CLIPBOARD_HISTORY_PLUGIN_ID = "clipboard-history";
 
 export const DEFAULT_CLIPBOARD_HTTP_HOST = "127.0.0.1";

@@ -7,8 +7,6 @@ import { ToolDisclosure } from "./ToolDisclosure";
 
 type ReasoningPartProps = {
   items: ReasoningSegmentItem[];
-  /** Inside ActivityBatchGroup: nested styling, same auto-collapse as standalone. */
-  inBatch?: boolean;
 };
 
 function mergeReasoningText(items: ReasoningSegmentItem[]): string {
@@ -29,23 +27,23 @@ function isReasoningSegmentStreaming(items: ReasoningSegmentItem[]): boolean {
   );
 }
 
+function formatReasoningElapsedSec(seconds: number): string {
+  return `${Math.max(0.1, seconds).toFixed(1)}s`;
+}
+
 function formatReasoningSummary(
   streaming: boolean,
   elapsedSec: number,
   measured: boolean,
-  blockCount: number,
 ): string {
-  const blocks =
-    blockCount > 1 && !streaming ? `${blockCount} thoughts · ` : "";
-
   if (streaming) {
-    if (elapsedSec < 1) return "Thinking…";
-    return `${blocks}Thought for ${elapsedSec}s`;
+    if (!measured || elapsedSec < 0.1) return "思考中…";
+    return `思考 ${formatReasoningElapsedSec(elapsedSec)}`;
   }
   if (measured && elapsedSec > 0) {
-    return `${blocks}Thought for ${Math.max(1, elapsedSec)}s`;
+    return `思考 ${formatReasoningElapsedSec(elapsedSec)}`;
   }
-  return blockCount > 1 ? `${blockCount} thoughts` : "Thought";
+  return "思考";
 }
 
 function useReasoningDuration(streaming: boolean): {
@@ -70,18 +68,18 @@ function useReasoningDuration(streaming: boolean): {
       const tick = () => {
         const startAt = startAtRef.current;
         if (startAt == null) return;
-        const nextSec = Math.floor((Date.now() - startAt) / 1000);
+        const nextSec = Math.round((Date.now() - startAt) / 100) / 10;
         setElapsedSec((prev) => (prev === nextSec ? prev : nextSec));
       };
 
       tick();
-      const timer = window.setInterval(tick, 200);
+      const timer = window.setInterval(tick, 100);
       return () => window.clearInterval(timer);
     }
 
     const startAt = startAtRef.current;
     if (startAt != null) {
-      const sec = Math.max(1, Math.round((Date.now() - startAt) / 1000));
+      const sec = Math.round((Date.now() - startAt) / 100) / 10;
       setElapsedSec((prev) => (prev === sec ? prev : sec));
       if (!measuredRef.current) {
         measuredRef.current = true;
@@ -119,7 +117,12 @@ function ReasoningBody({
   return (
     <pre
       ref={bodyRef}
-      className={`reasoning-body${streaming ? " reasoning-body--streaming" : ""}`}
+      className={[
+        "reasoning-body",
+        streaming ? "reasoning-body--streaming" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {text}
     </pre>
@@ -154,27 +157,18 @@ function useReasoningAutoCollapse(streaming: boolean): {
 function ReasoningDisclosure({
   text,
   streaming,
-  blockCount,
-  nested = false,
 }: {
   text: string;
   streaming: boolean;
-  blockCount: number;
-  nested?: boolean;
 }) {
   const { userOpen, setUserOpen, forcedOpen } =
     useReasoningAutoCollapse(streaming);
   const { elapsedSec, measured } = useReasoningDuration(streaming);
-  const summary = formatReasoningSummary(
-    streaming,
-    elapsedSec,
-    measured,
-    blockCount,
-  );
+  const summary = formatReasoningSummary(streaming, elapsedSec, measured);
 
   return (
     <ToolDisclosure
-      className={`reasoning-card${nested ? " reasoning-card--nested" : ""}`}
+      className="reasoning-card"
       open={userOpen}
       onOpenChange={setUserOpen}
       forcedOpen={forcedOpen}
@@ -188,18 +182,11 @@ function ReasoningDisclosure({
   );
 }
 
-export function ReasoningPart({ items, inBatch = false }: ReasoningPartProps) {
+export function ReasoningPart({ items }: ReasoningPartProps) {
   const text = mergeReasoningText(items);
-  if (!text) return null;
-
   const streaming = isReasoningSegmentStreaming(items);
 
-  return (
-    <ReasoningDisclosure
-      text={text}
-      streaming={streaming}
-      blockCount={items.length}
-      nested={inBatch}
-    />
-  );
+  if (!text && !streaming) return null;
+
+  return <ReasoningDisclosure text={text} streaming={streaming} />;
 }

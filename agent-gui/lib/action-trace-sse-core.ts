@@ -47,7 +47,7 @@ export function dispatchActionTraceSseBlock(
     return;
   }
 
-  if (eventName === "trace") {
+  if (eventName === "trace" || eventName === "message") {
     const traceEvent = parseActionTraceEvent(parsed);
     if (traceEvent) {
       handlers.onTrace?.(traceEvent);

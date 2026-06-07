@@ -342,10 +342,8 @@ export function ToolTestPromptChatSidebar({
 
 export function ToolTestPromptChatPane({
   workingDirectory,
-  keepToolBatchesExpanded,
 }: {
   workingDirectory?: string;
-  keepToolBatchesExpanded?: boolean;
 }) {
   const {
     messages,
@@ -419,7 +417,6 @@ export function ToolTestPromptChatPane({
           at={sessionStartedAt}
           messages={messages}
           workingDirectory={workingDirectory}
-          keepToolBatchesExpanded={keepToolBatchesExpanded}
           streamTick={messages[messages.length - 1]?.parts.length ?? 0}
         />
       ) : null}

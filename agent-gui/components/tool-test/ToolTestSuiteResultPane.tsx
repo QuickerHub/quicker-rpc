@@ -8,18 +8,15 @@ import { ToolTestRunsPaneShell } from "@/components/tool-test/ToolTestRunsPaneSh
 type ToolTestSuiteResultPaneProps = {
   runs: ToolSuiteRunEntry[];
   workingDirectory?: string;
-  keepToolBatchesExpanded?: boolean;
   onClearRuns: () => void;
 };
 
 function ToolSuiteRunCard({
   run,
   workingDirectory,
-  keepToolBatchesExpanded,
 }: {
   run: ToolSuiteRunEntry;
   workingDirectory?: string;
-  keepToolBatchesExpanded?: boolean;
 }) {
   const lastAssistant = run.chatMessages.find((m) => m.role === "assistant");
   const partCount = lastAssistant?.parts.length ?? 0;
@@ -49,7 +46,6 @@ function ToolSuiteRunCard({
       at={run.at}
       messages={run.chatMessages}
       workingDirectory={workingDirectory}
-      keepToolBatchesExpanded={keepToolBatchesExpanded}
       emptyHint={
         run.status === "running" ? "正在逐步执行工具…" : undefined
       }
@@ -62,7 +58,6 @@ function ToolSuiteRunCard({
 export function ToolTestSuiteResultPane({
   runs,
   workingDirectory,
-  keepToolBatchesExpanded,
   onClearRuns,
 }: ToolTestSuiteResultPaneProps) {
   const endRef = useRef<HTMLDivElement>(null);
@@ -98,7 +93,6 @@ export function ToolTestSuiteResultPane({
           key={run.id}
           run={run}
           workingDirectory={workingDirectory}
-          keepToolBatchesExpanded={keepToolBatchesExpanded}
         />
       ))}
     </ToolTestRunsPaneShell>

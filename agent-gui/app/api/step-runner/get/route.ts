@@ -1,7 +1,15 @@
 import { runQkrpc } from "@/lib/qkrpc";
 import { mapAgentSchemaToStepRunnerItem } from "@/lib/action-editor/api/stepRunnerSchemaMap";
+import {
+  getStaticStepRunnerItem,
+  hasStaticStepRunnersUiCatalog,
+} from "@/lib/action-editor/data/stepRunnersUiCatalog.server";
 
 export const dynamic = "force-dynamic";
+
+function useLiveCatalog(): boolean {
+  return process.env.STEP_RUNNER_CATALOG_LIVE === "1" || !hasStaticStepRunnersUiCatalog();
+}
 
 function unwrapSchema(data: unknown): Record<string, unknown> | null {
   if (typeof data !== "object" || data === null) return null;
@@ -37,6 +45,17 @@ export async function GET(req: Request) {
     return Response.json({ ok: false, error: "key is required" }, { status: 400 });
   }
 
+  if (!useLiveCatalog()) {
+    const item = getStaticStepRunnerItem(key, controlField);
+    if (item) {
+      return Response.json({ ok: true, item, source: "static" });
+    }
+    return Response.json(
+      { ok: false, error: `Step runner not in static catalog: ${key}` },
+      { status: 404 },
+    );
+  }
+
   const args = ["step-runner", "get-ui", "--key", key, "--json"];
   if (controlField) {
     args.push("--control-field", controlField);
@@ -55,5 +74,9 @@ export async function GET(req: Request) {
     return Response.json({ ok: false, error: "Missing schema in response" }, { status: 502 });
   }
 
-  return Response.json({ ok: true, item: mapAgentSchemaToStepRunnerItem(schema) });
+  return Response.json({
+    ok: true,
+    item: mapAgentSchemaToStepRunnerItem(schema),
+    source: "live",
+  });
 }

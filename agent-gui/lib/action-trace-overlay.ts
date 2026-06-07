@@ -50,7 +50,12 @@ const streamAbortByTab = new Map<string, AbortController>();
 const pendingOutputByTab = new Map<string, string>();
 const pendingLineDeltaByTab = new Map<string, number>();
 const pendingEventsByTab = new Map<string, ActionTraceEvent[]>();
-let flushHandle: number | null = null;
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Pace live trace UI so long runs feel streamed, not one burst per TCP chunk. */
+const TRACE_UI_FLUSH_MS = 40;
+const TRACE_MAX_LINES_PER_FLUSH = 18;
+const TRACE_MAX_EVENTS_PER_FLUSH = 24;
 
 function notifyListeners(): void {
   for (const listener of listeners) {
@@ -90,7 +95,21 @@ function cancelTabStream(tabId: string): void {
   pendingEventsByTab.delete(tabId);
 }
 
+function cancelFlushSchedule(): void {
+  if (flushTimer != null) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+}
+
 function flushPendingForTab(tabId: string): void {
+  while (flushPendingForTabPartial(tabId)) {
+    // drain until empty
+  }
+}
+
+/** @returns true when more output/events remain for this tab */
+function flushPendingForTabPartial(tabId: string): boolean {
   const tab = findTab(tabId);
   if (!tab) {
     pendingOutputByTab.delete(tabId);
@@ -100,53 +119,84 @@ function flushPendingForTab(tabId: string): void {
   }
 
   let next = tab;
+  let hasMore = false;
+
   const pendingOutput = pendingOutputByTab.get(tabId);
-  const pendingLineDelta = pendingLineDeltaByTab.get(tabId) ?? 0;
   if (pendingOutput) {
-    next = {
-      ...next,
-      output: next.output + pendingOutput,
-      lineCount: next.lineCount + pendingLineDelta,
-    };
-    pendingOutputByTab.delete(tabId);
-    pendingLineDeltaByTab.delete(tabId);
+    const lines = pendingOutput.split("\n");
+    if (lines.length > TRACE_MAX_LINES_PER_FLUSH) {
+      const chunkLines = lines.slice(0, TRACE_MAX_LINES_PER_FLUSH);
+      const chunk = `${chunkLines.join("\n")}\n`;
+      const lineDelta = Math.max(0, chunk.split("\n").length - 1);
+      pendingOutputByTab.set(tabId, lines.slice(TRACE_MAX_LINES_PER_FLUSH).join("\n"));
+      pendingLineDeltaByTab.set(
+        tabId,
+        Math.max(0, (pendingLineDeltaByTab.get(tabId) ?? 0) - lineDelta),
+      );
+      next = {
+        ...next,
+        output: next.output + chunk,
+        lineCount: next.lineCount + lineDelta,
+      };
+      hasMore = true;
+    } else {
+      const pendingLineDelta = pendingLineDeltaByTab.get(tabId) ?? 0;
+      next = {
+        ...next,
+        output: next.output + pendingOutput,
+        lineCount: next.lineCount + pendingLineDelta,
+      };
+      pendingOutputByTab.delete(tabId);
+      pendingLineDeltaByTab.delete(tabId);
+    }
   }
 
   const pendingEvents = pendingEventsByTab.get(tabId);
   if (pendingEvents?.length) {
-    const events = next.events.concat(pendingEvents);
+    const slice = pendingEvents.slice(0, TRACE_MAX_EVENTS_PER_FLUSH);
+    const rest = pendingEvents.slice(TRACE_MAX_EVENTS_PER_FLUSH);
+    const events = next.events.concat(slice);
     next = {
       ...next,
       events,
       eventCount: events.length,
     };
-    pendingEventsByTab.delete(tabId);
+    if (rest.length > 0) {
+      pendingEventsByTab.set(tabId, rest);
+      hasMore = true;
+    } else {
+      pendingEventsByTab.delete(tabId);
+    }
   }
 
   if (next !== tab) {
     updateTab(tabId, () => next);
   }
+
+  return hasMore;
 }
 
 function flushAllPendingNow(): void {
-  if (flushHandle != null) {
-    cancelAnimationFrame(flushHandle);
-    flushHandle = null;
-  }
+  cancelFlushSchedule();
   for (const tab of state.tabs) {
     flushPendingForTab(tab.tabId);
   }
 }
 
-function scheduleFlush(tabId: string): void {
-  void tabId;
-  if (flushHandle != null) return;
-  flushHandle = requestAnimationFrame(() => {
-    flushHandle = null;
+function scheduleFlush(_tabId: string): void {
+  if (flushTimer != null) return;
+  flushTimer = window.setTimeout(() => {
+    flushTimer = null;
+    let remain = false;
     for (const tab of state.tabs) {
-      flushPendingForTab(tab.tabId);
+      if (flushPendingForTabPartial(tab.tabId)) {
+        remain = true;
+      }
     }
-  });
+    if (remain) {
+      scheduleFlush(_tabId);
+    }
+  }, TRACE_UI_FLUSH_MS);
 }
 
 function upsertTab(
@@ -224,7 +274,7 @@ function appendEvent(tabId: string, event: ActionTraceEvent): void {
   const batch = pendingEventsByTab.get(tabId) ?? [];
   batch.push(event);
   pendingEventsByTab.set(tabId, batch);
-  flushPendingForTab(tabId);
+  scheduleFlush(tabId);
 }
 
 export function appendActionTraceEventForTab(
@@ -334,7 +384,7 @@ export function hydrateActionTraceFromToolOutput(
   data: Record<string, unknown>,
   options?: { actionId?: string; param?: string; actionTitle?: string },
 ): void {
-  const events = parseActionTraceEvents(data.events);
+  const events = parseActionTraceEvents(data);
   const actionId =
     (typeof data.actionId === "string" ? data.actionId.trim() : "")
     || options?.actionId?.trim()

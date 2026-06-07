@@ -29,7 +29,6 @@ export function LauncherTranscript({
   workingDirectory,
   ping,
 }: LauncherTranscriptProps) {
-  const busy = status === "submitted" || status === "streaming";
   const qkrpcOk = ping.status === "ok";
   const qkrpcLoading = ping.status === "loading";
 
@@ -76,7 +75,6 @@ export function LauncherTranscript({
               <MessageParts
                 message={message}
                 workingDirectory={workingDirectory}
-                keepToolBatchesExpanded={busy}
               />
             </div>
           </article>

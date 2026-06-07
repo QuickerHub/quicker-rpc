@@ -25,7 +25,6 @@ export type ToolTestConversationCardProps = {
   timingLive?: boolean;
   messages: AgentUIMessage[];
   workingDirectory?: string;
-  keepToolBatchesExpanded?: boolean;
   emptyHint?: string;
   footer?: ReactNode;
   /** Extra deps to auto-scroll while streaming (e.g. part count). */
@@ -47,7 +46,6 @@ export function ToolTestConversationCard({
   timingLive,
   messages,
   workingDirectory,
-  keepToolBatchesExpanded = true,
   emptyHint,
   footer,
   streamTick = 0,
@@ -115,7 +113,6 @@ export function ToolTestConversationCard({
           <ToolTestChatMessages
             messages={messages}
             workingDirectory={workingDirectory}
-            keepToolBatchesExpanded={keepToolBatchesExpanded}
             emptyHint={emptyHint}
             endRef={chatEndRef}
           />

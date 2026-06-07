@@ -129,7 +129,10 @@ export function createLauncherCacheDirectStreamResponse(params: {
       writer.write({
         type: "finish",
         finishReason: "stop",
-        messageMetadata: { model: "launcher-cache" },
+        messageMetadata: {
+          model: "launcher-cache",
+          launcherCacheDirect: true,
+        },
       });
     },
   });

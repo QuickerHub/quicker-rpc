@@ -15,6 +15,9 @@ use crate::store::{content_hash, ClipStore};
 
 static SUPPRESS_CAPTURE: AtomicBool = AtomicBool::new(false);
 
+const WATCH_INTERVAL_MS: u64 = 500;
+const WATCH_BUSY_INTERVAL_MS: u64 = 1200;
+
 pub fn with_suppressed_capture<F, T>(f: F) -> Result<T>
 where
     F: FnOnce() -> Result<T>,
@@ -34,6 +37,7 @@ pub fn spawn_watcher(store: Arc<ClipStore>) {
                 thread::sleep(Duration::from_millis(200));
                 continue;
             }
+            let mut sleep_ms = WATCH_INTERVAL_MS;
             match read_clipboard_snapshot(&store) {
                 Ok(Some(record)) => {
                     let signature = record.content_hash.clone();
@@ -46,20 +50,93 @@ pub fn spawn_watcher(store: Arc<ClipStore>) {
                     }
                 }
                 Ok(None) => {}
-                Err(err) => warn!(?err, "clipboard read failed"),
+                Err(err) => {
+                    if is_clipboard_busy_error(&err) {
+                        sleep_ms = WATCH_BUSY_INTERVAL_MS;
+                    } else {
+                        warn!(?err, "clipboard read failed");
+                    }
+                }
             }
-            thread::sleep(Duration::from_millis(350));
+            thread::sleep(Duration::from_millis(sleep_ms));
         }
     });
 }
 
+fn is_clipboard_busy_error(err: &anyhow::Error) -> bool {
+    let msg = err.to_string().to_ascii_lowercase();
+    msg.contains("clipboard")
+        && (msg.contains("busy")
+            || msg.contains("open")
+            || msg.contains("access")
+            || msg.contains("locked")
+            || msg.contains("占用"))
+}
+
+enum ClipboardPayload {
+    Files(Vec<String>),
+    Image {
+        width: usize,
+        height: usize,
+        bytes: Vec<u8>,
+    },
+    Html(String),
+    Text(String),
+}
+
 fn read_clipboard_snapshot(store: &ClipStore) -> Result<Option<ClipRecord>> {
-    let mut clipboard = Clipboard::new().context("open system clipboard")?;
     let now = chrono::Utc::now().timestamp_millis();
     let source_process = active_process_name();
 
-    if let Ok(files) = read_file_list(&mut clipboard) {
-        if !files.is_empty() {
+    let payload = {
+        let mut clipboard = Clipboard::new().context("open system clipboard")?;
+
+        let payload = if let Ok(files) = read_file_list_from_open_clipboard() {
+            if !files.is_empty() {
+                Some(ClipboardPayload::Files(files))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let payload = if payload.is_some() {
+            payload
+        } else if let Ok(image) = clipboard.get_image() {
+            Some(ClipboardPayload::Image {
+                width: image.width,
+                height: image.height,
+                bytes: image.bytes.to_vec(),
+            })
+        } else if let Ok(text) = clipboard.get_text() {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(ClipboardPayload::Text(text))
+            }
+        } else {
+            None
+        };
+        // `clipboard` dropped here — release OpenClipboard before any slow work.
+        payload
+    };
+
+    let payload = if let Some(payload) = payload {
+        Some(payload)
+    } else if let Some(html) = read_html_from_clipboard() {
+        Some(ClipboardPayload::Html(html))
+    } else {
+        None
+    };
+
+    let Some(payload) = payload else {
+        return Ok(None);
+    };
+
+    let record = match payload {
+        ClipboardPayload::Files(files) => {
             let preview = files
                 .iter()
                 .take(3)
@@ -72,7 +149,7 @@ fn read_clipboard_snapshot(store: &ClipStore) -> Result<Option<ClipRecord>> {
                 .unwrap_or("Files")
                 .to_string();
             let hash = content_hash("files", &files.join("\0"));
-            return Ok(Some(ClipRecord {
+            ClipRecord {
                 id: nanoid!(10),
                 kind: ClipKind::Files,
                 title,
@@ -87,127 +164,136 @@ fn read_clipboard_snapshot(store: &ClipStore) -> Result<Option<ClipRecord>> {
                 created_at: now,
                 updated_at: now,
                 content_hash: hash,
-            }));
+            }
         }
-    }
-
-    if let Ok(image) = clipboard.get_image() {
-        let path = save_image(store.data_dir(), &image)?;
-        let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-        let title = format!("Image {size} bytes");
-        let hash = content_hash("image", &path.to_string_lossy());
-        return Ok(Some(ClipRecord {
-            id: nanoid!(10),
-            kind: ClipKind::Image,
-            title,
-            preview: "[image]".to_string(),
-            content_text: None,
-            content_path: Some(path.to_string_lossy().to_string()),
-            file_paths: Vec::new(),
-            source_process,
-            is_pinned: false,
-            usage_count: 0,
-            last_used_at: None,
-            created_at: now,
-            updated_at: now,
-            content_hash: hash,
-        }));
-    }
-
-    if let Some(html) = read_html_from_clipboard() {
-        let plain = strip_html_basic(&html);
-        let preview = truncate_preview(&plain, 240);
-        let title = truncate_preview(&plain, 48);
-        let hash = content_hash("html", &html);
-        return Ok(Some(ClipRecord {
-            id: nanoid!(10),
-            kind: ClipKind::Html,
-            title,
-            preview,
-            content_text: Some(html),
-            content_path: None,
-            file_paths: Vec::new(),
-            source_process,
-            is_pinned: false,
-            usage_count: 0,
-            last_used_at: None,
-            created_at: now,
-            updated_at: now,
-            content_hash: hash,
-        }));
-    }
-
-    if let Ok(text) = clipboard.get_text() {
-        let trimmed = text.trim();
-        if trimmed.is_empty() {
-            return Ok(None);
+        ClipboardPayload::Image {
+            width,
+            height,
+            bytes,
+        } => {
+            let image = ImageData {
+                width,
+                height,
+                bytes: bytes.into(),
+            };
+            let hash = image_content_hash(&image);
+            let path = save_image(store.data_dir(), &image)?;
+            let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+            ClipRecord {
+                id: nanoid!(10),
+                kind: ClipKind::Image,
+                title: format!("Image {size} bytes"),
+                preview: "[image]".to_string(),
+                content_text: None,
+                content_path: Some(path.to_string_lossy().to_string()),
+                file_paths: Vec::new(),
+                source_process,
+                is_pinned: false,
+                usage_count: 0,
+                last_used_at: None,
+                created_at: now,
+                updated_at: now,
+                content_hash: hash,
+            }
         }
-        let preview = truncate_preview(trimmed, 240);
-        let title = truncate_preview(trimmed, 48);
-        let hash = content_hash("text", trimmed);
-        return Ok(Some(ClipRecord {
-            id: nanoid!(10),
-            kind: ClipKind::Text,
-            title,
-            preview,
-            content_text: Some(text),
-            content_path: None,
-            file_paths: Vec::new(),
-            source_process,
-            is_pinned: false,
-            usage_count: 0,
-            last_used_at: None,
-            created_at: now,
-            updated_at: now,
-            content_hash: hash,
-        }));
-    }
+        ClipboardPayload::Html(html) => {
+            let plain = strip_html_basic(&html);
+            let preview = truncate_preview(&plain, 240);
+            let title = truncate_preview(&plain, 48);
+            let hash = content_hash("html", &html);
+            ClipRecord {
+                id: nanoid!(10),
+                kind: ClipKind::Html,
+                title,
+                preview,
+                content_text: Some(html),
+                content_path: None,
+                file_paths: Vec::new(),
+                source_process,
+                is_pinned: false,
+                usage_count: 0,
+                last_used_at: None,
+                created_at: now,
+                updated_at: now,
+                content_hash: hash,
+            }
+        }
+        ClipboardPayload::Text(text) => {
+            let trimmed = text.trim();
+            let preview = truncate_preview(trimmed, 240);
+            let title = truncate_preview(trimmed, 48);
+            let hash = content_hash("text", trimmed);
+            ClipRecord {
+                id: nanoid!(10),
+                kind: ClipKind::Text,
+                title,
+                preview,
+                content_text: Some(text),
+                content_path: None,
+                file_paths: Vec::new(),
+                source_process,
+                is_pinned: false,
+                usage_count: 0,
+                last_used_at: None,
+                created_at: now,
+                updated_at: now,
+                content_hash: hash,
+            }
+        }
+    };
 
-    Ok(None)
+    Ok(Some(record))
 }
 
-fn read_file_list(_clipboard: &mut Clipboard) -> Result<Vec<String>> {
-    #[cfg(windows)]
-    {
-        use std::ffi::OsString;
-        use std::os::windows::ffi::OsStringExt;
-        use windows_sys::Win32::Foundation::HANDLE;
-        use windows_sys::Win32::System::DataExchange::*;
-        use windows_sys::Win32::UI::Shell::DragQueryFileW;
+fn image_content_hash(image: &ImageData) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
 
-        const CF_HDROP: u32 = 15;
-        unsafe {
-            if OpenClipboard(0 as HANDLE) == 0 {
-                return Ok(Vec::new());
-            }
-            let result = (|| {
-                if IsClipboardFormatAvailable(CF_HDROP) == 0 {
-                    return Ok(Vec::new());
-                }
-                let drop = GetClipboardData(CF_HDROP);
-                if drop.is_null() {
-                    return Ok(Vec::new());
-                }
-                let count = DragQueryFileW(drop, 0xFFFFFFFF, std::ptr::null_mut(), 0);
-                let mut files = Vec::new();
-                for idx in 0..count {
-                    let len = DragQueryFileW(drop, idx, std::ptr::null_mut(), 0);
-                    let mut buf = vec![0u16; len as usize + 1];
-                    DragQueryFileW(drop, idx, buf.as_mut_ptr(), len + 1);
-                    let os = OsString::from_wide(&buf[..len as usize]);
-                    files.push(os.to_string_lossy().to_string());
-                }
-                Ok(files)
-            })();
-            CloseClipboard();
-            return result;
+    let mut hasher = DefaultHasher::new();
+    "image".hash(&mut hasher);
+    image.width.hash(&mut hasher);
+    image.height.hash(&mut hasher);
+    image.bytes.len().hash(&mut hasher);
+    for (index, byte) in image.bytes.iter().enumerate() {
+        if index % 4096 == 0 {
+            byte.hash(&mut hasher);
         }
     }
-    #[cfg(not(windows))]
-    {
-        let _ = clipboard;
-        Ok(Vec::new())
+    format!("{:016x}", hasher.finish())
+}
+
+#[cfg(windows)]
+fn read_file_list_from_open_clipboard() -> Result<Vec<String>> {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+    use windows_sys::Win32::System::DataExchange::*;
+    use windows_sys::Win32::UI::Shell::DragQueryFileW;
+
+    const CF_HDROP: u32 = 15;
+    unsafe {
+        if IsClipboardFormatAvailable(CF_HDROP) == 0 {
+            return Ok(Vec::new());
+        }
+        let drop = GetClipboardData(CF_HDROP);
+        if drop.is_null() {
+            return Ok(Vec::new());
+        }
+        let count = DragQueryFileW(drop, 0xFFFFFFFF, std::ptr::null_mut(), 0);
+        let mut files = Vec::new();
+        for idx in 0..count {
+            let len = DragQueryFileW(drop, idx, std::ptr::null_mut(), 0);
+            let mut buf = vec![0u16; len as usize + 1];
+            DragQueryFileW(drop, idx, buf.as_mut_ptr(), len + 1);
+            let os = OsString::from_wide(&buf[..len as usize]);
+            files.push(os.to_string_lossy().to_string());
+        }
+        Ok(files)
     }
+}
+
+#[cfg(not(windows))]
+fn read_file_list_from_open_clipboard() -> Result<Vec<String>> {
+    Ok(Vec::new())
 }
 
 fn save_image(data_dir: &Path, image: &ImageData) -> Result<std::path::PathBuf> {
@@ -262,9 +348,14 @@ pub fn copy_item_to_clipboard(store: &ClipStore, id: &str) -> Result<()> {
     let detail = store
         .get_detail(id)?
         .ok_or_else(|| anyhow::anyhow!("clip item not found"))?;
+    let kind = ClipKind::from_str(&detail.kind).unwrap_or(ClipKind::Text);
     with_suppressed_capture(|| {
-        let mut clipboard = Clipboard::new().context("open clipboard for copy")?;
-        match ClipKind::from_str(&detail.kind).unwrap_or(ClipKind::Text) {
+        match kind {
+            ClipKind::Files => {
+                if !detail.file_paths.is_empty() {
+                    copy_files_to_clipboard(&detail.file_paths)?;
+                }
+            }
             ClipKind::Image => {
                 let path = image_path_for_id(store, id)?
                     .ok_or_else(|| anyhow::anyhow!("image path missing"))?;
@@ -272,6 +363,7 @@ pub fn copy_item_to_clipboard(store: &ClipStore, id: &str) -> Result<()> {
                 let dyn_img = image::load_from_memory(&bytes)?;
                 let rgba = dyn_img.to_rgba8();
                 let (width, height) = rgba.dimensions();
+                let mut clipboard = Clipboard::new().context("open clipboard for copy")?;
                 clipboard.set_image(ImageData {
                     width: width as usize,
                     height: height as usize,
@@ -280,15 +372,12 @@ pub fn copy_item_to_clipboard(store: &ClipStore, id: &str) -> Result<()> {
             }
             ClipKind::Html => {
                 let html = detail.html_data.or(detail.body_text).unwrap_or_default();
+                let mut clipboard = Clipboard::new().context("open clipboard for copy")?;
                 clipboard.set_html(html, None)?;
-            }
-            ClipKind::Files => {
-                if !detail.file_paths.is_empty() {
-                    copy_files_to_clipboard(&detail.file_paths)?;
-                }
             }
             ClipKind::Text => {
                 let text = detail.body_text.unwrap_or_default();
+                let mut clipboard = Clipboard::new().context("open clipboard for copy")?;
                 clipboard.set_text(text)?;
             }
         }
@@ -379,7 +468,7 @@ fn read_html_from_clipboard() -> Option<String> {
                 let raw = std::slice::from_raw_parts(ptr, len);
                 GlobalUnlock(handle);
                 let text = String::from_utf8_lossy(raw).to_string();
-                extract_cf_html_fragment(&text)
+                extract_cf_html_fragment(&text).or(Some(text))
             })();
             CloseClipboard();
             return result;

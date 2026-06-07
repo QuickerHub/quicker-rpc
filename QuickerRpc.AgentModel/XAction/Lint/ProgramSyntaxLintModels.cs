@@ -27,6 +27,7 @@ public enum ProgramSyntaxCheckKind
     Expression,
     CSharp,
     Interpolation,
+    Structural,
 }
 
 public sealed class ProgramSyntaxCheckItem
@@ -120,6 +121,15 @@ public sealed class ProgramDiagnosticsSummary
     public int Checked { get; set; }
 
     public int Skipped { get; set; }
+
+    /// <summary>Expression/C# snippets discovered (before compile cap).</summary>
+    public int TotalChecks { get; set; }
+
+    /// <summary>Compile checks skipped because of MaxChecksPerRun cap.</summary>
+    public int Truncated { get; set; }
+
+    /// <summary>Fast offline checks (structure + interpolation) included in Issues.</summary>
+    public int FastIssueCount { get; set; }
 }
 
 public sealed class ProgramDiagnosticsDocument

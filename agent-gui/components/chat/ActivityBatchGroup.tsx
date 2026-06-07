@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   buildActivityBatchSummary,
   type ActivitySegmentItem,
@@ -13,23 +13,15 @@ import { ToolPart } from "./ToolPart";
 type ActivityBatchGroupProps = {
   messageId: string;
   items: ActivitySegmentItem[];
-  /** When true, do not auto-collapse after all steps finish (tool-test page). */
-  disableAutoCollapse?: boolean;
 };
 
 export function ActivityBatchGroup({
   messageId,
   items,
-  disableAutoCollapse = false,
 }: ActivityBatchGroupProps) {
   const summary = useMemo(() => buildActivityBatchSummary(items), [items]);
-  const batchIdle = summary.allTerminal && !summary.needsAttention;
   const batchNeedsAttention = summary.needsAttention;
-  const [userOpen, setUserOpen] = useState(
-    () => disableAutoCollapse || batchNeedsAttention,
-  );
-  const wasIdleRef = useRef(batchIdle);
-  const prevDisableAutoCollapseRef = useRef(disableAutoCollapse);
+  const [userOpen, setUserOpen] = useState(true);
 
   const batchRunning = items.some(
     (item) => item.kind === "tool" && item.isRunning,
@@ -49,39 +41,33 @@ export function ActivityBatchGroup({
   const batchApproval = items.some(
     (item) => item.kind === "tool" && item.state === "approval-requested",
   );
-  const forcedOpen =
-    batchApproval || summary.reasoningStreaming ? true : null;
+  const batchActive = batchRunning || summary.reasoningStreaming;
+  const forcedOpen = batchApproval ? true : null;
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!batchActive) return;
+    const el = bodyRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    const frame = requestAnimationFrame(() => {
+      if (bodyRef.current) {
+        bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [batchActive, items, visibleActivityItems]);
 
   useEffect(() => {
-    if (disableAutoCollapse && !prevDisableAutoCollapseRef.current) {
-      setUserOpen((open) => (open ? open : true));
-    }
-    prevDisableAutoCollapseRef.current = disableAutoCollapse;
-
-    if (disableAutoCollapse) {
-      wasIdleRef.current = batchIdle;
-      if (batchNeedsAttention && !batchIdle) {
-        setUserOpen((open) => (open ? open : true));
-      }
-      return;
-    }
-
     if (forcedOpen) return;
-
-    if (batchNeedsAttention && !batchIdle) {
+    if (batchActive || batchNeedsAttention) {
       setUserOpen((open) => (open ? open : true));
     }
-
-    if (batchIdle && !wasIdleRef.current) {
-      setUserOpen((open) => (open ? false : open));
-    }
-
-    wasIdleRef.current = batchIdle;
-  }, [disableAutoCollapse, forcedOpen, batchIdle, batchNeedsAttention]);
+  }, [forcedOpen, batchActive, batchNeedsAttention]);
 
   return (
     <ToolDisclosure
-      className="tool-batch activity-batch"
+      className="tool-batch activity-batch explore-batch"
       open={userOpen}
       onOpenChange={setUserOpen}
       forcedOpen={forcedOpen}
@@ -100,7 +86,10 @@ export function ActivityBatchGroup({
         </span>
       }
     >
-      <div className="tool-batch-body activity-batch-body">
+      <div
+        ref={bodyRef}
+        className={`tool-batch-body activity-batch-body explore-batch-body${batchActive ? " explore-batch-body--active" : ""}`}
+      >
         {omittedActivityCount > 0 ? (
           <div className="activity-batch-omitted" aria-hidden>
             另有 {omittedActivityCount} 步已省略（流式加载中）

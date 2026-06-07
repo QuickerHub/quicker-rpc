@@ -7,7 +7,6 @@ import { MessageParts } from "@/components/chat/MessageParts";
 type ToolTestChatMessagesProps = {
   messages: AgentUIMessage[];
   workingDirectory?: string;
-  keepToolBatchesExpanded?: boolean;
   emptyHint?: string;
   endRef?: RefObject<HTMLDivElement | null>;
 };
@@ -15,7 +14,6 @@ type ToolTestChatMessagesProps = {
 export function ToolTestChatMessages({
   messages,
   workingDirectory,
-  keepToolBatchesExpanded = true,
   emptyHint,
   endRef,
 }: ToolTestChatMessagesProps) {
@@ -32,10 +30,7 @@ export function ToolTestChatMessages({
           {message.role === "user" ? (
             <article className="msg msg--user">
               <div className="msg-content">
-                <MessageParts
-                  message={message}
-                  keepToolBatchesExpanded={keepToolBatchesExpanded}
-                />
+                <MessageParts message={message} />
               </div>
             </article>
           ) : (
@@ -45,7 +40,6 @@ export function ToolTestChatMessages({
                   <MessageParts
                     message={message}
                     workingDirectory={workingDirectory}
-                    keepToolBatchesExpanded={keepToolBatchesExpanded}
                   />
                 </div>
               </div>
