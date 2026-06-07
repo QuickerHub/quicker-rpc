@@ -65,9 +65,9 @@
   },
   "action.create": {
     "cli": "qkrpc action create --title \"{{title}}\" [--icon {{icon}}] --json",
-    "agent": "qkrpc_action_create({ title: \"{{title}}\", icon?: \"{{icon}}\" })",
+    "agent": "qkrpc_action_create({ info: { title: \"{{title}}\", description?: \"…\", icon?: \"{{icon}}\" } })",
     "defaults": {
-      "title": "动作名",
+      "title": "MyAction",
       "icon": "fa:Light_*"
     }
   },
@@ -75,7 +75,7 @@
     "cli": "qkrpc action list --query \"{{query}}\" [--scope {{scope}}] --json",
     "agent": "qkrpc_action_list({ query: \"{{query}}\", scope?: \"{{scope}}\" })",
     "defaults": {
-      "query": "名",
+      "query": "keyword",
       "scope": "agent"
     }
   },
@@ -83,7 +83,7 @@
     "cli": "qkrpc action search --query \"{{query}}\" [--scope {{scope}}] --json",
     "agent": "qkrpc_action_search({ query: \"{{query}}\", scope?: \"{{scope}}\" })",
     "defaults": {
-      "query": "名",
+      "query": "keyword",
       "scope": "agent"
     }
   },
@@ -183,7 +183,7 @@
     "agent": null,
     "agentNote": "（agent-ui 暂无 subprogram create；终端用 qkrpc CLI）",
     "defaults": {
-      "name": "名",
+      "name": "MySub",
       "icon": "fa:Light_*"
     }
   },
@@ -224,12 +224,12 @@
     "cli": "qkrpc step-runner search --query \"{{query}}\" --json",
     "agent": "qkrpc_step_runner_search({ query: \"{{query}}\" })",
     "defaults": {
-      "query": "剪贴板|clipboard|sys:*clip*"
+      "query": "clipboard|sys:*clip*"
     }
   },
   "step-runner.search.expr": {
-    "cli": "qkrpc step-runner search --query \"表达式|evalexpression\" --json",
-    "agent": "qkrpc_step_runner_search({ query: \"表达式|evalexpression\" })"
+    "cli": "qkrpc step-runner search --query \"expression|evalexpression|sys:evalexpression\" --json",
+    "agent": "qkrpc_step_runner_search({ query: \"expression|evalexpression|sys:evalexpression\" })"
   },
   "step-runner.get": {
     "cli": "qkrpc step-runner get --key {{key}} --json",

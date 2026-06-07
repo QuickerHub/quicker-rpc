@@ -271,4 +271,66 @@ public sealed class XActionPatchApplierTests
         Assert.AreEqual("updated", variables[0]!["defaultValue"]!.Value<string>());
         Assert.AreEqual("2", variables[1]!["defaultValue"]!.Value<string>());
     }
+
+    [TestMethod]
+    public void Add_step_accepts_inputParams_string_shorthand()
+    {
+        var steps = new JArray();
+        var variables = new JArray();
+
+        var patch = new JObject
+        {
+            ["steps"] = new JArray
+            {
+                new JObject
+                {
+                    ["stepRunnerKey"] = "sys:evalexpression",
+                    ["inputParams"] = new JObject
+                    {
+                        ["expression"] = "1+1",
+                        ["code.file"] = "files/main.eval.cs",
+                    },
+                },
+            },
+        };
+
+        var result = XActionProgramService.ApplyPatch(steps, variables, patch);
+
+        Assert.IsTrue(result.Success, result.ErrorMessage);
+        var inputParams = steps[0]!["inputParams"] as JObject;
+        Assert.AreEqual("1+1", inputParams!["expression"]!["value"]!.Value<string>());
+        Assert.AreEqual("files/main.eval.cs", inputParams["code"]!["file"]!.Value<string>());
+    }
+
+    [TestMethod]
+    public void Add_step_accepts_inputParams_typed_string_shorthand()
+    {
+        var steps = new JArray();
+        var variables = new JArray();
+
+        var patch = new JObject
+        {
+            ["steps"] = new JArray
+            {
+                new JObject
+                {
+                    ["stepRunnerKey"] = "sys:if",
+                    ["inputParams"] = new JObject
+                    {
+                        ["condition.var"] = "lineCount",
+                        ["note"] = "files/readme.txt",
+                        ["script.file"] = "files\\branch.cs",
+                    },
+                },
+            },
+        };
+
+        var result = XActionProgramService.ApplyPatch(steps, variables, patch);
+
+        Assert.IsTrue(result.Success, result.ErrorMessage);
+        var inputParams = steps[0]!["inputParams"] as JObject;
+        Assert.AreEqual("lineCount", inputParams!["condition"]!["varKey"]!.Value<string>());
+        Assert.AreEqual("files/readme.txt", inputParams["note"]!["value"]!.Value<string>());
+        Assert.AreEqual("files/branch.cs", inputParams["script"]!["file"]!.Value<string>());
+    }
 }

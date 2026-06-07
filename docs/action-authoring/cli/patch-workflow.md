@@ -1,74 +1,63 @@
-# Patch 工作流（CLI）
+# Patch workflow (CLI)
 
-**`action patch`**：一次调用 = 一次保存。前置：每个新/改步骤先 **`step-runner get`**（**`authoring-workflow`** P5）。
+**`qkrpc action patch`**: one call = one save. Before each new/changed step: **`qkrpc step-runner get`** (authoring-workflow P5).
 
-## 顶层形状
+## Top-level shape
 
 ```json
 {
-  "title": "可选",
-  "description": "可选，\"\" 清空",
+  "title": "optional",
+  "description": "optional, \"\" clears",
   "icon": "<spec>",
   "steps": [ { "op": "add|update|remove|move", ... } ],
   "variables": [ { "op": "update", "key": "k", "defaultValue": "v" } ]
 }
 ```
 
-**增量 patch**（默认）：可只传 `steps` 或 `variables` 之一。`steps[]` 中单条且仅含 `stepRunnerKey`（无 `stepId`/`id`、无 `ifSteps`/`elseSteps`）时省略 `op` 视为 **`add`**；`update` / `remove` / `move` 须写明 `op`。
+**Incremental patch** (default): may send only `steps` or only `variables`. Single step with only `stepRunnerKey` (no stepId/id, no ifSteps/elseSteps) → omit `op` = **add**. update/remove/move need explicit `op`.
 
-**整页替换**（等同 `action replace`）：须 `"replace": true`（或 `"mode": "replace"`），且同时提供 **`steps` 与 `variables`**（可含 `subPrograms`）。本地 `data.json` 仍只有 steps+variables。
+**Full replace** (like `action replace`): `"replace": true` (or `"mode": "replace"`) + both **steps and variables** (may include `subPrograms`). Local data.json still steps+variables only.
 
-```json
-{
-  "replace": true,
-  "steps": [ ... ],
-  "variables": [ ... ],
-  "subPrograms": []
-}
-```
+### add placement (steps / variables)
 
-### `add` 插入位置（steps / variables）
+| form | behavior |
+|------|----------|
+| `{ "stepRunnerKey": "...", "inputParams": { ... } }` | append root list (op optional) |
+| `{ "containerPath": "1/if", "stepRunnerKey": "...", ... }` | append branch |
+| `{ "op": "add", "index": N, ... }` | insert index (+ optional containerPath) |
+| `{ "after": { "stepId": "..." }, ... }` | after anchor |
+| `{ "before": { "stepId": "..." }, ... }` | before anchor |
+| `{ "op": "add", "key": "x", "variable": ... }` | variable append (or afterKey/beforeKey/index) |
 
-| 写法 | 行为 |
-|------|------|
-| 仅 `{ "stepRunnerKey": "...", "inputParams": { ... } }` | 追加到根步骤列表末尾（可省略 `op`） |
-| `{ "containerPath": "1/if", "stepRunnerKey": "...", ... }` | 追加到该分支末尾 |
-| `{ "op": "add", "index": N, ... }` | 插入下标（可选 `containerPath`） |
-| `{ "after": { "stepId": "..." }, ... }` | 锚点之后 |
-| `{ "before": { "stepId": "..." }, ... }` | 锚点之前 |
-| `{ "op": "add", "key": "x", "variable": ... }` | 变量追加到 `variables[]` 末尾（或 `afterKey` / `beforeKey` / `index`） |
-
-仅元数据：顶层 `"icon"`（`fa search`）或 **`action set-metadata`**。
+Metadata only: top-level `icon` (fa search) or **`qkrpc action set-metadata`**.
 
 ```powershell
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
 ```
 
-## inputParams 规则
+## inputParams rules
 
-键名以 step-runner get 的 `schema.Inputs[].Key` 为准；未知键在 **`warnings[]`** 列出（退出码仍可为 0）。
+Keys from step-runner get `schema.Inputs[].Key`; unknown keys in **warnings[]** (exit 0 possible).
 
-| 场景 | 写什么 |
-|------|--------|
-| `add` | 必填 + 控制字段 + 与 catalog Default 不同的普通参数 |
-| `update` | 仅改动的键；换模块时对旧键写 `null` |
-| 值 | `{ "value": "..." }` · `{ "varKey": "k" }` · `null` 删键 |
-| 长 `value`（超过 4 行脚本/字符串） | 写入 `files/`，`data.json` 用 `{ "file": "files/…" }`（勿超长内联 `value`）→ **`action-project-files`** / **`action-steps`** |
+| case | write |
+|------|-------|
+| add | required + control + params differing from catalog Default |
+| update | changed keys only; null old keys when switching module |
+| value shapes | `paramKey` / `paramKey.file` / `paramKey.var` only (plain strings); `null` removes key |
+| long value (>4 lines) | `"paramKey.file": "files/…"` — action-steps / action-project-files |
 
-## outputParams / inputParams
+outputParams / inputParams shapes: **action-steps**.
 
-键名与值形状见 **`action-steps`**（输出为变量 key 字符串，输入为 `{ "value" }` / `{ "varKey" }` 对象）。
+## After save
 
-## 保存后
+| field | use |
+|-------|-----|
+| editVersion | next `--expected-edit-version` |
+| addedSteps | new stepId |
+| updatedSteps / updatedVariables | change summary |
 
-| 响应字段 | 用途 |
-|----------|------|
-| `editVersion` | 下次 `--expected-edit-version` |
-| `addedSteps` | 新 `stepId` |
-| `updatedSteps` / `updatedVariables` | 已改项摘要 |
+Conflict → `qkrpc action get` or `force`.
 
-冲突 → `action get` 或 `force`。
+## Related
 
-## 相关
-
-`authoring-workflow` · `action-steps` · `action-project-files` · `action-variables` · `overview`
+authoring-workflow · action-steps · action-project-files · action-variables · overview

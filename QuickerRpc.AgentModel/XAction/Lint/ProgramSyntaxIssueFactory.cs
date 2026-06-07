@@ -111,8 +111,8 @@ public static class ProgramSyntaxIssueFactory
         if (!string.IsNullOrWhiteSpace(item.VariableKey))
         {
             return !string.IsNullOrWhiteSpace(item.File)
-                ? $"variables[key={item.VariableKey}].defaultValue.file"
-                : $"variables[key={item.VariableKey}].defaultValue";
+                ? $"variables[key={item.VariableKey}].default.file"
+                : $"variables[key={item.VariableKey}].default";
         }
 
         if (string.IsNullOrWhiteSpace(item.StepPath))

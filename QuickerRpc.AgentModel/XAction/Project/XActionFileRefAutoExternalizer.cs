@@ -167,7 +167,7 @@ public static class XActionFileRefAutoExternalizer
             n++;
             slugCounters[slug] = n;
 
-            var ext = GuessExtension(stepRunnerKey, prop.Name);
+            var ext = GuessExtension(stepRunnerKey, prop.Name, inputParams, value);
             var relativePath = $"{DefaultFilesSubdir}/{slug}{n}{ext}";
             try
             {
@@ -318,54 +318,12 @@ public static class XActionFileRefAutoExternalizer
         return segment;
     }
 
-    internal static string GuessExtension(string stepRunnerKey, string paramKey)
-    {
-        var runner = (stepRunnerKey ?? string.Empty).ToLowerInvariant();
-        var param = (paramKey ?? string.Empty).ToLowerInvariant();
-
-        if (runner.Contains("evalexpression"))
-        {
-            return ".eval.cs";
-        }
-
-        // Runner-specific checks before generic param "code"/"script" (jsscript/pythonscript/runScript all use "script").
-        if (runner.Contains("pythonscript"))
-        {
-            return ".py";
-        }
-
-        if (runner.Contains("jsscript"))
-        {
-            return ".js";
-        }
-
-        if (runner.Contains("runscript"))
-        {
-            return ".ps1";
-        }
-
-        if (runner.Contains("csscript") || param is "code" or "script")
-        {
-            return ".cs";
-        }
-
-        if (param.Contains("html"))
-        {
-            return ".html";
-        }
-
-        if (param.Contains("json"))
-        {
-            return ".json";
-        }
-
-        if (runner.Contains("form") || param is "formdef" or "dynamicformfordictdef")
-        {
-            return ".form.json";
-        }
-
-        return ".txt";
-    }
+    internal static string GuessExtension(
+        string stepRunnerKey,
+        string paramKey,
+        JObject? inputParams = null,
+        string? content = null) =>
+        StepRunnerResourceFileExtensions.Guess(stepRunnerKey, paramKey, inputParams, content);
 
     private static string SanitizeSlug(string raw)
     {

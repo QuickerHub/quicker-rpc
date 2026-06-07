@@ -10,7 +10,10 @@ import {
 import {
   formatQkrpcActionCommandResultMeta,
   isQkrpcActionCommandTool,
+  isQkrpcActionCreateTool,
   qkrpcActionCommandDisplayName,
+  qkrpcActionCreateDisplayName,
+  readActionCreateTitleFromInput,
 } from "@/lib/qkrpc-action-tool";
 import {
   formatActionListMetaLine,
@@ -207,6 +210,13 @@ export function summarizeToolOutput(
       );
       if (actionMeta) return actionMeta;
     }
+    if (isQkrpcActionCreateTool(toolName, input)) {
+      const title =
+        readActionCreateTitleFromInput(input)
+        ?? (typeof d.title === "string" ? d.title.trim() : "")
+        ?? (typeof d.actionTitle === "string" ? d.actionTitle.trim() : "");
+      if (title) return title;
+    }
     const workspaceDisplay = parseWorkspaceToolDisplay(output.data);
     if (
       workspaceDisplay
@@ -315,6 +325,8 @@ export function formatToolDisplayName(
   if (isAskQuestionTool(canonical)) {
     return askQuestionDisplayTitle(input);
   }
+  const createLabel = qkrpcActionCreateDisplayName(canonical, input);
+  if (createLabel) return createLabel;
   const fileLabel = workspaceFileToolDisplayName(canonical, input);
   if (fileLabel) return fileLabel;
   const projectsLabel = actionProjectsToolDisplayName(canonical, input);

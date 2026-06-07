@@ -288,11 +288,17 @@
   "sys:MsgBox": {
     "keywords": [
       "message box",
+      "messagebox",
+      "msgbox",
+      "sys:messagebox",
+      "sys:msgbox",
       "dialog",
       "alert",
       "confirm",
+      "popup",
       "弹窗",
-      "提示框"
+      "提示框",
+      "显示消息"
     ],
     "snippet": "Show message or confirmation dialog",
     "controlKeywords": {
@@ -311,7 +317,9 @@
       "toast",
       "notification",
       "notify",
-      "提示消息"
+      "sys:notification",
+      "提示消息",
+      "显示消息"
     ],
     "snippet": "Transient notification message",
     "controlKeywords": {

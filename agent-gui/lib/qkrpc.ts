@@ -8,7 +8,7 @@ import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { argvToInvoke } from "@/lib/qkrpc-argv";
 import {
   isBundledAgentRuntime,
-  resolveDefaultWorkingDirectory,
+  resolveEffectiveWorkingDirectory,
 } from "@/lib/default-working-directory";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
 import { invokeQkrpcHttp, resolveQkrpcHttpBase } from "@/lib/qkrpc-http";
@@ -123,7 +123,7 @@ function resolveCwd(): string {
   if (process.env.QKRPC_CWD?.trim()) {
     return process.env.QKRPC_CWD.trim();
   }
-  return resolveDefaultWorkingDirectory();
+  return resolveEffectiveWorkingDirectory(undefined);
 }
 
 function truncate(text: string): { text: string; truncated: boolean } {

@@ -2,6 +2,8 @@
 
 基于 [Vercel AI SDK](https://ai-sdk.dev) 的聊天界面，通过本机 **`qkrpc`** 与 Quicker（QuickerRpc 插件）交互。
 
+**Coding agent 约定**：[AGENTS.md](AGENTS.md)（嵌套于仓库根 [AGENTS.md](../AGENTS.md)）。
+
 ## 前置条件
 
 1. Quicker 已运行，并已加载 QuickerRpc 插件（仓库根目录 `pwsh ./build.ps1 -t` 会自动重载插件并启动 `qkrpc serve`）  

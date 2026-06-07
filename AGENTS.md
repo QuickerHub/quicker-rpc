@@ -1,204 +1,142 @@
-# quicker-rpc — 给 AI Agent 的快速说明
+# quicker-rpc — Agent Guidelines
 
-> **系统提示（可复制到规则）**  
-> **开发热更新（必守）**：在本仓库改完 **`QuickerRpc.Plugin` / `Console` / `Contracts` / `AgentModel`**、`docs/action-authoring-src/**` 或构建脚本后，**由 Agent 在终端自动执行**（勿只改代码不构建、勿让用户代跑）：`pwsh -NoProfile -File ./build.ps1 -t`（或 Cursor **`/hot-update`**）。作用：停旧 `qkrpc serve` → 编译发布 CLI → **重载 Quicker 插件 DLL** → 启新 serve（`http://127.0.0.1:9477`）。**`start-agent-gui.ps1` / agent-gui 可保持运行**。仅改 `agent-gui/**` 时**不要**跑 `-t`（Next HMR）；改完后 **`dev_frontend_check` 直到 `ok: true`，有报错继续修**（见下文「agent-gui 前端收尾检查」）。细则：`.cursor/skills/quicker-rpc-build-test/SKILL.md`、`.cursor/skills/quicker-agent-gui-frontend/SKILL.md`。  
-> `qkrpc` 是本机已安装的 **CLI 可执行命令**（Windows：`qkrpc` / `%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe`）。在终端 **直接调用** `qkrpc <子命令>`，不要把它当成只能由用户手动的说明文档。前置：Quicker 已运行且已加载 QuickerRpc 插件；**勿**先 `ping` 探活。探命令：`qkrpc help --json`；写动作：`qkrpc guide get --topic authoring-workflow --json`。高频/agent-gui：`qkrpc serve`（`GET /health`）。机器可读输出加 `--json`；退出码 0=成功、1=失败。
+> 遵循 [AGENTS.md 开放格式](https://agents.md)：面向 coding agent 的操作说明；人类贡献者请读 [README.md](README.md)。
 
 Quicker 插件 + `qkrpc.exe` CLI，通过 **命名管道 + StreamJsonRpc** 让外部命令行调用 Quicker 内能力。
 
-**CLI 自描述（优先）**：`qkrpc help --json` — 命令、参数、无头编辑工作流。人类可读：[docs/cli-commands.md](docs/cli-commands.md)。
+## Quick routing（改什么 → 做什么）
 
-**agent-gui / 高频调用**：优先 `qkrpc serve`（`http://127.0.0.1:9477`，持久管道）；未启动 serve 时 agent-gui 自动回退为 CLI 子进程。
+| 改了什么 | Agent 必做 | 不要 |
+|----------|-----------|------|
+| `QuickerRpc.Plugin/**`、`Console/**`、`Contracts/**`、`AgentModel/**` | 根目录 `pwsh -NoProfile -File ./build.ps1 -t`（或 `/hot-update`） | 只改代码不构建、让用户代跑 |
+| `docs/action-authoring-src/**`、`build.ps1`、`build.yaml`、`publish/publish-rpc.ps1` | 同上 `-t` | — |
+| 仅 `agent-gui/**` | `dev_frontend_check` 直到 `ok: true`；见 [agent-gui/AGENTS.md](agent-gui/AGENTS.md) | 跑 `build.ps1 -t` |
+| `agent-gui/llm-publish.config.json` | `publish/Sync-LlmPublishConfig.ps1` → GitHub Secret | commit 该文件 |
+| 仅 `README.md`、`AGENTS.md`、`.cursor/**`（未动 C#） | 无构建 | — |
+| 公开发布 / getquicker 正式包 | `/publish`；第三段 +1，见 [quicker-qkbuild-version-publish](.cursor/skills/quicker-qkbuild-version-publish/SKILL.md) | 仅用 `-t` revision 代替发布 |
 
-## 开发热更新（Agent 自动 `build.ps1 -t`）
+**热更新后验证**：`Invoke-RestMethod http://127.0.0.1:9477/health` 或 `qkrpc action list --limit 1 --json`。
 
-改源码后 **不会** 自动生效到正在跑的 Quicker / `qkrpc serve`。完成下列路径的代码修改后，**默认由 Agent 自行在仓库根目录执行热更新**（用户未明确说「不要 build」时）：
+## Dev environment tips
+
+- **前置**：Quicker 已运行且已加载 QuickerRpc 插件；**勿**先 `ping` 探活。
+- **`qkrpc` 是本机 CLI**（`qkrpc` / `%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe`）。在终端 **直接调用** `qkrpc <子命令>`，不要当成只能由用户手动的文档。
+- **自描述优先**：`qkrpc help --json`；写动作：`qkrpc guide get --topic authoring-workflow --json`。人类可读：[docs/cli-commands.md](docs/cli-commands.md)。
+- **高频 / agent-gui**：优先 `qkrpc serve`（`http://127.0.0.1:9477`，`GET /health`）；未启动时 agent-gui 回退为 CLI 子进程。
+- **SDK**：.NET 10（CLI）；Plugin 为 net472。`agent-gui` 需 Node 20+、pnpm。启动 GUI：`pwsh ./start-agent-gui.ps1`（见 [agent-gui/AGENTS.md](agent-gui/AGENTS.md)）。
+- **管道**：`QuickerRpc_Server_QRPC2026`（`QuickerRpcPipeNames.ServerPipe`）；插件 host server，CLI client connect。
+
+## Build & hot-update
+
+改 Plugin / CLI / Contracts / AgentModel 后 **不会** 自动生效；用户未说「不要 build」时，Agent 在仓库根目录执行：
 
 ```powershell
 pwsh -NoProfile -File ./build.ps1 -t
 ```
 
-| 改了什么 | 是否跑 `-t` | 说明 |
-|----------|-------------|------|
-| `QuickerRpc.Plugin/**` | **是** | 重载插件 DLL 到 Quicker 测试包 |
-| `QuickerRpc.Console/**`、`Contracts/**` | **是** | 发布 CLI + 重启 serve |
-| `QuickerRpc.AgentModel/**` | **是** | CLI 与插件均可能依赖 |
-| `docs/action-authoring-src/**` | **是** | 嵌入 CLI / agent 指南 |
-| `build.ps1`、`build.yaml`、`publish/publish-rpc.ps1` | **是** | 构建链路 |
-| 仅 `agent-gui/**` | **否** | Next HMR；**收尾必做**「前端检查」（见下节）；磁盘编辑见 **`workspace_program`** |
-| `agent-gui/llm-publish.config.json` | **否** | 改完后 **Agent 自动** `publish/Sync-LlmPublishConfig.ps1` → GitHub Secret `BUNDLED_LLM_CONFIG`；**勿 commit**；细则：`.cursor/skills/quicker-agent-gui-llm-publish-config/SKILL.md` |
-| 仅 `README.md`、`AGENTS.md`、`.cursor/**`（未动 C#） | **否** | 文档/规则 |
+作用：停旧 `qkrpc serve` → 编译发布 CLI → **重载 Quicker 插件 DLL** → 启新 serve（`9477`）。**`start-agent-gui.ps1` 可保持运行**。
 
-**不必关 agent-gui**：`-t` 会停旧 serve、装新 `qkrpc.exe`、再启 serve（端口仍为 `9477`）。Quicker 需已启动（插件重载走 `quicker:runaction:…`）。
+细则：`.cursor/skills/quicker-rpc-build-test/SKILL.md`、`.cursor/commands/hot-update.md`。
 
-**验证**（构建退出码 0 后）：`Invoke-RestMethod http://127.0.0.1:9477/health` 或 `qkrpc action list --limit 1 --json`。
+## Testing instructions
 
-Cursor：**`/hot-update`** = 同上命令的快捷入口。详情：`.cursor/commands/hot-update.md`、`.cursor/skills/quicker-rpc-build-test/SKILL.md`。
-
-## agent-gui 前端收尾检查（改 UI 后必做）
-
-完成 **`agent-gui/**`** 下会影响页面的修改后，**在宣布完成前**由 Agent 在本机循环检查；**有报错就继续修**，直到通过。
-
-前提：`start-agent-gui.ps1` / `pnpm dev` 已在跑（`http://127.0.0.1:3000`），`NODE_ENV=development`。
-
-1. 等待 Next 重新编译（数秒；可看 dev 终端）。
-2. **`dev_frontend_check`**（聊天工具）或 `GET http://127.0.0.1:3000/api/dev/frontend-check`，直到 **`ok: true`**。
-3. **`ok: false`**：读返回 **`issues`**（`kind` / `message` / `file` / `line`）及 `agent-gui/.local/frontend-build-error.json`、`frontend-client-errors.json` → 改源码 → 回到步骤 1。**不要**未检查就声称「前端已修好」。
-4. **`ok: true` 后**：再调 **`dev_frontend_check({ clearCaptured: true })`** 清空陈旧 HMR/浏览器误报；若仍失败则继续修。
-5. 改过 **`/tool-test`** 等额外路由时：`dev_frontend_check({ paths: ["/", "/tool-test"] })`。
+| 项目 | 用途 |
+|------|------|
+| `QuickerRpc.Plugin.Test` | 离线扫描 `Quicker.exe` 反射 |
+| `QuickerRpc.Test` | **活进程** RPC（需 Quicker + 插件；改 Plugin 后先 `-t`） |
 
 ```powershell
-# Agent 可直接探测（dev 在跑时）
-Invoke-RestMethod http://127.0.0.1:3000/api/dev/frontend-check
+dotnet test QuickerRpc.Test -c Release
+dotnet test QuickerRpc.Test --filter FullyQualifiedName~QuickerRpcPipeIntegrationTests
+dotnet test QuickerRpc.Test --filter Rpc_GetCompressedAction_rpc_test_fixture
+dotnet test QuickerRpc.Test --filter FullyQualifiedName~QuickerRpcRpcContentTests
 ```
 
-| 捕获来源 | 落盘 |
-|----------|------|
-| 浏览器 `window.error` / `unhandledrejection` | `.local/frontend-client-errors.json` |
-| Next 编译失败（dev 终端） | `.local/frontend-build-error.json` |
-| HTTP 探测 `/`、`/api/llm`、`/api/ping` | 工具返回 `issues[]` |
+改 Plugin 相关断言前必须先 `build.ps1 -t` 并在 Quicker 重载 DLL。可选环境变量：`QUICKER_RPC_TEST_ACTION_ID`、`QUICKER_RPC_TEST_SHARED_ACTION_ID` 等（见原测试类注释）。
 
-**禁止**：仅 `agent-gui/**` 改动却跑 `build.ps1 -t`；把 `.local/*.json` 提交进 Git。
+## Authoring actions（无头编辑）
 
-细则：`.cursor/skills/quicker-agent-gui-frontend/SKILL.md`；聊天系统提示：`agent-gui/lib/instructions.ts`。
-
-详细用法见 [README.md](README.md)。
-
-## 发布
-
-**getquicker 正式包必守第三段 +1（`X.Y.Z.R` → `X.Y.(Z+1).0`）**：`-t` 仅 revision，不能代替 `-Publish`；**`version.json` 只能递增、禁止减小**。细则：`.cursor/skills/quicker-qkbuild-version-publish/SKILL.md`。
+**入口**：`qkrpc guide get --topic overview --json` → `authoring-workflow`（P1–P7）；公共子程序：`subprogram-workflow`；磁盘编辑：`workspace-editing`。
 
 ```powershell
-# CLI → GitHub Releases（用户 irm | iex 安装）
-.\publish\Publish-GitHubRelease.ps1
+qkrpc guide get --topic overview --json
+qkrpc action list --query "<keyword>" --json
+qkrpc action get --id <guid> --return-mode full --json
+qkrpc step-runner search --query "关键词|english|sys:*" --json
+qkrpc step-runner get --key <stepRunnerKey> [--control-field <value>] --json
+qkrpc subprogram search --query "<keyword>" --json
+qkrpc subprogram get --id <idOrName> --return-mode full --json
+qkrpc fa search --query "<keyword>" --json
+qkrpc action run --id <guid> [--param <text>] --trace --json
 ```
 
-版本：`version.json`（`QuickerRpc` 四段；Release tag 为前三段 `vX.Y.Z`）。
+**agent-gui 改程序体**：统一 `workspace_program`（`read_data` / `edit_data` / `write_data` / `file_*` / `patch` / `diagnostics`），`target` = `action` | `global_subprogram` | `embedded_subprogram`。**禁止** Agent 使用内联 patch 或 CLI `--patch-file`。
 
-**用户安装：** [Releases](https://github.com/QuickerHub/quicker-rpc/releases/latest) → 下载并运行 **`qkrpc-win-x64-setup.exe`**（单文件安装包，无需脚本）。
+**Step-runner 分工**
 
-**Cursor**：改 **Plugin / Console / Contracts / AgentModel** 后 **Agent 自动** `build.ps1 -t`（见上文「开发热更新」）；也可用 **`/hot-update`**。skill：`quicker-rpc-build-test`。改 **agent-gui UI** → `quicker-agent-gui-frontend`（`dev_frontend_check`，**不**跑 `-t`）。改 **动作设计器 / step 字段编辑**（`agent-gui/lib/action-editor/**`）→ `quicker-action-designer-ui`（UI 源自 `../Quicker/Quicker.Designer`，字段行为对齐 `../Quicker/QuickerPc/Quicker` 的 `ActionDesignerWindow` / `StepEditor`）。改 **`llm-publish.config.json`** → `quicker-agent-gui-llm-publish-config`（`Sync-LlmPublishConfig.ps1` 或 **`/sync-llm-publish-config`**）。公开发布 **`/publish`** → `quicker-rpc-publish` + **`quicker-qkbuild-version-publish`**（第三段 +1）。**动作页说明** → `quicker-action-doc`。
+| 命令 / 工具 | 谁用 |
+|-------------|------|
+| `step-runner search` / `qkrpc_step_runner_search` | Agent：定 `key`、`controlField` |
+| `step-runner get` / `qkrpc_step_runner_get` | **Agent 唯一**：压缩 schema、`inputParams` 键名 |
+| `step-runner get-ui` | **仅 action-editor UI**；Agent **禁止** |
+
+**禁止**：未 `step-runner get` 就猜 `inputParams`（wire 写法：`paramKey` / `paramKey.file` / `paramKey.var`）；未 `subprogram get/search` 就猜 `callIdentifier`；未 `fa search` 就猜图标；patch 写与目录 Default 相同的普通参数。表达式优先 `expressions` / `sys:evalexpression`；兜底见 `guide get --topic implementation-fallback`。
+
+**运行**：agent-gui `qkrpc_action` 要步骤输出用 `debug`（等价 `--trace`），不要用 `run`。CLI 退出码 0=成功、1=失败；脚本加 `--json`。
+
+完整命令表：[docs/cli-commands.md](docs/cli-commands.md)。
+
+## Code conventions
+
+- **范围**：最小正确 diff；不扩写无关代码；匹配周边命名与风格。
+- **注释**：英文；只解释非显而易见逻辑。
+- **Commit**（用户要求提交时）：`<type>(<scope>): <subject>`，例如 `fix(plugin): reconnect pipe after reload`。
+- **测试**：仅在有意义的场景添加；改 Plugin 后跑相关 `QuickerRpc.Test` 过滤器。
+- **反射 / Quicker 内部类型**：优先 `QuickerRpc.Plugin/Reflection/`；探测流程见 [quicker-exe-type-probing](.cursor/skills/quicker-exe-type-probing/SKILL.md)。可选本机 `.ref/Quicker/`（gitignore）。
+
+## PR & publish instructions
+
+- **日常热更新**：`-t` 只递增 `version.json` **第四段** revision；**不能**代替 getquicker 正式包。
+- **正式发布**：第三段 +1（`X.Y.Z.R` → `X.Y.(Z+1).0`）；`version.json` 只能递增。Cursor **`/publish`** → [quicker-rpc-publish](.cursor/skills/quicker-rpc-publish/SKILL.md)。
+- **GitHub Release CLI**：`.\publish\Publish-GitHubRelease.ps1`；用户安装 [Releases](https://github.com/QuickerHub/quicker-rpc/releases/latest) 的 `qkrpc-win-x64-setup.exe`。
+- **合并前**：相关 `dotnet test` 通过；改 agent-gui UI 则 `dev_frontend_check` 通过。
 
 | 产物 | 路径 |
 |------|------|
 | CLI | `%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe` |
-| CLI 安装包 | `publish/qkrpc-{version}-win-x64-setup.exe`（Release 上传 `qkrpc-win-x64-setup.exe`） |
-| CLI zip（便携） | `publish/qkrpc-{version}-win-x64.zip` |
 | 插件 | `publish/plugin/QuickerRpc.Plugin.*.dll` |
+| CLI 安装包 | `publish/qkrpc-{version}-win-x64-setup.exe` |
 
-## 管道
+## Security & secrets
 
-- 名：`QuickerRpc_Server_QRPC2026`（`QuickerRpcPipeNames.ServerPipe`）
-- 插件 **host server**，CLI **client connect**
+- **勿提交**：`agent-gui/llm-config.json`、`agent-gui/llm-publish.config.json`（含 API Key）、`agent-gui/.local/*.json`、`.env`、凭证文件。
+- **shell_exec**：删除/写入类命令需用户确认；拒绝 `format`、`diskpart`、`curl | iex` 等危险模式（agent-gui 侧）。
 
-## 插件监控窗（Quicker 内）
-
-**启动模式**：公共子程序 **QuickerAgent.Start**（`%%7d6999ed-93a1-4db0-9763-5405066199ac`）→ **QuickerRpc_Run** → `Launcher.StartFromQuickerInParam(quicker_in_param, _context)`。`ActionTrigger.Extern` **强制**仅 RPC 且**每次**弹插件版本提示；`ActionTrigger.AutoRun` 仅 RPC（静默）；Quicker 内点击等则打开 QuickerAgent（已运行时置前窗口，不重复版本提示）。分享动作 `aa5917ad-…` 调用 **QuickerAgent.Start**；qkrpc bootstrap 仍 `?plugin`（Extern 触发）。
-
-## Quicker 加载插件
-
-```text
-load {packagePath}/QuickerRpc.Plugin.{M.m.b.r}.dll
-type QuickerRpc.Plugin.Launcher, QuickerRpc.Plugin.{M.m.b.r}
-```
-
-测试热更新（`build.ps1 -t`）：`version.json` 只递增**第四段** revision，DLL 仍在 `_packages/quicker.rpc/{M.m.b}/` 同目录。`QuickerRpc_Run` → `依赖下载_混合模式`：**扫描包目录内 `{zip_filename}.*.dll`，按四段版本取最高**，并回写 `version` 输出。
-
-**维护 `依赖下载_混合模式`（agent-gui）**：`qkrpc_subprogram get` → `workspace_program edit_data`（`target=global_subprogram`，`id=依赖下载_混合模式`）改 `data.json` 里 s-18 等步骤 → `workspace_program patch`。**勿**用 `subprogram patch --patch-file`。
-
-## CLI（Agent 无头编辑）
-
-编辑链路：`qkrpc guide get --topic overview --json` → `authoring-workflow`（P1–P7）  
-公共子程序：`qkrpc guide get --topic subprogram-workflow --json`
-
-```powershell
-qkrpc help --json
-qkrpc guide get --topic overview --json
-qkrpc guide get --topic authoring-workflow --json
-qkrpc guide get --topic subprogram-workflow --json
-qkrpc action list --query "<keyword>" --json
-qkrpc action get --id <guid> --return-mode full --json
-qkrpc subprogram search --query "<keyword>" --json
-qkrpc subprogram get --id <idOrName> --return-mode full --json
-qkrpc step-runner search --query "关键词|english|sys:*" --json
-qkrpc step-runner get --key <stepRunnerKey> [--control-field <value>] --json
-qkrpc guide get --topic step-runner-get --json
-qkrpc guide get --topic action-icons --json
-qkrpc fa search --query "<keyword>" --json
-qkrpc action set-metadata --id <guid> --icon "fa:Light_<Name>" --expected-edit-version <N> --json
-qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
-qkrpc action run --id <guid> [--param <text>] [--wait] [--json]
-qkrpc action run --id <guid> [--param <text>] --trace --json
-```
-
-**agent-gui `qkrpc_action`**：`run` = 直接运行；`debug` = 终端逐步调试（等价 CLI `--trace`，侧栏时间线）。需要步骤输出时用 `debug`，不要用 `run`。旧 `{ action: "trace" }` 已归一化为 `debug`。CLI `--debug`（Quicker 步骤调试器）未暴露给 Agent 工具。详见 [docs/cli-commands.md](docs/cli-commands.md#qkrpc-action-run)、[agent-gui/README.md](agent-gui/README.md#动作运行与调试)。
-
-**调用公共子程序**：`subprogram search/get` 取 **`callIdentifier`** → `step-runner get --key sys:subprogram` → CLI 用 `action patch --patch-file` 写步骤；**agent-gui** 用 **`workspace_program edit_data`**（`target=action`）改 `data.json` 后 **`workspace_program patch`**。
-
-**agent-gui 改程序体（动作 / 公共子程序 / 动作内子程序）**：统一 **`workspace_program`**（`read_data` / `edit_data` / `write_data` / `file_*` / **`patch`** / `diagnostics`），`target` = `action` | `global_subprogram` | `embedded_subprogram`。详见 `docs get topic workspace-editing`。**禁止** Agent 使用内联 patch JSON 或 **`--patch-file`**。
-
-**Step-runner（Agent vs UI）**
-
-| 命令 / 工具 | 谁用 | 用途 |
-|-------------|------|------|
-| `step-runner search` / `qkrpc_step_runner_search` | Agent | 定 `key`、默认 `controlField`；**无** `agentGuidance` 长文 |
-| `step-runner get` / `qkrpc_step_runner_get` | **Agent 唯一** | 压缩 schema、`inputParams` 键名；**无**模块级 `icon` |
-| `step-runner get-ui` / `step-runner.getUi` | **仅 action-editor UI** | 含 `icon` 与完整 control；**Agent 禁止** |
-
-**禁止**：未 `step-runner get` 就猜 `inputParams` 键名；Agent 调用 `step-runner get-ui`；未 `subprogram get/search` 就猜 `callIdentifier`；未 `fa search` 就猜图标 spec（见 **`guide get --topic action-icons`**）；patch 写与目录 **Default** 相同的**普通**参数（控制字段除外）；patch 成功后仅为验证再 `action get`。表达式/计算/LINQ **优先 `expressions` / `sys:evalexpression`**；无专用模块见 `guide get --topic implementation-fallback`（**先表达式，再 `sys:csscript`**；`sys:runScript` 仅极简单系统命令或用户脚本）。
-
-退出码：0 成功，1 失败。大 JSON 用 `--patch-file -` 从 stdin 读。
-
-## 测试
-
-| 项目 | 用途 |
-|------|------|
-| `QuickerRpc.Plugin.Test` | 离线扫描 `Quicker.exe` 反射（Debug/Release） |
-| `QuickerRpc.Test` | **活进程** RPC：`QuickerRpcClient` → 命名管道 → `IQuickerRpcService`（需 Quicker + 插件） |
-
-```powershell
-# 需 Quicker 已启动并加载插件（改 Plugin 后先 build.ps1 -t 并在 Quicker 里 reload DLL）
-dotnet test QuickerRpc.Test -c Release
-
-# 仅连通性
-dotnet test QuickerRpc.Test --filter FullyQualifiedName~QuickerRpcPipeIntegrationTests
-
-# 本地夹具动作 _rpc_test（自动 create + 写入 2 步/2 变量，断言 get 后 steps、variables > 0）
-dotnet test QuickerRpc.Test --filter Rpc_GetCompressedAction_rpc_test_fixture
-
-# 其它内容断言（改 Plugin 后须先 pwsh ./build.ps1 -t 并在 Quicker 重载 DLL）
-dotnet test QuickerRpc.Test --filter FullyQualifiedName~QuickerRpcRpcContentTests
-dotnet test QuickerRpc.Test --filter FullyQualifiedName~clipboard_n10
-
-# 可选覆盖
-$env:QUICKER_RPC_TEST_ACTION_ID = "<guid>"
-$env:QUICKER_RPC_TEST_SHARED_ACTION_ID = "f5c76108-3ce9-433f-8cd0-8f0d9c562052"
-$env:QUICKER_RPC_TEST_CLIPBOARD_N10_ACTION_ID = "32c12786-9bb8-4b0c-8d55-7e6a4c8a5d10"  # 剪贴板 n10（UseTemplate）
-$env:QUICKER_RPC_TEST_SUBPROGRAM = "某子程序名"
-```
-
-## 动作设计器 UI（action-editor）
-
-Web 动作设计器在 **`agent-gui/lib/action-editor/`**。**UI 设计来源**为 sibling 仓库 **`../Quicker/Quicker.Designer`**（`Quicker.Designer.Web`）；当前重点是把 **双击 step 弹窗内各字段**的编辑细节与桌面 **`../Quicker/QuickerPc/Quicker`** 的 `ActionDesignerWindow`、`View/X/StepEditor/**` 对齐。细则：`.cursor/skills/quicker-action-designer-ui/SKILL.md`。
-
-## Quicker 源码参考（反射 / 实现原理）
-
-可选：维护者本机 `.ref/Quicker/`（gitignore，不在本仓库；无公开克隆说明）。有则 `rg` 查 Debug 类型名；无则靠本仓库封装与 exe 探测。动作设计器 WPF 对照见上一节与 `quicker-action-designer-ui` skill。
-
-| 手段 | 用途 |
-|------|------|
-| `QuickerRpc.Plugin/Reflection/`、`Services/` | 已有反射封装（优先） |
-| `QuickerRpc.Plugin.Test/` | 离线扫 `Quicker.exe`（Debug/Release 签名） |
-| `QUICKER_DLL_PATH` / `QUICKER_DEBUG_DLL_PATH` | 指向本机 Release/Debug `Quicker.exe` |
-
-完整流程见 **`.cursor/skills/quicker-exe-type-probing/SKILL.md`**。
-
-## 模块
+## Modules
 
 | 项目 | 职责 |
 |------|------|
-| `QuickerRpc.AgentModel` | XAction 压缩/patch、StepRunner 模型；文档源 `docs/action-authoring-src/` → 生成 `cli/` 嵌入 + 单 skill `skills/quicker-authoring/`（QuickerAgent） |
+| `QuickerRpc.AgentModel` | XAction 压缩/patch、StepRunner；`docs/action-authoring-src/` → CLI 嵌入 |
 | `QuickerRpc.Contracts` | `IQuickerRpcService`、管道名、`QuickerRpcClient` |
 | `QuickerRpc.Plugin` | RPC 服务端 + `HeadlessActionProgramService` |
 | `QuickerRpc.Console` | `qkrpc.exe` |
-| `agent-gui/` | Next.js + AI SDK 聊天 Agent（子进程调用 `qkrpc`）；见 `agent-gui/README.md` |
+| `agent-gui/` | Next.js + AI SDK；见 [agent-gui/AGENTS.md](agent-gui/AGENTS.md) |
+
+## Cursor skills & commands
+
+| 场景 | Skill / 命令 |
+|------|----------------|
+| 热更新 | `quicker-rpc-build-test` / `/hot-update` |
+| agent-gui UI | `quicker-agent-gui-frontend` |
+| 动作设计器字段 | `quicker-action-designer-ui`（对齐 `../Quicker/QuickerPc/Quicker`） |
+| LLM 发布配置 | `quicker-agent-gui-llm-publish-config` / `/sync-llm-publish-config` |
+| 动作页说明 | `quicker-action-doc` |
+| 正式发布 | `quicker-rpc-publish` + `quicker-qkbuild-version-publish` / `/publish` |
+
+## Further reading
+
+- [README.md](README.md) — 安装、架构、人类快速开始
+- [agent-gui/README.md](agent-gui/README.md) — QuickerAgent 开发与发布
+- [docs/quicker-action-data-storage.md](docs/quicker-action-data-storage.md) — 动作数据存储
+- 插件加载：`load {packagePath}/QuickerRpc.Plugin.{M.m.b.r}.dll`；`QuickerRpc_Run` → `依赖下载_混合模式` 按四段版本取最高 DLL
+- 插件监控窗：`QuickerAgent.Start`（`%%7d6999ed-93a1-4db0-9763-5405066199ac`）→ `QuickerRpc_Run`；Extern 仅 RPC 且弹版本提示

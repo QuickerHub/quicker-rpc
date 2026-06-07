@@ -128,13 +128,12 @@ export async function executeDocsTool(
 
 export const DOCS_TOOL_DEF = tool({
   description:
-    "Local Quicker action authoring guide (single skill). "
-    + "action=get: read topic (optional reference appendix id); "
-    + "action=search: keyword search; action=index: list topics. "
-    + "Start with get topic authoring-workflow or overview.",
+    "Deep-read action authoring guides (skill preloaded in system prompt). "
+    + "Only when authoring program bodies and stuck; NO session-start calls. "
+    + "action=get: one topic (+ optional step-modules ref); action=search; action=index.",
   inputSchema: z.object({
     action: docsActionSchema.describe(
-      "get: read topic; search: keyword; index: list all topics",
+      "get: deep-read one topic; search: find topic; index: list all topics",
     ),
     topic: z
       .string()

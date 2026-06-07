@@ -17,6 +17,7 @@ test("consolidated workspace/action/subprogram tools are registered and default-
     "workspace_program",
     "qkrpc_action_query",
     "qkrpc_action",
+    "qkrpc_action_create",
     "qkrpc_action_manage",
     "qkrpc_subprogram_query",
     "qkrpc_subprogram",

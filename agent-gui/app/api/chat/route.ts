@@ -9,6 +9,7 @@ import {
   formatActionScopeForSystem,
 } from "@/lib/action-scope";
 import { listWorkspaceActionProjects } from "@/lib/action-explorer-server";
+import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
 import {
   isLlmSelectionConfigured,
@@ -90,7 +91,7 @@ async function handleChatPost(req: Request) {
   const chatMode = resolveChatMode(chatModeRaw);
 
   const selection = resolveLlmSelection(llmSelection ?? llmProvider, parseLlmProviderId(llmProvider));
-  const cwd = (workingDirectory ?? workspaceRoot)?.trim() || undefined;
+  const cwd = resolveEffectiveWorkingDirectory(workingDirectory ?? workspaceRoot);
   const repairedMessages = repairInterruptedToolCalls(messages);
   const titleTest = titleTestOnly === true;
 

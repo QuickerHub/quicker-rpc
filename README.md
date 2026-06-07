@@ -65,7 +65,7 @@ qkrpc help --json
 # 可选（agent-gui / 高频）：qkrpc serve → GET http://127.0.0.1:9477/health
 ```
 
-Agent 约定见 [AGENTS.md](AGENTS.md)。CLI 约定：退出码 `0` 表示成功，`1` 表示失败；脚本和 Agent 场景推荐始终使用 `--json`。
+Agent 约定见 [AGENTS.md](AGENTS.md)（根目录；`agent-gui/` 另有嵌套 [agent-gui/AGENTS.md](agent-gui/AGENTS.md)）。CLI 约定：退出码 `0` 表示成功，`1` 表示失败；脚本和 Agent 场景推荐始终使用 `--json`。
 
 ## 常用命令
 

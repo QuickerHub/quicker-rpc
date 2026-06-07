@@ -57,6 +57,7 @@ dev_frontend_check({ paths: ["/", "/tool-test"] })  # 改过额外路由时
 
 ## 相关
 
+- Agent 约定：`agent-gui/AGENTS.md`（Frontend check、勿在会话中 `pnpm build`）
 - 系统提示：`agent-gui/lib/instructions.ts`（`dev_frontend_check` 一行）
 - 实现：`lib/dev-frontend-smoke.server.ts`、`lib/dev-frontend-check-tool.ts`、`components/dev/DevErrorCapture.tsx`
 - 工具注册：`lib/tool-registry.ts` → `dev_frontend_check`

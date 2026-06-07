@@ -46,6 +46,15 @@ export function resolveDefaultWorkingDirectory(): string {
   return ensureReleaseWorkspaceDirectory();
 }
 
+/** Sidebar / request cwd when set; otherwise server default workspace root. */
+export function resolveEffectiveWorkingDirectory(
+  override?: string | null,
+): string {
+  const trimmed = override?.trim();
+  if (trimmed) return trimmed;
+  return resolveDefaultWorkingDirectory();
+}
+
 export function getDefaultWorkingDirectoryProfile(): DefaultWorkingDirectoryProfile {
   if (process.env.AGENT_GUI_DEFAULT_CWD?.trim()) return "env";
   if (isBundledAgentRuntime()) return "documents";

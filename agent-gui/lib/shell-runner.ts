@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
-import { resolveDefaultWorkingDirectory } from "@/lib/default-working-directory";
+import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
 import { evaluateShellPolicy, summarizeShellRequest } from "@/lib/shell-policy";
 import { normalizeShellRunRequest } from "@/lib/shell-request-normalize";
@@ -34,7 +34,7 @@ function truncate(text: string): { text: string; truncated: boolean } {
 }
 
 function resolveShellCwd(override?: string): string {
-  const base = getRequestCwd()?.trim() || resolveDefaultWorkingDirectory();
+  const base = resolveEffectiveWorkingDirectory(getRequestCwd());
   const trimmed = override?.trim();
   if (!trimmed) return base;
 

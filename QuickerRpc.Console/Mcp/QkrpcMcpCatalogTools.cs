@@ -32,6 +32,7 @@ public sealed class QkrpcMcpCatalogTools
     [McpServerTool(Name = "qkrpc_step_runner_get")]
     [Description(
         "Get compressed step-runner schema for Agent editing (inputParams keys). "
+        + "Write inputParams as paramKey / paramKey.file / paramKey.var wire strings in data.json. "
         + "Never use step-runner.getUi. Always search first for controlField.")]
     public Task<string> QkrpcStepRunnerGet(
         string key,

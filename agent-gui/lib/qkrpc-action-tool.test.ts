@@ -10,6 +10,7 @@ import {
   QKRPC_ACTION_TOOL,
 } from "./qkrpc-action-tool.ts";
 import {
+  QKRPC_ACTION_CREATE_TOOL_DEF,
   QKRPC_ACTION_MANAGE_TOOL_DEF,
   QKRPC_ACTION_TOOL_DEF,
 } from "@/lib/qkrpc-action-tool.server";
@@ -33,6 +34,14 @@ describe("qkrpc action tool JSON Schema", () => {
       "ZodDiscriminatedUnion",
     );
   });
+
+  it("qkrpc_action_create tool schema requires info object only", () => {
+    assert.ok(QKRPC_ACTION_CREATE_TOOL_DEF.inputSchema instanceof z.ZodObject);
+    const shape = QKRPC_ACTION_CREATE_TOOL_DEF.inputSchema.shape;
+    assert.ok(shape.info);
+    assert.equal(shape.title, undefined);
+    assert.equal(shape.profileId, undefined);
+  });
 });
 
 describe("qkrpc action tool helpers", () => {
@@ -41,7 +50,11 @@ describe("qkrpc action tool helpers", () => {
     assert.equal(actionListSourceFromTool(QKRPC_ACTION_QUERY_TOOL), "list");
   });
 
-  it("routes create to manage tool", () => {
+  it("routes create to create tool", () => {
+    assert.equal(
+      isQkrpcActionCreateTool("qkrpc_action_create", { info: { title: "x" } }),
+      true,
+    );
     assert.equal(
       isQkrpcActionCreateTool(QKRPC_ACTION_MANAGE_TOOL, { action: "create" }),
       true,

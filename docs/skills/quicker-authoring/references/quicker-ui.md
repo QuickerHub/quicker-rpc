@@ -1,4 +1,4 @@
-# 打开 Quicker 界面
+# Open Quicker UI
 
 Quicker 设置分两类操作：
 

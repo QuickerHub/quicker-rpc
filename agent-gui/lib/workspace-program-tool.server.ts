@@ -305,7 +305,8 @@ export const WORKSPACE_PROGRAM_TOOL_DEF = tool({
     "Workspace program editing on disk: projects_list; read/write/edit data.json; file_read/write/edit/info/search under files/; "
     + "patch (save to Quicker); diagnostics (expression/C# lint after patch, use waitMs up to 30000). "
     + "target=action | global_subprogram | embedded_subprogram (subProgramId required). "
-    + "valuePrefixWarnings are non-blocking hints when {var} may need $$/$=. inputParams keys need qkrpc_step_runner_get.",
+    + "valuePrefixWarnings are non-blocking hints when {var} may need $$/$=. "
+    + "inputParams: paramKey / paramKey.file / paramKey.var; keys from qkrpc_step_runner_get.",
   inputSchema: z.object({
     action: actionSchema,
     target: z

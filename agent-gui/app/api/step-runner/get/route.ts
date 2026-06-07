@@ -2,13 +2,13 @@ import { runQkrpc } from "@/lib/qkrpc";
 import { mapAgentSchemaToStepRunnerItem } from "@/lib/action-editor/api/stepRunnerSchemaMap";
 import {
   getStaticStepRunnerItem,
-  hasStaticStepRunnersUiCatalog,
 } from "@/lib/action-editor/data/stepRunnersUiCatalog.server";
 
 export const dynamic = "force-dynamic";
 
 function useLiveCatalog(): boolean {
-  return process.env.STEP_RUNNER_CATALOG_LIVE === "1" || !hasStaticStepRunnersUiCatalog();
+  // Default: live Quicker catalog via qkrpc. Static JSON is opt-in for offline UI dev.
+  return process.env.STEP_RUNNER_CATALOG_STATIC !== "1";
 }
 
 function unwrapSchema(data: unknown): Record<string, unknown> | null {

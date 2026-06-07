@@ -117,5 +117,5 @@ rg "shouldUseVarOrValueEditor" agent-gui/lib/action-editor
 
 - 前端收尾：`.cursor/skills/quicker-agent-gui-frontend/SKILL.md`
 - Quicker.exe 反射 / 类型探测：`.cursor/skills/quicker-exe-type-probing/SKILL.md`
-- `step-runner get-ui` 说明：`docs/cli-commands.md`、`AGENTS.md`（action-editor 专用）
+- `step-runner get-ui` 说明：`docs/cli-commands.md`、`agent-gui/AGENTS.md`（Action editor）
 - 插件侧设计器接入：`QuickerRpc.Plugin/Services/ActionDesignerProgramAccess.cs`、`ActionDesignerUiSave.cs`

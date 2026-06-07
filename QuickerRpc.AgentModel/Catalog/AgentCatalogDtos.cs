@@ -124,6 +124,12 @@ public sealed class AgentInputParamSchema
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? TextTools { get; set; }
+
+    /// <summary>
+    /// When long text is externalized under <c>files/</c>, preferred extension (e.g. <c>.eval.cs</c>, <c>.html</c>).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FileExt { get; set; }
 }
 
 public sealed class AgentOutputParamSchema

@@ -1,41 +1,41 @@
-# Quicker 动作无头编辑
+# Quicker action authoring (quicker-authoring)
 
 {{#ref product.intro}}
 
-## 先选路径
+## Route (deep-read via docs get when stuck)
 
-| 用户意图 | 第一个 `docs_get` topic |
-|----------|-------------------------|
-| 写/改动作程序体 | **`authoring-workflow`** |
-| 改 `.quicker` 磁盘 / workspace 工具 | **`workspace-editing`** |
-| 公共/内嵌子程序 | **`subprogram-workflow`** |
-| 整理动作页/移动/归集 | **`action-organization-workflow`** |
-| 打开 Quicker 设置/UI | **`quicker-ui`** |
-| 找步骤模块 | **`step-runner-search`** → **`step-runner-get`** |
-| 选动作/菜单图标 | **`action-icons`** |
-| WebView2 / 自定义 HTML 页 | **`webview2-authoring`** |
+| intent | topic |
+|--------|-------|
+| edit program body | authoring-workflow |
+| disk .quicker / workspace | workspace-editing |
+| global/embedded subprogram | subprogram-workflow |
+| step module keys | step-runner-search → step-runner-get |
+| icons | action-icons |
+| WebView2/HTML files | webview2-authoring |
 
-## P0–P7 摘要
+Run/settings/layout → main agent Capabilities (not this skill).
+
+## P0–P7
 
 {{#include-partial pipeline-p0-p7}}
 
-**逐步操作**：**`authoring-workflow`**。**工作区**：**`workspace-editing`**。
+Walkthrough: authoring-workflow. Workspace: workspace-editing.
 
-## 硬规则
+## Hard rules
 
-- 未 **`qkrpc_step_runner_get`** 禁止猜 `inputParams` 键名
-- **禁止** `get-ui` / `step-runner.getUi`
-- **禁止**内联 patch JSON / **`--patch-file`**（用 **`workspace_program`** 改磁盘后 patch）
-- 保存后以 **`editVersion`** 为准，禁止反复 get 确认
-- P4 **表达式优先**（**`expressions`**），再专用模块，最后 csscript
+- NO guess inputParams without step_runner_get
+- NO get-ui / step-runner.getUi
+- NO inline patch / --patch-file; workspace_program disk edit → patch
+- trust editVersion after patch; NO verify re-get
+- P4: expressions first → module → csscript
 
-## 深入阅读
+## Deep-read index
 
-| 层 | 入口 topic |
-|----|------------|
-| 总览与完整索引 | **`overview`** |
-| 工作流 | **`authoring-workflow`**、`workspace-editing`、`subprogram-workflow` |
-| 数据形状 | **`action-steps`**、**`action-variables`**、**`expressions`** |
-| 步骤模块 | **`step-modules`** + `docs_get_reference`（仅 `_catalog` 标记有 reference 的模块） |
+| layer | topics |
+|-------|--------|
+| overview | overview |
+| workflows | authoring-workflow, workspace-editing, subprogram-workflow |
+| schemas | action-steps, action-variables, expressions |
+| modules | step-modules + docs get reference |
 
-按需 `docs_get`；**勿**在会话开头连续多篇全文。目录：**`docs_index`** / **`docs_search`**。
+Hot route in prompt-tier0; docs get one topic at a time. docs index / search for unfamiliar topics.

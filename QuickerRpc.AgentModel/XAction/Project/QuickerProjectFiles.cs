@@ -6,6 +6,7 @@ using Google.Protobuf.WellKnownTypes;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Proto.V1;
+using QuickerRpc.AgentModel.XAction.Proto;
 
 namespace QuickerRpc.AgentModel.XAction.Project;
 
@@ -55,6 +56,8 @@ public static class QuickerProjectFiles
             throw new InvalidOperationException(error ?? $"Invalid data.json: {path}");
         }
 
+        InputParamWireCoercer.ExpandStepsRecursive(root!["steps"] as JArray);
+        VariableDefaultValueWireCoercer.ExpandVariablesRecursive(root!["variables"] as JArray);
         return root!;
     }
 
@@ -74,13 +77,18 @@ public static class QuickerProjectFiles
             return false;
         }
 
+        InputParamWireCoercer.ExpandStepsRecursive(data!["steps"] as JArray);
+        VariableDefaultValueWireCoercer.ExpandVariablesRecursive(data!["variables"] as JArray);
         return true;
     }
 
     public static void WriteData(string projectDirectory, JObject data)
     {
         Directory.CreateDirectory(projectDirectory);
-        WriteJson(QuickerProjectLayout.GetDataPath(projectDirectory), data);
+        var toWrite = (JObject)data.DeepClone();
+        InputParamWireCoercer.CompactStepsRecursive(toWrite["steps"] as JArray);
+        VariableDefaultValueWireCoercer.CompactVariablesRecursive(toWrite["variables"] as JArray);
+        WriteJson(QuickerProjectLayout.GetDataPath(projectDirectory), toWrite);
     }
 
     public static bool TryParseDataRoot(string json, out JObject? root, out string? error)

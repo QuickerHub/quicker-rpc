@@ -3,8 +3,8 @@
   "topics": [
     {
       "topic": "action-embedded-subprograms",
-      "title": "动作内子程序",
-      "description": "动作内子程序：subprograms/{subId}/ 目录与根 data.json 不含内联 subPrograms 的磁盘模型。Use when editing embedded subprograms on disk.",
+      "title": "Embedded subprograms",
+      "description": "subprograms/{subId}/ disk model; root data.json without inline subPrograms[]. Use when editing embedded subprograms.",
       "source": "references/action-embedded-subprograms.md",
       "templateSource": "schemas/action-embedded-subprograms.md",
       "metadata": {
@@ -15,8 +15,8 @@
     },
     {
       "topic": "action-icons",
-      "title": "动作图标",
-      "description": "Font Awesome fa: spec and http(s) image URLs for action metadata and context menus. Use before set-metadata icon or guessing fa:Light_* names.",
+      "title": "Action icons",
+      "description": "Font Awesome fa: spec and http(s) image URLs for metadata and context menus. Use before set-metadata or guessing fa:Light_* names.",
       "source": "references/action-icons.md",
       "templateSource": "schemas/action-icons.md",
       "allowedTools": "qkrpc_fa_search qkrpc_action_set_metadata qkrpc_action_patch workspace_action_edit_data",
@@ -28,8 +28,8 @@
     },
     {
       "topic": "action-organization-workflow",
-      "title": "动作整理",
-      "description": "整理动作位置：list/search（含 uses: 引用查找）、move、全局页 create/reorder、虚拟进程 process ensure 批量归集。Use when tidying action pages, moving actions, or grouping by subprogram reference — not for editing steps.",
+      "title": "Action organization",
+      "description": "Use when tidying action pages: list/search (uses: refs), move, global tab create/reorder, virtual process ensure — not for editing steps.",
       "source": "references/action-organization-workflow.md",
       "templateSource": "workflows/action-organization-workflow.md",
       "allowedTools": "qkrpc_action_list qkrpc_action_search qkrpc_action_move qkrpc_profile_create qkrpc_profile_reorder qkrpc_process_ensure",
@@ -41,8 +41,8 @@
     },
     {
       "topic": "action-project-files",
-      "title": "工作区项目布局",
-      "description": ".quicker/actions/{actionId} 目录、data.json 与 files/ 外置 {file} 引用形状。Use when authoring file refs on disk.",
+      "title": "Workspace project layout",
+      "description": ".quicker/actions/{actionId} tree, data.json, files/ external {file} refs. Use when authoring file refs on disk.",
       "source": "references/action-project-files.md",
       "templateSource": "schemas/action-project-files.md",
       "metadata": {
@@ -53,8 +53,8 @@
     },
     {
       "topic": "action-steps",
-      "title": "动作步骤",
-      "description": "data.json steps[]：stepRunnerKey、inputParams/outputParams、ifSteps；长 inputParams.value (>4 lines) use files/ + file ref not inline value. Use before step-runner get.",
+      "title": "Action steps",
+      "description": "steps[]: stepRunnerKey, inputParams (paramKey / paramKey.file / paramKey.var), outputParams, ifSteps. Use before step-runner get.",
       "source": "references/action-steps.md",
       "templateSource": "schemas/action-steps.md",
       "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit qkrpc_action_patch",
@@ -66,8 +66,8 @@
     },
     {
       "topic": "action-variables",
-      "title": "动作变量",
-      "description": "data.json 中 variables[] 的类型、defaultValue；quicker_in_param 边界。步骤参数绑定见 action-steps。Use when editing action variables.",
+      "title": "Action variables",
+      "description": "variables[] types and defaultValue; quicker_in_param boundary. Step binding: action-steps. Use when editing action variables.",
       "source": "references/action-variables.md",
       "templateSource": "schemas/action-variables.md",
       "allowedTools": "workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_step_runner_get",
@@ -79,8 +79,8 @@
     },
     {
       "topic": "authoring-workflow",
-      "title": "写动作流程",
-      "description": "Quicker 动作编辑 P1–P7 主流程。Use before the first action edit in a session.",
+      "title": "Action authoring workflow",
+      "description": "P1–P7 main action editing flow. Use before the first action edit in a session.",
       "source": "references/authoring-workflow.md",
       "templateSource": "workflows/authoring-workflow.md",
       "allowedTools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
@@ -92,8 +92,8 @@
     },
     {
       "topic": "common-operation-item",
-      "title": "操作项文本语法",
-      "description": "CommonOperationItem 多行文本：动作 ContextMenuData 右键菜单、[图标]标题(提示)|数据、子菜单与 quicker_in_param。Use when editing action context menus or SelectionItems-shaped text.",
+      "title": "Context menu item syntax",
+      "description": "CommonOperationItem multi-line text: ContextMenuData, [icon]title(hint)|data, submenus, quicker_in_param. Use when editing context menus.",
       "source": "references/common-operation-item.md",
       "templateSource": "schemas/common-operation-item.md",
       "allowedTools": "qkrpc_action_get qkrpc_action_set_metadata qkrpc_action_patch qkrpc_fa_search workspace_action_read_data workspace_action_edit_data",
@@ -105,8 +105,8 @@
     },
     {
       "topic": "expressions",
-      "title": "表达式与插值",
-      "description": "P4 首选：$=、$$ 与 sys:evalexpression（LINQ/字符串/JSON/多变量赋值）。Prefer before sys:csscript for data transforms.",
+      "title": "Expressions & interpolation",
+      "description": "P4 default: $=, $$, sys:evalexpression (LINQ/string/JSON/multi-assign). Prefer before sys:csscript.",
       "source": "references/expressions.md",
       "templateSource": "schemas/expressions.md",
       "allowedTools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch",
@@ -118,8 +118,8 @@
     },
     {
       "topic": "form-spec",
-      "title": "多字段表单",
-      "description": "sys:form：默认 formDef.file + files/*.form.json (qkrpc.form.v1)；长表单勿内联 formDef.value。Use when authoring sys:form.",
+      "title": "Form spec",
+      "description": "sys:form: default formDef.file + files/*.form.json (qkrpc.form.v1); no large inline formDef.value. Use when authoring sys:form.",
       "source": "references/form-spec.md",
       "templateSource": "schemas/form-spec.md",
       "allowedTools": "qkrpc_form_validate qkrpc_form_build qkrpc_step_runner_get workspace_action_edit_data qkrpc_action_patch",
@@ -131,8 +131,8 @@
     },
     {
       "topic": "implementation-fallback",
-      "title": "实现选型与回退",
-      "description": "P4 回退选型：须先排除 expressions/evalexpression，再考虑 sys:csscript vs runScript。Use when no dedicated step module fits after checking expressions.",
+      "title": "Implementation fallback",
+      "description": "P4 fallback: expressions/evalexpression first, then sys:csscript vs runScript. Use when no dedicated module fits.",
       "source": "references/implementation-fallback.md",
       "templateSource": "schemas/implementation-fallback.md",
       "allowedTools": "qkrpc_step_runner_search qkrpc_step_runner_get qkrpc_action_patch",
@@ -144,8 +144,8 @@
     },
     {
       "topic": "overview",
-      "title": "总览",
-      "description": "Quicker 动作无头编辑总览：文档层级、P0–P7 索引与专题路由。Use when starting action editing or choosing which guide topic to read next.",
+      "title": "Overview",
+      "description": "Headless action editing overview: doc layers, P0–P7 index, topic routing. Use when starting action editing or choosing which guide to read.",
       "source": "references/overview.md",
       "templateSource": "overview.md",
       "allowedTools": "docs",
@@ -158,8 +158,8 @@
     },
     {
       "topic": "quicker-ui",
-      "title": "打开 Quicker 界面",
-      "description": "打开 Quicker 设置页与常用窗口（动作回收站、常规设置、搜索框、进程场景设置）。Use when the user asks to open a Quicker UI page/window.",
+      "title": "Open Quicker UI",
+      "description": "Open Quicker settings pages and windows (recycle bin, general settings, search box, process scene). Use when the user asks to open a Quicker UI page/window.",
       "source": "references/quicker-ui.md",
       "templateSource": "adjunct/quicker-ui.md",
       "allowedTools": "quicker_settings docs",
@@ -171,8 +171,8 @@
     },
     {
       "topic": "step-modules",
-      "title": "步骤模块用法",
-      "description": "Quicker 步骤模块精简参考：分类目录、用途、控制模式与 KC 文档摘要。Use after step-runner search, before/alongside qkrpc_step_runner_get; docs_get_reference topic step-modules.",
+      "title": "Step modules reference",
+      "description": "Condensed step module catalog by category. Use after step-runner search, with step_runner_get; docs_get_reference topic step-modules.",
       "source": "references/step-modules.md",
       "templateSource": "catalogs/step-modules.md",
       "allowedTools": "qkrpc_step_runner_search qkrpc_step_runner_get docs",
@@ -184,8 +184,8 @@
     },
     {
       "topic": "step-runner-get",
-      "title": "步骤模块 schema",
-      "description": "Agent 专用 step-runner get：压缩 schema、与 search 分工；禁止 get-ui。Use after search, before writing inputParams.",
+      "title": "Step-runner schema (get)",
+      "description": "Agent/CLI step-runner get: compressed schema vs search; forbid get-ui. Use after search, before writing inputParams.",
       "source": "references/step-runner-get.md",
       "templateSource": "catalogs/step-runner-get.md",
       "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search",
@@ -197,8 +197,8 @@
     },
     {
       "topic": "step-runner-search",
-      "title": "步骤模块搜索",
-      "description": "step-runner 目录搜索语法（OR、通配、sys:*）。Use when finding a step module key before qkrpc_step_runner_get.",
+      "title": "Step-runner search",
+      "description": "Catalog search syntax (OR, wildcards, sys:*). Use when finding step module key before step_runner_get.",
       "source": "references/step-runner-search.md",
       "templateSource": "catalogs/step-runner-search.md",
       "allowedTools": "qkrpc_step_runner_search qkrpc_step_runner_get",
@@ -210,8 +210,8 @@
     },
     {
       "topic": "subprogram-workflow",
-      "title": "子程序",
-      "description": "公共子程序与动作内子程序的区别及调用工作流。Use when adding subprogram call steps or editing subprogram projects.",
+      "title": "Subprograms",
+      "description": "Global vs embedded subprograms and call workflow. Use when adding subprogram steps or editing subprogram projects.",
       "source": "references/subprogram-workflow.md",
       "templateSource": "workflows/subprogram-workflow.md",
       "allowedTools": "qkrpc_subprogram_search qkrpc_subprogram_get qkrpc_step_runner_get qkrpc_action_patch",
@@ -223,8 +223,8 @@
     },
     {
       "topic": "webview2-authoring",
-      "title": "WebView2 页面",
-      "description": "sys:webview2：files/*.html 外置、virtualHostToFolder 与 Agent 侧 browser 右栏预览。Use when authoring WebView2 HTML UI before patch.",
+      "title": "WebView2 authoring",
+      "description": "sys:webview2: external files/*.html, virtualHostToFolder; agent browser preview. Use before patch.",
       "source": "references/webview2-authoring.md",
       "templateSource": "schemas/webview2-authoring.md",
       "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit workspace_action_patch browser qkrpc_action debug",
@@ -236,8 +236,8 @@
     },
     {
       "topic": "workspace-editing",
-      "title": "工作区编辑",
-      "description": ".quicker/actions layout; workspace_action_*_data and workspace_action_file_* (id + files/…); patch saves. Use when editing on disk.",
+      "title": "Workspace editing",
+      "description": ".quicker/actions layout; workspace_action_*_data and workspace_action_file_*; patch saves. Use when editing on disk.",
       "source": "references/workspace-editing.md",
       "templateSource": "workflows/workspace-editing.md",
       "allowedTools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",

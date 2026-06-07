@@ -1,18 +1,18 @@
 ## Checklist
 
-### A. 管理公共子程序
+### A. Manage global subprogram
 
 ```text
-- [ ] subprogram search/get → callIdentifier / editVersion
-- [ ] workspace_program 改 .quicker/subprograms/…/data.json（+ files/）
+- [ ] subprogram query/get → callIdentifier, editVersion
+- [ ] workspace_program edit .quicker/subprograms/…/data.json (+ files/)
 - [ ] workspace_program patch (target=global_subprogram)
-- [ ] 勿 subprogram patch --patch-file（Agent）
+- [ ] NO subprogram patch --patch-file on workspace path
 ```
 
-### B. 在动作里调用
+### B. Call from action
 
 ```text
-- [ ] subprogram get → callIdentifier（须 %%{guid}）
-- [ ] step-runner get (sys:subprogram) — 禁止猜 inputParams 键名
-- [ ] workspace_program edit_data 写入步骤 → patch (target=action)
+- [ ] subprogram get → callIdentifier (%%{guid})
+- [ ] step_runner_get sys:subprogram — NO guess inputParams
+- [ ] workspace_program edit_data step → patch (target=action)
 ```

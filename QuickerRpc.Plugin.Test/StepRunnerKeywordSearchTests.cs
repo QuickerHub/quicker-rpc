@@ -71,6 +71,50 @@ public sealed class StepRunnerKeywordSearchTests
     }
 
     [TestMethod]
+    public void Search_or_query_with_cjk_branch_finds_notify()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new()
+                {
+                    Key = "sys:notify",
+                    Name = "提示消息",
+                    Description = "显示可以自动消失的消息提示。",
+                },
+            },
+        };
+
+        var result = StepRunnerCatalogMapper.Search(
+            catalog,
+            "sys:popup|显示消息",
+            maxResults: 5);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(1, result.MatchCount);
+        Assert.AreEqual("sys:notify", result.Items[0].Key);
+    }
+
+    [TestMethod]
+    public void Search_or_sys_messagebox_alias_finds_MsgBox()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new() { Key = "sys:MsgBox", Name = "弹窗提示", Description = "弹窗显示提示" },
+            },
+        };
+
+        var result = StepRunnerCatalogMapper.Search(catalog, "sys:messagebox|sys:popup", maxResults: 5);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(1, result.MatchCount);
+        Assert.AreEqual("sys:MsgBox", result.Items[0].Key);
+    }
+
+    [TestMethod]
     public void AgentKeywordCatalog_loads_embedded_entries()
     {
         Assert.IsTrue(StepRunnerAgentKeywordCatalog.TryGet("sys:writeClipboard", out var entry));

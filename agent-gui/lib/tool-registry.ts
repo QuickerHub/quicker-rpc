@@ -117,11 +117,18 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "get/run/float/edit/元数据/移动/发布/replace",
   },
   {
+    id: "qkrpc_action_create",
+    label: "创建动作",
+    group: "write",
+    category: "action",
+    description: "新建动作：仅 info.json 字段 title/description/icon",
+  },
+  {
     id: "qkrpc_action_manage",
-    label: "动作与布局",
+    label: "动作页布局",
     group: "write",
     category: "layout",
-    description: "create、动作页 profile_*、虚拟进程 process_ensure",
+    description: "动作页 profile_*、虚拟进程 process_ensure",
   },
   {
     id: "qkrpc_subprogram_query",
@@ -239,6 +246,7 @@ export const TOOL_APPROVAL_STORAGE_KEY = "agent-gui-enabled-tools";
 const CONSOLIDATED_ACTION_TOOL_IDS = [
   "qkrpc_action_query",
   "qkrpc_action",
+  "qkrpc_action_create",
   "qkrpc_action_manage",
 ] as const;
 
@@ -266,7 +274,6 @@ const LEGACY_TOOL_ID_MAP: Record<string, string> = {
   qkrpc_action_list: "qkrpc_action_query",
   qkrpc_action_search: "qkrpc_action_query",
   qkrpc_action_get: "qkrpc_action",
-  qkrpc_action_create: "qkrpc_action_manage",
   qkrpc_action_replace: "qkrpc_action",
   qkrpc_action_publish: "qkrpc_action",
   qkrpc_action_set_metadata: "qkrpc_action",

@@ -26,9 +26,9 @@ export const COMPOSER_TEST_PROMPT_GROUPS: readonly TitleTestExampleGroup[] = [
       {
         id: "new-urls-default-file",
         label: "变量 · 外置默认值",
-        description: "defaultValue.file + 表达式",
+        description: "default.file + 表达式",
         userText:
-          "新建动作：变量 urls 用 defaultValue.file 指向 files/urls-default.txt（多行 URL），第一步 evalexpression 过滤空行并赋值 count、body，第二步提示框显示行数。",
+          "新建动作：变量 urls 用 default.file 指向 files/urls-default.txt（多行 URL），第一步 evalexpression 过滤空行并赋值 count、body，第二步提示框显示行数。",
       },
       {
         id: "new-window-paste",

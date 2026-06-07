@@ -1,45 +1,65 @@
-# 实现选型与回退
+# Implementation fallback
 
-**何时读**：**`overview`** P4 — `step-runner search` 无合适模块，或需求是计算/逻辑而非固定 UI。
+**When**: overview P4 — no fitting module from search, or logic/calc not fixed UI.
 
-## 优先级
+## Priority
 
-| 级 | 手段 | 适用 |
-|----|------|------|
-| 1 | `$=` / `$$`（**expressions**） | 参数内运算、拼接、比较、条件字段 |
-| 2 | **`sys:evalexpression`** | 多行 C#、LINQ、字符串处理、**一次写多个变量** |
-| 3 | 专用模块（**step-runner search** → get） | 剪贴板、HTTP、文件、UI 等 |
-| 4 | **`sys:csscript`** | 表达式 **仍无法表达** 时（需 `Exec`、复杂类型、外部 API 编排） |
-| 5 | `sys:runScript` | 极短 PS/CMD 或用户已有脚本 |
-| 6 | `sys:run` | 外部 exe |
+| tier | means | use |
 
-**禁止**：能用 **`sys:evalexpression`** 解决的逻辑（Split/LINQ/赋值/JSON 等）却写 **`sys:csscript`** 整段 `Exec` 样板。无专用模块时也 **先表达式、后 csscript**，勿默认长 PowerShell。
+|------|-------|-----|
 
-**`sys:csscript`**（及其它长脚本参数）：脚本放 **`files/*.cs`**，`inputParams` 用 **`{ "file": "files/…" }`**，勿在 `data.json` 里塞超长 `"value"`（**`action-steps`**）。
+| 1 | `$=` / `$$` (expressions) | inline calc, concat, compare, conditional fields |
 
-## 决策
+| 2 | **sys:evalexpression** | multi-line C#, LINQ, string ops, multi-var assign |
+
+| 3 | dedicated module (search → get) | clipboard, HTTP, file, UI, … |
+
+| 4 | **sys:csscript** | expressions insufficient (Exec, complex types, API orchestration) |
+
+| 5 | sys:runScript | short PS/CMD or user script |
+
+| 6 | sys:run | external exe |
+
+**FORBIDDEN**: csscript Exec boilerplate when evalexpression suffices. No dedicated module → expressions first, not long PowerShell.
+
+**sys:csscript**: script in **files/*.cs**, inputParams **`"script.file": "files/…"`** — action-steps.
+
+## Decision
 
 ```text
-字符串/LINQ/多变量赋值/JSON 变换？ → expressions（$= 或 sys:evalexpression）
-仅计算/比较/单参数赋值？           → $= / $$ 或 evalexpression
-已知 stepRunnerKey？              → step-runner get → docs_get_reference(step-modules) → 写入 data.json
-否则                               → step-runner search（一次 OR|*）→ get
-仍无合适模块且表达式不够？         → sys:csscript
+
+string/LINQ/multi-assign/JSON? → expressions ($= or evalexpression)
+
+calc/compare/single assign?    → $= / $$ or evalexpression
+
+known stepRunnerKey?           → step-runner get → step-modules ref → data.json
+
+else                           → step-runner search (one OR|*) → get
+
+still no fit?                  → sys:csscript
+
 ```
 
-步骤与参数写入 **`data.json`** / **`files/`** 的形状见 **`action-steps`**、**`action-project-files`**。
+Write shapes: **action-steps**, **action-project-files**.
 
-## 易混淆项
+## Confusions
 
-| 场景 | 选用 | 说明 |
-|------|------|------|
-| 赋值/计算/比较/LINQ/字符串变换 | **`expressions`** / **`sys:evalexpression`** | 勿用 `sys:csscript` 写简单 `Exec`；勿用已下架 `sys:assign` |
-| 复杂 C#（需独立 .cs、长生命周期逻辑） | `sys:csscript` | 表达式模块无法表达时再用 |
-| 向**前台活动窗口**输入文字 | `sys:outputText`（发送文本到窗口） | 非 `sys:showText`（独立文本窗口） |
-| 需要 else 分支 | `sys:if` | `sys:simpleIf` 无 else 结构 |
-| 多文件操作 | `sys:fileOperation` | 用 `type` 选子操作 |
-| 多子操作模块 | 先 search/get 定 key + control | 如 `stringProcess`、`uiautomation` |
+| scenario | pick | note |
 
-## 相关
+|----------|------|------|
 
-`expressions` · `step-runner-search` · `authoring-workflow` · `overview`
+| assign/calc/LINQ/string | expressions / evalexpression | not csscript; not obsolete sys:assign |
+
+| heavy C# (.cs file) | sys:csscript | after expressions fail |
+
+| type into foreground window | sys:outputText | not sys:showText |
+
+| need else branch | sys:if | not sys:simpleIf |
+
+| multi-file ops | sys:fileOperation | pick type sub-op |
+
+| multi sub-op module | search/get key + control | stringProcess, uiautomation, … |
+
+## Related
+
+expressions · step-runner-search · authoring-workflow · overview

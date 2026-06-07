@@ -7,6 +7,7 @@ import {
   type ActionAuthoringReferenceMeta,
   type ActionAuthoringSearchItem,
   type ActionAuthoringTopicMeta,
+  groupTopicsByLayer,
   sortTopicsByLayer,
 } from "@/lib/action-authoring-docs.shared";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
@@ -30,6 +31,7 @@ export type { ActionAuthoringLayerGroup } from "@/lib/action-authoring-docs.shar
 
 const SKILLS_DIR = "docs/skills/quicker-authoring";
 const TOPICS_MANIFEST = "topics.json";
+const PROMPT_TIER0_FILE = "prompt-tier0.md";
 const LEGACY_DOCS_DIR = "docs/action-authoring/agent";
 
 type TopicRow = ActionAuthoringTopicMeta & {
@@ -64,6 +66,7 @@ type TopicsManifest = {
 let cachedRows: TopicRow[] | null = null;
 let cachedRoot: string | null = null;
 let cachedSkillsMtimeMs = 0;
+let cachedPromptTier0: { content: string; mtimeMs: number } | null = null;
 
 /** Collapse runs of blank lines (keeps single blank lines for GFM block boundaries). */
 function compactMarkdownBody(markdown: string): string {
@@ -75,6 +78,7 @@ async function skillsTreeMtimeMs(root: string): Promise<number> {
   const candidates = [
     join(root, "SKILL.md"),
     join(root, TOPICS_MANIFEST),
+    join(root, PROMPT_TIER0_FILE),
   ];
   for (const filePath of candidates) {
     try {
@@ -352,21 +356,94 @@ async function loadAllTopics(): Promise<TopicRow[]> {
   return rows;
 }
 
-export async function formatSkillCatalogForPrompt(): Promise<string> {
+export async function formatAuthoringSkillRouterForPrompt(): Promise<string> {
+  const root = skillsRoot();
+  const tier0Path = join(root, PROMPT_TIER0_FILE);
+  try {
+    const st = await stat(tier0Path);
+    if (
+      cachedPromptTier0
+      && cachedPromptTier0.mtimeMs === st.mtimeMs
+      && cachedRoot === root
+    ) {
+      return cachedPromptTier0.content;
+    }
+    const raw = compactMarkdownBody(await readFile(tier0Path, "utf8"));
+    const content = [
+      "## Skill: action authoring",
+      "Scope: create/edit program bodies (steps, variables, files). Else use main Capabilities.",
+      "",
+      raw,
+      "",
+      "Stuck → docs({ action: \"get\", topic }). No session-start multi-get.",
+    ].join("\n");
+    cachedPromptTier0 = { content, mtimeMs: st.mtimeMs };
+    cachedRoot = root;
+    return content;
+  } catch {
+    const skillPath = join(root, "SKILL.md");
+    try {
+      const raw = await readFile(skillPath, "utf8");
+      const parsed = parseSkillMd(raw);
+      const body = compactMarkdownBody(parsed.body.trim());
+      if (!body) return "";
+      return [
+        "## Skill: action authoring",
+        "Scope: create/edit program bodies (steps, variables, files).",
+        "",
+        body,
+      ].join("\n");
+    } catch {
+      return "";
+    }
+  }
+}
+
+/** English layer headings for system-prompt topic index (UI catalog keeps Chinese labels). */
+const PROMPT_LAYER_LABELS: Record<string, string> = {
+  router: "Router",
+  workflow: "Workflow",
+  schema: "Schema",
+  catalog: "Modules",
+  adjunct: "Adjunct",
+  "cli-only": "CLI",
+  other: "Other",
+};
+
+export async function formatAuthoringTopicIndexForPrompt(): Promise<string> {
   const topics = await listActionAuthoringTopics();
   if (topics.length === 0) return "";
 
-  const lines = [
-    "Authoring guide (single local skill — docs by action=get|search|index; topic appendices via reference on get):",
-  ];
-  for (const t of topics) {
-    const desc = t.description.trim() || t.title;
-    lines.push(`- ${t.topic}: ${desc}`);
-    for (const ref of t.references ?? []) {
-      lines.push(`  - ${t.topic}/${ref.id}: ${ref.title}`);
+  const groups = groupTopicsByLayer(topics);
+  const lines = ["### Topic index (docs get when skill active)"];
+  for (const group of groups) {
+    if (group.topics.length === 0) continue;
+    const label = PROMPT_LAYER_LABELS[group.layer] ?? group.layer;
+    lines.push("", `#### ${label}`);
+    for (const t of group.topics) {
+      const desc = t.description.trim() || t.title;
+      lines.push(`- ${t.topic}: ${desc}`);
+      for (const ref of t.references ?? []) {
+        lines.push(`  - ${t.topic}/${ref.id}`);
+      }
     }
   }
   return lines.join("\n");
+}
+
+/** Tier 0 router + Tier 1 topic index for system prompt injection. */
+export async function formatAuthoringSkillForPrompt(): Promise<string> {
+  const parts: string[] = [];
+  const router = await formatAuthoringSkillRouterForPrompt();
+  if (router) parts.push(router);
+  const index = await formatAuthoringTopicIndexForPrompt();
+  if (index) parts.push("", index);
+  return parts.join("\n");
+}
+
+/** @deprecated Prefer formatAuthoringSkillForPrompt */
+export async function formatSkillCatalogForPrompt(): Promise<string> {
+  return formatAuthoringSkillForPrompt();
 }
 
 export async function listActionAuthoringReferences(

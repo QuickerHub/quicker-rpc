@@ -17,6 +17,10 @@ const SRC = path.join(ROOT, "docs/action-authoring-src");
 const MANIFEST = path.join(SRC, "manifest");
 const SRC_PARTIALS = path.join(SRC, "partials");
 const SKILL_SRC = path.join(SRC, "skills/quicker-authoring/SKILL.src.md");
+const PROMPT_TIER0_SRC = path.join(
+  SRC,
+  "skills/quicker-authoring/prompt-tier0.src.md",
+);
 const OUT_CLI = path.join(ROOT, "docs/action-authoring/cli");
 const OUT_SKILLS = path.join(ROOT, "docs/skills/quicker-authoring");
 const SKILL_NAME = "quicker-authoring";
@@ -423,6 +427,30 @@ async function computeOutputs(opsData, topicEntries) {
   }
 
   outputs.set("skills/SKILL.md", skillMd);
+
+  let promptTier0Src;
+  try {
+    promptTier0Src = normalizeEol(await fs.readFile(PROMPT_TIER0_SRC, "utf8"));
+  } catch {
+    throw new Error(`Missing prompt tier0 source: ${PROMPT_TIER0_SRC}`);
+  }
+
+  const promptTier0Body = renderDoc(
+    promptTier0Src,
+    opsData,
+    "agent",
+    "skills/quicker-authoring/prompt-tier0.src.md",
+    new Map(),
+    partials,
+  );
+  const promptTier0Lines = promptTier0Body.trim().split("\n").length;
+  if (promptTier0Lines > 120) {
+    throw new Error(
+      `prompt-tier0.src.md body too long (${promptTier0Lines} lines; keep tier0 ≤120)`,
+    );
+  }
+  outputs.set("skills/prompt-tier0.md", `${promptTier0Body.trimEnd()}\n`);
+
   outputs.set(
     "skills/topics.json",
     `${JSON.stringify(
@@ -509,6 +537,9 @@ function resolveOutputPath(rel) {
   }
   if (rel === "skills/topics.json") {
     return path.join(OUT_SKILLS, "topics.json");
+  }
+  if (rel === "skills/prompt-tier0.md") {
+    return path.join(OUT_SKILLS, "prompt-tier0.md");
   }
   if (rel.startsWith("skills/references/")) {
     return path.join(OUT_SKILLS, "references", rel.slice("skills/references/".length));

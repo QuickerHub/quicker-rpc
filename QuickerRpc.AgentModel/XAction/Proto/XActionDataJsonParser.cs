@@ -106,6 +106,7 @@ public static class XActionDataJsonParser
 
             if (v is not JObject p)
             {
+                prop.Value = InputParamWireCoercer.CoerceToParamObject(v);
                 continue;
             }
 

@@ -1,102 +1,82 @@
-# 写动作流程
+# Action authoring workflow
 
-**何时读**：写或改动作程序体时，按 P1–P7 逐步执行（主流程）。内联 patch 见 **`patch-workflow`**；磁盘见 **`action-project-files`**。
+**When**: create/edit action program body — follow P1–P7. Disk: workspace-editing. CLI inline patch: patch-workflow.
 
-## Checklist（P1–P7）
+## Checklist (P1–P7)
 
 ```text
-- [ ] P0  Quicker + 插件
-- [ ] P1  actionId（create / list / search）
-- [ ] P2  get / extract → `.quicker/…/`（见 workspace-editing）
-- [ ] P3  元数据（可选；图标见 action-icons）
-- [ ] P4  表达式优先 → 模块 → csscript（expressions / implementation-fallback）
-- [ ] P5  每步 step-runner search → get（禁止猜键名）
-- [ ] P6  改 data.json / files/ → patch
-- [ ] P7  以 editVersion 为准；勿反复 get 确认
+- [ ] P0  Quicker + plugin; cwd
+- [ ] P1  actionId (create / query / search)
+- [ ] P2  get/extract → .quicker/… (workspace-editing)
+- [ ] P3  metadata optional (action-icons)
+- [ ] P4  expressions first → module → csscript
+- [ ] P5  each step: search → get (NO guess keys)
+- [ ] P6  edit data.json / files/ → patch
+- [ ] P7  trust editVersion; NO verify re-get
 ```
 
-## P0 前置
+## P0 Prerequisites
 
-- Quicker 已运行且已加载 QuickerRpc 插件。
+- Quicker + plugin loaded.
+- Connectivity: command stderr; `qkrpc help --json`, `qkrpc guide get --topic overview`.
+- 
 
-- 勿把 `ping` 当编辑第一步；qkrpc help --json、qkrpc guide get --topic overview --json。
+## P1 Locate actionId
 
-## P1 定位
+| scenario | command |
+|----------|------|
+| new | qkrpc action create --title "MyAction" [--icon fa:Light_*] --json → actionId, editVersion, workspaceProject |
+| existing | qkrpc action list --query "keyword" [--scope agent] --json / qkrpc action search --query "name" [--scope agent] --json |
 
-| 场景 | 命令 |
-|------|------|
-| 新建 | qkrpc action create --title "动作名" [--icon fa:Light_*] --json → `actionId`、`editVersion`、**`workspaceProject`**（仅落盘 `info.json`） |
-| 已有 | qkrpc action list --query "名" [--scope agent] --json / qkrpc action search --query "名" [--scope agent] --json |
+Note **actionId** (GUID). `<qka id="…">` uses that id. After create **NO re-get** → edit disk → patch.
 
-记下 **`actionId`**（GUID）。`<qka id="…">` 标签直接用该 id。`scope` 等见 list/search 工具说明。
+## P2 Read & workspace
 
-## P2 读取与工作区
+1. Existing action (non-empty): get → `.quicker/actions/{id}/`
+2. Existing subprogram (non-empty): subprogram get → `.quicker/subprograms/{id}/`
+3. Empty body: get skips data.json; write_data|edit_data first
+4. List local: workspace_program projects_list
 
-```powershell
-qkrpc action get --id <guid> --return-mode structure --json
-qkrpc action get --id <guid> --return-mode full --json
-qkrpc action get --id <guid> --return-mode metadata --json
-```
-`editVersion` → 下次 `--expected-edit-version`。磁盘：**`action-project-files`**。
+See workspace-editing for targets.
 
-## P3 元数据（可选）
+## P3 Metadata (optional)
 
-只改标题/说明/图标（及扩展字段如右键菜单）、不动程序体：
+Title/description/icon only:
 
 ```powershell
 qkrpc action set-metadata --id <guid> --icon fa:Light_<Name> --expected-edit-version <N> --json
 ```
 
-图标：`qkrpc_fa_search`；`fa:Light_Name` 或 `http(s)` URL（见 set-metadata 工具说明）。
+Icons: fa search. Context menus: common-operation-item.
 
-**右键菜单**：`ContextMenuData` 为 CommonOperationItem 多行文本；选中项数据 → `{quicker_in_param}`。语法见 **`common-operation-item`**。
+## P4 Implementation pick
 
-## P4 实现选型
+Read expressions + implementation-fallback. expressions/evalexpression first → dedicated modules → webview2 → csscript last.
 
-读 **`expressions`** 与 **`implementation-fallback`**。要点：
-
-1. **数据逻辑默认表达式**：Split/LINQ/JSON/多变量赋值 → **`$=` 或 `sys:evalexpression`**（勿先写 `sys:csscript` 整段 `Exec`）。
-2. **UI/IO** → P5 专用模块（剪贴板、HTTP、文件等）。
-3. **自定义 HTML 界面** → **`sys:webview2`** + **`webview2-authoring`**（`files/*.html` 外置；）。
-4. **表达式仍不够** → **`sys:csscript`**；极短系统命令 → `sys:runScript`。
-
-## P5 步骤 schema（每个新/改步骤）
+## P5 Step schema (each step)
 
 ```text
-step-runner search（一次 OR|通配）→ step-runner get（必须；见 step-runner-get）
+step_runner_search → step_runner_get (required)
 ```
 
-- 步骤 JSON 形状（`inputParams` / `outputParams` / `ifSteps`）：**`action-steps`**。
-- **长 `inputParams.value`**（超过 4 行脚本/字符串）：先 **`files/`** + `"file": "files/…"`，勿整段写入 `data.json`（**`workspace-editing`**）。
-- 有 **ControlField**：非空 search 的命中项**必定**带 `items[].controlField`（无控制项则省略）；get 传 **`controlField.value`**（**`--control-field <value>`**）。未传 control 时，`controlField.selection[]` 每项含 **`visibleInputKeys`** / **`visibleOutputKeys`**（已解析 ValidFor/可见性，UI/Agent 勿再猜）。
-- 语法：**`step-runner-search`**。
+Long value (>4 lines): `paramKey.file` → files/. controlField from search → pass on get.
 
 ```powershell
-qkrpc step-runner search --query "剪贴板|clipboard|sys:*clip*" --json
+qkrpc step-runner search --query "clipboard|sys:*clip*" --json
 qkrpc step-runner get --key sys:MsgBox --json
 ```
 
-## P6 写入
+## P6 Write
 
 ```powershell
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
 ```
+Or `--patch-file` inline JSON — patch-workflow.
 
-顶层 `{ "steps": [...], "variables": [...] }`；省略 `op` 的单条 step 视为 **add**。整页 replace 见 **`patch-workflow`**。
+## P7 After save
 
-## P7 保存后
+Trust editVersion / projectSummary; NO verify re-get. Agent: brief reply; UI shows patch shortcut card.
 
-以 patch 响应的 **`editVersion`**、**`addedSteps`** 为准（增量 patch 时）；extract/apply 路径以 apply 响应为准。勿仅为核对再 get。
+## Related
 
-验证优先：
-
-```text
-edit_data / write_data 响应中的 projectSummary
-  或 workspace_program read_data({ mode: "summary" })   # 仅不保存时诊断
-```
-
-需要精确 JSON 片段时再 **`read_data` + `offset`/`limit`**（改前读取或定位锚点）。
-
-## 相关
-
-`overview` · `implementation-fallback` · `expressions` · `subprogram-workflow` · `step-runner-search`
+overview · workspace-editing · action-variables · action-steps · expressions · subprogram-workflow · step-runner-search

@@ -1,61 +1,57 @@
-# 子程序
+# Subprograms
 
-**何时读**：管理公共子程序，或在动作里 **调用** 公共子程序。工具参数见 `qkrpc_subprogram_*`、`qkrpc_step_runner_get`（`sys:subprogram`）。
+**When**: manage global subprograms or call from actions.
 
 ## Checklist
 
-### A. 管理公共子程序
+### A. Manage global subprogram
 
 ```text
-- [ ] subprogram search/get → callIdentifier / editVersion
-- [ ] workspace_program 改 .quicker/subprograms/…/data.json（+ files/）
+- [ ] subprogram query/get → callIdentifier, editVersion
+- [ ] workspace_program edit .quicker/subprograms/…/data.json (+ files/)
 - [ ] workspace_program patch (target=global_subprogram)
-- [ ] 勿 subprogram patch --patch-file（Agent）
+- [ ] NO subprogram patch --patch-file on workspace path
 ```
 
-### B. 在动作里调用
+### B. Call from action
 
 ```text
-- [ ] subprogram get → callIdentifier（须 %%{guid}）
-- [ ] step-runner get (sys:subprogram) — 禁止猜 inputParams 键名
-- [ ] workspace_program edit_data 写入步骤 → patch (target=action)
+- [ ] subprogram get → callIdentifier (%%{guid})
+- [ ] step_runner_get sys:subprogram — NO guess inputParams
+- [ ] workspace_program edit_data step → patch (target=action)
 ```
 
-## 两种概念
+## Concepts
 
-| | 公共子程序 | 动作内子程序 |
-|--|------------|----------------|
-| 存储 | Quicker 全局库 | 父动作 `SubPrograms[]` |
-| 磁盘 | `.quicker/subprograms/{idOrName}/` | `.quicker/actions/{actionId}/subprograms/{subProgramId}/` |
-| 调用标识 | `sys:subprogram` + `callIdentifier` 通常 `%%{guid}` | 本动作内定义（非 `%%{guid}`） |
+| | global | embedded |
+|--|--------|----------|
+| storage | global lib | parent SubPrograms[] |
+| disk | .quicker/subprograms/{id}/ | .quicker/actions/{aid}/subprograms/{sid}/ |
+| call | sys:subprogram + %%{guid} | in-parent id |
 
-## A. 管理公共子程序
+## A. Manage global
 
 ```text
-subprogram search/get → workspace_program 改 data.json → workspace_program patch
+subprogram search/get → workspace_program edit → patch
 ```
 
-```powershell
-qkrpc subprogram create --name "名" [--icon fa:Light_*] --json
-qkrpc subprogram get --id <id|name> --return-mode full --json
-qkrpc subprogram patch --id <id> --patch-file patch.json --expected-edit-version <N> --json
-```
-程序体也可用 extract/apply 或 **`patch-workflow`** **`--patch-file`**。
+| step | command |
+|------|------|
+| search/read | subprogram search/get |
+| create | subprogram create |
+| edit | workspace_program read/edit (global_subprogram) |
+| save | workspace_program patch |
 
-## B. 在动作里调用公共子程序
+CLI may use `subprogram patch --patch-file` instead of workspace path.
+
+## B. Call from action
 
 ```text
-subprogram search/get → callIdentifier
-  → step-runner get(sys:subprogram)
-  → workspace_program edit_data 写入 data.json 步骤
-  → workspace_program patch
+subprogram get → callIdentifier → step_runner_get(sys:subprogram) → edit step → patch
 ```
 
-→ `step-runner get --key sys:subprogram`
-→ `action patch` 添加步骤，`inputParams.subProgram.value = callIdentifier`
+→ `qkrpc step-runner get --key sys:subprogram` → patch with `"subProgram": "<callIdentifier>"` (or subProgram.var)
 
-**`callIdentifier`** 必须从 search/get 读取；未知标识会报错。
+## Related
 
-## 相关
-
-`authoring-workflow` · `workspace-editing` · `overview`
+authoring-workflow · workspace-editing · overview

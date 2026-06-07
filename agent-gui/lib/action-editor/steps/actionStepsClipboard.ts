@@ -3,6 +3,7 @@
  * and ConstValues.STEPS_CLIPBOARD_TYPE ("quicker-action-steps") used by WPF StepListControl.
  */
 import { ActionStep, ActionStepParam, ActionVariable } from "@/lib/action-editor/types/common";
+import { coerceWireInputParam } from "@/lib/input-param-wire";
 import type { XProgramEditorSurface } from "../program/xProgramEditorSurface";
 import { getActionDesignerBackendBaseUrl } from "../shared/actionDesignerBackendBaseUrl";
 
@@ -89,13 +90,12 @@ function readProp<T>(obj: Record<string, unknown>, pascal: string, camel: string
 }
 
 function normalizeStepParam(raw: unknown): ActionStepParam {
-  if (!raw || typeof raw !== "object") {
-    return ActionStepParam.fromPartial({ varKey: "", value: "" });
-  }
-  const o = raw as Record<string, unknown>;
-  const varKey = String(readProp<string>(o, "VarKey", "varKey") ?? "");
-  const value = String(readProp<string>(o, "Value", "value") ?? "");
-  return ActionStepParam.create({ varKey, value });
+  const coerced = coerceWireInputParam(raw);
+  return ActionStepParam.create({
+    varKey: coerced.varKey ?? "",
+    value: coerced.value ?? "",
+    ...(coerced.file ? { file: coerced.file } : {}),
+  });
 }
 
 export function normalizeActionStepFromClipboard(raw: unknown): ActionStep {

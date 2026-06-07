@@ -39,9 +39,8 @@ import {
   postLauncherSubmit,
   subscribeLauncherBridge,
 } from "@/lib/launcher/launcher-bridge";
-import {
-  dismissLauncherWindow,
-} from "@/lib/launcher/launcher-window";
+import { useChatStore } from "@/lib/use-chat-store";
+import { resolveStoreWorkingDirectory } from "@/lib/chat-store";
 import { LauncherDragRegion } from "@/components/launcher/LauncherDragRegion";
 
 type LauncherSessionState = {
@@ -292,23 +291,10 @@ function LauncherComposer({
 /** Standalone launcher page — submits via BroadcastChannel and mirrors main-window chat. */
 export function LauncherPanel() {
   const [session, setSession] = useState<LauncherSessionState | null>(null);
-  const [defaultCwd, setDefaultCwd] = useState("");
+  const { store, defaultCwd } = useChatStore();
+  const workingDirectory = resolveStoreWorkingDirectory(store, defaultCwd);
   const { ping } = useQkrpcPing();
   const transcriptRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetch("/api/settings/default-cwd")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { path?: string } | null) => {
-        if (cancelled || !data?.path) return;
-        setDefaultCwd(data.path);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     return subscribeLauncherBridge((message) => {
@@ -383,7 +369,7 @@ export function LauncherPanel() {
                 error={session.error}
                 pendingApprovalCount={session.pendingApprovalCount}
                 pendingAskQuestionCount={session.pendingAskQuestionCount}
-                workingDirectory={defaultCwd}
+                workingDirectory={workingDirectory}
                 ping={ping}
               />
             </section>

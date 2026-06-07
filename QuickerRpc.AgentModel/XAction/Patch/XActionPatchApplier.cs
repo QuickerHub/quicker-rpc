@@ -4,6 +4,7 @@ using Newtonsoft.Json.Linq;
 
 using QuickerRpc.AgentModel.XAction.Compression;
 using QuickerRpc.AgentModel.XAction.Project;
+using QuickerRpc.AgentModel.XAction.Proto;
 
 
 
@@ -114,6 +115,7 @@ public static class XActionPatchApplier
     {
 
         var result = new ApplyResult { Success = true };
+        InputParamWireCoercer.NormalizePatch(patch);
 
         var stepsToken = patch["steps"];
 
@@ -1104,7 +1106,7 @@ public static class XActionPatchApplier
 
             if (prop.Value is not JObject paramPatch)
             {
-                continue;
+                paramPatch = InputParamWireCoercer.CoerceToParamObject(prop.Value);
             }
 
             RemoveInputParamKeysCaseInsensitive(targetInput, prop.Name);

@@ -4,7 +4,7 @@ import { createInterface } from "node:readline";
 import { StringDecoder } from "node:string_decoder";
 import { dirname, join, normalize, relative, resolve, sep } from "node:path";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
-import { resolveDefaultWorkingDirectory } from "@/lib/default-working-directory";
+import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import {
   buildReadContinuationHint,
   countSubstringOccurrences,
@@ -28,6 +28,8 @@ import {
   restoreFileEol,
   tryJsonDocumentEdit,
 } from "@/lib/workspace-edit-match";
+import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
+import { normalizeDataJsonTextForDisk } from "@/lib/action-editor/wire/programWire";
 
 export {
   DEFAULT_READ_CHARS,
@@ -101,7 +103,7 @@ export type WorkspacePathResult =
   | { ok: false; error: string };
 
 export function resolveWorkspaceRoot(): string {
-  return getRequestCwd()?.trim() || resolveDefaultWorkingDirectory();
+  return resolveEffectiveWorkingDirectory(getRequestCwd());
 }
 
 /** Resolve a relative path under the active working directory; reject traversal escapes. */
@@ -392,11 +394,15 @@ export async function writeWorkspaceFile(
     await mkdir(dirname(resolved.absolute), { recursive: true });
   }
 
-  await writeFile(resolved.absolute, content, "utf8");
+  const normalizedContent = isActionProjectDataPath(resolved.relative)
+    ? normalizeDataJsonTextForDisk(content)
+    : content;
+
+  await writeFile(resolved.absolute, normalizedContent, "utf8");
   return {
     ok: true,
     path: resolved.relative,
-    bytesWritten: Buffer.byteLength(content, "utf8"),
+    bytesWritten: Buffer.byteLength(normalizedContent, "utf8"),
   };
 }
 

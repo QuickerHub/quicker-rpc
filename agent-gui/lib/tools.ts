@@ -7,6 +7,8 @@ import {
   QUICKER_SETTINGS_TOOL_DEF,
 } from "@/lib/qkrpc-settings-tool";
 import {
+  QKRPC_ACTION_CREATE_TOOL,
+  QKRPC_ACTION_CREATE_TOOL_DEF,
   QKRPC_ACTION_MANAGE_TOOL,
   QKRPC_ACTION_MANAGE_TOOL_DEF,
   QKRPC_ACTION_QUERY_TOOL,
@@ -65,6 +67,7 @@ export const quickerTools = {
   [WORKSPACE_PROGRAM_TOOL]: WORKSPACE_PROGRAM_TOOL_DEF,
   [QKRPC_ACTION_QUERY_TOOL]: QKRPC_ACTION_QUERY_TOOL_DEF,
   [QKRPC_ACTION_TOOL]: QKRPC_ACTION_TOOL_DEF,
+  [QKRPC_ACTION_CREATE_TOOL]: QKRPC_ACTION_CREATE_TOOL_DEF,
   [QKRPC_ACTION_MANAGE_TOOL]: QKRPC_ACTION_MANAGE_TOOL_DEF,
   [QKRPC_SUBPROGRAM_QUERY_TOOL]: QKRPC_SUBPROGRAM_QUERY_TOOL_DEF,
   [QKRPC_SUBPROGRAM_TOOL]: QKRPC_SUBPROGRAM_TOOL_DEF,
@@ -100,7 +103,10 @@ export const quickerTools = {
 
   qkrpc_step_runner_search: tool({
     description:
-      "Search StepRunner catalog (| OR, * wildcard). Non-empty query: items[].controlField { key, value, name? } (best match). OR (|) may also return items[].controlFields[] when multiple control modes match — pick the value for your branch, then step-runner get; do not guess. Empty query omits controlField.",
+      "Search StepRunner catalog. Syntax: space=AND (all tokens required); | =OR; * = wildcard. "
+      + "Prefer OR for synonyms (e.g. 提示框|msgbox|notify|sys:*msg*), not spaced 提示 框. "
+      + "Message dialog key is sys:MsgBox; toast/notification is sys:notify. "
+      + "Non-empty query: items[].controlField when module has control enum. Empty query: browse only.",
     inputSchema: z.object({
       query: z.string(),
       limit: z.number().int().min(1).max(80).optional(),
@@ -116,7 +122,11 @@ export const quickerTools = {
 
   qkrpc_step_runner_get: tool({
     description:
-      "Agent-only StepRunner schema (step-runner get, not get-ui). Required before patching inputParams. Compressed JSON without module icon. controlField: copy items[].controlField.value from search when present. Without controlField, controlField.selection[] lists each mode with visibleInputKeys. See docs({ action: \"get\", topic: \"step-runner-get\" }).",
+      "Agent-only StepRunner schema (step-runner get, not get-ui). Required before patching inputParams. "
+      + "When writing steps/patch inputParams use data.json wire keys only: paramKey (literal string), "
+      + "paramKey.file (files/… path), paramKey.var (variable key). No nested {value|varKey|file} objects. "
+      + "inputs[] may include fileExt. controlField: copy items[].controlField.value from search when present. "
+      + "See docs({ action: \"get\", topic: \"step-runner-get\" }).",
     inputSchema: z.object({
       key: z.string().describe("StepRunner key from search items[].key"),
       controlField: z

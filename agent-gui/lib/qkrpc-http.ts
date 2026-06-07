@@ -1,5 +1,6 @@
 import type { QkrpcInvoke } from "@/lib/qkrpc-argv";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
+import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import type { QkrpcRunResult } from "@/lib/qkrpc-types";
 
 const WORKSPACE_PROJECT_OPS = new Set([
@@ -14,10 +15,7 @@ function attachWorkspaceRoot(invoke: QkrpcInvoke): QkrpcInvoke {
   if (!WORKSPACE_PROJECT_OPS.has(invoke.op)) {
     return invoke;
   }
-  const cwd = getRequestCwd()?.trim();
-  if (!cwd) {
-    return invoke;
-  }
+  const cwd = resolveEffectiveWorkingDirectory(getRequestCwd());
   if (typeof invoke.args.workspaceRoot === "string" && invoke.args.workspaceRoot.trim()) {
     return invoke;
   }

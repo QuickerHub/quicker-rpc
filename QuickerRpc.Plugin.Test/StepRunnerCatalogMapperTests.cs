@@ -228,4 +228,102 @@ public sealed class StepRunnerCatalogMapperTests
         Assert.IsTrue(result.Schema!.Inputs.Count > 5);
         StringAssert.Contains(result.Schema.AgentGuidance!, "--control-field");
     }
+
+    [TestMethod]
+    public void GetDetail_webview2_includes_fileExt_on_url_and_script()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new()
+                {
+                    Key = "sys:webview2",
+                    Name = "WebView2",
+                    InputParamDefs = new List<StepRunnerInputParamDef>
+                    {
+                        new() { Key = "url", IsMultiLine = true },
+                        new() { Key = "script", IsMultiLine = true },
+                        new() { Key = "title" },
+                    },
+                },
+            },
+        };
+
+        var result = StepRunnerCatalogMapper.GetDetail(catalog, "sys:webview2");
+        Assert.IsTrue(result.Success);
+
+        var url = result.Schema!.Inputs.First(i => i.Key == "url");
+        var script = result.Schema.Inputs.First(i => i.Key == "script");
+        var title = result.Schema.Inputs.First(i => i.Key == "title");
+
+        Assert.AreEqual(".html", url.FileExt);
+        Assert.AreEqual(".js", script.FileExt);
+        Assert.IsNull(title.FileExt);
+    }
+
+    [TestMethod]
+    public void GetDetail_runScript_with_BAT_control_sets_script_fileExt()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new()
+                {
+                    Key = "sys:runScript",
+                    Name = "运行脚本",
+                    InputParamDefs = new List<StepRunnerInputParamDef>
+                    {
+                        new()
+                        {
+                            Key = "type",
+                            IsControlField = true,
+                            VarType = 9,
+                            SelectionItems = new List<StepRunnerParamSelectionItem>
+                            {
+                                new() { Value = "BAT", Name = "BAT" },
+                                new() { Value = "PS", Name = "PS" },
+                            },
+                        },
+                        new() { Key = "script", IsMultiLine = true },
+                    },
+                },
+            },
+        };
+
+        var withoutControl = StepRunnerCatalogMapper.GetDetail(catalog, "sys:runScript");
+        Assert.IsTrue(withoutControl.Success);
+        var scriptOpen = withoutControl.Schema!.Inputs.First(i => i.Key == "script");
+        StringAssert.Contains(scriptOpen.FileExt!, "BAT");
+
+        var withBat = StepRunnerCatalogMapper.GetDetail(catalog, "sys:runScript", "BAT");
+        Assert.IsTrue(withBat.Success);
+        var scriptBat = withBat.Schema!.Inputs.First(i => i.Key == "script");
+        Assert.AreEqual(".bat", scriptBat.FileExt);
+    }
+
+    [TestMethod]
+    public void GetDetail_evalexpression_includes_eval_cs_fileExt()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new()
+                {
+                    Key = "sys:evalexpression",
+                    Name = "表达式",
+                    InputParamDefs = new List<StepRunnerInputParamDef>
+                    {
+                        new() { Key = "expression", IsMultiLine = true },
+                    },
+                },
+            },
+        };
+
+        var result = StepRunnerCatalogMapper.GetDetail(catalog, "sys:evalexpression");
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(".eval.cs", result.Schema!.Inputs[0].FileExt);
+    }
 }

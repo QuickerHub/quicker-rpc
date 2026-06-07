@@ -719,6 +719,14 @@ export function setWorkingDirectory(
   return { ...data, workingDirectory: workingDirectory.trim() };
 }
 
+/** Sidebar workspace path: user override or server default cwd. */
+export function resolveStoreWorkingDirectory(
+  data: Pick<ChatStoreData, "workingDirectory">,
+  defaultCwd = "",
+): string {
+  return data.workingDirectory.trim() || defaultCwd.trim();
+}
+
 export type LegacyChatRestoreResult = {
   ok: boolean;
   title: string;

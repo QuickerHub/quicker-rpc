@@ -5,6 +5,7 @@ import {
   type ToolExecutionOptions,
 } from "@ai-sdk/provider-utils";
 import { generateId } from "ai";
+import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import { allQuickerTools } from "@/lib/tools";
 import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
 import {
@@ -81,7 +82,7 @@ export async function executeQuickerToolDirect(params: {
     };
   }
 
-  const cwd = params.workingDirectory?.trim() || undefined;
+  const cwd = resolveEffectiveWorkingDirectory(params.workingDirectory);
   const options: ToolExecutionOptions = { toolCallId, messages: [] };
 
   try {

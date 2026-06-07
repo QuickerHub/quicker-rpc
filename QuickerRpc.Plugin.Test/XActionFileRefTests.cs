@@ -479,6 +479,163 @@ public sealed class XActionFileRefTests
     }
 
     [TestMethod]
+    public void AutoExternalize_webview2_url_uses_html_extension()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-auto-ext-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var longValue = string.Join(
+                "\n",
+                Enumerable.Range(1, 6).Select(i => $"<div>{i}</div>"));
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-1",
+                        ["stepRunnerKey"] = "sys:webview2",
+                        ["inputParams"] = new JObject
+                        {
+                            ["url"] = new JObject { ["value"] = longValue },
+                        },
+                    },
+                },
+                ["variables"] = new JArray(),
+            };
+
+            var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 4);
+            Assert.AreEqual(1, result.WrittenFiles.Count);
+            StringAssert.EndsWith(result.WrittenFiles[0], ".html");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void AutoExternalize_webview2_script_uses_js_extension()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-auto-ext-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var longValue = string.Join(
+                "\n",
+                Enumerable.Range(1, 6).Select(i => $"console.log({i});"));
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-1",
+                        ["stepRunnerKey"] = "sys:webview2",
+                        ["inputParams"] = new JObject
+                        {
+                            ["url"] = new JObject { ["value"] = "https://example.com" },
+                            ["script"] = new JObject { ["value"] = longValue },
+                        },
+                    },
+                },
+                ["variables"] = new JArray(),
+            };
+
+            var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 4);
+            Assert.AreEqual(1, result.WrittenFiles.Count);
+            StringAssert.EndsWith(result.WrittenFiles[0], ".js");
+            Assert.IsTrue(result.WrittenFiles[0].Contains("webview2", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void AutoExternalize_runscript_bat_uses_bat_extension()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-auto-ext-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var longValue = string.Join("\n", Enumerable.Range(1, 6).Select(i => $"echo {i}"));
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-1",
+                        ["stepRunnerKey"] = "sys:runScript",
+                        ["inputParams"] = new JObject
+                        {
+                            ["type"] = new JObject { ["value"] = "BAT" },
+                            ["script"] = new JObject { ["value"] = longValue },
+                        },
+                    },
+                },
+                ["variables"] = new JArray(),
+            };
+
+            var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 4);
+            Assert.AreEqual(1, result.WrittenFiles.Count);
+            StringAssert.EndsWith(result.WrittenFiles[0], ".bat");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void AutoExternalize_dboperation_sql_uses_sql_extension()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-auto-ext-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var longValue = string.Join(
+                "\n",
+                Enumerable.Range(1, 6).Select(i => $"SELECT {i};"));
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-1",
+                        ["stepRunnerKey"] = "sys:dboperation",
+                        ["inputParams"] = new JObject
+                        {
+                            ["sql"] = new JObject { ["value"] = longValue },
+                        },
+                    },
+                },
+                ["variables"] = new JArray(),
+            };
+
+            var result = XActionFileRefAutoExternalizer.Apply(data, root, minLines: 4);
+            Assert.AreEqual(1, result.WrittenFiles.Count);
+            StringAssert.EndsWith(result.WrittenFiles[0], ".sql");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void AutoExternalize_skips_short_values()
     {
         var data = new JObject

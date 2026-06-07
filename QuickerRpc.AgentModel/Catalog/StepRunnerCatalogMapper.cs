@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using QuickerRpc.AgentModel.XAction.Project;
 
 namespace QuickerRpc.AgentModel.Catalog;
 
@@ -242,7 +243,7 @@ public static class StepRunnerCatalogMapper
                 continue;
             }
 
-            dto.Inputs.Add(MapInput(p));
+            dto.Inputs.Add(MapInput(runner.Key ?? string.Empty, p, controlKey, appliedValue));
         }
 
         foreach (var p in runner.OutputParamDefs)
@@ -307,7 +308,11 @@ public static class StepRunnerCatalogMapper
         return dto.Selection.Count > 0 ? dto : null;
     }
 
-    private static AgentInputParamSchema MapInput(StepRunnerInputParamDef p)
+    private static AgentInputParamSchema MapInput(
+        string stepRunnerKey,
+        StepRunnerInputParamDef p,
+        string? controlFieldKey,
+        string controlFieldValue)
     {
         var dto = new AgentInputParamSchema
         {
@@ -322,6 +327,13 @@ public static class StepRunnerCatalogMapper
             IsAdvanced = p.IsAdvanced,
             AllowInput = p.AllowInput,
             TextTools = TrimToNull(p.TextTools),
+            FileExt = StepRunnerResourceFileExtensions.TryGetAgentFileExtensionHint(
+                stepRunnerKey,
+                p.Key ?? string.Empty,
+                p.IsMultiLine,
+                p.IsControlField,
+                controlFieldKey,
+                controlFieldValue),
         };
 
         var def = (p.DefaultValue ?? string.Empty).Trim();

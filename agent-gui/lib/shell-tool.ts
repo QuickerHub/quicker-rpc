@@ -55,7 +55,10 @@ const shellInputSchema = z
     cwd: z
       .string()
       .optional()
-      .describe("Working directory relative to workspace, or absolute if it exists"),
+      .describe(
+        "Optional subdirectory under the workspace cwd (relative) or absolute path. "
+        + "Omit to run in the sidebar workspace directory.",
+      ),
     timeoutMs: z
       .number()
       .int()
@@ -141,10 +144,11 @@ function formatShellToolResult(
 
 export const SHELL_EXEC_TOOL_DEF = tool({
   description:
-    "Run a local shell command or script in the agent working directory. "
+    "Run a local shell command or script in the sidebar workspace directory (qkrpc cwd). "
     + "Always set description to a short human-readable label (what this step does); "
     + "the chat UI shows description instead of the raw command. "
     + "Use command for one-liners; script for inline PowerShell/bash; scriptPath for files under cwd. "
+    + "Do not pass cwd unless a subdirectory is required — default is the active workspace root. "
     + "Prefer pwsh/build.ps1/qkrpc/dotnet/git/npm in repo tasks. "
     + "Read-only commands (git status, qkrpc, dotnet build, Get-Content, etc.) run without confirmation. "
     + "Delete/write commands (Remove-Item, Set-Content, git push/commit, Move-Item) require user confirmation in chat.",

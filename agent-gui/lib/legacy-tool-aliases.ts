@@ -202,18 +202,6 @@ export const legacyQuickerToolAliases = {
       executeQkrpcActionIdTool({ action: "get", id, returnMode }),
   }),
 
-  qkrpc_action_create: tool({
-    description: "Deprecated: use qkrpc_action_manage({ action: \"create\" })",
-    inputSchema: z.object({
-      title: z.string().optional(),
-      description: z.string().optional(),
-      icon: z.string().optional(),
-      profileId: z.string().uuid().optional(),
-    }),
-    execute: async (input) =>
-      executeQkrpcActionManageTool({ action: "create", ...input }),
-  }),
-
   qkrpc_action_replace: tool({
     description: "Deprecated: use qkrpc_action({ action: \"replace\" })",
     inputSchema: z.object({

@@ -2,11 +2,13 @@
 
 export const QKRPC_ACTION_QUERY_TOOL = "qkrpc_action_query";
 export const QKRPC_ACTION_TOOL = "qkrpc_action";
+export const QKRPC_ACTION_CREATE_TOOL = "qkrpc_action_create";
 export const QKRPC_ACTION_MANAGE_TOOL = "qkrpc_action_manage";
 
 export const QKRPC_ACTION_TOOL_IDS = [
   QKRPC_ACTION_QUERY_TOOL,
   QKRPC_ACTION_TOOL,
+  QKRPC_ACTION_CREATE_TOOL,
   QKRPC_ACTION_MANAGE_TOOL,
 ] as const;
 
@@ -52,12 +54,37 @@ export function isQkrpcActionGetTool(toolName: string, input?: unknown): boolean
 }
 
 export function isQkrpcActionCreateTool(toolName: string, input?: unknown): boolean {
-  if (toolName === "qkrpc_action_create") return true;
+  if (toolName === QKRPC_ACTION_CREATE_TOOL || toolName === "qkrpc_action_create") {
+    return true;
+  }
   if (toolName === QKRPC_ACTION_MANAGE_TOOL) {
     return readQkrpcAction(input) === "create";
   }
   if (toolName !== QKRPC_ACTION_TOOL) return false;
   return readQkrpcAction(input) === "create";
+}
+
+/** User-facing title for create tool rows. */
+export function qkrpcActionCreateDisplayName(
+  toolName: string,
+  input?: unknown,
+): string | null {
+  if (!isQkrpcActionCreateTool(toolName, input)) return null;
+  return "创建动作";
+}
+
+export function readActionCreateTitleFromInput(input: unknown): string | null {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return null;
+  }
+  const record = input as Record<string, unknown>;
+  const info = record.info;
+  if (typeof info === "object" && info !== null && !Array.isArray(info)) {
+    const title = (info as Record<string, unknown>).title;
+    if (typeof title === "string" && title.trim()) return title.trim();
+  }
+  const title = record.title;
+  return typeof title === "string" && title.trim() ? title.trim() : null;
 }
 
 const LEGACY_ACTION_COMMAND_VERB: Record<string, string> = {

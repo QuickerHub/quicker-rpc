@@ -511,8 +511,14 @@ public sealed class StepRunnerSearchQuery
             }
 
             var normalizedToken = NormalizeMatchText(token);
-            return normalizedToken.Length > 0
-                && NormalizeMatchText(surface).IndexOf(normalizedToken, StringComparison.Ordinal) >= 0;
+            if (normalizedToken.Length > 0
+                && NormalizeMatchText(surface).IndexOf(normalizedToken, StringComparison.Ordinal) >= 0)
+            {
+                return true;
+            }
+
+            // Same CJK compound + legacy substring rules as whitespace-AND search.
+            return LegacyPatternMatchesSurface(surface, token.ToLowerInvariant());
         }
 
         try

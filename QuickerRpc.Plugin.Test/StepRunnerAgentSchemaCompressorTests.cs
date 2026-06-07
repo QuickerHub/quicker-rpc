@@ -113,4 +113,28 @@ public sealed class StepRunnerAgentSchemaCompressorTests
         Assert.IsTrue(json.IndexOf("hint", System.StringComparison.Ordinal) < 0);
         Assert.IsTrue(json.IndexOf("purpose", System.StringComparison.Ordinal) < 0);
     }
+
+    [TestMethod]
+    public void Serialize_includes_fileExt_on_inputs()
+    {
+        var schema = new StepRunnerAgentSchema
+        {
+            StepRunnerKey = "sys:jsscript",
+            Name = "JS Script",
+            Inputs =
+            {
+                new AgentInputParamSchema
+                {
+                    Key = "script",
+                    ValueType = "Text",
+                    IsMultiLine = true,
+                    FileExt = ".js",
+                },
+            },
+        };
+
+        var json = StepRunnerAgentSchemaJson.Serialize(schema);
+
+        StringAssert.Contains(json, "\"fileExt\":\".js\"");
+    }
 }

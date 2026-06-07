@@ -105,6 +105,7 @@ public static class StepRunnerAgentSchemaCompressor
             InternalValueType = TrimToNull(source.InternalValueType),
             Required = source.Required,
             Default = ResolveInputDefault(source, controlApplied, isControlParam, appliedControlValue),
+            FileExt = TrimToNull(source.FileExt),
         };
 
         if (source.IsControlField && !hasControlFieldMeta && !controlApplied)

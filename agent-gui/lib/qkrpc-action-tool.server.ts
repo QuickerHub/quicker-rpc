@@ -1,5 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
+import {
+  actionCreateSchema,
+  resolveActionCreateManageInput,
+  type QkrpcActionCreateToolInput,
+} from "@/lib/action-create-input";
 import { registerLocalActionProject } from "@/lib/action-scope";
 import {
   augmentActionGetWithWorkspace,
@@ -10,6 +15,7 @@ import {
   syncActionToWorkspace,
 } from "@/lib/action-project-workflow";
 import {
+  QKRPC_ACTION_CREATE_TOOL,
   QKRPC_ACTION_MANAGE_TOOL,
   QKRPC_ACTION_QUERY_TOOL,
   QKRPC_ACTION_TOOL,
@@ -204,17 +210,15 @@ export type QkrpcActionManageToolInput = z.infer<typeof actionManageInputSchema>
 const actionManageSchema = z.object({
   action: z
     .enum([
-      "create",
       "profile_create",
       "profile_delete",
       "profile_prune",
       "profile_reorder",
       "process_ensure",
     ])
-    .describe("Operation to perform"),
-  title: z.string().optional(),
-  description: z.string().optional(),
-  icon: z.string().optional(),
+    .describe(
+      "Layout operation only — to create a new action use qkrpc_action_create({ info: { title, ... } })",
+    ),
   profileId: z.string().optional(),
   count: z.number().int().min(1).max(20).optional(),
   afterFirst: z.boolean().optional(),
@@ -257,6 +261,9 @@ function parseActionManageToolInput(
   }
   return { success: true, data: parsed.data };
 }
+
+export { actionCreateSchema, resolveActionCreateManageInput };
+export type { QkrpcActionCreateToolInput } from "@/lib/action-create-input";
 
 /** @deprecated Unified input for legacy tool aliases only. */
 export type QkrpcActionToolInput = QkrpcActionQueryToolInput
@@ -416,6 +423,16 @@ export async function executeQkrpcActionIdTool(
         qkrpcValidationError(`Unknown action: ${String((input as { action?: string }).action)}`),
       );
   }
+}
+
+export async function executeQkrpcActionCreateTool(
+  input: QkrpcActionCreateToolInput,
+): Promise<Record<string, unknown>> {
+  const parsed = resolveActionCreateManageInput(input);
+  if (!parsed.success) {
+    return formatQkrpcResultForAgent(qkrpcValidationError(parsed.message));
+  }
+  return executeQkrpcActionManageTool(parsed.data);
 }
 
 export async function executeQkrpcActionManageTool(
@@ -631,10 +648,20 @@ export const QKRPC_ACTION_TOOL_DEF = tool({
   },
 });
 
+export const QKRPC_ACTION_CREATE_TOOL_DEF = tool({
+  description:
+    "Create a new Quicker action and bootstrap .quicker/actions/{id}/ with info.json + empty data.json. "
+    + "Pass only info.json fields in info: { title (required), description?, icon? }. "
+    + "Do not pass layout/profile/process fields. After create, edit steps via workspace_program — do not qkrpc_action get.",
+  inputSchema: actionCreateSchema,
+  execute: async (input) => executeQkrpcActionCreateTool(input),
+});
+
 export const QKRPC_ACTION_MANAGE_TOOL_DEF = tool({
   description:
-    "Create actions and manage layout: create (bootstraps workspace project), profile_create/delete/prune/reorder, "
-    + "process_ensure (virtual process pages). See docs action-organization-workflow.",
+    "Manage action pages and virtual process layout: profile_create/delete/prune/reorder, process_ensure. "
+    + "To create a new action use qkrpc_action_create({ info: { title, description?, icon? } }). "
+    + "See docs action-organization-workflow.",
   inputSchema: actionManageSchema,
   execute: async (input) => {
     const parsed = parseActionManageToolInput(input);
@@ -646,6 +673,7 @@ export const QKRPC_ACTION_MANAGE_TOOL_DEF = tool({
 });
 
 export {
+  QKRPC_ACTION_CREATE_TOOL,
   QKRPC_ACTION_MANAGE_TOOL,
   QKRPC_ACTION_QUERY_TOOL,
   QKRPC_ACTION_TOOL,
