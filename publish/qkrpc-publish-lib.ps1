@@ -150,7 +150,8 @@ function Install-QkrpcFromDirectory {
 
     Write-Host "Installing qkrpc to $InstallDir ..." -ForegroundColor Cyan
 
-    Stop-QkrpcProcesses | Out-Null
+    # Hot-update / build.ps1 already stopped serve; do not kill unrelated qkrpc CLI tool runs.
+    Stop-QkrpcProcesses -ServeOnly | Out-Null
 
     if (Test-Path -LiteralPath $InstallDir) {
         Write-Host 'Removing previous install...' -ForegroundColor Yellow
@@ -253,12 +254,180 @@ function Test-BitifulConfigured {
         -not [string]::IsNullOrWhiteSpace($env:BITIFUL_BUCKET_NAME)
 }
 
+function Read-QuickerAgentLatestJsonVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "latest.json not found: $Path"
+    }
+
+    $json = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    $version = [string]$json.version
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        throw "latest.json missing version field: $Path"
+    }
+
+    return $version.Trim()
+}
+
+function Test-QuickerAgentLatestJsonFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedSemVer
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $false
+    }
+
+    try {
+        $version = Read-QuickerAgentLatestJsonVersion -Path $Path
+        return $version -eq $ExpectedSemVer.Trim()
+    }
+    catch {
+        return $false
+    }
+}
+
+function Assert-QuickerAgentLatestJsonFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedSemVer
+    )
+
+    $version = Read-QuickerAgentLatestJsonVersion -Path $Path
+    $expected = $ExpectedSemVer.Trim()
+    if ($version -ne $expected) {
+        throw "latest.json version mismatch: file has '$version', expected '$expected' ($Path)"
+    }
+}
+
+function Get-QuickerAgentPinnedLatestJsonDownloadUrl {
+    param([Parameter(Mandatory = $true)][string]$Tag)
+
+    $normalizedTag = $Tag.Trim()
+    if (-not $normalizedTag.StartsWith('v')) {
+        $normalizedTag = "v$normalizedTag"
+    }
+
+    return "https://github.com/QuickerHub/quicker-rpc/releases/download/$normalizedTag/latest.json"
+}
+
+function Download-QuickerAgentLatestJsonFromRelease {
+    param(
+        [Parameter(Mandatory = $true)][string]$Tag,
+        [Parameter(Mandatory = $true)][string]$ExpectedSemVer,
+        [Parameter(Mandatory = $true)][string]$DestinationPath
+    )
+
+    $url = Get-QuickerAgentPinnedLatestJsonDownloadUrl -Tag $Tag
+    $destDir = Split-Path -Parent $DestinationPath
+    if (-not (Test-Path -LiteralPath $destDir)) {
+        New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+    }
+
+    Write-Host "Downloading latest.json from $url ..." -ForegroundColor Cyan
+
+    if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+        & curl.exe --fail --location --retry 3 --retry-delay 2 --output $DestinationPath $url
+        if ($LASTEXITCODE -ne 0) {
+            throw "curl download failed ($LASTEXITCODE): $url"
+        }
+    }
+    else {
+        Invoke-WebRequest -Uri $url -OutFile $DestinationPath -UseBasicParsing
+    }
+
+    Assert-QuickerAgentLatestJsonFile -Path $DestinationPath -ExpectedSemVer $ExpectedSemVer
+    return (Resolve-Path -LiteralPath $DestinationPath).Path
+}
+
+function Resolve-QuickerAgentLatestJsonForUpload {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$Tag,
+        [Parameter(Mandatory = $true)][string]$ExpectedSemVer,
+        [Parameter(Mandatory = $true)][string]$DownloadDir,
+        [switch]$UseLocal
+    )
+
+    $localPath = Join-Path $RepoRoot 'publish\latest.json'
+    $expected = $ExpectedSemVer.Trim()
+
+    if ($UseLocal -and (Test-QuickerAgentLatestJsonFile -Path $localPath -ExpectedSemVer $expected)) {
+        Write-Host "Using local latest.json (-UseLocal): $localPath" -ForegroundColor Cyan
+        return (Resolve-Path -LiteralPath $localPath).Path
+    }
+
+    if (Test-QuickerAgentLatestJsonFile -Path $localPath -ExpectedSemVer $expected) {
+        Write-Host "Using matching local latest.json: $localPath" -ForegroundColor Cyan
+        return (Resolve-Path -LiteralPath $localPath).Path
+    }
+
+    if (Test-Path -LiteralPath $localPath) {
+        try {
+            $stale = Read-QuickerAgentLatestJsonVersion -Path $localPath
+            Write-Warning "Ignoring stale publish/latest.json ($stale != $expected)"
+        }
+        catch {
+            Write-Warning "Ignoring invalid publish/latest.json: $localPath"
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $DownloadDir)) {
+        New-Item -ItemType Directory -Path $DownloadDir -Force | Out-Null
+    }
+
+    $downloaded = Join-Path $DownloadDir 'latest.json'
+
+    try {
+        return Download-QuickerAgentLatestJsonFromRelease `
+            -Tag $Tag `
+            -ExpectedSemVer $expected `
+            -DestinationPath $downloaded
+    }
+    catch {
+        Write-Warning "Direct latest.json download failed: $($_.Exception.Message)"
+    }
+
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        throw @"
+Failed to resolve latest.json for $Tag ($expected).
+Install GitHub CLI (gh) or run Publish-QuickerAgent.ps1 locally, then retry with -UseLocal.
+"@
+    }
+
+    Write-Host 'Retrying latest.json via gh release download...' -ForegroundColor Cyan
+    gh release download $Tag --repo 'QuickerHub/quicker-rpc' --pattern 'latest.json' -D $DownloadDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "gh release download failed ($LASTEXITCODE) for latest.json on $Tag"
+    }
+
+    if (-not (Test-Path -LiteralPath $downloaded)) {
+        throw "Downloaded latest.json missing: $downloaded"
+    }
+
+    Assert-QuickerAgentLatestJsonFile -Path $downloaded -ExpectedSemVer $expected
+    return (Resolve-Path -LiteralPath $downloaded).Path
+}
+
 function Invoke-QuickerAgentBitifulUpload {
     param(
         [Parameter(Mandatory = $true)]
         [string]$InstallerPath,
 
-        [string]$LatestJsonPath = '',
+        [Parameter(Mandatory = $true)]
+        [string]$LatestJsonPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedSemVer,
 
         [string]$PublishDir = ''
     )
@@ -318,7 +487,13 @@ function Invoke-QuickerAgentBitifulUpload {
         throw "Bitiful upload failed with exit code $LASTEXITCODE"
     }
 
-    if ($LatestJsonPath -and (Test-Path -LiteralPath $LatestJsonPath)) {
+    if (-not (Test-Path -LiteralPath $LatestJsonPath)) {
+        throw "latest.json not found for Bitiful upload: $LatestJsonPath"
+    }
+
+    Assert-QuickerAgentLatestJsonFile -Path $LatestJsonPath -ExpectedSemVer $ExpectedSemVer
+
+    if ($LatestJsonPath) {
         $latestResolved = (Resolve-Path -LiteralPath $LatestJsonPath -ErrorAction Stop).Path
         $uploadArgs = @(
             $latestResolved,

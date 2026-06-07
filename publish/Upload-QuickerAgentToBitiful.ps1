@@ -1,5 +1,6 @@
 #!/usr/bin/env pwsh
-# Upload versioned QuickerAgent NSIS installer + version.txt to Bitiful (local network).
+# Upload versioned QuickerAgent NSIS installer + version.txt + latest.json to Bitiful (local network).
+# latest.json is resolved from GitHub Release (or matching local build); stale publish/latest.json is ignored.
 #
 # Examples:
 #   pwsh ./publish/Upload-QuickerAgentToBitiful.ps1 -Tag v0.9.0
@@ -121,18 +122,34 @@ Install GitHub CLI (gh) or run Publish-QuickerAgent.ps1 locally.
 
 $installerPath = Resolve-InstallerPath
 
+if (-not (Test-Path -LiteralPath $downloadDir)) {
+    New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
+}
+
+$latestJsonPath = Resolve-QuickerAgentLatestJsonForUpload `
+    -RepoRoot $RepoRoot `
+    -Tag $Tag `
+    -ExpectedSemVer $semver `
+    -DownloadDir $downloadDir `
+    -UseLocal:$UseLocal
+
 if ($DryRun) {
     Write-Host "[DryRun] Would upload: $installerPath" -ForegroundColor DarkGray
+    Write-Host "[DryRun] latest.json: $latestJsonPath" -ForegroundColor DarkGray
     Write-Host "[DryRun] version.txt -> $semver" -ForegroundColor DarkGray
     exit 0
 }
 
-$latestJsonPath = Join-Path $RepoRoot 'publish\latest.json'
-Invoke-QuickerAgentBitifulUpload -InstallerPath $installerPath -LatestJsonPath $latestJsonPath -PublishDir $PSScriptRoot
+Invoke-QuickerAgentBitifulUpload `
+    -InstallerPath $installerPath `
+    -LatestJsonPath $latestJsonPath `
+    -ExpectedSemVer $semver `
+    -PublishDir $PSScriptRoot
 
 Write-Host ''
 Write-Host "Bitiful upload OK ($semver)." -ForegroundColor Green
 Write-Host "  Setup: $(Get-QuickerAgentBitifulSetupUrl -Version $semver)" -ForegroundColor Cyan
 Write-Host "  version.txt: $(Get-QuickerAgentBitifulVersionTxtUrl)" -ForegroundColor Cyan
+Write-Host "  latest.json: $(Get-QuickerAgentBitifulLatestJsonUrl)" -ForegroundColor Cyan
 
 exit 0

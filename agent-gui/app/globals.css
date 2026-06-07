@@ -139,6 +139,9 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow:
+    0 1px 2px color-mix(in srgb, var(--chat-bg) 92%, transparent),
+    0 0 8px color-mix(in srgb, var(--chat-bg) 75%, transparent);
 }
 
 .side-view-triggers {
@@ -1625,6 +1628,25 @@ html.sidebar-collapsed-init .app-shell {
   background: transparent;
 }
 
+/* Float thread toolbar over scrollport; body uses full pane height underneath. */
+.app-main:not(.app-main--empty) {
+  --chat-conversation-header-height: 1.5rem;
+}
+
+.app-main:not(.app-main--empty) .app-main-split-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.app-main:not(.app-main--empty) .chat-conversation-header,
+.app-main:not(.app-main--empty) .app-main-split-header__side {
+  pointer-events: auto;
+}
+
 .app-main-split-header__chat {
   flex: 1 1 auto;
   min-width: 0;
@@ -2839,6 +2861,12 @@ html.sidebar-collapsed-init .app-shell {
   background: transparent;
 }
 
+.app-main:not(.app-main--empty) .messages {
+  padding-top: calc(
+    var(--messages-scroll-padding-top) + var(--chat-conversation-header-height)
+  );
+}
+
 .messages-history-sentinel {
   display: flex;
   justify-content: center;
@@ -2886,11 +2914,11 @@ html.sidebar-collapsed-init .app-shell {
 .msg-turn__prompt {
   position: -webkit-sticky;
   position: sticky;
-  /* Negative top cancels .messages padding-top so stick flush with <main.messages> top */
-  top: calc(-1 * var(--messages-scroll-padding-top));
-  z-index: 10;
+  /* Stick at scrollport top; avoid negative top/margin (clips under overflow-y: auto). */
+  top: 0;
+  z-index: 20;
   flex-shrink: 0;
-  margin-top: calc(-1 * var(--messages-scroll-padding-top));
+  margin-top: 0;
   margin-left: calc(-1 * var(--messages-scroll-padding-x));
   margin-right: calc(-1 * var(--messages-scroll-padding-x));
   padding-top: 0;

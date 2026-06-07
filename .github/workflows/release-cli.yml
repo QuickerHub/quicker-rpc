@@ -309,15 +309,25 @@ jobs:
           BITIFUL_OBJECT_PREFIX: ${{ vars.BITIFUL_OBJECT_PREFIX }}
         run: |
           python -m pip install --disable-pip-version-check --quiet boto3
+          . ./publish/qkrpc-publish-lib.ps1
           $installer = Join-Path $PWD "publish/${{ needs.metadata.outputs.agent_setup_name }}"
-          python ./publish/bitiful_upload.py $installer
+          $latestJson = Join-Path $PWD 'publish/latest.json'
+          $semver = '${{ needs.metadata.outputs.semver }}'
+          Assert-QuickerAgentLatestJsonFile -Path $latestJson -ExpectedSemVer $semver
+          Invoke-QuickerAgentBitifulUpload `
+            -InstallerPath $installer `
+            -LatestJsonPath $latestJson `
+            -ExpectedSemVer $semver `
+            -PublishDir ./publish
           $endpoint = if ($env:BITIFUL_ENDPOINT_URL) { $env:BITIFUL_ENDPOINT_URL.Trim() } else { 'https://s3.bitiful.net' }
           $prefix = if ($env:BITIFUL_OBJECT_PREFIX) { $env:BITIFUL_OBJECT_PREFIX.Trim().Trim('/') } else { 'quicker-rpc/quicker-agent' }
           $objectKey = "$prefix/${{ needs.metadata.outputs.agent_setup_name }}"
           $objectUrl = "$($endpoint.TrimEnd('/'))/$($env:BITIFUL_BUCKET_NAME)/$objectKey"
+          $latestUrl = "$(Get-QuickerAgentBitifulLatestJsonUrl)"
           Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value @"
           ### Bitiful upload (CI)
           - File: ``${{ needs.metadata.outputs.agent_setup_name }}``
+          - latest.json: ``$semver`` -> ``$latestUrl``
           - Object key: ``$objectKey``
           - URL: $objectUrl
           "@

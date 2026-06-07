@@ -39,7 +39,7 @@ metadata:
 | Quicker 包 | `quicker.rpc`（`build.ps1 -Publish -NoVersion`） |
 | 分享动作 ID | `f5c76108-3ce9-433f-8cd0-8f0d9c562052` |
 | CLI Release | `qkrpc-{semver}-win-x64-setup.exe`、`qkrpc-win-x64-setup.exe`（latest）、zip 便携包 |
-| Agent Release | `quicker-agent-{semver}-x64-setup.exe`（GitHub Release + **本地** Bitiful）；Bitiful 另更新 `version.txt`，**勿**上传 `quicker-agent-win-x64-setup.exe` 固定别名 |
+| Agent Release | `quicker-agent-{semver}-x64-setup.exe`（GitHub Release + **本地/CI** Bitiful）；Bitiful 同步 `version.txt` + Tauri **`latest.json`**（须与 Release 版本一致；**勿**依赖仓库内陈旧的 `publish/latest.json`）；**勿**上传 `quicker-agent-win-x64-setup.exe` 固定别名 |
 | QuickerAgent 动作页 | `aa5917ad-1256-4c73-7022-08debe3efcbe`；源文件 `quicker-agent/actions/.../page.html`（`{{QUICKER_AGENT_SEMVER}}` 由 `Sync-QuickerAgentActionDoc.ps1` 填充；手动 sync 默认 Bitiful `version.txt`，`-WaitForCi` 传 Release 版本） |
 
 ## 用户安装 CLI

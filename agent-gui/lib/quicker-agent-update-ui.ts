@@ -4,6 +4,7 @@ import {
   type AppMessageAction,
 } from "@/lib/app-messages";
 import {
+  getAppUpdateOverlayState,
   hideAppUpdateOverlaySlice,
   patchAppUpdateOverlay,
   showApplyingAppUpdateOverlay,
@@ -22,6 +23,72 @@ import {
 
 export const APP_UPDATE_TOAST_ID = "quicker-agent-update";
 export const VOICE_UPDATE_TOAST_ID = "quicker-agent-voice-update";
+
+/** Avoid flashing a 0% bar when check/download finishes within a few hundred ms. */
+const PROGRESS_TOAST_REVEAL_MS = 450;
+
+let appProgressRevealTimer: ReturnType<typeof setTimeout> | null = null;
+let voiceProgressRevealTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearAppProgressRevealTimer(): void {
+  if (!appProgressRevealTimer) return;
+  clearTimeout(appProgressRevealTimer);
+  appProgressRevealTimer = null;
+}
+
+function clearVoiceProgressRevealTimer(): void {
+  if (!voiceProgressRevealTimer) return;
+  clearTimeout(voiceProgressRevealTimer);
+  voiceProgressRevealTimer = null;
+}
+
+function pushAppUpdateProgressToast(slice: AppUpdateOverlaySlice): void {
+  pushAppMessage({
+    id: APP_UPDATE_TOAST_ID,
+    kind: "info",
+    title: "QuickerAgent 更新",
+    body: versionLabel(slice),
+    progress: {
+      percent: slice.percent,
+      message: slice.message,
+    },
+    dismissible: false,
+  });
+}
+
+function pushVoiceUpdateProgressToast(slice: VoiceUpdateOverlaySlice): void {
+  pushAppMessage({
+    id: VOICE_UPDATE_TOAST_ID,
+    kind: "info",
+    title: "语音服务更新",
+    body: "正在下载语音服务组件…",
+    progress: {
+      percent: slice.percent,
+      message: slice.message,
+    },
+    dismissible: false,
+  });
+}
+
+function scheduleAppProgressToastReveal(): void {
+  if (appProgressRevealTimer) return;
+  appProgressRevealTimer = setTimeout(() => {
+    appProgressRevealTimer = null;
+    const current = getAppUpdateOverlayState().app;
+    if (current.phase !== "downloading") return;
+    pushAppUpdateProgressToast(current);
+  }, PROGRESS_TOAST_REVEAL_MS);
+}
+
+function scheduleVoiceProgressToastReveal(): void {
+  if (voiceProgressRevealTimer) return;
+  voiceProgressRevealTimer = setTimeout(() => {
+    voiceProgressRevealTimer = null;
+    const current = getAppUpdateOverlayState().voice;
+    if (current.phase !== "downloading") return;
+    pushVoiceUpdateProgressToast(current);
+  }, PROGRESS_TOAST_REVEAL_MS);
+}
 
 function versionLabel(slice: Pick<AppUpdateOverlaySlice, "installedVersion" | "remoteVersion">): string {
   if (slice.remoteVersion && slice.installedVersion) {
@@ -105,9 +172,14 @@ export function skipReadyAppUpdate(remoteVersion: string | null): void {
   hideAppUpdateOverlaySlice();
 }
 
-/** Bottom-right toast for check / download / ready — never blocks the main UI. */
+/** Bottom-right toast for download / ready — never blocks the main UI. */
 export function syncAppUpdateToast(slice: AppUpdateOverlaySlice): void {
-  if (slice.phase === "hidden" || slice.phase === "applying") {
+  if (
+    slice.phase === "hidden"
+    || slice.phase === "applying"
+    || slice.phase === "checking"
+  ) {
+    clearAppProgressRevealTimer();
     dismissAppUpdateToast();
     return;
   }
@@ -115,20 +187,17 @@ export function syncAppUpdateToast(slice: AppUpdateOverlaySlice): void {
   const version = versionLabel(slice);
   const title = "QuickerAgent 更新";
 
-  if (slice.phase === "checking" || slice.phase === "downloading") {
-    pushAppMessage({
-      id: APP_UPDATE_TOAST_ID,
-      kind: "info",
-      title,
-      body: version,
-      progress: {
-        percent: slice.phase === "checking" ? 0 : slice.percent,
-        message: slice.message,
-      },
-      dismissible: false,
-    });
+  if (slice.phase === "downloading") {
+    if (slice.percent > 0) {
+      clearAppProgressRevealTimer();
+      pushAppUpdateProgressToast(slice);
+      return;
+    }
+    scheduleAppProgressToastReveal();
     return;
   }
+
+  clearAppProgressRevealTimer();
 
   if (slice.phase === "ready") {
     const actions: AppMessageAction[] = [
@@ -170,11 +239,13 @@ export function syncAppUpdateToast(slice: AppUpdateOverlaySlice): void {
 
 export function syncVoiceUpdateToast(slice: VoiceUpdateOverlaySlice): void {
   if (slice.phase === "hidden") {
+    clearVoiceProgressRevealTimer();
     dismissVoiceUpdateToast();
     return;
   }
 
   if (slice.phase === "ready") {
+    clearVoiceProgressRevealTimer();
     pushAppMessage({
       id: VOICE_UPDATE_TOAST_ID,
       kind: "info",
@@ -186,17 +257,13 @@ export function syncVoiceUpdateToast(slice: VoiceUpdateOverlaySlice): void {
     return;
   }
 
-  pushAppMessage({
-    id: VOICE_UPDATE_TOAST_ID,
-    kind: "info",
-    title: "语音服务更新",
-    body: "正在下载语音服务组件…",
-    progress: {
-      percent: slice.percent,
-      message: slice.message,
-    },
-    dismissible: false,
-  });
+  if (slice.percent > 0) {
+    clearVoiceProgressRevealTimer();
+    pushVoiceUpdateProgressToast(slice);
+    return;
+  }
+
+  scheduleVoiceProgressToastReveal();
 }
 
 /** Wait until boot splash dismisses (or timeout) before background update work. */

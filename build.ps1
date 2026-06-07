@@ -25,6 +25,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'publish\qkrpc-publish-lib.ps1')
+
 function Expand-QkbuildArgTokens {
     param([object[]]$Raw)
     $out = [System.Collections.Generic.List[string]]::new()
@@ -155,29 +157,9 @@ function Test-QkrpcServeHealth {
 }
 
 function Stop-QkrpcServe {
-    $stopped = [System.Collections.Generic.List[int]]::new()
-    $procs = Get-CimInstance Win32_Process -Filter "Name = 'qkrpc.exe'" -ErrorAction SilentlyContinue
-    foreach ($proc in $procs) {
-        $cmd = $proc.CommandLine
-        if ([string]::IsNullOrWhiteSpace($cmd)) {
-            continue
-        }
-        if ($cmd -notmatch '\bserve\b') {
-            continue
-        }
-        $procId = $proc.ProcessId
-        try {
-            Stop-Process -Id $procId -Force -ErrorAction Stop
-            $stopped.Add($procId) | Out-Null
-        }
-        catch {
-            Write-Warning "Could not stop qkrpc serve (PID $procId): $_"
-        }
-    }
-
-    if ($stopped.Count -gt 0) {
-        Write-Host "Stopped qkrpc serve (PID(s): $($stopped -join ', '))." -ForegroundColor Yellow
-        Start-Sleep -Seconds 2
+    $stopped = Stop-QkrpcProcesses -ServeOnly -GraceMs 2000
+    if ($stopped -gt 0) {
+        Write-Host "Stopped qkrpc serve (see PID log above)." -ForegroundColor Yellow
     }
     else {
         Write-Host "No qkrpc serve process found." -ForegroundColor DarkGray
@@ -257,6 +239,7 @@ $shouldStartQkrpcServe = -not $SkipQkrpcServe
 try {
     if ($shouldStartQkrpcServe) {
         Write-Host "=== Stop qkrpc serve (pre-build) ===" -ForegroundColor Cyan
+        Write-Host "  agent-gui dev on :3000 is left running (only qkrpc serve restarts)." -ForegroundColor DarkGray
         Stop-QkrpcServe
     }
 

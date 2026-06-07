@@ -19,6 +19,7 @@ import {
 } from "@/lib/quicker-agent-official-updater";
 import { checkQuickerAgentUpdate } from "@/lib/quicker-agent-update";
 import {
+  dismissAppUpdateToast,
   syncAppUpdateToast,
   syncVoiceUpdateToast,
   waitForAppInteractive,
@@ -162,25 +163,10 @@ export function QuickerAgentUpdateChecker() {
         const installedVersion = (await getVersion()).trim();
         setAppInstalledVersion(installedVersion);
 
-        patchAppAndSyncToast({
-          phase: "checking",
-          installedVersion,
-          percent: 0,
-          message: "正在检查 QuickerAgent 更新…",
-          error: null,
-        });
-
         const update = await checkOfficialQuickerAgentUpdate();
         if (!update) {
           hideAppUpdateOverlaySlice();
-          syncAppUpdateToast({
-            phase: "hidden",
-            installedVersion,
-            remoteVersion: null,
-            percent: 0,
-            message: "",
-            error: null,
-          });
+          dismissAppUpdateToast();
           return;
         }
 
