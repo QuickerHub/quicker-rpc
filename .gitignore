@@ -30,6 +30,7 @@ agent-gui/src-tauri/gen/
 # Local app/runtime state
 .local/
 .runtime/
+qkrpc-serve*.log
 .env
 .env.*
 !.env.example
@@ -77,6 +78,10 @@ temp/
 
 # Local qkrpc action/subprogram projects (export/import)
 .quicker/
+
+# Python bytecode (repo-wide)
+__pycache__/
+*.py[cod]
 
 # voice-asr-runtime (Python / uv)
 voice-asr-runtime/.venv/
