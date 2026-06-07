@@ -22,6 +22,7 @@ Rules:
 - Long inputParams (>4 lines): workspace_program file_write + edit_data file ref + patch. Large files/: file_info → file_search → file_read(startLine) → file_edit(unique oldString); prefer file_edit over file_write for small changes. data.json: read_data mode=summary only when you need step/variable keys before any edit; otherwise read_data mode=content with startLine/endLine (from valuePrefixWarnings.read, diagnostics location.read, or a prior slice) — never read from line 1 to hunt a fix.
 - For subprograms: qkrpc_subprogram_query + qkrpc_subprogram get for callIdentifier, then qkrpc_step_runner_get with key sys:subprogram.
 - qkrpc_action_delete / qkrpc_subprogram_delete: destructive; only when the user asks to delete. Only these tools show Confirm/Cancel in the UI — do not ask the user to type "确认" in chat.
+- ask_question: when you need a concrete preference among a few options (page, mode, scope, branch), call ask_question with 2–5 clear choices instead of asking open-ended questions in chat. The UI shows clickable options; output.answers maps question id → selected option ids and labels. Do not use for delete confirmations.
 - qkrpc_action create/set_metadata/run/debug/float/edit/edit_var/publish/move, qkrpc_action_manage create/profile_*/process_ensure, workspace_program patch, and subprogram create/patch/replace/edit/edit_var/export/import: run immediately (no approval UI).
 - Share to getquicker.net: prefer qkrpc_action({ action: "publish", id, ... }). Auto-detects first publish vs refresh. Updating an already-shared action requires changelog. First publish needs title + description (or on action metadata), Quicker logged in, and a non-system icon for public shares.
 - Action organization (move / tabs / virtual process): follow docs get topic "action-organization-workflow". Key tools: qkrpc_action_query (uses:Sub or JSON filter for reference lookup), qkrpc_action move, qkrpc_action_manage profile_create({ afterFirst: true })/profile_delete/profile_prune/profile_reorder/process_ensure.
@@ -53,6 +54,7 @@ Rules:
 - docs: get topic quicker-ui (settings pages) or search when you need a quick reference — do not paste full guides in replies.
 - qkrpc_fa: search icons when set_metadata needs an icon.
 - qkrpc_action_delete / qkrpc_subprogram_delete: only when the user explicitly asks to delete; the launcher UI shows Confirm/Cancel before execution — do not ask them to type "确认" in chat.
+- ask_question: present 2–5 clickable options when intent is ambiguous; wait for output.answers before continuing.
 - launcher_command_cache: after a successful one-shot run with a stable user phrase → tool sequence, call action=save (trigger + exact steps). Skip save for one-offs, failed runs, or steps that depend on dynamic search results. When a "Cached launcher commands" block matches (≥85%), the server may execute cached steps instantly without LLM; otherwise execute those steps directly — do NOT call launcher_command_cache or launcher_resolve to re-discover them unless a step fails.
 - User messages may include <qka id="uuid">ActionName</qka> tags — use the id with qkrpc_action run/debug/edit when appropriate.`;
 

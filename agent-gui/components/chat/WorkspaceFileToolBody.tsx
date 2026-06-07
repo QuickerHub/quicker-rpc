@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import {
   getWorkspaceFileEditorPreview,
   isWorkspaceExplorerFileTool,
@@ -94,6 +94,7 @@ function FileEditorPreviewBody({
     toolName,
     input,
     output?.ok ? output.data : undefined,
+    { streaming: running },
   );
 
   if (!preview) return null;
@@ -102,7 +103,7 @@ function FileEditorPreviewBody({
   const showCodeBlock = shouldShowFileEditorCodeBlockInChat(toolName, input);
 
   const stat =
-    !embedded && showCodeBlock
+    !embedded && showCodeBlock && !running
       ? fileEditorStatFromPreview(toolName, preview, input)
       : undefined;
 
@@ -149,8 +150,9 @@ function FileEditorPreviewWithExplorer(
         props.toolName,
         props.input,
         props.output?.ok ? props.output.data : undefined,
+        { streaming: props.running },
       ),
-    [props.toolName, props.input, props.output],
+    [props.toolName, props.input, props.output, props.running],
   );
   const previewPopup = useToolResultPopup();
   const { openFileFromTool, revealPath, setPanelOpen } = useWorkspaceExplorerActions();
@@ -173,7 +175,7 @@ function FileEditorPreviewWithExplorer(
     setPanelOpen,
   ]);
 
-  const popupStat = preview
+  const popupStat = preview && !props.running
     ? fileEditorStatFromPreview(props.toolName, preview, props.input)
     : undefined;
 
@@ -215,7 +217,7 @@ function FileEditorPreview(
 
 export { FileEditorPreview };
 
-export function WorkspaceFileEditorRow({
+function WorkspaceFileEditorRowInner({
   toolName,
   displayName,
   meta,
@@ -247,26 +249,15 @@ export function WorkspaceFileEditorRow({
           <ToolDetailsIconButton onClick={popup.openPopup} />
         </div>
       ) : null}
-      {failed ? (
-        <FileEditorPreview
-          toolName={toolName}
-          summaryMeta={meta}
-          headerRunning={running}
-          headerError={failed}
-          input={input}
-          output={output}
-        />
-      ) : (
-        <FileEditorPreview
-          toolName={toolName}
-          summaryMeta={meta}
-          headerRunning={running}
-          headerError={failed}
-          input={input}
-          output={output}
-          running={running}
-        />
-      )}
+      <FileEditorPreview
+        toolName={toolName}
+        summaryMeta={meta}
+        headerRunning={running}
+        headerError={Boolean(failed)}
+        input={input}
+        output={output}
+        running={running}
+      />
       {errorText ? <pre className="tool-error">{errorText}</pre> : null}
     </div>
     <ToolResultPopup
@@ -283,6 +274,8 @@ export function WorkspaceFileEditorRow({
     </>
   );
 }
+
+export const WorkspaceFileEditorRow = memo(WorkspaceFileEditorRowInner);
 
 export function WorkspaceFileToolBody({
   input,

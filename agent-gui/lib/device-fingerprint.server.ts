@@ -7,7 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
+import { resolvePersistedDataFilePath } from "@/lib/quicker-agent-persisted-data";
 
 type DeviceFingerprintFile = {
   version: 1;
@@ -18,7 +18,7 @@ type DeviceFingerprintFile = {
 let cachedDeviceId: string | null = null;
 
 export function resolveDeviceFingerprintPath(): string {
-  return join(resolveAgentGuiRoot(), ".local", "device-fingerprint.json");
+  return resolvePersistedDataFilePath("device-fingerprint.json");
 }
 
 function readFingerprintFile(path: string): DeviceFingerprintFile | null {
@@ -45,7 +45,7 @@ function writeFingerprintFile(path: string, data: DeviceFingerprintFile): void {
   renameSync(tmp, path);
 }
 
-/** Stable per-machine id persisted under agent-gui/.local. */
+/** Stable per-machine id persisted under QuickerAgent app-data local/. */
 export function getOrCreateDeviceFingerprint(): string {
   if (cachedDeviceId) return cachedDeviceId;
 

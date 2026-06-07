@@ -60,3 +60,4 @@ dev_frontend_check({ paths: ["/", "/tool-test"] })  # 改过额外路由时
 - 系统提示：`agent-gui/lib/instructions.ts`（`dev_frontend_check` 一行）
 - 实现：`lib/dev-frontend-smoke.server.ts`、`lib/dev-frontend-check-tool.ts`、`components/dev/DevErrorCapture.tsx`
 - 工具注册：`lib/tool-registry.ts` → `dev_frontend_check`
+- 动作设计器 / step 字段编辑：`quicker-action-designer-ui`（`agent-gui/lib/action-editor/**`；对齐 `../Quicker/QuickerPc/Quicker` StepEditor）

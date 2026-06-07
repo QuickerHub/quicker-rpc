@@ -845,10 +845,12 @@ export function getWorkspaceFileEditorPreview(
   toolName: string,
   input: unknown,
   data: unknown,
+  options?: { streaming?: boolean },
 ): WorkspaceFileEditorPreview | null {
+  const streaming = options?.streaming === true;
   const effectiveTool = effectiveWorkspaceToolId(toolName, input);
   if (effectiveTool !== toolName) {
-    return getWorkspaceFileEditorPreview(effectiveTool, input, data);
+    return getWorkspaceFileEditorPreview(effectiveTool, input, data, options);
   }
 
   const inputPath = readInputPath(input);
@@ -881,8 +883,9 @@ export function getWorkspaceFileEditorPreview(
       return {
         path,
         content: body,
-        diff:
-          previousContent !== undefined
+        diff: streaming
+          ? undefined
+          : previousContent !== undefined
             ? buildWriteDiffFromSnapshot(previousContent, body)
             : buildWritePreviewDiff(body),
         previousSnapshotTruncated:
@@ -903,7 +906,8 @@ export function getWorkspaceFileEditorPreview(
       const previousContent = readToolDataString(data, "previousContent");
       const writtenContent = readToolDataString(data, "content");
       if (
-        toolName === "workspace_action_file_edit"
+        !streaming
+        && toolName === "workspace_action_file_edit"
         && previousContent !== undefined
         && writtenContent !== undefined
       ) {
@@ -917,7 +921,9 @@ export function getWorkspaceFileEditorPreview(
       return {
         path,
         content: newString ?? "",
-        diff: { removed: oldString, added: newString ?? "" },
+        diff: streaming
+          ? undefined
+          : { removed: oldString, added: newString ?? "" },
         replacements: payload?.action === "file-edit" ? payload.replacements : undefined,
       };
     }
@@ -952,8 +958,9 @@ export function getWorkspaceFileEditorPreview(
       const id = readInputActionId(input);
       const body = content ?? "";
       const previousContent = readToolDataString(data, "previousContent");
-      const diff =
-        previousContent !== undefined
+      const diff = streaming
+        ? undefined
+        : previousContent !== undefined
           ? buildWriteDiffFromSnapshot(previousContent, body)
           : buildWritePreviewDiff(body);
       if (path) {

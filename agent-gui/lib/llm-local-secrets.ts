@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
+import { resolvePersistedDataFilePath } from "@/lib/quicker-agent-persisted-data";
 import {
   normalizeProfiles,
   type LlmCustomProfile,
@@ -38,7 +38,7 @@ const EMPTY: LlmLocalSecrets = { version: 2, providers: {} };
 let cache: LlmLocalSecrets | null = null;
 
 export function resolveLlmSecretsPath(): string {
-  return join(resolveAgentGuiRoot(), ".local", "llm-secrets.json");
+  return resolvePersistedDataFilePath("llm-secrets.json");
 }
 
 function normalizeProviderEntry(raw: unknown): LlmLocalProviderSecrets | undefined {

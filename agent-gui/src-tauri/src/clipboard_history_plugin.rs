@@ -35,6 +35,53 @@ struct ClipboardManifestRuntime {
     exe: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClipboardPluginSettingsDto {
+    #[serde(default)]
+    pub auto_start: bool,
+}
+
+impl Default for ClipboardPluginSettingsDto {
+    fn default() -> Self {
+        Self { auto_start: false }
+    }
+}
+
+fn clipboard_settings_path() -> PathBuf {
+    clipboard_history_plugin_root().join("settings.json")
+}
+
+pub fn read_clipboard_auto_start() -> bool {
+    if std::env::var("AGENT_GUI_CLIPBOARD_RUNTIME")
+        .ok()
+        .is_some_and(|value| value == "1")
+    {
+        return true;
+    }
+    read_clipboard_settings().auto_start
+}
+
+pub fn read_clipboard_settings() -> ClipboardPluginSettingsDto {
+    let path = clipboard_settings_path();
+    if !path.is_file() {
+        return ClipboardPluginSettingsDto::default();
+    }
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+        return ClipboardPluginSettingsDto::default();
+    };
+    serde_json::from_str(&raw).unwrap_or_default()
+}
+
+fn write_clipboard_settings(settings: &ClipboardPluginSettingsDto) -> Result<(), String> {
+    let root = clipboard_history_plugin_root();
+    std::fs::create_dir_all(&root).map_err(|e| format!("创建剪贴板插件目录失败：{e}"))?;
+    let raw = serde_json::to_string_pretty(settings)
+        .map_err(|e| format!("序列化剪贴板设置失败：{e}"))?;
+    std::fs::write(clipboard_settings_path(), raw)
+        .map_err(|e| format!("写入剪贴板设置失败：{e}"))
+}
+
 pub struct ClipboardHistoryPluginState {
     pub(crate) child: Mutex<Option<Child>>,
 }
@@ -49,7 +96,7 @@ impl ClipboardHistoryPluginState {
     pub fn shutdown(&self) {
         if let Ok(mut guard) = self.child.lock() {
             if let Some(mut child) = guard.take() {
-                kill_child_tree(&mut child);
+                crate::kill_child_tree(&mut child);
             }
         }
     }
@@ -91,23 +138,6 @@ fn runtime_exe_relative(manifest: Option<&ClipboardManifest>) -> String {
         .and_then(|m| m.runtime.as_ref())
         .and_then(|r| r.exe.clone())
         .unwrap_or_else(|| DEFAULT_RUNTIME_EXE.to_string())
-}
-
-fn kill_child_tree(child: &mut Child) {
-    #[cfg(windows)]
-    {
-        let pid = child.id();
-        let _ = Command::new("taskkill")
-            .args(["/PID", &pid.to_string(), "/T", "/F"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .creation_flags(CREATE_NO_WINDOW)
-            .status();
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = child.kill();
-    }
 }
 
 fn child_still_running(child: &mut Child) -> bool {
@@ -320,13 +350,18 @@ fn build_status(state: &ClipboardHistoryPluginState) -> ClipboardHistoryPluginSt
     }
 
     if installed || dev_dir.is_some() {
+        let message = if read_clipboard_auto_start() {
+            "已就绪，启动中或等待手动启动…".into()
+        } else {
+            "默认关闭。可在设置中手动启动，或开启「随应用自动启动」。".into()
+        };
         return ClipboardHistoryPluginStatusDto {
             status: "installed".into(),
             installed: true,
             running: false,
             http_port: 0,
             plugin_dir,
-            message: Some("已就绪，点击启动 Runtime".into()),
+            message: Some(message),
         };
     }
 
@@ -409,12 +444,31 @@ pub fn clipboard_history_plugin_stop_runtime(
     build_status(&state)
 }
 
+fn ensure_clipboard_runtime_if_auto_start(app: &AppHandle) {
+    if !read_clipboard_auto_start() {
+        return;
+    }
+    let state = app.state::<ClipboardHistoryPluginState>();
+    if let Err(err) = ensure_clipboard_runtime(state.inner()) {
+        eprintln!("[clipboard-history] auto start failed: {err}");
+    }
+}
+
 pub fn spawn_clipboard_runtime_background(app: AppHandle) {
     std::thread::spawn(move || {
-        if let Some(state) = app.try_state::<ClipboardHistoryPluginState>() {
-            if let Err(err) = ensure_clipboard_runtime(state.inner()) {
-                eprintln!("[clipboard-history] auto start failed: {err}");
-            }
-        }
+        ensure_clipboard_runtime_if_auto_start(&app);
     });
+}
+
+#[tauri::command]
+pub fn clipboard_history_plugin_read_settings() -> ClipboardPluginSettingsDto {
+    read_clipboard_settings()
+}
+
+#[tauri::command]
+pub fn clipboard_history_plugin_write_settings(
+    settings: ClipboardPluginSettingsDto,
+) -> Result<ClipboardPluginSettingsDto, String> {
+    write_clipboard_settings(&settings)?;
+    Ok(settings)
 }

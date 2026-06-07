@@ -77,3 +77,42 @@ export function resolveReleaseDefaultWorkingDirectory(): string {
     QUICKER_AGENT_WORKSPACE_SUBDIR,
   );
 }
+
+/** Tauri bundle identifier (`tauri.conf.json`); drives WebView2 user-data root on Windows. */
+export const QUICKER_AGENT_TAURI_IDENTIFIER = "ai.quicker.agent";
+
+/**
+ * WebView2 / WKWebView user-data root (localStorage, IndexedDB, cookies).
+ * Lives under %LOCALAPPDATA%, **not** the install directory — survives NSIS in-place updates.
+ */
+export function resolveTauriWebviewUserDataRoot(): string {
+  if (process.platform === "win32") {
+    const local = process.env.LOCALAPPDATA?.trim();
+    if (local) return join(local, QUICKER_AGENT_TAURI_IDENTIFIER);
+  }
+  if (process.platform === "darwin") {
+    return join(
+      homedir(),
+      "Library",
+      "WebKit",
+      QUICKER_AGENT_TAURI_IDENTIFIER,
+    );
+  }
+  const xdgConfig = process.env.XDG_CONFIG_HOME?.trim();
+  const base = xdgConfig ?? join(homedir(), ".config");
+  return join(base, QUICKER_AGENT_TAURI_IDENTIFIER);
+}
+
+/** Chromium profile dir inside WebView2 user data (Windows). */
+export function resolveTauriWebviewDefaultProfileDir(): string {
+  return join(resolveTauriWebviewUserDataRoot(), "EBWebView", "Default");
+}
+
+/** On-disk LevelDB backing `window.localStorage` (Windows WebView2). */
+export function resolveTauriWebviewLocalStorageLevelDbDir(): string {
+  return join(
+    resolveTauriWebviewDefaultProfileDir(),
+    "Local Storage",
+    "leveldb",
+  );
+}

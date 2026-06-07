@@ -10,7 +10,10 @@ import {
   renameThread,
   setWorkingDirectory,
   sortThreads,
+  tryRestoreLegacyChatStore,
 } from "@/lib/chat-store";
+import { pushAppMessage } from "@/lib/app-messages";
+import { fetchLegacyChatStoreCandidatesFromDisk } from "@/lib/legacy-chat-restore-client";
 import type { DefaultWorkingDirectoryProfile } from "@/lib/default-working-directory";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { nativeConfirm } from "@/lib/native-confirm";
@@ -53,6 +56,32 @@ function IconPlus() {
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IconHistory() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <path
+        d="M6 2.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M6 4v2.2l1.4.8"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3.5 2.5H2v1.5"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
@@ -128,6 +157,7 @@ export function ChatSidebar({
       ? defaultCwdFallbackLabel(defaultCwdProfile)
       : "未设置";
   const [cwdDialogOpen, setCwdDialogOpen] = useState(false);
+  const [restoringLegacy, setRestoringLegacy] = useState(false);
 
   const commit = useCallback(
     (next: ChatStoreData) => {
@@ -150,6 +180,34 @@ export function ChatSidebar({
     void (async () => {
       if (!(await nativeConfirm("删除此对话？", { danger: true }))) return;
       commit(deleteThread(store, threadId));
+    })();
+  };
+
+  const handleRestoreLegacy = () => {
+    if (restoringLegacy) return;
+    setRestoringLegacy(true);
+    void (async () => {
+      try {
+        const disk = await fetchLegacyChatStoreCandidatesFromDisk();
+        const { next, result } = tryRestoreLegacyChatStore(
+          store,
+          disk.candidates,
+          { scannedRoots: disk.scannedRoots },
+        );
+        pushAppMessage({
+          kind: result.ok ? "success" : "warning",
+          title: result.title,
+          body: result.body,
+          autoDismissMs: result.ok ? 8000 : 14000,
+        });
+        if (result.ok) {
+          commit(next);
+          const firstImported = next.threads.find((t) => t.messages.length > 0);
+          if (firstImported) onActivateThread(firstImported.id);
+        }
+      } finally {
+        setRestoringLegacy(false);
+      }
     })();
   };
 
@@ -211,6 +269,19 @@ export function ChatSidebar({
               );
             })}
           </ul>
+          <div className="ws-list-restore">
+            <button
+              type="button"
+              className="ws-restore-btn"
+              onClick={handleRestoreLegacy}
+              disabled={disabled || restoringLegacy}
+              title="扫描本机 WebView LevelDB 与 localStorage，合并旧版/其它 origin 的对话"
+              aria-label="从老版本恢复对话"
+            >
+              <IconHistory />
+              <span>{restoringLegacy ? "正在恢复…" : "从老版本恢复…"}</span>
+            </button>
+          </div>
         </div>
 
         <div className="ws-footer">

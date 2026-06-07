@@ -42,6 +42,8 @@ import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 import { summarizeShellToolInput } from "@/lib/shell-tool-view";
 import { useWorkspaceExplorerActions } from "@/lib/workspace-explorer";
 import { ActionTraceToolSync } from "./ActionTraceToolSync";
+import { AskQuestionToolRow } from "./AskQuestionToolRow";
+import { ASK_QUESTION_TOOL } from "@/lib/ask-question-tool";
 
 type Part = UIMessage["parts"][number];
 
@@ -80,7 +82,7 @@ function ToolPartInner({
         : isRunning
           ? qkrpcActionCommandRunningMeta(name, input)
           : null;
-  const meta = runningMeta ?? buildToolSummaryMeta(state, summary);
+  const meta = runningMeta ?? buildToolSummaryMeta(state, summary, name);
   const errorText = "errorText" in part ? part.errorText : undefined;
   const isError =
     state === "output-error" || hasFailedStructuredToolOutput(output);
@@ -119,6 +121,19 @@ function ToolPartInner({
       isRunning={isRunning}
     />
   );
+
+  if (name === ASK_QUESTION_TOOL && toolCallId) {
+    return (
+      <AskQuestionToolRow
+        toolCallId={toolCallId}
+        state={state}
+        input={input}
+        output={output}
+        inBatch={inBatch}
+        errorText={errorText}
+      />
+    );
+  }
 
   if (name === SHELL_EXEC_TOOL) {
     return (

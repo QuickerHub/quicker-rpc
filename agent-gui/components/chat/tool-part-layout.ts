@@ -15,6 +15,7 @@ import {
   summarizeToolOutput,
 } from "./tool-output";
 import { isHiddenChatTool } from "@/lib/hidden-chat-tools";
+import { isAskQuestionAwaitingInput } from "@/lib/ask-question-tool";
 import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 import {
   aggregateWorkspaceWriteToolLineDiff,
@@ -77,10 +78,11 @@ export function analyzeToolUiPart(
     isRunning && isWorkspaceExplorerFileTool(name, input)
       ? workspaceFileRunningMeta(name, input)
       : null;
-  const meta = runningMeta ?? buildToolSummaryMeta(state, summary);
+  const meta = runningMeta ?? buildToolSummaryMeta(state, summary, name);
   const needsAttention =
     isRunning
     || state === "approval-requested"
+    || isAskQuestionAwaitingInput(name, state)
     || state === "output-error"
     || hasFailedStructuredToolOutput(output);
 

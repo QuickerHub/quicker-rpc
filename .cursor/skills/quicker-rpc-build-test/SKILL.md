@@ -5,12 +5,15 @@ description: >-
   qkrpc CLI/serve) without restarting agent-gui. Use when editing Plugin, Console,
   Contracts, AgentModel, build scripts, or RPC/CLI; when the user asks to build,
   test build, build -t, hot update, /hot-update, reload plugin, or restart qkrpc serve.
+  For official getquicker release use quicker-rpc-publish + quicker-qkbuild-version-publish (third field +1).
 disable-model-invocation: false
 metadata:
   internal: true
 ---
 
 # quicker-rpc 改代码后测试构建
+
+> **`-t` 不是正式发布**：只 revision +1。对外交付或改 `QuickerRpc_Run` / QExpr `launch_code` 依赖新 DLL 时，必须 **第三段 `-Publish`**。见 `.cursor/skills/quicker-qkbuild-version-publish/SKILL.md`。
 
 ## 热更新（agent-gui 可保持运行）
 
@@ -91,11 +94,20 @@ pwsh -NoProfile -File ./build.ps1 -t
 | 产物 | Quicker 测试包 + 本机 CLI | GitHub Release `setup.exe` + zip |
 | `-t` 跳过 | CLI zip、Inno `setup.exe`、`publish/plugin` 二次 publish（插件已由 qkbuild 写入测试包） | — |
 
-**测试包版本**：`build.ps1 -t` 只递增 `version.json` **第四段**（revision），DLL 为 `QuickerRpc.Plugin.0.x.x.r.dll`，目录仍为 `_packages/quicker.rpc/0.x.x/`。发布时再手动 bump 第三段。
+**测试包版本**：`build.ps1 -t` 只递增 `version.json` **第四段**（revision），DLL 为 `QuickerRpc.Plugin.0.x.x.r.dll`，目录仍为 `_packages/quicker.rpc/0.x.x/`。**发布时必须第三段 +1、R→0**（`quicker-qkbuild-version-publish`）；勿在仅 `-t` 后更新子程序 `launch_code` 调用新 API。
+
+### 何时必须第三段正式发布（不能只做 `-t`）
+
+- 新增/变更 `Launcher` 等 **对外 public API**，且 `QuickerRpc_Run` 或其它子程序会调用
+- 准备 `qkrpc action update` / 分享动作 / 告知用户「已发布可用」
+- QEE/QAL 行为变更且 QExpr 依赖新 DLL
+
+本地 `-t` 验完后：按 `quicker-rpc-publish` 或 `qkbuild … --publish -y --version X.Y.(Z+1).0` 发第三段包。
 
 ## 禁止
 
 - 用 GitHub Release 流程代替 `-t` 做日常改代码验证
+- **用 `-t` 代替第三段 `-Publish` 对外发布**（见 `quicker-qkbuild-version-publish`）
 - 将 `publish/cli`、`publish/plugin`、`QuickerRpc.Plugin/publish/*.zip` 提交 Git
 - 修改 `git config`
 
@@ -107,6 +119,7 @@ pwsh -NoProfile -File ./build.ps1 -t
 
 ## 相关
 
+- **版本号（第三段 +1 必守）**：`.cursor/skills/quicker-qkbuild-version-publish/SKILL.md`
 - agent-gui 前端报错捕获与修复：`.cursor/skills/quicker-agent-gui-frontend/SKILL.md`
 - 公开发布：`.cursor/skills/quicker-rpc-publish/SKILL.md`
 - 反射 / 查 Quicker 源码：`.cursor/skills/quicker-exe-type-probing/SKILL.md`

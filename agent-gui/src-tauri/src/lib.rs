@@ -17,20 +17,66 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 mod clipboard_history_plugin;
 mod global_shortcut;
 mod launcher;
+mod legacy_chat_restore;
 mod quicker_agent_paths;
 mod tray;
 mod voice_plugin;
 mod voice_plugin_install;
-mod win_job;
+mod webview_profile;
+pub(crate) mod win_job;
 
 static STARTUP_CANCELLED: AtomicBool = AtomicBool::new(false);
 static PRODUCTION_UI_READY: AtomicBool = AtomicBool::new(false);
 static EXIT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 const APP_REQUEST_EXIT_EVENT: &str = "app-request-exit";
+const SHUTDOWN_FORCE_EXIT_AFTER: Duration = Duration::from_secs(6);
+const SHUTDOWN_KILL_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Kill a child process tree with a bounded wait so shutdown cannot hang forever.
+pub(crate) fn kill_child_tree(child: &mut Child) {
+    #[cfg(windows)]
+    {
+        let pid = child.id();
+        match Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+        {
+            Ok(mut kill_proc) => {
+                let deadline = Instant::now() + SHUTDOWN_KILL_TIMEOUT;
+                while Instant::now() < deadline {
+                    match kill_proc.try_wait() {
+                        Ok(Some(_)) => return,
+                        Ok(None) => std::thread::sleep(Duration::from_millis(50)),
+                        Err(_) => break,
+                    }
+                }
+                let _ = kill_proc.kill();
+            }
+            Err(_) => {
+                let _ = child.kill();
+            }
+        }
+        return;
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = child.kill();
+        let deadline = Instant::now() + SHUTDOWN_KILL_TIMEOUT;
+        while Instant::now() < deadline {
+            if child.try_wait().ok().flatten().is_some() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+}
 
 struct BackendState {
     qkrpc: Mutex<Option<Child>>,
@@ -49,32 +95,15 @@ impl BackendState {
         }
     }
 
-    fn kill_child_tree(child: &mut Child) {
-        #[cfg(windows)]
-        {
-            let pid = child.id();
-            let _ = Command::new("taskkill")
-                .args(["/PID", &pid.to_string(), "/T", "/F"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .creation_flags(CREATE_NO_WINDOW)
-                .status();
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = child.kill();
-        }
-    }
-
     fn shutdown(&self) {
         if let Ok(mut guard) = self.qkrpc.lock() {
             if let Some(mut child) = guard.take() {
-                Self::kill_child_tree(&mut child);
+                kill_child_tree(&mut child);
             }
         }
         if let Ok(mut guard) = self.node.lock() {
             if let Some(mut child) = guard.take() {
-                Self::kill_child_tree(&mut child);
+                kill_child_tree(&mut child);
             }
         }
     }
@@ -99,6 +128,19 @@ fn find_port(host: &str, start: u16) -> Result<u16, String> {
         }
     }
     Err(format!("no free port from {start} on {host}"))
+}
+
+/// Keep bundled UI on 3000 when possible — localStorage is origin-scoped (127.0.0.1:port).
+const UI_PORT_PREFERRED: u16 = 3000;
+
+fn resolve_ui_port(host: &str) -> Result<u16, String> {
+    if TcpListener::bind((host, UI_PORT_PREFERRED)).is_ok() {
+        return Ok(UI_PORT_PREFERRED);
+    }
+    eprintln!(
+        "[startup] port {UI_PORT_PREFERRED} busy; using next free port — chat auto-restore may merge LevelDB from other origins"
+    );
+    find_port(host, UI_PORT_PREFERRED)
 }
 
 /// Reuse an existing qkrpc serve when /health already responds on the default port.
@@ -331,7 +373,7 @@ fn prepare_production_runtime(app: &AppHandle) -> Result<ProductionRuntimeConfig
     }
 
     let (qkrpc_port, should_spawn_qkrpc) = resolve_qkrpc_port(&host)?;
-    let ui_port = find_port(&host, 3000)?;
+    let ui_port = resolve_ui_port(&host)?;
 
     let qkrpc_url = format!("http://{host}:{qkrpc_port}");
     std::env::set_var("QKRPC_HTTP_URL", &qkrpc_url);
@@ -395,7 +437,7 @@ fn spawn_qkrpc_background(app: AppHandle, config: ProductionRuntimeConfig) {
 
         if STARTUP_CANCELLED.load(Ordering::SeqCst) {
             if let Ok(mut child) = result {
-                BackendState::kill_child_tree(&mut child);
+                kill_child_tree(&mut child);
             }
             return;
         }
@@ -435,7 +477,7 @@ fn spawn_node_background(app: AppHandle, config: ProductionRuntimeConfig) {
 
         if STARTUP_CANCELLED.load(Ordering::SeqCst) {
             if let Ok(mut child) = result {
-                BackendState::kill_child_tree(&mut child);
+                kill_child_tree(&mut child);
             }
             return;
         }
@@ -512,6 +554,10 @@ fn open_production_ui(app: &AppHandle, ui_url: &str) {
 
 fn spawn_production_startup(app: AppHandle) {
     std::thread::spawn(move || {
+        if let Err(err) = voice_plugin_install::apply_pending_runtime_upgrade() {
+            eprintln!("[voice-plugin] apply pending runtime upgrade failed: {err}");
+        }
+
         emit_startup_status(&app, "正在初始化…");
 
         let config = match prepare_production_runtime(&app) {
@@ -531,7 +577,9 @@ fn spawn_production_startup(app: AppHandle) {
         emit_startup_status(&app, "正在启动语音服务…");
         voice_plugin::spawn_voice_runtime_background(app.clone());
 
-        emit_startup_status(&app, "正在启动剪贴板服务…");
+        if clipboard_history_plugin::read_clipboard_auto_start() {
+            emit_startup_status(&app, "正在启动剪贴板服务…");
+        }
         clipboard_history_plugin::spawn_clipboard_runtime_background(app.clone());
 
         spawn_qkrpc_background(app.clone(), config.clone());
@@ -547,15 +595,24 @@ fn run_app_shutdown<R: tauri::Runtime>(app: &AppHandle<R>) {
     app.state::<clipboard_history_plugin::ClipboardHistoryPluginState>()
         .inner()
         .shutdown();
-    if let Err(err) = voice_plugin_install::apply_pending_runtime_upgrade() {
-        eprintln!("[voice-plugin] apply runtime upgrade failed: {err}");
-    }
 }
 
 pub(crate) fn spawn_shutdown_and_exit<R: tauri::Runtime>(app: AppHandle<R>) {
     if EXIT_IN_PROGRESS.swap(true, Ordering::SeqCst) {
         return;
     }
+
+    let watchdog_app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(SHUTDOWN_FORCE_EXIT_AFTER);
+        eprintln!(
+            "[shutdown] timed out after {}s; forcing exit",
+            SHUTDOWN_FORCE_EXIT_AFTER.as_secs()
+        );
+        let _ = watchdog_app.exit(0);
+        std::thread::sleep(Duration::from_millis(200));
+        std::process::exit(0);
+    });
 
     std::thread::spawn(move || {
         run_app_shutdown(&app);
@@ -569,6 +626,12 @@ pub(crate) fn spawn_shutdown_and_exit<R: tauri::Runtime>(app: AppHandle<R>) {
 #[tauri::command]
 fn graceful_exit(app: AppHandle) {
     spawn_shutdown_and_exit(app);
+}
+
+/// Stop bundled qkrpc/node (and plugin runtimes) without exiting — call before NSIS update install.
+#[tauri::command]
+fn prepare_for_update_install(app: AppHandle) {
+    run_app_shutdown(&app);
 }
 
 fn handle_main_window_close_requested<R: tauri::Runtime>(
@@ -647,6 +710,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             graceful_exit,
+            prepare_for_update_install,
             launcher::launcher_show,
             launcher::launcher_hide,
             launcher::launcher_toggle,
@@ -660,6 +724,10 @@ pub fn run() {
             clipboard_history_plugin::clipboard_history_runtime_health,
             clipboard_history_plugin::clipboard_history_plugin_start_runtime,
             clipboard_history_plugin::clipboard_history_plugin_stop_runtime,
+            clipboard_history_plugin::clipboard_history_plugin_read_settings,
+            clipboard_history_plugin::clipboard_history_plugin_write_settings,
+            webview_profile::webview_profile_paths,
+            legacy_chat_restore::legacy_chat_store_scan,
         ])
         .manage(BackendState::new())
         .manage(voice_plugin::VoicePluginState::new())
@@ -686,14 +754,9 @@ pub fn run() {
                 {
                     voice_plugin::spawn_voice_runtime_background(app.handle().clone());
                 }
-                if std::env::var("AGENT_GUI_CLIPBOARD_RUNTIME")
-                    .ok()
-                    .is_some_and(|value| value == "1")
-                {
-                    clipboard_history_plugin::spawn_clipboard_runtime_background(
-                        app.handle().clone(),
-                    );
-                }
+                clipboard_history_plugin::spawn_clipboard_runtime_background(
+                    app.handle().clone(),
+                );
                 Ok(())
             } else {
                 if let Some(win) = app.get_webview_window("main") {

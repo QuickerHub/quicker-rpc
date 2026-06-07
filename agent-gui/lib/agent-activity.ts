@@ -6,6 +6,9 @@ import {
   type UIMessage,
 } from "ai";
 import { isHiddenChatTool } from "@/lib/hidden-chat-tools";
+import {
+  isAskQuestionAwaitingInput,
+} from "@/lib/ask-question-tool";
 import { QKRPC_TOOL_REGISTRY } from "@/lib/tool-registry";
 
 function formatToolDisplayName(toolName: string): string {
@@ -55,14 +58,23 @@ export function resolveAgentActivity(input: {
   qkrpcOk: boolean;
   qkrpcLoading: boolean;
   pendingApprovalCount: number;
+  pendingAskQuestionCount?: number;
 }): AgentActivity | null {
   const busy =
     input.chatStatus === "submitted" || input.chatStatus === "streaming";
+  const pendingAsk = input.pendingAskQuestionCount ?? 0;
 
   if (input.pendingApprovalCount > 0 && !busy) {
     return {
       phase: "approval",
       label: `等待确认 ${input.pendingApprovalCount} 个操作…`,
+    };
+  }
+
+  if (pendingAsk > 0 && !busy) {
+    return {
+      phase: "approval",
+      label: pendingAsk === 1 ? "等待你的选择…" : `等待 ${pendingAsk} 个选择…`,
     };
   }
 
@@ -106,6 +118,9 @@ export function resolveAgentActivity(input: {
   }
 
   if (runningTool) {
+    if (isAskQuestionAwaitingInput(runningTool, "input-available")) {
+      return { phase: "approval", label: "等待你的选择…" };
+    }
     return {
       phase: "tool",
       label: `正在执行 · ${toolActivityLabel(runningTool)}…`,

@@ -171,6 +171,16 @@
     },
     "source": "schemas/form-spec.md"
   },
+  "webview2-authoring": {
+    "title": "WebView2 页面",
+    "description": "sys:webview2：files/*.html 外置、virtualHostToFolder 与 Agent 侧 browser 右栏预览。Use when authoring WebView2 HTML UI before patch.",
+    "allowed-tools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit workspace_action_patch browser qkrpc_action debug",
+    "metadata": {
+      "phase": "P4-P6",
+      "layer": "schema"
+    },
+    "source": "schemas/webview2-authoring.md"
+  },
   "common-operation-item": {
     "title": "操作项文本语法",
     "description": "CommonOperationItem 多行文本：动作 ContextMenuData 右键菜单、[图标]标题(提示)|数据、子菜单与 quicker_in_param。Use when editing action context menus or SelectionItems-shaped text.",

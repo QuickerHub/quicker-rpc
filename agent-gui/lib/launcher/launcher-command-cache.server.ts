@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isTextUIPart } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
-import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
+import { resolvePersistedDataFilePath } from "@/lib/quicker-agent-persisted-data";
 import { defaultLauncherToolIds } from "@/lib/chat-mode";
 import { newRandomId } from "@/lib/new-id";
 import {
@@ -43,7 +43,7 @@ const ALLOWED_CACHE_TOOL_NAMES = new Set(
 let cache: LauncherCommandCacheFile | null = null;
 
 export function resolveLauncherCommandCachePath(): string {
-  return join(resolveAgentGuiRoot(), ".local", "launcher-command-cache.json");
+  return resolvePersistedDataFilePath("launcher-command-cache.json");
 }
 
 function emptyCacheFile(): LauncherCommandCacheFile {

@@ -10,6 +10,7 @@ import {
   resolveVisibleMessageStart,
   resolveVisibleTurnStart,
   shouldTrimWindowAtBottom,
+  turnIndicesPrepended,
 } from "./chat-message-window.ts";
 
 test("findTurnIndexForMessageIndex maps message index to turn", () => {
@@ -80,7 +81,13 @@ test("nextExpandedTurnCount caps at total", () => {
 
 test("resolveEffectiveTurnWindow caps while streaming", () => {
   assert.equal(resolveEffectiveTurnWindow(12, true), CHAT_MESSAGE_WINDOW_STREAMING_TURNS);
-  assert.equal(resolveEffectiveTurnWindow(12, false), CHAT_MESSAGE_WINDOW_DEFAULT_TURNS);
+  assert.equal(resolveEffectiveTurnWindow(12, false), 12);
+});
+
+test("turnIndicesPrepended lists newly mounted older turns", () => {
+  assert.deepEqual(turnIndicesPrepended(8, 5), [5, 6, 7]);
+  assert.deepEqual(turnIndicesPrepended(3, 3), []);
+  assert.deepEqual(turnIndicesPrepended(2, 5), []);
 });
 
 test("isHotTurnIndex keeps only recent turns hot", () => {

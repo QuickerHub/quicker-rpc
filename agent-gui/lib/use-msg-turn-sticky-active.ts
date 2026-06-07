@@ -39,14 +39,23 @@ export function shouldActivateMsgTurnSticky(
   return turnContentHeight > threshold + STICKY_HYSTERESIS_PX;
 }
 
+/**
+ * Enable fill-scrollport on the last turn when content is taller than the viewport.
+ * Resizes are handled via ResizeObserver; pass a stable resetKey (e.g. threadId).
+ */
 export function useMsgTurnStickyActive(
   messagesRef: RefObject<HTMLElement | null>,
   turnRef: RefObject<HTMLElement | null>,
   enabled: boolean,
-  revision: unknown,
+  resetKey: string,
 ): boolean {
   const [active, setActive] = useState(false);
   const activeRef = useRef(false);
+
+  useLayoutEffect(() => {
+    activeRef.current = false;
+    setActive(false);
+  }, [resetKey]);
 
   useLayoutEffect(() => {
     if (!enabled) {
@@ -84,11 +93,7 @@ export function useMsgTurnStickyActive(
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(messages);
-    for (const child of turn.children) {
-      if (child instanceof HTMLElement) {
-        observer.observe(child);
-      }
-    }
+    observer.observe(turn);
     messages.addEventListener("scroll", measure, { passive: true });
 
     return () => {
@@ -96,7 +101,7 @@ export function useMsgTurnStickyActive(
       observer.disconnect();
       messages.removeEventListener("scroll", measure);
     };
-  }, [enabled, messagesRef, turnRef, revision]);
+  }, [enabled, messagesRef, turnRef, resetKey]);
 
   return active;
 }

@@ -484,6 +484,55 @@ test("getWorkspaceFileEditorPreview write-data uses pre-write snapshot", () => {
   });
 });
 
+test("getWorkspaceFileEditorPreview streaming file-edit omits diff", () => {
+  const preview = getWorkspaceFileEditorPreview(
+    "workspace_action_file_edit",
+    {
+      id: "9f488bbb-348c-4966-8be0-1c362b8c7a93",
+      path: "files/app.html",
+      oldString: "<title>旧</title>",
+      newString: "<title>新</title>\n<body>",
+    },
+    undefined,
+    { streaming: true },
+  );
+  assert.ok(preview);
+  assert.equal(preview!.content, "<title>新</title>\n<body>");
+  assert.equal(preview!.diff, undefined);
+});
+
+test("getWorkspaceFileEditorPreview streaming file-write omits diff", () => {
+  const preview = getWorkspaceFileEditorPreview(
+    "workspace_action_file_write",
+    {
+      id: "9f488bbb-348c-4966-8be0-1c362b8c7a93",
+      path: "files/app.html",
+      content: "<!DOCTYPE html>\n<html>",
+    },
+    undefined,
+    { streaming: true },
+  );
+  assert.ok(preview);
+  assert.equal(preview!.content, "<!DOCTYPE html>\n<html>");
+  assert.equal(preview!.diff, undefined);
+});
+
+test("getWorkspaceFileEditorPreview completed file-edit includes diff", () => {
+  const preview = getWorkspaceFileEditorPreview(
+    "workspace_action_file_edit",
+    {
+      id: "9f488bbb-348c-4966-8be0-1c362b8c7a93",
+      path: "files/app.html",
+      oldString: "line1",
+      newString: "line1\nline2",
+    },
+    { action: "file-edit", success: true, path: "files/app.html", replacements: 1 },
+  );
+  assert.ok(preview?.diff);
+  const stat = buildEditStat(preview!.diff!.removed, preview!.diff!.added);
+  assert.ok((stat.addLines ?? 0) > 0);
+});
+
 test("parses action-data-write payload", () => {
   const payload = parseWorkspaceFilePayload("workspace_action_write_data", {
     action: "action-data-write",

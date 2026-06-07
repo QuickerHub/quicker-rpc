@@ -66,6 +66,8 @@ Invoke-RestMethod http://127.0.0.1:3000/api/dev/frontend-check
 
 ## 发布
 
+**getquicker 正式包必守第三段 +1（`X.Y.Z.R` → `X.Y.(Z+1).0`）**：`-t` 仅 revision，不能代替 `-Publish`；**`version.json` 只能递增、禁止减小**。细则：`.cursor/skills/quicker-qkbuild-version-publish/SKILL.md`。
+
 ```powershell
 # CLI → GitHub Releases（用户 irm | iex 安装）
 .\publish\Publish-GitHubRelease.ps1
@@ -75,7 +77,7 @@ Invoke-RestMethod http://127.0.0.1:3000/api/dev/frontend-check
 
 **用户安装：** [Releases](https://github.com/QuickerHub/quicker-rpc/releases/latest) → 下载并运行 **`qkrpc-win-x64-setup.exe`**（单文件安装包，无需脚本）。
 
-**Cursor**：改 **Plugin / Console / Contracts / AgentModel** 后 **Agent 自动** `build.ps1 -t`（见上文「开发热更新」）；也可用 **`/hot-update`**。skill：`quicker-rpc-build-test`。改 **agent-gui UI** → `quicker-agent-gui-frontend`（`dev_frontend_check`，**不**跑 `-t`）。改 **`llm-publish.config.json`** → `quicker-agent-gui-llm-publish-config`（`Sync-LlmPublishConfig.ps1` 或 **`/sync-llm-publish-config`**）。公开发布 **`/publish`** → `quicker-rpc-publish`。**动作页说明** → `quicker-action-doc`。
+**Cursor**：改 **Plugin / Console / Contracts / AgentModel** 后 **Agent 自动** `build.ps1 -t`（见上文「开发热更新」）；也可用 **`/hot-update`**。skill：`quicker-rpc-build-test`。改 **agent-gui UI** → `quicker-agent-gui-frontend`（`dev_frontend_check`，**不**跑 `-t`）。改 **动作设计器 / step 字段编辑**（`agent-gui/lib/action-editor/**`）→ `quicker-action-designer-ui`（UI 源自 `../Quicker/Quicker.Designer`，字段行为对齐 `../Quicker/QuickerPc/Quicker` 的 `ActionDesignerWindow` / `StepEditor`）。改 **`llm-publish.config.json`** → `quicker-agent-gui-llm-publish-config`（`Sync-LlmPublishConfig.ps1` 或 **`/sync-llm-publish-config`**）。公开发布 **`/publish`** → `quicker-rpc-publish` + **`quicker-qkbuild-version-publish`**（第三段 +1）。**动作页说明** → `quicker-action-doc`。
 
 | 产物 | 路径 |
 |------|------|
@@ -175,9 +177,13 @@ $env:QUICKER_RPC_TEST_CLIPBOARD_N10_ACTION_ID = "32c12786-9bb8-4b0c-8d55-7e6a4c8
 $env:QUICKER_RPC_TEST_SUBPROGRAM = "某子程序名"
 ```
 
+## 动作设计器 UI（action-editor）
+
+Web 动作设计器在 **`agent-gui/lib/action-editor/`**。**UI 设计来源**为 sibling 仓库 **`../Quicker/Quicker.Designer`**（`Quicker.Designer.Web`）；当前重点是把 **双击 step 弹窗内各字段**的编辑细节与桌面 **`../Quicker/QuickerPc/Quicker`** 的 `ActionDesignerWindow`、`View/X/StepEditor/**` 对齐。细则：`.cursor/skills/quicker-action-designer-ui/SKILL.md`。
+
 ## Quicker 源码参考（反射 / 实现原理）
 
-可选：维护者本机 `.ref/Quicker/`（gitignore，不在本仓库；无公开克隆说明）。有则 `rg` 查 Debug 类型名；无则靠本仓库封装与 exe 探测。
+可选：维护者本机 `.ref/Quicker/`（gitignore，不在本仓库；无公开克隆说明）。有则 `rg` 查 Debug 类型名；无则靠本仓库封装与 exe 探测。动作设计器 WPF 对照见上一节与 `quicker-action-designer-ui` skill。
 
 | 手段 | 用途 |
 |------|------|

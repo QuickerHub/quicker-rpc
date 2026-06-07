@@ -56,6 +56,11 @@ if ([string]::IsNullOrWhiteSpace($quickerRpcVersion)) {
     throw "version.json missing QuickerRpc string."
 }
 
+Assert-QuickerRpcVersionMonotonic `
+    -RepoRoot $RepoRoot `
+    -CandidateVersion $quickerRpcVersion `
+    -AllowEqual:$ForceRetag
+
 $semantic = if ($TagVersion) {
     Get-QuickerRpcSemVerFromVersion -Version $TagVersion
 }

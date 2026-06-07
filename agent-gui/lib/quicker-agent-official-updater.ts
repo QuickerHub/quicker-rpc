@@ -110,6 +110,20 @@ export async function downloadPendingOfficialUpdate(
   return update;
 }
 
+const UPDATE_INSTALL_RELEASE_DELAY_MS = 1500;
+
+async function prepareForUpdateInstall(): Promise<void> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("prepare_for_update_install");
+  } catch {
+    // Ignore when Tauri invoke is unavailable.
+  }
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, UPDATE_INSTALL_RELEASE_DELAY_MS);
+  });
+}
+
 function formatInstallError(err: unknown): string {
   const text = err instanceof Error ? err.message : String(err);
   if (/740|elevation|administrator|requires elevation|权限/i.test(text)) {
@@ -137,6 +151,7 @@ export async function installPendingOfficialUpdateAndRelaunch(
   });
 
   try {
+    await prepareForUpdateInstall();
     await update.install();
   } catch (err) {
     throw new Error(formatInstallError(err));
@@ -163,6 +178,7 @@ export async function installPendingOfficialUpdateAndRelaunch(
 export async function installPendingOfficialUpdateOnExit(): Promise<void> {
   const update = pendingUpdate;
   if (!update || !pendingDownloaded) return;
+  await prepareForUpdateInstall();
   await update.install();
   clearPendingOfficialUpdate();
 }

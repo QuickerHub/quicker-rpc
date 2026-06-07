@@ -45,8 +45,13 @@ import {
 } from "@/lib/launcher/launcher-resolve-tool";
 import { BROWSER_TOOL_DEF } from "@/lib/browser-tool.server";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
+import {
+  ASK_QUESTION_TOOL,
+  ASK_QUESTION_TOOL_DEF,
+} from "@/lib/ask-question-tool";
 
 export const quickerTools = {
+  [ASK_QUESTION_TOOL]: ASK_QUESTION_TOOL_DEF,
   [SET_THREAD_TITLE_TOOL]: SET_THREAD_TITLE_TOOL_DEF,
   [LAUNCHER_COMMAND_CACHE_TOOL]: LAUNCHER_COMMAND_CACHE_TOOL_DEF,
   [LAUNCHER_RESOLVE_TOOL]: LAUNCHER_RESOLVE_TOOL_DEF,

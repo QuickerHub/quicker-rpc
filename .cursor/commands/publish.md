@@ -1,12 +1,19 @@
 # quicker-rpc 公开发布（GitHub Release + Quicker 动作）
 
-在 **quicker-rpc 仓库根目录** 执行。先 **Read** skill：`.cursor/skills/quicker-rpc-publish/SKILL.md`。
+在 **quicker-rpc 仓库根目录** 执行。先 **Read** skill：`.cursor/skills/quicker-rpc-publish/SKILL.md` 与 `.cursor/skills/quicker-qkbuild-version-publish/SKILL.md`（**第三段 +1、版本只增不减**）。
+
+## 版本号（必守）
+
+- `version.json` → `QuickerRpc` **只能向前递增，禁止减小或回退**（含 `--version` 显式指定）。
+- **新一次公开发布**：在已有 tag / 已发布版本之上 **严格更大**（通常 **第三段 +1、第四段 → 0**）。
+- **同版本重传**（仅阶段三）：`build.ps1 -Publish -NoVersion` 允许与 baseline **相等**；仍 **禁止更小**。
+- 脚本会校验：`Publish-GitHubRelease.ps1`、`build.ps1 -Publish`（见 `publish/qkrpc-publish-lib.ps1` → `Assert-QuickerRpcVersionMonotonic`）。
 
 ## 阶段一：前置
 
 1. `git status`、当前分支；工作区应已提交（Release 会打 tag 到 `HEAD`）。
 2. **Read** `version.json` → 记录 `QuickerRpc` 四段版本；tag 取前三段（如 `0.3.11.0` → `v0.3.11`）。
-3. 若 tag 已存在或需新版本，先改 `version.json` 并 commit，再发布。
+3. 对照 **最新 git tag** 与 **origin/main 上 `version.json`**：新版本必须 **大于** 历史最大值；再 **第三段 +1、第四段 → 0** bump 并 commit（**禁止**仅 revision +1 就当正式包发布；**禁止**把版本改小）。见 `quicker-qkbuild-version-publish`。
 4. 浏览 `git log`（自上一 tag 或近几次 commit），**撰写 changelog** 写入 `publish/changelogs/vX.Y.Z.md` 并 **commit**（CI 从 tag 指向的 commit 读取此文件）。
 5. （可选）单独阻塞预检：`pwsh -NoProfile -File ./publish/Test-QuickerAgentReleaseBuild.ps1`（`block_until_ms` ≥ **600000**）。默认不必先跑——发布脚本会与 CI **并行**启动预检。
 
@@ -110,3 +117,6 @@ https://github.com/QuickerHub/quicker-rpc/releases/latest/download/qkrpc-win-x64
 - 未经用户确认 force push tag / 删除已有 Release
 - 未 commit `publish/changelogs/vX.Y.Z.md` 就 push tag（CI 会覆盖 Release 说明）
 - 不看 `%TEMP%\qkrpc-preflight-*.log` 就反复打 tag（应先本地修好再 `-ForceRetag`）
+- **仅用 `build.ps1 -t`（revision）代替第三段 `-Publish -NoVersion`** 或跳过第三段 bump（会导致子程序/QExpr 拉到旧 DLL）
+- **减小或回退 `version.json` 的 `QuickerRpc`**（只能单调递增；脚本会拒绝）
+- 在未 bump 的情况下对 **已存在 tag 的同版本** 打新 Release（除非 `-ForceRetag` 且用户确认）

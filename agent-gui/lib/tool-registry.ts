@@ -82,6 +82,13 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "检测 agent-gui 本地 dev 页面/编译/浏览器报错（开发模式）",
   },
   {
+    id: "ask_question",
+    label: "询问选项",
+    group: "read",
+    category: "runtime",
+    description: "在聊天中展示选择题并等待用户点选（可多选）",
+  },
+  {
     id: "llm_settings",
     label: "模型配置",
     group: "write",

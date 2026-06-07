@@ -112,20 +112,31 @@ export function resolveEffectiveTurnWindow(
   visibleTurnCount: number,
   streamingActive: boolean,
 ): number {
-  const cap = streamingActive
-    ? CHAT_MESSAGE_WINDOW_STREAMING_TURNS
-    : CHAT_MESSAGE_WINDOW_DEFAULT_TURNS;
-  return Math.min(Math.max(visibleTurnCount, 1), cap);
+  const clamped = Math.max(visibleTurnCount, 1);
+  if (!streamingActive) return clamped;
+  return Math.min(clamped, CHAT_MESSAGE_WINDOW_STREAMING_TURNS);
 }
 
 export function resolveEffectiveMessageWindow(
   visibleMessageCount: number,
   streamingActive: boolean,
 ): number {
-  const cap = streamingActive
-    ? CHAT_MESSAGE_WINDOW_STREAMING_MESSAGES
-    : CHAT_MESSAGE_WINDOW_DEFAULT_MESSAGES;
-  return Math.min(Math.max(visibleMessageCount, 1), cap);
+  const clamped = Math.max(visibleMessageCount, 1);
+  if (!streamingActive) return clamped;
+  return Math.min(clamped, CHAT_MESSAGE_WINDOW_STREAMING_MESSAGES);
+}
+
+/** Turn indices that entered the mounted window after scrolling/loading older history. */
+export function turnIndicesPrepended(
+  previousStartTurnIndex: number,
+  nextStartTurnIndex: number,
+): number[] {
+  if (nextStartTurnIndex >= previousStartTurnIndex) return [];
+  const indices: number[] = [];
+  for (let i = nextStartTurnIndex; i < previousStartTurnIndex; i += 1) {
+    indices.push(i);
+  }
+  return indices;
 }
 
 /** Last N turns render full message bodies; older turns in the window use placeholders. */

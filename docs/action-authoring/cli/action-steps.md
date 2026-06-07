@@ -62,6 +62,7 @@
 | 一两行表达式、短文本 | `"value": "…"` 即可 |
 | 绑定变量 | `"varKey": "…"` |
 | **`sys:form` 的 `formDef`** | **默认** `{ "file": "files/*.form.json" }`（`qkrpc.form.v1`，通常很长）→ **`form-spec`** |
+| **`sys:webview2` 的 `url`（HTML）** | **默认** `{ "file": "files/*.html" }` → **`webview2-authoring`** |
 
 参数键名（`script`、`expression`、`code` 等）以 step-runner schema 为准；是否支持 `file` 以该参数定义为准（多数长文本参数支持）。
 

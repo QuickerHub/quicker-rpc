@@ -59,7 +59,8 @@ qkrpc_action_set_metadata({ id: "<guid>", icon: "fa:Light_<Name>", expectedEditV
 
 1. **数据逻辑默认表达式**：Split/LINQ/JSON/多变量赋值 → **`$=` 或 `sys:evalexpression`**（勿先写 `sys:csscript` 整段 `Exec`）。
 2. **UI/IO** → P5 专用模块（剪贴板、HTTP、文件等）。
-3. **表达式仍不够** → **`sys:csscript`**；极短系统命令 → `sys:runScript`。
+3. **自定义 HTML 界面** → **`sys:webview2`** + **`webview2-authoring`**（`files/*.html` 外置；patch 前用 **`browser`** 右栏预览）。
+4. **表达式仍不够** → **`sys:csscript`**；极短系统命令 → `sys:runScript`。
 
 ## P5 步骤 schema（每个新/改步骤）
 
@@ -108,4 +109,4 @@ edit_data / write_data 响应中的 projectSummary
 
 ## 相关
 
-`overview` · `workspace-editing` · `action-variables` · `action-steps` · `implementation-fallback` · `expressions` · `subprogram-workflow` · `step-runner-search`
+`overview` · `workspace-editing` · `action-variables` · `action-steps` · `webview2-authoring` · `implementation-fallback` · `expressions` · `subprogram-workflow` · `step-runner-search`

@@ -19,6 +19,7 @@ export type LauncherSessionSyncMessage = {
   status: string;
   error: string | null;
   pendingApprovalCount: number;
+  pendingAskQuestionCount?: number;
 };
 
 export type LauncherSessionClearMessage = {
@@ -69,6 +70,7 @@ export function postLauncherSessionSync(payload: {
   status: string;
   error: string | null;
   pendingApprovalCount: number;
+  pendingAskQuestionCount?: number;
 }): void {
   postLauncherMessage({
     type: "agent:session-sync",
@@ -137,6 +139,10 @@ export function subscribeLauncherBridge(
         pendingApprovalCount:
           typeof payload.pendingApprovalCount === "number"
             ? payload.pendingApprovalCount
+            : 0,
+        pendingAskQuestionCount:
+          typeof payload.pendingAskQuestionCount === "number"
+            ? payload.pendingAskQuestionCount
             : 0,
       });
       return;

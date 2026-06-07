@@ -64,7 +64,84 @@ internal static class ActionExecuteContextProbe
             return directValue?.ToString();
         }
 
+        var fromVariable = TryGetQuickerInParamVariable(context);
+        if (!string.IsNullOrWhiteSpace(fromVariable))
+        {
+            return fromVariable;
+        }
+
         return TryReadStringProperty(context, "InputParam", "QuickerInParam", "InParam", "ActionInParam");
+    }
+
+    /// <summary>
+    /// Context-menu and subprogram flows expose <c>quicker_in_param</c> as an action variable on the root context.
+    /// </summary>
+    private static string? TryGetQuickerInParamVariable(IActionContext context)
+    {
+        foreach (var ctx in EnumerateContextChain(context))
+        {
+            if (ctx is not IActionContext actionContext)
+            {
+                continue;
+            }
+
+            try
+            {
+                var value = actionContext.GetVarValue("quicker_in_param");
+                if (value is string text && !string.IsNullOrWhiteSpace(text))
+                {
+                    return text;
+                }
+
+                if (value is not null && !string.IsNullOrWhiteSpace(value.ToString()))
+                {
+                    return value.ToString();
+                }
+            }
+            catch
+            {
+                // Ignore missing variable or obfuscated API failures.
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<object> EnumerateContextChain(IActionContext context)
+    {
+        var visited = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        IActionContext? current = context;
+        while (current is not null && visited.Add(current))
+        {
+            yield return current;
+
+            IActionContext? root = null;
+            try
+            {
+                root = current.GetRootContext();
+            }
+            catch
+            {
+                // Ignore.
+            }
+
+            if (root is not null && !ReferenceEquals(root, current) && visited.Add(root))
+            {
+                yield return root;
+            }
+
+            IActionContext? parent = null;
+            try
+            {
+                parent = current.GetParentContext();
+            }
+            catch
+            {
+                // Ignore.
+            }
+
+            current = parent;
+        }
     }
 
     private static object ResolveEffectiveContextObject(IActionContext context)

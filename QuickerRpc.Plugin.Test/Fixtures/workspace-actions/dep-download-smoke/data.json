@@ -1,0 +1,52 @@
+{
+  "steps": [
+    {
+      "stepId": "s-dep",
+      "stepRunnerKey": "sys:subprogram",
+      "inputParams": {
+        "subProgram": {
+          "value": "%%a7d5c0aa-80a5-4b5b-9bd1-a41bab5b2053"
+        },
+        "var:package_name": {
+          "value": "quicker.rpc"
+        },
+        "var:zip_filename": {
+          "value": "QuickerRpc.Plugin"
+        },
+        "var:version": {
+          "varKey": "version"
+        },
+        "var:auto_register_dll": {
+          "value": "false"
+        },
+        "stopIfFail": {
+          "value": "1"
+        }
+      },
+      "outputParams": {
+        "var:dll_path": "dll_path",
+        "var:version": "version",
+        "var:package_path": "package_path",
+        "var:package_version": "package_version"
+      }
+    }
+  ],
+  "variables": [
+    {
+      "key": "version",
+      "defaultValue": "0.12.0.0"
+    },
+    {
+      "key": "dll_path",
+      "defaultValue": ""
+    },
+    {
+      "key": "package_path",
+      "defaultValue": ""
+    },
+    {
+      "key": "package_version",
+      "defaultValue": ""
+    }
+  ]
+}

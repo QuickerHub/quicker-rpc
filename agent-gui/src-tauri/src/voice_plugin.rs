@@ -35,19 +35,43 @@ struct VoiceManifestRuntime {
 
 pub struct VoicePluginState {
     pub(crate) child: Mutex<Option<Child>>,
+    #[cfg(windows)]
+    job: Mutex<Option<crate::win_job::KillOnCloseJob>>,
 }
 
 impl VoicePluginState {
     pub fn new() -> Self {
         Self {
             child: Mutex::new(None),
+            #[cfg(windows)]
+            job: Mutex::new(crate::win_job::KillOnCloseJob::new().ok()),
         }
+    }
+
+    fn track_child(&self, child: Child) -> Child {
+        #[cfg(windows)]
+        if let Ok(job_guard) = self.job.lock() {
+            if let Some(job) = job_guard.as_ref() {
+                if let Err(err) = job.assign_child(&child) {
+                    eprintln!("[voice-plugin] child job assign failed: {err}");
+                }
+            }
+        }
+        child
+    }
+
+    fn owned_child_running(&self) -> bool {
+        self.child
+            .lock()
+            .ok()
+            .and_then(|mut guard| guard.as_mut().map(|child| child_still_running(child)))
+            .unwrap_or(false)
     }
 
     pub fn shutdown(&self) {
         if let Ok(mut guard) = self.child.lock() {
             if let Some(mut child) = guard.take() {
-                kill_child_tree(&mut child);
+                crate::kill_child_tree(&mut child);
             }
         }
     }
@@ -78,23 +102,6 @@ fn runtime_exe_relative(manifest: Option<&VoiceManifest>) -> String {
         .and_then(|m| m.runtime.as_ref())
         .and_then(|r| r.exe.clone())
         .unwrap_or_else(|| DEFAULT_RUNTIME_EXE.to_string())
-}
-
-fn kill_child_tree(child: &mut Child) {
-    #[cfg(windows)]
-    {
-        let pid = child.id();
-        let _ = Command::new("taskkill")
-            .args(["/PID", &pid.to_string(), "/T", "/F"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .creation_flags(CREATE_NO_WINDOW)
-            .status();
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = child.kill();
-    }
 }
 
 fn child_still_running(child: &mut Child) -> bool {
@@ -297,9 +304,15 @@ fn running_status_dto(
 }
 
 fn store_runtime_child(state: &VoicePluginState, child: Child) {
+    let child = state.track_child(child);
     if let Ok(mut guard) = state.child.lock() {
         *guard = Some(child);
     }
+}
+
+/// Stop any process listening on the voice port (orphans from prior sessions).
+fn reclaim_voice_port(port: u16) {
+    kill_listener_on_port(port);
 }
 
 fn spawn_installed_runtime_ws(root: &Path, exe_rel: &str, port: u16) -> Result<Child, String> {
@@ -449,9 +462,6 @@ fn build_status(state: &VoicePluginState) -> VoicePluginStatusDto {
     };
 
     let port = voice_ws_port();
-    if fully_installed && voice_runtime_ready(port) {
-        return running_status_dto(true, plugin_dir.clone(), port);
-    }
 
     if let Some(dto) = ws_status_from_child(state, fully_installed, plugin_dir.clone(), port) {
         return dto;
@@ -518,27 +528,18 @@ fn start_runtime_inner(state: &VoicePluginState) -> VoicePluginStatusDto {
 
     let port = voice_ws_port();
     let fully_installed = crate::voice_plugin_install::is_voice_asr_installed(&root);
-    if fully_installed && voice_runtime_ready(port) {
-        return running_status_dto(true, plugin_dir.clone(), port);
-    }
 
     if let Some(dto) = ws_status_from_child(state, fully_installed, plugin_dir.clone(), port) {
-        if dto.running {
+        if dto.running || dto.status == "starting" {
             return dto;
         }
     }
 
-    if state
-        .child
-        .lock()
-        .ok()
-        .and_then(|g| g.as_ref().map(|c| c.id()))
-        .is_some()
-    {
+    if state.owned_child_running() {
         return build_status(state);
     }
 
-    kill_listener_on_port(port);
+    reclaim_voice_port(port);
 
     let spawn_result = if fully_installed {
         let exe_rel = runtime_exe_relative(manifest.as_ref());
@@ -587,19 +588,29 @@ pub fn ensure_voice_runtime(app: &AppHandle) {
     if !read_voice_auto_start() {
         return;
     }
+    let state = app.state::<VoicePluginState>();
+    let inner = state.inner();
+    reconcile_child(inner);
+
     let port = voice_ws_port();
-    if voice_runtime_ready(port) {
+    if inner.owned_child_running() {
         return;
     }
-    let state = app.state::<VoicePluginState>();
-    let status = build_status(state.inner());
-    if status.running {
+
+    let status = build_status(inner);
+    if status.running || status.status == "starting" {
         return;
     }
     if status.status == "not_installed" || status.status == "downloading" {
         return;
     }
-    let _ = start_runtime_inner(state.inner());
+
+    // Reclaim orphaned voice-asr on the port and spawn an owned child.
+    if voice_runtime_ready(port) {
+        reclaim_voice_port(port);
+    }
+
+    let _ = start_runtime_inner(inner);
 }
 
 fn run_background_voice_tasks(app: &AppHandle) {
@@ -660,12 +671,13 @@ pub fn voice_plugin_install(
 
 #[tauri::command]
 pub fn voice_plugin_stop_runtime(state: State<'_, VoicePluginState>) -> VoicePluginStatusDto {
-    state.shutdown();
+    state.inner().shutdown();
+    reclaim_voice_port(voice_ws_port());
     let mut dto = build_status(&state);
     if dto.status == "running" || dto.status == "starting" {
         dto.status = "stopped".into();
         dto.running = false;
-        dto.message = Some("已停止 Host 托管的 Runtime 进程".into());
+        dto.message = Some("已停止语音 Runtime".into());
     }
     dto
 }

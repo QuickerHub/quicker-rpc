@@ -91,6 +91,12 @@ import {
   parseShellToolView,
   summarizeShellToolInput,
 } from "@/lib/shell-tool-view";
+import {
+  summarizeAskQuestionOutput,
+  isAskQuestionTool,
+  isAskQuestionAwaitingInput,
+  askQuestionDisplayTitle,
+} from "@/lib/ask-question-tool";
 
 export type QkrpcToolResult = {
   ok: boolean;
@@ -118,6 +124,10 @@ export function summarizeToolOutput(
     const inputSummary = summarizeShellToolInput(input);
     if (inputSummary) return inputSummary.slice(0, 96);
     return output.ok ? "完成" : "失败";
+  }
+
+  if (isAskQuestionTool(toolName)) {
+    return summarizeAskQuestionOutput(output);
   }
 
   if (isWorkspaceExplorerFileTool(toolName, input)) {
@@ -302,6 +312,9 @@ export function formatToolDisplayName(
     resolveKnownToolName(toolName, defaultEnabledToolIds())
     ?? normalizeToolCallName(toolName);
   if (canonical === "shell_exec") return "终端";
+  if (isAskQuestionTool(canonical)) {
+    return askQuestionDisplayTitle(input);
+  }
   const fileLabel = workspaceFileToolDisplayName(canonical, input);
   if (fileLabel) return fileLabel;
   const projectsLabel = actionProjectsToolDisplayName(canonical, input);
@@ -322,7 +335,11 @@ export function formatToolDisplayName(
 export function buildToolSummaryMeta(
   state: string,
   summary: string | null,
+  toolName?: string,
 ): string {
+  if (toolName && isAskQuestionAwaitingInput(toolName, state)) {
+    return "待你选择";
+  }
   switch (state) {
     case "input-streaming":
       return "接收参数…";

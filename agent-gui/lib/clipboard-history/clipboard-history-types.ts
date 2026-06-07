@@ -68,3 +68,7 @@ export type ClipboardPluginStatusDto = {
   pluginDir: string | null;
   message: string | null;
 };
+
+export type ClipboardPluginSettingsDto = {
+  autoStart: boolean;
+};

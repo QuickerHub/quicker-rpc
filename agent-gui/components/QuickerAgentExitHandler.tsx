@@ -82,6 +82,16 @@ export function QuickerAgentExitHandler() {
 
         const { invoke } = await import("@tauri-apps/api/core");
         await invoke("graceful_exit");
+
+        // Safety net when backend shutdown stalls (e.g. hung taskkill).
+        window.setTimeout(async () => {
+          try {
+            const { exit } = await import("@tauri-apps/plugin-process");
+            await exit(0);
+          } catch {
+            // Ignore when process plugin is unavailable.
+          }
+        }, 8_000);
       } catch {
         exitInProgressRef.current = false;
       }

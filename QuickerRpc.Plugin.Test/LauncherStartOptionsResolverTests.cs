@@ -54,4 +54,12 @@ public sealed class LauncherStartOptionsResolverTests
         Assert.IsTrue(options.Silent);
         Assert.IsFalse(options.NotifyPluginVersion);
     }
+
+    [TestMethod]
+    public void Resolve_panel_honors_agent_kill_in_param()
+    {
+        var options = LauncherStartOptionsResolver.Resolve(Panel, quickerInParam: "agent-kill");
+        Assert.IsTrue(options.KillQuickerAgent);
+        Assert.IsFalse(options.LaunchQuickerAgent);
+    }
 }

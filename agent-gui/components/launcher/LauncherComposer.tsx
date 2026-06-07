@@ -50,6 +50,7 @@ type LauncherSessionState = {
   status: string;
   error: string | null;
   pendingApprovalCount: number;
+  pendingAskQuestionCount: number;
 };
 
 type LauncherComposerProps = {
@@ -328,6 +329,7 @@ export function LauncherPanel() {
           status: message.status,
           error: message.error,
           pendingApprovalCount: message.pendingApprovalCount,
+          pendingAskQuestionCount: message.pendingAskQuestionCount ?? 0,
         };
       });
     });
@@ -351,6 +353,7 @@ export function LauncherPanel() {
       status: "submitted",
       error: null,
       pendingApprovalCount: 0,
+      pendingAskQuestionCount: 0,
     });
     postLauncherSubmit(text, sessionId, llmSelection);
   }, []);
@@ -379,6 +382,7 @@ export function LauncherPanel() {
                 status={session.status}
                 error={session.error}
                 pendingApprovalCount={session.pendingApprovalCount}
+                pendingAskQuestionCount={session.pendingAskQuestionCount}
                 workingDirectory={defaultCwd}
                 ping={ping}
               />

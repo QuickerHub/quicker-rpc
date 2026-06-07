@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tool } from "ai";
 import { z } from "zod";
-import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
+import { resolvePersistedDataFilePath } from "@/lib/quicker-agent-persisted-data";
 import { formatLauncherResolveForAgent } from "@/lib/launcher/launcher-resolve-agent-output";
 import {
   resolveLauncherCandidates,
@@ -20,7 +20,7 @@ const scopesSchema = z
   .optional();
 
 async function loadUserResolvePresets(): Promise<LauncherResolvePresetsFile | null> {
-  const path = join(resolveAgentGuiRoot(), ".local", "launcher-resolve-presets.json");
+  const path = resolvePersistedDataFilePath("launcher-resolve-presets.json");
   try {
     const text = await readFile(path, "utf8");
     return JSON.parse(text) as LauncherResolvePresetsFile;

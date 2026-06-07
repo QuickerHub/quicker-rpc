@@ -12,7 +12,7 @@
 # - Auto-update uses the official @tauri-apps/plugin-updater (Release builds only).
 # - Legacy pending.json / Rust updater tests were removed; this script needs a refresh
 #   for the official updater flow (latest.json + signed NSIS bundle).
-# - NSIS installer-hooks.nsh kills qkrpc before file copy; this script also stops qkrpc
+# - NSIS installer-hooks.nsh kills qkrpc/quicker-agent/bundled node before file copy; this script also stops qkrpc
 #   after app exit when simulating update apply on installed builds.
 
 [CmdletBinding()]

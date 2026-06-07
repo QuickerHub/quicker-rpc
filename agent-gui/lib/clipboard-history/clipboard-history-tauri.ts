@@ -1,7 +1,10 @@
 "use client";
 
 import { invoke } from "@tauri-apps/api/core";
-import type { ClipboardPluginStatusDto } from "@/lib/clipboard-history/clipboard-history-types";
+import type {
+  ClipboardPluginSettingsDto,
+  ClipboardPluginStatusDto,
+} from "@/lib/clipboard-history/clipboard-history-types";
 import { withPromiseTimeout } from "@/lib/promise-timeout";
 import { isTauriShell } from "@/lib/tauri-shell";
 
@@ -46,4 +49,29 @@ export async function ensureClipboardRuntimeReady(): Promise<ClipboardPluginStat
   } catch {
     return status;
   }
+}
+
+export async function fetchTauriClipboardPluginSettings(): Promise<ClipboardPluginSettingsDto | null> {
+  if (!isTauriShell()) return null;
+  try {
+    return await withPromiseTimeout(
+      invoke<ClipboardPluginSettingsDto>("clipboard_history_plugin_read_settings"),
+      TAURI_INVOKE_TIMEOUT_MS,
+      "读取剪贴板设置超时",
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function writeTauriClipboardPluginSettings(
+  settings: ClipboardPluginSettingsDto,
+): Promise<ClipboardPluginSettingsDto> {
+  return withPromiseTimeout(
+    invoke<ClipboardPluginSettingsDto>("clipboard_history_plugin_write_settings", {
+      settings,
+    }),
+    TAURI_INVOKE_TIMEOUT_MS,
+    "保存剪贴板设置超时",
+  );
 }

@@ -32,6 +32,33 @@ public static partial class Launcher
 
     private static void StartCore(LauncherStartOptions? options)
     {
+        if (options?.KillQuickerAgent == true)
+        {
+            var silent = options.Silent;
+            _ = Task.Run(() =>
+            {
+                var killed = QuickerAgentKillService.TryForceExit(Logger);
+                if (silent)
+                {
+                    return;
+                }
+
+                QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(() =>
+                {
+                    if (killed)
+                    {
+                        PopupMessage.Infomation("QuickerAgent 已退出");
+                    }
+                    else
+                    {
+                        PopupMessage.Warning("未发现运行中的 QuickerAgent");
+                    }
+                });
+            });
+
+            return;
+        }
+
         if (options?.LaunchQuickerAgent == true)
         {
             _launchQuickerAgentAfterStart = true;

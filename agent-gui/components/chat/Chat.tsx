@@ -5,8 +5,10 @@ import {
   DefaultChatTransport,
   getToolOrDynamicToolName,
   isToolOrDynamicToolUIPart,
-  lastAssistantMessageIsCompleteWithApprovalResponses,
 } from "ai";
+import { lastAssistantMessageIsCompleteWithClientResponses } from "@/lib/chat-auto-submit";
+import { ChatToolActionsProvider } from "@/lib/chat-tool-actions";
+import { countPendingAskQuestions } from "@/lib/ask-question-tool";
 import {
   useCallback,
   useEffect,
@@ -122,13 +124,14 @@ import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
 import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent-activity";
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
 import { CollapsedTurnSummary } from "@/components/chat/CollapsedTurnSummary";
-import { isHotTurnIndex } from "@/lib/chat-message-window";
+import { isHotTurnIndex, turnIndicesPrepended } from "@/lib/chat-message-window";
 import { ComposerShortcutCards } from "@/components/chat/ComposerShortcutCards";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
 import { useChatMessageWindow } from "@/lib/use-chat-message-window";
 import { findUserTurnStartIndices } from "@/lib/last-user-turn-index";
 import { useForwardWheelToMessages } from "@/lib/use-forward-wheel-to-messages";
 import { useMessagesScrollportHeight } from "@/lib/use-messages-scrollport-height";
+import { useAutoExpandColdTurns } from "@/lib/use-auto-expand-cold-turns";
 import { useMsgTurnStickyActive } from "@/lib/use-msg-turn-sticky-active";
 import { UserMessageComposerChrome } from "./UserMessageComposerChrome";
 import { useThreadTitleFromTool } from "@/lib/use-thread-title-from-tool";
@@ -478,13 +481,14 @@ function ChatPanel({
     stop,
     clearError,
     addToolApprovalResponse,
+    addToolOutput,
   } = useChat<AgentUIMessage>({
       id: threadId,
       messages: initialMessages,
       transport: chatTransport,
       experimental_throttle: 100,
       sendAutomaticallyWhen:
-        lastAssistantMessageIsCompleteWithApprovalResponses,
+        lastAssistantMessageIsCompleteWithClientResponses,
     });
 
   const messagesForPersistRef = useRef(messages);
@@ -571,6 +575,10 @@ function ChatPanel({
     [messages],
   );
   const pendingApprovalCount = pendingApprovals.length;
+  const pendingAskQuestionCount = useMemo(
+    () => countPendingAskQuestions(messages),
+    [messages],
+  );
 
   const pendingActionDeleteIds = useMemo(() => {
     const ids: string[] = [];
@@ -681,6 +689,7 @@ function ChatPanel({
         status,
         error: error?.message ?? null,
         pendingApprovalCount,
+        pendingAskQuestionCount,
       });
     }, 120);
 
@@ -691,6 +700,7 @@ function ChatPanel({
     status,
     error,
     pendingApprovalCount,
+    pendingAskQuestionCount,
   ]);
 
   useMessagesScrollportHeight(messagesRef, visible);
@@ -788,6 +798,37 @@ function ChatPanel({
     getStickToBottom,
     streamingActive,
   });
+
+  useAutoExpandColdTurns({
+    containerRef: messagesRef,
+    visible,
+    revision: [
+      messageWindow.startTurnIndex,
+      messageWindow.hiddenTurnCount,
+      messages.length,
+      expandedColdTurns.size,
+    ],
+    setExpandedColdTurns,
+  });
+
+  const prevStartTurnIndexRef = useRef(messageWindow.startTurnIndex);
+  useEffect(() => {
+    const prev = prevStartTurnIndexRef.current;
+    const next = messageWindow.startTurnIndex;
+    prevStartTurnIndexRef.current = next;
+    const prepended = turnIndicesPrepended(prev, next);
+    if (prepended.length === 0) return;
+    setExpandedColdTurns((current) => {
+      const merged = new Set(current);
+      let changed = false;
+      for (const turnIndex of prepended) {
+        if (merged.has(turnIndex)) continue;
+        merged.add(turnIndex);
+        changed = true;
+      }
+      return changed ? merged : current;
+    });
+  }, [messageWindow.startTurnIndex]);
 
   useEffect(() => {
     setUserMessageDrafts((prev) => pruneUserMessageDrafts(messages, prev));
@@ -1037,15 +1078,16 @@ function ChatPanel({
         qkrpcOk,
         qkrpcLoading,
         pendingApprovalCount,
+        pendingAskQuestionCount,
       }),
-    [status, messages, qkrpcOk, qkrpcLoading, pendingApprovalCount],
+    [status, messages, qkrpcOk, qkrpcLoading, pendingApprovalCount, pendingAskQuestionCount],
   );
 
   const lastTurnFillScrollport = useMsgTurnStickyActive(
     messagesRef,
     msgTurnRef,
     userTurnStarts.length > 0,
-    [messages, error, status, agentActivity],
+    threadId,
   );
 
   const lastVisibleMessageId = useMemo(() => {
@@ -1191,10 +1233,6 @@ function ChatPanel({
                 message={message}
                 workingDirectory={workingDirectory}
                 onInsertComposerPrompt={insertComposerPrompt}
-                streamAssistantText={
-                  (status === "streaming" || status === "submitted")
-                  && message.id === messages[messages.length - 1]?.id
-                }
               />
             </div>
             {lastMessageMenu}
@@ -1212,7 +1250,6 @@ function ChatPanel({
       focusComposerAtEnd,
       lastVisibleMessageId,
       messages,
-      status,
       userMessageDrafts,
       workingDirectory,
     ],
@@ -1260,13 +1297,14 @@ function ChatPanel({
           onClick={messageWindow.expandHistory}
         >
           {messageWindow.hiddenTurnCount > 0
-            ? `加载更早的 ${messageWindow.hiddenTurnCount} 轮对话`
-            : `加载更早的 ${messageWindow.hiddenMessageCount} 条消息`}
+            ? `向上滚动以加载更早的 ${messageWindow.hiddenTurnCount} 轮对话`
+            : `向上滚动以加载更早的 ${messageWindow.hiddenMessageCount} 条消息`}
         </button>
       </div>
     ) : null;
 
   return (
+    <ChatToolActionsProvider addToolOutput={addToolOutput}>
     <div
       ref={appMainRef}
       className={`app-main${isEmptyThread ? " app-main--empty" : ""}${panelOpen ? " app-main--side-open" : ""}${visible ? "" : " app-main--hidden"}`}
@@ -1275,7 +1313,7 @@ function ChatPanel({
     >
       <div className="app-main-split-header">
         <div className="app-main-split-header__chat">
-          <ChatConversationHeader title={threadTitle} />
+          <ChatConversationHeader />
         </div>
         {panelOpen && visible ? (
           <div className="app-main-split-header__side">
@@ -1320,6 +1358,7 @@ function ChatPanel({
               return (
                 <CollapsedTurnSummary
                   key={messages[startIndex]!.id}
+                  turnIndex={turnIndex}
                   turnNumber={turnIndex + 1}
                   messageCount={turnMessageCount}
                   onExpand={() => {
@@ -1534,6 +1573,7 @@ function ChatPanel({
         {visible ? <WorkspaceExplorerPanel /> : null}
       </div>
     </div>
+    </ChatToolActionsProvider>
   );
 }
 

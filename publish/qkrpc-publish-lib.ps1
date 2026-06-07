@@ -960,6 +960,161 @@ function Get-QuickerRpcSemVerFromVersion {
     return ($parts[0..2] -join '.')
 }
 
+function ConvertTo-QuickerRpcFourPartVersion {
+    param([string]$Version)
+
+    if ([string]::IsNullOrWhiteSpace($Version)) {
+        throw 'Version is required.'
+    }
+
+    $text = $Version.Trim().TrimStart('v')
+    $parts = $text -split '\.'
+    if ($parts.Count -lt 3) {
+        throw "Version must have at least three segments (major.minor.patch): $Version"
+    }
+
+    while ($parts.Count -lt 4) {
+        $parts += '0'
+    }
+
+    return [Version]::new(
+        [int]$parts[0],
+        [int]$parts[1],
+        [int]$parts[2],
+        [int]$parts[3]
+    )
+}
+
+function Get-QuickerRpcVersionFromJsonFile {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $null
+    }
+
+    $data = Get-Content -Raw -Path $Path | ConvertFrom-Json
+    $raw = [string]$data.QuickerRpc
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        return $null
+    }
+
+    return ConvertTo-QuickerRpcFourPartVersion -Version $raw
+}
+
+function Get-QuickerRpcVersionBaseline {
+    param([Parameter(Mandatory = $true)][string]$RepoRoot)
+
+    $baselines = [System.Collections.Generic.List[Version]]::new()
+    Push-Location $RepoRoot
+    try {
+        $tags = @(git tag -l 'v*.*.*' 2>$null)
+        foreach ($tag in $tags) {
+            if ($tag -match '^v(\d+\.\d+\.\d+(?:\.\d+)?)$') {
+                try {
+                    $baselines.Add((ConvertTo-QuickerRpcFourPartVersion -Version $Matches[1])) | Out-Null
+                }
+                catch {
+                    # ignore malformed tags
+                }
+            }
+        }
+
+        foreach ($ref in @('HEAD:version.json', 'HEAD~1:version.json', 'origin/main:version.json', 'origin/master:version.json')) {
+            $raw = git show "${ref}" 2>$null
+            if ([string]::IsNullOrWhiteSpace($raw)) {
+                continue
+            }
+
+            try {
+                $parsed = ([string](ConvertFrom-Json $raw).QuickerRpc)
+                if (-not [string]::IsNullOrWhiteSpace($parsed)) {
+                    $baselines.Add((ConvertTo-QuickerRpcFourPartVersion -Version $parsed)) | Out-Null
+                }
+            }
+            catch {
+                # ignore missing refs / invalid json
+            }
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    if ($baselines.Count -eq 0) {
+        return $null
+    }
+
+    return ($baselines | Sort-Object -Descending | Select-Object -First 1)
+}
+
+function Assert-QuickerRpcVersionMonotonic {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$CandidateVersion,
+
+        [string]$Context = 'version.json QuickerRpc',
+
+        # Same-version re-upload (build.ps1 -Publish -NoVersion) or -ForceRetag retry.
+        [switch]$AllowEqual
+    )
+
+    $candidate = ConvertTo-QuickerRpcFourPartVersion -Version $CandidateVersion
+    $baseline = Get-QuickerRpcVersionBaseline -RepoRoot $RepoRoot
+
+    if ($null -eq $baseline) {
+        Write-Host "Version baseline: (none) — first release or empty git history." -ForegroundColor DarkGray
+        return
+    }
+
+    if ($candidate -lt $baseline) {
+        throw @"
+$Context must not decrease.
+  Candidate: $candidate
+  Baseline:  $baseline (max of git tags v*.*.* and version.json on HEAD / origin/main)
+version.json may only move forward. See .cursor/skills/quicker-qkbuild-version-publish/SKILL.md
+"@
+    }
+
+    if ($candidate -eq $baseline) {
+        if ($AllowEqual) {
+            Write-Host "Version check OK (equal allowed): $candidate == baseline $baseline" -ForegroundColor DarkGray
+            return
+        }
+
+        throw @"
+$Context must be strictly greater than the last released/committed version for a new publish.
+  Candidate: $candidate
+  Baseline:  $baseline
+Bump version.json forward (official publish: third field +1, revision→0). Use -Publish -NoVersion only to re-upload the same version.
+"@
+    }
+
+    Write-Host "Version check OK: $candidate > baseline $baseline" -ForegroundColor DarkGray
+}
+
+function Get-QuickerRpcVersionFromQkbuildArgs {
+    param([string[]]$Tokens)
+
+    if (-not $Tokens -or $Tokens.Count -eq 0) {
+        return $null
+    }
+
+    for ($i = 0; $i -lt $Tokens.Count; $i++) {
+        $token = [string]$Tokens[$i]
+        if ($token -eq '--version' -and ($i + 1) -lt $Tokens.Count) {
+            return [string]$Tokens[$i + 1]
+        }
+        if ($token -like '--version=*') {
+            return $token.Substring('--version='.Length)
+        }
+    }
+
+    return $null
+}
+
 function Get-QuickerRpcCliZipName {
     param([string]$Version)
 

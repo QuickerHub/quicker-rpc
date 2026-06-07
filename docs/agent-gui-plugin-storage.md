@@ -147,9 +147,28 @@ QuickerAgent 主程序运行时：`$RESOURCE/resources/app/`（Next）、`node/`
 
 ---
 
-## 6. agent-gui 开发态 `.local/`（非插件）
+## 6. 设置与服务器持久化数据（非插件）
 
-Next 开发服务器或 Tauri 内嵌 app 目录下的 `app/.local/`（LLM 密钥、用量、前端诊断），与用户工作区、插件目录均无关。
+用户可写的服务器配置（设置 → 模型 API Key、自定义 Profile、Token 用量、启动器预设等）落在 **应用数据目录**，**不在**安装目录内，NSIS 就地更新不会删除：
+
+```text
+Windows:     %LOCALAPPDATA%/QuickerAgent/local/
+  llm-secrets.json
+  llm-endpoint-pref.json
+  llm-usage/
+  device-fingerprint.json
+  launcher-resolve-presets.json
+  launcher-command-cache.json
+```
+
+首次启动新版本时会从旧路径 **自动迁移**（若存在）：
+
+- 开发：`agent-gui/.local/`
+- 旧发布版：`{安装目录}/resources/app/.local/`
+
+`agent-gui/.local/frontend-*.json` 等 **仅开发诊断** 文件仍留在仓库/安装目录，不参与迁移。
+
+WebView UI 偏好与对话（`localStorage`）仍在 `%LOCALAPPDATA%/ai.quicker.agent/`（见 [agent-gui-chat-storage.md](agent-gui-chat-storage.md)）。
 
 ---
 

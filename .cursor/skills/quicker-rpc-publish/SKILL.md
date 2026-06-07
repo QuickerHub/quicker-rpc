@@ -3,6 +3,7 @@ name: quicker-rpc-publish
 description: >-
   Full quicker-rpc release: GitHub Release CLI, build.ps1 -Publish -NoVersion Quicker plugin upload,
   qkrpc action update for shared action f5c76108-3ce9-433f-8cd0-8f0d9c562052.
+  Official getquicker upload MUST bump third semver field (see quicker-qkbuild-version-publish).
   Use when the user asks to publish, release, ship, GitHub release, or /publish.
 disable-model-invocation: false
 metadata:
@@ -11,10 +12,12 @@ metadata:
 
 # quicker-rpc 公开发布
 
+> **版本号必守**：getquicker 上传 **必须第三段 +1、revision→0**；`version.json` **只能递增、禁止减小**。细则：`.cursor/skills/quicker-qkbuild-version-publish/SKILL.md`。禁止仅用 `-t` revision 就当「已发布」。
+
 ## 完整流程（Agent 顺序）
 
 0. 若本次或近期改过 `agent-gui/llm-publish.config.json`：先 `pwsh -NoProfile -File ./publish/Sync-LlmPublishConfig.ps1`（见 `quicker-agent-gui-llm-publish-config` skill），确保 CI `BUNDLED_LLM_CONFIG` 与本地一致
-1. `git status`；必要时 bump `version.json` 并 commit
+1. `git status`；读取 **baseline**（最新 tag + 已提交 `version.json`）；**第三段 +1** bump `version.json`（第四段 → `0`），且 **必须大于 baseline**；commit — 见 `quicker-qkbuild-version-publish`
 2. `git log` 自上一 tag → **撰写 changelog** → 写入 `publish/changelogs/vX.Y.Z.md` 并 **commit**
 3. `pwsh ./publish/Publish-GitHubRelease.ps1 -WaitForCi` → **默认并行**：后台启动本地 Tauri 预检 + **立即 push tag** 触发 CI。本地日志通常先报错，优先按 `%TEMP%\qkrpc-preflight-vX.Y.Z.log` 修复；CI 失败可暂忽略。修复后 `-ForceRetag` 重发。
    - 仅本地阻塞预检：`Test-QuickerAgentReleaseBuild.ps1` 或 `-PreflightBeforeTag`
@@ -88,11 +91,15 @@ metadata:
 - 将 `publish/cli`、`publish/plugin`、`publish/*.zip` 提交 Git
 - 修改 `git config`
 - 用 `-p`（无 `-n`）在 Release 后再 bump 版本
+- **减小或回退 `version.json` 的 `QuickerRpc`**（`Assert-QuickerRpcVersionMonotonic` 会拒绝）
+- **仅用 `build.ps1 -t`（revision +1）代替 `-Publish -NoVersion` 或第三段正式发布**（子程序/launch_code 会拉到旧 DLL）
+- **在 getquicker 第三段包未更新前**，改 `QuickerRpc_Run.launch_code` 调用新插件 API 或 `action update`
 - 跳过 `action update` 或让用户提供 changelog 文本
 - 未 commit changelog 就 push tag（CI 会用模板覆盖 Release 说明）
 - 未看本地预检日志就反复 `-ForceRetag`（应先修 `%TEMP%\qkrpc-preflight-*.log` 里的错误）
 
 ## 相关
 
+- **版本号（第三段 +1 必守）**：`.cursor/skills/quicker-qkbuild-version-publish/SKILL.md`
 - Cursor 命令：`.cursor/commands/publish.md`
 - 日常改代码验证：`.cursor/skills/quicker-rpc-build-test/SKILL.md`

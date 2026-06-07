@@ -1,0 +1,113 @@
+---
+name: quicker-action-designer-ui
+description: >-
+  Guides action designer (action-editor) UI work in agent-gui. UI originates from
+  ../Quicker/Quicker.Designer; step double-click popup and per-field editing behavior
+  must match ../Quicker/QuickerPc/Quicker ActionDesignerWindow and StepEditor components.
+  Use when editing agent-gui/lib/action-editor, StepEditorPopup, param editors, step
+  field visibility, or aligning web step editing with desktop Quicker.
+disable-model-invocation: false
+metadata:
+  internal: true
+---
+
+# 动作设计器 UI（action-editor）
+
+## 设计来源与对齐基准
+
+| 角色 | 路径（相对 quicker-rpc 仓库根） | 说明 |
+|------|----------------------------------|------|
+| **Web UI 源码** | `../Quicker/Quicker.Designer` | 动作设计器 Web 前端的**起源**；`Quicker.Designer.Web` 为 React 实现，已迁入本仓库 `agent-gui/lib/action-editor/` |
+| **桌面行为基准** | `../Quicker/QuickerPc/Quicker` | Quicker 桌面客户端；**字段编辑细节、交互、可见性规则**以 WPF 为准 |
+
+本机若 Quicker 单体仓库在 `quickerorg` 下，等价路径为：
+
+- `../quickerorg/Quicker/Quicker.Designer`
+- `../quickerorg/Quicker/QuickerPc/Quicker`
+
+改 UI 前先确认上述目录在本机存在；不存在时勿猜行为，改查已安装的 `Quicker.exe` 或 `QuickerRpc.Plugin` 反射封装。
+
+## 当前任务（优先）
+
+**完善动作设计器对 step 的编辑功能**，重点是 **双击 step 后弹出的步骤编辑弹窗**（`StepEditorPopup`）内每个输入/输出字段的编辑细节，与桌面版对齐：
+
+- 弹窗结构与草稿/应用/放弃逻辑 → `ActionStepEditorWindow`
+- 各 `varType` / `variableMode` 选用哪种编辑器 → `InputParamEditorControl.SetupEditor`
+- 枚举筛选、变量选择、表达式、表单、外部脚本文件等子控件 → `View/X/StepEditor/ParamEditors/**`
+- `ValidFor` / `InvalidFor` / 多操作步骤可见性 → `ActionStepEditorWindow.Visibility.cs`
+
+**原则**：先读 WPF 实现与注释，再在 `agent-gui` 补差距；不要仅凭 `step-runner get`（Agent 压缩 schema）推断 UI 控件形态。
+
+## 本仓库实现位置
+
+| 区域 | 路径 |
+|------|------|
+| 步骤列表 + 双击打开弹窗 | `agent-gui/lib/action-editor/steps/StepListEditor.tsx` |
+| 步骤编辑弹窗 | `agent-gui/lib/action-editor/steps/paramEditors/StepEditorPopup.tsx` |
+| 输入字段路由 | `agent-gui/lib/action-editor/steps/paramEditors/StepInputParamField.tsx` |
+| 输出字段 | `agent-gui/lib/action-editor/steps/paramEditors/StepOutputParamField.tsx` |
+| 变量/字面量 | `VarOrValueParamEditor.tsx`、`StepVariablePicker.tsx` |
+| 表单定义 | `FormDefParamEditor.tsx`、`formSpecModel.ts` |
+| 外部参数文件（脚本等） | `ExternalParamFileExpressionEditor.tsx` |
+| 字段可见性 | `agent-gui/lib/action-editor/steps/stepParamVisibility.ts` |
+| 样式 | `agent-gui/components/action-editor/action-editor.css` |
+| 程序编辑入口 | `agent-gui/lib/action-editor/program/XProgramEditor.tsx` |
+| Step-runner UI schema | `qkrpc step-runner get-ui` / serve `step-runner.getUi`（**仅 action-editor**，Agent 工具禁止） |
+| Designer Host gRPC | `agent-gui/lib/action-editor/shared/designerHostGrpcApi.ts` |
+
+## WPF ↔ Web 对照表（步骤字段）
+
+桌面 `InputParamEditorControl.SetupEditor` 路由（实现细节以源码为准）：
+
+| 条件 | WPF 编辑器 | Web（agent-gui） |
+|------|------------|------------------|
+| `Boolean` + `Input` | `BooleanParamEditor` | `StepInputParamField` 内 checkbox |
+| `Form` / `FormForDict` | `FormParamEditor` | `FormDefParamEditor` |
+| `Enum` + `Input` + 有选项 | `EnumParamEditor` | 可筛选下拉（`step-param-enum-*`） |
+| `UseVarOnly` 且值为空 | `VariableParamSelector` | `StepVariablePicker` |
+| `key == texttools` | `TextToolsParamEditor` | 待对齐 / 查 Web 源 |
+| 其它可输入 | `VarAndValueParamEditor` | `VarOrValueParamEditor` + `ExpressionEditor` |
+
+弹窗级逻辑对照：
+
+| 桌面 | Web |
+|------|-----|
+| `ActionStepEditorWindow.xaml(.cs)` | `StepEditorPopup.tsx` |
+| `ActionStepEditorWindow.InputParams.cs` | `StepInputParamField` 列表渲染 |
+| `ActionStepEditorWindow.OutputParams.cs` | `StepOutputParamField` |
+| `ActionStepEditorWindow.Visibility.cs` | `stepParamVisibility.ts` |
+| `ActionStepEditorWindow.WindowSizing.cs` | 弹窗 CSS / 布局（`action-editor.css`） |
+| 双击字段标签创建变量 | `StepParamLabel` + `VarOrValueParamEditor` |
+
+主设计器窗口（步骤列表上下文菜单、保存、子程序等）：
+
+| 桌面 | Web |
+|------|-----|
+| `View/X/ActionDesignerWindow*.cs` | `XProgramEditor.tsx`、`StepListEditor.tsx` |
+| `View/X/Controls/ActionStepsWrapper.xaml.cs` | 步骤列表交互、`actionStepsClipboard.ts` |
+
+## 推荐工作流
+
+1. **定位差距**：在 Quicker 桌面版复现（双击 step → 改某字段），记录预期交互。
+2. **读 WPF**：`rg "SetupEditor|ValidFor|TriggerCreateVariable" ../Quicker/QuickerPc/Quicker/View/X/StepEditor`（或 `quickerorg` 等价路径）。
+3. **读 Web 源**：对比 `../Quicker/Quicker.Designer/src/Quicker.Designer.Web/src/features/steps/` 是否已有移植；再改 `agent-gui/lib/action-editor/`。
+4. **Schema**：字段定义来自 `step-runner get-ui`；键名与 `controlField` 与 Agent 路径一致，但 **控件形态只看 UI schema + WPF**。
+5. **改完后**：`.cursor/skills/quicker-agent-gui-frontend/SKILL.md` → `dev_frontend_check` 直到 `ok: true`（**不要** `build.ps1 -t`）。
+6. **涉及插件保存/designer host**：才需要 `quicker-rpc-build-test`（`QuickerRpc.Plugin/Services/ActionDesigner*.cs`）。
+
+## 搜索命令（维护者本机）
+
+```powershell
+# 从 quicker-rpc 根目录
+rg "SetupEditor" ../Quicker/QuickerPc/Quicker/View/X/StepEditor
+rg "ActionStepEditorWindow" ../Quicker/QuickerPc/Quicker/View/X
+rg "StepEditorPopup" ../Quicker/Quicker.Designer
+rg "shouldUseVarOrValueEditor" agent-gui/lib/action-editor
+```
+
+## 相关
+
+- 前端收尾：`.cursor/skills/quicker-agent-gui-frontend/SKILL.md`
+- Quicker.exe 反射 / 类型探测：`.cursor/skills/quicker-exe-type-probing/SKILL.md`
+- `step-runner get-ui` 说明：`docs/cli-commands.md`、`AGENTS.md`（action-editor 专用）
+- 插件侧设计器接入：`QuickerRpc.Plugin/Services/ActionDesignerProgramAccess.cs`、`ActionDesignerUiSave.cs`

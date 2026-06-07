@@ -65,6 +65,7 @@ Quicker 运行中且已加载 QuickerRpc 插件。agent-gui 优先 **`qkrpc serv
 | 操作项文本语法 | **`common-operation-item`** | P3：右键菜单 `ContextMenuData` |
 | 工作区目录与外置 | **`action-project-files`** | `.quicker/actions` 布局、`file` 引用形状 |
 | 多字段表单 | **`form-spec`** | `sys:form` + `files/*.form.json` |
+| WebView2 页面 | **`webview2-authoring`** | `sys:webview2` + `files/*.html`；Agent 侧 **`browser`** 右栏预览 |
 | 动作内子程序 | **`action-embedded-subprograms`** | `subprograms/{subId}/` 磁盘模型 |
 
 ### 步骤模块与 CLI

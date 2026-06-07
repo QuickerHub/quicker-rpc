@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { isTauriShell } from "@/lib/tauri-shell";
 import {
+  fetchTauriClipboardPluginSettings,
   fetchTauriClipboardPluginStatus,
   tauriClipboardPluginStartRuntime,
   tauriClipboardPluginStopRuntime,
+  writeTauriClipboardPluginSettings,
 } from "@/lib/clipboard-history/clipboard-history-tauri";
 import { fetchClipboardRuntimeHealth } from "@/lib/clipboard-history/clipboard-history-client";
 import { resolveClipboardHttpPort } from "@/lib/clipboard-history/clipboard-history-config";
@@ -22,6 +24,7 @@ export function ClipboardHistorySettingsSection({
 }: ClipboardHistorySettingsSectionProps) {
   const [status, setStatus] = useState<ClipboardPluginStatusDto | null>(null);
   const [runtimeOnline, setRuntimeOnline] = useState(false);
+  const [autoStart, setAutoStart] = useState(false);
   const [busy, setBusy] = useState(false);
   const inTauri = isTauriShell();
 
@@ -32,6 +35,8 @@ export function ClipboardHistorySettingsSection({
       host?.httpPort && host.httpPort > 0 ? host.httpPort : resolveClipboardHttpPort();
     const health = await fetchClipboardRuntimeHealth(port);
     setRuntimeOnline(health.ok && health.ready);
+    const settings = await fetchTauriClipboardPluginSettings();
+    if (settings) setAutoStart(settings.autoStart);
   };
 
   useEffect(() => {
@@ -61,18 +66,44 @@ export function ClipboardHistorySettingsSection({
     }
   };
 
+  const handleAutoStartToggle = async (checked: boolean) => {
+    if (!inTauri || disabled || busy) return;
+    setAutoStart(checked);
+    setBusy(true);
+    try {
+      await writeTauriClipboardPluginSettings({ autoStart: checked });
+      await refresh();
+    } catch {
+      setAutoStart(!checked);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <section className="app-settings-card">
       <header className="app-settings-section-head">
         <h2 className="app-settings-section-title">剪贴板历史</h2>
         <p className="app-settings-section-desc">
-          后台监听系统剪贴板并持久化历史。打开{" "}
+          后台监听系统剪贴板并持久化历史（默认关闭，实验性功能）。打开{" "}
           <a href="/clipboard" className="app-settings-inline-link">
             /clipboard
           </a>{" "}
           使用完整面板。
         </p>
       </header>
+
+      {inTauri ? (
+        <label className="voice-settings-mock-toggle">
+          <input
+            type="checkbox"
+            checked={autoStart}
+            disabled={disabled || busy}
+            onChange={(event) => void handleAutoStartToggle(event.target.checked)}
+          />
+          <span>随应用自动启动（下次启动生效）</span>
+        </label>
+      ) : null}
 
       <div className="app-settings-ping-row">
         <div className="app-settings-ping">

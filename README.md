@@ -48,6 +48,7 @@ type QuickerRpc.Plugin.Launcher, QuickerRpc.Plugin.{version}
 | `_context` 为外部触发（`ActionTrigger.Extern`，含 qkrpc bootstrap） | **强制**仅启动 RPC；**每次**弹出插件版本提示（不打开 QuickerAgent） |
 | `_context` 为自动运行（`ActionTrigger.AutoRun`） | 仅启动 RPC（静默，不打开 QuickerAgent） |
 | Quicker 内点击 / `agent` / 无参 | 启动 RPC 并打开 QuickerAgent；若 Agent 已在运行则置前主窗口（不再弹插件版本提示） |
+| 右键菜单 `quicker_in_param=agent-kill` | **仅**强制退出 QuickerAgent（`taskkill` 进程树），不启动 RPC |
 | `quicker:runaction:…?plugin` | 仅 RPC（手动触发时由 `quicker_in_param` 决定；外部触发仍强制 Extern 行为） |
 
 ```csharp

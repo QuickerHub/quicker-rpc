@@ -6,7 +6,9 @@
 <Weavers xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="FodyWeavers.xsd">
   <Costura IncludeDebugSymbols="false" CreateTemporaryAssemblies="true">
     <IncludeAssemblies>
-      <!-- AgentModel + Contracts: version-suffixed satellite DLLs in package (Quicker AssemblyResolve + hot-update side-by-side). -->
+      QuickerRpc.Contracts*
+      QuickerRpc.AgentModel*
+      <!-- AgentModel proto JSON (x_action_program.proto); Quicker package ships only the plugin DLL -->
       Google.Protobuf*
       <!-- Microsoft.Extensions 6: DI, Hosting, Logging, Configuration (prefix match) -->
       Microsoft.Extensions*

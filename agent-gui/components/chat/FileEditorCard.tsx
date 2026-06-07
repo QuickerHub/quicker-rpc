@@ -114,6 +114,7 @@ export function FileEditorCard({
 }: FileEditorCardProps) {
   const compact = variant === "compact";
   const showLineNumbers = lineNumbers ?? fillAvailable;
+  const showDiff = Boolean(diff) && !running;
   const [revealed, setRevealed] = useState(() => !foldSnapshot);
   const [expanded, setExpanded] = useState(false);
 
@@ -127,18 +128,18 @@ export function FileEditorCard({
     : null;
 
   const diffLineStats = useMemo(
-    () => (diff ? countLineDiffStats(diff.removed, diff.added) : null),
-    [diff],
+    () => (showDiff && diff ? countLineDiffStats(diff.removed, diff.added) : null),
+    [diff, showDiff],
   );
 
   const showFullDiff = diffMode === "full" || expanded;
 
   const diffDisplay = useMemo(() => {
-    if (!diff) return null;
+    if (!showDiff || !diff) return null;
     return buildInterleavedDiffDisplay(diff.removed, diff.added, {
       minEqualCollapse: showFullDiff ? 999_999 : undefined,
     });
-  }, [diff, showFullDiff]);
+  }, [diff, showDiff, showFullDiff]);
 
   const diffStat = useMemo(
     () =>
@@ -148,17 +149,24 @@ export function FileEditorCard({
     [diffLineStats],
   );
 
-  const headerStat = diffStat ?? stat;
+  const headerStat = running ? undefined : (diffStat ?? stat);
 
   const previewLineCount = useMemo(() => {
-    if (diffDisplay) return diffDisplay.displayLineCount;
+    if (showDiff && diffDisplay) return diffDisplay.displayLineCount;
     return countLines(content);
-  }, [content, diffDisplay]);
+  }, [content, showDiff, diffDisplay]);
 
   const showBody = showContent && (!compact || revealed);
   const isCompactPreview = compact && showBody && !expanded;
+  const useTailPreview = running && isCompactPreview;
+  const omittedPreviewLines = useTailPreview
+    ? Math.max(0, previewLineCount - FILE_SNAPSHOT_PREVIEW_LINES)
+    : 0;
   const showPreviewFade =
-    isCompactPreview && previewLineCount > FILE_SNAPSHOT_PREVIEW_LINES;
+    isCompactPreview
+    && !useTailPreview
+    && previewLineCount > FILE_SNAPSHOT_PREVIEW_LINES;
+  const showPreviewTailFade = useTailPreview && omittedPreviewLines > 0;
   const showToggle =
     showContent
     && compact
@@ -185,7 +193,9 @@ export function FileEditorCard({
           : "",
         expanded ? "file-editor-card--expanded" : "",
         isCompactPreview ? "file-editor-card--preview" : "",
+        useTailPreview ? "file-editor-card--preview-tail" : "",
         showPreviewFade ? "file-editor-card--preview-fade" : "",
+        showPreviewTailFade ? "file-editor-card--preview-tail-fade" : "",
         fillAvailable ? "file-editor-card--fill" : "",
       ]
         .filter(Boolean)
@@ -261,7 +271,12 @@ export function FileEditorCard({
 
       {showBody ? (
         <div className="file-editor-body">
-          {diff ? (
+          {showPreviewTailFade ? (
+            <div className="file-snapshot-omitted" aria-hidden>
+              … {omittedPreviewLines} 行已省略 …
+            </div>
+          ) : null}
+          {showDiff && diff ? (
             <CodeMirrorLineDiffView
               path={path}
               removed={diff.removed}
@@ -279,6 +294,8 @@ export function FileEditorCard({
               fillAvailable={fillAvailable}
               lineNumbers={showLineNumbers}
               lineWrapping={!isCompactPreview}
+              skipLint={compact && !fillAvailable}
+              scrollToTail={useTailPreview}
             />
           )}
         </div>

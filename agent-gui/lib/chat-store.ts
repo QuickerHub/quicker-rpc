@@ -55,6 +55,10 @@ function createThread(): ChatThread {
   };
 }
 
+export function chatStoreHasPersistedMessages(store: ChatStoreData): boolean {
+  return store.threads.some((thread) => thread.messages.length > 0);
+}
+
 export function isThreadEmpty(thread: ChatThread): boolean {
   return thread.messages.length === 0;
 }
@@ -713,4 +717,240 @@ export function setWorkingDirectory(
   workingDirectory: string,
 ): ChatStoreData {
   return { ...data, workingDirectory: workingDirectory.trim() };
+}
+
+export type LegacyChatRestoreResult = {
+  ok: boolean;
+  title: string;
+  body: string;
+  sources: string[];
+  importedThreadCount: number;
+  updatedThreadCount: number;
+};
+
+function pickRicherThread(a: ChatThread, b: ChatThread): ChatThread {
+  if (b.messages.length !== a.messages.length) {
+    return b.messages.length > a.messages.length ? b : a;
+  }
+  return b.updatedAt >= a.updatedAt ? b : a;
+}
+
+function mergeChatStoreFromLegacy(
+  current: ChatStoreData,
+  imported: ChatStoreData,
+): { store: ChatStoreData; importedCount: number; updatedCount: number } {
+  const byId = new Map(current.threads.map((t) => [t.id, t]));
+  let importedCount = 0;
+  let updatedCount = 0;
+
+  for (const thread of imported.threads) {
+    if (isThreadEmpty(thread)) continue;
+
+    const existing = byId.get(thread.id);
+    if (!existing) {
+      byId.set(thread.id, thread);
+      importedCount += 1;
+      continue;
+    }
+
+    const picked = pickRicherThread(existing, thread);
+    if (picked !== existing) {
+      byId.set(thread.id, picked);
+      updatedCount += 1;
+    }
+  }
+
+  const threads = sortThreads([...byId.values()]);
+  let workingDirectory = current.workingDirectory;
+  if (!workingDirectory.trim() && imported.workingDirectory.trim()) {
+    workingDirectory = imported.workingDirectory;
+  }
+
+  let activeThreadId = current.activeThreadId;
+  const active = byId.get(activeThreadId);
+  if (active && isThreadEmpty(active)) {
+    const firstWithContent = threads.find((t) => t.messages.length > 0);
+    if (firstWithContent) activeThreadId = firstWithContent.id;
+  }
+
+  let openTabIds = [...current.openTabIds];
+  for (const id of imported.openTabIds) {
+    if (byId.has(id) && !openTabIds.includes(id)) {
+      openTabIds.push(id);
+    }
+  }
+
+  const store = compactEmptyThreads({
+    ...current,
+    threads,
+    activeThreadId,
+    openTabIds,
+    workingDirectory,
+  });
+
+  return { store, importedCount, updatedCount };
+}
+
+function collectLegacyChatStoreCandidates(): Array<{ source: string; data: ChatStoreData }> {
+  if (typeof window === "undefined") return [];
+
+  const out: Array<{ source: string; data: ChatStoreData }> = [];
+
+  try {
+    const legacyWs = localStorage.getItem(LEGACY_WORKSPACE_STORAGE_KEY);
+    if (legacyWs) {
+      const migrated = migrateLegacyWorkspaceStore(JSON.parse(legacyWs) as unknown);
+      if (migrated?.threads.some((t) => t.messages.length > 0)) {
+        out.push({ source: "多工作区 (v1)", data: migrated });
+      }
+    }
+  } catch {
+    /* ignore corrupt legacy blob */
+  }
+
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key || key === CHAT_STORAGE_KEY || key === LEGACY_WORKSPACE_STORAGE_KEY) {
+      continue;
+    }
+    if (!/^agent-gui-chats(?:[-._].+)?$/i.test(key)) continue;
+
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const data = normalizeStore(JSON.parse(raw) as Partial<ChatStoreData>);
+      if (data.threads.some((t) => t.messages.length > 0)) {
+        out.push({ source: `localStorage · ${key}`, data });
+      }
+    } catch {
+      /* skip invalid backup keys */
+    }
+  }
+
+  return out;
+}
+
+/** Parse raw JSON extracted from a legacy storage key (localStorage or LevelDB). */
+export function parseLegacyChatPayload(
+  storageKey: string,
+  raw: string,
+): ChatStoreData | null {
+  try {
+    if (storageKey === LEGACY_WORKSPACE_STORAGE_KEY || storageKey.includes("workspaces")) {
+      return migrateLegacyWorkspaceStore(JSON.parse(raw) as unknown);
+    }
+    const store = normalizeStore(JSON.parse(raw) as Partial<ChatStoreData>);
+    if (!store.threads.some((t) => t.messages.length > 0)) return null;
+    return store;
+  } catch {
+    return null;
+  }
+}
+
+function dedupeLegacyCandidates(
+  candidates: Array<{ source: string; data: ChatStoreData }>,
+): Array<{ source: string; data: ChatStoreData }> {
+  const out: Array<{ source: string; data: ChatStoreData }> = [];
+  const seen = new Set<string>();
+
+  for (const item of candidates) {
+    const signature = item.data.threads
+      .filter((t) => t.messages.length > 0)
+      .map((t) => `${t.id}:${t.messages.length}`)
+      .sort()
+      .join("|");
+    if (!signature || seen.has(signature)) continue;
+    seen.add(signature);
+    out.push(item);
+  }
+
+  return out;
+}
+
+/** Merge legacy localStorage chat data (v1 workspaces, backup keys) into the current store. */
+export function tryRestoreLegacyChatStore(
+  current: ChatStoreData,
+  externalCandidates: Array<{ source: string; data: ChatStoreData }> = [],
+  scanMeta?: { scannedRoots?: string[] },
+): {
+  next: ChatStoreData;
+  result: LegacyChatRestoreResult;
+} {
+  const candidates = dedupeLegacyCandidates([
+    ...externalCandidates,
+    ...collectLegacyChatStoreCandidates(),
+  ]);
+  if (candidates.length === 0) {
+    const rootsHint = scanMeta?.scannedRoots?.length
+      ? `\n\n已扫描目录：\n${scanMeta.scannedRoots.join("\n")}`
+      : "";
+    return {
+      next: current,
+      result: {
+        ok: false,
+        title: "未发现可恢复的数据",
+        body:
+          "未在当前 localStorage 或已知 WebView LevelDB 目录中找到含消息的 agent-gui-chats / agent-gui-workspaces。"
+          + " 旧版可能使用不同浏览器 profile（如 pnpm dev 的 Chrome）或不同 http://127.0.0.1:端口 origin；"
+          + " 请在曾使用过的环境重试，或从 DevTools 复制 agent-gui-chats JSON 手动导入。"
+          + rootsHint,
+        sources: [],
+        importedThreadCount: 0,
+        updatedThreadCount: 0,
+      },
+    };
+  }
+
+  let next = current;
+  let importedTotal = 0;
+  let updatedTotal = 0;
+  const sources: string[] = [];
+
+  for (const { source, data } of candidates) {
+    const { store, importedCount, updatedCount } = mergeChatStoreFromLegacy(next, data);
+    next = store;
+    importedTotal += importedCount;
+    updatedTotal += updatedCount;
+    if (importedCount > 0 || updatedCount > 0) sources.push(source);
+  }
+
+  const changed = importedTotal > 0 || updatedTotal > 0;
+  if (changed) {
+    try {
+      localStorage.removeItem(LEGACY_WORKSPACE_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    saveChatStore(next);
+  }
+
+  if (!changed) {
+    return {
+      next: current,
+      result: {
+        ok: false,
+        title: "没有新对话可合并",
+        body: `找到 ${candidates.length} 处旧数据，但与当前列表相同或均为空。`,
+        sources: candidates.map((c) => c.source),
+        importedThreadCount: 0,
+        updatedThreadCount: 0,
+      },
+    };
+  }
+
+  const parts: string[] = [];
+  if (importedTotal > 0) parts.push(`新增 ${importedTotal} 个对话`);
+  if (updatedTotal > 0) parts.push(`更新 ${updatedTotal} 个对话`);
+
+  return {
+    next,
+    result: {
+      ok: true,
+      title: "恢复完成",
+      body: `${parts.join("，")}。（来源：${sources.join("、")}）`,
+      sources,
+      importedThreadCount: importedTotal,
+      updatedThreadCount: updatedTotal,
+    },
+  };
 }

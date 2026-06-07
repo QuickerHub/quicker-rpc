@@ -15,6 +15,7 @@ type LauncherTranscriptProps = {
   status: string;
   error: string | null;
   pendingApprovalCount: number;
+  pendingAskQuestionCount?: number;
   workingDirectory: string;
   ping: PingState;
 };
@@ -24,6 +25,7 @@ export function LauncherTranscript({
   status,
   error,
   pendingApprovalCount,
+  pendingAskQuestionCount = 0,
   workingDirectory,
   ping,
 }: LauncherTranscriptProps) {
@@ -97,6 +99,11 @@ export function LauncherTranscript({
       {pendingApprovalCount > 0 ? (
         <p className="launcher-approval-hint" role="status">
           需在主窗口确认 {pendingApprovalCount} 项操作
+        </p>
+      ) : null}
+      {pendingAskQuestionCount > 0 ? (
+        <p className="launcher-approval-hint" role="status">
+          需在主窗口选择 {pendingAskQuestionCount} 项选项
         </p>
       ) : null}
 

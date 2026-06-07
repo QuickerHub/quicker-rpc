@@ -10,14 +10,26 @@
     <IsPackable>false</IsPackable>
     <Description>Quicker.exe reflection probes for QuickerRpc.Plugin (Debug name scan + Release signature scan).</Description>
     <NoWarn>$(NoWarn);VSTHRD200</NoWarn>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
   </PropertyGroup>
   <Import Project="..\qkref.props" />
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="MSTest.TestAdapter" />
     <PackageReference Include="MSTest.TestFramework" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" VersionOverride="8.0.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\QuickerRpc.Plugin\QuickerRpc.Plugin.csproj" />
+    <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj">
+      <SetTargetFramework>TargetFramework=net472</SetTargetFramework>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+    <None Include="Fixtures\workspace-actions\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>

@@ -13,6 +13,7 @@
 | 打开 Quicker 设置/UI | **`quicker-ui`** |
 | 找步骤模块 | **`step-runner-search`** → **`step-runner-get`** |
 | 选动作/菜单图标 | **`action-icons`** |
+| WebView2 / 自定义 HTML 页 | **`webview2-authoring`** |
 
 ## P0–P7 摘要
 

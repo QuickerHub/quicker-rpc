@@ -11,6 +11,11 @@ namespace QuickerRpc.Plugin;
 public sealed class LauncherStartOptions
 {
     /// <summary>
+    /// When true, force-terminates QuickerAgent (<c>quicker-agent.exe</c>) and skips RPC start side-effects.
+    /// </summary>
+    public bool KillQuickerAgent { get; set; }
+
+    /// <summary>
     /// When true, starts the installed QuickerAgent desktop app (<c>quicker-agent.exe</c>) after RPC is ready.
     /// </summary>
     public bool LaunchQuickerAgent { get; set; }
@@ -37,9 +42,21 @@ public static class LauncherStartOptionsParser
     /// <summary>Start RPC and launch QuickerAgent.</summary>
     public const string ModeAgent = "agent";
 
+    /// <summary>Force-quit QuickerAgent desktop app (context menu / <c>quicker_in_param</c>).</summary>
+    public const string ModeKillAgent = "agent-kill";
+
+    public static bool IsKillAgentMode(string? quickerInParam) =>
+        string.Equals(NormalizeMode(quickerInParam), ModeKillAgent, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(NormalizeMode(quickerInParam), "kill-agent", StringComparison.OrdinalIgnoreCase);
+
     public static LauncherStartOptions Parse(string? quickerInParam)
     {
-        var mode = (quickerInParam ?? string.Empty).Trim();
+        var mode = NormalizeMode(quickerInParam);
+        if (IsKillAgentMode(mode))
+        {
+            return KillAgentOnly();
+        }
+
         if (IsPluginOnlyMode(mode))
         {
             return PluginOnly();
@@ -61,6 +78,25 @@ public static class LauncherStartOptionsParser
             Silent = false,
         };
     }
+
+    private static string NormalizeMode(string? quickerInParam)
+    {
+        var mode = (quickerInParam ?? string.Empty).Trim();
+        if (mode.StartsWith("?", StringComparison.Ordinal))
+        {
+            mode = mode.Substring(1).Trim();
+        }
+
+        return mode;
+    }
+
+    public static LauncherStartOptions KillAgentOnly() =>
+        new()
+        {
+            KillQuickerAgent = true,
+            LaunchQuickerAgent = false,
+            Silent = false,
+        };
 
     private static bool IsPluginOnlyMode(string mode) =>
         mode.Equals(ModePluginOnly, StringComparison.OrdinalIgnoreCase)

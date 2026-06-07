@@ -14,4 +14,10 @@ public static partial class Launcher
     /// </summary>
     public static void Start(IActionContext? context = null) =>
         StartCore(LauncherStartOptionsResolver.Resolve(context));
+
+    /// <summary>
+    /// Same as <see cref="Start"/> but accepts an explicit <c>quicker_in_param</c> (e.g. context-menu data).
+    /// </summary>
+    public static void StartFromQuickerInParam(string? quickerInParam, IActionContext? context = null) =>
+        StartCore(LauncherStartOptionsResolver.Resolve(context, quickerInParam));
 }

@@ -222,6 +222,19 @@
       "layer": "workflow"
     },
     {
+      "topic": "webview2-authoring",
+      "title": "WebView2 页面",
+      "description": "sys:webview2：files/*.html 外置、virtualHostToFolder 与 Agent 侧 browser 右栏预览。Use when authoring WebView2 HTML UI before patch.",
+      "source": "references/webview2-authoring.md",
+      "templateSource": "schemas/webview2-authoring.md",
+      "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit workspace_action_patch browser qkrpc_action debug",
+      "metadata": {
+        "phase": "P4-P6",
+        "layer": "schema"
+      },
+      "layer": "schema"
+    },
+    {
       "topic": "workspace-editing",
       "title": "工作区编辑",
       "description": ".quicker/actions layout; workspace_action_*_data and workspace_action_file_* (id + files/…); patch saves. Use when editing on disk.",

@@ -223,6 +223,17 @@ $qkbuildArgsResolved = $qkMeta.Args
 $testBuild = $qkMeta.Test
 $quickerDependencyUpload = $qkMeta.Publish -and $qkMeta.NoVersion
 
+if ($qkMeta.Publish) {
+    $versionJsonPath = Join-Path $PSScriptRoot 'version.json'
+    $versionFromFile = (Get-Content -Raw -Path $versionJsonPath | ConvertFrom-Json).QuickerRpc
+    $explicitVersion = Get-QuickerRpcVersionFromQkbuildArgs -Tokens $qkbuildArgsResolved
+    $candidateVersion = if ($explicitVersion) { $explicitVersion } else { [string]$versionFromFile }
+    Assert-QuickerRpcVersionMonotonic `
+        -RepoRoot $PSScriptRoot `
+        -CandidateVersion $candidateVersion `
+        -AllowEqual:([bool]$quickerDependencyUpload)
+}
+
 if ($SkipCliPackaging.IsPresent) {
     $skipPackaging = [bool]$SkipCliPackaging
 }

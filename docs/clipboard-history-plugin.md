@@ -63,7 +63,7 @@ pnpm tauri dev
 环境变量：
 
 - `QUICKER_CLIPBOARD_PORT` / `AGENT_GUI_CLIPBOARD_PORT` — HTTP 端口（默认 `6020`）
-- `AGENT_GUI_CLIPBOARD_RUNTIME=1` — `tauri dev` 时自动 spawn runtime
+- `AGENT_GUI_CLIPBOARD_RUNTIME=1` — 开发时随应用自动启动 runtime（生产默认关闭，可在设置中开启「随应用自动启动」）
 
 ## 与 CeaQuickerTools 的差异
 

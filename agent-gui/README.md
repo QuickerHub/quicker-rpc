@@ -34,7 +34,7 @@ pwsh ./start-agent-gui.ps1 -Tauri
 
 可选：`start-agent-gui.ps1 -Browser` 自动打开浏览器；`-Full` 启动时加载语音 runtime。高级脚本仍在 `package.json`（`dev:webpack`、`tauri:dev` 等），日常只用上面两条即可。
 
-**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；Tauri 安装版为 **`Documents/QuickerAgent/workspace`**。插件与资源存储：[`docs/agent-gui-plugin-storage.md`](../docs/agent-gui-plugin-storage.md)。
+**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；Tauri 安装版为 **`Documents/QuickerAgent/workspace`**。插件与资源存储：[`docs/agent-gui-plugin-storage.md`](../docs/agent-gui-plugin-storage.md)。**对话历史 JSON**：[`docs/agent-gui-chat-storage.md`](../docs/agent-gui-chat-storage.md)。
 
 ## 发布（Tauri 2）
 

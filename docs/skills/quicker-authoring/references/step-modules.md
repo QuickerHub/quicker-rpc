@@ -59,6 +59,7 @@ docs_get_reference({ topic: "step-modules", file: "http" })       # 仅有 refer
 | UI 自动化 | `sys:uiautomation` | `uiautomation` |
 | 浏览器 | `sys:chromecontrol` | `chromecontrol` |
 | 多字段表单 | `sys:form` | `form` |
+| WebView2 自定义页 | `sys:webview2` | `webview2` |
 | AI 调用 | `sys:ai` | `ai` |
 
 表达式/LINQ/剪贴板/弹窗等：**`expressions`** + **`get`** 即可，无 reference。

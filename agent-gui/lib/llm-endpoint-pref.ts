@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
+import { resolvePersistedDataFilePath } from "@/lib/quicker-agent-persisted-data";
 import type { LlmProviderId } from "@/lib/llm-providers";
 
 export type StickyLlmEndpoint = {
@@ -18,7 +18,7 @@ const EMPTY: LlmEndpointPrefFile = { version: 1, providers: {} };
 let cache: LlmEndpointPrefFile | null = null;
 
 export function resolveLlmEndpointPrefPath(): string {
-  return join(resolveAgentGuiRoot(), ".local", "llm-endpoint-pref.json");
+  return resolvePersistedDataFilePath("llm-endpoint-pref.json");
 }
 
 export function endpointFingerprint(endpoint: StickyLlmEndpoint): string {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { DefaultWorkingDirectoryProfile } from "@/lib/default-working-directory";
 import type { ChatStoreData } from "@/lib/chat-store";
+import { maybeAutoRestoreChatStoreOnBoot } from "@/lib/chat-store-boot-restore";
 import {
   CHAT_STORAGE_KEY,
   defaultChatStore,
@@ -54,9 +55,23 @@ function hydrateChatStoreFromClient(): void {
   notifyChatStoreListeners();
 }
 
+let bootAutoRestoreStarted = false;
+
+function startBootAutoRestoreIfNeeded(): void {
+  if (bootAutoRestoreStarted || typeof window === "undefined") return;
+  bootAutoRestoreStarted = true;
+  const snapshot = cachedStore ?? readChatStoreFromClient();
+  void maybeAutoRestoreChatStoreOnBoot(snapshot).then((restored) => {
+    if (!restored) return;
+    cachedStore = restored;
+    notifyChatStoreListeners();
+  });
+}
+
 /** Eagerly load persisted chat store during boot splash dismiss. */
 export function ensureChatStoreHydrated(): void {
   hydrateChatStoreFromClient();
+  startBootAutoRestoreIfNeeded();
 }
 
 const listeners = new Set<() => void>();

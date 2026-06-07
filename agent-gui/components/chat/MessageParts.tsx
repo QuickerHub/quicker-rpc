@@ -20,7 +20,6 @@ type MessagePartsProps = {
   /** Tool-test: keep multi-tool batches expanded (no auto-collapse when idle). */
   keepToolBatchesExpanded?: boolean;
   onInsertComposerPrompt?: (text: string) => void;
-  streamAssistantText?: boolean;
 };
 
 function MessagePartsInner({
@@ -29,7 +28,6 @@ function MessagePartsInner({
   workingDirectory,
   keepToolBatchesExpanded = false,
   onInsertComposerPrompt,
-  streamAssistantText = false,
 }: MessagePartsProps) {
   const segments = useMemo(
     () => segmentMessageParts(message.parts),
@@ -66,7 +64,6 @@ function MessagePartsInner({
               content={part.text}
               workingDirectory={workingDirectory}
               onInsertComposerPrompt={onInsertComposerPrompt}
-              streamPlainText={streamAssistantText}
             />
           );
         }

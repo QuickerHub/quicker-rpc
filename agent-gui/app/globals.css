@@ -1628,9 +1628,9 @@ html.sidebar-collapsed-init .app-shell {
   background: transparent;
 }
 
-/* Float thread toolbar over scrollport; body uses full pane height underneath. */
+/* Float thread toolbar over scrollport; messages start flush under the tab titlebar. */
 .app-main:not(.app-main--empty) {
-  --chat-conversation-header-height: 1.5rem;
+  --chat-conversation-header-height: 0px;
 }
 
 .app-main:not(.app-main--empty) .app-main-split-header {
@@ -1638,13 +1638,52 @@ html.sidebar-collapsed-init .app-shell {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 15;
+  z-index: 25;
   pointer-events: none;
+  height: 0;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* Side-open + active thread: WPF-style row 0 = tab/title bar, row 1 = chat + explorer body. */
+.app-main:not(.app-main--empty).app-main--side-open {
+  --workspace-side-panel-head-height: 1.75rem;
+}
+
+.app-main:not(.app-main--empty).app-main--side-open .app-main-split-header {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  height: auto;
+  min-height: var(--workspace-side-panel-head-height);
+  pointer-events: auto;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.app-main:not(.app-main--empty).app-main--side-open .app-main-split-header__side
+  .workspace-side-panel-head--inline {
+  min-height: var(--workspace-side-panel-head-height);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  background: color-mix(in srgb, var(--panel-bg) 92%, var(--bg));
 }
 
 .app-main:not(.app-main--empty) .chat-conversation-header,
 .app-main:not(.app-main--empty) .app-main-split-header__side {
   pointer-events: auto;
+}
+
+.app-main:not(.app-main--empty):not(.app-main--side-open) .chat-conversation-header {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: auto;
+  width: auto;
+  min-height: 0;
+  padding: 0 0.65rem 0 0;
+  justify-content: flex-end;
+  background: transparent;
 }
 
 .app-main-split-header__chat {
@@ -1679,6 +1718,7 @@ html.sidebar-collapsed-init .app-shell {
 
 .app-main-split-header__side .workspace-side-panel-head--inline {
   width: 100%;
+  align-items: center;
 }
 
 .app-main-body {
@@ -1927,6 +1967,42 @@ html.sidebar-collapsed-init .app-shell {
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+}
+
+.ws-list-restore {
+  flex-shrink: 0;
+  padding: 0.35rem 0.25rem 0.1rem;
+}
+
+.ws-restore-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.2;
+  padding: 0.35rem 0.45rem;
+  cursor: pointer;
+  transition:
+    background 0.1s ease,
+    color 0.1s ease,
+    border-color 0.1s ease;
+}
+
+.ws-restore-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--hover-overlay);
+}
+
+.ws-restore-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .ws-row {
@@ -2855,16 +2931,14 @@ html.sidebar-collapsed-init .app-shell {
   scroll-padding-bottom: var(--messages-bottom-air);
   /* Set by useMessagesScrollportHeight for active-turn sticky range */
   --messages-scrollport-height: 0px;
-  --messages-scroll-padding-top: 1rem;
+  --messages-scroll-padding-top: 0px;
   --messages-scroll-padding-x: var(--chat-rail-inset-inline, 1.25rem);
   border: none;
   background: transparent;
 }
 
 .app-main:not(.app-main--empty) .messages {
-  padding-top: calc(
-    var(--messages-scroll-padding-top) + var(--chat-conversation-header-height)
-  );
+  padding-top: 0;
 }
 
 .messages-history-sentinel {
@@ -2914,7 +2988,7 @@ html.sidebar-collapsed-init .app-shell {
 .msg-turn__prompt {
   position: -webkit-sticky;
   position: sticky;
-  /* Stick at scrollport top; avoid negative top/margin (clips under overflow-y: auto). */
+  /* Flush under the global tab titlebar (conversation toolbar floats as overlay). */
   top: 0;
   z-index: 20;
   flex-shrink: 0;
@@ -5485,7 +5559,7 @@ textarea {
   color: var(--text-assistant);
 }
 
-.msg-turn--hot:not(.msg-turn--fill-scrollport) {
+.msg-turn--cold {
   content-visibility: auto;
   contain-intrinsic-size: auto 240px;
 }
@@ -11183,6 +11257,44 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   );
 }
 
+.file-snapshot-omitted {
+  padding: 0.08rem 0.35rem 0;
+  font-size: 0.62rem;
+  line-height: 1.25;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-editor-card--compact.file-editor-card--preview-tail-fade .file-editor-body::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1.35rem;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg) 92%, transparent) 0%,
+    transparent 100%
+  );
+}
+
+.file-editor-card--compact.file-editor-card--preview-tail .file-snapshot-omitted {
+  position: relative;
+  z-index: 2;
+}
+
+.file-editor-card--running.file-editor-card--preview-tail .file-editor-body::after {
+  animation: none;
+  background: none;
+}
+
 .file-editor-card--compact.file-editor-card--expanded .file-editor-cm .cm-scroller {
   overflow: auto !important;
 }
@@ -11544,6 +11656,141 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   .approval-hint-actions {
     justify-content: flex-end;
   }
+}
+
+/* ask_question client-side choice UI */
+.tool-card--ask-question {
+  border-color: color-mix(in srgb, var(--accent, #3794ff) 35%, var(--border));
+  background: color-mix(in srgb, var(--panel) 90%, var(--accent, #3794ff) 10%);
+}
+
+.ask-question {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.ask-question-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.ask-question-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ask-question-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.ask-question-prompt {
+  display: block;
+  margin-bottom: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.ask-question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ask-question-option {
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: var(--text);
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.ask-question-option:hover {
+  background: var(--hover-overlay-strong);
+  border-color: color-mix(in srgb, var(--accent, #3794ff) 45%, var(--border));
+}
+
+.ask-question-option--selected {
+  color: var(--text-on-accent, #fff);
+  border-color: var(--accent, #3794ff);
+  background: var(--accent, #3794ff);
+}
+
+.ask-question-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ask-question-confirm {
+  border: 0;
+  border-radius: 8px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-on-accent, #fff);
+  background: var(--accent, #3794ff);
+  cursor: pointer;
+}
+
+.ask-question-confirm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ask-question--loading,
+.ask-question-external-hint {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.ask-question--done {
+  padding: 0.55rem 0.75rem;
+}
+
+.ask-question-done-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.ask-question-done-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ask-question-done-prompt {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.ask-question-done-value {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.ask-question--error {
+  padding: 0.55rem 0.75rem;
+  font-size: 0.76rem;
+  color: var(--err, #f48771);
 }
 
 .action-patch-followup {

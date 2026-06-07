@@ -44,4 +44,15 @@ public sealed class LauncherStartOptionsParserTests
         Assert.IsTrue(options.LaunchQuickerAgent);
         Assert.IsFalse(options.Silent);
     }
+
+    [TestMethod]
+    public void Parse_agent_kill_mode_kills_agent_only()
+    {
+        foreach (var mode in new[] { "agent-kill", "kill-agent", "?agent-kill", " AGENT-KILL " })
+        {
+            var options = LauncherStartOptionsParser.Parse(mode);
+            Assert.IsTrue(options.KillQuickerAgent, mode);
+            Assert.IsFalse(options.LaunchQuickerAgent, mode);
+        }
+    }
 }

@@ -6,7 +6,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
+import { resolvePersistedDataDirPath } from "@/lib/quicker-agent-persisted-data";
 
 export type LlmUsageTotals = {
   inputTokens: number;
@@ -54,7 +54,7 @@ const EMPTY_TOTALS = (): LlmUsageTotals => ({
 const MAX_RECENT_EVENTS = 40;
 
 export function resolveLlmUsageRoot(): string {
-  return join(resolveAgentGuiRoot(), ".local", "llm-usage");
+  return resolvePersistedDataDirPath("llm-usage");
 }
 
 export function resolveLlmUsageUserPath(userId: string): string {

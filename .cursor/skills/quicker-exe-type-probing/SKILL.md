@@ -47,6 +47,7 @@ When the directory exists, use it for **Debug type/method names** and call-site 
 | Domain services (`ActionEditMgr`, search, runtime lookup) | `rg "class ActionEditMgr"` |
 | XAction program model (steps, variables, subprograms) | `rg "SaveEditingAction"` / `XAction` under Actions |
 | Designer UI (`SaveAllData`, `UpdateXActionUi`) | `rg "ActionDesignerWindow"` |
+| Step 双击弹窗 / 字段编辑器（Web 对齐 WPF） | `rg "ActionStepEditorWindow|InputParamEditorControl" ../Quicker/QuickerPc/Quicker/View/X/StepEditor`；见 `quicker-action-designer-ui` |
 | Step runner catalog | `rg "IStepRunnerService"` |
 | Shared DTOs / legacy models | `rg` for the type name; Common layout varies |
 
