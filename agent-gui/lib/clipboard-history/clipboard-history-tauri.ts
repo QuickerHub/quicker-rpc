@@ -15,7 +15,7 @@ import { isTauriShell } from "@/lib/tauri-shell";
 const TAURI_INVOKE_TIMEOUT_MS = 12_000;
 
 const DISABLED_STATUS: ClipboardPluginStatusDto = {
-  status: "disabled",
+  status: "stopped",
   installed: false,
   running: false,
   httpPort: 0,
