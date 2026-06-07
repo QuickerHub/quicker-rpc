@@ -126,9 +126,40 @@ qkrpc serve [--host 127.0.0.1] [--port 9477] [--timeout 120] [--no-bootstrap]
 | 端点 | 说明 |
 |------|------|
 | `GET http://127.0.0.1:9477/health` | 管道连通性（`Ping` + 协议版本） |
+| `GET http://127.0.0.1:9477/openapi.json` | OpenAPI 3.1 描述（HTTP 自建 Agent） |
 | `POST http://127.0.0.1:9477/v1/invoke` | JSON 体 `{ "op": "...", "args": { ... } }`（**agent-gui 默认**） |
 
 `op` 与 agent-gui 工具一致：`guide.get`、`action.list`、`action.patch`、`fa.search` 等。消息体契约见 `QuickerRpc.AgentModel/Protos/agent_api.proto`（仅生成 model，线上为 camelCase JSON）。
+
+离线导出 OpenAPI：
+
+```powershell
+qkrpc serve openapi --json
+qkrpc serve openapi --out openapi.json
+```
+
+### `qkrpc agent setup`
+
+在 Cursor / VS Code / Claude 等第三方 Agent 中一键接入 MCP + skills + rules（**默认用户级**）。
+
+```powershell
+qkrpc agent setup
+qkrpc agent setup --check
+qkrpc agent setup --upgrade
+qkrpc agent setup --all
+qkrpc agent setup --project
+qkrpc mcp install    # 向后兼容别名
+```
+
+详见 [agent-mcp-integration.md](agent-mcp-integration.md)、[agent-skill-distribution.md](agent-skill-distribution.md)。
+
+### `qkrpc mcp`
+
+stdio MCP 服务（供 Cursor 等 MCP 宿主调用）。
+
+```powershell
+qkrpc mcp [--timeout 120] [--no-bootstrap]
+```
 
 ### `qkrpc action list`
 
