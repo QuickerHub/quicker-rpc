@@ -6,7 +6,7 @@ import {
   type ContextCompressionPreview,
 } from "@/lib/context-compression";
 import { resolveModelContextLimit } from "@/lib/llm-context-limits";
-import { resolveChatModelForSelection } from "@/lib/llm";
+import { resolveChatModelForSelection, resolveLlmSelection } from "@/lib/llm";
 import { LLM_AUTO_SELECTION } from "@/lib/llm-selection";
 
 export const runtime = "nodejs";
@@ -47,7 +47,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "MISSING_MESSAGES" }, { status: 400 });
   }
 
-  const selection = body.llmSelection?.trim() || LLM_AUTO_SELECTION;
+  const selection = resolveLlmSelection(
+    body.llmSelection?.trim() || LLM_AUTO_SELECTION,
+  );
   const force = body.force === true;
 
   let model;
