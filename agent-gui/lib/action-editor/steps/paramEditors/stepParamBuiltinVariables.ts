@@ -1,4 +1,4 @@
-import type { ActionVariable } from "@/lib/action-editor/types/common";
+import { ActionVariable } from "@/lib/action-editor/types/common";
 import { CsVarType } from "./csStepEnums";
 import { isStepParamVarAssignable } from "./stepParamVarAssign";
 

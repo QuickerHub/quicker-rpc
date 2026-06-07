@@ -288,7 +288,7 @@ function parseActionIdToolInput(
   input: z.infer<typeof actionIdSchema>,
 ): ToolParseResult<QkrpcActionIdToolInput> {
   const normalized = normalizeQkrpcActionInput(input) as z.infer<typeof actionIdSchema>;
-  const action = normalized.action;
+  const action = normalized.action as string;
   if (action === "run" || action === "debug" || action === "float") {
     return {
       success: false,
@@ -326,10 +326,19 @@ export type QkrpcActionToolInput = QkrpcActionQueryToolInput
       | QkrpcActionIdToolInput["action"]
       | QkrpcActionManageToolInput["action"]
       | "list"
-      | "search";
+      | "search"
+      | "run"
+      | "debug"
+      | "float"
+      | "trace"
+      | "replace"
+      | "patch";
     filter?: "library" | "installed" | "local" | "published";
     program?: Record<string, unknown>;
     patch?: Record<string, unknown>;
+    xaction?: Record<string, unknown>;
+    expectedEditVersion?: number;
+    force?: boolean;
   };
 
 function serializeActionQuery(
@@ -682,7 +691,7 @@ export async function executeQkrpcActionTool(
   }
 
   if (action === "replace") {
-    const replaceInput = input as QkrpcActionIdToolInput & {
+    const replaceInput = input as QkrpcActionToolInput & {
       id: string;
       xaction: Record<string, unknown>;
     };

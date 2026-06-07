@@ -109,10 +109,6 @@ function parseSubprogramIdToolInput(
 ):
   | { success: true; data: QkrpcSubprogramIdToolInput }
   | { success: false; message: string } {
-  const action = input.action;
-  if (action === "patch" || action === "replace") {
-    return { success: false, message: SUBPROGRAM_WORKSPACE_REDIRECT };
-  }
   const parsed = subprogramIdInputSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, message: formatZodToolInputError(parsed.error) };
