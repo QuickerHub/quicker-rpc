@@ -20,7 +20,7 @@ import {
 } from "@/lib/docs-catalog-api";
 import type { DocsGetDoc } from "@/lib/docs-tool";
 import { openWorkspaceMainEditorTab } from "@/lib/workspace-main-editor-tab";
-import { useWorkspaceExplorerShell } from "@/lib/workspace-explorer";
+import { useOptionalWorkspaceExplorerShell } from "@/lib/workspace-explorer";
 
 export type DocViewerEntry = {
   topic: string;
@@ -52,7 +52,7 @@ type DocsViewerContextValue = {
 const DocsViewerContext = createContext<DocsViewerContextValue | null>(null);
 
 export function DocsViewerProvider({ children }: { children: ReactNode }) {
-  const { panelOpen } = useWorkspaceExplorerShell();
+  const panelOpen = useOptionalWorkspaceExplorerShell()?.panelOpen ?? false;
   const [catalogTopics, setCatalogTopics] = useState<ActionAuthoringTopicMeta[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);

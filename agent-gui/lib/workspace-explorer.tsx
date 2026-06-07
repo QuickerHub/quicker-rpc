@@ -378,8 +378,14 @@ export function WorkspaceExplorerShellProvider({
   );
 }
 
+export function useOptionalWorkspaceExplorerShell():
+  | WorkspaceExplorerShellContextValue
+  | null {
+  return useContext(WorkspaceExplorerShellContext);
+}
+
 export function useWorkspaceExplorerShell(): WorkspaceExplorerShellContextValue {
-  const ctx = useContext(WorkspaceExplorerShellContext);
+  const ctx = useOptionalWorkspaceExplorerShell();
   if (!ctx) {
     throw new Error(
       "useWorkspaceExplorerShell must be used within WorkspaceExplorerShellProvider",
