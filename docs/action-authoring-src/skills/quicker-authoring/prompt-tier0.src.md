@@ -6,10 +6,13 @@
 
 | intent | tools | docs deep-read |
 |--------|-------|----------------|
-| edit program body | P1–P7 | authoring-workflow |
+| run action | qkrpc_action_run | — |
+| debug action | qkrpc_action_debug | qkrpc_action_run |
+| float action | qkrpc_action_float | — |
+| edit program body | P1–P7 + workspace_program | authoring-workflow |
 | disk .quicker | workspace_program | workspace-editing |
 | global/embedded subprogram | workspace_program + target | subprogram-workflow |
-| step module keys | step_runner_search → get | step-runner-get |
+| step module keys | qkrpc_step_runner_search → get | step-runner-get |
 | metadata icons | qkrpc_fa search | action-icons |
 | WebView2/HTML in files/ | workspace_program file_* + patch | webview2-authoring |
 
@@ -19,6 +22,7 @@
 
 ## Hard rules
 
+- NO shell_exec for qkrpc connectivity (ping, probe, serve, build.ps1 -t, qkrpc CLI) — tell user on connectivity_failure
 - NO guess inputParams without step_runner_get
 - NO get-ui / step-runner.getUi
 - NO inline patch JSON / --patch-file; save via workspace_program patch only

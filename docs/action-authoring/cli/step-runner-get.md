@@ -16,9 +16,9 @@ FORBIDDEN step-runner get-ui in automation (action-editor UI only)
 | step | role |
 |------|------|
 | search | key, controlField, snippet |
-| get | inputParams/outputParams keys; visible fields |
+| get | input keys, valueType, options (when set), required, default, fileExt |
 
-Bind shapes: action-steps.
+Bind rules: action-steps — use exact `key`; variable bind `paramKey.var` not `{varKey}` in value.
 
 ```powershell
 qkrpc step-runner get --key sys:MsgBox --json

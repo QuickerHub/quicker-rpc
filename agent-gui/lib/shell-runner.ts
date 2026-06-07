@@ -15,6 +15,7 @@ import {
   type ShellRunRequest,
   type ShellRunResult,
 } from "@/lib/shell-types";
+import { buildShellProcessEnv } from "@/lib/shell-env";
 import { resolveWorkspacePath } from "@/lib/workspace-fs";
 import {
   appendShellSessionOutput,
@@ -196,7 +197,7 @@ async function runProcess(
   return new Promise((resolvePromise) => {
     const child = spawn(invocation.executable, invocation.args, {
       cwd,
-      env: env ? { ...process.env, ...env } : process.env,
+      env: buildShellProcessEnv(env),
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });

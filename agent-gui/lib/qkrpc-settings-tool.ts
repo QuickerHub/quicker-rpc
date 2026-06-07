@@ -245,7 +245,8 @@ export async function executeQuickerSettingsTool(
 
 export const QUICKER_SETTINGS_TOOL_DEF = tool({
   description:
-    "Quicker application settings (headless read/write; no Quicker UI required for get/set/apply). "
+    "Quicker desktop app settings — NOT agent-gui chat models (llm_settings). "
+    + "Headless read/write via get/set/apply; open only when user needs the UI panel. "
     + "action=list: browse keys by scope, or pass query to search keys and settings pages. "
     + "action=search: alias for list with required query. "
     + "action=get/set: single key scope:path (e.g. userSettings:EnableCircleMenu). "

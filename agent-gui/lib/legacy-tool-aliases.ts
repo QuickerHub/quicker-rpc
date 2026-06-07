@@ -24,16 +24,28 @@ import {
   QKRPC_FA_SEARCH_TOOL,
 } from "@/lib/qkrpc-fa-tool";
 import {
+  QKRPC_ACTION_MANAGE_TOOL_DEF,
+  QKRPC_ACTION_RUN_CONSOLIDATED_TOOL_DEF,
+  QKRPC_ACTION_TOOL_DEF,
   executeQkrpcActionIdTool,
   executeQkrpcActionManageTool,
   executeQkrpcActionQueryTool,
+  executeQkrpcActionRunTool,
+  executeQkrpcActionTool,
 } from "@/lib/qkrpc-action-tool.server";
+import { QKRPC_ACTION_MANAGE_TOOL, QKRPC_ACTION_TOOL } from "@/lib/qkrpc-action-tool";
 import {
+  QKRPC_SUBPROGRAM_MANAGE_TOOL_DEF,
+  QKRPC_SUBPROGRAM_TOOL_DEF,
   executeQkrpcSubprogramIdTool,
   executeQkrpcSubprogramManageTool,
   executeQkrpcSubprogramQueryTool,
   executeQkrpcSubprogramTool,
 } from "@/lib/qkrpc-subprogram-tool.server";
+import {
+  QKRPC_SUBPROGRAM_MANAGE_TOOL,
+  QKRPC_SUBPROGRAM_TOOL,
+} from "@/lib/qkrpc-subprogram-tool";
 import { executeWorkspaceProgramTool } from "@/lib/workspace-program-tool.server";
 import { workspaceProgramIdSchema } from "@/lib/workspace-program-schema";
 
@@ -151,8 +163,12 @@ export const legacyQuickerToolAliases = {
       executeQkrpcFaTool({ action: "resolve", spec, specs }),
   }),
 
+  [QKRPC_ACTION_TOOL]: QKRPC_ACTION_TOOL_DEF,
+  [QKRPC_ACTION_MANAGE_TOOL]: QKRPC_ACTION_MANAGE_TOOL_DEF,
+  qkrpc_action_run_consolidated: QKRPC_ACTION_RUN_CONSOLIDATED_TOOL_DEF,
+
   qkrpc_action_update: tool({
-    description: "Deprecated: use qkrpc_action({ action: \"publish\", changelog })",
+    description: "Deprecated: use qkrpc_action_publish({ changelog })",
     inputSchema: z.object({
       id: z.string().uuid(),
       changelog: z.string().optional(),
@@ -192,18 +208,8 @@ export const legacyQuickerToolAliases = {
     execute: async (input) => executeQkrpcActionQueryTool(input),
   }),
 
-  qkrpc_action_get: tool({
-    description: "Deprecated: use qkrpc_action({ action: \"get\", id })",
-    inputSchema: z.object({
-      id: z.string().uuid(),
-      returnMode: returnModeSchema.optional(),
-    }),
-    execute: async ({ id, returnMode }) =>
-      executeQkrpcActionIdTool({ action: "get", id, returnMode }),
-  }),
-
   qkrpc_action_replace: tool({
-    description: "Deprecated: use qkrpc_action({ action: \"replace\" })",
+    description: "Deprecated: use workspace_program({ action: \"patch\", target: \"action\", id })",
     inputSchema: z.object({
       id: z.string().uuid(),
       xaction: z.record(z.unknown()),
@@ -211,7 +217,7 @@ export const legacyQuickerToolAliases = {
       force: z.boolean().optional(),
     }),
     execute: async ({ id, xaction, expectedEditVersion, force }) =>
-      executeQkrpcActionIdTool({
+      executeQkrpcActionTool({
         action: "replace",
         id,
         xaction,
@@ -220,136 +226,8 @@ export const legacyQuickerToolAliases = {
       }),
   }),
 
-  qkrpc_action_publish: tool({
-    description: "Deprecated: use qkrpc_action({ action: \"publish\" })",
-    inputSchema: z.object({
-      id: z.string().uuid(),
-      title: z.string().optional(),
-      description: z.string().optional(),
-      note: z.string().optional(),
-      tags: z.string().optional(),
-      keywords: z.string().optional(),
-      changelog: z.string().optional(),
-      isPublic: z.boolean().optional(),
-      submitReview: z.boolean().optional(),
-    }),
-    execute: async (input) =>
-      executeQkrpcActionIdTool({ action: "publish", ...input }),
-  }),
-
-  qkrpc_action_float: tool({
-    description: "Deprecated: use qkrpc_action({ action: \"float\", id })",
-    inputSchema: z.object({ id: z.string() }),
-    execute: async ({ id }) => executeQkrpcActionIdTool({ action: "float", id }),
-  }),
-
-  qkrpc_action_edit: tool({
-    description: "Deprecated: use qkrpc_action({ action: \"edit\", id })",
-    inputSchema: z.object({ id: z.string().uuid() }),
-    execute: async ({ id }) => executeQkrpcActionIdTool({ action: "edit", id }),
-  }),
-
-  qkrpc_action_edit_var: tool({
-    description: "Deprecated: use qkrpc_action({ action: \"edit_var\" })",
-    inputSchema: z.object({
-      id: z.string(),
-      var: z.string(),
-      value: z.string(),
-    }),
-    execute: async ({ id, var: variableKey, value }) =>
-      executeQkrpcActionIdTool({
-        action: "edit_var",
-        id,
-        var: variableKey,
-        value,
-      }),
-  }),
-
-  qkrpc_action_set_metadata: tool({
-    description: "Deprecated: use qkrpc_action({ action: \"set_metadata\" })",
-    inputSchema: z.object({
-      id: z.string().uuid(),
-      title: z.string().optional(),
-      description: z.string().optional(),
-      icon: z.string().optional(),
-      expectedEditVersion: z.number().int().optional(),
-      force: z.boolean().optional(),
-    }),
-    execute: async (input) =>
-      executeQkrpcActionIdTool({ action: "set_metadata", ...input }),
-  }),
-
-  qkrpc_action_run: tool({
-    description: "Deprecated: use qkrpc_action({ action: \"run\" }) or action: \"debug\" for step output",
-    inputSchema: z.object({
-      id: z.string(),
-      param: z.string().optional(),
-      wait: z.boolean().optional(),
-      trace: z.boolean().optional(),
-    }),
-    execute: async (input) => executeQkrpcActionIdTool({ action: "run", ...input }),
-  }),
-
-  qkrpc_action_move: tool({
-    description: "Deprecated: use qkrpc_action({ action: \"move\" })",
-    inputSchema: z.object({
-      id: z.string().uuid(),
-      profile: z.string(),
-      row: z.number().int().min(0).optional(),
-      col: z.number().int().min(0).optional(),
-      swap: z.boolean().optional(),
-      onNoEmptySlot: z.enum(["ask", "cancel", "createPageAfter"]).optional(),
-      onOccupiedSlot: z.enum(["ask", "cancel", "swap"]).optional(),
-    }),
-    execute: async (input) => executeQkrpcActionIdTool({ action: "move", ...input }),
-  }),
-
-  qkrpc_profile_create: tool({
-    description: "Deprecated: use qkrpc_action_manage({ action: \"profile_create\" })",
-    inputSchema: z.object({
-      count: z.number().int().min(1).max(20).optional(),
-      afterFirst: z.boolean().optional(),
-    }),
-    execute: async (input) =>
-      executeQkrpcActionManageTool({ action: "profile_create", ...input }),
-  }),
-
-  qkrpc_profile_delete: tool({
-    description: "Deprecated: use qkrpc_action_manage({ action: \"profile_delete\" })",
-    inputSchema: z.object({
-      profileId: z.string().optional(),
-      profileIds: z.array(z.string()).min(1).optional(),
-    }),
-    execute: async ({ profileId, profileIds }) =>
-      executeQkrpcActionManageTool({
-        action: "profile_delete",
-        id: profileId,
-        profileIds,
-      }),
-  }),
-
-  qkrpc_profile_reorder: tool({
-    description: "Deprecated: use qkrpc_action_manage({ action: \"profile_reorder\" })",
-    inputSchema: z.object({
-      profileIds: z.array(z.string().uuid()).min(1),
-    }),
-    execute: async ({ profileIds }) =>
-      executeQkrpcActionManageTool({ action: "profile_reorder", profileIds }),
-  }),
-
-  qkrpc_process_ensure: tool({
-    description: "Deprecated: use qkrpc_action_manage({ action: \"process_ensure\" })",
-    inputSchema: z.object({
-      exeFile: z.string(),
-      displayName: z.string(),
-      profileNamePrefix: z.string(),
-      collectSubProgramName: z.string().optional(),
-      moveActions: z.boolean().optional(),
-      moveAny: z.boolean().optional(),
-    }),
-    execute: async (input) =>
-      executeQkrpcActionManageTool({ action: "process_ensure", ...input }),
-  }),
+  [QKRPC_SUBPROGRAM_TOOL]: QKRPC_SUBPROGRAM_TOOL_DEF,
+  [QKRPC_SUBPROGRAM_MANAGE_TOOL]: QKRPC_SUBPROGRAM_MANAGE_TOOL_DEF,
 
   qkrpc_subprogram_list: tool({
     description: "Deprecated: use qkrpc_subprogram_query({ query })",
@@ -369,29 +247,26 @@ export const legacyQuickerToolAliases = {
     execute: async (input) => executeQkrpcSubprogramQueryTool(input),
   }),
 
-  qkrpc_subprogram_get: tool({
-    description: "Deprecated: use qkrpc_subprogram({ action: \"get\", id })",
+  qkrpc_subprogram_edit_var: tool({
+    description:
+      "Hidden: prefer workspace_program edit_data (target=global_subprogram) for variable edits.",
     inputSchema: z.object({
       id: z.string(),
-      returnMode: returnModeSchema.optional(),
+      var: z.string(),
+      value: z.string(),
     }),
-    execute: async ({ id, returnMode }) =>
-      executeQkrpcSubprogramIdTool({ action: "get", id, returnMode }),
-  }),
-
-  qkrpc_subprogram_create: tool({
-    description: "Deprecated: use qkrpc_subprogram_manage({ action: \"create\", name })",
-    inputSchema: z.object({
-      name: z.string(),
-      description: z.string().optional(),
-      icon: z.string().optional(),
-    }),
-    execute: async (input) =>
-      executeQkrpcSubprogramManageTool({ action: "create", ...input }),
+    execute: async ({ id, var: variableKey, value }) =>
+      executeQkrpcSubprogramIdTool({
+        action: "edit_var",
+        id,
+        var: variableKey,
+        value,
+      }),
   }),
 
   qkrpc_subprogram_patch: tool({
-    description: "Deprecated: use qkrpc_subprogram({ action: \"patch\" })",
+    description:
+      "Deprecated: use workspace_program({ action: \"patch\", target: \"global_subprogram\", id })",
     inputSchema: z.object({
       id: z.string(),
       patch: z.record(z.unknown()),
@@ -409,7 +284,8 @@ export const legacyQuickerToolAliases = {
   }),
 
   qkrpc_subprogram_replace: tool({
-    description: "Deprecated: use qkrpc_subprogram({ action: \"replace\" })",
+    description:
+      "Deprecated: use workspace_program({ action: \"patch\", target: \"global_subprogram\", id })",
     inputSchema: z.object({
       id: z.string(),
       program: z.record(z.unknown()),
@@ -423,46 +299,6 @@ export const legacyQuickerToolAliases = {
         program,
         expectedEditVersion,
         force,
-      }),
-  }),
-
-  qkrpc_subprogram_export: tool({
-    description: "Deprecated: use qkrpc_subprogram({ action: \"export\" })",
-    inputSchema: z.object({ id: z.string(), dir: z.string() }),
-    execute: async ({ id, dir }) =>
-      executeQkrpcSubprogramIdTool({ action: "export", id, dir }),
-  }),
-
-  qkrpc_subprogram_import: tool({
-    description: "Deprecated: use qkrpc_subprogram({ action: \"import\", dir })",
-    inputSchema: z.object({
-      dir: z.string(),
-      expectedEditVersion: z.number().int().optional(),
-      force: z.boolean().optional(),
-    }),
-    execute: async (input) =>
-      executeQkrpcSubprogramIdTool({ action: "import", ...input }),
-  }),
-
-  qkrpc_subprogram_edit: tool({
-    description: "Deprecated: use qkrpc_subprogram({ action: \"edit\", id })",
-    inputSchema: z.object({ id: z.string() }),
-    execute: async ({ id }) => executeQkrpcSubprogramIdTool({ action: "edit", id }),
-  }),
-
-  qkrpc_subprogram_edit_var: tool({
-    description: "Deprecated: use qkrpc_subprogram({ action: \"edit_var\" })",
-    inputSchema: z.object({
-      id: z.string(),
-      var: z.string(),
-      value: z.string(),
-    }),
-    execute: async ({ id, var: variableKey, value }) =>
-      executeQkrpcSubprogramIdTool({
-        action: "edit_var",
-        id,
-        var: variableKey,
-        value,
       }),
   }),
 

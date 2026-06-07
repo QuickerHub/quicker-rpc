@@ -29,6 +29,7 @@ internal static partial class Program
 
         var result = Parser.Default.ParseArguments<
             PingOptions,
+            WaitOptions,
             ServeOptions,
             McpOptions,
             ActionOptions,
@@ -46,6 +47,7 @@ internal static partial class Program
         return await result
             .MapResult(
                 (PingOptions o) => RunPingAsync(o),
+                (WaitOptions o) => RunWaitAsync(o),
                 (ServeOptions o) => RunServeAsync(o),
                 (McpOptions o) => RunMcpAsync(o),
                 (ActionOptions o) => RunActionAsync(o),
@@ -116,6 +118,65 @@ internal static partial class Program
         }
     }
 
+    private static async Task<int> RunWaitAsync(WaitOptions options)
+    {
+        try
+        {
+            var result = await QuickerRpcClient.WaitForPluginAsync(
+                    options.TimeoutSeconds,
+                    options.IntervalSeconds,
+                    !options.NoBootstrap)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = true,
+                        action = "wait",
+                        pong = result.Pong,
+                        protocolVersion = result.ProtocolVersion,
+                        elapsedMs = result.ElapsedMs,
+                        attempts = result.Attempts,
+                        bootstrapAttempted = result.BootstrapAttempted,
+                        pipe = QuickerRpcPipeNames.ServerPipe,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else
+            {
+                global::System.Console.WriteLine(
+                    $"ready in {result.ElapsedMs}ms ({result.Attempts} attempts, protocol {result.ProtocolVersion})");
+            }
+
+            return ExitCodes.Success;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitConnectErrorAsync(
+                options.Json,
+                new QuickerRpcClientException(
+                    QuickerRpcConnect.ConnectTimeoutErrorCode,
+                    QuickerRpcConnect.BuildConnectTimeoutMessage(
+                        QuickerRpcPipeNames.ServerPipe,
+                        options.TimeoutSeconds),
+                    QuickerRpcConnect.BuildPluginNotRunningHints(bootstrapAttempted: false)))
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "WAIT_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
+
     private static async Task<int> RunSubProgramAsync(SubProgramOptions options)
     {
         var verb = (options.Command ?? string.Empty).Trim().ToLowerInvariant();
@@ -159,6 +220,7 @@ internal static partial class Program
             "update" => await RunActionUpdateAsync(options).ConfigureAwait(false),
             "publish" => await RunActionPublishAsync(options).ConfigureAwait(false),
             "search" => await RunActionSearchAsync(options).ConfigureAwait(false),
+            "mention-search" => await RunActionMentionSearchAsync(options).ConfigureAwait(false),
             "list" => await RunActionListAsync(options).ConfigureAwait(false),
             "get" => await RunActionGetAsync(options).ConfigureAwait(false),
             "create" => await RunActionCreateAsync(options).ConfigureAwait(false),
@@ -185,7 +247,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|publish|update|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
+            "Use: action create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|mention-search|publish|update|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -1105,6 +1167,22 @@ public sealed class ServeOptions
     public int TimeoutSeconds { get; set; }
 
     [Option("no-bootstrap", HelpText = "Do not auto-start plugin when pipe is unavailable.")]
+    public bool NoBootstrap { get; set; }
+}
+
+[Verb("wait", HelpText = "Poll until QuickerRpc plugin is reachable (or timeout).")]
+public sealed class WaitOptions
+{
+    [Option("json", HelpText = "Emit JSON for automation.")]
+    public bool Json { get; set; }
+
+    [Option("timeout", Default = 120, HelpText = "Max wait in seconds.")]
+    public int TimeoutSeconds { get; set; }
+
+    [Option("interval", Default = 2, HelpText = "Poll interval in seconds between attempts.")]
+    public int IntervalSeconds { get; set; }
+
+    [Option("no-bootstrap", HelpText = "Do not auto-start plugin via quicker:runaction when pipe is unavailable.")]
     public bool NoBootstrap { get; set; }
 }
 

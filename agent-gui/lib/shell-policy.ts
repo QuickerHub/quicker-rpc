@@ -36,6 +36,38 @@ const BLOCKED_PATTERNS: { pattern: RegExp; reason: string }[] = [
     pattern: /\bcurl\b[^\n\r|;&]*\|\s*(bash|sh|pwsh|powershell)\b/i,
     reason: "curl piped to shell is blocked",
   },
+  {
+    pattern: /\bqkrpc(\.exe)?\s+wait\b/i,
+    reason: "use qkrpc_wait tool instead of shell wait",
+  },
+  {
+    pattern: /\bqkrpc(\.exe)?\s+ping\b/i,
+    reason: "do not probe plugin via shell ping; use qkrpc tools or header RPC status",
+  },
+  {
+    pattern: /\bqkrpc(\.exe)?\s+serve\b/i,
+    reason: "do not start qkrpc serve via shell_exec",
+  },
+  {
+    pattern: /\binvoke-restmethod\b[^\n\r|;&]*(?:9477|qkrpc)/i,
+    reason: "do not probe qkrpc serve via shell; check header RPC status",
+  },
+  {
+    pattern: /\bcurl\b[^\n\r|;&]*(?:9477|\/health)/i,
+    reason: "do not probe qkrpc serve via shell",
+  },
+  {
+    pattern: /\bnetstat\b[^\n\r|;&]*9477/i,
+    reason: "do not probe qkrpc serve port via shell",
+  },
+  {
+    pattern: /\bget-process\b[^\n\r|;&]*quicker/i,
+    reason: "do not diagnose Quicker connectivity via shell",
+  },
+  {
+    pattern: /\bbuild\.ps1\b[^\n\r|;&]*(?:\s|^)-t\b/i,
+    reason: "hot-update is not a shell_exec recovery step; ask user to reload plugin",
+  },
 ];
 
 /** Delete / irreversible remote or repo mutations. */

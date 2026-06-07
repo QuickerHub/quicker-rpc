@@ -2,52 +2,73 @@
 
 **When**: edit **variables[]** in data.json. Step binding: **action-steps**; expressions: **expressions**.
 
-## Write fields
+## data.json variables[] schema
 
-| field | notes |
-|-------|-------|
-| `key` | name; varKey and `{name}` reference this |
-| `varType` | lowercase English; **omit = text** |
-| `default` | inline string; text/any need `""` not omit |
-| `default.file` | file ref path when default lives in `files/…` |
-| `desc` | optional |
-| `isInput` / `isOutput` / `isLocked` / `saveState` | optional metadata |
+Shared base fields (action + subprogram):
 
-Stable id is **key**. Row `id` if present is export/editor id — do not use as variable name.
+| field | type | required | notes |
+|-------|------|----------|-------|
+| `key` | string | yes | stable id; `{key}` and step binds reference this |
+| `varType` | string | no | omit = text |
+| `default` | string | no | inline default — mutually exclusive with `default.file` |
+| `default.file` | string | no | `files/…` path |
+| `desc` | string | no | |
+| `isLocked` | boolean | no | |
+| `saveState` | boolean | no | |
+| `id` | string | no | export/editor id — not the variable name |
+| `group` | string | no | |
+| `customType` | string | no | |
+
+**Subprogram only** (when editing subprogram data.json):
+
+| field | type | when | notes |
+|-------|------|------|-------|
+| `isInput` | boolean | IO | subprogram input parameter |
+| `isOutput` | boolean | IO | subprogram output parameter |
+| `paramName` | string | IO | display label; omit → use `key` |
+| `inputParamInfo` | object | `isInput` | see **action-data-schema** JSON |
+| `outputParamInfo` | object | `isOutput` | visibleExpression |
+| `tableDef` | object | `varType=table` | column schema |
+
+**Action**: do NOT set isInput/isOutput/paramName — use `{quicker_in_param}` (**expressions**).
+
+Machine-readable full schema: `qkrpc guide get --topic action-data-schema --json`.
+
+Stable id is **`key`**. Do not use row `id` as the variable name.
 
 ## varType
 
-| varType | meaning |
-|---------|---------|
+| varType | |
+|---------|---|
 | *(omit)* | text |
 | number, boolean, integer, table, list, dict, enum, datetime, image, object | typed |
 
-Text / `any` without `default` → runtime **null** (not `""`). Hand-write `"default": ""` unless using file ref.
+Text without `default` → runtime null (not `""`). Use `"default": ""` for empty string.
 
-## Read-only aliases (import)
+## default wire
 
-`type` (numeric VarType), `Type`, `var_type` — write as **varType** string. Legacy **defaultValue** / **defaultValue.file** / **defaultValueFile** — read/expand only.
+Exactly one:
 
-## default / default.file
+| wire key | value |
+|----------|-------|
+| `default` | plain string, e.g. `"42"`, `"$$Hello {name}"` |
+| `default.file` | `files/myvar-default1.txt` |
 
-| binding | wire key | value |
-|---------|----------|-------|
-| inline string | `default` | plain string, e.g. `"42"`, `"$$Hello {name}"` |
-| file ref | `default.file` | `files/myvar-default1.txt` |
+Long default (>~4 lines / 240 chars) → `default.file`.
 
-Long default (>~4 lines / 240 chars) → file.
+Inline interpolation: $$/$= rules — **expressions**.
 
-Inline interpolation: same $$/$= rules as inputParams.value — **expressions**.
+Legacy `defaultValue` / `defaultValueFile` / `defaultValue.file` — read-only on import; write `default` / `default.file`.
 
 ## vs steps
 
-- input: `{ "varKey": "<key>" }` (key string, not expression)
-- output: string keys in outputParams (may `dictVar.entry`) — **action-steps**
-- expressions: `{count}` in strings; write `{count}` not `v_count` — **expressions**
+- input bind: `paramKey.var` = `"<key>"` — **action-steps**
+- output: `outputParams` string value — **action-steps**
+- `{count}` in strings — **expressions** (interpolation ≠ var bind)
 
 ## quicker_in_param
 
-Runtime input; NOT in variables[]. Use `{quicker_in_param}` — **expressions**.
+Runtime input; NOT in variables[]. `{quicker_in_param}` — **expressions**.
 
 ## Related
 

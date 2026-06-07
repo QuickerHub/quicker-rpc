@@ -17,7 +17,7 @@ Headless XAction via **qkrpc** + QuickerRpc plugin. Commands: qkrpc help --json.
 
 ## P0
 
-Quicker + plugin running. `qkrpc <subcommand> --json` per invocation.
+Quicker + plugin running. Load workspace terminal env (.vscode/settings.json) so qkrpc is on PATH; then `qkrpc <subcommand> --json`.
 
 ```powershell
 qkrpc help --json

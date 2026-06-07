@@ -41,6 +41,7 @@ internal static partial class Program
                     topic = response.Topic,
                     title = response.Title,
                     markdown = response.Markdown,
+                    schema = response.Schema,
                     availableTopics = response.AvailableTopics,
                 },
                 QkrpcJson.CliOutput));
@@ -533,6 +534,61 @@ internal static partial class Program
         {
             return await EmitErrorAndFailAsync(options.Json, "CREATE_FAILED", ex.Message).ConfigureAwait(false);
         }
+    }
+
+    private static async Task<int> RunActionMentionSearchAsync(ActionOptions options)
+    {
+        var query = (options.Query ?? string.Empty).Trim();
+        var limit = options.Limit;
+        if (limit < 1)
+        {
+            limit = 8;
+        }
+
+        limit = Math.Min(limit, 20);
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var response = await session.Proxy
+                .SearchActionsAsync(query, limit, scope: null, rpcToken)
+                .ConfigureAwait(false);
+
+            WriteActionMentionSearchRpcJson(options.Json, response, query);
+            return response.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "MENTION_SEARCH_FAILED", ex.Message).ConfigureAwait(false);
+        }
+    }
+
+    private static void WriteActionMentionSearchRpcJson(
+        bool json,
+        QuickerRpcActionSearchResult response,
+        string query)
+    {
+        var payloadNode = AgentApiMentionSearchJson.ToPayload(response, query);
+        if (json)
+        {
+            global::System.Console.WriteLine(JsonSerializer.Serialize(
+                new { ok = response.Ok, action = "mention-search", payload = payloadNode },
+                QkrpcJson.CliOutput));
+            return;
+        }
+
+        global::System.Console.WriteLine(JsonSerializer.Serialize(payloadNode, QkrpcJson.CliOutput));
     }
 
     private static async Task<int> RunActionListAsync(ActionOptions options)

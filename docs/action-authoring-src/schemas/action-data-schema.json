@@ -1,0 +1,191 @@
+{
+  "schemaId": "qkrpc.program-data.v1",
+  "wire": "data.json",
+  "description": "Persisted program body on disk. steps[] wire is identical for action and subprogram; variables[] shape depends on programKind.",
+  "programKinds": ["action", "subprogram"],
+  "properties": {
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/step" },
+      "notes": "Same wire for action and subprogram."
+    },
+    "variables": {
+      "type": "array",
+      "notes": "Item shape: #/definitions/variables/action or #/definitions/variables/subprogram.",
+      "byProgramKind": {
+        "action": { "$ref": "#/definitions/variables/action" },
+        "subprogram": { "$ref": "#/definitions/variables/subprogram" }
+      }
+    }
+  },
+  "definitions": {
+    "step": {
+      "type": "object",
+      "properties": {
+        "stepRunnerKey": { "type": "string", "required": true, "notes": "From qkrpc step-runner get — do not guess." },
+        "inputParams": { "$ref": "#/definitions/inputParams" },
+        "outputParams": { "$ref": "#/definitions/outputParams" },
+        "ifSteps": { "type": "array", "items": { "$ref": "#/definitions/step" } },
+        "elseSteps": { "type": "array", "items": { "$ref": "#/definitions/step" } },
+        "note": { "type": "string" },
+        "disabled": { "type": "boolean" },
+        "collapsed": { "type": "boolean" },
+        "delayMs": { "type": "number" },
+        "stepId": { "type": "string", "notes": "Ephemeral editor id." }
+      }
+    },
+    "inputParams": {
+      "type": "object",
+      "valueType": "Record<string, string>",
+      "notes": "Every value is a plain string. Exactly one bind per catalog paramKey.",
+      "wireKeys": [
+        { "key": "paramKey", "value": "literal, $$…, or $=…" },
+        { "key": "paramKey.var", "value": "variables[].key string" },
+        { "key": "paramKey.file", "value": "files/… path" }
+      ]
+    },
+    "outputParams": {
+      "type": "object",
+      "valueType": "Record<string, string>",
+      "notes": "Value = target variable key or dictVar.entry. Declare variables[] first."
+    },
+    "variables": {
+      "base": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string", "required": true, "notes": "Stable id; {key} and paramKey.var reference this." },
+          "varType": {
+            "type": "string",
+            "enum": ["number", "boolean", "integer", "table", "list", "dict", "enum", "datetime", "image", "object"],
+            "notes": "Omit = text."
+          },
+          "default": { "type": "string", "notes": "Inline default. Mutually exclusive with default.file." },
+          "default.file": { "type": "string", "notes": "files/… path for long or external default." },
+          "desc": { "type": "string" },
+          "isLocked": { "type": "boolean" },
+          "saveState": { "type": "boolean" },
+          "id": { "type": "string", "notes": "Export/editor id — not the variable name." },
+          "group": { "type": "string" },
+          "customType": { "type": "string" }
+        }
+      },
+      "action": {
+        "allOf": [{ "$ref": "#/definitions/variables/base" }],
+        "notes": "Action data.json. Do NOT set isInput/isOutput/paramName — runtime input is {quicker_in_param} (expressions)."
+      },
+      "subprogram": {
+        "allOf": [{ "$ref": "#/definitions/variables/base" }],
+        "properties": {
+          "isInput": { "type": "boolean", "notes": "Expose as subprogram input parameter." },
+          "isOutput": { "type": "boolean", "notes": "Expose as subprogram output parameter." },
+          "paramName": { "type": "string", "notes": "IO param label; omit to use key." },
+          "inputParamInfo": {
+            "$ref": "#/definitions/inputParamInfo",
+            "when": "isInput=true",
+            "notes": "Input UI/validation when variable is subprogram input."
+          },
+          "outputParamInfo": {
+            "$ref": "#/definitions/outputParamInfo",
+            "when": "isOutput=true"
+          },
+          "tableDef": {
+            "$ref": "#/definitions/tableDef",
+            "when": "varType=table"
+          }
+        }
+      }
+    },
+    "inputParamInfo": {
+      "type": "object",
+      "properties": {
+        "inputMethod": { "type": "number", "notes": "Quicker InputMethod enum int." },
+        "selectionItems": {
+          "type": "string",
+          "notes": "Multi-line option list. Rows: value|label or value|label|hint. onlyUseSelect=true + non-empty → enum-style input."
+        },
+        "onlyUseSelect": { "type": "boolean" },
+        "isRequired": { "type": "boolean" },
+        "validationPattern": { "type": "string" },
+        "textTools": { "type": "string", "notes": "Comma-separated TextToolType names." },
+        "replaceMode": { "type": "number" },
+        "isAdvanced": { "type": "boolean" },
+        "allowInput": { "type": "boolean" },
+        "multiLine": { "type": "boolean" },
+        "visibleExpression": { "type": "string" },
+        "skipEval": { "type": "boolean" }
+      }
+    },
+    "outputParamInfo": {
+      "type": "object",
+      "properties": {
+        "visibleExpression": { "type": "string" }
+      }
+    },
+    "tableDef": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/tableField" }
+        }
+      }
+    },
+    "tableField": {
+      "type": "object",
+      "properties": {
+        "fieldKey": { "type": "string", "required": true },
+        "label": { "type": "string" },
+        "helpText": { "type": "string" },
+        "dictVarType": { "type": "number" },
+        "defaultValue": { "type": "string" },
+        "isRequired": { "type": "boolean" },
+        "selectionItems": { "type": "string" },
+        "visibleExpression": { "type": "string" },
+        "multiLine": { "type": "boolean" }
+      },
+      "notes": "Table column schema when varType=table. Additional Quicker FormField fields may appear on disk."
+    }
+  },
+  "template": {
+    "action": { "variables": [], "steps": [] },
+    "subprogram": { "variables": [], "steps": [] }
+  },
+  "example": {
+    "action": {
+      "variables": [
+        { "key": "urls", "default.file": "files/urls-default.txt" },
+        { "key": "count", "varType": "number", "default": "0" }
+      ],
+      "steps": [
+        {
+          "stepRunnerKey": "sys:evalexpression",
+          "inputParams": { "expression.file": "files/count.eval.cs" },
+          "outputParams": { "result": "count" }
+        }
+      ]
+    },
+    "subprogram": {
+      "variables": [
+        {
+          "key": "cmd",
+          "isInput": true,
+          "paramName": "命令行",
+          "inputParamInfo": { "multiLine": true, "isRequired": true }
+        },
+        {
+          "key": "exitCode",
+          "varType": "number",
+          "isOutput": true,
+          "paramName": "退出码"
+        }
+      ],
+      "steps": [
+        {
+          "stepRunnerKey": "sys:evalexpression",
+          "inputParams": { "paths.var": "cmd" },
+          "outputParams": { "result": "exitCode" }
+        }
+      ]
+    }
+  }
+}

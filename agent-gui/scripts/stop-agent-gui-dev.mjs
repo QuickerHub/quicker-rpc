@@ -19,8 +19,40 @@ function resolvePreferredPort() {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 3000;
 }
 
-function stopProcessTree(pid) {
-  if (!Number.isFinite(pid) || pid <= 0 || pid === process.pid) {
+function listProtectedPids() {
+  const protectedIds = new Set([process.pid]);
+  if (process.platform !== "win32") {
+    return protectedIds;
+  }
+  let current = process.pid;
+  for (let depth = 0; depth < 32; depth++) {
+    try {
+      const ps = `(Get-CimInstance Win32_Process -Filter "ProcessId=${current}").ParentProcessId`;
+      const parent = Number(
+        execSync(`pwsh -NoProfile -Command "${ps}"`, {
+          encoding: "utf8",
+          timeout: 5000,
+        }).trim(),
+      );
+      if (
+        !Number.isFinite(parent)
+        || parent <= 0
+        || parent === current
+        || protectedIds.has(parent)
+      ) {
+        break;
+      }
+      protectedIds.add(parent);
+      current = parent;
+    } catch {
+      break;
+    }
+  }
+  return protectedIds;
+}
+
+function stopProcessTree(pid, protectedPids) {
+  if (!Number.isFinite(pid) || pid <= 0 || protectedPids.has(pid)) {
     return false;
   }
   if (process.platform === "win32") {
@@ -74,12 +106,11 @@ function listListeningPids(port) {
   }
 }
 
-function listAgentGuiDevPids(agentGuiRoot, repoRoot) {
+function listAgentGuiDevPids(agentGuiRoot) {
   if (process.platform !== "win32") {
     return [];
   }
   const agentGuiNorm = resolve(agentGuiRoot).replace(/\\/g, "/").toLowerCase();
-  const repoNorm = resolve(repoRoot).replace(/\\/g, "/").toLowerCase();
   try {
     const ps = [
       "Get-CimInstance Win32_Process |",
@@ -101,23 +132,28 @@ function listAgentGuiDevPids(agentGuiRoot, repoRoot) {
       if (!Number.isFinite(pid) || pid <= 0 || pid === process.pid) continue;
 
       let isAgentGuiDev = false;
-      if (name === "pwsh.exe" && cmdLower.includes("start-agent-gui.ps1")) {
-        isAgentGuiDev = cmdLower.includes(repoNorm.replace(/\//g, "\\"))
-          || cmdLower.includes(repoNorm);
-      } else if (name === "quicker-agent.exe") {
+      // Do not kill pwsh running start-agent-gui.ps1 — that is often the active launcher
+      // (stop is invoked from that script). Node/next on the UI port are stopped separately.
+      if (name === "quicker-agent.exe") {
         isAgentGuiDev = true;
       } else if (
         ["node.exe", "pnpm.exe", "cmd.exe", "cargo.exe", "rustc.exe"].includes(name)
         && (cmdLower.includes(agentGuiNorm.replace(/\//g, "\\")) || cmdLower.includes(agentGuiNorm))
       ) {
-        isAgentGuiDev =
+        const nodeOrNext =
           /start\.mjs/.test(cmdLower)
           || /start-server\.js/.test(cmdLower)
           || /detached-flush\.js/.test(cmdLower)
           || /\bnext(\.cmd)?\b/.test(cmdLower)
-          || /\bdev(:browser|:webpack|:full)?\b/.test(cmdLower)
           || /tauri-dev\.mjs/.test(cmdLower)
           || /\btauri\b.*\bdev\b/.test(cmdLower);
+        const pnpmDevScript =
+          /\bdev(:browser|:webpack|:full)?\b/.test(cmdLower)
+          && (/start\.mjs/.test(cmdLower) || /\bnext(\.cmd)?\b/.test(cmdLower));
+        isAgentGuiDev =
+          name === "node.exe"
+            ? nodeOrNext || /\bdev(:browser|:webpack|:full)?\b/.test(cmdLower)
+            : nodeOrNext || pnpmDevScript;
       }
       if (isAgentGuiDev) {
         pids.push(pid);
@@ -129,11 +165,11 @@ function listAgentGuiDevPids(agentGuiRoot, repoRoot) {
   }
 }
 
-function stopPorts(ports) {
+function stopPorts(ports, protectedPids) {
   const stopped = new Set();
   for (const port of ports) {
     for (const pid of listListeningPids(port)) {
-      if (stopProcessTree(pid)) {
+      if (stopProcessTree(pid, protectedPids)) {
         stopped.add(pid);
       }
     }
@@ -143,8 +179,8 @@ function stopPorts(ports) {
 
 export async function stopStaleAgentGuiDev(options = {}) {
   const agentGuiRoot = options.agentGuiRoot ?? defaultAgentGuiRoot;
-  const repoRoot = options.repoRoot ?? join(agentGuiRoot, "..");
   const preferredPort = options.preferredPort ?? resolvePreferredPort();
+  const protectedPids = listProtectedPids();
   const cleanupPorts = [
     preferredPort,
     ...new Set([3001, 3002].filter((port) => port !== preferredPort)),
@@ -152,19 +188,19 @@ export async function stopStaleAgentGuiDev(options = {}) {
 
   const stopped = new Set();
 
-  for (const pid of listAgentGuiDevPids(agentGuiRoot, repoRoot)) {
-    if (stopProcessTree(pid)) {
+  for (const pid of listAgentGuiDevPids(agentGuiRoot)) {
+    if (stopProcessTree(pid, protectedPids)) {
       stopped.add(pid);
     }
   }
 
-  for (const pid of stopPorts(cleanupPorts)) {
+  for (const pid of stopPorts(cleanupPorts, protectedPids)) {
     stopped.add(pid);
   }
 
   await new Promise((resolveWait) => setTimeout(resolveWait, 2000));
 
-  for (const pid of stopPorts(cleanupPorts)) {
+  for (const pid of stopPorts(cleanupPorts, protectedPids)) {
     stopped.add(pid);
   }
 

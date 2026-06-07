@@ -59,5 +59,7 @@ internal static class QkrpcMcpWorkspaceReadme
         MCP 工具 `docs_get`：`authoring-workflow`、`workspace-editing`、`action-steps`、`action-variables`
 
         环境变量：`QKRPC_WORKSPACE_ROOT` = 含 `.quicker` 的项目根目录。
+
+        Cursor / VS Code：打开含 `.vscode/settings.json` 的工作区，让集成终端继承 `terminal.integrated.env`（`qkrpc` 在 PATH）；Agent shell 若找不到 CLI，用 MCP 工具或完整路径，勿盲目 install。
         """;
 }

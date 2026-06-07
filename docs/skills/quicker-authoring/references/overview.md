@@ -17,7 +17,7 @@ Headless XAction via agent tools + QuickerRpc plugin. Route/hard rules preloaded
 
 ## P0
 
-Quicker + plugin running. Prefer qkrpc serve (:9477); fallback CLI. Guides via docs tool — never qkrpc guide.
+Quicker + plugin + qkrpc serve. On fail: tell user; no shell connectivity workarounds. Guides via docs tool — never qkrpc guide.
 
 | tool | use |
 |------|-----|

@@ -32,6 +32,29 @@ export function tagElementToMarkup(el: HTMLElement): string {
   return action ? formatActionTagMarkup(action) : "";
 }
 
+/** Trailing spacer after an inline chip (backspace target + visual gap). */
+export function createComposerTagSpacer(): Text {
+  return document.createTextNode("\u00a0");
+}
+
+/**
+ * Anchor the caret inside the spacer text node so IME composition works
+ * immediately after a chip (setStartAfter leaves the caret on the root element).
+ */
+export function placeCaretAfterComposerTagSpacer(
+  spacer: Text,
+  root: HTMLElement,
+): void {
+  const selection = window.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  range.setStart(spacer, spacer.length);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  root.focus({ preventScroll: true });
+}
+
 /** Build a non-editable chip inserted into the contenteditable composer. */
 export function createComposerTagElement(action: PinnedAction): HTMLSpanElement {
   const span = document.createElement("span");

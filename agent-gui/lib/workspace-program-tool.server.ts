@@ -61,19 +61,23 @@ const workspaceReadSliceSchema = {
     .describe("Max lines when using startLine (default 400)."),
 };
 
-const actionSchema = z.enum([
-  "projects_list",
-  "read_data",
-  "write_data",
-  "edit_data",
-  "file_read",
-  "file_write",
-  "file_edit",
-  "file_info",
-  "file_search",
-  "patch",
-  "diagnostics",
-]);
+const actionSchema = z
+  .enum([
+    "projects_list",
+    "read_data",
+    "write_data",
+    "edit_data",
+    "file_read",
+    "file_write",
+    "file_edit",
+    "file_info",
+    "file_search",
+    "patch",
+    "diagnostics",
+  ])
+  .describe(
+    "projects_list; read/write/edit_data; file_* under files/; patch=save to Quicker; diagnostics=lint",
+  );
 
 export type WorkspaceProgramToolInput = {
   action: z.infer<typeof actionSchema>;
@@ -302,11 +306,15 @@ export async function executeWorkspaceProgramTool(
 
 export const WORKSPACE_PROGRAM_TOOL_DEF = tool({
   description:
-    "Workspace program editing on disk: projects_list; read/write/edit data.json; file_read/write/edit/info/search under files/; "
-    + "patch (save to Quicker); diagnostics (expression/C# lint after patch, use waitMs up to 30000). "
+    "Edit program body on disk (.quicker): data.json + files/ → patch saves to Quicker. "
+    + "NOT run (qkrpc_action_run), NOT first-time sync (qkrpc_action_get/qkrpc_subprogram_get), NOT title/icon (qkrpc_action_set_metadata). "
     + "target=action | global_subprogram | embedded_subprogram (subProgramId required). "
-    + "valuePrefixWarnings are non-blocking hints when {var} may need $$/$=. "
-    + "inputParams: paramKey / paramKey.file / paramKey.var; keys from qkrpc_step_runner_get.",
+    + "Workflow: read_data/edit_data or file_edit → patch; diagnostics after patch (waitMs≤30000). "
+    + "Examples: "
+    + "(1) read data.json: {action:\"read_data\", target:\"action\", id:\"<action-guid>\"} — no path. "
+    + "(2) edit files/ asset: {action:\"file_edit\", target:\"action\", id:\"<action-guid>\", path:\"files/main.cs\", oldString:\"…\", newString:\"…\"} — path is project-relative under files/, not .quicker/…. "
+    + "(3) save disk → Quicker: {action:\"patch\", target:\"action\", id:\"<action-guid>\"} after edits. "
+    + "inputParams: keys from step_runner_get; var bind via paramKey.var; see docs action-steps.",
   inputSchema: z.object({
     action: actionSchema,
     target: z
@@ -317,18 +325,34 @@ export const WORKSPACE_PROGRAM_TOOL_DEF = tool({
       ),
     id: workspaceProgramIdSchema.id.optional(),
     subProgramId: workspaceProgramIdSchema.subProgramId,
-    path: z.string().optional(),
-    content: z.string().optional(),
-    mode: z.enum(["content", "summary"]).optional(),
-    oldString: z.string().optional(),
-    newString: z.string().optional(),
-    replaceAll: z.boolean().optional(),
-    query: z.string().optional(),
-    maxMatches: z.number().int().min(1).max(50).optional(),
-    caseInsensitive: z.boolean().optional(),
-    force: z.boolean().optional(),
-    editVersion: z.number().int().optional(),
-    waitMs: z.number().int().min(0).max(120_000).optional(),
+    path: z
+      .string()
+      .optional()
+      .describe("Relative path under files/ for file_* actions"),
+    content: z.string().optional().describe("file_write: full file content"),
+    mode: z
+      .enum(["content", "summary"])
+      .optional()
+      .describe("read_data: content (default) or summary"),
+    oldString: z.string().optional().describe("edit_data/file_edit: text to find"),
+    newString: z.string().optional().describe("edit_data/file_edit: replacement text"),
+    replaceAll: z.boolean().optional().describe("edit_data/file_edit: replace all matches"),
+    query: z.string().optional().describe("file_search: substring query"),
+    maxMatches: z.number().int().min(1).max(50).optional().describe("file_search: max hits"),
+    caseInsensitive: z.boolean().optional().describe("file_search: case insensitive"),
+    force: z.boolean().optional().describe("patch: ignore editVersion conflict"),
+    editVersion: z
+      .number()
+      .int()
+      .optional()
+      .describe("patch: expected editVersion from last read/patch"),
+    waitMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(120_000)
+      .optional()
+      .describe("diagnostics: wait for lint (default 0, max 30000 recommended)"),
     ...workspaceReadSliceSchema,
   }),
   execute: async (input) => executeWorkspaceProgramTool(input),

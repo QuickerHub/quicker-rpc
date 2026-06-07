@@ -1,7 +1,9 @@
 import type { PinnedAction } from "@/lib/action-context";
 import {
   createComposerTagElement,
+  createComposerTagSpacer,
   isComposerTagElement,
+  placeCaretAfterComposerTagSpacer,
 } from "@/lib/composer-inline";
 
 /** Marks non-text boundaries (tags) while scanning plain text before the caret. */
@@ -111,15 +113,7 @@ export function applyComposerMentionTag(
   mentionRange.deleteContents();
   const chip = createComposerTagElement(action);
   mentionRange.insertNode(chip);
-  const spacer = document.createTextNode("\u00a0");
+  const spacer = createComposerTagSpacer();
   chip.after(spacer);
-
-  const selection = window.getSelection();
-  if (!selection) return;
-  const range = document.createRange();
-  range.setStartAfter(spacer);
-  range.collapse(true);
-  selection.removeAllRanges();
-  selection.addRange(range);
-  root.focus();
+  placeCaretAfterComposerTagSpacer(spacer, root);
 }

@@ -144,14 +144,11 @@ function formatShellToolResult(
 
 export const SHELL_EXEC_TOOL_DEF = tool({
   description:
-    "Run a local shell command or script in the sidebar workspace directory (qkrpc cwd). "
-    + "Always set description to a short human-readable label (what this step does); "
-    + "the chat UI shows description instead of the raw command. "
-    + "Use command for one-liners; script for inline PowerShell/bash; scriptPath for files under cwd. "
-    + "Do not pass cwd unless a subdirectory is required — default is the active workspace root. "
-    + "Prefer pwsh/build.ps1/qkrpc/dotnet/git/npm in repo tasks. "
-    + "Read-only commands (git status, qkrpc, dotnet build, Get-Content, etc.) run without confirmation. "
-    + "Delete/write commands (Remove-Item, Set-Content, git push/commit, Move-Item) require user confirmation in chat.",
+    "Run shell in sidebar workspace cwd. NOT for editing Quicker program bodies (workspace_program). "
+    + "qkrpc is auto-added to PATH for child shells; still prefer qkrpc tools for Quicker RPC. "
+    + "On connectivity_failure tell user — no shell ping/probe/serve/build.ps1 loops. "
+    + "Always set description (UI label). command | script | scriptPath under cwd. "
+    + "Read-only (git status, dotnet build) auto-runs; writes/deletes need Confirm.",
   inputSchema: shellInputSchema,
   execute: async (
     input: z.infer<typeof shellInputSchema>,

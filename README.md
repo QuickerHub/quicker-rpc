@@ -21,6 +21,7 @@
 
 - 安装目录：`%LOCALAPPDATA%\Programs\qkrpc`
 - 安装程序会把该目录加入用户 `PATH`（需**新开**终端后生效）
+- 在 Cursor / VS Code 打开本仓库时，`.vscode/settings.json` 会为**工作区集成终端**追加 `publish/cli` 与用户安装目录（`terminal.integrated.env`）；Agent 调 qkrpc 前须确保该环境已生效，或改用 qkrpc MCP 工具
 - 卸载：Windows「设置 → 应用」中卸载 **qkrpc**，或运行安装目录下的 `unins000.exe`
 
 可选静默安装（PowerShell）：

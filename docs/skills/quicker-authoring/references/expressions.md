@@ -16,7 +16,7 @@ NO csscript Exec boilerplate for simple logic.
 
 ## value / varKey / file
 
-One of value | varKey | file per param key — wire: `paramKey` / `paramKey.var` / `paramKey.file` (action-steps). NO mixing.
+One bind per param key — wire: `paramKey` / `paramKey.var` / `paramKey.file` (action-steps). NO mixing.
 
 ### value prefix
 
@@ -26,7 +26,7 @@ One of value | varKey | file per param key — wire: `paramKey` / `paramKey.var`
 | $$ | interpolation |
 | $= | C# expression |
 
-- **varKey**: variable key string — not expression, no prefix eval.
+- **varKey bind** (`paramKey.var`): variable key string — not expression, no `$$`/`$=`, no `{braces}`.
 - **SkipEval** (evalexpression expression): C# body; `{var}` inside; whole string need not start with $=.
 - Expand declared var in value/defaultValue → need $$/$= or use varKey.
 

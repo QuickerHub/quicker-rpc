@@ -96,7 +96,17 @@ internal static class QkrpcCliHelp
 
                     opts: JsonTimeoutBootstrap()),
 
-                Cmd("guide get", "Read ActionAuthoring guides (start: authoring-workflow).", "qkrpc guide get --topic <id> [--json]",
+                Cmd("wait", "Poll until QuickerRpc plugin is reachable.", "qkrpc wait [--json] [--timeout 120] [--interval 2] [--no-bootstrap]",
+
+                    opts: new[]
+                    {
+                        Option("timeout", "Max wait seconds.", defaultValue: "120"),
+                        Option("interval", "Poll interval seconds.", defaultValue: "2"),
+                        Option("json", "Structured output."),
+                        Option("no-bootstrap", "Skip auto-start."),
+                    }),
+
+                Cmd("guide get", "Read ActionAuthoring guides (start: authoring-workflow). action-data-schema topic returns JSON schema for data.json.", "qkrpc guide get --topic <id> [--json]",
 
                     opts: new[] { Option("topic", "Topic id (authoring-workflow, overview, patch-workflow, step-runner-search, …)."), Option("json", "Structured output.") }),
 
@@ -104,7 +114,7 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("query", "Keyword.", shortName: "q"), Option("limit", "Max results.", defaultValue: "10"), Option("json", "Structured output.") }),
 
-                Cmd("action create", "Create XAction on auto-managed virtual action page (creates virtual process/page as needed).", "qkrpc action create [--title <text>] [--description <text>] [--icon <spec>] [--profile-id <guid>] [--json]",
+                Cmd("action create", "Create XAction on auto-managed virtual action page.", "qkrpc action create [--title <text>] [--description <text>] [--icon <spec>] [--profile-id <guid>] [--json]",
 
                     opts: new[]
                     {
@@ -268,7 +278,7 @@ internal static class QkrpcCliHelp
                         Option("no-bootstrap", "Skip auto-start."),
                     }),
 
-                Cmd("subprogram create", "Create a global subprogram.", "qkrpc subprogram create --name <name> [--description <text>] [--json]",
+                Cmd("subprogram create", "Create a global subprogram. --json includes dataSchema (subprogram variables IO).", "qkrpc subprogram create --name <name> [--description <text>] [--json]",
 
                     opts: new[] { Option("name", "Unique subprogram name."), Option("description", "Description."), Option("icon", "Icon spec."), Option("json", "Structured output.") }),
 
@@ -350,11 +360,11 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("query", "Filter: AND with spaces, OR with |, * wildcard.", shortName: "q"), Option("limit", "Max results (unique glyphs default, or rows with --expand).", defaultValue: "40"), Option("expand", "No compress: all style rows (Solid/Regular/Light/…)."), Option("all-styles", "Alias for --expand."), Option("json", "Structured output: names[] (Light_*|Brands_*). Spec: fa:{name} or fa:{name}:{#color} (action-icons)."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
 
-                Cmd("form validate", "Validate qkrpc.form.v1 spec (no Quicker connection).", "qkrpc form validate --file <path|-> [--json]",
+                Cmd("form validate", "Validate qkrpc.form.v1 spec (no Quicker). --json includes formSchema (qkrpc.form-spec.v1).", "qkrpc form validate --file <path|-> [--json]",
 
                     opts: new[] { Option("spec", "Inline form spec JSON."), Option("file", "Form spec file or - for stdin."), Option("json", "Structured output.") }),
 
-                Cmd("form build", "Compile qkrpc.form.v1 to sys:form step JSON.", "qkrpc form build --file <path|-> [--json]",
+                Cmd("form build", "Compile qkrpc.form.v1 to sys:form step JSON. --json includes formSchema + formTemplate.", "qkrpc form build --file <path|-> [--json]",
 
                     opts: new[] { Option("spec", "Inline form spec JSON."), Option("file", "Form spec file or - for stdin."), Option("json", "Structured output: nativeFormJson + step.") }),
 

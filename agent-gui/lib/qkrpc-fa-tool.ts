@@ -63,10 +63,11 @@ export async function executeQkrpcFaTool(
 
 export const QKRPC_FA_TOOL_DEF = tool({
   description:
-    "Font Awesome icons for action metadata. action=search: find fa:Light_* specs; "
-    + "action=resolve: fa: spec → SVG path data.",
+    "Font Awesome icons for action/subprogram metadata (title bar icon). "
+    + "action=search before set_metadata/create; action=resolve for SVG paths. "
+    + "NOT for step icons or program body — do not guess fa: specs.",
   inputSchema: z.object({
-    action: faActionSchema,
+    action: faActionSchema.describe("search: find specs; resolve: validate fa: spec"),
     query: z.string().optional().describe("Search keyword for action=search"),
     limit: z.number().int().min(1).max(80).optional(),
     expand: z

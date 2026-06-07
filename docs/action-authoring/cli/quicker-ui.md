@@ -113,7 +113,7 @@ qkrpc settings pages --json
 
 ### 打开动作回收站（设置页）
 
-动作回收站属于 **设置页**，不是动作列表的 `scope`。因此 **不要** 用 `qkrpc action list --scope recycle` 或 `qkrpc_action({ action: "list", scope: "recycle" })` 之类去找回收站内容。
+动作回收站属于 **设置页**，不是动作列表的 `scope`。因此 **不要** 用 `qkrpc action list --scope recycle` 或 `qkrpc_action_query` 带 `scope: recycle` 之类去找回收站内容。
 
 ```powershell
 qkrpc settings open --page recycle-bin --json

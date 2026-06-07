@@ -12,8 +12,8 @@
     "agent": "chat tool list (no separate help tool)"
   },
   "connectivity.p0": {
-    "cli": "Check stderr; Quicker + plugin loaded. `qkrpc <cmd> --json` per call (named pipe). qkrpc serve optional (agent-gui HTTP).",
-    "agent": "header shows RPC status; on fail check Quicker + plugin. Prefer qkrpc serve (GET :9477/health); fallback CLI subprocess"
+    "cli": "Quicker + plugin loaded. Workspace terminal env: .vscode/settings.json (PATH → publish/cli + user install). `qkrpc <cmd> --json` per call.",
+    "agent": "Header shows RPC status. On connectivity_failure: tell user (Quicker + plugin + serve). STOP — no shell_exec ping/probe/serve/build.ps1/qkrpc CLI unless user explicitly asks to fix the environment."
   },
   "errors.source": {
     "cli": "qkrpc stderr / exit code",
@@ -56,8 +56,8 @@
     "agent": "FORBIDDEN get-ui / step-runner.getUi; use step_runner_get only"
   },
   "overview.p0": {
-    "cli": "Quicker + plugin running. `qkrpc <subcommand> --json` per invocation.",
-    "agent": "Quicker + plugin running. Prefer qkrpc serve (:9477); fallback CLI. Guides via docs tool — never qkrpc guide."
+    "cli": "Quicker + plugin running. Load workspace terminal env (.vscode/settings.json) so qkrpc is on PATH; then `qkrpc <subcommand> --json`.",
+    "agent": "Quicker + plugin + qkrpc serve. On fail: tell user; no shell connectivity workarounds. Guides via docs tool — never qkrpc guide."
   },
   "patch.invoke": {
     "cli": "**`qkrpc action patch`**",

@@ -38,6 +38,7 @@ public sealed class QkrpcMcpDocsTools
             topic = doc.Topic,
             title = doc.Title,
             markdown = doc.Markdown,
+            schema = doc.Schema,
             availableTopics = doc.AvailableTopics,
         };
         return Task.FromResult(QkrpcMcpJson.FormatObject(payload));

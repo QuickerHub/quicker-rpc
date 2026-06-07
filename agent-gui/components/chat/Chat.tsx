@@ -24,7 +24,6 @@ import {
 } from "@/lib/compose-user-message";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import {
-  defaultEnabledToolIds,
   getToolMeta,
   loadStoredEnabledTools,
 } from "@/lib/tool-registry";
@@ -368,7 +367,7 @@ function ChatPanel({
   const [userMessageDrafts, setUserMessageDrafts] = useState<
     Record<string, string>
   >({});
-  const [enabledTools, setEnabledTools] = useState(defaultEnabledToolIds);
+  const [enabledTools, setEnabledTools] = useState(() => loadStoredEnabledTools());
   const [chatMode, setChatMode] = useState<ChatMode>(() =>
     ephemeral ? CHAT_MODE_LAUNCHER : loadStoredChatMode(),
   );
@@ -381,7 +380,6 @@ function ChatPanel({
   const splitStyle = useAppMainSplit(appMainBodyRef, panelOpen);
 
   useEffect(() => {
-    setEnabledTools(loadStoredEnabledTools());
     if (!ephemeral) {
       setChatMode(loadStoredChatMode());
     }

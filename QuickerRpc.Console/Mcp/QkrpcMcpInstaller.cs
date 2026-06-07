@@ -37,6 +37,7 @@ internal static class QkrpcMcpInstaller
             }
 
             BootstrapWorkspace(workspace);
+            EnsureWorkspaceTerminalEnv(workspace);
 
             global::System.Console.Error.WriteLine("qkrpc MCP install completed:");
             foreach (var line in results)
@@ -46,6 +47,7 @@ internal static class QkrpcMcpInstaller
 
             global::System.Console.Error.WriteLine();
             global::System.Console.Error.WriteLine($"QKRPC_WORKSPACE_ROOT={workspace}");
+            global::System.Console.Error.WriteLine("Workspace terminal env: .vscode/settings.json → terminal.integrated.env (PATH includes qkrpc).");
             global::System.Console.Error.WriteLine($"Workspace files: {QkrpcMcpWorkspaceReadme.RelativePath}, {QkrpcMcpWorkspaceIndex.RelativePath}");
             global::System.Console.Error.WriteLine("Edit data.json/files with your editor; use qkrpc_sync push to save to Quicker.");
             global::System.Console.Error.WriteLine("Restart Cursor / Claude Desktop to load MCP servers.");
@@ -225,6 +227,61 @@ internal static class QkrpcMcpInstaller
     {
         QkrpcMcpWorkspaceIndex.EnsureReadme(workspaceRoot);
         QkrpcMcpWorkspaceIndex.Write(workspaceRoot);
+    }
+
+    /// <summary>Merge qkrpc PATH into VS Code / Cursor integrated terminal env.</summary>
+    private static void EnsureWorkspaceTerminalEnv(string workspaceRoot)
+    {
+        var vscodeDir = Path.Combine(workspaceRoot, ".vscode");
+        Directory.CreateDirectory(vscodeDir);
+        var settingsPath = Path.Combine(vscodeDir, "settings.json");
+
+        JsonObject root;
+        if (File.Exists(settingsPath))
+        {
+            var text = File.ReadAllText(settingsPath, System.Text.Encoding.UTF8);
+            root = JsonNode.Parse(text)?.AsObject() ?? new JsonObject();
+        }
+        else
+        {
+            root = new JsonObject();
+        }
+
+        MergeTerminalEnv(root, "terminal.integrated.env.windows", new JsonObject
+        {
+            ["PATH"] = "${workspaceFolder}\\publish\\cli;${env:LOCALAPPDATA}\\Programs\\qkrpc;${env:PATH}",
+            ["QKRPC_WORKSPACE_ROOT"] = "${workspaceFolder}",
+            ["QKRPC_CWD"] = "${workspaceFolder}",
+        });
+        MergeTerminalEnv(root, "terminal.integrated.env.osx", new JsonObject
+        {
+            ["PATH"] = "${workspaceFolder}/publish/cli:${env:PATH}",
+            ["QKRPC_WORKSPACE_ROOT"] = "${workspaceFolder}",
+            ["QKRPC_CWD"] = "${workspaceFolder}",
+        });
+        MergeTerminalEnv(root, "terminal.integrated.env.linux", new JsonObject
+        {
+            ["PATH"] = "${workspaceFolder}/publish/cli:${env:PATH}",
+            ["QKRPC_WORKSPACE_ROOT"] = "${workspaceFolder}",
+            ["QKRPC_CWD"] = "${workspaceFolder}",
+        });
+
+        var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(settingsPath, json + Environment.NewLine, System.Text.Encoding.UTF8);
+    }
+
+    private static void MergeTerminalEnv(JsonObject root, string key, JsonObject defaults)
+    {
+        var existing = root[key] as JsonObject ?? new JsonObject();
+        foreach (var pair in defaults)
+        {
+            if (existing[pair.Key] is null)
+            {
+                existing[pair.Key] = pair.Value?.DeepClone();
+            }
+        }
+
+        root[key] = existing;
     }
 
     private static void CopyDirectory(string sourceDir, string destDir)

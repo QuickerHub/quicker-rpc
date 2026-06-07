@@ -17,7 +17,45 @@ describe("shell-policy", () => {
     assert.equal(verdict.requiresApproval, false);
   });
 
-  it("allows qkrpc and dotnet build without approval", () => {
+  it("blocks qkrpc ping/serve and connectivity probes via shell", () => {
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "qkrpc ping --json",
+      }).allowed,
+      false,
+    );
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "qkrpc wait --timeout 30 --json",
+      }).allowed,
+      false,
+    );
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "qkrpc serve --port 9477",
+      }).allowed,
+      false,
+    );
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "Invoke-RestMethod http://127.0.0.1:9477/health",
+      }).allowed,
+      false,
+    );
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "pwsh -NoProfile -File ./build.ps1 -t",
+      }).allowed,
+      false,
+    );
+  });
+
+  it("allows read-only qkrpc CLI when PATH is injected by shell runner", () => {
     assert.equal(
       evaluateShellPolicy({
         mode: "command",
@@ -25,6 +63,9 @@ describe("shell-policy", () => {
       }).requiresApproval,
       false,
     );
+  });
+
+  it("allows dotnet build without approval", () => {
     assert.equal(
       evaluateShellPolicy({
         mode: "command",
@@ -37,7 +78,7 @@ describe("shell-policy", () => {
   it("allows pwsh build script launcher without approval", () => {
     const verdict = evaluateShellPolicy({
       mode: "command",
-      command: "pwsh -NoProfile -File ./build.ps1 -t",
+      command: "pwsh -NoProfile -File ./build.ps1 -Configuration Release",
     });
     assert.equal(verdict.allowed, true);
     assert.equal(verdict.requiresApproval, false);

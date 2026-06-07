@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Nodes;
 
 namespace QuickerRpc.AgentModel.Guides;
 
@@ -9,6 +10,8 @@ public sealed class GetActionAuthoringDocResult
     public string? Topic { get; set; }
     public string? Title { get; set; }
     public string? Markdown { get; set; }
+    /// <summary>Machine-readable schema when topic is action-data-schema.</summary>
+    public JsonNode? Schema { get; set; }
     public List<string>? AvailableTopics { get; set; }
 }
 

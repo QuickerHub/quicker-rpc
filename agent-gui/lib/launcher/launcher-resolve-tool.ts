@@ -42,9 +42,9 @@ export async function executeLauncherResolveTool(
 
 export const LAUNCHER_RESOLVE_TOOL_DEF = tool({
   description:
-    "Launcher resolve: map user phrase → one next tool call. Returns compact JSON: "
-    + "{ ok, next: { tool, input }, alternatives? }. Call this when intent is unclear; "
-    + "then immediately execute next with the same arguments. Do not re-search if next is present.",
+    "Launcher only: map user phrase → one next tool call. Returns { ok, next: { tool, input } }. "
+    + "Call once when intent unclear, then execute next immediately — do not re-resolve. "
+    + "NOT for program body edits (main agent workspace_program).",
   inputSchema: z.object({
     query: z
       .string()

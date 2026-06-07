@@ -11,6 +11,7 @@ Web 聊天界面，通过本机 `qkrpc serve`（`http://127.0.0.1:9477`）或 CL
 - **启动**（仓库根目录）：`pwsh ./start-agent-gui.ps1` → `http://127.0.0.1:3000`。桌面壳：`start-agent-gui.ps1 -Tauri`（webpack + WebView2）。
 - **不要同时跑** 浏览器模式与 Tauri 模式（都占 `:3000`）。切换时脚本会清 `.next`。
 - **后端依赖**：Quicker + 插件已加载；根目录 `build.ps1 -t` 负责插件/CLI/serve。**改本目录 UI 时不要跑 `-t`**（Next HMR 即可）。
+- **qkrpc 连不上**：告知用户检查 Quicker / 插件 / serve；**禁止** `shell_exec` 探活或跑 `qkrpc` CLI / `build.ps1 -t`（见 `lib/instructions.ts`、`lib/shell-policy.ts`）。
 - **包管理**：pnpm；Node 20+。日常只在 `agent-gui/` 内 `pnpm` 操作，勿在 agent 会话里对整个 monorepo 乱装依赖。
 - **LLM 配置**：复制 `llm-config.example.json` → `llm-config.json`（本地，勿提交）。发布用 `llm-publish.config.json` → 见下文。
 

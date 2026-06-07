@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuickerRpc.AgentModel.Schemas;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Console;
@@ -34,6 +35,9 @@ internal static partial class Program
                         callIdentifier = result.CallIdentifier,
                         editVersion = result.EditVersion,
                         message = result.Message,
+                        programKind = ActionDataSchemaService.ProgramKindSubprogram,
+                        dataSchema = ActionDataSchemaService.GetSchema(),
+                        dataTemplate = ActionDataSchemaService.GetDataTemplate(ActionDataSchemaService.ProgramKindSubprogram),
                     },
                     QkrpcJson.CliOutput));
             }

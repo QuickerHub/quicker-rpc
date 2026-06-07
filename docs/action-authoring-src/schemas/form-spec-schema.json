@@ -1,0 +1,142 @@
+{
+  "schemaId": "qkrpc.form-spec.v1",
+  "documentSchemaId": "qkrpc.form.v1",
+  "wire": "files/*.form.json",
+  "description": "Agent meta-schema for sys:form formDef files. Disk document must set \"$schema\": \"qkrpc.form.v1\".",
+  "properties": {
+    "formDocument": {
+      "type": "object",
+      "$ref": "#/definitions/formSpec",
+      "notes": "Content of files/*.form.json referenced by step inputParams formDef.file."
+    },
+    "formStep": {
+      "type": "object",
+      "$ref": "#/definitions/formStep",
+      "notes": "sys:form step in data.json steps[] — use formDef.file for long specs."
+    }
+  },
+  "definitions": {
+    "formSpec": {
+      "type": "object",
+      "required": ["$schema", "mode", "title", "fields"],
+      "properties": {
+        "$schema": { "type": "string", "const": "qkrpc.form.v1" },
+        "mode": { "type": "string", "enum": ["variables", "dict_dynamic"] },
+        "title": { "type": "string", "maxLength": 120 },
+        "dictVar": { "type": "string", "notes": "Required when mode=dict_dynamic — dict variable key." },
+        "fields": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/formField" } },
+        "options": { "$ref": "#/definitions/formOptions" }
+      }
+    },
+    "formField": {
+      "type": "object",
+      "required": ["key", "label", "type"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$" },
+        "label": { "type": "string", "maxLength": 80 },
+        "type": {
+          "type": "string",
+          "enum": ["text", "textarea", "number", "integer", "boolean", "select", "dateTime", "password"]
+        },
+        "target": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$", "notes": "Variable/dict entry key; default key." },
+        "required": { "type": "boolean" },
+        "default": { "type": "string" },
+        "help": { "type": "string" },
+        "group": { "type": "string" },
+        "min": { "type": "number", "when": "type=number|integer" },
+        "max": { "type": "number", "when": "type=number|integer" },
+        "pattern": { "type": "string", "when": "type=text|textarea|password" },
+        "onlyDate": { "type": "boolean", "when": "type=dateTime" },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/selectOption" },
+          "when": "type=select"
+        },
+        "visibleWhen": { "$ref": "#/definitions/visibleWhen" }
+      }
+    },
+    "selectOption": {
+      "type": "object",
+      "required": ["value", "label"],
+      "properties": {
+        "value": { "type": "string" },
+        "label": { "type": "string" }
+      }
+    },
+    "visibleWhen": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": { "type": "string", "notes": "Sibling field key — not self." },
+        "eq": { "type": "string", "notes": "Exactly one of eq or ne." },
+        "ne": { "type": "string" }
+      }
+    },
+    "formOptions": {
+      "type": "object",
+      "properties": {
+        "help": { "type": "string" },
+        "markdownHelp": { "type": "string" },
+        "windowWidth": { "type": "integer" },
+        "windowHeight": { "type": "integer" },
+        "titleColumnWidth": { "type": "integer" },
+        "defaultInputWidth": { "type": "integer" },
+        "restoreFocus": { "type": "boolean" },
+        "topMost": { "type": "boolean" },
+        "stopIfFail": { "type": "boolean" }
+      }
+    },
+    "formStep": {
+      "type": "object",
+      "properties": {
+        "stepRunnerKey": { "type": "string", "const": "sys:form" },
+        "inputParams": {
+          "type": "object",
+          "valueType": "Record<string, string>",
+          "wireKeys": [
+            { "key": "operation", "value": "variables | dict_dynamic (overrides spec mode)" },
+            { "key": "title", "value": "step title (overrides spec title)" },
+            { "key": "dictVar", "value": "dict variable key when dict_dynamic" },
+            { "key": "formDef.file", "value": "files/*.form.json — default for long specs" },
+            { "key": "dynamicFormForDictDef.file", "value": "files/*.form.json when operation=dict_dynamic" }
+          ]
+        }
+      }
+    }
+  },
+  "template": {
+    "$schema": "qkrpc.form.v1",
+    "mode": "variables",
+    "title": "Form title",
+    "fields": [
+      { "key": "userName", "label": "User name", "type": "text", "target": "userName", "required": true }
+    ]
+  },
+  "example": {
+    "formDocument": {
+      "$schema": "qkrpc.form.v1",
+      "mode": "variables",
+      "title": "Login",
+      "fields": [
+        { "key": "userName", "label": "User", "type": "text", "target": "userName", "required": true },
+        {
+          "key": "role",
+          "label": "Role",
+          "type": "select",
+          "target": "role",
+          "options": [{ "value": "admin", "label": "Admin" }, { "value": "user", "label": "User" }]
+        }
+      ],
+      "options": { "windowWidth": 520 }
+    },
+    "formStep": {
+      "stepRunnerKey": "sys:form",
+      "inputParams": {
+        "operation": "variables",
+        "title": "Login",
+        "formDef.file": "files/login.form.json"
+      }
+    }
+  }
+}

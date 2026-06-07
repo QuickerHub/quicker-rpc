@@ -61,6 +61,16 @@
     },
     "source": "schemas/action-steps.md"
   },
+  "action-data-schema": {
+    "title": "Action data.json schema",
+    "description": "Machine-readable JSON schema for data.json: shared steps[] + variables[] by programKind (action vs subprogram). qkrpc guide get --topic action-data-schema --json.",
+    "allowed-tools": "qkrpc_guide_get qkrpc_action_create workspace_action_read_data workspace_action_write_data workspace_action_edit_data",
+    "metadata": {
+      "phase": "P2-P6",
+      "layer": "schema"
+    },
+    "source": "schemas/action-data-schema.md"
+  },
   "action-icons": {
     "title": "Action icons",
     "description": "Font Awesome fa: spec and http(s) image URLs for metadata and context menus. Use before set-metadata or guessing fa:Light_* names.",
@@ -170,6 +180,16 @@
       "layer": "schema"
     },
     "source": "schemas/form-spec.md"
+  },
+  "form-spec-schema": {
+    "title": "Form spec schema",
+    "description": "Machine-readable JSON schema for qkrpc.form.v1 documents and sys:form step wire. guide get / form validate.",
+    "allowed-tools": "qkrpc_guide_get qkrpc_form_validate qkrpc_form_build workspace_action_file_write workspace_action_edit_data",
+    "metadata": {
+      "phase": "P5-P6",
+      "layer": "schema"
+    },
+    "source": "schemas/form-spec-schema.md"
   },
   "webview2-authoring": {
     "title": "WebView2 authoring",

@@ -64,7 +64,7 @@ On Quicker save: compile to native formDef.value in memory; **disk keeps formDef
 
 ## qkrpc.form.v1
 
-
+Machine-readable schema: `qkrpc guide get --topic form-spec-schema --json` → **`schema`**.
 
 ```json
 

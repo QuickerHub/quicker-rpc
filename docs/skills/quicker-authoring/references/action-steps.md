@@ -2,41 +2,66 @@
 
 **When**: editing steps[], inputParams/outputParams, ifSteps/elseSteps. Keys must match step_runner_get.
 
-## inputParams (one per param key)
+## data.json steps[] schema
 
-Workspace **data.json** wire format — **only** plain string values:
+| field | type | required |
+|-------|------|----------|
+| `stepRunnerKey` | string | yes |
+| `inputParams` | object | no |
+| `outputParams` | object | no |
+| `ifSteps` | steps[] | no |
+| `elseSteps` | steps[] | no |
+| `note` | string | no |
+| `disabled` | boolean | no |
+| `collapsed` | boolean | no |
+| `delayMs` | number | no |
+| `stepId` | string | no |
 
-| bind | wire key | wire value |
+`paramKey` names from **step_runner_get** only — do not invent keys or `.var` / `.file` on the wrong base name.
 
-|------|----------|------------|
+## inputParams wire
 
-| literal/expr | `paramKey` | `"…"` |
+`inputParams`: `Record<string, string>` — **every value is a plain string** (no nested objects on disk).
 
-| variable | `paramKey.var` | variable key string |
+Per catalog `paramKey`, use **exactly one** wire entry:
 
-| external file | `paramKey.file` | `files/…` path |
+| wire key | value |
+|----------|-------|
+| `paramKey` | literal, `$$…`, or `$=…` |
+| `paramKey.var` | `variables[].key` string |
+| `paramKey.file` | `files/…` path |
 
-Read expands to canonical `{ value | varKey | file }` for compile/RPC; write compacts back.
+```json
+"inputParams": {
+  "title": "Hello",
+  "paths.var": "urls",
+  "code.file": "files/filter.eval.cs"
+}
+```
 
-Legacy objects `{ value|varKey|file }` still accepted on **read** only.
+NO mixed binds for the same `paramKey` (never both `paramKey` and `paramKey.var`).
 
-NO mixed binds; catalog keys from step_runner_get (`.file` / `.var` suffix is wire-only).
+## outputParams wire
+
+`outputParams`: `Record<string, string>` — value = target variable key (or `dictVar.entry`). Declare key in `variables[]` first.
+
+## Bind vs interpolate
+
+| intent | wire | NOT |
+|--------|------|-----|
+| pass variable | `paramKey.var` | `"paramKey": "{varKey}"` |
+| text mentions variable | `"paramKey": "$$Hello {varKey}"` | `paramKey.var` |
+| C# compute | `"paramKey": "$=…"` or sys:evalexpression | `paramKey.var` |
+
+`{varKey}` in a string value requires `$$` or `$=` prefix — **expressions**.
 
 ## Long text
 
-| case | do |
-
-|------|-----|
-
-| value >4 lines | `paramKey.file` → files/ |
-
-| long evalexpression | files/*.eval.cs |
-
-| formDef / webview HTML | files/*.form.json / *.html |
-
-## outputParams
-
-String values = target var keys (or dict.entry). Declare variables[] first.
+| case | wire |
+|------|------|
+| value >4 lines | `paramKey.file` |
+| long evalexpression | `files/*.eval.cs` |
+| formDef / webview HTML | `files/*.form.json` / `*.html` |
 
 ## Branching
 
@@ -45,9 +70,7 @@ sys:if — condition in inputParams; children in ifSteps/elseSteps. Single branc
 ## Rules
 
 - step_runner_get before writing keys
-
 - expressions/evalexpression before csscript
-
 - externalize long content
 
 ## See also

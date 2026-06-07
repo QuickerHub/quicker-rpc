@@ -1,5 +1,6 @@
 using System.Text.Json;
 using QuickerRpc.AgentModel.Form;
+using QuickerRpc.AgentModel.Schemas;
 
 namespace QuickerRpc.Console;
 
@@ -57,6 +58,8 @@ internal static partial class Program
                         mode = result.Mode,
                         formParamKey = result.FormParamKey,
                         nativeFormJson = result.NativeFormJson,
+                        formSchema = FormSpecSchemaService.GetSchema(),
+                        formTemplate = FormSpecSchemaService.GetTemplate(),
                         step = result.Success && !string.IsNullOrWhiteSpace(result.StepJson)
                             ? JsonSerializer.Deserialize<object>(result.StepJson!)
                             : null,
@@ -86,6 +89,8 @@ internal static partial class Program
                     action = "form-validate",
                     success = validation.Success,
                     schema = FormSpecDocument.SchemaId,
+                    formSchema = FormSpecSchemaService.GetSchema(),
+                    formTemplate = FormSpecSchemaService.GetTemplate(),
                     fieldCount = parse.Spec!.Fields.Count,
                     mode = parse.Spec.Mode,
                     issues = validation.Issues.Count > 0 ? validation.Issues : null,

@@ -81,6 +81,17 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
     };
   }
 
+  if (positional[0] === "wait") {
+    return {
+      op: "wait",
+      args: {
+        timeoutSeconds: flagInt(flags, "timeout") ?? 120,
+        intervalSeconds: flagInt(flags, "interval") ?? 2,
+        noBootstrap: flags["no-bootstrap"] === true,
+      },
+    };
+  }
+
   if (positional[0] === "guide") {
     const verb = positional[1];
     if (verb === "get") {
@@ -106,6 +117,15 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
           limit: flagInt(flags, "limit"),
           sort: flagStr(flags, "sort"),
           fields: flagStr(flags, "fields"),
+        },
+      };
+    }
+    if (verb === "mention-search") {
+      return {
+        op: "action.mention-search",
+        args: {
+          query: flagStr(flags, "query") ?? flagStr(flags, "q"),
+          limit: flagInt(flags, "limit"),
         },
       };
     }

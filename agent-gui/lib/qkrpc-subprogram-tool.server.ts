@@ -5,6 +5,12 @@ import {
   parseQkrpcPayload,
 } from "@/lib/action-project-workflow";
 import {
+  QKRPC_SUBPROGRAM_CREATE_TOOL,
+  QKRPC_SUBPROGRAM_EDIT_TOOL,
+  QKRPC_SUBPROGRAM_EDIT_VAR_TOOL,
+  QKRPC_SUBPROGRAM_EXPORT_TOOL,
+  QKRPC_SUBPROGRAM_GET_TOOL,
+  QKRPC_SUBPROGRAM_IMPORT_TOOL,
   QKRPC_SUBPROGRAM_MANAGE_TOOL,
   QKRPC_SUBPROGRAM_QUERY_TOOL,
   QKRPC_SUBPROGRAM_TOOL,
@@ -20,9 +26,15 @@ import { formatLocalToolResult } from "@/lib/tool-result";
 
 const returnModeSchema = z.enum(["full", "structure", "metadata"]);
 
+const SUBPROGRAM_WORKSPACE_REDIRECT =
+  "Use workspace_program({ target: \"global_subprogram\", action: \"patch\", id }) — not subprogram patch/replace.";
+
 const subprogramQuerySchema = z.object({
-  query: z.string().optional(),
-  limit: z.number().int().min(1).max(100).optional(),
+  query: z
+    .string()
+    .optional()
+    .describe("Name keyword; empty = list all global subprograms"),
+  limit: z.number().int().min(1).max(100).optional().describe("Max items (default 20)"),
 });
 
 export type QkrpcSubprogramQueryToolInput = z.infer<typeof subprogramQuerySchema>;
@@ -75,17 +87,17 @@ export type QkrpcSubprogramIdToolInput = z.infer<typeof subprogramIdInputSchema>
 
 const subprogramIdSchema = z.object({
   action: z
-    .enum(["get", "patch", "replace", "export", "import", "edit", "edit_var"])
-    .describe("Operation to perform"),
-  id: z.string().optional(),
-  returnMode: returnModeSchema.optional(),
-  patch: z.record(z.unknown()).optional(),
-  program: z.record(z.unknown()).optional(),
-  expectedEditVersion: z.number().int().optional(),
-  force: z.boolean().optional(),
-  dir: z.string().optional(),
-  var: z.string().optional(),
-  value: z.string().optional(),
+    .enum(["get", "export", "import", "edit", "edit_var"])
+    .describe(
+      "get=sync workspace; export/import=dir; edit=Quicker UI; edit_var=one var. Body: workspace_program.",
+    ),
+  id: z.string().describe("Subprogram id or name"),
+  returnMode: returnModeSchema.optional().describe("get: full | structure | metadata"),
+  expectedEditVersion: z.number().int().optional().describe("import: expectedEditVersion"),
+  force: z.boolean().optional().describe("import: force on conflict"),
+  dir: z.string().optional().describe("export: output dir; import: source dir"),
+  var: z.string().optional().describe("edit_var: variable key"),
+  value: z.string().optional().describe("edit_var: new value"),
 });
 
 function formatZodToolInputError(error: z.ZodError): string {
@@ -97,6 +109,10 @@ function parseSubprogramIdToolInput(
 ):
   | { success: true; data: QkrpcSubprogramIdToolInput }
   | { success: false; message: string } {
+  const action = input.action;
+  if (action === "patch" || action === "replace") {
+    return { success: false, message: SUBPROGRAM_WORKSPACE_REDIRECT };
+  }
   const parsed = subprogramIdInputSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, message: formatZodToolInputError(parsed.error) };
@@ -104,14 +120,18 @@ function parseSubprogramIdToolInput(
   return { success: true, data: parsed.data };
 }
 
-const subprogramManageSchema = z.object({
-  action: z.literal("create"),
-  name: z.string(),
-  description: z.string().optional(),
-  icon: z.string().optional(),
+const subprogramCreateSchema = z.object({
+  name: z.string().describe("Subprogram name (unique)"),
+  description: z.string().optional().describe("Optional summary"),
+  icon: z.string().optional().describe("Optional fa: spec from qkrpc_fa search"),
 });
 
-export type QkrpcSubprogramManageToolInput = z.infer<typeof subprogramManageSchema>;
+export type QkrpcSubprogramCreateToolInput = z.infer<typeof subprogramCreateSchema>;
+
+/** @deprecated Legacy manage router input. */
+export type QkrpcSubprogramManageToolInput = QkrpcSubprogramCreateToolInput & {
+  action: "create";
+};
 
 /** @deprecated Unified input for legacy tool aliases only. */
 export type QkrpcSubprogramToolInput = QkrpcSubprogramQueryToolInput
@@ -212,8 +232,8 @@ export async function executeQkrpcSubprogramIdTool(
   }
 }
 
-export async function executeQkrpcSubprogramManageTool(
-  input: QkrpcSubprogramManageToolInput,
+export async function executeQkrpcSubprogramCreateTool(
+  input: QkrpcSubprogramCreateToolInput,
 ): Promise<Record<string, unknown>> {
   const args = ["subprogram", "create", "--name", input.name];
   if (input.description) args.push("--description", input.description);
@@ -294,6 +314,13 @@ export async function executeQkrpcSubprogramManageTool(
   });
 }
 
+/** @deprecated Use executeQkrpcSubprogramCreateTool. */
+export async function executeQkrpcSubprogramManageTool(
+  input: QkrpcSubprogramManageToolInput,
+): Promise<Record<string, unknown>> {
+  return executeQkrpcSubprogramCreateTool(input);
+}
+
 /** Legacy unified router for deprecated per-action tool aliases. */
 export async function executeQkrpcSubprogramTool(
   input: QkrpcSubprogramToolInput,
@@ -334,16 +361,78 @@ export async function executeQkrpcSubprogramTool(
 
 export const QKRPC_SUBPROGRAM_QUERY_TOOL_DEF = tool({
   description:
-    "List/search global subprograms via subprogram list. Optional query keyword; empty query lists all. "
-    + "Use before sys:subprogram steps to resolve callIdentifier.",
+    "Find global subprograms by name. Use before sys:subprogram steps — need callIdentifier from get. "
+    + "Not for embedded subprograms (workspace_program target=embedded_subprogram).",
   inputSchema: subprogramQuerySchema,
   execute: async (input) => executeQkrpcSubprogramQueryTool(input),
 });
 
-export const QKRPC_SUBPROGRAM_TOOL_DEF = tool({
+export const QKRPC_SUBPROGRAM_GET_TOOL_DEF = tool({
   description:
-    "Operate on one global subprogram by id: get (sync workspace when program has body), patch, replace, "
-    + "export/import project dir, edit (Quicker UI), edit_var. Prefer workspace_program for disk editing.",
+    "Sync one global subprogram to .quicker/subprograms/{id}/ (first time). "
+    + "After create skip re-get — use workspace_program. NOT body edits.",
+  inputSchema: z.object({
+    id: z.string().describe("Subprogram id or name"),
+    returnMode: returnModeSchema
+      .optional()
+      .describe("full | structure | metadata"),
+  }),
+  execute: async (input) =>
+    executeQkrpcSubprogramIdTool({ action: "get", ...input }),
+});
+
+export const QKRPC_SUBPROGRAM_EXPORT_TOOL_DEF = tool({
+  description: "Export one global subprogram project to a directory.",
+  inputSchema: z.object({
+    id: z.string().describe("Subprogram id or name"),
+    dir: z.string().describe("Output directory path"),
+  }),
+  execute: async (input) =>
+    executeQkrpcSubprogramIdTool({ action: "export", ...input }),
+});
+
+export const QKRPC_SUBPROGRAM_IMPORT_TOOL_DEF = tool({
+  description: "Import a global subprogram project from a directory.",
+  inputSchema: z.object({
+    dir: z.string().describe("Source directory path"),
+    expectedEditVersion: z.number().int().optional(),
+    force: z.boolean().optional().describe("Ignore editVersion conflict"),
+  }),
+  execute: async (input) =>
+    executeQkrpcSubprogramIdTool({ action: "import", ...input }),
+});
+
+export const QKRPC_SUBPROGRAM_EDIT_TOOL_DEF = tool({
+  description: "Open one global subprogram in Quicker desktop designer UI.",
+  inputSchema: z.object({
+    id: z.string().describe("Subprogram id or name"),
+  }),
+  execute: async ({ id }) => executeQkrpcSubprogramIdTool({ action: "edit", id }),
+});
+
+export const QKRPC_SUBPROGRAM_EDIT_VAR_TOOL_DEF = tool({
+  description: "Set one global subprogram variable in Quicker (not disk edit).",
+  inputSchema: z.object({
+    id: z.string().describe("Subprogram id or name"),
+    var: z.string().describe("Variable key"),
+    value: z.string().describe("New value"),
+  }),
+  execute: async (input) =>
+    executeQkrpcSubprogramIdTool({ action: "edit_var", ...input }),
+});
+
+export const QKRPC_SUBPROGRAM_CREATE_TOOL_DEF = tool({
+  description:
+    "Create a new global subprogram and bootstrap .quicker/subprograms/{id}/. "
+    + "After create edit via workspace_program (target=global_subprogram) — do not re-get. "
+    + "NOT embedded subprograms. Delete: qkrpc_subprogram_delete.",
+  inputSchema: subprogramCreateSchema,
+  execute: async (input) => executeQkrpcSubprogramCreateTool(input),
+});
+
+/** @deprecated Consolidated-era router — legacy replay only. */
+export const QKRPC_SUBPROGRAM_TOOL_DEF = tool({
+  description: "Deprecated: use qkrpc_subprogram_get / export / import / edit / edit_var.",
   inputSchema: subprogramIdSchema,
   execute: async (input) => {
     const parsed = parseSubprogramIdToolInput(input);
@@ -354,15 +443,25 @@ export const QKRPC_SUBPROGRAM_TOOL_DEF = tool({
   },
 });
 
+/** @deprecated Consolidated-era router — legacy replay only. */
 export const QKRPC_SUBPROGRAM_MANAGE_TOOL_DEF = tool({
-  description:
-    "Create a global subprogram. Bootstraps .quicker/subprograms/{id}/ with info.json + empty data.json. "
-    + "Destructive delete: qkrpc_subprogram_delete.",
-  inputSchema: subprogramManageSchema,
+  description: "Deprecated: use qkrpc_subprogram_create.",
+  inputSchema: z.object({
+    action: z.literal("create"),
+    name: z.string(),
+    description: z.string().optional(),
+    icon: z.string().optional(),
+  }),
   execute: async (input) => executeQkrpcSubprogramManageTool(input),
 });
 
 export {
+  QKRPC_SUBPROGRAM_CREATE_TOOL,
+  QKRPC_SUBPROGRAM_EDIT_TOOL,
+  QKRPC_SUBPROGRAM_EDIT_VAR_TOOL,
+  QKRPC_SUBPROGRAM_EXPORT_TOOL,
+  QKRPC_SUBPROGRAM_GET_TOOL,
+  QKRPC_SUBPROGRAM_IMPORT_TOOL,
   QKRPC_SUBPROGRAM_MANAGE_TOOL,
   QKRPC_SUBPROGRAM_QUERY_TOOL,
   QKRPC_SUBPROGRAM_TOOL,

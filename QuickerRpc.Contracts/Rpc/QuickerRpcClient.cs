@@ -15,6 +15,7 @@ public static class QuickerRpcClient
 {
     public const string PluginNotRunningErrorCode = "PLUGIN_NOT_RUNNING";
     public const string ConnectTimeoutErrorCode = "CONNECT_TIMEOUT";
+    public const string WaitTimeoutErrorCode = "WAIT_TIMEOUT";
 
     private const int BootstrapPollIntervalMs = 250;
     private const int BootstrapMaxWaitSeconds = 12;
@@ -178,5 +179,86 @@ public static class QuickerRpcClient
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Poll until the plugin pipe accepts RPC ping, or throw when <paramref name="timeoutSeconds"/> elapses.
+    /// </summary>
+    public static async Task<QuickerRpcWaitResult> WaitForPluginAsync(
+        int timeoutSeconds = 120,
+        int pollIntervalSeconds = 2,
+        bool tryBootstrap = true,
+        CancellationToken cancellationToken = default)
+    {
+        var pipeName = QuickerRpcPipeNames.ServerPipe;
+        var startedUtc = DateTime.UtcNow;
+        var deadline = startedUtc.AddSeconds(Math.Max(1, timeoutSeconds));
+        var pollMs = Math.Max(250, Math.Min(pollIntervalSeconds * 1000, 30_000));
+        var attempts = 0;
+        var bootstrapAttempted = false;
+        var bootstrapLaunched = false;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            attempts++;
+
+            if (!IsPipeServerListening(pipeName) && tryBootstrap && !bootstrapLaunched)
+            {
+                bootstrapLaunched = true;
+                bootstrapAttempted = await TryBootstrapPluginAsync(
+                        pipeName,
+                        Math.Min(BootstrapMaxWaitSeconds, timeoutSeconds),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (IsPipeServerListening(pipeName))
+            {
+                try
+                {
+                    await using var session = await ConnectAsync(
+                            timeoutSeconds: 5,
+                            tryBootstrap: false,
+                            cancellationToken: cancellationToken)
+                        .ConfigureAwait(false);
+                    var rpcToken = CreateRpcCancellationToken(5);
+                    var pong = await session.Rpc.PingAsync(rpcToken).ConfigureAwait(false);
+                    var version = await session.Rpc.GetProtocolVersionAsync(rpcToken).ConfigureAwait(false);
+                    var elapsedMs = (int)Math.Max(0, (DateTime.UtcNow - startedUtc).TotalMilliseconds);
+                    return new QuickerRpcWaitResult
+                    {
+                        Pong = pong,
+                        ProtocolVersion = version,
+                        ElapsedMs = elapsedMs,
+                        Attempts = attempts,
+                        BootstrapAttempted = bootstrapAttempted,
+                    };
+                }
+                catch (QuickerRpcClientException)
+                {
+                    // Pipe visible but session not ready yet — keep polling.
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // Per-attempt connect timeout — keep polling until global deadline.
+                }
+            }
+
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new QuickerRpcClientException(
+                    WaitTimeoutErrorCode,
+                    $"QuickerRpc 在 {timeoutSeconds}s 内未就绪（尝试 {attempts} 次）。",
+                    BuildPluginNotRunningHints(bootstrapAttempted));
+            }
+
+            var remainingMs = (int)Math.Max(0, (deadline - DateTime.UtcNow).TotalMilliseconds);
+            var delayMs = Math.Min(pollMs, remainingMs);
+            if (delayMs > 0)
+            {
+                await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
+            }
+        }
     }
 }

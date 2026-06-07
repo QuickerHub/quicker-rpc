@@ -18,6 +18,13 @@ import {
   isHttpTransportForced,
   mustNotSpawnCli,
 } from "@/lib/qkrpc-transport";
+import {
+  isQkrpcBinMissingFailure,
+  isQkrpcConnectivityFailure,
+  QKRPC_BIN_MISSING_GUIDANCE,
+  QKRPC_CONNECTIVITY_FAILURE_GUIDANCE,
+  QKRPC_TRANSIENT_FAILURE_GUIDANCE,
+} from "@/lib/qkrpc-connectivity";
 import type { QkrpcRunResult } from "@/lib/qkrpc-types";
 
 const require = createRequire(import.meta.url);
@@ -474,6 +481,40 @@ export async function runQkrpcForTool(
 export function formatQkrpcResultForAgent(
   result: QkrpcRunResult,
 ): Record<string, unknown> {
+  if (!result.ok && isQkrpcBinMissingFailure(result)) {
+    const message = result.stderr?.trim() || "qkrpc CLI not found on PATH";
+    return {
+      ok: false,
+      exitCode: result.exitCode,
+      source: "qkrpc",
+      data: {
+        status: "bin_missing",
+        message,
+        guidance: QKRPC_BIN_MISSING_GUIDANCE,
+      },
+      stderr: result.stderr || undefined,
+      truncated: result.truncated || undefined,
+    };
+  }
+
+  if (!result.ok && isQkrpcConnectivityFailure(result)) {
+    const message =
+      result.stderr?.trim()
+      || "QuickerRpc plugin or serve is not available";
+    return {
+      ok: false,
+      exitCode: result.exitCode,
+      source: "qkrpc",
+      data: {
+        status: "connectivity_failure",
+        message,
+        guidance: QKRPC_CONNECTIVITY_FAILURE_GUIDANCE,
+      },
+      stderr: result.stderr || undefined,
+      truncated: result.truncated || undefined,
+    };
+  }
+
   if (!result.ok && isRetryableQkrpcFailure(result)) {
     const message =
       result.stderr?.trim()
@@ -488,9 +529,7 @@ export function formatQkrpcResultForAgent(
           ? "timeout"
           : "transport",
         message,
-        guidance:
-          "Do not immediately repeat this tool with the same arguments. "
-          + "Wait, use a read-only check, narrow the query, or ask the user.",
+        guidance: QKRPC_TRANSIENT_FAILURE_GUIDANCE,
         attempts: QKRPC_TOOL_MAX_ATTEMPTS,
       },
     };

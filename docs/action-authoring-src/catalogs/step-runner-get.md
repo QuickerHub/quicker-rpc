@@ -16,9 +16,9 @@
 | step | role |
 |------|------|
 | search | key, controlField, snippet |
-| get | inputParams/outputParams keys; visible fields |
+| get | input keys, valueType, options (when set), required, default, fileExt |
 
-Bind shapes: action-steps.
+Bind rules: action-steps — use exact `key`; variable bind `paramKey.var` not `{varKey}` in value.
 
 {{#only-cli}}```powershell
 {{@ step-runner.get}}

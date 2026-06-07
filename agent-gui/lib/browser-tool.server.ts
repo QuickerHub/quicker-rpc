@@ -156,10 +156,9 @@ export async function executeBrowserTool(
 
 export const BROWSER_TOOL_DEF = tool({
   description:
-    "Control the embedded Playwright browser (headless; preview updates in the agent-gui browser panel). "
-    + "Workflow: navigate → snapshot (refs e1,e2,…) → click/type/fill by ref, or click_xy for panel coordinates. "
-    + "Use for web pages, getquicker docs, login/publish flows — not shell curl. "
-    + "sessionId isolates tabs/cookies (default 'default'). status checks runtime; close ends session.",
+    "Embedded Playwright browser for web UI. Workflow: navigate → snapshot (refs e1,…) → click/type/fill. "
+    + "Use for getquicker pages, login, publish — NOT shell curl, NOT Quicker program edits. "
+    + "sessionId isolates cookies (default 'default').",
   inputSchema: z.object({
     action: browserActionSchema.describe(
       "status | navigate | snapshot | click | click_xy | type | fill | press | wait | screenshot | tabs | back | forward | reload | close",

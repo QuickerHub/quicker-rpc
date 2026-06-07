@@ -28,9 +28,8 @@ export const LLM_SETTINGS_TOOL = "llm_settings";
 
 export const LLM_SETTINGS_TOOL_DEF = tool({
   description:
-    "Manage local LLM model profiles and active model selection. "
-    + "Profiles group one apiKey + baseURL with multiple model ids. "
-    + "Built-in OpenAI/DeepSeek presets are read-only here; use profiles for custom endpoints.",
+    "Manage agent-gui chat LLM profiles and active model. NOT Quicker app settings (quicker_settings). "
+    + "Profiles = apiKey + baseURL + model ids. Built-in presets read-only; custom via create/update.",
   inputSchema: z.object({
     action: actionSchema.describe(
       "list: all profiles + options summary; get: one profile; "

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using QuickerRpc.AgentModel.Guides;
+using QuickerRpc.AgentModel.Schemas;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Console.Serve;
@@ -18,7 +19,7 @@ internal static class ServeInvokeDispatcher
         var normalized = (op ?? string.Empty).Trim().ToLowerInvariant();
         if (string.IsNullOrEmpty(normalized))
         {
-            return Fail("MISSING_OP", "Provide op (e.g. ping, action.list).");
+            return Fail("MISSING_OP", "Provide op (e.g. ping, wait, action.list).");
         }
 
         try
@@ -26,6 +27,7 @@ internal static class ServeInvokeDispatcher
             return normalized switch
             {
                 "ping" => await PingAsync(pool, timeoutSeconds, cancellationToken).ConfigureAwait(false),
+                "wait" => await WaitAsync(args, cancellationToken).ConfigureAwait(false),
                 "guide.get" => GuideGet(args),
                 "guide.search" => GuideSearch(args),
                 _ when normalized.StartsWith("guide.", StringComparison.Ordinal) =>
@@ -65,6 +67,7 @@ internal static class ServeInvokeDispatcher
         {
             "action.list" => await ActionListAsync(pool, args, token).ConfigureAwait(false),
             "action.search" => await ActionSearchAsync(pool, args, token).ConfigureAwait(false),
+            "action.mention-search" => await ActionMentionSearchAsync(pool, args, token).ConfigureAwait(false),
             "action.get" => await ActionGetAsync(rpc, args, token).ConfigureAwait(false),
             "action.create" => await ActionCreateAsync(rpc, args, token).ConfigureAwait(false),
             "action.patch" => await ActionPatchAsync(rpc, args, token).ConfigureAwait(false),
@@ -138,6 +141,39 @@ internal static class ServeInvokeDispatcher
             action = "ping",
             pong,
             protocolVersion = version,
+            pipe = QuickerRpcPipeNames.ServerPipe,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> WaitAsync(
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var timeoutSeconds = ServeJsonArgs.GetInt(args, "timeoutSeconds")
+            ?? ServeJsonArgs.GetInt(args, "timeout")
+            ?? 120;
+        var intervalSeconds = ServeJsonArgs.GetInt(args, "intervalSeconds")
+            ?? ServeJsonArgs.GetInt(args, "interval")
+            ?? 2;
+        var noBootstrap = ServeJsonArgs.GetBool(args, "noBootstrap")
+            || ServeJsonArgs.GetBool(args, "no-bootstrap");
+
+        var result = await QuickerRpcClient.WaitForPluginAsync(
+                timeoutSeconds,
+                intervalSeconds,
+                !noBootstrap,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return Ok(new
+        {
+            ok = true,
+            action = "wait",
+            pong = result.Pong,
+            protocolVersion = result.ProtocolVersion,
+            elapsedMs = result.ElapsedMs,
+            attempts = result.Attempts,
+            bootstrapAttempted = result.BootstrapAttempted,
             pipe = QuickerRpcPipeNames.ServerPipe,
         });
     }
@@ -425,6 +461,7 @@ internal static class ServeInvokeDispatcher
             topic = response.Topic,
             title = response.Title,
             markdown = response.Markdown,
+            schema = response.Schema,
             availableTopics = response.AvailableTopics,
         });
     }
@@ -487,6 +524,37 @@ internal static class ServeInvokeDispatcher
         CancellationToken token) =>
         ActionListAsync(pool, args, token);
 
+    private static async Task<ServeInvokeResponse> ActionMentionSearchAsync(
+        QkrpcRpcSessionPool pool,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var query = ServeJsonArgs.GetString(args, "query") ?? ServeJsonArgs.GetString(args, "q");
+        var limit = ServeJsonArgs.GetInt(args, "limit") ?? 8;
+        if (limit < 1)
+        {
+            limit = 8;
+        }
+
+        limit = Math.Min(limit, 20);
+        var queryTrimmed = string.IsNullOrWhiteSpace(query) ? string.Empty : query.Trim();
+        var session = await pool.GetSessionAsync(token).ConfigureAwait(false);
+        var response = await session.Rpc
+            .SearchActionsAsync(queryTrimmed, limit, scope: null, token)
+            .ConfigureAwait(false);
+        if (ShouldRetryActionQueryAfterReconnect(queryTrimmed, response.Ok, response.Items?.Count ?? 0))
+        {
+            await pool.InvalidateAsync().ConfigureAwait(false);
+            session = await pool.GetSessionAsync(token).ConfigureAwait(false);
+            response = await session.Rpc
+                .SearchActionsAsync(queryTrimmed, limit, scope: null, token)
+                .ConfigureAwait(false);
+        }
+
+        var payloadNode = AgentApiMentionSearchJson.ToPayload(response, queryTrimmed);
+        return Ok(new { ok = response.Ok, action = "mention-search", payload = payloadNode });
+    }
+
     /// <summary>Reconnect once after plugin reload — stale serve sessions may miss pinyin/catalog matches.</summary>
     private static bool ShouldRetryActionQueryAfterReconnect(string? query, bool ok, int matchCount) =>
         ok
@@ -547,7 +615,14 @@ internal static class ServeInvokeDispatcher
                 ServeJsonArgs.GetString(args, "profileId"),
                 token)
             .ConfigureAwait(false);
-        return Ok(new { ok = response.Ok, action = "create", message = response.Message, actionId = response.ActionId, editVersion = response.EditVersion });
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "create",
+            message = response.Message,
+            actionId = response.ActionId,
+            editVersion = response.EditVersion,
+        });
     }
 
     private static async Task<ServeInvokeResponse> ActionPatchAsync(
@@ -1182,6 +1257,9 @@ internal static class ServeInvokeDispatcher
             subProgramId = response.SubProgramId,
             callIdentifier = response.CallIdentifier,
             editVersion = response.EditVersion,
+            programKind = ActionDataSchemaService.ProgramKindSubprogram,
+            dataSchema = ActionDataSchemaService.GetSchema(),
+            dataTemplate = ActionDataSchemaService.GetDataTemplate(ActionDataSchemaService.ProgramKindSubprogram),
         });
     }
 

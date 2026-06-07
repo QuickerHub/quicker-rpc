@@ -1,16 +1,51 @@
 /** Client-safe qkrpc action tool helpers. */
 
 export const QKRPC_ACTION_QUERY_TOOL = "qkrpc_action_query";
-export const QKRPC_ACTION_TOOL = "qkrpc_action";
+export const QKRPC_ACTION_GET_TOOL = "qkrpc_action_get";
+export const QKRPC_ACTION_EDIT_TOOL = "qkrpc_action_edit";
+export const QKRPC_ACTION_EDIT_VAR_TOOL = "qkrpc_action_edit_var";
+export const QKRPC_ACTION_SET_METADATA_TOOL = "qkrpc_action_set_metadata";
+export const QKRPC_ACTION_MOVE_TOOL = "qkrpc_action_move";
+export const QKRPC_ACTION_PUBLISH_TOOL = "qkrpc_action_publish";
+export const QKRPC_ACTION_RUN_TOOL = "qkrpc_action_run";
+export const QKRPC_ACTION_DEBUG_TOOL = "qkrpc_action_debug";
+export const QKRPC_ACTION_FLOAT_TOOL = "qkrpc_action_float";
 export const QKRPC_ACTION_CREATE_TOOL = "qkrpc_action_create";
+export const QKRPC_PROFILE_CREATE_TOOL = "qkrpc_profile_create";
+export const QKRPC_PROFILE_DELETE_TOOL = "qkrpc_profile_delete";
+export const QKRPC_PROFILE_PRUNE_TOOL = "qkrpc_profile_prune";
+export const QKRPC_PROFILE_REORDER_TOOL = "qkrpc_profile_reorder";
+export const QKRPC_PROCESS_ENSURE_TOOL = "qkrpc_process_ensure";
+
+/** @deprecated Consolidated-era mega-tool id (legacy replay only). */
+export const QKRPC_ACTION_TOOL = "qkrpc_action";
+/** @deprecated Consolidated-era mega-tool id (legacy replay only). */
 export const QKRPC_ACTION_MANAGE_TOOL = "qkrpc_action_manage";
 
 export const QKRPC_ACTION_TOOL_IDS = [
   QKRPC_ACTION_QUERY_TOOL,
-  QKRPC_ACTION_TOOL,
+  QKRPC_ACTION_GET_TOOL,
+  QKRPC_ACTION_EDIT_TOOL,
+  QKRPC_ACTION_EDIT_VAR_TOOL,
+  QKRPC_ACTION_SET_METADATA_TOOL,
+  QKRPC_ACTION_MOVE_TOOL,
+  QKRPC_ACTION_PUBLISH_TOOL,
+  QKRPC_ACTION_RUN_TOOL,
+  QKRPC_ACTION_DEBUG_TOOL,
+  QKRPC_ACTION_FLOAT_TOOL,
   QKRPC_ACTION_CREATE_TOOL,
-  QKRPC_ACTION_MANAGE_TOOL,
+  QKRPC_PROFILE_CREATE_TOOL,
+  QKRPC_PROFILE_DELETE_TOOL,
+  QKRPC_PROFILE_PRUNE_TOOL,
+  QKRPC_PROFILE_REORDER_TOOL,
+  QKRPC_PROCESS_ENSURE_TOOL,
 ] as const;
+
+const RUN_TOOL_IDS = new Set([
+  QKRPC_ACTION_RUN_TOOL,
+  QKRPC_ACTION_DEBUG_TOOL,
+  QKRPC_ACTION_FLOAT_TOOL,
+]);
 
 const LEGACY_LIST_TOOLS = new Set(["qkrpc_action_list", "qkrpc_action_search"]);
 
@@ -47,8 +82,17 @@ export function actionListSourceFromTool(
   return null;
 }
 
+export function isQkrpcActionRunTool(toolName: string, input?: unknown): boolean {
+  if (RUN_TOOL_IDS.has(toolName)) return true;
+  if (toolName === QKRPC_ACTION_TOOL) {
+    const action = readQkrpcAction(input);
+    return action === "run" || action === "debug" || action === "float" || action === "trace";
+  }
+  return false;
+}
+
 export function isQkrpcActionGetTool(toolName: string, input?: unknown): boolean {
-  if (toolName === "qkrpc_action_get") return true;
+  if (toolName === QKRPC_ACTION_GET_TOOL) return true;
   if (toolName !== QKRPC_ACTION_TOOL) return false;
   return readQkrpcAction(input) === "get";
 }
@@ -89,8 +133,9 @@ export function readActionCreateTitleFromInput(input: unknown): string | null {
 
 const LEGACY_ACTION_COMMAND_VERB: Record<string, string> = {
   qkrpc_action_run: "run",
-  qkrpc_action_edit: "edit",
+  qkrpc_action_debug: "debug",
   qkrpc_action_float: "float",
+  qkrpc_action_edit: "edit",
   qkrpc_action_get: "get",
   qkrpc_action_replace: "replace",
   qkrpc_action_publish: "publish",
@@ -136,13 +181,13 @@ export function resolveQkrpcActionRunMode(
   input?: unknown,
   outputData?: Record<string, unknown> | null,
 ): QkrpcActionRunMode {
-  const action = readQkrpcAction(input);
-  if (action === "debug" || action === "trace") return "debug";
-
   if (typeof input === "object" && input !== null && !Array.isArray(input)) {
     const obj = input as Record<string, unknown>;
     if (readBooleanFlag(obj, "trace")) return "debug";
   }
+  const action = readQkrpcAction(input);
+  if (action === "debug" || action === "trace") return "debug";
+
   if (outputData && outputIndicatesDebugRun(outputData)) {
     return "debug";
   }
@@ -199,13 +244,16 @@ export function readQkrpcActionParamFromInput(input: unknown): string | undefine
 }
 
 function resolveRunCommandVerb(
+  toolName: string,
   input?: unknown,
   outputData?: Record<string, unknown> | null,
 ): string {
+  if (toolName === QKRPC_ACTION_DEBUG_TOOL) return "debug";
+  if (toolName === QKRPC_ACTION_FLOAT_TOOL) return "float";
   return resolveQkrpcActionRunMode(input, outputData) === "debug" ? "debug" : "run";
 }
 
-/** run / edit / debug / … for qkrpc_action and legacy action tools. */
+/** run / edit / debug / … for split action tools and legacy routers. */
 export function resolveQkrpcActionCommandVerb(
   toolName: string,
   input?: unknown,
@@ -213,15 +261,18 @@ export function resolveQkrpcActionCommandVerb(
 ): string | null {
   const legacy = LEGACY_ACTION_COMMAND_VERB[toolName];
   if (legacy) {
-    if (legacy === "run") return resolveRunCommandVerb(input, outputData);
+    if (legacy === "run") return resolveRunCommandVerb(toolName, input, outputData);
     return legacy;
   }
-  if (toolName !== QKRPC_ACTION_TOOL) return null;
-  const action = readQkrpcAction(input);
-  if (!action) return null;
-  if (action === "debug" || action === "trace") return "debug";
-  if (action === "run") return resolveRunCommandVerb(input, outputData);
-  return action;
+  if (toolName === QKRPC_ACTION_TOOL) {
+    const action = readQkrpcAction(input);
+    if (!action) return null;
+    if (action === "float") return "float";
+    if (action === "debug" || action === "trace") return "debug";
+    if (action === "run") return resolveRunCommandVerb(toolName, input, outputData);
+    return action;
+  }
+  return null;
 }
 
 export function isQkrpcActionCommandTool(toolName: string, input?: unknown): boolean {

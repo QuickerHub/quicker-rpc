@@ -22,6 +22,7 @@ import {
   beginComposerVoiceStream,
   cancelComposerVoiceStream,
   createComposerTagElement,
+  createComposerTagSpacer,
   deleteComposerTagWithUndo,
   endComposerVoiceStream,
   ensureEmptyComposerCaret,
@@ -30,6 +31,7 @@ import {
   insertComposerMarkupPasteWithUndo,
   insertPlainTextWithUndo,
   normalizeEmptyComposerRoot,
+  placeCaretAfterComposerTagSpacer,
   placeCaretAtEnd,
   placeCaretAtStart,
   renderMarkupIntoRoot,
@@ -203,10 +205,12 @@ export const ComposerMarkupField = forwardRef<
         const root = rootRef.current;
         if (!root || disabled) return;
         closeMention();
-        insertNodeAtSelection(root, createComposerTagElement(action));
-        insertNodeAtSelection(root, document.createTextNode("\u00a0"));
+        const chip = createComposerTagElement(action);
+        const spacer = createComposerTagSpacer();
+        insertNodeAtSelection(root, chip);
+        chip.after(spacer);
+        placeCaretAfterComposerTagSpacer(spacer, root);
         emitChange();
-        root.focus();
       },
       insertPlainText: (text: string) => {
         const root = rootRef.current;

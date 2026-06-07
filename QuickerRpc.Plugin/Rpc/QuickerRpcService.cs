@@ -211,16 +211,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         cancellationToken.ThrowIfCancellationRequested();
 
         return InvokeOnDispatcherAsync(
-            () =>
-            {
-                var sort = string.IsNullOrWhiteSpace(query) ? "lastEdit" : "relevance";
-                var summaries = _headlessActionProgramService.SearchActionSummaries(
-                    query,
-                    maxCount,
-                    scope,
-                    sort);
-                return Task.FromResult(ActionSearchResultMapper.FromSummaries(summaries));
-            },
+            () => Task.FromResult(_actionSearchService.SearchActions(query, maxCount, scope)),
             cancellationToken);
     }
 

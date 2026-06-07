@@ -52,7 +52,7 @@ function buildListArgv(query: string, limit: number): string[] {
   return argv;
 }
 
-/** Search or list recent actions for composer @-mentions. */
+/** Search or list recent actions (agent query / list UI — not composer @-mentions). */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const query = url.searchParams.get("q")?.trim() ?? "";

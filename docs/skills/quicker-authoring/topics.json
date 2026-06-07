@@ -2,6 +2,19 @@
   "skillName": "quicker-authoring",
   "topics": [
     {
+      "topic": "action-data-schema",
+      "title": "Action data.json schema",
+      "description": "Machine-readable JSON schema for data.json: shared steps[] + variables[] by programKind (action vs subprogram). qkrpc guide get --topic action-data-schema --json.",
+      "source": "references/action-data-schema.md",
+      "templateSource": "schemas/action-data-schema.md",
+      "allowedTools": "qkrpc_guide_get qkrpc_action_create workspace_action_read_data workspace_action_write_data workspace_action_edit_data",
+      "metadata": {
+        "phase": "P2-P6",
+        "layer": "schema"
+      },
+      "layer": "schema"
+    },
+    {
       "topic": "action-embedded-subprograms",
       "title": "Embedded subprograms",
       "description": "subprograms/{subId}/ disk model; root data.json without inline subPrograms[]. Use when editing embedded subprograms.",
@@ -123,6 +136,19 @@
       "source": "references/form-spec.md",
       "templateSource": "schemas/form-spec.md",
       "allowedTools": "qkrpc_form_validate qkrpc_form_build qkrpc_step_runner_get workspace_action_edit_data qkrpc_action_patch",
+      "metadata": {
+        "phase": "P5-P6",
+        "layer": "schema"
+      },
+      "layer": "schema"
+    },
+    {
+      "topic": "form-spec-schema",
+      "title": "Form spec schema",
+      "description": "Machine-readable JSON schema for qkrpc.form.v1 documents and sys:form step wire. guide get / form validate.",
+      "source": "references/form-spec-schema.md",
+      "templateSource": "schemas/form-spec-schema.md",
+      "allowedTools": "qkrpc_guide_get qkrpc_form_validate qkrpc_form_build workspace_action_file_write workspace_action_edit_data",
       "metadata": {
         "phase": "P5-P6",
         "layer": "schema"

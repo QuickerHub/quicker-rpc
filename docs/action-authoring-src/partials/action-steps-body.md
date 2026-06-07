@@ -1,82 +1,74 @@
-## inputParams (one per param key)
+## data.json steps[] schema
 
+| field | type | required |
+|-------|------|----------|
+| `stepRunnerKey` | string | yes |
+| `inputParams` | object | no |
+| `outputParams` | object | no |
+| `ifSteps` | steps[] | no |
+| `elseSteps` | steps[] | no |
+| `note` | string | no |
+| `disabled` | boolean | no |
+| `collapsed` | boolean | no |
+| `delayMs` | number | no |
+| `stepId` | string | no |
 
+`paramKey` names from **step_runner_get** only — do not invent keys or `.var` / `.file` on the wrong base name.
 
-Workspace **data.json** wire format — **only** plain string values:
+## inputParams wire
 
+`inputParams`: `Record<string, string>` — **every value is a plain string** (no nested objects on disk).
 
+Per catalog `paramKey`, use **exactly one** wire entry:
 
-| bind | wire key | wire value |
+| wire key | value |
+|----------|-------|
+| `paramKey` | literal, `$$…`, or `$=…` |
+| `paramKey.var` | `variables[].key` string |
+| `paramKey.file` | `files/…` path |
 
-|------|----------|------------|
+```json
+"inputParams": {
+  "title": "Hello",
+  "paths.var": "urls",
+  "code.file": "files/filter.eval.cs"
+}
+```
 
-| literal/expr | `paramKey` | `"…"` |
+NO mixed binds for the same `paramKey` (never both `paramKey` and `paramKey.var`).
 
-| variable | `paramKey.var` | variable key string |
+## outputParams wire
 
-| external file | `paramKey.file` | `files/…` path |
+`outputParams`: `Record<string, string>` — value = target variable key (or `dictVar.entry`). Declare key in `variables[]` first.
 
+## Bind vs interpolate
 
+| intent | wire | NOT |
+|--------|------|-----|
+| pass variable | `paramKey.var` | `"paramKey": "{varKey}"` |
+| text mentions variable | `"paramKey": "$$Hello {varKey}"` | `paramKey.var` |
+| C# compute | `"paramKey": "$=…"` or sys:evalexpression | `paramKey.var` |
 
-Read expands to canonical `{ value | varKey | file }` for compile/RPC; write compacts back.
-
-
-
-Legacy objects `{ value|varKey|file }` still accepted on **read** only.
-
-
-
-NO mixed binds; catalog keys from step_runner_get (`.file` / `.var` suffix is wire-only).
-
-
+`{varKey}` in a string value requires `$$` or `$=` prefix — **expressions**.
 
 ## Long text
 
-
-
-| case | do |
-
-|------|-----|
-
-| value >4 lines | `paramKey.file` → files/ |
-
-| long evalexpression | files/*.eval.cs |
-
-| formDef / webview HTML | files/*.form.json / *.html |
-
-
-
-## outputParams
-
-
-
-String values = target var keys (or dict.entry). Declare variables[] first.
-
-
+| case | wire |
+|------|------|
+| value >4 lines | `paramKey.file` |
+| long evalexpression | `files/*.eval.cs` |
+| formDef / webview HTML | `files/*.form.json` / `*.html` |
 
 ## Branching
 
-
-
 sys:if — condition in inputParams; children in ifSteps/elseSteps. Single branch: sys:simpleIf.
-
-
 
 ## Rules
 
-
-
 - step_runner_get before writing keys
-
 - expressions/evalexpression before csscript
-
 - externalize long content
-
-
 
 ## See also
 
-
-
 action-variables · expressions · action-project-files · step-runner-search
-

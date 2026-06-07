@@ -13,6 +13,7 @@ import {
   isUserInstalledQkrpcPath,
   resolveQkrpcBin,
 } from "./lib/qkrpc-bin.mjs";
+import { applyQkrpcToolchainEnv } from "./lib/qkrpc-toolchain-env.mjs";
 import {
   reconcileStaleQkrpcServe,
   stopTrackedQkrpcServe,
@@ -191,8 +192,14 @@ async function resolveUiPort(host) {
     if (Number.isFinite(parsed) && parsed > 0) {
       if (strictPort) {
         await listenProbe(parsed, host);
+        return parsed;
       }
-      return parsed;
+      try {
+        await listenProbe(parsed, host);
+        return parsed;
+      } catch {
+        // PORT inherited or stale — pick next free port below.
+      }
     }
   }
   const preferred = Number(process.env.AGENT_GUI_PORT?.trim() || "3000");
@@ -403,16 +410,13 @@ function printListening(url) {
 
 function applyDevWorkspaceEnv(agentGuiRoot) {
   const repoRoot = join(agentGuiRoot, "..");
-  if (existsSync(join(repoRoot, "version.json"))) {
-    if (!process.env.QKRPC_REPO_ROOT?.trim()) {
-      process.env.QKRPC_REPO_ROOT = repoRoot;
-    }
-    if (!process.env.QKRPC_CWD?.trim()) {
-      process.env.QKRPC_CWD = repoRoot;
-    }
-  } else if (!process.env.QKRPC_CWD?.trim()) {
-    process.env.QKRPC_CWD = agentGuiRoot;
-  }
+  const inRepo = existsSync(join(repoRoot, "version.json"));
+  const cwd = inRepo ? repoRoot : agentGuiRoot;
+  applyQkrpcToolchainEnv(process.env, {
+    agentGuiRoot,
+    cwd,
+    repoRoot: inRepo ? repoRoot : undefined,
+  });
 }
 
 async function main() {
@@ -432,6 +436,7 @@ async function main() {
         });
       }
     }
+    delete process.env.PORT;
 
     const startVoiceAtBoot =
       process.env.AGENT_GUI_VOICE_RUNTIME === "1"

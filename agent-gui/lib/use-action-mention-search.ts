@@ -45,7 +45,7 @@ export function useActionMentionSearch(query: string | null): MentionSearchView 
       try {
         const params = new URLSearchParams({ limit: "8" });
         if (activeQuery) params.set("q", activeQuery);
-        const res = await fetch(`/api/actions/search?${params.toString()}`, {
+        const res = await fetch(`/api/actions/mention-search?${params.toString()}`, {
           cache: "no-store",
         });
         const raw = await res.text();

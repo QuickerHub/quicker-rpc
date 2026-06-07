@@ -33,6 +33,14 @@
     <EmbeddedResource Include="Catalog\quicker-settings-agent-keywords.json" />
     <EmbeddedResource Include="Catalog\quicker-settings-ui-pages.json" />
     <EmbeddedResource Include="Catalog\settings-direct-links.json" />
+    <EmbeddedResource Include="$(RepoRoot)docs\action-authoring-src\schemas\action-data-schema.json">
+      <Link>Schemas\action-data-schema.json</Link>
+      <LogicalName>QuickerRpc.AgentModel.Schemas.action-data-schema.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="$(RepoRoot)docs\action-authoring-src\schemas\form-spec-schema.json">
+      <Link>Schemas\form-spec-schema.json</Link>
+      <LogicalName>QuickerRpc.AgentModel.Schemas.form-spec-schema.json</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(RepoRoot)docs\action-authoring\cli\*.md">

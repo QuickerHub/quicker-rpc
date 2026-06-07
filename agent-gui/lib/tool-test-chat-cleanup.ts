@@ -30,7 +30,11 @@ const ACTION_ARTIFACT_TOOLS = new Set([
   "qkrpc_action_set_metadata",
   "qkrpc_action_delete",
   "qkrpc_action_run",
+  "qkrpc_action_debug",
+  "qkrpc_action_float",
   "qkrpc_action_move",
+  "qkrpc_profile_create",
+  "qkrpc_process_ensure",
   "qkrpc_action_replace",
   "qkrpc_action_edit",
   "qkrpc_action_edit_var",
@@ -100,10 +104,7 @@ function shouldCollectActionIdFromTool(
 ): boolean {
   if (ACTION_ARTIFACT_TOOLS.has(toolName)) return true;
   if (toolName === "qkrpc_action_query") return false;
-  if (toolName === "qkrpc_action_manage") {
-    const action = readQkrpcAction(input);
-    return action === "create";
-  }
+  if (toolName === "qkrpc_action_create") return true;
   if (toolName === "qkrpc_action") {
     const action = readQkrpcAction(input);
     return action != null && action !== "list" && action !== "search";

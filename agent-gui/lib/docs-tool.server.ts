@@ -128,9 +128,10 @@ export async function executeDocsTool(
 
 export const DOCS_TOOL_DEF = tool({
   description:
-    "Deep-read action authoring guides (skill preloaded in system prompt). "
-    + "Only when authoring program bodies and stuck; NO session-start calls. "
-    + "action=get: one topic (+ optional step-modules ref); action=search; action=index.",
+    "Deep-read action authoring guides (basics preloaded in system prompt). "
+    + "Use when stuck on program body / workspace_program / step keys — NOT at session start. "
+    + "action=get: one topic; action=search: find topic; action=index: list topics. "
+    + "NOT for run/settings/shell — see Tool routing.",
   inputSchema: z.object({
     action: docsActionSchema.describe(
       "get: deep-read one topic; search: find topic; index: list all topics",

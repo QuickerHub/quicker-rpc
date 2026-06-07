@@ -4,7 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using QuickerRpc.AgentModel.Schemas;
 
 namespace QuickerRpc.AgentModel.Guides;
 
@@ -45,7 +47,23 @@ public sealed class ActionAuthoringGuideService
             Topic = match.Topic,
             Title = match.Title,
             Markdown = match.Markdown,
+            Schema = ResolveTopicSchema(match.Topic),
         };
+    }
+
+    private static JsonNode? ResolveTopicSchema(string topic)
+    {
+        if (string.Equals(topic, ActionDataSchemaService.TopicId, StringComparison.OrdinalIgnoreCase))
+        {
+            return ActionDataSchemaService.GetSchema();
+        }
+
+        if (string.Equals(topic, FormSpecSchemaService.TopicId, StringComparison.OrdinalIgnoreCase))
+        {
+            return FormSpecSchemaService.GetSchema();
+        }
+
+        return null;
     }
 
     public SearchActionAuthoringDocsResult Search(string? keyword, int? maxResults)
