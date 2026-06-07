@@ -729,9 +729,90 @@ async function check() {
     process.exit(1);
   }
 
+  const validationErrors = await validateManifestAndOutputs(opsData);
+  if (validationErrors.length > 0) {
+    console.error("Action authoring manifest / output validation failed:");
+    for (const msg of validationErrors) {
+      console.error(`  - ${msg}`);
+    }
+    process.exit(1);
+  }
+
   console.log(
     `Action authoring docs up to date (${topicEntries.length} topics × cli + single skill).`,
   );
+}
+
+const SKILL_MAX_LINES = 150;
+const WORKFLOW_MAX_LINES = 500;
+const USE_WHEN_RE = /use when|use before|use after|prefer before/i;
+
+/**
+ * @param {Record<string, unknown>} opsData
+ * @returns {Promise<string[]>}
+ */
+async function validateManifestAndOutputs(opsData) {
+  /** @type {string[]} */
+  const errors = [];
+  const topics = /** @type {Record<string, Record<string, unknown>>} */ (
+    opsData.topics ?? {}
+  );
+
+  for (const [topicId, meta] of Object.entries(topics)) {
+    const description = String(meta.description ?? "").trim();
+    if (!description) {
+      errors.push(`topics.${topicId}.description is empty`);
+      continue;
+    }
+    if (description.length > 1024) {
+      errors.push(
+        `topics.${topicId}.description exceeds 1024 chars (${description.length})`,
+      );
+    }
+    if (!isCliOnlyTopic(opsData, topicId) && !USE_WHEN_RE.test(description)) {
+      errors.push(
+        `topics.${topicId}.description must include a WHEN trigger (Use when/before/after/prefer before)`,
+      );
+    }
+  }
+
+  try {
+    const skillMd = normalizeEol(
+      await fs.readFile(path.join(OUT_SKILLS, "SKILL.md"), "utf8"),
+    );
+    const skillLines = skillMd.split("\n").length;
+    if (skillLines > SKILL_MAX_LINES) {
+      errors.push(
+        `SKILL.md has ${skillLines} lines (max ${SKILL_MAX_LINES})`,
+      );
+    }
+  } catch (err) {
+    errors.push(`SKILL.md unreadable: ${/** @type {Error} */ (err).message}`);
+  }
+
+  for (const [topicId, meta] of Object.entries(topics)) {
+    const layer = /** @type {Record<string, unknown>} */ (
+      meta.metadata ?? {}
+    ).layer;
+    if (layer !== "workflow") continue;
+
+    const refPath = path.join(OUT_SKILLS, "references", `${topicId}.md`);
+    try {
+      const body = normalizeEol(await fs.readFile(refPath, "utf8"));
+      const lineCount = body.split("\n").length;
+      if (lineCount > WORKFLOW_MAX_LINES) {
+        errors.push(
+          `references/${topicId}.md has ${lineCount} lines (workflow max ${WORKFLOW_MAX_LINES})`,
+        );
+      }
+    } catch (err) {
+      errors.push(
+        `references/${topicId}.md unreadable: ${/** @type {Error} */ (err).message}`,
+      );
+    }
+  }
+
+  return errors;
 }
 
 /**

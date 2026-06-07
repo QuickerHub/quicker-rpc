@@ -4,7 +4,7 @@
     {
       "topic": "action-embedded-subprograms",
       "title": "动作内子程序",
-      "description": "动作内子程序：subprograms/{subId}/ 目录与根 data.json 不含内联 subPrograms 的磁盘模型。",
+      "description": "动作内子程序：subprograms/{subId}/ 目录与根 data.json 不含内联 subPrograms 的磁盘模型。Use when editing embedded subprograms on disk.",
       "source": "references/action-embedded-subprograms.md",
       "templateSource": "schemas/action-embedded-subprograms.md",
       "metadata": {

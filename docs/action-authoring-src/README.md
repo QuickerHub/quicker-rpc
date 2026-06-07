@@ -14,7 +14,7 @@
 | `catalogs/` | step-runner 搜索/get/模块目录 |
 | `cli-only/` | 仅 CLI 的 topic（`profiles: ["cli"]`） |
 | `adjunct/` | 非编辑主路径（如 `quicker-ui`） |
-| `partials/` | `{{#include-partial}}` 共享片段 |
+| `partials/` | `{{#include-partial}}` 共享片段（pipeline、errors、workflow checklists 等） |
 | `references/{topic}/` | 模块深参考（`docs_get_reference`） |
 
 ## Markers
@@ -35,7 +35,21 @@
 ```powershell
 node scripts/generate-authoring-docs.mjs --force
 # or: npm run docs:gen
+npm run docs:check   # stale outputs + manifest validation (SKILL/workflow line limits, WHEN triggers)
 ```
+
+### Partial catalog
+
+| Partial | Used by |
+|---------|---------|
+| `doc-layers-table` | `overview` |
+| `pipeline-p0-p7` | `overview`, `SKILL.src.md` |
+| `errors-table` | `overview` |
+| `topic-index-*` | `overview` |
+| `workflow-checklist-p1-p7` | `authoring-workflow` |
+| `workflow-checklist-workspace-editing` | `workspace-editing` |
+| `workflow-checklist-subprogram` | `subprogram-workflow` |
+| `workflow-checklist-action-organization` | `action-organization-workflow` |
 
 ## Add a topic
 
