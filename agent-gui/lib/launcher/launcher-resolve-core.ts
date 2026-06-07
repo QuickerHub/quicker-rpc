@@ -7,7 +7,6 @@ import {
   type LauncherResolveCandidate,
   type LauncherResolvePresetsFile,
 } from "@/lib/launcher/launcher-resolve-presets";
-import type { LauncherResolvePresetsFile } from "@/lib/launcher/launcher-resolve-presets";
 
 export type LauncherResolveToolInput = {
   query: string;
