@@ -2,23 +2,26 @@
 
 **Do not edit** `docs/action-authoring/cli/` or `docs/skills/quicker-authoring/` directly — they are generated.
 
-## Layout (P0 refactor)
+## Layout
 
 | Path | Role |
 |------|------|
-| `skills/quicker-authoring/SKILL.src.md` | **L1 路由** → 生成 `SKILL.md`（≤200 行正文） |
-| `overview.md` + `*.md` topics | **L2–L4 专题** → CLI + `references/{topic}.md` |
-| `partials/*.md` | 共享片段（`{{#include-partial}}`） |
-| `references/{topic}/{id}.md` | 模块深参考（`docs_get_reference`） |
-| `ops.json` | `skill` 元数据 + `topics` + `phrases` + `ops` |
-
-**Agent 主路径**：`SKILL.md` 路由 → `docs_get authoring-workflow` → 按需 schema/catalog 专题。模块：`step-modules` + `references/step-modules/`（`npm run docs:modules:gen`）。
+| `manifest/` | **Edit registry here** — `skill.json`, `topics.json`, `phrases.json`, `operations.json` |
+| `skills/quicker-authoring/SKILL.src.md` | L1 路由 → `SKILL.md` |
+| `overview.md` | L1 总览 topic（`docs_get topic=overview`） |
+| `workflows/` | P1–P7 与整理流程 |
+| `schemas/` | `data.json` 形状与规则 |
+| `catalogs/` | step-runner 搜索/get/模块目录 |
+| `cli-only/` | 仅 CLI 的 topic（`profiles: ["cli"]`） |
+| `adjunct/` | 非编辑主路径（如 `quicker-ui`） |
+| `partials/` | `{{#include-partial}}` 共享片段 |
+| `references/{topic}/` | 模块深参考（`docs_get_reference`） |
 
 ## Markers
 
 | Syntax | Example |
 |--------|---------|
-| `{{#topic-title}}` | H1 from `topics.{id}.title` |
+| `{{#topic-title}}` | H1 from `manifest/topics.json` |
 | `{{#ref phrase-id}}` | `{{#ref product.intro}}` |
 | `{{#include-partial name}}` | `{{#include-partial pipeline-p0-p7}}` |
 | `{{@doc topic}}` | `{{@doc patch-workflow}}` |
@@ -34,13 +37,8 @@ node scripts/generate-authoring-docs.mjs --force
 # or: npm run docs:gen
 ```
 
-Outputs:
-
-- `docs/action-authoring/cli/` → `QuickerRpc.AgentModel` (`qkrpc guide`)
-- `docs/skills/quicker-authoring/SKILL.md` + `references/` + `topics.json` → agent-ui `docs_get`
-
 ## Add a topic
 
-1. Add `topics.{id}` in `ops.json` (`title`, `description`, `metadata.layer`, …).
-2. Add `{id}.md` template at repo root of `action-authoring-src/` (or subfolder once manifest maps paths — P2).
+1. Add `topics.{id}` in `manifest/topics.json` with `title`, `description`, `metadata.layer`, `source` path.
+2. Add template markdown at the `source` path.
 3. Run `npm run docs:gen`.

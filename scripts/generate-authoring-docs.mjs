@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generate consumer-specific ActionAuthoring docs from templates + ops.json.
+ * Generate consumer-specific ActionAuthoring docs from manifest + templates.
  *
  * Usage:
  *   node scripts/generate-authoring-docs.mjs           # write only if stale (default)
@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = path.join(ROOT, "docs/action-authoring-src");
+const MANIFEST = path.join(SRC, "manifest");
 const SRC_PARTIALS = path.join(SRC, "partials");
 const SKILL_SRC = path.join(SRC, "skills/quicker-authoring/SKILL.src.md");
 const OUT_CLI = path.join(ROOT, "docs/action-authoring/cli");
@@ -48,7 +49,7 @@ function sortRecordKeys(record) {
  */
 function buildSkillFrontmatter(meta, body, skillName) {
   if (!meta?.description) {
-    throw new Error("Missing skill.description in ops.json");
+    throw new Error("Missing skill.description in manifest/skill.json");
   }
 
   const description = String(meta.description).trim();
@@ -108,7 +109,7 @@ function buildSkillEntryMd(opsData, body) {
   const skill = /** @type {Record<string, unknown>} */ (opsData.skill ?? {});
   const skillName = String(skill.name ?? SKILL_NAME).trim();
   if (!skillName) {
-    throw new Error("Missing skill.name in ops.json");
+    throw new Error("Missing skill.name in manifest/skill.json");
   }
   return buildSkillFrontmatter(skill, body, skillName);
 }
@@ -129,11 +130,14 @@ function buildTopicManifestEntry(opsData, topic) {
   );
   const meta = topics[topic];
   if (!meta?.description) {
-    throw new Error(`Missing topics.${topic}.description in ops.json`);
+    throw new Error(`Missing topics.${topic}.description in manifest/topics.json`);
   }
   if (!meta?.title) {
-    throw new Error(`Missing topics.${topic}.title in ops.json`);
+    throw new Error(`Missing topics.${topic}.title in manifest/topics.json`);
   }
+
+  const templateSource =
+    typeof meta.source === "string" ? String(meta.source).trim() : `${topic}.md`;
 
   /** @type {Record<string, unknown>} */
   const entry = {
@@ -141,6 +145,7 @@ function buildTopicManifestEntry(opsData, topic) {
     title: String(meta.title).trim(),
     description: String(meta.description).trim(),
     source: `references/${topic}.md`,
+    templateSource,
   };
 
   const allowedTools = meta["allowed-tools"];
@@ -184,17 +189,44 @@ function parseArgs(argv) {
 }
 
 /**
- * @returns {Promise<{ opsData: Record<string, unknown>; files: string[] }>}
+ * @typedef {{ topic: string; source: string }} TopicEntry
+ * @returns {Promise<{ opsData: Record<string, unknown>; topicEntries: TopicEntry[] }>}
  */
 async function loadSource() {
-  const opsPath = path.join(SRC, "ops.json");
-  const opsData = JSON.parse(
-    normalizeEol(await fs.readFile(opsPath, "utf8")),
+  const readJson = async (name) =>
+    JSON.parse(
+      normalizeEol(await fs.readFile(path.join(MANIFEST, name), "utf8")),
+    );
+
+  const opsData = {
+    skill: await readJson("skill.json"),
+    topics: await readJson("topics.json"),
+    phrases: await readJson("phrases.json"),
+    ops: await readJson("operations.json"),
+  };
+
+  const topics = /** @type {Record<string, Record<string, unknown>>} */ (
+    opsData.topics ?? {}
   );
-  const files = (await fs.readdir(SRC))
-    .filter((f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md")
-    .sort();
-  return { opsData, files };
+  /** @type {TopicEntry[]} */
+  const topicEntries = [];
+  for (const topic of Object.keys(topics).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" }),
+  )) {
+    const meta = topics[topic];
+    const source =
+      typeof meta?.source === "string"
+        ? String(meta.source).trim()
+        : `${topic}.md`;
+    try {
+      await fs.access(path.join(SRC, source));
+    } catch {
+      throw new Error(`Missing template for topic ${topic}: ${source}`);
+    }
+    topicEntries.push({ topic, source });
+  }
+
+  return { opsData, topicEntries };
 }
 
 /** @returns {Promise<Map<string, string>>} */
@@ -287,10 +319,10 @@ async function loadReferenceMap(topic) {
 
 /**
  * @param {Record<string, unknown>} opsData
- * @param {string[]} files
+ * @param {TopicEntry[]} topicEntries
  * @returns {Promise<Map<string, string>>}
  */
-async function computeOutputs(opsData, files) {
+async function computeOutputs(opsData, topicEntries) {
   /** @type {Map<string, string>} */
   const outputs = new Map();
   /** @type {Record<string, unknown>[]} */
@@ -302,20 +334,33 @@ async function computeOutputs(opsData, files) {
 
   const partials = await loadPartials();
 
-  for (const file of files) {
-    const topic = file.replace(/\.md$/i, "");
+  for (const { topic, source } of topicEntries) {
     const src = normalizeEol(
-      await fs.readFile(path.join(SRC, file), "utf8"),
+      await fs.readFile(path.join(SRC, source), "utf8"),
     );
     const refMap = await loadReferenceMap(topic);
 
-    const cliRendered = renderDoc(src, opsData, "cli", file, refMap, partials);
-    outputs.set(`cli/${file}`, cliRendered);
+    const cliRendered = renderDoc(
+      src,
+      opsData,
+      "cli",
+      source,
+      refMap,
+      partials,
+    );
+    outputs.set(`cli/${topic}.md`, cliRendered);
 
     const cliOnly = isCliOnlyTopic(opsData, topic);
     if (cliOnly) continue;
 
-    const agentBody = renderDoc(src, opsData, "agent", file, refMap, partials);
+    const agentBody = renderDoc(
+      src,
+      opsData,
+      "agent",
+      source,
+      refMap,
+      partials,
+    );
     topicManifest.push(buildTopicManifestEntry(opsData, topic));
 
     outputs.set(
@@ -328,7 +373,7 @@ async function computeOutputs(opsData, files) {
         refEntry.src,
         opsData,
         "agent",
-        `${file}#ref:${refName}`,
+        `${source}#ref:${refName}`,
         refMap,
         partials,
       );
@@ -428,22 +473,16 @@ async function fileMtimeMs(filePath) {
 
 /**
  * Fast skip: all outputs exist and are newer than sources + generator script.
- * @param {string[]} topicFiles
+ * @param {TopicEntry[]} topicEntries
  */
-async function isFreshByMtime(topicFiles) {
+async function isFreshByMtime(topicEntries) {
   const srcMtime = Math.max(
     await maxMtimeMs(SRC),
     await fileMtimeMs(GENERATOR),
   );
 
-  const expected = await computeOutputs(
-    JSON.parse(
-      normalizeEol(
-        await fs.readFile(path.join(SRC, "ops.json"), "utf8"),
-      ),
-    ),
-    topicFiles,
-  );
+  const { opsData } = await loadSource();
+  const expected = await computeOutputs(opsData, topicEntries);
 
   let minOut = Number.POSITIVE_INFINITY;
   for (const rel of expected.keys()) {
@@ -567,13 +606,11 @@ async function pruneReferenceTree(dir, expectedRel, relPrefix) {
 }
 
 /** Drop stale cli/*.md, references/*.md, and legacy per-topic skill dirs. */
-async function pruneOrphanOutputs(topicFiles, opsData) {
-  const topics = new Set(
-    topicFiles.map((f) => f.replace(/\.md$/i, "").toLowerCase()),
-  );
+async function pruneOrphanOutputs(topicEntries, opsData) {
+  const topics = new Set(topicEntries.map(({ topic }) => topic.toLowerCase()));
   const agentReferenceTopics = new Set(
-    topicFiles
-      .map((f) => f.replace(/\.md$/i, ""))
+    topicEntries
+      .map(({ topic }) => topic)
       .filter((t) => !isCliOnlyTopic(opsData, t))
       .map((t) => t.toLowerCase()),
   );
@@ -582,8 +619,7 @@ async function pruneOrphanOutputs(topicFiles, opsData) {
   for (const t of agentReferenceTopics) {
     expectedReferenceRelPaths.add(`${t}.md`);
   }
-  for (const file of topicFiles) {
-    const topic = file.replace(/\.md$/i, "");
+  for (const { topic } of topicEntries) {
     if (isCliOnlyTopic(opsData, topic)) continue;
     const refMap = await loadReferenceMap(topic);
     for (const refEntry of refMap.values()) {
@@ -634,22 +670,22 @@ async function touchStamp(touchPath) {
  * @param {{ force: boolean; touchPath?: string }} opts
  */
 async function generate(opts) {
-  const { opsData, files } = await loadSource();
+  const { opsData, topicEntries } = await loadSource();
 
-  if (!opts.force && (await isFreshByMtime(files))) {
+  if (!opts.force && (await isFreshByMtime(topicEntries))) {
     console.log(
-      `Action authoring docs up to date (${files.length} topics × cli + single skill, skipped).`,
+      `Action authoring docs up to date (${topicEntries.length} topics × cli + single skill, skipped).`,
     );
     await touchStamp(opts.touchPath);
     return;
   }
 
-  const expected = await computeOutputs(opsData, files);
+  const expected = await computeOutputs(opsData, topicEntries);
   const stale = await findStale(expected);
 
   if (!opts.force && stale.length === 0) {
     console.log(
-      `Action authoring docs up to date (${files.length} topics × cli + single skill, skipped).`,
+      `Action authoring docs up to date (${topicEntries.length} topics × cli + single skill, skipped).`,
     );
     await touchStamp(opts.touchPath);
     return;
@@ -657,15 +693,15 @@ async function generate(opts) {
 
   if (opts.force) {
     await writeOutputs(expected);
-    await pruneOrphanOutputs(files, opsData);
+    await pruneOrphanOutputs(topicEntries, opsData);
     await removeLegacyAgentOutputs();
     console.log(
-      `Generated ${files.length} topics → docs/action-authoring/cli/ and docs/skills/quicker-authoring/ (single skill, forced).`,
+      `Generated ${topicEntries.length} topics → docs/action-authoring/cli/ and docs/skills/quicker-authoring/ (single skill, forced).`,
     );
   } else {
     await writeOutputs(expected, stale);
     if (stale.length > 0) {
-      await pruneOrphanOutputs(files, opsData);
+      await pruneOrphanOutputs(topicEntries, opsData);
     }
     if (stale.some((rel) => rel.startsWith("skills/"))) {
       await removeLegacyAgentOutputs();
@@ -678,8 +714,8 @@ async function generate(opts) {
 }
 
 async function check() {
-  const { opsData, files } = await loadSource();
-  const expected = await computeOutputs(opsData, files);
+  const { opsData, topicEntries } = await loadSource();
+  const expected = await computeOutputs(opsData, topicEntries);
   const stale = await findStale(expected);
 
   if (stale.length > 0) {
@@ -694,7 +730,7 @@ async function check() {
   }
 
   console.log(
-    `Action authoring docs up to date (${files.length} topics × cli + single skill).`,
+    `Action authoring docs up to date (${topicEntries.length} topics × cli + single skill).`,
   );
 }
 
@@ -704,10 +740,23 @@ async function check() {
  * @param {Profile} profile
  * @param {string} file
  */
-/** @param {string} file */
-function topicIdFromFile(file) {
+/** @param {string} file @param {Record<string, unknown>} opsData */
+function topicIdFromFile(file, opsData) {
   const base = file.includes("#") ? file.split("#")[0] : file;
-  return base.replace(/\.md$/i, "");
+  const normalized = base.replace(/\\/g, "/");
+  const topics = /** @type {Record<string, Record<string, unknown>>} */ (
+    opsData?.topics ?? {}
+  );
+  for (const [id, meta] of Object.entries(topics)) {
+    const source =
+      typeof meta.source === "string" ? String(meta.source).trim() : `${id}.md`;
+    if (source.replace(/\\/g, "/") === normalized) {
+      return id;
+    }
+  }
+  const basename = path.basename(normalized, ".md");
+  if (topics[basename]) return basename;
+  return basename;
 }
 
 /**
@@ -720,7 +769,7 @@ function getTopicTitle(opsData, topic) {
   );
   const meta = topics[topic];
   if (!meta?.title) {
-    throw new Error(`Missing topics.${topic}.title in ops.json`);
+    throw new Error(`Missing topics.${topic}.title in manifest/topics.json`);
   }
   return String(meta.title).trim();
 }
@@ -729,7 +778,7 @@ function renderDoc(text, opsData, profile, file, refMap = new Map(), partials = 
   let out = text;
 
   out = out.replace(/\{\{#topic-title\}\}/g, () =>
-    getTopicTitle(opsData, topicIdFromFile(file)),
+    getTopicTitle(opsData, topicIdFromFile(file, opsData)),
   );
 
   out = out.replace(

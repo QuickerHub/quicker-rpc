@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring",
+  "description": "Routes Quicker headless action editing (P0–P7): pick workflow topic, then schema/step-runner refs. Use when creating or editing Quicker actions, subprograms, steps, or data.json on disk.",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
+}

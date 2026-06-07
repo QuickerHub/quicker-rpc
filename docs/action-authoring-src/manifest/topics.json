@@ -1,0 +1,194 @@
+{
+  "quicker-ui": {
+    "title": "打开 Quicker 界面",
+    "description": "打开 Quicker 设置页与常用窗口（动作回收站、常规设置、搜索框、进程场景设置）。Use when the user asks to open a Quicker UI page/window.",
+    "allowed-tools": "quicker_settings docs",
+    "metadata": {
+      "phase": "ui",
+      "layer": "adjunct"
+    },
+    "source": "adjunct/quicker-ui.md"
+  },
+  "overview": {
+    "title": "总览",
+    "description": "Quicker 动作无头编辑总览：文档层级、P0–P7 索引与专题路由。Use when starting action editing or choosing which guide topic to read next.",
+    "allowed-tools": "docs",
+    "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin",
+    "metadata": {
+      "phase": "P0",
+      "layer": "router"
+    },
+    "source": "overview.md"
+  },
+  "authoring-workflow": {
+    "title": "写动作流程",
+    "description": "Quicker 动作编辑 P1–P7 主流程。Use before the first action edit in a session.",
+    "allowed-tools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
+    "metadata": {
+      "phase": "P1-P7",
+      "layer": "workflow"
+    },
+    "source": "workflows/authoring-workflow.md"
+  },
+  "workspace-editing": {
+    "title": "工作区编辑",
+    "description": ".quicker/actions layout; workspace_action_*_data and workspace_action_file_* (id + files/…); patch saves. Use when editing on disk.",
+    "allowed-tools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
+    "compatibility": "QuickerAgent; requires working directory in sidebar",
+    "metadata": {
+      "phase": "P2-P6",
+      "layer": "workflow"
+    },
+    "source": "workflows/workspace-editing.md"
+  },
+  "action-variables": {
+    "title": "动作变量",
+    "description": "data.json 中 variables[] 的类型、defaultValue；quicker_in_param 边界。步骤参数绑定见 action-steps。Use when editing action variables.",
+    "allowed-tools": "workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_step_runner_get",
+    "metadata": {
+      "phase": "P2-P6",
+      "layer": "schema"
+    },
+    "source": "schemas/action-variables.md"
+  },
+  "action-steps": {
+    "title": "动作步骤",
+    "description": "data.json steps[]：stepRunnerKey、inputParams/outputParams、ifSteps；长 inputParams.value (>4 lines) use files/ + file ref not inline value. Use before step-runner get.",
+    "allowed-tools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit qkrpc_action_patch",
+    "metadata": {
+      "phase": "P5-P6",
+      "layer": "schema"
+    },
+    "source": "schemas/action-steps.md"
+  },
+  "action-icons": {
+    "title": "动作图标",
+    "description": "Font Awesome fa: spec and http(s) image URLs for action metadata and context menus. Use before set-metadata icon or guessing fa:Light_* names.",
+    "allowed-tools": "qkrpc_fa_search qkrpc_action_set_metadata qkrpc_action_patch workspace_action_edit_data",
+    "metadata": {
+      "phase": "P3",
+      "layer": "schema"
+    },
+    "source": "schemas/action-icons.md"
+  },
+  "patch-workflow": {
+    "title": "Patch 工作流（CLI）",
+    "description": "CLI 内联 action patch JSON 形状（qkrpc action patch --patch-file）。",
+    "profiles": [
+      "cli"
+    ],
+    "metadata": {
+      "phase": "P6",
+      "layer": "cli-only"
+    },
+    "source": "cli-only/patch-workflow.md"
+  },
+  "step-runner-search": {
+    "title": "步骤模块搜索",
+    "description": "step-runner 目录搜索语法（OR、通配、sys:*）。Use when finding a step module key before qkrpc_step_runner_get.",
+    "allowed-tools": "qkrpc_step_runner_search qkrpc_step_runner_get",
+    "metadata": {
+      "phase": "P5",
+      "layer": "catalog"
+    },
+    "source": "catalogs/step-runner-search.md"
+  },
+  "step-runner-get": {
+    "title": "步骤模块 schema",
+    "description": "Agent 专用 step-runner get：压缩 schema、与 search 分工；禁止 get-ui。Use after search, before writing inputParams.",
+    "allowed-tools": "qkrpc_step_runner_get qkrpc_step_runner_search",
+    "metadata": {
+      "phase": "P5",
+      "layer": "catalog"
+    },
+    "source": "catalogs/step-runner-get.md"
+  },
+  "implementation-fallback": {
+    "title": "实现选型与回退",
+    "description": "P4 回退选型：须先排除 expressions/evalexpression，再考虑 sys:csscript vs runScript。Use when no dedicated step module fits after checking expressions.",
+    "allowed-tools": "qkrpc_step_runner_search qkrpc_step_runner_get qkrpc_action_patch",
+    "metadata": {
+      "phase": "P4",
+      "layer": "schema"
+    },
+    "source": "schemas/implementation-fallback.md"
+  },
+  "expressions": {
+    "title": "表达式与插值",
+    "description": "P4 首选：$=、$$ 与 sys:evalexpression（LINQ/字符串/JSON/多变量赋值）。Prefer before sys:csscript for data transforms.",
+    "allowed-tools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch",
+    "metadata": {
+      "phase": "P4",
+      "layer": "schema"
+    },
+    "source": "schemas/expressions.md"
+  },
+  "subprogram-workflow": {
+    "title": "子程序",
+    "description": "公共子程序与动作内子程序的区别及调用工作流。Use when adding subprogram call steps or editing subprogram projects.",
+    "allowed-tools": "qkrpc_subprogram_search qkrpc_subprogram_get qkrpc_step_runner_get qkrpc_action_patch",
+    "metadata": {
+      "phase": "P5-P6",
+      "layer": "workflow"
+    },
+    "source": "workflows/subprogram-workflow.md"
+  },
+  "action-organization-workflow": {
+    "title": "动作整理",
+    "description": "整理动作位置：list/search（含 uses: 引用查找）、move、全局页 create/reorder、虚拟进程 process ensure 批量归集。Use when tidying action pages, moving actions, or grouping by subprogram reference — not for editing steps.",
+    "allowed-tools": "qkrpc_action_list qkrpc_action_search qkrpc_action_move qkrpc_profile_create qkrpc_profile_reorder qkrpc_process_ensure",
+    "metadata": {
+      "phase": "organize",
+      "layer": "workflow"
+    },
+    "source": "workflows/action-organization-workflow.md"
+  },
+  "action-project-files": {
+    "title": "工作区项目布局",
+    "description": ".quicker/actions/{actionId} 目录、data.json 与 files/ 外置 {file} 引用形状。Use when authoring file refs on disk.",
+    "metadata": {
+      "phase": "P2-P6",
+      "layer": "schema"
+    },
+    "source": "schemas/action-project-files.md"
+  },
+  "action-embedded-subprograms": {
+    "title": "动作内子程序",
+    "description": "动作内子程序：subprograms/{subId}/ 目录与根 data.json 不含内联 subPrograms 的磁盘模型。",
+    "metadata": {
+      "phase": "P2-P6",
+      "layer": "schema"
+    },
+    "source": "schemas/action-embedded-subprograms.md"
+  },
+  "form-spec": {
+    "title": "多字段表单",
+    "description": "sys:form：默认 formDef.file + files/*.form.json (qkrpc.form.v1)；长表单勿内联 formDef.value。Use when authoring sys:form.",
+    "allowed-tools": "qkrpc_form_validate qkrpc_form_build qkrpc_step_runner_get workspace_action_edit_data qkrpc_action_patch",
+    "metadata": {
+      "phase": "P5-P6",
+      "layer": "schema"
+    },
+    "source": "schemas/form-spec.md"
+  },
+  "common-operation-item": {
+    "title": "操作项文本语法",
+    "description": "CommonOperationItem 多行文本：动作 ContextMenuData 右键菜单、[图标]标题(提示)|数据、子菜单与 quicker_in_param。Use when editing action context menus or SelectionItems-shaped text.",
+    "allowed-tools": "qkrpc_action_get qkrpc_action_set_metadata qkrpc_action_patch qkrpc_fa_search workspace_action_read_data workspace_action_edit_data",
+    "metadata": {
+      "phase": "P3",
+      "layer": "schema"
+    },
+    "source": "schemas/common-operation-item.md"
+  },
+  "step-modules": {
+    "title": "步骤模块用法",
+    "description": "Quicker 步骤模块精简参考：分类目录、用途、控制模式与 KC 文档摘要。Use after step-runner search, before/alongside qkrpc_step_runner_get; docs_get_reference topic step-modules.",
+    "allowed-tools": "qkrpc_step_runner_search qkrpc_step_runner_get docs",
+    "metadata": {
+      "phase": "P4-P5",
+      "layer": "catalog"
+    },
+    "source": "catalogs/step-modules.md"
+  }
+}

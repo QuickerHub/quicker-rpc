@@ -2,7 +2,7 @@
 
 | Path | Audience |
 |------|----------|
-| [`action-authoring-src/`](action-authoring-src/) | **Edit here** — templates + `ops.json` registry |
+| [`action-authoring-src/`](action-authoring-src/) | **Edit here** — templates + `manifest/*.json` registry |
 | [`action-authoring/cli/`](action-authoring/cli/) | Generated for `qkrpc guide` (embedded in AgentModel) |
 | [`skills/quicker-authoring/`](../skills/quicker-authoring/) | Generated single [Agent Skill](https://agentskills.io/specification) + `references/` for QuickerAgent (`docs_get`) |
 
@@ -40,4 +40,4 @@ Edit templates under `action-authoring-src/`, not the `cli/` or `skills/` output
 | `agent-gui` | `skills/quicker-authoring/SKILL.md`, `references/*.md`, `topics.json` (runtime) |
 | Terminal / Cursor | `qkrpc guide get` after CLI rebuild |
 
-Topic id = `docs_get` topic (e.g. `authoring-workflow`); overview reads root `SKILL.md`, other topics read `references/{topic}.md`.
+Topic id = `docs_get` topic (e.g. `authoring-workflow`); router reads root `SKILL.md`, `overview` and other topics read `references/{topic}.md`.

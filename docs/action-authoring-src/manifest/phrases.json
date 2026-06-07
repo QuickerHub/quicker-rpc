@@ -1,0 +1,102 @@
+{
+  "product.intro": {
+    "cli": "无头编辑 XAction：**`qkrpc`** + QuickerRpc 插件。命令表：{{@ help}}。流程：**`authoring-workflow`**、**`overview`**。",
+    "agent": "无头编辑 XAction：**agent-ui 工具** + QuickerRpc 插件。流程专题见 **`docs_index`**；参数/字段以各工具 description 为准，勿在回复中粘贴指南全文。"
+  },
+  "help.detail": {
+    "cli": "命令细节：`qkrpc help --json`",
+    "agent": "工具参数见系统提示；流程见 `docs_get`（`authoring-workflow` 等）"
+  },
+  "help.ref": {
+    "cli": "`qkrpc help --json`",
+    "agent": "聊天工具列表（无需单独 help 工具）"
+  },
+  "connectivity.p0": {
+    "cli": "连通问题看命令 stderr；确认 Quicker 已运行且已加载插件（CLI 每次子命令连命名管道，无需 `qkrpc serve`）",
+    "agent": "页头绿点表示 RPC 状态；失败时检查 Quicker + 插件。agent-gui 优先 `qkrpc serve`（`GET http://127.0.0.1:9477/health`），未启动时回退 CLI 子进程"
+  },
+  "errors.source": {
+    "cli": "由 qkrpc 返回说明",
+    "agent": "由工具返回的 `errorMessage` / stderr"
+  },
+  "table.invoke.header": {
+    "cli": "命令",
+    "agent": "工具"
+  },
+  "patch.stdin.hint": {
+    "cli": "Patch stdin：`Get-Content patch.json -Raw | qkrpc action patch --id <guid> --patch-file - --json`",
+    "agent": ""
+  },
+  "subprogram.product": {
+    "cli": "全局库：**`qkrpc subprogram`**",
+    "agent": "全局库：**`qkrpc_subprogram_*` 工具**"
+  },
+  "action-icons.help": {
+    "cli": "命令与开关见 `qkrpc help --json`",
+    "agent": "搜图标：**`qkrpc_fa_search`**。"
+  },
+  "xaction.read.invoke": {
+    "cli": "`action get`",
+    "agent": "`qkrpc_action_get`"
+  },
+  "xaction.write.invoke": {
+    "cli": "`action patch`",
+    "agent": "`qkrpc_action_patch`"
+  },
+  "step-runner.get.invoke": {
+    "cli": "**`step-runner get`**",
+    "agent": "**`qkrpc_step_runner_get`**"
+  },
+  "step-runner.search.invoke": {
+    "cli": "**`step-runner search`**",
+    "agent": "**`qkrpc_step_runner_search`**"
+  },
+  "step-runner.get-ui.forbidden": {
+    "cli": "**禁止 Agent/脚本** 使用 `step-runner get-ui`（仅供 action-editor UI）",
+    "agent": "**禁止** `get-ui` / `step-runner.getUi`；仅用 **`qkrpc_step_runner_get`**"
+  },
+  "overview.p0": {
+    "cli": "Quicker 运行中且已加载 QuickerRpc 插件。终端直接 `qkrpc <子命令> --json`（命名管道，每次调用即可）。**`qkrpc serve` 仅 agent-gui** 持久 HTTP，普通 CLI/脚本无需常驻。",
+    "agent": "Quicker 运行中且已加载 QuickerRpc 插件。agent-gui 优先 **`qkrpc serve`**（`http://127.0.0.1:9477`），未启动时回退 CLI 子进程。指南用 **`docs_get` / `docs_search` / `docs_index`** 本地 skill，不经 `qkrpc guide`。"
+  },
+  "patch.invoke": {
+    "cli": "**`action patch`**",
+    "agent": "**`qkrpc_action_patch`**"
+  },
+  "patch.set-metadata.alt": {
+    "cli": "**`action set-metadata`**",
+    "agent": "**`qkrpc_action_set_metadata`**"
+  },
+  "edit-version.next": {
+    "cli": "下次 `--expected-edit-version`",
+    "agent": "下次 `expectedEditVersion`"
+  },
+  "edit-version.field": {
+    "cli": "`--expected-edit-version`",
+    "agent": "`expectedEditVersion`"
+  },
+  "control-field.get": {
+    "cli": "**`--control-field <value>`**",
+    "agent": "**`controlField`**"
+  },
+  "action.get.retry": {
+    "cli": "`action get`",
+    "agent": "`qkrpc_action_get`"
+  },
+  "subprogram.call.chain": {
+    "cli": "→ `step-runner get --key sys:subprogram`\n→ `action patch` 添加步骤，`inputParams.subProgram.value = callIdentifier`",
+    "agent": "→ `qkrpc_step_runner_get({ key: \"sys:subprogram\" })`\n→ `workspace_action_edit_data` 写入 `data.json` 步骤（`inputParams.subProgram.value = callIdentifier`）\n→ `qkrpc_action_patch({ id })`"
+  },
+  "action-project-files.commands.agent": {
+    "cli": "",
+    "agent": ""
+  },
+  "overview.pipeline.header": {
+    "cli": "命令 / 主题",
+    "agent": "工具 / 主题"
+  },
+  "overview.workflow.when": {
+    "cli": "执行 P1–P7 的命令与示例",
+    "agent": "执行 P1–P7 的工具与示例"
+  }
+}

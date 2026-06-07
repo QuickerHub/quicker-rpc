@@ -27,11 +27,33 @@ export async function executeDocsTool(
   switch (input.action) {
     case "index": {
       const topics = await listActionAuthoringTopics();
+      const layerOrder = [
+        "router",
+        "workflow",
+        "schema",
+        "catalog",
+        "adjunct",
+        "cli-only",
+      ];
+      /** @type {Record<string, typeof topics>} */
+      const topicsByLayer = {};
+      for (const layer of layerOrder) {
+        topicsByLayer[layer] = [];
+      }
+      for (const topic of topics) {
+        const layer = topic.layer ?? "other";
+        if (!topicsByLayer[layer]) topicsByLayer[layer] = [];
+        topicsByLayer[layer].push(topic);
+      }
       return formatLocalToolResult({
         action: "docs-index",
         docsAction: "index",
         success: true,
         topics,
+        topicsByLayer,
+        layerOrder: [...layerOrder, "other"].filter(
+          (layer) => (topicsByLayer[layer]?.length ?? 0) > 0,
+        ),
       });
     }
     case "search": {
