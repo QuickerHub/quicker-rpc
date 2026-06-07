@@ -6,7 +6,8 @@
 !macro KillBundledNodeUnderInstDir
   DetailPrint "Ensuring bundled node.exe is not running under $INSTDIR..."
   StrCpy $9 "$INSTDIR\resources\node\node.exe"
-  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -WindowStyle Hidden -Command "Get-CimInstance Win32_Process -Filter \"Name=''node.exe''\" -ErrorAction SilentlyContinue | Where-Object { $$_.ExecutablePath -ieq ''$9'' } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"' $8
+  StrCpy $R0 'powershell -NoProfile -WindowStyle Hidden -Command "Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { $$_.Path -ieq ''$9'' } | Stop-Process -Force -ErrorAction SilentlyContinue"'
+  ExecWait $R0 $8
   Sleep 1000
 !macroend
 
