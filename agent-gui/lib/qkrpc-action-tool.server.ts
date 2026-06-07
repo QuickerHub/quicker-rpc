@@ -319,27 +319,25 @@ export { actionCreateSchema, resolveActionCreateManageInput };
 export type { QkrpcActionCreateToolInput } from "@/lib/action-create-input";
 
 /** @deprecated Unified input for legacy tool aliases only. */
-export type QkrpcActionToolInput = QkrpcActionQueryToolInput
-  & Partial<QkrpcActionIdToolInput>
-  & Partial<QkrpcActionManageToolInput> & {
-    action?:
-      | QkrpcActionIdToolInput["action"]
-      | QkrpcActionManageToolInput["action"]
-      | "list"
-      | "search"
-      | "run"
-      | "debug"
-      | "float"
-      | "trace"
-      | "replace"
-      | "patch";
-    filter?: "library" | "installed" | "local" | "published";
-    program?: Record<string, unknown>;
-    patch?: Record<string, unknown>;
-    xaction?: Record<string, unknown>;
-    expectedEditVersion?: number;
-    force?: boolean;
-  };
+export type QkrpcActionToolInput = QkrpcActionQueryToolInput & {
+  action?:
+    | QkrpcActionIdToolInput["action"]
+    | QkrpcActionManageToolInput["action"]
+    | "list"
+    | "search"
+    | "run"
+    | "debug"
+    | "float"
+    | "trace"
+    | "replace"
+    | "patch";
+  filter?: "library" | "installed" | "local" | "published";
+  program?: Record<string, unknown>;
+  patch?: Record<string, unknown>;
+  xaction?: Record<string, unknown>;
+  expectedEditVersion?: number;
+  force?: boolean;
+};
 
 function serializeActionQuery(
   query: string | Record<string, unknown> | undefined,

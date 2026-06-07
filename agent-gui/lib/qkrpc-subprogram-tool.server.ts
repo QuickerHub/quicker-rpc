@@ -137,7 +137,13 @@ export type QkrpcSubprogramToolInput = QkrpcSubprogramQueryToolInput
       | QkrpcSubprogramIdToolInput["action"]
       | QkrpcSubprogramManageToolInput["action"]
       | "list"
-      | "search";
+      | "search"
+      | "patch"
+      | "replace";
+    program?: Record<string, unknown>;
+    patch?: Record<string, unknown>;
+    expectedEditVersion?: number;
+    force?: boolean;
   };
 
 export async function executeQkrpcSubprogramQueryTool(

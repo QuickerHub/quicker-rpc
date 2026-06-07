@@ -32,6 +32,7 @@ import {
   executeQkrpcActionQueryTool,
   executeQkrpcActionRunTool,
   executeQkrpcActionTool,
+  type QkrpcActionToolInput,
 } from "@/lib/qkrpc-action-tool.server";
 import { QKRPC_ACTION_MANAGE_TOOL, QKRPC_ACTION_TOOL } from "@/lib/qkrpc-action-tool";
 import {
@@ -41,6 +42,7 @@ import {
   executeQkrpcSubprogramManageTool,
   executeQkrpcSubprogramQueryTool,
   executeQkrpcSubprogramTool,
+  type QkrpcSubprogramToolInput,
 } from "@/lib/qkrpc-subprogram-tool.server";
 import {
   QKRPC_SUBPROGRAM_MANAGE_TOOL,
@@ -223,7 +225,7 @@ export const legacyQuickerToolAliases = {
         xaction,
         expectedEditVersion,
         force,
-      }),
+      } as QkrpcActionToolInput),
   }),
 
   [QKRPC_SUBPROGRAM_TOOL]: QKRPC_SUBPROGRAM_TOOL_DEF,
@@ -274,13 +276,13 @@ export const legacyQuickerToolAliases = {
       force: z.boolean().optional(),
     }),
     execute: async ({ id, patch, expectedEditVersion, force }) =>
-      executeQkrpcSubprogramIdTool({
+      executeQkrpcSubprogramTool({
         action: "patch",
         id,
         patch,
         expectedEditVersion,
         force,
-      }),
+      } as QkrpcSubprogramToolInput),
   }),
 
   qkrpc_subprogram_replace: tool({
@@ -293,13 +295,13 @@ export const legacyQuickerToolAliases = {
       force: z.boolean().optional(),
     }),
     execute: async ({ id, program, expectedEditVersion, force }) =>
-      executeQkrpcSubprogramIdTool({
+      executeQkrpcSubprogramTool({
         action: "replace",
         id,
         program,
         expectedEditVersion,
         force,
-      }),
+      } as QkrpcSubprogramToolInput),
   }),
 
   workspace_action_projects: tool({
