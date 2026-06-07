@@ -1,6 +1,6 @@
 # 写动作流程
 
-规定 **P1–P7**（总览 **`overview`**）。内联 patch 见 **`patch-workflow`**；磁盘见 **`action-project-files`**。
+**何时读**：写或改动作程序体时，按 P1–P7 逐步执行（主流程）。内联 patch 见 **`patch-workflow`**；磁盘见 **`action-project-files`**。
 
 ## Checklist（P1–P7）
 

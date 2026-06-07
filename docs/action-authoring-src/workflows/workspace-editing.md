@@ -2,6 +2,8 @@
 
 **何时读**：P2、P6；在改 `data.json` 或 `files/` 之前。工具参数见 **`workspace_program`** description（`target` + `action`）。
 
+{{#include-partial workflow-checklist-workspace-editing}}
+
 ## 模型
 
 ```text

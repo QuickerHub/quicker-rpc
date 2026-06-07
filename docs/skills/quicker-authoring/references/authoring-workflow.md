@@ -1,6 +1,6 @@
 # 写动作流程
 
-规定 **P1–P7**（总览 **`overview`**）。磁盘编辑细节见 **`workspace-editing`**。
+**何时读**：写或改动作程序体时，按 P1–P7 逐步执行（主流程）。磁盘编辑细节见 **`workspace-editing`**。
 
 ## Checklist（P1–P7）
 

@@ -1,6 +1,6 @@
 # {{#topic-title}}
 
-规定 **P1–P7**（总览 **`overview`**）。{{#only-agent}}磁盘编辑细节见 **`workspace-editing`**。{{/only-agent}}{{#only-cli}}内联 patch 见 **`patch-workflow`**；磁盘见 **`action-project-files`**。{{/only-cli}}
+**何时读**：写或改动作程序体时，按 P1–P7 逐步执行（主流程）。{{#only-agent}}磁盘编辑细节见 **`workspace-editing`**。{{/only-agent}}{{#only-cli}}内联 patch 见 **`patch-workflow`**；磁盘见 **`action-project-files`**。{{/only-cli}}
 
 {{#include-partial workflow-checklist-p1-p7}}
 

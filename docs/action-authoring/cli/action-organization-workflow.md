@@ -2,6 +2,16 @@
 
 **何时读**：整理全局动作页、移动动作到指定格子、调整 tab 顺序、按子程序引用批量归集、为虚拟进程创建专用动作页。**不**改程序体（步骤/变量）——改内容见 **`authoring-workflow`**。
 
+## Checklist（O1–O4）
+
+```text
+- [ ] O1  list/search 确认 profileId、profileName、row/col
+- [ ] O2  action move（profile / row+col / swap / onNoEmptySlot）
+- [ ] O3  profile create | delete | reorder（全局 tab）
+- [ ] O4  process ensure + collect-subprogram（虚拟进程专用页）
+- [ ] 不改 data.json — 程序体见 authoring-workflow
+```
+
 ## 概念速览
 
 | 概念 | 说明 |
