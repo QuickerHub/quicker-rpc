@@ -1141,7 +1141,19 @@ public sealed class McpOptions
     [Option("claude", HelpText = "Install: write Claude Desktop config")]
     public bool Claude { get; set; }
 
-    [Option("project", HelpText = "Install: also write .cursor/mcp.json in current directory")]
+    [Option("vscode", HelpText = "Install: write VS Code / Copilot user mcp.json")]
+    public bool Vscode { get; set; }
+
+    [Option("windsurf", HelpText = "Install: write ~/.codeium/windsurf/mcp_config.json")]
+    public bool Windsurf { get; set; }
+
+    [Option("cline", HelpText = "Install: write Cline cline_mcp_settings.json")]
+    public bool Cline { get; set; }
+
+    [Option("all", HelpText = "Install: all supported user-level MCP configs")]
+    public bool All { get; set; }
+
+    [Option("project", HelpText = "Install: also write project .cursor/.vscode/.mcp.json in cwd")]
     public bool Project { get; set; }
 
     [Option("workspace", HelpText = "Install: QKRPC_WORKSPACE_ROOT (default: current directory)")]

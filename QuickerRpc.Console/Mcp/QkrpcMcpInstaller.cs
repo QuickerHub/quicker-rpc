@@ -13,21 +13,14 @@ internal static class QkrpcMcpInstaller
         {
             var qkrpcExe = ResolveQkrpcExecutable();
             var workspace = ResolveWorkspace(options);
-            var targets = ResolveInstallTargets(options);
+            var targets = ResolveInstallTargets(options).ToList();
             var results = new List<string>();
 
             foreach (var target in targets)
             {
-                var configPath = GetConfigPath(target);
-                MergeMcpConfig(configPath, qkrpcExe, workspace);
-                results.Add($"{target}: {configPath}");
-            }
-
-            if (options.Project)
-            {
-                var projectPath = Path.Combine(Directory.GetCurrentDirectory(), ".cursor", "mcp.json");
-                MergeMcpConfig(projectPath, qkrpcExe, workspace);
-                results.Add($"project: {projectPath}");
+                var configPath = Path.GetFullPath(target.ResolveConfigPath());
+                MergeMcpConfig(configPath, target.Format, qkrpcExe, workspace);
+                results.Add($"{target.DisplayName}: {configPath}");
             }
 
             if (!options.SkipSkill)
@@ -50,7 +43,9 @@ internal static class QkrpcMcpInstaller
             global::System.Console.Error.WriteLine("Workspace terminal env: .vscode/settings.json → terminal.integrated.env (PATH includes qkrpc).");
             global::System.Console.Error.WriteLine($"Workspace files: {QkrpcMcpWorkspaceReadme.RelativePath}, {QkrpcMcpWorkspaceIndex.RelativePath}");
             global::System.Console.Error.WriteLine("Edit data.json/files with your editor; use qkrpc_sync push to save to Quicker.");
-            global::System.Console.Error.WriteLine("Restart Cursor / Claude Desktop to load MCP servers.");
+            global::System.Console.Error.WriteLine("Restart your MCP host (Cursor / VS Code / Claude Desktop / Windsurf / Cline) to load servers.");
+            global::System.Console.Error.WriteLine("Claude Code CLI (optional): claude mcp add qkrpc -- qkrpc mcp");
+            global::System.Console.Error.WriteLine("Integration guide: docs/agent-mcp-integration.md");
 
             await Task.CompletedTask.ConfigureAwait(false);
             return ExitCodes.Success;
@@ -110,40 +105,71 @@ internal static class QkrpcMcpInstaller
         return Path.GetFullPath(Directory.GetCurrentDirectory());
     }
 
-    private static IEnumerable<string> ResolveInstallTargets(McpOptions options)
+    private static IEnumerable<McpInstallTarget> ResolveInstallTargets(McpOptions options)
     {
-        if (options.Cursor || options.Claude)
+        if (options.All)
         {
-            if (options.Cursor)
+            foreach (var target in McpInstallTarget.AllUserTargets)
             {
-                yield return "cursor";
+                yield return target;
             }
+        }
+        else
+        {
+            var explicitUser =
+                options.Cursor
+                || options.Claude
+                || options.Vscode
+                || options.Windsurf
+                || options.Cline;
 
-            if (options.Claude)
+            if (!explicitUser)
             {
-                yield return "claude";
+                yield return McpInstallTarget.Cursor;
             }
+            else
+            {
+                if (options.Cursor)
+                {
+                    yield return McpInstallTarget.Cursor;
+                }
 
-            yield break;
+                if (options.Claude)
+                {
+                    yield return McpInstallTarget.ClaudeDesktop;
+                }
+
+                if (options.Vscode)
+                {
+                    yield return McpInstallTarget.VscodeUser;
+                }
+
+                if (options.Windsurf)
+                {
+                    yield return McpInstallTarget.Windsurf;
+                }
+
+                if (options.Cline)
+                {
+                    yield return McpInstallTarget.Cline;
+                }
+            }
         }
 
-        yield return "cursor";
+        if (options.Project)
+        {
+            foreach (var target in McpInstallTarget.AllProjectTargets)
+            {
+                yield return target;
+            }
+        }
     }
 
-    private static string GetConfigPath(string target) =>
-        target switch
-        {
-            "claude" => Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "Claude",
-                "claude_desktop_config.json"),
-            _ => Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".cursor",
-                "mcp.json"),
-        };
-
-    private static void MergeMcpConfig(string configPath, string qkrpcExe, string workspaceRoot)
+    private static void MergeMcpConfig(
+        string configPath,
+        McpConfigFormat format,
+        string qkrpcExe,
+        string workspaceRoot)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
 
@@ -158,17 +184,41 @@ internal static class QkrpcMcpInstaller
             root = new JsonObject();
         }
 
-        var servers = root["mcpServers"] as JsonObject ?? new JsonObject();
-        servers[ServerName] = new JsonObject
+        switch (format)
         {
-            ["command"] = qkrpcExe,
-            ["args"] = new JsonArray("mcp"),
-            ["env"] = new JsonObject
+            case McpConfigFormat.VsCodeServers:
             {
-                ["QKRPC_WORKSPACE_ROOT"] = workspaceRoot,
-            },
-        };
-        root["mcpServers"] = servers;
+                var servers = root["servers"] as JsonObject ?? new JsonObject();
+                servers[ServerName] = new JsonObject
+                {
+                    ["type"] = "stdio",
+                    ["command"] = qkrpcExe,
+                    ["args"] = new JsonArray("mcp"),
+                    ["env"] = new JsonObject
+                    {
+                        ["QKRPC_WORKSPACE_ROOT"] = workspaceRoot,
+                    },
+                };
+                root["servers"] = servers;
+                break;
+            }
+
+            default:
+            {
+                var servers = root["mcpServers"] as JsonObject ?? new JsonObject();
+                servers[ServerName] = new JsonObject
+                {
+                    ["command"] = qkrpcExe,
+                    ["args"] = new JsonArray("mcp"),
+                    ["env"] = new JsonObject
+                    {
+                        ["QKRPC_WORKSPACE_ROOT"] = workspaceRoot,
+                    },
+                };
+                root["mcpServers"] = servers;
+                break;
+            }
+        }
 
         var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(configPath, json + Environment.NewLine, System.Text.Encoding.UTF8);
@@ -189,7 +239,7 @@ internal static class QkrpcMcpInstaller
             "quicker-authoring");
 
         CopyDirectory(source, dest);
-        return $"skill: {dest}";
+        return $"skill (Cursor): {dest}";
     }
 
     private static string? ResolveSkillSource(string? explicitSource)
