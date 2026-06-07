@@ -42,6 +42,7 @@ internal sealed class QkrpcHttpHost : IAsyncDisposable
         _app = builder.Build();
 
         _app.MapGet("/health", HandleHealthAsync);
+        _app.MapGet("/openapi.json", HandleOpenApiAsync);
         _app.MapPost("/v1/invoke", HandleInvokeAsync);
         _app.MapMethods("/v1/action/trace/stream", ["GET", "POST", "OPTIONS"], HandleTraceStreamAsync);
 
@@ -50,11 +51,20 @@ internal sealed class QkrpcHttpHost : IAsyncDisposable
         global::System.Console.WriteLine("POST /v1/invoke  { \"op\": \"action.list\", \"args\": {} }");
         global::System.Console.WriteLine("GET|POST /v1/action/trace/stream  SSE trace lines (id query or JSON body)");
         global::System.Console.WriteLine("GET  /health");
+        global::System.Console.WriteLine("GET  /openapi.json");
 
         await using var stopRegistration = cancellationToken.Register(
             static state => _ = ((WebApplication)state!).StopAsync(),
             _app);
         await _app.RunAsync().ConfigureAwait(false);
+    }
+
+    private static Task HandleOpenApiAsync(HttpContext context)
+    {
+        var baseUrl = $"{context.Request.Scheme}://{context.Request.Host.Value}";
+        var json = ServeOpenApiDocument.BuildJson(baseUrl);
+        context.Response.ContentType = "application/json";
+        return context.Response.WriteAsync(json, context.RequestAborted);
     }
 
     private async Task HandleHealthAsync(HttpContext context)

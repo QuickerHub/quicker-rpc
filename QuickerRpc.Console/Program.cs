@@ -27,6 +27,11 @@ internal static partial class Program
             return ExitCodes.Success;
         }
 
+        if (args.Length > 0 && string.Equals(args[0], "agent", StringComparison.OrdinalIgnoreCase))
+        {
+            return await RunAgentFromArgsAsync(args).ConfigureAwait(false);
+        }
+
         var result = Parser.Default.ParseArguments<
             PingOptions,
             WaitOptions,
@@ -1123,10 +1128,10 @@ internal static partial class Program
     }
 }
 
-[Verb("mcp", HelpText = "MCP server over stdio, or install MCP config (qkrpc mcp install).")]
+[Verb("mcp", HelpText = "MCP server over stdio, or install MCP config (alias: qkrpc agent setup).")]
 public sealed class McpOptions
 {
-    [Value(0, MetaName = "command", HelpText = "Optional: install (writes Cursor/Claude MCP config). Omit to run stdio MCP server.")]
+    [Value(0, MetaName = "command", HelpText = "Optional: install (alias for qkrpc agent setup). Omit to run stdio MCP server.")]
     public string? Command { get; set; }
 
     [Option("timeout", Default = 120, HelpText = "Default per-tool RPC timeout in seconds (serve mode).")]
@@ -1134,6 +1139,12 @@ public sealed class McpOptions
 
     [Option("no-bootstrap", HelpText = "Do not auto-start plugin when pipe is unavailable.")]
     public bool NoBootstrap { get; set; }
+
+    [Option("check", HelpText = "Install: verify agent-setup.json matches CLI version.")]
+    public bool Check { get; set; }
+
+    [Option("upgrade", HelpText = "Install: refresh skills/rules/Claude guidance only (skip MCP).")]
+    public bool Upgrade { get; set; }
 
     [Option("cursor", HelpText = "Install: write ~/.cursor/mcp.json")]
     public bool Cursor { get; set; }
@@ -1156,23 +1167,35 @@ public sealed class McpOptions
     [Option("project", HelpText = "Install: also write project .cursor/.vscode/.mcp.json in cwd")]
     public bool Project { get; set; }
 
+    [Option("project-skills", HelpText = "Install: with --project, also copy skills to .cursor/skills/")]
+    public bool ProjectSkills { get; set; }
+
     [Option("workspace", HelpText = "Install: QKRPC_WORKSPACE_ROOT (default: current directory)")]
     public string? Workspace { get; set; }
 
-    [Option("skill-source", HelpText = "Install: path to quicker-authoring skill directory")]
+    [Option("skill-source", HelpText = "Install: path to docs/skills root or a single skill directory")]
     public string? SkillSource { get; set; }
 
-    [Option("skip-skill", HelpText = "Install: do not copy quicker-authoring skill")]
+    [Option("skip-skill", HelpText = "Install: do not copy skills")]
     public bool SkipSkill { get; set; }
 }
 
 [Verb("serve", HelpText = "Run local HTTP API with a persistent Quicker RPC connection (for agent-gui).")]
 public sealed class ServeOptions
 {
+    [Value(0, MetaName = "command", HelpText = "Optional: openapi (export OpenAPI JSON). Omit to run HTTP server.")]
+    public string? Command { get; set; }
+
+    [Option("json", HelpText = "openapi: write JSON to stdout.")]
+    public bool Json { get; set; }
+
+    [Option("out", HelpText = "openapi: write JSON to file path.")]
+    public string? Out { get; set; }
+
     [Option("host", Default = "127.0.0.1", HelpText = "Bind address (loopback only).")]
     public string? Host { get; set; }
 
-    [Option("port", Default = 9477, HelpText = "HTTP port (/health, /v1/invoke).")]
+    [Option("port", Default = 9477, HelpText = "HTTP port (/health, /v1/invoke, /openapi.json).")]
     public int Port { get; set; }
 
     [Option("timeout", Default = 120, HelpText = "Default per-request RPC timeout in seconds.")]

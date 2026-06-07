@@ -1,0 +1,27 @@
+{
+  "name": "@quickerhub/qkrpc-mcp",
+  "version": "0.1.0",
+  "description": "Thin MCP stdio launcher for the local qkrpc CLI (QuickerRpc)",
+  "license": "MIT",
+  "bin": {
+    "qkrpc-mcp": "./bin/qkrpc-mcp.js"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/QuickerHub/quicker-rpc.git",
+    "directory": "packages/qkrpc-mcp"
+  },
+  "keywords": [
+    "mcp",
+    "quicker",
+    "qkrpc",
+    "model-context-protocol"
+  ]
+}

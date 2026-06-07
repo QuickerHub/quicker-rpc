@@ -68,19 +68,22 @@ qkrpc help --json
 
 Agent 约定见 [AGENTS.md](AGENTS.md)（根目录；`agent-gui/` 另有嵌套 [agent-gui/AGENTS.md](agent-gui/AGENTS.md)）。CLI 约定：退出码 `0` 表示成功，`1` 表示失败；脚本和 Agent 场景推荐始终使用 `--json`。
 
-### 4. 在其他 Agent 中安装 MCP（Cursor / VS Code / Claude / Windsurf / Cline）
+### 4. 在其他 Agent 中安装（Cursor / VS Code / Claude / Windsurf / Cline）
 
-无需 QuickerAgent，任意支持 MCP 的 Agent 可一键接入：
+无需 QuickerAgent，任意支持 MCP 的 Agent 可一键接入（**默认用户级**）：
 
 ```powershell
-qkrpc mcp install --all --project
+qkrpc agent setup
+qkrpc agent setup --upgrade      # CLI 升级后仅刷新 skills/rules
+qkrpc agent setup --all          # 所有主流宿主 MCP
+qkrpc agent setup --project      # 额外写入项目配置（团队 opt-in）
 ```
 
-- 写入各宿主 MCP 配置（stdio：`qkrpc mcp`）
-- 设置 `QKRPC_WORKSPACE_ROOT`、初始化 `.quicker/` 工作区
-- 可选复制 **quicker-authoring** skill（Cursor）
+- 写入 MCP 配置（stdio：`qkrpc mcp`）
+- 复制 skills（`qkrpc`、`quicker-authoring`、`quicker-sync`、`quicker-run`）与 rules
+- `qkrpc mcp install` 为向后兼容别名
 
-完整说明：[docs/agent-mcp-integration.md](docs/agent-mcp-integration.md)
+说明：[docs/agent-mcp-integration.md](docs/agent-mcp-integration.md) · 分发：[docs/agent-skill-distribution.md](docs/agent-skill-distribution.md)
 
 ## 常用命令
 

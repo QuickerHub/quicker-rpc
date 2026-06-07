@@ -15,17 +15,26 @@
 
 ## 一键安装
 
-在 **工作区根目录**（例如你的 Quicker 动作项目）执行：
+默认 **用户级**（写入 `~/.cursor/mcp.json`、`~/.cursor/skills/`、`~/.cursor/rules/`），不修改当前仓库。
 
 ```powershell
-# 默认：仅 Cursor 用户配置
+# 推荐：用户级 MCP + skills + rules
+qkrpc agent setup
+
+# 检查配置是否与当前 CLI 版本一致
+qkrpc agent setup --check
+
+# 仅刷新 skills / rules / Claude Code 指引（不改动 MCP 配置）
+qkrpc agent setup --upgrade
+
+# 所有主流 Agent 用户级 MCP
+qkrpc agent setup --all
+
+# 团队 opt-in：额外写入项目级配置（可 commit）
+qkrpc agent setup --project --workspace D:\my-quicker-workspace
+
+# 向后兼容别名
 qkrpc mcp install
-
-# 所有主流 Agent 用户级配置
-qkrpc mcp install --all
-
-# 指定 Agent + 项目级配置（团队可 commit .cursor/.vscode/.mcp.json）
-qkrpc mcp install --vscode --windsurf --project --workspace D:\my-quicker-workspace
 ```
 
 | 标志 | 写入位置 | 配置格式 |
@@ -38,12 +47,20 @@ qkrpc mcp install --vscode --windsurf --project --workspace D:\my-quicker-worksp
 | `--all` | 上表全部用户级路径 | — |
 | `--project` | 当前目录 `.cursor/mcp.json`、`.vscode/mcp.json`、`.mcp.json` | 按宿主 |
 
-安装还会：
+安装还会（用户级默认）：
 
-- 设置 `QKRPC_WORKSPACE_ROOT` 环境变量（MCP 进程内）
-- 合并 `.vscode/settings.json` 终端 PATH（shell 也可直接调 `qkrpc`）
-- 初始化 `.quicker/README.md` 与 workspace index
-- 复制 **quicker-authoring** skill 到 `~/.cursor/skills/`（Cursor；可用 `--skip-skill` 跳过）
+- 设置 MCP env：`QKRPC_WORKSPACE_ROOT`、`QKRPC_SETUP_VERSION`
+- 复制 skills：`qkrpc`、`quicker-authoring`、`quicker-sync`、`quicker-run` → `~/.cursor/skills/`
+- 复制 rules：`qkrpc.mdc` → `~/.cursor/rules/`
+- 合并 Claude Code 指引：`~/.claude/CLAUDE.md`（`<!-- qkrpc-agent-setup -->` 段）
+- 写入 manifest：`~/.qkrpc/agent-setup.json`
+
+**仅 `--project` 时**额外：
+
+- 项目 `.cursor/mcp.json`、`.vscode/mcp.json`、`.mcp.json`
+- `.vscode/settings.json` 终端 PATH
+- `.quicker/` bootstrap
+- 可选 `--project-skills` 复制 skills 到项目 `.cursor/skills/`
 
 **重启** 对应 Agent / 重载 MCP 面板后生效。
 
@@ -126,9 +143,25 @@ qkrpc action list --query "keyword" --json
 
 ```powershell
 qkrpc serve   # http://127.0.0.1:9477/health , POST /v1/invoke
+curl http://127.0.0.1:9477/openapi.json
+qkrpc serve openapi --json
 ```
 
 QuickerAgent 默认走此路径；其他语言 Agent 可 HTTP 封装，无需 MCP。
+
+### npm MCP 薄包装（Node 宿主）
+
+若 MCP 配置要求 Node/`npx` 入口：
+
+```json
+{
+  "command": "npx",
+  "args": ["-y", "@quickerhub/qkrpc-mcp"],
+  "env": { "QKRPC_WORKSPACE_ROOT": "D:\\your-workspace" }
+}
+```
+
+仍需本机安装 `qkrpc.exe`；npm 包仅 spawn `qkrpc mcp`。Skills 仍用 `qkrpc agent setup`。详见 [packages/qkrpc-mcp/README.md](../packages/qkrpc-mcp/README.md)、[agent-skill-distribution.md](agent-skill-distribution.md)。
 
 ---
 

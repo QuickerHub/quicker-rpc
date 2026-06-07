@@ -86,6 +86,26 @@ if ($LASTEXITCODE -ne 0) {
 
 Assert-QkrpcPublishGoogleProtobuf -PublishDir $publishDir -RepoRoot $repoRoot
 
+$skillsSource = Join-Path $repoRoot 'docs\skills'
+$skillsDest = Join-Path $publishDir 'skills'
+if (Test-Path -LiteralPath $skillsSource) {
+    if (Test-Path -LiteralPath $skillsDest) {
+        Remove-Item -LiteralPath $skillsDest -Recurse -Force
+    }
+    Copy-Item -LiteralPath $skillsSource -Destination $skillsDest -Recurse -Force
+    Write-Host "Bundled agent skills -> $skillsDest" -ForegroundColor Cyan
+}
+
+$rulesSource = Join-Path $repoRoot 'docs\agent-rules'
+$rulesDest = Join-Path $publishDir 'agent-rules'
+if (Test-Path -LiteralPath $rulesSource) {
+    if (Test-Path -LiteralPath $rulesDest) {
+        Remove-Item -LiteralPath $rulesDest -Recurse -Force
+    }
+    Copy-Item -LiteralPath $rulesSource -Destination $rulesDest -Recurse -Force
+    Write-Host "Bundled agent rules -> $rulesDest" -ForegroundColor Cyan
+}
+
 if (-not $SkipPackaging) {
     Write-Host "Publishing QuickerRpc plugin (Release, net472)..." -ForegroundColor Green
     $pluginCsproj = Join-Path $repoRoot 'QuickerRpc.Plugin\QuickerRpc.Plugin.csproj'

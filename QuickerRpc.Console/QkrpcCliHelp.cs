@@ -76,25 +76,21 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("host", "Bind address.", defaultValue: "127.0.0.1"), Option("port", "HTTP port.", defaultValue: "9477"), Option("timeout", "Per-request RPC timeout (seconds).", defaultValue: "120"), Option("no-bootstrap", "Skip auto-start.") }),
 
+                Cmd("serve openapi", "Export OpenAPI 3.1 for qkrpc serve HTTP API.", "qkrpc serve openapi [--json] [--out <file>] [--host 127.0.0.1] [--port 9477]",
+
+                    opts: new[] { Option("json", "Write JSON to stdout."), Option("out", "Write JSON to file."), Option("host", "Base URL host.", defaultValue: "127.0.0.1"), Option("port", "Base URL port.", defaultValue: "9477") }),
+
                 Cmd("mcp", "MCP server over stdio (Cursor, VS Code, Claude, Windsurf, Cline).", "qkrpc mcp [--timeout 120] [--no-bootstrap]",
 
                     opts: new[] { Option("timeout", "Per-tool RPC timeout (seconds).", defaultValue: "120"), Option("no-bootstrap", "Skip auto-start.") }),
 
-                Cmd("mcp install", "Install MCP config + quicker-authoring skill.", "qkrpc mcp install [--cursor] [--claude] [--vscode] [--windsurf] [--cline] [--all] [--project] [--workspace <path>] [--skill-source <dir>] [--skip-skill]",
+                Cmd("agent setup", "Install MCP + skills + rules for AI agents (user-level default).", "qkrpc agent setup [--cursor] [--claude] [--vscode] [--windsurf] [--cline] [--all] [--project] [--project-skills] [--workspace <path>] [--skill-source <dir>] [--skip-skill] [--check]",
 
-                    opts: new[]
-                    {
-                        Option("cursor", "Write ~/.cursor/mcp.json (default when no agent flag)."),
-                        Option("claude", "Write Claude Desktop config."),
-                        Option("vscode", "Write VS Code / Copilot user mcp.json."),
-                        Option("windsurf", "Write ~/.codeium/windsurf/mcp_config.json."),
-                        Option("cline", "Write Cline cline_mcp_settings.json."),
-                        Option("all", "Write all supported user-level MCP configs."),
-                        Option("project", "Also write .cursor/.vscode/.mcp.json in cwd."),
-                        Option("workspace", "QKRPC_WORKSPACE_ROOT for MCP env."),
-                        Option("skill-source", "Path to quicker-authoring skill directory."),
-                        Option("skip-skill", "Skip skill copy."),
-                    }),
+                    opts: AgentSetupOptions()),
+
+                Cmd("mcp install", "Alias for qkrpc agent setup.", "qkrpc mcp install [same flags as agent setup]",
+
+                    opts: AgentSetupOptions()),
 
                 Cmd("ping", "Check QuickerRpc plugin connectivity.", "qkrpc ping [--json] [--timeout 10] [--no-bootstrap]",
 
@@ -785,6 +781,42 @@ internal static class QkrpcCliHelp
             Option("timeout", "Seconds.", defaultValue: "10"),
 
             Option("no-bootstrap", "Skip quicker:runaction auto-start."),
+
+        };
+
+
+
+    private static object[] AgentSetupOptions() =>
+
+        new object[]
+
+        {
+
+            Option("check", "Verify ~/.qkrpc/agent-setup.json matches CLI version."),
+
+            Option("upgrade", "Refresh skills, rules, Claude guidance only (skip MCP config)."),
+
+            Option("cursor", "Write ~/.cursor/mcp.json (default when no agent flag)."),
+
+            Option("claude", "Write Claude Desktop config."),
+
+            Option("vscode", "Write VS Code / Copilot user mcp.json."),
+
+            Option("windsurf", "Write ~/.codeium/windsurf/mcp_config.json."),
+
+            Option("cline", "Write Cline cline_mcp_settings.json."),
+
+            Option("all", "Write all supported user-level MCP configs."),
+
+            Option("project", "Also write .cursor/.vscode/.mcp.json in cwd."),
+
+            Option("project-skills", "With --project: also copy skills to .cursor/skills/."),
+
+            Option("workspace", "QKRPC_WORKSPACE_ROOT for MCP env."),
+
+            Option("skill-source", "Path to docs/skills root or a single skill directory."),
+
+            Option("skip-skill", "Skip skill copy."),
 
         };
 
