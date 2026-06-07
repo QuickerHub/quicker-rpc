@@ -142,6 +142,14 @@ export type QkrpcSubprogramToolInput = QkrpcSubprogramQueryToolInput & {
   patch?: Record<string, unknown>;
   expectedEditVersion?: number;
   force?: boolean;
+  name?: string;
+  description?: string;
+  icon?: string;
+  id?: string;
+  dir?: string;
+  var?: string;
+  value?: string;
+  returnMode?: z.infer<typeof returnModeSchema>;
 };
 
 export async function executeQkrpcSubprogramQueryTool(
