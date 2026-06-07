@@ -2,6 +2,8 @@ using System;
 using System.Linq;
 using System.Reflection;
 using Quicker.Domain;
+using Quicker.Domain.Actions;
+using Quicker.Domain.Actions.Runtime;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Plugin.Services;
@@ -55,6 +57,7 @@ public sealed class ActionRunService
                 Ok = false,
                 ActionId = id,
                 Message = ex.Message,
+                ErrorMessage = ex.Message,
             };
         }
     }
@@ -105,7 +108,7 @@ public sealed class ActionRunService
             {
                 var args = BuildInvokeArgs(method, id, inputParam, enableDebugging, waitForComplete, externTrigger);
                 var raw = method.Invoke(appServer, args);
-                return MapExecuteResult(id, raw);
+                return MapExecuteResult(id, raw, waitForComplete);
             };
             return true;
         }
@@ -141,7 +144,7 @@ public sealed class ActionRunService
         return args;
     }
 
-    private static QuickerRpcActionRunResult MapExecuteResult(string actionId, object? raw)
+    private static QuickerRpcActionRunResult MapExecuteResult(string actionId, object? raw, bool waitForComplete)
     {
         if (raw is null)
         {
@@ -162,6 +165,7 @@ public sealed class ActionRunService
                 Ok = false,
                 ActionId = actionId,
                 Message = errorMessage,
+                ErrorMessage = errorMessage,
             };
         }
 
@@ -172,11 +176,26 @@ public sealed class ActionRunService
                 Ok = false,
                 ActionId = actionId,
                 Message = $"Action not found: {actionId}",
+                ErrorMessage = $"Action not found: {actionId}",
             };
         }
 
         var title = ReadActionTitle(actionItem);
         var returnResult = ReadReturnResult(context);
+
+        if (waitForComplete && TryReadExecutionFailure(context, out var runtimeError, out var stopFlag))
+        {
+            return new QuickerRpcActionRunResult
+            {
+                Ok = false,
+                ActionId = actionId,
+                ActionTitle = title,
+                ReturnResult = returnResult,
+                ErrorMessage = runtimeError,
+                StopFlag = stopFlag,
+                Message = runtimeError ?? "动作执行失败。",
+            };
+        }
 
         return new QuickerRpcActionRunResult
         {
@@ -185,10 +204,74 @@ public sealed class ActionRunService
             ActionTitle = title,
             ReturnResult = returnResult,
             Message = string.IsNullOrWhiteSpace(returnResult)
-                ? "动作已运行。"
+                ? waitForComplete ? "动作已运行。" : "动作已启动。"
                 : returnResult,
         };
     }
+
+    private static bool TryReadExecutionFailure(
+        object? context,
+        out string? errorMessage,
+        out string? stopFlag)
+    {
+        errorMessage = null;
+        stopFlag = null;
+
+        if (context is ActionExecuteContext typed)
+        {
+            return TryReadExecutionFailure(typed, out errorMessage, out stopFlag);
+        }
+
+        if (context is null)
+        {
+            return false;
+        }
+
+        var returnError = ReadBoolProperty(context, "ReturnError") == true;
+        var flagText = ReadEnumPropertyName(context, "StopFlag");
+        var contextError = ReadStringProperty(context, "ErrorMessage");
+
+        if (!returnError && (string.IsNullOrWhiteSpace(flagText) || string.Equals(flagText, "NoStop", StringComparison.Ordinal)))
+        {
+            return false;
+        }
+
+        stopFlag = string.IsNullOrWhiteSpace(flagText) ? null : flagText;
+        errorMessage = !string.IsNullOrWhiteSpace(contextError)
+            ? contextError
+            : DescribeStopFlag(stopFlag);
+        return true;
+    }
+
+    private static bool TryReadExecutionFailure(
+        ActionExecuteContext context,
+        out string? errorMessage,
+        out string? stopFlag)
+    {
+        errorMessage = null;
+        stopFlag = null;
+
+        if (!context.ReturnError && context.StopFlag == ActionStopFlag.NoStop)
+        {
+            return false;
+        }
+
+        stopFlag = context.StopFlag.ToString();
+        errorMessage = !string.IsNullOrWhiteSpace(context.ErrorMessage)
+            ? context.ErrorMessage
+            : DescribeStopFlag(stopFlag);
+        return true;
+    }
+
+    private static string DescribeStopFlag(string? stopFlag) =>
+        stopFlag switch
+        {
+            nameof(ActionStopFlag.OperationFailed) => "动作执行失败。",
+            nameof(ActionStopFlag.UserCancel) => "动作已被用户取消。",
+            nameof(ActionStopFlag.ForceStop) => "动作已被强制停止。",
+            nameof(ActionStopFlag.StopFromCode) => "动作被停止模块终止。",
+            _ => "动作未成功完成。",
+        };
 
     private static void UnpackExecuteResult(
         object tuple,
@@ -222,8 +305,57 @@ public sealed class ActionRunService
             return null;
         }
 
+        if (context is ActionExecuteContext typed)
+        {
+            return string.IsNullOrWhiteSpace(typed.ReturnResult) ? null : typed.ReturnResult;
+        }
+
         var value = context.GetType().GetProperty("ReturnResult")?.GetValue(context) as string;
         return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static string? ReadStringProperty(object instance, string propertyName)
+    {
+        try
+        {
+            return instance.GetType()
+                .GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance)
+                ?.GetValue(instance) as string;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool? ReadBoolProperty(object instance, string propertyName)
+    {
+        try
+        {
+            var value = instance.GetType()
+                .GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance)
+                ?.GetValue(instance);
+            return value is bool typed ? typed : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? ReadEnumPropertyName(object instance, string propertyName)
+    {
+        try
+        {
+            var value = instance.GetType()
+                .GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance)
+                ?.GetValue(instance);
+            return value?.ToString();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static bool IsInQuicker() =>

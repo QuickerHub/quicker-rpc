@@ -1,15 +1,21 @@
 "use client";
 
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
+import { useFollowScrollTail } from "@/lib/use-follow-scroll-tail";
 import {
   formatActionMetadataMetaLine,
   parseActionMetadata,
   splitActionMetadataFields,
 } from "@/lib/action-metadata";
 import {
+  formatQkrpcActionCommandResultMeta,
+  isQkrpcActionCommandTool,
+  qkrpcActionCommandDisplayName,
+} from "@/lib/qkrpc-action-tool";
+import {
+  formatActionListMetaLine,
   isActionListTool,
   parseActionListFromQkrpcData,
-  formatActionListMetaLine,
 } from "@/lib/action-list";
 import {
   formatActionProjectsMetaLine,
@@ -49,7 +55,11 @@ import {
   shouldOmitCompactToolResultBody,
   shouldSkipRedundantToolRequest,
 } from "@/lib/tool-display";
-import { getToolMeta } from "@/lib/tool-registry";
+import {
+  defaultEnabledToolIds,
+  getToolMeta,
+} from "@/lib/tool-registry";
+import { normalizeToolCallName, resolveKnownToolName } from "@/lib/repair-tool-call";
 import {
   countLines,
   formatCharCount,
@@ -179,6 +189,14 @@ export function summarizeToolOutput(
       const diagnostics = parseProgramDiagnosticsFromToolData(output.data);
       if (diagnostics) return formatProgramDiagnosticsMetaLine(diagnostics);
     }
+    if (isQkrpcActionCommandTool(toolName, input)) {
+      const actionMeta = formatQkrpcActionCommandResultMeta(
+        toolName,
+        input ?? {},
+        d,
+      );
+      if (actionMeta) return actionMeta;
+    }
     const workspaceDisplay = parseWorkspaceToolDisplay(output.data);
     if (
       workspaceDisplay
@@ -219,6 +237,9 @@ export function summarizeToolOutput(
         return msg ? `已更新 · ${msg.slice(0, 48)}` : "已更新分享";
       }
       if (msg) return msg.slice(0, 60);
+    }
+    if (typeof d.actionTitle === "string" && d.actionTitle.trim()) {
+      return d.actionTitle.trim();
     }
     if (typeof d.actionId === "string") {
       return `action ${d.actionId.slice(0, 8)}…`;
@@ -264,16 +285,21 @@ export function formatToolState(state: string): string {
 
 /** qkrpc_step_runner_search → step runner search */
 export function formatToolDisplayName(toolName: string, input?: unknown): string {
-  if (toolName === "shell_exec") return "终端";
-  const fileLabel = workspaceFileToolDisplayName(toolName, input);
+  const canonical =
+    resolveKnownToolName(toolName, defaultEnabledToolIds())
+    ?? normalizeToolCallName(toolName);
+  if (canonical === "shell_exec") return "终端";
+  const fileLabel = workspaceFileToolDisplayName(canonical, input);
   if (fileLabel) return fileLabel;
-  const projectsLabel = actionProjectsToolDisplayName(toolName, input);
+  const projectsLabel = actionProjectsToolDisplayName(canonical, input);
   if (projectsLabel) return projectsLabel;
-  const programLabel = workspaceProgramToolDisplayName(toolName, input);
+  const programLabel = workspaceProgramToolDisplayName(canonical, input);
   if (programLabel) return programLabel.replace(/-/g, " ");
-  const meta = getToolMeta(toolName);
+  const actionCommandLabel = qkrpcActionCommandDisplayName(canonical, input);
+  if (actionCommandLabel) return actionCommandLabel;
+  const meta = getToolMeta(canonical);
   if (meta?.label) return meta.label;
-  return toolName.replace(/^qkrpc_/, "").replace(/_/g, " ");
+  return canonical.replace(/^qkrpc_/, "").replace(/_/g, " ");
 }
 
 export function buildToolSummaryMeta(
@@ -311,12 +337,7 @@ function JsonBlockPre({
   const preRef = useRef<HTMLPreElement>(null);
   const text = formatJsonDisplayText(value);
 
-  useLayoutEffect(() => {
-    if (!followTail) return;
-    const el = preRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [text, followTail]);
+  useFollowScrollTail(preRef, followTail, text);
 
   return (
     <pre ref={preRef} className="tool-json">

@@ -1,0 +1,39 @@
+{
+  "replace": true,
+  "steps": [
+    {
+      "stepRunnerKey": "sys:evalexpression",
+      "inputParams": {
+        "expression": {
+          "value": "$=\"trace smoke \" + DateTime.Now.ToString(\"HH:mm:ss\")"
+        }
+      },
+      "outputParams": {
+        "result": "msg"
+      }
+    },
+    {
+      "stepRunnerKey": "sys:assign",
+      "inputParams": {
+        "input": { "varKey": "msg" }
+      },
+      "outputParams": {
+        "output": "lastLine"
+      }
+    },
+    {
+      "stepRunnerKey": "sys:evalexpression",
+      "inputParams": {
+        "expression": { "value": "$=\"sum=\" + (1 + 2 + 3)" }
+      },
+      "outputParams": {
+        "result": "sum"
+      }
+    }
+  ],
+  "variables": [
+    { "key": "msg", "defaultValue": "" },
+    { "key": "lastLine", "defaultValue": "" },
+    { "key": "sum", "defaultValue": "" }
+  ]
+}

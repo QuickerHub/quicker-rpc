@@ -3,7 +3,7 @@
 import { useEffect, type RefObject } from "react";
 
 const NESTED_VERTICAL_SCROLL_SELECTOR =
-  "textarea, [contenteditable='true'], .composer-markup-field, .user-message-composer__input";
+  "textarea, [contenteditable='true'], .composer-markup-field, .user-message-composer__input, .action-trace-terminal__out, .action-trace-timeline, .workspace-side-panel, .workspace-explorer, .tool-test-action-trace-main";
 
 const NESTED_HORIZONTAL_SCROLL_SELECTOR =
   ".md-table-wrap, .md-pre, .action-list-table-wrap, .tool-error";

@@ -4,9 +4,16 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   SidePanelIconClose,
   SidePanelIconFile,
+  SidePanelIconTrace,
 } from "@/components/workspace/side-panel-view-icons";
 import { WorkspaceSidePanelHeaderControls } from "@/components/workspace/WorkspaceSidePanelHeaderControls";
 import { WorkspaceSideViewTriggers } from "@/components/workspace/WorkspaceSideViewTriggers";
+import {
+  closeActionTraceTab,
+  getActionTraceTabBarLabel,
+  useActionTraceTabs,
+} from "@/lib/action-trace-overlay";
+import { isSidePanelTraceView } from "@/lib/action-trace-tab-id";
 import { useDocsViewer } from "@/lib/docs-viewer";
 import { useEmbeddedBrowser } from "@/lib/embedded-browser-context";
 import { basenamePath } from "@/lib/workspace-file-tool";
@@ -24,6 +31,7 @@ import {
 type ContentTabItem = {
   id: string;
   label: string;
+  kind: "file" | "trace";
 };
 
 function tabLabel(path: string, label?: string): string {
@@ -32,7 +40,7 @@ function tabLabel(path: string, label?: string): string {
   return basenamePath(path) || path;
 }
 
-/** Open file tabs + contextual actions in the right split header. */
+/** Open file + trace tabs in the right split header. */
 export function WorkspaceSidePanelTabBar() {
   const tabsRef = useRef<HTMLDivElement>(null);
   const { activeSideView, setActiveSideView, focusSidePanelView } =
@@ -40,6 +48,7 @@ export function WorkspaceSidePanelTabBar() {
   const { open: browserOpen } = useEmbeddedBrowser();
   const { tabs, activeTabId, setActiveTabId, closeTab } = useWorkspaceExplorerEditor();
   const { activeDoc, clearActiveTopic } = useDocsViewer();
+  const traceTabs = useActionTraceTabs();
 
   const tabItems = useMemo((): ContentTabItem[] => {
     const items: ContentTabItem[] = [];
@@ -47,19 +56,32 @@ export function WorkspaceSidePanelTabBar() {
       items.push({
         id: tab.id,
         label: tabLabel(tab.path, tab.label),
+        kind: "file",
       });
     }
     if (activeDoc && tabs.length === 0) {
       items.push({
         id: SIDE_PANEL_PREVIEW_TAB_ID,
         label: activeDoc.title,
+        kind: "file",
+      });
+    }
+    for (const traceTab of traceTabs) {
+      items.push({
+        id: traceTab.tabId,
+        label: getActionTraceTabBarLabel(traceTab),
+        kind: "trace",
       });
     }
     return items;
-  }, [activeDoc, tabs]);
+  }, [activeDoc, tabs, traceTabs]);
 
   const selectTab = useCallback(
     (tabId: string) => {
+      if (isSidePanelTraceView(tabId)) {
+        focusSidePanelView(tabId);
+        return;
+      }
       if (!isSidePanelEditorView(tabId)) return;
       if (tabId === SIDE_PANEL_PREVIEW_TAB_ID && tabs.length === 0) {
         setActiveSideView(tabId);
@@ -68,11 +90,15 @@ export function WorkspaceSidePanelTabBar() {
       setActiveTabId(tabId);
       setActiveSideView(tabId);
     },
-    [setActiveSideView, setActiveTabId, tabs.length],
+    [focusSidePanelView, setActiveSideView, setActiveTabId, tabs.length],
   );
 
   const closeTabItem = useCallback(
     (tabId: string) => {
+      if (isSidePanelTraceView(tabId) && tabId !== SIDE_PANEL_PREVIEW_TAB_ID) {
+        closeActionTraceTab(tabId, { wasActive: tabId === activeSideView });
+        return;
+      }
       if (tabId === SIDE_PANEL_PREVIEW_TAB_ID && tabs.length === 0) {
         clearActiveTopic();
         setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
@@ -86,6 +112,13 @@ export function WorkspaceSidePanelTabBar() {
   useEffect(() => {
     if (activeSideView === SIDE_PANEL_VIEW_EXPLORER) return;
     if (activeSideView === SIDE_PANEL_VIEW_BROWSER) return;
+    if (isSidePanelTraceView(activeSideView)) {
+      if (traceTabs.some((tab) => tab.tabId === activeSideView)) return;
+      if (traceTabs.length > 0) {
+        focusSidePanelView(traceTabs[traceTabs.length - 1]!.tabId);
+        return;
+      }
+    }
     if (tabItems.some((tab) => tab.id === activeSideView)) return;
 
     if (browserOpen && activeSideView !== SIDE_PANEL_VIEW_BROWSER) {
@@ -98,6 +131,10 @@ export function WorkspaceSidePanelTabBar() {
     }
     if (activeDoc && tabs.length === 0) {
       setActiveSideView(SIDE_PANEL_PREVIEW_TAB_ID);
+      return;
+    }
+    if (traceTabs.length > 0) {
+      focusSidePanelView(traceTabs[traceTabs.length - 1]!.tabId);
       return;
     }
     if (browserOpen) {
@@ -114,6 +151,7 @@ export function WorkspaceSidePanelTabBar() {
     setActiveSideView,
     tabItems,
     tabs.length,
+    traceTabs,
   ]);
 
   useEffect(() => {
@@ -157,14 +195,14 @@ export function WorkspaceSidePanelTabBar() {
           className="workspace-side-panel-tabs"
           ref={tabsRef}
           role="tablist"
-          aria-label="打开的文件"
+          aria-label="侧栏标签"
         >
           {tabItems.map((tab) => {
             const active = tab.id === activeSideView;
             return (
               <div
                 key={tab.id}
-                className={`workspace-side-panel-tab${active ? " workspace-side-panel-tab--active" : ""}`}
+                className={`workspace-side-panel-tab${active ? " workspace-side-panel-tab--active" : ""}${tab.kind === "trace" ? " workspace-side-panel-tab--trace" : ""}`}
                 data-active={active ? "true" : undefined}
               >
                 <button
@@ -176,7 +214,11 @@ export function WorkspaceSidePanelTabBar() {
                   onClick={() => selectTab(tab.id)}
                 >
                   <span className="workspace-side-panel-tab-icon">
-                    <SidePanelIconFile />
+                    {tab.kind === "trace" ? (
+                      <SidePanelIconTrace />
+                    ) : (
+                      <SidePanelIconFile />
+                    )}
                   </span>
                   <span className="workspace-side-panel-tab-label">{tab.label}</span>
                 </button>

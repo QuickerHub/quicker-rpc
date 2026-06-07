@@ -48,6 +48,7 @@ const actionIdInputSchema = z.discriminatedUnion("action", [
     param: z.string().optional(),
     wait: z.boolean().optional(),
     debug: z.boolean().optional(),
+    trace: z.boolean().optional(),
   }),
   z.object({
     action: z.literal("float"),
@@ -374,7 +375,7 @@ export async function executeQkrpcActionIdTool(
       const args = ["action", "run", "--id", input.id];
       if (input.param) args.push("--param", input.param);
       if (input.wait) args.push("--wait");
-      if (input.debug) args.push("--debug");
+      if (input.trace || input.debug) args.push("--trace");
       return formatQkrpcResultForAgent(await runQkrpcForTool(args));
     }
     case "move": {

@@ -31,6 +31,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Catalog\step-runner-agent-keywords.json" />
     <EmbeddedResource Include="Catalog\quicker-settings-agent-keywords.json" />
+    <EmbeddedResource Include="Catalog\quicker-settings-ui-pages.json" />
     <EmbeddedResource Include="Catalog\settings-direct-links.json" />
   </ItemGroup>
   <ItemGroup>

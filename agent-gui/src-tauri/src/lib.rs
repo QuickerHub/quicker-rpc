@@ -11,7 +11,7 @@ use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "macos")]
 use tauri::TitleBarStyle;
-use tauri::{AppHandle, Manager, RunEvent, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 mod clipboard_history_plugin;
@@ -24,6 +24,10 @@ mod voice_plugin_install;
 mod win_job;
 
 static STARTUP_CANCELLED: AtomicBool = AtomicBool::new(false);
+static PRODUCTION_UI_READY: AtomicBool = AtomicBool::new(false);
+static EXIT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+
+const APP_REQUEST_EXIT_EVENT: &str = "app-request-exit";
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -497,7 +501,10 @@ fn open_production_ui(app: &AppHandle, ui_url: &str) {
         if let Err(err) = win.navigate(external) {
             show_startup_error(&app_for_ui, &format!("failed to load UI: {err}"));
             app_for_ui.exit(1);
+            return;
         }
+
+        PRODUCTION_UI_READY.store(true, Ordering::SeqCst);
     }) {
         eprintln!("open production UI callback failed: {err}");
     }
@@ -532,12 +539,58 @@ fn spawn_production_startup(app: AppHandle) {
     });
 }
 
+fn run_app_shutdown<R: tauri::Runtime>(app: &AppHandle<R>) {
+    app.state::<BackendState>().inner().shutdown();
+    app.state::<voice_plugin::VoicePluginState>()
+        .inner()
+        .shutdown();
+    app.state::<clipboard_history_plugin::ClipboardHistoryPluginState>()
+        .inner()
+        .shutdown();
+    if let Err(err) = voice_plugin_install::apply_pending_runtime_upgrade() {
+        eprintln!("[voice-plugin] apply runtime upgrade failed: {err}");
+    }
+}
+
+pub(crate) fn spawn_shutdown_and_exit<R: tauri::Runtime>(app: AppHandle<R>) {
+    if EXIT_IN_PROGRESS.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    std::thread::spawn(move || {
+        run_app_shutdown(&app);
+        let app_for_exit = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            app_for_exit.exit(0);
+        });
+    });
+}
+
+#[tauri::command]
+fn graceful_exit(app: AppHandle) {
+    spawn_shutdown_and_exit(app);
+}
+
+fn handle_main_window_close_requested<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    api: &tauri::CloseRequestApi,
+) {
+    api.prevent_close();
+
+    if PRODUCTION_UI_READY.load(Ordering::SeqCst) {
+        let _ = app.emit(APP_REQUEST_EXIT_EVENT, ());
+        return;
+    }
+
+    STARTUP_CANCELLED.store(true, Ordering::SeqCst);
+    spawn_shutdown_and_exit(app.clone());
+}
+
 fn register_startup_window_handlers(window: &WebviewWindow, app: &AppHandle) {
     let app_handle = app.clone();
     window.on_window_event(move |event| {
-        if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
-            STARTUP_CANCELLED.store(true, Ordering::SeqCst);
-            app_handle.exit(0);
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            handle_main_window_close_requested(&app_handle, api);
         }
     });
 }
@@ -593,6 +646,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            graceful_exit,
             launcher::launcher_show,
             launcher::launcher_hide,
             launcher::launcher_toggle,
@@ -662,16 +716,7 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             if matches!(event, RunEvent::Exit) {
-                app.state::<BackendState>().inner().shutdown();
-                app.state::<voice_plugin::VoicePluginState>()
-                    .inner()
-                    .shutdown();
-                app.state::<clipboard_history_plugin::ClipboardHistoryPluginState>()
-                    .inner()
-                    .shutdown();
-                if let Err(err) = voice_plugin_install::apply_pending_runtime_upgrade() {
-                    eprintln!("[voice-plugin] apply runtime upgrade failed: {err}");
-                }
+                run_app_shutdown(app);
             }
         });
 }

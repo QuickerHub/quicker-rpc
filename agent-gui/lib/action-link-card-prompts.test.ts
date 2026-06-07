@@ -28,4 +28,15 @@ describe("buildActionLinkCardPromptMessage", () => {
       true,
     );
   });
+
+  it("builds trace debug composer prompt with optional param", () => {
+    const message = buildActionLinkCardPromptMessage("trace", {
+      actionId: ACTION_ID,
+      title: TITLE,
+      param: "path=C:\\test.txt",
+    });
+    assert.ok(message);
+    assert.match(message, /请 trace 调试运行动作，运行参数 path=C:\\test\.txt/);
+    assert.match(message, /侧栏查看步骤时间线/);
+  });
 });

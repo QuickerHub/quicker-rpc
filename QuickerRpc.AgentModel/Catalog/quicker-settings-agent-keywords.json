@@ -58,7 +58,7 @@
     ],
     "snippet": "Quicker setting IsAutoMinimize",
     "title": "启动后自动最小化",
-    "pageId": "AppSettings"
+    "pageId": "BasicInfo"
   },
   "userSettings:StopAllWhiteList": {
     "keywords": [
@@ -266,18 +266,18 @@
   },
   "userSettings:EnableCircleMenu": {
     "keywords": [
-      "圆圈菜单",
       "轮盘菜单",
+      "轮盘",
+      "圆圈菜单",
       "circle menu",
       "圆形菜单",
-      "手势菜单",
       "EnableCircleMenu",
       "enable",
       "circle",
       "menu"
     ],
-    "snippet": "是否启用鼠标圆圈菜单（轮盘）触发方式",
-    "title": "启用圆圈菜单",
+    "snippet": "是否启用鼠标轮盘菜单触发方式（Quicker 设置页：轮盘菜单设置）",
+    "title": "启用轮盘菜单",
     "pageId": "CircleMenuSettingPage"
   },
   "userSettings:RightBtnPopupDelayMs": {
@@ -1413,6 +1413,7 @@
   },
   "userSettings:EnableTextCommand": {
     "keywords": [
+      "文本指令",
       "文本命令",
       "text command",
       "命令词",
@@ -1423,7 +1424,7 @@
       "command"
     ],
     "snippet": "Quicker setting EnableTextCommand",
-    "title": "启用文本命令",
+    "title": "启用文本指令",
     "pageId": "TextCommandSettingPage"
   },
   "userSettings:TextCommandTriggerAfterDelimiter": {
@@ -2083,7 +2084,7 @@
     ],
     "snippet": "Quicker setting DefaultBrowser",
     "title": "默认浏览器",
-    "pageId": "AppSettings"
+    "pageId": "BasicInfo"
   },
   "userSettings:EnableBrowserContextMenu": {
     "keywords": [
@@ -2131,6 +2132,7 @@
   },
   "userSettings:EnableLeftButtonPlus": {
     "keywords": [
+      "左键辅助",
       "左键增强",
       "左键+",
       "left button plus",
@@ -2142,7 +2144,7 @@
       "plus"
     ],
     "snippet": "Quicker setting EnableLeftButtonPlus",
-    "title": "启用左键增强",
+    "title": "启用左键辅助",
     "pageId": "LeftButtonPlusSettingPage"
   },
   "userSettings:LeftButtonLongPressExpireTime": {
@@ -2867,7 +2869,8 @@
       "actions"
     ],
     "snippet": "Quicker setting SkipConfirmationWhenBatchUpdateActions",
-    "title": "批量更新动作时跳过确认"
+    "title": "批量更新动作时跳过确认",
+    "pageId": "UpdateActionsPage"
   },
   "exeSettings:Exe": {
     "keywords": [
@@ -3042,6 +3045,7 @@
   },
   "userSettings:EnableGesture": {
     "keywords": [
+      "鼠标手势",
       "手势",
       "mouse gesture",
       "划动",
@@ -3051,7 +3055,7 @@
       "gesture"
     ],
     "snippet": "Quicker setting EnableGesture",
-    "title": "启用手势",
+    "title": "启用鼠标手势",
     "pageId": "GesturesSettingPage"
   },
   "userSettings:OpenPopupWithMiddleClick": {
@@ -3069,7 +3073,8 @@
       "click"
     ],
     "snippet": "鼠标中键点击时弹出 Quicker 面板",
-    "title": "中键弹出面板"
+    "title": "中键弹出面板",
+    "pageId": "PanelPopupSettings"
   },
   "userSettings:OpenPopupWithRightPressMove": {
     "keywords": [
@@ -3086,178 +3091,268 @@
       "move"
     ],
     "snippet": "Quicker setting OpenPopupWithRightPressMove",
-    "title": "右键移动弹出面板"
+    "title": "右键移动弹出面板",
+    "pageId": "PanelPopupSettings"
   },
   "page:BasicInfo": {
-    "title": "常规",
+    "title": "常规选项设置",
     "keywords": [
+      "常规",
+      "常规选项设置",
+      "常规选项",
+      "基本选项",
+      "general",
+      "基本信息",
       "basic",
       "info"
     ],
-    "snippet": "Quicker settings page: BasicInfo",
+    "snippet": "常规选项设置",
     "pageId": "BasicInfo",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "general",
+      "app-settings",
+      "常规",
+      "常规设置",
+      "基本选项"
+    ]
   },
   "page:PanelPopupSettings": {
     "title": "弹出面板",
     "keywords": [
+      "弹出面板",
+      "面板窗口的触发方式",
+      "中键弹出",
+      "面板弹出",
       "panel",
       "popup",
       "settings"
     ],
-    "snippet": "Quicker settings page: PanelPopupSettings",
+    "snippet": "面板窗口的触发方式",
     "pageId": "PanelPopupSettings",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "panel-popup",
+      "弹出面板"
+    ]
   },
   "page:PanelTriggerKeySettings": {
     "title": "动作触发按键",
     "keywords": [
+      "动作触发按键",
+      "键盘方式弹出后，使用按键触发动作",
+      "键盘方式弹出后",
+      "使用按键触发动作",
       "panel",
       "trigger",
       "key",
       "settings"
     ],
-    "snippet": "Quicker settings page: PanelTriggerKeySettings",
+    "snippet": "键盘方式弹出后，使用按键触发动作",
     "pageId": "PanelTriggerKeySettings",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:FunctionHotkeys": {
     "title": "功能快捷键",
     "keywords": [
+      "功能快捷键",
+      "设置用于控制Quicker功能的快捷键",
       "function",
       "hotkeys"
     ],
-    "snippet": "Quicker settings page: FunctionHotkeys",
+    "snippet": "设置用于控制Quicker功能的快捷键",
     "pageId": "FunctionHotkeys",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "hotkeys",
+      "功能快捷键",
+      "快捷键"
+    ]
   },
   "page:BlackListSettings": {
-    "title": "黑名单",
+    "title": "黑名单应用",
     "keywords": [
-      "黑名单",
+      "黑名单应用",
+      "设定需要禁用Quicker的软件",
       "blacklist",
       "排除进程",
       "black",
       "list",
       "settings"
     ],
-    "snippet": "Quicker settings page: BlackListSettings",
+    "snippet": "设定需要禁用Quicker的软件",
     "pageId": "BlackListSettings",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "blacklist",
+      "黑名单"
+    ]
   },
   "page:UISettingsPage": {
-    "title": "界面设置",
+    "title": "面板窗口外观",
     "keywords": [
+      "面板窗口",
+      "面板窗口外观",
+      "外观设置",
+      "外观",
       "界面",
       "UI",
       "主题",
-      "外观",
       "深色模式",
+      "界面设置",
       "uisettings",
       "page"
     ],
-    "snippet": "Quicker settings page: UISettingsPage",
+    "snippet": "外观设置",
     "pageId": "UISettingsPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "ui",
+      "ui-settings",
+      "界面",
+      "面板窗口"
+    ]
   },
   "page:BlockOptions": {
     "title": "组合动作模块选项",
     "keywords": [
+      "组合动作模块选项",
       "block",
       "options"
     ],
-    "snippet": "Quicker settings page: BlockOptions",
+    "snippet": "组合动作模块选项",
     "pageId": "BlockOptions",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:ActionDesignerSettingsPage": {
     "title": "动作设计相关选项",
     "keywords": [
+      "动作设计相关选项",
+      "动作设计",
+      "动作设计选项",
       "action",
       "designer",
       "settings",
       "page"
     ],
-    "snippet": "Quicker settings page: ActionDesignerSettingsPage",
+    "snippet": "动作设计选项",
     "pageId": "ActionDesignerSettingsPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "action-designer",
+      "动作编辑器",
+      "动作设计"
+    ]
   },
   "page:HelperFunctionsSettingPage": {
     "title": "常用辅助功能",
     "keywords": [
+      "常用辅助功能",
+      "常用辅助功能开关",
       "helper",
       "functions",
       "setting",
       "page"
     ],
-    "snippet": "Quicker settings page: HelperFunctionsSettingPage",
+    "snippet": "常用辅助功能开关",
     "pageId": "HelperFunctionsSettingPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:AboutSettingPage": {
     "title": "关于Quicker",
     "keywords": [
+      "关于Quicker",
+      "基本信息",
       "about",
       "setting",
       "page"
     ],
-    "snippet": "Quicker settings page: AboutSettingPage",
+    "snippet": "基本信息",
     "pageId": "AboutSettingPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "about",
+      "关于",
+      "about-quicker"
+    ]
   },
   "page:PrivacyPolicy": {
     "title": "隐私声明",
     "keywords": [
+      "隐私声明",
       "privacy",
       "policy"
     ],
-    "snippet": "Quicker settings page: PrivacyPolicy",
+    "snippet": "隐私声明",
     "pageId": "PrivacyPolicy",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:UsageStatisticsInfoPage": {
     "title": "用量统计",
     "keywords": [
+      "用量统计",
       "usage",
       "statistics",
       "info",
       "page"
     ],
-    "snippet": "Quicker settings page: UsageStatisticsInfoPage",
+    "snippet": "用量统计",
     "pageId": "UsageStatisticsInfoPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:CircleMenuSettingPage": {
-    "title": "圆圈菜单设置",
+    "title": "轮盘菜单设置",
     "keywords": [
+      "轮盘菜单设置",
+      "轮盘菜单",
+      "轮盘菜单功能和外观设置",
+      "轮盘菜单功能和外观",
       "圆圈菜单",
-      "轮盘",
       "circle menu",
       "圆形菜单",
+      "轮盘",
       "circle",
       "menu",
       "setting",
       "page"
     ],
-    "snippet": "Quicker settings page: CircleMenuSettingPage",
+    "snippet": "轮盘菜单功能和外观设置",
     "pageId": "CircleMenuSettingPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "circle-menu",
+      "轮盘菜单",
+      "轮盘",
+      "圆圈菜单"
+    ]
   },
   "page:CircleMenuManagePage": {
     "title": "轮盘动作管理",
     "keywords": [
+      "轮盘动作管理",
+      "轮盘动作",
+      "轮盘菜单操作触发管理",
+      "轮盘菜单操作触发",
       "circle",
       "menu",
       "manage",
       "page"
     ],
-    "snippet": "Quicker settings page: CircleMenuManagePage",
+    "snippet": "轮盘菜单操作触发管理",
     "pageId": "CircleMenuManagePage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:GesturesSettingPage": {
-    "title": "手势设置",
+    "title": "鼠标手势设置",
     "keywords": [
+      "鼠标手势设置",
+      "鼠标手势",
       "手势",
       "mouse gesture",
       "划动",
@@ -3265,73 +3360,112 @@
       "setting",
       "page"
     ],
-    "snippet": "Quicker settings page: GesturesSettingPage",
+    "snippet": "鼠标手势",
     "pageId": "GesturesSettingPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "gestures",
+      "手势",
+      "鼠标手势"
+    ]
   },
   "page:GesturesManagePage": {
     "title": "手势管理",
     "keywords": [
+      "手势管理",
+      "手势",
+      "鼠标手势管理",
+      "鼠标手势",
       "gestures",
       "manage",
       "page"
     ],
-    "snippet": "Quicker settings page: GesturesManagePage",
+    "snippet": "鼠标手势管理",
     "pageId": "GesturesManagePage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:LeftButtonPlusSettingPage": {
     "title": "左键辅助",
     "keywords": [
+      "左键辅助",
+      "左键增强",
+      "left button plus",
       "left",
       "button",
       "plus",
       "setting",
       "page"
     ],
-    "snippet": "Quicker settings page: LeftButtonPlusSettingPage",
+    "snippet": "左键辅助",
     "pageId": "LeftButtonPlusSettingPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "left-button-plus",
+      "左键辅助",
+      "左键增强"
+    ]
   },
   "page:ActionHotkeysSettingPage": {
     "title": "动作快捷键",
     "keywords": [
+      "动作快捷键",
       "action",
       "hotkeys",
       "setting",
       "page"
     ],
-    "snippet": "Quicker settings page: ActionHotkeysSettingPage",
+    "snippet": "动作快捷键",
     "pageId": "ActionHotkeysSettingPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "action-hotkeys",
+      "动作快捷键"
+    ]
   },
   "page:HotkeyWatcherSettingsPage": {
     "title": "热键联动",
     "keywords": [
+      "热键联动",
+      "当在某个软件中使用快捷键时，也同时触发quicker中的一个操作。",
+      "当在某个软件中使用快捷键时",
+      "也同时触发quicker中的一个操作。",
       "hotkey",
       "watcher",
       "settings",
       "page"
     ],
-    "snippet": "Quicker settings page: HotkeyWatcherSettingsPage",
+    "snippet": "当在某个软件中使用快捷键时，也同时触发quicker中的一个操作。",
     "pageId": "HotkeyWatcherSettingsPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "hotkey-watcher",
+      "热键联动"
+    ]
   },
   "page:PowerKeysManagementPage": {
-    "title": "扩展热键",
+    "title": "扩展热键管理",
     "keywords": [
+      "扩展热键",
+      "扩展热键管理",
+      "普通按键组合",
       "power",
       "keys",
       "management",
       "page"
     ],
-    "snippet": "Quicker settings page: PowerKeysManagementPage",
+    "snippet": "普通按键组合",
     "pageId": "PowerKeysManagementPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:PowerKeysSettingsPage": {
-    "title": "高级按键",
+    "title": "扩展热键设置",
     "keywords": [
+      "扩展热键参数设置",
+      "扩展热键",
+      "扩展热键设置",
+      "普通按键组合",
       "高级按键",
       "power keys",
       "按键增强",
@@ -3340,224 +3474,316 @@
       "settings",
       "page"
     ],
-    "snippet": "Quicker settings page: PowerKeysSettingsPage",
+    "snippet": "普通按键组合",
     "pageId": "PowerKeysSettingsPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "power-keys",
+      "扩展热键",
+      "高级按键"
+    ]
   },
   "page:KeyActionManagePage": {
     "title": "按键双击",
     "keywords": [
+      "按键双击",
+      "设置按键双击触发",
       "key",
       "action",
       "manage",
       "page"
     ],
-    "snippet": "Quicker settings page: KeyActionManagePage",
+    "snippet": "设置按键双击触发",
     "pageId": "KeyActionManagePage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:TextCommandManagePage": {
     "title": "文本指令管理",
     "keywords": [
+      "文本指令管理",
+      "文本指令",
       "text",
       "command",
       "manage",
       "page"
     ],
-    "snippet": "Quicker settings page: TextCommandManagePage",
+    "snippet": "文本指令管理",
     "pageId": "TextCommandManagePage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:TextCommandSettingPage": {
-    "title": "文本命令",
+    "title": "文本指令参数设置",
     "keywords": [
+      "文本指令参数设置",
+      "文本指令",
       "文本命令",
-      "命令词",
       "text command",
+      "命令词",
       "text",
       "command",
       "setting",
       "page"
     ],
-    "snippet": "Quicker settings page: TextCommandSettingPage",
+    "snippet": "文本指令参数设置",
     "pageId": "TextCommandSettingPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "text-command",
+      "文本命令",
+      "文本指令"
+    ]
   },
   "page:SearchSettings": {
-    "title": "搜索设置",
+    "title": "搜索功能设置",
     "keywords": [
+      "搜索功能设置",
       "搜索",
+      "搜索框功能设置",
+      "搜索框",
       "search",
       "启动器搜索",
       "settings"
     ],
-    "snippet": "Quicker settings page: SearchSettings",
+    "snippet": "搜索框功能设置",
     "pageId": "SearchSettings",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "search-settings",
+      "搜索设置"
+    ]
   },
   "page:ContextMenuGeneralSettings": {
     "title": "上下文菜单基本参数设置",
     "keywords": [
+      "上下文菜单基本参数设置",
+      "上下文菜单基本",
+      "上下文菜单的触发等基本参数设置",
+      "上下文菜单的触发等基本",
       "context",
       "menu",
       "general",
       "settings"
     ],
-    "snippet": "Quicker settings page: ContextMenuGeneralSettings",
+    "snippet": "上下文菜单的触发等基本参数设置",
     "pageId": "ContextMenuGeneralSettings",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "context-menu",
+      "上下文菜单"
+    ]
   },
   "page:TextContextMenuSettings": {
     "title": "文本上下文菜单",
     "keywords": [
+      "文本上下文菜单",
+      "文本内容的上下文菜单",
       "text",
       "context",
       "menu",
       "settings"
     ],
-    "snippet": "Quicker settings page: TextContextMenuSettings",
+    "snippet": "文本内容的上下文菜单",
     "pageId": "TextContextMenuSettings",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:ImageContextMenuSettings": {
     "title": "图片上下文菜单",
     "keywords": [
+      "图片上下文菜单",
+      "图片内容的上下文菜单",
       "image",
       "context",
       "menu",
       "settings"
     ],
-    "snippet": "Quicker settings page: ImageContextMenuSettings",
+    "snippet": "图片内容的上下文菜单",
     "pageId": "ImageContextMenuSettings",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:FileContextMenuSettings": {
     "title": "文件上下文菜单",
     "keywords": [
+      "文件上下文菜单",
+      "文件内容的上下文菜单",
       "file",
       "context",
       "menu",
       "settings"
     ],
-    "snippet": "Quicker settings page: FileContextMenuSettings",
+    "snippet": "文件内容的上下文菜单",
     "pageId": "FileContextMenuSettings",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:AutoRunActions": {
     "title": "自动运行动作",
     "keywords": [
+      "自动运行动作",
+      "启动后或定时运行动作",
       "auto",
       "run",
       "actions"
     ],
-    "snippet": "Quicker settings page: AutoRunActions",
+    "snippet": "启动后或定时运行动作",
     "pageId": "AutoRunActions",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "auto-run",
+      "自动运行",
+      "自动运行动作"
+    ]
   },
   "page:EventTriggerSettingsPage": {
     "title": "事件触发",
     "keywords": [
+      "事件触发",
+      "事件发生后自动运行动作",
       "event",
       "trigger",
       "settings",
       "page"
     ],
-    "snippet": "Quicker settings page: EventTriggerSettingsPage",
+    "snippet": "事件发生后自动运行动作",
     "pageId": "EventTriggerSettingsPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "event-trigger",
+      "事件触发"
+    ]
   },
   "page:MouseActionManagePage": {
     "title": "高级鼠标触发",
     "keywords": [
+      "高级鼠标触发",
       "mouse",
       "action",
       "manage",
       "page"
     ],
-    "snippet": "Quicker settings page: MouseActionManagePage",
+    "snippet": "高级鼠标触发",
     "pageId": "MouseActionManagePage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:BasicTriggers": {
     "title": "按键触发",
     "keywords": [
+      "按键触发",
+      "常规的鼠标按键触发设置",
+      "常规的鼠标按键触发",
       "basic",
       "triggers"
     ],
-    "snippet": "Quicker settings page: BasicTriggers",
+    "snippet": "常规的鼠标按键触发设置",
     "pageId": "BasicTriggers",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:QuickCaptureSettings": {
     "title": "快速截图",
     "keywords": [
+      "快速截图",
+      "设置快速截图功能",
       "quick",
       "capture",
       "settings"
     ],
-    "snippet": "Quicker settings page: QuickCaptureSettings",
+    "snippet": "设置快速截图功能",
     "pageId": "QuickCaptureSettings",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:AppSettings": {
-    "title": "基本选项",
+    "title": "App连接与WebSocket服务",
     "keywords": [
-      "基本选项",
-      "常规",
-      "general",
-      "应用设置",
+      "App连接与WebSocket服务",
+      "设置手机APP连接与WebSocket服务选项",
+      "websocket",
+      "app 连接",
+      "app连接",
       "app",
       "settings"
     ],
-    "snippet": "Quicker settings page: AppSettings",
+    "snippet": "设置手机APP连接与WebSocket服务选项",
     "pageId": "AppSettings",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "app-settings",
+      "websocket"
+    ]
   },
   "page:BasicToolsSettingPage": {
     "title": "工具",
     "keywords": [
+      "工具",
       "basic",
       "tools",
       "setting",
       "page"
     ],
-    "snippet": "Quicker settings page: BasicToolsSettingPage",
+    "snippet": "工具",
     "pageId": "BasicToolsSettingPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": []
   },
   "page:SyncSettingPage": {
     "title": "数据同步",
     "keywords": [
+      "数据同步",
       "sync",
       "setting",
       "page"
     ],
-    "snippet": "Quicker settings page: SyncSettingPage",
+    "snippet": "数据同步",
     "pageId": "SyncSettingPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "sync",
+      "同步",
+      "数据同步"
+    ]
   },
   "page:UpdateActionsPage": {
     "title": "批量更新动作",
     "keywords": [
+      "批量更新动作",
       "update",
       "actions",
       "page"
     ],
-    "snippet": "Quicker settings page: UpdateActionsPage",
+    "snippet": "批量更新动作",
     "pageId": "UpdateActionsPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "update-actions",
+      "批量更新",
+      "批量更新动作"
+    ]
   },
   "page:ActionRecycleBinSettingPage": {
     "title": "动作回收站",
     "keywords": [
+      "动作回收站",
+      "回收站",
+      "action recycle",
+      "recycle bin",
       "action",
       "recycle",
       "bin",
       "setting",
       "page"
     ],
-    "snippet": "Quicker settings page: ActionRecycleBinSettingPage",
+    "snippet": "动作回收站",
     "pageId": "ActionRecycleBinSettingPage",
-    "kind": "page"
+    "kind": "page",
+    "openAliases": [
+      "recycle-bin",
+      "action-recycle-bin",
+      "回收站"
+    ]
   }
 }

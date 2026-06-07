@@ -7,20 +7,14 @@ import {
   hideAppUpdateOverlaySlice,
   patchAppUpdateOverlay,
   patchVoiceUpdateOverlay,
-  showApplyingAppUpdateOverlay,
   type AppUpdateOverlaySlice,
 } from "@/lib/app-update-overlay";
-import {
-  resetAppUpdateApply,
-  tryBeginAppUpdateApply,
-} from "@/lib/app-update-apply-guard";
+import { resetAppUpdateApply } from "@/lib/app-update-apply-guard";
+import { setAppInstalledVersion } from "@/lib/app-exit-overlay";
 import {
   checkOfficialQuickerAgentUpdate,
   clearPendingOfficialUpdate,
   downloadPendingOfficialUpdate,
-  getPendingOfficialUpdate,
-  installPendingOfficialUpdateOnExit,
-  isPendingOfficialUpdateDownloaded,
   type OfficialUpdateProgress,
 } from "@/lib/quicker-agent-official-updater";
 import { checkQuickerAgentUpdate } from "@/lib/quicker-agent-update";
@@ -100,16 +94,12 @@ function syncAppOverlayFromOfficialProgress(event: OfficialUpdateProgress): void
 export function QuickerAgentUpdateChecker() {
   const startedRef = useRef(false);
   const voiceRuntimeUpgradeRef = useRef(false);
-  const exitApplyTriggeredRef = useRef(false);
-  const installedVersionRef = useRef("");
-
   useEffect(() => {
     if (startedRef.current || !isTauriShell()) return;
     startedRef.current = true;
 
     const controller = new AbortController();
     let unlistenVoice: (() => void) | undefined;
-    let unlistenClose: (() => void) | undefined;
 
     const handleVoiceProgress = (event: VoiceInstallProgressEvent): void => {
       if (event.message.includes("准备更新语音识别服务")) {
@@ -145,49 +135,6 @@ export function QuickerAgentUpdateChecker() {
       });
     };
 
-    const registerCloseHandler = async (): Promise<void> => {
-      if (process.env.NODE_ENV === "development") return;
-      try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        const win = getCurrentWindow();
-        unlistenClose = await win.onCloseRequested(async (event) => {
-          if (exitApplyTriggeredRef.current) return;
-          if (!isPendingOfficialUpdateDownloaded()) return;
-
-          const update = getPendingOfficialUpdate();
-          if (!update) return;
-          if (!tryBeginAppUpdateApply()) return;
-
-          event.preventDefault();
-          exitApplyTriggeredRef.current = true;
-          showApplyingAppUpdateOverlay(installedVersionRef.current, update.version);
-          try {
-            await Promise.race([
-              installPendingOfficialUpdateOnExit(),
-              new Promise<never>((_, reject) => {
-                window.setTimeout(
-                  () => reject(new Error("更新安装超时，请从托盘菜单退出后手动安装")),
-                  120_000,
-                );
-              }),
-            ]);
-          } catch {
-            exitApplyTriggeredRef.current = false;
-            resetAppUpdateApply();
-            patchAppAndSyncToast({
-              phase: "ready",
-              remoteVersion: update.version,
-              percent: 100,
-              message: "更新已就绪，可立即安装并重启",
-              error: null,
-            });
-          }
-        });
-      } catch {
-        // Ignore when window API is unavailable.
-      }
-    };
-
     void (async () => {
       try {
         const { getVersion } = await import("@tauri-apps/api/app");
@@ -213,7 +160,7 @@ export function QuickerAgentUpdateChecker() {
         unlistenVoice = await listenVoicePluginInstallProgress(handleVoiceProgress);
 
         const installedVersion = (await getVersion()).trim();
-        installedVersionRef.current = installedVersion;
+        setAppInstalledVersion(installedVersion);
 
         patchAppAndSyncToast({
           phase: "checking",
@@ -234,7 +181,6 @@ export function QuickerAgentUpdateChecker() {
             message: "",
             error: null,
           });
-          await registerCloseHandler();
           return;
         }
 
@@ -260,7 +206,6 @@ export function QuickerAgentUpdateChecker() {
           error: null,
         });
 
-        await registerCloseHandler();
       } catch (err) {
         clearPendingOfficialUpdate();
         resetAppUpdateApply();
@@ -276,7 +221,6 @@ export function QuickerAgentUpdateChecker() {
     return () => {
       controller.abort();
       void unlistenVoice?.();
-      void unlistenClose?.();
     };
   }, []);
 

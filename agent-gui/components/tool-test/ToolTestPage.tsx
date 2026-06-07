@@ -44,6 +44,13 @@ import type { TitleTestRunEntry } from "@/lib/tool-test-title-runs";
 import { ToolTestAutoFixPanel } from "@/components/tool-test/ToolTestAutoFixPanel";
 import { ToolTestAutoFixResultPane } from "@/components/tool-test/ToolTestAutoFixResultPane";
 import {
+  ToolTestLauncherPanel,
+  type ToolTestLauncherSubTab,
+} from "@/components/tool-test/ToolTestLauncherPanel";
+import { ToolTestLauncherResultPane } from "@/components/tool-test/ToolTestLauncherResultPane";
+import { ToolTestActionTracePanel } from "@/components/tool-test/ToolTestActionTracePanel";
+import { ToolTestActionTraceMain } from "@/components/tool-test/ToolTestActionTraceMain";
+import {
   ToolTestPromptChatPane,
   ToolTestPromptChatProvider,
   ToolTestPromptChatSidebar,
@@ -52,9 +59,12 @@ import { ToolTestSuiteResultPane } from "@/components/tool-test/ToolTestSuiteRes
 import type { ToolSuiteRunEntry } from "@/lib/tool-test-suite-runs";
 import { createToolSuiteRunId } from "@/lib/tool-test-suite-runs";
 import type { AutoFixRunEntry } from "@/lib/tool-test-autofix-runs";
+import type { SettingsIntentRunEntry } from "@/lib/quicker-settings-intent-runs";
+import type { LauncherAgentRunEntry } from "@/lib/tool-test-launcher-agent-runs";
+import type { LauncherResolveRunEntry } from "@/lib/tool-test-launcher-resolve-runs";
 import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 
-type ToolTestSidebarTab = "tools" | "prompt" | "prompt-chat" | "auto-fix";
+type ToolTestSidebarTab = "tools" | "prompt" | "prompt-chat" | "auto-fix" | "launcher" | "action-trace";
 
 type StepInputOverrides = Record<string, string>;
 
@@ -191,6 +201,10 @@ export function ToolTestPage() {
   const [sidebarTab, setSidebarTab] = useState<ToolTestSidebarTab>("prompt-chat");
   const [titleTestRuns, setTitleTestRuns] = useState<TitleTestRunEntry[]>([]);
   const [autoFixRuns, setAutoFixRuns] = useState<AutoFixRunEntry[]>([]);
+  const [launcherSubTab, setLauncherSubTab] = useState<ToolTestLauncherSubTab>("agent");
+  const [launcherAgentRuns, setLauncherAgentRuns] = useState<LauncherAgentRunEntry[]>([]);
+  const [launcherResolveRuns, setLauncherResolveRuns] = useState<LauncherResolveRunEntry[]>([]);
+  const [settingsIntentRuns, setSettingsIntentRuns] = useState<SettingsIntentRunEntry[]>([]);
   const [detailSuite, setDetailSuite] = useState<ToolTestSuite | null>(null);
   const [voiceInstallBusy, setVoiceInstallBusy] = useState(false);
 
@@ -236,6 +250,57 @@ export function ToolTestPage() {
 
   const clearAutoFixRuns = useCallback(() => {
     setAutoFixRuns([]);
+  }, []);
+
+  const appendSettingsIntentRun = useCallback((entry: SettingsIntentRunEntry) => {
+    setSettingsIntentRuns((prev) => [...prev, entry]);
+  }, []);
+
+  const patchSettingsIntentRun = useCallback(
+    (id: string, patch: Partial<SettingsIntentRunEntry>) => {
+      setSettingsIntentRuns((prev) =>
+        prev.map((run) => (run.id === id ? { ...run, ...patch } : run)),
+      );
+    },
+    [],
+  );
+
+  const clearSettingsIntentRuns = useCallback(() => {
+    setSettingsIntentRuns([]);
+  }, []);
+
+  const appendLauncherAgentRun = useCallback((entry: LauncherAgentRunEntry) => {
+    setLauncherAgentRuns((prev) => [...prev, entry]);
+  }, []);
+
+  const patchLauncherAgentRun = useCallback(
+    (id: string, patch: Partial<LauncherAgentRunEntry>) => {
+      setLauncherAgentRuns((prev) =>
+        prev.map((run) => (run.id === id ? { ...run, ...patch } : run)),
+      );
+    },
+    [],
+  );
+
+  const clearLauncherAgentRuns = useCallback(() => {
+    setLauncherAgentRuns([]);
+  }, []);
+
+  const appendLauncherResolveRun = useCallback((entry: LauncherResolveRunEntry) => {
+    setLauncherResolveRuns((prev) => [...prev, entry]);
+  }, []);
+
+  const patchLauncherResolveRun = useCallback(
+    (id: string, patch: Partial<LauncherResolveRunEntry>) => {
+      setLauncherResolveRuns((prev) =>
+        prev.map((run) => (run.id === id ? { ...run, ...patch } : run)),
+      );
+    },
+    [],
+  );
+
+  const clearLauncherResolveRuns = useCallback(() => {
+    setLauncherResolveRuns([]);
   }, []);
 
   const pingLabel = useMemo(() => {
@@ -472,6 +537,26 @@ export function ToolTestPage() {
       <button
         type="button"
         role="tab"
+        aria-selected={sidebarTab === "launcher"}
+        className={`tool-test-sidebar-tabs__btn${sidebarTab === "launcher" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
+        onClick={() => setSidebarTab("launcher")}
+        title="启动器：Agent / Resolve / Intent"
+      >
+        启动器
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={sidebarTab === "action-trace"}
+        className={`tool-test-sidebar-tabs__btn${sidebarTab === "action-trace" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
+        onClick={() => setSidebarTab("action-trace")}
+        title="Action trace 流式调试"
+      >
+        Trace
+      </button>
+      <button
+        type="button"
+        role="tab"
         aria-selected={sidebarTab === "auto-fix"}
         className={`tool-test-sidebar-tabs__btn${sidebarTab === "auto-fix" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
         onClick={() => setSidebarTab("auto-fix")}
@@ -513,6 +598,21 @@ export function ToolTestPage() {
       />
     ) : sidebarTab === "prompt-chat" ? (
       <ToolTestPromptChatSidebar disabled={panelDisabled} />
+    ) : sidebarTab === "launcher" ? (
+      <ToolTestLauncherPanel
+        subTab={launcherSubTab}
+        onSubTabChange={setLauncherSubTab}
+        disabled={panelDisabled}
+        workingDirectory={workingDirectory}
+        onAppendAgentRun={appendLauncherAgentRun}
+        onPatchAgentRun={patchLauncherAgentRun}
+        onAppendResolveRun={appendLauncherResolveRun}
+        onPatchResolveRun={patchLauncherResolveRun}
+        onAppendIntentRun={appendSettingsIntentRun}
+        onPatchIntentRun={patchSettingsIntentRun}
+      />
+    ) : sidebarTab === "action-trace" ? (
+      <ToolTestActionTracePanel disabled={panelDisabled} />
     ) : (
       <ToolTestAutoFixPanel
         disabled={panelDisabled}
@@ -540,6 +640,22 @@ export function ToolTestPage() {
       <ToolTestPromptChatPane
         workingDirectory={workingDirectory}
         keepToolBatchesExpanded={keepToolBatchesExpanded}
+      />
+    ) : sidebarTab === "launcher" ? (
+      <ToolTestLauncherResultPane
+        subTab={launcherSubTab}
+        agentRuns={launcherAgentRuns}
+        resolveRuns={launcherResolveRuns}
+        intentRuns={settingsIntentRuns}
+        workingDirectory={workingDirectory}
+        onClearAgentRuns={clearLauncherAgentRuns}
+        onClearResolveRuns={clearLauncherResolveRuns}
+        onClearIntentRuns={clearSettingsIntentRuns}
+      />
+    ) : sidebarTab === "action-trace" ? (
+      <ToolTestActionTraceMain
+        className="tool-test-action-trace-main"
+        pingOk={ping.status === "ok"}
       />
     ) : (
       <ToolTestAutoFixResultPane

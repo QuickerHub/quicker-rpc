@@ -7,7 +7,7 @@ namespace QuickerRpc.Console;
 /// <summary>Shared JSON options for qkrpc CLI stdout.</summary>
 internal static class QkrpcJson
 {
-    /// <summary>Emit UTF-8 Chinese as literal characters (not \uXXXX). Requires console UTF-8 (see Program.ConfigureConsoleUtf8).</summary>
+    /// <summary>Emit UTF-8 Chinese as literal characters (not \uXXXX). Requires console UTF-8 (see QkrpcConsoleUtf8.Initialize).</summary>
     public static readonly JsonSerializerOptions CliOutput = new()
     {
         WriteIndented = false,

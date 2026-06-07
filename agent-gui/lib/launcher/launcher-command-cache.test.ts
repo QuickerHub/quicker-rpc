@@ -54,12 +54,23 @@ describe("matchLauncherCommandCacheEntries", () => {
 });
 
 describe("findDirectLauncherCacheMatch", () => {
-  it("matches exact trigger only", () => {
+  it("matches exact and high-confidence near phrases", () => {
     assert.equal(
       findDirectLauncherCacheMatch("打开动作回收站", [recycleBinEntry])?.id,
       "test-recycle",
     );
-    assert.equal(findDirectLauncherCacheMatch("请打开动作回收站", [recycleBinEntry]), undefined);
+    assert.equal(
+      findDirectLauncherCacheMatch("请打开动作回收站", [recycleBinEntry])?.id,
+      "test-recycle",
+    );
+    assert.equal(
+      findDirectLauncherCacheMatch("帮我打开动作回收站", [recycleBinEntry])?.id,
+      "test-recycle",
+    );
+  });
+
+  it("rejects low-confidence matches", () => {
+    assert.equal(findDirectLauncherCacheMatch("运行剪贴板动作", [recycleBinEntry]), undefined);
   });
 });
 

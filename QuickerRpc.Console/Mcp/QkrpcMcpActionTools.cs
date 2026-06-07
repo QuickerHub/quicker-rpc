@@ -47,6 +47,7 @@ public sealed class QkrpcMcpActionTools
         string? param = null,
         bool wait = false,
         bool debug = false,
+        bool trace = false,
         string? profile = null,
         int? row = null,
         int? col = null,
@@ -293,6 +294,7 @@ public sealed class QkrpcMcpActionTools
                         param,
                         wait,
                         debug,
+                        trace,
                     }),
                     cancellationToken).ConfigureAwait(false);
             case "move":

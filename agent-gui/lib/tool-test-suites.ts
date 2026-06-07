@@ -209,6 +209,37 @@ export const TOOL_TEST_SUITES: ToolTestSuite[] = [
     ],
   },
   {
+    id: "settings-search",
+    title: "Quicker 设置搜索",
+    description: "quicker_settings search/list — 关键词命中设置项与设置页",
+    steps: [
+      {
+        id: "search-recycle",
+        label: "动作回收站",
+        toolName: "quicker_settings",
+        input: { action: "search", query: "动作回收站", limit: 5 },
+      },
+      {
+        id: "search-circle-menu",
+        label: "圆圈菜单",
+        toolName: "quicker_settings",
+        input: { action: "search", query: "圆圈菜单", limit: 5 },
+      },
+      {
+        id: "search-hotkeys",
+        label: "功能快捷键",
+        toolName: "quicker_settings",
+        input: { action: "search", query: "快捷键", limit: 8 },
+      },
+      {
+        id: "settings-links",
+        label: "直链列表",
+        toolName: "quicker_settings",
+        input: { action: "links" },
+      },
+    ],
+  },
+  {
     id: "dev-check",
     title: "前端检查",
     description: "dev_frontend_check（开发模式）",

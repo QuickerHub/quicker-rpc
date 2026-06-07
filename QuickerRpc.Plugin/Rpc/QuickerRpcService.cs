@@ -28,6 +28,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly ActionCreateService _actionCreateService;
     private readonly ActionEditService _actionEditService;
     private readonly ActionRunService _actionRunService;
+    private readonly XActionTraceRunService _xActionTraceRunService;
     private readonly ActionFloatService _actionFloatService;
     private readonly HeadlessVariableEditService _headlessVariableEditService;
     private readonly HeadlessActionProgramService _headlessActionProgramService;
@@ -37,6 +38,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly ExpressionExecuteService _expressionExecuteService;
     private readonly QuickerSettingsService _settingsService;
     private readonly QuickerSettingsUiService _settingsUiService;
+    private readonly LauncherResolveService _launcherResolveService;
     private readonly IPopupMessageService _popup;
 
     public QuickerRpcService(
@@ -51,6 +53,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         ActionCreateService actionCreateService,
         ActionEditService actionEditService,
         ActionRunService actionRunService,
+        XActionTraceRunService xActionTraceRunService,
         ActionFloatService actionFloatService,
         HeadlessVariableEditService headlessVariableEditService,
         HeadlessActionProgramService headlessActionProgramService,
@@ -60,6 +63,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         ExpressionExecuteService expressionExecuteService,
         QuickerSettingsService settingsService,
         QuickerSettingsUiService settingsUiService,
+        LauncherResolveService launcherResolveService,
         IPopupMessageService popup)
     {
         _actionPublishService = actionPublishService;
@@ -73,6 +77,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _actionCreateService = actionCreateService;
         _actionEditService = actionEditService;
         _actionRunService = actionRunService;
+        _xActionTraceRunService = xActionTraceRunService;
         _actionFloatService = actionFloatService;
         _headlessVariableEditService = headlessVariableEditService;
         _headlessActionProgramService = headlessActionProgramService;
@@ -82,6 +87,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _expressionExecuteService = expressionExecuteService;
         _settingsService = settingsService;
         _settingsUiService = settingsUiService;
+        _launcherResolveService = launcherResolveService;
         _popup = popup;
     }
 
@@ -645,6 +651,31 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
+    public Task<QuickerRpcActionTraceRunResult> RunActionTraceAsync(
+        string actionId,
+        string? inputParam = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            return Task.FromResult(new QuickerRpcActionTraceRunResult
+            {
+                Ok = false,
+                Message = "actionId is required.",
+            });
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var streamCallbacks = QuickerRpcTraceSink.CurrentClientCallbacks;
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_xActionTraceRunService.RunAction(
+                actionId.Trim(),
+                inputParam,
+                streamCallbacks)),
+            cancellationToken);
+    }
+
     public Task<QuickerRpcFloatActionResult> FloatActionAsync(
         string actionId,
         CancellationToken cancellationToken = default)
@@ -997,6 +1028,42 @@ public sealed class QuickerRpcService : IQuickerRpcService
             QuickerDispatcherInvoke.OnUiThreadIfNeeded(
                 () => _settingsUiService.Open(target, query, settingKey, exeFile, searchText, preset))
             ?? new QuickerRpcOpenSettingsUiResult { Ok = false, Message = "Open settings UI unavailable." });
+    }
+
+    public Task<QuickerRpcResolveSettingsIntentResult> ResolveSettingsIntentAsync(
+        string? query = null,
+        string? settingKey = null,
+        string? preset = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(
+                () => _settingsUiService.ResolveIntent(query, settingKey, preset))
+            ?? new QuickerRpcResolveSettingsIntentResult
+            {
+                Ok = false,
+                Intent = "unknown",
+                Message = "Resolve settings intent unavailable.",
+            });
+    }
+
+    public Task<QuickerRpcResolveLauncherIntentResult> ResolveLauncherIntentAsync(
+        string query,
+        int maxResults = 12,
+        string? scopes = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(
+                () => _launcherResolveService.Resolve(query, maxResults, scopes))
+            ?? new QuickerRpcResolveLauncherIntentResult
+            {
+                Ok = false,
+                Query = query ?? string.Empty,
+                Message = "Resolve launcher intent unavailable.",
+            });
     }
 
     private static async Task<T> InvokeOnDispatcherAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)

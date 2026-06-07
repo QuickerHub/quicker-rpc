@@ -4,11 +4,9 @@ import { useCallback, useState } from "react";
 import { ActionIcon } from "@/components/chat/ActionIcon";
 import { FaIconProvider } from "@/components/chat/FaIconProvider";
 import type { ParsedActionLink } from "@/lib/action-link-markup";
-import {
-  ACTION_LINK_CARD_PROMPTS,
-  buildActionLinkCardPromptMessage,
-} from "@/lib/action-link-card-prompts";
+import { buildActionLinkCardPromptMessage } from "@/lib/action-link-card-prompts";
 import { ActionLinkCardDelete } from "@/components/chat/ActionLinkCardDelete";
+import { ActionLinkCardPromptMenu } from "@/components/chat/ActionLinkCardPromptMenu";
 import { executeActionLinkOp } from "@/lib/action-link-execute";
 import { formatActionIdShort } from "@/lib/action-patch-followup";
 import { useActionMetadata } from "@/lib/use-action-metadata";
@@ -83,13 +81,15 @@ export function ActionLinkCard({
       const message = buildActionLinkCardPromptMessage(promptId, {
         actionId,
         title: displayTitle,
+        param: runParam.trim() || undefined,
       });
       if (message) onInsertComposerPrompt(message);
     },
-    [actionId, cardBusy, displayTitle, onInsertComposerPrompt],
+    [actionId, cardBusy, displayTitle, onInsertComposerPrompt, runParam],
   );
 
   const showPrompts = Boolean(onInsertComposerPrompt);
+  const showDebugPrompt = showPrompts && showDebug;
 
   return (
     <article
@@ -122,47 +122,27 @@ export function ActionLinkCard({
               </code>
             )}
           </div>
+          {showPrompts ? (
+            <ActionLinkCardPromptMenu
+              disabled={cardBusy}
+              onSelectPrompt={insertPrompt}
+            />
+          ) : null}
         </header>
 
         <div className="action-link-card-main">
-          {showPrompts ? (
-            <div
-              className="action-link-card-prompts"
-              role="group"
-              aria-label="Agent 引导"
-            >
-              {ACTION_LINK_CARD_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt.id}
-                  type="button"
-                  className="action-link-card-prompt-btn"
-                  disabled={cardBusy}
-                  title={prompt.hint}
-                  onClick={() => insertPrompt(prompt.id)}
-                >
-                  <span className="action-link-card-prompt-btn__label">
-                    {prompt.label}
-                  </span>
-                  <span className="action-link-card-prompt-btn__hint">
-                    {prompt.hint}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-
           <div
             className={`action-link-card-toolbar${
-              showRun || showDebug ? " action-link-card-toolbar--with-run" : ""
+              showRun || showDebugPrompt ? " action-link-card-toolbar--with-run" : ""
             }`}
             role="group"
             aria-label="快捷操作"
           >
-        {showRun || showDebug ? (
+        {showRun || showDebugPrompt ? (
           <>
             <div
               className={`action-link-card-action-grid${
-                showRun && showDebug ? "" : " action-link-card-action-grid--single"
+                showRun && showDebugPrompt ? "" : " action-link-card-action-grid--single"
               }`}
               role="group"
               aria-label="运行"
@@ -178,13 +158,13 @@ export function ActionLinkCard({
                   {runLink?.label ?? "运行"}
                 </button>
               ) : null}
-              {showDebug ? (
+              {showDebugPrompt ? (
                 <button
                   type="button"
-                  className="action-link-card-btn action-link-card-btn--stretch action-link-card-btn--debug"
+                  className="action-link-card-btn action-link-card-btn--stretch action-link-card-btn--ghost"
                   disabled={cardBusy}
-                  title="带参数调试运行并打开 Quicker 步骤调试器"
-                  onClick={() => void invokeOp("debug")}
+                  title="插入 trace 调试指令到输入框（发送后由 Agent 执行）"
+                  onClick={() => insertPrompt("trace")}
                 >
                   {debugLink?.label ?? "调试"}
                 </button>

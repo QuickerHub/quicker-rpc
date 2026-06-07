@@ -17,6 +17,8 @@ export type LauncherCommandCacheEntry = {
 
 export const LAUNCHER_COMMAND_CACHE_MAX_MATCHES = 8;
 export const LAUNCHER_COMMAND_CACHE_MIN_SCORE = 55;
+/** Substring / near-exact matches eligible for zero-LLM direct execution. */
+export const LAUNCHER_COMMAND_CACHE_DIRECT_MIN_SCORE = 85;
 
 /** Normalize user phrases for fuzzy matching (Chinese-friendly). */
 export function normalizeLauncherCommandPhrase(text: string): string {
@@ -104,25 +106,17 @@ export function matchLauncherCommandCacheEntries(
     .slice(0, LAUNCHER_COMMAND_CACHE_MAX_MATCHES);
 }
 
-/** Exact phrase match (trigger or alias) — eligible for zero-LLM direct execution. */
+/** High-confidence cache match — eligible for zero-LLM direct execution. */
 export function findDirectLauncherCacheMatch(
   userText: string,
   entries: LauncherCommandCacheEntry[],
 ): LauncherCommandCacheEntry | undefined {
-  const trimmed = userText.trim();
-  if (!trimmed) return undefined;
-  const userNorm = normalizeLauncherCommandPhrase(trimmed);
-  if (!userNorm) return undefined;
-
-  for (const entry of entries) {
-    const phrases = [entry.trigger, ...(entry.aliases ?? [])];
-    for (const phrase of phrases) {
-      if (normalizeLauncherCommandPhrase(phrase) === userNorm) {
-        return entry;
-      }
-    }
+  const matches = matchLauncherCommandCacheEntries(userText, entries);
+  const top = matches[0];
+  if (!top || top.score < LAUNCHER_COMMAND_CACHE_DIRECT_MIN_SCORE) {
+    return undefined;
   }
-  return undefined;
+  return top.entry;
 }
 
 function formatStepForPrompt(step: LauncherCachedToolStep): string {
@@ -136,7 +130,7 @@ export function formatLauncherCommandCachePromptBlock(
 
   const lines = [
     "## Cached launcher commands (high priority when user intent matches)",
-    "When the user's message matches a trigger below, execute the listed tool calls directly in order with the same arguments. Skip docs/search re-planning unless a step fails.",
+    "When the user's message matches a trigger below (match ≥85%), the server may execute the steps instantly without LLM. Otherwise execute the listed tool calls directly in order with the same arguments. Skip docs/search re-planning and do NOT call launcher_command_cache or launcher_resolve when following a cached sequence unless a step fails.",
     "",
   ];
 

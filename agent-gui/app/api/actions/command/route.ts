@@ -7,6 +7,7 @@ type CommandBody = {
   id?: string;
   param?: string;
   debug?: boolean;
+  trace?: boolean;
   wait?: boolean;
   title?: string;
   description?: string;
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
   if (op === "run") {
     const args = ["action", "run", "--id", id, "--json"];
     if (body.param?.trim()) args.push("--param", body.param.trim());
-    if (body.debug) args.push("--debug");
+    if (body.trace || body.debug) args.push("--trace");
     if (body.wait) args.push("--wait");
     const result = await runQkrpc(args, {
       timeoutMs: body.wait ? 300_000 : QKRPC_TIMEOUT_MS,

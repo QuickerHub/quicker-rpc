@@ -42,6 +42,8 @@ import {
   extractLastUserMessageText,
 } from "@/lib/launcher/launcher-command-cache.server";
 import { tryRespondWithLauncherCacheDirect } from "@/lib/launcher/launcher-cache-direct.server";
+import { tryRespondWithLauncherResolveDirect } from "@/lib/launcher/launcher-resolve-direct.server";
+import { createRepairToolCallHandler } from "@/lib/repair-tool-call";
 
 export const maxDuration = 120;
 
@@ -90,13 +92,19 @@ async function handleChatPost(req: Request) {
   const titleTest = titleTestOnly === true;
 
   if (chatMode === CHAT_MODE_LAUNCHER && !titleTest) {
-    const direct = await runWithAgentRequestContextAsync({ cwd }, async () =>
-      tryRespondWithLauncherCacheDirect({
+    const direct = await runWithAgentRequestContextAsync({ cwd }, async () => {
+      const cacheDirect = await tryRespondWithLauncherCacheDirect({
         userText: extractLastUserMessageText(repairedMessages),
         repairedMessages,
         cwd,
-      }),
-    );
+      });
+      if (cacheDirect) return cacheDirect;
+      return tryRespondWithLauncherResolveDirect({
+        userText: extractLastUserMessageText(repairedMessages),
+        repairedMessages,
+        cwd,
+      });
+    });
     if (direct) return direct;
   }
 
@@ -212,6 +220,7 @@ async function handleChatPost(req: Request) {
       system,
       messages: preparedContext.modelMessages,
       tools,
+      experimental_repairToolCall: createRepairToolCallHandler(tools),
       stopWhen: stepCountIs(titleTest ? 3 : maxStepsForChatMode(chatMode)),
       onFinish: ({ totalUsage }) => {
         recordManagedLlmUsageAsync({

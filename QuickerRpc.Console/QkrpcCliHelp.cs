@@ -316,9 +316,9 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Action GUID."), Option("yes", "Required.", shortName: "y", required: true), Option("json", "Structured output.") }),
 
-                Cmd("action run", "Run a local action.", "qkrpc action run --id <idOrName> [--param <text>] [--debug] [--wait] [--json]",
+                Cmd("action run", "Run a local action.", "qkrpc action run --id <idOrName> [--param <text>] [--debug|--trace] [--wait] [--json]",
 
-                    opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("debug", "Debug run (opens Quicker step debugger)."), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
+                    opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("debug", "Debug run (opens Quicker step debugger)."), Option("trace", "Trace run (plugin terminal debug log, XAction only)."), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
 
                 Cmd("action float", "Show a local action as a floating button.", "qkrpc action float --id <idOrName> [--json]",
 
@@ -401,6 +401,14 @@ internal static class QkrpcCliHelp
                 Cmd("settings open", "Open Quicker settings UI. Prefer --preset for one-step open (see settings links).", "qkrpc settings open --preset hotkeys [--json] | qkrpc settings open --page recycle-bin | qkrpc settings open --query 批量更新",
 
                     opts: new[] { Option("preset", "Direct link preset id or alias (hotkeys, recycle-bin, …)."), Option("link", "Alias for --preset."), Option("page", "SettingPageId or alias."), Option("target", "Alias for --page."), Option("query", "Resolve page by keyword when --preset/--page omitted.", shortName: "q"), Option("key", "Open page containing this setting key."), Option("search-text", "Prefill Quicker search window."), Option("exe", "With exe-settings / process-settings target."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("settings resolve", "Dry-run: resolve user query/preset/key to settings UI or headless target (no UI). For agent intent tests.", "qkrpc settings resolve --query \"打开动作回收站\" [--json] | qkrpc settings resolve --preset hotkeys",
+
+                    opts: new[] { Option("query", "Natural language or keyword query.", shortName: "q"), Option("preset", "Direct link preset id or alias."), Option("link", "Alias for --preset."), Option("key", "Setting key to resolve containing page."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("launcher resolve", "Unified launcher resolve: search settings/actions/subprograms, score and rank candidates for agent pick.", "qkrpc launcher resolve --query \"打开功能快捷键\" [--scopes settings,actions] [--limit 12] [--json]",
+
+                    opts: new[] { Option("query", "User phrase to resolve.", shortName: "q"), Option("scopes", "Optional filter: settings,actions,subprograms."), Option("limit", "Max candidates (1-30).", defaultValue: "12"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("project.lint.schedule", "Schedule async expression/C# lint for a .quicker project (qkrpc serve). Writes .qkrpc/diagnostics.json.", "POST serve op project.lint.schedule — args: projectDir, workspaceRoot, target, id, editVersion",
 

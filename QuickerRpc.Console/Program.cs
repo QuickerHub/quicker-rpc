@@ -19,7 +19,7 @@ internal static partial class Program
 {
     private static async Task<int> Main(string[] args)
     {
-        ConfigureConsoleUtf8();
+        QkrpcConsoleUtf8.Initialize();
 
         if (TryWriteHelpJson(args))
         {
@@ -40,7 +40,8 @@ internal static partial class Program
             FormOptions,
             ExprOptions,
             ScriptOptions,
-            SettingsOptions>(args);
+            SettingsOptions,
+            LauncherOptions>(args);
         return await result
             .MapResult(
                 (PingOptions o) => RunPingAsync(o),
@@ -57,22 +58,9 @@ internal static partial class Program
                 (ExprOptions o) => RunExprCommandAsync(o),
                 (ScriptOptions o) => RunScriptCommandAsync(o),
                 (SettingsOptions o) => RunSettingsAsync(o),
+                (LauncherOptions o) => RunLauncherAsync(o),
                 _ => Task.FromResult(ExitCodes.Error))
             .ConfigureAwait(false);
-    }
-
-    private static void ConfigureConsoleUtf8()
-    {
-        try
-        {
-            var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
-            global::System.Console.OutputEncoding = utf8NoBom;
-            global::System.Console.InputEncoding = utf8NoBom;
-        }
-        catch
-        {
-            // ignore
-        }
     }
 
     private static async Task<int> RunPingAsync(PingOptions options)
@@ -679,8 +667,23 @@ internal static partial class Program
             return ExitCodes.Error;
         }
 
+        if (options.Trace && options.Debug)
+        {
+            await EmitErrorAsync(
+                    options.Json,
+                    "CONFLICTING_RUN_MODE",
+                    "Use either --trace (plugin terminal trace) or --debug (Quicker step debugger UI), not both.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
         try
         {
+            if (options.Trace)
+            {
+                return await RunActionTraceAsync(options, actionId).ConfigureAwait(false);
+            }
+
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
             var result = await session.Proxy
@@ -699,6 +702,8 @@ internal static partial class Program
                         debug = options.Debug,
                         wait = options.Wait,
                         returnResult = result.ReturnResult,
+                        errorMessage = result.ErrorMessage,
+                        stopFlag = result.StopFlag,
                         message = result.Message,
                     },
                     QkrpcJson.CliOutput));
@@ -734,6 +739,84 @@ internal static partial class Program
         catch (Exception ex)
         {
             await EmitErrorAsync(options.Json, "RUN_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
+
+    private static async Task<int> RunActionTraceAsync(ActionOptions options, string actionId)
+    {
+        try
+        {
+            await using var traceCallbacks = ActionTraceCli.CreateCallbacks(options.Json, options.TraceFile);
+            await using var session = await ConnectAsync(
+                    options.TimeoutSeconds,
+                    !options.NoBootstrap,
+                    traceCallbacks)
+                .ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var result = await session.Proxy
+                .RunActionTraceAsync(actionId, options.Param, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "trace",
+                        actionId = result.ActionId ?? actionId,
+                        actionTitle = result.ActionTitle,
+                        trace = true,
+                        durationMs = result.DurationMs,
+                        eventCount = result.EventCount,
+                        returnResult = result.ReturnResult,
+                        errorMessage = result.ErrorMessage,
+                        stopFlag = result.StopFlag,
+                        message = result.Message,
+                        events = result.Events,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else
+            {
+                if (traceCallbacks.StreamedCount == 0)
+                {
+                    foreach (var traceEvent in result.Events)
+                    {
+                        ActionTraceCli.WriteTraceEvent(traceEvent, jsonOutput: false, traceCallbacks.ExtraSink);
+                    }
+                }
+
+                if (!result.Ok)
+                {
+                    global::System.Console.Error.WriteLine(result.Message);
+                }
+                else if (!string.IsNullOrWhiteSpace(result.ReturnResult))
+                {
+                    global::System.Console.WriteLine(result.ReturnResult);
+                }
+                else
+                {
+                    global::System.Console.WriteLine(result.Message);
+                }
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "TRACE_FAILED", ex.Message).ConfigureAwait(false);
             return ExitCodes.Error;
         }
     }
@@ -796,9 +879,17 @@ internal static partial class Program
         }
     }
 
-    private static async Task<RpcClientSession> ConnectAsync(int timeoutSeconds, bool tryBootstrap = true)
+    private static async Task<RpcClientSession> ConnectAsync(int timeoutSeconds, bool tryBootstrap = true) =>
+        await ConnectAsync(timeoutSeconds, tryBootstrap, clientRpcTarget: null).ConfigureAwait(false);
+
+    private static async Task<RpcClientSession> ConnectAsync(
+        int timeoutSeconds,
+        bool tryBootstrap,
+        object? clientRpcTarget)
     {
-        var (pipe, jsonRpc, proxy) = await QuickerRpcConnect.ConnectAsync(timeoutSeconds, tryBootstrap).ConfigureAwait(false);
+        var (pipe, jsonRpc, proxy) = await QuickerRpcConnect
+            .ConnectAsync(timeoutSeconds, tryBootstrap, clientRpcTarget)
+            .ConfigureAwait(false);
         return new RpcClientSession(pipe, jsonRpc, proxy);
     }
 
@@ -1159,6 +1250,12 @@ public sealed class ActionOptions
 
     [Option("debug", HelpText = "Debug run: open Quicker step debugger (enableDebugging).")]
     public bool Debug { get; set; }
+
+    [Option("trace", HelpText = "Trace run: plugin XActionRunner debug log to stdout (UTF-8). Implies wait.")]
+    public bool Trace { get; set; }
+
+    [Option("trace-file", HelpText = "Also write human-readable trace lines to a UTF-8 file (avoids PowerShell redirect encoding issues).")]
+    public string? TraceFile { get; set; }
 
     [Option("wait", HelpText = "Wait for action completion and return ReturnResult.")]
     public bool Wait { get; set; }

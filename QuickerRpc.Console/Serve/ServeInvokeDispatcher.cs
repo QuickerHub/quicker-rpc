@@ -117,6 +117,8 @@ internal static class ServeInvokeDispatcher
             "settings.pages" => await SettingsPagesAsync(rpc, token).ConfigureAwait(false),
             "settings.links" => await SettingsLinksAsync(rpc, token).ConfigureAwait(false),
             "settings.open" => await SettingsOpenAsync(rpc, args, token).ConfigureAwait(false),
+            "settings.resolve" => await SettingsResolveAsync(rpc, args, token).ConfigureAwait(false),
+            "launcher.resolve" => await LauncherResolveAsync(rpc, args, token).ConfigureAwait(false),
             _ => Fail("UNKNOWN_OP", $"Unknown op: {op}"),
         };
     }
@@ -329,6 +331,79 @@ internal static class ServeInvokeDispatcher
             target = result.Target,
             pageId = result.PageId,
             message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> SettingsResolveAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var query = ServeJsonArgs.GetString(args, "query");
+        var settingKey = ServeJsonArgs.GetString(args, "key", "settingKey");
+        var preset = ServeJsonArgs.GetString(args, "preset", "link");
+        var result = await rpc
+            .ResolveSettingsIntentAsync(query, settingKey, preset, cancellationToken)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "settings-resolve",
+            intent = result.Intent,
+            preset = result.PresetId,
+            target = result.Target,
+            pageId = result.PageId,
+            settingKey = result.SettingKey,
+            searchText = result.SearchText,
+            suggestedAction = result.SuggestedAction,
+            message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> LauncherResolveAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var query = ServeJsonArgs.GetString(args, "query") ?? string.Empty;
+        if (query.Trim().Length == 0)
+        {
+            return Fail("MISSING_QUERY", "args.query is required.");
+        }
+
+        var limit = ServeJsonArgs.GetInt(args, "limit")
+            ?? ServeJsonArgs.GetInt(args, "maxResults")
+            ?? 12;
+        var scopes = ServeJsonArgs.GetString(args, "scopes", "scope");
+        var result = await rpc
+            .ResolveLauncherIntentAsync(query.Trim(), limit, scopes, cancellationToken)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "launcher-resolve",
+            query = result.Query,
+            normalizedQuery = result.NormalizedQuery,
+            message = result.Message,
+            candidates = result.Candidates.Select(c => new
+            {
+                kind = c.Kind,
+                score = c.Score,
+                title = c.Title,
+                subtitle = c.Subtitle,
+                intent = c.Intent,
+                pageId = c.PageId,
+                presetId = c.PresetId,
+                settingKey = c.SettingKey,
+                actionId = c.ActionId,
+                subProgramId = c.SubProgramId,
+                target = c.Target,
+                suggestedTool = c.SuggestedTool,
+                suggestedInput = c.SuggestedInputJson is null
+                    ? null
+                    : JsonSerializer.Deserialize<object>(c.SuggestedInputJson),
+                reason = c.Reason,
+            }),
         });
     }
 
@@ -681,6 +756,28 @@ internal static class ServeInvokeDispatcher
             return Fail("MISSING_ACTION_ID", "args.id is required.");
         }
 
+        var trace = ServeJsonArgs.GetBool(args, "trace");
+        if (trace)
+        {
+            var traceResponse = await rpc
+                .RunActionTraceAsync(id.Trim(), ServeJsonArgs.GetString(args, "param"), token)
+                .ConfigureAwait(false);
+            return Ok(new
+            {
+                ok = traceResponse.Ok,
+                action = "trace",
+                message = traceResponse.Message,
+                actionId = traceResponse.ActionId,
+                actionTitle = traceResponse.ActionTitle,
+                durationMs = traceResponse.DurationMs,
+                eventCount = traceResponse.EventCount,
+                returnResult = traceResponse.ReturnResult,
+                errorMessage = traceResponse.ErrorMessage,
+                stopFlag = traceResponse.StopFlag,
+                events = traceResponse.Events,
+            });
+        }
+
         var response = await rpc
             .RunActionAsync(
                 id.Trim(),
@@ -695,7 +792,10 @@ internal static class ServeInvokeDispatcher
             action = "run",
             message = response.Message,
             actionId = response.ActionId,
+            actionTitle = response.ActionTitle,
             returnResult = response.ReturnResult,
+            errorMessage = response.ErrorMessage,
+            stopFlag = response.StopFlag,
         });
     }
 

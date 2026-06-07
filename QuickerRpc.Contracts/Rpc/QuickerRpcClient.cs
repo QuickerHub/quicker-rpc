@@ -74,10 +74,17 @@ public static class QuickerRpcClient
             "请检查 Quicker 已启动且已加载 QuickerRpc 插件。";
     }
 
-    public static async Task<QuickerRpcClientSession> ConnectAsync(
+    public static Task<QuickerRpcClientSession> ConnectAsync(
         int timeoutSeconds = 15,
         bool tryBootstrap = true,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        ConnectAsync(timeoutSeconds, tryBootstrap, clientRpcTarget: null, cancellationToken);
+
+    public static async Task<QuickerRpcClientSession> ConnectAsync(
+        int timeoutSeconds,
+        bool tryBootstrap,
+        object? clientRpcTarget,
+        CancellationToken cancellationToken)
     {
         var pipeName = QuickerRpcPipeNames.ServerPipe;
         var bootstrapAttempted = false;
@@ -128,7 +135,7 @@ public static class QuickerRpcClient
                 BuildPluginNotRunningHints(bootstrapAttempted));
         }
 
-        var (jsonRpc, proxy) = StreamJsonRpcSession.CreateClient<IQuickerRpcService>(pipe);
+        var (jsonRpc, proxy) = StreamJsonRpcSession.CreateClient<IQuickerRpcService>(pipe, clientRpcTarget);
         return new QuickerRpcClientSession(pipe, jsonRpc, proxy);
     }
 

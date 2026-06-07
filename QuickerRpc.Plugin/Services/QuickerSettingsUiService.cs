@@ -16,13 +16,15 @@ public sealed class QuickerSettingsUiService
             ["preferences"] = string.Empty,
             ["设置"] = string.Empty,
             ["偏好设置"] = string.Empty,
-            ["general"] = "AppSettings",
+            ["general"] = "BasicInfo",
             ["app-settings"] = "AppSettings",
-            ["常规"] = "AppSettings",
-            ["常规设置"] = "AppSettings",
-            ["基本选项"] = "AppSettings",
+            ["常规"] = "BasicInfo",
+            ["常规设置"] = "BasicInfo",
+            ["基本选项"] = "BasicInfo",
             ["basic"] = "BasicInfo",
             ["基本信息"] = "BasicInfo",
+            ["websocket"] = "AppSettings",
+            ["app连接"] = "AppSettings",
             ["recycle-bin"] = "ActionRecycleBinSettingPage",
             ["action-recycle-bin"] = "ActionRecycleBinSettingPage",
             ["动作回收站"] = "ActionRecycleBinSettingPage",
@@ -33,20 +35,34 @@ public sealed class QuickerSettingsUiService
             ["ui-settings"] = "UISettingsPage",
             ["界面"] = "UISettingsPage",
             ["界面设置"] = "UISettingsPage",
+            ["面板窗口"] = "UISettingsPage",
+            ["面板"] = "UISettingsPage",
             ["gestures"] = "GesturesSettingPage",
             ["手势"] = "GesturesSettingPage",
+            ["鼠标手势"] = "GesturesSettingPage",
             ["circle-menu"] = "CircleMenuSettingPage",
+            ["轮盘菜单"] = "CircleMenuSettingPage",
+            ["轮盘"] = "CircleMenuSettingPage",
             ["圆圈菜单"] = "CircleMenuSettingPage",
             ["float"] = "FloatSettings",
             ["悬浮窗"] = "FloatSettings",
             ["blacklist"] = "BlackListSettings",
             ["黑名单"] = "BlackListSettings",
+            ["黑名单应用"] = "BlackListSettings",
             ["sync"] = "SyncSettingPage",
             ["同步"] = "SyncSettingPage",
             ["power-keys"] = "PowerKeysSettingsPage",
+            ["扩展热键"] = "PowerKeysSettingsPage",
             ["高级按键"] = "PowerKeysSettingsPage",
             ["text-command"] = "TextCommandSettingPage",
             ["文本命令"] = "TextCommandSettingPage",
+            ["文本指令"] = "TextCommandSettingPage",
+            ["left-button-plus"] = "LeftButtonPlusSettingPage",
+            ["左键辅助"] = "LeftButtonPlusSettingPage",
+            ["左键增强"] = "LeftButtonPlusSettingPage",
+            ["panel-popup"] = "PanelPopupSettings",
+            ["弹出面板"] = "PanelPopupSettings",
+            ["搜索功能设置"] = "SearchSettings",
             ["about"] = "AboutSettingPage",
             ["关于"] = "AboutSettingPage",
             ["hotkeys"] = "FunctionHotkeys",
@@ -132,6 +148,44 @@ public sealed class QuickerSettingsUiService
     }
 
     /// <summary>
+    /// Dry-run resolution for agent intent tests (no UI).
+    /// </summary>
+    public QuickerRpcResolveSettingsIntentResult ResolveIntent(
+        string? query = null,
+        string? settingKey = null,
+        string? preset = null)
+    {
+        var plan = TryBuildOpenPlan(
+            target: null,
+            query,
+            settingKey,
+            exeFile: null,
+            searchText: null,
+            preset);
+        if (plan.Ok)
+        {
+            return MapPlanToIntentResult(plan);
+        }
+
+        var resolvedQuery = (query ?? string.Empty).Trim();
+        if (resolvedQuery.Length > 0)
+        {
+            var headless = TryResolveHeadlessSetting(resolvedQuery);
+            if (headless is not null)
+            {
+                return headless;
+            }
+        }
+
+        return new QuickerRpcResolveSettingsIntentResult
+        {
+            Ok = false,
+            Intent = "unknown",
+            Message = plan.Error ?? "No settings intent matched.",
+        };
+    }
+
+    /// <summary>
     /// Open Quicker settings UI. Resolve target from preset, setting key, page, or keyword query.
     /// </summary>
     public QuickerRpcOpenSettingsUiResult Open(
@@ -142,7 +196,52 @@ public sealed class QuickerSettingsUiService
         string? searchText = null,
         string? preset = null)
     {
-        string? presetId = null;
+        var plan = TryBuildOpenPlan(target, query, settingKey, exeFile, searchText, preset);
+        if (!plan.Ok)
+        {
+            return Fail(plan.Error ?? "Failed to resolve settings open target.", plan.FailureTarget);
+        }
+
+        var result = OpenResolvedTarget(
+            plan.Target,
+            plan.ExeFile,
+            plan.SearchText ?? string.Empty);
+        if (result.Ok && plan.PresetId is not null)
+        {
+            result.PresetId = plan.PresetId;
+        }
+
+        return result;
+    }
+
+    private sealed class SettingsOpenPlan
+    {
+        public bool Ok { get; set; }
+
+        public string? Error { get; set; }
+
+        public string? FailureTarget { get; set; }
+
+        public string? PresetId { get; set; }
+
+        public string Target { get; set; } = string.Empty;
+
+        public string? ExeFile { get; set; }
+
+        public string? SearchText { get; set; }
+
+        public string? SettingKey { get; set; }
+    }
+
+    private SettingsOpenPlan TryBuildOpenPlan(
+        string? target,
+        string? query,
+        string? settingKey,
+        string? exeFile,
+        string? searchText,
+        string? preset)
+    {
+        var plan = new SettingsOpenPlan();
         var resolvedTarget = (target ?? string.Empty).Trim();
         var resolvedQuery = (query ?? string.Empty).Trim();
         var resolvedKey = (settingKey ?? string.Empty).Trim();
@@ -154,11 +253,13 @@ public sealed class QuickerSettingsUiService
             var presetText = preset!.Trim();
             if (!SettingsDirectLinkCatalog.TryResolve(presetText, out var link))
             {
-                return Fail($"Unknown settings preset: {presetText}", presetText);
+                plan.Error = $"Unknown settings preset: {presetText}";
+                plan.FailureTarget = presetText;
+                return plan;
             }
 
-            presetId = link.Id;
-            resolvedTarget = link.Target;
+            plan.PresetId = link.Id;
+            plan.Target = link.Target;
             if (resolvedExe.Length == 0 && !string.IsNullOrWhiteSpace(link.DefaultExe))
             {
                 resolvedExe = link.DefaultExe!;
@@ -166,47 +267,129 @@ public sealed class QuickerSettingsUiService
 
             if (link.RequiresExe && resolvedExe.Length == 0)
             {
-                return Fail(
-                    $"Preset '{link.Id}' requires exe (e.g. --exe _global).",
-                    link.Id);
+                plan.Error = $"Preset '{link.Id}' requires exe (e.g. --exe _global).";
+                plan.FailureTarget = link.Id;
+                return plan;
             }
         }
         else if (resolvedKey.Length > 0 && resolvedTarget.Length == 0)
         {
             if (!_settingsService.TryResolvePageForKey(resolvedKey, out var pageId, out var keyError))
             {
-                return Fail(keyError ?? "Failed to resolve page for setting key.", resolvedKey);
+                plan.Error = keyError ?? "Failed to resolve page for setting key.";
+                plan.FailureTarget = resolvedKey;
+                return plan;
             }
 
-            resolvedTarget = pageId ?? string.Empty;
+            plan.SettingKey = resolvedKey;
+            plan.Target = pageId ?? string.Empty;
         }
         else if (resolvedTarget.Length == 0 && resolvedQuery.Length > 0)
         {
             var openByQuery = ResolveTargetFromQuery(resolvedQuery, out var querySearchText);
             if (openByQuery is null)
             {
-                return Fail($"No settings page matched query: {resolvedQuery}", resolvedQuery);
+                plan.Error = $"No settings page matched query: {resolvedQuery}";
+                plan.FailureTarget = resolvedQuery;
+                return plan;
             }
 
-            resolvedTarget = openByQuery;
+            plan.Target = openByQuery;
             if (resolvedSearchText.Length == 0 && querySearchText.Length > 0)
             {
                 resolvedSearchText = querySearchText;
             }
         }
 
-        if (resolvedTarget.Length == 0)
+        if (resolvedTarget.Length > 0)
         {
-            resolvedTarget = "settings";
+            plan.Target = resolvedTarget;
         }
 
-        var result = OpenResolvedTarget(resolvedTarget, resolvedExe.Length > 0 ? resolvedExe : null, resolvedSearchText);
-        if (result.Ok && presetId is not null)
+        if (plan.Target.Length == 0)
         {
-            result.PresetId = presetId;
+            plan.Target = "settings";
         }
 
-        return result;
+        plan.ExeFile = resolvedExe.Length > 0 ? resolvedExe : null;
+        plan.SearchText = resolvedSearchText.Length > 0 ? resolvedSearchText : null;
+        plan.Ok = true;
+        return plan;
+    }
+
+    private QuickerRpcResolveSettingsIntentResult MapPlanToIntentResult(SettingsOpenPlan plan)
+    {
+        var target = plan.Target.Trim();
+        string intent;
+        string? pageId = null;
+        string? suggestedAction = "open";
+
+        if (IsSearchTarget(target))
+        {
+            intent = "open-search";
+            suggestedAction = "open";
+        }
+        else if (IsExeSettingsTarget(target))
+        {
+            intent = "open-exe-settings";
+        }
+        else
+        {
+            pageId = ResolvePageId(target);
+            intent = pageId is null
+                ? "unknown"
+                : pageId.Length == 0
+                    ? "open-settings"
+                    : "open-ui";
+        }
+
+        var message = intent switch
+        {
+            "open-search" => "Open Quicker search window.",
+            "open-exe-settings" => "Open per-exe settings window.",
+            "open-settings" => "Open main Quicker settings window.",
+            "open-ui" => $"Open settings page: {pageId}.",
+            _ => "Resolved settings intent.",
+        };
+
+        return new QuickerRpcResolveSettingsIntentResult
+        {
+            Ok = intent != "unknown",
+            Intent = intent,
+            Target = target,
+            PageId = pageId,
+            PresetId = plan.PresetId,
+            SettingKey = plan.SettingKey,
+            SearchText = plan.SearchText,
+            SuggestedAction = suggestedAction,
+            Message = message,
+        };
+    }
+
+    private QuickerRpcResolveSettingsIntentResult? TryResolveHeadlessSetting(string query)
+    {
+        var search = _settingsService.Search(query, 5);
+        if (search.Items.Count == 0 || search.Pages.Count > 0)
+        {
+            return null;
+        }
+
+        var top = search.Items[0];
+        if (string.IsNullOrWhiteSpace(top.Key))
+        {
+            return null;
+        }
+
+        return new QuickerRpcResolveSettingsIntentResult
+        {
+            Ok = true,
+            Intent = "headless-setting",
+            Target = top.Key,
+            SettingKey = top.Key,
+            PageId = top.PageId,
+            SuggestedAction = "get",
+            Message = $"Headless setting match: {top.Key}.",
+        };
     }
 
     private string? ResolveTargetFromQuery(string query, out string searchText)
@@ -217,7 +400,32 @@ public sealed class QuickerSettingsUiService
             return link.Target;
         }
 
-        var search = _settingsService.Search(query, 5);
+        if (IsSearchWindowIntent(query))
+        {
+            searchText = ExtractSearchPrefill(query);
+            return "search";
+        }
+
+        var normalizedQuery = NormalizeSettingsQuery(query);
+        if (normalizedQuery.Length > 0)
+        {
+            if (PageAliases.Value.TryGetValue(normalizedQuery, out var aliasPageId))
+            {
+                return aliasPageId;
+            }
+
+            if (SettingsDirectLinkCatalog.TryResolve(normalizedQuery, out var normalizedLink))
+            {
+                return normalizedLink.Target;
+            }
+        }
+
+        var search = _settingsService.Search(normalizedQuery, 5);
+        if (search.Pages.Count == 0
+            && !string.Equals(normalizedQuery, query, StringComparison.Ordinal))
+        {
+            search = _settingsService.Search(query, 5);
+        }
         if (search.Pages.Count > 0)
         {
             return search.Pages[0].PageId;
@@ -229,13 +437,22 @@ public sealed class QuickerSettingsUiService
             return pageId;
         }
 
-        if (IsSearchWindowIntent(query))
+        return null;
+    }
+
+    private static string ExtractSearchPrefill(string query)
+    {
+        var trimmed = query.Trim();
+        foreach (var prefix in new[] { "打开 Quicker 搜索", "打开quicker搜索", "打开搜索", "启动搜索" })
         {
-            searchText = query;
-            return "search";
+            if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var rest = trimmed.Substring(prefix.Length).Trim();
+                return rest.Length > 0 ? rest : string.Empty;
+            }
         }
 
-        return null;
+        return string.Empty;
     }
 
     private static bool IsSearchWindowIntent(string query)
@@ -245,9 +462,72 @@ public sealed class QuickerSettingsUiService
             return false;
         }
 
-        return string.Equals(query, "search", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(query, "搜索", StringComparison.OrdinalIgnoreCase)
-               || query.Contains("搜索", StringComparison.OrdinalIgnoreCase);
+        if (query.Contains("搜索设置", StringComparison.OrdinalIgnoreCase)
+            || query.Contains("search-settings", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.Equals(query, "search", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(query, "搜索", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(query, "启动搜索", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if ((query.Contains("打开", StringComparison.OrdinalIgnoreCase)
+             || query.Contains("启动", StringComparison.OrdinalIgnoreCase))
+            && query.Contains("搜索", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string NormalizeSettingsQuery(string query)
+    {
+        var text = (query ?? string.Empty).Trim();
+        if (text.Length == 0)
+        {
+            return text;
+        }
+
+        foreach (var prefix in new[]
+                 {
+                     "请帮我", "帮我", "请", "我想", "想要", "能不能", "可以",
+                 })
+        {
+            if (text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                text = text.Substring(prefix.Length).Trim();
+            }
+        }
+
+        foreach (var verb in new[]
+                 {
+                     "打开一下", "打开", "跳转", "进入", "去看看", "找一下",
+                 })
+        {
+            if (text.StartsWith(verb, StringComparison.OrdinalIgnoreCase))
+            {
+                text = text.Substring(verb.Length).Trim();
+            }
+        }
+
+        foreach (var suffix in new[]
+                 {
+                     "设置页面", "设置页", "设置", "页面", "界面", "在哪里", "在哪",
+                 })
+        {
+            if (text.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+                && text.Length > suffix.Length)
+            {
+                text = text.Substring(0, text.Length - suffix.Length).Trim();
+            }
+        }
+
+        return text.Length > 0 ? text : query.Trim();
     }
 
     private QuickerRpcOpenSettingsUiResult OpenResolvedTarget(

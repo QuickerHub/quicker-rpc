@@ -43,10 +43,12 @@ internal sealed class QkrpcHttpHost : IAsyncDisposable
 
         _app.MapGet("/health", HandleHealthAsync);
         _app.MapPost("/v1/invoke", HandleInvokeAsync);
+        _app.MapMethods("/v1/action/trace/stream", ["GET", "POST", "OPTIONS"], HandleTraceStreamAsync);
 
         global::System.Console.WriteLine(
             $"qkrpc serve listening on http://{_host}:{_port} (persistent pipe → {QuickerRpcPipeNames.ServerPipe})");
         global::System.Console.WriteLine("POST /v1/invoke  { \"op\": \"action.list\", \"args\": {} }");
+        global::System.Console.WriteLine("GET|POST /v1/action/trace/stream  SSE trace lines (id query or JSON body)");
         global::System.Console.WriteLine("GET  /health");
 
         await using var stopRegistration = cancellationToken.Register(
@@ -131,6 +133,39 @@ internal sealed class QkrpcHttpHost : IAsyncDisposable
             : StatusCodes.Status502BadGateway;
         await context.Response
             .WriteAsJsonAsync(result, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task HandleTraceStreamAsync(HttpContext context)
+    {
+        if (HttpMethods.IsOptions(context.Request.Method))
+        {
+            await ServeCors.HandlePreflightAsync(context).ConfigureAwait(false);
+            return;
+        }
+
+        ServeCors.TryApply(context);
+
+        if (HttpMethods.IsGet(context.Request.Method))
+        {
+            var query = ServeActionTraceStream.ParseQuery(context);
+            if (query is null)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response
+                    .WriteAsJsonAsync(new { ok = false, error = "MISSING_ACTION_ID" }, JsonOptions, context.RequestAborted)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            await ServeActionTraceStream
+                .HandleAsync(context, _defaultTimeoutSeconds, _tryBootstrap, context.RequestAborted, query)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        await ServeActionTraceStream
+            .HandleAsync(context, _defaultTimeoutSeconds, _tryBootstrap, context.RequestAborted)
             .ConfigureAwait(false);
     }
 

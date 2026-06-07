@@ -173,6 +173,15 @@ public interface IQuickerRpcService
         bool waitForComplete = false,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Trace-run an XAction via plugin <c>XActionRunner</c> with <c>IsDebugging</c> and terminal logger
+    /// (no Quicker step debugger UI). Streams events when the client registers <see cref="IQuickerRpcClientCallbacks"/>.
+    /// </summary>
+    Task<QuickerRpcActionTraceRunResult> RunActionTraceAsync(
+        string actionId,
+        string? inputParam = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Show a local action as a floating button (ActionEditMgr.FloatAction).</summary>
     Task<QuickerRpcFloatActionResult> FloatActionAsync(
         string actionId,
@@ -321,6 +330,23 @@ public interface IQuickerRpcService
         string? settingKey = null,
         string? preset = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Dry-run: resolve user query/preset/key to settings UI or headless target without opening UI.</summary>
+    Task<QuickerRpcResolveSettingsIntentResult> ResolveSettingsIntentAsync(
+        string? query = null,
+        string? settingKey = null,
+        string? preset = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Unified launcher resolve: search settings/actions/subprograms, score, rank candidates for agent pick.
+    /// </summary>
+    /// <param name="scopes">Optional filter: settings, actions, subprograms (comma-separated).</param>
+    Task<QuickerRpcResolveLauncherIntentResult> ResolveLauncherIntentAsync(
+        string query,
+        int maxResults = 12,
+        string? scopes = null,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class QuickerRpcSettingsPageInfo
@@ -359,6 +385,78 @@ public sealed class QuickerRpcOpenSettingsUiResult
     public string? PresetId { get; set; }
 
     public string Message { get; set; } = string.Empty;
+}
+
+public sealed class QuickerRpcResolveSettingsIntentResult
+{
+    public bool Ok { get; set; }
+
+    /// <summary>open-ui | open-search | open-exe-settings | open-settings | headless-setting | unknown</summary>
+    public string Intent { get; set; } = string.Empty;
+
+    public string Target { get; set; } = string.Empty;
+
+    public string? PageId { get; set; }
+
+    public string? PresetId { get; set; }
+
+    public string? SettingKey { get; set; }
+
+    public string? SearchText { get; set; }
+
+    /// <summary>Suggested quicker_settings action: open | search | get | set.</summary>
+    public string? SuggestedAction { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+}
+
+/// <summary>One ranked launcher resolve candidate.</summary>
+public sealed class QuickerRpcLauncherIntentCandidate
+{
+    /// <summary>settings-intent | settings-preset | settings-page | settings-key | action | subprogram</summary>
+    public string Kind { get; set; } = string.Empty;
+
+    public int Score { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public string? Subtitle { get; set; }
+
+    public string? Intent { get; set; }
+
+    public string? PageId { get; set; }
+
+    public string? PresetId { get; set; }
+
+    public string? SettingKey { get; set; }
+
+    public string? ActionId { get; set; }
+
+    public string? SubProgramId { get; set; }
+
+    public string? Target { get; set; }
+
+    /// <summary>Agent tool id, e.g. quicker_settings, qkrpc_action.</summary>
+    public string SuggestedTool { get; set; } = string.Empty;
+
+    /// <summary>JSON-serializable suggested tool input (action/open params).</summary>
+    public string? SuggestedInputJson { get; set; }
+
+    public string? Reason { get; set; }
+}
+
+public sealed class QuickerRpcResolveLauncherIntentResult
+{
+    public bool Ok { get; set; }
+
+    public string Query { get; set; } = string.Empty;
+
+    public string? NormalizedQuery { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public IList<QuickerRpcLauncherIntentCandidate> Candidates { get; set; } =
+        new List<QuickerRpcLauncherIntentCandidate>();
 }
 
 public sealed class QuickerRpcSettingsDirectLinkInfo
@@ -780,6 +878,12 @@ public sealed class QuickerRpcActionRunResult
 
     /// <summary>Action return value when waitForComplete is true.</summary>
     public string? ReturnResult { get; set; }
+
+    /// <summary>Runtime/step error when waitForComplete is true and the action did not finish successfully.</summary>
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>ActionStopFlag name when execution stopped abnormally (e.g. OperationFailed).</summary>
+    public string? StopFlag { get; set; }
 }
 
 public sealed class QuickerRpcFloatActionResult

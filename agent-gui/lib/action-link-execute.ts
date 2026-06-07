@@ -1,5 +1,6 @@
 "use client";
 
+import { startActionTrace } from "@/lib/action-trace-client";
 import { invokeActionCommand } from "@/lib/action-command-client";
 import { pullActionProjectFromQuicker } from "@/lib/action-project-sync-client";
 import type { ActionLinkOp } from "@/lib/action-link-markup";
@@ -52,10 +53,8 @@ export async function executeActionLinkOp(
   const param = options?.param?.trim() || undefined;
 
   if (op === "debug") {
-    const result = await invokeActionCommand({
-      op: "run",
-      id: actionId,
-      debug: true,
+    const result = await startActionTrace({
+      actionId,
       param,
     });
     if (result.ok) {
@@ -105,7 +104,7 @@ function successMessage(op: "run" | "debug" | "edit" | "float"): string {
     case "run":
       return "已运行动作";
     case "debug":
-      return "已启动调试运行（Quicker 步骤调试器）";
+      return "已启动 trace 调试（侧栏时间线）";
     case "edit":
       return "已在 Quicker 中打开动作编辑器";
     case "float":

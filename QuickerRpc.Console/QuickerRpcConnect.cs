@@ -24,9 +24,17 @@ internal static class QuickerRpcConnect
 
     public static async Task<(NamedPipeClientStream Pipe, JsonRpc JsonRpc, IQuickerRpcService Proxy)> ConnectAsync(
         int timeoutSeconds,
-        bool tryBootstrap = true)
+        bool tryBootstrap = true) =>
+        await ConnectAsync(timeoutSeconds, tryBootstrap, clientRpcTarget: null).ConfigureAwait(false);
+
+    public static async Task<(NamedPipeClientStream Pipe, JsonRpc JsonRpc, IQuickerRpcService Proxy)> ConnectAsync(
+        int timeoutSeconds,
+        bool tryBootstrap,
+        object? clientRpcTarget)
     {
-        var session = await QuickerRpcClient.ConnectAsync(timeoutSeconds, tryBootstrap).ConfigureAwait(false);
+        var session = await QuickerRpcClient
+            .ConnectAsync(timeoutSeconds, tryBootstrap, clientRpcTarget, cancellationToken: default)
+            .ConfigureAwait(false);
         return (session.Pipe, session.JsonRpc, session.Rpc);
     }
 

@@ -1,0 +1,319 @@
+{
+  "source": "Quicker.Settings.SettingsMenuProvider.AllPages",
+  "quickerExe": "C:\\Program Files\\Quicker\\Quicker.exe",
+  "extractedAt": "2026-06-06T22:26:26Z",
+  "pages": [
+    {
+      "pageId": "AboutSettingPage",
+      "title": "关于Quicker",
+      "fullTitle": "关于Quicker",
+      "description": "基本信息",
+      "keywords": "",
+      "icon": "Light_UserCircle"
+    },
+    {
+      "pageId": "ActionDesignerSettingsPage",
+      "title": "动作设计相关选项",
+      "fullTitle": "动作设计相关选项",
+      "description": "动作设计选项",
+      "keywords": "",
+      "icon": "Light_PencilRuler"
+    },
+    {
+      "pageId": "ActionHotkeysSettingPage",
+      "title": "动作快捷键",
+      "fullTitle": "动作快捷键",
+      "description": "动作快捷键",
+      "keywords": "",
+      "icon": "Light_Keyboard"
+    },
+    {
+      "pageId": "ActionRecycleBinSettingPage",
+      "title": "动作回收站",
+      "fullTitle": "动作回收站",
+      "description": "动作回收站",
+      "keywords": "",
+      "icon": "Light_Trash"
+    },
+    {
+      "pageId": "AppSettings",
+      "title": "App连接与WebSocket服务",
+      "fullTitle": "App连接与WebSocket服务",
+      "description": "设置手机APP连接与WebSocket服务选项",
+      "keywords": "",
+      "icon": "Light_MobileAlt"
+    },
+    {
+      "pageId": "AutoRunActions",
+      "title": "自动运行动作",
+      "fullTitle": "自动运行动作",
+      "description": "启动后或定时运行动作",
+      "keywords": "",
+      "icon": "Light_Clock"
+    },
+    {
+      "pageId": "BasicInfo",
+      "title": "常规",
+      "fullTitle": "常规选项设置",
+      "description": "常规选项设置",
+      "keywords": "",
+      "icon": "Light_Cog"
+    },
+    {
+      "pageId": "BasicToolsSettingPage",
+      "title": "工具",
+      "fullTitle": "工具",
+      "description": "工具",
+      "keywords": "",
+      "icon": "Light_Tools"
+    },
+    {
+      "pageId": "BasicTriggers",
+      "title": "按键触发",
+      "fullTitle": "按键触发",
+      "description": "常规的鼠标按键触发设置",
+      "keywords": "",
+      "icon": "Light_RocketLaunch"
+    },
+    {
+      "pageId": "BlackListSettings",
+      "title": "黑名单应用",
+      "fullTitle": "黑名单应用",
+      "description": "设定需要禁用Quicker的软件",
+      "keywords": "",
+      "icon": "Light_Ban"
+    },
+    {
+      "pageId": "BlockOptions",
+      "title": "组合动作模块选项",
+      "fullTitle": "组合动作模块选项",
+      "description": "组合动作模块选项",
+      "keywords": "",
+      "icon": "Light_SlidersHSquare"
+    },
+    {
+      "pageId": "CircleMenuManagePage",
+      "title": "轮盘动作管理",
+      "fullTitle": "轮盘动作管理",
+      "description": "轮盘菜单操作触发管理",
+      "keywords": "",
+      "icon": "Light_DotCircle"
+    },
+    {
+      "pageId": "CircleMenuSettingPage",
+      "title": "轮盘菜单设置",
+      "fullTitle": "轮盘菜单设置",
+      "description": "轮盘菜单功能和外观设置",
+      "keywords": "",
+      "icon": "Light_DotCircle"
+    },
+    {
+      "pageId": "ContextMenuGeneralSettings",
+      "title": "上下文菜单基本参数设置",
+      "fullTitle": "上下文菜单基本参数设置",
+      "description": "上下文菜单的触发等基本参数设置",
+      "keywords": "",
+      "icon": "Light_SlidersH"
+    },
+    {
+      "pageId": "EventTriggerSettingsPage",
+      "title": "事件触发",
+      "fullTitle": "事件触发",
+      "description": "事件发生后自动运行动作",
+      "keywords": "",
+      "icon": "Light_Wind"
+    },
+    {
+      "pageId": "FileContextMenuSettings",
+      "title": "文件上下文菜单",
+      "fullTitle": "文件上下文菜单",
+      "description": "文件内容的上下文菜单",
+      "keywords": "",
+      "icon": "Light_File"
+    },
+    {
+      "pageId": "FunctionHotkeys",
+      "title": "功能快捷键",
+      "fullTitle": "功能快捷键",
+      "description": "设置用于控制Quicker功能的快捷键",
+      "keywords": "",
+      "icon": "Light_Keyboard"
+    },
+    {
+      "pageId": "GesturesManagePage",
+      "title": "手势管理",
+      "fullTitle": "手势管理",
+      "description": "鼠标手势管理",
+      "keywords": "",
+      "icon": "Light_WaveSine"
+    },
+    {
+      "pageId": "GesturesSettingPage",
+      "title": "鼠标手势设置",
+      "fullTitle": "鼠标手势设置",
+      "description": "鼠标手势",
+      "keywords": "",
+      "icon": "Light_WaveSine"
+    },
+    {
+      "pageId": "HelperFunctionsSettingPage",
+      "title": "常用辅助功能",
+      "fullTitle": "常用辅助功能",
+      "description": "常用辅助功能开关",
+      "keywords": "",
+      "icon": "Light_Bicycle"
+    },
+    {
+      "pageId": "HotkeyWatcherSettingsPage",
+      "title": "热键联动",
+      "fullTitle": "热键联动",
+      "description": "当在某个软件中使用快捷键时，也同时触发quicker中的一个操作。",
+      "keywords": "",
+      "icon": "Light_Keyboard"
+    },
+    {
+      "pageId": "ImageContextMenuSettings",
+      "title": "图片上下文菜单",
+      "fullTitle": "图片上下文菜单",
+      "description": "图片内容的上下文菜单",
+      "keywords": "",
+      "icon": "Light_Image"
+    },
+    {
+      "pageId": "KeyActionManagePage",
+      "title": "按键双击",
+      "fullTitle": "按键双击",
+      "description": "设置按键双击触发",
+      "keywords": "",
+      "icon": "Light_AngleDoubleDown"
+    },
+    {
+      "pageId": "LeftButtonPlusSettingPage",
+      "title": "左键辅助",
+      "fullTitle": "左键辅助",
+      "description": "左键辅助",
+      "keywords": "",
+      "icon": "Light_Mouse"
+    },
+    {
+      "pageId": "MouseActionManagePage",
+      "title": "高级鼠标触发",
+      "fullTitle": "高级鼠标触发",
+      "description": "高级鼠标触发",
+      "keywords": "",
+      "icon": "Light_SlidersH"
+    },
+    {
+      "pageId": "PanelPopupSettings",
+      "title": "弹出面板",
+      "fullTitle": "弹出面板",
+      "description": "面板窗口的触发方式",
+      "keywords": "",
+      "icon": "Light_RocketLaunch"
+    },
+    {
+      "pageId": "PanelTriggerKeySettings",
+      "title": "动作触发按键",
+      "fullTitle": "动作触发按键",
+      "description": "键盘方式弹出后，使用按键触发动作",
+      "keywords": "",
+      "icon": "Light_Keyboard"
+    },
+    {
+      "pageId": "PowerKeysManagementPage",
+      "title": "扩展热键",
+      "fullTitle": "扩展热键管理",
+      "description": "普通按键组合",
+      "keywords": "",
+      "icon": "Light_Keyboard"
+    },
+    {
+      "pageId": "PowerKeysSettingsPage",
+      "title": "扩展热键参数设置",
+      "fullTitle": "扩展热键设置",
+      "description": "普通按键组合",
+      "keywords": "",
+      "icon": "Light_SlidersH"
+    },
+    {
+      "pageId": "PrivacyPolicy",
+      "title": "隐私声明",
+      "fullTitle": "隐私声明",
+      "description": "隐私声明",
+      "keywords": "",
+      "icon": "Light_UserShield"
+    },
+    {
+      "pageId": "QuickCaptureSettings",
+      "title": "快速截图",
+      "fullTitle": "快速截图",
+      "description": "设置快速截图功能",
+      "keywords": "",
+      "icon": "Light_ExpandWide"
+    },
+    {
+      "pageId": "SearchSettings",
+      "title": "搜索功能设置",
+      "fullTitle": "搜索功能设置",
+      "description": "搜索框功能设置",
+      "keywords": "",
+      "icon": "Light_Search"
+    },
+    {
+      "pageId": "SyncSettingPage",
+      "title": "数据同步",
+      "fullTitle": "数据同步",
+      "description": "数据同步",
+      "keywords": "",
+      "icon": "Light_Sync"
+    },
+    {
+      "pageId": "TextCommandManagePage",
+      "title": "文本指令管理",
+      "fullTitle": "文本指令管理",
+      "description": "文本指令管理",
+      "keywords": "",
+      "icon": "Light_Ad"
+    },
+    {
+      "pageId": "TextCommandSettingPage",
+      "title": "文本指令参数设置",
+      "fullTitle": "文本指令参数设置",
+      "description": "文本指令参数设置",
+      "keywords": "",
+      "icon": "Light_SlidersH"
+    },
+    {
+      "pageId": "TextContextMenuSettings",
+      "title": "文本上下文菜单",
+      "fullTitle": "文本上下文菜单",
+      "description": "文本内容的上下文菜单",
+      "keywords": "",
+      "icon": "Light_Ad"
+    },
+    {
+      "pageId": "UISettingsPage",
+      "title": "面板窗口",
+      "fullTitle": "面板窗口外观",
+      "description": "外观设置",
+      "keywords": "",
+      "icon": "Light_Tshirt"
+    },
+    {
+      "pageId": "UpdateActionsPage",
+      "title": "批量更新动作",
+      "fullTitle": "批量更新动作",
+      "description": "批量更新动作",
+      "keywords": "",
+      "icon": "Light_ArrowUp"
+    },
+    {
+      "pageId": "UsageStatisticsInfoPage",
+      "title": "用量统计",
+      "fullTitle": "用量统计",
+      "description": "用量统计",
+      "keywords": "",
+      "icon": "Light_Calculator"
+    }
+  ]
+}

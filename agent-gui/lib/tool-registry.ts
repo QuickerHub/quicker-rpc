@@ -141,6 +141,13 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
   { id: "qkrpc_step_runner_get", label: "步骤模块 schema", group: "read", category: "catalog" },
   { id: "qkrpc_fa", label: "图标", group: "read", category: "catalog", description: "搜索/解析 Font Awesome fa: 规格" },
   {
+    id: "launcher_resolve",
+    label: "启动器解析",
+    group: "read",
+    category: "settings",
+    description: "统一搜索设置/动作/子程序，打分排序，供启动器 Agent 决策",
+  },
+  {
     id: "quicker_settings",
     label: "Quicker 设置与界面",
     group: "write",

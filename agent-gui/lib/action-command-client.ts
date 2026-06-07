@@ -24,19 +24,30 @@ export function isQuickerActionMissingError(error: string): boolean {
 export async function invokeActionCommand(
   body: ActionCommandBody,
 ): Promise<{ ok: true; data?: unknown } | { ok: false; error: string }> {
-  const res = await fetch("/api/actions/command", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-  const data = (await res.json()) as {
-    ok?: boolean;
-    error?: string;
-    data?: unknown;
-  };
-  if (!res.ok || !data.ok) {
-    return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+  try {
+    const res = await fetch("/api/actions/command", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    const data = (await res.json()) as {
+      ok?: boolean;
+      error?: string;
+      data?: unknown;
+    };
+    if (!res.ok || !data.ok) {
+      return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+    }
+    return { ok: true, data: data.data };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("fetch failed") || message.includes("Failed to fetch")) {
+      return {
+        ok: false,
+        error: "无法连接动作 API（请确认 agent-gui 已启动且页面未在热重载中）",
+      };
+    }
+    return { ok: false, error: message || "动作命令请求失败" };
   }
-  return { ok: true, data: data.data };
 }

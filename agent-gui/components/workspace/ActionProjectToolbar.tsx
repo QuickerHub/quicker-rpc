@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { startActionTrace } from "@/lib/action-trace-client";
 import { invokeActionCommand } from "@/lib/action-command-client";
 import { pushAppMessage } from "@/lib/app-messages";
 
@@ -60,19 +61,42 @@ export function ActionProjectToolbar({
   }, [actionId, runCommand]);
 
   const runAction = useCallback(
-    async (debug: boolean) => {
-      await runCommand(
-        debug ? "已启动调试运行" : "已运行动作",
-        () =>
-          invokeActionCommand({
-            op: "run",
-            id: actionId,
-            param: param.trim() || undefined,
-            debug,
-          }),
+    async (trace: boolean) => {
+      if (trace) {
+        if (runBusy) return;
+        setRunBusy(true);
+        const result = await startActionTrace({
+          actionId,
+          param: param.trim() || undefined,
+        });
+        setRunBusy(false);
+        if (result.ok) {
+          pushAppMessage({
+            id: TOOLBAR_MESSAGE_ID,
+            kind: "success",
+            body: "已启动 trace 调试",
+            autoDismissMs: 3500,
+          });
+        } else {
+          pushAppMessage({
+            id: TOOLBAR_MESSAGE_ID,
+            kind: "error",
+            body: result.error ?? "trace 失败",
+            autoDismissMs: 6000,
+          });
+        }
+        return;
+      }
+
+      await runCommand("已运行动作", () =>
+        invokeActionCommand({
+          op: "run",
+          id: actionId,
+          param: param.trim() || undefined,
+        }),
       );
     },
-    [actionId, param, runCommand],
+    [actionId, param, runBusy, runCommand],
   );
 
   return (
@@ -94,7 +118,7 @@ export function ActionProjectToolbar({
           className="project-info-toolbar-btn project-info-toolbar-btn--debug"
           disabled={runBusy}
           onClick={() => void runAction(true)}
-          title="带参数调试运行并打开 Quicker 步骤调试器"
+          title="trace 调试：在右侧侧栏查看步骤输出（不打开 Quicker 调试器）"
         >
           调试
         </button>

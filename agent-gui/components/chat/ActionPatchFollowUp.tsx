@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { startActionTrace } from "@/lib/action-trace-client";
 import { invokeActionCommand } from "@/lib/action-command-client";
 import {
   formatActionIdShort,
@@ -25,27 +26,40 @@ export function ActionPatchFollowUp({
   const busy = runState === "loading" || disabled;
 
   const run = useCallback(
-    async (opts: { debug: boolean }) => {
+    async (opts: { trace: boolean }) => {
       if (busy) return;
       setRunState("loading");
       setStatusText(null);
+      if (opts.trace) {
+        const result = await startActionTrace({
+          actionId: context.actionId,
+          param: param.trim() || undefined,
+          actionTitle: context.actionTitle,
+        });
+        if (result.ok) {
+          setRunState("ok");
+          setStatusText("已启动 trace 调试（见终端面板）");
+        } else {
+          setRunState("err");
+          setStatusText(result.error ?? "trace 失败");
+        }
+        return;
+      }
+
       const result = await invokeActionCommand({
         op: "run",
         id: context.actionId,
         param: param.trim() || undefined,
-        debug: opts.debug,
       });
       if (result.ok) {
         setRunState("ok");
-        setStatusText(
-          opts.debug ? "已启动调试运行（Quicker 步骤调试器）" : "已运行动作",
-        );
+        setStatusText("已运行动作");
       } else {
         setRunState("err");
         setStatusText(result.error ?? "运行失败");
       }
     },
-    [busy, context.actionId, param],
+    [busy, context.actionId, context.actionTitle, param],
   );
 
   const edit = useCallback(async () => {
@@ -94,7 +108,7 @@ export function ActionPatchFollowUp({
           type="button"
           className="action-patch-followup-btn action-patch-followup-btn--primary"
           disabled={busy}
-          onClick={() => void run({ debug: false })}
+          onClick={() => void run({ trace: false })}
         >
           运行动作
         </button>
@@ -121,7 +135,7 @@ export function ActionPatchFollowUp({
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                void run({ debug: true });
+                void run({ trace: true });
               }
             }}
           />
@@ -130,8 +144,8 @@ export function ActionPatchFollowUp({
           type="button"
           className="action-patch-followup-btn action-patch-followup-btn--debug"
           disabled={busy}
-          onClick={() => void run({ debug: true })}
-          title="带参数调试运行并打开 Quicker 步骤调试器"
+          onClick={() => void run({ trace: true })}
+          title="trace 调试：在终端面板查看步骤输出"
         >
           调试运行
         </button>

@@ -293,12 +293,13 @@ try {
         exit $LASTEXITCODE
     }
 
+    Invoke-QuickerRpcPluginRunAction
+
     if ($shouldStartQkrpcServe) {
         Start-QkrpcServe -RepoRoot $PSScriptRoot
         $shouldStartQkrpcServe = $false
     }
 
-    Invoke-QuickerRpcPluginRunAction
     exit 0
 }
 finally {

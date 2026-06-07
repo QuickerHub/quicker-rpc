@@ -1,7 +1,7 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, Runtime,
+    AppHandle, Emitter, Manager, Runtime,
 };
 
 const TRAY_ID: &str = "quicker-agent-tray";
@@ -36,7 +36,13 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Er
         .on_menu_event(|app, event| match event.id.as_ref() {
             MENU_SHOW => show_primary_window(app),
             MENU_HIDE => hide_primary_window(app),
-            MENU_QUIT => app.exit(0),
+            MENU_QUIT => {
+                if let Some(win) = primary_window(app) {
+                    let _ = win.emit("app-request-exit", ());
+                } else {
+                    crate::spawn_shutdown_and_exit(app.clone());
+                }
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {

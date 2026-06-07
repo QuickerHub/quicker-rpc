@@ -125,6 +125,17 @@ public sealed class QuickerRpcServer : IHostedService
         try
         {
             jsonRpc = StreamJsonRpcFactory.StartListeningServer<IQuickerRpcService>(pipeStream, _service);
+            IQuickerRpcClientCallbacks? clientCallbacks = null;
+            try
+            {
+                clientCallbacks = jsonRpc.Attach<IQuickerRpcClientCallbacks>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "QuickerRpc client did not register trace callbacks.");
+            }
+
+            using var traceSession = QuickerRpcTraceSink.BeginSession(clientCallbacks);
             await StreamJsonRpcCompletion.AwaitSessionAsync(jsonRpc, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (jsonRpc is not null && StreamJsonRpcCompletion.IsBenignSessionEnd(ex))

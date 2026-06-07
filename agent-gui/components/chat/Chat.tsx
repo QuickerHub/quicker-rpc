@@ -646,7 +646,6 @@ function ChatPanel({
     visible,
     threadId,
     revision: [messages, error, status],
-    busy,
   });
 
   useEffect(() => {

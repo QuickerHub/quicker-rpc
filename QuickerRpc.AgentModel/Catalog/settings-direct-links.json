@@ -25,9 +25,9 @@
     "aliases": ["热键联动"]
   },
   "power-keys": {
-    "title": "高级按键",
+    "title": "扩展热键参数设置",
     "target": "PowerKeysSettingsPage",
-    "aliases": ["高级按键", "power-keys-manage"]
+    "aliases": ["扩展热键", "高级按键", "power-keys-manage", "power-keys"]
   },
   "recycle-bin": {
     "title": "动作回收站",
@@ -35,29 +35,34 @@
     "aliases": ["动作回收站", "回收站", "action-recycle-bin"]
   },
   "general": {
-    "title": "基本选项",
+    "title": "常规",
+    "target": "BasicInfo",
+    "aliases": ["basic-info", "basic", "常规", "常规设置", "基本选项"]
+  },
+  "app-settings": {
+    "title": "App连接与WebSocket服务",
     "target": "AppSettings",
-    "aliases": ["app-settings", "常规设置", "常规", "基本选项"]
+    "aliases": ["app-settings", "websocket", "app连接"]
   },
   "basic-info": {
     "title": "常规",
     "target": "BasicInfo",
-    "aliases": ["basic", "基本信息"]
+    "aliases": ["basic", "基本信息", "常规", "基本选项"]
   },
   "ui": {
-    "title": "界面设置",
+    "title": "面板窗口",
     "target": "UISettingsPage",
-    "aliases": ["ui-settings", "界面", "界面设置"]
+    "aliases": ["ui-settings", "界面", "界面设置", "面板窗口", "面板"]
   },
   "gestures": {
-    "title": "手势设置",
+    "title": "鼠标手势设置",
     "target": "GesturesSettingPage",
-    "aliases": ["手势", "手势设置"]
+    "aliases": ["手势", "手势设置", "鼠标手势"]
   },
   "circle-menu": {
-    "title": "圆圈菜单设置",
+    "title": "轮盘菜单设置",
     "target": "CircleMenuSettingPage",
-    "aliases": ["圆圈菜单", "circle-menu-settings"]
+    "aliases": ["轮盘菜单", "轮盘", "圆圈菜单", "circle-menu-settings", "circle-menu"]
   },
   "float": {
     "title": "悬浮窗设置",
@@ -65,9 +70,9 @@
     "aliases": ["悬浮窗", "float-settings"]
   },
   "blacklist": {
-    "title": "黑名单",
+    "title": "黑名单应用",
     "target": "BlackListSettings",
-    "aliases": ["黑名单"]
+    "aliases": ["黑名单", "blacklist"]
   },
   "sync": {
     "title": "数据同步",
@@ -75,14 +80,14 @@
     "aliases": ["同步", "数据同步"]
   },
   "text-command": {
-    "title": "文本命令",
+    "title": "文本指令参数设置",
     "target": "TextCommandSettingPage",
-    "aliases": ["文本命令", "文本指令"]
+    "aliases": ["文本指令", "文本命令", "文本指令设置"]
   },
   "search-settings": {
-    "title": "搜索设置",
+    "title": "搜索功能设置",
     "target": "SearchSettings",
-    "aliases": ["搜索设置", "search-settings-page"]
+    "aliases": ["搜索设置", "search-settings-page", "搜索功能"]
   },
   "auto-run": {
     "title": "自动运行动作",
@@ -105,14 +110,24 @@
     "aliases": ["动作编辑器", "动作设计"]
   },
   "context-menu": {
-    "title": "上下文菜单",
+    "title": "上下文菜单基本参数设置",
     "target": "ContextMenuGeneralSettings",
     "aliases": ["上下文菜单"]
   },
   "about": {
-    "title": "关于 Quicker",
+    "title": "关于Quicker",
     "target": "AboutSettingPage",
     "aliases": ["关于", "about-quicker"]
+  },
+  "panel-popup": {
+    "title": "弹出面板",
+    "target": "PanelPopupSettings",
+    "aliases": ["弹出面板", "面板弹出"]
+  },
+  "left-button-plus": {
+    "title": "左键辅助",
+    "target": "LeftButtonPlusSettingPage",
+    "aliases": ["左键辅助", "左键增强"]
   },
   "exe-global": {
     "title": "全局进程设置",

@@ -220,6 +220,7 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
           param: flagStr(flags, "param"),
           wait: flagBool(flags, "wait"),
           debug: flagBool(flags, "debug"),
+          trace: flagBool(flags, "trace"),
         },
       };
     }

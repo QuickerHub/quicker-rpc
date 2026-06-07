@@ -17,13 +17,11 @@ export function useMessagesStickScroll(
     visible,
     threadId,
     revision,
-    busy,
   }: {
     visible: boolean;
     threadId: string;
     /** Re-run follow scroll when messages (or related layout) change. */
     revision: unknown;
-    busy: boolean;
   },
 ): { pinToBottom: () => void; getStickToBottom: () => boolean } {
   const stickToBottomRef = useRef(true);
@@ -60,11 +58,8 @@ export function useMessagesStickScroll(
     const container = containerRef.current;
     if (!container) return;
 
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: busy ? "auto" : "smooth",
-    });
-  }, [containerRef, revision, busy, visible, threadId]);
+    container.scrollTop = container.scrollHeight;
+  }, [containerRef, revision, visible, threadId]);
 
   return { pinToBottom, getStickToBottom };
 }

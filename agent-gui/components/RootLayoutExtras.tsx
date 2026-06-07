@@ -5,6 +5,8 @@ import { AppConfirmHost } from "@/components/AppConfirmHost";
 import { AppMessageHost } from "@/components/AppMessageHost";
 import { DevErrorCaptureGate } from "@/components/dev/DevErrorCaptureGate";
 import { DevHooksRecovery } from "@/components/dev/DevHooksRecovery";
+import { QuickerAgentExitHandler } from "@/components/QuickerAgentExitHandler";
+import { QuickerAgentExitOverlay } from "@/components/QuickerAgentExitOverlay";
 import { QuickerAgentUpdateChecker } from "@/components/QuickerAgentUpdateChecker";
 import { QuickerAgentUpdateOverlay } from "@/components/QuickerAgentUpdateOverlay";
 import { TauriShellInputGuard } from "@/components/shell/TauriShellInputGuard";
@@ -19,6 +21,8 @@ export function RootLayoutExtras() {
       {!isLauncher ? <TauriShellInputGuard /> : null}
       {!isLauncher ? <DevErrorCaptureGate /> : null}
       {!isLauncher ? <DevHooksRecovery /> : null}
+      {!isLauncher ? <QuickerAgentExitHandler /> : null}
+      {!isLauncher ? <QuickerAgentExitOverlay /> : null}
       {!isLauncher ? <QuickerAgentUpdateChecker /> : null}
       {!isLauncher ? <QuickerAgentUpdateOverlay /> : null}
       <AppConfirmHost />

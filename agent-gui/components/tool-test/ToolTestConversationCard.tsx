@@ -7,7 +7,10 @@ import {
   type ToolTestConversationStatus,
 } from "@/lib/tool-test-conversation-run";
 import { formatTitleTestRunTime } from "@/lib/tool-test-title-runs";
+import { formatLauncherAgentTimingMs } from "@/lib/tool-test-launcher-agent-timing";
+import type { LauncherAgentResponseCompletionKind } from "@/lib/tool-test-launcher-agent-timing";
 import { ToolTestChatMessages } from "@/components/tool-test/ToolTestChatMessages";
+import { ToolTestLauncherAgentChatMessages } from "@/components/tool-test/ToolTestLauncherAgentChatMessages";
 
 export type ToolTestConversationCardProps = {
   label: string;
@@ -16,6 +19,10 @@ export type ToolTestConversationCardProps = {
   status: ToolTestConversationStatus;
   statusLabels?: { running?: string; done?: string; error?: string };
   at: number;
+  /** Primary latency badge (e.g. launcher startup ms). */
+  timingMs?: number;
+  timingTitle?: string;
+  timingLive?: boolean;
   messages: AgentUIMessage[];
   workingDirectory?: string;
   keepToolBatchesExpanded?: boolean;
@@ -23,6 +30,9 @@ export type ToolTestConversationCardProps = {
   footer?: ReactNode;
   /** Extra deps to auto-scroll while streaming (e.g. part count). */
   streamTick?: number;
+  /** Launcher agent test: flat tool chain, hide Thought noise. */
+  chatVariant?: "default" | "launcher-agent";
+  responseCompletionKind?: LauncherAgentResponseCompletionKind;
 };
 
 export function ToolTestConversationCard({
@@ -32,20 +42,30 @@ export function ToolTestConversationCard({
   status,
   statusLabels,
   at,
+  timingMs,
+  timingTitle,
+  timingLive,
   messages,
   workingDirectory,
   keepToolBatchesExpanded = true,
   emptyHint,
   footer,
   streamTick = 0,
+  chatVariant = "default",
+  responseCompletionKind,
 }: ToolTestConversationCardProps) {
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   const statusLabel = badge ?? toolTestConversationStatusLabel(status, statusLabels);
 
   useEffect(() => {
     if (status !== "running") return;
+    if (chatVariant === "launcher-agent") {
+      chatScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+      return;
+    }
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [status, messages.length, streamTick]);
+  }, [chatVariant, status, messages.length, streamTick]);
 
   return (
     <article
@@ -58,19 +78,48 @@ export function ToolTestConversationCard({
             {statusLabel}
           </span>
         </div>
-        <time className="tool-test-title-run__time" dateTime={new Date(at).toISOString()}>
-          {formatTitleTestRunTime(at)}
-        </time>
+        <div className="tool-test-title-run__head-meta">
+          {timingMs != null ? (
+            <span
+              className={`tool-test-title-run__timing${timingLive ? " tool-test-title-run__timing--live" : ""}`}
+              title={timingTitle ?? "Agent 启动耗时"}
+            >
+              {formatLauncherAgentTimingMs(timingMs)}
+            </span>
+          ) : status === "running" ? (
+            <span className="tool-test-title-run__timing tool-test-title-run__timing--pending">
+              …
+            </span>
+          ) : null}
+          <time className="tool-test-title-run__time" dateTime={new Date(at).toISOString()}>
+            {formatTitleTestRunTime(at)}
+          </time>
+        </div>
       </header>
 
-      <div className="tool-test-title-run__chat" aria-label="测试对话">
-        <ToolTestChatMessages
-          messages={messages}
-          workingDirectory={workingDirectory}
-          keepToolBatchesExpanded={keepToolBatchesExpanded}
-          emptyHint={emptyHint}
-          endRef={chatEndRef}
-        />
+      <div
+        ref={chatScrollRef}
+        className="tool-test-title-run__chat"
+        aria-label="测试对话"
+      >
+        {chatVariant === "launcher-agent" ? (
+          <ToolTestLauncherAgentChatMessages
+            messages={messages}
+            workingDirectory={workingDirectory}
+            emptyHint={emptyHint}
+            endRef={chatEndRef}
+            responseCompletionKind={responseCompletionKind}
+            status={status}
+          />
+        ) : (
+          <ToolTestChatMessages
+            messages={messages}
+            workingDirectory={workingDirectory}
+            keepToolBatchesExpanded={keepToolBatchesExpanded}
+            emptyHint={emptyHint}
+            endRef={chatEndRef}
+          />
+        )}
       </div>
 
       {footer}

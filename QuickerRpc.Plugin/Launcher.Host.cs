@@ -30,6 +30,7 @@ public static partial class Launcher
                 services.AddSingleton<ActionCreateService>();
                 services.AddSingleton<ActionEditService>();
                 services.AddSingleton<ActionRunService>();
+                services.AddSingleton<XActionTraceRunService>();
                 services.AddSingleton<ActionFloatService>();
                 services.AddSingleton<HeadlessVariableEditService>();
                 services.AddSingleton<HeadlessActionProgramService>();
@@ -39,6 +40,7 @@ public static partial class Launcher
                 services.AddSingleton<ExpressionExecuteService>();
                 services.AddSingleton<QuickerSettingsService>();
                 services.AddSingleton<QuickerSettingsUiService>();
+                services.AddSingleton<LauncherResolveService>();
                 services.AddSingleton<QuickerAgentUpdateCheckService>();
                 services.AddSingleton<QuickerRpcService>();
                 services.AddSingleton<IQuickerRpcService>(sp => sp.GetRequiredService<QuickerRpcService>());

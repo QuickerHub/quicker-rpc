@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { formatJsonDisplayText } from "@/lib/format-json-display";
 import {
   buildPreviewCodeMirrorExtensions,
@@ -26,7 +26,7 @@ export function ToolJsonEditor({
     [],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!followTail) return;
     const scroller = scrollRef.current?.querySelector(".cm-scroller");
     if (!(scroller instanceof HTMLElement)) return;

@@ -7,6 +7,10 @@ import {
 import { generateId } from "ai";
 import { allQuickerTools } from "@/lib/tools";
 import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
+import {
+  normalizeToolCallName,
+  resolveKnownToolName,
+} from "@/lib/repair-tool-call";
 
 export type DirectToolExecuteResult =
   | { ok: true; output: unknown }
@@ -15,7 +19,10 @@ export type DirectToolExecuteResult =
 
 function resolveTool(toolName: string): Tool | undefined {
   const tools = allQuickerTools as Record<string, Tool>;
-  return tools[toolName];
+  const ids = Object.keys(tools);
+  const canonical =
+    resolveKnownToolName(toolName, ids) ?? normalizeToolCallName(toolName);
+  return tools[canonical] ?? tools[toolName.trim()];
 }
 
 async function resolveNeedsApproval(

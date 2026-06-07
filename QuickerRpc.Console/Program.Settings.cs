@@ -20,6 +20,7 @@ internal static partial class Program
             "pages" => await RunSettingsPagesAsync(options).ConfigureAwait(false),
             "links" => await RunSettingsLinksAsync(options).ConfigureAwait(false),
             "open" => await RunSettingsOpenAsync(options).ConfigureAwait(false),
+            "resolve" => await RunSettingsResolveAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownSettingsVerbAsync(options).ConfigureAwait(false),
         };
     }
@@ -29,7 +30,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_SETTINGS_VERB",
-            "Use: settings search|list|get|set|apply|pages|links|open (see qkrpc help --json)")
+            "Use: settings search|list|get|set|apply|pages|links|open|resolve (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -487,12 +488,79 @@ internal static partial class Program
             return ExitCodes.Error;
         }
     }
+
+    private static async Task<int> RunSettingsResolveAsync(SettingsOptions options)
+    {
+        var query = (options.Query ?? string.Empty).Trim();
+        var key = (options.Key ?? string.Empty).Trim();
+        var preset = (options.Preset ?? options.Link ?? string.Empty).Trim();
+        if (query.Length == 0 && key.Length == 0 && preset.Length == 0)
+        {
+            await EmitErrorAsync(
+                options.Json,
+                "SETTINGS_RESOLVE_ARGS",
+                "Provide --query, --key, or --preset for settings resolve.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var result = await session.Proxy
+                .ResolveSettingsIntentAsync(
+                    query.Length > 0 ? query : null,
+                    key.Length > 0 ? key : null,
+                    preset.Length > 0 ? preset : null,
+                    rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "settings-resolve",
+                        intent = result.Intent,
+                        preset = result.PresetId,
+                        target = result.Target,
+                        pageId = result.PageId,
+                        settingKey = result.SettingKey,
+                        searchText = result.SearchText,
+                        suggestedAction = result.SuggestedAction,
+                        message = result.Message,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else
+            {
+                global::System.Console.WriteLine(
+                    $"{result.Intent}\t{result.Target}\tpage={result.PageId ?? "-"}"
+                    + $"\tpreset={result.PresetId ?? "-"}\tkey={result.SettingKey ?? "-"}");
+                global::System.Console.WriteLine(result.Message);
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "SETTINGS_RESOLVE_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
 }
 
 [Verb("settings", HelpText = "Quicker application settings (search, read, write, open UI).")]
 public sealed class SettingsOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "search | list | get | set | apply | pages | links | open")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "search | list | get | set | apply | pages | links | open | resolve")]
     public string? Command { get; set; }
 
     [Option("preset", HelpText = "Direct link preset for open (see settings links). Preferred one-step open.")]

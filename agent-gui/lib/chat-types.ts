@@ -24,6 +24,8 @@ export type ChatUsageMetadata = {
   reasoningTokens?: number;
   contextCompression?: ContextCompressionMetadata;
   launcherCacheDirect?: boolean;
+  launcherResolveDirect?: boolean;
+  resolveQuery?: string;
 };
 
 export type AgentUIMessage = UIMessage<ChatUsageMetadata>;

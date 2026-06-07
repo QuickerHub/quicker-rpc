@@ -9,6 +9,8 @@ export type ActionLinkCardPrompt = {
 export type ActionLinkCardPromptContext = {
   actionId: string;
   title: string;
+  /** Optional run/trace param from the card input. */
+  param?: string;
 };
 
 export const ACTION_LINK_CARD_PROMPTS: ActionLinkCardPrompt[] = [
@@ -54,6 +56,11 @@ export function buildActionLinkCardPromptMessage(
       return `${tag}请设置合适的快捷键，我希望使用`;
     case "explain":
       return `${tag}请用通俗语言解释步骤逻辑，我想了解`;
+    case "trace": {
+      const param = ctx.param?.trim();
+      const paramBit = param ? `，运行参数 ${param}` : "";
+      return `${tag}请 trace 调试运行动作${paramBit}，侧栏查看步骤时间线，我想排查`;
+    }
     default:
       return null;
   }

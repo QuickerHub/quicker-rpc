@@ -11,6 +11,7 @@ import {
   countShellOutputLines,
   tailShellOutputForPreview,
 } from "@/lib/shell-tool-view";
+import { useFollowScrollTail } from "@/lib/use-follow-scroll-tail";
 
 type TerminalOutputEditorProps = {
   content: string;
@@ -101,6 +102,7 @@ export function TerminalOutputEditor({
   const useBlockTitle = Boolean(title?.trim());
   const showBadgeHeader = showHeader && !useBlockTitle;
   const rootRef = useRef<HTMLDivElement>(null);
+  const liveOutputRef = useRef<HTMLPreElement>(null);
   const wasRunningRef = useRef(running);
   const [userExpanded, setUserExpanded] = useState(false);
   const foldCommandUntilExpand =
@@ -160,18 +162,18 @@ export function TerminalOutputEditor({
     wasRunningRef.current = running;
   }, [running]);
 
+  useFollowScrollTail(liveOutputRef, running, liveText);
+
   useLayoutEffect(() => {
-    if (!followTail && !running) return;
+    if (!followTail || running) return;
     const root = rootRef.current;
     if (!root) return;
-    const scroller = running
-      ? root.querySelector<HTMLElement>(".terminal-live-output")
-      : root.querySelector<HTMLElement>(
-        ".terminal-output-editor__output-pane .cm-scroller",
-      );
+    const scroller = root.querySelector<HTMLElement>(
+      ".terminal-output-editor__output-pane .cm-scroller",
+    );
     if (!scroller) return;
     scroller.scrollTop = scroller.scrollHeight;
-  }, [outputText, liveText, followTail, running, showCommandPane]);
+  }, [outputText, followTail, running, showCommandPane]);
 
   useLayoutEffect(() => {
     if (!isCompactPreview) return;
@@ -277,6 +279,7 @@ export function TerminalOutputEditor({
       ) : null}
       {running ? (
         <pre
+          ref={liveOutputRef}
           className={[
             "terminal-output-editor__output-pane",
             "terminal-live-output",

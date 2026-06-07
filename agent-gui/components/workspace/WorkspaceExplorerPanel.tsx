@@ -3,14 +3,17 @@
 import { useCallback, type CSSProperties } from "react";
 
 import { WorkspaceEmbeddedBrowser } from "@/components/browser/WorkspaceEmbeddedBrowser";
+import { ActionTracePanel } from "@/components/action-trace/ActionTracePanel";
 import { WorkspaceExplorerEditorArea } from "@/components/workspace/WorkspaceExplorerEditorArea";
 import { WorkspaceResourceManager } from "@/components/workspace/WorkspaceResourceManager";
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import { storeChatColumnWidth } from "@/lib/explorer-prefs";
 import {
   isSidePanelEditorView,
+  isSidePanelTraceView,
   SIDE_PANEL_VIEW_BROWSER,
   SIDE_PANEL_VIEW_EXPLORER,
+  SIDE_PANEL_VIEW_TRACE,
 } from "@/lib/workspace-side-panel-view";
 import {
   useWorkspaceExplorerShell,
@@ -66,6 +69,11 @@ export function WorkspaceExplorerPanel() {
 
   const showExplorer = activeSideView === SIDE_PANEL_VIEW_EXPLORER;
   const showBrowser = activeSideView === SIDE_PANEL_VIEW_BROWSER;
+  const showTrace = isSidePanelTraceView(activeSideView);
+  const traceTabId =
+    showTrace && activeSideView !== SIDE_PANEL_VIEW_TRACE
+      ? activeSideView
+      : null;
   const showEditor = isSidePanelEditorView(activeSideView);
 
   return (
@@ -88,6 +96,15 @@ export function WorkspaceExplorerPanel() {
 
         {showBrowser ? (
           <WorkspaceEmbeddedBrowser />
+        ) : null}
+
+        {showTrace ? (
+          <div className="workspace-side-panel-trace">
+            <ActionTracePanel
+              tabId={traceTabId}
+              className="action-trace-panel--side"
+            />
+          </div>
         ) : null}
 
         {showEditor ? (

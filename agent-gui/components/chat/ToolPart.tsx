@@ -23,6 +23,7 @@ import {
   isQkrpcToolResult,
   summarizeToolOutput,
 } from "./tool-output";
+import { qkrpcActionCommandRunningMeta } from "@/lib/qkrpc-action-tool";
 import { parseDocsGetDoc, isDocsGetOpenableTool } from "@/lib/docs-tool";
 import { useDocsViewer } from "@/lib/docs-viewer";
 import { getToolMeta } from "@/lib/tool-registry";
@@ -40,6 +41,7 @@ import { ShellToolRow } from "./ShellToolRow";
 import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 import { summarizeShellToolInput } from "@/lib/shell-tool-view";
 import { useWorkspaceExplorerActions } from "@/lib/workspace-explorer";
+import { ActionTraceToolSync } from "./ActionTraceToolSync";
 
 type Part = UIMessage["parts"][number];
 
@@ -75,7 +77,9 @@ function ToolPartInner({
       ? summarizeShellToolInput(input)
       : isRunning && isWorkspaceExplorerFileTool(name, input)
         ? workspaceFileRunningMeta(name, input)
-        : null;
+        : isRunning
+          ? qkrpcActionCommandRunningMeta(name, input)
+          : null;
   const meta = runningMeta ?? buildToolSummaryMeta(state, summary);
   const errorText = "errorText" in part ? part.errorText : undefined;
   const isError =
@@ -107,19 +111,31 @@ function ToolPartInner({
       ? part.toolCallId
       : undefined;
 
+  const traceSync = (
+    <ActionTraceToolSync
+      toolName={name}
+      input={input}
+      output={output}
+      isRunning={isRunning}
+    />
+  );
+
   if (name === SHELL_EXEC_TOOL) {
     return (
-      <ShellToolRow
-        state={state}
-        input={input}
-        output={
-          output !== undefined && isQkrpcToolResult(output) ? output : undefined
-        }
-        running={isRunning}
-        inBatch={inBatch}
-        errorText={errorText}
-        toolCallId={toolCallId}
-      />
+      <>
+        {traceSync}
+        <ShellToolRow
+          state={state}
+          input={input}
+          output={
+            output !== undefined && isQkrpcToolResult(output) ? output : undefined
+          }
+          running={isRunning}
+          inBatch={inBatch}
+          errorText={errorText}
+          toolCallId={toolCallId}
+        />
+      </>
     );
   }
 
@@ -132,18 +148,21 @@ function ToolPartInner({
     })
   ) {
     return (
-      <PopupToolRow
-        toolName={name}
-        displayName={displayName}
-        meta={meta}
-        isRunning={isRunning}
-        state={state}
-        isError={isError}
-        input={input}
-        output={output}
-        errorText={errorText}
-        inBatch={inBatch}
-      />
+      <>
+        {traceSync}
+        <PopupToolRow
+          toolName={name}
+          displayName={displayName}
+          meta={meta}
+          isRunning={isRunning}
+          state={state}
+          isError={isError}
+          input={input}
+          output={output}
+          errorText={errorText}
+          inBatch={inBatch}
+        />
+      </>
     );
   }
 
@@ -208,18 +227,21 @@ function ToolPartInner({
   }
 
   return (
-    <PopupToolRow
-      toolName={name}
-      displayName={displayName}
-      meta={meta}
-      isRunning={isRunning}
-      state={state}
-      isError={isError}
-      input={input}
-      output={output}
-      errorText={errorText}
-      inBatch={inBatch}
-    />
+    <>
+      {traceSync}
+      <PopupToolRow
+        toolName={name}
+        displayName={displayName}
+        meta={meta}
+        isRunning={isRunning}
+        state={state}
+        isError={isError}
+        input={input}
+        output={output}
+        errorText={errorText}
+        inBatch={inBatch}
+      />
+    </>
   );
 }
 
