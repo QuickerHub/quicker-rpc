@@ -115,7 +115,7 @@ function flushPendingForTabPartial(tabId: string): boolean {
     pendingOutputByTab.delete(tabId);
     pendingLineDeltaByTab.delete(tabId);
     pendingEventsByTab.delete(tabId);
-    return;
+    return false;
   }
 
   let next = tab;
