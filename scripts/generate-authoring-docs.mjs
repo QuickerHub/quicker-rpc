@@ -14,6 +14,8 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = path.join(ROOT, "docs/action-authoring-src");
+const SRC_PARTIALS = path.join(SRC, "partials");
+const SKILL_SRC = path.join(SRC, "skills/quicker-authoring/SKILL.src.md");
 const OUT_CLI = path.join(ROOT, "docs/action-authoring/cli");
 const OUT_SKILLS = path.join(ROOT, "docs/skills/quicker-authoring");
 const SKILL_NAME = "quicker-authoring";
@@ -40,28 +42,22 @@ function sortRecordKeys(record) {
 /** @typedef {'cli' | 'agent'} Profile */
 
 /**
- * @param {Record<string, unknown>} opsData
- * @param {string} topic
+ * @param {Record<string, unknown>} meta
  * @param {string} body
- * @param {{ skillName?: string }} [opts]
+ * @param {string} skillName
  */
-function buildSkillMd(opsData, topic, body, opts = {}) {
-  const topics = /** @type {Record<string, Record<string, unknown>>} */ (
-    opsData.topics ?? {}
-  );
-  const meta = topics[topic];
+function buildSkillFrontmatter(meta, body, skillName) {
   if (!meta?.description) {
-    throw new Error(`Missing topics.${topic}.description in ops.json`);
+    throw new Error("Missing skill.description in ops.json");
   }
 
   const description = String(meta.description).trim();
   if (description.length === 0 || description.length > 1024) {
     throw new Error(
-      `topics.${topic}.description must be 1–1024 chars (got ${description.length})`,
+      `skill.description must be 1–1024 chars (got ${description.length})`,
     );
   }
 
-  const skillName = opts.skillName ?? topic;
   const lines = [
     "---",
     `name: ${skillName}`,
@@ -92,6 +88,31 @@ function buildSkillMd(opsData, topic, body, opts = {}) {
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * @param {Record<string, unknown>} opsData
+ * @param {string} topic
+ * @param {string} body
+ * @param {{ skillName?: string }} [opts]
+ */
+function buildSkillMd(opsData, topic, body, opts = {}) {
+  const topics = /** @type {Record<string, Record<string, unknown>>} */ (
+    opsData.topics ?? {}
+  );
+  const meta = topics[topic];
+  const skillName = opts.skillName ?? topic;
+  return buildSkillFrontmatter(meta, body, skillName);
+}
+
+/** @param {Record<string, unknown>} opsData @param {string} body */
+function buildSkillEntryMd(opsData, body) {
+  const skill = /** @type {Record<string, unknown>} */ (opsData.skill ?? {});
+  const skillName = String(skill.name ?? SKILL_NAME).trim();
+  if (!skillName) {
+    throw new Error("Missing skill.name in ops.json");
+  }
+  return buildSkillFrontmatter(skill, body, skillName);
+}
+
 /** @param {string} value */
 function yamlDoubleQuote(value) {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
@@ -119,7 +140,7 @@ function buildTopicManifestEntry(opsData, topic) {
     topic,
     title: String(meta.title).trim(),
     description: String(meta.description).trim(),
-    source: topic === "overview" ? "SKILL.md" : `references/${topic}.md`,
+    source: `references/${topic}.md`,
   };
 
   const allowedTools = meta["allowed-tools"];
@@ -135,6 +156,10 @@ function buildTopicManifestEntry(opsData, topic) {
   const metadata = meta.metadata;
   if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
     entry.metadata = metadata;
+    const layer = /** @type {Record<string, unknown>} */ (metadata).layer;
+    if (typeof layer === "string" && layer.trim()) {
+      entry.layer = layer.trim();
+    }
   }
 
   return entry;
@@ -170,6 +195,27 @@ async function loadSource() {
     .filter((f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md")
     .sort();
   return { opsData, files };
+}
+
+/** @returns {Promise<Map<string, string>>} */
+async function loadPartials() {
+  /** @type {Map<string, string>} */
+  const map = new Map();
+  let entries;
+  try {
+    entries = await fs.readdir(SRC_PARTIALS);
+  } catch {
+    return map;
+  }
+  for (const fname of entries.sort()) {
+    if (!fname.endsWith(".md")) continue;
+    const name = fname.slice(0, -3);
+    map.set(
+      name,
+      normalizeEol(await fs.readFile(path.join(SRC_PARTIALS, fname), "utf8")),
+    );
+  }
+  return map;
 }
 
 /** @param {string} markdown */
@@ -254,8 +300,7 @@ async function computeOutputs(opsData, files) {
   /** @type {Record<string, { id: string, title: string, path: string }[]>} */
   const referenceCatalog = {};
 
-  /** @type {string | null} */
-  let overviewBody = null;
+  const partials = await loadPartials();
 
   for (const file of files) {
     const topic = file.replace(/\.md$/i, "");
@@ -264,19 +309,14 @@ async function computeOutputs(opsData, files) {
     );
     const refMap = await loadReferenceMap(topic);
 
-    const cliRendered = renderDoc(src, opsData, "cli", file, refMap);
+    const cliRendered = renderDoc(src, opsData, "cli", file, refMap, partials);
     outputs.set(`cli/${file}`, cliRendered);
 
     const cliOnly = isCliOnlyTopic(opsData, topic);
     if (cliOnly) continue;
 
-    const agentBody = renderDoc(src, opsData, "agent", file, refMap);
+    const agentBody = renderDoc(src, opsData, "agent", file, refMap, partials);
     topicManifest.push(buildTopicManifestEntry(opsData, topic));
-
-    if (topic === "overview") {
-      overviewBody = agentBody;
-      continue;
-    }
 
     outputs.set(
       `skills/references/${topic}.md`,
@@ -290,6 +330,7 @@ async function computeOutputs(opsData, files) {
         "agent",
         `${file}#ref:${refName}`,
         refMap,
+        partials,
       );
       outputs.set(
         `skills/references/${refEntry.outRel}`,
@@ -313,14 +354,30 @@ async function computeOutputs(opsData, files) {
     );
   }
 
-  if (overviewBody == null) {
-    throw new Error("Missing overview.md for agent skill entry");
+  let skillSrc;
+  try {
+    skillSrc = normalizeEol(await fs.readFile(SKILL_SRC, "utf8"));
+  } catch {
+    throw new Error(`Missing skill source: ${SKILL_SRC}`);
   }
 
-  outputs.set(
-    "skills/SKILL.md",
-    buildSkillMd(opsData, "overview", overviewBody, { skillName: SKILL_NAME }),
+  const skillBody = renderDoc(
+    skillSrc,
+    opsData,
+    "agent",
+    "skills/quicker-authoring/SKILL.src.md",
+    new Map(),
+    partials,
   );
+  const skillMd = buildSkillEntryMd(opsData, skillBody);
+  const skillBodyLines = skillBody.trim().split("\n").length;
+  if (skillBodyLines > 200) {
+    throw new Error(
+      `SKILL.src.md body too long (${skillBodyLines} lines; keep router ≤200)`,
+    );
+  }
+
+  outputs.set("skills/SKILL.md", skillMd);
   outputs.set(
     "skills/topics.json",
     `${JSON.stringify(
@@ -517,7 +574,7 @@ async function pruneOrphanOutputs(topicFiles, opsData) {
   const agentReferenceTopics = new Set(
     topicFiles
       .map((f) => f.replace(/\.md$/i, ""))
-      .filter((t) => !isCliOnlyTopic(opsData, t) && t !== "overview")
+      .filter((t) => !isCliOnlyTopic(opsData, t))
       .map((t) => t.toLowerCase()),
   );
   /** @type {Set<string>} */
@@ -668,7 +725,7 @@ function getTopicTitle(opsData, topic) {
   return String(meta.title).trim();
 }
 
-function renderDoc(text, opsData, profile, file, refMap = new Map()) {
+function renderDoc(text, opsData, profile, file, refMap = new Map(), partials = new Map()) {
   let out = text;
 
   out = out.replace(/\{\{#topic-title\}\}/g, () =>
@@ -684,6 +741,21 @@ function renderDoc(text, opsData, profile, file, refMap = new Map()) {
     profile === "agent" ? "$1" : "",
   );
 
+  out = out.replace(/\{\{#include-partial\s+([\w-]+)\}\}/g, (_, name) => {
+    const partial = partials.get(name);
+    if (!partial) {
+      throw new Error(`Missing partial ${name} for ${file}`);
+    }
+    return renderDoc(
+      partial,
+      opsData,
+      profile,
+      `${file}#partial:${name}`,
+      refMap,
+      partials,
+    ).trim();
+  });
+
   out = out.replace(/\{\{#include-reference\s+([\w-]+)\}\}/g, (_, refName) => {
     const refEntry = refMap.get(refName);
     if (!refEntry) {
@@ -695,10 +767,11 @@ function renderDoc(text, opsData, profile, file, refMap = new Map()) {
       profile,
       `${file}#ref:${refName}`,
       refMap,
+      partials,
     ).trim();
   });
 
-  out = expandRefs(out, opsData, profile, file, 0, refMap);
+  out = expandRefs(out, opsData, profile, file, 0, refMap, partials);
   out = out.replace(/\n{3,}/g, "\n\n").trimEnd();
   return out ? `${out}\n` : "\n";
 }
@@ -710,7 +783,7 @@ function renderDoc(text, opsData, profile, file, refMap = new Map()) {
  * @param {string} file
  * @param {number} depth
  */
-function expandRefs(text, opsData, profile, file, depth, refMap = new Map()) {
+function expandRefs(text, opsData, profile, file, depth, refMap = new Map(), partials = new Map()) {
   if (depth > 8) {
     throw new Error(`Max expansion depth in ${file}`);
   }
@@ -725,7 +798,7 @@ function expandRefs(text, opsData, profile, file, depth, refMap = new Map()) {
     if (!p) throw new Error(`Unknown phrase: ${id} (${file})`);
     const v = p[profile];
     if (v == null || v === "") return "";
-    return expandRefs(v, opsData, profile, file, depth + 1, refMap);
+    return expandRefs(v, opsData, profile, file, depth + 1, refMap, partials);
   });
 
   out = out.replace(/\{\{@doc\s+([\w-]+)\}\}/g, (_, topic) =>
@@ -738,7 +811,7 @@ function expandRefs(text, opsData, profile, file, depth, refMap = new Map()) {
   });
 
   if (/\{\{#ref|\{\{@doc|\{\{@/.test(out) && depth < 8) {
-    return expandRefs(out, opsData, profile, file, depth + 1, refMap);
+    return expandRefs(out, opsData, profile, file, depth + 1, refMap, partials);
   }
 
   return out;

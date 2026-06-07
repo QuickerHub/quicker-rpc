@@ -7,8 +7,22 @@
       "description": "动作内子程序：subprograms/{subId}/ 目录与根 data.json 不含内联 subPrograms 的磁盘模型。",
       "source": "references/action-embedded-subprograms.md",
       "metadata": {
-        "phase": "P2-P6"
-      }
+        "phase": "P2-P6",
+        "layer": "schema"
+      },
+      "layer": "schema"
+    },
+    {
+      "topic": "action-icons",
+      "title": "动作图标",
+      "description": "Font Awesome fa: spec and http(s) image URLs for action metadata and context menus. Use before set-metadata icon or guessing fa:Light_* names.",
+      "source": "references/action-icons.md",
+      "allowedTools": "qkrpc_fa_search qkrpc_action_set_metadata qkrpc_action_patch workspace_action_edit_data",
+      "metadata": {
+        "phase": "P3",
+        "layer": "schema"
+      },
+      "layer": "schema"
     },
     {
       "topic": "action-organization-workflow",
@@ -17,8 +31,10 @@
       "source": "references/action-organization-workflow.md",
       "allowedTools": "qkrpc_action_list qkrpc_action_search qkrpc_action_move qkrpc_profile_create qkrpc_profile_reorder qkrpc_process_ensure",
       "metadata": {
-        "phase": "organize"
-      }
+        "phase": "organize",
+        "layer": "workflow"
+      },
+      "layer": "workflow"
     },
     {
       "topic": "action-project-files",
@@ -26,8 +42,10 @@
       "description": ".quicker/actions/{actionId} 目录、data.json 与 files/ 外置 {file} 引用形状。Use when authoring file refs on disk.",
       "source": "references/action-project-files.md",
       "metadata": {
-        "phase": "P2-P6"
-      }
+        "phase": "P2-P6",
+        "layer": "schema"
+      },
+      "layer": "schema"
     },
     {
       "topic": "action-steps",
@@ -36,8 +54,10 @@
       "source": "references/action-steps.md",
       "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit qkrpc_action_patch",
       "metadata": {
-        "phase": "P5-P6"
-      }
+        "phase": "P5-P6",
+        "layer": "schema"
+      },
+      "layer": "schema"
     },
     {
       "topic": "action-variables",
@@ -46,8 +66,10 @@
       "source": "references/action-variables.md",
       "allowedTools": "workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_step_runner_get",
       "metadata": {
-        "phase": "P2-P6"
-      }
+        "phase": "P2-P6",
+        "layer": "schema"
+      },
+      "layer": "schema"
     },
     {
       "topic": "authoring-workflow",
@@ -56,8 +78,10 @@
       "source": "references/authoring-workflow.md",
       "allowedTools": "qkrpc_action_create qkrpc_action_list qkrpc_action_search qkrpc_action_get qkrpc_action_patch qkrpc_action_set_metadata qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
       "metadata": {
-        "phase": "P1-P7"
-      }
+        "phase": "P1-P7",
+        "layer": "workflow"
+      },
+      "layer": "workflow"
     },
     {
       "topic": "common-operation-item",
@@ -66,8 +90,10 @@
       "source": "references/common-operation-item.md",
       "allowedTools": "qkrpc_action_get qkrpc_action_set_metadata qkrpc_action_patch qkrpc_fa_search workspace_action_read_data workspace_action_edit_data",
       "metadata": {
-        "phase": "P3"
-      }
+        "phase": "P3",
+        "layer": "schema"
+      },
+      "layer": "schema"
     },
     {
       "topic": "expressions",
@@ -76,8 +102,10 @@
       "source": "references/expressions.md",
       "allowedTools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch",
       "metadata": {
-        "phase": "P4"
-      }
+        "phase": "P4",
+        "layer": "schema"
+      },
+      "layer": "schema"
     },
     {
       "topic": "form-spec",
@@ -86,8 +114,10 @@
       "source": "references/form-spec.md",
       "allowedTools": "qkrpc_form_validate qkrpc_form_build qkrpc_step_runner_get workspace_action_edit_data qkrpc_action_patch",
       "metadata": {
-        "phase": "P5-P6"
-      }
+        "phase": "P5-P6",
+        "layer": "schema"
+      },
+      "layer": "schema"
     },
     {
       "topic": "implementation-fallback",
@@ -96,16 +126,23 @@
       "source": "references/implementation-fallback.md",
       "allowedTools": "qkrpc_step_runner_search qkrpc_step_runner_get qkrpc_action_patch",
       "metadata": {
-        "phase": "P4"
-      }
+        "phase": "P4",
+        "layer": "schema"
+      },
+      "layer": "schema"
     },
     {
       "topic": "overview",
       "title": "总览",
-      "description": "Quicker 动作无头编辑总览：P0 环境、docs 工具、P0–P7 索引。Use when starting action editing or choosing which guide topic to read next.",
-      "source": "SKILL.md",
+      "description": "Quicker 动作无头编辑总览：文档层级、P0–P7 索引与专题路由。Use when starting action editing or choosing which guide topic to read next.",
+      "source": "references/overview.md",
       "allowedTools": "docs",
-      "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
+      "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin",
+      "metadata": {
+        "phase": "P0",
+        "layer": "router"
+      },
+      "layer": "router"
     },
     {
       "topic": "quicker-ui",
@@ -114,8 +151,10 @@
       "source": "references/quicker-ui.md",
       "allowedTools": "quicker_settings docs",
       "metadata": {
-        "phase": "ui"
-      }
+        "phase": "ui",
+        "layer": "adjunct"
+      },
+      "layer": "adjunct"
     },
     {
       "topic": "step-modules",
@@ -124,8 +163,10 @@
       "source": "references/step-modules.md",
       "allowedTools": "qkrpc_step_runner_search qkrpc_step_runner_get docs",
       "metadata": {
-        "phase": "P4-P5"
-      }
+        "phase": "P4-P5",
+        "layer": "catalog"
+      },
+      "layer": "catalog"
     },
     {
       "topic": "step-runner-get",
@@ -134,8 +175,10 @@
       "source": "references/step-runner-get.md",
       "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search",
       "metadata": {
-        "phase": "P5"
-      }
+        "phase": "P5",
+        "layer": "catalog"
+      },
+      "layer": "catalog"
     },
     {
       "topic": "step-runner-search",
@@ -144,8 +187,10 @@
       "source": "references/step-runner-search.md",
       "allowedTools": "qkrpc_step_runner_search qkrpc_step_runner_get",
       "metadata": {
-        "phase": "P5"
-      }
+        "phase": "P5",
+        "layer": "catalog"
+      },
+      "layer": "catalog"
     },
     {
       "topic": "subprogram-workflow",
@@ -154,8 +199,10 @@
       "source": "references/subprogram-workflow.md",
       "allowedTools": "qkrpc_subprogram_search qkrpc_subprogram_get qkrpc_step_runner_get qkrpc_action_patch",
       "metadata": {
-        "phase": "P5-P6"
-      }
+        "phase": "P5-P6",
+        "layer": "workflow"
+      },
+      "layer": "workflow"
     },
     {
       "topic": "workspace-editing",
@@ -163,7 +210,12 @@
       "description": ".quicker/actions layout; workspace_action_*_data and workspace_action_file_* (id + files/…); patch saves. Use when editing on disk.",
       "source": "references/workspace-editing.md",
       "allowedTools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
-      "compatibility": "QuickerAgent; requires working directory in sidebar"
+      "compatibility": "QuickerAgent; requires working directory in sidebar",
+      "metadata": {
+        "phase": "P2-P6",
+        "layer": "workflow"
+      },
+      "layer": "workflow"
     }
   ],
   "referenceFiles": {

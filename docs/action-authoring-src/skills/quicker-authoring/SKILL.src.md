@@ -1,13 +1,6 @@
----
-name: quicker-authoring
-description: "Routes Quicker headless action editing (P0–P7): pick workflow topic, then schema/step-runner refs. Use when creating or editing Quicker actions, subprograms, steps, or data.json on disk."
-allowed-tools: docs
-compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
----
-
 # Quicker 动作无头编辑
 
-无头编辑 XAction：**agent-ui 工具** + QuickerRpc 插件。流程专题见 **`docs_index`**；参数/字段以各工具 description 为准，勿在回复中粘贴指南全文。
+{{#ref product.intro}}
 
 ## 先选路径
 
@@ -23,18 +16,7 @@ compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
 
 ## P0–P7 摘要
 
-```text
-阶段  目的
-────  ─────────────────────────────────────────
- P0   Quicker + 插件（见「P0 前置」）；侧边栏工作目录
- P1   定位 actionId（create / list / search）
- P2   读取并同步工作区（get → .quicker/actions/{actionId}/）
- P3   元数据（可选：set-metadata）
- P4   实现选型（**表达式优先** → 专用步骤 → csscript）
- P5   每步：step-runner get（禁止猜 inputParams 键名）
- P6   编辑 data.json / files/ → 保存到 Quicker
- P7   保存后以 editVersion 为准（勿反复 get 确认）
-```
+{{#include-partial pipeline-p0-p7}}
 
 **逐步操作**：**`authoring-workflow`**。**工作区**：**`workspace-editing`**。
 
@@ -56,4 +38,3 @@ compatibility: "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
 | 步骤模块 | **`step-modules`** + `docs_get_reference`（仅 `_catalog` 标记有 reference 的模块） |
 
 按需 `docs_get`；**勿**在会话开头连续多篇全文。目录：**`docs_index`** / **`docs_search`**。
-

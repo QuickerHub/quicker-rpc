@@ -33,6 +33,7 @@ type TopicsManifestEntry = {
   topic: string;
   title?: string;
   description: string;
+  layer?: string;
   allowedTools?: string;
   compatibility?: string;
   metadata?: Record<string, string>;
@@ -189,8 +190,11 @@ async function readTopicMarkdown(
 ): Promise<string | null> {
   if (topic === "overview") {
     try {
-      const content = await readFile(join(root, "SKILL.md"), "utf8");
-      return compactMarkdownBody(parseSkillMd(content).body);
+      const content = await readFile(
+        join(root, "references", "overview.md"),
+        "utf8",
+      );
+      return compactMarkdownBody(content);
     } catch {
       return null;
     }
@@ -220,6 +224,7 @@ async function loadUnifiedSkillTopics(root: string): Promise<TopicRow[]> {
       title:
         meta.title?.trim() || extractTitle(markdown) || meta.topic,
       description: meta.description,
+      layer: meta.layer?.trim() || meta.metadata?.layer,
       charCount: markdown.length,
       references: referencesForTopic(manifest, meta.topic),
       markdown,
@@ -529,10 +534,11 @@ export async function listActionAuthoringTopics(): Promise<
   const rows = await loadAllTopics();
   return rows
     .filter((r) => !r.reference)
-    .map(({ topic, title, description, charCount, references }) => ({
+    .map(({ topic, title, description, layer, charCount, references }) => ({
       topic,
       title,
       description,
+      layer,
       charCount,
       references,
     }));

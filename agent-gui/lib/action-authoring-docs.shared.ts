@@ -10,6 +10,7 @@ export type ActionAuthoringTopicMeta = {
   title: string;
   description: string;
   charCount: number;
+  layer?: string;
   references?: ActionAuthoringReferenceMeta[];
 };
 

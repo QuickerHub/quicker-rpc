@@ -2,49 +2,45 @@
 
 **Do not edit** `docs/action-authoring/cli/` or `docs/skills/quicker-authoring/` directly — they are generated.
 
-**模块详解子目录**（推荐）：`references/{topic}/{id}.md` → 生成 `skills/quicker-authoring/references/{topic}/{id}.md`，Agent 用 `docs_get_reference({ topic, file: id })`。
+## Layout (P0 refactor)
 
-可选大块附录（旧式扁平）：`references/{topic}.{name}.md` — CLI 可 `{{#include-reference}}` 内联；Agent 仍用 `docs_get_reference`（file = `name`）。
-
-**Cursor 开发**：指南在 `docs/skills/quicker-authoring/`（单 skill + references；与 QuickerAgent 安装包同源）；终端/Cursor Agent 也可用 `qkrpc guide get`。勿写入 `.cursor/skills/`（IDE 私有配置，不参与发布）。
-
-## Edit here
-
-| File | Role |
+| Path | Role |
 |------|------|
-| `*.md` | Topic templates with markers |
-| `ops.json` | Topics (`title`, `description`), operations, phrases (`cli` / `agent`) |
+| `skills/quicker-authoring/SKILL.src.md` | **L1 路由** → 生成 `SKILL.md`（≤200 行正文） |
+| `overview.md` + `*.md` topics | **L2–L4 专题** → CLI + `references/{topic}.md` |
+| `partials/*.md` | 共享片段（`{{#include-partial}}`） |
+| `references/{topic}/{id}.md` | 模块深参考（`docs_get_reference`） |
+| `ops.json` | `skill` 元数据 + `topics` + `phrases` + `ops` |
 
-**Agent 主路径**：`overview` → `authoring-workflow` → `workspace-editing`；领域规则见 `action-steps`、`action-variables`、`expressions` 等。模块用法见 **`step-modules`** + `references/step-modules/`（由 `node scripts/generate-step-module-refs.mjs` 从 [KC Help](https://getquicker.net/KC/Help) 生成）。CLI 专用：`patch-workflow`、`action-project-files`（`profiles: ["cli"]`）。
+**Agent 主路径**：`SKILL.md` 路由 → `docs_get authoring-workflow` → 按需 schema/catalog 专题。模块：`step-modules` + `references/step-modules/`（`npm run docs:modules:gen`）。
 
 ## Markers
 
 | Syntax | Example |
 |--------|---------|
-| `{{#topic-title}}` | H1 from `topics.{id}.title` in `ops.json` |
+| `{{#topic-title}}` | H1 from `topics.{id}.title` |
 | `{{#ref phrase-id}}` | `{{#ref product.intro}}` |
+| `{{#include-partial name}}` | `{{#include-partial pipeline-p0-p7}}` |
 | `{{@doc topic}}` | `{{@doc patch-workflow}}` |
 | `{{@ op-id key=value}}` | `{{@ action.patch id=guid N=3}}` |
-| `{{#include-reference id}}` | 内联同 topic 附录（CLI 生成时展开） |
-| `{{#only-cli}}…{{/only-cli}}` | CLI-only block |
-| `{{#only-agent}}…{{/only-agent}}` | agent-ui-only block |
+| `{{#include-reference id}}` | CLI 内联附录 |
+| `{{#only-cli}}…{{/only-cli}}` | CLI-only |
+| `{{#only-agent}}…{{/only-agent}}` | agent-ui-only |
 
 ## Generate
 
 ```powershell
-node ../../scripts/generate-authoring-docs.mjs
-# or from repo root: npm run docs:gen
+node scripts/generate-authoring-docs.mjs --force
+# or: npm run docs:gen
 ```
-
-Runs automatically before `QuickerRpc.AgentModel` build and `agent-gui` dev/build.
 
 Outputs:
 
-- `docs/action-authoring/cli/` → embedded by `QuickerRpc.AgentModel` (`qkrpc guide`)
-- `docs/skills/quicker-authoring/SKILL.md` + `references/{topic}/*.md` + `topics.json`（含 `referenceCatalog`）→ agent-ui `docs_get` / `docs_get_reference`
+- `docs/action-authoring/cli/` → `QuickerRpc.AgentModel` (`qkrpc guide`)
+- `docs/skills/quicker-authoring/SKILL.md` + `references/` + `topics.json` → agent-ui `docs_get`
 
-## Add an operation
+## Add a topic
 
-1. Add entry under `ops.json` → `ops` with `cli` and/or `agent` templates.
-2. Use `{{param}}` placeholders + optional `defaults`.
-3. Reference in templates via `{{@ your.op.id}}`.
+1. Add `topics.{id}` in `ops.json` (`title`, `description`, `metadata.layer`, …).
+2. Add `{id}.md` template at repo root of `action-authoring-src/` (or subfolder once manifest maps paths — P2).
+3. Run `npm run docs:gen`.
