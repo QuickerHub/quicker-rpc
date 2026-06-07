@@ -4,7 +4,9 @@ import { mapAgentSchemaToStepRunnerItem } from "@/lib/action-editor/api/stepRunn
 import { ActionStep } from "@/lib/action-editor/types/common";
 import { buildClientStepSummary } from "@/lib/action-editor/steps/stepSummaryFallback";
 import {
+  buildStepParamValuesForVisibility,
   filterRunnerItemDefsForStep,
+  isParamDefVisibleForStep,
   stepRunnerSchemaCacheKey,
 } from "@/lib/action-editor/steps/stepParamVisibility";
 
@@ -96,4 +98,63 @@ test("buildClientStepSummary for MsgBox uses message only in default mode", () =
   });
 
   assert.equal(buildClientStepSummary(step, item), "标准 行数 {lineCount}");
+});
+
+test("buildStepParamValuesForVisibility prefers varKey over literal value", () => {
+  const step = ActionStep.fromPartial({
+    inputParams: {
+      message: { varKey: "msgVar", value: "ignored" },
+      title: { value: "literal" },
+    },
+  });
+  const values = buildStepParamValuesForVisibility(step);
+  assert.equal(values.message, "msgVar");
+  assert.equal(values.title, "literal");
+});
+
+test("isParamDefVisibleForStep shows validFor params when control value is empty", () => {
+  const inputDefs = [
+    {
+      key: "operation",
+      visibleExpression: "",
+      validForList: [] as string[],
+      invalidForList: [] as string[],
+      isControlField: true,
+      selectionItems: [{ value: "default", name: "标准", description: "" }],
+    },
+    {
+      key: "message",
+      visibleExpression: "",
+      validForList: ["default"],
+      invalidForList: [] as string[],
+    },
+  ];
+  assert.equal(
+    isParamDefVisibleForStep(inputDefs[1]!, { operation: "" }, inputDefs as never),
+    true,
+  );
+});
+
+test("isParamDefVisibleForStep uses varKey-bound control value", () => {
+  const inputDefs = [
+    {
+      key: "operation",
+      visibleExpression: "",
+      validForList: [] as string[],
+      invalidForList: [] as string[],
+      isControlField: true,
+      selectionItems: [{ value: "custom", name: "自定义", description: "" }],
+    },
+    {
+      key: "customIcon",
+      visibleExpression: "",
+      validForList: ["custom"],
+      invalidForList: [] as string[],
+    },
+  ];
+  const values = { operation: "custom" };
+  assert.equal(
+    isParamDefVisibleForStep(inputDefs[1]!, values, inputDefs as never),
+    true,
+  );
 });

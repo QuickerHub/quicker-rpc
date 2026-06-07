@@ -1926,6 +1926,15 @@ export default function StepListEditor({
         runnerTitle={popupRunnerTitle}
         onClose={closeStepEditor}
         onApply={applyStepEditor}
+        onCommitVariables={
+          onCommitProgram
+            ? (updater) => {
+                const nextVariables =
+                  typeof updater === "function" ? updater(variables) : updater;
+                onCommitProgram({ steps, variables: nextVariables });
+              }
+            : undefined
+        }
       />
 
       {renderStepList(steps, "root", "root")}

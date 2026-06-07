@@ -18,6 +18,20 @@ import {
   STEP_PARAM_SCRIPT_MAX_HEIGHT,
 } from "./ExternalParamFileExpressionEditor";
 import { resolveStepParamMultiline } from "./stepParamMultiline";
+import { enrichStepParamVariableCandidates } from "./stepParamBuiltinVariables";
+import {
+  isTextToolsParamKey,
+  shouldUseVarOrValueEditor,
+  shouldUseVariableOnlyPicker,
+} from "./stepInputParamRoute";
+import { TextToolsParamEditor } from "./TextToolsParamEditor";
+import {
+  buildEnumSelectionOptions,
+  findEnumSelectionItem,
+} from "./stepParamEnumOptions";
+
+export type { StepParamCreateVariableRequest as StepInputParamCreateVariableRequest } from "./stepParamCreateVariable";
+import type { StepParamCreateVariableRequest } from "./stepParamCreateVariable";
 
 export type StepInputParamFieldProps = {
   def: StepRunnerInputParamDef;
@@ -25,6 +39,7 @@ export type StepInputParamFieldProps = {
   param: ActionStepParam;
   onChange: (next: ActionStepParam) => void;
   workspace?: ActionProjectWorkspaceContext;
+  onRequestCreateVariable?: (request: StepParamCreateVariableRequest) => void;
 };
 
 const ENABLE_EXPRESSION_EDITOR = true;
@@ -33,16 +48,31 @@ type StepParamLabelProps = {
   label: string;
   htmlFor?: string;
   onActivate?: () => void;
+  onDoubleClickActivate?: () => void;
   labelRef?: Ref<HTMLLabelElement | HTMLDivElement>;
 };
 
 /** Param row label; optional activation opens the field control on the right (enum / picker). */
-function StepParamLabel({ label, htmlFor, onActivate, labelRef }: StepParamLabelProps): JSX.Element {
+function StepParamLabel({
+  label,
+  htmlFor,
+  onActivate,
+  onDoubleClickActivate,
+  labelRef,
+}: StepParamLabelProps): JSX.Element {
   const className = `step-param-label${htmlFor || onActivate ? " step-param-label--activates-field" : ""}`;
+  const handleDoubleClick = (): void => {
+    onDoubleClickActivate?.();
+  };
 
   if (htmlFor) {
     return (
-      <label ref={labelRef as Ref<HTMLLabelElement>} htmlFor={htmlFor} className={className}>
+      <label
+        ref={labelRef as Ref<HTMLLabelElement>}
+        htmlFor={htmlFor}
+        className={className}
+        onDoubleClick={handleDoubleClick}
+      >
         {label}
       </label>
     );
@@ -56,6 +86,7 @@ function StepParamLabel({ label, htmlFor, onActivate, labelRef }: StepParamLabel
         role="button"
         tabIndex={0}
         onClick={() => onActivate()}
+        onDoubleClick={handleDoubleClick}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
@@ -75,34 +106,13 @@ function isMultilineVarOrValueField(def: StepRunnerInputParamDef, param?: Action
   return resolveStepParamMultiline(def, param);
 }
 
-/** Mirrors WPF InputParamEditorControl: Input is checkbox/enum-only; other types use VarAndValue. */
-function shouldUseVarOrValueEditor(def: StepRunnerInputParamDef): boolean {
-  const vm = def.variableMode;
-  if (vm === ParamVariableMode.UseVarOrInput) {
-    return true;
-  }
-  if (vm !== ParamVariableMode.Input) {
-    return false;
-  }
-  const vt = def.varType;
-  if (vt === CsVarType.Boolean) {
-    return false;
-  }
-  if (vt === CsVarType.Enum && (def.selectionItems?.length ?? 0) > 0) {
-    return false;
-  }
-  if (vt === CsVarType.Form || vt === CsVarType.FormForDict) {
-    return false;
-  }
-  return true;
-}
-
 function StepInputParamFieldInner({
   def,
   variables,
   param,
   onChange,
   workspace,
+  onRequestCreateVariable,
 }: StepInputParamFieldProps): JSX.Element {
   const boolInputId = useId();
   const enumInputId = useId();
@@ -134,17 +144,35 @@ function StepInputParamFieldInner({
 
   const allUsableVars = useMemo(
     () =>
-      variables
-        .filter((v) => {
-          const key = actionVariableRowKey(v).trim();
-          return key.length > 0 && isStepParamVarAssignable(v.varType ?? CsVarType.Any, vt);
-        })
-        .sort((a, b) => actionVariableRowKey(a).localeCompare(actionVariableRowKey(b), "zh-CN")),
-    [variables, vt]
+      enrichStepParamVariableCandidates(
+        variables
+          .filter((v) => {
+            const key = actionVariableRowKey(v).trim();
+            return key.length > 0 && isStepParamVarAssignable(v.varType ?? CsVarType.Any, vt);
+          })
+          .sort((a, b) => actionVariableRowKey(a).localeCompare(actionVariableRowKey(b), "zh-CN")),
+        vt,
+      ),
+    [variables, vt],
   );
 
-  const enumOptions = useMemo(() => def.selectionItems ?? [], [def.selectionItems]);
-  const selectedEnumOption = enumOptions.find((x) => x.value === param.value) ?? null;
+  const requestCreateVariable = useCallback((): void => {
+    onRequestCreateVariable?.({
+      paramKey: def.key,
+      paramName: label,
+      targetVarType: vt,
+      isOutput: false,
+    });
+  }, [def.key, label, onRequestCreateVariable, vt]);
+
+  const enumOptions = useMemo(
+    () => buildEnumSelectionOptions(def.selectionItems ?? [], param.value ?? "", def.allowInput),
+    [def.selectionItems, def.allowInput, param.value],
+  );
+  const selectedEnumOption = useMemo(
+    () => findEnumSelectionItem(enumOptions, param.value ?? ""),
+    [enumOptions, param.value],
+  );
   const filteredEnumOptions = useMemo(() => {
     const q = enumFilter.trim().toLowerCase();
     if (!q) {
@@ -249,7 +277,7 @@ function StepInputParamFieldInner({
               ? (selectedEnumOption.name ?? "").trim() || selectedEnumOption.value
               : (param.value ?? "").trim()
         }
-        placeholder={enumOpen ? "筛选选项" : ""}
+        placeholder={enumOpen ? (def.allowInput ? "筛选或输入" : "筛选选项") : ""}
         onFocus={() => {
           setEnumOpen(true);
           setEnumFilter("");
@@ -281,13 +309,30 @@ function StepInputParamFieldInner({
           }
           if (event.key === "Enter") {
             event.preventDefault();
+            const typed = enumFilter.trim();
+            if (def.allowInput && typed.length > 0 && filteredEnumOptions.length === 0) {
+              pickEnumLiteral(typed);
+              setEnumOpen(false);
+              setEnumFilter("");
+              return;
+            }
             const picked = filteredEnumOptions[Math.max(0, Math.min(enumActiveIndex, filteredEnumOptions.length - 1))];
             if (picked) {
               pickEnumLiteral(picked.value);
+            } else if (def.allowInput && typed.length > 0) {
+              pickEnumLiteral(typed);
             }
             setEnumOpen(false);
             setEnumFilter("");
           }
+        }}
+        onBlur={() => {
+          if (!def.allowInput || enumFilter.trim().length === 0) {
+            return;
+          }
+          pickEnumLiteral(enumFilter.trim());
+          setEnumOpen(false);
+          setEnumFilter("");
         }}
       />
       {enumOpen && enumRect
@@ -349,6 +394,18 @@ function StepInputParamFieldInner({
     );
   }
 
+  if (isTextToolsParamKey(def.key)) {
+    return (
+      <div className="step-param-row">
+        <StepParamLabel label={label} />
+        <div className="step-param-field-col">
+          <TextToolsParamEditor param={param} onChange={onChange} description={desc || undefined} />
+          {desc ? <div className="step-param-hint">{desc}</div> : null}
+        </div>
+      </div>
+    );
+  }
+
   if (hasSelectionEnum && vm === ParamVariableMode.Input) {
     return (
       <div className="step-param-row">
@@ -361,7 +418,7 @@ function StepInputParamFieldInner({
     );
   }
 
-  if (shouldUseVarOrValueEditor(def)) {
+  if (shouldUseVarOrValueEditor(def, param)) {
     const multilineVarOrValue = isMultilineVarOrValueField(def, param);
 
     return (
@@ -370,17 +427,19 @@ function StepInputParamFieldInner({
           label={label}
           labelRef={activateLabelRef}
           onActivate={() => openFieldPopupRef.current?.()}
+          onDoubleClickActivate={onRequestCreateVariable ? requestCreateVariable : undefined}
         />
         <div className="step-param-field-col">
           <VarOrValueParamEditor
             def={def}
-            variables={variables}
+            variables={allUsableVars}
             param={param}
             onChange={onChange}
             multiline={multilineVarOrValue}
             workspace={workspace}
             openPopupRef={openFieldPopupRef}
             activateLabelRef={activateLabelRef}
+            onRequestCreateVariable={onRequestCreateVariable ? requestCreateVariable : undefined}
           />
           {desc ? <div className="step-param-hint">{desc}</div> : null}
         </div>
@@ -388,7 +447,7 @@ function StepInputParamFieldInner({
     );
   }
 
-  if (vm === ParamVariableMode.UseVarOnly || vm === ParamVariableMode.UseVar) {
+  if (shouldUseVariableOnlyPicker(def, param)) {
     return (
       <div className="step-param-row">
         <StepParamLabel
@@ -406,6 +465,7 @@ function StepInputParamFieldInner({
               title={desc || undefined}
               openPickerRef={openFieldPopupRef}
               activateLabelRef={activateLabelRef}
+              onRequestCreateVariable={onRequestCreateVariable ? requestCreateVariable : undefined}
             />
           </div>
           {desc ? <div className="step-param-hint">{desc}</div> : null}
@@ -495,6 +555,7 @@ function stepInputParamFieldPropsEqual(
     && prev.variables === next.variables
     && prev.workspace === next.workspace
     && prev.onChange === next.onChange
+    && prev.onRequestCreateVariable === next.onRequestCreateVariable
     && (prev.param.varKey ?? "") === (next.param.varKey ?? "")
     && (prev.param.value ?? "") === (next.param.value ?? "")
     && (prev.param.file ?? "") === (next.param.file ?? "")

@@ -69,6 +69,19 @@ function findControlParamKeyForConditionList(
   return null;
 }
 
+function isExpressionLikeControlValue(value: string): boolean {
+  const v = value.trim();
+  return v.startsWith("$=") || v.includes("{");
+}
+
+function normalizeControlCompareValue(raw: string): string {
+  const value = (raw ?? "").trim();
+  if (!value || isExpressionLikeControlValue(value)) {
+    return "";
+  }
+  return value;
+}
+
 function resolveCompareValueForConditionList(
   validList: string[],
   invalidList: string[],
@@ -82,7 +95,7 @@ function resolveCompareValueForConditionList(
 
   const matchedControlKey = findControlParamKeyForConditionList(conditionList, inputDefs);
   if (matchedControlKey) {
-    return paramValues[matchedControlKey] ?? "";
+    return normalizeControlCompareValue(paramValues[matchedControlKey] ?? "");
   }
 
   let legacyFallback = "";
@@ -90,7 +103,7 @@ function resolveCompareValueForConditionList(
     if (def.isControlField && (def.selectionItems?.length ?? 0) > 0) {
       const currentValue = paramValues[def.key];
       if (currentValue != null) {
-        legacyFallback = currentValue;
+        legacyFallback = normalizeControlCompareValue(currentValue);
       }
     }
   }
@@ -125,6 +138,10 @@ export function isParamDefVisibleForStep(
       [...inputDefs],
       paramValues,
     );
+    // Mirror StepRunnerInputParamVisibility: empty control value => all params visible.
+    if (!compareValue) {
+      return true;
+    }
     if (validList.length > 0) {
       return validList.some((x) => equalsIgnoreCase(x, compareValue));
     }

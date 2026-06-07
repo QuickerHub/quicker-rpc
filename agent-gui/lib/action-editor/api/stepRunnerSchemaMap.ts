@@ -250,13 +250,17 @@ function mapAgentInputParamDef(
   const description = readString(o, "purpose", "Purpose", "description", "Description");
   const defaultValue = readString(o, "default", "Default", "defaultValue", "DefaultValue");
   const explicitMultiLine = readBool(o, "isMultiLine", "IsMultiLine", "multiLine", "MultiLine");
+  const hasExplicitVariableMode = "variableMode" in o || "VariableMode" in o;
+  const textTools = readString(o, "textTools", "TextTools");
 
-  return {
+  const mapped: StepRunnerInputParamDef & { textTools?: string } = {
     key,
     name: readString(o, "title", "Title", "name", "Name", "label", "Label"),
     description,
     varType,
-    variableMode: inferVariableModeFromAgentInput(key, varType, selectionItems.length > 0, isControlField),
+    variableMode: hasExplicitVariableMode
+      ? readInt(o, "variableMode", "VariableMode")
+      : inferVariableModeFromAgentInput(key, varType, selectionItems.length > 0, isControlField),
     isMultiLine: inferStepParamMultiline({
       key,
       description,
@@ -271,7 +275,7 @@ function mapAgentInputParamDef(
     defaultValue,
     fromOldField: "",
     isAdvanced: readBool(o, "isAdvanced", "IsAdvanced"),
-    allowInput: true,
+    allowInput: readBool(o, "allowInput", "AllowInput"),
     visibleExpression: "",
     replaceVariable: false,
     defaultHighlightType: "",
@@ -280,6 +284,10 @@ function mapAgentInputParamDef(
     validForList: [],
     invalidForList: [],
   };
+  if (textTools) {
+    mapped.textTools = textTools;
+  }
+  return mapped;
 }
 
 function mapAgentOutputParamDef(raw: unknown): StepRunnerOutputParamDef | null {

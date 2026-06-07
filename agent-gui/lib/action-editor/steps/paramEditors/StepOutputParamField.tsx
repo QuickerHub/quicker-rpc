@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { ActionVariable } from "@/lib/action-editor/types/common";
 import type { StepRunnerOutputParamDef } from "@/lib/action-editor/types/action_query";
 import { actionVariableRowKey } from "../../variables/actionVariableUi";
 import { CsVarType } from "./csStepEnums";
 import { StepVariablePicker } from "./StepVariablePicker";
+import type { StepParamCreateVariableRequest } from "./stepParamCreateVariable";
 
 export type StepOutputParamFieldProps = {
   def: StepRunnerOutputParamDef;
@@ -11,6 +12,7 @@ export type StepOutputParamFieldProps = {
   /** Target variable name / key to receive this output (ActionStep.output_params value). */
   value: string;
   onChange: (next: string) => void;
+  onRequestCreateVariable?: (request: StepParamCreateVariableRequest) => void;
 };
 
 function isVarAssignable(fromType: number, toType: number): boolean {
@@ -64,9 +66,24 @@ function mergeOutputVarTarget(varKey: string, dictKey: string): string {
   return k ? `${selected}.${k}` : selected;
 }
 
-export function StepOutputParamField({ def, variables, value, onChange }: StepOutputParamFieldProps): JSX.Element {
+export function StepOutputParamField({
+  def,
+  variables,
+  value,
+  onChange,
+  onRequestCreateVariable,
+}: StepOutputParamFieldProps): JSX.Element {
   const label = (def.name ?? "").trim() || def.key;
   const desc = (def.description ?? "").trim();
+  const openPickerRef = useRef<(() => void) | null>(null);
+  const requestCreateVariable = useCallback((): void => {
+    onRequestCreateVariable?.({
+      paramKey: def.key,
+      paramName: label,
+      targetVarType: def.varType,
+      isOutput: true,
+    });
+  }, [def.key, def.varType, label, onRequestCreateVariable]);
   const parsedValue = useMemo(() => splitOutputVarTarget(value), [value]);
   const filteredVariables = useMemo(
     () =>
@@ -85,7 +102,25 @@ export function StepOutputParamField({ def, variables, value, onChange }: StepOu
   const showDictKeyInput = (selectedVariable?.varType ?? -1) === CsVarType.Dict;
   return (
     <div className="step-param-row">
-      <div className="step-param-label">{label}</div>
+      <div
+        className={`step-param-label${onRequestCreateVariable ? " step-param-label--activates-field" : ""}`}
+        role={onRequestCreateVariable ? "button" : undefined}
+        tabIndex={onRequestCreateVariable ? 0 : undefined}
+        onClick={onRequestCreateVariable ? () => openPickerRef.current?.() : undefined}
+        onDoubleClick={onRequestCreateVariable ? requestCreateVariable : undefined}
+        onKeyDown={
+          onRequestCreateVariable
+            ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  openPickerRef.current?.();
+                }
+              }
+            : undefined
+        }
+      >
+        {label}
+      </div>
       <div className="step-param-field-col">
         <div className={`step-param-output-target ${showDictKeyInput ? "step-param-output-target--dict" : ""}`}>
           <div className="step-param-output-picker-row">
@@ -95,6 +130,8 @@ export function StepOutputParamField({ def, variables, value, onChange }: StepOu
               selectedVarKey={parsedValue.varKey}
               onChange={(nextVarKey) => onChange(mergeOutputVarTarget(nextVarKey, showDictKeyInput ? parsedValue.dictKey : ""))}
               title={desc || undefined}
+              openPickerRef={openPickerRef}
+              onRequestCreateVariable={onRequestCreateVariable ? requestCreateVariable : undefined}
             />
             {desc ? (
               <div className="step-param-hint step-param-hint--output-inline" title={desc}>

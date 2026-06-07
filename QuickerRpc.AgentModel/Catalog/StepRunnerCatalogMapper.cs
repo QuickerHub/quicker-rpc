@@ -316,7 +316,12 @@ public static class StepRunnerCatalogMapper
             Purpose = TrimToNull(p.Description),
             IsControlField = p.IsControlField,
             ValueType = VarTypeNames.Format(p.VarType),
-            Required = p.IsRequired
+            Required = p.IsRequired,
+            VariableMode = p.VariableMode,
+            IsMultiLine = p.IsMultiLine,
+            IsAdvanced = p.IsAdvanced,
+            AllowInput = p.AllowInput,
+            TextTools = TrimToNull(p.TextTools),
         };
 
         var def = (p.DefaultValue ?? string.Empty).Trim();

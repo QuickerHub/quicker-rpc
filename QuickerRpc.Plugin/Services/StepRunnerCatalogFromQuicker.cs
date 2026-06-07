@@ -174,19 +174,29 @@ internal static class StepRunnerCatalogFromQuicker
                 continue;
             }
 
+            var varType = ReadEnumInt(p, "Type");
+            var selectionItems = MapSelection(ReadProperty(p, "SelectionItems"));
             list.Add(
                 new StepRunnerInputParamDef
                 {
                     Key = key,
                     Name = ReadString(p, "Name") ?? string.Empty,
                     Description = ReadString(p, "Description") ?? string.Empty,
-                    VarType = ReadEnumInt(p, "Type"),
+                    VarType = varType,
                     InternalType = ReadNullableEnumInt(p, "InternalType"),
                     HasInternalType = ReadNullableEnumInt(p, "InternalType") > 0,
                     IsRequired = ReadBool(p, "IsRequired"),
                     IsControlField = ReadBool(p, "IsControlField"),
+                    VariableMode = ResolveWebInputVariableMode(
+                        varType,
+                        ReadEnumInt(p, "VariableMode"),
+                        selectionItems.Count > 0),
+                    IsMultiLine = ReadBool(p, "IsMultiLine"),
+                    IsAdvanced = ReadBool(p, "IsAdvanced"),
+                    AllowInput = ReadBool(p, "AllowInput"),
+                    TextTools = SerializeTextTools(ReadProperty(p, "TextTools")),
                     DefaultValue = SerializeDefault(ReadProperty(p, "DefaultValue")),
-                    SelectionItems = MapSelection(ReadProperty(p, "SelectionItems")),
+                    SelectionItems = selectionItems,
                     ValidForValues = MapStringCollection(ReadProperty(p, "ValidForList")),
                     InvalidForValues = MapStringCollection(ReadProperty(p, "InvalidForList")),
                     VisibleExpression = ReadString(p, "VisibleExpression") ?? string.Empty,
@@ -348,4 +358,53 @@ internal static class StepRunnerCatalogFromQuicker
             IFormattable f => f.ToString(null, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
             _ => value.ToString() ?? string.Empty,
         };
+
+    /// <summary>
+    /// Web editors treat Input like Quicker.Designer: boolean/enum/form stay Input; others become UseVarOrInput.
+    /// ParamVariableMode.Input = 1, UseVarOrInput = 0.
+    /// </summary>
+    private static int ResolveWebInputVariableMode(int varType, int variableMode, bool hasSelectionItems)
+    {
+        const int inputMode = 1;
+        const int useVarOrInputMode = 0;
+
+        if (variableMode != inputMode)
+        {
+            return variableMode;
+        }
+
+        return varType switch
+        {
+            2 => inputMode, // Boolean
+            9 when hasSelectionItems => inputMode, // Enum with options
+            11 => inputMode, // Form
+            14 => inputMode, // FormForDict
+            _ => useVarOrInputMode,
+        };
+    }
+
+    private static string SerializeTextTools(object? tools)
+    {
+        if (tools is not IEnumerable enumerable)
+        {
+            return string.Empty;
+        }
+
+        var names = new List<string>();
+        foreach (var item in enumerable)
+        {
+            if (item is null)
+            {
+                continue;
+            }
+
+            var text = item is Enum e ? e.ToString() : item.ToString();
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                names.Add(text!.Trim());
+            }
+        }
+
+        return names.Count == 0 ? string.Empty : string.Join(",", names);
+    }
 }

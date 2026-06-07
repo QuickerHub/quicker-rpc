@@ -122,24 +122,53 @@ export async function designerHostGrpcGetSharedSubProgramIo(
   return data;
 }
 
+async function fetchStepRunnerDetailItemOnce(
+  key: string,
+  controlField: string | undefined,
+  signal?: AbortSignal,
+): Promise<StepRunnerItem | null> {
+  const params = new URLSearchParams();
+  params.set("key", key);
+  if (controlField) {
+    params.set("controlField", controlField);
+  }
+  const data = await fetchJson<{ item: Record<string, unknown> }>(
+    `/api/step-runner/get?${params.toString()}`,
+    { signal },
+  );
+  const item = data.item;
+  if (isMappedStepRunnerItem(item)) {
+    return item as unknown as StepRunnerItem;
+  }
+  return mapAgentSchemaToStepRunnerItem(item);
+}
+
 export async function fetchStepRunnerDetailItem(
   key: string,
   controlField?: string,
   signal?: AbortSignal,
 ): Promise<StepRunnerItem | null> {
-  const params = new URLSearchParams();
-  params.set("key", key);
-  if (controlField) params.set("controlField", controlField);
+  const trimmedKey = (key ?? "").trim();
+  if (!trimmedKey) {
+    return null;
+  }
+  const trimmedControl = (controlField ?? "").trim();
   try {
-    const data = await fetchJson<{ item: Record<string, unknown> }>(
-      `/api/step-runner/get?${params.toString()}`,
-      { signal },
-    );
-    const item = data.item;
-    if (isMappedStepRunnerItem(item)) {
-      return item as unknown as StepRunnerItem;
+    if (trimmedControl) {
+      try {
+        const filtered = await fetchStepRunnerDetailItemOnce(
+          trimmedKey,
+          trimmedControl,
+          signal,
+        );
+        if ((filtered?.inputParamDefs?.length ?? 0) > 0) {
+          return filtered;
+        }
+      } catch {
+        /* invalid/obsolete control literal — fall back to base schema */
+      }
     }
-    return mapAgentSchemaToStepRunnerItem(item);
+    return await fetchStepRunnerDetailItemOnce(trimmedKey, undefined, signal);
   } catch {
     return null;
   }

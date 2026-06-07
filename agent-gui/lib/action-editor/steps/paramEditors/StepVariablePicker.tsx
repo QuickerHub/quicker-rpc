@@ -5,6 +5,7 @@ import { actionVariableIconStr, actionVariableRowKey } from "../../variables/act
 import { getActionDesignerBackendBaseUrl } from "../../shared/actionDesignerBackendBaseUrl";
 import { IconControl } from "../../shared/IconControl";
 import { CsVarType } from "./csStepEnums";
+import { STEP_PARAM_CREATE_VARIABLE_ROW_ID } from "./stepParamBuiltinVariables";
 
 export type StepVariablePickerProps = {
   /** Type-filtered variables shown in the dropdown */
@@ -18,6 +19,7 @@ export type StepVariablePickerProps = {
   openPickerRef?: MutableRefObject<(() => void) | null>;
   /** Row label element; excluded from outside-click close. */
   activateLabelRef?: RefObject<HTMLElement | null>;
+  onRequestCreateVariable?: () => void;
 };
 
 export function StepVariablePicker({
@@ -27,7 +29,8 @@ export function StepVariablePicker({
   onChange,
   title,
   openPickerRef,
-  activateLabelRef
+  activateLabelRef,
+  onRequestCreateVariable,
 }: StepVariablePickerProps): JSX.Element {
   const pool = resolveVariables ?? candidates;
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -88,6 +91,13 @@ export function StepVariablePicker({
   }, [pickerOpen, filteredOptions, selectedKey]);
 
   const commitPick = (nextVarKey: string): void => {
+    if (nextVarKey === STEP_PARAM_CREATE_VARIABLE_ROW_ID) {
+      onRequestCreateVariable?.();
+      setPickerQuery("");
+      setPickerOpen(false);
+      setIsEditingPicker(false);
+      return;
+    }
     onChange(nextVarKey);
     setPickerQuery("");
     setPickerOpen(false);
@@ -306,6 +316,28 @@ export function StepVariablePicker({
               >
                 <span className="step-param-variable-picker-placeholder">-- 选择变量 --</span>
               </button>
+              {onRequestCreateVariable ? (
+                <button
+                  type="button"
+                  className={`step-param-variable-picker-option step-param-variable-picker-option--create${
+                    activeOptionIndex === 0 && filteredOptions.length === 0 ? "" : ""
+                  }`}
+                  onClick={() => commitPick(STEP_PARAM_CREATE_VARIABLE_ROW_ID)}
+                >
+                  <span className="step-param-variable-picker-item">
+                    <span className="step-param-variable-picker-item-icon">
+                      <IconControl
+                        spec={actionVariableIconStr(CsVarType.CreateVar)}
+                        size={14}
+                        resourceBaseUrl={backendBaseUrl}
+                      />
+                    </span>
+                    <span className="step-param-variable-picker-item-main">
+                      <span className="step-param-variable-picker-item-title">创建新变量...</span>
+                    </span>
+                  </span>
+                </button>
+              ) : null}
               {filteredOptions.map((v, idx) => {
                 const key = actionVariableRowKey(v);
                 return (

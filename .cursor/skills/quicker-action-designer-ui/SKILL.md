@@ -63,10 +63,18 @@ metadata:
 |------|------------|------------------|
 | `Boolean` + `Input` | `BooleanParamEditor` | `StepInputParamField` 内 checkbox |
 | `Form` / `FormForDict` | `FormParamEditor` | `FormDefParamEditor` |
-| `Enum` + `Input` + 有选项 | `EnumParamEditor` | 可筛选下拉（`step-param-enum-*`） |
+| `Enum` + `Input` + 有选项 | `EnumParamEditor` | 可筛选下拉（`step-param-enum-*`）；`allowInput` 可手输；过时值 `【已过时】` |
 | `UseVarOnly` 且值为空 | `VariableParamSelector` | `StepVariablePicker` |
-| `key == texttools` | `TextToolsParamEditor` | 待对齐 / 查 Web 源 |
+| `key == texttools` | `TextToolsParamEditor` / `TextToolsSelectorControl` | `TextToolsParamEditor.tsx` + `textToolCatalog.ts` |
+| 输出参数创建变量 | `VariableSelector` + `isForOutput` | `StepOutputParamField` + `onCommitVariables` |
+| 枚举预选值转手工/表达式 | `EnumParamValueControl` 上下文菜单 | `VarOrValueParamEditor`「手工填写」「$=」 |
+| `UseVarOnly` + 空 value | `VariableParamSelector` | `shouldUseVariableOnlyPicker` + `StepVariablePicker` |
+| `UseVarOnly` + 有 expression | `VarAndValueParamEditor` | `shouldUseVarOrValueEditor(def, param)` |
+| `UseVar` | `VarAndValueParamEditor` | `shouldUseVarOrValueEditor`（勿与 UseVarOnly 混用） |
+| 伪变量 `[cliptext]` / `quicker_in_param` | VarAndValue 列表 | `stepParamBuiltinVariables.ts` |
+| 新建变量 / 双击标签 | `XActionUiHelper.CreateVariable` | `StepCreateVariableDialog` + `onCommitVariables` |
 | 其它可输入 | `VarAndValueParamEditor` | `VarOrValueParamEditor` + `ExpressionEditor` |
+| 字段旁 TextTools 工具条 | `VarAndValueParamEditor.TextTools1` | `ParamTextToolsStrip.tsx`（浏览器文件选择；其余提示桌面版） |
 
 弹窗级逻辑对照：
 
@@ -75,7 +83,7 @@ metadata:
 | `ActionStepEditorWindow.xaml(.cs)` | `StepEditorPopup.tsx` |
 | `ActionStepEditorWindow.InputParams.cs` | `StepInputParamField` 列表渲染 |
 | `ActionStepEditorWindow.OutputParams.cs` | `StepOutputParamField` |
-| `ActionStepEditorWindow.Visibility.cs` | `stepParamVisibility.ts` |
+| `ActionStepEditorWindow.Visibility.cs` | `stepParamVisibility.ts`（`buildStepParamValuesForVisibility` 优先 `varKey`） |
 | `ActionStepEditorWindow.WindowSizing.cs` | 弹窗 CSS / 布局（`action-editor.css`） |
 | 双击字段标签创建变量 | `StepParamLabel` + `VarOrValueParamEditor` |
 

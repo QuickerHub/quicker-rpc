@@ -17,6 +17,9 @@ import {
   STEP_PARAM_SCRIPT_MAX_HEIGHT,
 } from "./ExternalParamFileExpressionEditor";
 import { resolveStepParamMultiline } from "./stepParamMultiline";
+import { buildEnumSelectionOptions } from "./stepParamEnumOptions";
+import { ParamTextToolsStrip } from "./ParamTextToolsStrip";
+import { readParamTextTools } from "./stepRunnerInputParamUi";
 
 export type VarOrValueParamEditorProps = {
   def: StepRunnerInputParamDef;
@@ -29,6 +32,7 @@ export type VarOrValueParamEditorProps = {
   openPopupRef?: MutableRefObject<(() => void) | null>;
   /** Row label element; excluded from outside-click close. */
   activateLabelRef?: RefObject<HTMLElement | null>;
+  onRequestCreateVariable?: () => void;
 };
 
 type VarOrValueMode = "input" | "enum" | "variable";
@@ -79,7 +83,8 @@ export function VarOrValueParamEditor({
   multiline = false,
   workspace,
   openPopupRef,
-  activateLabelRef
+  activateLabelRef,
+  onRequestCreateVariable,
 }: VarOrValueParamEditorProps): JSX.Element {
   const vt = def.varType;
   const selectionItems = def.selectionItems ?? [];
@@ -106,14 +111,29 @@ export function VarOrValueParamEditor({
   );
 
   const effectiveSelectionItems = useMemo(() => {
-    if (selectionItems.length > 0) {
-      return selectionItems;
+    let items = selectionItems;
+    if (items.length === 0 && vt === CsVarType.Boolean) {
+      items = defaultBooleanSelectionItems(param, def.defaultValue ?? "");
     }
-    if (vt === CsVarType.Boolean) {
-      return defaultBooleanSelectionItems(param, def.defaultValue ?? "");
+    if (items.length === 0) {
+      return items;
     }
-    return selectionItems;
-  }, [selectionItems, vt, param.value, def.defaultValue]);
+    return buildEnumSelectionOptions(items, param.value ?? "", def.allowInput);
+  }, [selectionItems, vt, param.value, def.defaultValue, def.allowInput]);
+
+  const paramTextTools = useMemo(() => readParamTextTools(def), [def]);
+
+  const insertTextToolValue = useCallback(
+    (value: string): void => {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return;
+      }
+      setModeOverride("input");
+      onChange({ ...param, varKey: "", value: trimmed, file: undefined });
+    },
+    [onChange, param],
+  );
 
   const derivedMode = useMemo(
     () => resolveVarOrValueMode(param, effectiveSelectionItems),
@@ -374,15 +394,45 @@ export function VarOrValueParamEditor({
         )}
       </button>
     ) : mode === "enum" && selectedEnumItem ? (
-      <button
-        type="button"
-        className="step-param-varorvalue-display step-param-varorvalue-display--enum"
-        title="点击选择变量或输入值"
-        onClick={openPopup}
-      >
-        <span className="step-param-varorvalue-dot" aria-hidden="true" />
-        <SelectionItemLabel item={selectedEnumItem} />
-      </button>
+      <div className="step-param-varorvalue-enum-wrap">
+        <button
+          type="button"
+          className="step-param-varorvalue-display step-param-varorvalue-display--enum"
+          title="点击选择变量或输入值"
+          onClick={openPopup}
+        >
+          <span className="step-param-varorvalue-dot" aria-hidden="true" />
+          <SelectionItemLabel item={selectedEnumItem} />
+        </button>
+        <div className="step-param-enum-value-actions">
+          <button
+            type="button"
+            className="step-param-enum-value-action"
+            title="手工填写参数值"
+            onClick={() => {
+              const literal = (param.value ?? "").trim();
+              setModeOverride("input");
+              setPendingInputFocus(true);
+              onChange({ ...param, varKey: "", value: literal });
+            }}
+          >
+            手工填写
+          </button>
+          <button
+            type="button"
+            className="step-param-enum-value-action step-param-enum-value-action--expr"
+            title='将变量模式转换为表达式 $="值" 的形式'
+            onClick={() => {
+              const literal = (param.value ?? "").trim();
+              setModeOverride("input");
+              setPendingInputFocus(true);
+              onChange({ ...param, varKey: "", value: literal ? `$="${literal}"` : '$=""' });
+            }}
+          >
+            $=
+          </button>
+        </div>
+      </div>
     ) : (
       <div className="step-param-varorvalue-input" ref={expressionHostRef}>
         <ExternalParamFileExpressionEditor
@@ -407,6 +457,10 @@ export function VarOrValueParamEditor({
     >
       <ExternalParamFileBadge state={externalFile} />
       <ExternalParamFileStatusHints state={externalFile} />
+      <ParamTextToolsStrip
+        textTools={paramTextTools}
+        onInsertValue={(value) => insertTextToolValue(value)}
+      />
       <div
         className={`step-param-varorvalue-shell${effectiveMultiline ? " step-param-varorvalue-shell--multiline" : ""}`}
       >
@@ -482,6 +536,20 @@ export function VarOrValueParamEditor({
                 })}
                 {filteredRows.length === 0 ? <div className="step-param-varorvalue-empty">无匹配项</div> : null}
               </div>
+              {onRequestCreateVariable ? (
+                <div className="step-param-varorvalue-popup-actions">
+                  <button
+                    type="button"
+                    className="step-param-varorvalue-create-btn"
+                    onClick={() => {
+                      closePopup();
+                      onRequestCreateVariable();
+                    }}
+                  >
+                    新建变量
+                  </button>
+                </div>
+              ) : null}
               <div className="step-param-varorvalue-popup-filter-wrap">
                 <input
                   ref={filterInputRef}

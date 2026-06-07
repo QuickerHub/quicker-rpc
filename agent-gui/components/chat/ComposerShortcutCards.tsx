@@ -223,7 +223,9 @@ export function ComposerShortcutCards({
         hint="独立小窗，Enter 一次性发送"
         icon={<IconLauncher />}
         disabled={disabled}
-        onClick={() => openLauncherWindow()}
+        onClick={() => {
+          void openLauncherWindow();
+        }}
       />
       {devExperienceEnabled ? (
         <Link

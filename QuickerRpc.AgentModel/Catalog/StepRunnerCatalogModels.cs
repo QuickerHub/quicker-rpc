@@ -62,6 +62,17 @@ public sealed class StepRunnerInputParamDef
 
     public bool IsControlField { get; set; }
 
+    public int VariableMode { get; set; }
+
+    public bool IsMultiLine { get; set; }
+
+    public bool IsAdvanced { get; set; }
+
+    public bool AllowInput { get; set; }
+
+    /// <summary>Comma-separated <see cref="Quicker.Modules.TextTools.TextToolType"/> names.</summary>
+    public string TextTools { get; set; } = string.Empty;
+
     public string DefaultValue { get; set; } = string.Empty;
 
     public IList<StepRunnerParamSelectionItem> SelectionItems { get; set; } =

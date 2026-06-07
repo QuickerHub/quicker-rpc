@@ -4,6 +4,13 @@ import { preloadMonacoExpressionEditor } from "../expression/ExpressionEditor";
 import type { ActionStep, ActionSubProgram, ActionVariable, ActionStepParam } from "@/lib/action-editor/types/common";
 import type { StepRunnerInputParamDef, StepRunnerOutputParamDef, StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import { ensureParamValue, StepInputParamField } from "./StepInputParamField";
+import type { StepParamCreateVariableRequest } from "./stepParamCreateVariable";
+import { StepCreateVariableDialog } from "./StepCreateVariableDialog";
+import {
+  normalizeParamNameForVariable,
+  suggestVariableKeyFromParam,
+} from "./stepParamCreateVariable";
+import { actionVariableRowKey } from "../../variables/actionVariableUi";
 import { StepOutputParamField } from "./StepOutputParamField";
 import { augmentStepRunnerItemForSubProgramEdit } from "../subProgramStepRunnerAugment";
 import {
@@ -31,7 +38,10 @@ import {
   stepEditorDraftFingerprint,
 } from "./stepEditorDraftSync";
 import type { ActionProjectWorkspaceContext } from "./FormDefEditorDialog";
-import { isParamDefVisibleForStep } from "@/lib/action-editor/steps/stepParamVisibility";
+import {
+  buildStepParamValuesForVisibility,
+  isParamDefVisibleForStep,
+} from "@/lib/action-editor/steps/stepParamVisibility";
 
 export type StepEditorPopupProps = {
   open: boolean;
@@ -48,6 +58,8 @@ export type StepEditorPopupProps = {
   onClose: () => void;
   /** Return false to keep the dialog open (e.g. insert target became invalid). */
   onApply: (next: ActionStep) => boolean | void;
+  /** Add or replace action variables while the step editor is open (desktop CreateVariable). */
+  onCommitVariables?: (updater: ActionVariable[] | ((prev: ActionVariable[]) => ActionVariable[])) => void;
 };
 
 function StepEditorPopupBodySkeleton({ message }: { message: string }): JSX.Element {
@@ -86,6 +98,7 @@ type StepInputParamRowProps = {
   paramKey: string;
   workspaceContext?: ActionProjectWorkspaceContext;
   setParam: (key: string, value: ActionStepParam) => void;
+  onRequestCreateVariable?: (request: StepParamCreateVariableRequest) => void;
 };
 
 const StepInputParamRow = memo(function StepInputParamRow({
@@ -95,10 +108,17 @@ const StepInputParamRow = memo(function StepInputParamRow({
   paramKey,
   workspaceContext,
   setParam,
+  onRequestCreateVariable,
 }: StepInputParamRowProps): JSX.Element {
   const onChange = useCallback(
     (next: ActionStepParam) => setParam(paramKey, next),
     [paramKey, setParam],
+  );
+  const handleCreateVariable = useCallback(
+    (request: StepParamCreateVariableRequest) => {
+      onRequestCreateVariable?.({ ...request, paramKey });
+    },
+    [onRequestCreateVariable],
   );
   return (
     <StepInputParamField
@@ -107,6 +127,7 @@ const StepInputParamRow = memo(function StepInputParamRow({
       param={param}
       onChange={onChange}
       workspace={workspaceContext}
+      onRequestCreateVariable={onRequestCreateVariable ? handleCreateVariable : undefined}
     />
   );
 }, (prev, next) =>
@@ -115,6 +136,7 @@ const StepInputParamRow = memo(function StepInputParamRow({
   && prev.variables === next.variables
   && prev.workspaceContext === next.workspaceContext
   && prev.setParam === next.setParam
+  && prev.onRequestCreateVariable === next.onRequestCreateVariable
   && (prev.param.varKey ?? "") === (next.param.varKey ?? "")
   && (prev.param.value ?? "") === (next.param.value ?? "")
   && (prev.param.file ?? "") === (next.param.file ?? ""));
@@ -129,8 +151,12 @@ export function StepEditorPopup({
   runnerItem,
   runnerTitle,
   onClose,
-  onApply
+  onApply,
+  onCommitVariables,
 }: StepEditorPopupProps): JSX.Element | null {
+  const [createVariableRequest, setCreateVariableRequest] = useState<StepParamCreateVariableRequest | null>(
+    null,
+  );
   const [hydratedRunnerItem, setHydratedRunnerItem] = useState<StepRunnerItem | undefined>(runnerItem);
   const [loadingRunnerSchema, setLoadingRunnerSchema] = useState(false);
   const runnerItemRef = useRef(runnerItem);
@@ -311,6 +337,7 @@ export function StepEditorPopup({
   const [draft, setDraft] = useState<ActionStep | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [schemaLoadIssue, setSchemaLoadIssue] = useState<string | undefined>(undefined);
 
   const bootstrapDraft = useMemo((): ActionStep | null => {
     if (!open || !step) {
@@ -398,6 +425,7 @@ export function StepEditorPopup({
 
     const ac = new AbortController();
     setLoadingRunnerSchema((currentRunner?.inputParamDefs?.length ?? 0) === 0);
+    setSchemaLoadIssue(undefined);
     void fetchStepRunnerDetailItem(
       runnerKey,
       resolvedSchemaControlLiteral ?? undefined,
@@ -407,8 +435,18 @@ export function StepEditorPopup({
         if (ac.signal.aborted) return;
         const nextItem = detail ?? catalogItem;
         if (!nextItem) {
+          setSchemaLoadIssue(
+            `无法从后台加载步骤「${runnerKey}」的参数定义。请确认 Quicker 已运行且 qkrpc serve 可用。`,
+          );
           setLoadingRunnerSchema(false);
           return;
+        }
+        if ((nextItem.inputParamDefs?.length ?? 0) === 0 && (nextItem.outputParamDefs?.length ?? 0) === 0) {
+          setSchemaLoadIssue(
+            `步骤「${runnerKey}」在后台未返回可编辑参数（可能 stepRunnerKey 无效或模块未注册）。`,
+          );
+        } else {
+          setSchemaLoadIssue(undefined);
         }
         loadedSchemaKeyRef.current = fetchKey;
         setHydratedRunnerItem((prev) => {
@@ -442,9 +480,7 @@ export function StepEditorPopup({
     if (!effectiveDraft) {
       return {};
     }
-    return Object.fromEntries(
-      Object.entries(effectiveDraft.inputParams).map(([key, value]) => [key, value?.value ?? ""])
-    );
+    return buildStepParamValuesForVisibility(effectiveDraft);
   }, [effectiveDraft]);
 
   const visibleInputDefs = useMemo(
@@ -495,6 +531,48 @@ export function StepEditorPopup({
       return next;
     });
   }, []);
+
+  const handleRequestCreateVariable = useCallback(
+    (request: StepParamCreateVariableRequest) => {
+      if (!onCommitVariables) {
+        return;
+      }
+      setCreateVariableRequest(request);
+    },
+    [onCommitVariables],
+  );
+
+  const handleCreateVariableConfirm = useCallback(
+    (result: { variable: ActionVariable; created: boolean }) => {
+      const pending = createVariableRequest;
+      if (!pending || !onCommitVariables) {
+        setCreateVariableRequest(null);
+        return;
+      }
+      const varKey = actionVariableRowKey(result.variable);
+      if (result.created) {
+        onCommitVariables((prev) => [...prev, result.variable]);
+      }
+      if (pending.isOutput) {
+        setOutputParam(pending.paramKey, varKey);
+      } else {
+        setParam(pending.paramKey, { varKey, value: "", file: undefined });
+      }
+      setCreateVariableRequest(null);
+    },
+    [createVariableRequest, onCommitVariables, setOutputParam, setParam],
+  );
+
+  const createVariablePresetKey = useMemo(() => {
+    if (!createVariableRequest) {
+      return "";
+    }
+    const normalized = normalizeParamNameForVariable(createVariableRequest.paramKey);
+    if (normalized) {
+      return normalized;
+    }
+    return suggestVariableKeyFromParam(createVariableRequest.paramKey, variables);
+  }, [createVariableRequest, variables]);
 
   const popupHeadingRunner = useMemo(() => {
     if (!effectiveDraft) {
@@ -594,7 +672,10 @@ export function StepEditorPopup({
           {!hasAnyParams ? (
             <p className="step-editor-popup-empty">
               {globalIoError ??
-                "此步骤暂无输入或输出参数定义（或后台未暴露）。"}
+                schemaLoadIssue ??
+                ((effectiveDraft?.stepRunnerKey ?? "").trim().length === 0
+                  ? "此步骤缺少 stepRunnerKey，无法加载参数编辑器。"
+                  : "此步骤暂无可见的输入或输出参数。若刚切换控制模式，请检查控制字段取值是否有效。")}
             </p>
           ) : (
             <>
@@ -611,6 +692,7 @@ export function StepEditorPopup({
                     param={param}
                     workspaceContext={workspaceContext}
                     setParam={setParam}
+                    onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined}
                   />
                 );
               })}
@@ -626,6 +708,7 @@ export function StepEditorPopup({
                         variables={variables}
                         value={effectiveDraft!.outputParams[key] ?? ""}
                         onChange={(next) => setOutputParam(key, next)}
+                        onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined}
                       />
                     );
                   })}
@@ -653,6 +736,7 @@ export function StepEditorPopup({
                             param={param}
                             workspaceContext={workspaceContext}
                             setParam={setParam}
+                            onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined}
                           />
                         );
                       })}
@@ -668,6 +752,7 @@ export function StepEditorPopup({
                                 variables={variables}
                                 value={effectiveDraft!.outputParams[key] ?? ""}
                                 onChange={(next) => setOutputParam(key, next)}
+                                onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined}
                               />
                             );
                           })}
@@ -729,6 +814,18 @@ export function StepEditorPopup({
           </footer>
         </div>
       </div>
+      {createVariableRequest ? (
+        <StepCreateVariableDialog
+          open
+          variables={variables}
+          presetKey={createVariablePresetKey}
+          presetDesc=""
+          targetVarType={createVariableRequest.targetVarType}
+          allowUseExisting
+          onCancel={() => setCreateVariableRequest(null)}
+          onConfirm={handleCreateVariableConfirm}
+        />
+      ) : null}
       {discardDialogOpen ? (
         <StepEditorDiscardDialog
           onCancel={() => setDiscardDialogOpen(false)}

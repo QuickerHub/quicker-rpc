@@ -28,27 +28,34 @@ export function isLauncherRoute(): boolean {
   return window.location.pathname === "/launcher";
 }
 
-export function openLauncherWindow(): void {
-  if (typeof window === "undefined") return;
+export async function openLauncherWindow(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
   if (isTauriShell()) {
-    tauriLauncherShow(false);
-    notifyLauncherOpened();
-    return;
+    const ok = await tauriLauncherShow(false);
+    if (ok) {
+      notifyLauncherOpened();
+    }
+    return ok;
   }
   if (isLauncherRoute()) {
     window.focus();
-    return;
+    return true;
   }
   if (launcherPopup && !launcherPopup.closed) {
     launcherPopup.focus();
     notifyLauncherOpened();
-    return;
+    return true;
   }
   launcherPopup = window.open(
     "/launcher",
     LAUNCHER_POPUP_NAME,
     LAUNCHER_POPUP_FEATURES,
   );
+  if (!launcherPopup) {
+    return false;
+  }
+  notifyLauncherOpened();
+  return true;
 }
 
 /** Window size is fixed; kept for callers that run after the first submit. */
@@ -56,18 +63,17 @@ export function expandLauncherPopup(): void {
   // no-op — launcher uses a fixed height so the composer stays put
 }
 
-export function toggleLauncherWindow(): void {
+export async function toggleLauncherWindow(): Promise<boolean> {
   if (isTauriShell()) {
-    tauriLauncherToggle();
-    return;
+    return tauriLauncherToggle();
   }
   if (launcherPopup && !launcherPopup.closed) {
     postLauncherSessionClear();
     launcherPopup.close();
     launcherPopup = null;
-    return;
+    return true;
   }
-  openLauncherWindow();
+  return openLauncherWindow();
 }
 
 export function dismissLauncherWindow(): void {
@@ -76,7 +82,7 @@ export function dismissLauncherWindow(): void {
     void isLauncherTauriWindow().then((isLauncherWindow) => {
       if (isLauncherWindow) {
         // Hide first; session clears on launcher:hidden (avoids UI collapse before hide).
-        tauriLauncherHide();
+        void tauriLauncherHide();
       }
     });
     return;
@@ -95,6 +101,6 @@ export function dismissLauncherWindow(): void {
   launcherPopup = null;
 }
 
-export function openLauncherWindowExpanded(): void {
-  openLauncherWindow();
+export async function openLauncherWindowExpanded(): Promise<boolean> {
+  return openLauncherWindow();
 }
