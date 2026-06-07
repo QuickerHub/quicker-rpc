@@ -1,5 +1,7 @@
 # .NET / Visual Studio
 [Bb]in/
+!packages/qkrpc-mcp/bin/
+!packages/qkrpc-mcp/bin/**
 [Oo]bj/
 .vs/
 TestResults/
