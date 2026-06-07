@@ -4,7 +4,7 @@
     {
       "topic": "action-data-schema",
       "title": "Action data.json schema",
-      "description": "Machine-readable JSON schema for data.json: shared steps[] + variables[] by programKind (action vs subprogram). qkrpc guide get --topic action-data-schema --json.",
+      "description": "Machine-readable JSON schema for data.json: shared steps[] + variables[] by programKind (action vs subprogram). Use when validating or authoring data.json before patch/replace.",
       "source": "references/action-data-schema.md",
       "templateSource": "schemas/action-data-schema.md",
       "allowedTools": "qkrpc_guide_get qkrpc_action_create workspace_action_read_data workspace_action_write_data workspace_action_edit_data",
@@ -145,7 +145,7 @@
     {
       "topic": "form-spec-schema",
       "title": "Form spec schema",
-      "description": "Machine-readable JSON schema for qkrpc.form.v1 documents and sys:form step wire. guide get / form validate.",
+      "description": "Machine-readable JSON schema for qkrpc.form.v1 documents and sys:form step wire. Use when validating form JSON or wiring sys:form steps.",
       "source": "references/form-spec-schema.md",
       "templateSource": "schemas/form-spec-schema.md",
       "allowedTools": "qkrpc_guide_get qkrpc_form_validate qkrpc_form_build workspace_action_file_write workspace_action_edit_data",
