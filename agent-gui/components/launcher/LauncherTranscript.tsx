@@ -44,6 +44,8 @@ export function LauncherTranscript({
     [status, messages, qkrpcOk, qkrpcLoading, pendingApprovalCount],
   );
 
+  const busy = status === "submitted" || status === "streaming";
+
   const lastVisibleMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const message = messages[i];

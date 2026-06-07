@@ -20,6 +20,7 @@ import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-
 import { useGlobalVoiceToggle } from "@/lib/voice-input/use-global-voice-toggle";
 import { useLauncherTauriHidden } from "@/lib/launcher/use-launcher-tauri-hidden";
 import { LAUNCHER_SHOWN_EVENT } from "@/lib/launcher/launcher-tauri-events";
+import { dismissLauncherWindow } from "@/lib/launcher/launcher-window";
 import { isTauriShell } from "@/lib/tauri-shell";
 import {
   fetchLlmOptions,

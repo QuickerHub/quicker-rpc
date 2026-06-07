@@ -102,7 +102,6 @@ export function ActivityBatchGroup({
               <ReasoningPart
                 key={key}
                 items={[{ part: item.part, index: item.index }]}
-                inBatch
               />
             );
           }

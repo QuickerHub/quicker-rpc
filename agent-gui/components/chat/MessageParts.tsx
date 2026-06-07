@@ -8,6 +8,7 @@ import { InlineUserMessage } from "./InlineUserMessage";
 import { ReasoningPart } from "./ReasoningPart";
 import { segmentMessageParts } from "./tool-part-layout";
 import { ToolBatchGroup } from "./ToolBatchGroup";
+import { ActivityBatchGroup } from "./ActivityBatchGroup";
 import { ToolPart } from "./ToolPart";
 import { readToolCallId } from "@/lib/workspace-tool-auto-open";
 
@@ -73,6 +74,23 @@ function MessagePartsInner({
               messageId={message.id}
               partIndex={index}
               part={part}
+            />
+          );
+        }
+
+        if (segment.kind === "activity-batch") {
+          const batchLead = segment.items[0];
+          if (!batchLead) return null;
+          const batchKey =
+            batchLead.kind === "tool"
+              ? readToolCallId(batchLead.part)
+                ?? `activity-${message.id}-${batchLead.index}`
+              : `activity-reasoning-${message.id}-${batchLead.index}`;
+          return (
+            <ActivityBatchGroup
+              key={batchKey}
+              messageId={message.id}
+              items={segment.items}
             />
           );
         }

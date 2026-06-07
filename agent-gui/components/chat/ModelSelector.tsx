@@ -267,7 +267,7 @@ export function ModelSelector({
   const select = (nextSelection: string) => {
     const opt = options.find((o) => o.selection === nextSelection);
     if (!opt?.configured) {
-      openSettings(optionProviderId(opt));
+      openSettings(opt ? optionProviderId(opt) : undefined);
       return;
     }
     onChange(nextSelection);
