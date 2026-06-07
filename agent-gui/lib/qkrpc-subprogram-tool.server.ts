@@ -130,21 +130,19 @@ export type QkrpcSubprogramManageToolInput = QkrpcSubprogramCreateToolInput & {
 };
 
 /** @deprecated Unified input for legacy tool aliases only. */
-export type QkrpcSubprogramToolInput = QkrpcSubprogramQueryToolInput
-  & Partial<QkrpcSubprogramIdToolInput>
-  & Partial<QkrpcSubprogramManageToolInput> & {
-    action?:
-      | QkrpcSubprogramIdToolInput["action"]
-      | QkrpcSubprogramManageToolInput["action"]
-      | "list"
-      | "search"
-      | "patch"
-      | "replace";
-    program?: Record<string, unknown>;
-    patch?: Record<string, unknown>;
-    expectedEditVersion?: number;
-    force?: boolean;
-  };
+export type QkrpcSubprogramToolInput = QkrpcSubprogramQueryToolInput & {
+  action?:
+    | QkrpcSubprogramIdToolInput["action"]
+    | QkrpcSubprogramManageToolInput["action"]
+    | "list"
+    | "search"
+    | "patch"
+    | "replace";
+  program?: Record<string, unknown>;
+  patch?: Record<string, unknown>;
+  expectedEditVersion?: number;
+  force?: boolean;
+};
 
 export async function executeQkrpcSubprogramQueryTool(
   input: QkrpcSubprogramQueryToolInput,
