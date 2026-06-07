@@ -50,7 +50,7 @@ const streamAbortByTab = new Map<string, AbortController>();
 const pendingOutputByTab = new Map<string, string>();
 const pendingLineDeltaByTab = new Map<string, number>();
 const pendingEventsByTab = new Map<string, ActionTraceEvent[]>();
-let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let flushTimer: ReturnType<typeof window.setTimeout> | null = null;
 
 /** Pace live trace UI so long runs feel streamed, not one burst per TCP chunk. */
 const TRACE_UI_FLUSH_MS = 40;
