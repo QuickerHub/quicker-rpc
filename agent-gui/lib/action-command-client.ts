@@ -4,7 +4,6 @@ export type ActionCommandBody = {
   op: ActionCommandOp;
   id: string;
   param?: string;
-  debug?: boolean;
   wait?: boolean;
   title?: string;
   description?: string;

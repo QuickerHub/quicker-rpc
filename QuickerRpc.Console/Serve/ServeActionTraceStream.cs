@@ -1,3 +1,4 @@
+using System;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -78,8 +79,12 @@ internal static class ServeActionTraceStream
                 .ConfigureAwait(false);
 
             var rpcToken = QuickerRpcClient.CreateRpcCancellationToken(timeoutSeconds);
+            var progress = new Progress<QuickerRpcActionTraceEvent>(evt =>
+            {
+                _ = callbacks.EmitTraceAsync(evt);
+            });
             var result = await session.Rpc
-                .RunActionTraceAsync(actionId, body.Param, rpcToken)
+                .RunActionTraceAsync(actionId, body.Param, progress, rpcToken)
                 .ConfigureAwait(false);
 
             if (callbacks.StreamedCount == 0 && result.Events.Count > 0)

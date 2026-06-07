@@ -48,7 +48,6 @@ import {
   getActiveThread,
   getOpenTabThreads,
   openThread,
-  threadMessagesEqual,
   updateThreadMessages,
   updateThreadTitle,
 } from "@/lib/chat-store";
@@ -122,6 +121,8 @@ import {
 import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
 import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent-activity";
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
+import { CollapsedTurnSummary } from "@/components/chat/CollapsedTurnSummary";
+import { isHotTurnIndex } from "@/lib/chat-message-window";
 import { ComposerShortcutCards } from "@/components/chat/ComposerShortcutCards";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
 import { useChatMessageWindow } from "@/lib/use-chat-message-window";
@@ -491,13 +492,6 @@ function ChatPanel({
 
   const flushThreadPersist = useCallback(() => {
     const snapshot = messagesForPersistRef.current;
-    const prev = lastPersistedRef.current;
-    if (
-      prev?.threadId === threadId
-      && threadMessagesEqual(prev.messages, snapshot)
-    ) {
-      return;
-    }
     lastPersistedRef.current = { threadId, messages: snapshot };
     persistRef.current(threadId, snapshot);
   }, [threadId]);
@@ -514,17 +508,25 @@ function ChatPanel({
     [repairToolCalls, sendMessage],
   );
 
-  useEffect(() => {
-    if (ephemeral) return;
-    const timer = window.setTimeout(flushThreadPersist, CHAT_PERSIST_DEBOUNCE_MS);
-    return () => {
-      window.clearTimeout(timer);
-      flushThreadPersist();
-    };
-  }, [ephemeral, flushThreadPersist, messages]);
+  const busyPersist =
+    status === "streaming" || status === "submitted";
 
   useEffect(() => {
-    if (ephemeral) return;
+    if (ephemeral || !visible) return;
+    const debounceMs = busyPersist
+      ? CHAT_PERSIST_MAX_INTERVAL_MS
+      : CHAT_PERSIST_DEBOUNCE_MS;
+    const timer = window.setTimeout(flushThreadPersist, debounceMs);
+    return () => {
+      window.clearTimeout(timer);
+      if (!busyPersist) {
+        flushThreadPersist();
+      }
+    };
+  }, [busyPersist, ephemeral, flushThreadPersist, messages, visible]);
+
+  useEffect(() => {
+    if (ephemeral || !visible) return;
     const interval = window.setInterval(
       flushThreadPersist,
       CHAT_PERSIST_MAX_INTERVAL_MS,
@@ -536,7 +538,7 @@ function ChatPanel({
       window.removeEventListener("pagehide", onPageHide);
       flushThreadPersist();
     };
-  }, [ephemeral, flushThreadPersist, threadId]);
+  }, [ephemeral, flushThreadPersist, threadId, visible]);
 
   const prevStatusRef = useRef(status);
   useEffect(() => {
@@ -765,6 +767,16 @@ function ChatPanel({
     [messages, editAnchorMessageId],
   );
 
+  const streamingActive = busy;
+
+  const [expandedColdTurns, setExpandedColdTurns] = useState<Set<number>>(
+    () => new Set(),
+  );
+
+  useEffect(() => {
+    setExpandedColdTurns(new Set());
+  }, [threadId]);
+
   const messageWindow = useChatMessageWindow({
     containerRef: messagesRef,
     visible,
@@ -774,6 +786,7 @@ function ChatPanel({
     editAnchorIndex,
     revision: [messages, error, status],
     getStickToBottom,
+    streamingActive,
   });
 
   useEffect(() => {
@@ -1111,7 +1124,9 @@ function ChatPanel({
       ) : null;
 
       if (isUser) {
-        const userArticleClass = `msg msg--user${message.id === lastVisibleMessageId && !agentActivity ? " msg--last" : ""}${isEditAnchor ? " msg--edit-anchor" : ""}${hasLocalDraft ? " msg--local-draft" : ""}${isAfterEditAnchor ? " msg--branch-cutoff" : ""}`;
+        const isColdMessage =
+          message.id !== lastVisibleMessageId && !isEditAnchor;
+        const userArticleClass = `msg msg--user${message.id === lastVisibleMessageId && !agentActivity ? " msg--last" : ""}${isColdMessage ? " msg--cold" : ""}${isEditAnchor ? " msg--edit-anchor" : ""}${hasLocalDraft ? " msg--local-draft" : ""}${isAfterEditAnchor ? " msg--branch-cutoff" : ""}`;
         const userComposer = (
           <UserMessageComposerChrome
             message={message}
@@ -1168,7 +1183,7 @@ function ChatPanel({
       return (
         <article
           key={message.id}
-          className={`msg msg--assistant${message.id === lastVisibleMessageId && !agentActivity ? " msg--last" : ""}${isEditAnchor ? " msg--edit-anchor" : ""}${hasLocalDraft ? " msg--local-draft" : ""}${isAfterEditAnchor ? " msg--branch-cutoff" : ""}`}
+          className={`msg msg--assistant${message.id === lastVisibleMessageId && !agentActivity ? " msg--last" : ""}${message.id !== lastVisibleMessageId && !isEditAnchor ? " msg--cold" : ""}${isEditAnchor ? " msg--edit-anchor" : ""}${hasLocalDraft ? " msg--local-draft" : ""}${isAfterEditAnchor ? " msg--branch-cutoff" : ""}`}
         >
           <div className="msg-content">
             <div className="parts">
@@ -1176,6 +1191,10 @@ function ChatPanel({
                 message={message}
                 workingDirectory={workingDirectory}
                 onInsertComposerPrompt={insertComposerPrompt}
+                streamAssistantText={
+                  (status === "streaming" || status === "submitted")
+                  && message.id === messages[messages.length - 1]?.id
+                }
               />
             </div>
             {lastMessageMenu}
@@ -1193,6 +1212,7 @@ function ChatPanel({
       focusComposerAtEnd,
       lastVisibleMessageId,
       messages,
+      status,
       userMessageDrafts,
       workingDirectory,
     ],
@@ -1291,11 +1311,33 @@ function ChatPanel({
             const turnIndex = messageWindow.startTurnIndex + sliceTurnIndex;
             const endIndex = userTurnStarts[turnIndex + 1] ?? messages.length;
             const isLastTurn = turnIndex === userTurnStarts.length - 1;
+            const isHotTurn =
+              isHotTurnIndex(turnIndex, userTurnStarts.length)
+              || expandedColdTurns.has(turnIndex);
+            const turnMessageCount = endIndex - startIndex;
+
+            if (!isHotTurn) {
+              return (
+                <CollapsedTurnSummary
+                  key={messages[startIndex]!.id}
+                  turnNumber={turnIndex + 1}
+                  messageCount={turnMessageCount}
+                  onExpand={() => {
+                    setExpandedColdTurns((prev) => {
+                      const next = new Set(prev);
+                      next.add(turnIndex);
+                      return next;
+                    });
+                  }}
+                />
+              );
+            }
+
             return (
               <div
                 key={messages[startIndex]!.id}
                 ref={isLastTurn ? msgTurnRef : undefined}
-                className={`msg-turn${isLastTurn && lastTurnFillScrollport ? " msg-turn--fill-scrollport" : ""}`}
+                className={`msg-turn msg-turn--hot${isLastTurn && lastTurnFillScrollport ? " msg-turn--fill-scrollport" : ""}`}
               >
                 {messages
                   .slice(startIndex, endIndex)
@@ -1656,13 +1698,15 @@ export function Chat() {
               <div className="app-content-row">
                 <div className="app-main-shell">
                   <AppMainWorkspaceSplit>
-                    {getOpenTabThreads(store).map((thread) => (
+                    {getOpenTabThreads(store)
+                      .filter((thread) => thread.id === activeThread.id)
+                      .map((thread) => (
                       <ChatPanel
                         key={thread.id}
                         threadId={thread.id}
                         initialMessages={thread.messages}
                         workingDirectory={workingDirectory}
-                        visible={thread.id === activeThread.id}
+                        visible
                         threadTitle={thread.title}
                         titleGenerated={thread.titleGenerated ?? false}
                         titleManual={thread.titleManual ?? false}

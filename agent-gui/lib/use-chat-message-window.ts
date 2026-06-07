@@ -15,9 +15,13 @@ import {
   CHAT_MESSAGE_WINDOW_EXPAND_MESSAGES,
   CHAT_MESSAGE_WINDOW_EXPAND_TURNS,
   CHAT_MESSAGE_WINDOW_SCROLL_LOAD_THRESHOLD_PX,
+  CHAT_MESSAGE_WINDOW_STREAMING_MESSAGES,
+  CHAT_MESSAGE_WINDOW_STREAMING_TURNS,
   findTurnIndexForMessageIndex,
   nextExpandedMessageCount,
   nextExpandedTurnCount,
+  resolveEffectiveMessageWindow,
+  resolveEffectiveTurnWindow,
   resolveVisibleMessageStart,
   resolveVisibleTurnStart,
   shouldTrimWindowAtBottom,
@@ -32,6 +36,8 @@ type UseChatMessageWindowOptions = {
   editAnchorIndex: number;
   revision: unknown;
   getStickToBottom: () => boolean;
+  /** Shrink mounted window while tokens/tools stream in. */
+  streamingActive?: boolean;
 };
 
 export type ChatMessageWindowSlice = {
@@ -66,6 +72,7 @@ export function useChatMessageWindow({
   editAnchorIndex,
   revision,
   getStickToBottom,
+  streamingActive = false,
 }: UseChatMessageWindowOptions): ChatMessageWindowSlice {
   const historySentinelRef = useRef<HTMLDivElement | null>(null);
   const pendingScrollRestoreRef = useRef<(() => void) | null>(null);
@@ -90,6 +97,25 @@ export function useChatMessageWindow({
     setVisibleTurnCount(CHAT_MESSAGE_WINDOW_DEFAULT_TURNS);
     setVisibleMessageCount(CHAT_MESSAGE_WINDOW_DEFAULT_MESSAGES);
   }, [threadId]);
+
+  useEffect(() => {
+    if (!streamingActive) return;
+    setVisibleTurnCount((current) =>
+      Math.min(current, CHAT_MESSAGE_WINDOW_STREAMING_TURNS),
+    );
+    setVisibleMessageCount((current) =>
+      Math.min(current, CHAT_MESSAGE_WINDOW_STREAMING_MESSAGES),
+    );
+  }, [streamingActive]);
+
+  const effectiveTurnWindow = resolveEffectiveTurnWindow(
+    visibleTurnCount,
+    streamingActive,
+  );
+  const effectiveMessageWindow = resolveEffectiveMessageWindow(
+    visibleMessageCount,
+    streamingActive,
+  );
 
   const expandHistory = useCallback(() => {
     const container = containerRef.current;
@@ -137,7 +163,7 @@ export function useChatMessageWindow({
     if (useTurnMode) {
       const { startTurnIndex, hiddenTurnCount } = resolveVisibleTurnStart(
         totalTurns,
-        visibleTurnCount,
+        effectiveTurnWindow,
         minTurnIndex,
       );
       return {
@@ -151,7 +177,7 @@ export function useChatMessageWindow({
 
     const { startMessageIndex, hiddenMessageCount } = resolveVisibleMessageStart(
       totalMessages,
-      visibleMessageCount,
+      effectiveMessageWindow,
       minMessageIndex,
     );
     return {
@@ -162,14 +188,14 @@ export function useChatMessageWindow({
       hiddenMessageCount,
     };
   }, [
+    effectiveMessageWindow,
+    effectiveTurnWindow,
     minMessageIndex,
     minTurnIndex,
     totalMessages,
     totalTurns,
     useTurnMode,
     userTurnStarts,
-    visibleMessageCount,
-    visibleTurnCount,
   ]);
 
   useEffect(() => {
@@ -229,16 +255,23 @@ export function useChatMessageWindow({
     prevRevisionRef.current = revision;
     if (prev === revision) return;
 
+    const trimTurnDefault = streamingActive
+      ? CHAT_MESSAGE_WINDOW_STREAMING_TURNS
+      : CHAT_MESSAGE_WINDOW_DEFAULT_TURNS;
+    const trimMessageDefault = streamingActive
+      ? CHAT_MESSAGE_WINDOW_STREAMING_MESSAGES
+      : CHAT_MESSAGE_WINDOW_DEFAULT_MESSAGES;
+
     if (useTurnMode) {
       if (
         shouldTrimWindowAtBottom(
           getStickToBottom(),
           totalTurns,
-          visibleTurnCount,
-          CHAT_MESSAGE_WINDOW_DEFAULT_TURNS,
+          effectiveTurnWindow,
+          trimTurnDefault,
         )
       ) {
-        setVisibleTurnCount(CHAT_MESSAGE_WINDOW_DEFAULT_TURNS);
+        setVisibleTurnCount(trimTurnDefault);
       }
       return;
     }
@@ -247,20 +280,21 @@ export function useChatMessageWindow({
       shouldTrimWindowAtBottom(
         getStickToBottom(),
         totalMessages,
-        visibleMessageCount,
-        CHAT_MESSAGE_WINDOW_DEFAULT_MESSAGES,
+        effectiveMessageWindow,
+        trimMessageDefault,
       )
     ) {
-      setVisibleMessageCount(CHAT_MESSAGE_WINDOW_DEFAULT_MESSAGES);
+      setVisibleMessageCount(trimMessageDefault);
     }
   }, [
+    effectiveMessageWindow,
+    effectiveTurnWindow,
     getStickToBottom,
     revision,
+    streamingActive,
     totalMessages,
     totalTurns,
     useTurnMode,
-    visibleMessageCount,
-    visibleTurnCount,
   ]);
 
   return {

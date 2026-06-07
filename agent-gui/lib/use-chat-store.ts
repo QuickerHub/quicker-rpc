@@ -6,8 +6,9 @@ import type { ChatStoreData } from "@/lib/chat-store";
 import {
   CHAT_STORAGE_KEY,
   defaultChatStore,
+  flushPendingChatStoreSave,
   loadChatStore,
-  saveChatStore,
+  scheduleSaveChatStore,
 } from "@/lib/chat-store";
 
 let cachedStore: ChatStoreData | undefined;
@@ -137,9 +138,18 @@ export function useChatStore() {
 
   const updateStore = useCallback((next: ChatStoreData) => {
     if (next === cachedStore) return;
-    saveChatStore(next);
+    scheduleSaveChatStore(next);
     cachedStore = next;
     notifyChatStoreListeners();
+  }, []);
+
+  useEffect(() => {
+    const onPageHide = () => flushPendingChatStoreSave();
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      flushPendingChatStoreSave();
+    };
   }, []);
 
   return { store, defaultCwd, defaultCwdProfile, defaultCwdReady, updateStore };

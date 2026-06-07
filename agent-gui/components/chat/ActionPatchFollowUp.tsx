@@ -38,10 +38,10 @@ export function ActionPatchFollowUp({
         });
         if (result.ok) {
           setRunState("ok");
-          setStatusText("已启动 trace 调试（见终端面板）");
+          setStatusText("已启动调试（见侧栏面板）");
         } else {
           setRunState("err");
-          setStatusText(result.error ?? "trace 失败");
+          setStatusText(result.error ?? "调试失败");
         }
         return;
       }
@@ -145,7 +145,7 @@ export function ActionPatchFollowUp({
           className="action-patch-followup-btn action-patch-followup-btn--debug"
           disabled={busy}
           onClick={() => void run({ trace: true })}
-          title="trace 调试：在终端面板查看步骤输出"
+          title="调试：在侧栏查看步骤输出"
         >
           调试运行
         </button>

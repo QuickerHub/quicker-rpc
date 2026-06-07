@@ -20,6 +20,7 @@ import {
 } from "@/lib/docs-catalog-api";
 import type { DocsGetDoc } from "@/lib/docs-tool";
 import { openWorkspaceMainEditorTab } from "@/lib/workspace-main-editor-tab";
+import { useWorkspaceExplorerShell } from "@/lib/workspace-explorer";
 
 export type DocViewerEntry = {
   topic: string;
@@ -51,8 +52,9 @@ type DocsViewerContextValue = {
 const DocsViewerContext = createContext<DocsViewerContextValue | null>(null);
 
 export function DocsViewerProvider({ children }: { children: ReactNode }) {
+  const { panelOpen } = useWorkspaceExplorerShell();
   const [catalogTopics, setCatalogTopics] = useState<ActionAuthoringTopicMeta[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [entries, setEntries] = useState<Record<string, DocViewerEntry>>({});
   const [activeTopicId, setActiveTopicId] = useState<string | null>(null);
@@ -73,8 +75,9 @@ export function DocsViewerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!panelOpen) return;
     void refreshCatalog();
-  }, [refreshCatalog]);
+  }, [panelOpen, refreshCatalog]);
 
   const loadEntry = useCallback(
     async (

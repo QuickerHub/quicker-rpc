@@ -2,6 +2,8 @@
 
 import { startActionTraceStream } from "@/lib/action-trace-overlay";
 
+/** Terminal step debug — agent tool `debug` and UI side panel. */
+
 export type StartActionTraceOptions = {
   actionId: string;
   param?: string;

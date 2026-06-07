@@ -1,4 +1,5 @@
 using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
@@ -9,7 +10,6 @@ using Quicker.Domain.Actions.Runtime;
 using Quicker.Domain.Actions.Runner;
 using Quicker.Domain.Actions.X;
 using Quicker.Public.Entities;
-using Quicker.Utilities;
 using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Plugin.Debugging;
 using QuickerRpc.Plugin.Reflection;
@@ -32,6 +32,7 @@ public sealed class XActionTraceRunService
     public QuickerRpcActionTraceRunResult RunAction(
         string actionId,
         string? inputParam = null,
+        IProgress<QuickerRpcActionTraceEvent>? progress = null,
         IQuickerRpcClientCallbacks? streamCallbacks = null)
     {
         var id = (actionId ?? string.Empty).Trim();
@@ -67,7 +68,7 @@ public sealed class XActionTraceRunService
         }
 
         var title = ReadActionTitle(actionItem);
-        var logger = new TerminalActionLogger(CreateStreamHandler(streamCallbacks));
+        var logger = new TerminalActionLogger(CreateStreamHandler(progress, streamCallbacks));
         var sw = Stopwatch.StartNew();
 
         ActionExecuteContext? context = null;
@@ -75,25 +76,13 @@ public sealed class XActionTraceRunService
 
         try
         {
-            AppHelper.RunOnUiThread(
-                true,
-                () =>
-                {
-                    try
-                    {
-                        context = CreateTraceContext(actionItem, appServer, inputParam, logger);
-                        var runner = new XActionRunner();
-                        runner.ExecuteAction(actionItem, 0, appServer, context);
-                    }
-                    catch (Exception ex)
-                    {
-                        runException = ex;
-                    }
-                });
+            context = CreateTraceContext(actionItem, appServer, inputParam, logger);
+            var runner = new XActionRunner();
+            runner.ExecuteAction(actionItem, 0, appServer, context);
         }
         catch (Exception ex)
         {
-            return Fail(ex.Message, id, title, logger.Events, sw.ElapsedMilliseconds);
+            runException = ex;
         }
 
         if (runException is not null)
@@ -223,9 +212,11 @@ public sealed class XActionTraceRunService
             Events = events is null ? [] : [.. events],
         };
 
-    private static Action<QuickerRpcActionTraceEvent>? CreateStreamHandler(IQuickerRpcClientCallbacks? streamCallbacks)
+    private static Action<QuickerRpcActionTraceEvent>? CreateStreamHandler(
+        IProgress<QuickerRpcActionTraceEvent>? progress,
+        IQuickerRpcClientCallbacks? streamCallbacks)
     {
-        if (streamCallbacks is null)
+        if (progress is null && streamCallbacks is null)
         {
             return null;
         }
@@ -234,11 +225,25 @@ public sealed class XActionTraceRunService
         {
             try
             {
-                streamCallbacks.ActionTraceEventAsync(evt).GetAwaiter().GetResult();
+                progress?.Report(evt);
             }
             catch
             {
                 // Best-effort streaming; RPC result still carries full trace.
+            }
+
+            if (streamCallbacks is null)
+            {
+                return;
+            }
+
+            try
+            {
+                _ = streamCallbacks.ActionTraceEventAsync(evt);
+            }
+            catch
+            {
+                // Legacy callback path; progress is preferred for live streaming.
             }
         };
     }

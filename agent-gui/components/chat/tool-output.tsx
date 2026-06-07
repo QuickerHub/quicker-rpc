@@ -284,7 +284,20 @@ export function formatToolState(state: string): string {
 }
 
 /** qkrpc_step_runner_search → step runner search */
-export function formatToolDisplayName(toolName: string, input?: unknown): string {
+export function readQkrpcToolOutputData(output: unknown): Record<string, unknown> | null {
+  if (!isQkrpcToolResult(output)) return null;
+  if (typeof output.data !== "object" || output.data === null || Array.isArray(output.data)) {
+    return null;
+  }
+  return output.data as Record<string, unknown>;
+}
+
+export function formatToolDisplayName(
+  toolName: string,
+  input?: unknown,
+  output?: unknown,
+): string {
+  const outputData = readQkrpcToolOutputData(output);
   const canonical =
     resolveKnownToolName(toolName, defaultEnabledToolIds())
     ?? normalizeToolCallName(toolName);
@@ -295,7 +308,11 @@ export function formatToolDisplayName(toolName: string, input?: unknown): string
   if (projectsLabel) return projectsLabel;
   const programLabel = workspaceProgramToolDisplayName(canonical, input);
   if (programLabel) return programLabel.replace(/-/g, " ");
-  const actionCommandLabel = qkrpcActionCommandDisplayName(canonical, input);
+  const actionCommandLabel = qkrpcActionCommandDisplayName(
+    canonical,
+    input,
+    outputData,
+  );
   if (actionCommandLabel) return actionCommandLabel;
   const meta = getToolMeta(canonical);
   if (meta?.label) return meta.label;

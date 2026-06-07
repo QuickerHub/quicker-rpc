@@ -163,8 +163,8 @@ export function ActionLinkCard({
                   type="button"
                   className="action-link-card-btn action-link-card-btn--stretch action-link-card-btn--ghost"
                   disabled={cardBusy}
-                  title="插入 trace 调试指令到输入框（发送后由 Agent 执行）"
-                  onClick={() => insertPrompt("trace")}
+                  title="插入调试指令到输入框（发送后由 Agent 执行）"
+                  onClick={() => insertPrompt("debug")}
                 >
                   {debugLink?.label ?? "调试"}
                 </button>

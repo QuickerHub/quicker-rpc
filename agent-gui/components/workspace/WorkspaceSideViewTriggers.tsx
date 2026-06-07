@@ -46,8 +46,8 @@ export function WorkspaceSideViewTriggers() {
         className={`side-view-trigger-btn${trace.active ? " side-view-trigger-btn--active" : ""}`}
         onClick={trace.toggle}
         aria-pressed={trace.active}
-        aria-label="Trace 调试"
-        title="Trace 调试"
+        aria-label="调试"
+        title="调试"
       >
         <SidePanelIconTrace />
       </button>

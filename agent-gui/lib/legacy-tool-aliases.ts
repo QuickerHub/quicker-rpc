@@ -292,12 +292,12 @@ export const legacyQuickerToolAliases = {
   }),
 
   qkrpc_action_run: tool({
-    description: "Deprecated: use qkrpc_action({ action: \"run\" })",
+    description: "Deprecated: use qkrpc_action({ action: \"run\" }) or action: \"debug\" for step output",
     inputSchema: z.object({
       id: z.string(),
       param: z.string().optional(),
       wait: z.boolean().optional(),
-      debug: z.boolean().optional(),
+      trace: z.boolean().optional(),
     }),
     execute: async (input) => executeQkrpcActionIdTool({ action: "run", ...input }),
   }),

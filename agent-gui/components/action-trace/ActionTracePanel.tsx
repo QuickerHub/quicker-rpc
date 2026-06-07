@@ -15,10 +15,12 @@ function formatTraceMeta(trace: ActionTraceTabState): string {
     const events =
       trace.events.length > 0 ? `${trace.events.length} 步 · ` : "";
     const lines = trace.lineCount > 0 ? `${trace.lineCount} 行 · ` : "";
-    return `${events || lines}trace 运行中…`;
+    return `${events || lines}调试中…`;
   }
-  if (trace.status === "error") return "trace 失败";
-  const parts: string[] = ["trace 完成"];
+  if (trace.status === "error") return "调试失败";
+  const parts: string[] = [
+    trace.errorMessage?.trim() ? "动作未成功完成" : "调试完成",
+  ];
   const count = trace.eventCount ?? trace.events.length;
   if (count > 0) parts.push(`${count} 步`);
   if (trace.durationMs != null) parts.push(`${trace.durationMs}ms`);
@@ -40,16 +42,18 @@ export function ActionTracePanel({
   const trace = useActionTraceTab(tabId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isLive = trace?.status === "running";
-  const failed = trace?.status === "error";
+  const streamFailed = trace?.status === "error";
+  const actionFailed =
+    trace?.status === "success" && Boolean(trace.errorMessage?.trim());
   const showTimeline = trace?.viewMode !== "terminal";
   const title =
     trace?.actionTitle?.trim()
     || trace?.actionId
-    || "动作 trace";
+    || "动作调试";
 
   const displayOutput =
     trace?.output
-    || (isLive ? "trace 连接中…\n" : "");
+    || (isLive ? "调试连接中…\n" : "");
 
   useFollowScrollTail(
     scrollRef,
@@ -64,18 +68,18 @@ export function ActionTracePanel({
   return (
     <section
       className={["action-trace-panel", className].filter(Boolean).join(" ")}
-      aria-label="Trace 调试"
+      aria-label="调试"
     >
       <header className="action-trace-panel__head">
         <div className="action-trace-panel__head-text">
-          <h2 className="action-trace-panel__title">Trace 调试</h2>
+          <h2 className="action-trace-panel__title">调试</h2>
           {trace ? (
             <p className="action-trace-panel__subtitle" title={trace.actionId}>
               {title}
             </p>
           ) : (
             <p className="action-trace-panel__subtitle tool-muted">
-              运行动作 trace 后在此查看流式步骤
+              运行动作调试后在此查看流式步骤
             </p>
           )}
         </div>
@@ -125,7 +129,16 @@ export function ActionTracePanel({
                   终端
                 </button>
               </div>
-              <span className="action-trace-panel__meta tool-muted">
+              <span
+                className={[
+                  "action-trace-panel__meta",
+                  "tool-muted",
+                  streamFailed ? "action-trace-panel__meta--err" : "",
+                  actionFailed ? "action-trace-panel__meta--warn" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
                 {formatTraceMeta(trace)}
               </span>
               <button
@@ -165,7 +178,6 @@ export function ActionTracePanel({
               className={[
                 "action-trace-terminal__out",
                 isLive ? "action-trace-terminal__out--live" : "",
-                failed ? "action-trace-terminal__out--err" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}

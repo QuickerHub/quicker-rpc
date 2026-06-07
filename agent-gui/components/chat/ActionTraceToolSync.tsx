@@ -1,18 +1,22 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { buildActionTraceTabId } from "@/lib/action-trace-tab-id";
+import { startActionTraceFeed } from "@/lib/action-trace-feed-client";
 import {
+  getActionTraceTab,
   hydrateActionTraceFromToolOutput,
-  prepareActionTraceTab,
 } from "@/lib/action-trace-overlay";
 import {
   isQkrpcActionCommandTool,
-  isQkrpcActionTraceInput,
   readQkrpcActionIdFromInput,
   readQkrpcActionParamFromInput,
-  resolveQkrpcActionCommandVerb,
+  resolveQkrpcActionRunMode,
 } from "@/lib/qkrpc-action-tool";
-import { isQkrpcToolResult } from "@/components/chat/tool-output";
+import {
+  isQkrpcToolResult,
+  readQkrpcToolOutputData,
+} from "@/components/chat/tool-output";
 
 type ActionTraceToolSyncProps = {
   toolName: string;
@@ -21,7 +25,7 @@ type ActionTraceToolSyncProps = {
   isRunning: boolean;
 };
 
-/** Open trace tab while Agent debug runs; hydrate timeline when tool completes. */
+/** Subscribe trace feed while Agent trace runs; hydrate only if streaming missed events. */
 export function ActionTraceToolSync({
   toolName,
   input,
@@ -33,8 +37,9 @@ export function ActionTraceToolSync({
 
   useEffect(() => {
     if (!isQkrpcActionCommandTool(toolName, input)) return;
-    if (resolveQkrpcActionCommandVerb(toolName, input) !== "trace") return;
-    if (!isQkrpcActionTraceInput(input)) return;
+
+    const outputData = readQkrpcToolOutputData(output);
+    if (resolveQkrpcActionRunMode(input, outputData) !== "debug") return;
 
     const actionId = readQkrpcActionIdFromInput(input);
     if (!actionId) return;
@@ -45,25 +50,28 @@ export function ActionTraceToolSync({
     if (isRunning) {
       if (preparedKeyRef.current !== prepareKey) {
         preparedKeyRef.current = prepareKey;
-        prepareActionTraceTab({ actionId, param });
+        startActionTraceFeed({ actionId, param });
       }
       return;
     }
 
     if (!output || !isQkrpcToolResult(output) || !output.ok) return;
-    if (typeof output.data !== "object" || output.data === null || Array.isArray(output.data)) {
+    if (!outputData) return;
+
+    const tabId = buildActionTraceTabId(actionId, param);
+    const existing = getActionTraceTab(tabId);
+    if (existing && existing.events.length > 0) {
       return;
     }
 
-    const data = output.data as Record<string, unknown>;
-    const syncKey = `${toolName}:${actionId}:${Array.isArray(data.events) ? data.events.length : 0}`;
+    const syncKey = `${toolName}:${actionId}:${Array.isArray(outputData.events) ? outputData.events.length : 0}`;
     if (syncedKeyRef.current === syncKey) return;
 
-    const events = data.events;
+    const events = outputData.events;
     if (!Array.isArray(events) || events.length === 0) return;
 
     syncedKeyRef.current = syncKey;
-    hydrateActionTraceFromToolOutput(data, {
+    hydrateActionTraceFromToolOutput(outputData, {
       actionId,
       param,
     });

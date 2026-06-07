@@ -104,7 +104,7 @@ function successMessage(op: "run" | "debug" | "edit" | "float"): string {
     case "run":
       return "已运行动作";
     case "debug":
-      return "已启动 trace 调试（侧栏时间线）";
+      return "已启动调试（侧栏时间线）";
     case "edit":
       return "已在 Quicker 中打开动作编辑器";
     case "float":

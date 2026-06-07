@@ -15,8 +15,8 @@ packageName: quicker.rpc
 subprogramName: QuickerRpc_Run
 instruction: Quicker plugin RPC bridge (StreamJsonRpc named pipe)
 
-# Costura embeds NuGet deps into the plugin DLL. AgentModel + Contracts ship as version-suffixed
-# satellite DLLs so Quicker can resolve them on disk and multiple plugin revisions can coexist.
+# Costura embeds NuGet deps (incl. Microsoft.Extensions*) into the plugin DLL. AgentModel + Contracts
+# ship as version-suffixed satellite DLLs so Quicker can resolve them on disk and hot-update side-by-side.
 filesToInclude:
   - "QuickerRpc.Plugin*.dll"
   - "QuickerRpc.AgentModel*.dll"

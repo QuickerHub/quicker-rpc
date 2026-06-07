@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -175,11 +176,12 @@ public interface IQuickerRpcService
 
     /// <summary>
     /// Trace-run an XAction via plugin <c>XActionRunner</c> with <c>IsDebugging</c> and terminal logger
-    /// (no Quicker step debugger UI). Streams events when the client registers <see cref="IQuickerRpcClientCallbacks"/>.
+    /// (no Quicker step debugger UI). Pass <paramref name="progress"/> for live event streaming on the same RPC call.
     /// </summary>
     Task<QuickerRpcActionTraceRunResult> RunActionTraceAsync(
         string actionId,
         string? inputParam = null,
+        IProgress<QuickerRpcActionTraceEvent>? progress = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Show a local action as a floating button (ActionEditMgr.FloatAction).</summary>

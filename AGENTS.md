@@ -125,7 +125,11 @@ qkrpc guide get --topic action-icons --json
 qkrpc fa search --query "<keyword>" --json
 qkrpc action set-metadata --id <guid> --icon "fa:Light_<Name>" --expected-edit-version <N> --json
 qkrpc action patch --id <guid> --patch-file patch.json --expected-edit-version <N> --json
+qkrpc action run --id <guid> [--param <text>] [--wait] [--json]
+qkrpc action run --id <guid> [--param <text>] --trace --json
 ```
+
+**agent-gui `qkrpc_action`**：`run` = 直接运行；`debug` = 终端逐步调试（等价 CLI `--trace`，侧栏时间线）。需要步骤输出时用 `debug`，不要用 `run`。旧 `{ action: "trace" }` 已归一化为 `debug`。CLI `--debug`（Quicker 步骤调试器）未暴露给 Agent 工具。详见 [docs/cli-commands.md](docs/cli-commands.md#qkrpc-action-run)、[agent-gui/README.md](agent-gui/README.md#动作运行与调试)。
 
 **调用公共子程序**：`subprogram search/get` 取 **`callIdentifier`** → `step-runner get --key sys:subprogram` → CLI 用 `action patch --patch-file` 写步骤；**agent-gui** 用 **`workspace_program edit_data`**（`target=action`）改 `data.json` 后 **`workspace_program patch`**。
 

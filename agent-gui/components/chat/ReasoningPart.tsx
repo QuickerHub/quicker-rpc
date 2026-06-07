@@ -7,7 +7,7 @@ import { ToolDisclosure } from "./ToolDisclosure";
 
 type ReasoningPartProps = {
   items: ReasoningSegmentItem[];
-  /** Inside ActivityBatchGroup: no outer disclosure, parent handles collapse. */
+  /** Inside ActivityBatchGroup: nested styling, same auto-collapse as standalone. */
   inBatch?: boolean;
 };
 
@@ -126,18 +126,13 @@ function ReasoningBody({
   );
 }
 
-function ReasoningPartInner({
-  text,
-  streaming,
-  blockCount,
-}: {
-  text: string;
-  streaming: boolean;
-  blockCount: number;
-}) {
+function useReasoningAutoCollapse(streaming: boolean): {
+  userOpen: boolean;
+  setUserOpen: (open: boolean) => void;
+  forcedOpen: boolean | null;
+} {
   const [userOpen, setUserOpen] = useState(streaming);
   const wasStreamingRef = useRef(streaming);
-  const { elapsedSec, measured } = useReasoningDuration(streaming);
 
   useEffect(() => {
     const wasStreaming = wasStreamingRef.current;
@@ -149,7 +144,27 @@ function ReasoningPartInner({
     });
   }, [streaming]);
 
-  const forcedOpen = streaming ? true : null;
+  return {
+    userOpen,
+    setUserOpen,
+    forcedOpen: streaming ? true : null,
+  };
+}
+
+function ReasoningDisclosure({
+  text,
+  streaming,
+  blockCount,
+  nested = false,
+}: {
+  text: string;
+  streaming: boolean;
+  blockCount: number;
+  nested?: boolean;
+}) {
+  const { userOpen, setUserOpen, forcedOpen } =
+    useReasoningAutoCollapse(streaming);
+  const { elapsedSec, measured } = useReasoningDuration(streaming);
   const summary = formatReasoningSummary(
     streaming,
     elapsedSec,
@@ -159,7 +174,7 @@ function ReasoningPartInner({
 
   return (
     <ToolDisclosure
-      className="reasoning-card"
+      className={`reasoning-card${nested ? " reasoning-card--nested" : ""}`}
       open={userOpen}
       onOpenChange={setUserOpen}
       forcedOpen={forcedOpen}
@@ -173,39 +188,18 @@ function ReasoningPartInner({
   );
 }
 
-function ReasoningBatchRow({
-  text,
-  streaming,
-}: {
-  text: string;
-  streaming: boolean;
-}) {
-  const { elapsedSec, measured } = useReasoningDuration(streaming);
-  const label = formatReasoningSummary(streaming, elapsedSec, measured, 1);
-
-  return (
-    <div className="reasoning-card reasoning-card--nested">
-      <span className="reasoning-label">{label}</span>
-      <ReasoningBody text={text} streaming={streaming} />
-    </div>
-  );
-}
-
 export function ReasoningPart({ items, inBatch = false }: ReasoningPartProps) {
   const text = mergeReasoningText(items);
   if (!text) return null;
 
   const streaming = isReasoningSegmentStreaming(items);
 
-  if (inBatch) {
-    return <ReasoningBatchRow text={text} streaming={streaming} />;
-  }
-
   return (
-    <ReasoningPartInner
+    <ReasoningDisclosure
       text={text}
       streaming={streaming}
       blockCount={items.length}
+      nested={inBatch}
     />
   );
 }

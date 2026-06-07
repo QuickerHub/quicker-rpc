@@ -419,6 +419,42 @@ export function saveChatStore(data: ChatStoreData): void {
   }
 }
 
+let pendingChatStoreSave: ChatStoreData | null = null;
+let chatStoreSaveScheduled = false;
+
+/** Defer large JSON writes so streaming UI stays responsive. */
+export function scheduleSaveChatStore(data: ChatStoreData): void {
+  if (typeof window === "undefined") return;
+  pendingChatStoreSave = data;
+  if (chatStoreSaveScheduled) return;
+  chatStoreSaveScheduled = true;
+
+  const flush = () => {
+    chatStoreSaveScheduled = false;
+    const snapshot = pendingChatStoreSave;
+    pendingChatStoreSave = null;
+    if (snapshot) {
+      saveChatStore(snapshot);
+    }
+  };
+
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(flush, { timeout: 1500 });
+  } else {
+    window.setTimeout(flush, 0);
+  }
+}
+
+/** Flush any deferred chat store write (e.g. before page hide). */
+export function flushPendingChatStoreSave(): void {
+  if (typeof window === "undefined") return;
+  if (!pendingChatStoreSave) return;
+  const snapshot = pendingChatStoreSave;
+  pendingChatStoreSave = null;
+  chatStoreSaveScheduled = false;
+  saveChatStore(snapshot);
+}
+
 export function getActiveThread(data: ChatStoreData): ChatThread {
   return data.threads.find((t) => t.id === data.activeThreadId) ?? data.threads[0]!;
 }

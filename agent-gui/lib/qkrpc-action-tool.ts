@@ -75,7 +75,7 @@ const LEGACY_ACTION_COMMAND_VERB: Record<string, string> = {
 
 const ACTION_COMMAND_VERB_LABEL: Record<string, string> = {
   run: "运行",
-  trace: "调试",
+  debug: "调试",
   edit: "编辑",
   float: "悬浮",
   get: "读取",
@@ -87,12 +87,72 @@ const ACTION_COMMAND_VERB_LABEL: Record<string, string> = {
   delete: "删除",
 };
 
-export function isQkrpcActionTraceInput(input: unknown): boolean {
+export function readBooleanFlag(obj: Record<string, unknown>, key: string): boolean {
+  const value = obj[key];
+  return value === true || value === "true" || value === 1;
+}
+
+export type QkrpcActionRunMode = "debug" | "run";
+
+function outputIndicatesDebugRun(
+  outputData: Record<string, unknown>,
+): boolean {
+  if (outputData.action === "debug" || outputData.action === "trace") {
+    return true;
+  }
+  if (readBooleanFlag(outputData, "trace")) return true;
+  return Array.isArray(outputData.events) && outputData.events.length > 0;
+}
+
+/** Resolve direct run vs terminal debug (step trace in side panel). */
+export function resolveQkrpcActionRunMode(
+  input?: unknown,
+  outputData?: Record<string, unknown> | null,
+): QkrpcActionRunMode {
+  const action = readQkrpcAction(input);
+  if (action === "debug" || action === "trace") return "debug";
+
+  if (typeof input === "object" && input !== null && !Array.isArray(input)) {
+    const obj = input as Record<string, unknown>;
+    if (readBooleanFlag(obj, "trace")) return "debug";
+  }
+  if (outputData && outputIndicatesDebugRun(outputData)) {
+    return "debug";
+  }
+  return "run";
+}
+
+/** Normalize legacy trace action/flags into debug. */
+export function normalizeQkrpcActionInput(input: unknown): unknown {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
-    return false;
+    return input;
   }
   const obj = input as Record<string, unknown>;
-  return obj.trace === true || obj.debug === true;
+  if (obj.action === "trace") {
+    const next: Record<string, unknown> = { ...obj, action: "debug" };
+    delete next.trace;
+    return next;
+  }
+  if (obj.action !== "run") return input;
+
+  const hasTraceFlag = readBooleanFlag(obj, "trace");
+  const next: Record<string, unknown> = { ...obj };
+  delete next.trace;
+  delete next.debug;
+  if (hasTraceFlag) {
+    delete next.wait;
+    next.action = "debug";
+  }
+  return next;
+}
+
+/** @deprecated use resolveQkrpcActionRunMode(input) === "debug" */
+export function isQkrpcActionTraceInput(input: unknown): boolean {
+  return resolveQkrpcActionRunMode(input) === "debug";
+}
+
+export function isQkrpcActionDebugRunInput(input: unknown): boolean {
+  return resolveQkrpcActionRunMode(input) === "debug";
 }
 
 export function readQkrpcActionIdFromInput(input: unknown): string | null {
@@ -111,20 +171,29 @@ export function readQkrpcActionParamFromInput(input: unknown): string | undefine
   return typeof param === "string" && param.trim() ? param.trim() : undefined;
 }
 
-/** run / edit / trace / … for qkrpc_action and legacy action tools. */
+function resolveRunCommandVerb(
+  input?: unknown,
+  outputData?: Record<string, unknown> | null,
+): string {
+  return resolveQkrpcActionRunMode(input, outputData) === "debug" ? "debug" : "run";
+}
+
+/** run / edit / debug / … for qkrpc_action and legacy action tools. */
 export function resolveQkrpcActionCommandVerb(
   toolName: string,
   input?: unknown,
+  outputData?: Record<string, unknown> | null,
 ): string | null {
   const legacy = LEGACY_ACTION_COMMAND_VERB[toolName];
   if (legacy) {
-    if (legacy === "run" && isQkrpcActionTraceInput(input)) return "trace";
+    if (legacy === "run") return resolveRunCommandVerb(input, outputData);
     return legacy;
   }
   if (toolName !== QKRPC_ACTION_TOOL) return null;
   const action = readQkrpcAction(input);
   if (!action) return null;
-  if (action === "run" && isQkrpcActionTraceInput(input)) return "trace";
+  if (action === "debug" || action === "trace") return "debug";
+  if (action === "run") return resolveRunCommandVerb(input, outputData);
   return action;
 }
 
@@ -136,8 +205,9 @@ export function isQkrpcActionCommandTool(toolName: string, input?: unknown): boo
 export function qkrpcActionCommandDisplayName(
   toolName: string,
   input?: unknown,
+  outputData?: Record<string, unknown> | null,
 ): string | null {
-  const verb = resolveQkrpcActionCommandVerb(toolName, input);
+  const verb = resolveQkrpcActionCommandVerb(toolName, input, outputData);
   if (!verb) return null;
   return ACTION_COMMAND_VERB_LABEL[verb] ?? null;
 }
@@ -152,7 +222,7 @@ function readActionTitleFromData(data: Record<string, unknown>): string {
   return title;
 }
 
-/** Summary line under the tool title (action name, trace stats, message). */
+/** Summary line under the tool title (action name, debug stats, message). */
 export function formatQkrpcActionCommandResultMeta(
   toolName: string,
   input: unknown,
@@ -160,12 +230,10 @@ export function formatQkrpcActionCommandResultMeta(
 ): string | null {
   const title = readActionTitleFromData(data);
   const message = typeof data.message === "string" ? data.message.trim() : "";
-  const verb =
-    resolveQkrpcActionCommandVerb(toolName, input)
-    ?? (typeof data.action === "string" ? data.action.trim() : null);
+  const verb = resolveQkrpcActionCommandVerb(toolName, input, data);
 
   if (title) {
-    if (verb === "trace" || data.action === "trace") {
+    if (verb === "debug") {
       const parts: string[] = [title];
       if (typeof data.eventCount === "number") {
         parts.push(`${data.eventCount} 步`);
@@ -173,7 +241,7 @@ export function formatQkrpcActionCommandResultMeta(
       if (typeof data.durationMs === "number") {
         parts.push(`${Math.round(data.durationMs)}ms`);
       }
-      return parts.length > 1 ? parts.join(" · ") : `${title} · 终端 trace`;
+      return parts.length > 1 ? parts.join(" · ") : `${title} · 调试输出`;
     }
     if (message && message.length <= 48) {
       return `${title} · ${message}`;
@@ -190,7 +258,8 @@ export function formatQkrpcActionCommandResultMeta(
 export function qkrpcActionCommandRunningMeta(
   toolName: string,
   input?: unknown,
+  outputData?: Record<string, unknown> | null,
 ): string | null {
-  const label = qkrpcActionCommandDisplayName(toolName, input);
+  const label = qkrpcActionCommandDisplayName(toolName, input, outputData);
   return label ? `${label}中…` : null;
 }

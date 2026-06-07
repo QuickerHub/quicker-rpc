@@ -3820,9 +3820,12 @@ html.sidebar-collapsed-init .app-shell {
   opacity: 0.72;
 }
 
+.reasoning-card--nested .reasoning-summary {
+  padding: 0.04rem 0.35rem;
+}
+
 .reasoning-card--nested .reasoning-label {
   display: block;
-  padding: 0.04rem 0.35rem 0;
 }
 
 .reasoning-summary {
@@ -5452,6 +5455,54 @@ textarea {
   font-size: 0.8125rem;
   line-height: 1.52;
   color: var(--text-assistant);
+}
+
+.assistant-stream-plain {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.msg-turn--hot:not(.msg-turn--fill-scrollport) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 240px;
+}
+
+.msg-turn--cold .msg-turn-cold-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  margin: 0.35rem 0;
+  padding: 0.55rem 0.75rem;
+  border: 1px dashed var(--border-subtle, rgba(128, 128, 128, 0.35));
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text-muted, #888);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.msg-turn-cold-summary__title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #aaa);
+}
+
+.msg-turn-cold-summary__meta {
+  font-size: 0.6875rem;
+}
+
+.msg.msg--cold {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
+}
+
+.activity-batch-omitted {
+  padding: 0.25rem 0.5rem 0.35rem;
+  font-size: 0.6875rem;
+  color: var(--text-muted, #888);
 }
 
 .markdown-body > :first-child {
@@ -10410,6 +10461,14 @@ body.workspace-explorer-pane-resizing * {
 .action-trace-panel__meta {
   font-size: 0.72rem;
   white-space: nowrap;
+}
+
+.action-trace-panel__meta--warn {
+  color: #d4a017;
+}
+
+.action-trace-panel__meta--err {
+  color: var(--danger, #f85149);
 }
 
 .action-trace-panel__ping {

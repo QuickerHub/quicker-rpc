@@ -642,18 +642,19 @@ public sealed class QuickerRpcService : IQuickerRpcService
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        return InvokeOnDispatcherAsync(
-            () => Task.FromResult(_actionRunService.RunAction(
+        return InvokeOffUiThreadAsync(
+            () => _actionRunService.RunAction(
                 actionId.Trim(),
                 inputParam,
                 enableDebugging,
-                waitForComplete)),
+                waitForComplete),
             cancellationToken);
     }
 
     public Task<QuickerRpcActionTraceRunResult> RunActionTraceAsync(
         string actionId,
         string? inputParam = null,
+        IProgress<QuickerRpcActionTraceEvent>? progress = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(actionId))
@@ -668,11 +669,12 @@ public sealed class QuickerRpcService : IQuickerRpcService
         cancellationToken.ThrowIfCancellationRequested();
 
         var streamCallbacks = QuickerRpcTraceSink.CurrentClientCallbacks;
-        return InvokeOnDispatcherAsync(
-            () => Task.FromResult(_xActionTraceRunService.RunAction(
+        return InvokeOffUiThreadAsync(
+            () => _xActionTraceRunService.RunAction(
                 actionId.Trim(),
                 inputParam,
-                streamCallbacks)),
+                progress,
+                streamCallbacks),
             cancellationToken);
     }
 
@@ -1065,6 +1067,9 @@ public sealed class QuickerRpcService : IQuickerRpcService
                 Message = "Resolve launcher intent unavailable.",
             });
     }
+
+    private static Task<T> InvokeOffUiThreadAsync<T>(Func<T> action, CancellationToken cancellationToken) =>
+        Task.Run(action, cancellationToken);
 
     private static async Task<T> InvokeOnDispatcherAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)
     {

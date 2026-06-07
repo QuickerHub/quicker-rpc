@@ -20,6 +20,7 @@ public enum LauncherStatus
 public static partial class Launcher
 {
     private static readonly object LockObject = new();
+    private static readonly int _assemblyResolveRegistered = PluginAssemblyResolve.EnsureRegistered();
     private static readonly IHost _host = CreateHostForQuickerPlugin();
     private static readonly ILogger Logger = _host.Services.GetRequiredService<ILoggerFactory>()
         .CreateLogger(typeof(Launcher));

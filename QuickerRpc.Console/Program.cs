@@ -1,3 +1,4 @@
+using System;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
@@ -754,8 +755,12 @@ internal static partial class Program
                     traceCallbacks)
                 .ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var progress = new Progress<QuickerRpcActionTraceEvent>(traceEvent =>
+            {
+                traceCallbacks.OnTraceEvent(traceEvent);
+            });
             var result = await session.Proxy
-                .RunActionTraceAsync(actionId, options.Param, rpcToken)
+                .RunActionTraceAsync(actionId, options.Param, progress, rpcToken)
                 .ConfigureAwait(false);
 
             if (options.Json)

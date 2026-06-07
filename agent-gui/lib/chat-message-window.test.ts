@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   CHAT_MESSAGE_WINDOW_DEFAULT_TURNS,
+  CHAT_MESSAGE_WINDOW_STREAMING_TURNS,
   findTurnIndexForMessageIndex,
+  isHotTurnIndex,
   nextExpandedTurnCount,
+  resolveEffectiveTurnWindow,
   resolveVisibleMessageStart,
   resolveVisibleTurnStart,
   shouldTrimWindowAtBottom,
@@ -73,4 +76,17 @@ test("shouldTrimWindowAtBottom only when following stream", () => {
 test("nextExpandedTurnCount caps at total", () => {
   assert.equal(nextExpandedTurnCount(10, 14, 8), 14);
   assert.equal(nextExpandedTurnCount(10, 30, 8), 18);
+});
+
+test("resolveEffectiveTurnWindow caps while streaming", () => {
+  assert.equal(resolveEffectiveTurnWindow(12, true), CHAT_MESSAGE_WINDOW_STREAMING_TURNS);
+  assert.equal(resolveEffectiveTurnWindow(12, false), CHAT_MESSAGE_WINDOW_DEFAULT_TURNS);
+});
+
+test("isHotTurnIndex keeps only recent turns hot", () => {
+  assert.equal(isHotTurnIndex(7, 10, 2), false);
+  assert.equal(isHotTurnIndex(8, 10, 2), true);
+  assert.equal(isHotTurnIndex(9, 10, 2), true);
+  assert.equal(isHotTurnIndex(6, 10, 3), false);
+  assert.equal(isHotTurnIndex(7, 10, 3), true);
 });

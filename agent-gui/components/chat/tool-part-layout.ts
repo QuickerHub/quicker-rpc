@@ -17,6 +17,8 @@ import {
 import { isHiddenChatTool } from "@/lib/hidden-chat-tools";
 import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 import {
+  aggregateWorkspaceWriteToolLineDiff,
+  formatLineDiffSummary,
   isWorkspaceExplorerFileTool,
   workspaceFileRunningMeta,
 } from "@/lib/workspace-file-tool";
@@ -86,7 +88,7 @@ export function analyzeToolUiPart(
     part,
     index,
     name,
-    displayName: formatToolDisplayName(name, input),
+    displayName: formatToolDisplayName(name, input, output),
     state,
     meta,
     isRunning,
@@ -279,6 +281,17 @@ export function segmentMessageParts(
   return mergeConsecutiveActivitySegments(segments);
 }
 
+function buildCompletedToolBatchMeta(
+  items: ToolUiPartAnalysis[],
+  countLabel: string,
+): string {
+  const lineDiff = aggregateWorkspaceWriteToolLineDiff(items);
+  if (lineDiff) {
+    return `${formatLineDiffSummary(lineDiff)} · 完成`;
+  }
+  return `${countLabel} · 完成`;
+}
+
 export function buildToolBatchSummary(items: ToolUiPartAnalysis[]): {
   title: string;
   meta: string;
@@ -314,7 +327,7 @@ export function buildToolBatchSummary(items: ToolUiPartAnalysis[]): {
   } else if (errors > 0) {
     meta = errors === 1 ? "1 个失败" : `${errors} 个失败`;
   } else {
-    meta = `${n} 个 · 完成`;
+    meta = buildCompletedToolBatchMeta(items, `${n} 个`);
   }
 
   const allTerminal = items.every((i) => isToolUiPartTerminal(i.state));
@@ -366,7 +379,7 @@ export function buildActivityBatchSummary(items: ActivitySegmentItem[]): {
   } else if (toolSummary && !toolSummary.allTerminal) {
     meta = toolSummary.meta;
   } else {
-    meta = `${n} 步 · 完成`;
+    meta = buildCompletedToolBatchMeta(toolItems, `${n} 步`);
   }
 
   const allTerminal = toolSummary ? toolSummary.allTerminal : !reasoningStreaming;

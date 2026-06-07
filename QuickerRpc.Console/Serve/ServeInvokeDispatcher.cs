@@ -760,7 +760,11 @@ internal static class ServeInvokeDispatcher
         if (trace)
         {
             var traceResponse = await rpc
-                .RunActionTraceAsync(id.Trim(), ServeJsonArgs.GetString(args, "param"), token)
+                .RunActionTraceAsync(
+                    id.Trim(),
+                    ServeJsonArgs.GetString(args, "param"),
+                    progress: null,
+                    token)
                 .ConfigureAwait(false);
             return Ok(new
             {

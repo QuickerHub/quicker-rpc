@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { isTextUIPart } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { AssistantRichMessage } from "./AssistantRichMessage";
@@ -20,14 +20,16 @@ type MessagePartsProps = {
   /** Tool-test: keep multi-tool batches expanded (no auto-collapse when idle). */
   keepToolBatchesExpanded?: boolean;
   onInsertComposerPrompt?: (text: string) => void;
+  streamAssistantText?: boolean;
 };
 
-export function MessageParts({
+function MessagePartsInner({
   message,
   userTextOverride,
   workingDirectory,
   keepToolBatchesExpanded = false,
   onInsertComposerPrompt,
+  streamAssistantText = false,
 }: MessagePartsProps) {
   const segments = useMemo(
     () => segmentMessageParts(message.parts),
@@ -64,6 +66,7 @@ export function MessageParts({
               content={part.text}
               workingDirectory={workingDirectory}
               onInsertComposerPrompt={onInsertComposerPrompt}
+              streamPlainText={streamAssistantText}
             />
           );
         }
@@ -114,3 +117,5 @@ export function MessageParts({
     </>
   );
 }
+
+export const MessageParts = memo(MessagePartsInner);

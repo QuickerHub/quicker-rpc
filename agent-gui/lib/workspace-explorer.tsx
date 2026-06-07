@@ -291,7 +291,7 @@ export function WorkspaceExplorerShellProvider({
 }: {
   children: ReactNode;
 }) {
-  const [panelOpen, setPanelOpenState] = useState(true);
+  const [panelOpen, setPanelOpenState] = useState(false);
   const [chatColumnWidth, setChatColumnWidthState] = useState<number | null>(
     null,
   );
@@ -448,7 +448,7 @@ export function WorkspaceExplorerPanelProvider({
     () => initialSubprogramShell,
   );
   const [treeLoading, setTreeLoading] = useState(false);
-  const [treeChildrenLoading, setTreeChildrenLoading] = useState(true);
+  const [treeChildrenLoading, setTreeChildrenLoading] = useState(false);
   const [treeError, setTreeError] = useState<string | null>(null);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -596,9 +596,12 @@ export function WorkspaceExplorerPanelProvider({
     );
   }, [cwd, cwdPending]);
 
+  const treeHydratedForCwdRef = useRef<string | null>(null);
+
   useEffect(() => {
     const activeCwd = cwd.trim();
     if (!activeCwd) {
+      treeHydratedForCwdRef.current = null;
       treeRef.current = null;
       subprogramTreeRef.current = null;
       treeSignatureRef.current = null;
@@ -615,47 +618,60 @@ export function WorkspaceExplorerPanelProvider({
           setTreeError,
           setTreeChildrenLoading,
         });
+        setTreeChildrenLoading(false);
       }
+      return;
+    }
+
+    if (!panelOpen) {
       return;
     }
 
     let cancelled = false;
     let unsubscribeWatch: (() => void) | undefined;
-    treeRef.current = null;
-    subprogramTreeRef.current = null;
-    treeSignatureRef.current = null;
-    setTreeError(null);
-    setTreeLoading(false);
+    const cwdChanged = treeHydratedForCwdRef.current !== activeCwd;
 
-    applyExplorerTreeShell(treeRef, subprogramTreeRef, treeSignatureRef, {
-      setTree,
-      setSubprogramTree,
-      setTreeError,
-      setTreeChildrenLoading,
-    });
+    if (cwdChanged) {
+      treeHydratedForCwdRef.current = null;
+      treeRef.current = null;
+      subprogramTreeRef.current = null;
+      treeSignatureRef.current = null;
+      setTreeError(null);
+      setTreeLoading(false);
+      applyExplorerTreeShell(treeRef, subprogramTreeRef, treeSignatureRef, {
+        setTree,
+        setSubprogramTree,
+        setTreeError,
+        setTreeChildrenLoading,
+      });
+    }
 
     void (async () => {
-      const roots = await fetchActionExplorerTree(activeCwd, { depth: "roots" });
-      if (cancelled) return;
-      if (roots.ok) {
-        applyTreeUpdateRef.current(roots.tree, roots.subprogramTree);
-      }
+      if (cwdChanged) {
+        const roots = await fetchActionExplorerTree(activeCwd, { depth: "roots" });
+        if (cancelled) return;
+        if (roots.ok) {
+          applyTreeUpdateRef.current(roots.tree, roots.subprogramTree);
+        }
 
-      const full = await fetchActionExplorerTree(activeCwd);
-      if (cancelled) return;
-      if (full.ok) {
-        applyTreeUpdateRef.current(full.tree, full.subprogramTree);
-      } else if (!roots.ok) {
-        setTreeError(full.error);
-      }
+        const full = await fetchActionExplorerTree(activeCwd);
+        if (cancelled) return;
+        if (full.ok) {
+          applyTreeUpdateRef.current(full.tree, full.subprogramTree);
+          treeHydratedForCwdRef.current = activeCwd;
+        } else if (!roots.ok) {
+          setTreeError(full.error);
+        }
 
-      setTreeChildrenLoading(false);
+        setTreeChildrenLoading(false);
+      }
 
       if (cancelled) return;
       unsubscribeWatch = subscribeActionExplorerTreeWatch(activeCwd, {
         onTree: (tree, subprogramTree) => {
           if (cancelled) return;
           applyTreeUpdateRef.current(tree, subprogramTree);
+          treeHydratedForCwdRef.current = activeCwd;
         },
         onError: (error) => {
           if (cancelled) return;
@@ -668,7 +684,7 @@ export function WorkspaceExplorerPanelProvider({
       cancelled = true;
       unsubscribeWatch?.();
     };
-  }, [cwd, cwdPending]);
+  }, [cwd, cwdPending, panelOpen]);
 
   useEffect(() => {
     const activeCwd = cwd.trim();

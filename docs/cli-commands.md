@@ -205,8 +205,25 @@ qkrpc process ensure --exe _ceacore_run --name "CeaCore Run" --profile-prefix "@
 ### `qkrpc action run`
 
 ```powershell
-qkrpc action run --id <idOrName> [--param <text>] [--debug] [--wait] [--json]
+qkrpc action run --id <idOrName> [--param <text>] [--debug|--trace] [--wait] [--json]
 ```
+
+| 模式 | 参数 | 说明 |
+|------|------|------|
+| 直接运行 | （默认） | 触发动作；`--wait` 等待结束 |
+| 终端调试 | `--trace` | 插件侧 XAction 结构化输出（步骤/输入/输出/变量/耗时）；与 `--debug` **互斥** |
+| Quicker 调试器 | `--debug` | 打开 Quicker 原生步骤调试 UI；与 `--trace` **互斥** |
+
+**agent-gui（QuickerAgent）对应关系**（Agent 工具 `qkrpc_action`，非 CLI 子命令）：
+
+| 工具 `action` | 等价 CLI | 说明 |
+|---------------|----------|------|
+| `run` | `action run` | 直接运行 |
+| `debug` | `action run --trace` | 逐步终端调试；侧栏时间线；需要步骤输出时用 **debug**，不要用 run |
+
+旧写法 `{ action: "run", trace: true }` / `{ action: "trace" }` 会自动归一化为 `debug`。CLI 的 `--debug`（Quicker 调试器）**未**暴露给 Agent 工具。
+
+serve SSE：`POST /v1/action/trace/stream`（agent-gui 调试流与 MCP 共用）。
 
 ### `qkrpc action edit`
 

@@ -1,13 +1,22 @@
-/** Default number of conversation turns kept mounted when following the stream. */
-export const CHAT_MESSAGE_WINDOW_DEFAULT_TURNS = 12;
+/** Default number of conversation turns kept mounted when idle at bottom. */
+export const CHAT_MESSAGE_WINDOW_DEFAULT_TURNS = 8;
+
+/** Tighter window while the agent is streaming (less DOM + markdown work). */
+export const CHAT_MESSAGE_WINDOW_STREAMING_TURNS = 3;
 
 /** Extra turns loaded when the user scrolls up or taps the history sentinel. */
-export const CHAT_MESSAGE_WINDOW_EXPAND_TURNS = 8;
+export const CHAT_MESSAGE_WINDOW_EXPAND_TURNS = 6;
 
 /** Flat list mode (no user turns): default mounted message count. */
-export const CHAT_MESSAGE_WINDOW_DEFAULT_MESSAGES = 48;
+export const CHAT_MESSAGE_WINDOW_DEFAULT_MESSAGES = 32;
 
-export const CHAT_MESSAGE_WINDOW_EXPAND_MESSAGES = 32;
+/** Flat list cap while streaming. */
+export const CHAT_MESSAGE_WINDOW_STREAMING_MESSAGES = 16;
+
+export const CHAT_MESSAGE_WINDOW_EXPAND_MESSAGES = 24;
+
+/** Fully render only the last N turns; older visible turns use a compact placeholder. */
+export const CHAT_MESSAGE_WINDOW_HOT_TURN_COUNT = 2;
 
 export const CHAT_MESSAGE_WINDOW_SCROLL_LOAD_THRESHOLD_PX = 96;
 
@@ -97,4 +106,35 @@ export function nextExpandedMessageCount(
 ): number {
   if (totalMessages <= 0) return current;
   return Math.min(totalMessages, current + expandBy);
+}
+
+export function resolveEffectiveTurnWindow(
+  visibleTurnCount: number,
+  streamingActive: boolean,
+): number {
+  const cap = streamingActive
+    ? CHAT_MESSAGE_WINDOW_STREAMING_TURNS
+    : CHAT_MESSAGE_WINDOW_DEFAULT_TURNS;
+  return Math.min(Math.max(visibleTurnCount, 1), cap);
+}
+
+export function resolveEffectiveMessageWindow(
+  visibleMessageCount: number,
+  streamingActive: boolean,
+): number {
+  const cap = streamingActive
+    ? CHAT_MESSAGE_WINDOW_STREAMING_MESSAGES
+    : CHAT_MESSAGE_WINDOW_DEFAULT_MESSAGES;
+  return Math.min(Math.max(visibleMessageCount, 1), cap);
+}
+
+/** Last N turns render full message bodies; older turns in the window use placeholders. */
+export function isHotTurnIndex(
+  turnIndex: number,
+  totalTurns: number,
+  hotTurnCount = CHAT_MESSAGE_WINDOW_HOT_TURN_COUNT,
+): boolean {
+  if (totalTurns <= 0) return true;
+  const clampedHot = Math.max(1, hotTurnCount);
+  return turnIndex >= totalTurns - clampedHot;
 }

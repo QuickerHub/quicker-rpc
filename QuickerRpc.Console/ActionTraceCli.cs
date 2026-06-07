@@ -119,8 +119,13 @@ internal sealed class ActionTraceClientCallbacks : IQuickerRpcClientCallbacks, I
 
     public Task ActionTraceEventAsync(QuickerRpcActionTraceEvent traceEvent)
     {
+        OnTraceEvent(traceEvent);
+        return Task.CompletedTask;
+    }
+
+    internal void OnTraceEvent(QuickerRpcActionTraceEvent traceEvent)
+    {
         StreamedCount++;
         ActionTraceCli.WriteTraceEvent(traceEvent, _jsonOutput, _traceFile);
-        return Task.CompletedTask;
     }
 }

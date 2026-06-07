@@ -64,7 +64,7 @@ function ToolPartInner({
   const input = "input" in part ? part.input : undefined;
   const output =
     "output" in part && part.output !== undefined ? part.output : undefined;
-  const displayName = formatToolDisplayName(name, input);
+  const displayName = formatToolDisplayName(name, input, output);
   const isRunning =
     state === "input-streaming" || state === "input-available";
   const summary =

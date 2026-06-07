@@ -224,7 +224,21 @@ function appendEvent(tabId: string, event: ActionTraceEvent): void {
   const batch = pendingEventsByTab.get(tabId) ?? [];
   batch.push(event);
   pendingEventsByTab.set(tabId, batch);
-  scheduleFlush(tabId);
+  flushPendingForTab(tabId);
+}
+
+export function appendActionTraceEventForTab(
+  tabId: string,
+  event: ActionTraceEvent,
+): void {
+  appendEvent(tabId, event);
+}
+
+export function appendActionTraceOutputForTab(
+  tabId: string,
+  chunk: string,
+): void {
+  appendOutput(tabId, chunk);
 }
 
 function finishTabRun(
@@ -256,7 +270,7 @@ function finishTabRun(
   updateTab(tabId, (current) => ({
     ...current,
     output,
-    status: payload.ok ? "success" : "error",
+    status: "success",
     summary: payload.message,
     returnResult: payload.returnResult,
     errorMessage: payload.errorMessage,
@@ -279,6 +293,17 @@ function failTabRun(tabId: string, message: string): void {
       : `[error] ${message}\n`,
   }));
   cancelTabStream(tabId);
+}
+
+export function finishActionTraceRunForTab(
+  tabId: string,
+  payload: Parameters<typeof finishTabRun>[1],
+): void {
+  finishTabRun(tabId, payload);
+}
+
+export function failActionTraceRunForTab(tabId: string, message: string): void {
+  failTabRun(tabId, message);
 }
 
 /** Open/focus a trace tab while Agent trace is running (no SSE). */
@@ -316,6 +341,27 @@ export function hydrateActionTraceFromToolOutput(
     || "";
   const param = options?.param?.trim() || undefined;
   const tabId = buildActionTraceTabId(actionId, param);
+  const existing = findTab(tabId);
+
+  if (existing && existing.events.length > 0) {
+    finishTabRun(tabId, {
+      ok: data.ok !== false,
+      message: typeof data.message === "string" ? data.message : undefined,
+      returnResult:
+        typeof data.returnResult === "string" ? data.returnResult : undefined,
+      errorMessage:
+        typeof data.errorMessage === "string" ? data.errorMessage : undefined,
+      eventCount:
+        typeof data.eventCount === "number"
+          ? data.eventCount
+          : existing.events.length,
+      durationMs:
+        typeof data.durationMs === "number" ? data.durationMs : undefined,
+    });
+    focusTraceTab(tabId);
+    return;
+  }
+
   cancelTabStream(tabId);
 
   const actionTitle =
@@ -334,7 +380,7 @@ export function hydrateActionTraceFromToolOutput(
     output: formatTraceEventsToText(events),
     events,
     viewMode: "timeline",
-    status: data.ok === false ? "error" : "success",
+    status: "success",
     summary: typeof data.message === "string" ? data.message : undefined,
     returnResult:
       typeof data.returnResult === "string" ? data.returnResult : undefined,

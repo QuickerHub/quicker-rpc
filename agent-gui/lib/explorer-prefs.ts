@@ -142,11 +142,11 @@ export function storeChatColumnWidth(width: number, containerWidth: number): voi
 }
 
 export function loadExplorerOpen(): boolean {
-  if (typeof window === "undefined") return true;
+  if (typeof window === "undefined") return false;
   try {
-    return localStorage.getItem(EXPLORER_OPEN_STORAGE_KEY) !== "0";
+    return localStorage.getItem(EXPLORER_OPEN_STORAGE_KEY) === "1";
   } catch {
-    return true;
+    return false;
   }
 }
 

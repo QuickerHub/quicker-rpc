@@ -13,6 +13,7 @@ import {
   QKRPC_ACTION_MANAGE_TOOL,
   QKRPC_ACTION_QUERY_TOOL,
   QKRPC_ACTION_TOOL,
+  normalizeQkrpcActionInput,
 } from "@/lib/qkrpc-action-tool";
 import {
   formatQkrpcResultForAgent,
@@ -20,6 +21,7 @@ import {
   runQkrpcForTool,
   runQkrpcWithXactionForTool,
 } from "@/lib/qkrpc";
+import { runActionTraceForAgentTool } from "@/lib/action-trace-stream.server";
 import { formatLocalToolResult } from "@/lib/tool-result";
 
 const returnModeSchema = z.enum(["full", "structure", "metadata"]);
@@ -47,8 +49,11 @@ const actionIdInputSchema = z.discriminatedUnion("action", [
     id: z.string(),
     param: z.string().optional(),
     wait: z.boolean().optional(),
-    debug: z.boolean().optional(),
-    trace: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal("debug"),
+    id: z.string(),
+    param: z.string().optional(),
   }),
   z.object({
     action: z.literal("float"),
@@ -112,6 +117,7 @@ const actionIdSchema = z.object({
     .enum([
       "get",
       "run",
+      "debug",
       "float",
       "edit",
       "edit_var",
@@ -120,12 +126,17 @@ const actionIdSchema = z.object({
       "publish",
       "replace",
     ])
-    .describe("Operation to perform"),
+    .describe(
+      "Operation: run=execute action; debug=step-by-step terminal debug (opens side panel). "
+      + "Use debug — not run — when you need execution details.",
+    ),
   id: z.string().optional().describe("Action GUID or id"),
   returnMode: returnModeSchema.optional(),
-  param: z.string().optional(),
-  wait: z.boolean().optional(),
-  debug: z.boolean().optional(),
+  param: z.string().optional().describe("Optional input passed to the action when running or debugging"),
+  wait: z
+    .boolean()
+    .optional()
+    .describe("For run only: wait until the action finishes before returning"),
   var: z.string().optional(),
   value: z.string().optional(),
   title: z.string().optional(),
@@ -146,7 +157,7 @@ const actionIdSchema = z.object({
   isPublic: z.boolean().optional(),
   submitReview: z.boolean().optional(),
   xaction: z.record(z.unknown()).optional(),
-});
+}).passthrough();
 
 /** Strict parse schema (not sent to LLM). */
 const actionManageInputSchema = z.discriminatedUnion("action", [
@@ -229,7 +240,8 @@ function formatZodToolInputError(error: z.ZodError): string {
 function parseActionIdToolInput(
   input: z.infer<typeof actionIdSchema>,
 ): ToolParseResult<QkrpcActionIdToolInput> {
-  const parsed = actionIdInputSchema.safeParse(input);
+  const normalized = normalizeQkrpcActionInput(input) as z.infer<typeof actionIdSchema>;
+  const parsed = actionIdInputSchema.safeParse(normalized);
   if (!parsed.success) {
     return { success: false, message: formatZodToolInputError(parsed.error) };
   }
@@ -371,11 +383,17 @@ export async function executeQkrpcActionIdTool(
       if (input.force) args.push("--force");
       return formatQkrpcResultForAgent(await runQkrpcForTool(args));
     }
+    case "debug":
+      return formatQkrpcResultForAgent(
+        await runActionTraceForAgentTool({
+          id: input.id,
+          param: input.param,
+        }),
+      );
     case "run": {
       const args = ["action", "run", "--id", input.id];
       if (input.param) args.push("--param", input.param);
       if (input.wait) args.push("--wait");
-      if (input.trace || input.debug) args.push("--trace");
       return formatQkrpcResultForAgent(await runQkrpcForTool(args));
     }
     case "move": {
@@ -600,7 +618,8 @@ export const QKRPC_ACTION_QUERY_TOOL_DEF = tool({
 
 export const QKRPC_ACTION_TOOL_DEF = tool({
   description:
-    "Operate on one action by id: get (sync workspace when non-empty), run, float, edit (Quicker UI), "
+    "Operate on one action by id: get (sync workspace when non-empty), run (execute), debug (terminal step debug — "
+    + "use when you need step output; opens side panel), float, edit (Quicker UI), "
     + "edit_var, set_metadata, move, publish, replace. Disk editing uses workspace_program.",
   inputSchema: actionIdSchema,
   execute: async (input) => {

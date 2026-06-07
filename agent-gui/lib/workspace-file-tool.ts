@@ -554,21 +554,78 @@ function readToolResultContent(
   return "";
 }
 
+export function isWorkspaceFileWriteTool(
+  toolName: string,
+  input?: unknown,
+): boolean {
+  return (
+    isWorkspaceFileEditorTool(toolName, input)
+    && !isWorkspaceFileReadTool(toolName, input)
+  );
+}
+
+/** Line insert/delete counts from a write/edit tool snapshot. */
+export function readFileDiffStatsFromToolData(
+  data: Record<string, unknown>,
+  input?: unknown,
+): { addLines: number; removeLines: number } | null {
+  if (typeof data.previousContent !== "string" || data.previousContent.length === 0) {
+    return null;
+  }
+  const nextContent = readToolResultContent(data, input);
+  const { addLines, removeLines } = countLineDiffStats(
+    data.previousContent,
+    nextContent,
+  );
+  if (addLines === 0 && removeLines === 0) return null;
+  return { addLines, removeLines };
+}
+
+export function formatLineDiffSummary(stats: {
+  addLines: number;
+  removeLines: number;
+}): string {
+  return `+${stats.addLines} -${stats.removeLines}`;
+}
+
 /** +N -M from line diff of tool snapshots (matches FileEditorCard). */
 export function formatFileDiffSummaryFromToolData(
   data: Record<string, unknown>,
   input?: unknown,
 ): string | null {
-  if (typeof data.previousContent !== "string" || data.previousContent.length === 0) {
-    return null;
+  const stats = readFileDiffStatsFromToolData(data, input);
+  return stats ? formatLineDiffSummary(stats) : null;
+}
+
+export type WorkspaceWriteToolBatchItem = {
+  name: string;
+  part: { input?: unknown; output?: unknown };
+};
+
+/** Sum +N -M across write/edit tools in a collapsed batch. */
+export function aggregateWorkspaceWriteToolLineDiff(
+  items: WorkspaceWriteToolBatchItem[],
+): { addLines: number; removeLines: number } | null {
+  let addLines = 0;
+  let removeLines = 0;
+  let matched = 0;
+
+  for (const item of items) {
+    const input = item.part.input;
+    if (!isWorkspaceFileWriteTool(item.name, input)) continue;
+    const output = item.part.output;
+    if (!isStructuredToolResult(output) || !output.ok) continue;
+    if (!isRecord(output.data)) continue;
+    const stats = readFileDiffStatsFromToolData(output.data, input);
+    if (!stats) continue;
+    addLines += stats.addLines;
+    removeLines += stats.removeLines;
+    matched++;
   }
-  const nextContent = readToolResultContent(data, input);
-  const { addLines, removeLines: remLines } = countLineDiffStats(
-    data.previousContent,
-    nextContent,
-  );
-  if (addLines === 0 && remLines === 0) return null;
-  return `+${addLines} -${remLines}`;
+
+  if (matched === 0) return null;
+  if (addLines === 0 && removeLines === 0) return null;
+  return { addLines, removeLines };
 }
 
 /** Hide redundant compact header detail (line stat / diff badge is enough). */

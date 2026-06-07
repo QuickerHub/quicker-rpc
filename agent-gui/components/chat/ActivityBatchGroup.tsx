@@ -34,6 +34,15 @@ export function ActivityBatchGroup({
   const batchRunning = items.some(
     (item) => item.kind === "tool" && item.isRunning,
   );
+  const ACTIVITY_VIRTUAL_TAIL = 10;
+  const shouldVirtualizeActivity =
+    batchRunning && items.length > ACTIVITY_VIRTUAL_TAIL + 4;
+  const omittedActivityCount = shouldVirtualizeActivity
+    ? items.length - ACTIVITY_VIRTUAL_TAIL
+    : 0;
+  const visibleActivityItems = shouldVirtualizeActivity
+    ? items.slice(-ACTIVITY_VIRTUAL_TAIL)
+    : items;
   const batchErr = items.some(
     (item) => item.kind === "tool" && item.state === "output-error",
   );
@@ -92,7 +101,12 @@ export function ActivityBatchGroup({
       }
     >
       <div className="tool-batch-body activity-batch-body">
-        {items.map((item) => {
+        {omittedActivityCount > 0 ? (
+          <div className="activity-batch-omitted" aria-hidden>
+            另有 {omittedActivityCount} 步已省略（流式加载中）
+          </div>
+        ) : null}
+        {visibleActivityItems.map((item) => {
           if (item.kind === "reasoning") {
             const key = `reasoning-${messageId}-${item.index}`;
             return (

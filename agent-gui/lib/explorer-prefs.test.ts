@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import {
+  EXPLORER_OPEN_STORAGE_KEY,
   EXPLORER_PANEL_VIEW_STORAGE_KEY,
+  loadExplorerOpen,
   loadExplorerPanelView,
   normalizeExplorerWorkspaceKey,
+  storeExplorerOpen,
   storeExplorerPanelView,
 } from "./explorer-prefs.ts";
 
@@ -94,6 +97,16 @@ test("storeExplorerPanelView persists per workspace and merges patches", () => {
 test("loadExplorerPanelView returns null for unknown workspace", () => {
   installBrowserStorage();
   assert.equal(loadExplorerPanelView("d:/missing"), null);
+});
+
+test("loadExplorerOpen defaults closed and respects stored preference", () => {
+  installBrowserStorage();
+  assert.equal(loadExplorerOpen(), false);
+  storeExplorerOpen(true);
+  assert.equal(loadExplorerOpen(), true);
+  storeExplorerOpen(false);
+  assert.equal(loadExplorerOpen(), false);
+  assert.equal(storage.get(EXPLORER_OPEN_STORAGE_KEY), "0");
 });
 
 test("storeExplorerPanelView persists collapsed action roots", () => {

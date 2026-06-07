@@ -74,14 +74,14 @@ export function ActionProjectToolbar({
           pushAppMessage({
             id: TOOLBAR_MESSAGE_ID,
             kind: "success",
-            body: "已启动 trace 调试",
+            body: "已启动调试",
             autoDismissMs: 3500,
           });
         } else {
           pushAppMessage({
             id: TOOLBAR_MESSAGE_ID,
             kind: "error",
-            body: result.error ?? "trace 失败",
+            body: result.error ?? "调试失败",
             autoDismissMs: 6000,
           });
         }
@@ -118,7 +118,7 @@ export function ActionProjectToolbar({
           className="project-info-toolbar-btn project-info-toolbar-btn--debug"
           disabled={runBusy}
           onClick={() => void runAction(true)}
-          title="trace 调试：在右侧侧栏查看步骤输出（不打开 Quicker 调试器）"
+          title="调试：在右侧侧栏查看步骤输出"
         >
           调试
         </button>
