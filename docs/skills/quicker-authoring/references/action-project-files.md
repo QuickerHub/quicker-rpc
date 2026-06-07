@@ -32,11 +32,11 @@
 
 | inputParams | `"script.file": "files/main.cs"` |
 
-| variables[].defaultValue | inline string or `{ "file": "files/…" }` |
+| variables[].default | `"default": "…"` or `"default.file": "files/…"` |
 
 - inputParams: `paramKey` / `paramKey.file` / `paramKey.var` — action-steps
 
-- defaultValue: inline string or file object — action-variables
+- variables: `default` / `default.file` — action-variables
 
 - path relative to project root, `/` separators, no `..`
 
