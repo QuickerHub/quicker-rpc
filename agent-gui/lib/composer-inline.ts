@@ -1,4 +1,5 @@
 import type { PinnedAction } from "@/lib/action-context";
+import { isHttpIconUrl } from "@/lib/fa-icon";
 import {
   formatActionTagMarkup,
   parseUserMessageSegments,
@@ -19,11 +20,15 @@ export function actionFromTagElement(el: HTMLElement): PinnedAction | null {
   const id = el.getAttribute("data-qkrpc-id")?.trim();
   const title = el.getAttribute("data-qkrpc-title")?.trim();
   if (!id || !title) return null;
+  const kindRaw = el.getAttribute("data-qkrpc-kind")?.trim();
   return {
     id,
     title,
+    kind: kindRaw === "subprogram" ? "subprogram" : "action",
     lastEditTimeLocal: el.getAttribute("data-qkrpc-last-edit")?.trim() || undefined,
     description: el.getAttribute("data-qkrpc-desc")?.trim() || undefined,
+    icon: el.getAttribute("data-qkrpc-icon")?.trim() || undefined,
+    callIdentifier: el.getAttribute("data-qkrpc-call-id")?.trim() || undefined,
   };
 }
 
@@ -59,15 +64,43 @@ export function placeCaretAfterComposerTagSpacer(
 export function createComposerTagElement(action: PinnedAction): HTMLSpanElement {
   const span = document.createElement("span");
   span.className = COMPOSER_TAG_CLASS;
+  if (action.kind === "subprogram") {
+    span.classList.add("composer-prompt-tag--subprogram");
+  }
   span.contentEditable = "false";
   span.setAttribute("data-qkrpc-id", action.id);
   span.setAttribute("data-qkrpc-title", action.title);
+  if (action.kind === "subprogram") {
+    span.setAttribute("data-qkrpc-kind", "subprogram");
+  }
   if (action.lastEditTimeLocal) {
     span.setAttribute("data-qkrpc-last-edit", action.lastEditTimeLocal);
   }
   if (action.description?.trim()) {
     span.setAttribute("data-qkrpc-desc", action.description.trim());
   }
+  if (action.icon?.trim()) {
+    span.setAttribute("data-qkrpc-icon", action.icon.trim());
+  }
+  if (action.callIdentifier?.trim()) {
+    span.setAttribute("data-qkrpc-call-id", action.callIdentifier.trim());
+  }
+
+  const iconSpec = action.icon?.trim();
+  if (iconSpec && isHttpIconUrl(iconSpec)) {
+    const img = document.createElement("img");
+    img.src = iconSpec;
+    img.alt = "";
+    img.className = "composer-prompt-tag__icon composer-prompt-tag__icon--img";
+    img.draggable = false;
+    span.append(img);
+  } else {
+    const icon = document.createElement("span");
+    icon.className = "composer-prompt-tag__icon composer-prompt-tag__icon--placeholder";
+    icon.setAttribute("aria-hidden", "true");
+    span.append(icon);
+  }
+
   const title = document.createElement("span");
   title.className = "composer-prompt-tag__title";
   title.textContent = action.title;

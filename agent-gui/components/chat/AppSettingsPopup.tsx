@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppSettingsPanel } from "@/components/chat/AppSettingsPanel";
 import {
@@ -42,7 +42,7 @@ export function AppSettingsPopup({
   const panelId = useId();
   const [activeTab, setActiveTab] = useState<AppSettingsTabId>(DEFAULT_APP_SETTINGS_TAB);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
     setActiveTab(resolveOpenTab(initialTab, focusProviderId));
   }, [open, initialTab, focusProviderId]);

@@ -3185,6 +3185,122 @@ html.sidebar-collapsed-init .app-shell {
   color: var(--muted);
 }
 
+.composer-onboarding {
+  width: 100%;
+  max-width: 42rem;
+  margin: 0 auto 0.75rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 92%, var(--accent) 8%);
+  box-sizing: border-box;
+}
+
+.composer-onboarding__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.composer-onboarding__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.composer-onboarding__dismiss {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.2rem 0.45rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.composer-onboarding__dismiss:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--hover-overlay);
+}
+
+.composer-onboarding__dismiss:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.composer-onboarding__tips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.25rem, 1fr));
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.composer-onboarding__tip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--composer-input-bg, var(--panel));
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+
+.composer-onboarding__tip:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--composer-input-bg, var(--panel)) 88%, var(--accent) 12%);
+}
+
+.composer-onboarding__tip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.composer-onboarding__tip-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.composer-onboarding__tip-hint {
+  font-size: 0.66rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.composer-onboarding__kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel) 80%, var(--bg));
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 .composer-shortcuts {
   display: flex;
   flex-wrap: wrap;
@@ -3476,6 +3592,28 @@ html.sidebar-collapsed-init .app-shell {
   white-space: nowrap;
   font-weight: 500;
   min-width: 0;
+}
+
+.composer-prompt-tag__icon {
+  flex-shrink: 0;
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.composer-prompt-tag__icon--img {
+  display: block;
+  object-fit: contain;
+}
+
+.composer-prompt-tag__icon--placeholder {
+  display: block;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--muted) 28%, transparent);
+}
+
+.composer-prompt-tag--subprogram {
+  border-color: color-mix(in srgb, var(--accent-border) 70%, var(--border));
+  background: color-mix(in srgb, var(--panel) 88%, var(--accent-subtle) 12%);
 }
 
 .composer-prompt-tag__meta {
@@ -13797,6 +13935,45 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   box-shadow: 0 0 0 1px var(--accent-border);
 }
 
+.action-picker-item--with-icon {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.45rem;
+}
+
+.action-picker-item-icon {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0;
+}
+
+.action-picker-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.action-picker-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.action-picker-item-kind {
+  flex-shrink: 0;
+  padding: 0.02rem 0.28rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
 .action-picker-item-title {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -13807,7 +13984,10 @@ button.file-editor-header-open.file-editor-header--compact:hover {
 }
 
 .action-picker-item-meta {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.65rem;
   color: var(--muted);
 }

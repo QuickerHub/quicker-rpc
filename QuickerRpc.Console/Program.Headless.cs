@@ -551,12 +551,18 @@ internal static partial class Program
         {
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
-            var response = await session.Proxy
+            var actionResponse = await session.Proxy
                 .SearchActionsAsync(query, limit, scope: null, rpcToken)
                 .ConfigureAwait(false);
+            var subprogramResponse = await session.Proxy
+                .ListGlobalSubProgramsAsync(
+                    string.IsNullOrWhiteSpace(query) ? null : query,
+                    limit,
+                    rpcToken)
+                .ConfigureAwait(false);
 
-            WriteActionMentionSearchRpcJson(options.Json, response, query);
-            return response.Ok ? ExitCodes.Success : ExitCodes.Error;
+            WriteActionMentionSearchRpcJson(options.Json, actionResponse, subprogramResponse, query, limit);
+            return actionResponse.Ok || subprogramResponse.Ok ? ExitCodes.Success : ExitCodes.Error;
         }
         catch (QuickerRpcClientException ex)
         {
@@ -576,14 +582,25 @@ internal static partial class Program
 
     private static void WriteActionMentionSearchRpcJson(
         bool json,
-        QuickerRpcActionSearchResult response,
-        string query)
+        QuickerRpcActionSearchResult actionResponse,
+        QuickerRpcSubProgramSearchResult subprogramResponse,
+        string query,
+        int limit)
     {
-        var payloadNode = AgentApiMentionSearchJson.ToPayload(response, query);
+        var payloadNode = AgentApiMentionSearchJson.ToMergedPayload(
+            actionResponse,
+            subprogramResponse,
+            query,
+            limit);
         if (json)
         {
             global::System.Console.WriteLine(JsonSerializer.Serialize(
-                new { ok = response.Ok, action = "mention-search", payload = payloadNode },
+                new
+                {
+                    ok = actionResponse.Ok || subprogramResponse.Ok,
+                    action = "mention-search",
+                    payload = payloadNode,
+                },
                 QkrpcJson.CliOutput));
             return;
         }

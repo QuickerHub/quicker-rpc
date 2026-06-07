@@ -685,6 +685,9 @@ public sealed class QuickerRpcSubProgramSummary
 
     /// <summary>Value for sys:subprogram step inputParams.subProgram (from subprogram get/search).</summary>
     public string? CallIdentifier { get; set; }
+
+    /// <summary>Quicker icon spec (fa:Light_* or res: URL).</summary>
+    public string? Icon { get; set; }
 }
 
 public sealed class QuickerRpcActionSummary
@@ -717,6 +720,9 @@ public sealed class QuickerRpcActionSummary
 
     /// <summary>Install origin: local | library | published.</summary>
     public string? Source { get; set; }
+
+    /// <summary>Quicker icon spec (fa:Light_* or res: URL).</summary>
+    public string? Icon { get; set; }
 }
 
 public sealed class QuickerRpcActionUpdateResult

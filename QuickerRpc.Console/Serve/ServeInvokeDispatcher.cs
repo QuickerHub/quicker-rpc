@@ -539,20 +539,36 @@ internal static class ServeInvokeDispatcher
         limit = Math.Min(limit, 20);
         var queryTrimmed = string.IsNullOrWhiteSpace(query) ? string.Empty : query.Trim();
         var session = await pool.GetSessionAsync(token).ConfigureAwait(false);
-        var response = await session.Rpc
+        var actionResponse = await session.Rpc
             .SearchActionsAsync(queryTrimmed, limit, scope: null, token)
             .ConfigureAwait(false);
-        if (ShouldRetryActionQueryAfterReconnect(queryTrimmed, response.Ok, response.Items?.Count ?? 0))
+        if (ShouldRetryActionQueryAfterReconnect(queryTrimmed, actionResponse.Ok, actionResponse.Items?.Count ?? 0))
         {
             await pool.InvalidateAsync().ConfigureAwait(false);
             session = await pool.GetSessionAsync(token).ConfigureAwait(false);
-            response = await session.Rpc
+            actionResponse = await session.Rpc
                 .SearchActionsAsync(queryTrimmed, limit, scope: null, token)
                 .ConfigureAwait(false);
         }
 
-        var payloadNode = AgentApiMentionSearchJson.ToPayload(response, queryTrimmed);
-        return Ok(new { ok = response.Ok, action = "mention-search", payload = payloadNode });
+        var subprogramResponse = await session.Rpc
+            .ListGlobalSubProgramsAsync(
+                string.IsNullOrWhiteSpace(queryTrimmed) ? null : queryTrimmed,
+                limit,
+                token)
+            .ConfigureAwait(false);
+
+        var payloadNode = AgentApiMentionSearchJson.ToMergedPayload(
+            actionResponse,
+            subprogramResponse,
+            queryTrimmed,
+            limit);
+        return Ok(new
+        {
+            ok = actionResponse.Ok || subprogramResponse.Ok,
+            action = "mention-search",
+            payload = payloadNode,
+        });
     }
 
     /// <summary>Reconnect once after plugin reload — stale serve sessions may miss pinyin/catalog matches.</summary>

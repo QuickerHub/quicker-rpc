@@ -125,6 +125,7 @@ import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
 import { CollapsedTurnSummary } from "@/components/chat/CollapsedTurnSummary";
 import { isHotTurnIndex, turnIndicesPrepended } from "@/lib/chat-message-window";
 import { ComposerShortcutCards } from "@/components/chat/ComposerShortcutCards";
+import { ComposerOnboardingTips } from "@/components/chat/ComposerOnboardingTips";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
 import { useChatMessageWindow } from "@/lib/use-chat-message-window";
 import { findUserTurnStartIndices } from "@/lib/last-user-turn-index";
@@ -1430,6 +1431,14 @@ function ChatPanel({
             </button>
           </div>
         )}
+        {isEmptyThread && !editAnchorMessageId ? (
+          <ComposerOnboardingTips
+            disabled={busy}
+            onOpenSettings={onOpenSettings}
+            onTryMention={() => composerRef.current?.insertMentionTrigger()}
+            onFocusComposer={() => composerRef.current?.focus()}
+          />
+        ) : null}
         <ComposerShortcutCards
           settingsOpen={settingsOpen}
           onToggleSettings={onToggleSettings}
@@ -1494,7 +1503,8 @@ function ChatPanel({
                     setLlmSelection(next);
                     storeLlmSelectionRaw(next);
                   }}
-                  onNeedSettings={() => onOpenSettings()}
+                  onNeedSettings={(providerId) =>
+                    onOpenSettings(providerId, "models")}
                 />
                 {voiceInput.errorHint ? (
                   <span className="composer-hint" role="status">
@@ -1672,7 +1682,7 @@ export function Chat() {
       const data = await fetchLlmOptions();
       if (cancelled || !data || hasConfiguredLlmOption(data)) return;
       llmSettingsAutoOpenedRef.current = true;
-      openSettings();
+      openSettings(undefined, "models");
     })();
     return () => {
       cancelled = true;

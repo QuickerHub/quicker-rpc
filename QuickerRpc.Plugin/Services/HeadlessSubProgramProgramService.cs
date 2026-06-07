@@ -546,6 +546,7 @@ public sealed class HeadlessSubProgramProgramService
             Score = score,
             SharedId = NullIfEmpty(subProgram.SharedId),
             CallIdentifier = DataServiceSubProgramAccessor.GetCallIdentifier(subProgram),
+            Icon = NullIfEmpty(subProgram.Icon),
         };
 
     private static int ComputeMatchScore(SubProgram subProgram, string keyword)

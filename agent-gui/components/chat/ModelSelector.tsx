@@ -39,7 +39,7 @@ export type { LlmModelOption, LlmOptionsResponse };
 type ModelSelectorProps = {
   selection: string;
   onChange: (selection: string) => void;
-  onNeedSettings?: () => void;
+  onNeedSettings?: (targetProviderId?: LlmProviderId) => void;
   disabled?: boolean;
   /** When false, only onChange runs (launcher-local model prefs). */
   persistGlobalSelection?: boolean;
@@ -259,15 +259,15 @@ export function ModelSelector({
     ? options.find((o) => o.selection === hoveredSelection)
     : undefined;
 
-  const openSettings = () => {
+  const openSettings = (targetProviderId?: LlmProviderId) => {
     setOpen(false);
-    onNeedSettings?.();
+    onNeedSettings?.(targetProviderId);
   };
 
   const select = (nextSelection: string) => {
     const opt = options.find((o) => o.selection === nextSelection);
     if (!opt?.configured) {
-      openSettings();
+      openSettings(optionProviderId(opt));
       return;
     }
     onChange(nextSelection);
@@ -393,7 +393,7 @@ export function ModelSelector({
                   <button
                     type="button"
                     className="model-picker-item-edit"
-                    onClick={() => openSettings()}
+                    onClick={() => openSettings(optionProviderId(p))}
                   >
                     配置
                   </button>

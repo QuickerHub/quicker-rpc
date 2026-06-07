@@ -133,6 +133,7 @@ public sealed class SubProgramSearchService
             Score = score,
             SharedId = NullIfEmpty(subProgram.SharedId),
             CallIdentifier = DataServiceSubProgramAccessor.GetCallIdentifier(subProgram),
+            Icon = NullIfEmpty(subProgram.Icon),
         };
 
     private static string? NullIfEmpty(string? value) =>

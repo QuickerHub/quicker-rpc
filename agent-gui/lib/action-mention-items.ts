@@ -1,4 +1,4 @@
-import type { PinnedAction } from "@/lib/action-context";
+import type { MentionKind, PinnedAction } from "@/lib/action-context";
 import { getActionSummaryItems } from "@/lib/agent-api";
 import {
   formatLastEditDisplay,
@@ -8,7 +8,7 @@ import {
 export type ActionMentionItem = PinnedAction & {
   profileName?: string;
   exeFile?: string;
-  /** Search relevance from qkrpc action search (higher = better). */
+  /** Search relevance from qkrpc mention search (higher = better). */
   score?: number;
 };
 
@@ -36,16 +36,37 @@ function rawItemsArray(data: unknown): unknown[] {
   return [];
 }
 
+function readMentionKind(raw: Record<string, unknown>): MentionKind {
+  const kind = String(raw.kind ?? "").trim().toLowerCase();
+  return kind === "subprogram" ? "subprogram" : "action";
+}
+
+function mentionDedupeKey(kind: MentionKind, id: string): string {
+  return `${kind}:${id}`;
+}
+
 function rawEntryToMention(raw: unknown): ActionMentionItem | null {
   if (typeof raw !== "object" || raw === null) return null;
   const o = raw as Record<string, unknown>;
-  const id = String(o.actionId ?? o.id ?? "").trim();
+  const kind = readMentionKind(o);
+  const id = String(
+    kind === "subprogram"
+      ? o.subProgramId ?? o.id ?? ""
+      : o.actionId ?? o.id ?? "",
+  ).trim();
   if (!id) return null;
   const score =
     typeof o.score === "number" && Number.isFinite(o.score) ? o.score : undefined;
+  const icon =
+    typeof o.icon === "string" && o.icon.trim() ? o.icon.trim() : undefined;
+  const callIdentifier =
+    typeof o.callIdentifier === "string" && o.callIdentifier.trim()
+      ? o.callIdentifier.trim()
+      : undefined;
   return {
+    kind,
     id,
-    title: String(o.title ?? "").trim() || "(无标题)",
+    title: String(o.title ?? o.name ?? "").trim() || "(无标题)",
     description:
       typeof o.description === "string" ? o.description.trim() : undefined,
     lastEditTimeLocal: formatLastEditDisplay(
@@ -59,6 +80,8 @@ function rawEntryToMention(raw: unknown): ActionMentionItem | null {
           ? o.pageTitle
           : undefined)?.trim() || undefined,
     exeFile: typeof o.exeFile === "string" ? o.exeFile.trim() : undefined,
+    icon,
+    callIdentifier,
     ...(score !== undefined ? { score } : {}),
   };
 }
@@ -73,6 +96,7 @@ function protoEntryToMention(item: {
   exeFile?: string;
 }): ActionMentionItem {
   return {
+    kind: "action",
     id: item.actionId?.trim() || "",
     title: item.title?.trim() || "(无标题)",
     description: item.description?.trim() || undefined,
@@ -85,7 +109,7 @@ function protoEntryToMention(item: {
   };
 }
 
-/** Parse qkrpc action search / list JSON into mention picker rows. */
+/** Parse qkrpc mention-search JSON into composer picker rows. */
 export function parseActionMentionItemsFromQkrpcJson(
   parsed: unknown,
   maxItems = 8,
@@ -94,19 +118,23 @@ export function parseActionMentionItemsFromQkrpcJson(
   if (data === null) return [];
 
   const ordered: ActionMentionItem[] = [];
-  const byId = new Map<string, ActionMentionItem>();
+  const byKey = new Map<string, ActionMentionItem>();
 
   for (const entry of rawItemsArray(data)) {
     const row = rawEntryToMention(entry);
-    if (!row || byId.has(row.id)) continue;
-    byId.set(row.id, row);
+    if (!row) continue;
+    const key = mentionDedupeKey(row.kind ?? "action", row.id);
+    if (byKey.has(key)) continue;
+    byKey.set(key, row);
     ordered.push(row);
   }
   for (const item of getActionSummaryItems(data)) {
     const id = item.actionId?.trim();
-    if (!id || byId.has(id)) continue;
+    if (!id) continue;
+    const key = mentionDedupeKey("action", id);
+    if (byKey.has(key)) continue;
     const row = protoEntryToMention(item);
-    byId.set(id, row);
+    byKey.set(key, row);
     ordered.push(row);
   }
 
@@ -124,8 +152,13 @@ export function parseActionMentionItemsFromQkrpcJson(
 
 export function formatMentionItemMeta(item: ActionMentionItem): string | undefined {
   const parts: string[] = [];
-  if (item.profileName) parts.push(item.profileName);
-  if (item.exeFile) parts.push(item.exeFile);
+  if (item.kind === "subprogram") {
+    parts.push("公共子程序");
+    if (item.callIdentifier) parts.push(item.callIdentifier);
+  } else {
+    if (item.profileName) parts.push(item.profileName);
+    if (item.exeFile) parts.push(item.exeFile);
+  }
   if (item.lastEditTimeLocal) parts.push(item.lastEditTimeLocal);
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }

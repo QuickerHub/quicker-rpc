@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ActionIcon } from "@/components/chat/ActionIcon";
 import type { ActionMentionItem } from "@/lib/action-mention-items";
 import { formatMentionItemMeta } from "@/lib/action-mention-items";
 import type { PinnedAction } from "@/lib/action-context";
@@ -61,7 +62,9 @@ export function ComposerMentionMenu({
 
   const items = search.items;
   const header =
-    query.trim().length > 0 ? `搜索「${query.trim()}」` : "最近编辑";
+    query.trim().length > 0
+      ? `搜索「${query.trim()}」`
+      : "动作与子程序";
   const showInitialLoading =
     search.isRefreshing && items.length === 0 && !search.error;
   const showEmpty =
@@ -132,7 +135,7 @@ export function ComposerMentionMenu({
           {items.map((item: ActionMentionItem, index) => {
             const meta = formatMentionItemMeta(item);
             return (
-              <li key={item.id}>
+              <li key={`${item.kind ?? "action"}:${item.id}`}>
                 <button
                   type="button"
                   role="option"
@@ -140,16 +143,30 @@ export function ComposerMentionMenu({
                   tabIndex={-1}
                   aria-selected={index === activeIndex}
                   data-mention-index={index}
-                  className={`action-picker-item${index === activeIndex ? " action-picker-item--selected" : ""}`}
+                  className={`action-picker-item action-picker-item--with-icon${
+                    index === activeIndex ? " action-picker-item--selected" : ""
+                  }`}
                   onMouseDown={(event) => {
                     event.preventDefault();
                     onSelect(item);
                   }}
                 >
-                  <span className="action-picker-item-title">{item.title}</span>
-                  {meta && (
-                    <span className="action-picker-item-meta">{meta}</span>
-                  )}
+                  <ActionIcon
+                    spec={item.icon}
+                    title={item.title}
+                    className="action-picker-item-icon"
+                  />
+                  <span className="action-picker-item-body">
+                    <span className="action-picker-item-title-row">
+                      <span className="action-picker-item-title">{item.title}</span>
+                      {item.kind === "subprogram" ? (
+                        <span className="action-picker-item-kind">子程序</span>
+                      ) : null}
+                    </span>
+                    {meta ? (
+                      <span className="action-picker-item-meta">{meta}</span>
+                    ) : null}
+                  </span>
                 </button>
               </li>
             );

@@ -48,11 +48,16 @@ function pinnedActionFromTagAttrs(attrs: Record<string, string>): PinnedAction |
   const id = attrs["data-id"]?.trim();
   const title = attrs["data-title"]?.trim();
   if (!id || !title) return null;
+  const kindRaw = attrs["data-kind"]?.trim();
+  const kind = kindRaw === "subprogram" ? "subprogram" : "action";
   return {
     id,
     title,
+    kind,
     lastEditTimeLocal: attrs["data-last-edit"]?.trim() || undefined,
     description: attrs["data-desc"]?.trim() || undefined,
+    icon: attrs["data-icon"]?.trim() || undefined,
+    callIdentifier: attrs["data-call-id"]?.trim() || undefined,
   };
 }
 
@@ -62,11 +67,20 @@ export function formatActionTagMarkup(action: PinnedAction): string {
     `data-id="${escapeAttrValue(action.id)}"`,
     `data-title="${escapeAttrValue(action.title)}"`,
   ];
+  if (action.kind === "subprogram") {
+    attrs.push('data-kind="subprogram"');
+  }
   if (action.lastEditTimeLocal) {
     attrs.push(`data-last-edit="${escapeAttrValue(action.lastEditTimeLocal)}"`);
   }
   if (action.description?.trim()) {
     attrs.push(`data-desc="${escapeAttrValue(action.description.trim())}"`);
+  }
+  if (action.icon?.trim()) {
+    attrs.push(`data-icon="${escapeAttrValue(action.icon.trim())}"`);
+  }
+  if (action.callIdentifier?.trim()) {
+    attrs.push(`data-call-id="${escapeAttrValue(action.callIdentifier.trim())}"`);
   }
   return `<qkrpc-action-tag ${attrs.join(" ")}></qkrpc-action-tag>`;
 }

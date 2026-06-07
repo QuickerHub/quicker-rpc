@@ -196,6 +196,7 @@ public sealed class ActionSearchService
                 TemplateId = ActionItemSourceHelper.GetTemplateId(x.Entry.Action),
                 SharedActionId = ActionItemSourceHelper.GetSharedActionId(x.Entry.Action),
                 Source = ActionItemSourceHelper.ResolveKindToken(x.Entry.Action),
+                Icon = NullIfEmpty(x.Entry.Action.Icon),
             })
             .Where(x => x.Id.Length > 0)
             .ToList();
@@ -226,6 +227,7 @@ public sealed class ActionSearchService
                 item.ProfileId ??= entry.Profile?.Id;
                 item.ProfileName ??= entry.Profile?.Name;
                 item.ExeFile ??= entry.Profile?.ExeFile;
+                item.Icon ??= NullIfEmpty(entry.Action.Icon);
             }
 
             enriched.Add(item);
@@ -493,6 +495,7 @@ public sealed class ActionSearchService
                     TemplateId = ActionItemSourceHelper.GetTemplateId(x.Entry.Action),
                     SharedActionId = ActionItemSourceHelper.GetSharedActionId(x.Entry.Action),
                     Source = ActionItemSourceHelper.ResolveKindToken(x.Entry.Action),
+                    Icon = NullIfEmpty(x.Entry.Action.Icon),
                 })
                 .Where(x => x.Id.Length > 0)
                 .ToList());
@@ -560,6 +563,7 @@ public sealed class ActionSearchService
             TemplateId = ActionItemSourceHelper.GetTemplateId(action),
             SharedActionId = ActionItemSourceHelper.GetSharedActionId(action),
             Source = ActionItemSourceHelper.ResolveKindToken(action),
+            Icon = NullIfEmpty(action.Icon),
         };
     }
 
@@ -585,6 +589,7 @@ public sealed class ActionSearchService
             Source = action is ActionItem typed
                 ? ActionItemSourceHelper.ResolveKindToken(typed)
                 : NullIfEmpty(ReadSharedActionId(action)) is not null ? "published" : "local",
+            Icon = NullIfEmpty(ReadActionIcon(action)),
         };
     }
 
@@ -621,6 +626,18 @@ public sealed class ActionSearchService
         }
 
         return ReadStringMember(action, "Description");
+    }
+
+    private static string? ReadActionIcon(object action)
+    {
+        var fromAction = ReadStringMember(action, "Icon");
+        if (!string.IsNullOrWhiteSpace(fromAction))
+        {
+            return fromAction;
+        }
+
+        var presentation = action.GetType().GetProperty("Presentation")?.GetValue(action);
+        return ReadStringMember(presentation, "Icon");
     }
 
     private static string? ReadSharedActionId(object action)

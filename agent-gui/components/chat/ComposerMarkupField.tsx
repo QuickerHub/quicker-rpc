@@ -52,6 +52,8 @@ export type ComposerMarkupFieldHandle = {
   /** Focus composer and place caret at end of content (e.g. branch-edit). */
   focusAtEnd: () => void;
   insertActionTag: (action: PinnedAction) => void;
+  /** Insert @ and open the action mention picker (onboarding / toolbar). */
+  insertMentionTrigger: () => void;
   /** Insert plain text at caret (e.g. pasted snippets). */
   insertPlainText: (text: string) => void;
   beginVoiceStream: () => void;
@@ -175,6 +177,21 @@ export const ComposerMarkupField = forwardRef<
     setMentionQuery(match.query);
   }, [closeMention, disabled]);
 
+  const composerKeepsMentionOpen = useCallback(() => {
+    const root = rootRef.current;
+    if (!root) return false;
+    const active = document.activeElement;
+    if (active === root) return true;
+    if (active instanceof Node && root.contains(active)) return true;
+    if (
+      active instanceof Element
+      && active.closest(".composer-mention-menu")
+    ) {
+      return true;
+    }
+    return false;
+  }, []);
+
   const applyMentionSelection = useCallback(
     (action: PinnedAction) => {
       const root = rootRef.current;
@@ -211,6 +228,18 @@ export const ComposerMarkupField = forwardRef<
         chip.after(spacer);
         placeCaretAfterComposerTagSpacer(spacer, root);
         emitChange();
+      },
+      insertMentionTrigger: () => {
+        const root = rootRef.current;
+        if (!root || disabled) return;
+        if (value !== lastEmitted.current) {
+          renderMarkupIntoRoot(root, value);
+          lastEmitted.current = value;
+        }
+        insertPlainTextWithUndo(root, "@");
+        emitChange();
+        root.focus({ preventScroll: true });
+        requestAnimationFrame(() => syncMentionFromCaret());
       },
       insertPlainText: (text: string) => {
         const root = rootRef.current;
@@ -261,8 +290,20 @@ export const ComposerMarkupField = forwardRef<
         return serializeComposerRoot(root);
       },
     }),
-    [closeMention, disabled, emitChange, value],
+    [closeMention, disabled, emitChange, syncMentionFromCaret, value],
   );
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const onSelectionChange = () => {
+      if (document.activeElement !== root) return;
+      syncMentionFromCaret();
+    };
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => document.removeEventListener("selectionchange", onSelectionChange);
+  }, [syncMentionFromCaret]);
 
   useEffect(() => {
     if (!mentionOpen) return;
@@ -362,9 +403,19 @@ export const ComposerMarkupField = forwardRef<
     }
   };
 
+  const handleFocus = () => {
+    requestAnimationFrame(() => syncMentionFromCaret());
+  };
+
   const handleBlur = () => {
     const root = rootRef.current;
-    window.setTimeout(() => closeMention(), 120);
+    window.setTimeout(() => {
+      if (composerKeepsMentionOpen()) {
+        syncMentionFromCaret();
+        return;
+      }
+      closeMention();
+    }, 0);
     if (!root) return;
     if (normalizeEmptyComposerRoot(root)) {
       placeCaretAtStart(root);
@@ -526,6 +577,7 @@ export const ComposerMarkupField = forwardRef<
         onMouseDown={() => {
           if (!disabled) notifyUserEdit();
         }}
+        onFocus={handleFocus}
         onBlur={handleBlur}
         onPaste={handlePaste}
         onCopy={handleCopy}
