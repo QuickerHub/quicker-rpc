@@ -1,4 +1,13 @@
-import { NoSuchToolError, type LanguageModelV3ToolCall } from "ai";
+import { NoSuchToolError } from "ai";
+
+/** Minimal tool-call shape for experimental_repairToolCall (avoids non-exported ai SDK types). */
+export type RepairableToolCall = {
+  type: "tool-call";
+  toolCallId: string;
+  toolName: string;
+  input: string;
+  providerExecuted?: boolean;
+};
 
 /** Harmony / GPT-OSS style tokens that some models leak into tool names. */
 export const MODEL_CHANNEL_MARKER_RE = /<\|channel\|>\w+/gi;
@@ -43,7 +52,7 @@ export function resolveKnownToolName(
 }
 
 export type RepairToolCallOptions = {
-  toolCall: LanguageModelV3ToolCall;
+  toolCall: RepairableToolCall;
   tools: Record<string, unknown>;
   error: NoSuchToolError | { name: string };
 };
@@ -53,7 +62,7 @@ export function repairCorruptedToolCall({
   toolCall,
   tools,
   error,
-}: RepairToolCallOptions): LanguageModelV3ToolCall | null {
+}: RepairToolCallOptions): RepairableToolCall | null {
   if (!NoSuchToolError.isInstance(error)) return null;
 
   const toolIds = Object.keys(tools);
@@ -70,10 +79,10 @@ export function createRepairToolCallHandler<T extends Record<string, unknown>>(
   tools: T,
 ) {
   return async (options: {
-    toolCall: LanguageModelV3ToolCall;
+    toolCall: RepairableToolCall;
     tools: T;
     error: unknown;
-  }): Promise<LanguageModelV3ToolCall | null> =>
+  }): Promise<RepairableToolCall | null> =>
     repairCorruptedToolCall({
       toolCall: options.toolCall,
       tools: options.tools,
