@@ -2,6 +2,7 @@ import {
   listActionAuthoringTopics,
   searchActionAuthoringDocs,
 } from "@/lib/action-authoring-docs";
+import { groupTopicsByLayer } from "@/lib/action-authoring-docs.shared";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -18,5 +19,15 @@ export async function GET(req: Request) {
   }
 
   const topics = await listActionAuthoringTopics();
-  return Response.json({ success: true, action: "docs-index", topics });
+  const layerGroups = groupTopicsByLayer(topics);
+  return Response.json({
+    success: true,
+    action: "docs-index",
+    topics,
+    topicsByLayer: Object.fromEntries(
+      layerGroups.map((g) => [g.layer, g.topics]),
+    ),
+    layerOrder: layerGroups.map((g) => g.layer),
+    layerGroups,
+  });
 }

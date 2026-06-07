@@ -2,6 +2,8 @@
 
 规定 **P1–P7**（总览 **`overview`**）。{{#only-agent}}磁盘编辑细节见 **`workspace-editing`**。{{/only-agent}}{{#only-cli}}内联 patch 见 **`patch-workflow`**；磁盘见 **`action-project-files`**。{{/only-cli}}
 
+{{#include-partial workflow-checklist-p1-p7}}
+
 ## P0 前置
 
 - Quicker 已运行且已加载 QuickerRpc 插件。

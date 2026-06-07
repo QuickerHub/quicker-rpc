@@ -7,6 +7,7 @@ import {
   type ActionAuthoringReferenceMeta,
   type ActionAuthoringSearchItem,
   type ActionAuthoringTopicMeta,
+  sortTopicsByLayer,
 } from "@/lib/action-authoring-docs.shared";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
@@ -18,7 +19,14 @@ export type {
   ActionAuthoringSearchItem,
   ActionAuthoringTopicMeta,
 } from "@/lib/action-authoring-docs.shared";
-export { docViewerEntryKey } from "@/lib/action-authoring-docs.shared";
+export {
+  docViewerEntryKey,
+  groupTopicsByLayer,
+  sortTopicsByLayer,
+  ACTION_AUTHORING_LAYER_ORDER,
+  ACTION_AUTHORING_LAYER_LABELS,
+} from "@/lib/action-authoring-docs.shared";
+export type { ActionAuthoringLayerGroup } from "@/lib/action-authoring-docs.shared";
 
 const SKILLS_DIR = "docs/skills/quicker-authoring";
 const TOPICS_MANIFEST = "topics.json";
@@ -532,7 +540,7 @@ export async function listActionAuthoringTopics(): Promise<
   ActionAuthoringTopicMeta[]
 > {
   const rows = await loadAllTopics();
-  return rows
+  const topics = rows
     .filter((r) => !r.reference)
     .map(({ topic, title, description, layer, charCount, references }) => ({
       topic,
@@ -542,6 +550,7 @@ export async function listActionAuthoringTopics(): Promise<
       charCount,
       references,
     }));
+  return sortTopicsByLayer(topics);
 }
 
 export async function getActionAuthoringDoc(

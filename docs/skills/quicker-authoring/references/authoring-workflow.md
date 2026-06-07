@@ -2,6 +2,19 @@
 
 规定 **P1–P7**（总览 **`overview`**）。磁盘编辑细节见 **`workspace-editing`**。
 
+## Checklist（P1–P7）
+
+```text
+- [ ] P0  Quicker + 插件；工作目录
+- [ ] P1  actionId（create / list / search）
+- [ ] P2  get / extract → `.quicker/…/`（见 workspace-editing）
+- [ ] P3  元数据（可选；图标见 action-icons）
+- [ ] P4  表达式优先 → 模块 → csscript（expressions / implementation-fallback）
+- [ ] P5  每步 step-runner search → get（禁止猜键名）
+- [ ] P6  改 data.json / files/ → patch
+- [ ] P7  以 editVersion 为准；勿反复 get 确认
+```
+
 ## P0 前置
 
 - Quicker 已运行且已加载 QuickerRpc 插件。

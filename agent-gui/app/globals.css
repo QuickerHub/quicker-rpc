@@ -5485,11 +5485,6 @@ textarea {
   color: var(--text-assistant);
 }
 
-.assistant-stream-plain {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
 .msg-turn--hot:not(.msg-turn--fill-scrollport) {
   content-visibility: auto;
   contain-intrinsic-size: auto 240px;
@@ -9168,6 +9163,19 @@ body.workspace-explorer-pane-resizing * {
 .explorer-tree--docs .explorer-tree-row--topic {
   flex: 1;
   min-width: 0;
+}
+
+.explorer-tree--docs .explorer-tree-layer {
+  min-width: 0;
+}
+
+.explorer-tree--docs .explorer-tree-layer-label {
+  padding: 0.35rem 0.55rem 0.12rem 1.35rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--foreground) 45%, transparent);
 }
 
 .workspace-explorer-docs-body {

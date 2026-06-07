@@ -8,6 +8,7 @@ import {
   listActionAuthoringTopics,
   searchActionAuthoringDocs,
 } from "@/lib/action-authoring-docs";
+import { groupTopicsByLayer } from "@/lib/action-authoring-docs.shared";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { DOCS_TOOL } from "@/lib/docs-tool";
 
@@ -27,33 +28,17 @@ export async function executeDocsTool(
   switch (input.action) {
     case "index": {
       const topics = await listActionAuthoringTopics();
-      const layerOrder = [
-        "router",
-        "workflow",
-        "schema",
-        "catalog",
-        "adjunct",
-        "cli-only",
-      ];
-      /** @type {Record<string, typeof topics>} */
-      const topicsByLayer = {};
-      for (const layer of layerOrder) {
-        topicsByLayer[layer] = [];
-      }
-      for (const topic of topics) {
-        const layer = topic.layer ?? "other";
-        if (!topicsByLayer[layer]) topicsByLayer[layer] = [];
-        topicsByLayer[layer].push(topic);
-      }
+      const layerGroups = groupTopicsByLayer(topics);
       return formatLocalToolResult({
         action: "docs-index",
         docsAction: "index",
         success: true,
         topics,
-        topicsByLayer,
-        layerOrder: [...layerOrder, "other"].filter(
-          (layer) => (topicsByLayer[layer]?.length ?? 0) > 0,
+        topicsByLayer: Object.fromEntries(
+          layerGroups.map((g) => [g.layer, g.topics]),
         ),
+        layerOrder: layerGroups.map((g) => g.layer),
+        layerGroups,
       });
     }
     case "search": {
