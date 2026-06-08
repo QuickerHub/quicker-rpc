@@ -12,6 +12,7 @@ import {
   type TauriVoicePluginStatusDto,
 } from "@/lib/voice-input/voice-input-tauri";
 import { resolveVoiceRuntimePhase } from "@/lib/voice-input/resolve-voice-runtime-phase";
+import { executionProviderLabel } from "@/lib/voice-input/voice-input-settings";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
 
 const POLL_MS = 5_000;
@@ -39,6 +40,7 @@ export type VoiceSettingsPanelSnapshot = {
   runtimeOnline: boolean;
   runtimePhase: VoicePluginStatus;
   runtimeDetail: string | null;
+  activeModelId: string | null;
   displayLabel: string;
   displaySubline: string | null;
 };
@@ -52,6 +54,9 @@ function buildRuntimeDetail(
     const parts = [
       health.runtimeVersion,
       health.modelId && health.modelId !== "stub" ? health.modelId : null,
+      health.executionProvider
+        ? executionProviderLabel(health.executionProvider)
+        : null,
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(" · ") : "Runtime 已就绪";
   }
@@ -79,6 +84,7 @@ function buildSnapshot(params: {
   hostLoading: boolean;
   runtimePhase: VoicePluginStatus;
   runtimeDetail: string | null;
+  activeModelId?: string | null;
 }): VoiceSettingsPanelSnapshot {
   const pluginInstalled =
     params.hostStatus?.installed === true
@@ -95,6 +101,7 @@ function buildSnapshot(params: {
     runtimeOnline,
     runtimePhase: params.runtimePhase,
     runtimeDetail: params.runtimeDetail,
+    activeModelId: params.activeModelId ?? null,
     displayLabel: buildDisplayLabel(
       pluginInstalled,
       params.runtimePhase,
@@ -117,6 +124,7 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
       hostLoading: true,
       runtimePhase: "not_installed",
       runtimeDetail: null,
+      activeModelId: null,
     }),
   );
   const devHostProbedRef = useRef(false);
@@ -129,6 +137,7 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
           hostLoading: false,
           runtimePhase: "running",
           runtimeDetail: "mock 模式",
+          activeModelId: null,
         }),
       );
       return;
@@ -162,6 +171,7 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
             hostLoading: false,
             runtimePhase: "downloading",
             runtimeDetail: hostStatus.message,
+            activeModelId: null,
           }),
         );
         return;
@@ -188,6 +198,8 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
           hostLoading: false,
           runtimePhase,
           runtimeDetail,
+          activeModelId:
+            health?.modelId && health.modelId !== "stub" ? health.modelId : null,
         }),
       );
     } catch {
@@ -197,6 +209,7 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
           hostLoading: false,
           runtimePhase: "error",
           runtimeDetail: "检测失败，请点「重新检测」或重启应用",
+          activeModelId: null,
         }),
       );
     }

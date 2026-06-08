@@ -4,7 +4,11 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ActionIcon } from "@/components/chat/ActionIcon";
 import type { ActionMentionItem } from "@/lib/action-mention-items";
-import { formatMentionItemMeta } from "@/lib/action-mention-items";
+import {
+  formatMentionItemMeta,
+  resolveMentionItemIcon,
+} from "@/lib/action-mention-items";
+import { MENTION_GLOBAL_SUBPROGRAM_ICON_CLASS } from "@/lib/global-subprogram-icon";
 import type { PinnedAction } from "@/lib/action-context";
 import { computeMentionMenuLayout } from "@/lib/composer-mention-menu-layout";
 import type { MentionSearchView } from "@/lib/use-action-mention-search";
@@ -152,9 +156,13 @@ export function ComposerMentionMenu({
                   }}
                 >
                   <ActionIcon
-                    spec={item.icon}
+                    spec={resolveMentionItemIcon(item)}
                     title={item.title}
-                    className="action-picker-item-icon"
+                    className={
+                      item.kind === "subprogram"
+                        ? MENTION_GLOBAL_SUBPROGRAM_ICON_CLASS
+                        : "action-picker-item-icon"
+                    }
                   />
                   <span className="action-picker-item-body">
                     <span className="action-picker-item-title-row">

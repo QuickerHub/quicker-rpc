@@ -7,6 +7,7 @@ import {
   closeTab,
   getActiveThread,
   getOpenTabThreads,
+  hydrateStoreThreadMessages,
   selectThread,
 } from "@/lib/chat-store";
 import { plainTitleText } from "@/lib/plain-title-text";
@@ -82,7 +83,9 @@ export function ChatTitlebar({
 
   const handleSelectChat = (threadId: string) => {
     if (threadId === activeThread.id) return;
-    commit(selectThread(store, threadId));
+    let next = selectThread(store, threadId);
+    next = hydrateStoreThreadMessages(next, threadId);
+    commit(next);
   };
 
   const handleNew = () => {

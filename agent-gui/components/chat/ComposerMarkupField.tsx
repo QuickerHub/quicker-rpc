@@ -369,7 +369,12 @@ export const ComposerMarkupField = forwardRef<
   }, [value]);
 
   const handleInput = () => {
-    syncMentionFromCaret();
+    const root = rootRef.current;
+    if (root?.textContent?.includes("@")) {
+      syncMentionFromCaret();
+    } else if (mentionQuery !== null) {
+      closeMention();
+    }
     emitChange();
   };
 

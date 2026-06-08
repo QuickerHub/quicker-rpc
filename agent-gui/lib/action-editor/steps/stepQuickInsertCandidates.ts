@@ -1,5 +1,10 @@
 import type { ActionStep, ActionSubProgram } from "@/lib/action-editor/types/common";
 import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
+import { ActionSubProgramKind } from "@/lib/action-editor/subprograms/subProgramUi";
+import {
+  isGlobalSubProgramIdentifier,
+  resolveGlobalSubProgramIconSpec,
+} from "@/lib/global-subprogram-icon";
 import { formatSubProgramIdentifier } from "./subProgramStepIdentifier";
 import { buildStepFromRunner, type ToolboxDragPayload } from "./toolboxStepFactory";
 
@@ -24,6 +29,9 @@ export type QuickInsertCandidate =
       descriptionHtml?: string;
       searchHaystack: string;
       subProgramIdentifier: string;
+      /** FA / URL icon spec; global links use green cubes default when unset. */
+      icon?: string;
+      isGlobalSubProgram: boolean;
     };
 
 export function buildQuickInsertCandidates(
@@ -75,13 +83,20 @@ export function buildQuickInsertCandidates(
     seenSp.add(key);
     const label = (sp.name ?? "").trim() || ident;
     const desc = (sp.description ?? "").trim();
+    const isGlobal =
+      sp.kind === ActionSubProgramKind.GlobalLink || isGlobalSubProgramIdentifier(ident);
+    const icon = isGlobal
+      ? resolveGlobalSubProgramIconSpec(sp.icon)
+      : (sp.icon ?? "").trim() || undefined;
     out.push({
       kind: "subprogram",
       id: `sp:${sp.id}`,
-      label: `子程序: ${label}`,
+      label: isGlobal ? `公共子程序: ${label}` : `子程序: ${label}`,
       description: desc,
       searchHaystack: `子程序 subprogram ${ident} ${label} ${desc} ${sp.id}`.toLowerCase(),
-      subProgramIdentifier: ident
+      subProgramIdentifier: ident,
+      icon,
+      isGlobalSubProgram: isGlobal,
     });
   }
   return out;

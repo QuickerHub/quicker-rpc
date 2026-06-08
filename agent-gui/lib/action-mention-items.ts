@@ -1,4 +1,5 @@
 import type { MentionKind, PinnedAction } from "@/lib/action-context";
+import { resolveGlobalSubProgramIconSpec } from "@/lib/global-subprogram-icon";
 import { getActionSummaryItems } from "@/lib/agent-api";
 import {
   formatLastEditDisplay,
@@ -148,6 +149,13 @@ export function parseActionMentionItemsFromQkrpcJson(
   }
 
   return ordered.slice(0, maxItems);
+}
+
+export function resolveMentionItemIcon(item: ActionMentionItem): string | undefined {
+  if (item.kind === "subprogram") {
+    return resolveGlobalSubProgramIconSpec(item.icon);
+  }
+  return item.icon?.trim() || undefined;
 }
 
 export function formatMentionItemMeta(item: ActionMentionItem): string | undefined {

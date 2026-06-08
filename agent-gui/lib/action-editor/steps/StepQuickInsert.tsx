@@ -10,6 +10,8 @@ import {
   type JSX
 } from "react";
 import type { ActionSubProgram } from "@/lib/action-editor/types/common";
+import { IconControl } from "../shared/IconControl";
+import { GLOBAL_SUBPROGRAM_ICON_CLASS } from "@/lib/global-subprogram-icon";
 import { createDoubleClickClearFilterHandlers } from "../shared/filterInputDoubleClickClear";
 import type { QuickInsertCandidate } from "./stepQuickInsertCandidates";
 import { fetchStepQuickInsertSearch } from "./stepQuickInsertApi";
@@ -402,21 +404,47 @@ export const StepQuickInsert = forwardRef<StepQuickInsertHandle, StepQuickInsert
                 }}
                 onMouseEnter={() => setHighlightIndex(idx)}
               >
-                {c.labelHtml ? (
-                  <span className="step-quick-insert-option-label" dangerouslySetInnerHTML={{ __html: c.labelHtml }} />
-                ) : (
-                  <span className="step-quick-insert-option-label">{c.label}</span>
-                )}
-                {c.description || c.descriptionHtml ? (
-                  c.descriptionHtml ? (
-                    <span
-                      className="step-quick-insert-option-desc"
-                      dangerouslySetInnerHTML={{ __html: c.descriptionHtml }}
+                <div className="step-quick-insert-option-main">
+                  {c.kind === "runner" && c.payload.icon ? (
+                    <IconControl
+                      className="step-quick-insert-option-icon"
+                      spec={c.payload.icon}
+                      size={16}
+                      resourceBaseUrl={backendBaseUrl}
                     />
-                  ) : (
-                    <span className="step-quick-insert-option-desc">{c.description}</span>
-                  )
-                ) : null}
+                  ) : c.kind === "subprogram" && c.icon ? (
+                    <IconControl
+                      className={
+                        c.isGlobalSubProgram
+                          ? `step-quick-insert-option-icon ${GLOBAL_SUBPROGRAM_ICON_CLASS}`
+                          : "step-quick-insert-option-icon"
+                      }
+                      spec={c.icon}
+                      size={16}
+                      resourceBaseUrl={backendBaseUrl}
+                    />
+                  ) : null}
+                  <div className="step-quick-insert-option-text">
+                    {c.labelHtml ? (
+                      <span
+                        className="step-quick-insert-option-label"
+                        dangerouslySetInnerHTML={{ __html: c.labelHtml }}
+                      />
+                    ) : (
+                      <span className="step-quick-insert-option-label">{c.label}</span>
+                    )}
+                    {c.description || c.descriptionHtml ? (
+                      c.descriptionHtml ? (
+                        <span
+                          className="step-quick-insert-option-desc"
+                          dangerouslySetInnerHTML={{ __html: c.descriptionHtml }}
+                        />
+                      ) : (
+                        <span className="step-quick-insert-option-desc">{c.description}</span>
+                      )
+                    ) : null}
+                  </div>
+                </div>
               </li>
             ))}
             {loadingMore ? (

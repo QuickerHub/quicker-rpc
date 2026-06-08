@@ -1066,6 +1066,26 @@
   color: var(--ad-fg-primary);
 }
 
+.step-quick-insert-option-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.step-quick-insert-option-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.step-quick-insert-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .step-quick-insert-option--active,
 .step-quick-insert-option:hover {
   background: var(--ad-bg-menu-hover);

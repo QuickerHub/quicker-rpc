@@ -5621,6 +5621,80 @@ html.launcher-html--transparent .launcher-shell :is(
   }
 }
 
+.voice-settings-steps {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.voice-settings-step {
+  font-size: 0.78rem;
+  color: var(--muted-foreground, #8a8f98);
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.35rem;
+  border: 1px solid transparent;
+}
+
+.voice-settings-step--active {
+  color: var(--foreground, #e8eaed);
+  border-color: var(--border, #2a2f38);
+  background: color-mix(in srgb, var(--foreground, #fff) 6%, transparent);
+}
+
+.voice-settings-step--done {
+  color: var(--foreground, #c8ccd2);
+}
+
+.voice-settings-step-sep {
+  width: 1.25rem;
+  height: 1px;
+  background: var(--border, #2a2f38);
+  flex-shrink: 0;
+}
+
+.voice-settings-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+  margin-top: 0.5rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border, #2a2f38);
+}
+
+.voice-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.voice-settings-field-label {
+  font-size: 0.82rem;
+  color: var(--muted-foreground, #8a8f98);
+}
+
+.voice-settings-select {
+  width: 100%;
+  max-width: 28rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.45rem;
+  border: 1px solid var(--border, #2a2f38);
+  background: var(--background, #111318);
+  color: inherit;
+  font: inherit;
+}
+
+.voice-settings-field-hint {
+  font-size: 0.78rem;
+  color: var(--muted-foreground, #8a8f98);
+}
+
+.voice-settings-gpu-toggle {
+  margin-top: 0.15rem;
+}
+
 .voice-settings-row {
   align-items: flex-start;
   gap: 0.75rem;
@@ -14550,6 +14624,16 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   width: 1rem;
   height: 1rem;
   margin-top: 0;
+}
+
+/* Global (%%) subprograms in @-mention picker — match action editor green FA icon */
+.action-picker-item-icon--global-subprogram {
+  color: #0f8f22;
+}
+
+.action-picker-item-icon--global-subprogram.action-icon--svg path,
+.action-picker-item-icon--global-subprogram.action-icon--placeholder path {
+  fill: currentColor !important;
 }
 
 .action-picker-item-body {

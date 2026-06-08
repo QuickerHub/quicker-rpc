@@ -3,6 +3,10 @@ import {
   designerHostGrpcPostStepQuickInsertSearchJson,
   designerHostGrpcPostToolboxSearchJson
 } from "../shared/designerHostGrpcApi";
+import {
+  isGlobalSubProgramIdentifier,
+  resolveGlobalSubProgramIconSpec,
+} from "@/lib/global-subprogram-icon";
 import { formatSubProgramIdentifier } from "./subProgramStepIdentifier";
 import type { QuickInsertCandidate } from "./stepQuickInsertCandidates";
 import type { ToolboxDragPayload } from "./toolboxStepFactory";
@@ -35,6 +39,7 @@ type RawSearchItem =
       description?: string;
       descriptionHtml?: string;
       subProgramIdentifier?: string;
+      icon?: string;
     };
 
 export type StepQuickInsertSearchResult = {
@@ -55,6 +60,11 @@ function mapRawItem(raw: RawSearchItem): QuickInsertCandidate | null {
     const labelHtml = typeof raw.labelHtml === "string" && raw.labelHtml.length > 0 ? raw.labelHtml : undefined;
     const descriptionHtml =
       typeof raw.descriptionHtml === "string" && raw.descriptionHtml.length > 0 ? raw.descriptionHtml : undefined;
+    const isGlobal = isGlobalSubProgramIdentifier(subProgramIdentifier);
+    const iconRaw = typeof raw.icon === "string" ? raw.icon.trim() : "";
+    const icon = isGlobal
+      ? resolveGlobalSubProgramIconSpec(iconRaw || undefined)
+      : iconRaw || undefined;
     return {
       kind: "subprogram",
       id,
@@ -63,7 +73,9 @@ function mapRawItem(raw: RawSearchItem): QuickInsertCandidate | null {
       description,
       descriptionHtml,
       searchHaystack: "",
-      subProgramIdentifier
+      subProgramIdentifier,
+      icon,
+      isGlobalSubProgram: isGlobal,
     };
   }
 

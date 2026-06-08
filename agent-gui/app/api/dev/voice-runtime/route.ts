@@ -2,11 +2,27 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+function devOnly() {
+  if (process.env.NODE_ENV === "development") return null;
+  return NextResponse.json({ ok: false, message: "dev only" }, { status: 403 });
+}
+
+/** Dev-only: stop tracked voice runtime. */
+export async function DELETE() {
+  const blocked = devOnly();
+  if (blocked) return blocked;
+
+  const { stopVoiceRuntime, resolveVoicePort } = await import(
+    "@/lib/voice-runtime-lifecycle.mjs"
+  );
+  stopVoiceRuntime(process.cwd());
+  return NextResponse.json({ ok: true, port: resolveVoicePort() });
+}
+
 /** Dev-only: start quicker-voice-runtime on demand (avoids loading ASR model at dev boot). */
 export async function POST() {
-  if (process.env.NODE_ENV !== "development") {
-    return NextResponse.json({ ok: false, message: "dev only" }, { status: 403 });
-  }
+  const blocked = devOnly();
+  if (blocked) return blocked;
 
   const host = process.env.HOSTNAME?.trim() || "127.0.0.1";
   const {

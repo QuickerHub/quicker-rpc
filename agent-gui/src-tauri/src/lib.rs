@@ -31,8 +31,9 @@ static PRODUCTION_UI_READY: AtomicBool = AtomicBool::new(false);
 static EXIT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 const APP_REQUEST_EXIT_EVENT: &str = "app-request-exit";
-const SHUTDOWN_FORCE_EXIT_AFTER: Duration = Duration::from_secs(6);
-const SHUTDOWN_KILL_TIMEOUT: Duration = Duration::from_secs(2);
+const SHUTDOWN_FORCE_EXIT_AFTER: Duration = Duration::from_secs(3);
+const SHUTDOWN_KILL_TIMEOUT: Duration = Duration::from_millis(600);
+const SHUTDOWN_BACKEND_DELAY: Duration = Duration::from_millis(350);
 const QKRPC_SERVE_WATCHDOG_INTERVAL: Duration = Duration::from_millis(2_500);
 const QKRPC_SERVE_RESPAWN_COOLDOWN: Duration = Duration::from_secs(8);
 
@@ -658,7 +659,7 @@ fn run_app_shutdown<R: tauri::Runtime>(app: &AppHandle<R>) {
     app.state::<voice_plugin::VoicePluginState>()
         .inner()
         .shutdown();
-    clipboard_history_plugin::shutdown_clipboard_history(
+    clipboard_history_plugin::shutdown_clipboard_history_fast(
         app.state::<clipboard_history_plugin::ClipboardHistoryPluginState>()
             .inner(),
     );
@@ -691,16 +692,25 @@ fn schedule_force_exit_watchdog<R: tauri::Runtime>(app: AppHandle<R>) {
 
 pub(crate) fn spawn_shutdown_and_exit<R: tauri::Runtime>(app: AppHandle<R>) {
     if EXIT_IN_PROGRESS.swap(true, Ordering::SeqCst) {
+        run_app_shutdown(&app);
         request_app_exit(&app);
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(250));
+            std::process::exit(0);
+        });
         return;
     }
 
     STARTUP_CANCELLED.store(true, Ordering::SeqCst);
     schedule_force_exit_watchdog(app.clone());
 
+    let app_for_backend = app.clone();
     std::thread::spawn(move || {
-        // Exit the shell before killing the bundled Node UI server — otherwise WebView2 can hang.
+        // Let the exit overlay paint, then end the shell before stopping bundled services.
+        std::thread::sleep(Duration::from_millis(60));
         request_app_exit(&app);
+        std::thread::sleep(SHUTDOWN_BACKEND_DELAY);
+        run_app_shutdown(&app_for_backend);
     });
 }
 
@@ -802,6 +812,8 @@ pub fn run() {
             voice_plugin::voice_plugin_install,
             voice_plugin::voice_plugin_start_runtime,
             voice_plugin::voice_plugin_stop_runtime,
+            voice_plugin::voice_plugin_read_settings,
+            voice_plugin::voice_plugin_write_settings,
             clipboard_history_plugin::clipboard_history_plugin_status,
             clipboard_history_plugin::clipboard_history_runtime_health,
             clipboard_history_plugin::clipboard_history_plugin_start_runtime,

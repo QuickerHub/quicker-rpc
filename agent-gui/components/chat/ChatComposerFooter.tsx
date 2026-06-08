@@ -1,0 +1,389 @@
+"use client";
+
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { PinnedAction } from "@/lib/action-context";
+import {
+  canSendComposedMessage,
+  parseUserMessageSegments,
+} from "@/lib/compose-user-message";
+import type { AgentUIMessage } from "@/lib/chat-types";
+import type { AppSettingsTabId } from "@/lib/app-settings-tabs";
+import type { PingState } from "@/lib/use-qkrpc-ping";
+import type { LlmProviderId } from "@/lib/llm-providers";
+import { ModelSelector } from "./ModelSelector";
+import type { ChatMode } from "@/lib/chat-mode";
+import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
+import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
+import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
+import {
+  ComposerMarkupField,
+  type ComposerMarkupFieldHandle,
+} from "./ComposerMarkupField";
+import { ComposerPrimaryActionButton } from "./ComposerPrimaryActionButton";
+import { ComposerShortcutCards } from "./ComposerShortcutCards";
+import { ComposerOnboardingTips } from "./ComposerOnboardingTips";
+import { ComposerTestPromptsPicker } from "./ComposerTestPromptsPicker";
+import { ActionTagSelector } from "./ActionTagSelector";
+import { ToolSelector } from "./ToolSelector";
+import { ChatModeSelector } from "./ChatModeSelector";
+import { ContextUsage } from "./ContextUsage";
+
+export type ChatComposerFooterHandle = {
+  focus: () => void;
+  focusAtEnd: () => void;
+  getValue: () => string;
+  setValue: (text: string) => void;
+  clear: () => void;
+  insertActionTag: (action: PinnedAction) => void;
+  insertMentionTrigger: () => void;
+  insertPlainText: (text: string) => void;
+  beginVoiceStream: () => void;
+  updateVoiceStream: (text: string) => void;
+  endVoiceStream: (finalText?: string) => void;
+  cancelVoiceStream: () => void;
+};
+
+type ChatComposerFooterProps = {
+  visible: boolean;
+  ephemeral: boolean;
+  editAnchorMessageId: string | null;
+  isEmptyThread: boolean;
+  busy: boolean;
+  queueLength: number;
+  settingsOpen: boolean;
+  messages: AgentUIMessage[];
+  ping: PingState;
+  connectTick: number;
+  qkrpcOk: boolean;
+  devExperienceEnabled: boolean;
+  chatMode: ChatMode;
+  enabledTools: string[];
+  llmSelection: string;
+  onChatModeChange: (mode: ChatMode) => void;
+  onEnabledToolsChange: (tools: string[]) => void;
+  onLlmSelectionChange: (selection: string) => void;
+  onToggleSettings: () => void;
+  onOpenSettings: (targetProviderId?: LlmProviderId, tab?: AppSettingsTabId) => void;
+  onSubmit: () => void;
+  onSendTestPrompt: (text: string) => void;
+  onStop: () => void;
+  onExitEdit: () => void;
+  onEditAnchorDraftChange?: (draft: string) => void;
+  voiceInterruptRef?: React.MutableRefObject<(() => void) | null>;
+};
+
+const ChatComposerFooterInner = forwardRef<
+  ChatComposerFooterHandle,
+  ChatComposerFooterProps
+>(function ChatComposerFooterInner(
+  {
+    visible,
+    ephemeral,
+    editAnchorMessageId,
+    isEmptyThread,
+    busy,
+    queueLength,
+    settingsOpen,
+    messages,
+    ping,
+    connectTick,
+    qkrpcOk,
+    devExperienceEnabled,
+    chatMode,
+    enabledTools,
+    llmSelection,
+    onChatModeChange,
+    onEnabledToolsChange,
+    onLlmSelectionChange,
+    onToggleSettings,
+    onOpenSettings,
+    onSubmit,
+    onSendTestPrompt,
+    onStop,
+    onExitEdit,
+    onEditAnchorDraftChange,
+    voiceInterruptRef,
+  },
+  ref,
+) {
+  const composerRef = useRef<ComposerMarkupFieldHandle>(null);
+  const [draftMessage, setDraftMessage] = useState("");
+
+  const handleDraftChange = useCallback(
+    (next: string) => {
+      setDraftMessage(next);
+      if (editAnchorMessageId) {
+        onEditAnchorDraftChange?.(next);
+      }
+    },
+    [editAnchorMessageId, onEditAnchorDraftChange],
+  );
+
+  const draftTagIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const segment of parseUserMessageSegments(draftMessage)) {
+      if (segment.type === "tag") ids.add(segment.action.id);
+    }
+    return ids;
+  }, [draftMessage]);
+
+  const canSend = canSendComposedMessage(draftMessage);
+
+  const voiceInput = useVoiceInput({
+    enabled: visible && !ephemeral,
+    onStreamBegin: () => {
+      composerRef.current?.beginVoiceStream();
+    },
+    onStreamUpdate: (text) => {
+      composerRef.current?.updateVoiceStream(text);
+    },
+    onStreamEnd: (finalText) => {
+      composerRef.current?.endVoiceStream(finalText);
+    },
+    onStreamInterrupt: () => {
+      composerRef.current?.endVoiceStream();
+    },
+    onStreamCancel: () => {
+      composerRef.current?.cancelVoiceStream();
+    },
+  });
+
+  useEffect(() => {
+    if (!voiceInterruptRef) return;
+    voiceInterruptRef.current = voiceInput.interruptVoiceInput;
+  }, [voiceInput.interruptVoiceInput, voiceInterruptRef]);
+
+  const handleVoiceSetup = useCallback(() => {
+    void requestVoicePluginSetup();
+  }, []);
+
+  useComposerVoiceToggleShortcut({
+    enabled: !editAnchorMessageId,
+    phase: voiceInput.phase,
+    canUse: voiceInput.canUse,
+    pluginStatus: voiceInput.pluginStatus,
+    onStart: voiceInput.startVoiceInput,
+    onStop: voiceInput.stopVoiceInput,
+    onUnavailable: handleVoiceSetup,
+  });
+
+  const insertDraftActionTag = useCallback((action: PinnedAction) => {
+    composerRef.current?.insertActionTag(action);
+    requestAnimationFrame(() => composerRef.current?.focus());
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    voiceInput.interruptVoiceInput();
+    onSubmit();
+  }, [onSubmit, voiceInput.interruptVoiceInput]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => composerRef.current?.focus(),
+      focusAtEnd: () => composerRef.current?.focusAtEnd(),
+      getValue: () => composerRef.current?.getValue() ?? draftMessage,
+      setValue: (text: string) => {
+        setDraftMessage(text);
+        if (editAnchorMessageId) {
+          onEditAnchorDraftChange?.(text);
+        }
+        requestAnimationFrame(() => composerRef.current?.focusAtEnd());
+      },
+      clear: () => {
+        setDraftMessage("");
+        if (editAnchorMessageId) {
+          onEditAnchorDraftChange?.("");
+        }
+      },
+      insertActionTag: (action: PinnedAction) => {
+        composerRef.current?.insertActionTag(action);
+      },
+      insertMentionTrigger: () => {
+        composerRef.current?.insertMentionTrigger();
+      },
+      insertPlainText: (text: string) => {
+        composerRef.current?.insertPlainText(text);
+      },
+      beginVoiceStream: () => {
+        composerRef.current?.beginVoiceStream();
+      },
+      updateVoiceStream: (text: string) => {
+        composerRef.current?.updateVoiceStream(text);
+      },
+      endVoiceStream: (finalText?: string) => {
+        composerRef.current?.endVoiceStream(finalText);
+      },
+      cancelVoiceStream: () => {
+        composerRef.current?.cancelVoiceStream();
+      },
+    }),
+    [draftMessage, editAnchorMessageId, onEditAnchorDraftChange],
+  );
+
+  return (
+    <footer
+      className={`composer${editAnchorMessageId ? " composer--branch-edit" : ""}`}
+    >
+      {editAnchorMessageId ? (
+        <div className="composer-edit-banner" role="status">
+          <span className="composer-edit-banner-text">
+            正在编辑较早的消息；在下方输入框修改，Enter 发送并从此处继续
+          </span>
+          <button
+            type="button"
+            className="composer-edit-banner-cancel"
+            onClick={onExitEdit}
+          >
+            完成
+          </button>
+        </div>
+      ) : null}
+      {isEmptyThread && !editAnchorMessageId ? (
+        <ComposerOnboardingTips
+          disabled={busy}
+          onOpenSettings={onOpenSettings}
+          onTryMention={() => composerRef.current?.insertMentionTrigger()}
+          onFocusComposer={() => composerRef.current?.focus()}
+        />
+      ) : null}
+      <ComposerShortcutCards
+        settingsOpen={settingsOpen}
+        onToggleSettings={onToggleSettings}
+        disabled={busy}
+      />
+      <form
+        className="composer-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSubmit();
+        }}
+      >
+        <div className="composer-box">
+          <div className="composer-surface">
+            <ComposerMarkupField
+              ref={composerRef}
+              value={draftMessage}
+              placeholder={
+                editAnchorMessageId
+                  ? "修改后 Enter 发送，将从此消息处重新对话…（@ 引用动作）"
+                  : queueLength > 0
+                    ? `Agent 完成后将发送已排队的 ${queueLength} 条消息…`
+                    : "描述你想在 Quicker 里做的事…（@ 引用动作）"
+              }
+              onChange={handleDraftChange}
+              onSubmit={handleSubmit}
+              onUserEdit={voiceInput.interruptVoiceInput}
+            />
+            <div className="composer-toolbar">
+              <div className="composer-toolbar-left">
+                <ActionTagSelector
+                  ping={ping}
+                  refreshKey={connectTick}
+                  tagCount={draftTagIds.size}
+                  embeddedTagIds={draftTagIds}
+                  onSelect={insertDraftActionTag}
+                />
+                {!ephemeral ? (
+                  <ChatModeSelector
+                    mode={chatMode}
+                    onChange={onChatModeChange}
+                  />
+                ) : null}
+                {devExperienceEnabled ? (
+                  <ToolSelector
+                    enabledTools={enabledTools}
+                    onChange={onEnabledToolsChange}
+                  />
+                ) : null}
+                {devExperienceEnabled ? (
+                  <ComposerTestPromptsPicker
+                    disabled={!qkrpcOk}
+                    onSendPrompt={onSendTestPrompt}
+                  />
+                ) : null}
+                <ModelSelector
+                  selection={llmSelection}
+                  onChange={onLlmSelectionChange}
+                  onNeedSettings={(providerId) =>
+                    onOpenSettings(providerId, "models")}
+                />
+                {voiceInput.errorHint ? (
+                  <span className="composer-hint" role="status">
+                    <span className="composer-voice-hint composer-voice-hint--err">
+                      {voiceInput.errorHint}
+                    </span>
+                  </span>
+                ) : voiceInput.statusHint ? (
+                  <span className="composer-hint" role="status">
+                    <span className="composer-voice-hint">
+                      {voiceInput.statusHint}
+                    </span>
+                  </span>
+                ) : editAnchorMessageId ? (
+                  <span className="composer-hint">Enter 发送并分支</span>
+                ) : queueLength > 0 ? (
+                  <span className="composer-hint">{`已排队 ${queueLength} 条`}</span>
+                ) : null}
+              </div>
+              <div className="composer-toolbar-actions">
+                {!isEmptyThread ? (
+                  <ContextUsage
+                    messages={messages}
+                    busy={busy}
+                    selection={llmSelection}
+                  />
+                ) : null}
+                {busy ? (
+                  <button
+                    type="button"
+                    className="composer-btn composer-btn--stop"
+                    onClick={onStop}
+                    aria-label="停止生成"
+                    title={queueLength > 0 ? "停止并清空排队" : "停止生成"}
+                  >
+                    <svg
+                      className="composer-stop-icon"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 16 16"
+                      aria-hidden
+                    >
+                      <path
+                        fill="currentColor"
+                        fillRule="evenodd"
+                        clipRule="evenodd"
+                        d="M8 1.35a6.65 6.65 0 1 1 0 13.3 6.65 6.65 0 1 1 0-13.3ZM5.75 5.75h4.5v4.5h-4.5V5.75Z"
+                      />
+                    </svg>
+                  </button>
+                ) : null}
+                <ComposerPrimaryActionButton
+                  canSend={canSend}
+                  agentBusy={busy}
+                  phase={voiceInput.phase}
+                  pluginStatus={voiceInput.pluginStatus}
+                  canUseVoice={voiceInput.canUse}
+                  onVoiceStart={voiceInput.startVoiceInput}
+                  onVoiceStop={voiceInput.stopVoiceInput}
+                  onVoiceSetup={handleVoiceSetup}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </footer>
+  );
+});
+
+export const ChatComposerFooter = memo(ChatComposerFooterInner);

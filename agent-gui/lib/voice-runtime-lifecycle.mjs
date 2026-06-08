@@ -6,11 +6,122 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { isProcessAlive, killProcessTree } from "./qkrpc-serve-lifecycle.mjs";
 
 const STATE_FILE = "voice-runtime.json";
 const DEFAULT_VOICE_PORT = 6016;
+
+/** @returns {string} */
+function resolveVoicePluginRoot() {
+  if (process.platform === "win32") {
+    const local = process.env.LOCALAPPDATA?.trim();
+    if (local) return join(local, "QuickerAgent", "plugins", "voice-asr");
+  }
+  if (process.platform === "darwin") {
+    return join(
+      homedir(),
+      "Library",
+      "Application Support",
+      "QuickerAgent",
+      "plugins",
+      "voice-asr",
+    );
+  }
+  const xdg = process.env.XDG_DATA_HOME?.trim();
+  const base = xdg ? xdg : join(homedir(), ".local", "share");
+  return join(base, "QuickerAgent", "plugins", "voice-asr");
+}
+
+/** @returns {{ modelId: string, gpuAcceleration: boolean }} */
+function readVoicePluginSettings() {
+  const defaults = { modelId: "standard", gpuAcceleration: false };
+  const path = join(resolveVoicePluginRoot(), "settings.json");
+  if (!existsSync(path)) return defaults;
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8"));
+    return {
+      modelId: typeof raw.modelId === "string" ? raw.modelId : defaults.modelId,
+      gpuAcceleration: raw.gpuAcceleration === true,
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+/** @param {string} modelId */
+function modelSubdirForId(modelId) {
+  const id = String(modelId).trim().toLowerCase();
+  if (id === "lightweight" || id === "paraformer" || id === "paraformer-zh") {
+    return "paraformer-zh";
+  }
+  return "sensevoice";
+}
+
+/** @param {string} modelId */
+function modelTypeForId(modelId) {
+  const id = String(modelId).trim().toLowerCase();
+  if (id === "lightweight" || id === "paraformer" || id === "paraformer-zh") {
+    return "paraformer";
+  }
+  return "sensevoice";
+}
+
+/** @param {boolean} gpuAcceleration */
+function executionProviderForSettings(gpuAcceleration) {
+  if (!gpuAcceleration) return "cpu";
+  if (process.platform === "win32") return "directml";
+  if (process.platform === "darwin") return "coreml";
+  return "cuda";
+}
+
+/** @param {string} pluginRoot @param {{ modelId: string }} settings */
+function resolveVoiceModelDir(pluginRoot, settings) {
+  const preferred = join(
+    pluginRoot,
+    "models",
+    modelSubdirForId(settings.modelId),
+  );
+  if (
+    existsSync(join(preferred, "tokens.txt"))
+    && (existsSync(join(preferred, "model.int8.onnx"))
+      || existsSync(join(preferred, "model.onnx")))
+  ) {
+    return preferred;
+  }
+  for (const subdir of ["sensevoice", "paraformer-zh"]) {
+    const dir = join(pluginRoot, "models", subdir);
+    if (
+      existsSync(join(dir, "tokens.txt"))
+      && (existsSync(join(dir, "model.int8.onnx"))
+        || existsSync(join(dir, "model.onnx")))
+    ) {
+      return dir;
+    }
+  }
+  return null;
+}
+
+/** @returns {Record<string, string>} */
+function voiceRuntimeSpawnEnv() {
+  const pluginRoot = resolveVoicePluginRoot();
+  const settings = readVoicePluginSettings();
+  /** @type {Record<string, string>} */
+  const env = {
+    ...process.env,
+    QUICKER_VOICE_PLUGIN_ROOT: pluginRoot,
+    QUICKER_VOICE_PROVIDER: executionProviderForSettings(settings.gpuAcceleration),
+    QUICKER_VOICE_NUM_THREADS: "4",
+    QUICKER_VOICE_AUTO_DOWNLOAD_MODEL: "0",
+  };
+  const modelDir = resolveVoiceModelDir(pluginRoot, settings);
+  if (modelDir) {
+    env.QUICKER_VOICE_MODEL_DIR = modelDir;
+    env.QUICKER_VOICE_MODEL_TYPE = modelTypeForId(settings.modelId);
+  }
+  return env;
+}
 
 /** @typedef {{ pid: number; port?: number; ownerPid: number; startedAt: number }} VoiceRuntimeState */
 
@@ -250,6 +361,16 @@ export function stopTrackedVoiceRuntime(agentGuiRoot, child) {
   clearVoiceRuntimeState(agentGuiRoot);
 }
 
+/** Stop dev voice runtime (tracked child + port listener). */
+export function stopVoiceRuntime(agentGuiRoot) {
+  const state = readVoiceRuntimeState(agentGuiRoot);
+  if (state?.pid) {
+    killProcessTree(state.pid);
+  }
+  clearVoiceRuntimeState(agentGuiRoot);
+  killListenerOnPort(resolveVoicePort());
+}
+
 /**
  * Dev-only: ensure quicker-voice-runtime is listening (reuse or spawn via uv).
  * @param {string} agentGuiRoot
@@ -296,11 +417,11 @@ export async function ensureVoiceRuntime(agentGuiRoot, host) {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
       env: {
-        ...process.env,
+        ...voiceRuntimeSpawnEnv(),
         QUICKER_VOICE_HOST: host,
         QUICKER_VOICE_PORT: String(port),
         QUICKER_VOICE_AUTO_DOWNLOAD_MODEL:
-          process.env.QUICKER_VOICE_AUTO_DOWNLOAD_MODEL ?? "1",
+          process.env.QUICKER_VOICE_AUTO_DOWNLOAD_MODEL ?? "0",
       },
     },
   );

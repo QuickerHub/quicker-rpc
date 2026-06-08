@@ -57,7 +57,7 @@ export function QuickerAgentExitOverlay() {
         <div className="app-update-overlay-body">
           <section className="app-update-overlay-section">
             <h3 className="app-update-overlay-section-title">请稍候</h3>
-            <ExitSpinner message={message || "正在关闭后台服务…"} />
+            <ExitSpinner message={message || "正在退出…"} />
           </section>
         </div>
       </div>

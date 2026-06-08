@@ -30,7 +30,7 @@ pub struct VoiceInstallProgressEvent {
 }
 
 const MANIFEST_JSON: &str = include_str!("../resources/voice-plugin-manifest.json");
-const DEFAULT_SETTINGS_JSON: &str = r#"{"autoStart":true,"modelId":"standard","language":"zh-CN","silentStopSeconds":0,"streamingPreview":false,"maxRecordingSeconds":120,"wsPort":6016}"#;
+const DEFAULT_SETTINGS_JSON: &str = r#"{"autoStart":true,"modelId":"standard","gpuAcceleration":false,"language":"zh-CN","silentStopSeconds":0,"streamingPreview":false,"maxRecordingSeconds":120,"wsPort":6016}"#;
 
 const MODEL_SUBDIR: &str = "sensevoice";
 

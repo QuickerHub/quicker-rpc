@@ -29,7 +29,7 @@ const MANIFEST_PATH = join(
   "src-tauri/resources/voice-plugin-manifest.json",
 );
 const SETTINGS_JSON =
-  '{"autoStart":true,"modelId":"standard","language":"zh-CN","silentStopSeconds":0,"streamingPreview":false,"maxRecordingSeconds":120,"wsPort":6016}';
+  '{"autoStart":true,"modelId":"standard","gpuAcceleration":false,"language":"zh-CN","silentStopSeconds":0,"streamingPreview":false,"maxRecordingSeconds":120,"wsPort":6016}';
 const CHANNEL_PATH = join(
   process.cwd(),
   "src-tauri/resources/voice-plugin-channel.json",
@@ -589,4 +589,124 @@ export function startDevVoicePluginInstall(
 
 export function clearDevVoicePluginInstallError(): void {
   installError = null;
+}
+
+const PARAFORMER_SUBDIR = "paraformer-zh";
+
+export type VoicePluginSettingsFile = {
+  autoStart: boolean;
+  modelId: string;
+  gpuAcceleration: boolean;
+  language: string;
+  silentStopSeconds: number;
+  streamingPreview: boolean;
+  maxRecordingSeconds: number;
+  wsPort: number;
+};
+
+function voiceSettingsPath(): string {
+  return join(voicePluginRoot(), "settings.json");
+}
+
+export function readVoicePluginSettingsFile(): VoicePluginSettingsFile {
+  const path = voiceSettingsPath();
+  if (!existsSync(path)) {
+    return JSON.parse(SETTINGS_JSON) as VoicePluginSettingsFile;
+  }
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8")) as Partial<VoicePluginSettingsFile>;
+    return {
+      ...(JSON.parse(SETTINGS_JSON) as VoicePluginSettingsFile),
+      ...raw,
+      gpuAcceleration: raw.gpuAcceleration === true,
+    };
+  } catch {
+    return JSON.parse(SETTINGS_JSON) as VoicePluginSettingsFile;
+  }
+}
+
+export function writeVoicePluginSettingsFile(
+  settings: VoicePluginSettingsFile,
+): void {
+  const path = voiceSettingsPath();
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+}
+
+function onnxModelReady(dir: string): boolean {
+  return (
+    existsSync(join(dir, "tokens.txt"))
+    && (existsSync(join(dir, "model.int8.onnx"))
+      || existsSync(join(dir, "model.onnx")))
+  );
+}
+
+export function isVoiceModelInstalled(
+  modelId: "standard" | "lightweight",
+): boolean {
+  const root = voicePluginRoot();
+  const subdir = modelId === "lightweight" ? PARAFORMER_SUBDIR : MODEL_SUBDIR;
+  if (modelId === "standard") {
+    return modelReady(root) || onnxModelReady(join(root, "models", subdir));
+  }
+  return onnxModelReady(join(root, "models", subdir));
+}
+
+let modelDownloadInFlight = false;
+let modelDownloadError: string | null = null;
+
+export function getVoiceModelDownloadState(): {
+  inFlight: boolean;
+  error: string | null;
+} {
+  return { inFlight: modelDownloadInFlight, error: modelDownloadError };
+}
+
+export async function downloadVoiceAsrModel(
+  preset: "sensevoice" | "paraformer",
+): Promise<void> {
+  if (modelDownloadInFlight) {
+    throw new Error("模型正在下载中，请稍候");
+  }
+  const runtimeProject = join(repoRoot(), "voice-asr-runtime");
+  if (!existsSync(join(runtimeProject, "pyproject.toml"))) {
+    throw new Error("未找到 voice-asr-runtime 项目目录");
+  }
+
+  modelDownloadInFlight = true;
+  modelDownloadError = null;
+  const pluginRoot = voicePluginRoot();
+  mkdirSync(pluginRoot, { recursive: true });
+
+  try {
+    await execFileAsync(
+      "uv",
+      [
+        "run",
+        "--directory",
+        runtimeProject,
+        "python",
+        "-c",
+        [
+          "from pathlib import Path",
+          "from quicker_voice_runtime.download_model import ensure_asr_model",
+          `ensure_asr_model(root=Path(${JSON.stringify(pluginRoot)}), preset=${JSON.stringify(preset)})`,
+        ].join("; "),
+      ],
+      {
+        env: {
+          ...process.env,
+          QUICKER_VOICE_PLUGIN_ROOT: pluginRoot,
+          QUICKER_VOICE_ASR_MODEL: preset,
+        },
+        maxBuffer: 16 * 1024 * 1024,
+      },
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    modelDownloadError = message;
+    throw new Error(message);
+  } finally {
+    modelDownloadInFlight = false;
+  }
 }

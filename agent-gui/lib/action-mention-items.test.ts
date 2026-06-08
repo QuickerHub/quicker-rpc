@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   formatMentionItemMeta,
   parseActionMentionItemsFromQkrpcJson,
+  resolveMentionItemIcon,
 } from "@/lib/action-mention-items";
 
 describe("action-mention-items", () => {
@@ -49,6 +50,26 @@ describe("action-mention-items", () => {
 
     assert.equal(items[0]?.title, "A");
     assert.equal(items[1]?.title, "B");
+  });
+
+  it("resolveMentionItemIcon defaults subprograms to Solid_Cubes FA glyph", () => {
+    assert.equal(
+      resolveMentionItemIcon({ kind: "subprogram", id: "s1", title: "Run" }),
+      "fa:Solid_Cubes",
+    );
+    assert.equal(
+      resolveMentionItemIcon({
+        kind: "subprogram",
+        id: "s1",
+        title: "Run",
+        icon: "fa:Light_Code",
+      }),
+      "fa:Light_Code",
+    );
+    assert.equal(
+      resolveMentionItemIcon({ kind: "action", id: "a1", title: "A" }),
+      undefined,
+    );
   });
 
   it("formats subprogram meta with call identifier", () => {

@@ -133,6 +133,21 @@ fn voice_health_url(port: u16) -> String {
     format!("http://{DEFAULT_VOICE_WS_HOST}:{port}/health")
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoicePluginSettingsDto {
+    pub auto_start: bool,
+    pub model_id: String,
+    pub gpu_acceleration: bool,
+    pub language: String,
+    pub silent_stop_seconds: u32,
+    pub streaming_preview: bool,
+    pub max_recording_seconds: u32,
+    pub ws_port: u16,
+}
+
+const DEFAULT_VOICE_SETTINGS_JSON: &str = r#"{"autoStart":true,"modelId":"standard","gpuAcceleration":false,"language":"zh-CN","silentStopSeconds":0,"streamingPreview":false,"maxRecordingSeconds":120,"wsPort":6016}"#;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceRuntimeHealthDto {
@@ -142,6 +157,7 @@ pub struct VoiceRuntimeHealthDto {
     pub model_id: Option<String>,
     pub model_loaded: bool,
     pub ready: bool,
+    pub execution_provider: Option<String>,
 }
 
 fn fetch_voice_runtime_health(port: u16) -> VoiceRuntimeHealthDto {
@@ -151,44 +167,16 @@ fn fetch_voice_runtime_health(port: u16) -> VoiceRuntimeHealthDto {
         .timeout(Duration::from_secs(3))
         .build()
     else {
-        return VoiceRuntimeHealthDto {
-            ok: false,
-            protocol_version: 1,
-            runtime_version: None,
-            model_id: None,
-            model_loaded: false,
-            ready: false,
-        };
+        return empty_voice_runtime_health();
     };
     let Ok(resp) = client.get(&url).send() else {
-        return VoiceRuntimeHealthDto {
-            ok: false,
-            protocol_version: 1,
-            runtime_version: None,
-            model_id: None,
-            model_loaded: false,
-            ready: false,
-        };
+        return empty_voice_runtime_health();
     };
     if !resp.status().is_success() {
-        return VoiceRuntimeHealthDto {
-            ok: false,
-            protocol_version: 1,
-            runtime_version: None,
-            model_id: None,
-            model_loaded: false,
-            ready: false,
-        };
+        return empty_voice_runtime_health();
     }
     let Ok(body) = resp.json::<serde_json::Value>() else {
-        return VoiceRuntimeHealthDto {
-            ok: false,
-            protocol_version: 1,
-            runtime_version: None,
-            model_id: None,
-            model_loaded: false,
-            ready: false,
-        };
+        return empty_voice_runtime_health();
     };
     VoiceRuntimeHealthDto {
         ok: body.get("ok").and_then(|v| v.as_bool()) == Some(true),
@@ -206,6 +194,22 @@ fn fetch_voice_runtime_health(port: u16) -> VoiceRuntimeHealthDto {
             .map(str::to_string),
         model_loaded: body.get("modelLoaded").and_then(|v| v.as_bool()) == Some(true),
         ready: body.get("ready").and_then(|v| v.as_bool()) == Some(true),
+        execution_provider: body
+            .get("executionProvider")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+    }
+}
+
+fn empty_voice_runtime_health() -> VoiceRuntimeHealthDto {
+    VoiceRuntimeHealthDto {
+        ok: false,
+        protocol_version: 1,
+        runtime_version: None,
+        model_id: None,
+        model_loaded: false,
+        ready: false,
+        execution_provider: None,
     }
 }
 
@@ -228,13 +232,124 @@ pub fn voice_runtime_health() -> VoiceRuntimeHealthDto {
     fetch_voice_runtime_health(voice_ws_port())
 }
 
-fn resolve_voice_model_dir(root: &Path) -> Option<PathBuf> {
-    let sensevoice = root.join("models").join("sensevoice");
-    if model_ready_at(root) {
-        Some(sensevoice)
-    } else {
-        None
+fn voice_settings_path() -> PathBuf {
+    voice_plugin_root().join("settings.json")
+}
+
+fn default_voice_settings() -> VoicePluginSettingsDto {
+    serde_json::from_str(DEFAULT_VOICE_SETTINGS_JSON)
+        .unwrap_or(VoicePluginSettingsDto {
+            auto_start: true,
+            model_id: "standard".into(),
+            gpu_acceleration: false,
+            language: "zh-CN".into(),
+            silent_stop_seconds: 0,
+            streaming_preview: false,
+            max_recording_seconds: 120,
+            ws_port: DEFAULT_VOICE_WS_PORT,
+        })
+}
+
+pub fn read_voice_settings() -> VoicePluginSettingsDto {
+    let path = voice_settings_path();
+    if !path.is_file() {
+        return default_voice_settings();
     }
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+        return default_voice_settings();
+    };
+    let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return default_voice_settings();
+    };
+    if value.get("gpuAcceleration").is_none() {
+        value["gpuAcceleration"] = serde_json::Value::Bool(false);
+    }
+    serde_json::from_value(value).unwrap_or_else(|_| default_voice_settings())
+}
+
+fn write_voice_settings_file(settings: &VoicePluginSettingsDto) -> Result<(), String> {
+    let path = voice_settings_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("无法创建语音设置目录：{e}"))?;
+    }
+    let raw = serde_json::to_string_pretty(settings)
+        .map_err(|e| format!("序列化语音设置失败：{e}"))?;
+    std::fs::write(&path, format!("{raw}\n"))
+        .map_err(|e| format!("写入语音设置失败：{e}"))
+}
+
+fn model_subdir_for_id(model_id: &str) -> &'static str {
+    match model_id.trim().to_ascii_lowercase().as_str() {
+        "lightweight" | "paraformer" | "paraformer-zh" => "paraformer-zh",
+        _ => "sensevoice",
+    }
+}
+
+fn model_type_for_id(model_id: &str) -> &'static str {
+    match model_id.trim().to_ascii_lowercase().as_str() {
+        "lightweight" | "paraformer" | "paraformer-zh" => "paraformer",
+        _ => "sensevoice",
+    }
+}
+
+fn model_ready_at_dir(dir: &Path) -> bool {
+    dir.join("tokens.txt").is_file()
+        && (dir.join("model.int8.onnx").is_file() || dir.join("model.onnx").is_file())
+}
+
+fn resolve_voice_model_dir(root: &Path) -> Option<PathBuf> {
+    let settings = read_voice_settings();
+    let preferred = root
+        .join("models")
+        .join(model_subdir_for_id(&settings.model_id));
+    if model_ready_at_dir(&preferred) {
+        return Some(preferred);
+    }
+    let sensevoice = root.join("models").join("sensevoice");
+    if model_ready_at_dir(&sensevoice) {
+        return Some(sensevoice);
+    }
+    let paraformer = root.join("models").join("paraformer-zh");
+    if model_ready_at_dir(&paraformer) {
+        return Some(paraformer);
+    }
+    None
+}
+
+fn resolve_voice_execution_provider(gpu_acceleration: bool) -> &'static str {
+    if !gpu_acceleration {
+        return "cpu";
+    }
+    #[cfg(windows)]
+    {
+        "directml"
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "coreml"
+    }
+    #[cfg(all(not(windows), not(target_os = "macos")))]
+    {
+        "cuda"
+    }
+}
+
+fn apply_voice_runtime_env(cmd: &mut Command, root: &Path) {
+    let settings = read_voice_settings();
+    if let Some(model_dir) = resolve_voice_model_dir(root) {
+        cmd.env("QUICKER_VOICE_MODEL_DIR", &model_dir);
+        cmd.env(
+            "QUICKER_VOICE_MODEL_TYPE",
+            model_type_for_id(&settings.model_id),
+        );
+        cmd.env("QUICKER_VOICE_AUTO_DOWNLOAD_MODEL", "0");
+    }
+    cmd.env(
+        "QUICKER_VOICE_PROVIDER",
+        resolve_voice_execution_provider(settings.gpu_acceleration),
+    );
+    cmd.env("QUICKER_VOICE_NUM_THREADS", "4");
 }
 
 fn wait_voice_runtime_ready(port: u16, max_ms: u64) -> Result<(), String> {
@@ -324,11 +439,7 @@ fn spawn_installed_runtime_ws(root: &Path, exe_rel: &str, port: u16) -> Result<C
     let mut cmd = Command::new(&exe);
     cmd.args(["--host", DEFAULT_VOICE_WS_HOST, "--port", &port.to_string()])
         .current_dir(root);
-    if let Some(model_dir) = resolve_voice_model_dir(root) {
-        cmd.env("QUICKER_VOICE_MODEL_DIR", &model_dir);
-        cmd.env("QUICKER_VOICE_MODEL_TYPE", "sensevoice");
-        cmd.env("QUICKER_VOICE_AUTO_DOWNLOAD_MODEL", "0");
-    }
+    apply_voice_runtime_env(&mut cmd, root);
     cmd.env("QUICKER_VOICE_HOST", DEFAULT_VOICE_WS_HOST);
     cmd.env("QUICKER_VOICE_PORT", port.to_string());
     configure_hidden_child(&mut cmd);
@@ -359,6 +470,7 @@ fn spawn_dev_runtime_ws(dev_dir: &Path, port: u16) -> Result<Child, String> {
         .current_dir(dev_dir)
         .env("QUICKER_VOICE_HOST", DEFAULT_VOICE_WS_HOST)
         .env("QUICKER_VOICE_PORT", port.to_string());
+    apply_voice_runtime_env(&mut uv_cmd, dev_dir);
     configure_hidden_child(&mut uv_cmd);
     if let Ok(child) = uv_cmd.spawn() {
         return Ok(child);
@@ -378,6 +490,7 @@ fn spawn_dev_runtime_ws(dev_dir: &Path, port: u16) -> Result<Child, String> {
             .current_dir(dev_dir)
             .env("QUICKER_VOICE_HOST", DEFAULT_VOICE_WS_HOST)
             .env("QUICKER_VOICE_PORT", port.to_string());
+        apply_voice_runtime_env(&mut py_cmd, dev_dir);
         configure_hidden_child(&mut py_cmd);
         if let Ok(child) = py_cmd.spawn() {
             return Ok(child);
@@ -429,9 +542,7 @@ fn ws_status_from_child(
 }
 
 fn model_ready_at(root: &Path) -> bool {
-    let dir = root.join("models").join("sensevoice");
-    dir.join("tokens.txt").is_file()
-        && (dir.join("model.int8.onnx").is_file() || dir.join("model.onnx").is_file())
+    resolve_voice_model_dir(root).is_some()
 }
 
 fn build_status(state: &VoicePluginState) -> VoicePluginStatusDto {
@@ -667,6 +778,28 @@ pub fn voice_plugin_install(
         return dto;
     }
     voice_plugin_start_runtime(app, state)
+}
+
+#[tauri::command]
+pub fn voice_plugin_read_settings() -> VoicePluginSettingsDto {
+    read_voice_settings()
+}
+
+#[tauri::command]
+pub fn voice_plugin_write_settings(
+    app: AppHandle,
+    state: State<'_, VoicePluginState>,
+    settings: VoicePluginSettingsDto,
+) -> Result<VoicePluginSettingsDto, String> {
+    write_voice_settings_file(&settings)?;
+    let was_running = build_status(state.inner()).running;
+    if was_running {
+        state.inner().shutdown();
+        reclaim_voice_port(voice_ws_port());
+        let _ = start_runtime_inner(state.inner());
+    }
+    let _ = app;
+    Ok(settings)
 }
 
 #[tauri::command]

@@ -13,11 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { PinnedAction } from "@/lib/action-context";
-import {
-  canSendComposedMessage,
-  parseUserMessageSegments,
-} from "@/lib/compose-user-message";
+import { canSendComposedMessage } from "@/lib/compose-user-message";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import {
   getToolMeta,
@@ -43,6 +39,7 @@ import {
   getActiveThread,
   getOpenTabThreads,
   openThread,
+  hydrateStoreThreadMessages,
   updateThreadMessages,
   updateThreadTitle,
 } from "@/lib/chat-store";
@@ -93,22 +90,15 @@ import {
   useChatStore,
   useIsChatStoreHydrated,
 } from "@/lib/use-chat-store";
-import { ContextUsage } from "./ContextUsage";
 import {
-  ComposerMarkupField,
-  type ComposerMarkupFieldHandle,
-} from "./ComposerMarkupField";
-import { ComposerPrimaryActionButton } from "./ComposerPrimaryActionButton";
-import { LastMessageMoreMenu } from "./LastMessageMoreMenu";
-import { MessageParts } from "./MessageParts";
+  ChatComposerFooter,
+  type ChatComposerFooterHandle,
+} from "./ChatComposerFooter";
+import { ChatMessageArticle } from "./ChatMessageArticle";
 import { TurnActionLinkCard } from "./TurnActionLinkCard";
-import { ActionTagSelector } from "./ActionTagSelector";
-import { ToolSelector } from "./ToolSelector";
-import { ChatModeSelector } from "./ChatModeSelector";
 import {
   fetchLlmOptions,
   hasConfiguredLlmOption,
-  ModelSelector,
   pickInitialLauncherLlmSelectionFromApi,
   pickInitialLlmSelectionFromApi,
 } from "./ModelSelector";
@@ -128,8 +118,6 @@ import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
 import { CollapsedTurnSummary } from "@/components/chat/CollapsedTurnSummary";
 import { isHotTurnIndex, turnIndicesPrepended } from "@/lib/chat-message-window";
-import { ComposerShortcutCards } from "@/components/chat/ComposerShortcutCards";
-import { ComposerOnboardingTips } from "@/components/chat/ComposerOnboardingTips";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
 import { useChatMessageWindow } from "@/lib/use-chat-message-window";
 import { findUserTurnStartIndices } from "@/lib/last-user-turn-index";
@@ -137,13 +125,8 @@ import { useForwardWheelToMessages } from "@/lib/use-forward-wheel-to-messages";
 import { useMessagesScrollportHeight } from "@/lib/use-messages-scrollport-height";
 import { useAutoExpandColdTurns } from "@/lib/use-auto-expand-cold-turns";
 import { useMsgTurnStickyActive } from "@/lib/use-msg-turn-sticky-active";
-import { UserMessageComposerChrome } from "./UserMessageComposerChrome";
 import { useThreadTitleFromTool } from "@/lib/use-thread-title-from-tool";
 import { useComposerMessageQueue } from "@/lib/use-composer-message-queue";
-import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
-import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
-import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
-import { ComposerTestPromptsPicker } from "@/components/chat/ComposerTestPromptsPicker";
 import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 import {
   CHAT_MODE_AGENT,
@@ -241,7 +224,7 @@ function ChatPanel({
   onPersist,
   onAutoTitle,
 }: ChatPanelProps) {
-  const [draftMessage, setDraftMessage] = useState("");
+  const [editAnchorLiveDraft, setEditAnchorLiveDraft] = useState("");
   const [editAnchorMessageId, setEditAnchorMessageId] = useState<string | null>(
     null,
   );
@@ -317,7 +300,7 @@ function ChatPanel({
   const messagesRef = useRef<HTMLElement>(null);
   const msgTurnRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const composerRef = useRef<ComposerMarkupFieldHandle>(null);
+  const composerRef = useRef<ChatComposerFooterHandle>(null);
   const voiceInterruptRef = useRef<() => void>(() => {});
   const persistRef = useRef(onPersist);
   persistRef.current = onPersist;
@@ -645,22 +628,6 @@ function ChatPanel({
     });
   }, []);
 
-  const insertDraftActionTag = useCallback((action: PinnedAction) => {
-    composerRef.current?.insertActionTag(action);
-    requestAnimationFrame(() => composerRef.current?.focus());
-  }, []);
-
-  const draftTagIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const segment of parseUserMessageSegments(draftMessage)) {
-      if (segment.type === "tag") ids.add(segment.action.id);
-    }
-    return ids;
-  }, [draftMessage]);
-  const draftTagCount = draftTagIds.size;
-
-  const canSend = canSendComposedMessage(draftMessage);
-
   const editAnchorIndex = useMemo(
     () =>
       editAnchorMessageId
@@ -735,18 +702,20 @@ function ChatPanel({
   const exitMessageEdit = useCallback(() => {
     if (!editAnchorMessageId) return;
     const message = messages.find((m) => m.id === editAnchorMessageId);
-    const savedDraft = draftMessage;
+    const savedDraft = composerRef.current?.getValue() ?? "";
     setEditAnchorMessageId(null);
-    setDraftMessage("");
+    setEditAnchorLiveDraft("");
+    composerRef.current?.clear();
     if (!message) return;
     setUserMessageDrafts((prev) =>
       upsertUserMessageDraft(message, savedDraft, prev),
     );
-  }, [editAnchorMessageId, draftMessage, messages]);
+  }, [editAnchorMessageId, messages]);
 
   const discardMessageEditSession = useCallback(() => {
     setEditAnchorMessageId(null);
-    setDraftMessage("");
+    setEditAnchorLiveDraft("");
+    composerRef.current?.clear();
   }, []);
 
   useEffect(() => {
@@ -772,20 +741,22 @@ function ChatPanel({
       if (editAnchorMessageId && editAnchorMessageId !== message.id) {
         const previous = messages.find((m) => m.id === editAnchorMessageId);
         if (previous) {
+          const savedDraft = composerRef.current?.getValue() ?? "";
           setUserMessageDrafts((prev) =>
-            upsertUserMessageDraft(previous, draftMessage, prev),
+            upsertUserMessageDraft(previous, savedDraft, prev),
           );
         }
       }
 
+      const nextText = resolveUserMessageDisplayText(message, userMessageDrafts);
       setEditAnchorMessageId(message.id);
-      setDraftMessage(resolveUserMessageDisplayText(message, userMessageDrafts));
+      setEditAnchorLiveDraft(nextText);
+      composerRef.current?.setValue(nextText);
       clearError();
       focusComposerAtEnd();
     },
     [
       clearError,
-      draftMessage,
       editAnchorMessageId,
       messages,
       userMessageDrafts,
@@ -794,8 +765,8 @@ function ChatPanel({
   );
 
   const readComposerText = useCallback(() => {
-    return (composerRef.current?.getValue() ?? draftMessage).trim();
-  }, [draftMessage]);
+    return (composerRef.current?.getValue() ?? "").trim();
+  }, []);
 
   const commitBranchMessageEdit = useCallback(() => {
     void (async () => {
@@ -811,7 +782,8 @@ function ChatPanel({
     if (!(await confirmBranchUserMessageEdit(removedCount))) return;
 
     setEditAnchorMessageId(null);
-    setDraftMessage("");
+    setEditAnchorLiveDraft("");
+    composerRef.current?.clear();
     setUserMessageDrafts((prev) =>
       clearUserMessageDraftsFromIndex(messages, anchorIndex, prev),
     );
@@ -836,7 +808,7 @@ function ChatPanel({
     }
     const text = readComposerText();
     if (!canSendComposedMessage(text)) return;
-    setDraftMessage("");
+    composerRef.current?.clear();
     pinToBottom();
     enqueueOrSend(text);
     requestAnimationFrame(() => composerRef.current?.focus());
@@ -853,7 +825,7 @@ function ChatPanel({
       if (editAnchorMessageId) return;
       if (!canSendComposedMessage(text)) return;
       voiceInterruptRef.current();
-      setDraftMessage("");
+      composerRef.current?.clear();
       clearError();
       pinToBottom();
       enqueueOrSend(text);
@@ -869,46 +841,34 @@ function ChatPanel({
       if (!next) return;
       voiceInterruptRef.current();
       clearError();
-      setDraftMessage(next);
-      requestAnimationFrame(() => composerRef.current?.focusAtEnd());
+      composerRef.current?.setValue(next);
     },
     [editAnchorMessageId, clearError],
   );
 
-  const voiceInput = useVoiceInput({
-    enabled: visible && !ephemeral,
-    onStreamBegin: () => {
-      composerRef.current?.beginVoiceStream();
-    },
-    onStreamUpdate: (text) => {
-      composerRef.current?.updateVoiceStream(text);
-    },
-    onStreamEnd: (finalText) => {
-      composerRef.current?.endVoiceStream(finalText);
-    },
-    onStreamInterrupt: () => {
-      composerRef.current?.endVoiceStream();
-    },
-    onStreamCancel: () => {
-      composerRef.current?.cancelVoiceStream();
-    },
-  });
-
-  voiceInterruptRef.current = voiceInput.interruptVoiceInput;
-
-  const handleVoiceSetup = useCallback(() => {
-    void requestVoicePluginSetup();
+  const handleChatModeChange = useCallback((next: ChatMode) => {
+    setChatMode(next);
+    storeChatMode(next);
   }, []);
 
-  useComposerVoiceToggleShortcut({
-    enabled: !editAnchorMessageId,
-    phase: voiceInput.phase,
-    canUse: voiceInput.canUse,
-    pluginStatus: voiceInput.pluginStatus,
-    onStart: voiceInput.startVoiceInput,
-    onStop: voiceInput.stopVoiceInput,
-    onUnavailable: handleVoiceSetup,
-  });
+  const handleLlmSelectionChange = useCallback(
+    (next: string) => {
+      setLlmSelection(next);
+      if (ephemeral) {
+        storeLauncherLlmSelectionRaw(next);
+      } else {
+        storeLlmSelectionRaw(next);
+      }
+    },
+    [ephemeral],
+  );
+
+  const handleComposerStop = useCallback(() => {
+    clearQueue();
+    stop();
+    repairToolCalls();
+    clearError();
+  }, [clearQueue, stop, repairToolCalls, clearError]);
 
   useEffect(() => {
     if (!editAnchorMessageId) return;
@@ -1056,101 +1016,40 @@ function ChatPanel({
       const hasLocalDraft = userMessageHasLocalDraft(message, userMessageDrafts);
       const userEditable =
         isUser && canEditUserMessage(message, userMessageDrafts);
-
-      const userText = isUser
-        ? isEditAnchor
-          ? draftMessage
-          : resolveUserMessageDisplayText(message, userMessageDrafts)
-        : undefined;
-
       const isLastMessage =
         message.id === lastVisibleMessageId && !agentActivity;
-      const lastMessageMenu = isLastMessage ? (
-        <LastMessageMoreMenu
-          message={message}
-          userTextOverride={userText}
-        />
-      ) : null;
-
-      if (isUser) {
-        const isColdMessage =
-          message.id !== lastVisibleMessageId && !isEditAnchor;
-        const userArticleClass = `msg msg--user${message.id === lastVisibleMessageId && !agentActivity ? " msg--last" : ""}${isColdMessage ? " msg--cold" : ""}${isEditAnchor ? " msg--edit-anchor" : ""}${hasLocalDraft ? " msg--local-draft" : ""}${isAfterEditAnchor ? " msg--branch-cutoff" : ""}`;
-        const userComposer = (
-          <UserMessageComposerChrome
-            message={message}
-            messageId={message.id}
-            userTextOverride={userText}
-            interactive={userEditable && !isEditAnchor}
-            isEditAnchor={isEditAnchor}
-            title={
-              isEditAnchor
-                ? "在下方输入框编辑；Enter 发送并从此处继续"
-                : userEditable
-                  ? "点击在下方输入框编辑；失焦保存草稿"
-                  : undefined
-            }
-            onClick={
-              isEditAnchor
-                ? () => focusComposerAtEnd()
-                : userEditable
-                  ? () => beginEditFromUserMessage(message)
-                  : undefined
-            }
-            onKeyDown={
-              userEditable && !isEditAnchor
-                ? (event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      beginEditFromUserMessage(message);
-                    }
-                  }
-                : undefined
-            }
-          />
-        );
-
-        if (stickyPrompt) {
-          return (
-            <div key={message.id} className="msg-turn__prompt">
-              <article className={userArticleClass}>
-                {userComposer}
-                {lastMessageMenu}
-              </article>
-            </div>
-          );
-        }
-
-        return (
-          <article key={message.id} className={userArticleClass}>
-            {userComposer}
-            {lastMessageMenu}
-          </article>
-        );
-      }
+      const isColdMessage =
+        message.id !== lastVisibleMessageId && !isEditAnchor;
 
       return (
-        <article
+        <ChatMessageArticle
           key={message.id}
-          className={`msg msg--assistant${message.id === lastVisibleMessageId && !agentActivity ? " msg--last" : ""}${message.id !== lastVisibleMessageId && !isEditAnchor ? " msg--cold" : ""}${isEditAnchor ? " msg--edit-anchor" : ""}${hasLocalDraft ? " msg--local-draft" : ""}${isAfterEditAnchor ? " msg--branch-cutoff" : ""}`}
-        >
-          <div className="msg-content">
-            <div className="parts">
-              <MessageParts
-                message={message}
-                workingDirectory={workingDirectory}
-                onInsertComposerPrompt={insertComposerPrompt}
-              />
-            </div>
-            {lastMessageMenu}
-          </div>
-        </article>
+          message={message}
+          messageIndex={messageIndex}
+          stickyPrompt={stickyPrompt}
+          isEditAnchor={isEditAnchor}
+          editAnchorLiveDraft={isEditAnchor ? editAnchorLiveDraft : undefined}
+          isAfterEditAnchor={isAfterEditAnchor}
+          hasLocalDraft={hasLocalDraft}
+          userEditable={userEditable}
+          isLastMessage={isLastMessage}
+          isColdMessage={isColdMessage}
+          agentActivity={!!agentActivity}
+          workingDirectory={workingDirectory}
+          userMessageDisplayText={resolveUserMessageDisplayText(
+            message,
+            userMessageDrafts,
+          )}
+          onBeginEdit={beginEditFromUserMessage}
+          onFocusComposerAtEnd={focusComposerAtEnd}
+          onInsertComposerPrompt={insertComposerPrompt}
+        />
       );
     },
     [
       agentActivity,
       beginEditFromUserMessage,
-      draftMessage,
+      editAnchorLiveDraft,
       editAnchorIndex,
       editAnchorMessageId,
       insertComposerPrompt,
@@ -1322,169 +1221,35 @@ function ChatPanel({
         />
       )}
 
-      <footer
-        className={`composer${editAnchorMessageId ? " composer--branch-edit" : ""}`}
-      >
-        {editAnchorMessageId && (
-          <div className="composer-edit-banner" role="status">
-            <span className="composer-edit-banner-text">
-              正在编辑较早的消息；在下方输入框修改，Enter 发送并从此处继续
-            </span>
-            <button
-              type="button"
-              className="composer-edit-banner-cancel"
-              onClick={exitMessageEdit}
-            >
-              完成
-            </button>
-          </div>
-        )}
-        {isEmptyThread && !editAnchorMessageId ? (
-          <ComposerOnboardingTips
-            disabled={busy}
-            onOpenSettings={onOpenSettings}
-            onTryMention={() => composerRef.current?.insertMentionTrigger()}
-            onFocusComposer={() => composerRef.current?.focus()}
-          />
-        ) : null}
-        <ComposerShortcutCards
-          settingsOpen={settingsOpen}
-          onToggleSettings={onToggleSettings}
-          disabled={busy}
-        />
-        <form
-          className="composer-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submitComposer();
-          }}
-        >
-          <div className="composer-box">
-            <div className="composer-surface">
-            <ComposerMarkupField
-              ref={composerRef}
-              value={draftMessage}
-              placeholder={
-                editAnchorMessageId
-                  ? "修改后 Enter 发送，将从此消息处重新对话…（@ 引用动作）"
-                  : queueLength > 0
-                    ? `Agent 完成后将发送已排队的 ${queueLength} 条消息…`
-                    : "描述你想在 Quicker 里做的事…（@ 引用动作）"
-              }
-              onChange={setDraftMessage}
-              onSubmit={submitComposer}
-              onUserEdit={voiceInput.interruptVoiceInput}
-            />
-            <div className="composer-toolbar">
-              <div className="composer-toolbar-left">
-                <ActionTagSelector
-                  ping={ping}
-                  refreshKey={connectTick}
-                  tagCount={draftTagCount}
-                  embeddedTagIds={draftTagIds}
-                  onSelect={insertDraftActionTag}
-                />
-                {!ephemeral ? (
-                  <ChatModeSelector
-                    mode={chatMode}
-                    onChange={(next) => {
-                      setChatMode(next);
-                      storeChatMode(next);
-                    }}
-                  />
-                ) : null}
-                {devExperienceEnabled ? (
-                  <ToolSelector
-                    enabledTools={enabledTools}
-                    onChange={setEnabledTools}
-                  />
-                ) : null}
-                {devExperienceEnabled ? (
-                  <ComposerTestPromptsPicker
-                    disabled={!qkrpcOk}
-                    onSendPrompt={sendTestPrompt}
-                  />
-                ) : null}
-                <ModelSelector
-                  selection={llmSelection}
-                  onChange={(next) => {
-                    setLlmSelection(next);
-                    storeLlmSelectionRaw(next);
-                  }}
-                  onNeedSettings={(providerId) =>
-                    onOpenSettings(providerId, "models")}
-                />
-                {voiceInput.errorHint ? (
-                  <span className="composer-hint" role="status">
-                    <span className="composer-voice-hint composer-voice-hint--err">
-                      {voiceInput.errorHint}
-                    </span>
-                  </span>
-                ) : voiceInput.statusHint ? (
-                  <span className="composer-hint" role="status">
-                    <span className="composer-voice-hint">
-                      {voiceInput.statusHint}
-                    </span>
-                  </span>
-                ) : editAnchorMessageId ? (
-                  <span className="composer-hint">Enter 发送并分支</span>
-                ) : queueLength > 0 ? (
-                  <span className="composer-hint">{`已排队 ${queueLength} 条`}</span>
-                ) : null}
-              </div>
-              <div className="composer-toolbar-actions">
-                {!isEmptyThread && (
-                  <ContextUsage
-                    messages={messages}
-                    busy={busy}
-                    selection={llmSelection}
-                  />
-                )}
-                {busy && (
-                  <button
-                    type="button"
-                    className="composer-btn composer-btn--stop"
-                    onClick={() => {
-                      clearQueue();
-                      stop();
-                      repairToolCalls();
-                      clearError();
-                    }}
-                    aria-label="停止生成"
-                    title={queueLength > 0 ? "停止并清空排队" : "停止生成"}
-                  >
-                    <svg
-                      className="composer-stop-icon"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 16 16"
-                      aria-hidden
-                    >
-                      <path
-                        fill="currentColor"
-                        fillRule="evenodd"
-                        clipRule="evenodd"
-                        d="M8 1.35a6.65 6.65 0 1 1 0 13.3 6.65 6.65 0 1 1 0-13.3ZM5.75 5.75h4.5v4.5h-4.5V5.75Z"
-                      />
-                    </svg>
-                  </button>
-                )}
-                <ComposerPrimaryActionButton
-                  canSend={canSend}
-                  agentBusy={busy}
-                  phase={voiceInput.phase}
-                  pluginStatus={voiceInput.pluginStatus}
-                  canUseVoice={voiceInput.canUse}
-                  onVoiceStart={voiceInput.startVoiceInput}
-                  onVoiceStop={voiceInput.stopVoiceInput}
-                  onVoiceSetup={handleVoiceSetup}
-                />
-              </div>
-            </div>
-            </div>
-          </div>
-        </form>
-      </footer>
+      <ChatComposerFooter
+        ref={composerRef}
+        visible={visible}
+        ephemeral={ephemeral}
+        editAnchorMessageId={editAnchorMessageId}
+        isEmptyThread={isEmptyThread}
+        busy={busy}
+        queueLength={queueLength}
+        settingsOpen={settingsOpen}
+        messages={messages}
+        ping={ping}
+        connectTick={connectTick}
+        qkrpcOk={qkrpcOk}
+        devExperienceEnabled={devExperienceEnabled}
+        chatMode={chatMode}
+        enabledTools={enabledTools}
+        llmSelection={llmSelection}
+        onChatModeChange={handleChatModeChange}
+        onEnabledToolsChange={setEnabledTools}
+        onLlmSelectionChange={handleLlmSelectionChange}
+        onToggleSettings={onToggleSettings}
+        onOpenSettings={onOpenSettings}
+        onSubmit={submitComposer}
+        onSendTestPrompt={sendTestPrompt}
+        onStop={handleComposerStop}
+        onExitEdit={exitMessageEdit}
+        onEditAnchorDraftChange={setEditAnchorLiveDraft}
+        voiceInterruptRef={voiceInterruptRef}
+      />
         </div>
         {visible ? <WorkspaceExplorerPanel /> : null}
       </div>
@@ -1543,7 +1308,9 @@ export function Chat() {
 
   const handleActivateThread = useCallback(
     (threadId: string) => {
-      updateStore(openThread(storeRef.current, threadId));
+      let next = openThread(storeRef.current, threadId);
+      next = hydrateStoreThreadMessages(next, threadId);
+      updateStore(next);
     },
     [updateStore],
   );

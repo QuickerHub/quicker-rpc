@@ -9,6 +9,7 @@ export type VoiceRuntimeHealth = {
   modelId?: string;
   modelLoaded: boolean;
   ready: boolean;
+  executionProvider?: string;
 };
 
 /** True when runtime has a real ASR model loaded (not stub / placeholder). */
@@ -36,6 +37,7 @@ type VoiceRuntimeHealthDto = {
   modelId?: string;
   modelLoaded: boolean;
   ready: boolean;
+  executionProvider?: string;
 };
 
 function mapVoiceRuntimeHealthDto(dto: VoiceRuntimeHealthDto): VoiceRuntimeHealth {
@@ -46,6 +48,7 @@ function mapVoiceRuntimeHealthDto(dto: VoiceRuntimeHealthDto): VoiceRuntimeHealt
     modelId: dto.modelId,
     modelLoaded: dto.modelLoaded === true,
     ready: dto.ready === true,
+    executionProvider: dto.executionProvider,
   };
 }
 
@@ -97,6 +100,10 @@ export async function fetchVoiceRuntimeHealth(
       modelId: typeof data.modelId === "string" ? data.modelId : undefined,
       modelLoaded: data.modelLoaded === true,
       ready: data.ready === true,
+      executionProvider:
+        typeof data.executionProvider === "string"
+          ? data.executionProvider
+          : undefined,
     };
   } catch {
     return null;

@@ -21,16 +21,28 @@ import {
 import { isTauriShell } from "@/lib/tauri-shell";
 
 const APP_REQUEST_EXIT_EVENT = "app-request-exit";
-const FORCE_EXIT_AFTER_MS = 8_000;
+const FORCE_EXIT_AFTER_MS = 3_000;
+
+async function forceExitNow(): Promise<void> {
+  try {
+    const { exit } = await import("@tauri-apps/plugin-process");
+    await exit(0);
+    return;
+  } catch {
+    // Fall through to graceful_exit.
+  }
+
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("graceful_exit");
+  } catch {
+    // Rust watchdog / process::exit is the last resort.
+  }
+}
 
 function scheduleForceExit(): void {
-  window.setTimeout(async () => {
-    try {
-      const { exit } = await import("@tauri-apps/plugin-process");
-      await exit(0);
-    } catch {
-      // Ignore when process plugin is unavailable.
-    }
+  window.setTimeout(() => {
+    void forceExitNow();
   }, FORCE_EXIT_AFTER_MS);
 }
 
@@ -53,8 +65,12 @@ export function QuickerAgentExitHandler() {
     let unlistenTrayExit: (() => void) | undefined;
 
     const performExit = async (): Promise<void> => {
-      if (exitInProgressRef.current) return;
+      if (exitInProgressRef.current) {
+        void forceExitNow();
+        return;
+      }
       exitInProgressRef.current = true;
+      scheduleForceExit();
 
       try {
         if (isPendingOfficialUpdateDownloaded()) {
@@ -89,24 +105,15 @@ export function QuickerAgentExitHandler() {
           }
         }
 
-        showAppExitOverlay("正在关闭后台服务…");
+        showAppExitOverlay("正在退出…");
         await waitForOverlayPaint();
 
-        // Start even if graceful_exit IPC stalls (e.g. WebView2 wedged after node shutdown).
-        scheduleForceExit();
-
         const { invoke } = await import("@tauri-apps/api/core");
-        await Promise.race([
-          invoke("graceful_exit"),
-          new Promise<never>((_, reject) => {
-            window.setTimeout(
-              () => reject(new Error("graceful_exit timeout")),
-              FORCE_EXIT_AFTER_MS,
-            );
-          }),
-        ]);
+        void invoke("graceful_exit").catch(() => {
+          void forceExitNow();
+        });
       } catch {
-        exitInProgressRef.current = false;
+        void forceExitNow();
       }
     };
 

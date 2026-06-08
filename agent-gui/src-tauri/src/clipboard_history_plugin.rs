@@ -244,6 +244,11 @@ pub fn shutdown_clipboard_history(state: &ClipboardHistoryPluginState) {
     kill_clipboard_runtime_processes();
 }
 
+/// Fast path for app exit — skip slow PowerShell port scans.
+pub fn shutdown_clipboard_history_fast(state: &ClipboardHistoryPluginState) {
+    state.shutdown();
+}
+
 pub fn ensure_clipboard_history_disabled(app: &AppHandle) {
     if CLIPBOARD_HISTORY_ENABLED {
         return;

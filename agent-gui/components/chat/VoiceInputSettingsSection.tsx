@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 import { isTauriShell, useShellPlatform } from "@/lib/tauri-shell";
 import {
@@ -8,6 +8,10 @@ import {
   setVoiceInputMockEnabled,
 } from "@/lib/voice-input/voice-input-plugin-status";
 import { formatVoiceInputToggleShortcut } from "@/lib/voice-input/voice-input-shortcuts";
+import {
+  requestDevVoiceRuntimeStart,
+  requestDevVoiceRuntimeStop,
+} from "@/lib/voice-input/voice-input-dev-runtime";
 import {
   tauriVoicePluginStartRuntime,
   tauriVoicePluginStopRuntime,
@@ -19,12 +23,26 @@ import {
 import { VoiceMicRecorder } from "@/lib/voice-input/voice-input-recorder";
 import { transcribePcmViaWebSocket } from "@/lib/voice-input/voice-input-ws-client";
 import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
+import {
+  DEFAULT_VOICE_PLUGIN_SETTINGS,
+  downloadVoiceModel,
+  fetchVoiceModelInstallState,
+  fetchVoicePluginSettings,
+  saveVoicePluginSettings,
+  voiceModelLabel,
+  VOICE_MODEL_OPTIONS,
+  type VoiceModelId,
+  type VoiceModelInstallState,
+  type VoicePluginSettings,
+} from "@/lib/voice-input/voice-input-settings";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
 
 type VoiceInputSettingsSectionProps = {
   active: boolean;
   disabled?: boolean;
 };
+
+type SetupStep = "install" | "start" | "configure";
 
 function statusDotClass(runtimePhase: VoicePluginStatus, hostLoading: boolean): string {
   if (hostLoading || runtimePhase === "downloading") return "loading";
@@ -34,33 +52,43 @@ function statusDotClass(runtimePhase: VoicePluginStatus, hostLoading: boolean): 
   return "";
 }
 
+function resolveSetupStep(panel: VoiceSettingsPanelSnapshot, mockEnabled: boolean): SetupStep {
+  if (mockEnabled) return "configure";
+  if (!panel.pluginInstalled) return "install";
+  if (!panel.runtimeOnline) return "start";
+  return "configure";
+}
+
+function stepTitle(step: SetupStep): string {
+  if (step === "install") return "① 安装 Runtime";
+  if (step === "start") return "② 启动服务";
+  return "③ 识别配置";
+}
+
 function contextHint(params: {
   panel: VoiceSettingsPanelSnapshot;
+  step: SetupStep;
   inTauri: boolean;
   mockEnabled: boolean;
 }): string | null {
-  const { panel, inTauri, mockEnabled } = params;
+  const { panel, step, inTauri, mockEnabled } = params;
   if (mockEnabled) {
     return "Mock 模式：Composer 点麦克风会填充样例文本。";
   }
   if (panel.runtimePhase === "downloading") {
-    return "正在安装，右下角可查看进度。";
+    return "正在安装语音组件，请稍候…";
   }
-  if (!panel.pluginInstalled) {
-    if (panel.runtimeOnline) {
-      return inTauri
-        ? "当前由外部 Runtime 提供服务。点 Composer 麦克风可安装离线组件。"
-        : "当前由 dev Runtime 提供服务。点 Composer 麦克风可测试安装流程。";
-    }
-    return "点 Composer 麦克风即可安装（约 240 MB，需联网）。";
+  if (step === "install") {
+    return inTauri
+      ? "先安装本地语音识别 Runtime 与默认模型（约 240 MB，需联网，仅需一次）。"
+      : "开发模式：安装 Runtime 与默认模型到本机插件目录，或使用本地 voice-asr-runtime 快速复制。";
   }
-  if (panel.runtimePhase === "installed" || panel.runtimePhase === "stopped") {
-    return "插件已安装；点 Composer 麦克风可启动并使用。";
+  if (step === "start") {
+    return inTauri
+      ? "Runtime 已安装。启动服务后即可连接并配置识别模型。"
+      : "Runtime 已安装。点「启动服务」连接本机 :6016，或手动运行 pnpm voice:dev-server。";
   }
-  if (panel.runtimePhase === "error") {
-    return panel.hostStatus?.message ?? panel.runtimeDetail ?? "语音服务异常，可尝试重新安装或重启应用。";
-  }
-  return null;
+  return "已连接 Runtime。选择模型与加速方式；切换后服务会自动重启。";
 }
 
 export function VoiceInputSettingsSection({
@@ -76,12 +104,28 @@ export function VoiceInputSettingsSection({
   const [reinstallBusy, setReinstallBusy] = useState(false);
   const [preferNetwork, setPreferNetwork] = useState(false);
   const [installBusy, setInstallBusy] = useState(false);
+  const [voiceSettings, setVoiceSettings] = useState<VoicePluginSettings>(
+    DEFAULT_VOICE_PLUGIN_SETTINGS,
+  );
+  const [modelInstall, setModelInstall] = useState<VoiceModelInstallState | null>(null);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [modelDownloadBusy, setModelDownloadBusy] = useState(false);
+  const [settingsHint, setSettingsHint] = useState<string | null>(null);
   const devExperienceEnabled = useDevExperienceEnabled();
   const inTauri = isTauriShell();
+  const devBrowser = process.env.NODE_ENV === "development" && !inTauri;
+  const canManageHost = inTauri || devBrowser;
 
-  const notifyVoiceConfigChanged = () => {
+  const setupStep = resolveSetupStep(panel, mockEnabled);
+
+  const notifyVoiceConfigChanged = useCallback(() => {
     window.dispatchEvent(new Event("voice-input-config-changed"));
-  };
+  }, []);
+
+  const refreshModelInstallState = useCallback(async () => {
+    const state = await fetchVoiceModelInstallState();
+    if (state) setModelInstall(state);
+  }, []);
 
   useEffect(() => {
     if (!active) return;
@@ -91,16 +135,53 @@ export function VoiceInputSettingsSection({
     return () => window.removeEventListener("voice-input-mock-changed", onChange);
   }, [active]);
 
+  useEffect(() => {
+    if (!active || !canManageHost) return;
+    void fetchVoicePluginSettings().then((settings) => {
+      if (settings) setVoiceSettings(settings);
+    });
+    void refreshModelInstallState();
+  }, [active, canManageHost, refreshModelInstallState]);
+
+  const persistVoiceSettings = async (
+    patch: Partial<VoicePluginSettings>,
+    hint?: string,
+  ) => {
+    if (settingsBusy || disabled || !canManageHost) return;
+    const next = { ...voiceSettings, ...patch };
+    setVoiceSettings(next);
+    setSettingsBusy(true);
+    setSettingsHint(null);
+    try {
+      const saved = await saveVoicePluginSettings(next, {
+        restartRuntime: devBrowser && panel.runtimeOnline,
+      });
+      if (!saved) {
+        setSettingsHint("保存失败，请重试");
+        return;
+      }
+      setVoiceSettings(saved);
+      setSettingsHint(hint ?? "已保存，语音服务将按新配置重启");
+      notifyVoiceConfigChanged();
+    } finally {
+      setSettingsBusy(false);
+    }
+  };
+
   const handleMockToggle = () => {
     setVoiceInputMockEnabled(!mockEnabled);
     notifyVoiceConfigChanged();
   };
 
   const handleStartRuntime = async () => {
-    if (runtimeBusy || disabled || !inTauri) return;
+    if (runtimeBusy || disabled || !canManageHost) return;
     setRuntimeBusy(true);
     try {
-      await tauriVoicePluginStartRuntime();
+      if (inTauri) {
+        await tauriVoicePluginStartRuntime();
+      } else {
+        await requestDevVoiceRuntimeStart();
+      }
       notifyVoiceConfigChanged();
     } finally {
       setRuntimeBusy(false);
@@ -108,10 +189,14 @@ export function VoiceInputSettingsSection({
   };
 
   const handleStopRuntime = async () => {
-    if (runtimeBusy || disabled || !inTauri) return;
+    if (runtimeBusy || disabled || !canManageHost) return;
     setRuntimeBusy(true);
     try {
-      await tauriVoicePluginStopRuntime();
+      if (inTauri) {
+        await tauriVoicePluginStopRuntime();
+      } else {
+        await requestDevVoiceRuntimeStop();
+      }
       notifyVoiceConfigChanged();
     } finally {
       setRuntimeBusy(false);
@@ -144,34 +229,84 @@ export function VoiceInputSettingsSection({
     }
   };
 
-  const canStartRuntime =
-    inTauri
-    && !mockEnabled
-    && panel.pluginInstalled
-    && (panel.runtimePhase === "installed"
-      || panel.runtimePhase === "stopped"
-      || panel.runtimePhase === "error");
-  const canStopRuntime = inTauri && !mockEnabled && panel.runtimeOnline;
-  const canTestMic = !mockEnabled && panel.runtimeOnline;
-  const canInstall =
-    inTauri
-    && !mockEnabled
-    && !panel.hostLoading
-    && panel.runtimePhase !== "downloading"
-    && !panel.pluginInstalled
-    && panel.runtimePhase !== "running";
-
   const handleInstall = () => {
     if (installBusy || disabled) return;
     setInstallBusy(true);
-    void requestVoicePluginSetup()
+    void requestVoicePluginSetup({ skipConfirm: canManageHost })
       .then(() => notifyVoiceConfigChanged())
       .finally(() => setInstallBusy(false));
   };
 
+  const handleDownloadModel = async (modelId: VoiceModelId) => {
+    if (modelDownloadBusy || disabled) return;
+    setModelDownloadBusy(true);
+    setSettingsHint(null);
+    try {
+      const result = await downloadVoiceModel(modelId);
+      if (!result.ok) {
+        setSettingsHint(result.error ?? "模型下载失败");
+        return;
+      }
+      await refreshModelInstallState();
+      setSettingsHint("模型下载完成。正在重启语音服务…");
+      if (devBrowser) {
+        await requestDevVoiceRuntimeStop();
+        await new Promise((r) => window.setTimeout(r, 400));
+        await requestDevVoiceRuntimeStart();
+      } else if (inTauri && panel.runtimeOnline) {
+        await tauriVoicePluginStopRuntime();
+        await tauriVoicePluginStartRuntime();
+      }
+      notifyVoiceConfigChanged();
+      setSettingsHint("模型已就绪，可切换并使用。");
+    } finally {
+      setModelDownloadBusy(false);
+    }
+  };
+
+  const selectedModelInstalled = useMemo(() => {
+    const expected =
+      VOICE_MODEL_OPTIONS.find((opt) => opt.id === voiceSettings.modelId)
+        ?.runtimeModelId ?? "sensevoice";
+    if (modelInstall) {
+      return voiceSettings.modelId === "lightweight"
+        ? modelInstall.lightweight
+        : modelInstall.standard;
+    }
+    if (panel.activeModelId) {
+      return panel.activeModelId === expected;
+    }
+    if (voiceSettings.modelId === "lightweight") return false;
+    return panel.pluginInstalled;
+  }, [
+    modelInstall,
+    panel.activeModelId,
+    panel.pluginInstalled,
+    voiceSettings.modelId,
+  ]);
+
+  const canInstall =
+    canManageHost
+    && !mockEnabled
+    && !panel.hostLoading
+    && panel.runtimePhase !== "downloading"
+    && !panel.pluginInstalled;
+  const canStartRuntime =
+    canManageHost
+    && !mockEnabled
+    && panel.pluginInstalled
+    && !panel.runtimeOnline
+    && panel.runtimePhase !== "downloading";
+  const canStopRuntime = canManageHost && !mockEnabled && panel.runtimeOnline;
+  const canTestMic = !mockEnabled && panel.runtimeOnline;
+  const canConfigure =
+    !mockEnabled && panel.runtimePhase === "running" && canManageHost;
+  const needsModelDownload =
+    canConfigure && !selectedModelInstalled && devBrowser;
+
   const hint = useMemo(
-    () => contextHint({ panel, inTauri, mockEnabled }),
-    [panel, inTauri, mockEnabled],
+    () => contextHint({ panel, step: setupStep, inTauri, mockEnabled }),
+    [panel, setupStep, inTauri, mockEnabled],
   );
 
   return (
@@ -186,11 +321,35 @@ export function VoiceInputSettingsSection({
         </p>
       </header>
 
+      {!mockEnabled && canManageHost ? (
+        <div className="voice-settings-steps" aria-label="语音配置步骤">
+          <span
+            className={`voice-settings-step${setupStep === "install" ? " voice-settings-step--active" : setupStep !== "install" ? " voice-settings-step--done" : ""}`}
+          >
+            ① 安装
+          </span>
+          <span className="voice-settings-step-sep" aria-hidden />
+          <span
+            className={`voice-settings-step${setupStep === "start" ? " voice-settings-step--active" : setupStep === "configure" ? " voice-settings-step--done" : ""}`}
+          >
+            ② 启动
+          </span>
+          <span className="voice-settings-step-sep" aria-hidden />
+          <span
+            className={`voice-settings-step${setupStep === "configure" ? " voice-settings-step--active" : ""}`}
+          >
+            ③ 配置
+          </span>
+        </div>
+      ) : null}
+
       <div className="app-settings-ping-row voice-settings-row">
         <div className="app-settings-ping voice-settings-ping">
           <span className={`ping-dot ${statusDotClass(panel.runtimePhase, panel.hostLoading)}`} />
           <span className="app-settings-ping-text">
-            <span className="voice-settings-status-label">{panel.displayLabel}</span>
+            <span className="voice-settings-status-label">
+              {stepTitle(setupStep)} · {panel.displayLabel}
+            </span>
             {panel.displaySubline ? (
               <span className="voice-settings-status-sub">{panel.displaySubline}</span>
             ) : null}
@@ -201,21 +360,21 @@ export function VoiceInputSettingsSection({
           {canInstall ? (
             <button
               type="button"
-              className="app-settings-action"
+              className="app-settings-action app-settings-action--primary"
               disabled={disabled || installBusy}
               onClick={handleInstall}
             >
-              {installBusy ? "安装中…" : "安装语音组件"}
+              {installBusy ? "安装中…" : "安装 Runtime"}
             </button>
           ) : null}
           {canStartRuntime ? (
             <button
               type="button"
-              className="app-settings-action"
+              className="app-settings-action app-settings-action--primary"
               disabled={disabled || runtimeBusy}
               onClick={() => void handleStartRuntime()}
             >
-              {runtimeBusy ? "启动中…" : "启动"}
+              {runtimeBusy ? "启动中…" : "启动服务"}
             </button>
           ) : null}
           {canStopRuntime ? (
@@ -225,7 +384,7 @@ export function VoiceInputSettingsSection({
               disabled={disabled || runtimeBusy}
               onClick={() => void handleStopRuntime()}
             >
-              {runtimeBusy ? "停止中…" : "停止"}
+              {runtimeBusy ? "停止中…" : "停止服务"}
             </button>
           ) : null}
           {canTestMic ? (
@@ -250,6 +409,75 @@ export function VoiceInputSettingsSection({
       </div>
 
       {hint ? <p className="voice-settings-hint">{hint}</p> : null}
+
+      {canConfigure && canManageHost ? (
+        <div className="voice-settings-options">
+          <label className="voice-settings-field">
+            <span className="voice-settings-field-label">识别模型</span>
+            <select
+              className="voice-settings-select"
+              value={voiceSettings.modelId}
+              disabled={disabled || settingsBusy || !panel.runtimeOnline}
+              onChange={(event) => {
+                const modelId = event.target.value as VoiceModelId;
+                void persistVoiceSettings(
+                  { modelId },
+                  panel.runtimeOnline
+                    ? "已切换模型，语音服务正在重启…"
+                    : "已选择模型，启动服务后生效",
+                );
+              }}
+            >
+              {VOICE_MODEL_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}（{opt.sizeHint}）
+                </option>
+              ))}
+            </select>
+            <span className="voice-settings-field-hint">
+              {VOICE_MODEL_OPTIONS.find((opt) => opt.id === voiceSettings.modelId)
+                ?.description}
+              {!selectedModelInstalled ? " · 尚未下载此模型" : null}
+            </span>
+          </label>
+
+          {needsModelDownload ? (
+            <button
+              type="button"
+              className="app-settings-action"
+              disabled={disabled || modelDownloadBusy}
+              onClick={() => void handleDownloadModel(voiceSettings.modelId)}
+            >
+              {modelDownloadBusy
+                ? "下载中…"
+                : `下载${voiceModelLabel(voiceSettings.modelId)}`}
+            </button>
+          ) : null}
+
+          <label className="voice-settings-mock-toggle voice-settings-gpu-toggle">
+            <input
+              type="checkbox"
+              checked={voiceSettings.gpuAcceleration}
+              disabled={disabled || settingsBusy || !panel.runtimeOnline}
+              onChange={(event) => {
+                void persistVoiceSettings(
+                  { gpuAcceleration: event.target.checked },
+                  event.target.checked
+                    ? "已开启 GPU 加速；若硬件不支持将自动回退 CPU"
+                    : "已关闭 GPU 加速，使用 CPU 推理",
+                );
+              }}
+            />
+            <span>GPU 加速（Windows 使用 DirectML，不可用时回退 CPU）</span>
+          </label>
+
+          {settingsHint ? (
+            <p className="voice-settings-hint" role="status">
+              {settingsHint}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {testResult ? (
         <p className="voice-settings-test-result" role="status">
