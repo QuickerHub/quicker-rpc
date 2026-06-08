@@ -580,7 +580,7 @@ function BuiltinGroupRow({
             configured,
             selectedProbe
               ? {
-                  checking: selectedProbe.checking,
+                  checking: selectedProbe.checking ?? false,
                   reachable: selectedProbe.reachable,
                 }
               : probe,
