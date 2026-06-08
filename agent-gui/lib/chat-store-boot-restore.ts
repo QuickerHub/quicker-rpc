@@ -1,11 +1,9 @@
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
   chatStoreHasPersistedMessages,
-  saveChatStore,
   tryRestoreLegacyChatStore,
 } from "@/lib/chat-store";
 import { fetchLegacyChatStoreCandidatesFromDisk } from "@/lib/legacy-chat-restore-client";
-import { isTauriShell } from "@/lib/tauri-shell";
 
 const AUTO_RESTORE_SESSION_KEY = "agent-gui-auto-restore-attempted";
 
@@ -25,35 +23,44 @@ function markAutoRestoreAttempted(): void {
   }
 }
 
+function restoreChanged(result: {
+  ok: boolean;
+  importedThreadCount: number;
+  updatedThreadCount: number;
+}): boolean {
+  return (
+    result.ok
+    && (result.importedThreadCount > 0 || result.updatedThreadCount > 0)
+  );
+}
+
 /**
- * When the current origin's localStorage is empty but LevelDB still has chats
- * (e.g. after upgrade or http://127.0.0.1 port change), merge once per session.
+ * When the current origin has no persisted messages, try once per session to merge
+ * legacy chat data from localStorage (backup / v1 / v2) and known LevelDB profiles.
  */
 export async function maybeAutoRestoreChatStoreOnBoot(
   current: ChatStoreData,
 ): Promise<ChatStoreData | null> {
   if (typeof window === "undefined") return null;
-  if (!isTauriShell()) return null;
   if (autoRestoreAlreadyAttempted()) return null;
+  if (chatStoreHasPersistedMessages(current)) return null;
+
   markAutoRestoreAttempted();
 
-  if (chatStoreHasPersistedMessages(current)) return null;
+  const local = tryRestoreLegacyChatStore(current);
+  if (restoreChanged(local.result)) {
+    return local.next;
+  }
 
   const disk = await fetchLegacyChatStoreCandidatesFromDisk();
   if (disk.candidates.length === 0) return null;
 
-  const { next, result } = tryRestoreLegacyChatStore(current, disk.candidates, {
+  const merged = tryRestoreLegacyChatStore(local.next, disk.candidates, {
     scannedRoots: disk.scannedRoots,
   });
-  if (
-    !result.ok
-    || (result.importedThreadCount === 0 && result.updatedThreadCount === 0)
-  ) {
-    return null;
-  }
+  if (!restoreChanged(merged.result)) return null;
 
-  saveChatStore(next);
-  return next;
+  return merged.next;
 }
 
 /** @internal test helper */
