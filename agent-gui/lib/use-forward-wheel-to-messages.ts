@@ -25,10 +25,24 @@ function asHtmlElement(node: Element): HTMLElement | null {
   return el;
 }
 
+/** Surfaces that handle wheel locally (remote browser, native webview) — not chat scroll. */
+const DEDICATED_WHEEL_SURFACE_SELECTORS = [
+  ".embedded-browser__remote-surface",
+  ".embedded-browser__native-host",
+] as const;
+
+function isInsideDedicatedWheelSurface(el: Element): boolean {
+  return DEDICATED_WHEEL_SURFACE_SELECTORS.some(
+    (selector) => el.closest(selector) != null,
+  );
+}
+
 /** True when the event target sits inside a local vertical scroller (popup list, editor, etc.). */
 export function shouldIgnoreWheelForwardToMessages(target: EventTarget | null): boolean {
   const el = wheelTargetElement(target);
   if (!el) return true;
+
+  if (isInsideDedicatedWheelSurface(el)) return true;
 
   let node: Element | null = el;
   while (node) {

@@ -10,7 +10,11 @@ export function formatSnapshotYaml(url, title, refMap) {
   for (const [ref, target] of Object.entries(refMap)) {
     const namePart = target.name ? ` name="${target.name}"` : "";
     const nthPart = target.nth > 0 ? ` nth=${target.nth}` : "";
-    lines.push(`  - role=${target.role}${namePart} ref=${ref}${nthPart}`);
+    const hrefPart =
+      typeof target.href === "string" && target.href.trim()
+        ? ` href=${target.href.trim()}`
+        : "";
+    lines.push(`  - role=${target.role}${namePart} ref=${ref}${nthPart}${hrefPart}`);
   }
   return lines.join("\n");
 }

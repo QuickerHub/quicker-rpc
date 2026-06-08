@@ -38,18 +38,18 @@ export function isFirstChatUserTurn(messages: UIMessage[]): boolean {
 export function extractThreadTitleFromMessages(
   messages: UIMessage[],
 ): string | null {
-  let found: string | null = null;
-
-  for (const message of messages) {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i]!;
     if (message.role !== "assistant") continue;
-    for (const part of message.parts) {
+    for (let j = message.parts.length - 1; j >= 0; j -= 1) {
+      const part = message.parts[j]!;
       if (!isToolOrDynamicToolUIPart(part)) continue;
       if (getToolOrDynamicToolName(part) !== SET_THREAD_TITLE_TOOL) continue;
       if (part.state !== "output-available") continue;
       const title = readTitleFromSetThreadTitleOutput(part.output);
-      if (title) found = title;
+      if (title) return title;
     }
   }
 
-  return found;
+  return null;
 }

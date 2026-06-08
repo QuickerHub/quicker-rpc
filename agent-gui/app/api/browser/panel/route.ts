@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { executeBrowserTool, type BrowserToolInput } from "@/lib/browser-tool.server";
+import {
+  executeBrowserTool,
+  type BrowserAgentToolInput,
+  type BrowserPanelToolInput,
+  type BrowserToolInput,
+} from "@/lib/browser-tool.server";
 
 export const runtime = "nodejs";
 
@@ -17,15 +22,15 @@ function mapPanelAction(input: z.infer<typeof bodySchema>): BrowserToolInput | n
   switch (input.action) {
     case "navigate":
       if (!input.url?.trim()) return null;
-      return { action: "navigate", sessionId, url: input.url.trim() };
+      return { action: "navigate", sessionId, url: input.url.trim() } satisfies BrowserAgentToolInput;
     case "back":
-      return { action: "back", sessionId };
+      return { action: "back", sessionId } satisfies BrowserAgentToolInput;
     case "forward":
-      return { action: "forward", sessionId };
+      return { action: "forward", sessionId } satisfies BrowserAgentToolInput;
     case "reload":
-      return { action: "reload", sessionId };
+      return { action: "reload", sessionId } satisfies BrowserAgentToolInput;
     case "screenshot":
-      return { action: "screenshot", sessionId };
+      return { action: "screenshot", sessionId } satisfies BrowserPanelToolInput;
     case "click_xy":
       if (input.x == null || input.y == null) return null;
       return {
@@ -60,7 +65,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: "Missing required fields" }, { status: 400 });
   }
 
-  const result = await executeBrowserTool(toolInput);
+  const result = await executeBrowserTool(toolInput, { audience: "panel" });
   if (result.ok === false) {
     return NextResponse.json(
       { ok: false, message: result.stderr ?? "browser action failed" },

@@ -2,21 +2,28 @@ import { tool } from "ai";
 import { z } from "zod";
 import { invokeBrowserRuntime } from "@/lib/browser-runtime-client.server";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
+import {
+  sanitizeBrowserToolDataForAgent,
+  type BrowserToolAudience,
+} from "@/lib/browser-tool-result";
 import { formatLocalToolResult } from "@/lib/tool-result";
 
 export { BROWSER_TOOL };
 
-const browserActionSchema = z.enum([
+/** Actions exposed to the LLM via the browser tool. Screenshot is panel-only (useless to agents). */
+const browserAgentActionSchema = z.enum([
   "status",
   "navigate",
   "snapshot",
+  "content",
   "click",
   "click_xy",
   "type",
   "fill",
   "press",
   "wait",
-  "screenshot",
+  "scroll",
+  "evaluate",
   "tabs",
   "back",
   "forward",
@@ -24,10 +31,17 @@ const browserActionSchema = z.enum([
   "close",
 ]);
 
+/** Side-panel API only — captures preview images for the embedded browser UI. */
+const browserPanelOnlyActionSchema = z.enum(["screenshot"]);
+
+const browserRuntimeActionSchema = z.union([
+  browserAgentActionSchema,
+  browserPanelOnlyActionSchema,
+]);
+
 const waitUntilSchema = z.enum(["load", "domcontentloaded", "networkidle", "commit"]).optional();
 
-export type BrowserToolInput = {
-  action: z.infer<typeof browserActionSchema>;
+type BrowserToolInputBase = {
   sessionId?: string;
   url?: string;
   ref?: string;
@@ -41,13 +55,26 @@ export type BrowserToolInput = {
   fullPage?: boolean;
   state?: "attached" | "detached" | "visible" | "hidden";
   delayMs?: number;
+  deltaX?: number;
+  deltaY?: number;
+  script?: string;
 };
+
+export type BrowserAgentToolInput = BrowserToolInputBase & {
+  action: z.infer<typeof browserAgentActionSchema>;
+};
+
+export type BrowserPanelToolInput = BrowserToolInputBase & {
+  action: z.infer<typeof browserPanelOnlyActionSchema>;
+};
+
+export type BrowserToolInput = BrowserAgentToolInput | BrowserPanelToolInput;
 
 function sessionId(input: BrowserToolInput): string {
   return input.sessionId?.trim() || "default";
 }
 
-function opForAction(action: BrowserToolInput["action"]): string {
+function opForAction(action: z.infer<typeof browserRuntimeActionSchema>): string {
   switch (action) {
     case "status":
       return "status";
@@ -55,6 +82,8 @@ function opForAction(action: BrowserToolInput["action"]): string {
       return "page.navigate";
     case "snapshot":
       return "page.snapshot";
+    case "content":
+      return "page.content";
     case "click":
       return "page.click";
     case "click_xy":
@@ -67,6 +96,10 @@ function opForAction(action: BrowserToolInput["action"]): string {
       return "page.press";
     case "wait":
       return "page.wait";
+    case "scroll":
+      return "page.scroll";
+    case "evaluate":
+      return "page.evaluate";
     case "screenshot":
       return "page.screenshot";
     case "tabs":
@@ -84,15 +117,18 @@ function opForAction(action: BrowserToolInput["action"]): string {
   }
 }
 
-const SESSION_ENSURE_ACTIONS = new Set<BrowserToolInput["action"]>([
+const SESSION_ENSURE_ACTIONS = new Set<z.infer<typeof browserRuntimeActionSchema>>([
   "navigate",
   "snapshot",
+  "content",
   "click",
   "click_xy",
   "type",
   "fill",
   "press",
   "wait",
+  "scroll",
+  "evaluate",
   "screenshot",
   "back",
   "forward",
@@ -100,11 +136,25 @@ const SESSION_ENSURE_ACTIONS = new Set<BrowserToolInput["action"]>([
   "tabs",
 ]);
 
+export type ExecuteBrowserToolOptions = {
+  /** agent: text-only tool result for LLM; panel: keep preview images for side panel API */
+  audience?: BrowserToolAudience;
+};
+
 export async function executeBrowserTool(
   input: BrowserToolInput,
+  options?: ExecuteBrowserToolOptions,
 ): Promise<Record<string, unknown>> {
+  const audience = options?.audience ?? "agent";
   const sid = sessionId(input);
-  const op = opForAction(input.action);
+
+  if (audience === "agent" && input.action === "screenshot") {
+    return formatLocalToolResult(
+      null,
+      false,
+      "screenshot is not available to the agent; use snapshot or content. Side panel shows live preview.",
+    );
+  }
 
   if (input.action === "navigate") {
     if (!input.url?.trim()) {
@@ -117,6 +167,12 @@ export async function executeBrowserTool(
       return formatLocalToolResult(null, false, "x and y are required for click_xy");
     }
   }
+
+  if (input.action === "evaluate" && !input.script?.trim()) {
+    return formatLocalToolResult(null, false, "script is required for evaluate");
+  }
+
+  const op = opForAction(input.action);
 
   if (SESSION_ENSURE_ACTIONS.has(input.action)) {
     await invokeBrowserRuntime("session.ensure", {}, sid, 60_000);
@@ -135,6 +191,10 @@ export async function executeBrowserTool(
   if (input.fullPage != null) args.fullPage = input.fullPage;
   if (input.state) args.state = input.state;
   if (input.delayMs != null) args.delayMs = input.delayMs;
+  if (input.deltaX != null) args.deltaX = input.deltaX;
+  if (input.deltaY != null) args.deltaY = input.deltaY;
+  if (input.script) args.script = input.script;
+  args.includePreview = audience === "panel";
 
   const result = await invokeBrowserRuntime(op, args, sid, input.timeoutMs ?? 120_000);
   if (!result.ok) {
@@ -145,23 +205,31 @@ export async function executeBrowserTool(
     );
   }
 
-  return formatLocalToolResult({
+  const payload: Record<string, unknown> = {
     action: input.action,
     sessionId: sid,
     ...(typeof result.data === "object" && result.data !== null
       ? (result.data as Record<string, unknown>)
       : { data: result.data }),
-  });
+  };
+
+  const data =
+    audience === "agent" ? sanitizeBrowserToolDataForAgent(payload) : payload;
+
+  return formatLocalToolResult(data);
 }
 
 export const BROWSER_TOOL_DEF = tool({
   description:
-    "Embedded Playwright browser for web UI. Workflow: navigate → snapshot (refs e1,…) → click/type/fill. "
-    + "Use for getquicker pages, login, publish — NOT shell curl, NOT Quicker program edits. "
+    "Embedded Playwright browser (side panel shows live preview; tool results are text-only). "
+    + "Workflow: navigate(url) → snapshot (YAML refs e1,e2,…) → click/type/fill/press by ref. "
+    + "Use content for readable page text; use snapshot for buttons/links/inputs; use scroll for long pages; use evaluate for structured DOM extraction. "
+    + "Do NOT use screenshot — agents cannot use images; snapshot + content cover page understanding. "
+    + "For getquicker login/publish — NOT shell curl, NOT Quicker program edits. "
     + "sessionId isolates cookies (default 'default').",
   inputSchema: z.object({
-    action: browserActionSchema.describe(
-      "status | navigate | snapshot | click | click_xy | type | fill | press | wait | screenshot | tabs | back | forward | reload | close",
+    action: browserAgentActionSchema.describe(
+      "status | navigate | snapshot | content | click | click_xy | type | fill | press | wait | scroll | evaluate | tabs | back | forward | reload | close",
     ),
     sessionId: z
       .string()
@@ -182,12 +250,17 @@ export const BROWSER_TOOL_DEF = tool({
       .describe("Keyboard key for action=press (Enter, Tab, Escape, …); optional ref focuses first"),
     waitUntil: waitUntilSchema.describe("Page load wait for navigate/reload"),
     timeoutMs: z.number().int().min(500).max(120_000).optional(),
-    fullPage: z.boolean().optional().describe("Full page screenshot"),
     state: z
       .enum(["attached", "detached", "visible", "hidden"])
       .optional()
       .describe("wait state when using ref or text"),
     delayMs: z.number().int().min(0).max(500).optional().describe("Per-key delay for type"),
+    deltaX: z.number().int().optional().describe("Horizontal wheel delta for action=scroll"),
+    deltaY: z.number().int().optional().describe("Vertical wheel delta for action=scroll; default 600"),
+    script: z
+      .string()
+      .optional()
+      .describe("JavaScript expression/function body for action=evaluate; return JSON-serializable data"),
   }),
-  execute: async (input: BrowserToolInput) => executeBrowserTool(input),
+  execute: async (input: BrowserAgentToolInput) => executeBrowserTool(input),
 });

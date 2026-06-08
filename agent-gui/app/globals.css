@@ -3391,12 +3391,12 @@ html.sidebar-collapsed-init .app-shell {
   min-height: var(--messages-scrollport-height);
 }
 
+/* Short reply in a tall turn: keep prompt + answer at the bottom when pinned to stream end */
+.msg-turn--fill-scrollport > .msg-turn__prompt {
+  margin-top: auto;
+}
+
 .msg-turn__prompt {
-  position: -webkit-sticky;
-  position: sticky;
-  /* Flush under the global tab titlebar (conversation toolbar floats as overlay). */
-  top: 0;
-  z-index: 20;
   flex-shrink: 0;
   margin-top: 0;
   margin-left: calc(-1 * var(--messages-scroll-padding-x));
@@ -3404,10 +3404,17 @@ html.sidebar-collapsed-init .app-shell {
   padding-top: 0;
   padding-left: var(--messages-scroll-padding-x);
   padding-right: var(--messages-scroll-padding-x);
-  /* Clearance below shadow when stuck; pairs with .msg-turn gap in normal flow */
   padding-bottom: 0.35rem;
   overflow: visible;
-  background: transparent;
+}
+
+.msg-turn__prompt--sticky {
+  position: -webkit-sticky;
+  position: sticky;
+  /* Flush under the global tab titlebar (conversation toolbar floats as overlay). */
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--chat-bg, var(--bg)) 92%, transparent);
 }
 
 .msg-turn__prompt .msg--user {
@@ -4304,7 +4311,7 @@ html.sidebar-collapsed-init .app-shell {
 }
 
 /* Sticky turn: window-like elevation so prompt reads as a floating panel */
-.msg-turn__prompt .user-message-composer .composer-surface {
+.msg-turn__prompt--sticky .user-message-composer .composer-surface {
   box-shadow:
     0 0 0 1px color-mix(in srgb, #000 5%, transparent),
     0 1px 2px color-mix(in srgb, #000 7%, transparent),
@@ -4312,8 +4319,8 @@ html.sidebar-collapsed-init .app-shell {
     0 16px 40px -10px color-mix(in srgb, #000 18%, transparent);
 }
 
-.msg-turn__prompt .user-message-composer--interactive:hover .composer-surface,
-.msg-turn__prompt .user-message-composer--interactive:focus-visible .composer-surface {
+.msg-turn__prompt--sticky .user-message-composer--interactive:hover .composer-surface,
+.msg-turn__prompt--sticky .user-message-composer--interactive:focus-visible .composer-surface {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--composer-border));
   box-shadow:
     0 0 0 1px var(--composer-focus-shadow),

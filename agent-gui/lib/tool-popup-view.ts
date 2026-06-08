@@ -18,6 +18,8 @@ import {
   parseStepRunnerGetFromQkrpcData,
   parseStepRunnerSearchResult,
 } from "@/lib/step-runner-tool";
+import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
+import { parseBrowserToolResultView } from "@/lib/browser-tool-result";
 import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 import { isStructuredToolResult } from "@/lib/tool-result";
 import { parseProgramDiagnosticsFromToolData } from "@/lib/program-diagnostics-view";
@@ -34,6 +36,10 @@ export function toolPopupHasVisualView(
 ): boolean {
   if (toolName === SHELL_EXEC_TOOL) {
     return input !== undefined || output !== undefined;
+  }
+
+  if (toolName === BROWSER_TOOL && parseBrowserToolResultView(output)) {
+    return true;
   }
 
   if (workspaceFileToolHasPopupVisual(toolName, input, output)) {

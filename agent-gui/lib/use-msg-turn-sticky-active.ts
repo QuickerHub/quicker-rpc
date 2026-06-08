@@ -94,12 +94,10 @@ export function useMsgTurnStickyActive(
     const observer = new ResizeObserver(measure);
     observer.observe(messages);
     observer.observe(turn);
-    messages.addEventListener("scroll", measure, { passive: true });
 
     return () => {
       cancelAnimationFrame(rafId);
       observer.disconnect();
-      messages.removeEventListener("scroll", measure);
     };
   }, [enabled, messagesRef, turnRef, resetKey]);
 

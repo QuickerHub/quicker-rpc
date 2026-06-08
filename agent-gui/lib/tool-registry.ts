@@ -78,7 +78,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "浏览器",
     group: "write",
     category: "runtime",
-    description: "Playwright 操控本地浏览器：navigate/snapshot/click/type/fill 等",
+    description: "Playwright 浏览器：navigate → snapshot/content → click/type/fill；无 screenshot，侧栏实时预览",
   },
   {
     id: "web_search",

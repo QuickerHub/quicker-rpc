@@ -27,7 +27,8 @@ type UseBrowserPanelStreamOptions = {
 
 type OutboundMessage =
   | { type: "subscribe"; sessionId: string }
-  | { type: "viewport"; width: number; height: number }
+  | { type: "viewport"; width: number; height: number; deviceScaleFactor?: number }
+  | { type: "mousemove"; x: number; y: number }
   | { type: "click"; x: number; y: number; button?: string }
   | { type: "wheel"; deltaX: number; deltaY: number }
   | { type: "keydown"; key: string }
@@ -48,6 +49,8 @@ export function useBrowserPanelStream({
   const wsRef = useRef<WebSocket | null>(null);
   const viewportRef = useRef({ width: 1280, height: 800 });
   const onStateRef = useRef(onState);
+  const pendingMouseMoveRef = useRef<{ x: number; y: number } | null>(null);
+  const mouseMoveFrameRef = useRef<number | null>(null);
   onStateRef.current = onState;
 
   const send = useCallback((message: OutboundMessage) => {
@@ -62,8 +65,12 @@ export function useBrowserPanelStream({
     const rect = host.getBoundingClientRect();
     const width = Math.max(120, Math.round(rect.width));
     const height = Math.max(120, Math.round(rect.height));
+    const deviceScaleFactor = Math.min(
+      2.5,
+      Math.max(1, Math.round((window.devicePixelRatio || 1) * 100) / 100),
+    );
     viewportRef.current = { width, height };
-    send({ type: "viewport", width, height });
+    send({ type: "viewport", width, height, deviceScaleFactor });
   }, [hostRef, send]);
 
   const connect = useCallback(async () => {
@@ -174,6 +181,24 @@ export function useBrowserPanelStream({
     [send],
   );
 
+  const moveAt = useCallback(
+    (clientX: number, clientY: number, rect: DOMRect) => {
+      const { width, height } = viewportRef.current;
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const x = Math.round(((clientX - rect.left) / rect.width) * width);
+      const y = Math.round(((clientY - rect.top) / rect.height) * height);
+      pendingMouseMoveRef.current = { x, y };
+      if (mouseMoveFrameRef.current != null) return;
+      mouseMoveFrameRef.current = window.requestAnimationFrame(() => {
+        mouseMoveFrameRef.current = null;
+        const pending = pendingMouseMoveRef.current;
+        pendingMouseMoveRef.current = null;
+        if (pending) send({ type: "mousemove", ...pending });
+      });
+    },
+    [send],
+  );
+
   const wheelAt = useCallback(
     (deltaX: number, deltaY: number) => {
       send({ type: "wheel", deltaX, deltaY });
@@ -202,6 +227,7 @@ export function useBrowserPanelStream({
     connected,
     connecting,
     error,
+    moveAt,
     clickAt,
     wheelAt,
     pressKey,

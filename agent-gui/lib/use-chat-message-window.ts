@@ -14,7 +14,6 @@ import {
   CHAT_MESSAGE_WINDOW_DEFAULT_TURNS,
   CHAT_MESSAGE_WINDOW_EXPAND_MESSAGES,
   CHAT_MESSAGE_WINDOW_EXPAND_TURNS,
-  CHAT_MESSAGE_WINDOW_SCROLL_LOAD_THRESHOLD_PX,
   CHAT_MESSAGE_WINDOW_STREAMING_MESSAGES,
   CHAT_MESSAGE_WINDOW_STREAMING_TURNS,
   findTurnIndexForMessageIndex,
@@ -27,6 +26,9 @@ import {
   shouldTrimWindowAtBottom,
 } from "@/lib/chat-message-window";
 
+/** Min gap between history window expansions (avoids IO re-entrancy storms). */
+const HISTORY_EXPAND_COOLDOWN_MS = 400;
+
 type UseChatMessageWindowOptions = {
   containerRef: RefObject<HTMLElement | null>;
   visible: boolean;
@@ -34,8 +36,11 @@ type UseChatMessageWindowOptions = {
   userTurnStarts: number[];
   totalMessages: number;
   editAnchorIndex: number;
-  revision: unknown;
+  /** Stable key from buildChatScrollRevisionKey. */
+  revision: string;
   getStickToBottom: () => boolean;
+  /** Stop auto-following the stream after the user loads older history. */
+  releaseStickToBottom?: () => void;
   /** Shrink mounted window while tokens/tools stream in. */
   streamingActive?: boolean;
 };
@@ -47,6 +52,7 @@ export type ChatMessageWindowSlice = {
   hiddenTurnCount: number;
   hiddenMessageCount: number;
   expandHistory: () => void;
+  clearHistoryPin: () => void;
   historySentinelRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -72,16 +78,24 @@ export function useChatMessageWindow({
   editAnchorIndex,
   revision,
   getStickToBottom,
+  releaseStickToBottom,
   streamingActive = false,
 }: UseChatMessageWindowOptions): ChatMessageWindowSlice {
   const historySentinelRef = useRef<HTMLDivElement | null>(null);
   const pendingScrollRestoreRef = useRef<(() => void) | null>(null);
+  const expandCooldownUntilRef = useRef(0);
+  const historyPinnedRef = useRef(false);
+  const historyExpandReadyRef = useRef(false);
   const [visibleTurnCount, setVisibleTurnCount] = useState(
     CHAT_MESSAGE_WINDOW_DEFAULT_TURNS,
   );
   const [visibleMessageCount, setVisibleMessageCount] = useState(
     CHAT_MESSAGE_WINDOW_DEFAULT_MESSAGES,
   );
+  const visibleTurnCountRef = useRef(visibleTurnCount);
+  const visibleMessageCountRef = useRef(visibleMessageCount);
+  visibleTurnCountRef.current = visibleTurnCount;
+  visibleMessageCountRef.current = visibleMessageCount;
 
   const totalTurns = userTurnStarts.length;
   const useTurnMode = totalTurns > 0;
@@ -93,13 +107,38 @@ export function useChatMessageWindow({
 
   const minMessageIndex = editAnchorIndex >= 0 ? editAnchorIndex : 0;
 
+  const clearHistoryPin = useCallback(() => {
+    historyPinnedRef.current = false;
+  }, []);
+
   useEffect(() => {
+    historyPinnedRef.current = false;
+    historyExpandReadyRef.current = false;
     setVisibleTurnCount(CHAT_MESSAGE_WINDOW_DEFAULT_TURNS);
     setVisibleMessageCount(CHAT_MESSAGE_WINDOW_DEFAULT_MESSAGES);
   }, [threadId]);
 
   useEffect(() => {
-    if (!streamingActive) return;
+    if (!visible) {
+      historyExpandReadyRef.current = false;
+      return;
+    }
+    historyExpandReadyRef.current = false;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        historyExpandReadyRef.current = true;
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      historyExpandReadyRef.current = false;
+    };
+  }, [threadId, visible]);
+
+  useEffect(() => {
+    if (!streamingActive || historyPinnedRef.current) return;
     setVisibleTurnCount((current) =>
       Math.min(current, CHAT_MESSAGE_WINDOW_STREAMING_TURNS),
     );
@@ -118,11 +157,21 @@ export function useChatMessageWindow({
   );
 
   const expandHistory = useCallback(() => {
+    const now = Date.now();
+    if (now < expandCooldownUntilRef.current) return;
+
+    if (useTurnMode) {
+      if (visibleTurnCountRef.current >= totalTurns) return;
+    } else if (totalMessages <= 0 || visibleMessageCountRef.current >= totalMessages) {
+      return;
+    }
+
+    expandCooldownUntilRef.current = now + HISTORY_EXPAND_COOLDOWN_MS;
+    historyPinnedRef.current = true;
+    releaseStickToBottom?.();
+
     const container = containerRef.current;
-    if (
-      container
-      && container.scrollTop < CHAT_MESSAGE_WINDOW_SCROLL_LOAD_THRESHOLD_PX
-    ) {
+    if (container) {
       pendingScrollRestoreRef.current = preserveScrollOnPrepend(container);
     }
 
@@ -130,7 +179,7 @@ export function useChatMessageWindow({
       setVisibleTurnCount((current) =>
         nextExpandedTurnCount(current, totalTurns, CHAT_MESSAGE_WINDOW_EXPAND_TURNS),
       );
-    } else if (totalMessages > 0) {
+    } else {
       setVisibleMessageCount((current) =>
         nextExpandedMessageCount(
           current,
@@ -139,7 +188,7 @@ export function useChatMessageWindow({
         ),
       );
     }
-  }, [containerRef, totalMessages, totalTurns, useTurnMode]);
+  }, [containerRef, releaseStickToBottom, totalMessages, totalTurns, useTurnMode]);
 
   useLayoutEffect(() => {
     pendingScrollRestoreRef.current?.();
@@ -200,40 +249,15 @@ export function useChatMessageWindow({
 
   useEffect(() => {
     if (!visible) return;
-    const container = containerRef.current;
-    if (!container) return;
-
-    const onScroll = () => {
-      if (container.scrollTop > CHAT_MESSAGE_WINDOW_SCROLL_LOAD_THRESHOLD_PX) {
-        return;
-      }
-      const hidden = useTurnMode
-        ? windowSlice.hiddenTurnCount
-        : windowSlice.hiddenMessageCount;
-      if (hidden <= 0) return;
-      expandHistory();
-    };
-
-    container.addEventListener("scroll", onScroll, { passive: true });
-    return () => container.removeEventListener("scroll", onScroll);
-  }, [
-    containerRef,
-    expandHistory,
-    visible,
-    windowSlice.hiddenMessageCount,
-    windowSlice.hiddenTurnCount,
-    useTurnMode,
-  ]);
-
-  useEffect(() => {
-    if (!visible) return;
     const sentinel = historySentinelRef.current;
     const root = containerRef.current;
     if (!sentinel || !root) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
+        if (!historyExpandReadyRef.current) return;
         if (!entries.some((e) => e.isIntersecting)) return;
+        if (getStickToBottom()) return;
         expandHistory();
       },
       { root, rootMargin: "120px 0px 0px 0px", threshold: 0 },
@@ -243,17 +267,16 @@ export function useChatMessageWindow({
   }, [
     containerRef,
     expandHistory,
-    revision,
+    getStickToBottom,
     visible,
     windowSlice.hiddenMessageCount,
     windowSlice.hiddenTurnCount,
   ]);
 
-  const prevRevisionRef = useRef(revision);
+  const prevRevisionRef = useRef("");
   useLayoutEffect(() => {
-    const prev = prevRevisionRef.current;
+    if (prevRevisionRef.current === revision) return;
     prevRevisionRef.current = revision;
-    if (prev === revision) return;
 
     const trimTurnDefault = streamingActive
       ? CHAT_MESSAGE_WINDOW_STREAMING_TURNS
@@ -262,6 +285,8 @@ export function useChatMessageWindow({
       ? CHAT_MESSAGE_WINDOW_STREAMING_MESSAGES
       : CHAT_MESSAGE_WINDOW_DEFAULT_MESSAGES;
 
+    const historyPinned = historyPinnedRef.current;
+
     if (useTurnMode) {
       if (
         shouldTrimWindowAtBottom(
@@ -269,6 +294,7 @@ export function useChatMessageWindow({
           totalTurns,
           effectiveTurnWindow,
           trimTurnDefault,
+          historyPinned,
         )
       ) {
         setVisibleTurnCount(trimTurnDefault);
@@ -282,6 +308,7 @@ export function useChatMessageWindow({
         totalMessages,
         effectiveMessageWindow,
         trimMessageDefault,
+        historyPinned,
       )
     ) {
       setVisibleMessageCount(trimMessageDefault);
@@ -300,6 +327,7 @@ export function useChatMessageWindow({
   return {
     ...windowSlice,
     expandHistory,
+    clearHistoryPin,
     historySentinelRef,
   };
 }

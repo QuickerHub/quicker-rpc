@@ -45,19 +45,22 @@ export async function maybeAutoRestoreChatStoreOnBoot(
   if (autoRestoreAlreadyAttempted()) return null;
   if (chatStoreHasPersistedMessages(current)) return null;
 
-  markAutoRestoreAttempted();
-
   const local = tryRestoreLegacyChatStore(current);
   if (restoreChanged(local.result)) {
+    markAutoRestoreAttempted();
     return local.next;
   }
 
   const disk = await fetchLegacyChatStoreCandidatesFromDisk();
-  if (disk.candidates.length === 0) return null;
+  if (disk.candidates.length === 0) {
+    markAutoRestoreAttempted();
+    return null;
+  }
 
   const merged = tryRestoreLegacyChatStore(local.next, disk.candidates, {
     scannedRoots: disk.scannedRoots,
   });
+  markAutoRestoreAttempted();
   if (!restoreChanged(merged.result)) return null;
 
   return merged.next;

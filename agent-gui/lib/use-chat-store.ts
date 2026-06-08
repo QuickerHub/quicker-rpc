@@ -181,12 +181,17 @@ export function useChatStore() {
     };
   }, []);
 
-  const updateStore = useCallback((next: ChatStoreData) => {
-    if (next === cachedStore) return;
-    scheduleSaveChatStore(next);
-    cachedStore = next;
-    notifyChatStoreListeners();
-  }, []);
+  const updateStore = useCallback(
+    (next: ChatStoreData, options?: { notify?: boolean }) => {
+      if (next === cachedStore) return;
+      scheduleSaveChatStore(next);
+      cachedStore = next;
+      if (options?.notify !== false) {
+        notifyChatStoreListeners();
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const onPageHide = () => flushPendingChatStoreSave();

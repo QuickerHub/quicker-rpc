@@ -46,6 +46,7 @@ import { collectPendingAskQuestions } from "@/lib/ask-question-tool";
 import { AskQuestionDock } from "@/components/chat/AskQuestionDock";
 import type { PendingToolApproval } from "@/lib/tool-approval-display";
 import type { WorkspaceDeleteProjectHit } from "@/lib/workspace-action-project-lookup";
+import { buildChatScrollRevisionKey } from "@/lib/chat-scroll-revision";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
 import { useChatStore } from "@/lib/use-chat-store";
 import { resolveStoreWorkingDirectory } from "@/lib/chat-store";
@@ -373,18 +374,21 @@ export function LauncherPanel() {
     session != null
     && (session.pendingApprovalCount > 0 || session.pendingAskQuestionCount > 0);
 
+  const launcherScrollRevisionKey = useMemo(() => {
+    if (!session) return "";
+    const error = session.error ? new Error(session.error) : undefined;
+    const base = buildChatScrollRevisionKey(
+      session.messages,
+      session.status,
+      error,
+    );
+    return `${base}|${session.pendingApprovalCount}|${session.pendingAskQuestionCount}`;
+  }, [session]);
+
   useMessagesStickScroll(transcriptRef, {
     visible: session != null,
     threadId: session?.sessionId ?? "launcher-idle",
-    revision: session
-      ? [
-          session.messages,
-          session.status,
-          session.error,
-          session.pendingApprovalCount,
-          session.pendingAskQuestionCount,
-        ]
-      : [],
+    revision: launcherScrollRevisionKey,
   });
 
   return (

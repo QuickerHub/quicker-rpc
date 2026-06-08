@@ -1,5 +1,6 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { deriveProvisionalThreadTitle } from "@/lib/thread-title";
+import { chatMessagesEqual } from "@/lib/chat-message-signature";
 
 export type ChatThread = {
   id: string;
@@ -590,13 +591,7 @@ export function threadMessagesEqual(
   a: AgentUIMessage[],
   b: AgentUIMessage[],
 ): boolean {
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-  try {
-    return JSON.stringify(a) === JSON.stringify(b);
-  } catch {
-    return false;
-  }
+  return chatMessagesEqual(a, b);
 }
 
 export function updateThreadMessages(
@@ -620,9 +615,6 @@ export function updateThreadMessages(
     ...data,
     threads: data.threads.map((t) => {
       if (t.id !== threadId) return t;
-      if (threadMessagesEqual(t.messages, messages)) {
-        return t;
-      }
       const ts = now();
       const shouldSetProvisionalTitle =
         messages.length > 0

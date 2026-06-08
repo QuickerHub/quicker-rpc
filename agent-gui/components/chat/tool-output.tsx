@@ -104,6 +104,13 @@ import {
   isAskQuestionAwaitingInput,
   askQuestionDisplayTitle,
 } from "@/lib/ask-question-tool";
+import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
+import {
+  parseBrowserToolResultView,
+  redactBrowserBinaryFields,
+  summarizeBrowserToolOutput,
+} from "@/lib/browser-tool-result";
+import { BrowserToolResultView } from "./BrowserToolResultView";
 
 export type QkrpcToolResult = {
   ok: boolean;
@@ -150,6 +157,11 @@ export function summarizeToolOutput(
   if (isWebSearchTool(toolName)) {
     const searchSummary = summarizeWebSearchOutput(output);
     if (searchSummary) return searchSummary;
+  }
+
+  if (toolName === BROWSER_TOOL) {
+    const browserSummary = summarizeBrowserToolOutput(output, input);
+    if (browserSummary) return browserSummary;
   }
 
   if (input !== undefined) {
@@ -800,6 +812,8 @@ function QkrpcToolResultView({
     toolName && isProgramDiagnosticsTool(toolName, input)
       ? parseProgramDiagnosticsFromToolData(data)
       : null;
+  const browserView =
+    toolName === BROWSER_TOOL ? parseBrowserToolResultView(result) : null;
   const workspaceDisplay =
     result.ok ? parseWorkspaceToolDisplay(data) : null;
   const hasWorkspaceResultBody = Boolean(
@@ -841,6 +855,7 @@ function QkrpcToolResultView({
     || stepRunnerGet
     || faSearch
     || programDiagnostics
+    || browserView
     || hasMetadataResultBody
     || hasWorkspaceResultBody
     || hasFileReadContentBody,
@@ -862,6 +877,8 @@ function QkrpcToolResultView({
       );
     } else if (programDiagnostics) {
       resultBody = <ProgramDiagnosticsResultView view={programDiagnostics} />;
+    } else if (browserView) {
+      resultBody = <BrowserToolResultView view={browserView} />;
     } else if (hasWorkspaceResultBody && workspaceDisplay) {
       resultBody = <WorkspaceToolResultView display={workspaceDisplay} />;
     } else if (actionMetadata) {
@@ -1076,12 +1093,14 @@ export function ToolPayloadView({
   if (value === undefined) return null;
 
   if (rawOnly) {
+    const displayValue =
+      toolName === BROWSER_TOOL ? redactBrowserBinaryFields(value) : value;
     return (
       <div className={`tool-section tool-section--raw-json${dense ? " tool-section--dense" : ""}`}>
         <div className="tool-section-label">
           <span>{label}</span>
         </div>
-        <JsonBlock value={value} followTail={followTail} />
+        <JsonBlock value={displayValue} followTail={followTail} />
       </div>
     );
   }

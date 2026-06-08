@@ -19,6 +19,7 @@ function mockNode(
     scrollHeight?: number;
     clientHeight?: number;
     overflowY?: string;
+    closest?: (selector: string) => MockNode | null;
   } = {},
 ): MockNode {
   const node = {
@@ -28,8 +29,8 @@ function mockNode(
     scrollHeight: options.scrollHeight ?? 100,
     clientHeight: options.clientHeight ?? 100,
     overflowY: options.overflowY ?? "visible",
-    closest(_selector: string) {
-      return null;
+    closest(selector: string) {
+      return options.closest?.(selector) ?? null;
     },
   } as MockNode;
   return node;
@@ -62,6 +63,22 @@ test("ignores wheel inside a vertically scrollable popup list", () => {
 
   withMockComputedStyle(() => {
     assert.equal(shouldIgnoreWheelForwardToMessages(button), true);
+  });
+});
+
+test("ignores wheel on embedded browser remote surface", () => {
+  const surface = mockNode("embedded-browser__remote-surface");
+  const img = mockNode("embedded-browser__preview", {
+    parent: surface,
+    closest(selector: string) {
+      if (selector === ".embedded-browser__remote-surface") return surface;
+      return null;
+    },
+  });
+  img.parentElement = surface;
+
+  withMockComputedStyle(() => {
+    assert.equal(shouldIgnoreWheelForwardToMessages(img), true);
   });
 });
 

@@ -4,7 +4,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -83,6 +83,63 @@ const DEFAULT_VOICE_WS_PORT: u16 = 6016;
 const VOICE_RUNTIME_READY_WAIT_MS: u64 = 45_000;
 
 use crate::quicker_agent_paths::voice_plugin_root;
+use crate::voice_plugin_install::VoiceInstallProgressEvent;
+
+fn emit_voice_install_progress(app: &AppHandle, phase: &str, percent: u8, message: &str) {
+    let _ = app.emit(
+        "voice-plugin-install-progress",
+        VoiceInstallProgressEvent {
+            phase: phase.into(),
+            percent,
+            message: message.into(),
+        },
+    );
+}
+
+/// Stop voice runtime, swap staged files into live runtime/, then optionally restart.
+fn try_apply_staged_runtime_upgrade(app: &AppHandle, restart_if_was_active: bool) {
+    let root = voice_plugin_root();
+    if !crate::voice_plugin_install::has_staged_runtime_update(&root) {
+        return;
+    }
+
+    emit_voice_install_progress(app, "apply", 96, "正在应用语音服务更新…");
+
+    let port = voice_ws_port();
+    let state = app.state::<VoicePluginState>();
+    let inner = state.inner();
+    inner.shutdown();
+    if voice_runtime_ready(port) {
+        reclaim_voice_port(port);
+    }
+    thread::sleep(Duration::from_millis(450));
+
+    match crate::voice_plugin_install::apply_pending_runtime_upgrade() {
+        Ok(()) => {
+            emit_voice_install_progress(app, "done", 100, "语音服务已更新");
+            if restart_if_was_active {
+                let _ = start_runtime_inner(inner);
+            }
+        }
+        Err(err) => {
+            eprintln!("[voice-plugin] apply staged runtime upgrade failed: {err}");
+            emit_voice_install_progress(
+                app,
+                "error",
+                0,
+                "语音服务更新暂未应用，将在下次启动时重试",
+            );
+            if restart_if_was_active {
+                let _ = start_runtime_inner(inner);
+            }
+        }
+    }
+}
+
+fn voice_runtime_was_active(state: &VoicePluginState) -> bool {
+    let port = voice_ws_port();
+    state.owned_child_running() || voice_runtime_ready(port)
+}
 
 fn dev_runtime_dir() -> Option<PathBuf> {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../voice-asr-runtime");
@@ -778,13 +835,20 @@ fn run_background_voice_tasks(app: &AppHandle) {
         return;
     }
 
+    let state = app.state::<VoicePluginState>();
+    let was_active = voice_runtime_was_active(state.inner());
+
     if crate::voice_plugin_install::needs_runtime_update(&root) {
         if let Err(err) = crate::voice_plugin_install::stage_runtime_upgrade(app) {
             eprintln!("[voice-plugin] runtime upgrade staging failed: {err}");
         }
     }
 
-    ensure_voice_runtime(app);
+    try_apply_staged_runtime_upgrade(app, was_active);
+
+    if !was_active {
+        ensure_voice_runtime(app);
+    }
 }
 
 pub fn spawn_voice_runtime_background(app: AppHandle) {

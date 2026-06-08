@@ -7,6 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { RUNTIME_VERSION } from "../browser-runtime/config.mjs";
 import { resolveBrowserRuntimeRoot } from "./browser-runtime-root.mjs";
 import { isProcessAlive, killProcessTree } from "./qkrpc-serve-lifecycle.mjs";
 
@@ -74,8 +75,13 @@ function normalizeBase(url) {
   return url.replace(/\/$/, "");
 }
 
+/** @typedef {{ ok: boolean; runtimeVersion?: string; protocolVersion?: string }} BrowserRuntimeHealth */
+
 /** @param {string} base e.g. http://127.0.0.1:6017 */
-export async function checkBrowserRuntimeHealth(base, timeoutMs = 3000) {
+export async function fetchBrowserRuntimeHealth(
+  base,
+  timeoutMs = 3000,
+) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -85,14 +91,31 @@ export async function checkBrowserRuntimeHealth(base, timeoutMs = 3000) {
       cache: "no-store",
       headers: { Accept: "application/json" },
     });
-    if (!res.ok) return false;
+    if (!res.ok) return { ok: false };
     const body = await res.json();
-    return body?.ok === true;
+    return {
+      ok: body?.ok === true,
+      runtimeVersion:
+        typeof body?.runtimeVersion === "string" ? body.runtimeVersion : undefined,
+      protocolVersion:
+        typeof body?.protocolVersion === "string" ? body.protocolVersion : undefined,
+    };
   } catch {
-    return false;
+    return { ok: false };
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** @param {string} base e.g. http://127.0.0.1:6017 */
+export async function checkBrowserRuntimeHealth(base, timeoutMs = 3000) {
+  const health = await fetchBrowserRuntimeHealth(base, timeoutMs);
+  return health.ok === true;
+}
+
+/** @param {BrowserRuntimeHealth} health */
+export function isBrowserRuntimeVersionCurrent(health) {
+  return health.ok === true && health.runtimeVersion === RUNTIME_VERSION;
 }
 
 async function waitForBrowserRuntimeHealth(base, maxMs = 45_000) {
@@ -105,7 +128,7 @@ async function waitForBrowserRuntimeHealth(base, maxMs = 45_000) {
 }
 
 /** @param {number} port */
-function killListenerOnPort(port) {
+export function killListenerOnPort(port) {
   if (process.platform === "win32") {
     try {
       const out = execSync(
@@ -211,9 +234,19 @@ export async function ensureBrowserRuntime(agentGuiRoot, host) {
   const port = resolveBrowserPort();
   const base = `http://${host}:${port}`;
 
-  if (await checkBrowserRuntimeHealth(base)) {
-    console.log(`browser: reusing runtime at ${base}/health`);
+  const health = await fetchBrowserRuntimeHealth(base);
+  if (health.ok && isBrowserRuntimeVersionCurrent(health)) {
+    console.log(`browser: reusing runtime ${health.runtimeVersion} at ${base}/health`);
     return null;
+  }
+
+  if (health.ok && !isBrowserRuntimeVersionCurrent(health)) {
+    console.log(
+      `browser: stale runtime ${health.runtimeVersion ?? "unknown"} (want ${RUNTIME_VERSION}) — restarting`,
+    );
+    killListenerOnPort(port);
+    clearBrowserRuntimeState(runtimeRoot);
+    await new Promise((r) => setTimeout(r, 400));
   }
 
   reconcileStaleBrowserRuntime(runtimeRoot);

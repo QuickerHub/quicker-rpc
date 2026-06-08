@@ -92,7 +92,7 @@ function ChatMessageArticleInner({
 
     if (stickyPrompt) {
       return (
-        <div key={message.id} className="msg-turn__prompt">
+        <div key={message.id} className="msg-turn__prompt msg-turn__prompt--sticky">
           <article className={userArticleClass}>
             {userComposer}
             {lastMessageMenu}

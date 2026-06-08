@@ -280,8 +280,8 @@ async function findAvailablePort(host, preferred) {
 }
 
 function defaultUiPort() {
-  // Dev keeps 3000; production/publish standalone prefers 3001 to avoid dev conflicts.
-  return isDev ? 3000 : 3001;
+  // Keep 3000 for dev and bundled UI so chat localStorage origin stays stable across upgrades.
+  return 3000;
 }
 
 async function resolveUiPort(host) {

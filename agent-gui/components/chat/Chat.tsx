@@ -119,6 +119,7 @@ import { resolveAgentActivity, isPlaceholderAssistantMessage } from "@/lib/agent
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
 import { CollapsedTurnSummary } from "@/components/chat/CollapsedTurnSummary";
 import { isHotTurnIndex, turnIndicesPrepended } from "@/lib/chat-message-window";
+import { buildChatScrollRevisionKey } from "@/lib/chat-scroll-revision";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
 import { useChatMessageWindow } from "@/lib/use-chat-message-window";
 import { findUserTurnStartIndices } from "@/lib/last-user-turn-index";
@@ -204,7 +205,11 @@ type ChatPanelProps = {
   settingsOpen: boolean;
   onToggleSettings: () => void;
   onOpenSettings: (targetProviderId?: LlmProviderId, tab?: AppSettingsTabId) => void;
-  onPersist: (threadId: string, messages: AgentUIMessage[]) => void;
+  onPersist: (
+    threadId: string,
+    messages: AgentUIMessage[],
+    options?: { notify?: boolean },
+  ) => void;
   onAutoTitle: (threadId: string, title: string) => void;
 };
 
@@ -365,11 +370,18 @@ function ChatPanel({
   const messagesForPersistRef = useRef(messages);
   messagesForPersistRef.current = messages;
 
+  const busyPersist =
+    status === "streaming" || status === "submitted";
+  const busyPersistRef = useRef(busyPersist);
+  busyPersistRef.current = busyPersist;
+
   const flushThreadPersist = useCallback(() => {
     if (!isChatStoreHydrated()) return;
     const snapshot = messagesForPersistRef.current;
     lastPersistedRef.current = { threadId, messages: snapshot };
-    persistRef.current(threadId, snapshot);
+    persistRef.current(threadId, snapshot, {
+      notify: !busyPersistRef.current,
+    });
   }, [threadId]);
 
   const repairToolCalls = useCallback(() => {
@@ -383,9 +395,6 @@ function ChatPanel({
     },
     [repairToolCalls, sendMessage],
   );
-
-  const busyPersist =
-    status === "streaming" || status === "submitted";
 
   useEffect(() => {
     if (ephemeral || !visible) return;
@@ -526,30 +535,17 @@ function ChatPanel({
   );
   const qkrpcOk = ping.status === "ok";
 
-  const { pinToBottom, getStickToBottom } = useMessagesStickScroll(messagesRef, {
+  const scrollRevisionKey = useMemo(
+    () => buildChatScrollRevisionKey(messages, status, error),
+    [messages, status, error],
+  );
+
+  const { pinToBottom: pinToBottomInner, getStickToBottom, releaseStickToBottom } =
+    useMessagesStickScroll(messagesRef, {
     visible,
     threadId,
-    revision: [messages, error, status],
+    revision: scrollRevisionKey,
   });
-
-  useEffect(() => {
-    const drainLauncherSubmit = () => {
-      const pending = takeLauncherSubmit(threadId);
-      if (!pending) return;
-      if (!getLauncherSessionForThread(threadId)) return;
-      if (pending.llmSelection) {
-        setLlmSelection(pending.llmSelection);
-        llmSelectionRef.current = pending.llmSelection;
-        storeLauncherLlmSelectionRaw(pending.llmSelection);
-      }
-      voiceInterruptRef.current();
-      clearError();
-      if (visible) pinToBottom();
-      enqueueOrSend(pending.text);
-    };
-    drainLauncherSubmit();
-    return subscribeLauncherSubmit(drainLauncherSubmit);
-  }, [threadId, visible, enqueueOrSend, pinToBottom, clearError]);
 
   useEffect(() => {
     const sessionId = getLauncherSessionForThread(threadId);
@@ -656,20 +652,40 @@ function ChatPanel({
     userTurnStarts,
     totalMessages: messages.length,
     editAnchorIndex,
-    revision: [messages, error, status],
+    revision: scrollRevisionKey,
     getStickToBottom,
+    releaseStickToBottom,
     streamingActive,
   });
 
-  useAutoExpandColdTurns({
+  const pinToBottom = useCallback(() => {
+    messageWindow.clearHistoryPin();
+    pinToBottomInner();
+  }, [messageWindow.clearHistoryPin, pinToBottomInner]);
+
+  useEffect(() => {
+    const drainLauncherSubmit = () => {
+      const pending = takeLauncherSubmit(threadId);
+      if (!pending) return;
+      if (!getLauncherSessionForThread(threadId)) return;
+      if (pending.llmSelection) {
+        setLlmSelection(pending.llmSelection);
+        llmSelectionRef.current = pending.llmSelection;
+        storeLauncherLlmSelectionRaw(pending.llmSelection);
+      }
+      voiceInterruptRef.current();
+      clearError();
+      if (visible) pinToBottom();
+      enqueueOrSend(pending.text);
+    };
+    drainLauncherSubmit();
+    return subscribeLauncherSubmit(drainLauncherSubmit);
+  }, [threadId, visible, enqueueOrSend, pinToBottom, clearError]);
+
+  const registerColdTurnNode = useAutoExpandColdTurns({
     containerRef: messagesRef,
     visible,
-    revision: [
-      messageWindow.startTurnIndex,
-      messageWindow.hiddenTurnCount,
-      messages.length,
-      expandedColdTurns.size,
-    ],
+    revision: `${messageWindow.startTurnIndex}:${messageWindow.hiddenTurnCount}:${messages.length}`,
     setExpandedColdTurns,
   });
 
@@ -1057,6 +1073,7 @@ function ChatPanel({
       editAnchorMessageId,
       insertComposerPrompt,
       focusComposerAtEnd,
+      lastTurnFillScrollport,
       lastVisibleMessageId,
       messages,
       userMessageDrafts,
@@ -1170,6 +1187,7 @@ function ChatPanel({
                   turnIndex={turnIndex}
                   turnNumber={turnIndex + 1}
                   messageCount={turnMessageCount}
+                  ref={registerColdTurnNode}
                   onExpand={() => {
                     setExpandedColdTurns((prev) => {
                       const next = new Set(prev);
@@ -1193,7 +1211,7 @@ function ChatPanel({
                     renderChatMessage(
                       message,
                       startIndex + offset,
-                      offset === 0,
+                      offset === 0 && isLastTurn && lastTurnFillScrollport,
                     ),
                   )}
                 <TurnActionLinkCard
@@ -1303,8 +1321,14 @@ export function Chat() {
   }, []);
 
   const persistMessages = useCallback(
-    (threadId: string, messages: AgentUIMessage[]) => {
-      updateStore(updateThreadMessages(storeRef.current, threadId, messages));
+    (
+      threadId: string,
+      messages: AgentUIMessage[],
+      options?: { notify?: boolean },
+    ) => {
+      const next = updateThreadMessages(storeRef.current, threadId, messages);
+      storeRef.current = next;
+      updateStore(next, options);
     },
     [updateStore],
   );

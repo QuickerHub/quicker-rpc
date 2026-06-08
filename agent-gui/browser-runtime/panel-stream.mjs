@@ -14,6 +14,7 @@ export class PanelStreamConnection {
     this._cdp = null;
     this._screencastStarted = false;
     this._closed = false;
+    this._viewport = { width: 1280, height: 800, deviceScaleFactor: 1 };
     /** @type {ReturnType<typeof setInterval> | null} */
     this._stateTimer = null;
   }
@@ -62,14 +63,28 @@ export class PanelStreamConnection {
     if (msgType === "viewport") {
       const width = Number(message.width ?? 0);
       const height = Number(message.height ?? 0);
+      const deviceScaleFactor = Math.min(
+        2.5,
+        Math.max(1, Number(message.deviceScaleFactor ?? 1)),
+      );
       if (width < 120 || height < 120) return;
       const session = await this._manager.ensureSession(this._sessionId);
       await session.page.setViewportSize({ width, height });
+      this._viewport = { width, height, deviceScaleFactor };
+      await this._applyDeviceMetrics();
       return;
     }
 
     const session = await this._manager.ensureSession(this._sessionId);
     const page = session.page;
+
+    if (msgType === "mousemove") {
+      const x = Number(message.x ?? 0);
+      const y = Number(message.y ?? 0);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      await page.mouse.move(x, y);
+      return;
+    }
 
     if (msgType === "click") {
       const x = Number(message.x ?? 0);
@@ -112,9 +127,9 @@ export class PanelStreamConnection {
     this._cdp.on("Page.screencastFrame", (params) => {
       void this._onScreencastFrame(params);
     });
+    await this._applyDeviceMetrics();
     await this._cdp.send("Page.startScreencast", {
-      format: "jpeg",
-      quality: 72,
+      format: "png",
       everyNthFrame: 1,
     });
     this._screencastStarted = true;
@@ -128,7 +143,7 @@ export class PanelStreamConnection {
     sendJson(this._ws, {
       type: "frame",
       sessionId: this._sessionId,
-      mimeType: "image/jpeg",
+      mimeType: "image/png",
       data,
     });
     if (params.sessionId) {
@@ -151,7 +166,25 @@ export class PanelStreamConnection {
       title: await session.page.title(),
       viewportWidth: viewport.width,
       viewportHeight: viewport.height,
+      deviceScaleFactor: this._viewport.deviceScaleFactor,
     });
+  }
+
+  async _applyDeviceMetrics() {
+    if (!this._cdp) return;
+    const { width, height, deviceScaleFactor } = this._viewport;
+    try {
+      await this._cdp.send("Emulation.setDeviceMetricsOverride", {
+        width,
+        height,
+        deviceScaleFactor,
+        mobile: false,
+        screenWidth: width,
+        screenHeight: height,
+      });
+    } catch (err) {
+      console.warn("[browser-runtime] device metrics override failed:", err);
+    }
   }
 
   async _cleanup() {

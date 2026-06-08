@@ -72,6 +72,16 @@ test("shouldTrimWindowAtBottom only when following stream", () => {
     ),
     false,
   );
+  assert.equal(
+    shouldTrimWindowAtBottom(
+      true,
+      30,
+      CHAT_MESSAGE_WINDOW_DEFAULT_TURNS + 4,
+      CHAT_MESSAGE_WINDOW_DEFAULT_TURNS,
+      true,
+    ),
+    false,
+  );
 });
 
 test("nextExpandedTurnCount caps at total", () => {

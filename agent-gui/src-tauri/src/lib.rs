@@ -134,8 +134,8 @@ fn find_port(host: &str, start: u16) -> Result<u16, String> {
     Err(format!("no free port from {start} on {host}"))
 }
 
-/// Installed QuickerAgent prefers 3001 so browser dev can keep 3000; origin is port-scoped.
-const UI_PORT_PREFERRED: u16 = 3001;
+/// Installed QuickerAgent prefers 3000 so chat localStorage origin matches pre-0.12.7 builds.
+const UI_PORT_PREFERRED: u16 = 3000;
 
 fn resolve_ui_port(host: &str) -> Result<u16, String> {
     if TcpListener::bind((host, UI_PORT_PREFERRED)).is_ok() {

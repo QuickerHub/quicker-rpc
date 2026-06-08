@@ -1,5 +1,6 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
 import type { ChatStoreData, ChatThread } from "@/lib/chat-store";
+import { chatMessagesEqual } from "@/lib/chat-message-signature";
 
 export const CHAT_STORAGE_KEY = "agent-gui-chats";
 export const CHAT_STORAGE_BACKUP_KEY = "agent-gui-chats-backup";
@@ -8,13 +9,7 @@ function threadMessagesEqual(
   a: AgentUIMessage[],
   b: AgentUIMessage[],
 ): boolean {
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-  try {
-    return JSON.stringify(a) === JSON.stringify(b);
-  } catch {
-    return false;
-  }
+  return chatMessagesEqual(a, b);
 }
 
 export const CHAT_THREAD_BLOB_VERSION = 1;
@@ -324,8 +319,10 @@ export function savePersistedChatStore(
   if (typeof window === "undefined") return;
 
   const previous = options?.previous ?? lastPersistedSnapshot;
+  const dirtyThreadIds = previous
+    ? collectDirtyThreadIds(previous, data)
+    : new Set<string>();
   if (previous) {
-    const dirtyThreadIds = collectDirtyThreadIds(previous, data);
     for (const threadId of dirtyThreadIds) {
       const prevThread = previous.threads.find((thread) => thread.id === threadId);
       const nextThread = data.threads.find((thread) => thread.id === threadId);
@@ -345,8 +342,7 @@ export function savePersistedChatStore(
     writeLocalStorage(CHAT_STORAGE_KEY, JSON.stringify(toChatStoreIndex(data)));
   }
 
-  if (previous) {
-    const dirtyThreadIds = collectDirtyThreadIds(previous, data);
+  if (previous && dirtyThreadIds) {
     const nextIds = new Set(data.threads.map((thread) => thread.id));
 
     for (const threadId of dirtyThreadIds) {

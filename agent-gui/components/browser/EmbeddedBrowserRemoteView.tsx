@@ -57,9 +57,18 @@ export function EmbeddedBrowserRemoteView({
     [stream],
   );
 
+  const onSurfaceMouseMove = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      const rect = event.currentTarget.getBoundingClientRect();
+      stream.moveAt(event.clientX, event.clientY, rect);
+    },
+    [stream],
+  );
+
   const onSurfaceWheel = useCallback(
     (event: ReactWheelEvent<HTMLDivElement>) => {
       event.preventDefault();
+      event.stopPropagation();
       stream.wheelAt(event.deltaX, event.deltaY);
     },
     [stream],
@@ -120,6 +129,7 @@ export function EmbeddedBrowserRemoteView({
       aria-label="远程浏览器"
       tabIndex={0}
       onClick={onSurfaceClick}
+      onMouseMove={onSurfaceMouseMove}
       onWheel={onSurfaceWheel}
       onKeyDown={onSurfaceKeyDown}
     >
@@ -131,7 +141,7 @@ export function EmbeddedBrowserRemoteView({
       />
       <p className="embedded-browser__remote-hint">
         {stream.frameSrc
-          ? "实时画面 · 点击后可键盘输入 · 滚轮滚动"
+          ? "实时画面 · 支持 hover、点击、键盘输入和滚轮滚动"
           : "静态预览 · 等待实时流连接…"}
       </p>
     </div>

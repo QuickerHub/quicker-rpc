@@ -1,7 +1,13 @@
 import { mkdirSync } from "node:fs";
 import { chromium } from "playwright";
 import { invokeError, invokeOk, formatSnapshotYaml } from "./protocol.mjs";
-import { collectInteractiveNodes, resolveLocator } from "./snapshot.mjs";
+import {
+  collectAriaSnapshot,
+  collectInteractiveNodes,
+  countInteractiveRefs,
+  parseAriaSnapshotRefMap,
+  resolveLocator,
+} from "./snapshot.mjs";
 
 const PREVIEW_OPS = new Set([
   "page.navigate",
@@ -11,6 +17,7 @@ const PREVIEW_OPS = new Set([
   "page.type",
   "page.fill",
   "page.press",
+  "page.scroll",
   "page.back",
   "page.forward",
   "page.reload",
@@ -23,12 +30,14 @@ export class SessionManager {
     this._config = config;
     /** @type {import('playwright').Browser | null} */
     this._browser = null;
-    /** @type {Map<string, { sessionId: string; context: import('playwright').BrowserContext; page: import('playwright').Page; refMap: Record<string, { role: string; name: string | null; nth: number }> }>} */
+    /** @type {Map<string, { sessionId: string; context: import('playwright').BrowserContext; page: import('playwright').Page; refMap: Record<string, { role: string; name: string | null; nth: number; href?: string }> }>} */
     this._sessions = new Map();
     this._browserReady = false;
     /** @type {string | null} */
     this._browserError = null;
     this._lock = Promise.resolve();
+    /** @type {Map<string, Promise<void>>} */
+    this._sessionLocks = new Map();
   }
 
   get browserReady() {
@@ -47,6 +56,17 @@ export class SessionManager {
   async _withLock(fn) {
     const run = this._lock.then(() => fn());
     this._lock = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
+  /** @template T @param {string} sessionId @param {() => Promise<T>} fn */
+  async _withSessionLock(sessionId, fn) {
+    const prev = this._sessionLocks.get(sessionId) ?? Promise.resolve();
+    const run = prev.then(() => fn());
+    this._sessionLocks.set(
+      sessionId,
+      run.then(() => undefined, () => undefined),
+    );
     return run;
   }
 
@@ -135,10 +155,10 @@ export class SessionManager {
     };
   }
 
-  /** @param {{ page: import('playwright').Page; refMap: Record<string, unknown> }} session @param {string} op @param {Record<string, unknown>} payload */
-  async _okWithPreview(session, op, payload) {
+  /** @param {{ page: import('playwright').Page; refMap: Record<string, unknown> }} session @param {string} op @param {Record<string, unknown>} payload @param {boolean} [includePreview] */
+  async _okWithPreview(session, op, payload, includePreview = true) {
     const data = { ...payload };
-    if (PREVIEW_OPS.has(op)) {
+    if (includePreview && PREVIEW_OPS.has(op)) {
       try {
         Object.assign(data, await this._capturePanelPreview(session));
       } catch (err) {
@@ -202,12 +222,15 @@ export class SessionManager {
       const pageOps = new Set([
         "page.navigate",
         "page.snapshot",
+        "page.content",
         "page.click",
         "page.click_xy",
         "page.type",
         "page.fill",
         "page.press",
         "page.wait",
+        "page.scroll",
+        "page.evaluate",
         "page.screenshot",
         "page.back",
         "page.forward",
@@ -216,6 +239,21 @@ export class SessionManager {
       ]);
 
       if (pageOps.has(op)) {
+        return this._withSessionLock(sessionId, async () =>
+          this._invokePageOp(op, args, sessionId),
+        );
+      }
+
+      return invokeError(`Unknown op: ${op}`, { code: "unknown_op" });
+    } catch (err) {
+      console.error(`[browser-runtime] invoke failed op=${op} session=${sessionId}`, err);
+      return invokeError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  /** @param {string} op @param {Record<string, unknown>} args @param {string} sessionId */
+  async _invokePageOp(op, args, sessionId) {
+    try {
         let sessionResult = this._sessionOrError(sessionId);
         if (sessionResult && "ok" in sessionResult && sessionResult.ok === false) {
           if (op === "page.navigate") {
@@ -231,6 +269,7 @@ export class SessionManager {
         const session = /** @type {{ page: import('playwright').Page; context: import('playwright').BrowserContext; refMap: Record<string, { role: string; name: string | null; nth: number }> }} */ (
           sessionResult
         );
+        const includePreview = args.includePreview !== false;
 
         if (op === "page.navigate") {
           const url = String(args.url ?? "").trim();
@@ -240,38 +279,80 @@ export class SessionManager {
           );
           const timeoutMs = Number(args.timeoutMs ?? 30_000);
           const response = await session.page.goto(url, { waitUntil, timeout: timeoutMs });
+          try {
+            await session.page.waitForLoadState("networkidle", { timeout: 4_000 });
+          } catch {
+            await session.page.waitForTimeout(800);
+          }
           session.refMap = {};
-          return this._okWithPreview(session, op, {
-            url: session.page.url(),
-            title: await session.page.title(),
-            status: response?.status() ?? null,
-          });
+          return this._okWithPreview(
+            session,
+            op,
+            {
+              url: session.page.url(),
+              title: await session.page.title(),
+              status: response?.status() ?? null,
+            },
+            includePreview,
+          );
         }
 
         if (op === "page.snapshot") {
-          const nodes = await collectInteractiveNodes(session.page);
-          /** @type {Record<string, { role: string; name: string | null; nth: number }>} */
-          const refMap = {};
-          /** @type {Record<string, number>} */
-          const roleCounts = {};
-          for (const node of nodes) {
-            const key = `${node.role}\0${node.name ?? ""}`;
-            const nth = roleCounts[key] ?? 0;
-            roleCounts[key] = nth + 1;
-            const ref = `e${Object.keys(refMap).length + 1}`;
-            refMap[ref] = { role: node.role, name: node.name, nth };
+          let snapshot = await collectAriaSnapshot(session.page);
+          /** @type {Record<string, { role: string; name: string | null; nth: number; ariaRef?: string; href?: string }>} */
+          let refMap = snapshot ? parseAriaSnapshotRefMap(snapshot) : {};
+
+          if (!snapshot || countInteractiveRefs(refMap) === 0) {
+            const nodes = await collectInteractiveNodes(session.page);
+            refMap = {};
+            /** @type {Record<string, number>} */
+            const roleCounts = {};
+            for (const node of nodes) {
+              const key = `${node.role}\0${node.name ?? ""}\0${node.href ?? ""}`;
+              const nth = roleCounts[key] ?? 0;
+              roleCounts[key] = nth + 1;
+              const ref = `e${Object.keys(refMap).length + 1}`;
+              refMap[ref] = {
+                role: node.role,
+                name: node.name,
+                nth,
+                ...(node.href ? { href: node.href } : {}),
+              };
+            }
+            snapshot = formatSnapshotYaml(
+              session.page.url(),
+              await session.page.title(),
+              refMap,
+            );
           }
+
           session.refMap = refMap;
-          const snapshot = formatSnapshotYaml(
-            session.page.url(),
-            await session.page.title(),
-            refMap,
+          return this._okWithPreview(
+            session,
+            op,
+            {
+              url: session.page.url(),
+              title: await session.page.title(),
+              snapshot,
+              nodeCount: countInteractiveRefs(refMap) || Object.keys(refMap).length,
+            },
+            includePreview,
           );
-          return this._okWithPreview(session, op, {
+        }
+
+        if (op === "page.content") {
+          const bodyText = await session.page.evaluate(() => {
+            const text = document.body?.innerText ?? "";
+            return text.replace(/\s+/g, " ").trim();
+          });
+          const maxChars = 12_000;
+          const truncated = bodyText.length > maxChars;
+          return invokeOk({
             url: session.page.url(),
             title: await session.page.title(),
-            snapshot,
-            nodeCount: Object.keys(refMap).length,
+            text: truncated ? bodyText.slice(0, maxChars) : bodyText,
+            charCount: bodyText.length,
+            truncated,
           });
         }
 
@@ -282,11 +363,16 @@ export class SessionManager {
           if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
           const locator = resolveLocator(session.page, target);
           await locator.click({ timeout: Number(args.timeoutMs ?? 10_000) });
-          return this._okWithPreview(session, op, {
-            ref,
-            clicked: true,
-            url: session.page.url(),
-          });
+          return this._okWithPreview(
+            session,
+            op,
+            {
+              ref,
+              clicked: true,
+              url: session.page.url(),
+            },
+            includePreview,
+          );
         }
 
         if (op === "page.click_xy") {
@@ -297,12 +383,17 @@ export class SessionManager {
           }
           await session.page.mouse.click(x, y);
           session.refMap = {};
-          return this._okWithPreview(session, op, {
-            clicked: true,
-            x,
-            y,
-            url: session.page.url(),
-          });
+          return this._okWithPreview(
+            session,
+            op,
+            {
+              clicked: true,
+              x,
+              y,
+              url: session.page.url(),
+            },
+            includePreview,
+          );
         }
 
         if (op === "page.type") {
@@ -314,7 +405,12 @@ export class SessionManager {
           if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
           const locator = resolveLocator(session.page, target);
           await locator.type(text, { delay: Number(args.delayMs ?? 0) });
-          return this._okWithPreview(session, op, { ref, typedLength: text.length });
+          return this._okWithPreview(
+            session,
+            op,
+            { ref, typedLength: text.length },
+            includePreview,
+          );
         }
 
         if (op === "page.fill") {
@@ -325,7 +421,7 @@ export class SessionManager {
           if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
           const locator = resolveLocator(session.page, target);
           await locator.fill(value);
-          return this._okWithPreview(session, op, { ref, filled: true });
+          return this._okWithPreview(session, op, { ref, filled: true }, includePreview);
         }
 
         if (op === "page.press") {
@@ -340,7 +436,12 @@ export class SessionManager {
           } else {
             await session.page.keyboard.press(key);
           }
-          return this._okWithPreview(session, op, { key, ref: ref || null });
+          return this._okWithPreview(
+            session,
+            op,
+            { key, ref: ref || null },
+            includePreview,
+          );
         }
 
         if (op === "page.wait") {
@@ -363,7 +464,70 @@ export class SessionManager {
           return invokeOk({ waited: true });
         }
 
+        if (op === "page.scroll") {
+          const ref = String(args.ref ?? "").trim();
+          const deltaX = Number(args.deltaX ?? 0);
+          const deltaY = Number(args.deltaY ?? 600);
+          if (ref) {
+            const target = session.refMap[ref];
+            if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
+            const locator = resolveLocator(session.page, target);
+            await locator.scrollIntoViewIfNeeded({ timeout: Number(args.timeoutMs ?? 10_000) });
+          } else {
+            await session.page.mouse.wheel(
+              Number.isFinite(deltaX) ? deltaX : 0,
+              Number.isFinite(deltaY) ? deltaY : 600,
+            );
+          }
+          await session.page.waitForTimeout(250);
+          session.refMap = {};
+          return this._okWithPreview(
+            session,
+            op,
+            {
+              scrolled: true,
+              ref: ref || null,
+              deltaX: Number.isFinite(deltaX) ? deltaX : 0,
+              deltaY: Number.isFinite(deltaY) ? deltaY : 600,
+              url: session.page.url(),
+              title: await session.page.title(),
+            },
+            includePreview,
+          );
+        }
+
+        if (op === "page.evaluate") {
+          const script = String(args.script ?? "").trim();
+          if (!script) return invokeError("script is required");
+          const value = await session.page.evaluate((source) => {
+            try {
+              const result = new Function(`return (${source});`)();
+              return typeof result === "function" ? result() : result;
+            } catch {
+              return new Function(source)();
+            }
+          }, script);
+          const json = JSON.stringify(value ?? null);
+          const maxChars = 16_000;
+          const truncated = json.length > maxChars;
+          return invokeOk({
+            url: session.page.url(),
+            title: await session.page.title(),
+            value: truncated ? undefined : value,
+            json: truncated ? json.slice(0, maxChars) : json,
+            charCount: json.length,
+            truncated,
+          });
+        }
+
         if (op === "page.screenshot") {
+          if (!includePreview) {
+            return invokeOk({
+              url: session.page.url(),
+              title: await session.page.title(),
+              panelPreview: true,
+            });
+          }
           const fullPage = Boolean(args.fullPage);
           const data = await this._capturePanelPreview(session);
           if (fullPage) {
@@ -381,19 +545,29 @@ export class SessionManager {
         if (op === "page.back") {
           await session.page.goBack();
           session.refMap = {};
-          return this._okWithPreview(session, op, {
-            url: session.page.url(),
-            title: await session.page.title(),
-          });
+          return this._okWithPreview(
+            session,
+            op,
+            {
+              url: session.page.url(),
+              title: await session.page.title(),
+            },
+            includePreview,
+          );
         }
 
         if (op === "page.forward") {
           await session.page.goForward();
           session.refMap = {};
-          return this._okWithPreview(session, op, {
-            url: session.page.url(),
-            title: await session.page.title(),
-          });
+          return this._okWithPreview(
+            session,
+            op,
+            {
+              url: session.page.url(),
+              title: await session.page.title(),
+            },
+            includePreview,
+          );
         }
 
         if (op === "page.reload") {
@@ -402,10 +576,15 @@ export class SessionManager {
           );
           await session.page.reload({ waitUntil });
           session.refMap = {};
-          return this._okWithPreview(session, op, {
-            url: session.page.url(),
-            title: await session.page.title(),
-          });
+          return this._okWithPreview(
+            session,
+            op,
+            {
+              url: session.page.url(),
+              title: await session.page.title(),
+            },
+            includePreview,
+          );
         }
 
         if (op === "page.tabs") {
@@ -420,7 +599,6 @@ export class SessionManager {
           );
           return invokeOk({ tabs, count: tabs.length });
         }
-      }
 
       return invokeError(`Unknown op: ${op}`, { code: "unknown_op" });
     } catch (err) {

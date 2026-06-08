@@ -1,5 +1,7 @@
 "use client";
 
+import { forwardRef } from "react";
+
 type CollapsedTurnSummaryProps = {
   turnIndex: number;
   turnNumber: number;
@@ -8,14 +10,24 @@ type CollapsedTurnSummaryProps = {
 };
 
 /** Lightweight placeholder for off-screen turns still inside the mounted window. */
-export function CollapsedTurnSummary({
-  turnIndex,
-  turnNumber,
-  messageCount,
-  onExpand,
-}: CollapsedTurnSummaryProps) {
+export const CollapsedTurnSummary = forwardRef<
+  HTMLDivElement,
+  CollapsedTurnSummaryProps
+>(function CollapsedTurnSummary(
+  {
+    turnIndex,
+    turnNumber,
+    messageCount,
+    onExpand,
+  },
+  ref,
+) {
   return (
-    <div className="msg-turn msg-turn--cold" data-turn-index={turnIndex}>
+    <div
+      ref={ref}
+      className="msg-turn msg-turn--cold"
+      data-turn-index={turnIndex}
+    >
       <button
         type="button"
         className="msg-turn-cold-summary"
@@ -28,4 +40,4 @@ export function CollapsedTurnSummary({
       </button>
     </div>
   );
-}
+});

@@ -28,6 +28,24 @@ function findLatestBrowserPatch(
   return null;
 }
 
+function findLatestBrowserPatchInLastAssistant(
+  messages: UIMessage[],
+): ReturnType<typeof browserPanelPatchFromToolOutput> {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message.role !== "assistant") continue;
+    for (let j = message.parts.length - 1; j >= 0; j -= 1) {
+      const part = message.parts[j];
+      if (!isToolOrDynamicToolUIPart(part)) continue;
+      if (getToolOrDynamicToolName(part) !== BROWSER_TOOL) continue;
+      if (part.state !== "output-available") continue;
+      return browserPanelPatchFromToolOutput(part.output);
+    }
+    return null;
+  }
+  return null;
+}
+
 /** Sync embedded browser panel from latest browser tool results in chat messages. */
 export function useBrowserPanelMessageSync(messages: UIMessage[]): void {
   const embedded = useEmbeddedBrowserOptional();
@@ -37,9 +55,6 @@ export function useBrowserPanelMessageSync(messages: UIMessage[]): void {
   useEffect(() => {
     if (!embedded) return;
 
-    const patch = findLatestBrowserPatch(messages);
-    if (!patch) return;
-
     const prevCount = prevCountRef.current;
     const grew = messages.length > prevCount;
     prevCountRef.current = messages.length;
@@ -47,11 +62,14 @@ export function useBrowserPanelMessageSync(messages: UIMessage[]): void {
     // Replay chat history on cold start must not open the panel or navigate Playwright.
     if (!primedRef.current) {
       primedRef.current = true;
+      const patch = findLatestBrowserPatch(messages);
+      if (!patch) return;
       embedded.applySnapshot(patch);
       return;
     }
 
-    if (!grew) return;
+    const patch = findLatestBrowserPatchInLastAssistant(messages);
+    if (!patch || !grew) return;
 
     embedded.applySnapshot(patch, { openPanel: true, navigate: true });
   }, [embedded, messages]);

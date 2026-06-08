@@ -769,7 +769,7 @@ pub fn stage_runtime_upgrade(app: &AppHandle) -> Result<(), String> {
         };
         let json = serde_json::to_string_pretty(&pending).map_err(|e| e.to_string())?;
         fs::write(staging_pending_path(&root), json).map_err(|e| e.to_string())?;
-        emit_progress(app, "ready", 100, "语音服务更新已下载，退出后将自动安装");
+        emit_progress(app, "ready", 95, "语音服务更新已下载，正在应用…");
         Ok(())
     })();
 

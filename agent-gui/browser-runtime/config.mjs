@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
-export const RUNTIME_VERSION = "0.2.0";
+export const RUNTIME_VERSION = "0.3.1";
 export const PROTOCOL_VERSION = "quicker-browser-v1";
 
 /**

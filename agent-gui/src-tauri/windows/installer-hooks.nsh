@@ -3,19 +3,18 @@
 ; Old builds may leave qkrpc serve running after exit (external serve reuse, no job object).
 ; Bundled node.exe must be released too; NSIS default only kills quicker-agent.exe.
 
-!macro KillBundledNodeOnce
-  ; NSIS strings must use double quotes; keep the command short to avoid StrCpy parse errors.
-  StrCpy $R0 "powershell -NoProfile -WindowStyle Hidden -Command $\"Get-Process -Name node -EA 0 | Where-Object { $$_.Path -like '$9*' } | Stop-Process -Force -EA 0$\""
-  ExecWait $R0 $8
-  Sleep 1500
+!macro StageKillBundledNodeVbs
+  InitPluginsDir
+  File "/oname=$PLUGINSDIR\kill-bundled-node.vbs" "${__FILEDIR__}\kill-bundled-node.vbs"
 !macroend
 
 !macro KillBundledNodeUnderInstDir
   StrCpy $9 "$INSTDIR\resources\node"
   DetailPrint "Ensuring bundled node is not running under $9..."
-  !insertmacro KillBundledNodeOnce
-  !insertmacro KillBundledNodeOnce
-  !insertmacro KillBundledNodeOnce
+  !insertmacro StageKillBundledNodeVbs
+  ; wscript //B runs without a console; ExecWait + powershell flashes even with -WindowStyle Hidden.
+  ExecShellWait "" "wscript.exe" '//B //Nologo "$PLUGINSDIR\kill-bundled-node.vbs" "$9"' SW_HIDE
+  Sleep 500
 !macroend
 
 !macro KillQkrpcBeforeInstall

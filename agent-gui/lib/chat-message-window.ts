@@ -82,7 +82,9 @@ export function shouldTrimWindowAtBottom(
   totalUnits: number,
   visibleUnitCount: number,
   defaultUnitCount: number,
+  historyPinned = false,
 ): boolean {
+  if (historyPinned) return false;
   return (
     stickToBottom
     && totalUnits > defaultUnitCount
