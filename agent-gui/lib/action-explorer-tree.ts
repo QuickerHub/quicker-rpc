@@ -8,6 +8,10 @@ export type ExplorerTreeNode = {
   kind: "file" | "directory";
   /** Display title from info.json (action project root or embedded subprogram root). */
   title?: string;
+  /** Summary from info.json (action project root). */
+  description?: string;
+  /** Icon spec from info.json (action project root). */
+  icon?: string;
   actionId?: string;
   /** Embedded subprogram id from info.json (subprograms/{id} dirs). */
   subProgramId?: string;
@@ -55,7 +59,7 @@ export function computeExplorerTreeSignature(tree: ActionExplorerTree): string {
   const walk = (nodes: ExplorerTreeNode[]) => {
     for (const node of nodes) {
       lines.push(
-        `${node.path}\t${node.kind}\t${node.title ?? ""}\t${node.actionId ?? ""}\t${node.subProgramId ?? ""}\t${node.children?.length ?? 0}`,
+        `${node.path}\t${node.kind}\t${node.title ?? ""}\t${node.description ?? ""}\t${node.icon ?? ""}\t${node.actionId ?? ""}\t${node.subProgramId ?? ""}\t${node.children?.length ?? 0}`,
       );
       if (node.children?.length) walk(node.children);
     }
@@ -68,6 +72,8 @@ export type ActionProjectMeta = {
   dirName: string;
   path: string;
   title?: string;
+  description?: string;
+  icon?: string;
   actionId?: string;
 };
 
@@ -324,6 +330,8 @@ export function buildExplorerTreeFromProjectMeta(
       path: projectPath,
       kind: "directory",
       title: meta?.title,
+      description: meta?.description,
+      icon: meta?.icon,
       actionId:
         meta?.actionId
         ?? (/^[0-9a-f-]{36}$/i.test(dirName) ? dirName : undefined),

@@ -44,7 +44,7 @@ export function useBrowserPanelMessageSync(messages: UIMessage[]): void {
     const grew = messages.length > prevCount;
     prevCountRef.current = messages.length;
 
-    // Replay chat history on cold start must not open the panel or mount WebView2.
+    // Replay chat history on cold start must not open the panel or navigate Playwright.
     if (!primedRef.current) {
       primedRef.current = true;
       embedded.applySnapshot(patch);

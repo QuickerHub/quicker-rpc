@@ -56,7 +56,7 @@ internal static class QkrpcMcpWorkspaceReadme
 
         ## 更多文档
 
-        MCP 工具 `docs_get`：`authoring-workflow`、`workspace-editing`、`action-steps`、`action-variables`
+        MCP 工具 `docs_get`：`authoring-workflow`、`workspace-editing`、`action-data-schema`
 
         环境变量：`QKRPC_WORKSPACE_ROOT` = 含 `.quicker` 的项目根目录。
 

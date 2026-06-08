@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { runBrowserPanelAction } from "@/lib/browser-panel-client";
+import { requestBrowserRuntimeStart } from "@/lib/browser-dev-runtime";
 import type { BrowserPanelSnapshot } from "@/lib/browser-panel-types";
 import { normalizeEmbeddedBrowserUrl } from "@/lib/embedded-browser-url";
 import type { ApplySnapshotOptions } from "@/lib/embedded-browser-context";
@@ -16,7 +18,7 @@ type UseEmbeddedBrowserNavOptions = {
   enabled: boolean;
 };
 
-/** Address bar + history for the native Tauri child WebView (no Playwright). */
+/** Address bar + Playwright browser-runtime actions for the side-panel automation view. */
 export function useEmbeddedBrowserNav({
   snapshot,
   navigateSeq,
@@ -24,39 +26,76 @@ export function useEmbeddedBrowserNav({
   applySnapshot,
   enabled,
 }: UseEmbeddedBrowserNavOptions) {
-  const [urlDraft, setUrlDraft] = useState("");
-  const [frameUrl, setFrameUrl] = useState("");
-  const [reloadKey, setReloadKey] = useState(0);
-  const userNavRef = useRef(false);
+  const sessionId = snapshot.sessionId?.trim() || "default";
+  const [urlDraft, setUrlDraft] = useState(snapshot.url ?? "");
+  const [busy, setBusy] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(true);
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
+  const [streamToken, setStreamToken] = useState(0);
   const lastNavigateSeqRef = useRef(0);
-  const [history, setHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const bootstrapAttemptRef = useRef(0);
 
   useEffect(() => {
-    if (!snapshot.url || userNavRef.current) return;
+    if (!snapshot.url) return;
     setUrlDraft(snapshot.url);
   }, [snapshot.url]);
 
-  const pushHistory = useCallback((url: string) => {
-    setHistory((prev) => {
-      const next = [...prev.slice(0, historyIndex + 1), url];
-      setHistoryIndex(next.length - 1);
-      return next;
-    });
-  }, [historyIndex]);
+  const bootstrap = useCallback(async () => {
+    if (!enabled) {
+      setBootstrapping(false);
+      return;
+    }
 
-  const navigateTo = useCallback(
-    (rawUrl: string, fromUser = true) => {
-      const normalized = normalizeEmbeddedBrowserUrl(rawUrl);
-      if (!normalized) return;
-      if (fromUser) userNavRef.current = true;
-      pushHistory(normalized);
-      setFrameUrl(normalized);
-      setUrlDraft(normalized);
-      applySnapshot({ url: normalized });
-      if (fromUser) userNavRef.current = false;
+    const attempt = bootstrapAttemptRef.current + 1;
+    bootstrapAttemptRef.current = attempt;
+    setBootstrapping(true);
+    setRuntimeError(null);
+
+    try {
+      const started = await requestBrowserRuntimeStart();
+      if (attempt !== bootstrapAttemptRef.current) return;
+      if (!started) {
+        setRuntimeError(
+          "无法启动 browser-runtime。请运行: pnpm browser:install && pnpm browser:dev-server",
+        );
+        return;
+      }
+    } finally {
+      if (attempt === bootstrapAttemptRef.current) {
+        setBootstrapping(false);
+      }
+    }
+  }, [enabled]);
+
+  useEffect(() => {
+    void bootstrap();
+  }, [bootstrap, retryToken]);
+
+  const runAction = useCallback(
+    async (body: Record<string, unknown>) => {
+      if (!enabled) return;
+      setBusy(true);
+      setRuntimeError(null);
+      try {
+        const result = await runBrowserPanelAction(
+          { sessionId, ...body },
+          sessionId,
+          { capturePreview: true },
+        );
+        if (!result.ok) {
+          setRuntimeError(result.message ?? "浏览器操作失败");
+          return;
+        }
+        if (result.patch) {
+          applySnapshot(result.patch);
+          setStreamToken((token) => token + 1);
+        }
+      } finally {
+        setBusy(false);
+      }
     },
-    [applySnapshot, pushHistory],
+    [applySnapshot, enabled, sessionId],
   );
 
   useEffect(() => {
@@ -64,59 +103,42 @@ export function useEmbeddedBrowserNav({
       return;
     }
     lastNavigateSeqRef.current = navigateSeq;
-    navigateTo(navigateUrl, false);
-  }, [enabled, navigateSeq, navigateUrl, navigateTo]);
+    void runAction({ action: "navigate", url: navigateUrl });
+  }, [enabled, navigateSeq, navigateUrl, runAction]);
 
   const submitUrl = useCallback(() => {
-    navigateTo(urlDraft, true);
-  }, [navigateTo, urlDraft]);
+    const normalized = normalizeEmbeddedBrowserUrl(urlDraft);
+    if (!normalized) return;
+    void runAction({ action: "navigate", url: normalized });
+  }, [runAction, urlDraft]);
 
   const goBack = useCallback(() => {
-    if (historyIndex <= 0) return;
-    const nextIndex = historyIndex - 1;
-    const url = history[nextIndex];
-    if (!url) return;
-    setHistoryIndex(nextIndex);
-    setFrameUrl(url);
-    setUrlDraft(url);
-    setReloadKey((key) => key + 1);
-    applySnapshot({ url });
-  }, [applySnapshot, history, historyIndex]);
+    void runAction({ action: "back" });
+  }, [runAction]);
 
   const goForward = useCallback(() => {
-    if (historyIndex >= history.length - 1) return;
-    const nextIndex = historyIndex + 1;
-    const url = history[nextIndex];
-    if (!url) return;
-    setHistoryIndex(nextIndex);
-    setFrameUrl(url);
-    setUrlDraft(url);
-    setReloadKey((key) => key + 1);
-    applySnapshot({ url });
-  }, [applySnapshot, history, historyIndex]);
+    void runAction({ action: "forward" });
+  }, [runAction]);
 
   const reload = useCallback(() => {
-    setReloadKey((key) => key + 1);
-  }, []);
+    void runAction({ action: "reload" });
+  }, [runAction]);
 
   const retryBootstrap = useCallback(() => {
-    setReloadKey((key) => key + 1);
+    setRetryToken((token) => token + 1);
   }, []);
 
-  const canGoBack = historyIndex > 0;
-  const canGoForward =
-    historyIndex >= 0 && historyIndex < history.length - 1;
-
   return {
+    sessionId,
     urlDraft,
     setUrlDraft,
-    frameUrl,
-    reloadKey,
-    busy: false,
-    bootstrapping: false,
-    runtimeError: null as string | null,
-    canGoBack,
-    canGoForward,
+    busy,
+    bootstrapping,
+    runtimeError,
+    retryToken,
+    streamToken,
+    canGoBack: Boolean(snapshot.url),
+    canGoForward: Boolean(snapshot.url),
     submitUrl,
     goBack,
     goForward,

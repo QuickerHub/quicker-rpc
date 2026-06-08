@@ -29,7 +29,7 @@ export function ActionLinkCard({
 }: ActionLinkCardProps) {
   const { store, defaultCwd } = useChatStore();
   const cwd = (cwdProp ?? (store.workingDirectory.trim() || defaultCwd)).trim();
-  const metaState = useActionMetadata(actionId);
+  const metaState = useActionMetadata(actionId, cwd);
   const [busyOp, setBusyOp] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [runParam, setRunParam] = useState("");

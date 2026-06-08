@@ -100,6 +100,116 @@ public sealed class InterpolationPrefixLintTests
     }
 
     [TestMethod]
+    public void Analyze_skips_dollar_eq_prefix_even_with_defined_var()
+    {
+        var data = new JObject
+        {
+            ["variables"] = new JArray { new JObject { ["key"] = "lineCount" } },
+            ["steps"] = new JArray
+            {
+                new JObject
+                {
+                    ["stepRunnerKey"] = "sys:MsgBox",
+                    ["inputParams"] = new JObject
+                    {
+                        ["message"] = new JObject { ["value"] = "$={lineCount} > 0" },
+                    },
+                },
+            },
+        };
+
+        var keys = InterpolationPrefixLint.CollectVariableKeys(data["variables"] as JArray);
+        var issues = InterpolationPrefixLint.Analyze(data, keys);
+
+        Assert.AreEqual(0, issues.Count);
+    }
+
+    [TestMethod]
+    public void Analyze_warns_on_variable_default_without_prefix()
+    {
+        var data = new JObject
+        {
+            ["variables"] = new JArray
+            {
+                new JObject
+                {
+                    ["key"] = "greeting",
+                    ["type"] = "text",
+                    ["defaultValue"] = "Hello {userName}",
+                },
+                new JObject { ["key"] = "userName", ["type"] = "text" },
+            },
+        };
+
+        var keys = InterpolationPrefixLint.CollectVariableKeys(data["variables"] as JArray);
+        var issues = InterpolationPrefixLint.Analyze(data, keys);
+
+        Assert.AreEqual(1, issues.Count);
+        Assert.AreEqual("MISSING_INTERPOLATION_PREFIX", issues[0].Code);
+        Assert.AreEqual("defaultValue", issues[0].Location.ParamName);
+        Assert.AreEqual("greeting", issues[0].Location.VariableKey);
+    }
+
+    [TestMethod]
+    public void Analyze_skips_script_and_code_params()
+    {
+        var data = new JObject
+        {
+            ["variables"] = new JArray { new JObject { ["key"] = "lineCount" } },
+            ["steps"] = new JArray
+            {
+                new JObject
+                {
+                    ["stepRunnerKey"] = "sys:csscript",
+                    ["inputParams"] = new JObject
+                    {
+                        ["script"] = new JObject { ["value"] = "var n = {lineCount};" },
+                        ["code"] = new JObject { ["value"] = "return {lineCount};" },
+                    },
+                },
+            },
+        };
+
+        var keys = InterpolationPrefixLint.CollectVariableKeys(data["variables"] as JArray);
+        var issues = InterpolationPrefixLint.Analyze(data, keys);
+
+        Assert.AreEqual(0, issues.Count);
+    }
+
+    [TestMethod]
+    public void Analyze_warns_inside_nested_if_steps()
+    {
+        var data = new JObject
+        {
+            ["variables"] = new JArray { new JObject { ["key"] = "flag", ["type"] = "boolean" } },
+            ["steps"] = new JArray
+            {
+                new JObject
+                {
+                    ["stepRunnerKey"] = "sys:if",
+                    ["ifSteps"] = new JArray
+                    {
+                        new JObject
+                        {
+                            ["stepRunnerKey"] = "sys:MsgBox",
+                            ["inputParams"] = new JObject
+                            {
+                                ["message"] = new JObject { ["value"] = "Flag={flag}" },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        var keys = InterpolationPrefixLint.CollectVariableKeys(data["variables"] as JArray);
+        var issues = InterpolationPrefixLint.Analyze(data, keys);
+
+        Assert.AreEqual(1, issues.Count);
+        Assert.AreEqual("0/if/0", issues[0].Location.StepPath);
+    }
+
+    [TestMethod]
     public void Analyze_skips_expression_param_even_with_defined_var()
     {
         var data = new JObject

@@ -18,7 +18,7 @@ FORBIDDEN get-ui / step-runner.getUi; use step_runner_get only
 | search | key, controlField, snippet |
 | get | input keys, valueType, options (when set), required, default, fileExt |
 
-Bind rules: action-steps — use exact `key`; variable bind `paramKey.var` not `{varKey}` in value.
+Bind rules: action-data-schema — use exact `key`; variable bind `paramKey.var` not `{varKey}` in value.
 
 ```text
 qkrpc_step_runner_get({ key: "sys:MsgBox" })
@@ -35,4 +35,4 @@ qkrpc_step_runner_get({ key: "sys:windowOperations", controlField: "move_ex" })
 
 ## Related
 
-step-runner-search · action-steps · authoring-workflow
+step-runner-search · action-data-schema · authoring-workflow

@@ -294,21 +294,51 @@ async function loadReferenceMap(topic) {
 
   const topicDir = path.join(SRC_REF, topic);
   try {
-    const subEntries = (await fs.readdir(topicDir)).sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: "base" }),
+    const subEntries = (await fs.readdir(topicDir, { withFileTypes: true })).sort(
+      (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
     );
-    for (const fname of subEntries) {
-      if (!fname.endsWith(".md") || fname.toLowerCase() === "readme.md") {
+    for (const ent of subEntries) {
+      if (ent.isDirectory()) {
+        if (ent.name.toLowerCase() !== "authored") continue;
+        const authoredDir = path.join(topicDir, ent.name);
+        const authoredFiles = (await fs.readdir(authoredDir)).sort((a, b) =>
+          a.localeCompare(b, undefined, { sensitivity: "base" }),
+        );
+        for (const fname of authoredFiles) {
+          if (
+            !fname.endsWith(".md")
+            || fname.toLowerCase() === "readme.md"
+            || fname.toUpperCase() === "SPEC.MD"
+          ) {
+            continue;
+          }
+          const refName = fname.slice(0, -3);
+          if (map.has(refName)) {
+            throw new Error(
+              `Duplicate reference id "${refName}" for topic ${topic} (authored + other)`,
+            );
+          }
+          const raw = normalizeEol(
+            await fs.readFile(path.join(authoredDir, fname), "utf8"),
+          );
+          map.set(refName, {
+            src: raw,
+            outRel: `${topic}/authored/${refName}.md`,
+          });
+        }
         continue;
       }
-      const refName = fname.slice(0, -3);
+      if (!ent.name.endsWith(".md") || ent.name.toLowerCase() === "readme.md") {
+        continue;
+      }
+      const refName = ent.name.slice(0, -3);
       if (map.has(refName)) {
         throw new Error(
           `Duplicate reference id "${refName}" for topic ${topic} (flat + subdir)`,
         );
       }
       const raw = normalizeEol(
-        await fs.readFile(path.join(topicDir, fname), "utf8"),
+        await fs.readFile(path.join(topicDir, ent.name), "utf8"),
       );
       map.set(refName, { src: raw, outRel: `${topic}/${refName}.md` });
     }

@@ -2,6 +2,8 @@ import {
   actionProjectInfoFromMetadataGet,
   editVersionToNumber,
 } from "@/lib/action-project-info";
+import type { ParsedActionProjectInfo } from "@/lib/action-project-info-parse";
+import { parseActionProjectInfo } from "@/lib/action-project-info-parse";
 import { resolveActionProjectIconSpec } from "@/lib/action-project-icon";
 
 export type ActionMetadataSnapshot = {
@@ -59,4 +61,38 @@ export function parseActionMetadataFromGetJson(
     icon,
     editVersion,
   };
+}
+
+/** Build metadata snapshot from parsed on-disk info.json. */
+export function parseActionMetadataFromParsedInfo(
+  actionId: string,
+  data: ParsedActionProjectInfo,
+): ActionMetadataSnapshot | null {
+  if (data.kind !== "action") return null;
+
+  const id = String(data.id ?? actionId).trim().toLowerCase();
+  if (!isActionMetadataId(id)) return null;
+
+  const title = String(data.title ?? "").trim() || "(无标题)";
+  const description = String(data.description ?? "").trim() || undefined;
+  const icon = resolveActionProjectIconSpec(String(data.icon ?? "").trim());
+  const editVersion = data.editVersion;
+
+  return {
+    id,
+    title,
+    description,
+    icon,
+    editVersion,
+  };
+}
+
+/** Parse workspace info.json text into ActionMetadataSnapshot. */
+export function parseActionMetadataFromInfoJson(
+  actionId: string,
+  content: string,
+): ActionMetadataSnapshot | null {
+  const parsed = parseActionProjectInfo(content);
+  if (!parsed.ok) return null;
+  return parseActionMetadataFromParsedInfo(actionId, parsed.data);
 }

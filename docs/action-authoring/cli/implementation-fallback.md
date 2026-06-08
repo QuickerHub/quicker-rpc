@@ -22,7 +22,7 @@
 
 **FORBIDDEN**: csscript Exec boilerplate when evalexpression suffices. No dedicated module → expressions first, not long PowerShell.
 
-**sys:csscript**: script in **files/*.cs**, inputParams **`"script.file": "files/…"`** — action-steps.
+**sys:csscript**: script in **files/*.cs**, inputParams **`"script.file": "files/…"`** — action-data-schema.
 
 ## Decision
 
@@ -40,7 +40,7 @@ still no fit?                  → sys:csscript
 
 ```
 
-Write shapes: **action-steps**, **action-project-files**.
+Write shapes: **action-data-schema**, **action-project-files**.
 
 ## Confusions
 

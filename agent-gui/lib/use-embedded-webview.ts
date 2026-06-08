@@ -1,12 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import {
   applyEmbeddedWebViewBounds,
+  applyEmbeddedWebViewLayoutBounds,
   boundsRectKey,
-  collectEmbeddedWebViewResizeTargets,
-  WORKSPACE_LAYOUT_RESIZE_EVENT,
+  type EmbeddedWebViewHostLayout,
 } from "@/lib/embedded-webview-bounds";
+import {
+  subscribeEmbeddedWebViewBoundsRefresh,
+  type EmbeddedWebViewBoundsRefreshMessage,
+} from "@/lib/embedded-webview-bounds-channel";
 import { WORKSPACE_BROWSER_WEBVIEW_LABEL } from "@/lib/embedded-webview-label";
 import { subscribeBlockingOverlay } from "@/lib/embedded-webview-overlay";
 import { isTauriShell } from "@/lib/tauri-shell";
@@ -17,6 +27,7 @@ type UseEmbeddedWebViewOptions = {
   active: boolean;
   url: string;
   reloadKey: number;
+  hostRef: RefObject<HTMLElement | null>;
 };
 
 /** Mount a native Tauri child WebView over the host element (WebView2 on Windows). */
@@ -24,26 +35,20 @@ export function useEmbeddedWebView({
   active,
   url,
   reloadKey,
+  hostRef,
 }: UseEmbeddedWebViewOptions) {
   const [state, setState] = useState<EmbeddedWebViewState>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [hostElement, setHostElement] = useState<HTMLElement | null>(null);
-  const hostRef = useRef<HTMLElement | null>(null);
   const readyRef = useRef(false);
   const lastMountKeyRef = useRef("");
   const busyRef = useRef(false);
   const overlayBlockedRef = useRef(false);
-  const syncRafRef = useRef<number | null>(null);
   const syncInFlightRef = useRef(false);
   const syncPendingRef = useRef(false);
-  const resizeLoopRafRef = useRef<number | null>(null);
-  const boundsBurstRafRef = useRef<number | null>(null);
+  const syncPendingMessageRef = useRef<EmbeddedWebViewBoundsRefreshMessage | null>(
+    null,
+  );
   const lastSyncedBoundsRef = useRef<string | null>(null);
-
-  const setHostRef = useCallback((node: HTMLElement | null) => {
-    hostRef.current = node;
-    setHostElement(node);
-  }, []);
 
   const focusMainWindow = useCallback(async () => {
     if (!isTauriShell()) return;
@@ -85,86 +90,98 @@ export function useEmbeddedWebView({
     [],
   );
 
-  const syncBounds = useCallback(async () => {
-    if (!isTauriShell() || !active || !readyRef.current) return;
-    if (syncInFlightRef.current) {
-      syncPendingRef.current = true;
-      return;
-    }
+  const resolveLayout = useCallback(
+    (message: EmbeddedWebViewBoundsRefreshMessage): EmbeddedWebViewHostLayout | null => {
+      if (message.layout) return message.layout;
+      const host = hostRef.current;
+      if (!host) return null;
+      const rect = host.getBoundingClientRect();
+      return {
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      };
+    },
+    [hostRef],
+  );
 
-    const host = hostRef.current;
-    if (!host) return;
+  const applyBoundsMessage = useCallback(
+    async (message: EmbeddedWebViewBoundsRefreshMessage) => {
+      if (!isTauriShell() || !active || !readyRef.current) return;
+      if (syncInFlightRef.current) {
+        syncPendingRef.current = true;
+        syncPendingMessageRef.current = message;
+        return;
+      }
 
-    const rect = host.getBoundingClientRect();
-    const rectKey = boundsRectKey(rect);
-    if (rectKey === lastSyncedBoundsRef.current) return;
+      const layout = resolveLayout(message);
+      if (!layout) return;
 
-    syncInFlightRef.current = true;
-    try {
+      const rectKey = boundsRectKey({
+        left: layout.left,
+        top: layout.top,
+        width: layout.width,
+        height: layout.height,
+      } as DOMRect);
+      if (!message.force && rectKey === lastSyncedBoundsRef.current) return;
+
+      syncInFlightRef.current = true;
+      try {
+        const webview = await getWebview();
+        if (!webview) return;
+
+        const visible = await applyEmbeddedWebViewLayoutBounds(webview, layout);
+        if (visible) {
+          lastSyncedBoundsRef.current = rectKey;
+          await applyWebviewVisibility(webview);
+        } else {
+          lastSyncedBoundsRef.current = null;
+        }
+      } finally {
+        syncInFlightRef.current = false;
+        if (syncPendingRef.current) {
+          const pending = syncPendingMessageRef.current;
+          syncPendingRef.current = false;
+          syncPendingMessageRef.current = null;
+          if (pending) void applyBoundsMessage(pending);
+        }
+      }
+    },
+    [active, applyWebviewVisibility, getWebview, resolveLayout],
+  );
+
+  const requestBoundsRefresh = useCallback(
+    (message: EmbeddedWebViewBoundsRefreshMessage) => {
+      if (message.force) {
+        lastSyncedBoundsRef.current = null;
+      }
+      void applyBoundsMessage(message);
+    },
+    [applyBoundsMessage],
+  );
+
+  const syncBoundsFromHost = useCallback(
+    async (force = false) => {
+      const host = hostRef.current;
+      if (!host || !readyRef.current) return;
+
+      const rect = host.getBoundingClientRect();
+      const rectKey = boundsRectKey(rect);
+      if (!force && rectKey === lastSyncedBoundsRef.current) return;
+
       const webview = await getWebview();
       if (!webview) return;
 
-      await applyEmbeddedWebViewBounds(webview, host);
-      lastSyncedBoundsRef.current = rectKey;
-      await applyWebviewVisibility(webview);
-    } finally {
-      syncInFlightRef.current = false;
-      if (syncPendingRef.current) {
-        syncPendingRef.current = false;
-        void syncBounds();
+      const visible = await applyEmbeddedWebViewBounds(webview, host);
+      if (visible) {
+        lastSyncedBoundsRef.current = rectKey;
+        await applyWebviewVisibility(webview);
+      } else {
+        lastSyncedBoundsRef.current = null;
       }
-    }
-  }, [active, applyWebviewVisibility, getWebview]);
-
-  const scheduleSyncBounds = useCallback(() => {
-    if (syncRafRef.current != null) return;
-    syncRafRef.current = window.requestAnimationFrame(() => {
-      syncRafRef.current = null;
-      void syncBounds();
-    });
-  }, [syncBounds]);
-
-  const stopResizeLoop = useCallback(() => {
-    if (resizeLoopRafRef.current == null) return;
-    window.cancelAnimationFrame(resizeLoopRafRef.current);
-    resizeLoopRafRef.current = null;
-  }, []);
-
-  const startResizeLoop = useCallback(() => {
-    if (resizeLoopRafRef.current != null) return;
-    const tick = () => {
-      scheduleSyncBounds();
-      if (document.body.classList.contains("workspace-explorer-resizing")) {
-        resizeLoopRafRef.current = window.requestAnimationFrame(tick);
-        return;
-      }
-      resizeLoopRafRef.current = null;
-    };
-    resizeLoopRafRef.current = window.requestAnimationFrame(tick);
-  }, [scheduleSyncBounds]);
-
-  const stopBoundsBurst = useCallback(() => {
-    if (boundsBurstRafRef.current == null) return;
-    window.cancelAnimationFrame(boundsBurstRafRef.current);
-    boundsBurstRafRef.current = null;
-  }, []);
-
-  const startBoundsBurst = useCallback(
-    (frames = 28) => {
-      stopBoundsBurst();
-      let remaining = frames;
-      const tick = () => {
-        scheduleSyncBounds();
-        remaining -= 1;
-        if (remaining > 0) {
-          boundsBurstRafRef.current = window.requestAnimationFrame(tick);
-          return;
-        }
-        boundsBurstRafRef.current = null;
-      };
-      boundsBurstRafRef.current = window.requestAnimationFrame(tick);
     },
-    [scheduleSyncBounds, stopBoundsBurst],
+    [applyWebviewVisibility, getWebview, hostRef],
   );
 
   const mountWebview = useCallback(async () => {
@@ -200,7 +217,7 @@ export function useEmbeddedWebView({
 
     const mountKey = `${targetUrl}#${reloadKey}`;
     if (readyRef.current && lastMountKeyRef.current === mountKey) {
-      await syncBounds();
+      await syncBoundsFromHost(true);
       return;
     }
 
@@ -260,7 +277,7 @@ export function useEmbeddedWebView({
       lastMountKeyRef.current = mountKey;
       lastSyncedBoundsRef.current = null;
       setState("ready");
-      await syncBounds();
+      await syncBoundsFromHost(true);
     } catch (err) {
       readyRef.current = false;
       const message = err instanceof Error ? err.message : "WebView 创建失败";
@@ -269,7 +286,7 @@ export function useEmbeddedWebView({
     } finally {
       busyRef.current = false;
     }
-  }, [active, getWebview, reloadKey, syncBounds, teardownWebview, url]);
+  }, [active, getWebview, hostRef, reloadKey, syncBoundsFromHost, teardownWebview, url]);
 
   useEffect(() => {
     if (!isTauriShell()) {
@@ -287,6 +304,11 @@ export function useEmbeddedWebView({
 
   useEffect(() => {
     if (!isTauriShell() || !active) return;
+    return subscribeEmbeddedWebViewBoundsRefresh(requestBoundsRefresh);
+  }, [active, requestBoundsRefresh]);
+
+  useEffect(() => {
+    if (!isTauriShell() || !active) return;
 
     return subscribeBlockingOverlay((blocked) => {
       overlayBlockedRef.current = blocked;
@@ -297,111 +319,17 @@ export function useEmbeddedWebView({
         })();
         return;
       }
-      scheduleSyncBounds();
+      requestBoundsRefresh({ force: true, reason: "manual" });
     });
-  }, [active, getWebview, scheduleSyncBounds]);
-
-  useEffect(() => {
-    if (!isTauriShell() || !active || !hostElement) return;
-
-    const resizeObserver = new ResizeObserver(() => {
-      scheduleSyncBounds();
-    });
-
-    for (const target of collectEmbeddedWebViewResizeTargets(hostElement)) {
-      resizeObserver.observe(target);
-    }
-
-    const onWindowResize = () => startBoundsBurst();
-    const onLayoutResize = () => startBoundsBurst();
-
-    const shellRoot =
-      hostElement.closest<HTMLElement>(".app-shell")
-      ?? document.querySelector<HTMLElement>(".app-shell");
-    const shellObserver = shellRoot
-      ? new MutationObserver(() => startBoundsBurst(20))
-      : null;
-    shellObserver?.observe(shellRoot!, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-
-    const htmlObserver = new MutationObserver(() => startBoundsBurst(20));
-    htmlObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-
-    const bodyObserver = new MutationObserver(() => {
-      if (document.body.classList.contains("workspace-explorer-resizing")) {
-        startResizeLoop();
-        return;
-      }
-      stopResizeLoop();
-      scheduleSyncBounds();
-    });
-    bodyObserver.observe(document.body, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-
-    if (document.body.classList.contains("workspace-explorer-resizing")) {
-      startResizeLoop();
-    }
-
-    window.addEventListener("resize", onWindowResize);
-    window.addEventListener(WORKSPACE_LAYOUT_RESIZE_EVENT, onLayoutResize);
-    scheduleSyncBounds();
-
-    let unlistenWindowResize: (() => void) | undefined;
-    void (async () => {
-      try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        unlistenWindowResize = await getCurrentWindow().onResized(() => {
-          startBoundsBurst();
-        });
-      } catch {
-        // ignore
-      }
-    })();
-
-    return () => {
-      resizeObserver.disconnect();
-      shellObserver?.disconnect();
-      htmlObserver.disconnect();
-      bodyObserver.disconnect();
-      stopResizeLoop();
-      stopBoundsBurst();
-      window.removeEventListener("resize", onWindowResize);
-      window.removeEventListener(WORKSPACE_LAYOUT_RESIZE_EVENT, onLayoutResize);
-      unlistenWindowResize?.();
-      if (syncRafRef.current != null) {
-        window.cancelAnimationFrame(syncRafRef.current);
-        syncRafRef.current = null;
-      }
-    };
-  }, [
-    active,
-    hostElement,
-    scheduleSyncBounds,
-    startBoundsBurst,
-    startResizeLoop,
-    stopBoundsBurst,
-    stopResizeLoop,
-  ]);
+  }, [active, getWebview, requestBoundsRefresh]);
 
   useEffect(() => {
     return () => {
       readyRef.current = false;
       lastSyncedBoundsRef.current = null;
-      stopResizeLoop();
-      stopBoundsBurst();
-      if (syncRafRef.current != null) {
-        window.cancelAnimationFrame(syncRafRef.current);
-      }
       void teardownWebview();
     };
-  }, [stopBoundsBurst, stopResizeLoop, teardownWebview]);
+  }, [teardownWebview]);
 
   const focusWebview = useCallback(async () => {
     if (!isTauriShell() || overlayBlockedRef.current) return;
@@ -415,7 +343,5 @@ export function useEmbeddedWebView({
     error,
     remount: mountWebview,
     focusWebview,
-    hostRef: setHostRef,
   };
 }
-

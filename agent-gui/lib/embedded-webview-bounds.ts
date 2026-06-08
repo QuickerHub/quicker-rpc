@@ -1,9 +1,15 @@
 import type { Webview } from "@tauri-apps/api/webview";
+import { LogicalPosition, LogicalSize, Position, Size } from "@tauri-apps/api/dpi";
+import { postEmbeddedWebViewBoundsRefresh } from "@/lib/embedded-webview-bounds-channel";
 
 export const WORKSPACE_LAYOUT_RESIZE_EVENT = "workspace-layout-resize";
 
 /** Notify embedded child webviews to re-sync bounds (e.g. side-panel drag). */
 export function dispatchWorkspaceLayoutResize(): void {
+  postEmbeddedWebViewBoundsRefresh({
+    force: true,
+    reason: "workspace-layout",
+  });
   if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(WORKSPACE_LAYOUT_RESIZE_EVENT));
 }
@@ -13,10 +19,24 @@ const LAYOUT_ROOT_SELECTORS = [
   ".app-main-column",
   ".app-content-row",
   ".app-main-split",
+  ".app-main-chat-pane",
+  ".app-main-chat-column",
   ".app-main-body",
+  ".app-main-stack",
+  ".workspace-explorer",
+  ".workspace-side-panel",
   ".workspace-side-panel-body",
   ".workspace-embedded-browser",
+  ".workspace-embedded-browser__body",
+  ".embedded-browser__body",
 ] as const;
+
+export type EmbeddedWebViewHostLayout = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
 
 export function boundsRectKey(rect: DOMRect | DOMRectReadOnly): string {
   return [
@@ -25,6 +45,19 @@ export function boundsRectKey(rect: DOMRect | DOMRectReadOnly): string {
     Math.round(rect.width),
     Math.round(rect.height),
   ].join(",");
+}
+
+/** Layout box for the native host (logical/CSS pixels — matches Tauri Webview create options). */
+export function measureEmbeddedWebViewHostLayout(
+  host: HTMLElement,
+): EmbeddedWebViewHostLayout {
+  const rect = host.getBoundingClientRect();
+  return {
+    left: Math.round(rect.left),
+    top: Math.round(rect.top),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+  };
 }
 
 export function collectEmbeddedWebViewResizeTargets(host: HTMLElement): HTMLElement[] {
@@ -45,27 +78,30 @@ export function collectEmbeddedWebViewResizeTargets(host: HTMLElement): HTMLElem
   return [...targets];
 }
 
+export async function applyEmbeddedWebViewLayoutBounds(
+  webview: Webview,
+  layout: EmbeddedWebViewHostLayout,
+): Promise<boolean> {
+  if (layout.width < 2 || layout.height < 2) {
+    await webview.hide();
+    return false;
+  }
+
+  await Promise.all([
+    webview.setPosition(
+      new Position(new LogicalPosition(layout.left, layout.top)),
+    ),
+    webview.setSize(new Size(new LogicalSize(layout.width, layout.height))),
+  ]);
+  return true;
+}
+
 export async function applyEmbeddedWebViewBounds(
   webview: Webview,
   host: HTMLElement,
-): Promise<void> {
-  const rect = host.getBoundingClientRect();
-  const width = Math.round(rect.width);
-  const height = Math.round(rect.height);
-  if (width < 2 || height < 2) {
-    await webview.hide();
-    return;
-  }
-
-  const { getCurrentWindow } = await import("@tauri-apps/api/window");
-  const { PhysicalPosition, PhysicalSize } = await import("@tauri-apps/api/dpi");
-  const scale = await getCurrentWindow().scaleFactor();
-
-  await webview.setPosition(
-    new PhysicalPosition(
-      Math.round(rect.left * scale),
-      Math.round(rect.top * scale),
-    ),
+): Promise<boolean> {
+  return applyEmbeddedWebViewLayoutBounds(
+    webview,
+    measureEmbeddedWebViewHostLayout(host),
   );
-  await webview.setSize(new PhysicalSize(Math.round(width * scale), Math.round(height * scale)));
 }

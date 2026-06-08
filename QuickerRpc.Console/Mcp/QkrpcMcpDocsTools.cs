@@ -25,7 +25,7 @@ public sealed class QkrpcMcpDocsTools
     }
 
     [McpServerTool(Name = "docs_get")]
-    [Description("Read an ActionAuthoring guide topic by id. Start with authoring-workflow for P1–P7.")]
+    [Description("Read an ActionAuthoring guide topic by id. Start with authoring-workflow for P1–P7. action-data-schema and form-spec include `schema` JSON in the response.")]
     public Task<string> DocsGet(string topic)
     {
         var doc = Guides.GetDoc(topic);

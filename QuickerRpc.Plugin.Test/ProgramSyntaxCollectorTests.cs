@@ -113,6 +113,160 @@ public sealed class ProgramSyntaxCollectorTests
     }
 
     [TestMethod]
+    public void Collect_skips_double_dollar_interpolation_strings()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-collect-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var data = new JObject
+            {
+                ["variables"] = new JArray { new JObject { ["key"] = "name", ["type"] = "text" } },
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepRunnerKey"] = "sys:MsgBox",
+                        ["inputParams"] = new JObject
+                        {
+                            ["message"] = new JObject { ["value"] = "$$Hello {name}" },
+                        },
+                    },
+                },
+            };
+
+            var items = ProgramSyntaxCollector.Collect(root, data);
+            Assert.AreEqual(0, items.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void Collect_returns_empty_code_for_missing_file_ref()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-collect-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-cs",
+                        ["stepRunnerKey"] = "sys:csscript",
+                        ["inputParams"] = new JObject
+                        {
+                            ["script"] = new JObject { ["file"] = "files/missing.cs" },
+                        },
+                    },
+                },
+            };
+
+            var items = ProgramSyntaxCollector.Collect(root, data);
+            Assert.AreEqual(1, items.Count);
+            Assert.AreEqual(string.Empty, items[0].Code);
+            Assert.AreEqual("files/missing.cs", items[0].File);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void Collect_finds_expression_in_nested_if_steps()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-collect-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepRunnerKey"] = "sys:if",
+                        ["ifSteps"] = new JArray
+                        {
+                            new JObject
+                            {
+                                ["stepId"] = "inner",
+                                ["stepRunnerKey"] = "sys:evalexpression",
+                                ["inputParams"] = new JObject
+                                {
+                                    ["expression"] = new JObject { ["value"] = "$= 1 + 1" },
+                                },
+                            },
+                        },
+                    },
+                },
+            };
+
+            var items = ProgramSyntaxCollector.Collect(root, data);
+            Assert.AreEqual(1, items.Count);
+            Assert.AreEqual("0/if/0", items[0].StepPath);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void Collect_reads_inline_csscript_code_param()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-collect-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepRunnerKey"] = "sys:csscript",
+                        ["inputParams"] = new JObject
+                        {
+                            ["code"] = new JObject
+                            {
+                                ["value"] = "using Quicker.Public; public static void Exec(IStepContext c) {}",
+                            },
+                        },
+                    },
+                },
+            };
+
+            var items = ProgramSyntaxCollector.Collect(root, data);
+            Assert.AreEqual(1, items.Count);
+            Assert.AreEqual(ProgramSyntaxCheckKind.CSharp, items[0].Kind);
+            Assert.AreEqual("code", items[0].ParamName);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void Collect_maps_varType_names_for_compile_check()
     {
         var root = Path.Combine(Path.GetTempPath(), "qkrpc-collect-" + Guid.NewGuid().ToString("N"));

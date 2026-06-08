@@ -11,6 +11,7 @@ import {
   sortTopicsByLayer,
 } from "@/lib/action-authoring-docs.shared";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
+import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
 import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
 import { parseSkillMd } from "@/lib/skill-parse";
 
@@ -126,6 +127,46 @@ function legacyDocsRoot(): string {
 const TOPIC_ALIASES: Record<string, string> = {
   expression: "expressions",
 };
+
+/** Topics whose guide.get response includes embedded JSON schema (repo file is source of truth). */
+const SCHEMA_TOPIC_FILES: Record<string, string> = {
+  "action-data-schema": "docs/action-authoring-src/schemas/action-data-schema.json",
+  "form-spec": "docs/action-authoring-src/schemas/form-spec-schema.json",
+};
+
+function readSchemaFromGuidePayload(parsed: unknown): Record<string, unknown> | null {
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return null;
+  }
+  const schema = (parsed as { schema?: unknown }).schema;
+  if (typeof schema !== "object" || schema === null || Array.isArray(schema)) {
+    return null;
+  }
+  return schema as Record<string, unknown>;
+}
+
+async function loadTopicSchema(topic: string): Promise<Record<string, unknown> | null> {
+  const key = normalizeTopic(topic);
+  const rel = SCHEMA_TOPIC_FILES[key];
+  if (!rel) return null;
+
+  const repo = resolveQuickerRpcRepoRoot();
+  if (repo) {
+    try {
+      const raw = await readFile(join(repo, rel), "utf8");
+      return JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      // fall through to serve
+    }
+  }
+
+  const http = await invokeQkrpcHttp(
+    { op: "guide.get", args: { topic: key } },
+    { timeoutMs: 15_000 },
+  );
+  if (!http?.ok) return null;
+  return readSchemaFromGuidePayload(http.parsed);
+}
 
 function normalizeTopic(topic: string): string {
   const key = topic.trim().replace(/\/+$/, "").toLowerCase();
@@ -657,6 +698,7 @@ export async function getActionAuthoringDoc(
     };
   }
 
+  const schema = await loadTopicSchema(match.topic);
   return {
     ok: true,
     doc: {
@@ -664,6 +706,7 @@ export async function getActionAuthoringDoc(
       title: match.title,
       description: match.description,
       markdown: match.markdown,
+      ...(schema ? { schema } : {}),
     },
   };
 }

@@ -22,9 +22,8 @@ export function useLauncherGlobalShortcut(): void {
       });
     };
 
-    const timer = window.setTimeout(() => {
-      sync();
-    }, 2_000);
+    sync();
+    const timer = window.setTimeout(sync, 1_500);
     window.addEventListener(LAUNCHER_PREFS_CHANGED_EVENT, sync);
 
     return () => {

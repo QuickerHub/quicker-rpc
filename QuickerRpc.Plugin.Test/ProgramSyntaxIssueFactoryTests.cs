@@ -39,6 +39,17 @@ public sealed class ProgramSyntaxIssueFactoryTests
     }
 
     [TestMethod]
+    public void CreateTruncationWarning_describes_cap()
+    {
+        var issue = ProgramSyntaxIssueFactory.CreateTruncationWarning(250, 120);
+
+        Assert.AreEqual("LINT_TRUNCATED", issue.Code);
+        Assert.AreEqual(ProgramSyntaxIssueSeverity.Warning, issue.Severity);
+        Assert.IsTrue(issue.Message.Contains("120"));
+        Assert.IsTrue(issue.Message.Contains("250"));
+    }
+
+    [TestMethod]
     public void Create_file_step_suggests_file_read_with_line_window()
     {
         var item = new ProgramSyntaxCheckItem

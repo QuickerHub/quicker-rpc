@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Quicker.Domain.Actions;
 using Quicker.Domain.Actions.X;
 using Quicker.Domain.Actions.X.StepRunners;
@@ -20,10 +19,6 @@ namespace QuickerRpc.Plugin.StepRunners;
 internal sealed class EvalExpressionStepRunner : IStepRunner
 {
     public const string StepKey = "sys:evalexpression";
-
-    private static readonly Regex VariablePlaceholderPattern = new(
-        @"\{([a-zA-Z_][a-zA-Z0-9_]*)\}",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly StepInParamDef ExpressionParam = new()
     {
@@ -169,38 +164,33 @@ internal sealed class EvalExpressionStepRunner : IStepRunner
                 globals["vv_cliptext"] = ClipboardHelper.TryGetClipboardText() ?? string.Empty;
             }
 
-            var processedVars = new HashSet<string>(StringComparer.Ordinal);
-            expression = VariablePlaceholderPattern.Replace(expression, match =>
-            {
-                var varKey = match.Groups[1].Value;
-                var varName = "v_" + varKey;
-
-                if (processedVars.Contains(varKey))
+            var definedKeys = ExpressionVariablePlaceholder.BuildDefinedKeys(action);
+            expression = ExpressionVariablePlaceholder.Replace(
+                expression,
+                definedKeys.Contains,
+                varKey =>
                 {
-                    return varName;
-                }
-
-                processedVars.Add(varKey);
-
-                var varType = action?.Variables?.FirstOrDefault(
-                    v => string.Equals(v.Key, varKey, StringComparison.Ordinal))?.Type;
-                var rawValue = ExpressionVariableResolver.Resolve(context, action, varKey, expression);
-                var value = ExpressionVariableResolver.NormalizeForEvalBinding(rawValue, varType);
-
-                if (value is null)
+                    var varType = action?.Variables?.FirstOrDefault(
+                        v => string.Equals(v.Key, varKey, StringComparison.Ordinal))?.Type;
+                    var rawValue = ExpressionVariableResolver.Resolve(context, action, varKey, expression);
+                    return ExpressionVariableResolver.NormalizeForEvalBinding(rawValue, varType);
+                },
+                (varName, value) =>
                 {
-                    context.ActionLogger?.LogWarning($"变量 {varKey} 的值为null，可能会造成表达式解析出错。");
-                }
+                    if (value is null)
+                    {
+                        var varKey = varName.Length > 2 ? varName.Substring(2) : varName;
+                        context.ActionLogger?.LogWarning($"变量 {varKey} 的值为null，可能会造成表达式解析出错。");
+                    }
 
-                globals[varName] = value;
+                    globals[varName] = value;
 
-                if (context.IsDebugging)
-                {
-                    context.ActionLogger?.LogInfo($"[变量读取] {{{varKey}}} -> {value}");
-                }
-
-                return varName;
-            });
+                    if (context.IsDebugging)
+                    {
+                        var varKey = varName.Length > 2 ? varName.Substring(2) : varName;
+                        context.ActionLogger?.LogInfo($"[变量读取] {{{varKey}}} -> {value}");
+                    }
+                });
 
             expression = ExpressionEvalTransforms.EnsureTypedSplitAssignment(expression);
 
@@ -268,25 +258,9 @@ internal sealed class EvalExpressionStepRunner : IStepRunner
     /// </summary>
     internal static string ReplaceVariablePlaceholders(
         string expression,
-        Func<string, bool> _,
+        Func<string, bool> shouldReplace,
         Func<string, object?> resolveValue,
-        Action<string, object?> setVariable)
-    {
-        var processedVars = new HashSet<string>();
-        return VariablePlaceholderPattern.Replace(expression, match =>
-        {
-            var varKey = match.Groups[1].Value;
-            var varName = "v_" + varKey;
-
-            if (processedVars.Contains(varKey))
-            {
-                return varName;
-            }
-
-            processedVars.Add(varKey);
-            setVariable(varName, resolveValue(varKey));
-            return varName;
-        });
-    }
+        Action<string, object?> setVariable) =>
+        ExpressionVariablePlaceholder.Replace(expression, shouldReplace, resolveValue, setVariable);
 
 }

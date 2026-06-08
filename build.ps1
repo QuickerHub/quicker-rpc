@@ -138,6 +138,24 @@ function Get-QkrpcServeBaseUrl {
     return "http://${HostName}:$Port"
 }
 
+function Test-QkrpcServeListening {
+    param(
+        [string]$BaseUrl,
+        [int]$TimeoutSec = 3
+    )
+    try {
+        $resp = Invoke-WebRequest -Uri "$BaseUrl/health" -UseBasicParsing -TimeoutSec $TimeoutSec
+        if ($resp.StatusCode -ne 200 -and $resp.StatusCode -ne 503) {
+            return $false
+        }
+        $json = $resp.Content | ConvertFrom-Json
+        return $null -ne $json.PSObject.Properties['ok']
+    }
+    catch {
+        return $false
+    }
+}
+
 function Test-QkrpcServeHealth {
     param(
         [string]$BaseUrl,
@@ -174,37 +192,55 @@ function Start-QkrpcServe {
 
     $port = Get-QkrpcServePort
     $base = Get-QkrpcServeBaseUrl -HostName $HostName -Port $port
-    $exe = Join-Path $RepoRoot 'publish\cli\qkrpc.exe'
+    $installedExe = Join-Path (Get-QkrpcDefaultInstallDir) 'qkrpc.exe'
+    if (Test-Path -LiteralPath $installedExe) {
+        $exe = $installedExe
+        $cwd = Get-QkrpcDefaultInstallDir
+    }
+    else {
+        $exe = Join-Path $RepoRoot 'publish\cli\qkrpc.exe'
+        $cwd = Split-Path -Parent $exe
+    }
     if (-not (Test-Path -LiteralPath $exe)) {
         Write-Warning "qkrpc.exe not found at $exe; skip starting serve."
         return
     }
 
-    if (Test-QkrpcServeHealth -BaseUrl $base -TimeoutSec 2) {
-        Write-Host "qkrpc serve already healthy at $base" -ForegroundColor Green
+    if (Test-QkrpcServeListening -BaseUrl $base -TimeoutSec 2) {
+        if (Test-QkrpcServeHealth -BaseUrl $base -TimeoutSec 2) {
+            Write-Host "qkrpc serve already healthy at $base" -ForegroundColor Green
+        }
+        else {
+            Write-Host "qkrpc serve already listening at $base (Quicker/plugin may still be loading)" -ForegroundColor Yellow
+        }
         return
     }
 
-    $cwd = Split-Path -Parent $exe
     Write-Host "=== qkrpc serve ===" -ForegroundColor Cyan
-    Write-Host "Starting qkrpc serve at $base ..." -ForegroundColor Yellow
+    Write-Host "Starting qkrpc serve at $base ($exe) ..." -ForegroundColor Yellow
     $null = Start-Process -FilePath $exe -ArgumentList @(
         'serve',
         '--host', $HostName,
-        '--port', "$port"
+        '--port', "$port",
+        '--no-bootstrap'
     ) -WorkingDirectory $cwd -WindowStyle Hidden
 
     $deadline = (Get-Date).AddSeconds(45)
     while ((Get-Date) -lt $deadline) {
-        if (Test-QkrpcServeHealth -BaseUrl $base -TimeoutSec 3) {
-            Write-Host "qkrpc serve ready: $base (GET /health)" -ForegroundColor Green
+        if (Test-QkrpcServeListening -BaseUrl $base -TimeoutSec 3) {
+            if (Test-QkrpcServeHealth -BaseUrl $base -TimeoutSec 3) {
+                Write-Host "qkrpc serve ready: $base (GET /health ok=true)" -ForegroundColor Green
+            }
+            else {
+                Write-Host "qkrpc serve listening: $base (GET /health — Quicker/plugin not connected yet)" -ForegroundColor Yellow
+            }
             Write-Host "  agent-gui: set QKRPC_HTTP_URL=$base or use node agent-gui/start.mjs --dev" -ForegroundColor DarkGray
             return
         }
         Start-Sleep -Milliseconds 400
     }
 
-    Write-Warning "qkrpc serve did not become healthy at $base within 45s (Quicker + plugin loaded?)."
+    Write-Warning "qkrpc serve did not start listening at $base within 45s."
 }
 
 function Invoke-QuickerRpcPluginRunAction {

@@ -32,4 +32,24 @@ public sealed class CodeSyntaxCheckServiceTests
 
         Assert.AreEqual("{fileCount} > 0", normalized);
     }
+
+    [TestMethod]
+    public void NormalizeBareVariableReference_leaves_unknown_identifiers()
+    {
+        var normalized = CodeSyntaxCheckService.NormalizeBareVariableReference(
+            "notAVariable",
+            new Dictionary<string, string> { ["known"] = "int" });
+
+        Assert.AreEqual("notAVariable", normalized);
+    }
+
+    [TestMethod]
+    public void NormalizeIntegerParseCalls_leaves_non_integer_variables()
+    {
+        var normalized = CodeSyntaxCheckService.NormalizeIntegerParseCalls(
+            "int.Parse({name})",
+            new Dictionary<string, string> { ["name"] = "string" });
+
+        Assert.AreEqual("int.Parse({name})", normalized);
+    }
 }

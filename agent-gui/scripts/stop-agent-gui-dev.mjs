@@ -136,6 +136,13 @@ function listAgentGuiDevPids(agentGuiRoot) {
       // (stop is invoked from that script). Node/next on the UI port are stopped separately.
       if (name === "quicker-agent.exe") {
         isAgentGuiDev = true;
+      } else if (name === "node.exe" && /start-server\.js/.test(cmdLower)) {
+        // Orphaned Next dev listener after a crashed Tauri/browser session.
+        isAgentGuiDev =
+          cmdLower.includes(agentGuiNorm.replace(/\//g, "\\"))
+          || cmdLower.includes(agentGuiNorm)
+          || cmdLower.includes("quicker-rpc-agent-gui")
+          || cmdLower.includes("\\agent-gui\\");
       } else if (
         ["node.exe", "pnpm.exe", "cmd.exe", "cargo.exe", "rustc.exe"].includes(name)
         && (cmdLower.includes(agentGuiNorm.replace(/\//g, "\\")) || cmdLower.includes(agentGuiNorm))
@@ -146,6 +153,7 @@ function listAgentGuiDevPids(agentGuiRoot) {
           || /detached-flush\.js/.test(cmdLower)
           || /\bnext(\.cmd)?\b/.test(cmdLower)
           || /tauri-dev\.mjs/.test(cmdLower)
+          || /tauri-before-dev\.mjs/.test(cmdLower)
           || /\btauri\b.*\bdev\b/.test(cmdLower);
         const pnpmDevScript =
           /\bdev(:browser|:webpack|:full)?\b/.test(cmdLower)
@@ -194,19 +202,27 @@ export async function stopStaleAgentGuiDev(options = {}) {
     }
   }
 
-  for (const pid of stopPorts(cleanupPorts, protectedPids)) {
-    stopped.add(pid);
-  }
-
-  await new Promise((resolveWait) => setTimeout(resolveWait, 2000));
-
-  for (const pid of stopPorts(cleanupPorts, protectedPids)) {
-    stopped.add(pid);
+  for (let round = 0; round < 4; round += 1) {
+    for (const pid of stopPorts(cleanupPorts, protectedPids)) {
+      stopped.add(pid);
+    }
+    if (round + 1 < 4) {
+      await new Promise((resolveWait) => setTimeout(resolveWait, round === 0 ? 2000 : 750));
+    }
   }
 
   const devServerJson = join(agentGuiRoot, ".local", "dev-server.json");
   if (existsSync(devServerJson)) {
     rmSync(devServerJson, { force: true });
+  }
+
+  const lingering = cleanupPorts.filter(
+    (cleanupPort) => listListeningPids(cleanupPort).length > 0,
+  );
+  if (lingering.length > 0) {
+    console.warn(
+      `agent-gui: port(s) still in use after stop: ${lingering.join(", ")}`,
+    );
   }
 
   if (stopped.size > 0) {

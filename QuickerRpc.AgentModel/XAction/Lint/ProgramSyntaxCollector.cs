@@ -92,6 +92,19 @@ public static class ProgramSyntaxCollector
 
             if (code.Length == 0)
             {
+                if (!string.IsNullOrWhiteSpace(file))
+                {
+                    AddMissingFileItem(
+                        items,
+                        runnerKey,
+                        paramName,
+                        stepId,
+                        stepPath,
+                        file,
+                        variableTypes,
+                        variableKey: null);
+                }
+
                 continue;
             }
 
@@ -160,6 +173,19 @@ public static class ProgramSyntaxCollector
 
             if (code.Length == 0)
             {
+                if (!string.IsNullOrWhiteSpace(file))
+                {
+                    AddMissingFileItem(
+                        items,
+                        runnerKey: string.Empty,
+                        paramName: "defaultValue",
+                        stepId: null,
+                        stepPath: null,
+                        file,
+                        variableTypes,
+                        variableKey: varKey);
+                }
+
                 continue;
             }
 
@@ -179,6 +205,35 @@ public static class ProgramSyntaxCollector
                 VariableTypes = variableTypes,
             });
         }
+    }
+
+    private static void AddMissingFileItem(
+        IList<ProgramSyntaxCheckItem> items,
+        string runnerKey,
+        string paramName,
+        string? stepId,
+        string? stepPath,
+        string file,
+        IReadOnlyDictionary<string, string> variableTypes,
+        string? variableKey)
+    {
+        var kind = IsCSharpTarget(runnerKey, paramName)
+            ? ProgramSyntaxCheckKind.CSharp
+            : ProgramSyntaxCheckKind.Expression;
+
+        items.Add(new ProgramSyntaxCheckItem
+        {
+            Kind = kind,
+            Code = string.Empty,
+            StepRef = stepId,
+            StepId = stepId,
+            StepPath = stepPath,
+            StepRunnerKey = string.IsNullOrWhiteSpace(runnerKey) ? null : runnerKey,
+            ParamName = paramName,
+            VariableKey = variableKey,
+            File = file,
+            VariableTypes = kind == ProgramSyntaxCheckKind.Expression ? variableTypes : null,
+        });
     }
 
     private static bool IsExpressionTarget(string runnerKey, string paramName) =>

@@ -43,6 +43,7 @@
     "global-shortcut:allow-unregister",
     "global-shortcut:allow-is-registered",
     "updater:default",
-    "process:default"
+    "process:default",
+    "allow-app-commands"
   ]
 }

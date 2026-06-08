@@ -7,9 +7,11 @@ import {
   APP_BOOTSTRAP_SPLASH_INIT_SCRIPT,
   APP_BOOTSTRAP_SPLASH_MARKUP,
 } from "@/lib/app-bootstrap-splash-markup";
+import { DEV_INTERACTION_RECOVERY_SCRIPT } from "@/lib/dev-interaction-recovery-script";
 import { RELEASE_PREVIEW_INIT_SCRIPT } from "@/lib/release-preview-constants";
 import { SIDEBAR_INIT_SCRIPT } from "@/lib/sidebar-prefs";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-constants";
+import { TAURI_DEV_HMR_MUTE_SCRIPT } from "@/lib/tauri-dev-hmr-mute-script";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,6 +28,12 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {process.env.NODE_ENV === "development" ? (
+          <script dangerouslySetInnerHTML={{ __html: TAURI_DEV_HMR_MUTE_SCRIPT }} />
+        ) : null}
+        {process.env.NODE_ENV === "development" ? (
+          <script dangerouslySetInnerHTML={{ __html: DEV_INTERACTION_RECOVERY_SCRIPT }} />
+        ) : null}
         <script dangerouslySetInnerHTML={{ __html: APP_BOOTSTRAP_SPLASH_INIT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: RELEASE_PREVIEW_INIT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: SIDEBAR_INIT_SCRIPT }} />

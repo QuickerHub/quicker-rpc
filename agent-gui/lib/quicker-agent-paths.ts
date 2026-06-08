@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { EMBEDDED_BROWSER_DATA_DIRECTORY } from "@/lib/embedded-browser-profile.constants";
+import { WORKSPACE_BROWSER_WEBVIEW_LABEL } from "@/lib/embedded-webview-label";
 
 export const QUICKER_AGENT_DIRNAME = "QuickerAgent";
 export const QUICKER_AGENT_WORKSPACE_SUBDIR = "workspace";
@@ -114,5 +116,16 @@ export function resolveTauriWebviewLocalStorageLevelDbDir(): string {
     resolveTauriWebviewDefaultProfileDir(),
     "Local Storage",
     "leveldb",
+  );
+}
+
+export { EMBEDDED_BROWSER_DATA_DIRECTORY } from "@/lib/embedded-browser-profile.constants";
+
+/** On-disk profile for cookies / localStorage of the side-panel browser. */
+export function resolveEmbeddedBrowserProfileDir(): string {
+  return join(
+    resolveTauriWebviewUserDataRoot(),
+    WORKSPACE_BROWSER_WEBVIEW_LABEL,
+    EMBEDDED_BROWSER_DATA_DIRECTORY,
   );
 }

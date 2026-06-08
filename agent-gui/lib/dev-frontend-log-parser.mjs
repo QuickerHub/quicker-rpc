@@ -1,5 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { logChunkIndicatesCorruptNextCache } from "./next-cache-health.mjs";
+
+export { logChunkIndicatesCorruptNextCache } from "./next-cache-health.mjs";
 
 /** @param {string} agentGuiRoot */
 export function ensureLocalDir(agentGuiRoot) {
@@ -121,20 +124,25 @@ function syncDevServerFromNextLog(agentGuiRoot, chunk) {
   }
 }
 
-/** @param {string} agentGuiRoot @param {import('node:child_process').ChildProcess} child */
-export function wireNextDevOutput(agentGuiRoot, child) {
-  child.stdout?.on("data", (chunk) => {
+/** @param {string} agentGuiRoot @param {import('node:child_process').ChildProcess} child @param {{ onCorruptCache?: () => void }} [options] */
+export function wireNextDevOutput(agentGuiRoot, child, options = {}) {
+  const { onCorruptCache } = options;
+  const handleChunk = (chunk) => {
     const text = chunk.toString();
-    process.stdout.write(chunk);
     syncDevServerFromNextLog(agentGuiRoot, text);
     appendNextDevLogChunk(agentGuiRoot, text);
     clearBuildErrorOnCompiled(agentGuiRoot, text);
+    if (onCorruptCache && logChunkIndicatesCorruptNextCache(text)) {
+      onCorruptCache();
+    }
+  };
+
+  child.stdout?.on("data", (chunk) => {
+    process.stdout.write(chunk);
+    handleChunk(chunk);
   });
   child.stderr?.on("data", (chunk) => {
-    const text = chunk.toString();
     process.stderr.write(chunk);
-    syncDevServerFromNextLog(agentGuiRoot, text);
-    appendNextDevLogChunk(agentGuiRoot, text);
-    clearBuildErrorOnCompiled(agentGuiRoot, text);
+    handleChunk(chunk);
   });
 }

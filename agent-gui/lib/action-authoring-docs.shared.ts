@@ -19,6 +19,8 @@ export type ActionAuthoringDoc = {
   title: string;
   description: string;
   markdown: string;
+  /** Machine-readable schema when topic is action-data-schema, form-spec, … */
+  schema?: Record<string, unknown>;
   reference?: string;
 };
 

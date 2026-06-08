@@ -65,6 +65,9 @@ import type { SettingsIntentRunEntry } from "@/lib/quicker-settings-intent-runs"
 import type { LauncherAgentRunEntry } from "@/lib/tool-test-launcher-agent-runs";
 import type { LauncherResolveRunEntry } from "@/lib/tool-test-launcher-resolve-runs";
 import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
+import { ToolTestLlmProbePanel } from "@/components/tool-test/ToolTestLlmProbePanel";
+import { ToolTestLlmProbeResultPane } from "@/components/tool-test/ToolTestLlmProbeResultPane";
+import type { LlmEndpointProbeReport } from "@/lib/llm-endpoint-probe-core";
 
 type ToolTestSidebarTab =
   | "tools"
@@ -74,7 +77,8 @@ type ToolTestSidebarTab =
   | "launcher"
   | "action-trace"
   | "context-compression"
-  | "voice-input";
+  | "voice-input"
+  | "llm-probe";
 
 type StepInputOverrides = Record<string, string>;
 
@@ -218,6 +222,9 @@ export function ToolTestPage() {
   const [settingsIntentRuns, setSettingsIntentRuns] = useState<SettingsIntentRunEntry[]>([]);
   const [detailSuite, setDetailSuite] = useState<ToolTestSuite | null>(null);
   const [voiceInstallBusy, setVoiceInstallBusy] = useState(false);
+  const [llmProbeReport, setLlmProbeReport] = useState<LlmEndpointProbeReport | null>(null);
+  const [llmProbeError, setLlmProbeError] = useState<string | null>(null);
+  const [llmProbeRunning, setLlmProbeRunning] = useState(false);
 
   const handleVoiceInstallTest = useCallback(() => {
     if (voiceInstallBusy) return;
@@ -632,6 +639,16 @@ export function ToolTestPage() {
       >
         压缩
       </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={sidebarTab === "llm-probe"}
+        className={`tool-test-sidebar-tabs__btn${sidebarTab === "llm-probe" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
+        onClick={() => setSidebarTab("llm-probe")}
+        title="批量探测 LLM publish/dev/llm-config endpoint"
+      >
+        LLM
+      </button>
     </div>
   );
 
@@ -694,6 +711,13 @@ export function ToolTestPage() {
         onAppendRun={appendVoiceInputRun}
         onPatchRun={patchVoiceInputRun}
       />
+    ) : sidebarTab === "llm-probe" ? (
+      <ToolTestLlmProbePanel
+        disabled={panelDisabled || llmProbeRunning}
+        onReport={setLlmProbeReport}
+        onError={setLlmProbeError}
+        onRunningChange={setLlmProbeRunning}
+      />
     ) : (
       <ToolTestAutoFixPanel
         disabled={panelDisabled}
@@ -744,6 +768,16 @@ export function ToolTestPage() {
       <ToolTestVoiceInputResultPane
         runs={voiceInputRuns}
         onClearRuns={clearVoiceInputRuns}
+      />
+    ) : sidebarTab === "llm-probe" ? (
+      <ToolTestLlmProbeResultPane
+        report={llmProbeReport}
+        error={llmProbeError}
+        running={llmProbeRunning}
+        onClear={() => {
+          setLlmProbeReport(null);
+          setLlmProbeError(null);
+        }}
       />
     ) : (
       <ToolTestAutoFixResultPane

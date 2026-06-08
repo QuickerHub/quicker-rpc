@@ -1,11 +1,13 @@
 "use client";
 
+import type { RefObject } from "react";
 import { useEmbeddedWebView } from "@/lib/use-embedded-webview";
 
 type EmbeddedWebViewProps = {
   active: boolean;
   url: string;
   reloadKey: number;
+  boundsHostRef: RefObject<HTMLElement | null>;
 };
 
 /** Native embedded browser surface (Tauri child WebView only — no iframe). */
@@ -13,8 +15,14 @@ export function EmbeddedWebView({
   active,
   url,
   reloadKey,
+  boundsHostRef,
 }: EmbeddedWebViewProps) {
-  const webview = useEmbeddedWebView({ active, url, reloadKey });
+  const webview = useEmbeddedWebView({
+    active,
+    url,
+    reloadKey,
+    hostRef: boundsHostRef,
+  });
 
   if (!webview.isTauri) {
     return (
@@ -33,7 +41,6 @@ export function EmbeddedWebView({
 
   return (
     <div
-      ref={webview.hostRef}
       className="embedded-browser__native-host"
       onPointerDown={() => {
         void webview.focusWebview();

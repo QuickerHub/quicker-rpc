@@ -8,4 +8,4 @@ steps[] + inputParams wire (plain strings): `paramKey` · `paramKey.file` · `pa
 | text + var | `$$…{varKey}…` on `paramKey` | `paramKey.var` |
 | enum/literal | pick from step_runner_get `options` | guess value |
 
-Long text → `paramKey.file`. Keys: search → get. Branch: sys:if → ifSteps/elseSteps. Deep-read: action-steps, expressions, step-runner-get.
+Long text → `paramKey.file`. Keys: search → get. Branch: sys:if → ifSteps/elseSteps. Deep-read: **action-data-schema**, expressions, step-runner-get.

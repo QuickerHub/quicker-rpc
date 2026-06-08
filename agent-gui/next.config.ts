@@ -42,33 +42,16 @@ const nextConfig: NextConfig = {
     },
   },
   webpack: (config, { dev, isServer }) => {
-    // WebView2 on Windows freezes when Next dev HMR / Fast Refresh is active.
+    // Do NOT remove ReactRefreshWebpackPlugin / HotModuleReplacementPlugin here —
+    // that breaks the client bundle (encode-uri-path / React never hydrates; only
+    // native <a href> clicks work). Mute HMR at runtime in Tauri instead
+    // (see lib/tauri-dev-hmr-mute-script.ts).
     if (dev && !isServer && isTauriDevShell) {
-      const blocked = new Set([
-        "ReactRefreshWebpackPlugin",
-        "HotModuleReplacementPlugin",
-      ]);
-      config.plugins = config.plugins?.filter(
-        (plugin: { constructor: { name: string } } | false | 0 | "" | null | undefined) =>
-          plugin != null && !blocked.has(plugin.constructor.name),
-      );
-      for (const rule of config.module.rules) {
-        if (!("oneOf" in rule) || !Array.isArray(rule.oneOf)) continue;
-        for (const one of rule.oneOf) {
-          if (!one || !Array.isArray(one.use)) continue;
-          one.use = one.use.filter((loader: unknown) => {
-            const path =
-              typeof loader === "string"
-                ? loader
-                : typeof loader === "object"
-                  && loader !== null
-                  && "loader" in loader
-                  ? String((loader as { loader?: string }).loader ?? "")
-                  : "";
-            return !path.includes("react-refresh");
-          });
-        }
-      }
+      config.watchOptions = {
+        ...config.watchOptions,
+        // Reduce rebuild churn in WebView2; HMR websocket is blocked in Tauri shell.
+        aggregateTimeout: 600,
+      };
     }
     return config;
   },

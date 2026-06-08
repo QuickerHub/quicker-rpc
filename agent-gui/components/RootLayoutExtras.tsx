@@ -10,11 +10,13 @@ import { QuickerAgentExitOverlay } from "@/components/QuickerAgentExitOverlay";
 import { QuickerAgentUpdateChecker } from "@/components/QuickerAgentUpdateChecker";
 import { QuickerAgentUpdateOverlay } from "@/components/QuickerAgentUpdateOverlay";
 import { TauriShellInputGuard } from "@/components/shell/TauriShellInputGuard";
+import { useLauncherGlobalShortcut } from "@/lib/launcher/use-launcher-global-shortcut";
 
 /** Root chrome omitted on /launcher to avoid next/dynamic CSR bailout on a tiny window. */
 export function RootLayoutExtras() {
   const pathname = usePathname();
   const isLauncher = pathname === "/launcher";
+  useLauncherGlobalShortcut();
 
   return (
     <>

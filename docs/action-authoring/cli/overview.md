@@ -8,7 +8,7 @@ Headless XAction via **qkrpc** + QuickerRpc plugin. Commands: qkrpc help --json.
 |-------|---------|
 | **tool / command description** | param names, returns, constraints (authoritative) |
 | **workflow docs** | P0–P7 order, workspace vs CLI patch (authoring-workflow, workspace-editing) |
-| **file schemas** | action-variables, action-steps, expressions, action-project-files — data.json shape |
+| **file schemas** | **action-data-schema** (data.json JSON + wire rules), expressions, action-project-files |
 | **CLI-only** | patch-workflow (inline patch JSON) |
 
 **Default path (workspace)**: create or get (non-empty) → workspace_program edit data.json/files → patch. After create NO re-get. NO inline patch JSON on workspace path.
@@ -54,7 +54,7 @@ Walkthrough: **authoring-workflow**. Workspace: **workspace-editing**.
 
 | title | topic | when |
 |-------|-------|------|
-| Action steps | **`action-steps`** | P5–P6: steps[], inputParams/outputParams, branches |
+| Action data.json schema | **`action-data-schema`** | P2–P6: steps[] + variables[] JSON and wire rules |
 | Expressions | **`expressions`** | P4 default: $=, $$, sys:evalexpression |
 | Implementation fallback | **`implementation-fallback`** | P4 when no dedicated module |
 | Action icons | **`action-icons`** | P3 metadata/menu fa: spec; fa search |
@@ -80,9 +80,9 @@ Walkthrough: **authoring-workflow**. Workspace: **workspace-editing**.
 
 | `value` / inline `defaultValue` has `{var}` but not `$$`/`$=` | no runtime expand; use `$$`/`$=` or varKey (**expressions**) |
 | guess inputParams keys | keys must match step-runner schema (**step-runner-get**) |
-| long script in `value` | >~4 lines → `paramKey.file` + files/ (**action-steps**) |
-| outputParams as `{ "varKey": "…" }` | use string `"outputKey": "clipText"` (dictVar.key ok) — **action-steps** |
-| deprecated `defaultValueFile` / `defaultValue` object | `default` / `default.file` wire (**action-variables**) |
+| long script in `value` | >~4 lines → `paramKey.file` + files/ (**action-data-schema**) |
+| outputParams as `{ "varKey": "…" }` | use string `"outputKey": "clipText"` (dictVar.key ok) — **action-data-schema** |
+| deprecated `defaultValueFile` / `defaultValue` object | `default` / `default.file` wire (**action-data-schema**) |
 | guess callIdentifier / icon spec | from subprogram def / fa search (**subprogram-workflow**, **action-icons**) |
 
 | re-get after save | trust patch **editVersion** (authoring-workflow P7) |

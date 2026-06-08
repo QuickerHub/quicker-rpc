@@ -11,6 +11,7 @@ import {
   resolveLlmConfig,
   resolveLlmSelection,
 } from "@/lib/llm";
+import { LLM_AUTO_DEFAULT_MODEL_ID } from "@/lib/llm-auto";
 import { parseLlmSelection } from "@/lib/llm-selection";
 import { resolveModelContextLimit } from "@/lib/llm-context-limits";
 import { withReleasePreviewRoute } from "@/lib/release-preview.server";
@@ -63,10 +64,10 @@ export async function POST(req: Request) {
           const opt = key ? findLlmModelOption(snapshot.options, key) : undefined;
           return {
             providerId: CUSTOM_PROVIDER_ID,
-            modelId: opt?.modelId ?? "openai/gpt-oss-20b",
+            modelId: opt?.modelId ?? LLM_AUTO_DEFAULT_MODEL_ID,
             contextLimit: opt?.contextLimit
               ?? resolveModelContextLimit(
-                opt?.modelId ?? "openai/gpt-oss-20b",
+                opt?.modelId ?? LLM_AUTO_DEFAULT_MODEL_ID,
                 CUSTOM_PROVIDER_ID,
               ).tokens,
           };

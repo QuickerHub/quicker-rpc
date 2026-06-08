@@ -81,6 +81,13 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "Playwright 操控本地浏览器：navigate/snapshot/click/type/fill 等",
   },
   {
+    id: "web_search",
+    label: "网络搜索",
+    group: "read",
+    category: "runtime",
+    description: "搜索互联网：返回标题/链接/摘要（默认 DuckDuckGo，可配 Brave/Tavily API Key）",
+  },
+  {
     id: "dev_frontend_check",
     label: "前端检查",
     group: "read",

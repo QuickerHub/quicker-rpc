@@ -25,13 +25,26 @@
         "stepRunnerKey": { "type": "string", "required": true, "notes": "From qkrpc step-runner get — do not guess." },
         "inputParams": { "$ref": "#/definitions/inputParams" },
         "outputParams": { "$ref": "#/definitions/outputParams" },
-        "ifSteps": { "type": "array", "items": { "$ref": "#/definitions/step" } },
-        "elseSteps": { "type": "array", "items": { "$ref": "#/definitions/step" } },
+        "ifSteps": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/step" },
+          "when": "branching step only (sys:if, sys:simpleIf, sys:loop, sys:group, …)",
+          "notes": "Omit when empty. Do NOT write on normal action steps."
+        },
+        "elseSteps": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/step" },
+          "when": "sys:if (If) only",
+          "notes": "Omit when empty. Never on leaf steps such as sys:getClipboardText."
+        },
         "note": { "type": "string" },
         "disabled": { "type": "boolean" },
         "collapsed": { "type": "boolean" },
         "delayMs": { "type": "number" },
-        "stepId": { "type": "string", "notes": "Ephemeral editor id." }
+        "stepId": {
+          "type": "string",
+          "notes": "Editor-only handle (QuickerAgent UI). Workspace disk edit: omit — agents use read_data/write_data/edit_data on full steps[]; patch is save-only, not incremental op JSON. Runtime ignores stepId."
+        }
       }
     },
     "inputParams": {

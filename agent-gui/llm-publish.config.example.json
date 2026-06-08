@@ -19,7 +19,12 @@
     },
     "nvidia": {
       "label": "NVIDIA NIM",
-      "model": "openai/gpt-oss-20b"
+      "model": "qwen/qwen3-coder-480b-a35b-instruct",
+      "autoModels": [
+        "qwen/qwen3-coder-480b-a35b-instruct",
+        "openai/gpt-oss-20b",
+        "moonshotai/kimi-k2.6"
+      ]
     }
   },
   "endpoints": [
@@ -51,7 +56,7 @@
       "group": "nvidia",
       "apiKey": "nvapi-...",
       "baseURL": "https://integrate.api.nvidia.com/v1",
-      "model": "openai/gpt-oss-20b"
+      "model": "qwen/qwen3-coder-480b-a35b-instruct"
     }
   ]
 }

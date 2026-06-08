@@ -1,0 +1,36 @@
+# QuickerAgent custom invoke commands (main + launcher windows).
+
+[[permission]]
+identifier = "allow-app-commands"
+description = "Allow QuickerAgent custom IPC commands (launcher, voice, browser, exit, …)."
+commands.allow = [
+  "graceful_exit",
+  "prepare_for_update_install",
+  "launcher_show",
+  "launcher_hide",
+  "launcher_toggle",
+  "launcher_expand",
+  "launcher_sync_global_shortcut",
+  "voice_plugin_status",
+  "voice_runtime_health",
+  "voice_plugin_install",
+  "voice_plugin_start_runtime",
+  "voice_plugin_stop_runtime",
+  "clipboard_history_plugin_status",
+  "clipboard_history_runtime_health",
+  "clipboard_history_plugin_start_runtime",
+  "clipboard_history_plugin_stop_runtime",
+  "clipboard_history_plugin_read_settings",
+  "clipboard_history_plugin_write_settings",
+  "webview_profile_paths",
+  "embedded_browser_navigation_state",
+  "embedded_browser_navigate",
+  "embedded_browser_reload",
+  "embedded_browser_go_back",
+  "embedded_browser_go_forward",
+  "embedded_browser_open_devtools",
+  "embedded_browser_toggle_devtools",
+  "embedded_browser_profile_info",
+  "embedded_browser_force_close",
+  "legacy_chat_store_scan",
+]

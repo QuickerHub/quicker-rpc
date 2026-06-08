@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseActionMetadataFromGetJson } from "./action-metadata-api";
+import {
+  parseActionMetadataFromGetJson,
+  parseActionMetadataFromInfoJson,
+} from "./action-metadata-api";
 
 const GUID = "7d6999ed-93a1-4db0-9763-5405066199ac";
 
@@ -36,5 +39,20 @@ describe("action-metadata-api", () => {
       parseActionMetadataFromGetJson("not-a-guid", { compressed: { title: "x" } }),
       null,
     );
+  });
+
+  it("parseActionMetadataFromInfoJson reads proto info.json", () => {
+    const meta = parseActionMetadataFromInfoJson(GUID, JSON.stringify({
+      id: GUID,
+      title: "剪贴板去重排序",
+      description: "按行去重",
+      icon: "fa:Light_Clipboard",
+      editVersion: 2,
+    }));
+    assert.ok(meta);
+    assert.equal(meta!.title, "剪贴板去重排序");
+    assert.equal(meta!.description, "按行去重");
+    assert.equal(meta!.icon, "fa:Light_Clipboard");
+    assert.equal(meta!.editVersion, 2);
   });
 });

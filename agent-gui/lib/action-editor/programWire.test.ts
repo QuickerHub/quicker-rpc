@@ -121,6 +121,65 @@ test("programWire roundtrip varType and file ref", () => {
   assert.equal(again.present.steps[0]?.inputParams.formDef?.file, "files/form1.form.json");
 });
 
+test("programWire omits empty branch arrays on leaf steps", () => {
+  const raw = {
+    steps: [
+      {
+        stepRunnerKey: "sys:getClipboardText",
+        inputParams: {
+          format: "UnicodeText",
+          waitMs: "800",
+          stopIfFail: "true",
+        },
+        outputParams: { output: "clipText" },
+        ifSteps: [],
+        elseSteps: [],
+        note: "读取剪贴板纯文本",
+        stepId: "read-clipboard-text",
+      },
+    ],
+    variables: [],
+  };
+
+  const parsed = parseProgramWireJson(JSON.stringify(raw));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+
+  const serialized = serializeProgramWireJson(parsed.present, parsed.extraTopLevel);
+  assert.doesNotMatch(serialized, /"ifSteps"/);
+  assert.doesNotMatch(serialized, /"elseSteps"/);
+  assert.match(serialized, /"sys:getClipboardText"/);
+  assert.match(serialized, /"clipText"/);
+});
+
+test("programWire keeps ifSteps on sys:if and omits empty elseSteps", () => {
+  const raw = {
+    steps: [
+      {
+        stepRunnerKey: "sys:if",
+        inputParams: { "condition.var": "flag" },
+        ifSteps: [
+          {
+            stepRunnerKey: "sys:delay",
+            inputParams: { ms: "100" },
+          },
+        ],
+        elseSteps: [],
+      },
+    ],
+    variables: [],
+  };
+
+  const parsed = parseProgramWireJson(JSON.stringify(raw));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+
+  const serialized = serializeProgramWireJson(parsed.present, parsed.extraTopLevel);
+  assert.match(serialized, /"ifSteps"/);
+  assert.doesNotMatch(serialized, /"elseSteps"/);
+  assert.match(serialized, /"sys:delay"/);
+});
+
 test("normalizeDataJsonTextForDisk compacts legacy object binds", async () => {
   const { normalizeDataJsonTextForDisk } = await import("@/lib/action-editor/wire/programWire");
   const legacy = JSON.stringify({

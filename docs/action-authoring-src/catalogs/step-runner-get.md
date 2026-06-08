@@ -18,7 +18,7 @@
 | search | key, controlField, snippet |
 | get | input keys, valueType, options (when set), required, default, fileExt |
 
-Bind rules: action-steps — use exact `key`; variable bind `paramKey.var` not `{varKey}` in value.
+Bind rules: action-data-schema — use exact `key`; variable bind `paramKey.var` not `{varKey}` in value.
 
 {{#only-cli}}```powershell
 {{@ step-runner.get}}
@@ -39,4 +39,4 @@ Bind rules: action-steps — use exact `key`; variable bind `paramKey.var` not `
 
 ## Related
 
-step-runner-search · action-steps · authoring-workflow
+step-runner-search · action-data-schema · authoring-workflow

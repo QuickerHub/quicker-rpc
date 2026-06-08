@@ -1,13 +1,18 @@
 #!/usr/bin/env pwsh
-# QuickerAgent — unified dev launcher (pick ONE mode; do not run both at once).
+# QuickerAgent — unified dev launcher.
 #
 #   pwsh ./start-agent-gui.ps1           # Browser UI @ :3000 (Turbopack, fast HMR)
-#   pwsh ./start-agent-gui.ps1 -Tauri    # Desktop QuickerAgent (webpack + WebView2)
+#   pwsh ./start-agent-gui.ps1 -Tauri    # Desktop QuickerAgent (WebView2 shell)
+#
+# Typical workflow: start browser dev first, then attach the desktop shell:
+#   pwsh ./start-agent-gui.ps1
+#   pwsh ./start-agent-gui.ps1 -Tauri    # reuses :3000 frontend + qkrpc when already up
 #
 # Optional:
 #   -Browser   open http://127.0.0.1:3000 after start (browser mode only)
 #   -Full      eager-start voice runtime at boot (browser mode)
 #   -SkipKill  do not stop prior dev on :3000
+#   -NoReuse    -Tauri only: stop prior dev and start a fresh webpack frontend
 #
 # Prerequisite: Quicker + QuickerRpc plugin; qkrpc serve on :9477 (pwsh ./build.ps1 -t).
 
@@ -15,7 +20,8 @@ param(
     [switch]$Tauri,
     [switch]$Browser,
     [switch]$SkipKill,
-    [switch]$Full
+    [switch]$Full,
+    [switch]$NoReuse
 )
 
 $ErrorActionPreference = 'Stop'
@@ -59,6 +65,57 @@ function Get-AgentGuiDevPort {
     return 3000
 }
 
+function Test-AgentGuiPortListening {
+    param([int]$Port)
+    try {
+        $conns = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+        return $conns.Count -gt 0
+    }
+    catch {
+        return $false
+    }
+}
+
+function Test-AgentGuiFrontendHealthy {
+    param(
+        [int]$Port,
+        [string]$BindHost = '127.0.0.1',
+        [int]$TimeoutSec = 3
+    )
+    $base = "http://${BindHost}:$Port"
+    foreach ($path in @('/api/ping', '/')) {
+        try {
+            $resp = Invoke-WebRequest -Uri "$base$path" -UseBasicParsing -TimeoutSec $TimeoutSec
+            if ($resp.StatusCode -eq 200) {
+                return $true
+            }
+        }
+        catch {
+            continue
+        }
+    }
+    return $false
+}
+
+function Get-AgentGuiDevBundler {
+    param([string]$AgentGuiRoot)
+
+    $infoPath = Join-Path $AgentGuiRoot '.local/dev-server.json'
+    if (-not (Test-Path -LiteralPath $infoPath)) {
+        return $null
+    }
+    try {
+        $info = Get-Content -LiteralPath $infoPath -Raw | ConvertFrom-Json
+        if ($info.bundler -in @('webpack', 'turbopack')) {
+            return [string]$info.bundler
+        }
+    }
+    catch {
+        return $null
+    }
+    return $null
+}
+
 function Stop-AgentGuiDev {
     param(
         [string]$AgentGuiRoot,
@@ -75,6 +132,34 @@ function Stop-AgentGuiDev {
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
+}
+
+function Clear-AgentGuiPortListeners {
+    param([int]$Port)
+
+    for ($attempt = 1; $attempt -le 6; $attempt++) {
+        if (-not (Test-AgentGuiPortListening -Port $Port)) {
+            return $true
+        }
+        $pids = @(
+            Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+                ForEach-Object { $_.OwningProcess } |
+                Sort-Object -Unique
+        ) | Where-Object { $_ -gt 0 -and $_ -ne $PID }
+
+        if ($pids.Count -eq 0) {
+            Start-Sleep -Milliseconds 400
+            continue
+        }
+
+        Write-Host "agent-gui: freeing port $Port (PID(s): $($pids -join ', '))" -ForegroundColor Yellow
+        foreach ($procId in $pids) {
+            Stop-ProcessTree -ProcessId $procId | Out-Null
+        }
+        Start-Sleep -Milliseconds 600
+    }
+
+    return -not (Test-AgentGuiPortListening -Port $Port)
 }
 
 function Ensure-AgentGuiDeps {
@@ -105,51 +190,111 @@ try {
         throw "agent-gui not found under $PSScriptRoot"
     }
 
-    if (-not $SkipKill) {
+    $devPort = Get-AgentGuiDevPort
+    $reuseDev = $false
+    $stalePortOnly = $false
+    if ($Tauri -and -not $NoReuse) {
+        $portListening = Test-AgentGuiPortListening -Port $devPort
+        $frontendHealthy = Test-AgentGuiFrontendHealthy -Port $devPort
+        $devInfoPath = Join-Path $agentGui '.local/dev-server.json'
+        $hasDevInfo = Test-Path -LiteralPath $devInfoPath
+
+        if ($frontendHealthy) {
+            $reuseDev = $true
+        }
+        elseif ($portListening -and $hasDevInfo) {
+            Write-Host "Port $devPort is up but still compiling; waiting for frontend health..." -ForegroundColor DarkGray
+            foreach ($attempt in 1..30) {
+                Start-Sleep -Seconds 2
+                if (Test-AgentGuiFrontendHealthy -Port $devPort) {
+                    $reuseDev = $true
+                    break
+                }
+            }
+            if (-not $reuseDev) {
+                Write-Warning "Port $devPort did not become healthy — will stop stale dev and start fresh."
+                $stalePortOnly = $true
+            }
+        }
+        elseif ($portListening) {
+            Write-Warning "Port $devPort is in use but not a healthy agent-gui dev — stopping stale listener."
+            $stalePortOnly = $true
+        }
+    }
+
+    if ($reuseDev) {
+        $env:AGENT_GUI_SKIP_KILL = '1'
+        $env:AGENT_GUI_REUSE_DEV = '1'
+        $bundler = Get-AgentGuiDevBundler -AgentGuiRoot $agentGui
+        $bundlerLabel = if ($bundler) { $bundler } else { 'dev server' }
+        Write-Host "Reusing agent-gui frontend on :$devPort ($bundlerLabel)." -ForegroundColor Green
+    }
+    elseif ((-not $SkipKill) -or $stalePortOnly) {
         Stop-AgentGuiDev -AgentGuiRoot $agentGui -RepoRoot $PSScriptRoot
         Remove-Item Env:AGENT_GUI_SKIP_KILL -ErrorAction SilentlyContinue
+        Remove-Item Env:AGENT_GUI_REUSE_DEV -ErrorAction SilentlyContinue
+        if (-not (Clear-AgentGuiPortListeners -Port $devPort)) {
+            throw "Port $devPort is still in use. Close the other process or run: node agent-gui/scripts/stop-agent-gui-dev.mjs"
+        }
     }
     else {
         $env:AGENT_GUI_SKIP_KILL = '1'
+        Remove-Item Env:AGENT_GUI_REUSE_DEV -ErrorAction SilentlyContinue
+    }
+
+    if (-not $Tauri) {
+        Remove-Item Env:TAURI_ENV_DEBUG -ErrorAction SilentlyContinue
+        Remove-Item Env:AGENT_GUI_TAURI_SHELL -ErrorAction SilentlyContinue
+        Remove-Item Env:AGENT_GUI_STRICT_PORT -ErrorAction SilentlyContinue
+        Remove-Item Env:AGENT_GUI_REUSE_DEV -ErrorAction SilentlyContinue
     }
 
     Ensure-AgentGuiDeps -AgentGuiRoot $agentGui
 
-    $nextDir = Join-Path $agentGui '.next'
-    $documentJs = Join-Path $nextDir 'server/pages/_document.js'
-    $ssrChunks = Join-Path $nextDir 'server/chunks/ssr'
-    $hasBrokenTurbopack = $false
-    if ((Test-Path -LiteralPath $documentJs) -and
-        (Select-String -LiteralPath $documentJs -Pattern '\[turbopack\]_runtime' -Quiet -ErrorAction SilentlyContinue)) {
-        $hasRuntimeChunk = (Test-Path -LiteralPath (Join-Path $nextDir 'turbopack')) -or
-            ((Test-Path -LiteralPath $ssrChunks) -and
-             (Get-ChildItem -LiteralPath $ssrChunks -File -ErrorAction SilentlyContinue |
-              Where-Object { $_.Name -match '\[turbopack\]_runtime' } |
-              Select-Object -First 1))
-        if (-not $hasRuntimeChunk) {
-            $hasBrokenTurbopack = $true
+    if (-not $reuseDev) {
+        $nextDir = Join-Path $agentGui '.next'
+        $documentJs = Join-Path $nextDir 'server/pages/_document.js'
+        $ssrChunks = Join-Path $nextDir 'server/chunks/ssr'
+        $hasBrokenTurbopack = $false
+        if ((Test-Path -LiteralPath $documentJs) -and
+            (Select-String -LiteralPath $documentJs -Pattern '\[turbopack\]_runtime' -Quiet -ErrorAction SilentlyContinue)) {
+            $hasRuntimeChunk = (Test-Path -LiteralPath (Join-Path $nextDir 'turbopack')) -or
+                ((Test-Path -LiteralPath $ssrChunks) -and
+                 (Get-ChildItem -LiteralPath $ssrChunks -File -ErrorAction SilentlyContinue |
+                  Where-Object { $_.Name -match '\[turbopack\]_runtime' } |
+                  Select-Object -First 1))
+            if (-not $hasRuntimeChunk) {
+                $hasBrokenTurbopack = $true
+            }
         }
-    }
-    if ($hasBrokenTurbopack) {
-        Remove-Item -LiteralPath $nextDir -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "Cleared broken Turbopack .next cache." -ForegroundColor Yellow
+        if ($hasBrokenTurbopack) {
+            Remove-Item -LiteralPath $nextDir -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "Cleared broken Turbopack .next cache." -ForegroundColor Yellow
+        }
     }
 
     if ($Tauri) {
-        $nextDir = Join-Path $agentGui '.next'
-        $documentJs = Join-Path $nextDir 'server/pages/_document.js'
-        $hasTurbopackCache = (Test-Path -LiteralPath (Join-Path $nextDir 'turbopack')) -or
-            ((Test-Path -LiteralPath $documentJs) -and
-             (Select-String -LiteralPath $documentJs -Pattern '\[turbopack\]_runtime' -Quiet -ErrorAction SilentlyContinue))
-        if ($hasTurbopackCache) {
-            Remove-Item -LiteralPath $nextDir -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Host "Cleared Turbopack .next before webpack Tauri dev." -ForegroundColor Yellow
+        if (-not $reuseDev) {
+            $nextDir = Join-Path $agentGui '.next'
+            $documentJs = Join-Path $nextDir 'server/pages/_document.js'
+            $hasTurbopackCache = (Test-Path -LiteralPath (Join-Path $nextDir 'turbopack')) -or
+                ((Test-Path -LiteralPath $documentJs) -and
+                 (Select-String -LiteralPath $documentJs -Pattern '\[turbopack\]_runtime' -Quiet -ErrorAction SilentlyContinue))
+            if ($hasTurbopackCache) {
+                Remove-Item -LiteralPath $nextDir -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Host "Cleared Turbopack .next before webpack Tauri dev." -ForegroundColor Yellow
+            }
         }
 
         Write-Host ""
-        Write-Host "=== QuickerAgent desktop (webpack + Tauri) ===" -ForegroundColor Cyan
-        Write-Host "  UI: http://127.0.0.1:3000 inside WebView2" -ForegroundColor DarkGray
-        Write-Host "  Do not run browser mode in parallel." -ForegroundColor DarkGray
+        Write-Host "=== QuickerAgent desktop (Tauri) ===" -ForegroundColor Cyan
+        if ($reuseDev) {
+            Write-Host "  Reusing http://127.0.0.1:$devPort (browser dev keeps running)" -ForegroundColor DarkGray
+            Write-Host "  WebView2 HMR is muted; refresh the desktop window after UI edits" -ForegroundColor DarkGray
+        }
+        else {
+            Write-Host "  UI: http://127.0.0.1:$devPort inside WebView2 (webpack)" -ForegroundColor DarkGray
+        }
         Write-Host ""
         pnpm --dir $agentGui tauri:dev
         exit $LASTEXITCODE

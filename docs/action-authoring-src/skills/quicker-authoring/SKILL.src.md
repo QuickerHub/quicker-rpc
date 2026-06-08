@@ -35,7 +35,7 @@ Walkthrough: authoring-workflow. Workspace: workspace-editing.
 |-------|--------|
 | overview | overview |
 | workflows | authoring-workflow, workspace-editing, subprogram-workflow |
-| schemas | action-steps, action-variables, expressions |
+| schemas | action-data-schema, expressions, action-project-files |
 | modules | step-modules + docs get reference |
 
 Hot route in prompt-tier0; docs get one topic at a time. docs index / search for unfamiliar topics.

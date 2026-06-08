@@ -51,7 +51,6 @@ npm run docs:check
 | `workflow-checklist-p1-p7` | authoring-workflow |
 | `workflow-checklist-workspace-editing` | workspace-editing |
 | `workspace-editing-body` | workspace-editing |
-| `action-steps-body` | action-steps |
 | `expressions-body` | expressions |
 | `workflow-checklist-subprogram` | subprogram-workflow |
 | `workflow-checklist-action-organization` | action-organization-workflow |

@@ -52,6 +52,10 @@ import {
   isDocsTool,
   summarizeDocsToolOutput,
 } from "@/lib/docs-tool";
+import {
+  isWebSearchTool,
+  summarizeWebSearchOutput,
+} from "@/lib/web-search-tool";
 import { isStructuredToolResult } from "@/lib/tool-result";
 import {
   parseSingleIdInput,
@@ -141,6 +145,11 @@ export function summarizeToolOutput(
   if (isDocsTool(toolName)) {
     const docSummary = summarizeDocsToolOutput(toolName, output);
     if (docSummary) return docSummary;
+  }
+
+  if (isWebSearchTool(toolName)) {
+    const searchSummary = summarizeWebSearchOutput(output);
+    if (searchSummary) return searchSummary;
   }
 
   if (input !== undefined) {

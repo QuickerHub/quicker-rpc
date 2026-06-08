@@ -18,6 +18,8 @@ type EmbeddedBrowserRemoteViewProps = {
   sessionId: string;
   hostRef: RefObject<HTMLElement | null>;
   retryToken?: number;
+  previewBase64?: string | null;
+  previewMimeType?: string | null;
   onState?: (state: BrowserPanelStreamState) => void;
 };
 
@@ -27,6 +29,8 @@ export function EmbeddedBrowserRemoteView({
   sessionId,
   hostRef,
   retryToken = 0,
+  previewBase64 = null,
+  previewMimeType = "image/jpeg",
   onState,
 }: EmbeddedBrowserRemoteViewProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -37,6 +41,12 @@ export function EmbeddedBrowserRemoteView({
     retryToken,
     onState,
   });
+
+  const fallbackPreviewSrc =
+    previewBase64?.trim()
+      ? `data:${previewMimeType ?? "image/jpeg"};base64,${previewBase64}`
+      : null;
+  const displaySrc = stream.frameSrc ?? fallbackPreviewSrc;
 
   const onSurfaceClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -82,16 +92,22 @@ export function EmbeddedBrowserRemoteView({
     );
   }
 
-  if (stream.connecting && !stream.frameSrc) {
+  if (stream.connecting && !displaySrc) {
     return (
-      <div className="embedded-browser__empty">正在连接独立浏览器进程…</div>
+      <div className="embedded-browser__empty">正在连接 Playwright 浏览器进程…</div>
     );
   }
 
-  if (!stream.frameSrc) {
+  if (!displaySrc) {
     return (
       <div className="embedded-browser__empty">
-        在地址栏输入 URL 后回车，或让 Agent 使用 browser 工具导航。
+        <p>侧栏显示的是独立 Playwright Chromium（不是 Tauri 子 WebView2）。</p>
+        <p className="embedded-browser__empty-hint">
+          在地址栏输入 URL 后按 Enter，或让 Agent 使用 browser 工具 navigate。
+        </p>
+        {stream.connected ? (
+          <p className="embedded-browser__empty-hint">已连接 browser-runtime，等待打开页面…</p>
+        ) : null}
       </div>
     );
   }
@@ -109,12 +125,14 @@ export function EmbeddedBrowserRemoteView({
     >
       <img
         className="embedded-browser__preview embedded-browser__preview--live"
-        src={stream.frameSrc}
+        src={displaySrc}
         alt="Remote browser"
         draggable={false}
       />
       <p className="embedded-browser__remote-hint">
-        点击画面后可键盘输入；滚轮滚动页面
+        {stream.frameSrc
+          ? "实时画面 · 点击后可键盘输入 · 滚轮滚动"
+          : "静态预览 · 等待实时流连接…"}
       </p>
     </div>
   );

@@ -1,6 +1,7 @@
 import { CHAT_STORAGE_KEY } from "@/lib/chat-store";
 import {
   QUICKER_AGENT_TAURI_IDENTIFIER,
+  resolveEmbeddedBrowserProfileDir,
   resolveQuickerAgentAppDataDirectory,
   resolveTauriWebviewDefaultProfileDir,
   resolveTauriWebviewLocalStorageLevelDbDir,
@@ -16,6 +17,7 @@ export async function GET() {
     userDataRoot: resolveTauriWebviewUserDataRoot(),
     defaultProfileDir: resolveTauriWebviewDefaultProfileDir(),
     localStorageLeveldbDir: resolveTauriWebviewLocalStorageLevelDbDir(),
+    embeddedBrowserProfileDir: resolveEmbeddedBrowserProfileDir(),
     chatStorageKey: CHAT_STORAGE_KEY,
     appDataRoot: resolveQuickerAgentAppDataDirectory(),
     persistedServerDataDir: resolveQuickerAgentPersistedDataDirectory(),

@@ -11,6 +11,8 @@ public static class ProgramStaticLint
     {
         var issues = new List<ProgramSyntaxIssue>();
         issues.AddRange(ProgramStructureLint.Analyze(data));
+        issues.AddRange(ProgramBranchStructureLint.Analyze(data));
+        issues.AddRange(InputScriptSyntaxLint.Analyze(projectDirectory, data));
 
         var variableKeys = InterpolationPrefixLint.CollectVariableKeys(data["variables"] as JArray);
         if (variableKeys.Count > 0)

@@ -193,6 +193,7 @@ internal static class ProgramSyntaxLintServeOps
                     FastIssueCount = issues.Count(i =>
                         i.Kind == ProgramSyntaxCheckKind.Structural
                         || i.Kind == ProgramSyntaxCheckKind.Interpolation
+                        || i.Kind == ProgramSyntaxCheckKind.InputScript
                         || i.Code == "FILE_NOT_FOUND"),
                 },
                 Issues = issues,

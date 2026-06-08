@@ -192,9 +192,21 @@ public sealed class CodeSyntaxCheckService
         string expression,
         IDictionary<string, string>? variableTypes)
     {
+        var definedKeys = new HashSet<string>(StringComparer.Ordinal)
+        {
+            ExpressionVariablePlaceholder.QuickerInParamKey,
+        };
+        if (variableTypes is not null)
+        {
+            foreach (var key in variableTypes.Keys)
+            {
+                definedKeys.Add(key);
+            }
+        }
+
         return EvalExpressionStepRunner.ReplaceVariablePlaceholders(
             expression,
-            _ => true,
+            definedKeys.Contains,
             key => CreateDummyValue(variableTypes != null && variableTypes.TryGetValue(key, out var t) ? t : null),
             (name, value) => eval.RegisterGlobalVariable(name, value));
     }

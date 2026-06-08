@@ -314,7 +314,7 @@ export const WORKSPACE_PROGRAM_TOOL_DEF = tool({
     + "(1) read data.json: {action:\"read_data\", target:\"action\", id:\"<action-guid>\"} — no path. "
     + "(2) edit files/ asset: {action:\"file_edit\", target:\"action\", id:\"<action-guid>\", path:\"files/main.cs\", oldString:\"…\", newString:\"…\"} — path is project-relative under files/, not .quicker/…. "
     + "(3) save disk → Quicker: {action:\"patch\", target:\"action\", id:\"<action-guid>\"} after edits. "
-    + "inputParams: keys from step_runner_get; var bind via paramKey.var; see docs action-steps.",
+    + "inputParams: keys from step_runner_get; var bind via paramKey.var; see docs action-data-schema.",
   inputSchema: z.object({
     action: actionSchema,
     target: z

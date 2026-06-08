@@ -48,9 +48,9 @@ Keys from step-runner get `schema.Inputs[].Key`; unknown keys in **warnings[]** 
 | add | required + control + params differing from catalog Default |
 | update | changed keys only; null old keys when switching module |
 | value shapes | `paramKey` / `paramKey.file` / `paramKey.var` only (plain strings); `null` removes key |
-| long value (>4 lines) | `"paramKey.file": "files/…"` — action-steps / action-project-files |
+| long value (>4 lines) | `"paramKey.file": "files/…"` — action-data-schema / action-project-files |
 
-outputParams / inputParams shapes: **action-steps**.
+outputParams / inputParams shapes: **action-data-schema**.
 
 ## After save
 
@@ -64,5 +64,5 @@ Conflict → {{#ref action.get.retry}} or `force`.
 
 ## Related
 
-authoring-workflow · action-steps · action-project-files · action-variables · overview
+authoring-workflow · action-data-schema · action-project-files · overview
 {{/only-cli}}

@@ -12,7 +12,7 @@ Quicker DB ←—— patch ——→ .quicker/actions|subprograms/
 | file | role |
 |------|------|
 | info.json | title, icon, editVersion, callIdentifier (subprogram) |
-| data.json | steps[] + variables[] only |
+| data.json | steps[] + variables[] only — **action-data-schema**; agents omit stepId, empty ifSteps/elseSteps |
 | files/ | long scripts/HTML; step ref `paramKey.file`: `files/…` |
 
 ### target → disk
@@ -31,7 +31,7 @@ Quicker DB ←—— patch ——→ .quicker/actions|subprograms/
 | read_data / write_data / edit_data | data.json (NOT file_* for data.json) |
 | file_* | path files/… external assets |
 | patch | disk → Quicker (only save path; NO --patch-file / inline op JSON) |
-| diagnostics | post-patch expr/C# syntax lint |
+| diagnostics | post-patch syntax lint |
 
 ### Sync
 

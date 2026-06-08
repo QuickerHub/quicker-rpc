@@ -76,6 +76,13 @@ pub fn tauri_webview_local_storage_leveldb_dir() -> PathBuf {
         .join("leveldb")
 }
 
+/// Persistent profile for the workspace embedded browser child webview.
+pub fn embedded_browser_profile_dir() -> PathBuf {
+    tauri_webview_user_data_root()
+        .join(crate::embedded_browser::WORKSPACE_BROWSER_LABEL)
+        .join(crate::embedded_browser::EMBEDDED_BROWSER_DATA_DIRECTORY)
+}
+
 fn user_documents_dir() -> PathBuf {
     if let Ok(profile) = std::env::var("USERPROFILE") {
         let docs = PathBuf::from(&profile).join("Documents");

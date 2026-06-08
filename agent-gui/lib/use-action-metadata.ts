@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActionMetadataSnapshot } from "@/lib/action-metadata-api";
+import {
+  fetchWorkspaceActionMetadata,
+  findActionMetadataInExplorerTree,
+} from "@/lib/action-workspace-metadata";
+import { subscribeActionExplorerTreeWatch } from "@/lib/workspace-explorer-api";
 
 export type ActionMetadataState =
   | { status: "idle" }
@@ -9,16 +14,16 @@ export type ActionMetadataState =
   | { status: "ok"; meta: ActionMetadataSnapshot }
   | { status: "error"; message: string };
 
-const cache = new Map<string, ActionMetadataSnapshot>();
-const inflight = new Map<string, Promise<ActionMetadataSnapshot | null>>();
+const qkrpcCache = new Map<string, ActionMetadataSnapshot>();
+const qkrpcInflight = new Map<string, Promise<ActionMetadataSnapshot | null>>();
 
-async function fetchActionMetadata(
+async function fetchQkrpcActionMetadata(
   actionId: string,
 ): Promise<ActionMetadataSnapshot | null> {
-  const cached = cache.get(actionId);
+  const cached = qkrpcCache.get(actionId);
   if (cached) return cached;
 
-  const pending = inflight.get(actionId);
+  const pending = qkrpcInflight.get(actionId);
   if (pending) return pending;
 
   const promise = (async () => {
@@ -35,25 +40,81 @@ async function fetchActionMetadata(
       if (!res.ok || !data.ok || !data.meta) {
         return null;
       }
-      cache.set(actionId, data.meta);
+      qkrpcCache.set(actionId, data.meta);
       return data.meta;
     } catch {
       return null;
     } finally {
-      inflight.delete(actionId);
+      qkrpcInflight.delete(actionId);
     }
   })();
 
-  inflight.set(actionId, promise);
+  qkrpcInflight.set(actionId, promise);
   return promise;
 }
 
-/** Load action title/icon via qkrpc metadata (cached per session). */
-export function useActionMetadata(actionId: string): ActionMetadataState {
-  const id = actionId.trim().toLowerCase();
-  const [state, setState] = useState<ActionMetadataState>(() =>
-    cache.has(id) ? { status: "ok", meta: cache.get(id)! } : { status: "idle" },
+async function loadActionMetadata(
+  actionId: string,
+  cwd?: string,
+): Promise<ActionMetadataSnapshot | null> {
+  const trimmedCwd = cwd?.trim() ?? "";
+  if (trimmedCwd) {
+    const workspaceMeta = await fetchWorkspaceActionMetadata(trimmedCwd, actionId);
+    if (workspaceMeta) return workspaceMeta;
+  }
+  return fetchQkrpcActionMetadata(actionId);
+}
+
+function metadataEquals(
+  a: ActionMetadataSnapshot,
+  b: ActionMetadataSnapshot,
+): boolean {
+  return (
+    a.id === b.id
+    && a.title === b.title
+    && a.description === b.description
+    && a.icon === b.icon
+    && a.editVersion === b.editVersion
   );
+}
+
+/**
+ * Load action title/icon/description from workspace info.json when available;
+ * falls back to qkrpc metadata. Re-fetches when .quicker/actions info.json changes.
+ */
+export function useActionMetadata(
+  actionId: string,
+  cwd?: string,
+): ActionMetadataState {
+  const id = actionId.trim().toLowerCase();
+  const workspaceCwd = cwd?.trim() ?? "";
+  const [state, setState] = useState<ActionMetadataState>({ status: "idle" });
+  const latestMetaRef = useRef<ActionMetadataSnapshot | null>(null);
+
+  const applyMeta = useCallback((meta: ActionMetadataSnapshot | null) => {
+    if (!meta) {
+      setState({
+        status: "error",
+        message: "无法加载动作信息（工作区 info.json 或 Quicker 元数据不可用）",
+      });
+      latestMetaRef.current = null;
+      return;
+    }
+    if (
+      latestMetaRef.current
+      && metadataEquals(latestMetaRef.current, meta)
+    ) {
+      return;
+    }
+    latestMetaRef.current = meta;
+    setState({ status: "ok", meta });
+  }, []);
+
+  const reload = useCallback(async () => {
+    if (!id) return;
+    const meta = await loadActionMetadata(id, workspaceCwd || undefined);
+    applyMeta(meta);
+  }, [applyMeta, id, workspaceCwd]);
 
   useEffect(() => {
     if (!id) {
@@ -61,31 +122,39 @@ export function useActionMetadata(actionId: string): ActionMetadataState {
       return;
     }
 
-    const cached = cache.get(id);
-    if (cached) {
-      setState({ status: "ok", meta: cached });
-      return;
-    }
-
     let cancelled = false;
+    latestMetaRef.current = null;
     setState({ status: "loading" });
 
-    void fetchActionMetadata(id).then((meta) => {
+    void loadActionMetadata(id, workspaceCwd || undefined).then((meta) => {
       if (cancelled) return;
-      if (meta) {
-        setState({ status: "ok", meta });
-      } else {
-        setState({
-          status: "error",
-          message: "无法加载动作信息（Quicker 未连接或动作不存在）",
-        });
-      }
+      applyMeta(meta);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [applyMeta, id, workspaceCwd]);
+
+  useEffect(() => {
+    if (!id || !workspaceCwd) return;
+
+    const unsubscribe = subscribeActionExplorerTreeWatch(workspaceCwd, {
+      onTree: (tree) => {
+        const fromTree = findActionMetadataInExplorerTree(tree, id);
+        if (fromTree) {
+          applyMeta(fromTree);
+          return;
+        }
+        void reload();
+      },
+      onError: () => {
+        /* keep last good metadata; watch reconnects automatically */
+      },
+    });
+
+    return unsubscribe;
+  }, [applyMeta, id, reload, workspaceCwd]);
 
   return state;
 }

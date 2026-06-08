@@ -45,3 +45,23 @@ export function IconBrowserReload() {
     </svg>
   );
 }
+
+export function IconBrowserDevtools() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M6.2 3.5 3.5 12.5h1.2l.55-1.85h3.5l.55 1.85h1.2L8.8 3.5H6.2Zm-.15 4.65.95-3.2.95 3.2H6.05Z"
+        fill="currentColor"
+      />
+      <rect
+        x="11.25"
+        y="3.75"
+        width="2.5"
+        height="8.5"
+        rx="0.6"
+        stroke="currentColor"
+        strokeWidth="1.1"
+      />
+    </svg>
+  );
+}

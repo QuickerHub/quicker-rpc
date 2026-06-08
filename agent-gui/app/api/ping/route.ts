@@ -1,3 +1,4 @@
+import { isBundledAgentRuntime } from "@/lib/default-working-directory";
 import { formatQkrpcResult, runQkrpc } from "@/lib/qkrpc";
 import { fetchQkrpcHealth, resolveQkrpcHttpBase } from "@/lib/qkrpc-http";
 import { invalidateServeProbeCache } from "@/lib/qkrpc-transport";
@@ -14,13 +15,30 @@ function parseFastMode(req: Request): boolean {
   return raw !== "0" && raw !== "false";
 }
 
+async function tryEnsureBundledServe(): Promise<void> {
+  if (!isBundledAgentRuntime()) return;
+  try {
+    const { ensureQkrpcServeIfDown } = await import("@/lib/qkrpc-serve-ensure.mjs");
+    await ensureQkrpcServeIfDown();
+  } catch {
+    // best-effort recovery after hot-update killed serve
+  }
+}
+
 export async function GET(req: Request) {
   const fast = parseFastMode(req);
   invalidateServeProbeCache();
 
-  const health = await fetchQkrpcHealth({
+  let health = await fetchQkrpcHealth({
     timeoutMs: fast ? FAST_HEALTH_MS : FULL_HEALTH_MS,
   });
+
+  if (health === null) {
+    await tryEnsureBundledServe();
+    health = await fetchQkrpcHealth({
+      timeoutMs: fast ? FAST_HEALTH_MS : FULL_HEALTH_MS,
+    });
+  }
 
   if (health !== null) {
     return Response.json(formatQkrpcResult(health), {

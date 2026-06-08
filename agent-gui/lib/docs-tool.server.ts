@@ -113,6 +113,7 @@ export async function executeDocsTool(
         title: result.doc.title,
         description: result.doc.description,
         markdown: result.doc.markdown,
+        ...(result.doc.schema ? { schema: result.doc.schema } : {}),
       });
     }
     default: {
@@ -131,6 +132,7 @@ export const DOCS_TOOL_DEF = tool({
     "Deep-read action authoring guides (basics preloaded in system prompt). "
     + "Use when stuck on program body / workspace_program / step keys — NOT at session start. "
     + "action=get: one topic; action=search: find topic; action=index: list topics. "
+    + "topic action-data-schema (and form-spec) also returns `schema` JSON (qkrpc.program-data.v1). "
     + "NOT for run/settings/shell — see Tool routing.",
   inputSchema: z.object({
     action: docsActionSchema.describe(

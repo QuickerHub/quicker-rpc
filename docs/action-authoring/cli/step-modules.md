@@ -9,15 +9,18 @@
 | 1 选型 | **`implementation-fallback`** · **`expressions`** | 表达式优先；专用模块 vs csscript |
 | 2 发现 | **`step-runner-search`** · **`_catalog`** | `key`、`controlField`、snippet |
 | 3 **默认** | **`qkrpc_step_runner_get`** | 参数/输出 **键名、类型、purpose**（权威，足够写大多数步骤） |
-| 4 可选 | **`docs_get_reference(step-modules, file)`** | 仅 **KC 协议/跨字段** 补充（见 `_catalog`「有 reference」表） |
+| 4 可选 | **`docs_get_reference(step-modules, file)`** | 复杂模块补充（见 `_catalog`）；分 **手写** / **KC 爬取** 两类 |
 
 **禁止**：未 `get` 就猜键名；对「仅 get」模块去读不存在的 reference。
 
 ## 哪些模块有 reference？
 
-约 **40** 个复杂模块单独生成 `references/step-modules/<id>.md`（HTTP 体格式、UI 自动化、Excel、脚本等）。其余 **~100** 个模块 **不生成** reference——与 `step-runner get` 重复。
+| 类型 | 路径 | 维护 |
+|------|------|------|
+| **手写** | `references/step-modules/authored/<id>.md` | 仓库直接编辑；规范见 **`authored/SPEC.md`**；列于 `step-module-skip.json` → `authored` |
+| **KC 爬取** | `references/step-modules/<id>.md` | `npm run docs:modules:gen`（过渡期素材；**已全部迁移手写**） |
 
-维护：`npm run docs:modules:gen`（更新 `step-module-skip.json` + reference 文件）。清单：**`_catalog`**。
+约 **44** 个模块有手写 reference；其余 **~100** 个无 reference（`step-runner get` 已够）。清单：**`_catalog`**。
 
 ## 读取方式
 
@@ -31,25 +34,171 @@ qkrpc guide get --topic step-modules --json
 # 步骤模块目录
 
 大多数模块 **只需** `qkrpc_step_runner_get`（各字段 `purpose` / `controlField.selection` 已足够写步骤）。
-下列 **有 reference** 的模块另含 KC 协议/跨字段说明：`docs_get_reference({ topic: "step-modules", file: "<id>" })`。
+下列 **有 reference** 的模块：`docs_get_reference({ topic: "step-modules", file: "<id>" })`。
 
-## 有精简 reference（KC 补充）
+- **手写**（`references/step-modules/authored/`）：仓库维护；见 `authored/SPEC.md`。
+- **KC 爬取**：已全部迁移手写；`keep` 为空时本节无条目。
 
-### 图片
+## 手写 reference
 
 | ref id | key | 用途 | 官方 |
 |--------|-----|------|------|
+| `adobesoftscontrol` | `sys:adobesoftscontrol` | Control Adobe apps (JS script, etc.) | [adobesoftscontrol](https://getquicker.net/KC/Help/Doc/adobesoftscontrol) |
+| `ai` | `sys:ai` | Call third-party AI services | [ai](https://getquicker.net/KC/Help/Doc/ai) |
+| `autocadcontrol` | `sys:autocadcontrol` | Send commands to AutoCAD | [autocadcontrol](https://getquicker.net/KC/Help/Doc/autocadcontrol) |
+| `basic-ocr` | `sys:basic-ocr` | OCR text from image | [basic-ocr](https://getquicker.net/KC/Help/Doc/basic-ocr) |
+| `chromecontrol` | `sys:chromecontrol` | Control Chrome/Edge/Firefox (open URL, tabs, etc.) | [chromecontrol](https://getquicker.net/KC/Help/Doc/chromecontrol) |
+| `cloud_oss` | `sys:cloud_oss` | Upload files via third-party cloud/OSS providers | [cloud_oss](https://getquicker.net/KC/Help/Doc/cloud_oss) |
+| `csscript` | `sys:csscript` | Run C# script step (Exec); common for complex logic beyond evalexpression | [csscript](https://getquicker.net/KC/Help/Doc/csscript) |
+| `custompanel` | `sys:custompanel` | Show custom floating action panel | [custompanel](https://getquicker.net/KC/Help/Doc/custompanel) |
+| `customwindow` | `sys:customwindow` | Create/show custom WPF window UI | [customwindow](https://getquicker.net/KC/Help/Doc/customwindow) |
+| `dboperation` | `sys:dboperation` | Run SQL and return results | [dboperation](https://getquicker.net/KC/Help/Doc/dboperation) |
+| `download` | `sys:download` | Download file from URL | [download](https://getquicker.net/KC/Help/Doc/download) |
+| `enc` | `sys:enc` | Encrypt, decrypt, or hash text/data | [enc](https://getquicker.net/KC/Help/Doc/enc) |
+| `excelObjects` | `sys:excelObjects` | Excel application/workbook/sheet object operations | [excelobjects](https://getquicker.net/KC/Help/Doc/excelobjects) |
+| `excelRange` | `sys:excelRange` | Read/write Excel ranges and cells | [excelrange](https://getquicker.net/KC/Help/Doc/excelrange) |
+| `excelreadwrite` | `sys:excelreadwrite` | Load/save Excel workbook files | [excelreadwrite](https://getquicker.net/KC/Help/Doc/excelreadwrite) |
+| `fileOperation` | `sys:fileOperation` | File/folder copy, move, delete, etc. | [fileoperation](https://getquicker.net/KC/Help/Doc/fileoperation) |
+| `flauiautomation` | `sys:flauiautomation` | UI automation via FlaUI | [uiautomation](https://getquicker.net/KC/Help/Doc/uiautomation) |
+| `form` | `sys:form` | Edit multiple variables in a form | [form](https://getquicker.net/KC/Help/Doc/form) |
+| `htmlExtract` | `sys:htmlExtract` | Extract content from HTML | [htmlextract](https://getquicker.net/KC/Help/Doc/htmlextract) |
+| `http` | `sys:http` | Send HTTP request and capture response | [http](https://getquicker.net/KC/Help/Doc/http) |
+| `httpserver` | `sys:httpserver` | Start temporary local HTTP/file server | [httpserver](https://getquicker.net/KC/Help/Doc/httpserver) |
 | `imgProcess` | `sys:imgProcess` | Image processing operations | [imgprocess](https://getquicker.net/KC/Help/Doc/imgprocess) |
+| `inputScript` | `sys:inputScript` | Multi-step keyboard input script | [inputscript](https://getquicker.net/KC/Help/Doc/inputscript) |
+| `jsonExtract` | `sys:jsonExtract` | Extract fields from JSON text | [jsonextract](https://getquicker.net/KC/Help/Doc/jsonextract) |
+| `jsscript` | `sys:jsscript` | Run JavaScript script step | [jsscript](https://getquicker.net/KC/Help/Doc/jsscript) |
+| `mathocr` | `sys:mathocr` | Recognize math formulas from images | [mathocr](https://getquicker.net/KC/Help/Doc/mathocr) |
+| `officehelper` | `sys:officehelper` | Helper ops for Office apps (e.g. run VBA) | [officehelper](https://getquicker.net/KC/Help/Doc/officehelper) |
+| `playRecords` | `sys:playRecords` | Replay recorded keyboard/mouse macro | [playrecord](https://getquicker.net/KC/Help/Doc/playrecord) |
+| `pythonscript` | `sys:pythonscript` | Run Python script step | [pythonscript](https://getquicker.net/KC/Help/Doc/pythonscript) |
+| `record` | `sys:record` | Record keyboard/mouse actions for replay | [record](https://getquicker.net/KC/Help/Doc/record) |
+| `regexExtract` | `sys:regexExtract` | Extract text with regular expressions | [regexextract](https://getquicker.net/KC/Help/Doc/regexextract) |
+| `rhinocontrol` | `sys:rhinocontrol` | Send commands/scripts to Rhino | [rhinocontrol](https://getquicker.net/KC/Help/Doc/rhinocontrol) |
+| `runScript` | `sys:runScript` | Run PowerShell/CMD or user script file | [runscript](https://getquicker.net/KC/Help/Doc/runscript) |
+| `searchBmp` | `sys:searchBmp` | Find image/color/text on screen | [searchbmp](https://getquicker.net/KC/Help/Doc/searchbmp) |
+| `smtp` | `sys:smtp` | Send email via SMTP | [smtp](https://getquicker.net/KC/Help/Doc/smtp) |
+| `stringProcess` | `sys:stringProcess` | Built-in string operations (prefer sys:evalexpression for logic; search 文本处理 to use this module) | [stringprocess](https://getquicker.net/KC/Help/Doc/stringprocess) |
+| `subprogram` | `sys:subprogram` | Call shared or local subprogram | [subprogram](https://getquicker.net/KC/Help/Doc/subprogram) |
+| `tableoperation` | `sys:tableoperation` | Table variable operations | [tableoperation](https://getquicker.net/KC/Help/Doc/tableoperation) |
+| `tempcloudstore` | `sys:tempcloudstore` | Upload temp content and get URL | [tempcloudstore](https://getquicker.net/KC/Help/Doc/tempcloudstore) |
+| `translation` | `sys:translation` | Machine translation via third-party APIs (paid feature) | [translation](https://getquicker.net/KC/Help/Doc/translation) |
+| `uiautomation` | `sys:uiautomation` | Automate Win32 UI controls | [uiautomation](https://getquicker.net/KC/Help/Doc/uiautomation) |
+| `websocket` | `sys:websocket` | WebSocket client operations | [websocket](https://getquicker.net/KC/Help/Doc/websocket) |
+| `webview2` | `sys:webview2` | Open/control WebView2 embedded browser window | [webview2](https://getquicker.net/KC/Help/Doc/webview2) |
+| `zip` | `sys:zip` | Zip compress or extract archive | [zip](https://getquicker.net/KC/Help/Doc/zip) |
+
+## KC 爬取 reference
 
 ## 仅 step-runner get（无 reference 文件）
 
 | key | 用途 | 官方 |
 |-----|------|------|
+| `sys:break` | Break out of each/repeat loop | [break](https://getquicker.net/KC/Help/Doc/break) |
+| `sys:continue` | Skip to next loop iteration | [continue](https://getquicker.net/KC/Help/Doc/continue) |
+| `sys:dependencycheck` | Check and download dependency packages | [dependencycheck](https://getquicker.net/KC/Help/Doc/dependencycheck) |
+| `sys:each` | Iterate each item in a list | [each](https://getquicker.net/KC/Help/Doc/each) |
+| `sys:group` | Group related steps for enable/disable | [group](https://getquicker.net/KC/Help/Doc/group) |
+| `sys:if` | Conditional steps with optional else branch | [if](https://getquicker.net/KC/Help/Doc/if) |
+| `sys:repeat` | Repeat steps N times or until condition | [repeat](https://getquicker.net/KC/Help/Doc/repeat) |
+| `sys:runAction` | Run or stop another Quicker action | [runaction](https://getquicker.net/KC/Help/Doc/runaction) |
+| `sys:simpleIf` | Simple if without else structure | [if](https://getquicker.net/KC/Help/Doc/if) |
+| `sys:stop` | Stop action or return from subprogram | [stop](https://getquicker.net/KC/Help/Doc/stop) |
+| `sys:comment` | Comment-only step for documentation | [comment](https://getquicker.net/KC/Help/Doc/comment) |
+| `sys:delay` | Wait for specified milliseconds | [delay](https://getquicker.net/KC/Help/Doc/delay) |
+| `sys:getSelectedText` | Get currently selected text | [get_selected_text](https://getquicker.net/KC/Help/Doc/get_selected_text) |
+| `sys:keyInput` | Simulate keyboard typing | [keyinput](https://getquicker.net/KC/Help/Doc/keyinput) |
+| `sys:mouse` | Simulate mouse input | [mouse](https://getquicker.net/KC/Help/Doc/mouse) |
+| `sys:MsgBox` | Show message or confirmation dialog | [msgbox](https://getquicker.net/KC/Help/Doc/msgbox) |
+| `sys:notify` | Transient notification message | [notify](https://getquicker.net/KC/Help/Doc/notify) |
+| `sys:openUrl` | Open URL in browser | [openurl](https://getquicker.net/KC/Help/Doc/openurl) |
+| `sys:outputText` | Output text to the active foreground window | [outputtext](https://getquicker.net/KC/Help/Doc/outputtext) |
+| `sys:run` | Run exe, open file/folder/URL | [run](https://getquicker.net/KC/Help/Doc/run) |
+| `sys:sendKeys` | Send keys/text with parameters | [sendkeys](https://getquicker.net/KC/Help/Doc/sendkeys) |
+| `sys:waitClipboardChange` | Wait until clipboard content changes | [waitclipboardchange](https://getquicker.net/KC/Help/Doc/waitclipboardchange) |
+| `sys:waitKeyboard` | Wait for user key press | [waitkeyboard](https://getquicker.net/KC/Help/Doc/waitkeyboard) |
+| `sys:reportProgress` | Show or update progress bar | [reportprogress](https://getquicker.net/KC/Help/Doc/reportprogress) |
+| `sys:select` | Let user pick one option | [userselect](https://getquicker.net/KC/Help/Doc/userselect) |
+| `sys:showImage` | Display image on screen | [showimage](https://getquicker.net/KC/Help/Doc/showimage) |
+| `sys:showmenu` | Show a menu for user selection | [showmenu](https://getquicker.net/KC/Help/Doc/showmenu) |
+| `sys:showText` | Show text in a dedicated window | [showtext](https://getquicker.net/KC/Help/Doc/showtext) |
+| `sys:showWaitWin` | Show wait-for-user-operation window | [showwaitwin](https://getquicker.net/KC/Help/Doc/showwaitwin) |
+| `sys:textSelectTools` | Helper tools to select content and get text | [textselecttools](https://getquicker.net/KC/Help/Doc/textselecttools) |
+| `sys:userInput` | Prompt user for text input | [userinput](https://getquicker.net/KC/Help/Doc/userinput) |
+| `sys:whiteboard` | Hand-draw content and output as image | [whiteboard](https://getquicker.net/KC/Help/Doc/whiteboard) |
+| `sys:fileToClipboard` | Put files onto clipboard | [filetoclipboard](https://getquicker.net/KC/Help/Doc/filetoclipboard) |
+| `sys:getClipboardFiles` | Get file paths from clipboard | [getclipboardfiles](https://getquicker.net/KC/Help/Doc/getclipboardfiles) |
+| `sys:getClipboardImage` | Read image from clipboard | [getclipboardimage](https://getquicker.net/KC/Help/Doc/getclipboardimage) |
+| `sys:getClipboardText` | Read text from clipboard into a variable | [getclipboardtext](https://getquicker.net/KC/Help/Doc/getclipboardtext) |
+| `sys:writeClipboard` | Write text or image to clipboard | [writeclipboard](https://getquicker.net/KC/Help/Doc/writeclipboard) |
+| `sys:checkPathExists` | Check if file/folder exists; optional file metadata | [checkpathexists](https://getquicker.net/KC/Help/Doc/checkpathexists) |
+| `sys:everythingsearch` | Search files via Everything | [everythingsearch](https://getquicker.net/KC/Help/Doc/everythingsearch) |
+| `sys:fileSystemWatch` | Watch file create/change/delete events | [filesystemwatch](https://getquicker.net/KC/Help/Doc/filesystemwatch) |
+| `sys:GenTempFilePath` | Generate random temp file path | [gentempfilepath](https://getquicker.net/KC/Help/Doc/gentempfilepath) |
+| `sys:getExplorerPath` | Get Explorer current folder path | [getexplorerpath](https://getquicker.net/KC/Help/Doc/getexplorerpath) |
+| `sys:getFolderPath` | Get Windows special folder path | [getfolderpath](https://getquicker.net/KC/Help/Doc/getfolderpath) |
+| `sys:pathExtraction` | Extract file name, folder, extension from paths | [pathextraction](https://getquicker.net/KC/Help/Doc/pathextraction) |
+| `sys:readFile` | Read text or image from file | [readfile](https://getquicker.net/KC/Help/Doc/readfile) |
+| `sys:selectFile` | Pick file via dialog | [selectfile](https://getquicker.net/KC/Help/Doc/selectfile) |
+| `sys:SelectFileInExplorer` | Select/highlight file in Explorer | [selectfileinexplorer](https://getquicker.net/KC/Help/Doc/selectfileinexplorer) |
+| `sys:selectFolder` | Pick folder via dialog | [selectfolder](https://getquicker.net/KC/Help/Doc/selectfolder) |
+| `sys:shelloperation` | Windows Shell file operations | [shelloperation](https://getquicker.net/KC/Help/Doc/shelloperation) |
+| `sys:stateStorage` | Read/write action state and badge | [statestorage](https://getquicker.net/KC/Help/Doc/statestorage) |
+| `sys:WriteTextFile` | Write text to a file | [writetextfile](https://getquicker.net/KC/Help/Doc/writetextfile) |
+| `sys:charInfo` | Get character metadata (category, code point, etc.) | [charinfo](https://getquicker.net/KC/Help/Doc/charinfo) |
+| `sys:formatString` | Combine variables into text (prefer sys:evalexpression for assign/format logic) | [formatstring](https://getquicker.net/KC/Help/Doc/formatstring) |
+| `sys:joinList` | Join list items into a single text string | [joinlist](https://getquicker.net/KC/Help/Doc/joinlist) |
+| `sys:splitString` | Split text into a list by delimiter | [splitstring](https://getquicker.net/KC/Help/Doc/splitstring) |
+| `sys:strCompare` | Compare two text strings (legacy compare step) | [strcompare](https://getquicker.net/KC/Help/Doc/strcompare) |
+| `sys:strReplace` | Replace substrings in text (built-in replace modes) | [strreplace](https://getquicker.net/KC/Help/Doc/strreplace) |
+| `sys:textCounter` | Count lines, characters, words in text | [textcounter](https://getquicker.net/KC/Help/Doc/textcounter) |
+| `sys:assign` | Deprecated assign step; use sys:evalexpression instead | [assign](https://getquicker.net/KC/Help/Doc/assign) |
+| `sys:color` | Pick screen color or convert color values | [color](https://getquicker.net/KC/Help/Doc/color) |
+| `sys:compute` | Legacy numeric step (prefer sys:evalexpression) | [compute](https://getquicker.net/KC/Help/Doc/compute) |
+| `sys:computeTime` | Date/time arithmetic on DateTime values | [computetime](https://getquicker.net/KC/Help/Doc/computetime) |
+| `sys:dictOperations` | Dictionary step (prefer sys:evalexpression for logic; search 词典 for this module) | [dictoperations](https://getquicker.net/KC/Help/Doc/dictoperations) |
+| `sys:evalexpression` | Evaluate C# expression / LINQ / assign ({var}=value); preferred over assign & compute steps | [expression](https://getquicker.net/KC/Help/Doc/expression) |
+| `sys:getCurrentTime` | Get or parse date/time (incl. unix timestamp) | [gettime](https://getquicker.net/KC/Help/Doc/gettime) |
+| `sys:listOperations` | List step UI modes (prefer sys:evalexpression for LINQ; search 列表操作 for this module) | [listoperations](https://getquicker.net/KC/Help/Doc/listoperations) |
+| `sys:manageList` | Manually sort/edit list in UI | [managelist](https://getquicker.net/KC/Help/Doc/managelist) |
+| `sys:newGuid` | Generate a new GUID string | [newguid](https://getquicker.net/KC/Help/Doc/newguid) |
+| `sys:numberprocess` | Format or convert numbers (to text, rounding, etc.) | [numberprocess](https://getquicker.net/KC/Help/Doc/numberprocess) |
+| `sys:numCompare` | Compare two numbers (legacy; prefer evalexpression for logic) | [numcompare](https://getquicker.net/KC/Help/Doc/numcompare) |
+| `sys:randomNum` | Generate random numbers | [randomnum](https://getquicker.net/KC/Help/Doc/randomnum) |
+| `sys:createQrCode` | Encode text into a QR code image | [createqrcode](https://getquicker.net/KC/Help/Doc/createqrcode) |
+| `sys:imageinfo` | Read image dimensions or EXIF metadata | [imageinfo](https://getquicker.net/KC/Help/Doc/imageinfo) |
+| `sys:imgToBase64` | Convert image/file to or from Base64 text | [imgtobase64](https://getquicker.net/KC/Help/Doc/imgtobase64) |
+| `sys:readQrCode` | Decode QR code from image | [readqrcode](https://getquicker.net/KC/Help/Doc/readqrcode) |
+| `sys:screenCapture` | Capture screen region | [screencapture](https://getquicker.net/KC/Help/Doc/screencapture) |
+| `sys:screenCapturePro` | Interactive region screenshot | [screencapturepro](https://getquicker.net/KC/Help/Doc/screencapturepro) |
+| `sys:WriteImageFile` | Write image variable to file | [writeimagefile](https://getquicker.net/KC/Help/Doc/writeimagefile) |
+| `sys:activateProcessMainWindow` | Bring process main window to front | [activateprocessmainwindow](https://getquicker.net/KC/Help/Doc/activateprocessmainwindow) |
+| `sys:audioControl` | List or set default audio output devices | [audiocontrol](https://getquicker.net/KC/Help/Doc/audiocontrol) |
+| `sys:checkProcessExists` | Check if process is running | [checkprocessexists](https://getquicker.net/KC/Help/Doc/checkprocessexists) |
+| `sys:getActionInfo` | Read running or specified action info | [getactioninfo](https://getquicker.net/KC/Help/Doc/getactioninfo) |
+| `sys:getActiveProcessInfo` | Get foreground window process info | [getactiveprocessinfo](https://getquicker.net/KC/Help/Doc/getactiveprocessinfo) |
+| `sys:getQuickerInfo` | Quicker version, theme, trigger context | [getquickerinfo](https://getquicker.net/KC/Help/Doc/getquickerinfo) |
+| `sys:getSelectedFiles` | Get selected files/folders from Explorer or desktop | [getselectedfiles](https://getquicker.net/KC/Help/Doc/getselectedfiles) |
+| `sys:getSysInfo` | Read Windows/system environment info | [getsysinfo](https://getquicker.net/KC/Help/Doc/getsysinfo) |
+| `sys:getWindowTitle` | Get window info or find window by criteria | [getwindowtitle](https://getquicker.net/KC/Help/Doc/getwindowtitle) |
+| `sys:imeControl` | Get or switch IME Chinese/English state | [imecontrol](https://getquicker.net/KC/Help/Doc/imecontrol) |
+| `sys:keyoperation` | Query or control a single key state | [keyoperation](https://getquicker.net/KC/Help/Doc/keyoperation) |
+| `sys:playSound` | Play built-in or file sound | [playsound](https://getquicker.net/KC/Help/Doc/playsound) |
+| `sys:quickeroperations` | Invoke Quicker built-in features | [quickeroperations](https://getquicker.net/KC/Help/Doc/quickeroperations) |
+| `sys:recordSound` | Record audio or run speech recognition | [recordsound](https://getquicker.net/KC/Help/Doc/recordsound) |
+| `sys:restoreActiveWindow` | Restore previous foreground window focus | [restoreactivewindow](https://getquicker.net/KC/Help/Doc/restoreactivewindow) |
+| `sys:sendMessage` | Send Win32 SendMessage to a window | [sendmessage](https://getquicker.net/KC/Help/Doc/sendmessage) |
+| `sys:windowOperations` | Move, resize, or change window state | [windowoperations](https://getquicker.net/KC/Help/Doc/windowoperations) |
+| `sys:winservice` | Query Windows services or registry | [winservice](https://getquicker.net/KC/Help/Doc/winservice) |
+| `sys:clouddata` | Read/write Quicker cloud key-value state | [clouddata](https://getquicker.net/KC/Help/Doc/clouddata) |
+| `sys:tempImgBed` | Upload image to temporary Quicker image host | [tempimgbed](https://getquicker.net/KC/Help/Doc/tempimgbed) |
+| `sys:getChromeUrl` | Get active browser tab URL | [getchromeurl](https://getquicker.net/KC/Help/Doc/getchromeurl) |
 
 ## 建议优先读 reference 的模块
 
 | 场景 | key | ref id |
 |------|-----|--------|
+| 多步骤输入 DSL | `sys:inputScript` | `inputScript` |
 | HTTP / API / SSE | `sys:http` | `http` |
 | 文件多操作 | `sys:fileOperation` | `fileOperation` |
 | 文本多模式 | `sys:stringProcess` | `stringProcess` |
@@ -60,6 +209,8 @@ qkrpc guide get --topic step-modules --json
 | 多字段表单 | `sys:form` | `form` |
 | WebView2 自定义页 | `sys:webview2` | `webview2` |
 | AI 调用 | `sys:ai` | `ai` |
+
+全部有 reference 的模块均在 **`authored/`**（无 KC 爬取并存）。
 
 表达式/LINQ/剪贴板/弹窗等：**`expressions`** + **`get`** 即可，无 reference。
 

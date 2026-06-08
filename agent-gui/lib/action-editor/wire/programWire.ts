@@ -32,6 +32,8 @@ import type { XProgramPresent } from "@/lib/action-editor/program/xProgramHistor
 
 import { normalizeLoadedProgramBodyIds } from "@/lib/action-editor/program/normalizeLoadedProgramBodyIds";
 
+import { inferBranches } from "@/lib/action-editor/steps/actionStepNodeView";
+
 import { editorVarTypeToWire, wireVarTypeToEditor } from "@/lib/action-editor/wire/varTypeCodec";
 
 
@@ -178,6 +180,12 @@ function editorStepToWire(step: ActionStep): WireStep {
 
   }
 
+  const { hasIfBranch, hasElseBranch } = inferBranches(step.stepRunnerKey ?? "", "");
+
+  const ifSteps = (step.ifSteps ?? []).map(editorStepToWire);
+
+  const elseSteps = (step.elseSteps ?? []).map(editorStepToWire);
+
   const out: WireStep = {
 
     stepRunnerKey: step.stepRunnerKey,
@@ -186,11 +194,11 @@ function editorStepToWire(step: ActionStep): WireStep {
 
     outputParams: { ...(step.outputParams ?? {}) },
 
-    ifSteps: (step.ifSteps ?? []).map(editorStepToWire),
-
-    elseSteps: (step.elseSteps ?? []).map(editorStepToWire),
-
   };
+
+  if (hasIfBranch && ifSteps.length > 0) out.ifSteps = ifSteps;
+
+  if (hasElseBranch && elseSteps.length > 0) out.elseSteps = elseSteps;
 
   if (step.note) out.note = step.note;
 

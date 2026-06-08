@@ -138,25 +138,8 @@ public static class InputParamWireCoercer
         }
     }
 
-    public static void CompactStepsRecursive(JArray? steps)
-    {
-        if (steps is null)
-        {
-            return;
-        }
-
-        foreach (var token in steps)
-        {
-            if (token is not JObject step)
-            {
-                continue;
-            }
-
-            CompactInputParamsObject(step["inputParams"] as JObject);
-            CompactStepsRecursive(step["ifSteps"] as JArray);
-            CompactStepsRecursive(step["elseSteps"] as JArray);
-        }
-    }
+    public static void CompactStepsRecursive(JArray? steps) =>
+        StepBranchWireCoercer.CompactStepBranchesRecursive(steps);
 
     /// <summary>Expand compact wire in patch steps before apply.</summary>
     public static void NormalizePatch(JObject patch)

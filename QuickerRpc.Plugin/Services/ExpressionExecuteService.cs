@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Quicker.Utilities;
 using QuickerRpc.Contracts.Rpc;
@@ -15,10 +14,6 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 public sealed class ExpressionExecuteService
 {
-    private static readonly Regex VariablePlaceholderPattern = new(
-        @"\{([a-zA-Z_][a-zA-Z0-9_]*)\}",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
     public QuickerRpcExpressionExecuteResult Execute(
         string code,
         string? variablesJson = null,
@@ -42,23 +37,19 @@ public sealed class ExpressionExecuteService
                 globals["vv_cliptext"] = ClipboardHelper.TryGetClipboardText() ?? string.Empty;
             }
 
-            var processedVars = new HashSet<string>(StringComparer.Ordinal);
-            expression = VariablePlaceholderPattern.Replace(expression, match =>
+            var definedKeys = new HashSet<string>(inputVariables.Keys, StringComparer.Ordinal)
             {
-                var varKey = match.Groups[1].Value;
-                var varName = "v_" + varKey;
-
-                if (processedVars.Contains(varKey))
+                ExpressionVariablePlaceholder.QuickerInParamKey,
+            };
+            expression = ExpressionVariablePlaceholder.Replace(
+                expression,
+                definedKeys.Contains,
+                varKey =>
                 {
-                    return varName;
-                }
-
-                processedVars.Add(varKey);
-
-                inputVariables.TryGetValue(varKey, out var value);
-                globals[varName] = ExpressionVariableResolver.NormalizeForEvalBinding(value, null);
-                return varName;
-            });
+                    inputVariables.TryGetValue(varKey, out var value);
+                    return ExpressionVariableResolver.NormalizeForEvalBinding(value, null);
+                },
+                (varName, value) => globals[varName] = value);
 
             expression = ExpressionEvalTransforms.EnsureTypedSplitAssignment(expression);
 

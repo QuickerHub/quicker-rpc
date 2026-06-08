@@ -48,4 +48,4 @@ CLI/scripts may use `action patch --patch-file` inline JSON (patch-workflow) ins
 
 ## See also
 
-authoring-workflow · subprogram-workflow · action-steps · patch-workflow (CLI)
+authoring-workflow · subprogram-workflow · action-data-schema · patch-workflow (CLI)

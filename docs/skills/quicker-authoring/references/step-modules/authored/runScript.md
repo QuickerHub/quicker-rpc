@@ -1,0 +1,24 @@
+# sys:runScript
+
+> **分类**：脚本与代码 · **来源**：仓库手写 · **官方**：[runscript](https://getquicker.net/KC/Help/Doc/runscript)
+
+**用途**：执行 CMD/PowerShell/批处理/AHK/自定义扩展脚本。
+
+**何时读**：`get` 定脚本类型后；编码、捕获输出、提权互斥前读。
+
+## wire 要点
+
+| param | wire | notes |
+|-------|------|-------|
+| 脚本类型 | CMD/K/C、bat、ps1、ahk、自定义 | 非 CMD 先写临时文件再执行 |
+| 文件编码 | 系统默认 / UTF-8 等 | bat/cmd 常用系统编码 |
+| 自定义 | 扩展名 + 程序路径 + `%FILE%` 参数模板 | |
+| 工作目录 | 空 → 资源管理器当前或桌面 | |
+| 控制台输出 | 绑定变量 | 自动隐藏窗并等待结束 |
+| 以管理员身份运行 | 与隐藏窗/捕获输出 **互斥** | |
+
+CMD 多行复杂逻辑勿堆本模块 → `csscript` / 外链 `.ps1`。
+
+## 相关
+
+shelloperation · step-runner-get · implementation-fallback

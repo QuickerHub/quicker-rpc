@@ -21,6 +21,18 @@ import {
 import { isTauriShell } from "@/lib/tauri-shell";
 
 const APP_REQUEST_EXIT_EVENT = "app-request-exit";
+const FORCE_EXIT_AFTER_MS = 8_000;
+
+function scheduleForceExit(): void {
+  window.setTimeout(async () => {
+    try {
+      const { exit } = await import("@tauri-apps/plugin-process");
+      await exit(0);
+    } catch {
+      // Ignore when process plugin is unavailable.
+    }
+  }, FORCE_EXIT_AFTER_MS);
+}
 
 function waitForOverlayPaint(): Promise<void> {
   return new Promise((resolve) => {
@@ -80,18 +92,19 @@ export function QuickerAgentExitHandler() {
         showAppExitOverlay("正在关闭后台服务…");
         await waitForOverlayPaint();
 
-        const { invoke } = await import("@tauri-apps/api/core");
-        await invoke("graceful_exit");
+        // Start even if graceful_exit IPC stalls (e.g. WebView2 wedged after node shutdown).
+        scheduleForceExit();
 
-        // Safety net when backend shutdown stalls (e.g. hung taskkill).
-        window.setTimeout(async () => {
-          try {
-            const { exit } = await import("@tauri-apps/plugin-process");
-            await exit(0);
-          } catch {
-            // Ignore when process plugin is unavailable.
-          }
-        }, 8_000);
+        const { invoke } = await import("@tauri-apps/api/core");
+        await Promise.race([
+          invoke("graceful_exit"),
+          new Promise<never>((_, reject) => {
+            window.setTimeout(
+              () => reject(new Error("graceful_exit timeout")),
+              FORCE_EXIT_AFTER_MS,
+            );
+          }),
+        ]);
       } catch {
         exitInProgressRef.current = false;
       }

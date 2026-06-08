@@ -5,6 +5,7 @@ import net from "node:net";
 import { fileURLToPath } from "node:url";
 
 const agentGuiRoot = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+const startMjs = join(agentGuiRoot, "start.mjs");
 
 const host = process.env.HOSTNAME?.trim() || "127.0.0.1";
 const port = Number(process.env.AGENT_GUI_PORT?.trim() || "3000");
@@ -40,6 +41,10 @@ function readDevBundler() {
   }
 }
 
+function shouldReuseExistingDev() {
+  return process.env.AGENT_GUI_REUSE_DEV === "1";
+}
+
 /** True while this process is spawning webpack (stale turbopack hint in dev-server.json). */
 let expectingWebpack = false;
 
@@ -65,10 +70,10 @@ function markExpectingWebpackDev() {
 
 async function hasRunningFrontend() {
   const bundler = readDevBundler();
-  if (bundler === "turbopack" && !expectingWebpack) {
+  if (bundler === "turbopack" && !expectingWebpack && !shouldReuseExistingDev()) {
     console.warn(
-      "tauri: port 3000 is serving Turbopack dev — WebView2 will freeze. " +
-        "Stop browser dev, then run: pwsh ./start-agent-gui.ps1 -Tauri",
+      "tauri: port 3000 is serving Turbopack dev — attach with browser dev still running: " +
+        "pwsh ./start-agent-gui.ps1 -Tauri (reuses :3000; HMR muted in WebView2).",
     );
     return false;
   }
@@ -90,34 +95,39 @@ async function hasRunningFrontend() {
   }
 }
 
-function holdProcess() {
+function tauriFrontendEnv() {
+  return {
+    ...process.env,
+    AGENT_GUI_PORT: String(port),
+    AGENT_GUI_STRICT_PORT: "1",
+    AGENT_GUI_OPEN_BROWSER: "0",
+    AGENT_GUI_TURBOPACK: "0",
+    AGENT_GUI_TAURI_SHELL: "1",
+    TAURI_ENV_DEBUG: "true",
+  };
+}
+
+/** External dev server keeps running in another terminal; Tauri only needs devUrl reachable. */
+function finishReuseFrontend() {
+  const bundler = readDevBundler();
   console.log(`tauri: reusing existing frontend at ${baseUrl}`);
-  if (process.env.AGENT_GUI_TURBOPACK !== "0") {
-    console.warn(
-      "tauri: AGENT_GUI_TURBOPACK is not 0 — Turbopack dev + WebView2 may freeze. " +
-        "Stop this dev server and run only `pnpm tauri:dev`, or `pnpm dev:webpack` first.",
+  if (bundler === "turbopack" || process.env.AGENT_GUI_TURBOPACK !== "0") {
+    console.log(
+      "tauri: Turbopack browser dev — HMR muted in WebView2; refresh the desktop window after edits.",
     );
   }
-  setInterval(() => {}, 60_000);
+  process.exit(0);
 }
 
 function startFrontend() {
   console.log(`tauri: starting frontend (webpack) at ${baseUrl}`);
   const child = spawn(
-    process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-    ["dev:webpack"],
+    process.execPath,
+    [startMjs, "--dev", "--webpack"],
     {
+      cwd: agentGuiRoot,
       stdio: "inherit",
-      shell: process.platform === "win32",
-      env: {
-        ...process.env,
-        AGENT_GUI_PORT: String(port),
-        AGENT_GUI_STRICT_PORT: "1",
-        AGENT_GUI_OPEN_BROWSER: "0",
-        AGENT_GUI_TURBOPACK: "0",
-        AGENT_GUI_TAURI_SHELL: "1",
-        TAURI_ENV_DEBUG: "true",
-      },
+      env: tauriFrontendEnv(),
     },
   );
 
@@ -126,8 +136,19 @@ function startFrontend() {
       process.kill(process.pid, signal);
       return;
     }
+    if ((code ?? 1) !== 0) {
+      console.error(
+        "tauri: webpack dev exited before ready — check compile errors above " +
+          "or free port 3000 and retry.",
+      );
+    }
     process.exit(code ?? 1);
   });
+}
+
+/** Keep beforeDevCommand alive while the webpack child from startFrontend() runs. */
+function holdUntilFrontendChildExits() {
+  setInterval(() => {}, 60_000);
 }
 
 async function waitForFrontend(maxAttempts = 15, intervalMs = 1000) {
@@ -141,8 +162,8 @@ async function waitForFrontend(maxAttempts = 15, intervalMs = 1000) {
 }
 
 async function main() {
-  if (await waitForFrontend()) {
-    holdProcess();
+  if (shouldReuseExistingDev() && await waitForFrontend()) {
+    finishReuseFrontend();
     return;
   }
 
@@ -150,18 +171,25 @@ async function main() {
   // Wait longer instead of spawning a second strict-port dev server.
   if (await isPortListening(host, port)) {
     const bundler = readDevBundler();
-    if (bundler === "turbopack") {
+    if (bundler === "turbopack" && !shouldReuseExistingDev()) {
       throw new Error(
-        `Port ${port} is running Turbopack browser dev. Stop it (Ctrl+C), then run: ` +
+        `Port ${port} is running Turbopack browser dev. Attach without stopping it: ` +
           "pwsh ./start-agent-gui.ps1 -Tauri",
       );
     }
     console.log(
       `tauri: port ${port} is listening; waiting for ${baseUrl} (webpack compile?)`,
     );
-    if (await waitForFrontend(90, 1000)) {
-      holdProcess();
-      return;
+    if (await waitForFrontend(120, 1000)) {
+      if (shouldReuseExistingDev()) {
+        finishReuseFrontend();
+        return;
+      }
+      throw new Error(
+        `Port ${port} is already serving ${baseUrl}. ` +
+          "Stop the other agent-gui dev, or start browser dev first and attach: " +
+          "pwsh ./start-agent-gui.ps1 -Tauri",
+      );
     }
     throw new Error(
       `Frontend port ${port} is in use but ${baseUrl} did not become healthy. ` +
@@ -181,7 +209,7 @@ async function main() {
     );
   }
   console.log(`tauri: frontend ready at ${baseUrl}`);
-  holdProcess();
+  holdUntilFrontendChildExits();
 }
 
 main().catch((err) => {

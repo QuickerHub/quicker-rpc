@@ -19,6 +19,8 @@ import {
 export type LlmEndpointGroupDef = {
   label?: string;
   model?: string;
+  /** Ordered fallback model ids for Auto when this group backs the launcher. */
+  autoModels?: string[];
   sponsor?: LlmBuiltinSponsor;
 };
 
@@ -71,6 +73,13 @@ function normalizeGroupDef(raw: unknown): LlmEndpointGroupDef | undefined {
   }
   if (typeof data.model === "string" && data.model.trim()) {
     def.model = data.model.trim();
+  }
+  if (Array.isArray(data.autoModels)) {
+    const autoModels = data.autoModels
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    if (autoModels.length > 0) def.autoModels = autoModels;
   }
   const sponsor = normalizeBuiltinSponsor(data.sponsor);
   if (sponsor) def.sponsor = sponsor;

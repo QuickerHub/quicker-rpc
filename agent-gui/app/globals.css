@@ -4453,6 +4453,13 @@ html.sidebar-collapsed-init .app-shell {
   color: var(--muted);
 }
 
+.dev-hooks-recovery__reload-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .composer {
   position: relative;
   z-index: 20;
@@ -9189,6 +9196,8 @@ body.workspace-explorer-pane-resizing * {
 .workspace-embedded-browser__body {
   flex: 1 1 0;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .workspace-embedded-browser__hint {
@@ -15220,6 +15229,106 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   color: var(--muted);
   margin: 0 0 0.75rem;
   line-height: 1.45;
+}
+
+.tool-test-llm-probe-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.tool-test-llm-probe-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.tool-test-llm-probe-panel__field select {
+  width: 100%;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--text);
+}
+
+.tool-test-llm-probe-panel__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.tool-test-llm-probe-panel__run {
+  margin-top: 0.25rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-fg, #fff);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.tool-test-llm-probe-panel__run:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tool-test-llm-probe-result__meta,
+.tool-test-llm-probe-result__summary {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.tool-test-llm-probe-result__summary {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.1rem;
+}
+
+.tool-test-llm-probe-result__section {
+  margin-bottom: 1.25rem;
+}
+
+.tool-test-llm-probe-result__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+.tool-test-llm-probe-result__table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.tool-test-llm-probe-result__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.tool-test-llm-probe-result__table th,
+.tool-test-llm-probe-result__table td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.tool-test-llm-probe-result__table th {
+  background: var(--app-bg);
+  position: sticky;
+  top: 0;
+}
+
+.tool-test-llm-probe-result__row--ok td:first-child {
+  color: var(--ok, #15803d);
+}
+
+.tool-test-llm-probe-result__row--fail td:first-child {
+  color: var(--danger, #b91c1c);
 }
 
 .tool-test-suite-card {

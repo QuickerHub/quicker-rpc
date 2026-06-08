@@ -5,14 +5,14 @@ Data transforms → `$=` or `sys:evalexpression` first; `sys:csscript` only for 
 | case | do |
 |------|-----|
 | short text | inline `"paramKey": "…"` |
-| long script/HTML (>4 lines) | `"paramKey.file": "files/…"` (action-steps) |
+| long script/HTML (>4 lines) | `"paramKey.file": "files/…"` (action-data-schema) |
 | long evalexpression | `files/*.eval.cs` |
 
 NO csscript Exec boilerplate for simple logic.
 
 ## value / varKey / file
 
-One bind per param key — wire: `paramKey` / `paramKey.var` / `paramKey.file` (action-steps). NO mixing.
+One bind per param key — wire: `paramKey` / `paramKey.var` / `paramKey.file` (action-data-schema). NO mixing.
 
 ### value prefix
 
@@ -57,4 +57,4 @@ Globals: `_qk`, `_context`, `_eval`. Multi-statement and `{result}={a}+{b}` assi
 
 ## See also
 
-implementation-fallback · action-variables · action-steps · authoring-workflow
+implementation-fallback · action-data-schema · authoring-workflow

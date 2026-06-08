@@ -31,6 +31,11 @@ import {
   stopTrackedBrowserRuntime,
 } from "./lib/browser-runtime-lifecycle.mjs";
 import { stopStaleAgentGuiDev } from "./scripts/stop-agent-gui-dev.mjs";
+import {
+  nextCacheHasBrokenTurbopackRuntime,
+  nextCacheIsCorrupt,
+  describeNextCacheCorruption,
+} from "./lib/next-cache-health.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -70,14 +75,6 @@ function nextCacheLooksLikeTurbopack(nextDir) {
   return (
     nextCacheHasTurbopackRuntimeChunk(nextDir)
     || nextCacheReferencesTurbopackRuntime(nextDir)
-  );
-}
-
-/** _document.js points at [turbopack]_runtime.js but the chunk was deleted mid-dev. */
-function nextCacheHasBrokenTurbopackRuntime(nextDir) {
-  return (
-    nextCacheReferencesTurbopackRuntime(nextDir)
-    && !nextCacheHasTurbopackRuntimeChunk(nextDir)
   );
 }
 
@@ -122,15 +119,24 @@ function clearNextCacheIfBundlerChanged(targetBundler) {
     targetBundler === "turbopack"
     && (nextCacheLooksLikeWebpack(nextDir) || brokenTurbopack);
 
-  if (bundlerSwitched || webpackNeedsCleanCache || turbopackNeedsCleanCache) {
+  const corruptDevCache = nextCacheIsCorrupt(nextDir);
+
+  if (
+    bundlerSwitched
+    || webpackNeedsCleanCache
+    || turbopackNeedsCleanCache
+    || corruptDevCache
+  ) {
+    const reason = corruptDevCache
+      ? describeNextCacheCorruption(nextDir)
+      : brokenTurbopack
+        ? "repaired broken Turbopack runtime cache"
+        : bundlerSwitched
+          ? `was ${prevBundler}, starting ${targetBundler}`
+          : targetBundler === "webpack"
+            ? "removed stale Turbopack artifacts for webpack"
+            : "removed stale webpack artifacts for Turbopack";
     rmSync(nextDir, { recursive: true, force: true });
-    const reason = brokenTurbopack
-      ? "repaired broken Turbopack runtime cache"
-      : bundlerSwitched
-        ? `was ${prevBundler}, starting ${targetBundler}`
-        : targetBundler === "webpack"
-          ? "removed stale Turbopack artifacts for webpack"
-          : "removed stale webpack artifacts for Turbopack";
     console.log(`next: cleared .next (${reason})`);
   }
 }
@@ -152,6 +158,97 @@ let qkrpcChild = null;
 let voiceChild = null;
 /** @type {import('node:child_process').ChildProcess | null} */
 let browserChild = null;
+/** @type {import('node:child_process').ChildProcess | null} */
+let nextDevChild = null;
+/** @type {{ port: number, host: string, useTurbo: boolean } | null} */
+let nextDevConfig = null;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let nextDevRecoveryTimer = null;
+let nextDevRecoveryInFlight = false;
+let nextDevRecoveryCount = 0;
+const NEXT_DEV_RECOVERY_LIMIT = 3;
+
+/** @param {import('node:child_process').ChildProcess | null} child @param {number} timeoutMs */
+function waitForProcessExit(child, timeoutMs) {
+  return new Promise((resolve) => {
+    if (!child || child.exitCode != null) {
+      resolve(true);
+      return;
+    }
+    const timer = setTimeout(() => resolve(false), timeoutMs);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolve(true);
+    });
+  });
+}
+
+function onNextDevExit(code) {
+  if (nextDevRecoveryInFlight) return;
+  stopQkrpcChild();
+  stopVoiceChild();
+  stopBrowserChild();
+  process.exit(code ?? 1);
+}
+
+/** @param {{ port: number, host: string, useTurbo: boolean }} config */
+function startNextDevServer(config) {
+  const nextBin = require.resolve("next/dist/bin/next");
+  const nodeExe = resolveNodeExe();
+  const nextArgs = ["dev", "--port", String(config.port), "-H", config.host];
+  if (config.useTurbo) {
+    nextArgs.push("--turbo");
+  } else {
+    console.log("next: webpack dev (AGENT_GUI_TURBOPACK=0)");
+  }
+  const child = spawn(
+    nodeExe,
+    [nextBin, ...nextArgs],
+    { cwd: root, stdio: ["inherit", "pipe", "pipe"], env: process.env },
+  );
+  wireNextDevOutput(root, child, {
+    onCorruptCache: scheduleNextDevRecovery,
+  });
+  child.on("exit", onNextDevExit);
+  return child;
+}
+
+function scheduleNextDevRecovery() {
+  if (nextDevRecoveryInFlight || nextDevRecoveryTimer || !nextDevConfig) {
+    return;
+  }
+  if (nextDevRecoveryCount >= NEXT_DEV_RECOVERY_LIMIT) {
+    console.error(
+      "next: corrupt .next cache keeps recurring; stop dev and run: pwsh ./start-agent-gui.ps1 -Tauri",
+    );
+    return;
+  }
+  nextDevRecoveryTimer = setTimeout(() => {
+    nextDevRecoveryTimer = null;
+    void recoverNextDevServer();
+  }, 1800);
+}
+
+async function recoverNextDevServer() {
+  if (nextDevRecoveryInFlight || !nextDevConfig) return;
+  nextDevRecoveryInFlight = true;
+  nextDevRecoveryCount += 1;
+  console.warn(
+    "next: corrupt .next cache detected (ENOENT manifest); clearing and restarting dev server…",
+  );
+  rmSync(join(root, ".next"), { recursive: true, force: true });
+  if (nextDevChild && nextDevChild.exitCode == null) {
+    nextDevChild.removeAllListeners("exit");
+    nextDevChild.kill("SIGTERM");
+    const exited = await waitForProcessExit(nextDevChild, 5000);
+    if (!exited && nextDevChild.exitCode == null) {
+      nextDevChild.kill("SIGKILL");
+      await waitForProcessExit(nextDevChild, 2000);
+    }
+  }
+  nextDevChild = startNextDevServer(nextDevConfig);
+  nextDevRecoveryInFlight = false;
+}
 
 function listenProbe(port, host) {
   return new Promise((resolve, reject) => {
@@ -468,26 +565,8 @@ async function main() {
       bundler,
     });
     openBrowser(url);
-    const nextBin = require.resolve("next/dist/bin/next");
-    const nodeExe = resolveNodeExe();
-    const nextArgs = ["dev", "--port", String(port), "-H", host];
-    if (useTurbo) {
-      nextArgs.push("--turbo");
-    } else {
-      console.log("next: webpack dev (AGENT_GUI_TURBOPACK=0)");
-    }
-    const child = spawn(
-      nodeExe,
-      [nextBin, ...nextArgs],
-      { cwd: root, stdio: ["inherit", "pipe", "pipe"], env: process.env },
-    );
-    wireNextDevOutput(root, child);
-    child.on("exit", (code) => {
-      stopQkrpcChild();
-      stopVoiceChild();
-      stopBrowserChild();
-      process.exit(code ?? 1);
-    });
+    nextDevConfig = { port, host, useTurbo };
+    nextDevChild = startNextDevServer(nextDevConfig);
     return;
   }
 

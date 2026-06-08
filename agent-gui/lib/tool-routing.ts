@@ -29,7 +29,8 @@ export const TOOL_ROUTING_TABLE = `| User intent | Tool | Not |
 | Quicker not connected | qkrpc_wait | shell ping/probe/serve |
 | User preference | ask_question | delete confirm UI |
 | Shell/build/git | shell_exec | editing action body |
-| Web / getquicker | browser | shell curl |
+| Internet facts / API docs | web_search | browser; docs; qkrpc_action_query |
+| Web UI / getquicker login | browser | web_search; shell curl |
 | Chat LLM profiles | llm_settings | quicker_settings |
 | Delete | qkrpc_action_delete / qkrpc_subprogram_delete | only on user ask |
 | Launcher unclear phrase | launcher_resolve → execute | workspace_program |

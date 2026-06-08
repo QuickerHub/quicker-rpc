@@ -139,7 +139,6 @@ import { useComposerMessageQueue } from "@/lib/use-composer-message-queue";
 import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
 import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
 import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
-import { useLauncherGlobalShortcut } from "@/lib/launcher/use-launcher-global-shortcut";
 import { ComposerTestPromptsPicker } from "@/components/chat/ComposerTestPromptsPicker";
 import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 import {
@@ -1600,7 +1599,6 @@ export function Chat() {
     getEphemeralLauncherRuns,
   );
   const { ping, refreshPing, connectTick } = useQkrpcPing();
-  useLauncherGlobalShortcut();
   const storeRef = useRef(store);
   storeRef.current = store;
 

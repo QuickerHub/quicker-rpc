@@ -33,7 +33,12 @@ import {
 } from "@/lib/llm-profiles";
 import type { LlmSelection } from "@/lib/llm-selection";
 import { parseLlmSelection } from "@/lib/llm-selection";
-import { resolveAutoLlmEndpoint } from "@/lib/llm-auto";
+import {
+  buildAutoLlmEndpointChain,
+  rememberSuccessfulAutoModel,
+  resolveAutoLlmEndpoint,
+  type AutoLlmEndpoint,
+} from "@/lib/llm-auto";
 
 export type { LlmProviderId } from "@/lib/llm-providers";
 export type { LlmSelection } from "@/lib/llm-selection";
@@ -500,6 +505,137 @@ async function probeLlmEndpoint(
   }
 }
 
+async function probeLlmModelChat(
+  endpoint: ResolvedLlmEndpoint,
+  timeoutMs = 25_000,
+): Promise<void> {
+  const base = endpoint.baseURL.replace(/\/$/, "");
+  const response = await fetch(`${base}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${endpoint.apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      model: endpoint.modelId,
+      messages: [{ role: "user", content: "ping" }],
+      max_tokens: 8,
+      temperature: 0,
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 160).replace(/\s+/g, " ");
+    throw new Error(
+      `LLM model unavailable (${endpoint.modelId} @ ${endpoint.baseURL}): HTTP ${response.status}${detail ? ` ${detail}` : ""}`,
+    );
+  }
+}
+
+function autoEndpointToResolved(endpoint: AutoLlmEndpoint): ResolvedLlmEndpoint {
+  return {
+    providerId: CUSTOM_PROVIDER_ID,
+    apiKey: endpoint.apiKey,
+    baseURL: endpoint.baseURL,
+    modelId: endpoint.modelId,
+    clientName: endpoint.clientName,
+  };
+}
+
+function buildAutoResolvedEndpointChain(): ResolvedLlmEndpoint[] {
+  return buildAutoLlmEndpointChain().map(autoEndpointToResolved);
+}
+
+async function resolveAutoChatModel(): Promise<ResolvedChatModel> {
+  const chain = buildAutoResolvedEndpointChain();
+  if (chain.length === 0) {
+    throw new Error(
+      "Auto model is not configured. Add the nvidia group to llm-dev.config.json "
+      + "or set NVIDIA_API_KEY.",
+    );
+  }
+  if (chain.length === 1) {
+    const endpoint = chain[0];
+    return {
+      model: createChatModelFromEndpoint(endpoint),
+      modelId: endpoint.modelId,
+      endpoint,
+    };
+  }
+
+  let lastError: unknown;
+  for (let index = 0; index < chain.length; index += 1) {
+    const endpoint = chain[index];
+    try {
+      await probeLlmModelChat(endpoint);
+      rememberSuccessfulAutoModel(endpoint.modelId);
+      if (index > 0) {
+        console.warn(
+          `[llm] auto using fallback model #${index + 1}/${chain.length}: ${endpoint.modelId}`,
+        );
+      }
+      return {
+        model: createChatModelFromEndpoint(endpoint),
+        modelId: endpoint.modelId,
+        endpoint,
+      };
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `[llm] auto model #${index + 1} failed (${endpoint.modelId}):`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+
+  const message = lastError instanceof Error
+    ? lastError.message
+    : "All auto model candidates failed";
+  throw new Error(message);
+}
+
+async function runLlmWithAutoModelFallback<T>(
+  run: (model: LanguageModel, modelId: string) => Promise<T>,
+): Promise<{ result: T; modelId: string }> {
+  const chain = buildAutoResolvedEndpointChain();
+  if (chain.length === 0) {
+    throw new Error(
+      "Auto model is not configured. Add the nvidia group to llm-dev.config.json "
+      + "or set NVIDIA_API_KEY.",
+    );
+  }
+
+  let lastError: unknown;
+  for (let index = 0; index < chain.length; index += 1) {
+    const endpoint = chain[index];
+    try {
+      const model = createChatModelFromEndpoint(endpoint);
+      const result = await run(model, endpoint.modelId);
+      rememberSuccessfulAutoModel(endpoint.modelId);
+      if (index > 0) {
+        console.warn(
+          `[llm] auto using fallback model #${index + 1}/${chain.length}: ${endpoint.modelId}`,
+        );
+      }
+      return { result, modelId: endpoint.modelId };
+    } catch (error) {
+      lastError = error;
+      const retryable = isRetryableLlmError(error);
+      console.warn(
+        `[llm] auto model #${index + 1} failed (${endpoint.modelId}):`,
+        error instanceof Error ? error.message : error,
+      );
+      if (!retryable || index === chain.length - 1) break;
+    }
+  }
+
+  const message = lastError instanceof Error
+    ? lastError.message
+    : "All auto model candidates failed";
+  throw new Error(message);
+}
+
 export type LlmProviderProbeResult = {
   configured: boolean;
   reachable: boolean;
@@ -694,12 +830,7 @@ export async function resolveChatModelForSelection(
 ): Promise<ResolvedChatModel> {
   const selection = selectionOverride ?? resolveLlmSelection();
   if (selection.kind === "auto") {
-    const endpoint = resolveSelectionEndpoint(selection);
-    return {
-      model: createChatModelFromEndpoint(endpoint),
-      modelId: endpoint.modelId,
-      endpoint,
-    };
+    return resolveAutoChatModel();
   }
   if (selection.kind === "profile") {
     const endpoint = resolveProfileEndpoint(
@@ -777,7 +908,10 @@ export async function runLlmWithSelectionFallback<T>(
   run: (model: LanguageModel, modelId: string) => Promise<T>,
 ): Promise<{ result: T; modelId: string }> {
   const selection = resolveLlmSelection(rawSelection, legacyProvider);
-  if (selection.kind === "auto" || selection.kind === "profile") {
+  if (selection.kind === "auto") {
+    return runLlmWithAutoModelFallback(run);
+  }
+  if (selection.kind === "profile") {
     const endpoint = resolveSelectionEndpoint(selection);
     const model = createChatModelFromEndpoint(endpoint);
     const result = await run(model, endpoint.modelId);

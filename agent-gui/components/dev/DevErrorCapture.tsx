@@ -15,8 +15,17 @@ function isReactHooksFaultMessage(message: string): boolean {
   );
 }
 
-function notifyReactHooksFault(message: string): void {
-  if (!isReactHooksFaultMessage(message)) return;
+/** HMR can break React handlers while native navigation (<a href>) still works. */
+function isDevInteractionFaultMessage(message: string): boolean {
+  if (isReactHooksFaultMessage(message)) return true;
+  if (message.includes("Maximum update depth exceeded")) return true;
+  if (message.includes("Component is not a function")) return true;
+  if (!message.includes("ReferenceError")) return false;
+  return message.includes(" is not defined");
+}
+
+function notifyDevInteractionFault(message: string): void {
+  if (!isDevInteractionFaultMessage(message)) return;
   window.dispatchEvent(new CustomEvent(REACT_HOOKS_FAULT_EVENT, { detail: { message } }));
 }
 
@@ -63,7 +72,7 @@ export function DevErrorCapture() {
 
     const onError = (event: ErrorEvent) => {
       const message = event.message || "Unknown error";
-      notifyReactHooksFault(message);
+      notifyDevInteractionFault(message);
       queueReport({
         kind: "error",
         message,
@@ -108,7 +117,7 @@ export function DevErrorCapture() {
         .join(" ")
         .trim();
       if (!message) return;
-      notifyReactHooksFault(message);
+      notifyDevInteractionFault(message);
       queueReport({
         kind: "console",
         message: message.slice(0, 4000),

@@ -145,6 +145,10 @@ import { BROWSER_TOOL_DEF } from "@/lib/browser-tool.server";
 
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 
+import { WEB_SEARCH_TOOL_DEF } from "@/lib/web-search-tool.server";
+
+import { WEB_SEARCH_TOOL } from "@/lib/web-search-tool-constants";
+
 import {
 
   ASK_QUESTION_TOOL,
@@ -168,6 +172,8 @@ export const quickerTools = {
   [SHELL_EXEC_TOOL]: SHELL_EXEC_TOOL_DEF,
 
   [BROWSER_TOOL]: BROWSER_TOOL_DEF,
+
+  [WEB_SEARCH_TOOL]: WEB_SEARCH_TOOL_DEF,
 
   [LLM_SETTINGS_TOOL]: LLM_SETTINGS_TOOL_DEF,
 

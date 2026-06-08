@@ -15,6 +15,7 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 mod clipboard_history_plugin;
+mod embedded_browser;
 mod global_shortcut;
 mod launcher;
 mod legacy_chat_restore;
@@ -32,6 +33,8 @@ static EXIT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 const APP_REQUEST_EXIT_EVENT: &str = "app-request-exit";
 const SHUTDOWN_FORCE_EXIT_AFTER: Duration = Duration::from_secs(6);
 const SHUTDOWN_KILL_TIMEOUT: Duration = Duration::from_secs(2);
+const QKRPC_SERVE_WATCHDOG_INTERVAL: Duration = Duration::from_millis(2_500);
+const QKRPC_SERVE_RESPAWN_COOLDOWN: Duration = Duration::from_secs(8);
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -278,6 +281,30 @@ fn configure_hidden_child(cmd: &mut Command) {
     cmd.creation_flags(CREATE_NO_WINDOW);
 }
 
+fn try_spawn_and_track_qkrpc(
+    app: &AppHandle,
+    qkrpc_dir: &Path,
+    host: &str,
+    port: u16,
+    wait_ms: u64,
+) -> Result<(), String> {
+    if !bundled_qkrpc_healthy(qkrpc_dir) {
+        return Err(format!(
+            "bundled qkrpc corrupt (missing Kestrel): {}",
+            qkrpc_dir.display()
+        ));
+    }
+
+    let child = spawn_qkrpc(qkrpc_dir, host, port)?;
+    wait_qkrpc_serve_listening(host, port, wait_ms)?;
+    let state = app.state::<BackendState>();
+    let tracked = state.track_child(child)?;
+    if let Ok(mut guard) = state.qkrpc.lock() {
+        *guard = Some(tracked);
+    }
+    Ok(())
+}
+
 fn spawn_qkrpc(qkrpc_dir: &Path, host: &str, port: u16) -> Result<Child, String> {
     let exe = qkrpc_dir.join(if cfg!(windows) { "qkrpc.exe" } else { "qkrpc" });
     if !exe.is_file() {
@@ -409,7 +436,69 @@ fn emit_startup_status(app: &AppHandle, message: &str) {
     }
 }
 
+fn run_qkrpc_serve_watchdog(app: AppHandle, config: ProductionRuntimeConfig) {
+    std::thread::spawn(move || {
+        let host = config.host.clone();
+        let qkrpc_dir = config.qkrpc_dir.clone();
+        let port = config.qkrpc_port;
+        let mut last_respawn_attempt = Instant::now() - QKRPC_SERVE_RESPAWN_COOLDOWN;
+
+        loop {
+            std::thread::sleep(QKRPC_SERVE_WATCHDOG_INTERVAL);
+            if STARTUP_CANCELLED.load(Ordering::SeqCst) {
+                return;
+            }
+
+            if wait_qkrpc_serve_listening(&host, port, 800).is_ok() {
+                continue;
+            }
+
+            let state = app.state::<BackendState>();
+            let child_running = {
+                let mut guard = match state.qkrpc.lock() {
+                    Ok(guard) => guard,
+                    Err(_) => continue,
+                };
+                match guard.as_mut() {
+                    Some(child) => match child.try_wait() {
+                        Ok(Some(_)) => {
+                            guard.take();
+                            false
+                        }
+                        Ok(None) => true,
+                        Err(_) => {
+                            guard.take();
+                            false
+                        }
+                    },
+                    None => false,
+                }
+            };
+
+            if child_running {
+                continue;
+            }
+
+            let since_last = Instant::now().duration_since(last_respawn_attempt);
+            if since_last < QKRPC_SERVE_RESPAWN_COOLDOWN {
+                continue;
+            }
+            last_respawn_attempt = Instant::now();
+
+            eprintln!(
+                "[qkrpc] serve not listening on http://{host}:{port}; restarting bundled serve"
+            );
+            match try_spawn_and_track_qkrpc(&app, &qkrpc_dir, &host, port, 20_000) {
+                Ok(()) => eprintln!("[qkrpc] serve recovered on http://{host}:{port}"),
+                Err(err) => eprintln!("[qkrpc] serve restart failed: {err}"),
+            }
+        }
+    });
+}
+
 fn spawn_qkrpc_background(app: AppHandle, config: ProductionRuntimeConfig) {
+    run_qkrpc_serve_watchdog(app.clone(), config.clone());
+
     if !config.should_spawn_qkrpc {
         return;
     }
@@ -417,44 +506,15 @@ fn spawn_qkrpc_background(app: AppHandle, config: ProductionRuntimeConfig) {
     std::thread::spawn(move || {
         emit_startup_status(&app, "正在启动 qkrpc 服务…");
 
-        if !bundled_qkrpc_healthy(&config.qkrpc_dir) {
-            eprintln!(
-                "[qkrpc] bundled runtime corrupt (missing Kestrel). \
-                 Run: pwsh agent-gui/scripts/Repair-QuickerAgentResources.ps1\npath: {}",
-                config.qkrpc_dir.display()
-            );
+        if STARTUP_CANCELLED.load(Ordering::SeqCst) {
             return;
         }
 
         let host = config.host.clone();
         let qkrpc_dir = config.qkrpc_dir.clone();
         let port = config.qkrpc_port;
-        let result = (|| -> Result<Child, String> {
-            let child = spawn_qkrpc(&qkrpc_dir, &host, port)?;
-            wait_qkrpc_serve_listening(&host, port, 45_000)?;
-            Ok(child)
-        })();
-
-        if STARTUP_CANCELLED.load(Ordering::SeqCst) {
-            if let Ok(mut child) = result {
-                kill_child_tree(&mut child);
-            }
-            return;
-        }
-
-        match result {
-            Ok(child) => {
-                let state = app.state::<BackendState>();
-                match state.track_child(child) {
-                    Ok(tracked) => {
-                        if let Ok(mut guard) = state.qkrpc.lock() {
-                            *guard = Some(tracked);
-                        }
-                    }
-                    Err(err) => eprintln!("[qkrpc] track child failed: {err}"),
-                }
-            }
-            Err(err) => eprintln!("[qkrpc] background start failed: {err}"),
+        if let Err(err) = try_spawn_and_track_qkrpc(&app, &qkrpc_dir, &host, port, 45_000) {
+            eprintln!("[qkrpc] background start failed: {err}");
         }
     });
 }
@@ -584,7 +644,16 @@ fn spawn_production_startup(app: AppHandle) {
     });
 }
 
+fn prepare_ui_for_exit<R: tauri::Runtime>(app: &AppHandle<R>) {
+    let _ = embedded_browser::close_workspace_browser(app);
+    if let Some(win) = app.get_webview_window(launcher::LAUNCHER_LABEL) {
+        let _ = win.close();
+    }
+}
+
 fn run_app_shutdown<R: tauri::Runtime>(app: &AppHandle<R>) {
+    STARTUP_CANCELLED.store(true, Ordering::SeqCst);
+    prepare_ui_for_exit(app);
     app.state::<BackendState>().inner().shutdown();
     app.state::<voice_plugin::VoicePluginState>()
         .inner()
@@ -595,29 +664,43 @@ fn run_app_shutdown<R: tauri::Runtime>(app: &AppHandle<R>) {
     );
 }
 
-pub(crate) fn spawn_shutdown_and_exit<R: tauri::Runtime>(app: AppHandle<R>) {
-    if EXIT_IN_PROGRESS.swap(true, Ordering::SeqCst) {
-        return;
+fn request_app_exit<R: tauri::Runtime>(app: &AppHandle<R>) {
+    prepare_ui_for_exit(app);
+    let app_for_exit = app.clone();
+    if let Err(err) = app.run_on_main_thread(move || {
+        app_for_exit.exit(0);
+    }) {
+        eprintln!("[shutdown] run_on_main_thread failed: {err}");
+        let _ = app.exit(0);
     }
+}
 
-    let watchdog_app = app.clone();
+fn schedule_force_exit_watchdog<R: tauri::Runtime>(app: AppHandle<R>) {
     std::thread::spawn(move || {
         std::thread::sleep(SHUTDOWN_FORCE_EXIT_AFTER);
         eprintln!(
             "[shutdown] timed out after {}s; forcing exit",
             SHUTDOWN_FORCE_EXIT_AFTER.as_secs()
         );
-        let _ = watchdog_app.exit(0);
+        run_app_shutdown(&app);
+        let _ = app.exit(0);
         std::thread::sleep(Duration::from_millis(200));
         std::process::exit(0);
     });
+}
+
+pub(crate) fn spawn_shutdown_and_exit<R: tauri::Runtime>(app: AppHandle<R>) {
+    if EXIT_IN_PROGRESS.swap(true, Ordering::SeqCst) {
+        request_app_exit(&app);
+        return;
+    }
+
+    STARTUP_CANCELLED.store(true, Ordering::SeqCst);
+    schedule_force_exit_watchdog(app.clone());
 
     std::thread::spawn(move || {
-        run_app_shutdown(&app);
-        let app_for_exit = app.clone();
-        let _ = app.run_on_main_thread(move || {
-            app_for_exit.exit(0);
-        });
+        // Exit the shell before killing the bundled Node UI server — otherwise WebView2 can hang.
+        request_app_exit(&app);
     });
 }
 
@@ -713,6 +796,7 @@ pub fn run() {
             launcher::launcher_hide,
             launcher::launcher_toggle,
             launcher::launcher_expand,
+            global_shortcut::launcher_sync_global_shortcut,
             voice_plugin::voice_plugin_status,
             voice_plugin::voice_runtime_health,
             voice_plugin::voice_plugin_install,
@@ -725,6 +809,15 @@ pub fn run() {
             clipboard_history_plugin::clipboard_history_plugin_read_settings,
             clipboard_history_plugin::clipboard_history_plugin_write_settings,
             webview_profile::webview_profile_paths,
+            embedded_browser::embedded_browser_navigation_state,
+            embedded_browser::embedded_browser_navigate,
+            embedded_browser::embedded_browser_reload,
+            embedded_browser::embedded_browser_go_back,
+            embedded_browser::embedded_browser_go_forward,
+            embedded_browser::embedded_browser_open_devtools,
+            embedded_browser::embedded_browser_toggle_devtools,
+            embedded_browser::embedded_browser_profile_info,
+            embedded_browser::embedded_browser_force_close,
             legacy_chat_restore::legacy_chat_store_scan,
         ])
         .manage(BackendState::new())

@@ -61,12 +61,16 @@ export async function loadActionProjectMeta(): Promise<ActionProjectMeta[]> {
     if (!infoPath.ok) continue;
 
     let title: string | undefined;
+    let description: string | undefined;
+    let icon: string | undefined;
     let actionId: string | undefined;
     try {
       const raw = stripJsonBom(await readFile(infoPath.absolute, "utf8"));
       const parsed = parseActionProjectInfo(raw);
       if (parsed.ok) {
         title = actionProjectDisplayTitle(parsed.data);
+        description = parsed.data.description?.trim() || undefined;
+        icon = parsed.data.icon?.trim() || undefined;
         actionId = parsed.data.id;
       }
     } catch {
@@ -77,6 +81,8 @@ export async function loadActionProjectMeta(): Promise<ActionProjectMeta[]> {
       dirName,
       path: projectPath,
       title,
+      description,
+      icon,
       actionId:
         actionId
         ?? (/^[0-9a-f-]{36}$/i.test(dirName) ? dirName : undefined),

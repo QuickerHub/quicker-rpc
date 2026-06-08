@@ -62,6 +62,9 @@ export function LauncherSettingsSection({
   const handleAutoVoiceChange = (enabled: boolean) => {
     setAutoVoice(enabled);
     setLauncherAutoVoiceEnabled(enabled);
+    if (inTauri) {
+      void syncLauncherGlobalShortcut();
+    }
   };
 
   const handleRecordKeyDown = useCallback(

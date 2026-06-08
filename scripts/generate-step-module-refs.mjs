@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Fetch Quicker KC Help docs and emit condensed agent references under
- * docs/action-authoring-src/references/step-modules/{id}.md
+ * Fetch Quicker KC Help docs → references/step-modules/{id}.md (crawled).
+ * Hand-written refs live in references/step-modules/authored/ (see step-module-skip.json → authored).
  *
  * Usage:
  *   node scripts/generate-step-module-refs.mjs           # skip unchanged
@@ -26,6 +26,7 @@ const OUT_DIR = path.join(
   ROOT,
   "docs/action-authoring-src/references/step-modules",
 );
+const AUTHORED_DIR = path.join(OUT_DIR, "authored");
 const DOC_BASE = "https://getquicker.net/KC/Help/Doc";
 
 /** @type {Record<string, string>} sys key -> KC Help slug */
@@ -449,7 +450,7 @@ function renderModuleRef(key, meta, docBody, slug) {
   const lines = [
     `# ${key}`,
     "",
-    `> **分类**：${categoryTitle} · **官方**：[${slug}](${docUrl})`,
+    `> **分类**：${categoryTitle} · **来源**：KC 爬取（\`npm run docs:modules:gen\`）· **官方**：[${slug}](${docUrl})`,
     "",
   ];
 
@@ -510,21 +511,51 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function loadSkipKeys() {
+async function loadSkipConfig() {
   try {
     const raw = await fs.readFile(SKIP_PATH, "utf8");
     const data = JSON.parse(raw);
-    return new Set(/** @type {string[]} */ (data.skip ?? []));
+    return {
+      skip: new Set(/** @type {string[]} */ (data.skip ?? [])),
+      authored: new Set(/** @type {string[]} */ (data.authored ?? [])),
+    };
   } catch {
-    return new Set();
+    return { skip: new Set(), authored: new Set() };
   }
 }
 
-async function pruneOrphanRefs(skipKeys, keywords) {
+/** @param {Set<string>} authoredKeys @param {Record<string, unknown>} keywords */
+async function loadAuthoredCatalog(authoredKeys, keywords) {
+  /** @type {{ id: string, key: string, title: string, category: string, docUrl: string }[]} */
+  const items = [];
+  for (const key of [...authoredKeys].sort()) {
+    const meta = keywords[key];
+    if (!meta) continue;
+    const slug = resolveSlug(key);
+    const id = buildRefId(key);
+    const authoredPath = path.join(AUTHORED_DIR, `${id}.md`);
+    try {
+      await fs.access(authoredPath);
+    } catch {
+      console.warn(`authored reference missing: ${authoredPath} (${key})`);
+      continue;
+    }
+    items.push({
+      id,
+      key,
+      title: snippetTitle(key, meta),
+      category: resolveCategory(key),
+      docUrl: `${DOC_BASE}/${slug}`,
+    });
+  }
+  return items;
+}
+
+async function pruneOrphanRefs(skipKeys, authoredKeys, keywords) {
   let removed = 0;
   const keepIds = new Set(
     Object.keys(keywords)
-      .filter((k) => !skipKeys.has(k))
+      .filter((k) => !skipKeys.has(k) && !authoredKeys.has(k))
       .map((k) => buildRefId(k)),
   );
   keepIds.add("_catalog");
@@ -565,14 +596,14 @@ async function mapPool(items, concurrency, fn) {
 async function main() {
   const { force, limit, key: onlyKey } = parseArgs(process.argv.slice(2));
   const keywords = JSON.parse(await fs.readFile(KEYWORDS_PATH, "utf8"));
-  const skipKeys = await loadSkipKeys();
+  const { skip: skipKeys, authored: authoredKeys } = await loadSkipConfig();
   let entries = Object.entries(keywords);
   if (onlyKey) entries = entries.filter(([k]) => k === onlyKey);
   if (limit) entries = entries.slice(0, limit);
 
   await fs.mkdir(OUT_DIR, { recursive: true });
   if (force && !limit && !onlyKey) {
-    const removed = await pruneOrphanRefs(skipKeys, keywords);
+    const removed = await pruneOrphanRefs(skipKeys, authoredKeys, keywords);
     if (removed > 0) console.log(`removed orphan refs: ${removed}`);
   }
 
@@ -592,6 +623,11 @@ async function main() {
     const category = resolveCategory(key);
     const docUrl = `${DOC_BASE}/${slug}`;
     const title = snippetTitle(key, meta);
+
+    if (authoredKeys.has(key) && !onlyKey) {
+      skippedRef++;
+      return;
+    }
 
     if (skipKeys.has(key) && !onlyKey) {
       skippedRef++;
@@ -670,7 +706,12 @@ async function main() {
     list.sort((a, b) => a.key.localeCompare(b.key));
   }
 
-  const catalogMd = renderCatalog(catalogByCategory, getOnlyByCategory);
+  const authoredCatalog = await loadAuthoredCatalog(authoredKeys, keywords);
+  const catalogMd = renderCatalog(
+    catalogByCategory,
+    getOnlyByCategory,
+    authoredCatalog,
+  );
   await fs.writeFile(path.join(OUT_DIR, "_catalog.md"), `${catalogMd}\n`, "utf8");
 
   console.log(
@@ -687,8 +728,8 @@ function snippetTitle(key, meta) {
   return key;
 }
 
-/** @param {Record<string, { id: string, key: string, title: string, docUrl: string }[]>} byCat @param {Record<string, { key: string, title: string, docUrl: string }[]>} getOnly */
-function renderCatalog(byCat, getOnly) {
+/** @param {Record<string, { id: string, key: string, title: string, docUrl: string }[]>} byCat @param {Record<string, { key: string, title: string, docUrl: string }[]>} getOnly @param {{ id: string, key: string, title: string, category: string, docUrl: string }[]} authored */
+function renderCatalog(byCat, getOnly, authored) {
   const order = [
     "flow-control",
     "basic",
@@ -709,11 +750,30 @@ function renderCatalog(byCat, getOnly) {
     "# 步骤模块目录",
     "",
     "大多数模块 **只需** `qkrpc_step_runner_get`（各字段 `purpose` / `controlField.selection` 已足够写步骤）。",
-    "下列 **有 reference** 的模块另含 KC 协议/跨字段说明：`docs_get_reference({ topic: \"step-modules\", file: \"<id>\" })`。",
+    "下列 **有 reference** 的模块：`docs_get_reference({ topic: \"step-modules\", file: \"<id>\" })`。",
     "",
-    "## 有精简 reference（KC 补充）",
+    "- **手写**（`references/step-modules/authored/`）：仓库维护；见 `authored/SPEC.md`。",
+    "- **KC 爬取**：已全部迁移手写；`keep` 为空时本节无条目。",
+    "",
+    "## 手写 reference",
     "",
   ];
+
+  if (authored.length > 0) {
+    lines.push("| ref id | key | 用途 | 官方 |");
+    lines.push("|--------|-----|------|------|");
+    for (const item of authored) {
+      const slug = item.docUrl.split("/").pop() ?? "";
+      lines.push(
+        `| \`${item.id}\` | \`${item.key}\` | ${item.title.replace(/\|/g, "\\|")} | [${slug}](${item.docUrl}) |`,
+      );
+    }
+    lines.push("");
+  } else {
+    lines.push("（无）", "");
+  }
+
+  lines.push("## KC 爬取 reference", "");
 
   for (const cat of order) {
     const list = byCat[cat];

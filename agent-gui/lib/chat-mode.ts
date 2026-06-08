@@ -21,6 +21,7 @@ export const CHAT_MODE_DESCRIPTIONS: Record<ChatMode, string> = {
 export const LAUNCHER_TOOL_IDS = [
   "docs",
   "ask_question",
+  "web_search",
   "browser",
   "qkrpc_action_query",
   "qkrpc_action_get",

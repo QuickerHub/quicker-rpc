@@ -28,6 +28,7 @@ public enum ProgramSyntaxCheckKind
     CSharp,
     Interpolation,
     Structural,
+    InputScript,
 }
 
 public sealed class ProgramSyntaxCheckItem

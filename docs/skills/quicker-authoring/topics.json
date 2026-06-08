@@ -4,10 +4,10 @@
     {
       "topic": "action-data-schema",
       "title": "Action data.json schema",
-      "description": "Machine-readable JSON schema for data.json: shared steps[] + variables[] by programKind (action vs subprogram). Use when validating or authoring data.json before patch/replace.",
+      "description": "Use when authoring data.json: qkrpc.program-data.v1 JSON schema + steps[]/variables[] wire rules (bind, branching, defaults). guide get --json returns schema.",
       "source": "references/action-data-schema.md",
       "templateSource": "schemas/action-data-schema.md",
-      "allowedTools": "qkrpc_guide_get qkrpc_action_create workspace_action_read_data workspace_action_write_data workspace_action_edit_data",
+      "allowedTools": "qkrpc_guide_get qkrpc_step_runner_get qkrpc_step_runner_search qkrpc_action_create workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit qkrpc_action_patch",
       "metadata": {
         "phase": "P2-P6",
         "layer": "schema"
@@ -65,32 +65,6 @@
       "layer": "schema"
     },
     {
-      "topic": "action-steps",
-      "title": "Action steps",
-      "description": "steps[]: stepRunnerKey, inputParams (paramKey / paramKey.file / paramKey.var), outputParams, ifSteps. Use before step-runner get.",
-      "source": "references/action-steps.md",
-      "templateSource": "schemas/action-steps.md",
-      "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit qkrpc_action_patch",
-      "metadata": {
-        "phase": "P5-P6",
-        "layer": "schema"
-      },
-      "layer": "schema"
-    },
-    {
-      "topic": "action-variables",
-      "title": "Action variables",
-      "description": "variables[] types and defaultValue; quicker_in_param boundary. Step binding: action-steps. Use when editing action variables.",
-      "source": "references/action-variables.md",
-      "templateSource": "schemas/action-variables.md",
-      "allowedTools": "workspace_action_read_data workspace_action_write_data workspace_action_edit_data qkrpc_step_runner_get",
-      "metadata": {
-        "phase": "P2-P6",
-        "layer": "schema"
-      },
-      "layer": "schema"
-    },
-    {
       "topic": "authoring-workflow",
       "title": "Action authoring workflow",
       "description": "P1–P7 main action editing flow. Use before the first action edit in a session.",
@@ -132,23 +106,10 @@
     {
       "topic": "form-spec",
       "title": "Form spec",
-      "description": "sys:form: default formDef.file + files/*.form.json (qkrpc.form.v1); no large inline formDef.value. Use when authoring sys:form.",
+      "description": "Use when authoring sys:form: formDef.file + files/*.form.json (qkrpc.form.v1). guide get --json returns qkrpc.form-spec.v1 schema.",
       "source": "references/form-spec.md",
       "templateSource": "schemas/form-spec.md",
-      "allowedTools": "qkrpc_form_validate qkrpc_form_build qkrpc_step_runner_get workspace_action_edit_data qkrpc_action_patch",
-      "metadata": {
-        "phase": "P5-P6",
-        "layer": "schema"
-      },
-      "layer": "schema"
-    },
-    {
-      "topic": "form-spec-schema",
-      "title": "Form spec schema",
-      "description": "Machine-readable JSON schema for qkrpc.form.v1 documents and sys:form step wire. Use when validating form JSON or wiring sys:form steps.",
-      "source": "references/form-spec-schema.md",
-      "templateSource": "schemas/form-spec-schema.md",
-      "allowedTools": "qkrpc_guide_get qkrpc_form_validate qkrpc_form_build workspace_action_file_write workspace_action_edit_data",
+      "allowedTools": "qkrpc_guide_get qkrpc_form_validate qkrpc_form_build qkrpc_step_runner_get workspace_action_edit_data workspace_action_file_write qkrpc_action_patch",
       "metadata": {
         "phase": "P5-P6",
         "layer": "schema"
@@ -332,222 +293,222 @@
       {
         "id": "adobesoftscontrol",
         "title": "sys:adobesoftscontrol",
-        "path": "step-modules/adobesoftscontrol.md"
+        "path": "step-modules/authored/adobesoftscontrol.md"
       },
       {
         "id": "ai",
         "title": "sys:ai",
-        "path": "step-modules/ai.md"
+        "path": "step-modules/authored/ai.md"
       },
       {
         "id": "autocadcontrol",
         "title": "sys:autocadcontrol",
-        "path": "step-modules/autocadcontrol.md"
+        "path": "step-modules/authored/autocadcontrol.md"
       },
       {
         "id": "basic-ocr",
         "title": "sys:basic-ocr",
-        "path": "step-modules/basic-ocr.md"
+        "path": "step-modules/authored/basic-ocr.md"
       },
       {
         "id": "chromecontrol",
         "title": "sys:chromecontrol",
-        "path": "step-modules/chromecontrol.md"
+        "path": "step-modules/authored/chromecontrol.md"
       },
       {
         "id": "cloud_oss",
         "title": "sys:cloud_oss",
-        "path": "step-modules/cloud_oss.md"
+        "path": "step-modules/authored/cloud_oss.md"
       },
       {
         "id": "csscript",
         "title": "sys:csscript",
-        "path": "step-modules/csscript.md"
+        "path": "step-modules/authored/csscript.md"
       },
       {
         "id": "custompanel",
         "title": "sys:custompanel",
-        "path": "step-modules/custompanel.md"
+        "path": "step-modules/authored/custompanel.md"
       },
       {
         "id": "customwindow",
         "title": "sys:customwindow",
-        "path": "step-modules/customwindow.md"
+        "path": "step-modules/authored/customwindow.md"
       },
       {
         "id": "dboperation",
         "title": "sys:dboperation",
-        "path": "step-modules/dboperation.md"
+        "path": "step-modules/authored/dboperation.md"
       },
       {
         "id": "download",
         "title": "sys:download",
-        "path": "step-modules/download.md"
+        "path": "step-modules/authored/download.md"
       },
       {
         "id": "enc",
         "title": "sys:enc",
-        "path": "step-modules/enc.md"
+        "path": "step-modules/authored/enc.md"
       },
       {
         "id": "excelObjects",
         "title": "sys:excelObjects",
-        "path": "step-modules/excelObjects.md"
+        "path": "step-modules/authored/excelObjects.md"
       },
       {
         "id": "excelRange",
         "title": "sys:excelRange",
-        "path": "step-modules/excelRange.md"
+        "path": "step-modules/authored/excelRange.md"
       },
       {
         "id": "excelreadwrite",
         "title": "sys:excelreadwrite",
-        "path": "step-modules/excelreadwrite.md"
+        "path": "step-modules/authored/excelreadwrite.md"
       },
       {
         "id": "fileOperation",
         "title": "sys:fileOperation",
-        "path": "step-modules/fileOperation.md"
+        "path": "step-modules/authored/fileOperation.md"
       },
       {
         "id": "flauiautomation",
         "title": "sys:flauiautomation",
-        "path": "step-modules/flauiautomation.md"
+        "path": "step-modules/authored/flauiautomation.md"
       },
       {
         "id": "form",
         "title": "sys:form",
-        "path": "step-modules/form.md"
+        "path": "step-modules/authored/form.md"
       },
       {
         "id": "htmlExtract",
         "title": "sys:htmlExtract",
-        "path": "step-modules/htmlExtract.md"
+        "path": "step-modules/authored/htmlExtract.md"
       },
       {
         "id": "http",
         "title": "sys:http",
-        "path": "step-modules/http.md"
+        "path": "step-modules/authored/http.md"
       },
       {
         "id": "httpserver",
         "title": "sys:httpserver",
-        "path": "step-modules/httpserver.md"
+        "path": "step-modules/authored/httpserver.md"
       },
       {
         "id": "imgProcess",
         "title": "sys:imgProcess",
-        "path": "step-modules/imgProcess.md"
+        "path": "step-modules/authored/imgProcess.md"
       },
       {
         "id": "inputScript",
         "title": "sys:inputScript",
-        "path": "step-modules/inputScript.md"
+        "path": "step-modules/authored/inputScript.md"
       },
       {
         "id": "jsonExtract",
         "title": "sys:jsonExtract",
-        "path": "step-modules/jsonExtract.md"
+        "path": "step-modules/authored/jsonExtract.md"
       },
       {
         "id": "jsscript",
         "title": "sys:jsscript",
-        "path": "step-modules/jsscript.md"
+        "path": "step-modules/authored/jsscript.md"
       },
       {
         "id": "mathocr",
         "title": "sys:mathocr",
-        "path": "step-modules/mathocr.md"
+        "path": "step-modules/authored/mathocr.md"
       },
       {
         "id": "officehelper",
         "title": "sys:officehelper",
-        "path": "step-modules/officehelper.md"
+        "path": "step-modules/authored/officehelper.md"
       },
       {
         "id": "playRecords",
         "title": "sys:playRecords",
-        "path": "step-modules/playRecords.md"
+        "path": "step-modules/authored/playRecords.md"
       },
       {
         "id": "pythonscript",
         "title": "sys:pythonscript",
-        "path": "step-modules/pythonscript.md"
+        "path": "step-modules/authored/pythonscript.md"
       },
       {
         "id": "record",
         "title": "sys:record",
-        "path": "step-modules/record.md"
+        "path": "step-modules/authored/record.md"
       },
       {
         "id": "regexExtract",
         "title": "sys:regexExtract",
-        "path": "step-modules/regexExtract.md"
+        "path": "step-modules/authored/regexExtract.md"
       },
       {
         "id": "rhinocontrol",
         "title": "sys:rhinocontrol",
-        "path": "step-modules/rhinocontrol.md"
+        "path": "step-modules/authored/rhinocontrol.md"
       },
       {
         "id": "runScript",
         "title": "sys:runScript",
-        "path": "step-modules/runScript.md"
+        "path": "step-modules/authored/runScript.md"
       },
       {
         "id": "searchBmp",
         "title": "sys:searchBmp",
-        "path": "step-modules/searchBmp.md"
+        "path": "step-modules/authored/searchBmp.md"
       },
       {
         "id": "smtp",
         "title": "sys:smtp",
-        "path": "step-modules/smtp.md"
+        "path": "step-modules/authored/smtp.md"
       },
       {
         "id": "stringProcess",
         "title": "sys:stringProcess",
-        "path": "step-modules/stringProcess.md"
+        "path": "step-modules/authored/stringProcess.md"
       },
       {
         "id": "subprogram",
         "title": "sys:subprogram",
-        "path": "step-modules/subprogram.md"
+        "path": "step-modules/authored/subprogram.md"
       },
       {
         "id": "tableoperation",
         "title": "sys:tableoperation",
-        "path": "step-modules/tableoperation.md"
+        "path": "step-modules/authored/tableoperation.md"
       },
       {
         "id": "tempcloudstore",
         "title": "sys:tempcloudstore",
-        "path": "step-modules/tempcloudstore.md"
+        "path": "step-modules/authored/tempcloudstore.md"
       },
       {
         "id": "translation",
         "title": "sys:translation",
-        "path": "step-modules/translation.md"
+        "path": "step-modules/authored/translation.md"
       },
       {
         "id": "uiautomation",
         "title": "sys:uiautomation",
-        "path": "step-modules/uiautomation.md"
+        "path": "step-modules/authored/uiautomation.md"
       },
       {
         "id": "websocket",
         "title": "sys:websocket",
-        "path": "step-modules/websocket.md"
+        "path": "step-modules/authored/websocket.md"
       },
       {
         "id": "webview2",
         "title": "sys:webview2",
-        "path": "step-modules/webview2.md"
+        "path": "step-modules/authored/webview2.md"
       },
       {
         "id": "zip",
         "title": "sys:zip",
-        "path": "step-modules/zip.md"
+        "path": "step-modules/authored/zip.md"
       }
     ]
   }

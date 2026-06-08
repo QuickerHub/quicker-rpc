@@ -24,7 +24,7 @@ public sealed class EvalExpressionStepRunnerTests
 
         var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
             expression,
-            _ => true,
+            key => string.Equals(key, "clipText", StringComparison.Ordinal),
             key => key,
             (name, value) => boundVariables[name] = value);
 
@@ -43,7 +43,7 @@ public sealed class EvalExpressionStepRunnerTests
 
         var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
             expression,
-            _ => true,
+            key => key is "lineEnding" or "realVariable",
             key => key,
             (name, value) => boundVariables[name] = value);
 
@@ -54,19 +54,20 @@ public sealed class EvalExpressionStepRunnerTests
     }
 
     [TestMethod]
-    public void ReplaceVariablePlaceholders_rewrites_braces_inside_string_literals()
+    public void ReplaceVariablePlaceholders_leaves_undefined_placeholders_inside_string_literals()
     {
         var boundVariables = new Dictionary<string, object?>();
         var expression = "\"{notVariable}\" + @\"{alsoNotVariable}\" + {realVariable}";
 
         var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
             expression,
-            _ => true,
+            key => string.Equals(key, "realVariable", StringComparison.Ordinal),
             key => key,
             (name, value) => boundVariables[name] = value);
 
-        Assert.AreEqual("\"v_notVariable\" + @\"v_alsoNotVariable\" + v_realVariable", result);
-        Assert.AreEqual(3, boundVariables.Count);
+        Assert.AreEqual("\"{notVariable}\" + @\"{alsoNotVariable}\" + v_realVariable", result);
+        Assert.AreEqual(1, boundVariables.Count);
+        Assert.AreEqual("realVariable", boundVariables["v_realVariable"]);
     }
 
     [TestMethod]
@@ -77,13 +78,30 @@ public sealed class EvalExpressionStepRunnerTests
 
         var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
             expression,
-            _ => true,
+            key => string.Equals(key, "definedVar", StringComparison.Ordinal),
             key => key,
             (name, value) => boundVariables[name] = value);
 
         Assert.AreEqual("v_definedVar + v_definedVar", result);
         Assert.AreEqual(1, boundVariables.Count);
         Assert.AreEqual("definedVar", boundVariables["v_definedVar"]);
+    }
+
+    [TestMethod]
+    public void ReplaceVariablePlaceholders_preserves_regex_unicode_property_escapes()
+    {
+        var boundVariables = new Dictionary<string, object?>();
+        var expression = "Regex.IsMatch({text}, @\"[\\p{L}\\p{N}_]+\")";
+
+        var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
+            expression,
+            key => string.Equals(key, "text", StringComparison.Ordinal),
+            key => key,
+            (name, value) => boundVariables[name] = value);
+
+        Assert.AreEqual("Regex.IsMatch(v_text, @\"[\\p{L}\\p{N}_]+\")", result);
+        Assert.AreEqual(1, boundVariables.Count);
+        Assert.AreEqual("text", boundVariables["v_text"]);
     }
 
     private static Assembly? ResolveQuickerAssembly(object? sender, ResolveEventArgs args)

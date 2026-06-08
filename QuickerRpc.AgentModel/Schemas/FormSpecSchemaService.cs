@@ -10,7 +10,7 @@ namespace QuickerRpc.AgentModel.Schemas;
 /// <summary>Embedded qkrpc.form-spec.v1 meta-schema for files/*.form.json (qkrpc.form.v1 documents).</summary>
 public static class FormSpecSchemaService
 {
-    public const string TopicId = "form-spec-schema";
+    public const string TopicId = "form-spec";
     public const string SchemaId = "qkrpc.form-spec.v1";
     private const string ResourceName = "QuickerRpc.AgentModel.Schemas.form-spec-schema.json";
 

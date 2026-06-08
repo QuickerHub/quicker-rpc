@@ -9,15 +9,18 @@
 | 1 选型 | **`implementation-fallback`** · **`expressions`** | 表达式优先；专用模块 vs csscript |
 | 2 发现 | **`step-runner-search`** · **`_catalog`** | `key`、`controlField`、snippet |
 | 3 **默认** | **`qkrpc_step_runner_get`** | 参数/输出 **键名、类型、purpose**（权威，足够写大多数步骤） |
-| 4 可选 | **`docs_get_reference(step-modules, file)`** | 仅 **KC 协议/跨字段** 补充（见 `_catalog`「有 reference」表） |
+| 4 可选 | **`docs_get_reference(step-modules, file)`** | 复杂模块补充（见 `_catalog`）；分 **手写** / **KC 爬取** 两类 |
 
 **禁止**：未 `get` 就猜键名；对「仅 get」模块去读不存在的 reference。
 
 ## 哪些模块有 reference？
 
-约 **40** 个复杂模块单独生成 `references/step-modules/<id>.md`（HTTP 体格式、UI 自动化、Excel、脚本等）。其余 **~100** 个模块 **不生成** reference——与 `step-runner get` 重复。
+| 类型 | 路径 | 维护 |
+|------|------|------|
+| **手写** | `references/step-modules/authored/<id>.md` | 仓库直接编辑；规范见 **`authored/SPEC.md`**；列于 `step-module-skip.json` → `authored` |
+| **KC 爬取** | `references/step-modules/<id>.md` | `npm run docs:modules:gen`（过渡期素材；**已全部迁移手写**） |
 
-维护：`npm run docs:modules:gen`（更新 `step-module-skip.json` + reference 文件）。清单：**`_catalog`**。
+约 **44** 个模块有手写 reference；其余 **~100** 个无 reference（`step-runner get` 已够）。清单：**`_catalog`**。
 
 ## 读取方式
 
@@ -43,6 +46,7 @@ qkrpc guide get --topic step-modules --json
 
 | 场景 | key | ref id |
 |------|-----|--------|
+| 多步骤输入 DSL | `sys:inputScript` | `inputScript` |
 | HTTP / API / SSE | `sys:http` | `http` |
 | 文件多操作 | `sys:fileOperation` | `fileOperation` |
 | 文本多模式 | `sys:stringProcess` | `stringProcess` |
@@ -53,6 +57,8 @@ qkrpc guide get --topic step-modules --json
 | 多字段表单 | `sys:form` | `form` |
 | WebView2 自定义页 | `sys:webview2` | `webview2` |
 | AI 调用 | `sys:ai` | `ai` |
+
+全部有 reference 的模块均在 **`authored/`**（无 KC 爬取并存）。
 
 表达式/LINQ/剪贴板/弹窗等：**`expressions`** + **`get`** 即可，无 reference。
 
