@@ -32,6 +32,26 @@
 | 未备份即批量删除 | 不可恢复 |
 | 列举用错搜索语法 | 文件用后缀列表；夹用 regex 扫名称 |
 
+## 示例
+
+<!-- QuickerModuleDoc examples -->
+
+### 在当前文件夹下创建指定名称的docx文件并打开
+
+```json
+{
+  "stepRunnerKey": "sys:fileOperation",
+  "inputParams": {
+    "path.var": "fullPath",
+    "searchPattern": "*",
+    "isAll": "0",
+    "overwrite": "0"
+  },
+  "outputParams": {
+    "isSuccess": "isSuccess"
+  }
+}
+```
 ## 相关
 
 step-runner-get · checkPathExists · readFile · zip · action-project-files

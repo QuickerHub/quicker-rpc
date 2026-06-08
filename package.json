@@ -9,6 +9,8 @@
     "docs:modules:analyze": "node scripts/analyze-step-module-ref-redundancy.mjs",
     "docs:modules:gen": "node scripts/analyze-step-module-ref-redundancy.mjs && node scripts/generate-step-module-refs.mjs --force",
     "docs:modules:gen:check": "node scripts/generate-step-module-refs.mjs",
+    "docs:modules:distill-examples": "node scripts/distill-quicker-module-doc-examples.mjs",
+    "docs:modules:compress-examples": "node scripts/compress-module-ref-examples.mjs",
     "quicker-agent:web": "pwsh ./start-agent-gui.ps1",
     "quicker-agent:web:browser": "pwsh ./start-agent-gui.ps1 -Browser",
     "quicker-agent:build": "pnpm --dir agent-gui tauri build",

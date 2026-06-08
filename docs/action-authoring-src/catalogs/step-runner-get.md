@@ -16,7 +16,9 @@
 | step | role |
 |------|------|
 | search | key, controlField, snippet |
-| get | input keys, valueType, options (when set), required, default, fileExt |
+| get | input keys, valueType, options (when set), required, **default**, fileExt |
+
+**default** — typed in **get** (`Boolean` → `true`/`false`, not `"1"`/`"0"`). **Steps** may use the same JSON types for plain literals, or strings (`"true"`, `$=…`, `$$…`); omit when value equals effective default (see action-data-schema).
 
 Bind rules: action-data-schema — use exact `key`; variable bind `paramKey.var` not `{varKey}` in value.
 

@@ -18,6 +18,29 @@
 
 大文件/断点续传 → 用 `http` 结果类型「文件」或专用流程。
 
+
+## 示例
+
+<!-- QuickerModuleDoc examples -->
+
+### 下载并运行
+
+```json
+{
+  "stepRunnerKey": "sys:download",
+  "inputParams": {
+    "url": "https://gitee.com/jinxi100/one/raw/master/%E5%89%AA%E5%88%87%E6%9D%BF%E5%B7%A5%E5%85%B7%20(1).exe",
+    "savePath.var": "path",
+    "saveName": "剪切板工具.exe",
+    "skipCertVerify": "1",
+    "showProgress": "1",
+    "autoRename": "1"
+  },
+  "outputParams": {
+    "savedPath": "savedPath"
+  }
+}
+```
 ## 相关
 
 http · step-runner-get · fileOperation · implementation-fallback

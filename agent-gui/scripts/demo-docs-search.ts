@@ -5,9 +5,7 @@
  *   pnpm docs:search -- "workspace patch" --limit 5
  *   pnpm docs:search -- --samples
  */
-import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { loadAuthoringDocFixtureRows } from "../lib/action-authoring-docs-fixtures";
 import {
   buildAuthoringDocsSearchIndex,
   buildSearchExcerpt,
@@ -15,10 +13,6 @@ import {
   splitSearchPatterns,
   type AuthoringDocSearchRow,
 } from "../lib/action-authoring-docs-search";
-
-const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = join(SCRIPT_DIR, "../..");
-const SKILLS_ROOT = join(REPO_ROOT, "docs/skills/quicker-authoring");
 
 const SAMPLE_QUERIES = [
   "expressions",
@@ -30,23 +24,6 @@ const SAMPLE_QUERIES = [
   "step runner",
   "workspac",
 ];
-
-type TopicsManifestEntry = {
-  topic: string;
-  title?: string;
-  description: string;
-};
-
-type ReferenceCatalogEntry = {
-  id: string;
-  title: string;
-  path: string;
-};
-
-type TopicsManifest = {
-  topics: TopicsManifestEntry[];
-  referenceCatalog?: Record<string, ReferenceCatalogEntry[]>;
-};
 
 function parseArgs(argv: string[]): { queries: string[]; limit: number } {
   const queries: string[] = [];
@@ -92,75 +69,11 @@ Examples:
 `);
 }
 
-function extractTitle(markdown: string): string {
-  for (const line of markdown.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith("# ")) {
-      return trimmed.slice(2).trim();
-    }
-  }
-  return "";
-}
-
-async function readTopicMarkdown(topic: string): Promise<string | null> {
-  const file =
-    topic === "overview"
-      ? join(SKILLS_ROOT, "references", "overview.md")
-      : join(SKILLS_ROOT, "references", `${topic}.md`);
-  try {
-    return await readFile(file, "utf8");
-  } catch {
-    return null;
-  }
-}
-
-async function loadAuthoringRows(): Promise<AuthoringDocSearchRow[]> {
-  const manifestRaw = await readFile(
-    join(SKILLS_ROOT, "topics.json"),
-    "utf8",
-  );
-  const manifest = JSON.parse(manifestRaw) as TopicsManifest;
-  const rows: AuthoringDocSearchRow[] = [];
-
-  for (const meta of manifest.topics) {
-    const markdown = await readTopicMarkdown(meta.topic);
-    if (markdown == null) continue;
-
-    rows.push({
-      topic: meta.topic,
-      title: meta.title?.trim() || extractTitle(markdown) || meta.topic,
-      description: meta.description,
-      markdown,
-    });
-
-    const refs = manifest.referenceCatalog?.[meta.topic] ?? [];
-    for (const ref of refs) {
-      if (ref.id === "_catalog") continue;
-      const refPath = join(SKILLS_ROOT, "references", ref.path);
-      let refMarkdown: string;
-      try {
-        refMarkdown = await readFile(refPath, "utf8");
-      } catch {
-        continue;
-      }
-      rows.push({
-        topic: meta.topic,
-        reference: ref.id,
-        title: extractTitle(refMarkdown) || ref.title,
-        description: meta.description,
-        markdown: refMarkdown,
-      });
-    }
-  }
-
-  return rows;
-}
-
 let cachedIndex: ReturnType<typeof buildAuthoringDocsSearchIndex> | null = null;
 
 async function getSearchIndex() {
   if (!cachedIndex) {
-    const rows = await loadAuthoringRows();
+    const rows = await loadAuthoringDocFixtureRows();
     cachedIndex = buildAuthoringDocsSearchIndex(rows);
   }
   return cachedIndex;

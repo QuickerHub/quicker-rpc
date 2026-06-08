@@ -18,6 +18,44 @@
 
 勿分享含密钥的动作。
 
+
+## 示例
+
+<!-- QuickerModuleDoc examples -->
+
+### 从剪贴板上传图片到阿里云OSS，并返回MarkDown格式引用链接
+
+```json
+{
+  "stepRunnerKey": "sys:cloud_oss",
+  "inputParams": {
+    "vendorSettings": "$$Endpoint:https://{EndPoint}\\nAccessKey:{AccessKey}\\nAccessKeySecret:{AccessKeySecret}\\nBucketName:{Bucket}",
+    "key": "$${对象路径}{当前时间}.png",
+    "content.var": "剪贴板图片"
+  },
+  "outputParams": {
+    "isSuccess": "上传成功",
+    "vendorUrl": "返回网址"
+  }
+}
+```
+
+### 从剪贴板上传图片到阿里云OSS，并返回MarkDown格式引用链接（content.var=剪贴板文件）
+
+```json
+{
+  "stepRunnerKey": "sys:cloud_oss",
+  "inputParams": {
+    "vendorSettings": "$$Endpoint:https://{EndPoint}\\nAccessKey:{AccessKey}\\nAccessKeySecret:{AccessKeySecret}\\nBucketName:{Bucket}",
+    "key": "$${对象路径}{当前时间}{文件后缀}",
+    "content.var": "剪贴板文件"
+  },
+  "outputParams": {
+    "isSuccess": "上传成功",
+    "vendorUrl": "返回网址"
+  }
+}
+```
 ## 相关
 
 tempcloudstore · fileOperation · step-runner-get

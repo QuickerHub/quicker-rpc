@@ -17,6 +17,28 @@
 
 凭据用 **stateStorage** 等本地存，勿写进可分享动作。禁止群发垃圾邮件。
 
+
+## 示例
+
+<!-- QuickerModuleDoc examples -->
+
+### 43.SMTP发送邮件
+
+```json
+{
+  "stepRunnerKey": "sys:smtp",
+  "inputParams": {
+    "account": "acc@1.com",
+    "password": "mypwd",
+    "sender": "admin@1.com",
+    "senderName": "测试员",
+    "to": "b@1.com,a@1.com",
+    "cc": "cc@163.com",
+    "subject": "测试结果",
+    "content": "你好呀"
+  }
+}
+```
 ## 相关
 
 step-runner-get · stateStorage · implementation-fallback

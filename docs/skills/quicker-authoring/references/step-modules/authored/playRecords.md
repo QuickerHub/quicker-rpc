@@ -17,6 +17,20 @@
 
 可编辑数据行调试；复杂流程用 **inputScript**。
 
+## 示例
+
+<!-- QuickerModuleDoc examples -->
+
+### 简单示例
+
+```json
+{
+  "stepRunnerKey": "sys:playRecords",
+  "inputParams": {
+    "data": "816;\tMC;\tLeft,693,2130,1;\\n559;\tMC;\tLeft,1531,1274,1;\\n707;\tKP;\tSpace;\\n207;\tKD;\tLShiftKey;\\n184;\tKP;\tH;\\n59;\tKU;\tLSh..."
+  }
+}
+```
 ## 相关
 
 record · inputScript · step-runner-get

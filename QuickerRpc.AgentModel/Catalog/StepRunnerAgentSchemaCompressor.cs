@@ -121,7 +121,7 @@ public static class StepRunnerAgentSchemaCompressor
         return result;
     }
 
-    private static string? ResolveInputDefault(
+    private static object? ResolveInputDefault(
         AgentInputParamSchema source,
         bool controlApplied,
         bool isControlParam,
@@ -132,7 +132,7 @@ public static class StepRunnerAgentSchemaCompressor
             return appliedControlValue;
         }
 
-        return TrimToNull(source.Default);
+        return source.Default;
     }
 
     private static bool ShouldOmitInputOptions(

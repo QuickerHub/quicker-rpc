@@ -26,6 +26,21 @@
 
 部分操作原地改图，无「结果图片」输出。
 
+
+## 示例
+
+<!-- QuickerModuleDoc examples -->
+
+### 列表文件亮度增加30%，对比对比度增加30%，注释掉的行（用于生成灰度图像），自动旋转，高于指定亮度的像素修改为白色
+
+```json
+{
+  "stepRunnerKey": "sys:imgProcess",
+  "inputParams": {
+    "filterParams": "$$\\nLoad:{path}\\nBrightness:30\\nContrast:30\\nAutoRotate:\\nWhiteThreshold:220\\nSave:{savePath}"
+  }
+}
+```
 ## 相关
 
 screenCapture · basic-ocr · searchBmp · step-runner-get

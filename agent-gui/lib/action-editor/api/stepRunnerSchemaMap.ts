@@ -36,6 +36,33 @@ function readBool(obj: Record<string, unknown>, ...keys: string[]): boolean {
   return false;
 }
 
+/** Agent schema may emit JSON booleans for Boolean params; UI wire uses "true"/"false". */
+function readInputDefaultValue(
+  obj: Record<string, unknown>,
+  varType: number,
+): string {
+  const raw =
+    obj.default ??
+    obj.Default ??
+    obj.defaultValue ??
+    obj.DefaultValue;
+  if (varType === CsVarType.Boolean) {
+    if (typeof raw === "boolean") return raw ? "true" : "false";
+    if (typeof raw === "number") return raw !== 0 ? "true" : "false";
+    if (typeof raw === "string") {
+      const t = raw.trim().toLowerCase();
+      if (t === "1" || t === "true" || t === "yes") return "true";
+      if (t === "0" || t === "false" || t === "no") return "false";
+      return raw;
+    }
+    return "";
+  }
+  if (typeof raw === "string") return raw;
+  if (typeof raw === "number" && Number.isFinite(raw)) return String(raw);
+  if (typeof raw === "boolean") return raw ? "true" : "false";
+  return "";
+}
+
 /** Maps qkrpc agent schema valueType string to Quicker VarType int. */
 export function parseAgentValueType(valueType: string): number {
   const t = valueType.trim();
@@ -248,7 +275,7 @@ function mapAgentInputParamDef(
         : [];
 
   const description = readString(o, "purpose", "Purpose", "description", "Description");
-  const defaultValue = readString(o, "default", "Default", "defaultValue", "DefaultValue");
+  const defaultValue = readInputDefaultValue(o, varType);
   const explicitMultiLine = readBool(o, "isMultiLine", "IsMultiLine", "multiLine", "MultiLine");
   const hasExplicitVariableMode = "variableMode" in o || "VariableMode" in o;
   const textTools = readString(o, "textTools", "TextTools");

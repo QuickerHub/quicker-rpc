@@ -195,7 +195,9 @@ internal static class StepRunnerCatalogFromQuicker
                     IsAdvanced = ReadBool(p, "IsAdvanced"),
                     AllowInput = ReadBool(p, "AllowInput"),
                     TextTools = SerializeTextTools(ReadProperty(p, "TextTools")),
-                    DefaultValue = SerializeDefault(ReadProperty(p, "DefaultValue")),
+                    DefaultValue = StepRunnerAgentDefaultValue.NormalizeCatalogDefault(
+                        varType,
+                        SerializeDefault(ReadProperty(p, "DefaultValue"))),
                     SelectionItems = selectionItems,
                     ValidForValues = MapStringCollection(ReadProperty(p, "ValidForList")),
                     InvalidForValues = MapStringCollection(ReadProperty(p, "InvalidForList")),

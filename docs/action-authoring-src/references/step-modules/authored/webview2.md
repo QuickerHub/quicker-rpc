@@ -36,6 +36,36 @@
 | 随意设附加浏览器参数 | 可能无法多开 |
 | 改变量名不更新 JS | 脚本仍用旧 Quicker 变量名 |
 
+
+## 示例
+
+<!-- QuickerModuleDoc examples -->
+
+### 在WebView中更新动作变量与调用子程序
+
+```json
+{
+  "stepRunnerKey": "sys:webview2",
+  "inputParams": {
+    "url": "<html>\\n<head>\\n<title>Quicker测试</title>\\n</head>\\n<body>\\n<h1>WebView测试</h1>\\n\\n<button onclick='readVar()'>读取变量值</b...",
+    "title": "测试浏览器插件",
+    "autoCloseKey": "okok"
+  }
+}
+```
+
+### 一键获取临时邮箱（OpenUrl）
+
+```json
+{
+  "stepRunnerKey": "sys:webview2",
+  "inputParams": {
+    "url": "$$<!DOCTYPE html>\\n<html lang='zh'>\\n<head>\\n    <meta charset='UTF-8'>\\n    <meta name='viewport' content='width=dev...",
+    "title": "临时邮箱",
+    "winSize": "50%,50%"
+  }
+}
+```
 ## 相关
 
 webview2-authoring · action-project-files · step-runner-get · form

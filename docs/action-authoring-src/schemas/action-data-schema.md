@@ -32,21 +32,41 @@ Stable id is **`key`** (not row `id`).
 
 **stepId** (workspace disk edit): agents **omit** — order = array index; patch is save-only. QuickerAgent UI may add handles; runtime ignores stepId.
 
-**inputParams** / **outputParams**: `Record<string, string>`. Per catalog `paramKey`, exactly one wire entry:
+**inputParams** / **outputParams**: `outputParams` = `Record<string, string>`. **`inputParams`** values per `paramKey` (from `step-runner get` `valueType`):
 
 | wire key | value |
-|----------|-------|
-| `paramKey` | literal, `$$…`, or `$=…` |
-| `paramKey.var` | `variables[].key` |
-| `paramKey.file` | `files/…` |
+|----------|--------|
+| `paramKey` | string · number · boolean · **array** · **object** — pick JSON shape that matches param type |
+| `paramKey.var` | `variables[].key` (string) |
+| `paramKey.file` | `files/…` (string) |
+
+| valueType (typical) | wire literal | avoid |
+|---------------------|--------------|--------|
+| Text | `"hello"`, `$$…`, `$=…` | — |
+| Boolean | `true` / `false` or `"true"` / `"1"` | — |
+| Number / Integer | `100` or `"100"` | — |
+| **List** | `["a","b"]` | `"a\nb"` unless module requires multiline text |
+| Dict | `{"k":"v"}` | guessing key=value lines |
+| long text | `paramKey.file` | huge inline string |
+
+Expressions (`$$` / `$=`) must be **strings**. Compare/omit defaults with normalized literals (`true` ≡ `"true"`, arrays compared via JSON).
 
 ```json
 "inputParams": {
   "title": "Hello",
   "paths.var": "urls",
-  "code.file": "files/filter.eval.cs"
+  "tags": ["a", "b"],
+  "options": { "retry": 3 },
+  "code.file": "files/filter.eval.cs",
+  "stopIfFail": true,
+  "expireSeconds": 100,
+  "body": "$$mode=Encode&txt={text}"
 }
 ```
+
+**Schema `default`** (`step-runner get`) uses the same typing (e.g. Boolean → `default: true`). Omit `inputParams` entries equal to that default whether you wrote `true` or `"true"`.
+
+**Omit schema defaults** — after `step-runner get`, drop literal `inputParams` matching the effective default (workspace `omitDefaultLiteralInputs` / `compress-module-ref-examples.mjs`). Keep: `.var` / `.file`, non-default literals, and any `$=` / `$$` string.
 
 **Bind vs interpolate** — do not mix binds for the same `paramKey`:
 

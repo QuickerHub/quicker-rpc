@@ -25,6 +25,24 @@
 
 表格 OCR、坐标找字等子模式见 get `controlField`。
 
+## 示例
+
+<!-- QuickerModuleDoc examples -->
+
+### 截图识别并自动复制结果
+
+```json
+{
+  "stepRunnerKey": "sys:basic-ocr",
+  "inputParams": {
+    "imgVar.var": "img",
+    "lang.var": "lang"
+  },
+  "outputParams": {
+    "content": "text"
+  }
+}
+```
 ## 相关
 
 mathocr · searchBmp · imgProcess · step-runner-get

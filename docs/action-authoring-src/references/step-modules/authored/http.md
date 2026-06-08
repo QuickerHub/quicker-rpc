@@ -53,6 +53,43 @@
 }
 ```
 
+<!-- QuickerModuleDoc examples -->
+
+### 获取选中文本，判断选中文本是否以“熊曰开头”，是的话HTTP请求进行解密，否则HTTP请求进行加密。最后将返回的文本发送到窗口中去
+
+```json
+{
+  "stepRunnerKey": "sys:http",
+  "inputParams": {
+    "url": "http://hi.pcmoe.net/bear.php",
+    "header": "connection:keep-alive\\nx-requested-with:XMLHttpRequest\\ndnt:1\\nx-token:07B97AA644E8\\naccept:*/*\\nreferer:http://hi.pc...",
+    "bodyType": "FORM",
+    "body": "$$mode=Bear&code=Decode&txt={原始文本}",
+    "ua": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Mob..."
+  },
+  "outputParams": {
+    "content": "熊曰"
+  }
+}
+```
+
+### 获取选中文本，判断选中文本是否以“熊曰开头”，是的话HTTP请求进行解密，否则HTTP请求进行加密。最后将返回的文本发送到窗口中去（$$mode=Bear&code=Encode&txt={原始文本}）
+
+```json
+{
+  "stepRunnerKey": "sys:http",
+  "inputParams": {
+    "url": "http://hi.pcmoe.net/bear.php",
+    "header": "connection:keep-alive\\nx-requested-with:XMLHttpRequest\\ndnt:1\\nx-token:07B97AA644E8\\naccept:*/*\\nreferer:http://hi.pc...",
+    "bodyType": "FORM",
+    "body": "$$mode=Bear&code=Encode&txt={原始文本}",
+    "ua": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Mob..."
+  },
+  "outputParams": {
+    "content": "熊曰"
+  }
+}
+```
 ## 相关
 
 step-runner-get · subprogram（SSE 回调）· ai · implementation-fallback

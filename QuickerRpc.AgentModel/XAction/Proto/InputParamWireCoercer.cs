@@ -101,13 +101,22 @@ public static class InputParamWireCoercer
                 continue;
             }
 
-            if (paramObj["value"] is JToken valueToken && valueToken.Type == JTokenType.String)
+            var valueToken = paramObj["value"] ?? paramObj["Value"];
+            if (valueToken is null)
+            {
+                continue;
+            }
+
+            if (valueToken.Type is JTokenType.Boolean or JTokenType.Integer or JTokenType.Float
+                or JTokenType.Array or JTokenType.Object)
+            {
+                compact[prop.Name] = valueToken.DeepClone();
+                continue;
+            }
+
+            if (valueToken.Type == JTokenType.String)
             {
                 compact[prop.Name] = valueToken.Value<string>() ?? string.Empty;
-            }
-            else if (paramObj["Value"] is JToken pascalValue && pascalValue.Type == JTokenType.String)
-            {
-                compact[prop.Name] = pascalValue.Value<string>() ?? string.Empty;
             }
         }
 
@@ -218,7 +227,18 @@ public static class InputParamWireCoercer
 
         if (token is JObject obj)
         {
-            return NormalizeLegacyParamObject(obj);
+            if (IsParamBindObject(obj))
+            {
+                return NormalizeLegacyParamObject(obj);
+            }
+
+            return new JObject { ["value"] = obj.DeepClone() };
+        }
+
+        if (token.Type is JTokenType.Boolean or JTokenType.Integer or JTokenType.Float
+            or JTokenType.Array or JTokenType.Object)
+        {
+            return new JObject { ["value"] = token.DeepClone() };
         }
 
         if (token.Type != JTokenType.String)
@@ -242,6 +262,14 @@ public static class InputParamWireCoercer
                 return new JObject { ["value"] = text };
         }
     }
+
+    private static bool IsParamBindObject(JObject obj) =>
+        obj["varKey"] is not null
+        || obj["VarKey"] is not null
+        || obj["file"] is not null
+        || obj["File"] is not null
+        || obj["value"] is not null
+        || obj["Value"] is not null;
 
     private static JObject NormalizeLegacyParamObject(JObject obj)
     {

@@ -49,10 +49,10 @@
     },
     "inputParams": {
       "type": "object",
-      "valueType": "Record<string, string>",
-      "notes": "Every value is a plain string. Exactly one bind per catalog paramKey.",
+      "valueType": "Record<string, string | number | boolean | array | object>",
+      "notes": "One bind per catalog paramKey. Match valueType: List→JSON array, Dict→object, Boolean/Number→bool/number or string, Text→string ($$/$=). paramKey.var / paramKey.file: string only.",
       "wireKeys": [
-        { "key": "paramKey", "value": "literal, $$…, or $=…" },
+        { "key": "paramKey", "value": "string | number | boolean | array | object — expressions ($$, $=) must be string" },
         { "key": "paramKey.var", "value": "variables[].key string" },
         { "key": "paramKey.file", "value": "files/… path" }
       ]

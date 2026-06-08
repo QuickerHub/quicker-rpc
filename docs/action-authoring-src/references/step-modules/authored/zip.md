@@ -22,6 +22,28 @@
 
 支持密码、级别、进度条；大归档勿用本模块。
 
+
+## 示例
+
+<!-- QuickerModuleDoc examples -->
+
+### 67.Zip压缩打包
+
+```json
+{
+  "stepRunnerKey": "sys:zip",
+  "inputParams": {
+    "sourceZipFile.var": "savedPath",
+    "outputPath": ".",
+    "overwrite": "1",
+    "showProgress": "1"
+  },
+  "outputParams": {
+    "isSuccess": "解压成功",
+    "resultPath": "resultPath"
+  }
+}
+```
 ## 相关
 
 fileOperation · step-runner-get

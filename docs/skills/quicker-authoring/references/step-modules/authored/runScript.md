@@ -19,6 +19,48 @@
 
 CMD 多行复杂逻辑勿堆本模块 → `csscript` / 外链 `.ps1`。
 
+## 示例
+
+<!-- QuickerModuleDoc examples -->
+
+### 一键断开网络，又一键开启网络
+
+```json
+{
+  "stepRunnerKey": "sys:runScript",
+  "inputParams": {
+    "script": "@echo off\\nnetsh interface set interface \"Wi-Fi\" disable\\nnetsh interface set interface \"以太网\" disable\\necho 无线网络和有线网络...",
+    "runAsAdmin": "1",
+    "waitToExit": "1"
+  }
+}
+```
+
+### 一键断开网络，又一键开启网络（BAT）
+
+```json
+{
+  "stepRunnerKey": "sys:runScript",
+  "inputParams": {
+    "script": "@echo off\\nnetsh interface set interface \"Wi-Fi\" enable\\nnetsh interface set interface \"以太网\" enable\\necho 无线网络和有线网络已全...",
+    "runAsAdmin": "1",
+    "waitToExit": "1"
+  }
+}
+```
+
+### 安装grep存放在C:\Windows\grep目录下（CMD_H）
+
+```json
+{
+  "stepRunnerKey": "sys:runScript",
+  "inputParams": {
+    "script": "$$setx Path \"%Path%;{cache}\" /m",
+    "runAsAdmin": "1",
+    "waitToExit": "1"
+  }
+}
+```
 ## 相关
 
 shelloperation · step-runner-get · implementation-fallback

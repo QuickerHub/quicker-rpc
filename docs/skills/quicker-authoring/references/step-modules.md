@@ -207,7 +207,7 @@ docs_get_reference({ topic: "step-modules", file: "http" })       # 仅有 refer
 | 复杂 C# / 脚本 | `sys:csscript` | `csscript` |
 | UI 自动化 | `sys:uiautomation` | `uiautomation` |
 | 浏览器 | `sys:chromecontrol` | `chromecontrol` |
-| 多字段表单 | `sys:form` | `form` |
+| 多字段表单 | `sys:form` | **`form-spec`**（步骤示例见 `form` ref） |
 | WebView2 自定义页 | `sys:webview2` | `webview2` |
 | AI 调用 | `sys:ai` | `ai` |
 

@@ -395,8 +395,16 @@ public static class XActionCompressor
         }
     }
 
-    public static string SerializeDefaultForComparison(string? defaultValue) =>
-        defaultValue ?? string.Empty;
+    public static string SerializeDefaultForComparison(string? defaultValue)
+    {
+        var raw = (defaultValue ?? string.Empty).Trim();
+        if (StepRunnerAgentDefaultValue.TryParseBoolLiteral(raw, out var boolean))
+        {
+            return boolean ? "true" : "false";
+        }
+
+        return raw;
+    }
 
     private static StepRunnerDefinition? TryFindRunnerItem(StepRunnerCatalog catalog, string stepRunnerKey)
     {

@@ -336,11 +336,7 @@ public static class StepRunnerCatalogMapper
                 controlFieldValue),
         };
 
-        var def = (p.DefaultValue ?? string.Empty).Trim();
-        if (def.Length > 0)
-        {
-            dto.Default = def;
-        }
+        dto.Default = StepRunnerAgentDefaultValue.FormatForAgent(p.VarType, p.DefaultValue);
 
         if (p.VarType == 9 && p.HasInternalType)
         {

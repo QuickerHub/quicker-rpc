@@ -17,6 +17,30 @@
 
 截图时勿悬停变色。自动点击用 `mouse`「移动到位图」类操作（不返坐标）。
 
+## 示例
+
+<!-- QuickerModuleDoc examples -->
+
+### 在坐标范围200,300,800,500查找文字“王中王”，最多重试2次，跳过WindowsOCR引擎，找到后定位点XY分别偏移3和4，第…
+
+```json
+{
+  "stepRunnerKey": "sys:searchBmp",
+  "inputParams": {
+    "searchText": "王中王",
+    "bmpTargetType": "Rect",
+    "searchRect": "200,300,800,500",
+    "x": "3",
+    "y": "4",
+    "retryCount": "2",
+    "ignoreWindowsOcr": "true"
+  },
+  "outputParams": {
+    "firstPoint": "firstPoint",
+    "allPoints": "allPoints"
+  }
+}
+```
 ## 相关
 
 basic-ocr · screenCapture · mouse · step-runner-get

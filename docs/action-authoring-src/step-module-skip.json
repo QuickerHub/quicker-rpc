@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-08T03:12:17.487Z",
+  "generatedAt": "2026-06-08T14:32:09.521Z",
   "rationale": "Per-module reference omitted when qkrpc_step_runner_get input/output purpose fields are sufficient. KEEP = KC crawl (docs:modules:gen). AUTHORED = hand-written under references/step-modules/authored/.",
   "authored": [
     "sys:adobesoftscontrol",

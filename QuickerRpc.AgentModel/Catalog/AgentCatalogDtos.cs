@@ -104,8 +104,9 @@ public sealed class AgentInputParamSchema
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool Required { get; set; }
 
+    /// <summary>Literal default for agents. Boolean params use JSON <c>true</c>/<c>false</c>; others remain strings.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Default { get; set; }
+    public object? Default { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<AgentParamOption>? Options { get; set; }

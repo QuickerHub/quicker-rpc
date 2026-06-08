@@ -32,6 +32,24 @@
 | 用本模块做 if/循环 | 应用分支步或 csscript |
 | 截取长度 0 | 表示到末尾（见 get purpose） |
 
+
+## 示例
+
+<!-- QuickerModuleDoc examples -->
+
+### 将剪贴板字符串首字母大写后写入剪贴板，并提示“over”
+
+```json
+{
+  "stepRunnerKey": "sys:stringProcess",
+  "inputParams": {
+    "data.var": "[cliptext]"
+  },
+  "outputParams": {
+    "output": "output"
+  }
+}
+```
 ## 相关
 
 expressions · step-runner-get · implementation-fallback · enc
