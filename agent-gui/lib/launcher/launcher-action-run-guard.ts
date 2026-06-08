@@ -20,7 +20,7 @@ export function extractQkaActionIdsFromText(text: string): string[] {
   const ids: string[] = [];
   for (const match of findQkaMarkupMatches(text)) {
     const ref = parseQkaRefFromAttrs(match.attrs, match.innerText);
-    if (ref?.id) ids.push(ref.id.toLowerCase());
+    if (ref?.actionId) ids.push(ref.actionId.toLowerCase());
   }
   return ids;
 }
