@@ -16,7 +16,7 @@ metadata:
 
 ## 完整流程（Agent 顺序）
 
-0. 若本次或近期改过 `agent-gui/llm-publish.config.json`：先 `pwsh -NoProfile -File ./publish/Sync-LlmPublishConfig.ps1`（见 `quicker-agent-gui-llm-publish-config` skill），确保 CI `BUNDLED_LLM_CONFIG` 与本地一致
+0. 若本次或近期改过 `agent-gui/llm-publish.config.json`：先 **发布 publish config** — `pwsh -NoProfile -File ./publish/Sync-LlmPublishConfig.ps1`（`quicker-agent-llm-apikey-config` / `/publish-llm-config`），确保 `BUNDLED_LLM_CONFIG` + Bitiful OSS 与本地一致
 1. `git status`；读取 **baseline**（最新 tag + 已提交 `version.json`）；**第三段 +1** bump `version.json`（第四段 → `0`），且 **必须大于 baseline**；commit — 见 `quicker-qkbuild-version-publish`
 2. `git log` 自上一 tag → **撰写 changelog** → 写入 `publish/changelogs/vX.Y.Z.md` 并 **commit**
 3. `pwsh ./publish/Publish-GitHubRelease.ps1 -WaitForCi` → **默认并行**：后台启动本地 Tauri 预检 + **立即 push tag** 触发 CI。本地日志通常先报错，优先按 `%TEMP%\qkrpc-preflight-vX.Y.Z.log` 修复；CI 失败可暂忽略。修复后 `-ForceRetag` 重发。

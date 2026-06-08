@@ -106,13 +106,15 @@ pnpm quicker-agent:publish
 
 CI（`.github/workflows/release-cli.yml`）将整个 JSON 存为 GitHub Secret **`BUNDLED_LLM_CONFIG`**（单行 JSON 即可，无需多个 `BUNDLED_LLM_*_API_KEY` 环境变量）。仍兼容旧版单 Key secret。
 
-改 `llm-publish.config.json` 后同步到 GitHub（需 `gh auth login`）：
+改 `llm-publish.config.json` 后 **发布 publish config**（一条命令：GitHub Secret + Bitiful 加密 OSS）：
 
 ```powershell
 pwsh -NoProfile -File ./publish/Sync-LlmPublishConfig.ps1
 ```
 
-Agent 细则：`.cursor/skills/quicker-agent-gui-llm-publish-config/SKILL.md`；Cursor 命令 **`/sync-llm-publish-config`**。
+前置：`gh auth login`；`publish/.env`（`BITIFUL_*` + **固定不变**的 `LLM_REMOTE_PUBLISH_CIPHER_PEPPER`，见 `publish/.env.example`）。pepper 一次性同步 GitHub：`Sync-LlmRemoteCipherPepper.ps1`；**日常发布勿改 pepper**。
+
+Agent：`.cursor/skills/quicker-agent-llm-apikey-config/SKILL.md`；Cursor **`/publish-llm-config`**。
 
 构建时 `tauri-prepare` 会生成：
 

@@ -9,10 +9,15 @@ import {
   getProviderEndpointChain,
   inferLlmEndpointGroupsConfig,
   mergeLlmEndpointGroupsConfigs,
+  overlayLlmEndpointGroupsConfigs,
   type LlmEndpointGroupsConfig,
 } from "@/lib/llm-endpoint-groups";
 import { filterEndpointsForProvider } from "@/lib/llm-endpoint-provider";
 import { loadMergedPublishGroupsConfig } from "@/lib/llm-publish-config";
+import {
+  loadRemotePublishGroupsConfig,
+  scheduleRemotePublishConfigRefreshOnStartup,
+} from "@/lib/llm-remote-publish-config";
 import { decodeSecret } from "@/lib/llm-secret-cipher";
 import { LLM_PROVIDER_ID, type LlmProviderId } from "@/lib/llm-providers";
 
@@ -139,10 +144,15 @@ function loadBundledGroupsConfig(): LlmEndpointGroupsConfig {
   return inferLlmEndpointGroupsConfig(endpoints);
 }
 
-/** Bundled secrets + publish (+ dev) merged by group. */
+/** Bundled secrets + OSS remote publish + local publish (+ dev) merged by group. */
 export function loadMergedBuiltinGroupsConfig(): LlmEndpointGroupsConfig {
-  return mergeLlmEndpointGroupsConfigs(
+  scheduleRemotePublishConfigRefreshOnStartup();
+  const withRemote = overlayLlmEndpointGroupsConfigs(
     loadBundledGroupsConfig(),
+    loadRemotePublishGroupsConfig(),
+  );
+  return mergeLlmEndpointGroupsConfigs(
+    withRemote,
     loadMergedPublishGroupsConfig(),
   );
 }

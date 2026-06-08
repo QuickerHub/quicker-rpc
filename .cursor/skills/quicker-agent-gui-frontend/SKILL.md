@@ -46,7 +46,7 @@ dev_frontend_check({ paths: ["/", "/tool-test"] })  # 改过额外路由时
 | 改动范围 | 构建 |
 |----------|------|
 | 仅 `agent-gui/**`（UI / lib 页面逻辑） | **不要** `build.ps1 -t`；用本 skill + `dev_frontend_check` |
-| `agent-gui/llm-publish.config.json` | **不要** `-t`；用 `quicker-agent-gui-llm-publish-config`（`Sync-LlmPublishConfig.ps1`） |
+| `agent-gui/llm-publish.config.json` | **不要** `-t`；用 `quicker-agent-llm-apikey-config`（`Sync-LlmPublishConfig.ps1`） |
 | `QuickerRpc.Plugin` / `Console` / … | `.cursor/skills/quicker-rpc-build-test/SKILL.md`（`build.ps1 -t`） |
 
 ## 常见问题

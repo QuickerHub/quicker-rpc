@@ -23,6 +23,7 @@ import {
 } from "@/lib/llm-endpoint-probe-core";
 
 export type {
+  LlmEndpointProbeCheck,
   LlmEndpointProbeReport,
   LlmEndpointProbeRow,
   LlmEndpointProbeSummary,
@@ -36,6 +37,7 @@ export {
   hostFromLlmBaseUrl,
   parseLlmProbeConfigSource,
   parseLlmProbeMethod,
+  formatLlmEndpointProbeFullMessage,
   probeLlmEndpointTarget,
 } from "@/lib/llm-endpoint-probe-core";
 
@@ -132,6 +134,7 @@ export async function probeAllLlmEndpoints(options?: {
   source?: LlmProbeConfigSource;
   method?: LlmProbeMethod;
   timeoutMs?: number;
+  chatTimeoutMs?: number;
   concurrency?: number;
   includeAutoModels?: boolean;
 }): Promise<LlmEndpointProbeReport> {
@@ -139,6 +142,7 @@ export async function probeAllLlmEndpoints(options?: {
     source: options?.source ?? "all",
     method: options?.method ?? "models",
     timeoutMs: options?.timeoutMs ?? 12_000,
+    chatTimeoutMs: options?.chatTimeoutMs,
     concurrency: options?.concurrency,
     includeAutoModels: options?.includeAutoModels,
     listTargets: listLlmProbeTargets,

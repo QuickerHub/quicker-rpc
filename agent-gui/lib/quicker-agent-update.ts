@@ -9,6 +9,10 @@ export const BITIFUL_UPDATER_JSON_URL =
 export const BITIFUL_DOWNLOAD_PREFIX =
   "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent";
 
+/** Public OSS copy of llm-publish.config.json for runtime refresh (no reinstall). */
+export const BITIFUL_LLM_PUBLISH_CONFIG_URL =
+  `${BITIFUL_DOWNLOAD_PREFIX}/llm-publish.config.json`;
+
 export type QuickerAgentUpdateInfo = {
   installedVersion: string;
   remoteVersion: string;

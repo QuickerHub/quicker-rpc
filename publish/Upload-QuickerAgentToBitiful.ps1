@@ -137,6 +137,7 @@ if ($DryRun) {
     Write-Host "[DryRun] Would upload: $installerPath" -ForegroundColor DarkGray
     Write-Host "[DryRun] latest.json: $latestJsonPath" -ForegroundColor DarkGray
     Write-Host "[DryRun] version.txt -> $semver" -ForegroundColor DarkGray
+    Write-Host "[DryRun] llm-publish.config.json -> $(Get-QuickerAgentBitifulLlmPublishConfigUrl)" -ForegroundColor DarkGray
     exit 0
 }
 
@@ -146,10 +147,15 @@ Invoke-QuickerAgentBitifulUpload `
     -ExpectedSemVer $semver `
     -PublishDir $PSScriptRoot
 
+Invoke-LlmPublishConfigBitifulUploadAuto `
+    -RepoRoot $RepoRoot `
+    -PublishDir $PSScriptRoot | Out-Null
+
 Write-Host ''
 Write-Host "Bitiful upload OK ($semver)." -ForegroundColor Green
 Write-Host "  Setup: $(Get-QuickerAgentBitifulSetupUrl -Version $semver)" -ForegroundColor Cyan
 Write-Host "  version.txt: $(Get-QuickerAgentBitifulVersionTxtUrl)" -ForegroundColor Cyan
 Write-Host "  latest.json: $(Get-QuickerAgentBitifulLatestJsonUrl)" -ForegroundColor Cyan
+Write-Host "  llm-publish.config.json: $(Get-QuickerAgentBitifulLlmPublishConfigUrl)" -ForegroundColor Cyan
 
 exit 0

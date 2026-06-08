@@ -5,6 +5,7 @@ import {
   maskLlmApiKey,
   parseLlmProbeConfigSource,
   parseLlmProbeMethod,
+  formatLlmEndpointProbeFullMessage,
 } from "@/lib/llm-endpoint-probe-core";
 
 describe("llm-endpoint-probe helpers", () => {
@@ -24,6 +25,17 @@ describe("llm-endpoint-probe helpers", () => {
     assert.equal(parseLlmProbeConfigSource("publish"), "publish");
     assert.equal(parseLlmProbeConfigSource(undefined), "all");
     assert.equal(parseLlmProbeMethod("chat"), "chat");
+    assert.equal(parseLlmProbeMethod("full"), "full");
     assert.equal(parseLlmProbeMethod("models"), "models");
+  });
+
+  it("formats full probe message", () => {
+    assert.equal(
+      formatLlmEndpointProbeFullMessage(
+        { ok: true, latencyMs: 100, message: "10 models" },
+        { ok: false, latencyMs: 500, status: 502, message: "HTTP 502" },
+      ),
+      "models: 10 models | chat: HTTP 502",
+    );
   });
 });

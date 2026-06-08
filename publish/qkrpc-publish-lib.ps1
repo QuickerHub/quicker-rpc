@@ -248,6 +248,12 @@ function Import-BitifulEnvFromFiles {
     Import-DotEnvFile -Path (Join-Path $PublishDir '.env.bitiful')
 }
 
+function Import-PublishSecretsFromFiles {
+    param([string]$PublishDir = '')
+
+    Import-BitifulEnvFromFiles -PublishDir $PublishDir
+}
+
 function Test-BitifulConfigured {
     return -not [string]::IsNullOrWhiteSpace($env:BITIFUL_ACCESS_KEY) -and
         -not [string]::IsNullOrWhiteSpace($env:BITIFUL_SECRET_KEY) -and
@@ -653,6 +659,264 @@ function Invoke-VoiceAsrBitifulUpload {
     else {
         & python @versionArgs | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "Bitiful version.txt upload failed ($LASTEXITCODE)" }
+    }
+}
+
+function Get-QuickerAgentBitifulLlmPublishConfigUrl {
+    return "$(Get-QuickerAgentBitifulDownloadPrefix)/llm-publish.config.json"
+}
+
+function Resolve-LlmPublishConfigUploadPath {
+    param(
+        [string]$RepoRoot = '',
+        [string]$ConfigPath = ''
+    )
+
+    if ($ConfigPath -and (Test-Path -LiteralPath $ConfigPath)) {
+        return (Resolve-Path -LiteralPath $ConfigPath -ErrorAction Stop).Path
+    }
+
+    if (-not $RepoRoot) {
+        $RepoRoot = Split-Path -Parent $PSScriptRoot
+    }
+
+    $localPath = Join-Path $RepoRoot 'agent-gui/llm-publish.config.json'
+    if (Test-Path -LiteralPath $localPath) {
+        return (Resolve-Path -LiteralPath $localPath -ErrorAction Stop).Path
+    }
+
+    return $null
+}
+
+function Write-BundledLlmConfigToPublishFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$OutputPath
+    )
+
+    $inline = $env:BUNDLED_LLM_CONFIG
+    if ([string]::IsNullOrWhiteSpace($inline)) {
+        return $false
+    }
+
+    try {
+        $config = $inline.Trim() | ConvertFrom-Json
+    }
+    catch {
+        throw "BUNDLED_LLM_CONFIG is not valid JSON: $($_.Exception.Message)"
+    }
+
+    $endpoints = @($config.endpoints)
+    if ($endpoints.Count -eq 0) {
+        throw 'BUNDLED_LLM_CONFIG must contain at least one endpoint.'
+    }
+
+    $valid = 0
+    foreach ($entry in $endpoints) {
+        $apiKey = [string]$entry.apiKey
+        if (-not [string]::IsNullOrWhiteSpace($apiKey)) {
+            $valid++
+        }
+    }
+
+    if ($valid -eq 0) {
+        throw 'BUNDLED_LLM_CONFIG has endpoints but none include a non-empty apiKey.'
+    }
+
+    $json = $config | ConvertTo-Json -Depth 32
+    $dir = Split-Path -Parent $OutputPath
+    if ($dir -and -not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+
+    Set-Content -LiteralPath $OutputPath -Value $json -Encoding utf8NoBOM
+    return $true
+}
+
+function New-EncryptedLlmPublishConfigUploadPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PlainConfigPath,
+
+        [string]$RepoRoot = ''
+    )
+
+    if (-not $RepoRoot) {
+        $RepoRoot = Split-Path -Parent $PSScriptRoot
+    }
+
+    $encryptScript = Join-Path $RepoRoot 'agent-gui/scripts/encrypt-remote-publish-config.mjs'
+    if (-not (Test-Path -LiteralPath $encryptScript)) {
+        throw "encrypt-remote-publish-config.mjs not found: $encryptScript"
+    }
+
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+        throw 'node not found (required to encrypt llm-publish.config.json for Bitiful upload).'
+    }
+
+    $tempDir = Join-Path $env:TEMP "qkrpc-llm-publish-enc-$([Guid]::NewGuid().ToString('N'))"
+    New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+    $encryptedPath = Join-Path $tempDir 'llm-publish.config.json'
+
+    if ([string]::IsNullOrWhiteSpace($env:LLM_REMOTE_PUBLISH_CIPHER_PEPPER)) {
+        throw 'LLM_REMOTE_PUBLISH_CIPHER_PEPPER is not set. Add it to publish/.env or sync GitHub publish environment secret.'
+    }
+
+    & node $encryptScript $PlainConfigPath $encryptedPath
+    if ($LASTEXITCODE -ne 0) {
+        Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        throw "encrypt-remote-publish-config.mjs failed with exit code $LASTEXITCODE"
+    }
+
+    return @{
+        Path    = $encryptedPath
+        TempDir = $tempDir
+    }
+}
+
+function Invoke-LlmPublishConfigBitifulUpload {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ConfigPath,
+
+        [string]$PublishDir = '',
+        [string]$RepoRoot = ''
+    )
+
+    if (-not $PublishDir) {
+        $PublishDir = $PSScriptRoot
+    }
+
+    if (-not $RepoRoot) {
+        $RepoRoot = Split-Path -Parent $PublishDir
+    }
+
+    if (-not (Test-Path -LiteralPath $ConfigPath)) {
+        throw "llm publish config not found: $ConfigPath"
+    }
+
+    if (-not (Test-BitifulConfigured)) {
+        throw 'Bitiful credentials not configured (BITIFUL_ACCESS_KEY, BITIFUL_SECRET_KEY, BITIFUL_BUCKET_NAME).'
+    }
+
+    $uploadScript = Join-Path $PublishDir 'bitiful_upload.py'
+    if (-not (Test-Path -LiteralPath $uploadScript)) {
+        throw "bitiful_upload.py not found: $uploadScript"
+    }
+
+    $endpointUrl = if ([string]::IsNullOrWhiteSpace($env:BITIFUL_ENDPOINT_URL)) {
+        'https://s3.bitiful.net'
+    }
+    else {
+        $env:BITIFUL_ENDPOINT_URL.Trim()
+    }
+
+    $objectPrefix = if ([string]::IsNullOrWhiteSpace($env:BITIFUL_OBJECT_PREFIX)) {
+        'quicker-rpc/quicker-agent'
+    }
+    else {
+        $env:BITIFUL_OBJECT_PREFIX.Trim()
+    }
+
+    $resolved = (Resolve-Path -LiteralPath $ConfigPath -ErrorAction Stop).Path
+    $encrypted = New-EncryptedLlmPublishConfigUploadPath -PlainConfigPath $resolved -RepoRoot $RepoRoot
+
+    try {
+        $commonArgs = @(
+            $uploadScript, $encrypted.Path,
+            '--asset',
+            '--endpoint-url', $endpointUrl,
+            '--object-prefix', $objectPrefix
+        )
+
+        if (Get-Command uv -ErrorAction SilentlyContinue) {
+            & uv run --no-sync --with boto3 python @commonArgs
+        }
+        elseif (Get-Command python -ErrorAction SilentlyContinue) {
+            & python -m pip install --disable-pip-version-check --quiet boto3
+            if ($LASTEXITCODE -ne 0) {
+                throw 'Failed to install boto3. Install uv (recommended) or pip install boto3.'
+            }
+            & python @commonArgs
+        }
+        else {
+            throw 'Neither uv nor python found. Install uv (recommended) or Python 3 with pip.'
+        }
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Bitiful llm-publish.config.json upload failed with exit code $LASTEXITCODE"
+        }
+    }
+    finally {
+        if ($encrypted.TempDir) {
+            Remove-Item -LiteralPath $encrypted.TempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    Write-Host "Uploaded encrypted llm-publish.config.json -> $(Get-QuickerAgentBitifulLlmPublishConfigUrl)" -ForegroundColor Green
+}
+
+function Invoke-LlmPublishConfigBitifulUploadAuto {
+    param(
+        [string]$RepoRoot = '',
+        [string]$ConfigPath = '',
+        [string]$PublishDir = '',
+        [switch]$Required
+    )
+
+    if (-not $PublishDir) {
+        $PublishDir = $PSScriptRoot
+    }
+
+    Import-PublishSecretsFromFiles -PublishDir $PublishDir
+
+    if (-not (Test-BitifulConfigured)) {
+        if ($Required) {
+            throw 'Bitiful credentials not configured (BITIFUL_ACCESS_KEY, BITIFUL_SECRET_KEY, BITIFUL_BUCKET_NAME).'
+        }
+
+        Write-Warning 'Bitiful credentials not configured; skipped llm-publish.config.json upload.'
+        return $false
+    }
+
+    if ([string]::IsNullOrWhiteSpace($env:LLM_REMOTE_PUBLISH_CIPHER_PEPPER)) {
+        if ($Required) {
+            throw 'LLM_REMOTE_PUBLISH_CIPHER_PEPPER is not set (publish/.env or GitHub publish environment).'
+        }
+
+        Write-Warning 'LLM_REMOTE_PUBLISH_CIPHER_PEPPER not configured; skipped encrypted llm-publish.config.json upload.'
+        return $false
+    }
+
+    $resolvedPath = Resolve-LlmPublishConfigUploadPath -RepoRoot $RepoRoot -ConfigPath $ConfigPath
+    $tempDir = $null
+
+    if (-not $resolvedPath) {
+        $tempDir = Join-Path $env:TEMP "qkrpc-llm-publish-$([Guid]::NewGuid().ToString('N'))"
+        New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+        $resolvedPath = Join-Path $tempDir 'llm-publish.config.json'
+        if (-not (Write-BundledLlmConfigToPublishFile -OutputPath $resolvedPath)) {
+            if ($tempDir) {
+                Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+
+            if ($Required) {
+                throw 'llm-publish.config.json not found and BUNDLED_LLM_CONFIG is empty.'
+            }
+
+            Write-Host 'No llm-publish.config.json or BUNDLED_LLM_CONFIG; skipped Bitiful publish config upload.' -ForegroundColor DarkGray
+            return $false
+        }
+    }
+
+    try {
+        Invoke-LlmPublishConfigBitifulUpload -ConfigPath $resolvedPath -PublishDir $PublishDir
+        return $true
+    }
+    finally {
+        if ($tempDir) {
+            Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 

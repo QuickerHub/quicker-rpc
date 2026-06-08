@@ -123,6 +123,7 @@ jobs:
   build-agent:
     runs-on: windows-latest
     needs: metadata
+    environment: publish
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -180,6 +181,7 @@ jobs:
           BUNDLED_LLM_CONFIG: ${{ secrets.BUNDLED_LLM_CONFIG }}
           BUNDLED_LLM_BINGLEIMUZI_API_KEY: ${{ secrets.BUNDLED_LLM_BINGLEIMUZI_API_KEY }}
           BUNDLED_LLM_AI98PRO_API_KEY: ${{ secrets.BUNDLED_LLM_AI98PRO_API_KEY }}
+          LLM_REMOTE_PUBLISH_CIPHER_PEPPER: ${{ secrets.LLM_REMOTE_PUBLISH_CIPHER_PEPPER }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           AGENT_GUI_DEFAULT_CWD: ${{ github.workspace }}
@@ -213,6 +215,7 @@ jobs:
       - metadata
       - build-cli
       - build-agent
+    environment: publish
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -331,3 +334,27 @@ jobs:
           - Object key: ``$objectKey``
           - URL: $objectUrl
           "@
+
+      - name: Upload llm-publish.config.json to Bitiful
+        if: steps.bitiful.outputs.configured == 'true'
+        shell: pwsh
+        env:
+          BUNDLED_LLM_CONFIG: ${{ secrets.BUNDLED_LLM_CONFIG }}
+          LLM_REMOTE_PUBLISH_CIPHER_PEPPER: ${{ secrets.LLM_REMOTE_PUBLISH_CIPHER_PEPPER }}
+          BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}
+          BITIFUL_SECRET_KEY: ${{ secrets.BITIFUL_SECRET_KEY }}
+          BITIFUL_BUCKET_NAME: ${{ secrets.BITIFUL_BUCKET_NAME }}
+          BITIFUL_ENDPOINT_URL: ${{ vars.BITIFUL_ENDPOINT_URL }}
+          BITIFUL_OBJECT_PREFIX: ${{ vars.BITIFUL_OBJECT_PREFIX }}
+        run: |
+          python -m pip install --disable-pip-version-check --quiet boto3
+          . ./publish/qkrpc-publish-lib.ps1
+          $uploaded = Invoke-LlmPublishConfigBitifulUploadAuto -PublishDir ./publish
+          if ($uploaded) {
+            $configUrl = "$(Get-QuickerAgentBitifulLlmPublishConfigUrl)"
+            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value @"
+          - llm-publish.config.json -> ``$configUrl``
+          "@
+          } else {
+            Write-Warning 'Skipped llm-publish.config.json Bitiful upload (no BUNDLED_LLM_CONFIG or local file).'
+          }

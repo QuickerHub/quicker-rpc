@@ -48,6 +48,14 @@ type BuiltinGroupDisplayRow = {
   endpointCount: number;
 };
 
+type RemotePublishConfigStatus = {
+  cached: boolean;
+  refreshing: boolean;
+  fetchedAt: string;
+  sourceUrl: string;
+  endpointCount: number;
+};
+
 type LlmSettingsResponse = {
   storagePath: string;
   sponsors?: Partial<Record<LlmProviderId, LlmBuiltinSponsor>>;
@@ -55,6 +63,7 @@ type LlmSettingsResponse = {
   profiles: PublicProfile[];
   activeSelection?: string;
   builtinGroups?: BuiltinGroupDisplayRow[];
+  remotePublishConfig?: RemotePublishConfigStatus;
 };
 
 type ProfileDraft = {
@@ -369,6 +378,7 @@ export function LlmKeysSettingsSection({
   const [profileEdits, setProfileEdits] = useState<Record<string, ProfileDraft>>({});
   const [expandedProfileId, setExpandedProfileId] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [refreshingRemoteConfig, setRefreshingRemoteConfig] = useState(false);
   const profilesRef = useRef<HTMLElement | null>(null);
   const profileItemRefs = useRef<Record<string, HTMLElement | null>>({});
 
@@ -619,6 +629,39 @@ export function LlmKeysSettingsSection({
     }
   };
 
+  const formatRemoteConfigFetchedAt = (iso: string): string => {
+    if (!iso.trim()) return "尚未拉取";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return iso;
+    return date.toLocaleString();
+  };
+
+  const handleRefreshRemotePublishConfig = async () => {
+    setRefreshingRemoteConfig(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/settings/llm-keys/refresh-remote", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const body = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+        remotePublishConfig?: RemotePublishConfigStatus;
+      } | null;
+      if (!res.ok || !body?.ok) {
+        throw new Error(body?.error ?? res.statusText);
+      }
+      await loadSettings();
+      await probeBuiltinModels();
+      window.dispatchEvent(new CustomEvent(LLM_KEYS_UPDATED_EVENT));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRefreshingRemoteConfig(false);
+    }
+  };
+
   const handleDeleteProfile = async (profileId: string) => {
     setSavingProfileId(profileId);
     setError(null);
@@ -661,7 +704,28 @@ export function LlmKeysSettingsSection({
               <span className="ws-settings-group-title">内置模型</span>
               <span className="ws-settings-group-desc">
                 以下模型为热心网友赞助，开箱可用，无需填写 Key。
+                {status?.remotePublishConfig
+                  ? ` 启动时会自动从 OSS 拉取最新 endpoint 配置（上次：${formatRemoteConfigFetchedAt(status.remotePublishConfig.fetchedAt)}，${status.remotePublishConfig.endpointCount} 个 endpoint）。`
+                  : ""}
               </span>
+              {status?.remotePublishConfig && (
+                <div className="app-settings-action-row">
+                  <button
+                    type="button"
+                    className="app-settings-action"
+                    disabled={
+                      disabled
+                      || refreshingRemoteConfig
+                      || status.remotePublishConfig.refreshing
+                    }
+                    onClick={() => void handleRefreshRemotePublishConfig()}
+                  >
+                    {refreshingRemoteConfig || status.remotePublishConfig.refreshing
+                      ? "正在拉取…"
+                      : "拉取最新内置配置"}
+                  </button>
+                </div>
+              )}
             </div>
             <ul className="llm-config-list" aria-label="内置模型">
               {(status?.builtinGroups?.length

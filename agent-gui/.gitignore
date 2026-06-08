@@ -14,6 +14,7 @@ llm-config.json
 llm-publish.config.json
 llm-dev.config.json
 llm-bundled-secrets.json
+llm-remote-cipher-pepper.json
 
 # UI-saved LLM API keys (local only)
 .local/

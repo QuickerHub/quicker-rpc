@@ -9,7 +9,14 @@ export type LlmProbeConfigSource =
   | "auto"
   | "all";
 
-export type LlmProbeMethod = "models" | "chat";
+export type LlmProbeMethod = "models" | "chat" | "full";
+
+export type LlmEndpointProbeCheck = {
+  ok: boolean;
+  latencyMs: number;
+  status?: number;
+  message: string;
+};
 
 export type LlmEndpointProbeTarget = {
   id: string;
@@ -29,6 +36,10 @@ export type LlmEndpointProbeRow = Omit<LlmEndpointProbeTarget, "apiKey"> & {
   method: LlmProbeMethod;
   status?: number;
   message: string;
+  /** Populated when method is "full". */
+  models?: LlmEndpointProbeCheck;
+  /** Populated when method is "full". */
+  chat?: LlmEndpointProbeCheck;
 };
 
 export type LlmEndpointProbeSummary = {
@@ -130,7 +141,17 @@ export function parseLlmProbeConfigSource(
 export function parseLlmProbeMethod(
   raw: string | null | undefined,
 ): LlmProbeMethod {
-  return raw?.trim().toLowerCase() === "chat" ? "chat" : "models";
+  const value = raw?.trim().toLowerCase();
+  if (value === "chat") return "chat";
+  if (value === "full") return "full";
+  return "models";
+}
+
+export function formatLlmEndpointProbeFullMessage(
+  models: LlmEndpointProbeCheck,
+  chat: LlmEndpointProbeCheck,
+): string {
+  return `models: ${models.message} | chat: ${chat.message}`;
 }
 
 async function probeModels(
@@ -258,18 +279,57 @@ async function probeChat(
   }
 }
 
+async function probeFull(
+  target: LlmEndpointProbeTarget,
+  modelsTimeoutMs: number,
+  chatTimeoutMs: number,
+): Promise<{
+  ok: boolean;
+  latencyMs: number;
+  status?: number;
+  message: string;
+  models: LlmEndpointProbeCheck;
+  chat: LlmEndpointProbeCheck;
+}> {
+  const models = await probeModels(target, modelsTimeoutMs);
+  const model = target.model?.trim();
+  const chat = model
+    ? await probeChat(target, chatTimeoutMs)
+    : {
+        ok: false,
+        latencyMs: 0,
+        message: "skipped: no model",
+      };
+
+  return {
+    ok: models.ok && chat.ok,
+    latencyMs: models.latencyMs + chat.latencyMs,
+    status: chat.status ?? models.status,
+    message: formatLlmEndpointProbeFullMessage(models, chat),
+    models,
+    chat,
+  };
+}
+
 export async function probeLlmEndpointTarget(
   target: LlmEndpointProbeTarget,
-  options?: { method?: LlmProbeMethod; timeoutMs?: number },
+  options?: {
+    method?: LlmProbeMethod;
+    timeoutMs?: number;
+    chatTimeoutMs?: number;
+  },
 ): Promise<LlmEndpointProbeRow> {
   const method = options?.method ?? "models";
   const timeoutMs = options?.timeoutMs ?? 12_000;
-  const result = method === "chat"
-    ? await probeChat(target, timeoutMs)
-    : await probeModels(target, timeoutMs);
+  const chatTimeoutMs = options?.chatTimeoutMs ?? Math.max(timeoutMs, 90_000);
+  const result = method === "full"
+    ? await probeFull(target, timeoutMs, chatTimeoutMs)
+    : method === "chat"
+      ? await probeChat(target, timeoutMs)
+      : await probeModels(target, timeoutMs);
 
   const { apiKey: _apiKey, ...publicTarget } = target;
-  return {
+  const row: LlmEndpointProbeRow = {
     ...publicTarget,
     ok: result.ok,
     latencyMs: result.latencyMs,
@@ -277,6 +337,11 @@ export async function probeLlmEndpointTarget(
     status: result.status,
     message: result.message,
   };
+  if (method === "full" && "models" in result && "chat" in result) {
+    row.models = result.models;
+    row.chat = result.chat;
+  }
+  return row;
 }
 
 export function buildLlmProbeSummary(
@@ -308,6 +373,7 @@ export async function runLlmEndpointProbeReport(options: {
   source: LlmProbeConfigSource;
   method: LlmProbeMethod;
   timeoutMs: number;
+  chatTimeoutMs?: number;
   concurrency?: number;
   includeAutoModels?: boolean;
   listTargets: (source: LlmProbeConfigSource) => LlmEndpointProbeTarget[];
@@ -318,7 +384,11 @@ export async function runLlmEndpointProbeReport(options: {
     timeoutMs,
     listTargets,
   } = options;
-  const concurrency = Math.max(1, options.concurrency ?? 4);
+  const chatTimeoutMs = options.chatTimeoutMs ?? Math.max(timeoutMs, 90_000);
+  const concurrency = Math.max(
+    1,
+    method === "full" ? 1 : (options.concurrency ?? 4),
+  );
   const includeAutoModels = options.includeAutoModels
     ?? (source === "all" || source === "merged" || source === "auto");
 
@@ -326,10 +396,11 @@ export async function runLlmEndpointProbeReport(options: {
     targets: readonly LlmEndpointProbeTarget[],
     probeMethod: LlmProbeMethod,
     probeTimeoutMs: number,
+    probeChatTimeoutMs: number,
   ): Promise<LlmEndpointProbeRow[]> => {
     const filtered = targets.filter((target) => {
-      if (probeMethod !== "chat") return true;
-      return Boolean(target.model?.trim());
+      if (probeMethod === "chat") return Boolean(target.model?.trim());
+      return true;
     });
     const out: LlmEndpointProbeRow[] = [];
     for (let i = 0; i < filtered.length; i += concurrency) {
@@ -338,6 +409,7 @@ export async function runLlmEndpointProbeReport(options: {
         batch.map((target) => probeLlmEndpointTarget(target, {
           method: probeMethod,
           timeoutMs: probeTimeoutMs,
+          chatTimeoutMs: probeChatTimeoutMs,
         })),
       );
       out.push(...batchRows);
@@ -353,15 +425,17 @@ export async function runLlmEndpointProbeReport(options: {
       listTargets("auto"),
       "chat",
       Math.max(timeoutMs, 25_000),
+      chatTimeoutMs,
     );
     autoModels = rows;
   } else {
-    rows = await probeRows(listTargets(source), method, timeoutMs);
+    rows = await probeRows(listTargets(source), method, timeoutMs, chatTimeoutMs);
     if (includeAutoModels) {
       autoModels = await probeRows(
         listTargets("auto"),
         "chat",
         Math.max(timeoutMs, 25_000),
+        chatTimeoutMs,
       );
     }
   }

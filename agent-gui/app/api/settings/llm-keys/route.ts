@@ -37,6 +37,10 @@ import {
   listBuiltinGroupDisplayRows,
   resolveMergedBuiltinDisplayModel,
 } from "@/lib/llm-builtin-display";
+import {
+  getRemotePublishConfigStatus,
+  scheduleRemotePublishConfigRefreshOnStartup,
+} from "@/lib/llm-remote-publish-config";
 
 export const dynamic = "force-dynamic";
 
@@ -113,14 +117,18 @@ function providerConfigStatus(id: LlmProviderId): ProviderConfigStatus {
 
 export async function GET() {
   return withReleasePreviewRoute(async () => {
+  scheduleRemotePublishConfigRefreshOnStartup();
   const secrets = loadLlmLocalSecrets();
   const direct = secrets.directApiKey;
   const activeSelection = getStoredActiveSelection();
   const sponsors = resolveBuiltinModelSponsors();
   const builtinGroups = listBuiltinGroupDisplayRows();
+  const remotePublishConfig = getRemotePublishConfigStatus();
+
   return Response.json({
     storagePath: resolveLlmSecretsPath(),
     sponsors,
+    ...(remotePublishConfig ? { remotePublishConfig } : {}),
     providers: Object.fromEntries(
       USER_PROVIDER_UI.map((spec) => [spec.id, providerConfigStatus(spec.id)]),
     ),

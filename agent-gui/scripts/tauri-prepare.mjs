@@ -13,6 +13,7 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareBundledLlmRuntime } from "./embed-bundled-llm-secrets.mjs";
+import { prepareRemoteCipherPepper } from "./embed-remote-cipher-pepper.mjs";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(agentGuiRoot, "..");
@@ -248,6 +249,7 @@ function stageNextStandalone() {
   cpSync(join(agentGuiRoot, ".env.example"), join(appDir, ".env.example"));
 
   prepareBundledLlmRuntime(appDir);
+  prepareRemoteCipherPepper(appDir);
   ensureNextStandaloneRuntimes(appDir);
   patchStandaloneServerEntry(appDir);
 

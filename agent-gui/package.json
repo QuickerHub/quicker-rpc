@@ -33,7 +33,7 @@
     "browser:dev-server": "node browser-runtime/server.mjs",
     "browser:install": "playwright install msedge",
     "probe:llm-configs": "tsx scripts/probe-llm-configs.ts",
-    "probe:publish-config": "tsx scripts/probe-llm-configs.ts -- --source publish",
+    "probe:publish-config": "tsx scripts/probe-llm-configs.ts -- --source publish --method full",
     "dev:smoke": "node scripts/frontend-smoke.mjs",
     "dev:heal-loop": "node scripts/dev-heal-loop.mjs",
     "prebuild": "pnpm docs:gen"
