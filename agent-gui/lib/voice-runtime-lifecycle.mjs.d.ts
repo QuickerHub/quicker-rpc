@@ -21,6 +21,7 @@ export function trackVoiceRuntimeChild(
   meta?: Record<string, unknown>,
 ): void;
 export function stopTrackedVoiceRuntime(agentGuiRoot: string, child: ChildProcess): void;
+export function stopVoiceRuntime(agentGuiRoot: string): void;
 export function ensureVoiceRuntime(
   agentGuiRoot: string,
   host: string,
