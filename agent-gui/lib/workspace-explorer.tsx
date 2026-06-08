@@ -724,7 +724,9 @@ export function WorkspaceExplorerPanelProvider({
         const roots = await fetchActionExplorerTree(activeCwd, { depth: "roots" });
         if (cancelled) return;
         if (roots.ok) {
-          applyTreeUpdateRef.current(roots.tree, roots.subprogramTree);
+          if (treeHydratedForCwdRef.current !== activeCwd) {
+            applyTreeUpdateRef.current(roots.tree, roots.subprogramTree);
+          }
           treeRootsLoadedForCwdRef.current = activeCwd;
           setTreeChildrenLoading(false);
         } else {
