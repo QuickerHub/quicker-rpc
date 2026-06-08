@@ -110,7 +110,7 @@ export async function downloadPendingOfficialUpdate(
   return update;
 }
 
-const UPDATE_INSTALL_RELEASE_DELAY_MS = 1500;
+const UPDATE_INSTALL_RELEASE_DELAY_MS = 3000;
 
 async function prepareForUpdateInstall(): Promise<void> {
   try {

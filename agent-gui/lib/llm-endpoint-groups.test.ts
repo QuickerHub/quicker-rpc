@@ -5,6 +5,7 @@ import {
   mergeLlmEndpointGroupsConfigs,
   overlayLlmEndpointGroupsConfigs,
   parseLlmEndpointGroupsConfig,
+  pruneOrphanLlmGroupDefs,
   resolveGroupModel,
 } from "@/lib/llm-endpoint-groups";
 import { mergeDevAndPublishEndpoints } from "@/lib/llm-publish-config";
@@ -178,4 +179,27 @@ test("mergeDevAndPublishEndpoints prefers dev before publish", () => {
   ];
   const merged = mergeDevAndPublishEndpoints(dev, publish);
   assert.deepEqual(merged, [dev[0], publish[0]]);
+});
+
+test("pruneOrphanLlmGroupDefs drops groups without endpoints", () => {
+  const config = parseLlmEndpointGroupsConfig({
+    version: 2,
+    groups: {
+      gpt55: { label: "OpenAI", model: "gpt-5.5" },
+      deepseek: { label: "DeepSeek", model: "deepseek-v4-pro" },
+    },
+    endpoints: [
+      {
+        group: "gpt55",
+        apiKey: "sk-a",
+        baseURL: "https://proxy/v1",
+        model: "gpt-5.5",
+      },
+    ],
+  });
+
+  const pruned = pruneOrphanLlmGroupDefs(config);
+  assert.equal(pruned.groups.has("gpt55"), true);
+  assert.equal(pruned.groups.has("deepseek"), false);
+  assert.equal(pruned.endpointsByGroup.get("gpt55")?.length, 1);
 });

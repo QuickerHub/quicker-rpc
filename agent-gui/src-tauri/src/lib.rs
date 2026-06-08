@@ -133,8 +133,8 @@ fn find_port(host: &str, start: u16) -> Result<u16, String> {
     Err(format!("no free port from {start} on {host}"))
 }
 
-/// Keep bundled UI on 3000 when possible — localStorage is origin-scoped (127.0.0.1:port).
-const UI_PORT_PREFERRED: u16 = 3000;
+/// Installed QuickerAgent prefers 3001 so browser dev can keep 3000; origin is port-scoped.
+const UI_PORT_PREFERRED: u16 = 3001;
 
 fn resolve_ui_port(host: &str) -> Result<u16, String> {
     if TcpListener::bind((host, UI_PORT_PREFERRED)).is_ok() {
@@ -143,7 +143,7 @@ fn resolve_ui_port(host: &str) -> Result<u16, String> {
     eprintln!(
         "[startup] port {UI_PORT_PREFERRED} busy; using next free port — chat auto-restore may merge LevelDB from other origins"
     );
-    find_port(host, UI_PORT_PREFERRED)
+    find_port(host, UI_PORT_PREFERRED.saturating_add(1))
 }
 
 /// Reuse an existing qkrpc serve when /health already responds on the default port.

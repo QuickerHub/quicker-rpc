@@ -3,12 +3,18 @@
 ; Old builds may leave qkrpc serve running after exit (external serve reuse, no job object).
 ; Bundled node.exe must be released too; NSIS default only kills quicker-agent.exe.
 
-!macro KillBundledNodeUnderInstDir
-  DetailPrint "Ensuring bundled node.exe is not running under $INSTDIR..."
-  StrCpy $9 "$INSTDIR\resources\node\node.exe"
-  StrCpy $R0 'powershell -NoProfile -WindowStyle Hidden -Command "Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { $$_.Path -ieq ''$9'' } | Stop-Process -Force -ErrorAction SilentlyContinue"'
+!macro KillBundledNodeOnce
+  StrCpy $R0 'powershell -NoProfile -WindowStyle Hidden -Command "& { param($$d) Get-CimInstance Win32_Process -Filter \"Name=''node.exe''\" -EA 0 | Where-Object { $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$d, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -EA 0 } } -d ''$9''"'
   ExecWait $R0 $8
-  Sleep 1000
+  Sleep 1500
+!macroend
+
+!macro KillBundledNodeUnderInstDir
+  StrCpy $9 "$INSTDIR\resources\node"
+  DetailPrint "Ensuring bundled node is not running under $9..."
+  !insertmacro KillBundledNodeOnce
+  !insertmacro KillBundledNodeOnce
+  !insertmacro KillBundledNodeOnce
 !macroend
 
 !macro KillQkrpcBeforeInstall
@@ -19,15 +25,20 @@
 !macro KillQuickerAgentBeforeInstall
   DetailPrint "Stopping QuickerAgent before install..."
   !insertmacro CheckIfAppIsRunning "quicker-agent.exe" "QuickerAgent"
+  Sleep 2000
   !insertmacro KillBundledNodeUnderInstDir
 !macroend
 
 !macro NSIS_HOOK_PREINSTALL
   !insertmacro KillQkrpcBeforeInstall
   !insertmacro KillQuickerAgentBeforeInstall
+  ; Skip locked files (e.g. bundled node.exe) instead of Abort/Retry/Ignore dialog.
+  SetOverwrite try
+  DetailPrint "Overwrite mode: try (locked files are skipped silently)"
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
   !insertmacro KillQkrpcBeforeInstall
   !insertmacro KillQuickerAgentBeforeInstall
+  SetOverwrite try
 !macroend

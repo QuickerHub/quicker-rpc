@@ -193,6 +193,19 @@ export function parseLlmEndpointGroupsConfig(raw: unknown): LlmEndpointGroupsCon
   return { groups, endpointsByGroup };
 }
 
+/** Drop group defs with no endpoints (stale publish config entries). */
+export function pruneOrphanLlmGroupDefs(
+  config: LlmEndpointGroupsConfig,
+): LlmEndpointGroupsConfig {
+  const groups = new Map(config.groups);
+  for (const groupId of groups.keys()) {
+    if (!(config.endpointsByGroup.get(groupId)?.length ?? 0)) {
+      groups.delete(groupId);
+    }
+  }
+  return { groups, endpointsByGroup: config.endpointsByGroup };
+}
+
 /** Flat endpoints without explicit groups — infer one group per provider. */
 export function inferLlmEndpointGroupsConfig(
   endpoints: readonly LlmEndpointConfig[],

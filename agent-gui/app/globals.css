@@ -2777,6 +2777,87 @@ html.sidebar-collapsed-init .app-shell {
   margin-top: 0.45rem;
 }
 
+.llm-profile-models-field {
+  gap: 0.35rem;
+}
+
+.llm-profile-models-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.llm-profile-models-load {
+  flex-shrink: 0;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.66rem;
+}
+
+.llm-profile-models-hint {
+  margin: 0;
+  font-size: 0.64rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.llm-profile-models-error {
+  margin: 0;
+}
+
+.llm-profile-models-filter {
+  font-size: 0.68rem;
+}
+
+.llm-profile-models-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  max-height: 11rem;
+  overflow: auto;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid var(--composer-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--composer-input-bg) 92%, transparent);
+}
+
+.llm-profile-models-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.12rem 0.15rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.llm-profile-models-item:hover {
+  background: var(--hover-overlay);
+}
+
+.llm-profile-models-checkbox {
+  width: 0.875rem;
+  height: 0.875rem;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--composer-send-bg);
+  cursor: pointer;
+}
+
+.llm-profile-models-item-label {
+  min-width: 0;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.66rem;
+}
+
+.llm-profile-models-summary {
+  margin: 0;
+  font-size: 0.62rem;
+  color: var(--muted);
+}
+
 .llm-settings-add-btn {
   align-self: flex-start;
   margin-top: 0.15rem;

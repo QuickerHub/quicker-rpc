@@ -133,8 +133,8 @@ function isDeepSeekPublishEndpoint(endpoint, defaults) {
   return model.startsWith("deepseek");
 }
 
-/** @param {unknown} raw */
-function readPublishGroups(raw) {
+/** @param {unknown} raw @param {ReadonlySet<string>} referencedGroupIds */
+function readPublishGroups(raw, referencedGroupIds) {
   if (typeof raw !== "object" || raw === null) return null;
   const groups = /** @type {Record<string, unknown>} */ (raw).groups;
   if (typeof groups !== "object" || groups === null) return null;
@@ -143,6 +143,7 @@ function readPublishGroups(raw) {
   for (const [groupId, defRaw] of Object.entries(groups)) {
     const id = groupId.trim();
     if (!id || typeof defRaw !== "object" || defRaw === null) continue;
+    if (referencedGroupIds && !referencedGroupIds.has(id)) continue;
     const data = /** @type {Record<string, unknown>} */ (defRaw);
     /** @type {Record<string, unknown>} */
     const def = {};
@@ -243,7 +244,12 @@ function resolvePublishEndpoints({ gptOnly = false } = {}) {
 function stageBundledLlmConfig(outputDir, endpoints, allEndpoints) {
   const defaults = readExampleDefaults();
   const publishRaw = readPublishConfigRaw();
-  const publishGroups = readPublishGroups(publishRaw);
+  const referencedGroups = new Set(
+    allEndpoints
+      .map((ep) => ep.group?.trim())
+      .filter((groupId) => Boolean(groupId)),
+  );
+  const publishGroups = readPublishGroups(publishRaw, referencedGroups);
 
   /** @type {Record<string, unknown>} */
   let config;

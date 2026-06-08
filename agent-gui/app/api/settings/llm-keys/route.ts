@@ -255,11 +255,15 @@ export async function PUT(req: Request) {
     const raw = body.createProfile;
     try {
       createCustomProfile({
-        title: raw.title ?? "Custom",
+        ...(typeof raw.title === "string" && raw.title.trim()
+          ? { title: raw.title.trim() }
+          : {}),
         apiKey: raw.apiKey ?? "",
         baseURL: raw.baseURL ?? "",
         models: raw.models ?? [],
-        description: raw.description,
+        ...(typeof raw.description === "string" && raw.description.trim()
+          ? { description: raw.description.trim() }
+          : {}),
         defaultModel: raw.defaultModel,
         hidden: raw.hidden,
       });

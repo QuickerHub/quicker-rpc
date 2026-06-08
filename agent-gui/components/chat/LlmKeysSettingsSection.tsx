@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BuiltinModelSponsorLine } from "@/components/chat/BuiltinModelSponsorLine";
 import { ProfileBaseUrlField } from "@/components/chat/ProfileBaseUrlField";
+import { ProfileModelsField } from "@/components/chat/ProfileModelsField";
 import {
   getLlmProviderMeta,
   type LlmProviderId,
@@ -71,7 +72,7 @@ type ProfileDraft = {
   description: string;
   apiKey: string;
   baseURL: string;
-  modelsText: string;
+  selectedModels: string[];
   defaultModel: string;
 };
 
@@ -80,16 +81,9 @@ const EMPTY_PROFILE_DRAFT: ProfileDraft = {
   description: "",
   apiKey: "",
   baseURL: "https://api.openai.com/v1",
-  modelsText: "",
+  selectedModels: [],
   defaultModel: "",
 };
-
-function parseModelsText(raw: string): string[] {
-  return raw
-    .split(/[\n,]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
 
 type BuiltinProviderProbe = {
   checking: boolean;
@@ -182,6 +176,8 @@ type ProfileEditorFieldsProps = {
   disabled: boolean;
   keyStatus?: ProviderKeyStatus;
   idPrefix: string;
+  profileId?: string;
+  showTitleFields?: boolean;
 };
 
 function ProfileEditorFields({
@@ -190,36 +186,50 @@ function ProfileEditorFields({
   disabled,
   keyStatus,
   idPrefix,
+  profileId,
+  showTitleFields = false,
 }: ProfileEditorFieldsProps) {
   const set = (patch: Partial<ProfileDraft>) => onChange({ ...edit, ...patch });
-  const modelOptions = parseModelsText(edit.modelsText);
+  const modelOptions = edit.selectedModels;
+
+  const setSelectedModels = (selectedModels: string[]) => {
+    let defaultModel = edit.defaultModel;
+    if (defaultModel && !selectedModels.includes(defaultModel)) {
+      defaultModel = selectedModels[0] ?? "";
+    }
+    onChange({ ...edit, selectedModels, defaultModel });
+  };
 
   return (
     <>
-      <label className="ws-settings-field" htmlFor={`${idPrefix}-title`}>
-        <span className="ws-settings-field-label">标题</span>
-        <input
-          id={`${idPrefix}-title`}
-          type="text"
-          className="ws-settings-input"
-          value={edit.title}
-          disabled={disabled}
-          onChange={(e) => set({ title: e.target.value })}
-        />
-      </label>
+      {showTitleFields && (
+        <>
+          <label className="ws-settings-field" htmlFor={`${idPrefix}-title`}>
+            <span className="ws-settings-field-label">标题</span>
+            <input
+              id={`${idPrefix}-title`}
+              type="text"
+              className="ws-settings-input"
+              value={edit.title}
+              disabled={disabled}
+              onChange={(e) => set({ title: e.target.value })}
+            />
+          </label>
 
-      <label className="ws-settings-field" htmlFor={`${idPrefix}-description`}>
-        <span className="ws-settings-field-label">说明</span>
-        <input
-          id={`${idPrefix}-description`}
-          type="text"
-          className="ws-settings-input"
-          value={edit.description}
-          placeholder="可选说明"
-          disabled={disabled}
-          onChange={(e) => set({ description: e.target.value })}
-        />
-      </label>
+          <label className="ws-settings-field" htmlFor={`${idPrefix}-description`}>
+            <span className="ws-settings-field-label">说明</span>
+            <input
+              id={`${idPrefix}-description`}
+              type="text"
+              className="ws-settings-input"
+              value={edit.description}
+              placeholder="可选说明"
+              disabled={disabled}
+              onChange={(e) => set({ description: e.target.value })}
+            />
+          </label>
+        </>
+      )}
 
       <ProfileBaseUrlField
         idPrefix={idPrefix}
@@ -228,18 +238,34 @@ function ProfileEditorFields({
         onChange={(baseURL) => set({ baseURL })}
       />
 
-      <label className="ws-settings-field" htmlFor={`${idPrefix}-models`}>
-        <span className="ws-settings-field-label">Models</span>
-        <textarea
-          id={`${idPrefix}-models`}
-          className="ws-settings-input ws-settings-textarea"
-          rows={3}
-          value={edit.modelsText}
-          placeholder={"gpt-4o-mini\ngpt-4o\nclaude-3-5-sonnet"}
+      <label className="ws-settings-field" htmlFor={`${idPrefix}-apiKey`}>
+        <span className="ws-settings-field-label">API Key</span>
+        <input
+          id={`${idPrefix}-apiKey`}
+          type="password"
+          className="ws-settings-input"
+          value={edit.apiKey}
+          placeholder={
+            keyStatus?.configured && !edit.apiKey
+              ? keyStatus.masked ?? "已配置（留空保持不变）"
+              : "sk-…"
+          }
+          autoComplete="off"
           disabled={disabled}
-          onChange={(e) => set({ modelsText: e.target.value })}
+          onChange={(e) => set({ apiKey: e.target.value })}
         />
       </label>
+
+      <ProfileModelsField
+        idPrefix={idPrefix}
+        baseURL={edit.baseURL}
+        apiKey={edit.apiKey}
+        profileId={profileId}
+        keyConfigured={keyStatus?.configured}
+        selectedModels={edit.selectedModels}
+        onSelectedModelsChange={setSelectedModels}
+        disabled={disabled}
+      />
 
       <label className="ws-settings-field" htmlFor={`${idPrefix}-defaultModel`}>
         <span className="ws-settings-field-label">默认 Model</span>
@@ -268,24 +294,6 @@ function ProfileEditorFields({
             onChange={(e) => set({ defaultModel: e.target.value })}
           />
         )}
-      </label>
-
-      <label className="ws-settings-field" htmlFor={`${idPrefix}-apiKey`}>
-        <span className="ws-settings-field-label">API Key</span>
-        <input
-          id={`${idPrefix}-apiKey`}
-          type="password"
-          className="ws-settings-input"
-          value={edit.apiKey}
-          placeholder={
-            keyStatus?.configured && !edit.apiKey
-              ? keyStatus.masked ?? "已配置（留空保持不变）"
-              : "sk-…"
-          }
-          autoComplete="off"
-          disabled={disabled}
-          onChange={(e) => set({ apiKey: e.target.value })}
-        />
       </label>
     </>
   );
@@ -528,7 +536,7 @@ export function LlmKeysSettingsSection({
       description: profile.description ?? "",
       apiKey: "",
       baseURL: profile.baseURL,
-      modelsText: profile.models.join("\n"),
+      selectedModels: [...profile.models],
       defaultModel: profile.defaultModel ?? profile.models[0] ?? "",
     };
   };
@@ -549,14 +557,18 @@ export function LlmKeysSettingsSection({
     setSavedProfileId(null);
     const prevIds = new Set(profiles.map((p) => p.id));
     try {
-      const models = parseModelsText(profileDraft.modelsText);
+      const models = profileDraft.selectedModels;
       const res = await fetch("/api/settings/llm-keys", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           createProfile: {
-            title: profileDraft.title,
-            description: profileDraft.description || undefined,
+            ...(profileDraft.title.trim()
+              ? { title: profileDraft.title.trim() }
+              : {}),
+            ...(profileDraft.description.trim()
+              ? { description: profileDraft.description.trim() }
+              : {}),
             apiKey: profileDraft.apiKey,
             baseURL: profileDraft.baseURL,
             models,
@@ -593,7 +605,7 @@ export function LlmKeysSettingsSection({
     setError(null);
     setSavedProfileId(null);
     try {
-      const models = parseModelsText(edit.modelsText);
+      const models = edit.selectedModels;
       const res = await fetch("/api/settings/llm-keys", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -691,7 +703,7 @@ export function LlmKeysSettingsSection({
       <header className="app-settings-section-head app-settings-section-head--inline">
         <h2 className="app-settings-section-title">模型与 API Key</h2>
         <p className="app-settings-section-hint">
-          内置 OpenAI 与 DeepSeek 开箱可用。下方可管理多个自定义 endpoint 配置，保存后在模型菜单中按标题选择。
+          内置 OpenAI 与 DeepSeek 开箱可用。下方可添加自定义 endpoint，保存后在模型菜单中选择。
         </p>
       </header>
 
@@ -762,7 +774,7 @@ export function LlmKeysSettingsSection({
                 {profiles.length > 0 ? ` (${profiles.length})` : ""}
               </span>
               <span className="ws-settings-group-desc">
-                每个配置包含标题、Base URL、API Key，以及同一 endpoint 下可用的多个 model id。
+                填写 Base URL 与 API Key，加载模型列表并勾选启用；未填标题时将自动命名。
               </span>
             </div>
 
@@ -827,6 +839,7 @@ export function LlmKeysSettingsSection({
                             onChange={(next) => setProfileDraftFor(profile.id, next)}
                             disabled={disabled || saving}
                             keyStatus={profile.apiKey}
+                            profileId={profile.id}
                           />
                           <div className="ws-settings-actions">
                             <button

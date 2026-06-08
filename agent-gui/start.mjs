@@ -262,7 +262,8 @@ function listenProbe(port, host) {
 }
 
 async function findAvailablePort(host, preferred) {
-  const base = Number.isFinite(preferred) && preferred > 0 ? preferred : 3000;
+  const base =
+    Number.isFinite(preferred) && preferred > 0 ? preferred : defaultUiPort();
   const maxAttempts = 200;
   for (let offset = 0; offset < maxAttempts; offset++) {
     const port = base + offset;
@@ -276,6 +277,11 @@ async function findAvailablePort(host, preferred) {
     }
   }
   throw new Error(`No available port in range ${base}–${base + maxAttempts - 1} on ${host}`);
+}
+
+function defaultUiPort() {
+  // Dev keeps 3000; production/publish standalone prefers 3001 to avoid dev conflicts.
+  return isDev ? 3000 : 3001;
 }
 
 async function resolveUiPort(host) {
@@ -299,7 +305,9 @@ async function resolveUiPort(host) {
       }
     }
   }
-  const preferred = Number(process.env.AGENT_GUI_PORT?.trim() || "3000");
+  const preferred = Number(
+    process.env.AGENT_GUI_PORT?.trim() || String(defaultUiPort()),
+  );
   if (strictPort) {
     if (!Number.isFinite(preferred) || preferred <= 0) {
       throw new Error(`Invalid AGENT_GUI_PORT: ${process.env.AGENT_GUI_PORT ?? ""}`);
