@@ -1,3 +1,8 @@
+declare module "@/lib/qkrpc-serve-ensure.mjs" {
+  /** Start bundled qkrpc serve when /health is unreachable. Returns true when serve responds. */
+  export function ensureQkrpcServeIfDown(): Promise<boolean>;
+}
+
 declare module "@/lib/voice-runtime-lifecycle.mjs" {
   export type VoiceRuntimeState = {
     pid: number;
