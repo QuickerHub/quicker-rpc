@@ -30,15 +30,23 @@ export type WebSearchEnv = {
   TAVILY_API_KEY?: string;
 };
 
+function readWebSearchEnvFromProcess(): WebSearchEnv {
+  return {
+    WEB_SEARCH_PROVIDER: process.env.WEB_SEARCH_PROVIDER,
+    BRAVE_SEARCH_API_KEY: process.env.BRAVE_SEARCH_API_KEY,
+    WEB_SEARCH_API_KEY: process.env.WEB_SEARCH_API_KEY,
+    TAVILY_API_KEY: process.env.TAVILY_API_KEY,
+  };
+}
+
 /** Resolve provider: explicit env > auto-detect API keys > duckduckgo. */
-export function resolveWebSearchProvider(
-  env: WebSearchEnv = process.env,
-): WebSearchProvider {
-  const forced = normalizeProvider(env.WEB_SEARCH_PROVIDER);
+export function resolveWebSearchProvider(env?: WebSearchEnv): WebSearchProvider {
+  const resolved = env ?? readWebSearchEnvFromProcess();
+  const forced = normalizeProvider(resolved.WEB_SEARCH_PROVIDER);
   if (forced) return forced;
 
-  if (env.TAVILY_API_KEY?.trim()) return "tavily";
-  if (env.BRAVE_SEARCH_API_KEY?.trim() || env.WEB_SEARCH_API_KEY?.trim()) {
+  if (resolved.TAVILY_API_KEY?.trim()) return "tavily";
+  if (resolved.BRAVE_SEARCH_API_KEY?.trim() || resolved.WEB_SEARCH_API_KEY?.trim()) {
     return "brave";
   }
   return "duckduckgo";
