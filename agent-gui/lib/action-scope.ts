@@ -4,14 +4,27 @@ import {
   type UIMessage,
 } from "ai";
 import { parseUserMessageContent } from "@/lib/compose-user-message";
+import { findQkaMarkupMatches, parseQkaRefFromAttrs } from "@/lib/qka-markup";
 import { qkrpcRequestContext } from "@/lib/qkrpc-request-context";
 import { isStructuredToolResult } from "@/lib/tool-result";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const QKA_TAG_RE =
-  /<qka\s+id="([^"]+)"[^>]*>([^<]*)<\/qka>/gi;
+function extractQkaFromText(text: string): ScopedActionRef[] {
+  const refs: ScopedActionRef[] = [];
+  for (const match of findQkaMarkupMatches(text)) {
+    if (match.kind !== "ref") continue;
+    const ref = parseQkaRefFromAttrs(match.attrs, match.innerText);
+    if (!ref) continue;
+    refs.push({
+      id: ref.actionId,
+      title: ref.title,
+      source: "user-tag",
+    });
+  }
+  return refs;
+}
 
 const ACTION_ID_TOOLS = new Set([
   "qkrpc_action_get",
@@ -68,19 +81,6 @@ function readIdFromRecord(record: Record<string, unknown>): string | undefined {
     }
   }
   return undefined;
-}
-
-function extractQkaFromText(text: string): ScopedActionRef[] {
-  const refs: ScopedActionRef[] = [];
-  const re = new RegExp(QKA_TAG_RE.source, "gi");
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(text)) !== null) {
-    const id = match[1]?.trim();
-    if (!id || !isUuid(id)) continue;
-    const title = match[2]?.trim() || undefined;
-    refs.push({ id, title, source: "user-tag" });
-  }
-  return refs;
 }
 
 function extractTagsFromUserText(text: string): ScopedActionRef[] {

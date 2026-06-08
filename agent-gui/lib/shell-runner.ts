@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import { getRequestCwd } from "@/lib/qkrpc-request-context";
@@ -279,8 +278,11 @@ async function runProcess(
 async function materializeInlineScript(
   script: string,
   shell: Exclude<ShellKind, "auto">,
+  workspaceCwd: string,
 ): Promise<{ dir: string; path: string }> {
-  const dir = await mkdtemp(join(tmpdir(), "agent-shell-"));
+  const localShellRoot = join(workspaceCwd, ".local", "shell");
+  await mkdir(localShellRoot, { recursive: true });
+  const dir = await mkdtemp(join(localShellRoot, "run-"));
   const ext =
     shell === "powershell" ? ".ps1"
     : shell === "cmd" ? ".cmd"
@@ -354,7 +356,7 @@ export async function runShellRequest(
   }
 
   if (normalized.script?.trim()) {
-    const materialized = await materializeInlineScript(normalized.script, shell);
+    const materialized = await materializeInlineScript(normalized.script, shell, cwd);
     try {
       const invocation = buildScriptFileInvocation(
         shell,

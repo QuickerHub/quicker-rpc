@@ -1,11 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import {
-  DefaultChatTransport,
-  getToolOrDynamicToolName,
-  isToolOrDynamicToolUIPart,
-} from "ai";
+import { DefaultChatTransport } from "ai";
 import { lastAssistantMessageIsCompleteWithClientResponses } from "@/lib/chat-auto-submit";
 import { ChatToolActionsProvider } from "@/lib/chat-tool-actions";
 import { countPendingAskQuestions } from "@/lib/ask-question-tool";
@@ -27,11 +23,9 @@ import {
   getToolMeta,
   loadStoredEnabledTools,
 } from "@/lib/tool-registry";
-import {
-  buildApprovalDockCopy,
-  extractApprovalTargetId,
-  type PendingToolApproval,
-} from "@/lib/tool-approval-display";
+import { extractApprovalTargetId } from "@/lib/tool-approval-display";
+import { collectPendingApprovals } from "@/lib/collect-pending-approvals";
+import { ApprovalDock } from "@/components/chat/ApprovalDock";
 import {
   findWorkspaceProjectsInTree,
   findWorkspaceSubProgramsInTree,
@@ -57,6 +51,11 @@ import {
   subscribeLauncherBridge,
 } from "@/lib/launcher/launcher-bridge";
 import {
+  dispatchLauncherApprovalResponse,
+  dispatchLauncherToolOutput,
+  registerLauncherSessionHandlers,
+} from "@/lib/launcher/launcher-action-dispatch";
+import {
   queueLauncherSubmit,
   subscribeLauncherSubmit,
   takeLauncherSubmit,
@@ -70,6 +69,7 @@ import {
 } from "@/lib/launcher/launcher-session";
 import { AppSettingsPopup } from "@/components/chat/AppSettingsPopup";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
+import { ChatStoragePortBanner } from "@/components/dev/ChatStoragePortBanner";
 import { ReleasePreviewBanner } from "@/components/dev/ReleasePreviewBanner";
 import { ChatConversationHeader } from "@/components/chat/ChatConversationHeader";
 import { WorkspaceSidePanelTabBar } from "@/components/workspace/WorkspaceSidePanelTabBar";
@@ -88,7 +88,11 @@ import { AppMainWorkspaceSplit } from "@/components/workspace/AppMainWorkspaceSp
 import { EmbeddedBrowserProvider } from "@/lib/embedded-browser-context";
 import { useBrowserPanelMessageSync } from "@/lib/use-browser-panel-message-sync";
 import { WorkspaceMainEditorTabBridgeRegistrar } from "@/components/workspace/WorkspaceMainEditorTabBridgeRegistrar";
-import { useChatStore } from "@/lib/use-chat-store";
+import {
+  isChatStoreHydrated,
+  useChatStore,
+  useIsChatStoreHydrated,
+} from "@/lib/use-chat-store";
 import { ContextUsage } from "./ContextUsage";
 import {
   ComposerMarkupField,
@@ -202,129 +206,6 @@ function formatChatError(error: Error): string {
   return message;
 }
 
-function collectPendingApprovals(
-  messages: AgentUIMessage[],
-): PendingToolApproval[] {
-  const pending: PendingToolApproval[] = [];
-
-  for (const message of messages) {
-    if (message.role !== "assistant") continue;
-    for (const part of message.parts) {
-      if (
-        !isToolOrDynamicToolUIPart(part)
-        || part.state !== "approval-requested"
-        || !("approval" in part)
-        || !part.approval?.id
-      ) {
-        continue;
-      }
-
-      const toolName = getToolOrDynamicToolName(part);
-      const meta = getToolMeta(toolName);
-      pending.push({
-        id: part.approval.id,
-        toolName,
-        label: meta?.label ?? toolName.replace(/^qkrpc_/, "").replace(/_/g, " "),
-        input: "input" in part ? part.input : undefined,
-        destructive: meta?.group === "destructive",
-      });
-    }
-  }
-
-  return pending;
-}
-
-function ApprovalDock({
-  approvals,
-  disabled,
-  workspaceHits,
-  deleteWorkspaceToo,
-  onDeleteWorkspaceTooChange,
-  onApproveAll,
-  onDenyAll,
-}: {
-  approvals: PendingToolApproval[];
-  disabled: boolean;
-  workspaceHits: WorkspaceDeleteProjectHit[];
-  deleteWorkspaceToo: boolean;
-  onDeleteWorkspaceTooChange: (value: boolean) => void;
-  onApproveAll: (options: { deleteWorkspace: boolean }) => void;
-  onDenyAll: () => void;
-}) {
-  const actionWorkspaceHits = workspaceHits.filter((h) => h.kind === "action");
-  const subprogramWorkspaceHits = workspaceHits.filter(
-    (h) => h.kind === "subprogram",
-  );
-  const copy = buildApprovalDockCopy(approvals, {
-    workspaceActionProjectCount: actionWorkspaceHits.length,
-    workspaceSubProgramProjectCount: subprogramWorkspaceHits.length,
-  });
-
-  return (
-    <div
-      className={`approval-hint${copy.destructive ? " approval-hint--destructive" : ""}`}
-      role="group"
-      aria-label={copy.title}
-    >
-      <div className="approval-hint-main">
-        <div className="approval-hint-title">{copy.title}</div>
-        <div className="approval-hint-summary">{copy.summary}</div>
-        {copy.shellCommands && copy.shellCommands.length > 0 ? (
-          <div className="approval-hint-shell-commands" aria-label="待执行的终端命令">
-            {copy.shellCommands.map((command, index) => (
-              <pre
-                key={`${index}-${command.slice(0, 24)}`}
-                className="approval-hint-shell-command"
-              >
-                {command}
-              </pre>
-            ))}
-          </div>
-        ) : null}
-        {copy.workspaceDelete ? (
-          <label className="approval-hint-workspace">
-            <input
-              type="checkbox"
-              checked={deleteWorkspaceToo}
-              disabled={disabled}
-              onChange={(event) => onDeleteWorkspaceTooChange(event.target.checked)}
-            />
-            <span className="approval-hint-workspace-text">
-              {copy.workspaceDelete.checkboxLabel}
-            </span>
-            {copy.workspaceDelete.detail ? (
-              <span className="approval-hint-workspace-detail">
-                {copy.workspaceDelete.detail}
-              </span>
-            ) : null}
-          </label>
-        ) : null}
-      </div>
-      <div className="approval-hint-actions">
-        <button
-          type="button"
-          className={`approval-hint-btn approval-hint-btn--approve${copy.destructive ? " approval-hint-btn--danger" : ""}`}
-          disabled={disabled}
-          onClick={() =>
-            onApproveAll({
-              deleteWorkspace: deleteWorkspaceToo && workspaceHits.length > 0,
-            })}
-        >
-          {copy.approveLabel}
-        </button>
-        <button
-          type="button"
-          className="approval-hint-btn approval-hint-btn--deny"
-          disabled={disabled}
-          onClick={onDenyAll}
-        >
-          {copy.denyLabel}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 type ChatPanelProps = {
   threadId: string;
   initialMessages: AgentUIMessage[];
@@ -371,9 +252,17 @@ function ChatPanel({
   const [chatMode, setChatMode] = useState<ChatMode>(() =>
     ephemeral ? CHAT_MODE_LAUNCHER : loadStoredChatMode(),
   );
-  const [llmSelection, setLlmSelection] = useState(
-    formatLlmSelection({ kind: "builtin", providerId: LLM_PROVIDER_ID }),
-  );
+  const [llmSelection, setLlmSelection] = useState(() => {
+    const fallback = formatLlmSelection({
+      kind: "builtin",
+      providerId: LLM_PROVIDER_ID,
+    });
+    if (typeof window === "undefined") return fallback;
+    const stored = ephemeral
+      ? loadLauncherLlmSelectionRaw()
+      : loadStoredLlmSelectionRaw();
+    return stored ?? fallback;
+  });
   const devExperienceEnabled = useDevExperienceEnabled();
   const { panelOpen } = useWorkspaceExplorerShell();
   const appMainBodyRef = useRef<HTMLDivElement>(null);
@@ -493,6 +382,7 @@ function ChatPanel({
   messagesForPersistRef.current = messages;
 
   const flushThreadPersist = useCallback(() => {
+    if (!isChatStoreHydrated()) return;
     const snapshot = messagesForPersistRef.current;
     lastPersistedRef.current = { threadId, messages: snapshot };
     persistRef.current(threadId, snapshot);
@@ -688,6 +578,8 @@ function ChatPanel({
         error: error?.message ?? null,
         pendingApprovalCount,
         pendingAskQuestionCount,
+        pendingApprovals,
+        workspaceDeleteHits,
       });
     }, 120);
 
@@ -699,6 +591,8 @@ function ChatPanel({
     error,
     pendingApprovalCount,
     pendingAskQuestionCount,
+    pendingApprovals,
+    workspaceDeleteHits,
   ]);
 
   useMessagesScrollportHeight(messagesRef, visible);
@@ -1066,6 +960,21 @@ function ChatPanel({
       workingDirectory,
     ],
   );
+
+  useEffect(() => {
+    if (!ephemeral) return;
+    const sessionId = getLauncherSessionForThread(threadId);
+    if (!sessionId) return;
+    return registerLauncherSessionHandlers(sessionId, {
+      addToolOutput,
+      respondToAllPendingApprovals,
+    });
+  }, [
+    ephemeral,
+    threadId,
+    addToolOutput,
+    respondToAllPendingApprovals,
+  ]);
 
   const qkrpcLoading = ping.status === "loading";
   const agentActivity = useMemo(
@@ -1587,6 +1496,7 @@ function ChatPanel({
 export function Chat() {
   const { store, defaultCwd, defaultCwdProfile, defaultCwdReady, updateStore } =
     useChatStore();
+  const chatStoreHydrated = useIsChatStoreHydrated();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsFocusProviderId, setSettingsFocusProviderId] = useState<
@@ -1668,6 +1578,20 @@ export function Chat() {
       }
       if (message.type === "launcher:session-clear") {
         clearEphemeralLauncherRuns();
+        return;
+      }
+      if (message.type === "launcher:tool-output") {
+        dispatchLauncherToolOutput(message.sessionId, message.payload);
+        return;
+      }
+      if (message.type === "launcher:approval-respond") {
+        dispatchLauncherApprovalResponse(
+          message.sessionId,
+          message.approved,
+          message.deleteWorkspace !== undefined
+            ? { deleteWorkspace: message.deleteWorkspace }
+            : undefined,
+        );
       }
     });
   }, []);
@@ -1740,11 +1664,13 @@ export function Chat() {
                 store={store}
                 onChange={updateStore}
               />
+              <ChatStoragePortBanner store={store} />
               <ReleasePreviewBanner />
               <div className="app-content-row">
                 <div className="app-main-shell">
                   <AppMainWorkspaceSplit>
-                    {getOpenTabThreads(store)
+                    {chatStoreHydrated
+                      && getOpenTabThreads(store)
                       .filter((thread) => thread.id === activeThread.id)
                       .map((thread) => (
                       <ChatPanel

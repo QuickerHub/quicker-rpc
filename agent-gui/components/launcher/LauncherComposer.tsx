@@ -40,6 +40,9 @@ import {
   postLauncherSubmit,
   subscribeLauncherBridge,
 } from "@/lib/launcher/launcher-bridge";
+import type { PendingToolApproval } from "@/lib/tool-approval-display";
+import type { WorkspaceDeleteProjectHit } from "@/lib/workspace-action-project-lookup";
+import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
 import { useChatStore } from "@/lib/use-chat-store";
 import { resolveStoreWorkingDirectory } from "@/lib/chat-store";
 import { LauncherDragRegion } from "@/components/launcher/LauncherDragRegion";
@@ -51,6 +54,8 @@ type LauncherSessionState = {
   error: string | null;
   pendingApprovalCount: number;
   pendingAskQuestionCount: number;
+  pendingApprovals: PendingToolApproval[];
+  workspaceDeleteHits: WorkspaceDeleteProjectHit[];
 };
 
 type LauncherComposerProps = {
@@ -317,6 +322,8 @@ export function LauncherPanel() {
           error: message.error,
           pendingApprovalCount: message.pendingApprovalCount,
           pendingAskQuestionCount: message.pendingAskQuestionCount ?? 0,
+          pendingApprovals: message.pendingApprovals ?? [],
+          workspaceDeleteHits: message.workspaceDeleteHits ?? [],
         };
       });
     });
@@ -341,6 +348,8 @@ export function LauncherPanel() {
       error: null,
       pendingApprovalCount: 0,
       pendingAskQuestionCount: 0,
+      pendingApprovals: [],
+      workspaceDeleteHits: [],
     });
     postLauncherSubmit(text, sessionId, llmSelection);
   }, []);
@@ -348,6 +357,23 @@ export function LauncherPanel() {
   const busy =
     session != null
     && (session.status === "submitted" || session.status === "streaming");
+  const awaitingUserInput =
+    session != null
+    && (session.pendingApprovalCount > 0 || session.pendingAskQuestionCount > 0);
+
+  useMessagesStickScroll(transcriptRef, {
+    visible: session != null,
+    threadId: session?.sessionId ?? "launcher-idle",
+    revision: session
+      ? [
+          session.messages,
+          session.status,
+          session.error,
+          session.pendingApprovalCount,
+          session.pendingAskQuestionCount,
+        ]
+      : [],
+  });
 
   return (
     <div className="launcher-root">
@@ -365,10 +391,13 @@ export function LauncherPanel() {
                 <p className="launcher-transcript-placeholder">正在处理指令…</p>
               ) : null}
               <LauncherTranscript
+                sessionId={session.sessionId}
                 messages={session.messages}
                 status={session.status}
                 error={session.error}
                 pendingApprovalCount={session.pendingApprovalCount}
+                pendingApprovals={session.pendingApprovals}
+                workspaceDeleteHits={session.workspaceDeleteHits}
                 pendingAskQuestionCount={session.pendingAskQuestionCount}
                 workingDirectory={workingDirectory}
                 ping={ping}
@@ -380,7 +409,7 @@ export function LauncherPanel() {
           <LauncherComposer
             onSubmit={handleSubmit}
             agentBusy={busy}
-            disabled={busy}
+            disabled={busy || awaitingUserInput}
           />
         </footer>
       </div>

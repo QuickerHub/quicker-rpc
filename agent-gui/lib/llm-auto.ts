@@ -6,6 +6,10 @@ import {
 import type { LlmModelOption } from "@/lib/llm-options-shared";
 import { CUSTOM_PROVIDER_ID } from "@/lib/llm-providers";
 import { loadMergedBuiltinGroupsConfig } from "@/lib/llm-bundled-secrets";
+import {
+  getStickyAutoModel,
+  setStickyAutoModel,
+} from "@/lib/llm-endpoint-pref";
 import { LLM_AUTO_SELECTION } from "@/lib/llm-selection";
 import {
   LLM_AUTO_MODEL_CANDIDATES,
@@ -38,7 +42,8 @@ export const LLM_AUTO_DESCRIPTION =
 
 export { LLM_AUTO_MODEL_CANDIDATES };
 
-let stickyAutoModelId: string | undefined;
+/** Runtime fallback after a successful chat probe (not persisted). */
+let runtimeStickyAutoModelId: string | undefined;
 
 function resolveAutoCredentialsFromGroupsConfig(): AutoLlmCredentials | undefined {
   const config = loadMergedBuiltinGroupsConfig();
@@ -94,7 +99,28 @@ export function resolveAutoModelCandidates(): string[] {
     primary: resolveAutoPrimaryModel(),
     configured: resolveConfiguredAutoModels(),
   });
-  return reorderAutoModelCandidates(merged, stickyAutoModelId);
+  return reorderAutoModelCandidates(
+    merged,
+    getStickyAutoModel() ?? runtimeStickyAutoModelId,
+  );
+}
+
+export function listAutoModelCandidateIds(): string[] {
+  return mergeAutoModelCandidates({
+    envModel: process.env.LLM_AUTO_MODEL?.trim(),
+    primary: resolveAutoPrimaryModel(),
+    configured: resolveConfiguredAutoModels(),
+  });
+}
+
+export function selectAutoPreferredModel(modelId: string): boolean {
+  const normalized = modelId.trim();
+  if (!normalized) return false;
+  const allowed = listAutoModelCandidateIds();
+  if (!allowed.includes(normalized)) return false;
+  setStickyAutoModel(normalized);
+  runtimeStickyAutoModelId = normalized;
+  return true;
 }
 
 export function buildAutoLlmEndpointChain(): AutoLlmEndpoint[] {
@@ -110,7 +136,7 @@ export function buildAutoLlmEndpointChain(): AutoLlmEndpoint[] {
 export function rememberSuccessfulAutoModel(modelId: string): void {
   const normalized = modelId.trim();
   if (!normalized) return;
-  stickyAutoModelId = normalized;
+  runtimeStickyAutoModelId = normalized;
 }
 
 export function resolveAutoLlmEndpoint(): AutoLlmEndpoint | undefined {
@@ -142,6 +168,7 @@ export function buildAutoModelOption(): LlmModelOption | undefined {
     description: `${LLM_AUTO_DESCRIPTION}${fallbackHint}`,
     modelId,
     configured: true,
+    baseURL: resolveAutoLlmEndpoint()?.baseURL,
     contextLimit: tokens,
     contextLimitSource: source,
   };

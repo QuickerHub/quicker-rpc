@@ -238,11 +238,11 @@ function stageNextStandalone() {
     cpSync(publicSrc, join(appDir, "public"), { recursive: true });
   }
 
-  const docsSrc = join(repoRoot, "docs", "skills", "quicker-authoring");
-  const docsDst = join(appDir, "docs", "skills", "quicker-authoring");
-  if (existsSync(docsSrc)) {
-    mkdirSync(dirname(docsDst), { recursive: true });
-    cpSync(docsSrc, docsDst, { recursive: true });
+  const skillsSrc = join(repoRoot, "docs", "skills");
+  const skillsDst = join(appDir, "docs", "skills");
+  if (existsSync(skillsSrc)) {
+    mkdirSync(dirname(skillsDst), { recursive: true });
+    cpSync(skillsSrc, skillsDst, { recursive: true });
   }
 
   cpSync(join(repoRoot, "version.json"), join(appDir, "version.json"));

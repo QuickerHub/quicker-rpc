@@ -19,8 +19,8 @@ import { isAskQuestionAwaitingInput } from "@/lib/ask-question-tool";
 import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 import {
   aggregateWorkspaceWriteToolLineDiff,
-  formatLineDiffSummary,
   isWorkspaceExplorerFileTool,
+  isWorkspaceFileWriteTool,
   workspaceFileRunningMeta,
 } from "@/lib/workspace-file-tool";
 
@@ -114,8 +114,6 @@ export type MessagePartSegment =
   | { kind: "tool-batch"; items: ToolUiPartAnalysis[] }
   | { kind: "activity-batch"; items: ActivitySegmentItem[] };
 
-const MIN_TOOLS_IN_BATCH = 2;
-
 function isReasoningSegmentStreaming(items: ReasoningSegmentItem[]): boolean {
   return items.some(
     ({ part }) =>
@@ -191,17 +189,9 @@ function flushActivityItemsInOrder(
       continue;
     }
 
-    const toolRun: ToolUiPartAnalysis[] = [];
     while (index < items.length && items[index]!.kind === "tool") {
-      toolRun.push(items[index] as ToolUiPartAnalysis);
+      segments.push({ kind: "tool", item: items[index] as ToolUiPartAnalysis });
       index++;
-    }
-    if (toolRun.length >= MIN_TOOLS_IN_BATCH) {
-      segments.push({ kind: "tool-batch", items: toolRun });
-    } else {
-      for (const tool of toolRun) {
-        segments.push({ kind: "tool", item: tool });
-      }
     }
   }
 }
@@ -300,23 +290,30 @@ export function segmentMessageParts(
 function buildCompletedToolBatchMeta(
   items: ToolUiPartAnalysis[],
   countLabel: string,
-): string {
+): { meta: string; lineDiff: { addLines: number; removeLines: number } | null } {
   const lineDiff = aggregateWorkspaceWriteToolLineDiff(items);
   if (lineDiff) {
-    return `${formatLineDiffSummary(lineDiff)} · 完成`;
+    return { meta: "完成", lineDiff };
   }
-  return `${countLabel} · 完成`;
+  return { meta: `${countLabel} · 完成`, lineDiff: null };
 }
 
 export function buildToolBatchSummary(items: ToolUiPartAnalysis[]): {
   title: string;
   meta: string;
+  lineDiff: { addLines: number; removeLines: number } | null;
   allTerminal: boolean;
   needsAttention: boolean;
 } {
+  const allWriteEdits =
+    items.length > 0
+    && items.every((i) => isWorkspaceFileWriteTool(i.name, i.part.input));
+
   const displayNames = [...new Set(items.map((i) => i.displayName))];
   let title: string;
-  if (displayNames.length === 1) {
+  if (allWriteEdits) {
+    title = "Edited";
+  } else if (displayNames.length === 1) {
     title = displayNames[0]!;
   } else if (displayNames.length === 2) {
     title = `${displayNames[0]}、${displayNames[1]}`;
@@ -336,6 +333,7 @@ export function buildToolBatchSummary(items: ToolUiPartAnalysis[]): {
   ).length;
 
   let meta: string;
+  let lineDiff: { addLines: number; removeLines: number } | null = null;
   if (running > 0) {
     meta = `${running}/${n} 执行中…`;
   } else if (approval > 0) {
@@ -343,13 +341,15 @@ export function buildToolBatchSummary(items: ToolUiPartAnalysis[]): {
   } else if (errors > 0) {
     meta = errors === 1 ? "1 个失败" : `${errors} 个失败`;
   } else {
-    meta = buildCompletedToolBatchMeta(items, `${n} 个`);
+    const completed = buildCompletedToolBatchMeta(items, `${n} 个`);
+    meta = completed.meta;
+    lineDiff = completed.lineDiff;
   }
 
   const allTerminal = items.every((i) => isToolUiPartTerminal(i.state));
   const needsAttention = items.some((i) => i.needsAttention);
 
-  return { title, meta, allTerminal, needsAttention };
+  return { title, meta, lineDiff, allTerminal, needsAttention };
 }
 
 /** Collapse batch UI when every tool finished and none need attention (errors stay open). */
@@ -363,7 +363,7 @@ export function shouldCollapseToolBatchWhenIdle(summary: {
 function buildCompletedExploreBatchMeta(
   items: ActivitySegmentItem[],
   toolItems: ToolUiPartAnalysis[],
-): string {
+): { meta: string; lineDiff: { addLines: number; removeLines: number } | null } {
   const stepCount = items.length;
   const toolCount = toolItems.length;
   const thoughtCount = activityReasoningItems(items).length;
@@ -371,17 +371,18 @@ function buildCompletedExploreBatchMeta(
 
   const lineDiff = aggregateWorkspaceWriteToolLineDiff(toolItems);
   if (lineDiff) {
-    return `${formatLineDiffSummary(lineDiff)} · ${toolLabel} · 完成`;
+    return { meta: `${toolLabel} · 完成`, lineDiff };
   }
   if (thoughtCount > 0) {
-    return `${stepCount} 步 · ${thoughtCount} 思考 · ${toolLabel} · 完成`;
+    return { meta: `${stepCount} 步 · ${thoughtCount} 思考 · ${toolLabel} · 完成`, lineDiff: null };
   }
-  return `${stepCount} 步 · ${toolLabel} · 完成`;
+  return { meta: `${stepCount} 步 · ${toolLabel} · 完成`, lineDiff: null };
 }
 
 export function buildActivityBatchSummary(items: ActivitySegmentItem[]): {
   title: string;
   meta: string;
+  lineDiff: { addLines: number; removeLines: number } | null;
   allTerminal: boolean;
   needsAttention: boolean;
   reasoningStreaming: boolean;
@@ -395,17 +396,23 @@ export function buildActivityBatchSummary(items: ActivitySegmentItem[]): {
   const title = "浏览";
 
   let meta: string;
+  let lineDiff: { addLines: number; removeLines: number } | null = null;
   if (reasoningStreaming && !(toolSummary?.needsAttention)) {
     meta =
       toolSummary && !toolSummary.allTerminal
         ? `思考中… · ${toolSummary.meta}`
         : "思考中…";
+    lineDiff = toolSummary?.lineDiff ?? null;
   } else if (toolSummary?.needsAttention) {
     meta = toolSummary.meta;
+    lineDiff = toolSummary.lineDiff;
   } else if (toolSummary && !toolSummary.allTerminal) {
     meta = toolSummary.meta;
+    lineDiff = toolSummary.lineDiff;
   } else {
-    meta = buildCompletedExploreBatchMeta(items, toolItems);
+    const completed = buildCompletedExploreBatchMeta(items, toolItems);
+    meta = completed.meta;
+    lineDiff = completed.lineDiff;
   }
 
   const allTerminal = toolSummary ? toolSummary.allTerminal : !reasoningStreaming;
@@ -416,6 +423,7 @@ export function buildActivityBatchSummary(items: ActivitySegmentItem[]): {
   return {
     title,
     meta,
+    lineDiff,
     allTerminal,
     needsAttention,
     reasoningStreaming,

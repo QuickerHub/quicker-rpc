@@ -26,7 +26,7 @@ export function formatContextWindow(tokens: number): string {
   return `${tokens} context window`;
 }
 
-function humanizeModelId(modelId: string): string {
+export function humanizeModelId(modelId: string): string {
   const tail = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
   if (/^gpt-[\d.]+$/i.test(tail)) {
     return tail.replace(/^gpt-/i, "GPT-");
@@ -42,16 +42,26 @@ function humanizeModelId(modelId: string): string {
   return formatModelShortLabel(modelId);
 }
 
+/** Profile row: title on the first line, active model on the second. */
+export function getProfilePickerDisplay(
+  profileTitle: string,
+  modelId: string,
+): ModelPickerDisplay {
+  const title = profileTitle.trim();
+  const modelLabel = humanizeModelId(modelId);
+  return {
+    displayName: title || modelLabel,
+    tier: title ? modelLabel : "Medium",
+  };
+}
+
 export function getModelPickerDisplay(
   providerId: LlmProviderId,
   modelId: string,
   profileTitle?: string,
 ): ModelPickerDisplay {
   if (profileTitle?.trim()) {
-    return {
-      displayName: profileTitle.trim(),
-      tier: "Medium",
-    };
+    return getProfilePickerDisplay(profileTitle, modelId);
   }
   const meta = getLlmProviderMeta(providerId);
   if (providerId === CUSTOM_PROVIDER_ID) {

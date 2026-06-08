@@ -107,6 +107,11 @@ import {
 
 } from "@/lib/workspace-program-tool.server";
 
+import {
+  WORKSPACE_FILE_TOOL,
+  WORKSPACE_FILE_TOOL_DEF,
+} from "@/lib/workspace-general-file-tool.server";
+
 import { legacyQuickerToolAliases } from "@/lib/legacy-tool-aliases";
 
 import { formatQkrpcResultForAgent, runQkrpcForTool } from "@/lib/qkrpc";
@@ -188,6 +193,8 @@ export const quickerTools = {
   [QKRPC_WAIT_TOOL]: QKRPC_WAIT_TOOL_DEF,
 
   [WORKSPACE_PROGRAM_TOOL]: WORKSPACE_PROGRAM_TOOL_DEF,
+
+  [WORKSPACE_FILE_TOOL]: WORKSPACE_FILE_TOOL_DEF,
 
   [QKRPC_ACTION_QUERY_TOOL]: QKRPC_ACTION_QUERY_TOOL_DEF,
 

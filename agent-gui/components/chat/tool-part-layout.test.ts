@@ -52,7 +52,7 @@ test("segmentMessageParts keeps reasoning-only runs as reasoning segment", () =>
   );
 });
 
-test("segmentMessageParts keeps multi-tool runs as tool-batch", () => {
+test("segmentMessageParts keeps multi-tool runs as separate tool rows", () => {
   const parts = [
     {
       type: "tool-qkrpc_fa_search",
@@ -72,8 +72,10 @@ test("segmentMessageParts keeps multi-tool runs as tool-batch", () => {
   ] as Parameters<typeof segmentMessageParts>[0];
 
   const segments = segmentMessageParts(parts);
-  assert.equal(segments.length, 2);
-  assert.equal(segments[0]?.kind, "tool-batch");
+  assert.equal(segments.length, 3);
+  assert.equal(segments[0]?.kind, "tool");
+  assert.equal(segments[1]?.kind, "tool");
+  assert.equal(segments[2]?.kind, "text");
 });
 
 test("buildToolBatchSummary aggregates write line diff for pure tool batches", () => {
@@ -128,7 +130,8 @@ test("buildToolBatchSummary aggregates write line diff for pure tool batches", (
     },
   ] as Parameters<typeof buildToolBatchSummary>[0]);
 
-  assert.equal(summary.meta, "+1 -1 · 完成");
+  assert.deepEqual(summary.lineDiff, { addLines: 1, removeLines: 1 });
+  assert.equal(summary.meta, "完成");
 });
 
 test("segmentMessageParts ignores whitespace text between activity parts", () => {
@@ -196,13 +199,14 @@ test("segmentMessageParts merges consecutive activity across whitespace", () => 
     },
   ] as Parameters<typeof segmentMessageParts>[0]);
 
-  assert.equal(segments.length, 6);
+  assert.equal(segments.length, 7);
   assert.equal(segments[0]?.kind, "reasoning");
   assert.equal(segments[1]?.kind, "tool");
   assert.equal(segments[2]?.kind, "reasoning");
   assert.equal(segments[3]?.kind, "tool");
   assert.equal(segments[4]?.kind, "reasoning");
-  assert.equal(segments[5]?.kind, "tool-batch");
+  assert.equal(segments[5]?.kind, "tool");
+  assert.equal(segments[6]?.kind, "tool");
 });
 
 test("segmentMessageParts still splits on substantive assistant text", () => {

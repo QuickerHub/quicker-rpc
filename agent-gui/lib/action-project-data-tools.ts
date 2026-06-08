@@ -1,5 +1,7 @@
 /** Client-safe tool ids / labels (no Node fs imports). */
 
+import { workspaceProgramActionDisplayLabel } from "@/lib/chat-tool-display";
+
 export {
   isActionProjectDataTool,
   isWorkspaceExplorerFileTool,
@@ -9,16 +11,20 @@ export function actionProjectDataToolDisplayName(
   toolName: string,
   input?: unknown,
 ): string | null {
-  if (toolName === "workspace_action_read_data") return "read-data";
-  if (toolName === "workspace_action_write_data") return "write-data";
-  if (toolName === "workspace_action_edit_data") return "edit-data";
+  if (toolName === "workspace_action_read_data") {
+    return workspaceProgramActionDisplayLabel("read_data");
+  }
+  if (toolName === "workspace_action_write_data") {
+    return workspaceProgramActionDisplayLabel("write_data");
+  }
+  if (toolName === "workspace_action_edit_data") {
+    return workspaceProgramActionDisplayLabel("edit_data");
+  }
   if (toolName !== "workspace_program") return null;
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     return null;
   }
   const action = (input as Record<string, unknown>).action;
-  if (action === "read_data") return "read-data";
-  if (action === "write_data") return "write-data";
-  if (action === "edit_data") return "edit-data";
-  return null;
+  if (typeof action !== "string") return null;
+  return workspaceProgramActionDisplayLabel(action);
 }

@@ -8,6 +8,7 @@ import {
   parseAssistantMessageSegments,
 } from "@/lib/action-link-markup";
 import { ActionLinkBar } from "@/components/chat/ActionLinkBar";
+import { AssistantInlineMessage } from "@/components/chat/AssistantInlineMessage";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 
 type AssistantRichMessageProps = {
@@ -45,6 +46,14 @@ export function AssistantRichMessage({
               links={unit.links}
               workingDirectory={workingDirectory}
               onInsertComposerPrompt={onInsertComposerPrompt}
+            />
+          );
+        }
+        if (unit.kind === "inline") {
+          return (
+            <AssistantInlineMessage
+              key={`inline-${index}`}
+              segments={unit.segments}
             />
           );
         }

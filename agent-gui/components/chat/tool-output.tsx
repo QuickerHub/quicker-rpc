@@ -341,7 +341,7 @@ export function formatToolDisplayName(
   const projectsLabel = actionProjectsToolDisplayName(canonical, input);
   if (projectsLabel) return projectsLabel;
   const programLabel = workspaceProgramToolDisplayName(canonical, input);
-  if (programLabel) return programLabel.replace(/-/g, " ");
+  if (programLabel) return programLabel;
   const actionCommandLabel = qkrpcActionCommandDisplayName(
     canonical,
     input,

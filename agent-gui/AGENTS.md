@@ -4,7 +4,7 @@
 
 ## Project overview
 
-Web 聊天界面，通过本机 `qkrpc serve`（`http://127.0.0.1:9477`）或 CLI 子进程与 Quicker 交互。系统提示：`lib/instructions.ts`（**通用 Agent** + 预加载 **action authoring skill**）；Launcher 模式单独定义。写动作能力见 `docs/skills/quicker-authoring/`。
+Web 聊天界面，通过本机 `qkrpc serve`（`http://127.0.0.1:9477`）或 CLI 子进程与 Quicker 交互。系统提示：`lib/instructions.ts`（**通用 Agent** + [agentskills.io](https://agentskills.io/specification) 渐进披露）；Launcher 模式单独定义。Skill 加载：`lib/agent-skills/`；源码 `docs/skills/`；预加载 `quicker-authoring`。
 
 ## Dev environment tips
 

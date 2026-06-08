@@ -1,5 +1,15 @@
 /** Client-safe workspace_program facade helpers (no Node fs imports). */
 
+import {
+  legacyWorkspaceToolDisplayLabel,
+  workspaceProgramActionDisplayLabel,
+} from "@/lib/chat-tool-display";
+import {
+  effectiveGeneralWorkspaceFileToolId,
+  isWorkspaceGeneralFileTool,
+  WORKSPACE_FILE_TOOL,
+} from "@/lib/workspace-general-file-tool";
+
 export const WORKSPACE_PROGRAM_TOOL = "workspace_program";
 
 /** @deprecated Use workspace_program({ action: "diagnostics" }) */
@@ -52,6 +62,7 @@ export function isWorkspaceProgramTool(toolName: string): boolean {
 }
 
 export function isWorkspaceFileTool(toolName: string, input?: unknown): boolean {
+  if (isWorkspaceGeneralFileTool(toolName, input)) return true;
   if (LEGACY_WORKSPACE_FILE_TOOLS.has(toolName)) return true;
   if (toolName !== WORKSPACE_PROGRAM_TOOL) return false;
   const action = readWorkspaceProgramAction(input);
@@ -110,6 +121,9 @@ export function effectiveWorkspaceToolId(
   toolName: string,
   input?: unknown,
 ): string {
+  const general = effectiveGeneralWorkspaceFileToolId(toolName, input);
+  if (general) return general;
+  if (toolName === WORKSPACE_FILE_TOOL) return toolName;
   if (toolName !== WORKSPACE_PROGRAM_TOOL) return toolName;
   const action = readWorkspaceProgramAction(input);
   if (!action) return toolName;
@@ -120,21 +134,10 @@ export function workspaceProgramToolDisplayName(
   toolName: string,
   input?: unknown,
 ): string | null {
-  if (toolName === LEGACY_WORKSPACE_PROJECTS_TOOL) return "projects";
-  if (toolName === LEGACY_WORKSPACE_PATCH_TOOL) return "patch";
-  if (toolName === WORKSPACE_PROGRAM_DIAGNOSTICS_TOOL) return "diagnostics";
-  if (toolName !== WORKSPACE_PROGRAM_TOOL) {
-    if (toolName === "workspace_action_file_read") return "file-read";
-    if (toolName === "workspace_action_file_write") return "file-write";
-    if (toolName === "workspace_action_file_edit") return "file-edit";
-    if (toolName === "workspace_action_file_info") return "file-info";
-    if (toolName === "workspace_action_file_search") return "file-search";
-    if (toolName === "workspace_action_read_data") return "read-data";
-    if (toolName === "workspace_action_write_data") return "write-data";
-    if (toolName === "workspace_action_edit_data") return "edit-data";
-    return null;
-  }
+  const legacy = legacyWorkspaceToolDisplayLabel(toolName);
+  if (legacy) return legacy;
+  if (toolName !== WORKSPACE_PROGRAM_TOOL) return null;
   const action = readWorkspaceProgramAction(input);
   if (!action) return null;
-  return action.replace(/_/g, "-");
+  return workspaceProgramActionDisplayLabel(action);
 }

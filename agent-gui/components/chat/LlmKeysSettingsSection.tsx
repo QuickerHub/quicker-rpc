@@ -10,7 +10,11 @@ import {
 } from "@/lib/llm-providers";
 import type { LlmBuiltinSponsor } from "@/lib/llm-builtin-sponsors";
 import { resolveBuiltinSponsor } from "@/lib/llm-builtin-sponsors";
-import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
+import {
+  dispatchLlmKeysUpdated,
+  LLM_KEYS_UPDATED_EVENT,
+  type LlmKeysUpdatedDetail,
+} from "@/lib/llm-settings-events";
 import { USER_MODEL_SELECTOR_IDS } from "@/lib/llm-user-providers";
 
 type ProviderKeyStatus = {
@@ -40,13 +44,35 @@ type PublicProfile = {
   apiKey: ProviderKeyStatus;
 };
 
+type BuiltinGroupEndpointDisplay = {
+  id: string;
+  baseURL: string;
+  model: string;
+  selected: boolean;
+};
+
+type BuiltinGroupAutoModelDisplay = {
+  id: string;
+  modelId: string;
+  label: string;
+  contextLimit: number;
+  contextLimitLabel: string;
+  selected: boolean;
+  order: number;
+};
+
 type BuiltinGroupDisplayRow = {
   id: string;
+  kind: "builtin" | "auto";
   providerId: LlmProviderId;
   label: string;
   model: string;
+  description?: string;
+  primaryBaseURL?: string;
   sponsor?: LlmBuiltinSponsor;
   endpointCount: number;
+  endpoints: BuiltinGroupEndpointDisplay[];
+  autoModels?: BuiltinGroupAutoModelDisplay[];
 };
 
 type RemotePublishConfigStatus = {
@@ -85,12 +111,21 @@ const EMPTY_PROFILE_DRAFT: ProfileDraft = {
   defaultModel: "",
 };
 
+type BuiltinEndpointProbe = {
+  checking?: boolean;
+  reachable?: boolean;
+  message?: string;
+  latencyMs?: number;
+};
+
 type BuiltinProviderProbe = {
   checking: boolean;
   configured?: boolean;
   reachable?: boolean;
   message?: string;
   latencyMs?: number;
+  endpoints?: Record<string, BuiltinEndpointProbe>;
+  autoModels?: Record<string, BuiltinEndpointProbe>;
 };
 
 type LlmBuiltinProbeResponse = {
@@ -103,6 +138,22 @@ type LlmBuiltinProbeResponse = {
       reachable: boolean;
       message?: string;
       latencyMs?: number;
+      endpoints?: Record<
+        string,
+        {
+          reachable: boolean;
+          message?: string;
+          latencyMs?: number;
+        }
+      >;
+      autoModels?: Record<
+        string,
+        {
+          reachable: boolean;
+          message?: string;
+          latencyMs?: number;
+        }
+      >;
     }
   >;
   providers?: Record<
@@ -131,18 +182,6 @@ function builtinProbeLabel(
   if (probe?.reachable === false) return "不可用";
   if (keyStatus.source === "env") return "环境变量";
   return "检测中…";
-}
-
-function builtinProbeBadgeClass(
-  configured: boolean,
-  probe: BuiltinProviderProbe | undefined,
-): string {
-  if (!configured) return "";
-  if (probe?.checking || probe?.reachable === undefined) {
-    return " llm-config-list-badge--loading";
-  }
-  if (probe.reachable) return " llm-config-list-badge--ok";
-  return " llm-config-list-badge--err";
 }
 
 function builtinProbeDotClass(
@@ -299,7 +338,7 @@ function ProfileEditorFields({
   );
 }
 
-function splitRowProbeLabel(probe: BuiltinProviderProbe | undefined): string {
+function endpointProbeLabel(probe: BuiltinEndpointProbe | undefined): string {
   if (probe?.checking) return "检测中…";
   if (probe?.reachable) {
     return probe.latencyMs != null ? `可用 · ${probe.latencyMs}ms` : "可用";
@@ -308,56 +347,314 @@ function splitRowProbeLabel(probe: BuiltinProviderProbe | undefined): string {
   return "检测中…";
 }
 
+function endpointProbeBadgeClass(
+  probe: BuiltinEndpointProbe | undefined,
+): string {
+  if (probe?.checking || probe?.reachable === undefined) {
+    return " llm-config-list-badge--loading";
+  }
+  if (probe.reachable) return " llm-config-list-badge--ok";
+  return " llm-config-list-badge--err";
+}
+
+function endpointProbeDotClass(probe: BuiltinEndpointProbe | undefined): string {
+  if (probe?.checking || probe?.reachable === undefined) return " loading";
+  if (probe.reachable) return " ok";
+  return " err";
+}
+
+function endpointHostLabel(baseURL: string): string {
+  try {
+    return new URL(baseURL).host;
+  } catch {
+    return baseURL;
+  }
+}
+
+function renderEndpointCardGrid(props: {
+  groupLabel: string;
+  endpoints: BuiltinGroupEndpointDisplay[];
+  probe: BuiltinProviderProbe | undefined;
+  selectingEndpointId: string | null;
+  disabled?: boolean;
+  onSelectEndpoint: (
+    groupId: string,
+    endpointId: string,
+    alreadySelected: boolean,
+  ) => void;
+  groupId: string;
+}) {
+  const {
+    groupLabel,
+    endpoints,
+    probe,
+    selectingEndpointId,
+    disabled,
+    onSelectEndpoint,
+    groupId,
+  } = props;
+
+  if (!endpoints.length) return null;
+
+  return (
+    <ul
+      className="llm-config-endpoint-grid"
+      aria-label={`${groupLabel} endpoint`}
+    >
+      {endpoints.map((endpoint) => {
+        const endpointProbe = probe?.checking
+          ? { checking: true }
+          : probe?.endpoints?.[endpoint.id];
+        const selecting = selectingEndpointId === endpoint.id;
+        return (
+          <li key={endpoint.id} className="llm-config-endpoint-grid-item">
+            <button
+              type="button"
+              className="llm-config-endpoint-card"
+              disabled={disabled || selecting}
+              aria-pressed={endpoint.selected}
+              aria-current={endpoint.selected ? "true" : undefined}
+              title={endpoint.baseURL}
+              onClick={() => onSelectEndpoint(
+                groupId,
+                endpoint.id,
+                endpoint.selected,
+              )}
+            >
+              <span className="llm-config-endpoint-card-head">
+                <span
+                  className={`ping-dot${endpointProbeDotClass(endpointProbe)}`}
+                  title={endpointProbe?.message}
+                />
+                <span className="llm-config-endpoint-card-head-trail">
+                  {endpoint.selected ? (
+                    <span className="llm-config-endpoint-active-tag">当前使用</span>
+                  ) : null}
+                  <span
+                    className={`llm-config-list-badge${endpointProbeBadgeClass(
+                      endpointProbe,
+                    )}`}
+                    title={endpointProbe?.message}
+                  >
+                    {selecting
+                      ? "切换中…"
+                      : endpointProbeLabel(endpointProbe)}
+                  </span>
+                </span>
+              </span>
+              <span className="llm-config-endpoint-card-host">
+                {endpointHostLabel(endpoint.baseURL)}
+              </span>
+              <code className="llm-config-endpoint-card-url">
+                {endpoint.baseURL}
+              </code>
+              <span className="llm-config-endpoint-card-model">
+                {endpoint.model}
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function renderAutoModelCardGrid(props: {
+  autoModels: BuiltinGroupAutoModelDisplay[];
+  probe: BuiltinProviderProbe | undefined;
+  selectingAutoModelId: string | null;
+  disabled?: boolean;
+  onSelectAutoModel: (modelId: string, alreadySelected: boolean) => void;
+}) {
+  const {
+    autoModels,
+    probe,
+    selectingAutoModelId,
+    disabled,
+    onSelectAutoModel,
+  } = props;
+
+  if (!autoModels.length) return null;
+
+  return (
+    <>
+      <p className="llm-config-auto-section-label">候选模型</p>
+      <ul className="llm-config-endpoint-grid" aria-label="Auto 候选模型">
+        {autoModels.map((model) => {
+          const modelProbe = probe?.checking
+            ? { checking: true }
+            : probe?.autoModels?.[model.id];
+          const selecting = selectingAutoModelId === model.id;
+          return (
+            <li key={model.id} className="llm-config-endpoint-grid-item">
+              <button
+                type="button"
+                className="llm-config-endpoint-card llm-config-auto-model-card"
+                disabled={disabled || selecting}
+                aria-pressed={model.selected}
+                aria-current={model.selected ? "true" : undefined}
+                title={model.modelId}
+                onClick={() => onSelectAutoModel(model.id, model.selected)}
+              >
+                <span className="llm-config-endpoint-card-head">
+                  <span
+                    className={`ping-dot${endpointProbeDotClass(modelProbe)}`}
+                    title={modelProbe?.message}
+                  />
+                  <span className="llm-config-endpoint-card-head-trail">
+                    {model.selected ? (
+                      <span className="llm-config-endpoint-active-tag">当前使用</span>
+                    ) : null}
+                    <span
+                      className={`llm-config-list-badge${endpointProbeBadgeClass(
+                        modelProbe,
+                      )}`}
+                      title={modelProbe?.message}
+                    >
+                      {selecting
+                        ? "切换中…"
+                        : endpointProbeLabel(modelProbe)}
+                    </span>
+                  </span>
+                </span>
+                <span className="llm-config-endpoint-card-host">
+                  {model.label}
+                </span>
+                <code className="llm-config-endpoint-card-url">
+                  {model.modelId}
+                </code>
+                <span className="llm-config-endpoint-card-model">
+                  {model.contextLimitLabel}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
 type BuiltinGroupRowProps = {
   group: BuiltinGroupDisplayRow;
   probe: BuiltinProviderProbe | undefined;
+  selectingEndpointId: string | null;
+  selectingAutoModelId: string | null;
+  disabled?: boolean;
+  onSelectEndpoint: (
+    groupId: string,
+    endpointId: string,
+    alreadySelected: boolean,
+  ) => void;
+  onSelectAutoModel: (modelId: string, alreadySelected: boolean) => void;
 };
 
-function BuiltinGroupRow({ group, probe }: BuiltinGroupRowProps) {
+function BuiltinGroupRow({
+  group,
+  probe,
+  selectingEndpointId,
+  selectingAutoModelId,
+  disabled,
+  onSelectEndpoint,
+  onSelectAutoModel,
+}: BuiltinGroupRowProps) {
   const configured = true;
-  const endpointHint =
-    group.endpointCount > 1 ? ` · ${group.endpointCount} 个 endpoint` : "";
+  const isAuto = group.kind === "auto";
+  const selectedAutoModel = group.autoModels?.find((model) => model.selected)
+    ?? group.autoModels?.[0];
+  const selectedEndpoint = group.endpoints.find((endpoint) => endpoint.selected)
+    ?? group.endpoints[0];
+  const selectedProbe = probe?.checking
+    ? { checking: true }
+    : isAuto && selectedAutoModel
+      ? probe?.autoModels?.[selectedAutoModel.id]
+      : selectedEndpoint
+        ? probe?.endpoints?.[selectedEndpoint.id]
+        : undefined;
 
   return (
-    <li className="llm-config-list-item">
+    <li className="llm-config-list-item llm-config-list-item--builtin-group">
       <div
-        className="llm-config-list-row llm-config-list-row--static llm-config-list-row--builtin"
+        className={`llm-config-list-row llm-config-list-row--static llm-config-list-row--builtin${
+          isAuto ? " llm-config-list-row--auto" : ""
+        }`}
         aria-label={group.label}
       >
         <span
-          className={`ping-dot${builtinProbeDotClass(configured, probe)}`}
-          title={probe?.message}
+          className={`ping-dot${builtinProbeDotClass(
+            configured,
+            selectedProbe
+              ? {
+                  checking: selectedProbe.checking,
+                  reachable: selectedProbe.reachable,
+                }
+              : probe,
+          )}`}
+          title={selectedProbe?.message ?? probe?.message}
         />
-        <div className="llm-config-list-main llm-config-list-main--inline">
+        <div
+          className={`llm-config-list-main${
+            isAuto ? "" : " llm-config-list-main--inline"
+          }`}
+        >
           <span className="llm-config-list-title">{group.label}</span>
-          <span className="llm-config-list-inline-sep" aria-hidden>
-            ·
-          </span>
-          <span className="llm-config-list-meta">
-            {group.model}
-            {endpointHint}
-          </span>
-          {group.sponsor && (
+          {isAuto ? (
+            <>
+              {group.description ? (
+                <span className="llm-config-list-meta">{group.description}</span>
+              ) : null}
+              {group.primaryBaseURL ? (
+                <code className="llm-config-auto-baseurl">{group.primaryBaseURL}</code>
+              ) : null}
+            </>
+          ) : (
             <>
               <span className="llm-config-list-inline-sep" aria-hidden>
                 ·
               </span>
-              <BuiltinModelSponsorLine sponsor={group.sponsor} compact />
+              <span className="llm-config-list-meta">{group.model}</span>
+              {group.sponsor && (
+                <>
+                  <span className="llm-config-list-inline-sep" aria-hidden>
+                    ·
+                  </span>
+                  <BuiltinModelSponsorLine sponsor={group.sponsor} compact />
+                </>
+              )}
             </>
           )}
         </div>
         <div className="llm-config-list-trail">
           <span
-            className={`llm-config-list-badge${builtinProbeBadgeClass(
-              configured,
-              probe,
+            className={`llm-config-list-badge${endpointProbeBadgeClass(
+              selectedProbe,
             )}`}
-            title={probe?.message}
+            title={selectedProbe?.message ?? probe?.message}
           >
-            {splitRowProbeLabel(probe)}
+            {endpointProbeLabel(selectedProbe)}
           </span>
         </div>
       </div>
+
+      {isAuto ? renderAutoModelCardGrid({
+        autoModels: group.autoModels ?? [],
+        probe,
+        selectingAutoModelId,
+        disabled,
+        onSelectAutoModel,
+      }) : null}
+
+      {!isAuto && group.endpoints.length > 0 ? (
+        renderEndpointCardGrid({
+          groupLabel: group.label,
+          endpoints: group.endpoints,
+          probe,
+          selectingEndpointId,
+          disabled,
+          onSelectEndpoint,
+          groupId: group.id,
+        })
+      ) : null}
     </li>
   );
 }
@@ -387,8 +684,15 @@ export function LlmKeysSettingsSection({
   const [expandedProfileId, setExpandedProfileId] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [refreshingRemoteConfig, setRefreshingRemoteConfig] = useState(false);
+  const [selectingBuiltinEndpointId, setSelectingBuiltinEndpointId] = useState<
+    string | null
+  >(null);
+  const [selectingAutoModelId, setSelectingAutoModelId] = useState<string | null>(
+    null,
+  );
   const profilesRef = useRef<HTMLElement | null>(null);
   const profileItemRefs = useRef<Record<string, HTMLElement | null>>({});
+  const skipNextBuiltinProbeRef = useRef(false);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -451,6 +755,8 @@ export function LlmKeysSettingsSection({
                   reachable: result?.reachable,
                   message: result?.message,
                   latencyMs: result?.latencyMs,
+                  endpoints: result?.endpoints,
+                  autoModels: result?.autoModels,
                 } satisfies BuiltinProviderProbe,
               ];
             }),
@@ -501,12 +807,18 @@ export function LlmKeysSettingsSection({
 
   useEffect(() => {
     if (!active || !status) return;
+    if (skipNextBuiltinProbeRef.current) {
+      skipNextBuiltinProbeRef.current = false;
+      return;
+    }
     void probeBuiltinModels();
   }, [active, status, probeBuiltinModels]);
 
   useEffect(() => {
     if (!active) return;
-    const onUpdated = () => {
+    const onUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<LlmKeysUpdatedDetail>).detail;
+      if (detail?.stickyEndpointOnly) return;
       void loadSettings();
       void probeBuiltinModels();
     };
@@ -612,8 +924,8 @@ export function LlmKeysSettingsSection({
         body: JSON.stringify({
           updateProfile: {
             id: profile.id,
-            title: edit.title,
-            description: edit.description,
+            ...(edit.title.trim() ? { title: edit.title.trim() } : {}),
+            ...(edit.description.trim() ? { description: edit.description.trim() } : {}),
             baseURL: edit.baseURL,
             models,
             defaultModel: edit.defaultModel || undefined,
@@ -671,6 +983,67 @@ export function LlmKeysSettingsSection({
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setRefreshingRemoteConfig(false);
+    }
+  };
+
+  const handleSelectAutoModel = async (
+    modelId: string,
+    alreadySelected: boolean,
+  ) => {
+    if (alreadySelected) return;
+    setSelectingAutoModelId(modelId);
+    setError(null);
+    try {
+      const res = await fetch("/api/settings/llm-keys", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          selectAutoModel: { modelId },
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? res.statusText);
+      }
+      const data = (await res.json()) as LlmSettingsResponse;
+      skipNextBuiltinProbeRef.current = true;
+      setStatus(data);
+      dispatchLlmKeysUpdated({ stickyEndpointOnly: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSelectingAutoModelId(null);
+    }
+  };
+
+  const handleSelectBuiltinEndpoint = async (
+    groupId: string,
+    endpointId: string,
+    alreadySelected: boolean,
+  ) => {
+    if (alreadySelected) return;
+    setSelectingBuiltinEndpointId(endpointId);
+    setError(null);
+    try {
+      const res = await fetch("/api/settings/llm-keys", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          selectBuiltinEndpoint: { groupId, endpointId },
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? res.statusText);
+      }
+      const data = (await res.json()) as LlmSettingsResponse;
+      skipNextBuiltinProbeRef.current = true;
+      setStatus(data);
+      dispatchLlmKeysUpdated({ stickyEndpointOnly: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSelectingBuiltinEndpointId(null);
     }
   };
 
@@ -745,16 +1118,25 @@ export function LlmKeysSettingsSection({
                 : USER_MODEL_SELECTOR_IDS.map((providerId) => {
                     const meta = getLlmProviderMeta(providerId);
                     const st = status?.providers[providerId];
+                    const baseURL = st?.baseURL ?? meta.defaultBaseURL;
+                    const model = st?.model ?? meta.defaultModel;
                     return {
                       id: providerId,
+                      kind: "builtin",
                       providerId,
                       label: meta.label,
-                      model: st?.model ?? meta.defaultModel,
+                      model,
                       sponsor: resolveBuiltinSponsor(
                         status?.sponsors ?? {},
                         providerId,
                       ),
                       endpointCount: 1,
+                      endpoints: [{
+                        id: `${baseURL}\0${providerId}`,
+                        baseURL,
+                        model,
+                        selected: true,
+                      }],
                     } satisfies BuiltinGroupDisplayRow;
                   })
               ).map((group) => (
@@ -762,6 +1144,19 @@ export function LlmKeysSettingsSection({
                   key={group.id}
                   group={group}
                   probe={builtinGroupProbe[group.id]}
+                  selectingEndpointId={selectingBuiltinEndpointId}
+                  selectingAutoModelId={selectingAutoModelId}
+                  disabled={disabled}
+                  onSelectEndpoint={(groupId, endpointId, alreadySelected) => {
+                    void handleSelectBuiltinEndpoint(
+                      groupId,
+                      endpointId,
+                      alreadySelected,
+                    );
+                  }}
+                  onSelectAutoModel={(modelId, alreadySelected) => {
+                    void handleSelectAutoModel(modelId, alreadySelected);
+                  }}
                 />
               ))}
             </ul>

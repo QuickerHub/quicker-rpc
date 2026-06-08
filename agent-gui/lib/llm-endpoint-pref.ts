@@ -11,6 +11,8 @@ export type StickyLlmEndpoint = {
 type LlmEndpointPrefFile = {
   version: 1;
   providers: Partial<Record<LlmProviderId, StickyLlmEndpoint>>;
+  /** User-selected primary Auto (NVIDIA NIM) model id. */
+  autoPreferredModel?: string;
 };
 
 const EMPTY: LlmEndpointPrefFile = { version: 1, providers: {} };
@@ -55,7 +57,10 @@ function loadPrefsFile(): LlmEndpointPrefFile {
         if (sticky) providers[id as LlmProviderId] = sticky;
       }
     }
-    cache = { version: 1, providers };
+    const autoPreferredModel = typeof data.autoPreferredModel === "string"
+      ? data.autoPreferredModel.trim() || undefined
+      : undefined;
+    cache = { version: 1, providers, autoPreferredModel };
     return cache;
   } catch {
     cache = { ...EMPTY, providers: {} };
@@ -101,6 +106,21 @@ export function setStickyEndpoint(
       ...current.providers,
       [providerId]: nextEndpoint,
     },
+  });
+}
+
+export function getStickyAutoModel(): string | undefined {
+  return loadPrefsFile().autoPreferredModel;
+}
+
+export function setStickyAutoModel(modelId: string): void {
+  const normalized = modelId.trim();
+  if (!normalized) return;
+  const current = loadPrefsFile();
+  if (current.autoPreferredModel === normalized) return;
+  savePrefsFile({
+    ...current,
+    autoPreferredModel: normalized,
   });
 }
 

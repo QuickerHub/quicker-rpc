@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { DefaultWorkingDirectoryProfile } from "@/lib/default-working-directory";
 import type { ChatStoreData } from "@/lib/chat-store";
 import { maybeAutoRestoreChatStoreOnBoot } from "@/lib/chat-store-boot-restore";
@@ -74,6 +80,28 @@ export function ensureChatStoreHydrated(): void {
   startBootAutoRestoreIfNeeded();
 }
 
+/** Whether localStorage has been read (safe to mount ChatPanel / persist). */
+export function isChatStoreHydrated(): boolean {
+  return storeHydrated;
+}
+
+function getHydrationSnapshot(): boolean {
+  return storeHydrated;
+}
+
+function getHydrationServerSnapshot(): boolean {
+  return false;
+}
+
+/** Subscribe to chat-store hydration completing (false until localStorage is read). */
+export function useIsChatStoreHydrated(): boolean {
+  return useSyncExternalStore(
+    subscribeChatStore,
+    getHydrationSnapshot,
+    getHydrationServerSnapshot,
+  );
+}
+
 const listeners = new Set<() => void>();
 
 function subscribeChatStore(onStoreChange: () => void): () => void {
@@ -108,8 +136,10 @@ export function useChatStore() {
     getChatStoreServerSnapshot,
   );
 
-  useEffect(() => {
+  // useLayoutEffect: hydrate before ChatPanel useEffect persist timers fire.
+  useLayoutEffect(() => {
     hydrateChatStoreFromClient();
+    startBootAutoRestoreIfNeeded();
   }, []);
 
   const [defaultCwd, setDefaultCwd] = useState("");

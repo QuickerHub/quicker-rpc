@@ -1,7 +1,12 @@
 import type { PinnedAction } from "@/lib/action-context";
 import { formatActionQkaForModel } from "@/lib/action-qka-prompt";
-import { normalizeActionId } from "@/lib/action-link-markup";
 import { formatActionIdShort } from "@/lib/action-patch-followup";
+import { normalizeActionId } from "@/lib/qka-markup";
+import {
+  findQkaMarkupMatches,
+  parseHtmlAttrs,
+  parseQkaRefFromAttrs,
+} from "@/lib/qka-markup";
 
 /** Stored in chat history; expanded to {@link formatActionQkaForModel} before the model. */
 const ACTION_TAG_RE = new RegExp(
@@ -12,10 +17,7 @@ const ACTION_TAG_RE = new RegExp(
 const QKA_LINK_TAG_RE =
   /<qka-link\s+([^>]*?)(?:\/>|>([\s\S]*?)<\/qka-link>)/gi;
 
-const INLINE_USER_MARKUP_RE = new RegExp(
-  `${ACTION_TAG_RE.source}|${QKA_LINK_TAG_RE.source}`,
-  "gi",
-);
+const INLINE_MARKUP_PROBE_RE = /<qkrpc-action-tag|<qka-link\s|<qka\s/i;
 
 const LEGACY_ACTION_LINE_RE =
   /^\[动作:\s*([^\]]+)\]\s*actionId=([^\s,]+)(?:,\s*lastEdit=([^\n,]+))?/;
@@ -25,23 +27,6 @@ function escapeAttrValue(value: string): string {
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;");
-}
-
-function decodeAttrValue(value: string): string {
-  return value
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, "<")
-    .replace(/&amp;/g, "&");
-}
-
-function parseHtmlAttrs(attrStr: string): Record<string, string> {
-  const attrs: Record<string, string> = {};
-  const attrRe = /([\w-]+)="([^"]*)"/g;
-  let match: RegExpExecArray | null;
-  while ((match = attrRe.exec(attrStr)) !== null) {
-    attrs[match[1]] = decodeAttrValue(match[2]);
-  }
-  return attrs;
 }
 
 function pinnedActionFromTagAttrs(attrs: Record<string, string>): PinnedAction | null {
@@ -118,7 +103,7 @@ export function composeUserMessageDisplay(
 
 /** Expand stored markup to model-facing <qka> tags before convertToModelMessages. */
 export function expandUserMessageForModel(text: string): string {
-  if (!text.includes("<qkrpc-action-tag") && !text.includes("<qka-link")) {
+  if (!INLINE_MARKUP_PROBE_RE.test(text)) {
     return text.trim();
   }
 
@@ -157,33 +142,67 @@ function pinnedActionFromQkaLinkAttrs(
   return { id, title };
 }
 
-function segmentFromInlineMarkupMatch(match: RegExpExecArray): UserMessageSegment | null {
-  if (match[1] !== undefined) {
-    const action = pinnedActionFromTagAttrs(parseHtmlAttrs(match[1]));
-    return action ? { type: "tag", action } : null;
+function pinnedActionFromQkaRef(
+  attrs: Record<string, string>,
+  innerText: string,
+): PinnedAction | null {
+  const ref = parseQkaRefFromAttrs(attrs, innerText);
+  if (!ref) return null;
+  return {
+    id: ref.actionId,
+    title: ref.title,
+    kind: ref.kind === "subprogram" ? "subprogram" : undefined,
+    callIdentifier: ref.callIdentifier,
+  };
+}
+
+type InlineUserMarkupHit = {
+  index: number;
+  length: number;
+  action: PinnedAction;
+};
+
+function findInlineUserMarkupHits(text: string): InlineUserMarkupHit[] {
+  const hits: InlineUserMarkupHit[] = [];
+
+  const tagRe = new RegExp(ACTION_TAG_RE.source, "gi");
+  let tagMatch: RegExpExecArray | null;
+  while ((tagMatch = tagRe.exec(text)) !== null) {
+    const action = pinnedActionFromTagAttrs(parseHtmlAttrs(tagMatch[1]));
+    if (!action) continue;
+    hits.push({
+      index: tagMatch.index,
+      length: tagMatch[0].length,
+      action,
+    });
   }
-  if (match[2] !== undefined) {
-    const action = pinnedActionFromQkaLinkAttrs(
-      parseHtmlAttrs(match[2]),
-      match[3] ?? "",
-    );
-    return action ? { type: "tag", action } : null;
+
+  for (const match of findQkaMarkupMatches(text)) {
+    const action = match.kind === "ref"
+      ? pinnedActionFromQkaRef(match.attrs, match.innerText)
+      : pinnedActionFromQkaLinkAttrs(match.attrs, match.innerText);
+    if (!action) continue;
+    hits.push({
+      index: match.index,
+      length: match.length,
+      action,
+    });
   }
-  return null;
+
+  hits.sort((a, b) => a.index - b.index);
+  return hits;
 }
 
 function parseInlineTagSegments(text: string): UserMessageSegment[] {
   const segments: UserMessageSegment[] = [];
-  const re = new RegExp(INLINE_USER_MARKUP_RE.source, "gi");
+  const hits = findInlineUserMarkupHits(text);
   let last = 0;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(text)) !== null) {
-    if (match.index > last) {
-      segments.push({ type: "text", text: text.slice(last, match.index) });
+  for (const hit of hits) {
+    if (hit.index > last) {
+      segments.push({ type: "text", text: text.slice(last, hit.index) });
     }
-    const segment = segmentFromInlineMarkupMatch(match);
-    if (segment) segments.push(segment);
-    last = match.index + match[0].length;
+    segments.push({ type: "tag", action: hit.action });
+    last = hit.index + hit.length;
   }
   if (last < text.length) {
     segments.push({ type: "text", text: text.slice(last) });
@@ -195,7 +214,7 @@ function parseInlineTagSegments(text: string): UserMessageSegment[] {
 export function parseUserMessageSegments(text: string): UserMessageSegment[] {
   if (!text) return [];
 
-  if (text.includes("<qkrpc-action-tag") || text.includes("<qka-link")) {
+  if (text.includes("<qkrpc-action-tag") || text.includes("<qka-link") || text.includes("<qka")) {
     return parseInlineTagSegments(text);
   }
 
@@ -256,6 +275,7 @@ export function canSendComposedMessage(draft: string): boolean {
 export function hasPasteableUserMessageFormat(text: string): boolean {
   if (text.includes("<qkrpc-action-tag")) return true;
   if (text.includes("<qka-link")) return true;
+  if (text.includes("<qka")) return true;
   return /^\[动作:\s*[^\]]+\]\s*actionId=/m.test(text);
 }
 

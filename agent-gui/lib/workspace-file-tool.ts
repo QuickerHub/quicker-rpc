@@ -10,6 +10,10 @@ import {
 } from "@/lib/file-icon-kind";
 import { isStructuredToolResult } from "@/lib/tool-result";
 import {
+  WORKSPACE_FILE_TOOL,
+  readWorkspaceFileToolAction,
+} from "@/lib/workspace-general-file-tool";
+import {
   effectiveWorkspaceToolId,
   isWorkspaceFileTool as isWorkspaceFileToolName,
   LEGACY_WORKSPACE_FILE_TOOLS,
@@ -699,10 +703,23 @@ export function workspaceFileOpenRowSubtitle(
   return basenamePath(path);
 }
 
+const WORKSPACE_FILE_ACTION_LABELS: Record<string, string> = {
+  read: "读取工作区文件",
+  write: "写入工作区文件",
+  edit: "编辑工作区文件",
+  info: "查看文件信息",
+  search: "搜索文件内容",
+  list: "列出目录文件",
+};
+
 export function workspaceFileToolDisplayName(
   toolName: string,
   input?: unknown,
 ): string | null {
+  if (toolName === WORKSPACE_FILE_TOOL) {
+    const action = readWorkspaceFileToolAction(input);
+    if (action) return WORKSPACE_FILE_ACTION_LABELS[action] ?? null;
+  }
   const actionData = actionProjectDataToolDisplayName(toolName, input);
   if (actionData) return actionData;
   const effective = input !== undefined
@@ -710,15 +727,15 @@ export function workspaceFileToolDisplayName(
     : toolName;
   switch (effective) {
     case "workspace_action_file_read":
-      return "read";
+      return "读取工作区文件";
     case "workspace_action_file_write":
-      return "write";
+      return "写入工作区文件";
     case "workspace_action_file_edit":
-      return "edit";
+      return "编辑工作区文件";
     case "workspace_action_file_info":
-      return "info";
+      return "查看文件信息";
     case "workspace_action_file_search":
-      return "search";
+      return "搜索文件内容";
     default:
       return null;
   }
@@ -781,12 +798,12 @@ export function hasWorkspaceFileChipInChat(
   return hasWorkspaceFileEditorPreviewInChat(toolName, input);
 }
 
-/** Read: folded file chip until expand; write/edit show clamped preview by default. */
+/** Write/edit: collapsed "Edited file +N -M" until expand; read uses read row. */
 export function shouldFoldFileSnapshotInChat(
   toolName: string,
   input?: unknown,
 ): boolean {
-  return isWorkspaceFileReadTool(toolName, input);
+  return hasWorkspaceFileEditorPreviewInChat(toolName, input);
 }
 
 export type WorkspaceFileEditorPreview = {

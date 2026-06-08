@@ -71,10 +71,20 @@ function readPatchTarget(input: unknown): string {
     : "action";
 }
 
+function readActionIdFromRecord(record: Record<string, unknown>): string | undefined {
+  for (const key of ["actionId", "ActionId", "id", "Id", "primaryId"]) {
+    const value = record[key];
+    if (typeof value === "string" && isUuid(value)) {
+      return value.trim().toLowerCase();
+    }
+  }
+  return undefined;
+}
+
 function readActionIdFromPatchInput(input: unknown): string | undefined {
   const root = readRecord(input);
-  const id = root?.id;
-  return typeof id === "string" && isUuid(id) ? id.trim().toLowerCase() : undefined;
+  if (!root) return undefined;
+  return readActionIdFromRecord(root);
 }
 
 function readActionIdFromPatchOutput(output: unknown): string | undefined {
@@ -82,8 +92,8 @@ function readActionIdFromPatchOutput(output: unknown): string | undefined {
   const root = readRecord(output.data);
   if (!root) return undefined;
   const payload = readPayload(root);
-  const id = payload.actionId;
-  return typeof id === "string" && isUuid(id) ? id.trim().toLowerCase() : undefined;
+  if (payload.success === false || payload.ok === false) return undefined;
+  return readActionIdFromRecord(payload) ?? readActionIdFromRecord(root);
 }
 
 function isActionPatchTarget(target: string): boolean {
@@ -100,8 +110,8 @@ export function buildDefaultActionLinks(actionId: string): ParsedActionLink[] {
   }));
 }
 
-/** Action ids already rendered via assistant <qka-link> markup in this turn. */
-export function collectActionLinkIdsFromTurn(messages: UIMessage[]): Set<string> {
+/** Action ids already covered by an explicit <qka-link> bar in this turn. */
+export function collectActionLinkBarIdsFromTurn(messages: UIMessage[]): Set<string> {
   const ids = new Set<string>();
   for (const message of messages) {
     if (message.role !== "assistant") continue;
@@ -115,6 +125,11 @@ export function collectActionLinkIdsFromTurn(messages: UIMessage[]): Set<string>
     }
   }
   return ids;
+}
+
+/** @deprecated use collectActionLinkBarIdsFromTurn — inline <qka> must not suppress cards. */
+export function collectActionLinkIdsFromTurn(messages: UIMessage[]): Set<string> {
+  return collectActionLinkBarIdsFromTurn(messages);
 }
 
 export function parseSuccessfulActionPatchFromToolPart(part: {
@@ -158,7 +173,7 @@ export function resolveTurnActionLinkFallback(
   const patch = findLastSuccessfulActionPatchInTurn(turnMessages);
   if (!patch) return null;
 
-  const linkedIds = collectActionLinkIdsFromTurn(turnMessages);
+  const linkedIds = collectActionLinkBarIdsFromTurn(turnMessages);
   if (linkedIds.has(patch.actionId)) return null;
 
   const links = buildDefaultActionLinks(patch.actionId);

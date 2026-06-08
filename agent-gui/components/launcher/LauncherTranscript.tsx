@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import {
   resolveAgentActivity,
@@ -8,29 +8,52 @@ import {
 } from "@/lib/agent-activity";
 import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
 import { MessageParts } from "@/components/chat/MessageParts";
+import { ApprovalDock } from "@/components/chat/ApprovalDock";
+import { ChatToolActionsProvider } from "@/lib/chat-tool-actions";
+import type { PendingToolApproval } from "@/lib/tool-approval-display";
+import type { WorkspaceDeleteProjectHit } from "@/lib/workspace-action-project-lookup";
+import {
+  postLauncherApprovalRespond,
+  postLauncherToolOutput,
+} from "@/lib/launcher/launcher-bridge";
 import type { PingState } from "@/lib/use-qkrpc-ping";
 
 type LauncherTranscriptProps = {
+  sessionId: string;
   messages: AgentUIMessage[];
   status: string;
   error: string | null;
   pendingApprovalCount: number;
+  pendingApprovals: PendingToolApproval[];
+  workspaceDeleteHits: WorkspaceDeleteProjectHit[];
   pendingAskQuestionCount?: number;
   workingDirectory: string;
   ping: PingState;
 };
 
 export function LauncherTranscript({
+  sessionId,
   messages,
   status,
   error,
   pendingApprovalCount,
-  pendingAskQuestionCount = 0,
+  pendingApprovals,
+  workspaceDeleteHits,
   workingDirectory,
   ping,
 }: LauncherTranscriptProps) {
+  const [deleteWorkspaceToo, setDeleteWorkspaceToo] = useState(false);
   const qkrpcOk = ping.status === "ok";
   const qkrpcLoading = ping.status === "loading";
+
+  const pendingWorkspaceDeleteKey = useMemo(
+    () => workspaceDeleteHits.map((hit) => `${hit.kind}:${hit.id}`).join("\0"),
+    [workspaceDeleteHits],
+  );
+
+  useEffect(() => {
+    setDeleteWorkspaceToo(false);
+  }, [pendingWorkspaceDeleteKey]);
 
   const agentActivity = useMemo(
     () =>
@@ -45,6 +68,14 @@ export function LauncherTranscript({
   );
 
   const busy = status === "submitted" || status === "streaming";
+  const needsUserInput = pendingApprovalCount > 0;
+
+  const addToolOutput = useCallback(
+    (payload: Parameters<typeof postLauncherToolOutput>[1]) => {
+      postLauncherToolOutput(sessionId, payload);
+    },
+    [sessionId],
+  );
 
   const lastVisibleMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -63,8 +94,9 @@ export function LauncherTranscript({
   }, [messages, agentActivity]);
 
   return (
-    <div className="launcher-transcript-inner">
-      {messages.map((message) => (
+    <ChatToolActionsProvider addToolOutput={addToolOutput}>
+      <div className="launcher-transcript-inner">
+        {messages.map((message) => (
           <article
             key={message.id}
             className={`launcher-msg launcher-msg--${message.role}${
@@ -80,38 +112,44 @@ export function LauncherTranscript({
               />
             </div>
           </article>
-      ))}
+        ))}
 
-      {agentActivity ? (
-        <article className="launcher-msg launcher-msg--assistant launcher-msg--activity">
-          <div className="launcher-msg-content">
-            <AgentActivityLine activity={agentActivity} />
+        {agentActivity ? (
+          <article className="launcher-msg launcher-msg--assistant launcher-msg--activity">
+            <div className="launcher-msg-content">
+              <AgentActivityLine activity={agentActivity} />
+            </div>
+          </article>
+        ) : null}
+
+        {pendingApprovals.length > 0 ? (
+          <ApprovalDock
+            approvals={pendingApprovals}
+            disabled={busy}
+            workspaceHits={workspaceDeleteHits}
+            deleteWorkspaceToo={deleteWorkspaceToo}
+            onDeleteWorkspaceTooChange={setDeleteWorkspaceToo}
+            onApproveAll={(options) => {
+              postLauncherApprovalRespond(sessionId, true, options);
+            }}
+            onDenyAll={() => {
+              postLauncherApprovalRespond(sessionId, false);
+            }}
+          />
+        ) : null}
+
+        {error ? (
+          <div className="launcher-error" role="alert">
+            {error}
           </div>
-        </article>
-      ) : null}
+        ) : null}
 
-      {error ? (
-        <div className="launcher-error" role="alert">
-          {error}
-        </div>
-      ) : null}
-
-      {pendingApprovalCount > 0 ? (
-        <p className="launcher-approval-hint" role="status">
-          需在主窗口确认 {pendingApprovalCount} 项操作
-        </p>
-      ) : null}
-      {pendingAskQuestionCount > 0 ? (
-        <p className="launcher-approval-hint" role="status">
-          需在主窗口选择 {pendingAskQuestionCount} 项选项
-        </p>
-      ) : null}
-
-      {!busy && messages.length > 0 && !error ? (
-        <p className="launcher-done-hint" role="status">
-          已完成 · Esc 关闭
-        </p>
-      ) : null}
-    </div>
+        {!busy && messages.length > 0 && !error && !needsUserInput ? (
+          <p className="launcher-done-hint" role="status">
+            已完成 · Esc 关闭
+          </p>
+        ) : null}
+      </div>
+    </ChatToolActionsProvider>
   );
 }

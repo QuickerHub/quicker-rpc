@@ -8,6 +8,7 @@ import {
 import { ReasoningPart } from "./ReasoningPart";
 import { readToolCallId } from "@/lib/workspace-tool-auto-open";
 import { ToolDisclosure } from "./ToolDisclosure";
+import { ToolBatchMeta } from "./ToolBatchMeta";
 import { ToolPart } from "./ToolPart";
 
 type ActivityBatchGroupProps = {
@@ -77,11 +78,13 @@ export function ActivityBatchGroup({
       summary={
         <span className="tool-title">
           <span className="tool-name">{summary.title}</span>
-          <span
-            className={`tool-meta${batchRunning || summary.reasoningStreaming ? " tool-meta--running" : ""}${batchErr ? " tool-meta--err" : ""}${batchApproval ? " tool-meta--approval" : ""}`}
-          >
-            {summary.meta}
-          </span>
+          <ToolBatchMeta
+            meta={summary.meta}
+            lineDiff={summary.lineDiff}
+            running={batchRunning || summary.reasoningStreaming}
+            error={batchErr}
+            approval={batchApproval}
+          />
           <span className="tool-chevron" aria-hidden />
         </span>
       }

@@ -1,5 +1,5 @@
 import type { LlmOptionsResponse } from "@/lib/llm-options-shared";
-import { getModelPickerDisplay } from "@/lib/model-picker-display";
+import { getModelPickerDisplay, getProfilePickerDisplay } from "@/lib/model-picker-display";
 import { CUSTOM_PROVIDER_ID, parseLlmProviderId } from "@/lib/llm-providers";
 import { LLM_AUTO_LABEL, LLM_AUTO_SELECTION, parseLlmSelection } from "@/lib/llm-selection";
 
@@ -22,14 +22,14 @@ export function resolveLlmSelectionLabel(
   if (parsed?.kind === "profile" && optionList) {
     const hit = optionList.find(
       (m) =>
-        m.profileId === parsed.profileId && m.modelId === parsed.modelId,
+        m.kind === "profile"
+        && m.profileId === parsed.profileId,
     );
     if (hit) {
-      return getModelPickerDisplay(
-        hit.providerId ?? CUSTOM_PROVIDER_ID,
-        hit.modelId,
-        hit.label,
-      ).displayName;
+      const modelId = hit.profileModels?.includes(parsed.modelId)
+        ? parsed.modelId
+        : hit.modelId;
+      return getProfilePickerDisplay(hit.label, modelId).displayName;
     }
     return `${parsed.profileId} / ${parsed.modelId}`;
   }

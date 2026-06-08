@@ -36,6 +36,8 @@ import { resolveBuiltinModelSponsors } from "@/lib/llm-builtin-sponsors.server";
 import {
   listBuiltinGroupDisplayRows,
   resolveMergedBuiltinDisplayModel,
+  selectBuiltinAutoModel,
+  selectBuiltinGroupEndpoint,
 } from "@/lib/llm-builtin-display";
 import {
   getRemotePublishConfigStatus,
@@ -169,6 +171,13 @@ type PutBody = {
   providers?: Partial<Record<LlmProviderId, ProviderPatchBody>>;
   directApiKey?: string;
   activeSelection?: string | null;
+  selectBuiltinEndpoint?: {
+    groupId: string;
+    endpointId: string;
+  };
+  selectAutoModel?: {
+    modelId: string;
+  };
   createProfile?: ProfileWriteBody;
   updateProfile?: ProfileWriteBody & { id: string };
   deleteProfileId?: string;
@@ -296,6 +305,39 @@ export async function PUT(req: Request) {
 
   if (typeof body.deleteProfileId === "string" && body.deleteProfileId.trim()) {
     deleteCustomProfile(body.deleteProfileId.trim());
+  }
+
+  if (body.selectBuiltinEndpoint && typeof body.selectBuiltinEndpoint === "object") {
+    const groupId = body.selectBuiltinEndpoint.groupId?.trim();
+    const endpointId = body.selectBuiltinEndpoint.endpointId?.trim();
+    if (!groupId || !endpointId) {
+      return Response.json(
+        { error: "selectBuiltinEndpoint.groupId and endpointId are required" },
+        { status: 400 },
+      );
+    }
+    if (!selectBuiltinGroupEndpoint(groupId, endpointId)) {
+      return Response.json(
+        { error: "Builtin endpoint not found" },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (body.selectAutoModel && typeof body.selectAutoModel === "object") {
+    const modelId = body.selectAutoModel.modelId?.trim();
+    if (!modelId) {
+      return Response.json(
+        { error: "selectAutoModel.modelId is required" },
+        { status: 400 },
+      );
+    }
+    if (!selectBuiltinAutoModel(modelId)) {
+      return Response.json(
+        { error: "Auto model not found" },
+        { status: 400 },
+      );
+    }
   }
 
   const sponsors = resolveBuiltinModelSponsors();

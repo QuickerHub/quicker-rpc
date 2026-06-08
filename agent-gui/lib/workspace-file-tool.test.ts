@@ -352,15 +352,15 @@ test("read tools use collapsible tool summary with expandable code body", () => 
 test("workspace_program sub-actions resolve display names", () => {
   assert.equal(
     workspaceFileToolDisplayName("workspace_program", { action: "file_read" }),
-    "read",
+    "读取工作区文件",
   );
   assert.equal(
     workspaceFileToolDisplayName("workspace_program", { action: "file_write" }),
-    "write",
+    "写入工作区文件",
   );
   assert.equal(
     workspaceFileToolDisplayName("workspace_program", { action: "read_data" }),
-    "read-data",
+    "读取程序数据",
   );
 });
 
@@ -375,9 +375,11 @@ test("isWorkspaceReadDataSummaryResult detects summary payloads", () => {
   );
 });
 
-test("shouldFoldFileSnapshotInChat only for read", () => {
-  assert.equal(shouldFoldFileSnapshotInChat("workspace_action_read_data"), true);
-  assert.equal(shouldFoldFileSnapshotInChat("workspace_action_write_data"), false);
+test("shouldFoldFileSnapshotInChat for write/edit previews", () => {
+  assert.equal(shouldFoldFileSnapshotInChat("workspace_action_read_data"), false);
+  assert.equal(shouldFoldFileSnapshotInChat("workspace_action_write_data"), true);
+  assert.equal(shouldFoldFileSnapshotInChat("workspace_action_edit_data"), true);
+  assert.equal(shouldFoldFileSnapshotInChat("workspace_action_file_edit"), true);
 });
 
 test("formatActionDataJsonPath", () => {

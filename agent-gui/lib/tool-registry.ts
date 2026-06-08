@@ -117,10 +117,17 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
   },
   {
     id: "workspace_program",
-    label: "工作区程序",
+    label: "编辑工作区程序",
     group: "read",
     category: "workspace",
     description: "磁盘编辑程序体：data.json/files → patch 保存（非 run/get）",
+  },
+  {
+    id: "workspace_file",
+    label: "工作区文件",
+    group: "read",
+    category: "workspace",
+    description: "读写 cwd 下普通文件（.local、配置、脚本）；非 Quicker 程序体",
   },
   {
     id: "qkrpc_action_query",
@@ -285,14 +292,14 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
   },
   {
     id: "qkrpc_step_runner_get",
-    label: "步骤模块 schema",
+    label: "查看模块定义",
     group: "read",
     category: "catalog",
     description: "压缩 schema + inputParams 键名（Agent 专用，非 get-ui）",
   },
   {
     id: "qkrpc_fa",
-    label: "图标",
+    label: "查找图标",
     group: "read",
     category: "catalog",
     description: "搜索/解析 fa: 规格（元数据图标，禁止猜）",
@@ -473,7 +480,7 @@ const LEGACY_TOOL_ID_MAP: Record<string, string> = {
   workspace_action_file_search: "workspace_program",
   workspace_program_patch: "workspace_program",
   workspace_program_diagnostics: "workspace_program",
-  workspace_file_list: "workspace_program",
+  workspace_file_list: "workspace_file",
 };
 
 type StoredToolPrefsV1 = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 import { ensureChatStoreHydrated } from "@/lib/use-chat-store";
 
 declare global {
@@ -11,7 +11,7 @@ declare global {
 
 /** Ask inline boot script to fade out the server-rendered splash (React hydration backup). */
 export function AppBootstrapSplash() {
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof window === "undefined") {
       return;
     }

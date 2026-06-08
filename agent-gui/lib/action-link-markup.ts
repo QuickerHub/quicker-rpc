@@ -1,5 +1,18 @@
 /** Assistant summary: clickable Quicker action links rendered in chat. */
 
+import {
+  findQkaMarkupMatches,
+  hasAnyQkaMarkup,
+  normalizeActionId,
+  parseHtmlAttrs,
+  parseQkaRefFromAttrs,
+  type ParsedQkaRef,
+  type QkaRefKind,
+} from "@/lib/qka-markup";
+
+export { normalizeActionId } from "@/lib/qka-markup";
+export type { ParsedQkaRef, QkaRefKind } from "@/lib/qka-markup";
+
 export const ACTION_LINK_OPS = [
   "run",
   "debug",
@@ -18,42 +31,20 @@ export type ParsedActionLink = {
 
 export type AssistantMessageSegment =
   | { type: "text"; text: string }
+  | { type: "ref"; ref: ParsedQkaRef }
   | { type: "link"; link: ParsedActionLink };
+
+export type AssistantInlineSegment =
+  | { type: "text"; text: string }
+  | { type: "ref"; ref: ParsedQkaRef };
 
 export type AssistantRenderUnit =
   | { kind: "markdown"; text: string }
+  | { kind: "inline"; segments: AssistantInlineSegment[] }
   | { kind: "link-bar"; links: ParsedActionLink[] };
 
 /** Whitespace / punctuation between adjacent qka-link tags (not rendered). */
 const LINK_SEPARATOR_RE = /^[\s·•|,，、\-–—]*$/;
-
-const QKA_LINK_RE = /<qka-link\s+([^>]*?)(?:\/>|>([\s\S]*?)<\/qka-link>)/gi;
-
-const GUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function decodeAttrValue(value: string): string {
-  return value
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, "<")
-    .replace(/&amp;/g, "&");
-}
-
-function parseHtmlAttrs(attrStr: string): Record<string, string> {
-  const attrs: Record<string, string> = {};
-  const attrRe = /([\w-]+)="([^"]*)"/g;
-  let match: RegExpExecArray | null;
-  while ((match = attrRe.exec(attrStr)) !== null) {
-    attrs[match[1]] = decodeAttrValue(match[2]);
-  }
-  return attrs;
-}
-
-export function normalizeActionId(id: string): string | null {
-  const trimmed = id.trim().toLowerCase();
-  if (!GUID_RE.test(trimmed)) return null;
-  return trimmed;
-}
 
 const ACTION_LINK_OP_ALIASES: Record<string, ActionLinkOp> = {
   folat: "float",
@@ -149,33 +140,35 @@ export function parseActionLinkFromAttrs(
 }
 
 export function hasAssistantActionLinks(text: string): boolean {
-  return /<qka-link\s/i.test(text);
+  return hasAnyQkaMarkup(text);
 }
 
 export function parseAssistantMessageSegments(
   text: string,
 ): AssistantMessageSegment[] {
-  if (!hasAssistantActionLinks(text)) {
+  if (!hasAnyQkaMarkup(text)) {
     return text ? [{ type: "text", text }] : [];
   }
 
   const segments: AssistantMessageSegment[] = [];
-  const re = new RegExp(QKA_LINK_RE.source, "gi");
   let last = 0;
-  let match: RegExpExecArray | null;
 
-  while ((match = re.exec(text)) !== null) {
+  for (const match of findQkaMarkupMatches(text)) {
     if (match.index > last) {
       segments.push({ type: "text", text: text.slice(last, match.index) });
     }
-    const links = parseActionLinksFromAttrs(
-      parseHtmlAttrs(match[1]),
-      match[2] ?? "",
-    );
-    for (const link of links) {
-      segments.push({ type: "link", link });
+    if (match.kind === "ref") {
+      const ref = parseQkaRefFromAttrs(match.attrs, match.innerText);
+      if (ref) {
+        segments.push({ type: "ref", ref });
+      }
+    } else {
+      const links = parseActionLinksFromAttrs(match.attrs, match.innerText);
+      for (const link of links) {
+        segments.push({ type: "link", link });
+      }
     }
-    last = match.index + match[0].length;
+    last = match.index + match.length;
   }
 
   if (last < text.length) {
@@ -189,7 +182,7 @@ export function isLinkSeparatorText(text: string): boolean {
   return LINK_SEPARATOR_RE.test(text);
 }
 
-/** Group parsed segments into markdown blocks and one horizontal link bar per run. */
+/** Group parsed segments into markdown / inline prose / link bars. */
 export function groupAssistantRenderUnits(
   segments: AssistantMessageSegment[],
 ): AssistantRenderUnit[] {
@@ -219,21 +212,42 @@ export function groupAssistantRenderUnits(
       continue;
     }
 
-    if (seg.type !== "text") {
-      i++;
+    if (seg.type === "text" || seg.type === "ref") {
+      const inline: AssistantInlineSegment[] = [];
+      let hasRef = false;
+      while (i < segments.length) {
+        const cur = segments[i]!;
+        if (cur.type === "link") break;
+        if (cur.type === "ref") {
+          inline.push({ type: "ref", ref: cur.ref });
+          hasRef = true;
+          i++;
+          continue;
+        }
+        if (cur.type === "text") {
+          inline.push({ type: "text", text: cur.text });
+          i++;
+          continue;
+        }
+        break;
+      }
+      if (hasRef) {
+        if (inline.length > 0) {
+          units.push({ kind: "inline", segments: inline });
+        }
+      } else {
+        const text = inline
+          .filter((s): s is { type: "text"; text: string } => s.type === "text")
+          .map((s) => s.text)
+          .join("");
+        if (text.trim()) {
+          units.push({ kind: "markdown", text });
+        }
+      }
       continue;
     }
-    let text = seg.text;
+
     i++;
-    while (i < segments.length) {
-      const next = segments[i]!;
-      if (next.type !== "text") break;
-      text += next.text;
-      i++;
-    }
-    if (text.trim()) {
-      units.push({ kind: "markdown", text });
-    }
   }
 
   return units;
@@ -320,4 +334,4 @@ export function finalizeAssistantRenderUnits(
 }
 
 /** Prompt snippet for system instructions (assistant completion summaries). */
-export const ACTION_LINK_SUMMARY_PROMPT = `After successfully patching an action (workspace_program action=patch / legacy qkrpc_action_patch with target=action), close with a brief text summary (what changed, editVersion, next steps). Do not output <qka-link> tags, action tables, or repeat full tool JSON — agent-gui automatically shows an action shortcut card at the end of the turn from successful patch tool results (run / edit / float / workspace + 调试).`;
+export const ACTION_LINK_SUMMARY_PROMPT = `After successfully patching an action (workspace_program action=patch / legacy qkrpc_action_patch with target=action), close with a brief text summary (what changed, editVersion, next steps). You may mention the action inline with <qka id="guid">Title</qka>. Do not output <qka-link> tags, action tables, or repeat full tool JSON — agent-gui automatically shows an action shortcut card (run / edit / float / workspace + 调试) at the end of the turn from successful patch tool results, even when you use inline <qka> mentions.`;

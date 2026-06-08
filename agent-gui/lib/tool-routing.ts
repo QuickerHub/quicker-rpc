@@ -28,7 +28,10 @@ export const TOOL_ROUTING_TABLE = `| User intent | Tool | Not |
 | Stuck on authoring | docs get (one topic) | session-start spam |
 | Quicker not connected | qkrpc_wait | shell ping/probe/serve |
 | User preference | ask_question | delete confirm UI |
-| Shell/build/git | shell_exec | editing action body |
+| Read/write cwd files (.local, configs) | workspace_file | shell_exec Set-Content; workspace_program |
+| Scratch/temp files in workspace | workspace_file → `.local/…` | workspace root; source trees |
+| Quicker program body on disk | workspace_program | workspace_file; shell |
+| Shell/build/git | shell_exec | workspace_file; editing action body |
 | Internet facts / API docs | web_search | browser; docs; qkrpc_action_query |
 | Web UI / getquicker login | browser | web_search; shell curl |
 | Chat LLM profiles | llm_settings | quicker_settings |

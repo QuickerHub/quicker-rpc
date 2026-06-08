@@ -12,6 +12,7 @@ import {
 } from "./WorkspaceFileOpenRow";
 import { readToolCallId } from "@/lib/workspace-tool-auto-open";
 import { ToolDisclosure } from "./ToolDisclosure";
+import { ToolBatchMeta } from "./ToolBatchMeta";
 import { ToolPart } from "./ToolPart";
 
 type ToolBatchGroupProps = {
@@ -87,11 +88,13 @@ export function ToolBatchGroup({ messageId, items }: ToolBatchGroupProps) {
       summary={
         <span className="tool-title">
           <span className="tool-name">{summary.title}</span>
-          <span
-            className={`tool-meta${batchRunning ? " tool-meta--running" : ""}${batchErr ? " tool-meta--err" : ""}${batchApproval ? " tool-meta--approval" : ""}`}
-          >
-            {summary.meta}
-          </span>
+          <ToolBatchMeta
+            meta={summary.meta}
+            lineDiff={summary.lineDiff}
+            running={batchRunning}
+            error={batchErr}
+            approval={batchApproval}
+          />
           <span className="tool-chevron" aria-hidden />
         </span>
       }

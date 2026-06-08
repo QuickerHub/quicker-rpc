@@ -25,6 +25,8 @@ export type ChatStoreData = {
 };
 
 export const CHAT_STORAGE_KEY = "agent-gui-chats";
+/** Last known good snapshot before a suspicious wipe (hydration race, accidental clear). */
+export const CHAT_STORAGE_BACKUP_KEY = "agent-gui-chats-backup";
 const LEGACY_WORKSPACE_STORAGE_KEY = "agent-gui-workspaces";
 
 function now(): number {
@@ -57,6 +59,50 @@ function createThread(): ChatThread {
 
 export function chatStoreHasPersistedMessages(store: ChatStoreData): boolean {
   return store.threads.some((thread) => thread.messages.length > 0);
+}
+
+export function countPersistedMessages(store: ChatStoreData): number {
+  return store.threads.reduce((total, thread) => total + thread.messages.length, 0);
+}
+
+/** True when saving `next` would clear messages that existed in `prev`. */
+export function shouldBackupChatStoreBeforeSave(
+  prev: ChatStoreData,
+  next: ChatStoreData,
+): boolean {
+  const prevTotal = countPersistedMessages(prev);
+  if (prevTotal === 0) return false;
+  const nextTotal = countPersistedMessages(next);
+  if (nextTotal === 0) return true;
+
+  for (const prevThread of prev.threads) {
+    if (prevThread.messages.length === 0) continue;
+    const nextThread = next.threads.find((thread) => thread.id === prevThread.id);
+    if (!nextThread || nextThread.messages.length === 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function tryLoadChatStoreBackup(): ChatStoreData | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const backup = localStorage.getItem(CHAT_STORAGE_BACKUP_KEY);
+    if (!backup) return null;
+    const store = normalizeStore(JSON.parse(backup) as Partial<ChatStoreData>);
+    return chatStoreHasPersistedMessages(store) ? store : null;
+  } catch {
+    return null;
+  }
+}
+
+function maybeRestoreFromBackup(current: ChatStoreData): ChatStoreData {
+  if (chatStoreHasPersistedMessages(current)) return current;
+  const restored = tryLoadChatStoreBackup();
+  if (!restored) return current;
+  saveChatStore(restored);
+  return restored;
 }
 
 export function isThreadEmpty(thread: ChatThread): boolean {
@@ -392,7 +438,8 @@ export function loadChatStore(): ChatStoreData {
     const current = localStorage.getItem(CHAT_STORAGE_KEY);
     if (current) {
       const raw = JSON.parse(current) as Partial<ChatStoreData>;
-      const store = normalizeStore(raw);
+      let store = normalizeStore(raw);
+      store = maybeRestoreFromBackup(store);
       if (tabStripStateChanged(raw, store)) {
         saveChatStore(store);
       }
@@ -407,6 +454,12 @@ export function loadChatStore(): ChatStoreData {
         return migrated;
       }
     }
+
+    const restored = tryLoadChatStoreBackup();
+    if (restored) {
+      saveChatStore(restored);
+      return restored;
+    }
   } catch {
     /* fall through */
   }
@@ -417,6 +470,17 @@ export function loadChatStore(): ChatStoreData {
 export function saveChatStore(data: ChatStoreData): void {
   if (typeof window === "undefined") return;
   try {
+    const prevRaw = localStorage.getItem(CHAT_STORAGE_KEY);
+    if (prevRaw) {
+      try {
+        const prev = normalizeStore(JSON.parse(prevRaw) as Partial<ChatStoreData>);
+        if (shouldBackupChatStoreBeforeSave(prev, data)) {
+          localStorage.setItem(CHAT_STORAGE_BACKUP_KEY, prevRaw);
+        }
+      } catch {
+        /* ignore corrupt previous blob */
+      }
+    }
     localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(data));
   } catch {
     /* ignore quota errors */
@@ -507,6 +571,11 @@ export function updateThreadMessages(
   const thread = data.threads.find((t) => t.id === threadId);
   if (!thread) return data;
   if (threadMessagesEqual(thread.messages, messages)) {
+    return data;
+  }
+
+  // Guard against useChat hydrating with [] before localStorage is read.
+  if (messages.length === 0 && thread.messages.length > 0) {
     return data;
   }
 
@@ -816,9 +885,26 @@ function collectLegacyChatStoreCandidates(): Array<{ source: string; data: ChatS
     /* ignore corrupt legacy blob */
   }
 
+  try {
+    const backupRaw = localStorage.getItem(CHAT_STORAGE_BACKUP_KEY);
+    if (backupRaw) {
+      const data = normalizeStore(JSON.parse(backupRaw) as Partial<ChatStoreData>);
+      if (data.threads.some((t) => t.messages.length > 0)) {
+        out.push({ source: "自动备份", data });
+      }
+    }
+  } catch {
+    /* ignore corrupt backup blob */
+  }
+
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (!key || key === CHAT_STORAGE_KEY || key === LEGACY_WORKSPACE_STORAGE_KEY) {
+    if (
+      !key
+      || key === CHAT_STORAGE_KEY
+      || key === CHAT_STORAGE_BACKUP_KEY
+      || key === LEGACY_WORKSPACE_STORAGE_KEY
+    ) {
       continue;
     }
     if (!/^agent-gui-chats(?:[-._].+)?$/i.test(key)) continue;

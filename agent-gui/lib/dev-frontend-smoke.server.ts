@@ -55,7 +55,7 @@ function extractIssuesFromHtml(html: string, url: string): FrontendIssue[] {
   const text = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/\s+/g, " ");
 
   for (const marker of NEXT_ERROR_MARKERS) {
-    if (!text.includes(marker) && !html.includes(marker)) continue;
+    if (!text.includes(marker)) continue;
     issues.push({
       kind: marker.includes("Hydration") ? "hydration" : "compile",
       message: marker,
@@ -65,7 +65,7 @@ function extractIssuesFromHtml(html: string, url: string): FrontendIssue[] {
   }
 
   for (const { kind, pattern } of HTML_ERROR_PATTERNS) {
-    const match = html.match(pattern);
+    const match = text.match(pattern);
     if (!match) continue;
     const snippet = match[0].replace(/\s+/g, " ").trim().slice(0, 1200);
     issues.push({

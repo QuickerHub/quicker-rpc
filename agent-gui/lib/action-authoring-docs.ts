@@ -10,10 +10,17 @@ import {
   groupTopicsByLayer,
   sortTopicsByLayer,
 } from "@/lib/action-authoring-docs.shared";
+import {
+  compactSkillBody,
+  formatAllPreloadedSkillsForPrompt,
+  loadSkillInstructions,
+  loadTopicsManifest,
+  parseSkillMd,
+  resolveSkillDir,
+} from "@/lib/agent-skills";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
 import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
-import { parseSkillMd } from "@/lib/skill-parse";
 
 export type {
   ActionAuthoringDoc,
@@ -30,9 +37,7 @@ export {
 } from "@/lib/action-authoring-docs.shared";
 export type { ActionAuthoringLayerGroup } from "@/lib/action-authoring-docs.shared";
 
-const SKILLS_DIR = "docs/skills/quicker-authoring";
-const TOPICS_MANIFEST = "topics.json";
-const PROMPT_TIER0_FILE = "prompt-tier0.md";
+const AUTHORING_SKILL = "quicker-authoring";
 const LEGACY_DOCS_DIR = "docs/action-authoring/agent";
 
 type TopicRow = ActionAuthoringTopicMeta & {
@@ -67,19 +72,19 @@ type TopicsManifest = {
 let cachedRows: TopicRow[] | null = null;
 let cachedRoot: string | null = null;
 let cachedSkillsMtimeMs = 0;
-let cachedPromptTier0: { content: string; mtimeMs: number } | null = null;
+let cachedPromptBlock: { content: string; mtimeMs: number } | null = null;
 
-/** Collapse runs of blank lines (keeps single blank lines for GFM block boundaries). */
+/** @deprecated Use compactSkillBody from agent-skills */
 function compactMarkdownBody(markdown: string): string {
-  return markdown.replace(/\n{3,}/g, "\n\n").trimEnd();
+  return compactSkillBody(markdown);
 }
 
 async function skillsTreeMtimeMs(root: string): Promise<number> {
   let max = 0;
   const candidates = [
     join(root, "SKILL.md"),
-    join(root, TOPICS_MANIFEST),
-    join(root, PROMPT_TIER0_FILE),
+    join(root, "topics.json"),
+    join(root, "prompt-tier0.md"),
   ];
   for (const filePath of candidates) {
     try {
@@ -113,9 +118,7 @@ async function skillsTreeMtimeMs(root: string): Promise<number> {
 }
 
 function skillsRoot(): string {
-  const repo = resolveQuickerRpcRepoRoot();
-  if (repo) return join(repo, SKILLS_DIR);
-  return join(resolveAgentGuiRoot(), SKILLS_DIR);
+  return resolveSkillDir(AUTHORING_SKILL);
 }
 
 function legacyDocsRoot(): string {
@@ -228,15 +231,6 @@ function extractTitle(markdown: string): string {
   return "";
 }
 
-async function loadTopicsManifest(root: string): Promise<TopicsManifest | null> {
-  try {
-    const raw = await readFile(join(root, TOPICS_MANIFEST), "utf8");
-    return JSON.parse(raw) as TopicsManifest;
-  } catch {
-    return null;
-  }
-}
-
 async function readTopicMarkdown(
   root: string,
   topic: string,
@@ -265,7 +259,7 @@ async function readTopicMarkdown(
 }
 
 async function loadUnifiedSkillTopics(root: string): Promise<TopicRow[]> {
-  const manifest = await loadTopicsManifest(root);
+  const manifest = (await loadTopicsManifest(root)) as TopicsManifest | null;
   if (!manifest?.topics?.length) return [];
 
   const rows: TopicRow[] = [];
@@ -399,45 +393,39 @@ async function loadAllTopics(): Promise<TopicRow[]> {
 
 export async function formatAuthoringSkillRouterForPrompt(): Promise<string> {
   const root = skillsRoot();
-  const tier0Path = join(root, PROMPT_TIER0_FILE);
+  const loaded = await loadSkillInstructions(AUTHORING_SKILL);
+  if (!loaded?.body) return "";
+
+  let mtimeMs = 0;
   try {
-    const st = await stat(tier0Path);
-    if (
-      cachedPromptTier0
-      && cachedPromptTier0.mtimeMs === st.mtimeMs
-      && cachedRoot === root
-    ) {
-      return cachedPromptTier0.content;
-    }
-    const raw = compactMarkdownBody(await readFile(tier0Path, "utf8"));
-    const content = [
-      "## Skill: action authoring",
-      "Scope: create/edit program bodies (steps, variables, files). Else use main Capabilities.",
-      "",
-      raw,
-      "",
-      "Stuck → docs({ action: \"get\", topic }). No session-start multi-get.",
-    ].join("\n");
-    cachedPromptTier0 = { content, mtimeMs: st.mtimeMs };
-    cachedRoot = root;
-    return content;
-  } catch {
-    const skillPath = join(root, "SKILL.md");
+    mtimeMs = (await stat(loaded.skillMdPath)).mtimeMs;
+    const tier0 = join(root, "prompt-tier0.md");
     try {
-      const raw = await readFile(skillPath, "utf8");
-      const parsed = parseSkillMd(raw);
-      const body = compactMarkdownBody(parsed.body.trim());
-      if (!body) return "";
-      return [
-        "## Skill: action authoring",
-        "Scope: create/edit program bodies (steps, variables, files).",
-        "",
-        body,
-      ].join("\n");
+      mtimeMs = Math.max(mtimeMs, (await stat(tier0)).mtimeMs);
     } catch {
-      return "";
+      // optional tier-2 override
     }
+  } catch {
+    return "";
   }
+
+  if (
+    cachedPromptBlock
+    && cachedPromptBlock.mtimeMs === mtimeMs
+    && cachedRoot === root
+  ) {
+    return cachedPromptBlock.content;
+  }
+
+  const content = await formatAllPreloadedSkillsForPrompt({
+    [AUTHORING_SKILL]: {
+      suffix:
+        'Stuck → docs({ action: "get", topic }). No session-start multi-get.',
+    },
+  });
+  cachedPromptBlock = { content, mtimeMs };
+  cachedRoot = root;
+  return content;
 }
 
 /** English layer headings for system-prompt topic index (UI catalog keeps Chinese labels). */
@@ -472,14 +460,12 @@ export async function formatAuthoringTopicIndexForPrompt(): Promise<string> {
   return lines.join("\n");
 }
 
-/** Tier 0 router + Tier 1 topic index for system prompt injection. */
+/** Tier 2 preloaded skill + topic index for system prompt injection. */
 export async function formatAuthoringSkillForPrompt(): Promise<string> {
-  const parts: string[] = [];
   const router = await formatAuthoringSkillRouterForPrompt();
-  if (router) parts.push(router);
   const index = await formatAuthoringTopicIndexForPrompt();
-  if (index) parts.push("", index);
-  return parts.join("\n");
+  const parts = [router, index].filter(Boolean);
+  return parts.join("\n\n");
 }
 
 /** @deprecated Prefer formatAuthoringSkillForPrompt */

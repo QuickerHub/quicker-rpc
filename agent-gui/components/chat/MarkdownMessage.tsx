@@ -9,6 +9,8 @@ import { normalizeMarkdownGfmTables } from "@/lib/markdown-gfm-normalize";
 type MarkdownMessageProps = {
   content: string;
   variant?: "user" | "assistant";
+  /** Render paragraphs inline (for mixed tag + prose). */
+  inline?: boolean;
 };
 
 const remarkPlugins: PluggableList = [remarkGfm];
@@ -57,16 +59,29 @@ const markdownComponents: Components = {
 export function MarkdownMessage({
   content,
   variant = "assistant",
+  inline = false,
 }: MarkdownMessageProps) {
   if (!content.trim()) {
     return null;
   }
 
   const normalized = normalizeMarkdownGfmTables(content);
+  const components: Components = inline
+    ? {
+        ...markdownComponents,
+        p: ({ children }) => (
+          <span className="markdown-inline-p">{children}</span>
+        ),
+      }
+    : markdownComponents;
 
   return (
-    <div className={`markdown-body markdown-body--${variant}`}>
-      <Markdown remarkPlugins={remarkPlugins} components={markdownComponents}>
+    <div
+      className={`markdown-body markdown-body--${variant}${
+        inline ? " markdown-body--inline" : ""
+      }`}
+    >
+      <Markdown remarkPlugins={remarkPlugins} components={components}>
         {normalized}
       </Markdown>
     </div>

@@ -20,6 +20,26 @@ describe("action-link-markup", () => {
       hasAssistantActionLinks(`<qka-link id="${GUID}" op="run">运行</qka-link>`),
       true,
     );
+    assert.equal(
+      hasAssistantActionLinks(`<qka id="${GUID}">_rpc_test</qka>`),
+      true,
+    );
+  });
+
+  it("parses inline qka ref into inline unit", () => {
+    const text = `可以用动作 <qka id="${GUID}">_rpc_test</qka>，直接运行。`;
+    const units = groupAssistantRenderUnits(parseAssistantMessageSegments(text));
+    assert.equal(units.length, 1);
+    assert.equal(units[0]?.kind, "inline");
+    if (units[0]?.kind === "inline") {
+      assert.equal(units[0].segments.length, 3);
+      assert.equal(units[0].segments[0]?.type, "text");
+      assert.equal(units[0].segments[1]?.type, "ref");
+      if (units[0].segments[1]?.type === "ref") {
+        assert.equal(units[0].segments[1].ref.actionId, GUID);
+        assert.equal(units[0].segments[1].ref.title, "_rpc_test");
+      }
+    }
   });
 
   it("parses paired and self-closing links", () => {

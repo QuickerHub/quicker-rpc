@@ -1,8 +1,10 @@
 "use client";
 
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
+  basenamePath,
   getWorkspaceFileEditorPreview,
+  hasWorkspaceFileEditorPreviewInChat,
   isWorkspaceExplorerFileTool,
   isWorkspaceFileEditorTool,
   isWorkspaceFileReadTool,
@@ -11,6 +13,9 @@ import {
   shouldShowFileEditorCodeBlockInChat,
   type WorkspaceFilePayload,
 } from "@/lib/workspace-file-tool";
+import { ToolSummaryTitle } from "@/components/chat/ToolSummaryTitle";
+import { LineDiffSummary } from "./LineDiffSummary";
+import type { FileEditorStat } from "./FileEditorCard";
 import { useWorkspaceExplorerActions } from "@/lib/workspace-explorer";
 import { FileEditorCard } from "./FileEditorCard";
 import {
@@ -68,6 +73,16 @@ function FileListView({ payload }: { payload: Extract<WorkspaceFilePayload, { ac
   );
 }
 
+function lineDiffFromStat(
+  stat: FileEditorStat | undefined,
+): { addLines: number; removeLines: number } | null {
+  if (!stat) return null;
+  const add = stat.addLines ?? 0;
+  const rem = stat.removeLines ?? 0;
+  if (add === 0 && rem === 0) return null;
+  return { addLines: add, removeLines: rem };
+}
+
 function FileEditorPreviewBody({
   toolName,
   summaryMeta,
@@ -78,6 +93,8 @@ function FileEditorPreviewBody({
   running = false,
   layout = "chip",
   onOpenPreview,
+  diffOpen,
+  onDiffOpenChange,
 }: {
   toolName: string;
   summaryMeta: string;
@@ -89,6 +106,8 @@ function FileEditorPreviewBody({
   /** chip: compact file header; details-body: code block only inside tool details */
   layout?: "chip" | "details-body";
   onOpenPreview?: () => void;
+  diffOpen?: boolean;
+  onDiffOpenChange?: (open: boolean) => void;
 }) {
   const preview = getWorkspaceFileEditorPreview(
     toolName,
@@ -101,11 +120,89 @@ function FileEditorPreviewBody({
 
   const embedded = layout === "details-body";
   const showCodeBlock = shouldShowFileEditorCodeBlockInChat(toolName, input);
+  const isWriteEditPreview = hasWorkspaceFileEditorPreviewInChat(toolName, input);
+  const foldSnapshot =
+    embedded
+      ? false
+      : !running && shouldFoldFileSnapshotInChat(toolName, input);
 
   const stat =
     !embedded && showCodeBlock && !running
       ? fileEditorStatFromPreview(toolName, preview, input)
       : undefined;
+
+  const fileName = basenamePath(preview.path);
+  const lineDiff = lineDiffFromStat(stat);
+  const useToolSummaryRow = foldSnapshot && !embedded && isWriteEditPreview;
+  const toolState = running
+    ? "input-available"
+    : headerError
+      ? "output-error"
+      : "output-available";
+
+  if (useToolSummaryRow) {
+    const open = diffOpen ?? false;
+    const setOpen = onDiffOpenChange ?? (() => {});
+
+    return (
+      <>
+        <button
+          type="button"
+          className="tool-summary tool-file-edit-summary"
+          aria-expanded={open}
+          aria-label={open ? `收起 ${fileName} 差异` : `展开 ${fileName} 差异`}
+          onClick={() => setOpen(!open)}
+        >
+          <ToolSummaryTitle
+            displayName={fileName}
+            meta={lineDiff ? undefined : summaryMeta}
+            metaContent={
+              lineDiff ? (
+                <LineDiffSummary
+                  addLines={lineDiff.addLines}
+                  removeLines={lineDiff.removeLines}
+                />
+              ) : undefined
+            }
+            isRunning={headerRunning}
+            state={toolState}
+            isError={headerError}
+          />
+        </button>
+        {open && showCodeBlock ? (
+          <div className="tool-body tool-body--file-editor-diff">
+            <FileEditorCard
+              path={preview.path}
+              content={preview.content}
+              running={running}
+              stat={stat}
+              diff={preview.diff}
+              variant="compact"
+              foldSnapshot={false}
+              inlineDiffExpanded
+              showContent
+              showHeader={false}
+              headerRunning={headerRunning}
+              headerError={headerError}
+            />
+          </div>
+        ) : null}
+        {showCodeBlock && preview.truncated ? (
+          <p className="file-editor-footnote file-editor-footnote--warn">
+            内容已截断
+            {preview.totalChars !== undefined
+              ? ` · 文件共 ${preview.totalChars} 字符`
+              : ""}
+          </p>
+        ) : null}
+        {showCodeBlock && preview.previousSnapshotTruncated ? (
+          <p className="file-editor-footnote file-editor-footnote--warn">
+            写入前快照已截断，diff 可能不完整
+          </p>
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <>
@@ -116,7 +213,8 @@ function FileEditorPreviewBody({
         stat={stat}
         diff={preview.diff}
         variant="compact"
-        foldSnapshot={embedded ? false : shouldFoldFileSnapshotInChat(toolName, input)}
+        foldSnapshot={foldSnapshot}
+        editActionLabel={isWriteEditPreview && !embedded ? "Edited" : undefined}
         showContent={showCodeBlock}
         showHeader={!embedded}
         summaryMeta={embedded || isWorkspaceFileReadTool(toolName, input) ? "" : summaryMeta}
@@ -142,7 +240,10 @@ function FileEditorPreviewBody({
 }
 
 function FileEditorPreviewWithExplorer(
-  props: Omit<Parameters<typeof FileEditorPreviewBody>[0], "onOpenPreview">,
+  props: Omit<Parameters<typeof FileEditorPreviewBody>[0], "onOpenPreview"> & {
+    diffOpen?: boolean;
+    onDiffOpenChange?: (open: boolean) => void;
+  },
 ) {
   const preview = useMemo(
     () =>
@@ -207,7 +308,10 @@ function FileEditorPreviewWithExplorer(
 }
 
 function FileEditorPreview(
-  props: Omit<Parameters<typeof FileEditorPreviewBody>[0], "onOpenPreview">,
+  props: Omit<Parameters<typeof FileEditorPreviewBody>[0], "onOpenPreview"> & {
+    diffOpen?: boolean;
+    onDiffOpenChange?: (open: boolean) => void;
+  },
 ) {
   if (props.layout === "details-body") {
     return <FileEditorPreviewBody {...props} />;
@@ -239,10 +343,25 @@ function WorkspaceFileEditorRowInner({
   const popup = useToolResultPopup();
   const canShowDetails = toolCanShowDetails(input, output, errorText, running);
   const failed = output && !output.ok;
+  const foldableDiff =
+    !running && shouldFoldFileSnapshotInChat(toolName, input);
+  const [diffOpen, setDiffOpen] = useState(false);
+
   return (
     <>
     <div
-      className={`tool-card tool-card--file-editor tool-card--preview tool-card--with-details${inBatch ? " tool-card--nested" : ""}${running ? " tool-card--running" : ""}`}
+      className={[
+        "tool-card",
+        "tool-card--file-editor",
+        "tool-card--preview",
+        "tool-card--with-details",
+        foldableDiff ? "tool-card--file-editor-fold" : "",
+        diffOpen ? "tool-card--expanded" : "",
+        inBatch ? "tool-card--nested" : "",
+        running ? "tool-card--running" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {canShowDetails ? (
         <div className="tool-card-actions tool-card-actions--corner">
@@ -257,6 +376,8 @@ function WorkspaceFileEditorRowInner({
         input={input}
         output={output}
         running={running}
+        diffOpen={diffOpen}
+        onDiffOpenChange={setDiffOpen}
       />
       {errorText ? <pre className="tool-error">{errorText}</pre> : null}
     </div>

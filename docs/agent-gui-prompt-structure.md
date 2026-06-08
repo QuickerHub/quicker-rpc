@@ -61,26 +61,27 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 
 ---
 
-## 2. 预加载 Skill：action authoring
+## 2. Agent Skills（[agentskills.io](https://agentskills.io/specification)）
 
-Agent 模式下 **始终注入**（Launcher 不注入）。由 `formatAuthoringSkillForPrompt()`（`lib/action-authoring-docs.ts`）生成两块：
+加载器：`lib/agent-skills/`（发现 `docs/skills/*/SKILL.md`、解析 frontmatter、渐进披露）。Authoring 专题目录仍由 `lib/action-authoring-docs.ts` 提供 `docs` 工具与 topic 索引。
 
-### Tier 0 — Router（热路由）
+| Tier | 内容 | 何时 | 实现 |
+|------|------|------|------|
+| 1 Catalog | `name` + `description` | Agent 每次 chat | `formatSkillCatalogForPrompt()` — 非预加载 skill（qkrpc、quicker-run、quicker-sync） |
+| 2 Instructions | `prompt-tier0.md` 或 `SKILL.md` body | 预加载 skill | `formatAllPreloadedSkillsForPrompt()` — 当前仅 `quicker-authoring` |
+| 2b Topic index | `topics.json` 按 layer | 与 tier 2 同批 | `formatAuthoringTopicIndexForPrompt()` |
+| 3 Resources | `references/*.md` | `docs({ action: "get" })` | `getActionAuthoringDoc` / `getActionAuthoringReference` |
+
+### 预加载：quicker-authoring
 
 | 项 | 说明 |
 |----|------|
 | 源（生成前） | `docs/action-authoring-src/skills/quicker-authoring/prompt-tier0.src.md` |
-| 源（运行时读） | `docs/skills/quicker-authoring/prompt-tier0.md` |
-| 回退 | `docs/skills/quicker-authoring/SKILL.md`（无 tier0 时） |
-| 包装 | 前缀 `## Skill: action authoring` + scope 一句 + 后缀「Stuck → docs get」 |
+| Tier 2 运行时 | `docs/skills/quicker-authoring/prompt-tier0.md`（`SKILL_TIER2_BODY_FILES`） |
+| 回退 | `SKILL.md` body |
+| 包装 | `## Skill: …` + scope + 后缀「Stuck → docs get」 |
 
-内容：意图→工具/docs 路由表、P0–P7 流水线、Hard rules、workspace 热 schema 片段（partial 展开后）。
-
-### Tier 1 — Topic index（目录）
-
-`formatAuthoringTopicIndexForPrompt()` 从 `docs/skills/quicker-authoring/topics.json` 按 layer 分组列出 topic + description + reference 子路径，供 Agent **`docs({ action: "get", topic })`** 按需拉全文。
-
-**设计原则**（skill 内写明）：session 开头 **不要** 批量 `docs get`；索引已在 system 中，卡住再读一个 topic。
+**设计原则**：session 开头 **不要** 批量 `docs get`；索引已在 system 中，卡住再读一个 topic。
 
 ### Post-patch summary
 

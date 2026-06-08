@@ -9,7 +9,7 @@ import { getLocalDirectApiKey } from "@/lib/llm-local-secrets";
 import { isLlmProviderHidden } from "@/lib/llm-config";
 import {
   getStoredActiveSelection,
-  listProfileModelOptions,
+  listProfilePickerOptions,
 } from "@/lib/llm-profiles";
 import { formatLlmSelection } from "@/lib/llm-selection";
 import { buildAutoModelOption } from "@/lib/llm-auto";
@@ -20,8 +20,12 @@ import {
   isLlmProviderConfigured,
   isLlmSelectionConfigured,
   resolveLlmConfig,
+  resolveLlmEndpointChain,
 } from "@/lib/llm";
+import { resolveAutoLlmEndpoint } from "@/lib/llm-auto";
+import { listBuiltinGroupDisplayRows } from "@/lib/llm-builtin-display";
 import type { LlmModelOption, LlmOptionsResponse } from "@/lib/llm-options-shared";
+import { optionMatchesSelection } from "@/lib/llm-options-shared";
 
 export type { LlmModelOption, LlmOptionsResponse } from "@/lib/llm-options-shared";
 export {
@@ -50,6 +54,15 @@ function contextLimitForModel(modelId: string, providerId: LlmProviderId) {
   };
 }
 
+function resolvedBaseURLForBuiltin(providerId: LlmProviderId): string | undefined {
+  if (!isLlmProviderConfigured(providerId)) return undefined;
+  try {
+    return resolveLlmEndpointChain(providerId)[0]?.baseURL;
+  } catch {
+    return undefined;
+  }
+}
+
 function builtinOptions(): LlmModelOption[] {
   const options: LlmModelOption[] = [];
   for (const id of USER_MODEL_SELECTOR_IDS) {
@@ -64,6 +77,7 @@ function builtinOptions(): LlmModelOption[] {
       description: meta.description,
       modelId,
       configured: isLlmProviderConfigured(id),
+      baseURL: resolvedBaseURLForBuiltin(id),
       ...contextLimitForModel(modelId, id),
     });
   }
@@ -71,23 +85,71 @@ function builtinOptions(): LlmModelOption[] {
 }
 
 function profileOptions(): LlmModelOption[] {
-  return listProfileModelOptions().map((item) => ({
+  return listProfilePickerOptions().map((item) => ({
     selection: item.selection,
     kind: "profile" as const,
     profileId: item.profileId,
+    profileModels: item.models,
     label: item.title,
     title: item.title,
     description: item.description,
     modelId: item.modelId,
     configured: item.configured,
+    baseURL: item.baseURL,
     ...contextLimitForModel(item.modelId, CUSTOM_PROVIDER_ID),
   }));
+}
+
+function attachBuiltinGroupMetadata(options: LlmModelOption[]): LlmModelOption[] {
+  const groups = listBuiltinGroupDisplayRows();
+  return options.map((option) => {
+    if (option.kind === "builtin" && option.providerId) {
+      const group = groups.find(
+        (row) => row.kind === "builtin" && row.providerId === option.providerId,
+      );
+      if (!group?.endpoints.length) return option;
+      const activeEndpoint = group.endpoints.find((entry) => entry.selected)
+        ?? group.endpoints[0];
+      return {
+        ...option,
+        builtinGroupId: group.id,
+        endpoints: group.endpoints.map((endpoint) => ({
+          id: endpoint.id,
+          baseURL: endpoint.baseURL,
+          model: endpoint.model,
+          selected: endpoint.selected,
+        })),
+        baseURL: activeEndpoint?.baseURL ?? option.baseURL,
+      };
+    }
+    if (option.kind === "auto") {
+      const group = groups.find((row) => row.kind === "auto");
+      if (!group) return option;
+      const activeModel = group.autoModels?.find((entry) => entry.selected)
+        ?? group.autoModels?.[0];
+      return {
+        ...option,
+        builtinGroupId: group.id,
+        baseURL: group.primaryBaseURL ?? option.baseURL,
+        autoModels: group.autoModels?.map((model) => ({
+          id: model.id,
+          modelId: model.modelId,
+          label: model.label,
+          contextLimitLabel: model.contextLimitLabel,
+          selected: model.selected,
+        })),
+        modelId: activeModel?.modelId ?? option.modelId,
+      };
+    }
+    return option;
+  });
 }
 
 export function buildLlmModelOptions(): LlmModelOption[] {
   const auto = buildAutoModelOption();
   const rest = [...builtinOptions(), ...profileOptions()];
-  return auto ? [auto, ...rest] : rest;
+  const merged = auto ? [auto, ...rest] : rest;
+  return attachBuiltinGroupMetadata(merged);
 }
 
 export function pickDefaultSelection(options: LlmModelOption[]): string {
@@ -118,7 +180,7 @@ export function pickActiveSelection(options: LlmModelOption[]): string {
   const stored = getStoredActiveSelection();
   if (stored && isLlmSelectionConfigured(stored)) {
     const key = formatLlmSelection(stored);
-    if (options.some((o) => o.selection === key && o.configured)) {
+    if (options.some((o) => optionMatchesSelection(o, key) && o.configured)) {
       return key;
     }
   }

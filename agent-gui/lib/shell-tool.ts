@@ -39,12 +39,14 @@ const shellInputSchema = z
       .string()
       .optional()
       .describe(
-        "Inline script body (multi-line OK). Written to a temp file and executed with -File/-lc for reliable quoting.",
+        "Inline script body (multi-line OK). Materialized under cwd/.local/shell/ and executed with -File/-lc.",
       ),
     scriptPath: z
       .string()
       .optional()
-      .describe("Relative path to an existing script under the workspace cwd"),
+      .describe(
+        "Relative path to an existing script under workspace cwd; prefer .local/ for disposable scripts",
+      ),
     args: z
       .array(z.string())
       .optional()
@@ -144,8 +146,9 @@ function formatShellToolResult(
 
 export const SHELL_EXEC_TOOL_DEF = tool({
   description:
-    "Run shell in sidebar workspace cwd. NOT for editing Quicker program bodies (workspace_program). "
-    + "qkrpc is auto-added to PATH for child shells; still prefer qkrpc tools for Quicker RPC. "
+    "Run shell commands in sidebar workspace cwd. NOT for plain file I/O — use workspace_file (read/write/edit). "
+    + "NOT for Quicker program bodies (workspace_program). "
+    + "qkrpc is auto-added to PATH; prefer qkrpc tools for Quicker RPC. "
     + "On connectivity_failure tell user — no shell ping/probe/serve/build.ps1 loops. "
     + "Always set description (UI label). command | script | scriptPath under cwd. "
     + "Read-only (git status, dotnet build) auto-runs; writes/deletes need Confirm.",

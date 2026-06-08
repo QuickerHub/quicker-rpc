@@ -49,6 +49,10 @@ type FileEditorCardProps = {
   fillAvailable?: boolean;
   /** Show gutter line numbers; defaults to on when fillAvailable. */
   lineNumbers?: boolean;
+  /** e.g. "Edited" for write/edit chips (replaces lang badge). */
+  editActionLabel?: string;
+  /** Parent tool-summary row: full diff body, no 4-line preview clamp. */
+  inlineDiffExpanded?: boolean;
 };
 
 function langBadgeLabel(path: string): string {
@@ -111,6 +115,8 @@ export function FileEditorCard({
   showHeader = true,
   fillAvailable = false,
   lineNumbers,
+  editActionLabel,
+  inlineDiffExpanded = false,
 }: FileEditorCardProps) {
   const compact = variant === "compact";
   const showLineNumbers = lineNumbers ?? fillAvailable;
@@ -132,14 +138,14 @@ export function FileEditorCard({
     [diff, showDiff],
   );
 
-  const showFullDiff = diffMode === "full" || expanded;
+  const collapseDiff = diffMode !== "full";
 
   const diffDisplay = useMemo(() => {
     if (!showDiff || !diff) return null;
     return buildInterleavedDiffDisplay(diff.removed, diff.added, {
-      minEqualCollapse: showFullDiff ? 999_999 : undefined,
+      minEqualCollapse: collapseDiff ? undefined : 999_999,
     });
-  }, [diff, showDiff, showFullDiff]);
+  }, [diff, showDiff, collapseDiff]);
 
   const diffStat = useMemo(
     () =>
@@ -156,8 +162,9 @@ export function FileEditorCard({
     return countLines(content);
   }, [content, showDiff, diffDisplay]);
 
-  const showBody = showContent && (!compact || revealed);
-  const isCompactPreview = compact && showBody && !expanded;
+  const showBody = showContent && (!compact || revealed || inlineDiffExpanded);
+  const isCompactPreview =
+    compact && showBody && !expanded && !inlineDiffExpanded;
   const useTailPreview = running && isCompactPreview;
   const omittedPreviewLines = useTailPreview
     ? Math.max(0, previewLineCount - FILE_SNAPSHOT_PREVIEW_LINES)
@@ -168,7 +175,8 @@ export function FileEditorCard({
     && previewLineCount > FILE_SNAPSHOT_PREVIEW_LINES;
   const showPreviewTailFade = useTailPreview && omittedPreviewLines > 0;
   const showToggle =
-    showContent
+    !inlineDiffExpanded
+    && showContent
     && compact
     && ((foldSnapshot && !revealed && previewLineCount > 0)
       || (showBody && previewLineCount > FILE_SNAPSHOT_PREVIEW_LINES));
@@ -182,16 +190,59 @@ export function FileEditorCard({
     setExpanded((value) => !value);
   };
 
+  const handleHeaderClick = () => {
+    if (foldSnapshot && !revealed) {
+      setRevealed(true);
+      setExpanded(false);
+      return;
+    }
+    onOpenPreview?.();
+  };
+
+  const headerCanExpand = foldSnapshot && !revealed;
+  const headerInteractive = Boolean(onOpenPreview) || headerCanExpand;
+
+  const compactTitle = (
+    <span className="tool-title file-snapshot-tool-title">
+      {editActionLabel ? (
+        <span className="file-snapshot-action">{editActionLabel}</span>
+      ) : null}
+      <span
+        className={[
+          "file-snapshot-filename",
+          editActionLabel ? "file-snapshot-filename--edited" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        title={pathLabel}
+      >
+        {fileName}
+      </span>
+      {headerDetail ? (
+        <span
+          className={`tool-meta${headerRunning ? " tool-meta--running" : ""}${headerError ? " tool-meta--err" : ""}`}
+        >
+          {headerDetail}
+        </span>
+      ) : null}
+      {headerStat ? <FileEditorStatDisplay stat={headerStat} compact /> : null}
+      {headerCanExpand ? (
+        <span className="file-snapshot-chevron file-snapshot-chevron--inline" aria-hidden />
+      ) : null}
+    </span>
+  );
+
   return (
     <div
       className={[
         "file-editor-card",
         running ? "file-editor-card--running" : "",
         compact ? "file-editor-card--compact" : "",
-        compact && (!showContent || (foldSnapshot && !revealed))
+        compact
+        && (!showContent || (foldSnapshot && !revealed && !inlineDiffExpanded))
           ? "file-editor-card--folded"
           : "",
-        expanded ? "file-editor-card--expanded" : "",
+        expanded || inlineDiffExpanded ? "file-editor-card--expanded" : "",
         isCompactPreview ? "file-editor-card--preview" : "",
         useTailPreview ? "file-editor-card--preview-tail" : "",
         showPreviewFade ? "file-editor-card--preview-fade" : "",
@@ -202,63 +253,54 @@ export function FileEditorCard({
         .join(" ")}
       title={path}
     >
-      {showHeader && compact && onOpenPreview ? (
+      {showHeader && compact && headerInteractive ? (
         <button
           type="button"
-          className="file-editor-header file-editor-header--compact file-editor-header-open"
-          onClick={onOpenPreview}
-          aria-label={`查看 ${fileName}`}
+          className={[
+            "file-editor-header",
+            "file-editor-header--compact",
+            "file-editor-header-open",
+            headerCanExpand ? "file-editor-header--folded" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          onClick={handleHeaderClick}
+          aria-expanded={revealed}
+          aria-label={
+            headerCanExpand ? `展开 ${fileName} 差异` : `查看 ${fileName}`
+          }
         >
-          <span
-            className={`file-snapshot-lang file-snapshot-lang--${snapshotLangClass(path)}`}
-            aria-hidden
-          >
-            {langBadgeLabel(path)}
-          </span>
-          <span className="tool-title file-snapshot-tool-title">
-            <span className="file-snapshot-filename" title={pathLabel}>
-              {fileName}
-            </span>
-            {headerDetail ? (
-              <span
-                className={`tool-meta${headerRunning ? " tool-meta--running" : ""}${headerError ? " tool-meta--err" : ""}`}
-              >
-                {headerDetail}
-              </span>
-            ) : null}
-            {headerStat ? <FileEditorStatDisplay stat={headerStat} compact /> : null}
-          </span>
-        </button>
-      ) : showHeader ? (
-        <div className={`file-editor-header${compact ? " file-editor-header--compact" : ""}`}>
-          {compact ? (
+          {!editActionLabel ? (
             <span
               className={`file-snapshot-lang file-snapshot-lang--${snapshotLangClass(path)}`}
               aria-hidden
             >
               {langBadgeLabel(path)}
             </span>
+          ) : null}
+          {compactTitle}
+        </button>
+      ) : showHeader ? (
+        <div className={`file-editor-header${compact ? " file-editor-header--compact" : ""}`}>
+          {compact ? (
+            <>
+              {!editActionLabel ? (
+                <span
+                  className={`file-snapshot-lang file-snapshot-lang--${snapshotLangClass(path)}`}
+                  aria-hidden
+                >
+                  {langBadgeLabel(path)}
+                </span>
+              ) : null}
+              {compactTitle}
+            </>
           ) : (
             <span className="file-editor-hash" aria-hidden>
               #
             </span>
           )}
 
-          {compact ? (
-            <span className="tool-title file-snapshot-tool-title">
-              <span className="file-snapshot-filename" title={pathLabel}>
-                {fileName}
-              </span>
-              {headerDetail ? (
-                <span
-                  className={`tool-meta${headerRunning ? " tool-meta--running" : ""}${headerError ? " tool-meta--err" : ""}`}
-                >
-                  {headerDetail}
-                </span>
-              ) : null}
-              {headerStat ? <FileEditorStatDisplay stat={headerStat} compact={compact} /> : null}
-            </span>
-          ) : (
+          {compact ? null : (
             <>
               <span className="file-editor-name" title={pathLabel}>
                 {compact ? fileName : pathLabel}
@@ -281,7 +323,7 @@ export function FileEditorCard({
               path={path}
               removed={diff.removed}
               added={diff.added}
-              collapse={!showFullDiff}
+              collapse={collapseDiff}
               scrollToFirstChange={isCompactPreview}
               fillAvailable={fillAvailable}
               lineNumbers={showLineNumbers}

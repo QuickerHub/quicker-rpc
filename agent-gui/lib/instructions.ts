@@ -21,10 +21,11 @@ export const SYSTEM_INSTRUCTIONS = prompt(
   "",
   "## Runtime",
   "- qkrpc via serve (HTTP → plugin), not per-call subprocesses. Sidebar cwd = workspace root for shell, qkrpc, workspace_program.",
+  "- Disposable workspace files (test data, patch JSON, downloads, one-off scripts) → `.local/` under cwd (gitignored). NOT workspace root or tracked source trees.",
   "- Header shows RPC status; no connectivity probe tool.",
   "- shell_exec auto-prepends qkrpc to PATH (see lib/qkrpc-toolchain-env.mjs). On connectivity_failure: call qkrpc_wait once, then retry or ask user — no shell ping/probe/serve loops.",
   "- On connectivity_failure / qkrpc unavailable: tell user (Quicker + QuickerRpc plugin + serve). STOP — no shell_exec ping/probe/serve/build.ps1/qkrpc CLI workaround unless user explicitly asks to fix the environment.",
-  "- <qka id=\"uuid\">Name</qka> tags reference actions. NO identical retry on transient_error/timeout.",
+  "- Action refs: `<qka id=\"uuid\">Title</qka>` inline mention (UI chip); `<qka-link id=\"uuid\" use=\"run,edit,...\"/>` operation bar. NO identical retry on transient_error/timeout.",
   "",
   TOOL_ROUTING_PROMPT,
   "",
@@ -32,14 +33,13 @@ export const SYSTEM_INSTRUCTIONS = prompt(
   "**Run**: qkrpc_action_run; **debug**: qkrpc_action_debug. **Sync**: qkrpc_action_get (skip after create). **Edit body**: workspace_program.",
   "**Create**: qkrpc_action_create → workspace_program. **Layout**: qkrpc_profile_* / qkrpc_action_move.",
   "**Settings**: quicker_settings list/get/set/apply; action=open preset for UI panels.",
-  "**Local**: shell_exec (defaults to workspace cwd; description required; writes need Confirm); web_search for internet facts; browser navigate→snapshot→act for interactive pages; llm_settings.",
+  "**Local**: workspace_file for plain read/write/edit under cwd (.local scratch); shell_exec for commands/build/git (writes need Confirm); web_search; browser; llm_settings.",
   "**Layout**: qkrpc_profile_* / qkrpc_process_ensure; qkrpc_action_move.",
   "**Safety**: delete only on user ask (UI Confirm); ask_question for 2–5 preferences not deletes.",
   "**Dev UI**: dev_frontend_check after agent-gui edits until ok=true (agent-gui/AGENTS.md).",
   "",
   "## Skills",
-  "**action authoring** (preloaded below): program bodies only — P0–P7 + workspace_program. NOT for run/settings/shell.",
-  "docs get/search/index: deep-read when skill active; no session-start spam.",
+  "Preloaded tier-2 instructions below (agentskills.io). On-demand skills listed in catalog; docs get/search/index for references.",
 );
 
 const LAUNCHER_SYSTEM_INSTRUCTIONS_CORE = prompt(
@@ -81,18 +81,29 @@ export async function buildSystemInstructions(
   const parts = [base];
 
   if (mode !== CHAT_MODE_LAUNCHER) {
-    const { formatAuthoringSkillForPrompt } = await import(
-      "@/lib/action-authoring-docs"
-    );
+    const [{ formatAuthoringSkillForPrompt }, { formatSkillCatalogForPrompt }] =
+      await Promise.all([
+        import("@/lib/action-authoring-docs"),
+        import("@/lib/agent-skills/prompt"),
+      ]);
     const skillBlock = await formatAuthoringSkillForPrompt();
     if (skillBlock) {
       parts.push("", skillBlock);
       parts.push("", "### Post-patch summary", ACTION_LINK_SUMMARY_PROMPT);
     }
+    const catalog = await formatSkillCatalogForPrompt();
+    if (catalog) {
+      parts.push("", catalog);
+    }
   }
 
   if (cwd) {
-    parts.push("", "## cwd", `qkrpc cwd: ${cwd}`);
+    parts.push(
+      "",
+      "## cwd",
+      `qkrpc cwd: ${cwd}`,
+      `Scratch/temp path: \`${cwd}/.local/\` (create as needed; gitignored).`,
+    );
   }
   return parts.join("\n");
 }

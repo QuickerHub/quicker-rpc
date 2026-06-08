@@ -31,6 +31,18 @@ export type LlmProfileModelOption = {
   configured: boolean;
 };
 
+/** One picker row per custom profile (models switched in detail panel). */
+export type LlmProfilePickerOption = {
+  selection: string;
+  profileId: string;
+  modelId: string;
+  models: string[];
+  title: string;
+  description: string;
+  baseURL: string;
+  configured: boolean;
+};
+
 function normalizeModelList(raw: unknown): string[] {
   return normalizeModelIds(raw);
 }
@@ -98,6 +110,23 @@ export function listProfileModelOptions(): LlmProfileModelOption[] {
     }
   }
   return options;
+}
+
+export function listProfilePickerOptions(): LlmProfilePickerOption[] {
+  return listCustomProfiles().map((profile) => {
+    const defaultModel = resolveProfileDefaultModel(profile);
+    const description = profile.description?.trim() || profile.baseURL;
+    return {
+      selection: formatLlmSelection(profileSelection(profile.id, defaultModel)),
+      profileId: profile.id,
+      modelId: defaultModel,
+      models: [...profile.models],
+      title: profile.title,
+      description,
+      baseURL: profile.baseURL,
+      configured: isCustomProfileConfigured(profile),
+    };
+  });
 }
 
 export function resolveProfileSelection(

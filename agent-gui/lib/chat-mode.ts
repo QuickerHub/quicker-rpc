@@ -43,6 +43,7 @@ export const LAUNCHER_TOOL_IDS = [
   "qkrpc_fa",
   "quicker_settings",
   "launcher_resolve",
+  "workspace_file",
   "shell_exec",
   "qkrpc_action_delete",
   "qkrpc_subprogram_delete",

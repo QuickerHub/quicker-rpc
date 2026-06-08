@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import {
-  collectActionLinkIdsFromTurn,
+  collectActionLinkBarIdsFromTurn,
   findLastSuccessfulActionPatchInTurn,
   resolveTurnActionLinkFallback,
 } from "./turn-action-link";
@@ -100,7 +100,7 @@ describe("turn-action-link", () => {
     ];
 
     assert.equal(resolveTurnActionLinkFallback(messages), null);
-    assert.equal(collectActionLinkIdsFromTurn(messages).has(ACTION_ID), true);
+    assert.equal(collectActionLinkBarIdsFromTurn(messages).has(ACTION_ID), true);
   });
 
   it("returns null when patch failed", () => {
@@ -112,5 +112,55 @@ describe("turn-action-link", () => {
       },
     ];
     assert.equal(resolveTurnActionLinkFallback(messages), null);
+  });
+
+  it("still shows card when assistant emitted inline qka ref", () => {
+    const messages: AgentUIMessage[] = [
+      {
+        id: "a1",
+        role: "assistant",
+        parts: [
+          patchPart({ target: "action", id: ACTION_ID }),
+          {
+            type: "text",
+            text: `Done. <qka id="${ACTION_ID}">Test</qka>`,
+          },
+        ],
+      },
+    ];
+
+    const links = resolveTurnActionLinkFallback(messages);
+    assert.ok(links);
+    assert.equal(links![0]?.actionId, ACTION_ID);
+    assert.equal(collectActionLinkBarIdsFromTurn(messages).has(ACTION_ID), false);
+  });
+
+  it("reads action id from qkrpc apply output shape", () => {
+    const messages: AgentUIMessage[] = [
+      {
+        id: "a1",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-workspace_program" as const,
+            toolCallId: "tc-patch",
+            state: "output-available" as const,
+            input: { action: "patch", target: "action", id: ACTION_ID },
+            output: formatLocalToolResult(
+              {
+                ok: true,
+                actionId: ACTION_ID,
+                editVersion: 4,
+              },
+              true,
+            ),
+          },
+        ],
+      },
+    ];
+
+    assert.deepEqual(findLastSuccessfulActionPatchInTurn(messages), {
+      actionId: ACTION_ID,
+    });
   });
 });
