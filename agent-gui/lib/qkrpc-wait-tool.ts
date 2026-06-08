@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { formatQkrpcResultForAgent, runQkrpc } from "@/lib/qkrpc";
+import { buildWaitCliArgs, executeRobustQkrpcWait } from "@/lib/qkrpc-wait-core";
+import type { QkrpcWaitToolInput as QkrpcWaitInput } from "@/lib/qkrpc-wait-core";
 
 export const QKRPC_WAIT_TOOL = "qkrpc_wait";
 
@@ -25,40 +26,22 @@ const waitInputSchema = z.object({
     .describe("Do not auto-start plugin via quicker:runaction."),
 });
 
-export type QkrpcWaitToolInput = z.infer<typeof waitInputSchema>;
-
-function buildWaitArgs(input: QkrpcWaitToolInput): string[] {
-  const timeout = input.timeoutSeconds ?? 120;
-  const interval = input.intervalSeconds ?? 2;
-  const args = [
-    "wait",
-    "--timeout",
-    String(timeout),
-    "--interval",
-    String(interval),
-    "--json",
-  ];
-  if (input.noBootstrap) args.push("--no-bootstrap");
-  return args;
-}
+export type QkrpcWaitToolInput = QkrpcWaitInput;
 
 export async function executeQkrpcWaitTool(
   input: QkrpcWaitToolInput,
 ): Promise<Record<string, unknown>> {
-  const timeout = input.timeoutSeconds ?? 120;
-  const args = buildWaitArgs(input);
-  const result = await runQkrpc(args, {
-    json: true,
-    timeoutMs: timeout * 1000 + 20_000,
-  });
-  return formatQkrpcResultForAgent(result);
+  return executeRobustQkrpcWait(input);
 }
 
 export const QKRPC_WAIT_TOOL_DEF = tool({
   description:
     "Wait until Quicker + QuickerRpc plugin is reachable (poll with timeout). "
+    + "Auto-recovers: restarts qkrpc serve if down, polls via HTTP, then CLI with quicker:runaction bootstrap. "
     + "Use once when other qkrpc tools return connectivity_failure — NOT shell ping/probe/serve. "
     + "On success retry the original tool; on timeout tell the user to start Quicker/load plugin.",
   inputSchema: waitInputSchema,
   execute: async (input: QkrpcWaitToolInput) => executeQkrpcWaitTool(input),
 });
+
+export { buildWaitCliArgs } from "@/lib/qkrpc-wait-core";

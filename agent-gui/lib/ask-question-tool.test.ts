@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   ASK_QUESTION_TOOL,
   buildAskQuestionToolOutput,
+  collectPendingAskQuestions,
   countPendingAskQuestions,
   parseAskQuestionInput,
   parseAskQuestionOutputData,
@@ -68,5 +69,9 @@ describe("ask-question-tool", () => {
       },
     ];
     assert.equal(countPendingAskQuestions(messages), 1);
+    const pending = collectPendingAskQuestions(messages);
+    assert.equal(pending.length, 1);
+    assert.equal(pending[0]?.toolCallId, "tc1");
+    assert.equal(pending[0]?.input.questions[0]?.id, "q1");
   });
 });

@@ -277,40 +277,17 @@ async function tryHttpInvoke(
   return "skip";
 }
 
-export async function runQkrpc(
-  args: string[],
-  options?: { stdin?: string; timeoutMs?: number; json?: boolean },
+async function spawnQkrpcCli(
+  finalArgs: string[],
+  options?: { stdin?: string; timeoutMs?: number },
 ): Promise<QkrpcRunResult> {
-  const serveOnly = mustNotSpawnCli();
-  const stepRunnerCatalog = isStepRunnerCatalogArgv(args);
-
-  if (!options?.stdin && !isCliTransportForced()) {
-    const http = await tryHttpInvoke(args, options, { serveOnly });
-    if (http !== "skip") {
-      return http;
-    }
-  }
-
-  if (serveOnly && !stepRunnerCatalog) {
-    if (options?.stdin) {
-      return serveTransportError(
-        "stdin 模式不支持 qkrpc serve；请通过 HTTP 传入 JSON body（action.patch / replace 等）。",
-      );
-    }
-    return serveTransportError(formatServeUnreachableMessage());
-  }
-
-  // Per-request qkrpc.exe subprocess — only when QKRPC_TRANSPORT=cli|spawn (local debug).
-  const json = options?.json !== false;
-  const finalArgs = json && !args.includes("--json") ? [...args, "--json"] : [...args];
   const bin = resolveBin();
   if (!bin) {
-    const message = formatQkrpcMissingMessage();
     return {
       ok: false,
       exitCode: 1,
       stdout: "",
-      stderr: message,
+      stderr: formatQkrpcMissingMessage(),
       parsed: null,
       truncated: false,
     };
@@ -387,6 +364,45 @@ export async function runQkrpc(
       child.stdin?.end();
     }
   });
+}
+
+/** Direct qkrpc.exe spawn — qkrpc_wait recovery only (bypasses serve-only transport). */
+export async function runQkrpcCliDirect(
+  args: string[],
+  options?: { stdin?: string; timeoutMs?: number; json?: boolean },
+): Promise<QkrpcRunResult> {
+  const json = options?.json !== false;
+  const finalArgs = json && !args.includes("--json") ? [...args, "--json"] : [...args];
+  return spawnQkrpcCli(finalArgs, options);
+}
+
+export async function runQkrpc(
+  args: string[],
+  options?: { stdin?: string; timeoutMs?: number; json?: boolean },
+): Promise<QkrpcRunResult> {
+  const serveOnly = mustNotSpawnCli();
+  const stepRunnerCatalog = isStepRunnerCatalogArgv(args);
+
+  if (!options?.stdin && !isCliTransportForced()) {
+    const http = await tryHttpInvoke(args, options, { serveOnly });
+    if (http !== "skip") {
+      return http;
+    }
+  }
+
+  if (serveOnly && !stepRunnerCatalog) {
+    if (options?.stdin) {
+      return serveTransportError(
+        "stdin 模式不支持 qkrpc serve；请通过 HTTP 传入 JSON body（action.patch / replace 等）。",
+      );
+    }
+    return serveTransportError(formatServeUnreachableMessage());
+  }
+
+  // Per-request qkrpc.exe subprocess — only when QKRPC_TRANSPORT=cli|spawn (local debug).
+  const json = options?.json !== false;
+  const finalArgs = json && !args.includes("--json") ? [...args, "--json"] : [...args];
+  return spawnQkrpcCli(finalArgs, options);
 }
 
 /** Drop legacy search-level agentGuidance (moved to docs / tool descriptions). */

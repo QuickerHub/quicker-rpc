@@ -1,14 +1,11 @@
 "use client";
 
 import type { ChatStoreData } from "@/lib/chat-store";
-import { parseLegacyChatPayload } from "@/lib/chat-store";
+import {
+  assembleChatStoreCandidatesFromLegacyHits,
+  type LegacyScanHit,
+} from "@/lib/legacy-chat-assemble";
 import { isTauriShell } from "@/lib/tauri-shell";
-
-type LegacyScanHit = {
-  source: string;
-  storageKey: string;
-  json: string;
-};
 
 export type LegacyDiskScanResult = {
   candidates: Array<{ source: string; data: ChatStoreData }>;
@@ -51,20 +48,19 @@ export async function fetchLegacyChatStoreCandidatesFromDisk(): Promise<LegacyDi
     }
   }
 
+  const assembled = assembleChatStoreCandidatesFromLegacyHits(hits);
   const candidates: Array<{ source: string; data: ChatStoreData }> = [];
   const seenThreadSets = new Set<string>();
 
-  for (const hit of hits) {
-    const parsed = parseLegacyChatPayload(hit.storageKey, hit.json);
-    if (!parsed) continue;
-    const signature = parsed.threads
+  for (const item of assembled) {
+    const signature = item.data.threads
       .filter((t) => t.messages.length > 0)
       .map((t) => `${t.id}:${t.messages.length}`)
       .sort()
       .join("|");
     if (!signature || seenThreadSets.has(signature)) continue;
     seenThreadSets.add(signature);
-    candidates.push({ source: hit.source, data: parsed });
+    candidates.push(item);
   }
 
   return { candidates, scannedRoots };

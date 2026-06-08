@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountUsageSection } from "@/components/chat/AccountUsageSection";
 import { AppVersionSection } from "@/components/chat/AppVersionSection";
@@ -9,23 +9,19 @@ import { VoiceInputSettingsSection } from "@/components/chat/VoiceInputSettingsS
 import { LauncherSettingsSection } from "@/components/chat/LauncherSettingsSection";
 import type { AppSettingsTabId } from "@/lib/app-settings-tabs";
 import type { LlmProviderId } from "@/lib/llm-providers";
-import type { PingState } from "@/lib/use-qkrpc-ping";
+import { buildQkrpcPingUserSummary } from "@/lib/qkrpc-ping-diagnostics";
+import type { PingState, RefreshPingOptions } from "@/lib/use-qkrpc-ping";
+import { useAppVersionSnapshot } from "@/lib/use-app-versions";
 
 type AppSettingsPanelProps = {
   active: boolean;
   activeTab: AppSettingsTabId;
   ping: PingState;
-  onRefreshPing: () => void;
+  onRefreshPing: (opts?: RefreshPingOptions) => void | Promise<void>;
   versionRefreshKey?: number;
   focusProviderId?: LlmProviderId;
   disabled?: boolean;
 };
-
-function pingLabel(ping: PingState): string {
-  if (ping.status === "loading") return "检测 qkrpc…";
-  if (ping.status === "ok") return "Quicker 已连接";
-  return `未连接: ${ping.message}`;
-}
 
 export function AppSettingsPanel({
   active,
@@ -38,13 +34,29 @@ export function AppSettingsPanel({
 }: AppSettingsPanelProps) {
   const [versionProbeTick, setVersionProbeTick] = useState(0);
 
-  const handleRefreshPing = useCallback(() => {
-    setVersionProbeTick((n) => n + 1);
-    void onRefreshPing();
-  }, [onRefreshPing]);
-
   const versionKey = (versionRefreshKey ?? 0) + versionProbeTick;
   const tabActive = active;
+  const { snapshot } = useAppVersionSnapshot(versionKey, tabActive && activeTab === "general");
+  const runtime =
+    snapshot?.runtime === "dev"
+      ? "dev"
+      : snapshot?.runtime === "bundled"
+        ? "bundled"
+        : "unknown";
+
+  const qkrpcSummary = useMemo(
+    () => buildQkrpcPingUserSummary(ping, runtime),
+    [ping, runtime],
+  );
+
+  const handleRefreshPing = useCallback(() => {
+    setVersionProbeTick((n) => n + 1);
+    void onRefreshPing({ silent: false, fast: true });
+  }, [onRefreshPing]);
+
+  const checking = ping.status === "loading";
+  const statusDotClass =
+    ping.status === "ok" ? "ok" : checking ? "loading" : "err";
 
   return (
     <div className="app-settings-panel">
@@ -67,30 +79,32 @@ export function AppSettingsPanel({
 
           <section className="app-settings-card">
             <header className="app-settings-section-head app-settings-section-head--compact">
-              <h2 className="app-settings-section-title">Quicker RPC</h2>
+              <h2 className="app-settings-section-title">Quicker 连接</h2>
             </header>
             <div className="app-settings-ping-row">
               <div className="app-settings-ping">
-                <span
-                  className={`ping-dot ${
-                    ping.status === "ok"
-                      ? "ok"
-                      : ping.status === "loading"
-                        ? "loading"
-                        : "err"
-                  }`}
-                />
-                <span className="app-settings-ping-text">{pingLabel(ping)}</span>
+                <span className={`ping-dot ${statusDotClass}`} />
+                <span className="app-settings-ping-text">{qkrpcSummary.statusLabel}</span>
               </div>
               <button
                 type="button"
                 className="app-settings-action"
                 onClick={() => void handleRefreshPing()}
-                disabled={disabled || ping.status === "loading"}
+                disabled={disabled || checking}
               >
-                重新检测
+                {checking ? "检测中…" : "重新检测"}
               </button>
             </div>
+            {qkrpcSummary.detail ? (
+              <p className="qkrpc-settings-user-detail">{qkrpcSummary.detail}</p>
+            ) : null}
+            {qkrpcSummary.fixes && qkrpcSummary.fixes.length > 0 ? (
+              <ul className="qkrpc-settings-user-fixes">
+                {qkrpcSummary.fixes.map((fix) => (
+                  <li key={fix}>{fix}</li>
+                ))}
+              </ul>
+            ) : null}
           </section>
         </div>
 

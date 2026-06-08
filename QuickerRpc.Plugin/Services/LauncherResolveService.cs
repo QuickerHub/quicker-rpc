@@ -42,6 +42,17 @@ public sealed class LauncherResolveService
             };
         }
 
+        var terms = LauncherQueryParser.ParseAlternatives(text);
+        if (terms.Count == 0)
+        {
+            return new QuickerRpcResolveLauncherIntentResult
+            {
+                Ok = false,
+                Query = text,
+                Message = "query is required.",
+            };
+        }
+
         var limit = Clamp(maxResults, 1, 30);
         var scopeSet = ParseScopes(scopes);
         var includeSettings = scopeSet is null || scopeSet.Contains("settings");
@@ -51,19 +62,28 @@ public sealed class LauncherResolveService
         var candidates = new List<QuickerRpcLauncherIntentCandidate>();
         var dedupe = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        if (includeSettings)
+        foreach (var term in terms)
         {
-            CollectSettingsCandidates(text, limit, candidates, dedupe);
-        }
+            var searchKeyword = LauncherQueryParser.ToSearchKeyword(term);
+            if (searchKeyword.Length == 0 && term.IndexOf('*') >= 0)
+            {
+                continue;
+            }
 
-        if (includeActions)
-        {
-            CollectActionCandidates(text, limit, candidates, dedupe);
-        }
+            if (includeSettings)
+            {
+                CollectSettingsCandidates(term, searchKeyword, limit, candidates, dedupe);
+            }
 
-        if (includeSubprograms)
-        {
-            CollectSubProgramCandidates(text, limit, candidates, dedupe);
+            if (includeActions)
+            {
+                CollectActionCandidates(term, searchKeyword, limit, candidates, dedupe);
+            }
+
+            if (includeSubprograms)
+            {
+                CollectSubProgramCandidates(term, searchKeyword, limit, candidates, dedupe);
+            }
         }
 
         var ranked = candidates
@@ -72,32 +92,66 @@ public sealed class LauncherResolveService
             .Take(limit)
             .ToList();
 
+        var matchedTerms = ranked
+            .Select(c => c.MatchedQueryTerm)
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var missedTerms = terms
+            .Where(term => !matchedTerms.Contains(term))
+            .ToList();
+
         return new QuickerRpcResolveLauncherIntentResult
         {
             Ok = ranked.Count > 0,
             Query = text,
-            NormalizedQuery = text,
+            NormalizedQuery = string.Join(" | ", terms),
+            QueryTerms = terms.ToList(),
+            MissedTerms = missedTerms,
             Message = ranked.Count == 0
                 ? "No launcher intent matched."
-                : $"Top match: {ranked[0].Title} ({ranked[0].Kind}).",
+                : BuildResultMessage(ranked, missedTerms),
             Candidates = ranked,
         };
     }
 
+    private static string BuildResultMessage(
+        IReadOnlyList<QuickerRpcLauncherIntentCandidate> ranked,
+        IReadOnlyList<string> missedTerms)
+    {
+        var top = ranked[0];
+        var message = $"Top match: {top.Title} ({top.Kind})";
+        if (!string.IsNullOrWhiteSpace(top.MatchedQueryTerm))
+        {
+            message += $" via term \"{top.MatchedQueryTerm}\"";
+        }
+
+        if (missedTerms.Count > 0)
+        {
+            message += $"; missed: {string.Join(", ", missedTerms)}";
+        }
+
+        return message;
+    }
+
     private void CollectSettingsCandidates(
-        string query,
+        string queryTerm,
+        string searchKeyword,
         int limit,
         List<QuickerRpcLauncherIntentCandidate> candidates,
         HashSet<string> dedupe)
     {
-        var intent = _settingsUiService.ResolveIntent(query: query);
+        var intent = _settingsUiService.ResolveIntent(query: searchKeyword);
         if (intent.Ok && !string.Equals(intent.Intent, "unknown", StringComparison.OrdinalIgnoreCase))
         {
+            var title = BuildSettingsIntentTitle(intent);
             AddCandidate(candidates, dedupe, new QuickerRpcLauncherIntentCandidate
             {
                 Kind = "settings-intent",
                 Score = 1000,
-                Title = BuildSettingsIntentTitle(intent),
+                Title = title,
                 Subtitle = intent.Message,
                 Intent = intent.Intent,
                 PageId = intent.PageId,
@@ -107,12 +161,12 @@ public sealed class LauncherResolveService
                 SuggestedTool = "quicker_settings",
                 SuggestedInputJson = SerializeSuggestedInput(BuildSettingsOpenInput(intent)),
                 Reason = "settings intent resolve",
-            });
+            }, queryTerm, MatchFields.From(title, intent.Message, intent.PageId, intent.PresetId, intent.SettingKey, intent.Target));
         }
 
         foreach (var link in SettingsDirectLinkCatalog.ListLinks())
         {
-            if (!MatchesDirectLink(query, link))
+            if (!MatchesDirectLink(queryTerm, searchKeyword, link))
             {
                 continue;
             }
@@ -134,11 +188,11 @@ public sealed class LauncherResolveService
                     ["preset"] = link.Id,
                 }),
                 Reason = "settings direct link preset",
-            });
+            }, queryTerm, MatchFields.From(link.Title, link.Id, pageId: link.Target, presetId: link.Id, aliases: link.Aliases));
         }
 
         var searchLimit = Math.Max(limit, 8);
-        var search = _settingsService.Search(query, searchLimit);
+        var search = _settingsService.Search(searchKeyword, searchLimit);
         for (var i = 0; i < search.Pages.Count; i++)
         {
             var page = search.Pages[i];
@@ -158,7 +212,7 @@ public sealed class LauncherResolveService
                     ["page"] = page.PageId,
                 }),
                 Reason = "settings page search",
-            });
+            }, queryTerm, MatchFields.From(page.Title, page.Description ?? page.PageId, pageId: page.PageId, keywords: page.Keywords));
         }
 
         for (var i = 0; i < search.Items.Count; i++)
@@ -177,26 +231,25 @@ public sealed class LauncherResolveService
                 Subtitle = item.Key,
                 SettingKey = item.Key,
                 PageId = item.PageId,
-                SuggestedTool = string.Equals(intent.SuggestedAction, "set", StringComparison.OrdinalIgnoreCase)
-                    ? "quicker_settings"
-                    : "quicker_settings",
+                SuggestedTool = "quicker_settings",
                 SuggestedInputJson = SerializeSuggestedInput(new Dictionary<string, object?>
                 {
                     ["action"] = "get",
                     ["key"] = item.Key,
                 }),
                 Reason = "settings key search",
-            });
+            }, queryTerm, MatchFields.From(item.Title, item.Path, pageId: item.PageId, settingKey: item.Key));
         }
     }
 
     private void CollectActionCandidates(
-        string query,
+        string queryTerm,
+        string searchKeyword,
         int limit,
         List<QuickerRpcLauncherIntentCandidate> candidates,
         HashSet<string> dedupe)
     {
-        var result = _actionSearchService.SearchActions(query, limit, scope: null);
+        var result = _actionSearchService.SearchActions(searchKeyword, limit, scope: null);
         if (!result.Ok)
         {
             return;
@@ -224,17 +277,18 @@ public sealed class LauncherResolveService
                     ["id"] = action.Id,
                 }),
                 Reason = "action search",
-            });
+            }, queryTerm, MatchFields.From(action.Title, action.ProfileName ?? action.ExeFile, actionId: action.Id));
         }
     }
 
     private void CollectSubProgramCandidates(
-        string query,
+        string queryTerm,
+        string searchKeyword,
         int limit,
         List<QuickerRpcLauncherIntentCandidate> candidates,
         HashSet<string> dedupe)
     {
-        var result = _subProgramSearchService.Search(query, limit);
+        var result = _subProgramSearchService.Search(searchKeyword, limit);
         if (!result.Ok)
         {
             return;
@@ -262,33 +316,32 @@ public sealed class LauncherResolveService
                     ["id"] = sub.Id,
                 }),
                 Reason = "subprogram search",
-            });
+            }, queryTerm, MatchFields.From(sub.Name, sub.Description, subProgramId: sub.Id));
         }
     }
 
-    private static bool MatchesDirectLink(string query, SettingsDirectLinkListItem link)
+    private static bool MatchesDirectLink(
+        string queryTerm,
+        string searchKeyword,
+        SettingsDirectLinkListItem link)
     {
-        if (string.Equals(query, link.Id, StringComparison.OrdinalIgnoreCase))
+        if (LauncherQueryParser.Matches(queryTerm, link.Id)
+            || LauncherQueryParser.Matches(searchKeyword, link.Id))
         {
             return true;
         }
 
         foreach (var alias in link.Aliases)
         {
-            if (string.Equals(query, alias, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (query.Contains(alias, StringComparison.OrdinalIgnoreCase)
-                || alias.Contains(query, StringComparison.OrdinalIgnoreCase))
+            if (LauncherQueryParser.Matches(queryTerm, alias)
+                || LauncherQueryParser.Matches(searchKeyword, alias))
             {
                 return true;
             }
         }
 
-        return query.Contains(link.Title, StringComparison.OrdinalIgnoreCase)
-               || link.Title.Contains(query, StringComparison.OrdinalIgnoreCase);
+        return LauncherQueryParser.Matches(queryTerm, link.Title)
+               || LauncherQueryParser.Matches(searchKeyword, link.Title);
     }
 
     private static string BuildSettingsIntentTitle(QuickerRpcResolveSettingsIntentResult intent)
@@ -350,23 +403,131 @@ public sealed class LauncherResolveService
     private static void AddCandidate(
         List<QuickerRpcLauncherIntentCandidate> candidates,
         HashSet<string> dedupe,
-        QuickerRpcLauncherIntentCandidate candidate)
+        QuickerRpcLauncherIntentCandidate candidate,
+        string queryTerm,
+        MatchFields fields)
     {
+        var matchedOn = fields.FindMatchedOn(queryTerm);
+        if (matchedOn is null && queryTerm.IndexOf('*') >= 0)
+        {
+            return;
+        }
+
+        candidate.MatchedQueryTerm = queryTerm;
+        candidate.MatchedOn = matchedOn ?? $"term: {queryTerm}";
+
         var key = $"{candidate.Kind}:{candidate.PresetId ?? candidate.PageId ?? candidate.SettingKey ?? candidate.ActionId ?? candidate.SubProgramId ?? candidate.Title}";
         if (!dedupe.Add(key))
         {
             var existing = candidates.FirstOrDefault(c =>
                 string.Equals($"{c.Kind}:{c.PresetId ?? c.PageId ?? c.SettingKey ?? c.ActionId ?? c.SubProgramId ?? c.Title}", key, StringComparison.OrdinalIgnoreCase));
-            if (existing is not null && candidate.Score > existing.Score)
+            if (existing is not null)
             {
-                existing.Score = candidate.Score;
-                existing.Reason = candidate.Reason;
+                if (candidate.Score > existing.Score)
+                {
+                    existing.Score = candidate.Score;
+                    existing.Reason = candidate.Reason;
+                    existing.MatchedQueryTerm = candidate.MatchedQueryTerm;
+                    existing.MatchedOn = candidate.MatchedOn;
+                }
+                else if (!string.Equals(existing.MatchedQueryTerm, queryTerm, StringComparison.OrdinalIgnoreCase)
+                         && !string.IsNullOrWhiteSpace(existing.MatchedQueryTerm))
+                {
+                    existing.Score += 40;
+                    existing.MatchedQueryTerm += $" | {queryTerm}";
+                }
             }
 
             return;
         }
 
         candidates.Add(candidate);
+    }
+
+    private sealed class MatchFields
+    {
+        public string? Title { get; set; }
+
+        public string? Subtitle { get; set; }
+
+        public string? PageId { get; set; }
+
+        public string? PresetId { get; set; }
+
+        public string? SettingKey { get; set; }
+
+        public string? Target { get; set; }
+
+        public string? ActionId { get; set; }
+
+        public string? SubProgramId { get; set; }
+
+        public string? Keywords { get; set; }
+
+        public string? Snippet { get; set; }
+
+        public IEnumerable<string>? Aliases { get; set; }
+
+        public static MatchFields From(
+            string? title,
+            string? subtitle = null,
+            string? pageId = null,
+            string? presetId = null,
+            string? settingKey = null,
+            string? target = null,
+            IEnumerable<string>? aliases = null,
+            string? keywords = null,
+            string? snippet = null,
+            string? actionId = null,
+            string? subProgramId = null)
+        {
+            return new MatchFields
+            {
+                Title = title,
+                Subtitle = subtitle,
+                PageId = pageId,
+                PresetId = presetId,
+                SettingKey = settingKey,
+                Target = target,
+                Aliases = aliases,
+                Keywords = keywords,
+                Snippet = snippet,
+                ActionId = actionId,
+                SubProgramId = subProgramId,
+            };
+        }
+
+        public string? FindMatchedOn(string queryTerm)
+        {
+            var matched = LauncherQueryParser.FindMatchedOn(
+                queryTerm,
+                ("title", Title),
+                ("subtitle", Subtitle),
+                ("pageId", PageId),
+                ("presetId", PresetId),
+                ("settingKey", SettingKey),
+                ("target", Target),
+                ("actionId", ActionId),
+                ("subProgramId", SubProgramId),
+                ("keywords", Keywords),
+                ("snippet", Snippet));
+
+            if (matched is not null)
+            {
+                return matched;
+            }
+
+            foreach (var alias in Aliases ?? Array.Empty<string>())
+            {
+                matched = LauncherQueryParser.FindMatchedOn(queryTerm, ("alias", alias));
+                if (matched is not null)
+                {
+                    return matched;
+                }
+            }
+
+            return null;
+        }
     }
 
     private static string SerializeSuggestedInput(Dictionary<string, object?> input) =>

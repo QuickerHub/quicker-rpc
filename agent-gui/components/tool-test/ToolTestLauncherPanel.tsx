@@ -1,6 +1,7 @@
 "use client";
 
 import type { SettingsIntentRunEntry } from "@/lib/quicker-settings-intent-runs";
+import type { ChatAddToolOutput } from "@/lib/chat-tool-actions";
 import type { LauncherAgentRunEntry } from "@/lib/tool-test-launcher-agent-runs";
 import type { LauncherResolveRunEntry } from "@/lib/tool-test-launcher-resolve-runs";
 import { ToolTestLauncherAgentPanel } from "@/components/tool-test/ToolTestLauncherAgentPanel";
@@ -20,10 +21,13 @@ type ToolTestLauncherPanelProps = {
   onPatchResolveRun: (id: string, patch: Partial<LauncherResolveRunEntry>) => void;
   onAppendIntentRun: (entry: SettingsIntentRunEntry) => void;
   onPatchIntentRun: (id: string, patch: Partial<SettingsIntentRunEntry>) => void;
+  onLauncherAgentChatActionsReady?: (
+    actions: { addToolOutput: ChatAddToolOutput } | null,
+  ) => void;
 };
 
 const SUB_TABS: { id: ToolTestLauncherSubTab; label: string; title: string }[] = [
-  { id: "agent", label: "Agent", title: "Launcher + Auto 完整对话" },
+  { id: "agent", label: "Agent", title: "Launcher 完整对话（可选模型）" },
   { id: "resolve", label: "Resolve", title: "launcher_resolve 打分排序" },
   { id: "intent", label: "Intent", title: "settings resolve golden cases" },
 ];
@@ -39,6 +43,7 @@ export function ToolTestLauncherPanel({
   onPatchResolveRun,
   onAppendIntentRun,
   onPatchIntentRun,
+  onLauncherAgentChatActionsReady,
 }: ToolTestLauncherPanelProps) {
   return (
     <div className="tool-test-launcher-panel">
@@ -68,6 +73,7 @@ export function ToolTestLauncherPanel({
           workingDirectory={workingDirectory}
           onAppendRun={onAppendAgentRun}
           onPatchRun={onPatchAgentRun}
+          onChatActionsReady={onLauncherAgentChatActionsReady}
         />
       ) : subTab === "resolve" ? (
         <ToolTestLauncherResolvePanel

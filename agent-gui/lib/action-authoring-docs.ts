@@ -20,6 +20,13 @@ import {
 } from "@/lib/agent-skills";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
+import {
+  buildAuthoringDocsSearchIndex,
+  buildSearchExcerpt,
+  searchAuthoringDocRows,
+  splitSearchPatterns,
+  type AuthoringDocsSearchIndex,
+} from "@/lib/action-authoring-docs-search";
 import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
 
 export type {
@@ -70,6 +77,7 @@ type TopicsManifest = {
 };
 
 let cachedRows: TopicRow[] | null = null;
+let cachedSearchIndex: AuthoringDocsSearchIndex | null = null;
 let cachedRoot: string | null = null;
 let cachedSkillsMtimeMs = 0;
 let cachedPromptBlock: { content: string; mtimeMs: number } | null = null;
@@ -386,9 +394,19 @@ async function loadAllTopics(): Promise<TopicRow[]> {
   }
 
   cachedRows = rows;
+  cachedSearchIndex = buildAuthoringDocsSearchIndex(rows);
   cachedRoot = root;
   cachedSkillsMtimeMs = skillsMtime;
   return rows;
+}
+
+async function loadAuthoringDocsSearchIndex(): Promise<AuthoringDocsSearchIndex> {
+  const rows = await loadAllTopics();
+  if (cachedSearchIndex) {
+    return cachedSearchIndex;
+  }
+  cachedSearchIndex = buildAuthoringDocsSearchIndex(rows);
+  return cachedSearchIndex;
 }
 
 export async function formatAuthoringSkillRouterForPrompt(): Promise<string> {
@@ -697,59 +715,6 @@ export async function getActionAuthoringDoc(
   };
 }
 
-function splitPatterns(keyword: string): string[] {
-  return keyword
-    .split(/\s+/)
-    .map((p) => p.trim().toLowerCase())
-    .filter((p) => p.length > 0);
-}
-
-function buildExcerpt(
-  markdown: string,
-  patterns: string[],
-  maxLength = 280,
-): string {
-  let plain = markdown.replace(/^#+\s*/gm, "");
-  plain = plain.replace(/[*_`#[\]()]/g, "");
-  plain = plain.replace(/\s+/g, " ").trim();
-
-  if (patterns.length > 0) {
-    const lower = plain.toLowerCase();
-    let idx = -1;
-    for (const p of patterns) {
-      const found = lower.indexOf(p);
-      if (found >= 0 && (idx < 0 || found < idx)) {
-        idx = found;
-      }
-    }
-    if (idx > 40) {
-      plain = `…${plain.slice(idx)}`;
-    }
-  }
-
-  if (plain.length <= maxLength) {
-    return plain;
-  }
-  return `${plain.slice(0, maxLength).trimEnd()}…`;
-}
-
-function rowScore(row: TopicRow, patterns: string[]): number {
-  let score = 0;
-  const topicLower = row.topic.toLowerCase();
-  const refLower = row.reference?.toLowerCase() ?? "";
-  const titleLower = row.title.toLowerCase();
-  const descLower = row.description.toLowerCase();
-  const bodyLower = row.markdown.toLowerCase();
-  for (const p of patterns) {
-    if (topicLower.includes(p)) score += 8;
-    if (refLower.includes(p)) score += 6;
-    if (titleLower.includes(p)) score += 4;
-    if (descLower.includes(p)) score += 4;
-    if (bodyLower.includes(p)) score += 1;
-  }
-  return score;
-}
-
 export async function searchActionAuthoringDocs(
   keyword: string | undefined,
   limit = 10,
@@ -760,41 +725,22 @@ export async function searchActionAuthoringDocs(
   availableTopics: string[];
 }> {
   const cap = Math.min(Math.max(limit, 1), 50);
-  const patterns = splitPatterns(keyword ?? "");
+  const patterns = splitSearchPatterns(keyword ?? "");
   const rows = await loadAllTopics();
+  const searchIndex = await loadAuthoringDocsSearchIndex();
   const availableTopics = [
     ...new Set(rows.map((r) => r.topic)),
   ].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 
-  let candidates = rows;
-  if (patterns.length > 0) {
-    candidates = rows.filter((row) => {
-      const hay =
-        `${row.topic} ${row.title} ${row.description} ${row.markdown}`.toLowerCase();
-      return patterns.every((p) => hay.includes(p));
-    });
-  }
+  const hits = searchAuthoringDocRows(searchIndex, keyword, cap);
 
-  const scored = candidates
-    .map((row) => ({
-      row,
-      score: patterns.length ? rowScore(row, patterns) : 0,
-    }))
-    .sort(
-      (a, b) =>
-        b.score - a.score
-        || a.row.topic.localeCompare(b.row.topic, undefined, {
-          sensitivity: "base",
-        }),
-    )
-    .slice(0, cap);
-
-  const items = scored.map(({ row }) => ({
+  const items = hits.map(({ row, score }) => ({
     topic: row.topic,
     title: row.reference ? `${row.title} (${row.topic}/${row.reference})` : row.title,
     description: row.description,
-    excerpt: buildExcerpt(row.markdown, patterns),
+    excerpt: buildSearchExcerpt(row.markdown, patterns),
     reference: row.reference,
+    ...(patterns.length > 0 ? { score } : {}),
   }));
 
   return {

@@ -37,7 +37,7 @@ const TOOL_ROUTING_ROWS = [
   "| Web UI / getquicker login | browser | web_search; shell curl |",
   "| Chat LLM profiles | llm_settings | quicker_settings |",
   "| Delete | qkrpc_action_delete / qkrpc_subprogram_delete | only on user ask |",
-  "| Launcher unclear phrase | launcher_resolve → execute | workspace_program |",
+  "| Launcher run/open (no @ mention) | launcher_resolve → ask_question if ambiguous | qkrpc_action_query + auto run |",
   "| agent-gui dev errors | dev_frontend_check | production |",
 ] as const;
 

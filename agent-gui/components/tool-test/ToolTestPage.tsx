@@ -53,6 +53,12 @@ import { ToolTestContextCompressionPanel } from "@/components/tool-test/ToolTest
 import { ToolTestContextCompressionResultPane } from "@/components/tool-test/ToolTestContextCompressionResultPane";
 import { ToolTestVoiceInputPanel } from "@/components/tool-test/ToolTestVoiceInputPanel";
 import { ToolTestVoiceInputResultPane } from "@/components/tool-test/ToolTestVoiceInputResultPane";
+import { ToolTestAskQuestionPanel } from "@/components/tool-test/ToolTestAskQuestionPanel";
+import { ToolTestAskQuestionResultPane } from "@/components/tool-test/ToolTestAskQuestionResultPane";
+import {
+  ToolTestSidebarTabs,
+  type ToolTestSidebarTab,
+} from "@/components/tool-test/ToolTestSidebarTabs";
 import {
   ToolTestLauncherPanel,
   type ToolTestLauncherSubTab,
@@ -70,24 +76,23 @@ import type { ToolSuiteRunEntry } from "@/lib/tool-test-suite-runs";
 import type { AutoFixRunEntry } from "@/lib/tool-test-autofix-runs";
 import type { ContextCompressionRunEntry } from "@/lib/tool-test-context-compression-runs";
 import type { VoiceInputRunEntry } from "@/lib/tool-test-voice-input-runs";
+import type { AskQuestionRunEntry } from "@/lib/tool-test-ask-question-runs";
+import {
+  getDefaultAskQuestionScenario,
+  type AskQuestionScenario,
+} from "@/lib/tool-test-ask-question-scenarios";
 import type { SettingsIntentRunEntry } from "@/lib/quicker-settings-intent-runs";
+import type { ChatAddToolOutput } from "@/lib/chat-tool-actions";
 import type { LauncherAgentRunEntry } from "@/lib/tool-test-launcher-agent-runs";
 import type { LauncherResolveRunEntry } from "@/lib/tool-test-launcher-resolve-runs";
 import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 import { ToolTestLlmProbePanel } from "@/components/tool-test/ToolTestLlmProbePanel";
 import { ToolTestLlmProbeResultPane } from "@/components/tool-test/ToolTestLlmProbeResultPane";
 import type { LlmEndpointProbeReport } from "@/lib/llm-endpoint-probe-core";
-
-type ToolTestSidebarTab =
-  | "tools"
-  | "prompt"
-  | "prompt-chat"
-  | "auto-fix"
-  | "launcher"
-  | "action-trace"
-  | "context-compression"
-  | "voice-input"
-  | "llm-probe";
+import {
+  loadStoredToolTestSidebarTab,
+  storeToolTestSidebarTab,
+} from "@/lib/tool-test-sidebar-prefs";
 
 type StepInputOverrides = Record<string, string>;
 
@@ -253,15 +258,22 @@ export function ToolTestPage() {
     null,
   );
   const [lastError, setLastError] = useState<string | null>(null);
-  const [sidebarTab, setSidebarTab] = useState<ToolTestSidebarTab>("prompt-chat");
+  const [sidebarTab, setSidebarTab] = useState<ToolTestSidebarTab>(
+    () => loadStoredToolTestSidebarTab(),
+  );
   const [titleTestRuns, setTitleTestRuns] = useState<TitleTestRunEntry[]>([]);
   const [autoFixRuns, setAutoFixRuns] = useState<AutoFixRunEntry[]>([]);
   const [contextCompressionRuns, setContextCompressionRuns] = useState<
     ContextCompressionRunEntry[]
   >([]);
   const [voiceInputRuns, setVoiceInputRuns] = useState<VoiceInputRunEntry[]>([]);
+  const [askQuestionRuns, setAskQuestionRuns] = useState<AskQuestionRunEntry[]>([]);
+  const [activeAskQuestionScenario, setActiveAskQuestionScenario] =
+    useState<AskQuestionScenario | null>(() => getDefaultAskQuestionScenario());
   const [launcherSubTab, setLauncherSubTab] = useState<ToolTestLauncherSubTab>("agent");
   const [launcherAgentRuns, setLauncherAgentRuns] = useState<LauncherAgentRunEntry[]>([]);
+  const [launcherAgentAddToolOutput, setLauncherAgentAddToolOutput] =
+    useState<ChatAddToolOutput | null>(null);
   const [launcherResolveRuns, setLauncherResolveRuns] = useState<LauncherResolveRunEntry[]>([]);
   const [settingsIntentRuns, setSettingsIntentRuns] = useState<SettingsIntentRunEntry[]>([]);
   const [detailSuite, setDetailSuite] = useState<ToolTestSuite | null>(null);
@@ -349,6 +361,14 @@ export function ToolTestPage() {
 
   const clearVoiceInputRuns = useCallback(() => {
     setVoiceInputRuns([]);
+  }, []);
+
+  const appendAskQuestionRun = useCallback((entry: AskQuestionRunEntry) => {
+    setAskQuestionRuns((prev) => [...prev, entry]);
+  }, []);
+
+  const clearAskQuestionRuns = useCallback(() => {
+    setAskQuestionRuns([]);
   }, []);
 
   const appendSettingsIntentRun = useCallback((entry: SettingsIntentRunEntry) => {
@@ -641,103 +661,16 @@ export function ToolTestPage() {
   const busy = runningSuiteId !== null;
   const panelDisabled = busy || pendingApproval !== null;
 
+  const handleSidebarTabChange = useCallback((tab: ToolTestSidebarTab) => {
+    setSidebarTab(tab);
+    storeToolTestSidebarTab(tab);
+  }, []);
+
   const sidebarTabs = (
-    <div
-      className="tool-test-sidebar-tabs"
-      role="tablist"
-      aria-label="测试类型"
-    >
-      <button
-        type="button"
-        role="tab"
-        aria-selected={sidebarTab === "prompt-chat"}
-        className={`tool-test-sidebar-tabs__btn${sidebarTab === "prompt-chat" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
-        onClick={() => setSidebarTab("prompt-chat")}
-        title="Prompt 与多轮对话"
-      >
-        对话
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={sidebarTab === "tools"}
-        className={`tool-test-sidebar-tabs__btn${sidebarTab === "tools" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
-        onClick={() => setSidebarTab("tools")}
-        title="工具调用套件"
-      >
-        工具
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={sidebarTab === "prompt"}
-        className={`tool-test-sidebar-tabs__btn${sidebarTab === "prompt" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
-        onClick={() => setSidebarTab("prompt")}
-        title="set_thread_title 标题测试"
-      >
-        标题
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={sidebarTab === "launcher"}
-        className={`tool-test-sidebar-tabs__btn${sidebarTab === "launcher" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
-        onClick={() => setSidebarTab("launcher")}
-        title="启动器：Agent / Resolve / Intent"
-      >
-        启动器
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={sidebarTab === "action-trace"}
-        className={`tool-test-sidebar-tabs__btn${sidebarTab === "action-trace" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
-        onClick={() => setSidebarTab("action-trace")}
-        title="Action trace 流式调试"
-      >
-        Trace
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={sidebarTab === "auto-fix"}
-        className={`tool-test-sidebar-tabs__btn${sidebarTab === "auto-fix" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
-        onClick={() => setSidebarTab("auto-fix")}
-        title="造错→修复场景"
-      >
-        修复
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={sidebarTab === "voice-input"}
-        className={`tool-test-sidebar-tabs__btn${sidebarTab === "voice-input" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
-        onClick={() => setSidebarTab("voice-input")}
-        title="语音输入启动延迟"
-      >
-        语音
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={sidebarTab === "context-compression"}
-        className={`tool-test-sidebar-tabs__btn${sidebarTab === "context-compression" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
-        onClick={() => setSidebarTab("context-compression")}
-        title="上下文压缩 dry-run / Chat"
-      >
-        压缩
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={sidebarTab === "llm-probe"}
-        className={`tool-test-sidebar-tabs__btn${sidebarTab === "llm-probe" ? " tool-test-sidebar-tabs__btn--active" : ""}`}
-        onClick={() => setSidebarTab("llm-probe")}
-        title="批量探测 LLM publish/dev/llm-config endpoint"
-      >
-        LLM
-      </button>
-    </div>
+    <ToolTestSidebarTabs
+      activeTab={sidebarTab}
+      onTabChange={handleSidebarTabChange}
+    />
   );
 
   const toolsPanelBusy = runningSuiteId !== null || runningAllSuites;
@@ -802,6 +735,9 @@ export function ToolTestPage() {
         onPatchResolveRun={patchLauncherResolveRun}
         onAppendIntentRun={appendSettingsIntentRun}
         onPatchIntentRun={patchSettingsIntentRun}
+        onLauncherAgentChatActionsReady={(actions) => {
+          setLauncherAgentAddToolOutput(actions?.addToolOutput ?? null);
+        }}
       />
     ) : sidebarTab === "action-trace" ? (
       <ToolTestActionTracePanel disabled={panelDisabled} />
@@ -817,6 +753,12 @@ export function ToolTestPage() {
         disabled={panelDisabled}
         onAppendRun={appendVoiceInputRun}
         onPatchRun={patchVoiceInputRun}
+      />
+    ) : sidebarTab === "ask-question" ? (
+      <ToolTestAskQuestionPanel
+        activeScenarioId={activeAskQuestionScenario?.id ?? null}
+        disabled={panelDisabled}
+        onSelectScenario={setActiveAskQuestionScenario}
       />
     ) : sidebarTab === "llm-probe" ? (
       <ToolTestLlmProbePanel
@@ -859,6 +801,7 @@ export function ToolTestPage() {
         onClearAgentRuns={clearLauncherAgentRuns}
         onClearResolveRuns={clearLauncherResolveRuns}
         onClearIntentRuns={clearSettingsIntentRuns}
+        launcherAgentAddToolOutput={launcherAgentAddToolOutput}
       />
     ) : sidebarTab === "action-trace" ? (
       <ToolTestActionTraceMain
@@ -875,6 +818,13 @@ export function ToolTestPage() {
       <ToolTestVoiceInputResultPane
         runs={voiceInputRuns}
         onClearRuns={clearVoiceInputRuns}
+      />
+    ) : sidebarTab === "ask-question" ? (
+      <ToolTestAskQuestionResultPane
+        activeScenario={activeAskQuestionScenario}
+        runs={askQuestionRuns}
+        onClearRuns={clearAskQuestionRuns}
+        onAppendRun={appendAskQuestionRun}
       />
     ) : sidebarTab === "llm-probe" ? (
       <ToolTestLlmProbeResultPane

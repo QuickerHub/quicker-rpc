@@ -6,6 +6,7 @@ import type { LauncherResolveRunEntry } from "@/lib/tool-test-launcher-resolve-r
 import { ToolTestLauncherAgentResultPane } from "@/components/tool-test/ToolTestLauncherAgentResultPane";
 import { ToolTestLauncherResolveResultPane } from "@/components/tool-test/ToolTestLauncherResolveResultPane";
 import { ToolTestSettingsIntentResultPane } from "@/components/tool-test/ToolTestSettingsIntentResultPane";
+import type { ChatAddToolOutput } from "@/lib/chat-tool-actions";
 import type { ToolTestLauncherSubTab } from "@/components/tool-test/ToolTestLauncherPanel";
 
 type ToolTestLauncherResultPaneProps = {
@@ -17,6 +18,7 @@ type ToolTestLauncherResultPaneProps = {
   onClearAgentRuns: () => void;
   onClearResolveRuns: () => void;
   onClearIntentRuns: () => void;
+  launcherAgentAddToolOutput?: ChatAddToolOutput | null;
 };
 
 export function ToolTestLauncherResultPane({
@@ -28,6 +30,7 @@ export function ToolTestLauncherResultPane({
   onClearAgentRuns,
   onClearResolveRuns,
   onClearIntentRuns,
+  launcherAgentAddToolOutput,
 }: ToolTestLauncherResultPaneProps) {
   if (subTab === "agent") {
     return (
@@ -35,6 +38,7 @@ export function ToolTestLauncherResultPane({
         runs={agentRuns}
         workingDirectory={workingDirectory}
         onClearRuns={onClearAgentRuns}
+        addToolOutput={launcherAgentAddToolOutput}
       />
     );
   }

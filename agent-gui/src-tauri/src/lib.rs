@@ -811,6 +811,8 @@ pub fn run() {
             voice_plugin::voice_plugin_install,
             voice_plugin::voice_plugin_start_runtime,
             voice_plugin::voice_plugin_stop_runtime,
+            voice_plugin::voice_plugin_redownload_model,
+            voice_plugin::voice_plugin_model_install_state,
             voice_plugin::voice_plugin_read_settings,
             voice_plugin::voice_plugin_write_settings,
             clipboard_history_plugin::clipboard_history_plugin_status,

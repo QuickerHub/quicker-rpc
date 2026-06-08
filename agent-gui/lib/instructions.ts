@@ -52,8 +52,9 @@ const LAUNCHER_SYSTEM_INSTRUCTIONS_CORE = prompt(
   TOOL_ROUTING_PROMPT,
   "",
   "## Tools",
-  "launcher_resolve once if unclear → execute. qkrpc_action_run/debug/float; qkrpc_action_get/set_metadata/move; qkrpc_profile_* for tabs; web_search for internet facts.",
-  "No workspace_program / step_runner_* here. delete on explicit ask. ask_question if ambiguous.",
+  "launcher_resolve first for run/open when user did not @-mention an action. Execute next only when present (high confidence); if disambiguationRequired or autoRunBlocked — ask_question, never guess qkrpc_action_run.",
+  "Query: several | synonyms + * wildcards; read match.term/match.on and missedTerms. qkrpc_action_run/debug/float only after explicit user pick or @ mention. qkrpc_action_get/set_metadata/move; qkrpc_profile_*; web_search.",
+  "No workspace_program / step_runner_* here. delete on explicit ask.",
   "launcher_command_cache save after stable success; run cached steps (≥85% match) without re-resolve.",
   "<qka id=\"uuid\"> → qkrpc_action run/debug/edit.",
 );

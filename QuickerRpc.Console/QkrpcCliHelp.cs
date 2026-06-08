@@ -326,7 +326,7 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Action GUID."), Option("yes", "Required.", shortName: "y", required: true), Option("json", "Structured output.") }),
 
-                Cmd("action run", "Run a local action.", "qkrpc action run --id <idOrName> [--param <text>] [--debug|--trace] [--wait] [--json]",
+                Cmd("action run", "Run a local action or inline XAction JSON.", "qkrpc action run --id <idOrName> [--param <text>] [--debug|--trace] [--wait] [--json] | qkrpc action run --xaction-file <path|-> --trace [--param <text>] [--json]",
 
                     opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("debug", "Debug run (opens Quicker step debugger)."), Option("trace", "Trace run (plugin terminal debug log, XAction only)."), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
 

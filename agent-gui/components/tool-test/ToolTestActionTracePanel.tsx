@@ -27,6 +27,7 @@ export function ToolTestActionTracePanel({
       actionId: string;
       param?: string;
       actionTitle?: string;
+      xaction?: (typeof ACTION_TRACE_STANDALONE_CASES)[number]["xaction"];
       label: string;
     }) => {
       if (disabled || busy) return;
@@ -35,6 +36,7 @@ export function ToolTestActionTracePanel({
         actionId: options.actionId,
         param: options.param,
         actionTitle: options.actionTitle,
+        xaction: options.xaction,
       });
       setBusy(false);
       if (!result.ok) {
@@ -62,6 +64,7 @@ export function ToolTestActionTracePanel({
         actionId: testCase.actionId,
         param: testCase.param,
         actionTitle: testCase.actionTitle,
+        xaction: testCase.xaction,
         label: testCase.label,
       });
     },
@@ -89,7 +92,7 @@ export function ToolTestActionTracePanel({
   return (
     <div className="tool-test-action-trace-panel">
       <p className="tool-test-action-trace-panel__hint">
-        点击预设即可 trace（无需填参数）。输出在右侧主区域；需 Quicker + qkrpc serve。
+        点击预设即可 trace（内联 JSON，无需在 Quicker 创建动作）。输出在右侧主区域；需 Quicker + qkrpc serve。
       </p>
 
       <section className="tool-test-action-trace-group">
@@ -137,6 +140,7 @@ export function ToolTestActionTracePanel({
                     actionId: testCase.actionId,
                     param: testCase.param,
                     actionTitle: testCase.actionTitle,
+                    xaction: testCase.xaction,
                     label: testCase.label,
                   })
                 }

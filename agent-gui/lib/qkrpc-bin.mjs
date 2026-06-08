@@ -179,3 +179,37 @@ export function resolveQkrpcBin(agentGuiRoot) {
   if (allowUserInstalledQkrpc()) return QKRPC_EXE;
   return null;
 }
+
+/**
+ * Resolve qkrpc.exe + cwd for `qkrpc serve` (dev auto-recovery and /api/ping).
+ * Prefers staged copy from repo/publish; falls back to user install or PATH.
+ */
+export function resolveServeQkrpcRuntime(agentGuiRoot) {
+  const staged = ensureStagedQkrpcRuntime(agentGuiRoot);
+  if (staged) {
+    return { exe: staged.exe, dir: staged.dir, source: "staged" };
+  }
+
+  const configured = process.env.QKRPC_BIN?.trim();
+  if (configured && existsSync(configured)) {
+    if (!(isUserInstalledQkrpcPath(configured) && !allowUserInstalledQkrpc())) {
+      return { exe: configured, dir: dirname(configured), source: "QKRPC_BIN" };
+    }
+  }
+
+  const sourceDir = resolveBundledQkrpcSourceDir(agentGuiRoot);
+  if (sourceDir) {
+    return {
+      exe: join(sourceDir, QKRPC_EXE),
+      dir: sourceDir,
+      source: "bundled",
+    };
+  }
+
+  const userExe = resolveUserInstalledQkrpcExe() ?? resolveQkrpcFromPath();
+  if (userExe) {
+    return { exe: userExe, dir: dirname(userExe), source: "installed" };
+  }
+
+  return null;
+}

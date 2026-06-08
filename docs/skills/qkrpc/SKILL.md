@@ -23,6 +23,8 @@ description: "Use when calling Quicker through the local qkrpc CLI or MCP tools.
 
 Do **not** run install/probe loops when connectivity fails — tell the user to check Quicker + QuickerRpc plugin.
 
+For **terminology** (QuickerAgent Quicker action vs AI agent), bootstrap URIs, and full connectivity decision tree, read **`quicker-rpc-knowledge`**.
+
 ## Third-party agents (not QuickerAgent)
 
 - **No** `workspace_program` tool — edit `data.json` / `files/` on disk, then `qkrpc_sync push`

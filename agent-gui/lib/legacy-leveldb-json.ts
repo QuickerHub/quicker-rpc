@@ -47,7 +47,15 @@ function extractJsonUtf8FromOffset(bytes: Buffer, start: number): string | null 
   return null;
 }
 
-const UTF16_CHAT_STORE_PREFIX = Buffer.from('{"version":2', "utf16le");
+const UTF8_JSON_ROOT_PREFIXES = ['{"version":1', '{"version":2', '{"version":3'] as const;
+
+function utf16JsonRootPrefix(version: 1 | 2 | 3): Buffer {
+  return Buffer.from(`{"version":${version}`, "utf16le");
+}
+
+const UTF16_JSON_ROOT_PREFIXES = [1, 2, 3].map((version) =>
+  utf16JsonRootPrefix(version as 1 | 2 | 3),
+);
 
 function extractJsonUtf16LeFromOffset(bytes: Buffer, start: number): string | null {
   if (start + 1 >= bytes.length || bytes[start] !== 0x7b || bytes[start + 1] !== 0x00) {
@@ -75,13 +83,18 @@ function extractJsonUtf16LeFromOffset(bytes: Buffer, start: number): string | nu
 }
 
 function findJsonStartAfterOffset(bytes: Buffer, offset: number): number | null {
-  const searchEnd = Math.min(bytes.length, offset + 256);
+  const searchEnd = Math.min(bytes.length, offset + 512);
   const slice = bytes.subarray(offset, searchEnd);
-  const utf16Rel = slice.indexOf(UTF16_CHAT_STORE_PREFIX);
-  if (utf16Rel >= 0) return offset + utf16Rel;
 
-  const utf8Rel = slice.indexOf('{"version":2');
-  if (utf8Rel >= 0) return offset + utf8Rel;
+  for (const prefix of UTF16_JSON_ROOT_PREFIXES) {
+    const utf16Rel = slice.indexOf(prefix);
+    if (utf16Rel >= 0) return offset + utf16Rel;
+  }
+
+  for (const prefix of UTF8_JSON_ROOT_PREFIXES) {
+    const utf8Rel = slice.indexOf(prefix);
+    if (utf8Rel >= 0) return offset + utf8Rel;
+  }
 
   for (let i = 0; i + 1 < slice.length; i++) {
     if (slice[i] === 0x7b && slice[i + 1] === 0x00) {

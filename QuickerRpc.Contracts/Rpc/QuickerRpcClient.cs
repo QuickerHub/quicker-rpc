@@ -196,21 +196,28 @@ public static class QuickerRpcClient
         var pollMs = Math.Max(250, Math.Min(pollIntervalSeconds * 1000, 30_000));
         var attempts = 0;
         var bootstrapAttempted = false;
-        var bootstrapLaunched = false;
+        DateTime? lastBootstrapUtc = null;
+        const int bootstrapRetrySeconds = 20;
 
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             attempts++;
 
-            if (!IsPipeServerListening(pipeName) && tryBootstrap && !bootstrapLaunched)
+            if (!IsPipeServerListening(pipeName) && tryBootstrap)
             {
-                bootstrapLaunched = true;
-                bootstrapAttempted = await TryBootstrapPluginAsync(
-                        pipeName,
-                        Math.Min(BootstrapMaxWaitSeconds, timeoutSeconds),
-                        cancellationToken)
-                    .ConfigureAwait(false);
+                var shouldBootstrap = lastBootstrapUtc == null
+                    || (DateTime.UtcNow - lastBootstrapUtc.Value).TotalSeconds >= bootstrapRetrySeconds;
+                if (shouldBootstrap)
+                {
+                    lastBootstrapUtc = DateTime.UtcNow;
+                    var launched = await TryBootstrapPluginAsync(
+                            pipeName,
+                            Math.Min(BootstrapMaxWaitSeconds, timeoutSeconds),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    bootstrapAttempted = bootstrapAttempted || launched;
+                }
             }
 
             if (IsPipeServerListening(pipeName))

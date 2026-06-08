@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ensureStagedQkrpcRuntime } from "./qkrpc-bin.mjs";
+import { resolveServeQkrpcRuntime } from "./qkrpc-bin.mjs";
 import {
   isProcessAlive,
   readQkrpcServeState,
@@ -50,15 +50,9 @@ async function waitForServeListening(base, maxMs = 20_000) {
 }
 
 function resolveServeRuntime() {
-  const configuredBin = process.env.QKRPC_BIN?.trim();
-  if (configuredBin) {
-    return { exe: configuredBin, dir: dirname(configuredBin) };
-  }
-  const staged = ensureStagedQkrpcRuntime(agentGuiRoot);
-  if (staged) {
-    return { exe: staged.exe, dir: staged.dir };
-  }
-  return null;
+  const runtime = resolveServeQkrpcRuntime(agentGuiRoot);
+  if (!runtime) return null;
+  return { exe: runtime.exe, dir: runtime.dir, source: runtime.source };
 }
 
 /**
@@ -68,9 +62,6 @@ function resolveServeRuntime() {
  */
 export async function ensureQkrpcServeIfDown() {
   if (process.env.AGENT_GUI_SKIP_QKRPC === "1") {
-    return false;
-  }
-  if (process.env.AGENT_GUI_BUNDLED !== "1") {
     return false;
   }
 
@@ -104,6 +95,14 @@ export async function ensureQkrpcServeIfDown() {
 
     const portMatch = base.match(/:(\d+)(?:\/|$)/);
     const port = portMatch ? Number(portMatch[1]) : 9477;
+
+    if (!process.env.QKRPC_HTTP_URL?.trim() && !process.env.QKRPC_HTTP?.trim()) {
+      process.env.QKRPC_HTTP_URL = base;
+      process.env.QKRPC_TRANSPORT = "http";
+    }
+    if (!process.env.QKRPC_BIN?.trim()) {
+      process.env.QKRPC_BIN = runtime.exe;
+    }
 
     managedChild = spawn(
       runtime.exe,

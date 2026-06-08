@@ -14,7 +14,7 @@ const BOOT_RETRY_DELAYS_MS = [250, 500, 900, 1_500, 2_500, 4_000, 6_000];
 export type PingState =
   | { status: "loading" }
   | { status: "ok"; data: unknown }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; data?: unknown };
 
 export type RefreshPingOptions = {
   /** Keep current status label while re-checking (background poll). */
@@ -113,6 +113,7 @@ export function useQkrpcPing(options: UseQkrpcPingOptions = {}) {
       setPing({
         status: "error",
         message: formatPingError(data, res.ok ? "未连接 Quicker" : `HTTP ${res.status}`),
+        data: data ?? undefined,
       });
     } catch (e) {
       if (controller.signal.aborted) return;

@@ -175,7 +175,29 @@ export async function saveVoicePluginSettings(
 }
 
 export async function fetchVoiceModelInstallState(): Promise<VoiceModelInstallState | null> {
-  if (process.env.NODE_ENV !== "development" || isTauriShell()) {
+  if (isTauriShell()) {
+    try {
+      const body = await withPromiseTimeout(
+        invoke<Omit<VoiceModelInstallState, "inFlight" | "error" | "progress">>(
+          "voice_plugin_model_install_state",
+        ),
+        TAURI_SETTINGS_TIMEOUT_MS,
+        "读取模型安装状态超时",
+      );
+      return {
+        standard: body.standard === true,
+        lightweight: body.lightweight === true,
+        standardPartial: body.standardPartial === true,
+        lightweightPartial: body.lightweightPartial === true,
+        inFlight: false,
+        error: null,
+        progress: null,
+      };
+    } catch {
+      return null;
+    }
+  }
+  if (process.env.NODE_ENV !== "development") {
     return null;
   }
   try {
@@ -226,8 +248,10 @@ export async function downloadVoiceModel(
 
   if (isTauriShell()) {
     try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("voice_plugin_redownload_model", { modelId, force });
+      const { tauriVoicePluginRedownloadModel } = await import(
+        "@/lib/voice-input/voice-input-tauri"
+      );
+      await tauriVoicePluginRedownloadModel(modelId, onProgress, force);
       return { ok: true };
     } catch (err) {
       return {

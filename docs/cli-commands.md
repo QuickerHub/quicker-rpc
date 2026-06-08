@@ -237,12 +237,14 @@ qkrpc process ensure --exe _ceacore_run --name "CeaCore Run" --profile-prefix "@
 
 ```powershell
 qkrpc action run --id <idOrName> [--param <text>] [--debug|--trace] [--wait] [--json]
+qkrpc action run --xaction-file <path|-> --trace [--param <text>] [--json]
 ```
 
 | 模式 | 参数 | 说明 |
 |------|------|------|
 | 直接运行 | （默认） | 触发动作；`--wait` 等待结束 |
 | 终端调试 | `--trace` | 插件侧 XAction 结构化输出（步骤/输入/输出/变量/耗时）；与 `--debug` **互斥** |
+| 内联程序 trace | `--xaction` / `--xaction-file` + `--trace` | 不保存 Quicker 动作，直接运行 steps/variables JSON（与 `--id` 互斥） |
 | Quicker 调试器 | `--debug` | 打开 Quicker 原生步骤调试 UI；与 `--trace` **互斥** |
 
 **agent-gui（QuickerAgent）对应关系**（Agent 工具 `qkrpc_action`，非 CLI 子命令）：

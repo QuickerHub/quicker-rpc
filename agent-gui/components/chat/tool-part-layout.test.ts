@@ -52,7 +52,7 @@ test("segmentMessageParts keeps reasoning-only runs as reasoning segment", () =>
   );
 });
 
-test("segmentMessageParts keeps multi-tool runs as separate tool rows", () => {
+test("segmentMessageParts batches consecutive tools before assistant text", () => {
   const parts = [
     {
       type: "tool-qkrpc_fa_search",
@@ -72,10 +72,13 @@ test("segmentMessageParts keeps multi-tool runs as separate tool rows", () => {
   ] as Parameters<typeof segmentMessageParts>[0];
 
   const segments = segmentMessageParts(parts);
-  assert.equal(segments.length, 3);
-  assert.equal(segments[0]?.kind, "tool");
-  assert.equal(segments[1]?.kind, "tool");
-  assert.equal(segments[2]?.kind, "text");
+  assert.equal(segments.length, 2);
+  assert.equal(segments[0]?.kind, "tool-batch");
+  assert.equal(
+    segments[0]?.kind === "tool-batch" ? segments[0].items.length : 0,
+    2,
+  );
+  assert.equal(segments[1]?.kind, "text");
 });
 
 test("buildToolBatchSummary aggregates write line diff for pure tool batches", () => {
@@ -199,14 +202,17 @@ test("segmentMessageParts merges consecutive activity across whitespace", () => 
     },
   ] as Parameters<typeof segmentMessageParts>[0]);
 
-  assert.equal(segments.length, 7);
+  assert.equal(segments.length, 6);
   assert.equal(segments[0]?.kind, "reasoning");
   assert.equal(segments[1]?.kind, "tool");
   assert.equal(segments[2]?.kind, "reasoning");
   assert.equal(segments[3]?.kind, "tool");
   assert.equal(segments[4]?.kind, "reasoning");
-  assert.equal(segments[5]?.kind, "tool");
-  assert.equal(segments[6]?.kind, "tool");
+  assert.equal(segments[5]?.kind, "tool-batch");
+  assert.equal(
+    segments[5]?.kind === "tool-batch" ? segments[5].items.length : 0,
+    2,
+  );
 });
 
 test("segmentMessageParts still splits on substantive assistant text", () => {
@@ -236,6 +242,61 @@ test("segmentMessageParts still splits on substantive assistant text", () => {
   assert.equal(segments[2]?.kind, "text");
   assert.equal(segments[3]?.kind, "reasoning");
   assert.equal(segments[4]?.kind, "tool");
+});
+
+test("segmentMessageParts batches repeated step runner lookups before text", () => {
+  const parts = [
+    {
+      type: "tool-qkrpc_step_runner_get",
+      toolCallId: "t1",
+      state: "output-available",
+      input: { key: "sys:getClipboardText", controlField: "UnicodeText" },
+      output: { ok: true, data: { title: "获取剪贴板文本" } },
+    },
+    {
+      type: "tool-qkrpc_step_runner_get",
+      toolCallId: "t2",
+      state: "output-available",
+      input: { key: "sys:csscript", controlField: "generate_assembly" },
+      output: { ok: true, data: { title: "运行C#代码" } },
+    },
+    {
+      type: "tool-qkrpc_step_runner_get",
+      toolCallId: "t3",
+      state: "output-available",
+      input: { key: "sys:writeClipboard", controlField: "text" },
+      output: { ok: true, data: { title: "写入剪贴板" } },
+    },
+    {
+      type: "tool-qkrpc_step_runner_get",
+      toolCallId: "t4",
+      state: "output-available",
+      input: { key: "sys:MsgBox", controlField: "custom" },
+      output: { ok: true, data: { title: "弹窗提示或确认" } },
+    },
+    {
+      type: "text",
+      text: "我会优先用表达式完成统计和文本处理，避免不必要的外部脚本；现在补齐表达式步骤的参数格式。",
+      state: "done",
+    },
+  ] as Parameters<typeof segmentMessageParts>[0];
+
+  const segments = segmentMessageParts(parts);
+  assert.equal(segments.length, 2);
+  assert.equal(segments[0]?.kind, "tool-batch");
+  assert.equal(
+    segments[0]?.kind === "tool-batch" ? segments[0].items.length : 0,
+    4,
+  );
+  assert.equal(segments[1]?.kind, "text");
+
+  if (segments[0]?.kind === "tool-batch") {
+    const summary = buildToolBatchSummary(segments[0].items);
+    assert.equal(summary.title, "查看模块定义");
+    assert.equal(summary.meta, "4 个 · 完成");
+    assert.equal(summary.allTerminal, true);
+    assert.equal(summary.needsAttention, false);
+  }
 });
 
 test("segmentMessageParts flushes activity before shell tool", () => {

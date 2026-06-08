@@ -1,33 +1,46 @@
 /** Preset actions for /tool-test trace streaming UI. */
 
+import {
+  ephemeralXActionTabId,
+  TRACE_REPEAT_DEMO_XACTION,
+  TRACE_SMOKE_XACTION,
+  type InlineXActionProgram,
+} from "@/lib/action-trace-inline-programs";
+
 export type ActionTraceTestCase = {
   id: string;
   label: string;
   description: string;
+  /** Synthetic tab id when using inline xaction (no Quicker action). */
   actionId: string;
   actionTitle?: string;
   param?: string;
+  /** Inline program JSON — preferred for standalone demos. */
+  xaction?: InlineXActionProgram;
   /** No run param, clipboard, or external files required. */
   standalone?: boolean;
 };
 
-/** One-click trace demos (Quicker + qkrpc serve only). */
+/** One-click trace demos (Quicker + qkrpc serve only; no saved action). */
 export const ACTION_TRACE_STANDALONE_CASES: ActionTraceTestCase[] = [
   {
     id: "trace-smoke",
     label: "Smoke（3 步）",
-    description: "_trace_smoke：表达式 + 赋值，数秒内完成，验证 trace 格式",
-    actionId: "40c77070-227c-4604-847c-40750a12403f",
-    actionTitle: "_trace_smoke",
+    description:
+      "_trace_smoke：表达式 + 赋值，数秒内完成，验证 trace 格式（内联 JSON，无需创建动作）",
+    actionId: ephemeralXActionTabId("trace-smoke"),
+    actionTitle: TRACE_SMOKE_XACTION.title,
+    xaction: TRACE_SMOKE_XACTION,
     standalone: true,
   },
   {
     id: "repeat-demo",
     label: "60 次循环（长流）",
     description:
-      "_trace_repeat_demo：repeat × 60，repeatDelayMs=120（约 7s+ 流式），验证 trace 时间线/终端逐行输出",
-    actionId: "b1742f26-0b19-4e41-9540-ed83b5998b81",
-    actionTitle: "_trace_repeat_demo",
+      "_trace_repeat_demo：repeat × 60，repeatDelayMs=120（约 7s+ 流式），验证 trace 时间线/终端逐行输出（内联 JSON）",
+    actionId: ephemeralXActionTabId("repeat-demo"),
+    actionTitle: TRACE_REPEAT_DEMO_XACTION.title,
+    xaction: TRACE_REPEAT_DEMO_XACTION,
     standalone: true,
   },
 ];

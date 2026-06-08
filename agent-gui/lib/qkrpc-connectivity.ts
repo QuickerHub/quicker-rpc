@@ -8,11 +8,10 @@ export const QKRPC_BIN_MISSING_GUIDANCE =
 
 /** Shown in tool payloads when Quicker / plugin / serve is unavailable. */
 export const QKRPC_CONNECTIVITY_FAILURE_GUIDANCE =
-  "QuickerRpc is unavailable. Call qkrpc_wait once (poll until ready), then retry the original tool. "
-  + "If still failing, tell the user to start Quicker, load the QuickerRpc plugin, "
-  + "and ensure qkrpc serve is running (agent-gui header shows RPC status). "
+  "QuickerRpc is unavailable. Call qkrpc_wait once — it auto-restarts serve and may bootstrap the plugin via quicker:runaction, then retry the original tool. "
+  + "If still failing, tell the user to start Quicker and load the QuickerRpc plugin. "
   + "Do NOT use shell_exec to ping, probe ports, start serve, hot-update (build.ps1 -t), "
-  + "or re-run qkrpc CLI — or wait for the user to fix the environment.";
+  + "or re-run qkrpc CLI — unless the user explicitly asks to fix the environment.";
 
 export const QKRPC_TRANSIENT_FAILURE_GUIDANCE =
   "Do not immediately repeat this tool with the same arguments. "

@@ -9,9 +9,9 @@ import net from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  ensureStagedQkrpcRuntime,
   isUserInstalledQkrpcPath,
   resolveQkrpcBin,
+  resolveServeQkrpcRuntime,
 } from "./lib/qkrpc-bin.mjs";
 import { applyQkrpcToolchainEnv } from "./lib/qkrpc-toolchain-env.mjs";
 import {
@@ -440,24 +440,24 @@ async function ensureBundledQkrpcServe(host) {
     }
   }
 
-  const staged = ensureStagedQkrpcRuntime(root);
-  if (!staged) {
+  const runtime = resolveServeQkrpcRuntime(root);
+  if (!runtime) {
     console.warn(
-      "qkrpc: no bundled qkrpc runtime (publish/cli or agent-gui/qkrpc). "
-      + "Run build.ps1 -t or publish-rpc.ps1 -SkipInstall, or set QKRPC_HTTP_URL to an external serve.",
+      "qkrpc: no qkrpc runtime for serve (repo build, publish/cli, or %LOCALAPPDATA%\\Programs\\qkrpc). "
+      + "Run pwsh ./build.ps1 -t from repo root, or set QKRPC_HTTP_URL to an external serve.",
     );
     return null;
   }
 
   const port = await resolveQkrpcPort(host);
   const base = `http://${host}:${port}`;
-  const { exe, dir: qkrpcDir } = staged;
+  const { exe, dir: qkrpcDir, source: runtimeSource } = runtime;
 
   process.env.QKRPC_BIN = exe;
   process.env.QKRPC_HTTP_URL = base;
   process.env.QKRPC_TRANSPORT = "http";
 
-  console.log(`qkrpc: starting staged serve at ${base} (${exe})`);
+  console.log(`qkrpc: starting serve at ${base} (${exe}, source=${runtimeSource})`);
   qkrpcChild = spawn(
     exe,
     ["serve", "--host", host, "--port", String(port), "--no-bootstrap"],

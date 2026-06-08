@@ -11,11 +11,13 @@ import {
 } from "@/lib/tool-test-launcher-agent-timing";
 import { ToolTestConversationCard } from "@/components/tool-test/ToolTestConversationCard";
 import { ToolTestRunsPaneShell } from "@/components/tool-test/ToolTestRunsPaneShell";
+import type { ChatAddToolOutput } from "@/lib/chat-tool-actions";
 
 type ToolTestLauncherAgentResultPaneProps = {
   runs: LauncherAgentRunEntry[];
   workingDirectory?: string;
   onClearRuns: () => void;
+  addToolOutput?: ChatAddToolOutput | null;
 };
 
 function firstToolName(messages: LauncherAgentRunEntry["chatMessages"]): string | null {
@@ -96,9 +98,11 @@ function directRunLabel(
 function LauncherAgentRunCard({
   run,
   workingDirectory,
+  addToolOutput,
 }: {
   run: LauncherAgentRunEntry;
   workingDirectory?: string;
+  addToolOutput?: ChatAddToolOutput | null;
 }) {
   const firstTool = firstToolName(run.chatMessages);
   const directLabel = directRunLabel(run.chatMessages);
@@ -110,7 +114,7 @@ function LauncherAgentRunCard({
         <dd>
           {directLabel
             ? `Launcher · ${directLabel} · /api/chat`
-            : "Launcher · Auto · /api/chat"}
+            : `Launcher · ${run.llmModelLabel} · /api/chat`}
         </dd>
       </div>
       <div>
@@ -158,7 +162,9 @@ function LauncherAgentRunCard({
       label={run.scenarioLabel}
       badge={directLabel ?? run.llmModelLabel}
       badgeTitle={
-        directLabel ? `Command/resolve · 无 LLM` : "Launcher Agent · Auto"
+        directLabel
+          ? `Command/resolve · 无 LLM`
+          : `Launcher Agent · ${run.llmModelLabel}`
       }
       status={run.status}
       at={run.at}
@@ -177,7 +183,8 @@ function LauncherAgentRunCard({
       }
       streamTick={run.chatMessages[run.chatMessages.length - 1]?.parts.length ?? 0}
       chatVariant="launcher-agent"
-      responseCompletionKind={run.responseCompletionKind}
+      chatError={run.error}
+      addToolOutput={run.status === "running" ? addToolOutput : undefined}
       footer={footer}
     />
   );
@@ -187,6 +194,7 @@ export function ToolTestLauncherAgentResultPane({
   runs,
   workingDirectory,
   onClearRuns,
+  addToolOutput,
 }: ToolTestLauncherAgentResultPaneProps) {
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -211,7 +219,7 @@ export function ToolTestLauncherAgentResultPane({
       subText={
         runs.length === 0
           ? "左侧选场景并运行"
-          : `${runs.length} 场 · chatMode=launcher · Auto`
+          : `${runs.length} 场 · chatMode=launcher`
       }
       emptyText="运行 Launcher Agent 后在此查看完整对话与工具调用。"
       runs={shellRuns}
@@ -224,6 +232,7 @@ export function ToolTestLauncherAgentResultPane({
           key={run.id}
           run={run}
           workingDirectory={workingDirectory}
+          addToolOutput={addToolOutput}
         />
       ))}
     </ToolTestRunsPaneShell>

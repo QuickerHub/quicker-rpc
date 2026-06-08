@@ -57,6 +57,8 @@ internal static partial class Program
                         action = "launcher-resolve",
                         query = result.Query,
                         normalizedQuery = result.NormalizedQuery,
+                        queryTerms = result.QueryTerms,
+                        missedTerms = result.MissedTerms,
                         message = result.Message,
                         candidates = result.Candidates.Select(c => new
                         {
@@ -76,6 +78,8 @@ internal static partial class Program
                                 ? null
                                 : JsonSerializer.Deserialize<object>(c.SuggestedInputJson),
                             reason = c.Reason,
+                            matchedQueryTerm = c.MatchedQueryTerm,
+                            matchedOn = c.MatchedOn,
                         }),
                     },
                     QkrpcJson.CliOutput));

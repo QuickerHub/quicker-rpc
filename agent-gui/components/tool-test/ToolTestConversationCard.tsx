@@ -8,9 +8,9 @@ import {
 } from "@/lib/tool-test-conversation-run";
 import { formatTitleTestRunTime } from "@/lib/tool-test-title-runs";
 import { formatLauncherAgentTimingMs } from "@/lib/tool-test-launcher-agent-timing";
-import type { LauncherAgentResponseCompletionKind } from "@/lib/tool-test-launcher-agent-timing";
 import { ToolTestChatMessages } from "@/components/tool-test/ToolTestChatMessages";
 import { ToolTestLauncherAgentChatMessages } from "@/components/tool-test/ToolTestLauncherAgentChatMessages";
+import type { ChatAddToolOutput } from "@/lib/chat-tool-actions";
 
 export type ToolTestConversationCardProps = {
   label: string;
@@ -29,9 +29,10 @@ export type ToolTestConversationCardProps = {
   footer?: ReactNode;
   /** Extra deps to auto-scroll while streaming (e.g. part count). */
   streamTick?: number;
-  /** Launcher agent test: flat tool chain, hide Thought noise. */
+  /** Launcher agent test: launcher-style transcript (MessageParts). */
   chatVariant?: "default" | "launcher-agent";
-  responseCompletionKind?: LauncherAgentResponseCompletionKind;
+  chatError?: string;
+  addToolOutput?: ChatAddToolOutput | null;
 };
 
 export function ToolTestConversationCard({
@@ -50,7 +51,8 @@ export function ToolTestConversationCard({
   footer,
   streamTick = 0,
   chatVariant = "default",
-  responseCompletionKind,
+  chatError,
+  addToolOutput,
 }: ToolTestConversationCardProps) {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -58,12 +60,8 @@ export function ToolTestConversationCard({
 
   useEffect(() => {
     if (status !== "running") return;
-    if (chatVariant === "launcher-agent") {
-      chatScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
-      return;
-    }
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatVariant, status, messages.length, streamTick]);
+  }, [status, messages.length, streamTick]);
 
   return (
     <article
@@ -106,8 +104,9 @@ export function ToolTestConversationCard({
             workingDirectory={workingDirectory}
             emptyHint={emptyHint}
             endRef={chatEndRef}
-            responseCompletionKind={responseCompletionKind}
             status={status}
+            error={chatError}
+            addToolOutput={addToolOutput}
           />
         ) : (
           <ToolTestChatMessages

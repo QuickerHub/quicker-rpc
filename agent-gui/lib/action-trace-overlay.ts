@@ -1,14 +1,24 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { buildActionTraceCommandLine } from "@/lib/action-trace-command-line";
+import {
+  buildActionTraceCommandLine,
+  buildInlineXActionTraceCommandLine,
+} from "@/lib/action-trace-command-line";
+import type { InlineXActionProgram } from "@/lib/action-trace-inline-programs";
 import {
   formatTraceEventsToText,
   parseActionTraceEvents,
   type ActionTraceEvent,
 } from "@/lib/action-trace-format";
-import { consumeActionTraceSse } from "@/lib/action-trace-sse";
-import { resolveActionTraceStreamUrl } from "@/lib/action-trace-stream-url";
+import {
+  consumeActionTraceSse,
+  consumeActionTraceSsePost,
+} from "@/lib/action-trace-sse";
+import {
+  resolveActionTraceStreamPost,
+  resolveActionTraceStreamUrl,
+} from "@/lib/action-trace-stream-url";
 import {
   buildActionTraceTabId,
   formatActionTraceTabLabel,
@@ -450,19 +460,21 @@ export function startActionTraceStream(params: {
   actionId: string;
   param?: string;
   actionTitle?: string;
+  xaction?: InlineXActionProgram;
 }): void {
   const actionId = params.actionId.trim();
   const param = params.param?.trim() || undefined;
   const tabId = buildActionTraceTabId(actionId, param);
   cancelTabStream(tabId);
 
-  const commandLine = buildActionTraceCommandLine(actionId, param);
-  const streamUrl = resolveActionTraceStreamUrl(actionId, param);
+  const commandLine = params.xaction
+    ? buildInlineXActionTraceCommandLine(param)
+    : buildActionTraceCommandLine(actionId, param);
 
   upsertTab(tabId, {
     actionId,
     param,
-    actionTitle: params.actionTitle,
+    actionTitle: params.actionTitle ?? params.xaction?.title,
     commandLine,
     output: "",
     events: [],
@@ -476,14 +488,14 @@ export function startActionTraceStream(params: {
   const abort = new AbortController();
   streamAbortByTab.set(tabId, abort);
 
-  void consumeActionTraceSse(streamUrl, abort.signal, {
-    onLine: (line) => {
+  const handlers = {
+    onLine: (line: string) => {
       appendOutput(tabId, `${line}\n`);
     },
-    onTrace: (event) => {
+    onTrace: (event: ActionTraceEvent) => {
       appendEvent(tabId, event);
     },
-    onDone: (data) => {
+    onDone: (data: Record<string, unknown>) => {
       finishTabRun(tabId, {
         ok: data.ok === true,
         message: typeof data.message === "string" ? data.message : undefined,
@@ -497,14 +509,29 @@ export function startActionTraceStream(params: {
           typeof data.durationMs === "number" ? data.durationMs : undefined,
       });
     },
-    onError: (message) => {
+    onError: (message: string) => {
       if (abort.signal.aborted) return;
       const tab = findTab(tabId);
       if (tab?.status === "running") {
         failTabRun(tabId, message);
       }
     },
-  });
+  };
+
+  if (params.xaction) {
+    const ephemeralId =
+      actionId || params.xaction.title?.trim() || `ephemeral:${Date.now()}`;
+    const post = resolveActionTraceStreamPost({
+      ephemeralId,
+      xaction: params.xaction,
+      param,
+    });
+    void consumeActionTraceSsePost(post.url, post.body, abort.signal, handlers);
+    return;
+  }
+
+  const streamUrl = resolveActionTraceStreamUrl(actionId, param);
+  void consumeActionTraceSse(streamUrl, abort.signal, handlers);
 }
 
 function subscribe(onStoreChange: () => void): () => void {

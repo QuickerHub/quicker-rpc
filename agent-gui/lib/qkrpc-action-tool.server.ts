@@ -43,6 +43,15 @@ import {
 } from "@/lib/qkrpc";
 import { runActionTraceForAgentTool } from "@/lib/action-trace-stream.server";
 import { formatLocalToolResult } from "@/lib/tool-result";
+import {
+  checkLauncherActionRunAllowed,
+  shouldBlockLauncherActionQueryAutoRun,
+} from "@/lib/launcher/launcher-action-run-guard";
+import {
+  getLauncherResolveDirectNext,
+  getRequestChatMode,
+  getRequestLastUserText,
+} from "@/lib/qkrpc-request-context";
 
 const returnModeSchema = z.enum(["full", "structure", "metadata"]);
 
@@ -355,6 +364,31 @@ function serializeActionFields(
   return fields.trim();
 }
 
+function readActionQueryMatchCount(result: Record<string, unknown>): number {
+  const data = result.data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return 0;
+  const items = (data as Record<string, unknown>).items;
+  return Array.isArray(items) ? items.length : 0;
+}
+
+function annotateLauncherActionQueryResult(
+  result: Record<string, unknown>,
+): Record<string, unknown> {
+  const autoRun = shouldBlockLauncherActionQueryAutoRun({
+    chatMode: getRequestChatMode(),
+    userText: getRequestLastUserText(),
+    matchCount: readActionQueryMatchCount(result),
+  });
+  if (!autoRun.blocked) return result;
+  return {
+    ...result,
+    launcher: {
+      autoRunBlocked: true,
+      reason: autoRun.reason,
+    },
+  };
+}
+
 export async function executeQkrpcActionQueryTool(
   input: QkrpcActionQueryToolInput,
 ): Promise<Record<string, unknown>> {
@@ -368,7 +402,11 @@ export async function executeQkrpcActionQueryTool(
   if (input.limit != null) args.push("--limit", String(input.limit));
   if (input.sort) args.push("--sort", input.sort);
   else if (!serialized && !input.queryFile) args.push("--sort", "lastEdit");
-  return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+  const result = formatQkrpcResultForAgent(await runQkrpcForTool(args));
+  if (getRequestChatMode() === "launcher" && result.ok) {
+    return annotateLauncherActionQueryResult(result);
+  }
+  return result;
 }
 
 /** Replay shim: consolidated-era qkrpc_action_run may pass action/debug/trace on input. */
@@ -395,9 +433,30 @@ export function coerceQkrpcActionRunInput(
   return { action: defaultAction, id: input.id, param: input.param, wait: input.wait };
 }
 
+function launcherActionRunGuardError(
+  input: QkrpcActionRunToolInput,
+  actionTitle?: string,
+): Record<string, unknown> | null {
+  const guard = checkLauncherActionRunAllowed({
+    chatMode: getRequestChatMode(),
+    userText: getRequestLastUserText(),
+    actionId: input.id,
+    actionTitle,
+    launcherResolveDirectNext: getLauncherResolveDirectNext(),
+  });
+  if (guard.allowed) return null;
+  return formatQkrpcResultForAgent(
+    qkrpcValidationError(guard.reason),
+  );
+}
+
 export async function executeQkrpcActionRunTool(
   input: QkrpcActionRunToolInput,
+  actionTitle?: string,
 ): Promise<Record<string, unknown>> {
+  const blocked = launcherActionRunGuardError(input, actionTitle);
+  if (blocked) return blocked;
+
   switch (input.action) {
     case "float":
       return formatQkrpcResultForAgent(
@@ -737,8 +796,8 @@ export async function executeQkrpcActionTool(
 }
 
 const ACTION_QUERY_DESCRIPTION =
-  "Find actions by keyword, scope, or uses:SubName. Use before get/run/edit — not for editing program body. "
-  + "Empty query = recent actions. UI renders table — summarize counts only.";
+  "Find actions by keyword, scope, or uses:SubName. Launcher: prefer launcher_resolve for run intent; "
+  + "if launcher.autoRunBlocked — ask_question, do not run. Empty query = recent actions. UI renders table — summarize counts only.";
 
 export const QKRPC_ACTION_QUERY_TOOL_DEF = tool({
   description: ACTION_QUERY_DESCRIPTION,
@@ -826,7 +885,8 @@ export const QKRPC_ACTION_PUBLISH_TOOL_DEF = tool({
 
 export const QKRPC_ACTION_RUN_TOOL_DEF = tool({
   description:
-    "Run one action and wait for completion. NOT debug (qkrpc_action_debug), NOT edit (workspace_program).",
+    "Run one action and wait for completion. Launcher: only after user @-mention, ask_question pick, or launcher_resolve next. "
+    + "NOT debug (qkrpc_action_debug), NOT edit (workspace_program).",
   inputSchema: z.object({
     id: z.string().describe("Action GUID"),
     param: z.string().optional().describe("quicker_in_param"),

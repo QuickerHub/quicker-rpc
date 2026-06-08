@@ -420,6 +420,8 @@ internal static class ServeInvokeDispatcher
             action = "launcher-resolve",
             query = result.Query,
             normalizedQuery = result.NormalizedQuery,
+            queryTerms = result.QueryTerms,
+            missedTerms = result.MissedTerms,
             message = result.Message,
             candidates = result.Candidates.Select(c => new
             {
@@ -439,6 +441,8 @@ internal static class ServeInvokeDispatcher
                     ? null
                     : JsonSerializer.Deserialize<object>(c.SuggestedInputJson),
                 reason = c.Reason,
+                matchedQueryTerm = c.MatchedQueryTerm,
+                matchedOn = c.MatchedOn,
             }),
         });
     }
@@ -842,25 +846,53 @@ internal static class ServeInvokeDispatcher
         CancellationToken token)
     {
         var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(id))
+        var xactionEl = ServeJsonArgs.GetObject(args, "xaction");
+        var hasXaction = xactionEl is not null;
+        if (string.IsNullOrWhiteSpace(id) && !hasXaction)
         {
-            return Fail("MISSING_ACTION_ID", "args.id is required.");
+            return Fail("MISSING_ACTION_OR_XACTION", "args.id or args.xaction is required.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(id) && hasXaction && !IsEphemeralTraceActionId(id))
+        {
+            return Fail("CONFLICTING_RUN_TARGET", "Provide args.id or args.xaction, not both.");
+        }
+
+        if (!hasXaction && IsEphemeralTraceActionId(id))
+        {
+            return Fail("INLINE_XACTION_REQUIRES_BODY", "Ephemeral id requires args.xaction.");
         }
 
         var trace = ServeJsonArgs.GetBool(args, "trace");
         if (trace)
         {
-            var traceResponse = await rpc
-                .RunActionTraceAsync(
-                    id.Trim(),
-                    ServeJsonArgs.GetString(args, "param"),
-                    progress: null,
-                    token)
-                .ConfigureAwait(false);
+            QuickerRpcActionTraceRunResult traceResponse;
+            if (hasXaction)
+            {
+                traceResponse = await rpc
+                    .RunXActionTraceAsync(
+                        xactionEl!.Value.GetRawText(),
+                        ServeJsonArgs.GetString(args, "param"),
+                        progress: null,
+                        token)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                traceResponse = await rpc
+                    .RunActionTraceAsync(
+                        id.Trim(),
+                        ServeJsonArgs.GetString(args, "param"),
+                        progress: null,
+                        token)
+                    .ConfigureAwait(false);
+            }
+
             return Ok(new
             {
                 ok = traceResponse.Ok,
                 action = "trace",
+                inlineXAction = hasXaction,
                 message = traceResponse.Message,
                 actionId = traceResponse.ActionId,
                 actionTitle = traceResponse.ActionTitle,
@@ -871,6 +903,11 @@ internal static class ServeInvokeDispatcher
                 stopFlag = traceResponse.StopFlag,
                 events = traceResponse.Events,
             });
+        }
+
+        if (hasXaction)
+        {
+            return Fail("XACTION_REQUIRES_TRACE", "Inline xaction run requires args.trace=true.");
         }
 
         var response = await rpc
@@ -1658,4 +1695,11 @@ internal static class ServeInvokeDispatcher
 
     private static ServeInvokeResponse Fail(string code, string message) =>
         new() { Ok = false, Error = code, Message = message };
+
+    private static bool IsEphemeralTraceActionId(string? actionId)
+    {
+        var id = (actionId ?? string.Empty).Trim();
+        return id.StartsWith("ephemeral:", StringComparison.OrdinalIgnoreCase)
+               || id.StartsWith("inline:", StringComparison.OrdinalIgnoreCase);
+    }
 }

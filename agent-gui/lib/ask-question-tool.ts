@@ -128,17 +128,63 @@ export function askQuestionDisplayTitle(input: unknown): string {
   return "请选择";
 }
 
-export function countPendingAskQuestions(messages: UIMessage[]): number {
-  let count = 0;
+export type PendingAskQuestion = {
+  toolCallId: string;
+  input: AskQuestionInput;
+};
+
+export function emptyAskQuestionSelections(
+  questions: AskQuestionItem[],
+): Record<string, string[]> {
+  return Object.fromEntries(questions.map((q) => [q.id, []]));
+}
+
+export function buildAskQuestionAnswersFromSelections(
+  questions: AskQuestionItem[],
+  selections: Record<string, string[]>,
+): Record<string, AskQuestionAnswer> {
+  const answers: Record<string, AskQuestionAnswer> = {};
+  for (const question of questions) {
+    const optionIds = selections[question.id] ?? [];
+    const labels = optionIds.map((id) => {
+      const option = question.options.find((o) => o.id === id);
+      return option?.label ?? id;
+    });
+    answers[question.id] = { optionIds, labels };
+  }
+  return answers;
+}
+
+export function collectPendingAskQuestions(
+  messages: UIMessage[],
+): PendingAskQuestion[] {
+  const pending: PendingAskQuestion[] = [];
+
   for (const message of messages) {
     if (message.role !== "assistant") continue;
     for (const part of message.parts) {
       if (!isToolOrDynamicToolUIPart(part)) continue;
       if (getToolOrDynamicToolName(part) !== ASK_QUESTION_TOOL) continue;
-      if ("state" in part && part.state === "input-available") {
-        count += 1;
+      if (!("state" in part) || part.state !== "input-available") continue;
+      if (!("toolCallId" in part) || typeof part.toolCallId !== "string") {
+        continue;
       }
+
+      const parsed = parseAskQuestionInput(
+        "input" in part ? part.input : undefined,
+      );
+      if (!parsed) continue;
+
+      pending.push({
+        toolCallId: part.toolCallId,
+        input: parsed,
+      });
     }
   }
-  return count;
+
+  return pending;
+}
+
+export function countPendingAskQuestions(messages: UIMessage[]): number {
+  return collectPendingAskQuestions(messages).length;
 }

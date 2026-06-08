@@ -13,6 +13,10 @@ internal sealed class ServeActionTraceStreamRequest
 
     public string? Param { get; set; }
 
+    public JsonElement Xaction { get; set; }
+
+    public bool HasXaction { get; set; }
+
     public int TimeoutSeconds { get; set; }
 }
 
@@ -46,11 +50,37 @@ internal static class ServeActionTraceStream
         }
 
         var actionId = body.Id?.Trim() ?? string.Empty;
-        if (actionId.Length == 0)
+        var hasXaction = body.HasXaction;
+        if (actionId.Length == 0 && !hasXaction)
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             await context.Response
-                .WriteAsJsonAsync(new { ok = false, error = "MISSING_ACTION_ID" }, cancellationToken)
+                .WriteAsJsonAsync(new { ok = false, error = "MISSING_ACTION_ID_OR_XACTION" }, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (actionId.Length > 0 && hasXaction && !IsEphemeralActionId(actionId))
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response
+                .WriteAsJsonAsync(new { ok = false, error = "CONFLICTING_RUN_TARGET" }, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (!hasXaction && IsEphemeralActionId(actionId))
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response
+                .WriteAsJsonAsync(
+                    new
+                    {
+                        ok = false,
+                        error = "INLINE_XACTION_REQUIRES_POST",
+                        message = "Ephemeral trace ids require POST JSON body with xaction.",
+                    },
+                    cancellationToken)
                 .ConfigureAwait(false);
             return;
         }
@@ -68,7 +98,7 @@ internal static class ServeActionTraceStream
         await WriteEventAsync(
                 context.Response,
                 "start",
-                new { actionId, param = body.Param },
+                new { actionId = actionId.Length > 0 ? actionId : null, inlineXAction = hasXaction, param = body.Param },
                 cancellationToken)
             .ConfigureAwait(false);
 
@@ -83,9 +113,20 @@ internal static class ServeActionTraceStream
             {
                 _ = callbacks.EmitTraceAsync(evt);
             });
-            var result = await session.Rpc
-                .RunActionTraceAsync(actionId, body.Param, progress, rpcToken)
-                .ConfigureAwait(false);
+            QuickerRpcActionTraceRunResult result;
+            if (hasXaction)
+            {
+                var xActionJson = body.Xaction.GetRawText();
+                result = await session.Rpc
+                    .RunXActionTraceAsync(xActionJson, body.Param, progress, rpcToken)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                result = await session.Rpc
+                    .RunActionTraceAsync(actionId, body.Param, progress, rpcToken)
+                    .ConfigureAwait(false);
+            }
 
             if (callbacks.StreamedCount == 0 && result.Events.Count > 0)
             {
@@ -169,11 +210,11 @@ internal static class ServeActionTraceStream
             return fromQuery;
         }
 
-        ServeActionTraceStreamRequest? body;
+        JsonElement root;
         try
         {
-            body = await context.Request
-                .ReadFromJsonAsync<ServeActionTraceStreamRequest>(JsonOptions, cancellationToken)
+            root = await JsonSerializer
+                .DeserializeAsync<JsonElement>(context.Request.Body, JsonOptions, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (JsonException ex)
@@ -185,7 +226,31 @@ internal static class ServeActionTraceStream
             return null;
         }
 
-        return body;
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response
+                .WriteAsJsonAsync(new { ok = false, error = "INVALID_JSON", message = "Body must be a JSON object." }, cancellationToken)
+                .ConfigureAwait(false);
+            return null;
+        }
+
+        var xactionEl = ServeJsonArgs.GetObject(root, "xaction");
+        return new ServeActionTraceStreamRequest
+        {
+            Id = ServeJsonArgs.GetString(root, "id", "actionId"),
+            Param = ServeJsonArgs.GetString(root, "param"),
+            Xaction = xactionEl ?? default,
+            HasXaction = xactionEl is { ValueKind: JsonValueKind.Object },
+            TimeoutSeconds = ServeJsonArgs.GetInt(root, "timeoutSeconds") ?? 0,
+        };
+    }
+
+    private static bool IsEphemeralActionId(string actionId)
+    {
+        var id = actionId.Trim();
+        return id.StartsWith("ephemeral:", StringComparison.OrdinalIgnoreCase)
+               || id.StartsWith("inline:", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static async Task WriteEventAsync(

@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { extractJsonObjectsAfterMarker } from "@/lib/legacy-leveldb-json";
+import { LEGACY_CHAT_LEVELDB_MARKERS } from "@/lib/legacy-chat-scan-markers";
 import {
   QUICKER_AGENT_DIRNAME,
   QUICKER_AGENT_TAURI_IDENTIFIER,
@@ -14,7 +15,20 @@ export type LegacyLevelDbScanHit = {
   json: string;
 };
 
-const CHAT_MARKERS = ["agent-gui-chats", "agent-gui-workspaces"] as const;
+function resolveInstallDirWebView2LevelDbDir(): string | null {
+  if (process.platform !== "win32") return null;
+  const local = process.env.LOCALAPPDATA?.trim();
+  if (!local) return null;
+  return join(
+    local,
+    "Programs",
+    QUICKER_AGENT_DIRNAME,
+    ".WebView2",
+    "Default",
+    "Local Storage",
+    "leveldb",
+  );
+}
 
 function scanLevelDbDirectory(
   label: string,
@@ -50,7 +64,7 @@ function scanLevelDbDirectory(
       continue;
     }
 
-    for (const marker of CHAT_MARKERS) {
+    for (const marker of LEGACY_CHAT_LEVELDB_MARKERS) {
       for (const json of extractJsonObjectsAfterMarker(content, marker)) {
         if (seenJson.has(json)) continue;
         seenJson.add(json);
@@ -94,6 +108,11 @@ export function collectLegacyLevelDbDirectories(): Array<{ label: string; path: 
     "leveldb",
   );
   pushUniqueLevelDbDir(dirs, "QuickerAgent 应用数据", appDataWebView);
+
+  const installWebView = resolveInstallDirWebView2LevelDbDir();
+  if (installWebView) {
+    pushUniqueLevelDbDir(dirs, "安装目录 .WebView2", installWebView);
+  }
 
   if (process.platform === "win32") {
     const local = process.env.LOCALAPPDATA?.trim();

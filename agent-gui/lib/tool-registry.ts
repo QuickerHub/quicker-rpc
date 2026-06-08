@@ -99,7 +99,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "等待 Quicker 连接",
     group: "read",
     category: "runtime",
-    description: "轮询直到 QuickerRpc 插件可用；connectivity_failure 时用，勿 shell 探活",
+    description: "轮询直到 QuickerRpc 可用；自动重启 serve、quicker:runaction 拉起插件；connectivity_failure 时用",
   },
   {
     id: "ask_question",
@@ -309,7 +309,8 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "启动器解析",
     group: "read",
     category: "settings",
-    description: "统一搜索设置/动作/子程序，打分排序，供启动器 Agent 决策",
+    description:
+      "统一搜索设置/动作/子程序；query 支持 | 同义词与 * 通配，返回 match.term/on 与 missedTerms",
   },
   {
     id: "quicker_settings",

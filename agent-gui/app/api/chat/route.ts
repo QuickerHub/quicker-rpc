@@ -95,20 +95,25 @@ async function handleChatPost(req: Request) {
   const repairedMessages = repairInterruptedToolCalls(messages);
   const titleTest = titleTestOnly === true;
 
+  const lastUserText = extractLastUserMessageText(repairedMessages);
+
   if (chatMode === CHAT_MODE_LAUNCHER && !titleTest) {
-    const direct = await runWithAgentRequestContextAsync({ cwd }, async () => {
+    const direct = await runWithAgentRequestContextAsync(
+      { cwd, chatMode, lastUserText },
+      async () => {
       const cacheDirect = await tryRespondWithLauncherCacheDirect({
-        userText: extractLastUserMessageText(repairedMessages),
+        userText: lastUserText,
         repairedMessages,
         cwd,
       });
       if (cacheDirect) return cacheDirect;
       return tryRespondWithLauncherResolveDirect({
-        userText: extractLastUserMessageText(repairedMessages),
+        userText: lastUserText,
         repairedMessages,
         cwd,
       });
-    });
+    },
+    );
     if (direct) return direct;
   }
 
@@ -162,7 +167,9 @@ async function handleChatPost(req: Request) {
     };
   });
 
-  return runWithAgentRequestContextAsync({ cwd }, async () => {
+  return runWithAgentRequestContextAsync(
+    { cwd, chatMode, lastUserText },
+    async () => {
     const localProjectIds: string[] = [];
     if (cwd) {
       const listed = await listWorkspaceActionProjects();
@@ -177,7 +184,9 @@ async function handleChatPost(req: Request) {
       localProjectIds,
     );
 
-    return runWithAgentRequestContextAsync({ cwd, actionScope }, async () => {
+    return runWithAgentRequestContextAsync(
+      { cwd, actionScope, chatMode, lastUserText },
+      async () => {
     const contextLimit = resolveModelContextLimit(modelId).tokens;
     const preparedContext = await prepareCompressedContext({
       messages: messagesForModel,
@@ -196,9 +205,7 @@ async function handleChatPost(req: Request) {
     const baseSystem = await buildSystemInstructions(cwd, chatMode);
     const launcherCacheBlock =
       chatMode === CHAT_MODE_LAUNCHER
-        ? await buildLauncherCommandCachePromptBlock(
-            extractLastUserMessageText(repairedMessages),
-          )
+        ? await buildLauncherCommandCachePromptBlock(lastUserText)
         : undefined;
     const systemWithScope = scopeBlock
       ? `${baseSystem}\n\n${scopeBlock}`

@@ -50,7 +50,7 @@ qkrpc mcp install
 安装还会（用户级默认）：
 
 - 设置 MCP env：`QKRPC_WORKSPACE_ROOT`、`QKRPC_SETUP_VERSION`
-- 复制 skills：`qkrpc`、`quicker-authoring`、`quicker-sync`、`quicker-run` → `~/.cursor/skills/`
+- 复制 skills：`qkrpc`、`quicker-rpc-knowledge`、`quicker-authoring`、`quicker-sync`、`quicker-run` → `~/.cursor/skills/`
 - 复制 rules：`qkrpc.mdc` → `~/.cursor/rules/`
 - 合并 Claude Code 指引：`~/.claude/CLAUDE.md`（`<!-- qkrpc-agent-setup -->` 段）
 - 写入 manifest：`~/.qkrpc/agent-setup.json`

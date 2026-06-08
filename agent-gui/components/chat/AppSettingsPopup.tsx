@@ -9,13 +9,13 @@ import {
   type AppSettingsTabId,
 } from "@/lib/app-settings-tabs";
 import type { LlmProviderId } from "@/lib/llm-providers";
-import type { PingState } from "@/lib/use-qkrpc-ping";
+import type { PingState, RefreshPingOptions } from "@/lib/use-qkrpc-ping";
 
 type AppSettingsPopupProps = {
   open: boolean;
   onClose: () => void;
   ping: PingState;
-  onRefreshPing: () => void;
+  onRefreshPing: (opts?: RefreshPingOptions) => void | Promise<void>;
   versionRefreshKey?: number;
   focusProviderId?: LlmProviderId;
   initialTab?: AppSettingsTabId;

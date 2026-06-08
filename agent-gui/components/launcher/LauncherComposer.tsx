@@ -39,8 +39,11 @@ import {
   createLauncherSessionId,
   postLauncherOpened,
   postLauncherSubmit,
+  postLauncherToolOutput,
   subscribeLauncherBridge,
 } from "@/lib/launcher/launcher-bridge";
+import { collectPendingAskQuestions } from "@/lib/ask-question-tool";
+import { AskQuestionDock } from "@/components/chat/AskQuestionDock";
 import type { PendingToolApproval } from "@/lib/tool-approval-display";
 import type { WorkspaceDeleteProjectHit } from "@/lib/workspace-action-project-lookup";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
@@ -360,6 +363,12 @@ export function LauncherPanel() {
   const busy =
     session != null
     && (session.status === "submitted" || session.status === "streaming");
+  const pendingAskQuestions = useMemo(
+    () => (session ? collectPendingAskQuestions(session.messages) : []),
+    [session],
+  );
+  const activePendingAskQuestion = pendingAskQuestions[0] ?? null;
+
   const awaitingUserInput =
     session != null
     && (session.pendingApprovalCount > 0 || session.pendingAskQuestionCount > 0);
@@ -409,6 +418,19 @@ export function LauncherPanel() {
           ) : null}
         </div>
         <footer className="composer launcher-composer">
+          {activePendingAskQuestion && session ? (
+            <AskQuestionDock
+              pending={activePendingAskQuestion}
+              disabled={busy}
+              onSubmit={(toolCallId, output) => {
+                postLauncherToolOutput(session.sessionId, {
+                  tool: "ask_question",
+                  toolCallId,
+                  output,
+                });
+              }}
+            />
+          ) : null}
           <LauncherComposer
             onSubmit={handleSubmit}
             agentBusy={busy}

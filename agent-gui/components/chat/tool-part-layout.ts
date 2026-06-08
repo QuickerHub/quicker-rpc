@@ -189,9 +189,15 @@ function flushActivityItemsInOrder(
       continue;
     }
 
+    const toolRun: ToolUiPartAnalysis[] = [];
     while (index < items.length && items[index]!.kind === "tool") {
-      segments.push({ kind: "tool", item: items[index] as ToolUiPartAnalysis });
+      toolRun.push(items[index] as ToolUiPartAnalysis);
       index++;
+    }
+    if (toolRun.length >= 2) {
+      segments.push({ kind: "tool-batch", items: toolRun });
+    } else if (toolRun.length === 1) {
+      segments.push({ kind: "tool", item: toolRun[0]! });
     }
   }
 }

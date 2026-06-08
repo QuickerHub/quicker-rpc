@@ -59,6 +59,7 @@ No `workspace_program` in MCP — edit files, then `qkrpc_sync push`.
 | Task | Skill |
 |------|-------|
 | Connectivity / install | `qkrpc` |
+| Connection failed / QuickerRpc domain | `quicker-rpc-knowledge` |
 | Write/edit actions | `quicker-authoring` |
 | pull/push `.quicker/` | `quicker-sync` |
 | Run/debug only | `quicker-run` |

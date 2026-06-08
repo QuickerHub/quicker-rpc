@@ -4,7 +4,8 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { lastAssistantMessageIsCompleteWithClientResponses } from "@/lib/chat-auto-submit";
 import { ChatToolActionsProvider } from "@/lib/chat-tool-actions";
-import { countPendingAskQuestions } from "@/lib/ask-question-tool";
+import { collectPendingAskQuestions } from "@/lib/ask-question-tool";
+import { AskQuestionDock } from "@/components/chat/AskQuestionDock";
 import {
   useCallback,
   useEffect,
@@ -446,10 +447,12 @@ function ChatPanel({
     [messages],
   );
   const pendingApprovalCount = pendingApprovals.length;
-  const pendingAskQuestionCount = useMemo(
-    () => countPendingAskQuestions(messages),
+  const pendingAskQuestions = useMemo(
+    () => collectPendingAskQuestions(messages),
     [messages],
   );
+  const pendingAskQuestionCount = pendingAskQuestions.length;
+  const activePendingAskQuestion = pendingAskQuestions[0] ?? null;
 
   const pendingActionDeleteIds = useMemo(() => {
     const ids: string[] = [];
@@ -1220,6 +1223,13 @@ function ChatPanel({
           onDenyAll={() => respondToAllPendingApprovals(false)}
         />
       )}
+
+      {activePendingAskQuestion ? (
+        <AskQuestionDock
+          pending={activePendingAskQuestion}
+          disabled={busy}
+        />
+      ) : null}
 
       <ChatComposerFooter
         ref={composerRef}

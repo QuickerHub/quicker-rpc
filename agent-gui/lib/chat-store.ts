@@ -33,17 +33,21 @@ export {
   threadBackupStorageKey,
 } from "@/lib/chat-store-persist";
 import {
+  assembleStoreFromV3Parts,
   backupPersistedChatStoreIndex,
   hydrateStoreThreadMessages,
   loadPersistedChatStore,
   loadPersistedChatStoreFromBackup,
+  loadThreadMessagesFromStorage,
   migrateMonolithicStoreToChunked,
   savePersistedChatStore,
   toChatStoreIndex,
   getLastPersistedSnapshot,
+  tryParseV3Index,
   CHAT_STORAGE_KEY,
   CHAT_STORAGE_BACKUP_KEY,
   CHAT_STORE_VERSION,
+  CHAT_THREAD_BACKUP_KEY_PREFIX,
   CHAT_THREAD_KEY_PREFIX,
   threadStorageKey,
   threadBackupStorageKey,
@@ -137,8 +141,10 @@ export function isThreadEmpty(thread: ChatThread): boolean {
   return thread.messages.length === 0;
 }
 
-/** Keep at most one empty thread; ensure the store is never thread-less. */
-function compactEmptyThreads(data: ChatStoreData): ChatStoreData {
+/**
+ * Drop orphan empty threads not shown in the tab strip; keep every open-tab empty.
+ */
+export function compactEmptyThreads(data: ChatStoreData): ChatStoreData {
   if (data.threads.length === 0) {
     const thread = createThread();
     return {
@@ -149,23 +155,17 @@ function compactEmptyThreads(data: ChatStoreData): ChatStoreData {
     };
   }
 
-  const emptyThreads = data.threads.filter(isThreadEmpty);
-  if (emptyThreads.length <= 1) {
-    const openTabIds = data.openTabIds.filter((id) =>
-      data.threads.some((t) => t.id === id),
-    );
-    return { ...data, openTabIds };
-  }
-
-  const active = data.threads.find((t) => t.id === data.activeThreadId);
-  const keepEmptyId =
-    active && isThreadEmpty(active)
-      ? active.id
-      : emptyThreads.sort((a, b) => b.updatedAt - a.updatedAt)[0]!.id;
-
-  const threads = data.threads.filter(
-    (t) => !isThreadEmpty(t) || t.id === keepEmptyId,
+  const openTabSet = new Set(data.openTabIds);
+  const emptyOpen = data.threads.filter(
+    (t) => isThreadEmpty(t) && openTabSet.has(t.id),
   );
+
+  const keepIds = new Set<string>([
+    ...data.threads.filter((t) => !isThreadEmpty(t)).map((t) => t.id),
+    ...emptyOpen.map((t) => t.id),
+  ]);
+
+  const threads = data.threads.filter((t) => keepIds.has(t.id));
 
   let activeThreadId = data.activeThreadId;
   if (!threads.some((t) => t.id === activeThreadId)) {
@@ -210,13 +210,17 @@ function normalizeOpenTabIds(
       : [threads[0]!.id];
   }
 
-  // Repair persisted state from older loads that expanded every thread into the tab strip.
-  if (
-    tabStripPersisted !== true
-    && Array.isArray(raw)
-    && threads.length > 1
+  // Repair legacy/import state that opened every thread in the titlebar tab strip.
+  const fullTabStripExpansion =
+    threads.length > 1
     && openTabIds.length === threads.length
-    && threads.every((t) => openTabIds.includes(t.id))
+    && threads.every((t) => openTabIds.includes(t.id));
+  if (
+    fullTabStripExpansion
+    && (
+      tabStripPersisted !== true
+      || threads.length > MAX_OPEN_CHAT_TABS
+    )
   ) {
     openTabIds = threadIds.has(activeThreadId)
       ? [activeThreadId]
@@ -228,6 +232,22 @@ function normalizeOpenTabIds(
   }
 
   return openTabIds;
+}
+
+/** Normalize tab strip and empty-thread policy after load or legacy merge. */
+export function normalizeLoadedStore(data: ChatStoreData): ChatStoreData {
+  const openTabIds = normalizeOpenTabIds(
+    data.openTabIds,
+    data.threads,
+    data.activeThreadId,
+    data.tabStripPersisted,
+  );
+  return applyOpenTabPolicy(
+    compactEmptyThreads({
+      ...data,
+      openTabIds,
+    }),
+  );
 }
 
 function tabStripStateChanged(
@@ -255,23 +275,6 @@ export const MAX_OPEN_CHAT_TABS = 8;
 
 function threadById(threads: ChatThread[]): Map<string, ChatThread> {
   return new Map(threads.map((t) => [t.id, t]));
-}
-
-/** Drop inactive empty tabs when user focuses a conversation that has messages. */
-function pruneAbandonedEmptyTabs(
-  openTabIds: string[],
-  threads: ChatThread[],
-  activeThreadId: string,
-): string[] {
-  const byId = threadById(threads);
-  const active = byId.get(activeThreadId);
-  if (!active || isThreadEmpty(active)) return openTabIds;
-
-  return openTabIds.filter((id) => {
-    if (id === activeThreadId) return true;
-    const thread = byId.get(id);
-    return !thread || !isThreadEmpty(thread);
-  });
 }
 
 /**
@@ -317,18 +320,8 @@ function pruneOpenTabIds(
   return ids;
 }
 
-function applyOpenTabPolicy(
-  data: ChatStoreData,
-  options?: { pruneAbandonedEmpty?: boolean },
-): ChatStoreData {
+function applyOpenTabPolicy(data: ChatStoreData): ChatStoreData {
   let openTabIds = data.openTabIds;
-  if (options?.pruneAbandonedEmpty) {
-    openTabIds = pruneAbandonedEmptyTabs(
-      openTabIds,
-      data.threads,
-      data.activeThreadId,
-    );
-  }
   openTabIds = pruneOpenTabIds(
     openTabIds,
     data.threads,
@@ -475,10 +468,15 @@ export function loadChatStore(): ChatStoreData {
         const chunked = loadPersistedChatStore({ messageScope: "active" });
         if (chunked) {
           const restored = maybeRestoreFromBackup(chunked);
-          if (restored !== chunked) {
-            saveChatStore(restored);
+          const normalized = normalizeLoadedStore(restored);
+          if (
+            openTabIdsChanged(restored.openTabIds, normalized.openTabIds)
+            || restored.threads.length !== normalized.threads.length
+            || restored.activeThreadId !== normalized.activeThreadId
+          ) {
+            saveChatStore(normalized);
           }
-          return restored;
+          return normalized;
         }
       }
 
@@ -639,29 +637,10 @@ export function updateThreadMessages(
       };
     }),
   };
-  if (!hadContent && messages.length > 0 && threadId === next.activeThreadId) {
-    return applyOpenTabPolicy(next, { pruneAbandonedEmpty: true });
-  }
   return next;
 }
 
 export function addThread(data: ChatStoreData): ChatStoreData {
-  const existingEmpty = data.threads.find(isThreadEmpty);
-  if (existingEmpty) {
-    const openTabIds = data.openTabIds.includes(existingEmpty.id)
-      ? data.openTabIds
-      : [...data.openTabIds, existingEmpty.id];
-    return withTabStripPersisted(
-      applyOpenTabPolicy(
-        compactEmptyThreads({
-          ...data,
-          openTabIds,
-          activeThreadId: existingEmpty.id,
-        }),
-      ),
-    );
-  }
-
   const thread = createThread();
   const activeIndex = data.threads.findIndex((t) => t.id === data.activeThreadId);
   const insertAt = activeIndex >= 0 ? activeIndex + 1 : data.threads.length;
@@ -690,10 +669,7 @@ export function addThread(data: ChatStoreData): ChatStoreData {
 
 export function selectThread(data: ChatStoreData, threadId: string): ChatStoreData {
   if (!data.threads.some((t) => t.id === threadId)) return data;
-  return applyOpenTabPolicy(
-    { ...data, activeThreadId: threadId },
-    { pruneAbandonedEmpty: true },
-  );
+  return applyOpenTabPolicy({ ...data, activeThreadId: threadId });
 }
 
 /** Open a thread in the tab strip (sidebar) and focus it. */
@@ -703,10 +679,7 @@ export function openThread(data: ChatStoreData, threadId: string): ChatStoreData
     ? data.openTabIds
     : [...data.openTabIds, threadId];
   return withTabStripPersisted(
-    applyOpenTabPolicy(
-      { ...data, openTabIds, activeThreadId: threadId },
-      { pruneAbandonedEmpty: true },
-    ),
+    applyOpenTabPolicy({ ...data, openTabIds, activeThreadId: threadId }),
   );
 }
 
@@ -887,14 +860,35 @@ function mergeChatStoreFromLegacy(
     if (firstWithContent) activeThreadId = firstWithContent.id;
   }
 
-  let openTabIds = [...current.openTabIds];
-  for (const id of imported.openTabIds) {
-    if (byId.has(id) && !openTabIds.includes(id)) {
-      openTabIds.push(id);
+  // Imported threads join sidebar history; do not merge legacy openTabIds into the strip.
+  const activeSwitchedFromEmpty =
+    active !== undefined
+    && isThreadEmpty(active)
+    && activeThreadId !== current.activeThreadId;
+
+  let openTabIds: string[];
+  if (activeSwitchedFromEmpty) {
+    openTabIds = [activeThreadId];
+  } else {
+    openTabIds = current.openTabIds.filter((id) => byId.has(id));
+    if (!openTabIds.includes(activeThreadId)) {
+      const pivot = openTabIds.indexOf(current.activeThreadId);
+      if (pivot >= 0) {
+        openTabIds = [
+          ...openTabIds.slice(0, pivot + 1),
+          activeThreadId,
+          ...openTabIds.slice(pivot + 1),
+        ];
+      } else {
+        openTabIds = [...openTabIds, activeThreadId];
+      }
+    }
+    if (openTabIds.length === 0) {
+      openTabIds = [activeThreadId];
     }
   }
 
-  const store = compactEmptyThreads({
+  const store = normalizeLoadedStore({
     ...current,
     threads,
     activeThreadId,
@@ -905,10 +899,115 @@ function mergeChatStoreFromLegacy(
   return { store, importedCount, updatedCount };
 }
 
+function collectChunkedLocalStorageCandidates(): Array<{ source: string; data: ChatStoreData }> {
+  const out: Array<{ source: string; data: ChatStoreData }> = [];
+
+  try {
+    const chunked = loadPersistedChatStore({ messageScope: "all" });
+    if (chunked && chatStoreHasPersistedMessages(chunked)) {
+      out.push({ source: "当前 localStorage（v3 分片）", data: chunked });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const indexRaw = localStorage.getItem(CHAT_STORAGE_KEY);
+    if (indexRaw) {
+      const index = tryParseV3Index(JSON.parse(indexRaw) as unknown);
+      if (index) {
+        const hydrated = assembleStoreFromV3Parts(index, (threadId) => {
+          const primary = loadThreadMessagesFromStorage(threadId);
+          if (primary.length > 0) return primary;
+          return loadThreadMessagesFromStorage(threadId, { preferBackup: true });
+        });
+        if (
+          chatStoreHasPersistedMessages(hydrated)
+          && !out.some((item) => item.source === "当前 localStorage（v3 分片）")
+        ) {
+          out.push({ source: "当前 localStorage（v3 分片 + 备份线程）", data: hydrated });
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  const indexedIds = new Set<string>();
+  try {
+    for (const key of [CHAT_STORAGE_KEY, CHAT_STORAGE_BACKUP_KEY]) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const index = tryParseV3Index(JSON.parse(raw) as unknown);
+      index?.threads.forEach((thread) => indexedIds.add(thread.id));
+    }
+  } catch {
+    /* ignore */
+  }
+
+  const orphanThreads: ChatThread[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+
+    if (
+      key.startsWith(CHAT_THREAD_KEY_PREFIX)
+      && !key.startsWith(CHAT_THREAD_BACKUP_KEY_PREFIX)
+    ) {
+      const threadId = key.slice(CHAT_THREAD_KEY_PREFIX.length);
+      if (!threadId || indexedIds.has(threadId)) continue;
+      const messages = loadThreadMessagesFromStorage(threadId);
+      if (messages.length === 0) continue;
+      orphanThreads.push({
+        id: threadId,
+        title: "恢复的对话",
+        messages,
+        updatedAt: now(),
+        titleGenerated: false,
+        titleManual: false,
+      });
+      continue;
+    }
+
+    if (key.startsWith(CHAT_THREAD_BACKUP_KEY_PREFIX)) {
+      const threadId = key.slice(CHAT_THREAD_BACKUP_KEY_PREFIX.length);
+      if (!threadId || indexedIds.has(threadId)) continue;
+      if (orphanThreads.some((thread) => thread.id === threadId)) continue;
+      const messages = loadThreadMessagesFromStorage(threadId, { preferBackup: true });
+      if (messages.length === 0) continue;
+      orphanThreads.push({
+        id: threadId,
+        title: "恢复的对话（备份）",
+        messages,
+        updatedAt: now(),
+        titleGenerated: false,
+        titleManual: false,
+      });
+    }
+  }
+
+  if (orphanThreads.length > 0) {
+    const activeThreadId = orphanThreads[0]!.id;
+    out.push({
+      source: "孤立线程分片（localStorage）",
+      data: compactEmptyThreads({
+        ...defaultChatStore(),
+        activeThreadId,
+        openTabIds: [activeThreadId],
+        threads: orphanThreads,
+      }),
+    });
+  }
+
+  return out;
+}
+
 function collectLegacyChatStoreCandidates(): Array<{ source: string; data: ChatStoreData }> {
   if (typeof window === "undefined") return [];
 
-  const out: Array<{ source: string; data: ChatStoreData }> = [];
+  const out: Array<{ source: string; data: ChatStoreData }> = [
+    ...collectChunkedLocalStorageCandidates(),
+  ];
 
   try {
     const legacyWs = localStorage.getItem(LEGACY_WORKSPACE_STORAGE_KEY);
@@ -1027,7 +1126,7 @@ export function tryRestoreLegacyChatStore(
         ok: false,
         title: "未发现可恢复的数据",
         body:
-          "未在当前 localStorage 或已知 WebView LevelDB 目录中找到含消息的 agent-gui-chats / agent-gui-workspaces。"
+          "未在当前 localStorage 或已知 WebView LevelDB 目录中找到含消息的 agent-gui-chats / agent-gui-chats-thread-* / agent-gui-workspaces。"
           + " 旧版可能使用不同浏览器 profile（如 pnpm dev 的 Chrome）或不同 http://127.0.0.1:端口 origin；"
           + " 请在曾使用过的环境重试，或从 DevTools 复制 agent-gui-chats JSON 手动导入。"
           + rootsHint,
@@ -1058,6 +1157,7 @@ export function tryRestoreLegacyChatStore(
     } catch {
       /* ignore */
     }
+    next = normalizeLoadedStore(next);
     saveChatStore(next);
   }
 

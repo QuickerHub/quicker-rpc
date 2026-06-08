@@ -293,9 +293,31 @@ fn model_type_for_id(model_id: &str) -> &'static str {
     }
 }
 
-fn model_ready_at_dir(dir: &Path) -> bool {
+fn paraformer_ready_at_dir(dir: &Path) -> bool {
+    let onnx = if dir.join("model.int8.onnx").is_file() {
+        dir.join("model.int8.onnx")
+    } else if dir.join("model.onnx").is_file() {
+        dir.join("model.onnx")
+    } else {
+        return false;
+    };
     dir.join("tokens.txt").is_file()
-        && (dir.join("model.int8.onnx").is_file() || dir.join("model.onnx").is_file())
+        && dir.join("tokens.txt").metadata().map(|m| m.len() >= 64).unwrap_or(false)
+        && onnx
+            .metadata()
+            .map(|meta| meta.len() >= 20 * 1024 * 1024)
+            .unwrap_or(false)
+}
+
+fn model_ready_at_dir(dir: &Path) -> bool {
+    let name = dir
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("");
+    if name == "paraformer-zh" {
+        return paraformer_ready_at_dir(dir);
+    }
+    crate::voice_plugin_install::is_sensevoice_model_ready(dir)
 }
 
 fn resolve_voice_model_dir(root: &Path) -> Option<PathBuf> {
@@ -650,6 +672,19 @@ fn start_runtime_inner(state: &VoicePluginState) -> VoicePluginStatusDto {
         return build_status(state);
     }
 
+    if fully_installed && !model_ready_at(&root) {
+        return VoicePluginStatusDto {
+            status: "error".into(),
+            installed: true,
+            running: false,
+            ws_port: 0,
+            plugin_dir,
+            message: Some(
+                "语音模型文件不完整或已损坏，请在设置中重新下载模型。".into(),
+            ),
+        };
+    }
+
     reclaim_voice_port(port);
 
     let spawn_result = if fully_installed {
@@ -800,6 +835,21 @@ pub fn voice_plugin_write_settings(
     }
     let _ = app;
     Ok(settings)
+}
+
+#[tauri::command]
+pub fn voice_plugin_redownload_model(
+    app: AppHandle,
+    model_id: Option<String>,
+    force: Option<bool>,
+) -> Result<(), String> {
+    let id = model_id.unwrap_or_else(|| "standard".into());
+    crate::voice_plugin_install::redownload_voice_model(&app, &id, force.unwrap_or(true))
+}
+
+#[tauri::command]
+pub fn voice_plugin_model_install_state() -> crate::voice_plugin_install::VoiceModelInstallStateDto {
+    crate::voice_plugin_install::voice_model_install_state(&voice_plugin_root())
 }
 
 #[tauri::command]

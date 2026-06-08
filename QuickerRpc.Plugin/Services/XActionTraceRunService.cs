@@ -1,5 +1,4 @@
 using System;
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
@@ -61,13 +60,66 @@ public sealed class XActionTraceRunService
             return Fail($"Action {id} is not an XAction program. Trace run requires XAction.", id);
         }
 
+        return ExecuteTrace(
+            actionItem,
+            actionId: id,
+            actionTitle: ReadActionTitle(actionItem),
+            inputParam,
+            progress,
+            streamCallbacks);
+    }
+
+    public QuickerRpcActionTraceRunResult RunXAction(
+        string xActionJson,
+        string? inputParam = null,
+        string? projectDirectory = null,
+        IProgress<QuickerRpcActionTraceEvent>? progress = null,
+        IQuickerRpcClientCallbacks? streamCallbacks = null)
+    {
+        if (string.IsNullOrWhiteSpace(xActionJson))
+        {
+            return Fail("xActionJson is required.");
+        }
+
+        if (!IsInQuicker())
+        {
+            return Fail("Not running inside Quicker.");
+        }
+
+        if (!XActionEphemeralProgramBuilder.TryBuild(
+                xActionJson,
+                projectDirectory,
+                out var actionItem,
+                out var title,
+                out var buildError)
+            || actionItem is null)
+        {
+            return Fail(buildError ?? "Failed to build ephemeral XAction.");
+        }
+
+        return ExecuteTrace(
+            actionItem,
+            actionId: actionItem.Id,
+            actionTitle: title,
+            inputParam,
+            progress,
+            streamCallbacks);
+    }
+
+    private QuickerRpcActionTraceRunResult ExecuteTrace(
+        ActionItem actionItem,
+        string? actionId,
+        string? actionTitle,
+        string? inputParam,
+        IProgress<QuickerRpcActionTraceEvent>? progress,
+        IQuickerRpcClientCallbacks? streamCallbacks)
+    {
         var appServer = AppState.AppServer;
         if (appServer is null)
         {
-            return Fail("AppServer unavailable.", id);
+            return Fail("AppServer unavailable.", actionId, actionTitle);
         }
 
-        var title = ReadActionTitle(actionItem);
         var logger = new TerminalActionLogger(CreateStreamHandler(progress, streamCallbacks));
         var sw = Stopwatch.StartNew();
 
@@ -87,12 +139,17 @@ public sealed class XActionTraceRunService
 
         if (runException is not null)
         {
-            return Fail(runException.Message, id, title, logger.Events, sw.ElapsedMilliseconds);
+            return Fail(runException.Message, actionId, actionTitle, logger.Events, sw.ElapsedMilliseconds);
         }
 
         if (context is null)
         {
-            return Fail("Action execution did not produce a context.", id, title, logger.Events, sw.ElapsedMilliseconds);
+            return Fail(
+                "Action execution did not produce a context.",
+                actionId,
+                actionTitle,
+                logger.Events,
+                sw.ElapsedMilliseconds);
         }
 
         logger.EndFile();
@@ -103,8 +160,8 @@ public sealed class XActionTraceRunService
             return new QuickerRpcActionTraceRunResult
             {
                 Ok = false,
-                ActionId = id,
-                ActionTitle = title,
+                ActionId = actionId,
+                ActionTitle = actionTitle,
                 ReturnResult = returnResult,
                 ErrorMessage = runtimeError,
                 StopFlag = stopFlag,
@@ -118,8 +175,8 @@ public sealed class XActionTraceRunService
         return new QuickerRpcActionTraceRunResult
         {
             Ok = true,
-            ActionId = id,
-            ActionTitle = title,
+            ActionId = actionId,
+            ActionTitle = actionTitle,
             ReturnResult = returnResult,
             Message = string.IsNullOrWhiteSpace(returnResult) ? "动作已运行。" : returnResult,
             DurationMs = sw.ElapsedMilliseconds,

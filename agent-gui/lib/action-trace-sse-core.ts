@@ -177,3 +177,33 @@ export async function consumeActionTraceSse(
 
   await consumeActionTraceSseResponse(res, signal, handlers);
 }
+
+export async function consumeActionTraceSsePost(
+  url: string,
+  body: string,
+  signal: AbortSignal,
+  handlers: ActionTraceSseHandlers,
+): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      signal,
+      headers: {
+        Accept: "text/event-stream",
+        "Content-Type": "application/json",
+      },
+      body,
+      cache: "no-store",
+    });
+  } catch (err) {
+    if (signal.aborted) {
+      return;
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    handlers.onError(message);
+    return;
+  }
+
+  await consumeActionTraceSseResponse(res, signal, handlers);
+}

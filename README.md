@@ -80,7 +80,7 @@ qkrpc agent setup --project      # 额外写入项目配置（团队 opt-in）
 ```
 
 - 写入 MCP 配置（stdio：`qkrpc mcp`）
-- 复制 skills（`qkrpc`、`quicker-authoring`、`quicker-sync`、`quicker-run`）与 rules
+- 复制 skills（`qkrpc`、`quicker-rpc-knowledge`、`quicker-authoring`、`quicker-sync`、`quicker-run`）与 rules
 - `qkrpc mcp install` 为向后兼容别名
 
 说明：[docs/agent-mcp-integration.md](docs/agent-mcp-integration.md) · 分发：[docs/agent-skill-distribution.md](docs/agent-skill-distribution.md)

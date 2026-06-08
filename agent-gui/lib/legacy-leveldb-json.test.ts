@@ -38,6 +38,16 @@ test("extracts UTF-16 LE JSON after marker", () => {
   assert.equal(parsed.threads[0]!.messages.length, 1);
 });
 
+test("extracts UTF-8 JSON for v3 index after marker", () => {
+  const blob = Buffer.from(
+    'prefix agent-gui-chats\x00{"version":3,"threads":[],"activeThreadId":"a"}',
+    "utf8",
+  );
+  const jsons = extractJsonObjectsAfterMarker(blob, "agent-gui-chats");
+  assert.equal(jsons.length, 1);
+  assert.equal(JSON.parse(jsons[0]!).version, 3);
+});
+
 test("extractJsonPayloadFromOffset prefers UTF-16 when framed", () => {
   const payload = '{"ok":true}';
   const bytes = toUtf16Le(payload);

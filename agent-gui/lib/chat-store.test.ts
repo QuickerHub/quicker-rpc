@@ -2,16 +2,22 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import {
+  addThread,
   CHAT_STORAGE_BACKUP_KEY,
   CHAT_STORAGE_KEY,
   CHAT_STORE_VERSION,
   countPersistedMessages,
   defaultChatStore,
+  getOpenTabThreads,
+  isThreadEmpty,
   loadChatStore,
+  normalizeLoadedStore,
   saveChatStore,
+  selectThread,
   shouldBackupChatStoreBeforeSave,
   threadBackupStorageKey,
   threadStorageKey,
+  tryRestoreLegacyChatStore,
   updateThreadMessages,
 } from "@/lib/chat-store";
 import { resetPersistedSnapshotForTests as resetPersistSnapshot } from "@/lib/chat-store-persist";
@@ -194,6 +200,173 @@ test("migrates monolithic v2 blob to chunked v3 on load", () => {
   const index = JSON.parse(globalThis.localStorage!.getItem(CHAT_STORAGE_KEY)!);
   assert.equal(index.version, CHAT_STORE_VERSION);
   assert.ok(globalThis.localStorage!.getItem(threadStorageKey(threadId)));
+});
+
+test("addThread opens a new tab when the active tab is empty", () => {
+  const store = defaultChatStore();
+  const firstTabId = store.activeThreadId;
+
+  const next = addThread(store);
+  const tabs = getOpenTabThreads(next);
+
+  assert.equal(tabs.length, 2);
+  assert.notEqual(next.activeThreadId, firstTabId);
+  assert.ok(tabs.some((thread) => thread.id === firstTabId));
+  assert.ok(tabs.some((thread) => thread.id === next.activeThreadId));
+});
+
+test("addThread can open multiple consecutive empty tabs", () => {
+  let store = defaultChatStore();
+  store = addThread(store);
+  store = addThread(store);
+  store = addThread(store);
+
+  const tabs = getOpenTabThreads(store);
+  assert.equal(tabs.length, 4);
+  assert.equal(tabs.filter((thread) => thread.messages.length === 0).length, 4);
+});
+
+test("selectThread keeps inactive empty tabs in the tab strip", () => {
+  const store = defaultChatStore();
+  const firstEmptyId = store.activeThreadId;
+  const withTwoEmpties = addThread(store);
+  const secondEmptyId = withTwoEmpties.activeThreadId;
+  const withContent = updateThreadMessages(withTwoEmpties, firstEmptyId, [
+    sampleMessage("hello"),
+  ]);
+
+  const selected = selectThread(withContent, firstEmptyId);
+
+  assert.equal(getOpenTabThreads(selected).length, 2);
+  assert.ok(selected.openTabIds.includes(secondEmptyId));
+});
+
+test("normalizeLoadedStore repairs legacy full tab strip expansion on load", () => {
+  const threadA = crypto.randomUUID();
+  const threadB = crypto.randomUUID();
+  const threadC = crypto.randomUUID();
+  const bloated = {
+    ...defaultChatStore(),
+    activeThreadId: threadB,
+    threads: [
+      {
+        id: threadA,
+        title: "a",
+        messages: [sampleMessage("a")],
+        updatedAt: Date.now(),
+      },
+      {
+        id: threadB,
+        title: "b",
+        messages: [sampleMessage("b")],
+        updatedAt: Date.now(),
+      },
+      {
+        id: threadC,
+        title: "c",
+        messages: [sampleMessage("c")],
+        updatedAt: Date.now(),
+      },
+    ],
+    openTabIds: [threadA, threadB, threadC],
+    tabStripPersisted: false,
+  };
+
+  const normalized = normalizeLoadedStore(bloated);
+
+  assert.deepEqual(normalized.openTabIds, [threadB]);
+});
+
+test("tryRestoreLegacyChatStore does not merge imported openTabIds into tab strip", () => {
+  const store = defaultChatStore();
+  const current = updateThreadMessages(store, store.activeThreadId, [
+    sampleMessage("current"),
+  ]);
+  const importedA = crypto.randomUUID();
+  const importedB = crypto.randomUUID();
+  const legacy = {
+    ...defaultChatStore(),
+    activeThreadId: importedA,
+    threads: [
+      {
+        id: importedA,
+        title: "imported-a",
+        messages: [sampleMessage("a")],
+        updatedAt: Date.now(),
+      },
+      {
+        id: importedB,
+        title: "imported-b",
+        messages: [sampleMessage("b")],
+        updatedAt: Date.now(),
+      },
+    ],
+    openTabIds: [importedA, importedB],
+    tabStripPersisted: true,
+  };
+
+  const { next, result } = tryRestoreLegacyChatStore(current, [
+    { source: "test-import", data: legacy },
+  ]);
+
+  assert.ok(result.ok);
+  assert.equal(getOpenTabThreads(next).length, 1);
+  assert.equal(next.threads.filter((thread) => thread.messages.length > 0).length, 3);
+});
+
+test("tryRestoreLegacyChatStore replaces empty active tab strip after import", () => {
+  const current = defaultChatStore();
+  const importedId = crypto.randomUUID();
+  const legacy = {
+    ...defaultChatStore(),
+    activeThreadId: importedId,
+    threads: [
+      {
+        id: importedId,
+        title: "imported",
+        messages: [sampleMessage("imported")],
+        updatedAt: Date.now(),
+      },
+    ],
+    openTabIds: [importedId],
+    tabStripPersisted: true,
+  };
+
+  const { next, result } = tryRestoreLegacyChatStore(current, [
+    { source: "test-import", data: legacy },
+  ]);
+
+  assert.ok(result.ok);
+  assert.deepEqual(next.openTabIds, [importedId]);
+  assert.equal(getOpenTabThreads(next).length, 1);
+});
+
+test("addThread always creates a fresh tab even when a hidden empty thread exists", () => {
+  const store = defaultChatStore();
+  const activeTabId = store.activeThreadId;
+  const hiddenEmptyId = crypto.randomUUID();
+  const withContent = updateThreadMessages(store, activeTabId, [sampleMessage("m1")]);
+  const withHiddenEmpty = {
+    ...withContent,
+    threads: [
+      ...withContent.threads,
+      {
+        id: hiddenEmptyId,
+        title: "新对话",
+        messages: [],
+        updatedAt: Date.now(),
+      },
+    ],
+    openTabIds: [activeTabId],
+  };
+
+  const next = addThread(withHiddenEmpty);
+
+  assert.notEqual(next.activeThreadId, hiddenEmptyId);
+  assert.notEqual(next.activeThreadId, activeTabId);
+  assert.equal(getOpenTabThreads(next).length, 2);
+  assert.equal(next.threads.filter((thread) => isThreadEmpty(thread)).length, 1);
+  assert.ok(!next.threads.some((thread) => thread.id === hiddenEmptyId));
 });
 
 test("shouldBackupChatStoreBeforeSave detects per-thread wipe", () => {

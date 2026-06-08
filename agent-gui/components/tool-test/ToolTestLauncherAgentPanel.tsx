@@ -4,13 +4,25 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentUIMessage } from "@/lib/chat-types";
+import {
+  fetchLlmOptions,
+  ModelSelector,
+  pickInitialLlmSelectionFromApi,
+} from "@/components/chat/ModelSelector";
+import type { LlmOptionsResponse } from "@/lib/llm-options-shared";
 import { CHAT_MODE_LAUNCHER } from "@/lib/chat-mode";
-import { LLM_AUTO_LABEL, LLM_AUTO_SELECTION } from "@/lib/llm-selection";
+import {
+  loadLauncherLlmSelectionRaw,
+  storeLauncherLlmSelectionRaw,
+} from "@/lib/launcher/launcher-llm-prefs";
+import { LLM_AUTO_SELECTION } from "@/lib/llm-selection";
+import { resolveLlmSelectionLabel } from "@/lib/tool-test-title-model-label";
 import {
   getDefaultLauncherAgentScenario,
   getLauncherAgentScenario,
   LAUNCHER_AGENT_SCENARIOS,
 } from "@/lib/tool-test-launcher-scenarios";
+import type { ChatAddToolOutput } from "@/lib/chat-tool-actions";
 import {
   createLauncherAgentRunId,
   type LauncherAgentRunEntry,
@@ -25,6 +37,7 @@ type ToolTestLauncherAgentPanelProps = {
   workingDirectory?: string;
   onAppendRun: (entry: LauncherAgentRunEntry) => void;
   onPatchRun: (id: string, patch: Partial<LauncherAgentRunEntry>) => void;
+  onChatActionsReady?: (actions: { addToolOutput: ChatAddToolOutput } | null) => void;
 };
 
 export function ToolTestLauncherAgentPanel({
@@ -32,6 +45,7 @@ export function ToolTestLauncherAgentPanel({
   workingDirectory,
   onAppendRun,
   onPatchRun,
+  onChatActionsReady,
 }: ToolTestLauncherAgentPanelProps) {
   const [running, setRunning] = useState(false);
   const [scenarioId, setScenarioId] = useState(
@@ -40,6 +54,12 @@ export function ToolTestLauncherAgentPanel({
   const [prompt, setPrompt] = useState(
     () => getDefaultLauncherAgentScenario().userPrompt,
   );
+  const [llmOptions, setLlmOptions] = useState<LlmOptionsResponse | null>(null);
+  const [llmSelection, setLlmSelection] = useState(
+    () => loadLauncherLlmSelectionRaw() ?? LLM_AUTO_SELECTION,
+  );
+  const llmSelectionRef = useRef(llmSelection);
+  llmSelectionRef.current = llmSelection;
 
   const activeRunIdRef = useRef<string | null>(null);
   const streamStartedRef = useRef(false);
@@ -58,12 +78,39 @@ export function ToolTestLauncherAgentPanel({
     if (scenario) setPrompt(scenario.userPrompt);
   }, [scenarioId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetchLlmOptions();
+        if (cancelled) return;
+        setLlmOptions(res);
+        if (res) {
+          const picked = pickInitialLlmSelectionFromApi(
+            res,
+            loadLauncherLlmSelectionRaw(),
+          );
+          setLlmSelection(picked);
+        }
+      } catch {
+        // ignore; selector will show error state
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    storeLauncherLlmSelectionRaw(llmSelection);
+  }, [llmSelection]);
+
   const chatTransport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
         body: () => ({
-          llmSelection: LLM_AUTO_SELECTION,
+          llmSelection: llmSelectionRef.current,
           chatMode: CHAT_MODE_LAUNCHER,
           workingDirectory: workingDirectoryRef.current?.trim() || undefined,
         }),
@@ -71,8 +118,14 @@ export function ToolTestLauncherAgentPanel({
     [],
   );
 
-  const { messages: chatMessages, sendMessage, setMessages, status, error } =
-    useChat<AgentUIMessage>({
+  const {
+    messages: chatMessages,
+    sendMessage,
+    setMessages,
+    status,
+    error,
+    addToolOutput,
+  } = useChat<AgentUIMessage>({
       id: "tool-test-launcher-agent-chat",
       messages: [],
       transport: chatTransport,
@@ -111,6 +164,13 @@ export function ToolTestLauncherAgentPanel({
       streamStartedRef.current = true;
     }
   }, [status]);
+
+  useEffect(() => {
+    onChatActionsReady?.({ addToolOutput });
+    return () => {
+      onChatActionsReady?.(null);
+    };
+  }, [addToolOutput, onChatActionsReady]);
 
   useEffect(() => {
     const runId = activeRunIdRef.current;
@@ -195,14 +255,15 @@ export function ToolTestLauncherAgentPanel({
       const text = (targetScenarioId ? scenario?.userPrompt : prompt)?.trim();
       if (!text) return;
 
+      const selectionLabel = resolveLlmSelectionLabel(llmSelection, llmOptions);
       const run: LauncherAgentRunEntry = {
         id: createLauncherAgentRunId(),
         at: Date.now(),
         scenarioId: scenario?.id ?? "custom",
         scenarioLabel: scenario?.label ?? "自定义",
         userPrompt: text,
-        llmSelection: LLM_AUTO_SELECTION,
-        llmModelLabel: LLM_AUTO_LABEL,
+        llmSelection,
+        llmModelLabel: selectionLabel ?? llmSelection,
         chatMode: "launcher",
         status: "running",
         chatMessages: [],
@@ -220,7 +281,16 @@ export function ToolTestLauncherAgentPanel({
       setMessages([]);
       await sendMessage({ text });
     },
-    [onAppendRun, prompt, running, scenarioId, sendMessage, setMessages],
+    [
+      llmOptions,
+      llmSelection,
+      onAppendRun,
+      prompt,
+      running,
+      scenarioId,
+      sendMessage,
+      setMessages,
+    ],
   );
 
   const disabledAll = disabled || running;
@@ -229,16 +299,26 @@ export function ToolTestLauncherAgentPanel({
   return (
     <div className="tool-test-launcher-agent-panel">
       <p className="tool-test-launcher-panel__hint">
-        走生产 <code>/api/chat</code>：<strong>chatMode=launcher</strong>、
-        <strong>模型=Auto</strong>。命中 command cache 或高置信 resolve 时服务端直连（无
-        LLM）；否则调用一次精简版 <code>launcher_resolve</code>（返回{" "}
-        <code>next.tool</code> + <code>next.input</code>）并立即执行。
+        走生产 <code>/api/chat</code>：<strong>chatMode=launcher</strong>。命中 command
+        cache 或高置信 resolve 时服务端直连（无 LLM）；否则走所选模型 + 启动器工具集。
       </p>
+
+      <div className="tool-test-prompt-model">
+        <span className="tool-test-prompt-model__label">对话模型</span>
+        <ModelSelector
+          disabled={disabledAll}
+          selection={llmSelection}
+          onChange={(next) => {
+            setLlmSelection(next);
+            storeLauncherLlmSelectionRaw(next);
+          }}
+        />
+      </div>
 
       <div className="tool-test-launcher-agent-panel__mode">
         <span className="tool-test-launcher-agent-panel__mode-badge">Launcher</span>
         <span className="tool-test-launcher-agent-panel__mode-badge tool-test-launcher-agent-panel__mode-badge--auto">
-          Auto
+          {resolveLlmSelectionLabel(llmSelection, llmOptions) ?? llmSelection}
         </span>
       </div>
 
@@ -285,7 +365,7 @@ export function ToolTestLauncherAgentPanel({
         <button
           type="button"
           className={`autofix-panel__run-btn${running ? " autofix-panel__run-btn--running" : ""}`}
-          disabled={disabledAll || !prompt.trim()}
+          disabled={disabledAll || !prompt.trim() || !llmSelection.trim()}
           onClick={() => void runScenario(undefined)}
         >
           {running ? (
@@ -298,7 +378,7 @@ export function ToolTestLauncherAgentPanel({
           )}
         </button>
         <p className="autofix-panel__run-hint">
-          每次运行新增一场对话卡片 · 固定 Auto 模型 · 仅启动器工具集
+          每次运行新增一场对话卡片 · 模型与启动器小窗共用 localStorage · 仅启动器工具集
         </p>
       </div>
     </div>

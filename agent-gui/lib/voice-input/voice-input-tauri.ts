@@ -51,6 +51,29 @@ export async function tauriVoicePluginStartRuntime(): Promise<TauriVoicePluginSt
   );
 }
 
+export async function tauriVoicePluginRedownloadModel(
+  modelId: "standard" | "lightweight",
+  onProgress?: (progress: { percent: number; message: string }) => void,
+  force = false,
+): Promise<void> {
+  let unlisten: (() => void) | undefined;
+  try {
+    unlisten = await listenVoicePluginInstallProgress((event) => {
+      onProgress?.({
+        percent: event.percent,
+        message: event.message || `${event.phase} ${event.percent}%`,
+      });
+    });
+    await withPromiseTimeout(
+      invoke<void>("voice_plugin_redownload_model", { modelId, force }),
+      30 * 60_000,
+      "模型重新下载超时",
+    );
+  } finally {
+    await unlisten?.();
+  }
+}
+
 export async function tauriVoicePluginStopRuntime(): Promise<TauriVoicePluginStatusDto> {
   return withPromiseTimeout(
     invoke<TauriVoicePluginStatusDto>("voice_plugin_stop_runtime"),

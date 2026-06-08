@@ -30,6 +30,8 @@ export type ActionAuthoringSearchItem = {
   description: string;
   excerpt: string;
   reference?: string;
+  /** MiniSearch relevance score; omitted when query is empty. */
+  score?: number;
 };
 
 export function docViewerEntryKey(topic: string, reference?: string): string {

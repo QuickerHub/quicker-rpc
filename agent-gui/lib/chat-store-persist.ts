@@ -97,6 +97,24 @@ function normalizeThreadMeta(raw: unknown): ChatThreadMeta | null {
   };
 }
 
+export function parseThreadMessagesFromLegacyJson(
+  raw: string,
+  threadId?: string,
+): AgentUIMessage[] {
+  if (!threadId) {
+    try {
+      const parsed = JSON.parse(raw) as Partial<ChatThreadMessagesBlob>;
+      if (typeof parsed.threadId === "string") {
+        return parseThreadMessagesBlob(raw, parsed.threadId);
+      }
+    } catch {
+      /* ignore */
+    }
+    return [];
+  }
+  return parseThreadMessagesBlob(raw, threadId);
+}
+
 function parseThreadMessagesBlob(raw: string, threadId: string): AgentUIMessage[] {
   try {
     const parsed = JSON.parse(raw) as Partial<ChatThreadMessagesBlob> | AgentUIMessage[];
@@ -116,7 +134,14 @@ function parseThreadMessagesBlob(raw: string, threadId: string): AgentUIMessage[
   return [];
 }
 
-export function loadThreadMessagesFromStorage(threadId: string): AgentUIMessage[] {
+export function loadThreadMessagesFromStorage(
+  threadId: string,
+  options?: { preferBackup?: boolean },
+): AgentUIMessage[] {
+  if (options?.preferBackup) {
+    const backup = restoreThreadMessagesFromBackup(threadId);
+    if (backup.length > 0) return backup;
+  }
   const raw = readLocalStorage(threadStorageKey(threadId));
   if (!raw) return [];
   return parseThreadMessagesBlob(raw, threadId);
@@ -181,7 +206,7 @@ function assembleStoreFromIndex(
   };
 }
 
-function normalizeV3Index(raw: unknown): ChatStoreIndex | null {
+export function tryParseV3Index(raw: unknown): ChatStoreIndex | null {
   if (typeof raw !== "object" || raw === null) return null;
   const data = raw as Partial<ChatStoreIndex>;
   if (data.version !== CHAT_STORE_VERSION || !Array.isArray(data.threads)) {
@@ -352,7 +377,7 @@ export function loadPersistedChatStore(
 
   try {
     const parsed = JSON.parse(indexRaw) as unknown;
-    const index = normalizeV3Index(parsed);
+    const index = tryParseV3Index(parsed);
     if (!index) return null;
     const store = assembleStoreFromIndex(index, messageScope);
     if (messageScope === "all") {
@@ -412,7 +437,7 @@ export function loadPersistedChatStoreFromBackup(): ChatStoreData | null {
   try {
     const parsed = JSON.parse(indexRaw) as unknown;
 
-    const v3Index = normalizeV3Index(parsed);
+    const v3Index = tryParseV3Index(parsed);
     if (v3Index) {
       const threads: ChatThread[] = v3Index.threads.map((meta) => ({
         ...meta,

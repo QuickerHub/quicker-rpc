@@ -264,27 +264,6 @@ function downloadUrls(mirror: string | undefined, primary: string): string[] {
   return urls;
 }
 
-async function normalizeModelLayout(dest: string): Promise<void> {
-  if (verifyModelIdentity(dest)) return;
-  const nested = join(dest, MODEL_SUBDIR);
-  if (!verifyModelIdentity(nested)) {
-    throw new Error("模型文件不完整（缺少 tokens.txt 或 model.onnx）");
-  }
-  for (const entry of readdirSync(nested)) {
-    const src = join(nested, entry);
-    const target = join(dest, entry);
-    if (existsSync(target)) {
-      rmSync(target, { recursive: true, force: true });
-    }
-    if (statSync(src).isDirectory()) {
-      await copyDirRecursive(src, target);
-    } else {
-      await copyFile(src, target);
-    }
-  }
-  await removeDirAll(nested);
-}
-
 function packagedRuntimeDist(): string | null {
   const dir = join(repoRoot(), "voice-asr-runtime/dist/quicker-voice-runtime");
   return existsSync(join(dir, "quicker-voice-runtime.exe")) ? dir : null;
@@ -337,56 +316,139 @@ async function installRuntimeFromChannel(
   }
 }
 
-async function installModelFromZipChannel(
-  channel: VoicePluginChannel,
-  root: string,
-  tempDir: string,
-): Promise<void> {
-  const zipPath = join(tempDir, "model.zip");
-  await downloadFile(
-    downloadUrls(channel.modelZipMirrorUrl, channel.modelZipUrl),
-    zipPath,
-    "识别模型",
-    50,
-    85,
+const MODEL_DOWNLOAD_PROGRESS_MARKER = "QUICKER_VOICE_PROGRESS";
+
+function runtimeExeForDownload(pluginRoot: string): string | null {
+  const installed = join(runtimeDir(pluginRoot), "quicker-voice-runtime.exe");
+  if (existsSync(installed)) return installed;
+  const packaged = join(
+    repoRoot(),
+    "voice-asr-runtime/dist/quicker-voice-runtime/quicker-voice-runtime.exe",
   );
-  await verifySha256(zipPath, channel.modelZipSha256, "识别模型");
-  const dest = modelDir(root);
-  await removeDirAll(dest);
-  await mkdir(dest, { recursive: true });
-  await extractZip(zipPath, dest);
-  await normalizeModelLayout(dest);
-  if (!modelReady(root)) {
-    throw new Error("模型解压后文件不完整");
-  }
+  return existsSync(packaged) ? packaged : null;
 }
 
-async function installModelFromModelscope(root: string): Promise<void> {
-  const identity = loadJson<SenseVoiceModelIdentity>(MODEL_IDENTITY_PATH);
-  const dest = modelDir(root);
-  await removeDirAll(dest);
-  await mkdir(dest, { recursive: true });
-  const base = (
-    identity.modelscopeResolveBase
-    ?? "https://www.modelscope.cn/models/pengzhendong/sherpa-onnx-sense-voice-zh-en-ja-ko-yue/resolve/master"
-  ).replace(/\/$/, "");
-  setProgress("model", 50, `正在从 ModelScope 下载识别模型（${identity.id}）…`);
-  const names = Object.keys(identity.files).sort(
-    (a, b) => identity.files[a].size - identity.files[b].size,
-  );
-  for (const name of names) {
-    const spec = identity.files[name];
-    const url = `${base}/${name}`;
-    const out = join(dest, name);
-    await downloadFile([url], out, `识别模型 ${name}`, 50, 80);
-    const actual = await sha256HexFile(out);
-    if (actual.toLowerCase() !== spec.sha256.trim().toLowerCase()) {
-      throw new Error(`ModelScope 下载的 ${name} 校验失败`);
+function spawnModelDownload(
+  command: string,
+  args: string[],
+  options: {
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+    onProgress?: (phase: string, percent: number, message: string) => void;
+  },
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: {
+        ...process.env,
+        PYTHONUTF8: "1",
+        PYTHONIOENCODING: "utf-8",
+        ...options.env,
+      },
+      windowsHide: true,
+    });
+
+    let stderr = "";
+    let stdoutBuffer = "";
+    const handleLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith(`${MODEL_DOWNLOAD_PROGRESS_MARKER}\t`)) return;
+      const parts = trimmed.split("\t");
+      const percent = Number(parts[1]);
+      const message = parts.slice(2).join("\t").trim();
+      if (!Number.isFinite(percent) || !message) return;
+      if (options.onProgress) {
+        options.onProgress("download", percent, message);
+      } else {
+        setModelDownloadProgress("download", percent, message);
+      }
+    };
+
+    child.stdout?.on("data", (data: Buffer | string) => {
+      stdoutBuffer += Buffer.isBuffer(data) ? data.toString("utf8") : data;
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() ?? "";
+      for (const line of lines) handleLine(line);
+    });
+    child.stderr?.on("data", (data: Buffer | string) => {
+      stderr += Buffer.isBuffer(data) ? data.toString("utf8") : data;
+    });
+    child.on("error", (err) => reject(err));
+    child.on("close", (code) => {
+      if (stdoutBuffer.trim()) handleLine(stdoutBuffer);
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      const tail = stderr.trim().split(/\r?\n/).slice(-3).join(" ").trim();
+      reject(new Error(tail || `模型下载失败（退出码 ${code ?? "unknown"}）`));
+    });
+  });
+}
+
+async function ensureAsrModel(
+  preset: "sensevoice" | "paraformer",
+  options?: {
+    force?: boolean;
+    onProgress?: (phase: string, percent: number, message: string) => void;
+  },
+): Promise<void> {
+  const force = options?.force === true;
+  const pluginRoot = voicePluginRoot();
+  mkdirSync(pluginRoot, { recursive: true });
+  const progress = options?.onProgress ?? setProgress;
+
+  progress("prepare", 0, force ? "准备重新下载模型…" : "准备下载模型…");
+
+  const exe = runtimeExeForDownload(pluginRoot);
+  const commonArgs = [
+    "--preset",
+    preset,
+    "--root",
+    pluginRoot,
+    ...(force ? ["--force"] as const : []),
+  ];
+
+  if (exe) {
+    await spawnModelDownload(
+      exe,
+      ["download-model", ...commonArgs],
+      {
+        cwd: dirname(exe),
+        env: { QUICKER_VOICE_PLUGIN_ROOT: pluginRoot },
+        onProgress: progress,
+      },
+    );
+  } else {
+    const runtimeProject = join(repoRoot(), "voice-asr-runtime");
+    if (!existsSync(join(runtimeProject, "pyproject.toml"))) {
+      throw new Error("未找到 voice-asr-runtime；请先安装 Runtime 或保留开发目录");
     }
+    await spawnModelDownload(
+      "uv",
+      [
+        "run",
+        "--directory",
+        runtimeProject,
+        "download-asr-model",
+        ...commonArgs,
+      ],
+      {
+        env: {
+          QUICKER_VOICE_PLUGIN_ROOT: pluginRoot,
+          QUICKER_VOICE_ASR_MODEL: preset,
+        },
+        onProgress: progress,
+      },
+    );
   }
-  if (!modelReady(root)) {
-    throw new Error("ModelScope 模型不完整");
+
+  const modelId = preset === "paraformer" ? "lightweight" : "standard";
+  if (!isVoiceModelInstalled(modelId)) {
+    throw new Error("模型下载结束但校验未通过，请重试或点击「重新下载」");
   }
+  progress("done", 100, "模型下载完成");
 }
 
 async function writePluginMetadata(root: string): Promise<void> {
@@ -443,22 +505,8 @@ async function runInstallInner(options: DevVoiceInstallOptions = {}): Promise<vo
         await installModelFromLocal(localModel, root);
         summaryParts.push("模型：本地仓库复制");
       } else {
-        try {
-          await installModelFromModelscope(root);
-          summaryParts.push("模型：ModelScope 下载");
-        } catch (modelscopeErr) {
-          setProgress(
-            "model",
-            50,
-            "ModelScope 不可用，正在切换 Bitiful / GitHub 备用源…",
-          );
-          await removeDirAll(modelDir(root));
-          await installModelFromZipChannel(channel, root, tempDir);
-          summaryParts.push("模型：备用 zip 下载");
-          if (modelscopeErr instanceof Error) {
-            console.warn("[voice-plugin-install]", modelscopeErr.message);
-          }
-        }
+        await ensureAsrModel("sensevoice", { onProgress: setProgress });
+        summaryParts.push("模型：quicker-voice-runtime 下载");
       }
     }
 
@@ -633,7 +681,8 @@ export function writeVoicePluginSettingsFile(
   writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
 }
 
-const PARAFORMER_MIN_ONNX_BYTES = 1024 * 1024;
+const PARAFORMER_MIN_ONNX_BYTES = 20 * 1024 * 1024;
+const PARAFORMER_MIN_TOKENS_BYTES = 64;
 
 function onnxModelReady(dir: string): boolean {
   return (
@@ -645,11 +694,15 @@ function onnxModelReady(dir: string): boolean {
 
 function paraformerModelValid(dir: string): boolean {
   if (!onnxModelReady(dir)) return false;
+  const tokensPath = join(dir, "tokens.txt");
   const onnxPath = existsSync(join(dir, "model.int8.onnx"))
     ? join(dir, "model.int8.onnx")
     : join(dir, "model.onnx");
   try {
-    return statSync(onnxPath).size >= PARAFORMER_MIN_ONNX_BYTES;
+    return (
+      statSync(tokensPath).size >= PARAFORMER_MIN_TOKENS_BYTES
+      && statSync(onnxPath).size >= PARAFORMER_MIN_ONNX_BYTES
+    );
   } catch {
     return false;
   }
@@ -712,8 +765,6 @@ let modelDownloadInFlight = false;
 let modelDownloadError: string | null = null;
 let modelDownloadProgress: VoiceInstallProgress | null = null;
 
-const MODEL_DOWNLOAD_PROGRESS_MARKER = "QUICKER_VOICE_PROGRESS";
-
 function setModelDownloadProgress(
   phase: string,
   percent: number,
@@ -726,87 +777,19 @@ function setModelDownloadProgress(
   };
 }
 
-function parseModelDownloadStdoutLine(line: string): void {
-  const trimmed = line.trim();
-  if (!trimmed.startsWith(`${MODEL_DOWNLOAD_PROGRESS_MARKER}\t`)) return;
-  const parts = trimmed.split("\t");
-  const percent = Number(parts[1]);
-  const message = parts.slice(2).join("\t").trim();
-  if (!Number.isFinite(percent) || !message) return;
-  setModelDownloadProgress("download", percent, message);
-}
-
-function runVoiceModelDownload(
+async function runVoiceModelDownload(
   preset: "sensevoice" | "paraformer",
   force = false,
 ): Promise<void> {
-  const runtimeProject = join(repoRoot(), "voice-asr-runtime");
-  if (!existsSync(join(runtimeProject, "pyproject.toml"))) {
-    return Promise.reject(new Error("未找到 voice-asr-runtime 项目目录"));
-  }
-
-  const pluginRoot = voicePluginRoot();
-  mkdirSync(pluginRoot, { recursive: true });
   const modelId = preset === "paraformer" ? "lightweight" : "standard";
-  if (force || isVoiceModelPartial(modelId)) {
+  if (force || !isVoiceModelInstalled(modelId) || isVoiceModelPartial(modelId)) {
     removeVoiceModel(modelId);
   }
-
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      "uv",
-      [
-        "run",
-        "--directory",
-        runtimeProject,
-        "python",
-        "-c",
-        [
-          "from pathlib import Path",
-          "from quicker_voice_runtime.download_model import ensure_asr_model",
-          `ensure_asr_model(root=Path(${JSON.stringify(pluginRoot)}), preset=${JSON.stringify(preset)}, force=${force ? "True" : "False"})`,
-        ].join("; "),
-      ],
-      {
-        env: {
-          ...process.env,
-          PYTHONUTF8: "1",
-          PYTHONIOENCODING: "utf-8",
-          QUICKER_VOICE_PLUGIN_ROOT: pluginRoot,
-          QUICKER_VOICE_ASR_MODEL: preset,
-        },
-        windowsHide: true,
-      },
-    );
-
-    let stderr = "";
-    let stdoutBuffer = "";
-    child.stdout?.on("data", (data: Buffer | string) => {
-      stdoutBuffer += Buffer.isBuffer(data) ? data.toString("utf8") : data;
-      const lines = stdoutBuffer.split(/\r?\n/);
-      stdoutBuffer = lines.pop() ?? "";
-      for (const line of lines) {
-        parseModelDownloadStdoutLine(line);
-      }
-    });
-    child.stderr?.on("data", (data: Buffer | string) => {
-      stderr += Buffer.isBuffer(data) ? data.toString("utf8") : data;
-    });
-    child.on("error", (err) => {
-      reject(err);
-    });
-    child.on("close", (code) => {
-      if (stdoutBuffer.trim()) {
-        parseModelDownloadStdoutLine(stdoutBuffer);
-      }
-      if (code === 0) {
-        setModelDownloadProgress("done", 100, "模型下载完成");
-        resolve();
-        return;
-      }
-      const tail = stderr.trim().split(/\r?\n/).slice(-3).join(" ").trim();
-      reject(new Error(tail || `模型下载失败（退出码 ${code ?? "unknown"}）`));
-    });
+  await ensureAsrModel(preset, {
+    force,
+    onProgress: (phase, percent, message) => {
+      setModelDownloadProgress(phase, percent, message);
+    },
   });
 }
 
@@ -830,7 +813,11 @@ export function startVoiceModelDownload(
     return { ok: false, error: "模型正在下载中，请稍候" };
   }
 
-  const force = options?.force === true;
+  const modelId = preset === "paraformer" ? "lightweight" : "standard";
+  const force =
+    options?.force === true
+    || !isVoiceModelInstalled(modelId)
+    || isVoiceModelPartial(modelId);
   modelDownloadInFlight = true;
   modelDownloadError = null;
   setModelDownloadProgress(

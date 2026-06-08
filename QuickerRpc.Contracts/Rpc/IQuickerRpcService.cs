@@ -184,6 +184,15 @@ public interface IQuickerRpcService
         IProgress<QuickerRpcActionTraceEvent>? progress = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Trace-run an ephemeral XAction program JSON (steps/variables) without saving a Quicker action.
+    /// </summary>
+    Task<QuickerRpcActionTraceRunResult> RunXActionTraceAsync(
+        string xActionJson,
+        string? inputParam = null,
+        IProgress<QuickerRpcActionTraceEvent>? progress = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Show a local action as a floating button (ActionEditMgr.FloatAction).</summary>
     Task<QuickerRpcFloatActionResult> FloatActionAsync(
         string actionId,
@@ -445,6 +454,12 @@ public sealed class QuickerRpcLauncherIntentCandidate
     public string? SuggestedInputJson { get; set; }
 
     public string? Reason { get; set; }
+
+    /// <summary>Which <c>|</c> query segment produced this candidate.</summary>
+    public string? MatchedQueryTerm { get; set; }
+
+    /// <summary>Human-readable match attribution, e.g. title: 功能快捷键.</summary>
+    public string? MatchedOn { get; set; }
 }
 
 public sealed class QuickerRpcResolveLauncherIntentResult
@@ -454,6 +469,12 @@ public sealed class QuickerRpcResolveLauncherIntentResult
     public string Query { get; set; } = string.Empty;
 
     public string? NormalizedQuery { get; set; }
+
+    /// <summary>Parsed <c>|</c> alternatives from <see cref="Query"/>.</summary>
+    public IList<string> QueryTerms { get; set; } = new List<string>();
+
+    /// <summary>Query terms that matched no candidate.</summary>
+    public IList<string> MissedTerms { get; set; } = new List<string>();
 
     public string Message { get; set; } = string.Empty;
 

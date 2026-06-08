@@ -12,6 +12,7 @@ internal static class QkrpcAgentSetup
     private static readonly string[] DefaultSkillNames =
     [
         "qkrpc",
+        "quicker-rpc-knowledge",
         "quicker-authoring",
         "quicker-sync",
         "quicker-run",

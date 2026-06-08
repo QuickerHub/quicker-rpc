@@ -39,6 +39,7 @@ export function LauncherTranscript({
   pendingApprovalCount,
   pendingApprovals,
   workspaceDeleteHits,
+  pendingAskQuestionCount = 0,
   workingDirectory,
   ping,
 }: LauncherTranscriptProps) {
@@ -68,7 +69,8 @@ export function LauncherTranscript({
   );
 
   const busy = status === "submitted" || status === "streaming";
-  const needsUserInput = pendingApprovalCount > 0;
+  const needsUserInput =
+    pendingApprovalCount > 0 || pendingAskQuestionCount > 0;
 
   const addToolOutput = useCallback(
     (payload: Parameters<typeof postLauncherToolOutput>[1]) => {

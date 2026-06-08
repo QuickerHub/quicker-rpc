@@ -12,6 +12,8 @@ const hotkeys: LauncherResolveCandidate = {
   title: "FunctionHotkeys",
   suggestedTool: "quicker_settings",
   suggestedInput: { action: "open", page: "FunctionHotkeys" },
+  matchedQueryTerm: "功能快捷键",
+  matchedOn: "title: FunctionHotkeys",
 };
 
 const presetAlt: LauncherResolveCandidate = {
@@ -20,15 +22,19 @@ const presetAlt: LauncherResolveCandidate = {
   title: "功能快捷键",
   suggestedTool: "quicker_settings",
   suggestedInput: { action: "open", preset: "hotkeys" },
+  matchedQueryTerm: "功能快捷键",
+  matchedOn: "title: 功能快捷键",
 };
 
 describe("formatLauncherResolveForAgent", () => {
   it("returns compact next step without RPC envelope", () => {
     const out = formatLauncherResolveForAgent("功能快捷键", [hotkeys, presetAlt]);
     assert.equal(out.ok, true);
-    assert.deepEqual(out.next, {
-      tool: "quicker_settings",
-      input: { action: "open", page: "FunctionHotkeys" },
+    assert.deepEqual(out.next?.tool, "quicker_settings");
+    assert.deepEqual(out.next?.input, { action: "open", page: "FunctionHotkeys" });
+    assert.deepEqual(out.next?.match, {
+      term: "功能快捷键",
+      on: "title: FunctionHotkeys",
     });
     assert.ok(out.alternatives && out.alternatives.length >= 1);
     assert.equal("data" in out, false);
@@ -40,6 +46,35 @@ describe("formatLauncherResolveForAgent", () => {
     const out = formatLauncherResolveForAgent("功能快捷键", [hotkeys, farSecond]);
     assert.equal(out.ok, true);
     assert.equal(out.alternatives, undefined);
+  });
+
+  it("omits next when resolve is not direct-eligible", () => {
+    const action = {
+      kind: "action",
+      score: 520,
+      title: "Clipboard Dedup & Sort",
+      suggestedTool: "qkrpc_action_run",
+      suggestedInput: { id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" },
+      matchedQueryTerm: "clipboard",
+      matchedOn: "title: Clipboard Dedup & Sort",
+    };
+    const out = formatLauncherResolveForAgent("clipboard|剪贴板", [action]);
+    assert.equal(out.ok, true);
+    assert.equal(out.next, undefined);
+    assert.equal(out.disambiguationRequired, true);
+    assert.ok(out.ranked?.length === 1);
+  });
+
+  it("includes queryTerms, missedTerms, and match attribution", () => {
+    const out = formatLauncherResolveForAgent(
+      "动作管理器|搜索动作",
+      [hotkeys],
+      { queryTerms: ["动作管理器", "搜索动作"], missedTerms: ["动作管理器"] },
+    );
+    assert.deepEqual(out.queryTerms, ["动作管理器", "搜索动作"]);
+    assert.deepEqual(out.missedTerms, ["动作管理器"]);
+    assert.equal(out.next?.match?.term, "功能快捷键");
+    assert.ok(out.ranked?.length === 1);
   });
 });
 

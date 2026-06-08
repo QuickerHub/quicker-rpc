@@ -728,9 +728,40 @@ internal static partial class Program
     private static async Task<int> RunActionRunAsync(ActionOptions options)
     {
         var actionId = (options.Id ?? options.Code ?? string.Empty).Trim();
+        var hasXAction = !string.IsNullOrWhiteSpace(options.XAction)
+                         || !string.IsNullOrWhiteSpace(options.XActionFile);
+
+        if (hasXAction && !string.IsNullOrWhiteSpace(actionId))
+        {
+            await EmitErrorAsync(
+                    options.Json,
+                    "CONFLICTING_RUN_TARGET",
+                    "Use either --id <actionIdOrName> or --xaction/--xaction-file, not both.")
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        if (hasXAction)
+        {
+            if (!options.Trace)
+            {
+                await EmitErrorAsync(
+                        options.Json,
+                        "XACTION_REQUIRES_TRACE",
+                        "Inline XAction run requires --trace (ephemeral program trace).")
+                    .ConfigureAwait(false);
+                return ExitCodes.Error;
+            }
+
+            return await RunXActionTraceAsync(options).ConfigureAwait(false);
+        }
+
         if (string.IsNullOrWhiteSpace(actionId))
         {
-            await EmitErrorAsync(options.Json, "MISSING_ACTION_ID", "Provide --id or --code <actionIdOrName>.")
+            await EmitErrorAsync(
+                    options.Json,
+                    "MISSING_ACTION_OR_XACTION",
+                    "Provide --id <actionIdOrName> or --xaction/--xaction-file with --trace.")
                 .ConfigureAwait(false);
             return ExitCodes.Error;
         }
@@ -807,6 +838,111 @@ internal static partial class Program
         catch (Exception ex)
         {
             await EmitErrorAsync(options.Json, "RUN_FAILED", ex.Message).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
+
+    private static async Task<int> RunXActionTraceAsync(ActionOptions options)
+    {
+        var (jsonOk, jsonText, jsonErrorCode, jsonErrorMessage) =
+            QkrpcJsonPayload.Resolve(options.XAction, options.XActionFile, "xaction");
+        if (!jsonOk)
+        {
+            await EmitErrorAsync(options.Json, jsonErrorCode!, jsonErrorMessage!).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        if (!TryParseJsonObject(jsonText!, "xaction", out var xActionObj, out var parseError))
+        {
+            await EmitErrorAsync(options.Json, "INVALID_XACTION_JSON", parseError!).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        if (!QkrpcPatchPreprocess.TryPreprocessProgram(xActionObj!, options.XActionFile, out var preprocessError))
+        {
+            await EmitErrorAsync(options.Json, "FORM_SPEC_COMPILE_FAILED", preprocessError!)
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        try
+        {
+            await using var traceCallbacks = ActionTraceCli.CreateCallbacks(options.Json, options.TraceFile);
+            await using var session = await ConnectAsync(
+                    options.TimeoutSeconds,
+                    !options.NoBootstrap,
+                    traceCallbacks)
+                .ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var progress = new Progress<QuickerRpcActionTraceEvent>(traceEvent =>
+            {
+                traceCallbacks.OnTraceEvent(traceEvent);
+            });
+            var xActionJson = xActionObj!.ToString(Newtonsoft.Json.Formatting.None);
+            var result = await session.Proxy
+                .RunXActionTraceAsync(xActionJson, options.Param, progress, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(
+                    new
+                    {
+                        ok = result.Ok,
+                        action = "trace",
+                        actionId = result.ActionId,
+                        actionTitle = result.ActionTitle,
+                        trace = true,
+                        inlineXAction = true,
+                        durationMs = result.DurationMs,
+                        eventCount = result.EventCount,
+                        returnResult = result.ReturnResult,
+                        errorMessage = result.ErrorMessage,
+                        stopFlag = result.StopFlag,
+                        message = result.Message,
+                        events = result.Events,
+                    },
+                    QkrpcJson.CliOutput));
+            }
+            else
+            {
+                if (traceCallbacks.StreamedCount == 0)
+                {
+                    foreach (var traceEvent in result.Events)
+                    {
+                        ActionTraceCli.WriteTraceEvent(traceEvent, jsonOutput: false, traceCallbacks.ExtraSink);
+                    }
+                }
+
+                if (!result.Ok)
+                {
+                    global::System.Console.Error.WriteLine(result.Message);
+                }
+                else if (!string.IsNullOrWhiteSpace(result.ReturnResult))
+                {
+                    global::System.Console.WriteLine(result.ReturnResult);
+                }
+                else
+                {
+                    global::System.Console.WriteLine(result.Message);
+                }
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "TRACE_FAILED", ex.Message).ConfigureAwait(false);
             return ExitCodes.Error;
         }
     }

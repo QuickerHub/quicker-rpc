@@ -31,6 +31,14 @@ type RpcCandidate = {
   suggestedTool?: string | null;
   suggestedInput?: Record<string, unknown> | null;
   reason?: string | null;
+  matchedQueryTerm?: string | null;
+  matchedOn?: string | null;
+};
+
+type RpcResolvePayload = {
+  candidates?: RpcCandidate[];
+  queryTerms?: string[];
+  missedTerms?: string[];
 };
 
 function mapCandidate(raw: RpcCandidate): LauncherResolveCandidate {
@@ -49,6 +57,8 @@ function mapCandidate(raw: RpcCandidate): LauncherResolveCandidate {
     suggestedTool: raw.suggestedTool,
     suggestedInput: raw.suggestedInput ?? null,
     reason: raw.reason,
+    matchedQueryTerm: raw.matchedQueryTerm,
+    matchedOn: raw.matchedOn,
   };
 }
 
@@ -87,7 +97,13 @@ function normalizeRpcCandidates(raw: RpcCandidate[]): LauncherResolveCandidate[]
 }
 
 export type LauncherResolveCoreResult =
-  | { ok: true; query: string; candidates: LauncherResolveCandidate[] }
+  | {
+      ok: true;
+      query: string;
+      queryTerms: string[];
+      missedTerms: string[];
+      candidates: LauncherResolveCandidate[];
+    }
   | { ok: false; query: string; error: string };
 
 export async function resolveLauncherCandidates(
@@ -128,11 +144,13 @@ export async function resolveLauncherCandidates(
     return { ok: false, query, error: err };
   }
 
-  const payload = (formatted.data ?? formatted.parsed) as {
-    candidates?: RpcCandidate[];
-  } | null;
+  const payload = (formatted.data ?? formatted.parsed) as RpcResolvePayload | null;
 
   let candidates = normalizeRpcCandidates(payload?.candidates ?? []);
+  const queryTerms = payload?.queryTerms?.length
+    ? payload.queryTerms
+    : LauncherQueryParser.parseAlternatives(query);
+  const missedTerms = payload?.missedTerms ?? [];
 
   if (!input.skipPresets) {
     const merged = mergeLauncherResolvePresets(
@@ -142,5 +160,15 @@ export async function resolveLauncherCandidates(
     candidates = applyLauncherResolvePresets(query, candidates, merged);
   }
 
-  return { ok: true, query, candidates };
+  return { ok: true, query, queryTerms, missedTerms, candidates };
 }
+
+/** Client-side fallback when RPC payload lacks parsed terms. */
+export const LauncherQueryParser = {
+  parseAlternatives(raw: string): string[] {
+    return raw
+      .split("|")
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+  },
+};

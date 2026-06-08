@@ -3,7 +3,11 @@ import { join } from "node:path";
 import { tool } from "ai";
 import { z } from "zod";
 import { resolvePersistedDataFilePath } from "@/lib/quicker-agent-persisted-data";
-import { formatLauncherResolveForAgent } from "@/lib/launcher/launcher-resolve-agent-output";
+import {
+  formatLauncherResolveForAgent,
+  isLauncherResolveDirectEligible,
+} from "@/lib/launcher/launcher-resolve-agent-output";
+import { setLauncherResolveDirectNext } from "@/lib/qkrpc-request-context";
 import {
   resolveLauncherCandidates,
   type LauncherResolveToolInput,
@@ -37,18 +41,35 @@ export async function executeLauncherResolveTool(
   if (!resolved.ok) {
     return { ok: false, error: resolved.error, query: resolved.query || undefined };
   }
-  return formatLauncherResolveForAgent(resolved.query, resolved.candidates);
+  const output = formatLauncherResolveForAgent(resolved.query, resolved.candidates, {
+    queryTerms: resolved.queryTerms,
+    missedTerms: resolved.missedTerms,
+  });
+  if (
+    output.next
+    && !output.disambiguationRequired
+    && isLauncherResolveDirectEligible(resolved.candidates)
+  ) {
+    setLauncherResolveDirectNext(output.next);
+  } else {
+    setLauncherResolveDirectNext(null);
+  }
+  return output;
 }
 
 export const LAUNCHER_RESOLVE_TOOL_DEF = tool({
   description:
-    "Launcher only: map user phrase → one next tool call. Returns { ok, next: { tool, input } }. "
-    + "Call once when intent unclear, then execute next immediately — do not re-resolve. "
-    + "NOT for program body edits (main agent workspace_program).",
+    "Launcher only: map user phrase → ranked matches. Returns { ok, next? } when direct-eligible, "
+    + "else { disambiguationRequired, ranked } — use ask_question before run. "
+    + "Prefer over qkrpc_action_query for run/open intent. NOT for program body edits.",
   inputSchema: z.object({
     query: z
       .string()
-      .describe("User phrase or keywords, e.g. 打开功能快捷键 / 运行剪贴板动作"),
+      .describe(
+        "Keywords; use | for OR alternatives and * wildcards. "
+        + "Prefer several synonyms: 动作管理器|搜索动作|动作页|ActionManage. "
+        + "Example: 打开功能快捷键 | 运行剪贴板*动作",
+      ),
     scopes: scopesSchema.describe(
       "Optional search domains; default searches all",
     ),

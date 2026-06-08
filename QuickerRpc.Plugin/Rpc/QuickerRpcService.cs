@@ -669,6 +669,34 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
+    public Task<QuickerRpcActionTraceRunResult> RunXActionTraceAsync(
+        string xActionJson,
+        string? inputParam = null,
+        IProgress<QuickerRpcActionTraceEvent>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(xActionJson))
+        {
+            return Task.FromResult(new QuickerRpcActionTraceRunResult
+            {
+                Ok = false,
+                Message = "xActionJson is required.",
+            });
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var streamCallbacks = QuickerRpcTraceSink.CurrentClientCallbacks;
+        return InvokeOffUiThreadAsync(
+            () => _xActionTraceRunService.RunXAction(
+                xActionJson,
+                inputParam,
+                projectDirectory: null,
+                progress,
+                streamCallbacks),
+            cancellationToken);
+    }
+
     public Task<QuickerRpcFloatActionResult> FloatActionAsync(
         string actionId,
         CancellationToken cancellationToken = default)

@@ -15,6 +15,8 @@ export type LauncherResolveCandidate = {
   suggestedTool?: string | null;
   suggestedInput?: Record<string, unknown> | null;
   reason?: string | null;
+  matchedQueryTerm?: string | null;
+  matchedOn?: string | null;
   presetBoost?: number;
   presetRuleId?: string;
 };

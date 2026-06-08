@@ -397,10 +397,12 @@ function renderEndpointCardGrid(props: {
   if (!endpoints.length) return null;
 
   return (
-    <ul
-      className="llm-config-endpoint-grid"
-      aria-label={`${groupLabel} endpoint`}
-    >
+    <div className="llm-config-endpoint-section">
+      <p className="llm-config-endpoint-section-label">API 节点</p>
+      <ul
+        className="llm-config-endpoint-wrap-panel"
+        aria-label={`${groupLabel} endpoint`}
+      >
       {endpoints.map((endpoint) => {
         const endpointProbe = probe?.checking
           ? { checking: true }
@@ -410,52 +412,49 @@ function renderEndpointCardGrid(props: {
           <li key={endpoint.id} className="llm-config-endpoint-grid-item">
             <button
               type="button"
-              className="llm-config-endpoint-card"
+              className="llm-config-endpoint-card llm-config-endpoint-card--row"
               disabled={disabled || selecting}
               aria-pressed={endpoint.selected}
               aria-current={endpoint.selected ? "true" : undefined}
-              title={endpoint.baseURL}
+              title={`${endpoint.baseURL} · ${endpoint.model}`}
               onClick={() => onSelectEndpoint(
                 groupId,
                 endpoint.id,
                 endpoint.selected,
               )}
             >
-              <span className="llm-config-endpoint-card-head">
-                <span
-                  className={`ping-dot${endpointProbeDotClass(endpointProbe)}`}
-                  title={endpointProbe?.message}
-                />
-                <span className="llm-config-endpoint-card-head-trail">
-                  {endpoint.selected ? (
-                    <span className="llm-config-endpoint-active-tag">当前使用</span>
-                  ) : null}
-                  <span
-                    className={`llm-config-list-badge${endpointProbeBadgeClass(
-                      endpointProbe,
-                    )}`}
-                    title={endpointProbe?.message}
-                  >
-                    {selecting
-                      ? "切换中…"
-                      : endpointProbeLabel(endpointProbe)}
-                  </span>
-                </span>
-              </span>
+              <span
+                className={`ping-dot${endpointProbeDotClass(endpointProbe)}`}
+                title={endpointProbe?.message}
+              />
+              {endpoint.selected ? (
+                <span className="llm-config-endpoint-active-tag">当前</span>
+              ) : null}
               <span className="llm-config-endpoint-card-host">
                 {endpointHostLabel(endpoint.baseURL)}
               </span>
-              <code className="llm-config-endpoint-card-url">
-                {endpoint.baseURL}
-              </code>
+              <span className="llm-config-endpoint-card-sep" aria-hidden>
+                ·
+              </span>
               <span className="llm-config-endpoint-card-model">
                 {endpoint.model}
+              </span>
+              <span
+                className={`llm-config-list-badge${endpointProbeBadgeClass(
+                  endpointProbe,
+                )}`}
+                title={endpointProbe?.message}
+              >
+                {selecting
+                  ? "切换中…"
+                  : endpointProbeLabel(endpointProbe)}
               </span>
             </button>
           </li>
         );
       })}
-    </ul>
+      </ul>
+    </div>
   );
 }
 
@@ -477,9 +476,9 @@ function renderAutoModelCardGrid(props: {
   if (!autoModels.length) return null;
 
   return (
-    <>
-      <p className="llm-config-auto-section-label">候选模型</p>
-      <ul className="llm-config-endpoint-grid" aria-label="Auto 候选模型">
+    <div className="llm-config-endpoint-section">
+      <p className="llm-config-endpoint-section-label">候选模型</p>
+      <ul className="llm-config-endpoint-wrap-panel" aria-label="Auto 候选模型">
         {autoModels.map((model) => {
           const modelProbe = probe?.checking
             ? { checking: true }
@@ -489,49 +488,45 @@ function renderAutoModelCardGrid(props: {
             <li key={model.id} className="llm-config-endpoint-grid-item">
               <button
                 type="button"
-                className="llm-config-endpoint-card llm-config-auto-model-card"
+                className="llm-config-endpoint-card llm-config-endpoint-card--row llm-config-auto-model-card"
                 disabled={disabled || selecting}
                 aria-pressed={model.selected}
                 aria-current={model.selected ? "true" : undefined}
-                title={model.modelId}
+                title={`${model.modelId} · ${model.contextLimitLabel}`}
                 onClick={() => onSelectAutoModel(model.id, model.selected)}
               >
-                <span className="llm-config-endpoint-card-head">
-                  <span
-                    className={`ping-dot${endpointProbeDotClass(modelProbe)}`}
-                    title={modelProbe?.message}
-                  />
-                  <span className="llm-config-endpoint-card-head-trail">
-                    {model.selected ? (
-                      <span className="llm-config-endpoint-active-tag">当前使用</span>
-                    ) : null}
-                    <span
-                      className={`llm-config-list-badge${endpointProbeBadgeClass(
-                        modelProbe,
-                      )}`}
-                      title={modelProbe?.message}
-                    >
-                      {selecting
-                        ? "切换中…"
-                        : endpointProbeLabel(modelProbe)}
-                    </span>
-                  </span>
-                </span>
+                <span
+                  className={`ping-dot${endpointProbeDotClass(modelProbe)}`}
+                  title={modelProbe?.message}
+                />
+                {model.selected ? (
+                  <span className="llm-config-endpoint-active-tag">当前</span>
+                ) : null}
                 <span className="llm-config-endpoint-card-host">
                   {model.label}
                 </span>
-                <code className="llm-config-endpoint-card-url">
-                  {model.modelId}
-                </code>
+                <span className="llm-config-endpoint-card-sep" aria-hidden>
+                  ·
+                </span>
                 <span className="llm-config-endpoint-card-model">
                   {model.contextLimitLabel}
+                </span>
+                <span
+                  className={`llm-config-list-badge${endpointProbeBadgeClass(
+                    modelProbe,
+                  )}`}
+                  title={modelProbe?.message}
+                >
+                  {selecting
+                    ? "切换中…"
+                    : endpointProbeLabel(modelProbe)}
                 </span>
               </button>
             </li>
           );
         })}
       </ul>
-    </>
+    </div>
   );
 }
 
@@ -594,7 +589,11 @@ function BuiltinGroupRow({
         />
         <div
           className={`llm-config-list-main${
-            isAuto ? "" : " llm-config-list-main--inline"
+            isAuto
+              ? ""
+              : group.endpoints.length > 0
+                ? " llm-config-list-main--group-header"
+                : " llm-config-list-main--inline"
           }`}
         >
           <span className="llm-config-list-title">{group.label}</span>
@@ -606,6 +605,25 @@ function BuiltinGroupRow({
               {group.primaryBaseURL ? (
                 <code className="llm-config-auto-baseurl">{group.primaryBaseURL}</code>
               ) : null}
+            </>
+          ) : group.endpoints.length > 0 ? (
+            <>
+              {group.sponsor ? (
+                <>
+                  <span className="llm-config-list-inline-sep" aria-hidden>
+                    ·
+                  </span>
+                  <BuiltinModelSponsorLine sponsor={group.sponsor} compact />
+                </>
+              ) : null}
+              <span className="llm-config-list-inline-sep" aria-hidden>
+                ·
+              </span>
+              <span className="llm-config-group-endpoint-hint">
+                {group.endpoints.length === 1
+                  ? "1 个 API 节点"
+                  : `${group.endpoints.length} 个 API 节点`}
+              </span>
             </>
           ) : (
             <>

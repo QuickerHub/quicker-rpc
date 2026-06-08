@@ -21,7 +21,13 @@ pub struct LegacyChatScanResult {
     pub scanned_roots: Vec<String>,
 }
 
-const CHAT_MARKERS: &[&str] = &["agent-gui-chats", "agent-gui-workspaces"];
+const CHAT_MARKERS: &[&str] = &[
+    "agent-gui-chats-backup-thread-",
+    "agent-gui-chats-thread-",
+    "agent-gui-chats-backup",
+    "agent-gui-chats",
+    "agent-gui-workspaces",
+];
 
 fn marker_byte_variants(marker: &str) -> Vec<Vec<u8>> {
     let mut out = vec![marker.as_bytes().to_vec()];
@@ -33,29 +39,41 @@ fn marker_byte_variants(marker: &str) -> Vec<Vec<u8>> {
     out
 }
 
-fn utf16_chat_store_prefix() -> Vec<u8> {
-    "{\"version\":2"
+fn utf16_json_root_prefix(version: u8) -> Vec<u8> {
+    format!("{{\"version\":{version}")
         .encode_utf16()
         .flat_map(|unit| unit.to_le_bytes())
         .collect()
 }
 
 fn find_json_start_after_offset(bytes: &[u8], offset: usize) -> Option<usize> {
-    let search_end = bytes.len().min(offset.saturating_add(256));
-    let prefix = utf16_chat_store_prefix();
-    if prefix.len() <= search_end.saturating_sub(offset) {
-        for i in offset..=search_end.saturating_sub(prefix.len()) {
-            if &bytes[i..i + prefix.len()] == prefix.as_slice() {
+    let search_end = bytes.len().min(offset.saturating_add(512));
+
+    for version in [1_u8, 2, 3] {
+        let prefix = utf16_json_root_prefix(version);
+        if prefix.len() <= search_end.saturating_sub(offset) {
+            for i in offset..=search_end.saturating_sub(prefix.len()) {
+                if &bytes[i..i + prefix.len()] == prefix.as_slice() {
+                    return Some(i);
+                }
+            }
+        }
+    }
+
+    for utf8_prefix in [b"{\"version\":1", b"{\"version\":2", b"{\"version\":3"] {
+        for i in offset..search_end.saturating_sub(utf8_prefix.len()) {
+            if &bytes[i..i + utf8_prefix.len()] == utf8_prefix.as_slice() {
                 return Some(i);
             }
         }
     }
-    let utf8_prefix = b"{\"version\":2";
-    for i in offset..search_end.saturating_sub(utf8_prefix.len()) {
-        if &bytes[i..i + utf8_prefix.len()] == utf8_prefix.as_slice() {
+
+    for i in offset..search_end.saturating_sub(1) {
+        if bytes.get(i) == Some(&b'{') && bytes.get(i + 1) == Some(&0) {
             return Some(i);
         }
     }
+
     None
 }
 
