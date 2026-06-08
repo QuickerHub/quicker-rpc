@@ -481,7 +481,7 @@ export function loadChatStore(): ChatStoreData {
         }
       }
 
-      if (raw.version === 2 && Array.isArray(raw.threads)) {
+      if ((raw.version as number | undefined) === 2 && Array.isArray(raw.threads)) {
         let store = normalizeStore(raw);
         store = maybeRestoreFromBackup(store);
         migrateMonolithicStoreToChunked(store);
