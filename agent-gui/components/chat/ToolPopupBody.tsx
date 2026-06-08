@@ -3,11 +3,15 @@
 import { isStructuredToolResult } from "@/lib/tool-result";
 import type { ToolPopupViewMode } from "@/lib/tool-popup-ui-prefs";
 import {
-  getWorkspaceFileEditorPreview,
+  hasWorkspaceFileEditorPreviewInChat,
   isWorkspaceFileReadTool,
+  parseWorkspaceFilePayload,
+  resolveWorkspaceFilePopupPreview,
 } from "@/lib/workspace-file-tool";
 import { parseProgramDiagnosticsFromToolOutput } from "@/lib/program-diagnostics-view";
 import { FileEditorCard } from "./FileEditorCard";
+import { fileEditorStatFromPreview } from "./FileEditorPreviewPopup";
+import { FileListView } from "./FileListView";
 import { ProgramDiagnosticsResultView } from "./ProgramDiagnosticsResultView";
 import { ToolPayloadView } from "./tool-output";
 import { ShellToolPopupBody } from "./ShellToolPopupBody";
@@ -98,14 +102,48 @@ export function ToolPopupBody({
     );
   }
 
-  const filePreview =
-    isWorkspaceFileReadTool(toolName, input)
-    && isStructuredToolResult(output)
-    && output.ok
-      ? getWorkspaceFileEditorPreview(toolName, input, output.data)
-      : null;
+  if (isStructuredToolResult(output) && output.ok) {
+    const listPayload = parseWorkspaceFilePayload(toolName, output.data);
+    if (listPayload?.action === "file-list") {
+      return (
+        <div className="tool-body tool-body--debug tool-body--popup-file-list">
+          {hasInput ? (
+            <ToolPayloadView
+              label="请求"
+              value={input}
+              dense
+              toolName={toolName}
+              input={input}
+              output={output}
+            />
+          ) : null}
+          <FileListView payload={listPayload} />
+          {errorText ? <pre className="tool-error">{errorText}</pre> : null}
+        </div>
+      );
+    }
+  }
 
-  if (filePreview?.content) {
+  const filePreview = resolveWorkspaceFilePopupPreview(
+    toolName,
+    input,
+    output,
+    { streaming: followTail },
+  );
+  const showFileEditorPopup = Boolean(
+    filePreview?.path
+    && (
+      filePreview.content
+      || filePreview.diff
+      || isWorkspaceFileReadTool(toolName, input)
+      || hasWorkspaceFileEditorPreviewInChat(toolName, input)
+    ),
+  );
+
+  if (showFileEditorPopup && filePreview) {
+    const stat = followTail
+      ? undefined
+      : fileEditorStatFromPreview(toolName, filePreview, input);
     return (
       <div className="tool-body tool-body--debug tool-body--popup-file-read">
         {hasInput ? (
@@ -121,6 +159,9 @@ export function ToolPopupBody({
         <FileEditorCard
           path={filePreview.path}
           content={filePreview.content}
+          stat={stat}
+          diff={filePreview.diff}
+          diffMode="full"
           variant="full"
           showHeader
           showContent
@@ -135,6 +176,11 @@ export function ToolPopupBody({
             {filePreview.totalChars !== undefined
               ? ` · 文件共 ${filePreview.totalChars} 字符`
               : ""}
+          </p>
+        ) : null}
+        {filePreview.previousSnapshotTruncated ? (
+          <p className="file-editor-footnote file-editor-footnote--warn">
+            写入前快照已截断，diff 可能不完整
           </p>
         ) : null}
         {errorText ? <pre className="tool-error">{errorText}</pre> : null}

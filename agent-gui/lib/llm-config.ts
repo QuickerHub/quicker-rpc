@@ -25,6 +25,15 @@ export function endpointConfigFingerprint(endpoint: LlmEndpointConfig): string {
   return `${base}\0${endpoint.apiKey.trim()}`;
 }
 
+/** Fingerprint aligned with persisted sticky endpoints (fills default base URL). */
+export function builtinEndpointFingerprint(
+  endpoint: LlmEndpointConfig,
+  defaultBaseURL: string,
+): string {
+  const base = (endpoint.baseURL?.trim() || defaultBaseURL).replace(/\/$/, "");
+  return `${base}\0${endpoint.apiKey.trim()}`;
+}
+
 export function dedupeEndpointConfigs(
   endpoints: readonly LlmEndpointConfig[],
 ): LlmEndpointConfig[] {

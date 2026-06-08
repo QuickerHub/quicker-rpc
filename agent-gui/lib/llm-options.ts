@@ -24,6 +24,7 @@ import {
 } from "@/lib/llm";
 import { resolveAutoLlmEndpoint } from "@/lib/llm-auto";
 import { listBuiltinGroupDisplayRows } from "@/lib/llm-builtin-display";
+import { defaultGroupIdForProvider } from "@/lib/llm-endpoint-groups";
 import type { LlmModelOption, LlmOptionsResponse } from "@/lib/llm-options-shared";
 import { optionMatchesSelection } from "@/lib/llm-options-shared";
 
@@ -104,8 +105,9 @@ function attachBuiltinGroupMetadata(options: LlmModelOption[]): LlmModelOption[]
   const groups = listBuiltinGroupDisplayRows();
   return options.map((option) => {
     if (option.kind === "builtin" && option.providerId) {
+      const groupId = defaultGroupIdForProvider(option.providerId);
       const group = groups.find(
-        (row) => row.kind === "builtin" && row.providerId === option.providerId,
+        (row) => row.kind === "builtin" && row.id === groupId,
       );
       if (!group?.endpoints.length) return option;
       const activeEndpoint = group.endpoints.find((entry) => entry.selected)

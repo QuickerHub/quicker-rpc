@@ -11808,7 +11808,15 @@ body.workspace-explorer-pane-resizing * {
 }
 
 .tool-card--file-editor-fold > .tool-body--file-editor-diff {
-  padding: 0.12rem 0.35rem 0.25rem;
+  padding: 0;
+}
+
+.tool-card--file-editor-fold.tool-card--expanded > .tool-summary.tool-file-edit-summary {
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: color-mix(in srgb, var(--foreground) 6%, var(--bg));
+  padding: 0.26rem 0.38rem;
 }
 
 .tool-card--file-editor-fold .tool-body--file-editor-diff .file-editor-card {
@@ -11816,6 +11824,24 @@ body.workspace-explorer-pane-resizing * {
   border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   border-radius: 8px;
   overflow: hidden;
+}
+
+.tool-card--file-editor-fold.tool-card--expanded .tool-body--file-editor-diff .file-editor-card {
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  box-shadow: none;
+}
+
+.tool-card--file-editor-fold .tool-body--file-editor-diff .file-editor-card--expanded .file-editor-body {
+  background: color-mix(in srgb, var(--foreground) 2%, var(--bg));
+}
+
+.tool-card--file-editor-fold .tool-body--file-editor-diff .file-editor-card--expanded .file-editor-cm .cm-content {
+  padding: 0.15rem 0.32rem 0.18rem;
+}
+
+.tool-card--file-editor-fold .tool-body--file-editor-diff .file-editor-card--expanded .file-editor-cm .cm-editor .cm-line {
+  padding: 0 0.08rem;
 }
 
 .tool-card--file-editor-fold .tool-body--file-editor-diff .file-editor-card--expanded .file-editor-cm .cm-editor,
@@ -12138,10 +12164,8 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   padding: 0 0.35rem 0.2rem;
 }
 
-/* Compact diff preview: gutter symbols hidden; avoids scroll vs lineBlockAt drift */
-.file-editor-card--compact.file-editor-card--preview
-  .file-editor-cm--line-diff
-  .cm-gutters {
+/* Compact line-diff: hide +/- gutter; insert/delete lines already have colored bars */
+.file-editor-card--compact .file-editor-cm--line-diff .cm-gutters {
   display: none !important;
 }
 
@@ -14953,6 +14977,63 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   padding: 0.65rem 0.75rem 0.75rem;
 }
 
+.tool-test-tools-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tool-test-tools-coverage {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.tool-test-tools-coverage strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tool-test-tools-coverage__meta {
+  display: block;
+  font-size: 0.68rem;
+  margin-top: 0.1rem;
+}
+
+.tool-test-tools-run-all {
+  width: 100%;
+  padding: 0.38rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  background: color-mix(in srgb, var(--composer-focus-border) 18%, var(--panel-bg));
+  border: 1px solid var(--composer-focus-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.tool-test-tools-run-all:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tool-test-suite-group {
+  margin-bottom: 0.75rem;
+}
+
+.tool-test-suite-group__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .tool-test-sidebar-tabs__btn {
   flex: 1;
   padding: 0.35rem 0.5rem;
@@ -15666,6 +15747,176 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   flex-shrink: 0;
 }
 
+.tool-test-title-pane--tools .tool-test-title-pane__head {
+  padding: 0.55rem 0.85rem 0.45rem;
+}
+
+.tool-test-title-pane--tools .tool-test-title-pane__heading {
+  font-size: 0.82rem;
+}
+
+.tool-test-title-pane--tools .tool-test-title-pane__sub {
+  font-size: 0.68rem;
+}
+
+.tool-test-title-pane--tools .tool-test-title-stream {
+  padding: 0.45rem 0.65rem 0.65rem;
+  gap: 0;
+}
+
+.tool-test-tools-session {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg) 94%, var(--panel));
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 6%, transparent);
+}
+
+.tool-test-tools-stream {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.35rem 0.45rem 0.5rem;
+}
+
+.tool-test-tools-stream__empty {
+  margin: 0;
+  padding: 1rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.tool-test-tools-stream__item {
+  padding: 0.35rem 0.25rem 0.45rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.tool-test-tools-stream__item:last-of-type {
+  border-bottom: none;
+}
+
+.tool-test-tools-stream__head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.2rem;
+  min-width: 0;
+}
+
+.tool-test-tools-stream__tool-id {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.72rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  background: transparent;
+}
+
+.tool-test-tools-stream__state {
+  flex-shrink: 0;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 4px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--bg));
+}
+
+.tool-test-tools-stream__state--ok {
+  color: color-mix(in srgb, #1a7f37 90%, var(--text));
+  background: color-mix(in srgb, #1a7f37 12%, var(--bg));
+}
+
+.tool-test-tools-stream__state--error,
+.tool-test-tools-stream__state--denied {
+  color: color-mix(in srgb, var(--danger, #c44) 90%, var(--text));
+  background: color-mix(in srgb, var(--danger, #c44) 10%, var(--bg));
+}
+
+.tool-test-tools-stream__state--running {
+  color: color-mix(in srgb, var(--accent) 85%, var(--text));
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+}
+
+.tool-test-tools-stream__body .msg-turn,
+.tool-test-tools-stream__body .msg {
+  margin: 0;
+}
+
+.tool-test-tools-stream__body .msg-content {
+  padding: 0;
+}
+
+.tool-test-tools-stream__body .tool-card {
+  margin-bottom: 0;
+}
+
+.tool-test-tools-stream__body .tool-card--file-editor .file-editor-card {
+  margin: 0;
+}
+
+.tool-test-tools-stream__body .tool-card--file-editor-fold.tool-card--expanded {
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--foreground) 4%, var(--bg));
+}
+
+.tool-test-tools-stream__body
+  .tool-card--file-editor-fold.tool-card--expanded
+  > .tool-summary.tool-file-edit-summary {
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  padding: 0.22rem 0.32rem;
+}
+
+.tool-test-tools-stream__body
+  .tool-card--file-editor-fold.tool-card--expanded
+  .tool-body--file-editor-diff
+  .file-editor-card {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.tool-test-tools-stream__body
+  .tool-card--file-editor-fold
+  .file-editor-card--expanded
+  .file-editor-cm--line-diff
+  .cm-scroller {
+  line-height: 1.35;
+}
+
+.tool-test-tools-stream__body
+  .tool-card--file-editor-fold
+  .file-editor-card--expanded
+  .file-editor-cm
+  .cm-content {
+  padding: 0.08rem 0.28rem 0.1rem;
+}
+
+.tool-test-tools-stream__body .tool-card-actions--corner {
+  top: 0.08rem;
+  right: 0.1rem;
+}
+
+.tool-test-tools-stream__anchor {
+  height: 1px;
+  flex-shrink: 0;
+}
+
 .tool-test-title-run {
   padding: 0.75rem 0.85rem;
   border: 1px solid var(--border);
@@ -15918,8 +16169,57 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   padding: 0.4rem 0.5rem;
 }
 
-.tool-test-suite-card__label {
+.tool-test-suite-card__main {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.tool-test-suite-card__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.tool-test-suite-card__tool-id {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  background: transparent;
+}
+
+.tool-test-suite-card__input-hint {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.66rem;
+  line-height: 1.3;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-test-suite-detail-dialog__tool-id {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: transparent;
+}
+
+.tool-test-suite-card__label {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.2rem;
   min-width: 0;
   font-size: 0.78rem;
   font-weight: 500;
@@ -15927,6 +16227,24 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tool-test-suite-card__tag {
+  flex-shrink: 0;
+  padding: 0.04rem 0.32rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--text) 85%, var(--muted));
+  background: color-mix(in srgb, var(--composer-focus-border) 22%, var(--panel-bg));
+  border: 1px solid color-mix(in srgb, var(--composer-focus-border) 45%, var(--border));
+  border-radius: 4px;
+}
+
+.tool-test-suite-card__tag--muted {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--panel-bg));
+  border-color: var(--border);
 }
 
 .tool-test-suite-card__actions {

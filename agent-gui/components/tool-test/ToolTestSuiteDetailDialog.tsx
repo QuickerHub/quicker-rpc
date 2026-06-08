@@ -62,9 +62,9 @@ function ToolTestStepRow({
   return (
     <li className="tool-test-step">
       <div className="tool-test-step__row">
-        <span className="tool-test-step__name" title={step.label}>
-          {step.label}
-        </span>
+        <code className="tool-test-step__name" title={step.toolName}>
+          {step.toolName}
+        </code>
         <code className="tool-test-step__params" title={raw}>
           {compact}
         </code>
@@ -155,7 +155,7 @@ export function ToolTestSuiteDetailDialog({
       >
         <header className="tool-test-suite-detail-dialog__head">
           <h2 id={titleId} className="tool-test-suite-detail-dialog__title">
-            {suite.title}
+            <code className="tool-test-suite-detail-dialog__tool-id">{suite.title}</code>
           </h2>
           <button
             ref={closeRef}

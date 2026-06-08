@@ -18,9 +18,13 @@ import {
   parseStepRunnerGetFromQkrpcData,
   parseStepRunnerSearchResult,
 } from "@/lib/step-runner-tool";
+import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 import { isStructuredToolResult } from "@/lib/tool-result";
 import { parseProgramDiagnosticsFromToolData } from "@/lib/program-diagnostics-view";
-import { parseWorkspaceFileReadPayload } from "@/lib/workspace-file-tool";
+import {
+  parseWorkspaceFileReadPayload,
+  workspaceFileToolHasPopupVisual,
+} from "@/lib/workspace-file-tool";
 
 /** Whether the popup can show a structured visual body (not only raw JSON). */
 export function toolPopupHasVisualView(
@@ -28,6 +32,14 @@ export function toolPopupHasVisualView(
   input?: unknown,
   output?: unknown,
 ): boolean {
+  if (toolName === SHELL_EXEC_TOOL) {
+    return input !== undefined || output !== undefined;
+  }
+
+  if (workspaceFileToolHasPopupVisual(toolName, input, output)) {
+    return true;
+  }
+
   if (isStructuredToolResult(output)) {
     const data = output.data;
     if (parseProgramDiagnosticsFromToolData(data)) return true;

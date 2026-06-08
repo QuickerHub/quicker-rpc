@@ -11,13 +11,13 @@ export type StickyLlmEndpoint = {
 type LlmEndpointPrefFile = {
   version: 1;
   providers: Partial<Record<LlmProviderId, StickyLlmEndpoint>>;
+  /** When true, runtime fallback must not overwrite providers[id] sticky. */
+  userPinnedProviders?: Partial<Record<LlmProviderId, boolean>>;
   /** User-selected primary Auto (NVIDIA NIM) model id. */
   autoPreferredModel?: string;
 };
 
 const EMPTY: LlmEndpointPrefFile = { version: 1, providers: {} };
-
-let cache: LlmEndpointPrefFile | null = null;
 
 export function resolveLlmEndpointPrefPath(): string {
   return resolvePersistedDataFilePath("llm-endpoint-pref.json");
@@ -37,17 +37,14 @@ function normalizeStickyEndpoint(raw: unknown): StickyLlmEndpoint | undefined {
 }
 
 function loadPrefsFile(): LlmEndpointPrefFile {
-  if (cache) return cache;
   const path = resolveLlmEndpointPrefPath();
   if (!existsSync(path)) {
-    cache = { ...EMPTY, providers: {} };
-    return cache;
+    return { ...EMPTY, providers: {} };
   }
   try {
     const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
     if (typeof raw !== "object" || raw === null) {
-      cache = { ...EMPTY, providers: {} };
-      return cache;
+      return { ...EMPTY, providers: {} };
     }
     const data = raw as Partial<LlmEndpointPrefFile>;
     const providers: Partial<Record<LlmProviderId, StickyLlmEndpoint>> = {};
@@ -60,11 +57,18 @@ function loadPrefsFile(): LlmEndpointPrefFile {
     const autoPreferredModel = typeof data.autoPreferredModel === "string"
       ? data.autoPreferredModel.trim() || undefined
       : undefined;
-    cache = { version: 1, providers, autoPreferredModel };
-    return cache;
+    const userPinnedProviders: Partial<Record<LlmProviderId, boolean>> = {};
+    if (
+      typeof data.userPinnedProviders === "object"
+      && data.userPinnedProviders !== null
+    ) {
+      for (const [id, pinned] of Object.entries(data.userPinnedProviders)) {
+        if (pinned) userPinnedProviders[id as LlmProviderId] = true;
+      }
+    }
+    return { version: 1, providers, userPinnedProviders, autoPreferredModel };
   } catch {
-    cache = { ...EMPTY, providers: {} };
-    return cache;
+    return { ...EMPTY, providers: {} };
   }
 }
 
@@ -75,7 +79,6 @@ function savePrefsFile(data: LlmEndpointPrefFile): void {
     encoding: "utf8",
     mode: 0o600,
   });
-  cache = data;
 }
 
 export function getStickyEndpoint(
@@ -84,10 +87,46 @@ export function getStickyEndpoint(
   return loadPrefsFile().providers[providerId];
 }
 
+export function isStickyEndpointUserPinned(
+  providerId: LlmProviderId,
+): boolean {
+  return Boolean(loadPrefsFile().userPinnedProviders?.[providerId]);
+}
+
+/** Persist sticky endpoint chosen explicitly in settings or model picker. */
+export function setUserPinnedStickyEndpoint(
+  providerId: LlmProviderId,
+  endpoint: StickyLlmEndpoint,
+): void {
+  const baseURL = endpoint.baseURL.trim();
+  const apiKey = endpoint.apiKey.trim();
+  if (!baseURL || !apiKey) return;
+  const current = loadPrefsFile();
+  const nextEndpoint = { baseURL, apiKey };
+  const currentSticky = current.providers[providerId];
+  const unchanged = currentSticky
+    && endpointFingerprint(nextEndpoint) === endpointFingerprint(currentSticky)
+    && current.userPinnedProviders?.[providerId];
+  if (unchanged) return;
+  savePrefsFile({
+    ...current,
+    providers: {
+      ...current.providers,
+      [providerId]: nextEndpoint,
+    },
+    userPinnedProviders: {
+      ...current.userPinnedProviders,
+      [providerId]: true,
+    },
+  });
+}
+
+/** Runtime-learned sticky (fallback success); skipped when user pinned. */
 export function setStickyEndpoint(
   providerId: LlmProviderId,
   endpoint: StickyLlmEndpoint,
 ): void {
+  if (isStickyEndpointUserPinned(providerId)) return;
   const baseURL = endpoint.baseURL.trim();
   const apiKey = endpoint.apiKey.trim();
   if (!baseURL || !apiKey) return;
@@ -124,6 +163,7 @@ export function setStickyAutoModel(modelId: string): void {
   });
 }
 
+/** @deprecated No in-process cache; kept for API compatibility. */
 export function invalidateStickyEndpointCache(): void {
-  cache = null;
+  // no-op
 }

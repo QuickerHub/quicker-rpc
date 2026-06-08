@@ -1006,3 +1006,38 @@ export function getWorkspaceFileEditorPreview(
       return null;
   }
 }
+
+/** File editor / list preview for tool result popups. */
+export function resolveWorkspaceFilePopupPreview(
+  toolName: string,
+  input?: unknown,
+  output?: unknown,
+  options?: { streaming?: boolean },
+): WorkspaceFileEditorPreview | null {
+  const data =
+    isStructuredToolResult(output) && output.ok ? output.data : undefined;
+  return getWorkspaceFileEditorPreview(toolName, input, data, options);
+}
+
+export function workspaceFileToolHasPopupVisual(
+  toolName: string,
+  input?: unknown,
+  output?: unknown,
+): boolean {
+  if (isWorkspaceFileReadTool(toolName, input)) {
+    const preview = resolveWorkspaceFilePopupPreview(toolName, input, output);
+    return Boolean(preview?.content);
+  }
+  if (hasWorkspaceFileEditorPreviewInChat(toolName, input)) {
+    const streaming = !isStructuredToolResult(output) && input !== undefined;
+    const preview = resolveWorkspaceFilePopupPreview(toolName, input, output, {
+      streaming,
+    });
+    return Boolean(preview?.path);
+  }
+  if (isStructuredToolResult(output) && output.ok) {
+    const payload = parseWorkspaceFilePayload(toolName, output.data);
+    if (payload?.action === "file-list") return true;
+  }
+  return false;
+}

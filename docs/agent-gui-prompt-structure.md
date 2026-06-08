@@ -59,6 +59,8 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 - 含 `ACTION_LINK_SUMMARY_PROMPT`（patch 后摘要规则）
 - 工具集固定为 `LAUNCHER_TOOL_IDS`（`chat-mode.ts`），最多 12 步
 
+完整产品/架构说明见 [agent-gui-launcher.md](agent-gui-launcher.md)（双窗桥接、cache/resolve 直连、持久化边界）。
+
 ---
 
 ## 2. Agent Skills（[agentskills.io](https://agentskills.io/specification)）
@@ -185,6 +187,7 @@ CLI 消费者：`qkrpc guide get` 读 `docs/action-authoring/cli/`（同 manifes
 | `agent-gui/lib/compose-user-message.ts` | User 消息 tag 展开 |
 | `agent-gui/lib/action-link-markup.ts` | Patch 后摘要 prompt 常量 |
 | `agent-gui/lib/chat-mode.ts` | Agent / Launcher 工具与步数上限 |
+| `docs/agent-gui-launcher.md` | 启动器产品设计、执行链路、源文件索引 |
 | `docs/action-authoring-src/README.md` | Authoring 模板与 marker 语法 |
 
 ---

@@ -580,12 +580,35 @@ export function ModelSelector({
     setOpen((v) => !v);
   };
 
+  const patchBuiltinEndpointSelection = useCallback(
+    (groupId: string, endpointId: string) => {
+      setOptions((prev) =>
+        prev.map((opt) => {
+          if (opt.builtinGroupId !== groupId || !opt.endpoints?.length) {
+            return opt;
+          }
+          const target = opt.endpoints.find((entry) => entry.id === endpointId);
+          return {
+            ...opt,
+            endpoints: opt.endpoints.map((entry) => ({
+              ...entry,
+              selected: entry.id === endpointId,
+            })),
+            baseURL: target?.baseURL ?? opt.baseURL,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
   const switchBuiltinEndpoint = async (
     groupId: string,
     endpointId: string,
     alreadySelected: boolean,
   ) => {
     if (alreadySelected) return;
+    patchBuiltinEndpointSelection(groupId, endpointId);
     setSwitchingEndpointId(endpointId);
     try {
       const res = await fetch("/api/settings/llm-keys", {
@@ -595,7 +618,10 @@ export function ModelSelector({
           selectBuiltinEndpoint: { groupId, endpointId },
         }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        await refreshOptions();
+        return;
+      }
       invalidateGroupProbe(groupId);
       await refreshOptions();
       dispatchLlmKeysUpdated({ stickyEndpointOnly: true });
@@ -604,11 +630,29 @@ export function ModelSelector({
     }
   };
 
+  const patchAutoModelSelection = useCallback((modelId: string) => {
+    setOptions((prev) =>
+      prev.map((opt) => {
+        if (opt.kind !== "auto" || !opt.autoModels?.length) return opt;
+        const target = opt.autoModels.find((entry) => entry.id === modelId);
+        return {
+          ...opt,
+          autoModels: opt.autoModels.map((entry) => ({
+            ...entry,
+            selected: entry.id === modelId,
+          })),
+          modelId: target?.modelId ?? opt.modelId,
+        };
+      }),
+    );
+  }, []);
+
   const switchAutoModel = async (
     modelId: string,
     alreadySelected: boolean,
   ) => {
     if (alreadySelected) return;
+    patchAutoModelSelection(modelId);
     setSwitchingAutoModelId(modelId);
     try {
       const res = await fetch("/api/settings/llm-keys", {
@@ -618,7 +662,10 @@ export function ModelSelector({
           selectAutoModel: { modelId },
         }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        await refreshOptions();
+        return;
+      }
       const groupId = options.find((o) => o.kind === "auto")?.builtinGroupId;
       if (groupId) invalidateGroupProbe(groupId);
       await refreshOptions();

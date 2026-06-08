@@ -1,14 +1,13 @@
 import { getBundledEndpoints, loadMergedBuiltinGroupsConfig } from "@/lib/llm-bundled-secrets";
 import type { LlmBuiltinSponsor } from "@/lib/llm-builtin-sponsors";
 import {
-  endpointConfigFingerprint,
+  builtinEndpointFingerprint,
   resolveLlmConfigProvider,
   type LlmEndpointConfig,
 } from "@/lib/llm-config";
 import {
-  endpointFingerprint,
   getStickyEndpoint,
-  setStickyEndpoint,
+  setUserPinnedStickyEndpoint,
 } from "@/lib/llm-endpoint-pref";
 import {
   getGroupEndpointChain,
@@ -175,11 +174,16 @@ function toBuiltinGroupEndpointDisplays(
 ): BuiltinGroupEndpointDisplay[] {
   const meta = getLlmProviderMeta(group.providerId);
   const sticky = getStickyEndpoint(group.providerId);
-  const stickyKey = sticky ? endpointFingerprint(sticky) : undefined;
 
   return endpoints.map((endpoint, index) => {
-    const id = endpointConfigFingerprint(endpoint);
     const baseURL = endpoint.baseURL?.trim() || meta.defaultBaseURL;
+    const id = builtinEndpointFingerprint(endpoint, meta.defaultBaseURL);
+    const stickyKey = sticky
+      ? builtinEndpointFingerprint(
+          { apiKey: sticky.apiKey, baseURL: sticky.baseURL },
+          meta.defaultBaseURL,
+        )
+      : undefined;
     const rawModel = endpoint.model?.trim() || meta.defaultModel;
     const model = group.providerId === DEEPSEEK_PROVIDER_ID
       ? resolveDeepSeekModelId(rawModel)
@@ -213,11 +217,11 @@ export function selectBuiltinGroupEndpoint(
 
   const meta = getLlmProviderMeta(group.providerId);
   const match = resolveGroupProbeEndpoints(group).find(
-    (endpoint) => endpointConfigFingerprint(endpoint) === endpointId,
+    (endpoint) => builtinEndpointFingerprint(endpoint, meta.defaultBaseURL) === endpointId,
   );
   if (!match?.apiKey?.trim()) return false;
 
-  setStickyEndpoint(group.providerId, {
+  setUserPinnedStickyEndpoint(group.providerId, {
     baseURL: match.baseURL?.trim() || meta.defaultBaseURL,
     apiKey: match.apiKey.trim(),
   });

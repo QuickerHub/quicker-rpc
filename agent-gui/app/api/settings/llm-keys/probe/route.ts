@@ -4,7 +4,8 @@ import {
   resolveBuiltinGroupForProbe,
   resolveGroupProbeEndpoints,
 } from "@/lib/llm-builtin-display";
-import { endpointConfigFingerprint } from "@/lib/llm-config";
+import { builtinEndpointFingerprint } from "@/lib/llm-config";
+import { getLlmProviderMeta } from "@/lib/llm-providers";
 import { listAutoModelCandidateIds } from "@/lib/llm-auto";
 import { probeLlmEndpointConfig, probeLlmProviderAvailability } from "@/lib/llm";
 import { USER_MODEL_SELECTOR_IDS } from "@/lib/llm-user-providers";
@@ -118,9 +119,10 @@ async function probeBuiltinGroupAvailability(
   let firstReachable: GroupProbeResult | undefined;
   let lastError: unknown;
 
+  const meta = getLlmProviderMeta(group.providerId);
   await Promise.all(
     endpoints.map(async (endpoint) => {
-      const id = endpointConfigFingerprint(endpoint);
+      const id = builtinEndpointFingerprint(endpoint, meta.defaultBaseURL);
       const started = Date.now();
       const result = await probeLlmEndpointConfig(group.providerId, endpoint, {
         timeoutMs,

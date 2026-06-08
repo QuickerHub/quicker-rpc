@@ -19,6 +19,7 @@
     "proto:gen": "pnpm exec buf generate --template buf.gen.yaml",
     "docs:gen": "node ../scripts/generate-authoring-docs.mjs",
     "docs:check": "node ../scripts/generate-authoring-docs.mjs --check",
+    "test:tool-suites": "tsx --test lib/tool-test-suites.test.ts",
     "test:context-compression": "tsx --test lib/context-compression.test.ts lib/context-compression.integration.test.ts lib/action-project-workflow.test.ts lib/action-project-roundtrip.test.ts lib/action-project-file.test.ts lib/workspace-fs.test.ts lib/action-editor/programWire.test.ts",
     "test:voice-input": "tsx --test lib/voice-input/voice-input-plugin-status.test.ts",
     "test:voice-install-trigger": "node scripts/test-voice-plugin-auto-install.mjs trigger-check",

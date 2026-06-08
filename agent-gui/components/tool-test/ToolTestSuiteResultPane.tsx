@@ -2,7 +2,11 @@
 
 import { useEffect, useRef } from "react";
 import type { ToolSuiteRunEntry } from "@/lib/tool-test-suite-runs";
-import { ToolTestConversationCard } from "@/components/tool-test/ToolTestConversationCard";
+import {
+  findToolTestSession,
+  getToolTestSessionParts,
+} from "@/lib/tool-test-tools-session";
+import { ToolTestToolsResultStream } from "@/components/tool-test/ToolTestToolsResultStream";
 import { ToolTestRunsPaneShell } from "@/components/tool-test/ToolTestRunsPaneShell";
 
 type ToolTestSuiteResultPaneProps = {
@@ -11,90 +15,50 @@ type ToolTestSuiteResultPaneProps = {
   onClearRuns: () => void;
 };
 
-function ToolSuiteRunCard({
-  run,
-  workingDirectory,
-}: {
-  run: ToolSuiteRunEntry;
-  workingDirectory?: string;
-}) {
-  const lastAssistant = run.chatMessages.find((m) => m.role === "assistant");
-  const partCount = lastAssistant?.parts.length ?? 0;
-
-  const footer =
-    run.error || run.status === "done" ? (
-      <dl className="tool-test-title-run__meta">
-        <div>
-          <dt>路径</dt>
-          <dd>工具套件 · 逐步 execute</dd>
-        </div>
-        {run.error ? (
-          <div>
-            <dt>错误</dt>
-            <dd className="tool-test-title-result__error">{run.error}</dd>
-          </div>
-        ) : null}
-      </dl>
-    ) : null;
-
-  return (
-    <ToolTestConversationCard
-      label={run.suiteTitle}
-      badgeTitle="工具套件"
-      status={run.status}
-      statusLabels={{ running: "执行中…" }}
-      at={run.at}
-      messages={run.chatMessages}
-      workingDirectory={workingDirectory}
-      emptyHint={
-        run.status === "running" ? "正在逐步执行工具…" : undefined
-      }
-      streamTick={partCount}
-      footer={footer}
-    />
-  );
-}
-
 export function ToolTestSuiteResultPane({
   runs,
   workingDirectory,
   onClearRuns,
 }: ToolTestSuiteResultPaneProps) {
   const endRef = useRef<HTMLDivElement>(null);
+  const session = findToolTestSession(runs);
+  const parts = session ? getToolTestSessionParts(session) : [];
+  const okCount = parts.filter(
+    (p) => "state" in p && p.state === "output-available",
+  ).length;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({
-      behavior: runs.length > 1 ? "smooth" : "auto",
+      behavior: parts.length > 1 ? "smooth" : "auto",
     });
-  }, [
-    runs.length,
-    runs[runs.length - 1]?.status,
-    runs[runs.length - 1]?.chatMessages.length,
-  ]);
+  }, [parts.length, session?.status]);
 
   const subText =
-    runs.length === 0
-      ? "左侧选一组工具并点「开始」"
-      : `共 ${runs.length} 场对话 · 每场一次套件测试`;
+    parts.length === 0
+      ? "Run a tool from the sidebar"
+      : `${parts.length} calls · ${okCount} ok${session?.status === "running" ? " · running…" : ""}`;
 
   return (
     <ToolTestRunsPaneShell
-      heading="工具对话"
+      className="tool-test-title-pane--tools"
+      heading="Results"
       subText={subText}
-      emptyText="每次「开始」都会在右侧新增一场对话：用户触发语 + 助手工具批次（与主聊天相同 UI）。清理时会删除对话里创建或编辑过的动作。"
-      runs={runs}
+      emptyText="All tool runs appear in this panel. Use Run on the left, or Run all."
+      runs={session ? [session] : []}
       workingDirectory={workingDirectory}
       onClearRuns={onClearRuns}
-      clearedLabel="已清空对话"
+      clearedLabel="Cleared session"
       streamAnchorRef={endRef}
     >
-      {runs.map((run) => (
-        <ToolSuiteRunCard
-          key={run.id}
-          run={run}
-          workingDirectory={workingDirectory}
-        />
-      ))}
+      {session ? (
+        <div className="tool-test-tools-session">
+          <ToolTestToolsResultStream
+            parts={parts}
+            workingDirectory={workingDirectory}
+            status={session.status}
+          />
+        </div>
+      ) : null}
     </ToolTestRunsPaneShell>
   );
 }

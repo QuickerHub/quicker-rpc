@@ -10,6 +10,7 @@ import {
 import { useToolTestSessionCleanup } from "@/lib/use-tool-test-session-cleanup";
 
 type ToolTestRunsPaneShellProps = {
+  className?: string;
   heading: string;
   subText: string;
   emptyText: string;
@@ -33,6 +34,7 @@ type ToolTestRunsPaneShellProps = {
 };
 
 export function ToolTestRunsPaneShell({
+  className,
   heading,
   subText,
   emptyText,
@@ -70,7 +72,9 @@ export function ToolTestRunsPaneShell({
     ?? (runs.length > 0 && !runBusy && !cleanupBusy && !cleanupDisabled);
 
   return (
-    <main className="tool-test-title-pane">
+    <main
+      className={["tool-test-title-pane", className ?? ""].filter(Boolean).join(" ")}
+    >
       <header className="tool-test-title-pane__head">
         <h2 className="tool-test-title-pane__heading">{heading}</h2>
         <div className="tool-test-pane-toolbar">

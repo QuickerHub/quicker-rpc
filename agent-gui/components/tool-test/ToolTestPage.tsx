@@ -15,23 +15,33 @@ import {
   useAppVersionSnapshot,
 } from "@/lib/use-app-versions";
 import { useChatStore } from "@/lib/use-chat-store";
+import { computeToolTestCoverage } from "@/lib/tool-test-coverage";
 import {
   TOOL_TEST_SUITES,
+  toolTestSuitesForRunAll,
   type ToolTestStep,
   type ToolTestSuite,
 } from "@/lib/tool-test-suites";
 import {
   createRunningToolPart,
-  createUserTestMessage,
   toolPartToError,
   toolPartToSuccess,
   updateAssistantMessageParts,
 } from "@/lib/tool-test-parts";
+import {
+  TOOL_TEST_SESSION_ASSISTANT_ID,
+  TOOL_TEST_SESSION_RUN_ID,
+  createEmptyToolTestSession,
+  getToolTestSessionParts,
+} from "@/lib/tool-test-tools-session";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
 import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
 import { useTauriShell } from "@/lib/tauri-shell";
-import { defaultStepInputJson } from "@/lib/tool-test-input-format";
+import {
+  defaultStepInputJson,
+  formatToolTestInputCompact,
+} from "@/lib/tool-test-input-format";
 import { ToolTestPromptPanel } from "@/components/tool-test/ToolTestPromptPanel";
 import { ToolTestSuiteDetailDialog } from "@/components/tool-test/ToolTestSuiteDetailDialog";
 import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
@@ -57,7 +67,6 @@ import {
 } from "@/components/tool-test/ToolTestPromptChatSection";
 import { ToolTestSuiteResultPane } from "@/components/tool-test/ToolTestSuiteResultPane";
 import type { ToolSuiteRunEntry } from "@/lib/tool-test-suite-runs";
-import { createToolSuiteRunId } from "@/lib/tool-test-suite-runs";
 import type { AutoFixRunEntry } from "@/lib/tool-test-autofix-runs";
 import type { ContextCompressionRunEntry } from "@/lib/tool-test-context-compression-runs";
 import type { VoiceInputRunEntry } from "@/lib/tool-test-voice-input-runs";
@@ -165,19 +174,53 @@ function ToolTestSuiteCard({
   disabled: boolean;
 }) {
   const busy = runningSuiteId === suite.id;
+  const step = suite.steps[0];
+  const inputHint = step ? formatToolTestInputCompact(step.input) : "";
 
   return (
     <section className="tool-test-suite-card tool-test-suite-card--compact">
-      <span className="tool-test-suite-card__label">{suite.title}</span>
+      <div className="tool-test-suite-card__main">
+        <div className="tool-test-suite-card__identity">
+          <code className="tool-test-suite-card__tool-id" title={suite.description}>
+            {suite.title}
+          </code>
+          {suite.writes ? (
+            <span className="tool-test-suite-card__tag" title="Writes workspace or Quicker data">
+              W
+            </span>
+          ) : null}
+          {suite.optional ? (
+            <span
+              className="tool-test-suite-card__tag tool-test-suite-card__tag--muted"
+              title="Optional — failure does not block Run all"
+            >
+              opt
+            </span>
+          ) : null}
+          {suite.interactive ? (
+            <span
+              className="tool-test-suite-card__tag tool-test-suite-card__tag--muted"
+              title="Needs Confirm/Cancel in UI"
+            >
+              UI
+            </span>
+          ) : null}
+        </div>
+        {inputHint ? (
+          <span className="tool-test-suite-card__input-hint" title={suite.description}>
+            {inputHint}
+          </span>
+        ) : null}
+      </div>
       <div className="tool-test-suite-card__actions">
         <button
           type="button"
           className="tool-test-suite-card__detail"
           disabled={disabled}
           onClick={() => onShowDetail(suite)}
-          aria-label={`${suite.title} 详情`}
+          aria-label={`${suite.title} details`}
         >
-          详情
+          JSON
         </button>
         <button
           type="button"
@@ -185,7 +228,7 @@ function ToolTestSuiteCard({
           disabled={disabled || busy}
           onClick={() => onRun(suite)}
         >
-          {busy ? "…" : "开始"}
+          {busy ? "…" : "Run"}
         </button>
       </div>
     </section>
@@ -204,6 +247,7 @@ export function ToolTestPage() {
 
   const [toolSuiteRuns, setToolSuiteRuns] = useState<ToolSuiteRunEntry[]>([]);
   const [runningSuiteId, setRunningSuiteId] = useState<string | null>(null);
+  const [runningAllSuites, setRunningAllSuites] = useState(false);
   const [stepOverrides, setStepOverrides] = useState<StepInputOverrides>({});
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(
     null,
@@ -364,6 +408,8 @@ export function ToolTestPage() {
     return ping.status === "error" ? `RPC 异常：${ping.message}` : "RPC";
   }, [ping]);
 
+  const toolCoverage = useMemo(() => computeToolTestCoverage(), []);
+
   const handleOverrideChange = useCallback((key: string, json: string) => {
     setStepOverrides((prev) => ({ ...prev, [key]: json }));
   }, []);
@@ -430,9 +476,6 @@ export function ToolTestPage() {
       setRunningSuiteId(suite.id);
       setLastError(null);
 
-      const runId = createToolSuiteRunId();
-      const userMsg = createUserTestMessage(`▶ 测试：${suite.title}`);
-      const assistantId = generateId();
       const toolParts = suite.steps.map((step) => {
         const overrideKey = `${suite.id}:${step.id}`;
         const raw = resolveStepInputRaw(overrideKey, step, stepOverrides);
@@ -446,22 +489,33 @@ export function ToolTestPage() {
         return createRunningToolPart(step.toolName, input);
       });
 
-      const initialMessages: AgentUIMessage[] = [
-        userMsg,
-        { id: assistantId, role: "assistant", parts: toolParts },
-      ];
+      let baseIndex = 0;
+      let allParts: AgentUIMessage["parts"] = [];
 
-      setToolSuiteRuns((prev) => [
-        ...prev,
-        {
-          id: runId,
-          at: Date.now(),
-          suiteId: suite.id,
-          suiteTitle: suite.title,
+      setToolSuiteRuns((prev) => {
+        const existing = prev.find((r) => r.id === TOOL_TEST_SESSION_RUN_ID);
+        const session = existing ?? createEmptyToolTestSession();
+        const prior = getToolTestSessionParts(session);
+        baseIndex = prior.length;
+        allParts = [...prior, ...toolParts];
+        const nextSession: ToolSuiteRunEntry = {
+          ...session,
+          at: existing ? session.at : Date.now(),
           status: "running",
-          chatMessages: initialMessages,
-        },
-      ]);
+          suiteTitle: suite.title,
+          chatMessages: updateAssistantMessageParts(
+            session.chatMessages,
+            TOOL_TEST_SESSION_ASSISTANT_ID,
+            allParts,
+          ),
+        };
+        if (existing) {
+          return prev.map((r) =>
+            r.id === TOOL_TEST_SESSION_RUN_ID ? nextSession : r,
+          );
+        }
+        return [...prev, nextSession];
+      });
       scrollRunsEnd();
 
       let runFailed = false;
@@ -497,7 +551,12 @@ export function ToolTestPage() {
             const ok = await requestApproval(suite.id, step, toolCallId);
             if (!ok) {
               toolParts[i] = toolPartToError(part, "已取消执行");
-              syncSuiteRunMessages(runId, assistantId, [...toolParts]);
+              allParts[baseIndex + i] = toolParts[i]!;
+              syncSuiteRunMessages(
+                TOOL_TEST_SESSION_RUN_ID,
+                TOOL_TEST_SESSION_ASSISTANT_ID,
+                [...allParts],
+              );
               scrollRunsEnd();
               continue;
             }
@@ -514,22 +573,35 @@ export function ToolTestPage() {
           if ("ok" in result && result.ok) {
             toolParts[i] = toolPartToSuccess(part, result.output);
           } else if ("ok" in result && !result.ok) {
-            toolParts[i] = toolPartToError(part, result.error);
+            if (step.optional) {
+              toolParts[i] = toolPartToSuccess(part, {
+                ok: false,
+                optional: true,
+                error: result.error,
+              });
+            } else {
+              toolParts[i] = toolPartToError(part, result.error);
+            }
           } else {
             toolParts[i] = toolPartToError(part, "未知执行结果");
           }
 
-          syncSuiteRunMessages(runId, assistantId, [...toolParts]);
+          allParts[baseIndex + i] = toolParts[i]!;
+          syncSuiteRunMessages(
+            TOOL_TEST_SESSION_RUN_ID,
+            TOOL_TEST_SESSION_ASSISTANT_ID,
+            [...allParts],
+          );
           scrollRunsEnd();
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setLastError(msg);
         runFailed = true;
-        patchToolSuiteRun(runId, { status: "error", error: msg });
+        patchToolSuiteRun(TOOL_TEST_SESSION_RUN_ID, { status: "error", error: msg });
       } finally {
         if (!runFailed) {
-          patchToolSuiteRun(runId, { status: "done" });
+          patchToolSuiteRun(TOOL_TEST_SESSION_RUN_ID, { status: "done" });
         }
         setRunningSuiteId(null);
       }
@@ -544,6 +616,22 @@ export function ToolTestPage() {
       syncSuiteRunMessages,
     ],
   );
+
+  const runAllSuites = useCallback(async () => {
+    if (runningSuiteId || runningAllSuites) return;
+    setRunningAllSuites(true);
+    setLastError(null);
+    try {
+      for (const suite of toolTestSuitesForRunAll()) {
+        if (suite.requiresQkrpc && ping.status !== "ok") {
+          continue;
+        }
+        await runSuite(suite);
+      }
+    } finally {
+      setRunningAllSuites(false);
+    }
+  }, [runningAllSuites, runningSuiteId, runSuite, ping.status]);
 
   const clearConversation = useCallback(() => {
     clearToolSuiteRuns();
@@ -652,9 +740,28 @@ export function ToolTestPage() {
     </div>
   );
 
+  const toolsPanelBusy = runningSuiteId !== null || runningAllSuites;
+  const coveragePct = Math.round(toolCoverage.ratio * 100);
+
   const sidebarScroll =
     sidebarTab === "tools" ? (
       <>
+        <div className="tool-test-tools-toolbar">
+          <p className="tool-test-tools-coverage" title={`${toolCoverage.coveredToolIds.length} / ${toolCoverage.executableToolIds.length - toolCoverage.manualToolIds.length - toolCoverage.uiOnlyToolIds.length} 可自动覆盖`}>
+            工具覆盖 <strong>{coveragePct}%</strong>
+            <span className="tool-test-tools-coverage__meta">
+              {toolCoverage.suiteCount} 套件 · {toolCoverage.stepCount} 步
+            </span>
+          </p>
+          <button
+            type="button"
+            className="tool-test-tools-run-all"
+            disabled={panelDisabled || toolsPanelBusy}
+            onClick={() => void runAllSuites()}
+          >
+            {runningAllSuites ? "Running all…" : "Run all"}
+          </button>
+        </div>
         {TOOL_TEST_SUITES.map((suite) => (
           <ToolTestSuiteCard
             key={suite.id}
@@ -662,7 +769,7 @@ export function ToolTestPage() {
             runningSuiteId={runningSuiteId}
             onRun={runSuite}
             onShowDetail={setDetailSuite}
-            disabled={panelDisabled}
+            disabled={panelDisabled || runningAllSuites}
           />
         ))}
         <ToolTestSuiteDetailDialog

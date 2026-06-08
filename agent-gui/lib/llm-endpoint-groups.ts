@@ -86,7 +86,7 @@ function normalizeGroupDef(raw: unknown): LlmEndpointGroupDef | undefined {
   return def;
 }
 
-function defaultGroupIdForProvider(providerId: LlmProviderId): string {
+export function defaultGroupIdForProvider(providerId: LlmProviderId): string {
   return providerId === LLM_PROVIDER_ID ? "gpt55" : providerId;
 }
 

@@ -33,45 +33,9 @@ import {
   toolCanShowDetails,
   useToolResultPopup,
 } from "./ToolResultPopup";
+import { FileListView } from "./FileListView";
 
-function FileListView({ payload }: { payload: Extract<WorkspaceFilePayload, { action: "file-list" }> }) {
-  const dirs = payload.entries.filter((e) => e.isDirectory);
-  const files = payload.entries.filter((e) => !e.isDirectory);
-
-  return (
-    <div className="tool-file-list">
-      <div className="file-editor-header file-editor-header--list">
-        <span className="file-editor-hash" aria-hidden>
-          #
-        </span>
-        <span className="file-editor-name">{payload.path}</span>
-        <span className="file-editor-stat file-editor-stat--neutral">
-          {payload.entries.length}
-        </span>
-      </div>
-      <ul className="tool-file-list-entries">
-        {dirs.map((e) => (
-          <li key={e.path} className="tool-file-list-item tool-file-list-item--dir">
-            <span className="tool-file-list-name">{e.name}/</span>
-            <span className="tool-file-list-path">{e.path}</span>
-          </li>
-        ))}
-        {files.map((e) => (
-          <li key={e.path} className="tool-file-list-item">
-            <span className="tool-file-list-name">{e.name}</span>
-            <span className="tool-file-list-path">{e.path}</span>
-          </li>
-        ))}
-      </ul>
-      {payload.truncated ? (
-        <p className="file-editor-footnote file-editor-footnote--warn">目录列表已截断</p>
-      ) : null}
-      {payload.entries.length === 0 ? (
-        <p className="file-editor-footnote">（空目录）</p>
-      ) : null}
-    </div>
-  );
-}
+export { FileListView };
 
 function lineDiffFromStat(
   stat: FileEditorStat | undefined,
@@ -239,10 +203,14 @@ function FileEditorPreviewBody({
   );
 }
 
+type ToolResultPopupControl = ReturnType<typeof useToolResultPopup>;
+
 function FileEditorPreviewWithExplorer(
   props: Omit<Parameters<typeof FileEditorPreviewBody>[0], "onOpenPreview"> & {
     diffOpen?: boolean;
     onDiffOpenChange?: (open: boolean) => void;
+    sharedPopup?: ToolResultPopupControl;
+    renderPopup?: boolean;
   },
 ) {
   const preview = useMemo(
@@ -255,7 +223,9 @@ function FileEditorPreviewWithExplorer(
       ),
     [props.toolName, props.input, props.output, props.running],
   );
-  const previewPopup = useToolResultPopup();
+  const internalPopup = useToolResultPopup();
+  const popup = props.sharedPopup ?? internalPopup;
+  const renderPopup = props.renderPopup ?? !props.sharedPopup;
   const { openFileFromTool, revealPath, setPanelOpen } = useWorkspaceExplorerActions();
 
   const handleOpenInExplorer = useCallback(() => {
@@ -284,12 +254,12 @@ function FileEditorPreviewWithExplorer(
     <>
       <FileEditorPreviewBody
         {...props}
-        onOpenPreview={preview ? previewPopup.openPopup : undefined}
+        onOpenPreview={preview ? popup.openPopup : undefined}
       />
-      {preview ? (
+      {renderPopup && preview ? (
         <FileEditorPreviewPopup
-          open={previewPopup.open}
-          onClose={previewPopup.closePopup}
+          open={popup.open}
+          onClose={popup.closePopup}
           path={preview.path}
           content={preview.content}
           diff={preview.diff}
@@ -311,6 +281,8 @@ function FileEditorPreview(
   props: Omit<Parameters<typeof FileEditorPreviewBody>[0], "onOpenPreview"> & {
     diffOpen?: boolean;
     onDiffOpenChange?: (open: boolean) => void;
+    sharedPopup?: ToolResultPopupControl;
+    renderPopup?: boolean;
   },
 ) {
   if (props.layout === "details-body") {
@@ -346,6 +318,37 @@ function WorkspaceFileEditorRowInner({
   const foldableDiff =
     !running && shouldFoldFileSnapshotInChat(toolName, input);
   const [diffOpen, setDiffOpen] = useState(false);
+  const preview = useMemo(
+    () =>
+      getWorkspaceFileEditorPreview(
+        toolName,
+        input,
+        output?.ok ? output.data : undefined,
+        { streaming: running },
+      ),
+    [toolName, input, output, running],
+  );
+  const { openFileFromTool, revealPath, setPanelOpen } = useWorkspaceExplorerActions();
+  const handleOpenInExplorer = useCallback(() => {
+    if (!preview?.path) return;
+    if (output?.ok && isWorkspaceExplorerFileTool(toolName, input)) {
+      openFileFromTool(toolName, input, output);
+    } else {
+      revealPath(preview.path);
+      setPanelOpen(true);
+    }
+  }, [
+    preview?.path,
+    output,
+    toolName,
+    input,
+    openFileFromTool,
+    revealPath,
+    setPanelOpen,
+  ]);
+  const popupStat = preview && !running
+    ? fileEditorStatFromPreview(toolName, preview, input)
+    : undefined;
 
   return (
     <>
@@ -378,20 +381,40 @@ function WorkspaceFileEditorRowInner({
         running={running}
         diffOpen={diffOpen}
         onDiffOpenChange={setDiffOpen}
+        sharedPopup={popup}
+        renderPopup={false}
       />
       {errorText ? <pre className="tool-error">{errorText}</pre> : null}
     </div>
-    <ToolResultPopup
-      open={popup.open}
-      onClose={popup.closePopup}
-      title={displayName}
-      subtitle={meta}
-      toolName={toolName}
-      input={input}
-      output={output}
-      errorText={errorText}
-      followTail={running}
-    />
+    {preview ? (
+      <FileEditorPreviewPopup
+        open={popup.open}
+        onClose={popup.closePopup}
+        path={preview.path}
+        content={preview.content}
+        diff={preview.diff}
+        stat={popupStat}
+        truncated={preview.truncated}
+        totalChars={preview.totalChars}
+        previousSnapshotTruncated={preview.previousSnapshotTruncated}
+        onOpenInExplorer={handleOpenInExplorer}
+        toolName={toolName}
+        input={input}
+        output={output}
+      />
+    ) : (
+      <ToolResultPopup
+        open={popup.open}
+        onClose={popup.closePopup}
+        title={displayName}
+        subtitle={meta}
+        toolName={toolName}
+        input={input}
+        output={output}
+        errorText={errorText}
+        followTail={running}
+      />
+    )}
     </>
   );
 }
