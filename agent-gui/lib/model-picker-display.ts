@@ -11,7 +11,8 @@ export type ModelPickerTier = "Fast" | "Medium" | "High";
 
 export type ModelPickerDisplay = {
   displayName: string;
-  tier: ModelPickerTier;
+  /** Tier label, or humanized model id for profile rows. */
+  tier: ModelPickerTier | string;
 };
 
 export function formatContextWindow(tokens: number): string {

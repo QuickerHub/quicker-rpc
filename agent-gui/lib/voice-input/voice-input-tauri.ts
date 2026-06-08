@@ -1,6 +1,7 @@
 "use client";
 
 import { invoke } from "@tauri-apps/api/core";
+import type { VoiceModelDownloadProgress } from "@/lib/voice-input/voice-input-settings";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
 import {
   fetchVoiceRuntimeHealth,
@@ -53,13 +54,14 @@ export async function tauriVoicePluginStartRuntime(): Promise<TauriVoicePluginSt
 
 export async function tauriVoicePluginRedownloadModel(
   modelId: "standard" | "lightweight",
-  onProgress?: (progress: { percent: number; message: string }) => void,
+  onProgress?: (progress: VoiceModelDownloadProgress) => void,
   force = false,
 ): Promise<void> {
   let unlisten: (() => void) | undefined;
   try {
     unlisten = await listenVoicePluginInstallProgress((event) => {
       onProgress?.({
+        phase: event.phase,
         percent: event.percent,
         message: event.message || `${event.phase} ${event.percent}%`,
       });

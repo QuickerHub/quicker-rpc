@@ -322,14 +322,27 @@ export async function probeLlmEndpointTarget(
   const method = options?.method ?? "models";
   const timeoutMs = options?.timeoutMs ?? 12_000;
   const chatTimeoutMs = options?.chatTimeoutMs ?? Math.max(timeoutMs, 90_000);
-  const result = method === "full"
-    ? await probeFull(target, timeoutMs, chatTimeoutMs)
-    : method === "chat"
-      ? await probeChat(target, timeoutMs)
-      : await probeModels(target, timeoutMs);
-
   const { apiKey: _apiKey, ...publicTarget } = target;
-  const row: LlmEndpointProbeRow = {
+
+  if (method === "full") {
+    const full = await probeFull(target, timeoutMs, chatTimeoutMs);
+    return {
+      ...publicTarget,
+      ok: full.ok,
+      latencyMs: full.latencyMs,
+      method,
+      status: full.status,
+      message: full.message,
+      models: full.models,
+      chat: full.chat,
+    };
+  }
+
+  const result = method === "chat"
+    ? await probeChat(target, timeoutMs)
+    : await probeModels(target, timeoutMs);
+
+  return {
     ...publicTarget,
     ok: result.ok,
     latencyMs: result.latencyMs,
@@ -337,11 +350,6 @@ export async function probeLlmEndpointTarget(
     status: result.status,
     message: result.message,
   };
-  if (method === "full" && "models" in result && "chat" in result) {
-    row.models = result.models;
-    row.chat = result.chat;
-  }
-  return row;
 }
 
 export function buildLlmProbeSummary(

@@ -242,6 +242,7 @@ $preflightBackground = $null
 
 if (-not $SkipPreflight -and -not $LocalBuild) {
     if ($DryRun) {
+        Write-Host '[DryRun] release gate (fast) + Tauri preflight' -ForegroundColor DarkGray
         if ($PreflightBeforeTag) {
             Write-Host '[DryRun] blocking preflight, then tag push' -ForegroundColor DarkGray
         }
@@ -249,23 +250,32 @@ if (-not $SkipPreflight -and -not $LocalBuild) {
             Write-Host '[DryRun] start background preflight + tag push in parallel' -ForegroundColor DarkGray
         }
     }
-    elseif ($PreflightBeforeTag) {
-        Write-Host ''
-        Write-Host 'Preflight (blocking): local QuickerAgent Tauri build before tag push...' -ForegroundColor Cyan
-        Invoke-QuickerAgentPreflightBlocking -RepoRoot $RepoRoot -PublishDir $PSScriptRoot
-        Write-Host 'Preflight passed.' -ForegroundColor Green
-        Write-Host ''
-    }
     else {
         Write-Host ''
-        Write-Host 'Starting local Tauri preflight in background (parallel with tag push / GitHub Actions)...' -ForegroundColor Cyan
-        $preflightBackground = Start-QuickerAgentPreflightBackground `
-            -RepoRoot $RepoRoot `
-            -PublishDir $PSScriptRoot `
-            -TagName $tagName
-        Write-Host "  PID $($preflightBackground.Process.Id)  log: $($preflightBackground.LogFile)" -ForegroundColor DarkGray
-        Write-Host '  Local errors usually appear first; fix from the log, then -ForceRetag re-release.' -ForegroundColor DarkGray
+        Write-Host 'Release gate (fast, <10s)...' -ForegroundColor Cyan
+        Invoke-QuickerAgentReleaseGateFast -RepoRoot $RepoRoot -PublishDir $PSScriptRoot
         Write-Host ''
+    }
+
+    if (-not $DryRun) {
+        if ($PreflightBeforeTag) {
+            Write-Host ''
+            Write-Host 'Preflight (blocking): local QuickerAgent Tauri build before tag push...' -ForegroundColor Cyan
+            Invoke-QuickerAgentPreflightBlocking -RepoRoot $RepoRoot -PublishDir $PSScriptRoot
+            Write-Host 'Preflight passed.' -ForegroundColor Green
+            Write-Host ''
+        }
+        else {
+            Write-Host ''
+            Write-Host 'Starting local Tauri preflight in background (parallel with tag push / GitHub Actions)...' -ForegroundColor Cyan
+            $preflightBackground = Start-QuickerAgentPreflightBackground `
+                -RepoRoot $RepoRoot `
+                -PublishDir $PSScriptRoot `
+                -TagName $tagName
+            Write-Host "  PID $($preflightBackground.Process.Id)  log: $($preflightBackground.LogFile)" -ForegroundColor DarkGray
+            Write-Host '  Local errors usually appear first; fix from the log, then -ForceRetag re-release.' -ForegroundColor DarkGray
+            Write-Host ''
+        }
     }
 }
 

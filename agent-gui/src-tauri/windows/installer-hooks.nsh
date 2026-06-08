@@ -4,7 +4,8 @@
 ; Bundled node.exe must be released too; NSIS default only kills quicker-agent.exe.
 
 !macro KillBundledNodeOnce
-  StrCpy $R0 'powershell -NoProfile -WindowStyle Hidden -Command "& { param($$d) Get-CimInstance Win32_Process -Filter \"Name=''node.exe''\" -EA 0 | Where-Object { $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$d, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -EA 0 } } -d ''$9''"'
+  ; NSIS strings must use double quotes; keep the command short to avoid StrCpy parse errors.
+  StrCpy $R0 "powershell -NoProfile -WindowStyle Hidden -Command $\"Get-Process -Name node -EA 0 | Where-Object { $$_.Path -like '$9*' } | Stop-Process -Force -EA 0$\""
   ExecWait $R0 $8
   Sleep 1500
 !macroend

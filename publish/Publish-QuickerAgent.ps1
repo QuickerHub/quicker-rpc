@@ -4,6 +4,8 @@
 # Examples:
 #   pwsh ./publish/Publish-QuickerAgent.ps1
 #   pwsh ./publish/Publish-QuickerAgent.ps1 -SkipQkrpcBuild
+#   pwsh ./publish/Preflight-QuickerAgentFast.ps1      # <10s gate only
+#   pwsh ./publish/Preflight-QuickerAgentBuild.ps1     # gate + next build + staged verify (no Tauri)
 #
 # Bundled LLM key (obfuscated into installer, not stored in git):
 #   $env:BUNDLED_LLM_AI98PRO_API_KEY = 'sk-...'
@@ -116,6 +118,10 @@ function Invoke-QuickerAgentStagedTauriBuild {
             Write-Host 'Skipping next build (reuse .next/standalone)' -ForegroundColor DarkCyan
         }
         else {
+            Write-Host 'release gate (fast)...' -ForegroundColor Cyan
+            node scripts/preflight-release-gate.mjs
+            if ($LASTEXITCODE -ne 0) { throw "preflight-release-gate failed ($LASTEXITCODE)" }
+
             Write-Host 'next build (production)...' -ForegroundColor Cyan
             pnpm build
             if ($LASTEXITCODE -ne 0) { throw "pnpm build failed ($LASTEXITCODE)" }

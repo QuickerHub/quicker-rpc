@@ -4,7 +4,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-pub const DEFAULT_LAUNCHER_SHORTCUT: &str = "CommandOrControl+Shift+Space";
+pub const DEFAULT_LAUNCHER_SHORTCUT: &str = "Alt+Space";
 const LAUNCHER_VOICE_TOGGLE_EVENT: &str = "global:voice-toggle";
 
 pub struct LauncherShortcutState {
@@ -120,4 +120,32 @@ pub fn launcher_sync_global_shortcut(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri_plugin_global_shortcut::Shortcut;
+
+    #[test]
+    fn default_shortcut_parses_as_tauri_shortcut() {
+        DEFAULT_LAUNCHER_SHORTCUT
+            .parse::<Shortcut>()
+            .expect("default launcher shortcut must parse");
+    }
+
+    #[test]
+    fn common_launcher_shortcuts_parse() {
+        for shortcut in [
+            "Alt+Space",
+            "CommandOrControl+Shift+Space",
+            "Alt+Shift+F",
+            "CommandOrControl+F12",
+        ] {
+            shortcut
+                .parse::<Shortcut>()
+                .unwrap_or_else(|err| panic!("{shortcut} must parse: {err}"));
+        }
+    }
+
 }

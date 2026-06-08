@@ -333,7 +333,7 @@ function spawnModelDownload(
   args: string[],
   options: {
     cwd?: string;
-    env?: NodeJS.ProcessEnv;
+    env?: Partial<NodeJS.ProcessEnv>;
     onProgress?: (phase: string, percent: number, message: string) => void;
   },
 ): Promise<void> {

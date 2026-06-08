@@ -1549,6 +1549,30 @@ function Get-QuickerAgentPreflightScriptPath {
     return $path
 }
 
+# Fast release gate (<10s): launcher contracts + version notes. No compile.
+function Invoke-QuickerAgentReleaseGateFast {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
+
+        [string]$PublishDir = ''
+    )
+
+    if (-not $PublishDir) {
+        $PublishDir = Join-Path $RepoRoot 'publish'
+    }
+
+    $fastScript = Join-Path $PublishDir 'Preflight-QuickerAgentFast.ps1'
+    if (-not (Test-Path -LiteralPath $fastScript)) {
+        throw "Preflight-QuickerAgentFast.ps1 not found: $fastScript"
+    }
+
+    & pwsh -NoProfile -File $fastScript -RepoRoot $RepoRoot
+    if ($LASTEXITCODE -ne 0) {
+        throw "Invoke-QuickerAgentReleaseGateFast failed ($LASTEXITCODE)"
+    }
+}
+
 function Get-QuickerAgentPreflightLogPath {
     param([string]$TagName)
     $safe = ($TagName -replace '[^\w\.\-]', '_')
