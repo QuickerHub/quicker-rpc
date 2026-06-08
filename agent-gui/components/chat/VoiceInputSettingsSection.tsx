@@ -18,6 +18,7 @@ import {
 } from "@/lib/voice-input/voice-input-tauri";
 import {
   useVoiceSettingsPanelState,
+  type VoiceRuntimeMeta,
   type VoiceSettingsPanelSnapshot,
 } from "@/lib/voice-input/use-voice-settings-panel-state";
 import { VoiceMicRecorder } from "@/lib/voice-input/voice-input-recorder";
@@ -26,11 +27,13 @@ import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-
 import {
   DEFAULT_VOICE_PLUGIN_SETTINGS,
   downloadVoiceModel,
+  executionProviderLabel,
   fetchVoiceModelInstallState,
   fetchVoicePluginSettings,
   saveVoicePluginSettings,
   voiceModelLabel,
   VOICE_MODEL_OPTIONS,
+  type VoiceModelDownloadProgress,
   type VoiceModelId,
   type VoiceModelInstallState,
   type VoicePluginSettings,
@@ -43,6 +46,12 @@ type VoiceInputSettingsSectionProps = {
 };
 
 type SetupStep = "install" | "start" | "configure";
+
+const SETUP_STEPS: ReadonlyArray<{ id: SetupStep; label: string }> = [
+  { id: "install", label: "安装" },
+  { id: "start", label: "启动" },
+  { id: "configure", label: "配置" },
+];
 
 function statusDotClass(runtimePhase: VoicePluginStatus, hostLoading: boolean): string {
   if (hostLoading || runtimePhase === "downloading") return "loading";
@@ -59,10 +68,8 @@ function resolveSetupStep(panel: VoiceSettingsPanelSnapshot, mockEnabled: boolea
   return "configure";
 }
 
-function stepTitle(step: SetupStep): string {
-  if (step === "install") return "① 安装 Runtime";
-  if (step === "start") return "② 启动服务";
-  return "③ 识别配置";
+function stepIndex(step: SetupStep): number {
+  return SETUP_STEPS.findIndex((item) => item.id === step);
 }
 
 function contextHint(params: {
@@ -72,23 +79,37 @@ function contextHint(params: {
   mockEnabled: boolean;
 }): string | null {
   const { panel, step, inTauri, mockEnabled } = params;
-  if (mockEnabled) {
-    return "Mock 模式：Composer 点麦克风会填充样例文本。";
-  }
-  if (panel.runtimePhase === "downloading") {
-    return "正在安装语音组件，请稍候…";
-  }
+  if (mockEnabled) return "Mock 模式：Composer 点麦克风会填充样例文本。";
+  if (panel.runtimePhase === "downloading") return "正在安装语音组件，请稍候…";
   if (step === "install") {
     return inTauri
-      ? "先安装本地语音识别 Runtime 与默认模型（约 240 MB，需联网，仅需一次）。"
-      : "开发模式：安装 Runtime 与默认模型到本机插件目录，或使用本地 voice-asr-runtime 快速复制。";
+      ? "安装本地 Runtime 与默认模型（约 240 MB，需联网，仅需一次）。"
+      : "安装到本机插件目录；开发环境可优先使用仓库内 voice-asr-runtime 快速复制。";
   }
   if (step === "start") {
     return inTauri
-      ? "Runtime 已安装。启动服务后即可连接并配置识别模型。"
-      : "Runtime 已安装。点「启动服务」连接本机 :6016，或手动运行 pnpm voice:dev-server。";
+      ? "启动后即可连接本机语音识别服务并选择模型。"
+      : "启动本机 :6016 服务，或运行 pnpm voice:dev-server。";
   }
-  return "已连接 Runtime。选择模型与加速方式；切换后服务会自动重启。";
+  return null;
+}
+
+function runtimeStatusMessage(
+  panel: VoiceSettingsPanelSnapshot,
+  meta: VoiceRuntimeMeta | null,
+): string {
+  if (panel.hostLoading) return "正在检测语音服务…";
+  if (panel.runtimePhase === "downloading") {
+    return panel.hostStatus?.message ?? "正在下载安装包…";
+  }
+  if (meta?.connected) return "语音识别服务已连接，可在 Composer 使用麦克风。";
+  if (meta?.starting) return "服务启动中，模型加载可能需要数十秒…";
+  if (meta?.disconnectedMessage) return meta.disconnectedMessage;
+  if (panel.runtimePhase === "error") {
+    return panel.hostStatus?.message ?? panel.runtimeDetail ?? "语音服务异常";
+  }
+  if (panel.pluginInstalled) return "Runtime 已安装，请启动服务。";
+  return "尚未安装本地语音组件。";
 }
 
 export function VoiceInputSettingsSection({
@@ -110,6 +131,8 @@ export function VoiceInputSettingsSection({
   const [modelInstall, setModelInstall] = useState<VoiceModelInstallState | null>(null);
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [modelDownloadBusy, setModelDownloadBusy] = useState(false);
+  const [modelDownloadProgress, setModelDownloadProgress] =
+    useState<VoiceModelDownloadProgress | null>(null);
   const [settingsHint, setSettingsHint] = useState<string | null>(null);
   const devExperienceEnabled = useDevExperienceEnabled();
   const inTauri = isTauriShell();
@@ -117,6 +140,8 @@ export function VoiceInputSettingsSection({
   const canManageHost = inTauri || devBrowser;
 
   const setupStep = resolveSetupStep(panel, mockEnabled);
+  const currentStepIndex = stepIndex(setupStep);
+  const meta = panel.runtimeMeta;
 
   const notifyVoiceConfigChanged = useCallback(() => {
     window.dispatchEvent(new Event("voice-input-config-changed"));
@@ -161,7 +186,7 @@ export function VoiceInputSettingsSection({
         return;
       }
       setVoiceSettings(saved);
-      setSettingsHint(hint ?? "已保存，语音服务将按新配置重启");
+      setSettingsHint(hint ?? "设置已保存，语音服务将按新配置重启");
       notifyVoiceConfigChanged();
     } finally {
       setSettingsBusy(false);
@@ -177,11 +202,8 @@ export function VoiceInputSettingsSection({
     if (runtimeBusy || disabled || !canManageHost) return;
     setRuntimeBusy(true);
     try {
-      if (inTauri) {
-        await tauriVoicePluginStartRuntime();
-      } else {
-        await requestDevVoiceRuntimeStart();
-      }
+      if (inTauri) await tauriVoicePluginStartRuntime();
+      else await requestDevVoiceRuntimeStart();
       notifyVoiceConfigChanged();
     } finally {
       setRuntimeBusy(false);
@@ -192,11 +214,8 @@ export function VoiceInputSettingsSection({
     if (runtimeBusy || disabled || !canManageHost) return;
     setRuntimeBusy(true);
     try {
-      if (inTauri) {
-        await tauriVoicePluginStopRuntime();
-      } else {
-        await requestDevVoiceRuntimeStop();
-      }
+      if (inTauri) await tauriVoicePluginStopRuntime();
+      else await requestDevVoiceRuntimeStop();
       notifyVoiceConfigChanged();
     } finally {
       setRuntimeBusy(false);
@@ -240,15 +259,19 @@ export function VoiceInputSettingsSection({
   const handleDownloadModel = async (modelId: VoiceModelId) => {
     if (modelDownloadBusy || disabled) return;
     setModelDownloadBusy(true);
+    setModelDownloadProgress({
+      phase: "prepare",
+      percent: 0,
+      message: "准备下载模型…",
+    });
     setSettingsHint(null);
     try {
-      const result = await downloadVoiceModel(modelId);
+      const result = await downloadVoiceModel(modelId, setModelDownloadProgress);
       if (!result.ok) {
         setSettingsHint(result.error ?? "模型下载失败");
         return;
       }
       await refreshModelInstallState();
-      setSettingsHint("模型下载完成。正在重启语音服务…");
       if (devBrowser) {
         await requestDevVoiceRuntimeStop();
         await new Promise((r) => window.setTimeout(r, 400));
@@ -258,32 +281,31 @@ export function VoiceInputSettingsSection({
         await tauriVoicePluginStartRuntime();
       }
       notifyVoiceConfigChanged();
-      setSettingsHint("模型已就绪，可切换并使用。");
+      setSettingsHint("模型已就绪。");
     } finally {
       setModelDownloadBusy(false);
+      setModelDownloadProgress(null);
     }
   };
 
-  const selectedModelInstalled = useMemo(() => {
-    const expected =
-      VOICE_MODEL_OPTIONS.find((opt) => opt.id === voiceSettings.modelId)
-        ?.runtimeModelId ?? "sensevoice";
-    if (modelInstall) {
-      return voiceSettings.modelId === "lightweight"
-        ? modelInstall.lightweight
-        : modelInstall.standard;
-    }
-    if (panel.activeModelId) {
-      return panel.activeModelId === expected;
-    }
-    if (voiceSettings.modelId === "lightweight") return false;
-    return panel.pluginInstalled;
-  }, [
-    modelInstall,
-    panel.activeModelId,
-    panel.pluginInstalled,
-    voiceSettings.modelId,
-  ]);
+  const modelInstalledById = useCallback(
+    (modelId: VoiceModelId): boolean => {
+      if (modelInstall) {
+        return modelId === "lightweight"
+          ? modelInstall.lightweight
+          : modelInstall.standard;
+      }
+      const expected =
+        VOICE_MODEL_OPTIONS.find((opt) => opt.id === modelId)?.runtimeModelId
+        ?? "sensevoice";
+      if (panel.activeModelId) return panel.activeModelId === expected;
+      if (modelId === "lightweight") return false;
+      return panel.pluginInstalled;
+    },
+    [modelInstall, panel.activeModelId, panel.pluginInstalled],
+  );
+
+  const selectedModelInstalled = modelInstalledById(voiceSettings.modelId);
 
   const canInstall =
     canManageHost
@@ -309,6 +331,8 @@ export function VoiceInputSettingsSection({
     [panel, setupStep, inTauri, mockEnabled],
   );
 
+  const statusMessage = runtimeStatusMessage(panel, meta);
+
   return (
     <section
       id="voice-input-settings"
@@ -322,41 +346,28 @@ export function VoiceInputSettingsSection({
       </header>
 
       {!mockEnabled && canManageHost ? (
-        <div className="voice-settings-steps" aria-label="语音配置步骤">
-          <span
-            className={`voice-settings-step${setupStep === "install" ? " voice-settings-step--active" : setupStep !== "install" ? " voice-settings-step--done" : ""}`}
-          >
-            ① 安装
-          </span>
-          <span className="voice-settings-step-sep" aria-hidden />
-          <span
-            className={`voice-settings-step${setupStep === "start" ? " voice-settings-step--active" : setupStep === "configure" ? " voice-settings-step--done" : ""}`}
-          >
-            ② 启动
-          </span>
-          <span className="voice-settings-step-sep" aria-hidden />
-          <span
-            className={`voice-settings-step${setupStep === "configure" ? " voice-settings-step--active" : ""}`}
-          >
-            ③ 配置
-          </span>
-        </div>
+        <VoiceSetupStepper currentIndex={currentStepIndex} />
       ) : null}
 
-      <div className="app-settings-ping-row voice-settings-row">
-        <div className="app-settings-ping voice-settings-ping">
-          <span className={`ping-dot ${statusDotClass(panel.runtimePhase, panel.hostLoading)}`} />
-          <span className="app-settings-ping-text">
-            <span className="voice-settings-status-label">
-              {stepTitle(setupStep)} · {panel.displayLabel}
-            </span>
-            {panel.displaySubline ? (
-              <span className="voice-settings-status-sub">{panel.displaySubline}</span>
-            ) : null}
-          </span>
+      <div className="voice-settings-status-card">
+        <div className="voice-settings-status-head">
+          <div className="voice-settings-status-main">
+            <span
+              className={`ping-dot voice-settings-status-dot ${statusDotClass(panel.runtimePhase, panel.hostLoading)}`}
+            />
+            <div className="voice-settings-status-text">
+              <span className="voice-settings-status-title">{panel.displayLabel}</span>
+              <span className="voice-settings-status-message">{statusMessage}</span>
+            </div>
+          </div>
+          {meta?.connected ? (
+            <VoiceRuntimeMetaChips meta={meta} />
+          ) : null}
         </div>
 
-        <div className="voice-settings-actions">
+        {hint ? <p className="voice-settings-status-hint">{hint}</p> : null}
+
+        <div className="voice-settings-toolbar">
           {canInstall ? (
             <button
               type="button"
@@ -399,7 +410,7 @@ export function VoiceInputSettingsSection({
           ) : null}
           <button
             type="button"
-            className="app-settings-action"
+            className="app-settings-action voice-settings-action-muted"
             disabled={disabled}
             onClick={() => notifyVoiceConfigChanged()}
           >
@@ -408,81 +419,101 @@ export function VoiceInputSettingsSection({
         </div>
       </div>
 
-      {hint ? <p className="voice-settings-hint">{hint}</p> : null}
-
       {canConfigure && canManageHost ? (
-        <div className="voice-settings-options">
-          <label className="voice-settings-field">
-            <span className="voice-settings-field-label">识别模型</span>
-            <select
-              className="voice-settings-select"
-              value={voiceSettings.modelId}
-              disabled={disabled || settingsBusy || !panel.runtimeOnline}
-              onChange={(event) => {
-                const modelId = event.target.value as VoiceModelId;
-                void persistVoiceSettings(
-                  { modelId },
-                  panel.runtimeOnline
-                    ? "已切换模型，语音服务正在重启…"
-                    : "已选择模型，启动服务后生效",
-                );
-              }}
-            >
-              {VOICE_MODEL_OPTIONS.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {opt.label}（{opt.sizeHint}）
-                </option>
-              ))}
-            </select>
-            <span className="voice-settings-field-hint">
-              {VOICE_MODEL_OPTIONS.find((opt) => opt.id === voiceSettings.modelId)
-                ?.description}
-              {!selectedModelInstalled ? " · 尚未下载此模型" : null}
-            </span>
-          </label>
+        <div className="voice-settings-panel">
+          <h3 className="voice-settings-panel-title">识别配置</h3>
 
-          {needsModelDownload ? (
+          <div className="voice-settings-model-grid">
+            {VOICE_MODEL_OPTIONS.map((opt) => {
+              const selected = voiceSettings.modelId === opt.id;
+              const installed = modelInstalledById(opt.id);
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`voice-settings-model-card${selected ? " voice-settings-model-card--selected" : ""}`}
+                  disabled={disabled || settingsBusy}
+                  onClick={() => {
+                    if (selected) return;
+                    void persistVoiceSettings(
+                      { modelId: opt.id },
+                      "已切换模型，语音服务正在重启…",
+                    );
+                  }}
+                >
+                  <span className="voice-settings-model-card-head">
+                    <span className="voice-settings-model-card-title">{opt.label}</span>
+                    <span className="voice-settings-model-card-size">{opt.sizeHint}</span>
+                  </span>
+                  <span className="voice-settings-model-card-desc">{opt.description}</span>
+                  <span className="voice-settings-model-card-foot">
+                    {installed ? (
+                      <span className="voice-settings-badge voice-settings-badge--ok">已安装</span>
+                    ) : (
+                      <span className="voice-settings-badge">未下载</span>
+                    )}
+                    {selected ? (
+                      <span className="voice-settings-badge voice-settings-badge--accent">使用中</span>
+                    ) : null}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {needsModelDownload && !modelDownloadBusy ? (
             <button
               type="button"
-              className="app-settings-action"
-              disabled={disabled || modelDownloadBusy}
+              className="app-settings-action voice-settings-download-btn"
+              disabled={disabled}
               onClick={() => void handleDownloadModel(voiceSettings.modelId)}
             >
-              {modelDownloadBusy
-                ? "下载中…"
-                : `下载${voiceModelLabel(voiceSettings.modelId)}`}
+              {`下载 ${voiceModelLabel(voiceSettings.modelId)}`}
             </button>
           ) : null}
 
-          <label className="voice-settings-mock-toggle voice-settings-gpu-toggle">
-            <input
-              type="checkbox"
-              checked={voiceSettings.gpuAcceleration}
-              disabled={disabled || settingsBusy || !panel.runtimeOnline}
-              onChange={(event) => {
-                void persistVoiceSettings(
-                  { gpuAcceleration: event.target.checked },
-                  event.target.checked
-                    ? "已开启 GPU 加速；若硬件不支持将自动回退 CPU"
-                    : "已关闭 GPU 加速，使用 CPU 推理",
-                );
-              }}
-            />
-            <span>GPU 加速（Windows 使用 DirectML，不可用时回退 CPU）</span>
-          </label>
-
-          {settingsHint ? (
-            <p className="voice-settings-hint" role="status">
-              {settingsHint}
-            </p>
+          {modelDownloadBusy && modelDownloadProgress ? (
+            <VoiceModelDownloadProgressBar progress={modelDownloadProgress} />
           ) : null}
+
+          <div className="voice-settings-toggle-row">
+            <div className="voice-settings-toggle-copy">
+              <span className="voice-settings-toggle-title">GPU 加速</span>
+              <span className="voice-settings-toggle-desc">
+                Windows 使用 DirectML；硬件不支持时自动回退 CPU
+              </span>
+            </div>
+            <label className="voice-settings-switch">
+              <input
+                type="checkbox"
+                checked={voiceSettings.gpuAcceleration}
+                disabled={disabled || settingsBusy}
+                onChange={(event) => {
+                  void persistVoiceSettings(
+                    { gpuAcceleration: event.target.checked },
+                    event.target.checked
+                      ? "已开启 GPU 加速"
+                      : "已关闭 GPU 加速",
+                  );
+                }}
+              />
+              <span className="voice-settings-switch-track" aria-hidden />
+            </label>
+          </div>
         </div>
       ) : null}
 
-      {testResult ? (
-        <p className="voice-settings-test-result" role="status">
-          识别结果：{testResult}
+      {settingsHint ? (
+        <p className="voice-settings-banner" role="status">
+          {settingsHint}
         </p>
+      ) : null}
+
+      {testResult ? (
+        <blockquote className="voice-settings-test-quote" role="status">
+          <span className="voice-settings-test-quote-label">识别结果</span>
+          {testResult}
+        </blockquote>
       ) : null}
 
       {devExperienceEnabled ? (
@@ -537,5 +568,80 @@ export function VoiceInputSettingsSection({
         </details>
       ) : null}
     </section>
+  );
+}
+
+function VoiceSetupStepper({ currentIndex }: { currentIndex: number }) {
+  return (
+    <ol className="voice-settings-stepper" aria-label="配置步骤">
+      {SETUP_STEPS.map((step, index) => {
+        const done = index < currentIndex;
+        const active = index === currentIndex;
+        return (
+          <li
+            key={step.id}
+            className={`voice-settings-stepper-item${active ? " voice-settings-stepper-item--active" : ""}${done ? " voice-settings-stepper-item--done" : ""}`}
+            aria-current={active ? "step" : undefined}
+          >
+            <span className="voice-settings-stepper-marker" aria-hidden>
+              {done ? "✓" : index + 1}
+            </span>
+            <span className="voice-settings-stepper-label">{step.label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function VoiceRuntimeMetaChips({ meta }: { meta: VoiceRuntimeMeta }) {
+  const chips: string[] = [];
+  if (meta.version) chips.push(`v${meta.version}`);
+  if (meta.modelId) chips.push(meta.modelId);
+  if (meta.executionProvider) {
+    chips.push(executionProviderLabel(meta.executionProvider));
+  }
+  if (chips.length === 0) return null;
+  return (
+    <div className="voice-settings-meta-chips">
+      {chips.map((chip) => (
+        <span key={chip} className="voice-settings-meta-chip">
+          {chip}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function VoiceModelDownloadProgressBar({
+  progress,
+}: {
+  progress: VoiceModelDownloadProgress;
+}) {
+  const isError = progress.phase === "error";
+  const indeterminate = !isError && progress.percent <= 0;
+  const pctLabel = indeterminate ? "…" : `${progress.percent}%`;
+
+  return (
+    <div
+      className={`voice-settings-install-progress${isError ? " voice-settings-install-progress--error" : ""}`}
+      role="status"
+      aria-live="polite"
+      aria-valuenow={indeterminate ? undefined : progress.percent}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <div className="voice-settings-install-progress-head">
+        <span className="voice-settings-install-progress-title">正在下载模型</span>
+        <span className="voice-settings-install-progress-pct">{pctLabel}</span>
+      </div>
+      <div className="voice-settings-progress-track">
+        <div
+          className={`voice-settings-progress-fill${indeterminate ? " voice-settings-progress-fill--indeterminate" : ""}`}
+          style={indeterminate ? undefined : { width: `${progress.percent}%` }}
+        />
+      </div>
+      <p className="voice-settings-install-progress-msg">{progress.message}</p>
+    </div>
   );
 }

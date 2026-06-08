@@ -2,6 +2,7 @@
 
 import type { MouseEvent } from "react";
 
+import { isVoiceRuntimeWarmingUp } from "@/lib/voice-input/voice-input-plugin-status";
 import type { VoicePluginStatus, VoiceSessionPhase } from "@/lib/voice-input/voice-input-types";
 import {
   voiceInputButtonTitle,
@@ -24,6 +25,8 @@ type ComposerPrimaryActionButtonProps = {
   onVoiceStop: () => void;
   /** When voice runtime is not ready (install / start). */
   onVoiceSetup?: () => void;
+  /** When runtime is booting (installed / starting). */
+  onVoiceStarting?: () => void;
 };
 
 function ComposerSendIcon() {
@@ -164,6 +167,7 @@ function ComposerVoiceMicButton({
   platform,
   onVoiceStart,
   onVoiceSetup,
+  onVoiceStarting,
 }: {
   phase: VoiceSessionPhase;
   pluginStatus: VoicePluginStatus;
@@ -172,9 +176,11 @@ function ComposerVoiceMicButton({
   platform: ReturnType<typeof useShellPlatform>;
   onVoiceStart: () => void;
   onVoiceSetup?: () => void;
+  onVoiceStarting?: () => void;
 }) {
   const voiceBusy = phase === "transcribing";
-  const needsSetup = !canUseVoice && !voiceBusy;
+  const warmingUp = isVoiceRuntimeWarmingUp(pluginStatus);
+  const needsSetup = !canUseVoice && !voiceBusy && !warmingUp;
   const title = voiceInputButtonTitle(
     pluginStatus,
     phase,
@@ -190,6 +196,11 @@ function ComposerVoiceMicButton({
     if (disabled || voiceBusy) return;
     event.preventDefault();
 
+    if (warmingUp) {
+      onVoiceStarting?.();
+      return;
+    }
+
     if (needsSetup) {
       onVoiceSetup?.();
       return;
@@ -203,6 +214,7 @@ function ComposerVoiceMicButton({
     "composer-btn--voice",
     "composer-btn--primary-action",
     needsSetup ? "composer-btn--voice-setup" : "",
+    warmingUp ? "composer-btn--voice-starting" : "",
     voiceBusy ? "composer-btn--voice-busy" : "",
   ]
     .filter(Boolean)
@@ -213,12 +225,13 @@ function ComposerVoiceMicButton({
       type="button"
       className={className}
       disabled={disabled || voiceBusy}
+      aria-disabled={warmingUp || disabled || voiceBusy}
       aria-label={title}
       aria-keyshortcuts={ariaKeyshortcuts}
       title={title}
       onClick={handleClick}
     >
-      <ComposerVoiceIcon busy={voiceBusy} />
+      <ComposerVoiceIcon busy={voiceBusy || warmingUp} />
     </button>
   );
 }
@@ -233,6 +246,7 @@ export function ComposerPrimaryActionButton({
   onVoiceStart,
   onVoiceStop,
   onVoiceSetup,
+  onVoiceStarting,
 }: ComposerPrimaryActionButtonProps) {
   const platform = useShellPlatform();
   const voiceRecording = phase === "recording";
@@ -261,6 +275,7 @@ export function ComposerPrimaryActionButton({
         platform={platform}
         onVoiceStart={onVoiceStart}
         onVoiceSetup={onVoiceSetup}
+        onVoiceStarting={onVoiceStarting}
       />
       {canSend ? (
         <ComposerSendButton disabled={disabled} agentBusy={agentBusy} />

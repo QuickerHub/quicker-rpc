@@ -1,6 +1,9 @@
 import type { ShellPlatform } from "@/lib/tauri-shell";
 import type { VoicePluginStatus, VoiceSessionPhase } from "@/lib/voice-input/voice-input-types";
-import { voicePluginStatusLabel } from "@/lib/voice-input/voice-input-plugin-status";
+import {
+  isVoiceRuntimeWarmingUp,
+  voicePluginStatusLabel,
+} from "@/lib/voice-input/voice-input-plugin-status";
 
 /** Toggle composer voice input (keyboard handler pending). */
 export const VOICE_INPUT_TOGGLE_SHORTCUT = {
@@ -51,6 +54,9 @@ export function voiceInputButtonTitle(
   }
   if (phase === "transcribing") return "识别中…";
   if (canUse) return appendVoiceInputShortcutHint("语音输入", platform);
+  if (isVoiceRuntimeWarmingUp(pluginStatus)) {
+    return "语音服务启动中";
+  }
   if (pluginStatus === "not_installed") {
     return appendVoiceInputShortcutHint("安装语音输入", platform);
   }

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { isVoiceInputToggleShortcut } from "@/lib/voice-input/voice-input-shortcuts";
+import { notifyVoiceServiceStarting } from "@/lib/voice-input/voice-input-notify";
 import { runVoiceToggleAction } from "@/lib/voice-input/voice-toggle-action";
 import type {
   VoicePluginStatus,
@@ -15,6 +16,7 @@ type UseComposerVoiceToggleShortcutOptions = {
   pluginStatus: VoicePluginStatus;
   onStart: () => void;
   onStop: () => void;
+  onStarting?: () => void;
   onUnavailable?: () => void;
 };
 
@@ -26,6 +28,7 @@ export function useComposerVoiceToggleShortcut({
   pluginStatus,
   onStart,
   onStop,
+  onStarting = notifyVoiceServiceStarting,
   onUnavailable,
 }: UseComposerVoiceToggleShortcutOptions): void {
   useEffect(() => {
@@ -44,6 +47,7 @@ export function useComposerVoiceToggleShortcut({
         pluginStatus,
         onStart,
         onStop,
+        onStarting,
         onUnavailable,
       });
     };
@@ -57,6 +61,7 @@ export function useComposerVoiceToggleShortcut({
     pluginStatus,
     onStart,
     onStop,
+    onStarting,
     onUnavailable,
   ]);
 }

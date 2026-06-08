@@ -9,9 +9,11 @@ import {
 import {
   isStubVoiceTranscript,
 } from "@/lib/voice-input/voice-input-health";
+import { notifyVoiceServiceStarting } from "@/lib/voice-input/voice-input-notify";
 import {
   canUseVoiceInput,
   isVoiceInputMockEnabled,
+  isVoiceRuntimeWarmingUp,
   voicePluginStatusLabel,
 } from "@/lib/voice-input/voice-input-plugin-status";
 import { useVoicePluginStatus } from "@/lib/voice-input/use-voice-plugin-status";
@@ -322,6 +324,10 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputResul
   const startVoiceInput = useCallback(() => {
     if (!enabled) return;
     if (phaseRef.current !== "idle") return;
+    if (isVoiceRuntimeWarmingUp(pluginStatus)) {
+      notifyVoiceServiceStarting();
+      return;
+    }
     if (!canStartVoiceCapture(pluginStatus)) {
       showError(`语音不可用：${voicePluginStatusLabel(pluginStatus)}`);
       return;

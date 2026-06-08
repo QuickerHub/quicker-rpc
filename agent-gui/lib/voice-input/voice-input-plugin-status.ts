@@ -43,5 +43,10 @@ export function voicePluginStatusLabel(status: VoicePluginStatus): string {
 }
 
 export function canUseVoiceInput(status: VoicePluginStatus): boolean {
-  return status === "running" || status === "starting";
+  return status === "running";
+}
+
+/** Plugin installed but runtime not ready yet (bootstrapping or loading model). */
+export function isVoiceRuntimeWarmingUp(status: VoicePluginStatus): boolean {
+  return status === "starting" || status === "installed";
 }

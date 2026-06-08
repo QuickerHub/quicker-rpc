@@ -33,6 +33,16 @@ function shouldSettingsBackgroundPoll(
   );
 }
 
+export type VoiceRuntimeMeta = {
+  connected: boolean;
+  starting: boolean;
+  port: number;
+  version?: string;
+  modelId?: string;
+  executionProvider?: string;
+  disconnectedMessage?: string;
+};
+
 export type VoiceSettingsPanelSnapshot = {
   hostStatus: TauriVoicePluginStatusDto | null;
   pluginInstalled: boolean;
@@ -40,10 +50,35 @@ export type VoiceSettingsPanelSnapshot = {
   runtimeOnline: boolean;
   runtimePhase: VoicePluginStatus;
   runtimeDetail: string | null;
+  runtimeMeta: VoiceRuntimeMeta | null;
   activeModelId: string | null;
   displayLabel: string;
   displaySubline: string | null;
 };
+
+function buildRuntimeMeta(
+  health: Awaited<ReturnType<typeof fetchVoiceRuntimeHealth>>,
+  port: number,
+): VoiceRuntimeMeta {
+  if (!health) {
+    return {
+      connected: false,
+      starting: false,
+      port,
+      disconnectedMessage: `未连接 :${port}`,
+    };
+  }
+  const modelId =
+    health.modelId && health.modelId !== "stub" ? health.modelId : undefined;
+  return {
+    connected: health.ready === true,
+    starting: health.ok === true && health.ready !== true,
+    port,
+    version: health.runtimeVersion,
+    modelId,
+    executionProvider: health.executionProvider,
+  };
+}
 
 function buildRuntimeDetail(
   health: Awaited<ReturnType<typeof fetchVoiceRuntimeHealth>>,
@@ -84,6 +119,7 @@ function buildSnapshot(params: {
   hostLoading: boolean;
   runtimePhase: VoicePluginStatus;
   runtimeDetail: string | null;
+  runtimeMeta?: VoiceRuntimeMeta | null;
   activeModelId?: string | null;
 }): VoiceSettingsPanelSnapshot {
   const pluginInstalled =
@@ -101,6 +137,7 @@ function buildSnapshot(params: {
     runtimeOnline,
     runtimePhase: params.runtimePhase,
     runtimeDetail: params.runtimeDetail,
+    runtimeMeta: params.runtimeMeta ?? null,
     activeModelId: params.activeModelId ?? null,
     displayLabel: buildDisplayLabel(
       pluginInstalled,
@@ -124,6 +161,7 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
       hostLoading: true,
       runtimePhase: "not_installed",
       runtimeDetail: null,
+      runtimeMeta: null,
       activeModelId: null,
     }),
   );
@@ -137,6 +175,7 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
           hostLoading: false,
           runtimePhase: "running",
           runtimeDetail: "mock 模式",
+          runtimeMeta: null,
           activeModelId: null,
         }),
       );
@@ -171,6 +210,7 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
             hostLoading: false,
             runtimePhase: "downloading",
             runtimeDetail: hostStatus.message,
+            runtimeMeta: null,
             activeModelId: null,
           }),
         );
@@ -187,6 +227,7 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
         runtimePhase = "installed";
       }
 
+      const runtimeMeta = buildRuntimeMeta(health, port);
       const runtimeDetail =
         inTauri && !hostStatus && runtimePhase === "error"
           ? "无法读取语音插件状态，请重启 QuickerAgent 或点「安装」重试"
@@ -198,6 +239,7 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
           hostLoading: false,
           runtimePhase,
           runtimeDetail,
+          runtimeMeta,
           activeModelId:
             health?.modelId && health.modelId !== "stub" ? health.modelId : null,
         }),
@@ -209,6 +251,7 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
           hostLoading: false,
           runtimePhase: "error",
           runtimeDetail: "检测失败，请点「重新检测」或重启应用",
+          runtimeMeta: null,
           activeModelId: null,
         }),
       );

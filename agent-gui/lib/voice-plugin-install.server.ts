@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import {
   createReadStream,
   existsSync,
@@ -633,6 +633,8 @@ export function writeVoicePluginSettingsFile(
   writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
 }
 
+const PARAFORMER_MIN_ONNX_BYTES = 1024 * 1024;
+
 function onnxModelReady(dir: string): boolean {
   return (
     existsSync(join(dir, "tokens.txt"))
@@ -641,45 +643,117 @@ function onnxModelReady(dir: string): boolean {
   );
 }
 
+function paraformerModelValid(dir: string): boolean {
+  if (!onnxModelReady(dir)) return false;
+  const onnxPath = existsSync(join(dir, "model.int8.onnx"))
+    ? join(dir, "model.int8.onnx")
+    : join(dir, "model.onnx");
+  try {
+    return statSync(onnxPath).size >= PARAFORMER_MIN_ONNX_BYTES;
+  } catch {
+    return false;
+  }
+}
+
+export function resolveVoiceModelDir(
+  modelId: "standard" | "lightweight",
+): string {
+  const root = voicePluginRoot();
+  const subdir = modelId === "lightweight" ? PARAFORMER_SUBDIR : MODEL_SUBDIR;
+  if (modelId === "standard" && verifyModelIdentity(modelDir(root))) {
+    return modelDir(root);
+  }
+  return join(root, "models", subdir);
+}
+
 export function isVoiceModelInstalled(
   modelId: "standard" | "lightweight",
 ): boolean {
-  const root = voicePluginRoot();
-  const subdir = modelId === "lightweight" ? PARAFORMER_SUBDIR : MODEL_SUBDIR;
   if (modelId === "standard") {
-    return modelReady(root) || onnxModelReady(join(root, "models", subdir));
+    const root = voicePluginRoot();
+    return (
+      verifyModelIdentity(modelDir(root))
+      || verifyModelIdentity(join(root, "models", MODEL_SUBDIR))
+    );
   }
-  return onnxModelReady(join(root, "models", subdir));
+  return paraformerModelValid(resolveVoiceModelDir("lightweight"));
+}
+
+export function isVoiceModelPartial(
+  modelId: "standard" | "lightweight",
+): boolean {
+  const dir = resolveVoiceModelDir(modelId);
+  if (!existsSync(dir)) return false;
+  try {
+    const hasEntries = readdirSync(dir).some(
+      (name) => name !== ".gitkeep" && name !== "README.md",
+    );
+    return hasEntries && !isVoiceModelInstalled(modelId);
+  } catch {
+    return false;
+  }
+}
+
+export function removeVoiceModel(modelId: "standard" | "lightweight"): void {
+  const root = voicePluginRoot();
+  const dir = resolveVoiceModelDir(modelId);
+  if (existsSync(dir)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  if (modelId === "standard") {
+    const legacy = modelDir(root);
+    if (existsSync(legacy) && legacy !== dir) {
+      rmSync(legacy, { recursive: true, force: true });
+    }
+  }
 }
 
 let modelDownloadInFlight = false;
 let modelDownloadError: string | null = null;
+let modelDownloadProgress: VoiceInstallProgress | null = null;
 
-export function getVoiceModelDownloadState(): {
-  inFlight: boolean;
-  error: string | null;
-} {
-  return { inFlight: modelDownloadInFlight, error: modelDownloadError };
+const MODEL_DOWNLOAD_PROGRESS_MARKER = "QUICKER_VOICE_PROGRESS";
+
+function setModelDownloadProgress(
+  phase: string,
+  percent: number,
+  message: string,
+): void {
+  modelDownloadProgress = {
+    phase,
+    percent: Math.max(0, Math.min(100, Math.round(percent))),
+    message,
+  };
 }
 
-export async function downloadVoiceAsrModel(
+function parseModelDownloadStdoutLine(line: string): void {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith(`${MODEL_DOWNLOAD_PROGRESS_MARKER}\t`)) return;
+  const parts = trimmed.split("\t");
+  const percent = Number(parts[1]);
+  const message = parts.slice(2).join("\t").trim();
+  if (!Number.isFinite(percent) || !message) return;
+  setModelDownloadProgress("download", percent, message);
+}
+
+function runVoiceModelDownload(
   preset: "sensevoice" | "paraformer",
+  force = false,
 ): Promise<void> {
-  if (modelDownloadInFlight) {
-    throw new Error("模型正在下载中，请稍候");
-  }
   const runtimeProject = join(repoRoot(), "voice-asr-runtime");
   if (!existsSync(join(runtimeProject, "pyproject.toml"))) {
-    throw new Error("未找到 voice-asr-runtime 项目目录");
+    return Promise.reject(new Error("未找到 voice-asr-runtime 项目目录"));
   }
 
-  modelDownloadInFlight = true;
-  modelDownloadError = null;
   const pluginRoot = voicePluginRoot();
   mkdirSync(pluginRoot, { recursive: true });
+  const modelId = preset === "paraformer" ? "lightweight" : "standard";
+  if (force || isVoiceModelPartial(modelId)) {
+    removeVoiceModel(modelId);
+  }
 
-  try {
-    await execFileAsync(
+  return new Promise((resolve, reject) => {
+    const child = spawn(
       "uv",
       [
         "run",
@@ -690,23 +764,90 @@ export async function downloadVoiceAsrModel(
         [
           "from pathlib import Path",
           "from quicker_voice_runtime.download_model import ensure_asr_model",
-          `ensure_asr_model(root=Path(${JSON.stringify(pluginRoot)}), preset=${JSON.stringify(preset)})`,
+          `ensure_asr_model(root=Path(${JSON.stringify(pluginRoot)}), preset=${JSON.stringify(preset)}, force=${force ? "True" : "False"})`,
         ].join("; "),
       ],
       {
         env: {
           ...process.env,
+          PYTHONUTF8: "1",
+          PYTHONIOENCODING: "utf-8",
           QUICKER_VOICE_PLUGIN_ROOT: pluginRoot,
           QUICKER_VOICE_ASR_MODEL: preset,
         },
-        maxBuffer: 16 * 1024 * 1024,
+        windowsHide: true,
       },
     );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    modelDownloadError = message;
-    throw new Error(message);
-  } finally {
-    modelDownloadInFlight = false;
+
+    let stderr = "";
+    let stdoutBuffer = "";
+    child.stdout?.on("data", (data: Buffer | string) => {
+      stdoutBuffer += Buffer.isBuffer(data) ? data.toString("utf8") : data;
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() ?? "";
+      for (const line of lines) {
+        parseModelDownloadStdoutLine(line);
+      }
+    });
+    child.stderr?.on("data", (data: Buffer | string) => {
+      stderr += Buffer.isBuffer(data) ? data.toString("utf8") : data;
+    });
+    child.on("error", (err) => {
+      reject(err);
+    });
+    child.on("close", (code) => {
+      if (stdoutBuffer.trim()) {
+        parseModelDownloadStdoutLine(stdoutBuffer);
+      }
+      if (code === 0) {
+        setModelDownloadProgress("done", 100, "模型下载完成");
+        resolve();
+        return;
+      }
+      const tail = stderr.trim().split(/\r?\n/).slice(-3).join(" ").trim();
+      reject(new Error(tail || `模型下载失败（退出码 ${code ?? "unknown"}）`));
+    });
+  });
+}
+
+export function getVoiceModelDownloadState(): {
+  inFlight: boolean;
+  error: string | null;
+  progress: VoiceInstallProgress | null;
+} {
+  return {
+    inFlight: modelDownloadInFlight,
+    error: modelDownloadError,
+    progress: modelDownloadProgress,
+  };
+}
+
+export function startVoiceModelDownload(
+  preset: "sensevoice" | "paraformer",
+  options?: { force?: boolean },
+): { ok: boolean; error?: string } {
+  if (modelDownloadInFlight) {
+    return { ok: false, error: "模型正在下载中，请稍候" };
   }
+
+  const force = options?.force === true;
+  modelDownloadInFlight = true;
+  modelDownloadError = null;
+  setModelDownloadProgress(
+    "prepare",
+    0,
+    force ? "准备重新下载模型…" : "准备下载模型…",
+  );
+
+  void runVoiceModelDownload(preset, force)
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      modelDownloadError = message;
+      setModelDownloadProgress("error", 0, message);
+    })
+    .finally(() => {
+      modelDownloadInFlight = false;
+    });
+
+  return { ok: true };
 }

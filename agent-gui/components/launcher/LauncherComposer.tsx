@@ -16,6 +16,7 @@ import {
 import { LLM_KEYS_UPDATED_EVENT } from "@/lib/llm-settings-events";
 import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
 import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
+import { notifyVoiceServiceStarting } from "@/lib/voice-input/voice-input-notify";
 import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 import { useGlobalVoiceToggle } from "@/lib/voice-input/use-global-voice-toggle";
 import { useLauncherTauriHidden } from "@/lib/launcher/use-launcher-tauri-hidden";
@@ -152,6 +153,7 @@ function LauncherComposer({
     pluginStatus: voiceInput.pluginStatus,
     onStart: voiceInput.startVoiceInput,
     onStop: voiceInput.stopVoiceInput,
+    onStarting: notifyVoiceServiceStarting,
     onUnavailable: handleVoiceSetup,
     onGlobalActivate: activateLauncherForGlobalVoice,
   });
@@ -285,6 +287,7 @@ function LauncherComposer({
                 onVoiceStart={voiceInput.startVoiceInput}
                 onVoiceStop={voiceInput.stopVoiceInput}
                 onVoiceSetup={handleVoiceSetup}
+                onVoiceStarting={notifyVoiceServiceStarting}
               />
             </div>
           </div>

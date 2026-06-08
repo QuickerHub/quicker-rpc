@@ -49,6 +49,7 @@ export function useGlobalVoiceToggle({
     action.pluginStatus,
     action.onStart,
     action.onStop,
+    action.onStarting,
     action.onUnavailable,
   ]);
 }

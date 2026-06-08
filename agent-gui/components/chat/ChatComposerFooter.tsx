@@ -23,6 +23,7 @@ import { ModelSelector } from "./ModelSelector";
 import type { ChatMode } from "@/lib/chat-mode";
 import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
 import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
+import { notifyVoiceServiceStarting } from "@/lib/voice-input/voice-input-notify";
 import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 import {
   ComposerMarkupField,
@@ -376,6 +377,7 @@ const ChatComposerFooterInner = forwardRef<
                   onVoiceStart={voiceInput.startVoiceInput}
                   onVoiceStop={voiceInput.stopVoiceInput}
                   onVoiceSetup={handleVoiceSetup}
+                  onVoiceStarting={notifyVoiceServiceStarting}
                 />
               </div>
             </div>

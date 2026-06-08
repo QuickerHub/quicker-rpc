@@ -562,6 +562,10 @@ fn spawn_node_background(app: AppHandle, config: ProductionRuntimeConfig) {
                     }
                 }
                 open_production_ui(&app, &ui_url);
+                voice_plugin::spawn_voice_runtime_background(app.clone());
+                clipboard_history_plugin::spawn_clipboard_runtime_background(
+                    app.clone(),
+                );
             }
             Err(err) => {
                 let app_for_dialog = app.clone();
@@ -634,11 +638,6 @@ fn spawn_production_startup(app: AppHandle) {
         if STARTUP_CANCELLED.load(Ordering::SeqCst) {
             return;
         }
-
-        emit_startup_status(&app, "正在启动语音服务…");
-        voice_plugin::spawn_voice_runtime_background(app.clone());
-
-        clipboard_history_plugin::spawn_clipboard_runtime_background(app.clone());
 
         spawn_qkrpc_background(app.clone(), config.clone());
         spawn_node_background(app, config);
@@ -851,12 +850,7 @@ pub fn run() {
                     let _ = win.center();
                     let _ = win.show();
                 }
-                if std::env::var("AGENT_GUI_VOICE_RUNTIME")
-                    .ok()
-                    .is_some_and(|value| value == "1")
-                {
-                    voice_plugin::spawn_voice_runtime_background(app.handle().clone());
-                }
+                voice_plugin::spawn_voice_runtime_background(app.handle().clone());
                 clipboard_history_plugin::spawn_clipboard_runtime_background(
                     app.handle().clone(),
                 );
