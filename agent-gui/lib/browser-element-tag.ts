@@ -24,9 +24,9 @@ function escapeAttrValue(value: string): string {
     .replace(/</g, "&lt;");
 }
 
-function readAttr(attrs: Record<string, string>, key: string): string | null {
+function readAttr(attrs: Record<string, string>, key: string): string | undefined {
   const value = attrs[key]?.trim();
-  return value || null;
+  return value || undefined;
 }
 
 function readNumberAttr(attrs: Record<string, string>, key: string): number | null {
