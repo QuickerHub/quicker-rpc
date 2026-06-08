@@ -28,6 +28,7 @@ declare module "@/lib/voice-runtime-lifecycle.mjs" {
     agentGuiRoot: string,
     child: import("node:child_process").ChildProcess,
   ): void;
+  export function stopVoiceRuntime(agentGuiRoot: string): void;
   export function ensureVoiceRuntime(
     agentGuiRoot: string,
     host: string,
