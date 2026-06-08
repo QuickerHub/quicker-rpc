@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 import type { PinnedAction } from "@/lib/action-context";
+import type { BrowserElementTag } from "@/lib/browser-element-tag";
 import {
   canSendComposedMessage,
   parseUserMessageSegments,
@@ -45,6 +46,7 @@ export type ChatComposerFooterHandle = {
   setValue: (text: string) => void;
   clear: () => void;
   insertActionTag: (action: PinnedAction) => void;
+  insertBrowserElementTag: (element: BrowserElementTag) => void;
   insertMentionTrigger: () => void;
   insertPlainText: (text: string) => void;
   beginVoiceStream: () => void;
@@ -208,6 +210,9 @@ const ChatComposerFooterInner = forwardRef<
       },
       insertActionTag: (action: PinnedAction) => {
         composerRef.current?.insertActionTag(action);
+      },
+      insertBrowserElementTag: (element: BrowserElementTag) => {
+        composerRef.current?.insertBrowserElementTag(element);
       },
       insertMentionTrigger: () => {
         composerRef.current?.insertMentionTrigger();

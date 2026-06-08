@@ -1,7 +1,14 @@
+const MAX_DEVICE_SCALE_FACTOR = 3;
+
 /** @param {import('ws').WebSocket} ws @param {Record<string, unknown>} payload */
 function sendJson(ws, payload) {
   if (ws.readyState !== ws.OPEN) return;
   ws.send(JSON.stringify(payload));
+}
+
+/** @param {number} raw */
+function clampDeviceScaleFactor(raw) {
+  return Math.min(MAX_DEVICE_SCALE_FACTOR, Math.max(1, Number(raw) || 1));
 }
 
 export class PanelStreamConnection {
@@ -63,15 +70,13 @@ export class PanelStreamConnection {
     if (msgType === "viewport") {
       const width = Number(message.width ?? 0);
       const height = Number(message.height ?? 0);
-      const deviceScaleFactor = Math.min(
-        2.5,
-        Math.max(1, Number(message.deviceScaleFactor ?? 1)),
-      );
+      const deviceScaleFactor = clampDeviceScaleFactor(message.deviceScaleFactor ?? 1);
       if (width < 120 || height < 120) return;
-      const session = await this._manager.ensureSession(this._sessionId);
-      await session.page.setViewportSize({ width, height });
+      const prev = { ...this._viewport };
       this._viewport = { width, height, deviceScaleFactor };
-      await this._applyDeviceMetrics();
+      await this._manager.ensureSession(this._sessionId);
+      await this._syncViewport();
+      await this._restartScreencastIfNeeded(prev);
       return;
     }
 
@@ -123,6 +128,7 @@ export class PanelStreamConnection {
   async _startScreencast() {
     if (this._screencastStarted) return;
     const session = await this._manager.ensureSession(this._sessionId);
+    await this._syncViewport();
     this._cdp = await session.context.newCDPSession(session.page);
     this._cdp.on("Page.screencastFrame", (params) => {
       void this._onScreencastFrame(params);
@@ -133,6 +139,36 @@ export class PanelStreamConnection {
       everyNthFrame: 1,
     });
     this._screencastStarted = true;
+  }
+
+  async _syncViewport() {
+    const session = await this._manager.ensureSession(this._sessionId);
+    const { width, height } = this._viewport;
+    await session.page.setViewportSize({ width, height });
+    await this._applyDeviceMetrics();
+  }
+
+  /** @param {{ width: number; height: number; deviceScaleFactor: number }} prev */
+  async _restartScreencastIfNeeded(prev) {
+    if (!this._screencastStarted || !this._cdp) return;
+    const { width, height, deviceScaleFactor } = this._viewport;
+    if (
+      prev.width === width
+      && prev.height === height
+      && prev.deviceScaleFactor === deviceScaleFactor
+    ) {
+      return;
+    }
+    try {
+      await this._cdp.send("Page.stopScreencast");
+      await this._applyDeviceMetrics();
+      await this._cdp.send("Page.startScreencast", {
+        format: "png",
+        everyNthFrame: 1,
+      });
+    } catch (err) {
+      console.warn("[browser-runtime] screencast restart failed:", err);
+    }
   }
 
   /** @param {{ data?: string; sessionId?: string }} params */

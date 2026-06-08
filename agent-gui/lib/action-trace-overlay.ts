@@ -54,6 +54,8 @@ type StoreState = {
 const emptyStore: StoreState = { tabs: [] };
 let state: StoreState = emptyStore;
 const serverSnapshot: StoreState = emptyStore;
+const traceStateByThread = new Map<string, StoreState>();
+let activeTraceThreadId: string | null = null;
 const listeners = new Set<() => void>();
 
 const streamAbortByTab = new Map<string, AbortController>();
@@ -226,6 +228,18 @@ function upsertTab(
 
 export function getActionTraceTabs(): ActionTraceTabState[] {
   return state.tabs;
+}
+
+/** Swap visible trace tabs when the active chat thread changes. */
+export function switchActionTraceThread(threadId: string): void {
+  const nextId = threadId.trim();
+  if (!nextId || activeTraceThreadId === nextId) return;
+  if (activeTraceThreadId) {
+    traceStateByThread.set(activeTraceThreadId, state);
+  }
+  activeTraceThreadId = nextId;
+  state = traceStateByThread.get(nextId) ?? emptyStore;
+  notifyListeners();
 }
 
 export function getActionTraceTab(tabId: string): ActionTraceTabState | null {

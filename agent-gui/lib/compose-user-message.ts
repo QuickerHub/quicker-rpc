@@ -1,4 +1,9 @@
 import type { PinnedAction } from "@/lib/action-context";
+import type { BrowserElementTag } from "@/lib/browser-element-tag";
+import {
+  browserElementTagFromAttrs,
+  expandBrowserElementTagForModel,
+} from "@/lib/browser-element-tag";
 import { formatActionQkaForModel } from "@/lib/action-qka-prompt";
 import { formatActionIdShort } from "@/lib/action-patch-followup";
 import { normalizeActionId } from "@/lib/qka-markup";
@@ -17,7 +22,13 @@ const ACTION_TAG_RE = new RegExp(
 const QKA_LINK_TAG_RE =
   /<qka-link\s+([^>]*?)(?:\/>|>([\s\S]*?)<\/qka-link>)/gi;
 
-const INLINE_MARKUP_PROBE_RE = /<qkrpc-action-tag|<qka-link\s|<qka\s/i;
+const BROWSER_ELEMENT_TAG_RE = new RegExp(
+  "<qkrpc-browser-element\\s+([^>]*?)\\s*(?:/>|></qkrpc-browser-element>)",
+  "gi",
+);
+
+const INLINE_MARKUP_PROBE_RE =
+  /<qkrpc-action-tag|<qkrpc-browser-element|<qka-link\s|<qka\s/i;
 
 const LEGACY_ACTION_LINE_RE =
   /^\[动作:\s*([^\]]+)\]\s*actionId=([^\s,]+)(?:,\s*lastEdit=([^\n,]+))?/;
@@ -109,6 +120,12 @@ export function expandUserMessageForModel(text: string): string {
 
   let expandedAny = false;
   const expanded = text
+    .replace(BROWSER_ELEMENT_TAG_RE, (_full, attrStr: string) => {
+      const element = browserElementTagFromAttrs(parseHtmlAttrs(attrStr));
+      if (!element) return "";
+      expandedAny = true;
+      return expandBrowserElementTagForModel(element);
+    })
     .replace(ACTION_TAG_RE, (_full, attrStr: string) => {
       const action = pinnedActionFromTagAttrs(parseHtmlAttrs(attrStr));
       if (!action) return "";
@@ -130,6 +147,7 @@ export function expandUserMessageForModel(text: string): string {
 
 export type UserMessageSegment =
   | { type: "tag"; action: PinnedAction }
+  | { type: "browser-element"; element: BrowserElementTag }
   | { type: "text"; text: string };
 
 function pinnedActionFromQkaLinkAttrs(
@@ -156,14 +174,25 @@ function pinnedActionFromQkaRef(
   };
 }
 
-type InlineUserMarkupHit = {
-  index: number;
-  length: number;
-  action: PinnedAction;
-};
+type InlineUserMarkupHit =
+  | { index: number; length: number; kind: "action"; action: PinnedAction }
+  | { index: number; length: number; kind: "browser-element"; element: BrowserElementTag };
 
 function findInlineUserMarkupHits(text: string): InlineUserMarkupHit[] {
   const hits: InlineUserMarkupHit[] = [];
+
+  const browserRe = new RegExp(BROWSER_ELEMENT_TAG_RE.source, "gi");
+  let browserMatch: RegExpExecArray | null;
+  while ((browserMatch = browserRe.exec(text)) !== null) {
+    const element = browserElementTagFromAttrs(parseHtmlAttrs(browserMatch[1]));
+    if (!element) continue;
+    hits.push({
+      index: browserMatch.index,
+      length: browserMatch[0].length,
+      kind: "browser-element",
+      element,
+    });
+  }
 
   const tagRe = new RegExp(ACTION_TAG_RE.source, "gi");
   let tagMatch: RegExpExecArray | null;
@@ -173,6 +202,7 @@ function findInlineUserMarkupHits(text: string): InlineUserMarkupHit[] {
     hits.push({
       index: tagMatch.index,
       length: tagMatch[0].length,
+      kind: "action",
       action,
     });
   }
@@ -185,6 +215,7 @@ function findInlineUserMarkupHits(text: string): InlineUserMarkupHit[] {
     hits.push({
       index: match.index,
       length: match.length,
+      kind: "action",
       action,
     });
   }
@@ -201,7 +232,11 @@ function parseInlineTagSegments(text: string): UserMessageSegment[] {
     if (hit.index > last) {
       segments.push({ type: "text", text: text.slice(last, hit.index) });
     }
-    segments.push({ type: "tag", action: hit.action });
+    if (hit.kind === "browser-element") {
+      segments.push({ type: "browser-element", element: hit.element });
+    } else {
+      segments.push({ type: "tag", action: hit.action });
+    }
     last = hit.index + hit.length;
   }
   if (last < text.length) {
@@ -214,7 +249,12 @@ function parseInlineTagSegments(text: string): UserMessageSegment[] {
 export function parseUserMessageSegments(text: string): UserMessageSegment[] {
   if (!text) return [];
 
-  if (text.includes("<qkrpc-action-tag") || text.includes("<qka-link") || text.includes("<qka")) {
+  if (
+    text.includes("<qkrpc-action-tag")
+    || text.includes("<qkrpc-browser-element")
+    || text.includes("<qka-link")
+    || text.includes("<qka")
+  ) {
     return parseInlineTagSegments(text);
   }
 
@@ -267,6 +307,7 @@ export function canSendComposedMessage(draft: string): boolean {
   return segments.some(
     (s) =>
       s.type === "tag"
+      || s.type === "browser-element"
       || (s.type === "text" && s.text.trim().length > 0),
   );
 }
@@ -274,6 +315,7 @@ export function canSendComposedMessage(draft: string): boolean {
 /** Clipboard / paste round-trip uses stored markup or legacy action lines. */
 export function hasPasteableUserMessageFormat(text: string): boolean {
   if (text.includes("<qkrpc-action-tag")) return true;
+  if (text.includes("<qkrpc-browser-element")) return true;
   if (text.includes("<qka-link")) return true;
   if (text.includes("<qka")) return true;
   return /^\[动作:\s*[^\]]+\]\s*actionId=/m.test(text);

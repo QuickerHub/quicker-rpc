@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import type { PinnedAction } from "@/lib/action-context";
+import type { BrowserElementTag } from "@/lib/browser-element-tag";
 import {
   applyComposerMentionTag,
   getComposerMentionAnchorRect,
@@ -21,6 +22,7 @@ import {
 import {
   beginComposerVoiceStream,
   cancelComposerVoiceStream,
+  createBrowserElementTagElement,
   createComposerTagElement,
   createComposerTagSpacer,
   deleteComposerTagWithUndo,
@@ -52,6 +54,7 @@ export type ComposerMarkupFieldHandle = {
   /** Focus composer and place caret at end of content (e.g. branch-edit). */
   focusAtEnd: () => void;
   insertActionTag: (action: PinnedAction) => void;
+  insertBrowserElementTag: (element: BrowserElementTag) => void;
   /** Insert @ and open the action mention picker (onboarding / toolbar). */
   insertMentionTrigger: () => void;
   /** Insert plain text at caret (e.g. pasted snippets). */
@@ -223,6 +226,17 @@ export const ComposerMarkupField = forwardRef<
         if (!root || disabled) return;
         closeMention();
         const chip = createComposerTagElement(action);
+        const spacer = createComposerTagSpacer();
+        insertNodeAtSelection(root, chip);
+        chip.after(spacer);
+        placeCaretAfterComposerTagSpacer(spacer, root);
+        emitChange();
+      },
+      insertBrowserElementTag: (element: BrowserElementTag) => {
+        const root = rootRef.current;
+        if (!root || disabled) return;
+        closeMention();
+        const chip = createBrowserElementTagElement(element);
         const spacer = createComposerTagSpacer();
         insertNodeAtSelection(root, chip);
         chip.after(spacer);

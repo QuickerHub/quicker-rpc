@@ -21,7 +21,7 @@ export const EMPTY_BROWSER_PANEL_SNAPSHOT: BrowserPanelSnapshot = {
 };
 
 export type BrowserPanelInteractRequest = {
-  action: "navigate" | "back" | "forward" | "reload" | "click_xy" | "screenshot";
+  action: "navigate" | "back" | "forward" | "reload" | "click_xy" | "pick_element" | "screenshot";
   sessionId?: string;
   url?: string;
   x?: number;

@@ -7,6 +7,7 @@ import {
   useState,
   type RefObject,
 } from "react";
+import { browserPanelDeviceScaleFactor } from "@/lib/browser-panel-display-scale";
 import { buildBrowserPanelWsUrl } from "@/lib/browser-panel-stream-config";
 import { requestBrowserRuntimeStart } from "@/lib/browser-dev-runtime";
 
@@ -51,6 +52,7 @@ export function useBrowserPanelStream({
   const onStateRef = useRef(onState);
   const pendingMouseMoveRef = useRef<{ x: number; y: number } | null>(null);
   const mouseMoveFrameRef = useRef<number | null>(null);
+  const viewportPushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   onStateRef.current = onState;
 
   const send = useCallback((message: OutboundMessage) => {
@@ -59,19 +61,35 @@ export function useBrowserPanelStream({
     ws.send(JSON.stringify(message));
   }, []);
 
-  const pushViewport = useCallback(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const rect = host.getBoundingClientRect();
-    const width = Math.max(120, Math.round(rect.width));
-    const height = Math.max(120, Math.round(rect.height));
-    const deviceScaleFactor = Math.min(
-      2.5,
-      Math.max(1, Math.round((window.devicePixelRatio || 1) * 100) / 100),
-    );
-    viewportRef.current = { width, height };
-    send({ type: "viewport", width, height, deviceScaleFactor });
-  }, [hostRef, send]);
+  const pushViewport = useCallback(
+    (immediate = false) => {
+      const host = hostRef.current;
+      if (!host) return;
+      const rect = host.getBoundingClientRect();
+      const width = Math.max(120, Math.round(rect.width));
+      const height = Math.max(120, Math.round(rect.height));
+      const deviceScaleFactor = browserPanelDeviceScaleFactor();
+      viewportRef.current = { width, height };
+
+      const deliver = () => {
+        viewportPushTimerRef.current = null;
+        send({ type: "viewport", width, height, deviceScaleFactor });
+      };
+
+      if (immediate) {
+        if (viewportPushTimerRef.current) {
+          clearTimeout(viewportPushTimerRef.current);
+          viewportPushTimerRef.current = null;
+        }
+        deliver();
+        return;
+      }
+
+      if (viewportPushTimerRef.current) clearTimeout(viewportPushTimerRef.current);
+      viewportPushTimerRef.current = setTimeout(deliver, 120);
+    },
+    [hostRef, send],
+  );
 
   const connect = useCallback(async () => {
     if (!active || wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -93,7 +111,7 @@ export function useBrowserPanelStream({
         setConnected(true);
         setConnecting(false);
         send({ type: "subscribe", sessionId });
-        pushViewport();
+        pushViewport(true);
       };
 
       ws.onmessage = (event) => {
@@ -153,6 +171,10 @@ export function useBrowserPanelStream({
     }
     void connect();
     return () => {
+      if (viewportPushTimerRef.current) {
+        clearTimeout(viewportPushTimerRef.current);
+        viewportPushTimerRef.current = null;
+      }
       wsRef.current?.close();
       wsRef.current = null;
     };
@@ -170,24 +192,32 @@ export function useBrowserPanelStream({
     return () => ro.disconnect();
   }, [active, connected, hostRef, pushViewport]);
 
-  const clickAt = useCallback(
+  const mapClientToViewport = useCallback(
     (clientX: number, clientY: number, rect: DOMRect) => {
       const { width, height } = viewportRef.current;
-      if (rect.width <= 0 || rect.height <= 0) return;
-      const x = Math.round(((clientX - rect.left) / rect.width) * width);
-      const y = Math.round(((clientY - rect.top) / rect.height) * height);
-      send({ type: "click", x, y, button: "left" });
+      if (rect.width <= 0 || rect.height <= 0) return null;
+      return {
+        x: Math.round(((clientX - rect.left) / rect.width) * width),
+        y: Math.round(((clientY - rect.top) / rect.height) * height),
+      };
     },
-    [send],
+    [],
+  );
+
+  const clickAt = useCallback(
+    (clientX: number, clientY: number, rect: DOMRect) => {
+      const mapped = mapClientToViewport(clientX, clientY, rect);
+      if (!mapped) return;
+      send({ type: "click", x: mapped.x, y: mapped.y, button: "left" });
+    },
+    [mapClientToViewport, send],
   );
 
   const moveAt = useCallback(
     (clientX: number, clientY: number, rect: DOMRect) => {
-      const { width, height } = viewportRef.current;
-      if (rect.width <= 0 || rect.height <= 0) return;
-      const x = Math.round(((clientX - rect.left) / rect.width) * width);
-      const y = Math.round(((clientY - rect.top) / rect.height) * height);
-      pendingMouseMoveRef.current = { x, y };
+      const mapped = mapClientToViewport(clientX, clientY, rect);
+      if (!mapped) return;
+      pendingMouseMoveRef.current = mapped;
       if (mouseMoveFrameRef.current != null) return;
       mouseMoveFrameRef.current = window.requestAnimationFrame(() => {
         mouseMoveFrameRef.current = null;
@@ -196,7 +226,7 @@ export function useBrowserPanelStream({
         if (pending) send({ type: "mousemove", ...pending });
       });
     },
-    [send],
+    [mapClientToViewport, send],
   );
 
   const wheelAt = useCallback(
@@ -232,6 +262,7 @@ export function useBrowserPanelStream({
     wheelAt,
     pressKey,
     typeText,
+    mapClientToViewport,
     retryConnect: connect,
   };
 }

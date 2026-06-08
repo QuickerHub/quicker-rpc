@@ -10,7 +10,7 @@ import {
 export const runtime = "nodejs";
 
 const bodySchema = z.object({
-  action: z.enum(["navigate", "back", "forward", "reload", "click_xy", "screenshot"]),
+  action: z.enum(["navigate", "back", "forward", "reload", "click_xy", "pick_element", "screenshot"]),
   sessionId: z.string().optional(),
   url: z.string().optional(),
   x: z.number().int().min(0).optional(),
@@ -35,6 +35,14 @@ function mapPanelAction(input: z.infer<typeof bodySchema>): BrowserToolInput | n
       if (input.x == null || input.y == null) return null;
       return {
         action: "click_xy",
+        sessionId,
+        x: input.x,
+        y: input.y,
+      };
+    case "pick_element":
+      if (input.x == null || input.y == null) return null;
+      return {
+        action: "pick_element",
         sessionId,
         x: input.x,
         y: input.y,

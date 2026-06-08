@@ -1,4 +1,12 @@
 import type { PinnedAction } from "@/lib/action-context";
+import type { BrowserElementTag } from "@/lib/browser-element-tag";
+import {
+  BROWSER_ELEMENT_TAG_ATTR,
+  BROWSER_ELEMENT_TAG_CLASS,
+  browserElementTagFromDom,
+  formatBrowserElementTagMarkup,
+  isBrowserElementTagElement,
+} from "@/lib/browser-element-tag";
 import { isHttpIconUrl } from "@/lib/fa-icon";
 import {
   formatActionTagMarkup,
@@ -14,6 +22,10 @@ export function isComposerTagElement(el: Element): boolean {
     && el.classList.contains(COMPOSER_TAG_CLASS)
     && el.hasAttribute("data-qkrpc-id")
   );
+}
+
+export function isComposerChipElement(el: Element): boolean {
+  return isComposerTagElement(el) || isBrowserElementTagElement(el);
 }
 
 export function actionFromTagElement(el: HTMLElement): PinnedAction | null {
@@ -33,8 +45,57 @@ export function actionFromTagElement(el: HTMLElement): PinnedAction | null {
 }
 
 export function tagElementToMarkup(el: HTMLElement): string {
+  const browserElement = browserElementTagFromDom(el);
+  if (browserElement) return formatBrowserElementTagMarkup(browserElement);
   const action = actionFromTagElement(el);
   return action ? formatActionTagMarkup(action) : "";
+}
+
+/** Build a non-editable browser-element chip for the composer. */
+export function createBrowserElementTagElement(
+  element: BrowserElementTag,
+): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.className = `${COMPOSER_TAG_CLASS} ${BROWSER_ELEMENT_TAG_CLASS}`;
+  span.contentEditable = "false";
+  span.setAttribute(BROWSER_ELEMENT_TAG_ATTR, element.tagId);
+  span.setAttribute("data-browser-title", element.chipTitle);
+  span.setAttribute("data-browser-url", element.url);
+  span.setAttribute("data-browser-pick-x", String(element.pickX));
+  span.setAttribute("data-browser-pick-y", String(element.pickY));
+
+  const optional: Array<[string, string | null | undefined]> = [
+    ["data-browser-page-title", element.title ?? null],
+    ["data-browser-ref", element.ref],
+    ["data-browser-ref-role", element.refRole],
+    ["data-browser-ref-name", element.refName],
+    ["data-browser-tag", element.tagName],
+    ["data-browser-text", element.text],
+    ["data-browser-id", element.elementId],
+    ["data-browser-class", element.className],
+    ["data-browser-href", element.href],
+    ["data-browser-value", element.value],
+    ["data-browser-snapshot-line", element.snapshotLine],
+    ["data-browser-session-id", element.sessionId],
+  ];
+  for (const [key, value] of optional) {
+    const trimmed = value?.trim();
+    if (trimmed) span.setAttribute(key, trimmed);
+  }
+
+  const icon = document.createElement("span");
+  icon.className = "composer-prompt-tag__icon composer-prompt-tag__icon--browser";
+  icon.setAttribute("aria-hidden", "true");
+  icon.innerHTML =
+    '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 8.5 8.5 1.5M8.5 1.5H5.5M8.5 1.5V4.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="2.75" cy="7.25" r="0.85" fill="currentColor"></circle></svg>';
+  span.append(icon);
+
+  const title = document.createElement("span");
+  title.className = "composer-prompt-tag__title";
+  title.textContent = element.chipTitle;
+  span.append(title);
+
+  return span;
 }
 
 /** Trailing spacer after an inline chip (backspace target + visual gap). */
@@ -119,6 +180,10 @@ export function renderMarkupIntoRoot(root: HTMLElement, markup: string): void {
       root.append(createComposerTagElement(segment.action));
       continue;
     }
+    if (segment.type === "browser-element") {
+      root.append(createBrowserElementTagElement(segment.element));
+      continue;
+    }
     appendTextWithNewlines(root, segment.text);
   }
 }
@@ -136,7 +201,7 @@ export function serializeComposerNode(node: Node): string {
   if (tag === "BR") {
     return "\n";
   }
-  if (isComposerTagElement(el)) {
+  if (isComposerChipElement(el)) {
     return tagElementToMarkup(el);
   }
   if (tag === "DIV" || tag === "P") {
@@ -185,8 +250,15 @@ function resolveTagInRoot(
   fragmentNode: Node,
 ): HTMLElement | null {
   if (fragmentNode.nodeType !== Node.ELEMENT_NODE) return null;
-  if (!isComposerTagElement(fragmentNode as Element)) return null;
-  const id = (fragmentNode as HTMLElement).getAttribute("data-qkrpc-id");
+  if (!isComposerChipElement(fragmentNode as Element)) return null;
+  const el = fragmentNode as HTMLElement;
+  const browserId = el.getAttribute(BROWSER_ELEMENT_TAG_ATTR);
+  if (browserId) {
+    return root.querySelector(
+      `[${BROWSER_ELEMENT_TAG_ATTR}="${CSS.escape(browserId)}"]`,
+    ) as HTMLElement | null;
+  }
+  const id = el.getAttribute("data-qkrpc-id");
   if (!id) return null;
   return root.querySelector(
     `[data-qkrpc-id="${CSS.escape(id)}"]`,
@@ -204,7 +276,7 @@ export function findComposerTagForBackspace(root: HTMLElement): HTMLElement | nu
   while (node && node !== root) {
     if (
       node.nodeType === Node.ELEMENT_NODE
-      && isComposerTagElement(node as Element)
+      && isComposerChipElement(node as Element)
     ) {
       return node as HTMLElement;
     }
@@ -242,7 +314,7 @@ export function findComposerTagForDelete(root: HTMLElement): HTMLElement | null 
   while (node && node !== root) {
     if (
       node.nodeType === Node.ELEMENT_NODE
-      && isComposerTagElement(node as Element)
+      && isComposerChipElement(node as Element)
     ) {
       return node as HTMLElement;
     }

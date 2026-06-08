@@ -2,6 +2,7 @@
 
 import { useCallback, type ClipboardEvent } from "react";
 import { ActionPromptTag } from "@/components/chat/ActionPromptTag";
+import { BrowserElementPromptTag } from "@/components/chat/BrowserElementPromptTag";
 import {
   hasPasteableUserMessageFormat,
   parseUserMessageSegments,
@@ -44,6 +45,15 @@ export function InlineUserMessage({ content }: InlineUserMessageProps) {
             <ActionPromptTag
               key={`${segment.action.id}-${index}`}
               action={segment.action}
+              variant="sent"
+            />
+          );
+        }
+        if (segment.type === "browser-element") {
+          return (
+            <BrowserElementPromptTag
+              key={`${segment.element.tagId}-${index}`}
+              element={segment.element}
               variant="sent"
             />
           );

@@ -8,12 +8,13 @@ import {
 } from "@/components/browser/embedded-browser-icons";
 import { EmbeddedBrowserRemoteView } from "@/components/browser/EmbeddedBrowserRemoteView";
 import { useEmbeddedBrowser } from "@/lib/embedded-browser-context";
+import { useBrowserElementPick } from "@/lib/use-browser-element-pick";
 import { useEmbeddedBrowserNav } from "@/lib/use-embedded-browser-nav";
 
 /** Side-panel browser: Playwright automation + live screencast (Agent browser tool). */
 export function WorkspaceEmbeddedBrowser() {
   const viewportRef = useRef<HTMLDivElement>(null);
-  const { snapshot, navigateSeq, navigateUrl, applySnapshot } =
+  const { snapshot, navigateSeq, navigateUrl, applySnapshot, activeThreadId } =
     useEmbeddedBrowser();
 
   const nav = useEmbeddedBrowserNav({
@@ -23,6 +24,15 @@ export function WorkspaceEmbeddedBrowser() {
     applySnapshot,
     enabled: true,
   });
+
+  const elementPick = useBrowserElementPick(activeThreadId);
+
+  const onPickAt = useCallback(
+    (viewportX: number, viewportY: number) => {
+      void elementPick.pickAt(viewportX, viewportY);
+    },
+    [elementPick],
+  );
 
   const onStreamState = useCallback(
     (state: { url: string; title: string; viewportWidth: number; viewportHeight: number }) => {
@@ -51,6 +61,26 @@ export function WorkspaceEmbeddedBrowser() {
         >
           {pageLabel}
         </span>
+        <button
+          type="button"
+          className={`workspace-explorer-action workspace-embedded-browser__pick${elementPick.pickMode ? " workspace-embedded-browser__pick--active" : ""}`}
+          disabled={nav.busy || nav.bootstrapping || elementPick.picking}
+          aria-pressed={elementPick.pickMode}
+          aria-label="选择元素"
+          title="选择页面元素并插入聊天输入框"
+          onClick={elementPick.togglePickMode}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+            <path
+              d="M2.5 11.5 11.5 2.5M11.5 2.5H7.5M11.5 2.5V6.5"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="4.25" cy="9.75" r="1.1" fill="currentColor" />
+          </svg>
+        </button>
         <span
           className="workspace-embedded-browser__badge"
           title="Playwright 自动化浏览器（Agent browser 工具）"
@@ -119,6 +149,19 @@ export function WorkspaceEmbeddedBrowser() {
         </div>
       ) : null}
 
+      {elementPick.pickError ? (
+        <div className="workspace-embedded-browser__error" role="alert">
+          <span>{elementPick.pickError}</span>
+          <button
+            type="button"
+            className="workspace-embedded-browser__error-retry"
+            onClick={elementPick.clearPickError}
+          >
+            关闭
+          </button>
+        </div>
+      ) : null}
+
       <div
         ref={viewportRef}
         className="workspace-embedded-browser__body embedded-browser__body"
@@ -129,17 +172,20 @@ export function WorkspaceEmbeddedBrowser() {
           <EmbeddedBrowserRemoteView
             active
             sessionId={nav.sessionId}
-            hostRef={viewportRef}
             retryToken={nav.retryToken + nav.streamToken}
             previewBase64={snapshot.previewBase64}
             previewMimeType={snapshot.previewMimeType}
             onState={onStreamState}
+            pickMode={elementPick.pickMode}
+            picking={elementPick.picking}
+            onPickAt={onPickAt}
           />
         )}
       </div>
 
       <p className="workspace-embedded-browser__hint">
         独立 Playwright 进程（:6017），与 QuickerAgent 主 WebView 分离；Agent 用 browser 工具操控同一 session。
+        {elementPick.pickMode ? " 选择模式：点击页面元素，会以标签插入聊天输入框。" : ""}
       </p>
     </section>
   );

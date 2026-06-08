@@ -32,7 +32,7 @@ const browserAgentActionSchema = z.enum([
 ]);
 
 /** Side-panel API only — captures preview images for the embedded browser UI. */
-const browserPanelOnlyActionSchema = z.enum(["screenshot"]);
+const browserPanelOnlyActionSchema = z.enum(["screenshot", "pick_element"]);
 
 const browserRuntimeActionSchema = z.union([
   browserAgentActionSchema,
@@ -88,6 +88,8 @@ function opForAction(action: z.infer<typeof browserRuntimeActionSchema>): string
       return "page.click";
     case "click_xy":
       return "page.click_xy";
+    case "pick_element":
+      return "page.pick_element";
     case "type":
       return "page.type";
     case "fill":
@@ -123,6 +125,7 @@ const SESSION_ENSURE_ACTIONS = new Set<z.infer<typeof browserRuntimeActionSchema
   "content",
   "click",
   "click_xy",
+  "pick_element",
   "type",
   "fill",
   "press",
@@ -156,15 +159,27 @@ export async function executeBrowserTool(
     );
   }
 
+  if (audience === "agent" && input.action === "pick_element") {
+    return formatLocalToolResult(
+      null,
+      false,
+      "pick_element is panel-only; user picks elements in the side-panel browser UI.",
+    );
+  }
+
   if (input.action === "navigate") {
     if (!input.url?.trim()) {
       return formatLocalToolResult(null, false, "url is required for navigate");
     }
   }
 
-  if (input.action === "click_xy") {
+  if (input.action === "click_xy" || input.action === "pick_element") {
     if (input.x == null || input.y == null) {
-      return formatLocalToolResult(null, false, "x and y are required for click_xy");
+      return formatLocalToolResult(
+        null,
+        false,
+        `x and y are required for ${input.action}`,
+      );
     }
   }
 

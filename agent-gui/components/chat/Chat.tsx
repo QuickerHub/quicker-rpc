@@ -84,6 +84,7 @@ import {
 import { WorkspaceExplorerPanel } from "@/components/workspace/WorkspaceExplorerPanel";
 import { AppMainWorkspaceSplit } from "@/components/workspace/AppMainWorkspaceSplit";
 import { EmbeddedBrowserProvider } from "@/lib/embedded-browser-context";
+import { ThreadSidePanelSync } from "@/lib/use-thread-side-panel-sync";
 import { useBrowserPanelMessageSync } from "@/lib/use-browser-panel-message-sync";
 import { WorkspaceMainEditorTabBridgeRegistrar } from "@/components/workspace/WorkspaceMainEditorTabBridgeRegistrar";
 import {
@@ -120,6 +121,8 @@ import { AgentActivityLine } from "@/components/chat/AgentActivityLine";
 import { CollapsedTurnSummary } from "@/components/chat/CollapsedTurnSummary";
 import { isHotTurnIndex, turnIndicesPrepended } from "@/lib/chat-message-window";
 import { buildChatScrollRevisionKey } from "@/lib/chat-scroll-revision";
+import type { BrowserElementTag } from "@/lib/browser-element-tag";
+import { chatComposerActionsRef } from "@/lib/chat-composer-bridge";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
 import { useChatMessageWindow } from "@/lib/use-chat-message-window";
 import { findUserTurnStartIndices } from "@/lib/last-user-turn-index";
@@ -865,6 +868,33 @@ function ChatPanel({
     [editAnchorMessageId, clearError],
   );
 
+  const insertComposerBrowserElementTag = useCallback(
+    (element: BrowserElementTag) => {
+      if (editAnchorMessageId) return;
+      voiceInterruptRef.current();
+      clearError();
+      composerRef.current?.insertBrowserElementTag(element);
+      requestAnimationFrame(() => composerRef.current?.focus());
+    },
+    [editAnchorMessageId, clearError],
+  );
+
+  useEffect(() => {
+    if (ephemeral) return;
+    chatComposerActionsRef.current = {
+      insertPrompt: insertComposerPrompt,
+      insertBrowserElementTag: insertComposerBrowserElementTag,
+      focusComposer: focusComposerAtEnd,
+    };
+    return () => {
+      chatComposerActionsRef.current = {
+        insertPrompt: () => {},
+        insertBrowserElementTag: () => {},
+        focusComposer: () => {},
+      };
+    };
+  }, [ephemeral, focusComposerAtEnd, insertComposerBrowserElementTag, insertComposerPrompt]);
+
   const handleChatModeChange = useCallback((next: ChatMode) => {
     setChatMode(next);
     storeChatMode(next);
@@ -1460,6 +1490,7 @@ export function Chat() {
           >
             <DocsViewerProvider>
               <EmbeddedBrowserProvider>
+              <ThreadSidePanelSync activeThreadId={activeThread.id} />
               <WorkspaceMainEditorTabBridgeRegistrar />
               <ChatTitlebar
                 store={store}

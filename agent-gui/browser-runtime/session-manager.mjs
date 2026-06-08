@@ -5,8 +5,11 @@ import {
   collectAriaSnapshot,
   collectInteractiveNodes,
   countInteractiveRefs,
+  findRefAtPoint,
   parseAriaSnapshotRefMap,
+  pickElementAtPoint,
   resolveLocator,
+  snapshotLineForRef,
 } from "./snapshot.mjs";
 
 const PREVIEW_OPS = new Set([
@@ -144,12 +147,12 @@ export class SessionManager {
   /** @param {{ page: import('playwright').Page }} session */
   async _capturePanelPreview(session) {
     const viewport = session.page.viewportSize() ?? { width: 1280, height: 800 };
-    const jpeg = await session.page.screenshot({ type: "jpeg", quality: 58, fullPage: false });
+    const png = await session.page.screenshot({ type: "png", fullPage: false });
     return {
       url: session.page.url(),
       title: await session.page.title(),
-      previewBase64: jpeg.toString("base64"),
-      previewMimeType: "image/jpeg",
+      previewBase64: png.toString("base64"),
+      previewMimeType: "image/png",
       viewportWidth: viewport.width,
       viewportHeight: viewport.height,
     };
@@ -225,6 +228,7 @@ export class SessionManager {
         "page.content",
         "page.click",
         "page.click_xy",
+        "page.pick_element",
         "page.type",
         "page.fill",
         "page.press",
@@ -297,7 +301,31 @@ export class SessionManager {
           );
         }
 
-        if (op === "page.snapshot") {
+        if (op === "page.snapshot" || op === "page.pick_element") {
+          const pickCoords =
+            op === "page.pick_element"
+              ? { x: Number(args.x), y: Number(args.y) }
+              : null;
+          if (pickCoords) {
+            if (
+              !Number.isFinite(pickCoords.x)
+              || !Number.isFinite(pickCoords.y)
+              || pickCoords.x < 0
+              || pickCoords.y < 0
+            ) {
+              return invokeError("x and y must be non-negative for pick_element");
+            }
+          }
+
+          /** @type {Awaited<ReturnType<typeof pickElementAtPoint>> | null} */
+          let picked = null;
+          if (pickCoords) {
+            picked = await pickElementAtPoint(session.page, pickCoords.x, pickCoords.y);
+            if (!picked.found) {
+              return invokeError("No element at the given coordinates");
+            }
+          }
+
           let snapshot = await collectAriaSnapshot(session.page);
           /** @type {Record<string, { role: string; name: string | null; nth: number; ariaRef?: string; href?: string }>} */
           let refMap = snapshot ? parseAriaSnapshotRefMap(snapshot) : {};
@@ -327,17 +355,45 @@ export class SessionManager {
           }
 
           session.refMap = refMap;
-          return this._okWithPreview(
-            session,
-            op,
-            {
-              url: session.page.url(),
-              title: await session.page.title(),
-              snapshot,
-              nodeCount: countInteractiveRefs(refMap) || Object.keys(refMap).length,
-            },
-            includePreview,
+
+          if (op === "page.snapshot") {
+            return this._okWithPreview(
+              session,
+              op,
+              {
+                url: session.page.url(),
+                title: await session.page.title(),
+                snapshot,
+                nodeCount: countInteractiveRefs(refMap) || Object.keys(refMap).length,
+              },
+              includePreview,
+            );
+          }
+
+          const ref = await findRefAtPoint(
+            session.page,
+            refMap,
+            pickCoords.x,
+            pickCoords.y,
           );
+          const refTarget = ref ? refMap[ref] : null;
+          return invokeOk({
+            url: session.page.url(),
+            title: await session.page.title(),
+            pickX: pickCoords.x,
+            pickY: pickCoords.y,
+            ref,
+            refRole: refTarget?.role ?? picked.role ?? null,
+            refName: refTarget?.name ?? picked.name ?? null,
+            tagName: picked.tagName ?? null,
+            text: picked.text ?? null,
+            elementId: picked.id ?? null,
+            className: picked.className ?? null,
+            href: picked.href ?? refTarget?.href ?? null,
+            value: picked.value ?? null,
+            snapshotLine: snapshotLineForRef(snapshot, ref),
+            nodeCount: countInteractiveRefs(refMap) || Object.keys(refMap).length,
+          });
         }
 
         if (op === "page.content") {

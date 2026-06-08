@@ -5,9 +5,9 @@ import {
   useRef,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
-  type RefObject,
   type WheelEvent as ReactWheelEvent,
 } from "react";
+import { BrowserFrameCanvas } from "@/components/browser/BrowserFrameCanvas";
 import {
   useBrowserPanelStream,
   type BrowserPanelStreamState,
@@ -16,31 +16,40 @@ import {
 type EmbeddedBrowserRemoteViewProps = {
   active: boolean;
   sessionId: string;
-  hostRef: RefObject<HTMLElement | null>;
   retryToken?: number;
   previewBase64?: string | null;
   previewMimeType?: string | null;
   onState?: (state: BrowserPanelStreamState) => void;
+  pickMode?: boolean;
+  picking?: boolean;
+  onPickAt?: (viewportX: number, viewportY: number) => void;
 };
 
 /** Renders Playwright Chromium via CDP screencast (no iframe). */
 export function EmbeddedBrowserRemoteView({
   active,
   sessionId,
-  hostRef,
   retryToken = 0,
   previewBase64 = null,
   previewMimeType = "image/jpeg",
   onState,
+  pickMode = false,
+  picking = false,
+  onPickAt,
 }: EmbeddedBrowserRemoteViewProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const previewHostRef = useRef<HTMLDivElement | null>(null);
   const stream = useBrowserPanelStream({
     active,
     sessionId,
-    hostRef,
+    hostRef: previewHostRef,
     retryToken,
     onState,
   });
+
+  const previewRect = useCallback((): DOMRect | null => {
+    return previewHostRef.current?.getBoundingClientRect() ?? null;
+  }, []);
 
   const fallbackPreviewSrc =
     previewBase64?.trim()
@@ -50,32 +59,55 @@ export function EmbeddedBrowserRemoteView({
 
   const onSurfaceClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
-      const rect = event.currentTarget.getBoundingClientRect();
+      const rect = previewRect();
+      if (!rect) return;
+      if (
+        event.clientX < rect.left
+        || event.clientX > rect.right
+        || event.clientY < rect.top
+        || event.clientY > rect.bottom
+      ) {
+        return;
+      }
+      if (pickMode && onPickAt) {
+        event.preventDefault();
+        const mapped = stream.mapClientToViewport(
+          event.clientX,
+          event.clientY,
+          rect,
+        );
+        if (mapped) onPickAt(mapped.x, mapped.y);
+        return;
+      }
       stream.clickAt(event.clientX, event.clientY, rect);
       event.currentTarget.focus();
     },
-    [stream],
+    [onPickAt, pickMode, previewRect, stream],
   );
 
   const onSurfaceMouseMove = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
-      const rect = event.currentTarget.getBoundingClientRect();
+      if (pickMode) return;
+      const rect = previewRect();
+      if (!rect) return;
       stream.moveAt(event.clientX, event.clientY, rect);
     },
-    [stream],
+    [pickMode, previewRect, stream],
   );
 
   const onSurfaceWheel = useCallback(
     (event: ReactWheelEvent<HTMLDivElement>) => {
+      if (pickMode) return;
       event.preventDefault();
       event.stopPropagation();
       stream.wheelAt(event.deltaX, event.deltaY);
     },
-    [stream],
+    [pickMode, stream],
   );
 
   const onSurfaceKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (pickMode) return;
       event.preventDefault();
       if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
         stream.typeText(event.key);
@@ -124,25 +156,28 @@ export function EmbeddedBrowserRemoteView({
   return (
     <div
       ref={surfaceRef}
-      className="embedded-browser__remote-surface"
+      className={`embedded-browser__remote-surface${pickMode ? " embedded-browser__remote-surface--pick" : ""}${picking ? " embedded-browser__remote-surface--picking" : ""}`}
       role="application"
-      aria-label="远程浏览器"
+      aria-label={pickMode ? "选择浏览器元素" : "远程浏览器"}
       tabIndex={0}
       onClick={onSurfaceClick}
       onMouseMove={onSurfaceMouseMove}
       onWheel={onSurfaceWheel}
       onKeyDown={onSurfaceKeyDown}
     >
-      <img
-        className="embedded-browser__preview embedded-browser__preview--live"
+      <BrowserFrameCanvas
         src={displaySrc}
-        alt="Remote browser"
-        draggable={false}
+        className="embedded-browser__preview embedded-browser__preview--live"
+        containerRef={previewHostRef}
       />
       <p className="embedded-browser__remote-hint">
-        {stream.frameSrc
-          ? "实时画面 · 支持 hover、点击、键盘输入和滚轮滚动"
-          : "静态预览 · 等待实时流连接…"}
+        {pickMode
+          ? picking
+            ? "正在识别元素…"
+            : "选择模式 · 点击页面上的目标元素"
+          : stream.frameSrc
+            ? "实时画面 · 支持 hover、点击、键盘输入和滚轮滚动"
+            : "静态预览 · 等待实时流连接…"}
       </p>
     </div>
   );

@@ -934,11 +934,11 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
 .embedded-browser__body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  background: #111;
+  overflow: hidden;
+  background: var(--bg);
   display: flex;
   align-items: stretch;
-  justify-content: center;
+  justify-content: stretch;
 }
 
 .embedded-browser__iframe {
@@ -948,20 +948,29 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
   background: #fff;
 }
 
-.embedded-browser__preview {
+.embedded-browser__preview-host {
+  flex: 1 1 0;
+  min-height: 0;
   width: 100%;
-  height: auto;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.embedded-browser__preview {
+  display: block;
+  width: 100%;
+  height: 100%;
   max-height: 100%;
-  object-fit: contain;
   cursor: default;
-  background: #111;
+  background: var(--bg);
   user-select: none;
 }
 
 .embedded-browser__preview--live {
   flex: 1 1 0;
   min-height: 0;
-  height: 100%;
 }
 
 .embedded-browser__remote-surface {
@@ -975,6 +984,40 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
 
 .embedded-browser__remote-surface:focus-visible {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.embedded-browser__remote-surface--pick {
+  cursor: crosshair;
+}
+
+.embedded-browser__remote-surface--pick .embedded-browser__preview {
+  cursor: crosshair;
+}
+
+.embedded-browser__remote-surface--picking {
+  cursor: wait;
+}
+
+.workspace-embedded-browser__head .workspace-embedded-browser__pick {
+  flex: 0 0 auto;
+  margin-left: 0.15rem;
+}
+
+.workspace-embedded-browser__pick--active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.composer-prompt-tag--browser-element {
+  border-color: color-mix(in srgb, #3b82f6 35%, var(--border));
+  background: color-mix(in srgb, #3b82f6 10%, var(--surface-elevated, var(--surface)));
+}
+
+.composer-prompt-tag__icon--browser {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, #3b82f6 78%, var(--text));
 }
 
 .embedded-browser__remote-hint {
