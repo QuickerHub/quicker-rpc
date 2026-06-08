@@ -370,8 +370,9 @@ function normalizeStore(raw: unknown): ChatStoreData {
   }
 
   const data = raw as Partial<ChatStoreData>;
+  const storeVersion = data.version as number | undefined;
   if (
-    (data.version === 2 || data.version === CHAT_STORE_VERSION)
+    (storeVersion === 2 || storeVersion === CHAT_STORE_VERSION)
     && Array.isArray(data.threads)
     && data.threads.length > 0
   ) {
