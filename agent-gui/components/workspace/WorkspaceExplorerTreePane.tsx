@@ -28,7 +28,8 @@ type WorkspaceExplorerTreePaneProps = {
 export const WorkspaceExplorerTreePane = memo(function WorkspaceExplorerTreePane({
   onProjectRemoved,
 }: WorkspaceExplorerTreePaneProps) {
-  const { cwd, tree, subprogramTree, treeChildrenLoading } = useWorkspaceExplorerTree();
+  const { cwd, tree, subprogramTree, treeChildrenLoading, ensureFullTree } =
+    useWorkspaceExplorerTree();
   const [sectionExpanded, setSectionExpanded] = useState(false);
 
   useEffect(() => {
@@ -48,6 +49,11 @@ export const WorkspaceExplorerTreePane = memo(function WorkspaceExplorerTreePane
       return next;
     });
   }, [cwd]);
+
+  useEffect(() => {
+    if (!sectionExpanded) return;
+    void ensureFullTree();
+  }, [ensureFullTree, sectionExpanded]);
 
   const projectCount =
     (tree?.children.length ?? 0) + (subprogramTree?.children.length ?? 0);

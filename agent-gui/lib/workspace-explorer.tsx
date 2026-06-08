@@ -220,6 +220,7 @@ export type WorkspaceExplorerTreeContextValue = {
   treeChildrenLoading: boolean;
   treeError: string | null;
   refreshTree: (options?: { silent?: boolean }) => Promise<void>;
+  ensureFullTree: () => Promise<void>;
   expandedPaths: Set<string>;
   toggleExpanded: (path: string) => void;
   expandPath: (path: string) => void;
@@ -471,6 +472,11 @@ export function WorkspaceExplorerPanelProvider({
   const expandedPathsRef = useRef(expandedPaths);
   expandedPathsRef.current = expandedPaths;
   const persistTreeViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const watchSubscriptionRef = useRef<{
+    cwd: string;
+    unsubscribe: () => void;
+  } | null>(null);
+  const fullTreeHydrateInFlightRef = useRef<Promise<void> | null>(null);
 
   const schedulePersistExplorerTreeView = useCallback(() => {
     const activeCwd = cwdRef.current.trim();
@@ -509,6 +515,9 @@ export function WorkspaceExplorerPanelProvider({
     cwdRef.current = cwd;
     cwdPendingRef.current = cwdPending;
   }, [cwd, cwdPending]);
+
+  const treeRootsLoadedForCwdRef = useRef<string | null>(null);
+  const treeHydratedForCwdRef = useRef<string | null>(null);
 
   /** Manual fallback when watch is unavailable; normal updates use fs watch SSE. */
   const refreshTree = useCallback(async (options?: { silent?: boolean }) => {
@@ -553,6 +562,8 @@ export function WorkspaceExplorerPanelProvider({
           setTreeLoading,
         },
       );
+      treeRootsLoadedForCwdRef.current = activeCwd;
+      treeHydratedForCwdRef.current = activeCwd;
     } finally {
       setTreeLoading(false);
     }
@@ -586,6 +597,57 @@ export function WorkspaceExplorerPanelProvider({
   const applyTreeUpdateRef = useRef(applyTreeUpdate);
   applyTreeUpdateRef.current = applyTreeUpdate;
 
+  const startExplorerWatch = useCallback((activeCwd: string) => {
+    if (watchSubscriptionRef.current?.cwd === activeCwd) return;
+    watchSubscriptionRef.current?.unsubscribe();
+    const unsubscribe = subscribeActionExplorerTreeWatch(activeCwd, {
+      onTree: (tree, subprogramTree) => {
+        if (cwdRef.current.trim() !== activeCwd) return;
+        applyTreeUpdateRef.current(tree, subprogramTree);
+        treeHydratedForCwdRef.current = activeCwd;
+      },
+      onError: (error) => {
+        if (cwdRef.current.trim() !== activeCwd) return;
+        setTreeError((prev) => (prev === error ? prev : error));
+      },
+    });
+    watchSubscriptionRef.current = { cwd: activeCwd, unsubscribe };
+  }, []);
+
+  const ensureFullTree = useCallback(async () => {
+    const activeCwd = cwdRef.current.trim();
+    if (!activeCwd) return;
+    if (treeHydratedForCwdRef.current === activeCwd) {
+      startExplorerWatch(activeCwd);
+      return;
+    }
+    if (fullTreeHydrateInFlightRef.current) {
+      await fullTreeHydrateInFlightRef.current;
+      return;
+    }
+
+    setTreeChildrenLoading(true);
+    const hydrate = (async () => {
+      const full = await fetchActionExplorerTree(activeCwd);
+      if (cwdRef.current.trim() !== activeCwd) return;
+      if (full.ok) {
+        applyTreeUpdateRef.current(full.tree, full.subprogramTree);
+        treeHydratedForCwdRef.current = activeCwd;
+        startExplorerWatch(activeCwd);
+      } else {
+        setTreeError(full.error);
+      }
+    })().finally(() => {
+      if (cwdRef.current.trim() === activeCwd) {
+        setTreeChildrenLoading(false);
+      }
+      fullTreeHydrateInFlightRef.current = null;
+    });
+
+    fullTreeHydrateInFlightRef.current = hydrate;
+    await hydrate;
+  }, [startExplorerWatch]);
+
   useLayoutEffect(() => {
     const activeCwd = cwd.trim();
     const shell = createActionExplorerTreeShell();
@@ -602,12 +664,14 @@ export function WorkspaceExplorerPanelProvider({
     );
   }, [cwd, cwdPending]);
 
-  const treeHydratedForCwdRef = useRef<string | null>(null);
-
   useEffect(() => {
     const activeCwd = cwd.trim();
     if (!activeCwd) {
+      treeRootsLoadedForCwdRef.current = null;
       treeHydratedForCwdRef.current = null;
+      fullTreeHydrateInFlightRef.current = null;
+      watchSubscriptionRef.current?.unsubscribe();
+      watchSubscriptionRef.current = null;
       treeRef.current = null;
       subprogramTreeRef.current = null;
       treeSignatureRef.current = null;
@@ -634,11 +698,14 @@ export function WorkspaceExplorerPanelProvider({
     }
 
     let cancelled = false;
-    let unsubscribeWatch: (() => void) | undefined;
-    const cwdChanged = treeHydratedForCwdRef.current !== activeCwd;
+    const cwdChanged = treeRootsLoadedForCwdRef.current !== activeCwd;
 
     if (cwdChanged) {
+      treeRootsLoadedForCwdRef.current = null;
       treeHydratedForCwdRef.current = null;
+      fullTreeHydrateInFlightRef.current = null;
+      watchSubscriptionRef.current?.unsubscribe();
+      watchSubscriptionRef.current = null;
       treeRef.current = null;
       subprogramTreeRef.current = null;
       treeSignatureRef.current = null;
@@ -658,39 +725,32 @@ export function WorkspaceExplorerPanelProvider({
         if (cancelled) return;
         if (roots.ok) {
           applyTreeUpdateRef.current(roots.tree, roots.subprogramTree);
+          treeRootsLoadedForCwdRef.current = activeCwd;
+          setTreeChildrenLoading(false);
+        } else {
+          setTreeError(roots.error);
+          setTreeChildrenLoading(false);
         }
-
-        const full = await fetchActionExplorerTree(activeCwd);
-        if (cancelled) return;
-        if (full.ok) {
-          applyTreeUpdateRef.current(full.tree, full.subprogramTree);
-          treeHydratedForCwdRef.current = activeCwd;
-        } else if (!roots.ok) {
-          setTreeError(full.error);
-        }
-
-        setTreeChildrenLoading(false);
       }
-
-      if (cancelled) return;
-      unsubscribeWatch = subscribeActionExplorerTreeWatch(activeCwd, {
-        onTree: (tree, subprogramTree) => {
-          if (cancelled) return;
-          applyTreeUpdateRef.current(tree, subprogramTree);
-          treeHydratedForCwdRef.current = activeCwd;
-        },
-        onError: (error) => {
-          if (cancelled) return;
-          setTreeError((prev) => (prev === error ? prev : error));
-        },
-      });
     })();
 
     return () => {
       cancelled = true;
-      unsubscribeWatch?.();
     };
   }, [cwd, cwdPending, panelOpen]);
+
+  useEffect(() => {
+    if (panelOpen) return;
+    watchSubscriptionRef.current?.unsubscribe();
+    watchSubscriptionRef.current = null;
+  }, [panelOpen]);
+
+  useEffect(() => {
+    return () => {
+      watchSubscriptionRef.current?.unsubscribe();
+      watchSubscriptionRef.current = null;
+    };
+  }, [cwd]);
 
   useEffect(() => {
     const activeCwd = cwd.trim();
@@ -1050,6 +1110,7 @@ export function WorkspaceExplorerPanelProvider({
       treeChildrenLoading,
       treeError,
       refreshTree,
+      ensureFullTree,
       expandedPaths,
       toggleExpanded,
       expandPath,
@@ -1064,6 +1125,7 @@ export function WorkspaceExplorerPanelProvider({
       treeChildrenLoading,
       treeError,
       refreshTree,
+      ensureFullTree,
       expandedPaths,
       toggleExpanded,
       expandPath,
