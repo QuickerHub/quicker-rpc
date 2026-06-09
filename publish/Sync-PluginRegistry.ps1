@@ -37,7 +37,10 @@ else {
 }
 
 $objectPrefix = 'quicker-agent/plugins'
-$destCopy = Join-Path $env:TEMP "registry-upload-$PID.json"
+$stagingDir = Join-Path $PSScriptRoot '.staging'
+New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
+# bitiful_upload uses the local filename as the object key
+$destCopy = Join-Path $stagingDir 'registry.json'
 Copy-Item -LiteralPath $RegistryPath -Destination $destCopy -Force
 
 if ($DryRun) {
