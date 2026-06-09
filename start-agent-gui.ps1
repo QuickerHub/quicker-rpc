@@ -116,6 +116,118 @@ function Get-AgentGuiDevBundler {
     return $null
 }
 
+function Normalize-AgentProbePath {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return ''
+    }
+    return $Text.Trim().Replace('/', '\').ToLowerInvariant()
+}
+
+function Test-ProductionQuickerAgentPortProcess {
+    param([int]$ProcessId)
+
+    if ($ProcessId -le 0) {
+        return $false
+    }
+    try {
+        $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction Stop
+    }
+    catch {
+        return $false
+    }
+
+    $name = [string]$proc.Name
+    $cmd = Normalize-AgentProbePath ([string]$proc.CommandLine)
+    $exe = Normalize-AgentProbePath ([string]$proc.ExecutablePath)
+    $pathText = "$cmd $exe".Trim()
+    if ([string]::IsNullOrWhiteSpace($pathText)) {
+        return $false
+    }
+
+    if ($pathText -match '\\agent-gui\\' -or $pathText -match '\\src-tauri\\target\\') {
+        return $false
+    }
+
+    $installRoot = Normalize-AgentProbePath (Join-Path $env:LOCALAPPDATA 'QuickerAgent')
+    if (-not [string]::IsNullOrWhiteSpace($installRoot) -and $pathText.StartsWith($installRoot)) {
+        if ($name -ieq 'quicker-agent.exe') {
+            return $true
+        }
+        if ($name -ieq 'node.exe' -and $pathText -match 'resources\\node\\' -and $pathText -match 'server\.js') {
+            return $true
+        }
+    }
+
+    if ($name -ieq 'quicker-agent.exe') {
+        return (
+            ($pathText -match '\\quickeragent\\quicker-agent\.exe' -or
+                $pathText -match '\\programs\\quickeragent\\quicker-agent\.exe') -and
+            $pathText -notmatch '\\agent-gui\\' -and
+            $pathText -notmatch '\\src-tauri\\target\\'
+        )
+    }
+
+    if ($name -ieq 'node.exe') {
+        return (
+            ($pathText -match '\\quickeragent\\resources\\node\\' -and
+                ($pathText -match '\\quickeragent\\resources\\app\\' -or
+                    $pathText -match 'server\.js')) -and
+            $pathText -notmatch '\\agent-gui\\'
+        )
+    }
+
+    return $false
+}
+
+function Resolve-AgentGuiDevPortAvoidingProduction {
+    param([int]$PreferredPort)
+
+    if (-not (Test-AgentGuiPortListening -Port $PreferredPort)) {
+        return $PreferredPort
+    }
+    if (-not (Test-ProductionQuickerAgentUiOnPort -Port $PreferredPort)) {
+        return $PreferredPort
+    }
+
+    $altPort = Get-NextFreeAgentGuiPort -StartPort ($PreferredPort + 1)
+    $env:AGENT_GUI_PORT = [string]$altPort
+    Write-Host "Installed QuickerAgent is using :$PreferredPort; dev will use :$altPort." -ForegroundColor DarkCyan
+    return $altPort
+}
+
+function Test-ProductionQuickerAgentUiOnPort {
+    param([int]$Port)
+
+    $pids = @(
+        Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+            ForEach-Object { $_.OwningProcess } |
+            Sort-Object -Unique
+    ) | Where-Object { $_ -gt 0 }
+
+    foreach ($procId in $pids) {
+        if (Test-ProductionQuickerAgentPortProcess -ProcessId $procId) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Get-NextFreeAgentGuiPort {
+    param(
+        [int]$StartPort = 3000,
+        [int]$MaxAttempts = 20
+    )
+
+    for ($port = $StartPort; $port -lt ($StartPort + $MaxAttempts); $port++) {
+        if (-not (Test-AgentGuiPortListening -Port $port)) {
+            return $port
+        }
+    }
+    return $StartPort
+}
+
 function Stop-AgentGuiDev {
     param(
         [string]$AgentGuiRoot,
@@ -152,8 +264,14 @@ function Clear-AgentGuiPortListeners {
             continue
         }
 
-        Write-Host "agent-gui: freeing port $Port (PID(s): $($pids -join ', '))" -ForegroundColor Yellow
-        foreach ($procId in $pids) {
+        $killable = @($pids | Where-Object { -not (Test-ProductionQuickerAgentPortProcess -ProcessId $_) })
+        if ($killable.Count -eq 0) {
+            Write-Host "agent-gui: port $Port held by installed QuickerAgent; leaving it alone." -ForegroundColor DarkCyan
+            return $false
+        }
+
+        Write-Host "agent-gui: freeing port $Port (PID(s): $($killable -join ', '))" -ForegroundColor Yellow
+        foreach ($procId in $killable) {
             Stop-ProcessTree -ProcessId $procId | Out-Null
         }
         Start-Sleep -Milliseconds 600
@@ -193,6 +311,9 @@ try {
     $devPort = Get-AgentGuiDevPort
     $reuseDev = $false
     $stalePortOnly = $false
+    if (-not $reuseDev -and -not $SkipKill) {
+        $devPort = Resolve-AgentGuiDevPortAvoidingProduction -PreferredPort $devPort
+    }
     if ($Tauri -and -not $NoReuse) {
         $portListening = Test-AgentGuiPortListening -Port $devPort
         $frontendHealthy = Test-AgentGuiFrontendHealthy -Port $devPort
@@ -216,6 +337,9 @@ try {
                 $stalePortOnly = $true
             }
         }
+        elseif ($portListening -and (Test-ProductionQuickerAgentUiOnPort -Port $devPort)) {
+            $devPort = Resolve-AgentGuiDevPortAvoidingProduction -PreferredPort $devPort
+        }
         elseif ($portListening) {
             Write-Warning "Port $devPort is in use but not a healthy agent-gui dev — stopping stale listener."
             $stalePortOnly = $true
@@ -231,11 +355,11 @@ try {
     }
     elseif ((-not $SkipKill) -or $stalePortOnly) {
         Stop-AgentGuiDev -AgentGuiRoot $agentGui -RepoRoot $PSScriptRoot
-        Remove-Item Env:AGENT_GUI_SKIP_KILL -ErrorAction SilentlyContinue
         Remove-Item Env:AGENT_GUI_REUSE_DEV -ErrorAction SilentlyContinue
         if (-not (Clear-AgentGuiPortListeners -Port $devPort)) {
             throw "Port $devPort is still in use. Close the other process or run: node agent-gui/scripts/stop-agent-gui-dev.mjs"
         }
+        $env:AGENT_GUI_SKIP_KILL = '1'
     }
     else {
         $env:AGENT_GUI_SKIP_KILL = '1'

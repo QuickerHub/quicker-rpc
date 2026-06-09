@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -8,11 +7,10 @@ using Microsoft.Extensions.Logging;
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Brings an existing QuickerAgent (Tauri) main window to the foreground on Windows.
+/// Brings an existing installed QuickerAgent (Tauri) main window to the foreground on Windows.
 /// </summary>
 internal static class QuickerAgentWindowActivator
 {
-    private const string ProcessNameWithoutExtension = "quicker-agent";
     private const string MainWindowTitle = "QuickerAgent";
     private const int SwRestore = 9;
     private const int AsfwAny = -1;
@@ -45,7 +43,7 @@ internal static class QuickerAgentWindowActivator
 
     public static bool TryBringToForeground(ILogger? logger = null)
     {
-        var processIds = CollectProcessIds();
+        var processIds = QuickerAgentProductionProcess.CollectAnyProcessIds();
         if (processIds.Count == 0)
         {
             return false;
@@ -81,28 +79,7 @@ internal static class QuickerAgentWindowActivator
         }
     }
 
-    internal static bool IsProcessRunning() => CollectProcessIds().Count > 0;
-
-    private static HashSet<uint> CollectProcessIds()
-    {
-        var ids = new HashSet<uint>();
-        try
-        {
-            foreach (var process in Process.GetProcessesByName(ProcessNameWithoutExtension))
-            {
-                using (process)
-                {
-                    ids.Add((uint)process.Id);
-                }
-            }
-        }
-        catch
-        {
-            return ids;
-        }
-
-        return ids;
-    }
+    internal static bool IsProcessRunning() => QuickerAgentProductionProcess.IsAnyInstanceRunning();
 
     private static IntPtr FindBestMainWindow(HashSet<uint> processIds)
     {

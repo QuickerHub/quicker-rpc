@@ -63,7 +63,6 @@ function showInstallProgress(progress: InstallProgress): void {
     kind: "info",
     title: "正在安装语音输入",
     body: progress.message,
-    dismissible: false,
     progress,
   });
 }

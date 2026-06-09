@@ -411,6 +411,7 @@ async function ensureAsrModel(
   ];
 
   if (exe) {
+    await writeRuntimeModelIdentity(pluginRoot);
     await spawnModelDownload(
       exe,
       ["download-model", ...commonArgs],
@@ -449,6 +450,16 @@ async function ensureAsrModel(
     throw new Error("模型下载结束但校验未通过，请重试或点击「重新下载」");
   }
   progress("done", 100, "模型下载完成");
+}
+
+async function writeRuntimeModelIdentity(root: string): Promise<void> {
+  const dest = join(
+    runtimeDir(root),
+    "models",
+    "sensevoice-model-identity.json",
+  );
+  await mkdir(dirname(dest), { recursive: true });
+  await writeFile(dest, readFileSync(MODEL_IDENTITY_PATH, "utf8"), "utf8");
 }
 
 async function writePluginMetadata(root: string): Promise<void> {
@@ -497,9 +508,13 @@ async function runInstallInner(options: DevVoiceInstallOptions = {}): Promise<vo
         await installRuntimeFromChannel(channel, root, tempDir);
         summaryParts.push("Runtime：网络下载");
       }
+      await writeRuntimeModelIdentity(root);
     }
 
     if (needModel) {
+      if (runtimeReady(root)) {
+        await writeRuntimeModelIdentity(root);
+      }
       const localModel = preferNetwork ? null : packagedModelDir();
       if (localModel) {
         await installModelFromLocal(localModel, root);

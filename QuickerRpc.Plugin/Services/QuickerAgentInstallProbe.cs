@@ -57,7 +57,7 @@ internal static class QuickerAgentInstallProbe
             }
         }
 
-        foreach (var candidate in EnumerateCandidateExecutables())
+        foreach (var candidate in EnumerateInstalledExecutableCandidates())
         {
             if (File.Exists(candidate))
             {
@@ -68,6 +68,9 @@ internal static class QuickerAgentInstallProbe
 
         return false;
     }
+
+    internal static IEnumerable<string> EnumerateInstalledExecutableCandidates() =>
+        EnumerateCandidateExecutables();
 
     private static bool TryGetFromRegistry(out string? version, out string? installDirectory)
     {

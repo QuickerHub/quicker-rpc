@@ -47,11 +47,11 @@ public sealed class LauncherStartOptionsResolverTests
     }
 
     [TestMethod]
-    public void Resolve_panel_honors_plugin_mode_in_param()
+    public void Resolve_panel_treats_plugin_mode_as_stale_and_launches_agent()
     {
         var options = LauncherStartOptionsResolver.Resolve(Panel, quickerInParam: "plugin");
-        Assert.IsFalse(options.LaunchQuickerAgent);
-        Assert.IsTrue(options.Silent);
+        Assert.IsTrue(options.LaunchQuickerAgent);
+        Assert.IsFalse(options.Silent);
         Assert.IsFalse(options.NotifyPluginVersion);
     }
 
@@ -61,5 +61,40 @@ public sealed class LauncherStartOptionsResolverTests
         var options = LauncherStartOptionsResolver.Resolve(Panel, quickerInParam: "agent-kill");
         Assert.IsTrue(options.KillQuickerAgent);
         Assert.IsFalse(options.LaunchQuickerAgent);
+    }
+
+    [TestMethod]
+    public void Resolve_panel_ignores_stale_plugin_quicker_in_param()
+    {
+        foreach (var mode in new[] { "plugin", "?plugin", "rpc", "bootstrap" })
+        {
+            var options = LauncherStartOptionsResolver.Resolve(Panel, quickerInParam: mode);
+            Assert.IsTrue(options.LaunchQuickerAgent, mode);
+            Assert.IsFalse(options.Silent, mode);
+        }
+    }
+
+    [TestMethod]
+    public void Resolve_panel_with_unreadable_trigger_and_no_param_still_launches_agent_from_action()
+    {
+        int? actionTrigger = null;
+        var options = LauncherStartOptionsResolver.Resolve(
+            actionTrigger,
+            quickerInParam: null,
+            invokedFromAction: true);
+        Assert.IsTrue(options.LaunchQuickerAgent);
+        Assert.IsFalse(options.Silent);
+    }
+
+    [TestMethod]
+    public void Resolve_without_action_context_and_no_param_stays_plugin_only()
+    {
+        int? actionTrigger = null;
+        var options = LauncherStartOptionsResolver.Resolve(
+            actionTrigger,
+            quickerInParam: null,
+            invokedFromAction: false);
+        Assert.IsFalse(options.LaunchQuickerAgent);
+        Assert.IsTrue(options.Silent);
     }
 }

@@ -61,7 +61,7 @@ Tauri 使用 **WebView2**（Windows）。`localStorage` 不是可读 JSON 文件
 
 **为何安装/更新不会清对话：**
 
-- NSIS 安装包只覆盖 **程序安装目录**（如 `%LOCALAPPDATA%\Programs\QuickerAgent\`），并在安装前结束进程（见 `installer-hooks.nsh`）。
+- NSIS 安装包只覆盖 **程序安装目录**（默认 `%LOCALAPPDATA%\QuickerAgent\`，见 `installer-hooks.nsh`），并在安装前结束进程。
 - WebView 用户数据在 **`%LOCALAPPDATA%\ai.quicker.agent\`**，**不在**安装目录内；就地升级、应用内 updater **默认不会删除**该文件夹。
 - 会丢失数据的情况：用户在系统/浏览器设置里 **清除站点数据**、手动删除 `%LOCALAPPDATA%\ai.quicker.agent\`、或卸载时勾选「删除用户数据」（若安装器提供该选项）。
 

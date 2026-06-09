@@ -28,6 +28,37 @@ export function useAutoExpandColdTurns({
   setExpandedColdTurns,
 }: UseAutoExpandColdTurnsOptions): (node: HTMLDivElement | null) => void {
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const pendingTurnIndicesRef = useRef<Set<number>>(new Set());
+  const applyFrameRef = useRef(0);
+
+  const flushPendingTurnIndices = useCallback(() => {
+    applyFrameRef.current = 0;
+    const pending = pendingTurnIndicesRef.current;
+    if (pending.size === 0) return;
+    pendingTurnIndicesRef.current = new Set();
+    setExpandedColdTurns((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const turnIndex of pending) {
+        if (next.has(turnIndex)) continue;
+        next.add(turnIndex);
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [setExpandedColdTurns]);
+
+  const queueTurnIndices = useCallback(
+    (turnIndices: number[]) => {
+      if (turnIndices.length === 0) return;
+      for (const turnIndex of turnIndices) {
+        pendingTurnIndicesRef.current.add(turnIndex);
+      }
+      if (applyFrameRef.current !== 0) return;
+      applyFrameRef.current = requestAnimationFrame(flushPendingTurnIndices);
+    },
+    [flushPendingTurnIndices],
+  );
 
   const registerColdTurnNode = useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
@@ -53,16 +84,7 @@ export function useAutoExpandColdTurns({
           turnIndices.push(turnIndex);
         }
         if (turnIndices.length === 0) return;
-        setExpandedColdTurns((prev) => {
-          const next = new Set(prev);
-          let changed = false;
-          for (const turnIndex of turnIndices) {
-            if (next.has(turnIndex)) continue;
-            next.add(turnIndex);
-            changed = true;
-          }
-          return changed ? next : prev;
-        });
+        queueTurnIndices(turnIndices);
       },
       { root, rootMargin: INTERSECT_ROOT_MARGIN, threshold: 0 },
     );
@@ -78,7 +100,17 @@ export function useAutoExpandColdTurns({
         observerRef.current = null;
       }
     };
-  }, [containerRef, revision, setExpandedColdTurns, visible]);
+  }, [containerRef, queueTurnIndices, revision, visible]);
+
+  useEffect(() => {
+    return () => {
+      if (applyFrameRef.current !== 0) {
+        cancelAnimationFrame(applyFrameRef.current);
+        applyFrameRef.current = 0;
+      }
+      pendingTurnIndicesRef.current.clear();
+    };
+  }, []);
 
   return registerColdTurnNode;
 }

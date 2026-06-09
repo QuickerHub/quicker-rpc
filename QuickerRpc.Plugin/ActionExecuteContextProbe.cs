@@ -37,6 +37,13 @@ internal static class ActionExecuteContextProbe
             return null;
         }
 
+        var trigger = TryGetActionTrigger(context);
+        var raw = TryGetQuickerInParamCore(context);
+        return SanitizeQuickerInParamForInteractiveTrigger(trigger, raw);
+    }
+
+    private static string? TryGetQuickerInParamCore(IActionContext context)
+    {
         var effective = ResolveEffectiveContextObject(context);
 
         if (effective is ActionExecuteContext executeContext)
@@ -72,6 +79,28 @@ internal static class ActionExecuteContextProbe
 
         return TryReadStringProperty(context, "InputParam", "QuickerInParam", "InParam", "ActionInParam");
     }
+
+    /// <summary>
+    /// Interactive runs ignore stale RPC-only bootstrap params; context-menu modes like agent-kill are kept.
+    /// </summary>
+    private static string? SanitizeQuickerInParamForInteractiveTrigger(
+        ActionTrigger? actionTrigger,
+        string? quickerInParam)
+    {
+        if (!IsInteractiveUserTrigger(actionTrigger))
+        {
+            return quickerInParam;
+        }
+
+        return LauncherStartOptionsParser.IsPluginOnlyParam(quickerInParam)
+            ? null
+            : quickerInParam;
+    }
+
+    private static bool IsInteractiveUserTrigger(ActionTrigger? actionTrigger) =>
+        actionTrigger is not null
+        && actionTrigger != ActionTrigger.Extern
+        && actionTrigger != ActionTrigger.AutoRun;
 
     /// <summary>
     /// Context-menu and subprogram flows expose <c>quicker_in_param</c> as an action variable on the root context.

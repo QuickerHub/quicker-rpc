@@ -440,8 +440,8 @@ function ChatPanel({
     }
   }, [ephemeral, flushThreadPersist, status]);
 
-  useActionProjectImportFromMessages(messages, !ephemeral);
-  useBrowserPanelMessageSync(messages);
+  useActionProjectImportFromMessages(messages, !ephemeral && visible);
+  useBrowserPanelMessageSync(messages, { enabled: !ephemeral && visible });
 
   useThreadTitleFromTool({
     threadId,
@@ -532,10 +532,21 @@ function ChatPanel({
   }, [pendingWorkspaceDeleteKey, workspaceDeleteHits.length]);
 
   const busy = status === "submitted" || status === "streaming";
-  const { queueLength, enqueueOrSend, clearQueue } = useComposerMessageQueue(
-    busy,
-    sendMessageSafe,
-  );
+
+  const interruptAgentRun = useCallback(() => {
+    stop();
+    repairToolCalls();
+    clearError();
+  }, [stop, repairToolCalls, clearError]);
+
+  const {
+    queueLength,
+    queuedMessages,
+    enqueueOrSend,
+    clearQueue,
+    removeFromQueue,
+    flushNextQueuedNow,
+  } = useComposerMessageQueue(busy, sendMessageSafe, interruptAgentRun);
   const qkrpcOk = ping.status === "ok";
 
   const scrollRevisionKey = useMemo(
@@ -543,11 +554,16 @@ function ChatPanel({
     [messages, status, error],
   );
 
-  const { pinToBottom: pinToBottomInner, getStickToBottom, releaseStickToBottom } =
-    useMessagesStickScroll(messagesRef, {
+  const {
+    pinToBottom: pinToBottomInner,
+    pinToLastTurnPrompt,
+    getStickToBottom,
+    releaseStickToBottom,
+  } = useMessagesStickScroll(messagesRef, {
     visible,
     threadId,
     revision: scrollRevisionKey,
+    turnRef: msgTurnRef,
   });
 
   useEffect(() => {
@@ -661,10 +677,19 @@ function ChatPanel({
     streamingActive,
   });
 
-  const pinToBottom = useCallback(() => {
+  const pinToStream = useCallback(() => {
     messageWindow.clearHistoryPin();
-    pinToBottomInner();
-  }, [messageWindow.clearHistoryPin, pinToBottomInner]);
+    if (userTurnStarts.length > 0) {
+      pinToLastTurnPrompt();
+    } else {
+      pinToBottomInner();
+    }
+  }, [
+    messageWindow.clearHistoryPin,
+    pinToBottomInner,
+    pinToLastTurnPrompt,
+    userTurnStarts.length,
+  ]);
 
   useEffect(() => {
     const drainLauncherSubmit = () => {
@@ -678,12 +703,12 @@ function ChatPanel({
       }
       voiceInterruptRef.current();
       clearError();
-      if (visible) pinToBottom();
+      if (visible) pinToStream();
       enqueueOrSend(pending.text);
     };
     drainLauncherSubmit();
     return subscribeLauncherSubmit(drainLauncherSubmit);
-  }, [threadId, visible, enqueueOrSend, pinToBottom, clearError]);
+  }, [threadId, visible, enqueueOrSend, pinToStream, clearError]);
 
   const registerColdTurnNode = useAutoExpandColdTurns({
     containerRef: messagesRef,
@@ -810,7 +835,7 @@ function ChatPanel({
       clearUserMessageDraftsFromIndex(messages, anchorIndex, prev),
     );
     setMessages(messages.slice(0, anchorIndex));
-    pinToBottom();
+    pinToStream();
     enqueueOrSend(text);
     })();
   }, [
@@ -818,7 +843,7 @@ function ChatPanel({
     readComposerText,
     enqueueOrSend,
     messages,
-    pinToBottom,
+    pinToStream,
     setMessages,
   ]);
 
@@ -829,17 +854,27 @@ function ChatPanel({
       return;
     }
     const text = readComposerText();
-    if (!canSendComposedMessage(text)) return;
-    composerRef.current?.clear();
-    pinToBottom();
-    enqueueOrSend(text);
-    requestAnimationFrame(() => composerRef.current?.focus());
+    if (canSendComposedMessage(text)) {
+      composerRef.current?.clear();
+      pinToStream();
+      enqueueOrSend(text);
+      requestAnimationFrame(() => composerRef.current?.focus());
+      return;
+    }
+    if (busy && queueLength > 0) {
+      pinToStream();
+      flushNextQueuedNow();
+      requestAnimationFrame(() => composerRef.current?.focus());
+    }
   }, [
     readComposerText,
     editAnchorMessageId,
     commitBranchMessageEdit,
     enqueueOrSend,
-    pinToBottom,
+    pinToStream,
+    busy,
+    queueLength,
+    flushNextQueuedNow,
   ]);
 
   const sendTestPrompt = useCallback(
@@ -849,11 +884,11 @@ function ChatPanel({
       voiceInterruptRef.current();
       composerRef.current?.clear();
       clearError();
-      pinToBottom();
+      pinToStream();
       enqueueOrSend(text);
       requestAnimationFrame(() => composerRef.current?.focus());
     },
-    [editAnchorMessageId, enqueueOrSend, pinToBottom, clearError],
+    [editAnchorMessageId, enqueueOrSend, pinToStream, clearError],
   );
 
   const insertComposerPrompt = useCallback(
@@ -914,10 +949,8 @@ function ChatPanel({
 
   const handleComposerStop = useCallback(() => {
     clearQueue();
-    stop();
-    repairToolCalls();
-    clearError();
-  }, [clearQueue, stop, repairToolCalls, clearError]);
+    interruptAgentRun();
+  }, [clearQueue, interruptAgentRun]);
 
   useEffect(() => {
     if (!editAnchorMessageId) return;
@@ -1002,7 +1035,7 @@ function ChatPanel({
   const lastTurnFillScrollport = useMsgTurnStickyActive(
     messagesRef,
     msgTurnRef,
-    userTurnStarts.length > 0,
+    visible && userTurnStarts.length > 0,
     threadId,
   );
 
@@ -1287,6 +1320,8 @@ function ChatPanel({
         isEmptyThread={isEmptyThread}
         busy={busy}
         queueLength={queueLength}
+        queuedMessages={queuedMessages}
+        onRemoveFromQueue={removeFromQueue}
         settingsOpen={settingsOpen}
         messages={messages}
         ping={ping}
@@ -1334,6 +1369,26 @@ export function Chat() {
   const { ping, refreshPing, connectTick } = useQkrpcPing();
   const storeRef = useRef(store);
   storeRef.current = store;
+
+  const storeWithOpenTabMessages = useMemo(() => {
+    if (!chatStoreHydrated) return store;
+    let next = store;
+    for (const threadId of store.openTabIds) {
+      next = hydrateStoreThreadMessages(next, threadId);
+    }
+    return next;
+  }, [chatStoreHydrated, store]);
+  const activeThread = getActiveThread(storeWithOpenTabMessages);
+  const openTabThreads = useMemo(
+    () => getOpenTabThreads(storeWithOpenTabMessages),
+    [storeWithOpenTabMessages],
+  );
+  storeRef.current = storeWithOpenTabMessages;
+
+  useEffect(() => {
+    if (!chatStoreHydrated || storeWithOpenTabMessages === store) return;
+    updateStore(storeWithOpenTabMessages);
+  }, [chatStoreHydrated, store, storeWithOpenTabMessages, updateStore]);
 
   useLayoutEffect(() => {
     const collapsed = loadSidebarCollapsed();
@@ -1456,7 +1511,6 @@ export function Chat() {
     }
   }, [settingsOpen, closeSettings, openSettings]);
 
-  const activeThread = getActiveThread(store);
   const workingDirectory = store.workingDirectory.trim() || defaultCwd;
   const cwdPending = !store.workingDirectory.trim() && !defaultCwdReady;
 
@@ -1493,24 +1547,22 @@ export function Chat() {
               <ThreadSidePanelSync activeThreadId={activeThread.id} />
               <WorkspaceMainEditorTabBridgeRegistrar />
               <ChatTitlebar
-                store={store}
+                store={storeWithOpenTabMessages}
                 onChange={updateStore}
               />
-              <ChatStoragePortBanner store={store} />
+              <ChatStoragePortBanner store={storeWithOpenTabMessages} />
               <ReleasePreviewBanner />
               <div className="app-content-row">
                 <div className="app-main-shell">
                   <AppMainWorkspaceSplit>
                     {chatStoreHydrated
-                      && getOpenTabThreads(store)
-                      .filter((thread) => thread.id === activeThread.id)
-                      .map((thread) => (
+                      && openTabThreads.map((thread) => (
                       <ChatPanel
                         key={thread.id}
                         threadId={thread.id}
                         initialMessages={thread.messages}
                         workingDirectory={workingDirectory}
-                        visible
+                        visible={thread.id === activeThread.id}
                         threadTitle={thread.title}
                         titleGenerated={thread.titleGenerated ?? false}
                         titleManual={thread.titleManual ?? false}

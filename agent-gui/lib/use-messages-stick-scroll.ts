@@ -19,26 +19,46 @@ export function snapMessagesScrollToBottom(
   prevScrollHeightRef.current = container.scrollHeight;
 }
 
+/** Align the active turn's user prompt with the top of the messages scrollport. */
+export function snapMessagesScrollToTurnPrompt(
+  container: HTMLElement,
+  turnEl: HTMLElement,
+  prevScrollHeightRef: { current: number },
+): void {
+  const promptEl =
+    turnEl.querySelector<HTMLElement>(".msg-turn__prompt") ?? turnEl;
+  const delta =
+    promptEl.getBoundingClientRect().top - container.getBoundingClientRect().top;
+  if (Math.abs(delta) > 0.5) {
+    container.scrollTop += delta;
+  }
+  prevScrollHeightRef.current = container.scrollHeight;
+}
+
 export function useMessagesStickScroll(
   containerRef: RefObject<HTMLElement | null>,
   {
     visible,
     threadId,
     revision,
+    turnRef,
   }: {
     visible: boolean;
     threadId: string;
     /** Stable key from buildChatScrollRevisionKey — content/layout tail changes only. */
     revision: string;
+    turnRef?: RefObject<HTMLElement | null>;
   },
 ): {
   pinToBottom: () => void;
+  pinToLastTurnPrompt: () => void;
   getStickToBottom: () => boolean;
   releaseStickToBottom: () => void;
 } {
   const stickToBottomRef = useRef(true);
   const prevScrollHeightRef = useRef(0);
   const followFrameRef = useRef(0);
+  const pinToLastTurnPromptRef = useRef(false);
 
   const snapToBottom = useCallback(() => {
     const container = containerRef.current;
@@ -50,9 +70,17 @@ export function useMessagesStickScroll(
   const pinToBottom = useCallback(() => {
     stickToBottomRef.current = true;
     prevScrollHeightRef.current = 0;
+    pinToLastTurnPromptRef.current = false;
     snapToBottom();
     requestAnimationFrame(snapToBottom);
   }, [snapToBottom]);
+
+  /** After the next layout revision, snap the last turn prompt to the scrollport top. */
+  const pinToLastTurnPrompt = useCallback(() => {
+    stickToBottomRef.current = true;
+    prevScrollHeightRef.current = 0;
+    pinToLastTurnPromptRef.current = true;
+  }, []);
 
   const getStickToBottom = useCallback(() => stickToBottomRef.current, []);
 
@@ -117,20 +145,37 @@ export function useMessagesStickScroll(
   }, [containerRef, visible, threadId]);
 
   useLayoutEffect(() => {
-    if (!visible || !stickToBottomRef.current) return;
+    if (!visible) return;
     const container = containerRef.current;
     if (!container) return;
 
     const scrollHeight = container.scrollHeight;
-    if (scrollHeight === prevScrollHeightRef.current) return;
 
     cancelAnimationFrame(followFrameRef.current);
     followFrameRef.current = requestAnimationFrame(() => {
+      if (pinToLastTurnPromptRef.current) {
+        pinToLastTurnPromptRef.current = false;
+        const turn = turnRef?.current;
+        if (turn) {
+          snapMessagesScrollToTurnPrompt(container, turn, prevScrollHeightRef);
+          requestAnimationFrame(() => {
+            snapMessagesScrollToTurnPrompt(container, turn, prevScrollHeightRef);
+          });
+          return;
+        }
+      }
+
       if (!stickToBottomRef.current) return;
+      if (scrollHeight === prevScrollHeightRef.current) return;
       snapMessagesScrollToBottom(container, prevScrollHeightRef);
     });
     return () => cancelAnimationFrame(followFrameRef.current);
-  }, [containerRef, revision, visible, threadId]);
+  }, [containerRef, revision, visible, threadId, turnRef]);
 
-  return { pinToBottom, getStickToBottom, releaseStickToBottom };
+  return {
+    pinToBottom,
+    pinToLastTurnPrompt,
+    getStickToBottom,
+    releaseStickToBottom,
+  };
 }

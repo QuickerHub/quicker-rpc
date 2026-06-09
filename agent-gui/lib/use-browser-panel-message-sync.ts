@@ -47,13 +47,17 @@ function findLatestBrowserPatchInLastAssistant(
 }
 
 /** Sync embedded browser panel from latest browser tool results in chat messages. */
-export function useBrowserPanelMessageSync(messages: UIMessage[]): void {
+export function useBrowserPanelMessageSync(
+  messages: UIMessage[],
+  options?: { enabled?: boolean },
+): void {
   const embedded = useEmbeddedBrowserOptional();
   const primedRef = useRef(false);
   const prevCountRef = useRef(0);
+  const enabled = options?.enabled !== false;
 
   useEffect(() => {
-    if (!embedded) return;
+    if (!enabled || !embedded) return;
 
     const prevCount = prevCountRef.current;
     const grew = messages.length > prevCount;
@@ -72,5 +76,5 @@ export function useBrowserPanelMessageSync(messages: UIMessage[]): void {
     if (!patch || !grew) return;
 
     embedded.applySnapshot(patch, { openPanel: true, navigate: true });
-  }, [embedded, messages]);
+  }, [embedded, messages, enabled]);
 }

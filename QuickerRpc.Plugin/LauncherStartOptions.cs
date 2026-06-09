@@ -98,6 +98,12 @@ public static class LauncherStartOptionsParser
             Silent = false,
         };
 
+    /// <summary>
+    /// True when <paramref name="quickerInParam"/> requests RPC-only bootstrap (e.g. <c>?plugin</c>).
+    /// </summary>
+    public static bool IsPluginOnlyParam(string? quickerInParam) =>
+        IsPluginOnlyMode(NormalizeMode(quickerInParam));
+
     private static bool IsPluginOnlyMode(string mode) =>
         mode.Equals(ModePluginOnly, StringComparison.OrdinalIgnoreCase)
         || mode.Equals("rpc", StringComparison.OrdinalIgnoreCase)
@@ -133,23 +139,27 @@ public static class LauncherStartOptionsResolver
     public static LauncherStartOptions Resolve(IActionContext? context) =>
         Resolve(
             ActionExecuteContextProbe.TryGetActionTrigger(context),
-            ActionExecuteContextProbe.TryGetQuickerInParam(context));
+            ActionExecuteContextProbe.TryGetQuickerInParam(context),
+            invokedFromAction: context is not null);
 
     public static LauncherStartOptions Resolve(
         IActionContext? context,
         string? quickerInParam) =>
         Resolve(
             ActionExecuteContextProbe.TryGetActionTrigger(context),
-            quickerInParam);
+            quickerInParam,
+            invokedFromAction: context is not null);
 
     internal static LauncherStartOptions Resolve(
         ActionTrigger? actionTrigger,
-        string? quickerInParam = null) =>
-        Resolve((int?)actionTrigger, quickerInParam);
+        string? quickerInParam = null,
+        bool invokedFromAction = false) =>
+        Resolve((int?)actionTrigger, quickerInParam, invokedFromAction);
 
     internal static LauncherStartOptions Resolve(
         int? actionTrigger,
-        string? quickerInParam = null)
+        string? quickerInParam = null,
+        bool invokedFromAction = false)
     {
         if (actionTrigger == (int)ActionTrigger.Extern)
         {
@@ -161,11 +171,38 @@ public static class LauncherStartOptionsResolver
             return LauncherStartOptionsParser.PluginOnly();
         }
 
+        quickerInParam = SanitizeQuickerInParamForInteractiveTrigger(actionTrigger, quickerInParam);
+
         if (actionTrigger is not null || quickerInParam is not null)
         {
             return LauncherStartOptionsParser.Parse(quickerInParam);
         }
 
-        return LauncherStartOptionsParser.PluginOnly();
+        return invokedFromAction
+            ? LauncherStartOptionsParser.Parse(null)
+            : LauncherStartOptionsParser.PluginOnly();
     }
+
+    /// <summary>
+    /// Panel / manual clicks should open QuickerAgent; ignore stale bootstrap <c>plugin</c> left in
+    /// <c>quicker_in_param</c> from a prior <c>quicker:runaction:…?plugin</c> or variable chain.
+    /// </summary>
+    private static string? SanitizeQuickerInParamForInteractiveTrigger(
+        int? actionTrigger,
+        string? quickerInParam)
+    {
+        if (!IsInteractiveUserTrigger(actionTrigger))
+        {
+            return quickerInParam;
+        }
+
+        return LauncherStartOptionsParser.IsPluginOnlyParam(quickerInParam)
+            ? null
+            : quickerInParam;
+    }
+
+    private static bool IsInteractiveUserTrigger(int? actionTrigger) =>
+        actionTrigger is not null
+        && actionTrigger != (int)ActionTrigger.Extern
+        && actionTrigger != (int)ActionTrigger.AutoRun;
 }

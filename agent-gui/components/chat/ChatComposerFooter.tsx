@@ -37,6 +37,7 @@ import { ComposerTestPromptsPicker } from "./ComposerTestPromptsPicker";
 import { ActionTagSelector } from "./ActionTagSelector";
 import { ToolSelector } from "./ToolSelector";
 import { ChatModeSelector } from "./ChatModeSelector";
+import { ComposerMessageQueue } from "./ComposerMessageQueue";
 import { ContextUsage } from "./ContextUsage";
 
 export type ChatComposerFooterHandle = {
@@ -62,6 +63,8 @@ type ChatComposerFooterProps = {
   isEmptyThread: boolean;
   busy: boolean;
   queueLength: number;
+  queuedMessages: readonly string[];
+  onRemoveFromQueue: (index: number) => void;
   settingsOpen: boolean;
   messages: AgentUIMessage[];
   ping: PingState;
@@ -95,6 +98,8 @@ const ChatComposerFooterInner = forwardRef<
     isEmptyThread,
     busy,
     queueLength,
+    queuedMessages,
+    onRemoveFromQueue,
     settingsOpen,
     messages,
     ping,
@@ -267,6 +272,13 @@ const ChatComposerFooterInner = forwardRef<
         onToggleSettings={onToggleSettings}
         disabled={busy}
       />
+      {!editAnchorMessageId ? (
+        <ComposerMessageQueue
+          queuedMessages={queuedMessages}
+          busy={busy}
+          onRemove={onRemoveFromQueue}
+        />
+      ) : null}
       <form
         className="composer-form"
         onSubmit={(e) => {
@@ -282,9 +294,11 @@ const ChatComposerFooterInner = forwardRef<
               placeholder={
                 editAnchorMessageId
                   ? "修改后 Enter 发送，将从此消息处重新对话…（@ 引用动作）"
-                  : queueLength > 0
-                    ? `Agent 完成后将发送已排队的 ${queueLength} 条消息…`
-                    : "描述你想在 Quicker 里做的事…（@ 引用动作）"
+                  : queueLength > 0 && busy
+                    ? "Enter 立即发送队列第一条，或输入新消息加入队列…"
+                    : queueLength > 0
+                      ? "Agent 完成后将自动发送队列中的消息…"
+                      : "描述你想在 Quicker 里做的事…（@ 引用动作）"
               }
               onChange={handleDraftChange}
               onSubmit={handleSubmit}
@@ -337,8 +351,6 @@ const ChatComposerFooterInner = forwardRef<
                   </span>
                 ) : editAnchorMessageId ? (
                   <span className="composer-hint">Enter 发送并分支</span>
-                ) : queueLength > 0 ? (
-                  <span className="composer-hint">{`已排队 ${queueLength} 条`}</span>
                 ) : null}
               </div>
               <div className="composer-toolbar-actions">

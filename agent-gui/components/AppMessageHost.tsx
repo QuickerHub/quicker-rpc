@@ -105,16 +105,14 @@ function AppMessageCard({
         )}
         <AppMessageActions message={message} onDismiss={onDismiss} />
       </div>
-      {message.dismissible ? (
-        <button
-          type="button"
-          className={`app-message-dismiss${message.actions.length > 0 ? " app-message-dismiss--with-actions" : ""}`}
-          onClick={() => onDismiss(message.id)}
-          aria-label="关闭"
-        >
-          ×
-        </button>
-      ) : null}
+      <button
+        type="button"
+        className="app-message-dismiss"
+        onClick={() => onDismiss(message.id)}
+        aria-label="关闭"
+      >
+        ×
+      </button>
     </div>
   );
 }

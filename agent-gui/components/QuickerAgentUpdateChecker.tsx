@@ -19,6 +19,7 @@ import {
 } from "@/lib/quicker-agent-official-updater";
 import { checkQuickerAgentUpdate } from "@/lib/quicker-agent-update";
 import {
+  completeVoiceUpdateToast,
   dismissAppUpdateToast,
   syncAppUpdateToast,
   syncVoiceUpdateToast,
@@ -108,8 +109,21 @@ export function QuickerAgentUpdateChecker() {
       }
       if (!voiceRuntimeUpgradeRef.current) return;
 
-      if (event.phase === "ready" && event.message.includes("退出后")) {
-        const progress = normalizeProgress(event);
+      const progress = normalizeProgress(event);
+
+      if (event.phase === "done") {
+        completeVoiceUpdateToast(progress.message, "success");
+        voiceRuntimeUpgradeRef.current = false;
+        return;
+      }
+
+      if (event.phase === "error") {
+        completeVoiceUpdateToast(progress.message, "warning");
+        voiceRuntimeUpgradeRef.current = false;
+        return;
+      }
+
+      if (event.phase === "ready") {
         patchVoiceUpdateOverlay({
           phase: "ready",
           percent: progress.percent,
@@ -123,7 +137,6 @@ export function QuickerAgentUpdateChecker() {
         return;
       }
 
-      const progress = normalizeProgress(event);
       patchVoiceUpdateOverlay({
         phase: "downloading",
         percent: progress.percent,

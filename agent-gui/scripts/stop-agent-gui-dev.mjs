@@ -6,6 +6,10 @@ import { execSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  isInstalledProductionQuickerAgentProcess,
+  isProductionQuickerAgentUiProcess,
+} from "../lib/quicker-agent-install-probe.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const defaultAgentGuiRoot = join(scriptDir, "..");
@@ -71,6 +75,62 @@ function stopProcessTree(pid, protectedPids) {
   }
 }
 
+function readWindowsProcessInfo(pid) {
+  if (process.platform !== "win32" || !Number.isFinite(pid) || pid <= 0) {
+    return null;
+  }
+  try {
+    const ps = [
+      `$p = Get-CimInstance Win32_Process -Filter "ProcessId=${pid}" -ErrorAction SilentlyContinue;`,
+      "if ($null -eq $p) { exit 0 };",
+      "Write-Output ($p.Name + '|' + ($p.CommandLine ?? '') + '|' + ($p.ExecutablePath ?? ''))",
+    ].join(" ");
+    const out = execSync(`pwsh -NoProfile -Command "${ps}"`, {
+      encoding: "utf8",
+      timeout: 10_000,
+    }).trim();
+    if (!out) {
+      return null;
+    }
+    const parts = out.split("|");
+    if (parts.length < 2) {
+      return { name: out.toLowerCase(), commandLine: "", executablePath: "" };
+    }
+    return {
+      name: (parts[0] ?? "").toLowerCase(),
+      commandLine: (parts[1] ?? "").toLowerCase(),
+      executablePath: (parts[2] ?? "").toLowerCase(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function shouldProtectProductionProcess(pid) {
+  const info = readWindowsProcessInfo(pid);
+  if (!info) {
+    return false;
+  }
+  return isProductionQuickerAgentUiProcess(
+    info.name,
+    info.commandLine,
+    info.executablePath,
+  );
+}
+
+function listProductionOccupiedPorts(ports) {
+  const occupied = new Set();
+  for (const port of ports) {
+    for (const pid of listListeningPids(port)) {
+      if (shouldProtectProductionProcess(pid)) {
+        occupied.add(port);
+        break;
+      }
+    }
+  }
+  return occupied;
+}
+
 function listListeningPids(port) {
   if (process.platform === "win32") {
     try {
@@ -114,7 +174,7 @@ function listAgentGuiDevPids(agentGuiRoot) {
   try {
     const ps = [
       "Get-CimInstance Win32_Process |",
-      "ForEach-Object { $_.ProcessId.ToString() + '|' + $_.Name + '|' + ($_.CommandLine ?? '') }",
+      "ForEach-Object { $_.ProcessId.ToString() + '|' + $_.Name + '|' + ($_.CommandLine ?? '') + '|' + ($_.ExecutablePath ?? '') }",
     ].join(" ");
     const out = execSync(`pwsh -NoProfile -Command "${ps}"`, {
       encoding: "utf8",
@@ -125,17 +185,23 @@ function listAgentGuiDevPids(agentGuiRoot) {
     for (const line of out.split(/\r?\n/)) {
       if (!line.trim()) continue;
       const parts = line.split("|");
-      if (parts.length < 3) continue;
+      if (parts.length < 4) continue;
       const pid = Number(parts[0]);
       const name = (parts[1] ?? "").toLowerCase();
-      const cmdLower = parts.slice(2).join("|").toLowerCase();
+      const cmdLower = (parts[2] ?? "").toLowerCase();
+      const exeLower = (parts[3] ?? "").toLowerCase();
       if (!Number.isFinite(pid) || pid <= 0 || pid === process.pid) continue;
 
       let isAgentGuiDev = false;
       // Do not kill pwsh running start-agent-gui.ps1 — that is often the active launcher
       // (stop is invoked from that script). Node/next on the UI port are stopped separately.
       if (name === "quicker-agent.exe") {
-        isAgentGuiDev = true;
+        // Installed NSIS QuickerAgent must survive dev restarts (start-agent-gui.ps1 / pnpm dev).
+        isAgentGuiDev = !isInstalledProductionQuickerAgentProcess(
+          name,
+          cmdLower,
+          exeLower,
+        );
       } else if (name === "node.exe" && /start-server\.js/.test(cmdLower)) {
         // Orphaned Next dev listener after a crashed Tauri/browser session.
         isAgentGuiDev =
@@ -173,10 +239,16 @@ function listAgentGuiDevPids(agentGuiRoot) {
   }
 }
 
-function stopPorts(ports, protectedPids) {
+function stopPorts(ports, protectedPids, skipPorts = new Set()) {
   const stopped = new Set();
   for (const port of ports) {
+    if (skipPorts.has(port)) {
+      continue;
+    }
     for (const pid of listListeningPids(port)) {
+      if (shouldProtectProductionProcess(pid)) {
+        continue;
+      }
       if (stopProcessTree(pid, protectedPids)) {
         stopped.add(pid);
       }
@@ -193,17 +265,26 @@ export async function stopStaleAgentGuiDev(options = {}) {
     preferredPort,
     ...new Set([3001, 3002].filter((port) => port !== preferredPort)),
   ];
+  const productionPorts = listProductionOccupiedPorts(cleanupPorts);
+  if (productionPorts.size > 0) {
+    console.log(
+      `agent-gui: leaving port(s) held by installed QuickerAgent: ${[...productionPorts].join(", ")}`,
+    );
+  }
 
   const stopped = new Set();
 
   for (const pid of listAgentGuiDevPids(agentGuiRoot)) {
+    if (shouldProtectProductionProcess(pid)) {
+      continue;
+    }
     if (stopProcessTree(pid, protectedPids)) {
       stopped.add(pid);
     }
   }
 
   for (let round = 0; round < 4; round += 1) {
-    for (const pid of stopPorts(cleanupPorts, protectedPids)) {
+    for (const pid of stopPorts(cleanupPorts, protectedPids, productionPorts)) {
       stopped.add(pid);
     }
     if (round + 1 < 4) {

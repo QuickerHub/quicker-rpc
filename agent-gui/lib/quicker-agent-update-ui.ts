@@ -5,6 +5,7 @@ import {
 } from "@/lib/app-messages";
 import {
   hideAppUpdateOverlaySlice,
+  hideVoiceUpdateOverlaySlice,
   patchAppUpdateOverlay,
   showApplyingAppUpdateOverlay,
   type AppUpdateOverlaySlice,
@@ -33,7 +34,6 @@ function pushAppUpdateProgressToast(slice: AppUpdateOverlaySlice): void {
       percent: slice.percent,
       message: slice.message,
     },
-    dismissible: false,
   });
 }
 
@@ -47,7 +47,20 @@ function pushVoiceUpdateProgressToast(slice: VoiceUpdateOverlaySlice): void {
       percent: slice.percent,
       message: slice.message,
     },
-    dismissible: false,
+  });
+}
+
+export function completeVoiceUpdateToast(
+  message: string,
+  kind: "success" | "warning" = "success",
+): void {
+  hideVoiceUpdateOverlaySlice();
+  pushAppMessage({
+    id: VOICE_UPDATE_TOAST_ID,
+    kind,
+    title: "语音服务更新",
+    body: message,
+    autoDismissMs: kind === "success" ? 5_000 : 10_000,
   });
 }
 
@@ -205,14 +218,13 @@ export function syncVoiceUpdateToast(slice: VoiceUpdateOverlaySlice): void {
       id: VOICE_UPDATE_TOAST_ID,
       kind: "info",
       title: "语音服务更新",
-      body: "语音识别服务更新已下载，退出 QuickerAgent 后将自动安装。",
-      actions: [{ label: "知道了" }],
-      dismissible: true,
+      body: slice.message || "语音服务更新已下载，正在应用…",
+      autoDismissMs: 8_000,
     });
     return;
   }
 
-  if (slice.percent > 0) {
+  if (slice.percent > 0 && slice.percent < 100) {
     pushVoiceUpdateProgressToast(slice);
     return;
   }

@@ -101,6 +101,13 @@ public static partial class Launcher
             if (_status == LauncherStatus.Starting)
             {
                 Logger.LogDebug("QuickerRpc launcher start already in progress");
+                if (_launchQuickerAgentAfterStart)
+                {
+                    // A concurrent manual click may arrive while bootstrap is still starting RPC.
+                    // StartCoreAsync will honor _launchQuickerAgentAfterStart when startup completes.
+                    Logger.LogDebug("QuickerAgent launch queued until RPC startup completes.");
+                }
+
                 return;
             }
 
@@ -226,7 +233,12 @@ public static partial class Launcher
         }
 
         _launchQuickerAgentAfterStart = false;
-        _ = Task.Run(() => QuickerAgentLaunchService.TryLaunchOrActivate(Logger));
+        _ = Task.Run(() =>
+        {
+            var outcome = QuickerAgentLaunchService.TryLaunchOrActivate(Logger);
+            QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(
+                () => QuickerAgentLaunchNotifier.Notify(outcome, Logger));
+        });
     }
 
     private static void ShowAlreadyRunningVersionPopup() =>

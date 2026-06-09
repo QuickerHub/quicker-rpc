@@ -312,6 +312,25 @@ export function canSendComposedMessage(draft: string): boolean {
   );
 }
 
+/** Plain-text preview for queued composer messages (tags → @title). */
+export function formatComposerQueuePreview(text: string, maxLen = 120): string {
+  const segments = parseUserMessageSegments(text);
+  const parts: string[] = [];
+  for (const segment of segments) {
+    if (segment.type === "tag") {
+      parts.push(`@${segment.action.title}`);
+    } else if (segment.type === "browser-element") {
+      parts.push(`[${segment.element.chipTitle}]`);
+    } else if (segment.text.trim()) {
+      parts.push(segment.text.trim());
+    }
+  }
+  const joined = parts.join(" ").replace(/\s+/g, " ").trim();
+  if (!joined) return "（空消息）";
+  if (joined.length <= maxLen) return joined;
+  return `${joined.slice(0, maxLen - 1)}…`;
+}
+
 /** Clipboard / paste round-trip uses stored markup or legacy action lines. */
 export function hasPasteableUserMessageFormat(text: string): boolean {
   if (text.includes("<qkrpc-action-tag")) return true;
