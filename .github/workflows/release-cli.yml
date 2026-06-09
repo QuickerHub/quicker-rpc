@@ -146,6 +146,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          # tauri-prepare runs publish-rpc.ps1 when publish/cli is absent; needs ActionRuntime.
+          token: ${{ secrets.ACTIONRUNTIME_SUBMODULE_PAT }}
 
       - name: Isolate USERPROFILE for Windows builds
         shell: pwsh
