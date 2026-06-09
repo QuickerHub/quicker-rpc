@@ -698,6 +698,52 @@ fn build_status(state: &VoicePluginState) -> VoicePluginStatusDto {
     }
 }
 
+pub fn build_voice_plugin_status(state: &VoicePluginState) -> VoicePluginStatusDto {
+    build_status(state)
+}
+
+/// Install / update / start voice runtime when activation event fires (e.g. first mic use).
+pub fn activate_voice_on_demand(
+    app: &AppHandle,
+    state: &VoicePluginState,
+) -> Result<(), String> {
+    let _ = crate::voice_plugin_install::refresh_voice_channel_cache()?;
+    let root = voice_plugin_root();
+    if !crate::voice_plugin_install::is_voice_asr_installed(&root) {
+        crate::voice_plugin_install::run_voice_plugin_install(app)?;
+    }
+    if crate::voice_plugin_install::needs_runtime_update(&root) {
+        crate::voice_plugin_install::stage_runtime_upgrade(app)?;
+    }
+    let was_active = voice_runtime_was_active(state);
+    try_apply_staged_runtime_upgrade(app, was_active);
+    let _ = start_runtime_inner(state);
+    Ok(())
+}
+
+/// Download staged runtime update and apply when newer channel version is available.
+pub fn apply_voice_runtime_update(
+    app: &AppHandle,
+    state: &VoicePluginState,
+) -> Result<(), String> {
+    let _ = crate::voice_plugin_install::refresh_voice_channel_cache()?;
+    let root = voice_plugin_root();
+    if !crate::voice_plugin_install::is_voice_asr_installed(&root) {
+        return Err("语音插件尚未安装".into());
+    }
+
+    if crate::voice_plugin_install::needs_runtime_update(&root) {
+        crate::voice_plugin_install::stage_runtime_upgrade(app)?;
+    }
+
+    if crate::voice_plugin_install::has_staged_runtime_update(&root) {
+        let was_active = voice_runtime_was_active(state);
+        try_apply_staged_runtime_upgrade(app, was_active);
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub fn voice_plugin_status(state: State<'_, VoicePluginState>) -> VoicePluginStatusDto {
     build_status(&state)
@@ -817,8 +863,23 @@ pub fn ensure_voice_runtime(app: &AppHandle) {
 }
 
 fn run_background_voice_tasks(app: &AppHandle) {
+    let events = crate::plugin_runtime::activation::events_for("voice-asr");
+    if crate::plugin_runtime::activation::should_refresh_channel_on_startup(&events) {
+        let _ = crate::voice_plugin_install::refresh_voice_channel_cache();
+    }
+
     if cfg!(debug_assertions) {
-        ensure_voice_runtime(app);
+        if crate::plugin_runtime::activation::should_run_startup_runtime(&events)
+            || read_voice_auto_start()
+        {
+            ensure_voice_runtime(app);
+        }
+        return;
+    }
+
+    if !crate::plugin_runtime::activation::should_run_startup_runtime(&events)
+        && !read_voice_auto_start()
+    {
         return;
     }
 

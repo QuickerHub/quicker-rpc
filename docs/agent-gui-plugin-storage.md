@@ -62,6 +62,9 @@ Linux:       $XDG_DATA_HOME/QuickerAgent/  或  ~/.local/share/QuickerAgent/
 
 ```text
 <app-data>/QuickerAgent/
+  cache/                  # 远程 plugin gallery 缓存（TTL 默认 6h）
+    voice-asr-channel.json
+    plugin-registry.json  # Phase 1
   plugins/
     <plugin-id>/          # 例如 voice-asr
       manifest.json
@@ -69,6 +72,8 @@ Linux:       $XDG_DATA_HOME/QuickerAgent/  或  ~/.local/share/QuickerAgent/
       runtime/
       models/
 ```
+
+远程 channel/registry 由 Tauri `plugin_runtime` 在启动时拉取；内嵌 `plugin-registry-bootstrap.json` 仅提供 URL 与离线 fallback。Registry 条目可声明 `activationEvents`（如 `onStartup:channelRefresh`、`onStartup:runtime`、`onDemand:voice-input`）控制启动与按需激活。见 [`docs/superpowers/specs/2026-06-09-plugin-runtime-gallery-design.md`](superpowers/specs/2026-06-09-plugin-runtime-gallery-design.md)。
 
 ### 3.2 旧版路径（兼容）
 
@@ -117,7 +122,7 @@ Documents/QuickerAgent/plugins/voice-asr/
 **模型**：ModelScope 逐文件 → 失败则 Bitiful / GitHub zip  
 **Runtime**：Bitiful 镜像 → GitHub Release  
 
-频道配置：`agent-gui/src-tauri/resources/voice-plugin-channel.json`
+频道配置（运行时拉取，内嵌仅离线 fallback）：`plugin-registry-bootstrap.json` → 远程 `voice-plugin-channel.generated.json` / Bitiful `voice-plugin-channel.json`；legacy 内嵌 `voice-plugin-channel.json`
 
 ### 4.4 安装过程临时文件
 

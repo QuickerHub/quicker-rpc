@@ -5,6 +5,10 @@ import { isTauriShell } from "@/lib/tauri-shell";
 import { requestDevVoiceRuntimeStart } from "@/lib/voice-input/voice-input-dev-runtime";
 import { isVoiceInputMockEnabled } from "@/lib/voice-input/voice-input-plugin-status";
 import {
+  PLUGIN_ACTIVATION_VOICE_INPUT,
+  pluginActivate,
+} from "@/lib/plugin-runtime-client";
+import {
   fetchTauriVoicePluginStatus,
   tauriVoicePluginStartRuntime,
 } from "@/lib/voice-input/voice-input-tauri";
@@ -29,9 +33,13 @@ export function useVoiceRuntimeBootstrap(): void {
 
       if (isTauriShell()) {
         const dto = await fetchTauriVoicePluginStatus();
-        if (!dto?.installed) return;
-        if (dto.status === "running" || dto.status === "starting") return;
-        void tauriVoicePluginStartRuntime().catch(() => undefined);
+        if (dto?.status === "running" || dto?.status === "starting") return;
+        try {
+          await pluginActivate("voice-asr", PLUGIN_ACTIVATION_VOICE_INPUT);
+        } catch {
+          if (!dto?.installed) return;
+          void tauriVoicePluginStartRuntime().catch(() => undefined);
+        }
         return;
       }
 

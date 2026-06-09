@@ -42,7 +42,7 @@ metadata:
 | Runtime zip | `voice-asr-runtime-<ver>-win-x64.zip` |
 | Model zip | `voice-asr-model-sensevoice.zip` |
 
-已安装用户：Tauri 比对 `runtime-version.txt` 与 channel 的 `runtimeVersion`，后台 staging 升级。**未同步 channel.json 时新装仍拉旧版。**
+已安装用户：Tauri 从远程 gallery 拉取 channel（GitHub `latest` + Bitiful mirror），比对 `runtime-version.txt` 与 `runtimeVersion`，后台 staging 升级。**纯 runtime 发布无需 QuickerAgent 发版**；内嵌 fallback channel 仅离线兜底。
 
 ## Agent 流程（runtime `vX.Y.Z`）
 
@@ -66,18 +66,22 @@ metadata:
    gh run watch <run-id> --repo QuickerHub/voice-asr-runtime
    ```
    GitHub Release 成功但 job 黄/红：常见为 Bitiful 未配置（已改为 skip）；以 Release 资产为准。
-6. **同步 monorepo channel**（在 quicker-rpc 根目录）：
+6. **上传远程 channel mirror**（推荐，在 quicker-rpc 根目录）：
+   ```powershell
+   pwsh -NoProfile -File ./publish/Sync-VoicePluginChannel.ps1 -Version 0.1.3 -FromGitHubRelease -UploadRemote -SkipLocalSync
+   ```
+   GitHub Release 已附带 `voice-plugin-channel.generated.json` 时，已安装 QuickerAgent 会通过 `releases/latest` 自动发现新版本。
+7. **（可选，低频）** 更新内嵌 offline fallback：
    ```powershell
    pwsh -NoProfile -File ./publish/Sync-VoicePluginChannel.ps1 -Version 0.1.3 -FromGitHubRelease
    ```
-   或本地已有 zip 时：`-Version 0.1.3`（脚本从 `voice-asr-runtime/publish/*.zip` 算 SHA256）。
-7. **Commit** 两处 `voice-plugin-channel.json`（monorepo）。
-8. **（可选）本地补传 Bitiful**（CI 未配 secret 时）：
+   仅当需要刷新 `voice-plugin-channel.json` 离线兜底时 commit monorepo；**不是每次 runtime 发布的必做项**。
+8. **（可选）本地补传 runtime zip Bitiful**（CI 未配 secret 时）：
    ```powershell
    pwsh -NoProfile -File ./publish/Upload-VoiceAsrToBitiful.ps1 -Version 0.1.3
    ```
    凭证：`publish/.env`（见 `publish/.env.example`）。
-9. **汇报**：GitHub Release URL、channel `runtimeVersion`、Bitiful 是否已镜像。
+9. **汇报**：GitHub Release URL、channel `runtimeVersion`、Bitiful channel mirror 是否已上传。
 
 ## Agent 流程（仅模型 `model-sensevoice`）
 
@@ -113,8 +117,10 @@ pwsh ./publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -PublishModel -UploadBitif
 
 | 命令 | 用途 |
 |------|------|
-| `publish/Sync-VoicePluginChannel.ps1 -Version X.Y.Z -FromGitHubRelease` | 从 Release 拉 manifest → 同步 **resources + voice-plugin-metadata** |
-| `publish/Sync-VoicePluginChannel.ps1 -Version X.Y.Z` | 本地 zip 生成 manifest 并同步 |
+| `publish/Sync-VoicePluginChannel.ps1 -Version X.Y.Z -FromGitHubRelease -UploadRemote -SkipLocalSync` | 上传 Bitiful channel mirror（**runtime 独立发布主路径**） |
+| `publish/Sync-VoicePluginChannel.ps1 -Version X.Y.Z -FromGitHubRelease` | 从 Release 拉 manifest → 更新内嵌 offline fallback |
+| `publish/Sync-VoicePluginChannel.ps1 -Version X.Y.Z` | 本地 zip 生成 manifest 并同步 fallback |
+| `node agent-gui/scripts/test-plugin-channel-fetch.mjs` | 探测 bootstrap 配置的远程 channel URL |
 | `voice-asr-runtime/publish/Publish-VoiceAsrRelease.ps1` | 本地构建 + `gh release` + 可选 Bitiful + channel |
 | `publish/Upload-VoiceAsrToBitiful.ps1 -Version X.Y.Z` | 仅 Bitiful 镜像 |
 | `voice-asr-runtime/scripts/build-win.ps1` | PyInstaller |
@@ -135,7 +141,7 @@ gh release download v0.1.2 --repo QuickerHub/voice-asr-runtime --pattern voice-p
 
 ## 禁止
 
-- 只打 GitHub tag **不同步** monorepo 两处 `voice-plugin-channel.json`
+- 每次 runtime 发布 **强制** commit monorepo `voice-plugin-channel.json`（已改为远程 gallery；fallback 仅低频）
 - 只改 `resources/` 不改 `voice-plugin-metadata/`（`tauri-prepare.mjs` 打包用后者覆盖前者）
 - 用 quicker-rpc `/publish` 或 `version.json` bump 代替 voice runtime 发布
 - 模型变更却不更新 `voice-sensevoice-model-identity.json`

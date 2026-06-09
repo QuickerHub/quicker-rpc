@@ -15,11 +15,13 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 mod clipboard_history_plugin;
+mod plugin_runtime;
 mod embedded_browser;
 mod global_shortcut;
 mod launcher;
 mod legacy_chat_restore;
 mod quicker_agent_paths;
+mod single_instance;
 mod tray;
 mod voice_plugin;
 mod voice_plugin_install;
@@ -605,13 +607,16 @@ fn open_production_ui(app: &AppHandle, ui_url: &str) {
             }
         };
 
+        // Mark UI ready before navigate so a transient CloseRequested during the
+        // placeholder→http transition does not run the startup shutdown path.
+        PRODUCTION_UI_READY.store(true, Ordering::SeqCst);
+
         if let Err(err) = win.navigate(external) {
+            PRODUCTION_UI_READY.store(false, Ordering::SeqCst);
             show_startup_error(&app_for_ui, &format!("failed to load UI: {err}"));
             app_for_ui.exit(1);
             return;
         }
-
-        PRODUCTION_UI_READY.store(true, Ordering::SeqCst);
     }) {
         eprintln!("open production UI callback failed: {err}");
     }
@@ -760,36 +765,9 @@ fn show_startup_error(app: &AppHandle, detail: &str) {
         .blocking_show();
 }
 
-#[cfg(windows)]
-fn ensure_single_instance() -> bool {
-    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_ALREADY_EXISTS};
-    use windows_sys::Win32::System::Threading::CreateMutexW;
-
-    let name: Vec<u16> = "Local\\QuickerAgent.SingleInstance\0"
-        .encode_utf16()
-        .collect();
-    unsafe {
-        let handle = CreateMutexW(std::ptr::null(), 1, name.as_ptr());
-        if handle.is_null() {
-            return true;
-        }
-        if GetLastError() == ERROR_ALREADY_EXISTS {
-            CloseHandle(handle);
-            eprintln!("QuickerAgent is already running; exiting duplicate instance.");
-            return false;
-        }
-        true
-    }
-}
-
-#[cfg(not(windows))]
-fn ensure_single_instance() -> bool {
-    true
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    if !ensure_single_instance() {
+    if !single_instance::ensure_single_instance_or_activate_existing() {
         return;
     }
 
@@ -806,6 +784,11 @@ pub fn run() {
             launcher::launcher_toggle,
             launcher::launcher_expand,
             global_shortcut::launcher_sync_global_shortcut,
+            plugin_runtime::commands::plugin_registry_refresh,
+            plugin_runtime::commands::plugin_list,
+            plugin_runtime::commands::plugin_status,
+            plugin_runtime::commands::plugin_update,
+            plugin_runtime::commands::plugin_activate,
             voice_plugin::voice_plugin_status,
             voice_plugin::voice_runtime_health,
             voice_plugin::voice_plugin_install,

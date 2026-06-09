@@ -17,7 +17,7 @@ use crate::quicker_agent_paths::clipboard_history_plugin_root;
 /// Temporarily disabled — set to `true` when clipboard-history is ready to ship again.
 pub const CLIPBOARD_HISTORY_ENABLED: bool = false;
 
-const DISABLED_MESSAGE: &str = "剪贴板历史功能已暂时关闭，不影响系统剪贴板正常使用。";
+pub const DISABLED_MESSAGE: &str = "剪贴板历史功能已暂时关闭，不影响系统剪贴板正常使用。";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -465,6 +465,10 @@ pub fn ensure_clipboard_runtime(state: &ClipboardHistoryPluginState) -> Result<C
     Ok(build_status(state))
 }
 
+pub fn build_clipboard_plugin_status(state: &ClipboardHistoryPluginState) -> ClipboardHistoryPluginStatusDto {
+    build_status(state)
+}
+
 #[tauri::command]
 pub fn clipboard_history_plugin_status(
     state: State<'_, ClipboardHistoryPluginState>,
@@ -512,6 +516,13 @@ fn ensure_clipboard_runtime_if_auto_start(app: &AppHandle) {
 pub fn spawn_clipboard_runtime_background(app: AppHandle) {
     if !CLIPBOARD_HISTORY_ENABLED {
         ensure_clipboard_history_disabled(&app);
+        return;
+    }
+
+    let events = crate::plugin_runtime::activation::events_for("clipboard-history");
+    if !crate::plugin_runtime::activation::should_run_startup_runtime(&events)
+        && !read_clipboard_auto_start()
+    {
         return;
     }
 

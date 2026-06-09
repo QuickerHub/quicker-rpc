@@ -15,21 +15,8 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 static VOICE_INSTALL_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct VoicePluginChannel {
-    #[serde(rename = "runtimeVersion")]
-    runtime_version: String,
-    runtime_zip_url: String,
-    #[serde(rename = "modelZipUrl")]
-    _model_zip_url: String,
-    runtime_zip_mirror_url: Option<String>,
-    #[serde(rename = "modelZipMirrorUrl")]
-    _model_zip_mirror_url: Option<String>,
-    runtime_zip_sha256: Option<String>,
-    #[serde(rename = "modelZipSha256")]
-    _model_zip_sha256: Option<String>,
-}
+use crate::plugin_runtime::channel::resolve_voice_channel;
+use crate::plugin_runtime::types::VoicePluginChannel;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,6 +27,8 @@ pub struct VoiceInstallProgressEvent {
 }
 
 const MANIFEST_JSON: &str = include_str!("../resources/voice-plugin-manifest.json");
+const SENSEVOICE_MODEL_IDENTITY_JSON: &str =
+    include_str!("../resources/voice-sensevoice-model-identity.json");
 const DEFAULT_SETTINGS_JSON: &str = r#"{"autoStart":true,"modelId":"standard","gpuAcceleration":false,"language":"zh-CN","silentStopSeconds":0,"streamingPreview":false,"maxRecordingSeconds":120,"wsPort":6016}"#;
 
 const MODEL_SUBDIR: &str = "sensevoice";
@@ -99,8 +88,12 @@ fn packaged_model_dir() -> Option<PathBuf> {
 }
 
 fn load_channel() -> Result<VoicePluginChannel, String> {
-    let raw = include_str!("../resources/voice-plugin-channel.json");
-    serde_json::from_str(raw).map_err(|e| format!("voice plugin channel config invalid: {e}"))
+    resolve_voice_channel(false)
+}
+
+/// Force-refresh remote voice channel (non-fatal when called from background tasks).
+pub fn refresh_voice_channel_cache() -> Result<VoicePluginChannel, String> {
+    resolve_voice_channel(true)
 }
 
 pub fn channel_runtime_version() -> Result<String, String> {
@@ -261,6 +254,16 @@ fn is_installed(root: &Path) -> bool {
 /// Strict install check shared by host status and background tasks.
 pub fn is_voice_asr_installed(root: &Path) -> bool {
     is_installed(root)
+}
+
+fn write_runtime_model_identity(root: &Path) -> Result<(), String> {
+    let dest = runtime_dir(root)
+        .join("models")
+        .join("sensevoice-model-identity.json");
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(&dest, SENSEVOICE_MODEL_IDENTITY_JSON).map_err(|e| e.to_string())
 }
 
 fn write_plugin_metadata(root: &Path) -> Result<(), String> {
@@ -654,6 +657,7 @@ pub fn download_asr_model(
     );
 
     if runtime_exe_for_download(plugin_root).is_some() {
+        write_runtime_model_identity(plugin_root)?;
         run_packaged_download_model(app, plugin_root, preset, force)?;
     } else if cfg!(debug_assertions) {
         run_uv_download_model(app, plugin_root, preset, force)?;
@@ -845,9 +849,13 @@ fn run_voice_plugin_install_inner(app: &AppHandle) -> Result<PathBuf, String> {
                 let channel = load_channel()?;
                 install_runtime_from_url(app, &channel, &root, &temp_dir)?;
             }
+            write_runtime_model_identity(&root)?;
         }
 
         if need_model {
+            if runtime_ready(&root) {
+                write_runtime_model_identity(&root)?;
+            }
             let local_model = packaged_model_dir();
             if let Some(src) = local_model {
                 install_model_from_local(app, &src, &root)?;

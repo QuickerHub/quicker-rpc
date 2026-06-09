@@ -39,6 +39,12 @@ import {
   type VoicePluginSettings,
 } from "@/lib/voice-input/voice-input-settings";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
+import {
+  applyPluginUpdate,
+  fetchPluginStatus,
+  pluginRegistryRefresh,
+  type PluginStatusDto,
+} from "@/lib/plugin-runtime-client";
 
 type VoiceInputSettingsSectionProps = {
   active: boolean;
@@ -134,6 +140,9 @@ export function VoiceInputSettingsSection({
   const [modelDownloadProgress, setModelDownloadProgress] =
     useState<VoiceModelDownloadProgress | null>(null);
   const [settingsHint, setSettingsHint] = useState<string | null>(null);
+  const [pluginGalleryStatus, setPluginGalleryStatus] =
+    useState<PluginStatusDto | null>(null);
+  const [pluginUpdateBusy, setPluginUpdateBusy] = useState(false);
   const devExperienceEnabled = useDevExperienceEnabled();
   const inTauri = isTauriShell();
   const devBrowser = process.env.NODE_ENV === "development" && !inTauri;
@@ -207,6 +216,54 @@ export function VoiceInputSettingsSection({
       notifyVoiceConfigChanged();
     } finally {
       setRuntimeBusy(false);
+    }
+  };
+
+  const handleCheckPluginUpdate = async () => {
+    if (pluginUpdateBusy || disabled || !inTauri) return;
+    setPluginUpdateBusy(true);
+    setSettingsHint(null);
+    try {
+      await pluginRegistryRefresh();
+      const status = await fetchPluginStatus("voice-asr");
+      setPluginGalleryStatus(status);
+      if (!status) {
+        setSettingsHint("无法获取插件更新信息");
+        return;
+      }
+      if (!status.hostCompatible) {
+        setSettingsHint(status.message ?? "请升级 QuickerAgent 后再更新语音 Runtime");
+        return;
+      }
+      if (status.updateAvailable) {
+        setSettingsHint(
+          status.message ?? `发现新版本 ${status.latestVersion ?? ""}`,
+        );
+      } else {
+        setSettingsHint(
+          status.installedVersion
+            ? `已是最新 Runtime（${status.installedVersion}）`
+            : "当前无可用 Runtime 更新",
+        );
+      }
+    } finally {
+      setPluginUpdateBusy(false);
+    }
+  };
+
+  const handleApplyPluginUpdate = async () => {
+    if (pluginUpdateBusy || disabled || !inTauri) return;
+    setPluginUpdateBusy(true);
+    setSettingsHint(null);
+    try {
+      const status = await applyPluginUpdate("voice-asr");
+      setPluginGalleryStatus(status);
+      setSettingsHint(status?.message ?? "语音 Runtime 更新完成");
+      notifyVoiceConfigChanged();
+    } catch (err) {
+      setSettingsHint(err instanceof Error ? err.message : "插件更新失败");
+    } finally {
+      setPluginUpdateBusy(false);
     }
   };
 
@@ -470,6 +527,26 @@ export function VoiceInputSettingsSection({
           >
             重新检测
           </button>
+          {inTauri ? (
+            <button
+              type="button"
+              className="app-settings-action voice-settings-action-muted"
+              disabled={disabled || pluginUpdateBusy}
+              onClick={() => void handleCheckPluginUpdate()}
+            >
+              {pluginUpdateBusy ? "检查中…" : "检查插件更新"}
+            </button>
+          ) : null}
+          {inTauri && pluginGalleryStatus?.updateAvailable ? (
+            <button
+              type="button"
+              className="app-settings-action app-settings-action--primary"
+              disabled={disabled || pluginUpdateBusy}
+              onClick={() => void handleApplyPluginUpdate()}
+            >
+              {pluginUpdateBusy ? "更新中…" : "安装 Runtime 更新"}
+            </button>
+          ) : null}
         </div>
       </div>
 

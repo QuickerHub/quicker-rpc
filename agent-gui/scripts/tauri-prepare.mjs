@@ -26,6 +26,7 @@ const VOICE_RESOURCE_FILES = [
   "voice-plugin-manifest.json",
   "voice-plugin-channel.json",
   "voice-sensevoice-model-identity.json",
+  "plugin-registry-bootstrap.json",
 ];
 
 function stageVoiceResourceFiles() {

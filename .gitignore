@@ -64,6 +64,9 @@ publish/**
 !publish/Upload-QuickerAgentToBitiful.ps1
 !publish/Publish-VoiceAsrRelease.ps1
 !publish/Sync-VoicePluginChannel.ps1
+!publish/Sync-PluginRegistry.ps1
+!publish/registry/
+!publish/registry/**
 !publish/Upload-VoiceAsrToBitiful.ps1
 !publish/Sync-QuickerAgentActionDoc.ps1
 !publish/bitiful_upload.py

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "registryUrl": "https://s3.bitiful.net/quicker-pkgs/quicker-agent/plugins/registry.json",
+  "registryMirrorUrl": "https://github.com/QuickerHub/quicker-agent-plugins/releases/latest/download/registry.json",
+  "cacheTtlHours": 6,
+  "offlineFallbackRegistry": {
+    "plugins": {
+      "voice-asr": {
+        "channelUrl": "https://github.com/QuickerHub/voice-asr-runtime/releases/latest/download/voice-plugin-channel.generated.json",
+        "channelMirrorUrl": "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/voice-plugin-channel.json",
+        "minHostVersion": "0.10.0",
+        "activationEvents": ["onStartup:channelRefresh", "onStartup:runtime", "onDemand:voice-input"]
+      }
+    }
+  }
+}

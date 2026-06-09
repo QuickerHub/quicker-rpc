@@ -28,6 +28,7 @@ src-tauri/resources/
 !src-tauri/resources/voice-plugin-channel.json
 !src-tauri/resources/voice-plugin-manifest.json
 !src-tauri/resources/voice-sensevoice-model-identity.json
+!src-tauri/resources/plugin-registry-bootstrap.json
 !src-tauri/voice-plugin-metadata/
 src-tauri/gen/
 

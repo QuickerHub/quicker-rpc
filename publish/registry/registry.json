@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-06-09T00:00:00Z",
+  "plugins": {
+    "voice-asr": {
+      "displayName": "本地语音输入",
+      "channelUrl": "https://github.com/QuickerHub/voice-asr-runtime/releases/latest/download/voice-plugin-channel.generated.json",
+      "channelMirrorUrl": "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/voice-plugin-channel.json",
+      "minHostVersion": "0.10.0",
+      "enabled": true,
+      "activationEvents": [
+        "onStartup:channelRefresh",
+        "onStartup:runtime",
+        "onDemand:voice-input"
+      ]
+    },
+    "clipboard-history": {
+      "displayName": "剪贴板历史",
+      "channelUrl": "https://github.com/QuickerHub/clipboard-history-runtime/releases/latest/download/channel.json",
+      "channelMirrorUrl": null,
+      "minHostVersion": "0.11.0",
+      "enabled": false,
+      "activationEvents": ["onStartup:channelRefresh", "onDemand:clipboard-panel"]
+    }
+  }
+}

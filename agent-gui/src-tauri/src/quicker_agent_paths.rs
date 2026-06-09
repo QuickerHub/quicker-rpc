@@ -6,6 +6,11 @@ const CLIPBOARD_HISTORY_PLUGIN_ID: &str = "clipboard-history";
 /// Must match `identifier` in `tauri.conf.json`.
 pub const TAURI_APP_IDENTIFIER: &str = "ai.quicker.agent";
 
+/// Plugin gallery cache (remote channel/registry JSON).
+pub fn plugin_cache_dir() -> PathBuf {
+    quicker_agent_app_data_dir().join("cache")
+}
+
 /// App-managed data root (plugins). Not the agent working directory.
 pub fn quicker_agent_app_data_dir() -> PathBuf {
     #[cfg(windows)]
