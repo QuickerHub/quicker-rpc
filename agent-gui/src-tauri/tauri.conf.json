@@ -29,6 +29,7 @@
   },
   "bundle": {
     "active": true,
+    "useLocalToolsDir": true,
     "createUpdaterArtifacts": true,
     "targets": [
       "nsis"

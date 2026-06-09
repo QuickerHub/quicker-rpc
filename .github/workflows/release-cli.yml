@@ -334,7 +334,7 @@ jobs:
       always() &&
       needs.metadata.result == 'success' &&
       (needs.build-cli.result == 'success' ||
-        (github.event_name == 'workflow_dispatch' && inputs.pipeline == 'release-only')) &&
+        (github.event_name == 'workflow_dispatch' && (inputs.pipeline == 'release-only' || inputs.pipeline == 'bundle-only'))) &&
       (needs.build-agent-bundle.result == 'success' ||
         (github.event_name == 'workflow_dispatch' && inputs.pipeline == 'release-only'))
     runs-on: windows-latest
@@ -348,18 +348,29 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download CLI artifacts
-        if: github.event_name != 'workflow_dispatch' || inputs.pipeline != 'release-only'
+        if: github.event_name != 'workflow_dispatch' || inputs.pipeline == 'full'
         uses: actions/download-artifact@v4
         with:
           name: cli-artifacts
           path: publish
 
       - name: Download agent artifacts
-        if: github.event_name != 'workflow_dispatch' || inputs.pipeline != 'release-only'
+        if: github.event_name != 'workflow_dispatch' || inputs.pipeline == 'full'
         uses: actions/download-artifact@v4
         with:
           name: agent-artifacts
           path: publish
+
+      - name: Download CLI artifacts (bundle-only retry)
+        if: github.event_name == 'workflow_dispatch' && inputs.pipeline == 'bundle-only'
+        shell: pwsh
+        run: |
+          $runId = '${{ inputs.artifact_run_id }}'.Trim()
+          if ([string]::IsNullOrWhiteSpace($runId)) {
+            throw 'bundle-only requires artifact_run_id from a run with successful build-cli + build-agent-compile.'
+          }
+          gh run download $runId --repo '${{ github.repository }}' -n cli-artifacts -D publish
+          if ($LASTEXITCODE -ne 0) { throw "cli artifact download failed ($LASTEXITCODE)" }
 
       - name: Download release artifacts (retry run)
         if: github.event_name == 'workflow_dispatch' && inputs.pipeline == 'release-only'
