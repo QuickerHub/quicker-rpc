@@ -1,7 +1,7 @@
 {
   "version": 2,
   "goal": "Write step JSON examples for all modules under references/step-modules/examples/",
-  "updatedAt": "2026-06-09T19:59:10.095Z",
+  "updatedAt": "2026-06-09T20:02:21.547Z",
   "batchSize": 2,
   "modules": {
     "activateProcessMainWindow": {
@@ -506,7 +506,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "imgProcess": {
       "key": "sys:imgProcess",
@@ -514,7 +514,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": true,
-      "status": "pending"
+      "status": "done"
     },
     "imgToBase64": {
       "key": "sys:imgToBase64",
@@ -522,7 +522,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "inputScript": {
       "key": "sys:inputScript",
@@ -530,7 +530,7 @@
       "minExamples": 4,
       "hasKc": true,
       "hasAuthored": true,
-      "status": "pending"
+      "status": "done"
     },
     "joinList": {
       "key": "sys:joinList",
@@ -538,7 +538,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "jsonExtract": {
       "key": "sys:jsonExtract",
@@ -546,7 +546,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": true,
-      "status": "pending"
+      "status": "done"
     },
     "jsscript": {
       "key": "sys:jsscript",
@@ -554,7 +554,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": true,
-      "status": "pending"
+      "status": "done"
     },
     "keyInput": {
       "key": "sys:keyInput",
@@ -562,7 +562,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "keyoperation": {
       "key": "sys:keyoperation",
@@ -570,7 +570,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "listOperations": {
       "key": "sys:listOperations",
@@ -578,7 +578,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "manageList": {
       "key": "sys:manageList",
@@ -586,7 +586,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "mathocr": {
       "key": "sys:mathocr",
@@ -594,7 +594,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": true,
-      "status": "pending"
+      "status": "done"
     },
     "mouse": {
       "key": "sys:mouse",
@@ -602,7 +602,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "MsgBox": {
       "key": "sys:MsgBox",
@@ -610,7 +610,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "newGuid": {
       "key": "sys:newGuid",
@@ -618,7 +618,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "notify": {
       "key": "sys:notify",
@@ -626,7 +626,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "numberprocess": {
       "key": "sys:numberprocess",
@@ -634,7 +634,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "numCompare": {
       "key": "sys:numCompare",
@@ -642,7 +642,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "officehelper": {
       "key": "sys:officehelper",
@@ -650,7 +650,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": true,
-      "status": "pending"
+      "status": "done"
     },
     "openUrl": {
       "key": "sys:openUrl",
@@ -658,7 +658,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "outputText": {
       "key": "sys:outputText",
@@ -666,7 +666,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "pathExtraction": {
       "key": "sys:pathExtraction",
@@ -674,7 +674,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "playRecords": {
       "key": "sys:playRecords",
@@ -682,7 +682,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": true,
-      "status": "pending"
+      "status": "done"
     },
     "playSound": {
       "key": "sys:playSound",
@@ -690,7 +690,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "pythonscript": {
       "key": "sys:pythonscript",
@@ -698,7 +698,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": true,
-      "status": "pending"
+      "status": "done"
     },
     "quickeroperations": {
       "key": "sys:quickeroperations",
@@ -706,7 +706,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "randomNum": {
       "key": "sys:randomNum",
@@ -714,7 +714,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "readFile": {
       "key": "sys:readFile",
@@ -722,7 +722,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "readQrCode": {
       "key": "sys:readQrCode",
@@ -730,7 +730,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "record": {
       "key": "sys:record",
@@ -738,7 +738,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": true,
-      "status": "pending"
+      "status": "done"
     },
     "recordSound": {
       "key": "sys:recordSound",
@@ -746,7 +746,7 @@
       "minExamples": 2,
       "hasKc": true,
       "hasAuthored": false,
-      "status": "pending"
+      "status": "done"
     },
     "regexExtract": {
       "key": "sys:regexExtract",

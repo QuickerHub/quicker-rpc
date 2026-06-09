@@ -313,6 +313,99 @@
     "dboperation": "step-modules",
     "download": "step-modules",
     "enc": "step-modules",
+    "examples/activateProcessMainWindow": "step-modules",
+    "examples/adobesoftscontrol": "step-modules",
+    "examples/ai": "step-modules",
+    "examples/assign": "step-modules",
+    "examples/audioControl": "step-modules",
+    "examples/autocadcontrol": "step-modules",
+    "examples/basic-ocr": "step-modules",
+    "examples/break": "step-modules",
+    "examples/charInfo": "step-modules",
+    "examples/checkPathExists": "step-modules",
+    "examples/checkProcessExists": "step-modules",
+    "examples/chromecontrol": "step-modules",
+    "examples/cloud_oss": "step-modules",
+    "examples/clouddata": "step-modules",
+    "examples/color": "step-modules",
+    "examples/comment": "step-modules",
+    "examples/compute": "step-modules",
+    "examples/computeTime": "step-modules",
+    "examples/continue": "step-modules",
+    "examples/createQrCode": "step-modules",
+    "examples/csscript": "step-modules",
+    "examples/custompanel": "step-modules",
+    "examples/customwindow": "step-modules",
+    "examples/dboperation": "step-modules",
+    "examples/delay": "step-modules",
+    "examples/dependencycheck": "step-modules",
+    "examples/dictOperations": "step-modules",
+    "examples/download": "step-modules",
+    "examples/each": "step-modules",
+    "examples/enc": "step-modules",
+    "examples/evalexpression": "step-modules",
+    "examples/everythingsearch": "step-modules",
+    "examples/excelObjects": "step-modules",
+    "examples/excelRange": "step-modules",
+    "examples/excelreadwrite": "step-modules",
+    "examples/fileOperation": "step-modules",
+    "examples/fileSystemWatch": "step-modules",
+    "examples/fileToClipboard": "step-modules",
+    "examples/flauiautomation": "step-modules",
+    "examples/form": "step-modules",
+    "examples/formatString": "step-modules",
+    "examples/GenTempFilePath": "step-modules",
+    "examples/getActionInfo": "step-modules",
+    "examples/getActiveProcessInfo": "step-modules",
+    "examples/getChromeUrl": "step-modules",
+    "examples/getClipboardFiles": "step-modules",
+    "examples/getClipboardImage": "step-modules",
+    "examples/getClipboardText": "step-modules",
+    "examples/getCurrentTime": "step-modules",
+    "examples/getExplorerPath": "step-modules",
+    "examples/getFolderPath": "step-modules",
+    "examples/getQuickerInfo": "step-modules",
+    "examples/getSelectedFiles": "step-modules",
+    "examples/getSelectedText": "step-modules",
+    "examples/getSysInfo": "step-modules",
+    "examples/getWindowTitle": "step-modules",
+    "examples/group": "step-modules",
+    "examples/htmlExtract": "step-modules",
+    "examples/http": "step-modules",
+    "examples/httpserver": "step-modules",
+    "examples/if": "step-modules",
+    "examples/imageinfo": "step-modules",
+    "examples/imeControl": "step-modules",
+    "examples/imgProcess": "step-modules",
+    "examples/imgToBase64": "step-modules",
+    "examples/inputScript": "step-modules",
+    "examples/joinList": "step-modules",
+    "examples/jsonExtract": "step-modules",
+    "examples/jsscript": "step-modules",
+    "examples/keyInput": "step-modules",
+    "examples/keyoperation": "step-modules",
+    "examples/listOperations": "step-modules",
+    "examples/manageList": "step-modules",
+    "examples/mathocr": "step-modules",
+    "examples/mouse": "step-modules",
+    "examples/MsgBox": "step-modules",
+    "examples/newGuid": "step-modules",
+    "examples/notify": "step-modules",
+    "examples/numberprocess": "step-modules",
+    "examples/numCompare": "step-modules",
+    "examples/officehelper": "step-modules",
+    "examples/openUrl": "step-modules",
+    "examples/outputText": "step-modules",
+    "examples/pathExtraction": "step-modules",
+    "examples/playRecords": "step-modules",
+    "examples/playSound": "step-modules",
+    "examples/pythonscript": "step-modules",
+    "examples/quickeroperations": "step-modules",
+    "examples/randomNum": "step-modules",
+    "examples/readFile": "step-modules",
+    "examples/readQrCode": "step-modules",
+    "examples/record": "step-modules",
+    "examples/recordSound": "step-modules",
     "excelObjects": "step-modules",
     "excelRange": "step-modules",
     "excelreadwrite": "step-modules",
@@ -559,6 +652,471 @@
         "id": "enc",
         "title": "sys:enc",
         "path": "step-modules/authored/enc.md"
+      },
+      {
+        "id": "examples/activateProcessMainWindow",
+        "title": "sys:activateProcessMainWindow",
+        "path": "step-modules/examples/activateProcessMainWindow.md"
+      },
+      {
+        "id": "examples/adobesoftscontrol",
+        "title": "sys:adobesoftscontrol",
+        "path": "step-modules/examples/adobesoftscontrol.md"
+      },
+      {
+        "id": "examples/ai",
+        "title": "sys:ai",
+        "path": "step-modules/examples/ai.md"
+      },
+      {
+        "id": "examples/assign",
+        "title": "sys:assign",
+        "path": "step-modules/examples/assign.md"
+      },
+      {
+        "id": "examples/audioControl",
+        "title": "sys:audioControl",
+        "path": "step-modules/examples/audioControl.md"
+      },
+      {
+        "id": "examples/autocadcontrol",
+        "title": "sys:autocadcontrol",
+        "path": "step-modules/examples/autocadcontrol.md"
+      },
+      {
+        "id": "examples/basic-ocr",
+        "title": "sys:basic-ocr",
+        "path": "step-modules/examples/basic-ocr.md"
+      },
+      {
+        "id": "examples/break",
+        "title": "sys:break",
+        "path": "step-modules/examples/break.md"
+      },
+      {
+        "id": "examples/charInfo",
+        "title": "sys:charInfo",
+        "path": "step-modules/examples/charInfo.md"
+      },
+      {
+        "id": "examples/checkPathExists",
+        "title": "sys:checkPathExists",
+        "path": "step-modules/examples/checkPathExists.md"
+      },
+      {
+        "id": "examples/checkProcessExists",
+        "title": "sys:checkProcessExists",
+        "path": "step-modules/examples/checkProcessExists.md"
+      },
+      {
+        "id": "examples/chromecontrol",
+        "title": "sys:chromecontrol",
+        "path": "step-modules/examples/chromecontrol.md"
+      },
+      {
+        "id": "examples/cloud_oss",
+        "title": "sys:cloud_oss",
+        "path": "step-modules/examples/cloud_oss.md"
+      },
+      {
+        "id": "examples/clouddata",
+        "title": "sys:clouddata",
+        "path": "step-modules/examples/clouddata.md"
+      },
+      {
+        "id": "examples/color",
+        "title": "sys:color",
+        "path": "step-modules/examples/color.md"
+      },
+      {
+        "id": "examples/comment",
+        "title": "sys:comment",
+        "path": "step-modules/examples/comment.md"
+      },
+      {
+        "id": "examples/compute",
+        "title": "sys:compute",
+        "path": "step-modules/examples/compute.md"
+      },
+      {
+        "id": "examples/computeTime",
+        "title": "sys:computeTime",
+        "path": "step-modules/examples/computeTime.md"
+      },
+      {
+        "id": "examples/continue",
+        "title": "sys:continue",
+        "path": "step-modules/examples/continue.md"
+      },
+      {
+        "id": "examples/createQrCode",
+        "title": "sys:createQrCode",
+        "path": "step-modules/examples/createQrCode.md"
+      },
+      {
+        "id": "examples/csscript",
+        "title": "sys:csscript",
+        "path": "step-modules/examples/csscript.md"
+      },
+      {
+        "id": "examples/custompanel",
+        "title": "sys:custompanel",
+        "path": "step-modules/examples/custompanel.md"
+      },
+      {
+        "id": "examples/customwindow",
+        "title": "sys:customwindow",
+        "path": "step-modules/examples/customwindow.md"
+      },
+      {
+        "id": "examples/dboperation",
+        "title": "sys:dboperation",
+        "path": "step-modules/examples/dboperation.md"
+      },
+      {
+        "id": "examples/delay",
+        "title": "sys:delay",
+        "path": "step-modules/examples/delay.md"
+      },
+      {
+        "id": "examples/dependencycheck",
+        "title": "sys:dependencycheck",
+        "path": "step-modules/examples/dependencycheck.md"
+      },
+      {
+        "id": "examples/dictOperations",
+        "title": "sys:dictOperations",
+        "path": "step-modules/examples/dictOperations.md"
+      },
+      {
+        "id": "examples/download",
+        "title": "sys:download",
+        "path": "step-modules/examples/download.md"
+      },
+      {
+        "id": "examples/each",
+        "title": "sys:each",
+        "path": "step-modules/examples/each.md"
+      },
+      {
+        "id": "examples/enc",
+        "title": "sys:enc",
+        "path": "step-modules/examples/enc.md"
+      },
+      {
+        "id": "examples/evalexpression",
+        "title": "sys:evalexpression",
+        "path": "step-modules/examples/evalexpression.md"
+      },
+      {
+        "id": "examples/everythingsearch",
+        "title": "sys:everythingsearch",
+        "path": "step-modules/examples/everythingsearch.md"
+      },
+      {
+        "id": "examples/excelObjects",
+        "title": "sys:excelObjects",
+        "path": "step-modules/examples/excelObjects.md"
+      },
+      {
+        "id": "examples/excelRange",
+        "title": "sys:excelRange",
+        "path": "step-modules/examples/excelRange.md"
+      },
+      {
+        "id": "examples/excelreadwrite",
+        "title": "sys:excelreadwrite",
+        "path": "step-modules/examples/excelreadwrite.md"
+      },
+      {
+        "id": "examples/fileOperation",
+        "title": "sys:fileOperation",
+        "path": "step-modules/examples/fileOperation.md"
+      },
+      {
+        "id": "examples/fileSystemWatch",
+        "title": "sys:fileSystemWatch",
+        "path": "step-modules/examples/fileSystemWatch.md"
+      },
+      {
+        "id": "examples/fileToClipboard",
+        "title": "sys:fileToClipboard",
+        "path": "step-modules/examples/fileToClipboard.md"
+      },
+      {
+        "id": "examples/flauiautomation",
+        "title": "sys:flauiautomation",
+        "path": "step-modules/examples/flauiautomation.md"
+      },
+      {
+        "id": "examples/form",
+        "title": "sys:form",
+        "path": "step-modules/examples/form.md"
+      },
+      {
+        "id": "examples/formatString",
+        "title": "sys:formatString",
+        "path": "step-modules/examples/formatString.md"
+      },
+      {
+        "id": "examples/GenTempFilePath",
+        "title": "sys:GenTempFilePath",
+        "path": "step-modules/examples/GenTempFilePath.md"
+      },
+      {
+        "id": "examples/getActionInfo",
+        "title": "sys:getActionInfo",
+        "path": "step-modules/examples/getActionInfo.md"
+      },
+      {
+        "id": "examples/getActiveProcessInfo",
+        "title": "sys:getActiveProcessInfo",
+        "path": "step-modules/examples/getActiveProcessInfo.md"
+      },
+      {
+        "id": "examples/getChromeUrl",
+        "title": "sys:getChromeUrl",
+        "path": "step-modules/examples/getChromeUrl.md"
+      },
+      {
+        "id": "examples/getClipboardFiles",
+        "title": "sys:getClipboardFiles",
+        "path": "step-modules/examples/getClipboardFiles.md"
+      },
+      {
+        "id": "examples/getClipboardImage",
+        "title": "sys:getClipboardImage",
+        "path": "step-modules/examples/getClipboardImage.md"
+      },
+      {
+        "id": "examples/getClipboardText",
+        "title": "sys:getClipboardText",
+        "path": "step-modules/examples/getClipboardText.md"
+      },
+      {
+        "id": "examples/getCurrentTime",
+        "title": "sys:getCurrentTime",
+        "path": "step-modules/examples/getCurrentTime.md"
+      },
+      {
+        "id": "examples/getExplorerPath",
+        "title": "sys:getExplorerPath",
+        "path": "step-modules/examples/getExplorerPath.md"
+      },
+      {
+        "id": "examples/getFolderPath",
+        "title": "sys:getFolderPath",
+        "path": "step-modules/examples/getFolderPath.md"
+      },
+      {
+        "id": "examples/getQuickerInfo",
+        "title": "sys:getQuickerInfo",
+        "path": "step-modules/examples/getQuickerInfo.md"
+      },
+      {
+        "id": "examples/getSelectedFiles",
+        "title": "sys:getSelectedFiles",
+        "path": "step-modules/examples/getSelectedFiles.md"
+      },
+      {
+        "id": "examples/getSelectedText",
+        "title": "sys:getSelectedText",
+        "path": "step-modules/examples/getSelectedText.md"
+      },
+      {
+        "id": "examples/getSysInfo",
+        "title": "sys:getSysInfo",
+        "path": "step-modules/examples/getSysInfo.md"
+      },
+      {
+        "id": "examples/getWindowTitle",
+        "title": "sys:getWindowTitle",
+        "path": "step-modules/examples/getWindowTitle.md"
+      },
+      {
+        "id": "examples/group",
+        "title": "sys:group",
+        "path": "step-modules/examples/group.md"
+      },
+      {
+        "id": "examples/htmlExtract",
+        "title": "sys:htmlExtract",
+        "path": "step-modules/examples/htmlExtract.md"
+      },
+      {
+        "id": "examples/http",
+        "title": "sys:http",
+        "path": "step-modules/examples/http.md"
+      },
+      {
+        "id": "examples/httpserver",
+        "title": "sys:httpserver",
+        "path": "step-modules/examples/httpserver.md"
+      },
+      {
+        "id": "examples/if",
+        "title": "sys:if",
+        "path": "step-modules/examples/if.md"
+      },
+      {
+        "id": "examples/imageinfo",
+        "title": "sys:imageinfo",
+        "path": "step-modules/examples/imageinfo.md"
+      },
+      {
+        "id": "examples/imeControl",
+        "title": "sys:imeControl",
+        "path": "step-modules/examples/imeControl.md"
+      },
+      {
+        "id": "examples/imgProcess",
+        "title": "sys:imgProcess",
+        "path": "step-modules/examples/imgProcess.md"
+      },
+      {
+        "id": "examples/imgToBase64",
+        "title": "sys:imgToBase64",
+        "path": "step-modules/examples/imgToBase64.md"
+      },
+      {
+        "id": "examples/inputScript",
+        "title": "sys:inputScript",
+        "path": "step-modules/examples/inputScript.md"
+      },
+      {
+        "id": "examples/joinList",
+        "title": "sys:joinList",
+        "path": "step-modules/examples/joinList.md"
+      },
+      {
+        "id": "examples/jsonExtract",
+        "title": "sys:jsonExtract",
+        "path": "step-modules/examples/jsonExtract.md"
+      },
+      {
+        "id": "examples/jsscript",
+        "title": "sys:jsscript",
+        "path": "step-modules/examples/jsscript.md"
+      },
+      {
+        "id": "examples/keyInput",
+        "title": "sys:keyInput",
+        "path": "step-modules/examples/keyInput.md"
+      },
+      {
+        "id": "examples/keyoperation",
+        "title": "sys:keyoperation",
+        "path": "step-modules/examples/keyoperation.md"
+      },
+      {
+        "id": "examples/listOperations",
+        "title": "sys:listOperations",
+        "path": "step-modules/examples/listOperations.md"
+      },
+      {
+        "id": "examples/manageList",
+        "title": "sys:manageList",
+        "path": "step-modules/examples/manageList.md"
+      },
+      {
+        "id": "examples/mathocr",
+        "title": "sys:mathocr",
+        "path": "step-modules/examples/mathocr.md"
+      },
+      {
+        "id": "examples/mouse",
+        "title": "sys:mouse",
+        "path": "step-modules/examples/mouse.md"
+      },
+      {
+        "id": "examples/MsgBox",
+        "title": "sys:MsgBox",
+        "path": "step-modules/examples/MsgBox.md"
+      },
+      {
+        "id": "examples/newGuid",
+        "title": "sys:newGuid",
+        "path": "step-modules/examples/newGuid.md"
+      },
+      {
+        "id": "examples/notify",
+        "title": "sys:notify",
+        "path": "step-modules/examples/notify.md"
+      },
+      {
+        "id": "examples/numberprocess",
+        "title": "sys:numberprocess",
+        "path": "step-modules/examples/numberprocess.md"
+      },
+      {
+        "id": "examples/numCompare",
+        "title": "sys:numCompare",
+        "path": "step-modules/examples/numCompare.md"
+      },
+      {
+        "id": "examples/officehelper",
+        "title": "sys:officehelper",
+        "path": "step-modules/examples/officehelper.md"
+      },
+      {
+        "id": "examples/openUrl",
+        "title": "sys:openUrl",
+        "path": "step-modules/examples/openUrl.md"
+      },
+      {
+        "id": "examples/outputText",
+        "title": "sys:outputText",
+        "path": "step-modules/examples/outputText.md"
+      },
+      {
+        "id": "examples/pathExtraction",
+        "title": "sys:pathExtraction",
+        "path": "step-modules/examples/pathExtraction.md"
+      },
+      {
+        "id": "examples/playRecords",
+        "title": "sys:playRecords",
+        "path": "step-modules/examples/playRecords.md"
+      },
+      {
+        "id": "examples/playSound",
+        "title": "sys:playSound",
+        "path": "step-modules/examples/playSound.md"
+      },
+      {
+        "id": "examples/pythonscript",
+        "title": "sys:pythonscript",
+        "path": "step-modules/examples/pythonscript.md"
+      },
+      {
+        "id": "examples/quickeroperations",
+        "title": "sys:quickeroperations",
+        "path": "step-modules/examples/quickeroperations.md"
+      },
+      {
+        "id": "examples/randomNum",
+        "title": "sys:randomNum",
+        "path": "step-modules/examples/randomNum.md"
+      },
+      {
+        "id": "examples/readFile",
+        "title": "sys:readFile",
+        "path": "step-modules/examples/readFile.md"
+      },
+      {
+        "id": "examples/readQrCode",
+        "title": "sys:readQrCode",
+        "path": "step-modules/examples/readQrCode.md"
+      },
+      {
+        "id": "examples/record",
+        "title": "sys:record",
+        "path": "step-modules/examples/record.md"
+      },
+      {
+        "id": "examples/recordSound",
+        "title": "sys:recordSound",
+        "path": "step-modules/examples/recordSound.md"
       },
       {
         "id": "excelObjects",
