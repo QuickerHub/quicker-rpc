@@ -6,7 +6,7 @@
 !macro StageKillBundledNodeVbs
   InitPluginsDir
   ; Tauri stages installer-hooks.nsh under target/release/nsis/x64; source vbs stays in src-tauri/windows.
-  File "/oname=$PLUGINSDIR\kill-bundled-node.vbs" "${__FILEDIR__}..\..\..\..\windows\kill-bundled-node.vbs"
+  File "/oname=$PLUGINSDIR\kill-bundled-node.vbs" "${__FILEDIR__}\..\..\..\..\windows\kill-bundled-node.vbs"
 !macroend
 
 !macro KillBundledNodeUnderInstDir
