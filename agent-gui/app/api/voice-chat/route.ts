@@ -48,7 +48,7 @@ async function handleVoiceChatPost(req: Request) {
     );
   }
 
-  const { model, modelId } = resolveChatModelForSelection(selection);
+  const { model, modelId } = await resolveChatModelForSelection(selection);
   const history = Array.isArray(body.history) ? body.history : [];
   const modelMessages = [
     ...history
