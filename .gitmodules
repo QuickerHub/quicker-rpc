@@ -4,5 +4,5 @@
 	branch = master
 [submodule "Quicker.ActionRuntime"]
 	path = Quicker.ActionRuntime
-	url = https://github.com/QuickerHub/quicker-action-runtime.git
+	url = https://github.com/QuickerOrg/Quicker.ActionRuntime.git
 	branch = main
