@@ -16,6 +16,20 @@ metadata
 
 编译前会跑 **Preflight-QuickerAgentFast**（含 `verify-nsis-installer-assets.mjs`），在几秒内拦截 NSIS 资源路径错误，避免白等 Rust 编译。
 
+## 私有 submodule（Quicker.ActionRuntime）
+
+`build-cli` 需要 checkout 私有仓库 `QuickerOrg/Quicker.ActionRuntime`（submodule）。`build-agent` **不**拉 submodule。
+
+1. 在 GitHub 创建 **只读 PAT**（推荐 fine-grained：`QuickerOrg/Quicker.ActionRuntime` → Contents read）。
+2. 写入 `publish/.env` → `ACTIONRUNTIME_SUBMODULE_PAT=...`，或本地：
+   ```powershell
+   pwsh -NoProfile -File ./publish/Sync-ActionRuntimeSubmodulePat.ps1 -FromGhAuth
+   ```
+   （`-FromGhAuth` 使用当前 `gh auth token`，需对该私有库有 read 权限。）
+3. 脚本会设置仓库 Secret **`ACTIONRUNTIME_SUBMODULE_PAT`**；`release-cli.yml` 的 `build-cli` checkout 使用该 secret。
+
+无需公开镜像或混淆；Release 产物为编译后的 `qkrpc`，与 Git 仓库可见性无关。`Quicker.ActionRuntime.Host` 等 Demo/Host 项目 **不参与** qkrpc 编译。
+
 ## workflow_dispatch 是什么
 
 在 GitHub **Actions → Release qkrpc CLI → Run workflow** 手动触发，可填参数，**不必**为了重跑 CI 再 commit 或打新 tag。
