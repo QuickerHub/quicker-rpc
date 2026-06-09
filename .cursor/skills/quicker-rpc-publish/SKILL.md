@@ -22,7 +22,7 @@ metadata:
 3. `pwsh ./publish/Publish-GitHubRelease.ps1 -WaitForCi` → **默认并行**：后台启动本地 Tauri 预检 + **立即 push tag** 触发 CI。本地日志通常先报错，优先按 `%TEMP%\qkrpc-preflight-vX.Y.Z.log` 修复；CI 失败可暂忽略。修复后 `-ForceRetag` 重发。
    - 仅本地阻塞预检：`Test-QuickerAgentReleaseBuild.ps1` 或 `-PreflightBeforeTag`
    - 跳过预检：`-SkipPreflight`；结束后等待本地结果：`-WaitForPreflight`
-4. `.github/workflows/release-cli.yml` 在 GitHub Actions 编译 qkrpc zip/setup **与 QuickerAgent Tauri 安装包**并发布 Release（`-WaitForCi` 等待完成；CI 失败时仍会打印本地预检日志路径）
+4. `.github/workflows/release-cli.yml` 在 GitHub Actions 编译 qkrpc zip/setup **与 QuickerAgent Tauri 安装包**并发布 Release（`-WaitForCi` 等待完成；CI 失败时仍会打印本地预检日志路径）。**仅 Release 上传失败**：Actions **Run workflow** → `pipeline=release-only` + `artifact_run_id`（见 `publish/release-cli-ci.md`）；NSIS/编译失败用 `-ForceRetag` 全量重编
 5. `pwsh ./build.ps1 -Publish -NoVersion` → Quicker 依赖 **quicker.rpc** 上传（版本与 `version.json` 一致，不再 bump）
 6. `qkrpc action list --limit 1 --json` 确认插件在线（或已 `qkrpc serve` 且 `/health` 为 ok）
 7. `qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog-file publish/changelogs/vX.Y.Z.md --json`
@@ -64,6 +64,8 @@ metadata:
 | `publish/Sync-QuickerAgentActionDoc.ps1 -Push` | 将 Bitiful `version.txt`（或 `-Version` / `-WaitForCi` 传入的 Release 版本）写入 quicker-agent 构建产物并 `qkagent push` |
 | `publish/Publish-GitHubRelease.ps1 -LocalBuild` | 本地构建 + `gh release`（需 Inno Setup，CI 不可用时） |
 | `publish/Build-QkrpcSetup.ps1` | Inno Setup 编译（CI 与 `-LocalBuild` 共用） |
+| `publish/release-cli-ci.md` | **CI 重试**：`workflow_dispatch`、`release-only`、`artifact_run_id`、Re-run failed jobs |
+| `publish/Preflight-QuickerAgentFast.ps1` | 打 tag 前 <10s 预检（含 NSIS 资源路径） |
 | `build.ps1 -Publish -NoVersion` | qkbuild 上传 Quicker 依赖，**不**改 `version.json`（自动 SkipCliPackaging） |
 | `publish/publish-rpc.ps1` | 本地 CLI/插件构建（`-SkipSetup` 跳过安装包） |
 

@@ -42,6 +42,8 @@ pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1 -WaitForCi -ForceRetag
 
 默认：**后台**本地 Tauri 预检 + **立即**校验 changelog 并 **push tag**（与 CI 并行）。优先看 `%TEMP%\qkrpc-preflight-vX.Y.Z.log` 修错；CI 红字常与本地相同，可边修边忽略。旧顺序（先本地通过再打 tag）：`-PreflightBeforeTag`。
 
+**CI 仅 Release 上传失败**（build 已成功）：不必新 tag；GitHub Actions → **Run workflow** → `pipeline=release-only`，填 `artifact_run_id`。NSIS/编译失败需 `-ForceRetag` 全量重编。详见 [`publish/release-cli-ci.md`](../../publish/release-cli-ci.md)。
+
 `block_until_ms` ≥ **600000`（`-WaitForCi` 含本地 Tauri + CI Inno + 编译）。
 
 | 参数 | 用途 |
