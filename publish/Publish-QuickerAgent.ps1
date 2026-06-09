@@ -248,6 +248,27 @@ if ($CompileOnly) {
     exit 0
 }
 
+if ($BundleOnly) {
+    $bundleRoot = Join-Path $agentGuiDir 'src-tauri\target\release\bundle'
+    $publishOut = Join-Path $RepoRoot 'publish'
+    Write-Host "Bundles: $bundleRoot (expect $expectedSemVer)" -ForegroundColor Green
+    $setupExe = Resolve-QuickerAgentSetupExe -BundleRoot $bundleRoot -ExpectedSemVer $expectedSemVer
+    $versionJson = Get-Content -LiteralPath (Join-Path $RepoRoot 'version.json') -Raw | ConvertFrom-Json
+    $versionedName = Get-QuickerAgentSetupName -Version ([string]$versionJson.QuickerRpc)
+    $versionedPath = Join-Path $publishOut $versionedName
+    $aliasPath = Join-Path $publishOut (Get-QkrpcLatestAgentSetupName)
+    New-Item -ItemType Directory -Path $publishOut -Force | Out-Null
+    Copy-Item -LiteralPath $setupExe.FullName -Destination $versionedPath -Force
+    Copy-Item -LiteralPath $setupExe.FullName -Destination $aliasPath -Force
+    Write-QuickerAgentUpdaterLatestJson -SetupExePath $setupExe.FullName -SemVer $expectedSemVer -DestinationPath (Join-Path $publishOut 'latest.json') | Out-Null
+    $minInstallerBytes = 50MB
+    if ((Get-Item -LiteralPath $aliasPath).Length -lt $minInstallerBytes) {
+        throw 'Installer too small (< 50 MB); app/qkrpc may be missing from bundle.'
+    }
+    Write-Host 'Bundle-only stage OK (NSIS installer staged for release).' -ForegroundColor Green
+    exit 0
+}
+
 $bundleRoot = Join-Path $agentGuiDir 'src-tauri\target\release\bundle'
 $publishOut = Join-Path $RepoRoot 'publish'
 Write-Host "Bundles: $bundleRoot (expect $expectedSemVer)" -ForegroundColor Green
