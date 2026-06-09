@@ -1,6 +1,6 @@
 ---
 name: qkrpc
-description: "Use when calling Quicker through the local qkrpc CLI or MCP tools. Covers connectivity, qkrpc_wait, MCP-first over shell, and third-party agent limits (no workspace_program)."
+description: "Use when calling Quicker through the local qkrpc CLI or MCP tools. Covers connectivity, qkrpc_wait, MCP-first over shell, and third-party disk editing via host file tools (not MCP file ops)."
 ---
 
 # qkrpc
@@ -10,40 +10,45 @@ description: "Use when calling Quicker through the local qkrpc CLI or MCP tools.
 ## Start here
 
 1. `qkrpc_health` or `qkrpc ping --json` — plugin connectivity
-2. On failure: `qkrpc_wait` (or MCP `qkrpc_wait`) — do **not** run repeated shell probes
-3. `docs_get` topic `overview` — authoring entry (or `qkrpc guide get --topic overview --json`)
+2. On failure: `qkrpc_wait` — do **not** run repeated shell probes
+3. `docs` action=get topic=overview — authoring entry
 
 ## MCP vs shell
 
 | Situation | Use |
 |-----------|-----|
 | MCP host has qkrpc server | `qkrpc_health`, `qkrpc_wait`, `qkrpc_*` MCP tools |
-| No MCP | Shell `qkrpc <subcommand> --json` (PATH must include qkrpc) |
-| High frequency / HTTP client | `qkrpc serve` → `http://127.0.0.1:9477/health` |
+| No MCP | Shell `qkrpc <subcommand> --json` |
+| High frequency / HTTP | `qkrpc serve` → `http://127.0.0.1:9477/health` |
 
 Do **not** run install/probe loops when connectivity fails — tell the user to check Quicker + QuickerRpc plugin.
 
-For **terminology** (QuickerAgent Quicker action vs AI agent), bootstrap URIs, and full connectivity decision tree, read **`quicker-rpc-knowledge`**.
+For terminology and connectivity decision tree, read **`quicker-rpc-knowledge`**.
 
 ## Third-party agents (not QuickerAgent)
 
-- **No** `workspace_program` tool — edit `data.json` / `files/` on disk, then `qkrpc_sync push`
+- **Disk edit**: host **Read/Write/StrReplace** on `.quicker/.../data.json` and `files/` — MCP has **no** file tools
+- **Layout**: MCP resource `quicker://workspace/readme` or `docs` topic **workspace-editing**
+- **Save to Quicker**: `workspace_program` `action=patch`
+- **Pull**: `qkrpc_action_get` / `qkrpc_subprogram_get`
 - **No** inline patch or `--patch-file` for program body
 - Step-runner: `qkrpc_step_runner_search` → `qkrpc_step_runner_get` — never guess `inputParams`
 
-For full authoring workflow, use the **quicker-authoring** skill. For pull/push `.quicker/`, use **quicker-sync**. For run-only, use **quicker-run**.
+Full authoring: **quicker-authoring** skill. Run-only: **quicker-run**.
 
 ## MCP tool reference
 
-See [references/mcp-tools.md](references/mcp-tools.md) for all MCP tool ids.
+See [references/mcp-tools.md](references/mcp-tools.md).
 
 ## Install / refresh
 
-```powershell
-qkrpc agent setup            # user-level MCP + skills + rules (default)
-qkrpc agent setup --check    # verify config matches CLI version
-qkrpc agent setup --upgrade  # refresh skills/rules only (preserve MCP config)
-qkrpc agent setup --project  # also write project .cursor/mcp.json (opt-in)
-```
+**You (the agent) should run install yourself** when the user asks to connect Quicker — follow **`docs/agent-mcp-self-install.md`**.
 
-Guide: `docs/agent-mcp-integration.md`
+| Host | Command |
+|------|---------|
+| Cursor | `qkrpc agent setup --workspace <root>` |
+| Codex | `qkrpc agent setup --codex --project --workspace <root> --skip-skill` |
+| Check | `qkrpc agent setup --check` |
+| Refresh skills | `qkrpc agent setup --upgrade` |
+
+Guides: `docs/agent-mcp-self-install.md`, `docs/agent-mcp-integration.md`

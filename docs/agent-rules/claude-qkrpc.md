@@ -6,9 +6,9 @@ You have `qkrpc` MCP tools when this project or `~/.claude/` is configured via `
 
 **Start:** `qkrpc_health` → on failure `qkrpc_wait` (no repeated shell probes).
 
-**Authoring:** `docs_get` topics `overview` → `authoring-workflow`. Step-runner: `qkrpc_step_runner_search` → `qkrpc_step_runner_get` — never guess `inputParams`.
+**Authoring:** `docs` action=get topics `overview` → `authoring-workflow`. Step-runner: `qkrpc_step_runner_search` → `qkrpc_step_runner_get` — never guess `inputParams`.
 
-**Disk edit (no workspace_program):** edit `.quicker/` `data.json` / `files/` → `qkrpc_sync push`.
+**Disk edit:** read layout via MCP resource `quicker://workspace/readme` or `docs` topic `workspace-editing`. Edit `.quicker/` `data.json` / `files/` with your **file tools** → `workspace_program` action=patch.
 
 **Refresh skills/rules after CLI upgrade:** `qkrpc agent setup --upgrade`
 

@@ -11,25 +11,22 @@ Execute and inspect actions — **no** program-body editing. For authoring use *
 
 | Intent | Tool |
 |--------|------|
-| Run action | `qkrpc_action` with run intent |
+| Run action | `qkrpc_action_run` |
+| Debug / trace | `qkrpc_action_debug` |
 | Delete action | `qkrpc_action_delete` (destructive — confirm with user) |
-| Generic op | `qkrpc_invoke` (e.g. `action.list`, `action.debug`) |
-
-Prefer narrow tools over `qkrpc_invoke` when available.
 
 ## Before run
 
 1. `qkrpc_health` or `qkrpc_wait` — plugin ready
-2. Resolve `actionId` via `qkrpc_action` list/search (not guessed GUIDs)
+2. Resolve `actionId` via `qkrpc_action_query` (not guessed GUIDs)
 
 ## Debug / trace
 
-- Step output: use debug/trace modes (CLI: `qkrpc action run --trace --json`)
-- MCP: `qkrpc_invoke` op `action.debug` or action run with trace flags per tool schema
+- Step output: `qkrpc_action_debug` (equivalent to CLI `qkrpc action run --trace --json`)
 
 ## Hard rules
 
-- **Do not** use run tools to edit `data.json` — use **quicker-sync** + disk edit
+- **Do not** use run tools to edit `data.json` — use host file tools + `workspace_program` patch
 - Destructive deletes need explicit user confirmation
 
 Tool reference: see **qkrpc** skill `references/mcp-tools.md`.

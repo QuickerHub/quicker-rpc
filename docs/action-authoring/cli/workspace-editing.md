@@ -32,26 +32,37 @@ After create: info.json exists; empty body → get skips data.json.
 | global_subprogram | id/name | .quicker/subprograms/{id}/ |
 | embedded_subprogram | parent + subProgramId | .quicker/actions/{id}/subprograms/{subProgramId}/ |
 
+## Disk editing (who edits files)
+
+| Host | How to edit data.json / files/ |
+|------|--------------------------------|
+| **QuickerAgent** | `workspace_program` read_data / edit_data / file_* |
+| **Third-party MCP** (Cursor, Claude Code, Codex) | Host **Read / Write / StrReplace** on paths under `.quicker/` — MCP has **no** file tools |
+
+Layout: MCP resource `quicker://workspace/readme`, `quicker://workspace/index`, or `docs` topic **workspace-editing**.
+
 ## workspace_program ops
 
 | action | use |
 |--------|-----|
 | projects_list | list projects |
-| read_data / write_data / edit_data | data.json only |
-| file_* | files/… |
+| reindex | refresh index.json |
 | patch | disk → Quicker (ONLY save) |
+| validate | pre-patch checks |
 | diagnostics | post-patch syntax |
+
+QuickerAgent also: read_data / write_data / edit_data / file_* (not exposed on third-party MCP).
 
 ## Flows
 
-- new: create → edit → patch (NO re-get)
-- existing: get → read/edit → [file_*] → patch
-- global sub: subprogram get → edit (global_subprogram) → patch
-- embedded: action get → edit (embedded_subprogram) → patch
+- new: create → host file edit → patch (NO re-get)
+- existing: get → host file edit → patch
+- global sub: subprogram get → edit disk → patch
+- embedded: action get → edit embedded path → patch
 
 ## Long content
 
->4 lines → `paramKey.file`. Large files: read slice → file_edit. Trust editVersion after patch.
+>4 lines → `paramKey.file`. Large files: read slices with host file tools. Trust editVersion after patch.
 
 ## CLI patch path
 
@@ -59,7 +70,7 @@ CLI/scripts may use `action patch --patch-file` inline JSON (patch-workflow) ins
 
 ## FORBIDDEN (workspace path)
 
---patch-file when using workspace_program · file_* on data.json · absolute .quicker paths · re-get to verify
+--patch-file when using disk workflow · absolute paths outside workspace · re-get to verify after patch
 
 ## See also
 

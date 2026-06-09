@@ -134,7 +134,7 @@ Full decision tree: [references/connectivity.md](references/connectivity.md)
 
 | Capability | QuickerAgent (chat) | Third-party MCP agent |
 |------------|---------------------|------------------------|
-| `workspace_program` disk edit | ✓ | ✗ — use `qkrpc_sync` + files |
+| `workspace_program` file read/write | ✓ | ✗ — host file tools + `workspace_program` patch |
 | `qkrpc serve` HTTP | ✓ default | optional |
 | Visual step editor | ✓ | ✗ |
 | Fix plugin / run `build.ps1 -t` | user / maintainer | user / maintainer |

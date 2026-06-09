@@ -18,6 +18,9 @@
     <PackageReference Include="Newtonsoft.Json" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\QuickerRpc.AgentModel\QuickerRpc.AgentModel.csproj">
+      <SetTargetFramework>TargetFramework=net472</SetTargetFramework>
+    </ProjectReference>
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj">
       <SetTargetFramework>TargetFramework=net472</SetTargetFramework>
     </ProjectReference>

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -14,7 +15,6 @@ internal static class QkrpcAgentSetup
         "qkrpc",
         "quicker-rpc-knowledge",
         "quicker-authoring",
-        "quicker-sync",
         "quicker-run",
     ];
 
@@ -72,11 +72,23 @@ internal static class QkrpcAgentSetup
 
             results.AddRange(QkrpcAgentSetupGuidance.InstallClaudeCodeGuidance(options, workspace));
 
+            if (options.Codex || options.All)
+            {
+                results.AddRange(InstallCodexMcp(qkrpcExe, workspace, cliVersion));
+                results.AddRange(QkrpcAgentSetupGuidance.InstallCodexGuidance(options, workspace));
+            }
+
+            var targetIds = targets.Select(t => t.Id).Distinct().ToList();
+            if ((options.Codex || options.All) && !targetIds.Contains("codex", StringComparer.OrdinalIgnoreCase))
+            {
+                targetIds.Add("codex");
+            }
+
             WriteManifest(
                 scope: options.Project ? "project" : "user",
                 workspace: workspace,
                 cliVersion: cliVersion,
-                targets: targets.Select(t => t.Id).Distinct().ToList(),
+                targets: targetIds,
                 skills: installedSkillNames.Distinct().ToList(),
                 writeProjectManifest: options.Project);
 
@@ -107,7 +119,8 @@ internal static class QkrpcAgentSetup
                 global::System.Console.Error.WriteLine($"Project manifest: {Path.Combine(workspace, ".qkrpc", "agent-setup.json")}");
             }
 
-            global::System.Console.Error.WriteLine("Restart your MCP host (Cursor / VS Code / Claude) to load servers.");
+            global::System.Console.Error.WriteLine("Restart your MCP host (Cursor / VS Code / Claude / Codex) to load servers.");
+            global::System.Console.Error.WriteLine("Agent self-install: docs/agent-mcp-self-install.md");
             global::System.Console.Error.WriteLine("Integration guide: docs/agent-mcp-integration.md");
 
             await Task.CompletedTask.ConfigureAwait(false);
@@ -192,6 +205,10 @@ internal static class QkrpcAgentSetup
 
         results.AddRange(InstallRules(options, workspace));
         results.AddRange(QkrpcAgentSetupGuidance.InstallClaudeCodeGuidance(options, workspace));
+        if (options.Codex)
+        {
+            results.AddRange(QkrpcAgentSetupGuidance.InstallCodexGuidance(options, workspace));
+        }
 
         var skills = installedSkillNames.Count > 0
             ? installedSkillNames.Distinct().ToList()
@@ -342,7 +359,8 @@ internal static class QkrpcAgentSetup
                 || options.Claude
                 || options.Vscode
                 || options.Windsurf
-                || options.Cline;
+                || options.Cline
+                || options.Codex;
 
             if (!explicitUser)
             {
@@ -694,6 +712,106 @@ internal static class QkrpcAgentSetup
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(file, target, overwrite: true);
         }
+    }
+
+    private static IEnumerable<string> InstallCodexMcp(string qkrpcExe, string workspaceRoot, string cliVersion)
+    {
+        var codex = FindExecutableOnPath("codex");
+        if (codex is null)
+        {
+            yield return "Codex MCP: skipped (codex not in PATH)";
+            yield return $"Codex MCP manual: codex mcp add {ServerName} --env QKRPC_WORKSPACE_ROOT={workspaceRoot} --env QKRPC_SETUP_VERSION={cliVersion} -- \"{qkrpcExe}\" mcp";
+            yield return "Agent doc: docs/agent-mcp-self-install.md";
+            yield break;
+        }
+
+        using var process = new Process { StartInfo = BuildCodexMcpAddStartInfo(codex, qkrpcExe, workspaceRoot, cliVersion) };
+        process.Start();
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+
+        if (process.ExitCode != 0)
+        {
+            yield return $"Codex MCP: codex mcp add failed (exit {process.ExitCode})";
+            if (!string.IsNullOrWhiteSpace(stderr))
+            {
+                yield return "  " + stderr.Trim().Replace('\n', ' ');
+            }
+
+            yield return $"Codex MCP manual: codex mcp add {ServerName} --env QKRPC_WORKSPACE_ROOT={workspaceRoot} -- \"{qkrpcExe}\" mcp";
+            yield break;
+        }
+
+        var configPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".codex",
+            "config.toml");
+        yield return $"Codex MCP: {configPath}";
+        if (!string.IsNullOrWhiteSpace(stdout))
+        {
+            yield return "  " + stdout.Trim().Replace('\n', ' ');
+        }
+    }
+
+    private static ProcessStartInfo BuildCodexMcpAddStartInfo(
+        string codexExe,
+        string qkrpcExe,
+        string workspaceRoot,
+        string cliVersion)
+    {
+        var start = new ProcessStartInfo
+        {
+            FileName = codexExe,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+        start.ArgumentList.Add("mcp");
+        start.ArgumentList.Add("add");
+        start.ArgumentList.Add(ServerName);
+        start.ArgumentList.Add("--env");
+        start.ArgumentList.Add($"QKRPC_WORKSPACE_ROOT={workspaceRoot}");
+        start.ArgumentList.Add("--env");
+        start.ArgumentList.Add($"QKRPC_SETUP_VERSION={cliVersion}");
+        start.ArgumentList.Add("--");
+        start.ArgumentList.Add(qkrpcExe);
+        start.ArgumentList.Add("mcp");
+        return start;
+    }
+
+    private static string? FindExecutableOnPath(string name)
+    {
+        var pathEnv = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(pathEnv))
+        {
+            return null;
+        }
+
+        var extensions = OperatingSystem.IsWindows()
+            ? (Environment.GetEnvironmentVariable("PATHEXT") ?? ".EXE;.CMD;.BAT").Split(';', StringSplitOptions.RemoveEmptyEntries)
+            : [string.Empty];
+
+        foreach (var dir in pathEnv.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var trimmed = dir.Trim();
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            foreach (var ext in extensions)
+            {
+                var candidate = Path.Combine(trimmed, name + ext);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
     }
 
     private sealed class AgentSetupManifest

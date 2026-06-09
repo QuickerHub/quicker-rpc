@@ -11,7 +11,7 @@ public sealed class QkrpcMcpWorkspaceResources
     public QkrpcMcpWorkspaceResources(QkrpcMcpRuntime runtime) => _runtime = runtime;
 
     [McpServerResource(UriTemplate = "quicker://workspace/readme", MimeType = "text/markdown")]
-    [Description("On-disk .quicker layout and editing workflow.")]
+    [Description(".quicker/ layout; edit files with host tools, then workspace_program patch.")]
     public string WorkspaceReadme()
     {
         var root = _runtime.WorkspaceRoot;

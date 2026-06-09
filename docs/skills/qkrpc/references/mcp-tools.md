@@ -2,6 +2,8 @@
 
 Third-party MCP hosts expose these tools via `qkrpc mcp` (stdio). Prefer MCP over shell when configured.
 
+**Disk editing**: MCP does **not** read/write `.quicker/` files. Use your host's file tools (Read/Write/StrReplace). Layout: MCP resource `quicker://workspace/readme`, `docs` topic `workspace-editing`, skill **quicker-authoring**.
+
 ## Connectivity
 
 | MCP tool | CLI equivalent | Use |
@@ -9,33 +11,54 @@ Third-party MCP hosts expose these tools via `qkrpc mcp` (stdio). Prefer MCP ove
 | `qkrpc_health` | `qkrpc ping --json` | Plugin reachable? |
 | `qkrpc_wait` | `qkrpc wait --json` | Poll until ready |
 
-## Generic
+## Workspace sync (not file edit)
 
-| MCP tool | Use |
-|----------|-----|
-| `qkrpc_invoke` | Any serve op (`action.list`, `guide.get`, …) |
+Requires `QKRPC_WORKSPACE_ROOT` (set by `qkrpc agent setup`).
+
+| MCP tool | action | Use |
+|----------|--------|-----|
+| `workspace_program` | `projects_list` | List `.quicker` projects |
+| | `reindex` | Refresh `index.json` |
+| | `patch` | Save disk edits → Quicker |
+| | `validate` | Pre-patch validation |
+| | `diagnostics` | Post-patch syntax |
+
+| MCP resource | Use |
+|--------------|-----|
+| `quicker://workspace/readme` | `.quicker/` layout + workflow (markdown) |
+| `quicker://workspace/index` | Project index JSON |
+
+Flow: `qkrpc_action_get` → **host file edit** → `workspace_program patch` → `qkrpc_action_run` or `qkrpc_action_debug`.
 
 ## Actions
 
 | MCP tool | Use |
 |----------|-----|
-| `qkrpc_action` | CRUD, run, publish, metadata, profile |
-| `qkrpc_action_delete` | Delete action (destructive) |
+| `qkrpc_action_query` | Search/list actions |
+| `qkrpc_action_get` | Load action + pull `.quicker/` |
+| `qkrpc_action_create` | Create action + bootstrap `.quicker/` |
+| `qkrpc_action_edit` | Open in Quicker UI |
+| `qkrpc_action_edit_var` | Variable default edits |
+| `qkrpc_action_set_metadata` | Title, icon, etc. |
+| `qkrpc_action_move` | Move between profiles |
+| `qkrpc_action_publish` | Publish shared action |
+| `qkrpc_action_run` | Run (no trace) |
+| `qkrpc_action_debug` | Run with step trace |
+| `qkrpc_action_float` | Float window |
+| `qkrpc_action_delete` | Delete (destructive) |
+| `qkrpc_profile_*` | Profile management |
+| `qkrpc_process_ensure` | Ensure background process |
 
 ## Subprograms
 
 | MCP tool | Use |
 |----------|-----|
-| `qkrpc_subprogram` | Global subprogram CRUD |
-| `qkrpc_subprogram_delete` | Delete subprogram (destructive) |
-
-## Workspace sync (third-party disk edit)
-
-| MCP tool | Use |
-|----------|-----|
-| `qkrpc_sync` | `pull` / `push` / `status` for `.quicker/` |
-
-No `workspace_program` in MCP — edit files, then `qkrpc_sync push`.
+| `qkrpc_subprogram_query` | Search global subprograms |
+| `qkrpc_subprogram_get` | Load + pull `.quicker/subprograms/` |
+| `qkrpc_subprogram_create` | Create |
+| `qkrpc_subprogram_export` / `import` | Directory round-trip |
+| `qkrpc_subprogram_edit` | Open in Quicker UI |
+| `qkrpc_subprogram_delete` | Delete (destructive) |
 
 ## Authoring helpers
 
@@ -50,16 +73,13 @@ No `workspace_program` in MCP — edit files, then `qkrpc_sync push`.
 | MCP tool | Use |
 |----------|-----|
 | `quicker_settings` | Quicker app settings |
-| `docs_index` | List authoring topics |
-| `docs_get` | Read one topic |
-| `docs_search` | Search authoring docs |
+| `docs` | `action=index|search|get` — authoring guides |
 
 ## Skill routing
 
 | Task | Skill |
 |------|-------|
 | Connectivity / install | `qkrpc` |
-| Connection failed / QuickerRpc domain | `quicker-rpc-knowledge` |
+| Connection failed | `quicker-rpc-knowledge` |
 | Write/edit actions | `quicker-authoring` |
-| pull/push `.quicker/` | `quicker-sync` |
 | Run/debug only | `quicker-run` |

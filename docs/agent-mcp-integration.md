@@ -1,14 +1,16 @@
 # 在其他 Agent 中使用 quicker-rpc
 
-> 面向 Cursor、VS Code Copilot、Claude Desktop、Windsurf、Cline、Claude Code 等 MCP 宿主。  
+> 面向 Cursor、VS Code Copilot、Claude Desktop、Windsurf、Cline、Claude Code、**Codex** 等 MCP 宿主。  
 > QuickerAgent（`agent-gui/`）内置完整工具集；本文说明 **仅用 `qkrpc` MCP** 接入第三方 Agent 的方式。
+
+**Agent 自安装（给 Codex / 无用户在场时）**：见 **[agent-mcp-self-install.md](agent-mcp-self-install.md)** — 按步骤在 shell 执行，勿只输出命令让用户手跑。
 
 ---
 
 ## 前置条件
 
 1. 安装 [qkrpc CLI](https://github.com/QuickerHub/quicker-rpc/releases/latest)（`qkrpc-win-x64-setup.exe`）。
-2. Quicker 已运行，且已加载 **QuickerRpc 插件**（见 [README.md](../README.md) §2）。
+2. Quicker 已运行，且已加载 **QuickerRpc 插件**（见 [README.md](../README.md) — 加载 Quicker 插件）。
 3. 工作区目录（用于磁盘编辑 `.quicker/`）— 安装时通过 `--workspace` 指定，默认 `cwd`。
 
 ---
@@ -44,13 +46,14 @@ qkrpc mcp install
 | `--vscode` | VS Code 用户 `mcp.json` | `servers` + `type: stdio` |
 | `--windsurf` | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` |
 | `--cline` | Cline `cline_mcp_settings.json` | `mcpServers` |
-| `--all` | 上表全部用户级路径 | — |
+| `--codex` | `codex mcp add` → `~/.codex/config.toml`；`--project` 合并 `AGENTS.md` | TOML |
+| `--all` | 上表全部用户级路径 + Codex | — |
 | `--project` | 当前目录 `.cursor/mcp.json`、`.vscode/mcp.json`、`.mcp.json` | 按宿主 |
 
 安装还会（用户级默认）：
 
 - 设置 MCP env：`QKRPC_WORKSPACE_ROOT`、`QKRPC_SETUP_VERSION`
-- 复制 skills：`qkrpc`、`quicker-rpc-knowledge`、`quicker-authoring`、`quicker-sync`、`quicker-run` → `~/.cursor/skills/`
+- 复制 skills：`qkrpc`、`quicker-rpc-knowledge`、`quicker-authoring`、`quicker-run` → `~/.cursor/skills/`
 - 复制 rules：`qkrpc.mdc` → `~/.cursor/rules/`
 - 合并 Claude Code 指引：`~/.claude/CLAUDE.md`（`<!-- qkrpc-agent-setup -->` 段）
 - 写入 manifest：`~/.qkrpc/agent-setup.json`
@@ -68,24 +71,28 @@ qkrpc mcp install
 
 ## MCP 工具一览
 
-`qkrpc mcp` 通过 stdio 暴露约 **16 个** MCP 工具（Windsurf 全局 100 工具上限内安全）：
+`qkrpc mcp` 暴露 Quicker 编排能力；**不提供文件读写**。完整列表见 [mcp-tools.md](skills/qkrpc/references/mcp-tools.md)。
 
-| 工具 | 用途 |
-|------|------|
-| `qkrpc_health` | 检测 QuickerRpc 插件连通性 |
-| `qkrpc_wait` | 轮询等待插件就绪 |
-| `qkrpc_invoke` | 通用 op 调用（`action.list`、`guide.get` 等） |
-| `qkrpc_action` | 动作 CRUD / run / publish / profile / process |
-| `qkrpc_action_delete` | 删除动作（destructive） |
-| `qkrpc_subprogram` | 公共子程序 |
-| `qkrpc_subprogram_delete` | 删除子程序 |
-| `qkrpc_sync` | 工作区 pull/push/status |
-| `qkrpc_step_runner_search` / `qkrpc_step_runner_get` | 步骤模块 schema（须两步，勿猜参） |
-| `qkrpc_fa` | Font Awesome 图标搜索 |
-| `quicker_settings` | Quicker 设置读写 |
-| `docs_index` / `docs_get` / `docs_search` | 内置编写指南 |
+核心分组：
 
-与 QuickerAgent 的差异：第三方 Agent **没有** `workspace_program` 磁盘 patch UI、`browser`、审批流等；磁盘编辑走 **`qkrpc_sync` + 文件工具**（见 `.quicker/README.md`）。
+| 分组 | 代表工具 |
+|------|----------|
+| 连通 | `qkrpc_health`、`qkrpc_wait` |
+| 工作区说明 | MCP 资源 `quicker://workspace/readme`、`quicker://workspace/index`；`docs` topic `workspace-editing` |
+| 工作区同步 | `workspace_program`（`projects_list` / `reindex` / `patch` / `validate` / `diagnostics`） |
+| 动作 | `qkrpc_action_query` / `get` / `create` / `run` / `debug` / … |
+| 子程序 | `qkrpc_subprogram_query` / `get` / `create` / … |
+| Schema | `qkrpc_step_runner_search` + `qkrpc_step_runner_get`（两步，勿猜参） |
+| 文档 | `docs`（`action=index|search|get`） |
+
+推荐磁盘编辑流：
+
+1. `qkrpc_action_get` — 拉到 `.quicker/`
+2. 用 **宿主自带文件工具**（Cursor Read/Write/StrReplace 等）改 `data.json` / `files/`
+3. `workspace_program` `action=patch` — 写入 Quicker
+4. `qkrpc_action_run` 或 `qkrpc_action_debug`
+
+与 QuickerAgent 的差异：第三方 Agent **没有** `workspace_program` 的文件读写子命令、`browser`、审批流、action-editor UI；磁盘编辑走宿主文件工具 + `patch`。
 
 ---
 
@@ -125,6 +132,21 @@ claude mcp add qkrpc -- qkrpc mcp
 ```
 
 或在项目根维护 `.mcp.json`（`mcpServers` 格式）；`qkrpc mcp install --project` 会写入。
+
+### Codex
+
+```powershell
+# 一键（需 codex 在 PATH）
+qkrpc agent setup --codex --project --workspace D:\your-workspace --skip-skill
+
+# 或手动
+codex mcp add qkrpc --env QKRPC_WORKSPACE_ROOT=D:\your-workspace -- "%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe" mcp
+codex mcp list
+```
+
+项目 `AGENTS.md` 指引：`docs/agent-rules/codex-qkrpc.md`（`--project` 时 setup 自动合并）。
+
+完整 Agent 逐步说明：**[agent-mcp-self-install.md](agent-mcp-self-install.md)**。官方：[Codex MCP](https://developers.openai.com/codex/mcp)。
 
 ### 仅 CLI、无 MCP
 
@@ -167,9 +189,9 @@ QuickerAgent 默认走此路径；其他语言 Agent 可 HTTP 封装，无需 MC
 
 ## 编写约定（所有 Agent 通用）
 
-1. **先读指南**：`docs_get` topic `overview` → `authoring-workflow`（或 `qkrpc guide get --json`）。
+1. **先读指南**：`docs` action=get topic `overview` → `authoring-workflow`（或 `qkrpc guide get --json`）。
 2. **step-runner 两步**：`qkrpc_step_runner_search` → `qkrpc_step_runner_get`，禁止猜 `inputParams`。
-3. **磁盘编辑**：edit `data.json` / `files/` → `qkrpc_sync push`；勿 inline patch。
+3. **磁盘编辑**：用宿主文件工具改 `.quicker/` → `workspace_program` action=patch；勿 inline patch。
 4. **连通失败**：用 `qkrpc_wait`，勿 shell 连环 ping。
 
 详见 [AGENTS.md](../AGENTS.md)、[docs/agent-tool-granularity.md](agent-tool-granularity.md)。
@@ -185,4 +207,4 @@ QuickerAgent 默认走此路径；其他语言 Agent 可 HTTP 封装，无需 MC
 | CI / 脚本 / 无 GUI | **`qkrpc` CLI** 或 **`qkrpc serve` HTTP** |
 | 团队共享 MCP 配置 | `qkrpc mcp install --project` 后 commit `.vscode/mcp.json` 等 |
 
-QuickerAgent 是 quicker-rpc 的 **一等公民**（完整 tool registry + workspace UI）；MCP 层提供 **跨 Agent 的最小可用面**，通过 `qkrpc_invoke` 可访问全部 serve op。
+QuickerAgent 是 quicker-rpc 的 **一等公民**（完整 tool registry + workspace 文件工具）；MCP 层提供 **跨 Agent 的编排面**（动作/子程序/run + patch），文件编辑由宿主 Agent 完成。

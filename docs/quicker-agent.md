@@ -1,5 +1,7 @@
 # QuickerAgent — 懂 Quicker 的 AI 副驾
 
+> 开发文档：[agent-gui/README.md](../agent-gui/README.md) · 文档索引：[README.md](README.md) · 路线图：[ROADMAP.md](ROADMAP.md)
+
 **QuickerAgent** 是专为 [Quicker](https://getquicker.net/) 打造的桌面 AI 助手。它直接连上你本机的 Quicker，帮你**找动作、跑动作、改动作、整动作页**——内置动作编辑器与步骤知识库，写流程不靠猜参数，日常操作不必翻遍面板。
 
 不是通用聊天工具，而是长在 Quicker 旁边的效率层。

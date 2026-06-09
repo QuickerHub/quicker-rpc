@@ -1297,6 +1297,9 @@ public sealed class McpOptions
     [Option("cline", HelpText = "Install: write Cline cline_mcp_settings.json")]
     public bool Cline { get; set; }
 
+    [Option("codex", HelpText = "Install: Codex codex mcp add + optional project AGENTS.md (--project)")]
+    public bool Codex { get; set; }
+
     [Option("all", HelpText = "Install: all supported user-level MCP configs")]
     public bool All { get; set; }
 

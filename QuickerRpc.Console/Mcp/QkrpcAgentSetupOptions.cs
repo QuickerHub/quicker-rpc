@@ -10,6 +10,7 @@ internal sealed class QkrpcAgentSetupOptions
     public bool Vscode { get; init; }
     public bool Windsurf { get; init; }
     public bool Cline { get; init; }
+    public bool Codex { get; init; }
     public bool All { get; init; }
     public bool Project { get; init; }
     public bool ProjectSkills { get; init; }
@@ -26,6 +27,7 @@ internal sealed class QkrpcAgentSetupOptions
         Vscode = options.Vscode,
         Windsurf = options.Windsurf,
         Cline = options.Cline,
+        Codex = options.Codex,
         All = options.All,
         Project = options.Project,
         ProjectSkills = options.ProjectSkills,
@@ -43,6 +45,7 @@ internal sealed class QkrpcAgentSetupOptions
         Vscode = options.Vscode,
         Windsurf = options.Windsurf,
         Cline = options.Cline,
+        Codex = options.Codex,
         All = options.All,
         Project = options.Project,
         ProjectSkills = options.ProjectSkills,

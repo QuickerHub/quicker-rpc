@@ -2,7 +2,11 @@
 
 基于 [Vercel AI SDK](https://ai-sdk.dev) 的聊天界面，通过本机 **`qkrpc`** 与 Quicker（QuickerRpc 插件）交互。
 
-**Coding agent 约定**：[AGENTS.md](AGENTS.md)（嵌套于仓库根 [AGENTS.md](../AGENTS.md)）。
+| 文档 | 受众 |
+|------|------|
+| [docs/quicker-agent.md](../docs/quicker-agent.md) | 终端用户：产品介绍、下载、FAQ |
+| 本文 | 开发者：本地运行、Tauri 发布、工具一览 |
+| [AGENTS.md](AGENTS.md) | Coding Agent（嵌套 [../AGENTS.md](../AGENTS.md)） |
 
 ## 前置条件
 

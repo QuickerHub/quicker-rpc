@@ -806,6 +806,8 @@ internal static class QkrpcCliHelp
 
             Option("cline", "Write Cline cline_mcp_settings.json."),
 
+            Option("codex", "Codex: codex mcp add + optional project AGENTS.md (--project)."),
+
             Option("all", "Write all supported user-level MCP configs."),
 
             Option("project", "Also write .cursor/.vscode/.mcp.json in cwd."),

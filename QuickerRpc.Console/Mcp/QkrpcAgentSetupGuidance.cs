@@ -3,12 +3,36 @@ namespace QuickerRpc.Console.Mcp;
 internal static class QkrpcAgentSetupGuidance
 {
     private const string ClaudeSnippetFileName = "claude-qkrpc.md";
+    private const string CodexSnippetFileName = "codex-qkrpc.md";
     private const string MarkerBegin = "<!-- qkrpc-agent-setup:begin -->";
     private const string MarkerEnd = "<!-- qkrpc-agent-setup:end -->";
 
+    internal static IEnumerable<string> InstallCodexGuidance(QkrpcAgentSetupOptions options, string workspace)
+    {
+        var snippet = ResolveSnippet(CodexSnippetFileName);
+        if (snippet is null)
+        {
+            yield return "Codex: skipped (codex-qkrpc.md source not found)";
+            yield break;
+        }
+
+        snippet = snippet.Replace("<workspace-root>", workspace, StringComparison.Ordinal);
+
+        if (options.Project)
+        {
+            var projectDest = Path.Combine(workspace, "AGENTS.md");
+            MergeGuidanceFile(projectDest, snippet);
+            yield return $"Codex (project AGENTS.md): {projectDest}";
+        }
+        else
+        {
+            yield return "Codex AGENTS.md: use --project to merge docs/agent-rules/codex-qkrpc.md into workspace AGENTS.md";
+        }
+    }
+
     internal static IEnumerable<string> InstallClaudeCodeGuidance(QkrpcAgentSetupOptions options, string workspace)
     {
-        var snippet = ResolveClaudeSnippet();
+        var snippet = ResolveSnippet(ClaudeSnippetFileName);
         if (snippet is null)
         {
             yield return "Claude Code: skipped (claude-qkrpc.md source not found)";
@@ -31,12 +55,12 @@ internal static class QkrpcAgentSetupGuidance
         }
     }
 
-    private static string? ResolveClaudeSnippet()
+    private static string? ResolveSnippet(string fileName)
     {
         var cwd = Directory.GetCurrentDirectory();
         for (var dir = cwd; !string.IsNullOrEmpty(dir); dir = Path.GetDirectoryName(dir)!)
         {
-            var candidate = Path.Combine(dir, "docs", "agent-rules", ClaudeSnippetFileName);
+            var candidate = Path.Combine(dir, "docs", "agent-rules", fileName);
             if (File.Exists(candidate))
             {
                 return File.ReadAllText(candidate, System.Text.Encoding.UTF8).Trim();
@@ -46,7 +70,7 @@ internal static class QkrpcAgentSetupGuidance
         var exeDir = Path.GetDirectoryName(Environment.ProcessPath ?? string.Empty);
         if (!string.IsNullOrWhiteSpace(exeDir))
         {
-            var bundled = Path.Combine(exeDir, "agent-rules", ClaudeSnippetFileName);
+            var bundled = Path.Combine(exeDir, "agent-rules", fileName);
             if (File.Exists(bundled))
             {
                 return File.ReadAllText(bundled, System.Text.Encoding.UTF8).Trim();

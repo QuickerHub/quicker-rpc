@@ -59,6 +59,9 @@ public sealed class AgentSetupFlagsOptions
     [Option("cline", HelpText = "Write Cline cline_mcp_settings.json.")]
     public bool Cline { get; set; }
 
+    [Option("codex", HelpText = "Codex: codex mcp add + optional project AGENTS.md (--project).")]
+    public bool Codex { get; set; }
+
     [Option("all", HelpText = "All supported user-level MCP configs.")]
     public bool All { get; set; }
 

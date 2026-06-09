@@ -34,14 +34,4 @@ public sealed class QkrpcMcpCoreTools
             }),
             cancellationToken);
 
-    [McpServerTool(Name = "qkrpc_invoke")]
-    [Description(
-        "Invoke any qkrpc serve op. Examples: action.list, action.get, action.patch, action.apply, "
-        + "subprogram.search, step-runner.get, guide.get, settings.search. "
-        + "argsJson: JSON object string (default {}). Workspace ops use env QKRPC_WORKSPACE_ROOT when set.")]
-    public Task<string> QkrpcInvoke(
-        string op,
-        string? argsJson = null,
-        CancellationToken cancellationToken = default) =>
-        _runtime.InvokeOpAsync(op, QkrpcMcpJson.ParseArgsObject(argsJson), cancellationToken);
 }
