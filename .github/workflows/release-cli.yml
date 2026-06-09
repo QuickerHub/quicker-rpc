@@ -279,6 +279,8 @@ jobs:
       - name: Download compile artifacts (retry run)
         if: github.event_name == 'workflow_dispatch' && inputs.pipeline == 'bundle-only'
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $runId = '${{ inputs.artifact_run_id }}'.Trim()
           if ([string]::IsNullOrWhiteSpace($runId)) {
@@ -364,6 +366,8 @@ jobs:
       - name: Download CLI artifacts (bundle-only retry)
         if: github.event_name == 'workflow_dispatch' && inputs.pipeline == 'bundle-only'
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $runId = '${{ inputs.artifact_run_id }}'.Trim()
           if ([string]::IsNullOrWhiteSpace($runId)) {
@@ -375,6 +379,8 @@ jobs:
       - name: Download release artifacts (retry run)
         if: github.event_name == 'workflow_dispatch' && inputs.pipeline == 'release-only'
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $runId = '${{ inputs.artifact_run_id }}'.Trim()
           if ([string]::IsNullOrWhiteSpace($runId)) {
