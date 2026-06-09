@@ -70,7 +70,7 @@ function isServeUnreachableError(err: unknown): boolean {
 async function alignQkrpcHttpBaseIfNeeded(): Promise<string> {
   const configured = resolveQkrpcHttpBase();
   const { isQkrpcServeHealthy, discoverHealthyQkrpcServe } = await import(
-    "./qkrpc-serve-discover.mjs"
+    "@/lib/qkrpc-serve-discover.mjs"
   );
   if (await isQkrpcServeHealthy(configured)) {
     return configured;

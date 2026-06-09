@@ -3,6 +3,15 @@ declare module "@/lib/qkrpc-serve-ensure.mjs" {
   export function ensureQkrpcServeIfDown(): Promise<boolean>;
 }
 
+declare module "@/lib/qkrpc-serve-discover.mjs" {
+  export function isQkrpcServeHealthy(base: string, timeoutMs?: number): Promise<boolean>;
+  export function discoverHealthyQkrpcServe(
+    host?: string,
+    scanFromPort?: number,
+    maxPorts?: number,
+  ): Promise<{ baseUrl: string; port: number } | null>;
+}
+
 declare module "@/lib/voice-runtime-lifecycle.mjs" {
   export type VoiceRuntimeState = {
     pid: number;
