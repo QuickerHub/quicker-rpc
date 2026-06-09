@@ -69,6 +69,7 @@ publish/**
 !publish/registry/**
 !publish/Upload-VoiceAsrToBitiful.ps1
 !publish/Sync-QuickerAgentActionDoc.ps1
+!publish/Sync-ActionRuntimeSubmodulePat.ps1
 !publish/bitiful_upload.py
 !publish/.env.example
 !publish/changelogs/
