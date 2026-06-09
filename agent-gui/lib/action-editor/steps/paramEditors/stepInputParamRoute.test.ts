@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
 import type { ActionStepParam } from "@/lib/action-editor/types/common";
 import type { StepRunnerInputParamDef } from "@/lib/action-editor/types/action_query";
 import { CsVarType, ParamVariableMode } from "./csStepEnums";
@@ -30,30 +31,33 @@ function param(value = "", varKey = ""): ActionStepParam {
 }
 
 describe("stepInputParamRoute", () => {
-  it("routes UseVar to VarOrValue editor", () => {
-    expect(shouldUseVarOrValueEditor(def({ key: "x", variableMode: ParamVariableMode.UseVar }))).toBe(true);
+  test("routes UseVar to VarOrValue editor", () => {
+    assert.equal(
+      shouldUseVarOrValueEditor(def({ key: "x", variableMode: ParamVariableMode.UseVar })),
+      true,
+    );
   });
 
-  it("routes UseVarOnly with empty value to variable-only picker", () => {
+  test("routes UseVarOnly with empty value to variable-only picker", () => {
     const field = def({ key: "out", variableMode: ParamVariableMode.UseVarOnly });
-    expect(shouldUseVariableOnlyPicker(field, param())).toBe(true);
-    expect(shouldUseVarOrValueEditor(field)).toBe(false);
+    assert.equal(shouldUseVariableOnlyPicker(field, param()), true);
+    assert.equal(shouldUseVarOrValueEditor(field), false);
   });
 
-  it("keeps UseVarOnly with expression value on VarOrValue path", () => {
+  test("keeps UseVarOnly with expression value on VarOrValue path", () => {
     const field = def({ key: "out", variableMode: ParamVariableMode.UseVarOnly });
-    expect(shouldUseVariableOnlyPicker(field, param("$=1+1"))).toBe(false);
-    expect(shouldUseVarOrValueEditor(field, param("$=1+1"))).toBe(true);
+    assert.equal(shouldUseVariableOnlyPicker(field, param("$=1+1")), false);
+    assert.equal(shouldUseVarOrValueEditor(field, param("$=1+1")), true);
   });
 
-  it("detects texttools param key", () => {
-    expect(isTextToolsParamKey("texttools")).toBe(true);
-    expect(isTextToolsParamKey("TextTools")).toBe(true);
-    expect(isTextToolsParamKey("other")).toBe(false);
+  test("detects texttools param key", () => {
+    assert.equal(isTextToolsParamKey("texttools"), true);
+    assert.equal(isTextToolsParamKey("TextTools"), true);
+    assert.equal(isTextToolsParamKey("other"), false);
   });
 
-  it("routes boolean input to dedicated checkbox editor", () => {
+  test("routes boolean input to dedicated checkbox editor", () => {
     const field = def({ key: "flag", varType: CsVarType.Boolean, variableMode: ParamVariableMode.Input });
-    expect(shouldUseVarOrValueEditor(field)).toBe(false);
+    assert.equal(shouldUseVarOrValueEditor(field), false);
   });
 });

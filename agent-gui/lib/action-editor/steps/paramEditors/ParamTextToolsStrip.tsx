@@ -1,11 +1,21 @@
-import { useCallback, useId, useRef, type ChangeEvent, type JSX } from "react";
+"use client";
+
+import { useCallback, useRef, useState, type ChangeEvent, type JSX } from "react";
+import type { ActionVariable } from "@/lib/action-editor/types/common";
 import { TEXT_TOOL_CATALOG } from "./textToolCatalog";
 import { parseParamTextToolIds } from "./stepRunnerInputParamUi";
+import { TextToolDialogs, type TextToolDialogState } from "./TextToolDialogs";
+import {
+  isWebTextTool,
+  resolveTextToolDialogKind,
+  runNativeFileTextTool,
+} from "./textToolWebSupport";
 
 export type ParamTextToolsStripProps = {
   textTools: string;
   /** Insert or replace value in the bound field (desktop TextToolsControl). */
   onInsertValue: (value: string, mode: "replace" | "append") => void;
+  variables?: ActionVariable[];
   disabled?: boolean;
 };
 
@@ -25,16 +35,24 @@ function resolveToolLabel(toolId: string): string {
 export function ParamTextToolsStrip({
   textTools,
   onInsertValue,
+  variables = [],
   disabled = false,
 }: ParamTextToolsStripProps): JSX.Element | null {
   const ids = parseParamTextToolIds(textTools);
-  if (ids.length === 0) {
-    return null;
-  }
-
-  const inputId = useId();
+  const [dialogState, setDialogState] = useState<TextToolDialogState>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingToolRef = useRef<string | null>(null);
+
+  const commitValue = useCallback(
+    (value: string, mode: "replace" | "append" = "replace"): void => {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return;
+      }
+      onInsertValue(trimmed, mode);
+    },
+    [onInsertValue],
+  );
 
   const openBrowserPicker = useCallback((toolId: string): void => {
     pendingToolRef.current = toolId;
@@ -62,70 +80,121 @@ export function ParamTextToolsStrip({
           .map((f) => f.name)
           .filter((x) => x.length > 0);
         if (paths.length > 0) {
-          onInsertValue(paths.join(";"), "replace");
+          commitValue(paths.join(";"));
         }
         return;
       }
       if (toolId === "SelectSingleFolder") {
         const first = files[0];
         if (first) {
-          onInsertValue(first.webkitRelativePath.split("/")[0] ?? first.name, "replace");
+          commitValue(first.webkitRelativePath.split("/")[0] ?? first.name);
         }
         return;
       }
       const first = files[0];
       if (first) {
-        onInsertValue(first.name, "replace");
+        commitValue(first.name);
       }
     },
-    [onInsertValue],
+    [commitValue],
   );
 
+  const openDialogForTool = useCallback((toolId: string): void => {
+    const kind = resolveTextToolDialogKind(toolId);
+    if (!kind) {
+      return;
+    }
+    if (kind === "actionPicker") {
+      setDialogState({ kind, toolId });
+      return;
+    }
+    setDialogState({
+      kind,
+      toolId,
+      variables: kind === "boolExpression" ? variables : undefined,
+    });
+  }, [variables]);
+
   const handleToolClick = useCallback(
-    (toolId: string): void => {
+    async (toolId: string): Promise<void> => {
       if (disabled) {
         return;
       }
+
       if (BROWSER_FILE_TOOLS.has(toolId)) {
+        const native = await runNativeFileTextTool(toolId);
+        if (native.handled) {
+          commitValue(native.value);
+          return;
+        }
         openBrowserPicker(toolId);
         return;
       }
-      // Desktop-only pickers; keep toolbar visible for parity with WPF VarAndValueParamEditor.
+
+      if (toolId === "SelectSavePath") {
+        const native = await runNativeFileTextTool(toolId);
+        if (native.handled) {
+          commitValue(native.value);
+          return;
+        }
+        openDialogForTool(toolId);
+        return;
+      }
+
+      if (isWebTextTool(toolId)) {
+        openDialogForTool(toolId);
+        return;
+      }
+
       window.alert(`「${resolveToolLabel(toolId)}」需在 Quicker 桌面版步骤编辑器中使用。`);
     },
-    [disabled, openBrowserPicker],
+    [commitValue, disabled, openBrowserPicker, openDialogForTool],
   );
 
+  if (ids.length === 0) {
+    return null;
+  }
+
   return (
-    <div className="step-param-texttools-strip" role="toolbar" aria-label="文本工具">
-      <input
-        id={inputId}
-        ref={fileInputRef}
-        type="file"
-        className="step-param-texttools-file-input"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={handleFileChange}
+    <>
+      <div className="step-param-texttools-strip" role="toolbar" aria-label="文本工具">
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="step-param-texttools-file-input"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={handleFileChange}
+        />
+        {ids.map((toolId) => {
+          const webCapable = isWebTextTool(toolId);
+          return (
+            <button
+              key={toolId}
+              type="button"
+              className={`step-param-texttools-btn${webCapable ? " step-param-texttools-btn--web" : ""}`}
+              title={
+                webCapable
+                  ? resolveToolLabel(toolId)
+                  : `${resolveToolLabel(toolId)}（仅桌面版）`
+              }
+              disabled={disabled}
+              onClick={() => void handleToolClick(toolId)}
+            >
+              {resolveToolLabel(toolId)}
+            </button>
+          );
+        })}
+      </div>
+
+      <TextToolDialogs
+        state={dialogState}
+        onConfirm={(value) => {
+          setDialogState(null);
+          commitValue(value);
+        }}
+        onCancel={() => setDialogState(null)}
       />
-      {ids.map((toolId) => {
-        const browserCapable = BROWSER_FILE_TOOLS.has(toolId);
-        return (
-          <button
-            key={toolId}
-            type="button"
-            className="step-param-texttools-btn"
-            title={
-              browserCapable
-                ? resolveToolLabel(toolId)
-                : `${resolveToolLabel(toolId)}（仅桌面版）`
-            }
-            disabled={disabled}
-            onClick={() => handleToolClick(toolId)}
-          >
-            {resolveToolLabel(toolId)}
-          </button>
-        );
-      })}
-    </div>
+    </>
   );
 }

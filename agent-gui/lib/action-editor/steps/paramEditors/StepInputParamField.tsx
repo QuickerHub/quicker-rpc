@@ -126,6 +126,7 @@ function StepInputParamFieldInner({
   const enumPopupRef = useRef<HTMLDivElement | null>(null);
   const activateLabelRef = useRef<HTMLLabelElement | HTMLDivElement | null>(null);
   const openFieldPopupRef = useRef<(() => void) | null>(null);
+  const closeFieldPopupRef = useRef<(() => void) | null>(null);
   const [enumRect, setEnumRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const externalFile = useExternalParamFileEditorValue(param, workspace, onChange);
 
@@ -422,12 +423,12 @@ function StepInputParamFieldInner({
     const multilineVarOrValue = isMultilineVarOrValueField(def, param);
 
     return (
-      <div className="step-param-row">
+      <div className={`step-param-row${multilineVarOrValue ? "" : " step-param-row--compact-value"}`}>
         <StepParamLabel
           label={label}
           labelRef={activateLabelRef}
           onActivate={() => openFieldPopupRef.current?.()}
-          onDoubleClickActivate={onRequestCreateVariable ? requestCreateVariable : undefined}
+          onDoubleClickActivate={() => closeFieldPopupRef.current?.()}
         />
         <div className="step-param-field-col">
           <VarOrValueParamEditor
@@ -438,6 +439,7 @@ function StepInputParamFieldInner({
             multiline={multilineVarOrValue}
             workspace={workspace}
             openPopupRef={openFieldPopupRef}
+            closePopupRef={closeFieldPopupRef}
             activateLabelRef={activateLabelRef}
             onRequestCreateVariable={onRequestCreateVariable ? requestCreateVariable : undefined}
           />
@@ -484,6 +486,7 @@ function StepInputParamFieldInner({
             param={param}
             onChange={onChange}
             workspace={workspace}
+            variables={variables}
           />
           {desc ? <div className="step-param-hint">{desc}</div> : null}
         </div>
@@ -495,7 +498,9 @@ function StepInputParamFieldInner({
 
   /** VarOrValue value slot: always use ExpressionEditor when enabled (literal / interpolation / $=). */
   const valueControl = ENABLE_EXPRESSION_EDITOR ? (
-    <div className="step-param-expression-wrap">
+    <div
+      className={`step-param-expression-wrap${multiline ? " step-param-expression-wrap--multiline" : " step-param-expression-wrap--inline"}`}
+    >
       <ExternalParamFileExpressionEditor
         param={param}
         workspace={workspace}
@@ -536,7 +541,7 @@ function StepInputParamFieldInner({
   );
 
   return (
-    <div className="step-param-row">
+    <div className={`step-param-row${multiline ? "" : " step-param-row--compact-value"}`}>
       <div className="step-param-label">{label}</div>
       <div className="step-param-field-col">
         {valueControl}

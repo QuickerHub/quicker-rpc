@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type MutableRefObject,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import type { ActionStepParam, ActionVariable } from "@/lib/action-editor/types/common";
 import type { StepRunnerInputParamDef, StepRunnerParamSelectionItem } from "@/lib/action-editor/types/action_query";
@@ -17,7 +27,7 @@ import {
   STEP_PARAM_SCRIPT_MAX_HEIGHT,
 } from "./ExternalParamFileExpressionEditor";
 import { resolveStepParamMultiline } from "./stepParamMultiline";
-import { buildEnumSelectionOptions } from "./stepParamEnumOptions";
+import { buildEnumSelectionOptions, findEnumSelectionItem } from "./stepParamEnumOptions";
 import { ParamTextToolsStrip } from "./ParamTextToolsStrip";
 import { readParamTextTools } from "./stepRunnerInputParamUi";
 
@@ -28,8 +38,10 @@ export type VarOrValueParamEditorProps = {
   onChange: (next: ActionStepParam) => void;
   multiline?: boolean;
   workspace?: ActionProjectWorkspaceContext;
-  /** Receives `openPopup` so the row label can open the mode picker. */
+  /** Row label / field activator: toggles the mode picker open or closed. */
   openPopupRef?: MutableRefObject<(() => void) | null>;
+  /** Double-click on label / field: force-close the mode picker. */
+  closePopupRef?: MutableRefObject<(() => void) | null>;
   /** Row label element; excluded from outside-click close. */
   activateLabelRef?: RefObject<HTMLElement | null>;
   onRequestCreateVariable?: () => void;
@@ -50,7 +62,7 @@ function resolveVarOrValueMode(
     return "variable";
   }
   const value = (param.value ?? "").trim();
-  if (value.length > 0 && selectionItems.some((si) => (si.value ?? "") === value)) {
+  if (value.length > 0 && findEnumSelectionItem(selectionItems, value) != null) {
     return "enum";
   }
   return "input";
@@ -83,6 +95,7 @@ export function VarOrValueParamEditor({
   multiline = false,
   workspace,
   openPopupRef,
+  closePopupRef,
   activateLabelRef,
   onRequestCreateVariable,
 }: VarOrValueParamEditorProps): JSX.Element {
@@ -124,13 +137,18 @@ export function VarOrValueParamEditor({
   const paramTextTools = useMemo(() => readParamTextTools(def), [def]);
 
   const insertTextToolValue = useCallback(
-    (value: string): void => {
+    (value: string, mode: "replace" | "append" = "replace"): void => {
       const trimmed = value.trim();
       if (!trimmed) {
         return;
       }
       setModeOverride("input");
-      onChange({ ...param, varKey: "", value: trimmed, file: undefined });
+      const prev = (param.value ?? "").trim();
+      const nextValue =
+        mode === "append" && prev.length > 0
+          ? `${param.value ?? ""}${(param.value ?? "").endsWith("\n") ? "" : "\n"}${trimmed}`
+          : trimmed;
+      onChange({ ...param, varKey: "", value: nextValue, file: undefined });
     },
     [onChange, param],
   );
@@ -200,24 +218,50 @@ export function VarOrValueParamEditor({
     allUsableVars.find((v) => actionVariableRowKey(v) === (param.varKey ?? "")) ??
     variables.find((v) => actionVariableRowKey(v) === (param.varKey ?? ""));
 
-  const selectedEnumItem =
-    effectiveSelectionItems.find((si) => (si.value ?? "") === (param.value ?? "")) ?? null;
+  const selectedEnumItem = findEnumSelectionItem(effectiveSelectionItems, param.value ?? "");
 
-  const openPopup = useCallback((): void => setPopupOpen(true), []);
-  const closePopup = (): void => {
+  const dismissPopup = useCallback((): void => {
     setPopupOpen(false);
     setFilter("");
-  };
+  }, []);
+
+  const togglePopup = useCallback((): void => {
+    setPopupOpen((open) => {
+      if (open) {
+        setFilter("");
+      }
+      return !open;
+    });
+  }, []);
+
+  const handleActivatorDoubleClick = useCallback(
+    (event: MouseEvent): void => {
+      event.preventDefault();
+      event.stopPropagation();
+      dismissPopup();
+    },
+    [dismissPopup],
+  );
 
   useEffect(() => {
     if (!openPopupRef) {
       return;
     }
-    openPopupRef.current = openPopup;
+    openPopupRef.current = togglePopup;
     return () => {
       openPopupRef.current = null;
     };
-  }, [openPopupRef, openPopup]);
+  }, [openPopupRef, togglePopup]);
+
+  useEffect(() => {
+    if (!closePopupRef) {
+      return;
+    }
+    closePopupRef.current = dismissPopup;
+    return () => {
+      closePopupRef.current = null;
+    };
+  }, [closePopupRef, dismissPopup]);
 
   const applyRow = (row: PopupRow): void => {
     if (row.kind === "input") {
@@ -231,7 +275,7 @@ export function VarOrValueParamEditor({
       setModeOverride("variable");
       onChange({ varKey: actionVariableRowKey(row.variable), value: "", file: undefined });
     }
-    closePopup();
+    dismissPopup();
   };
 
   useEffect(() => {
@@ -319,7 +363,7 @@ export function VarOrValueParamEditor({
       const activateLabel = activateLabelRef?.current;
       const inActivateLabel = activateLabel instanceof HTMLElement && activateLabel.contains(target);
       if (!inHost && !inToggle && !inPopup && !inActivateLabel) {
-        closePopup();
+        dismissPopup();
       }
     };
     window.addEventListener("resize", onLayoutChanged);
@@ -330,7 +374,7 @@ export function VarOrValueParamEditor({
       window.removeEventListener("scroll", onLayoutChanged, true);
       document.removeEventListener("pointerdown", onPointerDown, true);
     };
-  }, [popupOpen, activateLabelRef]);
+  }, [popupOpen, activateLabelRef, dismissPopup]);
 
   useLayoutEffect(() => {
     if (!popupOpen || !popupRect || popupRect.direction !== "up") {
@@ -370,7 +414,8 @@ export function VarOrValueParamEditor({
         type="button"
         className="step-param-varorvalue-display"
         title="点击选择变量或输入值"
-        onClick={openPopup}
+        onClick={togglePopup}
+        onDoubleClick={handleActivatorDoubleClick}
       >
         {selectedVariable ? (
           <>
@@ -394,45 +439,16 @@ export function VarOrValueParamEditor({
         )}
       </button>
     ) : mode === "enum" && selectedEnumItem ? (
-      <div className="step-param-varorvalue-enum-wrap">
-        <button
-          type="button"
-          className="step-param-varorvalue-display step-param-varorvalue-display--enum"
-          title="点击选择变量或输入值"
-          onClick={openPopup}
-        >
-          <span className="step-param-varorvalue-dot" aria-hidden="true" />
-          <SelectionItemLabel item={selectedEnumItem} />
-        </button>
-        <div className="step-param-enum-value-actions">
-          <button
-            type="button"
-            className="step-param-enum-value-action"
-            title="手工填写参数值"
-            onClick={() => {
-              const literal = (param.value ?? "").trim();
-              setModeOverride("input");
-              setPendingInputFocus(true);
-              onChange({ ...param, varKey: "", value: literal });
-            }}
-          >
-            手工填写
-          </button>
-          <button
-            type="button"
-            className="step-param-enum-value-action step-param-enum-value-action--expr"
-            title='将变量模式转换为表达式 $="值" 的形式'
-            onClick={() => {
-              const literal = (param.value ?? "").trim();
-              setModeOverride("input");
-              setPendingInputFocus(true);
-              onChange({ ...param, varKey: "", value: literal ? `$="${literal}"` : '$=""' });
-            }}
-          >
-            $=
-          </button>
-        </div>
-      </div>
+      <button
+        type="button"
+        className="step-param-varorvalue-display step-param-varorvalue-display--enum"
+        title="点击选择变量或输入值"
+        onClick={togglePopup}
+        onDoubleClick={handleActivatorDoubleClick}
+      >
+        <span className="step-param-varorvalue-dot" aria-hidden="true" />
+        <SelectionItemLabel item={selectedEnumItem} compact />
+      </button>
     ) : (
       <div className="step-param-varorvalue-input" ref={expressionHostRef}>
         <ExternalParamFileExpressionEditor
@@ -459,7 +475,8 @@ export function VarOrValueParamEditor({
       <ExternalParamFileStatusHints state={externalFile} />
       <ParamTextToolsStrip
         textTools={paramTextTools}
-        onInsertValue={(value) => insertTextToolValue(value)}
+        variables={variables}
+        onInsertValue={(value, mode) => insertTextToolValue(value, mode)}
       />
       <div
         className={`step-param-varorvalue-shell${effectiveMultiline ? " step-param-varorvalue-shell--multiline" : ""}`}
@@ -472,7 +489,7 @@ export function VarOrValueParamEditor({
           title="选择变量"
           aria-label="选择变量"
           aria-expanded={popupOpen}
-          onClick={() => setPopupOpen((v) => !v)}
+          onClick={togglePopup}
         />
       </div>
       {popupOpen && popupRect
@@ -542,7 +559,7 @@ export function VarOrValueParamEditor({
                     type="button"
                     className="step-param-varorvalue-create-btn"
                     onClick={() => {
-                      closePopup();
+                      dismissPopup();
                       onRequestCreateVariable();
                     }}
                   >
@@ -560,7 +577,7 @@ export function VarOrValueParamEditor({
                   onKeyDown={(event) => {
                     if (event.key === "Escape") {
                       event.preventDefault();
-                      closePopup();
+                      dismissPopup();
                       return;
                     }
                     if (event.key === "ArrowDown") {

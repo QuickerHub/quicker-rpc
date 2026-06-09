@@ -42,6 +42,7 @@ import {
   buildStepParamValuesForVisibility,
   isParamDefVisibleForStep,
 } from "@/lib/action-editor/steps/stepParamVisibility";
+import { resolveCanonicalStepRunnerKey } from "@/lib/action-editor/steps/stepRunnerKeyResolve";
 
 export type StepEditorPopupProps = {
   open: boolean;
@@ -164,6 +165,7 @@ export function StepEditorPopup({
   const draftSyncRef = useRef({ stepFp: "", runnerFp: "" });
   /** Last successfully fetched `runnerKey\\0controlLiteral` (controlLiteral empty = base schema). */
   const loadedSchemaKeyRef = useRef("");
+  const schemaFetchSeqRef = useRef(0);
   const hydratedRunnerRef = useRef(hydratedRunnerItem);
   hydratedRunnerRef.current = hydratedRunnerItem;
   const controlFieldKeyRef = useRef("");
@@ -398,7 +400,10 @@ export function StepEditorPopup({
       return;
     }
 
-    const runnerKey = (step.stepRunnerKey ?? "").trim();
+    const runnerKey = resolveCanonicalStepRunnerKey(
+      step.stepRunnerKey ?? "",
+      runnerItemRef.current ? [runnerItemRef.current] : undefined,
+    );
     if (!runnerKey) {
       setHydratedRunnerItem(runnerItemRef.current);
       setLoadingRunnerSchema(false);
@@ -420,10 +425,12 @@ export function StepEditorPopup({
       loadedSchemaKeyRef.current === fetchKey
       && (currentRunner?.inputParamDefs?.length ?? 0) > 0
     ) {
+      setLoadingRunnerSchema(false);
       return;
     }
 
     const ac = new AbortController();
+    const requestSeq = ++schemaFetchSeqRef.current;
     setLoadingRunnerSchema((currentRunner?.inputParamDefs?.length ?? 0) === 0);
     setSchemaLoadIssue(undefined);
     void fetchStepRunnerDetailItem(
@@ -432,7 +439,7 @@ export function StepEditorPopup({
       ac.signal,
     )
       .then((detail) => {
-        if (ac.signal.aborted) return;
+        if (ac.signal.aborted || requestSeq !== schemaFetchSeqRef.current) return;
         const nextItem = detail ?? catalogItem;
         if (!nextItem) {
           setSchemaLoadIssue(
@@ -457,12 +464,17 @@ export function StepEditorPopup({
         });
       })
       .finally(() => {
-        if (!ac.signal.aborted) {
+        if (requestSeq === schemaFetchSeqRef.current) {
           setLoadingRunnerSchema(false);
         }
       });
 
-    return () => ac.abort();
+    return () => {
+      ac.abort();
+      if (requestSeq === schemaFetchSeqRef.current) {
+        setLoadingRunnerSchema(false);
+      }
+    };
   }, [open, step?.stepId, step?.stepRunnerKey, controlFieldKey, resolvedSchemaControlLiteral]);
 
   const runnerFp = runnerSchemaFingerprint(editorRunnerItem);

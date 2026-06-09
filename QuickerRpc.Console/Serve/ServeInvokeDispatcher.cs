@@ -113,6 +113,8 @@ internal static class ServeInvokeDispatcher
             "step-runner.get" => await StepRunnerGetAsync(rpc, args, forAgent: true, token).ConfigureAwait(false),
             "step-runner.getUi" => await StepRunnerGetAsync(rpc, args, forAgent: false, token).ConfigureAwait(false),
             "step-runner.summaries" => await StepRunnerSummariesAsync(rpc, args, token).ConfigureAwait(false),
+            "clipboard.read-special-format" => await ClipboardReadSpecialFormatAsync(rpc, args, token).ConfigureAwait(false),
+            "clipboard.write-special-format" => await ClipboardWriteSpecialFormatAsync(rpc, args, token).ConfigureAwait(false),
             "fa.search" => await FaSearchAsync(rpc, args, token).ConfigureAwait(false),
             "expr.check" => await ExprCheckAsync(rpc, args, token).ConfigureAwait(false),
             "expr.run" => await ExprRunAsync(rpc, args, token).ConfigureAwait(false),
@@ -1799,6 +1801,41 @@ internal static class ServeInvokeDispatcher
             .GetActionStepSummariesAsync(steps, subProgramsJson, token)
             .ConfigureAwait(false);
         return Ok(new { ok = response.Success, action = "step-runner-summaries", payload = response });
+    }
+
+    private static async Task<ServeInvokeResponse> ClipboardReadSpecialFormatAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var format = ServeJsonArgs.GetString(args, "format") ?? string.Empty;
+        var response = await rpc.ReadClipboardSpecialFormatAsync(format, token).ConfigureAwait(false);
+        if (!response.Success)
+        {
+            return Fail("CLIPBOARD_READ_FAILED", response.ErrorMessage ?? "Clipboard read failed.");
+        }
+
+        return Ok(new
+        {
+            hasData = response.HasData,
+            text = response.Text ?? string.Empty,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ClipboardWriteSpecialFormatAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var format = ServeJsonArgs.GetString(args, "format") ?? string.Empty;
+        var text = ServeJsonArgs.GetString(args, "text") ?? string.Empty;
+        var response = await rpc.WriteClipboardSpecialFormatAsync(format, text, token).ConfigureAwait(false);
+        if (!response.Success)
+        {
+            return Fail("CLIPBOARD_WRITE_FAILED", response.ErrorMessage ?? "Clipboard write failed.");
+        }
+
+        return Ok(new { ok = true });
     }
 
     private static async Task<ServeInvokeResponse> FaSearchAsync(

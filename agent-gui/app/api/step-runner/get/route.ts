@@ -2,7 +2,9 @@ import { runQkrpc } from "@/lib/qkrpc";
 import { mapAgentSchemaToStepRunnerItem } from "@/lib/action-editor/api/stepRunnerSchemaMap";
 import {
   getStaticStepRunnerItem,
+  hasStaticStepRunnersUiCatalog,
 } from "@/lib/action-editor/data/stepRunnersUiCatalog.server";
+import { resolveStepRunnerKeyCandidates } from "@/lib/action-editor/steps/stepRunnerKeyResolve";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +38,39 @@ function unwrapSchema(data: unknown): Record<string, unknown> | null {
   return null;
 }
 
+async function fetchLiveStepRunnerItem(
+  key: string,
+  controlField?: string,
+): Promise<Record<string, unknown> | null> {
+  const args = ["step-runner", "get-ui", "--key", key, "--json"];
+  if (controlField) {
+    args.push("--control-field", controlField);
+  }
+
+  const result = await runQkrpc(args, { timeoutMs: 60_000 });
+  if (!result.ok) {
+    return null;
+  }
+
+  const schema = unwrapSchema(result.parsed);
+  if (!schema) {
+    return null;
+  }
+
+  return mapAgentSchemaToStepRunnerItem(schema) as unknown as Record<string, unknown>;
+}
+
+function fetchStaticStepRunnerItem(
+  key: string,
+  controlField?: string,
+): Record<string, unknown> | null {
+  const item = getStaticStepRunnerItem(key, controlField);
+  if (!item) {
+    return null;
+  }
+  return item as unknown as Record<string, unknown>;
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const key = url.searchParams.get("key")?.trim() ?? "";
@@ -46,7 +81,7 @@ export async function GET(req: Request) {
   }
 
   if (!useLiveCatalog()) {
-    const item = getStaticStepRunnerItem(key, controlField);
+    const item = fetchStaticStepRunnerItem(key, controlField);
     if (item) {
       return Response.json({ ok: true, item, source: "static" });
     }
@@ -56,27 +91,28 @@ export async function GET(req: Request) {
     );
   }
 
-  const args = ["step-runner", "get-ui", "--key", key, "--json"];
-  if (controlField) {
-    args.push("--control-field", controlField);
+  const keysToTry = resolveStepRunnerKeyCandidates(key);
+  for (const tryKey of keysToTry) {
+    const liveItem = await fetchLiveStepRunnerItem(tryKey, controlField);
+    if (liveItem) {
+      return Response.json({ ok: true, item: liveItem, source: "live" });
+    }
   }
 
-  const result = await runQkrpc(args, { timeoutMs: 60_000 });
-  if (!result.ok) {
-    return Response.json(
-      { ok: false, error: result.stderr || "step-runner get-ui failed" },
-      { status: 503 },
-    );
+  if (hasStaticStepRunnersUiCatalog()) {
+    for (const tryKey of keysToTry) {
+      const staticItem = fetchStaticStepRunnerItem(tryKey, controlField);
+      if (staticItem) {
+        return Response.json({ ok: true, item: staticItem, source: "static-fallback" });
+      }
+    }
   }
 
-  const schema = unwrapSchema(result.parsed);
-  if (!schema) {
-    return Response.json({ ok: false, error: "Missing schema in response" }, { status: 502 });
-  }
-
-  return Response.json({
-    ok: true,
-    item: mapAgentSchemaToStepRunnerItem(schema),
-    source: "live",
-  });
+  return Response.json(
+    {
+      ok: false,
+      error: `step-runner get-ui failed for ${key} (tried: ${keysToTry.join(", ")}). Is Quicker running with QuickerRpc plugin?`,
+    },
+    { status: 503 },
+  );
 }

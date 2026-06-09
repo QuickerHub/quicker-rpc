@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
 import { ActionVariable } from "@/lib/action-editor/types/common";
 import { CsVarType } from "./csStepEnums";
 import {
@@ -9,28 +10,28 @@ import {
 } from "./stepParamCreateVariable";
 
 describe("stepParamCreateVariable", () => {
-  it("normalizes var: prefix and invalid identifiers", () => {
-    expect(normalizeParamNameForVariable("var:foo")).toBe("foo");
-    expect(normalizeParamNameForVariable("bad-name")).toBe("_bad-name");
+  test("normalizes var: prefix and invalid identifiers", () => {
+    assert.equal(normalizeParamNameForVariable("var:foo"), "foo");
+    assert.equal(normalizeParamNameForVariable("bad-name"), "_bad-name");
   });
 
-  it("resolves enum target type to text", () => {
-    expect(resolveCreateVariableTargetType(CsVarType.Enum)).toBe(CsVarType.Text);
-    expect(resolveCreateVariableTargetType(CsVarType.Integer)).toBe(CsVarType.Integer);
+  test("resolves enum target type to text", () => {
+    assert.equal(resolveCreateVariableTargetType(CsVarType.Enum), CsVarType.Text);
+    assert.equal(resolveCreateVariableTargetType(CsVarType.Integer), CsVarType.Integer);
   });
 
-  it("validates csharp-like variable keys", () => {
-    expect(isValidActionVariableKey("foo_1")).toBe(true);
-    expect(isValidActionVariableKey("params")).toBe(true);
-    expect(isValidActionVariableKey("1bad")).toBe(false);
-    expect(isValidActionVariableKey("class")).toBe(false);
+  test("validates csharp-like variable keys", () => {
+    assert.equal(isValidActionVariableKey("foo_1"), true);
+    assert.equal(isValidActionVariableKey("params"), true);
+    assert.equal(isValidActionVariableKey("1bad"), false);
+    assert.equal(isValidActionVariableKey("class"), false);
   });
 
-  it("suggests unused keys from param names", () => {
+  test("suggests unused keys from param names", () => {
     const existing = [
       ActionVariable.create({ id: "1", key: "result", varType: CsVarType.Text }),
     ];
-    expect(suggestVariableKeyFromParam("result", existing)).not.toBe("result");
-    expect(suggestVariableKeyFromParam("myParam", existing)).toBe("myParam");
+    assert.notEqual(suggestVariableKeyFromParam("result", existing), "result");
+    assert.equal(suggestVariableKeyFromParam("myParam", existing), "myParam");
   });
 });

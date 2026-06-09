@@ -2779,7 +2779,19 @@
 
 .step-param-external-file-editor .step-param-expression-editor {
   flex: 1 1 auto;
+  min-height: 0;
+}
+
+.step-param-external-file-editor--multiline .step-param-expression-editor {
   min-height: 40px;
+}
+
+.step-param-external-file-editor--inline .step-param-expression-editor {
+  min-height: 0;
+}
+
+.step-param-varorvalue-shell:not(.step-param-varorvalue-shell--multiline) .step-param-varorvalue-body {
+  align-items: center;
 }
 
 .step-param-varorvalue-input .step-param-expression-editor {
@@ -2789,12 +2801,17 @@
 }
 
 .step-param-varorvalue-input .expression-editor.expression-editor--inline {
-  padding: 3px 6px;
+  padding: 2px 6px;
 }
 
-.step-param-varorvalue-input .expression-editor.expression-editor--loading {
-  min-height: 24px;
-  height: 24px;
+.step-param-varorvalue-input .expression-editor.expression-editor--loading.expression-editor--inline {
+  min-height: 22px;
+  height: 22px;
+}
+
+.step-param-varorvalue-input .expression-editor.expression-editor--loading.expression-editor--multiline {
+  min-height: 40px;
+  height: 40px;
 }
 
 .step-param-varorvalue-input .expression-editor.expression-editor--multiline {
@@ -3013,6 +3030,194 @@
 .step-param-texttools-btn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+.step-param-texttools-btn--web {
+  color: var(--ad-fg-primary, var(--ad-text, #1a1d21));
+}
+
+.text-tool-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 21000;
+  background: var(--ad-backdrop-popup);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.text-tool-dialog {
+  width: min(420px, 100%);
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 8px;
+  background: var(--ad-bg-panel);
+  box-shadow: var(--ad-shadow-popup);
+  color: var(--ad-fg-primary);
+}
+
+.text-tool-dialog-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+}
+
+.text-tool-dialog-panel--wide {
+  width: min(520px, 100%);
+}
+
+.text-tool-dialog-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.text-tool-dialog-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ad-fg-muted);
+}
+
+.text-tool-dialog-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.text-tool-dialog-color-input {
+  width: 48px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--ad-border-input);
+  border-radius: 4px;
+  background: transparent;
+}
+
+.text-tool-dialog-preview {
+  font-size: 12px;
+  color: var(--ad-fg-muted);
+}
+
+.text-tool-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+}
+
+.text-tool-dialog-key-preview {
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px dashed var(--ad-border-input);
+  border-radius: 6px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+}
+
+.text-tool-dialog-snippet-row,
+.text-tool-dialog-var-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.text-tool-dialog-snippet-btn,
+.text-tool-dialog-var-btn {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 4px;
+  background: var(--ad-bg-button-secondary);
+  color: var(--ad-fg-popup-ghost);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.text-tool-dialog-snippet-btn:hover,
+.text-tool-dialog-var-btn:hover {
+  background: var(--ad-bg-menu-hover);
+}
+
+.text-tool-dialog-expression {
+  min-height: 88px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+.text-tool-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.text-tool-dialog-hint--error {
+  color: #c0392b;
+}
+
+.text-tool-dialog-panel--action-picker .text-tool-dialog {
+  width: min(520px, 100%);
+}
+
+.text-tool-action-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow: auto;
+  padding: 2px 0;
+}
+
+.text-tool-action-picker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--ad-border-input);
+  border-radius: 6px;
+  background: var(--ad-bg-panel);
+  color: var(--ad-fg-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.text-tool-action-picker-row:hover {
+  background: var(--ad-bg-menu-hover);
+}
+
+.text-tool-action-picker-row--selected {
+  border-color: var(--ad-accent);
+  background: var(--ad-bg-menu-hover);
+}
+
+.text-tool-action-picker-title {
+  grid-column: 1;
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-tool-action-picker-id {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+}
+
+.text-tool-action-picker-meta {
+  grid-column: 1;
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .step-param-texttools-grid {
@@ -3397,7 +3602,7 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
 }
 
 .form-def-editor-dialog {
-  width: min(760px, 100%);
+  width: min(820px, 100%);
   max-height: min(88vh, 820px);
   display: flex;
   flex-direction: column;
@@ -3452,57 +3657,94 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
   color: var(--ad-fg-muted);
 }
 
-.form-def-editor-storage {
+.form-def-editor-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 10px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--ad-border-input);
+  border-radius: 6px;
+  background: var(--ad-bg-subtle, rgba(0, 0, 0, 0.03));
 }
 
-.form-def-editor-storage-option {
+.form-def-editor-toolbar-group {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.form-def-editor-segmented {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.form-def-editor-segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-right: 1px solid var(--ad-border-strong);
+  background: var(--ad-bg-button-secondary);
+  color: var(--ad-fg-popup-ghost);
   font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.form-def-editor-segment:last-child {
+  border-right: 0;
+}
+
+.form-def-editor-segment input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.form-def-editor-segment.active {
+  background: var(--ad-bg-button-primary);
+  color: var(--ad-fg-on-emphasis);
+}
+
+.form-def-editor-segment:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.form-def-editor-storage {
+  flex: 1 1 240px;
+  min-width: 0;
 }
 
 .form-def-editor-file-path {
-  flex: 1 1 220px;
-  min-width: 180px;
+  flex: 1 1 auto;
+  min-width: 160px;
+}
+
+.form-def-editor-storage-badge {
+  font-size: 11px;
+  color: var(--ad-fg-muted);
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--ad-bg-button-secondary);
 }
 
 .form-def-editor-native-hint {
   margin: 0;
+  padding: 8px 10px;
   font-size: 11px;
   color: var(--ad-fg-muted);
-}
-
-.form-def-editor-tabs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.form-def-editor-tab {
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--ad-border-strong);
-  border-radius: 4px;
-  background: var(--ad-bg-button-secondary);
-  color: var(--ad-fg-popup-ghost);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.form-def-editor-tab.active {
-  background: var(--ad-bg-button-primary);
-  border-color: var(--ad-border-button-primary);
-  color: var(--ad-fg-on-emphasis);
-}
-
-.form-def-editor-tab:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+  border-radius: 6px;
+  background: var(--ad-bg-subtle, rgba(0, 0, 0, 0.03));
+  border: 1px solid var(--ad-border-input);
 }
 
 .form-def-editor-json-apply {
@@ -3517,6 +3759,10 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
   cursor: pointer;
 }
 
+.form-def-editor-json-apply:hover {
+  background: var(--ad-bg-button-secondary);
+}
+
 .form-def-editor-json {
   min-height: 280px;
   font-family: var(--font-mono, ui-monospace, monospace);
@@ -3526,7 +3772,36 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
 .form-spec-fields-editor {
   display: flex;
   flex-direction: column;
+  gap: 14px;
+}
+
+.form-spec-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-spec-section--fields {
   gap: 10px;
+}
+
+.form-spec-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.form-spec-section-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ad-fg-primary);
+}
+
+.form-spec-section-meta {
+  font-size: 11px;
+  color: var(--ad-fg-muted);
 }
 
 .form-spec-meta-field {
@@ -3535,12 +3810,57 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
   gap: 4px;
 }
 
-.form-spec-meta-field--compact {
-  flex: 1 1 180px;
+.form-spec-mini-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
-.form-spec-meta-field--wide {
-  flex: 1 1 100%;
+.form-spec-mini-field--type {
+  min-width: 108px;
+}
+
+.form-spec-mini-field--key {
+  min-width: 0;
+}
+
+.form-spec-field-key-picker {
+  width: 100%;
+  min-width: 0;
+}
+
+.form-spec-field-key-picker .step-param-variable-picker {
+  width: 100%;
+  min-width: 0;
+}
+
+.form-spec-field-key-picker .step-param-variable-picker-input {
+  height: 28px;
+  min-height: 28px;
+  padding: 4px 8px;
+}
+
+.form-spec-field-key-picker .step-param-variable-picker-display {
+  min-height: 28px;
+  padding: 2px 8px;
+}
+
+.form-spec-field-key-picker .step-param-variable-picker-item-title {
+  font-size: 12px;
+}
+
+.form-spec-field-key-picker .step-param-variable-picker-item-desc {
+  font-size: 10px;
+}
+
+.form-spec-mini-field--target {
+  flex: 1 1 auto;
+  min-width: 160px;
+}
+
+.form-spec-mini-field--span2 {
+  grid-column: 1 / -1;
 }
 
 .form-spec-meta-label {
@@ -3548,61 +3868,138 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
   color: var(--ad-fg-muted);
 }
 
-.form-spec-fields-head {
-  display: grid;
-  grid-template-columns: 1fr 1fr 120px 28px;
-  gap: 8px;
-  font-size: 10px;
-  color: var(--ad-fg-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
 .form-spec-fields-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .form-spec-field-card {
   border: 1px solid var(--ad-border-input);
-  border-radius: 6px;
-  padding: 8px;
+  border-radius: 8px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  background: var(--ad-bg-panel);
 }
 
-.form-spec-field-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 120px 28px;
-  gap: 8px;
+.form-spec-field-card-head {
+  display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+.form-spec-field-index {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ad-fg-muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--ad-bg-button-secondary);
+}
+
+.form-spec-field-card-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form-spec-field-primary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(108px, 0.8fr);
+  gap: 8px;
+}
+
+.form-spec-field-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+
+.form-spec-field-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--ad-border-input);
+  border-radius: 5px;
+  background: var(--ad-bg-subtle, rgba(0, 0, 0, 0.02));
+  color: var(--ad-fg-popup-ghost);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.form-spec-field-advanced-toggle:hover {
+  background: var(--ad-bg-button-secondary);
+}
+
+.form-spec-field-advanced-toggle.open .form-spec-field-advanced-toggle-chevron {
+  transform: rotate(180deg);
+}
+
+.form-spec-field-advanced-toggle-label {
+  font-weight: 600;
+}
+
+.form-spec-field-advanced-toggle-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ad-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form-spec-field-advanced-toggle-chevron {
+  flex: 0 0 auto;
+  font-size: 10px;
+  transition: transform 0.15s ease;
 }
 
 .form-spec-field-advanced {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+  padding: 10px;
+  border: 1px dashed var(--ad-border-input);
+  border-radius: 6px;
+  background: var(--ad-bg-subtle, rgba(0, 0, 0, 0.02));
 }
 
 .form-spec-inline-check {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
-  padding-top: 22px;
+  font-size: 12px;
+  height: 28px;
+  padding: 0 2px;
+  flex: 0 0 auto;
 }
 
 .form-spec-field-remove {
   width: 28px;
   height: 28px;
+  flex: 0 0 auto;
   border: 1px solid var(--ad-border-strong);
   border-radius: 4px;
   background: transparent;
   color: var(--ad-fg-muted);
   cursor: pointer;
+}
+
+.form-spec-field-remove:hover:not(:disabled) {
+  color: var(--ad-fg-primary);
+  background: var(--ad-bg-button-secondary);
 }
 
 .form-spec-field-remove:disabled {
@@ -3612,14 +4009,18 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
 
 .form-spec-add-field {
   align-self: flex-start;
-  height: 28px;
-  padding: 0 10px;
+  height: 30px;
+  padding: 0 12px;
   border: 1px dashed var(--ad-border-strong);
-  border-radius: 4px;
+  border-radius: 5px;
   background: transparent;
   color: var(--ad-fg-popup-ghost);
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
+}
+
+.form-spec-add-field:hover {
+  background: var(--ad-bg-button-secondary);
 }
 
 .step-param-expression-wrap {
@@ -3629,14 +4030,31 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
   width: 100%;
 }
 
+.step-param-expression-wrap--inline .step-param-expression-editor {
+  min-height: 0;
+}
+
+.step-param-expression-wrap--multiline .step-param-expression-editor {
+  min-height: 40px;
+}
+
+.step-param-row--compact-value .step-param-field-col {
+  gap: 4px;
+}
+
 .step-param-expression-editor {
   border: 1px solid var(--ad-border-input);
   border-radius: 4px;
   overflow: hidden;
 }
 
+.step-param-expression-editor .expression-editor.expression-editor--inline {
+  min-height: 22px;
+}
+
 .step-param-expression-editor .expression-editor.expression-editor--multiline {
   padding: 4px 6px;
+  min-height: 40px;
 }
 
 /* In VarOrValue shell, keep joints with side buttons as square corners. */

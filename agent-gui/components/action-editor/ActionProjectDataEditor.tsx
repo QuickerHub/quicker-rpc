@@ -31,7 +31,12 @@ import {
 import { MAX_READ_CHARS } from "@/lib/workspace-file-helpers";
 import { basenamePath } from "@/lib/workspace-file-tool";
 import { fetchWorkspaceFile } from "@/lib/workspace-explorer-api";
+import type { ActionSubProgram } from "@/lib/action-editor/types/common";
 import type { XProgramPresent } from "@/lib/action-editor/program/xProgramHistory";
+import {
+  fetchGlobalSubProgramCatalog,
+  mergeSubProgramsForStepEditor,
+} from "@/lib/action-editor/subprograms/globalSubProgramCatalog";
 import {
   normalizeProgramPresentForEditor,
 } from "@/lib/action-editor/program/xProgramHistory";
@@ -147,9 +152,35 @@ export function ActionProjectDataEditor({
     if (!parsed.ok) return undefined;
     return serializeWireSubProgramsJson(parsed.extraTopLevel.subPrograms);
   }, [parsed]);
+  const [globalCatalogSubPrograms, setGlobalCatalogSubPrograms] = useState<ActionSubProgram[]>([]);
   const isEmbeddedSubProgram = useMemo(() => isEmbeddedSubProgramDataPath(path), [path]);
   const isGlobalSubProgram = useMemo(() => isGlobalSubProgramDataPath(path), [path]);
+  const stepListSubPrograms = useMemo(
+    () => mergeSubProgramsForStepEditor(embeddedSubPrograms, globalCatalogSubPrograms),
+    [embeddedSubPrograms, globalCatalogSubPrograms],
+  );
   const parentActionId = useMemo(() => actionIdFromDataPath(path), [path]);
+
+  useEffect(() => {
+    if (isEmbeddedSubProgram || isGlobalSubProgram) {
+      setGlobalCatalogSubPrograms([]);
+      return;
+    }
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        const catalog = await fetchGlobalSubProgramCatalog(ac.signal);
+        if (!ac.signal.aborted) {
+          setGlobalCatalogSubPrograms(catalog);
+        }
+      } catch {
+        if (!ac.signal.aborted) {
+          setGlobalCatalogSubPrograms([]);
+        }
+      }
+    })();
+    return () => ac.abort();
+  }, [isEmbeddedSubProgram, isGlobalSubProgram, path]);
   const projectFolder = useMemo(() => {
     const normalized = path.replace(/\\/g, "/");
     const parent = normalized.replace(/\/data\.json$/i, "");
@@ -424,7 +455,7 @@ export function ActionProjectDataEditor({
               onPresentChange={handlePresentChange}
               programSurface={isEmbeddedSubProgram ? "subProgram" : "main"}
               workspaceContext={workspaceContext}
-              subPrograms={embeddedSubPrograms}
+              subPrograms={stepListSubPrograms}
               embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
             />
           </ThemeProvider>

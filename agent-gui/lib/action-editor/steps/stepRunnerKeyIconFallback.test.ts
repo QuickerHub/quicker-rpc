@@ -1,15 +1,17 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
 import { resolveStepIconSpec } from "./stepRunnerKeyIconFallback";
 
 describe("resolveStepIconSpec", () => {
-  it("returns catalog fa icon when present", () => {
-    expect(resolveStepIconSpec("fa:Regular_ProjectDiagram:#6aaded", "sys:simpleIf")).toBe(
+  test("returns catalog fa icon when present", () => {
+    assert.equal(
+      resolveStepIconSpec("fa:Regular_ProjectDiagram:#6aaded", "sys:simpleIf"),
       "fa:Regular_ProjectDiagram:#6aaded",
     );
   });
 
-  it("returns empty when catalog icon missing", () => {
-    expect(resolveStepIconSpec("", "sys:simpleIf")).toBe("");
-    expect(resolveStepIconSpec(undefined, "sys:form")).toBe("");
+  test("returns empty when catalog icon missing", () => {
+    assert.equal(resolveStepIconSpec("", "sys:simpleIf"), "");
+    assert.equal(resolveStepIconSpec(undefined, "sys:form"), "");
   });
 });

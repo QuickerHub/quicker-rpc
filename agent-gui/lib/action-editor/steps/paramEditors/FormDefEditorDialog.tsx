@@ -7,6 +7,7 @@ import {
   writeWorkspaceFileApi,
 } from "@/lib/workspace-explorer-api";
 import { FormSpecFieldsEditor } from "./FormSpecFieldsEditor";
+import type { ActionVariable } from "@/lib/action-editor/types/common";
 import {
   createEmptyFormSpec,
   parseFormSpecText,
@@ -32,6 +33,7 @@ export type FormDefEditorDialogProps = {
   initialFile?: string;
   initialValue?: string;
   workspace?: ActionProjectWorkspaceContext;
+  variables?: ActionVariable[];
   forDict?: boolean;
   title?: string;
 };
@@ -45,6 +47,7 @@ export function FormDefEditorDialog({
   initialFile,
   initialValue,
   workspace,
+  variables = [],
   forDict = false,
   title = "编辑表单定义",
 }: FormDefEditorDialogProps): JSX.Element | null {
@@ -253,64 +256,65 @@ export function FormDefEditorDialog({
         <p className="workspace-explorer-hint workspace-explorer-hint--err">{loadError}</p>
       ) : null}
 
-      {canUseFileStorage ? (
-        <div className="form-def-editor-storage">
-          <label className="form-def-editor-storage-option">
-            <input
-              type="radio"
-              name="form-def-storage"
-              checked={storageMode === "file"}
-              onChange={() => setStorageMode("file")}
-            />
-            <span>外部文件</span>
-          </label>
-          <label className="form-def-editor-storage-option">
-            <input
-              type="radio"
-              name="form-def-storage"
-              checked={storageMode === "inline"}
-              onChange={() => setStorageMode("inline")}
-            />
-            <span>内联 JSON</span>
-          </label>
-          {storageMode === "file" ? (
-            <input
-              className="step-param-control form-def-editor-file-path"
-              value={filePath}
-              onChange={(event) => setFilePath(event.target.value.replace(/\\/g, "/"))}
-              placeholder="files/example.form.json"
-              spellCheck={false}
-            />
-          ) : null}
+      <div className="form-def-editor-toolbar">
+        <div className="form-def-editor-toolbar-group" role="tablist" aria-label="表单编辑视图">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "visual"}
+            className={`form-def-editor-segment${tab === "visual" ? " active" : ""}`}
+            disabled={nativeLocked}
+            onClick={() => setTab("visual")}
+          >
+            可视化
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "json"}
+            className={`form-def-editor-segment${tab === "json" ? " active" : ""}`}
+            onClick={() => setTab("json")}
+          >
+            JSON
+          </button>
         </div>
-      ) : null}
 
-      {nativeLocked ? (
-        <p className="form-def-editor-native-hint">
-          当前为 Quicker 原生表单 JSON（PascalCase）。请在 JSON 标签页编辑，或改用外部 qkrpc.form.v1 文件。
-        </p>
-      ) : null}
+        {canUseFileStorage ? (
+          <div className="form-def-editor-toolbar-group form-def-editor-storage">
+            <div className="form-def-editor-segmented" role="radiogroup" aria-label="存储方式">
+              <label className={`form-def-editor-segment${storageMode === "file" ? " active" : ""}`}>
+                <input
+                  type="radio"
+                  name="form-def-storage"
+                  checked={storageMode === "file"}
+                  onChange={() => setStorageMode("file")}
+                />
+                <span>外部文件</span>
+              </label>
+              <label className={`form-def-editor-segment${storageMode === "inline" ? " active" : ""}`}>
+                <input
+                  type="radio"
+                  name="form-def-storage"
+                  checked={storageMode === "inline"}
+                  onChange={() => setStorageMode("inline")}
+                />
+                <span>内联</span>
+              </label>
+            </div>
+            {storageMode === "file" ? (
+              <input
+                className="step-param-control form-def-editor-file-path"
+                value={filePath}
+                onChange={(event) => setFilePath(event.target.value.replace(/\\/g, "/"))}
+                placeholder="files/example.form.json"
+                spellCheck={false}
+              />
+            ) : null}
+          </div>
+        ) : (
+          <span className="form-def-editor-storage-badge">内联 JSON</span>
+        )}
 
-      <div className="form-def-editor-tabs" role="tablist" aria-label="表单编辑视图">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "visual"}
-          className={`form-def-editor-tab${tab === "visual" ? " active" : ""}`}
-          disabled={nativeLocked}
-          onClick={() => setTab("visual")}
-        >
-          可视化
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "json"}
-          className={`form-def-editor-tab${tab === "json" ? " active" : ""}`}
-          onClick={() => setTab("json")}
-        >
-          JSON
-        </button>
         {tab === "json" ? (
           <button type="button" className="form-def-editor-json-apply" onClick={handleApplyJson}>
             解析 JSON
@@ -318,8 +322,14 @@ export function FormDefEditorDialog({
         ) : null}
       </div>
 
+      {nativeLocked ? (
+        <p className="form-def-editor-native-hint">
+          当前为 Quicker 原生表单 JSON（PascalCase）。请在 JSON 视图编辑，或改用外部 qkrpc.form.v1 文件。
+        </p>
+      ) : null}
+
       {tab === "visual" && !nativeLocked ? (
-        <FormSpecFieldsEditor spec={spec} onChange={syncJsonFromSpec} />
+        <FormSpecFieldsEditor spec={spec} onChange={syncJsonFromSpec} variables={variables} />
       ) : (
         <textarea
           className="step-param-control step-param-control--multiline form-def-editor-json"

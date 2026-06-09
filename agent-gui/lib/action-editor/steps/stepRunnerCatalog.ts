@@ -30,6 +30,10 @@ import {
   collectStepRunnerSchemaRequestsFromSteps,
   stepRunnerSchemaCacheKey,
 } from "@/lib/action-editor/steps/stepParamVisibility";
+import {
+  resolveCanonicalStepRunnerKey,
+  resolveRunnerItemForStepKey,
+} from "@/lib/action-editor/steps/stepRunnerKeyResolve";
 import { designerHostGrpcGetStepRunners, fetchStepRunnerDetailItem } from "../shared/designerHostGrpcApi";
 
 /**
@@ -146,15 +150,16 @@ export async function hydrateMissingStepRunnerItems(
 
   await Promise.all(
     requests.map(async (req) => {
+      const canonicalKey = resolveCanonicalStepRunnerKey(req.key, items);
       const cacheKey = req.controlLiteral
-        ? `${req.key}\0${req.controlLiteral}`
-        : req.key;
+        ? `${canonicalKey}\0${req.controlLiteral}`
+        : canonicalKey;
       if ((nextSchemas[cacheKey]?.inputParamDefs?.length ?? 0) > 0) {
         return;
       }
       try {
         const detail = await fetchStepRunnerDetailItem(
-          req.key,
+          canonicalKey,
           req.controlLiteral,
           signal,
         );
@@ -180,7 +185,8 @@ export async function hydrateMissingStepRunnerItems(
     const fetched = await Promise.all(
       uniqueMissing.map(async (key) => {
         try {
-          return await fetchStepRunnerDetailItem(key, undefined, signal);
+          const canonicalKey = resolveCanonicalStepRunnerKey(key, items);
+          return await fetchStepRunnerDetailItem(canonicalKey, undefined, signal);
         } catch {
           return null;
         }
@@ -248,22 +254,4 @@ export async function fetchStepRunnersLookup(baseUrl: string): Promise<StepRunne
   return buildStepRunnerLookup(items);
 }
 
-/**
- * Resolves the toolbox StepRunnerItem that owns input_param_defs / output_param_defs for a step key.
- * Sub-toolbox keys (sub_items) reuse the parent runner's parameter definitions.
- */
-export function resolveRunnerItemForStepKey(items: readonly StepRunnerItem[], stepRunnerKey: string): StepRunnerItem | undefined {
-  const k = (stepRunnerKey ?? "").trim();
-  if (!k) return undefined;
-  for (const it of items) {
-    if ((it.key ?? "").trim() === k) {
-      return it;
-    }
-    for (const sub of it.subItems ?? []) {
-      if ((sub.key ?? "").trim() === k) {
-        return it;
-      }
-    }
-  }
-  return undefined;
-}
+export { resolveRunnerItemForStepKey } from "@/lib/action-editor/steps/stepRunnerKeyResolve";

@@ -298,6 +298,17 @@ public interface IQuickerRpcService
         string? embeddedSubProgramsJson = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Read custom clipboard format text (e.g. quicker-action-steps).</summary>
+    Task<QuickerRpcClipboardSpecialFormatReadResult> ReadClipboardSpecialFormatAsync(
+        string format,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Write custom clipboard format text (e.g. quicker-action-steps).</summary>
+    Task<QuickerRpcClipboardSpecialFormatWriteResult> WriteClipboardSpecialFormatAsync(
+        string format,
+        string text,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Search Font Awesome icons. Default: Light_* + Brands_*; expand returns all style rows.</summary>
     Task<QuickerRpcSearchFontAwesomeIconsResult> SearchFontAwesomeIconsAsync(
         string? query,

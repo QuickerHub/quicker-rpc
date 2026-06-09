@@ -66,8 +66,12 @@ export function ExternalParamFileExpressionEditor({
   const internalState = useExternalParamFileContent(param, workspace, onChange);
   const externalFile = fileState ?? internalState;
 
+  const editorShellClass = multiline
+    ? "step-param-external-file-editor--multiline"
+    : "step-param-external-file-editor--inline";
+
   return (
-    <div className="step-param-external-file-editor">
+    <div className={`step-param-external-file-editor ${editorShellClass}`}>
       {!omitBadge ? <ExternalParamFileBadge state={externalFile} /> : null}
       {!omitBadge ? <ExternalParamFileStatusHints state={externalFile} /> : null}
       <ExpressionEditor

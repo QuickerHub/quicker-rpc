@@ -346,3 +346,22 @@ public sealed class QuickerRpcApplySubProgramPatchResult
     /// <summary>Non-fatal issues (e.g. unknown inputParams keys). Save may still succeed.</summary>
     public IList<string> Warnings { get; set; } = new List<string>();
 }
+
+/// <summary>Read/write custom clipboard formats (e.g. quicker-action-steps) for web step editor interop.</summary>
+public sealed class QuickerRpcClipboardSpecialFormatReadResult
+{
+    public bool Success { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public bool HasData { get; set; }
+
+    public string? Text { get; set; }
+}
+
+public sealed class QuickerRpcClipboardSpecialFormatWriteResult
+{
+    public bool Success { get; set; }
+
+    public string? ErrorMessage { get; set; }
+}

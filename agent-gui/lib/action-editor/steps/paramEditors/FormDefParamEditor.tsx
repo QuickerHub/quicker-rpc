@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
-import type { ActionStepParam } from "@/lib/action-editor/types/common";
+import type { ActionStepParam, ActionVariable } from "@/lib/action-editor/types/common";
 import type { StepRunnerInputParamDef } from "@/lib/action-editor/types/action_query";
 import { fetchWorkspaceFile } from "@/lib/workspace-explorer-api";
 import { CsVarType } from "./csStepEnums";
@@ -21,6 +21,7 @@ export type FormDefParamEditorProps = {
   param: ActionStepParam;
   onChange: (next: ActionStepParam) => void;
   workspace?: ActionProjectWorkspaceContext;
+  variables?: ActionVariable[];
 };
 
 type FormDefSummary = {
@@ -42,6 +43,7 @@ export function FormDefParamEditor({
   param,
   onChange,
   workspace,
+  variables = [],
 }: FormDefParamEditorProps): JSX.Element {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [summary, setSummary] = useState<FormDefSummary>(() => ({
@@ -162,6 +164,7 @@ export function FormDefParamEditor({
         initialFile={param.file}
         initialValue={param.value}
         workspace={workspace}
+        variables={variables}
         forDict={forDict}
         title={(def.name ?? "").trim() || def.key || "编辑表单定义"}
       />

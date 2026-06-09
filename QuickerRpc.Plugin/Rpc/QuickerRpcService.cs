@@ -1006,6 +1006,37 @@ public sealed class QuickerRpcService : IQuickerRpcService
             });
     }
 
+    public Task<QuickerRpcClipboardSpecialFormatReadResult> ReadClipboardSpecialFormatAsync(
+        string format,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => ClipboardSpecialFormatService.Read(format))
+            ?? new QuickerRpcClipboardSpecialFormatReadResult
+            {
+                Success = false,
+                ErrorMessage = "Clipboard read unavailable.",
+            });
+    }
+
+    public Task<QuickerRpcClipboardSpecialFormatWriteResult> WriteClipboardSpecialFormatAsync(
+        string format,
+        string text,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => ClipboardSpecialFormatService.Write(format, text))
+            ?? new QuickerRpcClipboardSpecialFormatWriteResult
+            {
+                Success = false,
+                ErrorMessage = "Clipboard write unavailable.",
+            });
+    }
+
     public Task<QuickerRpcSearchFontAwesomeIconsResult> SearchFontAwesomeIconsAsync(
         string? query,
         int maxResults = 40,

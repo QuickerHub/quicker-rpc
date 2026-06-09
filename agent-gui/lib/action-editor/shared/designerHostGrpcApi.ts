@@ -10,6 +10,7 @@ import {
   mapSearchItemToStepRunnerItem,
 } from "@/lib/action-editor/api/stepRunnerSchemaMap";
 import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
+import { resolveStepRunnerKeyCandidates } from "@/lib/action-editor/steps/stepRunnerKeyResolve";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init });
@@ -190,35 +191,50 @@ async function fetchStepRunnerDetailItemOnce(
   return mapAgentSchemaToStepRunnerItem(item);
 }
 
+function hasRunnerParamDefs(item: StepRunnerItem | null | undefined): boolean {
+  if (!item) {
+    return false;
+  }
+  return (item.inputParamDefs?.length ?? 0) > 0 || (item.outputParamDefs?.length ?? 0) > 0;
+}
+
 export async function fetchStepRunnerDetailItem(
   key: string,
   controlField?: string,
   signal?: AbortSignal,
 ): Promise<StepRunnerItem | null> {
-  const trimmedKey = (key ?? "").trim();
-  if (!trimmedKey) {
-    return null;
-  }
   const trimmedControl = (controlField ?? "").trim();
-  try {
-    if (trimmedControl) {
-      try {
-        const filtered = await fetchStepRunnerDetailItemOnce(
-          trimmedKey,
-          trimmedControl,
-          signal,
-        );
-        if ((filtered?.inputParamDefs?.length ?? 0) > 0) {
-          return filtered;
-        }
-      } catch {
-        /* invalid/obsolete control literal — fall back to base schema */
-      }
-    }
-    return await fetchStepRunnerDetailItemOnce(trimmedKey, undefined, signal);
-  } catch {
+  const keysToTry = resolveStepRunnerKeyCandidates(key);
+  if (keysToTry.length === 0) {
     return null;
   }
+
+  for (const tryKey of keysToTry) {
+    try {
+      if (trimmedControl) {
+        try {
+          const filtered = await fetchStepRunnerDetailItemOnce(
+            tryKey,
+            trimmedControl,
+            signal,
+          );
+          if (hasRunnerParamDefs(filtered)) {
+            return filtered;
+          }
+        } catch {
+          /* invalid/obsolete control literal — fall back to base schema */
+        }
+      }
+      const base = await fetchStepRunnerDetailItemOnce(tryKey, undefined, signal);
+      if (hasRunnerParamDefs(base)) {
+        return base;
+      }
+    } catch {
+      /* try next alias */
+    }
+  }
+
+  return null;
 }
 
 export { mapAgentSchemaToStepRunnerItem };

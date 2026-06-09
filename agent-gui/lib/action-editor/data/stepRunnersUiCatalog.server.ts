@@ -8,6 +8,8 @@ import {
 } from "@/lib/action-editor/api/stepRunnerSchemaMap";
 import { filterRunnerItemDefsForStep } from "@/lib/action-editor/steps/stepParamVisibility";
 import { inferControlFieldKeyFromStep } from "@/lib/action-editor/steps/stepControlFieldInfer";
+import { normalizeStepRunnerKeyTail } from "@/lib/action-editor/steps/actionStepNodeView";
+import { resolveStepRunnerKeyCandidates } from "@/lib/action-editor/steps/stepRunnerKeyResolve";
 import catalogJson from "./step-runners-ui-catalog.json";
 
 export type StepRunnersUiCatalogFile = {
@@ -23,21 +25,43 @@ const catalog = catalogJson as StepRunnersUiCatalogFile;
 
 const mappedByKey = new Map<string, StepRunnerItem>();
 
-function getMappedBaseItem(key: string): StepRunnerItem | undefined {
-  const trimmed = key.trim();
+function resolveStaticCatalogSchemaKey(stepRunnerKey: string): string | undefined {
+  const trimmed = (stepRunnerKey ?? "").trim();
   if (!trimmed) {
     return undefined;
   }
-  const cached = mappedByKey.get(trimmed);
+  if (catalog.schemas[trimmed]) {
+    return trimmed;
+  }
+  for (const candidate of resolveStepRunnerKeyCandidates(trimmed)) {
+    if (catalog.schemas[candidate]) {
+      return candidate;
+    }
+  }
+  const tail = normalizeStepRunnerKeyTail(trimmed);
+  for (const schemaKey of Object.keys(catalog.schemas)) {
+    if (normalizeStepRunnerKeyTail(schemaKey) === tail) {
+      return schemaKey;
+    }
+  }
+  return undefined;
+}
+
+function getMappedBaseItem(key: string): StepRunnerItem | undefined {
+  const schemaKey = resolveStaticCatalogSchemaKey(key);
+  if (!schemaKey) {
+    return undefined;
+  }
+  const cached = mappedByKey.get(schemaKey);
   if (cached) {
     return cached;
   }
-  const raw = catalog.schemas[trimmed];
+  const raw = catalog.schemas[schemaKey];
   if (!raw) {
     return undefined;
   }
   const item = mapAgentSchemaToStepRunnerItem(raw);
-  mappedByKey.set(trimmed, item);
+  mappedByKey.set(schemaKey, item);
   return item;
 }
 
@@ -103,7 +127,7 @@ export function getStaticStepRunnerItem(
     return base;
   }
   const step = ActionStep.fromPartial({
-    stepRunnerKey: key,
+    stepRunnerKey: base.key ?? key,
     inputParams: {
       [controlKey]: { value: controlLiteral },
     },

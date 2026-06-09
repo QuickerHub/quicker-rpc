@@ -16,6 +16,22 @@ export const FORM_FIELD_TYPES = [
 
 export type FormFieldType = (typeof FORM_FIELD_TYPES)[number];
 
+/** Human-readable labels for the visual form field editor. */
+export const FORM_FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
+  text: "单行文本",
+  textarea: "多行文本",
+  number: "小数",
+  integer: "整数",
+  boolean: "布尔",
+  select: "下拉",
+  dateTime: "日期时间",
+  password: "密码",
+};
+
+export function formFieldTypeLabel(type: FormFieldType): string {
+  return FORM_FIELD_TYPE_LABELS[type] ?? type;
+}
+
 export type FormSpecFieldOption = {
   value: string;
   label?: string;
