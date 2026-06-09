@@ -98,8 +98,11 @@ export function ToolTestActionRuntimeActionPicker({
     }
   };
 
-  const showDropdown =
-    searchActive && !disabled && (search.isRefreshing || search.error || items.length > 0);
+  const showDropdown = Boolean(
+    searchActive
+      && !disabled
+      && (search.isRefreshing || search.error || items.length > 0),
+  );
 
   return (
     <section className="tool-test-runtime-group tool-test-runtime-action-picker">
