@@ -1,0 +1,4 @@
+[submodule "voice-asr-runtime"]
+	path = voice-asr-runtime
+	url = https://github.com/QuickerHub/voice-asr-runtime.git
+	branch = master
