@@ -28,7 +28,9 @@ function resolveNsisStagedVbsPath() {
   if (!match) {
     fail("installer-hooks.nsh missing StageKillBundledNodeVbs File directive");
   }
-  const relative = match[1].replace(/\\/g, "/");
+  // Captured path is suffix after ${__FILEDIR__} (often "\..\..\..\windows\...").
+  // Leading "\" would make path.resolve treat it as drive-root absolute on Windows.
+  const relative = match[1].replace(/\\/g, "/").replace(/^[/\\]+/, "");
   const resolved = resolve(stagedHooksDir, relative);
   return resolved;
 }
