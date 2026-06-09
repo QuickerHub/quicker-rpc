@@ -34,7 +34,7 @@
 - **下载**：[quicker-agent-win-x64-setup.exe](https://github.com/QuickerHub/quicker-rpc/releases/latest/download/quicker-agent-win-x64-setup.exe)（落地页源码：[quicker-agent-web/](quicker-agent-web/)）
 - **前置**：本机 Quicker + [QuickerAgent 插件动作](https://getquicker.net/Sharedaction?code=aa5917ad-1256-4c73-7022-08debe3efcbe)
 - **产品介绍**：[docs/quicker-agent.md](docs/quicker-agent.md)
-- **本地开发**：[agent-gui/README.md](agent-gui/README.md)（`pwsh ./start-agent-gui.ps1`）
+- **本地开发**：[agent-gui/README.md](agent-gui/README.md)（`pwsh ./dev.ps1`）
 
 第三方 Agent（Cursor 等）若只需无头读写动作、不需 QuickerAgent UI，用下文 **`qkrpc` + MCP** 即可。
 
@@ -46,6 +46,7 @@
 
 从 [GitHub Releases](https://github.com/QuickerHub/quicker-rpc/releases/latest) 下载 **`qkrpc-win-x64-setup.exe`**，或便携包 **`qkrpc-win-x64.zip`**。
 
+- **系统要求**：Windows 10 1607（10.0.14393）Enterprise/LTSC 或 Windows Server 2016 及以上（与 [.NET 10 支持的操作系统](https://learn.microsoft.com/dotnet/core/install/windows#supported-versions) 一致）
 - 安装目录：`%LOCALAPPDATA%\Programs\qkrpc`
 - 安装后**新开终端**；工作区 `.vscode/settings.json` 可为集成终端追加 PATH
 - 卸载：Windows「设置 → 应用」或安装目录 `unins000.exe`
@@ -180,7 +181,7 @@ pwsh ./build.ps1 -t
 dotnet build QuickerRpc.Plugin -p:QuickerDllPath="D:\path\to\Quicker\bin\x64\Debug\net472"
 ```
 
-**QuickerAgent 前端**（Node 20+、pnpm）：`pwsh ./start-agent-gui.ps1` — 见 [agent-gui/README.md](agent-gui/README.md)。改 UI 时不要跑 `build.ps1 -t`（HMR 即可）。
+**QuickerAgent 前端**（Node 20+、pnpm）：`pwsh ./dev.ps1` — 见 [agent-gui/README.md](agent-gui/README.md)、[docs/dev-supervisor-design.md](docs/dev-supervisor-design.md)。改 UI 时不要跑 `build.ps1 -t`（HMR 即可）。
 
 **测试**（需 Quicker + 已加载插件）：
 

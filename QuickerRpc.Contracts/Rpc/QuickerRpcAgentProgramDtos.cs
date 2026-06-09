@@ -255,6 +255,32 @@ public sealed class QuickerRpcStepRunnerDetailResult
     public string? SchemaJson { get; set; }
 }
 
+public sealed class QuickerRpcActionStepSummaryInput
+{
+    public string StepId { get; set; } = string.Empty;
+
+    public string StepRunnerKey { get; set; } = string.Empty;
+
+    public string StepJson { get; set; } = string.Empty;
+}
+
+public sealed class QuickerRpcActionStepSummaryItem
+{
+    public string StepId { get; set; } = string.Empty;
+
+    public string Summary { get; set; } = string.Empty;
+}
+
+public sealed class QuickerRpcActionStepSummariesResult
+{
+    public bool Success { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public IList<QuickerRpcActionStepSummaryItem> Items { get; set; } =
+        new List<QuickerRpcActionStepSummaryItem>();
+}
+
 public sealed class QuickerRpcGetCompressedSubProgramResult
 {
     public bool Success { get; set; }

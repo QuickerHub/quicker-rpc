@@ -14,8 +14,10 @@ import {
 import { resolveVoiceRuntimePhase } from "@/lib/voice-input/resolve-voice-runtime-phase";
 import { executionProviderLabel } from "@/lib/voice-input/voice-input-settings";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
+import { withPromiseTimeout } from "@/lib/promise-timeout";
 
 const POLL_MS = 5_000;
+const HOST_PROBE_TIMEOUT_MS = 15_000;
 
 function shouldSettingsBackgroundPoll(
   runtimePhase: VoicePluginStatus,
@@ -183,66 +185,74 @@ export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSna
     }
 
     try {
-      const port = getVoiceWsPort();
-      const probeDevHost =
-        useDevVoiceHost && active && !devHostProbedRef.current;
-      const [hostResult, healthResult] = await Promise.allSettled([
-        inTauri
-          ? fetchTauriVoicePluginStatus()
-          : probeDevHost
-            ? fetchDevVoicePluginHostStatus()
-            : Promise.resolve(null),
-        fetchVoiceRuntimeHealth(port),
-      ]);
+      await withPromiseTimeout(
+        (async () => {
+          const port = getVoiceWsPort();
+          const probeDevHost =
+            useDevVoiceHost && active && !devHostProbedRef.current;
+          const [hostResult, healthResult] = await Promise.allSettled([
+            inTauri
+              ? fetchTauriVoicePluginStatus()
+              : probeDevHost
+                ? fetchDevVoicePluginHostStatus()
+                : Promise.resolve(null),
+            fetchVoiceRuntimeHealth(port),
+          ]);
 
-      const hostStatus =
-        hostResult.status === "fulfilled" ? hostResult.value : null;
-      if (useDevVoiceHost && probeDevHost) {
-        devHostProbedRef.current = true;
-      }
-      const health =
-        healthResult.status === "fulfilled" ? healthResult.value : null;
+          const hostStatus =
+            hostResult.status === "fulfilled" ? hostResult.value : null;
+          if (useDevVoiceHost && probeDevHost) {
+            devHostProbedRef.current = true;
+          }
+          const health =
+            healthResult.status === "fulfilled" ? healthResult.value : null;
 
-      if (hostStatus?.status === "downloading") {
-        setSnapshot(
-          buildSnapshot({
+          if (hostStatus?.status === "downloading") {
+            setSnapshot(
+              buildSnapshot({
+                hostStatus,
+                hostLoading: false,
+                runtimePhase: "downloading",
+                runtimeDetail: hostStatus.message,
+                runtimeMeta: null,
+                activeModelId: null,
+              }),
+            );
+            return;
+          }
+
+          let runtimePhase = resolveVoiceRuntimePhase({
             hostStatus,
-            hostLoading: false,
-            runtimePhase: "downloading",
-            runtimeDetail: hostStatus.message,
-            runtimeMeta: null,
-            activeModelId: null,
-          }),
-        );
-        return;
-      }
+            health,
+            inTauri,
+            allowExternalDevRuntime: useDevVoiceHost,
+          });
+          if (useDevVoiceHost && !hostStatus && runtimePhase === "not_installed") {
+            runtimePhase = "installed";
+          }
 
-      let runtimePhase = resolveVoiceRuntimePhase({
-        hostStatus,
-        health,
-        inTauri,
-        allowExternalDevRuntime: useDevVoiceHost,
-      });
-      if (useDevVoiceHost && !hostStatus && runtimePhase === "not_installed") {
-        runtimePhase = "installed";
-      }
+          const runtimeMeta = buildRuntimeMeta(health, port);
+          const runtimeDetail =
+            inTauri && !hostStatus && runtimePhase === "error"
+              ? "无法读取语音插件状态，请重启 QuickerAgent 或点「安装」重试"
+              : buildRuntimeDetail(health, port);
 
-      const runtimeMeta = buildRuntimeMeta(health, port);
-      const runtimeDetail =
-        inTauri && !hostStatus && runtimePhase === "error"
-          ? "无法读取语音插件状态，请重启 QuickerAgent 或点「安装」重试"
-          : buildRuntimeDetail(health, port);
-
-      setSnapshot(
-        buildSnapshot({
-          hostStatus,
-          hostLoading: false,
-          runtimePhase,
-          runtimeDetail,
-          runtimeMeta,
-          activeModelId:
-            health?.modelId && health.modelId !== "stub" ? health.modelId : null,
-        }),
+          setSnapshot(
+            buildSnapshot({
+              hostStatus,
+              hostLoading: false,
+              runtimePhase,
+              runtimeDetail,
+              runtimeMeta,
+              activeModelId:
+                health?.modelId && health.modelId !== "stub"
+                  ? health.modelId
+                  : null,
+            }),
+          );
+        })(),
+        HOST_PROBE_TIMEOUT_MS,
+        "voice settings host probe timeout",
       );
     } catch {
       setSnapshot(

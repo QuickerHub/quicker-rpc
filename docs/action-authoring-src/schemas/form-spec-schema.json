@@ -32,13 +32,13 @@
       "type": "object",
       "required": ["key", "label", "type"],
       "properties": {
-        "key": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$" },
+        "key": { "type": "string", "maxLength": 64, "notes": "Unique field id within the form spec." },
         "label": { "type": "string", "maxLength": 80 },
         "type": {
           "type": "string",
           "enum": ["text", "textarea", "number", "integer", "boolean", "select", "dateTime", "password"]
         },
-        "target": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$", "notes": "Variable/dict entry key; default key." },
+        "target": { "type": "string", "notes": "Action variable key written by the form field; defaults to key. Must exist in data.json variables when validated in project context." },
         "required": { "type": "boolean" },
         "default": { "type": "string" },
         "help": { "type": "string" },

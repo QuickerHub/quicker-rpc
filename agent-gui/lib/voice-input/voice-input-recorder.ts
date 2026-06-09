@@ -40,13 +40,18 @@ export class VoiceMicRecorder {
   private chunks: Uint8Array[] = [];
   private startedAt = 0;
   private onChunk: ((chunk: Uint8Array) => void) | undefined;
+  private onAudioFrame: ((input: Float32Array) => void) | undefined;
 
-  async start(onChunk?: (chunk: Uint8Array) => void): Promise<void> {
+  async start(
+    onChunk?: (chunk: Uint8Array) => void,
+    onAudioFrame?: (input: Float32Array) => void,
+  ): Promise<void> {
     if (this.stream) {
       throw new Error("VoiceMicRecorder already started");
     }
 
     this.onChunk = onChunk;
+    this.onAudioFrame = onAudioFrame;
     this.chunks = [];
     this.startedAt = Date.now();
 
@@ -76,6 +81,7 @@ export class VoiceMicRecorder {
 
     this.processor.onaudioprocess = (event) => {
       const input = event.inputBuffer.getChannelData(0);
+      this.onAudioFrame?.(input);
       const pcm = downsampleTo16k(input, inputRate);
       if (pcm.byteLength === 0) return;
       this.chunks.push(pcm);
@@ -128,5 +134,6 @@ export class VoiceMicRecorder {
 
     this.chunks = [];
     this.onChunk = undefined;
+    this.onAudioFrame = undefined;
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 import { isTauriShell, useShellPlatform } from "@/lib/tauri-shell";
 import {
@@ -177,6 +177,30 @@ export function VoiceInputSettingsSection({
     void refreshModelInstallState();
   }, [active, canManageHost, refreshModelInstallState]);
 
+  const autoInstallRequestedRef = useRef(false);
+  useEffect(() => {
+    if (!active || mockEnabled || panel.hostLoading || installBusy) return;
+    if (!canManageHost || panel.pluginInstalled) return;
+    if (panel.runtimePhase === "downloading" || panel.runtimePhase === "error") {
+      return;
+    }
+    if (autoInstallRequestedRef.current) return;
+    autoInstallRequestedRef.current = true;
+    setInstallBusy(true);
+    void requestVoicePluginSetup({ skipConfirm: true })
+      .then(() => notifyVoiceConfigChanged())
+      .finally(() => setInstallBusy(false));
+  }, [
+    active,
+    canManageHost,
+    installBusy,
+    mockEnabled,
+    notifyVoiceConfigChanged,
+    panel.hostLoading,
+    panel.pluginInstalled,
+    panel.runtimePhase,
+  ]);
+
   const persistVoiceSettings = async (
     patch: Partial<VoicePluginSettings>,
     hint?: string,
@@ -224,7 +248,11 @@ export function VoiceInputSettingsSection({
     setPluginUpdateBusy(true);
     setSettingsHint(null);
     try {
-      await pluginRegistryRefresh();
+      try {
+        await pluginRegistryRefresh();
+      } catch {
+        // Cached registry/channel is enough for a best-effort update check.
+      }
       const status = await fetchPluginStatus("voice-asr");
       setPluginGalleryStatus(status);
       if (!status) {

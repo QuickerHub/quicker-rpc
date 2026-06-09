@@ -4,6 +4,7 @@ using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Quicker.Common;
+using QuickerRpc.AgentModel.Core;
 using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.AgentModel.LocalTime;
 using QuickerRpc.AgentModel.XAction;
@@ -11,6 +12,7 @@ using QuickerRpc.AgentModel.XAction.Compression;
 using QuickerRpc.AgentModel.XAction.Patch;
 using QuickerRpc.AgentModel.XAction.Project;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Plugin.Services.Search;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -90,6 +92,18 @@ public sealed class HeadlessActionProgramService
                     contextMenuData: contextMenuData,
                     subProgramCount: subPrograms.Count);
                 break;
+            case XActionGetReturnMode.Runtime:
+                compressedRoot = new JObject
+                {
+                    ["steps"] = steps,
+                    ["variables"] = variables,
+                };
+                if (subPrograms.Count > 0)
+                {
+                    compressedRoot["subPrograms"] = subPrograms;
+                }
+
+                break;
             default:
                 compressedRoot = XActionProgramService.Compress(mode, steps, variables, catalog, omitDefaultLiteralInputs: true);
                 omitApplied = true;
@@ -117,7 +131,7 @@ public sealed class HeadlessActionProgramService
             Success = true,
             ActionId = id,
             EditVersion = editVersion,
-            CompressedJson = compressedRoot.ToString(Formatting.None),
+            CompressedJson = JTokenCompat.Compact(compressedRoot),
             OmitDefaultLiteralInputsApplied = omitApplied,
             SubProgramCount = subPrograms.Count,
             ReturnMode = wireMode,
@@ -443,16 +457,18 @@ public sealed class HeadlessActionProgramService
 
         IList<string> patchWarnings = hasProgramPatch ? ToWarningList(inputParamWarnings) : new List<string>();
 
+        ActionSearchIndexInvalidator.InvalidateAction();
+
         return new QuickerRpcApplyActionPatchResult
         {
             Success = true,
             ActionId = id,
             EditVersion = _actions.GetEditVersion(saved!),
             PresentationUpdated = hasMeta,
-            UpdatedStepsJson = compressedUpdatedSteps.ToString(Formatting.None),
-            AddedStepsJson = compressedAddedSteps.Count > 0 ? compressedAddedSteps.ToString(Formatting.None) : null,
-            UpdatedVariablesJson = compressedUpdatedVariables.ToString(Formatting.None),
-            AddedVariablesJson = compressedAddedVariables.Count > 0 ? compressedAddedVariables.ToString(Formatting.None) : null,
+            UpdatedStepsJson = JTokenCompat.Compact(compressedUpdatedSteps),
+            AddedStepsJson = compressedAddedSteps.Count > 0 ? JTokenCompat.Compact(compressedAddedSteps) : null,
+            UpdatedVariablesJson = JTokenCompat.Compact(compressedUpdatedVariables),
+            AddedVariablesJson = compressedAddedVariables.Count > 0 ? JTokenCompat.Compact(compressedAddedVariables) : null,
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
             Warnings = patchWarnings,
         };
@@ -724,7 +740,7 @@ public sealed class HeadlessActionProgramService
     {
         if (subProgramsOverride is JArray subProgramsArray)
         {
-            return subProgramsArray.ToString(Formatting.None);
+            return JTokenCompat.Compact(subProgramsArray);
         }
 
         if (string.IsNullOrWhiteSpace(existingPayloadJson))
@@ -733,7 +749,7 @@ public sealed class HeadlessActionProgramService
         }
 
         var token = JObject.Parse(existingPayloadJson)["subPrograms"] as JArray;
-        return token is null || token.Count == 0 ? "[]" : token.ToString(Formatting.None);
+        return token is null || token.Count == 0 ? "[]" : JTokenCompat.Compact(token);
     }
 
     private static JArray CompressSteps(

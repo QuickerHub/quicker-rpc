@@ -1,0 +1,1447 @@
+{
+  "stepRunnerKey": "sys:chromecontrol",
+  "name": "浏览器控制",
+  "description": "与Chrome/Edge/Firefox等浏览器通信，控制网页或浏览器。",
+  "controlField": {
+    "key": "operation",
+    "title": "操作类型",
+    "purpose": "操作类型",
+    "selection": [
+      {
+        "key": "OpenUrl",
+        "name": "打开网址",
+        "visibleInputKeys": [
+          "operation",
+          "windowId",
+          "url",
+          "windowInfo",
+          "waitComplete",
+          "timeoutMs",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "tabId",
+          "windowId",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "WaitTabComplete",
+        "name": "等待加载完成",
+        "visibleInputKeys": [
+          "operation",
+          "tabId",
+          "timeoutMs",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "ActivateTab",
+        "name": "激活标签页",
+        "visibleInputKeys": [
+          "operation",
+          "tabId",
+          "url",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "tabId",
+          "windowId",
+          "groupId",
+          "url",
+          "title",
+          "favicon",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "CloseTab",
+        "name": "关闭标签页",
+        "visibleInputKeys": [
+          "operation",
+          "tabId",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "GetTabInfo",
+        "name": "获得标签页信息",
+        "visibleInputKeys": [
+          "operation",
+          "tabId",
+          "timeoutMs",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "tabId",
+          "windowId",
+          "groupId",
+          "url",
+          "title",
+          "favicon",
+          "browser",
+          "extVersion",
+          "manifestVersion",
+          "envName",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "RunScript",
+        "name": "对标签页运行脚本 (扩展需开启“允许运行用户脚本”选项)",
+        "visibleInputKeys": [
+          "operation",
+          "tabId",
+          "script",
+          "timeoutMs",
+          "frame",
+          "executionWorld",
+          "waitManualReturn",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "PickElement",
+        "name": "选择元素 (返回CSS选择器)",
+        "visibleInputKeys": [
+          "operation",
+          "tabId",
+          "timeoutMs",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "selector",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "GetElementInfo",
+        "name": "获取元素信息",
+        "visibleInputKeys": [
+          "operation",
+          "tabId",
+          "selector",
+          "fixSelector",
+          "elementInfo",
+          "attrName",
+          "timeoutMs",
+          "frame",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "firstValue",
+          "allValues",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "UpdateElement",
+        "name": "更新元素信息",
+        "visibleInputKeys": [
+          "operation",
+          "tabId",
+          "selector",
+          "fixSelector",
+          "updateElementInfo",
+          "attrName",
+          "updateElementValue",
+          "timeoutMs",
+          "frame",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "TriggerEvent",
+        "name": "触发事件",
+        "visibleInputKeys": [
+          "operation",
+          "tabId",
+          "selector",
+          "fixSelector",
+          "triggerEventType",
+          "timeoutMs",
+          "frame",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "Wait",
+        "name": "等待网页变化 (MV3版扩展)",
+        "visibleInputKeys": [
+          "operation",
+          "tabId",
+          "selector",
+          "waitEventType",
+          "waitEventParams",
+          "timeoutMs",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "SetBrowser",
+        "name": "浏览器：设置连接的浏览器",
+        "visibleInputKeys": [
+          "operation",
+          "browser",
+          "mainProcessId",
+          "envName",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "BackgroundScript",
+        "name": "浏览器：运行后台脚本",
+        "visibleInputKeys": [
+          "operation",
+          "script",
+          "waitComplete",
+          "timeoutMs",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "rawResponse"
+        ]
+      },
+      {
+        "key": "BackgroundCommand",
+        "name": "浏览器：运行后台命令 (MV3版扩展)",
+        "visibleInputKeys": [
+          "operation",
+          "command",
+          "commandParams",
+          "valueFilter",
+          "waitComplete",
+          "timeoutMs",
+          "stopIfFail"
+        ],
+        "visibleOutputKeys": [
+          "isSuccess",
+          "rawResponse"
+        ]
+      }
+    ]
+  },
+  "agentGuidance": "Pass --control-field <value> (values: OpenUrl, WaitTabComplete, ActivateTab, CloseTab, GetTabInfo, RunScript, PickElement, GetElementInfo, UpdateElement, TriggerEvent, Wait, SetBrowser, BackgroundScript, BackgroundCommand) to filter inputs/outputs. Each controlField.selection[] entry includes visibleInputKeys and visibleOutputKeys for that mode.",
+  "inputs": [
+    {
+      "key": "operation",
+      "title": "操作类型",
+      "purpose": "操作类型",
+      "valueType": "Enum",
+      "required": true
+    },
+    {
+      "key": "windowId",
+      "title": "窗口Id",
+      "purpose": "使用哪个窗口打开网址。可以使用选项或指定窗口id。",
+      "valueType": "Number",
+      "required": true,
+      "options": [
+        {
+          "key": "Current",
+          "name": "当前窗口"
+        },
+        {
+          "key": "New",
+          "name": "新窗口"
+        }
+      ]
+    },
+    {
+      "key": "tabId",
+      "title": "标签页Id",
+      "purpose": "留空表示当前活动标签页。",
+      "valueType": "Text",
+      "required": true
+    },
+    {
+      "key": "url",
+      "title": "网址",
+      "purpose": "要打开的网页地址。激活标签页时有多种使用方法，请参考模块文档。",
+      "valueType": "Text",
+      "required": true
+    },
+    {
+      "key": "selector",
+      "title": "选择器",
+      "purpose": "要操作的元素选择器，请参考文档。",
+      "valueType": "Text",
+      "required": true
+    },
+    {
+      "key": "fixSelector",
+      "title": "修正选择器文本",
+      "purpose": "仅MV2版本扩展有效。",
+      "valueType": "Enum",
+      "required": true,
+      "default": "auto",
+      "options": [
+        {
+          "key": "auto",
+          "name": "自动"
+        },
+        {
+          "key": "noFix",
+          "name": "不修正"
+        },
+        {
+          "key": "replaceBackslash",
+          "name": "\\替换为\\\\"
+        }
+      ]
+    },
+    {
+      "key": "waitEventType",
+      "title": "事件类型",
+      "valueType": "Enum",
+      "required": true,
+      "options": [
+        {
+          "key": "elementExists",
+          "name": "元素存在"
+        },
+        {
+          "key": "elementNotExists",
+          "name": "元素不存在"
+        },
+        {
+          "key": "elementVisible",
+          "name": "元素在网页可见"
+        },
+        {
+          "key": "elementNotVisible",
+          "name": "元素在网页不可见"
+        },
+        {
+          "key": "elementClickable",
+          "name": "元素可点击"
+        },
+        {
+          "key": "elementNotClickable",
+          "name": "元素不可点击"
+        },
+        {
+          "key": "textContains",
+          "name": "包含文本"
+        },
+        {
+          "key": "textNotContains",
+          "name": "不包含文本"
+        },
+        {
+          "key": "textMatches",
+          "name": "文本匹配表达式"
+        },
+        {
+          "key": "textNotMatches",
+          "name": "文本不匹配表达式"
+        },
+        {
+          "key": "urlMatches",
+          "name": "网址匹配表达式(PWA应用)"
+        },
+        {
+          "key": "urlNotMatches",
+          "name": "网址不匹配表达式(PWA应用)"
+        },
+        {
+          "key": "titleMatches",
+          "name": "标题匹配表达式(PWA应用)"
+        },
+        {
+          "key": "titleNotMatches",
+          "name": "标题不匹配表达式(PWA应用)"
+        },
+        {
+          "key": "attributeMatches",
+          "name": "属性匹配表达式"
+        },
+        {
+          "key": "attributeNotMatches",
+          "name": "属性不匹配表达式"
+        },
+        {
+          "key": "elementHasClass",
+          "name": "元素包含类名"
+        },
+        {
+          "key": "elementNotHasClass",
+          "name": "元素不包含类名"
+        },
+        {
+          "key": "elementHasAttribute",
+          "name": "元素包含属性"
+        },
+        {
+          "key": "elementNotHasAttribute",
+          "name": "元素不包含属性"
+        },
+        {
+          "key": "elementCountGt",
+          "name": "元素数量大于"
+        },
+        {
+          "key": "elementCountLt",
+          "name": "元素数量小于"
+        },
+        {
+          "key": "elementCountEq",
+          "name": "元素数量等于"
+        },
+        {
+          "key": "elementEvent",
+          "name": "元素事件触发"
+        }
+      ]
+    },
+    {
+      "key": "elementInfo",
+      "title": "元素信息类型",
+      "valueType": "Enum",
+      "required": true,
+      "default": "Value",
+      "options": [
+        {
+          "key": "Value",
+          "name": "值"
+        },
+        {
+          "key": "Attribute",
+          "name": "某Attribute属性"
+        },
+        {
+          "key": "Property",
+          "name": "某Property属性"
+        },
+        {
+          "key": "InnerText",
+          "name": "innerText 内部文本"
+        },
+        {
+          "key": "InnerHtml",
+          "name": "innerHTML 内部HTML"
+        },
+        {
+          "key": "OuterHtml",
+          "name": "outerHTML 全部HTML"
+        }
+      ]
+    },
+    {
+      "key": "updateElementInfo",
+      "title": "元素信息类型",
+      "valueType": "Enum",
+      "required": true,
+      "default": "Value",
+      "options": [
+        {
+          "key": "Value",
+          "name": "值"
+        },
+        {
+          "key": "ArrayValue",
+          "name": "数组值"
+        },
+        {
+          "key": "Attribute",
+          "name": "某Attribute属性"
+        },
+        {
+          "key": "Property",
+          "name": "某Property属性"
+        },
+        {
+          "key": "InnerText",
+          "name": "InnerText 内部文本"
+        },
+        {
+          "key": "InnerHtml",
+          "name": "InnerHtml 内部HTML"
+        }
+      ]
+    },
+    {
+      "key": "attrName",
+      "title": "属性名",
+      "purpose": "设置或读取Attribute属性/Property属性时，置顶Attribute或Property的名称。",
+      "valueType": "Text",
+      "required": true
+    },
+    {
+      "key": "updateElementValue",
+      "title": "值",
+      "purpose": "要更新的元素信息值",
+      "valueType": "Text",
+      "required": true
+    },
+    {
+      "key": "triggerEventType",
+      "title": "触发事件类型",
+      "valueType": "Enum",
+      "required": true,
+      "default": "click",
+      "options": [
+        {
+          "key": "click",
+          "name": "点击"
+        },
+        {
+          "key": "submit",
+          "name": "提交表单"
+        },
+        {
+          "key": "focus",
+          "name": "获得焦点"
+        },
+        {
+          "key": "blur",
+          "name": "失去焦点"
+        },
+        {
+          "key": "dblclick",
+          "name": "双击"
+        },
+        {
+          "key": "change",
+          "name": "值改变"
+        }
+      ]
+    },
+    {
+      "key": "windowInfo",
+      "title": "窗口/标签参数",
+      "purpose": "创建窗口或标签时的额外参数（json格式）。",
+      "valueType": "Text"
+    },
+    {
+      "key": "script",
+      "title": "脚本内容",
+      "valueType": "Text",
+      "default": "//.js",
+      "fileExt": ".js"
+    },
+    {
+      "key": "command",
+      "title": "命令",
+      "purpose": "请参考模块文档获取支持的命令列表。需MV3版浏览器扩展与Chrome135+版本。",
+      "valueType": "Text",
+      "options": [
+        {
+          "key": "api_bookmarks_getTree",
+          "name": "API: 获取书签树"
+        },
+        {
+          "key": "api_bookmarks_get",
+          "name": "API: 获取指定ID的书签"
+        },
+        {
+          "key": "api_bookmarks_getChildren",
+          "name": "API: 获取指定ID的书签的子书签"
+        },
+        {
+          "key": "api_bookmarks_getRecent",
+          "name": "API: 获取最近添加的书签"
+        },
+        {
+          "key": "api_bookmarks_search",
+          "name": "API: 搜索书签"
+        },
+        {
+          "key": "api_bookmarks_create",
+          "name": "API: 创建书签"
+        },
+        {
+          "key": "api_bookmarks_move",
+          "name": "API: 移动书签"
+        },
+        {
+          "key": "api_bookmarks_update",
+          "name": "API: 更新书签"
+        },
+        {
+          "key": "api_bookmarks_remove",
+          "name": "API: 删除书签"
+        },
+        {
+          "key": "api_bookmarks_removeTree",
+          "name": "API: 删除书签文件夹及其内容"
+        },
+        {
+          "key": "api_browsingData_remove",
+          "name": "API: 删除浏览数据"
+        },
+        {
+          "key": "api_browsingData_removeAppcache",
+          "name": "API: 删除应用缓存"
+        },
+        {
+          "key": "api_browsingData_removeCache",
+          "name": "API: 删除缓存"
+        },
+        {
+          "key": "api_browsingData_removeCookies",
+          "name": "API: 删除Cookie"
+        },
+        {
+          "key": "api_browsingData_removeDownloads",
+          "name": "API: 删除下载记录"
+        },
+        {
+          "key": "api_browsingData_removeFileSystems",
+          "name": "API: 删除文件系统"
+        },
+        {
+          "key": "api_browsingData_removeFormData",
+          "name": "API: 删除表单数据"
+        },
+        {
+          "key": "api_browsingData_removeHistory",
+          "name": "API: 删除历史记录"
+        },
+        {
+          "key": "api_browsingData_removeIndexedDB",
+          "name": "API: 删除IndexedDB"
+        },
+        {
+          "key": "api_browsingData_removeLocalStorage",
+          "name": "API: 删除本地存储"
+        },
+        {
+          "key": "api_browsingData_removePasswords",
+          "name": "API: 删除密码"
+        },
+        {
+          "key": "api_browsingData_removePluginData",
+          "name": "API: 删除插件数据"
+        },
+        {
+          "key": "api_browsingData_removeServiceWorkers",
+          "name": "API: 删除Service Workers"
+        },
+        {
+          "key": "api_browsingData_removeWebSQL",
+          "name": "API: 删除WebSQL"
+        },
+        {
+          "key": "api_browsingData_settings",
+          "name": "API: 浏览数据设置"
+        },
+        {
+          "key": "api_cookies_get",
+          "name": "API: 获取Cookie"
+        },
+        {
+          "key": "api_cookies_getAll",
+          "name": "API: 获取所有Cookie"
+        },
+        {
+          "key": "api_cookies_set",
+          "name": "API: 设置Cookie"
+        },
+        {
+          "key": "api_cookies_remove",
+          "name": "API: 删除Cookie"
+        },
+        {
+          "key": "api_cookies_getAllCookieStores",
+          "name": "API: 获取所有Cookie存储"
+        },
+        {
+          "key": "api_debugger_attach",
+          "name": "API: 附加调试器"
+        },
+        {
+          "key": "api_debugger_detach",
+          "name": "API: 分离调试器"
+        },
+        {
+          "key": "api_debugger_sendCommand",
+          "name": "API: 发送调试命令"
+        },
+        {
+          "key": "api_debugger_getTargets",
+          "name": "API: 获取调试目标"
+        },
+        {
+          "key": "api_downloads_download",
+          "name": "API: 下载文件"
+        },
+        {
+          "key": "api_downloads_search",
+          "name": "API: 搜索下载"
+        },
+        {
+          "key": "api_downloads_pause",
+          "name": "API: 暂停下载"
+        },
+        {
+          "key": "api_downloads_resume",
+          "name": "API: 恢复下载"
+        },
+        {
+          "key": "api_downloads_cancel",
+          "name": "API: 取消下载"
+        },
+        {
+          "key": "api_downloads_erase",
+          "name": "API: 清除下载记录"
+        },
+        {
+          "key": "api_downloads_removeFile",
+          "name": "API: 删除下载文件"
+        },
+        {
+          "key": "api_downloads_open",
+          "name": "API: 打开下载文件"
+        },
+        {
+          "key": "api_downloads_show",
+          "name": "API: 显示下载文件"
+        },
+        {
+          "key": "api_downloads_showDefaultFolder",
+          "name": "API: 显示默认下载文件夹"
+        },
+        {
+          "key": "api_downloads_getFileIcon",
+          "name": "API: 获取文件图标"
+        },
+        {
+          "key": "api_downloads_setShelfEnabled",
+          "name": "API: 设置下载栏启用状态"
+        },
+        {
+          "key": "api_history_search",
+          "name": "API: 搜索历史记录"
+        },
+        {
+          "key": "api_history_getVisits",
+          "name": "API: 获取访问记录"
+        },
+        {
+          "key": "api_history_addUrl",
+          "name": "API: 添加URL到历史记录"
+        },
+        {
+          "key": "api_history_deleteUrl",
+          "name": "API: 从历史记录删除URL"
+        },
+        {
+          "key": "api_history_deleteRange",
+          "name": "API: 删除时间范围内的历史记录"
+        },
+        {
+          "key": "api_history_deleteAll",
+          "name": "API: 删除所有历史记录"
+        },
+        {
+          "key": "api_pageCapture_saveAsMHTML",
+          "name": "API: 保存为MHTML"
+        },
+        {
+          "key": "api_readingList_add",
+          "name": "API: 添加到阅读列表"
+        },
+        {
+          "key": "api_readingList_query",
+          "name": "API: 查询阅读列表条目"
+        },
+        {
+          "key": "api_readingList_remove",
+          "name": "API: 从阅读列表移除"
+        },
+        {
+          "key": "api_readingList_update",
+          "name": "API: 更新阅读列表条目"
+        },
+        {
+          "key": "api_tabGroups_get",
+          "name": "API: 获取标签组"
+        },
+        {
+          "key": "api_tabGroups_update",
+          "name": "API: 更新标签组"
+        },
+        {
+          "key": "api_tabGroups_move",
+          "name": "API: 移动标签组"
+        },
+        {
+          "key": "api_tabGroups_query",
+          "name": "API: 查询标签组"
+        },
+        {
+          "key": "api_tabs_captureVisibleTab",
+          "name": "API: 捕获可见标签页"
+        },
+        {
+          "key": "api_tabs_create",
+          "name": "API: 创建标签页"
+        },
+        {
+          "key": "api_tabs_detectLanguage",
+          "name": "API: 检测标签页语言"
+        },
+        {
+          "key": "api_tabs_discard",
+          "name": "API: 丢弃标签页"
+        },
+        {
+          "key": "api_tabs_duplicate",
+          "name": "API: 复制标签页"
+        },
+        {
+          "key": "api_tabs_get",
+          "name": "API: 获取标签页"
+        },
+        {
+          "key": "api_tabs_getCurrent",
+          "name": "API: 获取当前标签页"
+        },
+        {
+          "key": "api_tabs_getZoom",
+          "name": "API: 获取缩放级别"
+        },
+        {
+          "key": "api_tabs_getZoomSettings",
+          "name": "API: 获取缩放设置"
+        },
+        {
+          "key": "api_tabs_goBack",
+          "name": "API: 后退"
+        },
+        {
+          "key": "api_tabs_goForward",
+          "name": "API: 前进"
+        },
+        {
+          "key": "api_tabs_group",
+          "name": "API: 组合标签页"
+        },
+        {
+          "key": "api_tabs_highlight",
+          "name": "API: 高亮标签页"
+        },
+        {
+          "key": "api_tabs_move",
+          "name": "API: 移动标签页"
+        },
+        {
+          "key": "api_tabs_query",
+          "name": "API: 查询标签页"
+        },
+        {
+          "key": "api_tabs_reload",
+          "name": "API: 重新加载标签页"
+        },
+        {
+          "key": "api_tabs_remove",
+          "name": "API: 删除标签页"
+        },
+        {
+          "key": "api_tabs_sendMessage",
+          "name": "API: 发送消息到标签页"
+        },
+        {
+          "key": "api_tabs_setZoom",
+          "name": "API: 设置缩放级别"
+        },
+        {
+          "key": "api_tabs_setZoomSettings",
+          "name": "API: 设置缩放设置"
+        },
+        {
+          "key": "api_tabs_toggleMuteState",
+          "name": "API: 切换静音状态"
+        },
+        {
+          "key": "api_tabs_ungroup",
+          "name": "API: 取消标签页组合"
+        },
+        {
+          "key": "api_tabs_update",
+          "name": "API: 更新标签页"
+        },
+        {
+          "key": "api_sessions_getRecentlyClosed",
+          "name": "API: 获取最近关闭的标签页和窗口"
+        },
+        {
+          "key": "api_sessions_getDevices",
+          "name": "API: 获取连接的设备及其会话信息"
+        },
+        {
+          "key": "api_sessions_restore",
+          "name": "API: 恢复已关闭的标签页或窗口"
+        },
+        {
+          "key": "api_tts_speak",
+          "name": "API: 朗读文本"
+        },
+        {
+          "key": "api_tts_stop",
+          "name": "API: 停止朗读"
+        },
+        {
+          "key": "api_tts_pause",
+          "name": "API: 暂停朗读"
+        },
+        {
+          "key": "api_tts_resume",
+          "name": "API: 恢复朗读"
+        },
+        {
+          "key": "api_tts_isSpeaking",
+          "name": "API: 是否正在朗读"
+        },
+        {
+          "key": "api_tts_getVoices",
+          "name": "API: 获取语音列表"
+        },
+        {
+          "key": "api_windows_create",
+          "name": "API: 创建窗口"
+        },
+        {
+          "key": "api_windows_get",
+          "name": "API: 获取窗口"
+        },
+        {
+          "key": "api_windows_getAll",
+          "name": "API: 获取所有窗口"
+        },
+        {
+          "key": "api_windows_getCurrent",
+          "name": "API: 获取当前窗口"
+        },
+        {
+          "key": "api_windows_getLastFocused",
+          "name": "API: 获取最后聚焦的窗口"
+        },
+        {
+          "key": "api_windows_remove",
+          "name": "API: 删除窗口"
+        },
+        {
+          "key": "api_windows_update",
+          "name": "API: 更新窗口"
+        },
+        {
+          "key": "scripts_closeOtherTabs",
+          "name": "脚本: 关闭其他标签页"
+        },
+        {
+          "key": "scripts_closeLeftTabs",
+          "name": "脚本: 关闭左侧标签页"
+        },
+        {
+          "key": "scripts_closeRightTabs",
+          "name": "脚本: 关闭右侧标签页"
+        },
+        {
+          "key": "scripts_closeDuplicateTabs",
+          "name": "脚本: 关闭重复标签页"
+        },
+        {
+          "key": "scripts_switchToLeftTab",
+          "name": "脚本: 切换到左侧标签页"
+        },
+        {
+          "key": "scripts_switchToRightTab",
+          "name": "脚本: 切换到右侧标签页"
+        },
+        {
+          "key": "scripts_switchToFirstTab",
+          "name": "脚本: 切换到第一个标签页"
+        },
+        {
+          "key": "scripts_switchToLastTab",
+          "name": "脚本: 切换到最后一个标签页"
+        },
+        {
+          "key": "scripts_moveTabToStart",
+          "name": "脚本: 移动标签页到开头"
+        },
+        {
+          "key": "scripts_moveTabToEnd",
+          "name": "脚本: 移动标签页到末尾"
+        },
+        {
+          "key": "scripts_moveTabRight",
+          "name": "脚本: 向右移动标签页"
+        },
+        {
+          "key": "scripts_moveTabLeft",
+          "name": "脚本: 向左移动标签页"
+        },
+        {
+          "key": "scripts_toggleTabMute",
+          "name": "脚本: 切换标签页静音状态"
+        },
+        {
+          "key": "scripts_toggleTabPin",
+          "name": "脚本: 切换标签页固定状态"
+        },
+        {
+          "key": "scripts_pinCurrentTab",
+          "name": "脚本: 固定当前标签页"
+        },
+        {
+          "key": "scripts_addBookmarkForCurrentTab",
+          "name": "脚本: 为当前标签页添加书签"
+        },
+        {
+          "key": "scripts_removeBookmarkForCurrentTab",
+          "name": "脚本: 删除当前标签页的书签"
+        },
+        {
+          "key": "scripts_goToParentDirectory",
+          "name": "脚本: 转到父目录"
+        },
+        {
+          "key": "scripts_scrollUp",
+          "name": "脚本: 向上滚动"
+        },
+        {
+          "key": "scripts_scrollDown",
+          "name": "脚本: 向下滚动"
+        },
+        {
+          "key": "scripts_scrollToTop",
+          "name": "脚本: 滚动到顶部"
+        },
+        {
+          "key": "scripts_scrollToBottom",
+          "name": "脚本: 滚动到底部"
+        },
+        {
+          "key": "scripts_scrollLeft",
+          "name": "脚本: 向左滚动"
+        },
+        {
+          "key": "scripts_scrollRight",
+          "name": "脚本: 向右滚动"
+        },
+        {
+          "key": "scripts_reloadTab",
+          "name": "脚本: 重新加载标签页"
+        },
+        {
+          "key": "scripts_forceReloadTab",
+          "name": "脚本: 强制重新加载标签页"
+        },
+        {
+          "key": "scripts_reloadAllTabs",
+          "name": "脚本: 重新加载所有标签页"
+        },
+        {
+          "key": "scripts_reopenClosedTab",
+          "name": "脚本: 重新打开关闭的标签页"
+        },
+        {
+          "key": "scripts_createNewTab",
+          "name": "脚本: 创建新标签页"
+        },
+        {
+          "key": "scripts_duplicateCurrentTab",
+          "name": "脚本: 复制当前标签页"
+        },
+        {
+          "key": "scripts_detachCurrentTab",
+          "name": "脚本: 分离当前标签页"
+        },
+        {
+          "key": "scripts_createNewWindow",
+          "name": "脚本: 创建新窗口"
+        },
+        {
+          "key": "scripts_createNewIncognitoWindow",
+          "name": "脚本: 创建新隐身窗口"
+        },
+        {
+          "key": "scripts_createNewWindowWithUrls",
+          "name": "脚本: 使用URL创建新窗口"
+        },
+        {
+          "key": "scripts_closeOtherWindows",
+          "name": "脚本: 关闭其他窗口"
+        },
+        {
+          "key": "scripts_mergeAllWindows",
+          "name": "脚本: 合并所有窗口"
+        },
+        {
+          "key": "scripts_closeLastFocusedWindow",
+          "name": "脚本: 关闭最后聚焦的窗口"
+        },
+        {
+          "key": "scripts_closeAllWindows",
+          "name": "脚本: 关闭所有窗口"
+        },
+        {
+          "key": "scripts_toggleFullscreen",
+          "name": "脚本: 切换全屏模式"
+        },
+        {
+          "key": "scripts_closeCurrentTabAndActivateLeft",
+          "name": "脚本: 关闭当前标签页并激活左侧"
+        },
+        {
+          "key": "scripts_openCurrentTabInIncognito",
+          "name": "脚本: 在隐身模式打开当前标签页"
+        },
+        {
+          "key": "scripts_pageZoomIn",
+          "name": "脚本: 页面放大"
+        },
+        {
+          "key": "scripts_pageZoomOut",
+          "name": "脚本: 页面缩小"
+        },
+        {
+          "key": "scripts_injectCss",
+          "name": "脚本: 向页面注入CSS代码"
+        },
+        {
+          "key": "scripts_openDownloadsFolder",
+          "name": "脚本: 打开下载文件夹"
+        },
+        {
+          "key": "scripts_showLastDownloadedFile",
+          "name": "脚本: 显示最后下载的文件"
+        },
+        {
+          "key": "scripts_openHistoryPage",
+          "name": "脚本: 打开历史记录页面"
+        },
+        {
+          "key": "scripts_openDownloadsPage",
+          "name": "脚本: 打开下载页面"
+        },
+        {
+          "key": "scripts_openExtensionsPage",
+          "name": "脚本: 打开扩展页面"
+        },
+        {
+          "key": "scripts_openSettingsPage",
+          "name": "脚本: 打开设置页面"
+        },
+        {
+          "key": "scripts_openBookmarksPage",
+          "name": "脚本: 打开书签页面"
+        },
+        {
+          "key": "scripts_openFlagsPage",
+          "name": "脚本: 打开实验功能页面"
+        },
+        {
+          "key": "scripts_openAboutPage",
+          "name": "脚本: 打开关于页面"
+        },
+        {
+          "key": "scripts_openVersionPage",
+          "name": "脚本: 打开版本页面"
+        },
+        {
+          "key": "scripts_openBlankPage",
+          "name": "脚本: 打开空白页面"
+        },
+        {
+          "key": "scripts_groupTabsByDomain",
+          "name": "脚本: 按域名分组标签页"
+        },
+        {
+          "key": "scripts_dismissGroup",
+          "name": "脚本: 解散当前标签页所属分组"
+        },
+        {
+          "key": "scripts_dismissAllGroupsInCurrentWindow",
+          "name": "脚本: 解散当前窗口的所有分组"
+        },
+        {
+          "key": "scripts_moveSameDomainTabsToCurrentWindow",
+          "name": "脚本: 将相同域名网页移动到当前窗口"
+        },
+        {
+          "key": "scripts_moveSameDomainTabsToNewWindow",
+          "name": "脚本: 将相同域名网页移动到新建窗口"
+        },
+        {
+          "key": "scripts_createOrRestoreGroup",
+          "name": "脚本: 创建或恢复分组"
+        },
+        {
+          "key": "scripts_captureVisibleTab",
+          "name": "脚本: 截图可见标签页视口"
+        },
+        {
+          "key": "scripts_captureSpecificTabView",
+          "name": "脚本: 截图特定标签页视口"
+        },
+        {
+          "key": "scripts_captureElement",
+          "name": "脚本: 截图指定元素"
+        },
+        {
+          "key": "scripts_captureFullPage",
+          "name": "脚本: 截图整页"
+        },
+        {
+          "key": "scripts_setFileInputFiles",
+          "name": "脚本: 设置文件输入框的文件"
+        }
+      ]
+    },
+    {
+      "key": "commandParams",
+      "title": "命令参数",
+      "purpose": "后台脚本命令的参数。每个命令参数不同，详情请参考模块文档。",
+      "valueType": "Object"
+    },
+    {
+      "key": "valueFilter",
+      "title": "返回值过滤器",
+      "purpose": "用于从API返回的结果中提取单个属性。格式为属性名，多个时使用分号隔开。",
+      "valueType": "Text"
+    },
+    {
+      "key": "waitEventParams",
+      "title": "参数",
+      "purpose": "不同事件的参数不同，请参考模块文档。",
+      "valueType": "Text"
+    },
+    {
+      "key": "waitComplete",
+      "title": "等待操作完成或返回数据",
+      "valueType": "Boolean",
+      "default": false
+    },
+    {
+      "key": "timeoutMs",
+      "title": "超时时间(ms)",
+      "purpose": "超时等待时间，毫秒数",
+      "valueType": "Number",
+      "required": true,
+      "default": "3000"
+    },
+    {
+      "key": "frame",
+      "title": "运行脚本的框架",
+      "purpose": "all:所有框架，0：顶层框架，其它数字：框架id",
+      "valueType": "Text",
+      "required": true,
+      "default": "all",
+      "options": [
+        {
+          "key": "all",
+          "name": "全部框架"
+        },
+        {
+          "key": "0",
+          "name": "顶层框架"
+        }
+      ]
+    },
+    {
+      "key": "executionWorld",
+      "title": "执行环境",
+      "purpose": "自定义脚本的执行环境(ExecutionWorld)，默认为USER_SCRIPT。MAIN表示网页自身的执行环境。仅MV3版本扩展支持。",
+      "valueType": "Text",
+      "required": true,
+      "options": [
+        {
+          "key": "USER_SCRIPT",
+          "name": "USER_SCRIPT"
+        },
+        {
+          "key": "MAIN",
+          "name": "MAIN"
+        }
+      ]
+    },
+    {
+      "key": "waitManualReturn",
+      "title": "从脚本手动返回数据",
+      "purpose": "在脚本中使用sendReplyToQuicker函数手动返回数据",
+      "valueType": "Boolean",
+      "default": false
+    },
+    {
+      "key": "browser",
+      "title": "浏览器",
+      "purpose": "设置本动作连接的浏览器进程名（需安装Quicker浏览器扩展）",
+      "valueType": "Text",
+      "required": true,
+      "default": "auto",
+      "options": [
+        {
+          "key": "auto",
+          "name": "自动"
+        },
+        {
+          "key": "chrome",
+          "name": "谷歌Chrome"
+        },
+        {
+          "key": "msedge",
+          "name": "微软Edge"
+        },
+        {
+          "key": "firefox",
+          "name": "Firefox"
+        },
+        {
+          "key": "vivaldi",
+          "name": "vivaldi"
+        }
+      ]
+    },
+    {
+      "key": "mainProcessId",
+      "title": "主进程ID",
+      "purpose": "可选。指定要连接的浏览器主进程ID。当同一个浏览器通过user-data-dir参数运行多个实例时使用。",
+      "valueType": "Integer",
+      "default": "0"
+    },
+    {
+      "key": "envName",
+      "title": "自定义环境名",
+      "purpose": "指定要连接的浏览器扩展环境名称。用于区分同一个浏览器的不同Profile环境（需在扩展中设置环境名称）。*表示不判断环境名。",
+      "valueType": "Text",
+      "default": "*"
+    },
+    {
+      "key": "stopIfFail",
+      "title": "失败后停止",
+      "purpose": "失败后是否停止动作",
+      "valueType": "Boolean",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "key": "isSuccess",
+      "title": "是否成功",
+      "purpose": "操作是否成功",
+      "valueType": "Boolean"
+    },
+    {
+      "key": "tabId",
+      "title": "标签页ID",
+      "purpose": "网页所在标签页ID",
+      "valueType": "Integer"
+    },
+    {
+      "key": "windowId",
+      "title": "窗口ID",
+      "purpose": "网页所在窗口的ID",
+      "valueType": "Integer"
+    },
+    {
+      "key": "groupId",
+      "title": "分组ID",
+      "purpose": "标签页所属分组ID",
+      "valueType": "Integer"
+    },
+    {
+      "key": "url",
+      "title": "网址",
+      "purpose": "标签页当前网址",
+      "valueType": "Text"
+    },
+    {
+      "key": "title",
+      "title": "网页标题",
+      "purpose": "标签页网页标题",
+      "valueType": "Text"
+    },
+    {
+      "key": "favicon",
+      "title": "Favicon图标网址",
+      "purpose": "标签页网页图标网址",
+      "valueType": "Text"
+    },
+    {
+      "key": "firstValue",
+      "title": "第一个值",
+      "purpose": "获取的第一个元素的信息结果",
+      "valueType": "Text"
+    },
+    {
+      "key": "allValues",
+      "title": "所有值的列表",
+      "purpose": "所有元素信息结果的列表",
+      "valueType": "List"
+    },
+    {
+      "key": "browser",
+      "title": "浏览器",
+      "purpose": "当前访问的浏览器",
+      "valueType": "Text"
+    },
+    {
+      "key": "extVersion",
+      "title": "插件版本",
+      "purpose": "浏览器插件版本号",
+      "valueType": "Text"
+    },
+    {
+      "key": "manifestVersion",
+      "title": "Manifest版本",
+      "purpose": "浏览器插件的Manifest版本号",
+      "valueType": "Integer"
+    },
+    {
+      "key": "envName",
+      "title": "环境名称",
+      "purpose": "浏览器Profile的自定义环境名称",
+      "valueType": "Text"
+    },
+    {
+      "key": "selector",
+      "title": "CSS选择器",
+      "purpose": "所选择元素的CSS选择器",
+      "valueType": "Text"
+    },
+    {
+      "key": "rawResponse",
+      "title": "原始返回结果",
+      "purpose": "从插件返回的原始jToken对象",
+      "valueType": "Any"
+    }
+  ]
+}

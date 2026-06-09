@@ -2,6 +2,8 @@ import {
 
   ActionStep,
 
+  ActionSubProgram,
+
   ActionVariable,
 
   type ActionStepParam,
@@ -443,6 +445,106 @@ export function fingerprintProgramWire(present: XProgramPresent): string {
     variables: present.variables.map((v) => ActionVariable.toJSON(v)),
 
   });
+
+}
+
+
+
+type WireSubProgram = {
+
+  id?: string;
+
+  name?: string;
+
+  description?: string;
+
+  icon?: string;
+
+  kind?: number;
+
+  stepCount?: number;
+
+  variableCount?: number;
+
+  steps?: WireStep[];
+
+  variables?: WireVariable[];
+
+  subPrograms?: WireSubProgram[];
+
+};
+
+
+
+function wireSubProgramToEditor(raw: WireSubProgram): ActionSubProgram {
+
+  const steps = (raw.steps ?? []).map((s) => wireStepToEditor(s));
+
+  const variables = (raw.variables ?? []).map((v) => wireVariableToEditor(v));
+
+  normalizeLoadedProgramBodyIds(steps, variables);
+
+  const nested = (raw.subPrograms ?? []).map((sp) => wireSubProgramToEditor(sp));
+
+  return ActionSubProgram.fromPartial({
+
+    id: raw.id ?? "",
+
+    name: raw.name ?? "",
+
+    description: raw.description ?? "",
+
+    icon: raw.icon ?? "",
+
+    kind: typeof raw.kind === "number" ? raw.kind : 1,
+
+    stepCount: typeof raw.stepCount === "number" ? raw.stepCount : steps.length,
+
+    variableCount: typeof raw.variableCount === "number" ? raw.variableCount : variables.length,
+
+    steps,
+
+    variables,
+
+    subPrograms: nested,
+
+  });
+
+}
+
+
+
+/** Parse embedded subPrograms from data.json top-level (wire / compressed shape). */
+
+export function parseWireSubPrograms(raw: unknown): ActionSubProgram[] {
+
+  if (!Array.isArray(raw)) {
+
+    return [];
+
+  }
+
+  return raw
+
+    .filter((item): item is WireSubProgram => typeof item === "object" && item !== null)
+
+    .map((item) => wireSubProgramToEditor(item));
+
+}
+
+
+
+/** Serialize embedded subPrograms wire JSON for QuickerRpc summary RPC. */
+
+export function serializeWireSubProgramsJson(raw: unknown): string | undefined {
+
+  if (!Array.isArray(raw) || raw.length === 0) {
+
+    return undefined;
+
+  }
+
+  return JSON.stringify(raw);
 
 }
 

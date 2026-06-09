@@ -1,5 +1,6 @@
 import { buildVoiceHealthUrl } from "@/lib/voice-input/voice-input-config";
 import { VOICE_INPUT_PROTOCOL_VERSION } from "@/lib/voice-input/voice-input-types";
+import { withPromiseTimeout } from "@/lib/promise-timeout";
 import { isTauriShell } from "@/lib/tauri-shell";
 
 export type VoiceRuntimeHealth = {
@@ -29,6 +30,7 @@ export function isStubVoiceTranscript(text: string): boolean {
 }
 
 const HEALTH_FETCH_TIMEOUT_MS = 5_000;
+const TAURI_HEALTH_INVOKE_TIMEOUT_MS = 8_000;
 
 type VoiceRuntimeHealthDto = {
   ok: boolean;
@@ -56,7 +58,11 @@ async function fetchVoiceRuntimeHealthViaTauri(): Promise<VoiceRuntimeHealth | n
   if (!isTauriShell()) return null;
   try {
     const { invoke } = await import("@tauri-apps/api/core");
-    const dto = await invoke<VoiceRuntimeHealthDto>("voice_runtime_health");
+    const dto = await withPromiseTimeout(
+      invoke<VoiceRuntimeHealthDto>("voice_runtime_health"),
+      TAURI_HEALTH_INVOKE_TIMEOUT_MS,
+      "voice runtime health invoke timeout",
+    );
     if (!dto?.ok) return null;
     return mapVoiceRuntimeHealthDto(dto);
   } catch {
@@ -64,15 +70,10 @@ async function fetchVoiceRuntimeHealthViaTauri(): Promise<VoiceRuntimeHealth | n
   }
 }
 
-export async function fetchVoiceRuntimeHealth(
+async function fetchVoiceRuntimeHealthViaHttp(
   port?: number,
   signal?: AbortSignal,
 ): Promise<VoiceRuntimeHealth | null> {
-  if (isTauriShell()) {
-    const viaTauri = await fetchVoiceRuntimeHealthViaTauri();
-    if (viaTauri) return viaTauri;
-  }
-
   try {
     const timeoutSignal =
       typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
@@ -108,4 +109,24 @@ export async function fetchVoiceRuntimeHealth(
   } catch {
     return null;
   }
+}
+
+export async function fetchVoiceRuntimeHealth(
+  port?: number,
+  signal?: AbortSignal,
+): Promise<VoiceRuntimeHealth | null> {
+  if (isTauriShell()) {
+    const viaTauri = await fetchVoiceRuntimeHealthViaTauri();
+    if (viaTauri) return viaTauri;
+  }
+
+  const httpProbe = fetchVoiceRuntimeHealthViaHttp(port, signal);
+  if (signal) {
+    return httpProbe;
+  }
+  return withPromiseTimeout(
+    httpProbe,
+    HEALTH_FETCH_TIMEOUT_MS + 500,
+    "voice runtime health fetch timeout",
+  ).catch(() => null);
 }

@@ -17,7 +17,15 @@ function cacheKey(query: string): string {
   return query.trim();
 }
 
-export function useActionMentionSearch(query: string | null): MentionSearchView {
+export type UseActionMentionSearchOptions = {
+  limit?: number;
+};
+
+export function useActionMentionSearch(
+  query: string | null,
+  options?: UseActionMentionSearchOptions,
+): MentionSearchView {
+  const limit = options?.limit ?? 8;
   const [view, setView] = useState<MentionSearchView>({
     items: [],
     isRefreshing: false,
@@ -43,7 +51,7 @@ export function useActionMentionSearch(query: string | null): MentionSearchView 
       requestId.current = id;
 
       try {
-        const params = new URLSearchParams({ limit: "8" });
+        const params = new URLSearchParams({ limit: String(limit) });
         if (activeQuery) params.set("q", activeQuery);
         const res = await fetch(`/api/actions/mention-search?${params.toString()}`, {
           cache: "no-store",
@@ -108,7 +116,7 @@ export function useActionMentionSearch(query: string | null): MentionSearchView 
         }));
       }
     },
-    [],
+    [limit],
   );
 
   useEffect(() => {

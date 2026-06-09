@@ -6,7 +6,9 @@ using System.Windows;
 using System.Windows.Threading;
 using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Plugin.Quicker;
+using QuickerRpc.AgentModel.Search;
 using QuickerRpc.Plugin.Services;
+using QuickerRpc.Plugin.Services.Search;
 
 namespace QuickerRpc.Plugin.Rpc;
 
@@ -18,6 +20,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     public const int CurrentProtocolVersion = 1;
 
     private readonly ActionPublishService _actionPublishService;
+    private readonly ActionDocService _actionDocService;
     private readonly ActionSearchService _actionSearchService;
     private readonly SubProgramSearchService _subProgramSearchService;
     private readonly ActionDeleteService _actionDeleteService;
@@ -39,10 +42,12 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly QuickerSettingsService _settingsService;
     private readonly QuickerSettingsUiService _settingsUiService;
     private readonly LauncherResolveService _launcherResolveService;
+    private readonly AgentSearchIndexCoordinator _searchIndexCoordinator;
     private readonly IPopupMessageService _popup;
 
     public QuickerRpcService(
         ActionPublishService actionPublishService,
+        ActionDocService actionDocService,
         ActionSearchService actionSearchService,
         SubProgramSearchService subProgramSearchService,
         ActionDeleteService actionDeleteService,
@@ -64,9 +69,11 @@ public sealed class QuickerRpcService : IQuickerRpcService
         QuickerSettingsService settingsService,
         QuickerSettingsUiService settingsUiService,
         LauncherResolveService launcherResolveService,
+        AgentSearchIndexCoordinator searchIndexCoordinator,
         IPopupMessageService popup)
     {
         _actionPublishService = actionPublishService;
+        _actionDocService = actionDocService;
         _actionSearchService = actionSearchService;
         _subProgramSearchService = subProgramSearchService;
         _actionDeleteService = actionDeleteService;
@@ -88,6 +95,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _settingsService = settingsService;
         _settingsUiService = settingsUiService;
         _launcherResolveService = launcherResolveService;
+        _searchIndexCoordinator = searchIndexCoordinator;
         _popup = popup;
     }
 
@@ -107,6 +115,12 @@ public sealed class QuickerRpcService : IQuickerRpcService
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(QuickerAccountAccessor.TryGetAccountInfo());
+    }
+
+    public Task<QuickerRpcWebSessionInfo> GetQuickerWebSessionAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(QuickerAccountAccessor.TryGetWebSessionInfo());
     }
 
     /// <summary>Legacy RPC/CLI update entry; delegates to <see cref="PublishSharedActionAsync"/>.</summary>
@@ -201,6 +215,61 @@ public sealed class QuickerRpcService : IQuickerRpcService
             },
             cancellationToken);
     }
+
+    public Task<QuickerRpcActionPublishPreflightResult> PreflightPublishSharedActionAsync(
+        string actionId,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            return Task.FromResult(new QuickerRpcActionPublishPreflightResult
+            {
+                Ready = false,
+                Message = "actionId is required.",
+                Issues =
+                [
+                    new QuickerRpcActionPublishIssue
+                    {
+                        Code = "INVALID_REQUEST",
+                        Field = "actionId",
+                        Message = "actionId is required.",
+                        Severity = "error",
+                    },
+                ],
+            });
+        }
+
+        request ??= new QuickerRpcActionPublishRequest();
+
+        return InvokeOnDispatcherAsync(
+            () => _actionPublishService.PreflightPublishSharedActionAsync(
+                actionId.Trim(),
+                request,
+                cancellationToken),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcActionDocResult> GetSharedActionDetailHtmlAsync(
+        string idOrSharedId,
+        CancellationToken cancellationToken = default) =>
+        _actionDocService.GetDetailHtmlAsync(idOrSharedId, cancellationToken);
+
+    public Task<QuickerRpcActionDocResult> SetSharedActionDetailHtmlAsync(
+        string idOrSharedId,
+        string htmlContent,
+        CancellationToken cancellationToken = default) =>
+        _actionDocService.SetDetailHtmlAsync(idOrSharedId, htmlContent, cancellationToken);
+
+    public Task<string> ProbeSharedActionDetailApisAsync(
+        string idOrSharedId,
+        CancellationToken cancellationToken = default) =>
+        _actionDocService.ProbeApisAsync(idOrSharedId, cancellationToken);
+
+    public Task<QuickerRpcSharedInfoWebSessionResult> PrepareSharedInfoWebSessionAsync(
+        string idOrSharedId,
+        CancellationToken cancellationToken = default) =>
+        _actionDocService.PrepareWebSessionAsync(idOrSharedId, cancellationToken);
 
     public Task<QuickerRpcActionSearchResult> SearchActionsAsync(
         string query,
@@ -920,6 +989,23 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
+    public Task<QuickerRpcActionStepSummariesResult> GetActionStepSummariesAsync(
+        IList<QuickerRpcActionStepSummaryInput> steps,
+        string? embeddedSubProgramsJson = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(
+                () => ActionStepSummaryService.GetSummaries(steps, embeddedSubProgramsJson))
+            ?? new QuickerRpcActionStepSummariesResult
+            {
+                Success = false,
+                ErrorMessage = "Step summaries unavailable.",
+            });
+    }
+
     public Task<QuickerRpcSearchFontAwesomeIconsResult> SearchFontAwesomeIconsAsync(
         string? query,
         int maxResults = 40,
@@ -1086,6 +1172,77 @@ public sealed class QuickerRpcService : IQuickerRpcService
                 Message = "Resolve launcher intent unavailable.",
             });
     }
+
+    public Task<QuickerRpcSearchIndexStatusResult> GetSearchIndexStatusAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var diagnostics = _searchIndexCoordinator.GetDiagnostics();
+        var regions = new List<QuickerRpcSearchIndexRegionStatus>(diagnostics.Count);
+        foreach (var item in diagnostics)
+        {
+            regions.Add(new QuickerRpcSearchIndexRegionStatus
+            {
+                Region = ToSearchIndexRegionName(item.Region),
+                Status = ToSearchIndexStatusName(item.Status),
+                Generation = item.Generation,
+                BuildStartedUtcMs = item.BuildStartedUtcMs,
+                BuildCompletedUtcMs = item.BuildCompletedUtcMs,
+                LastBuildDurationMs = item.LastBuildDurationMs,
+                DocumentCount = item.DocumentCount,
+            });
+        }
+
+        return Task.FromResult(new QuickerRpcSearchIndexStatusResult { Ok = true, Regions = regions });
+    }
+
+    public Task<QuickerRpcSearchIndexRebuildResult> RebuildSearchIndexAsync(
+        string? region = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var normalized = (region ?? "all").Trim().ToLowerInvariant();
+        switch (normalized)
+        {
+            case "all":
+                _searchIndexCoordinator.RebuildAll();
+                break;
+            case "action":
+                _searchIndexCoordinator.InvalidateAction();
+                break;
+            case "subprogram":
+                _searchIndexCoordinator.InvalidateSubProgram();
+                break;
+            default:
+                return Task.FromResult(new QuickerRpcSearchIndexRebuildResult
+                {
+                    Ok = false,
+                    Message = $"Unknown region: {region}. Use action, subprogram, or all.",
+                });
+        }
+
+        return Task.FromResult(new QuickerRpcSearchIndexRebuildResult
+        {
+            Ok = true,
+            Message = $"Rebuild scheduled for {normalized}.",
+        });
+    }
+
+    private static string ToSearchIndexRegionName(SearchRegion region) =>
+        region switch
+        {
+            SearchRegion.Action => "action",
+            SearchRegion.SubProgram => "subprogram",
+            _ => region.ToString().ToLowerInvariant(),
+        };
+
+    private static string ToSearchIndexStatusName(AgentSearchIndexStatus status) =>
+        status switch
+        {
+            AgentSearchIndexStatus.Ready => "ready",
+            AgentSearchIndexStatus.Building => "building",
+            _ => "missing",
+        };
 
     private static Task<T> InvokeOffUiThreadAsync<T>(Func<T> action, CancellationToken cancellationToken) =>
         Task.Run(action, cancellationToken);

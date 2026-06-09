@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveServeQkrpcRuntime } from "./qkrpc-bin.mjs";
+import { discoverHealthyQkrpcServe } from "./qkrpc-serve-discover.mjs";
 import {
   isProcessAlive,
   readQkrpcServeState,
@@ -66,6 +67,11 @@ export async function ensureQkrpcServeIfDown() {
   }
 
   const host = "127.0.0.1";
+  const discovered = await discoverHealthyQkrpcServe(host);
+  if (discovered) {
+    return true;
+  }
+
   const base =
     process.env.QKRPC_HTTP_URL?.trim()
     ?? process.env.QKRPC_HTTP?.trim()

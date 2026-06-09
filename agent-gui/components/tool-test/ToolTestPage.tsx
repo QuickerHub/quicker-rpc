@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { generateId } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { DocsViewerProvider } from "@/lib/docs-viewer";
@@ -66,6 +66,9 @@ import {
 import { ToolTestLauncherResultPane } from "@/components/tool-test/ToolTestLauncherResultPane";
 import { ToolTestActionTracePanel } from "@/components/tool-test/ToolTestActionTracePanel";
 import { ToolTestActionTraceMain } from "@/components/tool-test/ToolTestActionTraceMain";
+import { ToolTestActionRuntimePanel } from "@/components/tool-test/ToolTestActionRuntimePanel";
+import { ToolTestActionRuntimeResultPane } from "@/components/tool-test/ToolTestActionRuntimeResultPane";
+import type { ActionRuntimeRunEntry } from "@/lib/action-runtime-test-runs";
 import {
   ToolTestPromptChatPane,
   ToolTestPromptChatProvider,
@@ -90,6 +93,7 @@ import { ToolTestLlmProbePanel } from "@/components/tool-test/ToolTestLlmProbePa
 import { ToolTestLlmProbeResultPane } from "@/components/tool-test/ToolTestLlmProbeResultPane";
 import type { LlmEndpointProbeReport } from "@/lib/llm-endpoint-probe-core";
 import {
+  defaultToolTestSidebarTab,
   loadStoredToolTestSidebarTab,
   storeToolTestSidebarTab,
 } from "@/lib/tool-test-sidebar-prefs";
@@ -259,7 +263,7 @@ export function ToolTestPage() {
   );
   const [lastError, setLastError] = useState<string | null>(null);
   const [sidebarTab, setSidebarTab] = useState<ToolTestSidebarTab>(
-    () => loadStoredToolTestSidebarTab(),
+    () => defaultToolTestSidebarTab(),
   );
   const [titleTestRuns, setTitleTestRuns] = useState<TitleTestRunEntry[]>([]);
   const [autoFixRuns, setAutoFixRuns] = useState<AutoFixRunEntry[]>([]);
@@ -281,6 +285,7 @@ export function ToolTestPage() {
   const [llmProbeReport, setLlmProbeReport] = useState<LlmEndpointProbeReport | null>(null);
   const [llmProbeError, setLlmProbeError] = useState<string | null>(null);
   const [llmProbeRunning, setLlmProbeRunning] = useState(false);
+  const [actionRuntimeRuns, setActionRuntimeRuns] = useState<ActionRuntimeRunEntry[]>([]);
 
   const handleVoiceInstallTest = useCallback(() => {
     if (voiceInstallBusy) return;
@@ -307,6 +312,23 @@ export function ToolTestPage() {
 
   const clearTitleTestRuns = useCallback(() => {
     setTitleTestRuns([]);
+  }, []);
+
+  const appendActionRuntimeRun = useCallback((entry: ActionRuntimeRunEntry) => {
+    setActionRuntimeRuns((prev) => [...prev, entry]);
+  }, []);
+
+  const patchActionRuntimeRun = useCallback(
+    (id: string, patch: Partial<ActionRuntimeRunEntry>) => {
+      setActionRuntimeRuns((prev) =>
+        prev.map((run) => (run.id === id ? { ...run, ...patch } : run)),
+      );
+    },
+    [],
+  );
+
+  const clearActionRuntimeRuns = useCallback(() => {
+    setActionRuntimeRuns([]);
   }, []);
 
   const appendAutoFixRun = useCallback((entry: AutoFixRunEntry) => {
@@ -661,6 +683,10 @@ export function ToolTestPage() {
   const busy = runningSuiteId !== null;
   const panelDisabled = busy || pendingApproval !== null;
 
+  useEffect(() => {
+    setSidebarTab(loadStoredToolTestSidebarTab());
+  }, []);
+
   const handleSidebarTabChange = useCallback((tab: ToolTestSidebarTab) => {
     setSidebarTab(tab);
     storeToolTestSidebarTab(tab);
@@ -741,6 +767,13 @@ export function ToolTestPage() {
       />
     ) : sidebarTab === "action-trace" ? (
       <ToolTestActionTracePanel disabled={panelDisabled} />
+    ) : sidebarTab === "action-runtime" ? (
+      <ToolTestActionRuntimePanel
+        disabled={panelDisabled}
+        workingDirectory={workingDirectory}
+        onAppendRun={appendActionRuntimeRun}
+        onPatchRun={patchActionRuntimeRun}
+      />
     ) : sidebarTab === "context-compression" ? (
       <ToolTestContextCompressionPanel
         disabled={panelDisabled}
@@ -807,6 +840,12 @@ export function ToolTestPage() {
       <ToolTestActionTraceMain
         className="tool-test-action-trace-main"
         pingOk={ping.status === "ok"}
+      />
+    ) : sidebarTab === "action-runtime" ? (
+      <ToolTestActionRuntimeResultPane
+        runs={actionRuntimeRuns}
+        workingDirectory={workingDirectory}
+        onClearRuns={clearActionRuntimeRuns}
       />
     ) : sidebarTab === "context-compression" ? (
       <ToolTestContextCompressionResultPane

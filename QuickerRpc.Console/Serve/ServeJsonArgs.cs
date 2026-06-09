@@ -104,6 +104,36 @@ internal static class ServeJsonArgs
         return prop.ValueKind is JsonValueKind.Object or JsonValueKind.Array ? prop : null;
     }
 
+    /// <summary>Inline JSON from a string property or a serialized object/array.</summary>
+    public static string? GetJsonInlineText(JsonElement args, params string[] names)
+    {
+        if (args.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        foreach (var name in names)
+        {
+            if (!args.TryGetProperty(name, out var prop))
+            {
+                continue;
+            }
+
+            var inline = ReadStringValue(prop);
+            if (!string.IsNullOrWhiteSpace(inline))
+            {
+                return inline;
+            }
+
+            if (prop.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+            {
+                return prop.GetRawText();
+            }
+        }
+
+        return null;
+    }
+
     public static IList<string> GetStringList(JsonElement args, string name)
     {
         if (args.ValueKind != JsonValueKind.Object || !args.TryGetProperty(name, out var prop))

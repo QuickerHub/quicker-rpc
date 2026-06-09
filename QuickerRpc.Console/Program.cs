@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
@@ -241,8 +242,12 @@ internal static partial class Program
             "delete" => await RunActionDeleteAsync(options).ConfigureAwait(false),
             "edit" => await RunActionEditAsync(options).ConfigureAwait(false),
             "run" => await RunActionRunAsync(options).ConfigureAwait(false),
+            "runtime-check" => await RunActionRuntimeCheckAsync(options).ConfigureAwait(false),
+            "runtime-keys" => await RunActionRuntimeKeysAsync(options).ConfigureAwait(false),
             "float" => await RunActionFloatAsync(options).ConfigureAwait(false),
             "edit-var" => await RunActionEditVarAsync(options).ConfigureAwait(false),
+            "shared-info-get" => await RunActionSharedInfoGetAsync(options).ConfigureAwait(false),
+            "shared-info-set" => await RunActionSharedInfoSetAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownActionVerbAsync(options).ConfigureAwait(false),
         };
     }
@@ -252,7 +257,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|mention-search|publish|update|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
+            "Use: action create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|mention-search|publish|update|shared-info-get|shared-info-set|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -363,6 +368,44 @@ internal static partial class Program
         {
             await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
             var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            if (options.Preflight)
+            {
+                var preflight = await session.Proxy
+                    .PreflightPublishSharedActionAsync(actionId, request, rpcToken)
+                    .ConfigureAwait(false);
+
+                if (options.Json)
+                {
+                    global::System.Console.WriteLine(JsonSerializer.Serialize(
+                        new
+                        {
+                            ok = preflight.Ready,
+                            action = "publish-preflight",
+                            ready = preflight.Ready,
+                            mode = preflight.Mode,
+                            actionId = preflight.ActionId ?? actionId,
+                            sharedId = preflight.SharedActionId,
+                            title = preflight.Title,
+                            description = preflight.Description,
+                            icon = preflight.Icon,
+                            isPublic = preflight.IsPublic,
+                            message = preflight.Message,
+                            issues = preflight.Issues,
+                        },
+                        QkrpcJson.CliOutput));
+                }
+                else if (preflight.Ready)
+                {
+                    global::System.Console.WriteLine(preflight.Message);
+                }
+                else
+                {
+                    WritePublishIssues(preflight.Issues, preflight.Message);
+                }
+
+                return preflight.Ready ? ExitCodes.Success : ExitCodes.Error;
+            }
+
             var result = await session.Proxy
                 .PublishSharedActionAsync(actionId, request, rpcToken)
                 .ConfigureAwait(false);
@@ -381,6 +424,7 @@ internal static partial class Program
                         revision = result.Revision,
                         isPublic = result.IsPublic,
                         message = result.Message,
+                        issues = result.Issues,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -390,7 +434,7 @@ internal static partial class Program
             }
             else
             {
-                global::System.Console.Error.WriteLine(result.Message);
+                WritePublishIssues(result.Issues, result.Message);
             }
 
             return result.Ok ? ExitCodes.Success : ExitCodes.Error;
@@ -410,6 +454,25 @@ internal static partial class Program
             await EmitErrorAsync(options.Json, "PUBLISH_FAILED", ex.Message).ConfigureAwait(false);
             return ExitCodes.Error;
         }
+    }
+
+    private static void WritePublishIssues(
+        IReadOnlyList<QuickerRpcActionPublishIssue>? issues,
+        string? fallbackMessage)
+    {
+        if (issues is { Count: > 0 })
+        {
+            foreach (var issue in issues)
+            {
+                var prefix = string.IsNullOrWhiteSpace(issue.Field) ? issue.Code : issue.Field + ": ";
+                global::System.Console.Error.WriteLine(prefix + issue.Message);
+            }
+
+            return;
+        }
+
+        global::System.Console.Error.WriteLine(
+            string.IsNullOrWhiteSpace(fallbackMessage) ? "Publish failed." : fallbackMessage);
     }
 
     private static Task<int> RunActionSearchAsync(ActionOptions options) =>
@@ -727,6 +790,11 @@ internal static partial class Program
 
     private static async Task<int> RunActionRunAsync(ActionOptions options)
     {
+        if (options.Standalone)
+        {
+            return await RunActionStandaloneAsync(options).ConfigureAwait(false);
+        }
+
         var actionId = (options.Id ?? options.Code ?? string.Empty).Trim();
         var hasXAction = !string.IsNullOrWhiteSpace(options.XAction)
                          || !string.IsNullOrWhiteSpace(options.XActionFile);
@@ -1376,7 +1444,7 @@ public sealed class PingOptions
 [Verb("action", HelpText = "Quicker action operations via RPC.")]
 public sealed class ActionOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | extract | apply | validate | export | import | list | search | publish | update | move | delete | edit | run | float | edit-var")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | extract | apply | validate | export | import | list | search | publish | update | shared-info-get | shared-info-set | move | delete | edit | run | runtime-check | runtime-keys | float | edit-var")]
     public string? Command { get; set; }
 
     [Option("id", HelpText = "Action id (GUID). publish/update: local or shared id.")]
@@ -1397,6 +1465,12 @@ public sealed class ActionOptions
     [Option("note-file", HelpText = "Read share page intro (Note) from a UTF-8 markdown file.")]
     public string? NoteFile { get; set; }
 
+    [Option("html", HelpText = "HTML body for action shared-info-set (getquicker 动作说明 Detail).")]
+    public string? Html { get; set; }
+
+    [Option("html-file", HelpText = "Read HTML for action shared-info-set from a UTF-8 file.")]
+    public string? HtmlFile { get; set; }
+
     [Option("tags", HelpText = "Comma-separated tags for action publish.")]
     public string? Tags { get; set; }
 
@@ -1408,6 +1482,9 @@ public sealed class ActionOptions
 
     [Option("no-submit-review", HelpText = "Do not auto-submit public action for review (action publish).")]
     public bool NoSubmitReview { get; set; }
+
+    [Option("preflight", HelpText = "Validate publish/update prerequisites without uploading (action publish only).")]
+    public bool Preflight { get; set; }
 
     [Option('q', "query", HelpText = "Plain keyword, legacy prefix (source:library|uses:Sub), or JSON query with filter/sort scripts.")]
     public string? Query { get; set; }
@@ -1514,6 +1591,15 @@ public sealed class ActionOptions
     [Option("trace-file", HelpText = "Also write human-readable trace lines to a UTF-8 file (avoids PowerShell redirect encoding issues).")]
     public string? TraceFile { get; set; }
 
+    [Option("standalone", HelpText = "Run via Quicker.ActionRuntime (no Quicker process or RPC pipe).")]
+    public bool Standalone { get; set; }
+
+    [Option("package-file", HelpText = "ActionExecutionPackage JSON for standalone run/check.")]
+    public string? PackageFile { get; set; }
+
+    [Option("verbose-host", HelpText = "Standalone: log IHostServices callbacks to stdout/stderr.")]
+    public bool VerboseHost { get; set; }
+
     [Option("wait", HelpText = "Wait for action completion and return ReturnResult.")]
     public bool Wait { get; set; }
 
@@ -1603,7 +1689,7 @@ public sealed class SubProgramOptions
 [Verb("step-runner", HelpText = "StepRunner catalog for headless XAction authoring.")]
 public sealed class StepRunnerOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "search | get | get-ui")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "search | get | get-ui | summaries")]
     public string? Command { get; set; }
 
     [Option('q', "query", HelpText = "Search keyword for step-runner search.")]
@@ -1617,6 +1703,9 @@ public sealed class StepRunnerOptions
 
     [Option("limit", Default = 40, HelpText = "Max results for step-runner search.")]
     public int Limit { get; set; }
+
+    [Option("request-file", HelpText = "JSON request file for step-runner summaries ({ steps, subProgramsJson? }).")]
+    public string? RequestFile { get; set; }
 
     [Option("json", HelpText = "Emit JSON for automation.")]
     public bool Json { get; set; }

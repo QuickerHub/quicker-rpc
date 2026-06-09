@@ -2,17 +2,46 @@
 
 > **分类**：第三方软件 · **来源**：仓库手写 · **官方**：[rhinocontrol](https://getquicker.net/KC/Help/Doc/rhinocontrol)
 
-**用途**：向 Rhino 发送命令或脚本。
+**用途**：向 Rhino 发送命令或脚本（Rhino 须已运行）。
 
-**何时读**：与 AutoCAD 类似，命令字符串格式前读。
+## 示例
 
-## wire 要点
+### 执行 Rhino 命令（末尾空格触发执行）
 
-| param | wire | notes |
-|-------|------|-------|
-| 操作类型 | 执行命令 | |
-| 命令内容 | Rhino 命令行文本 | Rhino 须已运行 |
+```json
+{
+  "stepRunnerKey": "sys:rhinocontrol",
+  "inputParams": {
+    "operation": "RunScript",
+    "command": "_Zoom _Extents "
+  },
+  "outputParams": {
+    "isSuccess": "成功"
+  }
+}
+```
+
+### 执行脚本并取输出
+
+```json
+{
+  "stepRunnerKey": "sys:rhinocontrol",
+  "inputParams": {
+    "operation": "RunScript",
+    "command": "-_RunPythonScript \"print('hello')\"",
+    "waitResp": true
+  },
+  "outputParams": {
+    "isSuccess": "成功",
+    "output": "脚本输出"
+  }
+}
+```
+
+## 陷阱
+
+命令末尾通常需空格或回车才会开始执行；轮盘/手势中转请用 `runAction` 传参，勿直接对本模块写死命令。
 
 ## 相关
 
-autocadcontrol · step-runner-get
+autocadcontrol · runAction · step-runner-get

@@ -1,4 +1,9 @@
 import MiniSearch from "minisearch";
+import {
+  parseIndexableSections,
+  tryExtractSectionBody,
+  type MarkdownSection,
+} from "@/lib/guide-markdown-section-parser";
 
 export type AuthoringDocSearchRow = {
   topic: string;
@@ -13,6 +18,8 @@ export type AuthoringDocSearchRow = {
 export type AuthoringDocSearchHit = {
   row: AuthoringDocSearchRow;
   score: number;
+  /** Matched section heading when hit came from a fragment row. */
+  sectionHeading?: string;
 };
 
 const TOKEN_SPLIT = /[\s\-_:./|#*()[\]{}`'"，。；、！？]+/;
@@ -23,10 +30,15 @@ const SEARCH_BOOST = {
   aliases: 4,
   title: 2,
   description: 2,
+  section: 3,
   markdown: 1,
 } as const;
 
-/** Shrink body text indexed for search to reduce cross-doc noise. */
+const TOPIC_INDEX_MAX_CHARS = 2000;
+const SECTION_INDEX_MAX_CHARS = 1200;
+const SECTION_PREVIEW_CHARS = 220;
+
+/** Compact plain text for token index fields (topic overview row). */
 export function compactMarkdownForSearch(
   markdown: string,
   maxChars = 600,
@@ -37,10 +49,32 @@ export function compactMarkdownForSearch(
     .join(" ");
   const plain = markdown
     .replace(/^#+\s+/gm, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/\s+/g, " ")
     .trim();
   const body = plain.slice(0, maxChars);
   return headings ? `${headings} ${body}`.trim() : body;
+}
+
+function compactSectionBody(body: string, maxChars = SECTION_INDEX_MAX_CHARS): string {
+  const plain = body
+    .replace(/^#+\s+/gm, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain.length <= maxChars ? plain : plain.slice(0, maxChars);
+}
+
+function buildTopicIndexBody(markdown: string): string {
+  const sections = parseIndexableSections(markdown);
+  const sectionIndex = sections
+    .map((s) => `${s.heading} ${compactSectionBody(s.body, SECTION_PREVIEW_CHARS)}`)
+    .join(" ");
+  const intro = compactMarkdownForSearch(markdown, 500);
+  const combined = sectionIndex ? `${intro} ${sectionIndex}`.trim() : intro;
+  return combined.length <= TOPIC_INDEX_MAX_CHARS
+    ? combined
+    : combined.slice(0, TOPIC_INDEX_MAX_CHARS);
 }
 
 /** Tokenizer tuned for mixed English identifiers and Chinese phrases. */
@@ -71,9 +105,30 @@ export function authoringDocRowId(row: AuthoringDocSearchRow): string {
   return row.reference ? `${row.topic}/${row.reference}` : row.topic;
 }
 
+function uniqueFragmentId(
+  parentId: string,
+  section: MarkdownSection,
+  index: number,
+  used: Set<string>,
+): string {
+  let slug = section.slug || `section-${index}`;
+  let candidate = `${parentId}#${slug}`;
+  let n = 2;
+  while (used.has(candidate)) {
+    slug = `${section.slug || "section"}-${n++}`;
+    candidate = `${parentId}#${slug}`;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
 export type AuthoringDocsSearchIndex = {
   index: MiniSearch;
   rowById: Map<string, AuthoringDocSearchRow>;
+  /** fragment document id → matched section heading */
+  sectionByFragmentId: Map<string, string>;
+  /** fragment document id → parent row id */
+  fragmentParentId: Map<string, string>;
 };
 
 function joinSearchAliases(aliases?: string[] | string): string {
@@ -140,6 +195,18 @@ export function rerankAuthoringDocSearchHits(
         }
       }
 
+      if (ref?.startsWith("kc/")) {
+        const baseRef = ref.slice("kc/".length);
+        const hasAuthoredSibling = hits.some(
+          (h) =>
+            h.row.topic === row.topic
+            && h.row.reference?.toLowerCase() === baseRef,
+        );
+        if (hasAuthoredSibling) bonus -= 100;
+      } else if (hit.sectionHeading) {
+        bonus += 15;
+      }
+
       return bonus === 0 ? hit : { ...hit, score: hit.score + bonus };
     })
     .sort((a, b) => b.score - a.score);
@@ -149,22 +216,47 @@ export function buildAuthoringDocsSearchIndex(
   rows: AuthoringDocSearchRow[],
 ): AuthoringDocsSearchIndex {
   const rowById = new Map<string, AuthoringDocSearchRow>();
-  const documents = rows.map((row) => {
-    const id = authoringDocRowId(row);
-    rowById.set(id, row);
-    return {
-      id,
+  const sectionByFragmentId = new Map<string, string>();
+  const fragmentParentId = new Map<string, string>();
+
+  /** @type {Record<string, unknown>[]} */
+  const documents = [];
+
+  for (const row of rows) {
+    const parentId = authoringDocRowId(row);
+    rowById.set(parentId, row);
+
+    documents.push({
+      id: parentId,
       topic: row.topic,
       reference: row.reference ?? "",
       aliases: row.searchAliases ?? "",
       title: row.title,
       description: row.description,
-      markdown: compactMarkdownForSearch(row.markdown),
-    };
-  });
+      section: "",
+      markdown: buildTopicIndexBody(row.markdown),
+    });
+
+    const usedFragmentIds = new Set<string>();
+    for (const [index, section] of parseIndexableSections(row.markdown).entries()) {
+      const fragId = uniqueFragmentId(parentId, section, index, usedFragmentIds);
+      sectionByFragmentId.set(fragId, section.heading);
+      fragmentParentId.set(fragId, parentId);
+      documents.push({
+        id: fragId,
+        topic: row.topic,
+        reference: row.reference ?? "",
+        aliases: row.searchAliases ?? "",
+        title: row.title,
+        description: row.description,
+        section: section.heading,
+        markdown: compactSectionBody(section.body),
+      });
+    }
+  }
 
   const index = new MiniSearch({
-    fields: ["topic", "reference", "aliases", "title", "description", "markdown"],
+    fields: ["topic", "reference", "aliases", "title", "description", "section", "markdown"],
     storeFields: ["id"],
     tokenize: tokenizeAuthoringDocText,
     searchOptions: {
@@ -175,7 +267,24 @@ export function buildAuthoringDocsSearchIndex(
   });
 
   index.addAll(documents);
-  return { index, rowById };
+  return { index, rowById, sectionByFragmentId, fragmentParentId };
+}
+
+function selectBestHitPerDocument(
+  hits: AuthoringDocSearchHit[],
+  cap: number,
+): AuthoringDocSearchHit[] {
+  const best = new Map<string, AuthoringDocSearchHit>();
+  for (const hit of hits) {
+    const key = authoringDocRowId(hit.row);
+    const existing = best.get(key);
+    if (!existing || hit.score > existing.score) {
+      best.set(key, hit);
+    }
+  }
+  return [...best.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, cap);
 }
 
 export function searchAuthoringDocRows(
@@ -195,6 +304,7 @@ export function searchAuthoringDocRows(
       .map((row) => ({ row, score: 0 }));
   }
 
+  const searchLimit = Math.min(50, Math.max(cap * 4, cap));
   const results = bundle.index.search(query, {
     boost: { ...SEARCH_BOOST },
     fuzzy: query.length >= 4 ? 0.2 : 0,
@@ -203,13 +313,22 @@ export function searchAuthoringDocRows(
 
   const hits = results
     .map((hit) => {
-      const row = bundle.rowById.get(String(hit.id));
+      const hitId = String(hit.id);
+      const parentId = bundle.fragmentParentId.get(hitId) ?? hitId;
+      const row = bundle.rowById.get(parentId);
       if (!row) return null;
-      return { row, score: hit.score };
+      return {
+        row,
+        score: hit.score,
+        sectionHeading: bundle.sectionByFragmentId.get(hitId),
+      };
     })
     .filter((hit): hit is AuthoringDocSearchHit => hit != null);
 
-  return rerankAuthoringDocSearchHits(query, hits).slice(0, cap);
+  return selectBestHitPerDocument(
+    rerankAuthoringDocSearchHits(query, hits),
+    searchLimit,
+  ).slice(0, cap);
 }
 
 export function splitSearchPatterns(keyword: string): string[] {
@@ -219,14 +338,58 @@ export function splitSearchPatterns(keyword: string): string[] {
     .filter((p) => p.length > 0);
 }
 
+function preferMatchingSectionExcerpt(
+  markdown: string,
+  patterns: string[],
+): string | null {
+  if (patterns.length === 0) return null;
+
+  let best: MarkdownSection | null = null;
+  let bestScore = 0;
+  for (const section of parseIndexableSections(markdown)) {
+    const haystack = `${section.heading} ${section.body}`.toLowerCase();
+    let score = 0;
+    for (const pattern of patterns) {
+      if (haystack.includes(pattern)) score++;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = section;
+    }
+  }
+
+  if (!best || bestScore === 0) return null;
+
+  const plain = best.body
+    .replace(/^#+\s*/gm, "")
+    .replace(/[*_`#[\]()]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${best.heading}. ${plain}`;
+}
+
+/** Build excerpt centered on the first query-token hit (section-aware). */
 export function buildSearchExcerpt(
   markdown: string,
   patterns: string[],
-  maxLength = 280,
+  maxLength = 420,
+  sectionHeading?: string,
 ): string {
-  let plain = markdown.replace(/^#+\s*/gm, "");
+  const sectionBody = sectionHeading
+    ? tryExtractSectionBody(markdown, sectionHeading)
+    : null;
+
+  let plain = sectionBody ?? markdown;
+  plain = plain.replace(/^#+\s*/gm, "");
+  plain = plain.replace(/<!--[\s\S]*?-->/g, "");
   plain = plain.replace(/[*_`#[\]()]/g, "");
   plain = plain.replace(/\s+/g, " ").trim();
+
+  if (sectionHeading) {
+    plain = `${sectionHeading}. ${plain}`;
+  } else if (patterns.length > 0) {
+    plain = preferMatchingSectionExcerpt(markdown, patterns) ?? plain;
+  }
 
   if (patterns.length > 0) {
     const lower = plain.toLowerCase();
@@ -237,8 +400,11 @@ export function buildSearchExcerpt(
         idx = found;
       }
     }
-    if (idx > 40) {
-      plain = `…${plain.slice(idx)}`;
+    if (idx >= 0) {
+      const before = 80;
+      const start = Math.max(0, idx - before);
+      const slice = plain.slice(start);
+      plain = start > 0 ? `…${slice}` : slice;
     }
   }
 

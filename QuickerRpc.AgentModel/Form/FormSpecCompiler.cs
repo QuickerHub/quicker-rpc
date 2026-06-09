@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.Core;
 
 namespace QuickerRpc.AgentModel.Form;
 
@@ -56,7 +57,7 @@ public static class FormSpecCompiler
 
         if (token is JObject)
         {
-            return TryParse(token.ToString(Formatting.None));
+            return TryParse(JTokenCompat.Compact(token));
         }
 
         return FormSpecParseResult.Fail(
@@ -64,9 +65,14 @@ public static class FormSpecCompiler
             "Form spec must be a JSON object or a JSON string.");
     }
 
-    public static FormSpecBuildResult Build(FormSpecDocument spec)
+    public static FormSpecBuildResult Build(FormSpecDocument spec) =>
+        Build(spec, definedVariableKeys: null);
+
+    public static FormSpecBuildResult Build(
+        FormSpecDocument spec,
+        IReadOnlyCollection<string>? definedVariableKeys)
     {
-        var validation = FormSpecValidator.Validate(spec);
+        var validation = FormSpecValidator.Validate(spec, definedVariableKeys);
         if (!validation.Success)
         {
             return new FormSpecBuildResult
@@ -86,7 +92,7 @@ public static class FormSpecCompiler
         {
             ["fields"] = new JArray(nativeFields.Select(f => JObject.FromObject(f, NativeFieldSerializer))),
         };
-        var nativeFormJson = nativeRoot.ToString(Formatting.None);
+        var nativeFormJson = JTokenCompat.Compact(nativeRoot);
 
         var inputParams = new JObject
         {
@@ -114,7 +120,7 @@ public static class FormSpecCompiler
             Mode = mode,
             FormParamKey = formParamKey,
             NativeFormJson = nativeFormJson,
-            StepJson = step.ToString(Formatting.None),
+            StepJson = JTokenCompat.Compact(step),
         };
     }
 

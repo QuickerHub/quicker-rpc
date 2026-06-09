@@ -14,6 +14,7 @@ Headless XAction via agent tools + QuickerRpc plugin. Route/hard rules preloaded
 | global/embedded subprogram | workspace_program + target | subprogram-workflow |
 | step module keys | qkrpc_step_runner_search → get | step-runner-get |
 | metadata icons | qkrpc_fa search | action-icons |
+| publish / update share | qkrpc_action_publish | action-publish-workflow |
 | WebView2/HTML in files/ | workspace_program file_* + patch | webview2-authoring |
 
 ## P0–P7

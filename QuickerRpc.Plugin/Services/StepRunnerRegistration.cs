@@ -18,6 +18,9 @@ internal static class StepRunnerRegistration
     private static readonly object LockObject = new();
     private static bool _registered;
 
+    internal static IStepRunner? TryGetRunner(string key) =>
+        string.IsNullOrWhiteSpace(key) ? null : GetRuntimeRunner(key);
+
     public static void RegisterPluginStepRunners(ILogger? logger = null)
     {
         if (!QuickerInternalAccess.IsInQuicker)

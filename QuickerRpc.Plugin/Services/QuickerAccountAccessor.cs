@@ -69,6 +69,67 @@ internal static class QuickerAccountAccessor
             NickName = nickName,
         };
 
+    internal static string? TryGetBearerToken()
+    {
+        var resolved = QuickerDispatcherInvoke.OnUiThreadIfNeeded(TryResolveUserInfoSafe);
+        var token = TrimOrNull(resolved?.Info?.Token);
+        if (string.IsNullOrEmpty(token))
+        {
+            token = TrimOrNull(QuickerWebConnectorTokenAccessor.TryReadBearerToken());
+        }
+
+        return token;
+    }
+
+    public static QuickerRpcWebSessionInfo TryGetWebSessionInfo()
+    {
+        var account = TryGetAccountInfo();
+        if (!account.LoggedIn || string.IsNullOrWhiteSpace(account.UserId))
+        {
+            return new QuickerRpcWebSessionInfo
+            {
+                Ok = account.Ok,
+                LoggedIn = false,
+                Message = account.Message ?? "Quicker account is not logged in.",
+            };
+        }
+
+        var token = TryGetBearerToken();
+        var expireUtc = QuickerDispatcherInvoke.OnUiThreadIfNeeded(TryResolveUserInfoSafe)?.Info?.TokenExpireTimeUtc;
+
+        if (string.IsNullOrEmpty(token))
+        {
+            return new QuickerRpcWebSessionInfo
+            {
+                Ok = true,
+                LoggedIn = false,
+                UserId = account.UserId,
+                Message = "Quicker is logged in but web session token is unavailable.",
+            };
+        }
+
+        if (expireUtc is { } expiry && expiry != default && expiry < DateTime.UtcNow)
+        {
+            return new QuickerRpcWebSessionInfo
+            {
+                Ok = true,
+                LoggedIn = false,
+                UserId = account.UserId,
+                TokenExpireTimeUtc = expiry,
+                Message = "Quicker web session token has expired. Re-login in Quicker.",
+            };
+        }
+
+        return new QuickerRpcWebSessionInfo
+        {
+            Ok = true,
+            LoggedIn = true,
+            UserId = account.UserId,
+            Token = token,
+            TokenExpireTimeUtc = expireUtc is { } exp && exp != default ? exp : null,
+        };
+    }
+
     private sealed class ResolvedUserInfo
     {
         public string? UserId { get; set; }
@@ -76,6 +137,10 @@ internal static class QuickerAccountAccessor
         public string? UserName { get; set; }
 
         public string? NickName { get; set; }
+
+        public string? Token { get; set; }
+
+        public DateTime? TokenExpireTimeUtc { get; set; }
     }
 
     private sealed class UserInfoResolution
@@ -356,12 +421,85 @@ internal static class QuickerAccountAccessor
         }
 
         var type = value.GetType();
+        var token = ReadStringProperty(value, type, "Token");
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            token = ReadLikelyTokenProperty(value, type);
+        }
+
         return new ResolvedUserInfo
         {
             UserId = ReadStringProperty(value, type, "UserId"),
             UserName = ReadStringProperty(value, type, "UserName"),
             NickName = ReadStringProperty(value, type, "NickName"),
+            Token = token,
+            TokenExpireTimeUtc = ReadDateTimeProperty(value, type, "TokenExpireTimeUtc"),
         };
+    }
+
+    private static DateTime? ReadDateTimeProperty(object target, Type type, string propertyName)
+    {
+        var property = type.GetProperty(propertyName, QuickerAssemblyReflection.InstanceFlags);
+        if (property?.PropertyType != typeof(DateTime))
+        {
+            return null;
+        }
+
+        try
+        {
+            return property.GetValue(target) is DateTime value && value != default
+                ? value
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? ReadLikelyTokenProperty(object target, Type type)
+    {
+        foreach (var property in type.GetProperties(QuickerAssemblyReflection.InstanceFlags))
+        {
+            if (property.GetIndexParameters().Length > 0 || property.PropertyType != typeof(string))
+            {
+                continue;
+            }
+
+            var name = property.Name;
+            if (name.Contains("Token", StringComparison.OrdinalIgnoreCase)
+                && name.Contains("Expire", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            try
+            {
+                if (property.GetValue(target) is not string candidate || string.IsNullOrWhiteSpace(candidate))
+                {
+                    continue;
+                }
+
+                var trimmed = candidate.Trim();
+                if (trimmed.Contains("://", StringComparison.Ordinal)
+                    || trimmed.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (trimmed.StartsWith("eyJ", StringComparison.Ordinal)
+                    || (trimmed.Length >= 32 && trimmed.IndexOf('.') >= 0))
+                {
+                    return trimmed;
+                }
+            }
+            catch
+            {
+                // Try next property.
+            }
+        }
+
+        return null;
     }
 
     private static string? ReadStringProperty(object target, Type type, string propertyName)

@@ -31,6 +31,8 @@ export type ActionAuthoringSearchItem = {
   description: string;
   excerpt: string;
   reference?: string;
+  /** Matched section heading when search hit a document fragment. */
+  section?: string;
   /** MiniSearch relevance score; omitted when query is empty. */
   score?: number;
 };

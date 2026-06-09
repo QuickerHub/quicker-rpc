@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Fetch Quicker KC Help docs → references/step-modules/{id}.md (crawled).
- * Hand-written refs live in references/step-modules/authored/ (see step-module-skip.json → authored).
+ * Fetch Quicker KC Help docs → references/step-modules/kc/{id}.md (full crawl for search).
+ * Hand-written refs live in references/step-modules/authored/ (agent-curated).
  *
  * Usage:
  *   node scripts/generate-step-module-refs.mjs           # skip unchanged
@@ -26,6 +26,7 @@ const OUT_DIR = path.join(
   ROOT,
   "docs/action-authoring-src/references/step-modules",
 );
+const KC_OUT_DIR = path.join(OUT_DIR, "kc");
 const AUTHORED_DIR = path.join(OUT_DIR, "authored");
 const DOC_BASE = "https://getquicker.net/KC/Help/Doc";
 
@@ -437,50 +438,33 @@ function buildRefId(key) {
 }
 
 /** @param {string} key @param {Record<string, unknown>} meta @param {string | null} docBody @param {string} slug */
-function renderModuleRef(key, meta, docBody, slug) {
+function renderKcModuleRef(key, meta, docBody, slug) {
   const id = buildRefId(key);
   const category = resolveCategory(key);
   const categoryTitle = CATEGORY_TITLES[category] ?? category;
   const snippet = typeof meta.snippet === "string" ? meta.snippet : "";
-  const notFor = Array.isArray(meta.notFor) ? meta.notFor : [];
-  const obsolete = meta.obsolete === true;
   const docUrl = `${DOC_BASE}/${slug}`;
 
   /** @type {string[]} */
   const lines = [
     `# ${key}`,
     "",
-    `> **分类**：${categoryTitle} · **来源**：KC 爬取（\`npm run docs:modules:gen\`）· **官方**：[${slug}](${docUrl})`,
+    `> **分类**：${categoryTitle} · **来源**：KC 官方文档（\`npm run docs:modules:gen\`）· [${slug}](${docUrl})`,
     "",
   ];
 
   if (snippet) {
     lines.push(`**用途**：${snippet}`, "");
   }
-  if (obsolete) {
-    lines.push("**状态**：已废弃或隐藏，优先用 **`implementation-fallback`** 中的替代方案。", "");
-  }
-  if (notFor.length > 0) {
-    lines.push(`**勿用于**：${notFor.join("、")}（见 \`expressions\` / \`implementation-fallback\`）`, "");
-  }
 
   if (docBody) {
-    lines.push("## 要点（摘自官方文档）", "", docBody, "");
+    lines.push(docBody, "");
   } else {
     lines.push(
-      "## 要点",
-      "",
-      "无独立 KC 文档页或抓取失败；参数含义以 `qkrpc_step_runner_get` 返回的 `purpose` 为准。",
+      "（无独立 KC 文档页或抓取失败；参数含义以 `qkrpc_step_runner_get` 返回的 `purpose` 为准。）",
       "",
     );
   }
-
-  lines.push(
-    "## 相关",
-    "",
-    "`step-modules` · `step-runner-get` · `implementation-fallback`",
-    "",
-  );
 
   return { id, markdown: lines.join("\n"), category, slug, docUrl };
 }
@@ -551,17 +535,12 @@ async function loadAuthoredCatalog(authoredKeys, keywords) {
   return items;
 }
 
-async function pruneOrphanRefs(skipKeys, authoredKeys, keywords) {
+async function pruneOrphanKcRefs(keywords) {
   let removed = 0;
-  const keepIds = new Set(
-    Object.keys(keywords)
-      .filter((k) => !skipKeys.has(k) && !authoredKeys.has(k))
-      .map((k) => buildRefId(k)),
-  );
-  keepIds.add("_catalog");
+  const keepIds = new Set(Object.keys(keywords).map((k) => buildRefId(k)));
   let files;
   try {
-    files = await fs.readdir(OUT_DIR);
+    files = await fs.readdir(KC_OUT_DIR);
   } catch {
     return 0;
   }
@@ -569,7 +548,7 @@ async function pruneOrphanRefs(skipKeys, authoredKeys, keywords) {
     if (!fname.endsWith(".md")) continue;
     const id = fname.slice(0, -3);
     if (keepIds.has(id)) continue;
-    await fs.unlink(path.join(OUT_DIR, fname));
+    await fs.unlink(path.join(KC_OUT_DIR, fname));
     removed++;
   }
   return removed;
@@ -601,20 +580,19 @@ async function main() {
   if (onlyKey) entries = entries.filter(([k]) => k === onlyKey);
   if (limit) entries = entries.slice(0, limit);
 
-  await fs.mkdir(OUT_DIR, { recursive: true });
+  await fs.mkdir(KC_OUT_DIR, { recursive: true });
   if (force && !limit && !onlyKey) {
-    const removed = await pruneOrphanRefs(skipKeys, authoredKeys, keywords);
-    if (removed > 0) console.log(`removed orphan refs: ${removed}`);
+    const removed = await pruneOrphanKcRefs(keywords);
+    if (removed > 0) console.log(`removed orphan kc refs: ${removed}`);
   }
 
   /** @type {Record<string, { id: string, key: string, title: string, category: string, docUrl: string }[]>} */
-  const catalogByCategory = {};
+  const kcByCategory = {};
   /** @type {Record<string, { key: string, title: string, docUrl: string }[]>} */
   const getOnlyByCategory = {};
 
   let written = 0;
   let skipped = 0;
-  let skippedRef = 0;
   let failed = 0;
   let emptyDoc = 0;
 
@@ -623,27 +601,21 @@ async function main() {
     const category = resolveCategory(key);
     const docUrl = `${DOC_BASE}/${slug}`;
     const title = snippetTitle(key, meta);
-
-    if (authoredKeys.has(key) && !onlyKey) {
-      skippedRef++;
-      return;
-    }
+    const refId = buildRefId(key);
 
     if (skipKeys.has(key) && !onlyKey) {
-      skippedRef++;
       if (!getOnlyByCategory[category]) getOnlyByCategory[category] = [];
       getOnlyByCategory[category].push({ key, title, docUrl });
-      return;
     }
 
-    const outPath = path.join(OUT_DIR, `${buildRefId(key)}.md`);
+    const outPath = path.join(KC_OUT_DIR, `${refId}.md`);
     try {
       const stat = await fs.stat(outPath);
       if (!force && stat.size > 0) {
         skipped++;
-        if (!catalogByCategory[category]) catalogByCategory[category] = [];
-        catalogByCategory[category].push({
-          id: buildRefId(key),
+        if (!kcByCategory[category]) kcByCategory[category] = [];
+        kcByCategory[category].push({
+          id: refId,
           key,
           title,
           category,
@@ -663,7 +635,7 @@ async function main() {
       failed++;
     }
 
-    const { id, markdown, category: cat, docUrl: url } = renderModuleRef(
+    const { id, markdown, category: cat, docUrl: url } = renderKcModuleRef(
       key,
       /** @type {Record<string, unknown>} */ (meta),
       docBody,
@@ -673,8 +645,8 @@ async function main() {
     await fs.writeFile(outPath, `${markdown}\n`, "utf8");
     written++;
 
-    if (!catalogByCategory[cat]) catalogByCategory[cat] = [];
-    catalogByCategory[cat].push({
+    if (!kcByCategory[cat]) kcByCategory[cat] = [];
+    kcByCategory[cat].push({
       id,
       key,
       title,
@@ -699,7 +671,7 @@ async function main() {
     }
   }
 
-  for (const list of Object.values(catalogByCategory)) {
+  for (const list of Object.values(kcByCategory)) {
     list.sort((a, b) => a.key.localeCompare(b.key));
   }
   for (const list of Object.values(getOnlyByCategory)) {
@@ -708,14 +680,14 @@ async function main() {
 
   const authoredCatalog = await loadAuthoredCatalog(authoredKeys, keywords);
   const catalogMd = renderCatalog(
-    catalogByCategory,
+    kcByCategory,
     getOnlyByCategory,
     authoredCatalog,
   );
   await fs.writeFile(path.join(OUT_DIR, "_catalog.md"), `${catalogMd}\n`, "utf8");
 
   console.log(
-    `step-module refs: written=${written} cache-skipped=${skipped} get-only=${skippedRef} empty-doc=${emptyDoc} fetch-fail=${failed} dir=${OUT_DIR}`,
+    `step-module kc refs: written=${written} cache-skipped=${skipped} empty-doc=${emptyDoc} fetch-fail=${failed} dir=${KC_OUT_DIR}`,
   );
 }
 
@@ -753,7 +725,7 @@ function renderCatalog(byCat, getOnly, authored) {
     "下列 **有 reference** 的模块：`docs_get_reference({ topic: \"step-modules\", file: \"<id>\" })`。",
     "",
     "- **手写**（`references/step-modules/authored/`）：仓库维护；见 `authored/SPEC.md`。",
-    "- **KC 爬取**：已全部迁移手写；`keep` 为空时本节无条目。",
+    "- **KC 爬取**（`references/step-modules/kc/`）：官方全文，供搜索检索；`docs_get_reference({ file: \"kc/<id>\" })`。",
     "",
     "## 手写 reference",
     "",
@@ -773,7 +745,7 @@ function renderCatalog(byCat, getOnly, authored) {
     lines.push("（无）", "");
   }
 
-  lines.push("## KC 爬取 reference", "");
+  lines.push("## KC 爬取 reference（全文）", "");
 
   for (const cat of order) {
     const list = byCat[cat];
@@ -784,7 +756,7 @@ function renderCatalog(byCat, getOnly, authored) {
     for (const item of list) {
       const slug = item.docUrl.split("/").pop() ?? "";
       lines.push(
-        `| \`${item.id}\` | \`${item.key}\` | ${item.title.replace(/\|/g, "\\|")} | [${slug}](${item.docUrl}) |`,
+        `| \`kc/${item.id}\` | \`${item.key}\` | ${item.title.replace(/\|/g, "\\|")} | [${slug}](${item.docUrl}) |`,
       );
     }
     lines.push("");

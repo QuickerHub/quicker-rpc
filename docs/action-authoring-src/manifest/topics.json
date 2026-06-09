@@ -44,6 +44,7 @@
   },
   "action-data-schema": {
     "title": "Action data.json schema",
+    "searchAliases": ["bind", "wire", "variables", "data.json", "steps", "inputParams"],
     "description": "Use when authoring data.json: qkrpc.program-data.v1 JSON schema + steps[]/variables[] wire rules (bind, branching, defaults). guide get --json returns schema.",
     "allowed-tools": "qkrpc_guide_get qkrpc_step_runner_get qkrpc_step_runner_search qkrpc_action_create workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit qkrpc_action_patch",
     "metadata": {
@@ -54,6 +55,7 @@
   },
   "action-icons": {
     "title": "Action icons",
+    "searchAliases": ["fa", "icon", "metadata", "图标", "set-metadata", "fa:Light"],
     "description": "Font Awesome fa: spec and http(s) image URLs for metadata and context menus. Use before set-metadata or guessing fa:Light_* names.",
     "allowed-tools": "qkrpc_fa_search qkrpc_action_set_metadata qkrpc_action_patch workspace_action_edit_data",
     "metadata": {
@@ -134,6 +136,17 @@
       "layer": "workflow"
     },
     "source": "workflows/action-organization-workflow.md"
+  },
+  "action-publish-workflow": {
+    "title": "Action publish workflow",
+    "description": "Use when sharing or updating getquicker actions: first publish vs changelog update, metadata/icon rules. HTML 动作说明 is built-in automation — Agent stops at Pub4.",
+    "searchAliases": ["发布", "分享", "更新动作", "publish", "share", "getquicker", "changelog", "Pub3", "Pub4", "Pub5", "动作说明", "shared-info", "preview", "note"],
+    "allowed-tools": "qkrpc_action_get qkrpc_action_set_metadata qkrpc_action_publish qkrpc_action_debug qkrpc_fa_search docs",
+    "metadata": {
+      "phase": "publish",
+      "layer": "workflow"
+    },
+    "source": "workflows/action-publish-workflow.md"
   },
   "action-project-files": {
     "title": "Workspace project layout",

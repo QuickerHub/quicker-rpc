@@ -8,4 +8,11 @@
     -->
     <AppendAssemblyVersionFileNameSuffix Condition="'$(AppendAssemblyVersionFileNameSuffix)' == ''">true</AppendAssemblyVersionFileNameSuffix>
   </PropertyGroup>
+  <!-- net472: polyfill C# 9+ (init, records, etc.) via source generator; no runtime dependency. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="PolySharp">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
 </Project>

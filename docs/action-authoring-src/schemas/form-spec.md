@@ -57,7 +57,7 @@ See `schema.definitions.formSpec` / `formField` in guide JSON above.
 |-------|-------|
 | mode | variables \| dict_dynamic |
 | dictVar | required for dict_dynamic |
-| fields[] | ≥1; key `^[A-Za-z_][A-Za-z0-9_]{0,63}$` |
+| fields[] | ≥1; `target` (default `key`) must match a variable key in action `variables` when compiling in project context |
 | type | text, textarea, number, integer, boolean, select, dateTime, password |
 | visibleWhen | `{ field, eq }` or `{ field, ne }` |
 

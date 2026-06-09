@@ -2,6 +2,7 @@ using System.Linq;
 using Google.Protobuf;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.Core;
 using QuickerRpc.AgentModel.Proto.V1;
 
 namespace QuickerRpc.AgentModel.XAction.Proto;
@@ -25,7 +26,7 @@ public static class XActionDataJsonParser
             ["SummaryExpression"] = string.Empty,
         };
 
-        return ParseNativeXActionJson(wrapper.ToString(Formatting.None));
+        return ParseNativeXActionJson(JTokenCompat.Compact(wrapper));
     }
 
     public static XActionData ParseNativeXActionJson(string json)
@@ -45,7 +46,7 @@ public static class XActionDataJsonParser
         var o = (JObject)root;
         NormalizeSubProgramsArray(o["SubPrograms"] as JArray);
         NormalizeStepsArray(o["Steps"] as JArray);
-        return o.ToString(Formatting.None);
+        return JTokenCompat.Compact(o);
     }
 
     private static void NormalizeSubProgramsArray(JArray? subPrograms)
@@ -110,8 +111,7 @@ public static class XActionDataJsonParser
                 continue;
             }
 
-            CoerceNullStringField(p, "VarKey");
-            CoerceNullStringField(p, "Value");
+            prop.Value = InputParamWireCoercer.NormalizeParamBindObject(p);
         }
     }
 
@@ -132,12 +132,4 @@ public static class XActionDataJsonParser
         }
     }
 
-    private static void CoerceNullStringField(JObject o, string name)
-    {
-        var t = o[name];
-        if (t is null || t.Type == JTokenType.Null || t.Type == JTokenType.Undefined)
-        {
-            o[name] = string.Empty;
-        }
-    }
 }

@@ -4,8 +4,9 @@ using System.Linq;
 using System.Reflection;
 using Quicker.Domain;
 using Quicker.Domain.Actions.X;
-using Quicker.Domain.Actions.X;
+using QuickerRpc.AgentModel.Search;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Plugin.Services.Search;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -14,6 +15,15 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 public sealed class SubProgramSearchService
 {
+    private readonly AgentSearchHub _searchHub;
+    private readonly AgentSearchIndexCoordinator _searchIndex;
+
+    public SubProgramSearchService(AgentSearchHub searchHub, AgentSearchIndexCoordinator searchIndex)
+    {
+        _searchHub = searchHub ?? throw new ArgumentNullException(nameof(searchHub));
+        _searchIndex = searchIndex ?? throw new ArgumentNullException(nameof(searchIndex));
+    }
+
     public QuickerRpcSubProgramSearchResult Search(string query, int maxCount)
     {
         if (!IsInQuicker())
@@ -38,7 +48,19 @@ public sealed class SubProgramSearchService
         try
         {
             var limit = NormalizeMaxCount(maxCount);
-            var items = SearchGlobalSubPrograms(keyword, limit);
+            var programs = EnumerateGlobalSubPrograms();
+            _searchIndex.ScheduleBuild(SearchRegion.SubProgram);
+            var hits = _searchIndex.IsReady(SearchRegion.SubProgram)
+                ? _searchHub.Search(
+                    new SearchRequest
+                    {
+                        Regions = new[] { SearchRegion.SubProgram },
+                        Query = keyword,
+                        Limit = limit,
+                    })
+                : SubProgramSearchLinear.Search(programs, keyword, limit);
+
+            var items = hits.Select(SubProgramSearchLinear.MapHit).ToList();
             return new QuickerRpcSubProgramSearchResult
             {
                 Ok = true,
@@ -56,33 +78,6 @@ public sealed class SubProgramSearchService
         }
     }
 
-    private static List<QuickerRpcSubProgramSummary> SearchGlobalSubPrograms(string keyword, int limit)
-    {
-        var scored = new List<(int Score, QuickerRpcSubProgramSummary Item)>();
-        foreach (var subProgram in EnumerateGlobalSubPrograms())
-        {
-            if (subProgram is null || string.IsNullOrWhiteSpace(subProgram.Id))
-            {
-                continue;
-            }
-
-            var score = ComputeMatchScore(subProgram, keyword);
-            if (score <= 0)
-            {
-                continue;
-            }
-
-            scored.Add((score, MapSubProgram(subProgram, score)));
-        }
-
-        return scored
-            .OrderByDescending(x => x.Score)
-            .ThenBy(x => x.Item.Name, StringComparer.OrdinalIgnoreCase)
-            .Take(limit)
-            .Select(x => x.Item)
-            .ToList();
-    }
-
     private static IEnumerable<SubProgram> EnumerateGlobalSubPrograms()
     {
         try
@@ -94,50 +89,6 @@ public sealed class SubProgramSearchService
             return Array.Empty<SubProgram>();
         }
     }
-
-    private static int ComputeMatchScore(SubProgram subProgram, string keyword)
-    {
-        var id = subProgram.Id ?? string.Empty;
-        var name = subProgram.Name ?? string.Empty;
-        var description = subProgram.Description ?? string.Empty;
-
-        if (string.Equals(id, keyword, StringComparison.OrdinalIgnoreCase))
-        {
-            return 200;
-        }
-
-        if (string.Equals(name, keyword, StringComparison.OrdinalIgnoreCase))
-        {
-            return 150;
-        }
-
-        if (name.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return 100;
-        }
-
-        if (description.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return 60;
-        }
-
-        return 0;
-    }
-
-    private static QuickerRpcSubProgramSummary MapSubProgram(SubProgram subProgram, int score) =>
-        new()
-        {
-            Id = subProgram.Id!.Trim(),
-            Name = subProgram.Name ?? string.Empty,
-            Description = NullIfEmpty(subProgram.Description),
-            Score = score,
-            SharedId = NullIfEmpty(subProgram.SharedId),
-            CallIdentifier = DataServiceSubProgramAccessor.GetCallIdentifier(subProgram),
-            Icon = NullIfEmpty(subProgram.Icon),
-        };
-
-    private static string? NullIfEmpty(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static int NormalizeMaxCount(int maxCount)
     {

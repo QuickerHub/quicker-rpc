@@ -11,6 +11,7 @@ const VALID_SIDEBAR_TABS = new Set<ToolTestSidebarTab>([
   "auto-fix",
   "launcher",
   "action-trace",
+  "action-runtime",
   "context-compression",
   "voice-input",
   "ask-question",
@@ -19,6 +20,10 @@ const VALID_SIDEBAR_TABS = new Set<ToolTestSidebarTab>([
 
 export function isToolTestSidebarTab(value: unknown): value is ToolTestSidebarTab {
   return typeof value === "string" && VALID_SIDEBAR_TABS.has(value as ToolTestSidebarTab);
+}
+
+export function defaultToolTestSidebarTab(): ToolTestSidebarTab {
+  return DEFAULT_SIDEBAR_TAB;
 }
 
 export function loadStoredToolTestSidebarTab(): ToolTestSidebarTab {

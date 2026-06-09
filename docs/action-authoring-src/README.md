@@ -54,6 +54,7 @@ npm run docs:check
 | `expressions-body` | expressions |
 | `workflow-checklist-subprogram` | subprogram-workflow |
 | `workflow-checklist-action-organization` | action-organization-workflow |
+| `workflow-checklist-action-publish` | action-publish-workflow |
 
 ## Add a topic
 

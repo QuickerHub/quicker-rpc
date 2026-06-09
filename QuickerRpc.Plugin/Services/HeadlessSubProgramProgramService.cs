@@ -7,7 +7,10 @@ using Newtonsoft.Json.Linq;
 using Quicker.Domain;
 using Quicker.Domain.Actions.X;
 using Quicker.Utilities;
+using QuickerRpc.AgentModel.Core;
 using QuickerRpc.AgentModel.Catalog;
+using QuickerRpc.AgentModel.Search;
+using QuickerRpc.Plugin.Services.Search;
 using QuickerRpc.AgentModel.XAction;
 using QuickerRpc.AgentModel.XAction.Compression;
 using QuickerRpc.AgentModel.XAction.Patch;
@@ -23,9 +26,13 @@ public sealed class HeadlessSubProgramProgramService
 {
     private readonly DataServiceSubProgramAccessor? _subPrograms;
     private readonly ActionEditMgrAccessor? _actionEditMgr;
+    private readonly AgentSearchHub _searchHub;
+    private readonly AgentSearchIndexCoordinator _searchIndex;
 
-    public HeadlessSubProgramProgramService()
+    public HeadlessSubProgramProgramService(AgentSearchHub searchHub, AgentSearchIndexCoordinator searchIndex)
     {
+        _searchHub = searchHub ?? throw new ArgumentNullException(nameof(searchHub));
+        _searchIndex = searchIndex ?? throw new ArgumentNullException(nameof(searchIndex));
         _subPrograms = DataServiceSubProgramAccessor.TryCreate();
         _actionEditMgr = ActionEditMgrAccessor.TryCreate();
     }
@@ -103,7 +110,7 @@ public sealed class HeadlessSubProgramProgramService
             Name = subProgram.Name ?? string.Empty,
             CallIdentifier = callIdentifier,
             EditVersion = editVersion,
-            CompressedJson = compressedRoot.ToString(Formatting.None),
+            CompressedJson = JTokenCompat.Compact(compressedRoot),
             OmitDefaultLiteralInputsApplied = omitApplied,
             ReturnMode = wireMode,
         };
@@ -155,6 +162,8 @@ public sealed class HeadlessSubProgramProgramService
         {
             return FailCreate(saveError ?? "SaveGlobalSubProgram failed.");
         }
+
+        ActionSearchIndexInvalidator.InvalidateSubProgram();
 
         return new QuickerRpcCreateSubProgramResult
         {
@@ -306,10 +315,10 @@ public sealed class HeadlessSubProgramProgramService
             SubProgramId = saved!.Id,
             CallIdentifier = DataServiceSubProgramAccessor.GetCallIdentifier(saved),
             EditVersion = _subPrograms.GetEditVersion(saved),
-            UpdatedStepsJson = compressedUpdatedSteps.ToString(Formatting.None),
-            AddedStepsJson = compressedAddedSteps.Count > 0 ? compressedAddedSteps.ToString(Formatting.None) : null,
-            UpdatedVariablesJson = compressedUpdatedVariables.ToString(Formatting.None),
-            AddedVariablesJson = compressedAddedVariables.Count > 0 ? compressedAddedVariables.ToString(Formatting.None) : null,
+            UpdatedStepsJson = JTokenCompat.Compact(compressedUpdatedSteps),
+            AddedStepsJson = compressedAddedSteps.Count > 0 ? JTokenCompat.Compact(compressedAddedSteps) : null,
+            UpdatedVariablesJson = JTokenCompat.Compact(compressedUpdatedVariables),
+            AddedVariablesJson = compressedAddedVariables.Count > 0 ? JTokenCompat.Compact(compressedAddedVariables) : null,
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
             Warnings = inputParamWarnings.Count > 0 ? new List<string>(inputParamWarnings) : null,
         };
@@ -397,6 +406,8 @@ public sealed class HeadlessSubProgramProgramService
             return FailPatch("save finished but subprogram could not be reloaded.");
         }
 
+        ActionSearchIndexInvalidator.InvalidateSubProgram();
+
         return new QuickerRpcApplySubProgramPatchResult
         {
             Success = true,
@@ -436,6 +447,8 @@ public sealed class HeadlessSubProgramProgramService
                 Message = deleteError ?? "DeleteGlobalSubProgram failed.",
             };
         }
+
+        ActionSearchIndexInvalidator.InvalidateSubProgram();
 
         return new QuickerRpcActionUpdateResult
         {
@@ -500,85 +513,27 @@ public sealed class HeadlessSubProgramProgramService
 
         var keyword = (query ?? string.Empty).Trim();
         var limit = NormalizeMaxCount(maxCount);
-        var items = new List<QuickerRpcSubProgramSummary>();
-
-        foreach (var subProgram in _subPrograms.EnumerateAll())
-        {
-            if (subProgram is null || string.IsNullOrWhiteSpace(subProgram.Id))
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrEmpty(keyword))
-            {
-                var score = ComputeMatchScore(subProgram, keyword);
-                if (score <= 0)
+        _searchIndex.ScheduleBuild(SearchRegion.SubProgram);
+        var hits = _searchIndex.IsReady(SearchRegion.SubProgram)
+            ? _searchHub.Search(
+                new SearchRequest
                 {
-                    continue;
-                }
+                    Regions = new[] { SearchRegion.SubProgram },
+                    Query = keyword.Length == 0 ? null : keyword,
+                    Limit = limit,
+                })
+            : SubProgramSearchLinear.Search(_subPrograms.EnumerateAll(), keyword, limit);
 
-                items.Add(MapSubProgram(subProgram, score));
-            }
-            else
-            {
-                items.Add(MapSubProgram(subProgram, 0));
-            }
-        }
-
-        var ordered = string.IsNullOrEmpty(keyword)
-            ? items.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).Take(limit).ToList()
-            : items.OrderByDescending(x => x.Score).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).Take(limit).ToList();
+        var items = hits
+            .Select(SubProgramSearchLinear.MapHit)
+            .ToList();
 
         return new QuickerRpcSubProgramSearchResult
         {
             Ok = true,
-            Message = ordered.Count == 0 ? "No matching global subprograms." : string.Empty,
-            Items = ordered,
+            Message = items.Count == 0 ? "No matching global subprograms." : string.Empty,
+            Items = items,
         };
-    }
-
-    private static QuickerRpcSubProgramSummary MapSubProgram(SubProgram subProgram, int score) =>
-        new()
-        {
-            Id = subProgram.Id!.Trim(),
-            Name = subProgram.Name ?? string.Empty,
-            Description = NullIfEmpty(subProgram.Description),
-            Score = score,
-            SharedId = NullIfEmpty(subProgram.SharedId),
-            CallIdentifier = DataServiceSubProgramAccessor.GetCallIdentifier(subProgram),
-            Icon = NullIfEmpty(subProgram.Icon),
-        };
-
-    private static int ComputeMatchScore(SubProgram subProgram, string keyword)
-    {
-        var id = subProgram.Id ?? string.Empty;
-        var name = subProgram.Name ?? string.Empty;
-        var description = subProgram.Description ?? string.Empty;
-        var callId = DataServiceSubProgramAccessor.GetCallIdentifier(subProgram);
-
-        if (string.Equals(id, keyword, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(callId, keyword, StringComparison.OrdinalIgnoreCase))
-        {
-            return 200;
-        }
-
-        if (string.Equals(name, keyword, StringComparison.OrdinalIgnoreCase))
-        {
-            return 150;
-        }
-
-        if (name.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0
-            || callId.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return 100;
-        }
-
-        if (description.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return 60;
-        }
-
-        return 0;
     }
 
     private static string? NullIfEmpty(string? value) =>

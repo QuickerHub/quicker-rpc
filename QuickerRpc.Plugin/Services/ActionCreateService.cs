@@ -12,6 +12,7 @@ using Quicker.Domain.Entities;
 using Quicker.Domain.Profiles;
 using Quicker.Utilities;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Plugin.Services.Search;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -86,6 +87,8 @@ public sealed class ActionCreateService
             {
                 return Fail("Action was saved but has no id.");
             }
+
+            ActionSearchIndexInvalidator.InvalidateAction();
 
             return new QuickerRpcCreateActionResult
             {

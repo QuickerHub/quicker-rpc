@@ -2,19 +2,60 @@
 
 > **分类**：第三方软件 · **来源**：仓库手写 · **官方**：[autocadcontrol](https://getquicker.net/KC/Help/Doc/autocadcontrol)
 
-**用途**：向前台 AutoCAD 发送命令或 AutoLisp。
+**用途**：向 AutoCAD 发送命令或读取文档变量（CAD 须已运行）。
 
-**何时读**：命令末尾空格/回车表「执行」前读。
+## 示例
 
-## wire 要点
+### 执行命令（Zoom All）
 
-| param | wire | notes |
-|-------|------|-------|
-| 操作类型 | 目前「执行命令」 | |
-| 命令内容 | 命令或 Lisp | 末尾空格/回车触发；多余回车可能重复执行 |
+```json
+{
+  "stepRunnerKey": "sys:autocadcontrol",
+  "inputParams": {
+    "operation": "SendCommand",
+    "command": "_zoom _all "
+  },
+  "outputParams": {
+    "isSuccess": "成功"
+  }
+}
+```
 
-AutoCAD 须已运行且为活动上下文。
+### 执行 AutoLISP 脚本
+
+```json
+{
+  "stepRunnerKey": "sys:autocadcontrol",
+  "inputParams": {
+    "operation": "SendCommand",
+    "command": "(alert \"Hello World\") "
+  },
+  "outputParams": {
+    "isSuccess": "成功"
+  }
+}
+```
+
+### 读取文档变量
+
+```json
+{
+  "stepRunnerKey": "sys:autocadcontrol",
+  "inputParams": {
+    "operation": "ReadVariable",
+    "varList": "DWGNAME\nDWGPREFIX"
+  },
+  "outputParams": {
+    "isSuccess": "成功",
+    "output": "变量值"
+  }
+}
+```
+
+## 陷阱
+
+命令末尾加空格表示执行；多余空格/回车可能导致重复执行。
 
 ## 相关
 
-rhinocontrol · step-runner-get
+rhinocontrol · runAction · step-runner-get

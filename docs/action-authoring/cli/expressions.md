@@ -1,4 +1,5 @@
 # Expressions & interpolation
+<!-- qkrpc-search-aliases: 表达式, 插值, interpolation, $=, evalexpression -->
 
 **When**: P4 — default to $= / sys:evalexpression before dedicated steps or csscript. Keys from step_runner_get.
 

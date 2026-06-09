@@ -167,11 +167,12 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("query", "Plain keyword; legacy prefixes; or JSON. filter: {source,uses,usesOnly,keyword,script|expr}; sort: {key,script,by,desc}; fields: [actionId,title,...] or *.", shortName: "q"), Option("query-file", "UTF-8 file for --query JSON/text."), Option("fields", "Output projection: comma-separated field names or * (also fields/select/columns in JSON query)."), Option("filter", "Shorthand for plain query: library|installed|local|published."), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("sort", "relevance (default with --query) | lastEdit (default without --query) | title. Ignored when JSON sort script is set."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
 
-                Cmd("action publish", "Share or refresh an action on getquicker.net (auto-detects first publish vs update).", "qkrpc action publish --id <guid> [--title <text>] [--description <text>] [--changelog <text>] [--note-file <path>] [--json]",
+                Cmd("action publish", "Share or refresh an action on getquicker.net (auto-detects first publish vs update).", "qkrpc action publish --id <guid> [--preflight] [--title <text>] [--description <text>] [--changelog <text>] [--note-file <path>] [--json]",
 
                     opts: new[]
                     {
                         Option("id", "Local action GUID or shared action GUID (update)."),
+                        Option("preflight", "Validate required fields without uploading."),
                         Option("title", "Share title (first publish; defaults to action title)."),
                         Option("description", "Short description (first publish; defaults to action description)."),
                         Option("share-note", "Share page intro (Note) markdown."),
@@ -183,6 +184,14 @@ internal static class QkrpcCliHelp
                         Option("private", "Non-public share (first publish)."),
                         Option("json", "Structured output."),
                     }),
+
+                Cmd("action shared-info-get", "Read getquicker shared action Detail HTML via Plugin HTTP (temp-token login; no Playwright).", "qkrpc action shared-info-get --id <sharedId|localId> [--json]",
+
+                    opts: new[] { Option("id", "Shared or local action GUID."), Option("code", "Alias for --id."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("action shared-info-set", "Update getquicker shared action Detail HTML via Plugin HTTP multipart form (Quicker login).", "qkrpc action shared-info-set --id <sharedId|localId> [--html-file <path>] [--json]",
+
+                    opts: new[] { Option("id", "Shared or local action GUID."), Option("code", "Alias for --id."), Option("html", "Detail HTML body."), Option("html-file", "UTF-8 Detail HTML file."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "60"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("action update", "Alias for action publish (refresh shared action; pass --changelog).", "qkrpc action update --id <guid> [--changelog <text>] [--json]",
 
@@ -326,9 +335,17 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Action GUID."), Option("yes", "Required.", shortName: "y", required: true), Option("json", "Structured output.") }),
 
-                Cmd("action run", "Run a local action or inline XAction JSON.", "qkrpc action run --id <idOrName> [--param <text>] [--debug|--trace] [--wait] [--json] | qkrpc action run --xaction-file <path|-> --trace [--param <text>] [--json]",
+                Cmd("action run", "Run action via Quicker RPC or standalone ActionRuntime.", "qkrpc action run --id <idOrName> [--param <text>] [--debug|--trace] [--wait] [--json] | qkrpc action run --standalone --dir <project> [--param <text>] [--json] | qkrpc action run --standalone --package-file <path> [--json] | qkrpc action run --xaction-file <path|-> --trace [--param <text>] [--json]",
 
-                    opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("debug", "Debug run (opens Quicker step debugger)."), Option("trace", "Trace run (plugin terminal debug log, XAction only)."), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
+                    opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("standalone", "Run via Quicker.ActionRuntime (no Quicker)."), Option("package-file", "ActionExecutionPackage JSON (standalone)."), Option("dir", "Local .quicker project dir (standalone)."), Option("verbose-host", "Standalone: log host callbacks."), Option("debug", "Debug run (Quicker UI or runtime flag)."), Option("trace", "Trace run (plugin terminal debug log, XAction only)."), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
+
+                Cmd("action runtime-check", "Check whether a program is fully supported by ActionRuntime.", "qkrpc action runtime-check --dir <project> [--json] | qkrpc action runtime-check --package-file <path> [--json] | qkrpc action runtime-check --id <guid> [--json]",
+
+                    opts: new[] { Option("id", "Action id (resolve .quicker project)."), Option("dir", "Local .quicker project dir."), Option("package-file", "ActionExecutionPackage JSON."), Option("xaction-file", "Program JSON file."), Option("json", "Structured output.") }),
+
+                Cmd("action runtime-keys", "List stepRunnerKey values supported by ActionRuntime.", "qkrpc action runtime-keys [--json]",
+
+                    opts: new[] { Option("json", "Structured output.") }),
 
                 Cmd("action float", "Show a local action as a floating button.", "qkrpc action float --id <idOrName> [--json]",
 

@@ -73,7 +73,8 @@ function parseStepSummariesBatchResponse(json: string): Record<string, string> {
 export async function fetchStepSummariesBatch(
   baseUrl: string,
   steps: ActionStep[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  embeddedSubProgramsWireJson?: string,
 ): Promise<Record<string, string>> {
   const payloadSteps: { stepId: string; stepRunnerKey: string; stepJson: string }[] = [];
   for (const s of steps) {
@@ -95,7 +96,10 @@ export async function fetchStepSummariesBatch(
   try {
     const json = await designerHostGrpcPostStepRunnersSummariesJson(
       baseUrl,
-      JSON.stringify({ steps: payloadSteps }),
+      JSON.stringify({
+        steps: payloadSteps,
+        subProgramsJson: embeddedSubProgramsWireJson?.trim() || undefined,
+      }),
       signal
     );
     return parseStepSummariesBatchResponse(json);

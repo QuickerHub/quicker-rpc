@@ -20,7 +20,7 @@ metadata:
 改 **qkrpc（CLI/serve）** 或 **QuickerRpc 插件** 后，必须在仓库根目录执行热更新构建；**不要**只改源码就假定 agent-gui / 已打开的 `qkrpc serve` 会自动吃到新逻辑。
 
 ```powershell
-# 另开终端；不必关闭 start-agent-gui.ps1 / pnpm dev
+# 另开终端；不必关闭 dev.ps1
 pwsh -NoProfile -File ./build.ps1 -t
 ```
 

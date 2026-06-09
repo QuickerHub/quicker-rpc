@@ -295,6 +295,24 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         },
       };
     }
+    if (verb === "shared-info-get") {
+      return {
+        op: "action.shared-info.get",
+        args: {
+          id: flagStr(flags, "id") ?? flagStr(flags, "code"),
+        },
+      };
+    }
+    if (verb === "shared-info-set") {
+      return {
+        op: "action.shared-info.set",
+        args: {
+          id: flagStr(flags, "id") ?? flagStr(flags, "code"),
+          html: flagStr(flags, "html"),
+          htmlFile: flagStr(flags, "html-file"),
+        },
+      };
+    }
     return null;
   }
 
@@ -482,6 +500,14 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         args: {
           key: flagStr(flags, "key"),
           controlField: flagStr(flags, "control-field"),
+        },
+      };
+    }
+    if (verb === "summaries") {
+      return {
+        op: "step-runner.summaries",
+        args: {
+          requestFile: flagStr(flags, "request-file"),
         },
       };
     }

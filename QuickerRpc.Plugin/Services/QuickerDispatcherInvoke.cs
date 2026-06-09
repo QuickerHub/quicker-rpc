@@ -35,13 +35,28 @@ internal static class QuickerDispatcherInvoke
 
     public static void BeginOnUiThreadIfNeeded(Action invoke)
     {
+        BeginOnUiThread(invoke, DispatcherPriority.Normal);
+    }
+
+  /// <summary>Queue work at <see cref="DispatcherPriority.Background"/> so index builds yield to UI input.</summary>
+    public static void BeginOnUiThreadBackground(Action invoke) =>
+        BeginOnUiThread(invoke, DispatcherPriority.Background);
+
+    private static void BeginOnUiThread(Action invoke, DispatcherPriority priority)
+    {
         var dispatcher = AppDispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess())
+        if (dispatcher is null)
         {
             invoke();
             return;
         }
 
-        dispatcher.BeginInvoke(invoke, DispatcherPriority.Normal);
+        if (dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(invoke, priority);
+            return;
+        }
+
+        dispatcher.BeginInvoke(invoke, priority);
     }
 }

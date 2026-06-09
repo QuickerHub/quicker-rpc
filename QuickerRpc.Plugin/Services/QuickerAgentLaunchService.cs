@@ -24,8 +24,8 @@ internal static class QuickerAgentLaunchService
                 return QuickerAgentLaunchOutcome.Activated;
             }
 
-            logger.LogDebug("QuickerAgent is running but foreground activation failed.");
-            return QuickerAgentLaunchOutcome.RunningButHidden;
+            logger.LogInformation(
+                "QuickerAgent process(es) found without an activatable main window; attempting fresh launch.");
         }
 
         var hasInstalledBuild = QuickerAgentInstallProbe.TryGetExecutablePath(out var executablePath);
@@ -37,13 +37,24 @@ internal static class QuickerAgentLaunchService
                 return QuickerAgentLaunchOutcome.Launched;
             }
 
+            if (QuickerAgentWindowActivator.IsProcessRunning())
+            {
+                logger.LogDebug("QuickerAgent launch failed while process handle(s) still present.");
+                return QuickerAgentLaunchOutcome.RunningButHidden;
+            }
+
             return QuickerAgentLaunchOutcome.Failed;
         }
 
-        // No NSIS install — optional dev server on :3000 (start-agent-gui.ps1 browser mode).
+        // No NSIS install — optional dev server on :3000 (pwsh ./dev.ps1 browser mode).
         if (TryOpenDevFrontend(logger))
         {
             return QuickerAgentLaunchOutcome.DevFrontendOpened;
+        }
+
+        if (QuickerAgentWindowActivator.IsProcessRunning())
+        {
+            return QuickerAgentLaunchOutcome.RunningButHidden;
         }
 
         logger.LogInformation("QuickerAgent is not installed; skip launch.");

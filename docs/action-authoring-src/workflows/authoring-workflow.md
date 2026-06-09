@@ -80,4 +80,4 @@ Trust editVersion / projectSummary; NO verify re-get. Agent: brief reply; UI sho
 
 ## Related
 
-overview · workspace-editing · action-data-schema · expressions · subprogram-workflow · step-runner-search
+overview · workspace-editing · action-data-schema · expressions · subprogram-workflow · step-runner-search · action-publish-workflow

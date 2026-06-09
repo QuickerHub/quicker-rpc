@@ -38,9 +38,10 @@ if (-not (Test-Path -LiteralPath $buildScript)) {
     throw "build-action-docs.ps1 not found: $buildScript"
 }
 
+$qkrpc = Get-Command qkrpc -ErrorAction SilentlyContinue
 $qkagent = Get-Command qkagent -ErrorAction SilentlyContinue
-if ($Push -and -not $qkagent) {
-    throw 'qkagent not found on PATH. Build quicker-agent or add publish/agent to PATH.'
+if ($Push -and -not $qkrpc -and -not $qkagent) {
+    throw 'Neither qkrpc nor qkagent found on PATH.'
 }
 
 $env:QUICKER_AGENT_SEMVER = $semver
@@ -52,7 +53,12 @@ try {
     if ($DryRun) {
         Write-Host "[DryRun] .\scripts\build-action-docs.ps1 -Id $sharedId" -ForegroundColor DarkGray
         if ($Push) {
-            Write-Host "[DryRun] qkagent push --code $sharedId --json" -ForegroundColor DarkGray
+            if ($qkrpc) {
+                Write-Host "[DryRun] qkrpc action shared-info-set --id $sharedId --html-file ...\info.html --json" -ForegroundColor DarkGray
+            }
+            else {
+                Write-Host "[DryRun] qkagent push --code $sharedId --json" -ForegroundColor DarkGray
+            }
         }
 
         exit 0
@@ -68,10 +74,23 @@ try {
         exit 0
     }
 
+    $infoHtml = Join-Path $agentRepo "actions\$sharedId\info.html"
+    if (-not (Test-Path -LiteralPath $infoHtml)) {
+        throw "info.html not found: $infoHtml"
+    }
+
     Write-Host "Pushing action doc ($sharedId)..." -ForegroundColor Cyan
-    & $qkagent.Source push --code $sharedId --json
-    if ($LASTEXITCODE -ne 0) {
-        throw "qkagent push failed ($LASTEXITCODE)"
+    if ($qkrpc) {
+        & $qkrpc.Source action shared-info-set --id $sharedId --html-file $infoHtml --json --timeout 120
+        if ($LASTEXITCODE -ne 0) {
+            throw "qkrpc action shared-info-set failed ($LASTEXITCODE)"
+        }
+    }
+    else {
+        & $qkagent.Source push --code $sharedId --json
+        if ($LASTEXITCODE -ne 0) {
+            throw "qkagent push failed ($LASTEXITCODE)"
+        }
     }
 
     Write-Host "Action page synced for QuickerAgent $semver." -ForegroundColor Green

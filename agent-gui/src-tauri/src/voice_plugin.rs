@@ -869,6 +869,17 @@ fn run_background_voice_tasks(app: &AppHandle) {
     }
 
     if cfg!(debug_assertions) {
+        let root = voice_plugin_root();
+        let installed = crate::voice_plugin_install::is_voice_asr_installed(&root);
+        if !installed {
+            if let Err(err) = crate::voice_plugin_install::run_voice_plugin_install(app) {
+                eprintln!("[voice-plugin] background install failed: {err}");
+                return;
+            }
+            let state = app.state::<VoicePluginState>();
+            let _ = start_runtime_inner(state.inner());
+            return;
+        }
         if crate::plugin_runtime::activation::should_run_startup_runtime(&events)
             || read_voice_auto_start()
         {

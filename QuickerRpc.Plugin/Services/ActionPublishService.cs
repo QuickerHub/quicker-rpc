@@ -26,6 +26,24 @@ public sealed class ActionPublishService
         _webConnector = WebConnectorAccessor.TryCreate();
     }
 
+    public Task<QuickerRpcActionPublishPreflightResult> PreflightPublishSharedActionAsync(
+        string actionId,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var id = (actionId ?? string.Empty).Trim();
+        if (id.Length == 0)
+        {
+            return Task.FromResult(PreflightFail(null, "actionId is required."));
+        }
+
+        request ??= new QuickerRpcActionPublishRequest();
+        var readiness = BuildReadiness(id, request);
+        return Task.FromResult(ToPreflightResult(id, readiness));
+    }
+
     public async Task<QuickerRpcActionPublishResult> PublishSharedActionAsync(
         string actionId,
         QuickerRpcActionPublishRequest request,
@@ -41,18 +59,99 @@ public sealed class ActionPublishService
 
         request ??= new QuickerRpcActionPublishRequest();
 
+        var readiness = BuildReadiness(id, request);
+        if (!readiness.Ready)
+        {
+            return FailWithReadiness(id, readiness);
+        }
+
+        if (string.Equals(readiness.Mode, ActionPublishReadiness.ModeUpdate, StringComparison.OrdinalIgnoreCase))
+        {
+            return await UpdateExistingShareAsync(id, ResolveSharedIdHint(id), request.ChangeLog).ConfigureAwait(true);
+        }
+
         var resolved = ActionContextResolver.TryResolve(id, out var profileObj, out var actionObj, out _);
+        if (!resolved || actionObj is not ActionItem action || profileObj is not ActionProfile profile)
+        {
+            return Fail(id, "Resolved action/profile types are unsupported.");
+        }
+
+        return await PublishFirstTimeAsync(id, profile, action, request, readiness).ConfigureAwait(true);
+    }
+
+    private ActionPublishReadinessResult BuildReadiness(string id, QuickerRpcActionPublishRequest request)
+    {
+        var resolved = ActionContextResolver.TryResolve(id, out _, out var actionObj, out _);
+        var mode = ResolveMode(id, resolved, actionObj);
+        var action = actionObj as ActionItem;
+
+        return ActionPublishReadiness.Evaluate(new ActionPublishReadiness.Context
+        {
+            Mode = mode,
+            RequestTitle = request.Title,
+            RequestDescription = request.Description,
+            ActionTitle = action?.Title,
+            ActionDescription = action?.Description,
+            ActionIcon = action?.Icon,
+            IsPublic = request.IsPublic,
+            ChangeLog = request.ChangeLog,
+            UseTemplate = action?.UseTemplate ?? false,
+            TemplateId = action?.TemplateId,
+            HasWebConnector = _webConnector is not null,
+            HasActionEditMgr = _actionEditMgr?.SetButtonAction is not null,
+            EmbedSubProgramsError = TryProbeEmbedSubPrograms(action),
+        });
+    }
+
+    private static string ResolveMode(string id, bool resolved, object? actionObj)
+    {
         if (resolved && actionObj is ActionItem action && !string.IsNullOrWhiteSpace(action.SharedActionId))
         {
-            return await UpdateExistingShareAsync(id, action.SharedActionId, request.ChangeLog).ConfigureAwait(true);
+            return ActionPublishReadiness.ModeUpdate;
         }
 
         if (!resolved)
         {
-            return await UpdateExistingShareAsync(id, sharedIdHint: id, request.ChangeLog).ConfigureAwait(true);
+            return ActionPublishReadiness.ModeUpdate;
         }
 
-        return await PublishFirstTimeAsync(id, profileObj, actionObj, request).ConfigureAwait(true);
+        return ActionPublishReadiness.ModePublish;
+    }
+
+    private static string? ResolveSharedIdHint(string id)
+    {
+        if (ActionContextResolver.TryResolve(id, out _, out var actionObj, out _)
+            && actionObj is ActionItem action
+            && !string.IsNullOrWhiteSpace(action.SharedActionId))
+        {
+            return action.SharedActionId;
+        }
+
+        return id;
+    }
+
+    private static string? TryProbeEmbedSubPrograms(ActionItem? action)
+    {
+        if (action is null)
+        {
+            return null;
+        }
+
+        var data = action.Data ?? string.Empty;
+        if (!ActionProgramContent.IsXActionBody(data))
+        {
+            return null;
+        }
+
+        try
+        {
+            _ = ShareActionHelper.EmbedGlobalSubPrograms(data);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
     }
 
     private async Task<QuickerRpcActionPublishResult> UpdateExistingShareAsync(
@@ -60,17 +159,12 @@ public sealed class ActionPublishService
         string? sharedIdHint,
         string? changeLog)
     {
-        if (string.IsNullOrWhiteSpace(changeLog))
-        {
-            return Fail(actionId, "Change log is required (--changelog or --changelog-file) when updating a shared action.");
-        }
-
         var update = await _actionUpdateService.UpdateSharedActionAsync(actionId, changeLog).ConfigureAwait(true);
         var sharedId = FirstNonEmpty(sharedIdHint, update.ActionId) ?? actionId;
         return new QuickerRpcActionPublishResult
         {
             Ok = update.Ok,
-            Mode = "update",
+            Mode = ActionPublishReadiness.ModeUpdate,
             ActionId = update.ActionId ?? actionId,
             SharedActionId = sharedId,
             ShareUrl = TryCreateShareUrl(sharedId),
@@ -80,51 +174,14 @@ public sealed class ActionPublishService
 
     private async Task<QuickerRpcActionPublishResult> PublishFirstTimeAsync(
         string id,
-        object profileObj,
-        object actionObj,
-        QuickerRpcActionPublishRequest request)
+        ActionProfile profile,
+        ActionItem action,
+        QuickerRpcActionPublishRequest request,
+        ActionPublishReadinessResult readiness)
     {
-        if (_webConnector is null)
-        {
-            return Fail(id, "Not running inside Quicker (WebConnector unavailable).");
-        }
-
-        if (_actionEditMgr?.SetButtonAction is null)
-        {
-            return Fail(id, "Not running inside Quicker (ActionEditMgr unavailable).");
-        }
-
-        if (actionObj is not ActionItem action || profileObj is not ActionProfile profile)
-        {
-            return Fail(id, "Resolved action/profile types are unsupported.");
-        }
-
-        if (action.UseTemplate && !string.IsNullOrWhiteSpace(action.TemplateId))
-        {
-            return Fail(
-                action.Id ?? id,
-                "This action is an unmodified shared action install. Share the original action instead.");
-        }
-
-        var title = FirstNonEmpty(request.Title, action.Title);
-        var description = FirstNonEmpty(request.Description, action.Description);
-        if (string.IsNullOrWhiteSpace(title))
-        {
-            return Fail(action.Id ?? id, "Title is required (--title or action title).");
-        }
-
-        if (string.IsNullOrWhiteSpace(description))
-        {
-            return Fail(action.Id ?? id, "Description is required (--description or action description).");
-        }
-
+        var title = readiness.Title!;
+        var description = readiness.Description!;
         var isPublic = request.IsPublic;
-        if (isPublic && !HasPublishableIcon(action.Icon))
-        {
-            return Fail(
-                action.Id ?? id,
-                "Public share requires a custom icon (fa:Light_* or image URL). Set via action set-metadata or patch.");
-        }
 
         if (string.IsNullOrWhiteSpace(action.Id) || action.Id == Guid.Empty.ToString())
         {
@@ -132,7 +189,7 @@ public sealed class ActionPublishService
         }
 
         var vm = BuildSharedActionVm(action, profile, request, title, description, isPublic);
-        var (shareOk, shareMessage, sharedDto) = await _webConnector.ShareActionAsync(vm).ConfigureAwait(true);
+        var (shareOk, shareMessage, sharedDto) = await _webConnector!.ShareActionAsync(vm).ConfigureAwait(true);
         if (!shareOk || sharedDto is null)
         {
             return Fail(action.Id ?? id, string.IsNullOrWhiteSpace(shareMessage) ? "Share failed." : shareMessage);
@@ -147,12 +204,12 @@ public sealed class ActionPublishService
 
         var sharedId = sharedDto.Id.ToString("D");
         var shareUrl = AppHelper.CreateSharedActionLink(sharedId);
-        if (!_actionEditMgr.TrySetButtonAction(profile, action.Row, action.Col, action, skipSave: false, out var saveError))
+        if (!_actionEditMgr!.TrySetButtonAction(profile, action.Row, action.Col, action, skipSave: false, out var saveError))
         {
             return new QuickerRpcActionPublishResult
             {
                 Ok = true,
-                Mode = "publish",
+                Mode = ActionPublishReadiness.ModePublish,
                 ActionId = action.Id,
                 SharedActionId = sharedId,
                 ShareUrl = shareUrl,
@@ -165,7 +222,7 @@ public sealed class ActionPublishService
         return new QuickerRpcActionPublishResult
         {
             Ok = true,
-            Mode = "publish",
+            Mode = ActionPublishReadiness.ModePublish,
             ActionId = action.Id,
             SharedActionId = sharedId,
             ShareUrl = shareUrl,
@@ -188,14 +245,7 @@ public sealed class ActionPublishService
         var data = action.Data ?? string.Empty;
         if (ActionProgramContent.IsXActionBody(data))
         {
-            try
-            {
-                data = ShareActionHelper.EmbedGlobalSubPrograms(data);
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException("Failed to embed global subprograms: " + ex.Message, ex);
-            }
+            data = ShareActionHelper.EmbedGlobalSubPrograms(data);
         }
 
         return new SharedActionVm
@@ -235,6 +285,55 @@ public sealed class ActionPublishService
         };
     }
 
+    private static QuickerRpcActionPublishPreflightResult ToPreflightResult(
+        string actionId,
+        ActionPublishReadinessResult readiness)
+    {
+        string? sharedActionId = null;
+        if (ActionContextResolver.TryResolve(actionId, out _, out var actionObj, out _)
+            && actionObj is ActionItem action
+            && !string.IsNullOrWhiteSpace(action.SharedActionId))
+        {
+            sharedActionId = action.SharedActionId;
+        }
+        else if (string.Equals(readiness.Mode, ActionPublishReadiness.ModeUpdate, StringComparison.OrdinalIgnoreCase))
+        {
+            sharedActionId = actionId;
+        }
+
+        return new QuickerRpcActionPublishPreflightResult
+        {
+            Ready = readiness.Ready,
+            Mode = readiness.Mode,
+            Message = readiness.Message,
+            ActionId = actionId,
+            SharedActionId = sharedActionId,
+            Title = readiness.Title,
+            Description = readiness.Description,
+            Icon = readiness.Icon,
+            IsPublic = readiness.IsPublic,
+            Issues = readiness.Issues,
+        };
+    }
+
+    private static QuickerRpcActionPublishPreflightResult PreflightFail(string? actionId, string message) =>
+        new()
+        {
+            Ready = false,
+            ActionId = actionId,
+            Message = message,
+            Issues =
+            [
+                new QuickerRpcActionPublishIssue
+                {
+                    Code = "INVALID_REQUEST",
+                    Field = "actionId",
+                    Message = message,
+                    Severity = "error",
+                },
+            ],
+        };
+
     private static string? TryCreateShareUrl(string? sharedId)
     {
         if (string.IsNullOrWhiteSpace(sharedId))
@@ -251,10 +350,6 @@ public sealed class ActionPublishService
             return null;
         }
     }
-
-    private static bool HasPublishableIcon(string? icon) =>
-        !string.IsNullOrWhiteSpace(icon)
-        && !icon.Contains("_system", StringComparison.OrdinalIgnoreCase);
 
     private static string? FirstNonEmpty(string? preferred, string? fallback)
     {
@@ -275,5 +370,17 @@ public sealed class ActionPublishService
             Ok = false,
             ActionId = actionId,
             Message = message,
+        };
+
+    private static QuickerRpcActionPublishResult FailWithReadiness(
+        string actionId,
+        ActionPublishReadinessResult readiness) =>
+        new()
+        {
+            Ok = false,
+            ActionId = actionId,
+            Mode = readiness.Mode,
+            Message = readiness.Message,
+            Issues = readiness.Issues,
         };
 }

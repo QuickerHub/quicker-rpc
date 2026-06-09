@@ -29,6 +29,7 @@
     "preflight:fast": "node scripts/preflight-release-gate.mjs",
     "preflight:build": "pwsh -NoProfile -File ../publish/Preflight-QuickerAgentBuild.ps1",
     "test:voice-input": "tsx --test lib/voice-input/voice-input-plugin-status.test.ts",
+    "test:voice-chat": "tsx --test lib/voice-chat/sentence-chunker.test.ts",
     "test:voice-install-trigger": "node scripts/test-voice-plugin-auto-install.mjs trigger-check",
     "test:app-update": "pwsh -NoProfile -File scripts/Test-AppUpdateApply.ps1 -Action full",
     "test:app-update:unit": "pwsh -NoProfile -File scripts/Test-AppUpdateApply.ps1 -Action unit",

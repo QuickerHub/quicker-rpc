@@ -1,4 +1,5 @@
 # Workspace project layout
+<!-- qkrpc-search-aliases: 工作区, 项目布局, action project -->
 
 **When**: `.quicker/actions/{actionId}/` layout or **file refs** in data.json / files/. Wire rules: **action-data-schema**.
 

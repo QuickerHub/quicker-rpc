@@ -1,0 +1,20 @@
+{
+  "steps": [
+    {
+      "stepId": "s-expr-file",
+      "stepRunnerKey": "sys:evalexpression",
+      "inputParams": {
+        "expression.file": "files/sum.expr"
+      },
+      "outputParams": {
+        "result": "sum"
+      }
+    }
+  ],
+  "variables": [
+    {
+      "key": "sum",
+      "defaultValue": ""
+    }
+  ]
+}

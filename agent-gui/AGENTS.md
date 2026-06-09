@@ -8,7 +8,7 @@ Web 聊天界面，通过本机 `qkrpc serve`（`http://127.0.0.1:9477`）或 CL
 
 ## Dev environment tips
 
-- **启动**（仓库根目录）：`pwsh ./start-agent-gui.ps1` → `http://127.0.0.1:3000`。桌面壳：`start-agent-gui.ps1 -Tauri`（webpack + WebView2）。
+- **启动**（仓库根目录）：`pwsh ./dev.ps1` → `http://127.0.0.1:3000`（qkrpc + agent-gui）。桌面壳：`pwsh ./dev.ps1 -Tauri`（webpack + WebView2）。
 - **不要同时跑** 浏览器模式与 Tauri 模式（都占 `:3000`）。切换时脚本会清 `.next`。
 - **后端依赖**：Quicker + 插件已加载；根目录 `build.ps1 -t` 负责插件/CLI/serve。**改本目录 UI 时不要跑 `-t`**（Next HMR 即可）。
 - **qkrpc 连不上**：告知用户检查 Quicker / 插件 / serve；**禁止** `shell_exec` 探活或跑 `qkrpc` CLI / `build.ps1 -t`（见 `lib/instructions.ts`、`lib/shell-policy.ts`）。
@@ -17,7 +17,7 @@ Web 聊天界面，通过本机 `qkrpc serve`（`http://127.0.0.1:9477`）或 CL
 
 ## Use dev server, not production build
 
-迭代 UI 时 **始终用 dev server**（`start-agent-gui.ps1` / `pnpm dev`），启用 HMR。
+迭代 UI 时 **始终用 dev server**（`pwsh ./dev.ps1`），启用 HMR。
 
 - **不要在 agent 会话中跑 `pnpm build`**（生产构建会把 `.next` 切到生产资源，破坏 dev 热更新状态）。
 - 需要验证生产构建时，在用户明确要求或发布流程外单独执行；日常收尾用 **`dev_frontend_check`** 即可。

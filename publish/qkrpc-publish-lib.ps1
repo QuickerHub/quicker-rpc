@@ -150,16 +150,26 @@ function Install-QkrpcFromDirectory {
 
     Write-Host "Installing qkrpc to $InstallDir ..." -ForegroundColor Cyan
 
-    # Hot-update / build.ps1 already stopped serve; do not kill unrelated qkrpc CLI tool runs.
-    Stop-QkrpcProcesses -ServeOnly | Out-Null
-
-    if (Test-Path -LiteralPath $InstallDir) {
-        Write-Host 'Removing previous install...' -ForegroundColor Yellow
-        Remove-Item -LiteralPath $InstallDir -Recurse -Force
+    # Release install may overlap MCP / CLI; stop all qkrpc so DLLs unlock (serve was stopped earlier in build.ps1).
+    $stopped = Stop-QkrpcProcesses -GraceMs 1500
+    if ($stopped -gt 0) {
+        Write-Host "Stopped $stopped qkrpc process(es) before user install." -ForegroundColor DarkYellow
     }
 
-    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-    Copy-Item -Path (Join-Path $sourcePath '*') -Destination $InstallDir -Recurse -Force
+    if (-not (Test-Path -LiteralPath $InstallDir)) {
+        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+    }
+
+    # In-place overlay — never Remove-Item -Recurse the install dir (clrjit.dll stays locked while any qkrpc runs).
+    try {
+        Copy-Item -Path (Join-Path $sourcePath '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "User install overlay failed: $($_.Exception.Message)"
+        Write-Host "  CLI is still available at: $sourcePath\qkrpc.exe" -ForegroundColor DarkGray
+        Write-Host "  Close Cursor MCP / other qkrpc.exe using $InstallDir, then re-run install or build." -ForegroundColor DarkGray
+        return $InstallDir
+    }
 
     Remove-StaleQkrpcUserPaths -InstallDir $InstallDir | Out-Null
     Add-QuickerRpcUserPath -DirectoryPath $InstallDir | Out-Null

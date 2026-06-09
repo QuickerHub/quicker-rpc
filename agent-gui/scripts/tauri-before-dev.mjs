@@ -73,7 +73,7 @@ async function hasRunningFrontend() {
   if (bundler === "turbopack" && !expectingWebpack && !shouldReuseExistingDev()) {
     console.warn(
       "tauri: port 3000 is serving Turbopack dev — attach with browser dev still running: " +
-        "pwsh ./start-agent-gui.ps1 -Tauri (reuses :3000; HMR muted in WebView2).",
+        "pwsh ./dev.ps1 -Tauri (reuses :3000; HMR muted in WebView2).",
     );
     return false;
   }
@@ -174,7 +174,7 @@ async function main() {
     if (bundler === "turbopack" && !shouldReuseExistingDev()) {
       throw new Error(
         `Port ${port} is running Turbopack browser dev. Attach without stopping it: ` +
-          "pwsh ./start-agent-gui.ps1 -Tauri",
+          "pwsh ./dev.ps1 -Tauri",
       );
     }
     console.log(
@@ -188,7 +188,7 @@ async function main() {
       throw new Error(
         `Port ${port} is already serving ${baseUrl}. ` +
           "Stop the other agent-gui dev, or start browser dev first and attach: " +
-          "pwsh ./start-agent-gui.ps1 -Tauri",
+          "pwsh ./dev.ps1 -Tauri",
       );
     }
     throw new Error(

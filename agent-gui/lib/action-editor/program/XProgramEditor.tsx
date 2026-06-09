@@ -9,7 +9,7 @@ import {
   useState,
   type JSX,
 } from "react";
-import type { ActionStep, ActionVariable } from "@/lib/action-editor/types/common";
+import type { ActionStep, ActionSubProgram, ActionVariable } from "@/lib/action-editor/types/common";
 import { getActionDesignerBackendBaseUrl } from "@/lib/action-editor/shared/actionDesignerBackendBaseUrl";
 import { IconControl } from "@/lib/action-editor/shared/IconControl";
 import { AD_ICONIFY_SPEC } from "@/lib/action-editor/shared/actionDesignerIconify";
@@ -37,6 +37,10 @@ export type XProgramEditorProps = {
   /** Main action body vs embedded subprogram body. */
   programSurface?: XProgramEditorSurface;
   workspaceContext?: ActionProjectWorkspaceContext;
+  /** Embedded subPrograms for sys:subprogram step IO / titles. */
+  subPrograms?: ActionSubProgram[];
+  /** Raw wire JSON for QuickerRpc step summary RPC. */
+  embeddedSubProgramsWireJson?: string;
 };
 
 function XProgramEditorInner({
@@ -45,6 +49,8 @@ function XProgramEditorInner({
   baselineFingerprint,
   programSurface = "main",
   workspaceContext,
+  subPrograms = [],
+  embeddedSubProgramsWireJson,
 }: XProgramEditorProps): JSX.Element {
   const { showToast } = useToast();
   const [hist, dispatch] = useReducer(
@@ -196,7 +202,8 @@ function XProgramEditorInner({
             notifyClipboard={(message, variant) =>
               showToast(message, { variant: variant === "error" ? "error" : "info" })
             }
-            subPrograms={[]}
+            subPrograms={subPrograms}
+            embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
             workspaceContext={workspaceContext}
           />
         </div>

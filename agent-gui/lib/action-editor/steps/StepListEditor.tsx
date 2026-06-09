@@ -249,6 +249,8 @@ export type StepListEditorProps = {
   notifyClipboard?: (message: string, variant: "error" | "info") => void;
   /** Action sub program rows (GetAction); used for quick-insert search. */
   subPrograms?: ActionSubProgram[];
+  /** Raw wire JSON passed to QuickerRpc batch summary RPC. */
+  embeddedSubProgramsWireJson?: string;
   workspaceContext?: ActionProjectWorkspaceContext;
 };
 
@@ -260,6 +262,7 @@ export default function StepListEditor({
   programSurface = "main",
   notifyClipboard,
   subPrograms = [],
+  embeddedSubProgramsWireJson,
   workspaceContext,
 }: StepListEditorProps): JSX.Element {
   const stepIdManagerRef = useRef<StepIdManager>(new StepIdManager());
@@ -487,7 +490,12 @@ export default function StepListEditor({
           return;
         }
         try {
-          const next = await fetchStepSummariesBatch(backendBaseUrl, flat, ac.signal);
+          const next = await fetchStepSummariesBatch(
+            backendBaseUrl,
+            flat,
+            ac.signal,
+            embeddedSubProgramsWireJson,
+          );
           if (!cancelled) {
             setSummariesByStepId((prev) => ({ ...prev, ...next }));
           }
@@ -503,7 +511,7 @@ export default function StepListEditor({
       ac.abort();
       window.clearTimeout(timer);
     };
-  }, [stepSummariesFingerprint, backendBaseUrl]);
+  }, [stepSummariesFingerprint, backendBaseUrl, embeddedSubProgramsWireJson]);
 
   useEffect(() => {
     if (!workspaceContext || stepFilePathsKey.length === 0) {

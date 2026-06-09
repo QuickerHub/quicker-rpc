@@ -1543,6 +1543,38 @@
   gap: 4px;
 }
 
+.variable-table-def-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.variable-table-def-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) minmax(72px, 1.2fr) minmax(88px, 0.9fr) auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.variable-table-def-flag {
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.form-spec-visible-when {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  grid-column: 1 / -1;
+}
+
+.form-spec-visible-when-row {
+  display: grid;
+  grid-template-columns: minmax(88px, 1fr) auto minmax(88px, 1fr);
+  gap: 6px;
+}
+
 .toolbox {
   height: 100%;
   display: grid;

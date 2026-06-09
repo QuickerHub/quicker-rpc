@@ -4,11 +4,13 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
-  rmSync,
   statSync,
 } from "node:fs";
 import { dirname, join, normalize } from "node:path";
-import { reconcileStaleQkrpcServe } from "./qkrpc-serve-lifecycle.mjs";
+import {
+  reconcileStaleQkrpcServe,
+  stopQkrpcServeForRuntimeDir,
+} from "./qkrpc-serve-lifecycle.mjs";
 
 const QKRPC_EXE = process.platform === "win32" ? "qkrpc.exe" : "qkrpc";
 
@@ -107,6 +109,26 @@ function stagedRuntimeDir(agentGuiRoot) {
   return join(agentGuiRoot, ".runtime", "qkrpc");
 }
 
+/** @returns {boolean} true when copy succeeded */
+function syncStagedRuntimeTree(sourceDir, runtimeDir) {
+  try {
+    cpSync(sourceDir, runtimeDir, { recursive: true, force: true });
+    return true;
+  } catch (err) {
+    const code = /** @type {NodeJS.ErrnoException} */ (err).code;
+    if (
+      code === "EPERM"
+      || code === "EBUSY"
+      || code === "EACCES"
+      || code === "EPIPE"
+      || code === "ENOTEMPTY"
+    ) {
+      return false;
+    }
+    throw err;
+  }
+}
+
 function isStagedRuntimeExe(agentGuiRoot, exePath) {
   const runtimeDir = normalize(stagedRuntimeDir(agentGuiRoot)).toLowerCase();
   const normalized = normalize(exePath).toLowerCase();
@@ -137,9 +159,23 @@ export function ensureStagedQkrpcRuntime(agentGuiRoot) {
   }
 
   if (needsSync) {
-    mkdirSync(dirname(runtimeDir), { recursive: true });
-    rmSync(runtimeDir, { recursive: true, force: true });
-    cpSync(sourceDir, runtimeDir, { recursive: true });
+    mkdirSync(runtimeDir, { recursive: true });
+    // Stop staged serve before overlay — qkrpc.exe locks clrjit.dll under .runtime/qkrpc.
+    stopQkrpcServeForRuntimeDir(agentGuiRoot, runtimeDir);
+    if (!syncStagedRuntimeTree(sourceDir, runtimeDir)) {
+      stopQkrpcServeForRuntimeDir(agentGuiRoot, runtimeDir);
+      if (!syncStagedRuntimeTree(sourceDir, runtimeDir)) {
+        if (existsSync(stagedExe)) {
+          console.warn(
+            `qkrpc: staged runtime locked; using existing copy at ${runtimeDir}`,
+          );
+        } else {
+          throw new Error(
+            `qkrpc: cannot stage runtime (files locked under ${runtimeDir})`,
+          );
+        }
+      }
+    }
   }
 
   if (!existsSync(stagedExe)) return null;

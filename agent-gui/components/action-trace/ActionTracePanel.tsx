@@ -55,12 +55,13 @@ export function ActionTracePanel({
     trace?.output
     || (isLive ? "调试连接中…\n" : "");
 
+  const traceTailKey = trace
+    ? `${trace.lineCount}|${trace.status}|${trace.output.length}`
+    : "idle";
   useFollowScrollTail(
     scrollRef,
     Boolean(trace) && trace?.viewMode === "terminal" && isLive,
-    trace?.lineCount ?? 0,
-    trace?.status ?? "idle",
-    trace?.output.length ?? 0,
+    traceTailKey,
   );
 
   const showEmpty = !trace;

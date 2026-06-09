@@ -11,7 +11,7 @@
  *
  * Notes:
  * - Tauri install commands only work inside QuickerAgent (Tauri webview), not plain browser dev.
- * - `start-agent-gui.ps1` / `pnpm dev` = browser shell → auto-install via Tauri never fires.
+ * - `pwsh ./dev.ps1` = browser shell → auto-install via Tauri never fires.
  * - `pnpm tauri:dev` = debug build → startup background install skipped; use voice button or print-console.
  * - Release QuickerAgent.exe → startup background install runs when plugin is missing.
  */
@@ -446,7 +446,7 @@ async function cmdStatus() {
 
 function browserDevHint(isBrowserDev) {
   if (!isBrowserDev) return null;
-  return "检测到浏览器 dev（start-agent-gui.ps1）— Tauri voice_plugin_install 不可用";
+  return "检测到浏览器 dev（pwsh ./dev.ps1）— Tauri voice_plugin_install 不可用";
 }
 
 async function cmdTriggerCheck() {

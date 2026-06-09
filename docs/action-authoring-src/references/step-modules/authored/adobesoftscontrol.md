@@ -2,21 +2,47 @@
 
 > **分类**：第三方软件 · **来源**：仓库手写 · **官方**：[adobesoftscontrol](https://getquicker.net/KC/Help/Doc/adobesoftscontrol)
 
-**用途**：对 PS / Illustrator / AE 等执行 JSX。
+**用途**：对 Photoshop / Illustrator / After Effects 执行 JSX 脚本（目标软件须已启动）。
 
-**何时读**：内联脚本 vs jsx 文件、等待结束与返回值前读。
+## 示例
 
-## wire 要点
+### Photoshop 内联 JSX
 
-| param | wire | notes |
-|-------|------|-------|
-| 软件名称 | PS / AI / AE… | 须先启动；多版本共存可能 `MK_E_UNAVAILABLE` |
-| 操作 | 执行脚本 / 执行脚本文件 | |
-| 等待执行结束 | 开才可拿「脚本输出」 | 仅 PS/AI 简单类型返回值 |
-| 接口失败回退 | `photoshop.exe -r path.jsx` | 无法知成功/等待 |
+```json
+{
+  "stepRunnerKey": "sys:adobesoftscontrol",
+  "inputParams": {
+    "software": "Photoshop.Application",
+    "operation": "dojavascript",
+    "script": "app.activeDocument.rotateCanvas(90);"
+  },
+  "outputParams": {
+    "isSuccess": "成功"
+  }
+}
+```
 
-UAC 非默认可能导致 COM 失败。
+### Illustrator 执行脚本文件
+
+```json
+{
+  "stepRunnerKey": "sys:adobesoftscontrol",
+  "inputParams": {
+    "software": "Illustrator.Application",
+    "operation": "dojavascriptfile",
+    "scriptFile": "D:\\scripts\\resize-icons.jsx"
+  },
+  "outputParams": {
+    "isSuccess": "成功",
+    "output": "脚本输出"
+  }
+}
+```
+
+## 陷阱
+
+多版本 Adobe 并存时只能控制其中一个；`tryRunScriptUsingExe` 无法等待完成且无返回值。
 
 ## 相关
 
-runScript · step-runner-get · action-project-files
+runScript · step-runner-get

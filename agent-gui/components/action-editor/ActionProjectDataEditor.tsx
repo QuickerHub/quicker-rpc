@@ -38,7 +38,9 @@ import {
 import {
   fingerprintProgramWire,
   parseProgramWireJson,
+  parseWireSubPrograms,
   serializeProgramWireJson,
+  serializeWireSubProgramsJson,
 } from "@/lib/action-editor/wire/programWire";
 import type { ProgramProjectDeleteKind } from "@/lib/use-program-project-delete";
 import { ThemeProvider } from "@/lib/action-editor/shared/ThemeContext";
@@ -137,6 +139,14 @@ export function ActionProjectDataEditor({
     if (!normalizedPresent) return "";
     return fingerprintProgramWire(normalizedPresent);
   }, [normalizedPresent]);
+  const embeddedSubPrograms = useMemo(() => {
+    if (!parsed.ok) return [];
+    return parseWireSubPrograms(parsed.extraTopLevel.subPrograms);
+  }, [parsed]);
+  const embeddedSubProgramsWireJson = useMemo(() => {
+    if (!parsed.ok) return undefined;
+    return serializeWireSubProgramsJson(parsed.extraTopLevel.subPrograms);
+  }, [parsed]);
   const isEmbeddedSubProgram = useMemo(() => isEmbeddedSubProgramDataPath(path), [path]);
   const isGlobalSubProgram = useMemo(() => isGlobalSubProgramDataPath(path), [path]);
   const parentActionId = useMemo(() => actionIdFromDataPath(path), [path]);
@@ -414,6 +424,8 @@ export function ActionProjectDataEditor({
               onPresentChange={handlePresentChange}
               programSurface={isEmbeddedSubProgram ? "subProgram" : "main"}
               workspaceContext={workspaceContext}
+              subPrograms={embeddedSubPrograms}
+              embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
             />
           </ThemeProvider>
         </div>

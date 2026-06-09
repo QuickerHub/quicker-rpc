@@ -9,6 +9,7 @@ export type ToolTestSidebarTab =
   | "auto-fix"
   | "launcher"
   | "action-trace"
+  | "action-runtime"
   | "context-compression"
   | "voice-input"
   | "ask-question"
@@ -26,6 +27,7 @@ const TABS: TabDef[] = [
   { id: "prompt", label: "标题", title: "set_thread_title 标题测试" },
   { id: "launcher", label: "启动器", title: "启动器：Agent / Resolve / Intent" },
   { id: "action-trace", label: "Trace", title: "Action trace 流式调试" },
+  { id: "action-runtime", label: "Runtime", title: "ActionRuntime 独立运行/编译测试" },
   { id: "auto-fix", label: "修复", title: "造错→修复场景" },
   { id: "voice-input", label: "语音", title: "语音输入启动延迟" },
   { id: "ask-question", label: "选择", title: "ask_question 用户选择 Dock UI" },

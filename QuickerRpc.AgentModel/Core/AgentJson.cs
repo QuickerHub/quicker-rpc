@@ -9,7 +9,7 @@ public static class AgentJson
 {
     public static JsonElement ToElement(JToken token)
     {
-        var json = token.ToString(Formatting.None);
+        var json = token.ToString();
         using var doc = JsonDocument.Parse(json);
         return doc.RootElement.Clone();
     }

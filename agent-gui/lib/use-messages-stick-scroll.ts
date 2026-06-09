@@ -59,6 +59,8 @@ export function useMessagesStickScroll(
   const prevScrollHeightRef = useRef(0);
   const followFrameRef = useRef(0);
   const pinToLastTurnPromptRef = useRef(false);
+  const turnRefSlot = useRef(turnRef);
+  turnRefSlot.current = turnRef;
 
   const snapToBottom = useCallback(() => {
     const container = containerRef.current;
@@ -155,7 +157,7 @@ export function useMessagesStickScroll(
     followFrameRef.current = requestAnimationFrame(() => {
       if (pinToLastTurnPromptRef.current) {
         pinToLastTurnPromptRef.current = false;
-        const turn = turnRef?.current;
+        const turn = turnRefSlot.current?.current;
         if (turn) {
           snapMessagesScrollToTurnPrompt(container, turn, prevScrollHeightRef);
           requestAnimationFrame(() => {
@@ -170,7 +172,7 @@ export function useMessagesStickScroll(
       snapMessagesScrollToBottom(container, prevScrollHeightRef);
     });
     return () => cancelAnimationFrame(followFrameRef.current);
-  }, [containerRef, revision, visible, threadId, turnRef]);
+  }, [containerRef, revision, visible, threadId]);
 
   return {
     pinToBottom,

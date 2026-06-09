@@ -59,11 +59,31 @@ function connectionRefused(err: unknown): boolean {
   return code === "ECONNREFUSED" || code === "ENOTFOUND";
 }
 
+function isServeUnreachableError(err: unknown): boolean {
+  if (connectionRefused(err)) {
+    return true;
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  return message.toLowerCase().includes("fetch failed");
+}
+
+async function alignQkrpcHttpBaseIfNeeded(): Promise<string> {
+  const configured = resolveQkrpcHttpBase();
+  const { isQkrpcServeHealthy, discoverHealthyQkrpcServe } = await import(
+    "./qkrpc-serve-discover.mjs"
+  );
+  if (await isQkrpcServeHealthy(configured)) {
+    return configured;
+  }
+  const discovered = await discoverHealthyQkrpcServe();
+  return discovered?.baseUrl ?? configured;
+}
+
 export async function invokeQkrpcHttp(
   invoke: QkrpcInvoke,
   options?: { timeoutMs?: number },
 ): Promise<QkrpcRunResult | null> {
-  const base = resolveQkrpcHttpBase();
+  const base = await alignQkrpcHttpBaseIfNeeded();
   const timeoutMs = options?.timeoutMs ?? 120_000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs + 5_000);
@@ -119,7 +139,7 @@ export async function invokeQkrpcHttp(
       truncated: false,
     };
   } catch (e) {
-    if (connectionRefused(e)) {
+    if (isServeUnreachableError(e)) {
       return null;
     }
     const message = e instanceof Error ? e.message : String(e);
@@ -147,7 +167,7 @@ type ServeHealthBody = {
 export async function fetchQkrpcHealth(options?: {
   timeoutMs?: number;
 }): Promise<QkrpcRunResult | null> {
-  const base = resolveQkrpcHttpBase();
+  const base = await alignQkrpcHttpBaseIfNeeded();
   const timeoutMs = options?.timeoutMs ?? 12_000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs + 2_000);
@@ -180,7 +200,7 @@ export async function fetchQkrpcHealth(options?: {
       truncated: false,
     };
   } catch (e) {
-    if (connectionRefused(e)) {
+    if (isServeUnreachableError(e)) {
       return null;
     }
     const message = e instanceof Error ? e.message : String(e);

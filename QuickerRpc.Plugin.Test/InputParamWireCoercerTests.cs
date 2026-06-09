@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.XAction.Proto;
 using QuickerRpc.AgentModel.XAction.Project;
 
 namespace QuickerRpc.Plugin.Test;
@@ -9,6 +10,26 @@ namespace QuickerRpc.Plugin.Test;
 [TestClass]
 public sealed class InputParamWireCoercerTests
 {
+    [TestMethod]
+    public void ExpandInputParams_keepsPascalCaseValue_withoutShadowing()
+    {
+        var inputParams = new JObject
+        {
+            ["subProgram"] = new JObject
+            {
+                ["VarKey"] = JValue.CreateNull(),
+                ["Value"] = "%%eb7c36ee-5dde-4590-84a1-7e70ab7d0322",
+            },
+        };
+
+        InputParamWireCoercer.ExpandInputParamsObject(inputParams);
+        InputParamWireCoercer.CompactInputParamsObject(inputParams);
+
+        Assert.AreEqual(
+            "%%eb7c36ee-5dde-4590-84a1-7e70ab7d0322",
+            inputParams["subProgram"]!.Value<string>());
+    }
+
     [TestMethod]
     public void WriteData_persists_compact_wire_keys_and_ReadData_expands()
     {

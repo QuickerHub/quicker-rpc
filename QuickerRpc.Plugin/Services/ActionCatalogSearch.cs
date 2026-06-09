@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Quicker.Common;
 using Quicker.Domain.Profiles;
+using QuickerRpc.Plugin.Services.Search;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -230,6 +231,19 @@ internal static class ActionCatalogSearch
             return MatchSubProgramReference(subProgramSearch, scope, maxResults, actionFilter, limitResults);
         }
 
+        if (ActionCatalogSearchHub.TryMatch(
+                keyword,
+                scope,
+                sourceFilter: null,
+                maxResults,
+                actionFilter,
+                limitResults,
+                emptyKeywordScore: 1,
+                out var indexedMatches))
+        {
+            return indexedMatches;
+        }
+
         var scored = new List<(int Score, ActionCatalogEntry Entry)>();
 
         foreach (var entry in ActionCatalogEnumerator.Enumerate(scope))
@@ -275,6 +289,19 @@ internal static class ActionCatalogSearch
         Func<ActionItem, bool>? actionFilter,
         bool limitResults)
     {
+        if (ActionCatalogSearchHub.TryMatch(
+                keyword,
+                scope,
+                sourceFilter,
+                maxResults,
+                actionFilter,
+                limitResults,
+                emptyKeywordScore: ActionSearchQuery.SourceFilterScore,
+                out var indexedMatches))
+        {
+            return indexedMatches;
+        }
+
         var scored = new List<(int Score, ActionCatalogEntry Entry)>();
         var keywordIsEmpty = keyword.Length == 0;
 

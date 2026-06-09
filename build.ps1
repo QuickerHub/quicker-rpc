@@ -192,14 +192,20 @@ function Start-QkrpcServe {
 
     $port = Get-QkrpcServePort
     $base = Get-QkrpcServeBaseUrl -HostName $HostName -Port $port
+    $repoCliExe = Join-Path $RepoRoot 'publish\cli\qkrpc.exe'
     $installedExe = Join-Path (Get-QkrpcDefaultInstallDir) 'qkrpc.exe'
-    if (Test-Path -LiteralPath $installedExe) {
+    # Dev hot-update: prefer fresh publish/cli over user install (MCP may lock %LOCALAPPDATA%\Programs\qkrpc).
+    if (Test-Path -LiteralPath $repoCliExe) {
+        $exe = $repoCliExe
+        $cwd = Split-Path -Parent $repoCliExe
+    }
+    elseif (Test-Path -LiteralPath $installedExe) {
         $exe = $installedExe
         $cwd = Get-QkrpcDefaultInstallDir
     }
     else {
-        $exe = Join-Path $RepoRoot 'publish\cli\qkrpc.exe'
-        $cwd = Split-Path -Parent $exe
+        $exe = $repoCliExe
+        $cwd = Split-Path -Parent $repoCliExe
     }
     if (-not (Test-Path -LiteralPath $exe)) {
         Write-Warning "qkrpc.exe not found at $exe; skip starting serve."
@@ -317,6 +323,10 @@ try {
     $publishArgs = @()
     if ($skipPackaging) {
         $publishArgs += '-SkipPackaging'
+    }
+    if ($testBuild) {
+        # Avoid writing %LOCALAPPDATA%\Programs\qkrpc during -t (Cursor MCP / stale handles lock clrjit.dll).
+        $publishArgs += '-SkipInstall'
     }
     pwsh -NoProfile -File .\publish\publish-rpc.ps1 @publishArgs
     if ($LASTEXITCODE -ne 0) {

@@ -1,4 +1,5 @@
 # Action data.json schema
+<!-- qkrpc-search-aliases: bind, wire, variables, data.json, steps, inputParams -->
 
 **When**: create or edit **data.json** — steps[] + variables[] wire shape and authoring rules.
 

@@ -7,7 +7,7 @@ Headless XAction via **qkrpc** + QuickerRpc plugin. Commands: qkrpc help --json.
 | layer | content |
 |-------|---------|
 | **tool / command description** | param names, returns, constraints (authoritative) |
-| **workflow docs** | P0–P7 order, workspace vs CLI patch (authoring-workflow, workspace-editing) |
+| **workflow docs** | P0–P7 order, workspace vs CLI patch (authoring-workflow, workspace-editing); publish (action-publish-workflow) |
 | **file schemas** | **action-data-schema** (data.json JSON + wire rules), expressions, action-project-files |
 | **CLI-only** | patch-workflow (inline patch JSON) |
 
@@ -86,3 +86,6 @@ Walkthrough: **authoring-workflow**. Workspace: **workspace-editing**.
 | guess callIdentifier / icon spec | from subprogram def / fa search (**subprogram-workflow**, **action-icons**) |
 
 | re-get after save | trust patch **editVersion** (authoring-workflow P7) |
+| publish without changelog on shared action | pass **changelog** — **action-publish-workflow** Pub4 |
+| public share icon rejected | custom fa:Light_* or image URL — **action-icons**, Pub1 |
+| user wants HTML 动作说明 | built-in publish automation — Agent STOP; draft Pub3 `note` only — **action-publish-workflow** Pub5 |

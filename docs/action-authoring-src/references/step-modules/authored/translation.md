@@ -2,20 +2,65 @@
 
 > **分类**：文本处理 · **来源**：仓库手写 · **官方**：[translation](https://getquicker.net/KC/Help/Doc/translation)
 
-**用途**：调用厂商翻译 API（消耗 Q 豆，需联网）。
+**用途**：调用第三方 API 翻译文本或查英汉词典（付费 Q 豆）。
 
-**何时读**：单厂商 vs 多厂商、源/目标语言 Auto 规则前读。
+## 示例
 
-## wire 要点
+### 单厂商翻译（英→中）
 
-| param | wire | notes |
-|-------|------|-------|
-| 操作类型 | 单厂商 / 多厂商 | 多厂商并行比选 |
-| 源语言 / 目标语言 | `Auto` | 含中文→英，否则→中 |
-| 待翻译文本 | inline | |
+```json
+{
+  "stepRunnerKey": "sys:translation",
+  "inputParams": {
+    "operation": "single",
+    "text.var": "原文",
+    "srcLang": "En",
+    "dstLang": "ZhCn",
+    "vendor": "Youdao"
+  },
+  "outputParams": {
+    "isSuccess": "成功",
+    "resultText": "译文",
+    "costPoints": "消耗"
+  }
+}
+```
 
-专业版有 Q 豆赠送/折扣；轻量翻译也可用 `ai` 模块。
+### 多厂商对比翻译
+
+```json
+{
+  "stepRunnerKey": "sys:translation",
+  "inputParams": {
+    "operation": "multiple",
+    "text": "Hello world",
+    "srcLang": "En",
+    "dstLang": "ZhCn",
+    "vendorList": "Youdao,Baidu,Tencent"
+  },
+  "outputParams": {
+    "isSuccess": "成功",
+    "vendorResult": "各厂商结果"
+  }
+}
+```
+
+### 英汉词典
+
+```json
+{
+  "stepRunnerKey": "sys:translation",
+  "inputParams": {
+    "operation": "en2zh_dict",
+    "text": "example"
+  },
+  "outputParams": {
+    "isSuccess": "成功",
+    "resultText": "释义"
+  }
+}
+```
 
 ## 相关
 
-ai · step-runner-get · implementation-fallback
+stringProcess · step-runner-get

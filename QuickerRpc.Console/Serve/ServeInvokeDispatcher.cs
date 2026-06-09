@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 using QuickerRpc.AgentModel.Guides;
 using QuickerRpc.AgentModel.Schemas;
@@ -75,9 +76,16 @@ internal static class ServeInvokeDispatcher
             "action.set-metadata" => await ActionSetMetadataAsync(rpc, args, token).ConfigureAwait(false),
             "action.update" => await ActionUpdateAsync(rpc, args, token).ConfigureAwait(false),
             "action.publish" => await ActionPublishAsync(rpc, args, token).ConfigureAwait(false),
+            "action.publish.preflight" => await ActionPublishPreflightAsync(rpc, args, token).ConfigureAwait(false),
+            "action.shared-info.get" => await ActionSharedInfoGetAsync(rpc, args, token).ConfigureAwait(false),
+            "action.shared-info.set" => await ActionSharedInfoSetAsync(rpc, args, token).ConfigureAwait(false),
+            "action.shared-info.probe" => await ActionSharedInfoProbeAsync(rpc, args, token).ConfigureAwait(false),
             "action.move" => await ActionMoveAsync(rpc, args, token).ConfigureAwait(false),
             "action.delete" => await ActionDeleteAsync(rpc, args, token).ConfigureAwait(false),
             "action.run" => await ActionRunAsync(rpc, args, token).ConfigureAwait(false),
+            "action.runtime.run" => await ActionRuntimeServeOps.RunAsync(rpc, args, token).ConfigureAwait(false),
+            "action.runtime.check" => await ActionRuntimeServeOps.CheckAsync(rpc, args, token).ConfigureAwait(false),
+            "action.runtime.keys" => ActionRuntimeServeOps.Keys(),
             "action.float" => await ActionFloatAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit" => await ActionEditAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit-var" => await ActionEditVarAsync(rpc, args, token).ConfigureAwait(false),
@@ -104,6 +112,7 @@ internal static class ServeInvokeDispatcher
             "step-runner.search" => await StepRunnerSearchAsync(rpc, args, token).ConfigureAwait(false),
             "step-runner.get" => await StepRunnerGetAsync(rpc, args, forAgent: true, token).ConfigureAwait(false),
             "step-runner.getUi" => await StepRunnerGetAsync(rpc, args, forAgent: false, token).ConfigureAwait(false),
+            "step-runner.summaries" => await StepRunnerSummariesAsync(rpc, args, token).ConfigureAwait(false),
             "fa.search" => await FaSearchAsync(rpc, args, token).ConfigureAwait(false),
             "expr.check" => await ExprCheckAsync(rpc, args, token).ConfigureAwait(false),
             "expr.run" => await ExprRunAsync(rpc, args, token).ConfigureAwait(false),
@@ -112,6 +121,7 @@ internal static class ServeInvokeDispatcher
             "project.diagnostics.get" => ProjectDiagnosticsGet(args),
             "fa.resolve" => await FaResolveAsync(rpc, args, token).ConfigureAwait(false),
             "quicker.account.get" => await QuickerAccountGetAsync(rpc, token).ConfigureAwait(false),
+            "quicker.web-session.get" => await QuickerWebSessionGetAsync(rpc, token).ConfigureAwait(false),
             "settings.search" => await SettingsSearchAsync(rpc, args, token).ConfigureAwait(false),
             "settings.list" => await SettingsListAsync(rpc, args, token).ConfigureAwait(false),
             "settings.get" => await SettingsGetAsync(rpc, args, token).ConfigureAwait(false),
@@ -122,6 +132,8 @@ internal static class ServeInvokeDispatcher
             "settings.open" => await SettingsOpenAsync(rpc, args, token).ConfigureAwait(false),
             "settings.resolve" => await SettingsResolveAsync(rpc, args, token).ConfigureAwait(false),
             "launcher.resolve" => await LauncherResolveAsync(rpc, args, token).ConfigureAwait(false),
+            "search-index.status" => await SearchIndexStatusAsync(rpc, token).ConfigureAwait(false),
+            "search-index.rebuild" => await SearchIndexRebuildAsync(rpc, args, token).ConfigureAwait(false),
             _ => Fail("UNKNOWN_OP", $"Unknown op: {op}"),
         };
     }
@@ -192,6 +204,119 @@ internal static class ServeInvokeDispatcher
             userName = account.UserName,
             nickName = account.NickName,
             message = account.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> QuickerWebSessionGetAsync(
+        IQuickerRpcService rpc,
+        CancellationToken cancellationToken)
+    {
+        var session = await rpc.GetQuickerWebSessionAsync(cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = session.Ok,
+            action = "quicker-web-session-get",
+            loggedIn = session.LoggedIn,
+            userId = session.UserId,
+            hasBearerToken = !string.IsNullOrWhiteSpace(session.Token),
+            bearerTokenHint = MaskSecretHint(session.Token),
+            tokenExpireTimeUtc = session.TokenExpireTimeUtc,
+            message = session.Message,
+        });
+    }
+
+    private static string? MaskSecretHint(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length <= 12)
+        {
+            return "***";
+        }
+
+        return trimmed[..8] + "…" + trimmed[^4..];
+    }
+
+    private static async Task<ServeInvokeResponse> ActionSharedInfoGetAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId", "sharedId", "code") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var response = await rpc
+            .GetSharedActionDetailHtmlAsync(id.Trim(), cancellationToken)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "shared-info-get",
+            sharedId = response.SharedActionId ?? id.Trim(),
+            html = response.Html,
+            message = response.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ActionSharedInfoProbeAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId", "sharedId", "code") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var json = await rpc
+            .ProbeSharedActionDetailApisAsync(id.Trim(), cancellationToken)
+            .ConfigureAwait(false);
+        return Ok(System.Text.Json.JsonSerializer.Deserialize<object>(json) ?? new { ok = false });
+    }
+
+    private static async Task<ServeInvokeResponse> ActionSharedInfoSetAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId", "sharedId", "code") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var html = ServeJsonArgs.GetString(args, "html");
+        if (string.IsNullOrWhiteSpace(html) && args.TryGetProperty("htmlFile", out var htmlFileEl))
+        {
+            var htmlFile = htmlFileEl.GetString();
+            if (!string.IsNullOrWhiteSpace(htmlFile) && File.Exists(htmlFile))
+            {
+                html = await File.ReadAllTextAsync(htmlFile, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return Fail("MISSING_HTML", "args.html or args.htmlFile is required.");
+        }
+
+        var response = await rpc
+            .SetSharedActionDetailHtmlAsync(id.Trim(), html, cancellationToken)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "shared-info-set",
+            sharedId = response.SharedActionId ?? id.Trim(),
+            message = response.Message,
         });
     }
 
@@ -444,6 +569,49 @@ internal static class ServeInvokeDispatcher
                 matchedQueryTerm = c.MatchedQueryTerm,
                 matchedOn = c.MatchedOn,
             }),
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> SearchIndexStatusAsync(
+        IQuickerRpcService rpc,
+        CancellationToken cancellationToken)
+    {
+        var result = await rpc.GetSearchIndexStatusAsync(cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "search-index-status",
+            regions = result.Regions.Select(r => new
+            {
+                region = r.Region,
+                status = r.Status,
+                generation = r.Generation,
+                buildStartedUtcMs = r.BuildStartedUtcMs,
+                buildCompletedUtcMs = r.BuildCompletedUtcMs,
+                lastBuildDurationMs = r.LastBuildDurationMs,
+                documentCount = r.DocumentCount,
+            }),
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> SearchIndexRebuildAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var region = ServeJsonArgs.GetString(args, "region");
+        var result = await rpc.RebuildSearchIndexAsync(region, cancellationToken).ConfigureAwait(false);
+        if (!result.Ok)
+        {
+            return Fail("REBUILD_FAILED", result.Message ?? "Search index rebuild failed.");
+        }
+
+        return Ok(new
+        {
+            ok = true,
+            action = "search-index-rebuild",
+            region = region ?? "all",
+            message = result.Message,
         });
     }
 
@@ -845,6 +1013,11 @@ internal static class ServeInvokeDispatcher
         JsonElement args,
         CancellationToken token)
     {
+        if (ServeJsonArgs.GetBool(args, "standalone"))
+        {
+            return await ActionRuntimeServeOps.RunAsync(rpc, args, token).ConfigureAwait(false);
+        }
+
         var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
         var xactionEl = ServeJsonArgs.GetObject(args, "xaction");
         var hasXaction = xactionEl is not null;
@@ -954,18 +1127,8 @@ internal static class ServeInvokeDispatcher
         });
     }
 
-    private static async Task<ServeInvokeResponse> ActionPublishAsync(
-        IQuickerRpcService rpc,
-        JsonElement args,
-        CancellationToken token)
-    {
-        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(id))
-        {
-            return Fail("MISSING_ACTION_ID", "args.id is required.");
-        }
-
-        var request = new QuickerRpcActionPublishRequest
+    private static QuickerRpcActionPublishRequest BuildActionPublishRequest(JsonElement args) =>
+        new()
         {
             Title = ServeJsonArgs.GetString(args, "title"),
             Description = ServeJsonArgs.GetString(args, "description"),
@@ -977,6 +1140,18 @@ internal static class ServeInvokeDispatcher
             SubmitReview = !ServeJsonArgs.GetBool(args, "noSubmitReview"),
         };
 
+    private static async Task<ServeInvokeResponse> ActionPublishAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var request = BuildActionPublishRequest(args);
         var response = await rpc.PublishSharedActionAsync(id.Trim(), request, token).ConfigureAwait(false);
         return Ok(new
         {
@@ -989,6 +1164,37 @@ internal static class ServeInvokeDispatcher
             revision = response.Revision,
             isPublic = response.IsPublic,
             message = response.Message,
+            issues = response.Issues,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ActionPublishPreflightAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var request = BuildActionPublishRequest(args);
+        var response = await rpc.PreflightPublishSharedActionAsync(id.Trim(), request, token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ready,
+            action = "publish-preflight",
+            ready = response.Ready,
+            mode = response.Mode,
+            actionId = response.ActionId ?? id.Trim(),
+            sharedId = response.SharedActionId,
+            title = response.Title,
+            description = response.Description,
+            icon = response.Icon,
+            isPublic = response.IsPublic,
+            message = response.Message,
+            issues = response.Issues,
         });
     }
 
@@ -1556,6 +1762,43 @@ internal static class ServeInvokeDispatcher
             action,
             payload = HeadlessCliResponses.ToStepRunnerDetailPayload(response),
         });
+    }
+
+    private static async Task<ServeInvokeResponse> StepRunnerSummariesAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        if (!args.TryGetProperty("steps", out var stepsEl) || stepsEl.ValueKind != JsonValueKind.Array)
+        {
+            return Fail("MISSING_STEPS", "args.steps array is required.");
+        }
+
+        var steps = new List<QuickerRpcActionStepSummaryInput>();
+        foreach (var item in stepsEl.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            steps.Add(new QuickerRpcActionStepSummaryInput
+            {
+                StepId = item.TryGetProperty("stepId", out var stepId) ? stepId.GetString() ?? string.Empty : string.Empty,
+                StepRunnerKey = item.TryGetProperty("stepRunnerKey", out var key)
+                    ? key.GetString() ?? string.Empty
+                    : string.Empty,
+                StepJson = item.TryGetProperty("stepJson", out var stepJson)
+                    ? stepJson.GetString() ?? string.Empty
+                    : string.Empty,
+            });
+        }
+
+        var subProgramsJson = ServeJsonArgs.GetString(args, "subProgramsJson");
+        var response = await rpc
+            .GetActionStepSummariesAsync(steps, subProgramsJson, token)
+            .ConfigureAwait(false);
+        return Ok(new { ok = response.Success, action = "step-runner-summaries", payload = response });
     }
 
     private static async Task<ServeInvokeResponse> FaSearchAsync(

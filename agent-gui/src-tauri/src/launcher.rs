@@ -316,6 +316,7 @@ fn build_launcher_window(app: &AppHandle, expanded: bool) -> Result<WebviewWindo
         .map_err(|err| err.to_string())?;
 
     register_launcher_window_handlers(&window);
+    crate::webview_permissions::enable_auto_microphone_permission(&window);
     show_launcher_window(&window);
 
     Ok(window)
@@ -342,6 +343,7 @@ pub fn prepare_configured_launcher_window(app: &AppHandle, visible: bool) {
 
     apply_launcher_size(&window, false);
     register_launcher_window_handlers(&window);
+    crate::webview_permissions::enable_auto_microphone_permission(&window);
 
     if visible {
         show_launcher_window(&window);

@@ -2,18 +2,58 @@
 
 > **分类**：图片 · **来源**：仓库手写 · **官方**：[mathocr](https://getquicker.net/KC/Help/Doc/mathocr)
 
-**用途**：Mathpix 识别公式图（消耗 Q 豆，约 0.015/次）。
+**用途**：调用 Mathpix 识别图片中的数学公式（付费 Q 豆）。
 
-**何时读**：图片 vs 手写板模式、输出 LaTeX/MathML 绑定前读。
+## 示例
 
-## 模式
+### 识别截图变量
 
-| 类型 | 输入 |
-|------|------|
-| 图片识别 | 图片变量 / 路径 / URL（表达式） |
-| 手写并识别 | 弹手写板 |
+```json
+{
+  "stepRunnerKey": "sys:mathocr",
+  "inputParams": {
+    "vendor": "Mathpix",
+    "image.var": "截图"
+  },
+  "outputParams": {
+    "isSuccess": "成功",
+    "latex": "Latex",
+    "mathpixMarkdown": "MathpixMD"
+  }
+}
+```
 
-输出：Latex、MathML、AsciiMath、Mathpix MD、带 `$$` 包装等。
+### 识别图片 URL（表达式）
+
+```json
+{
+  "stepRunnerKey": "sys:mathocr",
+  "inputParams": {
+    "vendor": "Mathpix",
+    "image": "$$https://example.com/formula.png"
+  },
+  "outputParams": {
+    "isSuccess": "成功",
+    "latex": "Latex",
+    "rawData": "原始JSON"
+  }
+}
+```
+
+### 手写板识别（MathpixStrokes）
+
+```json
+{
+  "stepRunnerKey": "sys:mathocr",
+  "inputParams": {
+    "vendor": "MathpixStrokes"
+  },
+  "outputParams": {
+    "isSuccess": "成功",
+    "latex": "Latex"
+  }
+}
+```
 
 ## 相关
 

@@ -5,6 +5,7 @@ using Quicker.Common;
 using Quicker.Domain.Actions;
 using Quicker.Domain.Actions.X;
 using QuickerRpc.AgentModel.Catalog;
+using QuickerRpc.AgentModel.Core;
 using QuickerRpc.AgentModel.XAction;
 using QuickerRpc.AgentModel.XAction.Project;
 using Quicker.Utilities;
@@ -102,7 +103,7 @@ internal static class XActionEphemeralProgramBuilder
     {
         if (subProgramsOverride is JArray subProgramsArray)
         {
-            return subProgramsArray.ToString(Formatting.None);
+            return JTokenCompat.Compact(subProgramsArray);
         }
 
         return "[]";

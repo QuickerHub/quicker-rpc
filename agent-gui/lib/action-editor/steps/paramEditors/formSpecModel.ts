@@ -21,6 +21,12 @@ export type FormSpecFieldOption = {
   label?: string;
 };
 
+export type FormSpecVisibleWhen = {
+  field: string;
+  eq?: string;
+  ne?: string;
+};
+
 export type FormSpecField = {
   key: string;
   label: string;
@@ -34,6 +40,7 @@ export type FormSpecField = {
   options?: FormSpecFieldOption[];
   min?: number;
   max?: number;
+  visibleWhen?: FormSpecVisibleWhen;
 };
 
 export type FormSpecDocument = {
@@ -102,6 +109,21 @@ function parseV1Field(raw: unknown): FormSpecField | null {
   }
   if (typeof raw.min === "number") field.min = raw.min;
   if (typeof raw.max === "number") field.max = raw.max;
+  if (isRecord(raw.visibleWhen)) {
+    const refField =
+      typeof raw.visibleWhen.field === "string" ? raw.visibleWhen.field.trim() : "";
+    if (refField) {
+      const visibleWhen: FormSpecVisibleWhen = { field: refField };
+      if (typeof raw.visibleWhen.eq === "string" && raw.visibleWhen.eq.trim()) {
+        visibleWhen.eq = raw.visibleWhen.eq.trim();
+      } else if (typeof raw.visibleWhen.ne === "string" && raw.visibleWhen.ne.trim()) {
+        visibleWhen.ne = raw.visibleWhen.ne.trim();
+      }
+      if (visibleWhen.eq || visibleWhen.ne) {
+        field.visibleWhen = visibleWhen;
+      }
+    }
+  }
   if (Array.isArray(raw.options)) {
     const options = raw.options
       .map((entry): FormSpecFieldOption | null => {
@@ -202,6 +224,17 @@ export function serializeFormSpec(spec: FormSpecDocument): string {
             ...(option.label?.trim() ? { label: option.label.trim() } : {}),
           }))
           .filter((option) => option.value.length > 0);
+      }
+      if (field.visibleWhen?.field?.trim()) {
+        const visibleWhen: FormSpecVisibleWhen = { field: field.visibleWhen.field.trim() };
+        if (field.visibleWhen.eq?.trim()) {
+          visibleWhen.eq = field.visibleWhen.eq.trim();
+        } else if (field.visibleWhen.ne?.trim()) {
+          visibleWhen.ne = field.visibleWhen.ne.trim();
+        }
+        if (visibleWhen.eq || visibleWhen.ne) {
+          next.visibleWhen = visibleWhen;
+        }
       }
       return next;
     }),

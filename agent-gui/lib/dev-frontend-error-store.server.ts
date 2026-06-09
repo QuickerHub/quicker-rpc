@@ -6,6 +6,7 @@ import type {
   FrontendBuildErrorSnapshot,
   FrontendIssue,
 } from "@/lib/dev-frontend-types";
+import { isReactRefreshTransientError } from "@/lib/dev-react-refresh-transient";
 
 const LOCAL_DIR = join(process.cwd(), ".local");
 const CLIENT_ERRORS_PATH = join(LOCAL_DIR, "frontend-client-errors.json");
@@ -91,16 +92,6 @@ export function writeFrontendSmokeLast(result: unknown): void {
   writeJsonFile(SMOKE_LAST_PATH, result);
 }
 
-/** Fast Refresh partial updates — not representative of a clean page load. */
-function isReactRefreshTransientError(entry: ClientFrontendErrorReport): boolean {
-  const stack = entry.stack ?? "";
-  return (
-    stack.includes("performReactRefresh")
-    || stack.includes("react-refresh-runtime")
-    || stack.includes("@next/react-refresh-utils")
-  );
-}
-
 export function clientErrorsToIssues(
   errors: ClientFrontendErrorReport[],
   options?: {
@@ -117,7 +108,10 @@ export function clientErrorsToIssues(
 
   return errors
     .filter((entry) => {
-      if (omitReactRefresh && isReactRefreshTransientError(entry)) {
+      if (
+        omitReactRefresh
+        && isReactRefreshTransientError({ stack: entry.stack })
+      ) {
         return false;
       }
       const at = Date.parse(entry.at);

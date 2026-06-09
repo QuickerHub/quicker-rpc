@@ -116,7 +116,11 @@ public static class InputParamWireCoercer
 
             if (valueToken.Type == JTokenType.String)
             {
-                compact[prop.Name] = valueToken.Value<string>() ?? string.Empty;
+                var text = valueToken.Value<string>() ?? string.Empty;
+                if (text.Length > 0)
+                {
+                    compact[prop.Name] = text;
+                }
             }
         }
 
@@ -271,17 +275,17 @@ public static class InputParamWireCoercer
         || obj["value"] is not null
         || obj["Value"] is not null;
 
-    private static JObject NormalizeLegacyParamObject(JObject obj)
+    /// <summary>Unify camelCase / PascalCase bind fields without shadowing a populated <c>Value</c> with empty <c>value</c>.</summary>
+    internal static JObject NormalizeParamBindObject(JObject obj)
     {
         var result = (JObject)obj.DeepClone();
-        CoerceNullStringField(result, "varKey");
-        CoerceNullStringField(result, "VarKey");
-        CoerceNullStringField(result, "value");
-        CoerceNullStringField(result, "Value");
-        CoerceNullStringField(result, "file");
-        CoerceNullStringField(result, "File");
+        UnifyStringField(result, "varKey", "VarKey");
+        UnifyStringField(result, "value", "Value");
+        UnifyStringField(result, "file", "File");
         return result;
     }
+
+    private static JObject NormalizeLegacyParamObject(JObject obj) => NormalizeParamBindObject(obj);
 
     private static void MergeParamObjects(JObject target, JObject patch)
     {
@@ -291,13 +295,30 @@ public static class InputParamWireCoercer
         }
     }
 
-    private static void CoerceNullStringField(JObject o, string name)
+    private static void UnifyStringField(JObject o, string camel, string pascal)
     {
-        var t = o[name];
-        if (t is null || t.Type == JTokenType.Null || t.Type == JTokenType.Undefined)
+        var camelText = ReadOptionalStringToken(o[camel]);
+        var pascalText = ReadOptionalStringToken(o[pascal]);
+        var merged = !string.IsNullOrEmpty(camelText) ? camelText!
+            : !string.IsNullOrEmpty(pascalText) ? pascalText!
+            : camelText ?? pascalText ?? string.Empty;
+
+        if (o[camel] is not null || o[pascal] is not null)
         {
-            o[name] = string.Empty;
+            o[camel] = merged;
         }
+
+        o.Remove(pascal);
+    }
+
+    private static string? ReadOptionalStringToken(JToken? token)
+    {
+        if (token is null || token.Type == JTokenType.Null || token.Type == JTokenType.Undefined)
+        {
+            return null;
+        }
+
+        return token.Type == JTokenType.String ? token.Value<string>() : token.ToString();
     }
 
     private static string? ReadNonEmptyString(JToken? token)

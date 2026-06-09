@@ -1,6 +1,6 @@
 /**
  * Stop prior agent-gui dev processes and free the UI port before a new dev session.
- * Used by start.mjs and start-agent-gui.ps1.
+ * Used by start.mjs and dev.ps1 (via dev-supervisor / dev-launcher).
  */
 import { execSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
@@ -193,10 +193,10 @@ function listAgentGuiDevPids(agentGuiRoot) {
       if (!Number.isFinite(pid) || pid <= 0 || pid === process.pid) continue;
 
       let isAgentGuiDev = false;
-      // Do not kill pwsh running start-agent-gui.ps1 — that is often the active launcher
+      // Do not kill pwsh running dev.ps1 — that is often the active launcher
       // (stop is invoked from that script). Node/next on the UI port are stopped separately.
       if (name === "quicker-agent.exe") {
-        // Installed NSIS QuickerAgent must survive dev restarts (start-agent-gui.ps1 / pnpm dev).
+        // Installed NSIS QuickerAgent must survive dev restarts (dev.ps1 / pnpm dev).
         isAgentGuiDev = !isInstalledProductionQuickerAgentProcess(
           name,
           cmdLower,

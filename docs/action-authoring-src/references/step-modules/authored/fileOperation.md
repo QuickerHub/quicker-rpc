@@ -43,10 +43,7 @@
 {
   "stepRunnerKey": "sys:fileOperation",
   "inputParams": {
-    "path.var": "fullPath",
-    "searchPattern": "*",
-    "isAll": "0",
-    "overwrite": "0"
+    "path.var": "fullPath"
   },
   "outputParams": {
     "isSuccess": "isSuccess"

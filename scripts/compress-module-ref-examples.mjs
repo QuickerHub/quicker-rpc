@@ -19,6 +19,10 @@ const AUTHORED_DIR = path.join(
   ROOT,
   "docs/action-authoring-src/references/step-modules/authored",
 );
+const EXAMPLES_DIR = path.join(
+  ROOT,
+  "docs/action-authoring-src/references/step-modules/examples",
+);
 
 /**
  * @param {string} jsonText
@@ -86,14 +90,19 @@ async function compressMarkdownExamples(markdown) {
     .join("");
 }
 
-async function main() {
-  const dryRun = process.argv.includes("--dry-run");
-  const entries = await fs.readdir(AUTHORED_DIR);
+async function compressDir(dir, label) {
+  let entries;
+  try {
+    entries = await fs.readdir(dir);
+  } catch {
+    return 0;
+  }
   let updated = 0;
+  const dryRun = process.argv.includes("--dry-run");
 
   for (const name of entries.sort()) {
     if (!name.endsWith(".md") || name === "SPEC.md") continue;
-    const filePath = path.join(AUTHORED_DIR, name);
+    const filePath = path.join(dir, name);
     const body = await fs.readFile(filePath, "utf8");
     if (!body.includes("```json")) continue;
 
@@ -102,10 +111,18 @@ async function main() {
 
     if (!dryRun) await fs.writeFile(filePath, next, "utf8");
     updated++;
-    console.log(name);
+    console.log(`${label}/${name}`);
   }
+  return updated;
+}
 
-  console.log(`compressed ${updated} file(s)${dryRun ? " (dry-run)" : ""}`);
+async function main() {
+  const dryRun = process.argv.includes("--dry-run");
+  const a = await compressDir(AUTHORED_DIR, "authored");
+  const b = await compressDir(EXAMPLES_DIR, "examples");
+  console.log(
+    `compressed ${a + b} file(s)${dryRun ? " (dry-run)" : ""}`,
+  );
 }
 
 main().catch((e) => {

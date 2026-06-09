@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
+using QuickerRpc.AgentModel.Core;
 using StorageActionStep = global::Quicker.Domain.Actions.X.Storage.ActionStep;
 using StorageActionVariable = global::Quicker.Domain.Actions.X.Storage.ActionVariable;
 
@@ -57,7 +58,7 @@ internal static class SubProgramProgramSerialization
         }
 
         return JsonConvert.DeserializeObject<List<StorageActionStep>>(
-            steps.ToString(Formatting.None),
+            JTokenCompat.Compact(steps),
             BodyJson) ?? new List<StorageActionStep>();
     }
 
@@ -69,7 +70,7 @@ internal static class SubProgramProgramSerialization
         }
 
         return JsonConvert.DeserializeObject<List<StorageActionVariable>>(
-            variables.ToString(Formatting.None),
+            JTokenCompat.Compact(variables),
             BodyJson) ?? new List<StorageActionVariable>();
     }
 }

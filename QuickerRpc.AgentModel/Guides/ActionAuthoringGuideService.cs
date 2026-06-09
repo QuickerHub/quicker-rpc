@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using QuickerRpc.AgentModel.Schemas;
+using QuickerRpc.AgentModel.Search;
 
 namespace QuickerRpc.AgentModel.Guides;
 
@@ -70,27 +71,23 @@ public sealed class ActionAuthoringGuideService
     {
         var limit = maxResults is > 0 and <= 50 ? maxResults.Value : 10;
         var kw = (keyword ?? string.Empty).Trim();
+        EnsureGuideIndex();
+
+        var searchLimit = kw.Length == 0 ? limit : Math.Min(50, Math.Max(limit * 4, limit));
+        var hits = GuideSearchIndex.Search(kw.Length == 0 ? null : kw, searchLimit);
         var patterns = SplitKeywordPatterns(kw);
-
-        IEnumerable<GuideTopic> candidates = Topics.Value;
-        if (patterns.Length > 0)
-        {
-            candidates = candidates.Where(t => RowMatches(t, patterns));
-        }
-
-        var ordered = candidates
-            .Select(t => new { Topic = t, Score = patterns.Length == 0 ? 0 : ComputeSortScore(t, patterns) })
-            .OrderByDescending(x => x.Score)
-            .ThenBy(x => x.Topic.Topic, StringComparer.OrdinalIgnoreCase)
-            .Take(limit)
-            .ToList();
-
-        var items = ordered
-            .Select(x => new ActionAuthoringDocSearchItem
+        var items = SelectBestHitsPerTopic(hits, limit)
+            .Select(hit =>
             {
-                Topic = x.Topic.Topic,
-                Title = x.Topic.Title,
-                Excerpt = BuildExcerpt(x.Topic.Markdown, patterns, maxLength: 280),
+                var topic = ResolveGuideTopic(hit);
+                var sectionHeading = ResolveSectionHeading(hit);
+                return new ActionAuthoringDocSearchItem
+                {
+                    Topic = topic.Topic,
+                    Title = topic.Title,
+                    Section = sectionHeading,
+                    Excerpt = BuildExcerpt(topic.Markdown, sectionHeading, patterns, maxLength: 420),
+                };
             })
             .ToList();
 
@@ -103,6 +100,55 @@ public sealed class ActionAuthoringGuideService
             AvailableTopics = ListTopicIds(),
         };
     }
+
+    private static void EnsureGuideIndex()
+    {
+        if (GuideSearchIndex.Hub.IsPublished(SearchRegion.Guide))
+        {
+            return;
+        }
+
+        var entries = Topics.Value
+            .Select(t => new GuideSearchEntry
+            {
+                Topic = t.Topic,
+                Title = t.Title,
+                Markdown = t.Markdown,
+            })
+            .ToList();
+        GuideSearchIndex.PublishTopics(entries);
+    }
+
+    private static IReadOnlyList<SearchHit> SelectBestHitsPerTopic(IReadOnlyList<SearchHit> hits, int limit)
+    {
+        return hits
+            .GroupBy(h => GuideSearchIndex.ResolveTopicId(h.DocumentId), StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderByDescending(h => h.Score).First())
+            .OrderByDescending(h => h.Score)
+            .ThenBy(h => GuideSearchIndex.ResolveTopicId(h.DocumentId), StringComparer.OrdinalIgnoreCase)
+            .Take(limit)
+            .ToList();
+    }
+
+    private static GuideTopic ResolveGuideTopic(SearchHit hit)
+    {
+        if (hit.Payload is GuideSearchSectionPayload section)
+        {
+            return Topics.Value.First(t =>
+                string.Equals(t.Topic, section.Topic, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (hit.Payload is GuideSearchEntry entry)
+        {
+            return new GuideTopic(entry.Topic, entry.Title, entry.Markdown);
+        }
+
+        var topicId = GuideSearchIndex.ResolveTopicId(hit.DocumentId);
+        return Topics.Value.First(t => string.Equals(t.Topic, topicId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string? ResolveSectionHeading(SearchHit hit) =>
+        hit.Payload is GuideSearchSectionPayload section ? section.SectionHeading : null;
 
     private static List<string> ListTopicIds() =>
         Topics.Value.Select(t => t.Topic).OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList();
@@ -168,43 +214,30 @@ public sealed class ActionAuthoringGuideService
             .ToArray();
     }
 
-    private static bool RowMatches(GuideTopic topic, string[] patterns)
+    private static string BuildExcerpt(
+        string markdown,
+        string? sectionHeading,
+        string[] patterns,
+        int maxLength)
     {
-        var haystack = (topic.Topic + " " + topic.Title + " " + topic.Markdown).ToLowerInvariant();
-        return patterns.All(p => haystack.Contains(p));
-    }
+        var sectionBody = !string.IsNullOrWhiteSpace(sectionHeading)
+            ? GuideMarkdownSectionParser.TryExtractSectionBody(markdown, sectionHeading)
+            : null;
 
-    private static int ComputeSortScore(GuideTopic topic, string[] patterns)
-    {
-        var score = 0;
-        var topicLower = topic.Topic.ToLowerInvariant();
-        var titleLower = topic.Title.ToLowerInvariant();
-        foreach (var p in patterns)
-        {
-            if (topicLower.Contains(p))
-            {
-                score += 8;
-            }
-
-            if (titleLower.Contains(p))
-            {
-                score += 4;
-            }
-
-            if (topic.Markdown.IndexOf(p, StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                score += 1;
-            }
-        }
-
-        return score;
-    }
-
-    private static string BuildExcerpt(string markdown, string[] patterns, int maxLength)
-    {
-        var plain = Regex.Replace(markdown, @"^#+\s*", string.Empty, RegexOptions.Multiline);
+        var source = sectionBody ?? markdown;
+        var plain = Regex.Replace(source, @"^#+\s*", string.Empty, RegexOptions.Multiline);
+        plain = Regex.Replace(plain, @"<!--[^>]*-->", string.Empty);
         plain = Regex.Replace(plain, @"[*_`#\[\]()]", string.Empty);
         plain = Regex.Replace(plain, @"\s+", " ").Trim();
+
+        if (!string.IsNullOrWhiteSpace(sectionHeading))
+        {
+            plain = $"{sectionHeading}. {plain}";
+        }
+        else if (patterns.Length > 0)
+        {
+            plain = PreferMatchingSectionExcerpt(markdown, patterns) ?? plain;
+        }
 
         if (patterns.Length > 0)
         {
@@ -219,7 +252,7 @@ public sealed class ActionAuthoringGuideService
                 }
             }
 
-            if (idx > 40)
+            if (idx > 60)
             {
                 plain = "…" + plain.Substring(idx);
             }
@@ -231,6 +264,45 @@ public sealed class ActionAuthoringGuideService
         }
 
         return plain.Substring(0, maxLength).TrimEnd() + "…";
+    }
+
+    private static string? PreferMatchingSectionExcerpt(string markdown, string[] patterns)
+    {
+        if (patterns.Length == 0)
+        {
+            return null;
+        }
+
+        GuideMarkdownSectionParser.Section? best = null;
+        var bestScore = 0;
+        foreach (var section in GuideMarkdownSectionParser.ParseH2Sections(markdown))
+        {
+            var haystack = $"{section.Heading} {section.Body}".ToLowerInvariant();
+            var score = 0;
+            foreach (var pattern in patterns)
+            {
+                if (haystack.Contains(pattern, StringComparison.Ordinal))
+                {
+                    score++;
+                }
+            }
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = section;
+            }
+        }
+
+        if (best is null || bestScore == 0)
+        {
+            return null;
+        }
+
+        var plain = Regex.Replace(best.Body, @"^#+\s*", string.Empty, RegexOptions.Multiline);
+        plain = Regex.Replace(plain, @"[*_`#\[\]()]", string.Empty);
+        plain = Regex.Replace(plain, @"\s+", " ").Trim();
+        return $"{best.Heading}. {plain}";
     }
 
     private sealed class GuideTopic

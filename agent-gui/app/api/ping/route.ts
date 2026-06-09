@@ -1,5 +1,6 @@
 import { formatQkrpcResult, runQkrpc } from "@/lib/qkrpc";
 import { fetchQkrpcHealth, resolveQkrpcHttpBase } from "@/lib/qkrpc-http";
+import { tryEnsureQkrpcServe } from "@/lib/qkrpc-serve-recover";
 import { invalidateServeProbeCache } from "@/lib/qkrpc-transport";
 
 export const dynamic = "force-dynamic";
@@ -14,16 +15,6 @@ function parseFastMode(req: Request): boolean {
   return raw !== "0" && raw !== "false";
 }
 
-async function tryEnsureServe(): Promise<void> {
-  if (process.env.AGENT_GUI_SKIP_QKRPC === "1") return;
-  try {
-    const { ensureQkrpcServeIfDown } = await import("@/lib/qkrpc-serve-ensure.mjs");
-    await ensureQkrpcServeIfDown();
-  } catch {
-    // best-effort recovery when serve died (e.g. after build.ps1 -t)
-  }
-}
-
 export async function GET(req: Request) {
   const fast = parseFastMode(req);
   invalidateServeProbeCache();
@@ -33,7 +24,7 @@ export async function GET(req: Request) {
   });
 
   if (health === null) {
-    await tryEnsureServe();
+    await tryEnsureQkrpcServe();
     health = await fetchQkrpcHealth({
       timeoutMs: fast ? FAST_HEALTH_MS : FULL_HEALTH_MS,
     });
@@ -41,7 +32,7 @@ export async function GET(req: Request) {
 
   if (health !== null) {
     return Response.json(formatQkrpcResult(health), {
-      status: health.ok ? 200 : 503,
+      status: 200,
     });
   }
 
@@ -51,7 +42,7 @@ export async function GET(req: Request) {
         ok: false,
         stderr: `无法连接 qkrpc serve（${resolveQkrpcHttpBase()}）。请确认已运行 pwsh ./build.ps1 -t 或 qkrpc serve 已启动。`,
       },
-      { status: 503 },
+      { status: 200 },
     );
   }
 
@@ -66,8 +57,8 @@ export async function GET(req: Request) {
         ...body,
         stderr: `无法连接 qkrpc serve（${resolveQkrpcHttpBase()}）。请确认 Quicker 已运行且 serve 已启动。`,
       },
-      { status: 503 },
+      { status: 200 },
     );
   }
-  return Response.json(body, { status: result.ok ? 200 : 503 });
+  return Response.json(body, { status: 200 });
 }

@@ -7,7 +7,7 @@ namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
 /// Distinguishes NSIS-installed QuickerAgent from repo dev builds (agent-gui / tauri target).
-/// Mirrors agent-gui/lib/quicker-agent-install-probe.mjs and start-agent-gui.ps1.
+/// Mirrors agent-gui/lib/quicker-agent-install-probe.mjs and scripts/dev-launcher.ps1.
 /// </summary>
 internal static class QuickerAgentProductionProcess
 {
@@ -21,7 +21,11 @@ internal static class QuickerAgentProductionProcess
 
     public static bool IsInstalledInstanceRunning() => CollectInstalledProcessIds().Count > 0;
 
-    public static HashSet<uint> CollectAnyProcessIds()
+    public static HashSet<uint> CollectAnyProcessIds() => CollectProcessIds(installedOnly: false);
+
+    public static HashSet<uint> CollectInstalledProcessIds() => CollectProcessIds(installedOnly: true);
+
+    private static HashSet<uint> CollectProcessIds(bool installedOnly)
     {
         var ids = new HashSet<uint>();
         try
@@ -30,6 +34,17 @@ internal static class QuickerAgentProductionProcess
             {
                 using (process)
                 {
+                    if (!IsLiveProcess(process))
+                    {
+                        continue;
+                    }
+
+                    if (installedOnly
+                        && !IsInstalledProductionExecutablePath(TryReadProcessImagePath(process)))
+                    {
+                        continue;
+                    }
+
                     ids.Add((uint)process.Id);
                 }
             }
@@ -42,28 +57,26 @@ internal static class QuickerAgentProductionProcess
         return ids;
     }
 
-    public static HashSet<uint> CollectInstalledProcessIds()
+    /// <summary>
+    /// Filters stale entries left in the process table after exit (GetProcessesByName can lag).
+    /// </summary>
+    internal static bool IsLiveProcess(Process process)
     {
-        var ids = new HashSet<uint>();
         try
         {
-            foreach (var process in Process.GetProcessesByName("quicker-agent"))
+            if (process.HasExited)
             {
-                using (process)
-                {
-                    if (IsInstalledProductionExecutablePath(TryReadProcessImagePath(process)))
-                    {
-                        ids.Add((uint)process.Id);
-                    }
-                }
+                return false;
             }
+
+            _ = process.Id;
+            process.Refresh();
+            return !process.HasExited;
         }
         catch
         {
-            return ids;
+            return false;
         }
-
-        return ids;
     }
 
     public static bool IsInstalledProductionExecutablePath(string? executablePath)

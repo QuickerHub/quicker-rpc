@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.Core;
 
 namespace QuickerRpc.AgentModel.Form;
 
@@ -259,8 +260,8 @@ public static class FormSpecDecompiler
             field.Default = defaultValue.Type switch
             {
                 JTokenType.Boolean => defaultValue.Value<bool>() ? "true" : "false",
-                JTokenType.Integer or JTokenType.Float => defaultValue.ToString(Formatting.None),
-                _ => defaultValue.Value<string>() ?? defaultValue.ToString(Formatting.None),
+                JTokenType.Integer or JTokenType.Float => JTokenCompat.Compact(defaultValue),
+                _ => defaultValue.Value<string>() ?? JTokenCompat.Compact(defaultValue),
             };
         }
 
@@ -469,7 +470,7 @@ public static class FormSpecDecompiler
 
             return token.Type == JTokenType.String
                 ? token.Value<string>()?.Trim()
-                : token.ToString(Formatting.None);
+                : JTokenCompat.Compact(token);
         }
 
         return null;

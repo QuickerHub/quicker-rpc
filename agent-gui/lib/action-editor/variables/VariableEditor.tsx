@@ -30,6 +30,8 @@ import {
   matchesVariableListFilter,
   navigateVariableSelectionVertically,
 } from "./actionVariableUi";
+import { VariableParamInfoPanel } from "./VariableParamInfoPanel";
+import { VariableTableDefPanel } from "./VariableTableDefPanel";
 import {
   buildActionStepsClipboardJson,
   parseActionStepsClipboardJson,
@@ -150,7 +152,10 @@ function cloneVariableForFormDraft(v: ActionVariable): ActionVariable {
     isLocked: Boolean(v.isLocked),
     paramName: v.paramName ?? "",
     group: v.group ?? "",
-    customType: v.customType ?? ""
+    customType: v.customType ?? "",
+    inputParamInfo: v.inputParamInfo,
+    outputParamInfo: v.outputParamInfo,
+    tableDef: v.tableDef,
   });
 }
 
@@ -166,7 +171,10 @@ function variableFormFingerprint(v: ActionVariable): string {
     il: Boolean(v.isLocked),
     pn: v.paramName ?? "",
     g: v.group ?? "",
-    ct: v.customType ?? ""
+    ct: v.customType ?? "",
+    ipi: v.inputParamInfo,
+    opi: v.outputParamInfo,
+    td: v.tableDef,
   });
 }
 
@@ -1543,6 +1551,23 @@ export default function VariableEditor({
               </span>
             </label>
           ) : null}
+
+          {programSurface === "subProgram" ? (
+            <VariableParamInfoPanel
+              variable={variableFormDisplay}
+              onPatch={(next) =>
+                updateVariableFormDraft({
+                  inputParamInfo: next.inputParamInfo,
+                  outputParamInfo: next.outputParamInfo,
+                })
+              }
+            />
+          ) : null}
+
+          <VariableTableDefPanel
+            variable={variableFormDisplay}
+            onPatch={(next) => updateVariableFormDraft({ tableDef: next.tableDef })}
+          />
 
           <label>
             <span className="variable-form-field-label">标签</span>

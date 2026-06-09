@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Form;
+using QuickerRpc.AgentModel.XAction.Lint;
 
 namespace QuickerRpc.AgentModel.XAction.Project;
 
@@ -30,13 +31,22 @@ public static class XActionFormSpecCompiler
         public int CompiledStepCount { get; set; }
     }
 
-    public static CompileResult Compile(JObject data, string? projectDirectory) =>
-        CompileStepsArray(data["steps"] as JArray, projectDirectory);
+    public static CompileResult Compile(JObject data, string? projectDirectory)
+    {
+        var variableKeys = CollectDefinedVariableKeys(data, projectDirectory);
+        return CompileStepsArray(data["steps"] as JArray, projectDirectory, variableKeys);
+    }
 
-    public static CompileResult CompilePatch(JObject patch, string? projectDirectory) =>
-        CompileStepsArray(patch["steps"] as JArray, projectDirectory);
+    public static CompileResult CompilePatch(JObject patch, string? projectDirectory)
+    {
+        var variableKeys = CollectDefinedVariableKeys(patch, projectDirectory);
+        return CompileStepsArray(patch["steps"] as JArray, projectDirectory, variableKeys);
+    }
 
-    private static CompileResult CompileStepsArray(JArray? steps, string? projectDirectory)
+    private static CompileResult CompileStepsArray(
+        JArray? steps,
+        string? projectDirectory,
+        IReadOnlyCollection<string> definedVariableKeys)
     {
         if (steps is null)
         {
@@ -45,7 +55,7 @@ public static class XActionFormSpecCompiler
 
         try
         {
-            var compiled = CompileSteps(steps, projectDirectory);
+            var compiled = CompileSteps(steps, projectDirectory, definedVariableKeys);
             return new CompileResult { Success = true, CompiledStepCount = compiled };
         }
         catch (Exception ex)
@@ -54,7 +64,10 @@ public static class XActionFormSpecCompiler
         }
     }
 
-    private static int CompileSteps(JArray steps, string? projectDirectory)
+    private static int CompileSteps(
+        JArray steps,
+        string? projectDirectory,
+        IReadOnlyCollection<string> definedVariableKeys)
     {
         var compiled = 0;
         foreach (var token in steps)
@@ -64,23 +77,26 @@ public static class XActionFormSpecCompiler
                 continue;
             }
 
-            compiled += CompileStep(step, projectDirectory);
+            compiled += CompileStep(step, projectDirectory, definedVariableKeys);
 
             if (step["ifSteps"] is JArray ifSteps)
             {
-                compiled += CompileSteps(ifSteps, projectDirectory);
+                compiled += CompileSteps(ifSteps, projectDirectory, definedVariableKeys);
             }
 
             if (step["elseSteps"] is JArray elseSteps)
             {
-                compiled += CompileSteps(elseSteps, projectDirectory);
+                compiled += CompileSteps(elseSteps, projectDirectory, definedVariableKeys);
             }
         }
 
         return compiled;
     }
 
-    private static int CompileStep(JObject step, string? projectDirectory)
+    private static int CompileStep(
+        JObject step,
+        string? projectDirectory,
+        IReadOnlyCollection<string> definedVariableKeys)
     {
         if (!string.Equals(step.Value<string>("stepRunnerKey"), FormStepRunnerKey, StringComparison.Ordinal))
         {
@@ -103,7 +119,12 @@ public static class XActionFormSpecCompiler
                     $"{stepRef}: inputParams.formSpec cannot be used together with formDef or dynamicFormForDictDef.");
             }
 
-            CompileLegacyFormSpec(inputParams, formSpecParam, $"{stepRef} inputParams.{FormSpecParamKey}", projectDirectory);
+            CompileLegacyFormSpec(
+                inputParams,
+                formSpecParam,
+                $"{stepRef} inputParams.{FormSpecParamKey}",
+                projectDirectory,
+                definedVariableKeys);
             return 1;
         }
 
@@ -116,7 +137,8 @@ public static class XActionFormSpecCompiler
                     paramKey,
                     $"{stepRef} inputParams.{paramKey}",
                     projectDirectory,
-                    stepRef))
+                    stepRef,
+                    definedVariableKeys))
             {
                 compiled++;
             }
@@ -129,7 +151,8 @@ public static class XActionFormSpecCompiler
         JObject inputParams,
         JObject formSpecParam,
         string paramRef,
-        string? projectDirectory)
+        string? projectDirectory,
+        IReadOnlyCollection<string> definedVariableKeys)
     {
         var specParse = FormSpecParamReader.TryParseParam(formSpecParam, paramRef, projectDirectory);
         if (!specParse.Success)
@@ -137,7 +160,7 @@ public static class XActionFormSpecCompiler
             throw new InvalidOperationException($"{paramRef}: {specParse.ErrorMessage}");
         }
 
-        var build = FormSpecCompiler.Build(specParse.Spec!);
+        var build = FormSpecCompiler.Build(specParse.Spec!, definedVariableKeys);
         if (!build.Success)
         {
             throw new InvalidOperationException($"{paramRef}: {FormatIssues(build.Issues)}");
@@ -154,7 +177,8 @@ public static class XActionFormSpecCompiler
         string paramKey,
         string paramRef,
         string? projectDirectory,
-        string stepRef)
+        string stepRef,
+        IReadOnlyCollection<string> definedVariableKeys)
     {
         if (FormSpecParamReader.TryParseFormSpecParam(
                 paramObj,
@@ -168,7 +192,7 @@ public static class XActionFormSpecCompiler
                 throw new InvalidOperationException(errorMessage);
             }
 
-            var build = FormSpecCompiler.Build(spec!);
+            var build = FormSpecCompiler.Build(spec!, definedVariableKeys);
             if (!build.Success)
             {
                 throw new InvalidOperationException($"{paramRef}: {FormatIssues(build.Issues)}");
@@ -279,5 +303,35 @@ public static class XActionFormSpecCompiler
         return string.Join(
             "; ",
             issues.Select(i => (string.IsNullOrWhiteSpace(i.Path) ? "" : i.Path + ": ") + i.Message));
+    }
+
+    private static HashSet<string> CollectDefinedVariableKeys(JObject data, string? projectDirectory)
+    {
+        if (data["variables"] is JArray inlineVariables)
+        {
+            return InterpolationPrefixLint.CollectVariableKeys(inlineVariables);
+        }
+
+        if (string.IsNullOrWhiteSpace(projectDirectory))
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        try
+        {
+            var projectDir = QuickerProjectLayout.ResolveProjectDirectory(projectDirectory);
+            var dataPath = QuickerProjectLayout.GetDataPath(projectDir);
+            if (!File.Exists(dataPath))
+            {
+                return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            var projectData = QuickerProjectFiles.ReadData(projectDir);
+            return InterpolationPrefixLint.CollectVariableKeys(projectData["variables"] as JArray);
+        }
+        catch
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
     }
 }

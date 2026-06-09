@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Quicker.Domain;
+using QuickerRpc.AgentModel.Core;
 using QuickerRpc.Contracts.Rpc;
 
 namespace QuickerRpc.Plugin.Services;
@@ -219,7 +220,7 @@ public sealed class HeadlessVariableEditService
     }
 
     private static string BuildVariablePatchJson(string variableKey, string defaultValue) =>
-        new JObject
+        JTokenCompat.Compact(new JObject
         {
             ["variables"] = new JArray
             {
@@ -229,7 +230,7 @@ public sealed class HeadlessVariableEditService
                     ["defaultValue"] = defaultValue,
                 },
             },
-        }.ToString(Formatting.None);
+        });
 
     private static QuickerRpcSubProgramVariableEditResult Success(
         string targetIdOrName,

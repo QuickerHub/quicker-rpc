@@ -184,7 +184,8 @@ if (-not $SkipInstall) {
     Install-QkrpcFromDirectory -SourceDirectory $publishDir -InstallDir $installDir | Out-Null
 }
 else {
-    Write-Host "SkipInstall: left CLI in publish/cli only (not deployed to $((Get-QkrpcDefaultInstallDir)))." -ForegroundColor Yellow
+    Write-Host "SkipInstall: CLI at publish/cli only (not deployed to $((Get-QkrpcDefaultInstallDir)))." -ForegroundColor DarkGray
+    Write-Host "  Dev: build.ps1 -t and qkrpc serve use publish/cli; terminal PATH may still point at user install." -ForegroundColor DarkGray
 }
 
 Write-Host ""

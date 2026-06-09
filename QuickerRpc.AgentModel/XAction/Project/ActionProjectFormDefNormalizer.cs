@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.Core;
 
 namespace QuickerRpc.AgentModel.XAction.Project;
 
@@ -30,7 +31,7 @@ public static class ActionProjectFormDefNormalizer
         }
 
         var data = QuickerProjectFiles.ReadData(projectDir);
-        var before = data.ToString(Formatting.None);
+        var before = JTokenCompat.Compact(data);
         var resourceFiles = new List<ActionProjectResourceFile>();
         var warnings = new List<string>();
         XActionFormDefReversibleExporter.Apply(data, templateData: data, resourceFiles, warnings, projectDir);
@@ -40,7 +41,7 @@ public static class ActionProjectFormDefNormalizer
             XActionFileRefExportOptions.DefaultAutoExternalizeMinLines);
         resourceFiles.AddRange(auto.ResourceFiles);
         warnings.AddRange(auto.Warnings);
-        var after = data.ToString(Formatting.None);
+        var after = JTokenCompat.Compact(data);
         var dataChanged = !string.Equals(before, after, StringComparison.Ordinal);
 
         if (resourceFiles.Count > 0)

@@ -21,7 +21,7 @@ metadata:
 | 页面 HTML | `dev_frontend_check` 抓取错误页文案 | 工具返回 `issues[]` |
 | 探测 URL | 默认 `/`、`/api/llm`、`/api/ping` | `agent-gui/.local/frontend-smoke-last.json` |
 
-前提：`pnpm dev` / `start-agent-gui.ps1` 在跑，且 `NODE_ENV=development`。
+前提：`pwsh ./dev.ps1` 在跑，且 `NODE_ENV=development`。
 
 ## Agent 必做流程（改 UI 之后）
 

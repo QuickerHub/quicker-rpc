@@ -5,4 +5,8 @@
   <Project Path="QuickerRpc.Console/QuickerRpc.Console.csproj" />
   <Project Path="QuickerRpc.Plugin.Test/QuickerRpc.Plugin.Test.csproj" />
   <Project Path="QuickerRpc.Test/QuickerRpc.Test.csproj" />
+  <Project Path="QuickerRpc.Console.Test/QuickerRpc.Console.Test.csproj" />
+  <Project Path="Quicker.ActionRuntime/Quicker.ActionRuntime.Abstractions/Quicker.ActionRuntime.Abstractions.csproj" />
+  <Project Path="Quicker.ActionRuntime/Quicker.ActionRuntime.Core/Quicker.ActionRuntime.Core.csproj" />
+  <Project Path="Quicker.ActionRuntime/Quicker.ActionRuntime.Integration/Quicker.ActionRuntime.Integration.csproj" />
 </Solution>

@@ -1,0 +1,6 @@
+{
+  "id": "00000000-0000-4000-8000-000000000002",
+  "title": "Standalone file-ref compile smoke",
+  "description": "expression.file → compiled value → ActionRuntime",
+  "editVersion": 1
+}

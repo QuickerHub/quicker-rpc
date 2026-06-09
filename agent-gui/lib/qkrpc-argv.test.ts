@@ -123,6 +123,42 @@ test("argvToInvoke maps action publish with share metadata", () => {
   });
 });
 
+test("argvToInvoke maps action shared-info get/set", () => {
+  assert.deepEqual(
+    argvToInvoke([
+      "action",
+      "shared-info-get",
+      "--id",
+      "86c72b86-0169-4970-e9de-08dec5dab067",
+      "--json",
+    ]),
+    {
+      op: "action.shared-info.get",
+      args: { id: "86c72b86-0169-4970-e9de-08dec5dab067" },
+    },
+  );
+
+  assert.deepEqual(
+    argvToInvoke([
+      "action",
+      "shared-info-set",
+      "--code",
+      "86c72b86-0169-4970-e9de-08dec5dab067",
+      "--html",
+      "<p>test</p>",
+      "--json",
+    ]),
+    {
+      op: "action.shared-info.set",
+      args: {
+        id: "86c72b86-0169-4970-e9de-08dec5dab067",
+        html: "<p>test</p>",
+        htmlFile: undefined,
+      },
+    },
+  );
+});
+
 test("argvToInvoke maps action update for legacy compat", () => {
   const invoke = argvToInvoke([
     "action",

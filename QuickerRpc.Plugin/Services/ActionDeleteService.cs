@@ -2,6 +2,7 @@ using System;
 using System.Reflection;
 using System.Threading.Tasks;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Plugin.Services.Search;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -56,6 +57,11 @@ public sealed class ActionDeleteService
 
             await task.ConfigureAwait(true);
             var deleted = ReadTaskBoolResult(task);
+            if (deleted)
+            {
+                ActionSearchIndexInvalidator.InvalidateAction();
+            }
+
             return new QuickerRpcActionUpdateResult
             {
                 Ok = deleted,

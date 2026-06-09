@@ -8,6 +8,8 @@ using Quicker.Domain.Actions.X;
 using Quicker.Domain.Services;
 using QuickerRpc.Plugin.Reflection;
 
+using QuickerRpc.Plugin.Services.Search;
+
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
@@ -150,6 +152,7 @@ internal static class ActionDesignerProgramAccess
         }
 
         ActionDesignerUiSave.TrySyncOpenDesignerOnUiThread(id, xAction);
+        ActionSearchIndexInvalidator.InvalidateAction();
         return true;
     }
 
@@ -186,6 +189,7 @@ internal static class ActionDesignerProgramAccess
             return false;
         }
 
+        ActionSearchIndexInvalidator.InvalidateAction();
         return true;
     }
 

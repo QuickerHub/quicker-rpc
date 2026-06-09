@@ -41,6 +41,39 @@ test("parseFormSpecText reads qkrpc.form.v1 fixture", () => {
   assert.match(summary.title, /OCR/);
 });
 
+test("parseFormSpecText reads visibleWhen on fields", () => {
+  const parsed = parseFormSpecText(
+    JSON.stringify({
+      $schema: "qkrpc.form.v1",
+      mode: "variables",
+      title: "Cond",
+      fields: [
+        { key: "kind", label: "Kind", type: "text" },
+        {
+          key: "custom",
+          label: "Custom",
+          type: "text",
+          visibleWhen: { field: "kind", eq: "custom" },
+        },
+      ],
+    }),
+  );
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.spec.fields[1]?.visibleWhen, {
+    field: "kind",
+    eq: "custom",
+  });
+  const serialized = serializeFormSpec(parsed.spec);
+  const again = parseFormSpecText(serialized);
+  assert.equal(again.ok, true);
+  if (!again.ok) return;
+  assert.deepEqual(again.spec.fields[1]?.visibleWhen, {
+    field: "kind",
+    eq: "custom",
+  });
+});
+
 test("serializeFormSpec roundtrip keeps schema and fields", () => {
   const parsed = parseFormSpecText(
     JSON.stringify(

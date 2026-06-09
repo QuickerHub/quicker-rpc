@@ -19,6 +19,8 @@ public sealed class ActionAuthoringDocSearchItem
 {
     public string Topic { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
+    /// <summary>Matched ## section heading when search hit a fragment row.</summary>
+    public string? Section { get; set; }
     public string Excerpt { get; set; } = string.Empty;
 }
 

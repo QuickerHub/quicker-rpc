@@ -274,9 +274,23 @@ qkrpc action edit --id <guid> [--json]
 qkrpc action edit-var --id <id> --var <key> --value <val> [--json]
 ```
 
+### `qkrpc action publish`
+
+分享或更新 getquicker 动作库条目（自动判断首次分享 vs 更新已有分享）。
+
+```powershell
+# 首次分享（需 title + description，可用动作元数据默认值）
+qkrpc action publish --id <localActionGuid> [--title <text>] [--description <text>] [--share-note <markdown>] [--tags a,b] [--private] [--json]
+
+# 更新已分享动作（changelog 必填）
+qkrpc action publish --id <localOrSharedGuid> --changelog "v1.1: 修复超时" [--json]
+```
+
+Agent 工作流详见 `qkrpc guide get --topic action-publish-workflow --json`。
+
 ### `qkrpc action update`
 
-上传/更新分享动作。
+`action publish` 的别名（更新路径；须 `--changelog`）。
 
 ```powershell
 qkrpc action update --id <sharedActionGuid> [--changelog <text>] [--json]

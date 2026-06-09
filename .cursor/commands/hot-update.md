@@ -17,7 +17,7 @@
 ## 前置
 
 1. **Quicker 已启动**（插件重载依赖 `quicker:runaction:…?plugin`）。
-2. **agent-gui / `start-agent-gui.ps1` 可保持运行**，不必关前端。
+2. **`dev.ps1` 可保持运行**，不必关前端。
 3. 在仓库根目录执行（`working_directory` = quicker-rpc 根）。
 
 ## 执行

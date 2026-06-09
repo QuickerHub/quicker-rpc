@@ -145,6 +145,154 @@ export function FormSpecFieldsEditor({
                   spellCheck={false}
                 />
               </label>
+              <label className="form-spec-meta-field form-spec-meta-field--compact">
+                <span className="form-spec-meta-label">分组</span>
+                <input
+                  className="step-param-control"
+                  value={field.group ?? ""}
+                  onChange={(event) => updateField(index, { group: event.target.value })}
+                  placeholder="可选"
+                />
+              </label>
+              <label className="form-spec-meta-field form-spec-meta-field--wide">
+                <span className="form-spec-meta-label">帮助说明</span>
+                <input
+                  className="step-param-control"
+                  value={field.help ?? ""}
+                  onChange={(event) => updateField(index, { help: event.target.value })}
+                  placeholder="字段下方提示"
+                />
+              </label>
+              <label className="form-spec-meta-field form-spec-meta-field--compact">
+                <span className="form-spec-meta-label">默认值</span>
+                <input
+                  className="step-param-control"
+                  value={field.default === undefined ? "" : String(field.default)}
+                  onChange={(event) => {
+                    const raw = event.target.value;
+                    if (!raw.trim()) {
+                      updateField(index, { default: undefined });
+                      return;
+                    }
+                    if (field.type === "boolean") {
+                      updateField(index, { default: raw === "true" });
+                      return;
+                    }
+                    if (field.type === "number" || field.type === "integer") {
+                      const num = Number(raw);
+                      updateField(index, { default: Number.isFinite(num) ? num : raw });
+                      return;
+                    }
+                    updateField(index, { default: raw });
+                  }}
+                  placeholder="可选"
+                  spellCheck={false}
+                />
+              </label>
+              {field.type === "number" || field.type === "integer" ? (
+                <>
+                  <label className="form-spec-meta-field form-spec-meta-field--compact">
+                    <span className="form-spec-meta-label">最小值</span>
+                    <input
+                      className="step-param-control"
+                      type="number"
+                      value={field.min ?? ""}
+                      onChange={(event) => {
+                        const raw = event.target.value.trim();
+                        updateField(index, {
+                          min: raw.length > 0 ? Number.parseFloat(raw) : undefined,
+                        });
+                      }}
+                    />
+                  </label>
+                  <label className="form-spec-meta-field form-spec-meta-field--compact">
+                    <span className="form-spec-meta-label">最大值</span>
+                    <input
+                      className="step-param-control"
+                      type="number"
+                      value={field.max ?? ""}
+                      onChange={(event) => {
+                        const raw = event.target.value.trim();
+                        updateField(index, {
+                          max: raw.length > 0 ? Number.parseFloat(raw) : undefined,
+                        });
+                      }}
+                    />
+                  </label>
+                </>
+              ) : null}
+              {field.type === "text" || field.type === "password" ? (
+                <label className="form-spec-meta-field form-spec-meta-field--wide">
+                  <span className="form-spec-meta-label">校验正则 pattern</span>
+                  <input
+                    className="step-param-control"
+                    value={field.pattern ?? ""}
+                    onChange={(event) => updateField(index, { pattern: event.target.value })}
+                    spellCheck={false}
+                  />
+                </label>
+              ) : null}
+              <div className="form-spec-visible-when">
+                <span className="form-spec-meta-label">可见条件 visibleWhen</span>
+                <div className="form-spec-visible-when-row">
+                  <input
+                    className="step-param-control"
+                    value={field.visibleWhen?.field ?? ""}
+                    onChange={(event) => {
+                      const refField = event.target.value.trim();
+                      const prev = field.visibleWhen;
+                      if (!refField) {
+                        updateField(index, { visibleWhen: undefined });
+                        return;
+                      }
+                      updateField(index, {
+                        visibleWhen: {
+                          field: refField,
+                          eq: prev?.eq,
+                          ne: prev?.ne,
+                        },
+                      });
+                    }}
+                    placeholder="依赖字段 key"
+                    spellCheck={false}
+                  />
+                  <select
+                    className="step-param-control"
+                    value={field.visibleWhen?.eq != null ? "eq" : field.visibleWhen?.ne != null ? "ne" : "eq"}
+                    onChange={(event) => {
+                      const refField = (field.visibleWhen?.field ?? "").trim();
+                      if (!refField) return;
+                      const mode = event.target.value;
+                      const value = field.visibleWhen?.eq ?? field.visibleWhen?.ne ?? "";
+                      updateField(index, {
+                        visibleWhen:
+                          mode === "ne"
+                            ? { field: refField, ne: value }
+                            : { field: refField, eq: value },
+                      });
+                    }}
+                  >
+                    <option value="eq">等于</option>
+                    <option value="ne">不等于</option>
+                  </select>
+                  <input
+                    className="step-param-control"
+                    value={field.visibleWhen?.eq ?? field.visibleWhen?.ne ?? ""}
+                    onChange={(event) => {
+                      const refField = (field.visibleWhen?.field ?? "").trim();
+                      if (!refField) return;
+                      const value = event.target.value;
+                      if (field.visibleWhen?.ne != null) {
+                        updateField(index, { visibleWhen: { field: refField, ne: value } });
+                      } else {
+                        updateField(index, { visibleWhen: { field: refField, eq: value } });
+                      }
+                    }}
+                    placeholder="比较值"
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
               {field.type === "select" ? (
                 <label className="form-spec-meta-field form-spec-meta-field--wide">
                   <span className="form-spec-meta-label">选项（每行 value 或 value|label）</span>

@@ -22,7 +22,7 @@ KC 爬取稿（`../<id>.md`）= **素材库**（已全部迁移）；手写稿 =
 - 快捷脚手架：`npm run docs:modules:new -- sys:<key> [--keywords 中文,alias]`
 - ref 读取：`docs_get_reference({ topic: "step-modules", file: "<id>" })`
 
-## 3. 文档结构（固定顺序）
+## 3. 文档结构（固定顺序，examples-first）
 
 ```markdown
 # sys:<key>
@@ -31,30 +31,28 @@ KC 爬取稿（`../<id>.md`）= **素材库**（已全部迁移）；手写稿 =
 
 **用途**：<一行中文，动作设计语境>
 
-**何时读**：<一行：读完 get 后仍不清楚什么时再读；或「不必读，get 即可」>
+## 示例
 
-## wire 要点
-
-| param | wire | notes |
-|-------|------|-------|
-| ... | inline / `.file` / `.var` / 表达式 | 仅非显而易见项 |
-
-## 模式（可选）
-
-controlField 或多「操作类型」分支：表格或 bullet，**只写各分支差异**。
-
-## 协议 / 格式（可选）
-
-DSL、HTTP 体、表单定义、Excel 范围等 get 未展开的格式；用表格或短代码块。
-
-## 禁止 / 常见错误（可选）
-
-| 写法 | 问题 |
-|------|------|
-
-## 示例（推荐）
+### <场景一句话>
 
 最小单步 patch JSON（`stepRunnerKey` + `inputParams` / `outputParams`）；≤22 行。`inputParams` 按 `valueType` 选 JSON 形态：List→`["a","b"]`，Dict→`{…}`，Boolean/Number→bool/number 或 string，`$$`/`$=` 须 string。**只写非默认参数**；`.var` / `.file` / 含 `$` 的 string 始终保留。
+
+每个主要 `controlField` / 操作类型分支 ≥1 例；参考 KC 官方全文设计场景。
+
+## 陷阱（可选）
+
+≤3 行；仅非显而易见 wire/协议错误。
+
+## 相关
+
+<3–6 个 topic/ref>
+```
+
+**不再要求** `何时读` / `wire 要点` / `模式` 表（`step-runner get` 已覆盖）；复杂协议改指向 schema topic。
+
+### 旧节（迁移前遗留，应删除）
+
+wire 要点、模式表、协议节 — 改写成示例或删除。
 
 压缩已有示例：`node scripts/compress-module-ref-examples.mjs`（需 qkrpc）。
 
@@ -91,7 +89,7 @@ node scripts/distill-quicker-module-doc-examples.mjs --input path/to/Doc.md
 | **XS（schema-backed）** | 15–30 | 已有 schema topic（`form-spec`、`webview2-authoring`） | 何时读 → schema；仅示例 + 相关 |
 | **XL** | 90+ | **避免**；应拆到 `action-project-files`、独立 schema topic 或子 reference |
 
-硬上限：**100 行**（超则删冗余或外置到 `schemas/`）。
+硬上限：**150 行**（超则删冗余或外置到 `schemas/`）。
 
 ### 3.3 schema-backed 模块
 

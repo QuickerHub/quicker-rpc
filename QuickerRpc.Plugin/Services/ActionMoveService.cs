@@ -11,6 +11,7 @@ using Quicker.Domain.Entities;
 using Quicker.Domain.Profiles;
 using Quicker.Utilities;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Plugin.Services.Search;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -416,6 +417,7 @@ public sealed class ActionMoveService
                 ReusedProfileName = reusedProfile?.Name,
             };
 
+            ActionSearchIndexInvalidator.InvalidateAction();
             TryPruneEmptySourceProfile(sourceProfile, destinationProfile, result);
             return result;
         }

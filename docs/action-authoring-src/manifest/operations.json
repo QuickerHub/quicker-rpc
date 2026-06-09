@@ -117,6 +117,50 @@
       "N": "<N>"
     }
   },
+  "action.publish": {
+    "cli": "qkrpc action publish --id {{id}} [--title \"{{title}}\"] [--description \"{{description}}\"] [--changelog \"{{changelog}}\"] [--share-note \"{{note}}\"] [--tags {{tags}}] [--private] [--json]",
+    "agent": "qkrpc_action_publish({ id: \"{{id}}\", title?: \"{{title}}\", description?: \"{{description}}\", note?: \"{{note}}\", tags?: \"{{tags}}\", changelog?: \"{{changelog}}\", isPublic?: true })",
+    "defaults": {
+      "id": "<guid>",
+      "title": "My Action",
+      "description": "One-line summary",
+      "changelog": "v1.1: fix …",
+      "note": "## Intro",
+      "tags": "tag1,tag2"
+    }
+  },
+  "action.shared-info.get": {
+    "cli": "qkrpc action shared-info-get --id {{id}} [--json]",
+    "agent": null,
+    "agentNote": "（内置自动化 / 发布脚本；读取 getquicker 动作说明 Detail HTML；Agent 禁止自主调用）",
+    "defaults": {
+      "id": "<sharedId>"
+    }
+  },
+  "action.shared-info.set": {
+    "cli": "qkrpc action shared-info-set --id {{id}} --html-file {{file}} [--json]",
+    "agent": null,
+    "agentNote": "（内置自动化 / publish/Sync-QuickerAgentActionDoc.ps1；写入 getquicker 动作说明 Detail HTML；Agent 禁止自主调用）",
+    "defaults": {
+      "id": "<sharedId>",
+      "file": "info.html"
+    }
+  },
+  "action.update": {
+    "cli": "qkrpc action update --id {{id}} --changelog \"{{changelog}}\" [--json]",
+    "agent": "qkrpc_action_publish({ id: \"{{id}}\", changelog: \"{{changelog}}\" })",
+    "defaults": {
+      "id": "<guid>",
+      "changelog": "v1.1: fix …"
+    }
+  },
+  "action.debug": {
+    "cli": "qkrpc action run --id {{id}} --trace --json",
+    "agent": "qkrpc_action_debug({ id: \"{{id}}\" })",
+    "defaults": {
+      "id": "<guid>"
+    }
+  },
   "action.patch": {
     "cli": "qkrpc action patch --id {{id}} --patch-file patch.json --expected-edit-version {{N}} --json",
     "agent": "qkrpc_action_patch({ id: \"{{id}}\" })",

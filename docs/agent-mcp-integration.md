@@ -202,7 +202,7 @@ QuickerAgent 默认走此路径；其他语言 Agent 可 HTTP 封装，无需 MC
 
 | 场景 | 推荐 |
 |------|------|
-| 日常写动作、可视化步骤编辑、浏览器自动化 | **QuickerAgent**（`start-agent-gui.ps1` 或安装包） |
+| 日常写动作、可视化步骤编辑、浏览器自动化 | **QuickerAgent**（`pwsh ./dev.ps1` 或安装包） |
 | 已在 Cursor / VS Code / Claude 中开发 | **`qkrpc mcp install --all`** |
 | CI / 脚本 / 无 GUI | **`qkrpc` CLI** 或 **`qkrpc serve` HTTP** |
 | 团队共享 MCP 配置 | `qkrpc mcp install --project` 后 commit `.vscode/mcp.json` 等 |

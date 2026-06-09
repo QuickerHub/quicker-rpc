@@ -25,6 +25,7 @@ mod single_instance;
 mod tray;
 mod voice_plugin;
 mod voice_plugin_install;
+mod webview_permissions;
 mod webview_profile;
 pub(crate) mod win_job;
 
@@ -832,6 +833,7 @@ pub fn run() {
                 // `tauri dev` uses devUrl + start.mjs from beforeDevCommand.
                 if let Some(win) = app.get_webview_window("main") {
                     apply_titlebar_chrome_existing(&win);
+                    webview_permissions::enable_auto_microphone_permission(&win);
                     let _ = win.center();
                     let _ = win.show();
                 }
@@ -844,6 +846,7 @@ pub fn run() {
                 if let Some(win) = app.get_webview_window("main") {
                     apply_titlebar_chrome_existing(&win);
                     register_startup_window_handlers(&win, app.handle());
+                    webview_permissions::enable_auto_microphone_permission(&win);
                     let _ = win.center();
                     let _ = win.show();
                 }

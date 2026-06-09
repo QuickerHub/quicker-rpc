@@ -82,13 +82,8 @@ export function ActionTraceTimeline({
   );
   const followTail = isLive;
 
-  useFollowScrollTail(
-    scrollRef,
-    followTail,
-    displayItems.length,
-    status,
-    events.length,
-  );
+  const timelineTailKey = `${displayItems.length}|${status}|${events.length}`;
+  useFollowScrollTail(scrollRef, followTail, timelineTailKey);
 
   if (!rows.length) {
     return (

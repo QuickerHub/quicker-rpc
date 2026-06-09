@@ -9,9 +9,7 @@ namespace QuickerRpc.AgentModel.Form;
 /// <summary>Validates <see cref="FormSpecDocument"/> (qkrpc.form.v1).</summary>
 public static class FormSpecValidator
 {
-    private static readonly Regex FieldKeyPattern = new(
-        "^[A-Za-z_][A-Za-z0-9_]{0,63}$",
-        RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private const int MaxFieldKeyLength = 64;
 
     private static readonly HashSet<string> AllowedModes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -31,7 +29,16 @@ public static class FormSpecValidator
         "password",
     };
 
-    public static FormSpecValidationResult Validate(FormSpecDocument? spec)
+    public static FormSpecValidationResult Validate(FormSpecDocument? spec) =>
+        Validate(spec, definedVariableKeys: null);
+
+    /// <summary>
+    /// When <paramref name="definedVariableKeys"/> is provided, each field target (variables mode)
+    /// or dictVar (dict_dynamic mode) must match a defined action variable key.
+    /// </summary>
+    public static FormSpecValidationResult Validate(
+        FormSpecDocument? spec,
+        IReadOnlyCollection<string>? definedVariableKeys)
     {
         var issues = new List<FormSpecIssue>();
         if (spec is null)
@@ -65,10 +72,19 @@ public static class FormSpecValidator
             issues.Add(Issue("title", "title must be at most 120 characters."));
         }
 
+        var variableKeys = ToVariableKeySet(definedVariableKeys);
+
         if (string.Equals(mode, "dict_dynamic", StringComparison.OrdinalIgnoreCase)
             && string.IsNullOrWhiteSpace(spec.DictVar))
         {
             issues.Add(Issue("dictVar", "dictVar is required when mode is dict_dynamic."));
+        }
+        else if (variableKeys is not null
+                 && string.Equals(mode, "dict_dynamic", StringComparison.OrdinalIgnoreCase)
+                 && !string.IsNullOrWhiteSpace(spec.DictVar)
+                 && !variableKeys.Contains(spec.DictVar.Trim()))
+        {
+            issues.Add(Issue("dictVar", "Variable not defined in action: " + spec.DictVar.Trim() + "."));
         }
 
         if (spec.Fields is null || spec.Fields.Count == 0)
@@ -78,9 +94,18 @@ public static class FormSpecValidator
         }
 
         var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var validateTargets = variableKeys is not null
+                              && string.Equals(mode, "variables", StringComparison.OrdinalIgnoreCase);
         for (var i = 0; i < spec.Fields.Count; i++)
         {
-            ValidateField(spec.Fields[i], $"fields[{i}]", issues, seenKeys, spec.Fields);
+            ValidateField(
+                spec.Fields[i],
+                $"fields[{i}]",
+                issues,
+                seenKeys,
+                spec.Fields,
+                validateTargets,
+                variableKeys);
         }
 
         return issues.Count == 0 ? new FormSpecValidationResult { Success = true } : Fail(issues);
@@ -91,7 +116,9 @@ public static class FormSpecValidator
         string path,
         List<FormSpecIssue> issues,
         HashSet<string> seenKeys,
-        IList<FormSpecField> allFields)
+        IList<FormSpecField> allFields,
+        bool validateTargets,
+        HashSet<string>? variableKeys)
     {
         if (field is null)
         {
@@ -104,9 +131,9 @@ public static class FormSpecValidator
         {
             issues.Add(Issue($"{path}.key", "key is required."));
         }
-        else if (!FieldKeyPattern.IsMatch(key))
+        else if (key.Length > MaxFieldKeyLength)
         {
-            issues.Add(Issue($"{path}.key", "key must match ^[A-Za-z_][A-Za-z0-9_]{0,63}$."));
+            issues.Add(Issue($"{path}.key", $"key must be at most {MaxFieldKeyLength} characters."));
         }
         else if (!seenKeys.Add(key))
         {
@@ -118,9 +145,9 @@ public static class FormSpecValidator
         {
             issues.Add(Issue($"{path}.target", "target is required when key is empty."));
         }
-        else if (!FieldKeyPattern.IsMatch(target))
+        else if (validateTargets && variableKeys is not null && !variableKeys.Contains(target))
         {
-            issues.Add(Issue($"{path}.target", "target must match ^[A-Za-z_][A-Za-z0-9_]{0,63}$."));
+            issues.Add(Issue($"{path}.target", "Variable not defined in action: " + target + "."));
         }
 
         var label = (field.Label ?? string.Empty).Trim();
@@ -320,6 +347,16 @@ public static class FormSpecValidator
         {
             issues.Add(Issue($"{path}.visibleWhen", "Provide exactly one of eq or ne."));
         }
+    }
+
+    private static HashSet<string>? ToVariableKeySet(IReadOnlyCollection<string>? definedVariableKeys)
+    {
+        if (definedVariableKeys is null || definedVariableKeys.Count == 0)
+        {
+            return null;
+        }
+
+        return new HashSet<string>(definedVariableKeys, StringComparer.OrdinalIgnoreCase);
     }
 
     private static bool IsNumericType(string type) =>

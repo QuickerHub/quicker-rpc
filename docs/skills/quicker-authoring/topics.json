@@ -12,7 +12,15 @@
         "phase": "P2-P6",
         "layer": "schema"
       },
-      "layer": "schema"
+      "layer": "schema",
+      "searchAliases": [
+        "bind",
+        "wire",
+        "variables",
+        "data.json",
+        "steps",
+        "inputParams"
+      ]
     },
     {
       "topic": "action-embedded-subprograms",
@@ -37,7 +45,15 @@
         "phase": "P3",
         "layer": "schema"
       },
-      "layer": "schema"
+      "layer": "schema",
+      "searchAliases": [
+        "fa",
+        "icon",
+        "metadata",
+        "图标",
+        "set-metadata",
+        "fa:Light"
+      ]
     },
     {
       "topic": "action-organization-workflow",
@@ -67,6 +83,35 @@
         "工作区",
         "项目布局",
         "action project"
+      ]
+    },
+    {
+      "topic": "action-publish-workflow",
+      "title": "Action publish workflow",
+      "description": "Use when sharing or updating getquicker actions: first publish vs changelog update, metadata/icon rules. HTML 动作说明 is built-in automation — Agent stops at Pub4.",
+      "source": "references/action-publish-workflow.md",
+      "templateSource": "workflows/action-publish-workflow.md",
+      "allowedTools": "qkrpc_action_get qkrpc_action_set_metadata qkrpc_action_publish qkrpc_action_debug qkrpc_fa_search docs",
+      "metadata": {
+        "phase": "publish",
+        "layer": "workflow"
+      },
+      "layer": "workflow",
+      "searchAliases": [
+        "发布",
+        "分享",
+        "更新动作",
+        "publish",
+        "share",
+        "getquicker",
+        "changelog",
+        "Pub3",
+        "Pub4",
+        "Pub5",
+        "动作说明",
+        "shared-info",
+        "preview",
+        "note"
       ]
     },
     {
@@ -281,6 +326,149 @@
     "inputScript": "step-modules",
     "jsonExtract": "step-modules",
     "jsscript": "step-modules",
+    "kc/activateProcessMainWindow": "step-modules",
+    "kc/adobesoftscontrol": "step-modules",
+    "kc/ai": "step-modules",
+    "kc/assign": "step-modules",
+    "kc/audioControl": "step-modules",
+    "kc/autocadcontrol": "step-modules",
+    "kc/basic-ocr": "step-modules",
+    "kc/break": "step-modules",
+    "kc/charInfo": "step-modules",
+    "kc/checkPathExists": "step-modules",
+    "kc/checkProcessExists": "step-modules",
+    "kc/chromecontrol": "step-modules",
+    "kc/cloud_oss": "step-modules",
+    "kc/clouddata": "step-modules",
+    "kc/color": "step-modules",
+    "kc/comment": "step-modules",
+    "kc/compute": "step-modules",
+    "kc/computeTime": "step-modules",
+    "kc/continue": "step-modules",
+    "kc/createQrCode": "step-modules",
+    "kc/csscript": "step-modules",
+    "kc/custompanel": "step-modules",
+    "kc/customwindow": "step-modules",
+    "kc/dboperation": "step-modules",
+    "kc/delay": "step-modules",
+    "kc/dependencycheck": "step-modules",
+    "kc/dictOperations": "step-modules",
+    "kc/download": "step-modules",
+    "kc/each": "step-modules",
+    "kc/enc": "step-modules",
+    "kc/evalexpression": "step-modules",
+    "kc/everythingsearch": "step-modules",
+    "kc/excelObjects": "step-modules",
+    "kc/excelRange": "step-modules",
+    "kc/excelreadwrite": "step-modules",
+    "kc/fileOperation": "step-modules",
+    "kc/fileSystemWatch": "step-modules",
+    "kc/fileToClipboard": "step-modules",
+    "kc/flauiautomation": "step-modules",
+    "kc/form": "step-modules",
+    "kc/formatString": "step-modules",
+    "kc/GenTempFilePath": "step-modules",
+    "kc/getActionInfo": "step-modules",
+    "kc/getActiveProcessInfo": "step-modules",
+    "kc/getChromeUrl": "step-modules",
+    "kc/getClipboardFiles": "step-modules",
+    "kc/getClipboardImage": "step-modules",
+    "kc/getClipboardText": "step-modules",
+    "kc/getCurrentTime": "step-modules",
+    "kc/getExplorerPath": "step-modules",
+    "kc/getFolderPath": "step-modules",
+    "kc/getQuickerInfo": "step-modules",
+    "kc/getSelectedFiles": "step-modules",
+    "kc/getSelectedText": "step-modules",
+    "kc/getSysInfo": "step-modules",
+    "kc/getWindowTitle": "step-modules",
+    "kc/group": "step-modules",
+    "kc/htmlExtract": "step-modules",
+    "kc/http": "step-modules",
+    "kc/httpserver": "step-modules",
+    "kc/if": "step-modules",
+    "kc/imageinfo": "step-modules",
+    "kc/imeControl": "step-modules",
+    "kc/imgProcess": "step-modules",
+    "kc/imgToBase64": "step-modules",
+    "kc/inputScript": "step-modules",
+    "kc/joinList": "step-modules",
+    "kc/jsonExtract": "step-modules",
+    "kc/jsscript": "step-modules",
+    "kc/keyInput": "step-modules",
+    "kc/keyoperation": "step-modules",
+    "kc/listOperations": "step-modules",
+    "kc/manageList": "step-modules",
+    "kc/mathocr": "step-modules",
+    "kc/mouse": "step-modules",
+    "kc/MsgBox": "step-modules",
+    "kc/newGuid": "step-modules",
+    "kc/notify": "step-modules",
+    "kc/numberprocess": "step-modules",
+    "kc/numCompare": "step-modules",
+    "kc/officehelper": "step-modules",
+    "kc/openUrl": "step-modules",
+    "kc/outputText": "step-modules",
+    "kc/pathExtraction": "step-modules",
+    "kc/playRecords": "step-modules",
+    "kc/playSound": "step-modules",
+    "kc/pythonscript": "step-modules",
+    "kc/quickeroperations": "step-modules",
+    "kc/randomNum": "step-modules",
+    "kc/readFile": "step-modules",
+    "kc/readQrCode": "step-modules",
+    "kc/record": "step-modules",
+    "kc/recordSound": "step-modules",
+    "kc/regexExtract": "step-modules",
+    "kc/repeat": "step-modules",
+    "kc/reportProgress": "step-modules",
+    "kc/restoreActiveWindow": "step-modules",
+    "kc/rhinocontrol": "step-modules",
+    "kc/run": "step-modules",
+    "kc/runAction": "step-modules",
+    "kc/runScript": "step-modules",
+    "kc/screenCapture": "step-modules",
+    "kc/screenCapturePro": "step-modules",
+    "kc/searchBmp": "step-modules",
+    "kc/select": "step-modules",
+    "kc/selectFile": "step-modules",
+    "kc/SelectFileInExplorer": "step-modules",
+    "kc/selectFolder": "step-modules",
+    "kc/sendKeys": "step-modules",
+    "kc/sendMessage": "step-modules",
+    "kc/shelloperation": "step-modules",
+    "kc/showImage": "step-modules",
+    "kc/showmenu": "step-modules",
+    "kc/showText": "step-modules",
+    "kc/showWaitWin": "step-modules",
+    "kc/simpleIf": "step-modules",
+    "kc/smtp": "step-modules",
+    "kc/splitString": "step-modules",
+    "kc/stateStorage": "step-modules",
+    "kc/stop": "step-modules",
+    "kc/strCompare": "step-modules",
+    "kc/stringProcess": "step-modules",
+    "kc/strReplace": "step-modules",
+    "kc/subprogram": "step-modules",
+    "kc/tableoperation": "step-modules",
+    "kc/tempcloudstore": "step-modules",
+    "kc/tempImgBed": "step-modules",
+    "kc/textCounter": "step-modules",
+    "kc/textSelectTools": "step-modules",
+    "kc/translation": "step-modules",
+    "kc/uiautomation": "step-modules",
+    "kc/userInput": "step-modules",
+    "kc/waitClipboardChange": "step-modules",
+    "kc/waitKeyboard": "step-modules",
+    "kc/websocket": "step-modules",
+    "kc/webview2": "step-modules",
+    "kc/whiteboard": "step-modules",
+    "kc/windowOperations": "step-modules",
+    "kc/winservice": "step-modules",
+    "kc/writeClipboard": "step-modules",
+    "kc/WriteImageFile": "step-modules",
+    "kc/WriteTextFile": "step-modules",
+    "kc/zip": "step-modules",
     "mathocr": "step-modules",
     "officehelper": "step-modules",
     "playRecords": "step-modules",
@@ -458,6 +646,772 @@
         "id": "jsscript",
         "title": "sys:jsscript",
         "path": "step-modules/authored/jsscript.md"
+      },
+      {
+        "id": "kc/activateProcessMainWindow",
+        "title": "sys:activateProcessMainWindow",
+        "path": "step-modules/kc/activateProcessMainWindow.md"
+      },
+      {
+        "id": "kc/adobesoftscontrol",
+        "title": "sys:adobesoftscontrol",
+        "path": "step-modules/kc/adobesoftscontrol.md"
+      },
+      {
+        "id": "kc/ai",
+        "title": "sys:ai",
+        "path": "step-modules/kc/ai.md"
+      },
+      {
+        "id": "kc/assign",
+        "title": "sys:assign",
+        "path": "step-modules/kc/assign.md"
+      },
+      {
+        "id": "kc/audioControl",
+        "title": "sys:audioControl",
+        "path": "step-modules/kc/audioControl.md"
+      },
+      {
+        "id": "kc/autocadcontrol",
+        "title": "sys:autocadcontrol",
+        "path": "step-modules/kc/autocadcontrol.md"
+      },
+      {
+        "id": "kc/basic-ocr",
+        "title": "sys:basic-ocr",
+        "path": "step-modules/kc/basic-ocr.md"
+      },
+      {
+        "id": "kc/break",
+        "title": "sys:break",
+        "path": "step-modules/kc/break.md"
+      },
+      {
+        "id": "kc/charInfo",
+        "title": "sys:charInfo",
+        "path": "step-modules/kc/charInfo.md"
+      },
+      {
+        "id": "kc/checkPathExists",
+        "title": "sys:checkPathExists",
+        "path": "step-modules/kc/checkPathExists.md"
+      },
+      {
+        "id": "kc/checkProcessExists",
+        "title": "sys:checkProcessExists",
+        "path": "step-modules/kc/checkProcessExists.md"
+      },
+      {
+        "id": "kc/chromecontrol",
+        "title": "sys:chromecontrol",
+        "path": "step-modules/kc/chromecontrol.md"
+      },
+      {
+        "id": "kc/cloud_oss",
+        "title": "sys:cloud_oss",
+        "path": "step-modules/kc/cloud_oss.md"
+      },
+      {
+        "id": "kc/clouddata",
+        "title": "sys:clouddata",
+        "path": "step-modules/kc/clouddata.md"
+      },
+      {
+        "id": "kc/color",
+        "title": "sys:color",
+        "path": "step-modules/kc/color.md"
+      },
+      {
+        "id": "kc/comment",
+        "title": "sys:comment",
+        "path": "step-modules/kc/comment.md"
+      },
+      {
+        "id": "kc/compute",
+        "title": "sys:compute",
+        "path": "step-modules/kc/compute.md"
+      },
+      {
+        "id": "kc/computeTime",
+        "title": "sys:computeTime",
+        "path": "step-modules/kc/computeTime.md"
+      },
+      {
+        "id": "kc/continue",
+        "title": "sys:continue",
+        "path": "step-modules/kc/continue.md"
+      },
+      {
+        "id": "kc/createQrCode",
+        "title": "sys:createQrCode",
+        "path": "step-modules/kc/createQrCode.md"
+      },
+      {
+        "id": "kc/csscript",
+        "title": "sys:csscript",
+        "path": "step-modules/kc/csscript.md",
+        "searchAliases": [
+          "C#脚本",
+          "csharp脚本"
+        ]
+      },
+      {
+        "id": "kc/custompanel",
+        "title": "sys:custompanel",
+        "path": "step-modules/kc/custompanel.md"
+      },
+      {
+        "id": "kc/customwindow",
+        "title": "sys:customwindow",
+        "path": "step-modules/kc/customwindow.md"
+      },
+      {
+        "id": "kc/dboperation",
+        "title": "sys:dboperation",
+        "path": "step-modules/kc/dboperation.md"
+      },
+      {
+        "id": "kc/delay",
+        "title": "sys:delay",
+        "path": "step-modules/kc/delay.md"
+      },
+      {
+        "id": "kc/dependencycheck",
+        "title": "sys:dependencycheck",
+        "path": "step-modules/kc/dependencycheck.md"
+      },
+      {
+        "id": "kc/dictOperations",
+        "title": "sys:dictOperations",
+        "path": "step-modules/kc/dictOperations.md"
+      },
+      {
+        "id": "kc/download",
+        "title": "sys:download",
+        "path": "step-modules/kc/download.md"
+      },
+      {
+        "id": "kc/each",
+        "title": "sys:each",
+        "path": "step-modules/kc/each.md"
+      },
+      {
+        "id": "kc/enc",
+        "title": "sys:enc",
+        "path": "step-modules/kc/enc.md"
+      },
+      {
+        "id": "kc/evalexpression",
+        "title": "sys:evalexpression",
+        "path": "step-modules/kc/evalexpression.md"
+      },
+      {
+        "id": "kc/everythingsearch",
+        "title": "sys:everythingsearch",
+        "path": "step-modules/kc/everythingsearch.md"
+      },
+      {
+        "id": "kc/excelObjects",
+        "title": "sys:excelObjects",
+        "path": "step-modules/kc/excelObjects.md"
+      },
+      {
+        "id": "kc/excelRange",
+        "title": "sys:excelRange",
+        "path": "step-modules/kc/excelRange.md"
+      },
+      {
+        "id": "kc/excelreadwrite",
+        "title": "sys:excelreadwrite",
+        "path": "step-modules/kc/excelreadwrite.md"
+      },
+      {
+        "id": "kc/fileOperation",
+        "title": "sys:fileOperation",
+        "path": "step-modules/kc/fileOperation.md",
+        "searchAliases": [
+          "文件操作",
+          "读写文件",
+          "复制文件"
+        ]
+      },
+      {
+        "id": "kc/fileSystemWatch",
+        "title": "sys:fileSystemWatch",
+        "path": "step-modules/kc/fileSystemWatch.md"
+      },
+      {
+        "id": "kc/fileToClipboard",
+        "title": "sys:fileToClipboard",
+        "path": "step-modules/kc/fileToClipboard.md"
+      },
+      {
+        "id": "kc/flauiautomation",
+        "title": "sys:flauiautomation",
+        "path": "step-modules/kc/flauiautomation.md"
+      },
+      {
+        "id": "kc/form",
+        "title": "sys:form",
+        "path": "step-modules/kc/form.md",
+        "searchAliases": [
+          "表单",
+          "form.json",
+          "formDef"
+        ]
+      },
+      {
+        "id": "kc/formatString",
+        "title": "sys:formatString",
+        "path": "step-modules/kc/formatString.md"
+      },
+      {
+        "id": "kc/GenTempFilePath",
+        "title": "sys:GenTempFilePath",
+        "path": "step-modules/kc/GenTempFilePath.md"
+      },
+      {
+        "id": "kc/getActionInfo",
+        "title": "sys:getActionInfo",
+        "path": "step-modules/kc/getActionInfo.md"
+      },
+      {
+        "id": "kc/getActiveProcessInfo",
+        "title": "sys:getActiveProcessInfo",
+        "path": "step-modules/kc/getActiveProcessInfo.md"
+      },
+      {
+        "id": "kc/getChromeUrl",
+        "title": "sys:getChromeUrl",
+        "path": "step-modules/kc/getChromeUrl.md"
+      },
+      {
+        "id": "kc/getClipboardFiles",
+        "title": "sys:getClipboardFiles",
+        "path": "step-modules/kc/getClipboardFiles.md"
+      },
+      {
+        "id": "kc/getClipboardImage",
+        "title": "sys:getClipboardImage",
+        "path": "step-modules/kc/getClipboardImage.md"
+      },
+      {
+        "id": "kc/getClipboardText",
+        "title": "sys:getClipboardText",
+        "path": "step-modules/kc/getClipboardText.md"
+      },
+      {
+        "id": "kc/getCurrentTime",
+        "title": "sys:getCurrentTime",
+        "path": "step-modules/kc/getCurrentTime.md"
+      },
+      {
+        "id": "kc/getExplorerPath",
+        "title": "sys:getExplorerPath",
+        "path": "step-modules/kc/getExplorerPath.md"
+      },
+      {
+        "id": "kc/getFolderPath",
+        "title": "sys:getFolderPath",
+        "path": "step-modules/kc/getFolderPath.md"
+      },
+      {
+        "id": "kc/getQuickerInfo",
+        "title": "sys:getQuickerInfo",
+        "path": "step-modules/kc/getQuickerInfo.md"
+      },
+      {
+        "id": "kc/getSelectedFiles",
+        "title": "sys:getSelectedFiles",
+        "path": "step-modules/kc/getSelectedFiles.md"
+      },
+      {
+        "id": "kc/getSelectedText",
+        "title": "sys:getSelectedText",
+        "path": "step-modules/kc/getSelectedText.md"
+      },
+      {
+        "id": "kc/getSysInfo",
+        "title": "sys:getSysInfo",
+        "path": "step-modules/kc/getSysInfo.md"
+      },
+      {
+        "id": "kc/getWindowTitle",
+        "title": "sys:getWindowTitle",
+        "path": "step-modules/kc/getWindowTitle.md"
+      },
+      {
+        "id": "kc/group",
+        "title": "sys:group",
+        "path": "step-modules/kc/group.md"
+      },
+      {
+        "id": "kc/htmlExtract",
+        "title": "sys:htmlExtract",
+        "path": "step-modules/kc/htmlExtract.md"
+      },
+      {
+        "id": "kc/http",
+        "title": "sys:http",
+        "path": "step-modules/kc/http.md",
+        "searchAliases": [
+          "HTTP",
+          "http请求",
+          "请求",
+          "POST",
+          "GET"
+        ]
+      },
+      {
+        "id": "kc/httpserver",
+        "title": "sys:httpserver",
+        "path": "step-modules/kc/httpserver.md",
+        "searchAliases": [
+          "http服务",
+          "本地服务器",
+          "文件服务"
+        ]
+      },
+      {
+        "id": "kc/if",
+        "title": "sys:if",
+        "path": "step-modules/kc/if.md"
+      },
+      {
+        "id": "kc/imageinfo",
+        "title": "sys:imageinfo",
+        "path": "step-modules/kc/imageinfo.md"
+      },
+      {
+        "id": "kc/imeControl",
+        "title": "sys:imeControl",
+        "path": "step-modules/kc/imeControl.md"
+      },
+      {
+        "id": "kc/imgProcess",
+        "title": "sys:imgProcess",
+        "path": "step-modules/kc/imgProcess.md"
+      },
+      {
+        "id": "kc/imgToBase64",
+        "title": "sys:imgToBase64",
+        "path": "step-modules/kc/imgToBase64.md"
+      },
+      {
+        "id": "kc/inputScript",
+        "title": "sys:inputScript",
+        "path": "step-modules/kc/inputScript.md"
+      },
+      {
+        "id": "kc/joinList",
+        "title": "sys:joinList",
+        "path": "step-modules/kc/joinList.md"
+      },
+      {
+        "id": "kc/jsonExtract",
+        "title": "sys:jsonExtract",
+        "path": "step-modules/kc/jsonExtract.md"
+      },
+      {
+        "id": "kc/jsscript",
+        "title": "sys:jsscript",
+        "path": "step-modules/kc/jsscript.md"
+      },
+      {
+        "id": "kc/keyInput",
+        "title": "sys:keyInput",
+        "path": "step-modules/kc/keyInput.md"
+      },
+      {
+        "id": "kc/keyoperation",
+        "title": "sys:keyoperation",
+        "path": "step-modules/kc/keyoperation.md"
+      },
+      {
+        "id": "kc/listOperations",
+        "title": "sys:listOperations",
+        "path": "step-modules/kc/listOperations.md"
+      },
+      {
+        "id": "kc/manageList",
+        "title": "sys:manageList",
+        "path": "step-modules/kc/manageList.md"
+      },
+      {
+        "id": "kc/mathocr",
+        "title": "sys:mathocr",
+        "path": "step-modules/kc/mathocr.md"
+      },
+      {
+        "id": "kc/mouse",
+        "title": "sys:mouse",
+        "path": "step-modules/kc/mouse.md"
+      },
+      {
+        "id": "kc/MsgBox",
+        "title": "sys:MsgBox",
+        "path": "step-modules/kc/MsgBox.md"
+      },
+      {
+        "id": "kc/newGuid",
+        "title": "sys:newGuid",
+        "path": "step-modules/kc/newGuid.md"
+      },
+      {
+        "id": "kc/notify",
+        "title": "sys:notify",
+        "path": "step-modules/kc/notify.md"
+      },
+      {
+        "id": "kc/numberprocess",
+        "title": "sys:numberprocess",
+        "path": "step-modules/kc/numberprocess.md"
+      },
+      {
+        "id": "kc/numCompare",
+        "title": "sys:numCompare",
+        "path": "step-modules/kc/numCompare.md"
+      },
+      {
+        "id": "kc/officehelper",
+        "title": "sys:officehelper",
+        "path": "step-modules/kc/officehelper.md"
+      },
+      {
+        "id": "kc/openUrl",
+        "title": "sys:openUrl",
+        "path": "step-modules/kc/openUrl.md"
+      },
+      {
+        "id": "kc/outputText",
+        "title": "sys:outputText",
+        "path": "step-modules/kc/outputText.md"
+      },
+      {
+        "id": "kc/pathExtraction",
+        "title": "sys:pathExtraction",
+        "path": "step-modules/kc/pathExtraction.md"
+      },
+      {
+        "id": "kc/playRecords",
+        "title": "sys:playRecords",
+        "path": "step-modules/kc/playRecords.md"
+      },
+      {
+        "id": "kc/playSound",
+        "title": "sys:playSound",
+        "path": "step-modules/kc/playSound.md"
+      },
+      {
+        "id": "kc/pythonscript",
+        "title": "sys:pythonscript",
+        "path": "step-modules/kc/pythonscript.md"
+      },
+      {
+        "id": "kc/quickeroperations",
+        "title": "sys:quickeroperations",
+        "path": "step-modules/kc/quickeroperations.md"
+      },
+      {
+        "id": "kc/randomNum",
+        "title": "sys:randomNum",
+        "path": "step-modules/kc/randomNum.md"
+      },
+      {
+        "id": "kc/readFile",
+        "title": "sys:readFile",
+        "path": "step-modules/kc/readFile.md"
+      },
+      {
+        "id": "kc/readQrCode",
+        "title": "sys:readQrCode",
+        "path": "step-modules/kc/readQrCode.md"
+      },
+      {
+        "id": "kc/record",
+        "title": "sys:record",
+        "path": "step-modules/kc/record.md",
+        "searchAliases": [
+          "录制",
+          "回放",
+          "键鼠录制"
+        ]
+      },
+      {
+        "id": "kc/recordSound",
+        "title": "sys:recordSound",
+        "path": "step-modules/kc/recordSound.md"
+      },
+      {
+        "id": "kc/regexExtract",
+        "title": "sys:regexExtract",
+        "path": "step-modules/kc/regexExtract.md"
+      },
+      {
+        "id": "kc/repeat",
+        "title": "sys:repeat",
+        "path": "step-modules/kc/repeat.md"
+      },
+      {
+        "id": "kc/reportProgress",
+        "title": "sys:reportProgress",
+        "path": "step-modules/kc/reportProgress.md"
+      },
+      {
+        "id": "kc/restoreActiveWindow",
+        "title": "sys:restoreActiveWindow",
+        "path": "step-modules/kc/restoreActiveWindow.md"
+      },
+      {
+        "id": "kc/rhinocontrol",
+        "title": "sys:rhinocontrol",
+        "path": "step-modules/kc/rhinocontrol.md"
+      },
+      {
+        "id": "kc/run",
+        "title": "sys:run",
+        "path": "step-modules/kc/run.md"
+      },
+      {
+        "id": "kc/runAction",
+        "title": "sys:runAction",
+        "path": "step-modules/kc/runAction.md"
+      },
+      {
+        "id": "kc/runScript",
+        "title": "sys:runScript",
+        "path": "step-modules/kc/runScript.md",
+        "searchAliases": [
+          "脚本",
+          "powershell",
+          "python脚本",
+          "运行脚本"
+        ]
+      },
+      {
+        "id": "kc/screenCapture",
+        "title": "sys:screenCapture",
+        "path": "step-modules/kc/screenCapture.md"
+      },
+      {
+        "id": "kc/screenCapturePro",
+        "title": "sys:screenCapturePro",
+        "path": "step-modules/kc/screenCapturePro.md"
+      },
+      {
+        "id": "kc/searchBmp",
+        "title": "sys:searchBmp",
+        "path": "step-modules/kc/searchBmp.md"
+      },
+      {
+        "id": "kc/select",
+        "title": "sys:select",
+        "path": "step-modules/kc/select.md"
+      },
+      {
+        "id": "kc/selectFile",
+        "title": "sys:selectFile",
+        "path": "step-modules/kc/selectFile.md"
+      },
+      {
+        "id": "kc/SelectFileInExplorer",
+        "title": "sys:SelectFileInExplorer",
+        "path": "step-modules/kc/SelectFileInExplorer.md"
+      },
+      {
+        "id": "kc/selectFolder",
+        "title": "sys:selectFolder",
+        "path": "step-modules/kc/selectFolder.md"
+      },
+      {
+        "id": "kc/sendKeys",
+        "title": "sys:sendKeys",
+        "path": "step-modules/kc/sendKeys.md"
+      },
+      {
+        "id": "kc/sendMessage",
+        "title": "sys:sendMessage",
+        "path": "step-modules/kc/sendMessage.md"
+      },
+      {
+        "id": "kc/shelloperation",
+        "title": "sys:shelloperation",
+        "path": "step-modules/kc/shelloperation.md"
+      },
+      {
+        "id": "kc/showImage",
+        "title": "sys:showImage",
+        "path": "step-modules/kc/showImage.md"
+      },
+      {
+        "id": "kc/showmenu",
+        "title": "sys:showmenu",
+        "path": "step-modules/kc/showmenu.md"
+      },
+      {
+        "id": "kc/showText",
+        "title": "sys:showText",
+        "path": "step-modules/kc/showText.md"
+      },
+      {
+        "id": "kc/showWaitWin",
+        "title": "sys:showWaitWin",
+        "path": "step-modules/kc/showWaitWin.md"
+      },
+      {
+        "id": "kc/simpleIf",
+        "title": "sys:simpleIf",
+        "path": "step-modules/kc/simpleIf.md"
+      },
+      {
+        "id": "kc/smtp",
+        "title": "sys:smtp",
+        "path": "step-modules/kc/smtp.md"
+      },
+      {
+        "id": "kc/splitString",
+        "title": "sys:splitString",
+        "path": "step-modules/kc/splitString.md"
+      },
+      {
+        "id": "kc/stateStorage",
+        "title": "sys:stateStorage",
+        "path": "step-modules/kc/stateStorage.md"
+      },
+      {
+        "id": "kc/stop",
+        "title": "sys:stop",
+        "path": "step-modules/kc/stop.md"
+      },
+      {
+        "id": "kc/strCompare",
+        "title": "sys:strCompare",
+        "path": "step-modules/kc/strCompare.md"
+      },
+      {
+        "id": "kc/stringProcess",
+        "title": "sys:stringProcess",
+        "path": "step-modules/kc/stringProcess.md"
+      },
+      {
+        "id": "kc/strReplace",
+        "title": "sys:strReplace",
+        "path": "step-modules/kc/strReplace.md"
+      },
+      {
+        "id": "kc/subprogram",
+        "title": "sys:subprogram",
+        "path": "step-modules/kc/subprogram.md",
+        "searchAliases": [
+          "子程序",
+          "子程序调用",
+          "callIdentifier"
+        ]
+      },
+      {
+        "id": "kc/tableoperation",
+        "title": "sys:tableoperation",
+        "path": "step-modules/kc/tableoperation.md"
+      },
+      {
+        "id": "kc/tempcloudstore",
+        "title": "sys:tempcloudstore",
+        "path": "step-modules/kc/tempcloudstore.md"
+      },
+      {
+        "id": "kc/tempImgBed",
+        "title": "sys:tempImgBed",
+        "path": "step-modules/kc/tempImgBed.md"
+      },
+      {
+        "id": "kc/textCounter",
+        "title": "sys:textCounter",
+        "path": "step-modules/kc/textCounter.md"
+      },
+      {
+        "id": "kc/textSelectTools",
+        "title": "sys:textSelectTools",
+        "path": "step-modules/kc/textSelectTools.md"
+      },
+      {
+        "id": "kc/translation",
+        "title": "sys:translation",
+        "path": "step-modules/kc/translation.md"
+      },
+      {
+        "id": "kc/uiautomation",
+        "title": "sys:uiautomation",
+        "path": "step-modules/kc/uiautomation.md"
+      },
+      {
+        "id": "kc/userInput",
+        "title": "sys:userInput",
+        "path": "step-modules/kc/userInput.md"
+      },
+      {
+        "id": "kc/waitClipboardChange",
+        "title": "sys:waitClipboardChange",
+        "path": "step-modules/kc/waitClipboardChange.md"
+      },
+      {
+        "id": "kc/waitKeyboard",
+        "title": "sys:waitKeyboard",
+        "path": "step-modules/kc/waitKeyboard.md"
+      },
+      {
+        "id": "kc/websocket",
+        "title": "sys:websocket",
+        "path": "step-modules/kc/websocket.md",
+        "searchAliases": [
+          "WebSocket",
+          "ws连接"
+        ]
+      },
+      {
+        "id": "kc/webview2",
+        "title": "sys:webview2",
+        "path": "step-modules/kc/webview2.md",
+        "searchAliases": [
+          "webview",
+          "内嵌网页",
+          "HTML窗口"
+        ]
+      },
+      {
+        "id": "kc/whiteboard",
+        "title": "sys:whiteboard",
+        "path": "step-modules/kc/whiteboard.md"
+      },
+      {
+        "id": "kc/windowOperations",
+        "title": "sys:windowOperations",
+        "path": "step-modules/kc/windowOperations.md"
+      },
+      {
+        "id": "kc/winservice",
+        "title": "sys:winservice",
+        "path": "step-modules/kc/winservice.md"
+      },
+      {
+        "id": "kc/writeClipboard",
+        "title": "sys:writeClipboard",
+        "path": "step-modules/kc/writeClipboard.md"
+      },
+      {
+        "id": "kc/WriteImageFile",
+        "title": "sys:WriteImageFile",
+        "path": "step-modules/kc/WriteImageFile.md"
+      },
+      {
+        "id": "kc/WriteTextFile",
+        "title": "sys:WriteTextFile",
+        "path": "step-modules/kc/WriteTextFile.md"
+      },
+      {
+        "id": "kc/zip",
+        "title": "sys:zip",
+        "path": "step-modules/kc/zip.md"
       },
       {
         "id": "mathocr",

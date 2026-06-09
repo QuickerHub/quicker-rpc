@@ -2,9 +2,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.AgentModel.Search;
 using QuickerRpc.Plugin.Quicker;
 using QuickerRpc.Plugin.Rpc;
 using QuickerRpc.Plugin.Services;
+using QuickerRpc.Plugin.Services.Search;
 
 namespace QuickerRpc.Plugin;
 
@@ -18,8 +20,12 @@ public static partial class Launcher
                 services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Information));
 
                 services.AddSingleton<IPopupMessageService>(PopupMessage.Default);
+                services.AddSingleton<AgentSearchHub>();
+                services.AddSingleton<AgentSearchIndexCoordinator>();
+                services.AddHostedService<AgentSearchIndexWarmupService>();
                 services.AddSingleton<ActionUpdateService>();
                 services.AddSingleton<ActionPublishService>();
+                services.AddSingleton<ActionDocService>();
                 services.AddSingleton<ActionSearchService>();
                 services.AddSingleton<SubProgramSearchService>();
                 services.AddSingleton<ActionDeleteService>();

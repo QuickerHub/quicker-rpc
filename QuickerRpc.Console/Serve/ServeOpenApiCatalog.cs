@@ -18,6 +18,7 @@ internal static class ServeOpenApiCatalog
         "action.set-metadata",
         "action.update",
         "action.publish",
+        "action.publish.preflight",
         "action.move",
         "action.delete",
         "action.run",

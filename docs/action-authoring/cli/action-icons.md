@@ -1,4 +1,5 @@
 # Action icons
+<!-- qkrpc-search-aliases: fa, icon, metadata, 图标, set-metadata, fa:Light -->
 
 P3 metadata, context menu items, CommonOperationItem — Font Awesome and image URL rules. **NO** guessing `fa:` names.
 

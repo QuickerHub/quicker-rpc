@@ -262,6 +262,21 @@ async function loadPartials() {
 }
 
 /** @param {string} markdown */
+/** @param {string} markdown @param {string[]} aliases */
+function injectSearchAliases(markdown, aliases) {
+  if (!aliases.length) {
+    return markdown;
+  }
+
+  const tag = `<!-- qkrpc-search-aliases: ${aliases.join(", ")} -->\n`;
+  const newline = markdown.indexOf("\n");
+  if (newline < 0) {
+    return `${markdown}\n${tag}`;
+  }
+
+  return `${markdown.slice(0, newline + 1)}${tag}${markdown.slice(newline + 1)}`;
+}
+
 function extractMarkdownTitle(markdown) {
   for (const line of markdown.split("\n")) {
     const trimmed = line.trim();
@@ -304,37 +319,55 @@ async function loadReferenceMap(topic) {
     const subEntries = (await fs.readdir(topicDir, { withFileTypes: true })).sort(
       (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
     );
-    for (const ent of subEntries) {
-      if (ent.isDirectory()) {
-        if (ent.name.toLowerCase() !== "authored") continue;
-        const authoredDir = path.join(topicDir, ent.name);
-        const authoredFiles = (await fs.readdir(authoredDir)).sort((a, b) =>
-          a.localeCompare(b, undefined, { sensitivity: "base" }),
-        );
-        for (const fname of authoredFiles) {
-          if (
-            !fname.endsWith(".md")
-            || fname.toLowerCase() === "readme.md"
-            || fname.toUpperCase() === "SPEC.MD"
-          ) {
-            continue;
-          }
-          const refName = fname.slice(0, -3);
-          if (map.has(refName)) {
-            throw new Error(
-              `Duplicate reference id "${refName}" for topic ${topic} (authored + other)`,
-            );
-          }
-          const raw = normalizeEol(
-            await fs.readFile(path.join(authoredDir, fname), "utf8"),
-          );
-          map.set(refName, {
-            src: raw,
-            outRel: `${topic}/authored/${refName}.md`,
-          });
+    const refSubdirs = subEntries
+      .filter((ent) => ent.isDirectory())
+      .sort((a, b) => {
+        const order = { authored: 0, examples: 1, kc: 2 };
+        const ak = order[a.name.toLowerCase()] ?? 9;
+        const bk = order[b.name.toLowerCase()] ?? 9;
+        return ak - bk || a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      });
+
+    for (const ent of refSubdirs) {
+      const subName = ent.name.toLowerCase();
+      if (subName !== "authored" && subName !== "examples" && subName !== "kc") continue;
+      const subDir = path.join(topicDir, ent.name);
+      const subFiles = (await fs.readdir(subDir)).sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base" }),
+      );
+      for (const fname of subFiles) {
+        if (
+          !fname.endsWith(".md")
+          || fname.toLowerCase() === "readme.md"
+          || fname.toUpperCase() === "SPEC.MD"
+        ) {
+          continue;
         }
-        continue;
+        const baseId = fname.slice(0, -3);
+        const refName =
+          subName === "kc"
+            ? `kc/${baseId}`
+            : subName === "examples"
+              ? `examples/${baseId}`
+              : baseId;
+        if (map.has(refName)) {
+          throw new Error(
+            `Duplicate reference id "${refName}" for topic ${topic} (${subName} + other)`,
+          );
+        }
+        const raw = normalizeEol(
+          await fs.readFile(path.join(subDir, fname), "utf8"),
+        );
+        map.set(refName, {
+          src: raw,
+          outRel: `${topic}/${subName}/${baseId}.md`,
+        });
       }
+      continue;
+    }
+
+    for (const ent of subEntries) {
+      if (ent.isDirectory()) continue;
       if (!ent.name.endsWith(".md") || ent.name.toLowerCase() === "readme.md") {
         continue;
       }
@@ -406,7 +439,19 @@ async function computeOutputs(opsData, topicEntries) {
       refMap,
       partials,
     );
-    outputs.set(`cli/${topic}.md`, cliRendered);
+    const topicsMeta = /** @type {Record<string, Record<string, unknown>>} */ (
+      opsData.topics ?? {}
+    );
+    const topicMeta = topicsMeta[topic];
+    const topicAliases = Array.isArray(topicMeta?.searchAliases)
+      ? topicMeta.searchAliases
+          .map((a) => String(a).trim())
+          .filter((a) => a.length > 0)
+      : [];
+    outputs.set(
+      `cli/${topic}.md`,
+      injectSearchAliases(cliRendered, topicAliases),
+    );
 
     const cliOnly = isCliOnlyTopic(opsData, topic);
     if (cliOnly) continue;
@@ -449,7 +494,10 @@ async function computeOutputs(opsData, topicEntries) {
         title: extractMarkdownTitle(refAgent) || refName,
         path: refEntry.outRel,
       };
-      const refAliases = referenceSearchAliases[topic]?.[refName];
+      const aliasKey = refName.startsWith("kc/")
+        ? refName.slice("kc/".length)
+        : refName;
+      const refAliases = referenceSearchAliases[topic]?.[aliasKey];
       if (Array.isArray(refAliases) && refAliases.length > 0) {
         catalogEntry.searchAliases = refAliases
           .map((a) => String(a).trim())

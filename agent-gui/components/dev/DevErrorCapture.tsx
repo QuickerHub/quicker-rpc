@@ -2,12 +2,13 @@
 
 import { useEffect } from "react";
 import type { ClientFrontendErrorReport } from "@/lib/dev-frontend-types";
+import { isReactRefreshTransientError } from "@/lib/dev-react-refresh-transient";
 
 const REPORT_ENDPOINT = "/api/dev/frontend-errors";
 const FLUSH_MS = 800;
 export const REACT_HOOKS_FAULT_EVENT = "qa-react-hooks-fault";
 
-function isReactHooksFaultMessage(message: string): boolean {
+export function isReactHooksFaultMessage(message: string): boolean {
   return (
     message.includes("order of Hooks")
     || message.includes("Should have a queue")
@@ -16,15 +17,18 @@ function isReactHooksFaultMessage(message: string): boolean {
 }
 
 /** HMR can break React handlers while native navigation (<a href>) still works. */
-function isDevInteractionFaultMessage(message: string): boolean {
+export function isDevInteractionFaultMessage(message: string): boolean {
   if (isReactHooksFaultMessage(message)) return true;
-  if (message.includes("Maximum update depth exceeded")) return true;
   if (message.includes("Component is not a function")) return true;
   if (!message.includes("ReferenceError")) return false;
   return message.includes(" is not defined");
 }
 
-function notifyDevInteractionFault(message: string): void {
+function notifyDevInteractionFault(
+  message: string,
+  stack?: string,
+): void {
+  if (isReactRefreshTransientError({ message, stack })) return;
   if (!isDevInteractionFaultMessage(message)) return;
   window.dispatchEvent(new CustomEvent(REACT_HOOKS_FAULT_EVENT, { detail: { message } }));
 }
@@ -72,7 +76,9 @@ export function DevErrorCapture() {
 
     const onError = (event: ErrorEvent) => {
       const message = event.message || "Unknown error";
-      notifyDevInteractionFault(message);
+      const stack =
+        event.error instanceof Error ? event.error.stack : undefined;
+      notifyDevInteractionFault(message, stack);
       queueReport({
         kind: "error",
         message,
@@ -117,7 +123,9 @@ export function DevErrorCapture() {
         .join(" ")
         .trim();
       if (!message) return;
-      notifyDevInteractionFault(message);
+      const errArg = args.find((arg) => arg instanceof Error);
+      const stack = errArg instanceof Error ? errArg.stack : undefined;
+      notifyDevInteractionFault(message, stack);
       queueReport({
         kind: "console",
         message: message.slice(0, 4000),

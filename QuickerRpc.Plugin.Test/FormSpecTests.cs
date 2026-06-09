@@ -124,22 +124,40 @@ public sealed class FormSpecTests
     }
 
     [TestMethod]
-    public void Validate_rejects_invalid_field_key()
+    public void Validate_rejects_undefined_target_variable()
     {
         const string spec = """
             {
               "mode": "variables",
               "title": "x",
               "fields": [
-                { "key": "1bad", "label": "X", "type": "text" }
+                { "key": "f1", "label": "X", "type": "text", "target": "missingVar" }
               ]
             }
             """;
 
         var parse = FormSpecCompiler.TryParse(spec);
-        var validation = FormSpecValidator.Validate(parse.Spec);
+        var validation = FormSpecValidator.Validate(parse.Spec, ["existingVar"]);
         Assert.IsFalse(validation.Success);
-        Assert.IsTrue(validation.Issues.Any(i => i.Path.EndsWith(".key")));
+        Assert.IsTrue(validation.Issues.Any(i => i.Path.EndsWith(".target")));
+    }
+
+    [TestMethod]
+    public void Validate_accepts_target_when_variable_defined()
+    {
+        const string spec = """
+            {
+              "mode": "variables",
+              "title": "x",
+              "fields": [
+                { "key": "f1", "label": "X", "type": "text", "target": "userName" }
+              ]
+            }
+            """;
+
+        var parse = FormSpecCompiler.TryParse(spec);
+        var validation = FormSpecValidator.Validate(parse.Spec, ["userName"]);
+        Assert.IsTrue(validation.Success, string.Join("; ", validation.Issues.Select(i => i.Message)));
     }
 
     [TestMethod]

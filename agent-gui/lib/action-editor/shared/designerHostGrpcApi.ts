@@ -36,18 +36,65 @@ export async function designerHostGrpcGetStepRunners(
 
 export async function designerHostGrpcGetActionStepSummary(
   _baseUrl: string,
-  _stepRunnerKey: string,
-  _stepJson: string,
+  stepRunnerKey: string,
+  stepJson: string,
 ): Promise<string> {
-  return "";
+  const res = await fetch("/api/step-runner/summaries", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({
+      steps: [
+        {
+          stepId: "single",
+          stepRunnerKey,
+          stepJson,
+        },
+      ],
+    }),
+  });
+  const data = (await res.json()) as {
+    ok?: boolean;
+    error?: string;
+    items?: Array<{ stepId?: string; summary?: string }>;
+  };
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error ?? `HTTP ${res.status}`);
+  }
+  return (data.items?.[0]?.summary ?? "").trim();
 }
 
 export async function designerHostGrpcPostStepRunnersSummariesJson(
   _baseUrl: string,
-  _requestJson: string,
-  _signal?: AbortSignal,
+  requestJson: string,
+  signal?: AbortSignal,
 ): Promise<string> {
-  return JSON.stringify({ items: [] });
+  let body: { steps?: unknown[]; subProgramsJson?: string | null } = {};
+  try {
+    body = JSON.parse(requestJson) as typeof body;
+  } catch {
+    return JSON.stringify({ items: [] });
+  }
+
+  const res = await fetch("/api/step-runner/summaries", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({
+      steps: body.steps ?? [],
+      subProgramsJson: body.subProgramsJson ?? undefined,
+    }),
+    signal,
+  });
+  const data = (await res.json()) as {
+    ok?: boolean;
+    error?: string;
+    items?: Array<{ stepId?: string; summary?: string }>;
+  };
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error ?? `HTTP ${res.status}`);
+  }
+  return JSON.stringify({ items: data.items ?? [] });
 }
 
 export async function designerHostGrpcPostStepQuickInsertSearchJson(

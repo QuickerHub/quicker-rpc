@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -6,7 +6,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, normalize } from "node:path";
+import { dirname, join, normalize, resolve } from "node:path";
 
 const STATE_FILE = "qkrpc-serve.json";
 
@@ -92,7 +92,7 @@ export function killProcessTree(pid) {
  * @returns {number[]}
  */
 export function listQkrpcServePidsForRuntimeDir(runtimeDir) {
-  const normalized = normalize(runtimeDir);
+  const normalized = normalize(resolve(runtimeDir));
   if (process.platform === "win32") {
     return listQkrpcServePidsWindows(normalized);
   }
@@ -101,19 +101,22 @@ export function listQkrpcServePidsForRuntimeDir(runtimeDir) {
 
 /** @param {string} runtimeDir */
 function listQkrpcServePidsWindows(runtimeDir) {
-  const prefix = runtimeDir.toLowerCase().replace(/'/g, "''");
+  const prefix = runtimeDir.toLowerCase();
   const script = [
-    "Get-CimInstance Win32_Process",
-    "| Where-Object { $_.Name -eq 'qkrpc.exe' -and $_.ExecutablePath -and $_.ExecutablePath.ToLower().StartsWith('",
-    prefix,
-    "') }",
+    "Get-CimInstance Win32_Process -Filter \"Name='qkrpc.exe'\"",
+    "| Where-Object { $_.ExecutablePath -and $_.ExecutablePath.ToLower().StartsWith($env:QKRPC_RUNTIME_PREFIX) }",
     "| Select-Object -ExpandProperty ProcessId",
   ].join(" ");
   try {
-    const out = execSync(`powershell -NoProfile -Command "${script}"`, {
-      encoding: "utf8",
-      windowsHide: true,
-    }).trim();
+    const out = execFileSync(
+      "pwsh",
+      ["-NoProfile", "-Command", script],
+      {
+        encoding: "utf8",
+        windowsHide: true,
+        env: { ...process.env, QKRPC_RUNTIME_PREFIX: prefix },
+      },
+    ).trim();
     if (!out) return [];
     return out
       .split(/\r?\n/)
@@ -138,6 +141,32 @@ function listQkrpcServePidsUnix(runtimeDir) {
   } catch {
     return [];
   }
+}
+
+/**
+ * Stop all qkrpc serve processes using the given staged runtime directory.
+ * @param {string} agentGuiRoot
+ * @param {string} runtimeDir
+ * @returns {boolean} true when at least one process was stopped
+ */
+export function stopQkrpcServeForRuntimeDir(agentGuiRoot, runtimeDir) {
+  const normalized = normalize(runtimeDir);
+  const toKill = new Set(listQkrpcServePidsForRuntimeDir(normalized));
+  if (toKill.size === 0) return false;
+
+  for (const pid of toKill) {
+    killProcessTree(pid);
+  }
+  clearQkrpcServeState(agentGuiRoot);
+
+  if (process.platform === "win32") {
+    try {
+      execSync("ping -n 2 127.0.0.1 >nul", { stdio: "ignore", windowsHide: true });
+    } catch {
+      // ignore
+    }
+  }
+  return true;
 }
 
 /**

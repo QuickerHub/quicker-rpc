@@ -1,5 +1,6 @@
 /**
- * Convert Quicker KC Help/Doc HTML (Yuque/ne-editor) to filtered Markdown.
+ * Convert Quicker KC Help/Doc HTML (Yuque/ne-editor) to Markdown.
+ * Full-fidelity mode: keep article body for search retrieval; strip only page chrome.
  */
 
 /** @param {string} html */
@@ -35,6 +36,11 @@ function inlineText(html) {
     return t ? `\`${t}\`` : "";
   });
   s = s.replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, "$1");
+  s = s.replace(/<img[^>]*alt="([^"]*)"[^>]*>/gi, (_, alt) => {
+    const label = decodeEntities(alt).trim();
+    return label ? `[image: ${label}]` : "[image]";
+  });
+  s = s.replace(/<img[^>]*>/gi, "[image]");
   s = s.replace(/<[^>]+>/g, "");
   return decodeEntities(s).replace(/\s+\n/g, "\n").trim();
 }
@@ -164,27 +170,37 @@ function blockHtmlToMarkdown(html) {
   return s.trim();
 }
 
+/** Extract the Yuque article body from a KC Help page (HTML). */
 /** @param {string} html */
 export function extractArticleHtml(html) {
-  const articleMatch = html.match(/<h1 class="article-title">[\s\S]*$/i);
-  if (!articleMatch) return null;
+  const lakeMatch = html.match(
+    /<div class="lake-content"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<section/i,
+  );
+  if (lakeMatch) {
+    return lakeMatch[1];
+  }
 
-  let chunk = articleMatch[0];
-  const stop = chunk.search(/<h5[^>]*>\s*反馈与讨论/i);
+  const articleMatch = html.match(
+    /<div class="article-content[^"]*">([\s\S]*?)<\/div>\s*<\/div>\s*<section/i,
+  );
+  if (articleMatch) {
+    let chunk = articleMatch[1];
+    chunk = chunk.replace(
+      /<div class="p-2 text-secondary bg-light[\s\S]*?<\/div>/i,
+      "",
+    );
+    const lakeInner = chunk.match(/<div class="lake-content"[^>]*>([\s\S]*)$/i);
+    return lakeInner ? lakeInner[1] : chunk;
+  }
+
+  const legacyMatch = html.match(/<h1 class="article-title">[\s\S]*$/i);
+  if (!legacyMatch) return null;
+
+  let chunk = legacyMatch[0];
+  const stop = chunk.search(/<h[1-6][^>]*>[^<]*反馈与讨论/i);
   if (stop >= 0) chunk = chunk.slice(0, stop);
-
-  chunk = chunk.replace(/<div class="line-nav-tabs[\s\S]*?<\/div>/i, "");
-
-  const updateHeading = chunk.search(
-    /<h1[^>]*>\s*<span class="ne-text">更新说明<\/span>\s*<\/h1>/i,
-  );
-  if (updateHeading >= 0) chunk = chunk.slice(0, updateHeading);
-
-  const overviewHeading = chunk.search(
-    /<h1[^>]*>\s*<span class="ne-text">概述<\/span>\s*<\/h1>/i,
-  );
-  if (overviewHeading >= 0) chunk = chunk.slice(overviewHeading);
-
+  chunk = chunk.replace(/<div class="line-nav-tabs[\s\S]*?<\/div>/gi, "");
+  chunk = chunk.replace(/<h1 class="article-title">[\s\S]*?<\/h1>/i, "");
   return chunk;
 }
 
@@ -194,44 +210,37 @@ export function kcHtmlToMarkdown(html) {
   if (!article) return null;
 
   let md = blockHtmlToMarkdown(article);
-  md = filterMarkdown(md);
+  md = stripPageChrome(md);
   md = promoteBoldSectionHeadings(md);
-  md = condenseMarkdown(md);
   return md?.trim() || null;
 }
 
+/** Remove footer / discussion chrome only; keep full article sections. */
 /** @param {string} md */
-export function filterMarkdown(md) {
+export function stripPageChrome(md) {
   const lines = md.split("\n");
   /** @type {string[]} */
   const out = [];
   let skipBlock = false;
-  let seenOverview = false;
 
   for (const raw of lines) {
     const line = raw.trimEnd();
     const trimmed = line.trim();
 
-    if (/^#{1,6}\s+(反馈与讨论|更新说明|示例动作)\s*$/.test(trimmed)) {
-      break;
-    }
-    if (/^因软件更新较快/.test(trimmed)) continue;
-    if (/^(正文|相关动作)\s*$/.test(trimmed)) continue;
-    if (/^\s*讨论\s*$/.test(trimmed)) continue;
-    if (/^\d+$/.test(trimmed)) continue;
-    if (/^\*\*\$\$\*\*$/.test(trimmed)) continue;
+    if (/^#{1,6}\s+(反馈与讨论)\s*$/.test(trimmed)) break;
     if (/^已复制到剪贴板/.test(trimmed)) break;
     if (/^Copyright ©/.test(trimmed)) break;
+
+    if (/^因软件更新较快/.test(trimmed)) continue;
+    if (/^\d+$/.test(trimmed)) continue;
+    if (/^\*\*\$\$\*\*$/.test(trimmed)) continue;
+
     if (/^(使用问题|暂无讨论)\b/.test(trimmed)) {
       skipBlock = true;
       continue;
     }
     if (/^#{1,6}\s/.test(trimmed)) skipBlock = false;
     if (skipBlock) continue;
-    if (/^#\s+概述\s*$/.test(trimmed)) seenOverview = true;
-    if (/^#\s+/.test(trimmed) && !seenOverview && !/^#\s+概述/.test(trimmed)) {
-      continue;
-    }
 
     out.push(line);
   }
@@ -246,110 +255,4 @@ function promoteBoldSectionHeadings(md) {
     /^\*\*(输入参数|输出参数|输出|示例|说明|用法|注意)\*\*\s*$/gm,
     (_, title) => `## ${title}`,
   );
-}
-
-const KEEP_H1 =
-  /^(概述|参数|输出|示例|说明|用法|注意|乱码|常规|支持的操作|Post|SSE|数据格式|.+说明)$/i;
-
-const KEEP_H1_CONTAINS =
-  /概述|参数|输出|Post|SSE|乱码|数据格式|格式说明|操作类型|常规|支持的操作/i;
-
-/** @param {string} md */
-export function condenseMarkdown(md) {
-  const sections = splitMdSections(md);
-  if (sections.length === 0) return md.slice(0, 6000);
-
-  /** @type {string[]} */
-  const picked = [];
-  for (const sec of sections) {
-    if (sec.level !== 1) continue;
-    const title = sec.title.trim();
-    if (/^更新说明$|^示例动作$|^反馈/.test(title)) break;
-    const keep =
-      KEEP_H1.test(title) ||
-      KEEP_H1_CONTAINS.test(title) ||
-      ["概述", "参数", "输出", "示例"].includes(title);
-    if (!keep) continue;
-    picked.push(renderMdSection(sec, 5000));
-  }
-
-  if (picked.length === 0) {
-    const trimmed = md.trim();
-    if (trimmed.length > 0) {
-      return trimmed.length > 6000
-        ? truncatePreservingFences(trimmed, 6000)
-        : trimmed;
-    }
-    const first = sections.find((s) => s.level === 1 && s.body.trim());
-    return first ? renderMdSection(first, 6000) : md.slice(0, 6000);
-  }
-
-  return picked.join("\n\n").trim();
-}
-
-/** @param {{ title: string, level: number, body: string, children?: unknown[] }} sec @param {number} maxChars */
-function renderMdSection(sec, maxChars) {
-  let body = sec.body.trim();
-  if (sec.children?.length) {
-    const childMd = sec.children
-      .map((c) => renderMdSection(/** @type {typeof sec} */ (c), maxChars))
-      .filter(Boolean)
-      .join("\n\n");
-    body = [body, childMd].filter(Boolean).join("\n\n");
-  }
-  const head = `${"#".repeat(sec.level)} ${sec.title}`;
-  if (!body) return head;
-  if (body.length > maxChars) {
-    body = truncatePreservingFences(body, maxChars);
-  }
-  return `${head}\n\n${body}`.trim();
-}
-
-/** @param {string} text @param {number} max */
-function truncatePreservingFences(text, max) {
-  if (text.length <= max) return text;
-  const idx = text.lastIndexOf("\n```", max);
-  if (idx > max * 0.5) return `${text.slice(0, idx).trim()}\n\n…`;
-  return `${text.slice(0, max).trim()}…`;
-}
-
-/** @param {string} md */
-function splitMdSections(md) {
-  /** @type {{ level: number, title: string, lines: string[] }[]} */
-  const flat = [];
-  /** @type {{ level: number, title: string, lines: string[] } | null} */
-  let cur = null;
-
-  for (const line of md.split("\n")) {
-    const m = line.match(/^(#{1,6})\s+(.+)/);
-    if (m) {
-      if (cur) flat.push(cur);
-      cur = { level: m[1].length, title: m[2].trim(), lines: [] };
-      continue;
-    }
-    if (cur) cur.lines.push(line);
-  }
-  if (cur) flat.push(cur);
-
-  /** @type {{ title: string, level: number, body: string, children: unknown[] }[]} */
-  const roots = [];
-  /** @type {{ title: string, level: number, body: string, children: unknown[] }[]} */
-  const stack = [];
-
-  for (const sec of flat) {
-    const node = {
-      title: sec.title,
-      level: sec.level,
-      body: sec.lines.join("\n").trim(),
-      children: [],
-    };
-    while (stack.length > 0 && stack[stack.length - 1].level >= sec.level) {
-      stack.pop();
-    }
-    if (stack.length === 0) roots.push(node);
-    else stack[stack.length - 1].children.push(node);
-    stack.push(node);
-  }
-
-  return roots;
 }

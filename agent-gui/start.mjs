@@ -19,6 +19,7 @@ import {
   stopTrackedQkrpcServe,
   trackQkrpcServeChild,
 } from "./lib/qkrpc-serve-lifecycle.mjs";
+import { discoverHealthyQkrpcServe } from "./lib/qkrpc-serve-discover.mjs";
 import {
   writeDevServerInfo,
   wireNextDevOutput,
@@ -219,7 +220,7 @@ function scheduleNextDevRecovery() {
   }
   if (nextDevRecoveryCount >= NEXT_DEV_RECOVERY_LIMIT) {
     console.error(
-      "next: corrupt .next cache keeps recurring; stop dev and run: pwsh ./start-agent-gui.ps1 -Tauri",
+      "next: corrupt .next cache keeps recurring; stop dev and run: pwsh ./dev.ps1 -Tauri",
     );
     return;
   }
@@ -436,8 +437,16 @@ async function ensureBundledQkrpcServe(host) {
         return null;
       }
     } else {
-      console.warn(`qkrpc: QKRPC_HTTP_URL set but ${base} is not healthy; starting staged serve if available.`);
+      console.warn(`qkrpc: QKRPC_HTTP_URL set but ${base} is not healthy; scanning for serve.`);
     }
+  }
+
+  const discovered = await discoverHealthyQkrpcServe(host);
+  if (discovered) {
+    console.log(`qkrpc: reusing discovered serve at ${discovered.baseUrl}`);
+    const bin = resolveQkrpcBin(root);
+    if (bin) process.env.QKRPC_BIN = bin;
+    return null;
   }
 
   const runtime = resolveServeQkrpcRuntime(root);

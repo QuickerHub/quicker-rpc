@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <InternalsVisibleTo Include="QuickerRpc.Console.Test" />
+  </ItemGroup>
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -16,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
     <ProjectReference Include="..\QuickerRpc.AgentModel\QuickerRpc.AgentModel.csproj" />
+    <ProjectReference Include="..\Quicker.ActionRuntime\Quicker.ActionRuntime.Integration\Quicker.ActionRuntime.Integration.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CommandLineParser" />

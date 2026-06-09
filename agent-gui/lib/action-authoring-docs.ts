@@ -744,12 +744,13 @@ export async function searchActionAuthoringDocs(
 
   const hits = searchAuthoringDocRows(searchIndex, keyword, cap);
 
-  const items = hits.map(({ row, score }) => ({
+  const items = hits.map(({ row, score, sectionHeading }) => ({
     topic: row.topic,
     title: row.reference ? `${row.title} (${row.topic}/${row.reference})` : row.title,
     description: row.description,
-    excerpt: buildSearchExcerpt(row.markdown, patterns),
+    excerpt: buildSearchExcerpt(row.markdown, patterns, 420, sectionHeading),
     reference: row.reference,
+    ...(sectionHeading ? { section: sectionHeading } : {}),
     ...(patterns.length > 0 ? { score } : {}),
   }));
 

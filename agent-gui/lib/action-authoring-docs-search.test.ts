@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildAuthoringDocsSearchIndex,
+  buildSearchExcerpt,
   compactMarkdownForSearch,
   searchAuthoringDocRows,
   tokenizeAuthoringDocText,
@@ -92,5 +93,36 @@ describe("action-authoring-docs-search", () => {
     const compact = compactMarkdownForSearch(md, 100);
     assert.ok(compact.includes("Title"));
     assert.ok(compact.length < 200);
+  });
+
+  it("indexes section body beyond topic compact limit", () => {
+    const filler = "x".repeat(900);
+    const md = `# Action publish workflow
+
+${filler}
+
+# Pub5 Action page intro
+
+Agent STOP shared-info-set Playwright preview API`;
+
+    const index = buildAuthoringDocsSearchIndex([
+      {
+        topic: "action-publish-workflow",
+        title: "Action publish workflow",
+        description: "publish",
+        markdown: md,
+      },
+    ]);
+
+    const hits = searchAuthoringDocRows(index, "Playwright preview", 5);
+    assert.equal(hits[0]?.row.topic, "action-publish-workflow");
+    assert.equal(hits[0]?.sectionHeading, "Pub5 Action page intro");
+  });
+
+  it("buildSearchExcerpt returns context around the matched token", () => {
+    const md = "# Title\n\n" + "a".repeat(120) + " TARGET token " + "b".repeat(120);
+    const excerpt = buildSearchExcerpt(md, ["target"]);
+    assert.match(excerpt, /TARGET token/);
+    assert.ok(excerpt.startsWith("…") || excerpt.includes("TARGET"));
   });
 });

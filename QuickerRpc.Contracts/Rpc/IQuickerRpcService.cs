@@ -20,6 +20,12 @@ public interface IQuickerRpcService
     Task<QuickerRpcAccountInfo> GetQuickerAccountAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Bearer token for getquicker.net API (from Quicker <c>RuntimeDataStore.UserInfo.Token</c>).
+    /// For Pub5 action-page edits — do not log or paste in chat.
+    /// </summary>
+    Task<QuickerRpcWebSessionInfo> GetQuickerWebSessionAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Refresh a shared action. Forwards to <see cref="PublishSharedActionAsync"/> (same implementation).
     /// </summary>
     Task<QuickerRpcActionUpdateResult> UpdateSharedActionAsync(
@@ -31,6 +37,33 @@ public interface IQuickerRpcService
     Task<QuickerRpcActionPublishResult> PublishSharedActionAsync(
         string actionId,
         QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Validate publish/update prerequisites without uploading.</summary>
+    Task<QuickerRpcActionPublishPreflightResult> PreflightPublishSharedActionAsync(
+        string actionId,
+        QuickerRpcActionPublishRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Read getquicker shared-action HTML intro (动作说明) for the logged-in author.</summary>
+    Task<QuickerRpcActionDocResult> GetSharedActionDetailHtmlAsync(
+        string idOrSharedId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Update getquicker shared-action HTML intro (动作说明) for the logged-in author.</summary>
+    Task<QuickerRpcActionDocResult> SetSharedActionDetailHtmlAsync(
+        string idOrSharedId,
+        string htmlContent,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Diagnostics: probe getquicker Detail APIs and edit-form metadata (JSON string).</summary>
+    Task<string> ProbeSharedActionDetailApisAsync(
+        string idOrSharedId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Resolve shared action id and obtain temp web-login token (diagnostics / HTTP edit page).</summary>
+    Task<QuickerRpcSharedInfoWebSessionResult> PrepareSharedInfoWebSessionAsync(
+        string idOrSharedId,
         CancellationToken cancellationToken = default);
 
     /// <summary>Search or list recent local actions for agent workflows.</summary>
@@ -259,6 +292,12 @@ public interface IQuickerRpcService
         string? controlFieldValue = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>One-line summaries for action steps via Quicker IStepRunner.GetSummary.</summary>
+    Task<QuickerRpcActionStepSummariesResult> GetActionStepSummariesAsync(
+        IList<QuickerRpcActionStepSummaryInput> steps,
+        string? embeddedSubProgramsJson = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Search Font Awesome icons. Default: Light_* + Brands_*; expand returns all style rows.</summary>
     Task<QuickerRpcSearchFontAwesomeIconsResult> SearchFontAwesomeIconsAsync(
         string? query,
@@ -358,6 +397,47 @@ public interface IQuickerRpcService
         int maxResults = 12,
         string? scopes = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Diagnostics for background agent search index builds (action/subprogram regions).</summary>
+    Task<QuickerRpcSearchIndexStatusResult> GetSearchIndexStatusAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Invalidate and rebuild search index. region: action, subprogram, or all (default).</summary>
+    Task<QuickerRpcSearchIndexRebuildResult> RebuildSearchIndexAsync(
+        string? region = null,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class QuickerRpcSearchIndexRegionStatus
+{
+    public string Region { get; set; } = string.Empty;
+
+    public string Status { get; set; } = string.Empty;
+
+    public long Generation { get; set; }
+
+    public long? BuildStartedUtcMs { get; set; }
+
+    public long? BuildCompletedUtcMs { get; set; }
+
+    public long? LastBuildDurationMs { get; set; }
+
+    public int? DocumentCount { get; set; }
+}
+
+public sealed class QuickerRpcSearchIndexStatusResult
+{
+    public bool Ok { get; set; } = true;
+
+    public IList<QuickerRpcSearchIndexRegionStatus> Regions { get; set; } =
+        new List<QuickerRpcSearchIndexRegionStatus>();
+}
+
+public sealed class QuickerRpcSearchIndexRebuildResult
+{
+    public bool Ok { get; set; } = true;
+
+    public string? Message { get; set; }
 }
 
 public sealed class QuickerRpcSettingsPageInfo
@@ -795,6 +875,9 @@ public sealed class QuickerRpcActionPublishResult
 
     /// <summary>publish = first share; update = refresh existing share.</summary>
     public string? Mode { get; set; }
+
+    /// <summary>Structured validation issues when <see cref="Ok"/> is false.</summary>
+    public IReadOnlyList<QuickerRpcActionPublishIssue>? Issues { get; set; }
 }
 
 public sealed class QuickerRpcMoveActionChoice
@@ -1032,4 +1115,43 @@ public sealed class QuickerRpcAccountInfo
     public string? NickName { get; set; }
 
     public string? Message { get; set; }
+}
+
+public sealed class QuickerRpcWebSessionInfo
+{
+    public bool Ok { get; set; } = true;
+
+    public bool LoggedIn { get; set; }
+
+    public string? UserId { get; set; }
+
+    /// <summary>Bearer token for getquicker.net (same as WebConnector).</summary>
+    public string? Token { get; set; }
+
+    public DateTime? TokenExpireTimeUtc { get; set; }
+
+    public string? Message { get; set; }
+}
+
+public sealed class QuickerRpcSharedInfoWebSessionResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? SharedActionId { get; set; }
+
+    public string? TempToken { get; set; }
+}
+
+public sealed class QuickerRpcActionDocResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? SharedActionId { get; set; }
+
+    /// <summary>HTML intro body (get only).</summary>
+    public string? Html { get; set; }
 }

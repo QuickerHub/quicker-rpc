@@ -99,13 +99,14 @@ internal static partial class Program
             "search" => await RunStepRunnerSearchAsync(options).ConfigureAwait(false),
             "get" => await RunStepRunnerGetAsync(options, forAgent: true).ConfigureAwait(false),
             "get-ui" => await RunStepRunnerGetAsync(options, forAgent: false).ConfigureAwait(false),
+            "summaries" => await RunStepRunnerSummariesAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownStepRunnerVerbAsync(options).ConfigureAwait(false),
         };
     }
 
     private static Task<int> ReportUnknownStepRunnerVerbAsync(StepRunnerOptions options) =>
         EmitErrorAndFailAsync(options.Json, "UNKNOWN_STEP_RUNNER_VERB",
-            "Use: step-runner search --query <keyword> [--limit 40] [--json] | step-runner get --key <key> [--control-field <value>] [--json] | step-runner get-ui --key <key> [--control-field <value>] [--json]");
+            "Use: step-runner search | get | get-ui | summaries --request-file <json> [--json]");
 
     private static async Task<int> RunStepRunnerSearchAsync(StepRunnerOptions options)
     {
@@ -195,6 +196,93 @@ internal static partial class Program
         catch (Exception ex)
         {
             return await EmitErrorAndFailAsync(options.Json, "STEP_RUNNER_GET_FAILED", ex.Message)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static async Task<int> RunStepRunnerSummariesAsync(StepRunnerOptions options)
+    {
+        var requestPath = (options.RequestFile ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(requestPath))
+        {
+            return await EmitErrorAndFailAsync(
+                    options.Json,
+                    "MISSING_REQUEST_FILE",
+                    "Provide --request-file <json> with { steps: [{ stepId, stepRunnerKey, stepJson }], subProgramsJson? }.")
+                .ConfigureAwait(false);
+        }
+
+        string requestText;
+        try
+        {
+            requestText = await global::System.IO.File.ReadAllTextAsync(requestPath).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "REQUEST_FILE_READ_FAILED", ex.Message)
+                .ConfigureAwait(false);
+        }
+
+        JsonObject? root;
+        try
+        {
+            root = JsonNode.Parse(requestText)?.AsObject();
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "REQUEST_JSON_INVALID", ex.Message)
+                .ConfigureAwait(false);
+        }
+
+        if (root?["steps"] is not JsonArray stepsArray)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "MISSING_STEPS", "Request JSON must include a steps array.")
+                .ConfigureAwait(false);
+        }
+
+        var steps = new List<QuickerRpcActionStepSummaryInput>();
+        foreach (var token in stepsArray)
+        {
+            if (token is not JsonObject stepObj)
+            {
+                continue;
+            }
+
+            steps.Add(new QuickerRpcActionStepSummaryInput
+            {
+                StepId = stepObj["stepId"]?.GetValue<string>() ?? string.Empty,
+                StepRunnerKey = stepObj["stepRunnerKey"]?.GetValue<string>() ?? string.Empty,
+                StepJson = stepObj["stepJson"]?.GetValue<string>() ?? string.Empty,
+            });
+        }
+
+        var subProgramsJson = root["subProgramsJson"]?.GetValue<string>();
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap)
+                .ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var response = await session.Proxy
+                .GetActionStepSummariesAsync(steps, subProgramsJson, rpcToken)
+                .ConfigureAwait(false);
+
+            WriteRpcJson(options.Json, "step-runner-summaries", response.Success, response);
+            return response.Success ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "STEP_RUNNER_SUMMARIES_FAILED", ex.Message)
                 .ConfigureAwait(false);
         }
     }

@@ -84,11 +84,13 @@ function formatHit(
   row: AuthoringDocSearchRow,
   score: number | undefined,
   patterns: string[],
+  sectionHeading?: string,
 ): string {
   const title = row.reference
     ? `${row.title} (${row.topic}/${row.reference})`
     : row.title;
   const ref = row.reference ? `  ref: ${row.reference}` : "";
+  const sectionLine = sectionHeading ? `  section: ${sectionHeading}` : "";
   const scoreLine =
     score != null && Number.isFinite(score)
       ? `  score: ${score.toFixed(2)}`
@@ -96,9 +98,10 @@ function formatHit(
   return [
     `${index}. ${title}`,
     `  topic: ${row.topic}${ref}`,
+    sectionLine,
     scoreLine,
     `  desc: ${row.description}`,
-    `  excerpt: ${buildSearchExcerpt(row.markdown, patterns)}`,
+    `  excerpt: ${buildSearchExcerpt(row.markdown, patterns, 420, sectionHeading)}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -120,13 +123,14 @@ async function runQuery(query: string, limit: number): Promise<void> {
   }
 
   for (let i = 0; i < hits.length; i++) {
-    const { row, score } = hits[i];
+    const { row, score, sectionHeading } = hits[i];
     console.log(
       formatHit(
         i + 1,
         row,
         patterns.length > 0 ? score : undefined,
         patterns,
+        sectionHeading,
       ),
     );
     console.log("");

@@ -12,6 +12,7 @@ import {
   fetchTauriVoicePluginStatus,
   tauriVoicePluginStartRuntime,
 } from "@/lib/voice-input/voice-input-tauri";
+import { requestVoicePluginSetup } from "@/lib/voice-input/voice-plugin-install-flow";
 import { useVoicePluginStatus } from "@/lib/voice-input/use-voice-plugin-status";
 
 /**
@@ -24,7 +25,7 @@ export function useVoiceRuntimeBootstrap(): void {
 
   useEffect(() => {
     if (isVoiceInputMockEnabled()) return;
-    if (status !== "installed") return;
+    if (status !== "installed" && status !== "not_installed") return;
     if (requestedRef.current) return;
     requestedRef.current = true;
 
@@ -34,16 +35,27 @@ export function useVoiceRuntimeBootstrap(): void {
       if (isTauriShell()) {
         const dto = await fetchTauriVoicePluginStatus();
         if (dto?.status === "running" || dto?.status === "starting") return;
+        if (!dto?.installed) {
+          try {
+            await pluginActivate("voice-asr", PLUGIN_ACTIVATION_VOICE_INPUT);
+          } catch {
+            void requestVoicePluginSetup({ skipConfirm: true }).catch(() => undefined);
+          }
+          return;
+        }
         try {
           await pluginActivate("voice-asr", PLUGIN_ACTIVATION_VOICE_INPUT);
         } catch {
-          if (!dto?.installed) return;
           void tauriVoicePluginStartRuntime().catch(() => undefined);
         }
         return;
       }
 
       if (process.env.NODE_ENV === "development") {
+        if (status === "not_installed") {
+          void requestVoicePluginSetup({ skipConfirm: true }).catch(() => undefined);
+          return;
+        }
         void requestDevVoiceRuntimeStart();
       }
     })();

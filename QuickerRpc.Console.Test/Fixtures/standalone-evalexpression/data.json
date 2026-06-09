@@ -1,0 +1,46 @@
+{
+  "steps": [
+    {
+      "stepId": "s-1",
+      "stepRunnerKey": "sys:evalexpression",
+      "inputParams": {
+        "expression": {
+          "value": "$=int.Parse({a}) + int.Parse({b})"
+        }
+      },
+      "outputParams": {
+        "result": "sum"
+      }
+    },
+    {
+      "stepId": "s-2",
+      "stepRunnerKey": "sys:evalexpression",
+      "inputParams": {
+        "expression": {
+          "value": "$=\"ok:\" + {sum}"
+        }
+      },
+      "outputParams": {
+        "result": "status"
+      }
+    }
+  ],
+  "variables": [
+    {
+      "key": "a",
+      "defaultValue": "10"
+    },
+    {
+      "key": "b",
+      "defaultValue": "32"
+    },
+    {
+      "key": "sum",
+      "defaultValue": ""
+    },
+    {
+      "key": "status",
+      "defaultValue": ""
+    }
+  ]
+}

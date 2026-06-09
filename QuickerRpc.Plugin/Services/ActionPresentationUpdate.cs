@@ -1,5 +1,7 @@
 using Quicker.Common;
 
+using QuickerRpc.AgentModel.Core;
+
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>Apply title / description / icon / context menu on <see cref="ActionItem"/> (null field = omit).</summary>
@@ -80,7 +82,7 @@ internal static class ActionPresentationUpdate
         {
             Newtonsoft.Json.Linq.JTokenType.Null => string.Empty,
             Newtonsoft.Json.Linq.JTokenType.String => token.ToString(),
-            _ => token.ToString(Newtonsoft.Json.Formatting.None),
+            _ => JTokenCompat.Compact(token),
         };
     }
 }

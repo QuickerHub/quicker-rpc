@@ -10,7 +10,10 @@ public enum XActionGetReturnMode
     Structure,
 
     /// <summary>Catalog metadata plus step/variable outline (no param bodies).</summary>
-    Metadata
+    Metadata,
+
+    /// <summary>Native program body for ActionRuntime execution (no agent compression).</summary>
+    Runtime
 }
 
 public static class XActionGetReturnModeParser
@@ -35,8 +38,11 @@ public static class XActionGetReturnModeParser
             case "metadata":
                 mode = XActionGetReturnMode.Metadata;
                 return true;
+            case "runtime":
+                mode = XActionGetReturnMode.Runtime;
+                return true;
             default:
-                error = "returnMode must be full, structure, or metadata.";
+                error = "returnMode must be full, structure, metadata, or runtime.";
                 return false;
         }
     }
@@ -46,6 +52,7 @@ public static class XActionGetReturnModeParser
         {
             XActionGetReturnMode.Structure => "structure",
             XActionGetReturnMode.Metadata => "metadata",
+            XActionGetReturnMode.Runtime => "runtime",
             _ => "full"
         };
 }

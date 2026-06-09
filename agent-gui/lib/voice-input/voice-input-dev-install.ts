@@ -1,6 +1,8 @@
 import type { TauriVoicePluginStatusDto } from "@/lib/voice-input/voice-input-tauri";
+import { withPromiseTimeout } from "@/lib/promise-timeout";
 
 const DEV_HOST_STATUS_MIN_INTERVAL_MS = 2_000;
+const DEV_HOST_FETCH_TIMEOUT_MS = 12_000;
 
 let devHostStatusInflight: Promise<DevVoicePluginHostStatus | null> | null = null;
 let devHostStatusLastAt = 0;
@@ -22,9 +24,11 @@ type DevVoicePluginHostStatus = TauriVoicePluginStatusDto & {
 async function fetchDevHostStatusUncached(): Promise<DevVoicePluginHostStatus | null> {
   if (process.env.NODE_ENV !== "development") return null;
   try {
-    const res = await fetch("/api/dev/voice-plugin-install", {
-      cache: "no-store",
-    });
+    const res = await withPromiseTimeout(
+      fetch("/api/dev/voice-plugin-install", { cache: "no-store" }),
+      DEV_HOST_FETCH_TIMEOUT_MS,
+      "dev voice host status timeout",
+    );
     if (!res.ok) return null;
     return (await res.json()) as DevVoicePluginHostStatus;
   } catch {
