@@ -11,7 +11,7 @@ use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "macos")]
 use tauri::TitleBarStyle;
-use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewWindow};
+use tauri::{AppHandle, Manager, RunEvent, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 mod clipboard_history_plugin;
@@ -33,7 +33,7 @@ static STARTUP_CANCELLED: AtomicBool = AtomicBool::new(false);
 static PRODUCTION_UI_READY: AtomicBool = AtomicBool::new(false);
 static EXIT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
-const APP_REQUEST_EXIT_EVENT: &str = "app-request-exit";
+pub(crate) const APP_REQUEST_EXIT_EVENT: &str = "app-request-exit";
 const SHUTDOWN_FORCE_EXIT_AFTER: Duration = Duration::from_secs(3);
 const SHUTDOWN_KILL_TIMEOUT: Duration = Duration::from_millis(600);
 const SHUTDOWN_BACKEND_DELAY: Duration = Duration::from_millis(350);
@@ -618,6 +618,10 @@ fn open_production_ui(app: &AppHandle, ui_url: &str) {
             app_for_ui.exit(1);
             return;
         }
+
+        // UI server is up — pre-create the hidden launcher window so the
+        // global shortcut can summon it instantly.
+        launcher::prewarm_launcher_window_background(app_for_ui.clone());
     }) {
         eprintln!("open production UI callback failed: {err}");
     }
@@ -730,22 +734,22 @@ fn prepare_for_update_install(app: AppHandle) {
     run_app_shutdown(&app);
 }
 
-fn handle_main_window_close_requested<R: tauri::Runtime>(
-    app: &AppHandle<R>,
-    api: &tauri::CloseRequestApi,
-) {
+fn handle_main_window_close_requested(app: &AppHandle, api: &tauri::CloseRequestApi) {
     api.prevent_close();
 
-    if PRODUCTION_UI_READY.load(Ordering::SeqCst) {
-        let _ = app.emit(APP_REQUEST_EXIT_EVENT, ());
+    // Close-to-tray: once the UI is usable, closing the main window only hides it.
+    // The app keeps running in the tray; real exit goes through the tray quit item.
+    if cfg!(debug_assertions) || PRODUCTION_UI_READY.load(Ordering::SeqCst) {
+        tray::hide_primary_window(app);
         return;
     }
 
+    // Closing during the startup splash aborts the launch entirely.
     STARTUP_CANCELLED.store(true, Ordering::SeqCst);
     spawn_shutdown_and_exit(app.clone());
 }
 
-fn register_startup_window_handlers(window: &WebviewWindow, app: &AppHandle) {
+fn register_main_window_handlers(window: &WebviewWindow, app: &AppHandle) {
     let app_handle = app.clone();
     window.on_window_event(move |event| {
         if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -833,10 +837,18 @@ pub fn run() {
                 // `tauri dev` uses devUrl + start.mjs from beforeDevCommand.
                 if let Some(win) = app.get_webview_window("main") {
                     apply_titlebar_chrome_existing(&win);
+                    register_main_window_handlers(&win, app.handle());
                     webview_permissions::enable_auto_microphone_permission(&win);
                     let _ = win.center();
                     let _ = win.show();
                 }
+
+                #[cfg(desktop)]
+                if let Err(err) = tray::init(app.handle()) {
+                    eprintln!("[tray] init failed: {err}");
+                }
+
+                launcher::prewarm_launcher_window_background(app.handle().clone());
                 voice_plugin::spawn_voice_runtime_background(app.handle().clone());
                 clipboard_history_plugin::spawn_clipboard_runtime_background(
                     app.handle().clone(),
@@ -845,7 +857,7 @@ pub fn run() {
             } else {
                 if let Some(win) = app.get_webview_window("main") {
                     apply_titlebar_chrome_existing(&win);
-                    register_startup_window_handlers(&win, app.handle());
+                    register_main_window_handlers(&win, app.handle());
                     webview_permissions::enable_auto_microphone_permission(&win);
                     let _ = win.center();
                     let _ = win.show();

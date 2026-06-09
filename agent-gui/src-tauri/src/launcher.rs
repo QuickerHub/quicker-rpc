@@ -296,7 +296,11 @@ fn resolve_launcher_webview_url(app: &AppHandle) -> Result<WebviewUrl, String> {
     launcher_url(&base_url)
 }
 
-fn build_launcher_window(app: &AppHandle, expanded: bool) -> Result<WebviewWindow, String> {
+fn build_launcher_window(
+    app: &AppHandle,
+    expanded: bool,
+    show: bool,
+) -> Result<WebviewWindow, String> {
     let url = resolve_launcher_webview_url(app)?;
     let (width, height) = launcher_size(expanded);
 
@@ -317,7 +321,11 @@ fn build_launcher_window(app: &AppHandle, expanded: bool) -> Result<WebviewWindo
 
     register_launcher_window_handlers(&window);
     crate::webview_permissions::enable_auto_microphone_permission(&window);
-    show_launcher_window(&window);
+    // Pre-apply window chrome so the first show() has no DWM restyle flicker.
+    apply_launcher_chrome(&window);
+    if show {
+        show_launcher_window(&window);
+    }
 
     Ok(window)
 }
@@ -331,7 +339,39 @@ fn ensure_launcher_window(app: &AppHandle, expanded: bool) -> Result<WebviewWind
         return Ok(window);
     }
 
-    build_launcher_window(app, expanded)
+    match build_launcher_window(app, expanded, true) {
+        Ok(window) => Ok(window),
+        Err(err) => {
+            // A concurrent caller (e.g. prewarm) may have created the window first.
+            if let Some(window) = app.get_webview_window(LAUNCHER_LABEL) {
+                show_launcher_window(&window);
+                return Ok(window);
+            }
+            Err(err)
+        }
+    }
+}
+
+/// Pre-create the hidden launcher window at startup (voxtype-style) so the
+/// global shortcut only needs show()+focus instead of building a webview and
+/// loading the Next.js route from scratch.
+pub fn prewarm_launcher_window_background(app: AppHandle) {
+    std::thread::spawn(move || {
+        // Let the main window finish painting before spending cycles here.
+        std::thread::sleep(Duration::from_millis(500));
+        if app.get_webview_window(LAUNCHER_LABEL).is_some() {
+            return;
+        }
+        let app_for_main = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if app_for_main.get_webview_window(LAUNCHER_LABEL).is_some() {
+                return;
+            }
+            if let Err(err) = build_launcher_window(&app_for_main, false, false) {
+                eprintln!("[launcher] prewarm failed: {err}");
+            }
+        });
+    });
 }
 
 /// Dev: window from tauri.conf uses devUrl + /launcher. Prod: close placeholder, create External URL later.

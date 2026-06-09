@@ -54,14 +54,16 @@ function waitForOverlayPaint(): Promise<void> {
   });
 }
 
-/** Release builds: intercept close / tray quit, show overlay, graceful shutdown in Rust. */
+/**
+ * Release builds: tray quit triggers graceful shutdown in Rust.
+ * Closing the main window hides it to the tray (handled in Rust) and never exits.
+ */
 export function QuickerAgentExitHandler() {
   const exitInProgressRef = useRef(false);
 
   useEffect(() => {
     if (!isTauriShell() || process.env.NODE_ENV === "development") return;
 
-    let unlistenClose: (() => void) | undefined;
     let unlistenTrayExit: (() => void) | undefined;
 
     const performExit = async (): Promise<void> => {
@@ -119,14 +121,7 @@ export function QuickerAgentExitHandler() {
 
     void (async () => {
       try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
         const { listen } = await import("@tauri-apps/api/event");
-        const win = getCurrentWindow();
-
-        unlistenClose = await win.onCloseRequested((event) => {
-          event.preventDefault();
-          void performExit();
-        });
 
         unlistenTrayExit = await listen(APP_REQUEST_EXIT_EVENT, () => {
           void performExit();
@@ -137,7 +132,6 @@ export function QuickerAgentExitHandler() {
     })();
 
     return () => {
-      void unlistenClose?.();
       void unlistenTrayExit?.();
     };
   }, []);

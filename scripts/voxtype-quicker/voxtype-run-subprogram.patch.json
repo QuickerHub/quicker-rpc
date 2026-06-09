@@ -1,0 +1,201 @@
+{
+  "variables": [
+    {
+      "key": "version",
+      "defaultValue": "0.1.0.0",
+      "isInput": true,
+      "isOutput": true,
+      "paramName": "库版本"
+    },
+    {
+      "key": "command",
+      "defaultValue": "toggle",
+      "isInput": true,
+      "paramName": "命令",
+      "desc": "start | stop | toggle | ensure | status | download"
+    },
+    {
+      "key": "dll_path",
+      "defaultValue": ""
+    },
+    {
+      "key": "package_path",
+      "defaultValue": ""
+    },
+    {
+      "key": "launch_code",
+      "defaultValue": ""
+    },
+    {
+      "key": "voxtype_text",
+      "defaultValue": "",
+      "isOutput": true,
+      "paramName": "识别文本"
+    },
+    {
+      "key": "voxtype_error",
+      "defaultValue": "",
+      "isOutput": true,
+      "paramName": "错误信息"
+    },
+    {
+      "key": "voxtype_installer_path",
+      "defaultValue": "",
+      "isOutput": true,
+      "paramName": "安装包路径"
+    }
+  ],
+  "steps": [
+    {
+      "stepRunnerKey": "sys:assign",
+      "inputParams": {
+        "input": {
+          "value": "$=var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), \"Quicker\", \"_packages\", \"voxtype.plugin\");\r\nif (!Directory.Exists(root)) return \"\";\r\nreturn Directory.GetDirectories(root)\r\n  .SelectMany(d => Directory.GetFiles(d, \"VoxType.Plugin*.dll\"))\r\n  .OrderByDescending(p => new FileInfo(p).LastWriteTimeUtc)\r\n  .FirstOrDefault() ?? \"\";"
+        },
+        "stopIfFail": {
+          "value": "1"
+        }
+      },
+      "outputParams": {
+        "output": "dll_path"
+      },
+      "stepId": "s-local-dll"
+    },
+    {
+      "stepRunnerKey": "sys:simpleIf",
+      "inputParams": {
+        "condition": {
+          "value": "$=string.IsNullOrWhiteSpace({dll_path})"
+        }
+      },
+      "ifSteps": [
+        {
+          "stepRunnerKey": "sys:subprogram",
+          "inputParams": {
+            "subProgram": {
+              "value": "%%5e2acdef-a50a-4c8a-a9d0-fbaec6437935"
+            },
+            "var:package_name": {
+              "value": "voxtype.plugin"
+            },
+            "var:zip_filename": {
+              "value": "VoxType.Plugin"
+            },
+            "var:version": {
+              "varKey": "version"
+            },
+            "var:auto_register_dll": {
+              "value": "false"
+            },
+            "stopIfFail": {
+              "value": "1"
+            },
+            "skipDebugOutput": {
+              "value": "1"
+            }
+          },
+          "outputParams": {
+            "var:dll_path": "dll_path",
+            "var:version": "version",
+            "var:package_path": "package_path"
+          },
+          "stepId": "s-dep"
+        }
+      ],
+      "stepId": "s-if-dep"
+    },
+    {
+      "stepRunnerKey": "sys:assign",
+      "inputParams": {
+        "input": {
+          "value": "$=var cmd = ({command} ?? \"toggle\").Trim().TrimStart('?');\r\nif (string.IsNullOrWhiteSpace(cmd)) cmd = \"toggle\";\r\nreturn \"Launcher.StartFromQuickerInParam(\\\"\" + cmd + \"\\\", _context);\";"
+        },
+        "stopIfFail": {
+          "value": "1"
+        }
+      },
+      "outputParams": {
+        "output": "launch_code"
+      },
+      "stepId": "s-build-code"
+    },
+    {
+      "stepRunnerKey": "sys:subprogram",
+      "inputParams": {
+        "subProgram": {
+          "value": "%%9cbf0630-bbae-4680-bd88-534970fd3fbe"
+        },
+        "var:code": {
+          "varKey": "launch_code"
+        },
+        "var:registration": {
+          "value": "load {dll_path}\ntype VoxType.Plugin.Launcher, {dll_path}"
+        },
+        "var:args": {
+          "value": "false"
+        },
+        "var:uithread": {
+          "value": "true"
+        },
+        "var:toAction": {
+          "value": "false"
+        },
+        "stopIfFail": {
+          "value": "1"
+        },
+        "skipDebugOutput": {
+          "value": "1"
+        },
+        "summary": {
+          "value": "VoxType {command}"
+        }
+      },
+      "stepId": "s-qexpr"
+    },
+    {
+      "stepRunnerKey": "sys:assign",
+      "inputParams": {
+        "input": {
+          "value": "$=try { var v = _context.GetVarValue(\"voxtype_text\"); v == null ? \"\" : v.ToString(); } catch { \"\" }"
+        },
+        "stopIfFail": {
+          "value": "0"
+        }
+      },
+      "outputParams": {
+        "output": "voxtype_text"
+      },
+      "stepId": "s-out-text"
+    },
+    {
+      "stepRunnerKey": "sys:assign",
+      "inputParams": {
+        "input": {
+          "value": "$=try { var v = _context.GetVarValue(\"voxtype_error\"); v == null ? \"\" : v.ToString(); } catch { \"\" }"
+        },
+        "stopIfFail": {
+          "value": "0"
+        }
+      },
+      "outputParams": {
+        "output": "voxtype_error"
+      },
+      "stepId": "s-out-err"
+    },
+    {
+      "stepRunnerKey": "sys:assign",
+      "inputParams": {
+        "input": {
+          "value": "$=try { var v = _context.GetVarValue(\"voxtype_installer_path\"); v == null ? \"\" : v.ToString(); } catch { \"\" }"
+        },
+        "stopIfFail": {
+          "value": "0"
+        }
+      },
+      "outputParams": {
+        "output": "voxtype_installer_path"
+      },
+      "stepId": "s-out-installer"
+    }
+  ]
+}

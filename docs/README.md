@@ -35,6 +35,7 @@
 | [agent-gui-plugin-storage.md](agent-gui-plugin-storage.md) | 可选插件（语音等）目录与下载 |
 | [agent-gui-prompt-structure.md](agent-gui-prompt-structure.md) | 系统提示与 Skill 加载 |
 | [voice-input-plugin.md](voice-input-plugin.md) | 语音输入产品设计 + WebSocket 协议 |
+| [voxtype-quicker-integration.md](voxtype-quicker-integration.md) | VoxType 全局听写 × Quicker（HTTP + 插件） |
 | [../voice-asr-runtime/README.md](../voice-asr-runtime/README.md) | 本地 ASR runtime（Python） |
 | [clipboard-history-plugin.md](clipboard-history-plugin.md) | 剪贴板历史插件 |
 

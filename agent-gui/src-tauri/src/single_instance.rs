@@ -5,7 +5,7 @@ use windows_sys::Win32::System::Threading::CreateMutexW;
 #[cfg(windows)]
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     AllowSetForegroundWindow, EnumWindows, GetWindowTextW, IsIconic, IsWindowVisible,
-    SetForegroundWindow, ShowWindow, ASFW_ANY, SW_RESTORE,
+    SetForegroundWindow, ShowWindow, ASFW_ANY, SW_RESTORE, SW_SHOW,
 };
 
 const MUTEX_NAME: &str = "Local\\QuickerAgent.SingleInstance\0";
@@ -42,7 +42,7 @@ pub fn ensure_single_instance_or_activate_existing() -> bool {
 fn try_activate_existing_main_window() -> bool {
     unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: isize) -> i32 {
         let state = &mut *(lparam as *mut EnumState);
-        if hwnd.is_null() || IsWindowVisible(hwnd) == 0 {
+        if hwnd.is_null() {
             return 1;
         }
 
@@ -57,10 +57,17 @@ fn try_activate_existing_main_window() -> bool {
             return 1;
         }
 
-        state.any_visible = hwnd;
+        let visible = IsWindowVisible(hwnd) != 0;
+        if visible {
+            state.any_visible = hwnd;
+        }
+        // Title match also accepts hidden windows: the main window may be
+        // hidden to tray (close-to-tray) and must still be re-activatable.
         if title == state.target_title {
             state.titled_match = hwnd;
-            return 0;
+            if visible {
+                return 0;
+            }
         }
         1
     }
@@ -96,6 +103,9 @@ fn try_activate_existing_main_window() -> bool {
 
     unsafe {
         AllowSetForegroundWindow(ASFW_ANY);
+        if IsWindowVisible(hwnd) == 0 {
+            ShowWindow(hwnd, SW_SHOW);
+        }
         if IsIconic(hwnd) != 0 {
             ShowWindow(hwnd, SW_RESTORE);
         }

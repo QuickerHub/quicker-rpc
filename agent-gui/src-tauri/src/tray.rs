@@ -41,11 +41,14 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             MENU_QUIT => {
-                if let Some(win) = primary_window(app) {
-                    let _ = win.emit("app-request-exit", ());
-                } else {
-                    crate::spawn_shutdown_and_exit(app.clone());
+                // Dev builds have no frontend exit handler; shut down directly.
+                if !cfg!(debug_assertions) {
+                    if let Some(win) = primary_window(app) {
+                        let _ = win.emit(crate::APP_REQUEST_EXIT_EVENT, ());
+                        return;
+                    }
                 }
+                crate::spawn_shutdown_and_exit(app.clone());
             }
             _ => {}
         })

@@ -1,0 +1,150 @@
+{
+  "variables": [
+    {
+      "key": "command",
+      "defaultValue": "toggle",
+      "desc": "传给 VoxType_Run；未安装客户端时自动改为 download"
+    },
+    {
+      "key": "voxtype_client_exe",
+      "defaultValue": ""
+    },
+    {
+      "key": "voxtype_text",
+      "defaultValue": ""
+    },
+    {
+      "key": "voxtype_error",
+      "defaultValue": ""
+    },
+    {
+      "key": "voxtype_installer_path",
+      "defaultValue": ""
+    }
+  ],
+  "steps": [
+    {
+      "stepRunnerKey": "sys:assign",
+      "inputParams": {
+        "input": {
+          "value": "$=var p = {quicker_in_param} as string;\r\nif (!string.IsNullOrWhiteSpace(p)) {\r\n  p = p.Trim();\r\n  if (p.StartsWith(\"?\")) p = p.Substring(1).Trim();\r\n  const string prefix = \"command=\";\r\n  if (p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) p = p.Substring(prefix.Length).Trim();\r\n  return p;\r\n}\r\nreturn ({command} ?? \"toggle\").Trim();"
+        },
+        "stopIfFail": {
+          "value": "1"
+        }
+      },
+      "outputParams": {
+        "output": "command"
+      },
+      "stepId": "s-parse-param"
+    },
+    {
+      "stepRunnerKey": "sys:assign",
+      "inputParams": {
+        "input": {
+          "value": "$=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), \"VoxType\", \"VoxType.exe\")"
+        },
+        "stopIfFail": {
+          "value": "1"
+        }
+      },
+      "outputParams": {
+        "output": "voxtype_client_exe"
+      },
+      "stepId": "s-client-path"
+    },
+    {
+      "stepRunnerKey": "sys:assign",
+      "inputParams": {
+        "input": {
+          "value": "$=var cmd = ({command} ?? \"toggle\").Trim();\r\nif (string.IsNullOrWhiteSpace(cmd)) cmd = \"toggle\";\r\nvar exe = {voxtype_client_exe} as string;\r\nif (!string.IsNullOrWhiteSpace(exe) && !File.Exists(exe)) {\r\n  if (!cmd.Equals(\"download\", StringComparison.OrdinalIgnoreCase)\r\n      && !cmd.Equals(\"install\", StringComparison.OrdinalIgnoreCase)\r\n      && !cmd.Equals(\"status\", StringComparison.OrdinalIgnoreCase)) {\r\n    return \"download\";\r\n  }\r\n}\r\nreturn cmd;"
+        },
+        "stopIfFail": {
+          "value": "1"
+        }
+      },
+      "outputParams": {
+        "output": "command"
+      },
+      "stepId": "s-resolve-command"
+    },
+    {
+      "stepRunnerKey": "sys:subprogram",
+      "inputParams": {
+        "subProgram": {
+          "value": "%%66690bf9-9ae5-496c-b472-bf4cc78ecb07"
+        },
+        "var:command": {
+          "varKey": "command"
+        },
+        "stopIfFail": {
+          "value": "1"
+        },
+        "skipDebugOutput": {
+          "value": "0"
+        },
+        "summary": {
+          "value": "VoxType {command}"
+        }
+      },
+      "outputParams": {
+        "var:voxtype_text": "voxtype_text",
+        "var:voxtype_error": "voxtype_error",
+        "var:voxtype_installer_path": "voxtype_installer_path"
+      },
+      "stepId": "s-run"
+    },
+    {
+      "stepRunnerKey": "sys:simpleIf",
+      "inputParams": {
+        "condition": {
+          "value": "$=(\"download\".Equals({command}, StringComparison.OrdinalIgnoreCase) || \"install\".Equals({command}, StringComparison.OrdinalIgnoreCase)) && !string.IsNullOrWhiteSpace({voxtype_installer_path}) && File.Exists({voxtype_installer_path})"
+        }
+      },
+      "ifSteps": [
+        {
+          "stepRunnerKey": "sys:run",
+          "inputParams": {
+            "path": {
+              "value": "$={voxtype_installer_path}"
+            },
+            "setWorkingDir": {
+              "value": "1"
+            },
+            "stopIfFail": {
+              "value": "0"
+            }
+          },
+          "stepId": "s-launch-installer"
+        }
+      ],
+      "stepId": "s-if-installer"
+    },
+    {
+      "stepRunnerKey": "sys:simpleIf",
+      "inputParams": {
+        "condition": {
+          "value": "$=!string.IsNullOrWhiteSpace({voxtype_error})"
+        }
+      },
+      "ifSteps": [
+        {
+          "stepRunnerKey": "sys:MsgBox",
+          "inputParams": {
+            "message": {
+              "value": "$={voxtype_error}"
+            },
+            "title": {
+              "value": "VoxType"
+            },
+            "icon": {
+              "value": "Hand"
+            }
+          },
+          "stepId": "s-msg-err"
+        }
+      ],
+      "stepId": "s-if-err"
+    }
+  ]
+}
