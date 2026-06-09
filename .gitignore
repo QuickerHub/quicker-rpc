@@ -58,6 +58,9 @@ publish/**
 !publish/Publish-AgentGui.ps1
 !publish/Publish-QuickerAgent.ps1
 !publish/Build-AgentGuiLocal.ps1
+!publish/Preflight-QuickerAgentFast.ps1
+!publish/Preflight-QuickerAgentBuild.ps1
+!publish/Test-QuickerAgentReleaseBuild.ps1
 !publish/Upload-QuickerAgentToBitiful.ps1
 !publish/Publish-VoiceAsrRelease.ps1
 !publish/Sync-VoicePluginChannel.ps1
