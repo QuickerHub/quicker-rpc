@@ -24,14 +24,9 @@ export async function pickNativeTextToolFiles(multiple: boolean): Promise<string
   if (selected == null) {
     return null;
   }
-  if (typeof selected === "string") {
-    return [selected];
-  }
-  if (Array.isArray(selected)) {
-    const paths = selected.filter((item): item is string => typeof item === "string");
-    return paths.length > 0 ? paths : null;
-  }
-  return null;
+  const list = Array.isArray(selected) ? selected : [selected];
+  const paths = list.filter((item): item is string => typeof item === "string");
+  return paths.length > 0 ? paths : null;
 }
 
 /** Native folder picker (Tauri shell). */
