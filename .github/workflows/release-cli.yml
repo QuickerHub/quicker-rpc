@@ -190,6 +190,10 @@ jobs:
       - name: Generate action authoring docs
         run: node scripts/generate-authoring-docs.mjs
 
+      - name: Install agent-gui dependencies
+        working-directory: agent-gui
+        run: pnpm install --frozen-lockfile --config.node-linker=hoisted --config.symlink=false
+
       - name: Preflight release gate (fast + NSIS assets)
         shell: pwsh
         run: pwsh -NoProfile -File ./publish/Preflight-QuickerAgentFast.ps1

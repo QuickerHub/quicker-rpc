@@ -221,7 +221,7 @@ if (-not $SkipQkrpcBuild) {
 
 Push-Location $agentGuiDir
 try {
-    if (-not (Test-Path -LiteralPath 'node_modules') -or $env:CI -eq 'true') {
+    if (-not (Test-Path -LiteralPath 'node_modules')) {
         Write-Host 'pnpm install (agent-gui)...' -ForegroundColor Cyan
         pnpm install --frozen-lockfile --config.node-linker=hoisted --config.symlink=false
         if ($LASTEXITCODE -ne 0) { throw "pnpm install failed ($LASTEXITCODE)" }
