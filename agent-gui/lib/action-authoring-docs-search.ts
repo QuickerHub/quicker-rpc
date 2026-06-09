@@ -312,18 +312,17 @@ export function searchAuthoringDocRows(
   });
 
   const hits = results
-    .map((hit) => {
+    .map((hit): AuthoringDocSearchHit | null => {
       const hitId = String(hit.id);
       const parentId = bundle.fragmentParentId.get(hitId) ?? hitId;
       const row = bundle.rowById.get(parentId);
       if (!row) return null;
-      return {
-        row,
-        score: hit.score,
-        sectionHeading: bundle.sectionByFragmentId.get(hitId),
-      };
+      const sectionHeading = bundle.sectionByFragmentId.get(hitId);
+      return sectionHeading
+        ? { row, score: hit.score, sectionHeading }
+        : { row, score: hit.score };
     })
-    .filter((hit): hit is AuthoringDocSearchHit => hit != null);
+    .filter((hit): hit is AuthoringDocSearchHit => hit !== null);
 
   return selectBestHitPerDocument(
     rerankAuthoringDocSearchHits(query, hits),
