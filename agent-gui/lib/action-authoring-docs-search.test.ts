@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildAuthoringDocsSearchIndex,
+  compactMarkdownForSearch,
   searchAuthoringDocRows,
   tokenizeAuthoringDocText,
 } from "@/lib/action-authoring-docs-search";
@@ -63,5 +64,33 @@ describe("action-authoring-docs-search", () => {
       hits.map((h) => h.row.topic),
       ["expressions", "step-modules", "workspace-editing"],
     );
+  });
+
+  it("prefers sys: module ref over workflow topic on rerank", () => {
+    const index = buildAuthoringDocsSearchIndex([
+      ...SAMPLE_ROWS,
+      {
+        topic: "subprogram-workflow",
+        title: "Subprograms",
+        description: "workflow",
+        markdown: "sys:subprogram call workflow",
+      },
+      {
+        topic: "step-modules",
+        reference: "subprogram",
+        title: "sys:subprogram",
+        description: "sys:subprogram",
+        markdown: "# sys:subprogram",
+      },
+    ]);
+    const hits = searchAuthoringDocRows(index, "sys:subprogram", 5);
+    assert.equal(hits[0]?.row.reference, "subprogram");
+  });
+
+  it("compactMarkdownForSearch keeps headings and truncates body", () => {
+    const md = "# Title\n\n" + "x".repeat(800);
+    const compact = compactMarkdownForSearch(md, 100);
+    assert.ok(compact.includes("Title"));
+    assert.ok(compact.length < 200);
   });
 });

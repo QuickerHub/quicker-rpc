@@ -21,6 +21,8 @@
     "docs:check": "node ../scripts/generate-authoring-docs.mjs --check",
     "docs:search": "tsx scripts/demo-docs-search.ts",
     "test:docs-search": "tsx scripts/run-docs-search-tests.ts",
+    "test:docs-search:eval": "tsx scripts/eval-docs-search.ts",
+    "test:workspace-grep:eval": "tsx scripts/eval-workspace-grep.ts",
     "test:tool-suites": "tsx --test lib/tool-test-suites.test.ts",
     "test:context-compression": "tsx --test lib/context-compression.test.ts lib/context-compression.integration.test.ts lib/action-project-workflow.test.ts lib/action-project-roundtrip.test.ts lib/action-project-file.test.ts lib/workspace-fs.test.ts lib/action-editor/programWire.test.ts",
     "test:launcher": "tsx --test lib/launcher/*.test.ts",

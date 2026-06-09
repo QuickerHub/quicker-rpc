@@ -1,0 +1,14 @@
+{
+  "step-modules": {
+    "http": ["HTTP", "http请求", "请求", "POST", "GET"],
+    "httpserver": ["http服务", "本地服务器", "文件服务"],
+    "subprogram": ["子程序", "子程序调用", "callIdentifier"],
+    "runScript": ["脚本", "powershell", "python脚本", "运行脚本"],
+    "record": ["录制", "回放", "键鼠录制"],
+    "form": ["表单", "form.json", "formDef"],
+    "fileOperation": ["文件操作", "读写文件", "复制文件"],
+    "webview2": ["webview", "内嵌网页", "HTML窗口"],
+    "csscript": ["C#脚本", "csharp脚本"],
+    "websocket": ["WebSocket", "ws连接"]
+  }
+}

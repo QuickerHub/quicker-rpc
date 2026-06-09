@@ -33,6 +33,7 @@
   "workspace-editing": {
     "title": "Workspace editing",
     "description": ".quicker/actions layout; workspace_action_*_data and workspace_action_file_*; patch saves. Use when editing on disk.",
+    "searchAliases": ["工作区", "磁盘编辑", "workspace edit", "patch"],
     "allowed-tools": "qkrpc_action_get qkrpc_action_patch workspace_action_projects workspace_action_read_data workspace_action_write_data workspace_action_edit_data workspace_action_file_read workspace_action_file_write workspace_action_file_edit",
     "compatibility": "QuickerAgent; requires working directory in sidebar",
     "metadata": {
@@ -106,6 +107,7 @@
   "expressions": {
     "title": "Expressions & interpolation",
     "description": "P4 default: $=, $$, sys:evalexpression (LINQ/string/JSON/multi-assign). Prefer before sys:csscript.",
+    "searchAliases": ["表达式", "插值", "interpolation", "$=", "evalexpression"],
     "allowed-tools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch",
     "metadata": {
       "phase": "P4",
@@ -136,6 +138,7 @@
   "action-project-files": {
     "title": "Workspace project layout",
     "description": ".quicker/actions/{actionId} tree, data.json, files/ external {file} refs. Use when authoring file refs on disk.",
+    "searchAliases": ["工作区", "项目布局", "action project"],
     "metadata": {
       "phase": "P2-P6",
       "layer": "schema"

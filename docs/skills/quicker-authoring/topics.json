@@ -62,7 +62,12 @@
         "phase": "P2-P6",
         "layer": "schema"
       },
-      "layer": "schema"
+      "layer": "schema",
+      "searchAliases": [
+        "工作区",
+        "项目布局",
+        "action project"
+      ]
     },
     {
       "topic": "authoring-workflow",
@@ -101,7 +106,14 @@
         "phase": "P4",
         "layer": "schema"
       },
-      "layer": "schema"
+      "layer": "schema",
+      "searchAliases": [
+        "表达式",
+        "插值",
+        "interpolation",
+        "$=",
+        "evalexpression"
+      ]
     },
     {
       "topic": "form-spec",
@@ -233,7 +245,13 @@
         "phase": "P2-P6",
         "layer": "workflow"
       },
-      "layer": "workflow"
+      "layer": "workflow",
+      "searchAliases": [
+        "工作区",
+        "磁盘编辑",
+        "workspace edit",
+        "patch"
+      ]
     }
   ],
   "referenceFiles": {
@@ -323,7 +341,11 @@
       {
         "id": "csscript",
         "title": "sys:csscript",
-        "path": "step-modules/authored/csscript.md"
+        "path": "step-modules/authored/csscript.md",
+        "searchAliases": [
+          "C#脚本",
+          "csharp脚本"
+        ]
       },
       {
         "id": "custompanel",
@@ -368,7 +390,12 @@
       {
         "id": "fileOperation",
         "title": "sys:fileOperation",
-        "path": "step-modules/authored/fileOperation.md"
+        "path": "step-modules/authored/fileOperation.md",
+        "searchAliases": [
+          "文件操作",
+          "读写文件",
+          "复制文件"
+        ]
       },
       {
         "id": "flauiautomation",
@@ -378,7 +405,12 @@
       {
         "id": "form",
         "title": "sys:form",
-        "path": "step-modules/authored/form.md"
+        "path": "step-modules/authored/form.md",
+        "searchAliases": [
+          "表单",
+          "form.json",
+          "formDef"
+        ]
       },
       {
         "id": "htmlExtract",
@@ -388,12 +420,24 @@
       {
         "id": "http",
         "title": "sys:http",
-        "path": "step-modules/authored/http.md"
+        "path": "step-modules/authored/http.md",
+        "searchAliases": [
+          "HTTP",
+          "http请求",
+          "请求",
+          "POST",
+          "GET"
+        ]
       },
       {
         "id": "httpserver",
         "title": "sys:httpserver",
-        "path": "step-modules/authored/httpserver.md"
+        "path": "step-modules/authored/httpserver.md",
+        "searchAliases": [
+          "http服务",
+          "本地服务器",
+          "文件服务"
+        ]
       },
       {
         "id": "imgProcess",
@@ -438,7 +482,12 @@
       {
         "id": "record",
         "title": "sys:record",
-        "path": "step-modules/authored/record.md"
+        "path": "step-modules/authored/record.md",
+        "searchAliases": [
+          "录制",
+          "回放",
+          "键鼠录制"
+        ]
       },
       {
         "id": "regexExtract",
@@ -453,7 +502,13 @@
       {
         "id": "runScript",
         "title": "sys:runScript",
-        "path": "step-modules/authored/runScript.md"
+        "path": "step-modules/authored/runScript.md",
+        "searchAliases": [
+          "脚本",
+          "powershell",
+          "python脚本",
+          "运行脚本"
+        ]
       },
       {
         "id": "searchBmp",
@@ -473,7 +528,12 @@
       {
         "id": "subprogram",
         "title": "sys:subprogram",
-        "path": "step-modules/authored/subprogram.md"
+        "path": "step-modules/authored/subprogram.md",
+        "searchAliases": [
+          "子程序",
+          "子程序调用",
+          "callIdentifier"
+        ]
       },
       {
         "id": "tableoperation",
@@ -498,12 +558,21 @@
       {
         "id": "websocket",
         "title": "sys:websocket",
-        "path": "step-modules/authored/websocket.md"
+        "path": "step-modules/authored/websocket.md",
+        "searchAliases": [
+          "WebSocket",
+          "ws连接"
+        ]
       },
       {
         "id": "webview2",
         "title": "sys:webview2",
-        "path": "step-modules/authored/webview2.md"
+        "path": "step-modules/authored/webview2.md",
+        "searchAliases": [
+          "webview",
+          "内嵌网页",
+          "HTML窗口"
+        ]
       },
       {
         "id": "zip",

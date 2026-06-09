@@ -7,12 +7,24 @@ export type BrowserRuntimeState = {
   startedAt: number;
 };
 
+export type BrowserRuntimeHealth = {
+  ok: boolean;
+  runtimeVersion?: string;
+  protocolVersion?: string;
+};
+
 export function browserRuntimeStatePath(agentGuiRoot: string): string;
 export function readBrowserRuntimeState(agentGuiRoot: string): BrowserRuntimeState | null;
 export function writeBrowserRuntimeState(agentGuiRoot: string, state: BrowserRuntimeState): void;
 export function clearBrowserRuntimeState(agentGuiRoot: string): void;
 export function resolveBrowserPort(): number;
+export function fetchBrowserRuntimeHealth(
+  base: string,
+  timeoutMs?: number,
+): Promise<BrowserRuntimeHealth>;
 export function checkBrowserRuntimeHealth(base: string, timeoutMs?: number): Promise<boolean>;
+export function isBrowserRuntimeVersionCurrent(health: BrowserRuntimeHealth): boolean;
+export function killListenerOnPort(port: number): void;
 export function reconcileStaleBrowserRuntime(agentGuiRoot: string): void;
 export function trackBrowserRuntimeChild(
   agentGuiRoot: string,

@@ -23,6 +23,7 @@ import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
 import {
   buildAuthoringDocsSearchIndex,
   buildSearchExcerpt,
+  joinSearchAliases,
   searchAuthoringDocRows,
   splitSearchPatterns,
   type AuthoringDocsSearchIndex,
@@ -50,6 +51,7 @@ const LEGACY_DOCS_DIR = "docs/action-authoring/agent";
 type TopicRow = ActionAuthoringTopicMeta & {
   markdown: string;
   reference?: string;
+  searchAliases?: string;
 };
 
 type TopicsManifestEntry = {
@@ -61,12 +63,14 @@ type TopicsManifestEntry = {
   compatibility?: string;
   metadata?: Record<string, string>;
   source?: string;
+  searchAliases?: string[];
 };
 
 type ReferenceCatalogEntry = {
   id: string;
   title: string;
   path: string;
+  searchAliases?: string[];
 };
 
 type TopicsManifest = {
@@ -210,7 +214,11 @@ function referencesForTopic(
 ): ActionAuthoringReferenceMeta[] {
   const list = manifest?.referenceCatalog?.[topic];
   if (!list?.length) return [];
-  return list.map((e) => ({ id: e.id, title: e.title }));
+  return list.map((e) => ({
+    id: e.id,
+    title: e.title,
+    searchAliases: e.searchAliases,
+  }));
 }
 
 function resolveReferenceMarkdownPath(
@@ -283,6 +291,7 @@ async function loadUnifiedSkillTopics(root: string): Promise<TopicRow[]> {
       charCount: markdown.length,
       references: referencesForTopic(manifest, meta.topic),
       markdown,
+      searchAliases: joinSearchAliases(meta.searchAliases),
     });
 
     for (const ref of referencesForTopic(manifest, meta.topic)) {
@@ -303,10 +312,11 @@ async function loadUnifiedSkillTopics(root: string): Promise<TopicRow[]> {
         topic: meta.topic,
         reference: ref.id,
         title: extractTitle(refMarkdown) || ref.title,
-        description: meta.description,
+        description: ref.title,
         charCount: refMarkdown.length,
         references: referencesForTopic(manifest, meta.topic),
         markdown: refMarkdown,
+        searchAliases: joinSearchAliases(ref.searchAliases),
       });
     }
   }

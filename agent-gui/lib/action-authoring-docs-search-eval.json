@@ -1,0 +1,359 @@
+{
+  "$schema": "./action-authoring-docs-search-eval.schema.json",
+  "version": 1,
+  "description": "Golden queries for authoring docs MiniSearch relevance. Extend when adding topics or fixing ranking.",
+  "defaultK": 5,
+  "cases": [
+    {
+      "id": "topic-expressions",
+      "category": "topic-id",
+      "query": "expressions",
+      "expect": { "top": { "topic": "expressions" } }
+    },
+    {
+      "id": "topic-overview",
+      "category": "topic-id",
+      "query": "overview",
+      "expect": { "top": { "topic": "overview" } }
+    },
+    {
+      "id": "topic-workspace-editing",
+      "category": "topic-id",
+      "query": "workspace-editing",
+      "expect": { "top": { "topic": "workspace-editing" } }
+    },
+    {
+      "id": "topic-authoring-workflow",
+      "category": "topic-id",
+      "query": "authoring-workflow",
+      "expect": { "top": { "topic": "authoring-workflow" } }
+    },
+    {
+      "id": "topic-action-data-schema",
+      "category": "topic-id",
+      "query": "action-data-schema",
+      "expect": { "top": { "topic": "action-data-schema" } }
+    },
+    {
+      "id": "topic-step-runner-search",
+      "category": "topic-id",
+      "query": "step-runner-search",
+      "expect": { "top": { "topic": "step-runner-search" } }
+    },
+    {
+      "id": "topic-step-runner-get",
+      "category": "topic-id",
+      "query": "step-runner-get",
+      "expect": { "top": { "topic": "step-runner-get" } }
+    },
+    {
+      "id": "topic-webview2-authoring",
+      "category": "topic-id",
+      "query": "webview2-authoring",
+      "expect": { "top": { "topic": "webview2-authoring" } }
+    },
+    {
+      "id": "module-sys-http",
+      "category": "module-key",
+      "query": "sys:http",
+      "expect": { "top": { "topic": "step-modules", "reference": "http" } }
+    },
+    {
+      "id": "module-sys-webview2",
+      "category": "module-key",
+      "query": "sys:webview2",
+      "expect": { "top": { "topic": "step-modules", "reference": "webview2" } }
+    },
+    {
+      "id": "module-sys-subprogram",
+      "category": "module-key",
+      "query": "sys:subprogram",
+      "expect": { "top": { "topic": "step-modules", "reference": "subprogram" } }
+    },
+    {
+      "id": "module-sys-csscript",
+      "category": "module-key",
+      "query": "sys:csscript",
+      "expect": { "top": { "topic": "step-modules", "reference": "csscript" } }
+    },
+    {
+      "id": "module-sys-runscript",
+      "category": "module-key",
+      "query": "sys:runScript",
+      "expect": { "top": { "topic": "step-modules", "reference": "runScript" } }
+    },
+    {
+      "id": "module-sys-record",
+      "category": "module-key",
+      "query": "sys:record",
+      "expect": { "top": { "topic": "step-modules", "reference": "record" } }
+    },
+    {
+      "id": "module-sys-form",
+      "category": "module-key",
+      "query": "sys:form",
+      "expect": { "top": { "topic": "step-modules", "reference": "form" } }
+    },
+    {
+      "id": "phrase-workspace-patch",
+      "category": "english-phrase",
+      "query": "workspace patch",
+      "expect": { "top": { "topic": "workspace-editing" } }
+    },
+    {
+      "id": "phrase-step-runner",
+      "category": "english-phrase",
+      "query": "step runner",
+      "expect": { "top": { "topic": "step-runner-search" } }
+    },
+    {
+      "id": "phrase-data-json",
+      "category": "english-phrase",
+      "query": "data.json schema",
+      "k": 5,
+      "expect": {
+        "inTopK": [
+          { "topic": "action-data-schema" },
+          { "topic": "action-project-files" }
+        ]
+      }
+    },
+    {
+      "id": "phrase-embedded-subprogram",
+      "category": "english-phrase",
+      "query": "embedded subprogram",
+      "expect": { "top": { "topic": "action-embedded-subprograms" } }
+    },
+    {
+      "id": "phrase-implementation-fallback",
+      "category": "english-phrase",
+      "query": "implementation fallback",
+      "expect": { "top": { "topic": "implementation-fallback" } }
+    },
+    {
+      "id": "phrase-subprogram-workflow",
+      "category": "english-phrase",
+      "query": "subprogram workflow",
+      "expect": { "top": { "topic": "subprogram-workflow" } }
+    },
+    {
+      "id": "zh-subprogram",
+      "category": "chinese",
+      "query": "子程序",
+      "expect": { "top": { "topic": "step-modules", "reference": "subprogram" } }
+    },
+    {
+      "id": "zh-expressions",
+      "category": "chinese",
+      "query": "表达式",
+      "expect": { "top": { "topic": "expressions" } }
+    },
+    {
+      "id": "zh-workspace",
+      "category": "chinese",
+      "query": "工作区",
+      "k": 3,
+      "expect": {
+        "inTopK": [
+          { "topic": "workspace-editing" },
+          { "topic": "action-project-files" }
+        ]
+      }
+    },
+    {
+      "id": "zh-interpolation",
+      "category": "chinese",
+      "query": "插值",
+      "expect": { "top": { "topic": "expressions" } }
+    },
+    {
+      "id": "fuzzy-workspac",
+      "category": "fuzzy",
+      "query": "workspac",
+      "expect": { "top": { "topic": "workspace-editing" } }
+    },
+    {
+      "id": "fuzzy-webvie",
+      "category": "fuzzy",
+      "query": "webvie",
+      "expect": { "top": { "topic": "webview2-authoring" } }
+    },
+    {
+      "id": "fuzzy-expressio",
+      "category": "fuzzy",
+      "query": "expressio",
+      "expect": { "top": { "topic": "expressions" } }
+    },
+    {
+      "id": "fuzzy-step-runn",
+      "category": "fuzzy",
+      "query": "step runn",
+      "expect": { "top": { "topic": "step-runner-search" } }
+    },
+    {
+      "id": "disambig-http-not-httpserver",
+      "category": "disambiguation",
+      "query": "sys:http",
+      "k": 3,
+      "expect": {
+        "top": { "topic": "step-modules", "reference": "http" }
+      },
+      "note": "httpserver may appear lower in top 3 as sibling module; top must stay http"
+    },
+    {
+      "id": "disambig-webview2-authoring-first",
+      "category": "disambiguation",
+      "query": "webview2",
+      "k": 3,
+      "expect": {
+        "top": { "topic": "webview2-authoring" },
+        "inTopK": [
+          { "topic": "webview2-authoring" },
+          { "topic": "step-modules", "reference": "webview2" }
+        ]
+      }
+    },
+    {
+      "id": "recall-patch",
+      "category": "recall",
+      "query": "patch data.json",
+      "k": 5,
+      "expect": {
+        "inTopK": [
+          { "topic": "workspace-editing" },
+          { "topic": "action-data-schema" }
+        ]
+      }
+    },
+    {
+      "id": "recall-evalexpression",
+      "category": "recall",
+      "query": "evalexpression",
+      "k": 5,
+      "expect": {
+        "inTopK": [
+          { "topic": "expressions" },
+          { "topic": "implementation-fallback" }
+        ]
+      }
+    },
+    {
+      "id": "recall-icons",
+      "category": "recall",
+      "query": "font awesome icon",
+      "k": 5,
+      "expect": { "inTopK": [{ "topic": "action-icons" }] }
+    },
+    {
+      "id": "empty-min-hits",
+      "category": "edge",
+      "query": "",
+      "k": 20,
+      "expect": { "minHits": 20 }
+    },
+    {
+      "id": "edge-no-results-gibberish",
+      "category": "edge",
+      "query": "zzzznotadocid999",
+      "k": 5,
+      "expect": { "minHits": 0, "maxHits": 0 }
+    },
+    {
+      "id": "topic-form-spec",
+      "category": "topic-id",
+      "query": "form-spec",
+      "expect": { "top": { "topic": "form-spec" } }
+    },
+    {
+      "id": "topic-subprogram-workflow",
+      "category": "topic-id",
+      "query": "subprogram-workflow",
+      "expect": { "top": { "topic": "subprogram-workflow" } }
+    },
+    {
+      "id": "module-sys-websocket",
+      "category": "module-key",
+      "query": "sys:websocket",
+      "expect": { "top": { "topic": "step-modules", "reference": "websocket" } }
+    },
+    {
+      "id": "module-sys-fileoperation",
+      "category": "module-key",
+      "query": "sys:fileOperation",
+      "expect": { "top": { "topic": "step-modules", "reference": "fileOperation" } }
+    },
+    {
+      "id": "phrase-action-icons",
+      "category": "english-phrase",
+      "query": "font awesome",
+      "k": 5,
+      "expect": { "inTopK": [{ "topic": "action-icons" }] }
+    },
+    {
+      "id": "phrase-quicker-ui",
+      "category": "english-phrase",
+      "query": "open quicker settings",
+      "k": 5,
+      "expect": { "inTopK": [{ "topic": "quicker-ui" }] }
+    },
+    {
+      "id": "agent-http-post",
+      "category": "agent-scenario",
+      "query": "HTTP POST body multipart",
+      "k": 5,
+      "expect": { "inTopK": [{ "topic": "step-modules", "reference": "http" }] }
+    },
+    {
+      "id": "agent-run-powershell",
+      "category": "agent-scenario",
+      "query": "run powershell script step",
+      "k": 5,
+      "expect": {
+        "inTopK": [
+          { "topic": "step-modules", "reference": "runScript" },
+          { "topic": "implementation-fallback" }
+        ]
+      }
+    },
+    {
+      "id": "agent-workspace-program",
+      "category": "agent-scenario",
+      "query": "workspace_program edit data",
+      "k": 5,
+      "expect": { "inTopK": [{ "topic": "workspace-editing" }] }
+    },
+    {
+      "id": "agent-step-runner-get",
+      "category": "agent-scenario",
+      "query": "inputParams wire keys",
+      "k": 5,
+      "expect": {
+        "inTopK": [
+          { "topic": "step-runner-get" },
+          { "topic": "action-data-schema" }
+        ]
+      }
+    },
+    {
+      "id": "recall-common-operation",
+      "category": "recall",
+      "query": "context menu item",
+      "k": 5,
+      "expect": { "inTopK": [{ "topic": "common-operation-item" }] }
+    },
+    {
+      "id": "zh-http-request",
+      "category": "chinese",
+      "query": "HTTP请求",
+      "k": 5,
+      "expect": { "inTopK": [{ "topic": "step-modules", "reference": "http" }] }
+    },
+    {
+      "id": "zh-record-playback",
+      "category": "chinese",
+      "query": "录制",
+      "k": 5,
+      "expect": { "inTopK": [{ "topic": "step-modules", "reference": "record" }] }
+    }
+  ]
+}

@@ -1,0 +1,147 @@
+{
+  "$schema": "./workspace-grep-eval.schema.json",
+  "version": 1,
+  "description": "Golden workspace grep cases (temp dir fixtures per case).",
+  "cases": [
+    {
+      "id": "literal-single-line",
+      "category": "literal",
+      "files": {
+        "hello.txt": "alpha\nbeta target\ngamma\n"
+      },
+      "path": ".",
+      "query": "target",
+      "expect": {
+        "minMatches": 1,
+        "matches": [{ "path": "hello.txt", "line": 2 }]
+      }
+    },
+    {
+      "id": "literal-nested-path",
+      "category": "literal",
+      "files": {
+        "nested/a.txt": "one\nneedle here\n"
+      },
+      "path": "nested",
+      "query": "needle",
+      "expect": {
+        "minMatches": 1,
+        "matches": [{ "path": "nested/a.txt", "line": 2, "column": 1 }]
+      }
+    },
+    {
+      "id": "case-insensitive",
+      "category": "options",
+      "files": {
+        "mix.txt": "Hello WORLD\n"
+      },
+      "path": ".",
+      "query": "world",
+      "options": { "caseInsensitive": true },
+      "expect": {
+        "minMatches": 1,
+        "matches": [{ "path": "mix.txt", "line": 1 }]
+      }
+    },
+    {
+      "id": "max-matches-truncate",
+      "category": "limits",
+      "files": {
+        "many.txt": "hit\nhit\nhit\nhit\n"
+      },
+      "path": ".",
+      "query": "hit",
+      "options": { "maxMatches": 2 },
+      "expect": {
+        "minMatches": 2,
+        "maxMatches": 2,
+        "truncated": true
+      }
+    },
+    {
+      "id": "skip-node-modules",
+      "category": "ignore",
+      "files": {
+        "src/app.ts": "export const APP_TOKEN = 1;\n",
+        "node_modules/lib/index.js": "export const APP_TOKEN = 2;\n"
+      },
+      "path": ".",
+      "query": "APP_TOKEN",
+      "expect": {
+        "minMatches": 1,
+        "maxMatches": 1,
+        "paths": ["src/app.ts"]
+      }
+    },
+    {
+      "id": "skip-git-dir",
+      "category": "ignore",
+      "files": {
+        "readme.md": "visible token\n",
+        ".git/config": "visible token\n"
+      },
+      "path": ".",
+      "query": "visible token",
+      "expect": {
+        "minMatches": 1,
+        "maxMatches": 1,
+        "paths": ["readme.md"]
+      }
+    },
+    {
+      "id": "skip-binary-extension",
+      "category": "ignore",
+      "files": {
+        "data.txt": "findme\n",
+        "image.png": "findme-but-skipped\n"
+      },
+      "path": ".",
+      "query": "findme",
+      "expect": {
+        "minMatches": 1,
+        "maxMatches": 1,
+        "paths": ["data.txt"]
+      }
+    },
+    {
+      "id": "no-match-gibberish",
+      "category": "edge",
+      "files": {
+        "empty-ish.txt": "abc\n"
+      },
+      "path": ".",
+      "query": "zzznomatch999",
+      "expect": {
+        "minMatches": 0,
+        "maxMatches": 0
+      }
+    },
+    {
+      "id": "json-key-literal",
+      "category": "agent-scenario",
+      "files": {
+        "data.json": "{\n  \"stepRunnerKey\": \"sys:http\",\n  \"inputParams\": {}\n}\n"
+      },
+      "path": ".",
+      "query": "stepRunnerKey",
+      "expect": {
+        "minMatches": 1,
+        "matches": [{ "path": "data.json", "line": 2 }]
+      }
+    },
+    {
+      "id": "quicker-action-id",
+      "category": "agent-scenario",
+      "files": {
+        ".quicker/actions/abc/info.json": "{\n  \"name\": \"Demo\"\n}\n",
+        ".quicker/actions/abc/data.json": "{\n  \"steps\": []\n}\n"
+      },
+      "path": ".quicker/actions/abc",
+      "query": "\"steps\"",
+      "expect": {
+        "minMatches": 1,
+        "paths": [".quicker/actions/abc/data.json"]
+      }
+    }
+  ]
+}

@@ -11,6 +11,44 @@ export const MAX_DIFF_SNAPSHOT_CHARS = 8_192;
 export const MAX_GREP_MATCHES = 50;
 export const MAX_LINE_COUNT_SCAN = 500_000;
 
+/** Directory names skipped during workspace grep directory walks. */
+export const GREP_SKIP_DIR_NAMES = new Set([
+  "node_modules",
+  ".git",
+  ".next",
+  "dist",
+  "build",
+  "__pycache__",
+  ".turbo",
+  "coverage",
+]);
+
+/** File extensions skipped during workspace grep (likely binary). */
+export const GREP_SKIP_FILE_EXTENSIONS = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".ico",
+  ".zip",
+  ".exe",
+  ".dll",
+  ".woff",
+  ".woff2",
+  ".pdf",
+  ".pdb",
+]);
+
+export function shouldSkipGrepEntry(name: string, isDirectory: boolean): boolean {
+  if (isDirectory) {
+    return GREP_SKIP_DIR_NAMES.has(name);
+  }
+  const dot = name.lastIndexOf(".");
+  if (dot < 0) return false;
+  return GREP_SKIP_FILE_EXTENSIONS.has(name.slice(dot).toLowerCase());
+}
+
 export type ReadWindow =
   | { mode: "chars"; offset: number; limit: number }
   | { mode: "lines"; startLine: number; maxLines: number; explicitEndLine?: number };

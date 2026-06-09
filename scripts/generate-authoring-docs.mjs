@@ -171,6 +171,13 @@ function buildTopicManifestEntry(opsData, topic) {
     }
   }
 
+  const searchAliases = meta.searchAliases;
+  if (Array.isArray(searchAliases) && searchAliases.length > 0) {
+    entry.searchAliases = searchAliases
+      .map((a) => String(a).trim())
+      .filter((a) => a.length > 0);
+  }
+
   return entry;
 }
 
@@ -351,6 +358,22 @@ async function loadReferenceMap(topic) {
   return map;
 }
 
+async function loadReferenceSearchAliases() {
+  try {
+    const raw = normalizeEol(
+      await fs.readFile(
+        path.join(MANIFEST, "reference-search-aliases.json"),
+        "utf8",
+      ),
+    );
+    return /** @type {Record<string, Record<string, string[]>>} */ (
+      JSON.parse(raw)
+    );
+  } catch {
+    return {};
+  }
+}
+
 /**
  * @param {Record<string, unknown>} opsData
  * @param {TopicEntry[]} topicEntries
@@ -363,10 +386,11 @@ async function computeOutputs(opsData, topicEntries) {
   const topicManifest = [];
   /** @type {Record<string, string>} */
   const referenceFiles = {};
-  /** @type {Record<string, { id: string, title: string, path: string }[]>} */
+  /** @type {Record<string, { id: string, title: string, path: string, searchAliases?: string[] }[]>} */
   const referenceCatalog = {};
 
   const partials = await loadPartials();
+  const referenceSearchAliases = await loadReferenceSearchAliases();
 
   for (const { topic, source } of topicEntries) {
     const src = normalizeEol(
@@ -419,11 +443,19 @@ async function computeOutputs(opsData, topicEntries) {
       if (!referenceCatalog[topic]) {
         referenceCatalog[topic] = [];
       }
-      referenceCatalog[topic].push({
+      /** @type {{ id: string, title: string, path: string, searchAliases?: string[] }} */
+      const catalogEntry = {
         id: refName,
         title: extractMarkdownTitle(refAgent) || refName,
         path: refEntry.outRel,
-      });
+      };
+      const refAliases = referenceSearchAliases[topic]?.[refName];
+      if (Array.isArray(refAliases) && refAliases.length > 0) {
+        catalogEntry.searchAliases = refAliases
+          .map((a) => String(a).trim())
+          .filter((a) => a.length > 0);
+      }
+      referenceCatalog[topic].push(catalogEntry);
     }
   }
 

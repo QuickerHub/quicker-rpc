@@ -18,6 +18,7 @@ import {
   MAX_READ_CHARS,
   MAX_READ_LINES,
   resolveReadWindow,
+  shouldSkipGrepEntry,
 } from "@/lib/workspace-file-helpers";
 import {
   buildEditNotFoundMessage,
@@ -471,6 +472,9 @@ async function collectFilesUnderDir(
   const names = await readdir(dirAbsolute, { withFileTypes: true });
   names.sort((a, b) => a.name.localeCompare(b.name));
   for (const entry of names) {
+    if (shouldSkipGrepEntry(entry.name, entry.isDirectory())) {
+      continue;
+    }
     const rel = dirRelative ? `${dirRelative}/${entry.name}` : entry.name;
     const abs = join(dirAbsolute, entry.name);
     if (entry.isDirectory()) {

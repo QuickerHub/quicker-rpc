@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Authoring docs search eval cases",
+  "type": "object",
+  "required": ["version", "cases"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "description": { "type": "string" },
+    "defaultK": { "type": "integer", "minimum": 1, "maximum": 50 },
+    "cases": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/case" }
+    }
+  },
+  "definitions": {
+    "docRef": {
+      "type": "object",
+      "required": ["topic"],
+      "properties": {
+        "topic": { "type": "string", "minLength": 1 },
+        "reference": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "expect": {
+      "type": "object",
+      "properties": {
+        "top": { "$ref": "#/definitions/docRef" },
+        "inTopK": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/docRef" },
+          "minItems": 1
+        },
+        "notInTopK": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/docRef" },
+          "minItems": 1
+        },
+        "minHits": { "type": "integer", "minimum": 0 },
+        "maxHits": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "case": {
+      "type": "object",
+      "required": ["id", "category", "query", "expect"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "category": { "type": "string", "minLength": 1 },
+        "query": { "type": "string" },
+        "k": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "expect": { "$ref": "#/definitions/expect" },
+        "knownIssue": { "type": "string" },
+        "note": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

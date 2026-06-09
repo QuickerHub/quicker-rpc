@@ -18,8 +18,9 @@ KC 爬取稿（`../<id>.md`）= **素材库**（已全部迁移）；手写稿 =
 
 - 路径：`docs/action-authoring-src/references/step-modules/authored/<id>.md`
 - `<id>` = `sys:<id>` 去前缀，与 `buildRefId()` 一致（如 `sys:excelreadwrite` → `excelreadwrite`）
-- 登记：`scripts/analyze-step-module-ref-redundancy.mjs` → `AUTHORED`；跑 `npm run docs:modules:analyze` 更新 `step-module-skip.json`
-- ref 读取不变：`docs_get_reference({ topic: "step-modules", file: "<id>" })`
+- **登记**：放入 `authored/<id>.md` 即可；`npm run docs:modules:analyze` 自动发现（无需改 AUTHORED 列表）
+- 快捷脚手架：`npm run docs:modules:new -- sys:<key> [--keywords 中文,alias]`
+- ref 读取：`docs_get_reference({ topic: "step-modules", file: "<id>" })`
 
 ## 3. 文档结构（固定顺序）
 
@@ -131,9 +132,9 @@ node scripts/distill-quicker-module-doc-examples.mjs --input path/to/Doc.md
 ## 6. 从爬取稿迁移步骤
 
 1. 读 `../<id>.md`（KC 素材）+ `qkrpc step-runner get --key sys:<key> --json`
-2. 按本规范起草 `authored/<id>.md`，对照档位压行
-3. 将 `sys:<key>` 加入 `AUTHORED`，从 `FORCE_KEEP` 移除
-4. `npm run docs:modules:analyze` → `docs:gen:force` → 验证 `docs_get_reference`
+2. 按本规范起草 `authored/<id>.md`（或 `npm run docs:modules:new -- sys:<key>`）
+3. `npm run docs:modules:analyze` → `docs:modules:gen` → `npm run docs:gen --prefix agent-gui -- --force`
+4. 验证 `docs_get_reference` / `pnpm test:docs-search:eval --prefix agent-gui -- --probe "sys:<key>"`
 5. **丙（过渡期）**：手写落地后立即删除 `../<id>.md`；`authored` 与 KC 爬取不并存同一 id
 
 ## 7. 质检清单

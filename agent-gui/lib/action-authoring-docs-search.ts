@@ -6,6 +6,8 @@ export type AuthoringDocSearchRow = {
   description: string;
   markdown: string;
   reference?: string;
+  /** Space-joined search aliases from topics manifest. */
+  searchAliases?: string;
 };
 
 export type AuthoringDocSearchHit = {
@@ -14,6 +16,32 @@ export type AuthoringDocSearchHit = {
 };
 
 const TOKEN_SPLIT = /[\s\-_:./|#*()[\]{}`'"，。；、！？]+/;
+const SYS_MODULE_KEY_RE = /^sys:([a-z0-9_]+)$/i;
+const SEARCH_BOOST = {
+  topic: 4,
+  reference: 3,
+  aliases: 4,
+  title: 2,
+  description: 2,
+  markdown: 1,
+} as const;
+
+/** Shrink body text indexed for search to reduce cross-doc noise. */
+export function compactMarkdownForSearch(
+  markdown: string,
+  maxChars = 600,
+): string {
+  const headings = [...markdown.matchAll(/^#+\s+(.+)$/gm)]
+    .map((match) => match[1]?.trim() ?? "")
+    .filter((line) => line.length > 0)
+    .join(" ");
+  const plain = markdown
+    .replace(/^#+\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const body = plain.slice(0, maxChars);
+  return headings ? `${headings} ${body}`.trim() : body;
+}
 
 /** Tokenizer tuned for mixed English identifiers and Chinese phrases. */
 export function tokenizeAuthoringDocText(text: string): string[] {
@@ -48,6 +76,75 @@ export type AuthoringDocsSearchIndex = {
   rowById: Map<string, AuthoringDocSearchRow>;
 };
 
+function joinSearchAliases(aliases?: string[] | string): string {
+  if (!aliases) return "";
+  if (Array.isArray(aliases)) {
+    return aliases.map((a) => a.trim()).filter(Boolean).join(" ");
+  }
+  return aliases.trim();
+}
+
+/** Boost exact sys: module keys and alias/topic-id matches over fuzzy body hits. */
+export function rerankAuthoringDocSearchHits(
+  query: string,
+  hits: AuthoringDocSearchHit[],
+): AuthoringDocSearchHit[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return hits;
+
+  const sysMatch = SYS_MODULE_KEY_RE.exec(normalized);
+  const moduleKey = sysMatch?.[1]?.toLowerCase();
+  const isSysQuery = Boolean(moduleKey);
+  const topicIds = new Set(hits.map((h) => h.row.topic));
+
+  return hits
+    .map((hit) => {
+      let bonus = 0;
+      const { row } = hit;
+      const topic = row.topic.toLowerCase();
+      const ref = row.reference?.toLowerCase();
+      const title = row.title.toLowerCase();
+      const aliases = row.searchAliases?.toLowerCase() ?? "";
+
+      if (moduleKey) {
+        if (ref === moduleKey) bonus += 500;
+        if (title === normalized || title === `sys:${moduleKey}`) bonus += 400;
+        if (!row.reference && topic.includes(moduleKey) && topic !== "step-modules") {
+          bonus -= 350;
+        }
+      } else if (!row.reference && topic === normalized) {
+        bonus += 250;
+      }
+
+      if (
+        aliases.length > 0
+        && aliases.split(/\s+/).some((alias) => alias === normalized)
+      ) {
+        bonus += 400;
+      }
+
+      if (!isSysQuery) {
+        if (!row.reference && topic.endsWith("-authoring")) {
+          const base = topic.slice(0, -"-authoring".length);
+          if (base.startsWith(normalized) || normalized.startsWith(base.slice(0, normalized.length))) {
+            bonus += 350;
+          }
+        }
+        if (
+          row.reference
+          && row.topic === "step-modules"
+          && topicIds.has(`${row.reference}-authoring`)
+          && (ref === normalized || (ref != null && ref.startsWith(normalized)))
+        ) {
+          bonus -= 300;
+        }
+      }
+
+      return bonus === 0 ? hit : { ...hit, score: hit.score + bonus };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
 export function buildAuthoringDocsSearchIndex(
   rows: AuthoringDocSearchRow[],
 ): AuthoringDocsSearchIndex {
@@ -59,24 +156,19 @@ export function buildAuthoringDocsSearchIndex(
       id,
       topic: row.topic,
       reference: row.reference ?? "",
+      aliases: row.searchAliases ?? "",
       title: row.title,
       description: row.description,
-      markdown: row.markdown,
+      markdown: compactMarkdownForSearch(row.markdown),
     };
   });
 
   const index = new MiniSearch({
-    fields: ["topic", "reference", "title", "description", "markdown"],
+    fields: ["topic", "reference", "aliases", "title", "description", "markdown"],
     storeFields: ["id"],
     tokenize: tokenizeAuthoringDocText,
     searchOptions: {
-      boost: {
-        topic: 4,
-        reference: 3,
-        title: 2,
-        description: 2,
-        markdown: 1,
-      },
+      boost: { ...SEARCH_BOOST },
       fuzzy: 0.2,
       prefix: true,
     },
@@ -104,25 +196,20 @@ export function searchAuthoringDocRows(
   }
 
   const results = bundle.index.search(query, {
-    boost: {
-      topic: 4,
-      reference: 3,
-      title: 2,
-      description: 2,
-      markdown: 1,
-    },
-    fuzzy: 0.2,
+    boost: { ...SEARCH_BOOST },
+    fuzzy: query.length >= 4 ? 0.2 : 0,
     prefix: true,
   });
 
-  return results
+  const hits = results
     .map((hit) => {
       const row = bundle.rowById.get(String(hit.id));
       if (!row) return null;
       return { row, score: hit.score };
     })
-    .filter((hit): hit is AuthoringDocSearchHit => hit != null)
-    .slice(0, cap);
+    .filter((hit): hit is AuthoringDocSearchHit => hit != null);
+
+  return rerankAuthoringDocSearchHits(query, hits).slice(0, cap);
 }
 
 export function splitSearchPatterns(keyword: string): string[] {
@@ -160,3 +247,5 @@ export function buildSearchExcerpt(
   }
   return `${plain.slice(0, maxLength).trimEnd()}…`;
 }
+
+export { joinSearchAliases };

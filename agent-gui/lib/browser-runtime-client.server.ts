@@ -4,6 +4,12 @@ import {
   resolveBrowserHost,
   resolveBrowserPort,
 } from "@/lib/browser-config";
+import {
+  ensureBrowserRuntime,
+  fetchBrowserRuntimeHealth,
+  isBrowserRuntimeVersionCurrent,
+  killListenerOnPort,
+} from "@/lib/browser-runtime-lifecycle.mjs";
 
 export type BrowserInvokeResult = {
   ok: boolean;
@@ -44,31 +50,29 @@ async function startBrowserRuntime(): Promise<void> {
     throw new Error("Browser runtime disabled (AGENT_GUI_SKIP_BROWSER_RUNTIME=1)");
   }
 
-  const lifecycle = await import("@/lib/browser-runtime-lifecycle.mjs");
   const host = resolveBrowserHost();
   const port = resolveBrowserPort();
   const base = `http://${host}:${port}`;
 
-  const health = await lifecycle.fetchBrowserRuntimeHealth(base);
-  if (lifecycle.isBrowserRuntimeVersionCurrent(health)) return;
+  const health = await fetchBrowserRuntimeHealth(base);
+  if (isBrowserRuntimeVersionCurrent(health)) return;
 
-  if (health.ok && !lifecycle.isBrowserRuntimeVersionCurrent(health)) {
-    lifecycle.killListenerOnPort(port);
+  if (health.ok && !isBrowserRuntimeVersionCurrent(health)) {
+    killListenerOnPort(port);
     await new Promise((r) => setTimeout(r, 400));
   }
 
-  await lifecycle.ensureBrowserRuntime(process.cwd(), host);
-  const ready = await lifecycle.fetchBrowserRuntimeHealth(base);
-  if (!lifecycle.isBrowserRuntimeVersionCurrent(ready)) {
+  await ensureBrowserRuntime(process.cwd(), host);
+  const ready = await fetchBrowserRuntimeHealth(base);
+  if (!isBrowserRuntimeVersionCurrent(ready)) {
     throw new Error(`browser runtime did not become ready at ${base}/health`);
   }
 }
 
 export async function ensureBrowserRuntimeReady(): Promise<void> {
-  const lifecycle = await import("@/lib/browser-runtime-lifecycle.mjs");
   const base = browserRuntimeBaseUrl();
-  const health = await lifecycle.fetchBrowserRuntimeHealth(base);
-  if (lifecycle.isBrowserRuntimeVersionCurrent(health)) return;
+  const health = await fetchBrowserRuntimeHealth(base);
+  if (isBrowserRuntimeVersionCurrent(health)) return;
 
   if (!ensureInFlight) {
     ensureInFlight = startBrowserRuntime().finally(() => {
@@ -77,8 +81,8 @@ export async function ensureBrowserRuntimeReady(): Promise<void> {
   }
   await ensureInFlight;
 
-  const ready = await lifecycle.fetchBrowserRuntimeHealth(base);
-  if (!lifecycle.isBrowserRuntimeVersionCurrent(ready)) {
+  const ready = await fetchBrowserRuntimeHealth(base);
+  if (!isBrowserRuntimeVersionCurrent(ready)) {
     throw new Error(
       "Browser runtime is not running. Start it with: pnpm browser:dev-server "
       + `(Expected ${buildBrowserHealthUrl()})`,

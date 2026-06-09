@@ -197,7 +197,7 @@ export function useChatMessageWindow({
 
   const windowSlice = useMemo((): Omit<
     ChatMessageWindowSlice,
-    "expandHistory" | "historySentinelRef"
+    "expandHistory" | "clearHistoryPin" | "historySentinelRef"
   > => {
     if (!useTurnMode && totalMessages === 0) {
       return {

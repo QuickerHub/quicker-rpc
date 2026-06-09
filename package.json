@@ -7,6 +7,7 @@
     "docs:check": "node scripts/generate-authoring-docs.mjs --check",
     "docs:gen:force": "node scripts/generate-authoring-docs.mjs --force",
     "docs:modules:analyze": "node scripts/analyze-step-module-ref-redundancy.mjs",
+    "docs:modules:new": "node scripts/scaffold-step-module-ref.mjs",
     "docs:modules:gen": "node scripts/analyze-step-module-ref-redundancy.mjs && node scripts/generate-step-module-refs.mjs --force",
     "docs:modules:gen:check": "node scripts/generate-step-module-refs.mjs",
     "docs:modules:distill-examples": "node scripts/distill-quicker-module-doc-examples.mjs",

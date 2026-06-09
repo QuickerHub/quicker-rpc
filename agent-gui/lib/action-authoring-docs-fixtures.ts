@@ -1,18 +1,21 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AuthoringDocSearchRow } from "@/lib/action-authoring-docs-search";
+import { joinSearchAliases } from "@/lib/action-authoring-docs-search";
 import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
 
 type TopicsManifestEntry = {
   topic: string;
   title?: string;
   description: string;
+  searchAliases?: string[];
 };
 
 type ReferenceCatalogEntry = {
   id: string;
   title: string;
   path: string;
+  searchAliases?: string[];
 };
 
 type TopicsManifest = {
@@ -69,6 +72,7 @@ export async function loadAuthoringDocFixtureRows(): Promise<AuthoringDocSearchR
       title: meta.title?.trim() || extractTitle(markdown) || meta.topic,
       description: meta.description,
       markdown,
+      searchAliases: joinSearchAliases(meta.searchAliases),
     });
 
     const refs = manifest.referenceCatalog?.[meta.topic] ?? [];
@@ -85,8 +89,9 @@ export async function loadAuthoringDocFixtureRows(): Promise<AuthoringDocSearchR
         topic: meta.topic,
         reference: ref.id,
         title: extractTitle(refMarkdown) || ref.title,
-        description: meta.description,
+        description: ref.title,
         markdown: refMarkdown,
+        searchAliases: joinSearchAliases(ref.searchAliases),
       });
     }
   }

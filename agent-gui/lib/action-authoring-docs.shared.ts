@@ -3,6 +3,7 @@
 export type ActionAuthoringReferenceMeta = {
   id: string;
   title: string;
+  searchAliases?: string[];
 };
 
 export type ActionAuthoringTopicMeta = {

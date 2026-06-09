@@ -611,6 +611,10 @@ export function insertComposerMarkupPasteWithUndo(
       fragment.append(createComposerTagElement(segment.action));
       continue;
     }
+    if (segment.type === "browser-element") {
+      fragment.append(createBrowserElementTagElement(segment.element));
+      continue;
+    }
     appendTextWithNewlines(fragment, segment.text);
   }
 
