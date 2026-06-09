@@ -11,6 +11,19 @@ on:
         description: 'Existing tag to build (e.g. v0.3.9). Leave empty when triggered by tag push.'
         required: false
         type: string
+      pipeline:
+        description: 'full = compile+bundle+release; bundle-only = retry NSIS after compile succeeded; release-only = re-upload existing artifacts'
+        required: false
+        default: full
+        type: choice
+        options:
+          - full
+          - bundle-only
+          - release-only
+      artifact_run_id:
+        description: 'GitHub Actions run id supplying compile/agent artifacts (required for bundle-only / release-only)'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -60,6 +73,7 @@ jobs:
           "full=$full" >> $env:GITHUB_OUTPUT
 
   build-cli:
+    if: github.event_name != 'workflow_dispatch' || inputs.pipeline == 'full'
     runs-on: windows-latest
     needs: metadata
     steps:
@@ -120,7 +134,8 @@ jobs:
             publish/qkrpc-win-x64-setup.exe
           if-no-files-found: error
 
-  build-agent:
+  build-agent-compile:
+    if: github.event_name != 'workflow_dispatch' || inputs.pipeline == 'full'
     runs-on: windows-latest
     needs: metadata
     environment: publish
@@ -175,7 +190,11 @@ jobs:
       - name: Generate action authoring docs
         run: node scripts/generate-authoring-docs.mjs
 
-      - name: Build QuickerAgent installer
+      - name: Preflight release gate (fast + NSIS assets)
+        shell: pwsh
+        run: pwsh -NoProfile -File ./publish/Preflight-QuickerAgentFast.ps1
+
+      - name: Compile QuickerAgent (no NSIS)
         shell: pwsh
         env:
           BUNDLED_LLM_CONFIG: ${{ secrets.BUNDLED_LLM_CONFIG }}
@@ -197,7 +216,104 @@ jobs:
           if (-not $hasConfig) {
             $env:BUNDLED_LLM_BINGLEIMUZI_API_KEY = $legacyKey
           }
-          pwsh -NoProfile -File ./publish/Publish-QuickerAgent.ps1 -SkipQkrpcBuild
+          pwsh -NoProfile -File ./publish/Publish-QuickerAgent.ps1 -SkipQkrpcBuild -CompileOnly
+
+      - name: Upload compile artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-compile-artifacts
+          path: |
+            agent-gui/src-tauri/target/release/quicker-agent.exe
+            agent-gui/src-tauri/target/release/resources/**
+          if-no-files-found: error
+          retention-days: 7
+
+  build-agent-bundle:
+    if: >-
+      always() &&
+      needs.metadata.result == 'success' &&
+      (needs.build-agent-compile.result == 'success' ||
+        (github.event_name == 'workflow_dispatch' && inputs.pipeline == 'bundle-only')) &&
+      (github.event_name != 'workflow_dispatch' || inputs.pipeline != 'release-only')
+    runs-on: windows-latest
+    needs:
+      - metadata
+      - build-agent-compile
+    environment: publish
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: agent-gui/pnpm-lock.yaml
+
+      - name: Ensure NSIS (Tauri bundler)
+        shell: pwsh
+        run: |
+          if (Get-Command makensis.exe -ErrorAction SilentlyContinue) {
+            Write-Host 'NSIS already available.'
+          } else {
+            choco install nsis -y --no-progress
+          }
+
+      - name: Download compile artifacts (current run)
+        if: github.event_name != 'workflow_dispatch' || inputs.pipeline == 'full'
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-compile-artifacts
+          path: agent-gui/src-tauri/target/release
+
+      - name: Download compile artifacts (retry run)
+        if: github.event_name == 'workflow_dispatch' && inputs.pipeline == 'bundle-only'
+        shell: pwsh
+        run: |
+          $runId = '${{ inputs.artifact_run_id }}'.Trim()
+          if ([string]::IsNullOrWhiteSpace($runId)) {
+            throw 'bundle-only requires artifact_run_id from a successful build-agent-compile job.'
+          }
+          gh run download $runId --repo '${{ github.repository }}' -n agent-compile-artifacts -D agent-gui/src-tauri/target/release
+          if ($LASTEXITCODE -ne 0) { throw "gh run download failed ($LASTEXITCODE)" }
+
+      - name: Bundle QuickerAgent NSIS installer
+        shell: pwsh
+        env:
+          BUNDLED_LLM_CONFIG: ${{ secrets.BUNDLED_LLM_CONFIG }}
+          BUNDLED_LLM_BINGLEIMUZI_API_KEY: ${{ secrets.BUNDLED_LLM_BINGLEIMUZI_API_KEY }}
+          BUNDLED_LLM_AI98PRO_API_KEY: ${{ secrets.BUNDLED_LLM_AI98PRO_API_KEY }}
+          LLM_REMOTE_PUBLISH_CIPHER_PEPPER: ${{ secrets.LLM_REMOTE_PUBLISH_CIPHER_PEPPER }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          AGENT_GUI_DEFAULT_CWD: ${{ github.workspace }}
+        run: |
+          $hasConfig = -not [string]::IsNullOrWhiteSpace($env:BUNDLED_LLM_CONFIG)
+          $legacyKey = $env:BUNDLED_LLM_BINGLEIMUZI_API_KEY
+          if ([string]::IsNullOrWhiteSpace($legacyKey)) {
+            $legacyKey = $env:BUNDLED_LLM_AI98PRO_API_KEY
+          }
+          if (-not $hasConfig -and [string]::IsNullOrWhiteSpace($legacyKey)) {
+            throw 'GitHub secret BUNDLED_LLM_CONFIG (preferred) or legacy BUNDLED_LLM_BINGLEIMUZI_API_KEY is required for QuickerAgent release builds.'
+          }
+          if (-not $hasConfig) {
+            $env:BUNDLED_LLM_BINGLEIMUZI_API_KEY = $legacyKey
+          }
+          Push-Location agent-gui
+          try {
+            pnpm install --frozen-lockfile --config.node-linker=hoisted --config.symlink=false
+            if ($LASTEXITCODE -ne 0) { throw "pnpm install failed ($LASTEXITCODE)" }
+          }
+          finally {
+            Pop-Location
+          }
+          pwsh -NoProfile -File ./publish/Publish-QuickerAgent.ps1 -SkipQkrpcBuild -BundleOnly
 
       - name: Upload agent artifacts
         uses: actions/upload-artifact@v4
@@ -210,27 +326,49 @@ jobs:
           if-no-files-found: error
 
   release:
+    if: >-
+      always() &&
+      needs.metadata.result == 'success' &&
+      (needs.build-cli.result == 'success' ||
+        (github.event_name == 'workflow_dispatch' && inputs.pipeline == 'release-only')) &&
+      (needs.build-agent-bundle.result == 'success' ||
+        (github.event_name == 'workflow_dispatch' && inputs.pipeline == 'release-only'))
     runs-on: windows-latest
     needs:
       - metadata
       - build-cli
-      - build-agent
+      - build-agent-bundle
     environment: publish
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Download CLI artifacts
+        if: github.event_name != 'workflow_dispatch' || inputs.pipeline != 'release-only'
         uses: actions/download-artifact@v4
         with:
           name: cli-artifacts
           path: publish
 
       - name: Download agent artifacts
+        if: github.event_name != 'workflow_dispatch' || inputs.pipeline != 'release-only'
         uses: actions/download-artifact@v4
         with:
           name: agent-artifacts
           path: publish
+
+      - name: Download release artifacts (retry run)
+        if: github.event_name == 'workflow_dispatch' && inputs.pipeline == 'release-only'
+        shell: pwsh
+        run: |
+          $runId = '${{ inputs.artifact_run_id }}'.Trim()
+          if ([string]::IsNullOrWhiteSpace($runId)) {
+            throw 'release-only requires artifact_run_id from a run that produced cli-artifacts + agent-artifacts.'
+          }
+          gh run download $runId --repo '${{ github.repository }}' -n cli-artifacts -D publish
+          if ($LASTEXITCODE -ne 0) { throw "cli artifact download failed ($LASTEXITCODE)" }
+          gh run download $runId --repo '${{ github.repository }}' -n agent-artifacts -D publish
+          if ($LASTEXITCODE -ne 0) { throw "agent artifact download failed ($LASTEXITCODE)" }
 
       - name: Detect Bitiful upload config
         id: bitiful

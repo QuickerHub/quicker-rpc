@@ -71,6 +71,18 @@ function runReleaseGateTests() {
   }
 }
 
+function checkNsisInstallerAssets() {
+  const script = join(agentGuiRoot, "scripts", "verify-nsis-installer-assets.mjs");
+  const result = spawnSync("node", [script], {
+    cwd: agentGuiRoot,
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
+  if (result.status !== 0) {
+    throw new Error(`NSIS installer asset check failed (exit ${result.status ?? "unknown"})`);
+  }
+}
+
 function maybeRunRustShortcutTest() {
   if (process.env.PREFLIGHT_RUST !== "1") {
     console.log(
@@ -98,6 +110,7 @@ console.log("preflight-release-gate: start");
 
 try {
   runStep("version", checkVersionNotes);
+  runStep("nsis-assets", checkNsisInstallerAssets);
   runStep("tests", runReleaseGateTests);
   runStep("rust-shortcut", maybeRunRustShortcutTest);
 } catch (err) {

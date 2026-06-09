@@ -18,7 +18,11 @@ param(
     # Run pnpm tauri build only (no publish/ copy / verify). Used before GitHub Release tag push.
     [switch]$PreflightOnly,
     # Reuse existing .next/standalone (skip pnpm build; run tauri-prepare + tauri bundle only).
-    [switch]$SkipNextBuild
+    [switch]$SkipNextBuild,
+    # CI stage 1: next + tauri-prepare + `tauri build --no-bundle` (skip NSIS).
+    [switch]$CompileOnly,
+    # CI stage 2: `tauri bundle --bundles nsis` only (requires stage-1 artifacts).
+    [switch]$BundleOnly
 )
 
 Set-StrictMode -Version Latest
@@ -100,16 +104,76 @@ function Test-NextStandaloneReady {
     return $false
 }
 
+function Test-QuickerAgentReleaseBinaryReady {
+    param([string]$AgentGuiDir)
+    $exe = Join-Path $AgentGuiDir 'src-tauri\target\release\quicker-agent.exe'
+    $resources = Join-Path $AgentGuiDir 'src-tauri\target\release\resources'
+    return (Test-Path -LiteralPath $exe) -and (Test-Path -LiteralPath $resources)
+}
+
+function Invoke-QuickerAgentTauriCli {
+    param(
+        [string]$AgentGuiDir,
+        [string]$PublishDir,
+        [ValidateSet('full', 'compile', 'bundle')]
+        [string]$Stage = 'full'
+    )
+
+    $confPath = Join-Path $AgentGuiDir 'src-tauri\tauri.conf.json'
+    $conf = Get-Content -LiteralPath $confPath -Raw | ConvertFrom-Json
+    $savedBeforeBuild = [string]$conf.build.beforeBuildCommand
+    $conf.build.beforeBuildCommand = ''
+    Set-Content -LiteralPath $confPath -Value (($conf | ConvertTo-Json -Depth 100) + "`n") -Encoding utf8NoBOM
+    try {
+        Import-TauriSigningPrivateKey -PublishDir $PublishDir
+        $env:CI = 'true'
+        switch ($Stage) {
+            'compile' {
+                Write-Host 'tauri build --no-bundle (compile only)...' -ForegroundColor Cyan
+                pnpm tauri build -- --no-bundle
+            }
+            'bundle' {
+                Write-Host 'tauri bundle --bundles nsis (package only)...' -ForegroundColor Cyan
+                pnpm tauri bundle -- --bundles nsis
+            }
+            default {
+                Write-Host 'tauri build (NSIS installer + updater artifacts)...' -ForegroundColor Cyan
+                pnpm tauri build
+            }
+        }
+        if ($LASTEXITCODE -ne 0) { throw "tauri $($Stage) failed ($LASTEXITCODE)" }
+    }
+    finally {
+        $conf.build.beforeBuildCommand = $savedBeforeBuild
+        Set-Content -LiteralPath $confPath -Value (($conf | ConvertTo-Json -Depth 100) + "`n") -Encoding utf8NoBOM
+    }
+}
+
 function Invoke-QuickerAgentStagedTauriBuild {
     param(
         [string]$AgentGuiDir,
         [string]$PublishDir,
-        [switch]$SkipNextBuild
+        [switch]$SkipNextBuild,
+        [switch]$CompileOnly,
+        [switch]$BundleOnly
     )
+
+    if ($CompileOnly -and $BundleOnly) {
+        throw 'Use only one of -CompileOnly or -BundleOnly.'
+    }
 
     Push-Location $AgentGuiDir
     try {
         Set-QuickerAgentIsolatedUserProfile
+
+        if ($BundleOnly) {
+            if (-not (Test-QuickerAgentReleaseBinaryReady -AgentGuiDir $AgentGuiDir)) {
+                throw 'BundleOnly requires src-tauri/target/release/quicker-agent.exe and resources/ (run -CompileOnly first or restore CI artifact).'
+            }
+            Write-Host 'Skipping next/tauri-prepare (bundle-only stage)' -ForegroundColor DarkCyan
+            Invoke-QuickerAgentTauriCli -AgentGuiDir $AgentGuiDir -PublishDir $PublishDir -Stage bundle
+            return
+        }
 
         if ($SkipNextBuild) {
             if (-not (Test-NextStandaloneReady -AgentGuiDir $AgentGuiDir)) {
@@ -131,22 +195,8 @@ function Invoke-QuickerAgentStagedTauriBuild {
         node scripts/tauri-prepare.mjs
         if ($LASTEXITCODE -ne 0) { throw "tauri-prepare failed ($LASTEXITCODE)" }
 
-        $confPath = Join-Path $AgentGuiDir 'src-tauri\tauri.conf.json'
-        $conf = Get-Content -LiteralPath $confPath -Raw | ConvertFrom-Json
-        $savedBeforeBuild = [string]$conf.build.beforeBuildCommand
-        $conf.build.beforeBuildCommand = ''
-        Set-Content -LiteralPath $confPath -Value (($conf | ConvertTo-Json -Depth 100) + "`n") -Encoding utf8NoBOM
-        try {
-            Write-Host 'tauri build (NSIS installer + updater artifacts)...' -ForegroundColor Cyan
-            Import-TauriSigningPrivateKey -PublishDir $PublishDir
-            $env:CI = 'true'
-            pnpm tauri build
-            if ($LASTEXITCODE -ne 0) { throw "tauri build failed ($LASTEXITCODE)" }
-        }
-        finally {
-            $conf.build.beforeBuildCommand = $savedBeforeBuild
-            Set-Content -LiteralPath $confPath -Value (($conf | ConvertTo-Json -Depth 100) + "`n") -Encoding utf8NoBOM
-        }
+        $stage = if ($CompileOnly) { 'compile' } else { 'full' }
+        Invoke-QuickerAgentTauriCli -AgentGuiDir $AgentGuiDir -PublishDir $PublishDir -Stage $stage
     }
     finally {
         Pop-Location
@@ -181,10 +231,20 @@ finally {
     Pop-Location
 }
 
-Invoke-QuickerAgentStagedTauriBuild -AgentGuiDir $agentGuiDir -PublishDir $PSScriptRoot -SkipNextBuild:$SkipNextBuild
+Invoke-QuickerAgentStagedTauriBuild `
+    -AgentGuiDir $agentGuiDir `
+    -PublishDir $PSScriptRoot `
+    -SkipNextBuild:$SkipNextBuild `
+    -CompileOnly:$CompileOnly `
+    -BundleOnly:$BundleOnly
 
 if ($PreflightOnly) {
     Write-Host 'Preflight OK: QuickerAgent Tauri build succeeded.' -ForegroundColor Green
+    exit 0
+}
+
+if ($CompileOnly) {
+    Write-Host 'Compile-only stage OK (quicker-agent.exe + resources staged).' -ForegroundColor Green
     exit 0
 }
 
