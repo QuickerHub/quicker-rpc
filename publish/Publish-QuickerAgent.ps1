@@ -130,11 +130,11 @@ function Invoke-QuickerAgentTauriCli {
         switch ($Stage) {
             'compile' {
                 Write-Host 'tauri build --no-bundle (compile only)...' -ForegroundColor Cyan
-                pnpm tauri build -- --no-bundle
+                pnpm tauri build --no-bundle
             }
             'bundle' {
                 Write-Host 'tauri bundle --bundles nsis (package only)...' -ForegroundColor Cyan
-                pnpm tauri bundle -- --bundles nsis
+                pnpm tauri bundle --bundles nsis
             }
             default {
                 Write-Host 'tauri build (NSIS installer + updater artifacts)...' -ForegroundColor Cyan
