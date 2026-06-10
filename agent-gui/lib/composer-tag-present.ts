@@ -46,7 +46,7 @@ function createFaSvgIcon(
 }
 
 /** Build the leading icon node for a composer tag chip (DOM). */
-export function createComposerTagIconElement(action: PinnedAction): HTMLElement {
+export function createComposerTagIconElement(action: PinnedAction): Element {
   const isSubprogram = isComposerSubprogramTag(action);
   const spec = resolveComposerTagIconSpec(action);
 
