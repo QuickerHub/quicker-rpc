@@ -20423,3 +20423,63 @@ html[data-app-ready] #app-bootstrap-splash {
   }
 }
 
+.qa-error-page {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 2.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+  background: var(--bg, #f6f6f6);
+  color: var(--fg, #111);
+}
+
+.qa-error-page h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.qa-error-page p {
+  margin: 0;
+  max-width: 36rem;
+  line-height: 1.5;
+  color: var(--muted, #666);
+}
+
+.qa-error-page__detail {
+  margin: 0;
+  max-width: 40rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--card, #fff);
+  border: 1px solid var(--border, #ddd);
+  font-size: 0.8rem;
+  text-align: left;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.qa-error-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.qa-error-page__actions button {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, #ccc);
+  background: var(--card, #fff);
+  cursor: pointer;
+}
+
+.qa-error-page__actions button:hover {
+  border-color: var(--accent, #2563eb);
+}
+

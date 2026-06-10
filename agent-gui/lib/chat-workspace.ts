@@ -39,43 +39,55 @@ export function getWorkspaceById(
   data: Pick<ChatStoreData, "workspaces">,
   workspaceId: string,
 ): ChatWorkspace | undefined {
-  return data.workspaces.find((ws) => ws.id === workspaceId);
+  const workspaces = Array.isArray(data.workspaces) ? data.workspaces : [];
+  return workspaces.find((ws) => ws.id === workspaceId);
 }
 
 export function getActiveWorkspace(
   data: Pick<ChatStoreData, "workspaces" | "activeWorkspaceId">,
 ): ChatWorkspace {
+  const workspaces = Array.isArray(data.workspaces) ? data.workspaces : [];
+  const activeWorkspaceId =
+    typeof data.activeWorkspaceId === "string" ? data.activeWorkspaceId : "";
   return (
-    getWorkspaceById(data, data.activeWorkspaceId)
-    ?? data.workspaces[0]
+    getWorkspaceById({ workspaces }, activeWorkspaceId)
+    ?? workspaces[0]
     ?? createWorkspace()
   );
 }
 
 /** Migrate legacy single workingDirectory into workspaces[]. */
 export function ensureWorkspacesMigrated(data: ChatStoreData): ChatStoreData {
-  if (data.workspaces.length > 0 && data.activeWorkspaceId) {
-    const active = getWorkspaceById(data, data.activeWorkspaceId);
+  const workspaces = Array.isArray(data.workspaces) ? data.workspaces : [];
+  const activeWorkspaceId =
+    typeof data.activeWorkspaceId === "string" ? data.activeWorkspaceId : "";
+  const base =
+    workspaces === data.workspaces && activeWorkspaceId === data.activeWorkspaceId
+      ? data
+      : { ...data, workspaces, activeWorkspaceId };
+
+  if (base.workspaces.length > 0 && base.activeWorkspaceId) {
+    const active = getWorkspaceById(base, base.activeWorkspaceId);
     if (active) {
-      const threads = data.threads.map((thread) => ({
+      const threads = base.threads.map((thread) => ({
         ...thread,
-        workspaceId: thread.workspaceId ?? data.activeWorkspaceId,
+        workspaceId: thread.workspaceId ?? base.activeWorkspaceId,
       }));
-      return threads.every((t, i) => t.workspaceId === data.threads[i]?.workspaceId)
-        ? data
-        : { ...data, threads };
+      return threads.every((t, i) => t.workspaceId === base.threads[i]?.workspaceId)
+        ? base
+        : { ...base, threads };
     }
   }
 
-  const legacyPath = data.workingDirectory.trim();
+  const legacyPath = base.workingDirectory.trim();
   const workspace = createWorkspace(legacyPath);
-  const threads = data.threads.map((thread) => ({
+  const threads = base.threads.map((thread) => ({
     ...thread,
     workspaceId: thread.workspaceId ?? workspace.id,
   }));
 
   return {
-    ...data,
+    ...base,
     workspaces: [workspace],
     activeWorkspaceId: workspace.id,
     threads,

@@ -277,7 +277,7 @@ export function ChatSidebar({
             </button>
           </div>
           <ul className="ws-list ws-workspace-list" role="listbox" aria-label="工作区列表">
-            {store.workspaces.map((workspace) => {
+            {(store.workspaces ?? []).map((workspace) => {
               const selected = workspace.id === store.activeWorkspaceId;
               const label = defaultWorkspaceLabel(workspace, cwdFallbackLabel);
               const threadCount = threadsForWorkspace(store.threads, workspace.id).length;
@@ -299,7 +299,7 @@ export function ChatSidebar({
                       <span className="ws-item-badge">{threadCount}</span>
                     )}
                   </button>
-                  {store.workspaces.length > 1 ? (
+                  {(store.workspaces ?? []).length > 1 ? (
                     <div className="ws-row-actions">
                       <RowAction
                         label="移除工作区"

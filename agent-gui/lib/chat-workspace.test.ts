@@ -81,6 +81,30 @@ test("normalizeLoadedStore migrates legacy single workingDirectory", () => {
   assert.equal(normalized.threads[0]!.workspaceId, normalized.activeWorkspaceId);
 });
 
+test("normalizeLoadedStore repairs store missing workspaces field", () => {
+  const partial = {
+    version: 3 as const,
+    activeThreadId: "t1",
+    activeWorkspaceId: "",
+    threads: [
+      {
+        id: "t1",
+        title: "对话",
+        messages: [],
+        updatedAt: 1,
+        messageCount: 0,
+      },
+    ],
+    openTabIds: ["t1"],
+    workingDirectory: "",
+  } as unknown as import("@/lib/chat-store").ChatStoreData;
+
+  const normalized = normalizeLoadedStore(partial);
+  assert.equal(normalized.workspaces.length, 1);
+  assert.ok(normalized.activeWorkspaceId);
+  assert.equal(normalized.threads[0]!.workspaceId, normalized.activeWorkspaceId);
+});
+
 test("defaultWorkspaceLabel prefers label then folder name", () => {
   assert.equal(
     defaultWorkspaceLabel({ rootPath: "D:\\projects\\quicker-rpc", label: "RPC" }),

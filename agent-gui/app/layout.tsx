@@ -7,6 +7,7 @@ import {
   APP_BOOTSTRAP_SPLASH_INIT_SCRIPT,
   APP_BOOTSTRAP_SPLASH_MARKUP,
 } from "@/lib/app-bootstrap-splash-markup";
+import { CLIENT_RUNTIME_RECOVERY_SCRIPT } from "@/lib/client-runtime-recovery-script";
 import { DEV_INTERACTION_RECOVERY_SCRIPT } from "@/lib/dev-interaction-recovery-script";
 import { RELEASE_PREVIEW_INIT_SCRIPT } from "@/lib/release-preview-constants";
 import { SIDEBAR_INIT_SCRIPT } from "@/lib/sidebar-prefs";
@@ -28,6 +29,7 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: CLIENT_RUNTIME_RECOVERY_SCRIPT }} />
         {process.env.NODE_ENV === "development" ? (
           <script dangerouslySetInnerHTML={{ __html: TAURI_DEV_HMR_MUTE_SCRIPT }} />
         ) : null}

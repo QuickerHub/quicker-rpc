@@ -17,6 +17,7 @@ import {
   defaultChatStore,
   flushPendingChatStoreSave,
   loadChatStoreFromLocalStorage,
+  normalizeLoadedStore,
   scheduleSaveChatStore,
 } from "@/lib/chat-store";
 
@@ -74,7 +75,7 @@ function hydrateChatStoreFromClient(): void {
   hydrationInFlight = true;
   void (async () => {
     try {
-      cachedStore = await readChatStoreFromClient();
+      cachedStore = normalizeLoadedStore(await readChatStoreFromClient());
     } finally {
       hydrationInFlight = false;
     }
@@ -95,7 +96,7 @@ function startBootAutoRestoreIfNeeded(): void {
   const snapshot = cachedStore;
   void maybeAutoRestoreChatStoreOnBoot(snapshot).then((restored) => {
     if (!restored) return;
-    cachedStore = restored;
+    cachedStore = normalizeLoadedStore(restored);
     notifyChatStoreListeners();
   });
 }
@@ -208,9 +209,10 @@ export function useChatStore() {
 
   const updateStore = useCallback(
     (next: ChatStoreData, options?: { notify?: boolean }) => {
-      if (next === cachedStore) return;
-      scheduleSaveChatStore(next);
-      cachedStore = next;
+      const normalized = normalizeLoadedStore(next);
+      if (normalized === cachedStore) return;
+      scheduleSaveChatStore(normalized);
+      cachedStore = normalized;
       if (options?.notify !== false) {
         notifyChatStoreListeners();
       }

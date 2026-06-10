@@ -298,15 +298,17 @@ function indexMetadataChanged(prev: ChatStoreData, next: ChatStoreData): boolean
   if (prev.activeThreadId !== next.activeThreadId) return true;
   if (prev.activeWorkspaceId !== next.activeWorkspaceId) return true;
   if (prev.workingDirectory !== next.workingDirectory) return true;
-  if (prev.workspaces.length !== next.workspaces.length) return true;
-  for (const ws of next.workspaces) {
-    const previous = prev.workspaces.find((item) => item.id === ws.id);
+  const prevWorkspaces = Array.isArray(prev.workspaces) ? prev.workspaces : [];
+  const nextWorkspaces = Array.isArray(next.workspaces) ? next.workspaces : [];
+  if (prevWorkspaces.length !== nextWorkspaces.length) return true;
+  for (const ws of nextWorkspaces) {
+    const previous = prevWorkspaces.find((item) => item.id === ws.id);
     if (!previous) return true;
     if (previous.rootPath !== ws.rootPath) return true;
     if (previous.label !== ws.label) return true;
   }
-  for (const ws of prev.workspaces) {
-    if (!next.workspaces.some((item) => item.id === ws.id)) return true;
+  for (const ws of prevWorkspaces) {
+    if (!nextWorkspaces.some((item) => item.id === ws.id)) return true;
   }
   if (prev.tabStripPersisted !== next.tabStripPersisted) return true;
   if (prev.openTabIds.length !== next.openTabIds.length) return true;

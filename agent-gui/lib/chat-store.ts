@@ -302,9 +302,43 @@ function normalizeOpenTabIds(
   return openTabIds;
 }
 
+/** Ensure required arrays exist before migration / UI render (runtime JSON may omit fields). */
+export function coerceChatStoreShape(data: ChatStoreData): ChatStoreData {
+  const workspaces = Array.isArray(data.workspaces) ? data.workspaces : [];
+  const threads = Array.isArray(data.threads) ? data.threads : [];
+  const openTabIds = Array.isArray(data.openTabIds) ? data.openTabIds : [];
+  const activeWorkspaceId =
+    typeof data.activeWorkspaceId === "string" ? data.activeWorkspaceId : "";
+  const activeThreadId =
+    typeof data.activeThreadId === "string" ? data.activeThreadId : "";
+  const workingDirectory =
+    typeof data.workingDirectory === "string" ? data.workingDirectory : "";
+
+  if (
+    workspaces === data.workspaces
+    && threads === data.threads
+    && openTabIds === data.openTabIds
+    && activeWorkspaceId === data.activeWorkspaceId
+    && activeThreadId === data.activeThreadId
+    && workingDirectory === data.workingDirectory
+  ) {
+    return data;
+  }
+
+  return {
+    ...data,
+    workspaces,
+    threads,
+    openTabIds,
+    activeWorkspaceId,
+    activeThreadId,
+    workingDirectory,
+  };
+}
+
 /** Normalize tab strip and empty-thread policy after load or legacy merge. */
 export function normalizeLoadedStore(data: ChatStoreData): ChatStoreData {
-  const migrated = ensureWorkspacesMigrated(data);
+  const migrated = ensureWorkspacesMigrated(coerceChatStoreShape(data));
   const openTabIds = normalizeOpenTabIds(
     migrated.openTabIds,
     migrated.threads,
