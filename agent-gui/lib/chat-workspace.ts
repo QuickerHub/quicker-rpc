@@ -114,6 +114,22 @@ export function resolveThreadWorkingDirectory(
   return rootPath || defaultCwd.trim();
 }
 
+/** Point threads at a known workspace after legacy import (stale v1 workspace ids). */
+export function remapThreadsToKnownWorkspaces(data: ChatStoreData): ChatStoreData {
+  const known = new Set(data.workspaces.map((ws) => ws.id));
+  const fallback = data.activeWorkspaceId || data.workspaces[0]?.id || "";
+  if (!fallback) return data;
+
+  let changed = false;
+  const threads = data.threads.map((thread) => {
+    if (thread.workspaceId && known.has(thread.workspaceId)) return thread;
+    changed = true;
+    return { ...thread, workspaceId: fallback };
+  });
+
+  return changed ? { ...data, threads } : data;
+}
+
 export function syncLegacyWorkingDirectory(data: ChatStoreData): ChatStoreData {
   const active = getActiveWorkspace(data);
   const legacy = data.workingDirectory.trim();

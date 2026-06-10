@@ -29,17 +29,31 @@ export function resetClientPersistedSnapshotForTests(): void {
   apiSaveScheduled = false;
 }
 
-async function postMigrate(store: ChatStoreData): Promise<ChatStoreData | null> {
+async function postMigrate(
+  store: ChatStoreData,
+  options?: { merge?: boolean },
+): Promise<ChatStoreData | null> {
   const res = await fetch("/api/chat-store/migrate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(store),
+    body: JSON.stringify({ ...store, merge: options?.merge === true }),
     cache: "no-store",
   });
   if (!res.ok) return null;
   const payload = (await res.json()) as { store?: ChatStoreData | null };
   if (!payload.store) return null;
   return normalizeLoadedStore(payload.store);
+}
+
+/** Persist legacy restore into SQLite without wiping existing threads. */
+export async function importChatStoreMergeViaApi(
+  store: ChatStoreData,
+): Promise<ChatStoreData | null> {
+  const migrated = await postMigrate(store, { merge: true });
+  if (migrated) {
+    clientPersistedSnapshot = migrated;
+  }
+  return migrated;
 }
 
 /** Load chat store from server SQLite; migrate localStorage on first empty DB. */

@@ -20,6 +20,8 @@ import {
   tryRestoreLegacyChatStore,
 } from "@/lib/chat-store";
 import { pushAppMessage } from "@/lib/app-messages";
+import { importChatStoreMergeViaApi } from "@/lib/chat-store-api.client";
+import { getChatStorePersistenceMode } from "@/lib/chat-store-backend";
 import { fetchLegacyChatStoreCandidatesFromDisk } from "@/lib/legacy-chat-restore-client";
 import type { DefaultWorkingDirectoryProfile } from "@/lib/default-working-directory";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
@@ -249,8 +251,15 @@ export function ChatSidebar({
           autoDismissMs: result.ok ? 8000 : 14000,
         });
         if (result.ok) {
-          commit(next);
-          const firstImported = next.threads.find((t) => t.messages.length > 0);
+          let restored = next;
+          if (getChatStorePersistenceMode() === "api") {
+            const persisted = await importChatStoreMergeViaApi(next);
+            if (persisted) {
+              restored = persisted;
+            }
+          }
+          commit(restored);
+          const firstImported = restored.threads.find((t) => t.messages.length > 0);
           if (firstImported) onActivateThread(firstImported.id);
         }
       } finally {
@@ -265,6 +274,7 @@ export function ChatSidebar({
         <div className="ws-section ws-section--workspaces">
           <div className="ws-section-head">
             <span className="ws-section-title">工作区</span>
+            <TitlebarDragRegion className="ws-section-head-drag" />
             <button
               type="button"
               className="ws-icon-btn"

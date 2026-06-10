@@ -11,6 +11,7 @@ import {
   ensureWorkspacesMigrated,
   getActiveWorkspace,
   getWorkspaceById,
+  remapThreadsToKnownWorkspaces,
   syncLegacyWorkingDirectory,
   threadsForWorkspace,
   type ChatWorkspace,
@@ -338,7 +339,9 @@ export function coerceChatStoreShape(data: ChatStoreData): ChatStoreData {
 
 /** Normalize tab strip and empty-thread policy after load or legacy merge. */
 export function normalizeLoadedStore(data: ChatStoreData): ChatStoreData {
-  const migrated = ensureWorkspacesMigrated(coerceChatStoreShape(data));
+  const migrated = remapThreadsToKnownWorkspaces(
+    ensureWorkspacesMigrated(coerceChatStoreShape(data)),
+  );
   const openTabIds = normalizeOpenTabIds(
     migrated.openTabIds,
     migrated.threads,
@@ -688,16 +691,23 @@ export async function hydrateStoreThreadMessagesAsync(
     return store;
   }
 
-  const messages =
+  let messages =
     getChatStorePersistenceMode() === "api"
       ? await fetchThreadMessagesFromApi(threadId)
       : loadThreadMessagesFromStorage(threadId);
+
+  if (messages.length === 0 && getChatStorePersistenceMode() === "api") {
+    messages = loadThreadMessagesFromStorage(threadId);
+    if (messages.length === 0) {
+      messages = loadThreadMessagesFromStorage(threadId, { preferBackup: true });
+    }
+  }
 
   if (messages.length === 0) {
     return store;
   }
 
-  return {
+  const next: ChatStoreData = {
     ...store,
     threads: store.threads.map((item) =>
       item.id === threadId
@@ -705,6 +715,13 @@ export async function hydrateStoreThreadMessagesAsync(
         : item,
     ),
   };
+
+  if (getChatStorePersistenceMode() === "api") {
+    scheduleSaveChatStoreViaApi(next);
+    setClientPersistedSnapshot(next);
+  }
+
+  return next;
 }
 
 let pendingChatStoreSave: ChatStoreData | null = null;
@@ -1436,7 +1453,9 @@ export function tryRestoreLegacyChatStore(
       /* ignore */
     }
     next = normalizeLoadedStore(next);
-    saveChatStore(next);
+    if (getChatStorePersistenceMode() !== "api") {
+      saveChatStore(next);
+    }
   }
 
   if (!changed) {

@@ -8,7 +8,7 @@ import {
   selectWorkspace,
   threadsForWorkspace,
 } from "@/lib/chat-store";
-import { defaultWorkspaceLabel } from "@/lib/chat-workspace";
+import { defaultWorkspaceLabel, remapThreadsToKnownWorkspaces } from "@/lib/chat-workspace";
 
 test("defaultChatStore includes one workspace and thread linkage", () => {
   const store = defaultChatStore();
@@ -103,6 +103,20 @@ test("normalizeLoadedStore repairs store missing workspaces field", () => {
   assert.equal(normalized.workspaces.length, 1);
   assert.ok(normalized.activeWorkspaceId);
   assert.equal(normalized.threads[0]!.workspaceId, normalized.activeWorkspaceId);
+});
+
+test("remapThreadsToKnownWorkspaces fixes stale v1 workspace ids", () => {
+  const store = defaultChatStore();
+  const staleWorkspaceId = "stale-workspace-id";
+  const withStale = {
+    ...store,
+    threads: store.threads.map((thread) => ({
+      ...thread,
+      workspaceId: staleWorkspaceId,
+    })),
+  };
+  const remapped = remapThreadsToKnownWorkspaces(withStale);
+  assert.equal(remapped.threads[0]!.workspaceId, store.activeWorkspaceId);
 });
 
 test("defaultWorkspaceLabel prefers label then folder name", () => {

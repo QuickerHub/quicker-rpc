@@ -2051,8 +2051,17 @@ html.sidebar-collapsed-init .app-shell {
 
 .ws-section--workspaces {
   flex-shrink: 0;
+  padding-top: 0;
   padding-bottom: 0.35rem;
   border-bottom: 1px solid var(--border);
+}
+
+/* Align with app-shell-toggle-slot (same inset as .ws-section-head--titlebar). */
+.ws-section--workspaces .ws-section-head {
+  min-height: var(--app-titlebar-height);
+  margin: 0 -0.4rem;
+  padding: 0 0.35rem 0 var(--ws-toggle-slot-width);
+  align-items: center;
 }
 
 .ws-workspace-list {

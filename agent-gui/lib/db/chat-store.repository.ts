@@ -553,6 +553,53 @@ export function importChatStoreToDatabase(
   lastPersistedSnapshot = normalizeLoadedStore(data);
 }
 
+/** Merge legacy restore payloads: upsert thread rows + message blobs without wiping DB. */
+export function mergeImportedChatStoreIntoDatabase(incoming: ChatStoreData): number {
+  const normalized = normalizeLoadedStore(incoming);
+  const previous = loadChatStoreFromDatabase({ messageScope: "none" });
+
+  if (!previous) {
+    importChatStoreToDatabase(normalized, { allowWipe: true });
+    return normalized.threads.filter((thread) => thread.messages.length > 0).length;
+  }
+
+  const byId = new Map(previous.threads.map((thread) => [thread.id, thread]));
+  let written = 0;
+
+  for (const thread of normalized.threads) {
+    if (thread.messages.length === 0) continue;
+    const existing = byId.get(thread.id);
+    byId.set(thread.id, {
+      ...(existing ?? thread),
+      ...thread,
+      messages: thread.messages,
+      messageCount: thread.messages.length,
+    });
+    written += 1;
+  }
+
+  const mergedThreads = [...byId.values()].sort((a, b) => {
+    const byTime = b.updatedAt - a.updatedAt;
+    return byTime !== 0 ? byTime : a.id.localeCompare(b.id);
+  });
+
+  const merged = normalizeLoadedStore({
+    ...previous,
+    activeThreadId: normalized.activeThreadId,
+    activeWorkspaceId: normalized.activeWorkspaceId,
+    workspaces:
+      normalized.workspaces.length >= previous.workspaces.length
+        ? normalized.workspaces
+        : previous.workspaces,
+    workingDirectory: normalized.workingDirectory || previous.workingDirectory,
+    threads: mergedThreads,
+    openTabIds: normalized.openTabIds.length > 0 ? normalized.openTabIds : previous.openTabIds,
+  });
+
+  saveChatStoreToDatabase(merged, { previous });
+  return written;
+}
+
 export function getLastDatabasePersistedSnapshot(): ChatStoreData | null {
   return lastPersistedSnapshot;
 }

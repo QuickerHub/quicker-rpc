@@ -13,6 +13,7 @@ import {
   importChatStoreToDatabase,
   loadChatStoreFromDatabase,
   loadThreadMessagesFromDatabase,
+  mergeImportedChatStoreIntoDatabase,
   resetDatabasePersistedSnapshotForTests,
   saveChatStoreToDatabase,
 } from "@/lib/db/chat-store.repository";
@@ -27,6 +28,7 @@ export {
   importChatStoreToDatabase,
   loadChatStoreFromDatabase,
   loadThreadMessagesFromDatabase,
+  mergeImportedChatStoreIntoDatabase,
   resetDatabasePersistedSnapshotForTests,
   saveChatStoreToDatabase,
 };

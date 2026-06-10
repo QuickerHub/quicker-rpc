@@ -9,6 +9,7 @@ import {
   CHAT_STORE_VERSION,
   countPersistedMessages,
   defaultChatStore,
+  normalizeLoadedStore,
   updateThreadMessages,
 } from "@/lib/chat-store";
 import {
@@ -21,6 +22,7 @@ import {
   importChatStoreToDatabase,
   loadChatStoreFromDatabase,
   loadThreadMessagesFromDatabase,
+  mergeImportedChatStoreIntoDatabase,
   resetDatabasePersistedSnapshotForTests,
   saveChatStoreToDatabase,
 } from "@/lib/db/chat-store.repository";
@@ -223,6 +225,38 @@ test("import refuses to replace existing message blobs without allowWipe", () =>
   assert.throws(
     () => importChatStoreToDatabase(second),
     (err: unknown) => err instanceof ChatStoreSaveWouldWipeError,
+  );
+});
+
+test("mergeImportedChatStoreIntoDatabase writes message blobs for legacy restore", () => {
+  const dbPath = join(tempDir, "chats.db");
+  const shell = defaultChatStore();
+
+  openChatDatabaseAt(dbPath);
+  saveChatStoreToDatabase(shell);
+  resetDatabasePersistedSnapshotForTests();
+
+  const legacyThreadId = "legacy-import-thread";
+  const imported = normalizeLoadedStore({
+    ...shell,
+    threads: [
+      ...shell.threads,
+      {
+        id: legacyThreadId,
+        title: "旧对话",
+        messages: [sampleMessage("legacy-1")],
+        updatedAt: Date.now(),
+        messageCount: 1,
+        workspaceId: shell.activeWorkspaceId,
+      },
+    ],
+  });
+
+  const written = mergeImportedChatStoreIntoDatabase(imported);
+  assert.equal(written, 1);
+  assert.deepEqual(
+    loadThreadMessagesFromDatabase(legacyThreadId).map((msg) => msg.id),
+    ["legacy-1"],
   );
 });
 
