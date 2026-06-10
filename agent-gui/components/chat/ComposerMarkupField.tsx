@@ -46,6 +46,11 @@ import {
   applyPlainTextEditableDom,
   plainTextEditableProps,
 } from "@/lib/plain-text-editable";
+import {
+  hydrateComposerTagIcons,
+  preloadComposerTagIcons,
+} from "@/lib/composer-tag-present";
+import { subscribeFaIconCache } from "@/lib/fa-icon-cache";
 import { useActionMentionSearch } from "@/lib/use-action-mention-search";
 import { ComposerMentionMenu } from "./ComposerMentionMenu";
 
@@ -230,6 +235,7 @@ export const ComposerMarkupField = forwardRef<
         insertNodeAtSelection(root, chip);
         chip.after(spacer);
         placeCaretAfterComposerTagSpacer(spacer, root);
+        hydrateComposerTagIcons(root);
         emitChange();
       },
       insertBrowserElementTag: (element: BrowserElementTag) => {
@@ -306,6 +312,14 @@ export const ComposerMarkupField = forwardRef<
     }),
     [closeMention, disabled, emitChange, syncMentionFromCaret, value],
   );
+
+  useEffect(() => {
+    preloadComposerTagIcons();
+    return subscribeFaIconCache(() => {
+      const root = rootRef.current;
+      if (root) hydrateComposerTagIcons(root);
+    });
+  }, []);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -393,9 +407,9 @@ export const ComposerMarkupField = forwardRef<
   };
 
   const handleBeforeInput = (event: React.FormEvent<HTMLDivElement>) => {
-    if (!disabled) {
-      notifyUserEdit();
-    }
+    if (disabled) return;
+
+    notifyUserEdit();
 
     const root = rootRef.current;
     if (!root) return;
@@ -500,20 +514,20 @@ export const ComposerMarkupField = forwardRef<
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
+
     const root = rootRef.current;
     if (!root) return;
 
-    if (!disabled) {
-      const mentionOnly =
-        mentionOpen
-        && (event.key === "ArrowDown"
-          || event.key === "ArrowUp"
-          || event.key === "Enter"
-          || event.key === "Tab"
-          || event.key === "Escape");
-      if (!mentionOnly) {
-        notifyUserEdit();
-      }
+    const mentionOnly =
+      mentionOpen
+      && (event.key === "ArrowDown"
+        || event.key === "ArrowUp"
+        || event.key === "Enter"
+        || event.key === "Tab"
+        || event.key === "Escape");
+    if (!mentionOnly) {
+      notifyUserEdit();
     }
 
     if (mentionOpen) {

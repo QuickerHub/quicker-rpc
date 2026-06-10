@@ -15,11 +15,11 @@ use tauri::{AppHandle, Manager, RunEvent, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 mod clipboard_history_plugin;
-mod plugin_runtime;
 mod embedded_browser;
 mod global_shortcut;
 mod launcher;
 mod legacy_chat_restore;
+mod plugin_runtime;
 mod quicker_agent_paths;
 mod single_instance;
 mod tray;
@@ -153,10 +153,14 @@ fn resolve_ui_port(host: &str) -> Result<u16, String> {
 /// Reuse an existing qkrpc serve when /health already responds on the default port.
 fn resolve_qkrpc_port(host: &str) -> Result<(u16, bool), String> {
     const DEFAULT_PORT: u16 = 9477;
-    if wait_qkrpc_serve_listening(host, DEFAULT_PORT, 2_000).is_ok() {
+    // Short probe only — do not block UI boot when serve is absent.
+    if wait_qkrpc_serve_listening(host, DEFAULT_PORT, 350).is_ok() {
         return Ok((DEFAULT_PORT, false));
     }
-    let port = find_port(host, DEFAULT_PORT)?;
+    if TcpListener::bind((host, DEFAULT_PORT)).is_ok() {
+        return Ok((DEFAULT_PORT, true));
+    }
+    let port = find_port(host, DEFAULT_PORT.saturating_add(1))?;
     Ok((port, true))
 }
 
@@ -208,13 +212,14 @@ fn wait_http_response(
     max_ms: u64,
     mode: HttpReadyMode,
 ) -> Result<(), String> {
-    let deadline = Instant::now() + Duration::from_millis(max_ms);
+    let started = Instant::now();
+    let deadline = started + Duration::from_millis(max_ms);
     let request = format!("GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n");
 
     while Instant::now() < deadline {
         if let Ok(mut stream) = std::net::TcpStream::connect((host, port)) {
-            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-            let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+            let _ = stream.set_read_timeout(Some(Duration::from_millis(800)));
+            let _ = stream.set_write_timeout(Some(Duration::from_millis(800)));
             if stream.write_all(request.as_bytes()).is_ok() {
                 let mut buf = vec![0u8; 2048];
                 if let Ok(n) = stream.read(&mut buf) {
@@ -225,7 +230,12 @@ fn wait_http_response(
                 }
             }
         }
-        std::thread::sleep(Duration::from_millis(300));
+        let sleep_ms = if started.elapsed() < Duration::from_secs(3) {
+            80
+        } else {
+            200
+        };
+        std::thread::sleep(Duration::from_millis(sleep_ms));
     }
     Err(format!("timeout waiting for http://{host}:{port}{path}"))
 }
@@ -433,9 +443,8 @@ fn emit_startup_status(app: &AppHandle, message: &str) {
         return;
     };
     if let Ok(json) = serde_json::to_string(message) {
-        let script = format!(
-            "var m=document.querySelector('.startup-message');if(m)m.textContent={json};"
-        );
+        let script =
+            format!("var m=document.querySelector('.startup-message');if(m)m.textContent={json};");
         let _ = win.eval(&script);
     }
 }
@@ -566,14 +575,13 @@ fn spawn_node_background(app: AppHandle, config: ProductionRuntimeConfig) {
                 }
                 open_production_ui(&app, &ui_url);
                 voice_plugin::spawn_voice_runtime_background(app.clone());
-                clipboard_history_plugin::spawn_clipboard_runtime_background(
-                    app.clone(),
-                );
+                clipboard_history_plugin::spawn_clipboard_runtime_background(app.clone());
             }
             Err(err) => {
                 let app_for_dialog = app.clone();
                 let detail = err.clone();
-                let _ = app.run_on_main_thread(move || show_startup_error(&app_for_dialog, &detail));
+                let _ =
+                    app.run_on_main_thread(move || show_startup_error(&app_for_dialog, &detail));
             }
         }
     });
@@ -627,12 +635,16 @@ fn open_production_ui(app: &AppHandle, ui_url: &str) {
     }
 }
 
-fn spawn_production_startup(app: AppHandle) {
-    std::thread::spawn(move || {
+fn spawn_pending_voice_runtime_upgrade_background() {
+    std::thread::spawn(|| {
         if let Err(err) = voice_plugin_install::apply_pending_runtime_upgrade() {
             eprintln!("[voice-plugin] apply pending runtime upgrade failed: {err}");
         }
+    });
+}
 
+fn spawn_production_startup(app: AppHandle) {
+    std::thread::spawn(move || {
         emit_startup_status(&app, "正在初始化…");
 
         let config = match prepare_production_runtime(&app) {
@@ -640,7 +652,8 @@ fn spawn_production_startup(app: AppHandle) {
             Err(err) => {
                 let app_for_dialog = app.clone();
                 let detail = err.clone();
-                let _ = app.run_on_main_thread(move || show_startup_error(&app_for_dialog, &detail));
+                let _ =
+                    app.run_on_main_thread(move || show_startup_error(&app_for_dialog, &detail));
                 return;
             }
         };
@@ -649,8 +662,27 @@ fn spawn_production_startup(app: AppHandle) {
             return;
         }
 
+        spawn_pending_voice_runtime_upgrade_background();
         spawn_qkrpc_background(app.clone(), config.clone());
         spawn_node_background(app, config);
+    });
+}
+
+/// Tray + global shortcut after first paint — keeps setup() from blocking the splash.
+fn spawn_desktop_chrome_deferred(app: AppHandle) {
+    #[cfg(desktop)]
+    std::thread::spawn(move || {
+        let app_for_main = app.clone();
+        if let Err(err) = app.run_on_main_thread(move || {
+            if let Err(err) = global_shortcut::init(&app_for_main) {
+                eprintln!("[global-shortcut] init failed: {err}");
+            }
+            if let Err(err) = tray::init(&app_for_main) {
+                eprintln!("[tray] init failed: {err}");
+            }
+        }) {
+            eprintln!("[desktop-chrome] deferred init failed: {err}");
+        }
     });
 }
 
@@ -825,49 +857,31 @@ pub fn run() {
         .manage(voice_plugin::VoicePluginState::new())
         .manage(clipboard_history_plugin::ClipboardHistoryPluginState::new())
         .setup(|app| {
-            #[cfg(desktop)]
-            if let Err(err) = global_shortcut::init(app.handle()) {
-                eprintln!("[global-shortcut] init failed: {err}");
+            if let Some(win) = app.get_webview_window("main") {
+                apply_titlebar_chrome_existing(&win);
+                register_main_window_handlers(&win, app.handle());
+                webview_permissions::enable_auto_microphone_permission(&win);
+                let _ = win.center();
+                let _ = win.show();
             }
+
+            spawn_desktop_chrome_deferred(app.handle().clone());
 
             if cfg!(debug_assertions) {
                 app.manage(launcher::UiBaseUrl(Mutex::new(
                     launcher::default_dev_ui_base_url(),
                 )));
-                // `tauri dev` uses devUrl + start.mjs from beforeDevCommand.
-                if let Some(win) = app.get_webview_window("main") {
-                    apply_titlebar_chrome_existing(&win);
-                    register_main_window_handlers(&win, app.handle());
-                    webview_permissions::enable_auto_microphone_permission(&win);
-                    let _ = win.center();
-                    let _ = win.show();
+                // Dev: skip background plugin work and launcher prewarm — webpack is already heavy.
+                #[cfg(not(debug_assertions))]
+                {
+                    launcher::prewarm_launcher_window_background(app.handle().clone());
+                    voice_plugin::spawn_voice_runtime_background(app.handle().clone());
+                    clipboard_history_plugin::spawn_clipboard_runtime_background(
+                        app.handle().clone(),
+                    );
                 }
-
-                #[cfg(desktop)]
-                if let Err(err) = tray::init(app.handle()) {
-                    eprintln!("[tray] init failed: {err}");
-                }
-
-                launcher::prewarm_launcher_window_background(app.handle().clone());
-                voice_plugin::spawn_voice_runtime_background(app.handle().clone());
-                clipboard_history_plugin::spawn_clipboard_runtime_background(
-                    app.handle().clone(),
-                );
                 Ok(())
             } else {
-                if let Some(win) = app.get_webview_window("main") {
-                    apply_titlebar_chrome_existing(&win);
-                    register_main_window_handlers(&win, app.handle());
-                    webview_permissions::enable_auto_microphone_permission(&win);
-                    let _ = win.center();
-                    let _ = win.show();
-                }
-
-                #[cfg(desktop)]
-                if let Err(err) = tray::init(app.handle()) {
-                    eprintln!("[tray] init failed: {err}");
-                }
-
                 spawn_production_startup(app.handle().clone());
                 Ok(())
             }

@@ -34,21 +34,19 @@ fn install_microphone_auto_allow_windows(window: &WebviewWindow) -> Result<(), S
                 let mut token = 0i64;
                 unsafe {
                     core.add_PermissionRequested(
-                        &PermissionRequestedEventHandler::create(Box::new(
-                            |_, args| {
-                                let Some(args) = args else {
-                                    return Ok(());
-                                };
-                                let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
-                                if args.PermissionKind(&mut kind).is_err() {
-                                    return Ok(());
-                                }
-                                if kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE {
-                                    let _ = args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW);
-                                }
-                                Ok(())
-                            },
-                        )),
+                        &PermissionRequestedEventHandler::create(Box::new(|_, args| {
+                            let Some(args) = args else {
+                                return Ok(());
+                            };
+                            let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
+                            if args.PermissionKind(&mut kind).is_err() {
+                                return Ok(());
+                            }
+                            if kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE {
+                                let _ = args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW);
+                            }
+                            Ok(())
+                        })),
                         &mut token,
                     )
                     .map_err(|e| format!("add_PermissionRequested: {e}"))?;
@@ -75,9 +73,7 @@ fn pregrant_localhost_microphone_profile(
     use webview2_com::SetPermissionStateCompletedHandler;
     use windows::core::{w, Interface};
 
-    let core13: ICoreWebView2_13 = core
-        .cast()
-        .map_err(|e| format!("ICoreWebView2_13: {e}"))?;
+    let core13: ICoreWebView2_13 = core.cast().map_err(|e| format!("ICoreWebView2_13: {e}"))?;
     let profile: ICoreWebView2Profile4 = unsafe { core13.Profile() }
         .map_err(|e| format!("Profile: {e}"))?
         .cast()

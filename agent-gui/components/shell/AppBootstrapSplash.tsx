@@ -9,6 +9,15 @@ declare global {
   }
 }
 
+function scheduleChatStoreHydration(): void {
+  const hydrate = () => ensureChatStoreHydrated();
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(hydrate, { timeout: 2_500 });
+  } else {
+    window.setTimeout(hydrate, 0);
+  }
+}
+
 /** Ask inline boot script to fade out the server-rendered splash (React hydration backup). */
 export function AppBootstrapSplash() {
   useLayoutEffect(() => {
@@ -22,8 +31,8 @@ export function AppBootstrapSplash() {
       return;
     }
 
-    ensureChatStoreHydrated();
     window.__dismissAppBootstrapSplash?.();
+    scheduleChatStoreHydration();
   }, []);
 
   return null;

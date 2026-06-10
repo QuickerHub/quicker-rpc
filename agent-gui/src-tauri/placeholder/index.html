@@ -235,6 +235,17 @@
           transform: translateX(280%);
         }
       }
+
+      @media (prefers-reduced-motion: reduce) {
+        .app-bootstrap-splash__mesh,
+        .app-bootstrap-splash__glow,
+        .app-bootstrap-splash__mark,
+        .app-bootstrap-splash__ring,
+        .app-bootstrap-splash__orbit,
+        .app-bootstrap-splash__bar-fill {
+          animation: none !important;
+        }
+      }
     </style>
   </head>
   <body>

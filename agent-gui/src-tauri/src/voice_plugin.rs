@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -81,6 +82,9 @@ const DEFAULT_RUNTIME_EXE: &str = "runtime/quicker-voice-runtime.exe";
 const DEFAULT_VOICE_WS_HOST: &str = "127.0.0.1";
 const DEFAULT_VOICE_WS_PORT: u16 = 6016;
 const VOICE_RUNTIME_READY_WAIT_MS: u64 = 45_000;
+const VOICE_STARTUP_DELAY: Duration = Duration::from_secs(5);
+
+static VOICE_RUNTIME_STARTING: AtomicBool = AtomicBool::new(false);
 
 use crate::quicker_agent_paths::voice_plugin_root;
 use crate::voice_plugin_install::VoiceInstallProgressEvent;
@@ -294,17 +298,16 @@ fn voice_settings_path() -> PathBuf {
 }
 
 fn default_voice_settings() -> VoicePluginSettingsDto {
-    serde_json::from_str(DEFAULT_VOICE_SETTINGS_JSON)
-        .unwrap_or(VoicePluginSettingsDto {
-            auto_start: true,
-            model_id: "standard".into(),
-            gpu_acceleration: false,
-            language: "zh-CN".into(),
-            silent_stop_seconds: 0,
-            streaming_preview: false,
-            max_recording_seconds: 120,
-            ws_port: DEFAULT_VOICE_WS_PORT,
-        })
+    serde_json::from_str(DEFAULT_VOICE_SETTINGS_JSON).unwrap_or(VoicePluginSettingsDto {
+        auto_start: true,
+        model_id: "standard".into(),
+        gpu_acceleration: false,
+        language: "zh-CN".into(),
+        silent_stop_seconds: 0,
+        streaming_preview: false,
+        max_recording_seconds: 120,
+        ws_port: DEFAULT_VOICE_WS_PORT,
+    })
 }
 
 pub fn read_voice_settings() -> VoicePluginSettingsDto {
@@ -327,13 +330,11 @@ pub fn read_voice_settings() -> VoicePluginSettingsDto {
 fn write_voice_settings_file(settings: &VoicePluginSettingsDto) -> Result<(), String> {
     let path = voice_settings_path();
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("无法创建语音设置目录：{e}"))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("无法创建语音设置目录：{e}"))?;
     }
-    let raw = serde_json::to_string_pretty(settings)
-        .map_err(|e| format!("序列化语音设置失败：{e}"))?;
-    std::fs::write(&path, format!("{raw}\n"))
-        .map_err(|e| format!("写入语音设置失败：{e}"))
+    let raw =
+        serde_json::to_string_pretty(settings).map_err(|e| format!("序列化语音设置失败：{e}"))?;
+    std::fs::write(&path, format!("{raw}\n")).map_err(|e| format!("写入语音设置失败：{e}"))
 }
 
 fn model_subdir_for_id(model_id: &str) -> &'static str {
@@ -359,7 +360,11 @@ fn paraformer_ready_at_dir(dir: &Path) -> bool {
         return false;
     };
     dir.join("tokens.txt").is_file()
-        && dir.join("tokens.txt").metadata().map(|m| m.len() >= 64).unwrap_or(false)
+        && dir
+            .join("tokens.txt")
+            .metadata()
+            .map(|m| m.len() >= 64)
+            .unwrap_or(false)
         && onnx
             .metadata()
             .map(|meta| meta.len() >= 20 * 1024 * 1024)
@@ -703,10 +708,7 @@ pub fn build_voice_plugin_status(state: &VoicePluginState) -> VoicePluginStatusD
 }
 
 /// Install / update / start voice runtime when activation event fires (e.g. first mic use).
-pub fn activate_voice_on_demand(
-    app: &AppHandle,
-    state: &VoicePluginState,
-) -> Result<(), String> {
+pub fn activate_voice_on_demand(app: &AppHandle, state: &VoicePluginState) -> Result<(), String> {
     let _ = crate::voice_plugin_install::refresh_voice_channel_cache()?;
     let root = voice_plugin_root();
     if !crate::voice_plugin_install::is_voice_asr_installed(&root) {
@@ -722,10 +724,7 @@ pub fn activate_voice_on_demand(
 }
 
 /// Download staged runtime update and apply when newer channel version is available.
-pub fn apply_voice_runtime_update(
-    app: &AppHandle,
-    state: &VoicePluginState,
-) -> Result<(), String> {
+pub fn apply_voice_runtime_update(app: &AppHandle, state: &VoicePluginState) -> Result<(), String> {
     let _ = crate::voice_plugin_install::refresh_voice_channel_cache()?;
     let root = voice_plugin_root();
     if !crate::voice_plugin_install::is_voice_asr_installed(&root) {
@@ -749,7 +748,27 @@ pub fn voice_plugin_status(state: State<'_, VoicePluginState>) -> VoicePluginSta
     build_status(&state)
 }
 
+fn starting_status_dto(state: &VoicePluginState) -> VoicePluginStatusDto {
+    let mut dto = build_status(state);
+    if dto.installed && !dto.running {
+        dto.status = "starting".into();
+        dto.running = false;
+        dto.ws_port = voice_ws_port();
+        dto.message = Some("Runtime 启动中…".into());
+    }
+    dto
+}
+
 fn start_runtime_inner(state: &VoicePluginState) -> VoicePluginStatusDto {
+    if VOICE_RUNTIME_STARTING.swap(true, Ordering::SeqCst) {
+        return starting_status_dto(state);
+    }
+    let dto = start_runtime_inner_blocking(state);
+    VOICE_RUNTIME_STARTING.store(false, Ordering::SeqCst);
+    dto
+}
+
+fn start_runtime_inner_blocking(state: &VoicePluginState) -> VoicePluginStatusDto {
     reconcile_child(state);
 
     let root = voice_plugin_root();
@@ -782,9 +801,7 @@ fn start_runtime_inner(state: &VoicePluginState) -> VoicePluginStatusDto {
             running: false,
             ws_port: 0,
             plugin_dir,
-            message: Some(
-                "语音模型文件不完整或已损坏，请在设置中重新下载模型。".into(),
-            ),
+            message: Some("语音模型文件不完整或已损坏，请在设置中重新下载模型。".into()),
         };
     }
 
@@ -862,6 +879,48 @@ pub fn ensure_voice_runtime(app: &AppHandle) {
     let _ = start_runtime_inner(inner);
 }
 
+fn spawn_voice_runtime_start_background(app: &AppHandle) -> VoicePluginStatusDto {
+    let state = app.state::<VoicePluginState>();
+    let current = build_status(state.inner());
+    if current.running
+        || current.status == "starting"
+        || current.status == "downloading"
+        || !current.installed
+    {
+        return current;
+    }
+
+    let app_for_thread = app.clone();
+    thread::spawn(move || {
+        let state = app_for_thread.state::<VoicePluginState>();
+        let _ = start_runtime_inner(state.inner());
+    });
+
+    starting_status_dto(state.inner())
+}
+
+/// Download/install voice-asr on a worker thread; returns immediately with `downloading` status.
+fn spawn_voice_plugin_install_background(app: &AppHandle) {
+    if crate::voice_plugin_install::voice_install_in_progress() {
+        return;
+    }
+    let root = voice_plugin_root();
+    if crate::voice_plugin_install::is_voice_asr_installed(&root) {
+        let _ = spawn_voice_runtime_start_background(app);
+        return;
+    }
+
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if let Err(err) = crate::voice_plugin_install::run_voice_plugin_install(&app) {
+            eprintln!("[voice-plugin] background install failed: {err}");
+            return;
+        }
+        let state = app.state::<VoicePluginState>();
+        let _ = start_runtime_inner(state.inner());
+    });
+}
+
 fn run_background_voice_tasks(app: &AppHandle) {
     let events = crate::plugin_runtime::activation::events_for("voice-asr");
     if crate::plugin_runtime::activation::should_refresh_channel_on_startup(&events) {
@@ -869,19 +928,11 @@ fn run_background_voice_tasks(app: &AppHandle) {
     }
 
     if cfg!(debug_assertions) {
+        // Dev/Tauri debug: never auto-download on startup; install on mic or settings only.
         let root = voice_plugin_root();
-        let installed = crate::voice_plugin_install::is_voice_asr_installed(&root);
-        if !installed {
-            if let Err(err) = crate::voice_plugin_install::run_voice_plugin_install(app) {
-                eprintln!("[voice-plugin] background install failed: {err}");
-                return;
-            }
-            let state = app.state::<VoicePluginState>();
-            let _ = start_runtime_inner(state.inner());
-            return;
-        }
-        if crate::plugin_runtime::activation::should_run_startup_runtime(&events)
-            || read_voice_auto_start()
+        if crate::voice_plugin_install::is_voice_asr_installed(&root)
+            && (crate::plugin_runtime::activation::should_run_startup_runtime(&events)
+                || read_voice_auto_start())
         {
             ensure_voice_runtime(app);
         }
@@ -898,12 +949,7 @@ fn run_background_voice_tasks(app: &AppHandle) {
     let installed = crate::voice_plugin_install::is_voice_asr_installed(&root);
 
     if !installed {
-        if let Err(err) = crate::voice_plugin_install::run_voice_plugin_install(app) {
-            eprintln!("[voice-plugin] background install failed: {err}");
-            return;
-        }
-        let state = app.state::<VoicePluginState>();
-        let _ = start_runtime_inner(state.inner());
+        spawn_voice_plugin_install_background(app);
         return;
     }
 
@@ -925,16 +971,17 @@ fn run_background_voice_tasks(app: &AppHandle) {
 
 pub fn spawn_voice_runtime_background(app: AppHandle) {
     std::thread::spawn(move || {
+        thread::sleep(VOICE_STARTUP_DELAY);
         run_background_voice_tasks(&app);
     });
 }
 
 #[tauri::command]
 pub fn voice_plugin_start_runtime(
-    _app: AppHandle,
-    state: State<'_, VoicePluginState>,
+    app: AppHandle,
+    _state: State<'_, VoicePluginState>,
 ) -> VoicePluginStatusDto {
-    start_runtime_inner(state.inner())
+    spawn_voice_runtime_start_background(&app)
 }
 
 #[tauri::command]
@@ -942,13 +989,8 @@ pub fn voice_plugin_install(
     app: AppHandle,
     state: State<'_, VoicePluginState>,
 ) -> VoicePluginStatusDto {
-    if let Err(err) = crate::voice_plugin_install::run_voice_plugin_install(&app) {
-        let mut dto = build_status(&state);
-        dto.status = "error".into();
-        dto.message = Some(err);
-        return dto;
-    }
-    voice_plugin_start_runtime(app, state)
+    spawn_voice_plugin_install_background(&app);
+    build_status(state.inner())
 }
 
 #[tauri::command]
@@ -984,7 +1026,8 @@ pub fn voice_plugin_redownload_model(
 }
 
 #[tauri::command]
-pub fn voice_plugin_model_install_state() -> crate::voice_plugin_install::VoiceModelInstallStateDto {
+pub fn voice_plugin_model_install_state() -> crate::voice_plugin_install::VoiceModelInstallStateDto
+{
     crate::voice_plugin_install::voice_model_install_state(&voice_plugin_root())
 }
 

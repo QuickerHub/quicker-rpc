@@ -9,12 +9,14 @@ import {
 } from "react";
 import type { DefaultWorkingDirectoryProfile } from "@/lib/default-working-directory";
 import type { ChatStoreData } from "@/lib/chat-store";
+import { fetchChatStoreFromApi } from "@/lib/chat-store-api.client";
+import { getChatStorePersistenceMode } from "@/lib/chat-store-backend";
 import { maybeAutoRestoreChatStoreOnBoot } from "@/lib/chat-store-boot-restore";
 import {
   CHAT_STORAGE_KEY,
   defaultChatStore,
   flushPendingChatStoreSave,
-  loadChatStore,
+  loadChatStoreFromLocalStorage,
   scheduleSaveChatStore,
 } from "@/lib/chat-store";
 
@@ -26,9 +28,12 @@ let serverSnapshot: ChatStoreData | undefined;
 /** Until true, client getSnapshot matches getServerSnapshot (React hydration rule). */
 let storeHydrated = false;
 
-function readChatStoreFromClient(): ChatStoreData {
+async function readChatStoreFromClient(): Promise<ChatStoreData> {
   try {
-    return loadChatStore();
+    if (getChatStorePersistenceMode() === "api") {
+      return await fetchChatStoreFromApi();
+    }
+    return loadChatStoreFromLocalStorage();
   } catch {
     return defaultChatStore();
   }
@@ -42,7 +47,7 @@ function getChatStoreSnapshot(): ChatStoreData {
     return getChatStoreServerSnapshot();
   }
   if (!cachedStore) {
-    cachedStore = readChatStoreFromClient();
+    return getChatStoreServerSnapshot();
   }
   return cachedStore;
 }
@@ -56,9 +61,12 @@ function getChatStoreServerSnapshot(): ChatStoreData {
 
 function hydrateChatStoreFromClient(): void {
   if (storeHydrated) return;
-  storeHydrated = true;
-  cachedStore = readChatStoreFromClient();
-  notifyChatStoreListeners();
+  void (async () => {
+    cachedStore = await readChatStoreFromClient();
+    storeHydrated = true;
+    notifyChatStoreListeners();
+    startBootAutoRestoreIfNeeded();
+  })();
 }
 
 let bootAutoRestoreStarted = false;
@@ -66,7 +74,7 @@ let bootAutoRestoreStarted = false;
 function startBootAutoRestoreIfNeeded(): void {
   if (bootAutoRestoreStarted || typeof window === "undefined") return;
   bootAutoRestoreStarted = true;
-  const snapshot = cachedStore ?? readChatStoreFromClient();
+  const snapshot = cachedStore ?? defaultChatStore();
   void maybeAutoRestoreChatStoreOnBoot(snapshot).then((restored) => {
     if (!restored) return;
     cachedStore = restored;
@@ -139,7 +147,6 @@ export function useChatStore() {
   // useLayoutEffect: hydrate before ChatPanel useEffect persist timers fire.
   useLayoutEffect(() => {
     hydrateChatStoreFromClient();
-    startBootAutoRestoreIfNeeded();
   }, []);
 
   const [defaultCwd, setDefaultCwd] = useState("");

@@ -1,4 +1,11 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
+import {
+  fetchThreadMessagesFromApi,
+  flushPendingChatStoreApiSave,
+  scheduleSaveChatStoreViaApi,
+  setClientPersistedSnapshot,
+} from "@/lib/chat-store-api.client";
+import { getChatStorePersistenceMode } from "@/lib/chat-store-backend";
 import { deriveProvisionalThreadTitle } from "@/lib/thread-title";
 import { chatMessagesEqual } from "@/lib/chat-message-signature";
 
@@ -11,6 +18,13 @@ export type ChatThread = {
   titleGenerated?: boolean;
   /** User renamed in sidebar; skip auto title updates. */
   titleManual?: boolean;
+  /**
+   * Persisted message count, stored in the v3 index. With lazy hydration
+   * (messageScope "active") `messages` may be [] for threads that DO have
+   * persisted messages; this count is the authority for emptiness checks.
+   * `undefined` = unknown (legacy index meta) and must be treated as non-empty.
+   */
+  messageCount?: number;
 };
 
 export type ChatStoreData = {
@@ -82,15 +96,27 @@ function createThread(): ChatThread {
     updatedAt: ts,
     titleGenerated: false,
     titleManual: false,
+    messageCount: 0,
   };
 }
 
+/** Effective persisted message count; trusts messageCount when messages are not hydrated. */
+export function threadMessageCount(thread: ChatThread): number {
+  if (thread.messages.length > 0) return thread.messages.length;
+  return thread.messageCount ?? 0;
+}
+
+/** True when the thread has persisted messages (hydrated or counted in the index). */
+export function threadHasMessages(thread: ChatThread): boolean {
+  return threadMessageCount(thread) > 0;
+}
+
 export function chatStoreHasPersistedMessages(store: ChatStoreData): boolean {
-  return store.threads.some((thread) => thread.messages.length > 0);
+  return store.threads.some(threadHasMessages);
 }
 
 export function countPersistedMessages(store: ChatStoreData): number {
-  return store.threads.reduce((total, thread) => total + thread.messages.length, 0);
+  return store.threads.reduce((total, thread) => total + threadMessageCount(thread), 0);
 }
 
 /** True when saving `next` would clear messages that existed in `prev`. */
@@ -104,9 +130,9 @@ export function shouldBackupChatStoreBeforeSave(
   if (nextTotal === 0) return true;
 
   for (const prevThread of prev.threads) {
-    if (prevThread.messages.length === 0) continue;
+    if (!threadHasMessages(prevThread)) continue;
     const nextThread = next.threads.find((thread) => thread.id === prevThread.id);
-    if (!nextThread || nextThread.messages.length === 0) {
+    if (!nextThread || !threadHasMessages(nextThread)) {
       return true;
     }
   }
@@ -132,14 +158,24 @@ function tryLoadChatStoreBackup(): ChatStoreData | null {
 
 function maybeRestoreFromBackup(current: ChatStoreData): ChatStoreData {
   if (chatStoreHasPersistedMessages(current)) return current;
+  // Replace-style restore is only safe when every thread is *known* empty;
+  // unknown counts (legacy index metas) may still have message blobs on disk.
+  if (!current.threads.every(isThreadEmpty)) return current;
   const restored = tryLoadChatStoreBackup();
   if (!restored) return current;
   saveChatStore(restored);
   return restored;
 }
 
+/**
+ * True only when the thread is KNOWN to be empty. Threads loaded from the v3
+ * index without hydrated messages must never be treated as empty unless the
+ * index explicitly recorded `messageCount: 0` — otherwise compaction would
+ * destroy sidebar history on every app restart.
+ */
 export function isThreadEmpty(thread: ChatThread): boolean {
-  return thread.messages.length === 0;
+  if (thread.messages.length > 0) return false;
+  return thread.messageCount === 0;
 }
 
 /**
@@ -360,6 +396,7 @@ function normalizeThreads(raw: unknown): ChatThread[] {
       updatedAt: typeof t.updatedAt === "number" ? t.updatedAt : now(),
       titleGenerated,
       titleManual: t.titleManual === true,
+      messageCount: messages.length,
     });
   }
   return threads;
@@ -458,7 +495,8 @@ function migrateLegacyWorkspaceStore(raw: unknown): ChatStoreData | null {
   });
 }
 
-export function loadChatStore(): ChatStoreData {
+/** Load from WebView localStorage only (migration source + unit tests). */
+export function loadChatStoreFromLocalStorage(): ChatStoreData {
   if (typeof window === "undefined") return defaultChatStore();
 
   try {
@@ -511,8 +549,12 @@ export function loadChatStore(): ChatStoreData {
   return defaultChatStore();
 }
 
-export function saveChatStore(data: ChatStoreData): void {
-  if (typeof window === "undefined") return;
+/** @deprecated Prefer fetchChatStoreFromApi in production; sync localStorage path for tests. */
+export function loadChatStore(): ChatStoreData {
+  return loadChatStoreFromLocalStorage();
+}
+
+function saveChatStoreToLocalStorage(data: ChatStoreData): void {
   try {
     const previous = getLastPersistedSnapshot();
     if (previous && shouldBackupChatStoreBeforeSave(previous, data)) {
@@ -524,12 +566,56 @@ export function saveChatStore(data: ChatStoreData): void {
   }
 }
 
+export function saveChatStore(data: ChatStoreData): void {
+  if (typeof window === "undefined") return;
+  if (getChatStorePersistenceMode() === "api") {
+    scheduleSaveChatStoreViaApi(data);
+    setClientPersistedSnapshot(data);
+    return;
+  }
+  saveChatStoreToLocalStorage(data);
+}
+
+/** Hydrate one thread's messages from localStorage (sync; tests + legacy). */
+export async function hydrateStoreThreadMessagesAsync(
+  store: ChatStoreData,
+  threadId: string,
+): Promise<ChatStoreData> {
+  const thread = store.threads.find((item) => item.id === threadId);
+  if (!thread || thread.messages.length > 0) {
+    return store;
+  }
+
+  const messages =
+    getChatStorePersistenceMode() === "api"
+      ? await fetchThreadMessagesFromApi(threadId)
+      : loadThreadMessagesFromStorage(threadId);
+
+  if (messages.length === 0) {
+    return store;
+  }
+
+  return {
+    ...store,
+    threads: store.threads.map((item) =>
+      item.id === threadId
+        ? { ...item, messages, messageCount: messages.length }
+        : item,
+    ),
+  };
+}
+
 let pendingChatStoreSave: ChatStoreData | null = null;
 let chatStoreSaveScheduled = false;
 
 /** Defer large JSON writes so streaming UI stays responsive. */
 export function scheduleSaveChatStore(data: ChatStoreData): void {
   if (typeof window === "undefined") return;
+  if (getChatStorePersistenceMode() === "api") {
+    scheduleSaveChatStoreViaApi(data);
+    setClientPersistedSnapshot(data);
+    return;
+  }
   pendingChatStoreSave = data;
   if (chatStoreSaveScheduled) return;
   chatStoreSaveScheduled = true;
@@ -539,7 +625,7 @@ export function scheduleSaveChatStore(data: ChatStoreData): void {
     const snapshot = pendingChatStoreSave;
     pendingChatStoreSave = null;
     if (snapshot) {
-      saveChatStore(snapshot);
+      saveChatStoreToLocalStorage(snapshot);
     }
   };
 
@@ -553,11 +639,15 @@ export function scheduleSaveChatStore(data: ChatStoreData): void {
 /** Flush any deferred chat store write (e.g. before page hide). */
 export function flushPendingChatStoreSave(): void {
   if (typeof window === "undefined") return;
+  if (getChatStorePersistenceMode() === "api") {
+    flushPendingChatStoreApiSave();
+    return;
+  }
   if (!pendingChatStoreSave) return;
   const snapshot = pendingChatStoreSave;
   pendingChatStoreSave = null;
   chatStoreSaveScheduled = false;
-  saveChatStore(snapshot);
+  saveChatStoreToLocalStorage(snapshot);
 }
 
 export function getActiveThread(data: ChatStoreData): ChatThread {
@@ -623,6 +713,7 @@ export function updateThreadMessages(
       return {
         ...thread,
         messages,
+        messageCount: messages.length,
         title: shouldSetProvisionalTitle
           ? deriveThreadTitle(messages)
           : thread.title,
@@ -824,7 +915,8 @@ function mergeChatStoreFromLegacy(
   let updatedCount = 0;
 
   for (const thread of imported.threads) {
-    if (isThreadEmpty(thread)) continue;
+    // Only merge threads whose messages were actually recovered.
+    if (thread.messages.length === 0) continue;
 
     const existing = byId.get(thread.id);
     if (!existing) {

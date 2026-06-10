@@ -4062,6 +4062,20 @@ html.sidebar-collapsed-init .app-shell {
   background: color-mix(in srgb, var(--muted) 28%, transparent);
 }
 
+.composer-prompt-tag__icon--fa {
+  display: block;
+}
+
+.composer-prompt-tag__icon--subprogram {
+  color: #0f8f22;
+}
+
+.composer-prompt-tag__icon--subprogram.action-icon--svg path,
+.composer-prompt-tag__icon--subprogram.action-icon--placeholder path,
+.composer-prompt-tag__icon--subprogram svg path {
+  fill: currentColor;
+}
+
 .composer-prompt-tag--subprogram {
   border-color: color-mix(in srgb, var(--accent-border) 70%, var(--border));
   background: color-mix(in srgb, var(--panel) 88%, var(--accent-subtle) 12%);
@@ -5079,9 +5093,8 @@ html.launcher-html--web .launcher-shell {
   app-region: no-drag;
 }
 
+/* Win/Linux: CSS app-region:drag breaks clicks/IME in WebView2 — use TitlebarDragRegion startDragging(). */
 html.launcher-html--transparent .launcher-shell .titlebar-drag-region {
-  -webkit-app-region: drag;
-  app-region: drag;
   user-select: none;
   touch-action: none;
   cursor: default;
@@ -5215,11 +5228,17 @@ html.launcher-html--transparent .launcher-shell :is(
 }
 
 .launcher-composer {
+  position: relative;
+  z-index: 2;
   width: 100%;
   flex: 0 0 auto;
   border-top: none;
   padding: 0;
   background: transparent;
+}
+
+html.launcher-html--transparent .launcher-composer .composer-field--markup {
+  overflow: visible;
 }
 
 .launcher-composer .composer-surface {
@@ -18528,6 +18547,17 @@ html[data-app-ready] #app-bootstrap-splash {
   }
   100% {
     transform: translateX(280%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-bootstrap-splash__mesh,
+  .app-bootstrap-splash__glow,
+  .app-bootstrap-splash__mark,
+  .app-bootstrap-splash__ring,
+  .app-bootstrap-splash__orbit,
+  .app-bootstrap-splash__bar-fill {
+    animation: none !important;
   }
 }
 

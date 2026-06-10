@@ -264,6 +264,20 @@ fn hide_launcher_window(window: &WebviewWindow) {
     let _ = window.emit(LAUNCHER_HIDDEN_EVENT, ());
 }
 
+fn refocus_primary_window_if_visible(app: &AppHandle) {
+    const MAIN_WINDOW_LABEL: &str = "main";
+    const LEGACY_AGENT_WINDOW_LABEL: &str = "agent";
+    let primary = app
+        .get_webview_window(MAIN_WINDOW_LABEL)
+        .or_else(|| app.get_webview_window(LEGACY_AGENT_WINDOW_LABEL));
+    let Some(win) = primary else {
+        return;
+    };
+    if win.is_visible().unwrap_or(false) {
+        let _ = win.set_focus();
+    }
+}
+
 fn nudge_launcher_focus(window: &WebviewWindow) {
     let guard_window = window.clone();
     std::thread::spawn(move || {
@@ -356,9 +370,20 @@ fn ensure_launcher_window(app: &AppHandle, expanded: bool) -> Result<WebviewWind
 /// global shortcut only needs show()+focus instead of building a webview and
 /// loading the Next.js route from scratch.
 pub fn prewarm_launcher_window_background(app: AppHandle) {
+    // A second WebView can freeze the main chat briefly during WebView2 startup,
+    // especially in dev where webpack may compile /launcher on demand. Keep this
+    // opt-in; the first shortcut can still create the launcher lazily.
+    if std::env::var("QUICKER_AGENT_PREWARM_LAUNCHER")
+        .ok()
+        .as_deref()
+        != Some("1")
+    {
+        return;
+    }
+
     std::thread::spawn(move || {
-        // Let the main window finish painting before spending cycles here.
-        std::thread::sleep(Duration::from_millis(500));
+        // Let the main window settle before spawning another webview.
+        std::thread::sleep(Duration::from_secs(15));
         if app.get_webview_window(LAUNCHER_LABEL).is_some() {
             return;
         }
@@ -369,6 +394,8 @@ pub fn prewarm_launcher_window_background(app: AppHandle) {
             }
             if let Err(err) = build_launcher_window(&app_for_main, false, false) {
                 eprintln!("[launcher] prewarm failed: {err}");
+            } else {
+                refocus_primary_window_if_visible(&app_for_main);
             }
         });
     });

@@ -42,7 +42,9 @@ pub fn should_refresh_channel_on_startup(events: &[String]) -> bool {
 }
 
 pub fn should_run_startup_runtime(events: &[String]) -> bool {
-    events.iter().any(|event| event == EVENT_STARTUP || event == EVENT_STARTUP_RUNTIME)
+    events
+        .iter()
+        .any(|event| event == EVENT_STARTUP || event == EVENT_STARTUP_RUNTIME)
 }
 
 pub fn supports_on_demand(events: &[String], demand_event: &str) -> bool {

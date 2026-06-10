@@ -73,5 +73,6 @@ Invoke-RestMethod http://127.0.0.1:3000/api/dev/frontend-check
 - [README.md](README.md) — 双模式开发、Tauri 发布、工具一览
 - [docs/agent-gui-chat-storage.md](../docs/agent-gui-chat-storage.md) — 对话存储
 - [docs/agent-gui-launcher.md](../docs/agent-gui-launcher.md) — 快速输入启动器设计
+- [docs/agent-gui-startup-performance.md](../docs/agent-gui-startup-performance.md) — Tauri 冷启动、splash、懒加载
 - [docs/agent-gui-plugin-storage.md](../docs/agent-gui-plugin-storage.md) — 插件存储
 - 根目录 [AGENTS.md](../AGENTS.md) — 热更新、qkrpc 无头编辑、集成测试

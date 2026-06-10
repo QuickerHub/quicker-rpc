@@ -46,7 +46,7 @@ pwsh ./dev.ps1 -Tauri
 
 `package.json` 里的 `pnpm dev` / `tauri:dev` 等由 `dev.ps1` 内部调用，日常不必手敲。
 
-**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；Tauri 安装版为 **`Documents/QuickerAgent/workspace`**。插件与资源存储：[`docs/agent-gui-plugin-storage.md`](../docs/agent-gui-plugin-storage.md)。**对话历史 JSON**：[`docs/agent-gui-chat-storage.md`](../docs/agent-gui-chat-storage.md)。**快速输入启动器**：[`docs/agent-gui-launcher.md`](../docs/agent-gui-launcher.md)。
+**默认工作目录**：侧栏留空时，开发环境为 **quicker-rpc 仓库根**；Tauri 安装版为 **`Documents/QuickerAgent/workspace`**。插件与资源存储：[`docs/agent-gui-plugin-storage.md`](../docs/agent-gui-plugin-storage.md)。**对话历史 JSON**：[`docs/agent-gui-chat-storage.md`](../docs/agent-gui-chat-storage.md)。**快速输入启动器**：[`docs/agent-gui-launcher.md`](../docs/agent-gui-launcher.md)。**启动性能**：[`docs/agent-gui-startup-performance.md`](../docs/agent-gui-startup-performance.md)。
 
 ## 发布（Tauri 2）
 

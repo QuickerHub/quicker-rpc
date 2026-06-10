@@ -168,8 +168,14 @@ export async function ensureVoicePluginReady(
         onProgress?.(event.message || `${event.phase} ${event.percent}%`);
       });
       dto = await tauriVoicePluginInstall();
+      if (dto.status === "downloading") {
+        dto = (await waitForVoicePluginInstall(onProgress)) ?? dto;
+      }
     } finally {
       await unlisten?.();
+    }
+    if (dto.status === "installed" || dto.status === "stopped") {
+      dto = await tauriVoicePluginStartRuntime();
     }
     return finalizeVoiceReady(dto, onProgress);
   }

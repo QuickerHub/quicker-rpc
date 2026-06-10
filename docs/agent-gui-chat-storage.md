@@ -2,13 +2,20 @@
 
 本文档说明 **agent-gui（QuickerAgent）** 如何在本机保存多轮对话：存储位置、JSON 形态、线程/消息字段含义，以及哪些 UI 状态**不会**写入磁盘。
 
-对话数据 **存于 WebView 的 `localStorage`**（键 `agent-gui-chats`），无独立服务端数据库。Tauri 桌面版与开发模式共用同一套前端读写逻辑；**磁盘上的实际字节由 WebView 引擎写入用户配置目录**，不在安装目录内，因此 **NSIS 覆盖安装 / 应用内更新不会清掉历史**。
+对话数据 **主存储为服务端 SQLite**（`%LOCALAPPDATA%/QuickerAgent/local/chats.db`），由本机 Next 服务（`server.js` / `pnpm dev`）通过 `/api/chat-store` 读写。Tauri 发布版与开发模式 **共用同一数据库文件**，与 WebView origin / 端口无关，**NSIS 覆盖安装与应用内更新不会删除**。
+
+首次启动若数据库为空，会自动把 WebView `localStorage` 中的历史（v1/v2/v3 分片）**一次性导入** SQLite，之后读写只走数据库。
+
+遗留 WebView `localStorage`（键 `agent-gui-chats` 等）仅作迁移来源与「从老版本恢复」扫描对象，不再是主存储。
 
 实现索引：
 
 | 模块 | 路径 |
 |------|------|
 | 类型与读写 | `agent-gui/lib/chat-store.ts` |
+| SQLite 持久化（服务端） | `agent-gui/lib/chat-store-db.server.ts` |
+| API 客户端 | `agent-gui/lib/chat-store-api.client.ts` |
+| REST | `GET/PUT /api/chat-store`、`POST /api/chat-store/migrate`、`GET /api/chat-store/threads/:id/messages` |
 | React 订阅 / 延迟落盘 | `agent-gui/lib/use-chat-store.ts` |
 | WebView 用户数据路径（TS） | `agent-gui/lib/quicker-agent-paths.ts` |
 | WebView 用户数据路径（Rust） | `agent-gui/src-tauri/src/quicker_agent_paths.rs` |
@@ -28,21 +35,40 @@
 
 | 项 | 值 |
 |----|-----|
-| **介质** | `window.localStorage`（Chromium / WebView2） |
-| **主键** | `agent-gui-chats`（常量 `CHAT_STORAGE_KEY`） |
-| **格式** | 单个 JSON 对象，`version: 2` |
-| **遗留键** | `agent-gui-workspaces`（v1 多工作区；首次读取时迁移并写入新键） |
+| **主介质** | SQLite：`%LOCALAPPDATA%/QuickerAgent/local/chats.db`（Windows） |
+| **访问方式** | 浏览器 `fetch("/api/chat-store")`；服务端 `node:sqlite` |
+| **遗留介质** | `window.localStorage`（仅迁移 / 恢复扫描） |
+| **索引键** | `agent-gui-chats`（常量 `CHAT_STORAGE_KEY`）——`version: 3` 索引：线程元数据（标题、`updatedAt`、`messageCount`），**不含消息体** |
+| **消息分片键** | `agent-gui-chats-thread-<threadId>`（每线程一个 blob，`{ version: 1, threadId, messages }`） |
+| **备份键** | `agent-gui-chats-backup`（索引备份）、`agent-gui-chats-backup-thread-<threadId>`（线程 blob 备份；清空/删除前自动写入） |
+| **遗留键** | `agent-gui-workspaces`（v1 多工作区）、v2 单体 `agent-gui-chats`（首次读取时迁移为 v3 分片） |
 
-读写 API：
+**懒加载与 `messageCount`（重要）**：启动时只加载 **active 线程** 的消息（`messageScope: "active"`），其余线程在内存中 `messages: []`。线程是否为空 **必须** 以索引中的 `messageCount` 判断（`isThreadEmpty`），`messageCount` 缺失（旧索引）视为「未知 → 非空」。任何用 `messages.length === 0` 判空再清理的代码都会把未加载的历史对话当垃圾删除（v0.13 曾因此在每次重启时丢失所有未在标签栏打开的侧栏历史，已修复并有回归测试 `chat-store.test.ts`）。
 
-- `loadChatStore()` — 启动时解析、规范化、必要时迁移
-- `saveChatStore()` — 同步写入 localStorage
-- `scheduleSaveChatStore()` — 合并多次更新，在 `requestIdleCallback`（或 `setTimeout(0)`）后写入，避免流式输出时阻塞 UI
-- `flushPendingChatStoreSave()` — 页面 `pagehide` 等场景强制刷盘
+读写 API（生产环境）：
 
-### 1.2 物理层（磁盘上 WebView 数据在哪）
+- `fetchChatStoreFromApi()` — 启动时 `GET /api/chat-store?scope=active`；DB 空则自动 `POST /api/chat-store/migrate` 导入 localStorage
+- `scheduleSaveChatStore()` — debounce 后 `PUT /api/chat-store` 写入 SQLite
+- `hydrateStoreThreadMessagesAsync()` — 切换标签/侧栏时 `GET /api/chat-store/threads/:id/messages` 懒加载消息
+- `flushPendingChatStoreSave()` — `pagehide` 时强制刷盘
 
-Tauri 使用 **WebView2**（Windows）。`localStorage` 不是可读 JSON 文件，而是由 Chromium **LevelDB** 存在 profile 目录下；应用只通过 `localStorage.getItem("agent-gui-chats")` 访问。
+遗留 localStorage 读写（仅测试与迁移）：`loadChatStoreFromLocalStorage()`、`savePersistedChatStore()`。
+
+### 1.2 物理层（磁盘）
+
+**主库（对话）**
+
+| 环境 | 路径 |
+|------|------|
+| Windows | `%LOCALAPPDATA%/QuickerAgent/local/chats.db` |
+| macOS | `~/Library/Application Support/QuickerAgent/local/chats.db` |
+| Linux | `$XDG_DATA_HOME/QuickerAgent/local/chats.db` |
+
+SQLite 使用 WAL 模式；表：`chat_meta`、`chat_threads`、`chat_thread_messages`、`chat_thread_messages_backup`。
+
+**遗留 WebView localStorage**（仅迁移源）
+
+Tauri 使用 **WebView2**（Windows）。`localStorage` 由 Chromium **LevelDB** 存在 profile 目录下。
 
 | 环境 | WebView 用户数据根目录 | localStorage LevelDB（Windows） |
 |------|------------------------|----------------------------------|
@@ -52,18 +78,16 @@ Tauri 使用 **WebView2**（Windows）。`localStorage` 不是可读 JSON 文件
 
 根目录名来自 `tauri.conf.json` 的 **`identifier`**（当前 `ai.quicker.agent`），与 `%LOCALAPPDATA%/QuickerAgent/`（插件目录）是 **两个并列目录**。
 
-**发布升级防丢数据**（v0.12+）：
+**发布升级防丢数据**（v0.13+ SQLite）：
 
-- 发布版内置 UI **优先绑定 `http://127.0.0.1:3000`**（与历史 `localStorage` origin 一致；避免与 `pnpm dev` 抢端口后落到 3001 导致侧栏变空）。
-- WebView profile 仍在 `%LOCALAPPDATA%/ai.quicker.agent/`（**不**迁到 `QuickerAgent/` 子目录）。
-- 设置类 JSON 在 `%LOCALAPPDATA%/QuickerAgent/local/`，与安装目录分离，NSIS 覆盖安装不删除。
-- Tauri 启动时若当前页无对话，会**尝试一次**从 LevelDB 自动合并（侧栏「从老版本恢复」同源）；WebView2 压缩格式下离线解析可能不完整，**可靠做法仍是保持 3000 端口 + 同一 WebView profile**。
+- 对话在 `%LOCALAPPDATA%/QuickerAgent/local/chats.db`，与安装目录、WebView origin **解耦**。
+- 首次升级仍会从 WebView `localStorage` 自动导入一次。
+- 侧栏「从老版本恢复」继续扫描 LevelDB，合并后写入 SQLite。
 
 **为何安装/更新不会清对话：**
 
-- NSIS 安装包只覆盖 **程序安装目录**（默认 `%LOCALAPPDATA%\QuickerAgent\`，见 `installer-hooks.nsh`），并在安装前结束进程。
-- WebView 用户数据在 **`%LOCALAPPDATA%\ai.quicker.agent\`**，**不在**安装目录内；就地升级、应用内 updater **默认不会删除**该文件夹。
-- 会丢失数据的情况：用户在系统/浏览器设置里 **清除站点数据**、手动删除 `%LOCALAPPDATA%\ai.quicker.agent\`、或卸载时勾选「删除用户数据」（若安装器提供该选项）。
+- NSIS 只覆盖程序安装目录；`chats.db` 在 `QuickerAgent/local/`，就地升级不删除。
+- 勿手动删除 `%LOCALAPPDATA%/QuickerAgent/local/chats.db`。
 
 查询本机路径（无需手算）：
 
@@ -77,22 +101,24 @@ Invoke-RestMethod http://127.0.0.1:3000/api/settings/webview-profile
 
 ---
 
-## 2. 顶层结构 `ChatStoreData`
+## 2. 顶层结构 `ChatStoreData`（内存）/ `ChatStoreIndex`（落盘索引）
+
+落盘的 `agent-gui-chats` 是 **索引**（线程仅含元数据 + `messageCount`），消息体在各 `agent-gui-chats-thread-*` 分片：
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "activeThreadId": "550e8400-e29b-41d4-a716-446655440000",
   "openTabIds": ["550e8400-e29b-41d4-a716-446655440000", "…"],
   "tabStripPersisted": true,
   "workingDirectory": "D:\\projects\\my-quicker-actions",
-  "threads": [ /* ChatThread[] */ ]
+  "threads": [ /* ChatThreadMeta[]，含 messageCount，不含 messages */ ]
 }
 ```
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `version` | `2` | 当前 schema；非 2 或无效数据会回退为默认空 store |
+| `version` | `3` | 当前 schema；v2 单体 / v1 多工作区在加载时迁移 |
 | `activeThreadId` | `string` | 当前聚焦的对话线程 UUID |
 | `openTabIds` | `string[]` | 标题栏标签页中打开的线程 id，**顺序即标签顺序**；关闭标签只从这里移除，**不删除** `threads` 中的历史 |
 | `tabStripPersisted` | `boolean?` | 用户是否显式改过标签栏；用于修复旧版「所有线程都进标签栏」的脏数据 |
@@ -128,6 +154,7 @@ Invoke-RestMethod http://127.0.0.1:3000/api/settings/webview-profile
 | `updatedAt` | `number` | 最后消息变更时的 Unix 毫秒时间戳 |
 | `titleGenerated` | `boolean?` | 是否已应用 LLM/工具生成的标题 |
 | `titleManual` | `boolean?` | 用户是否在侧栏手动重命名；为 `true` 时跳过自动改标题 |
+| `messageCount` | `number?` | 索引中的持久化消息数；懒加载下判空的唯一依据，缺失视为非空（见 §1.1） |
 
 标题来源：
 

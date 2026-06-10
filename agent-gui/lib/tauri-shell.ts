@@ -8,6 +8,12 @@ export function isTauriShell(): boolean {
   return "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
 }
 
+/** True when running inside Tauri dev (`tauri dev` / `dev.ps1 -Tauri`). */
+export function isTauriDevShell(): boolean {
+  if (!isTauriShell()) return false;
+  return process.env.NODE_ENV === "development";
+}
+
 /** SSR-safe: false until after mount, then matches {@link isTauriShell}. */
 export function useTauriShell(): boolean {
   const [isTauri, setIsTauri] = useState(false);

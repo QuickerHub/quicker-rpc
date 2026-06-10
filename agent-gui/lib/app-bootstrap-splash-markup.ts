@@ -46,8 +46,8 @@ export const APP_BOOTSTRAP_SPLASH_INIT_SCRIPT = `(function(){try{if(location.pat
 export const APP_BOOTSTRAP_SPLASH_DISMISS_SCRIPT = `(function(){function boot(){try{
 var ID="app-bootstrap-splash";
 var FADE=320;
-var MIN=180;
-var MAX=8000;
+var MIN=80;
+var MAX=6000;
 var t0=performance.now();
 var done=false;
 function dismiss(force){

@@ -21,7 +21,10 @@ fn compare_semver_triple(left: &str, right: &str) -> i32 {
 fn parse_triple(version: &str) -> [u32; 3] {
     let mut parts = [0u32; 3];
     for (index, segment) in version.split('.').take(3).enumerate() {
-        let digits: String = segment.chars().take_while(|ch| ch.is_ascii_digit()).collect();
+        let digits: String = segment
+            .chars()
+            .take_while(|ch| ch.is_ascii_digit())
+            .collect();
         parts[index] = digits.parse().unwrap_or(0);
     }
     parts

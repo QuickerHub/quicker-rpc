@@ -282,7 +282,12 @@ async function runVoicePluginInstallFlow(
             (progress) => showInstallProgress(progress),
             { force, preferNetwork: options?.preferNetwork },
           );
-      showInstallProgress({ percent: 100, message: dto.message ?? "安装完成" });
+      if (dto.status === "downloading") {
+        const waited = await waitForHostReady((progress) => showInstallProgress(progress));
+        if (waited) dto = waited;
+      } else {
+        showInstallProgress({ percent: 100, message: dto.message ?? "安装完成" });
+      }
     }
 
     if (!dto) {

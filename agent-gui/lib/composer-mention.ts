@@ -1,4 +1,5 @@
 import type { PinnedAction } from "@/lib/action-context";
+import { hydrateComposerTagIcons } from "@/lib/composer-tag-present";
 import {
   createComposerTagElement,
   createComposerTagSpacer,
@@ -116,4 +117,5 @@ export function applyComposerMentionTag(
   const spacer = createComposerTagSpacer();
   chip.after(spacer);
   placeCaretAfterComposerTagSpacer(spacer, root);
+  hydrateComposerTagIcons(root);
 }

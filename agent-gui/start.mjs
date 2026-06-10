@@ -538,7 +538,13 @@ async function main() {
   const host = process.env.HOSTNAME?.trim() || "127.0.0.1";
   applyDevWorkspaceEnv(root);
 
-  await ensureBundledQkrpcServe(host);
+  const tauriShellBoot = process.env.AGENT_GUI_TAURI_SHELL === "1";
+  if (tauriShellBoot && isDev) {
+    // Tauri shell: start Next immediately; qkrpc lazy-starts on first /api/ping.
+    console.log("qkrpc: deferred for Tauri dev boot (lazy via /api/ping)");
+  } else {
+    await ensureBundledQkrpcServe(host);
+  }
 
   if (isDev) {
     if (process.env.AGENT_GUI_SKIP_KILL !== "1") {

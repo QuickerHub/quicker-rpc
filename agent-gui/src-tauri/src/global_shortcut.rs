@@ -147,5 +147,4 @@ mod tests {
                 .unwrap_or_else(|err| panic!("{shortcut} must parse: {err}"));
         }
     }
-
 }

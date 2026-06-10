@@ -23,7 +23,9 @@ pub fn ensure_single_instance_or_activate_existing() -> bool {
         if GetLastError() == ERROR_ALREADY_EXISTS {
             CloseHandle(handle);
             if try_activate_existing_main_window() {
-                eprintln!("QuickerAgent is already running; brought existing window to foreground.");
+                eprintln!(
+                    "QuickerAgent is already running; brought existing window to foreground."
+                );
                 return false;
             }
             eprintln!("QuickerAgent is already running; exiting duplicate instance.");
@@ -85,10 +87,7 @@ fn try_activate_existing_main_window() -> bool {
     };
 
     unsafe {
-        EnumWindows(
-            Some(enum_proc),
-            (&mut state as *mut EnumState) as isize,
-        );
+        EnumWindows(Some(enum_proc), (&mut state as *mut EnumState) as isize);
     }
 
     let hwnd = if !state.titled_match.is_null() {

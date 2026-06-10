@@ -10,6 +10,7 @@ import {
   renameThread,
   setWorkingDirectory,
   sortThreads,
+  threadMessageCount,
   tryRestoreLegacyChatStore,
 } from "@/lib/chat-store";
 import { pushAppMessage } from "@/lib/app-messages";
@@ -245,8 +246,8 @@ export function ChatSidebar({
                     aria-selected={selected}
                   >
                     <span className="ws-item-label">{thread.title}</span>
-                    {thread.messages.length > 0 && (
-                      <span className="ws-item-badge">{thread.messages.length}</span>
+                    {threadMessageCount(thread) > 0 && (
+                      <span className="ws-item-badge">{threadMessageCount(thread)}</span>
                     )}
                   </button>
                   <div className="ws-row-actions">

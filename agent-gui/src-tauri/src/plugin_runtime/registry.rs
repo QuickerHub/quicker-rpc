@@ -52,8 +52,8 @@ pub fn resolve_registry(force_refresh: bool) -> Result<PluginRegistry, String> {
         &bootstrap.registry_url,
         bootstrap.registry_mirror_url.as_deref(),
     ) {
-        let registry: PluginRegistry = serde_json::from_str(&raw)
-            .map_err(|e| format!("plugin registry JSON invalid: {e}"))?;
+        let registry: PluginRegistry =
+            serde_json::from_str(&raw).map_err(|e| format!("plugin registry JSON invalid: {e}"))?;
         let _ = cache::write_cached_json(&cache_path, &registry, ttl);
         return Ok(registry);
     }

@@ -20,6 +20,7 @@ import {
   tryRestoreLegacyChatStore,
   updateThreadMessages,
 } from "@/lib/chat-store";
+import { setChatStorePersistenceModeForTests } from "@/lib/chat-store-backend";
 import { resetPersistedSnapshotForTests as resetPersistSnapshot } from "@/lib/chat-store-persist";
 
 type StorageLike = {
@@ -76,6 +77,7 @@ function sampleMessage(id: string): AgentUIMessage {
 }
 
 beforeEach(() => {
+  setChatStorePersistenceModeForTests("localStorage");
   installWindow(createMemoryStorage());
   resetPersistSnapshot();
 });
@@ -83,6 +85,7 @@ beforeEach(() => {
 afterEach(() => {
   uninstallWindow();
   resetPersistSnapshot();
+  setChatStorePersistenceModeForTests("api");
 });
 
 test("updateThreadMessages rejects empty overwrite of persisted thread", () => {
@@ -355,6 +358,7 @@ test("addThread always creates a fresh tab even when a hidden empty thread exist
         title: "新对话",
         messages: [],
         updatedAt: Date.now(),
+        messageCount: 0,
       },
     ],
     openTabIds: [activeTabId],
@@ -367,6 +371,92 @@ test("addThread always creates a fresh tab even when a hidden empty thread exist
   assert.equal(getOpenTabThreads(next).length, 2);
   assert.equal(next.threads.filter((thread) => isThreadEmpty(thread)).length, 1);
   assert.ok(!next.threads.some((thread) => thread.id === hiddenEmptyId));
+});
+
+function storeWithSidebarHistory(): {
+  store: ReturnType<typeof defaultChatStore>;
+  threadA: string;
+  threadB: string;
+} {
+  const base = defaultChatStore();
+  const threadA = base.activeThreadId;
+  const threadB = crypto.randomUUID();
+  const withA = updateThreadMessages(base, threadA, [sampleMessage("a1")]);
+  const store = {
+    ...withA,
+    threads: [
+      ...withA.threads,
+      {
+        id: threadB,
+        title: "历史对话 B",
+        messages: [sampleMessage("b1"), sampleMessage("b2")],
+        updatedAt: Date.now() - 60_000,
+        messageCount: 2,
+      },
+    ],
+    // B lives only in sidebar history (its tab is closed).
+    openTabIds: [threadA],
+    tabStripPersisted: true,
+  };
+  return { store, threadA, threadB };
+}
+
+test("sidebar-only thread survives an app restart (lazy hydration)", () => {
+  const { store, threadB } = storeWithSidebarHistory();
+  saveChatStore(store);
+
+  // Fresh app boot: in-memory snapshot is gone, messages load lazily.
+  resetPersistSnapshot();
+  const loaded = loadChatStore();
+
+  assert.ok(
+    globalThis.localStorage!.getItem(threadStorageKey(threadB)),
+    "thread B message blob must not be deleted",
+  );
+  assert.ok(
+    loaded.threads.some((thread) => thread.id === threadB),
+    "thread B must stay in the loaded store",
+  );
+  const index = JSON.parse(globalThis.localStorage!.getItem(CHAT_STORAGE_KEY)!) as {
+    threads: Array<{ id: string }>;
+  };
+  assert.ok(
+    index.threads.some((thread) => thread.id === threadB),
+    "thread B must stay in the persisted index",
+  );
+});
+
+test("addThread after restart keeps unhydrated sidebar threads", () => {
+  const { store, threadB } = storeWithSidebarHistory();
+  saveChatStore(store);
+
+  resetPersistSnapshot();
+  const loaded = loadChatStore();
+  const next = addThread(loaded);
+  saveChatStore(next);
+
+  assert.ok(next.threads.some((thread) => thread.id === threadB));
+  assert.ok(globalThis.localStorage!.getItem(threadStorageKey(threadB)));
+});
+
+test("legacy v3 index without messageCount is treated as non-empty", () => {
+  const { store, threadB } = storeWithSidebarHistory();
+  saveChatStore(store);
+
+  // Simulate an index written by an older build (no messageCount field).
+  const rawIndex = JSON.parse(globalThis.localStorage!.getItem(CHAT_STORAGE_KEY)!) as {
+    threads: Array<Record<string, unknown>>;
+  };
+  for (const meta of rawIndex.threads) {
+    delete meta.messageCount;
+  }
+  globalThis.localStorage!.setItem(CHAT_STORAGE_KEY, JSON.stringify(rawIndex));
+
+  resetPersistSnapshot();
+  const loaded = loadChatStore();
+
+  assert.ok(loaded.threads.some((thread) => thread.id === threadB));
+  assert.ok(globalThis.localStorage!.getItem(threadStorageKey(threadB)));
 });
 
 test("shouldBackupChatStoreBeforeSave detects per-thread wipe", () => {
@@ -389,7 +479,9 @@ test("shouldBackupChatStoreBeforeSave detects per-thread wipe", () => {
   const next = {
     ...prev,
     threads: prev.threads.map((thread) =>
-      thread.id === threadA ? { ...thread, messages: [] } : thread,
+      thread.id === threadA
+        ? { ...thread, messages: [], messageCount: 0 }
+        : thread,
     ),
   };
   assert.equal(shouldBackupChatStoreBeforeSave(prev, next), true);

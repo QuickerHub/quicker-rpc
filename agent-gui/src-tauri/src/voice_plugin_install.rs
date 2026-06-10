@@ -520,9 +520,7 @@ fn run_download_command_with_progress(app: &AppHandle, mut cmd: Command) -> Resu
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
 
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("启动模型下载失败: {e}"))?;
+    let mut child = cmd.spawn().map_err(|e| format!("启动模型下载失败: {e}"))?;
 
     let stderr_handle = child.stderr.take();
     if let Some(stdout) = child.stdout.take() {
@@ -535,9 +533,7 @@ fn run_download_command_with_progress(app: &AppHandle, mut cmd: Command) -> Resu
         }
     }
 
-    let status = child
-        .wait()
-        .map_err(|e| format!("模型下载进程异常: {e}"))?;
+    let status = child.wait().map_err(|e| format!("模型下载进程异常: {e}"))?;
 
     if status.success() {
         return Ok(());
@@ -610,21 +606,14 @@ fn run_packaged_download_model(
     preset: &str,
     force: bool,
 ) -> Result<(), String> {
-    let exe = runtime_exe_for_download(plugin_root).ok_or_else(|| {
-        "语音识别服务未安装，请先安装 Runtime".to_string()
-    })?;
+    let exe = runtime_exe_for_download(plugin_root)
+        .ok_or_else(|| "语音识别服务未安装，请先安装 Runtime".to_string())?;
     let plugin_str = plugin_root
         .to_str()
         .ok_or_else(|| "插件路径无效".to_string())?;
 
     let mut cmd = Command::new(&exe);
-    cmd.args([
-        "download-model",
-        "--preset",
-        preset,
-        "--root",
-        plugin_str,
-    ]);
+    cmd.args(["download-model", "--preset", preset, "--root", plugin_str]);
     if force {
         cmd.arg("--force");
     }

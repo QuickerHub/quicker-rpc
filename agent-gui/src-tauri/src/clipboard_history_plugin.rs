@@ -84,10 +84,9 @@ pub fn read_clipboard_settings() -> ClipboardPluginSettingsDto {
 fn write_clipboard_settings(settings: &ClipboardPluginSettingsDto) -> Result<(), String> {
     let root = clipboard_history_plugin_root();
     std::fs::create_dir_all(&root).map_err(|e| format!("创建剪贴板插件目录失败：{e}"))?;
-    let raw = serde_json::to_string_pretty(settings)
-        .map_err(|e| format!("序列化剪贴板设置失败：{e}"))?;
-    std::fs::write(clipboard_settings_path(), raw)
-        .map_err(|e| format!("写入剪贴板设置失败：{e}"))
+    let raw =
+        serde_json::to_string_pretty(settings).map_err(|e| format!("序列化剪贴板设置失败：{e}"))?;
+    std::fs::write(clipboard_settings_path(), raw).map_err(|e| format!("写入剪贴板设置失败：{e}"))
 }
 
 pub struct ClipboardHistoryPluginState {
@@ -200,8 +199,7 @@ fn fetch_runtime_health(port: u16) -> bool {
 }
 
 fn is_installed(root: &Path) -> bool {
-    root.join("manifest.json").is_file()
-        && root.join(DEFAULT_RUNTIME_EXE).is_file()
+    root.join("manifest.json").is_file() && root.join(DEFAULT_RUNTIME_EXE).is_file()
 }
 
 fn data_dir_for_root(root: &Path) -> PathBuf {
@@ -249,14 +247,6 @@ pub fn shutdown_clipboard_history_fast(state: &ClipboardHistoryPluginState) {
     state.shutdown();
 }
 
-pub fn ensure_clipboard_history_disabled(app: &AppHandle) {
-    if CLIPBOARD_HISTORY_ENABLED {
-        return;
-    }
-    let state = app.state::<ClipboardHistoryPluginState>();
-    shutdown_clipboard_history(state.inner());
-}
-
 fn wait_runtime_ready(port: u16, max_ms: u64) -> Result<(), String> {
     let deadline = Instant::now() + Duration::from_millis(max_ms);
     while Instant::now() < deadline {
@@ -284,13 +274,20 @@ fn spawn_installed_runtime(root: &Path, exe_rel: &str, port: u16) -> Result<Chil
     let data_dir = data_dir_for_root(root);
     let _ = std::fs::create_dir_all(&data_dir);
     let mut cmd = Command::new(&exe);
-    cmd.args(["--host", DEFAULT_HTTP_HOST, "--port", &port.to_string(), "--data-dir"])
-        .arg(&data_dir)
-        .current_dir(root)
-        .env("QUICKER_CLIPBOARD_DATA_DIR", &data_dir)
-        .env("QUICKER_CLIPBOARD_PORT", port.to_string());
+    cmd.args([
+        "--host",
+        DEFAULT_HTTP_HOST,
+        "--port",
+        &port.to_string(),
+        "--data-dir",
+    ])
+    .arg(&data_dir)
+    .current_dir(root)
+    .env("QUICKER_CLIPBOARD_DATA_DIR", &data_dir)
+    .env("QUICKER_CLIPBOARD_PORT", port.to_string());
     configure_hidden_child(&mut cmd);
-    cmd.spawn().map_err(|e| format!("启动剪贴板 Runtime 失败：{e}"))
+    cmd.spawn()
+        .map_err(|e| format!("启动剪贴板 Runtime 失败：{e}"))
 }
 
 fn spawn_dev_runtime(dev_dir: &Path, port: u16) -> Result<Child, String> {
@@ -422,11 +419,16 @@ fn build_status(state: &ClipboardHistoryPluginState) -> ClipboardHistoryPluginSt
         running: false,
         http_port: 0,
         plugin_dir,
-        message: Some("剪贴板插件未安装。开发模式请设置 AGENT_GUI_CLIPBOARD_RUNTIME=1 或构建 runtime。".into()),
+        message: Some(
+            "剪贴板插件未安装。开发模式请设置 AGENT_GUI_CLIPBOARD_RUNTIME=1 或构建 runtime。"
+                .into(),
+        ),
     }
 }
 
-pub fn ensure_clipboard_runtime(state: &ClipboardHistoryPluginState) -> Result<ClipboardHistoryPluginStatusDto, String> {
+pub fn ensure_clipboard_runtime(
+    state: &ClipboardHistoryPluginState,
+) -> Result<ClipboardHistoryPluginStatusDto, String> {
     if !CLIPBOARD_HISTORY_ENABLED {
         shutdown_clipboard_history(state);
         return Err(DISABLED_MESSAGE.into());
@@ -465,7 +467,9 @@ pub fn ensure_clipboard_runtime(state: &ClipboardHistoryPluginState) -> Result<C
     Ok(build_status(state))
 }
 
-pub fn build_clipboard_plugin_status(state: &ClipboardHistoryPluginState) -> ClipboardHistoryPluginStatusDto {
+pub fn build_clipboard_plugin_status(
+    state: &ClipboardHistoryPluginState,
+) -> ClipboardHistoryPluginStatusDto {
     build_status(state)
 }
 
@@ -515,7 +519,7 @@ fn ensure_clipboard_runtime_if_auto_start(app: &AppHandle) {
 
 pub fn spawn_clipboard_runtime_background(app: AppHandle) {
     if !CLIPBOARD_HISTORY_ENABLED {
-        ensure_clipboard_history_disabled(&app);
+        let _ = app;
         return;
     }
 

@@ -310,6 +310,7 @@ function Invoke-DevTauriLauncher {
     }
     else {
         Write-Host "  UI: http://127.0.0.1:$devPort inside WebView2 (webpack)" -ForegroundColor DarkGray
+        Write-Host "  Tip: for smoother dev, run pwsh ./dev.ps1 first, then pwsh ./dev.ps1 -Tauri to reuse Turbopack." -ForegroundColor DarkGray
     }
     Write-Host ""
     Push-Location $RepoRoot

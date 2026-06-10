@@ -70,17 +70,16 @@ mod tests {
 
     #[test]
     fn embedded_voice_channel_fallback_parses() {
-        let ch = parse_voice_channel_json(include_str!(
-            "../../resources/voice-plugin-channel.json"
-        ))
-        .expect("embedded channel must parse");
+        let ch =
+            parse_voice_channel_json(include_str!("../../resources/voice-plugin-channel.json"))
+                .expect("embedded channel must parse");
         assert!(!ch.runtime_version.is_empty());
     }
 
     #[test]
     fn bootstrap_voice_entry_exists() {
-        let entry = crate::plugin_runtime::bootstrap::voice_channel_entry()
-            .expect("voice-asr entry");
+        let entry =
+            crate::plugin_runtime::bootstrap::voice_channel_entry().expect("voice-asr entry");
         assert!(entry.channel_url.contains("voice-asr-runtime"));
     }
 }

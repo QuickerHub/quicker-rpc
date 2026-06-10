@@ -26,6 +26,7 @@ const nextConfig: NextConfig = {
     "@tauri-apps/plugin-dialog",
     "@tauri-apps/plugin-global-shortcut",
     "@tauri-apps/plugin-opener",
+    "node:sqlite",
   ],
   async rewrites() {
     return [
@@ -50,7 +51,7 @@ const nextConfig: NextConfig = {
       config.watchOptions = {
         ...config.watchOptions,
         // Reduce rebuild churn in WebView2; HMR websocket is blocked in Tauri shell.
-        aggregateTimeout: 600,
+        aggregateTimeout: 1_500,
       };
     }
     return config;

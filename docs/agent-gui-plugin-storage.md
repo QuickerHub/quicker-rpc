@@ -158,6 +158,7 @@ QuickerAgent 主程序运行时：`$RESOURCE/resources/app/`（Next）、`node/`
 
 ```text
 Windows:     %LOCALAPPDATA%/QuickerAgent/local/
+  chats.db                    # 对话主存储（SQLite，见 agent-gui-chat-storage.md）
   llm-secrets.json
   llm-endpoint-pref.json
   llm-usage/

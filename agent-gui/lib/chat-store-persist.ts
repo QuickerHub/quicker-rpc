@@ -89,6 +89,11 @@ function normalizeThreadMeta(raw: unknown): ChatThreadMeta | null {
     updatedAt: typeof item.updatedAt === "number" ? item.updatedAt : Date.now(),
     titleGenerated: item.titleGenerated === true,
     titleManual: item.titleManual === true,
+    // Absent in legacy v3 indexes: keep undefined ("unknown", treated as non-empty).
+    messageCount:
+      typeof item.messageCount === "number" && item.messageCount >= 0
+        ? item.messageCount
+        : undefined,
   };
 }
 
@@ -167,7 +172,12 @@ export function toChatStoreIndex(data: ChatStoreData): ChatStoreIndex {
   return {
     version: CHAT_STORE_VERSION,
     activeThreadId: data.activeThreadId,
-    threads: data.threads.map(({ messages: _messages, ...meta }) => meta),
+    threads: data.threads.map(({ messages, ...meta }) => ({
+      ...meta,
+      // Never stamp 0 for unhydrated threads: keep the previous count (or
+      // undefined for legacy metas) so emptiness stays "unknown", not "empty".
+      messageCount: messages.length > 0 ? messages.length : meta.messageCount,
+    })),
     openTabIds: data.openTabIds,
     tabStripPersisted: data.tabStripPersisted,
     workingDirectory: data.workingDirectory,
@@ -273,6 +283,12 @@ function indexMetadataChanged(prev: ChatStoreData, next: ChatStoreData): boolean
     if (previous.updatedAt !== thread.updatedAt) return true;
     if (previous.titleGenerated !== thread.titleGenerated) return true;
     if (previous.titleManual !== thread.titleManual) return true;
+    if (
+      (thread.messages.length > 0 ? thread.messages.length : thread.messageCount)
+      !== (previous.messages.length > 0 ? previous.messages.length : previous.messageCount)
+    ) {
+      return true;
+    }
   }
 
   for (const thread of prev.threads) {
@@ -347,16 +363,26 @@ export function savePersistedChatStore(
 
     for (const threadId of dirtyThreadIds) {
       if (!nextIds.has(threadId)) {
+        // Defense in depth: always snapshot the stored blob before deleting it,
+        // even when the in-memory snapshot believed the thread was empty.
+        backupThreadMessagesToStorage(threadId);
         removeLocalStorage(threadStorageKey(threadId));
         continue;
       }
       const thread = data.threads.find((item) => item.id === threadId);
-      if (thread) {
-        writeThreadMessagesToStorage(thread.id, thread.messages);
+      if (!thread) continue;
+      // A dehydrated thread (messages [] but counted/unknown in the index)
+      // must never overwrite its stored blob with an empty array.
+      if (thread.messages.length === 0 && thread.messageCount !== 0) {
+        continue;
       }
+      writeThreadMessagesToStorage(thread.id, thread.messages);
     }
   } else {
     for (const thread of data.threads) {
+      // Without a previous snapshot we cannot tell "truly empty" from
+      // "not hydrated" — never clobber an existing blob with [].
+      if (thread.messages.length === 0) continue;
       writeThreadMessagesToStorage(thread.id, thread.messages);
     }
   }
@@ -412,7 +438,9 @@ export function hydrateStoreThreadMessages(
   const next: ChatStoreData = {
     ...store,
     threads: store.threads.map((item) =>
-      item.id === threadId ? { ...item, messages } : item,
+      item.id === threadId
+        ? { ...item, messages, messageCount: messages.length }
+        : item,
     ),
   };
 
@@ -420,6 +448,7 @@ export function hydrateStoreThreadMessages(
     const persisted = lastPersistedSnapshot.threads.find((item) => item.id === threadId);
     if (persisted) {
       persisted.messages = messages;
+      persisted.messageCount = messages.length;
     }
   }
 

@@ -18,6 +18,7 @@ import {
   maybeAutoRestoreChatStoreOnBoot,
   resetAutoRestoreAttemptedForTests,
 } from "@/lib/chat-store-boot-restore";
+import { setChatStorePersistenceModeForTests } from "@/lib/chat-store-backend";
 
 type StorageLike = {
   getItem(key: string): string | null;
@@ -89,6 +90,7 @@ function installEmptyDiskScan(): void {
 }
 
 beforeEach(() => {
+  setChatStorePersistenceModeForTests("localStorage");
   installWindow(createMemoryStorage());
   resetPersistedSnapshotForTests();
   resetAutoRestoreAttemptedForTests();
@@ -99,6 +101,7 @@ afterEach(() => {
   uninstallWindow();
   resetPersistedSnapshotForTests();
   resetAutoRestoreAttemptedForTests();
+  setChatStorePersistenceModeForTests("api");
 });
 
 test("maybeAutoRestoreChatStoreOnBoot restores chunked backup from localStorage", async () => {

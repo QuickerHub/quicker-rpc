@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
-use crate::quicker_agent_paths::{quicker_agent_app_data_dir, tauri_webview_local_storage_leveldb_dir};
+use crate::quicker_agent_paths::{
+    quicker_agent_app_data_dir, tauri_webview_local_storage_leveldb_dir,
+};
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -241,11 +243,7 @@ fn collect_legacy_leveldb_directories(app: &AppHandle) -> Vec<(String, PathBuf)>
                         .join("Default")
                         .join("Local Storage")
                         .join("leveldb");
-                    push_unique_leveldb_dir(
-                        &mut dirs,
-                        format!("%LOCALAPPDATA%\\{name}"),
-                        leveldb,
-                    );
+                    push_unique_leveldb_dir(&mut dirs, format!("%LOCALAPPDATA%\\{name}"), leveldb);
                 }
             }
         }

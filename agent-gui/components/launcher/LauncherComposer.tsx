@@ -210,7 +210,9 @@ function LauncherComposer({
     void (async () => {
       const { listen } = await import("@tauri-apps/api/event");
       unlisten = await listen(LAUNCHER_SHOWN_EVENT, () => {
-        requestAnimationFrame(() => composerRef.current?.focus());
+        const focusComposer = () => composerRef.current?.focus();
+        requestAnimationFrame(focusComposer);
+        window.setTimeout(focusComposer, 50);
       });
     })();
 

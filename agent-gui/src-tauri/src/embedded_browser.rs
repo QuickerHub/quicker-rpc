@@ -113,7 +113,10 @@ fn read_history(webview: &tauri::Webview) -> Result<(bool, bool), String> {
     let script = r#"(function(){try{return JSON.stringify({back:window.history.length>1,forward:false});}catch(e){return JSON.stringify({back:false,forward:false});}})()"#;
     let parsed = eval_json(webview, script)?;
     Ok((
-        parsed.get("back").and_then(|v| v.as_bool()).unwrap_or(false),
+        parsed
+            .get("back")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
         parsed
             .get("forward")
             .and_then(|v| v.as_bool())
@@ -146,7 +149,9 @@ fn eval_json(webview: &tauri::Webview, script: &str) -> Result<serde_json::Value
     serde_json::from_str(&raw).map_err(|e| format!("invalid eval json: {e}"))
 }
 
-fn read_navigation_state(webview: &tauri::Webview) -> Result<EmbeddedBrowserNavigationState, String> {
+fn read_navigation_state(
+    webview: &tauri::Webview,
+) -> Result<EmbeddedBrowserNavigationState, String> {
     let url = webview
         .url()
         .map(|value| value.to_string())
@@ -182,9 +187,7 @@ pub fn embedded_browser_navigate(app: AppHandle, url: String) -> Result<(), Stri
 
 #[tauri::command]
 pub fn embedded_browser_reload(app: AppHandle) -> Result<(), String> {
-    workspace_browser(&app)?
-        .reload()
-        .map_err(|e| e.to_string())
+    workspace_browser(&app)?.reload().map_err(|e| e.to_string())
 }
 
 #[cfg(windows)]
@@ -202,8 +205,7 @@ fn go_history(webview: &tauri::Webview, back: bool) -> Result<(), String> {
                     if back {
                         core.GoBack().map_err(|e| format!("GoBack: {e}"))?;
                     } else {
-                        core.GoForward()
-                            .map_err(|e| format!("GoForward: {e}"))?;
+                        core.GoForward().map_err(|e| format!("GoForward: {e}"))?;
                     }
                 }
                 Ok(())
@@ -226,9 +228,7 @@ pub fn embedded_browser_go_back(app: AppHandle) -> Result<(), String> {
     #[cfg(windows)]
     return go_history(&webview, true);
     #[cfg(not(windows))]
-    webview
-        .eval("history.back()")
-        .map_err(|e| e.to_string())
+    webview.eval("history.back()").map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -237,9 +237,7 @@ pub fn embedded_browser_go_forward(app: AppHandle) -> Result<(), String> {
     #[cfg(windows)]
     return go_history(&webview, false);
     #[cfg(not(windows))]
-    webview
-        .eval("history.forward()")
-        .map_err(|e| e.to_string())
+    webview.eval("history.forward()").map_err(|e| e.to_string())
 }
 
 #[tauri::command]

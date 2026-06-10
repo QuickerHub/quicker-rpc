@@ -7,7 +7,10 @@ import {
   formatBrowserElementTagMarkup,
   isBrowserElementTagElement,
 } from "@/lib/browser-element-tag";
-import { isHttpIconUrl } from "@/lib/fa-icon";
+import {
+  createComposerTagIconElement,
+  hydrateComposerTagIcons,
+} from "@/lib/composer-tag-present";
 import {
   formatActionTagMarkup,
   parseUserMessageSegments,
@@ -147,20 +150,7 @@ export function createComposerTagElement(action: PinnedAction): HTMLSpanElement 
     span.setAttribute("data-qkrpc-call-id", action.callIdentifier.trim());
   }
 
-  const iconSpec = action.icon?.trim();
-  if (iconSpec && isHttpIconUrl(iconSpec)) {
-    const img = document.createElement("img");
-    img.src = iconSpec;
-    img.alt = "";
-    img.className = "composer-prompt-tag__icon composer-prompt-tag__icon--img";
-    img.draggable = false;
-    span.append(img);
-  } else {
-    const icon = document.createElement("span");
-    icon.className = "composer-prompt-tag__icon composer-prompt-tag__icon--placeholder";
-    icon.setAttribute("aria-hidden", "true");
-    span.append(icon);
-  }
+  span.append(createComposerTagIconElement(action));
 
   const title = document.createElement("span");
   title.className = "composer-prompt-tag__title";
@@ -186,6 +176,7 @@ export function renderMarkupIntoRoot(root: HTMLElement, markup: string): void {
     }
     appendTextWithNewlines(root, segment.text);
   }
+  hydrateComposerTagIcons(root);
 }
 
 export function serializeComposerNode(node: Node): string {

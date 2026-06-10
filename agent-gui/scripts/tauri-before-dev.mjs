@@ -151,6 +151,16 @@ function holdUntilFrontendChildExits() {
   setInterval(() => {}, 60_000);
 }
 
+async function waitForDevServerPort(maxAttempts = 120, intervalMs = 250) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (await isPortListening(host, port)) return true;
+    if (attempt + 1 < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+  return false;
+}
+
 async function waitForFrontend(maxAttempts = 15, intervalMs = 1000) {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     if (await hasRunningFrontend()) return true;
@@ -199,16 +209,16 @@ async function main() {
 
   markExpectingWebpackDev();
   startFrontend();
-  console.log(
-    `tauri: waiting for ${baseUrl} (webpack first compile may take a few minutes)…`,
-  );
-  if (!(await waitForFrontend(240, 2000))) {
+  console.log(`tauri: waiting for dev server port ${port}…`);
+  if (!(await waitForDevServerPort(120, 250))) {
     throw new Error(
-      `Frontend at ${baseUrl} did not become healthy within 8 minutes. ` +
-        "Check the webpack dev terminal for compile errors.",
+      `Dev server port ${port} did not open within 30s. ` +
+        "Check the webpack dev terminal for startup errors.",
     );
   }
-  console.log(`tauri: frontend ready at ${baseUrl}`);
+  console.log(
+    `tauri: port ${port} open — releasing shell (webpack may still compile ${baseUrl})`,
+  );
   holdUntilFrontendChildExits();
 }
 

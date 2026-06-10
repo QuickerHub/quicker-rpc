@@ -40,7 +40,7 @@ import {
   getActiveThread,
   getOpenTabThreads,
   openThread,
-  hydrateStoreThreadMessages,
+  hydrateStoreThreadMessagesAsync,
   updateThreadMessages,
   updateThreadTitle,
 } from "@/lib/chat-store";
@@ -145,6 +145,7 @@ import {
 } from "@/lib/chat-mode-prefs";
 import { useActionProjectImportFromMessages } from "@/lib/action-project-import-from-messages";
 import { useQkrpcPing, type PingState } from "@/lib/use-qkrpc-ping";
+import { isTauriDevShell } from "@/lib/tauri-shell";
 import {
   canEditUserMessage,
   clearUserMessageDraftsFromIndex,
@@ -1366,17 +1367,32 @@ export function Chat() {
   const [ephemeralLauncherRuns, setEphemeralLauncherRuns] = useState(
     getEphemeralLauncherRuns,
   );
-  const { ping, refreshPing, connectTick } = useQkrpcPing();
+  const { ping, refreshPing, connectTick } = useQkrpcPing(
+    isTauriDevShell() ? { pollIntervalMs: 45_000 } : undefined,
+  );
   const storeRef = useRef(store);
   storeRef.current = store;
 
-  const storeWithOpenTabMessages = useMemo(() => {
-    if (!chatStoreHydrated) return store;
-    let next = store;
-    for (const threadId of store.openTabIds) {
-      next = hydrateStoreThreadMessages(next, threadId);
+  const [storeWithOpenTabMessages, setStoreWithOpenTabMessages] = useState(store);
+
+  useEffect(() => {
+    if (!chatStoreHydrated) {
+      setStoreWithOpenTabMessages(store);
+      return;
     }
-    return next;
+    let cancelled = false;
+    void (async () => {
+      let next = store;
+      for (const threadId of store.openTabIds) {
+        next = await hydrateStoreThreadMessagesAsync(next, threadId);
+      }
+      if (!cancelled) {
+        setStoreWithOpenTabMessages(next);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [chatStoreHydrated, store]);
   const activeThread = getActiveThread(storeWithOpenTabMessages);
   const openTabThreads = useMemo(
@@ -1427,9 +1443,11 @@ export function Chat() {
 
   const handleActivateThread = useCallback(
     (threadId: string) => {
-      let next = openThread(storeRef.current, threadId);
-      next = hydrateStoreThreadMessages(next, threadId);
-      updateStore(next);
+      void (async () => {
+        let next = openThread(storeRef.current, threadId);
+        next = await hydrateStoreThreadMessagesAsync(next, threadId);
+        updateStore(next);
+      })();
     },
     [updateStore],
   );
