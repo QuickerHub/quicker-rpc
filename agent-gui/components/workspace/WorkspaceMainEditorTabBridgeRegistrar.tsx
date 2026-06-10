@@ -9,8 +9,6 @@ import {
   workspaceExplorerEditorStateRef,
 } from "@/lib/workspace-explorer";
 
-const PREVIEW_TAB_ID = "__preview__";
-
 /** Wires doc/file open helpers to the explorer panel (not chat titlebar tabs). */
 export function WorkspaceMainEditorTabBridgeRegistrar() {
   const { clearActiveTopic } = useDocsViewer();
@@ -21,7 +19,10 @@ export function WorkspaceMainEditorTabBridgeRegistrar() {
         workspaceExplorerActionsRef.current.setPanelOpen(true);
       },
       closeTab: () => {
-        workspaceExplorerEditorStateRef.current.closeTab(PREVIEW_TAB_ID);
+        const active = workspaceExplorerEditorStateRef.current.activeTab;
+        if (active) {
+          workspaceExplorerEditorStateRef.current.closeTab(active.id);
+        }
       },
       clearDoc: clearActiveTopic,
     };

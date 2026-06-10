@@ -35,6 +35,14 @@ async function readChatStoreFromClient(): Promise<ChatStoreData> {
     }
     return loadChatStoreFromLocalStorage();
   } catch {
+    try {
+      const local = loadChatStoreFromLocalStorage();
+      if (local.threads.length > 0) {
+        return local;
+      }
+    } catch {
+      /* ignore */
+    }
     return defaultChatStore();
   }
 }

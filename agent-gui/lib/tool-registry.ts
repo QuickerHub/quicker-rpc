@@ -71,14 +71,14 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "终端",
     group: "write",
     category: "runtime",
-    description: "在本机工作目录执行 PowerShell/cmd/bash 命令或脚本",
+    description: "工作目录执行命令/脚本（build/test/git）；非普通文件读写（用 workspace_file）",
   },
   {
     id: "browser",
     label: "浏览器",
     group: "write",
     category: "runtime",
-    description: "Playwright 浏览器：navigate → snapshot/content → click/type/fill；无 screenshot，侧栏实时预览",
+    description: "Playwright 浏览器：取信息 content(selector/分页)/evaluate；自动化 snapshot → click/type/fill；多标签页、登录态持久；侧栏实时预览",
   },
   {
     id: "web_search",
@@ -120,14 +120,14 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "编辑工作区程序",
     group: "read",
     category: "workspace",
-    description: "磁盘编辑程序体：data.json/files → patch 保存（非 run/get）",
+    description: "编辑 .quicker 程序体：data.json/files → patch；改动在侧栏已改动可见",
   },
   {
     id: "workspace_file",
     label: "工作区文件",
     group: "read",
     category: "workspace",
-    description: "读写 cwd 下普通文件（.local、配置、脚本）；非 Quicker 程序体",
+    description: "读写 cwd 普通文件（.local 草稿、配置、脚本）；非 .quicker 程序体",
   },
   {
     id: "qkrpc_action_query",

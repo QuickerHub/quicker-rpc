@@ -1,7 +1,9 @@
 import type { ChatStoreData } from "@/lib/chat-store";
 import { normalizeLoadedStore } from "@/lib/chat-store";
+import { ChatStoreSaveWouldWipeError } from "@/lib/db/save-guard";
 import {
   chatDatabaseHasPersistedMessages,
+  chatDatabaseHasThreads,
   loadChatStoreFromDatabase,
   saveChatStoreToDatabase,
 } from "@/lib/chat-store-db.server";
@@ -17,12 +19,26 @@ function parseMessageScope(raw: string | null): ChatLoadMessageScope {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const messageScope = parseMessageScope(url.searchParams.get("scope"));
-  const store = loadChatStoreFromDatabase({ messageScope });
-  return Response.json({
-    ok: true,
-    empty: !store || !chatDatabaseHasPersistedMessages(),
-    store: store ? normalizeLoadedStore(store) : null,
-  });
+  try {
+    const store = loadChatStoreFromDatabase({ messageScope });
+    const hasThreads = chatDatabaseHasThreads();
+    const hasMessages = chatDatabaseHasPersistedMessages();
+    // DB has rows but load failed (schema/version) — never report "empty" (would trigger wipe).
+    if (!store && hasThreads) {
+      return Response.json(
+        { ok: false, error: "chat_store_load_failed", hasThreads, hasMessages },
+        { status: 500 },
+      );
+    }
+    return Response.json({
+      ok: true,
+      empty: !store || !hasMessages,
+      store: store ? normalizeLoadedStore(store) : null,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return Response.json({ ok: false, error: message }, { status: 500 });
+  }
 }
 
 export async function PUT(request: Request) {
@@ -47,6 +63,7 @@ export async function PUT(request: Request) {
     return Response.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return Response.json({ ok: false, error: message }, { status: 500 });
+    const status = err instanceof ChatStoreSaveWouldWipeError ? 409 : 500;
+    return Response.json({ ok: false, error: message }, { status });
   }
 }

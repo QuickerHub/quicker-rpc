@@ -382,8 +382,8 @@ async function executeWorkspaceFileTool(
 
 export const WORKSPACE_FILE_TOOL_DEF = tool({
   description:
-    "Read/write/edit files under sidebar workspace cwd. Prefer over shell_exec for plain file I/O. "
-    + "Scratch/temp → `.local/` (gitignored). "
+    "Read/write/edit plain files under sidebar workspace cwd. Prefer over shell_exec for file I/O. "
+    + "Scratch/temp → `.local/` (gitignored). Changes show in side panel 已改动. "
     + "NOT Quicker program bodies (.quicker/actions|subprograms data.json/files) — use workspace_program. "
     + "NOT run/build/git — use shell_exec or qkrpc tools. "
     + "Examples: "

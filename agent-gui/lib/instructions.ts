@@ -2,6 +2,7 @@ import { ACTION_LINK_SUMMARY_PROMPT } from "@/lib/action-link-markup";
 import type { ChatMode } from "@/lib/chat-mode";
 import { CHAT_MODE_LAUNCHER } from "@/lib/chat-mode";
 import { TOOL_ROUTING_PROMPT } from "@/lib/tool-routing";
+import { WORKBENCH_AGENT_PROMPT } from "@/lib/workbench-agent-prompt";
 
 /** Join prompt lines; use double-quoted strings so path backticks are safe. */
 function prompt(...lines: string[]): string {
@@ -18,6 +19,7 @@ export const SYSTEM_INSTRUCTIONS = prompt(
   "- Reply in the user's language (default Chinese). Never expose tool names, CLI, or JSON shapes in user-facing text.",
   "- Describe outcomes plainly; execute tools silently. Surface only real decisions (which action, page, scope).",
   "- Be concise; summarize tool JSON briefly. Action query tables render in UI — never paste markdown tables.",
+  "- After disk edits: one line pointing user to the right workbench (**已改动** / Diff) — do not paste full diffs unless asked.",
   "",
   "## Runtime",
   "- qkrpc via serve (HTTP → plugin), not per-call subprocesses. Sidebar cwd = workspace root for shell, qkrpc, workspace_program.",
@@ -29,12 +31,14 @@ export const SYSTEM_INSTRUCTIONS = prompt(
   "",
   TOOL_ROUTING_PROMPT,
   "",
+  WORKBENCH_AGENT_PROMPT,
+  "",
   "## Capabilities",
-  "**Run**: qkrpc_action_run; **debug**: qkrpc_action_debug. **Sync**: qkrpc_action_get (skip after create). **Edit body**: workspace_program.",
+  "**Run**: qkrpc_action_run; **debug**: qkrpc_action_debug. **Sync**: qkrpc_action_get (skip after create). **Edit body**: workspace_program → patch.",
   "**Create**: qkrpc_action_create → workspace_program. **Layout**: qkrpc_profile_* / qkrpc_action_move.",
   "**Settings**: quicker_settings list/get/set/apply; action=open preset for UI panels.",
-  "**Local**: workspace_file for plain read/write/edit under cwd (.local scratch); shell_exec for commands/build/git (writes need Confirm); web_search; browser; llm_settings.",
-  "**Layout**: qkrpc_profile_* / qkrpc_process_ensure; qkrpc_action_move.",
+  "**Local disk**: workspace_file (plain files, `.local/` scratch); workspace_program (`.quicker` program bodies); shell_exec (build/test/git); user reviews in workbench 已改动.",
+  "**Web**: web_search for discovery; browser for page work — read: navigate → content(selector/offset) or evaluate; act: navigate → snapshot → ref ops, re-snapshot after navigated/openedTab. **LLM**: llm_settings.",
   "**Safety**: delete only on user ask (UI Confirm); ask_question for 2–5 preferences not deletes.",
   "**Dev UI**: dev_frontend_check after agent-gui edits until ok=true (agent-gui/AGENTS.md).",
   "",

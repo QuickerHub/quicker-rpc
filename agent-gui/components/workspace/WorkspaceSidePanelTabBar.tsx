@@ -34,10 +34,14 @@ type ContentTabItem = {
   kind: "file" | "trace";
 };
 
-function tabLabel(path: string, label?: string): string {
+function tabLabel(
+  path: string,
+  label?: string,
+  kind?: "file" | "diff",
+): string {
   const custom = label?.trim();
-  if (custom) return custom;
-  return basenamePath(path) || path;
+  const base = custom || basenamePath(path) || path;
+  return kind === "diff" ? `Δ ${base}` : base;
 }
 
 /** Open file + trace tabs in the right split header. */
@@ -55,7 +59,7 @@ export function WorkspaceSidePanelTabBar() {
     for (const tab of tabs) {
       items.push({
         id: tab.id,
-        label: tabLabel(tab.path, tab.label),
+        label: tabLabel(tab.path, tab.label, tab.kind),
         kind: "file",
       });
     }

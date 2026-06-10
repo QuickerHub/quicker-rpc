@@ -31,8 +31,21 @@ const DEDICATED_WHEEL_SURFACE_SELECTORS = [
   ".embedded-browser__native-host",
 ] as const;
 
+/** Right workbench / side panel — never forward wheel to the chat column. */
+const SIDE_PANEL_WHEEL_ISOLATION_SELECTORS = [
+  ".workspace-side-panel",
+  ".workspace-explorer",
+  ".app-main-split-header__side",
+] as const;
+
 function isInsideDedicatedWheelSurface(el: Element): boolean {
   return DEDICATED_WHEEL_SURFACE_SELECTORS.some(
+    (selector) => el.closest(selector) != null,
+  );
+}
+
+function isInsideSidePanelWheelIsolation(el: Element): boolean {
+  return SIDE_PANEL_WHEEL_ISOLATION_SELECTORS.some(
     (selector) => el.closest(selector) != null,
   );
 }
@@ -43,6 +56,7 @@ export function shouldIgnoreWheelForwardToMessages(target: EventTarget | null): 
   if (!el) return true;
 
   if (isInsideDedicatedWheelSurface(el)) return true;
+  if (isInsideSidePanelWheelIsolation(el)) return true;
 
   let node: Element | null = el;
   while (node) {

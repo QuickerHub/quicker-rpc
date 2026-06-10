@@ -22,6 +22,8 @@ if (checkBundled) {
 
 const required = [
   { rel: "app/server.js", minBytes: 100 },
+  { rel: "app/drizzle/migrations/meta/_journal.json", minBytes: 10 },
+  { rel: "app/drizzle/migrations/0000_initial.sql", minBytes: 10 },
   { rel: "app/.next/BUILD_ID", minBytes: 1 },
   { rel: "app/llm-config.json", minBytes: 10 },
   {

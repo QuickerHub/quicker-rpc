@@ -249,6 +249,15 @@ function stageNextStandalone() {
   cpSync(join(repoRoot, "version.json"), join(appDir, "version.json"));
   cpSync(join(agentGuiRoot, ".env.example"), join(appDir, ".env.example"));
 
+  const drizzleMigrationsSrc = join(agentGuiRoot, "drizzle", "migrations");
+  const drizzleMigrationsDst = join(appDir, "drizzle", "migrations");
+  if (!existsSync(drizzleMigrationsSrc)) {
+    throw new Error(`Missing Drizzle migrations: ${drizzleMigrationsSrc}`);
+  }
+  mkdirSync(dirname(drizzleMigrationsDst), { recursive: true });
+  cpSync(drizzleMigrationsSrc, drizzleMigrationsDst, { recursive: true });
+  console.log(`drizzle migrations staged: ${drizzleMigrationsDst}`);
+
   prepareBundledLlmRuntime(appDir);
   prepareRemoteCipherPepper(appDir);
   ensureNextStandaloneRuntimes(appDir);

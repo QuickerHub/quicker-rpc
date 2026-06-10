@@ -1,4 +1,5 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { chromium } from "playwright";
 import { invokeError, invokeOk, formatSnapshotYaml } from "./protocol.mjs";
 import {
@@ -25,7 +26,10 @@ const PREVIEW_OPS = new Set([
   "page.forward",
   "page.reload",
   "page.screenshot",
+  "page.tab_select",
 ]);
+
+const STORAGE_STATE_SAVE_DELAY_MS = 800;
 
 export class SessionManager {
   /** @param {{ headless: boolean; channel: string | null; userDataDir: string }} config */
@@ -75,6 +79,8 @@ export class SessionManager {
 
   async shutdown() {
     for (const session of this._sessions.values()) {
+      if (session.stateSaveTimer) clearTimeout(session.stateSaveTimer);
+      await this._saveStorageState(session);
       try {
         await session.context.close();
       } catch {
@@ -126,6 +132,65 @@ export class SessionManager {
   }
 
   /** @param {string} sessionId */
+  _storageStatePath(sessionId) {
+    const safe = sessionId.replace(/[^a-zA-Z0-9._-]/g, "_") || "default";
+    return join(this._config.userDataDir, "sessions", `${safe}.json`);
+  }
+
+  /**
+   * Persist cookies/localStorage so logins survive runtime restarts.
+   * Debounced; safe to call after every mutating page op.
+   * @param {{ sessionId: string; context: import('playwright').BrowserContext; stateSaveTimer?: ReturnType<typeof setTimeout> | null }} session
+   */
+  _scheduleStorageStateSave(session) {
+    if (session.stateSaveTimer) clearTimeout(session.stateSaveTimer);
+    session.stateSaveTimer = setTimeout(() => {
+      session.stateSaveTimer = null;
+      void this._saveStorageState(session);
+    }, STORAGE_STATE_SAVE_DELAY_MS);
+  }
+
+  /** @param {{ sessionId: string; context: import('playwright').BrowserContext }} session */
+  async _saveStorageState(session) {
+    try {
+      const path = this._storageStatePath(session.sessionId);
+      mkdirSync(join(this._config.userDataDir, "sessions"), { recursive: true });
+      await session.context.storageState({ path });
+    } catch (err) {
+      console.warn(`[browser-runtime] storageState save failed session=${session.sessionId}:`, err);
+    }
+  }
+
+  /**
+   * Keep session.page pointing at the page the user/agent is actually on:
+   * follow popups (target=_blank) and fall back when the current page closes.
+   * @param {{ sessionId: string; context: import('playwright').BrowserContext; page: import('playwright').Page; refMap: Record<string, unknown> }} session
+   */
+  _trackContextPages(session) {
+    session.context.on("page", (page) => {
+      page.once("close", () => {
+        if (session.page !== page) return;
+        const remaining = session.context.pages().filter((p) => !p.isClosed());
+        const fallback = remaining[remaining.length - 1];
+        if (fallback) {
+          session.page = fallback;
+          session.refMap = {};
+        }
+      });
+      void (async () => {
+        try {
+          await page.waitForLoadState("domcontentloaded", { timeout: 8_000 });
+        } catch {
+          // adopt the page anyway
+        }
+        if (page.isClosed()) return;
+        session.page = page;
+        session.refMap = {};
+      })();
+    });
+  }
+
+  /** @param {string} sessionId */
   async ensureSession(sessionId) {
     return this._withLock(async () => {
       const existing = this._sessions.get(sessionId);
@@ -134,11 +199,25 @@ export class SessionManager {
       await this._ensureBrowser();
       if (!this._browser) throw new Error("Browser not available");
 
-      const context = await this._browser.newContext({
-        viewport: { width: 1280, height: 800 },
-      });
+      /** @type {Parameters<import('playwright').Browser['newContext']>[0]} */
+      const contextOptions = { viewport: { width: 1280, height: 800 } };
+      const statePath = this._storageStatePath(sessionId);
+      if (existsSync(statePath)) {
+        contextOptions.storageState = statePath;
+      }
+
+      let context;
+      try {
+        context = await this._browser.newContext(contextOptions);
+      } catch {
+        // Corrupt storage state file — start a fresh context
+        context = await this._browser.newContext({
+          viewport: { width: 1280, height: 800 },
+        });
+      }
       const page = await context.newPage();
-      const session = { sessionId, context, page, refMap: {} };
+      const session = { sessionId, context, page, refMap: {}, stateSaveTimer: null };
+      this._trackContextPages(session);
       this._sessions.set(sessionId, session);
       return session;
     });
@@ -177,12 +256,48 @@ export class SessionManager {
       const session = this._sessions.get(sessionId);
       if (!session) return;
       this._sessions.delete(sessionId);
+      if (session.stateSaveTimer) clearTimeout(session.stateSaveTimer);
+      await this._saveStorageState(session);
       try {
         await session.context.close();
       } catch {
         // ignore
       }
     });
+  }
+
+  /**
+   * Wait briefly for a click/keypress to settle: detect same-page navigation,
+   * adopt freshly opened popups, and drop stale snapshot refs.
+   * @param {{ sessionId: string; context: import('playwright').BrowserContext; page: import('playwright').Page; refMap: Record<string, unknown> }} session
+   * @param {import('playwright').Page} pageBefore
+   * @param {string} urlBefore
+   */
+  async _settleAfterAction(session, pageBefore, urlBefore) {
+    try {
+      await pageBefore.waitForLoadState("domcontentloaded", { timeout: 2_500 });
+    } catch {
+      // no navigation or page already closed — fine
+    }
+    await new Promise((r) => setTimeout(r, 250));
+
+    const pages = session.context.pages().filter((p) => !p.isClosed());
+    const newest = pages[pages.length - 1];
+    if (newest && newest !== session.page) {
+      try {
+        await newest.waitForLoadState("domcontentloaded", { timeout: 5_000 });
+      } catch {
+        // adopt anyway
+      }
+      session.page = newest;
+    }
+
+    const openedTab = session.page !== pageBefore;
+    const url = session.page.url();
+    const navigated = openedTab || url !== urlBefore;
+    if (navigated) session.refMap = {};
+    this._scheduleStorageStateSave(session);
+    return { navigated, openedTab, url };
   }
 
   /** @param {string} sessionId */
@@ -240,6 +355,7 @@ export class SessionManager {
         "page.forward",
         "page.reload",
         "page.tabs",
+        "page.tab_select",
       ]);
 
       if (pageOps.has(op)) {
@@ -289,6 +405,7 @@ export class SessionManager {
             await session.page.waitForTimeout(800);
           }
           session.refMap = {};
+          this._scheduleStorageStateSave(session);
           return this._okWithPreview(
             session,
             op,
@@ -397,18 +514,40 @@ export class SessionManager {
         }
 
         if (op === "page.content") {
-          const bodyText = await session.page.evaluate(() => {
-            const text = document.body?.innerText ?? "";
-            return text.replace(/\s+/g, " ").trim();
-          });
+          const selector = String(args.selector ?? "").trim();
+          const fullText = await session.page.evaluate((sel) => {
+            /** @param {string} raw */
+            const clean = (raw) => raw.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+            if (sel) {
+              const matches = Array.from(document.querySelectorAll(sel));
+              return {
+                text: clean(
+                  matches
+                    .map((el) => /** @type {HTMLElement} */ (el).innerText ?? el.textContent ?? "")
+                    .join("\n\n"),
+                ),
+                matchCount: matches.length,
+              };
+            }
+            return { text: clean(document.body?.innerText ?? ""), matchCount: null };
+          }, selector || null);
+
           const maxChars = 12_000;
-          const truncated = bodyText.length > maxChars;
+          const offsetRaw = Number(args.offset ?? 0);
+          const offset = Number.isFinite(offsetRaw) && offsetRaw > 0
+            ? Math.floor(offsetRaw)
+            : 0;
+          const text = fullText.text.slice(offset, offset + maxChars);
+          const truncated = offset + text.length < fullText.text.length;
           return invokeOk({
             url: session.page.url(),
             title: await session.page.title(),
-            text: truncated ? bodyText.slice(0, maxChars) : bodyText,
-            charCount: bodyText.length,
+            text,
+            charCount: fullText.text.length,
+            offset: offset || undefined,
+            ...(fullText.matchCount != null ? { matchCount: fullText.matchCount } : {}),
             truncated,
+            ...(truncated ? { nextOffset: offset + text.length } : {}),
           });
         }
 
@@ -417,15 +556,21 @@ export class SessionManager {
           if (!ref) return invokeError("ref is required (from last snapshot)");
           const target = session.refMap[ref];
           if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
+          const pageBefore = session.page;
+          const urlBefore = pageBefore.url();
           const locator = resolveLocator(session.page, target);
           await locator.click({ timeout: Number(args.timeoutMs ?? 10_000) });
+          const settle = await this._settleAfterAction(session, pageBefore, urlBefore);
           return this._okWithPreview(
             session,
             op,
             {
               ref,
               clicked: true,
-              url: session.page.url(),
+              url: settle.url,
+              title: await session.page.title(),
+              ...(settle.navigated ? { navigated: true } : {}),
+              ...(settle.openedTab ? { openedTab: true } : {}),
             },
             includePreview,
           );
@@ -437,7 +582,10 @@ export class SessionManager {
           if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0) {
             return invokeError("x and y must be non-negative");
           }
+          const pageBefore = session.page;
+          const urlBefore = pageBefore.url();
           await session.page.mouse.click(x, y);
+          const settle = await this._settleAfterAction(session, pageBefore, urlBefore);
           session.refMap = {};
           return this._okWithPreview(
             session,
@@ -446,7 +594,9 @@ export class SessionManager {
               clicked: true,
               x,
               y,
-              url: session.page.url(),
+              url: settle.url,
+              ...(settle.navigated ? { navigated: true } : {}),
+              ...(settle.openedTab ? { openedTab: true } : {}),
             },
             includePreview,
           );
@@ -484,6 +634,8 @@ export class SessionManager {
           const key = String(args.key ?? "").trim();
           if (!key) return invokeError("key is required (e.g. Enter, Tab)");
           const ref = String(args.ref ?? "").trim();
+          const pageBefore = session.page;
+          const urlBefore = pageBefore.url();
           if (ref) {
             const target = session.refMap[ref];
             if (!target) return invokeError(`Unknown ref '${ref}'; call page.snapshot first`);
@@ -492,10 +644,17 @@ export class SessionManager {
           } else {
             await session.page.keyboard.press(key);
           }
+          const settle = await this._settleAfterAction(session, pageBefore, urlBefore);
           return this._okWithPreview(
             session,
             op,
-            { key, ref: ref || null },
+            {
+              key,
+              ref: ref || null,
+              url: settle.url,
+              ...(settle.navigated ? { navigated: true } : {}),
+              ...(settle.openedTab ? { openedTab: true } : {}),
+            },
             includePreview,
           );
         }
@@ -654,6 +813,36 @@ export class SessionManager {
             })),
           );
           return invokeOk({ tabs, count: tabs.length });
+        }
+
+        if (op === "page.tab_select") {
+          const index = Number(args.index);
+          const pages = session.context.pages();
+          if (!Number.isInteger(index) || index < 0 || index >= pages.length) {
+            return invokeError(
+              `index must be 0..${pages.length - 1} (use action=tabs to list open tabs)`,
+            );
+          }
+          const target = pages[index];
+          if (target.isClosed()) return invokeError(`Tab ${index} is already closed`);
+          session.page = target;
+          session.refMap = {};
+          try {
+            await target.bringToFront();
+          } catch {
+            // headless contexts may not support bringToFront — selection still works
+          }
+          return this._okWithPreview(
+            session,
+            op,
+            {
+              index,
+              url: target.url(),
+              title: await target.title(),
+              tabCount: pages.length,
+            },
+            includePreview,
+          );
         }
 
       return invokeError(`Unknown op: ${op}`, { code: "unknown_op" });

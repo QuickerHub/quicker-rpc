@@ -6,14 +6,35 @@ import {
   setClientPersistedSnapshot,
 } from "@/lib/chat-store-api.client";
 import { getChatStorePersistenceMode } from "@/lib/chat-store-backend";
+import {
+  createWorkspace,
+  ensureWorkspacesMigrated,
+  getActiveWorkspace,
+  getWorkspaceById,
+  syncLegacyWorkingDirectory,
+  threadsForWorkspace,
+  type ChatWorkspace,
+} from "@/lib/chat-workspace";
 import { deriveProvisionalThreadTitle } from "@/lib/thread-title";
 import { chatMessagesEqual } from "@/lib/chat-message-signature";
+
+export type { ChatWorkspace } from "@/lib/chat-workspace";
+export {
+  createWorkspace,
+  defaultWorkspaceLabel,
+  getActiveWorkspace,
+  getWorkspaceById,
+  resolveThreadWorkingDirectory,
+  threadsForWorkspace,
+} from "@/lib/chat-workspace";
 
 export type ChatThread = {
   id: string;
   title: string;
   messages: AgentUIMessage[];
   updatedAt: number;
+  /** Workspace this thread belongs to (see ChatStoreData.workspaces). */
+  workspaceId?: string;
   /** LLM title applied; legacy threads with a derived title are treated as done. */
   titleGenerated?: boolean;
   /** User renamed in sidebar; skip auto title updates. */
@@ -30,12 +51,15 @@ export type ChatThread = {
 export type ChatStoreData = {
   version: 3;
   activeThreadId: string;
+  /** Sidebar workspace filter / cwd scope for new threads. */
+  activeWorkspaceId: string;
+  workspaces: ChatWorkspace[];
   threads: ChatThread[];
   /** Thread ids shown in the titlebar tab strip (order preserved). */
   openTabIds: string[];
   /** User has explicitly opened/closed titlebar tabs since this field existed. */
   tabStripPersisted?: boolean;
-  /** Empty = server default working directory (dev: repo root; release: Documents). */
+  /** Legacy single cwd mirror of active workspace rootPath (persisted for migration). */
   workingDirectory: string;
 };
 
@@ -87,7 +111,7 @@ export function deriveThreadTitle(messages: AgentUIMessage[]): string {
   return deriveProvisionalThreadTitle(messages);
 }
 
-function createThread(): ChatThread {
+function createThread(workspaceId?: string): ChatThread {
   const ts = now();
   return {
     id: createId(),
@@ -97,6 +121,7 @@ function createThread(): ChatThread {
     titleGenerated: false,
     titleManual: false,
     messageCount: 0,
+    workspaceId,
   };
 }
 
@@ -182,15 +207,18 @@ export function isThreadEmpty(thread: ChatThread): boolean {
  * Drop orphan empty threads not shown in the tab strip; keep every open-tab empty.
  */
 export function compactEmptyThreads(data: ChatStoreData): ChatStoreData {
-  if (data.threads.length === 0) {
-    const thread = createThread();
+  const migrated = ensureWorkspacesMigrated(data);
+  if (migrated.threads.length === 0) {
+    const workspaceId = migrated.activeWorkspaceId;
+    const thread = createThread(workspaceId);
     return {
-      ...data,
+      ...migrated,
       threads: [thread],
       activeThreadId: thread.id,
       openTabIds: [thread.id],
     };
   }
+  data = migrated;
 
   const openTabSet = new Set(data.openTabIds);
   const emptyOpen = data.threads.filter(
@@ -220,10 +248,13 @@ export function compactEmptyThreads(data: ChatStoreData): ChatStoreData {
 }
 
 export function defaultChatStore(): ChatStoreData {
-  const thread = createThread();
+  const workspace = createWorkspace();
+  const thread = createThread(workspace.id);
   return {
     version: CHAT_STORE_VERSION,
     activeThreadId: thread.id,
+    activeWorkspaceId: workspace.id,
+    workspaces: [workspace],
     threads: [thread],
     openTabIds: [thread.id],
     workingDirectory: "",
@@ -273,17 +304,20 @@ function normalizeOpenTabIds(
 
 /** Normalize tab strip and empty-thread policy after load or legacy merge. */
 export function normalizeLoadedStore(data: ChatStoreData): ChatStoreData {
+  const migrated = ensureWorkspacesMigrated(data);
   const openTabIds = normalizeOpenTabIds(
-    data.openTabIds,
-    data.threads,
-    data.activeThreadId,
-    data.tabStripPersisted,
+    migrated.openTabIds,
+    migrated.threads,
+    migrated.activeThreadId,
+    migrated.tabStripPersisted,
   );
-  return applyOpenTabPolicy(
-    compactEmptyThreads({
-      ...data,
-      openTabIds,
-    }),
+  return syncLegacyWorkingDirectory(
+    applyOpenTabPolicy(
+      compactEmptyThreads({
+        ...migrated,
+        openTabIds,
+      }),
+    ),
   );
 }
 
@@ -397,6 +431,7 @@ function normalizeThreads(raw: unknown): ChatThread[] {
       titleGenerated,
       titleManual: t.titleManual === true,
       messageCount: messages.length,
+      workspaceId: typeof t.workspaceId === "string" ? t.workspaceId : undefined,
     });
   }
   return threads;
@@ -431,15 +466,20 @@ function normalizeStore(raw: unknown): ChatStoreData {
       tabStripPersisted,
     );
 
-    return compactEmptyThreads({
-      version: CHAT_STORE_VERSION,
-      activeThreadId,
-      threads,
-      openTabIds,
-      tabStripPersisted,
-      workingDirectory:
-        typeof data.workingDirectory === "string" ? data.workingDirectory : "",
-    });
+    const workingDirectory =
+      typeof data.workingDirectory === "string" ? data.workingDirectory : "";
+    return normalizeLoadedStore(
+      compactEmptyThreads({
+        version: CHAT_STORE_VERSION,
+        activeThreadId,
+        activeWorkspaceId: "",
+        workspaces: [],
+        threads,
+        openTabIds,
+        tabStripPersisted,
+        workingDirectory,
+      }),
+    );
   }
 
   return defaultChatStore();
@@ -466,12 +506,24 @@ function migrateLegacyWorkspaceStore(raw: unknown): ChatStoreData | null {
   const activeWorkspace =
     data.workspaces.find((w) => w.id === data.activeWorkspaceId) ?? data.workspaces[0];
 
+  const workspaces: ChatWorkspace[] = [];
   const threadMap = new Map<string, ChatThread>();
+
   for (const ws of data.workspaces) {
+    if (typeof ws?.id !== "string") continue;
+    const rootPath = typeof ws.rootPath === "string" ? ws.rootPath : "";
+    workspaces.push({
+      id: ws.id,
+      rootPath,
+      label: typeof (ws as { label?: string }).label === "string"
+        ? (ws as { label?: string }).label
+        : undefined,
+    });
     for (const thread of normalizeThreads(ws?.threads)) {
+      const withWorkspace = { ...thread, workspaceId: ws.id };
       const existing = threadMap.get(thread.id);
-      if (!existing || thread.updatedAt > existing.updatedAt) {
-        threadMap.set(thread.id, thread);
+      if (!existing || withWorkspace.updatedAt > existing.updatedAt) {
+        threadMap.set(thread.id, withWorkspace);
       }
     }
   }
@@ -485,14 +537,30 @@ function migrateLegacyWorkspaceStore(raw: unknown): ChatStoreData | null {
       ? data.activeThreadId
       : threads[0]!.id;
 
-  return compactEmptyThreads({
-    version: CHAT_STORE_VERSION,
-    activeThreadId,
-    threads,
-    openTabIds: normalizeOpenTabIds(undefined, threads, activeThreadId),
-    workingDirectory:
-      typeof activeWorkspace?.rootPath === "string" ? activeWorkspace.rootPath : "",
-  });
+  const activeWorkspaceId =
+    typeof data.activeWorkspaceId === "string"
+    && workspaces.some((ws) => ws.id === data.activeWorkspaceId)
+      ? data.activeWorkspaceId
+      : workspaces[0]?.id ?? "";
+
+  for (const thread of threads) {
+    if (!thread.workspaceId && activeWorkspaceId) {
+      thread.workspaceId = activeWorkspaceId;
+    }
+  }
+
+  return normalizeLoadedStore(
+    compactEmptyThreads({
+      version: CHAT_STORE_VERSION,
+      activeThreadId,
+      activeWorkspaceId,
+      workspaces,
+      threads,
+      openTabIds: normalizeOpenTabIds(undefined, threads, activeThreadId),
+      workingDirectory:
+        typeof activeWorkspace?.rootPath === "string" ? activeWorkspace.rootPath : "",
+    }),
+  );
 }
 
 /** Load from WebView localStorage only (migration source + unit tests). */
@@ -724,8 +792,12 @@ export function updateThreadMessages(
   return next;
 }
 
-export function addThread(data: ChatStoreData): ChatStoreData {
-  const thread = createThread();
+export function addThread(
+  data: ChatStoreData,
+  options?: { workspaceId?: string },
+): ChatStoreData {
+  const workspaceId = options?.workspaceId ?? data.activeWorkspaceId;
+  const thread = createThread(workspaceId);
   const activeIndex = data.threads.findIndex((t) => t.id === data.activeThreadId);
   const insertAt = activeIndex >= 0 ? activeIndex + 1 : data.threads.length;
   const threads = [...data.threads];
@@ -784,7 +856,7 @@ export function closeTab(data: ChatStoreData, threadId: string): ChatStoreData {
         activeThreadId = existingEmpty.id;
         openTabIds.push(existingEmpty.id);
       } else {
-        const thread = createThread();
+        const thread = createThread(data.activeWorkspaceId);
         threads = [...threads, thread];
         activeThreadId = thread.id;
         openTabIds.push(thread.id);
@@ -812,7 +884,7 @@ export function deleteThread(data: ChatStoreData, threadId: string): ChatStoreDa
     } else if (threads.length > 0) {
       activeThreadId = threads[Math.min(index, threads.length - 1)]!.id;
     } else {
-      const thread = createThread();
+      const thread = createThread(data.activeWorkspaceId);
       threads = [thread];
       activeThreadId = thread.id;
       openTabIds = [thread.id];
@@ -825,7 +897,7 @@ export function deleteThread(data: ChatStoreData, threadId: string): ChatStoreDa
       activeThreadId = existingEmpty.id;
       openTabIds = [existingEmpty.id];
     } else {
-      const thread = createThread();
+      const thread = createThread(data.activeWorkspaceId);
       threads = [...threads, thread];
       activeThreadId = thread.id;
       openTabIds = [thread.id];
@@ -879,15 +951,102 @@ export function setWorkingDirectory(
   data: ChatStoreData,
   workingDirectory: string,
 ): ChatStoreData {
-  return { ...data, workingDirectory: workingDirectory.trim() };
+  return setWorkspaceRootPath(data, data.activeWorkspaceId, workingDirectory);
 }
 
-/** Sidebar workspace path: user override or server default cwd. */
+export function selectWorkspace(
+  data: ChatStoreData,
+  workspaceId: string,
+): ChatStoreData {
+  if (!data.workspaces.some((ws) => ws.id === workspaceId)) return data;
+  const next = syncLegacyWorkingDirectory({
+    ...data,
+    activeWorkspaceId: workspaceId,
+  });
+  const workspaceThreads = threadsForWorkspace(next.threads, workspaceId);
+  if (workspaceThreads.length === 0) {
+    return addThread(next, { workspaceId });
+  }
+  const recent = sortThreads(workspaceThreads)[0]!;
+  return openThread(
+    syncLegacyWorkingDirectory({ ...next, activeThreadId: recent.id }),
+    recent.id,
+  );
+}
+
+export function addWorkspace(
+  data: ChatStoreData,
+  rootPath: string,
+  label?: string,
+): ChatStoreData {
+  const workspace = createWorkspace(rootPath, label);
+  const next = syncLegacyWorkingDirectory({
+    ...data,
+    workspaces: [...data.workspaces, workspace],
+    activeWorkspaceId: workspace.id,
+    workingDirectory: workspace.rootPath,
+  });
+  return addThread(next, { workspaceId: workspace.id });
+}
+
+export function setWorkspaceRootPath(
+  data: ChatStoreData,
+  workspaceId: string,
+  rootPath: string,
+): ChatStoreData {
+  const trimmed = rootPath.trim();
+  const workspaces = data.workspaces.map((ws) =>
+    ws.id === workspaceId ? { ...ws, rootPath: trimmed } : ws,
+  );
+  const next: ChatStoreData = {
+    ...data,
+    workspaces,
+    workingDirectory:
+      workspaceId === data.activeWorkspaceId ? trimmed : data.workingDirectory,
+  };
+  return syncLegacyWorkingDirectory(next);
+}
+
+export function removeWorkspace(
+  data: ChatStoreData,
+  workspaceId: string,
+): ChatStoreData {
+  if (data.workspaces.length <= 1) return data;
+  const fallback = data.workspaces.find((ws) => ws.id !== workspaceId);
+  if (!fallback) return data;
+
+  const threads = data.threads.map((thread) =>
+    thread.workspaceId === workspaceId
+      ? { ...thread, workspaceId: fallback.id }
+      : thread,
+  );
+  const workspaces = data.workspaces.filter((ws) => ws.id !== workspaceId);
+  let next: ChatStoreData = {
+    ...data,
+    workspaces,
+    threads,
+    activeWorkspaceId:
+      data.activeWorkspaceId === workspaceId ? fallback.id : data.activeWorkspaceId,
+  };
+  next = syncLegacyWorkingDirectory(next);
+  if (!threadsForWorkspace(next.threads, next.activeWorkspaceId).length) {
+    next = addThread(next, { workspaceId: next.activeWorkspaceId });
+  } else if (!next.threads.some((t) => t.id === next.activeThreadId)) {
+    const recent = sortThreads(
+      threadsForWorkspace(next.threads, next.activeWorkspaceId),
+    )[0]!;
+    next = { ...next, activeThreadId: recent.id };
+  }
+  return next;
+}
+
+/** Sidebar workspace path: active workspace override or server default cwd. */
 export function resolveStoreWorkingDirectory(
-  data: Pick<ChatStoreData, "workingDirectory">,
+  data: Pick<ChatStoreData, "workspaces" | "activeWorkspaceId" | "workingDirectory">,
   defaultCwd = "",
 ): string {
-  return data.workingDirectory.trim() || defaultCwd.trim();
+  const active = getActiveWorkspace(data as ChatStoreData);
+  return active.rootPath.trim() || data.workingDirectory.trim() || defaultCwd.trim();
 }
 
 export type LegacyChatRestoreResult = {

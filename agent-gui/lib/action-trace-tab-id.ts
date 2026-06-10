@@ -13,10 +13,12 @@ export function buildActionTraceTabId(
 }
 
 export function isActionTraceTabId(viewId: string): boolean {
+  if (typeof viewId !== "string") return false;
   return viewId.startsWith(ACTION_TRACE_TAB_PREFIX);
 }
 
 export function isSidePanelTraceView(viewId: string): boolean {
+  if (typeof viewId !== "string") return false;
   return viewId === SIDE_PANEL_VIEW_TRACE || isActionTraceTabId(viewId);
 }
 

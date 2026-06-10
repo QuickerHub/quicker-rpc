@@ -22,6 +22,11 @@ describe("action-trace-tab-id", () => {
     );
   });
 
+  it("rejects non-string view ids", () => {
+    assert.equal(isActionTraceTabId(null as unknown as string), false);
+    assert.equal(isActionTraceTabId((() => {}) as unknown as string), false);
+  });
+
   it("formats running tab label", () => {
     const label = formatActionTraceTabLabel({
       actionId: "d47c98d1-86be-40d0-ad02-87103f4dda1e",

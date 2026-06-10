@@ -21,12 +21,15 @@ const nextConfig: NextConfig = {
       "../browser-runtime/**",
     ],
   },
+  outputFileTracingIncludes: {
+    "*": ["./drizzle/migrations/**/*"],
+  },
   serverExternalPackages: [
     "@tauri-apps/api",
     "@tauri-apps/plugin-dialog",
     "@tauri-apps/plugin-global-shortcut",
     "@tauri-apps/plugin-opener",
-    "node:sqlite",
+    "better-sqlite3",
   ],
   async rewrites() {
     return [

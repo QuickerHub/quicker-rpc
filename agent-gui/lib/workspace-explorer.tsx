@@ -31,18 +31,23 @@ import {
 } from "@/lib/workspace-file-tool";
 import {
   fetchActionExplorerTree,
+  fetchWorkspaceDiff,
   fetchWorkspaceFile,
   formatWorkspaceFetchError,
   subscribeActionExplorerTreeWatch,
   writeWorkspaceFileApi,
 } from "@/lib/workspace-explorer-api";
+import {
+  previewTabId,
+  type PreviewTabKind,
+} from "@/lib/workbench/preview-tab-id";
+import { notifyWorkbenchGitRefresh } from "@/lib/workbench/workbench-git-refresh";
 import type { StructuredToolResult } from "@/lib/tool-result";
 import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
 import { basenamePath } from "@/lib/workspace-file-tool";
 import { clearWorkspaceMainEditorDoc } from "@/lib/workspace-main-editor-tab";
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import {
-  SIDE_PANEL_PREVIEW_TAB_ID,
   SIDE_PANEL_VIEW_BROWSER,
   SIDE_PANEL_VIEW_EXPLORER,
 } from "@/lib/workspace-side-panel-view";
@@ -50,16 +55,35 @@ import {
 export type ExplorerFileTab = {
   id: string;
   path: string;
+  kind?: PreviewTabKind;
   /** Tab title (defaults to file basename). */
   label?: string;
   content: string;
+  diff?: string;
   truncated?: boolean;
   totalChars?: number;
   loading?: boolean;
   error?: string;
 };
 
-const PREVIEW_TAB_ID = "__preview__";
+function fileTabId(path: string): string {
+  return previewTabId("file", path);
+}
+
+function diffTabId(path: string): string {
+  return previewTabId("diff", path);
+}
+
+function pickNextActiveTabId(
+  tabs: ExplorerFileTab[],
+  closingId: string,
+): string | null {
+  const remaining = tabs.filter((tab) => tab.id !== closingId);
+  if (remaining.length === 0) return null;
+  const index = tabs.findIndex((tab) => tab.id === closingId);
+  return remaining[Math.min(index, remaining.length - 1)]?.id
+    ?? remaining[remaining.length - 1]!.id;
+}
 const FILE_CONTENT_CACHE_MAX = 48;
 
 /** Set by chat when `qkrpc_action_create` completes; flushed after fs-watch tree updates. */
@@ -219,6 +243,8 @@ export type WorkspaceExplorerTreeContextValue = {
   /** True while project rows under the actions root are still loading. */
   treeChildrenLoading: boolean;
   treeError: string | null;
+  /** Bumps when filesystem watch applies a new explorer tree snapshot. */
+  treeWatchRevision: number;
   refreshTree: (options?: { silent?: boolean }) => Promise<void>;
   ensureFullTree: () => Promise<void>;
   expandedPaths: Set<string>;
@@ -243,6 +269,7 @@ export type WorkspaceExplorerEditorContextValue = {
       tabLabel?: string;
     },
   ) => void;
+  openDiff: (path: string) => void;
   openFileFromTool: (toolName: string, input: unknown, output?: StructuredToolResult) => void;
   closeTab: (id: string) => void;
   setActiveTabId: (id: string | null) => void;
@@ -313,6 +340,7 @@ export function WorkspaceExplorerShellProvider({
   }, []);
 
   const setActiveSideView = useCallback((viewId: string) => {
+    if (typeof viewId !== "string") return;
     setActiveSideViewState((prev) => (prev === viewId ? prev : viewId));
   }, []);
 
@@ -398,6 +426,7 @@ export function useWorkspaceExplorerShell(): WorkspaceExplorerShellContextValue 
 export type WorkspaceExplorerActions = Pick<
   WorkspaceExplorerContextValue,
   | "openFile"
+  | "openDiff"
   | "openFileFromTool"
   | "revealPath"
   | "revealActionProjectById"
@@ -413,6 +442,7 @@ const noop = (): void => {};
 
 const stubExplorerActions: WorkspaceExplorerActions = {
   openFile: noop,
+  openDiff: noop,
   openFileFromTool: noop,
   revealPath: noop,
   revealActionProjectById: noop,
@@ -446,8 +476,14 @@ export function WorkspaceExplorerPanelProvider({
   cwdPending?: boolean;
   children: ReactNode;
 }) {
-  const { panelOpen, setPanelOpen, togglePanel, setActiveSideView, focusSidePanelView } =
-    useWorkspaceExplorerShell();
+  const {
+    panelOpen,
+    setPanelOpen,
+    togglePanel,
+    activeSideView,
+    setActiveSideView,
+    focusSidePanelView,
+  } = useWorkspaceExplorerShell();
   const initialShell = useMemo(() => createActionExplorerTreeShell(), []);
   const initialSubprogramShell = useMemo(() => createSubProgramExplorerTreeShell(), []);
   const [tree, setTree] = useState<ActionExplorerTree | null>(() => initialShell);
@@ -461,6 +497,7 @@ export function WorkspaceExplorerPanelProvider({
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [tabs, setTabs] = useState<ExplorerFileTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [treeWatchRevision, setTreeWatchRevision] = useState(0);
   const cwdRef = useRef(cwd);
   const cwdPendingRef = useRef(cwdPending);
   const treeRef = useRef<ActionExplorerTree | null>(null);
@@ -587,6 +624,8 @@ export function WorkspaceExplorerPanelProvider({
         },
       );
       if (!changed) return;
+      setTreeWatchRevision((revision) => revision + 1);
+      notifyWorkbenchGitRefresh();
       queueMicrotask(() => {
         tryFlushPendingRevealRef.current();
       });
@@ -813,26 +852,25 @@ export function WorkspaceExplorerPanelProvider({
       const activeCwd = cwdRef.current.trim();
       if (!activeCwd) return;
       const normalizedPath = normalizeExplorerPath(path);
+      const tabId = fileTabId(normalizedPath);
       const background = options?.background ?? false;
 
       if (
         isExplorerTreeDirectoryPath(treeRef.current, normalizedPath)
         || isExplorerTreeDirectoryPath(subprogramTreeRef.current, normalizedPath)
       ) {
-        setTabs((prev) => {
-          const tab = prev.find((t) => t.id === PREVIEW_TAB_ID);
-          if (tab?.path !== normalizedPath) return prev;
-          return [];
-        });
-        setActiveTabId((active) => (active === PREVIEW_TAB_ID ? null : active));
+        setTabs((prev) => prev.filter((tab) => tab.id !== tabId));
+        setActiveTabId((active) => (active === tabId ? null : active));
         return;
       }
 
       if (!background) {
         setTabs((prev) => {
-          const tab = prev.find((t) => t.id === PREVIEW_TAB_ID);
-          if (tab?.path !== normalizedPath || tab.content) return prev;
-          return [{ ...tab, loading: true, error: undefined }];
+          const tab = prev.find((t) => t.id === tabId);
+          if (!tab || tab.content) return prev;
+          return prev.map((item) =>
+            item.id === tabId ? { ...item, loading: true, error: undefined } : item,
+          );
         });
       }
 
@@ -844,19 +882,17 @@ export function WorkspaceExplorerPanelProvider({
       }
       if (!result.ok) {
         if (result.error.includes("not a file:")) {
-          setTabs((prev) => {
-            const tab = prev.find((t) => t.id === PREVIEW_TAB_ID);
-            if (tab?.path !== normalizedPath) return prev;
-            return [];
-          });
-          setActiveTabId((active) => (active === PREVIEW_TAB_ID ? null : active));
+          setTabs((prev) => prev.filter((tab) => tab.id !== tabId));
+          setActiveTabId((active) => (active === tabId ? null : active));
           return;
         }
-        setTabs((prev) => {
-          const tab = prev.find((t) => t.id === PREVIEW_TAB_ID);
-          if (tab?.path !== normalizedPath) return prev;
-          return [{ ...tab, loading: false, error: result.error }];
-        });
+        setTabs((prev) =>
+          prev.map((tab) =>
+            tab.id === tabId
+              ? { ...tab, loading: false, error: result.error }
+              : tab,
+          ),
+        );
         return;
       }
 
@@ -866,27 +902,28 @@ export function WorkspaceExplorerPanelProvider({
         totalChars: result.totalChars,
       });
 
-      setTabs((prev) => {
-        const tab = prev.find((t) => t.id === PREVIEW_TAB_ID);
-        if (tab?.path !== normalizedPath) return prev;
-        if (
-          tab.content === result.content
-          && tab.truncated === result.truncated
-          && tab.totalChars === result.totalChars
-          && !tab.loading
-          && !tab.error
-        ) {
-          return prev;
-        }
-        return [{
-          ...tab,
-          content: result.content,
-          truncated: result.truncated,
-          totalChars: result.totalChars,
-          loading: false,
-          error: undefined,
-        }];
-      });
+      setTabs((prev) =>
+        prev.map((tab) => {
+          if (tab.id !== tabId) return tab;
+          if (
+            tab.content === result.content
+            && tab.truncated === result.truncated
+            && tab.totalChars === result.totalChars
+            && !tab.loading
+            && !tab.error
+          ) {
+            return tab;
+          }
+          return {
+            ...tab,
+            content: result.content,
+            truncated: result.truncated,
+            totalChars: result.totalChars,
+            loading: false,
+            error: undefined,
+          };
+        }),
+      );
     },
     [writeFileCache],
   );
@@ -945,11 +982,12 @@ export function WorkspaceExplorerPanelProvider({
         expandPath(normalizedPath);
       }
       setSelectedPath((prev) => (prev === normalizedPath ? prev : normalizedPath));
-      setActiveSideView(SIDE_PANEL_PREVIEW_TAB_ID);
+      const tabId = fileTabId(normalizedPath);
+      setActiveSideView(tabId);
       setTabs((prev) => {
-        const existing = prev.find((tab) => tab.id === PREVIEW_TAB_ID);
+        const existing = prev.find((tab) => tab.id === tabId);
         if (
-          existing?.path === normalizedPath
+          existing
           && existing.content === resolvedContent
           && existing.truncated === resolvedMeta.truncated
           && existing.totalChars === resolvedMeta.totalChars
@@ -959,20 +997,23 @@ export function WorkspaceExplorerPanelProvider({
         ) {
           return prev;
         }
-        return [
-          {
-            id: PREVIEW_TAB_ID,
-            path: normalizedPath,
-            label: meta?.tabLabel ?? existing?.label,
-            content: resolvedContent,
-            truncated: resolvedMeta.truncated,
-            totalChars: resolvedMeta.totalChars,
-            loading: resolvedContent === "",
-            error: undefined,
-          },
-        ];
+        const nextTab: ExplorerFileTab = {
+          id: tabId,
+          path: normalizedPath,
+          kind: "file",
+          label: meta?.tabLabel ?? existing?.label,
+          content: resolvedContent,
+          truncated: resolvedMeta.truncated,
+          totalChars: resolvedMeta.totalChars,
+          loading: resolvedContent === "",
+          error: undefined,
+        };
+        if (existing) {
+          return prev.map((tab) => (tab.id === tabId ? nextTab : tab));
+        }
+        return [...prev, nextTab];
       });
-      setActiveTabId((prev) => (prev === PREVIEW_TAB_ID ? prev : PREVIEW_TAB_ID));
+      setActiveTabId(tabId);
 
       clearWorkspaceMainEditorDoc();
 
@@ -986,6 +1027,73 @@ export function WorkspaceExplorerPanelProvider({
       }
     },
     [expandPath, loadFileContent, readFileCache, setActiveSideView, setPanelOpen, writeFileCache],
+  );
+
+  const openDiff = useCallback(
+    (path: string) => {
+      const normalizedPath = normalizeExplorerPath(path);
+      const tabId = diffTabId(normalizedPath);
+
+      setPanelOpen(true);
+      setActiveSideView(tabId);
+      setTabs((prev) => {
+        if (prev.some((tab) => tab.id === tabId)) return prev;
+        return [
+          ...prev,
+          {
+            id: tabId,
+            path: normalizedPath,
+            kind: "diff" as const,
+            content: "",
+            diff: "",
+            loading: true,
+            error: undefined,
+          },
+        ];
+      });
+      setActiveTabId(tabId);
+      clearWorkspaceMainEditorDoc();
+
+      void (async () => {
+        const activeCwd = cwdRef.current.trim();
+        if (!activeCwd) {
+          setTabs((prev) =>
+            prev.map((tab) =>
+              tab.id === tabId
+                ? { ...tab, loading: false, error: "未设置工作目录" }
+                : tab,
+            ),
+          );
+          return;
+        }
+
+        const result = await fetchWorkspaceDiff(activeCwd, normalizedPath);
+        if (!result.ok) {
+          setTabs((prev) =>
+            prev.map((tab) =>
+              tab.id === tabId
+                ? { ...tab, loading: false, error: result.error }
+                : tab,
+            ),
+          );
+          return;
+        }
+
+        setTabs((prev) =>
+          prev.map((tab) =>
+            tab.id === tabId
+              ? {
+                  ...tab,
+                  diff: result.diff,
+                  loading: false,
+                  error: result.state === "error" ? result.error : undefined,
+                }
+              : tab,
+          ),
+        );
+      })();
+    },
+    [setActiveSideView, setPanelOpen],
   );
 
   const revealActionProjectByIdImpl = useCallback(
@@ -1071,32 +1179,42 @@ export function WorkspaceExplorerPanelProvider({
         return { ok: false as const, error: result.error };
       }
       writeFileCache(normalizedPath, { content });
-      setTabs((prev) => {
-        const tab = prev.find((t) => t.id === PREVIEW_TAB_ID);
-        if (tab?.path !== normalizedPath) return prev;
-        if (tab.content === content && !tab.loading && !tab.error) return prev;
-        return [{ ...tab, content, loading: false, error: undefined }];
-      });
+      const tabId = fileTabId(normalizedPath);
+      setTabs((prev) =>
+        prev.map((tab) => {
+          if (tab.id !== tabId) return tab;
+          if (tab.content === content && !tab.loading && !tab.error) return tab;
+          return { ...tab, content, loading: false, error: undefined };
+        }),
+      );
+      notifyWorkbenchGitRefresh();
       return { ok: true as const };
     },
     [writeFileCache],
   );
 
   const closeTab = useCallback((id: string) => {
+    let nextActiveId: string | null = null;
     setTabs((prev) => {
       if (!prev.some((tab) => tab.id === id)) return prev;
-      return [];
+      nextActiveId = pickNextActiveTabId(prev, id);
+      return prev.filter((tab) => tab.id !== id);
     });
-    setActiveTabId((active) => (active === id ? null : active));
-    setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
+    setActiveTabId((active) => (active === id ? nextActiveId : active));
+    if (activeSideView === id) {
+      setActiveSideView(nextActiveId ?? SIDE_PANEL_VIEW_EXPLORER);
+    }
     clearWorkspaceMainEditorDoc();
-  }, [setActiveSideView]);
+  }, [activeSideView, setActiveSideView]);
 
   const notifyProjectRemoved = useCallback(() => {
-    closeTab(PREVIEW_TAB_ID);
+    setTabs([]);
+    setActiveTabId(null);
+    setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
     setSelectedPath(null);
+    clearWorkspaceMainEditorDoc();
     void refreshTree();
-  }, [closeTab, refreshTree]);
+  }, [refreshTree, setActiveSideView]);
 
   const activeTab = useMemo(
     () => tabs.find((tab) => tab.id === activeTabId) ?? null,
@@ -1111,6 +1229,7 @@ export function WorkspaceExplorerPanelProvider({
       treeLoading,
       treeChildrenLoading,
       treeError,
+      treeWatchRevision,
       refreshTree,
       ensureFullTree,
       expandedPaths,
@@ -1126,6 +1245,7 @@ export function WorkspaceExplorerPanelProvider({
       treeLoading,
       treeChildrenLoading,
       treeError,
+      treeWatchRevision,
       refreshTree,
       ensureFullTree,
       expandedPaths,
@@ -1142,6 +1262,7 @@ export function WorkspaceExplorerPanelProvider({
       activeTabId,
       activeTab,
       openFile,
+      openDiff,
       openFileFromTool,
       closeTab,
       setActiveTabId,
@@ -1156,6 +1277,7 @@ export function WorkspaceExplorerPanelProvider({
       activeTabId,
       activeTab,
       openFile,
+      openDiff,
       openFileFromTool,
       closeTab,
       loadFileContent,
@@ -1178,6 +1300,7 @@ export function WorkspaceExplorerPanelProvider({
 
   workspaceExplorerActionsRef.current = {
     openFile,
+    openDiff,
     openFileFromTool,
     revealPath,
     revealActionProjectById,

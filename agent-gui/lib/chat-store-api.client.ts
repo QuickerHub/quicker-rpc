@@ -46,11 +46,26 @@ async function postMigrate(store: ChatStoreData): Promise<ChatStoreData | null> 
 export async function fetchChatStoreFromApi(): Promise<ChatStoreData> {
   try {
     const res = await fetch("/api/chat-store?scope=active", { cache: "no-store" });
-    if (!res.ok) return defaultChatStore();
+    if (!res.ok) {
+      const local = loadLocalStorageForMigration();
+      if (chatStoreHasPersistedMessages(local)) {
+        return normalizeLoadedStore(local);
+      }
+      throw new Error(`chat_store_load_failed:${res.status}`);
+    }
     const payload = (await res.json()) as {
+      ok?: boolean;
       empty?: boolean;
       store?: ChatStoreData | null;
+      error?: string;
     };
+    if (payload.ok === false) {
+      const local = loadLocalStorageForMigration();
+      if (chatStoreHasPersistedMessages(local)) {
+        return normalizeLoadedStore(local);
+      }
+      throw new Error(payload.error ?? "chat_store_load_failed");
+    }
 
     if (payload.store && chatStoreHasPersistedMessages(payload.store)) {
       const normalized = normalizeLoadedStore(payload.store);

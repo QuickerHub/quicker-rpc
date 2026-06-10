@@ -41,6 +41,7 @@ import {
   getOpenTabThreads,
   openThread,
   hydrateStoreThreadMessagesAsync,
+  resolveThreadWorkingDirectory,
   updateThreadMessages,
   updateThreadTitle,
   type ChatStoreData,
@@ -308,6 +309,7 @@ function ChatPanel({
   }, [syncLlmSelectionFromApi]);
 
   const appMainRef = useRef<HTMLDivElement>(null);
+  const appMainChatColumnRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLElement>(null);
   const msgTurnRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -600,7 +602,7 @@ function ChatPanel({
 
   useMessagesScrollportHeight(messagesRef, visible);
 
-  useForwardWheelToMessages(messagesRef, appMainRef, visible);
+  useForwardWheelToMessages(messagesRef, appMainChatColumnRef, visible);
 
   const userTurnStarts = useMemo(
     () => findUserTurnStartIndices(messages),
@@ -1213,7 +1215,7 @@ function ChatPanel({
         ) : null}
       </div>
       <div ref={appMainBodyRef} className="app-main-body">
-        <div className="app-main-chat-column">
+        <div ref={appMainChatColumnRef} className="app-main-chat-column">
       <div className="messages-view">
       <main
         ref={messagesRef}
@@ -1541,8 +1543,16 @@ export function Chat() {
     }
   }, [settingsOpen, closeSettings, openSettings]);
 
-  const workingDirectory = store.workingDirectory.trim() || defaultCwd;
-  const cwdPending = !store.workingDirectory.trim() && !defaultCwdReady;
+  const resolveThreadCwd = useCallback(
+    (thread: { workspaceId?: string }) =>
+      resolveThreadWorkingDirectory(thread, store, defaultCwd),
+    [store, defaultCwd],
+  );
+  const activeThreadWorkingDirectory = useMemo(
+    () => resolveThreadCwd(getActiveThread(storeWithOpenTabMessages)),
+    [resolveThreadCwd, storeWithOpenTabMessages],
+  );
+  const cwdPending = !activeThreadWorkingDirectory.trim() && !defaultCwdReady;
 
   return (
     <WorkspaceExplorerShellProvider>
@@ -1569,7 +1579,7 @@ export function Chat() {
         </div>
         <div className="app-main-column">
           <WorkspaceExplorerPanelProvider
-            cwd={workingDirectory}
+            cwd={activeThreadWorkingDirectory}
             cwdPending={cwdPending}
           >
             <DocsViewerProvider>
@@ -1591,7 +1601,7 @@ export function Chat() {
                         key={thread.id}
                         threadId={thread.id}
                         initialMessages={thread.messages}
-                        workingDirectory={workingDirectory}
+                        workingDirectory={resolveThreadCwd(thread)}
                         visible={thread.id === activeThread.id}
                         threadTitle={thread.title}
                         titleGenerated={thread.titleGenerated ?? false}
@@ -1610,7 +1620,7 @@ export function Chat() {
                         key={run.threadId}
                         threadId={run.threadId}
                         initialMessages={[]}
-                        workingDirectory={workingDirectory}
+                        workingDirectory={activeThreadWorkingDirectory}
                         visible={false}
                         ephemeral
                         threadTitle=""

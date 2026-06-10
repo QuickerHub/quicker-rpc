@@ -1,4 +1,9 @@
 import type { ActionExplorerTree } from "@/lib/action-explorer-tree";
+import type {
+  WorkspaceChangedFile,
+  WorkspaceGitDiffResult,
+  WorkspaceGitStatusResult,
+} from "@/lib/workspace-git.server";
 
 export type ActionExplorerWatchHandlers = {
   onTree: (tree: ActionExplorerTree, subprogramTree: ActionExplorerTree) => void;
@@ -135,6 +140,59 @@ export async function deleteActionProjectApi(
   }
   return { ok: true };
 }
+
+export async function fetchWorkspaceGitStatus(
+  cwd: string,
+): Promise<
+  | ({ ok: true } & WorkspaceGitStatusResult)
+  | { ok: false; error: string }
+> {
+  try {
+    const params = new URLSearchParams({ op: "git-status", cwd });
+    const res = await fetch(`/api/workspace?${params}`, { cache: "no-store" });
+    const data = (await res.json()) as { ok: boolean; error?: string }
+      & WorkspaceGitStatusResult;
+    if (!data.ok) {
+      return { ok: false, error: data.error ?? "Failed to load git status" };
+    }
+    return {
+      ok: true,
+      state: data.state,
+      changedFiles: data.changedFiles ?? [],
+      error: data.error,
+    };
+  } catch (error) {
+    return { ok: false, error: formatWorkspaceFetchError(error) };
+  }
+}
+
+export async function fetchWorkspaceDiff(
+  cwd: string,
+  path: string,
+): Promise<
+  | ({ ok: true } & WorkspaceGitDiffResult)
+  | { ok: false; error: string }
+> {
+  try {
+    const params = new URLSearchParams({ op: "diff", cwd, path });
+    const res = await fetch(`/api/workspace?${params}`, { cache: "no-store" });
+    const data = (await res.json()) as { ok: boolean; error?: string }
+      & WorkspaceGitDiffResult;
+    if (!data.ok) {
+      return { ok: false, error: data.error ?? "Failed to load diff" };
+    }
+    return {
+      ok: true,
+      state: data.state,
+      diff: data.diff ?? "",
+      error: data.error,
+    };
+  } catch (error) {
+    return { ok: false, error: formatWorkspaceFetchError(error) };
+  }
+}
+
+export type { WorkspaceChangedFile };
 
 export async function writeWorkspaceFileApi(
   cwd: string,

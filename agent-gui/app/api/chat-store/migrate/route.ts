@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     }
   }
 
-  importChatStoreToDatabase(store);
+  importChatStoreToDatabase(store, { allowWipe: true });
   const loaded = loadChatStoreFromDatabase({ messageScope: "active" });
   return Response.json({
     ok: true,

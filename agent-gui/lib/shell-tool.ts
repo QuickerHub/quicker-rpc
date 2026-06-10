@@ -148,10 +148,11 @@ export const SHELL_EXEC_TOOL_DEF = tool({
   description:
     "Run shell commands in sidebar workspace cwd. NOT for plain file I/O — use workspace_file (read/write/edit). "
     + "NOT for Quicker program bodies (workspace_program). "
+    + "NOT for showing git diffs to the user — side panel 已改动 has Diff tabs; avoid git status/diff unless headless need. "
     + "qkrpc is auto-added to PATH; prefer qkrpc tools for Quicker RPC. "
     + "On connectivity_failure tell user — no shell ping/probe/serve/build.ps1 loops. "
     + "Always set description (UI label). command | script | scriptPath under cwd. "
-    + "Read-only (git status, dotnet build) auto-runs; writes/deletes need Confirm.",
+    + "Read-only (dotnet build, tests) auto-runs; writes/deletes need Confirm.",
   inputSchema: shellInputSchema,
   execute: async (
     input: z.infer<typeof shellInputSchema>,

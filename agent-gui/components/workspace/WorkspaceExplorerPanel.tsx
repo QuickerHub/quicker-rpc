@@ -67,7 +67,6 @@ export function WorkspaceExplorerPanel() {
 
   if (!panelOpen) return null;
 
-  const showExplorer = activeSideView === SIDE_PANEL_VIEW_EXPLORER;
   const showBrowser = activeSideView === SIDE_PANEL_VIEW_BROWSER;
   const showTrace = isSidePanelTraceView(activeSideView);
   const traceTabId =
@@ -75,6 +74,9 @@ export function WorkspaceExplorerPanel() {
       ? activeSideView
       : null;
   const showEditor = isSidePanelEditorView(activeSideView);
+  const showWorkspaceTree =
+    activeSideView === SIDE_PANEL_VIEW_EXPLORER || showEditor;
+  const splitTreeAndEditor = showEditor && showWorkspaceTree;
 
   return (
     <aside
@@ -89,9 +91,15 @@ export function WorkspaceExplorerPanel() {
         onPointerDown={handleResizePointerDown}
       />
 
-      <div className="workspace-side-panel-body">
-        {showExplorer ? (
-          <WorkspaceResourceManager onProjectRemoved={handleProjectRemoved} />
+      <div
+        className={`workspace-side-panel-body${splitTreeAndEditor ? " workspace-side-panel-body--split-editor" : ""}`}
+      >
+        {showWorkspaceTree && !showBrowser && !showTrace ? (
+          <div
+            className={`workspace-side-panel-tree${splitTreeAndEditor ? " workspace-side-panel-tree--compact" : ""}`}
+          >
+            <WorkspaceResourceManager onProjectRemoved={handleProjectRemoved} />
+          </div>
         ) : null}
 
         {showBrowser ? (

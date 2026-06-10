@@ -1,10 +1,12 @@
 /**
  * Compact tool-routing table injected into system prompts.
  * Keep in sync with tool descriptions — one row per intent, not per tool.
+ * Workbench UI contract: lib/workbench-agent-prompt.ts
  */
 const TOOL_ROUTING_ROWS = [
   "| User intent | Tool | Not |",
   "|-------------|------|-----|",
+  // — Quicker RPC —
   "| Find action id | qkrpc_action_query | workspace_program; qkrpc_action_get |",
   "| Find global subprogram id | qkrpc_subprogram_query | embedded subprograms |",
   "| Run action | qkrpc_action_run | qkrpc_action_debug; workspace_program |",
@@ -13,7 +15,6 @@ const TOOL_ROUTING_ROWS = [
   "| Sync action to disk (first time) | qkrpc_action_get | After create — skip |",
   "| Sync global subprogram to disk | qkrpc_subprogram_get | After create — skip |",
   "| Edit steps/vars/files on disk | workspace_program | qkrpc_action patch; subprogram patch |",
-  "| Save disk → Quicker | workspace_program patch | replace |",
   "| New empty action | qkrpc_action_create | qkrpc_profile_create |",
   "| New global subprogram | qkrpc_subprogram_create | workspace_program after |",
   "| Export/import subprogram dir | qkrpc_subprogram_export/import | workspace_program |",
@@ -29,10 +30,14 @@ const TOOL_ROUTING_ROWS = [
   "| Stuck on authoring | docs get (one topic) | session-start spam |",
   "| Quicker not connected | qkrpc_wait | shell ping/probe/serve |",
   "| User preference | ask_question | delete confirm UI |",
-  "| Read/write cwd files (.local, configs) | workspace_file | shell_exec Set-Content; workspace_program |",
-  "| Scratch/temp files in workspace | workspace_file (under .local/) | workspace root; source trees |",
-  "| Quicker program body on disk | workspace_program | workspace_file; shell |",
-  "| Shell/build/git | shell_exec | workspace_file; editing action body |",
+  // — Workbench / disk —
+  "| Read/write plain cwd file (.local, docs, config) | workspace_file | shell_exec; workspace_program |",
+  "| Scratch/temp under cwd | workspace_file path `.local/…` | repo root; tracked trees unless asked |",
+  "| Quicker program body (data.json, files/) | workspace_program | workspace_file; shell |",
+  "| Save disk edits → Quicker | workspace_program patch | replace; qkrpc_action patch |",
+  "| Post-patch syntax/lint | workspace_program_diagnostics | shell build for lint only |",
+  "| Review disk edits / diff with user | Tell user: side panel 已改动 → Diff | shell git status/diff spam |",
+  "| Shell/build/test/git commands | shell_exec | workspace_file; program body edits |",
   "| Internet facts / API docs | web_search | browser; docs; qkrpc_action_query |",
   "| Web UI / getquicker login | browser | web_search; shell curl |",
   "| Chat LLM profiles | llm_settings | quicker_settings |",

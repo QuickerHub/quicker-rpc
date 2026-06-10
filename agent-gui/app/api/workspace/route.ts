@@ -9,6 +9,10 @@ import {
   buildSubProgramExplorerTree,
   deleteSubProgramProjectFromWorkspace,
 } from "@/lib/subprogram-explorer-server";
+import {
+  getWorkspaceGitDiff,
+  getWorkspaceGitStatus,
+} from "@/lib/workspace-git.server";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +68,19 @@ export async function GET(req: Request) {
           return Response.json({ ok: false, error: result.error }, { status: 400 });
         }
         return Response.json(result);
+      }
+
+      if (op === "git-status") {
+        const result = await getWorkspaceGitStatus(cwd ?? "");
+        return Response.json({ ok: true, ...result });
+      }
+
+      if (op === "diff") {
+        if (!path) {
+          return Response.json({ ok: false, error: "path is required" }, { status: 400 });
+        }
+        const result = await getWorkspaceGitDiff(cwd ?? "", path);
+        return Response.json({ ok: true, ...result });
       }
 
       return Response.json({ ok: false, error: `unknown op: ${op}` }, { status: 400 });

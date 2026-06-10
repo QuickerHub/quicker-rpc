@@ -200,10 +200,14 @@ export type ExplorerActionTreeViewState = {
   collapsedPaths: string[];
 };
 
+export type WorkspacePanelView = "changed" | "all";
+
 export type ExplorerPanelViewState = {
   actionTree: ExplorerActionTreeViewState;
   docsExpanded: boolean;
   projectsExpanded: boolean;
+  /** Resource manager sub-view: git changed files vs full tree. */
+  workspaceView?: WorkspacePanelView;
 };
 
 type StoredExplorerPanelViews = {
@@ -285,6 +289,7 @@ export function loadExplorerPanelView(cwd: string): ExplorerPanelViewState | nul
     },
     docsExpanded: entry.docsExpanded === true,
     projectsExpanded: entry.projectsExpanded === true,
+    workspaceView: entry.workspaceView === "changed" ? "changed" : "all",
   };
 }
 
@@ -309,6 +314,10 @@ export function storeExplorerPanelView(
     },
     docsExpanded: patch.docsExpanded ?? previous?.docsExpanded ?? false,
     projectsExpanded: patch.projectsExpanded ?? previous?.projectsExpanded ?? false,
+    workspaceView:
+      patch.workspaceView
+      ?? previous?.workspaceView
+      ?? "all",
     lastUsed: Date.now(),
   };
 

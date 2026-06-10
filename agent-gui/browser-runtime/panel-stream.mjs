@@ -19,6 +19,8 @@ export class PanelStreamConnection {
     this._sessionId = "default";
     /** @type {import('playwright').CDPSession | null} */
     this._cdp = null;
+    /** @type {import('playwright').Page | null} */
+    this._boundPage = null;
     this._screencastStarted = false;
     this._closed = false;
     this._viewport = { width: 1280, height: 800, deviceScaleFactor: 1 };
@@ -130,6 +132,7 @@ export class PanelStreamConnection {
     const session = await this._manager.ensureSession(this._sessionId);
     await this._syncViewport();
     this._cdp = await session.context.newCDPSession(session.page);
+    this._boundPage = session.page;
     this._cdp.on("Page.screencastFrame", (params) => {
       void this._onScreencastFrame(params);
     });
@@ -139,6 +142,29 @@ export class PanelStreamConnection {
       everyNthFrame: 1,
     });
     this._screencastStarted = true;
+  }
+
+  /** Rebind screencast when the session's active page changed (popup/tab switch). */
+  async _rebindScreencastIfPageChanged() {
+    if (!this._screencastStarted) return;
+    const session = await this._manager.ensureSession(this._sessionId);
+    if (this._boundPage === session.page) return;
+    if (this._cdp) {
+      try {
+        await this._cdp.send("Page.stopScreencast");
+        await this._cdp.detach();
+      } catch {
+        // old page may already be closed
+      }
+    }
+    this._cdp = null;
+    this._boundPage = null;
+    this._screencastStarted = false;
+    try {
+      await this._startScreencast();
+    } catch (err) {
+      console.warn("[browser-runtime] screencast rebind failed:", err);
+    }
   }
 
   async _syncViewport() {
@@ -193,6 +219,7 @@ export class PanelStreamConnection {
 
   async _pushState() {
     if (this._closed) return;
+    await this._rebindScreencastIfPageChanged();
     const session = await this._manager.ensureSession(this._sessionId);
     const viewport = session.page.viewportSize() ?? { width: 1280, height: 800 };
     sendJson(this._ws, {
@@ -238,6 +265,7 @@ export class PanelStreamConnection {
       }
     }
     this._cdp = null;
+    this._boundPage = null;
     this._screencastStarted = false;
   }
 }

@@ -26,4 +26,10 @@ describe("browser-tool", () => {
     assert.equal(result.ok, false);
     assert.match(String(result.stderr ?? ""), /script is required/i);
   });
+
+  it("rejects tab without index", async () => {
+    const result = await executeBrowserTool({ action: "tab" });
+    assert.equal(result.ok, false);
+    assert.match(String(result.stderr ?? ""), /index is required/i);
+  });
 });

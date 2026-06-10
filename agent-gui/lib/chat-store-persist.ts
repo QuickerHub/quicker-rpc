@@ -1,5 +1,6 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
 import type { ChatStoreData, ChatThread } from "@/lib/chat-store";
+import type { ChatWorkspace } from "@/lib/chat-workspace";
 import { chatMessagesEqual } from "@/lib/chat-message-signature";
 
 export const CHAT_STORAGE_KEY = "agent-gui-chats";
@@ -21,6 +22,8 @@ export type ChatThreadMeta = Omit<ChatThread, "messages">;
 export type ChatStoreIndex = {
   version: typeof CHAT_STORE_VERSION;
   activeThreadId: string;
+  activeWorkspaceId?: string;
+  workspaces?: ChatWorkspace[];
   threads: ChatThreadMeta[];
   openTabIds: string[];
   tabStripPersisted?: boolean;
@@ -94,6 +97,7 @@ function normalizeThreadMeta(raw: unknown): ChatThreadMeta | null {
       typeof item.messageCount === "number" && item.messageCount >= 0
         ? item.messageCount
         : undefined,
+    workspaceId: typeof item.workspaceId === "string" ? item.workspaceId : undefined,
   };
 }
 
@@ -172,6 +176,8 @@ export function toChatStoreIndex(data: ChatStoreData): ChatStoreIndex {
   return {
     version: CHAT_STORE_VERSION,
     activeThreadId: data.activeThreadId,
+    activeWorkspaceId: data.activeWorkspaceId,
+    workspaces: data.workspaces,
     threads: data.threads.map(({ messages, ...meta }) => ({
       ...meta,
       // Never stamp 0 for unhydrated threads: keep the previous count (or
@@ -204,6 +210,8 @@ function assembleStoreFromIndex(
   return {
     version: CHAT_STORE_VERSION,
     activeThreadId: index.activeThreadId,
+    activeWorkspaceId: index.activeWorkspaceId ?? "",
+    workspaces: index.workspaces ?? [],
     threads,
     openTabIds: index.openTabIds,
     tabStripPersisted: index.tabStripPersisted,
@@ -237,9 +245,27 @@ export function tryParseV3Index(raw: unknown): ChatStoreIndex | null {
     openTabIds = [activeThreadId];
   }
 
+  const workspaces = Array.isArray(data.workspaces)
+    ? data.workspaces.filter(
+        (ws): ws is ChatWorkspace =>
+          typeof ws === "object"
+          && ws !== null
+          && typeof (ws as ChatWorkspace).id === "string"
+          && typeof (ws as ChatWorkspace).rootPath === "string",
+      )
+    : [];
+
+  const activeWorkspaceId =
+    typeof data.activeWorkspaceId === "string"
+    && workspaces.some((ws) => ws.id === data.activeWorkspaceId)
+      ? data.activeWorkspaceId
+      : workspaces[0]?.id ?? "";
+
   return {
     version: CHAT_STORE_VERSION,
     activeThreadId,
+    activeWorkspaceId,
+    workspaces,
     threads,
     openTabIds,
     tabStripPersisted: data.tabStripPersisted === true,
@@ -270,7 +296,18 @@ export function resetPersistedSnapshotForTests(): void {
 
 function indexMetadataChanged(prev: ChatStoreData, next: ChatStoreData): boolean {
   if (prev.activeThreadId !== next.activeThreadId) return true;
+  if (prev.activeWorkspaceId !== next.activeWorkspaceId) return true;
   if (prev.workingDirectory !== next.workingDirectory) return true;
+  if (prev.workspaces.length !== next.workspaces.length) return true;
+  for (const ws of next.workspaces) {
+    const previous = prev.workspaces.find((item) => item.id === ws.id);
+    if (!previous) return true;
+    if (previous.rootPath !== ws.rootPath) return true;
+    if (previous.label !== ws.label) return true;
+  }
+  for (const ws of prev.workspaces) {
+    if (!next.workspaces.some((item) => item.id === ws.id)) return true;
+  }
   if (prev.tabStripPersisted !== next.tabStripPersisted) return true;
   if (prev.openTabIds.length !== next.openTabIds.length) return true;
   if (prev.openTabIds.some((id, index) => id !== next.openTabIds[index])) return true;
@@ -283,6 +320,7 @@ function indexMetadataChanged(prev: ChatStoreData, next: ChatStoreData): boolean
     if (previous.updatedAt !== thread.updatedAt) return true;
     if (previous.titleGenerated !== thread.titleGenerated) return true;
     if (previous.titleManual !== thread.titleManual) return true;
+    if (previous.workspaceId !== thread.workspaceId) return true;
     if (
       (thread.messages.length > 0 ? thread.messages.length : thread.messageCount)
       !== (previous.messages.length > 0 ? previous.messages.length : previous.messageCount)
@@ -471,6 +509,8 @@ export function loadPersistedChatStoreFromBackup(): ChatStoreData | null {
       return {
         version: CHAT_STORE_VERSION,
         activeThreadId: v3Index.activeThreadId,
+        activeWorkspaceId: v3Index.activeWorkspaceId ?? "",
+        workspaces: v3Index.workspaces ?? [],
         threads,
         openTabIds: v3Index.openTabIds,
         tabStripPersisted: v3Index.tabStripPersisted,
@@ -495,6 +535,8 @@ export function assembleStoreFromV3Parts(
   return {
     version: CHAT_STORE_VERSION,
     activeThreadId: index.activeThreadId,
+    activeWorkspaceId: index.activeWorkspaceId ?? "",
+    workspaces: index.workspaces ?? [],
     openTabIds: index.openTabIds,
     tabStripPersisted: index.tabStripPersisted,
     workingDirectory: index.workingDirectory,

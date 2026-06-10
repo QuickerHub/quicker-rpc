@@ -89,22 +89,50 @@ async function main() {
     openBrowser: opts.openBrowser,
   });
 
+  /** Cool down after each hot-update so dotnet/qkbuild artifact writes do not re-trigger. */
+  const POST_BUILD_COOLDOWN_MS = 12_000;
+
   let building = false;
-  let pendingRebuild = false;
+  let watchPausedUntil = 0;
   let watchEnabled = opts.watch;
   /** @type {{ at: number; path: string } | null} */
   let lastHotUpdate = null;
   /** @type {(() => void) | null} */
   let stopWatch = null;
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let deferredHotUpdateTimer = null;
+  /** @type {{ path: string; reason: string } | null} */
+  let deferredHotUpdate = null;
+
+  const isWatchPaused = () => building || Date.now() < watchPausedUntil;
+
+  const armPostBuildCooldown = () => {
+    watchPausedUntil = Date.now() + POST_BUILD_COOLDOWN_MS;
+  };
+
+  const scheduleDeferredHotUpdate = (trigger) => {
+    deferredHotUpdate = trigger;
+    if (deferredHotUpdateTimer) return;
+    const delay = Math.max(0, watchPausedUntil - Date.now());
+    deferredHotUpdateTimer = setTimeout(() => {
+      deferredHotUpdateTimer = null;
+      const next = deferredHotUpdate;
+      deferredHotUpdate = null;
+      if (!next || isWatchPaused()) return;
+      void runHotUpdate(next);
+    }, delay);
+  };
+
   const runHotUpdate = async (trigger) => {
     if (!opts.services.has("qkrpc")) return;
-    if (building) {
-      pendingRebuild = true;
-      supervisorLog("watch", `queued rebuild (already building): ${trigger.path}`);
+    if (building) return;
+    if (Date.now() < watchPausedUntil) {
+      scheduleDeferredHotUpdate(trigger);
       return;
     }
 
     building = true;
+    armPostBuildCooldown();
     try {
       await qkrpc.stop();
       await runHotUpdateBuild(repoRoot, { reason: trigger.path });
@@ -134,9 +162,9 @@ async function main() {
       }
     } finally {
       building = false;
-      if (pendingRebuild) {
-        pendingRebuild = false;
-        await runHotUpdate({ path: "(queued)", reason: "(queued)" });
+      armPostBuildCooldown();
+      if (deferredHotUpdate) {
+        scheduleDeferredHotUpdate(deferredHotUpdate);
       }
     }
   };
@@ -183,6 +211,8 @@ async function main() {
   if (watchEnabled && opts.services.has("qkrpc")) {
     stopWatch = startHotUpdateWatch({
       repoRoot,
+      isPaused: isWatchPaused,
+      onPausedSchedule: scheduleDeferredHotUpdate,
       onHotUpdate: runHotUpdate,
     });
   }
@@ -203,6 +233,10 @@ async function main() {
 
   const shutdown = async () => {
     supervisorLog("supervisor", "shutting down…");
+    if (deferredHotUpdateTimer) {
+      clearTimeout(deferredHotUpdateTimer);
+      deferredHotUpdateTimer = null;
+    }
     disableWatch();
     await agent.stop();
     await qkrpc.stop();

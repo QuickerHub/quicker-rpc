@@ -25,6 +25,7 @@ const browserAgentActionSchema = z.enum([
   "scroll",
   "evaluate",
   "tabs",
+  "tab",
   "back",
   "forward",
   "reload",
@@ -58,6 +59,9 @@ type BrowserToolInputBase = {
   deltaX?: number;
   deltaY?: number;
   script?: string;
+  selector?: string;
+  offset?: number;
+  index?: number;
 };
 
 export type BrowserAgentToolInput = BrowserToolInputBase & {
@@ -106,6 +110,8 @@ function opForAction(action: z.infer<typeof browserRuntimeActionSchema>): string
       return "page.screenshot";
     case "tabs":
       return "page.tabs";
+    case "tab":
+      return "page.tab_select";
     case "back":
       return "page.back";
     case "forward":
@@ -137,6 +143,7 @@ const SESSION_ENSURE_ACTIONS = new Set<z.infer<typeof browserRuntimeActionSchema
   "forward",
   "reload",
   "tabs",
+  "tab",
 ]);
 
 export type ExecuteBrowserToolOptions = {
@@ -187,6 +194,14 @@ export async function executeBrowserTool(
     return formatLocalToolResult(null, false, "script is required for evaluate");
   }
 
+  if (input.action === "tab" && (input.index == null || input.index < 0)) {
+    return formatLocalToolResult(
+      null,
+      false,
+      "index is required for tab (use action=tabs to list open tabs)",
+    );
+  }
+
   const op = opForAction(input.action);
 
   if (SESSION_ENSURE_ACTIONS.has(input.action)) {
@@ -209,6 +224,9 @@ export async function executeBrowserTool(
   if (input.deltaX != null) args.deltaX = input.deltaX;
   if (input.deltaY != null) args.deltaY = input.deltaY;
   if (input.script) args.script = input.script;
+  if (input.selector?.trim()) args.selector = input.selector.trim();
+  if (input.offset != null) args.offset = input.offset;
+  if (input.index != null) args.index = input.index;
   args.includePreview = audience === "panel";
 
   const result = await invokeBrowserRuntime(op, args, sid, input.timeoutMs ?? 120_000);
@@ -237,14 +255,16 @@ export async function executeBrowserTool(
 export const BROWSER_TOOL_DEF = tool({
   description:
     "Embedded Playwright browser (side panel shows live preview; tool results are text-only). "
-    + "Workflow: navigate(url) → snapshot (YAML refs e1,e2,…) → click/type/fill/press by ref. "
-    + "Use content for readable page text; use snapshot for buttons/links/inputs; use scroll for long pages; use evaluate for structured DOM extraction. "
+    + "READ workflow: navigate(url) → content (readable text; selector= CSS scope, offset= paginate long pages via nextOffset) or evaluate for structured DOM/JSON extraction. "
+    + "ACT workflow: navigate → snapshot (YAML refs e1,e2,…) → click/type/fill/press by ref. "
+    + "After click/press the result may include navigated:true or openedTab:true — old refs are then invalid, snapshot again before the next ref action. "
+    + "Popups (target=_blank) are followed automatically; tabs lists open tabs, tab(index) switches back. "
     + "Do NOT use screenshot — agents cannot use images; snapshot + content cover page understanding. "
     + "For getquicker login/publish — NOT shell curl, NOT Quicker program edits. "
-    + "sessionId isolates cookies (default 'default').",
+    + "sessionId isolates cookies (default 'default'); logins persist across restarts per session.",
   inputSchema: z.object({
     action: browserAgentActionSchema.describe(
-      "status | navigate | snapshot | content | click | click_xy | type | fill | press | wait | scroll | evaluate | tabs | back | forward | reload | close",
+      "status | navigate | snapshot | content | click | click_xy | type | fill | press | wait | scroll | evaluate | tabs | tab | back | forward | reload | close",
     ),
     sessionId: z
       .string()
@@ -276,6 +296,22 @@ export const BROWSER_TOOL_DEF = tool({
       .string()
       .optional()
       .describe("JavaScript expression/function body for action=evaluate; return JSON-serializable data"),
+    selector: z
+      .string()
+      .optional()
+      .describe("CSS selector for action=content: extract text from matching elements only (e.g. 'article', '.result-item')"),
+    offset: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe("Char offset for action=content pagination; pass the previous result's nextOffset to continue"),
+    index: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe("Tab index for action=tab (from action=tabs)"),
   }),
   execute: async (input: BrowserAgentToolInput) => executeBrowserTool(input),
 });

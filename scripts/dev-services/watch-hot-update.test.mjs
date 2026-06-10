@@ -27,6 +27,8 @@ test("ignores other generated build outputs", () => {
   assert.equal(shouldTriggerHotUpdate(repoRoot, abs("build.ps1")), false);
   assert.equal(shouldTriggerHotUpdate(repoRoot, abs("QuickerRpc.Console/bin/Release/x.dll")), false);
   assert.equal(shouldTriggerHotUpdate(repoRoot, abs("QuickerRpc.Console/publish/qkrpc.exe")), false);
+  assert.equal(shouldTriggerHotUpdate(repoRoot, abs("docs/action-authoring/cli/overview.md")), false);
+  assert.equal(shouldTriggerHotUpdate(repoRoot, abs("docs/skills/quicker-authoring/SKILL.md")), false);
 });
 
 test("keeps project source files hot", () => {

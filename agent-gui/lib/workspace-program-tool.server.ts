@@ -306,10 +306,11 @@ export async function executeWorkspaceProgramTool(
 
 export const WORKSPACE_PROGRAM_TOOL_DEF = tool({
   description:
-    "Edit program body on disk (.quicker): data.json + files/ → patch saves to Quicker. "
+    "Edit Quicker program body on disk (.quicker): data.json + files/ → patch saves to Quicker. "
+    + "Side panel 已改动 lists changes; user can open Diff tabs — do not dump diffs in chat. "
     + "NOT run (qkrpc_action_run), NOT first-time sync (qkrpc_action_get/qkrpc_subprogram_get), NOT title/icon (qkrpc_action_set_metadata). "
     + "target=action | global_subprogram | embedded_subprogram (subProgramId required). "
-    + "Workflow: read_data/edit_data or file_edit → patch; diagnostics after patch (waitMs≤30000). "
+    + "Workflow: read_data/edit_data or file_edit → patch → workspace_program_diagnostics (waitMs≤30000). "
     + "Examples: "
     + "(1) read data.json: {action:\"read_data\", target:\"action\", id:\"<action-guid>\"} — no path. "
     + "(2) edit files/ asset: {action:\"file_edit\", target:\"action\", id:\"<action-guid>\", path:\"files/main.cs\", oldString:\"…\", newString:\"…\"} — path is project-relative under files/, not .quicker/…. "

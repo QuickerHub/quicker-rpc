@@ -82,6 +82,35 @@ test("ignores wheel on embedded browser remote surface", () => {
   });
 });
 
+test("ignores wheel inside workspace side panel even when not scrollable", () => {
+  const panel = mockNode("workspace-side-panel workspace-explorer", {
+    scrollHeight: 400,
+    clientHeight: 400,
+    overflowY: "hidden",
+    closest(selector: string) {
+      if (selector === ".workspace-side-panel") return panel;
+      return null;
+    },
+  });
+  const hint = mockNode("workspace-explorer-hint", {
+    parent: panel,
+    closest(selector: string) {
+      if (
+        selector === ".workspace-side-panel"
+        || selector === ".workspace-explorer"
+      ) {
+        return panel;
+      }
+      return null;
+    },
+  });
+  hint.parentElement = panel;
+
+  withMockComputedStyle(() => {
+    assert.equal(shouldIgnoreWheelForwardToMessages(hint), true);
+  });
+});
+
 test("forwards wheel from non-scrollable composer chrome", () => {
   const trigger = mockNode("tool-selector-trigger", {
     scrollHeight: 32,

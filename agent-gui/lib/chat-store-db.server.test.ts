@@ -10,15 +10,17 @@ import {
   updateThreadMessages,
 } from "@/lib/chat-store";
 import {
+  openChatDatabaseAt,
+  resetChatDatabaseClientForTests,
+} from "@/lib/db/client";
+import {
   chatDatabaseHasPersistedMessages,
   importChatStoreToDatabase,
   loadChatStoreFromDatabase,
   loadThreadMessagesFromDatabase,
-  openChatDatabaseAt,
-  resetChatDatabaseForTests,
   resetDatabasePersistedSnapshotForTests,
   saveChatStoreToDatabase,
-} from "@/lib/chat-store-db.server";
+} from "@/lib/db/chat-store.repository";
 
 function sampleMessage(id: string): AgentUIMessage {
   return {
@@ -36,7 +38,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  resetChatDatabaseForTests();
+  resetChatDatabaseClientForTests();
   resetDatabasePersistedSnapshotForTests();
   if (tempDir) {
     rmSync(tempDir, { recursive: true, force: true });
@@ -94,7 +96,7 @@ test("importChatStoreToDatabase replaces existing rows", () => {
   const second = updateThreadMessages(secondBase, secondBase.activeThreadId, [
     sampleMessage("second"),
   ]);
-  importChatStoreToDatabase(second);
+  importChatStoreToDatabase(second, { allowWipe: true });
 
   const loaded = loadChatStoreFromDatabase({ messageScope: "all" });
   assert.equal(loaded?.threads[0]?.messages[0]?.id, "second");

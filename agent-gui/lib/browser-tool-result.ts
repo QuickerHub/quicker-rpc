@@ -35,6 +35,8 @@ export type BrowserToolResultView = {
   tabCount?: number;
   browserReady?: boolean;
   sessionCount?: number;
+  navigated?: boolean;
+  openedTab?: boolean;
   error?: string;
 };
 
@@ -87,6 +89,8 @@ export function parseBrowserToolResultView(
   }
   if (data.panelPreview === true) view.panelPreview = true;
   if (data.truncated === true) view.truncated = true;
+  if (data.navigated === true) view.navigated = true;
+  if (data.openedTab === true) view.openedTab = true;
   if (typeof data.browserReady === "boolean") view.browserReady = data.browserReady;
   if (typeof data.sessionCount === "number") view.sessionCount = data.sessionCount;
   if (!output.ok) {
@@ -154,10 +158,14 @@ export function summarizeBrowserToolOutput(
       return view.text
         ? `页面文本 ${view.text.length} 字${view.truncated ? "（已截断）" : ""}`
         : "页面文本";
-    case "click":
-      return view.ref ? `点击 ${view.ref}` : "已点击";
+    case "click": {
+      const base = view.ref ? `点击 ${view.ref}` : "已点击";
+      if (view.openedTab) return `${base} · 新标签页`;
+      if (view.navigated && view.url) return `${base} · ${shortUrl(view.url)}`;
+      return base;
+    }
     case "click_xy":
-      return "坐标点击";
+      return view.openedTab ? "坐标点击 · 新标签页" : "坐标点击";
     case "type":
       return view.ref ? `输入 ${view.ref}` : "已输入";
     case "fill":
@@ -170,6 +178,8 @@ export function summarizeBrowserToolOutput(
       return view.panelPreview ? "截图已更新侧栏预览" : "截图";
     case "tabs":
       return view.tabCount != null ? `${view.tabCount} 个标签页` : "标签页";
+    case "tab":
+      return view.url ? `切换标签页 · ${shortUrl(view.url)}` : "切换标签页";
     case "back":
       return view.url ? `后退 · ${shortUrl(view.url)}` : "后退";
     case "forward":
@@ -199,6 +209,8 @@ export function browserToolInputLabel(input: BrowserToolInputLike): string {
       return input.ref?.trim() ? `${input.action} ${input.ref.trim()}` : input.action;
     case "press":
       return input.key?.trim() ? `press ${input.key.trim()}` : "press";
+    case "tab":
+      return "tab switch";
     case "screenshot":
       return input.fullPage ? "screenshot (full page)" : "screenshot";
     default:

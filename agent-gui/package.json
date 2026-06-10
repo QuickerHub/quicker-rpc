@@ -46,6 +46,8 @@
     "probe:publish-config": "tsx scripts/probe-llm-configs.ts -- --source publish --method full",
     "dev:smoke": "node scripts/frontend-smoke.mjs",
     "dev:heal-loop": "node scripts/dev-heal-loop.mjs",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio",
     "prebuild": "pnpm docs:gen"
   },
   "dependencies": {
@@ -84,6 +86,8 @@
     "@tauri-apps/plugin-updater": "~2.10.1",
     "@uiw/react-codemirror": "^4.25.10",
     "ai": "^6.0.193",
+    "better-sqlite3": "^12.10.0",
+    "drizzle-orm": "^0.45.2",
     "minisearch": "^7.2.0",
     "monaco-editor": "^0.55.1",
     "next": "^15.3.0",
@@ -98,16 +102,19 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "@bufbuild/buf"
+      "@bufbuild/buf",
+      "better-sqlite3"
     ]
   },
   "devDependencies": {
     "@bufbuild/buf": "^1.47.2",
     "@bufbuild/protoc-gen-es": "^2.2.3",
     "@tauri-apps/cli": "^2.2.0",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.20.3",
     "typescript": "^5.8.0"
   }

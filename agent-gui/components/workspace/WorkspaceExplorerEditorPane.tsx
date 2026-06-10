@@ -1,6 +1,7 @@
 "use client";
 
 import { memo } from "react";
+import { CodeMirrorPreview } from "@/components/chat/CodeMirrorPreview";
 import { DocsViewerPanel } from "@/components/chat/DocsViewerTabs";
 import { FileEditorCard } from "@/components/chat/FileEditorCard";
 import { ActionProjectInfoEditor } from "@/components/workspace/ActionProjectInfoEditor";
@@ -50,6 +51,28 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
       <p className="workspace-explorer-hint workspace-explorer-hint--err">
         {formatWorkspaceFetchError(new Error(activeTab.error))}
       </p>
+    );
+  }
+
+  if (activeTab.kind === "diff") {
+    return (
+      <div className="workspace-explorer-editor-inner workspace-explorer-editor-inner--diff">
+        {showEditorSkeleton || activeTab.loading ? (
+          <div
+            className="workspace-explorer-editor-skeleton"
+            aria-busy="true"
+            aria-label="加载 Diff"
+          />
+        ) : (
+          <CodeMirrorPreview
+            path={activeTab.path}
+            content={activeTab.diff ?? ""}
+            language="diff"
+            fillAvailable
+            lineNumbers
+          />
+        )}
+      </div>
     );
   }
 

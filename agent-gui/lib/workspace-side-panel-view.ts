@@ -15,6 +15,7 @@ import { isActionTraceTabId } from "@/lib/action-trace-tab-id";
 export { isActionTraceTabId, isSidePanelTraceView } from "@/lib/action-trace-tab-id";
 
 export function isSidePanelEditorView(viewId: string): boolean {
+  if (typeof viewId !== "string") return false;
   return (
     viewId !== SIDE_PANEL_VIEW_EXPLORER
     && viewId !== SIDE_PANEL_VIEW_BROWSER
