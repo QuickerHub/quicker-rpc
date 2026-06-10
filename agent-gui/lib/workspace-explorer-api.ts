@@ -155,12 +155,20 @@ export async function fetchWorkspaceGitStatus(
     if (!data.ok) {
       return { ok: false, error: data.error ?? "Failed to load git status" };
     }
-    return {
-      ok: true,
-      state: data.state,
-      changedFiles: data.changedFiles ?? [],
-      error: data.error,
-    };
+    const changedFiles = data.changedFiles ?? [];
+    switch (data.state) {
+      case "ok":
+        return { ok: true, state: "ok", changedFiles };
+      case "not-repo":
+        return { ok: true, state: "not-repo", changedFiles, error: data.error };
+      case "error":
+        return {
+          ok: true,
+          state: "error",
+          changedFiles,
+          error: data.error ?? "Git status failed",
+        };
+    }
   } catch (error) {
     return { ok: false, error: formatWorkspaceFetchError(error) };
   }
@@ -181,12 +189,20 @@ export async function fetchWorkspaceDiff(
     if (!data.ok) {
       return { ok: false, error: data.error ?? "Failed to load diff" };
     }
-    return {
-      ok: true,
-      state: data.state,
-      diff: data.diff ?? "",
-      error: data.error,
-    };
+    const diff = data.diff ?? "";
+    switch (data.state) {
+      case "ok":
+        return { ok: true, state: "ok", diff };
+      case "not-repo":
+        return { ok: true, state: "not-repo", diff, error: data.error };
+      case "error":
+        return {
+          ok: true,
+          state: "error",
+          diff,
+          error: data.error ?? "Failed to load diff",
+        };
+    }
   } catch (error) {
     return { ok: false, error: formatWorkspaceFetchError(error) };
   }
