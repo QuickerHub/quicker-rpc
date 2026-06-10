@@ -43,6 +43,7 @@ import {
   hydrateStoreThreadMessagesAsync,
   updateThreadMessages,
   updateThreadTitle,
+  type ChatStoreData,
 } from "@/lib/chat-store";
 import {
   postLauncherSessionSync,
@@ -1373,27 +1374,36 @@ export function Chat() {
   const storeRef = useRef(store);
   storeRef.current = store;
 
-  const [storeWithOpenTabMessages, setStoreWithOpenTabMessages] = useState(store);
+  // Async open-tab hydration result, tagged with the store it was derived
+  // from. A copy derived from an older store must never be rendered or
+  // written back: doing so clobbers the API-loaded store with the stale
+  // pre-hydration default (lost history + reverted edits, see v0.13.1).
+  const [hydratedOpenTabs, setHydratedOpenTabs] = useState<{
+    source: ChatStoreData;
+    value: ChatStoreData;
+  } | null>(null);
 
   useEffect(() => {
-    if (!chatStoreHydrated) {
-      setStoreWithOpenTabMessages(store);
-      return;
-    }
+    if (!chatStoreHydrated) return;
     let cancelled = false;
     void (async () => {
       let next = store;
       for (const threadId of store.openTabIds) {
         next = await hydrateStoreThreadMessagesAsync(next, threadId);
       }
-      if (!cancelled) {
-        setStoreWithOpenTabMessages(next);
+      if (!cancelled && next !== store) {
+        setHydratedOpenTabs({ source: store, value: next });
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [chatStoreHydrated, store]);
+
+  const storeWithOpenTabMessages =
+    hydratedOpenTabs && hydratedOpenTabs.source === store
+      ? hydratedOpenTabs.value
+      : store;
   const activeThread = getActiveThread(storeWithOpenTabMessages);
   const openTabThreads = useMemo(
     () => getOpenTabThreads(storeWithOpenTabMessages),
@@ -1402,9 +1412,11 @@ export function Chat() {
   storeRef.current = storeWithOpenTabMessages;
 
   useEffect(() => {
-    if (!chatStoreHydrated || storeWithOpenTabMessages === store) return;
-    updateStore(storeWithOpenTabMessages);
-  }, [chatStoreHydrated, store, storeWithOpenTabMessages, updateStore]);
+    if (!chatStoreHydrated) return;
+    if (!hydratedOpenTabs || hydratedOpenTabs.source !== store) return;
+    if (hydratedOpenTabs.value === store) return;
+    updateStore(hydratedOpenTabs.value);
+  }, [chatStoreHydrated, store, hydratedOpenTabs, updateStore]);
 
   useLayoutEffect(() => {
     const collapsed = loadSidebarCollapsed();

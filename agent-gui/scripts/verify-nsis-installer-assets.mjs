@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const tauriRoot = join(agentGuiRoot, "src-tauri");
 const hooksPath = join(tauriRoot, "windows", "installer-hooks.nsh");
+const templatePath = join(tauriRoot, "windows", "installer.nsi");
 const vbsPath = join(tauriRoot, "windows", "kill-bundled-node.vbs");
 
 function fail(message) {
@@ -38,6 +39,13 @@ function resolveNsisStagedVbsPath() {
 if (!existsSync(hooksPath)) {
   fail(`missing ${hooksPath}`);
 }
+if (!existsSync(templatePath)) {
+  fail(`missing ${templatePath}`);
+}
+const template = readFileSync(templatePath, "utf8");
+if (!template.includes("semver upgrade -> in-place install")) {
+  fail("installer.nsi missing in-place upgrade patch (PageReinstall)");
+}
 if (!existsSync(vbsPath)) {
   fail(`missing ${vbsPath}`);
 }
@@ -52,5 +60,6 @@ if (resolve(stagedResolved) !== resolve(vbsPath)) {
 }
 
 console.log("verify-nsis-installer-assets: PASS");
-console.log(`  hooks: ${hooksPath}`);
-console.log(`  vbs:   ${vbsPath}`);
+console.log(`  hooks:    ${hooksPath}`);
+console.log(`  template: ${templatePath}`);
+console.log(`  vbs:      ${vbsPath}`);

@@ -59,10 +59,17 @@ function getChatStoreServerSnapshot(): ChatStoreData {
   return serverSnapshot;
 }
 
+let hydrationInFlight = false;
+
 function hydrateChatStoreFromClient(): void {
-  if (storeHydrated) return;
+  if (storeHydrated || hydrationInFlight) return;
+  hydrationInFlight = true;
   void (async () => {
-    cachedStore = await readChatStoreFromClient();
+    try {
+      cachedStore = await readChatStoreFromClient();
+    } finally {
+      hydrationInFlight = false;
+    }
     storeHydrated = true;
     notifyChatStoreListeners();
     startBootAutoRestoreIfNeeded();
@@ -73,8 +80,11 @@ let bootAutoRestoreStarted = false;
 
 function startBootAutoRestoreIfNeeded(): void {
   if (bootAutoRestoreStarted || typeof window === "undefined") return;
+  // Auto-restore merges legacy data over the current store; it must only run
+  // against the real hydrated store, never a throwaway default snapshot.
+  if (!storeHydrated || !cachedStore) return;
   bootAutoRestoreStarted = true;
-  const snapshot = cachedStore ?? defaultChatStore();
+  const snapshot = cachedStore;
   void maybeAutoRestoreChatStoreOnBoot(snapshot).then((restored) => {
     if (!restored) return;
     cachedStore = restored;
