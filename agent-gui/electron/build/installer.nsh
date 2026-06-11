@@ -1,6 +1,17 @@
-; Align Electron NSIS layout with Tauri QuickerAgent (per-user):
+; Align Electron NSIS layout with QuickerAgent (per-user):
 ;   %LOCALAPPDATA%\QuickerAgent\quicker-agent.exe
 ; User data (plugins, local/, cache) stays under %LOCALAPPDATA%\QuickerAgent — unchanged.
+
+; Crisp UI on HiDPI displays.
+!macro customHeader
+  ManifestDPIAware true
+  ManifestDPIAwareness PerMonitorV2
+!macroend
+
+; Per-user only — skip the "install for all users / me" wizard page.
+!macro customInstallMode
+  StrCpy $isForceCurrentInstall "1"
+!macroend
 
 !macro _KillImage IMAGE
   nsExec::ExecToLog 'taskkill /F /IM "${IMAGE}" /T'

@@ -19,10 +19,10 @@ metadata:
 0. 若本次或近期改过 `agent-gui/llm-publish.config.json`：先 **发布 publish config** — `pwsh -NoProfile -File ./publish/Sync-LlmPublishConfig.ps1`（`quicker-agent-llm-apikey-config` / `/publish-llm-config`），确保 `BUNDLED_LLM_CONFIG` + Bitiful OSS 与本地一致
 1. `git status`；读取 **baseline**（最新 tag + 已提交 `version.json`）；**第三段 +1** bump `version.json`（第四段 → `0`），且 **必须大于 baseline**；commit — 见 `quicker-qkbuild-version-publish`
 2. `git log` 自上一 tag → **撰写 changelog** → 写入 `publish/changelogs/vX.Y.Z.md` 并 **commit**
-3. `pwsh ./publish/Publish-GitHubRelease.ps1 -WaitForCi` → **默认并行**：后台启动本地 Tauri 预检 + **立即 push tag** 触发 CI。本地日志通常先报错，优先按 `%TEMP%\qkrpc-preflight-vX.Y.Z.log` 修复；CI 失败可暂忽略。修复后 `-ForceRetag` 重发。
+3. `pwsh ./publish/Publish-GitHubRelease.ps1 -WaitForCi` → **默认并行**：后台启动本地 Electron 预检 + **立即 push tag** 触发 CI。本地日志通常先报错，优先按 `%TEMP%\qkrpc-preflight-vX.Y.Z.log` 修复；CI 失败可暂忽略。修复后 `-ForceRetag` 重发。
    - 仅本地阻塞预检：`Test-QuickerAgentReleaseBuild.ps1` 或 `-PreflightBeforeTag`
    - 跳过预检：`-SkipPreflight`；结束后等待本地结果：`-WaitForPreflight`
-4. `.github/workflows/release-cli.yml` 在 GitHub Actions 编译 qkrpc zip/setup **与 QuickerAgent Tauri 安装包**并发布 Release（`-WaitForCi` 等待完成；CI 失败时仍会打印本地预检日志路径）。**仅 Release 上传失败**：Actions **Run workflow** → `pipeline=release-only` + `artifact_run_id`（见 `publish/release-cli-ci.md`）；NSIS/编译失败用 `-ForceRetag` 全量重编
+4. `.github/workflows/release-cli.yml` 在 GitHub Actions 编译 qkrpc zip/setup **与 QuickerAgent Electron 安装包**并发布 Release（`-WaitForCi` 等待完成；CI 失败时仍会打印本地预检日志路径）。**仅 Release 上传失败**：Actions **Run workflow** → `pipeline=release-only` + `artifact_run_id`（见 `publish/release-cli-ci.md`）；NSIS/编译失败用 `-ForceRetag` 全量重编
 5. `pwsh ./build.ps1 -Publish -NoVersion` → Quicker 依赖 **quicker.rpc** 上传（版本与 `version.json` 一致，不再 bump）
 6. `qkrpc action list --limit 1 --json` 确认插件在线（或已 `qkrpc serve` 且 `/health` 为 ok）
 7. `qkrpc action update --id f5c76108-3ce9-433f-8cd0-8f0d9c562052 --changelog-file publish/changelogs/vX.Y.Z.md --json`
@@ -42,7 +42,7 @@ metadata:
 | Quicker 包 | `quicker.rpc`（`build.ps1 -Publish -NoVersion`） |
 | 分享动作 ID | `f5c76108-3ce9-433f-8cd0-8f0d9c562052` |
 | CLI Release | `qkrpc-{semver}-win-x64-setup.exe`、`qkrpc-win-x64-setup.exe`（latest）、zip 便携包 |
-| Agent Release | `quicker-agent-{semver}-x64-setup.exe`（GitHub Release + **本地/CI** Bitiful）；Bitiful 同步 `version.txt` + Tauri **`latest.json`**（须与 Release 版本一致；**勿**依赖仓库内陈旧的 `publish/latest.json`）；**勿**上传 `quicker-agent-win-x64-setup.exe` 固定别名 |
+| Agent Release | `quicker-agent-{semver}-x64-setup.exe`（GitHub Release + **本地/CI** Bitiful）；Bitiful 同步 `version.txt` + **`latest.yml`**（electron-updater；须与 Release 版本一致；**勿**依赖仓库内陈旧的 `publish/latest.yml`）；**勿**上传 `quicker-agent-win-x64-setup.exe` 固定别名 |
 | QuickerAgent 动作页 | `aa5917ad-1256-4c73-7022-08debe3efcbe`；源文件 `quicker-agent/actions/.../page.html`（`{{QUICKER_AGENT_SEMVER}}` 由 `Sync-QuickerAgentActionDoc.ps1` 填充；手动 sync 默认 Bitiful `version.txt`，`-WaitForCi` 传 Release 版本） |
 
 ## 用户安装 CLI
@@ -54,10 +54,10 @@ metadata:
 | 命令 | 用途 |
 |------|------|
 | `publish/Sync-LlmPublishConfig.ps1` | `llm-publish.config.json` → GitHub Secret `BUNDLED_LLM_CONFIG`（Agent 改 publish config 后自动跑） |
-| `publish/Test-QuickerAgentReleaseBuild.ps1` | 仅本地 `pnpm tauri build` 预检（阻塞，单独调试） |
+| `publish/Test-QuickerAgentReleaseBuild.ps1` | 仅本地 Electron NSIS 预检（阻塞，单独调试） |
 | `publish/Publish-QuickerAgent.ps1 -PreflightOnly` | 同上（`-SkipQkrpcBuild` 跳过 CLI 重编） |
-| `publish/Publish-GitHubRelease.ps1` | **并行**后台 Tauri 预检 + 校验 changelog + **push tag**；CI 构建并发布 Release |
-| `publish/Publish-GitHubRelease.ps1 -PreflightBeforeTag` | 先本地 Tauri 通过再打 tag（旧顺序） |
+| `publish/Publish-GitHubRelease.ps1` | **并行**后台 Electron 预检 + 校验 changelog + **push tag**；CI 构建并发布 Release |
+| `publish/Publish-GitHubRelease.ps1 -PreflightBeforeTag` | 先本地 Electron 通过再打 tag（旧顺序） |
 | `publish/Publish-GitHubRelease.ps1 -WaitForCi` | 同上，并等待 `release-cli.yml` 完成；随后**本地上传 Bitiful** + sync QuickerAgent 动作页（`-SkipBitifulUpload` / `-SkipSyncQuickerAgentActionDoc` 可跳过） |
 | `publish/Upload-VoiceAsrToBitiful.ps1 -Version X.Y.Z` | voice-asr Bitiful mirror (local fallback; CI uploads on tag push) |
 | `publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -UploadBitiful -UpdateChannelJson` | voice-asr local pipeline (Bitiful optional; CI handles mirror on tag) |

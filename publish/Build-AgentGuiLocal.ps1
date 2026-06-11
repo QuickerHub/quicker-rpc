@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 # Local QuickerAgent frontend build (Next standalone + typecheck).
 # Prerequisites: Node 20+, pnpm. agent-gui/.npmrc uses hoisted + symlink=false (no Windows Developer Mode required).
-# Full installer: `Publish-QuickerAgent.ps1` also needs Rust + NSIS.
+# Full installer: `Publish-QuickerAgent.ps1` also needs NSIS (electron-builder).
 #
 # Examples:
 #   pwsh ./publish/Build-AgentGuiLocal.ps1

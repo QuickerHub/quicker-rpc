@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-11-agent-gui-electron-packaging-design.md`
 
-**Status (2026-06-11):** P0–P7 实现完成。正式发布仍走 Tauri；Electron 为并行试验通道。
+**Status (2026-06-11):** P0–P7 实现完成。正式发布已切换 Electron（`release-cli.yml` + `latest.yml`）；Tauri 为 legacy。
 
 ---
 

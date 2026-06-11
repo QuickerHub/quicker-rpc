@@ -3,8 +3,8 @@
 #
 # Examples:
 #   pwsh ./publish/Test-QuickerAgentReleaseBuild.ps1 -FastOnly          # <10s
-#   pwsh ./publish/Test-QuickerAgentReleaseBuild.ps1 -BuildOnly         # ~3–8 min, no Tauri/NSIS
-#   pwsh ./publish/Test-QuickerAgentReleaseBuild.ps1                    # full Tauri build (slow)
+#   pwsh ./publish/Test-QuickerAgentReleaseBuild.ps1 -BuildOnly         # ~3–8 min, no NSIS
+#   pwsh ./publish/Test-QuickerAgentReleaseBuild.ps1                    # full Electron NSIS build (slow)
 
 [CmdletBinding()]
 param(

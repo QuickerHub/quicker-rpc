@@ -1,6 +1,6 @@
 /**
  * Fast release gate (<10s warm). Catches cross-layer drift and launcher regressions
- * before expensive `next build` / `tauri build`.
+ * before expensive `next build` / Electron NSIS bundle.
  *
  * Usage: node scripts/preflight-release-gate.mjs
  */
@@ -45,16 +45,16 @@ function runStep(label, fn) {
 
 function checkVersionNotes() {
   const versionJson = readJson(join(repoRoot, "version.json"));
-  const tauriConf = readJson(join(agentGuiRoot, "src-tauri", "tauri.conf.json"));
+  const pkg = readJson(join(agentGuiRoot, "package.json"));
   const expected = semver3(versionJson.QuickerRpc);
-  const current = String(tauriConf.version ?? "").trim();
+  const current = String(pkg.version ?? "").trim();
 
   if (!current) {
-    throw new Error("tauri.conf.json missing version");
+    throw new Error("agent-gui package.json missing version");
   }
   if (current !== expected) {
     console.log(
-      `preflight-release-gate: note tauri.conf.json=${current}, version.json semver=${expected} (Publish-QuickerAgent.ps1 syncs before build)`,
+      `preflight-release-gate: note package.json=${current}, version.json semver=${expected} (electron:prepare syncs before build)`,
     );
   }
 }
@@ -72,14 +72,14 @@ function runReleaseGateTests() {
 }
 
 function checkNsisInstallerAssets() {
-  const script = join(agentGuiRoot, "scripts", "verify-nsis-installer-assets.mjs");
-  const result = spawnSync("node", [script], {
+  const electronScript = join(agentGuiRoot, "scripts", "verify-electron-installer-assets.mjs");
+  const result = spawnSync("node", [electronScript], {
     cwd: agentGuiRoot,
     stdio: "inherit",
     shell: process.platform === "win32",
   });
   if (result.status !== 0) {
-    throw new Error(`NSIS installer asset check failed (exit ${result.status ?? "unknown"})`);
+    throw new Error(`Electron NSIS installer asset check failed (exit ${result.status ?? "unknown"})`);
   }
 }
 

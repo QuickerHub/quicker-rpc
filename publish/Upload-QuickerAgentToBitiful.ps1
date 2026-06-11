@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
-# Upload versioned QuickerAgent NSIS installer + version.txt + latest.json to Bitiful (local network).
-# latest.json is resolved from GitHub Release (or matching local build); stale publish/latest.json is ignored.
+# Upload versioned QuickerAgent NSIS installer + version.txt + latest.yml to Bitiful (local network).
+# latest.yml is resolved from GitHub Release (or matching local build); stale publish/latest.yml is ignored.
 #
 # Examples:
 #   pwsh ./publish/Upload-QuickerAgentToBitiful.ps1 -Tag v0.9.0
@@ -126,7 +126,7 @@ if (-not (Test-Path -LiteralPath $downloadDir)) {
     New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
 }
 
-$latestJsonPath = Resolve-QuickerAgentLatestJsonForUpload `
+$latestYmlPath = Resolve-QuickerAgentLatestYmlForUpload `
     -RepoRoot $RepoRoot `
     -Tag $Tag `
     -ExpectedSemVer $semver `
@@ -135,7 +135,7 @@ $latestJsonPath = Resolve-QuickerAgentLatestJsonForUpload `
 
 if ($DryRun) {
     Write-Host "[DryRun] Would upload: $installerPath" -ForegroundColor DarkGray
-    Write-Host "[DryRun] latest.json: $latestJsonPath" -ForegroundColor DarkGray
+    Write-Host "[DryRun] latest.yml: $latestYmlPath" -ForegroundColor DarkGray
     Write-Host "[DryRun] version.txt -> $semver" -ForegroundColor DarkGray
     Write-Host "[DryRun] llm-publish.config.json -> $(Get-QuickerAgentBitifulLlmPublishConfigUrl)" -ForegroundColor DarkGray
     exit 0
@@ -143,7 +143,7 @@ if ($DryRun) {
 
 Invoke-QuickerAgentBitifulUpload `
     -InstallerPath $installerPath `
-    -LatestJsonPath $latestJsonPath `
+    -LatestYmlPath $latestYmlPath `
     -ExpectedSemVer $semver `
     -PublishDir $PSScriptRoot
 
@@ -155,7 +155,7 @@ Write-Host ''
 Write-Host "Bitiful upload OK ($semver)." -ForegroundColor Green
 Write-Host "  Setup: $(Get-QuickerAgentBitifulSetupUrl -Version $semver)" -ForegroundColor Cyan
 Write-Host "  version.txt: $(Get-QuickerAgentBitifulVersionTxtUrl)" -ForegroundColor Cyan
-Write-Host "  latest.json: $(Get-QuickerAgentBitifulLatestJsonUrl)" -ForegroundColor Cyan
+Write-Host "  latest.yml: $(Get-QuickerAgentBitifulLatestYmlUrl)" -ForegroundColor Cyan
 Write-Host "  llm-publish.config.json: $(Get-QuickerAgentBitifulLlmPublishConfigUrl)" -ForegroundColor Cyan
 
 exit 0

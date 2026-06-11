@@ -9,7 +9,7 @@
 #   pwsh ./publish/Publish-GitHubRelease.ps1 -DryRun
 #   pwsh ./publish/Test-QuickerAgentReleaseBuild.ps1   # preflight only (blocking)
 #   pwsh ./publish/Publish-GitHubRelease.ps1 -SkipPreflight
-#   pwsh ./publish/Publish-GitHubRelease.ps1 -PreflightBeforeTag   # wait for Tauri before tag (old behavior)
+#   pwsh ./publish/Publish-GitHubRelease.ps1 -PreflightBeforeTag   # wait for Electron build before tag (old behavior)
 
 [CmdletBinding()]
 param(
@@ -27,7 +27,7 @@ param(
     [switch]$SkipBuild,
     [switch]$SkipTag,
     [switch]$SkipPreflight,
-    # Block on local Tauri build before pushing tag (default: parallel with CI).
+    # Block on local Electron build before pushing tag (default: parallel with CI).
     [switch]$PreflightBeforeTag,
     # After tag/CI, wait for background preflight and print result.
     [switch]$WaitForPreflight,
@@ -242,7 +242,7 @@ $preflightBackground = $null
 
 if (-not $SkipPreflight -and -not $LocalBuild) {
     if ($DryRun) {
-        Write-Host '[DryRun] release gate (fast) + Tauri preflight' -ForegroundColor DarkGray
+        Write-Host '[DryRun] release gate (fast) + Electron preflight' -ForegroundColor DarkGray
         if ($PreflightBeforeTag) {
             Write-Host '[DryRun] blocking preflight, then tag push' -ForegroundColor DarkGray
         }
@@ -260,14 +260,14 @@ if (-not $SkipPreflight -and -not $LocalBuild) {
     if (-not $DryRun) {
         if ($PreflightBeforeTag) {
             Write-Host ''
-            Write-Host 'Preflight (blocking): local QuickerAgent Tauri build before tag push...' -ForegroundColor Cyan
+            Write-Host 'Preflight (blocking): local QuickerAgent Electron build before tag push...' -ForegroundColor Cyan
             Invoke-QuickerAgentPreflightBlocking -RepoRoot $RepoRoot -PublishDir $PSScriptRoot
             Write-Host 'Preflight passed.' -ForegroundColor Green
             Write-Host ''
         }
         else {
             Write-Host ''
-            Write-Host 'Starting local Tauri preflight in background (parallel with tag push / GitHub Actions)...' -ForegroundColor Cyan
+            Write-Host 'Starting local Electron preflight in background (parallel with tag push / GitHub Actions)...' -ForegroundColor Cyan
             $preflightBackground = Start-QuickerAgentPreflightBackground `
                 -RepoRoot $RepoRoot `
                 -PublishDir $PSScriptRoot `

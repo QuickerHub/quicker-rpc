@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
-# Medium preflight (~3–8 min): fast gate + next build + tauri-prepare + staged bundle verify.
-# Skips Rust/NSIS compile — catches most release-only Next/bundle issues without full Tauri build.
+# Medium preflight (~3–8 min): fast gate + next build + electron-prepare + staged bundle verify.
+# Skips NSIS compile — catches most release-only Next/bundle issues without full Electron build.
 #
 # Examples:
 #   pwsh ./publish/Preflight-QuickerAgentBuild.ps1
@@ -33,7 +33,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if (-not $SkipQkrpcBuild) {
-    Write-Host 'Building qkrpc (publish/cli) for tauri-prepare...' -ForegroundColor Cyan
+    Write-Host 'Building qkrpc (publish/cli) for electron-prepare...' -ForegroundColor Cyan
     & (Join-Path $PSScriptRoot 'publish-rpc.ps1') -SkipInstall -SkipPackaging
     $cliExe = Join-Path $RepoRoot 'publish\cli\qkrpc.exe'
     if (-not (Test-Path -LiteralPath $cliExe)) {
@@ -65,16 +65,16 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "pnpm build failed ($LASTEXITCODE)" }
     }
 
-    Write-Host 'tauri-prepare (stage app + qkrpc + node)...' -ForegroundColor Cyan
-    node scripts/tauri-prepare.mjs
-    if ($LASTEXITCODE -ne 0) { throw "tauri-prepare failed ($LASTEXITCODE)" }
+    Write-Host 'electron:prepare (stage app + qkrpc + node + shell)...' -ForegroundColor Cyan
+    pnpm electron:prepare
+    if ($LASTEXITCODE -ne 0) { throw "electron:prepare failed ($LASTEXITCODE)" }
 
     Write-Host 'verify staged bundle...' -ForegroundColor Cyan
-    node scripts/verify-tauri-bundle.mjs
-    if ($LASTEXITCODE -ne 0) { throw "verify-tauri-bundle failed ($LASTEXITCODE)" }
+    node scripts/verify-desktop-bundle.mjs --resources-dir electron/resources --label electron-staged
+    if ($LASTEXITCODE -ne 0) { throw "verify-desktop-bundle failed ($LASTEXITCODE)" }
 }
 finally {
     Pop-Location
 }
 
-Write-Host 'Build preflight OK (no Tauri/NSIS compile).' -ForegroundColor Green
+Write-Host 'Build preflight OK (no NSIS compile).' -ForegroundColor Green

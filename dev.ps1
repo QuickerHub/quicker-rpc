@@ -8,8 +8,8 @@
 
 #   pwsh ./dev.ps1 -Browser        # same + open browser
 
-#   pwsh ./dev.ps1 -Tauri          # desktop WebView2 shell (reuses :3000 when healthy)
-#   pwsh ./dev.ps1 -Electron       # desktop Chromium shell (reuses :3000 when healthy)
+#   pwsh ./dev.ps1 -Electron       # desktop Chromium shell (default for quicker-agent:dev)
+#   pwsh ./dev.ps1 -Tauri          # legacy WebView2 shell (reuses :3000 when healthy)
 
 #   pwsh ./dev.ps1 -NoWatch        # disable auto hot-update on source changes
 

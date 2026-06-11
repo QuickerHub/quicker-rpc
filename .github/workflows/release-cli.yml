@@ -1,6 +1,6 @@
 name: Release qkrpc CLI
 
-# Builds qkrpc CLI zip + Inno setup, and QuickerAgent Tauri NSIS installer on tag push.
+# Builds qkrpc CLI zip + Inno setup, and QuickerAgent Electron NSIS installer on tag push.
 on:
   push:
     tags:
@@ -150,20 +150,15 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
-          # tauri-prepare runs publish-rpc.ps1 when publish/cli is absent; needs ActionRuntime.
+          # electron-prepare runs publish-rpc.ps1 when publish/cli is absent; needs ActionRuntime.
           token: ${{ secrets.ACTIONRUNTIME_SUBMODULE_PAT }}
 
       - name: Isolate USERPROFILE for Windows builds
         shell: pwsh
         run: |
-          # Next/webpack must not scan the runner profile; Rust/cargo must stay on the real profile
-          # (otherwise rust-cache saves D:\a\_temp\.cargo + multi-GB target and Post Rust cache fails).
-          $realProfile = $env:USERPROFILE
           $t = $env:RUNNER_TEMP
           "USERPROFILE=$t" >> $env:GITHUB_ENV
           "HOME=$t" >> $env:GITHUB_ENV
-          "CARGO_HOME=$realProfile\.cargo" >> $env:GITHUB_ENV
-          "RUSTUP_HOME=$realProfile\.rustup" >> $env:GITHUB_ENV
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -185,28 +180,7 @@ jobs:
           restore-keys: |
             nextjs-${{ runner.os }}-
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Enable Rust sccache (GHA cache backend)
-        shell: pwsh
-        run: |
-          "RUSTC_WRAPPER=sccache" >> $env:GITHUB_ENV
-          "SCCACHE_GHA_ENABLED=true" >> $env:GITHUB_ENV
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: agent-gui/src-tauri
-          # Release Tauri target/ is multi-GB; saving it on Windows often fails (tar/zstd/size).
-          # rustc object files are cached via sccache instead.
-          cache-targets: false
-          shared-key: release-build-agent
-
-      - name: Ensure NSIS (Tauri bundler)
+      - name: Ensure NSIS (electron-builder)
         shell: pwsh
         run: |
           if (Get-Command makensis.exe -ErrorAction SilentlyContinue) {
@@ -222,6 +196,10 @@ jobs:
         working-directory: agent-gui
         run: pnpm install --frozen-lockfile --config.node-linker=hoisted --config.symlink=false
 
+      - name: Electron syntax check
+        working-directory: agent-gui
+        run: pnpm electron:check
+
       - name: Build QuickerAgent installer
         shell: pwsh
         env:
@@ -229,8 +207,6 @@ jobs:
           BUNDLED_LLM_BINGLEIMUZI_API_KEY: ${{ secrets.BUNDLED_LLM_BINGLEIMUZI_API_KEY }}
           BUNDLED_LLM_AI98PRO_API_KEY: ${{ secrets.BUNDLED_LLM_AI98PRO_API_KEY }}
           LLM_REMOTE_PUBLISH_CIPHER_PEPPER: ${{ secrets.LLM_REMOTE_PUBLISH_CIPHER_PEPPER }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           AGENT_GUI_DEFAULT_CWD: ${{ github.workspace }}
         run: |
           $hasConfig = -not [string]::IsNullOrWhiteSpace($env:BUNDLED_LLM_CONFIG)
@@ -246,16 +222,6 @@ jobs:
           }
           pwsh -NoProfile -File ./publish/Publish-QuickerAgent.ps1 -SkipQkrpcBuild
 
-      - name: sccache stats
-        if: always()
-        shell: pwsh
-        run: |
-          if (Get-Command sccache -ErrorAction SilentlyContinue) {
-            sccache --show-stats
-          } else {
-            Write-Host 'sccache not on PATH; skip stats.'
-          }
-
       - name: Upload agent artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -263,7 +229,7 @@ jobs:
           path: |
             publish/${{ needs.metadata.outputs.agent_setup_name }}
             publish/quicker-agent-win-x64-setup.exe
-            publish/latest.json
+            publish/latest.yml
           if-no-files-found: error
 
   release:
@@ -376,7 +342,7 @@ jobs:
             publish/qkrpc-win-x64-setup.exe
             publish/${{ needs.metadata.outputs.agent_setup_name }}
             publish/quicker-agent-win-x64-setup.exe
-            publish/latest.json
+            publish/latest.yml
           draft: false
           prerelease: false
 
@@ -400,23 +366,23 @@ jobs:
           python -m pip install --disable-pip-version-check --quiet boto3
           . ./publish/qkrpc-publish-lib.ps1
           $installer = Join-Path $PWD "publish/${{ needs.metadata.outputs.agent_setup_name }}"
-          $latestJson = Join-Path $PWD 'publish/latest.json'
+          $latestYml = Join-Path $PWD 'publish/latest.yml'
           $semver = '${{ needs.metadata.outputs.semver }}'
-          Assert-QuickerAgentLatestJsonFile -Path $latestJson -ExpectedSemVer $semver
+          Assert-QuickerAgentLatestYmlFile -Path $latestYml -ExpectedSemVer $semver
           Invoke-QuickerAgentBitifulUpload `
             -InstallerPath $installer `
-            -LatestJsonPath $latestJson `
+            -LatestYmlPath $latestYml `
             -ExpectedSemVer $semver `
             -PublishDir ./publish
           $endpoint = if ($env:BITIFUL_ENDPOINT_URL) { $env:BITIFUL_ENDPOINT_URL.Trim() } else { 'https://s3.bitiful.net' }
           $prefix = if ($env:BITIFUL_OBJECT_PREFIX) { $env:BITIFUL_OBJECT_PREFIX.Trim().Trim('/') } else { 'quicker-rpc/quicker-agent' }
           $objectKey = "$prefix/${{ needs.metadata.outputs.agent_setup_name }}"
           $objectUrl = "$($endpoint.TrimEnd('/'))/$($env:BITIFUL_BUCKET_NAME)/$objectKey"
-          $latestUrl = "$(Get-QuickerAgentBitifulLatestJsonUrl)"
+          $latestUrl = "$(Get-QuickerAgentBitifulLatestYmlUrl)"
           Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value @"
           ### Bitiful upload (CI)
           - File: ``${{ needs.metadata.outputs.agent_setup_name }}``
-          - latest.json: ``$semver`` -> ``$latestUrl``
+          - latest.yml: ``$semver`` -> ``$latestUrl``
           - Object key: ``$objectKey``
           - URL: $objectUrl
           "@

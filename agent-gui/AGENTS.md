@@ -8,7 +8,7 @@ Web 聊天界面，通过本机 `qkrpc serve`（`http://127.0.0.1:9477`）或 CL
 
 ## Dev environment tips
 
-- **启动**（仓库根目录）：`pwsh ./dev.ps1` → `http://127.0.0.1:3000`（qkrpc + agent-gui）。桌面壳：`pwsh ./dev.ps1 -Tauri`（WebView2）或 `pwsh ./dev.ps1 -Electron`（Chromium）。
+- **启动**（仓库根目录）：`pwsh ./dev.ps1` → `http://127.0.0.1:3000`（qkrpc + agent-gui）。桌面壳：`pwsh ./dev.ps1 -Electron`（默认 Chromium）或 `pwsh ./dev.ps1 -Tauri`（legacy WebView2）。
 - **不要同时跑** 浏览器 / Tauri / Electron（都占 `:3000`）。切换桌面壳时脚本会清 `.next`。
 - **后端依赖**：Quicker + 插件已加载；根目录 `build.ps1 -t` 负责插件/CLI/serve。**改本目录 UI 时不要跑 `-t`**（Next HMR 即可）。
 - **qkrpc 连不上**：告知用户检查 Quicker / 插件 / serve；**禁止** `shell_exec` 探活或跑 `qkrpc` CLI / `build.ps1 -t`（见 `lib/instructions.ts`、`lib/shell-policy.ts`）。
@@ -60,14 +60,13 @@ Invoke-RestMethod http://127.0.0.1:3000/api/dev/frontend-check
 
 - 日常：**`dev_frontend_check`** 为主（编译 + 关键路由 + 浏览器运行时）。
 - 类型/ESLint：按需 `pnpm lint`（改组件 imports 或大 refactor 后）。
-- Tauri 发布验证：`pnpm tauri:verify-bundle`（发布流程，非每次 UI 改动）。
-- Electron 打包（开发/预检，非正式 publish）：`pnpm electron:check` → `pnpm build` → `pnpm electron:verify-bundle` → `pnpm electron:build`；或 `pwsh ./publish/Publish-QuickerAgent-Electron.ps1`（`-UploadBitiful` 上传试验通道）。产物检查：`pnpm test:electron-smoke`。CI：`.github/workflows/release-agent-electron.yml`（可选 `BITIFUL_ELECTRON_UPLOAD_IN_CI=true`）。正式 publish 仍 Tauri。
+- 发布验证：`pnpm electron:verify-bundle`（staged resources）；完整 NSIS：`pwsh ./publish/Publish-QuickerAgent.ps1` 或 `pnpm quicker-agent:publish`（仓库根目录）。产物检查：`pnpm test:electron-smoke`。CI：`.github/workflows/release-cli.yml` `build-agent`（Electron + `latest.yml`）。
 
 ## PR instructions
 
 - Commit 格式（用户要求提交时）：`<type>(agent-gui): <subject>`。
 - 合并前：`dev_frontend_check` 为 `ok: true`；勿包含 `llm-config.json` / `.local/`。
-- Tauri 正式发布：`pnpm quicker-agent:publish`（仓库根目录）；见 [README.md](README.md)。
+- 正式发布：`pnpm quicker-agent:publish`（仓库根目录，Electron NSIS）；见 [README.md](README.md)。
 
 ## Further reading
 

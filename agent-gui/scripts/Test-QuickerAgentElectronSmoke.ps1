@@ -32,7 +32,7 @@ $versionJson = Get-Content (Join-Path $RepoRoot 'version.json') -Raw | ConvertFr
 $expectedSemVer = Get-QuickerRpcSemVerFromVersion -Version ([string]$versionJson.QuickerRpc)
 
 function Test-ElectronArtifacts {
-    $setup = Get-ChildItem -LiteralPath $DistDir -Filter 'QuickerAgent-Electron-*-setup.exe' -ErrorAction SilentlyContinue |
+    $setup = Get-ChildItem -LiteralPath $DistDir -Filter 'quicker-agent-*-x64-setup.exe' -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
     if (-not $setup) {

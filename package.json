@@ -18,8 +18,8 @@
     "docs:modules:examples-next": "node scripts/step-module-examples-progress.mjs --next",
     "quicker-agent:web": "pwsh ./dev.ps1",
     "quicker-agent:web:browser": "pwsh ./dev.ps1 -Browser",
-    "quicker-agent:build": "pnpm --dir agent-gui tauri build",
-    "quicker-agent:dev": "pwsh ./dev.ps1 -Tauri",
+    "quicker-agent:build": "pwsh ./publish/Publish-QuickerAgent.ps1 -SkipQkrpcBuild",
+    "quicker-agent:dev": "pwsh ./dev.ps1 -Electron",
     "quicker-agent:preflight:fast": "pwsh ./publish/Preflight-QuickerAgentFast.ps1",
     "quicker-agent:preflight:build": "pwsh ./publish/Preflight-QuickerAgentBuild.ps1",
     "quicker-agent:publish": "pwsh ./publish/Publish-QuickerAgent.ps1"

@@ -43,6 +43,8 @@ function writeShellPackageJson(version) {
     name: "quicker-agent-electron-shell",
     version,
     private: true,
+    description: "QuickerAgent desktop shell",
+    author: "Quicker",
     main: "electron/bootstrap.cjs",
     dependencies: {
       "electron-updater": "^6.8.9",

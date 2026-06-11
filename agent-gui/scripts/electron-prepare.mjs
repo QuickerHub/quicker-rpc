@@ -8,6 +8,7 @@ import {
   prepareDesktopBundle,
   readDesktopBundleSemver,
 } from "./desktop-bundle-prepare.mjs";
+import { generateElectronInstallerAssets } from "./generate-electron-installer-assets.mjs";
 import { stageElectronShell } from "./electron-shell-staging.mjs";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -29,7 +30,7 @@ function syncPackageVersion() {
   }
 }
 
-function main() {
+async function main() {
   console.log("electron-prepare: staging runtime for Electron bundle...");
   prepareDesktopBundle({
     resourcesDir,
@@ -40,6 +41,7 @@ function main() {
   });
   syncPackageVersion();
   const version = readDesktopBundleSemver(repoRoot);
+  await generateElectronInstallerAssets();
   stageElectronShell({ version });
   console.log("electron-prepare: done.");
 }

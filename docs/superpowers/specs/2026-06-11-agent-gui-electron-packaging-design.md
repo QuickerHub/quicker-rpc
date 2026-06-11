@@ -1,6 +1,6 @@
 # QuickerAgent Electron 打包方案设计
 
-> 开发期双轨：`-Tauri` / `-Electron` 切换；正式发布仍走 Tauri，Electron 功能对齐达标后再切换。
+> 正式发布已切换为 Electron（`Publish-QuickerAgent.ps1` + `latest.yml`）。`-Tauri` 保留为 legacy 开发壳。
 
 ## 目标
 

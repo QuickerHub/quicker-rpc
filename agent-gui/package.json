@@ -18,6 +18,7 @@
     "tauri:verify-bundle": "node scripts/verify-tauri-bundle.mjs",
     "electron:dev": "node scripts/electron-dev.mjs",
     "electron:prepare": "node scripts/electron-prepare.mjs",
+    "electron:installer-assets": "node scripts/generate-electron-installer-assets.mjs",
     "electron:build": "pnpm electron:prepare && electron-builder --win nsis && node scripts/verify-electron-asar.mjs",
     "electron:verify-bundle": "node scripts/verify-desktop-bundle.mjs --resources-dir electron/resources --label electron-staged",
     "electron:check": "node scripts/electron-check.mjs",
@@ -137,11 +138,21 @@
       "executableName": "quicker-agent"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
       "artifactName": "quicker-agent-${version}-x64-setup.${ext}",
       "include": "installer.nsh",
-      "shortcutName": "QuickerAgent"
+      "installerIcon": "installerIcon.ico",
+      "installerHeaderIcon": "installerIcon.ico",
+      "uninstallerIcon": "installerIcon.ico",
+      "installerLanguages": ["zh_CN"],
+      "language": "2052",
+      "displayLanguageSelector": false,
+      "shortcutName": "QuickerAgent",
+      "uninstallDisplayName": "QuickerAgent",
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true
     },
     "publish": {
       "provider": "generic",

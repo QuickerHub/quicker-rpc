@@ -7,18 +7,18 @@ Workflow：`.github/workflows/release-cli.yml`（tag `vX.Y.Z` push 或 **手动 
 ```text
 metadata
   ├─ build-cli                 qkrpc zip + Inno setup（~2 min）
-  └─ build-agent               Next + Rust + NSIS 全量 `tauri build`（~8–10 min）
+  └─ build-agent               Next + electron-builder NSIS（~5–8 min）
         ↓
      release                    上传 GitHub Release（+ 可选 Bitiful）
 ```
 
-`build-agent` 使用 `Publish-QuickerAgent.ps1 -SkipQkrpcBuild` 一次性编译并打 NSIS 包（**不再**拆分 compile / bundle job；拆分后 `bundle-only` 无法产出完整安装包）。
+`build-agent` 使用 `Publish-QuickerAgent.ps1 -SkipQkrpcBuild` 一次性编译并打 Electron NSIS 包。
 
-编译前会跑 **Preflight-QuickerAgentFast**（含 `verify-nsis-installer-assets.mjs`），在几秒内拦截 NSIS 资源路径错误，避免白等 Rust 编译。
+构建前会跑 **preflight-release-gate**（含 `verify-nsis-installer-assets.mjs`），在几秒内拦截 NSIS 资源路径错误。
 
 ## 私有 submodule（Quicker.ActionRuntime）
 
-`build-cli` 与 `build-agent` 均需 checkout 私有仓库 `QuickerOrg/Quicker.ActionRuntime`（submodule）。`build-agent` 在 `tauri-prepare` 阶段会本地执行 `publish-rpc.ps1` 生成 `publish/cli`。
+`build-cli` 与 `build-agent` 均需 checkout 私有仓库 `QuickerOrg/Quicker.ActionRuntime`（submodule）。`build-agent` 在 `electron-prepare` 阶段会本地执行 `publish-rpc.ps1` 生成 `publish/cli`。
 
 1. 在 GitHub 创建 **只读 PAT**（推荐 fine-grained：`QuickerOrg/Quicker.ActionRuntime` → Contents read）。
 2. 写入 `publish/.env` → `ACTIONRUNTIME_SUBMODULE_PAT=...`，或本地：

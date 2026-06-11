@@ -156,7 +156,7 @@ QuickerAgent / 脚本 / MCP Agent
 | `QuickerRpc.Console` | `qkrpc.exe`（net10.0） |
 | `QuickerRpc.AgentModel` | XAction 压缩 / patch、StepRunner、内置指南 |
 | `QuickerRpc.Test` / `QuickerRpc.Plugin.Test` | 活进程集成测试 / 离线反射测试 |
-| `agent-gui/` | QuickerAgent（Next.js + Tauri） |
+| `agent-gui/` | QuickerAgent（Next.js + Electron 桌面壳） |
 | `voice-asr-runtime/` | 本地语音识别 runtime |
 | `quicker-agent-web/` | 下载落地页（Vercel） |
 | `docs/` | 人类文档与 Skill 源码 |

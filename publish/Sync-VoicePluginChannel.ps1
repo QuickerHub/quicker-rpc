@@ -41,6 +41,7 @@ elseif (-not $RuntimeTag.Trim().StartsWith('v')) {
 }
 
 $defaultChannelPaths = @(
+    (Join-Path $RepoRoot 'agent-gui/electron/resources/voice-plugin-channel.json'),
     (Join-Path $RepoRoot 'agent-gui/src-tauri/resources/voice-plugin-channel.json'),
     (Join-Path $RepoRoot 'agent-gui/src-tauri/voice-plugin-metadata/voice-plugin-channel.json')
 )

@@ -434,6 +434,130 @@ Install GitHub CLI (gh) or run Publish-QuickerAgent.ps1 locally, then retry with
     return (Resolve-Path -LiteralPath $downloaded).Path
 }
 
+function Test-QuickerAgentLatestYmlFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedSemVer
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $false
+    }
+
+    try {
+        Assert-QuickerAgentLatestYmlFile -Path $Path -ExpectedSemVer $ExpectedSemVer
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Get-QuickerAgentPinnedLatestYmlDownloadUrl {
+    param([Parameter(Mandatory = $true)][string]$Tag)
+
+    $normalizedTag = $Tag.Trim()
+    if (-not $normalizedTag.StartsWith('v')) {
+        $normalizedTag = "v$normalizedTag"
+    }
+
+    return "https://github.com/QuickerHub/quicker-rpc/releases/download/$normalizedTag/latest.yml"
+}
+
+function Download-QuickerAgentLatestYmlFromRelease {
+    param(
+        [Parameter(Mandatory = $true)][string]$Tag,
+        [Parameter(Mandatory = $true)][string]$ExpectedSemVer,
+        [Parameter(Mandatory = $true)][string]$DestinationPath
+    )
+
+    $url = Get-QuickerAgentPinnedLatestYmlDownloadUrl -Tag $Tag
+    $destDir = Split-Path -Parent $DestinationPath
+    if (-not (Test-Path -LiteralPath $destDir)) {
+        New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+    }
+
+    Write-Host "Downloading latest.yml from $url ..." -ForegroundColor Cyan
+
+    if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+        & curl.exe --fail --location --retry 3 --retry-delay 2 --output $DestinationPath $url
+        if ($LASTEXITCODE -ne 0) {
+            throw "curl download failed ($LASTEXITCODE): $url"
+        }
+    }
+    else {
+        Invoke-WebRequest -Uri $url -OutFile $DestinationPath -UseBasicParsing
+    }
+
+    Assert-QuickerAgentLatestYmlFile -Path $DestinationPath -ExpectedSemVer $ExpectedSemVer
+    return (Resolve-Path -LiteralPath $DestinationPath).Path
+}
+
+function Resolve-QuickerAgentLatestYmlForUpload {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$Tag,
+        [Parameter(Mandatory = $true)][string]$ExpectedSemVer,
+        [Parameter(Mandatory = $true)][string]$DownloadDir,
+        [switch]$UseLocal
+    )
+
+    $localPath = Join-Path $RepoRoot 'publish\latest.yml'
+    $expected = $ExpectedSemVer.Trim()
+
+    if ($UseLocal -and (Test-QuickerAgentLatestYmlFile -Path $localPath -ExpectedSemVer $expected)) {
+        Write-Host "Using local latest.yml (-UseLocal): $localPath" -ForegroundColor Cyan
+        return (Resolve-Path -LiteralPath $localPath).Path
+    }
+
+    if (Test-QuickerAgentLatestYmlFile -Path $localPath -ExpectedSemVer $expected) {
+        Write-Host "Using matching local latest.yml: $localPath" -ForegroundColor Cyan
+        return (Resolve-Path -LiteralPath $localPath).Path
+    }
+
+    if (Test-Path -LiteralPath $localPath) {
+        Write-Warning "Ignoring stale or invalid publish/latest.yml"
+    }
+
+    if (-not (Test-Path -LiteralPath $DownloadDir)) {
+        New-Item -ItemType Directory -Path $DownloadDir -Force | Out-Null
+    }
+
+    $downloaded = Join-Path $DownloadDir 'latest.yml'
+
+    try {
+        return Download-QuickerAgentLatestYmlFromRelease `
+            -Tag $Tag `
+            -ExpectedSemVer $expected `
+            -DestinationPath $downloaded
+    }
+    catch {
+        Write-Warning "Direct latest.yml download failed: $($_.Exception.Message)"
+    }
+
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        throw @"
+Failed to resolve latest.yml for $Tag ($expected).
+Install GitHub CLI (gh) or run Publish-QuickerAgent.ps1 locally, then retry with -UseLocal.
+"@
+    }
+
+    Write-Host 'Retrying latest.yml via gh release download...' -ForegroundColor Cyan
+    gh release download $Tag --repo 'QuickerHub/quicker-rpc' --pattern 'latest.yml' -D $DownloadDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "gh release download failed ($LASTEXITCODE) for latest.yml on $Tag"
+    }
+
+    if (-not (Test-Path -LiteralPath $downloaded)) {
+        throw "Downloaded latest.yml missing: $downloaded"
+    }
+
+    Assert-QuickerAgentLatestYmlFile -Path $downloaded -ExpectedSemVer $expected
+    return (Resolve-Path -LiteralPath $downloaded).Path
+}
+
 function Invoke-QuickerAgentBitifulUpload {
     param(
         [Parameter(Mandatory = $true)]
@@ -524,7 +648,7 @@ function Invoke-QuickerAgentBitifulUpload {
             & python $uploadScript @uploadArgs
         }
         if ($LASTEXITCODE -ne 0) {
-            throw "Bitiful latest.json upload failed with exit code $LASTEXITCODE"
+            throw "Bitiful latest.yml upload failed with exit code $LASTEXITCODE"
         }
     }
 }
