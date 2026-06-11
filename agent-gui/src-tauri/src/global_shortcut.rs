@@ -4,7 +4,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-pub const DEFAULT_LAUNCHER_SHORTCUT: &str = "Alt+Space";
+pub const DEFAULT_LAUNCHER_SHORTCUT: &str = "CommandOrControl+Shift+Space";
 const LAUNCHER_VOICE_TOGGLE_EVENT: &str = "global:voice-toggle";
 
 pub struct LauncherShortcutState {

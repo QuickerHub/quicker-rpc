@@ -48,12 +48,17 @@ describe("isValidTauriShortcut", () => {
 });
 
 describe("keyboardEventToTauriShortcut", () => {
-  it("captures the default launcher shortcut from Alt+Space", () => {
+  it("captures the default launcher shortcut from Ctrl+Shift+Space", () => {
     assert.equal(
       keyboardEventToTauriShortcut(
-        mockKeyboardEvent({ key: " ", code: "Space", altKey: true }),
+        mockKeyboardEvent({
+          key: " ",
+          code: "Space",
+          ctrlKey: true,
+          shiftKey: true,
+        }),
       ),
-      "Alt+Space",
+      DEFAULT_LAUNCHER_SHORTCUT,
     );
   });
 

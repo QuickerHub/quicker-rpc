@@ -9,14 +9,30 @@ export type AgentCommandCatalogItem = {
   scope: string;
 };
 
+export type AgentSkillCatalogItem = {
+  name: string;
+  description: string;
+  scope: string;
+};
+
+export type AgentSubagentCatalogItem = {
+  name: string;
+  description: string;
+  scope: string;
+};
+
 export type AgentDefsCatalogView = {
   commands: AgentCommandCatalogItem[];
+  skills: AgentSkillCatalogItem[];
+  agents: AgentSubagentCatalogItem[];
   loading: boolean;
   error: string | null;
 };
 
 const EMPTY: AgentDefsCatalogView = {
   commands: [],
+  skills: [],
+  agents: [],
   loading: false,
   error: null,
 };
@@ -28,7 +44,7 @@ export function useAgentDefsCatalog(workingDirectory: string): AgentDefsCatalogV
 
   const refresh = useCallback(async () => {
     if (!cwd) {
-      setState({ commands: [], loading: false, error: null });
+      setState({ commands: [], skills: [], agents: [], loading: false, error: null });
       return;
     }
     setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -39,6 +55,8 @@ export function useAgentDefsCatalog(workingDirectory: string): AgentDefsCatalogV
       const data = (await res.json()) as {
         ok?: boolean;
         commands?: AgentCommandCatalogItem[];
+        skills?: AgentSkillCatalogItem[];
+        agents?: AgentSubagentCatalogItem[];
         error?: string;
       };
       if (!res.ok || !data.ok) {
@@ -46,12 +64,16 @@ export function useAgentDefsCatalog(workingDirectory: string): AgentDefsCatalogV
       }
       setState({
         commands: data.commands ?? [],
+        skills: data.skills ?? [],
+        agents: data.agents ?? [],
         loading: false,
         error: null,
       });
     } catch (e) {
       setState({
         commands: [],
+        skills: [],
+        agents: [],
         loading: false,
         error: e instanceof Error ? e.message : String(e),
       });
@@ -67,6 +89,7 @@ export function useAgentDefsCatalog(workingDirectory: string): AgentDefsCatalogV
   return state;
 }
 
+/** @deprecated Use filterSlashCatalogItems from composer-slash-catalog */
 export function filterSlashCommands(
   commands: AgentCommandCatalogItem[],
   query: string,

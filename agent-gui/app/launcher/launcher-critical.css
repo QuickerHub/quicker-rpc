@@ -1,4 +1,12 @@
 /* Critical launcher styles — transparent by default (Tauri); web uses --web modifier. */
+#app-bootstrap-splash {
+  display: none !important;
+}
+
+html.launcher-html .composer-surface {
+  transition: none !important;
+}
+
 .launcher-route-shell {
   box-sizing: border-box;
   min-height: 100vh;

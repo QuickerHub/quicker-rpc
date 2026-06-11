@@ -8,7 +8,7 @@
 
 | 维度 | 启动器（Launcher） | 主 Agent |
 |------|-------------------|----------|
-| 唤起 | `Alt+Space`（Tauri 全局快捷键，可改） | 主窗口 / 托盘 |
+| 唤起 | `CommandOrControl+Shift+Space`（Ctrl+Shift+Space，桌面全局快捷键，可改） | 主窗口 / 托盘 |
 | 界面 | 透明置顶小窗，固定高度，输入框常驻底部 | 完整侧栏 + 对话历史 |
 | 目标 | **立即执行**：打开设置、运行动作、改元数据、常用操作 | 多步编写、磁盘 patch、发布 |
 | 回复 | 一句短结果，不暴露工具名 / CLI / JSON | 完整协作与长上下文 |
@@ -23,7 +23,7 @@
 ## 2. 用户体验流程
 
 ```
-用户按全局快捷键（默认 Alt+Space）
+用户按全局快捷键（默认 CommandOrControl+Shift+Space，即 Ctrl+Shift+Space）
     → Tauri 显示透明浮窗 / 浏览器模式打开 /launcher 弹窗
     → 输入框自动聚焦（可选：自动开始语音输入）
     → 用户输入自然语言 或 @ 引用动作标签
@@ -45,7 +45,7 @@
 
 | 项 | 存储键 | 说明 |
 |----|--------|------|
-| 启动快捷键 | `launcher-global-shortcut` | 默认 `Alt+Space`；仅 Tauri 注册系统级快捷键 |
+| 启动快捷键 | `launcher-global-shortcut` | 默认 `CommandOrControl+Shift+Space`（Ctrl+Shift+Space）；桌面壳注册系统级快捷键 |
 | 自动语音输入 | `launcher-auto-voice` | 唤起时自动 `global:voice-toggle` |
 
 浏览器开发模式无全局快捷键，可用主界面入口打开 `/launcher` 弹窗调试。

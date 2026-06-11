@@ -198,6 +198,7 @@ function LauncherComposer({
   }, [disabled, voiceInput, readComposerText, onSubmit, llmSelection]);
 
   useEffect(() => {
+    if (isDesktopShell()) return;
     const frame = requestAnimationFrame(() => {
       composerRef.current?.focus();
     });
@@ -210,9 +211,7 @@ function LauncherComposer({
     let unlisten: (() => void) | undefined;
     void (async () => {
       unlisten = await listenDesktop(LAUNCHER_SHOWN_EVENT, () => {
-        const focusComposer = () => composerRef.current?.focus();
-        requestAnimationFrame(focusComposer);
-        window.setTimeout(focusComposer, 50);
+        requestAnimationFrame(() => composerRef.current?.focus());
       });
     })();
 

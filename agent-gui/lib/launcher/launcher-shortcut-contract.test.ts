@@ -34,19 +34,34 @@ function extractRustDefaultShortcut(source: string): string {
   return match[1]!;
 }
 
+function extractElectronDefaultShortcut(source: string): string {
+  const match = source.match(
+    /export const DEFAULT_LAUNCHER_SHORTCUT = "([^"]+)";/,
+  );
+  assert.ok(
+    match,
+    "electron/commands/global-shortcut.mjs must export DEFAULT_LAUNCHER_SHORTCUT",
+  );
+  return match[1]!;
+}
+
 test("DEFAULT_LAUNCHER_SHORTCUT stays valid for Tauri registration", () => {
   assert.equal(isValidTauriShortcut(DEFAULT_LAUNCHER_SHORTCUT), true);
 });
 
-test("TypeScript and Rust default launcher shortcuts match", () => {
+test("TypeScript, Rust, and Electron default launcher shortcuts match", () => {
   const tsDefault = extractTsDefaultShortcut(
     readSource("lib/launcher/launcher-prefs.ts"),
   );
   const rustDefault = extractRustDefaultShortcut(
     readSource("src-tauri/src/global_shortcut.rs"),
   );
+  const electronDefault = extractElectronDefaultShortcut(
+    readSource("electron/commands/global-shortcut.mjs"),
+  );
 
   assert.equal(tsDefault, rustDefault);
+  assert.equal(tsDefault, electronDefault);
   assert.equal(tsDefault, DEFAULT_LAUNCHER_SHORTCUT);
 });
 
@@ -66,19 +81,6 @@ test("launcher docs reference the same default shortcut", () => {
   assert.match(agentDoc, new RegExp(`\\*\\*\`${expected}\`\\*\\*`));
 });
 
-test("launcher default constants were not reverted to Ctrl+Shift+Space", () => {
-  const legacyDefault = "CommandOrControl+Shift+Space";
-
-  assert.notEqual(
-    extractTsDefaultShortcut(readSource("lib/launcher/launcher-prefs.ts")),
-    legacyDefault,
-  );
-  assert.notEqual(
-    extractRustDefaultShortcut(readSource("src-tauri/src/global_shortcut.rs")),
-    legacyDefault,
-  );
-  assert.doesNotMatch(
-    readRepoDoc("docs/agent-gui-launcher.md"),
-    new RegExp(`默认 \`${legacyDefault}\``),
-  );
+test("launcher default is Ctrl+Shift+Space (CommandOrControl+Shift+Space wire form)", () => {
+  assert.equal(DEFAULT_LAUNCHER_SHORTCUT, "CommandOrControl+Shift+Space");
 });

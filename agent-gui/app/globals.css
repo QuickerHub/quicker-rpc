@@ -4537,17 +4537,116 @@ html.sidebar-collapsed-init .app-shell {
   background-color: var(--popup-bg);
 }
 
-.composer-slash-menu__name {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-weight: 600;
+.composer-slash-menu {
+  width: min(28rem, calc(100vw - 1rem));
+  padding: 0.35rem;
+  gap: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 400;
 }
 
-.composer-slash-menu__hint {
-  display: block;
-  margin-top: 0.15rem;
-  font-size: 0.75rem;
+.composer-slash-menu__sections {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.composer-slash-menu__section--bordered {
+  margin-top: 0.2rem;
+  padding-top: 0.2rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.composer-slash-menu__section-heading {
+  margin: 0;
+  padding: 0.15rem 0.45rem 0.2rem;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
   color: var(--muted);
-  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.composer-slash-menu__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.composer-slash-menu__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.4rem 0.45rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.composer-slash-menu__item:hover,
+.composer-slash-menu__item--active {
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+
+.composer-slash-menu__title {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.composer-slash-menu__description {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.composer-slash-menu__more {
+  display: block;
+  width: 100%;
+  margin: 0.05rem 0 0.1rem;
+  padding: 0.28rem 0.45rem 0.32rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+
+.composer-slash-menu__more:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+}
+
+.composer-slash-menu__status {
+  margin: 0.12rem 0.45rem 0.2rem;
+  padding: 0.15rem 0;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.composer-slash-menu__status--error {
+  color: var(--err);
 }
 
 .composer-inline-input-wrap {
@@ -5025,6 +5124,10 @@ html.sidebar-collapsed-init .app-shell {
   gap: 0.55rem;
   width: min(22rem, calc(100vw - 2rem));
   pointer-events: none;
+  /* Offsets are driven inline to dodge native webviews; animate the dodge. */
+  transition:
+    right 0.18s ease,
+    bottom 0.18s ease;
 }
 
 .app-message {
@@ -5564,6 +5667,10 @@ html.launcher-html--transparent .launcher-shell :is(
 
 html.launcher-html--transparent .launcher-composer .composer-field--markup {
   overflow: visible;
+}
+
+html.launcher-html .launcher-composer .composer-surface {
+  transition: none;
 }
 
 .launcher-composer .composer-surface {

@@ -370,7 +370,10 @@ async function main() {
     writeBootLog(`startup isDev=${isDev()} packaged=${app.isPackaged} argv=${process.argv.join(" ")}`);
     const loadUrl = isDev() ? getUiBaseUrl(true) : await bootProduction();
     writeBootLog(`loadUrl=${loadUrl}`);
-    createMainWindow(loadUrl);
+    const win = createMainWindow(loadUrl);
+    win.webContents.once("did-finish-load", () => {
+      launcher?.scheduleLauncherPrewarm(isDev());
+    });
     globalShortcutCommands?.initDefault();
     spawnClipboardRuntimeBackground();
   } catch (err) {

@@ -1,4 +1,5 @@
 import { BrowserWindow, screen } from "../electron-api.mjs";
+import { applyWin32LauncherWindowChrome } from "../win32-launcher-chrome.mjs";
 
 export const LAUNCHER_LABEL = "launcher";
 export const LAUNCHER_HIDDEN_EVENT = "launcher:hidden";
@@ -8,7 +9,8 @@ export const GLOBAL_VOICE_TOGGLE_EVENT = "global:voice-toggle";
 const LAUNCHER_WIDTH = 680;
 const LAUNCHER_HEIGHT = 520;
 const LAUNCHER_BLUR_SUPPRESS_MS = 1_200;
-const LAUNCHER_FOCUS_NUDGE_MS = 60;
+const LAUNCHER_PREWARM_DELAY_MS_DEV = 5_000;
+const LAUNCHER_PREWARM_DELAY_MS_PROD = 2_000;
 
 const LAUNCHER_ROOT_FONT_PX = 16;
 const LAUNCHER_EDGE_BOTTOM_REM = 0.65;
@@ -52,7 +54,20 @@ function positionLauncherWindow(win) {
   const maxY = work.y + work.height - bounds.height;
   y = Math.min(Math.max(y, minY), maxY);
 
-  win.setBounds({ x, y, width: bounds.width, height: bounds.height });
+  const next = { x, y, width: bounds.width, height: bounds.height };
+  if (
+    bounds.x !== next.x
+    || bounds.y !== next.y
+    || bounds.width !== next.width
+    || bounds.height !== next.height
+  ) {
+    win.setBounds(next);
+  }
+}
+
+function launcherSizeMatches(win) {
+  const [width, height] = win.getSize();
+  return width === LAUNCHER_WIDTH && height === LAUNCHER_HEIGHT;
 }
 
 /**
@@ -71,6 +86,9 @@ export function createLauncherCommands(deps) {
   let emitShownOnFocus = false;
   /** @type {ReturnType<typeof setTimeout> | null} */
   let suppressBlurUntil = null;
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let prewarmTimer = null;
+  let prewarmScheduled = false;
 
   function blurHideIsSuppressed() {
     return suppressBlurUntil !== null && Date.now() < suppressBlurUntil;
@@ -99,13 +117,13 @@ export function createLauncherCommands(deps) {
     hadStableFocus = false;
     emitShownOnFocus = true;
     suppressBlurHideFor(LAUNCHER_BLUR_SUPPRESS_MS);
+    applyLauncherChrome(win);
     positionLauncherWindow(win);
-    win.show();
+
+    if (!win.isVisible()) {
+      win.show();
+    }
     win.focus();
-    setTimeout(() => {
-      suppressBlurHideFor(LAUNCHER_BLUR_SUPPRESS_MS);
-      if (!win.isDestroyed()) win.focus();
-    }, LAUNCHER_FOCUS_NUDGE_MS);
   }
 
   function applyLauncherChrome(win) {
@@ -116,7 +134,9 @@ export function createLauncherCommands(deps) {
     win.setMinimumSize(LAUNCHER_WIDTH, LAUNCHER_HEIGHT);
     win.setMaximumSize(LAUNCHER_WIDTH, LAUNCHER_HEIGHT);
     if (win.isMaximized()) win.unmaximize();
-    win.setSize(LAUNCHER_WIDTH, LAUNCHER_HEIGHT);
+    if (!launcherSizeMatches(win)) {
+      win.setSize(LAUNCHER_WIDTH, LAUNCHER_HEIGHT);
+    }
   }
 
   function registerLauncherHandlers(win) {
@@ -158,7 +178,9 @@ export function createLauncherCommands(deps) {
       show: false,
       frame: false,
       transparent: true,
+      hasShadow: false,
       backgroundColor: "#00000000",
+      paintWhenInitiallyHidden: true,
       alwaysOnTop: true,
       skipTaskbar: true,
       resizable: false,
@@ -173,6 +195,7 @@ export function createLauncherCommands(deps) {
       },
     });
 
+    applyWin32LauncherWindowChrome(win);
     registerLauncherHandlers(win);
     applyLauncherChrome(win);
     void win.loadURL(launcherUrl());
@@ -192,11 +215,31 @@ export function createLauncherCommands(deps) {
 
   function ensureLauncherWindow() {
     if (launcherWindow && !launcherWindow.isDestroyed()) {
-      applyLauncherChrome(launcherWindow);
       showLauncherWindow(launcherWindow);
       return launcherWindow;
     }
     return buildLauncherWindow(true);
+  }
+
+  function prewarmLauncherWindow(delayMs) {
+    if (prewarmScheduled) return;
+    prewarmScheduled = true;
+    if (prewarmTimer) clearTimeout(prewarmTimer);
+    prewarmTimer = setTimeout(() => {
+      prewarmTimer = null;
+      if (launcherWindow && !launcherWindow.isDestroyed()) return;
+      buildLauncherWindow(false);
+      const primary = deps.getMainWindow();
+      if (primary && !primary.isDestroyed() && primary.isVisible()) {
+        primary.focus();
+      }
+    }, delayMs);
+  }
+
+  function scheduleLauncherPrewarm(isDev) {
+    prewarmLauncherWindow(
+      isDev ? LAUNCHER_PREWARM_DELAY_MS_DEV : LAUNCHER_PREWARM_DELAY_MS_PROD,
+    );
   }
 
   function emitVoiceToggleToLauncher() {
@@ -209,6 +252,7 @@ export function createLauncherCommands(deps) {
 
   return {
     getLauncherWindow: () => launcherWindow,
+    scheduleLauncherPrewarm,
     emitVoiceToggleToLauncher,
     launcher_show(_args) {
       ensureLauncherWindow();

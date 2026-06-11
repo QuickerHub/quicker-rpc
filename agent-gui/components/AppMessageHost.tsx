@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from "react";
 import {
   dismissAppMessage,
   pushAppMessage,
@@ -8,6 +16,13 @@ import {
   type AppMessage,
   type AppMessageAction,
 } from "@/lib/app-messages";
+import {
+  computeAppMessageHostOffset,
+  DEFAULT_APP_MESSAGE_HOST_OFFSET,
+  type AppMessageHostOffset,
+  type RectLike,
+} from "@/lib/app-message-host-position";
+import { subscribeEmbeddedWebViewBoundsRefresh } from "@/lib/embedded-webview-bounds-channel";
 
 function AppMessageActions({
   message,
@@ -117,9 +132,85 @@ function AppMessageCard({
   );
 }
 
+/** Regions covered by native child webviews that draw above all HTML. */
+const NATIVE_WEBVIEW_HOST_SELECTOR = ".embedded-browser__native-host";
+
+function collectNativeWebviewRects(): RectLike[] {
+  const rects: RectLike[] = [];
+  for (const el of document.querySelectorAll<HTMLElement>(
+    NATIVE_WEBVIEW_HOST_SELECTOR,
+  )) {
+    if (!el.isConnected) continue;
+    const style = window.getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden") continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) continue;
+    rects.push({
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+    });
+  }
+  return rects;
+}
+
+/** Shift the toast stack out from under native webviews (they paint above HTML). */
+function useAppMessageHostOffset(
+  hostRef: RefObject<HTMLDivElement | null>,
+  messageCount: number,
+): AppMessageHostOffset {
+  const [offset, setOffset] = useState<AppMessageHostOffset>(
+    DEFAULT_APP_MESSAGE_HOST_OFFSET,
+  );
+
+  useLayoutEffect(() => {
+    if (messageCount === 0) return;
+
+    const update = () => {
+      const next = computeAppMessageHostOffset({
+        webviewRects: collectNativeWebviewRects(),
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        stackHeight: hostRef.current?.getBoundingClientRect().height ?? 0,
+      });
+      setOffset((prev) =>
+        prev.right === next.right && prev.bottom === next.bottom ? prev : next,
+      );
+    };
+
+    let rafId: number | null = null;
+    const scheduleUpdate = () => {
+      if (rafId != null) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        update();
+      });
+    };
+
+    update();
+    window.addEventListener("resize", update);
+    const unsubscribeBounds =
+      subscribeEmbeddedWebViewBoundsRefresh(scheduleUpdate);
+    // Catch browser panel mount/unmount, which emits no bounds message.
+    const observer = new MutationObserver(scheduleUpdate);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      window.removeEventListener("resize", update);
+      unsubscribeBounds();
+      observer.disconnect();
+      if (rafId != null) window.cancelAnimationFrame(rafId);
+    };
+  }, [hostRef, messageCount]);
+
+  return offset;
+}
+
 /** Bottom-right toast stack for non-blocking app notifications. */
 export function AppMessageHost() {
   const messages = useAppMessages();
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const offset = useAppMessageHostOffset(hostRef, messages.length);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -144,8 +235,18 @@ export function AppMessageHost() {
 
   if (messages.length === 0) return null;
 
+  const hostStyle: CSSProperties = {
+    right: offset.right,
+    bottom: offset.bottom,
+  };
+
   return (
-    <div className="app-message-host" aria-label="通知">
+    <div
+      ref={hostRef}
+      className="app-message-host"
+      style={hostStyle}
+      aria-label="通知"
+    >
       {messages.map((message) => (
         <AppMessageCard
           key={message.id}

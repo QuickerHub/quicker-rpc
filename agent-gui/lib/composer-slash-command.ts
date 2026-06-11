@@ -6,6 +6,13 @@ import { placeCaretAtEnd } from "@/lib/composer-inline";
 
 export type ComposerSlashMatch = ComposerMentionMatch;
 
+/** Parse slash query from text before caret; empty string when only `/` was typed. */
+export function parseSlashQueryBeforeCaret(before: string): string | null {
+  const slashMatch = before.match(/(?:^|[\s\n])\/(?:([a-z][\w-]*))?$/i);
+  if (!slashMatch) return null;
+  return slashMatch[1] ?? "";
+}
+
 /** Active /-command at the caret, if any. */
 export function getComposerSlashMatch(root: HTMLElement): ComposerSlashMatch | null {
   const selection = window.getSelection();
@@ -17,10 +24,9 @@ export function getComposerSlashMatch(root: HTMLElement): ComposerSlashMatch | n
 
   const textNode = caret.startContainer as Text;
   const before = textNode.data.slice(0, caret.startOffset);
-  const match = before.match(/(?:^|[\s\n])\/([a-z][\w-]*)$/i);
-  if (!match) return null;
+  const query = parseSlashQueryBeforeCaret(before);
+  if (query === null) return null;
 
-  const query = match[1];
   const slashIndex = before.lastIndexOf("/");
   if (slashIndex < 0) return null;
 
@@ -34,13 +40,13 @@ export function getComposerSlashAnchorRect(range: Range): DOMRect {
   return getComposerMentionAnchorRect(range);
 }
 
-export function applyComposerSlashCommand(
+export function applyComposerSlashInsert(
   root: HTMLElement,
   slashRange: Range,
-  commandName: string,
+  text: string,
 ): void {
   slashRange.deleteContents();
-  const textNode = document.createTextNode(`/${commandName} `);
+  const textNode = document.createTextNode(text);
   slashRange.insertNode(textNode);
   const selection = window.getSelection();
   if (selection) {
@@ -52,4 +58,12 @@ export function applyComposerSlashCommand(
   } else {
     placeCaretAtEnd(root);
   }
+}
+
+export function applyComposerSlashCommand(
+  root: HTMLElement,
+  slashRange: Range,
+  commandName: string,
+): void {
+  applyComposerSlashInsert(root, slashRange, `/${commandName} `);
 }

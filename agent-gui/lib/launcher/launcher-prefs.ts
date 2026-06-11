@@ -2,7 +2,7 @@ export const LAUNCHER_SHORTCUT_STORAGE_KEY = "launcher-global-shortcut";
 export const LAUNCHER_AUTO_VOICE_STORAGE_KEY = "launcher-auto-voice";
 
 /** Default global shortcut for the quick-input launcher (Tauri). */
-export const DEFAULT_LAUNCHER_SHORTCUT = "Alt+Space";
+export const DEFAULT_LAUNCHER_SHORTCUT = "CommandOrControl+Shift+Space";
 
 export const LAUNCHER_PREFS_CHANGED_EVENT = "launcher-prefs-changed";
 

@@ -1,6 +1,6 @@
 import { globalShortcut } from "../electron-api.mjs";
 
-export const DEFAULT_LAUNCHER_SHORTCUT = "Alt+Space";
+export const DEFAULT_LAUNCHER_SHORTCUT = "CommandOrControl+Shift+Space";
 
 /**
  * @param {{

@@ -17,14 +17,19 @@ import {
   getComposerMentionMatch,
 } from "@/lib/composer-mention";
 import {
-  applyComposerSlashCommand,
+  buildSlashCatalogItems,
+  buildSlashMenuModel,
+  slashItemInsertText,
+  type SlashCatalogItem,
+  type SlashItemKind,
+} from "@/lib/composer-slash-catalog";
+import {
+  applyComposerSlashInsert,
   getComposerSlashAnchorRect,
   getComposerSlashMatch,
 } from "@/lib/composer-slash-command";
-import {
-  filterSlashCommands,
-  useAgentDefsCatalog,
-} from "@/lib/use-agent-defs";
+import { recordSlashUsage } from "@/lib/composer-slash-usage-prefs";
+import { useAgentDefsCatalog } from "@/lib/use-agent-defs";
 import {
   canSendComposedMessage,
   hasPasteableUserMessageFormat,
@@ -168,13 +173,35 @@ export const ComposerMarkupField = forwardRef<
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [slashAnchorRect, setSlashAnchorRect] = useState<DOMRect | null>(null);
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
+  const [slashExpandedKinds, setSlashExpandedKinds] = useState<
+    Set<SlashItemKind>
+  >(() => new Set());
   const slashCatalog = useAgentDefsCatalog(
     enableSlashCommands ? workingDirectory : "",
   );
-  const slashItems = useMemo(
-    () => filterSlashCommands(slashCatalog.commands, slashQuery ?? ""),
-    [slashCatalog.commands, slashQuery],
+  const slashCatalogItems = useMemo(
+    () =>
+      buildSlashCatalogItems({
+        commands: slashCatalog.commands ?? [],
+        skills: slashCatalog.skills ?? [],
+        agents: slashCatalog.agents ?? [],
+      }),
+    [slashCatalog.commands, slashCatalog.skills, slashCatalog.agents],
   );
+  const slashMenuModel = useMemo(
+    () =>
+      buildSlashMenuModel(
+        slashCatalogItems,
+        slashQuery ?? "",
+        slashExpandedKinds,
+      ),
+    [slashCatalogItems, slashQuery, slashExpandedKinds],
+  );
+  const slashItems = slashMenuModel.flatVisible;
+
+  useEffect(() => {
+    setSlashExpandedKinds(new Set());
+  }, [slashQuery]);
   const slashOpen =
     enableSlashCommands && slashQuery !== null && !disabled && mentionQuery === null;
 
@@ -314,11 +341,12 @@ export const ComposerMarkupField = forwardRef<
   );
 
   const applySlashSelection = useCallback(
-    (command: { name: string }) => {
+    (item: SlashCatalogItem) => {
       const root = rootRef.current;
       const range = slashRangeRef.current;
       if (!root || !range) return;
-      applyComposerSlashCommand(root, range, command.name);
+      recordSlashUsage(item.kind, item.name);
+      applyComposerSlashInsert(root, range, slashItemInsertText(item));
       closeMenus();
       emitChange();
     },
@@ -797,11 +825,15 @@ export const ComposerMarkupField = forwardRef<
         open={slashOpen}
         query={slashQuery ?? ""}
         anchorRect={slashAnchorRect}
-        commands={slashItems}
+        sections={slashMenuModel.sections}
+        flatVisible={slashItems}
         loading={slashCatalog.loading}
         error={slashCatalog.error}
         activeIndex={slashActiveIndex}
         onSelect={applySlashSelection}
+        onExpandSection={(kind) => {
+          setSlashExpandedKinds((prev) => new Set([...prev, kind]));
+        }}
       />
     </div>
   );
