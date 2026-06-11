@@ -1,6 +1,7 @@
 import { ACTION_LINK_SUMMARY_PROMPT } from "@/lib/action-link-markup";
 import type { ChatMode } from "@/lib/chat-mode";
 import { CHAT_MODE_LAUNCHER } from "@/lib/chat-mode";
+import { SEARCH_STRATEGY_PROMPT } from "@/lib/search-strategy-prompt";
 import { TOOL_ROUTING_PROMPT } from "@/lib/tool-routing";
 import { WORKBENCH_AGENT_PROMPT } from "@/lib/workbench-agent-prompt";
 
@@ -29,6 +30,8 @@ export const SYSTEM_INSTRUCTIONS = prompt(
   "- On connectivity_failure / qkrpc unavailable: tell user (Quicker + QuickerRpc plugin + serve). STOP — no shell_exec ping/probe/serve/build.ps1/qkrpc CLI workaround unless user explicitly asks to fix the environment.",
   "- Action refs: `<qka id=\"uuid\">Title</qka>` inline mention (UI chip); `<qka-link id=\"uuid\" use=\"run,edit,...\"/>` operation bar. NO identical retry on transient_error/timeout.",
   "",
+  SEARCH_STRATEGY_PROMPT,
+  "",
   TOOL_ROUTING_PROMPT,
   "",
   WORKBENCH_AGENT_PROMPT,
@@ -43,7 +46,7 @@ export const SYSTEM_INSTRUCTIONS = prompt(
   "**Dev UI**: dev_frontend_check after agent-gui edits until ok=true (agent-gui/AGENTS.md).",
   "",
   "## Skills",
-  "Preloaded tier-2 instructions below (agentskills.io). On-demand skills listed in catalog; docs get/search/index for references.",
+  "Preloaded tier-2 instructions below (agentskills.io). On-demand skills in catalog; authoring via docs search (snippet), docs get for full workflow only.",
 );
 
 const LAUNCHER_SYSTEM_INSTRUCTIONS_CORE = prompt(

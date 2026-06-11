@@ -41,6 +41,21 @@ export function resolveAuthoringSkillsRoot(): string {
   return join(repo, "docs/skills/quicker-authoring");
 }
 
+export function resolveAuthoringReferencesRoot(): string {
+  const repo = resolveQuickerRpcRepoRoot();
+  if (!repo) {
+    throw new Error("Cannot resolve quicker-rpc repo root for authoring references");
+  }
+  return join(repo, "docs/authoring-references");
+}
+
+function resolveReferenceFixturePath(skillsRoot: string, relPath: string): string {
+  if (relPath.replace(/\\/g, "/").startsWith("step-modules/")) {
+    return join(resolveAuthoringReferencesRoot(), relPath);
+  }
+  return join(skillsRoot, "references", relPath);
+}
+
 async function readTopicMarkdown(
   skillsRoot: string,
   topic: string,
@@ -78,7 +93,7 @@ export async function loadAuthoringDocFixtureRows(): Promise<AuthoringDocSearchR
     const refs = manifest.referenceCatalog?.[meta.topic] ?? [];
     for (const ref of refs) {
       if (ref.id === "_catalog") continue;
-      const refPath = join(skillsRoot, "references", ref.path);
+      const refPath = resolveReferenceFixturePath(skillsRoot, ref.path);
       let refMarkdown: string;
       try {
         refMarkdown = await readFile(refPath, "utf8");

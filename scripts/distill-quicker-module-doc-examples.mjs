@@ -17,7 +17,7 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SKIP_JSON = path.join(ROOT, "docs/action-authoring-src/step-module-skip.json");
 const AUTHORED_DIR = path.join(
   ROOT,
-  "docs/action-authoring-src/references/step-modules/authored",
+  "docs/authoring-references/step-modules/authored",
 );
 const SOURCE_URL =
   "https://github.com/PassWordE/QuickerModuleDoc/blob/main/Doc.md";

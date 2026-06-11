@@ -31,6 +31,7 @@ import {
 } from "@/lib/workspace-edit-match";
 import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
 import { normalizeDataJsonTextForDisk } from "@/lib/action-editor/wire/programWire";
+import { grepTextFiles } from "@/lib/grep-text-files";
 
 export {
   DEFAULT_READ_CHARS,
@@ -518,12 +519,6 @@ export async function grepWorkspacePath(
   }
 
   const targetStat = await stat(resolved.absolute);
-  const maxMatches = Math.min(options?.maxMatches ?? MAX_GREP_MATCHES, MAX_GREP_MATCHES);
-  const flags = options?.caseInsensitive ? "i" : "";
-  const pattern = options?.literal === false
-    ? new RegExp(trimmedQuery, flags)
-    : null;
-
   const files: { absolute: string; relative: string }[] = [];
   if (targetStat.isFile()) {
     files.push({ absolute: resolved.absolute, relative: resolved.relative });
@@ -533,64 +528,22 @@ export async function grepWorkspacePath(
     return { ok: false, error: `not a file or directory: ${resolved.relative}` };
   }
 
-  const matches: WorkspaceGrepMatch[] = [];
-  let truncated = false;
-
-  for (const file of files) {
-    if (matches.length >= maxMatches) {
-      truncated = true;
-      break;
-    }
-    const stream = createReadStream(file.absolute, { encoding: "utf8" });
-    const rl = createInterface({ input: stream, crlfDelay: Infinity });
-    let lineNo = 0;
-    try {
-      for await (const line of rl) {
-        lineNo += 1;
-        let hit = false;
-        let column = 0;
-        if (pattern) {
-          const m = pattern.exec(line);
-          if (m && m.index !== undefined) {
-            hit = true;
-            column = m.index + 1;
-          }
-        } else {
-          const hay = options?.caseInsensitive ? line.toLowerCase() : line;
-          const needle = options?.caseInsensitive
-            ? trimmedQuery.toLowerCase()
-            : trimmedQuery;
-          const idx = hay.indexOf(needle);
-          if (idx >= 0) {
-            hit = true;
-            column = idx + 1;
-          }
-        }
-        if (!hit) continue;
-        matches.push({
-          path: file.relative.replace(/\\/g, "/"),
-          line: lineNo,
-          column,
-          lineText: line.length > 500 ? `${line.slice(0, 500)}…` : line,
-        });
-        if (matches.length >= maxMatches) {
-          truncated = true;
-          break;
-        }
-      }
-    } finally {
-      stream.destroy();
-      rl.close();
-    }
-    if (truncated) break;
-  }
+  const { matches, truncated, filesScanned } = await grepTextFiles(
+    files,
+    trimmedQuery,
+    {
+      maxMatches: options?.maxMatches,
+      caseInsensitive: options?.caseInsensitive,
+      literal: options?.literal,
+    },
+  );
 
   return {
     ok: true,
     path: resolved.relative,
     matches,
     truncated,
-    filesScanned: files.length,
+    filesScanned,
   };
 }
 

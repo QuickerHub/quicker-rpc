@@ -3,15 +3,18 @@
 import { useCallback, type CSSProperties } from "react";
 
 import { WorkspaceEmbeddedBrowser } from "@/components/browser/WorkspaceEmbeddedBrowser";
+import { WorkspaceEmbeddedTerminal } from "@/components/terminal/WorkspaceEmbeddedTerminal";
 import { ActionTracePanel } from "@/components/action-trace/ActionTracePanel";
 import { WorkspaceExplorerEditorArea } from "@/components/workspace/WorkspaceExplorerEditorArea";
 import { WorkspaceResourceManager } from "@/components/workspace/WorkspaceResourceManager";
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import { storeChatColumnWidth } from "@/lib/explorer-prefs";
+import { useEmbeddedTerminal } from "@/lib/embedded-terminal-context";
 import {
   browserIdFromSideView,
   isSidePanelBrowserView,
   isSidePanelEditorView,
+  isSidePanelTerminalView,
   isSidePanelTraceView,
   SIDE_PANEL_VIEW_EXPLORER,
   SIDE_PANEL_VIEW_TRACE,
@@ -24,6 +27,7 @@ import {
 export function WorkspaceExplorerPanel() {
   const { panelOpen, chatColumnWidth, setChatColumnWidth, activeSideView } =
     useWorkspaceExplorerShell();
+  const { open: defaultTerminalOpen } = useEmbeddedTerminal();
 
   const handleResizePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -77,6 +81,8 @@ export function WorkspaceExplorerPanel() {
     showTrace && activeSideView !== SIDE_PANEL_VIEW_TRACE
       ? activeSideView
       : null;
+  const terminalPanelVisible = isSidePanelTerminalView(activeSideView);
+  const terminalMounted = defaultTerminalOpen;
   const showEditor = isSidePanelEditorView(activeSideView);
   const showWorkspaceTree =
     activeSideView === SIDE_PANEL_VIEW_EXPLORER || showEditor;
@@ -98,7 +104,7 @@ export function WorkspaceExplorerPanel() {
       <div
         className={`workspace-side-panel-body${splitTreeAndEditor ? " workspace-side-panel-body--split-editor" : ""}`}
       >
-        {showWorkspaceTree && !showBrowser && !showTrace ? (
+        {showWorkspaceTree && !showBrowser && !showTrace && !terminalPanelVisible ? (
           <div
             className={`workspace-side-panel-tree${splitTreeAndEditor ? " workspace-side-panel-tree--compact" : ""}`}
           >
@@ -119,6 +125,15 @@ export function WorkspaceExplorerPanel() {
               tabId={traceTabId}
               className="action-trace-panel--side"
             />
+          </div>
+        ) : null}
+
+        {terminalMounted ? (
+          <div
+            className="workspace-side-panel-terminal"
+            hidden={!terminalPanelVisible ? true : undefined}
+          >
+            <WorkspaceEmbeddedTerminal />
           </div>
         ) : null}
 
@@ -152,8 +167,8 @@ export function ExplorerPanelToggle({
       aria-label={panelOpen ? "收起工作区侧栏" : "展开工作区侧栏"}
       title={
         panelOpen
-          ? "收起侧栏（资源管理、浏览器、文件预览）"
-          : "展开侧栏（资源管理、浏览器、文件预览）"
+          ? "收起侧栏（资源管理、浏览器、终端、文件预览）"
+          : "展开侧栏（资源管理、浏览器、终端、文件预览）"
       }
     >
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>

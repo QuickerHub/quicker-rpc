@@ -74,7 +74,7 @@ public sealed class QkrpcMcpActionTools
             _runtime, id, title, description, icon, expectedEditVersion, force, cancellationToken);
 
     [McpServerTool(Name = "qkrpc_action_move")]
-    [Description("Move one action on the Quicker action grid (profile + row/col).")]
+    [Description("Move one action on the Quicker action grid (profile + row/col). Default: first empty slot, no swap; on needsUserChoice (occupied / page full) ask the user (e.g. create a new page?) before retrying.")]
     public Task<string> QkrpcActionMove(
         string id,
         string profile,

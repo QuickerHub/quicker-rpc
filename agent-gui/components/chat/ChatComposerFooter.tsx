@@ -149,6 +149,8 @@ const ChatComposerFooterInner = forwardRef<
         canSend = true;
       } else if (segment.type === "browser-element") {
         canSend = true;
+      } else if (segment.type === "slash-tag") {
+        canSend = true;
       } else if (segment.text.trim()) {
         canSend = true;
       }

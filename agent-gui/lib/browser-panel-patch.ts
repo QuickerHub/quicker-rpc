@@ -61,3 +61,39 @@ export function browserPanelPatchFromToolOutput(
   if (!isStructuredToolResult(output) || !output.ok) return null;
   return browserPanelPatchFromData(output.data);
 }
+
+const BROWSER_NAVIGATE_ACTIONS = new Set([
+  "navigate",
+  "reload",
+  "back",
+  "forward",
+  "tab",
+]);
+
+export type BrowserPanelSyncIntent = {
+  patch: Partial<BrowserPanelSnapshot>;
+  openPanel: boolean;
+  navigate: boolean;
+};
+
+/** Panel open + navigate intent from a completed browser tool result. */
+export function browserPanelSyncFromToolOutput(
+  output: unknown,
+): BrowserPanelSyncIntent | null {
+  const patch = browserPanelPatchFromToolOutput(output);
+  if (!patch) return null;
+
+  const data = asRecord(
+    isStructuredToolResult(output) ? output.data : null,
+  );
+  const action = pickString(data ?? {}, "action");
+  const navigate =
+    Boolean(patch.url)
+    && (action ? BROWSER_NAVIGATE_ACTIONS.has(action) : false);
+
+  return {
+    patch,
+    openPanel: true,
+    navigate,
+  };
+}

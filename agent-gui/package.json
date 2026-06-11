@@ -49,6 +49,7 @@
     "voice:dev-server": "uv run --directory ../voice-asr-runtime quicker-voice-runtime",
     "voice:download-model": "uv run --directory ../voice-asr-runtime download-asr-model",
     "browser:dev-server": "node browser-runtime/server.mjs",
+    "terminal:dev-server": "node terminal-runtime/server.mjs",
     "browser:install": "playwright install msedge",
     "probe:llm-configs": "tsx scripts/probe-llm-configs.ts",
     "probe:publish-config": "tsx scripts/probe-llm-configs.ts -- --source publish --method full",
@@ -93,6 +94,8 @@
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "~2.10.1",
     "@uiw/react-codemirror": "^4.25.10",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "ai": "^6.0.193",
     "better-sqlite3": "^12.10.0",
     "drizzle-orm": "^0.45.2",
@@ -100,6 +103,7 @@
     "minisearch": "^7.2.0",
     "monaco-editor": "^0.55.1",
     "next": "^15.3.0",
+    "node-pty": "^1.1.0",
     "playwright": "^1.52.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -171,7 +175,8 @@
     "onlyBuiltDependencies": [
       "@bufbuild/buf",
       "better-sqlite3",
-      "electron-binary"
+      "electron-binary",
+      "node-pty"
     ]
   },
   "devDependencies": {

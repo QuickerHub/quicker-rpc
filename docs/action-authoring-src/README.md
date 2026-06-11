@@ -15,7 +15,8 @@
 | `cli-only/` | CLI-only topics (`profiles: ["cli"]`) |
 | `adjunct/` | Non-authoring paths (e.g. `quicker-ui`) |
 | `partials/` | `{{#include-partial}}` shared fragments |
-| `references/{topic}/` | Module deep refs (`docs_get_reference`) |
+
+Module deep refs (`step-modules/kc`, `authored`, `examples`) live in **`docs/authoring-references/`** — not generated from here.
 
 ## Audience
 
@@ -53,7 +54,7 @@ npm run docs:check
 | `workspace-editing-body` | workspace-editing |
 | `expressions-body` | expressions |
 | `workflow-checklist-subprogram` | subprogram-workflow |
-| `workflow-checklist-action-organization` | action-organization-workflow |
+| `workflow-checklist-action-organization` | action-organization |
 | `workflow-checklist-action-publish` | action-publish-workflow |
 
 ## Add a topic

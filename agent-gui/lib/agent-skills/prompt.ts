@@ -20,7 +20,7 @@ export async function formatSkillCatalogForPrompt(): Promise<string> {
 
   const lines = [
     "## Available skills (on demand)",
-    "Match task to description; load full instructions via docs get when needed.",
+    "Match task to description; workflows via docs get, references/ via docs search when needed.",
     "",
     "<available_skills>",
   ];
@@ -47,7 +47,7 @@ export async function formatPreloadedSkillBlock(
   const title = loaded.name.replace(/-/g, " ");
   const scope =
     PRELOADED_SKILL_SCOPES[loaded.name]
-    ?? "see instructions below. Deep-read references via docs get when stuck.";
+    ?? "see instructions below. Workflows: docs get; references/: docs search when stuck.";
   const lines = [`## Skill: ${title}`, `Scope: ${scope}`, "", loaded.body];
   if (options?.topicIndex) {
     lines.push("", options.topicIndex);

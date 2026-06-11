@@ -29,13 +29,26 @@ export type ActionAuthoringSearchItem = {
   topic: string;
   title: string;
   description: string;
+  /** Short scan line for the hit list. */
   excerpt: string;
+  /** Matched section or query neighborhood (~1.2k) — read this; no follow-up get required. */
+  snippet: string;
   reference?: string;
   /** Matched section heading when search hit a document fragment. */
   section?: string;
   /** MiniSearch relevance score; omitted when query is empty. */
   score?: number;
 };
+
+/** docs search scope filter (default all). */
+export const DOCS_SEARCH_SCOPES = ["references", "workflows", "all"] as const;
+export type DocsSearchScope = (typeof DOCS_SEARCH_SCOPES)[number];
+
+/** Topics where docs get may return embedded JSON schema (not full prose). */
+export const DOCS_SCHEMA_TOPIC_IDS = new Set([
+  "action-data-schema",
+  "form-spec",
+]);
 
 export function docViewerEntryKey(topic: string, reference?: string): string {
   return reference ? `${topic}/${reference}` : topic;

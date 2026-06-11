@@ -67,13 +67,13 @@ const workspaceReadSliceSchema = {
  */
 export const legacyQuickerToolAliases = {
   [DOCS_GET_TOOL]: tool({
-    description: "Deprecated: use docs({ action: \"get\", topic })",
+    description: "Deprecated: use docs({ action: \"get\", topic }) for full workflow topic",
     inputSchema: z.object({ topic: z.string() }),
     execute: async ({ topic }) => executeDocsTool({ action: "get", topic }),
   }),
 
   [DOCS_GET_REFERENCE_TOOL]: tool({
-    description: "Deprecated: use docs({ action: \"get\", topic, reference })",
+    description: "Deprecated: use docs({ action: \"search\", query }) — returns items[].snippet",
     inputSchema: z.object({ topic: z.string(), file: z.string() }),
     execute: async ({ topic, file }) =>
       executeDocsTool({ action: "get", topic, reference: file }),

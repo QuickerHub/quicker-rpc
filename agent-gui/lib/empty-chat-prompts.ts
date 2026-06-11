@@ -63,8 +63,8 @@ export const EMPTY_CHAT_ACTION_PROMPTS: readonly EmptyChatPrompt[] = [
     category: "smoke",
     readOnly: true,
     label: "读 authoring 摘要",
-    hint: "docs_get，勿粘贴全文",
-    text: "docs_get topic authoring-workflow，用 5 条以内要点说明 P1–P7 各阶段要调用的工具类型（create/get/patch、step-runner、workspace），不要粘贴指南全文。",
+    hint: "docs search，读 snippet",
+    text: "docs search query authoring workflow P1 P7，根据 items[].snippet 用 5 条以内要点说明各阶段要调用的工具类型，不要粘贴全文。",
   },
   {
     id: "smoke-list-page",
@@ -182,7 +182,7 @@ export const EMPTY_CHAT_ACTION_PROMPTS: readonly EmptyChatPrompt[] = [
     readOnly: true,
     label: "整理流程要点",
     hint: "docs action-organization",
-    text: "docs_get topic action-organization-workflow，用条目说明「移动动作 / 新建 profile tab / 虚拟进程归集」各适合用哪些 qkrpc 工具（各一句），不要粘贴全文。",
+    text: "docs search query action organization move，根据 snippet 用条目说明「移动动作 / 新建 profile tab / 虚拟进程归集」各适合用哪些 qkrpc 工具（各一句），不要粘贴全文。",
   },
 ] as const;
 

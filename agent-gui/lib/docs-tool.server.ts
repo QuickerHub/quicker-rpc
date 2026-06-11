@@ -5,27 +5,48 @@ import { z } from "zod";
 import {
   getActionAuthoringDoc,
   getActionAuthoringReference,
+  getActionAuthoringSectionSnippet,
   listActionAuthoringTopics,
   searchActionAuthoringDocs,
 } from "@/lib/action-authoring-docs";
-import { groupTopicsByLayer } from "@/lib/action-authoring-docs.shared";
+import { buildSearchSnippet } from "@/lib/action-authoring-docs-search";
+import {
+  DOCS_SEARCH_SCOPES,
+  groupTopicsByLayer,
+} from "@/lib/action-authoring-docs.shared";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import { DOCS_TOOL } from "@/lib/docs-tool";
 
-const docsActionSchema = z.enum(["get", "search", "index"]);
+/** Public actions for the consolidated docs tool. */
+const docsActionSchema = z.enum(["search", "get", "index"]);
+
+const DOCS_SEARCH_HINT =
+  "Read items[].snippet (topic + hit context). get(topic) only for full workflow guide.";
 
 export type DocsToolInput = {
-  action: z.infer<typeof docsActionSchema>;
+  action: z.infer<typeof docsActionSchema> | "grep";
   topic?: string;
+  /** Legacy / docs_get_reference only — not in agent tool schema. */
   reference?: string;
+  section?: string;
   query?: string;
+  scope?: (typeof DOCS_SEARCH_SCOPES)[number];
   limit?: number;
 };
+
+function normalizeDocsAction(
+  action: DocsToolInput["action"],
+): z.infer<typeof docsActionSchema> {
+  if (action === "grep") return "search";
+  return action;
+}
 
 export async function executeDocsTool(
   input: DocsToolInput,
 ): Promise<Record<string, unknown>> {
-  switch (input.action) {
+  const action = normalizeDocsAction(input.action);
+
+  switch (action) {
     case "index": {
       const topics = await listActionAuthoringTopics();
       const layerGroups = groupTopicsByLayer(topics);
@@ -39,10 +60,25 @@ export async function executeDocsTool(
         ),
         layerOrder: layerGroups.map((g) => g.layer),
         layerGroups,
+        hint: DOCS_SEARCH_HINT,
       });
     }
     case "search": {
-      const search = await searchActionAuthoringDocs(input.query, input.limit ?? 10);
+      const query = input.query?.trim();
+      if (!query) {
+        return formatLocalToolResult(
+          {
+            action: "docs-search",
+            docsAction: "search",
+            errorMessage: "query is required when action=search",
+          },
+          false,
+          "query is required when action=search",
+        );
+      }
+      const search = await searchActionAuthoringDocs(query, input.limit ?? 10, {
+        scope: input.scope,
+      });
       return formatLocalToolResult({
         action: "docs-search",
         docsAction: "search",
@@ -65,7 +101,44 @@ export async function executeDocsTool(
       }
 
       const ref = input.reference?.trim();
+      const section = input.section?.trim();
+
+      // Legacy docs_get_reference path — prefer docs search for agents.
       if (ref) {
+        if (section) {
+          const sectionResult = await getActionAuthoringSectionSnippet(
+            topic,
+            section,
+            ref,
+          );
+          if (!sectionResult.ok) {
+            return formatLocalToolResult(
+              {
+                action: "docs-get",
+                docsAction: "get",
+                errorMessage: sectionResult.error,
+                availableTopics: sectionResult.availableTopics,
+                availableReferences: sectionResult.availableReferences,
+                hint: DOCS_SEARCH_HINT,
+              },
+              false,
+              sectionResult.error,
+            );
+          }
+          return formatLocalToolResult({
+            action: "docs-get",
+            docsAction: "get",
+            success: true,
+            mode: "snippet",
+            topic: sectionResult.topic,
+            reference: sectionResult.reference,
+            section: sectionResult.section,
+            title: sectionResult.title,
+            snippet: sectionResult.snippet,
+            hint: DOCS_SEARCH_HINT,
+          });
+        }
+
         const result = await getActionAuthoringReference(topic, ref);
         if (!result.ok) {
           return formatLocalToolResult(
@@ -75,20 +148,23 @@ export async function executeDocsTool(
               errorMessage: result.error,
               availableTopics: result.availableTopics,
               availableReferences: result.availableReferences,
+              hint: DOCS_SEARCH_HINT,
             },
             false,
             result.error,
           );
         }
+
         return formatLocalToolResult({
           action: "docs-get",
           docsAction: "get",
           success: true,
+          mode: "snippet",
           topic: result.doc.topic,
           reference: result.doc.reference,
           title: result.doc.title,
-          description: result.doc.description,
-          markdown: result.doc.markdown,
+          snippet: buildSearchSnippet(result.doc.markdown, [], undefined),
+          hint: DOCS_SEARCH_HINT,
         });
       }
 
@@ -105,19 +181,22 @@ export async function executeDocsTool(
           result.error,
         );
       }
+
       return formatLocalToolResult({
         action: "docs-get",
         docsAction: "get",
         success: true,
+        mode: "full",
         topic: result.doc.topic,
         title: result.doc.title,
         description: result.doc.description,
         markdown: result.doc.markdown,
         ...(result.doc.schema ? { schema: result.doc.schema } : {}),
+        hint: "Full topic markdown. Prefer docs search for partial reads.",
       });
     }
     default: {
-      const _exhaustive: never = input.action;
+      const _exhaustive: never = action;
       return formatLocalToolResult(
         { action: "docs", errorMessage: `Unknown action: ${String(_exhaustive)}` },
         false,
@@ -128,27 +207,35 @@ export async function executeDocsTool(
 }
 
 export const DOCS_TOOL_DEF = tool({
-  description:
-    "Deep-read action authoring guides (basics preloaded in system prompt). "
-    + "Use when stuck on program body / workspace_program / step keys — NOT at session start. "
-    + "action=get: one topic (or on-demand skill e.g. quicker-eval-expression, quicker-chromecontrol); optional reference. "
-    + "action=search: find topic; action=index: list topics. "
-    + "topic action-data-schema (and form-spec) also returns `schema` JSON (qkrpc.program-data.v1). "
-    + "NOT for run/settings/shell — see Tool routing.",
+  description: [
+    "Quicker action authoring guides (indexed).",
+    "search(query, scope?, limit?) → items[].snippet — primary; read snippet, no follow-up get.",
+    "get(topic) → full workflow/schema markdown when snippet is not enough.",
+    "index() → topic catalog.",
+    "scope: references (step-modules) | workflows | all.",
+    "NOT qkrpc_action_query, NOT web_search.",
+  ].join(" "),
   inputSchema: z.object({
-    action: docsActionSchema.describe(
-      "get: deep-read one topic; search: find topic; index: list all topics",
-    ),
+    action: docsActionSchema.describe("search | get | index"),
+    query: z
+      .string()
+      .optional()
+      .describe("Required for search — keywords (fuzzy; sys:http, 中文)"),
+    scope: z
+      .enum(DOCS_SEARCH_SCOPES)
+      .optional()
+      .describe("search filter: references | workflows | all (default all)"),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(50)
+      .optional()
+      .describe("search result cap (default 10)"),
     topic: z
       .string()
       .optional()
-      .describe("Topic id for action=get (required for get)"),
-    reference: z
-      .string()
-      .optional()
-      .describe("Appendix id under references/{topic}/ for action=get"),
-    query: z.string().optional().describe("Keyword for action=search"),
-    limit: z.number().int().min(1).max(50).optional(),
+      .describe("Required for get — topic id (e.g. authoring-workflow)"),
   }),
   execute: executeDocsTool,
 });

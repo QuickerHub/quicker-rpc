@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildAuthoringDocsSearchIndex,
   buildSearchExcerpt,
+  buildSearchSnippet,
   compactMarkdownForSearch,
   searchAuthoringDocRows,
   tokenizeAuthoringDocText,
@@ -124,5 +125,37 @@ Agent STOP shared-info-set Playwright preview API`;
     const excerpt = buildSearchExcerpt(md, ["target"]);
     assert.match(excerpt, /TARGET token/);
     assert.ok(excerpt.startsWith("…") || excerpt.includes("TARGET"));
+  });
+
+  it("buildSearchSnippet returns workflow section for topic hits", () => {
+    const md = [
+      "# Authoring workflow",
+      "## P1 Discover",
+      "Use qkrpc_action_query.",
+      "## P4 Implement",
+      "Use step-runner get before writing inputParams.",
+    ].join("\n");
+    const snippet = buildSearchSnippet(md, ["inputparams"], "P4 Implement");
+    assert.match(snippet, /P4 Implement/);
+    assert.match(snippet, /inputParams|step-runner/i);
+  });
+
+  it("buildSearchSnippet returns matched section body not whole doc", () => {
+    const md = `# Intro
+
+filler ${"x".repeat(500)}
+
+## Move policy
+
+Default no swap. Ask user before create-page-after.
+
+## Other
+
+tail`;
+    const snippet = buildSearchSnippet(md, ["swap"], "Move policy");
+    assert.match(snippet, /Move policy/);
+    assert.match(snippet, /no swap/);
+    assert.ok(!snippet.includes("tail"));
+    assert.ok(snippet.length <= 1200);
   });
 });

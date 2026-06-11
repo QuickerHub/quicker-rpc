@@ -312,9 +312,9 @@ export const quickerTools = {
 
     description:
 
-      "Find StepRunner module key before adding/editing steps. NOT for running actions. "
+      "Search StepRunner catalog before adding/editing steps — required when module key uncertain. NOT for running actions. "
 
-      + "Syntax: space=AND; |=OR; *=wildcard. Prefer OR synonyms (提示框|msgbox|sys:*msg*). "
+      + "Syntax: space=AND; |=OR; *=wildcard. Prefer OR synonyms (提示框|msgbox|sys:*msg*); retry if empty. "
 
       + "Then qkrpc_step_runner_get with items[].key (+ controlField.value if present). NOT get-ui.",
 

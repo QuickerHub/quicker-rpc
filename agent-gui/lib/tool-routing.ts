@@ -27,7 +27,7 @@ const TOOL_ROUTING_ROWS = [
   "| Icons | qkrpc_fa search | guess fa: specs |",
   "| Quicker app settings | quicker_settings set/apply | open unless user needs UI |",
   "| Open settings panel | quicker_settings open (preset) | shell |",
-  "| Stuck on authoring | docs get (one topic) | session-start spam |",
+  "| Authoring how-to / module refs | docs search → snippet | docs get full workflow |",
   "| Quicker not connected | qkrpc_wait | shell ping/probe/serve |",
   "| User preference | ask_question | delete confirm UI |",
   // — Workbench / disk —
@@ -52,6 +52,6 @@ export const TOOL_ROUTING_TABLE = TOOL_ROUTING_ROWS.join("\n");
 
 export const TOOL_ROUTING_PROMPT = [
   "## Tool routing",
-  "Pick exactly one tool from the table; params live in that tool's schema.",
+  "After search when needed (see Search-first): pick one tool; params in tool schema.",
   TOOL_ROUTING_TABLE,
 ].join("\n");

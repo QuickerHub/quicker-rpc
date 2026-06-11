@@ -19,12 +19,11 @@ import {
 import {
   buildSlashCatalogItems,
   buildSlashMenuModel,
-  slashItemInsertText,
   type SlashCatalogItem,
   type SlashItemKind,
 } from "@/lib/composer-slash-catalog";
 import {
-  applyComposerSlashInsert,
+  applyComposerSlashTag,
   getComposerSlashAnchorRect,
   getComposerSlashMatch,
 } from "@/lib/composer-slash-command";
@@ -346,7 +345,7 @@ export const ComposerMarkupField = forwardRef<
       const range = slashRangeRef.current;
       if (!root || !range) return;
       recordSlashUsage(item.kind, item.name);
-      applyComposerSlashInsert(root, range, slashItemInsertText(item));
+      applyComposerSlashTag(root, range, item);
       closeMenus();
       emitChange();
     },

@@ -5,7 +5,7 @@ export const DOCS_TOOL = "docs";
 
 /** @deprecated Use docs with action=get */
 export const DOCS_GET_TOOL = "docs_get";
-/** @deprecated Use docs with action=get + reference */
+/** @deprecated Use docs with action=search */
 export const DOCS_GET_REFERENCE_TOOL = "docs_get_reference";
 /** @deprecated Use docs with action=search */
 export const DOCS_SEARCH_TOOL = "docs_search";
@@ -99,7 +99,7 @@ export function summarizeDocsToolOutput(
   if (isSearch && Array.isArray(d.items)) {
     const n = typeof d.matchCount === "number" ? d.matchCount : d.items.length;
     const kw = typeof d.keyword === "string" && d.keyword ? ` · ${d.keyword}` : "";
-    return `${n} 个主题${kw}`;
+    return `${n} 条结果${kw}`;
   }
 
   const isIndex =

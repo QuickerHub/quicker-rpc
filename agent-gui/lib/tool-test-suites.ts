@@ -98,7 +98,7 @@ const TOOL_TEST_CALLS: ToolTestCallDef[] = [
   {
     toolName: "docs",
     group: "docs",
-    input: { action: "get", topic: "overview" },
+    input: { action: "search", query: "authoring workflow P1", limit: 3 },
   },
   {
     toolName: "launcher_resolve",

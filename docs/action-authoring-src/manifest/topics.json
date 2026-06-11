@@ -127,15 +127,16 @@
     },
     "source": "workflows/subprogram-workflow.md"
   },
-  "action-organization-workflow": {
+  "action-organization": {
     "title": "Action organization",
-    "description": "Use when tidying action pages: list/search (uses: refs), move, global tab create/reorder, virtual process ensure — not for editing steps.",
+    "description": "Use when tidying action pages (panels): list/search (uses: refs), move actions (default no swap; full page → ask user about a new page), global tab create/reorder, virtual process ensure — not for editing steps.",
+    "searchAliases": ["action-organization-workflow", "面板", "面板管理", "动作页", "移动动作", "panel", "move action"],
     "allowed-tools": "qkrpc_action_list qkrpc_action_search qkrpc_action_move qkrpc_profile_create qkrpc_profile_reorder qkrpc_process_ensure",
     "metadata": {
       "phase": "organize",
       "layer": "workflow"
     },
-    "source": "workflows/action-organization-workflow.md"
+    "source": "workflows/action-organization.md"
   },
   "action-publish-workflow": {
     "title": "Action publish workflow",
@@ -210,7 +211,7 @@
   },
   "step-modules": {
     "title": "Step modules reference",
-    "description": "Condensed step module catalog by category. Use after step-runner search, with step_runner_get; docs_get_reference topic step-modules.",
+    "description": "Condensed step module catalog by category. Use after step-runner search, with step_runner_get; deep module docs via docs search (not in system prompt).",
     "allowed-tools": "qkrpc_step_runner_search qkrpc_step_runner_get docs",
     "metadata": {
       "phase": "P4-P5",

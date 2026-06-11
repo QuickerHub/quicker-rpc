@@ -17,11 +17,11 @@ import { omitDefaultsOnStep } from "./lib/omit-default-input-params.mjs";
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const AUTHORED_DIR = path.join(
   ROOT,
-  "docs/action-authoring-src/references/step-modules/authored",
+  "docs/authoring-references/step-modules/authored",
 );
 const EXAMPLES_DIR = path.join(
   ROOT,
-  "docs/action-authoring-src/references/step-modules/examples",
+  "docs/authoring-references/step-modules/examples",
 );
 
 /**

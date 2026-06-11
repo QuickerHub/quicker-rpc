@@ -3,6 +3,7 @@ import {
   expandSlashCommand,
   wrapExpandedCommandForModel,
 } from "@/lib/agent-defs/command-expand";
+import { expandSlashTagsInUserText } from "@/lib/composer-slash-tag";
 import { extractLastUserMessageText } from "@/lib/launcher/launcher-command-cache.server";
 
 export type ChatCommandOverrides = {
@@ -31,7 +32,9 @@ export async function resolveSlashCommandForChat(
   cwd: string,
   enabledTools?: string[],
 ): Promise<AppliedChatCommand> {
-  const lastUserText = extractLastUserMessageText(messages);
+  const lastUserText = expandSlashTagsInUserText(
+    extractLastUserMessageText(messages),
+  );
   const expanded = await expandSlashCommand(lastUserText, cwd);
   if (!expanded) {
     return { expandedUserText: null, overrides: {}, commandName: null };

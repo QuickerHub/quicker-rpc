@@ -71,8 +71,9 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 |------|------|------|------|
 | 1 Catalog | `name` + `description` | Agent 每次 chat | `formatSkillCatalogForPrompt()` — 非预加载 skill（qkrpc、quicker-run、quicker-sync） |
 | 2 Instructions | `prompt-tier0.md` 或 `SKILL.md` body | 预加载 skill | `formatAllPreloadedSkillsForPrompt()` — 当前仅 `quicker-authoring` |
-| 2b Topic index | `topics.json` 按 layer | 与 tier 2 同批 | `formatAuthoringTopicIndexForPrompt()` |
-| 3 Resources | `references/*.md` | `docs({ action: "get" })` | `getActionAuthoringDoc` / `getActionAuthoringReference` |
+| 1.5 Search-first | `search-strategy-prompt.ts` | Agent 每次 chat | `SEARCH_STRATEGY_PROMPT`（先 search 再 get/猜） |
+| 2b Topic index | `topics.json` 按 layer（仅 topic id + description） | 与 tier 2 同批 | `formatAuthoringTopicIndexForPrompt()` |
+| 3 Resources | `docs/authoring-references/` | `docs search` → `items[].snippet` | 独立目录；`docs get` 仅全文工作流 |
 
 ### 预加载：quicker-authoring
 
@@ -157,7 +158,7 @@ docs/action-authoring-src/
 | L0.5 Tier0 router | `prompt-tier0.md` | Agent 每次 chat（system） |
 | L1 Topic index | `topics.json` 展开 | Agent 每次 chat（system） |
 | L2 Topic 全文 | `docs/action-authoring/agent/*.md` 等 | Agent 调用 `docs get` 时进 **tool result** |
-| L3 Reference | `references/{topic}/*.md` | `docs get reference` |
+| L3 Reference | `authoring-references/` | `docs search` → snippet |
 
 CLI 消费者：`qkrpc guide get` 读 `docs/action-authoring/cli/`（同 manifest 另一 profile）。
 

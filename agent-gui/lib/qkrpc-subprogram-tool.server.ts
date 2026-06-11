@@ -369,7 +369,8 @@ export async function executeQkrpcSubprogramTool(
 
 export const QKRPC_SUBPROGRAM_QUERY_TOOL_DEF = tool({
   description:
-    "Find global subprograms by name. Use before sys:subprogram steps — need callIdentifier from get. "
+    "Search global subprograms by name — use before sys:subprogram steps when callIdentifier unknown. "
+    + "Retry with broader query if empty; then get for callIdentifier. "
     + "Not for embedded subprograms (workspace_program target=embedded_subprogram).",
   inputSchema: subprogramQuerySchema,
   execute: async (input) => executeQkrpcSubprogramQueryTool(input),

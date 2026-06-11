@@ -14,11 +14,11 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PROGRESS_PATH = path.join(
   ROOT,
-  "docs/action-authoring-src/references/step-modules/.examples-progress.json",
+  "docs/authoring-references/step-modules/.examples-progress.json",
 );
 const EXAMPLES_DIR = path.join(
   ROOT,
-  "docs/action-authoring-src/references/step-modules/examples",
+  "docs/authoring-references/step-modules/examples",
 );
 
 function parseArgs(argv) {

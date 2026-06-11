@@ -189,9 +189,15 @@ const actionIdSchema = z.object({
   profile: z.string().optional().describe("move: profileId, name, or scope"),
   row: z.number().int().min(0).optional().describe("move: grid row (with col)"),
   col: z.number().int().min(0).optional().describe("move: grid column (with row)"),
-  swap: z.boolean().optional().describe("move: swap with occupant"),
-  onNoEmptySlot: z.enum(["ask", "cancel", "createPageAfter"]).optional(),
-  onOccupiedSlot: z.enum(["ask", "cancel", "swap"]).optional(),
+  swap: z.boolean().optional().describe("move: swap with occupant — only when user explicitly asks to exchange"),
+  onNoEmptySlot: z
+    .enum(["ask", "cancel", "createPageAfter"])
+    .optional()
+    .describe("move: page full handling; default ask — confirm with user before createPageAfter"),
+  onOccupiedSlot: z
+    .enum(["ask", "cancel", "swap"])
+    .optional()
+    .describe("move: occupied slot handling; default ask — never swap silently"),
   note: z.string().optional().describe("publish: release note"),
   tags: z.string().optional().describe("publish: tags"),
   keywords: z.string().optional().describe("publish: keywords"),
@@ -796,7 +802,8 @@ export async function executeQkrpcActionTool(
 }
 
 const ACTION_QUERY_DESCRIPTION =
-  "Find actions by keyword, scope, or uses:SubName. Launcher: prefer launcher_resolve for run intent; "
+  "Search Quicker actions by keyword, scope, or uses:SubName — use before run/edit when id unknown or user names loosely. "
+  + "Retry with | synonyms or uses: if weak. Launcher: prefer launcher_resolve for run intent; "
   + "if launcher.autoRunBlocked — ask_question, do not run. Empty query = recent actions. UI renders table — summarize counts only.";
 
 export const QKRPC_ACTION_QUERY_TOOL_DEF = tool({
@@ -853,15 +860,22 @@ export const QKRPC_ACTION_SET_METADATA_TOOL_DEF = tool({
 });
 
 export const QKRPC_ACTION_MOVE_TOOL_DEF = tool({
-  description: "Move one action on the Quicker action grid (profile + row/col).",
+  description:
+    "Move one action on the Quicker action grid (profile + row/col). Default: first empty slot, no swap; on needsUserChoice (occupied / page full) ask the user (e.g. create a new page?) before retrying.",
   inputSchema: z.object({
     id: z.string().uuid().describe("Action GUID"),
     profile: z.string().describe("profileId, name, or scope"),
     row: z.number().int().min(0).optional(),
     col: z.number().int().min(0).optional(),
-    swap: z.boolean().optional().describe("Swap with occupant"),
-    onNoEmptySlot: z.enum(["ask", "cancel", "createPageAfter"]).optional(),
-    onOccupiedSlot: z.enum(["ask", "cancel", "swap"]).optional(),
+    swap: z.boolean().optional().describe("Swap with occupant — only when user explicitly asks to exchange"),
+    onNoEmptySlot: z
+      .enum(["ask", "cancel", "createPageAfter"])
+      .optional()
+      .describe("Page full handling; default ask — confirm with user before createPageAfter"),
+    onOccupiedSlot: z
+      .enum(["ask", "cancel", "swap"])
+      .optional()
+      .describe("Occupied slot handling; default ask — never swap silently"),
   }),
   execute: async (input) => executeQkrpcActionIdTool({ action: "move", ...input }),
 });

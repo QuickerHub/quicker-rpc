@@ -3,6 +3,7 @@
 import { useCallback, type ClipboardEvent } from "react";
 import { ActionPromptTag } from "@/components/chat/ActionPromptTag";
 import { BrowserElementPromptTag } from "@/components/chat/BrowserElementPromptTag";
+import { SlashPromptTag } from "@/components/chat/SlashPromptTag";
 import {
   hasPasteableUserMessageFormat,
   parseUserMessageSegments,
@@ -54,6 +55,15 @@ export function InlineUserMessage({ content }: InlineUserMessageProps) {
             <BrowserElementPromptTag
               key={`${segment.element.tagId}-${index}`}
               element={segment.element}
+              variant="sent"
+            />
+          );
+        }
+        if (segment.type === "slash-tag") {
+          return (
+            <SlashPromptTag
+              key={`${segment.ref.kind}:${segment.ref.name}-${index}`}
+              slash={segment.ref}
               variant="sent"
             />
           );

@@ -17,8 +17,8 @@
 
 | 类型 | 路径 | 维护 |
 |------|------|------|
-| **手写** | `references/step-modules/authored/<id>.md` | 仓库直接编辑；规范见 **`authored/SPEC.md`** |
-| **KC 全文** | `references/step-modules/kc/<id>.md` | `npm run docs:modules:crawl` 爬取；官方全文，供搜索检索 `kc/<id>` |
+| **手写** | `authoring-references/step-modules/authored/<id>.md` | 仓库直接编辑；规范见 **`authored/SPEC.md`** |
+| **KC 全文** | `authoring-references/step-modules/kc/<id>.md` | `npm run docs:modules:crawl` 爬取；官方全文，供搜索检索 `kc/<id>` |
 
 约 **44** 个模块有手写 reference；**全部**模块均有 KC 全文（见 **`_catalog`**）；其余无 ref 文件模块 `step-runner get` 已够。
 

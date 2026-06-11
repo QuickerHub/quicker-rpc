@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Fetch Quicker KC Help docs → references/step-modules/kc/{id}.md (full crawl for search).
- * Hand-written refs live in references/step-modules/authored/ (agent-curated).
+ * Fetch Quicker KC Help docs → docs/authoring-references/step-modules/kc/{id}.md.
+ * Hand-written refs live in docs/authoring-references/step-modules/authored/.
  *
  * Usage:
  *   node scripts/generate-step-module-refs.mjs           # skip unchanged
@@ -22,10 +22,7 @@ const SKIP_PATH = path.join(
   ROOT,
   "docs/action-authoring-src/step-module-skip.json",
 );
-const OUT_DIR = path.join(
-  ROOT,
-  "docs/action-authoring-src/references/step-modules",
-);
+const OUT_DIR = path.join(ROOT, "docs/authoring-references/step-modules");
 const KC_OUT_DIR = path.join(OUT_DIR, "kc");
 const AUTHORED_DIR = path.join(OUT_DIR, "authored");
 const DOC_BASE = "https://getquicker.net/KC/Help/Doc";

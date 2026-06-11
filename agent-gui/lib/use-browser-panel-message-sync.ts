@@ -5,10 +5,15 @@ import {
   isToolOrDynamicToolUIPart,
   type UIMessage,
 } from "ai";
-import { useEffect, useRef } from "react";
-import { browserPanelPatchFromToolOutput } from "@/lib/browser-panel-sync";
-import { useEmbeddedBrowserOptional } from "@/lib/embedded-browser-context";
+import { useEffect, useMemo, useRef } from "react";
+import {
+  browserPanelPatchFromToolOutput,
+  browserPanelSyncFromToolOutput,
+} from "@/lib/browser-panel-sync";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
+import { useEmbeddedBrowserOptional } from "@/lib/embedded-browser-context";
+import { shouldRunToolTerminalEffect } from "@/lib/use-tool-terminal-effect";
+import { readToolCallId } from "@/lib/workspace-tool-auto-open";
 
 function findLatestBrowserPatch(
   messages: UIMessage[],
@@ -28,22 +33,37 @@ function findLatestBrowserPatch(
   return null;
 }
 
-function findLatestBrowserPatchInLastAssistant(
+function seedBrowserToolStates(
   messages: UIMessage[],
-): ReturnType<typeof browserPanelPatchFromToolOutput> {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const message = messages[i];
-    if (message.role !== "assistant") continue;
-    for (let j = message.parts.length - 1; j >= 0; j -= 1) {
-      const part = message.parts[j];
+  stateByCallId: Map<string, string>,
+): void {
+  for (const message of messages) {
+    for (const part of message.parts) {
       if (!isToolOrDynamicToolUIPart(part)) continue;
       if (getToolOrDynamicToolName(part) !== BROWSER_TOOL) continue;
-      if (part.state !== "output-available") continue;
-      return browserPanelPatchFromToolOutput(part.output);
+      const key =
+        readToolCallId(part)?.trim()
+        || `msg:${message.id}:${BROWSER_TOOL}`;
+      const state = "state" in part ? part.state : "unknown";
+      stateByCallId.set(key, state);
     }
-    return null;
   }
-  return null;
+}
+
+function buildBrowserToolStateSignature(messages: UIMessage[]): string {
+  const parts: string[] = [];
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (!isToolOrDynamicToolUIPart(part)) continue;
+      if (getToolOrDynamicToolName(part) !== BROWSER_TOOL) continue;
+      const key =
+        readToolCallId(part)?.trim()
+        || `msg:${message.id}:${BROWSER_TOOL}`;
+      const state = "state" in part ? part.state : "unknown";
+      parts.push(`${key}\0${state}`);
+    }
+  }
+  return parts.join("\n");
 }
 
 /** Sync embedded browser panel from latest browser tool results in chat messages. */
@@ -53,28 +73,57 @@ export function useBrowserPanelMessageSync(
 ): void {
   const embedded = useEmbeddedBrowserOptional();
   const primedRef = useRef(false);
-  const prevCountRef = useRef(0);
+  const prevStateByCallIdRef = useRef<Map<string, string>>(new Map());
   const enabled = options?.enabled !== false;
+
+  const browserToolStateSignature = useMemo(
+    () => buildBrowserToolStateSignature(messages),
+    [messages],
+  );
 
   useEffect(() => {
     if (!enabled || !embedded) return;
 
-    const prevCount = prevCountRef.current;
-    const grew = messages.length > prevCount;
-    prevCountRef.current = messages.length;
-
-    // Replay chat history on cold start must not open the panel or navigate Playwright.
     if (!primedRef.current) {
       primedRef.current = true;
       const patch = findLatestBrowserPatch(messages);
-      if (!patch) return;
-      embedded.applySnapshot(patch);
+      if (patch) {
+        embedded.applySnapshot(patch);
+      }
+      seedBrowserToolStates(messages, prevStateByCallIdRef.current);
       return;
     }
 
-    const patch = findLatestBrowserPatchInLastAssistant(messages);
-    if (!patch || !grew) return;
+    for (const message of messages) {
+      for (const part of message.parts) {
+        if (!isToolOrDynamicToolUIPart(part)) continue;
+        if (getToolOrDynamicToolName(part) !== BROWSER_TOOL) continue;
 
-    embedded.applySnapshot(patch, { openPanel: true, navigate: true });
-  }, [embedded, messages, enabled]);
+        const key =
+          readToolCallId(part)?.trim()
+          || `msg:${message.id}:${BROWSER_TOOL}`;
+        const state = "state" in part ? part.state : "unknown";
+        const prev = prevStateByCallIdRef.current.get(key);
+
+        if (prev === undefined) {
+          prevStateByCallIdRef.current.set(key, state);
+          continue;
+        }
+        prevStateByCallIdRef.current.set(key, state);
+
+        if (!shouldRunToolTerminalEffect(prev, state, "output-available")) {
+          continue;
+        }
+
+        const output = "output" in part ? part.output : undefined;
+        const intent = browserPanelSyncFromToolOutput(output);
+        if (!intent) continue;
+
+        embedded.applySnapshot(intent.patch, {
+          openPanel: intent.openPanel,
+          navigate: intent.navigate,
+        });
+      }
+    }
+  }, [browserToolStateSignature, embedded, enabled, messages]);
 }

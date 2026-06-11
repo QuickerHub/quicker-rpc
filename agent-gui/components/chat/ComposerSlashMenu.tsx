@@ -2,11 +2,8 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { SlashPromptTag } from "@/components/chat/SlashPromptTag";
 import type { SlashCatalogItem, SlashItemKind, SlashMenuSection } from "@/lib/composer-slash-catalog";
-import {
-  slashItemLabel,
-  stripSlashDescriptionPreview,
-} from "@/lib/composer-slash-catalog";
 import { computeMentionMenuLayout } from "@/lib/composer-mention-menu-layout";
 
 type ComposerSlashMenuProps = {
@@ -31,7 +28,6 @@ function readViewportSize(): { width: number; height: number } {
 
 export function ComposerSlashMenu({
   open,
-  query,
   anchorRect,
   sections,
   flatVisible,
@@ -115,7 +111,6 @@ export function ComposerSlashMenu({
                 {section.visibleItems.map((item) => {
                   const index = flatIndex;
                   flatIndex += 1;
-                  const description = stripSlashDescriptionPreview(item.description);
                   return (
                     <li key={`${item.kind}:${item.name}`}>
                       <button
@@ -131,14 +126,10 @@ export function ComposerSlashMenu({
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => onSelect(item)}
                       >
-                        <span className="composer-slash-menu__title">
-                          {slashItemLabel(item)}
-                        </span>
-                        {description ? (
-                          <span className="composer-slash-menu__description">
-                            {description}
-                          </span>
-                        ) : null}
+                        <SlashPromptTag
+                          slash={{ kind: item.kind, name: item.name }}
+                          variant="menu"
+                        />
                       </button>
                     </li>
                   );

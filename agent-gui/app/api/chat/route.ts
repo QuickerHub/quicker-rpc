@@ -46,6 +46,7 @@ import { tryRespondWithLauncherCacheDirect } from "@/lib/launcher/launcher-cache
 import { tryRespondWithLauncherResolveDirect } from "@/lib/launcher/launcher-resolve-direct.server";
 import { createRepairToolCallHandler } from "@/lib/repair-tool-call";
 import { parseSlashCommandInput } from "@/lib/agent-defs/command-expand";
+import { expandSlashTagsInUserText } from "@/lib/composer-slash-tag";
 import { resolveSlashCommandForChat } from "@/lib/agent-defs/apply-chat-command.server";
 
 export const maxDuration = 120;
@@ -182,7 +183,7 @@ async function handleChatPost(req: Request) {
         if (
           !slashTextApplied
           && slashCommand.expandedUserText
-          && parseSlashCommandInput(part.text.trim())
+          && parseSlashCommandInput(expandSlashTagsInUserText(part.text).trim())
         ) {
           slashTextApplied = true;
           text = slashCommand.expandedUserText;

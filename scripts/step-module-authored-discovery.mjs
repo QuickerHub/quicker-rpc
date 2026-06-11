@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const AUTHORED_DIR = path.join(
   ROOT,
-  "docs/action-authoring-src/references/step-modules/authored",
+  "docs/authoring-references/step-modules/authored",
 );
 export const KEYWORDS_PATH = path.join(
   ROOT,

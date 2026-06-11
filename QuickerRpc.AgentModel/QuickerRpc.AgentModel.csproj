@@ -47,7 +47,7 @@
       <Link>Docs\ActionAuthoring\%(Filename)%(Extension)</Link>
       <LogicalName>QuickerRpc.AgentModel.Docs.ActionAuthoring.%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="$(RepoRoot)docs\action-authoring\cli\references\**\*.md">
+    <EmbeddedResource Include="$(RepoRoot)docs\authoring-references\**\*.md">
       <Link>Docs\ActionAuthoring\References\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <LogicalName>QuickerRpc.AgentModel.Docs.ActionAuthoring.References.$([System.String]::Copy('%(RecursiveDir)').Replace('\','.'))%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>

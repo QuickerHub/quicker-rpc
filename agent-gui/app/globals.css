@@ -1,4 +1,5 @@
 @import "./theme.css";
+@import "@xterm/xterm/css/xterm.css";
 
 :root {
   --scrollbar-size: 4px;
@@ -4263,6 +4264,37 @@ html.sidebar-collapsed-init .app-shell {
   background: color-mix(in srgb, var(--panel) 88%, var(--accent-subtle) 12%);
 }
 
+.composer-prompt-tag--slash {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.composer-prompt-tag__icon--slash {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  width: auto;
+  min-width: 0.55rem;
+}
+
+.composer-prompt-tag--slash-command {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--accent-border));
+  background: color-mix(in srgb, var(--primary) 10%, var(--accent-subtle));
+}
+
+.composer-prompt-tag--slash-skill {
+  border-color: color-mix(in srgb, #0d9488 35%, var(--border));
+  background: color-mix(in srgb, #0d9488 10%, var(--panel));
+}
+
+.composer-prompt-tag--slash-agent {
+  border-color: color-mix(in srgb, #7c3aed 35%, var(--border));
+  background: color-mix(in srgb, #7c3aed 10%, var(--panel));
+}
+
+.composer-prompt-tag--slash-menu {
+  pointer-events: none;
+}
+
 .composer-prompt-tag__meta {
   flex-shrink: 0;
   font-size: 0.65rem;
@@ -4574,45 +4606,23 @@ html.sidebar-collapsed-init .app-shell {
 }
 
 .composer-slash-menu__item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
+  display: block;
   width: 100%;
-  padding: 0.4rem 0.45rem;
+  padding: 0.18rem 0.35rem;
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--text);
   text-align: left;
   cursor: pointer;
 }
 
 .composer-slash-menu__item:hover,
 .composer-slash-menu__item--active {
-  background: color-mix(in srgb, var(--muted) 14%, transparent);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
 }
 
-.composer-slash-menu__title {
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.25;
-  color: var(--text);
-}
-
-.composer-slash-menu__description {
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.35;
-  color: var(--muted);
+.composer-slash-menu__item--active .composer-prompt-tag--slash-menu {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent);
 }
 
 .composer-slash-menu__more {
@@ -10576,6 +10586,187 @@ body.workspace-explorer-pane-resizing * {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.workspace-embedded-terminal {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace-embedded-terminal__head {
+  gap: 0.35rem;
+}
+
+.workspace-embedded-terminal__cwd {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.68rem;
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workspace-embedded-terminal__badge {
+  flex: 0 0 auto;
+  padding: 0.1rem 0.38rem;
+  border-radius: 0.28rem;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--muted);
+  font-size: 0.62rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.workspace-embedded-terminal__internal-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  gap: 0.1rem;
+  min-width: 0;
+  padding: 0 0.35rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.workspace-embedded-terminal__internal-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.workspace-embedded-terminal__internal-tab {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  max-width: 8.5rem;
+  border-radius: 0.35rem 0.35rem 0 0;
+}
+
+.workspace-embedded-terminal__internal-tab-main {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.24rem 0.4rem;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workspace-embedded-terminal__internal-tab--active
+  .workspace-embedded-terminal__internal-tab-main {
+  color: var(--text);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+.workspace-embedded-terminal__internal-tab-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.workspace-embedded-terminal__internal-tab-close:hover {
+  background: var(--hover-overlay);
+  color: var(--text);
+}
+
+.workspace-embedded-terminal__body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #111318;
+}
+
+.workspace-embedded-terminal__body--stack {
+  position: relative;
+}
+
+.workspace-side-panel-terminal {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace-side-panel-terminal[hidden] {
+  display: none !important;
+}
+
+.workspace-embedded-terminal__xterm--stacked {
+  position: absolute;
+  inset: 0;
+}
+
+.workspace-embedded-terminal__xterm--stacked[hidden] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.workspace-embedded-terminal__new-tab {
+  flex: 0 0 auto;
+}
+
+.workspace-embedded-terminal__xterm {
+  flex: 1 1 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.workspace-embedded-terminal__xterm-host {
+  position: absolute;
+  inset: 0;
+  padding: 0.2rem 0.35rem 0.35rem;
+}
+
+.workspace-embedded-terminal__xterm-host .xterm {
+  height: 100%;
+}
+
+.workspace-embedded-terminal__xterm-host .xterm-viewport {
+  overflow-y: auto !important;
+}
+
+.workspace-embedded-terminal__status,
+.workspace-embedded-terminal__error {
+  position: absolute;
+  top: 0.35rem;
+  left: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.workspace-embedded-terminal__error {
+  color: #ff8f8f;
 }
 
 .workspace-embedded-browser__head {

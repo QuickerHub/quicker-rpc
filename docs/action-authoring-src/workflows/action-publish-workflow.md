@@ -190,4 +190,4 @@ Run `qkrpc action publish --id <guid> --preflight --json` to list all blocking i
 
 ## Related
 
-overview · authoring-workflow · action-icons · action-organization-workflow · subprogram-workflow
+overview · authoring-workflow · action-icons · action-organization · subprogram-workflow

@@ -24,7 +24,8 @@
 ## Hard rules
 
 - NO shell_exec for qkrpc connectivity (ping, probe, serve, build.ps1 -t, qkrpc CLI) — tell user on connectivity_failure
-- NO guess inputParams without step_runner_get
+- Search before guess (see system Search-first); docs search → items[].snippet; docs get(topic) only for full workflow
+- NO guess inputParams without step_runner_search → get
 - NO get-ui / step-runner.getUi
 - NO inline patch JSON / --patch-file; save via workspace_program patch only
 - After patch trust editVersion; NO re-get to verify
@@ -38,4 +39,4 @@
 
 {{#include-partial schema-hot-action-steps}}
 
-NO multi docs get at session start; topic index is in system prompt below.
+Topic index below; deep-read via docs search (snippet). Full workflow → docs get(topic).

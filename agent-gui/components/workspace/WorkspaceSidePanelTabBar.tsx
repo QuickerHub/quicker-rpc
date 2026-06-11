@@ -5,6 +5,7 @@ import {
   SidePanelIconBrowser,
   SidePanelIconClose,
   SidePanelIconFile,
+  SidePanelIconTerminal,
   SidePanelIconTrace,
 } from "@/components/workspace/side-panel-view-icons";
 import { WorkspaceSidePanelHeaderControls } from "@/components/workspace/WorkspaceSidePanelHeaderControls";
@@ -17,6 +18,7 @@ import {
 import { isSidePanelTraceView } from "@/lib/action-trace-tab-id";
 import { useDocsViewer } from "@/lib/docs-viewer";
 import { useEmbeddedBrowser } from "@/lib/embedded-browser-context";
+import { useEmbeddedTerminal } from "@/lib/embedded-terminal-context";
 import { useEmbeddedBrowserTabs } from "@/lib/embedded-browser-tabs";
 import {
   DEFAULT_EMBEDDED_BROWSER_ID,
@@ -31,16 +33,18 @@ import {
   browserIdFromSideView,
   isSidePanelBrowserView,
   isSidePanelEditorView,
+  isSidePanelTerminalView,
   SIDE_PANEL_PREVIEW_TAB_ID,
   SIDE_PANEL_VIEW_BROWSER,
   SIDE_PANEL_VIEW_EXPLORER,
+  SIDE_PANEL_VIEW_TERMINAL,
   sidePanelBrowserViewId,
 } from "@/lib/workspace-side-panel-view";
 
 type ContentTabItem = {
   id: string;
   label: string;
-  kind: "file" | "trace" | "browser";
+  kind: "file" | "trace" | "browser" | "terminal";
 };
 
 function tabLabel(
@@ -63,6 +67,7 @@ export function WorkspaceSidePanelTabBar() {
     snapshot: browserSnapshot,
     setOpen: setBrowserOpen,
   } = useEmbeddedBrowser();
+  const { open: terminalOpen, setOpen: setTerminalOpen } = useEmbeddedTerminal();
   const { tabs: browserTabs, closeTab: closeBrowserTab } =
     useEmbeddedBrowserTabs();
   const { tabs, activeTabId, setActiveTabId, closeTab } = useWorkspaceExplorerEditor();
@@ -95,6 +100,13 @@ export function WorkspaceSidePanelTabBar() {
         kind: "browser",
       });
     }
+    if (terminalOpen) {
+      items.push({
+        id: SIDE_PANEL_VIEW_TERMINAL,
+        label: "终端",
+        kind: "terminal",
+      });
+    }
     for (const browserTab of browserTabs) {
       items.push({
         id: sidePanelBrowserViewId(browserTab.id),
@@ -116,13 +128,18 @@ export function WorkspaceSidePanelTabBar() {
     browserSnapshot.title,
     browserSnapshot.url,
     browserTabs,
+    terminalOpen,
     tabs,
     traceTabs,
   ]);
 
   const selectTab = useCallback(
     (tabId: string) => {
-      if (isSidePanelTraceView(tabId) || isSidePanelBrowserView(tabId)) {
+      if (
+        isSidePanelTraceView(tabId)
+        || isSidePanelBrowserView(tabId)
+        || isSidePanelTerminalView(tabId)
+      ) {
         focusSidePanelView(tabId);
         return;
       }
@@ -139,6 +156,13 @@ export function WorkspaceSidePanelTabBar() {
 
   const closeTabItem = useCallback(
     (tabId: string) => {
+      if (tabId === SIDE_PANEL_VIEW_TERMINAL) {
+        setTerminalOpen(false);
+        if (activeSideView === SIDE_PANEL_VIEW_TERMINAL) {
+          setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
+        }
+        return;
+      }
       if (isSidePanelBrowserView(tabId)) {
         const browserId = browserIdFromSideView(tabId);
         if (browserId === DEFAULT_EMBEDDED_BROWSER_ID) {
@@ -170,6 +194,7 @@ export function WorkspaceSidePanelTabBar() {
       closeTab,
       setActiveSideView,
       setBrowserOpen,
+      setTerminalOpen,
       tabs.length,
     ],
   );
@@ -177,6 +202,7 @@ export function WorkspaceSidePanelTabBar() {
   useEffect(() => {
     if (activeSideView === SIDE_PANEL_VIEW_EXPLORER) return;
     if (activeSideView === SIDE_PANEL_VIEW_BROWSER) return;
+    if (activeSideView === SIDE_PANEL_VIEW_TERMINAL) return;
     if (isSidePanelTraceView(activeSideView)) {
       if (traceTabs.some((tab) => tab.tabId === activeSideView)) return;
       if (traceTabs.length > 0) {
@@ -224,6 +250,12 @@ export function WorkspaceSidePanelTabBar() {
       setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
     }
   }, [activeSideView, browserOpen, setActiveSideView]);
+
+  useEffect(() => {
+    if (!terminalOpen && activeSideView === SIDE_PANEL_VIEW_TERMINAL) {
+      setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
+    }
+  }, [activeSideView, setActiveSideView, terminalOpen]);
 
   useEffect(() => {
     const root = tabsRef.current;
@@ -283,6 +315,8 @@ export function WorkspaceSidePanelTabBar() {
                       <SidePanelIconTrace />
                     ) : tab.kind === "browser" ? (
                       <SidePanelIconBrowser />
+                    ) : tab.kind === "terminal" ? (
+                      <SidePanelIconTerminal />
                     ) : (
                       <SidePanelIconFile />
                     )}

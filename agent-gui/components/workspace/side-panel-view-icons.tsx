@@ -31,6 +31,32 @@ export function SidePanelIconBrowser() {
   );
 }
 
+export function SidePanelIconTerminal() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M3.25 3.5h9.5a.75.75 0 0 1 .75.75v7.5a.75.75 0 0 1-.75.75H3.25a.75.75 0 0 1-.75-.75V4.25a.75.75 0 0 1 .75-.75Z"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5.25 7.25 7 9l3.75-4"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5.25 11.25h5.5"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function SidePanelIconTrace() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>

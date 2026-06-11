@@ -37,7 +37,12 @@ const EVAL_SKILL_EXPR_REF = path.join(
   "skills/quicker-eval-expression/references/expressions.src.md",
 );
 const OUT_EVAL_SKILL = path.join(ROOT, "docs/skills/quicker-eval-expression");
-const SRC_REF = path.join(SRC, "references");
+/** Step-module deep docs — not under action-authoring-src; not re-rendered on workflow regen. */
+const REF_SRC = path.join(ROOT, "docs/authoring-references");
+
+function isStandaloneReferenceTopic(topic) {
+  return topic === "step-modules";
+}
 const GENERATOR = fileURLToPath(import.meta.url);
 
 /** Normalize to LF so output matches on Linux CI and Windows (core.autocrlf). */
@@ -310,7 +315,7 @@ async function loadReferenceMap(topic) {
 
   let entries;
   try {
-    entries = (await fs.readdir(SRC_REF)).sort((a, b) =>
+    entries = (await fs.readdir(REF_SRC)).sort((a, b) =>
       a.localeCompare(b, undefined, { sensitivity: "base" }),
     );
   } catch {
@@ -322,12 +327,12 @@ async function loadReferenceMap(topic) {
     if (!fname.startsWith(prefix) || !fname.endsWith(".md")) continue;
     const refName = fname.slice(prefix.length, -3);
     const raw = normalizeEol(
-      await fs.readFile(path.join(SRC_REF, fname), "utf8"),
+      await fs.readFile(path.join(REF_SRC, fname), "utf8"),
     );
     map.set(refName, { src: raw, outRel: `${refName}.md` });
   }
 
-  const topicDir = path.join(SRC_REF, topic);
+  const topicDir = path.join(REF_SRC, topic);
   try {
     const subEntries = (await fs.readdir(topicDir, { withFileTypes: true })).sort(
       (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
@@ -487,18 +492,23 @@ async function computeOutputs(opsData, topicEntries) {
     );
 
     for (const [refName, refEntry] of refMap) {
-      const refAgent = renderDoc(
-        refEntry.src,
-        opsData,
-        "agent",
-        `${source}#ref:${refName}`,
-        refMap,
-        partials,
-      );
-      outputs.set(
-        `skills/references/${refEntry.outRel}`,
-        `${refAgent.trimEnd()}\n`,
-      );
+      const standalone = isStandaloneReferenceTopic(topic);
+      const refAgent = standalone
+        ? refEntry.src
+        : renderDoc(
+            refEntry.src,
+            opsData,
+            "agent",
+            `${source}#ref:${refName}`,
+            refMap,
+            partials,
+          );
+      if (!standalone) {
+        outputs.set(
+          `skills/references/${refEntry.outRel}`,
+          `${refAgent.trimEnd()}\n`,
+        );
+      }
       referenceFiles[refName] = topic;
       if (!referenceCatalog[topic]) {
         referenceCatalog[topic] = [];
@@ -521,19 +531,21 @@ async function computeOutputs(opsData, topicEntries) {
       referenceCatalog[topic].push(catalogEntry);
 
       if (!refName.startsWith("kc/")) {
-        const cliRefRendered = renderDoc(
-          refEntry.src,
-          opsData,
-          "cli",
-          `${source}#ref:${refName}`,
-          refMap,
-          partials,
-        );
         const cliPath = refEntry.outRel;
-        outputs.set(
-          `cli/references/${cliPath}`,
-          injectSearchAliases(cliRefRendered, catalogEntry.searchAliases ?? []),
-        );
+        if (!standalone) {
+          const cliRefRendered = renderDoc(
+            refEntry.src,
+            opsData,
+            "cli",
+            `${source}#ref:${refName}`,
+            refMap,
+            partials,
+          );
+          outputs.set(
+            `cli/references/${cliPath}`,
+            injectSearchAliases(cliRefRendered, catalogEntry.searchAliases ?? []),
+          );
+        }
         cliReferences.push({
           topic,
           id: refName,
@@ -685,7 +697,7 @@ async function computeEvalSkillOutputs(opsData, partials) {
   outputs.set("eval-skills/references/expressions.md", exprBody);
 
   const examplesPath = path.join(
-    SRC_REF,
+    REF_SRC,
     "step-modules/examples/evalexpression.md",
   );
   outputs.set(
@@ -900,6 +912,7 @@ async function pruneOrphanOutputs(topicEntries, opsData) {
   }
   for (const { topic } of topicEntries) {
     if (isCliOnlyTopic(opsData, topic)) continue;
+    if (isStandaloneReferenceTopic(topic)) continue;
     const refMap = await loadReferenceMap(topic);
     for (const refEntry of refMap.values()) {
       expectedReferenceRelPaths.add(refEntry.outRel.toLowerCase());

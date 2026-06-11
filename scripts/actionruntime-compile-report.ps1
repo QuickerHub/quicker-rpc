@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
-$ExamplesDir = Join-Path $Root "docs/action-authoring-src/references/step-modules/examples"
+$ExamplesDir = Join-Path $Root "docs/authoring-references/step-modules/examples"
 $ActionRuntime = Join-Path $Root "Quicker.ActionRuntime"
 
 if (-not (Test-Path $ExamplesDir)) {

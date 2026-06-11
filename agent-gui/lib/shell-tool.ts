@@ -150,7 +150,7 @@ export const SHELL_EXEC_TOOL_DEF = tool({
     + "NOT for Quicker program bodies (workspace_program). "
     + "NOT for showing git diffs to the user — side panel 已改动 has Diff tabs; avoid git status/diff unless headless need. "
     + "qkrpc and rg (ripgrep) are auto-added to PATH; prefer qkrpc tools for Quicker RPC. "
-    + "Use rg for fast local text search across cwd (e.g. rg -n pattern --glob '*.ts'). "
+    + "Use rg to search cwd before guessing file paths or symbols (e.g. rg -n pattern --glob '*.ts'); retry with broader pattern if empty. "
     + "On connectivity_failure tell user — no shell ping/probe/serve/build.ps1 loops. "
     + "Always set description (UI label). command | script | scriptPath under cwd. "
     + "Read-only (dotnet build, tests) auto-runs; writes/deletes need Confirm.",

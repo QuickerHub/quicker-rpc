@@ -4,6 +4,11 @@ import {
   browserElementTagFromAttrs,
   expandBrowserElementTagForModel,
 } from "@/lib/browser-element-tag";
+import {
+  expandSlashTagsInUserText,
+  slashTagFromAttrs,
+  type SlashTagRef,
+} from "@/lib/composer-slash-tag";
 import { formatActionQkaForModel } from "@/lib/action-qka-prompt";
 import { formatActionIdShort } from "@/lib/action-patch-followup";
 import { normalizeActionId } from "@/lib/qka-markup";
@@ -27,8 +32,13 @@ const BROWSER_ELEMENT_TAG_RE = new RegExp(
   "gi",
 );
 
+const SLASH_TAG_MARKUP_RE = new RegExp(
+  "<qkrpc-slash-tag\\s+([^>]*?)\\s*(?:/>|></qkrpc-slash-tag>)",
+  "gi",
+);
+
 const INLINE_MARKUP_PROBE_RE =
-  /<qkrpc-action-tag|<qkrpc-browser-element|<qka-link\s|<qka\s/i;
+  /<qkrpc-action-tag|<qkrpc-browser-element|<qkrpc-slash-tag|<qka-link\s|<qka\s/i;
 
 const LEGACY_ACTION_LINE_RE =
   /^\[动作:\s*([^\]]+)\]\s*actionId=([^\s,]+)(?:,\s*lastEdit=([^\n,]+))?/;
@@ -114,12 +124,13 @@ export function composeUserMessageDisplay(
 
 /** Expand stored markup to model-facing <qka> tags before convertToModelMessages. */
 export function expandUserMessageForModel(text: string): string {
-  if (!INLINE_MARKUP_PROBE_RE.test(text)) {
-    return text.trim();
+  const withSlashWire = expandSlashTagsInUserText(text);
+  if (!INLINE_MARKUP_PROBE_RE.test(withSlashWire)) {
+    return withSlashWire.trim();
   }
 
-  let expandedAny = false;
-  const expanded = text
+  let expandedAny = withSlashWire !== text;
+  const expanded = withSlashWire
     .replace(BROWSER_ELEMENT_TAG_RE, (_full, attrStr: string) => {
       const element = browserElementTagFromAttrs(parseHtmlAttrs(attrStr));
       if (!element) return "";
@@ -142,12 +153,13 @@ export function expandUserMessageForModel(text: string): string {
       return formatActionQkaForModel(action);
     });
 
-  return expandedAny ? expanded.trim() : text.trim();
+  return expandedAny ? expanded.trim() : withSlashWire.trim();
 }
 
 export type UserMessageSegment =
   | { type: "tag"; action: PinnedAction }
   | { type: "browser-element"; element: BrowserElementTag }
+  | { type: "slash-tag"; ref: SlashTagRef }
   | { type: "text"; text: string };
 
 function pinnedActionFromQkaLinkAttrs(
@@ -176,7 +188,8 @@ function pinnedActionFromQkaRef(
 
 type InlineUserMarkupHit =
   | { index: number; length: number; kind: "action"; action: PinnedAction }
-  | { index: number; length: number; kind: "browser-element"; element: BrowserElementTag };
+  | { index: number; length: number; kind: "browser-element"; element: BrowserElementTag }
+  | { index: number; length: number; kind: "slash-tag"; ref: SlashTagRef };
 
 function findInlineUserMarkupHits(text: string): InlineUserMarkupHit[] {
   const hits: InlineUserMarkupHit[] = [];
@@ -191,6 +204,19 @@ function findInlineUserMarkupHits(text: string): InlineUserMarkupHit[] {
       length: browserMatch[0].length,
       kind: "browser-element",
       element,
+    });
+  }
+
+  const slashRe = new RegExp(SLASH_TAG_MARKUP_RE.source, "gi");
+  let slashMatch: RegExpExecArray | null;
+  while ((slashMatch = slashRe.exec(text)) !== null) {
+    const ref = slashTagFromAttrs(parseHtmlAttrs(slashMatch[1]));
+    if (!ref) continue;
+    hits.push({
+      index: slashMatch.index,
+      length: slashMatch[0].length,
+      kind: "slash-tag",
+      ref,
     });
   }
 
@@ -234,6 +260,8 @@ function parseInlineTagSegments(text: string): UserMessageSegment[] {
     }
     if (hit.kind === "browser-element") {
       segments.push({ type: "browser-element", element: hit.element });
+    } else if (hit.kind === "slash-tag") {
+      segments.push({ type: "slash-tag", ref: hit.ref });
     } else {
       segments.push({ type: "tag", action: hit.action });
     }
@@ -252,6 +280,7 @@ export function parseUserMessageSegments(text: string): UserMessageSegment[] {
   if (
     text.includes("<qkrpc-action-tag")
     || text.includes("<qkrpc-browser-element")
+    || text.includes("<qkrpc-slash-tag")
     || text.includes("<qka-link")
     || text.includes("<qka")
   ) {
@@ -308,6 +337,7 @@ export function canSendComposedMessage(draft: string): boolean {
     (s) =>
       s.type === "tag"
       || s.type === "browser-element"
+      || s.type === "slash-tag"
       || (s.type === "text" && s.text.trim().length > 0),
   );
 }
@@ -321,6 +351,8 @@ export function formatComposerQueuePreview(text: string, maxLen = 120): string {
       parts.push(`@${segment.action.title}`);
     } else if (segment.type === "browser-element") {
       parts.push(`[${segment.element.chipTitle}]`);
+    } else if (segment.type === "slash-tag") {
+      parts.push(`/${segment.ref.name}`);
     } else if (segment.text.trim()) {
       parts.push(segment.text.trim());
     }
@@ -335,6 +367,7 @@ export function formatComposerQueuePreview(text: string, maxLen = 120): string {
 export function hasPasteableUserMessageFormat(text: string): boolean {
   if (text.includes("<qkrpc-action-tag")) return true;
   if (text.includes("<qkrpc-browser-element")) return true;
+  if (text.includes("<qkrpc-slash-tag")) return true;
   if (text.includes("<qka-link")) return true;
   if (text.includes("<qka")) return true;
   return /^\[动作:\s*[^\]]+\]\s*actionId=/m.test(text);

@@ -10,19 +10,19 @@ import { buildRefId, KEYWORDS_PATH } from "./step-module-authored-discovery.mjs"
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PROGRESS_PATH = path.join(
   ROOT,
-  "docs/action-authoring-src/references/step-modules/.examples-progress.json",
+  "docs/authoring-references/step-modules/.examples-progress.json",
 );
 const KC_DIR = path.join(
   ROOT,
-  "docs/action-authoring-src/references/step-modules/kc",
+  "docs/authoring-references/step-modules/kc",
 );
 const AUTHORED_DIR = path.join(
   ROOT,
-  "docs/action-authoring-src/references/step-modules/authored",
+  "docs/authoring-references/step-modules/authored",
 );
 const EXAMPLES_DIR = path.join(
   ROOT,
-  "docs/action-authoring-src/references/step-modules/examples",
+  "docs/authoring-references/step-modules/examples",
 );
 
 /** @param {string} key */

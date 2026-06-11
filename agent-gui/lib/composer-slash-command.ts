@@ -1,8 +1,17 @@
+import type { SlashCatalogItem } from "@/lib/composer-slash-catalog";
+import {
+  createSlashTagElement,
+  type SlashTagRef,
+} from "@/lib/composer-slash-tag";
 import {
   getComposerMentionAnchorRect,
   type ComposerMentionMatch,
 } from "@/lib/composer-mention";
-import { placeCaretAtEnd } from "@/lib/composer-inline";
+import {
+  createComposerTagSpacer,
+  placeCaretAfterComposerTagSpacer,
+  placeCaretAtEnd,
+} from "@/lib/composer-inline";
 
 export type ComposerSlashMatch = ComposerMentionMatch;
 
@@ -66,4 +75,18 @@ export function applyComposerSlashCommand(
   commandName: string,
 ): void {
   applyComposerSlashInsert(root, slashRange, `/${commandName} `);
+}
+
+export function applyComposerSlashTag(
+  root: HTMLElement,
+  slashRange: Range,
+  item: SlashCatalogItem,
+): void {
+  slashRange.deleteContents();
+  const ref: SlashTagRef = { kind: item.kind, name: item.name };
+  const chip = createSlashTagElement(ref);
+  slashRange.insertNode(chip);
+  const spacer = createComposerTagSpacer();
+  chip.after(spacer);
+  placeCaretAfterComposerTagSpacer(spacer, root);
 }

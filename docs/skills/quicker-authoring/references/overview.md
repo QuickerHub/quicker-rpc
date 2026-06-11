@@ -51,7 +51,7 @@ Walkthrough: **authoring-workflow**. Workspace: **workspace-editing**.
 | Action authoring | **`authoring-workflow`** | P1–P7 main flow |
 | Workspace editing | **`workspace-editing`** | `.quicker` layout, workspace tools, file externalize |
 | Subprograms | **`subprogram-workflow`** | global vs embedded |
-| Action organization | **`action-organization-workflow`** | move actions, tabs — not program body |
+| Action organization | **`action-organization`** | move actions, tabs — not program body |
 | Action publish | **`action-publish-workflow`** | share/update getquicker — after P1–P7 |
 
 ### Schemas

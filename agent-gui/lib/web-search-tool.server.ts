@@ -41,9 +41,9 @@ export async function executeWebSearchTool(
 
 export const WEB_SEARCH_TOOL_DEF = tool({
   description:
-    "Search the public internet for facts, API docs, release notes, or troubleshooting. "
-    + "Returns title/url/snippet list — NOT for Quicker actions (qkrpc_action_query), "
-    + "NOT for authoring guides (docs), NOT for interactive login/UI (browser). "
+    "Search the public internet when facts, vendor API docs, versions, or errors are uncertain — search before answering from memory. "
+    + "Returns title/url/snippet list. Retry with refined query if weak. "
+    + "NOT for Quicker actions (qkrpc_action_query), authoring guides (docs search), or logged-in pages (browser). "
     + "Default provider: duckduckgo (no key). Optional: BRAVE_SEARCH_API_KEY or TAVILY_API_KEY.",
   inputSchema: z.object({
     query: z.string().describe("Search keywords or question"),

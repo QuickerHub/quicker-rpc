@@ -86,6 +86,9 @@ import {
 import { WorkspaceExplorerPanel } from "@/components/workspace/WorkspaceExplorerPanel";
 import { AppMainWorkspaceSplit } from "@/components/workspace/AppMainWorkspaceSplit";
 import { EmbeddedBrowserProvider } from "@/lib/embedded-browser-context";
+import { TerminalRuntimePrefetch } from "@/components/terminal/TerminalRuntimePrefetch";
+import { EmbeddedTerminalProvider } from "@/lib/embedded-terminal-context";
+import { EmbeddedTerminalTabsProvider } from "@/lib/embedded-terminal-tabs";
 import { EmbeddedBrowserTabsProvider } from "@/lib/embedded-browser-tabs";
 import { ThreadSidePanelSync } from "@/lib/use-thread-side-panel-sync";
 import { useBrowserPanelMessageSync } from "@/lib/use-browser-panel-message-sync";
@@ -1586,6 +1589,9 @@ export function Chat() {
           >
             <DocsViewerProvider>
               <EmbeddedBrowserProvider>
+              <EmbeddedTerminalTabsProvider>
+              <EmbeddedTerminalProvider>
+              <TerminalRuntimePrefetch />
               <EmbeddedBrowserTabsProvider>
               <ThreadSidePanelSync activeThreadId={activeThread.id} />
               <WorkspaceMainEditorTabBridgeRegistrar />
@@ -1651,6 +1657,8 @@ export function Chat() {
                 initialTab={settingsInitialTab}
               />
               </EmbeddedBrowserTabsProvider>
+              </EmbeddedTerminalProvider>
+              </EmbeddedTerminalTabsProvider>
               </EmbeddedBrowserProvider>
             </DocsViewerProvider>
           </WorkspaceExplorerPanelProvider>

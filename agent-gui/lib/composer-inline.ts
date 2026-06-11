@@ -15,6 +15,12 @@ import {
   formatActionTagMarkup,
   parseUserMessageSegments,
 } from "@/lib/compose-user-message";
+import {
+  createSlashTagElement,
+  formatSlashTagMarkup,
+  isSlashTagElement,
+  slashTagFromDom,
+} from "@/lib/composer-slash-tag";
 
 export const COMPOSER_TAG_CLASS = "composer-prompt-tag";
 export const COMPOSER_VOICE_STREAM_ATTR = "data-composer-voice-stream";
@@ -28,7 +34,11 @@ export function isComposerTagElement(el: Element): boolean {
 }
 
 export function isComposerChipElement(el: Element): boolean {
-  return isComposerTagElement(el) || isBrowserElementTagElement(el);
+  return (
+    isComposerTagElement(el)
+    || isBrowserElementTagElement(el)
+    || isSlashTagElement(el)
+  );
 }
 
 export function actionFromTagElement(el: HTMLElement): PinnedAction | null {
@@ -48,6 +58,8 @@ export function actionFromTagElement(el: HTMLElement): PinnedAction | null {
 }
 
 export function tagElementToMarkup(el: HTMLElement): string {
+  const slashTag = slashTagFromDom(el);
+  if (slashTag) return formatSlashTagMarkup(slashTag);
   const browserElement = browserElementTagFromDom(el);
   if (browserElement) return formatBrowserElementTagMarkup(browserElement);
   const action = actionFromTagElement(el);
@@ -187,6 +199,10 @@ export function renderMarkupIntoRoot(root: HTMLElement, markup: string): void {
     }
     if (segment.type === "browser-element") {
       root.append(createBrowserElementTagElement(segment.element));
+      continue;
+    }
+    if (segment.type === "slash-tag") {
+      root.append(createSlashTagElement(segment.ref));
       continue;
     }
     appendTextWithNewlines(root, segment.text);

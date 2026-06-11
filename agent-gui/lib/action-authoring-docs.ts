@@ -28,18 +28,21 @@ import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
 import {
   buildAuthoringDocsSearchIndex,
   buildSearchExcerpt,
+  buildSearchSnippet,
   joinSearchAliases,
   searchAuthoringDocRows,
   splitSearchPatterns,
   type AuthoringDocsSearchIndex,
 } from "@/lib/action-authoring-docs-search";
 import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
+import type { DocsSearchScope } from "@/lib/action-authoring-docs.shared";
 
 export type {
   ActionAuthoringDoc,
   ActionAuthoringReferenceMeta,
   ActionAuthoringSearchItem,
   ActionAuthoringTopicMeta,
+  DOCS_SCHEMA_TOPIC_IDS,
 } from "@/lib/action-authoring-docs.shared";
 export {
   docViewerEntryKey,
@@ -54,6 +57,16 @@ export type { ActionAuthoringLayerGroup } from "@/lib/action-authoring-docs.shar
 
 const AUTHORING_SKILL = "quicker-authoring";
 const LEGACY_DOCS_DIR = "docs/action-authoring/agent";
+const AUTHORING_REFERENCES_DIR = "docs/authoring-references";
+
+function authoringReferencesRoot(): string | null {
+  const repo = resolveQuickerRpcRepoRoot();
+  return repo ? join(repo, AUTHORING_REFERENCES_DIR) : null;
+}
+
+function isStandaloneReferencePath(relPath: string): boolean {
+  return relPath.replace(/\\/g, "/").startsWith("step-modules/");
+}
 
 type TopicRow = ActionAuthoringTopicMeta & {
   markdown: string;
@@ -115,6 +128,11 @@ async function skillsTreeMtimeMs(root: string): Promise<number> {
 
   const refDir = join(root, "references");
   max = Math.max(max, await referencesTreeMtimeMs(refDir));
+
+  const standaloneRefRoot = authoringReferencesRoot();
+  if (standaloneRefRoot) {
+    max = Math.max(max, await referencesTreeMtimeMs(standaloneRefRoot));
+  }
 
   // Legacy per-topic skill dirs
   let entries;
@@ -238,6 +256,12 @@ function resolveReferenceMarkdownPath(
   const catalog = manifest?.referenceCatalog?.[topic];
   const entry = catalog?.find((e) => e.id.toLowerCase() === refKey);
   if (entry?.path) {
+    if (isStandaloneReferencePath(entry.path)) {
+      const standaloneRoot = authoringReferencesRoot();
+      if (standaloneRoot) {
+        return join(standaloneRoot, entry.path);
+      }
+    }
     return join(root, "references", entry.path);
   }
   const nested = join(root, "references", topic, `${manifestFileName ?? refKey}.md`);
@@ -455,7 +479,7 @@ export async function formatAuthoringSkillRouterForPrompt(): Promise<string> {
   const content = await formatAllPreloadedSkillsForPrompt({
     [AUTHORING_SKILL]: {
       suffix:
-        'Stuck → docs({ action: "get", topic }). No session-start multi-get.',
+        'docs search → items[].snippet. docs get(topic) only for full workflow guide.',
     },
   });
   cachedPromptBlock = { content, mtimeMs };
@@ -479,7 +503,9 @@ export async function formatAuthoringTopicIndexForPrompt(): Promise<string> {
   if (topics.length === 0) return "";
 
   const groups = groupTopicsByLayer(topics);
-  const lines = ["### Topic index (docs get when skill active)"];
+  const lines = [
+    "### Topic index (docs search → snippet; docs get for full workflow only)",
+  ];
   for (const group of groups) {
     if (group.topics.length === 0) continue;
     const label = PROMPT_LAYER_LABELS[group.layer] ?? group.layer;
@@ -487,16 +513,6 @@ export async function formatAuthoringTopicIndexForPrompt(): Promise<string> {
     for (const t of group.topics) {
       const desc = t.description.trim() || t.title;
       lines.push(`- ${t.topic}: ${desc}`);
-      const refCount = t.references?.length ?? 0;
-      if (t.topic === "step-modules" && refCount > 0) {
-        lines.push(
-          `  - ${refCount} module references — docs search → get with reference (authored/examples/kc)`,
-        );
-      } else {
-        for (const ref of t.references ?? []) {
-          lines.push(`  - ${t.topic}/${ref.id}`);
-        }
-      }
     }
   }
   return lines.join("\n");
@@ -703,14 +719,13 @@ export async function getActionAuthoringReference(
   const catalogEntry = manifest?.referenceCatalog?.[match.topic]?.find(
     (e) => e.id.toLowerCase() === refKey,
   );
-  const refPath = catalogEntry?.path
-    ? join(root, "references", catalogEntry.path)
-    : join(
-        root,
-        "references",
-        topic,
-        `${refFileName}.md`,
-      );
+  const refPath = resolveReferenceMarkdownPath(
+    root,
+    match.topic,
+    refKey,
+    manifest,
+    refFileName,
+  );
 
   let markdown: string;
   try {
@@ -760,6 +775,88 @@ export async function listActionAuthoringTopics(): Promise<
       references,
     }));
   return sortTopicsByLayer(topics);
+}
+
+export async function getActionAuthoringSectionSnippet(
+  topic: string,
+  section: string,
+  reference?: string,
+): Promise<
+  | {
+      ok: true;
+      topic: string;
+      reference?: string;
+      section: string;
+      title: string;
+      snippet: string;
+    }
+  | {
+      ok: false;
+      error: string;
+      availableTopics: string[];
+      availableReferences?: string[];
+    }
+> {
+  const key = normalizeTopic(topic);
+  const sectionHeading = section.trim();
+  if (!sectionHeading) {
+    return { ok: false, error: "section is required", availableTopics: [] };
+  }
+
+  const ref = reference?.trim();
+  if (ref) {
+    const result = await getActionAuthoringReference(key, ref);
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: result.error,
+        availableTopics: result.availableTopics,
+        availableReferences: result.availableReferences,
+      };
+    }
+    const snippet = buildSearchSnippet(result.doc.markdown, [], sectionHeading);
+    if (!snippet.trim()) {
+      return {
+        ok: false,
+        error: `Section not found: ${sectionHeading}`,
+        availableTopics: result.availableTopics,
+      };
+    }
+    return {
+      ok: true,
+      topic: result.doc.topic,
+      reference: result.doc.reference,
+      section: sectionHeading,
+      title: result.doc.title,
+      snippet,
+    };
+  }
+
+  const result = await getActionAuthoringDoc(key);
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error,
+      availableTopics: result.availableTopics,
+    };
+  }
+
+  const snippet = buildSearchSnippet(result.doc.markdown, [], sectionHeading);
+  if (!snippet.trim()) {
+    return {
+      ok: false,
+      error: `Section not found: ${sectionHeading}`,
+      availableTopics: result.availableTopics,
+    };
+  }
+
+  return {
+    ok: true,
+    topic: result.doc.topic,
+    section: sectionHeading,
+    title: result.doc.title,
+    snippet,
+  };
 }
 
 export async function getActionAuthoringDoc(
@@ -815,16 +912,30 @@ export async function getActionAuthoringDoc(
   };
 }
 
+function rowMatchesSearchScope(
+  row: { reference?: string },
+  scope?: DocsSearchScope,
+): boolean {
+  if (!scope || scope === "all") return true;
+  if (scope === "references") return Boolean(row.reference);
+  if (scope === "workflows") return !row.reference;
+  return true;
+}
+
 export async function searchActionAuthoringDocs(
   keyword: string | undefined,
   limit = 10,
+  options?: { scope?: DocsSearchScope },
 ): Promise<{
   keyword: string | null;
+  scope: DocsSearchScope | null;
   matchCount: number;
   items: ActionAuthoringSearchItem[];
   availableTopics: string[];
+  hint: string;
 }> {
   const cap = Math.min(Math.max(limit, 1), 50);
+  const scope = options?.scope ?? null;
   const patterns = splitSearchPatterns(keyword ?? "");
   const rows = await loadAllTopics();
   const searchIndex = await loadAuthoringDocsSearchIndex();
@@ -832,22 +943,39 @@ export async function searchActionAuthoringDocs(
     ...new Set(rows.map((r) => r.topic)),
   ].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 
-  const hits = searchAuthoringDocRows(searchIndex, keyword, cap);
+  const fetchCap =
+    scope && scope !== "all" ? Math.min(Math.max(cap * 4, cap), 50) : cap;
+  const hits = searchAuthoringDocRows(searchIndex, keyword, fetchCap)
+    .filter(({ row }) => rowMatchesSearchScope(row, scope ?? undefined))
+    .slice(0, cap);
 
-  const items = hits.map(({ row, score, sectionHeading }) => ({
-    topic: row.topic,
-    title: row.reference ? `${row.title} (${row.topic}/${row.reference})` : row.title,
-    description: row.description,
-    excerpt: buildSearchExcerpt(row.markdown, patterns, 420, sectionHeading),
-    reference: row.reference,
-    ...(sectionHeading ? { section: sectionHeading } : {}),
-    ...(patterns.length > 0 ? { score } : {}),
-  }));
+  const items: ActionAuthoringSearchItem[] = hits.map(
+    ({ row, score, sectionHeading }) => ({
+      topic: row.topic,
+      title: row.reference
+        ? `${row.title} (${row.topic}/${row.reference})`
+        : row.title,
+      description: row.description,
+      excerpt: buildSearchExcerpt(
+        row.markdown,
+        patterns,
+        undefined,
+        sectionHeading,
+      ),
+      snippet: buildSearchSnippet(row.markdown, patterns, sectionHeading),
+      reference: row.reference,
+      ...(sectionHeading ? { section: sectionHeading } : {}),
+      ...(patterns.length > 0 ? { score } : {}),
+    }),
+  );
 
   return {
     keyword: keyword?.trim() ? keyword.trim() : null,
+    scope,
     matchCount: items.length,
     items,
     availableTopics,
+    hint:
+      "Read items[].snippet (topic + hit neighborhood). docs get(topic) only for full workflow guide.",
   };
 }

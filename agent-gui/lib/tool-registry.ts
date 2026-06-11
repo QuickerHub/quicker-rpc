@@ -64,7 +64,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "编写指南",
     group: "read",
     category: "docs",
-    description: "深入阅读 authoring 指南（卡住时用，勿会话开头批量调用）",
+    description: "编写指南：search→snippet（主）；get→全文工作流；index→目录",
   },
   {
     id: "shell_exec",

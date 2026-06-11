@@ -3,16 +3,19 @@
 import {
   SidePanelIconBrowser,
   SidePanelIconExplorer,
+  SidePanelIconTerminal,
   SidePanelIconTrace,
 } from "@/components/workspace/side-panel-view-icons";
 import { useSidePanelBrowserToggle } from "@/lib/use-side-panel-browser-toggle";
 import { useSidePanelExplorerToggle } from "@/lib/use-side-panel-explorer-toggle";
+import { useSidePanelTerminalToggle } from "@/lib/use-side-panel-terminal-toggle";
 import { useSidePanelTraceToggle } from "@/lib/use-side-panel-trace-toggle";
 
 /** Icon toggles for workspace side views (Cursor-style activity buttons). */
 export function WorkspaceSideViewTriggers() {
   const explorer = useSidePanelExplorerToggle();
   const browser = useSidePanelBrowserToggle();
+  const terminal = useSidePanelTerminalToggle();
   const trace = useSidePanelTraceToggle();
 
   return (
@@ -40,6 +43,16 @@ export function WorkspaceSideViewTriggers() {
         title="浏览器"
       >
         <SidePanelIconBrowser />
+      </button>
+      <button
+        type="button"
+        className={`side-view-trigger-btn${terminal.active ? " side-view-trigger-btn--active" : ""}`}
+        onClick={terminal.toggle}
+        aria-pressed={terminal.active}
+        aria-label="终端"
+        title="终端"
+      >
+        <SidePanelIconTerminal />
       </button>
       <button
         type="button"

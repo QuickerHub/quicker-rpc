@@ -37,6 +37,8 @@ const SEARCH_BOOST = {
 const TOPIC_INDEX_MAX_CHARS = 2000;
 const SECTION_INDEX_MAX_CHARS = 1200;
 const SECTION_PREVIEW_CHARS = 220;
+const SEARCH_SNIPPET_MAX_CHARS = 1200;
+const SEARCH_EXCERPT_MAX_CHARS = 320;
 
 /** Compact plain text for token index fields (topic overview row). */
 export function compactMarkdownForSearch(
@@ -367,11 +369,92 @@ function preferMatchingSectionExcerpt(
   return `${best.heading}. ${plain}`;
 }
 
+function resolveSnippetSource(
+  markdown: string,
+  patterns: string[],
+  sectionHeading?: string,
+): string {
+  if (sectionHeading) {
+    const body = tryExtractSectionBody(markdown, sectionHeading);
+    if (body) {
+      return `## ${sectionHeading}\n\n${body}`.trim();
+    }
+  }
+
+  if (patterns.length > 0) {
+    let best: MarkdownSection | null = null;
+    let bestScore = 0;
+    for (const section of parseIndexableSections(markdown)) {
+      const haystack = `${section.heading} ${section.body}`.toLowerCase();
+      let score = 0;
+      for (const pattern of patterns) {
+        if (haystack.includes(pattern)) score++;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = section;
+      }
+    }
+    if (best && bestScore > 0) {
+      return `## ${best.heading}\n\n${best.body}`.trim();
+    }
+  }
+
+  const intro = parseIndexableSections(markdown)[0];
+  if (intro) {
+    return `## ${intro.heading}\n\n${intro.body}`.trim();
+  }
+  return markdown.trim();
+}
+
+function trimSnippetAroundPatterns(
+  text: string,
+  patterns: string[],
+  maxLength: number,
+): string {
+  let plain = text.replace(/<!--[\s\S]*?-->/g, "").replace(/\n{3,}/g, "\n\n").trim();
+  if (plain.length <= maxLength) {
+    return plain;
+  }
+
+  if (patterns.length > 0) {
+    const lower = plain.toLowerCase();
+    let idx = -1;
+    for (const p of patterns) {
+      const found = lower.indexOf(p);
+      if (found >= 0 && (idx < 0 || found < idx)) {
+        idx = found;
+      }
+    }
+    if (idx >= 0) {
+      const half = Math.floor(maxLength / 2);
+      const start = Math.max(0, idx - half);
+      const slice = plain.slice(start, start + maxLength);
+      const prefix = start > 0 ? "…" : "";
+      const suffix = start + maxLength < plain.length ? "…" : "";
+      return `${prefix}${slice.trim()}${suffix}`;
+    }
+  }
+
+  return `${plain.slice(0, maxLength).trimEnd()}…`;
+}
+
+/** Section-focused chunk for agent consumption (not the full document). */
+export function buildSearchSnippet(
+  markdown: string,
+  patterns: string[],
+  sectionHeading?: string,
+  maxLength = SEARCH_SNIPPET_MAX_CHARS,
+): string {
+  const source = resolveSnippetSource(markdown, patterns, sectionHeading);
+  return trimSnippetAroundPatterns(source, patterns, maxLength);
+}
+
 /** Build excerpt centered on the first query-token hit (section-aware). */
 export function buildSearchExcerpt(
   markdown: string,
   patterns: string[],
-  maxLength = 420,
+  maxLength = SEARCH_EXCERPT_MAX_CHARS,
   sectionHeading?: string,
 ): string {
   const sectionBody = sectionHeading
