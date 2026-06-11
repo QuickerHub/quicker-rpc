@@ -1,6 +1,6 @@
 {
   "name": "quicker-rpc-agent-gui",
-  "version": "0.13.3",
+  "version": "0.14.0",
   "private": true,
   "main": "electron/bootstrap.cjs",
   "scripts": {
