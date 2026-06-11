@@ -25,6 +25,8 @@ export type BrowserToolResultView = {
   title?: string;
   snapshot?: string;
   nodeCount?: number;
+  matchCount?: number;
+  query?: string;
   ref?: string;
   key?: string;
   status?: number | null;
@@ -84,6 +86,8 @@ export function parseBrowserToolResultView(
   };
 
   if (typeof data.nodeCount === "number") view.nodeCount = data.nodeCount;
+  if (typeof data.matchCount === "number") view.matchCount = data.matchCount;
+  view.query = pickString(data, "query");
   if (typeof data.status === "number" || data.status === null) {
     view.status = data.status as number | null;
   }
@@ -149,15 +153,25 @@ export function summarizeBrowserToolOutput(
     case "status":
       return view.browserReady ? "browser-runtime 就绪" : "browser-runtime 未就绪";
     case "navigate":
-      return view.url ? `打开 ${shortUrl(view.url)}` : "已导航";
+      return view.nodeCount != null
+        ? `打开 ${view.url ? shortUrl(view.url) : "页面"} · ${view.nodeCount} 个可交互元素`
+        : view.url
+          ? `打开 ${shortUrl(view.url)}`
+          : "已导航";
     case "snapshot":
       return view.nodeCount != null
         ? `${view.nodeCount} 个可交互元素`
         : "页面快照";
+    case "search":
+      return view.matchCount != null
+        ? `搜索 ${view.matchCount} 个匹配`
+        : "页面搜索";
     case "content":
       return view.text
         ? `页面文本 ${view.text.length} 字${view.truncated ? "（已截断）" : ""}`
         : "页面文本";
+    case "evaluate":
+      return "脚本执行完成";
     case "click": {
       const base = view.ref ? `点击 ${view.ref}` : "已点击";
       if (view.openedTab) return `${base} · 新标签页`;

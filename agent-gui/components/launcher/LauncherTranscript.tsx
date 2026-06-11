@@ -16,7 +16,6 @@ import {
   postLauncherApprovalRespond,
   postLauncherToolOutput,
 } from "@/lib/launcher/launcher-bridge";
-import type { PingState } from "@/lib/use-qkrpc-ping";
 
 type LauncherTranscriptProps = {
   sessionId: string;
@@ -28,7 +27,6 @@ type LauncherTranscriptProps = {
   workspaceDeleteHits: WorkspaceDeleteProjectHit[];
   pendingAskQuestionCount?: number;
   workingDirectory: string;
-  ping: PingState;
 };
 
 export function LauncherTranscript({
@@ -41,11 +39,8 @@ export function LauncherTranscript({
   workspaceDeleteHits,
   pendingAskQuestionCount = 0,
   workingDirectory,
-  ping,
 }: LauncherTranscriptProps) {
   const [deleteWorkspaceToo, setDeleteWorkspaceToo] = useState(false);
-  const qkrpcOk = ping.status === "ok";
-  const qkrpcLoading = ping.status === "loading";
 
   const pendingWorkspaceDeleteKey = useMemo(
     () => workspaceDeleteHits.map((hit) => `${hit.kind}:${hit.id}`).join("\0"),
@@ -61,11 +56,9 @@ export function LauncherTranscript({
       resolveAgentActivity({
         chatStatus: status,
         messages,
-        qkrpcOk,
-        qkrpcLoading,
         pendingApprovalCount,
       }),
-    [status, messages, qkrpcOk, qkrpcLoading, pendingApprovalCount],
+    [status, messages, pendingApprovalCount],
   );
 
   const busy = status === "submitted" || status === "streaming";

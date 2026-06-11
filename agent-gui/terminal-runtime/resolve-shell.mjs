@@ -128,9 +128,11 @@ export function shellArgsForExecutable(executable) {
   if (process.platform !== "win32") return [];
   const base = basename(executable).toLowerCase();
   // -NoProfile keeps new tabs near ~1s; profile load can add several seconds on Windows.
-  if (base === "pwsh.exe" || base === "pwsh") return ["-NoLogo", "-NoProfile"];
+  if (base === "pwsh.exe" || base === "pwsh") {
+    return ["-NoLogo", "-NoProfile", "-NonInteractive"];
+  }
   if (base === "powershell.exe" || base === "powershell") {
-    return ["-NoLogo", "-NoProfile"];
+    return ["-NoLogo", "-NoProfile", "-NonInteractive"];
   }
   return [];
 }

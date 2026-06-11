@@ -46,6 +46,22 @@ describe("browser-panel-sync", () => {
     assert.equal(intent?.navigate, true);
   });
 
+  it("skips panel sync for headless agent background results", () => {
+    const intent = browserPanelSyncFromToolOutput({
+      ok: true,
+      exitCode: 0,
+      source: "local",
+      data: {
+        action: "evaluate",
+        url: "https://example.com/",
+        mode: "playwright",
+        background: true,
+        value: { title: "Example" },
+      },
+    });
+    assert.equal(intent, null);
+  });
+
   it("opens panel without reload on snapshot action", () => {
     const intent = browserPanelSyncFromToolOutput({
       ok: true,

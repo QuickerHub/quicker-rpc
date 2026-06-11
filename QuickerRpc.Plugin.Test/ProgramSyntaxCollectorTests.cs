@@ -267,6 +267,48 @@ public sealed class ProgramSyntaxCollectorTests
     }
 
     [TestMethod]
+    public void Collect_skips_csscript_mode_and_other_non_script_params()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-collect-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-cs",
+                        ["stepRunnerKey"] = "sys:csscript",
+                        ["inputParams"] = new JObject
+                        {
+                            ["mode"] = "normal_roslyn",
+                            ["references"] = "C:\\\\fake\\\\Lib.dll",
+                            ["script"] = new JObject
+                            {
+                                ["value"] = "using Quicker.Public; public static void Exec(IStepContext c) {}",
+                            },
+                        },
+                    },
+                },
+            };
+
+            var items = ProgramSyntaxCollector.Collect(root, data);
+            Assert.AreEqual(1, items.Count);
+            Assert.AreEqual(ProgramSyntaxCheckKind.CSharp, items[0].Kind);
+            Assert.AreEqual("script", items[0].ParamName);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void Collect_maps_varType_names_for_compile_check()
     {
         var root = Path.Combine(Path.GetTempPath(), "qkrpc-collect-" + Guid.NewGuid().ToString("N"));

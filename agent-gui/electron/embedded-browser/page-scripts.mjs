@@ -79,17 +79,6 @@ export const EXTRACT_PAGE_CONTENT = `
 }
 `;
 
-export const EVALUATE_USER_SCRIPT = `
-(source) => {
-  try {
-    const result = new Function("return (" + source + ");")();
-    return typeof result === "function" ? result() : result;
-  } catch {
-    return new Function(source)();
-  }
-}
-`;
-
 export const REF_INTERACTION_SCRIPT = `
 ({ target, action, text, value, key }) => {
   const TAG_ROLE = {

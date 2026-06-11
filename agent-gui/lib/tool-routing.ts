@@ -26,6 +26,7 @@ const TOOL_ROUTING_ROWS = [
   "| Step module keys | qkrpc_step_runner_search → get | get-ui; guess keys |",
   "| Icons | qkrpc_fa search | guess fa: specs |",
   "| Quicker app settings | quicker_settings set/apply | open unless user needs UI |",
+  "| Auto-run action on event (URL/window/clipboard/timer) | quicker_trigger events → add | qkrpc_action_run; workspace_program |",
   "| Open settings panel | quicker_settings open (preset) | shell |",
   "| Authoring how-to / module refs | docs search → snippet | docs get full workflow |",
   "| Quicker not connected | qkrpc_wait | shell ping/probe/serve |",

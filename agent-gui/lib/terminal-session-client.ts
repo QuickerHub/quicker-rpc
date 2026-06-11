@@ -7,7 +7,6 @@ import {
   warmupTerminalRuntime,
   warmupXtermChunks,
 } from "@/lib/terminal-runtime-client";
-import { DEFAULT_EMBEDDED_TERMINAL_ID } from "@/lib/workspace-side-panel-view";
 
 export type TerminalSessionPhase =
   | "idle"
@@ -38,19 +37,21 @@ function mapSnapshot(snapshot: MultiplexedSessionSnapshot): TerminalSessionSnaps
   return { ...snapshot, phase };
 }
 
-/** Preload runtime + xterm chunks; optionally start default PTY before panel paints. */
-export function prefetchTerminalStack(cwd?: string): void {
+/** Preload runtime + xterm chunks; optionally start a PTY before panel paints. */
+export function prefetchTerminalStack(cwd?: string, terminalId?: string): void {
   void warmupTerminalRuntime();
   void warmupXtermChunks();
-  if (cwd === undefined) return;
-  prefetchTerminalSession(DEFAULT_EMBEDDED_TERMINAL_ID, cwd);
+  if (cwd === undefined || !terminalId) return;
+  prefetchTerminalSession(terminalId, cwd);
 }
 
 /** Start a PTY session immediately (e.g. on internal tab + click). */
 export function prefetchTerminalSession(terminalId: string, cwd: string): void {
   void warmupTerminalRuntime().then((ok) => {
     if (!ok) return;
-    void getTerminalSessionClient(terminalId, cwd).ensureConnected(80, 24);
+    void getTerminalSessionClient(terminalId, cwd)
+      .ensureConnected(80, 24)
+      .catch(() => {});
   });
 }
 

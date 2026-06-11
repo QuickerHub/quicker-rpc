@@ -1,7 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { invokeBrowserRuntime } from "@/lib/browser-runtime-client.server";
-import { invokeEmbeddedBrowserRuntime } from "@/lib/embedded-browser-runtime-client.server";
+import {
+  invokeEmbeddedBrowserRuntime,
+  isEmbeddedBrowserRuntimeAvailable,
+  shouldFallbackToPlaywrightBrowserResult,
+} from "@/lib/embedded-browser-runtime-client.server";
 import { isNativeEmbeddedBrowserEnabled } from "@/lib/browser-native-mode";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 import {
@@ -18,6 +22,7 @@ const browserAgentActionSchema = z.enum([
   "status",
   "navigate",
   "snapshot",
+  "search",
   "content",
   "click",
   "click_xy",
@@ -65,6 +70,7 @@ type BrowserToolInputBase = {
   selector?: string;
   offset?: number;
   index?: number;
+  limit?: number;
 };
 
 export type BrowserAgentToolInput = BrowserToolInputBase & {
@@ -89,6 +95,8 @@ function opForAction(action: z.infer<typeof browserRuntimeActionSchema>): string
       return "page.navigate";
     case "snapshot":
       return "page.snapshot";
+    case "search":
+      return "page.search";
     case "content":
       return "page.content";
     case "click":
@@ -131,6 +139,7 @@ function opForAction(action: z.infer<typeof browserRuntimeActionSchema>): string
 const SESSION_ENSURE_ACTIONS = new Set<z.infer<typeof browserRuntimeActionSchema>>([
   "navigate",
   "snapshot",
+  "search",
   "content",
   "click",
   "click_xy",
@@ -152,7 +161,32 @@ const SESSION_ENSURE_ACTIONS = new Set<z.infer<typeof browserRuntimeActionSchema
 export type ExecuteBrowserToolOptions = {
   /** agent: text-only tool result for LLM; panel: keep preview images for side panel API */
   audience?: BrowserToolAudience;
+  /** Set when native Electron runtime was unavailable and Playwright was used instead. */
+  fallbackFromNative?: boolean;
 };
+
+/** Agent automation runs headless Playwright — no side-panel WebView mount required. */
+function shouldUseHeadlessPlaywrightForAudience(
+  audience: BrowserToolAudience,
+): boolean {
+  return audience === "agent";
+}
+
+function shouldFallbackToPlaywrightFromNativeToolResult(
+  result: Record<string, unknown>,
+): boolean {
+  if (result.ok === true) return false;
+  const stderr = String(result.stderr ?? "");
+  const data =
+    typeof result.data === "object" && result.data !== null
+      ? (result.data as Record<string, unknown>)
+      : {};
+  return shouldFallbackToPlaywrightBrowserResult({
+    ok: false,
+    message: stderr,
+    error: typeof data.op === "string" ? data.op : undefined,
+  }) || stderr.toLowerCase().includes("embedded browser session not ready");
+}
 
 async function executeNativeEmbeddedBrowserTool(
   input: BrowserToolInput,
@@ -200,6 +234,10 @@ async function executeNativeEmbeddedBrowserTool(
 
   if (input.action === "evaluate" && !input.script?.trim()) {
     return formatLocalToolResult(null, false, "script is required for evaluate");
+  }
+
+  if (input.action === "search" && !input.text?.trim()) {
+    return formatLocalToolResult(null, false, "text is required for search (page text query)");
   }
 
   if (input.action === "tab" && (input.index == null || input.index < 0)) {
@@ -250,6 +288,7 @@ async function executeNativeEmbeddedBrowserTool(
   if (input.selector?.trim()) args.selector = input.selector.trim();
   if (input.offset != null) args.offset = input.offset;
   if (input.index != null) args.index = input.index;
+  if (input.limit != null) args.limit = input.limit;
   args.includePreview = audience === "panel";
 
   const result = await invokeEmbeddedBrowserRuntime(
@@ -302,14 +341,10 @@ async function executeNativeEmbeddedBrowserTool(
   return formatLocalToolResult(data);
 }
 
-export async function executeBrowserTool(
+async function executePlaywrightBrowserTool(
   input: BrowserToolInput,
   options?: ExecuteBrowserToolOptions,
 ): Promise<Record<string, unknown>> {
-  if (isNativeEmbeddedBrowserEnabled()) {
-    return executeNativeEmbeddedBrowserTool(input, options);
-  }
-
   const audience = options?.audience ?? "agent";
   const sid = sessionId(input);
 
@@ -349,6 +384,18 @@ export async function executeBrowserTool(
     return formatLocalToolResult(null, false, "script is required for evaluate");
   }
 
+  if (input.action === "search" && !input.text?.trim()) {
+    return formatLocalToolResult(null, false, "text is required for search (page text query)");
+  }
+
+  if (input.url?.trim()) {
+    const normalized = normalizeEmbeddedBrowserUrl(input.url);
+    if (!normalized) {
+      return formatLocalToolResult(null, false, "url is invalid");
+    }
+    input = { ...input, url: normalized };
+  }
+
   if (input.action === "tab" && (input.index == null || input.index < 0)) {
     return formatLocalToolResult(
       null,
@@ -359,7 +406,11 @@ export async function executeBrowserTool(
 
   const op = opForAction(input.action);
 
-  if (SESSION_ENSURE_ACTIONS.has(input.action)) {
+  const urlBootstrapsSession =
+    Boolean(input.url?.trim())
+    && (input.action === "evaluate" || input.action === "content" || input.action === "search");
+
+  if (SESSION_ENSURE_ACTIONS.has(input.action) && !urlBootstrapsSession) {
     await invokeBrowserRuntime("session.ensure", {}, sid, 60_000);
   }
 
@@ -382,12 +433,19 @@ export async function executeBrowserTool(
   if (input.selector?.trim()) args.selector = input.selector.trim();
   if (input.offset != null) args.offset = input.offset;
   if (input.index != null) args.index = input.index;
+  if (input.limit != null) args.limit = input.limit;
   args.includePreview = audience === "panel";
 
   const result = await invokeBrowserRuntime(op, args, sid, input.timeoutMs ?? 120_000);
   if (!result.ok) {
     return formatLocalToolResult(
-      { action: input.action, sessionId: sid, op },
+      {
+        action: input.action,
+        sessionId: sid,
+        op,
+        mode: "playwright",
+        ...(options?.fallbackFromNative ? { fallbackFromNative: true } : {}),
+      },
       false,
       result.message ?? result.error ?? "browser invoke failed",
     );
@@ -396,6 +454,9 @@ export async function executeBrowserTool(
   const payload: Record<string, unknown> = {
     action: input.action,
     sessionId: sid,
+    mode: "playwright",
+    ...(audience === "agent" ? { background: true } : {}),
+    ...(options?.fallbackFromNative ? { fallbackFromNative: true } : {}),
     ...(typeof result.data === "object" && result.data !== null
       ? (result.data as Record<string, unknown>)
       : { data: result.data }),
@@ -407,31 +468,74 @@ export async function executeBrowserTool(
   return formatLocalToolResult(data);
 }
 
+export async function executeBrowserTool(
+  input: BrowserToolInput,
+  options?: ExecuteBrowserToolOptions,
+): Promise<Record<string, unknown>> {
+  const audience = options?.audience ?? "agent";
+  if (shouldUseHeadlessPlaywrightForAudience(audience)) {
+    return executePlaywrightBrowserTool(input, options);
+  }
+
+  if (!isNativeEmbeddedBrowserEnabled()) {
+    return executePlaywrightBrowserTool(input, options);
+  }
+
+  if (await isEmbeddedBrowserRuntimeAvailable()) {
+    const nativeResult = await executeNativeEmbeddedBrowserTool(input, options);
+    if (nativeResult.ok === true) {
+      return nativeResult;
+    }
+    if (shouldFallbackToPlaywrightFromNativeToolResult(nativeResult)) {
+      return executePlaywrightBrowserTool(input, {
+        ...options,
+        fallbackFromNative: true,
+      });
+    }
+    return nativeResult;
+  }
+
+  return executePlaywrightBrowserTool(input, {
+    ...options,
+    fallbackFromNative: true,
+  });
+}
+
 export const BROWSER_TOOL_DEF = tool({
   description:
-    "Embedded native browser in the QuickerAgent side panel (Electron WebContentsView). "
-    + "navigate(url) opens pages the user sees in the side panel; evaluate(script) runs JS in-page; "
-    + "content reads text; snapshot lists interactive refs (e1, e2, …) for click/type/fill/press/scroll/wait. "
-    + "Workflow: navigate → snapshot → ref ops; re-snapshot after navigation. "
+    "Headless browser automation (Playwright) — runs in the background; does not open the side panel. "
+    + "evaluate(script, url?) runs JS on a page: pass url to load and extract in one call (scraping, batch data). "
+    + "content(url?, selector?) for long text; search(text, url?) for element refs (e1, e2, …). "
+    + "navigate(url) returns interactive snapshot when you need refs before click/type/fill. "
     + "Use web_search for discovery. Do NOT use screenshot — agents cannot use images. "
-    + "sessionId maps to browser profile (default thread id); cookies persist in the desktop profile. "
-    + "Requires QuickerAgent desktop (Electron); first navigate may open the panel before automation runs.",
+    + "sessionId maps to browser profile (default thread id); cookies persist per session.",
   inputSchema: z.object({
     action: browserAgentActionSchema.describe(
-      "status | navigate | snapshot | content | click | click_xy | type | fill | press | wait | scroll | evaluate | tabs | tab | back | forward | reload | close",
+      "status | navigate | snapshot | search | content | click | click_xy | type | fill | press | wait | scroll | evaluate | tabs | tab | back | forward | reload | close",
     ),
     sessionId: z
       .string()
       .optional()
       .describe("Browser session id (default 'default'); cookies persist per session profile"),
-    url: z.string().optional().describe("Target URL for navigate"),
+    url: z
+      .string()
+      .optional()
+      .describe(
+        "action=navigate: open URL; evaluate/content/search: load this page first (one-shot background automation)",
+      ),
     ref: z
       .string()
       .optional()
       .describe("Element ref from the latest snapshot (e.g. e3) for click/type/fill/press/wait"),
     x: z.number().int().min(0).optional().describe("Viewport X for click_xy (from embedded panel click)"),
     y: z.number().int().min(0).optional().describe("Viewport Y for click_xy (from embedded panel click)"),
-    text: z.string().optional().describe("Text to type (append) for action=type"),
+    text: z
+      .string()
+      .optional()
+      .describe(
+        "action=search: keyword to find on page (returns ref matches); "
+        + "action=type: text to append; action=wait: visible text to wait for",
+      ),
     value: z.string().optional().describe("Value to fill (replace) for action=fill"),
     key: z
       .string()
@@ -449,7 +553,12 @@ export const BROWSER_TOOL_DEF = tool({
     script: z
       .string()
       .optional()
-      .describe("JavaScript expression/function body for action=evaluate; return JSON-serializable data"),
+      .describe(
+        "JavaScript for action=evaluate: optional url loads the page first. "
+        + "End with an expression (e.g. document.title; "
+        + "[...document.querySelectorAll('a')].map(a => a.href)) or use return for multi-line bodies. "
+        + "Result is in value (objects/arrays stay structured; other scalars as strings).",
+      ),
     selector: z
       .string()
       .optional()
@@ -466,6 +575,13 @@ export const BROWSER_TOOL_DEF = tool({
       .min(0)
       .optional()
       .describe("Tab index for action=tab (from action=tabs)"),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(20)
+      .optional()
+      .describe("Max matches for action=search (default 8)"),
   }),
   execute: async (input: BrowserAgentToolInput) => executeBrowserTool(input),
 });

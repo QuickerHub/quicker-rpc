@@ -17,7 +17,6 @@ function formatToolDisplayName(toolName: string): string {
 
 export type AgentActivityPhase =
   | "connecting"
-  | "reconnecting"
   | "planning"
   | "reasoning"
   | "tool"
@@ -55,8 +54,6 @@ function findLastAssistantMessage(
 export function resolveAgentActivity(input: {
   chatStatus: ChatRunStatus;
   messages: UIMessage[];
-  qkrpcOk: boolean;
-  qkrpcLoading: boolean;
   pendingApprovalCount: number;
   pendingAskQuestionCount?: number;
 }): AgentActivity | null {
@@ -79,14 +76,6 @@ export function resolveAgentActivity(input: {
   }
 
   if (!busy) return null;
-
-  if (input.qkrpcLoading) {
-    return { phase: "reconnecting", label: "检测 Quicker 连接…" };
-  }
-
-  if (!input.qkrpcOk) {
-    return { phase: "reconnecting", label: "正在连接 Quicker…" };
-  }
 
   if (input.chatStatus === "submitted") {
     return { phase: "connecting", label: "正在连接模型…" };

@@ -456,6 +456,30 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("query", "Natural language or keyword query.", shortName: "q"), Option("preset", "Direct link preset id or alias."), Option("link", "Alias for --preset."), Option("key", "Setting key to resolve containing page."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
+                Cmd("trigger list", "List event trigger tasks (automation rules: run action on window/process/clipboard/file/timer events).", "qkrpc trigger list [--query <keyword>] [--event WindowActivated] [--json]",
+
+                    opts: new[] { Option("query", "Filter by note/event/action/id keyword.", shortName: "q"), Option("event", "Filter by event type (case sensitive)."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("trigger events", "List supported trigger event types with accepted params and event variables.", "qkrpc trigger events [--event FileSystemChange] [--json]",
+
+                    opts: new[] { Option("event", "Show one event type only."), Option("json", "Structured output (fields + variables)."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("trigger add", "Create an event trigger task. Always check 'trigger events --json' first for the exact event type and param keys.", "qkrpc trigger add --event ProcessStarted --action <actionIdOrName> --params '{\"ProcessName\":\"notepad\"}' [--note 说明] [--json]",
+
+                    opts: new[] { Option("event", "Event type id, case sensitive."), Option("action", "Action id (Guid) or action title to run."), Option("action-param", "Parameter passed to the action."), Option("params", "JSON object of event params."), Option("params-file", "JSON file with event params."), Option("note", "Display note."), Option("filter", "Event filter expression."), Option("machines", "Machine binding."), Option("debounce", "Debounce ms."), Option("throttle", "Throttle ms."), Option("delay", "Delay ms before running action."), Option("skip-further", "Skip remaining rules for same event."), Option("disabled", "Create disabled."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("trigger update", "Update an event trigger task (only provided options change).", "qkrpc trigger update --id <guid> [--params '{...}'] [--enabled|--disabled] [--note 新说明] [--json]",
+
+                    opts: new[] { Option("id", "Trigger task id."), Option("event", "New event type."), Option("action", "New action id or title."), Option("action-param", "New action parameter."), Option("params", "Replace event params (JSON object)."), Option("note", "New note."), Option("enabled", "Enable the rule."), Option("disabled", "Disable the rule."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("trigger delete", "Delete an event trigger task.", "qkrpc trigger delete --id <guid> [--json]",
+
+                    opts: new[] { Option("id", "Trigger task id."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("trigger enable", "Enable / disable an event trigger task.", "qkrpc trigger enable --id <guid> [--json] | qkrpc trigger disable --id <guid> [--json]",
+
+                    opts: new[] { Option("id", "Trigger task id."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
                 Cmd("launcher resolve", "Unified launcher resolve: search settings/actions/subprograms, score and rank candidates for agent pick.", "qkrpc launcher resolve --query \"打开功能快捷键\" [--scopes settings,actions] [--limit 12] [--json]",
 
                     opts: new[] { Option("query", "User phrase to resolve.", shortName: "q"), Option("scopes", "Optional filter: settings,actions,subprograms."), Option("limit", "Max candidates (1-30).", defaultValue: "12"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),

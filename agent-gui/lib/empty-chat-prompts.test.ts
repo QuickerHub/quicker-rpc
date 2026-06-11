@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { AUTHORING_BENCHMARK_TASKS } from "@/lib/authoring-benchmark";
 import {
   EMPTY_CHAT_ACTION_PROMPTS,
   EMPTY_CHAT_PROMPT_CATEGORY_ORDER,
@@ -7,6 +8,15 @@ import {
 } from "@/lib/empty-chat-prompts";
 
 describe("empty-chat-prompts", () => {
+  it("mirrors benchmark task count and ids", () => {
+    assert.equal(EMPTY_CHAT_ACTION_PROMPTS.length, AUTHORING_BENCHMARK_TASKS.length);
+    for (const task of AUTHORING_BENCHMARK_TASKS) {
+      const prompt = EMPTY_CHAT_ACTION_PROMPTS.find((p) => p.id === task.id);
+      assert.ok(prompt, task.id);
+      assert.equal(prompt!.text, task.userPrompt);
+    }
+  });
+
   it("has unique ids and required fields", () => {
     const ids = new Set<string>();
     for (const p of EMPTY_CHAT_ACTION_PROMPTS) {
@@ -27,7 +37,7 @@ describe("empty-chat-prompts", () => {
     }
   });
 
-  it("includes smoke read-only and authoring mutating cases", () => {
+  it("includes discover read-only and authoring mutating cases", () => {
     const readOnly = EMPTY_CHAT_ACTION_PROMPTS.filter((p) => p.readOnly);
     const authoring = EMPTY_CHAT_ACTION_PROMPTS.filter(
       (p) => p.category === "authoring",

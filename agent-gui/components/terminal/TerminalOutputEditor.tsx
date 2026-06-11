@@ -15,6 +15,7 @@ import {
   tailShellOutputForPreview,
 } from "@/lib/shell-tool-view";
 import { useFollowScrollTail } from "@/lib/use-follow-scroll-tail";
+import { TerminalToolIcon } from "@/components/workspace/side-panel-view-icons";
 
 type TerminalOutputEditorProps = {
   content: string;
@@ -53,7 +54,7 @@ function TerminalBlockTitle({
   return (
     <div className="file-editor-header file-editor-header--compact terminal-output-block__title">
       <span className="terminal-output-block__icon" aria-hidden>
-        &gt;_
+        <TerminalToolIcon />
       </span>
       <span className="tool-title file-snapshot-tool-title">
         <span className="file-snapshot-filename terminal-output-block__label" title={title}>

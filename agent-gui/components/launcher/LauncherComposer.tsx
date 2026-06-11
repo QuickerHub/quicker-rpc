@@ -417,7 +417,6 @@ export function LauncherPanel() {
                 workspaceDeleteHits={session.workspaceDeleteHits}
                 pendingAskQuestionCount={session.pendingAskQuestionCount}
                 workingDirectory={workingDirectory}
-                ping={ping}
               />
             </section>
           ) : null}

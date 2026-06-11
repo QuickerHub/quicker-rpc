@@ -71,7 +71,6 @@ type ChatComposerFooterProps = {
   messages: AgentUIMessage[];
   ping: PingState;
   connectTick: number;
-  qkrpcOk: boolean;
   devExperienceEnabled: boolean;
   chatMode: ChatMode;
   enabledTools: string[];
@@ -107,7 +106,6 @@ const ChatComposerFooterInner = forwardRef<
     messages,
     ping,
     connectTick,
-    qkrpcOk,
     devExperienceEnabled,
     chatMode,
     enabledTools,
@@ -348,7 +346,6 @@ const ChatComposerFooterInner = forwardRef<
                 ) : null}
                 {devExperienceEnabled ? (
                   <ComposerTestPromptsPicker
-                    disabled={!qkrpcOk}
                     onSendPrompt={onSendTestPrompt}
                   />
                 ) : null}

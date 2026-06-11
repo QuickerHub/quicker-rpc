@@ -137,6 +137,12 @@ internal static class ServeInvokeDispatcher
             "settings.links" => await SettingsLinksAsync(rpc, token).ConfigureAwait(false),
             "settings.open" => await SettingsOpenAsync(rpc, args, token).ConfigureAwait(false),
             "settings.resolve" => await SettingsResolveAsync(rpc, args, token).ConfigureAwait(false),
+            "trigger.list" => await TriggerListAsync(rpc, args, token).ConfigureAwait(false),
+            "trigger.events" => await TriggerEventsAsync(rpc, args, token).ConfigureAwait(false),
+            "trigger.save" => await TriggerSaveAsync(rpc, args, token).ConfigureAwait(false),
+            "trigger.delete" => await TriggerDeleteAsync(rpc, args, token).ConfigureAwait(false),
+            "trigger.enable" => await TriggerSetEnabledAsync(rpc, args, enabled: true, token).ConfigureAwait(false),
+            "trigger.disable" => await TriggerSetEnabledAsync(rpc, args, enabled: false, token).ConfigureAwait(false),
             "launcher.resolve" => await LauncherResolveAsync(rpc, args, token).ConfigureAwait(false),
             "search-index.status" => await SearchIndexStatusAsync(rpc, token).ConfigureAwait(false),
             "search-index.rebuild" => await SearchIndexRebuildAsync(rpc, args, token).ConfigureAwait(false),
@@ -460,6 +466,121 @@ internal static class ServeInvokeDispatcher
             key = result.Key,
             type = result.Type,
             value = result.Value,
+            message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> TriggerListAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var query = ServeJsonArgs.GetString(args, "query");
+        var eventType = ServeJsonArgs.GetString(args, "eventType", "event");
+        var result = await rpc.ListTriggersAsync(query, eventType, cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "trigger-list",
+            totalCount = result.TotalCount,
+            items = result.Items,
+            message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> TriggerEventsAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var eventType = ServeJsonArgs.GetString(args, "eventType", "event");
+        var result = await rpc.ListTriggerEventTypesAsync(eventType, cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "trigger-events",
+            source = result.Source,
+            items = result.Items,
+            message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> TriggerSaveAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var task = new QuickerRpcTriggerTaskInfo
+        {
+            Id = ServeJsonArgs.GetString(args, "id") ?? string.Empty,
+            EventType = ServeJsonArgs.GetString(args, "eventType", "event"),
+            ActionIdOrName = ServeJsonArgs.GetString(args, "action", "actionIdOrName"),
+            ActionParam = ServeJsonArgs.GetString(args, "actionParam"),
+            Note = ServeJsonArgs.GetString(args, "note"),
+            ParamsJson = ServeJsonArgs.GetJsonInlineText(args, "params", "paramsJson"),
+            EventFilterExpression = ServeJsonArgs.GetString(args, "filter", "eventFilterExpression"),
+            ValidForMachines = ServeJsonArgs.GetString(args, "machines", "validForMachines"),
+            DebounceMs = ServeJsonArgs.GetInt(args, "debounceMs"),
+            ThrottleMs = ServeJsonArgs.GetInt(args, "throttleMs"),
+            DelayMs = ServeJsonArgs.GetInt(args, "delayMs"),
+            SkipFurtherTasks = ServeJsonArgs.GetNullableBool(args, "skipFurtherTasks"),
+            IsEnabled = ServeJsonArgs.GetNullableBool(args, "enabled")
+                ?? ServeJsonArgs.GetNullableBool(args, "isEnabled"),
+        };
+
+        var result = await rpc.SaveTriggerAsync(task, cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "trigger-save",
+            created = result.Created,
+            task = result.Task,
+            warnings = result.Warnings,
+            message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> TriggerDeleteAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var id = ServeJsonArgs.GetString(args, "id") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ID", "args.id is required.");
+        }
+
+        var result = await rpc.DeleteTriggerAsync(id, cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = "trigger-delete",
+            id = result.Id,
+            message = result.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> TriggerSetEnabledAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        var id = ServeJsonArgs.GetString(args, "id") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ID", "args.id is required.");
+        }
+
+        var result = await rpc.SetTriggerEnabledAsync(id, enabled, cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = result.Ok,
+            action = enabled ? "trigger-enable" : "trigger-disable",
+            created = result.Created,
+            task = result.Task,
+            warnings = result.Warnings,
             message = result.Message,
         });
     }

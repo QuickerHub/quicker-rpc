@@ -39,10 +39,13 @@ type InternalSession = {
 };
 
 /**
- * VS Code / tmux-style terminal multiplexer:
- * - one browser-tab WebSocket
- * - many PTY sessions keyed by sessionId
- * - detach keeps server PTY + scrollback; kill ends the process
+ * Browser-side terminal multiplexer (VS Code PtyService / LocalTerminalBackend model).
+ *
+ * @see https://github.com/microsoft/vscode/blob/main/src/vs/platform/terminal/node/ptyService.ts
+ * @see https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/terminal/electron-sandbox/localTerminalBackend.ts
+ *
+ * One IPC/WebSocket channel per window; many PTY sessions keyed by sessionId.
+ * Control-plane errors must never poison unrelated session attach state.
  */
 class TerminalMultiplexer {
   private ws: WebSocket | null = null;
@@ -51,13 +54,13 @@ class TerminalMultiplexer {
   private readonly sessions = new Map<string, InternalSession>();
   private readonly stateListeners = new Map<string, Set<SessionStateListener>>();
   private readonly outputListeners = new Map<string, Set<SessionOutputListener>>();
+  /** Session awaiting create/attach error correlation only. */
   private pendingErrorSessionId: string | null = null;
 
   isOpen(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
-  /** Register a UI tab binding (does not spawn PTY until attach). */
   registerSession(sessionId: string, cwd: string): void {
     if (this.sessions.has(sessionId)) return;
     this.sessions.set(sessionId, {
@@ -114,7 +117,6 @@ class TerminalMultiplexer {
     return () => set!.delete(listener);
   }
 
-  /** Create server PTY if needed, then attach this UI to the session. */
   async attach(
     sessionId: string,
     cwd: string,
@@ -129,14 +131,14 @@ class TerminalMultiplexer {
     session.pendingAttach = { cols, rows };
 
     if (session.phase === "attached" && this.isOpen()) {
-      this.sendResize(sessionId, cols, rows);
+      this.post({ type: "resize", sessionId, cols, rows });
       return;
     }
 
     if (session.attachPromise) {
       await session.attachPromise;
       if (session.phase === "attached") {
-        this.sendResize(sessionId, cols, rows);
+        this.post({ type: "resize", sessionId, cols, rows });
       }
       return;
     }
@@ -144,30 +146,25 @@ class TerminalMultiplexer {
     session.attachPromise = this.attachUntilReady(sessionId);
     try {
       await session.attachPromise;
-      this.sendResize(sessionId, cols, rows);
+      if (session.phase === "attached") {
+        this.post({ type: "resize", sessionId, cols, rows });
+      }
     } finally {
       session.attachPromise = null;
     }
   }
 
-  /** Detach UI only — server PTY keeps running (tmux-style). */
   detach(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
-    if (this.isOpen()) {
-      void this.send({ type: "detach", sessionId });
-    }
+    this.post({ type: "detach", sessionId });
     if (session.phase === "attached" || session.phase === "connecting") {
       this.setPhase(session, "detached");
     }
   }
 
-  /** Kill server PTY and drop local session state. */
   kill(sessionId: string): void {
-    const session = this.sessions.get(sessionId);
-    if (session && this.isOpen()) {
-      void this.send({ type: "dispose", sessionId });
-    }
+    this.post({ type: "dispose", sessionId });
     this.unregisterSession(sessionId);
   }
 
@@ -179,7 +176,7 @@ class TerminalMultiplexer {
 
   write(sessionId: string, data: string): void {
     if (!data) return;
-    void this.send({ type: "input", sessionId, data });
+    this.post({ type: "input", sessionId, data });
   }
 
   resize(sessionId: string, cols: number, rows: number): void {
@@ -187,14 +184,19 @@ class TerminalMultiplexer {
     if (session) {
       session.pendingAttach = { cols, rows };
     }
-    this.sendResize(sessionId, cols, rows);
+    this.post({ type: "resize", sessionId, cols, rows });
   }
 
   private attachUntilReady(sessionId: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const session = this.sessions.get(sessionId);
       if (!session) {
-        reject(new Error("session not registered"));
+        resolve();
+        return;
+      }
+
+      if (session.phase === "attached") {
+        resolve();
         return;
       }
 
@@ -203,16 +205,13 @@ class TerminalMultiplexer {
       const timeout = setTimeout(() => {
         cleanup();
         this.setPhase(session, "error", { errorMessage: "终端连接超时" });
-        reject(new Error("terminal attach timeout"));
+        resolve();
       }, 20_000);
 
       const unsub = this.subscribeState(sessionId, (snapshot) => {
-        if (snapshot.phase === "attached") {
+        if (snapshot.phase === "attached" || snapshot.phase === "error") {
           cleanup();
           resolve();
-        } else if (snapshot.phase === "error") {
-          cleanup();
-          reject(new Error(snapshot.errorMessage ?? "terminal error"));
         }
       });
 
@@ -232,14 +231,14 @@ class TerminalMultiplexer {
       await this.ensureConnection();
       this.pendingErrorSessionId = session.sessionId;
       if (session.serverKnown) {
-        await this.send({
+        await this.postSession({
           type: "attach",
           sessionId: session.sessionId,
           cols: dims.cols,
           rows: dims.rows,
         });
       } else {
-        await this.send({
+        await this.postSession({
           type: "create",
           sessionId: session.sessionId,
           cwd: session.cwd.trim() || undefined,
@@ -250,6 +249,7 @@ class TerminalMultiplexer {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.setPhase(session, "error", { errorMessage: message });
+      this.pendingErrorSessionId = null;
     }
   }
 
@@ -362,26 +362,12 @@ class TerminalMultiplexer {
       return;
     }
 
+    if (msg.type === "warmed" || msg.type === "sessions") {
+      return;
+    }
+
     if (msg.type === "error") {
-      const targetId = this.pendingErrorSessionId;
-      const session = targetId ? this.sessions.get(targetId) : undefined;
-      if (!session) return;
-
-      if (msg.message.includes("Unknown session")) {
-        session.serverKnown = false;
-        void this.requestAttach(session);
-        return;
-      }
-      if (msg.message.includes("Session already exists")) {
-        session.serverKnown = true;
-        void this.requestAttach(session);
-        return;
-      }
-
-      this.setPhase(session, "error", {
-        errorMessage: formatTerminalError(msg.message),
-      });
-      this.pendingErrorSessionId = null;
+      this.handleSessionError(msg.message);
       return;
     }
 
@@ -437,14 +423,48 @@ class TerminalMultiplexer {
     }
   }
 
-  private async send(payload: Record<string, unknown>): Promise<void> {
-    await this.ensureConnection();
-    this.ws!.send(JSON.stringify(payload));
+  private handleSessionError(message: string): void {
+    const targetId = this.pendingErrorSessionId;
+    if (!targetId) return;
+
+    const session = this.sessions.get(targetId);
+    if (!session) {
+      this.pendingErrorSessionId = null;
+      return;
+    }
+
+    if (message.includes("Unknown session")) {
+      session.serverKnown = false;
+      void this.requestAttach(session);
+      return;
+    }
+    if (message.includes("Session already exists")) {
+      session.serverKnown = true;
+      void this.requestAttach(session);
+      return;
+    }
+
+    this.setPhase(session, "error", {
+      errorMessage: formatTerminalError(message),
+    });
+    this.pendingErrorSessionId = null;
   }
 
-  private sendResize(sessionId: string, cols: number, rows: number): void {
-    if (!this.isOpen()) return;
-    void this.send({ type: "resize", sessionId, cols, rows });
+  /** Fire-and-forget session message (input/resize/detach/dispose). */
+  private post(payload: Record<string, unknown>): void {
+    void this.ensureConnection()
+      .then(() => {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify(payload));
+        }
+      })
+      .catch(() => {});
+  }
+
+  /** create/attach — correlates the next error to pendingErrorSessionId. */
+  private async postSession(payload: Record<string, unknown>): Promise<void> {
+    await this.ensureConnection();
+    this.ws!.send(JSON.stringify(payload));
   }
 
   private setPhase(

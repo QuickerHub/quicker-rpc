@@ -41,4 +41,4 @@ Parameter schema: **`qkrpc_step_runner_get`** with `key=sys:chromecontrol` and `
 
 ## Related
 
-quicker-authoring · qkrpc · browser (Playwright, no login)
+quicker-browser-script (page script + trigger auto-run pipeline) · quicker-authoring · qkrpc · browser (Playwright, no login)

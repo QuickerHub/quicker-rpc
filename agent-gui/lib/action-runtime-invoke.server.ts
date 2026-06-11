@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { invokeQkrpcHttp, resolveQkrpcHttpBase } from "@/lib/qkrpc-http";
 import { runQkrpcCliDirect } from "@/lib/qkrpc";
 import { isQkrpcConnectivityFailure } from "@/lib/qkrpc-connectivity";
-import { tryEnsureQkrpcServe } from "@/lib/qkrpc-serve-recover";
 import type { QkrpcRunResult } from "@/lib/qkrpc-types";
 
 export type ActionRuntimeOp = "run" | "check" | "keys" | "validate";
@@ -129,7 +128,6 @@ export async function invokeActionRuntime(
     && typeof args.dir !== "string";
 
   if (needsQuicker) {
-    await tryEnsureQkrpcServe();
     const httpResult = await invokeQkrpcHttp(
       { op: serveOpFor(op), args },
       { timeoutMs: INVOKE_TIMEOUT_MS },
@@ -151,8 +149,6 @@ export async function invokeActionRuntime(
   if (cliResult.ok || cliResult.parsed != null) {
     return cliResult;
   }
-
-  await tryEnsureQkrpcServe();
 
   const httpResult = await invokeQkrpcHttp(
     { op: serveOpFor(op), args },

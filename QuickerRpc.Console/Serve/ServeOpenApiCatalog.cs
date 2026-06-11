@@ -44,6 +44,10 @@ internal static class ServeOpenApiCatalog
         "settings.search",
         "settings.get",
         "settings.set",
+        "trigger.list",
+        "trigger.events",
+        "trigger.save",
+        "trigger.delete",
         "launcher.resolve",
         "project.diagnostics.get",
     ];

@@ -165,7 +165,10 @@ import {
   upsertUserMessageDraft,
   userMessageHasLocalDraft,
 } from "@/lib/user-message-edit";
-import { repairInterruptedToolCalls } from "@/lib/repair-interrupted-tool-calls";
+import {
+  finalizeStreamingReasoningParts,
+  repairInterruptedToolCalls,
+} from "@/lib/repair-interrupted-tool-calls";
 
 /** Debounced persist after messages settle. */
 const CHAT_PERSIST_DEBOUNCE_MS = 400;
@@ -371,7 +374,9 @@ function ChatPanel({
     addToolOutput,
   } = useChat<AgentUIMessage>({
       id: threadId,
-      messages: initialMessages,
+      // Persisted snapshots may contain reasoning parts stuck in "streaming"
+      // (e.g. app closed mid-stream); finalize so UI timers don't restart.
+      messages: finalizeStreamingReasoningParts(initialMessages),
       transport: chatTransport,
       experimental_throttle: 100,
       sendAutomaticallyWhen:
@@ -440,13 +445,16 @@ function ChatPanel({
   useEffect(() => {
     const prev = prevStatusRef.current;
     prevStatusRef.current = status;
-    if (ephemeral) return;
     const wasBusy = prev === "streaming" || prev === "submitted";
     const isIdle = status === "ready" || status === "error";
-    if (wasBusy && isIdle) {
+    if (!wasBusy || !isIdle) return;
+    // Aborted/errored streams can leave reasoning parts stuck in
+    // "streaming", which keeps the thinking timer ticking in the UI.
+    setMessages((current) => finalizeStreamingReasoningParts(current));
+    if (!ephemeral) {
       flushThreadPersist();
     }
-  }, [ephemeral, flushThreadPersist, status]);
+  }, [ephemeral, flushThreadPersist, setMessages, status]);
 
   useActionProjectImportFromMessages(messages, !ephemeral && visible);
   useBrowserPanelMessageSync(messages, { enabled: !ephemeral && visible });
@@ -555,8 +563,6 @@ function ChatPanel({
     removeFromQueue,
     flushNextQueuedNow,
   } = useComposerMessageQueue(busy, sendMessageSafe, interruptAgentRun);
-  const qkrpcOk = ping.status === "ok";
-
   const scrollRevisionKey = useMemo(
     () => buildChatScrollRevisionKey(messages, status, error),
     [messages, status, error],
@@ -1026,18 +1032,15 @@ function ChatPanel({
     respondToAllPendingApprovals,
   ]);
 
-  const qkrpcLoading = ping.status === "loading";
   const agentActivity = useMemo(
     () =>
       resolveAgentActivity({
         chatStatus: status,
         messages,
-        qkrpcOk,
-        qkrpcLoading,
         pendingApprovalCount,
         pendingAskQuestionCount,
       }),
-    [status, messages, qkrpcOk, qkrpcLoading, pendingApprovalCount, pendingAskQuestionCount],
+    [status, messages, pendingApprovalCount, pendingAskQuestionCount],
   );
 
   const lastTurnFillScrollport = useMsgTurnStickyActive(
@@ -1334,7 +1337,6 @@ function ChatPanel({
         messages={messages}
         ping={ping}
         connectTick={connectTick}
-        qkrpcOk={qkrpcOk}
         devExperienceEnabled={devExperienceEnabled}
         chatMode={chatMode}
         enabledTools={enabledTools}

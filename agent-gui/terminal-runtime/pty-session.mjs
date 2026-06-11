@@ -93,7 +93,7 @@ export function createPtySession(options) {
   const shell = resolveInteractiveShellExecutable();
   const cwd = resolveTerminalCwd(options.cwd, options.agentGuiRoot);
   const cols = Math.max(20, Math.min(400, Number(options.cols) || 80));
-  const rows = Math.max(5, Math.min(200, Number(rows) || 24));
+  const rows = Math.max(5, Math.min(200, Number(options.rows) || 24));
   const env = buildChildEnv(options.agentGuiRoot, cwd, options.repoRoot);
 
   const proc = pty.spawn(shell, shellArgsForExecutable(shell), {
@@ -102,8 +102,6 @@ export function createPtySession(options) {
     rows,
     cwd,
     env,
-    // Windows: skip conhost animation / extra init when supported by node-pty.
-    useConpty: process.platform === "win32",
   });
 
   return {

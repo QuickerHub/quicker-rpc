@@ -163,4 +163,5 @@ export type TerminalServerMessage =
   | { type: "exit"; sessionId: string; code: number }
   | { type: "detached"; sessionId: string }
   | { type: "disposed"; sessionId: string }
+  | { type: "warmed" }
   | { type: "error"; message: string };

@@ -1,4 +1,5 @@
 import {
+  isReasoningUIPart,
   isToolOrDynamicToolUIPart,
   type DynamicToolUIPart,
   type ToolUIPart,
@@ -32,13 +33,41 @@ export function hasIncompleteToolCalls(messages: AgentUIMessage[]): boolean {
   return false;
 }
 
+/**
+ * Reasoning parts left in "streaming" state after the run ends keep UI
+ * timers ticking ("思考中…"); mark them done.
+ */
+export function finalizeStreamingReasoningParts(
+  messages: AgentUIMessage[],
+): AgentUIMessage[] {
+  let changed = false;
+
+  const next = messages.map((message) => {
+    if (message.role !== "assistant") return message;
+
+    let messageChanged = false;
+    const parts = message.parts.map((part) => {
+      if (!isReasoningUIPart(part) || part.state !== "streaming") return part;
+      messageChanged = true;
+      return { ...part, state: "done" as const };
+    });
+
+    if (!messageChanged) return message;
+    changed = true;
+    return { ...message, parts };
+  });
+
+  return changed ? next : messages;
+}
+
 /** Resolve tool parts left mid-flight after the user stops generation. */
 export function repairInterruptedToolCalls(
   messages: AgentUIMessage[],
 ): AgentUIMessage[] {
   let changed = false;
 
-  const next = messages.map((message) => {
+  const reasoningFinalized = finalizeStreamingReasoningParts(messages);
+  const next = reasoningFinalized.map((message) => {
     if (message.role !== "assistant") return message;
 
     let messageChanged = false;
@@ -78,5 +107,5 @@ export function repairInterruptedToolCalls(
     return { ...message, parts };
   });
 
-  return changed ? next : messages;
+  return changed ? next : reasoningFinalized;
 }

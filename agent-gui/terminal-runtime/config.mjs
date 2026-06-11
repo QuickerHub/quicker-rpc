@@ -1,4 +1,4 @@
-export const RUNTIME_VERSION = "0.3.0";
+export const RUNTIME_VERSION = "0.3.4";
 export const PROTOCOL_VERSION = "quicker-terminal-v3";
 
 /**

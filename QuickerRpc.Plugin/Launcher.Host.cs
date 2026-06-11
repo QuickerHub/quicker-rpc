@@ -47,6 +47,7 @@ public static partial class Launcher
                 services.AddSingleton<ChromeControlExecuteService>();
                 services.AddSingleton<QuickerSettingsService>();
                 services.AddSingleton<QuickerSettingsUiService>();
+                services.AddSingleton<TriggerTaskService>();
                 services.AddSingleton<LauncherResolveService>();
                 services.AddSingleton<QuickerAgentUpdateCheckService>();
                 services.AddSingleton<QuickerRpcService>();

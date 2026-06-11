@@ -1,7 +1,19 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright";
-import { invokeError, invokeOk, formatSnapshotYaml } from "./protocol.mjs";
+import { invokeError, invokeOk } from "./protocol.mjs";
+import {
+  buildEvaluatePageCode,
+  formatEvaluateOutput,
+  parseEvaluateResult,
+} from "./evaluate-script.mjs";
+import {
+  buildInteractiveSnapshot,
+} from "./page-structure.mjs";
+import {
+  buildPageSearchResult,
+  collectSearchCandidates,
+} from "./page-search.mjs";
 import {
   collectAriaSnapshot,
   collectInteractiveNodes,
@@ -309,6 +321,68 @@ export class SessionManager {
     return session;
   }
 
+  /**
+   * Optional url on evaluate/content/search — load page before the op.
+   * @param {{ page: import('playwright').Page; refMap: Record<string, unknown> }} session
+   * @param {Record<string, unknown>} args
+   */
+  async _gotoIfNeeded(session, args) {
+    const url = String(args.url ?? "").trim();
+    if (!url) return false;
+    const waitUntil = /** @type {'load' | 'domcontentloaded' | 'networkidle' | 'commit'} */ (
+      String(args.waitUntil ?? "domcontentloaded")
+    );
+    const timeoutMs = Number(args.timeoutMs ?? 30_000);
+    await session.page.goto(url, { waitUntil, timeout: timeoutMs });
+    try {
+      await session.page.waitForLoadState("networkidle", { timeout: 4_000 });
+    } catch {
+      await session.page.waitForTimeout(800);
+    }
+    session.refMap = {};
+    this._scheduleStorageStateSave(session);
+    return true;
+  }
+
+  /**
+   * Compact interactive snapshot for refs; full aria tree is opt-in via snapshot op.
+   * @param {{ page: import('playwright').Page; refMap: Record<string, unknown> }} session
+   */
+  async _buildPageSnapshot(session) {
+    const nodes = await collectInteractiveNodes(session.page);
+    const built = buildInteractiveSnapshot(
+      session.page.url(),
+      await session.page.title(),
+      nodes,
+    );
+    session.refMap = built.refMap;
+
+    return {
+      url: session.page.url(),
+      title: await session.page.title(),
+      snapshot: built.snapshot,
+      nodeCount: built.nodeCount,
+    };
+  }
+
+  /**
+   * @param {{ page: import('playwright').Page; refMap: Record<string, unknown> }} session
+   * @param {string} query
+   * @param {number} limit
+   */
+  async _searchPage(session, query, limit) {
+    const candidates = await collectSearchCandidates(session.page);
+    const result = buildPageSearchResult(query, candidates, session.refMap, limit);
+    session.refMap = result.refMap;
+    return {
+      url: session.page.url(),
+      title: await session.page.title(),
+      query: result.query,
+      matchCount: result.matchCount,
+      matches: result.matches,
+    };
+  }
+
   /** @param {string} op @param {Record<string, unknown>} args @param {string} sessionId */
   async invoke(op, args, sessionId) {
     try {
@@ -340,6 +414,7 @@ export class SessionManager {
       const pageOps = new Set([
         "page.navigate",
         "page.snapshot",
+        "page.search",
         "page.content",
         "page.click",
         "page.click_xy",
@@ -376,7 +451,13 @@ export class SessionManager {
     try {
         let sessionResult = this._sessionOrError(sessionId);
         if (sessionResult && "ok" in sessionResult && sessionResult.ok === false) {
-          if (op === "page.navigate") {
+          const urlBootstrap =
+            op === "page.navigate"
+            || (
+              Boolean(String(args.url ?? "").trim())
+              && (op === "page.evaluate" || op === "page.content" || op === "page.search")
+            );
+          if (urlBootstrap) {
             await this.ensureSession(sessionId);
             sessionResult = this._sessionOrError(sessionId);
             if (sessionResult && "ok" in sessionResult && sessionResult.ok === false) {
@@ -406,13 +487,13 @@ export class SessionManager {
           }
           session.refMap = {};
           this._scheduleStorageStateSave(session);
+          const pageSnap = await this._buildPageSnapshot(session);
           return this._okWithPreview(
             session,
             op,
             {
-              url: session.page.url(),
-              title: await session.page.title(),
               status: response?.status() ?? null,
+              ...pageSnap,
             },
             includePreview,
           );
@@ -443,48 +524,12 @@ export class SessionManager {
             }
           }
 
-          let snapshot = await collectAriaSnapshot(session.page);
-          /** @type {Record<string, { role: string; name: string | null; nth: number; ariaRef?: string; href?: string }>} */
-          let refMap = snapshot ? parseAriaSnapshotRefMap(snapshot) : {};
-
-          if (!snapshot || countInteractiveRefs(refMap) === 0) {
-            const nodes = await collectInteractiveNodes(session.page);
-            refMap = {};
-            /** @type {Record<string, number>} */
-            const roleCounts = {};
-            for (const node of nodes) {
-              const key = `${node.role}\0${node.name ?? ""}\0${node.href ?? ""}`;
-              const nth = roleCounts[key] ?? 0;
-              roleCounts[key] = nth + 1;
-              const ref = `e${Object.keys(refMap).length + 1}`;
-              refMap[ref] = {
-                role: node.role,
-                name: node.name,
-                nth,
-                ...(node.href ? { href: node.href } : {}),
-              };
-            }
-            snapshot = formatSnapshotYaml(
-              session.page.url(),
-              await session.page.title(),
-              refMap,
-            );
-          }
-
-          session.refMap = refMap;
+          const pageSnap = await this._buildPageSnapshot(session);
+          const { snapshot } = pageSnap;
+          const refMap = session.refMap;
 
           if (op === "page.snapshot") {
-            return this._okWithPreview(
-              session,
-              op,
-              {
-                url: session.page.url(),
-                title: await session.page.title(),
-                snapshot,
-                nodeCount: countInteractiveRefs(refMap) || Object.keys(refMap).length,
-              },
-              includePreview,
-            );
+            return this._okWithPreview(session, op, pageSnap, includePreview);
           }
 
           const ref = await findRefAtPoint(
@@ -514,6 +559,7 @@ export class SessionManager {
         }
 
         if (op === "page.content") {
+          await this._gotoIfNeeded(session, args);
           const selector = String(args.selector ?? "").trim();
           const fullText = await session.page.evaluate((sel) => {
             /** @param {string} raw */
@@ -549,6 +595,16 @@ export class SessionManager {
             truncated,
             ...(truncated ? { nextOffset: offset + text.length } : {}),
           });
+        }
+
+        if (op === "page.search") {
+          await this._gotoIfNeeded(session, args);
+          const query = String(args.text ?? args.query ?? "").trim();
+          if (!query) return invokeError("text is required for search");
+          const limitRaw = Number(args.limit ?? 8);
+          const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 20) : 8;
+          const data = await this._searchPage(session, query, limit);
+          return invokeOk(data);
         }
 
         if (op === "page.click") {
@@ -712,26 +768,19 @@ export class SessionManager {
         }
 
         if (op === "page.evaluate") {
+          await this._gotoIfNeeded(session, args);
           const script = String(args.script ?? "").trim();
           if (!script) return invokeError("script is required");
-          const value = await session.page.evaluate((source) => {
-            try {
-              const result = new Function(`return (${source});`)();
-              return typeof result === "function" ? result() : result;
-            } catch {
-              return new Function(source)();
-            }
-          }, script);
-          const json = JSON.stringify(value ?? null);
-          const maxChars = 16_000;
-          const truncated = json.length > maxChars;
+          const built = buildEvaluatePageCode(script);
+          if (!built.ok) return invokeError(built.error);
+          const raw = await session.page.evaluate(built.code);
+          const parsed = parseEvaluateResult(raw);
+          if (!parsed.ok) return invokeError(`evaluate failed: ${parsed.error}`);
+          const output = formatEvaluateOutput(parsed);
           return invokeOk({
             url: session.page.url(),
             title: await session.page.title(),
-            value: truncated ? undefined : value,
-            json: truncated ? json.slice(0, maxChars) : json,
-            charCount: json.length,
-            truncated,
+            ...output,
           });
         }
 

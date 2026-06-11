@@ -1,4 +1,6 @@
 import { createServer } from "node:http";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import { loadConfig, PROTOCOL_VERSION, RUNTIME_VERSION } from "./config.mjs";
 import { getPtyPool } from "./pty-pool.mjs";
@@ -6,6 +8,7 @@ import { warmupPtyStack } from "./pty-session.mjs";
 import { attachTerminalSocket, getTerminalSessionManager } from "./ws-handler.mjs";
 
 const config = loadConfig();
+const agentGuiRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 /** @param {import("node:http").ServerResponse} res */
 function applyCors(res) {
@@ -96,7 +99,7 @@ server.listen(config.port, config.host, () => {
   setImmediate(() => {
     warmupPtyStack();
     getPtyPool().warmup(
-      dirname(fileURLToPath(import.meta.url)),
+      agentGuiRoot,
       process.env.QUICKER_RPC_REPO_ROOT?.trim() || undefined,
       undefined,
     );

@@ -5,15 +5,14 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import {
   disposeAllTerminalSessions,
   disposeTerminalSessionClient,
-  getTerminalSessionClient,
 } from "@/lib/terminal-session-client";
-import { DEFAULT_EMBEDDED_TERMINAL_ID } from "@/lib/workspace-side-panel-view";
 
 export type EmbeddedTerminalTab = {
   id: string;
@@ -21,16 +20,15 @@ export type EmbeddedTerminalTab = {
 };
 
 type EmbeddedTerminalTabsContextValue = {
-  /** Extra terminal sessions (default tab is implicit when panel is open). */
   tabs: EmbeddedTerminalTab[];
-  activeTerminalId: string;
+  activeTerminalId: string | null;
   setActiveTerminalId: (id: string) => void;
+  /** Ensure at least one internal tab exists; returns its id. */
+  ensureInitialTab: () => string;
   addTab: () => string;
   closeTab: (id: string) => void;
   renameTab: (id: string, label: string) => void;
-  /** Dispose every PTY session and reset internal tab state. */
   disposeAll: () => void;
-  /** All terminal ids currently mounted (default + extras). */
   mountedTerminalIds: (panelOpen: boolean) => string[];
 };
 
@@ -38,54 +36,75 @@ const EmbeddedTerminalTabsContext =
   createContext<EmbeddedTerminalTabsContextValue | null>(null);
 
 let tabCounter = 0;
+let onAllTabsClosedHandler: (() => void) | null = null;
+
+/** Wired by EmbeddedTerminalProvider when the last internal tab is closed. */
+export function setTerminalAllTabsClosedHandler(handler: (() => void) | null): void {
+  onAllTabsClosedHandler = handler;
+}
 
 function nextTerminalTabId(): string {
   tabCounter += 1;
   return `tt-${Date.now().toString(36)}-${tabCounter}`;
 }
 
-function extraTabLabel(index: number): string {
-  return `终端 ${index}`;
+function tabLabelForIndex(index: number): string {
+  return index === 0 ? "终端" : `终端 ${index + 1}`;
 }
 
-/** Internal terminal tabs inside the single side-panel「终端」view. */
+/** Internal terminal tabs — managed only inside the terminal panel (not side header). */
 export function EmbeddedTerminalTabsProvider({
   children,
 }: {
   children: ReactNode;
 }) {
   const [tabs, setTabs] = useState<EmbeddedTerminalTab[]>([]);
-  const [activeTerminalId, setActiveTerminalId] = useState(
-    DEFAULT_EMBEDDED_TERMINAL_ID,
-  );
+  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
 
-  const addTab = useCallback(() => {
+  const ensureInitialTab = useCallback((): string => {
+    const existing = tabsRef.current;
+    if (existing.length > 0) {
+      const id = existing[0]!.id;
+      setActiveTerminalId((current) =>
+        current && existing.some((tab) => tab.id === current) ? current : id,
+      );
+      return id;
+    }
     const id = nextTerminalTabId();
-    setTabs((prev) => [...prev, { id, label: extraTabLabel(prev.length + 2) }]);
+    setTabs([{ id, label: tabLabelForIndex(0) }]);
     setActiveTerminalId(id);
     return id;
   }, []);
 
-  const closeTab = useCallback(
-    (id: string) => {
-      if (id === DEFAULT_EMBEDDED_TERMINAL_ID) return;
-      setTabs((prev) => {
-        const next = prev.filter((tab) => tab.id !== id);
-        if (activeTerminalId === id) {
-          const fallback =
-            next[next.length - 1]?.id ?? DEFAULT_EMBEDDED_TERMINAL_ID;
-          setActiveTerminalId(fallback);
-        }
-        return next;
-      });
-      disposeTerminalSessionClient(id);
-    },
-    [activeTerminalId],
-  );
+  const addTab = useCallback(() => {
+    const id = nextTerminalTabId();
+    setTabs((prev) => [
+      ...prev,
+      { id, label: tabLabelForIndex(prev.length) },
+    ]);
+    setActiveTerminalId(id);
+    return id;
+  }, []);
+
+  const closeTab = useCallback((id: string) => {
+    setTabs((prev) => {
+      const next = prev.filter((tab) => tab.id !== id);
+      if (activeTerminalId === id) {
+        setActiveTerminalId(next[next.length - 1]?.id ?? null);
+      }
+      if (next.length === 0) {
+        queueMicrotask(() => onAllTabsClosedHandler?.());
+      }
+      return next;
+    });
+    disposeTerminalSessionClient(id);
+  }, [activeTerminalId]);
 
   const renameTab = useCallback((id: string, label: string) => {
     const trimmed = label.trim();
-    if (!trimmed || id === DEFAULT_EMBEDDED_TERMINAL_ID) return;
+    if (!trimmed) return;
     setTabs((prev) =>
       prev.map((tab) => (tab.id === id ? { ...tab, label: trimmed } : tab)),
     );
@@ -94,19 +113,15 @@ export function EmbeddedTerminalTabsProvider({
   const disposeAll = useCallback(() => {
     disposeAllTerminalSessions();
     setTabs([]);
-    setActiveTerminalId(DEFAULT_EMBEDDED_TERMINAL_ID);
+    setActiveTerminalId(null);
   }, []);
 
   const mountedTerminalIds = useCallback(
     (panelOpen: boolean) => {
       if (!panelOpen) return [];
-      const ids = [DEFAULT_EMBEDDED_TERMINAL_ID];
-      for (const tab of tabs) {
-        if (!ids.includes(tab.id)) ids.push(tab.id);
-      }
-      return ids;
+      return tabsRef.current.map((tab) => tab.id);
     },
-    [tabs],
+    [],
   );
 
   const value = useMemo(
@@ -114,6 +129,7 @@ export function EmbeddedTerminalTabsProvider({
       tabs,
       activeTerminalId,
       setActiveTerminalId,
+      ensureInitialTab,
       addTab,
       closeTab,
       renameTab,
@@ -123,6 +139,7 @@ export function EmbeddedTerminalTabsProvider({
     [
       tabs,
       activeTerminalId,
+      ensureInitialTab,
       addTab,
       closeTab,
       renameTab,
@@ -146,9 +163,4 @@ export function useEmbeddedTerminalTabs(): EmbeddedTerminalTabsContextValue {
     );
   }
   return ctx;
-}
-
-/** Warm default session client entry (no-op if already created). */
-export function touchDefaultTerminalSession(cwd: string): void {
-  getTerminalSessionClient(DEFAULT_EMBEDDED_TERMINAL_ID, cwd);
 }

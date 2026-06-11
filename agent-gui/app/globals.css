@@ -7678,17 +7678,10 @@ button.tool-batch-summary:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.35rem;
-  height: 1.15rem;
-  border-radius: 4px;
-  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  background: color-mix(in srgb, var(--foreground) 8%, var(--bg));
-  color: color-mix(in srgb, var(--accent) 70%, var(--text) 30%);
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.62rem;
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: -0.04em;
+  width: 14px;
+  height: 14px;
+  color: color-mix(in srgb, var(--text) 78%, var(--accent) 22%);
+  opacity: 0.9;
 }
 
 .terminal-output-block__label {

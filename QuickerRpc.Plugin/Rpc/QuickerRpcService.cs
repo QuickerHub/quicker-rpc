@@ -42,6 +42,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly ChromeControlExecuteService _chromeControlExecuteService;
     private readonly QuickerSettingsService _settingsService;
     private readonly QuickerSettingsUiService _settingsUiService;
+    private readonly TriggerTaskService _triggerTaskService;
     private readonly LauncherResolveService _launcherResolveService;
     private readonly AgentSearchIndexCoordinator _searchIndexCoordinator;
     private readonly IPopupMessageService _popup;
@@ -70,6 +71,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         ChromeControlExecuteService chromeControlExecuteService,
         QuickerSettingsService settingsService,
         QuickerSettingsUiService settingsUiService,
+        TriggerTaskService triggerTaskService,
         LauncherResolveService launcherResolveService,
         AgentSearchIndexCoordinator searchIndexCoordinator,
         IPopupMessageService popup)
@@ -97,6 +99,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _chromeControlExecuteService = chromeControlExecuteService;
         _settingsService = settingsService;
         _settingsUiService = settingsUiService;
+        _triggerTaskService = triggerTaskService;
         _launcherResolveService = launcherResolveService;
         _searchIndexCoordinator = searchIndexCoordinator;
         _popup = popup;
@@ -1210,6 +1213,58 @@ public sealed class QuickerRpcService : IQuickerRpcService
             QuickerDispatcherInvoke.OnUiThreadIfNeeded(
                 () => _settingsUiService.Open(target, query, settingKey, exeFile, searchText, preset))
             ?? new QuickerRpcOpenSettingsUiResult { Ok = false, Message = "Open settings UI unavailable." });
+    }
+
+    public Task<QuickerRpcTriggerListResult> ListTriggersAsync(
+        string? query = null,
+        string? eventType = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _triggerTaskService.List(query, eventType))
+            ?? new QuickerRpcTriggerListResult { Ok = false, Message = "Trigger list unavailable." });
+    }
+
+    public Task<QuickerRpcTriggerEventTypesResult> ListTriggerEventTypesAsync(
+        string? eventType = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _triggerTaskService.ListEventTypes(eventType))
+            ?? new QuickerRpcTriggerEventTypesResult { Ok = false, Message = "Trigger event types unavailable." });
+    }
+
+    public Task<QuickerRpcTriggerSaveResult> SaveTriggerAsync(
+        QuickerRpcTriggerTaskInfo task,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _triggerTaskService.Save(task))
+            ?? new QuickerRpcTriggerSaveResult { Ok = false, Message = "Trigger save unavailable." });
+    }
+
+    public Task<QuickerRpcTriggerDeleteResult> DeleteTriggerAsync(
+        string id,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _triggerTaskService.Delete(id))
+            ?? new QuickerRpcTriggerDeleteResult { Ok = false, Id = id, Message = "Trigger delete unavailable." });
+    }
+
+    public Task<QuickerRpcTriggerSaveResult> SetTriggerEnabledAsync(
+        string id,
+        bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => _triggerTaskService.SetEnabled(id, enabled))
+            ?? new QuickerRpcTriggerSaveResult { Ok = false, Message = "Trigger enable/disable unavailable." });
     }
 
     public Task<QuickerRpcResolveSettingsIntentResult> ResolveSettingsIntentAsync(

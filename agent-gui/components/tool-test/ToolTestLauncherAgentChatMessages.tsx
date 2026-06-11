@@ -49,8 +49,6 @@ export function ToolTestLauncherAgentChatMessages({
         ? resolveAgentActivity({
             chatStatus: "streaming",
             messages,
-            qkrpcOk: true,
-            qkrpcLoading: false,
             pendingApprovalCount: 0,
             pendingAskQuestionCount: pendingAskQuestions.length,
           })

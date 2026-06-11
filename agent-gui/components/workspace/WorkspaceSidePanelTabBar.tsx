@@ -5,7 +5,6 @@ import {
   SidePanelIconBrowser,
   SidePanelIconClose,
   SidePanelIconFile,
-  SidePanelIconTerminal,
   SidePanelIconTrace,
 } from "@/components/workspace/side-panel-view-icons";
 import { WorkspaceSidePanelHeaderControls } from "@/components/workspace/WorkspaceSidePanelHeaderControls";
@@ -44,7 +43,7 @@ import {
 type ContentTabItem = {
   id: string;
   label: string;
-  kind: "file" | "trace" | "browser" | "terminal";
+  kind: "file" | "trace" | "browser";
 };
 
 function tabLabel(
@@ -67,7 +66,7 @@ export function WorkspaceSidePanelTabBar() {
     snapshot: browserSnapshot,
     setOpen: setBrowserOpen,
   } = useEmbeddedBrowser();
-  const { open: terminalOpen, setOpen: setTerminalOpen } = useEmbeddedTerminal();
+  const { open: terminalOpen } = useEmbeddedTerminal();
   const { tabs: browserTabs, closeTab: closeBrowserTab } =
     useEmbeddedBrowserTabs();
   const { tabs, activeTabId, setActiveTabId, closeTab } = useWorkspaceExplorerEditor();
@@ -100,13 +99,6 @@ export function WorkspaceSidePanelTabBar() {
         kind: "browser",
       });
     }
-    if (terminalOpen) {
-      items.push({
-        id: SIDE_PANEL_VIEW_TERMINAL,
-        label: "终端",
-        kind: "terminal",
-      });
-    }
     for (const browserTab of browserTabs) {
       items.push({
         id: sidePanelBrowserViewId(browserTab.id),
@@ -128,7 +120,6 @@ export function WorkspaceSidePanelTabBar() {
     browserSnapshot.title,
     browserSnapshot.url,
     browserTabs,
-    terminalOpen,
     tabs,
     traceTabs,
   ]);
@@ -156,13 +147,6 @@ export function WorkspaceSidePanelTabBar() {
 
   const closeTabItem = useCallback(
     (tabId: string) => {
-      if (tabId === SIDE_PANEL_VIEW_TERMINAL) {
-        setTerminalOpen(false);
-        if (activeSideView === SIDE_PANEL_VIEW_TERMINAL) {
-          setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
-        }
-        return;
-      }
       if (isSidePanelBrowserView(tabId)) {
         const browserId = browserIdFromSideView(tabId);
         if (browserId === DEFAULT_EMBEDDED_BROWSER_ID) {
@@ -194,7 +178,6 @@ export function WorkspaceSidePanelTabBar() {
       closeTab,
       setActiveSideView,
       setBrowserOpen,
-      setTerminalOpen,
       tabs.length,
     ],
   );
@@ -315,8 +298,6 @@ export function WorkspaceSidePanelTabBar() {
                       <SidePanelIconTrace />
                     ) : tab.kind === "browser" ? (
                       <SidePanelIconBrowser />
-                    ) : tab.kind === "terminal" ? (
-                      <SidePanelIconTerminal />
                     ) : (
                       <SidePanelIconFile />
                     )}

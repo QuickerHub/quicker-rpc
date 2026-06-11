@@ -36,6 +36,7 @@
 | [agent-gui-plugin-storage.md](agent-gui-plugin-storage.md) | 可选插件（语音等）目录与下载 |
 | [quicker-agent-plugin-spec.md](quicker-agent-plugin-spec.md) | QuickerAgent Plugin 规范（manifest / registry / Host API） |
 | [agent-gui-prompt-structure.md](agent-gui-prompt-structure.md) | 系统提示与 Skill 加载 |
+| [agent-authoring-benchmark.md](agent-authoring-benchmark.md) | Agent 动作编写评测任务集（手动 / 半自动） |
 | [voice-input-plugin.md](voice-input-plugin.md) | 语音输入产品设计 + WebSocket 协议 |
 | [voxtype-quicker-integration.md](voxtype-quicker-integration.md) | VoxType 全局听写 × Quicker（HTTP + 插件） |
 | [../voice-asr-runtime/README.md](../voice-asr-runtime/README.md) | 本地 ASR runtime（Python） |

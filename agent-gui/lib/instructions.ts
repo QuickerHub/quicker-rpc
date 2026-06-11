@@ -41,7 +41,7 @@ export const SYSTEM_INSTRUCTIONS = prompt(
   "**Create**: qkrpc_action_create → workspace_program. **Layout**: qkrpc_profile_* / qkrpc_action_move.",
   "**Settings**: quicker_settings list/get/set/apply; action=open preset for UI panels.",
   "**Local disk**: workspace_file (plain files, `.local/` scratch); workspace_program (`.quicker` program bodies); shell_exec (build/test/git, rg search); user reviews in workbench 已改动.",
-  "**Web**: web_search for discovery; browser for page work — read: navigate → content(selector/offset) or evaluate; act: navigate → snapshot → ref ops, re-snapshot after navigated/openedTab. **LLM**: llm_settings.",
+  "**Web**: web_search for discovery; browser — evaluate(script, url) for background scrape/extract; navigate+search for interactive refs; click/type via ref. **LLM**: llm_settings.",
   "**Safety**: delete only on user ask (UI Confirm); ask_question for 2–5 preferences not deletes.",
   "**Dev UI**: dev_frontend_check after agent-gui edits until ok=true (agent-gui/AGENTS.md).",
   "",

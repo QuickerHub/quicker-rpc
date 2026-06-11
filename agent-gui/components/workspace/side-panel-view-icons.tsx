@@ -31,30 +31,49 @@ export function SidePanelIconBrowser() {
   );
 }
 
-export function SidePanelIconTerminal() {
+/** VS Code–style terminal window: prompt chevron + cursor line. */
+function TerminalIconSvg({ size = 14 }: { size?: number }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M3.25 3.5h9.5a.75.75 0 0 1 .75.75v7.5a.75.75 0 0 1-.75.75H3.25a.75.75 0 0 1-.75-.75V4.25a.75.75 0 0 1 .75-.75Z"
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+    >
+      <rect
+        x="2.75"
+        y="3.25"
+        width="10.5"
+        height="9.5"
+        rx="1.15"
         stroke="currentColor"
-        strokeWidth="1.15"
-        strokeLinejoin="round"
+        strokeWidth="1.1"
       />
       <path
-        d="M5.25 7.25 7 9l3.75-4"
+        d="M5.1 7.4 6.75 8.9 9.95 5.7"
         stroke="currentColor"
-        strokeWidth="1.15"
+        strokeWidth="1.1"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
-        d="M5.25 11.25h5.5"
+        d="M5.1 10.9h5.2"
         stroke="currentColor"
-        strokeWidth="1.15"
+        strokeWidth="1.1"
         strokeLinecap="round"
       />
     </svg>
   );
+}
+
+export function SidePanelIconTerminal() {
+  return <TerminalIconSvg size={14} />;
+}
+
+/** Compact terminal glyph for shell tool cards and inline titles. */
+export function TerminalToolIcon({ size = 13 }: { size?: number }) {
+  return <TerminalIconSvg size={size} />;
 }
 
 export function SidePanelIconTrace() {

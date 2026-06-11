@@ -29,6 +29,7 @@ public static class ProgramSyntaxCollector
     {
         "script",
         "code",
+        "脚本内容",
     };
 
     public static IList<ProgramSyntaxCheckItem> Collect(string projectDirectory, JObject data)
@@ -253,8 +254,18 @@ public static class ProgramSyntaxCollector
     }
 
     private static bool IsCSharpTarget(string runnerKey, string paramName) =>
-        CSharpRunnerKeys.Contains(runnerKey)
-        || (CSharpParamKeys.Contains(paramName) && runnerKey.Contains("csscript", StringComparison.OrdinalIgnoreCase));
+        (CSharpRunnerKeys.Contains(runnerKey)
+         || runnerKey.Contains("csscript", StringComparison.OrdinalIgnoreCase))
+        && IsCSharpScriptParamName(paramName);
+
+    private static bool IsCSharpScriptParamName(string paramName) =>
+        CSharpParamKeys.Contains(ResolveParamBaseName(paramName));
+
+    private static string ResolveParamBaseName(string paramName)
+    {
+        var dot = paramName.IndexOf('.');
+        return dot >= 0 ? paramName.Substring(0, dot) : paramName;
+    }
 
     private static bool LooksLikeExpressionBody(string text) =>
         text.Contains("{") && !text.Contains("public static void Exec", StringComparison.OrdinalIgnoreCase);

@@ -155,6 +155,11 @@ import {
   USER_BROWSER_TOOL_DEF,
 } from "@/lib/qkrpc-chrome-tool";
 
+import {
+  QUICKER_TRIGGER_TOOL,
+  QUICKER_TRIGGER_TOOL_DEF,
+} from "@/lib/qkrpc-trigger-tool";
+
 import { WEB_SEARCH_TOOL_DEF } from "@/lib/web-search-tool.server";
 
 import { WEB_SEARCH_TOOL } from "@/lib/web-search-tool-constants";
@@ -198,6 +203,8 @@ export const quickerTools = {
   [DOCS_TOOL]: DOCS_TOOL_DEF,
 
   [QUICKER_SETTINGS_TOOL]: QUICKER_SETTINGS_TOOL_DEF,
+
+  [QUICKER_TRIGGER_TOOL]: QUICKER_TRIGGER_TOOL_DEF,
 
   [QKRPC_FA_TOOL]: QKRPC_FA_TOOL_DEF,
 

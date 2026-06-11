@@ -432,6 +432,33 @@ public interface IQuickerRpcService
         string? scopes = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>List configured event trigger tasks (automation rules in UserSettings.TriggerTasks).</summary>
+    Task<QuickerRpcTriggerListResult> ListTriggersAsync(
+        string? query = null,
+        string? eventType = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>List supported trigger event types with accepted params and event variables.</summary>
+    Task<QuickerRpcTriggerEventTypesResult> ListTriggerEventTypesAsync(
+        string? eventType = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Create or update an event trigger task. Empty Id = create; null fields keep existing values.</summary>
+    Task<QuickerRpcTriggerSaveResult> SaveTriggerAsync(
+        QuickerRpcTriggerTaskInfo task,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Delete an event trigger task by id.</summary>
+    Task<QuickerRpcTriggerDeleteResult> DeleteTriggerAsync(
+        string id,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Enable or disable an event trigger task.</summary>
+    Task<QuickerRpcTriggerSaveResult> SetTriggerEnabledAsync(
+        string id,
+        bool enabled,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Diagnostics for background agent search index builds (action/subprogram regions).</summary>
     Task<QuickerRpcSearchIndexStatusResult> GetSearchIndexStatusAsync(
         CancellationToken cancellationToken = default);

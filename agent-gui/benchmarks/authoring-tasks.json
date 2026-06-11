@@ -1,0 +1,374 @@
+{
+  "$schema": "./authoring-tasks.schema.json",
+  "version": 1,
+  "title": "QuickerAgent action authoring benchmark",
+  "description": "Natural-language tasks for manual or semi-automated agent evaluation. Paste userPrompt only — no tool names in the prompt.",
+  "axes": {
+    "A": { "id": "A", "name": "规划", "weight": 0.2, "description": "步骤分解、变量数据流是否清晰" },
+    "B": { "id": "B", "name": "选型", "weight": 0.2, "description": "expression / module / script 层级是否合理" },
+    "C": { "id": "C", "name": "检索", "weight": 0.15, "description": "search → get，controlField 与键名正确" },
+    "D": { "id": "D", "name": "实现", "weight": 0.15, "description": "patch 成功、步骤与变量接通" },
+    "E": { "id": "E", "name": "流程", "weight": 0.15, "description": "遵守 patch/get/内联 JSON 等硬规则" },
+    "F": { "id": "F", "name": "可运行", "weight": 0.15, "description": "手动或 debug 跑通、输出符合预期" }
+  },
+  "tiers": {
+    "L0": "只读 / 发现，不写磁盘",
+    "L1": "单步或仅元数据",
+    "L2": "核心多步编排（benchmark 主干）",
+    "L3": "工作区 / 外置文件 / 子程序",
+    "L4": "复杂综合"
+  },
+  "passThresholds": {
+    "overallPercent": 70,
+    "l2CorePercent": 60,
+    "note": "12 条及以上任务时：总分 ≥70% 且 L2 主干任务 ≥60%"
+  },
+  "tasks": [
+    {
+      "id": "discover-clipboard-actions",
+      "tier": "L0",
+      "category": "discover",
+      "label": "发现剪贴板动作",
+      "hint": "只读：搜索动作并文字总结",
+      "readOnly": true,
+      "axes": ["C", "E"],
+      "userPrompt": "帮我找一下 Quicker 里和剪贴板相关的动作，用几句话说明大概找到几个、最相关的 3 个叫什么。",
+      "rubric": {
+        "must": ["使用动作查询而非编造 GUID", "文字总结，不粘贴大段表格"],
+        "should": ["提到动作标题或 id"],
+        "mustNot": ["编造不存在的动作 id"]
+      },
+      "verify": { "manual": ["命中结果合理"] }
+    },
+    {
+      "id": "discover-step-expr",
+      "tier": "L0",
+      "category": "discover",
+      "label": "表达式步骤选型",
+      "hint": "只读：说明用何种步骤处理剪贴板行",
+      "readOnly": true,
+      "axes": ["B", "C"],
+      "userPrompt": "我想对剪贴板里的文本按行去重并排序，应该用哪种 Quicker 步骤？请查清楚后列出与表达式/输出相关的参数键名，不要猜。",
+      "rubric": {
+        "must": ["指向 sys:evalexpression 或表达式类步骤", "键名来自 step-runner get"],
+        "should": ["说明为何不用 csscript"],
+        "mustNot": ["未 get 就列举 inputParams 键名"]
+      },
+      "verify": { "manual": ["推荐 evalexpression"] }
+    },
+    {
+      "id": "discover-docs-workflow",
+      "tier": "L0",
+      "category": "discover",
+      "label": "编写流程要点",
+      "hint": "只读：authoring 工作流摘要",
+      "readOnly": true,
+      "axes": ["E"],
+      "userPrompt": "从零新建一个 Quicker 动作并保存，大致要经过哪些阶段？用 5 条以内的要点说明即可。",
+      "rubric": {
+        "must": ["基于文档检索而非臆造", "5 条以内"],
+        "should": ["覆盖创建、写步骤、保存等阶段"],
+        "mustNot": ["粘贴整篇指南"]
+      },
+      "verify": { "manual": ["阶段与 P1–P7 大体一致"] }
+    },
+    {
+      "id": "discover-subprogram-uses",
+      "tier": "L0",
+      "category": "discover",
+      "label": "子程序引用查找",
+      "hint": "只读：uses 语法",
+      "readOnly": true,
+      "axes": ["C"],
+      "userPrompt": "有哪些动作调用了公共子程序 QuickerRpc_Run？文字总结动作名称和 id 即可。",
+      "rubric": {
+        "must": ["使用 uses: 或等价查询", "文字总结"],
+        "mustNot": ["编造动作 id"]
+      },
+      "verify": { "manual": ["结果可核对"] }
+    },
+    {
+      "id": "meta-create-icon",
+      "tier": "L1",
+      "category": "authoring",
+      "label": "新建空动作+图标",
+      "hint": "P1–P3：create + 图标",
+      "axes": ["D", "E"],
+      "userPrompt": "新建一个测试动作，标题「_agent_benchmark_meta」，说明写「benchmark 元数据测试」，选一个合适的浅色 FontAwesome 图标写上。不要添加任何步骤。",
+      "rubric": {
+        "must": ["create 成功", "标题与说明正确", "有 fa 图标"],
+        "mustNot": ["create 后全量 get 同步", "写入步骤"]
+      },
+      "verify": { "manual": ["Quicker 中可见空动作"] }
+    },
+    {
+      "id": "meta-rename-only",
+      "tier": "L1",
+      "category": "authoring",
+      "label": "仅改标题",
+      "hint": "元数据小改",
+      "axes": ["D", "E"],
+      "userPrompt": "把工作区里任意一个已有动作的标题改成「_benchmark_rename_<当前分钟>」，不要改步骤内容。",
+      "rubric": {
+        "must": ["仅元数据变更", "patch 或 set_metadata 成功"],
+        "mustNot": ["误改 data.json 步骤"]
+      },
+      "verify": { "manual": ["标题已更新"] }
+    },
+    {
+      "id": "single-msgbox",
+      "tier": "L1",
+      "category": "authoring",
+      "label": "单步弹窗",
+      "hint": "最简单一步",
+      "axes": ["C", "D", "F"],
+      "userPrompt": "新建一个动作，运行后只弹出一句「Hello from benchmark」。",
+      "rubric": {
+        "must": ["一步 MsgBox 或等价提示", "get 后再写", "patch 成功"],
+        "mustNot": ["猜 MsgBox 参数键名"]
+      },
+      "verify": { "manual": ["运行弹出 Hello"], "auto": ["action_debug exit 0"] }
+    },
+    {
+      "id": "clip-lines-expr",
+      "tier": "L2",
+      "category": "authoring",
+      "label": "剪贴板行处理",
+      "hint": "主干：evalexpression，禁 csscript",
+      "axes": ["A", "B", "C", "D", "F"],
+      "userPrompt": "做一个动作：读取剪贴板文本，去掉空行、按行去重、按字母序排序后写回剪贴板，并提示处理前后的行数。",
+      "rubric": {
+        "must": [
+          "读剪贴板 → 变换 → 写回 → 提示",
+          "变换用 $= 或 sys:evalexpression",
+          "写步骤前 get 所用模块",
+          "patch 成功"
+        ],
+        "should": ["回复或步骤中能看出数据流"],
+        "mustNot": ["sys:csscript 承担主逻辑", "未 get 就写 inputParams"]
+      },
+      "verify": {
+        "manual": ["剪贴板多行含重复/空行时结果正确"],
+        "auto": ["trace: no sys:csscript as main transform"]
+      }
+    },
+    {
+      "id": "multi-var-assign",
+      "tier": "L2",
+      "category": "authoring",
+      "label": "多变量赋值",
+      "hint": "单步 evalexpression 多 {var}=",
+      "axes": ["B", "C", "D", "F"],
+      "userPrompt": "新建动作：用一个表达式步骤同时设置 a=1、b=2、c=a+b，最后用文本窗口显示 c 的值。",
+      "rubric": {
+        "must": ["单个 evalexpression 写多变量", "get 后写入", "显示 c"],
+        "mustNot": ["拆成 csscript", "多个 assign 废弃步骤"]
+      },
+      "verify": { "manual": ["运行显示 3"], "auto": ["action_debug exit 0"] }
+    },
+    {
+      "id": "http-json-origin",
+      "tier": "L2",
+      "category": "authoring",
+      "label": "HTTP 取 JSON",
+      "hint": "HTTP GET + 解析 origin",
+      "prerequisites": ["needs_network"],
+      "axes": ["A", "C", "D", "F"],
+      "userPrompt": "做一个动作：请求 https://httpbin.org/get ，从返回的 JSON 里取出 origin 字段，在文本窗口里显示。",
+      "rubric": {
+        "must": ["HTTP GET 步骤", "JSON 解析（优先 evalexpression）", "显示 origin", "get 后写入"],
+        "should": ["HTTP 与解析分步或逻辑清晰"],
+        "mustNot": ["猜 http 模块键名"]
+      },
+      "verify": { "manual": ["显示 IP 或 origin 字符串"], "auto": ["needs network"] }
+    },
+    {
+      "id": "window-vscode-branch",
+      "tier": "L2",
+      "category": "authoring",
+      "label": "窗口标题分支",
+      "hint": "if + 窗口操作",
+      "prerequisites": ["optional_vscode"],
+      "axes": ["A", "C", "D", "F"],
+      "userPrompt": "做一个动作：读取前台窗口标题；如果标题里包含 Visual Studio Code，就把该窗口最大化；否则弹出提示「当前不是 VS Code」。",
+      "rubric": {
+        "must": ["取窗口标题", "sys:if 或等价分支", "分支内窗口操作与提示", "get 后写入"],
+        "should": ["if 与 simpleIf 选型正确（需要 else 用 if）"],
+        "mustNot": ["无分支的单一路径"]
+      },
+      "verify": { "manual": ["VS Code 前台时最大化；否则提示"] }
+    },
+    {
+      "id": "form-to-clipboard",
+      "tier": "L2",
+      "category": "authoring",
+      "label": "表单到剪贴板",
+      "hint": "sys:form + 写剪贴板",
+      "axes": ["C", "D", "F"],
+      "userPrompt": "做一个动作：先弹出表单收集「标题、标签（逗号分隔）、优先级（高/中/低）、备注」，确认后把内容格式化成 Markdown 任务清单写入剪贴板。",
+      "rubric": {
+        "must": ["表单步骤", "写剪贴板", "get form 与 clipboard 相关步骤"],
+        "mustNot": ["猜表单字段 wire 键名"]
+      },
+      "verify": { "manual": ["填表后剪贴板为 Markdown 清单"] }
+    },
+    {
+      "id": "file-copy-timestamp",
+      "tier": "L2",
+      "category": "authoring",
+      "label": "复制文件加时间戳",
+      "hint": "fileOperation 复制",
+      "axes": ["A", "C", "D"],
+      "userPrompt": "做一个动作：让用户选一个文件，复制到当前工作目录下的 .local/ 文件夹，文件名加上时间戳后缀再保存。",
+      "rubric": {
+        "must": ["文件选择或路径输入", "复制到 .local/", "文件名含时间戳", "get fileOperation 等"],
+        "should": [".local 目录存在或自动创建"]
+      },
+      "verify": { "manual": [".local 下出现带时间戳的副本"] }
+    },
+    {
+      "id": "delay-step",
+      "tier": "L2",
+      "category": "regression",
+      "label": "增加延时步",
+      "hint": "edit_data + patch(id)",
+      "axes": ["C", "D", "E"],
+      "userPrompt": "给工作区里已有的某个动作在末尾加一步：延迟 500 毫秒（或等价的等待）。",
+      "rubric": {
+        "must": ["edit_data 改 data.json", "patch 只传 id", "延时步骤 get 后写入"],
+        "mustNot": ["patch 内联 steps/op JSON", "patch 后全量 get 确认"]
+      },
+      "verify": { "manual": ["运行动作有约 500ms 等待"] }
+    },
+    {
+      "id": "read-structure-first",
+      "tier": "L2",
+      "category": "authoring",
+      "label": "先读结构再改",
+      "hint": "structure → 增一步",
+      "axes": ["A", "D", "E"],
+      "userPrompt": "先告诉我工作区里任意一个非空动作有几步、分别是什么类型的步骤；然后在末尾加一步「读取剪贴板到变量 clip」。",
+      "rubric": {
+        "must": ["先读 structure 或 summary 再改", "增加读剪贴板步骤", "patch 成功"],
+        "should": ["先文字说明现有结构"],
+        "mustNot": ["未看结构就覆盖整个 data.json"]
+      },
+      "verify": { "manual": ["原步骤保留且多一步"] }
+    },
+    {
+      "id": "external-eval-cs",
+      "tier": "L3",
+      "category": "workspace",
+      "label": "外置 eval.cs",
+      "hint": "files/*.eval.cs",
+      "axes": ["B", "D", "E"],
+      "userPrompt": "做一个动作：读取剪贴板文本，若是合法 JSON 则格式化（缩进 2 空格）写回剪贴板，否则弹出错误说明。表达式若超过 4 行，请放到 files/ 下的 .eval.cs 并在步骤里用文件引用。",
+      "rubric": {
+        "must": ["JSON 校验与格式化逻辑", "长逻辑外置 files/", "file 引用", "patch 成功"],
+        "mustNot": ["超长表达式全塞 inputParams"]
+      },
+      "verify": { "manual": ["合法 JSON 格式化；非法报错"] }
+    },
+    {
+      "id": "file-edit-comment",
+      "tier": "L3",
+      "category": "workspace",
+      "label": "file_edit 小改",
+      "hint": "file_search → file_edit",
+      "axes": ["D", "E"],
+      "userPrompt": "如果工作区里有动作使用了 files/ 下的 .cs 或 .eval.cs，请在其中加一行英文注释说明「benchmark touch」，然后保存回 Quicker。若没有这种文件，先建一个带外置表达式文件的动作再演示。",
+      "rubric": {
+        "must": ["file_edit 小范围修改", "patch 成功"],
+        "mustNot": ["整文件 write 覆盖当 edit"]
+      },
+      "verify": { "manual": ["外置文件多一行注释"] }
+    },
+    {
+      "id": "global-subprogram-call",
+      "tier": "L3",
+      "category": "subprogram",
+      "label": "调用公共子程序",
+      "hint": "subprogram get + sys:subprogram",
+      "axes": ["C", "D"],
+      "userPrompt": "新建或编辑一个测试动作，增加一步调用公共子程序 QuickerRpc_Run（或你搜到的 Run 相关子程序）。",
+      "rubric": {
+        "must": ["subprogram query/get 拿 callIdentifier", "get sys:subprogram", "patch 成功"],
+        "mustNot": ["猜 subProgram 键名"]
+      },
+      "verify": { "manual": ["步骤指向正确子程序"] }
+    },
+    {
+      "id": "csv-clipboard-stats",
+      "tier": "L4",
+      "category": "authoring",
+      "label": "剪贴板 CSV 统计",
+      "hint": "多步：解析+聚合",
+      "axes": ["A", "B", "C", "D", "F"],
+      "userPrompt": "做一个动作：剪贴板内容是 CSV（第一行表头）。统计数据行数，并对名为 amount 的列求和（若列不存在则提示），把「行数,合计」写回剪贴板。",
+      "rubric": {
+        "must": ["读剪贴板", "解析 CSV", "行数与求和", "写回", "列缺失时有提示"],
+        "should": ["规划清晰，非单步 csscript 糊完"],
+        "mustNot": ["主逻辑用 csscript 替代 evalexpression"]
+      },
+      "verify": { "manual": ["示例 CSV 结果正确"] }
+    },
+    {
+      "id": "conditional-http-cache",
+      "tier": "L4",
+      "category": "authoring",
+      "label": "条件 HTTP",
+      "hint": "分支 + HTTP + 变量",
+      "prerequisites": ["needs_network"],
+      "axes": ["A", "B", "C", "D"],
+      "userPrompt": "做一个动作：若动作变量 url 非空则 GET 该 url 并把响应体存入变量 body，否则提示用户先设置 url。",
+      "rubric": {
+        "must": ["判断 url 是否为空", "分支内 HTTP GET", "body 变量赋值", "空 url 有提示"],
+        "should": ["变量与分支结构清楚"]
+      },
+      "verify": { "manual": ["有 url 时 body 有内容"] }
+    },
+    {
+      "id": "regression-no-get-after-patch",
+      "tier": "L2",
+      "category": "regression",
+      "label": "patch 后勿 get",
+      "hint": "流程：信任 editVersion",
+      "axes": ["E"],
+      "userPrompt": "把任意已有动作的标题改成「_patch_no_get_<当前分钟>」，只改标题，不要动步骤。改完不要再去全量同步核对。",
+      "rubric": {
+        "must": ["标题已更新", "回复说明 editVersion 或为何不必 get"],
+        "mustNot": ["patch 后 qkrpc_action_get full", "patch 后 read_data full 确认"]
+      },
+      "verify": { "auto": ["trace: no action_get/read_data full after patch"] }
+    },
+    {
+      "id": "regression-no-inline-patch-json",
+      "tier": "L2",
+      "category": "regression",
+      "label": "禁内联 patch",
+      "hint": "必须 edit_data",
+      "axes": ["E", "C"],
+      "userPrompt": "给已有动作加一步「延迟 500 毫秒」。请通过改磁盘上的 data.json 再保存，不要把步骤 JSON 直接传给 patch 接口。",
+      "rubric": {
+        "must": ["workspace edit_data", "patch 仅 id"],
+        "mustNot": ["patch 参数含内联 steps"]
+      },
+      "verify": { "auto": ["trace: patch without inline steps"] }
+    },
+    {
+      "id": "org-docs-organization",
+      "tier": "L0",
+      "category": "org",
+      "label": "整理流程要点",
+      "hint": "只读：动作页整理",
+      "readOnly": true,
+      "axes": ["E"],
+      "userPrompt": "我想整理 Quicker 动作页：移动动作到别的标签页、新建空白页、按子程序归集动作，分别该怎么做？各用一句话说明即可。",
+      "rubric": {
+        "must": ["基于文档", "三条各一句"],
+        "mustNot": ["粘贴全文"]
+      },
+      "verify": { "manual": ["与 action-organization 一致"] }
+    }
+  ]
+}

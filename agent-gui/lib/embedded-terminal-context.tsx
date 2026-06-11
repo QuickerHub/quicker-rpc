@@ -9,10 +9,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useEmbeddedTerminalTabs } from "@/lib/embedded-terminal-tabs";
+import {
+  setTerminalAllTabsClosedHandler,
+  useEmbeddedTerminalTabs,
+} from "@/lib/embedded-terminal-tabs";
 import { prefetchTerminalStack } from "@/lib/terminal-session-client";
 import { workspaceExplorerActionsRef } from "@/lib/workspace-explorer";
-import { SIDE_PANEL_VIEW_TERMINAL } from "@/lib/workspace-side-panel-view";
+import {
+  SIDE_PANEL_VIEW_EXPLORER,
+  SIDE_PANEL_VIEW_TERMINAL,
+} from "@/lib/workspace-side-panel-view";
 
 type EmbeddedTerminalContextValue = {
   open: boolean;
@@ -25,44 +31,54 @@ const EmbeddedTerminalContext =
 
 function EmbeddedTerminalProviderInner({ children }: { children: ReactNode }) {
   const [open, setOpenState] = useState(false);
-  const { disposeAll } = useEmbeddedTerminalTabs();
+  const { disposeAll, ensureInitialTab } = useEmbeddedTerminalTabs();
+
+  const enterTerminalView = useCallback(() => {
+    ensureInitialTab();
+    prefetchTerminalStack();
+    workspaceExplorerActionsRef.current.setPanelOpen(true);
+    workspaceExplorerActionsRef.current.setActiveSideView(SIDE_PANEL_VIEW_TERMINAL);
+  }, [ensureInitialTab]);
 
   const setOpen = useCallback(
     (next: boolean) => {
       setOpenState(next);
       if (next) {
-        prefetchTerminalStack();
-        workspaceExplorerActionsRef.current.setPanelOpen(true);
-        workspaceExplorerActionsRef.current.setActiveSideView(
-          SIDE_PANEL_VIEW_TERMINAL,
-        );
+        enterTerminalView();
         return;
       }
       disposeAll();
     },
-    [disposeAll],
+    [disposeAll, enterTerminalView],
   );
 
   const toggleOpen = useCallback(() => {
     setOpenState((prev) => {
       const next = !prev;
       if (next) {
-        prefetchTerminalStack();
-        workspaceExplorerActionsRef.current.setPanelOpen(true);
-        workspaceExplorerActionsRef.current.setActiveSideView(
-          SIDE_PANEL_VIEW_TERMINAL,
-        );
+        enterTerminalView();
       } else {
         disposeAll();
       }
       return next;
     });
-  }, [disposeAll]);
+  }, [disposeAll, enterTerminalView]);
 
   useEffect(() => {
     if (!open) return;
     prefetchTerminalStack();
   }, [open]);
+
+  useEffect(() => {
+    setTerminalAllTabsClosedHandler(() => {
+      setOpenState(false);
+      disposeAll();
+      workspaceExplorerActionsRef.current.setActiveSideView(
+        SIDE_PANEL_VIEW_EXPLORER,
+      );
+    });
+    return () => setTerminalAllTabsClosedHandler(null);
+  }, [disposeAll]);
 
   const value = useMemo(
     () => ({ open, setOpen, toggleOpen }),

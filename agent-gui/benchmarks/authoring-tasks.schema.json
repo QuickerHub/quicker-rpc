@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "authoring-tasks.schema.json",
+  "title": "QuickerAgent authoring benchmark tasks",
+  "type": "object",
+  "required": ["version", "tasks"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "title": { "type": "string" },
+    "description": { "type": "string" },
+    "axes": { "type": "object", "additionalProperties": { "type": "object" } },
+    "tiers": { "type": "object", "additionalProperties": { "type": "string" } },
+    "passThresholds": { "type": "object" },
+    "tasks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/task" },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "task": {
+      "type": "object",
+      "required": ["id", "tier", "category", "label", "hint", "userPrompt", "axes", "rubric"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "tier": { "enum": ["L0", "L1", "L2", "L3", "L4"] },
+        "category": {
+          "enum": ["discover", "authoring", "workspace", "subprogram", "regression", "org"]
+        },
+        "label": { "type": "string", "minLength": 1 },
+        "hint": { "type": "string", "minLength": 1 },
+        "readOnly": { "type": "boolean" },
+        "prerequisites": { "type": "array", "items": { "type": "string" } },
+        "axes": {
+          "type": "array",
+          "items": { "enum": ["A", "B", "C", "D", "E", "F"] },
+          "minItems": 1
+        },
+        "userPrompt": { "type": "string", "minLength": 10 },
+        "rubric": {
+          "type": "object",
+          "properties": {
+            "must": { "type": "array", "items": { "type": "string" } },
+            "should": { "type": "array", "items": { "type": "string" } },
+            "mustNot": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "verify": {
+          "type": "object",
+          "properties": {
+            "manual": { "type": "array", "items": { "type": "string" } },
+            "auto": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    }
+  }
+}

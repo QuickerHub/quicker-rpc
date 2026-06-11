@@ -69,8 +69,13 @@ export function attachTerminalSocket(ws) {
     }
 
     if (type === "create") {
+      const sessionId = String(msg.sessionId ?? "").trim();
+      if (!sessionId) {
+        send({ type: "error", message: "sessionId is required for create" });
+        return;
+      }
       manager.createSession(ws, send, {
-        sessionId: typeof msg.sessionId === "string" ? msg.sessionId : undefined,
+        sessionId,
         cwd: typeof msg.cwd === "string" ? msg.cwd : undefined,
         cols: Number(msg.cols),
         rows: Number(msg.rows),

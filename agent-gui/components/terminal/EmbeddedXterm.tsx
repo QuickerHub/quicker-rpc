@@ -64,17 +64,12 @@ export function EmbeddedXterm({
         term?.write(data);
       });
 
-      const connectPromise = client.ensureConnected(80, 24);
+      void client.ensureConnected(80, 24).catch(() => {});
 
-      const [xtermModules] = await Promise.all([
-        warmupXtermChunks() as Promise<
-          [
-            typeof import("@xterm/xterm"),
-            typeof import("@xterm/addon-fit"),
-          ]
-        >,
-        connectPromise,
-      ]);
+      const xtermModules = (await warmupXtermChunks()) as [
+        typeof import("@xterm/xterm"),
+        typeof import("@xterm/addon-fit"),
+      ];
       const [{ Terminal }, { FitAddon }] = xtermModules;
       if (disposed || !hostRef.current || bootedRef.current) {
         unsubState();

@@ -604,6 +604,59 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
     return null;
   }
 
+  if (positional[0] === "trigger") {
+    const verb = positional[1];
+    if (verb === "list") {
+      return {
+        op: "trigger.list",
+        args: {
+          query: flagStr(flags, "query") ?? flagStr(flags, "q"),
+          eventType: flagStr(flags, "event"),
+        },
+      };
+    }
+    if (verb === "events") {
+      return {
+        op: "trigger.events",
+        args: { eventType: flagStr(flags, "event") },
+      };
+    }
+    if (verb === "add" || verb === "update") {
+      return {
+        op: "trigger.save",
+        args: {
+          id: verb === "update" ? flagStr(flags, "id") : undefined,
+          eventType: flagStr(flags, "event"),
+          action: flagStr(flags, "action"),
+          actionParam: flagStr(flags, "action-param"),
+          paramsJson: flagStr(flags, "params"),
+          note: flagStr(flags, "note"),
+          filter: flagStr(flags, "filter"),
+          machines: flagStr(flags, "machines"),
+          debounceMs: flagInt(flags, "debounce"),
+          throttleMs: flagInt(flags, "throttle"),
+          delayMs: flagInt(flags, "delay"),
+          skipFurtherTasks: flagBool(flags, "skip-further") || undefined,
+          enabled: flagBool(flags, "disabled")
+            ? false
+            : flagBool(flags, "enabled")
+              ? true
+              : undefined,
+        },
+      };
+    }
+    if (verb === "delete") {
+      return { op: "trigger.delete", args: { id: flagStr(flags, "id") } };
+    }
+    if (verb === "enable" || verb === "disable") {
+      return {
+        op: verb === "enable" ? "trigger.enable" : "trigger.disable",
+        args: { id: flagStr(flags, "id") },
+      };
+    }
+    return null;
+  }
+
   if (positional[0] === "fa") {
     const verb = positional[1];
     if (verb === "search") {

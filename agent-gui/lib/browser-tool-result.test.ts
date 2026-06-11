@@ -35,6 +35,19 @@ describe("browser-tool-result", () => {
     assert.equal(summary, "12 个可交互元素");
   });
 
+  it("summarizes search match count", () => {
+    const summary = summarizeBrowserToolOutput(
+      {
+        ok: true,
+        exitCode: 0,
+        source: "local",
+        data: { action: "search", matchCount: 3, query: "获赞" },
+      },
+      { action: "search" },
+    );
+    assert.equal(summary, "搜索 3 个匹配");
+  });
+
   it("parses tabs and snapshot fields", () => {
     const view = parseBrowserToolResultView({
       ok: true,

@@ -11,15 +11,15 @@ import {
   prefetchTerminalSession,
   prefetchTerminalStack,
 } from "@/lib/terminal-session-client";
-import { DEFAULT_EMBEDDED_TERMINAL_ID } from "@/lib/workspace-side-panel-view";
 
-/** Side-panel terminal: one outer tab, internal session tabs (VS Code-style). */
+/** Terminal panel: internal session tabs only (no side-header tab). */
 export function WorkspaceEmbeddedTerminal() {
   const { open: panelOpen } = useEmbeddedTerminal();
   const {
-    tabs: extraTabs,
+    tabs,
     activeTerminalId,
     setActiveTerminalId,
+    ensureInitialTab,
     addTab,
     closeTab,
     mountedTerminalIds,
@@ -29,18 +29,21 @@ export function WorkspaceEmbeddedTerminal() {
 
   useEffect(() => {
     if (!panelOpen) return;
-    prefetchTerminalStack(cwd);
-  }, [panelOpen, cwd]);
+    const firstId = ensureInitialTab();
+    prefetchTerminalStack(cwd, firstId);
+  }, [panelOpen, cwd, ensureInitialTab]);
+
+  useEffect(() => {
+    if (!panelOpen || tabs.length === 0) return;
+    for (const tab of tabs) {
+      prefetchTerminalSession(tab.id, cwd);
+    }
+  }, [panelOpen, tabs, cwd]);
 
   const terminalIds = mountedTerminalIds(panelOpen);
   if (terminalIds.length === 0) return null;
 
   const cwdLabel = cwd.trim() || "工作区";
-
-  const internalTabItems = [
-    { id: DEFAULT_EMBEDDED_TERMINAL_ID, label: "终端" },
-    ...extraTabs,
-  ];
 
   return (
     <section className="workspace-embedded-terminal" aria-label="终端">
@@ -66,9 +69,8 @@ export function WorkspaceEmbeddedTerminal() {
         aria-label="终端会话"
         ref={internalTabsRef}
       >
-        {internalTabItems.map((tab) => {
+        {tabs.map((tab) => {
           const active = tab.id === activeTerminalId;
-          const canClose = tab.id !== DEFAULT_EMBEDDED_TERMINAL_ID;
           return (
             <div
               key={tab.id}
@@ -84,20 +86,18 @@ export function WorkspaceEmbeddedTerminal() {
               >
                 {tab.label}
               </button>
-              {canClose ? (
-                <button
-                  type="button"
-                  className="workspace-embedded-terminal__internal-tab-close"
-                  aria-label={`关闭 ${tab.label}`}
-                  title="关闭"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    closeTab(tab.id);
-                  }}
-                >
-                  <SidePanelIconClose />
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="workspace-embedded-terminal__internal-tab-close"
+                aria-label={`关闭 ${tab.label}`}
+                title="关闭"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  closeTab(tab.id);
+                }}
+              >
+                <SidePanelIconClose />
+              </button>
             </div>
           );
         })}

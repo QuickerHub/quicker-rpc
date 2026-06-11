@@ -1,9 +1,19 @@
-import { formatSnapshotYaml, invokeError, invokeOk } from "../../browser-runtime/protocol.mjs";
-import { countInteractiveRefs } from "../../browser-runtime/snapshot.mjs";
+import { invokeError, invokeOk } from "../../browser-runtime/protocol.mjs";
+import {
+  buildEvaluatePageCode,
+  formatEvaluateOutput,
+  parseEvaluateResult,
+} from "../../browser-runtime/evaluate-script.mjs";
+import {
+  buildInteractiveSnapshot,
+} from "../../browser-runtime/page-structure.mjs";
+import {
+  buildPageSearchResult,
+  COLLECT_SEARCH_CANDIDATES,
+} from "../../browser-runtime/page-search.mjs";
 import {
   CLICK_AT_POINT_SCRIPT,
   COLLECT_INTERACTIVE_NODES,
-  EVALUATE_USER_SCRIPT,
   EXTRACT_PAGE_CONTENT,
   REF_INTERACTION_SCRIPT,
   SCROLL_PAGE_SCRIPT,
@@ -108,35 +118,37 @@ export function createEmbeddedBrowserAutomation(manager) {
   /** @param {import('electron').WebContents} wc */
   async function buildSnapshot(wc, session) {
     const meta = await readPageMeta(wc);
-    const nodes = await wc.executeJavaScript(COLLECT_INTERACTIVE_NODES, true);
-    /** @type {Record<string, { role: string; name: string | null; nth: number; href?: string }>} */
-    const refMap = {};
-    /** @type {Record<string, number>} */
-    const roleCounts = {};
-    if (Array.isArray(nodes)) {
-      for (const node of nodes) {
-        if (!node || typeof node !== "object") continue;
-        const role = String(node.role ?? "").trim();
-        if (!role) continue;
-        const nameRaw = node.name;
-        const name = nameRaw != null ? String(nameRaw).trim() || null : null;
-        const hrefRaw = node.href;
-        const href =
-          hrefRaw != null && String(hrefRaw).trim() ? String(hrefRaw).trim() : undefined;
-        const key = `${role}\0${name ?? ""}\0${href ?? ""}`;
-        const nth = roleCounts[key] ?? 0;
-        roleCounts[key] = nth + 1;
-        const ref = `e${Object.keys(refMap).length + 1}`;
-        refMap[ref] = { role, name, nth, ...(href ? { href } : {}) };
-      }
-    }
-    session.refMap = refMap;
-    const snapshot = formatSnapshotYaml(meta.url, meta.title, refMap);
+    const nodes = await wc.executeJavaScript(`(${COLLECT_INTERACTIVE_NODES})()`, true);
+    const built = buildInteractiveSnapshot(
+      meta.url,
+      meta.title,
+      Array.isArray(nodes) ? nodes : [],
+    );
+    session.refMap = built.refMap;
     return {
       ...meta,
-      snapshot,
-      nodeCount: countInteractiveRefs(refMap) || Object.keys(refMap).length,
-      refMap,
+      snapshot: built.snapshot,
+      nodeCount: built.nodeCount,
+      refMap: built.refMap,
+    };
+  }
+
+  /** @param {import('electron').WebContents} wc @param {{ refMap: Record<string, unknown> }} session @param {string} query @param {number} limit */
+  async function searchPage(wc, session, query, limit) {
+    const meta = await readPageMeta(wc);
+    const raw = await wc.executeJavaScript(`(${COLLECT_SEARCH_CANDIDATES})()`, true);
+    const result = buildPageSearchResult(
+      query,
+      raw,
+      session.refMap,
+      limit,
+    );
+    session.refMap = result.refMap;
+    return {
+      ...meta,
+      query: result.query,
+      matchCount: result.matchCount,
+      matches: result.matches,
     };
   }
 
@@ -200,8 +212,16 @@ export function createEmbeddedBrowserAutomation(manager) {
         await loadUrlAndWait(wc, url, timeoutMs);
         await waitForSettle(wc);
         session.refMap = {};
+        const snap = await buildSnapshot(wc, session);
         const data = await capturePreview(wc, includePreview);
-        return invokeOk({ sessionId: browserId, ...data });
+        return invokeOk({
+          sessionId: browserId,
+          url: snap.url,
+          title: snap.title,
+          snapshot: snap.snapshot,
+          nodeCount: snap.nodeCount,
+          ...data,
+        });
       }
 
       if (op === "page.snapshot") {
@@ -215,6 +235,15 @@ export function createEmbeddedBrowserAutomation(manager) {
           nodeCount: snap.nodeCount,
           ...data,
         });
+      }
+
+      if (op === "page.search") {
+        const query = String(args.text ?? args.query ?? "").trim();
+        if (!query) return invokeError("text is required for search");
+        const limitRaw = Number(args.limit ?? 8);
+        const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 20) : 8;
+        const found = await searchPage(wc, session, query, limit);
+        return invokeOk({ sessionId: browserId, ...found });
       }
 
       if (op === "page.content") {
@@ -245,21 +274,17 @@ export function createEmbeddedBrowserAutomation(manager) {
       if (op === "page.evaluate") {
         const script = String(args.script ?? "").trim();
         if (!script) return invokeError("script is required");
-        const value = await wc.executeJavaScript(
-          `(${EVALUATE_USER_SCRIPT})(${JSON.stringify(script)})`,
-          true,
-        );
+        const built = buildEvaluatePageCode(script);
+        if (!built.ok) return invokeError(built.error);
+        const raw = await wc.executeJavaScript(built.code, true);
+        const parsed = parseEvaluateResult(raw);
+        if (!parsed.ok) return invokeError(`evaluate failed: ${parsed.error}`);
         const meta = await readPageMeta(wc);
-        const json = JSON.stringify(value ?? null);
-        const maxChars = 16_000;
-        const truncated = json.length > maxChars;
+        const output = formatEvaluateOutput(parsed);
         return invokeOk({
           sessionId: browserId,
           ...meta,
-          value: truncated ? undefined : value,
-          json: truncated ? json.slice(0, maxChars) : json,
-          charCount: json.length,
-          truncated,
+          ...output,
         });
       }
 

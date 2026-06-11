@@ -284,6 +284,94 @@ test("argvToInvoke maps action and subprogram search to list ops", () => {
   );
 });
 
+test("argvToInvoke maps trigger commands", () => {
+  assert.deepEqual(
+    argvToInvoke(["trigger", "events", "--event", "BrowserUrlChanged", "--json"]),
+    {
+      op: "trigger.events",
+      args: { eventType: "BrowserUrlChanged" },
+    },
+  );
+  assert.deepEqual(
+    argvToInvoke(["trigger", "list", "--query", "github", "--json"]),
+    {
+      op: "trigger.list",
+      args: { query: "github", eventType: undefined },
+    },
+  );
+  assert.deepEqual(
+    argvToInvoke([
+      "trigger",
+      "add",
+      "--event",
+      "BrowserUrlChanged",
+      "--action",
+      "846b4132-ad73-42e8-b2f9-c42fe718ae20",
+      "--params",
+      '{"UrlPattern":"github\\\\.com"}',
+      "--note",
+      "auto run on github",
+      "--delay",
+      "500",
+      "--json",
+    ]),
+    {
+      op: "trigger.save",
+      args: {
+        id: undefined,
+        eventType: "BrowserUrlChanged",
+        action: "846b4132-ad73-42e8-b2f9-c42fe718ae20",
+        actionParam: undefined,
+        paramsJson: '{"UrlPattern":"github\\\\.com"}',
+        note: "auto run on github",
+        filter: undefined,
+        machines: undefined,
+        debounceMs: undefined,
+        throttleMs: undefined,
+        delayMs: 500,
+        skipFurtherTasks: undefined,
+        enabled: undefined,
+      },
+    },
+  );
+  assert.deepEqual(
+    argvToInvoke([
+      "trigger",
+      "update",
+      "--id",
+      "11111111-2222-3333-4444-555555555555",
+      "--disabled",
+      "--json",
+    ]),
+    {
+      op: "trigger.save",
+      args: {
+        id: "11111111-2222-3333-4444-555555555555",
+        eventType: undefined,
+        action: undefined,
+        actionParam: undefined,
+        paramsJson: undefined,
+        note: undefined,
+        filter: undefined,
+        machines: undefined,
+        debounceMs: undefined,
+        throttleMs: undefined,
+        delayMs: undefined,
+        skipFurtherTasks: undefined,
+        enabled: false,
+      },
+    },
+  );
+  assert.deepEqual(
+    argvToInvoke(["trigger", "enable", "--id", "abc", "--json"]),
+    { op: "trigger.enable", args: { id: "abc" } },
+  );
+  assert.deepEqual(
+    argvToInvoke(["trigger", "delete", "--id", "abc", "--json"]),
+    { op: "trigger.delete", args: { id: "abc" } },
+  );
+});
+
 test("argvToInvoke maps process ensure with move-actions", () => {
   const invoke = argvToInvoke([
     "process",

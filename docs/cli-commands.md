@@ -398,6 +398,49 @@ qkrpc subprogram delete --id <idOrName> --yes [--json]
 
 ---
 
+## 事件触发器（自动化）
+
+通过事件（窗口/进程/剪贴板/文件/定时等）自动运行动作，对应 Quicker 设置中的「场景 → 事件动作」（`UserSettings.TriggerTasks`）。保存后 Quicker 会自动重载所有触发监控器，立即生效。
+
+### `qkrpc trigger events`
+
+列出支持的事件类型、每个事件可用的 `params` 键（含说明/类型/默认值）以及事件输出变量（可在动作中接收、用于 `--filter` 过滤表达式）。**add/update 前必查**，事件类型与参数键均大小写敏感。
+
+```powershell
+qkrpc trigger events [--event FileSystemChange] [--json]
+```
+
+### `qkrpc trigger list`
+
+```powershell
+qkrpc trigger list [--query <keyword>] [--event WindowActivated] [--json]
+```
+
+### `qkrpc trigger add` / `update`
+
+`update` 仅修改提供的选项；`--params` 整体替换事件参数（JSON object）。
+
+```powershell
+qkrpc trigger add --event ProcessStarted --action <actionIdOrName> `
+  --params '{"ProcessName":"notepad"}' [--note <text>] [--action-param <text>] `
+  [--filter <expr>] [--debounce ms] [--throttle ms] [--delay ms] `
+  [--skip-further] [--machines <names>] [--disabled] [--json]
+
+qkrpc trigger update --id <guid> [--params '{...}'] [--enabled|--disabled] [--note <text>] [--json]
+```
+
+### `qkrpc trigger enable` / `disable` / `delete`
+
+```powershell
+qkrpc trigger enable --id <guid> [--json]
+qkrpc trigger disable --id <guid> [--json]
+qkrpc trigger delete --id <guid> [--json]
+```
+
+serve / MCP：`trigger.list` / `trigger.events` / `trigger.save` / `trigger.delete` / `trigger.enable` / `trigger.disable`；MCP 工具 `quicker_trigger`。
+
+---
+
 ## 诊断（可选）
 
 ### `qkrpc ping`

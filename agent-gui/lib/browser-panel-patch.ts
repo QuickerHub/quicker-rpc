@@ -86,6 +86,10 @@ export function browserPanelSyncFromToolOutput(
   const data = asRecord(
     isStructuredToolResult(output) ? output.data : null,
   );
+  if (data?.background === true) {
+    return null;
+  }
+
   const action = pickString(data ?? {}, "action");
   const navigate =
     Boolean(patch.url)

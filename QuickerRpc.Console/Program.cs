@@ -38,6 +38,11 @@ internal static partial class Program
             return await RunChromeFromArgsAsync(args).ConfigureAwait(false);
         }
 
+        if (args.Length > 0 && string.Equals(args[0], "trigger", StringComparison.OrdinalIgnoreCase))
+        {
+            return await RunTriggerFromArgsAsync(args).ConfigureAwait(false);
+        }
+
         // CommandLineParser non-generic ParseArguments supports at most 16 verb types.
         var result = Parser.Default.ParseArguments(args,
             typeof(PingOptions),
