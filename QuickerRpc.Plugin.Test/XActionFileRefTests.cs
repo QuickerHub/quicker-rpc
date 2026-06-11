@@ -63,6 +63,7 @@ public sealed class XActionFileRefTests
                 new JObject
                 {
                     ["stepId"] = "s-1",
+                    ["stepRunnerKey"] = "sys:csscript",
                     ["inputParams"] = new JObject
                     {
                         ["code"] = new JObject { ["file"] = "a.txt", ["value"] = "x" },

@@ -193,6 +193,11 @@ internal static class ActionProjectServeOps
             {
                 success = validateResult.Success,
                 error = validateResult.ErrorMessage,
+                schemaIssues = validateResult.SchemaIssues.Count > 0
+                    ? validateResult.SchemaIssues
+                        .Select(i => new { code = i.Code, path = i.Path, line = i.Line, message = i.Message })
+                        .ToArray()
+                    : null,
                 projectDirectory = ActionProjectCatalog.GetRelativeProjectDirectory(
                     projectDir,
                     workspaceRoot),

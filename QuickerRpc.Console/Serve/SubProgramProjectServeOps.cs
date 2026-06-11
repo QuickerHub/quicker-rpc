@@ -50,6 +50,11 @@ internal static class SubProgramProjectServeOps
                 {
                     success = validateResult.Success,
                     error = validateResult.ErrorMessage,
+                    schemaIssues = validateResult.SchemaIssues.Count > 0
+                        ? validateResult.SchemaIssues
+                            .Select(i => new { code = i.Code, path = i.Path, line = i.Line, message = i.Message })
+                            .ToArray()
+                        : null,
                     projectDirectory = projectDir,
                     subProgramId,
                     editVersion = info.EditVersion,
