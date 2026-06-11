@@ -89,7 +89,7 @@ type TopicsManifestEntry = {
 type ReferenceCatalogEntry = {
   id: string;
   title: string;
-  path: string;
+  path?: string;
   searchAliases?: string[];
 };
 
@@ -697,7 +697,7 @@ export async function getActionAuthoringReference(
   }
 
   const root = skillsRoot();
-  const manifest = await loadTopicsManifest(root);
+  const manifest = (await loadTopicsManifest(root)) as TopicsManifest | null;
   let refFileName = refKey;
   if (manifest?.referenceFiles) {
     const ownerEntry = Object.entries(manifest.referenceFiles).find(
