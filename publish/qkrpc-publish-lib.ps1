@@ -270,170 +270,6 @@ function Test-BitifulConfigured {
         -not [string]::IsNullOrWhiteSpace($env:BITIFUL_BUCKET_NAME)
 }
 
-function Read-QuickerAgentLatestJsonVersion {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path
-    )
-
-    if (-not (Test-Path -LiteralPath $Path)) {
-        throw "latest.json not found: $Path"
-    }
-
-    $json = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-    $version = [string]$json.version
-    if ([string]::IsNullOrWhiteSpace($version)) {
-        throw "latest.json missing version field: $Path"
-    }
-
-    return $version.Trim()
-}
-
-function Test-QuickerAgentLatestJsonFile {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path,
-        [Parameter(Mandatory = $true)]
-        [string]$ExpectedSemVer
-    )
-
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return $false
-    }
-
-    try {
-        $version = Read-QuickerAgentLatestJsonVersion -Path $Path
-        return $version -eq $ExpectedSemVer.Trim()
-    }
-    catch {
-        return $false
-    }
-}
-
-function Assert-QuickerAgentLatestJsonFile {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path,
-        [Parameter(Mandatory = $true)]
-        [string]$ExpectedSemVer
-    )
-
-    $version = Read-QuickerAgentLatestJsonVersion -Path $Path
-    $expected = $ExpectedSemVer.Trim()
-    if ($version -ne $expected) {
-        throw "latest.json version mismatch: file has '$version', expected '$expected' ($Path)"
-    }
-}
-
-function Get-QuickerAgentPinnedLatestJsonDownloadUrl {
-    param([Parameter(Mandatory = $true)][string]$Tag)
-
-    $normalizedTag = $Tag.Trim()
-    if (-not $normalizedTag.StartsWith('v')) {
-        $normalizedTag = "v$normalizedTag"
-    }
-
-    return "https://github.com/QuickerHub/quicker-rpc/releases/download/$normalizedTag/latest.json"
-}
-
-function Download-QuickerAgentLatestJsonFromRelease {
-    param(
-        [Parameter(Mandatory = $true)][string]$Tag,
-        [Parameter(Mandatory = $true)][string]$ExpectedSemVer,
-        [Parameter(Mandatory = $true)][string]$DestinationPath
-    )
-
-    $url = Get-QuickerAgentPinnedLatestJsonDownloadUrl -Tag $Tag
-    $destDir = Split-Path -Parent $DestinationPath
-    if (-not (Test-Path -LiteralPath $destDir)) {
-        New-Item -ItemType Directory -Path $destDir -Force | Out-Null
-    }
-
-    Write-Host "Downloading latest.json from $url ..." -ForegroundColor Cyan
-
-    if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-        & curl.exe --fail --location --retry 3 --retry-delay 2 --output $DestinationPath $url
-        if ($LASTEXITCODE -ne 0) {
-            throw "curl download failed ($LASTEXITCODE): $url"
-        }
-    }
-    else {
-        Invoke-WebRequest -Uri $url -OutFile $DestinationPath -UseBasicParsing
-    }
-
-    Assert-QuickerAgentLatestJsonFile -Path $DestinationPath -ExpectedSemVer $ExpectedSemVer
-    return (Resolve-Path -LiteralPath $DestinationPath).Path
-}
-
-function Resolve-QuickerAgentLatestJsonForUpload {
-    param(
-        [Parameter(Mandatory = $true)][string]$RepoRoot,
-        [Parameter(Mandatory = $true)][string]$Tag,
-        [Parameter(Mandatory = $true)][string]$ExpectedSemVer,
-        [Parameter(Mandatory = $true)][string]$DownloadDir,
-        [switch]$UseLocal
-    )
-
-    $localPath = Join-Path $RepoRoot 'publish\latest.json'
-    $expected = $ExpectedSemVer.Trim()
-
-    if ($UseLocal -and (Test-QuickerAgentLatestJsonFile -Path $localPath -ExpectedSemVer $expected)) {
-        Write-Host "Using local latest.json (-UseLocal): $localPath" -ForegroundColor Cyan
-        return (Resolve-Path -LiteralPath $localPath).Path
-    }
-
-    if (Test-QuickerAgentLatestJsonFile -Path $localPath -ExpectedSemVer $expected) {
-        Write-Host "Using matching local latest.json: $localPath" -ForegroundColor Cyan
-        return (Resolve-Path -LiteralPath $localPath).Path
-    }
-
-    if (Test-Path -LiteralPath $localPath) {
-        try {
-            $stale = Read-QuickerAgentLatestJsonVersion -Path $localPath
-            Write-Warning "Ignoring stale publish/latest.json ($stale != $expected)"
-        }
-        catch {
-            Write-Warning "Ignoring invalid publish/latest.json: $localPath"
-        }
-    }
-
-    if (-not (Test-Path -LiteralPath $DownloadDir)) {
-        New-Item -ItemType Directory -Path $DownloadDir -Force | Out-Null
-    }
-
-    $downloaded = Join-Path $DownloadDir 'latest.json'
-
-    try {
-        return Download-QuickerAgentLatestJsonFromRelease `
-            -Tag $Tag `
-            -ExpectedSemVer $expected `
-            -DestinationPath $downloaded
-    }
-    catch {
-        Write-Warning "Direct latest.json download failed: $($_.Exception.Message)"
-    }
-
-    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-        throw @"
-Failed to resolve latest.json for $Tag ($expected).
-Install GitHub CLI (gh) or run Publish-QuickerAgent.ps1 locally, then retry with -UseLocal.
-"@
-    }
-
-    Write-Host 'Retrying latest.json via gh release download...' -ForegroundColor Cyan
-    gh release download $Tag --repo 'QuickerHub/quicker-rpc' --pattern 'latest.json' -D $DownloadDir
-    if ($LASTEXITCODE -ne 0) {
-        throw "gh release download failed ($LASTEXITCODE) for latest.json on $Tag"
-    }
-
-    if (-not (Test-Path -LiteralPath $downloaded)) {
-        throw "Downloaded latest.json missing: $downloaded"
-    }
-
-    Assert-QuickerAgentLatestJsonFile -Path $downloaded -ExpectedSemVer $expected
-    return (Resolve-Path -LiteralPath $downloaded).Path
-}
-
 function Test-QuickerAgentLatestYmlFile {
     param(
         [Parameter(Mandatory = $true)]
@@ -1082,45 +918,8 @@ function Get-QuickerAgentBitifulSetupUrl {
     return "$(Get-QuickerAgentBitifulDownloadPrefix)/$fileName"
 }
 
-function Get-QuickerAgentBitifulLatestJsonUrl {
-    return "$(Get-QuickerAgentBitifulDownloadPrefix)/latest.json"
-}
-
 function Get-QuickerAgentBitifulLatestYmlUrl {
     return "$(Get-QuickerAgentBitifulDownloadPrefix)/latest.yml"
-}
-
-function Get-QuickerAgentElectronBitifulDownloadPrefix {
-    return Get-QuickerAgentBitifulDownloadPrefix
-}
-
-function Get-QuickerAgentElectronBitifulObjectPrefix {
-    if (-not [string]::IsNullOrWhiteSpace($env:BITIFUL_OBJECT_PREFIX)) {
-        return $env:BITIFUL_OBJECT_PREFIX.Trim().Trim('/')
-    }
-
-    return 'quicker-rpc/quicker-agent'
-}
-
-function Get-QuickerAgentElectronSetupName {
-    param([string]$Version)
-
-    return Get-QuickerAgentSetupName -Version $Version
-}
-
-function Get-QuickerAgentElectronBitifulSetupUrl {
-    param([string]$Version)
-
-    $fileName = Get-QuickerAgentElectronSetupName -Version $Version
-    return "$(Get-QuickerAgentElectronBitifulDownloadPrefix)/$fileName"
-}
-
-function Get-QuickerAgentElectronBitifulLatestYmlUrl {
-    return Get-QuickerAgentBitifulLatestYmlUrl
-}
-
-function Get-QuickerAgentElectronBitifulVersionTxtUrl {
-    return "$(Get-QuickerAgentElectronBitifulDownloadPrefix)/version.txt"
 }
 
 function Assert-QuickerAgentLatestYmlFile {
@@ -1160,203 +959,6 @@ function Assert-QuickerAgentElectronLatestYmlFile {
     )
 
     Assert-QuickerAgentLatestYmlFile -Path $Path -ExpectedSemVer $ExpectedSemVer
-}
-
-function Invoke-QuickerAgentElectronBitifulUpload {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$InstallerPath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$LatestYmlPath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$ExpectedSemVer,
-
-        [string]$PublishDir = ''
-    )
-
-    if (-not $PublishDir) {
-        $PublishDir = $PSScriptRoot
-    }
-
-    if (-not (Test-Path -LiteralPath $InstallerPath)) {
-        throw "Installer not found: $InstallerPath"
-    }
-
-    if (-not (Test-BitifulConfigured)) {
-        throw 'Bitiful credentials not configured (BITIFUL_ACCESS_KEY, BITIFUL_SECRET_KEY, BITIFUL_BUCKET_NAME).'
-    }
-
-    Assert-QuickerAgentLatestYmlFile -Path $LatestYmlPath -ExpectedSemVer $ExpectedSemVer
-
-    $uploadScript = Join-Path $PublishDir 'bitiful_upload.py'
-    if (-not (Test-Path -LiteralPath $uploadScript)) {
-        throw "bitiful_upload.py not found: $uploadScript"
-    }
-
-    $resolvedInstaller = (Resolve-Path -LiteralPath $InstallerPath -ErrorAction Stop).Path
-    $endpointUrl = if ([string]::IsNullOrWhiteSpace($env:BITIFUL_ENDPOINT_URL)) {
-        'https://s3.bitiful.net'
-    }
-    else {
-        $env:BITIFUL_ENDPOINT_URL.Trim()
-    }
-
-    $objectPrefix = Get-QuickerAgentElectronBitifulObjectPrefix
-
-    $installerArgs = @(
-        $uploadScript, $resolvedInstaller,
-        '--endpoint-url', $endpointUrl,
-        '--object-prefix', $objectPrefix
-    )
-
-    if (Get-Command uv -ErrorAction SilentlyContinue) {
-        & uv run --with boto3 python @installerArgs
-    }
-    elseif (Get-Command python -ErrorAction SilentlyContinue) {
-        & python -m pip install --disable-pip-version-check --quiet boto3
-        if ($LASTEXITCODE -ne 0) {
-            throw 'Failed to install boto3. Install uv or pip install boto3.'
-        }
-
-        & python @installerArgs
-    }
-    else {
-        throw 'Neither uv nor python found. Install uv (recommended) or Python 3 with pip.'
-    }
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Bitiful Electron installer upload failed with exit code $LASTEXITCODE"
-    }
-
-    $latestResolved = (Resolve-Path -LiteralPath $LatestYmlPath -ErrorAction Stop).Path
-    $latestArgs = @(
-        $latestResolved,
-        '--asset',
-        '--endpoint-url', $endpointUrl,
-        '--object-prefix', $objectPrefix
-    )
-
-    if (Get-Command uv -ErrorAction SilentlyContinue) {
-        & uv run --with boto3 python $uploadScript @latestArgs
-    }
-    else {
-        & python $uploadScript @latestArgs
-    }
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Bitiful latest.yml upload failed with exit code $LASTEXITCODE"
-    }
-}
-
-function Import-TauriSigningPrivateKey {
-    param([string]$PublishDir = '')
-
-    if (-not [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
-        return
-    }
-
-    if (-not $PublishDir) {
-        $PublishDir = $PSScriptRoot
-    }
-
-    $keyPath = if (-not [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY_PATH)) {
-        $env:TAURI_SIGNING_PRIVATE_KEY_PATH.Trim()
-    }
-    else {
-        Join-Path $PublishDir '.tauri\quicker-agent.key'
-    }
-
-    if (-not (Test-Path -LiteralPath $keyPath)) {
-        throw @"
-Tauri updater signing key not found: $keyPath
-Run: pnpm exec tauri signer generate -w publish/.tauri/quicker-agent.key -f --ci
-Or set TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PATH in publish/.env
-"@
-    }
-
-    $resolvedKeyPath = (Resolve-Path -LiteralPath $keyPath).Path
-    $keyContent = (Get-Content -LiteralPath $resolvedKeyPath -Raw).Trim()
-    if ([string]::IsNullOrWhiteSpace($keyContent)) {
-        throw "Tauri updater signing key file is empty: $resolvedKeyPath"
-    }
-
-    $env:TAURI_SIGNING_PRIVATE_KEY = $keyContent
-    $env:TAURI_SIGNING_PRIVATE_KEY_PATH = $resolvedKeyPath
-    if ($null -eq $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
-        $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ''
-    }
-}
-
-function Resolve-QuickerAgentUpdaterSigFile {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$SetupExePath
-    )
-
-    $sigPath = "$SetupExePath.sig"
-    if (-not (Test-Path -LiteralPath $sigPath)) {
-        throw "Updater signature not found: $sigPath (ensure createUpdaterArtifacts=true and TAURI_SIGNING_PRIVATE_KEY is set during tauri build)"
-    }
-
-    return (Resolve-Path -LiteralPath $sigPath).Path
-}
-
-function New-QuickerAgentUpdaterLatestJson {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$SemVer,
-        [Parameter(Mandatory = $true)]
-        [string]$SigFilePath,
-        [Parameter(Mandatory = $true)]
-        [string]$SetupUrl,
-        [string]$Notes = ''
-    )
-
-    $signature = (Get-Content -LiteralPath $SigFilePath -Raw).Trim()
-    if ([string]::IsNullOrWhiteSpace($signature)) {
-        throw "Updater signature file is empty: $SigFilePath"
-    }
-
-    $releaseNotes = if ([string]::IsNullOrWhiteSpace($Notes)) {
-        "QuickerAgent $SemVer"
-    }
-    else {
-        $Notes.Trim()
-    }
-
-    $payload = [ordered]@{
-        version  = $SemVer
-        notes    = $releaseNotes
-        pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
-        platforms = [ordered]@{
-            'windows-x86_64' = [ordered]@{
-                signature = $signature
-                url       = $SetupUrl
-            }
-        }
-    }
-
-    return ($payload | ConvertTo-Json -Depth 5)
-}
-
-function Write-QuickerAgentUpdaterLatestJson {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$SetupExePath,
-        [Parameter(Mandatory = $true)]
-        [string]$SemVer,
-        [Parameter(Mandatory = $true)]
-        [string]$DestinationPath,
-        [string]$Notes = ''
-    )
-
-    $sigFile = Resolve-QuickerAgentUpdaterSigFile -SetupExePath $SetupExePath
-    $setupUrl = Get-QuickerAgentBitifulSetupUrl -Version $SemVer
-    $json = New-QuickerAgentUpdaterLatestJson -SemVer $SemVer -SigFilePath $sigFile -SetupUrl $setupUrl -Notes $Notes
-    Set-Content -LiteralPath $DestinationPath -Value ($json + "`n") -Encoding utf8NoBOM
-    return $DestinationPath
 }
 
 function Get-QuickerAgentActionDocSharedId {
@@ -1877,7 +1479,7 @@ function Get-QuickerAgentPreflightLogPath {
     return Join-Path $env:TEMP "qkrpc-preflight-$safe.log"
 }
 
-# Start local Tauri preflight in parallel with tag push / GitHub Actions (non-blocking).
+# Start local Electron NSIS preflight in parallel with tag push / GitHub Actions (non-blocking).
 function Start-QuickerAgentPreflightBackground {
     param(
         [Parameter(Mandatory = $true)]
@@ -1978,7 +1580,7 @@ function Complete-QuickerAgentPreflightBackground {
     $exitCode = $Preflight.Process.ExitCode
     Write-Host ''
     if ($exitCode -eq 0) {
-        Write-Host 'Local preflight passed (Tauri build).' -ForegroundColor Green
+        Write-Host 'Local preflight passed (Electron NSIS build).' -ForegroundColor Green
         return $true
     }
 
@@ -1989,7 +1591,7 @@ function Complete-QuickerAgentPreflightBackground {
     return $false
 }
 
-# Next/Tauri webpack must not scan the real user profile (EPERM on Windows special folders).
+# Next/webpack must not scan the real user profile (EPERM on Windows special folders).
 function Set-QuickerAgentIsolatedUserProfile {
     $realProfile = [Environment]::GetFolderPath('UserProfile')
     if (-not [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {

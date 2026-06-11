@@ -3,9 +3,6 @@ import { compareSemver, parseSemver } from "@/lib/semver";
 export const BITIFUL_VERSION_TXT_URL =
   "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/version.txt";
 
-export const BITIFUL_UPDATER_JSON_URL =
-  "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/latest.json";
-
 export const BITIFUL_DOWNLOAD_PREFIX =
   "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent";
 

@@ -318,7 +318,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--electron",
         action="store_true",
-        help="Upload QuickerAgent Electron NSIS installer + version.txt",
+        help="(deprecated) Use default upload for quicker-agent-{semver}-x64-setup.exe",
     )
     parser.add_argument(
         "--version",

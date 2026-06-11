@@ -40,11 +40,11 @@ pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1 -WaitForCi
 pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1 -WaitForCi -ForceRetag
 ```
 
-默认：**后台**本地 Tauri 预检 + **立即**校验 changelog 并 **push tag**（与 CI 并行）。优先看 `%TEMP%\qkrpc-preflight-vX.Y.Z.log` 修错；CI 红字常与本地相同，可边修边忽略。旧顺序（先本地通过再打 tag）：`-PreflightBeforeTag`。
+默认：**后台**本地 Electron 预检 + **立即**校验 changelog 并 **push tag**（与 CI 并行）。优先看 `%TEMP%\qkrpc-preflight-vX.Y.Z.log` 修错；CI 红字常与本地相同，可边修边忽略。旧顺序（先本地通过再打 tag）：`-PreflightBeforeTag`。
 
 **CI 仅 Release 上传失败**（build 已成功）：不必新 tag；GitHub Actions → **Run workflow** → `pipeline=release-only`，填 `artifact_run_id`。NSIS/编译失败需 `-ForceRetag` 全量重编。详见 [`publish/release-cli-ci.md`](../../publish/release-cli-ci.md)。
 
-`block_until_ms` ≥ **600000`（`-WaitForCi` 含本地 Tauri + CI Inno + 编译）。
+`block_until_ms` ≥ **600000`（`-WaitForCi` 含本地 Electron 预检 + CI Inno + 编译）。
 
 | 参数 | 用途 |
 |------|------|
@@ -52,8 +52,8 @@ pwsh -NoProfile -File ./publish/Publish-GitHubRelease.ps1 -WaitForCi -ForceRetag
 | `-LocalBuild` | 本地构建并 `gh release upload`（需 Inno Setup；CI 不可用时） |
 | `-ChangelogFile` | 覆盖默认 `publish/changelogs/vX.Y.Z.md` |
 | `-AllowEmptyChangelog` | 跳过 changelog 校验（不推荐） |
-| `-SkipPreflight` | 不启动本地 Tauri 预检 |
-| `-PreflightBeforeTag` | 先阻塞本地 Tauri，通过后再 push tag |
+| `-SkipPreflight` | 不启动本地 Electron 预检 |
+| `-PreflightBeforeTag` | 先阻塞本地 Electron NSIS，通过后再 push tag |
 | `-WaitForPreflight` | 脚本结束前等待并汇报本地预检结果 |
 | `-ForceRetag` | 将已有 tag 移到当前 HEAD 并 `push -f` |
 | `-SkipBuild` | 仅 `-LocalBuild`：已有 zip/setup 时跳过构建 |

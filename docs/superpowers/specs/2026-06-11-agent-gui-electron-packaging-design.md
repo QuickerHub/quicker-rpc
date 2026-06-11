@@ -29,9 +29,9 @@ Tauri Rust   → 同上 resources 布局
 ## 共存策略
 
 - **开发**：`pwsh ./dev.ps1 -Electron` 与 `-Tauri` 互斥，均复用 `:3000` dev server
-- **发布**：`Publish-QuickerAgent.ps1` 不变（Tauri）；`Publish-QuickerAgent-Electron.ps1` 仅预检/本地 artifact
-- **Windows 安装路径（Electron 试验包）**：与 Tauri 对齐为 `%LOCALAPPDATA%\QuickerAgent\quicker-agent.exe`（`electron/build/installer.nsh` + `win.executableName`）；安装时结束旧进程并删除遗留 `QuickerAgent.exe`。用户数据目录 `%LOCALAPPDATA%\QuickerAgent`（plugins、local/）两壳共用，无需迁移。
-- **切换条件**：P0–P6 验收通过 + `electron:verify-bundle` + 手动 smoke
+- **发布**：`Publish-QuickerAgent.ps1`（Electron NSIS + `latest.yml`）；`Publish-QuickerAgent-Electron.ps1` 为向后兼容别名
+- **Windows 安装路径**：`%LOCALAPPDATA%\QuickerAgent\quicker-agent.exe`（`electron/build/installer.nsh` + `win.executableName`）；安装时结束旧进程并删除遗留 `QuickerAgent.exe`。用户数据目录 `%LOCALAPPDATA%\QuickerAgent`（plugins、local/）两壳共用，无需迁移。
+- **legacy Tauri 开发壳**：`pwsh ./dev.ps1 -Tauri` 仍可用于 WebView2 试验，不参与正式发布
 
 ## 目录
 
@@ -70,6 +70,6 @@ agent-gui/
 
 P0–P7 已完成：`electron/` 下 main、lifecycle、launcher、plugin-runtime、voice-plugin、clipboard-history、embedded-browser、updater；前端经 `lib/desktop-bridge.ts` 统一 IPC。
 
-- **正式发布**：仍用 `Publish-QuickerAgent.ps1`（Tauri + `latest.json`）
-- **Electron 试验发布**：`Publish-QuickerAgent-Electron.ps1` → `Upload-QuickerAgentElectronToBitiful.ps1`（或 `-UploadBitiful`）→ Bitiful `quicker-agent-electron/` + `latest.yml`
+- **正式发布**：`Publish-QuickerAgent.ps1` → GitHub Release + Bitiful `quicker-agent/` + `latest.yml`（`electron-updater`）
+- **Bitiful 上传**：`Upload-QuickerAgentToBitiful.ps1`（或 CI 可选 `BITIFUL_UPLOAD_IN_CI=true`）
 - **已知限制**：无系统托盘；剪贴板历史默认关闭；语音 IPC 默认 TCP/WebSocket（stdio bridge 已就绪）

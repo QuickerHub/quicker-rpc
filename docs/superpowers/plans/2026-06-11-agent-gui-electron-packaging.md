@@ -105,4 +105,4 @@
 - [x] Bitiful 试验通道上传脚本 + CI 可选 gate（`BITIFUL_ELECTRON_UPLOAD_IN_CI`）
 - [ ] `voice_ipc` stdio 模式与 WebSocket 转写路径统一（可选）
 - [ ] `plugin_update` 完整 staged runtime 下载（voice-asr）
-- [x] CI workflow：`.github/workflows/release-agent-electron.yml`（tag / workflow_dispatch；artifact 上传，不阻塞 Tauri 正式 release）
+- [x] CI workflow：`.github/workflows/release-cli.yml` `build-agent`（Electron NSIS + `latest.yml`）

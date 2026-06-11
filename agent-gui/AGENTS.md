@@ -22,29 +22,37 @@ Web 聊天界面，通过本机 `qkrpc serve`（`http://127.0.0.1:9477`）或 CL
 - **不要在 agent 会话中跑 `pnpm build`**（生产构建会把 `.next` 切到生产资源，破坏 dev 热更新状态）。
 - 需要验证生产构建时，在用户明确要求或发布流程外单独执行；日常收尾用 **`dev_frontend_check`** 即可。
 
-## Frontend check（改 UI 后必做）
+## Frontend check（改 UI 后必做 — Agent 自动执行）
 
-完成会影响页面的修改后，**宣布完成前**循环检查直到通过：
+完成会影响页面的修改后，**宣布完成前**循环检查直到通过（**勿等用户提醒**）。细则：`.cursor/skills/quicker-agent-gui-frontend/SKILL.md`；Cursor 命令 **`/frontend-check`**。
 
-1. 等待 Next 重新编译（数秒）。
-2. **`dev_frontend_check`** 或 `GET http://127.0.0.1:3000/api/dev/frontend-check`，直到 **`ok: true`**。
-3. **`ok: false`**：读 `issues[]`（`kind` / `message` / `file` / `line`）及 `.local/frontend-build-error.json`、`frontend-client-errors.json` → 修源码 → 回到步骤 1。
-4. **`ok: true` 后**：再调 `dev_frontend_check({ clearCaptured: true })` 清空陈旧误报。
-5. 改过 `/tool-test` 等路由：`dev_frontend_check({ paths: ["/", "/tool-test"] })`。
+1. 等待 Next 重新编译（约 3–8 秒）。
+2. **`dev_frontend_check`** 或 HTTP 探测，直到 **`ok: true`**。
+3. **`ok: false`**：读 `issues[]`（`kind` / `message`）及 `.local/frontend-build-error.json`、`frontend-client-errors.json`、`.local/frontend-smoke-last.json` → 修源码 → 回到步骤 1。
+4. **`ok: true` 后**：`dev_frontend_check({ clearCaptured: true })` 清空陈旧 HMR 误报。
+
+| 改动 | 建议 `paths` |
+|------|----------------|
+| 主聊天 / 通用 UI | 默认（`/`、`/api/llm`、`/api/ping`） |
+| `/tool-test`、Electron 标题栏 | `["/", "/tool-test"]` |
+| 某 API route | 默认 + 该 `/api/...` |
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:3000/api/dev/frontend-check
+# 工具（首选）
+# dev_frontend_check({ paths: ["/", "/tool-test"] })
+
+# Shell 回退（paths 逗号分隔）
+Invoke-RestMethod "http://127.0.0.1:3000/api/dev/frontend-check?paths=/,/tool-test"
+Invoke-RestMethod "http://127.0.0.1:3000/api/dev/frontend-check?clearCaptured=true"
 ```
 
 | 捕获来源 | 落盘 |
 |----------|------|
-| `window.error` / `unhandledrejection` | `.local/frontend-client-errors.json` |
+| `window.error` / `unhandledrejection` / `console.error` | `.local/frontend-client-errors.json` |
 | Next 编译失败 | `.local/frontend-build-error.json` |
-| HTTP 探测 `/`、`/api/llm`、`/api/ping` | 工具返回 `issues[]` |
+| HTTP 探测 | 工具返回 `issues[]`；`.local/frontend-smoke-last.json` |
 
-**禁止**：仅改 `agent-gui/**` 却跑根目录 `build.ps1 -t`；把 `.local/*.json` 提交进 Git。
-
-细则：`.cursor/skills/quicker-agent-gui-frontend/SKILL.md`。
+**禁止**：未跑检查就声称前端无错；仅改 `agent-gui/**` 却跑根目录 `build.ps1 -t`；把 `.local/*.json` 提交进 Git。
 
 ## Action editor（`lib/action-editor/`）
 
@@ -70,7 +78,7 @@ Invoke-RestMethod http://127.0.0.1:3000/api/dev/frontend-check
 
 ## Further reading
 
-- [README.md](README.md) — 双模式开发、Tauri 发布、工具一览
+- [README.md](README.md) — 双模式开发、Electron 发布、工具一览
 - [docs/agent-gui-chat-storage.md](../docs/agent-gui-chat-storage.md) — 对话存储
 - [docs/agent-gui-launcher.md](../docs/agent-gui-launcher.md) — 快速输入启动器设计
 - [docs/agent-gui-startup-performance.md](../docs/agent-gui-startup-performance.md) — Tauri 冷启动、splash、懒加载

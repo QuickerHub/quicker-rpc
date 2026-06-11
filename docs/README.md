@@ -28,7 +28,7 @@
 
 | 文档 | 说明 |
 |------|------|
-| [agent-gui/README.md](../agent-gui/README.md) | 本地开发、Tauri 发布、LLM 配置 |
+| [agent-gui/README.md](../agent-gui/README.md) | 本地开发、Electron 发布、LLM 配置 |
 | [agent-gui/AGENTS.md](../agent-gui/AGENTS.md) | 改 UI 时的 Agent 约定 |
 | [agent-gui-launcher.md](agent-gui-launcher.md) | `Alt+Space` 启动器设计 |
 | [agent-gui-startup-performance.md](agent-gui-startup-performance.md) | Tauri 冷启动、splash、懒加载与并行策略 |

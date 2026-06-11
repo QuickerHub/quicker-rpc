@@ -86,7 +86,7 @@ metadata:
 - `qkbuild` 与 build-tools `.env`（`-p -n` 上传）
 - Bitiful：`publish/.env`（见 `publish/.env.example`）或 `BITIFUL_*` 环境变量
 - Quicker 运行中 + QuickerRpc 插件已 Register（`qkrpc action list --limit 1 --json` 成功即可）
-- 发布时：本机 **Rust + NSIS + pnpm**（并行预检会隔离 `USERPROFILE` 到 `%TEMP%`）；日志 `%TEMP%\qkrpc-preflight-vX.Y.Z.log`
+- 发布时：本机 **NSIS + pnpm**（并行 Electron 预检会隔离 `USERPROFILE` 到 `%TEMP%`）；日志 `%TEMP%\qkrpc-preflight-vX.Y.Z.log`
 
 ## 禁止
 
