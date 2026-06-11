@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  DEFAULT_EMBEDDED_BROWSER_ID,
   embeddedBrowserTauriAvailable,
   fetchEmbeddedBrowserNavigationState,
   type EmbeddedBrowserNavigationState,
@@ -10,7 +11,10 @@ import {
 const POLL_MS = 600;
 
 /** Poll WebView2 navigation state (native history + current URL/title). */
-export function useEmbeddedBrowserNavigationState(enabled: boolean) {
+export function useEmbeddedBrowserNavigationState(
+  enabled: boolean,
+  browserId: string = DEFAULT_EMBEDDED_BROWSER_ID,
+) {
   const [state, setState] = useState<EmbeddedBrowserNavigationState | null>(
     null,
   );
@@ -25,7 +29,7 @@ export function useEmbeddedBrowserNavigationState(enabled: boolean) {
 
     const poll = async () => {
       try {
-        const next = await fetchEmbeddedBrowserNavigationState();
+        const next = await fetchEmbeddedBrowserNavigationState(browserId);
         if (!cancelled) setState(next);
       } catch {
         if (!cancelled) setState(null);
@@ -41,7 +45,7 @@ export function useEmbeddedBrowserNavigationState(enabled: boolean) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [enabled]);
+  }, [browserId, enabled]);
 
   return state;
 }

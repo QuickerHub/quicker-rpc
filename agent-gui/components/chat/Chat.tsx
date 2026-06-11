@@ -86,6 +86,7 @@ import {
 import { WorkspaceExplorerPanel } from "@/components/workspace/WorkspaceExplorerPanel";
 import { AppMainWorkspaceSplit } from "@/components/workspace/AppMainWorkspaceSplit";
 import { EmbeddedBrowserProvider } from "@/lib/embedded-browser-context";
+import { EmbeddedBrowserTabsProvider } from "@/lib/embedded-browser-tabs";
 import { ThreadSidePanelSync } from "@/lib/use-thread-side-panel-sync";
 import { useBrowserPanelMessageSync } from "@/lib/use-browser-panel-message-sync";
 import { WorkspaceMainEditorTabBridgeRegistrar } from "@/components/workspace/WorkspaceMainEditorTabBridgeRegistrar";
@@ -1346,6 +1347,7 @@ function ChatPanel({
         onExitEdit={exitMessageEdit}
         onEditAnchorDraftChange={setEditAnchorLiveDraft}
         voiceInterruptRef={voiceInterruptRef}
+        workingDirectory={workingDirectory}
       />
         </div>
         {visible ? <WorkspaceExplorerPanel /> : null}
@@ -1584,6 +1586,7 @@ export function Chat() {
           >
             <DocsViewerProvider>
               <EmbeddedBrowserProvider>
+              <EmbeddedBrowserTabsProvider>
               <ThreadSidePanelSync activeThreadId={activeThread.id} />
               <WorkspaceMainEditorTabBridgeRegistrar />
               <ChatTitlebar
@@ -1647,6 +1650,7 @@ export function Chat() {
                 focusProviderId={settingsFocusProviderId}
                 initialTab={settingsInitialTab}
               />
+              </EmbeddedBrowserTabsProvider>
               </EmbeddedBrowserProvider>
             </DocsViewerProvider>
           </WorkspaceExplorerPanelProvider>

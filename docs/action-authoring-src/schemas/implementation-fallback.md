@@ -7,7 +7,7 @@
 | tier | means | use |
 |------|-------|-----|
 | 1 | `$=` / `$$` (expressions) | inline calc, concat, compare, conditional fields |
-| 2 | **sys:evalexpression** | multi-line C#, LINQ, string ops, multi-var assign |
+| 2 | **sys:evalexpression** | multi-line C#, LINQ; `{varKey}=` writes one or many action vars in one step |
 | 3 | dedicated module (search → get) | clipboard, HTTP, file, UI, … |
 | 4 | **sys:csscript** | expressions insufficient (Exec, complex types, API orchestration) |
 | 5 | sys:runScript | short PS/CMD or user script |
@@ -20,7 +20,7 @@
 ## Decision
 
 ```text
-string/LINQ/multi-assign/JSON? → expressions ($= or evalexpression)
+string/LINQ/multi-{var}=assign/JSON? → expressions ($= or evalexpression; multi-var assign → evalexpression)
 calc/compare/single assign?    → $= / $$ or evalexpression
 known stepRunnerKey?           → step-runner get → step-modules ref → data.json
 else                           → step-runner search (one OR|*) → get

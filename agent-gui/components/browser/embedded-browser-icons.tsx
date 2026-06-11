@@ -46,6 +46,38 @@ export function IconBrowserReload() {
   );
 }
 
+export function IconBrowserPickElement() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M3 3l4.6 10 1.5-4 4-1.4L3 3Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.4 9.4 13 13"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function IconBrowserNewTab() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M8 3.25v9.5M3.25 8h9.5"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function IconBrowserDevtools() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>

@@ -9,9 +9,10 @@ import { WorkspaceResourceManager } from "@/components/workspace/WorkspaceResour
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import { storeChatColumnWidth } from "@/lib/explorer-prefs";
 import {
+  browserIdFromSideView,
+  isSidePanelBrowserView,
   isSidePanelEditorView,
   isSidePanelTraceView,
-  SIDE_PANEL_VIEW_BROWSER,
   SIDE_PANEL_VIEW_EXPLORER,
   SIDE_PANEL_VIEW_TRACE,
 } from "@/lib/workspace-side-panel-view";
@@ -67,7 +68,10 @@ export function WorkspaceExplorerPanel() {
 
   if (!panelOpen) return null;
 
-  const showBrowser = activeSideView === SIDE_PANEL_VIEW_BROWSER;
+  const showBrowser = isSidePanelBrowserView(activeSideView);
+  const activeBrowserId = showBrowser
+    ? browserIdFromSideView(activeSideView)
+    : null;
   const showTrace = isSidePanelTraceView(activeSideView);
   const traceTabId =
     showTrace && activeSideView !== SIDE_PANEL_VIEW_TRACE
@@ -102,8 +106,11 @@ export function WorkspaceExplorerPanel() {
           </div>
         ) : null}
 
-        {showBrowser ? (
-          <WorkspaceEmbeddedBrowser />
+        {showBrowser && activeBrowserId ? (
+          <WorkspaceEmbeddedBrowser
+            key={activeBrowserId}
+            browserId={activeBrowserId}
+          />
         ) : null}
 
         {showTrace ? (

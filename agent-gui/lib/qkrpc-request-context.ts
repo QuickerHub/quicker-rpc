@@ -8,6 +8,8 @@ export type QkrpcRequestContext = {
   actionScope?: ActionScopeHint;
   chatMode?: ChatMode;
   lastUserText?: string;
+  /** Serialized LlmSelection for nested agents (task tool). */
+  llmSelectionRaw?: string;
   /** Set when launcher_resolve returns a direct-eligible next step. */
   launcherResolveDirectNext?: LauncherResolveAgentNext | null;
 };
@@ -28,6 +30,10 @@ export function getRequestChatMode(): ChatMode | undefined {
 
 export function getRequestLastUserText(): string | undefined {
   return qkrpcRequestContext.getStore()?.lastUserText;
+}
+
+export function getRequestLlmSelectionRaw(): string | undefined {
+  return qkrpcRequestContext.getStore()?.llmSelectionRaw;
 }
 
 export function getLauncherResolveDirectNext():
@@ -65,6 +71,7 @@ export type AgentRequestContext = {
   actionScope?: ActionScopeHint;
   chatMode?: ChatMode;
   lastUserText?: string;
+  llmSelectionRaw?: string;
 };
 
 function buildRequestContext(ctx: AgentRequestContext): QkrpcRequestContext {
@@ -73,6 +80,7 @@ function buildRequestContext(ctx: AgentRequestContext): QkrpcRequestContext {
     actionScope: ctx.actionScope,
     chatMode: ctx.chatMode,
     lastUserText: ctx.lastUserText?.trim() || undefined,
+    llmSelectionRaw: ctx.llmSelectionRaw?.trim() || undefined,
     launcherResolveDirectNext: null,
   };
 }

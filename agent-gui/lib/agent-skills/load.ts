@@ -33,8 +33,9 @@ const bodyCache = new Map<string, { mtimeMs: number; body: string }>();
 /** Load tier-2 instructions (SKILL.md body or configured override). */
 export async function loadSkillInstructions(
   skillName: string,
+  cwd?: string,
 ): Promise<LoadedAgentSkill | null> {
-  const record = await getAgentSkill(skillName);
+  const record = await getAgentSkill(skillName, cwd);
   if (!record) return null;
 
   const skillMdRaw = await readFile(record.skillMdPath, "utf8");

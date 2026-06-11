@@ -14,6 +14,7 @@ import { createPluginRuntimeCommands } from "./commands/plugin-runtime.mjs";
 import { shutdownBackends, startProductionBackends } from "./backend-spawn.mjs";
 import {
   gracefulExit,
+  isMainWindowClosePermitted,
   prepareForUpdateInstall,
   registerEmbeddedBrowserShutdown,
 } from "./lifecycle.mjs";
@@ -26,6 +27,8 @@ import {
   spawnClipboardRuntimeBackground,
 } from "./commands/clipboard-history.mjs";
 import { createEmbeddedBrowserManager } from "./embedded-browser/manager.mjs";
+import { createEmbeddedBrowserAutomation } from "./embedded-browser/automation-engine.mjs";
+import { startEmbeddedBrowserAutomationServer } from "./embedded-browser/automation-server.mjs";
 import { createEmbeddedBrowserCommands } from "./commands/embedded-browser.mjs";
 import { createWebviewProfileCommands } from "./commands/webview-profile.mjs";
 import { createLegacyChatCommands } from "./commands/legacy-chat.mjs";
@@ -101,6 +104,9 @@ let embeddedBrowserManager = null;
 /** @type {ReturnType<typeof createEmbeddedBrowserCommands> | null} */
 let embeddedBrowserCommands = null;
 
+/** @type {ReturnType<typeof startEmbeddedBrowserAutomationServer> | null} */
+let embeddedBrowserAutomationServer = null;
+
 /** @type {ReturnType<typeof createWebviewProfileCommands> | null} */
 let webviewProfileCommands = null;
 
@@ -146,6 +152,11 @@ function createMainWindow(loadUrl) {
   });
 
   win.once("ready-to-show", () => win.show());
+  win.on("close", (event) => {
+    if (isDev() || isMainWindowClosePermitted()) return;
+    event.preventDefault();
+    emitDesktopEvent(APP_REQUEST_EXIT_EVENT, null);
+  });
   win.on("closed", () => {
     if (mainWindow === win) mainWindow = null;
   });
@@ -196,7 +207,13 @@ function initDesktopCommands() {
     getMainWindow: () => mainWindow,
   });
   embeddedBrowserCommands = createEmbeddedBrowserCommands(embeddedBrowserManager);
-  registerEmbeddedBrowserShutdown(() => embeddedBrowserManager?.teardown());
+  const embeddedBrowserAutomation = createEmbeddedBrowserAutomation(embeddedBrowserManager);
+  embeddedBrowserAutomationServer = startEmbeddedBrowserAutomationServer(embeddedBrowserAutomation);
+  registerEmbeddedBrowserShutdown(() => {
+    embeddedBrowserManager?.teardown();
+    void embeddedBrowserAutomationServer?.close().catch(() => {});
+    embeddedBrowserAutomationServer = null;
+  });
   webviewProfileCommands = createWebviewProfileCommands({ app });
   legacyChatCommands = createLegacyChatCommands();
   updaterCommands = createUpdaterCommands({ isDev: isDev() });

@@ -102,6 +102,26 @@ export async function buildSystemInstructions(
     }
   }
 
+  if (cwd && mode !== CHAT_MODE_LAUNCHER) {
+    const {
+      discoverAgentDefs,
+      formatSubagentsCatalogBlock,
+      formatWorkspaceInstructionsBlock,
+      loadWorkspaceInstructions,
+    } = await import("@/lib/agent-defs");
+    const [workspaceInstructions, agentDefs] = await Promise.all([
+      loadWorkspaceInstructions(cwd),
+      discoverAgentDefs(cwd),
+    ]);
+    if (workspaceInstructions) {
+      parts.push("", formatWorkspaceInstructionsBlock(workspaceInstructions));
+    }
+    const subagentBlock = formatSubagentsCatalogBlock(agentDefs.agents);
+    if (subagentBlock) {
+      parts.push("", subagentBlock);
+    }
+  }
+
   if (cwd) {
     parts.push(
       "",

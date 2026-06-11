@@ -462,12 +462,12 @@ function workspaceEditorRowPropsEqual(
     prev.toolName,
     prev.input,
     prev.output,
-    prev.running,
+    prev.running === true,
   ) === workspaceEditorRowPreviewSig(
     next.toolName,
     next.input,
     next.output,
-    next.running,
+    next.running === true,
   );
 }
 

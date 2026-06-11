@@ -108,7 +108,7 @@
   },
   "expressions": {
     "title": "Expressions & interpolation",
-    "description": "P4 default: $=, $$, sys:evalexpression (LINQ/string/JSON/multi-assign). Prefer before sys:csscript.",
+    "description": "P4 default: $=, $$, sys:evalexpression (LINQ/string/JSON/multi-{var}=assign). Load quicker-eval-expression skill first; prefer before sys:csscript.",
     "searchAliases": ["表达式", "插值", "interpolation", "$=", "evalexpression"],
     "allowed-tools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch",
     "metadata": {

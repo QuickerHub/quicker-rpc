@@ -21,6 +21,7 @@ import type { PingState } from "@/lib/use-qkrpc-ping";
 import type { LlmProviderId } from "@/lib/llm-providers";
 import { ModelSelector } from "./ModelSelector";
 import type { ChatMode } from "@/lib/chat-mode";
+import { CHAT_MODE_AGENT } from "@/lib/chat-mode";
 import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
 import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
 import { notifyVoiceServiceStarting } from "@/lib/voice-input/voice-input-notify";
@@ -86,6 +87,7 @@ type ChatComposerFooterProps = {
   onExitEdit: () => void;
   onEditAnchorDraftChange?: (draft: string) => void;
   voiceInterruptRef?: React.MutableRefObject<(() => void) | null>;
+  workingDirectory?: string;
 };
 
 const ChatComposerFooterInner = forwardRef<
@@ -121,6 +123,7 @@ const ChatComposerFooterInner = forwardRef<
     onExitEdit,
     onEditAnchorDraftChange,
     voiceInterruptRef,
+    workingDirectory = "",
   },
   ref,
 ) {
@@ -303,6 +306,10 @@ const ChatComposerFooterInner = forwardRef<
             <ComposerMarkupField
               ref={composerRef}
               value={draftMessage}
+              workingDirectory={workingDirectory}
+              enableSlashCommands={
+                chatMode === CHAT_MODE_AGENT && Boolean(workingDirectory.trim())
+              }
               placeholder={
                 editAnchorMessageId
                   ? "修改后 Enter 发送，将从此消息处重新对话…（@ 引用动作）"
@@ -310,7 +317,7 @@ const ChatComposerFooterInner = forwardRef<
                     ? "Enter 立即发送队列第一条，或输入新消息加入队列…"
                     : queueLength > 0
                       ? "Agent 完成后将自动发送队列中的消息…"
-                      : "描述你想在 Quicker 里做的事…（@ 引用动作）"
+                      : "描述你想在 Quicker 里做的事…（@ 引用动作，/ 斜杠命令）"
               }
               onChange={handleDraftChange}
               onSubmit={handleSubmit}

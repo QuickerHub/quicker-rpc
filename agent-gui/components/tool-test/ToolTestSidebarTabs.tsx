@@ -59,12 +59,12 @@ export function ToolTestSidebarTabs({
     if (!root) return;
 
     const onWheel = (e: WheelEvent) => {
-      if (root.scrollWidth <= root.clientWidth) return;
+      if (root.scrollHeight <= root.clientHeight) return;
       const delta =
-        Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
       if (delta === 0) return;
       e.preventDefault();
-      root.scrollLeft += delta;
+      root.scrollTop += delta;
     };
 
     root.addEventListener("wheel", onWheel, { passive: false });

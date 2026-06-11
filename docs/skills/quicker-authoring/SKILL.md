@@ -45,7 +45,7 @@ Walkthrough: authoring-workflow. Workspace: workspace-editing.
 - NO get-ui / step-runner.getUi
 - NO inline patch / --patch-file; workspace_program disk edit → patch
 - trust editVersion after patch; NO verify re-get
-- P4: expressions first → module → csscript
+- P4: expressions first → module → csscript (load **quicker-eval-expression** skill)
 
 ## Deep-read index
 
@@ -54,6 +54,7 @@ Walkthrough: authoring-workflow. Workspace: workspace-editing.
 | overview | overview |
 | workflows | authoring-workflow, workspace-editing, subprogram-workflow |
 | schemas | action-data-schema, expressions, action-project-files |
+| expressions | **quicker-eval-expression** skill (+ topic `expressions`) |
 | modules | step-modules + docs get reference |
 
 Hot route in prompt-tier0; docs get one topic at a time. docs index / search for unfamiliar topics.

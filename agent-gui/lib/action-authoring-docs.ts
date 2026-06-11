@@ -15,11 +15,14 @@ import {
 import {
   compactSkillBody,
   formatAllPreloadedSkillsForPrompt,
+  getAgentSkill,
   loadSkillInstructions,
   loadTopicsManifest,
   parseSkillMd,
   resolveSkillDir,
+  resolveSkillDirFromRecord,
 } from "@/lib/agent-skills";
+import { getRequestCwd } from "@/lib/qkrpc-request-context";
 import { resolveAgentGuiRoot } from "@/lib/agent-gui-root";
 import { invokeQkrpcHttp } from "@/lib/qkrpc-http";
 import {
@@ -512,10 +515,62 @@ export async function formatSkillCatalogForPrompt(): Promise<string> {
   return formatAuthoringSkillForPrompt();
 }
 
+async function resolveSkillDirForTopic(skillName: string): Promise<string> {
+  const cwd = getRequestCwd();
+  const skill = await getAgentSkill(skillName, cwd);
+  return resolveSkillDirFromRecord(skillName, skill?.skillDir);
+}
+
+async function listOnDemandSkillReferences(skillName: string): Promise<string[]> {
+  const refDir = join(await resolveSkillDirForTopic(skillName), "references");
+  try {
+    return (await readdir(refDir))
+      .filter((n) => n.endsWith(".md") && n.toLowerCase() !== "readme.md")
+      .map((n) => n.replace(/\.md$/i, ""))
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  } catch {
+    return [];
+  }
+}
+
+async function tryLoadOnDemandSkillReference(
+  skillName: string,
+  refKey: string,
+): Promise<(ActionAuthoringDoc & { reference: string }) | null> {
+  const cwd = getRequestCwd();
+  const skill = await loadSkillInstructions(skillName, cwd);
+  if (!skill?.body) {
+    return null;
+  }
+
+  const refPath = join(
+    resolveSkillDirFromRecord(skillName, skill.skillDir),
+    "references",
+    `${refKey}.md`,
+  );
+  try {
+    const markdown = compactMarkdownBody(await readFile(refPath, "utf8"));
+    return {
+      topic: skill.name,
+      title: extractTitle(markdown) || refKey,
+      description: skill.description,
+      markdown,
+      reference: refKey,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function listActionAuthoringReferences(
   topic: string,
 ): Promise<string[]> {
   const key = normalizeTopic(topic);
+  const onDemandRefs = await listOnDemandSkillReferences(key);
+  if (onDemandRefs.length > 0) {
+    return onDemandRefs;
+  }
+
   const root = skillsRoot();
   const manifest = await loadTopicsManifest(root);
   const catalog = manifest?.referenceCatalog?.[
@@ -584,6 +639,22 @@ export async function getActionAuthoringReference(
     (r) => r.topic.toLowerCase() === key && !r.reference,
   );
   if (!match) {
+    const onDemandRef = await tryLoadOnDemandSkillReference(key, refKey);
+    if (onDemandRef) {
+      return { ok: true, doc: onDemandRef };
+    }
+
+    const skill = await loadSkillInstructions(key);
+    if (skill?.body) {
+      const availableReferences = await listOnDemandSkillReferences(key);
+      return {
+        ok: false,
+        error: `Unknown reference: ${refKey} (skill: ${key})`,
+        availableTopics,
+        availableReferences,
+      };
+    }
+
     return {
       ok: false,
       error: `Unknown topic: ${key}`,
@@ -711,7 +782,7 @@ export async function getActionAuthoringDoc(
     (r) => r.topic.toLowerCase() === key && !r.reference,
   );
   if (!match) {
-    const skill = await loadSkillInstructions(key);
+    const skill = await loadSkillInstructions(key, getRequestCwd());
     if (skill?.body) {
       return {
         ok: true,

@@ -35,6 +35,7 @@ function decodeAttrValue(value: string): string {
   return value
     .replace(/&quot;/g, '"')
     .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&");
 }
 

@@ -78,7 +78,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "浏览器",
     group: "write",
     category: "runtime",
-    description: "Playwright 浏览器：取信息 content(selector/分页)/evaluate；自动化 snapshot → click/type/fill；多标签页、登录态持久；侧栏实时预览",
+    description: "内置浏览器：侧栏打开页面（navigate）；自动化 snapshot/click 暂不可用；登录态持久",
   },
   {
     id: "web_search",
@@ -107,6 +107,13 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     group: "read",
     category: "runtime",
     description: "在聊天中展示选择题并等待用户点选（可多选）",
+  },
+  {
+    id: "task",
+    label: "子代理",
+    group: "write",
+    category: "runtime",
+    description: "委派任务给 .quicker/agents 定义的子代理（隔离上下文）",
   },
   {
     id: "llm_settings",

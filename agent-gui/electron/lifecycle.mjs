@@ -17,10 +17,19 @@ function shutdownDesktopRuntimes(fastClipboard = false) {
 /** Graceful shutdown aligned with Tauri `spawn_shutdown_and_exit` / `prepare_for_update_install`. */
 
 const SHUTDOWN_FORCE_EXIT_AFTER_MS = 3_000;
-const SHUTDOWN_BACKEND_DELAY_MS = 350;
+const SHUTDOWN_BACKEND_DELAY_MS = 1_200;
 const UI_EXIT_LEAD_MS = 60;
 
 let exitInProgress = false;
+let mainWindowClosePermitted = false;
+
+export function permitMainWindowClose() {
+  mainWindowClosePermitted = true;
+}
+
+export function isMainWindowClosePermitted() {
+  return mainWindowClosePermitted;
+}
 
 /**
  * @param {{ shutdownBackends: () => void }} ctx
@@ -53,6 +62,7 @@ export function gracefulExit(ctx) {
   setTimeout(() => {
     const win = getMainWindow();
     if (win && !win.isDestroyed()) {
+      permitMainWindowClose();
       win.close();
     }
     setTimeout(() => {

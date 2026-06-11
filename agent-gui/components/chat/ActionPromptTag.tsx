@@ -1,8 +1,10 @@
 "use client";
 
 import { ActionIcon } from "@/components/chat/ActionIcon";
+import { ComposerTagPreviewTrigger } from "@/components/chat/ComposerTagPreviewTrigger";
 import type { PinnedAction } from "@/lib/action-context";
 import { resolveMentionItemIcon } from "@/lib/action-mention-items";
+import { buildActionTagPreview } from "@/lib/composer-tag-preview";
 import {
   COMPOSER_SUBPROGRAM_TAG_ICON_CLASS,
 } from "@/lib/global-subprogram-icon";
@@ -18,18 +20,10 @@ export function ActionPromptTag({
 }: ActionPromptTagProps) {
   const isSubprogram = action.kind === "subprogram";
   const iconSpec = resolveMentionItemIcon(action);
-  const titleParts = [action.title, action.id];
-  if (isSubprogram && action.callIdentifier) {
-    titleParts.push(action.callIdentifier);
-  }
+  const previewable = variant === "sent";
 
-  return (
-    <span
-      className={`composer-prompt-tag${
-        isSubprogram ? " composer-prompt-tag--subprogram" : ""
-      }${variant === "sent" ? " composer-prompt-tag--sent" : ""}`}
-      title={titleParts.join("\n")}
-    >
+  const chip = (
+    <>
       <ActionIcon
         spec={iconSpec}
         title={action.title}
@@ -40,6 +34,23 @@ export function ActionPromptTag({
         }
       />
       <span className="composer-prompt-tag__title">{action.title}</span>
-    </span>
+    </>
+  );
+
+  const className = `composer-prompt-tag${
+    isSubprogram ? " composer-prompt-tag--subprogram" : ""
+  }${variant === "sent" ? " composer-prompt-tag--sent" : ""}`;
+
+  if (!previewable) {
+    return <span className={className}>{chip}</span>;
+  }
+
+  return (
+    <ComposerTagPreviewTrigger
+      model={buildActionTagPreview(action)}
+      className={className}
+    >
+      {chip}
+    </ComposerTagPreviewTrigger>
   );
 }

@@ -15,6 +15,7 @@ internal static class QkrpcAgentSetup
         "qkrpc",
         "quicker-rpc-knowledge",
         "quicker-authoring",
+        "quicker-eval-expression",
         "quicker-run",
     ];
 

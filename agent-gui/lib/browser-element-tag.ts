@@ -18,10 +18,13 @@ export const BROWSER_ELEMENT_TAG_CLASS = "composer-prompt-tag--browser-element";
 export const BROWSER_ELEMENT_TAG_ATTR = "data-browser-tag-id";
 
 function escapeAttrValue(value: string): string {
+  // `>` must be escaped too: raw `>` inside attr values (e.g. outerHtml)
+  // would terminate the `[^>]*` markup-attr regex early.
   return value
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;");
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function readAttr(attrs: Record<string, string>, key: string): string | undefined {
@@ -52,6 +55,8 @@ export function browserElementDisplayTitle(
   const tag = ctx.tagName?.trim()?.toLowerCase();
   const id = ctx.elementId?.trim();
   if (tag && id) return `${tag}#${id}`;
+  const component = ctx.reactComponent?.trim();
+  if (component && tag) return `<${tag}> (${component})`;
   if (tag) return tag;
   if (ctx.ref?.trim()) return `ref=${ctx.ref.trim()}`;
   return ctx.title?.trim() || "页面元素";
@@ -90,11 +95,25 @@ export function formatBrowserElementTagMarkup(tag: BrowserElementTag): string {
     ["data-browser-value", tag.value],
     ["data-browser-snapshot-line", tag.snapshotLine],
     ["data-browser-session-id", tag.sessionId],
+    ["data-browser-dom-path", tag.domPath],
+    ["data-browser-react-component", tag.reactComponent],
+    ["data-browser-outer-html", tag.outerHtml],
   ];
 
   for (const [key, value] of optional) {
     const trimmed = value?.trim();
     if (trimmed) attrs.push(`${key}="${escapeAttrValue(trimmed)}"`);
+  }
+
+  if (
+    tag.rectTop != null
+    && tag.rectLeft != null
+    && tag.rectWidth != null
+    && tag.rectHeight != null
+  ) {
+    attrs.push(
+      `data-browser-rect="${tag.rectTop},${tag.rectLeft},${tag.rectWidth},${tag.rectHeight}"`,
+    );
   }
 
   return `<qkrpc-browser-element ${attrs.join(" ")}></qkrpc-browser-element>`;
@@ -127,6 +146,13 @@ export function browserElementTagFromAttrs(
   const pickY = readNumberAttr(attrs, "data-browser-pick-y");
   if (!tagId || !url || pickX == null || pickY == null) return null;
 
+  const rectRaw = readAttr(attrs, "data-browser-rect");
+  const rectParts = rectRaw
+    ? rectRaw.split(",").map((part) => Number(part.trim()))
+    : [];
+  const rectValid =
+    rectParts.length === 4 && rectParts.every((n) => Number.isFinite(n));
+
   const ctx: BrowserPickElementContext = {
     url,
     pickX,
@@ -143,6 +169,13 @@ export function browserElementTagFromAttrs(
     value: readAttr(attrs, "data-browser-value"),
     snapshotLine: readAttr(attrs, "data-browser-snapshot-line"),
     sessionId: readAttr(attrs, "data-browser-session-id"),
+    domPath: readAttr(attrs, "data-browser-dom-path"),
+    reactComponent: readAttr(attrs, "data-browser-react-component"),
+    outerHtml: readAttr(attrs, "data-browser-outer-html"),
+    rectTop: rectValid ? rectParts[0]! : null,
+    rectLeft: rectValid ? rectParts[1]! : null,
+    rectWidth: rectValid ? rectParts[2]! : null,
+    rectHeight: rectValid ? rectParts[3]! : null,
   };
 
   return {

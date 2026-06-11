@@ -32,7 +32,7 @@ npm 包**仅启动** `qkrpc mcp`，不包含 skills。见 [packages/qkrpc-mcp/RE
 | 仓库源码 | `docs/skills/*` |
 | CLI 安装目录 | `%LOCALAPPDATA%\Programs\qkrpc\skills\` |
 
-Skill 家族：`qkrpc`、`quicker-rpc-knowledge`、`quicker-authoring`、`quicker-sync`、`quicker-run`。
+Skill 家族：`qkrpc`、`quicker-rpc-knowledge`、`quicker-authoring`、`quicker-eval-expression`、`quicker-sync`、`quicker-run`。
 
 ### Cursor Marketplace / 远程 registry
 

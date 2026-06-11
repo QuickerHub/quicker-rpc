@@ -4,9 +4,89 @@ import { emitDesktopEvent } from "./voice-plugin/events.mjs";
 
 const { autoUpdater } = electronUpdater;
 
-const DEFAULT_UPDATE_FEED_URL =
-  process.env.QUICKER_AGENT_ELECTRON_UPDATE_URL
-  ?? "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/";
+// GitHub Releases hosts the same installer + latest.yml as Bitiful (see
+// .github/workflows/release-cli.yml). Prefer free GitHub accelerator mirrors,
+// then GitHub direct, and keep Bitiful OSS as the paid-bandwidth fallback.
+const GITHUB_FEED_URL =
+  "https://github.com/QuickerHub/quicker-rpc/releases/latest/download/";
+
+const BITIFUL_FEED_URL =
+  "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/";
+
+const DEFAULT_GH_MIRROR_PREFIXES = [
+  "https://ghfast.top/",
+  "https://gh-proxy.com/",
+];
+
+const FEED_PROBE_TIMEOUT_MS = 10_000;
+
+function ensureTrailingSlash(url) {
+  return url.endsWith("/") ? url : `${url}/`;
+}
+
+/**
+ * Ordered candidate feed URLs (highest priority first).
+ *
+ * - `QUICKER_AGENT_ELECTRON_UPDATE_URL` overrides everything (single feed).
+ * - `QUICKER_AGENT_GH_MIRROR_PREFIXES` (comma-separated) replaces the built-in
+ *   GitHub accelerator prefixes.
+ *
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {string[]}
+ */
+export function buildUpdateFeedCandidates(env = process.env) {
+  const override = env.QUICKER_AGENT_ELECTRON_UPDATE_URL?.trim();
+  if (override) {
+    return [ensureTrailingSlash(override)];
+  }
+
+  const prefixes = (env.QUICKER_AGENT_GH_MIRROR_PREFIXES ?? DEFAULT_GH_MIRROR_PREFIXES.join(","))
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  const mirrorFeeds = prefixes.map(
+    (prefix) => `${ensureTrailingSlash(prefix)}${GITHUB_FEED_URL}`,
+  );
+
+  return [...mirrorFeeds, GITHUB_FEED_URL, BITIFUL_FEED_URL];
+}
+
+/** @param {string} feedUrl */
+async function probeFeed(feedUrl) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), FEED_PROBE_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${feedUrl}latest.yml`, {
+      signal: ac.signal,
+      cache: "no-store",
+    });
+    if (!res.ok) return false;
+    const text = await res.text();
+    return /^version:/m.test(text);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Probes candidates in parallel and returns the highest-priority healthy feed.
+ *
+ * @param {string[]} candidates
+ * @param {Set<string>} [excluded]
+ * @returns {Promise<string | null>}
+ */
+export async function resolveUpdateFeedUrl(candidates, excluded = new Set()) {
+  const eligible = candidates.filter((url) => !excluded.has(url));
+  if (eligible.length === 0) return null;
+
+  const results = await Promise.all(
+    eligible.map(async (url) => ((await probeFeed(url)) ? url : null)),
+  );
+  return results.find((url) => url !== null) ?? null;
+}
 
 /** @param {boolean} isDev */
 export function shouldEnableElectronUpdater(isDev) {
@@ -48,6 +128,12 @@ let updateDownloaded = false;
 /** @type {string | null} */
 let pendingVersion = null;
 
+/** @type {string | null} */
+let activeFeedUrl = null;
+
+/** Feeds that failed during this session (probe ok but check/download broke). */
+const failedFeedUrls = new Set();
+
 function emitProgress(payload) {
   emitDesktopEvent("official-update-progress", payload);
 }
@@ -62,11 +148,6 @@ export function initElectronUpdater(isDev) {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.logger = null;
-
-  autoUpdater.setFeedURL({
-    provider: "generic",
-    url: DEFAULT_UPDATE_FEED_URL,
-  });
 
   autoUpdater.on("error", (err) => {
     if (isBenignUpdaterError(err)) {
@@ -113,23 +194,51 @@ export function clearPendingUpdate() {
   pendingVersion = null;
 }
 
+async function ensureFeedUrl() {
+  if (activeFeedUrl && !failedFeedUrls.has(activeFeedUrl)) {
+    return activeFeedUrl;
+  }
+
+  const candidates = buildUpdateFeedCandidates();
+  const resolved = await resolveUpdateFeedUrl(candidates, failedFeedUrls);
+  if (!resolved) return null;
+
+  activeFeedUrl = resolved;
+  autoUpdater.setFeedURL({
+    provider: "generic",
+    url: resolved,
+  });
+  console.warn(`[electron-updater] using update feed: ${resolved}`);
+  return resolved;
+}
+
+async function checkForUpdateOnCurrentFeed() {
+  const result = await autoUpdater.checkForUpdates();
+  const info = result?.updateInfo;
+  if (!info?.version) return null;
+
+  const current = app.getVersion();
+  if (info.version === current) {
+    clearPendingUpdate();
+    return null;
+  }
+
+  pendingVersion = info.version;
+  updateDownloaded = false;
+  return { version: info.version };
+}
+
 export async function checkForUpdate() {
   if (!initialized) return null;
 
   try {
-    const result = await autoUpdater.checkForUpdates();
-    const info = result?.updateInfo;
-    if (!info?.version) return null;
-
-    const current = app.getVersion();
-    if (info.version === current) {
+    const feed = await ensureFeedUrl();
+    if (!feed) {
+      logBenignUpdaterError("check skipped", new Error("no reachable update feed"));
       clearPendingUpdate();
       return null;
     }
-
-    pendingVersion = info.version;
-    updateDownloaded = false;
-    return { version: info.version };
+    return await checkForUpdateOnCurrentFeed();
   } catch (err) {
     if (isBenignUpdaterError(err)) {
       logBenignUpdaterError("check skipped", err);
@@ -158,10 +267,33 @@ export async function downloadPendingUpdate() {
     remoteVersion: pendingVersion,
   });
 
-  await autoUpdater.downloadUpdate();
-  updateDownloaded = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-  return { version: pendingVersion };
+  /** @type {unknown} */
+  let lastError = null;
+  const maxAttempts = buildUpdateFeedCandidates().length;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const feed = await ensureFeedUrl();
+    if (!feed) break;
+
+    try {
+      // Refresh update info so files resolve against the current feed.
+      const pending = await checkForUpdateOnCurrentFeed();
+      if (!pending) {
+        throw new Error("当前更新源没有可用更新");
+      }
+      await autoUpdater.downloadUpdate();
+      updateDownloaded = true;
+      autoUpdater.autoInstallOnAppQuit = true;
+      return { version: pendingVersion };
+    } catch (err) {
+      lastError = err;
+      logBenignUpdaterError(`download failed via ${feed}`, err);
+      failedFeedUrls.add(feed);
+      activeFeedUrl = null;
+    }
+  }
+
+  throw lastError ?? new Error("没有可用的更新下载源");
 }
 
 export async function installPendingUpdateAndQuit() {

@@ -1,11 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { invokeBrowserRuntime } from "@/lib/browser-runtime-client.server";
+import { invokeEmbeddedBrowserRuntime } from "@/lib/embedded-browser-runtime-client.server";
+import { isNativeEmbeddedBrowserEnabled } from "@/lib/browser-native-mode";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 import {
   sanitizeBrowserToolDataForAgent,
   type BrowserToolAudience,
 } from "@/lib/browser-tool-result";
+import { normalizeEmbeddedBrowserUrl } from "@/lib/embedded-browser-url";
 import { formatLocalToolResult } from "@/lib/tool-result";
 
 export { BROWSER_TOOL };
@@ -151,10 +154,162 @@ export type ExecuteBrowserToolOptions = {
   audience?: BrowserToolAudience;
 };
 
+async function executeNativeEmbeddedBrowserTool(
+  input: BrowserToolInput,
+  options?: ExecuteBrowserToolOptions,
+): Promise<Record<string, unknown>> {
+  const audience = options?.audience ?? "agent";
+  const sid = sessionId(input);
+
+  if (audience === "agent" && input.action === "screenshot") {
+    return formatLocalToolResult(
+      null,
+      false,
+      "screenshot is not available to the agent; use snapshot or content. Side panel shows live preview.",
+    );
+  }
+
+  if (audience === "agent" && input.action === "pick_element") {
+    return formatLocalToolResult(
+      null,
+      false,
+      "pick_element is panel-only; user picks elements in the side-panel browser UI.",
+    );
+  }
+
+  if (input.action === "navigate") {
+    if (!input.url?.trim()) {
+      return formatLocalToolResult(null, false, "url is required for navigate");
+    }
+    const normalized = normalizeEmbeddedBrowserUrl(input.url);
+    if (!normalized) {
+      return formatLocalToolResult(null, false, "url is invalid");
+    }
+    input = { ...input, url: normalized };
+  }
+
+  if (input.action === "click_xy" || input.action === "pick_element") {
+    if (input.x == null || input.y == null) {
+      return formatLocalToolResult(
+        null,
+        false,
+        `x and y are required for ${input.action}`,
+      );
+    }
+  }
+
+  if (input.action === "evaluate" && !input.script?.trim()) {
+    return formatLocalToolResult(null, false, "script is required for evaluate");
+  }
+
+  if (input.action === "tab" && (input.index == null || input.index < 0)) {
+    return formatLocalToolResult(
+      null,
+      false,
+      "index is required for tab (use action=tabs to list open tabs)",
+    );
+  }
+
+  const op =
+    input.action === "status"
+      ? "status"
+      : input.action === "close"
+        ? "session.close"
+        : opForAction(input.action);
+
+  const nativeEnsureActions = new Set(
+    [...SESSION_ENSURE_ACTIONS].filter((action) => action !== "navigate"),
+  );
+  if (nativeEnsureActions.has(input.action)) {
+    const ensured = await invokeEmbeddedBrowserRuntime("session.ensure", {}, sid, 60_000);
+    if (!ensured.ok) {
+      return formatLocalToolResult(
+        { action: input.action, sessionId: sid, op: "session.ensure", mode: "native" },
+        false,
+        ensured.message ?? ensured.error ?? "embedded browser session not ready",
+      );
+    }
+  }
+
+  const args: Record<string, unknown> = {};
+  if (input.url) args.url = input.url;
+  if (input.ref) args.ref = input.ref;
+  if (input.x != null) args.x = input.x;
+  if (input.y != null) args.y = input.y;
+  if (input.text != null) args.text = input.text;
+  if (input.value != null) args.value = input.value;
+  if (input.key) args.key = input.key;
+  if (input.waitUntil) args.waitUntil = input.waitUntil;
+  if (input.timeoutMs != null) args.timeoutMs = input.timeoutMs;
+  if (input.fullPage != null) args.fullPage = input.fullPage;
+  if (input.state) args.state = input.state;
+  if (input.delayMs != null) args.delayMs = input.delayMs;
+  if (input.deltaX != null) args.deltaX = input.deltaX;
+  if (input.deltaY != null) args.deltaY = input.deltaY;
+  if (input.script) args.script = input.script;
+  if (input.selector?.trim()) args.selector = input.selector.trim();
+  if (input.offset != null) args.offset = input.offset;
+  if (input.index != null) args.index = input.index;
+  args.includePreview = audience === "panel";
+
+  const result = await invokeEmbeddedBrowserRuntime(
+    op,
+    args,
+    sid,
+    input.timeoutMs ?? 120_000,
+  );
+
+  if (!result.ok) {
+    if (input.action === "navigate" && input.url) {
+      return formatLocalToolResult({
+        action: "navigate",
+        sessionId: sid,
+        url: input.url,
+        title: "",
+        mode: "native",
+        deferred: true,
+        message:
+          result.message
+          ?? "Side panel will open the page; retry snapshot/evaluate after the view mounts.",
+      });
+    }
+    return formatLocalToolResult(
+      { action: input.action, sessionId: sid, op, mode: "native" },
+      false,
+      result.message ?? result.error ?? "embedded browser invoke failed",
+    );
+  }
+
+  const runtimeData =
+    typeof result.data === "object" && result.data !== null
+      ? (result.data as Record<string, unknown>)
+      : { data: result.data };
+
+  const payload: Record<string, unknown> = {
+    action: input.action,
+    sessionId: sid,
+    mode: "native",
+    ...runtimeData,
+  };
+
+  if (input.action === "navigate" && input.url && !payload.url) {
+    payload.url = input.url;
+  }
+
+  const data =
+    audience === "agent" ? sanitizeBrowserToolDataForAgent(payload) : payload;
+
+  return formatLocalToolResult(data);
+}
+
 export async function executeBrowserTool(
   input: BrowserToolInput,
   options?: ExecuteBrowserToolOptions,
 ): Promise<Record<string, unknown>> {
+  if (isNativeEmbeddedBrowserEnabled()) {
+    return executeNativeEmbeddedBrowserTool(input, options);
+  }
+
   const audience = options?.audience ?? "agent";
   const sid = sessionId(input);
 
@@ -254,14 +409,13 @@ export async function executeBrowserTool(
 
 export const BROWSER_TOOL_DEF = tool({
   description:
-    "Embedded Playwright browser (side panel shows live preview; tool results are text-only). "
-    + "READ workflow: navigate(url) → content (readable text; selector= CSS scope, offset= paginate long pages via nextOffset) or evaluate for structured DOM/JSON extraction. "
-    + "ACT workflow: navigate → snapshot (YAML refs e1,e2,…) → click/type/fill/press by ref. "
-    + "After click/press the result may include navigated:true or openedTab:true — old refs are then invalid, snapshot again before the next ref action. "
-    + "Popups (target=_blank) are followed automatically; tabs lists open tabs, tab(index) switches back. "
-    + "Do NOT use screenshot — agents cannot use images; snapshot + content cover page understanding. "
-    + "For getquicker login/publish — NOT shell curl, NOT Quicker program edits. "
-    + "sessionId isolates cookies (default 'default'); logins persist across restarts per session.",
+    "Embedded native browser in the QuickerAgent side panel (Electron WebContentsView). "
+    + "navigate(url) opens pages the user sees in the side panel; evaluate(script) runs JS in-page; "
+    + "content reads text; snapshot lists interactive refs (e1, e2, …) for click/type/fill/press/scroll/wait. "
+    + "Workflow: navigate → snapshot → ref ops; re-snapshot after navigation. "
+    + "Use web_search for discovery. Do NOT use screenshot — agents cannot use images. "
+    + "sessionId maps to browser profile (default thread id); cookies persist in the desktop profile. "
+    + "Requires QuickerAgent desktop (Electron); first navigate may open the panel before automation runs.",
   inputSchema: z.object({
     action: browserAgentActionSchema.describe(
       "status | navigate | snapshot | content | click | click_xy | type | fill | press | wait | scroll | evaluate | tabs | tab | back | forward | reload | close",

@@ -16,6 +16,7 @@ import {
   CHAT_STORAGE_KEY,
   defaultChatStore,
   flushPendingChatStoreSave,
+  flushPendingChatStoreSaveAsync,
   loadChatStoreFromLocalStorage,
   normalizeLoadedStore,
   scheduleSaveChatStore,
@@ -221,11 +222,13 @@ export function useChatStore() {
   );
 
   useEffect(() => {
-    const onPageHide = () => flushPendingChatStoreSave();
+    const onPageHide = () => {
+      void flushPendingChatStoreSaveAsync({ keepalive: true });
+    };
     window.addEventListener("pagehide", onPageHide);
     return () => {
       window.removeEventListener("pagehide", onPageHide);
-      flushPendingChatStoreSave();
+      void flushPendingChatStoreSaveAsync({ keepalive: true });
     };
   }, []);
 

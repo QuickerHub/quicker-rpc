@@ -1,6 +1,6 @@
 {
   "name": "quicker-rpc-agent-gui",
-  "version": "0.1.0",
+  "version": "0.13.3",
   "private": true,
   "main": "electron/bootstrap.cjs",
   "scripts": {
@@ -126,13 +126,17 @@
       {
         "from": "electron/resources",
         "to": "resources",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "asar": true,
     "electronVersion": "33.4.11",
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "src-tauri/icons/icon.ico",
       "signAndEditExecutable": false,
       "executableName": "quicker-agent"
@@ -146,13 +150,17 @@
       "installerIcon": "installerIcon.ico",
       "installerHeaderIcon": "installerIcon.ico",
       "uninstallerIcon": "installerIcon.ico",
-      "installerLanguages": ["zh_CN"],
+      "installerLanguages": [
+        "zh_CN"
+      ],
       "language": "2052",
       "displayLanguageSelector": false,
       "shortcutName": "QuickerAgent",
+      "menuCategory": "QuickerAgent",
       "uninstallDisplayName": "QuickerAgent",
       "createDesktopShortcut": "always",
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
     },
     "publish": {
       "provider": "generic",

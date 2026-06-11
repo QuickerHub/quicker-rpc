@@ -11,10 +11,10 @@ export const DEV_FRONTEND_CHECK_TOOL = "dev_frontend_check";
 
 export const DEV_FRONTEND_CHECK_TOOL_DEF = tool({
   description:
-    "Check agent-gui frontend health in local dev: HTTP status, Next.js compile/runtime "
-    + "errors from page HTML, dev-server build log (.local/frontend-build-error.json), "
-    + "and browser-captured errors (.local/frontend-client-errors.json). "
-    + "After editing agent-gui UI, call until ok=true. Use clearCaptured=true only after a successful render.",
+    "Check agent-gui frontend health in local dev (Agent MUST call after UI edits before claiming done): "
+    + "HTTP probes, Next compile/runtime errors from page HTML, .local/frontend-build-error.json, "
+    + "and .local/frontend-client-errors.json. Loop until ok=true. "
+    + "paths: add /tool-test when editing tool-test or Electron titlebar; clearCaptured only after ok=true.",
   inputSchema: z.object({
     baseUrl: z
       .string()

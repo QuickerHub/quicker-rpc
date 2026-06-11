@@ -52,3 +52,12 @@ describe("on-demand skill load", () => {
     assert.match(skill!.body, /qkrpc_action/i);
   });
 });
+
+describe("quicker-eval-expression skill", () => {
+  it("loads SKILL.md with multi-var assignment guidance", async () => {
+    const skill = await loadSkillInstructions("quicker-eval-expression");
+    assert.ok(skill?.body);
+    assert.match(skill!.body, /multi-var|Multi-var/i);
+    assert.match(skill!.body, /\{varKey\}=|evalexpression/i);
+  });
+});

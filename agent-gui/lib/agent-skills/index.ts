@@ -11,6 +11,7 @@ export {
   PRELOADED_SKILL_SCOPES,
   SKILL_TIER2_BODY_FILES,
   resolveSkillDir,
+  resolveSkillDirFromRecord,
   resolveSkillsRoot,
   skillMdExists,
 } from "@/lib/agent-skills/paths";

@@ -45,6 +45,8 @@ import {
 import { tryRespondWithLauncherCacheDirect } from "@/lib/launcher/launcher-cache-direct.server";
 import { tryRespondWithLauncherResolveDirect } from "@/lib/launcher/launcher-resolve-direct.server";
 import { createRepairToolCallHandler } from "@/lib/repair-tool-call";
+import { parseSlashCommandInput } from "@/lib/agent-defs/command-expand";
+import { resolveSlashCommandForChat } from "@/lib/agent-defs/apply-chat-command.server";
 
 export const maxDuration = 120;
 
@@ -89,11 +91,30 @@ async function handleChatPost(req: Request) {
   } = await req.json();
 
   const chatMode = resolveChatMode(chatModeRaw);
-
-  const selection = resolveLlmSelection(llmSelection ?? llmProvider, parseLlmProviderId(llmProvider));
   const cwd = resolveEffectiveWorkingDirectory(workingDirectory ?? workspaceRoot);
   const repairedMessages = repairInterruptedToolCalls(messages);
   const titleTest = titleTestOnly === true;
+
+  const resolvedEnabledTools = resolveEnabledToolsForChatMode(
+    chatMode,
+    enabledTools,
+    defaultEnabledToolIds,
+  );
+  const slashCommand =
+    chatMode !== CHAT_MODE_LAUNCHER && !titleTest
+      ? await resolveSlashCommandForChat(
+          repairedMessages,
+          cwd,
+          resolvedEnabledTools,
+        )
+      : { expandedUserText: null, overrides: {}, commandName: null };
+
+  const selection = resolveLlmSelection(
+    slashCommand.overrides.llmSelectionRaw
+      ?? llmSelection
+      ?? llmProvider,
+    parseLlmProviderId(llmProvider),
+  );
 
   const lastUserText = extractLastUserMessageText(repairedMessages);
 
@@ -143,32 +164,38 @@ async function handleChatPost(req: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 
-  const resolvedEnabledTools = resolveEnabledToolsForChatMode(
-    chatMode,
-    enabledTools,
-    defaultEnabledToolIds,
-  );
+  const effectiveEnabledTools =
+    slashCommand.overrides.enabledTools ?? resolvedEnabledTools;
   const tools = titleTest
     ? { [SET_THREAD_TITLE_TOOL]: quickerTools[SET_THREAD_TITLE_TOOL] }
-    : pickChatTools(quickerTools, resolvedEnabledTools, [
+    : pickChatTools(quickerTools, effectiveEnabledTools, [
         ...(chatMode === "launcher" ? [] : [SET_THREAD_TITLE_TOOL]),
       ]);
+  let slashTextApplied = false;
   const messagesForModel: AgentUIMessage[] = repairedMessages.map((message) => {
     if (message.role !== "user") return message;
     return {
       ...message,
       parts: message.parts.map((part) => {
         if (!isTextUIPart(part)) return part;
-        return {
-          ...part,
-          text: expandUserMessageForModel(part.text),
-        };
+        let text = expandUserMessageForModel(part.text);
+        if (
+          !slashTextApplied
+          && slashCommand.expandedUserText
+          && parseSlashCommandInput(part.text.trim())
+        ) {
+          slashTextApplied = true;
+          text = slashCommand.expandedUserText;
+        }
+        return { ...part, text };
       }),
     };
   });
 
+  const llmSelectionRaw = (llmSelection ?? llmProvider)?.trim() || undefined;
+
   return runWithAgentRequestContextAsync(
-    { cwd, chatMode, lastUserText },
+    { cwd, chatMode, lastUserText, llmSelectionRaw },
     async () => {
     const localProjectIds: string[] = [];
     if (cwd) {
@@ -185,7 +212,7 @@ async function handleChatPost(req: Request) {
     );
 
     return runWithAgentRequestContextAsync(
-      { cwd, actionScope, chatMode, lastUserText },
+      { cwd, actionScope, chatMode, lastUserText, llmSelectionRaw },
       async () => {
     const contextLimit = resolveModelContextLimit(modelId).tokens;
     const preparedContext = await prepareCompressedContext({

@@ -104,6 +104,11 @@ import {
   isAskQuestionAwaitingInput,
   askQuestionDisplayTitle,
 } from "@/lib/ask-question-tool";
+import { TASK_TOOL } from "@/lib/task-tool-constants";
+import {
+  summarizeTaskToolOutput,
+  taskToolDisplayTitle,
+} from "@/lib/task-tool-display";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 import {
   parseBrowserToolResultView,
@@ -142,6 +147,10 @@ export function summarizeToolOutput(
 
   if (isAskQuestionTool(toolName)) {
     return summarizeAskQuestionOutput(output);
+  }
+
+  if (toolName === TASK_TOOL) {
+    return summarizeTaskToolOutput(output);
   }
 
   if (isWorkspaceExplorerFileTool(toolName, input)) {
@@ -345,6 +354,9 @@ export function formatToolDisplayName(
   if (canonical === "shell_exec") return "终端";
   if (isAskQuestionTool(canonical)) {
     return askQuestionDisplayTitle(input);
+  }
+  if (canonical === TASK_TOOL) {
+    return taskToolDisplayTitle(input);
   }
   const createLabel = qkrpcActionCreateDisplayName(canonical, input);
   if (createLabel) return createLabel;

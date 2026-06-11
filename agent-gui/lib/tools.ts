@@ -167,11 +167,15 @@ import {
 
 } from "@/lib/ask-question-tool";
 
+import { TASK_TOOL, TASK_TOOL_DEF } from "@/lib/task-tool.server";
+
 
 
 export const quickerTools = {
 
   [ASK_QUESTION_TOOL]: ASK_QUESTION_TOOL_DEF,
+
+  [TASK_TOOL]: TASK_TOOL_DEF,
 
   [SET_THREAD_TITLE_TOOL]: SET_THREAD_TITLE_TOOL_DEF,
 

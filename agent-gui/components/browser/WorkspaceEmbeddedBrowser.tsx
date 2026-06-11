@@ -1,50 +1,82 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import {
   IconBrowserBack,
   IconBrowserForward,
+  IconBrowserNewTab,
+  IconBrowserPickElement,
   IconBrowserReload,
 } from "@/components/browser/embedded-browser-icons";
-import { EmbeddedBrowserRemoteView } from "@/components/browser/EmbeddedBrowserRemoteView";
-import { useEmbeddedBrowser } from "@/lib/embedded-browser-context";
-import { useBrowserElementPick } from "@/lib/use-browser-element-pick";
-import { useEmbeddedBrowserNav } from "@/lib/use-embedded-browser-nav";
+import { EmbeddedWebView } from "@/components/browser/EmbeddedWebView";
+import { EmbeddedWebViewBoundsWatcher } from "@/components/browser/EmbeddedWebViewBoundsWatcher";
+import type { BrowserPanelSnapshot } from "@/lib/browser-panel-types";
+import { EMPTY_BROWSER_PANEL_SNAPSHOT } from "@/lib/browser-panel-types";
+import {
+  useEmbeddedBrowser,
+  type ApplySnapshotOptions,
+} from "@/lib/embedded-browser-context";
+import { useEmbeddedBrowserTabs } from "@/lib/embedded-browser-tabs";
+import { DEFAULT_EMBEDDED_BROWSER_ID } from "@/lib/embedded-browser-tauri";
+import { useDesktopShell } from "@/lib/desktop-shell";
+import { isElectronShell } from "@/lib/desktop-shell";
+import { useEmbeddedBrowserElementPick } from "@/lib/use-embedded-browser-element-pick";
+import { useEmbeddedBrowserNativeNav } from "@/lib/use-embedded-browser-native-nav";
 
-/** Side-panel browser: Playwright automation + live screencast (Agent browser tool). */
-export function WorkspaceEmbeddedBrowser() {
+type WorkspaceEmbeddedBrowserProps = {
+  /** Embedded browser instance ("default" = thread-scoped agent browser). */
+  browserId?: string;
+};
+
+/** Side-panel browser: Electron/Tauri native WebContentsView (no Playwright). */
+export function WorkspaceEmbeddedBrowser({
+  browserId = DEFAULT_EMBEDDED_BROWSER_ID,
+}: WorkspaceEmbeddedBrowserProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
-  const { snapshot, navigateSeq, navigateUrl, applySnapshot, activeThreadId } =
-    useEmbeddedBrowser();
+  const isDesktop = useDesktopShell();
+  const isDefault = browserId === DEFAULT_EMBEDDED_BROWSER_ID;
 
-  const nav = useEmbeddedBrowserNav({
-    snapshot,
-    navigateSeq,
-    navigateUrl,
-    applySnapshot,
-    enabled: true,
-  });
+  const defaultBrowser = useEmbeddedBrowser();
+  const { tabs, addTab, updateTab } = useEmbeddedBrowserTabs();
+  const tab = tabs.find((item) => item.id === browserId);
 
-  const elementPick = useBrowserElementPick(activeThreadId);
-
-  const onPickAt = useCallback(
-    (viewportX: number, viewportY: number) => {
-      void elementPick.pickAt(viewportX, viewportY);
-    },
-    [elementPick],
+  const tabSnapshot = useMemo(
+    (): BrowserPanelSnapshot => ({
+      ...EMPTY_BROWSER_PANEL_SNAPSHOT,
+      sessionId: browserId,
+      url: tab?.url ?? "",
+      title: tab?.title ?? "",
+    }),
+    [browserId, tab?.url, tab?.title],
   );
 
-  const onStreamState = useCallback(
-    (state: { url: string; title: string; viewportWidth: number; viewportHeight: number }) => {
-      applySnapshot({
-        url: state.url,
-        title: state.title,
-        viewportWidth: state.viewportWidth,
-        viewportHeight: state.viewportHeight,
+  const applyTabSnapshot = useCallback(
+    (patch: Partial<BrowserPanelSnapshot>, _options?: ApplySnapshotOptions) => {
+      updateTab(browserId, {
+        ...(patch.url !== undefined ? { url: patch.url } : {}),
+        ...(patch.title !== undefined ? { title: patch.title } : {}),
       });
     },
-    [applySnapshot],
+    [browserId, updateTab],
   );
+
+  const snapshot = isDefault ? defaultBrowser.snapshot : tabSnapshot;
+  const applySnapshot = isDefault
+    ? defaultBrowser.applySnapshot
+    : applyTabSnapshot;
+
+  const nav = useEmbeddedBrowserNativeNav({
+    snapshot,
+    navigateSeq: isDefault ? defaultBrowser.navigateSeq : 0,
+    navigateUrl: isDefault ? defaultBrowser.navigateUrl : null,
+    applySnapshot,
+    enabled: isDesktop,
+    browserId,
+  });
+
+  const pick = useEmbeddedBrowserElementPick(browserId);
+  const canPick = isDesktop && isElectronShell() && Boolean(nav.displayUrl);
+  const canAddTab = isDesktop && isElectronShell();
 
   const pageLabel = snapshot.title?.trim()
     || snapshot.url?.trim()
@@ -61,31 +93,11 @@ export function WorkspaceEmbeddedBrowser() {
         >
           {pageLabel}
         </span>
-        <button
-          type="button"
-          className={`workspace-explorer-action workspace-embedded-browser__pick${elementPick.pickMode ? " workspace-embedded-browser__pick--active" : ""}`}
-          disabled={nav.busy || nav.bootstrapping || elementPick.picking}
-          aria-pressed={elementPick.pickMode}
-          aria-label="选择元素"
-          title="选择页面元素并插入聊天输入框"
-          onClick={elementPick.togglePickMode}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-            <path
-              d="M2.5 11.5 11.5 2.5M11.5 2.5H7.5M11.5 2.5V6.5"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <circle cx="4.25" cy="9.75" r="1.1" fill="currentColor" />
-          </svg>
-        </button>
         <span
           className="workspace-embedded-browser__badge"
-          title="Playwright 自动化浏览器（Agent browser 工具）"
+          title="Electron 内置 Chromium 子视图"
         >
-          Playwright
+          内置
         </span>
       </header>
 
@@ -94,7 +106,7 @@ export function WorkspaceEmbeddedBrowser() {
           <button
             type="button"
             className="workspace-explorer-action"
-            disabled={nav.busy || nav.bootstrapping || !nav.canGoBack}
+            disabled={!isDesktop || nav.busy || !nav.canGoBack}
             aria-label="后退"
             title="后退"
             onClick={nav.goBack}
@@ -104,7 +116,7 @@ export function WorkspaceEmbeddedBrowser() {
           <button
             type="button"
             className="workspace-explorer-action"
-            disabled={nav.busy || nav.bootstrapping || !nav.canGoForward}
+            disabled={!isDesktop || nav.busy || !nav.canGoForward}
             aria-label="前进"
             title="前进"
             onClick={nav.goForward}
@@ -114,7 +126,7 @@ export function WorkspaceEmbeddedBrowser() {
           <button
             type="button"
             className="workspace-explorer-action"
-            disabled={nav.busy || nav.bootstrapping || !snapshot.url}
+            disabled={!isDesktop || nav.busy || !nav.displayUrl}
             aria-label="刷新"
             title="刷新"
             onClick={nav.reload}
@@ -125,67 +137,70 @@ export function WorkspaceEmbeddedBrowser() {
         <input
           className="workspace-embedded-browser__url"
           value={nav.urlDraft}
-          disabled={nav.busy || nav.bootstrapping}
+          disabled={!isDesktop || nav.busy}
           onChange={(e) => nav.setUrlDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") nav.submitUrl();
           }}
-          placeholder="输入 URL 后 Enter，或让 Agent 使用 browser 工具"
+          placeholder="输入 URL 后 Enter，或让 Agent 使用 browser 工具打开页面"
           spellCheck={false}
           aria-label="地址栏"
         />
+        <nav
+          className="workspace-embedded-browser__nav workspace-embedded-browser__nav--tools"
+          aria-label="浏览器工具"
+        >
+          <button
+            type="button"
+            className={`workspace-explorer-action workspace-embedded-browser__pick-btn${pick.picking ? " workspace-embedded-browser__pick-btn--active" : ""}`}
+            disabled={!canPick}
+            aria-label="选择页面元素"
+            aria-pressed={pick.picking}
+            title={
+              pick.picking
+                ? "正在选取：点击页面元素加入对话（Esc 取消）"
+                : "选择页面元素，将其上下文添加到对话输入框"
+            }
+            onClick={() => void pick.togglePick()}
+          >
+            <IconBrowserPickElement />
+          </button>
+          {canAddTab ? (
+            <button
+              type="button"
+              className="workspace-explorer-action"
+              aria-label="新建浏览器标签页"
+              title="新建浏览器标签页"
+              onClick={() => addTab()}
+            >
+              <IconBrowserNewTab />
+            </button>
+          ) : null}
+        </nav>
       </div>
-
-      {nav.runtimeError ? (
-        <div className="workspace-embedded-browser__error" role="alert">
-          <span>{nav.runtimeError}</span>
-          <button
-            type="button"
-            className="workspace-embedded-browser__error-retry"
-            onClick={() => void nav.retryBootstrap()}
-          >
-            重试
-          </button>
-        </div>
-      ) : null}
-
-      {elementPick.pickError ? (
-        <div className="workspace-embedded-browser__error" role="alert">
-          <span>{elementPick.pickError}</span>
-          <button
-            type="button"
-            className="workspace-embedded-browser__error-retry"
-            onClick={elementPick.clearPickError}
-          >
-            关闭
-          </button>
-        </div>
-      ) : null}
 
       <div
         ref={viewportRef}
         className="workspace-embedded-browser__body embedded-browser__body"
       >
-        {nav.bootstrapping ? (
-          <div className="embedded-browser__empty">正在启动 Playwright 浏览器…</div>
-        ) : (
-          <EmbeddedBrowserRemoteView
-            active
-            sessionId={nav.sessionId}
-            retryToken={nav.retryToken + nav.streamToken}
-            previewBase64={snapshot.previewBase64}
-            previewMimeType={snapshot.previewMimeType}
-            onState={onStreamState}
-            pickMode={elementPick.pickMode}
-            picking={elementPick.picking}
-            onPickAt={onPickAt}
-          />
-        )}
+        <EmbeddedWebViewBoundsWatcher hostRef={viewportRef} enabled={isDesktop} />
+        <EmbeddedWebView
+          active={isDesktop}
+          url={nav.displayUrl}
+          reloadKey={nav.reloadKey}
+          boundsHostRef={viewportRef}
+          browserId={browserId}
+        />
       </div>
 
       <p className="workspace-embedded-browser__hint">
-        独立 Playwright 进程（:6017），与 QuickerAgent 主 WebView 分离；Agent 用 browser 工具操控同一 session。
-        {elementPick.pickMode ? " 选择模式：点击页面元素，会以标签插入聊天输入框。" : ""}
+        {pick.pickError
+          ? `元素选取失败：${pick.pickError}`
+          : pick.picking
+            ? "选取模式：移动鼠标高亮元素，点击加入对话输入框，Esc 取消。"
+            : isDesktop
+              ? "Electron 内置浏览器子视图，Cookie 与登录态保存在本机用户目录。"
+              : "内嵌浏览器仅在 QuickerAgent 桌面版可用；请安装桌面应用或使用 dev.ps1 -Electron。"}
       </p>
     </section>
   );

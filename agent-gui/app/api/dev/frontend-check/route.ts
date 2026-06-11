@@ -14,11 +14,18 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const baseUrl = url.searchParams.get("baseUrl") ?? undefined;
+  const pathsParam = url.searchParams.get("paths")?.trim();
+  const paths = pathsParam
+    ? pathsParam.split(",").map((p) => p.trim()).filter(Boolean)
+    : undefined;
   if (url.searchParams.get("clearCaptured") === "true") {
     clearClientFrontendErrors();
     clearFrontendBuildError();
   }
-  const result = await runFrontendSmokeCheck({ baseUrl: baseUrl ?? undefined });
+  const result = await runFrontendSmokeCheck({
+    baseUrl: baseUrl ?? undefined,
+    paths,
+  });
 
   return NextResponse.json(result, { status: result.ok ? 200 : 503 });
 }

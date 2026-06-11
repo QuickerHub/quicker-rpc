@@ -13,6 +13,7 @@ import {
   patchAppUpdateOverlay,
   showApplyingAppUpdateOverlay,
 } from "@/lib/app-update-overlay";
+import { flushPendingChatStoreSaveAsync } from "@/lib/chat-store";
 import {
   forceExitDesktop,
   invokeDesktop,
@@ -94,6 +95,15 @@ export function QuickerAgentExitHandler() {
             }
           }
         }
+
+        showAppExitOverlay("正在保存对话…");
+        await waitForOverlayPaint();
+        await Promise.race([
+          flushPendingChatStoreSaveAsync(),
+          new Promise<void>((resolve) => {
+            window.setTimeout(resolve, 8_000);
+          }),
+        ]);
 
         showAppExitOverlay("正在退出…");
         await waitForOverlayPaint();

@@ -3486,7 +3486,7 @@
       "ui"
     ],
     "rankBias": 20,
-    "snippet": "Evaluate C# expression / LINQ / assign ({var}=value); preferred over assign & compute steps"
+    "snippet": "Evaluate C# / LINQ; multi-statement; write one or many action vars via {var}=value (preferred over assign & compute)"
   },
   "sys:assign": {
     "obsolete": true,

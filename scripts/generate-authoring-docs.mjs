@@ -24,6 +24,19 @@ const PROMPT_TIER0_SRC = path.join(
 const OUT_CLI = path.join(ROOT, "docs/action-authoring/cli");
 const OUT_SKILLS = path.join(ROOT, "docs/skills/quicker-authoring");
 const SKILL_NAME = "quicker-authoring";
+const EVAL_SKILL_SRC = path.join(
+  SRC,
+  "skills/quicker-eval-expression/SKILL.src.md",
+);
+const EVAL_SKILL_MANIFEST = path.join(
+  SRC,
+  "skills/quicker-eval-expression/manifest.json",
+);
+const EVAL_SKILL_EXPR_REF = path.join(
+  SRC,
+  "skills/quicker-eval-expression/references/expressions.src.md",
+);
+const OUT_EVAL_SKILL = path.join(ROOT, "docs/skills/quicker-eval-expression");
 const SRC_REF = path.join(SRC, "references");
 const GENERATOR = fileURLToPath(import.meta.url);
 
@@ -615,6 +628,71 @@ async function computeOutputs(opsData, topicEntries) {
     )}\n`,
   );
 
+  for (const [rel, content] of await computeEvalSkillOutputs(opsData, partials)) {
+    outputs.set(rel, content);
+  }
+
+  return outputs;
+}
+
+/**
+ * Standalone quicker-eval-expression skill (expressions / evalexpression focus).
+ * @param {Record<string, unknown>} opsData
+ * @param {Map<string, string>} partials
+ */
+async function computeEvalSkillOutputs(opsData, partials) {
+  /** @type {Map<string, string>} */
+  const outputs = new Map();
+
+  const manifestRaw = normalizeEol(await fs.readFile(EVAL_SKILL_MANIFEST, "utf8"));
+  const manifest = /** @type {Record<string, unknown>} */ (
+    JSON.parse(manifestRaw)
+  );
+  const evalSkillName = String(manifest.name ?? "quicker-eval-expression").trim();
+  if (!evalSkillName) {
+    throw new Error("Missing name in quicker-eval-expression/manifest.json");
+  }
+
+  const skillSrc = normalizeEol(await fs.readFile(EVAL_SKILL_SRC, "utf8"));
+  const skillBody = renderDoc(
+    skillSrc,
+    opsData,
+    "agent",
+    "skills/quicker-eval-expression/SKILL.src.md",
+    new Map(),
+    partials,
+  );
+  const skillBodyLines = skillBody.trim().split("\n").length;
+  if (skillBodyLines > 120) {
+    throw new Error(
+      `quicker-eval-expression SKILL.src.md body too long (${skillBodyLines} lines; keep router ≤120)`,
+    );
+  }
+  outputs.set(
+    "eval-skills/SKILL.md",
+    buildSkillFrontmatter(manifest, skillBody, evalSkillName),
+  );
+
+  const exprSrc = normalizeEol(await fs.readFile(EVAL_SKILL_EXPR_REF, "utf8"));
+  const exprBody = renderDoc(
+    exprSrc,
+    opsData,
+    "agent",
+    "skills/quicker-eval-expression/references/expressions.src.md",
+    new Map(),
+    partials,
+  );
+  outputs.set("eval-skills/references/expressions.md", exprBody);
+
+  const examplesPath = path.join(
+    SRC_REF,
+    "step-modules/examples/evalexpression.md",
+  );
+  outputs.set(
+    "eval-skills/references/evalexpression-examples.md",
+    normalizeEol(await fs.readFile(examplesPath, "utf8")),
+  );
+
   return outputs;
 }
 
@@ -703,6 +781,16 @@ function resolveOutputPath(rel) {
   }
   if (rel.startsWith("skills/references/")) {
     return path.join(OUT_SKILLS, "references", rel.slice("skills/references/".length));
+  }
+  if (rel === "eval-skills/SKILL.md") {
+    return path.join(OUT_EVAL_SKILL, "SKILL.md");
+  }
+  if (rel.startsWith("eval-skills/references/")) {
+    return path.join(
+      OUT_EVAL_SKILL,
+      "references",
+      rel.slice("eval-skills/references/".length),
+    );
   }
   return null;
 }

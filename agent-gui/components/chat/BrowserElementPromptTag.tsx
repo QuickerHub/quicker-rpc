@@ -1,6 +1,8 @@
 "use client";
 
+import { ComposerTagPreviewTrigger } from "@/components/chat/ComposerTagPreviewTrigger";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
+import { buildBrowserElementTagPreview } from "@/lib/composer-tag-preview";
 
 type BrowserElementPromptTagProps = {
   element: BrowserElementTag;
@@ -11,20 +13,12 @@ export function BrowserElementPromptTag({
   element,
   variant = "composer",
 }: BrowserElementPromptTagProps) {
-  const tooltip = [
-    element.chipTitle,
-    element.title?.trim() || null,
-    element.url,
-    element.ref ? `ref=${element.ref}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const className = `composer-prompt-tag composer-prompt-tag--browser-element${
+    variant === "sent" ? " composer-prompt-tag--sent" : ""
+  }`;
 
-  return (
-    <span
-      className={`composer-prompt-tag composer-prompt-tag--browser-element${variant === "sent" ? " composer-prompt-tag--sent" : ""}`}
-      title={tooltip}
-    >
+  const chip = (
+    <>
       <span className="composer-prompt-tag__icon composer-prompt-tag__icon--browser" aria-hidden>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
           <path
@@ -38,6 +32,19 @@ export function BrowserElementPromptTag({
         </svg>
       </span>
       <span className="composer-prompt-tag__title">{element.chipTitle}</span>
-    </span>
+    </>
+  );
+
+  if (variant !== "sent") {
+    return <span className={className}>{chip}</span>;
+  }
+
+  return (
+    <ComposerTagPreviewTrigger
+      model={buildBrowserElementTagPreview(element)}
+      className={className}
+    >
+      {chip}
+    </ComposerTagPreviewTrigger>
   );
 }

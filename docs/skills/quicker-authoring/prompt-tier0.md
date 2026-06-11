@@ -39,7 +39,7 @@ P7  trust editVersion after save (NO verify re-get)
 - NO get-ui / step-runner.getUi
 - NO inline patch JSON / --patch-file; save via workspace_program patch only
 - After patch trust editVersion; NO re-get to verify
-- P4: expressions / sys:evalexpression → dedicated module → csscript last
+- P4: load **quicker-eval-expression** skill; expressions / evalexpression → module → csscript last
 
 ## Workspace
 

@@ -76,6 +76,26 @@ async function waitForFrontend(maxAttempts = 120, intervalMs = 1000) {
   return false;
 }
 
+/** Webpack dev serves lazy chunks only after the route compiles — ping alone is too early. */
+async function waitForHomePageChunk(maxAttempts = 180, intervalMs = 1000) {
+  const chunkUrl = `${baseUrl}/_next/static/chunks/app/page.js`;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      await fetch(baseUrl, { signal: AbortSignal.timeout(60_000) });
+    } catch {
+      // route still compiling
+    }
+    try {
+      const res = await fetch(chunkUrl, { signal: AbortSignal.timeout(8000) });
+      if (res.ok) return true;
+    } catch {
+      // chunk not ready yet
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return false;
+}
+
 /** @returns {import('node:child_process').ChildProcess | null} */
 function startWebpackFrontend() {
   console.log(`electron: starting frontend (webpack) at ${baseUrl}`);
@@ -110,6 +130,12 @@ async function ensureFrontend() {
   if (await isPortListening(host, port)) {
     console.log(`electron: waiting for ${baseUrl} (compile?)…`);
     if (await waitForFrontend(120, 1000)) {
+      if (!(await waitForHomePageChunk(120, 1000))) {
+        throw new Error(
+          `Port ${port} serves ${baseUrl} but app/page.js chunk is missing (stale .next?). ` +
+            "Stop dev, delete agent-gui/.next, and retry.",
+        );
+      }
       if (shouldReuseExistingDev()) {
         console.log(`electron: reusing existing frontend at ${baseUrl}`);
         return null;
@@ -127,6 +153,12 @@ async function ensureFrontend() {
   const child = startWebpackFrontend();
   if (!(await waitForFrontend(180, 1000))) {
     throw new Error(`Frontend ${baseUrl} did not become healthy.`);
+  }
+  console.log("electron: waiting for home page chunk (webpack compile)…");
+  if (!(await waitForHomePageChunk(180, 1000))) {
+    throw new Error(
+      `Frontend ${baseUrl} is up but app/page.js chunk did not compile.`,
+    );
   }
   return child;
 }

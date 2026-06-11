@@ -17,6 +17,15 @@ import {
   getComposerMentionMatch,
 } from "@/lib/composer-mention";
 import {
+  applyComposerSlashCommand,
+  getComposerSlashAnchorRect,
+  getComposerSlashMatch,
+} from "@/lib/composer-slash-command";
+import {
+  filterSlashCommands,
+  useAgentDefsCatalog,
+} from "@/lib/use-agent-defs";
+import {
   canSendComposedMessage,
   hasPasteableUserMessageFormat,
 } from "@/lib/compose-user-message";
@@ -53,7 +62,10 @@ import {
 } from "@/lib/composer-tag-present";
 import { subscribeFaIconCache } from "@/lib/fa-icon-cache";
 import { useActionMentionSearch } from "@/lib/use-action-mention-search";
+import { useComposerTagPreview } from "@/lib/use-composer-tag-preview";
 import { ComposerMentionMenu } from "./ComposerMentionMenu";
+import { ComposerSlashMenu } from "./ComposerSlashMenu";
+import { ComposerTagPreviewPopover } from "./ComposerTagPreviewPopover";
 
 export type ComposerMarkupFieldHandle = {
   focus: () => void;
@@ -77,6 +89,8 @@ type ComposerMarkupFieldProps = {
   value: string;
   placeholder: string;
   disabled?: boolean;
+  workingDirectory?: string;
+  enableSlashCommands?: boolean;
   onChange: (value: string) => void;
   onSubmit: () => void;
   /** Called when the user edits the field (keyboard/paste/IME); e.g. stop voice input. */
@@ -113,10 +127,20 @@ export const ComposerMarkupField = forwardRef<
   ComposerMarkupFieldHandle,
   ComposerMarkupFieldProps
 >(function ComposerMarkupField(
-  { value, placeholder, disabled = false, onChange, onSubmit, onUserEdit },
+  {
+    value,
+    placeholder,
+    disabled = false,
+    workingDirectory = "",
+    enableSlashCommands = false,
+    onChange,
+    onSubmit,
+    onUserEdit,
+  },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const tagPreview = useComposerTagPreview(rootRef);
   const onUserEditRef = useRef(onUserEdit);
   onUserEditRef.current = onUserEdit;
 
@@ -139,6 +163,21 @@ export const ComposerMarkupField = forwardRef<
   const mentionOpen = mentionQuery !== null && !disabled;
   const mentionItems = mentionSearch.items;
 
+  const slashRangeRef = useRef<Range | null>(null);
+  const lastSlashQueryRef = useRef<string | null>(null);
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  const [slashAnchorRect, setSlashAnchorRect] = useState<DOMRect | null>(null);
+  const [slashActiveIndex, setSlashActiveIndex] = useState(0);
+  const slashCatalog = useAgentDefsCatalog(
+    enableSlashCommands ? workingDirectory : "",
+  );
+  const slashItems = useMemo(
+    () => filterSlashCommands(slashCatalog.commands, slashQuery ?? ""),
+    [slashCatalog.commands, slashQuery],
+  );
+  const slashOpen =
+    enableSlashCommands && slashQuery !== null && !disabled && mentionQuery === null;
+
   const emitChange = useCallback(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -155,6 +194,50 @@ export const ComposerMarkupField = forwardRef<
     setMentionActiveIndex(0);
   }, []);
 
+  const closeSlash = useCallback(() => {
+    slashRangeRef.current = null;
+    lastSlashQueryRef.current = null;
+    setSlashQuery(null);
+    setSlashAnchorRect(null);
+    setSlashActiveIndex(0);
+  }, []);
+
+  const closeMenus = useCallback(() => {
+    closeMention();
+    closeSlash();
+  }, [closeMention, closeSlash]);
+
+  const syncSlashFromCaret = useCallback(() => {
+    const root = rootRef.current;
+    if (!root || disabled || !enableSlashCommands) {
+      closeSlash();
+      return;
+    }
+    const match = getComposerSlashMatch(root);
+    if (!match) {
+      closeSlash();
+      return;
+    }
+    slashRangeRef.current = match.range.cloneRange();
+    const nextRect = getComposerSlashAnchorRect(match.range);
+    setSlashAnchorRect((prev) => {
+      if (
+        prev
+        && Math.abs(prev.top - nextRect.top) < 1
+        && Math.abs(prev.left - nextRect.left) < 1
+        && Math.abs(prev.bottom - nextRect.bottom) < 1
+      ) {
+        return prev;
+      }
+      return nextRect;
+    });
+    if (lastSlashQueryRef.current !== match.query) {
+      lastSlashQueryRef.current = match.query;
+      setSlashActiveIndex(0);
+    }
+    setSlashQuery(match.query);
+  }, [closeSlash, disabled, enableSlashCommands]);
+
   const syncMentionFromCaret = useCallback(() => {
     const root = rootRef.current;
     if (!root || disabled) {
@@ -166,6 +249,7 @@ export const ComposerMarkupField = forwardRef<
       closeMention();
       return;
     }
+    closeSlash();
     mentionRangeRef.current = match.range.cloneRange();
     const nextRect = getComposerMentionAnchorRect(match.range);
     setMentionAnchorRect((prev) => {
@@ -184,7 +268,22 @@ export const ComposerMarkupField = forwardRef<
       setMentionActiveIndex(0);
     }
     setMentionQuery(match.query);
-  }, [closeMention, disabled]);
+  }, [closeMention, closeSlash, disabled]);
+
+  const syncMenusFromCaret = useCallback(() => {
+    const root = rootRef.current;
+    if (!root || disabled) {
+      closeMenus();
+      return;
+    }
+    const mention = getComposerMentionMatch(root);
+    if (mention) {
+      syncMentionFromCaret();
+      return;
+    }
+    closeMention();
+    syncSlashFromCaret();
+  }, [closeMenus, closeMention, disabled, syncMentionFromCaret, syncSlashFromCaret]);
 
   const composerKeepsMentionOpen = useCallback(() => {
     const root = rootRef.current;
@@ -194,7 +293,8 @@ export const ComposerMarkupField = forwardRef<
     if (active instanceof Node && root.contains(active)) return true;
     if (
       active instanceof Element
-      && active.closest(".composer-mention-menu")
+      && (active.closest(".composer-mention-menu")
+        || active.closest(".composer-slash-menu"))
     ) {
       return true;
     }
@@ -207,10 +307,22 @@ export const ComposerMarkupField = forwardRef<
       const range = mentionRangeRef.current;
       if (!root || !range) return;
       applyComposerMentionTag(root, range, action);
-      closeMention();
+      closeMenus();
       emitChange();
     },
-    [closeMention, emitChange],
+    [closeMenus, emitChange],
+  );
+
+  const applySlashSelection = useCallback(
+    (command: { name: string }) => {
+      const root = rootRef.current;
+      const range = slashRangeRef.current;
+      if (!root || !range) return;
+      applyComposerSlashCommand(root, range, command.name);
+      closeMenus();
+      emitChange();
+    },
+    [closeMenus, emitChange],
   );
 
   useImperativeHandle(
@@ -230,7 +342,7 @@ export const ComposerMarkupField = forwardRef<
       insertActionTag: (action: PinnedAction) => {
         const root = rootRef.current;
         if (!root || disabled) return;
-        closeMention();
+        closeMenus();
         const chip = createComposerTagElement(action);
         const spacer = createComposerTagSpacer();
         insertNodeAtSelection(root, chip);
@@ -242,7 +354,7 @@ export const ComposerMarkupField = forwardRef<
       insertBrowserElementTag: (element: BrowserElementTag) => {
         const root = rootRef.current;
         if (!root || disabled) return;
-        closeMention();
+        closeMenus();
         const chip = createBrowserElementTagElement(element);
         const spacer = createComposerTagSpacer();
         insertNodeAtSelection(root, chip);
@@ -260,7 +372,7 @@ export const ComposerMarkupField = forwardRef<
         insertPlainTextWithUndo(root, "@");
         emitChange();
         root.focus({ preventScroll: true });
-        requestAnimationFrame(() => syncMentionFromCaret());
+        requestAnimationFrame(() => syncMenusFromCaret());
       },
       insertPlainText: (text: string) => {
         const root = rootRef.current;
@@ -269,7 +381,7 @@ export const ComposerMarkupField = forwardRef<
           renderMarkupIntoRoot(root, value);
           lastEmitted.current = value;
         }
-        closeMention();
+        closeMenus();
         insertPlainTextWithUndo(root, text);
         emitChange();
         root.focus();
@@ -281,7 +393,7 @@ export const ComposerMarkupField = forwardRef<
           renderMarkupIntoRoot(root, value);
           lastEmitted.current = value;
         }
-        closeMention();
+        closeMenus();
         beginComposerVoiceStream(root);
         emitChange();
         root.focus();
@@ -311,7 +423,7 @@ export const ComposerMarkupField = forwardRef<
         return serializeComposerRoot(root);
       },
     }),
-    [closeMention, disabled, emitChange, syncMentionFromCaret, value],
+    [closeMenus, disabled, emitChange, syncMenusFromCaret, value],
   );
 
   useEffect(() => {
@@ -328,11 +440,18 @@ export const ComposerMarkupField = forwardRef<
 
     const onSelectionChange = () => {
       if (document.activeElement !== root) return;
-      syncMentionFromCaret();
+      syncMenusFromCaret();
     };
     document.addEventListener("selectionchange", onSelectionChange);
     return () => document.removeEventListener("selectionchange", onSelectionChange);
-  }, [syncMentionFromCaret]);
+  }, [syncMenusFromCaret]);
+
+  useEffect(() => {
+    if (!tagPreview.preview) return;
+    const onScroll = () => tagPreview.handleScroll();
+    window.addEventListener("scroll", onScroll, true);
+    return () => window.removeEventListener("scroll", onScroll, true);
+  }, [tagPreview.preview, tagPreview.handleScroll]);
 
   useEffect(() => {
     if (!mentionOpen) return;
@@ -344,6 +463,17 @@ export const ComposerMarkupField = forwardRef<
       index >= mentionItems.length ? 0 : index,
     );
   }, [mentionItems.length, mentionOpen]);
+
+  useEffect(() => {
+    if (!slashOpen) return;
+    if (slashItems.length === 0) {
+      setSlashActiveIndex(0);
+      return;
+    }
+    setSlashActiveIndex((index) =>
+      index >= slashItems.length ? 0 : index,
+    );
+  }, [slashItems.length, slashOpen]);
 
   useEffect(() => {
     if (!mentionOpen) return;
@@ -398,12 +528,7 @@ export const ComposerMarkupField = forwardRef<
   }, [value]);
 
   const handleInput = () => {
-    const root = rootRef.current;
-    if (root?.textContent?.includes("@")) {
-      syncMentionFromCaret();
-    } else if (mentionQuery !== null) {
-      closeMention();
-    }
+    syncMenusFromCaret();
     emitChange();
   };
 
@@ -438,17 +563,18 @@ export const ComposerMarkupField = forwardRef<
   };
 
   const handleFocus = () => {
-    requestAnimationFrame(() => syncMentionFromCaret());
+    requestAnimationFrame(() => syncMenusFromCaret());
   };
 
   const handleBlur = () => {
     const root = rootRef.current;
+    tagPreview.hidePreview(true);
     window.setTimeout(() => {
       if (composerKeepsMentionOpen()) {
-        syncMentionFromCaret();
+        syncMenusFromCaret();
         return;
       }
-      closeMention();
+      closeMenus();
     }, 0);
     if (!root) return;
     if (normalizeEmptyComposerRoot(root)) {
@@ -520,15 +646,45 @@ export const ComposerMarkupField = forwardRef<
     const root = rootRef.current;
     if (!root) return;
 
-    const mentionOnly =
-      mentionOpen
+    const menuOpen = mentionOpen || slashOpen;
+    const menuOnly =
+      menuOpen
       && (event.key === "ArrowDown"
         || event.key === "ArrowUp"
         || event.key === "Enter"
         || event.key === "Tab"
         || event.key === "Escape");
-    if (!mentionOnly) {
+    if (!menuOnly) {
       notifyUserEdit();
+    }
+
+    if (slashOpen) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeSlash();
+        return;
+      }
+      if (
+        (event.key === "ArrowDown" || event.key === "ArrowUp")
+        && slashItems.length > 0
+      ) {
+        event.preventDefault();
+        setSlashActiveIndex((index) => {
+          if (event.key === "ArrowDown") {
+            return (index + 1) % slashItems.length;
+          }
+          return (index - 1 + slashItems.length) % slashItems.length;
+        });
+        return;
+      }
+      if (
+        (event.key === "Enter" || event.key === "Tab")
+        && slashItems.length > 0
+      ) {
+        event.preventDefault();
+        applySlashSelection(slashItems[slashActiveIndex]);
+        return;
+      }
     }
 
     if (mentionOpen) {
@@ -575,7 +731,7 @@ export const ComposerMarkupField = forwardRef<
       }
       return;
     }
-    if (event.key === "Enter" && !event.shiftKey && !mentionOpen) {
+    if (event.key === "Enter" && !event.shiftKey && !menuOpen) {
       event.preventDefault();
       onSubmit();
     }
@@ -617,9 +773,17 @@ export const ComposerMarkupField = forwardRef<
         onCopy={handleCopy}
         onCut={handleCut}
         onKeyDown={handleKeyDown}
+        onMouseOver={tagPreview.handleMouseOver}
+        onMouseOut={tagPreview.handleMouseOut}
         onCompositionStart={() => {
           if (!disabled) notifyUserEdit();
         }}
+      />
+      <ComposerTagPreviewPopover
+        open={tagPreview.preview !== null}
+        anchorRect={tagPreview.preview?.anchorRect ?? null}
+        model={tagPreview.preview?.model ?? null}
+        onPanelHoverChange={tagPreview.handlePanelHoverChange}
       />
       <ComposerMentionMenu
         open={mentionOpen}
@@ -628,6 +792,16 @@ export const ComposerMarkupField = forwardRef<
         search={mentionSearch}
         activeIndex={mentionActiveIndex}
         onSelect={applyMentionSelection}
+      />
+      <ComposerSlashMenu
+        open={slashOpen}
+        query={slashQuery ?? ""}
+        anchorRect={slashAnchorRect}
+        commands={slashItems}
+        loading={slashCatalog.loading}
+        error={slashCatalog.error}
+        activeIndex={slashActiveIndex}
+        onSelect={applySlashSelection}
       />
     </div>
   );

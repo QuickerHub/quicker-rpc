@@ -2,8 +2,8 @@ import type { AgentUIMessage } from "@/lib/chat-types";
 import {
   fetchThreadMessagesFromApi,
   flushPendingChatStoreApiSave,
+  flushPendingChatStoreApiSaveAsync,
   scheduleSaveChatStoreViaApi,
-  setClientPersistedSnapshot,
 } from "@/lib/chat-store-api.client";
 import { getChatStorePersistenceMode } from "@/lib/chat-store-backend";
 import {
@@ -674,8 +674,10 @@ function saveChatStoreToLocalStorage(data: ChatStoreData): void {
 export function saveChatStore(data: ChatStoreData): void {
   if (typeof window === "undefined") return;
   if (getChatStorePersistenceMode() === "api") {
+    // Do NOT mark `data` as persisted here: the persisted snapshot is the
+    // `previous` diff base sent to the server, so updating it before the PUT
+    // succeeds makes every save a no-op diff (nothing written to SQLite).
     scheduleSaveChatStoreViaApi(data);
-    setClientPersistedSnapshot(data);
     return;
   }
   saveChatStoreToLocalStorage(data);
@@ -718,7 +720,6 @@ export async function hydrateStoreThreadMessagesAsync(
 
   if (getChatStorePersistenceMode() === "api") {
     scheduleSaveChatStoreViaApi(next);
-    setClientPersistedSnapshot(next);
   }
 
   return next;
@@ -731,8 +732,9 @@ let chatStoreSaveScheduled = false;
 export function scheduleSaveChatStore(data: ChatStoreData): void {
   if (typeof window === "undefined") return;
   if (getChatStorePersistenceMode() === "api") {
+    // See saveChatStore: the persisted snapshot must only advance after the
+    // server PUT succeeds, otherwise the server-side diff sees no changes.
     scheduleSaveChatStoreViaApi(data);
-    setClientPersistedSnapshot(data);
     return;
   }
   pendingChatStoreSave = data;
@@ -757,9 +759,16 @@ export function scheduleSaveChatStore(data: ChatStoreData): void {
 
 /** Flush any deferred chat store write (e.g. before page hide). */
 export function flushPendingChatStoreSave(): void {
+  void flushPendingChatStoreSaveAsync();
+}
+
+/** Await deferred chat store write before desktop shutdown. */
+export async function flushPendingChatStoreSaveAsync(
+  options?: { keepalive?: boolean },
+): Promise<void> {
   if (typeof window === "undefined") return;
   if (getChatStorePersistenceMode() === "api") {
-    flushPendingChatStoreApiSave();
+    await flushPendingChatStoreApiSaveAsync(options);
     return;
   }
   if (!pendingChatStoreSave) return;

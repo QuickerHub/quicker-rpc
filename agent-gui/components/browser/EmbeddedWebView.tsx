@@ -8,29 +8,31 @@ type EmbeddedWebViewProps = {
   url: string;
   reloadKey: number;
   boundsHostRef: RefObject<HTMLElement | null>;
+  browserId?: string;
 };
 
-/** Native embedded browser surface (Tauri child WebView only — no iframe). */
+/** Native embedded browser surface (Electron WebContentsView / Tauri WebView — no iframe). */
 export function EmbeddedWebView({
   active,
   url,
   reloadKey,
   boundsHostRef,
+  browserId,
 }: EmbeddedWebViewProps) {
   const webview = useEmbeddedWebView({
     active,
     url,
     reloadKey,
     hostRef: boundsHostRef,
+    browserId,
   });
 
   if (!webview.isDesktop) {
     return (
       <div className="embedded-browser__empty embedded-browser__empty--desktop-only">
-        <p>内嵌浏览器需要 QuickerAgent 桌面版（Tauri / Electron 子视图）。</p>
+        <p>内嵌浏览器需要 QuickerAgent 桌面版（Electron / Tauri 子视图）。</p>
         <p className="embedded-browser__empty-hint">
-          请使用已安装的 QuickerAgent，或运行 <code>pwsh ./dev.ps1 -Tauri</code> /{" "}
-          <code>-Electron</code>。
+          请使用已安装的 QuickerAgent，或运行 <code>pwsh ./dev.ps1 -Electron</code>。
         </p>
         <p className="embedded-browser__empty-hint">
           纯浏览器访问 localhost:3000 无法内嵌原生 WebView 组件。

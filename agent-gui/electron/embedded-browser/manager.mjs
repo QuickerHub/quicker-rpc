@@ -5,12 +5,20 @@ import {
   EMBEDDED_BROWSER_DATA_DIRECTORY,
   WORKSPACE_BROWSER_LABEL,
 } from "./constants.mjs";
+import { buildElementPickerScript, buildPickerCancelScript } from "./element-picker-script.mjs";
 
-/** @type {import('electron').WebContentsView | null} */
-let workspaceView = null;
+export const DEFAULT_BROWSER_ID = "default";
+
+/** @type {Map<string, import('electron').WebContentsView>} */
+const views = new Map();
 
 /** @type {import('electron').BrowserWindow | null} */
 let attachedWindow = null;
+
+function normalizeBrowserId(browserId) {
+  const trimmed = String(browserId ?? "").trim();
+  return trimmed || DEFAULT_BROWSER_ID;
+}
 
 function ensureSession() {
   const profileDir = embeddedBrowserProfileDir();
@@ -21,11 +29,40 @@ function ensureSession() {
   return session.fromPartition(`persist:${WORKSPACE_BROWSER_LABEL}`);
 }
 
-function getViewOrThrow() {
-  if (!workspaceView || workspaceView.webContents.isDestroyed()) {
+function getView(browserId) {
+  const view = views.get(normalizeBrowserId(browserId));
+  if (!view || view.webContents.isDestroyed()) return null;
+  return view;
+}
+
+function getViewOrThrow(browserId) {
+  const view = getView(browserId);
+  if (!view) {
     throw new Error("embedded browser webview is not mounted");
   }
-  return workspaceView;
+  return view;
+}
+
+function getWebContents(browserId) {
+  const view = getView(browserId);
+  if (!view) return null;
+  const wc = view.webContents;
+  if (!wc || wc.isDestroyed()) return null;
+  return wc;
+}
+
+function readWebContentsHistoryFlags(webContents) {
+  const history = webContents.navigationHistory;
+  if (history && typeof history.canGoBack === "function") {
+    return {
+      canGoBack: history.canGoBack(),
+      canGoForward: history.canGoForward(),
+    };
+  }
+  return {
+    canGoBack: webContents.canGoBack(),
+    canGoForward: webContents.canGoForward(),
+  };
 }
 
 function normalizeBounds(bounds) {
@@ -42,45 +79,50 @@ function normalizeBounds(bounds) {
  * }} deps
  */
 export function createEmbeddedBrowserManager(deps) {
-  const detachFromWindow = () => {
-    if (!workspaceView || !attachedWindow || attachedWindow.isDestroyed()) {
-      attachedWindow = null;
-      return;
-    }
-    try {
-      attachedWindow.contentView.removeChildView(workspaceView);
-    } catch {
-      // ignore
-    }
-    attachedWindow = null;
-  };
-
-  const destroyView = () => {
-    detachFromWindow();
-    if (workspaceView && !workspaceView.webContents.isDestroyed()) {
+  const destroyView = (browserId) => {
+    const id = normalizeBrowserId(browserId);
+    const view = views.get(id);
+    views.delete(id);
+    if (!view) return false;
+    if (attachedWindow && !attachedWindow.isDestroyed()) {
       try {
-        workspaceView.webContents.close();
+        attachedWindow.contentView.removeChildView(view);
       } catch {
         // ignore
       }
     }
-    workspaceView = null;
+    if (!view.webContents.isDestroyed()) {
+      try {
+        view.webContents.close();
+      } catch {
+        // ignore
+      }
+    }
+    return true;
+  };
+
+  const destroyAll = () => {
+    for (const id of [...views.keys()]) {
+      destroyView(id);
+    }
+    attachedWindow = null;
   };
 
   return {
-    isMounted() {
-      return workspaceView !== null && !workspaceView.webContents.isDestroyed();
+    isMounted(browserId) {
+      return getView(browserId) !== null;
     },
 
-    mount(url, bounds) {
+    mount(url, bounds, browserId) {
       const win = deps.getMainWindow();
       if (!win || win.isDestroyed()) {
         throw new Error("main window is not available");
       }
+      const id = normalizeBrowserId(browserId);
 
       const trimmed = String(url ?? "").trim();
       if (!trimmed || trimmed === "about:blank") {
-        destroyView();
+        destroyView(id);
         return;
       }
 
@@ -89,17 +131,21 @@ export function createEmbeddedBrowserManager(deps) {
         throw new Error("embedded browser bounds are too small");
       }
 
-      if (
-        workspaceView
-        && !workspaceView.webContents.isDestroyed()
-        && attachedWindow === win
-      ) {
-        workspaceView.setBounds(layout);
-        void workspaceView.webContents.loadURL(trimmed);
-        return;
+      if (attachedWindow && attachedWindow !== win) {
+        // Main window was recreated; drop stale views.
+        destroyAll();
       }
 
-      destroyView();
+      const existing = getView(id);
+      if (existing) {
+        existing.setBounds(layout);
+        existing.setVisible(true);
+        // Keep page state when remounting the same URL (e.g. tab switch).
+        if (existing.webContents.getURL() !== trimmed) {
+          void existing.webContents.loadURL(trimmed);
+        }
+        return;
+      }
 
       const ses = ensureSession();
       const view = new WebContentsView({
@@ -112,15 +158,16 @@ export function createEmbeddedBrowserManager(deps) {
         },
       });
 
-      workspaceView = view;
+      views.set(id, view);
       attachedWindow = win;
       win.contentView.addChildView(view);
       view.setBounds(layout);
       void view.webContents.loadURL(trimmed);
     },
 
-    setBounds(bounds) {
-      const view = getViewOrThrow();
+    setBounds(bounds, browserId) {
+      const view = getView(browserId);
+      if (!view) return false;
       const layout = normalizeBounds(bounds);
       if (layout.width < 2 || layout.height < 2) {
         view.setVisible(false);
@@ -131,65 +178,149 @@ export function createEmbeddedBrowserManager(deps) {
       return true;
     },
 
-    setVisible(visible) {
-      if (!workspaceView || workspaceView.webContents.isDestroyed()) return;
-      workspaceView.setVisible(visible === true);
+    setVisible(visible, browserId) {
+      const view = getView(browserId);
+      if (!view) return;
+      view.setVisible(visible === true);
     },
 
     teardown() {
-      destroyView();
+      destroyAll();
     },
 
-    forceClose() {
-      const had = workspaceView !== null;
-      destroyView();
-      return had;
+    close(browserId) {
+      return destroyView(browserId);
     },
 
-    readNavigationState() {
-      const view = getViewOrThrow();
+    forceClose(browserId) {
+      if (browserId === undefined || browserId === null || browserId === "*") {
+        const had = views.size > 0;
+        destroyAll();
+        return had;
+      }
+      return destroyView(browserId);
+    },
+
+    getWebContents(browserId) {
+      return getWebContents(browserId);
+    },
+
+    readNavigationState(browserId) {
+      const view = getView(browserId);
+      if (!view) {
+        return {
+          url: "",
+          title: "",
+          canGoBack: false,
+          canGoForward: false,
+        };
+      }
       const wc = view.webContents;
+      const history = readWebContentsHistoryFlags(wc);
       return {
         url: wc.getURL() || "",
         title: wc.getTitle() || "",
-        canGoBack: wc.canGoBack(),
-        canGoForward: wc.canGoForward(),
+        ...history,
       };
     },
 
-    navigate(url) {
+    navigate(url, browserId) {
       const trimmed = String(url ?? "").trim();
       if (!trimmed) throw new Error("url is required");
+      const view = getView(browserId);
+      if (!view) return;
       const parsed = new URL(trimmed);
-      void getViewOrThrow().webContents.loadURL(parsed.toString());
+      void view.webContents.loadURL(parsed.toString());
     },
 
-    reload() {
-      getViewOrThrow().webContents.reload();
+    reload(browserId) {
+      const view = getView(browserId);
+      if (!view) return;
+      view.webContents.reload();
     },
 
-    goBack() {
-      const wc = getViewOrThrow().webContents;
-      if (wc.canGoBack()) wc.goBack();
+    goBack(browserId) {
+      const view = getView(browserId);
+      if (!view) return;
+      const wc = view.webContents;
+      const { canGoBack } = readWebContentsHistoryFlags(wc);
+      if (canGoBack) wc.goBack();
     },
 
-    goForward() {
-      const wc = getViewOrThrow().webContents;
-      if (wc.canGoForward()) wc.goForward();
+    goForward(browserId) {
+      const view = getView(browserId);
+      if (!view) return;
+      const wc = view.webContents;
+      const { canGoForward } = readWebContentsHistoryFlags(wc);
+      if (canGoForward) wc.goForward();
     },
 
-    openDevtools() {
-      getViewOrThrow().webContents.openDevTools({ mode: "detach" });
+    openDevtools(browserId) {
+      getViewOrThrow(browserId).webContents.openDevTools({ mode: "detach" });
     },
 
-    toggleDevtools() {
-      const wc = getViewOrThrow().webContents;
+    toggleDevtools(browserId) {
+      const wc = getViewOrThrow(browserId).webContents;
       if (wc.isDevToolsOpened()) {
         wc.closeDevTools();
       } else {
         wc.openDevTools({ mode: "detach" });
       }
       return wc.isDevToolsOpened();
+    },
+
+    /**
+     * Inject the element picker into the page and wait for the user to
+     * click an element (or cancel with Escape). Resolves with the picked
+     * element payload, or null when cancelled.
+     */
+    async pickElement(browserId) {
+      const wc = getViewOrThrow(browserId).webContents;
+      // Cancel any previous pick session in this page first.
+      try {
+        await wc.executeJavaScript(buildPickerCancelScript(), true);
+      } catch {
+        // ignore
+      }
+      // Page navigation / close would leave the injected promise dangling;
+      // race them so the renderer invoke always settles.
+      let onAbort = null;
+      const aborted = new Promise((resolve) => {
+        onAbort = () => resolve(null);
+        wc.once("did-navigate", onAbort);
+        wc.once("destroyed", onAbort);
+      });
+      try {
+        const result = await Promise.race([
+          wc.executeJavaScript(buildElementPickerScript(), true),
+          aborted,
+        ]);
+        if (!result || typeof result !== "object") return null;
+        return {
+          ...result,
+          url: wc.getURL() || "",
+          title: wc.getTitle() || "",
+        };
+      } finally {
+        try {
+          if (onAbort) {
+            wc.removeListener("did-navigate", onAbort);
+            wc.removeListener("destroyed", onAbort);
+          }
+        } catch {
+          // webContents may already be destroyed
+        }
+      }
+    },
+
+    async cancelPickElement(browserId) {
+      const view = getView(browserId);
+      if (!view) return;
+      try {
+        await view.webContents.executeJavaScript(buildPickerCancelScript(), true);
+      } catch {
+        // ignore
+      }
     },
 
     profileInfo() {

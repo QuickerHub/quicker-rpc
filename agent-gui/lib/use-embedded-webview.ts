@@ -34,6 +34,8 @@ type UseEmbeddedWebViewOptions = {
   url: string;
   reloadKey: number;
   hostRef: RefObject<HTMLElement | null>;
+  /** Electron multi-browser instance id (default browser when omitted). */
+  browserId?: string;
 };
 
 /** Mount a native child webview over the host element (Tauri WebView2 or Electron WebContentsView). */
@@ -42,6 +44,7 @@ export function useEmbeddedWebView({
   url,
   reloadKey,
   hostRef,
+  browserId = "default",
 }: UseEmbeddedWebViewOptions) {
   const [state, setState] = useState<EmbeddedWebViewState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +80,12 @@ export function useEmbeddedWebView({
   const teardownWebview = useCallback(async () => {
     if (isElectronShell()) {
       try {
-        await invokeDesktop("embedded_browser_teardown");
+        // Hide instead of destroy so tab switches keep page state;
+        // actual destroy happens via embeddedBrowserClose on tab close.
+        await invokeDesktop("embedded_browser_set_visible", {
+          visible: false,
+          browserId,
+        });
       } catch {
         // ignore
       }
@@ -93,12 +101,12 @@ export function useEmbeddedWebView({
       // ignore
     }
     await focusMainWindow();
-  }, [focusMainWindow, getTauriWebview]);
+  }, [browserId, focusMainWindow, getTauriWebview]);
 
   const applyWebviewVisibility = useCallback(
     async (visible: boolean) => {
       if (isElectronShell()) {
-        await invokeDesktop("embedded_browser_set_visible", { visible });
+        await invokeDesktop("embedded_browser_set_visible", { visible, browserId });
         return;
       }
       const webview = await getTauriWebview();
@@ -109,7 +117,7 @@ export function useEmbeddedWebView({
       }
       await webview.show();
     },
-    [getTauriWebview],
+    [browserId, getTauriWebview],
   );
 
   const resolveLayout = useCallback(
@@ -135,7 +143,10 @@ export function useEmbeddedWebView({
         height: layout.height,
       } as DOMRect);
       if (!force && rectKey === lastSyncedBoundsRef.current) return true;
-      const visible = await invokeDesktop<boolean>("embedded_browser_set_bounds", layout);
+      const visible = await invokeDesktop<boolean>("embedded_browser_set_bounds", {
+        ...layout,
+        browserId,
+      });
       if (visible !== false) {
         lastSyncedBoundsRef.current = rectKey;
         await applyWebviewVisibility(!overlayBlockedRef.current);
@@ -144,7 +155,7 @@ export function useEmbeddedWebView({
       lastSyncedBoundsRef.current = null;
       return false;
     },
-    [applyWebviewVisibility],
+    [applyWebviewVisibility, browserId],
   );
 
   const applyBoundsMessage = useCallback(
@@ -246,13 +257,14 @@ export function useEmbeddedWebView({
       await invokeDesktop("embedded_browser_mount", {
         url: targetUrl,
         ...layout,
+        browserId,
       });
       readyRef.current = true;
       lastSyncedBoundsRef.current = null;
       setState("ready");
       await syncBoundsFromHost(true);
     },
-    [syncBoundsFromHost],
+    [browserId, syncBoundsFromHost],
   );
 
   const mountTauriWebview = useCallback(

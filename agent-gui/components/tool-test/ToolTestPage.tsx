@@ -35,9 +35,13 @@ import {
   getToolTestSessionParts,
 } from "@/lib/tool-test-tools-session";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
-import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
+import { DesktopWindowControls } from "@/components/shell/DesktopWindowControls";
 import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
-import { useTauriShell } from "@/lib/tauri-shell";
+import {
+  useDesktopShell,
+  useDesktopShellKind,
+  useShellPlatform,
+} from "@/lib/desktop-shell";
 import {
   defaultStepInputJson,
   formatToolTestInputCompact,
@@ -252,7 +256,18 @@ export function ToolTestPage() {
   const { agentDisplayVersion, qkrpcDisplayVersion } =
     useAppVersionSnapshot(connectTick);
   const protocolVersion = extractProtocolVersionFromPing(ping);
-  const isTauri = useTauriShell();
+  const isDesktop = useDesktopShell();
+  const shellKind = useDesktopShellKind();
+  const platform = useShellPlatform();
+  const titlebarClass = [
+    "tool-test-titlebar",
+    shellKind === "tauri" ? "app-titlebar--tauri" : "",
+    shellKind === "electron" ? "app-titlebar--electron" : "",
+    isDesktop && platform !== "macos" ? "app-titlebar--frameless" : "",
+    isDesktop && platform === "macos" ? "app-titlebar--mac-overlay" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const [toolSuiteRuns, setToolSuiteRuns] = useState<ToolSuiteRunEntry[]>([]);
   const [runningSuiteId, setRunningSuiteId] = useState<string | null>(null);
@@ -891,7 +906,7 @@ export function ToolTestPage() {
     >
       <DocsViewerProvider>
         <div className="tool-test-page">
-          <header className="tool-test-titlebar">
+          <header className={titlebarClass}>
             <div className="tool-test-titlebar__row tool-test-titlebar__row--main">
               <TitlebarDragRegion className="tool-test-titlebar__drag" />
               <div className="tool-test-titlebar__left">
@@ -906,10 +921,10 @@ export function ToolTestPage() {
                 <span className="tool-test-titlebar__divider" aria-hidden />
                 <span className="tool-test-titlebar__title">测试</span>
               </div>
-              <div className="tool-test-titlebar__main-spacer" aria-hidden />
+              <TitlebarDragRegion className="tool-test-titlebar__main-spacer titlebar-drag-fill" />
               <div className="tool-test-titlebar__right">
                 <TitlebarThemeSwitcher />
-                {isTauri ? <TauriWindowControls /> : null}
+                {isDesktop ? <DesktopWindowControls /> : null}
               </div>
             </div>
             <div className="tool-test-titlebar__row tool-test-titlebar__row--meta">
@@ -1024,13 +1039,15 @@ export function ToolTestPage() {
           )}
 
           <div className="tool-test-body">
+            <nav className="tool-test-tab-rail" aria-label="测试类型">
+              {sidebarTabs}
+            </nav>
             {sidebarTab === "prompt-chat" ? (
               <ToolTestPromptChatProvider
                 workingDirectory={workingDirectory}
                 disabled={panelDisabled}
               >
                 <aside className="tool-test-sidebar">
-                  {sidebarTabs}
                   <div className="tool-test-sidebar-scroll">{sidebarScroll}</div>
                 </aside>
                 {mainPane}
@@ -1038,7 +1055,6 @@ export function ToolTestPage() {
             ) : (
               <>
                 <aside className="tool-test-sidebar">
-                  {sidebarTabs}
                   <div className="tool-test-sidebar-scroll">{sidebarScroll}</div>
                 </aside>
                 {mainPane}

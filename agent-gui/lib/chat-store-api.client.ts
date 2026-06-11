@@ -112,25 +112,38 @@ export async function fetchChatStoreFromApi(): Promise<ChatStoreData> {
   return defaultChatStore();
 }
 
-async function flushApiSave(): Promise<void> {
+type FlushApiSaveOptions = {
+  /** Allow the PUT to finish after pagehide / window teardown. */
+  keepalive?: boolean;
+};
+
+async function flushApiSave(options?: FlushApiSaveOptions): Promise<void> {
   apiSaveScheduled = false;
   const snapshot = pendingApiSave;
   pendingApiSave = null;
   if (!snapshot) return;
 
   const previous = clientPersistedSnapshot;
+  const body = JSON.stringify({ ...snapshot, previous });
   try {
     const res = await fetch("/api/chat-store", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...snapshot, previous }),
+      body,
       cache: "no-store",
+      keepalive: options?.keepalive === true,
     });
     if (res.ok) {
       clientPersistedSnapshot = snapshot;
+      return;
     }
   } catch {
-    /* retry on next schedule */
+    /* fall through to requeue */
+  }
+  // Keep the snapshot pending so a later flush (pagehide / app exit) retries,
+  // unless a newer save was scheduled while this PUT was in flight.
+  if (!pendingApiSave) {
+    pendingApiSave = snapshot;
   }
 }
 
@@ -145,15 +158,23 @@ export function scheduleSaveChatStoreViaApi(data: ChatStoreData): void {
   };
 
   if (typeof requestIdleCallback === "function") {
-    requestIdleCallback(run, { timeout: 1500 });
+    requestIdleCallback(run, { timeout: 400 });
   } else {
     window.setTimeout(run, 0);
   }
 }
 
 export function flushPendingChatStoreApiSave(): void {
-  if (!pendingApiSave) return;
-  void flushApiSave();
+  void flushPendingChatStoreApiSaveAsync();
+}
+
+/** Await SQLite persistence (call before desktop shell tears down the Next server). */
+export async function flushPendingChatStoreApiSaveAsync(
+  options?: FlushApiSaveOptions,
+): Promise<void> {
+  if (!pendingApiSave && !apiSaveScheduled) return;
+  apiSaveScheduled = false;
+  await flushApiSave(options);
 }
 
 export async function fetchThreadMessagesFromApi(

@@ -80,10 +80,25 @@ export function createBrowserElementTagElement(
     ["data-browser-value", element.value],
     ["data-browser-snapshot-line", element.snapshotLine],
     ["data-browser-session-id", element.sessionId],
+    ["data-browser-dom-path", element.domPath],
+    ["data-browser-react-component", element.reactComponent],
+    ["data-browser-outer-html", element.outerHtml],
   ];
   for (const [key, value] of optional) {
     const trimmed = value?.trim();
     if (trimmed) span.setAttribute(key, trimmed);
+  }
+
+  if (
+    element.rectTop != null
+    && element.rectLeft != null
+    && element.rectWidth != null
+    && element.rectHeight != null
+  ) {
+    span.setAttribute(
+      "data-browser-rect",
+      `${element.rectTop},${element.rectLeft},${element.rectWidth},${element.rectHeight}`,
+    );
   }
 
   const icon = document.createElement("span");

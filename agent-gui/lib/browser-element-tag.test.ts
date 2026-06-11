@@ -40,6 +40,46 @@ test("formatBrowserElementTagMarkup round-trips attrs", () => {
   assert.equal(parsed?.chipTitle, 'button "Sign in"');
 });
 
+test("native pick fields round-trip (outerHtml with '>' escaped)", () => {
+  const tag = createBrowserElementTag({
+    url: "https://example.com/app",
+    title: "App",
+    pickX: 40,
+    pickY: 280,
+    tagName: "span",
+    className: "markdown-inline-p",
+    domPath: "div.app-main > main.message > span.markdown-inline-p[0]",
+    reactComponent: "MarkdownInline",
+    outerHtml: '<span class="markdown-inline-p">搞定 &amp; done</span>',
+    rectTop: 270,
+    rectLeft: 30,
+    rectWidth: 284,
+    rectHeight: 18,
+  });
+  const markup = formatBrowserElementTagMarkup(tag);
+  // Raw '>' inside attr values must be escaped, or attr regex breaks.
+  const attrMatch = markup.match(/<qkrpc-browser-element\s+([^>]+)>/i);
+  assert.ok(attrMatch);
+  const parsed = browserElementTagFromAttrs(parseHtmlAttrs(attrMatch[1]));
+  assert.equal(
+    parsed?.domPath,
+    "div.app-main > main.message > span.markdown-inline-p[0]",
+  );
+  assert.equal(parsed?.reactComponent, "MarkdownInline");
+  assert.equal(
+    parsed?.outerHtml,
+    '<span class="markdown-inline-p">搞定 &amp; done</span>',
+  );
+  assert.equal(parsed?.rectTop, 270);
+  assert.equal(parsed?.rectWidth, 284);
+
+  const prompt = expandBrowserElementTagForModel(parsed!);
+  assert.match(prompt, /DOM Path: div\.app-main > main\.message/);
+  assert.match(prompt, /Position: top=270px, left=30px, width=284px, height=18px/);
+  assert.match(prompt, /React Component: MarkdownInline/);
+  assert.match(prompt, /HTML Element: <span class="markdown-inline-p">/);
+});
+
 test("expandBrowserElementTagForModel includes ref", () => {
   const tag = createBrowserElementTag({
     url: "https://example.com",

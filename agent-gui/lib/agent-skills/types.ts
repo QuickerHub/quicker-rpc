@@ -1,3 +1,4 @@
+import type { AgentDefScope } from "@/lib/agent-defs/types";
 import type { ParsedSkill } from "@/lib/skill-parse";
 
 /** Discovered skill record (agentskills.io tier 1 metadata). */
@@ -11,6 +12,7 @@ export type AgentSkillRecord = {
   metadata: Record<string, string>;
   /** Parent directory name when it differs from frontmatter name (warn only). */
   dirName: string;
+  scope: AgentDefScope;
   warnings: string[];
 };
 

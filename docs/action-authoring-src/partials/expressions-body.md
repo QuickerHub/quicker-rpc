@@ -31,11 +31,39 @@ One bind per key: `paramKey` / `paramKey.var` / `paramKey.file` (action-data-sch
 
 | param | notes |
 |-------|-----|
-| expression | C#; `{var}=…`; multi-statement OK |
+| expression | multi-line C# body; `{varKey}=rhs` writes action vars; `var` for locals |
 | onUiThread | UI thread when touching WPF/main UI |
-| output | outputParams string key |
+| output | optional — last expression value → mapped output var |
 
 Condition fields may use `$=` (step_runner_get).
+
+### Multi-variable assignment (`{varKey}=`)
+
+**One `sys:evalexpression` step can update multiple action variables** — preferred over chaining several `sys:assign` steps when logic shares computation (LINQ, parsing, etc.).
+
+| authored | runtime | effect |
+|----------|---------|--------|
+| `{total} = {a} + {b}` | `v_total = v_a + v_b` | writes action var `total` |
+| `{a} = 1;\n{b} = 2` | two statements | writes **both** `a` and `b` |
+| `var tmp = {list}.Count()` | local `tmp` | **not** persisted — use `{count} = …` to save |
+| `$={count}+1` on other params | single expr | one result only — multi-assign needs **evalexpression** |
+
+Rules:
+
+- LHS **must** be `{declaredVarKey}` from `variables[]` — Quicker rewrites to `v_*` and syncs all touched vars after eval. Author `{key}` only, never `v_key`.
+- RHS is normal C#; reference other vars as `{otherKey}`.
+- `expression` is **SkipEval** — write C# directly, **no** leading `$=` (stripped if present).
+- Last statement value → `output` when mapped in `outputParams`; `{varKey}=` writes happen **even without** `output` mapping.
+- Separate statements with `;` and/or newlines; mix `var` locals with any number of `{varKey}=` lines.
+
+Typical patterns:
+
+```text
+"{sum} = {num1} + {num2};\n{product} = {num1} * {num2}"
+"var items = {list}.Where(x => !String.IsNullOrWhiteSpace(x)).ToList();\n{count} = items.Count;\n{result} = String.Join(\",\", items)"
+```
+
+Inline `$=` on ordinary param `value` fields: single expression returning one value (or one `{var}=` in evalexpression body). For **multiple** action-var writes in one step → `sys:evalexpression`.
 
 ## Z.Expressions
 
@@ -73,9 +101,10 @@ IQuickerApi _qk;              // always
 
 | engine | notes |
 |--------|-------|
-| `{count}` → `v_count` | internal placeholder rewrite only |
-| `{result} = {a} + {b}` | writes action variable |
-| multi-statement | OK in evalexpression |
+| `{count}` → `v_count` | read placeholder rewrite only (author `{count}`, not `v_count`) |
+| `{a} = …; {b} = …` | each `{varKey}=` writes that action variable |
+| `var x = …` | local temp; does not update action vars |
+| multi-statement + LINQ | evalexpression / `$=`; combine with `{var}=` to persist results |
 | `AutoAddMissingTypes` | types in registered assemblies resolve on first mention |
 
 ### Globals
@@ -97,6 +126,8 @@ IQuickerApi _qk;              // always
 ```text
 "count": { "value": "$={count} + 1" }
 "{total} = {num1} + {num2}"
+"{sum} = {num1} + {num2};\n{product} = {num1} * {num2}"
+"var n = {list}.Count();\n{count} = n;\n{empty} = n == 0"
 "JsonConvert.SerializeObject(_context.GetVariables())"
 "_qk.Text.IsMatch({title}, {pattern})"
 "isVerbose": { "value": "$=string.Equals({quicker_in_param}, \"verbose\", StringComparison.OrdinalIgnoreCase)" }
@@ -105,4 +136,4 @@ IQuickerApi _qk;              // always
 
 ## See also
 
-implementation-fallback · action-data-schema · authoring-workflow
+quicker-eval-expression skill · implementation-fallback · action-data-schema · authoring-workflow

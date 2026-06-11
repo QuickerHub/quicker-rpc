@@ -14,6 +14,17 @@ export type BrowserPickElementContext = {
   value?: string | null;
   snapshotLine?: string | null;
   sessionId?: string;
+  /** Native picker: CSS-ish ancestor chain, e.g. `div.app > main.msg > span.x[0]`. */
+  domPath?: string | null;
+  /** Native picker: nearest named React component (from fiber), if any. */
+  reactComponent?: string | null;
+  /** Native picker: truncated outerHTML of the picked element. */
+  outerHtml?: string | null;
+  /** Native picker: viewport-relative bounding rect (px). */
+  rectTop?: number | null;
+  rectLeft?: number | null;
+  rectWidth?: number | null;
+  rectHeight?: number | null;
 };
 
 export function formatBrowserPickElementPrompt(
@@ -59,6 +70,25 @@ export function formatBrowserPickElementPrompt(
   }
   if (ctx.snapshotLine?.trim()) {
     lines.push(`- snapshot: ${ctx.snapshotLine.trim()}`);
+  }
+  if (ctx.domPath?.trim()) {
+    lines.push(`- DOM Path: ${ctx.domPath.trim()}`);
+  }
+  if (
+    ctx.rectWidth != null
+    && ctx.rectHeight != null
+    && ctx.rectTop != null
+    && ctx.rectLeft != null
+  ) {
+    lines.push(
+      `- Position: top=${ctx.rectTop}px, left=${ctx.rectLeft}px, width=${ctx.rectWidth}px, height=${ctx.rectHeight}px`,
+    );
+  }
+  if (ctx.reactComponent?.trim()) {
+    lines.push(`- React Component: ${ctx.reactComponent.trim()}`);
+  }
+  if (ctx.outerHtml?.trim()) {
+    lines.push(`- HTML Element: ${ctx.outerHtml.trim()}`);
   }
 
   lines.push("", "请根据我的后续说明处理该元素。");

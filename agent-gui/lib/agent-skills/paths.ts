@@ -32,9 +32,17 @@ export function resolveSkillsRoot(): string {
   return join(resolveAgentGuiRoot(), DEFAULT_SKILLS_REL);
 }
 
-/** Absolute path to a single skill directory by name. */
+/** Absolute path to a single skill directory by name (bundled fallback). */
 export function resolveSkillDir(skillName: string): string {
   return join(resolveSkillsRoot(), skillName);
+}
+
+/** Resolve skill directory from a discovered record or bundled fallback. */
+export function resolveSkillDirFromRecord(
+  skillName: string,
+  skillDir?: string,
+): string {
+  return skillDir?.trim() || resolveSkillDir(skillName);
 }
 
 export function skillMdExists(skillDir: string): boolean {
