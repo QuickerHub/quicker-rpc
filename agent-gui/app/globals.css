@@ -342,10 +342,13 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
   min-width: max-content;
 }
 
-/* Tauri drag handles — macOS overlay only; Win/Linux use startDragging() (CSS drag breaks clicks) */
+/* Desktop drag handles — Tauri macOS overlay + Electron Win/Linux use CSS drag */
 .app-titlebar--tauri .titlebar-drag-region,
 .app-titlebar--tauri .titlebar-drag-fill,
-.app-shell:has(.app-titlebar--tauri) .workspace-sidebar .ws-section-head-drag {
+.app-titlebar--electron .titlebar-drag-region,
+.app-titlebar--electron .titlebar-drag-fill,
+.app-shell:has(.app-titlebar--tauri) .workspace-sidebar .ws-section-head-drag,
+.app-shell:has(.app-titlebar--electron) .workspace-sidebar .ws-section-head-drag {
   user-select: none;
   touch-action: none;
   cursor: default;
@@ -355,12 +358,29 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
 .app-titlebar--tauri.app-titlebar--mac-overlay .titlebar-drag-fill,
 .app-shell:has(.app-titlebar--tauri.app-titlebar--mac-overlay)
   .workspace-sidebar
+  .ws-section-head-drag,
+.app-titlebar--electron.app-titlebar--frameless .titlebar-drag-region,
+.app-titlebar--electron.app-titlebar--frameless .titlebar-drag-fill,
+.app-shell:has(.app-titlebar--electron.app-titlebar--frameless)
+  .workspace-sidebar
   .ws-section-head-drag {
   -webkit-app-region: drag;
   app-region: drag;
 }
 
 .app-shell:has(.app-titlebar--tauri.app-titlebar--frameless) :is(
+  .app-main,
+  .workspace-rail,
+  .workspace-sidebar,
+  .composer,
+  .messages,
+  .chat-conversation-header
+) {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.app-shell:has(.app-titlebar--electron.app-titlebar--frameless) :is(
   .app-main,
   .workspace-rail,
   .workspace-sidebar,
@@ -404,7 +424,22 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
 .app-titlebar--tauri .titlebar-actions-group,
 .app-titlebar--tauri .shell-sidebar-toggle,
 .app-titlebar--tauri .tauri-window-controls,
-.app-shell:has(.app-titlebar--tauri) .app-shell-toggle-slot .shell-sidebar-toggle {
+.app-shell:has(.app-titlebar--tauri) .app-shell-toggle-slot .shell-sidebar-toggle,
+.app-titlebar--electron button,
+.app-titlebar--electron a,
+.app-titlebar--electron input,
+.app-titlebar--electron select,
+.app-titlebar--electron textarea,
+.app-titlebar--electron [role="menu"],
+.app-titlebar--electron .titlebar-tab,
+.app-titlebar--electron .titlebar-tab-new,
+.app-titlebar--electron .titlebar-trailing,
+.app-titlebar--electron .titlebar-actions,
+.app-titlebar--electron .titlebar-actions-group,
+.app-titlebar--electron .shell-sidebar-toggle,
+.app-titlebar--electron .tauri-window-controls,
+.app-titlebar--electron .desktop-window-controls,
+.app-shell:has(.app-titlebar--electron) .app-shell-toggle-slot .shell-sidebar-toggle {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
@@ -1270,6 +1305,108 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
   font-size: 0.68rem;
   color: var(--muted);
   line-height: 1.35;
+}
+
+.plugins-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.plugins-settings-head {
+  align-items: flex-start;
+}
+
+.plugins-settings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.plugins-settings-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+}
+
+.plugins-settings-card-main {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.plugins-settings-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+
+.plugins-settings-card-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.plugins-settings-card-badge {
+  font-size: 0.65rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.plugins-settings-card-desc {
+  margin: 0 0 0.25rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.plugins-settings-card-meta {
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.plugins-settings-card-message {
+  margin: 0.35rem 0 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.plugins-settings-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.plugins-settings-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.plugins-settings-footnote {
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.app-settings-action--primary {
+  font-weight: 600;
 }
 
 .app-settings-panel .app-settings-ping-row {

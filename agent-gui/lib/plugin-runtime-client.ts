@@ -1,8 +1,8 @@
 "use client";
 
-import { invoke } from "@tauri-apps/api/core";
+import { invokeDesktop } from "@/lib/desktop-bridge";
 import { withPromiseTimeout } from "@/lib/promise-timeout";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { isDesktopShell } from "@/lib/desktop-shell";
 
 const PLUGIN_INVOKE_TIMEOUT_MS = 20_000;
 
@@ -19,21 +19,34 @@ export type PluginStatusDto = {
 };
 
 export async function pluginRegistryRefresh(): Promise<void> {
-  if (!isTauriShell()) return;
+  if (!isDesktopShell()) return;
   await withPromiseTimeout(
-    invoke<void>("plugin_registry_refresh"),
+    invokeDesktop<void>("plugin_registry_refresh"),
     PLUGIN_INVOKE_TIMEOUT_MS,
     "插件目录刷新超时",
   );
 }
 
+export async function fetchPluginList(): Promise<PluginStatusDto[]> {
+  if (!isDesktopShell()) return [];
+  try {
+    return await withPromiseTimeout(
+      invokeDesktop<PluginStatusDto[]>("plugin_list"),
+      PLUGIN_INVOKE_TIMEOUT_MS,
+      "插件列表加载超时",
+    );
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchPluginStatus(
   pluginId: string,
 ): Promise<PluginStatusDto | null> {
-  if (!isTauriShell()) return null;
+  if (!isDesktopShell()) return null;
   try {
     return await withPromiseTimeout(
-      invoke<PluginStatusDto>("plugin_status", { pluginId }),
+      invokeDesktop<PluginStatusDto>("plugin_status", { pluginId }),
       PLUGIN_INVOKE_TIMEOUT_MS,
       "插件状态检测超时",
     );
@@ -48,9 +61,9 @@ export async function pluginActivate(
   pluginId: string,
   event: string,
 ): Promise<void> {
-  if (!isTauriShell()) return;
+  if (!isDesktopShell()) return;
   await withPromiseTimeout(
-    invoke<void>("plugin_activate", { pluginId, event }),
+    invokeDesktop<void>("plugin_activate", { pluginId, event }),
     PLUGIN_INVOKE_TIMEOUT_MS,
     "插件激活超时",
   );
@@ -59,10 +72,10 @@ export async function pluginActivate(
 export async function applyPluginUpdate(
   pluginId: string,
 ): Promise<PluginStatusDto | null> {
-  if (!isTauriShell()) return null;
+  if (!isDesktopShell()) return null;
   try {
     return await withPromiseTimeout(
-      invoke<PluginStatusDto>("plugin_update", { pluginId }),
+      invokeDesktop<PluginStatusDto>("plugin_update", { pluginId }),
       5 * 60_000,
       "插件更新超时",
     );

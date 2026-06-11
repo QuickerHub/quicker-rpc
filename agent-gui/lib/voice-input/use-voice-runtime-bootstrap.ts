@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { isDesktopShell } from "@/lib/desktop-shell";
 
 /**
  * Tauri owns voice runtime auto-start on a delayed background thread.
@@ -12,7 +12,7 @@ export function useVoiceRuntimeBootstrap(): void {
   const requestedRef = useRef(false);
 
   useEffect(() => {
-    if (!isTauriShell()) return;
+    if (!isDesktopShell()) return;
     if (requestedRef.current) return;
     requestedRef.current = true;
 

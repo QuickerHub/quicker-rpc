@@ -131,7 +131,8 @@ export const DOCS_TOOL_DEF = tool({
   description:
     "Deep-read action authoring guides (basics preloaded in system prompt). "
     + "Use when stuck on program body / workspace_program / step keys — NOT at session start. "
-    + "action=get: one topic; action=search: find topic; action=index: list topics. "
+    + "action=get: one topic (or on-demand skill name e.g. quicker-chromecontrol); optional reference under step-modules. "
+    + "action=search: find topic; action=index: list topics. "
     + "topic action-data-schema (and form-spec) also returns `schema` JSON (qkrpc.program-data.v1). "
     + "NOT for run/settings/shell — see Tool routing.",
   inputSchema: z.object({

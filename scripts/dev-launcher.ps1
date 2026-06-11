@@ -231,11 +231,13 @@ function Clear-TurbopackCacheForTauri {
     }
 }
 
-function Invoke-DevTauriLauncher {
+function Invoke-DevDesktopLauncherCore {
     param(
         [string]$RepoRoot,
         [switch]$SkipKill,
-        [switch]$NoReuse
+        [switch]$NoReuse,
+        [string]$ShellLabel,
+        [string]$PnpmScript
     )
     $agentGui = Join-Path $RepoRoot 'agent-gui'
     if (-not (Test-Path -LiteralPath (Join-Path $agentGui 'package.json'))) {
@@ -303,20 +305,40 @@ function Invoke-DevTauriLauncher {
     if (-not $reuseDev) { Clear-TurbopackCacheForTauri -AgentGuiRoot $agentGui }
 
     Write-Host ""
-    Write-Host "=== QuickerAgent desktop (Tauri) ===" -ForegroundColor Cyan
+    Write-Host "=== QuickerAgent desktop ($ShellLabel) ===" -ForegroundColor Cyan
     if ($reuseDev) {
         Write-Host "  Reusing http://127.0.0.1:$devPort (browser dev from pwsh ./dev.ps1)" -ForegroundColor DarkGray
-        Write-Host "  WebView2 HMR is muted; refresh the desktop window after UI edits" -ForegroundColor DarkGray
+        Write-Host "  Refresh the desktop window after UI edits" -ForegroundColor DarkGray
     }
     else {
-        Write-Host "  UI: http://127.0.0.1:$devPort inside WebView2 (webpack)" -ForegroundColor DarkGray
-        Write-Host "  Tip: for smoother dev, run pwsh ./dev.ps1 first, then pwsh ./dev.ps1 -Tauri to reuse Turbopack." -ForegroundColor DarkGray
+        Write-Host "  UI: http://127.0.0.1:$devPort inside desktop shell (webpack)" -ForegroundColor DarkGray
+        Write-Host "  Tip: run pwsh ./dev.ps1 first, then pwsh ./dev.ps1 -$ShellLabel to reuse Turbopack." -ForegroundColor DarkGray
     }
     Write-Host ""
     Push-Location $RepoRoot
     try {
-        pnpm --dir $agentGui tauri:dev
+        pnpm --dir $agentGui $PnpmScript
         exit $LASTEXITCODE
     }
     finally { Pop-Location }
+}
+
+function Invoke-DevElectronLauncher {
+    param(
+        [string]$RepoRoot,
+        [switch]$SkipKill,
+        [switch]$NoReuse
+    )
+    Invoke-DevDesktopLauncherCore -RepoRoot $RepoRoot -SkipKill:$SkipKill -NoReuse:$NoReuse `
+        -ShellLabel 'Electron' -PnpmScript 'electron:dev'
+}
+
+function Invoke-DevTauriLauncher {
+    param(
+        [string]$RepoRoot,
+        [switch]$SkipKill,
+        [switch]$NoReuse
+    )
+    Invoke-DevDesktopLauncherCore -RepoRoot $RepoRoot -SkipKill:$SkipKill -NoReuse:$NoReuse `
+        -ShellLabel 'Tauri' -PnpmScript 'tauri:dev'
 }

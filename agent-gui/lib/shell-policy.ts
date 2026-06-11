@@ -96,6 +96,7 @@ const READ_ONLY_SINGLE_LINE_PATTERNS: RegExp[] = [
   /^git\s+(status|log|diff|show|branch|rev-parse|describe|fetch|remote|config\s+--get)\b/i,
   /^git\s+--version\b/i,
   /^(get-content|get-childitem|get-location|dir|ls|cat|type|select-string|findstr|where-object|measure-object|format-table|format-list)\b/i,
+  /^(rg|ripgrep)(\s|$)/i,
   /^invoke-restmethod\b/i,
   /^qkrpc\b/i,
   /^dotnet\s+(build|test|restore|run|tool)\b/i,

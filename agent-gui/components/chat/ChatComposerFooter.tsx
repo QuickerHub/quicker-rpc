@@ -13,7 +13,6 @@ import {
 import type { PinnedAction } from "@/lib/action-context";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
 import {
-  canSendComposedMessage,
   parseUserMessageSegments,
 } from "@/lib/compose-user-message";
 import type { AgentUIMessage } from "@/lib/chat-types";
@@ -39,6 +38,8 @@ import { ToolSelector } from "./ToolSelector";
 import { ChatModeSelector } from "./ChatModeSelector";
 import { ComposerMessageQueue } from "./ComposerMessageQueue";
 import { ContextUsage } from "./ContextUsage";
+
+const EMPTY_DRAFT_TAG_IDS = new Set<string>();
 
 export type ChatComposerFooterHandle = {
   focus: () => void;
@@ -136,15 +137,26 @@ const ChatComposerFooterInner = forwardRef<
     [editAnchorMessageId, onEditAnchorDraftChange],
   );
 
-  const draftTagIds = useMemo(() => {
+  const draftState = useMemo(() => {
     const ids = new Set<string>();
+    let canSend = false;
     for (const segment of parseUserMessageSegments(draftMessage)) {
-      if (segment.type === "tag") ids.add(segment.action.id);
+      if (segment.type === "tag") {
+        ids.add(segment.action.id);
+        canSend = true;
+      } else if (segment.type === "browser-element") {
+        canSend = true;
+      } else if (segment.text.trim()) {
+        canSend = true;
+      }
     }
-    return ids;
+    return { canSend, tagIds: ids.size > 0 ? ids : EMPTY_DRAFT_TAG_IDS };
   }, [draftMessage]);
 
-  const canSend = canSendComposedMessage(draftMessage);
+  const handleModelNeedSettings = useCallback(
+    (providerId?: LlmProviderId) => onOpenSettings(providerId, "models"),
+    [onOpenSettings],
+  );
 
   const voiceInput = useVoiceInput({
     enabled: visible && !ephemeral,
@@ -309,8 +321,8 @@ const ChatComposerFooterInner = forwardRef<
                 <ActionTagSelector
                   ping={ping}
                   refreshKey={connectTick}
-                  tagCount={draftTagIds.size}
-                  embeddedTagIds={draftTagIds}
+                  tagCount={draftState.tagIds.size}
+                  embeddedTagIds={draftState.tagIds}
                   onSelect={insertDraftActionTag}
                 />
                 {!ephemeral ? (
@@ -334,8 +346,7 @@ const ChatComposerFooterInner = forwardRef<
                 <ModelSelector
                   selection={llmSelection}
                   onChange={onLlmSelectionChange}
-                  onNeedSettings={(providerId) =>
-                    onOpenSettings(providerId, "models")}
+                  onNeedSettings={handleModelNeedSettings}
                 />
                 {voiceInput.errorHint ? (
                   <span className="composer-hint" role="status">
@@ -386,7 +397,7 @@ const ChatComposerFooterInner = forwardRef<
                   </button>
                 ) : null}
                 <ComposerPrimaryActionButton
-                  canSend={canSend}
+                  canSend={draftState.canSend}
                   agentBusy={busy}
                   phase={voiceInput.phase}
                   pluginStatus={voiceInput.pluginStatus}

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { listenDesktop } from "@/lib/desktop-bridge";
+import { isDesktopShell } from "@/lib/desktop-shell";
 import {
   runVoiceToggleAction,
   type VoiceToggleActionOptions,
@@ -15,23 +16,21 @@ type UseGlobalVoiceToggleOptions = VoiceToggleActionOptions & {
   onGlobalActivate?: () => void;
 };
 
-/** Handle Tauri global Ctrl/Cmd+Shift+V emitted from the Rust shortcut handler. */
+/** Handle desktop global voice toggle events (Tauri / Electron launcher shortcut). */
 export function useGlobalVoiceToggle({
   enabled = true,
   onGlobalActivate,
   ...action
 }: UseGlobalVoiceToggleOptions): void {
   useEffect(() => {
-    if (!enabled || !isTauriShell()) return;
+    if (!enabled || !isDesktopShell()) return;
 
     let unlisten: (() => void) | undefined;
     let disposed = false;
 
     void (async () => {
-      const { listen } = await import("@tauri-apps/api/event");
       if (disposed) return;
-
-      unlisten = await listen(GLOBAL_VOICE_TOGGLE_EVENT, () => {
+      unlisten = await listenDesktop(GLOBAL_VOICE_TOGGLE_EVENT, () => {
         onGlobalActivate?.();
         runVoiceToggleAction(action);
       });

@@ -33,41 +33,51 @@ internal static partial class Program
             return await RunAgentFromArgsAsync(args).ConfigureAwait(false);
         }
 
-        var result = Parser.Default.ParseArguments<
-            PingOptions,
-            WaitOptions,
-            ServeOptions,
-            McpOptions,
-            ActionOptions,
-            ProfileOptions,
-            ProcessOptions,
-            SubProgramOptions,
-            StepRunnerOptions,
-            FaOptions,
-            GuideOptions,
-            FormOptions,
-            ExprOptions,
-            ScriptOptions,
-            SettingsOptions,
-            LauncherOptions>(args);
+        if (args.Length > 0 && string.Equals(args[0], "chrome", StringComparison.OrdinalIgnoreCase))
+        {
+            return await RunChromeFromArgsAsync(args).ConfigureAwait(false);
+        }
+
+        // CommandLineParser non-generic ParseArguments supports at most 16 verb types.
+        var result = Parser.Default.ParseArguments(args,
+            typeof(PingOptions),
+            typeof(WaitOptions),
+            typeof(ServeOptions),
+            typeof(McpOptions),
+            typeof(ActionOptions),
+            typeof(ProfileOptions),
+            typeof(ProcessOptions),
+            typeof(SubProgramOptions),
+            typeof(StepRunnerOptions),
+            typeof(FaOptions),
+            typeof(GuideOptions),
+            typeof(FormOptions),
+            typeof(ExprOptions),
+            typeof(ScriptOptions),
+            typeof(SettingsOptions),
+            typeof(LauncherOptions));
         return await result
             .MapResult(
-                (PingOptions o) => RunPingAsync(o),
-                (WaitOptions o) => RunWaitAsync(o),
-                (ServeOptions o) => RunServeAsync(o),
-                (McpOptions o) => RunMcpAsync(o),
-                (ActionOptions o) => RunActionAsync(o),
-                (ProfileOptions o) => RunProfileAsync(o),
-                (ProcessOptions o) => RunProcessAsync(o),
-                (SubProgramOptions o) => RunSubProgramAsync(o),
-                (StepRunnerOptions o) => RunStepRunnerAsync(o),
-                (FaOptions o) => RunFaAsync(o),
-                (GuideOptions o) => RunGuideAsync(o),
-                (FormOptions o) => RunFormAsync(o),
-                (ExprOptions o) => RunExprCommandAsync(o),
-                (ScriptOptions o) => RunScriptCommandAsync(o),
-                (SettingsOptions o) => RunSettingsAsync(o),
-                (LauncherOptions o) => RunLauncherAsync(o),
+                (object o) => o switch
+                {
+                    PingOptions opt => RunPingAsync(opt),
+                    WaitOptions opt => RunWaitAsync(opt),
+                    ServeOptions opt => RunServeAsync(opt),
+                    McpOptions opt => RunMcpAsync(opt),
+                    ActionOptions opt => RunActionAsync(opt),
+                    ProfileOptions opt => RunProfileAsync(opt),
+                    ProcessOptions opt => RunProcessAsync(opt),
+                    SubProgramOptions opt => RunSubProgramAsync(opt),
+                    StepRunnerOptions opt => RunStepRunnerAsync(opt),
+                    FaOptions opt => RunFaAsync(opt),
+                    GuideOptions opt => RunGuideAsync(opt),
+                    FormOptions opt => RunFormAsync(opt),
+                    ExprOptions opt => RunExprCommandAsync(opt),
+                    ScriptOptions opt => RunScriptCommandAsync(opt),
+                    SettingsOptions opt => RunSettingsAsync(opt),
+                    LauncherOptions opt => RunLauncherAsync(opt),
+                    _ => Task.FromResult(ExitCodes.Error),
+                },
                 _ => Task.FromResult(ExitCodes.Error))
             .ConfigureAwait(false);
     }
@@ -248,6 +258,7 @@ internal static partial class Program
             "edit-var" => await RunActionEditVarAsync(options).ConfigureAwait(false),
             "shared-info-get" => await RunActionSharedInfoGetAsync(options).ConfigureAwait(false),
             "shared-info-set" => await RunActionSharedInfoSetAsync(options).ConfigureAwait(false),
+            "shared-info-submit-review" => await RunActionSharedInfoSubmitReviewAsync(options).ConfigureAwait(false),
             _ => await ReportUnknownActionVerbAsync(options).ConfigureAwait(false),
         };
     }
@@ -257,7 +268,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|mention-search|publish|update|shared-info-get|shared-info-set|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
+            "Use: action create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|mention-search|publish|update|shared-info-get|shared-info-set|shared-info-submit-review|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -352,11 +363,20 @@ internal static partial class Program
             return ExitCodes.Error;
         }
 
+        var (htmlOk, detailHtml, htmlErrorCode, htmlErrorMessage) = await ResolveDetailHtmlAsync(options)
+            .ConfigureAwait(false);
+        if (!htmlOk)
+        {
+            await EmitErrorAsync(options.Json, htmlErrorCode!, htmlErrorMessage!).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
         var request = new QuickerRpcActionPublishRequest
         {
             Title = options.Title,
             Description = options.Description,
             Note = note,
+            DetailHtml = detailHtml,
             Tags = options.Tags,
             Keywords = options.Keywords,
             ChangeLog = changelog,
@@ -423,6 +443,7 @@ internal static partial class Program
                         shareUrl = result.ShareUrl,
                         revision = result.Revision,
                         isPublic = result.IsPublic,
+                        reviewSubmitted = result.ReviewSubmitted,
                         message = result.Message,
                         issues = result.Issues,
                     },
@@ -1308,6 +1329,39 @@ internal static partial class Program
         }
     }
 
+    private static async Task<(bool Ok, string? DetailHtml, string? ErrorCode, string? ErrorMessage)>
+        ResolveDetailHtmlAsync(ActionOptions options)
+    {
+        var hasInline = !string.IsNullOrWhiteSpace(options.Html);
+        var hasFile = !string.IsNullOrWhiteSpace(options.HtmlFile);
+
+        if (hasInline && hasFile)
+        {
+            return (false, null, "CONFLICTING_DETAIL_HTML", "Use either --html or --html-file, not both.");
+        }
+
+        if (!hasFile)
+        {
+            return (true, options.Html, null, null);
+        }
+
+        var path = options.HtmlFile!.Trim();
+        if (!File.Exists(path))
+        {
+            return (false, null, "HTML_FILE_NOT_FOUND", $"Html file not found: {path}");
+        }
+
+        try
+        {
+            var text = (await File.ReadAllTextAsync(path).ConfigureAwait(false)).TrimEnd();
+            return (true, text, null, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, null, "HTML_FILE_READ_FAILED", ex.Message);
+        }
+    }
+
     private sealed class RpcClientSession : IAsyncDisposable
     {
         private readonly NamedPipeClientStream _pipe;
@@ -1465,13 +1519,13 @@ public sealed class ActionOptions
     [Option("note-file", HelpText = "Read share page intro (Note) from a UTF-8 markdown file.")]
     public string? NoteFile { get; set; }
 
-    [Option("html", HelpText = "HTML body for action shared-info-set (getquicker 动作说明 Detail).")]
+    [Option("html", HelpText = "Action page intro HTML (getquicker 动作说明 Detail) for shared-info-set / publish.")]
     public string? Html { get; set; }
 
     [Option("html-file", HelpText = "Read HTML for action shared-info-set from a UTF-8 file.")]
     public string? HtmlFile { get; set; }
 
-    [Option("tags", HelpText = "Comma-separated tags for action publish.")]
+    [Option("tags", HelpText = "Comma-separated predefined getquicker categories for action publish (free-form tags are rejected).")]
     public string? Tags { get; set; }
 
     [Option("keywords", HelpText = "Keywords for action publish.")]
@@ -1759,6 +1813,9 @@ public sealed class GuideOptions
 
     [Option("topic", HelpText = "Topic id for guide get (e.g. overview, patch-workflow).")]
     public string? Topic { get; set; }
+
+    [Option("reference", HelpText = "Reference id under topic for guide get (e.g. chromecontrol, examples/http).")]
+    public string? Reference { get; set; }
 
     [Option('q', "query", HelpText = "Keyword for guide search.")]
     public string? Query { get; set; }

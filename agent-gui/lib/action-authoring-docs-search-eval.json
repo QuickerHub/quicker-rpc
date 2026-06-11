@@ -349,6 +349,44 @@
       "expect": { "inTopK": [{ "topic": "step-modules", "reference": "http" }] }
     },
     {
+      "id": "topic-chromecontrol-authoring",
+      "category": "topic-id",
+      "query": "chromecontrol-authoring",
+      "expect": { "top": { "topic": "chromecontrol-authoring" } }
+    },
+    {
+      "id": "module-sys-chromecontrol",
+      "category": "module-key",
+      "query": "sys:chromecontrol",
+      "expect": { "top": { "topic": "step-modules", "reference": "chromecontrol" } }
+    },
+    {
+      "id": "zh-browser-control",
+      "category": "chinese",
+      "query": "浏览器控制",
+      "k": 5,
+      "expect": {
+        "inTopK": [
+          { "topic": "chromecontrol-authoring" },
+          { "topic": "step-modules", "reference": "chromecontrol" }
+        ]
+      }
+    },
+    {
+      "id": "agent-chrome-run-script",
+      "category": "agent-scenario",
+      "query": "标签页 运行脚本",
+      "k": 5,
+      "expect": {
+        "inTopK": [
+          { "topic": "step-modules", "reference": "kc/chromecontrol" },
+          { "topic": "step-modules", "reference": "chromecontrol" },
+          { "topic": "step-modules", "reference": "examples/chromecontrol" },
+          { "topic": "chromecontrol-authoring" }
+        ]
+      }
+    },
+    {
       "id": "zh-record-playback",
       "category": "chinese",
       "query": "录制",

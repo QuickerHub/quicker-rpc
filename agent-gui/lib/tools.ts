@@ -150,6 +150,11 @@ import { BROWSER_TOOL_DEF } from "@/lib/browser-tool.server";
 
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 
+import {
+  USER_BROWSER_TOOL,
+  USER_BROWSER_TOOL_DEF,
+} from "@/lib/qkrpc-chrome-tool";
+
 import { WEB_SEARCH_TOOL_DEF } from "@/lib/web-search-tool.server";
 
 import { WEB_SEARCH_TOOL } from "@/lib/web-search-tool-constants";
@@ -177,6 +182,8 @@ export const quickerTools = {
   [SHELL_EXEC_TOOL]: SHELL_EXEC_TOOL_DEF,
 
   [BROWSER_TOOL]: BROWSER_TOOL_DEF,
+
+  [USER_BROWSER_TOOL]: USER_BROWSER_TOOL_DEF,
 
   [WEB_SEARCH_TOOL]: WEB_SEARCH_TOOL_DEF,
 

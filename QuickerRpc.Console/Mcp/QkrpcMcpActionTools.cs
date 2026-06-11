@@ -94,6 +94,7 @@ public sealed class QkrpcMcpActionTools
         string? title = null,
         string? description = null,
         string? note = null,
+        string? html = null,
         string? tags = null,
         string? keywords = null,
         string? changelog = null,
@@ -101,7 +102,7 @@ public sealed class QkrpcMcpActionTools
         bool? submitReview = null,
         CancellationToken cancellationToken = default) =>
         QkrpcMcpActionExecutor.PublishAsync(
-            _runtime, id, title, description, note, tags, keywords, changelog, isPublic, submitReview,
+            _runtime, id, title, description, note, html, tags, keywords, changelog, isPublic, submitReview,
             cancellationToken);
 
     [McpServerTool(Name = "qkrpc_action_run")]

@@ -1,7 +1,7 @@
 "use client";
 
-import { invoke } from "@tauri-apps/api/core";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { invokeDesktop } from "@/lib/desktop-bridge";
+import { isDesktopShell } from "@/lib/desktop-shell";
 import { withPromiseTimeout } from "@/lib/promise-timeout";
 
 export type VoiceModelId = "standard" | "lightweight";
@@ -127,10 +127,10 @@ async function saveDevVoicePluginSettings(
 }
 
 export async function fetchVoicePluginSettings(): Promise<VoicePluginSettings | null> {
-  if (isTauriShell()) {
+  if (isDesktopShell()) {
     try {
       const dto = await withPromiseTimeout(
-        invoke<VoicePluginSettings>("voice_plugin_read_settings"),
+        invokeDesktop<VoicePluginSettings>("voice_plugin_read_settings"),
         TAURI_SETTINGS_TIMEOUT_MS,
         "读取语音设置超时",
       );
@@ -147,11 +147,11 @@ export async function saveVoicePluginSettings(
   options?: { restartRuntime?: boolean },
 ): Promise<VoicePluginSettings | null> {
   let saved: VoicePluginSettings | null = null;
-  if (isTauriShell()) {
+  if (isDesktopShell()) {
     try {
       saved = normalizeVoicePluginSettings(
         await withPromiseTimeout(
-          invoke<VoicePluginSettings>("voice_plugin_write_settings", { settings }),
+          invokeDesktop<VoicePluginSettings>("voice_plugin_write_settings", { settings }),
           TAURI_SETTINGS_TIMEOUT_MS,
           "保存语音设置超时",
         ),
@@ -175,10 +175,10 @@ export async function saveVoicePluginSettings(
 }
 
 export async function fetchVoiceModelInstallState(): Promise<VoiceModelInstallState | null> {
-  if (isTauriShell()) {
+  if (isDesktopShell()) {
     try {
       const body = await withPromiseTimeout(
-        invoke<Omit<VoiceModelInstallState, "inFlight" | "error" | "progress">>(
+        invokeDesktop<Omit<VoiceModelInstallState, "inFlight" | "error" | "progress">>(
           "voice_plugin_model_install_state",
         ),
         TAURI_SETTINGS_TIMEOUT_MS,
@@ -246,7 +246,7 @@ export async function downloadVoiceModel(
     ?? "sensevoice";
   const force = options?.force === true;
 
-  if (isTauriShell()) {
+  if (isDesktopShell()) {
     try {
       const { tauriVoicePluginRedownloadModel } = await import(
         "@/lib/voice-input/voice-input-tauri"

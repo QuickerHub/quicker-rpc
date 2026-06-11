@@ -32,12 +32,16 @@ pwsh ./dev.ps1
 
 # 桌面 QuickerAgent 窗口（WebView2；复用已运行的 :3000 前端）
 pwsh ./dev.ps1 -Tauri
+
+# 桌面 QuickerAgent 窗口（Electron Chromium；实验壳，IPC 迁移中）
+pwsh ./dev.ps1 -Electron
 ```
 
 | 模式 | 命令 | 说明 |
 |------|------|------|
 | 浏览器（默认） | `pwsh ./dev.ps1` | qkrpc + agent-gui，Turbopack HMR |
-| 桌面壳 | `pwsh ./dev.ps1 -Tauri` | 先跑默认模式，再开 Tauri 复用前端 |
+| 桌面壳 (Tauri) | `pwsh ./dev.ps1 -Tauri` | 先跑默认模式，再开 Tauri 复用前端 |
+| 桌面壳 (Electron) | `pwsh ./dev.ps1 -Electron` | 实验 Chromium 壳；正式发布仍用 Tauri |
 | 仅 qkrpc | `pwsh ./dev.ps1 -Services qkrpc` | 只要后端 serve |
 
 常用参数：`-Browser` 自动打开浏览器；`-Full` 启动时加载语音 runtime；`-NoWatch` 关闭自动热更。默认保存 Plugin/CLI 后自动 `build.ps1 -t` 并重启 serve。详见 [docs/dev-supervisor-design.md](../docs/dev-supervisor-design.md)。
@@ -51,6 +55,22 @@ pwsh ./dev.ps1 -Tauri
 ## 发布（Tauri 2）
 
 ```powershell
-# 仓库根目录
+# 仓库根目录 — 正式 Windows 安装包
 pnpm quicker-agent:publish
 ```
+
+## 打包（Electron，实验）
+
+与 Tauri 共享 `resources/` 布局（Next standalone + Node + qkrpc）。**非正式发布渠道**。
+
+```powershell
+cd agent-gui
+pnpm build
+pnpm electron:build          # NSIS → electron/dist/
+pnpm electron:verify-bundle  # 仅校验 staged resources
+
+# 或仓库根目录
+pwsh ./publish/Publish-QuickerAgent-Electron.ps1
+```
+
+设计说明：`docs/superpowers/specs/2026-06-11-agent-gui-electron-packaging-design.md`

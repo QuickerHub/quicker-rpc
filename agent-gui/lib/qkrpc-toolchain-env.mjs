@@ -5,6 +5,7 @@ import {
   resolveQkrpcBin,
   resolveUserInstalledQkrpcExe,
 } from "./qkrpc-bin.mjs";
+import { listRgPathDirs, resolveRgBin } from "./rg-bin.mjs";
 
 const PATH_SEP = process.platform === "win32" ? ";" : ":";
 
@@ -64,6 +65,11 @@ export function listQkrpcPathDirs(agentGuiRoot) {
   return dirs;
 }
 
+/** Directories that should precede PATH so shell tools (`qkrpc`, `rg`) resolve in agent shells. */
+export function listShellToolPathDirs(agentGuiRoot) {
+  return [...listQkrpcPathDirs(agentGuiRoot), ...listRgPathDirs(agentGuiRoot)];
+}
+
 export function prependPathDirs(pathValue, dirs) {
   /** @type {string[]} */
   const toAdd = [];
@@ -90,12 +96,17 @@ export function prependPathDirs(pathValue, dirs) {
 export function applyQkrpcToolchainEnv(env, options = {}) {
   const agentGuiRoot = options.agentGuiRoot ?? process.cwd();
   const next = { ...env };
-  const pathDirs = listQkrpcPathDirs(agentGuiRoot);
+  const pathDirs = listShellToolPathDirs(agentGuiRoot);
   setPathValue(next, prependPathDirs(getPathValue(next), pathDirs));
 
   const bin = resolveQkrpcBin(agentGuiRoot);
   if (bin && !next.QKRPC_BIN?.trim()) {
     next.QKRPC_BIN = bin;
+  }
+
+  const rgBin = resolveRgBin(agentGuiRoot);
+  if (rgBin && !next.RG_BIN?.trim()) {
+    next.RG_BIN = rgBin;
   }
 
   const cwd = options.cwd?.trim();

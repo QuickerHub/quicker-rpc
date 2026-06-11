@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 import type { PingState } from "@/lib/use-qkrpc-ping";
 import type { PinnedAction } from "@/lib/action-context";
@@ -19,6 +19,8 @@ type ActionTagSelectorProps = {
   onSelect: (action: PinnedAction) => void;
   disabled?: boolean;
 };
+
+const EMPTY_EMBEDDED_TAG_IDS = new Set<string>();
 
 function pingStatusMessage(ping: PingState): string | null {
   if (ping.status === "loading") return "检测 Quicker 连接…";
@@ -57,11 +59,11 @@ function ActionPickerList({
   );
 }
 
-export function ActionTagSelector({
+export const ActionTagSelector = memo(function ActionTagSelector({
   ping,
   refreshKey = 0,
   tagCount = 0,
-  embeddedTagIds,
+  embeddedTagIds = EMPTY_EMBEDDED_TAG_IDS,
   onSelect,
   disabled,
 }: ActionTagSelectorProps) {
@@ -205,4 +207,4 @@ export function ActionTagSelector({
       )}
     </div>
   );
-}
+});

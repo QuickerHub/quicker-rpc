@@ -44,6 +44,7 @@ public static partial class Launcher
                 services.AddSingleton<FontAwesomeIconSearchService>();
                 services.AddSingleton<CodeSyntaxCheckService>();
                 services.AddSingleton<ExpressionExecuteService>();
+                services.AddSingleton<ChromeControlExecuteService>();
                 services.AddSingleton<QuickerSettingsService>();
                 services.AddSingleton<QuickerSettingsUiService>();
                 services.AddSingleton<LauncherResolveService>();

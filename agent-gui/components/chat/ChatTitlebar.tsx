@@ -11,10 +11,14 @@ import {
   selectThread,
 } from "@/lib/chat-store";
 import { plainTitleText } from "@/lib/plain-title-text";
-import { TauriWindowControls } from "@/components/shell/TauriWindowControls";
+import { DesktopWindowControls } from "@/components/shell/DesktopWindowControls";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
-import { useShellPlatform, useTauriShell } from "@/lib/tauri-shell";
+import {
+  useDesktopShell,
+  useDesktopShellKind,
+  useShellPlatform,
+} from "@/lib/desktop-shell";
 import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 
 type ChatTitlebarProps = {
@@ -61,9 +65,9 @@ function IconClose() {
   );
 }
 
-function TitlebarWindowControls({ isTauri }: { isTauri: boolean }) {
-  if (!isTauri) return null;
-  return <TauriWindowControls />;
+function TitlebarWindowControls({ isDesktop }: { isDesktop: boolean }) {
+  if (!isDesktop) return null;
+  return <DesktopWindowControls />;
 }
 
 export function ChatTitlebar({
@@ -130,16 +134,18 @@ export function ChatTitlebar({
     });
   }, [activeThread.id, tabThreads.length]);
 
-  const isTauri = useTauriShell();
+  const isDesktop = useDesktopShell();
+  const shellKind = useDesktopShellKind();
   const platform = useShellPlatform();
   const devExperienceEnabled = useDevExperienceEnabled();
-  const showTitlebarTrailing = isTauri || devExperienceEnabled;
+  const showTitlebarTrailing = isDesktop || devExperienceEnabled;
   const titlebarClass = [
     "app-titlebar",
     "app-titlebar--tabs-only",
-    isTauri ? "app-titlebar--tauri" : "",
-    isTauri && platform !== "macos" ? "app-titlebar--frameless" : "",
-    isTauri && platform === "macos" ? "app-titlebar--mac-overlay" : "",
+    shellKind === "tauri" ? "app-titlebar--tauri" : "",
+    shellKind === "electron" ? "app-titlebar--electron" : "",
+    isDesktop && platform !== "macos" ? "app-titlebar--frameless" : "",
+    isDesktop && platform === "macos" ? "app-titlebar--mac-overlay" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -214,7 +220,7 @@ export function ChatTitlebar({
           <div
             className={[
               "titlebar-actions",
-              isTauri && platform !== "macos"
+              isDesktop && platform !== "macos"
                 ? "titlebar-actions--with-window-controls"
                 : "",
             ]
@@ -222,7 +228,7 @@ export function ChatTitlebar({
               .join(" ")}
           >
             <TitlebarThemeSwitcher />
-            <TitlebarWindowControls isTauri={isTauri} />
+            <TitlebarWindowControls isDesktop={isDesktop} />
           </div>
         </div>
       ) : null}

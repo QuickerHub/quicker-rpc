@@ -17,5 +17,9 @@
     "paths": { "@/*": ["./*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "types/**/*.d.ts", "**/*.mjs.d.ts", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "src-tauri/**",
+    "electron/resources/**"
+  ]
 }

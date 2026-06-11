@@ -32,6 +32,7 @@ const TOOL_ROUTING_ROWS = [
   "| User preference | ask_question | delete confirm UI |",
   // — Workbench / disk —
   "| Read/write plain cwd file (.local, docs, config) | workspace_file | shell_exec; workspace_program |",
+  "| Search file contents across cwd tree | shell_exec rg | workspace_file grep for single path |",
   "| Scratch/temp under cwd | workspace_file path `.local/…` | repo root; tracked trees unless asked |",
   "| Quicker program body (data.json, files/) | workspace_program | workspace_file; shell |",
   "| Save disk edits → Quicker | workspace_program patch | replace; qkrpc_action patch |",
@@ -39,7 +40,8 @@ const TOOL_ROUTING_ROWS = [
   "| Review disk edits / diff with user | Tell user: side panel 已改动 → Diff | shell git status/diff spam |",
   "| Shell/build/test/git commands | shell_exec | workspace_file; program body edits |",
   "| Internet facts / API docs | web_search | browser; docs; qkrpc_action_query |",
-  "| Web UI / getquicker login | browser | web_search; shell curl |",
+  "| User's logged-in browser (extension) | user_browser | browser (Playwright); shell |",
+  "| Web UI / getquicker login (no extension) | browser | user_browser; web_search |",
   "| Chat LLM profiles | llm_settings | quicker_settings |",
   "| Delete | qkrpc_action_delete / qkrpc_subprogram_delete | only on user ask |",
   "| Launcher run/open (no @ mention) | launcher_resolve → ask_question if ambiguous | qkrpc_action_query + auto run |",

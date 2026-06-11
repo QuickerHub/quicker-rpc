@@ -34,6 +34,7 @@
 | [agent-gui-startup-performance.md](agent-gui-startup-performance.md) | Tauri 冷启动、splash、懒加载与并行策略 |
 | [agent-gui-chat-storage.md](agent-gui-chat-storage.md) | 对话历史 JSON 存储 |
 | [agent-gui-plugin-storage.md](agent-gui-plugin-storage.md) | 可选插件（语音等）目录与下载 |
+| [quicker-agent-plugin-spec.md](quicker-agent-plugin-spec.md) | QuickerAgent Plugin 规范（manifest / registry / Host API） |
 | [agent-gui-prompt-structure.md](agent-gui-prompt-structure.md) | 系统提示与 Skill 加载 |
 | [voice-input-plugin.md](voice-input-plugin.md) | 语音输入产品设计 + WebSocket 协议 |
 | [voxtype-quicker-integration.md](voxtype-quicker-integration.md) | VoxType 全局听写 × Quicker（HTTP + 插件） |

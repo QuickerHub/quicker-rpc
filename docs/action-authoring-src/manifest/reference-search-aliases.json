@@ -9,6 +9,7 @@
     "fileOperation": ["文件操作", "读写文件", "复制文件"],
     "webview2": ["webview", "内嵌网页", "HTML窗口"],
     "csscript": ["C#脚本", "csharp脚本"],
-    "websocket": ["WebSocket", "ws连接"]
+    "websocket": ["WebSocket", "ws连接"],
+    "chromecontrol": ["浏览器控制", "浏览器", "chrome", "edge", "标签页", "网页自动化", "后台命令"]
   }
 }

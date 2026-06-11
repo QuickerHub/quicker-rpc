@@ -71,7 +71,7 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "终端",
     group: "write",
     category: "runtime",
-    description: "工作目录执行命令/脚本（build/test/git）；非普通文件读写（用 workspace_file）",
+    description: "工作目录执行命令/脚本（build/test/git、rg 搜索）；非普通文件读写（用 workspace_file）",
   },
   {
     id: "browser",

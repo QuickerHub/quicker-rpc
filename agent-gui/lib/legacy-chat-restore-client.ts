@@ -5,7 +5,8 @@ import {
   assembleChatStoreCandidatesFromLegacyHits,
   type LegacyScanHit,
 } from "@/lib/legacy-chat-assemble";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { invokeDesktop } from "@/lib/desktop-bridge";
+import { isDesktopShell } from "@/lib/desktop-shell";
 
 export type LegacyDiskScanResult = {
   candidates: Array<{ source: string; data: ChatStoreData }>;
@@ -16,10 +17,9 @@ export async function fetchLegacyChatStoreCandidatesFromDisk(): Promise<LegacyDi
   let hits: LegacyScanHit[] = [];
   let scannedRoots: string[] = [];
 
-  if (isTauriShell()) {
+  if (isDesktopShell()) {
     try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const dto = await invoke<{ hits: LegacyScanHit[]; scannedRoots: string[] }>(
+      const dto = await invokeDesktop<{ hits: LegacyScanHit[]; scannedRoots: string[] }>(
         "legacy_chat_store_scan",
       );
       hits = dto.hits ?? [];

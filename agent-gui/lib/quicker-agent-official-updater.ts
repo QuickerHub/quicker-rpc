@@ -1,9 +1,16 @@
 import type { Update } from "@tauri-apps/plugin-updater";
+import { invokeDesktop, listenDesktop } from "@/lib/desktop-bridge";
+import { isElectronShell, isTauriShell } from "@/lib/desktop-shell";
 
 const SKIPPED_VERSION_KEY = "quicker-agent-skipped-update-version";
 
-let pendingUpdate: Update | null = null;
+let pendingTauriUpdate: Update | null = null;
+let pendingElectronVersion: string | null = null;
 let pendingDownloaded = false;
+
+export type OfficialUpdateDescriptor = {
+  version: string;
+};
 
 export type OfficialUpdateProgress = {
   phase: "checking" | "downloading" | "installing";
@@ -28,30 +35,64 @@ export function isOfficialUpdateSkipped(version: string): boolean {
   return readSkippedUpdateVersion() === version.trim();
 }
 
+/** @deprecated Use {@link getPendingOfficialUpdateDescriptor} */
 export function getPendingOfficialUpdate(): Update | null {
-  return pendingUpdate;
+  return pendingTauriUpdate;
+}
+
+export function getPendingOfficialUpdateDescriptor(): OfficialUpdateDescriptor | null {
+  if (pendingTauriUpdate) {
+    return { version: pendingTauriUpdate.version };
+  }
+  if (pendingElectronVersion) {
+    return { version: pendingElectronVersion };
+  }
+  return null;
 }
 
 export function isPendingOfficialUpdateDownloaded(): boolean {
-  return pendingDownloaded && pendingUpdate !== null;
+  return pendingDownloaded && (pendingTauriUpdate !== null || pendingElectronVersion !== null);
 }
 
 export function clearPendingOfficialUpdate(): void {
-  pendingUpdate = null;
+  pendingTauriUpdate = null;
+  pendingElectronVersion = null;
   pendingDownloaded = false;
+  if (isElectronShell()) {
+    void invokeDesktop("updater_clear_pending").catch(() => {});
+  }
 }
 
-export async function checkOfficialQuickerAgentUpdate(): Promise<Update | null> {
+export async function checkOfficialQuickerAgentUpdate(): Promise<OfficialUpdateDescriptor | null> {
   if (process.env.NODE_ENV === "development") return null;
+
+  if (isElectronShell()) {
+    const info = await invokeDesktop<OfficialUpdateDescriptor | null>("updater_check");
+    if (!info?.version) {
+      clearPendingOfficialUpdate();
+      return null;
+    }
+    if (isOfficialUpdateSkipped(info.version)) return null;
+    pendingElectronVersion = info.version;
+    pendingTauriUpdate = null;
+    pendingDownloaded = false;
+    return info;
+  }
+
+  if (!isTauriShell()) return null;
 
   const { check } = await import("@tauri-apps/plugin-updater");
   const update = await check();
-  if (!update) return null;
+  if (!update) {
+    clearPendingOfficialUpdate();
+    return null;
+  }
   if (isOfficialUpdateSkipped(update.version)) return null;
 
-  pendingUpdate = update;
+  pendingTauriUpdate = update;
+  pendingElectronVersion = null;
   pendingDownloaded = false;
-  return update;
+  return { version: update.version };
 }
 
 function progressPercent(downloaded: number, total: number | undefined): number {
@@ -59,10 +100,43 @@ function progressPercent(downloaded: number, total: number | undefined): number 
   return Math.max(0, Math.min(100, Math.round((downloaded / total) * 100)));
 }
 
+async function downloadPendingElectronUpdate(
+  onProgress?: (event: OfficialUpdateProgress) => void,
+): Promise<void> {
+  if (!pendingElectronVersion) {
+    throw new Error("没有待下载的更新");
+  }
+
+  const version = pendingElectronVersion;
+  const unlisten = await listenDesktop("official-update-progress", (payload) => {
+    if (!payload || typeof payload !== "object") return;
+    const event = payload as OfficialUpdateProgress;
+    onProgress?.(event);
+  });
+
+  try {
+    onProgress?.({
+      phase: "downloading",
+      percent: 0,
+      message: `正在下载 QuickerAgent ${version}…`,
+      remoteVersion: version,
+    });
+    await invokeDesktop("updater_download");
+    pendingDownloaded = true;
+  } finally {
+    unlisten();
+  }
+}
+
 export async function downloadPendingOfficialUpdate(
   onProgress?: (event: OfficialUpdateProgress) => void,
-): Promise<Update> {
-  const update = pendingUpdate;
+): Promise<OfficialUpdateDescriptor> {
+  if (isElectronShell() && pendingElectronVersion) {
+    await downloadPendingElectronUpdate(onProgress);
+    return { version: pendingElectronVersion };
+  }
+
+  const update = pendingTauriUpdate;
   if (!update) {
     throw new Error("没有待下载的更新");
   }
@@ -107,17 +181,16 @@ export async function downloadPendingOfficialUpdate(
   });
 
   pendingDownloaded = true;
-  return update;
+  return { version: update.version };
 }
 
 const UPDATE_INSTALL_RELEASE_DELAY_MS = 3000;
 
 async function prepareForUpdateInstall(): Promise<void> {
   try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("prepare_for_update_install");
+    await invokeDesktop("prepare_for_update_install");
   } catch {
-    // Ignore when Tauri invoke is unavailable.
+    // Ignore when desktop invoke is unavailable.
   }
   await new Promise((resolve) => {
     window.setTimeout(resolve, UPDATE_INSTALL_RELEASE_DELAY_MS);
@@ -138,8 +211,8 @@ function formatInstallError(err: unknown): string {
 export async function installPendingOfficialUpdateAndRelaunch(
   onProgress?: (event: OfficialUpdateProgress) => void,
 ): Promise<void> {
-  const update = pendingUpdate;
-  if (!update) {
+  const descriptor = getPendingOfficialUpdateDescriptor();
+  if (!descriptor) {
     throw new Error("没有待安装的更新");
   }
 
@@ -147,11 +220,22 @@ export async function installPendingOfficialUpdateAndRelaunch(
     phase: "installing",
     percent: 0,
     message: "正在启动安装程序…",
-    remoteVersion: update.version,
+    remoteVersion: descriptor.version,
   });
 
   try {
     await prepareForUpdateInstall();
+
+    if (isElectronShell() && pendingElectronVersion) {
+      await invokeDesktop("updater_quit_and_install");
+      clearPendingOfficialUpdate();
+      return;
+    }
+
+    const update = pendingTauriUpdate;
+    if (!update) {
+      throw new Error("没有待安装的更新");
+    }
     await update.install();
   } catch (err) {
     throw new Error(formatInstallError(err));
@@ -163,21 +247,32 @@ export async function installPendingOfficialUpdateAndRelaunch(
     phase: "installing",
     percent: 100,
     message: "安装程序已启动，应用即将重启…",
-    remoteVersion: update.version,
+    remoteVersion: descriptor.version,
   });
 
-  const { relaunch } = await import("@tauri-apps/plugin-process");
-  try {
-    await relaunch();
-  } catch {
-    const { exit } = await import("@tauri-apps/plugin-process");
-    await exit(0);
+  if (!isElectronShell()) {
+    const { relaunch } = await import("@tauri-apps/plugin-process");
+    try {
+      await relaunch();
+    } catch {
+      const { exit } = await import("@tauri-apps/plugin-process");
+      await exit(0);
+    }
   }
 }
 
 export async function installPendingOfficialUpdateOnExit(): Promise<void> {
-  const update = pendingUpdate;
-  if (!update || !pendingDownloaded) return;
+  if (!isPendingOfficialUpdateDownloaded()) return;
+
+  if (isElectronShell() && pendingElectronVersion) {
+    await prepareForUpdateInstall();
+    await invokeDesktop("updater_quit_and_install");
+    clearPendingOfficialUpdate();
+    return;
+  }
+
+  const update = pendingTauriUpdate;
+  if (!update) return;
   await prepareForUpdateInstall();
   await update.install();
   clearPendingOfficialUpdate();

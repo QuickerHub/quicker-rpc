@@ -80,6 +80,7 @@ internal static class ServeInvokeDispatcher
             "action.shared-info.get" => await ActionSharedInfoGetAsync(rpc, args, token).ConfigureAwait(false),
             "action.shared-info.set" => await ActionSharedInfoSetAsync(rpc, args, token).ConfigureAwait(false),
             "action.shared-info.probe" => await ActionSharedInfoProbeAsync(rpc, args, token).ConfigureAwait(false),
+            "action.shared-info.submit-review" => await ActionSharedInfoSubmitReviewAsync(rpc, args, token).ConfigureAwait(false),
             "action.move" => await ActionMoveAsync(rpc, args, token).ConfigureAwait(false),
             "action.delete" => await ActionDeleteAsync(rpc, args, token).ConfigureAwait(false),
             "action.run" => await ActionRunAsync(rpc, args, token).ConfigureAwait(false),
@@ -118,6 +119,8 @@ internal static class ServeInvokeDispatcher
             "fa.search" => await FaSearchAsync(rpc, args, token).ConfigureAwait(false),
             "expr.check" => await ExprCheckAsync(rpc, args, token).ConfigureAwait(false),
             "expr.run" => await ExprRunAsync(rpc, args, token).ConfigureAwait(false),
+            "chrome.run" => await ChromeRunAsync(rpc, args, token).ConfigureAwait(false),
+            "chrome.tabs" => await ChromeTabsAsync(rpc, token).ConfigureAwait(false),
             "script.check" => await ScriptCheckAsync(rpc, args, token).ConfigureAwait(false),
             "project.lint.schedule" => ProjectLintSchedule(pool, args, cancellationToken),
             "project.diagnostics.get" => ProjectDiagnosticsGet(args),
@@ -317,6 +320,45 @@ internal static class ServeInvokeDispatcher
         {
             ok = response.Ok,
             action = "shared-info-set",
+            sharedId = response.SharedActionId ?? id.Trim(),
+            message = response.Message,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ActionSharedInfoSubmitReviewAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "actionId", "sharedId", "code") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_ACTION_ID", "args.id is required.");
+        }
+
+        var html = ServeJsonArgs.GetString(args, "html", "detailHtml");
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            html = ServeJsonArgs.GetString(args, "shareNote", "note");
+            html = QuickerRpc.Contracts.Rpc.ActionPublishIntro.NoteToDetailHtml(html);
+        }
+
+        if (string.IsNullOrWhiteSpace(html) && args.TryGetProperty("htmlFile", out var htmlFileEl))
+        {
+            var htmlFile = htmlFileEl.GetString();
+            if (!string.IsNullOrWhiteSpace(htmlFile) && File.Exists(htmlFile))
+            {
+                html = await File.ReadAllTextAsync(htmlFile, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        var response = await rpc
+            .SubmitSharedActionForReviewAsync(id.Trim(), html, cancellationToken)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "shared-info-submit-review",
             sharedId = response.SharedActionId ?? id.Trim(),
             message = response.Message,
         });
@@ -620,12 +662,13 @@ internal static class ServeInvokeDispatcher
     private static ServeInvokeResponse GuideGet(JsonElement args)
     {
         var topic = ServeJsonArgs.GetString(args, "topic") ?? string.Empty;
+        var reference = ServeJsonArgs.GetString(args, "reference");
         if (string.IsNullOrWhiteSpace(topic))
         {
             return Fail("MISSING_TOPIC", "args.topic is required.");
         }
 
-        var response = Guides.GetDoc(topic);
+        var response = Guides.GetDoc(topic, reference);
         return Ok(new
         {
             ok = response.Success,
@@ -633,10 +676,12 @@ internal static class ServeInvokeDispatcher
             success = response.Success,
             errorMessage = response.ErrorMessage,
             topic = response.Topic,
+            reference = response.Reference,
             title = response.Title,
             markdown = response.Markdown,
             schema = response.Schema,
             availableTopics = response.AvailableTopics,
+            availableReferences = response.AvailableReferences,
         });
     }
 
@@ -1135,11 +1180,13 @@ internal static class ServeInvokeDispatcher
             Title = ServeJsonArgs.GetString(args, "title"),
             Description = ServeJsonArgs.GetString(args, "description"),
             Note = ServeJsonArgs.GetString(args, "note", "shareNote"),
+            DetailHtml = ServeJsonArgs.GetString(args, "detailHtml", "html"),
             Tags = ServeJsonArgs.GetString(args, "tags"),
             Keywords = ServeJsonArgs.GetString(args, "keywords"),
             ChangeLog = ServeJsonArgs.GetString(args, "changelog"),
-            IsPublic = !ServeJsonArgs.GetBool(args, "private"),
-            SubmitReview = !ServeJsonArgs.GetBool(args, "noSubmitReview"),
+            IsPublic = ServeJsonArgs.GetNullableBool(args, "isPublic") ?? !ServeJsonArgs.GetBool(args, "private"),
+            SubmitReview = ServeJsonArgs.GetNullableBool(args, "submitReview")
+                           ?? !ServeJsonArgs.GetBool(args, "noSubmitReview"),
         };
 
     private static async Task<ServeInvokeResponse> ActionPublishAsync(
@@ -1165,6 +1212,7 @@ internal static class ServeInvokeDispatcher
             shareUrl = response.ShareUrl,
             revision = response.Revision,
             isPublic = response.IsPublic,
+            reviewSubmitted = response.ReviewSubmitted,
             message = response.Message,
             issues = response.Issues,
         });
@@ -1943,6 +1991,59 @@ internal static class ServeInvokeDispatcher
             resultJson = response.ResultJson,
             resultType = response.ResultType,
             variablesJson = response.VariablesJson,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ChromeRunAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var operation = ServeJsonArgs.GetString(args, "operation");
+        if (string.IsNullOrWhiteSpace(operation))
+        {
+            return Fail("MISSING_OPERATION", "args.operation is required.");
+        }
+
+        var parametersJson = ServeJsonArgs.GetObject(args, "parameters")?.GetRawText()
+            ?? ServeJsonArgs.GetString(args, "parametersJson");
+        var sessionId = ServeJsonArgs.GetString(args, "sessionId")
+            ?? ServeJsonArgs.GetString(args, "session");
+
+        var response = await rpc
+            .ExecuteChromeControlAsync(operation, parametersJson, sessionId, token)
+            .ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "chrome-run",
+            success = response.Success,
+            message = response.Message,
+            errorCode = response.ErrorCode,
+            operation = response.Operation,
+            sessionId = response.SessionId,
+            tabId = response.TabId,
+            windowId = response.WindowId,
+            url = response.Url,
+            title = response.Title,
+            browser = response.Browser,
+            rawResponseJson = response.RawResponseJson,
+            outputsJson = response.OutputsJson,
+        });
+    }
+
+    private static async Task<ServeInvokeResponse> ChromeTabsAsync(
+        IQuickerRpcService rpc,
+        CancellationToken token)
+    {
+        var response = await rpc.ListBrowserTabsAsync(token).ConfigureAwait(false);
+        return Ok(new
+        {
+            ok = response.Ok,
+            action = "chrome-tabs",
+            message = response.Message,
+            errorCode = response.ErrorCode,
+            items = response.Items,
         });
     }
 

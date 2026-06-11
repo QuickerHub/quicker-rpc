@@ -1,118 +1,22 @@
 /**
- * Verify staged/bundled QuickerAgent resources include agent-gui (Next standalone) + qkrpc.
- * Run after tauri-prepare.mjs and/or tauri build (release/resources).
+ * Verify Tauri staged/bundled resources. Delegates to verify-desktop-bundle.mjs.
  */
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const tauriRoot = join(agentGuiRoot, "src-tauri");
+const resourcesDir = join(agentGuiRoot, "src-tauri", "resources");
 
 const checkBundled = process.env.VERIFY_BUNDLED === "1";
-
-/** @type {{ label: string, dir: string }[]} */
-const roots = [{ label: "staged", dir: join(tauriRoot, "resources") }];
-if (checkBundled) {
-  roots.push({
-    label: "bundled",
-    dir: join(tauriRoot, "target", "release", "resources"),
-  });
-}
-
-const required = [
-  { rel: "app/server.js", minBytes: 100 },
-  { rel: "app/drizzle/migrations/meta/_journal.json", minBytes: 10 },
-  { rel: "app/drizzle/migrations/0000_initial.sql", minBytes: 10 },
-  { rel: "app/.next/BUILD_ID", minBytes: 1 },
-  { rel: "app/llm-config.json", minBytes: 10 },
-  {
-    rel: "app/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js",
-    minBytes: 10_000,
-  },
-  {
-    rel: "app/node_modules/next/dist/server/app-render/dynamic-access-async-storage.external.js",
-    minBytes: 100,
-  },
-  { rel: "node/node.exe", minBytes: 40 * 1024 * 1024 },
-  { rel: "qkrpc/qkrpc.exe", minBytes: 100 * 1024 },
+const args = [
+  join(agentGuiRoot, "scripts", "verify-desktop-bundle.mjs"),
+  "--resources-dir",
+  resourcesDir,
+  "--label",
+  "tauri-staged",
 ];
+if (checkBundled) args.push("--check-bundled");
 
-const bundledKeyEnv =
-  process.env.BUNDLED_LLM_BINGLEIMUZI_API_KEY?.trim()
-  || process.env.BUNDLED_LLM_AI98PRO_API_KEY?.trim()
-  || process.env.LLM_BINGLEIMUZI_API_KEY?.trim()
-  || process.env.LLM_AI98PRO_API_KEY?.trim();
-
-function countFiles(dir) {
-  let n = 0;
-  for (const ent of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, ent.name);
-    if (ent.isDirectory()) n += countFiles(p);
-    else n += 1;
-  }
-  return n;
-}
-
-function verifyRoot({ label, dir }) {
-  if (!existsSync(dir)) {
-    if (label === "bundled") {
-      console.log(`verify-tauri-bundle: skip ${label} (${dir} not found yet)`);
-      return true;
-    }
-    throw new Error(`Missing ${label} resources dir: ${dir}`);
-  }
-
-  const structuredApp = join(dir, "app", "server.js");
-  const flatServer = join(dir, "server.js");
-  if (!existsSync(structuredApp) && existsSync(flatServer)) {
-    throw new Error(
-      `${label}: resources look flattened (found ${flatServer} but not app/server.js). ` +
-        `Use bundle.resources = ["resources/"] in tauri.conf.json.`,
-    );
-  }
-
-  for (const { rel, minBytes } of required) {
-    const path = join(dir, rel);
-    if (!existsSync(path)) {
-      throw new Error(`${label}: missing ${rel} (expected ${path})`);
-    }
-    const size = statSync(path).size;
-    if (size < minBytes) {
-      throw new Error(`${label}: ${rel} too small (${size} < ${minBytes} bytes)`);
-    }
-  }
-
-  const qkrpcFiles = countFiles(join(dir, "qkrpc"));
-  if (qkrpcFiles < 50) {
-    throw new Error(
-      `${label}: qkrpc/ has only ${qkrpcFiles} files (expected full publish/cli layout)`,
-    );
-  }
-
-  if (bundledKeyEnv) {
-    const secretsPath = join(dir, "app", "llm-bundled-secrets.json");
-    if (!existsSync(secretsPath)) {
-      throw new Error(
-        `${label}: BUNDLED_LLM_* env set but missing app/llm-bundled-secrets.json`,
-      );
-    }
-  }
-
-  console.log(
-    `verify-tauri-bundle: OK ${label} — app + node + qkrpc (${qkrpcFiles} files under qkrpc/)`,
-  );
-  return true;
-}
-
-let ok = true;
-for (const root of roots) {
-  try {
-    verifyRoot(root);
-  } catch (e) {
-    console.error(String(e));
-    ok = false;
-  }
-}
-
-if (!ok) process.exit(1);
+const { status } = spawnSync(process.execPath, args, { stdio: "inherit" });
+process.exit(status ?? 1);

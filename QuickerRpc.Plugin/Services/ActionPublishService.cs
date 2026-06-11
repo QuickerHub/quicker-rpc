@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Quicker.Common;
 using Quicker.Common.Entities;
 using Quicker.Common.Vm;
+using Quicker.Domain;
 using Quicker.Utilities;
 using Quicker.View.Share;
 using QuickerRpc.Contracts.Rpc;
@@ -17,11 +20,13 @@ public sealed class ActionPublishService
 {
     private readonly ActionEditMgrAccessor? _actionEditMgr;
     private readonly ActionUpdateService _actionUpdateService;
+    private readonly ActionDocService _actionDocService;
     private readonly WebConnectorAccessor? _webConnector;
 
-    public ActionPublishService(ActionUpdateService actionUpdateService)
+    public ActionPublishService(ActionUpdateService actionUpdateService, ActionDocService actionDocService)
     {
         _actionUpdateService = actionUpdateService;
+        _actionDocService = actionDocService;
         _actionEditMgr = ActionEditMgrAccessor.TryCreate();
         _webConnector = WebConnectorAccessor.TryCreate();
     }
@@ -100,7 +105,28 @@ public sealed class ActionPublishService
             HasWebConnector = _webConnector is not null,
             HasActionEditMgr = _actionEditMgr?.SetButtonAction is not null,
             EmbedSubProgramsError = TryProbeEmbedSubPrograms(action),
+            Tags = request.Tags,
+            AllowedTags = TryGetAllowedActionTags(),
+            SubmitReview = request.SubmitReview,
+            DetailHtml = request.DetailHtml,
+            RequestNote = request.Note,
         });
+    }
+
+    /// <summary>
+    /// Predefined getquicker action categories. The share API returns InternalServerError for
+    /// tags outside this list, so readiness validates against it. Null disables validation.
+    /// </summary>
+    private static IReadOnlyCollection<string>? TryGetAllowedActionTags()
+    {
+        try
+        {
+            return AppState.ActionTags?.Where(t => !string.IsNullOrWhiteSpace(t)).ToArray();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string ResolveMode(string id, bool resolved, object? actionObj)
@@ -188,7 +214,7 @@ public sealed class ActionPublishService
             action.Id = Guid.NewGuid().ToString("D");
         }
 
-        var vm = BuildSharedActionVm(action, profile, request, title, description, isPublic);
+        var vm = BuildSharedActionVm(action, profile, request, title, description, isPublic, readiness.Tags);
         var (shareOk, shareMessage, sharedDto) = await _webConnector!.ShareActionAsync(vm).ConfigureAwait(true);
         if (!shareOk || sharedDto is null)
         {
@@ -204,6 +230,12 @@ public sealed class ActionPublishService
 
         var sharedId = sharedDto.Id.ToString("D");
         var shareUrl = AppHelper.CreateSharedActionLink(sharedId);
+        var (reviewSubmitted, reviewMessage) = await SubmitForReviewIfRequestedAsync(
+                sharedId,
+                request,
+                isPublic)
+            .ConfigureAwait(true);
+
         if (!_actionEditMgr!.TrySetButtonAction(profile, action.Row, action.Col, action, skipSave: false, out var saveError))
         {
             return new QuickerRpcActionPublishResult
@@ -215,7 +247,10 @@ public sealed class ActionPublishService
                 ShareUrl = shareUrl,
                 Revision = sharedDto.Revision,
                 IsPublic = sharedDto.IsPublic,
-                Message = $"Shared successfully but failed to save local action metadata: {saveError}",
+                ReviewSubmitted = reviewSubmitted,
+                Message = AppendReviewMessage(
+                    $"Shared successfully but failed to save local action metadata: {saveError}",
+                    reviewMessage),
             };
         }
 
@@ -228,11 +263,48 @@ public sealed class ActionPublishService
             ShareUrl = shareUrl,
             Revision = sharedDto.Revision,
             IsPublic = sharedDto.IsPublic,
-            Message = isPublic
-                ? $"动作已分享：{shareUrl}"
-                : $"动作已非公开分享：{shareUrl}",
+            ReviewSubmitted = reviewSubmitted,
+            Message = AppendReviewMessage(
+                isPublic
+                    ? $"动作已分享：{shareUrl}"
+                    : $"动作已非公开分享：{shareUrl}",
+                reviewMessage),
         };
     }
+
+    /// <summary>
+    /// Public shares only enter the action library after the web edit form is submitted for review
+    /// (保存并发布到动作库). Writes the action page intro (DetailHtml) in the same submit.
+    /// </summary>
+    private async Task<(bool Submitted, string? Message)> SubmitForReviewIfRequestedAsync(
+        string sharedId,
+        QuickerRpcActionPublishRequest request,
+        bool isPublic)
+    {
+        if (!isPublic || !request.SubmitReview)
+        {
+            return (false, null);
+        }
+
+        try
+        {
+            var doc = await _actionDocService
+                .SubmitForReviewAsync(
+                    sharedId,
+                    NullIfEmpty(ActionPublishIntro.ResolveDetailHtml(request.DetailHtml, request.Note)))
+                .ConfigureAwait(true);
+            return doc.Ok
+                ? (true, "已自动提交动作库审核。")
+                : (false, $"提交审核失败（请到分享页编辑界面手动点击「保存并发布到动作库」）：{doc.Message}");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"提交审核失败（请到分享页编辑界面手动点击「保存并发布到动作库」）：{ex.Message}");
+        }
+    }
+
+    private static string AppendReviewMessage(string message, string? reviewMessage) =>
+        string.IsNullOrWhiteSpace(reviewMessage) ? message : message + " " + reviewMessage;
 
     private static SharedActionVm BuildSharedActionVm(
         ActionItem action,
@@ -240,7 +312,8 @@ public sealed class ActionPublishService
         QuickerRpcActionPublishRequest request,
         string title,
         string description,
-        bool isPublic)
+        bool isPublic,
+        string? normalizedTags)
     {
         var data = action.Data ?? string.Empty;
         if (ActionProgramContent.IsXActionBody(data))
@@ -265,7 +338,7 @@ public sealed class ActionPublishService
             SourceProfileId = profile.Id,
             Language = Thread.CurrentThread.CurrentCulture.Name,
             Icon = action.Icon,
-            Tags = request.Tags ?? string.Empty,
+            Tags = normalizedTags ?? string.Empty,
             Keywords = request.Keywords ?? string.Empty,
             Note = request.Note ?? string.Empty,
             IsPublic = isPublic,

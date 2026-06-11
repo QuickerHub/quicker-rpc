@@ -37,6 +37,25 @@ public static class ActionPublishReadiness
         public bool HasActionEditMgr { get; set; } = true;
 
         public string? EmbedSubProgramsError { get; set; }
+
+        /// <summary>Whether the share should be auto-submitted for library review after publish.</summary>
+        public bool SubmitReview { get; set; } = true;
+
+        /// <summary>Action page intro HTML (SharedActionVm.Detail) from the publish request.</summary>
+        public string? DetailHtml { get; set; }
+
+        /// <summary>Share note markdown/plain text; converted to Detail HTML when DetailHtml is empty.</summary>
+        public string? RequestNote { get; set; }
+
+        /// <summary>Raw comma-separated tags from the publish request.</summary>
+        public string? Tags { get; set; }
+
+        /// <summary>
+        /// Predefined getquicker action categories (AppState.ActionTags). The share API returns
+        /// InternalServerError for free-form tags, so tags outside this list are rejected upfront.
+        /// Null skips validation (list unavailable).
+        /// </summary>
+        public IReadOnlyCollection<string>? AllowedTags { get; set; }
     }
 
     public static ActionPublishReadinessResult Evaluate(Context context)
@@ -115,6 +134,29 @@ public static class ActionPublishReadiness
                     "program",
                     "Failed to embed global subprograms: " + context.EmbedSubProgramsError));
             }
+
+            var introHtml = ActionPublishIntro.ResolveDetailHtml(context.DetailHtml, context.RequestNote);
+            if (context.IsPublic && context.SubmitReview && string.IsNullOrWhiteSpace(introHtml))
+            {
+                issues.Add(Issue(
+                    "MISSING_DETAIL",
+                    "detailHtml",
+                    "Public publish submits the action for library review and requires a short action "
+                    + "page intro (--html/--html-file or --share-note/--note-file). "
+                    + "Use --no-submit-review to skip."));
+            }
+        }
+
+        var (normalizedTags, invalidTags) = NormalizeTags(context.Tags, context.AllowedTags);
+        if (invalidTags.Count > 0)
+        {
+            issues.Add(Issue(
+                "INVALID_TAGS",
+                "tags",
+                $"Unknown tag(s): {string.Join(", ", invalidTags)}. "
+                + "Tags must come from the predefined getquicker categories: "
+                + string.Join(", ", context.AllowedTags ?? Array.Empty<string>())
+                + ". Free-form tags make the share API return InternalServerError."));
         }
 
         var ready = issues.Count == 0;
@@ -126,6 +168,7 @@ public static class ActionPublishReadiness
             Description = FirstNonEmpty(context.RequestDescription, context.ActionDescription),
             Icon = NullIfEmpty(context.ActionIcon),
             IsPublic = context.IsPublic,
+            Tags = normalizedTags,
             Issues = issues,
             Message = ready
                 ? "Ready to publish."
@@ -141,6 +184,56 @@ public static class ActionPublishReadiness
             Message = message,
             Severity = "error",
         };
+
+    /// <summary>
+    /// Splits comma-separated tags (supports Chinese separators), trims, dedupes, and maps each
+    /// tag to its canonical casing from <paramref name="allowedTags"/>. Tags absent from a
+    /// non-empty allowed list are reported as invalid.
+    /// </summary>
+    private static (string? NormalizedTags, IReadOnlyList<string> InvalidTags) NormalizeTags(
+        string? tags,
+        IReadOnlyCollection<string>? allowedTags)
+    {
+        if (string.IsNullOrWhiteSpace(tags))
+        {
+            return (null, Array.Empty<string>());
+        }
+
+        var parts = tags!
+            .Split(new[] { ',', '，', ';', '；' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim())
+            .Where(t => t.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (parts.Count == 0)
+        {
+            return (null, Array.Empty<string>());
+        }
+
+        if (allowedTags is null || allowedTags.Count == 0)
+        {
+            return (string.Join(",", parts), Array.Empty<string>());
+        }
+
+        var normalized = new List<string>();
+        var invalid = new List<string>();
+        foreach (var part in parts)
+        {
+            var canonical = allowedTags.FirstOrDefault(t =>
+                string.Equals(t?.Trim(), part, StringComparison.OrdinalIgnoreCase));
+            if (canonical is null)
+            {
+                invalid.Add(part);
+            }
+            else
+            {
+                normalized.Add(canonical.Trim());
+            }
+        }
+
+        return (normalized.Count == 0 ? null : string.Join(",", normalized), invalid);
+    }
 
     private static bool HasPublishableIcon(string? icon) =>
         !string.IsNullOrWhiteSpace(icon)
@@ -175,6 +268,9 @@ public sealed class ActionPublishReadinessResult
     public string? Icon { get; set; }
 
     public bool IsPublic { get; set; }
+
+    /// <summary>Validated, canonical comma-separated tags safe to send to the share API.</summary>
+    public string? Tags { get; set; }
 
     public IReadOnlyList<QuickerRpcActionPublishIssue> Issues { get; set; } =
         Array.Empty<QuickerRpcActionPublishIssue>();

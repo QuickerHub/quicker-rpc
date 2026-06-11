@@ -24,9 +24,10 @@ public sealed class SearchFieldWeights
     }
 
     public static SearchFieldWeights ForGuide() =>
-        new(new Dictionary<string, int>(StringComparer.Ordinal)
+        new(        new Dictionary<string, int>(StringComparer.Ordinal)
         {
             ["topic"] = 8,
+            ["reference"] = 6,
             ["parentTopic"] = 3,
             ["title"] = 4,
             ["section"] = 6,

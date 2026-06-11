@@ -6,8 +6,10 @@ import { tmpdir } from "node:os";
 import {
   applyQkrpcToolchainEnv,
   listQkrpcPathDirs,
+  listShellToolPathDirs,
   prependPathDirs,
 } from "./qkrpc-toolchain-env.mjs";
+import { resolveRgBin } from "./rg-bin.mjs";
 
 describe("qkrpc-toolchain-env", () => {
   it("prepends unique dirs without duplicating PATH segments", () => {

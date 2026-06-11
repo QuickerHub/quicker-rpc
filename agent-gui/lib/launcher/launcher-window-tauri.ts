@@ -1,17 +1,13 @@
 "use client";
 
+import { invokeDesktop } from "@/lib/desktop-bridge";
+import {
+  getDesktopShellKind,
+  isDesktopShell,
+} from "@/lib/desktop-shell";
 import { pushAppMessage } from "@/lib/app-messages";
-import { isTauriShell } from "@/lib/tauri-shell";
 
 const LAUNCHER_ERROR_TOAST_ID = "launcher-window-error";
-
-async function invokeLauncher<T>(
-  command: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(command, args);
-}
 
 function formatLauncherInvokeError(error: unknown): string {
   if (error instanceof Error && error.message.trim()) {
@@ -33,16 +29,26 @@ function reportLauncherError(action: string, error: unknown): void {
   });
 }
 
-export async function isLauncherTauriWindow(): Promise<boolean> {
-  if (!isTauriShell()) return false;
-  const { getCurrentWindow } = await import("@tauri-apps/api/window");
-  return getCurrentWindow().label === "launcher";
+/** True when this webview is the dedicated launcher window (Tauri label or Electron role). */
+export async function isLauncherDesktopWindow(): Promise<boolean> {
+  const kind = getDesktopShellKind();
+  if (kind === "electron") {
+    return window.__ELECTRON_WINDOW__?.role === "launcher";
+  }
+  if (kind === "tauri") {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    return getCurrentWindow().label === "launcher";
+  }
+  return false;
 }
 
-export async function tauriLauncherShow(expanded = false): Promise<boolean> {
-  if (!isTauriShell()) return false;
+/** @deprecated Use {@link isLauncherDesktopWindow} */
+export const isLauncherTauriWindow = isLauncherDesktopWindow;
+
+export async function desktopLauncherShow(expanded = false): Promise<boolean> {
+  if (!isDesktopShell()) return false;
   try {
-    await invokeLauncher("launcher_show", { expanded });
+    await invokeDesktop("launcher_show", { expanded });
     return true;
   } catch (error) {
     reportLauncherError("launcher_show", error);
@@ -50,10 +56,10 @@ export async function tauriLauncherShow(expanded = false): Promise<boolean> {
   }
 }
 
-export async function tauriLauncherHide(): Promise<boolean> {
-  if (!isTauriShell()) return false;
+export async function desktopLauncherHide(): Promise<boolean> {
+  if (!isDesktopShell()) return false;
   try {
-    await invokeLauncher("launcher_hide");
+    await invokeDesktop("launcher_hide");
     return true;
   } catch (error) {
     reportLauncherError("launcher_hide", error);
@@ -61,10 +67,10 @@ export async function tauriLauncherHide(): Promise<boolean> {
   }
 }
 
-export async function tauriLauncherToggle(): Promise<boolean> {
-  if (!isTauriShell()) return false;
+export async function desktopLauncherToggle(): Promise<boolean> {
+  if (!isDesktopShell()) return false;
   try {
-    await invokeLauncher("launcher_toggle");
+    await invokeDesktop("launcher_toggle");
     return true;
   } catch (error) {
     reportLauncherError("launcher_toggle", error);
@@ -72,13 +78,22 @@ export async function tauriLauncherToggle(): Promise<boolean> {
   }
 }
 
-export async function tauriLauncherExpand(): Promise<boolean> {
-  if (!isTauriShell()) return false;
+export async function desktopLauncherExpand(): Promise<boolean> {
+  if (!isDesktopShell()) return false;
   try {
-    await invokeLauncher("launcher_expand");
+    await invokeDesktop("launcher_expand");
     return true;
   } catch (error) {
     reportLauncherError("launcher_expand", error);
     return false;
   }
 }
+
+/** @deprecated Use {@link desktopLauncherShow} */
+export const tauriLauncherShow = desktopLauncherShow;
+/** @deprecated Use {@link desktopLauncherHide} */
+export const tauriLauncherHide = desktopLauncherHide;
+/** @deprecated Use {@link desktopLauncherToggle} */
+export const tauriLauncherToggle = desktopLauncherToggle;
+/** @deprecated Use {@link desktopLauncherExpand} */
+export const tauriLauncherExpand = desktopLauncherExpand;

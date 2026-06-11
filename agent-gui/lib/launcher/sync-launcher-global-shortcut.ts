@@ -1,11 +1,12 @@
 "use client";
 
+import { invokeDesktop } from "@/lib/desktop-bridge";
+import { isDesktopShell } from "@/lib/desktop-shell";
 import {
   isLauncherAutoVoiceEnabled,
   loadLauncherShortcut,
 } from "@/lib/launcher/launcher-prefs";
 import { isValidTauriShortcut } from "@/lib/launcher/launcher-shortcut-format";
-import { isTauriShell } from "@/lib/tauri-shell";
 
 let syncTail: Promise<void> = Promise.resolve();
 
@@ -27,7 +28,7 @@ function enqueueShortcutOp<T>(operation: () => Promise<T>): Promise<T> {
 async function syncLauncherGlobalShortcutInner(): Promise<LauncherShortcutSyncResult> {
   const shortcut = loadLauncherShortcut();
   const autoVoice = isLauncherAutoVoiceEnabled();
-  if (!isTauriShell()) {
+  if (!isDesktopShell()) {
     return { ok: true, shortcut };
   }
   if (!isValidTauriShortcut(shortcut)) {
@@ -35,8 +36,7 @@ async function syncLauncherGlobalShortcutInner(): Promise<LauncherShortcutSyncRe
   }
 
   try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("launcher_sync_global_shortcut", { shortcut, autoVoice });
+    await invokeDesktop("launcher_sync_global_shortcut", { shortcut, autoVoice });
     return { ok: true, shortcut };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

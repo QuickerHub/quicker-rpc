@@ -131,6 +131,23 @@ public sealed class ActionDocFormParserTests
     }
 
     [TestMethod]
+    public void TryExtractPublishFormAction_reads_btnPublish_formaction()
+    {
+        const string html = """
+            <form action="/Member/Action/Edit?id=abc" method="post">
+              <input type="submit" id="btnPublish" formaction="/Member/Action/Edit?id=abc&amp;handler=Publish" value="保存并发布到动作库" />
+            </form>
+            """;
+
+        var url = ActionDocFormParser.TryExtractPublishFormAction(
+            html,
+            "https://getquicker.net/Member/Action/Edit?id=abc");
+
+        Assert.IsNotNull(url);
+        StringAssert.Contains(url!, "handler=Publish");
+    }
+
+    [TestMethod]
     public void BuildMultipartBody_includes_detail_and_empty_file_parts()
     {
         var form = new ActionDocFormParser.ParsedForm();

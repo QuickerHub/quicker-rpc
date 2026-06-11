@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountUsageSection } from "@/components/chat/AccountUsageSection";
 import { AppVersionSection } from "@/components/chat/AppVersionSection";
 import { LlmKeysSettingsSection } from "@/components/chat/LlmKeysSettingsSection";
+import { PluginsSettingsSection } from "@/components/chat/PluginsSettingsSection";
 import { VoiceInputSettingsSection } from "@/components/chat/VoiceInputSettingsSection";
 import { LauncherSettingsSection } from "@/components/chat/LauncherSettingsSection";
 import type { AppSettingsTabId } from "@/lib/app-settings-tabs";
@@ -21,6 +22,7 @@ type AppSettingsPanelProps = {
   versionRefreshKey?: number;
   focusProviderId?: LlmProviderId;
   disabled?: boolean;
+  onRequestTab?: (tab: AppSettingsTabId) => void;
 };
 
 export function AppSettingsPanel({
@@ -31,6 +33,7 @@ export function AppSettingsPanel({
   versionRefreshKey,
   focusProviderId,
   disabled = false,
+  onRequestTab,
 }: AppSettingsPanelProps) {
   const [versionProbeTick, setVersionProbeTick] = useState(0);
 
@@ -126,6 +129,20 @@ export function AppSettingsPanel({
           active={tabActive && activeTab === "models"}
           focusProviderId={focusProviderId}
           disabled={disabled}
+        />
+      </div>
+
+      <div
+        id="app-settings-tab-plugins"
+        role="tabpanel"
+        aria-labelledby="app-settings-tab-btn-plugins"
+        hidden={activeTab !== "plugins"}
+        className="app-settings-tab-panel"
+      >
+        <PluginsSettingsSection
+          active={tabActive && activeTab === "plugins"}
+          disabled={disabled}
+          onRequestTab={onRequestTab}
         />
       </div>
 

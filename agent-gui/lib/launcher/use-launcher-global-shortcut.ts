@@ -4,12 +4,12 @@ import { useEffect } from "react";
 import { LAUNCHER_PREFS_CHANGED_EVENT } from "@/lib/launcher/launcher-prefs";
 import { isLauncherRoute } from "@/lib/launcher/launcher-window";
 import { syncLauncherGlobalShortcut } from "@/lib/launcher/sync-launcher-global-shortcut";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { isDesktopShell } from "@/lib/desktop-shell";
 
-/** Register the launcher global shortcut from the main webview (Tauri only). */
+/** Register the launcher global shortcut from the main webview (desktop shell only). */
 export function useLauncherGlobalShortcut(): void {
   useEffect(() => {
-    if (!isTauriShell() || isLauncherRoute()) return;
+    if (!isDesktopShell() || isLauncherRoute()) return;
 
     let disposed = false;
 

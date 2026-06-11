@@ -962,6 +962,156 @@ function Get-QuickerAgentBitifulLatestJsonUrl {
     return "$(Get-QuickerAgentBitifulDownloadPrefix)/latest.json"
 }
 
+function Get-QuickerAgentElectronBitifulDownloadPrefix {
+    return 'https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent-electron'
+}
+
+function Get-QuickerAgentElectronBitifulObjectPrefix {
+    if (-not [string]::IsNullOrWhiteSpace($env:BITIFUL_ELECTRON_OBJECT_PREFIX)) {
+        return $env:BITIFUL_ELECTRON_OBJECT_PREFIX.Trim().Trim('/')
+    }
+
+    return 'quicker-rpc/quicker-agent-electron'
+}
+
+function Get-QuickerAgentElectronSetupName {
+    param([string]$Version)
+
+    $semver = Get-QuickerRpcSemVerFromVersion -Version $Version
+    return "QuickerAgent-Electron-$semver-setup.exe"
+}
+
+function Get-QuickerAgentElectronBitifulSetupUrl {
+    param([string]$Version)
+
+    $fileName = Get-QuickerAgentElectronSetupName -Version $Version
+    return "$(Get-QuickerAgentElectronBitifulDownloadPrefix)/$fileName"
+}
+
+function Get-QuickerAgentElectronBitifulLatestYmlUrl {
+    return "$(Get-QuickerAgentElectronBitifulDownloadPrefix)/latest.yml"
+}
+
+function Get-QuickerAgentElectronBitifulVersionTxtUrl {
+    return "$(Get-QuickerAgentElectronBitifulDownloadPrefix)/version.txt"
+}
+
+function Assert-QuickerAgentElectronLatestYmlFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedSemVer
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "latest.yml not found: $Path"
+    }
+
+    $content = Get-Content -LiteralPath $Path -Raw
+    if ($content -notmatch "(?m)^version:\s*$([regex]::Escape($ExpectedSemVer))\s*$") {
+        throw "latest.yml version mismatch (expected $ExpectedSemVer): $Path"
+    }
+
+    if ($content -notmatch 'path:\s*QuickerAgent-Electron-[\d.]+\-setup\.exe') {
+        throw "latest.yml missing path: QuickerAgent-Electron-*-setup.exe ($Path)"
+    }
+
+    if ($content -notmatch 'sha512:\s*\S+') {
+        throw "latest.yml missing sha512 ($Path)"
+    }
+}
+
+function Invoke-QuickerAgentElectronBitifulUpload {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstallerPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$LatestYmlPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedSemVer,
+
+        [string]$PublishDir = ''
+    )
+
+    if (-not $PublishDir) {
+        $PublishDir = $PSScriptRoot
+    }
+
+    if (-not (Test-Path -LiteralPath $InstallerPath)) {
+        throw "Installer not found: $InstallerPath"
+    }
+
+    if (-not (Test-BitifulConfigured)) {
+        throw 'Bitiful credentials not configured (BITIFUL_ACCESS_KEY, BITIFUL_SECRET_KEY, BITIFUL_BUCKET_NAME).'
+    }
+
+    Assert-QuickerAgentElectronLatestYmlFile -Path $LatestYmlPath -ExpectedSemVer $ExpectedSemVer
+
+    $uploadScript = Join-Path $PublishDir 'bitiful_upload.py'
+    if (-not (Test-Path -LiteralPath $uploadScript)) {
+        throw "bitiful_upload.py not found: $uploadScript"
+    }
+
+    $resolvedInstaller = (Resolve-Path -LiteralPath $InstallerPath -ErrorAction Stop).Path
+    $endpointUrl = if ([string]::IsNullOrWhiteSpace($env:BITIFUL_ENDPOINT_URL)) {
+        'https://s3.bitiful.net'
+    }
+    else {
+        $env:BITIFUL_ENDPOINT_URL.Trim()
+    }
+
+    $objectPrefix = Get-QuickerAgentElectronBitifulObjectPrefix
+
+    $installerArgs = @(
+        $uploadScript, $resolvedInstaller,
+        '--electron',
+        '--endpoint-url', $endpointUrl,
+        '--object-prefix', $objectPrefix
+    )
+
+    if (Get-Command uv -ErrorAction SilentlyContinue) {
+        & uv run --with boto3 python @installerArgs
+    }
+    elseif (Get-Command python -ErrorAction SilentlyContinue) {
+        & python -m pip install --disable-pip-version-check --quiet boto3
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Failed to install boto3. Install uv or pip install boto3.'
+        }
+
+        & python @installerArgs
+    }
+    else {
+        throw 'Neither uv nor python found. Install uv (recommended) or Python 3 with pip.'
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Bitiful Electron installer upload failed with exit code $LASTEXITCODE"
+    }
+
+    $latestResolved = (Resolve-Path -LiteralPath $LatestYmlPath -ErrorAction Stop).Path
+    $latestArgs = @(
+        $latestResolved,
+        '--asset',
+        '--endpoint-url', $endpointUrl,
+        '--object-prefix', $objectPrefix
+    )
+
+    if (Get-Command uv -ErrorAction SilentlyContinue) {
+        & uv run --with boto3 python $uploadScript @latestArgs
+    }
+    else {
+        & python $uploadScript @latestArgs
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Bitiful latest.yml upload failed with exit code $LASTEXITCODE"
+    }
+}
+
 function Import-TauriSigningPrivateKey {
     param([string]$PublishDir = '')
 

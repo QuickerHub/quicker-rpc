@@ -47,6 +47,14 @@
       <Link>Docs\ActionAuthoring\%(Filename)%(Extension)</Link>
       <LogicalName>QuickerRpc.AgentModel.Docs.ActionAuthoring.%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="$(RepoRoot)docs\action-authoring\cli\references\**\*.md">
+      <Link>Docs\ActionAuthoring\References\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <LogicalName>QuickerRpc.AgentModel.Docs.ActionAuthoring.References.$([System.String]::Copy('%(RecursiveDir)').Replace('\','.'))%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="$(RepoRoot)docs\action-authoring\cli\references-manifest.json">
+      <Link>Docs\ActionAuthoring\references-manifest.json</Link>
+      <LogicalName>QuickerRpc.AgentModel.Docs.ActionAuthoring.references-manifest.json</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildThisFileDirectory)..\build\GenerateActionAuthoringDocs.targets" />
   <Import Project="$(MSBuildThisFileDirectory)..\build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />

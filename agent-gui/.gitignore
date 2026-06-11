@@ -31,6 +31,8 @@ src-tauri/resources/
 !src-tauri/resources/plugin-registry-bootstrap.json
 !src-tauri/voice-plugin-metadata/
 src-tauri/gen/
+electron/resources/
+electron/dist/
 
 # ad-hoc debug log captures (manual stdout/stderr redirects during local dev)
 verify-*.txt

@@ -167,7 +167,7 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("query", "Plain keyword; legacy prefixes; or JSON. filter: {source,uses,usesOnly,keyword,script|expr}; sort: {key,script,by,desc}; fields: [actionId,title,...] or *.", shortName: "q"), Option("query-file", "UTF-8 file for --query JSON/text."), Option("fields", "Output projection: comma-separated field names or * (also fields/select/columns in JSON query)."), Option("filter", "Shorthand for plain query: library|installed|local|published."), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("sort", "relevance (default with --query) | lastEdit (default without --query) | title. Ignored when JSON sort script is set."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
 
-                Cmd("action publish", "Share or refresh an action on getquicker.net (auto-detects first publish vs update).", "qkrpc action publish --id <guid> [--preflight] [--title <text>] [--description <text>] [--changelog <text>] [--note-file <path>] [--json]",
+                Cmd("action publish", "Share or refresh an action on getquicker.net (auto-detects first publish vs update). Public first publish writes the action page intro (--html/--html-file) and auto-submits for library review.", "qkrpc action publish --id <guid> [--preflight] [--title <text>] [--description <text>] [--html-file <path>] [--changelog <text>] [--note-file <path>] [--json]",
 
                     opts: new[]
                     {
@@ -175,13 +175,16 @@ internal static class QkrpcCliHelp
                         Option("preflight", "Validate required fields without uploading."),
                         Option("title", "Share title (first publish; defaults to action title)."),
                         Option("description", "Short description (first publish; defaults to action description)."),
-                        Option("share-note", "Share page intro (Note) markdown."),
-                        Option("note-file", "Share page intro (Note) UTF-8 file."),
-                        Option("tags", "Comma-separated tags."),
+                        Option("share-note", "Action page intro plain text/markdown (converted to Detail HTML for review submit)."),
+                        Option("note-file", "Action page intro UTF-8 file (same as --share-note)."),
+                        Option("html", "Action page intro HTML (Detail; overrides --share-note). Required for public publish unless --share-note or --no-submit-review."),
+                        Option("html-file", "Action page intro HTML UTF-8 file."),
+                        Option("tags", "Comma-separated predefined getquicker categories (e.g. 文本处理,AI); free-form tags are rejected."),
                         Option("keywords", "Search keywords."),
                         Option("changelog", "Required when updating an already-shared action."),
                         Option("changelog-file", "Changelog UTF-8 file (update)."),
                         Option("private", "Non-public share (first publish)."),
+                        Option("no-submit-review", "Skip auto submit-for-review (public publish)."),
                         Option("json", "Structured output."),
                     }),
 
@@ -192,6 +195,10 @@ internal static class QkrpcCliHelp
                 Cmd("action shared-info-set", "Update getquicker shared action Detail HTML via Plugin HTTP multipart form (Quicker login).", "qkrpc action shared-info-set --id <sharedId|localId> [--html-file <path>] [--json]",
 
                     opts: new[] { Option("id", "Shared or local action GUID."), Option("code", "Alias for --id."), Option("html", "Detail HTML body."), Option("html-file", "UTF-8 Detail HTML file."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "60"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("action shared-info-submit-review", "Write action page intro (optional) and submit shared action for library review (保存并发布到动作库).", "qkrpc action shared-info-submit-review --id <sharedId|localId> [--share-note <text>|--html-file <path>] [--json]",
+
+                    opts: new[] { Option("id", "Shared or local action GUID."), Option("code", "Alias for --id."), Option("share-note", "Plain-text intro (converted to Detail HTML)."), Option("note-file", "UTF-8 intro file."), Option("html", "Detail HTML body (overrides --share-note)."), Option("html-file", "UTF-8 Detail HTML file."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "90"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("action update", "Alias for action publish (refresh shared action; pass --changelog).", "qkrpc action update --id <guid> [--changelog <text>] [--json]",
 
@@ -392,6 +399,14 @@ internal static class QkrpcCliHelp
                 Cmd("expr run", "Execute Quicker expression ($= / sys:evalexpression) in Quicker via Z.Expressions.", "qkrpc expr run --code <text> | --file <path|-> [--variables-file vars.json] [--on-ui-thread] [--json]",
 
                     opts: new[] { Option("code", "Inline expression."), Option("file", "Expression file or - for stdin."), Option("variables", "JSON map: variable name -> value."), Option("variables-file", "JSON file with variable values."), Option("on-ui-thread", "Run on UI thread."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("chrome run", "Control user's browser via Quicker Connector (sys:chromecontrol). Preserves login state.", "qkrpc chrome run --operation OpenUrl --params '{\"url\":\"https://example.com\",\"windowId\":\"New\"}' [--session id] [--json]",
+
+                    opts: new[] { Option("operation", "OpenUrl | RunScript | GetTabInfo | ActivateTab | …"), Option("params", "JSON inputParams object."), Option("params-file", "JSON file for parameters."), Option("session", "Session id for context reuse."), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("chrome tabs", "List tabs in browsers connected to Quicker.", "qkrpc chrome tabs [--json]",
+
+                    opts: new[] { Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("script check", "Compile-check sys:csscript C# snippet (Roslyn). Requires Quicker + plugin.", "qkrpc script check --code <text> | --file <path|-> [--references <paths>] [--json]",
 

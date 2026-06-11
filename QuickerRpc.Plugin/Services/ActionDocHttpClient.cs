@@ -94,7 +94,7 @@ internal sealed class ActionDocHttpClient : IDisposable
         return (true, null, form.DetailHtml);
     }
 
-    public async Task<(bool Ok, string? Message)> SetDetailHtmlAsync(
+    public Task<(bool Ok, string? Message)> SetDetailHtmlAsync(
         string sharedActionId,
         string tempToken,
         string htmlContent,
@@ -105,6 +105,21 @@ internal sealed class ActionDocHttpClient : IDisposable
             throw new ArgumentNullException(nameof(htmlContent));
         }
 
+        return SubmitEditFormAsync(sharedActionId, tempToken, htmlContent, submitForReview: false, cancellationToken);
+    }
+
+    /// <summary>
+    /// Submits the Member/Action/Edit form. With <paramref name="submitForReview"/> the POST goes to
+    /// the btnPublish formaction (Edit?handler=Publish), which saves the form and submits the shared
+    /// action for library review — equivalent to clicking 保存并发布到动作库 on the web page.
+    /// </summary>
+    public async Task<(bool Ok, string? Message)> SubmitEditFormAsync(
+        string sharedActionId,
+        string tempToken,
+        string? htmlContent,
+        bool submitForReview,
+        CancellationToken cancellationToken)
+    {
         var (pageOk, pageMessage, finalUrl, pageHtml) = await FetchEditPageAsync(
                 sharedActionId,
                 tempToken,
@@ -121,14 +136,25 @@ internal sealed class ActionDocHttpClient : IDisposable
             return (false, parseError ?? "Failed to parse edit form.");
         }
 
-        form.Fields[ActionDocFormParser.DetailFieldName] = htmlContent;
+        if (htmlContent is not null)
+        {
+            form.Fields[ActionDocFormParser.DetailFieldName] = htmlContent;
+        }
+
+        var targetUrl = form.ActionUrl;
+        if (submitForReview)
+        {
+            targetUrl = ActionDocFormParser.TryExtractPublishFormAction(pageHtml, finalUrl)
+                        ?? AppendPublishHandler(form.ActionUrl);
+        }
+
         var (body, boundary) = ActionDocFormParser.BuildMultipartBody(form);
         using var postContent = new ByteArrayContent(body);
         postContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("multipart/form-data")
         {
             Parameters = { new System.Net.Http.Headers.NameValueHeaderValue("boundary", boundary) },
         };
-        using var postRequest = new HttpRequestMessage(HttpMethod.Post, form.ActionUrl)
+        using var postRequest = new HttpRequestMessage(HttpMethod.Post, targetUrl)
         {
             Content = postContent,
         };
@@ -138,23 +164,41 @@ internal sealed class ActionDocHttpClient : IDisposable
             .SendAsync(postRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
 
-        var responseUrl = postResponse.RequestMessage?.RequestUri?.ToString() ?? form.ActionUrl;
+        var okMessage = submitForReview
+            ? "Shared action submitted for library review."
+            : "Action page intro updated.";
+
+        var responseUrl = postResponse.RequestMessage?.RequestUri?.ToString() ?? targetUrl;
         if (postResponse.IsSuccessStatusCode
             && !responseUrl.Contains("/Member/Action/Edit", StringComparison.OrdinalIgnoreCase))
         {
-            return (true, "Action page intro updated.");
+            return (true, okMessage);
         }
 
         if (postResponse.IsSuccessStatusCode)
         {
             var responseHtml = await postResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
-            if (!responseHtml.Contains(DetailTextareaIdMarker(), StringComparison.OrdinalIgnoreCase))
+            // A response without the edit textarea means we were redirected off the form. A
+            // re-rendered edit page only indicates failure when it carries validation errors.
+            var hasEditForm = responseHtml.Contains(DetailTextareaIdMarker(), StringComparison.OrdinalIgnoreCase);
+            var hasValidationErrors =
+                responseHtml.Contains("field-validation-error", StringComparison.OrdinalIgnoreCase)
+                || responseHtml.Contains("validation-summary-errors", StringComparison.OrdinalIgnoreCase);
+            if (!hasEditForm || !hasValidationErrors)
             {
-                return (true, "Action page intro updated.");
+                return (true, okMessage);
             }
+
+            return (false, "Edit form re-rendered with validation errors; review the action info on the web page.");
         }
 
         return (false, $"Submit edit form failed: {(int)postResponse.StatusCode}");
+    }
+
+    private static string AppendPublishHandler(string actionUrl)
+    {
+        var separator = actionUrl.IndexOf('?') >= 0 ? "&" : "?";
+        return actionUrl + separator + "handler=Publish";
     }
 
     public void Dispose() => _client.Dispose();

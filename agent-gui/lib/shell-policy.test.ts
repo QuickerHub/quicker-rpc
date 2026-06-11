@@ -75,6 +75,16 @@ describe("shell-policy", () => {
     );
   });
 
+  it("allows rg search without approval", () => {
+    assert.equal(
+      evaluateShellPolicy({
+        mode: "command",
+        command: "rg -n \"resolveRgBin\" --glob \"*.mjs\"",
+      }).requiresApproval,
+      false,
+    );
+  });
+
   it("allows pwsh build script launcher without approval", () => {
     const verdict = evaluateShellPolicy({
       mode: "command",

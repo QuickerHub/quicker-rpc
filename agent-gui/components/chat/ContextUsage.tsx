@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { formatTokenCount } from "@/lib/chat-types";
 import { buildApiContextUsageSnapshot } from "@/lib/context-length";
@@ -27,7 +35,7 @@ function lastAssistantModel(messages: AgentUIMessage[]): string | undefined {
   return undefined;
 }
 
-export function ContextUsage({
+export const ContextUsage = memo(function ContextUsage({
   messages,
   busy,
   selection,
@@ -60,7 +68,7 @@ export function ContextUsage({
     [messages, limit],
   );
 
-  const lastModel = lastAssistantModel(messages);
+  const lastModel = useMemo(() => lastAssistantModel(messages), [messages]);
   const displayModel = lastModel ?? activeModelId;
   const { pct, hasData, warn, windowLabel, inputTokens, compressionSummary } = snapshot;
   const dashOffset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
@@ -191,4 +199,4 @@ export function ContextUsage({
       )}
     </div>
   );
-}
+});

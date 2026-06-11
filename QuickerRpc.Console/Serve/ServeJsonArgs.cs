@@ -94,6 +94,22 @@ internal static class ServeJsonArgs
         };
     }
 
+    public static bool? GetNullableBool(JsonElement args, string name)
+    {
+        if (args.ValueKind != JsonValueKind.Object || !args.TryGetProperty(name, out var prop))
+        {
+            return null;
+        }
+
+        return prop.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String when bool.TryParse(prop.GetString(), out var b) => b,
+            _ => null,
+        };
+    }
+
     public static JsonElement? GetObject(JsonElement args, string name)
     {
         if (args.ValueKind != JsonValueKind.Object || !args.TryGetProperty(name, out var prop))

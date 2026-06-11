@@ -8,7 +8,7 @@ import {
   resolveVoicePluginStatusSync,
 } from "@/lib/voice-input/voice-input-plugin-status";
 import { fetchTauriVoicePluginStatus } from "@/lib/voice-input/voice-input-tauri";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { isDesktopShell } from "@/lib/desktop-shell";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
 
 const POLL_MS_STARTING = 5_000;
@@ -46,7 +46,7 @@ export function useVoicePluginStatus(active = true): VoicePluginStatus {
 
     try {
       const port = getVoiceWsPort();
-      const inTauri = isTauriShell();
+      const inTauri = isDesktopShell();
       const assumeInstalledInDev =
         process.env.NODE_ENV === "development" && !inTauri;
 

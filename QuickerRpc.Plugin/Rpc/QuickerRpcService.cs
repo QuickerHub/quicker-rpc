@@ -39,6 +39,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly FontAwesomeIconSearchService _fontAwesomeIconSearchService;
     private readonly CodeSyntaxCheckService _codeSyntaxCheckService;
     private readonly ExpressionExecuteService _expressionExecuteService;
+    private readonly ChromeControlExecuteService _chromeControlExecuteService;
     private readonly QuickerSettingsService _settingsService;
     private readonly QuickerSettingsUiService _settingsUiService;
     private readonly LauncherResolveService _launcherResolveService;
@@ -66,6 +67,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         FontAwesomeIconSearchService fontAwesomeIconSearchService,
         CodeSyntaxCheckService codeSyntaxCheckService,
         ExpressionExecuteService expressionExecuteService,
+        ChromeControlExecuteService chromeControlExecuteService,
         QuickerSettingsService settingsService,
         QuickerSettingsUiService settingsUiService,
         LauncherResolveService launcherResolveService,
@@ -92,6 +94,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _fontAwesomeIconSearchService = fontAwesomeIconSearchService;
         _codeSyntaxCheckService = codeSyntaxCheckService;
         _expressionExecuteService = expressionExecuteService;
+        _chromeControlExecuteService = chromeControlExecuteService;
         _settingsService = settingsService;
         _settingsUiService = settingsUiService;
         _launcherResolveService = launcherResolveService;
@@ -260,6 +263,12 @@ public sealed class QuickerRpcService : IQuickerRpcService
         string htmlContent,
         CancellationToken cancellationToken = default) =>
         _actionDocService.SetDetailHtmlAsync(idOrSharedId, htmlContent, cancellationToken);
+
+    public Task<QuickerRpcActionDocResult> SubmitSharedActionForReviewAsync(
+        string idOrSharedId,
+        string? htmlContent = null,
+        CancellationToken cancellationToken = default) =>
+        _actionDocService.SubmitForReviewAsync(idOrSharedId, htmlContent, cancellationToken);
 
     public Task<string> ProbeSharedActionDetailApisAsync(
         string idOrSharedId,
@@ -1072,6 +1081,41 @@ public sealed class QuickerRpcService : IQuickerRpcService
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(_expressionExecuteService.Execute(code, variablesJson, onUiThread));
+    }
+
+    public Task<QuickerRpcChromeControlResult> ExecuteChromeControlAsync(
+        string operation,
+        string? parametersJson = null,
+        string? sessionId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(operation))
+        {
+            return Task.FromResult(new QuickerRpcChromeControlResult
+            {
+                Ok = false,
+                Success = false,
+                ErrorCode = "MISSING_OPERATION",
+                Message = "operation is required.",
+            });
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return InvokeOffUiThreadAsync(
+            () => _chromeControlExecuteService.Execute(
+                operation.Trim(),
+                parametersJson,
+                sessionId),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcChromeControlTabsResult> ListBrowserTabsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return InvokeOffUiThreadAsync(
+            () => _chromeControlExecuteService.ListTabs(),
+            cancellationToken);
     }
 
     public Task<QuickerRpcCodeSyntaxCheckResult> CheckCSharpScriptSyntaxAsync(

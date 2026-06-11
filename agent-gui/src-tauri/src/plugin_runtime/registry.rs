@@ -97,7 +97,7 @@ pub fn list_known_plugin_ids() -> Vec<String> {
             return ids;
         }
     }
-    vec!["voice-asr".into()]
+    vec!["voice-asr".into(), "clipboard-history".into()]
 }
 
 #[cfg(test)]
@@ -108,5 +108,6 @@ mod tests {
     fn bootstrap_fallback_registry_parses() {
         let registry = registry_from_bootstrap_fallback().expect("fallback registry");
         assert!(registry.plugins.contains_key("voice-asr"));
+        assert!(registry.plugins.contains_key("clipboard-history"));
     }
 }

@@ -187,6 +187,17 @@
     },
     "source": "schemas/webview2-authoring.md"
   },
+  "chromecontrol-authoring": {
+    "title": "ChromeControl authoring",
+    "description": "sys:chromecontrol: browser extension automation (open tab, run script, elements, MV3). Use after step_runner_get when writing browser steps.",
+    "searchAliases": ["浏览器", "浏览器控制", "网页自动化", "chrome", "edge", "标签页", "选择器", "后台命令", "chromecontrol"],
+    "allowed-tools": "qkrpc_step_runner_get qkrpc_step_runner_search docs workspace_action_edit_data qkrpc_action_patch",
+    "metadata": {
+      "phase": "P4-P6",
+      "layer": "schema"
+    },
+    "source": "schemas/chromecontrol-authoring.md"
+  },
   "common-operation-item": {
     "title": "Context menu item syntax",
     "description": "CommonOperationItem multi-line text: ContextMenuData, [icon]title(hint)|data, submenus, quicker_in_param. Use when editing context menus.",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 import {
   defaultEnabledToolIds,
@@ -26,7 +26,7 @@ function countEnabledInSet(ids: string[], enabledSet: Set<string>): number {
   return ids.filter((id) => enabledSet.has(id)).length;
 }
 
-export function ToolSelector({
+export const ToolSelector = memo(function ToolSelector({
   enabledTools,
   onChange,
   disabled,
@@ -215,4 +215,4 @@ export function ToolSelector({
       )}
     </div>
   );
-}
+});

@@ -28,7 +28,9 @@ internal static partial class Program
 
     private static Task<int> RunGuideGetAsync(GuideOptions options)
     {
-        var response = ActionAuthoringGuide.GetDoc(options.Topic ?? string.Empty);
+        var response = ActionAuthoringGuide.GetDoc(
+            options.Topic ?? string.Empty,
+            options.Reference);
         if (options.Json)
         {
             global::System.Console.WriteLine(JsonSerializer.Serialize(
@@ -39,10 +41,12 @@ internal static partial class Program
                     success = response.Success,
                     errorMessage = response.ErrorMessage,
                     topic = response.Topic,
+                    reference = response.Reference,
                     title = response.Title,
                     markdown = response.Markdown,
                     schema = response.Schema,
                     availableTopics = response.AvailableTopics,
+                    availableReferences = response.AvailableReferences,
                 },
                 QkrpcJson.CliOutput));
         }

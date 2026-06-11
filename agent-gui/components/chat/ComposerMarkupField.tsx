@@ -2,6 +2,7 @@
 
 import {
   forwardRef,
+  useMemo,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -580,7 +581,7 @@ export const ComposerMarkupField = forwardRef<
     }
   };
 
-  const isEmpty = !canSendComposedMessage(value);
+  const isEmpty = useMemo(() => !canSendComposedMessage(value), [value]);
 
   return (
     <div

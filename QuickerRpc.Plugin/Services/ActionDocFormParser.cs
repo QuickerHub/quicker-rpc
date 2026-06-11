@@ -46,6 +46,10 @@ internal static class ActionDocFormParser
         @"\btype\s*=\s*(""([^""]*)""|'([^']*)'|([^\s>]+))",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
+    private static readonly Regex FormActionAttrRegex = new(
+        @"\bformaction\s*=\s*(""([^""]*)""|'([^']*)'|([^\s>]+))",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     public sealed class ParsedForm
     {
         public string ActionUrl { get; init; } = string.Empty;
@@ -178,6 +182,37 @@ internal static class ActionDocFormParser
 
         form = parsed;
         return true;
+    }
+
+    /// <summary>
+    /// Finds the submit-for-review button (btnPublish, 保存并发布到动作库) and resolves its
+    /// formaction (Edit?handler=Publish) against the page URL. Null when not found.
+    /// </summary>
+    public static string? TryExtractPublishFormAction(string html, string pageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return null;
+        }
+
+        foreach (Match input in InputTagRegex.Matches(html))
+        {
+            var attrs = input.Groups[1].Value;
+            var id = ReadAttr(IdAttrRegex, attrs);
+            var formAction = ReadAttr(FormActionAttrRegex, attrs);
+            if (string.IsNullOrWhiteSpace(formAction))
+            {
+                continue;
+            }
+
+            if (string.Equals(id, "btnPublish", StringComparison.OrdinalIgnoreCase)
+                || formAction!.Contains("handler=Publish", StringComparison.OrdinalIgnoreCase))
+            {
+                return ResolveActionUrl(pageUrl, formAction!);
+            }
+        }
+
+        return null;
     }
 
     public static JArray ExtractSubmitControls(string html)

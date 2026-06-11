@@ -78,18 +78,19 @@ function parseFrontmatterBlock(block: string): Record<string, string> {
 
 /** Parse Agent Skills SKILL.md (YAML frontmatter + Markdown body). */
 export function parseSkillMd(content: string): ParsedSkill {
-  if (!content.startsWith("---\n")) {
+  const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (!normalized.startsWith("---\n")) {
     return {
       name: "",
       description: "",
       allowedTools: [],
       compatibility: null,
       metadata: {},
-      body: content,
+      body: normalized,
     };
   }
 
-  const end = content.indexOf("\n---\n", 4);
+  const end = normalized.indexOf("\n---\n", 4);
   if (end < 0) {
     return {
       name: "",
@@ -97,12 +98,12 @@ export function parseSkillMd(content: string): ParsedSkill {
       allowedTools: [],
       compatibility: null,
       metadata: {},
-      body: content,
+      body: normalized,
     };
   }
 
-  const frontmatter = parseFrontmatterBlock(content.slice(4, end));
-  const body = content.slice(end + 5).replace(/^\n/, "");
+  const frontmatter = parseFrontmatterBlock(normalized.slice(4, end));
+  const body = normalized.slice(end + 5).replace(/^\n/, "");
 
   const metadata: Record<string, string> = {};
   for (const [k, v] of Object.entries(frontmatter)) {

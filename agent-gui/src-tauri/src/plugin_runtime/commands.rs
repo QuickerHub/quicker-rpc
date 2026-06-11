@@ -146,15 +146,15 @@ pub fn plugin_list(
 ) -> Result<Vec<PluginStatusDto>, String> {
     let mut items = Vec::new();
     for plugin_id in registry::list_known_plugin_ids() {
-        if plugin_id == "clipboard-history" && !CLIPBOARD_HISTORY_ENABLED {
-            continue;
-        }
         items.push(build_plugin_status(
             &plugin_id,
             voice_state.inner(),
             clipboard_state.inner(),
             false,
         )?);
+    }
+    if !items.iter().any(|item| item.plugin_id == "clipboard-history") {
+        items.push(build_clipboard_plugin_status(clipboard_state.inner())?);
     }
     Ok(items)
 }

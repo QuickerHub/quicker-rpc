@@ -2,6 +2,7 @@
   "name": "quicker-rpc-agent-gui",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/bootstrap.cjs",
   "scripts": {
     "dev": "node ./start.mjs --dev",
     "dev:browser": "node ./start.mjs --dev --open-browser",
@@ -15,6 +16,12 @@
     "tauri:build": "tauri build",
     "tauri:prepare": "node scripts/tauri-prepare.mjs",
     "tauri:verify-bundle": "node scripts/verify-tauri-bundle.mjs",
+    "electron:dev": "node scripts/electron-dev.mjs",
+    "electron:prepare": "node scripts/electron-prepare.mjs",
+    "electron:build": "pnpm electron:prepare && electron-builder --win nsis",
+    "electron:verify-bundle": "node scripts/verify-desktop-bundle.mjs --resources-dir electron/resources --label electron-staged",
+    "electron:check": "node scripts/electron-check.mjs",
+    "test:electron-smoke": "pwsh -NoProfile -File ./scripts/Test-QuickerAgentElectronSmoke.ps1 -Action verify",
     "proto:dep": "cd .. && pnpm exec --dir agent-gui buf dep update",
     "proto:gen": "pnpm exec buf generate --template buf.gen.yaml",
     "docs:gen": "node ../scripts/generate-authoring-docs.mjs",
@@ -88,6 +95,7 @@
     "ai": "^6.0.193",
     "better-sqlite3": "^12.10.0",
     "drizzle-orm": "^0.45.2",
+    "electron-updater": "^6.8.9",
     "minisearch": "^7.2.0",
     "monaco-editor": "^0.55.1",
     "next": "^15.3.0",
@@ -100,10 +108,49 @@
     "ws": "^8.18.3",
     "zod": "^3.24.0"
   },
+  "build": {
+    "appId": "ai.quicker.agent.electron",
+    "productName": "QuickerAgent",
+    "directories": {
+      "output": "electron/dist",
+      "buildResources": "electron/build"
+    },
+    "files": [
+      "electron/**/*.mjs",
+      "electron/bootstrap.cjs",
+      "package.json",
+      "!node_modules/electron/**/*",
+      "!node_modules/electron-binary/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/resources",
+        "to": "resources",
+        "filter": ["**/*"]
+      }
+    ],
+    "asar": true,
+    "electronVersion": "33.4.11",
+    "win": {
+      "target": ["nsis"],
+      "icon": "src-tauri/icons/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "QuickerAgent-Electron-${version}-setup.${ext}"
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent-electron"
+    }
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "@bufbuild/buf",
-      "better-sqlite3"
+      "better-sqlite3",
+      "electron-binary"
     ]
   },
   "devDependencies": {
@@ -115,6 +162,8 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "drizzle-kit": "^0.31.10",
+    "electron-binary": "npm:electron@33.4.11",
+    "electron-builder": "^25.1.8",
     "tsx": "^4.20.3",
     "typescript": "^5.8.0"
   }

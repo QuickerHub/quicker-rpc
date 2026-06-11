@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using QuickerRpc.AgentModel.Schemas;
@@ -15,10 +16,14 @@ namespace QuickerRpc.AgentModel.Guides;
 public sealed class ActionAuthoringGuideService
 {
     private const string ResourcePrefix = "QuickerRpc.AgentModel.Docs.ActionAuthoring.";
+    private const string ReferenceResourcePrefix = ResourcePrefix + "References.";
+    private const string ReferenceManifestResource = ResourcePrefix + "references-manifest.json";
 
     private static readonly Lazy<IReadOnlyList<GuideTopic>> Topics = new Lazy<IReadOnlyList<GuideTopic>>(LoadTopics);
+    private static readonly Lazy<IReadOnlyList<GuideReferenceRecord>> References =
+        new Lazy<IReadOnlyList<GuideReferenceRecord>>(LoadReferences);
 
-    public GetActionAuthoringDocResult GetDoc(string topic)
+    public GetActionAuthoringDocResult GetDoc(string topic, string? reference = null)
     {
         var key = NormalizeTopic(topic);
         if (string.IsNullOrEmpty(key))
@@ -29,6 +34,11 @@ public sealed class ActionAuthoringGuideService
                 ErrorMessage = "topic is required",
                 AvailableTopics = ListTopicIds(),
             };
+        }
+
+        if (!string.IsNullOrWhiteSpace(reference))
+        {
+            return GetReferenceDoc(key, reference);
         }
 
         var match = Topics.Value.FirstOrDefault(t => string.Equals(t.Topic, key, StringComparison.OrdinalIgnoreCase));
@@ -49,6 +59,65 @@ public sealed class ActionAuthoringGuideService
             Title = match.Title,
             Markdown = match.Markdown,
             Schema = ResolveTopicSchema(match.Topic),
+        };
+    }
+
+    private GetActionAuthoringDocResult GetReferenceDoc(string topic, string reference)
+    {
+        var refKey = NormalizeReferenceKey(reference);
+        if (string.IsNullOrEmpty(refKey))
+        {
+            return new GetActionAuthoringDocResult
+            {
+                Success = false,
+                ErrorMessage = "reference is required",
+                AvailableTopics = ListTopicIds(),
+            };
+        }
+
+        if (IsBlockedReferenceKey(refKey))
+        {
+            return new GetActionAuthoringDocResult
+            {
+                Success = false,
+                ErrorMessage = "Invalid reference: " + reference,
+                AvailableTopics = ListTopicIds(),
+            };
+        }
+
+        var topicMatch = Topics.Value.FirstOrDefault(t =>
+            string.Equals(t.Topic, topic, StringComparison.OrdinalIgnoreCase));
+        if (topicMatch is null)
+        {
+            return new GetActionAuthoringDocResult
+            {
+                Success = false,
+                ErrorMessage = "Unknown topic: " + topic,
+                AvailableTopics = ListTopicIds(),
+            };
+        }
+
+        var refMatch = References.Value.FirstOrDefault(r =>
+            string.Equals(r.Topic, topicMatch.Topic, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(r.Id, refKey, StringComparison.OrdinalIgnoreCase));
+        if (refMatch is null)
+        {
+            return new GetActionAuthoringDocResult
+            {
+                Success = false,
+                ErrorMessage = $"Unknown reference: {refKey} (topic: {topicMatch.Topic})",
+                AvailableTopics = ListTopicIds(),
+                AvailableReferences = ListReferenceIds(topicMatch.Topic),
+            };
+        }
+
+        return new GetActionAuthoringDocResult
+        {
+            Success = true,
+            Topic = refMatch.Topic,
+            Reference = refMatch.Id,
+            Title = ExtractTitle(refMatch.Markdown) ?? refMatch.Title,
+            Markdown = refMatch.Markdown,
         };
     }
 
@@ -76,17 +145,18 @@ public sealed class ActionAuthoringGuideService
         var searchLimit = kw.Length == 0 ? limit : Math.Min(50, Math.Max(limit * 4, limit));
         var hits = GuideSearchIndex.Search(kw.Length == 0 ? null : kw, searchLimit);
         var patterns = SplitKeywordPatterns(kw);
-        var items = SelectBestHitsPerTopic(hits, limit)
+        var items = SelectBestHitsPerDocument(hits, limit)
             .Select(hit =>
             {
-                var topic = ResolveGuideTopic(hit);
+                var (topic, reference, title, markdown) = ResolveGuideHit(hit);
                 var sectionHeading = ResolveSectionHeading(hit);
                 return new ActionAuthoringDocSearchItem
                 {
-                    Topic = topic.Topic,
-                    Title = topic.Title,
+                    Topic = topic,
+                    Reference = reference,
+                    Title = title,
                     Section = sectionHeading,
-                    Excerpt = BuildExcerpt(topic.Markdown, sectionHeading, patterns, maxLength: 420),
+                    Excerpt = BuildExcerpt(markdown, sectionHeading, patterns, maxLength: 420),
                 };
             })
             .ToList();
@@ -116,35 +186,73 @@ public sealed class ActionAuthoringGuideService
                 Markdown = t.Markdown,
             })
             .ToList();
-        GuideSearchIndex.PublishTopics(entries);
+
+        var referenceEntries = References.Value
+            .Select(r => new GuideSearchEntry
+            {
+                Topic = r.Topic,
+                ReferenceId = r.Id,
+                Title = r.Title,
+                Markdown = r.Markdown,
+                SearchAliases = r.SearchAliases,
+            })
+            .ToList();
+
+        GuideSearchIndex.PublishTopics(entries, referenceEntries);
     }
 
-    private static IReadOnlyList<SearchHit> SelectBestHitsPerTopic(IReadOnlyList<SearchHit> hits, int limit)
+    private static IReadOnlyList<SearchHit> SelectBestHitsPerDocument(IReadOnlyList<SearchHit> hits, int limit)
     {
         return hits
-            .GroupBy(h => GuideSearchIndex.ResolveTopicId(h.DocumentId), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(h => GuideSearchIndex.ResolveDocumentKey(h.DocumentId), StringComparer.OrdinalIgnoreCase)
             .Select(g => g.OrderByDescending(h => h.Score).First())
             .OrderByDescending(h => h.Score)
-            .ThenBy(h => GuideSearchIndex.ResolveTopicId(h.DocumentId), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(h => GuideSearchIndex.ResolveDocumentKey(h.DocumentId), StringComparer.OrdinalIgnoreCase)
             .Take(limit)
             .ToList();
     }
 
-    private static GuideTopic ResolveGuideTopic(SearchHit hit)
+    private static (string Topic, string? Reference, string Title, string Markdown) ResolveGuideHit(SearchHit hit)
     {
         if (hit.Payload is GuideSearchSectionPayload section)
         {
-            return Topics.Value.First(t =>
+            var topicDoc = Topics.Value.First(t =>
                 string.Equals(t.Topic, section.Topic, StringComparison.OrdinalIgnoreCase));
+            return (topicDoc.Topic, null, topicDoc.Title, topicDoc.Markdown);
+        }
+
+        if (hit.Payload is GuideReferenceRecord reference)
+        {
+            return (reference.Topic, reference.Id, reference.Title, reference.Markdown);
         }
 
         if (hit.Payload is GuideSearchEntry entry)
         {
-            return new GuideTopic(entry.Topic, entry.Title, entry.Markdown);
+            if (!string.IsNullOrEmpty(entry.ReferenceId))
+            {
+                var refDoc = References.Value.First(r =>
+                    string.Equals(r.Topic, entry.Topic, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(r.Id, entry.ReferenceId, StringComparison.OrdinalIgnoreCase));
+                return (refDoc.Topic, refDoc.Id, refDoc.Title, refDoc.Markdown);
+            }
+
+            return (entry.Topic, null, entry.Title, entry.Markdown);
         }
 
-        var topicId = GuideSearchIndex.ResolveTopicId(hit.DocumentId);
-        return Topics.Value.First(t => string.Equals(t.Topic, topicId, StringComparison.OrdinalIgnoreCase));
+        var documentKey = GuideSearchIndex.ResolveDocumentKey(hit.DocumentId);
+        var slash = documentKey.IndexOf("/ref/", StringComparison.Ordinal);
+        if (slash >= 0)
+        {
+            var topicId = documentKey.Substring(0, slash);
+            var refId = documentKey.Substring(slash + "/ref/".Length);
+            var refDoc = References.Value.First(r =>
+                string.Equals(r.Topic, topicId, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(r.Id, refId, StringComparison.OrdinalIgnoreCase));
+            return (refDoc.Topic, refDoc.Id, refDoc.Title, refDoc.Markdown);
+        }
+
+        var topic = Topics.Value.First(t => string.Equals(t.Topic, documentKey, StringComparison.OrdinalIgnoreCase));
+        return (topic.Topic, null, topic.Title, topic.Markdown);
     }
 
     private static string? ResolveSectionHeading(SearchHit hit) =>
@@ -153,15 +261,48 @@ public sealed class ActionAuthoringGuideService
     private static List<string> ListTopicIds() =>
         Topics.Value.Select(t => t.Topic).OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList();
 
+    private static List<string> ListReferenceIds(string topic) =>
+        References.Value
+            .Where(r => string.Equals(r.Topic, topic, StringComparison.OrdinalIgnoreCase))
+            .Select(r => r.Id)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
     private static string NormalizeTopic(string? topic) =>
         (topic ?? string.Empty).Trim().TrimEnd('/').ToLowerInvariant();
+
+    private static string NormalizeReferenceKey(string reference)
+    {
+        var key = (reference ?? string.Empty)
+            .Trim()
+            .Replace('\\', '/')
+            .TrimStart('/');
+        if (key.StartsWith("references/", StringComparison.OrdinalIgnoreCase))
+        {
+            key = key.Substring("references/".Length);
+        }
+
+        if (key.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        {
+            key = key.Substring(0, key.Length - 3);
+        }
+
+        return key.ToLowerInvariant();
+    }
+
+    private static bool IsBlockedReferenceKey(string refKey) =>
+        refKey.Contains("..", StringComparison.Ordinal)
+        || refKey.StartsWith("/", StringComparison.Ordinal)
+        || (refKey.Length >= 2 && refKey[1] == ':');
 
     private static IReadOnlyList<GuideTopic> LoadTopics()
     {
         var assembly = typeof(ActionAuthoringGuideService).Assembly;
         var names = assembly
             .GetManifestResourceNames()
-            .Where(n => n.StartsWith(ResourcePrefix, StringComparison.Ordinal) && n.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+            .Where(n => n.StartsWith(ResourcePrefix, StringComparison.Ordinal)
+                && n.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+                && !n.StartsWith(ReferenceResourcePrefix, StringComparison.Ordinal))
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToList();
 
@@ -184,6 +325,70 @@ public sealed class ActionAuthoringGuideService
 
         return list;
     }
+
+    private static IReadOnlyList<GuideReferenceRecord> LoadReferences()
+    {
+        var assembly = typeof(ActionAuthoringGuideService).Assembly;
+        using var manifestStream = assembly.GetManifestResourceStream(ReferenceManifestResource);
+        if (manifestStream is null)
+        {
+            return Array.Empty<GuideReferenceRecord>();
+        }
+
+        using var manifestReader = new StreamReader(manifestStream, Encoding.UTF8);
+        var manifestJson = manifestReader.ReadToEnd();
+        GuideReferenceManifest? manifest;
+        try
+        {
+            manifest = JsonSerializer.Deserialize<GuideReferenceManifest>(
+                manifestJson,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch
+        {
+            return Array.Empty<GuideReferenceRecord>();
+        }
+
+        if (manifest?.References is null || manifest.References.Count == 0)
+        {
+            return Array.Empty<GuideReferenceRecord>();
+        }
+
+        var list = new List<GuideReferenceRecord>(manifest.References.Count);
+        foreach (var item in manifest.References)
+        {
+            if (string.IsNullOrWhiteSpace(item.Topic)
+                || string.IsNullOrWhiteSpace(item.Id)
+                || string.IsNullOrWhiteSpace(item.Path))
+            {
+                continue;
+            }
+
+            var resourceName = ReferenceResourcePrefix + PathToResourceSuffix(item.Path);
+            using var stream = assembly.GetManifestResourceStream(resourceName);
+            if (stream is null)
+            {
+                continue;
+            }
+
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            var markdown = reader.ReadToEnd();
+            list.Add(new GuideReferenceRecord
+            {
+                Topic = item.Topic,
+                Id = item.Id,
+                Title = string.IsNullOrWhiteSpace(item.Title) ? item.Id : item.Title,
+                Path = item.Path,
+                Markdown = markdown,
+                SearchAliases = item.SearchAliases,
+            });
+        }
+
+        return list;
+    }
+
+    private static string PathToResourceSuffix(string relPath) =>
+        relPath.Replace('/', '.').Replace('\\', '.');
 
     private static string? ExtractTitle(string markdown)
     {
@@ -303,6 +508,24 @@ public sealed class ActionAuthoringGuideService
         plain = Regex.Replace(plain, @"[*_`#\[\]()]", string.Empty);
         plain = Regex.Replace(plain, @"\s+", " ").Trim();
         return $"{best.Heading}. {plain}";
+    }
+
+    private sealed class GuideReferenceManifest
+    {
+        public List<GuideReferenceManifestItem>? References { get; set; }
+    }
+
+    private sealed class GuideReferenceManifestItem
+    {
+        public string Topic { get; set; } = string.Empty;
+
+        public string Id { get; set; } = string.Empty;
+
+        public string Title { get; set; } = string.Empty;
+
+        public string Path { get; set; } = string.Empty;
+
+        public List<string>? SearchAliases { get; set; }
     }
 
     private sealed class GuideTopic

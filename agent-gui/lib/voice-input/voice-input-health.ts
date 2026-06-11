@@ -1,7 +1,8 @@
 import { buildVoiceHealthUrl } from "@/lib/voice-input/voice-input-config";
 import { VOICE_INPUT_PROTOCOL_VERSION } from "@/lib/voice-input/voice-input-types";
 import { withPromiseTimeout } from "@/lib/promise-timeout";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { invokeDesktop } from "@/lib/desktop-bridge";
+import { isDesktopShell } from "@/lib/desktop-shell";
 
 export type VoiceRuntimeHealth = {
   ok: boolean;
@@ -54,12 +55,11 @@ function mapVoiceRuntimeHealthDto(dto: VoiceRuntimeHealthDto): VoiceRuntimeHealt
   };
 }
 
-async function fetchVoiceRuntimeHealthViaTauri(): Promise<VoiceRuntimeHealth | null> {
-  if (!isTauriShell()) return null;
+async function fetchVoiceRuntimeHealthViaDesktop(): Promise<VoiceRuntimeHealth | null> {
+  if (!isDesktopShell()) return null;
   try {
-    const { invoke } = await import("@tauri-apps/api/core");
     const dto = await withPromiseTimeout(
-      invoke<VoiceRuntimeHealthDto>("voice_runtime_health"),
+      invokeDesktop<VoiceRuntimeHealthDto>("voice_runtime_health"),
       TAURI_HEALTH_INVOKE_TIMEOUT_MS,
       "voice runtime health invoke timeout",
     );
@@ -115,9 +115,9 @@ export async function fetchVoiceRuntimeHealth(
   port?: number,
   signal?: AbortSignal,
 ): Promise<VoiceRuntimeHealth | null> {
-  if (isTauriShell()) {
-    const viaTauri = await fetchVoiceRuntimeHealthViaTauri();
-    if (viaTauri) return viaTauri;
+  if (isDesktopShell()) {
+    const viaDesktop = await fetchVoiceRuntimeHealthViaDesktop();
+    if (viaDesktop) return viaDesktop;
   }
 
   const httpProbe = fetchVoiceRuntimeHealthViaHttp(port, signal);

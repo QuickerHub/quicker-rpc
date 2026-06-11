@@ -1,33 +1,31 @@
 "use client";
 
 import { useEffect } from "react";
+import { listenDesktop } from "@/lib/desktop-bridge";
 import { postLauncherSessionClear } from "@/lib/launcher/launcher-bridge";
 import { LAUNCHER_HIDDEN_EVENT } from "@/lib/launcher/launcher-tauri-events";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { isLauncherDesktopWindow } from "@/lib/launcher/launcher-window-tauri";
+import { isDesktopShell } from "@/lib/desktop-shell";
 
 type UseLauncherTauriHiddenOptions = {
   onHidden?: () => void;
 };
 
-/** React to Rust hiding the launcher window (focus loss, programmatic hide). */
+/** React to the desktop shell hiding the launcher window (focus loss, programmatic hide). */
 export function useLauncherTauriHidden({
   onHidden,
 }: UseLauncherTauriHiddenOptions = {}): void {
   useEffect(() => {
-    if (!isTauriShell()) return;
+    if (!isDesktopShell()) return;
 
     let unlisten: (() => void) | undefined;
     let disposed = false;
 
     void (async () => {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      if (disposed) return;
-      if (getCurrentWindow().label !== "launcher") return;
-
-      const { listen } = await import("@tauri-apps/api/event");
+      if (!(await isLauncherDesktopWindow())) return;
       if (disposed) return;
 
-      unlisten = await listen(LAUNCHER_HIDDEN_EVENT, () => {
+      unlisten = await listenDesktop(LAUNCHER_HIDDEN_EVENT, () => {
         postLauncherSessionClear();
         onHidden?.();
       });

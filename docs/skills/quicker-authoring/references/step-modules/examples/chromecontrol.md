@@ -127,3 +127,73 @@
   }
 }
 ```
+
+### 激活标签页（按 URL）
+
+```json
+{
+  "stepRunnerKey": "sys:chromecontrol",
+  "inputParams": {
+    "operation": "ActivateTab",
+    "url": "https://example.com/dashboard"
+  },
+  "outputParams": {
+    "isSuccess": "成功",
+    "tabId": "标签ID",
+    "url": "网址",
+    "title": "标题"
+  }
+}
+```
+
+### 等待加载完成
+
+```json
+{
+  "stepRunnerKey": "sys:chromecontrol",
+  "inputParams": {
+    "operation": "WaitTabComplete",
+    "tabId.var": "标签ID",
+    "timeoutMs": 30000
+  },
+  "outputParams": {
+    "isSuccess": "成功"
+  }
+}
+```
+
+### 点击按钮（触发事件）
+
+```json
+{
+  "stepRunnerKey": "sys:chromecontrol",
+  "inputParams": {
+    "operation": "TriggerEvent",
+    "tabId.var": "标签ID",
+    "selector": "button[type=submit]",
+    "triggerEventType": "click"
+  },
+  "outputParams": {
+    "isSuccess": "成功"
+  }
+}
+```
+
+### 运行后台命令（列出标签页 URL）
+
+```json
+{
+  "stepRunnerKey": "sys:chromecontrol",
+  "inputParams": {
+    "operation": "BackgroundCommand",
+    "backgroundCommand": "api_tabs_query",
+    "backgroundCommandArgs": "{\"active\": true}",
+    "waitComplete": true,
+    "returnFilter": "url"
+  },
+  "outputParams": {
+    "isSuccess": "成功",
+    "rawResponse": "标签列表"
+  }
+}
+```

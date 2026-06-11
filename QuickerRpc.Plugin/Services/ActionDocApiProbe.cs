@@ -225,10 +225,24 @@ internal static class ActionDocApiProbe
             };
         }
 
+        string? htmlDumpPath = null;
+        try
+        {
+            htmlDumpPath = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                $"qkrpc-edit-page-{sharedId}.html");
+            System.IO.File.WriteAllText(htmlDumpPath, pageHtml, Encoding.UTF8);
+        }
+        catch
+        {
+            htmlDumpPath = null;
+        }
+
         var submitControls = ActionDocFormParser.ExtractSubmitControls(pageHtml);
         return new JObject
         {
             ["ok"] = true,
+            ["htmlDumpPath"] = htmlDumpPath,
             ["finalUrl"] = finalUrl,
             ["formAction"] = form.ActionUrl,
             ["formMethod"] = form.Method,

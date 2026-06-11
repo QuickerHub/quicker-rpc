@@ -10,7 +10,7 @@ const { applyQkrpcToolchainEnv } = require("./qkrpc-toolchain-env.mjs") as {
   ) => NodeJS.ProcessEnv;
 };
 
-/** Child-process env for shell_exec: prepend qkrpc dirs to PATH + QKRPC_* defaults. */
+/** Child-process env for shell_exec: prepend qkrpc + rg dirs to PATH + QKRPC_* / RG_BIN defaults. */
 export function buildShellProcessEnv(
   extra?: Record<string, string>,
 ): NodeJS.ProcessEnv {

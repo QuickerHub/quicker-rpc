@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import type { AppVersionSnapshot } from "@/lib/app-version";
 import { formatDisplayVersion } from "@/lib/app-version-format";
 import type { PingState } from "@/lib/use-qkrpc-ping";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { getDesktopAppVersion } from "@/lib/desktop-app-version";
+import { isDesktopShell } from "@/lib/desktop-shell";
 
 export function extractProtocolVersionFromPing(ping: PingState): string | null {
   if (ping.status !== "ok") return null;
@@ -27,17 +28,16 @@ export function useAppVersionSnapshot(
   qkrpcDisplayVersion: string;
 } {
   const [snapshot, setSnapshot] = useState<AppVersionSnapshot | null>(null);
-  const [tauriVersion, setTauriVersion] = useState<string | null>(null);
+  const [desktopVersion, setDesktopVersion] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isTauriShell()) return;
+    if (!isDesktopShell()) return;
     void (async () => {
       try {
-        const { getVersion } = await import("@tauri-apps/api/app");
-        const version = formatDisplayVersion((await getVersion()).trim());
-        if (version) setTauriVersion(version);
+        const version = formatDisplayVersion(await getDesktopAppVersion());
+        if (version) setDesktopVersion(version);
       } catch {
-        // Browser dev or plugin unavailable.
+        // Browser dev or desktop invoke unavailable.
       }
     })();
   }, []);
@@ -60,7 +60,7 @@ export function useAppVersionSnapshot(
     return () => controller.abort();
   }, [enabled, refreshKey]);
 
-  const agentDisplayVersion = tauriVersion ?? snapshot?.quickerAgent ?? "…";
+  const agentDisplayVersion = desktopVersion ?? snapshot?.quickerAgent ?? "…";
   const qkrpcDisplayVersion = snapshot?.qkrpc ?? "…";
 
   return { snapshot, agentDisplayVersion, qkrpcDisplayVersion };

@@ -56,6 +56,15 @@ public interface IQuickerRpcService
         string htmlContent,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Write action page intro (optional) and submit the shared action for library review
+    /// (web Edit?handler=Publish — 保存并发布到动作库).
+    /// </summary>
+    Task<QuickerRpcActionDocResult> SubmitSharedActionForReviewAsync(
+        string idOrSharedId,
+        string? htmlContent = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Diagnostics: probe getquicker Detail APIs and edit-form metadata (JSON string).</summary>
     Task<string> ProbeSharedActionDetailApisAsync(
         string idOrSharedId,
@@ -332,6 +341,20 @@ public interface IQuickerRpcService
         string code,
         string? variablesJson = null,
         bool onUiThread = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Run one <c>sys:chromecontrol</c> operation against the user's browser (Quicker Connector extension).
+    /// Uses the same runtime as action steps — preserves login state and profile cookies.
+    /// </summary>
+    Task<QuickerRpcChromeControlResult> ExecuteChromeControlAsync(
+        string operation,
+        string? parametersJson = null,
+        string? sessionId = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>List open browser tabs connected to Quicker (Chrome/Edge/Firefox extension).</summary>
+    Task<QuickerRpcChromeControlTabsResult> ListBrowserTabsAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>Compile-check a sys:csscript C# snippet (Roslyn / Westwind, requires Exec method).</summary>
@@ -742,6 +765,70 @@ public sealed class QuickerRpcExpressionExecuteResult
     public string? VariablesJson { get; set; }
 }
 
+public sealed class QuickerRpcChromeControlResult
+{
+    public bool Ok { get; set; }
+
+    /// <summary>Step operation succeeded (browser extension returned success).</summary>
+    public bool Success { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? ErrorCode { get; set; }
+
+    public string? Operation { get; set; }
+
+    /// <summary>Pass to subsequent calls to reuse browser/tab context.</summary>
+    public string? SessionId { get; set; }
+
+    public int? TabId { get; set; }
+
+    public int? WindowId { get; set; }
+
+    public string? Url { get; set; }
+
+    public string? Title { get; set; }
+
+    public string? Browser { get; set; }
+
+    /// <summary>Primary script/extension payload (JSON).</summary>
+    public string? RawResponseJson { get; set; }
+
+    /// <summary>All step output keys captured as JSON object.</summary>
+    public string? OutputsJson { get; set; }
+}
+
+public sealed class QuickerRpcChromeControlTabItem
+{
+    public int TabId { get; set; }
+
+    public int WindowId { get; set; }
+
+    public string? Title { get; set; }
+
+    public string? Url { get; set; }
+
+    public string? Status { get; set; }
+
+    public string? Browser { get; set; }
+
+    public int BrowserProcId { get; set; }
+
+    public bool Incognito { get; set; }
+}
+
+public sealed class QuickerRpcChromeControlTabsResult
+{
+    public bool Ok { get; set; }
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? ErrorCode { get; set; }
+
+    public IList<QuickerRpcChromeControlTabItem> Items { get; set; } =
+        new List<QuickerRpcChromeControlTabItem>();
+}
+
 public sealed class QuickerRpcSubProgramVariableEditResult
 {
     public bool Ok { get; set; }
@@ -855,6 +942,12 @@ public sealed class QuickerRpcActionPublishRequest
     /// <summary>Share page intro (markdown).</summary>
     public string? Note { get; set; }
 
+    /// <summary>
+    /// Action page intro HTML (getquicker edit page SharedActionVm.Detail). Required for public
+    /// publish with review submission; written via the web edit form before submitting for review.
+    /// </summary>
+    public string? DetailHtml { get; set; }
+
     public string? Tags { get; set; }
 
     public string? Keywords { get; set; }
@@ -886,6 +979,9 @@ public sealed class QuickerRpcActionPublishResult
 
     /// <summary>publish = first share; update = refresh existing share.</summary>
     public string? Mode { get; set; }
+
+    /// <summary>True when the share was auto-submitted for library review (web edit form handler=Publish).</summary>
+    public bool ReviewSubmitted { get; set; }
 
     /// <summary>Structured validation issues when <see cref="Ok"/> is false.</summary>
     public IReadOnlyList<QuickerRpcActionPublishIssue>? Issues { get; set; }

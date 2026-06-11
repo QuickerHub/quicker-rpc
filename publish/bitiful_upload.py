@@ -25,6 +25,17 @@ def parse_semver_from_setup_name(file_name: str) -> str:
     return marker
 
 
+def parse_electron_semver_from_setup_name(file_name: str) -> str:
+    prefix = "QuickerAgent-Electron-"
+    suffix = "-setup.exe"
+    if not file_name.startswith(prefix) or not file_name.lower().endswith(suffix):
+        raise RuntimeError(f"Unable to parse Electron semver from file name: {file_name}")
+    marker = file_name[len(prefix) : -len(suffix)].strip()
+    if not marker:
+        raise RuntimeError(f"Unable to parse Electron semver from file name: {file_name}")
+    return marker
+
+
 def verify_remote_object_size(
     s3_client,
     *,
@@ -207,6 +218,73 @@ def upload_quicker_agent_installer(
     return object_key, object_url, version_txt_url
 
 
+def upload_electron_installer(
+    local_file: Path,
+    *,
+    access_key: str,
+    secret_key: str,
+    bucket_name: str,
+    endpoint_url: str = "https://s3.bitiful.net",
+    object_prefix: str = "quicker-rpc/quicker-agent-electron",
+) -> tuple[str, str, str]:
+    if not local_file.is_file():
+        raise FileNotFoundError(f"Installer not found: {local_file}")
+
+    local_size = local_file.stat().st_size
+    min_bytes = 50 * 1024 * 1024
+    if local_size < min_bytes:
+        raise RuntimeError(
+            f"Installer too small ({local_size // (1024 * 1024)} MiB < 50 MiB): {local_file}"
+        )
+
+    prefix = object_prefix.strip().strip("/")
+    object_key = f"{prefix}/{local_file.name}"
+    version_txt_key = f"{prefix}/version.txt"
+    version_marker = parse_electron_semver_from_setup_name(local_file.name)
+
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url=endpoint_url.rstrip("/"),
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name="us-east-1",
+        config=Config(signature_version="s3v4", retries={"max_attempts": 5}),
+    )
+    transfer_config = TransferConfig(
+        multipart_threshold=_SINGLE_PART_THRESHOLD_BYTES,
+        max_concurrency=1,
+        use_threads=False,
+    )
+
+    print(f"Uploading {local_file.name} ({local_size // (1024 * 1024)} MiB)...")
+    s3_client.upload_file(
+        str(local_file),
+        bucket_name,
+        object_key,
+        ExtraArgs={"ContentType": "application/vnd.microsoft.portable-executable"},
+        Config=transfer_config,
+    )
+    verify_remote_object_size(
+        s3_client,
+        bucket_name=bucket_name,
+        object_key=object_key,
+        expected_size=local_size,
+    )
+
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=version_txt_key,
+        Body=version_marker.encode("utf-8"),
+        ContentType="text/plain; charset=utf-8",
+        CacheControl="no-cache, no-store, must-revalidate",
+    )
+
+    base = endpoint_url.rstrip("/")
+    object_url = f"{base}/{bucket_name}/{object_key}"
+    version_txt_url = f"{base}/{bucket_name}/{version_txt_key}"
+    return object_key, object_url, version_txt_url
+
+
 def _load_bitiful_credentials() -> tuple[str, str, str]:
     access_key = os.getenv("BITIFUL_ACCESS_KEY", "").strip()
     secret_key = os.getenv("BITIFUL_SECRET_KEY", "").strip()
@@ -238,6 +316,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Upload as generic release asset (skip installer validation)",
     )
     parser.add_argument(
+        "--electron",
+        action="store_true",
+        help="Upload QuickerAgent Electron NSIS installer + version.txt",
+    )
+    parser.add_argument(
         "--version",
         default="",
         help="Write version.txt after upload (voice-asr release version)",
@@ -265,11 +348,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     endpoint_url = args.endpoint_url.strip()
-    default_prefix = (
-        "quicker-rpc/voice-asr"
-        if args.asset or args.write_version_only
-        else os.getenv("BITIFUL_OBJECT_PREFIX", "quicker-rpc/quicker-agent")
-    )
+    if args.electron:
+        default_prefix = os.getenv(
+            "BITIFUL_ELECTRON_OBJECT_PREFIX", "quicker-rpc/quicker-agent-electron"
+        )
+    elif args.asset or args.write_version_only:
+        default_prefix = "quicker-rpc/voice-asr"
+    else:
+        default_prefix = os.getenv("BITIFUL_OBJECT_PREFIX", "quicker-rpc/quicker-agent")
     object_prefix = (args.object_prefix or default_prefix).strip()
     local_path = args.path.resolve()
 
@@ -312,7 +398,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Version URL: {version_txt_url}")
         return 0
 
-    object_key, object_url, version_txt_url = upload_quicker_agent_installer(
+    upload_fn = upload_electron_installer if args.electron else upload_quicker_agent_installer
+    object_key, object_url, version_txt_url = upload_fn(
         local_path,
         access_key=access_key,
         secret_key=secret_key,

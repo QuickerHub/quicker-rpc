@@ -38,7 +38,9 @@ public static class GuideSearchIndex
         }
     }
 
-    public static void PublishTopics(IReadOnlyList<GuideSearchEntry> topics)
+    public static void PublishTopics(
+        IReadOnlyList<GuideSearchEntry> topics,
+        IReadOnlyList<GuideSearchEntry>? references = null)
     {
         var documents = new List<SearchDocument>();
         foreach (var topic in topics)
@@ -47,6 +49,18 @@ public static class GuideSearchIndex
             foreach (var section in GuideMarkdownSectionParser.ParseH2Sections(topic.Markdown))
             {
                 documents.Add(BuildSectionDocument(topic, section));
+            }
+        }
+
+        if (references is not null)
+        {
+            foreach (var reference in references)
+            {
+                documents.Add(BuildReferenceDocument(reference));
+                foreach (var section in GuideMarkdownSectionParser.ParseH2Sections(reference.Markdown))
+                {
+                    documents.Add(BuildReferenceSectionDocument(reference, section));
+                }
             }
         }
 
@@ -68,6 +82,13 @@ public static class GuideSearchIndex
             });
 
     public static string ResolveTopicId(string documentId)
+    {
+        var key = ResolveDocumentKey(documentId);
+        var slash = key.IndexOf("/ref/", StringComparison.Ordinal);
+        return slash < 0 ? key : key.Substring(0, slash);
+    }
+
+    public static string ResolveDocumentKey(string documentId)
     {
         var hash = documentId.IndexOf('#');
         return hash < 0 ? documentId : documentId.Substring(0, hash);
@@ -106,9 +127,15 @@ public static class GuideSearchIndex
     private static SearchDocument BuildTopicDocument(GuideSearchEntry topic)
     {
         var aliases = ExtractSearchAliases(topic.Markdown);
+        if (string.IsNullOrEmpty(aliases) && topic.SearchAliases?.Count > 0)
+        {
+            aliases = string.Join(" ", topic.SearchAliases);
+        }
+
         var fields = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["topic"] = topic.Topic,
+            ["reference"] = topic.ReferenceId ?? string.Empty,
             ["title"] = topic.Title,
             ["body"] = BuildTopicIndexBody(topic.Markdown),
         };
@@ -120,12 +147,45 @@ public static class GuideSearchIndex
 
         return new SearchDocument
         {
-            Id = topic.Topic,
+            Id = topic.DocumentId,
             Region = SearchRegion.Guide,
-            SortKey = topic.Topic,
+            SortKey = topic.DocumentId,
             Fields = fields,
             Payload = topic,
-            RankBias = 6,
+            RankBias = string.IsNullOrEmpty(topic.ReferenceId) ? 6 : 4,
+        };
+    }
+
+    private static SearchDocument BuildReferenceDocument(GuideSearchEntry reference)
+    {
+        return BuildTopicDocument(reference);
+    }
+
+    private static SearchDocument BuildReferenceSectionDocument(
+        GuideSearchEntry reference,
+        GuideMarkdownSectionParser.Section section)
+    {
+        var compactBody = CompactSectionBody(section.Body);
+        return new SearchDocument
+        {
+            Id = $"{reference.DocumentId}#{section.Slug}",
+            Region = SearchRegion.Guide,
+            SortKey = reference.DocumentId,
+            Fields = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["parentTopic"] = reference.Topic,
+                ["reference"] = reference.ReferenceId ?? string.Empty,
+                ["title"] = reference.Title,
+                ["section"] = section.Heading,
+                ["body"] = compactBody,
+            },
+            Payload = new GuideSearchSectionPayload
+            {
+                Topic = reference.Topic,
+                TopicTitle = reference.Title,
+                SectionHeading = section.Heading,
+                SectionBody = section.Body,
+            },
         };
     }
 

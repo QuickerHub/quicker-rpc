@@ -8,17 +8,20 @@ public sealed class GetActionAuthoringDocResult
     public bool Success { get; set; }
     public string? ErrorMessage { get; set; }
     public string? Topic { get; set; }
+    public string? Reference { get; set; }
     public string? Title { get; set; }
     public string? Markdown { get; set; }
     /// <summary>Machine-readable schema when topic is action-data-schema.</summary>
     public JsonNode? Schema { get; set; }
     public List<string>? AvailableTopics { get; set; }
+    public List<string>? AvailableReferences { get; set; }
 }
 
 public sealed class ActionAuthoringDocSearchItem
 {
     public string Topic { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
+    public string? Reference { get; set; }
     /// <summary>Matched ## section heading when search hit a fragment row.</summary>
     public string? Section { get; set; }
     public string Excerpt { get; set; } = string.Empty;

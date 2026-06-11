@@ -8,6 +8,8 @@ import {
   type ActionAuthoringSearchItem,
   type ActionAuthoringTopicMeta,
   groupTopicsByLayer,
+  isBlockedReferenceKey,
+  normalizeReferenceKey,
   sortTopicsByLayer,
 } from "@/lib/action-authoring-docs.shared";
 import {
@@ -40,6 +42,8 @@ export {
   docViewerEntryKey,
   groupTopicsByLayer,
   sortTopicsByLayer,
+  normalizeReferenceKey,
+  isBlockedReferenceKey,
   ACTION_AUTHORING_LAYER_ORDER,
   ACTION_AUTHORING_LAYER_LABELS,
 } from "@/lib/action-authoring-docs.shared";
@@ -480,8 +484,15 @@ export async function formatAuthoringTopicIndexForPrompt(): Promise<string> {
     for (const t of group.topics) {
       const desc = t.description.trim() || t.title;
       lines.push(`- ${t.topic}: ${desc}`);
-      for (const ref of t.references ?? []) {
-        lines.push(`  - ${t.topic}/${ref.id}`);
+      const refCount = t.references?.length ?? 0;
+      if (t.topic === "step-modules" && refCount > 0) {
+        lines.push(
+          `  - ${refCount} module references — docs search → get with reference (authored/examples/kc)`,
+        );
+      } else {
+        for (const ref of t.references ?? []) {
+          lines.push(`  - ${t.topic}/${ref.id}`);
+        }
       }
     }
   }
@@ -547,12 +558,7 @@ export async function getActionAuthoringReference(
     }
 > {
   const key = normalizeTopic(topic);
-  const refKey = file
-    .trim()
-    .replace(/\\/g, "/")
-    .replace(/^references\//, "")
-    .replace(/\.md$/i, "")
-    .toLowerCase();
+  const refKey = normalizeReferenceKey(file);
 
   const rows = await loadAllTopics();
   const availableTopics = [
@@ -566,7 +572,7 @@ export async function getActionAuthoringReference(
     return { ok: false, error: "file is required", availableTopics };
   }
 
-  if (refKey.includes("/") || refKey.includes("..")) {
+  if (isBlockedReferenceKey(refKey)) {
     return {
       ok: false,
       error: `Invalid reference file: ${file}`,
@@ -705,6 +711,19 @@ export async function getActionAuthoringDoc(
     (r) => r.topic.toLowerCase() === key && !r.reference,
   );
   if (!match) {
+    const skill = await loadSkillInstructions(key);
+    if (skill?.body) {
+      return {
+        ok: true,
+        doc: {
+          topic: skill.name,
+          title: skill.parsed.name.replace(/-/g, " ") || skill.name,
+          description: skill.description,
+          markdown: skill.body,
+        },
+      };
+    }
+
     return {
       ok: false,
       error: `Unknown topic: ${key}`,

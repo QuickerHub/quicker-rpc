@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useReleasePreviewActive } from "@/lib/release-preview.client";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { isDesktopShell } from "@/lib/desktop-shell";
 import { getVoiceWsPort } from "@/lib/voice-input/voice-input-config";
 import { fetchVoiceRuntimeHealth } from "@/lib/voice-input/voice-input-health";
 import { isVoiceInputMockEnabled } from "@/lib/voice-input/voice-input-plugin-status";
@@ -152,7 +152,7 @@ function buildSnapshot(params: {
 
 /** Settings panel: one poll merges host install state + runtime /health. */
 export function useVoiceSettingsPanelState(active = true): VoiceSettingsPanelSnapshot {
-  const inTauri = isTauriShell();
+  const inTauri = isDesktopShell();
   const releasePreview = useReleasePreviewActive();
   const useDevVoiceHost =
     process.env.NODE_ENV === "development" && !releasePreview && !inTauri;

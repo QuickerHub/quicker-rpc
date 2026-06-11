@@ -38,6 +38,7 @@
 
 - 键名与 `step-runner get` 一致；省略 schema 默认值。
 - `$$` / `$=` / `.var` / `.file` 保留。
+- **`$=` 须为合法 C# 表达式**（与 `kc/evalexpression.md` 一致）：文本长度用 `{变量}.Length`，列表元素个数用 `{列表}.Count`，空文本用 `String.IsNullOrWhiteSpace`；勿写 `len()` 等伪函数。布尔比较用 `&&` / `||` / `!`；`sys:compute` 的 `expression` 仍用 `and` / `or`（见 `kc/compute.md`）。复杂 LINQ / 多变量赋值优先 `sys:evalexpression` 示例，而非塞进 assign。
 - 单模式 ≥2 例；多 `controlField` 每主分支 ≥1 例。
 - 参考 `kc/<id>.md` 与 KC 官方场景；可合并 `authored/` 已有示例。
 - 校验：`node scripts/compress-module-ref-examples.mjs`（扫描 `examples/`）。

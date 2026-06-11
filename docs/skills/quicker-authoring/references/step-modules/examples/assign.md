@@ -34,13 +34,13 @@
 }
 ```
 
-### 表达式赋值（布尔）
+### 表达式赋值（文本非空）
 
 ```json
 {
   "stepRunnerKey": "sys:assign",
   "inputParams": {
-    "input": "$=len({文本}) > 0"
+    "input": "$=!String.IsNullOrWhiteSpace({文本})"
   },
   "outputParams": {
     "output": "非空"

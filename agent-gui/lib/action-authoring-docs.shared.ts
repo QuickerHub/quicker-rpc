@@ -41,6 +41,25 @@ export function docViewerEntryKey(topic: string, reference?: string): string {
   return reference ? `${topic}/${reference}` : topic;
 }
 
+/** Normalize reference id from docs get / API path segment. */
+export function normalizeReferenceKey(file: string): string {
+  return file
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/^references\//, "")
+    .replace(/\.md$/i, "")
+    .toLowerCase();
+}
+
+/** Reject path traversal and absolute paths; allow nested catalog ids (examples/*, kc/*). */
+export function isBlockedReferenceKey(refKey: string): boolean {
+  return (
+    refKey.includes("..")
+    || refKey.startsWith("/")
+    || /^[a-z]:/i.test(refKey)
+  );
+}
+
 /** Topic layer order for docs_index / explorer catalog. */
 export const ACTION_AUTHORING_LAYER_ORDER = [
   "router",

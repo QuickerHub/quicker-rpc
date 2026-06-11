@@ -119,6 +119,7 @@ export function AppSettingsPopup({
             onRefreshPing={onRefreshPing}
             versionRefreshKey={versionRefreshKey}
             focusProviderId={focusProviderId}
+            onRequestTab={setActiveTab}
           />
         </div>
       </div>

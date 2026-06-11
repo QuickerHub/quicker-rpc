@@ -1,6 +1,7 @@
 "use client";
 
-import { invoke } from "@tauri-apps/api/core";
+import { invokeDesktop, listenDesktop } from "@/lib/desktop-bridge";
+import { isDesktopShell } from "@/lib/desktop-shell";
 import type { VoiceModelDownloadProgress } from "@/lib/voice-input/voice-input-settings";
 import type { VoicePluginStatus } from "@/lib/voice-input/voice-input-types";
 import {
@@ -8,9 +9,8 @@ import {
   isVoiceRuntimeModelReady,
 } from "@/lib/voice-input/voice-input-health";
 import { withPromiseTimeout } from "@/lib/promise-timeout";
-import { isTauriShell } from "@/lib/tauri-shell";
 
-const TAURI_INVOKE_TIMEOUT_MS = 12_000;
+const DESKTOP_INVOKE_TIMEOUT_MS = 12_000;
 
 export type TauriVoicePluginStatusDto = {
   status: VoicePluginStatus;
@@ -29,14 +29,14 @@ export type VoiceInstallProgressEvent = {
 
 async function invokeVoicePluginStatus(): Promise<TauriVoicePluginStatusDto> {
   return withPromiseTimeout(
-    invoke<TauriVoicePluginStatusDto>("voice_plugin_status"),
-    TAURI_INVOKE_TIMEOUT_MS,
+    invokeDesktop<TauriVoicePluginStatusDto>("voice_plugin_status"),
+    DESKTOP_INVOKE_TIMEOUT_MS,
     "语音插件状态检测超时",
   );
 }
 
 export async function fetchTauriVoicePluginStatus(): Promise<TauriVoicePluginStatusDto | null> {
-  if (!isTauriShell()) return null;
+  if (!isDesktopShell()) return null;
   try {
     return await invokeVoicePluginStatus();
   } catch {
@@ -46,8 +46,8 @@ export async function fetchTauriVoicePluginStatus(): Promise<TauriVoicePluginSta
 
 export async function tauriVoicePluginStartRuntime(): Promise<TauriVoicePluginStatusDto> {
   return withPromiseTimeout(
-    invoke<TauriVoicePluginStatusDto>("voice_plugin_start_runtime"),
-    TAURI_INVOKE_TIMEOUT_MS,
+    invokeDesktop<TauriVoicePluginStatusDto>("voice_plugin_start_runtime"),
+    DESKTOP_INVOKE_TIMEOUT_MS,
     "启动语音服务超时",
   );
 }
@@ -67,7 +67,7 @@ export async function tauriVoicePluginRedownloadModel(
       });
     });
     await withPromiseTimeout(
-      invoke<void>("voice_plugin_redownload_model", { modelId, force }),
+      invokeDesktop<void>("voice_plugin_redownload_model", { modelId, force }),
       30 * 60_000,
       "模型重新下载超时",
     );
@@ -78,8 +78,8 @@ export async function tauriVoicePluginRedownloadModel(
 
 export async function tauriVoicePluginStopRuntime(): Promise<TauriVoicePluginStatusDto> {
   return withPromiseTimeout(
-    invoke<TauriVoicePluginStatusDto>("voice_plugin_stop_runtime"),
-    TAURI_INVOKE_TIMEOUT_MS,
+    invokeDesktop<TauriVoicePluginStatusDto>("voice_plugin_stop_runtime"),
+    DESKTOP_INVOKE_TIMEOUT_MS,
     "停止语音服务超时",
   );
 }
@@ -87,17 +87,16 @@ export async function tauriVoicePluginStopRuntime(): Promise<TauriVoicePluginSta
 export async function listenVoicePluginInstallProgress(
   onProgress: (event: VoiceInstallProgressEvent) => void,
 ): Promise<() => void> {
-  const { listen } = await import("@tauri-apps/api/event");
-  const unlisten = await listen<VoiceInstallProgressEvent>(
-    "voice-plugin-install-progress",
-    (event) => onProgress(event.payload),
-  );
-  return unlisten;
+  return listenDesktop("voice-plugin-install-progress", (payload) => {
+    if (!payload || typeof payload !== "object") return;
+    const event = payload as VoiceInstallProgressEvent;
+    onProgress(event);
+  });
 }
 
 export async function tauriVoicePluginInstall(): Promise<TauriVoicePluginStatusDto> {
   return withPromiseTimeout(
-    invoke<TauriVoicePluginStatusDto>("voice_plugin_install"),
+    invokeDesktop<TauriVoicePluginStatusDto>("voice_plugin_install"),
     10 * 60_000,
     "语音插件安装超时",
   );
@@ -135,11 +134,11 @@ async function finalizeVoiceReady(
   return verifyRuntimeModelReady(dto, onProgress);
 }
 
-/** Install/start voice plugin when needed (Tauri release). Returns true when capture can begin. */
+/** Install/start voice plugin when needed (desktop shell). Returns true when capture can begin. */
 export async function ensureVoicePluginReady(
   onProgress?: (message: string) => void,
 ): Promise<boolean> {
-  if (!isTauriShell()) return false;
+  if (!isDesktopShell()) return false;
 
   onProgress?.("正在检查语音服务…");
   let dto = await fetchTauriVoicePluginStatus();
@@ -222,25 +221,25 @@ export async function tauriVoiceIpcSessionStart(params: {
   language?: string;
   streaming?: boolean;
 }): Promise<void> {
-  return invoke("voice_ipc_session_start", params);
+  return invokeDesktop("voice_ipc_session_start", params);
 }
 
 export async function tauriVoiceIpcSessionSendAudio(params: {
   sessionId: string;
   pcm: Uint8Array;
 }): Promise<void> {
-  return invoke("voice_ipc_session_send_audio", params);
+  return invokeDesktop("voice_ipc_session_send_audio", params);
 }
 
 export async function tauriVoiceIpcSessionEnd(params: {
   sessionId: string;
 }): Promise<VoiceIpcFinalDto> {
-  return invoke<VoiceIpcFinalDto>("voice_ipc_session_end", params);
+  return invokeDesktop<VoiceIpcFinalDto>("voice_ipc_session_end", params);
 }
 
 export async function tauriVoiceIpcSessionCancel(params: {
   sessionId: string;
   reason?: string;
 }): Promise<void> {
-  return invoke("voice_ipc_session_cancel", params);
+  return invokeDesktop("voice_ipc_session_cancel", params);
 }

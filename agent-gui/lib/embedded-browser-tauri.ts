@@ -1,4 +1,5 @@
-import { isTauriShell } from "@/lib/tauri-shell";
+import { invokeDesktop } from "@/lib/desktop-bridge";
+import { isDesktopShell } from "@/lib/desktop-shell";
 
 export type EmbeddedBrowserNavigationState = {
   url: string;
@@ -14,53 +15,45 @@ export type EmbeddedBrowserProfileInfo = {
   survivesInstallUpdate: boolean;
 };
 
-async function invokeTauri<T>(
-  command: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(command, args);
-}
-
 export async function fetchEmbeddedBrowserNavigationState(): Promise<EmbeddedBrowserNavigationState> {
-  return invokeTauri<EmbeddedBrowserNavigationState>(
+  return invokeDesktop<EmbeddedBrowserNavigationState>(
     "embedded_browser_navigation_state",
   );
 }
 
 export async function embeddedBrowserNavigate(url: string): Promise<void> {
-  await invokeTauri("embedded_browser_navigate", { url });
+  await invokeDesktop("embedded_browser_navigate", { url });
 }
 
 export async function embeddedBrowserReload(): Promise<void> {
-  await invokeTauri("embedded_browser_reload");
+  await invokeDesktop("embedded_browser_reload");
 }
 
 export async function embeddedBrowserGoBack(): Promise<void> {
-  await invokeTauri("embedded_browser_go_back");
+  await invokeDesktop("embedded_browser_go_back");
 }
 
 export async function embeddedBrowserGoForward(): Promise<void> {
-  await invokeTauri("embedded_browser_go_forward");
+  await invokeDesktop("embedded_browser_go_forward");
 }
 
 export async function embeddedBrowserOpenDevtools(): Promise<void> {
-  await invokeTauri("embedded_browser_open_devtools");
+  await invokeDesktop("embedded_browser_open_devtools");
 }
 
 export async function embeddedBrowserToggleDevtools(): Promise<boolean> {
-  return invokeTauri<boolean>("embedded_browser_toggle_devtools");
+  return invokeDesktop<boolean>("embedded_browser_toggle_devtools");
 }
 
 export async function fetchEmbeddedBrowserProfileInfo(): Promise<EmbeddedBrowserProfileInfo> {
-  return invokeTauri<EmbeddedBrowserProfileInfo>("embedded_browser_profile_info");
+  return invokeDesktop<EmbeddedBrowserProfileInfo>("embedded_browser_profile_info");
 }
 
-/** Rust-side close — reliable when JS Webview API races page reload. */
+/** Rust/Electron-side close — reliable when JS Webview API races page reload. */
 export async function embeddedBrowserForceClose(): Promise<boolean> {
-  return invokeTauri<boolean>("embedded_browser_force_close");
+  return invokeDesktop<boolean>("embedded_browser_force_close");
 }
 
 export function embeddedBrowserTauriAvailable(): boolean {
-  return isTauriShell();
+  return isDesktopShell();
 }

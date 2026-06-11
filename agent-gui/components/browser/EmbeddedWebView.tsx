@@ -24,16 +24,16 @@ export function EmbeddedWebView({
     hostRef: boundsHostRef,
   });
 
-  if (!webview.isTauri) {
+  if (!webview.isDesktop) {
     return (
       <div className="embedded-browser__empty embedded-browser__empty--desktop-only">
-        <p>内嵌浏览器需要 QuickerAgent 桌面版（WebView2 子视图）。</p>
+        <p>内嵌浏览器需要 QuickerAgent 桌面版（Tauri / Electron 子视图）。</p>
         <p className="embedded-browser__empty-hint">
-          请使用已安装的 QuickerAgent，或在 agent-gui 目录运行{" "}
-          <code>pnpm tauri:dev</code>。
+          请使用已安装的 QuickerAgent，或运行 <code>pwsh ./dev.ps1 -Tauri</code> /{" "}
+          <code>-Electron</code>。
         </p>
         <p className="embedded-browser__empty-hint">
-          纯浏览器访问 localhost:3000 无法内嵌 WebView 组件。
+          纯浏览器访问 localhost:3000 无法内嵌原生 WebView 组件。
         </p>
       </div>
     );

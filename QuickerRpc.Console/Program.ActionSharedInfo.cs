@@ -106,6 +106,65 @@ internal static partial class Program
         }
     }
 
+    private static async Task<int> RunActionSharedInfoSubmitReviewAsync(ActionOptions options)
+    {
+        var id = ResolveActionSharedInfoId(options);
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            await EmitErrorAsync(options.Json, "MISSING_ACTION_ID", "--id or --code is required.").ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        var (noteOk, note, noteErrorCode, noteErrorMessage) = ResolveShareNote(options);
+        if (!noteOk)
+        {
+            await EmitErrorAsync(options.Json, noteErrorCode!, noteErrorMessage!).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        var (htmlOk, detailHtml, htmlErrorCode, htmlErrorMessage) = await ResolveDetailHtmlAsync(options)
+            .ConfigureAwait(false);
+        if (!htmlOk)
+        {
+            await EmitErrorAsync(options.Json, htmlErrorCode!, htmlErrorMessage!).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+
+        var introHtml = ActionPublishIntro.ResolveDetailHtml(detailHtml, note);
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var result = await session.Proxy
+                .SubmitSharedActionForReviewAsync(id, introHtml, rpcToken)
+                .ConfigureAwait(false);
+
+            if (options.Json)
+            {
+                global::System.Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    ok = result.Ok,
+                    action = "shared-info-submit-review",
+                    sharedId = result.SharedActionId ?? id,
+                    message = result.Message,
+                }));
+            }
+            else
+            {
+                global::System.Console.WriteLine(result.Message);
+            }
+
+            return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            await EmitErrorAsync(options.Json, "ACTION_SHARED_INFO_SUBMIT_REVIEW_FAILED", ex.Message)
+                .ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+    }
+
     private static string? ResolveActionSharedInfoId(ActionOptions options) =>
         string.IsNullOrWhiteSpace(options.Id)
             ? options.Code?.Trim()

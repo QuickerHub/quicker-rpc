@@ -128,6 +128,30 @@
       "layer": "workflow"
     },
     {
+      "topic": "chromecontrol-authoring",
+      "title": "ChromeControl authoring",
+      "description": "sys:chromecontrol: browser extension automation (open tab, run script, elements, MV3). Use after step_runner_get when writing browser steps.",
+      "source": "references/chromecontrol-authoring.md",
+      "templateSource": "schemas/chromecontrol-authoring.md",
+      "allowedTools": "qkrpc_step_runner_get qkrpc_step_runner_search docs workspace_action_edit_data qkrpc_action_patch",
+      "metadata": {
+        "phase": "P4-P6",
+        "layer": "schema"
+      },
+      "layer": "schema",
+      "searchAliases": [
+        "浏览器",
+        "浏览器控制",
+        "网页自动化",
+        "chrome",
+        "edge",
+        "标签页",
+        "选择器",
+        "后台命令",
+        "chromecontrol"
+      ]
+    },
+    {
       "topic": "common-operation-item",
       "title": "Context menu item syntax",
       "description": "CommonOperationItem multi-line text: ContextMenuData, [icon]title(hint)|data, submenus, quicker_in_param. Use when editing context menus.",
@@ -662,7 +686,16 @@
       {
         "id": "chromecontrol",
         "title": "sys:chromecontrol",
-        "path": "step-modules/authored/chromecontrol.md"
+        "path": "step-modules/authored/chromecontrol.md",
+        "searchAliases": [
+          "浏览器控制",
+          "浏览器",
+          "chrome",
+          "edge",
+          "标签页",
+          "网页自动化",
+          "后台命令"
+        ]
       },
       {
         "id": "cloud_oss",
@@ -1563,7 +1596,16 @@
       {
         "id": "kc/chromecontrol",
         "title": "sys:chromecontrol",
-        "path": "step-modules/kc/chromecontrol.md"
+        "path": "step-modules/kc/chromecontrol.md",
+        "searchAliases": [
+          "浏览器控制",
+          "浏览器",
+          "chrome",
+          "edge",
+          "标签页",
+          "网页自动化",
+          "后台命令"
+        ]
       },
       {
         "id": "kc/cloud_oss",

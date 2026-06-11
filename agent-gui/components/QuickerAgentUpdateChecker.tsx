@@ -29,7 +29,8 @@ import {
   listenVoicePluginInstallProgress,
   type VoiceInstallProgressEvent,
 } from "@/lib/voice-input/voice-input-tauri";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { getDesktopAppVersion } from "@/lib/desktop-app-version";
+import { isDesktopShell } from "@/lib/desktop-shell";
 
 const APP_UPDATE_MESSAGE_ID = "quicker-agent-update-dev";
 
@@ -92,12 +93,12 @@ function syncAppOverlayFromOfficialProgress(event: OfficialUpdateProgress): void
   });
 }
 
-/** Tauri release: official updater plugin. Dev/browser: legacy Bitiful prompt. */
+/** Desktop release: Tauri plugin-updater or Electron electron-updater. Dev/browser: Bitiful prompt. */
 export function QuickerAgentUpdateChecker() {
   const startedRef = useRef(false);
   const voiceRuntimeUpgradeRef = useRef(false);
   useEffect(() => {
-    if (startedRef.current || !isTauriShell()) return;
+    if (startedRef.current || !isDesktopShell()) return;
     startedRef.current = true;
 
     const controller = new AbortController();
@@ -151,10 +152,8 @@ export function QuickerAgentUpdateChecker() {
 
     void (async () => {
       try {
-        const { getVersion } = await import("@tauri-apps/api/app");
-
         if (process.env.NODE_ENV === "development") {
-          const installedVersion = (await getVersion()).trim();
+          const installedVersion = await getDesktopAppVersion();
           const update = await checkQuickerAgentUpdate(
             installedVersion,
             controller.signal,
@@ -173,7 +172,7 @@ export function QuickerAgentUpdateChecker() {
 
         unlistenVoice = await listenVoicePluginInstallProgress(handleVoiceProgress);
 
-        const installedVersion = (await getVersion()).trim();
+        const installedVersion = await getDesktopAppVersion();
         setAppInstalledVersion(installedVersion);
 
         dismissAppUpdateToast();

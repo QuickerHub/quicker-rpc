@@ -576,6 +576,34 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
     return null;
   }
 
+  if (positional[0] === "chrome") {
+    const verb = positional[1];
+    if (verb === "tabs") {
+      return { op: "chrome.tabs", args: {} };
+    }
+    if (verb === "run") {
+      const paramsRaw = flagStr(flags, "params");
+      let parameters: unknown;
+      if (paramsRaw) {
+        try {
+          parameters = JSON.parse(paramsRaw) as unknown;
+        } catch {
+          parameters = undefined;
+        }
+      }
+      return {
+        op: "chrome.run",
+        args: {
+          operation: flagStr(flags, "operation"),
+          parametersJson: paramsRaw,
+          parameters,
+          sessionId: flagStr(flags, "session"),
+        },
+      };
+    }
+    return null;
+  }
+
   if (positional[0] === "fa") {
     const verb = positional[1];
     if (verb === "search") {

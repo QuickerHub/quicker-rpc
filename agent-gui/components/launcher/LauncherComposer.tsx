@@ -22,7 +22,8 @@ import { useGlobalVoiceToggle } from "@/lib/voice-input/use-global-voice-toggle"
 import { useLauncherTauriHidden } from "@/lib/launcher/use-launcher-tauri-hidden";
 import { LAUNCHER_SHOWN_EVENT } from "@/lib/launcher/launcher-tauri-events";
 import { dismissLauncherWindow } from "@/lib/launcher/launcher-window";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { listenDesktop } from "@/lib/desktop-bridge";
+import { isDesktopShell } from "@/lib/desktop-shell";
 import {
   fetchLlmOptions,
   pickInitialLauncherLlmSelectionFromApi,
@@ -204,12 +205,11 @@ function LauncherComposer({
   }, []);
 
   useEffect(() => {
-    if (!isTauriShell()) return;
+    if (!isDesktopShell()) return;
 
     let unlisten: (() => void) | undefined;
     void (async () => {
-      const { listen } = await import("@tauri-apps/api/event");
-      unlisten = await listen(LAUNCHER_SHOWN_EVENT, () => {
+      unlisten = await listenDesktop(LAUNCHER_SHOWN_EVENT, () => {
         const focusComposer = () => composerRef.current?.focus();
         requestAnimationFrame(focusComposer);
         window.setTimeout(focusComposer, 50);

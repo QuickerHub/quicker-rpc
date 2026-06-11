@@ -10,6 +10,12 @@
         "channelMirrorUrl": "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/voice-plugin-channel.json",
         "minHostVersion": "0.10.0",
         "activationEvents": ["onStartup:channelRefresh", "onStartup:runtime", "onDemand:voice-input"]
+      },
+      "clipboard-history": {
+        "channelUrl": "https://github.com/QuickerHub/clipboard-history-runtime/releases/latest/download/channel.json",
+        "channelMirrorUrl": null,
+        "minHostVersion": "0.11.0",
+        "activationEvents": ["onStartup:runtime"]
       }
     }
   }

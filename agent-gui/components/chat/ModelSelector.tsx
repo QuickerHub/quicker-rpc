@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -228,7 +229,7 @@ async function persistActiveSelection(selection: string): Promise<void> {
   }).catch(() => undefined);
 }
 
-export function ModelSelector({
+export const ModelSelector = memo(function ModelSelector({
   selection,
   onChange,
   onNeedSettings,
@@ -1115,7 +1116,7 @@ export function ModelSelector({
         : null}
     </div>
   );
-}
+});
 
 /** @deprecated use pickInitialLlmSelectionFromApi */
 export function pickInitialLlmProvider(

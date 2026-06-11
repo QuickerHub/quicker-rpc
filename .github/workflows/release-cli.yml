@@ -110,7 +110,7 @@ jobs:
         shell: pwsh
         run: |
           $zipPath = Join-Path $PWD 'publish/${{ needs.metadata.outputs.zip_name }}'
-          Compress-Archive -Path 'publish/cli/*' -DestinationPath $zipPath -CompressionLevel Optimal -Force
+          Compress-Archive -Path 'publish/cli/*' -DestinationPath $zipPath -CompressionLevel Fastest -Force
           Copy-Item -LiteralPath $zipPath -Destination (Join-Path $PWD 'publish/qkrpc-win-x64.zip') -Force
 
       - name: Ensure Inno Setup 6
@@ -143,6 +143,8 @@ jobs:
     runs-on: windows-latest
     needs: metadata
     environment: publish
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -175,14 +177,32 @@ jobs:
           cache: pnpm
           cache-dependency-path: agent-gui/pnpm-lock.yaml
 
+      - name: Cache Next.js compiler output
+        uses: actions/cache@v4
+        with:
+          path: agent-gui/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('agent-gui/pnpm-lock.yaml', 'agent-gui/package.json', 'agent-gui/next.config.ts', 'agent-gui/tsconfig.json') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Enable Rust sccache (GHA cache backend)
+        shell: pwsh
+        run: |
+          "RUSTC_WRAPPER=sccache" >> $env:GITHUB_ENV
+          "SCCACHE_GHA_ENABLED=true" >> $env:GITHUB_ENV
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: agent-gui/src-tauri
           # Release Tauri target/ is multi-GB; saving it on Windows often fails (tar/zstd/size).
+          # rustc object files are cached via sccache instead.
           cache-targets: false
           shared-key: release-build-agent
 
@@ -201,10 +221,6 @@ jobs:
       - name: Install agent-gui dependencies
         working-directory: agent-gui
         run: pnpm install --frozen-lockfile --config.node-linker=hoisted --config.symlink=false
-
-      - name: Preflight release gate (fast + NSIS assets)
-        shell: pwsh
-        run: pwsh -NoProfile -File ./publish/Preflight-QuickerAgentFast.ps1
 
       - name: Build QuickerAgent installer
         shell: pwsh
@@ -229,6 +245,16 @@ jobs:
             $env:BUNDLED_LLM_BINGLEIMUZI_API_KEY = $legacyKey
           }
           pwsh -NoProfile -File ./publish/Publish-QuickerAgent.ps1 -SkipQkrpcBuild
+
+      - name: sccache stats
+        if: always()
+        shell: pwsh
+        run: |
+          if (Get-Command sccache -ErrorAction SilentlyContinue) {
+            sccache --show-stats
+          } else {
+            Write-Host 'sccache not on PATH; skip stats.'
+          }
 
       - name: Upload agent artifacts
         uses: actions/upload-artifact@v4

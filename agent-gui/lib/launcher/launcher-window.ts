@@ -1,15 +1,15 @@
 "use client";
 
-import { isTauriShell } from "@/lib/tauri-shell";
+import { isDesktopShell } from "@/lib/desktop-shell";
 import {
   postLauncherOpened,
   postLauncherSessionClear,
 } from "@/lib/launcher/launcher-bridge";
 import {
-  isLauncherTauriWindow,
-  tauriLauncherHide,
-  tauriLauncherShow,
-  tauriLauncherToggle,
+  desktopLauncherHide,
+  desktopLauncherShow,
+  desktopLauncherToggle,
+  isLauncherDesktopWindow,
 } from "@/lib/launcher/launcher-window-tauri";
 
 function notifyLauncherOpened(): void {
@@ -30,8 +30,8 @@ export function isLauncherRoute(): boolean {
 
 export async function openLauncherWindow(): Promise<boolean> {
   if (typeof window === "undefined") return false;
-  if (isTauriShell()) {
-    const ok = await tauriLauncherShow(false);
+  if (isDesktopShell()) {
+    const ok = await desktopLauncherShow(false);
     if (ok) {
       notifyLauncherOpened();
     }
@@ -64,8 +64,8 @@ export function expandLauncherPopup(): void {
 }
 
 export async function toggleLauncherWindow(): Promise<boolean> {
-  if (isTauriShell()) {
-    return tauriLauncherToggle();
+  if (isDesktopShell()) {
+    return desktopLauncherToggle();
   }
   if (launcherPopup && !launcherPopup.closed) {
     postLauncherSessionClear();
@@ -78,11 +78,10 @@ export async function toggleLauncherWindow(): Promise<boolean> {
 
 export function dismissLauncherWindow(): void {
   if (typeof window === "undefined") return;
-  if (isTauriShell()) {
-    void isLauncherTauriWindow().then((isLauncherWindow) => {
+  if (isDesktopShell()) {
+    void isLauncherDesktopWindow().then((isLauncherWindow) => {
       if (isLauncherWindow) {
-        // Hide first; session clears on launcher:hidden (avoids UI collapse before hide).
-        void tauriLauncherHide();
+        void desktopLauncherHide();
       }
     });
     return;

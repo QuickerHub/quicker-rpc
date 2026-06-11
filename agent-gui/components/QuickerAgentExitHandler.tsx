@@ -14,35 +14,23 @@ import {
   showApplyingAppUpdateOverlay,
 } from "@/lib/app-update-overlay";
 import {
-  getPendingOfficialUpdate,
+  forceExitDesktop,
+  invokeDesktop,
+  listenDesktop,
+} from "@/lib/desktop-bridge";
+import { isDesktopShell } from "@/lib/desktop-shell";
+import {
+  getPendingOfficialUpdateDescriptor,
   installPendingOfficialUpdateOnExit,
   isPendingOfficialUpdateDownloaded,
 } from "@/lib/quicker-agent-official-updater";
-import { isTauriShell } from "@/lib/tauri-shell";
 
 const APP_REQUEST_EXIT_EVENT = "app-request-exit";
 const FORCE_EXIT_AFTER_MS = 3_000;
 
-async function forceExitNow(): Promise<void> {
-  try {
-    const { exit } = await import("@tauri-apps/plugin-process");
-    await exit(0);
-    return;
-  } catch {
-    // Fall through to graceful_exit.
-  }
-
-  try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("graceful_exit");
-  } catch {
-    // Rust watchdog / process::exit is the last resort.
-  }
-}
-
 function scheduleForceExit(): void {
   window.setTimeout(() => {
-    void forceExitNow();
+    void forceExitDesktop();
   }, FORCE_EXIT_AFTER_MS);
 }
 
@@ -55,20 +43,20 @@ function waitForOverlayPaint(): Promise<void> {
 }
 
 /**
- * Release builds: tray quit triggers graceful shutdown in Rust.
- * Closing the main window hides it to the tray (handled in Rust) and never exits.
+ * Release builds: tray quit triggers graceful shutdown in the desktop shell.
+ * Closing the main window may hide to tray (Tauri) or request exit (Electron).
  */
 export function QuickerAgentExitHandler() {
   const exitInProgressRef = useRef(false);
 
   useEffect(() => {
-    if (!isTauriShell() || process.env.NODE_ENV === "development") return;
+    if (!isDesktopShell() || process.env.NODE_ENV === "development") return;
 
     let unlistenTrayExit: (() => void) | undefined;
 
     const performExit = async (): Promise<void> => {
       if (exitInProgressRef.current) {
-        void forceExitNow();
+        void forceExitDesktop();
         return;
       }
       exitInProgressRef.current = true;
@@ -76,7 +64,7 @@ export function QuickerAgentExitHandler() {
 
       try {
         if (isPendingOfficialUpdateDownloaded()) {
-          const update = getPendingOfficialUpdate();
+          const update = getPendingOfficialUpdateDescriptor();
           if (update && tryBeginAppUpdateApply()) {
             showApplyingAppUpdateOverlay(
               getAppInstalledVersion(),
@@ -110,24 +98,21 @@ export function QuickerAgentExitHandler() {
         showAppExitOverlay("正在退出…");
         await waitForOverlayPaint();
 
-        const { invoke } = await import("@tauri-apps/api/core");
-        void invoke("graceful_exit").catch(() => {
-          void forceExitNow();
+        void invokeDesktop("graceful_exit").catch(() => {
+          void forceExitDesktop();
         });
       } catch {
-        void forceExitNow();
+        void forceExitDesktop();
       }
     };
 
     void (async () => {
       try {
-        const { listen } = await import("@tauri-apps/api/event");
-
-        unlistenTrayExit = await listen(APP_REQUEST_EXIT_EVENT, () => {
+        unlistenTrayExit = await listenDesktop(APP_REQUEST_EXIT_EVENT, () => {
           void performExit();
         });
       } catch {
-        // Ignore when Tauri APIs are unavailable.
+        // Ignore when desktop APIs are unavailable.
       }
     })();
 

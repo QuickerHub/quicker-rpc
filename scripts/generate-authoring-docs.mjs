@@ -421,6 +421,8 @@ async function computeOutputs(opsData, topicEntries) {
   const referenceFiles = {};
   /** @type {Record<string, { id: string, title: string, path: string, searchAliases?: string[] }[]>} */
   const referenceCatalog = {};
+  /** @type {{ topic: string, id: string, title: string, path: string, searchAliases?: string[] }[]} */
+  const cliReferences = [];
 
   const partials = await loadPartials();
   const referenceSearchAliases = await loadReferenceSearchAliases();
@@ -504,8 +506,46 @@ async function computeOutputs(opsData, topicEntries) {
           .filter((a) => a.length > 0);
       }
       referenceCatalog[topic].push(catalogEntry);
+
+      if (!refName.startsWith("kc/")) {
+        const cliRefRendered = renderDoc(
+          refEntry.src,
+          opsData,
+          "cli",
+          `${source}#ref:${refName}`,
+          refMap,
+          partials,
+        );
+        const cliPath = refEntry.outRel;
+        outputs.set(
+          `cli/references/${cliPath}`,
+          injectSearchAliases(cliRefRendered, catalogEntry.searchAliases ?? []),
+        );
+        cliReferences.push({
+          topic,
+          id: refName,
+          title: catalogEntry.title,
+          path: cliPath,
+          ...(Array.isArray(refAliases) && refAliases.length > 0
+            ? { searchAliases: refAliases }
+            : {}),
+        });
+      }
     }
   }
+
+  cliReferences.sort((a, b) => {
+    const topicCmp = a.topic.localeCompare(b.topic, undefined, {
+      sensitivity: "base",
+    });
+    if (topicCmp !== 0) return topicCmp;
+    return a.id.localeCompare(b.id, undefined, { sensitivity: "base" });
+  });
+
+  outputs.set(
+    "cli/references-manifest.json",
+    `${JSON.stringify({ references: cliReferences }, null, 2)}\n`,
+  );
 
   for (const list of Object.values(referenceCatalog)) {
     list.sort((a, b) =>
@@ -639,6 +679,16 @@ async function isFreshByMtime(topicEntries) {
 
 /** @param {string} rel */
 function resolveOutputPath(rel) {
+  if (rel.startsWith("cli/references/")) {
+    return path.join(
+      OUT_CLI,
+      "references",
+      rel.slice("cli/references/".length),
+    );
+  }
+  if (rel === "cli/references-manifest.json") {
+    return path.join(OUT_CLI, "references-manifest.json");
+  }
   if (rel.startsWith("cli/")) {
     return path.join(OUT_CLI, rel.slice("cli/".length));
   }

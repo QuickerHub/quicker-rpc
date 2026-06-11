@@ -1,0 +1,199 @@
+name: Release QuickerAgent Electron (experimental)
+
+# Parallel trial channel — official QuickerAgent release remains Tauri (release-cli.yml).
+# Produces NSIS installer + latest.yml for electron-updater; uploads GitHub Actions artifacts.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to resolve semver (e.g. v0.13.2). Defaults to github.ref_name on tag push.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-agent-electron-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    runs-on: windows-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      semver: ${{ steps.tag.outputs.semver }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Resolve tag
+        id: tag
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.tag }}' -ne '') {
+            $tag = '${{ inputs.tag }}'.Trim()
+          } else {
+            $tag = '${{ github.ref_name }}'.Trim()
+          }
+          if ($tag -notmatch '^v') { throw "Tag must start with v: $tag" }
+          $semver = $tag.Substring(1)
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "semver=$semver" >> $env:GITHUB_OUTPUT
+
+  build-agent-electron:
+    runs-on: windows-latest
+    needs: metadata
+    environment: publish
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          token: ${{ secrets.ACTIONRUNTIME_SUBMODULE_PAT }}
+
+      - name: Isolate USERPROFILE for Windows builds
+        shell: pwsh
+        run: |
+          $t = $env:RUNNER_TEMP
+          "USERPROFILE=$t" >> $env:GITHUB_ENV
+          "HOME=$t" >> $env:GITHUB_ENV
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: agent-gui/pnpm-lock.yaml
+
+      - name: Cache Next.js compiler output
+        uses: actions/cache@v4
+        with:
+          path: agent-gui/.next/cache
+          key: nextjs-electron-${{ runner.os }}-${{ hashFiles('agent-gui/pnpm-lock.yaml', 'agent-gui/package.json', 'agent-gui/next.config.ts', 'agent-gui/tsconfig.json') }}
+          restore-keys: |
+            nextjs-electron-${{ runner.os }}-
+
+      - name: Ensure NSIS (electron-builder)
+        shell: pwsh
+        run: |
+          if (Get-Command makensis.exe -ErrorAction SilentlyContinue) {
+            Write-Host 'NSIS already available.'
+          } else {
+            choco install nsis -y --no-progress
+          }
+
+      - name: Generate action authoring docs
+        run: node scripts/generate-authoring-docs.mjs
+
+      - name: Install agent-gui dependencies
+        working-directory: agent-gui
+        run: pnpm install --frozen-lockfile --config.node-linker=hoisted --config.symlink=false
+
+      - name: Electron syntax check
+        working-directory: agent-gui
+        run: pnpm electron:check
+
+      - name: Build QuickerAgent Electron installer
+        shell: pwsh
+        env:
+          BUNDLED_LLM_CONFIG: ${{ secrets.BUNDLED_LLM_CONFIG }}
+          BUNDLED_LLM_BINGLEIMUZI_API_KEY: ${{ secrets.BUNDLED_LLM_BINGLEIMUZI_API_KEY }}
+          BUNDLED_LLM_AI98PRO_API_KEY: ${{ secrets.BUNDLED_LLM_AI98PRO_API_KEY }}
+          LLM_REMOTE_PUBLISH_CIPHER_PEPPER: ${{ secrets.LLM_REMOTE_PUBLISH_CIPHER_PEPPER }}
+          AGENT_GUI_DEFAULT_CWD: ${{ github.workspace }}
+        run: |
+          $hasConfig = -not [string]::IsNullOrWhiteSpace($env:BUNDLED_LLM_CONFIG)
+          $legacyKey = $env:BUNDLED_LLM_BINGLEIMUZI_API_KEY
+          if ([string]::IsNullOrWhiteSpace($legacyKey)) {
+            $legacyKey = $env:BUNDLED_LLM_AI98PRO_API_KEY
+          }
+          if (-not $hasConfig -and [string]::IsNullOrWhiteSpace($legacyKey)) {
+            throw 'GitHub secret BUNDLED_LLM_CONFIG (preferred) or legacy BUNDLED_LLM_BINGLEIMUZI_API_KEY is required for QuickerAgent Electron release builds.'
+          }
+          if (-not $hasConfig) {
+            $env:BUNDLED_LLM_BINGLEIMUZI_API_KEY = $legacyKey
+          }
+          pwsh -NoProfile -File ./publish/Publish-QuickerAgent-Electron.ps1
+
+      - name: Upload Electron artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-electron-artifacts-${{ needs.metadata.outputs.semver }}
+          path: |
+            agent-gui/electron/dist/QuickerAgent-Electron-*-setup.exe
+            agent-gui/electron/dist/latest.yml
+          if-no-files-found: error
+
+      - name: Electron smoke (verify artifacts)
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./agent-gui/scripts/Test-QuickerAgentElectronSmoke.ps1 -Action verify
+
+      - name: Bitiful upload gate
+        id: bitiful_electron
+        shell: pwsh
+        env:
+          BITIFUL_ELECTRON_UPLOAD_IN_CI: ${{ vars.BITIFUL_ELECTRON_UPLOAD_IN_CI }}
+          BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}
+          BITIFUL_SECRET_KEY: ${{ secrets.BITIFUL_SECRET_KEY }}
+          BITIFUL_BUCKET_NAME: ${{ secrets.BITIFUL_BUCKET_NAME }}
+        run: |
+          $uploadInCi = ($env:BITIFUL_ELECTRON_UPLOAD_IN_CI -eq 'true')
+          $secretsPresent =
+            -not [string]::IsNullOrWhiteSpace($env:BITIFUL_ACCESS_KEY) -and
+            -not [string]::IsNullOrWhiteSpace($env:BITIFUL_SECRET_KEY) -and
+            -not [string]::IsNullOrWhiteSpace($env:BITIFUL_BUCKET_NAME)
+          $configured = $uploadInCi -and $secretsPresent
+          if ($configured) {
+            "configured=true" >> $env:GITHUB_OUTPUT
+            Write-Host 'Bitiful Electron upload enabled (BITIFUL_ELECTRON_UPLOAD_IN_CI=true).'
+          } else {
+            "configured=false" >> $env:GITHUB_OUTPUT
+            Write-Host 'Bitiful Electron upload skipped (set BITIFUL_ELECTRON_UPLOAD_IN_CI=true to enable).'
+          }
+
+      - name: Setup Python for Bitiful upload
+        if: steps.bitiful_electron.outputs.configured == 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Upload Electron channel to Bitiful
+        if: steps.bitiful_electron.outputs.configured == 'true'
+        shell: pwsh
+        env:
+          BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}
+          BITIFUL_SECRET_KEY: ${{ secrets.BITIFUL_SECRET_KEY }}
+          BITIFUL_BUCKET_NAME: ${{ secrets.BITIFUL_BUCKET_NAME }}
+          BITIFUL_ENDPOINT_URL: ${{ vars.BITIFUL_ENDPOINT_URL }}
+          BITIFUL_ELECTRON_OBJECT_PREFIX: ${{ vars.BITIFUL_ELECTRON_OBJECT_PREFIX }}
+        run: |
+          pwsh -NoProfile -File ./publish/Upload-QuickerAgentElectronToBitiful.ps1 -Version ${{ needs.metadata.outputs.semver }}
+
+      - name: Job summary
+        if: success()
+        shell: pwsh
+        run: |
+          $dist = Join-Path $PWD 'agent-gui/electron/dist'
+          $setup = Get-ChildItem -LiteralPath $dist -Filter 'QuickerAgent-Electron-*-setup.exe' |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          $mb = if ($setup) { [math]::Round($setup.Length / 1MB, 2) } else { 0 }
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value @"
+          ### QuickerAgent Electron (experimental)
+          - Semver: ``${{ needs.metadata.outputs.semver }}``
+          - Installer: ``$($setup.Name)`` ($mb MB)
+          - Updater feed: ``latest.yml`` → Bitiful ``quicker-agent-electron/`` (when ``BITIFUL_ELECTRON_UPLOAD_IN_CI=true``)
+          - Official channel remains Tauri + ``latest.json``
+          "@

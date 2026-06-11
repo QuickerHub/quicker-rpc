@@ -132,11 +132,30 @@ public sealed class ActionDocService
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Saves the edit form (optionally writing Detail HTML first) and submits the shared action for
+    /// library review — the web page 保存并发布到动作库 button (Edit?handler=Publish).
+    /// </summary>
+    public async Task<QuickerRpcActionDocResult> SubmitForReviewAsync(
+        string idOrSharedId,
+        string? htmlToWrite = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await RunAsync(
+                idOrSharedId,
+                readHtml: false,
+                htmlToWrite,
+                cancellationToken,
+                submitForReview: true)
+            .ConfigureAwait(false);
+    }
+
     private static async Task<QuickerRpcActionDocResult> RunAsync(
         string idOrSharedId,
         bool readHtml,
         string? htmlToWrite,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool submitForReview = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -188,18 +207,20 @@ public sealed class ActionDocService
                         }
 
                         var (setOk, setMessage) = await http
-                            .SetDetailHtmlAsync(sharedId, tempToken, htmlToWrite!, cancellationToken)
+                            .SubmitEditFormAsync(sharedId, tempToken, htmlToWrite, submitForReview, cancellationToken)
                             .ConfigureAwait(false);
                         if (!setOk)
                         {
-                            return Fail(sharedId, setMessage ?? "Failed to update action page HTML.");
+                            return Fail(sharedId, setMessage ?? "Failed to submit action edit form.");
                         }
 
                         return new QuickerRpcActionDocResult
                         {
                             Ok = true,
                             SharedActionId = sharedId,
-                            Message = setMessage ?? "Action page intro updated.",
+                            Message = setMessage ?? (submitForReview
+                                ? "Shared action submitted for library review."
+                                : "Action page intro updated."),
                         };
                     },
                     cancellationToken)

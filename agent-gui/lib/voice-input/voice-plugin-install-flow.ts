@@ -2,7 +2,7 @@
 
 import { appConfirm } from "@/lib/app-confirm";
 import { dismissAppMessage, pushAppMessage } from "@/lib/app-messages";
-import { isTauriShell } from "@/lib/tauri-shell";
+import { isDesktopShell } from "@/lib/desktop-shell";
 import {
   devVoicePluginInstall,
   fetchDevVoicePluginHostStatusForInstall,
@@ -121,7 +121,7 @@ async function waitForHostReady(
 ): Promise<TauriVoicePluginStatusDto | null> {
   let unlisten: (() => void) | undefined;
   try {
-    if (isTauriShell()) {
+    if (isDesktopShell()) {
       unlisten = await listenVoicePluginInstallProgress((event) => {
         const progress = normalizeProgress(event);
         onProgress?.(progress);
@@ -141,7 +141,7 @@ async function waitForHostReady(
         if (dto.status === "not_installed" && !dto.installed) return dto;
       }
 
-      if (process.env.NODE_ENV === "development" && !isTauriShell()) {
+      if (process.env.NODE_ENV === "development" && !isDesktopShell()) {
         await new Promise((resolve) => window.setTimeout(resolve, 2_000));
       } else {
         await new Promise((resolve) => window.setTimeout(resolve, 1_000));
@@ -195,7 +195,7 @@ async function startRuntimeIfNeeded(
   if (dto.status === "installed" || dto.status === "stopped" || dto.installed) {
     onProgress({ percent: 95, message: "正在启动语音服务…" });
     showInstallProgress({ percent: 95, message: "正在启动语音服务…" });
-    if (isTauriShell()) {
+    if (isDesktopShell()) {
       return tauriVoicePluginStartRuntime();
     }
     if (process.env.NODE_ENV === "development") {
@@ -217,7 +217,7 @@ async function runVoicePluginInstallFlow(
   }
 
   const initial = await fetchHostStatus();
-  if (!initial && isTauriShell()) {
+  if (!initial && isDesktopShell()) {
     showInstallError("无法读取语音插件状态，请重启 QuickerAgent 后重试。");
     return false;
   }
@@ -266,7 +266,7 @@ async function runVoicePluginInstallFlow(
     if (!confirmed) return false;
   }
 
-  if (!isTauriShell() && process.env.NODE_ENV !== "development") {
+  if (!isDesktopShell() && process.env.NODE_ENV !== "development") {
     showInstallError("请在 QuickerAgent 桌面版中使用语音输入。");
     return false;
   }
@@ -276,7 +276,7 @@ async function runVoicePluginInstallFlow(
   try {
     let dto = initial;
     if (needsInstall) {
-      dto = isTauriShell()
+      dto = isDesktopShell()
         ? await installViaTauri((progress) => showInstallProgress(progress))
         : await installViaDev(
             (progress) => showInstallProgress(progress),

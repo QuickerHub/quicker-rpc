@@ -28,6 +28,7 @@ function runAutomatedTests(): number {
       "spec",
       "lib/action-authoring-docs-search.test.ts",
       "lib/action-authoring-docs-search-eval.test.ts",
+      "lib/action-authoring-docs-reference.test.ts",
     ],
     { cwd: ROOT, encoding: "utf8", shell: true, stdio: ["ignore", "pipe", "pipe"] },
   );

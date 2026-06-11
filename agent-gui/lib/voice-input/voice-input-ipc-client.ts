@@ -61,12 +61,16 @@ export class VoiceIpcSession {
       throw new Error(dto.message ?? "语音 Runtime 未就绪");
     }
 
-    const { listen } = await import("@tauri-apps/api/event");
-    this.unlistenPartial = await listen<{ sessionId: string; text: string }>(
+    const { listenDesktop } = await import("@/lib/desktop-bridge");
+    this.unlistenPartial = await listenDesktop(
       "voice-ipc-partial",
-      (event) => {
-        if (event.payload.sessionId !== this.sessionId) return;
-        this.onPartial?.(event.payload.text);
+      (payload) => {
+        if (!payload || typeof payload !== "object") return;
+        const event = payload as { sessionId?: string; text?: string };
+        if (event.sessionId !== this.sessionId) return;
+        if (typeof event.text === "string") {
+          this.onPartial?.(event.text);
+        }
       },
     );
 

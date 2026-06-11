@@ -2,6 +2,8 @@
 
 本文档说明 **QuickerAgent（agent-gui）可选插件**及其**依赖资源**在本机上的落盘位置、安装包内嵌配置，以及首次下载时的远程来源。**远程 URL 仅用于安装/更新；日常使用读本地磁盘。**
 
+契约与 Host API 总览见 [quicker-agent-plugin-spec.md](quicker-agent-plugin-spec.md)。设置页 **插件** Tab 提供安装与更新入口。
+
 **Agent 默认工作区与插件目录已分离**：工作区在 `Documents/QuickerAgent/workspace`；插件在 `%LOCALAPPDATA%/QuickerAgent/plugins/…`，避免 Agent 工具误读写插件文件。
 
 实现索引：

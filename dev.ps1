@@ -9,6 +9,7 @@
 #   pwsh ./dev.ps1 -Browser        # same + open browser
 
 #   pwsh ./dev.ps1 -Tauri          # desktop WebView2 shell (reuses :3000 when healthy)
+#   pwsh ./dev.ps1 -Electron       # desktop Chromium shell (reuses :3000 when healthy)
 
 #   pwsh ./dev.ps1 -NoWatch        # disable auto hot-update on source changes
 
@@ -36,6 +37,8 @@ param(
 
     [switch]$Tauri,
 
+    [switch]$Electron,
+
     [switch]$Browser,
 
     [switch]$NoReuse
@@ -45,6 +48,18 @@ param(
 
 
 $ErrorActionPreference = 'Stop'
+
+
+
+if ($Electron) {
+
+    . (Join-Path $PSScriptRoot 'scripts/dev-launcher.ps1')
+
+    Invoke-DevElectronLauncher -RepoRoot $PSScriptRoot -SkipKill:$SkipKill -NoReuse:$NoReuse
+
+    exit $LASTEXITCODE
+
+}
 
 
 
