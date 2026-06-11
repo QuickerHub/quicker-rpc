@@ -637,6 +637,10 @@ export function insertComposerMarkupPasteWithUndo(
       fragment.append(createBrowserElementTagElement(segment.element));
       continue;
     }
+    if (segment.type === "slash-tag") {
+      fragment.append(createSlashTagElement(segment.ref));
+      continue;
+    }
     appendTextWithNewlines(fragment, segment.text);
   }
 

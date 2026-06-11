@@ -85,3 +85,48 @@ declare module "@/lib/browser-runtime-lifecycle.mjs" {
     host: string,
   ): Promise<import("node:child_process").ChildProcess | null>;
 }
+
+declare module "@/lib/terminal-runtime-lifecycle.mjs" {
+  export type TerminalRuntimeState = {
+    pid: number;
+    port?: number;
+    ownerPid: number;
+    startedAt: number;
+  };
+
+  export type TerminalRuntimeHealth = {
+    ok: boolean;
+    runtimeVersion?: string;
+    protocolVersion?: string;
+  };
+
+  export function terminalRuntimeStatePath(agentGuiRoot: string): string;
+  export function readTerminalRuntimeState(agentGuiRoot: string): TerminalRuntimeState | null;
+  export function writeTerminalRuntimeState(
+    agentGuiRoot: string,
+    state: TerminalRuntimeState,
+  ): void;
+  export function clearTerminalRuntimeState(agentGuiRoot: string): void;
+  export function resolveTerminalRuntimeRoot(agentGuiRoot: string): string;
+  export function resolveTerminalPort(): number;
+  export function fetchTerminalRuntimeHealth(
+    base: string,
+    timeoutMs?: number,
+  ): Promise<TerminalRuntimeHealth>;
+  export function checkTerminalRuntimeHealth(base: string, timeoutMs?: number): Promise<boolean>;
+  export function isTerminalRuntimeVersionCurrent(health: TerminalRuntimeHealth): boolean;
+  export function reconcileStaleTerminalRuntime(agentGuiRoot: string): void;
+  export function trackTerminalRuntimeChild(
+    agentGuiRoot: string,
+    child: import("node:child_process").ChildProcess,
+    meta?: Record<string, unknown>,
+  ): void;
+  export function stopTrackedTerminalRuntime(
+    agentGuiRoot: string,
+    child: import("node:child_process").ChildProcess,
+  ): void;
+  export function ensureTerminalRuntime(
+    agentGuiRoot: string,
+    host: string,
+  ): Promise<import("node:child_process").ChildProcess | null>;
+}

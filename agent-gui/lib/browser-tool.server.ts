@@ -255,10 +255,7 @@ async function executeNativeEmbeddedBrowserTool(
         ? "session.close"
         : opForAction(input.action);
 
-  const nativeEnsureActions = new Set(
-    [...SESSION_ENSURE_ACTIONS].filter((action) => action !== "navigate"),
-  );
-  if (nativeEnsureActions.has(input.action)) {
+  if (SESSION_ENSURE_ACTIONS.has(input.action) && input.action !== "navigate") {
     const ensured = await invokeEmbeddedBrowserRuntime("session.ensure", {}, sid, 60_000);
     if (!ensured.ok) {
       return formatLocalToolResult(

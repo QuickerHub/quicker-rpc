@@ -819,7 +819,7 @@ export async function getActionAuthoringSectionSnippet(
       return {
         ok: false,
         error: `Section not found: ${sectionHeading}`,
-        availableTopics: result.availableTopics,
+        availableTopics: [],
       };
     }
     return {
@@ -846,7 +846,7 @@ export async function getActionAuthoringSectionSnippet(
     return {
       ok: false,
       error: `Section not found: ${sectionHeading}`,
-      availableTopics: result.availableTopics,
+      availableTopics: [],
     };
   }
 
