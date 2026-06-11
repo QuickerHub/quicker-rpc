@@ -253,6 +253,8 @@ internal static partial class Program
             "edit" => await RunActionEditAsync(options).ConfigureAwait(false),
             "run" => await RunActionRunAsync(options).ConfigureAwait(false),
             "runtime-check" => await RunActionRuntimeCheckAsync(options).ConfigureAwait(false),
+            "runtime-compile" => await RunActionRuntimeCompileAsync(options).ConfigureAwait(false),
+            "runtime-benchmark" => await RunActionRuntimeBenchmarkAsync(options).ConfigureAwait(false),
             "runtime-keys" => await RunActionRuntimeKeysAsync(options).ConfigureAwait(false),
             "float" => await RunActionFloatAsync(options).ConfigureAwait(false),
             "edit-var" => await RunActionEditVarAsync(options).ConfigureAwait(false),
@@ -1498,7 +1500,7 @@ public sealed class PingOptions
 [Verb("action", HelpText = "Quicker action operations via RPC.")]
 public sealed class ActionOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | extract | apply | validate | export | import | list | search | publish | update | shared-info-get | shared-info-set | move | delete | edit | run | runtime-check | runtime-keys | float | edit-var")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | extract | apply | validate | export | import | list | search | publish | update | shared-info-get | shared-info-set | move | delete | edit | run | runtime-check | runtime-compile | runtime-benchmark | runtime-keys | float | edit-var")]
     public string? Command { get; set; }
 
     [Option("id", HelpText = "Action id (GUID). publish/update: local or shared id.")]
@@ -1648,8 +1650,23 @@ public sealed class ActionOptions
     [Option("standalone", HelpText = "Run via Quicker.ActionRuntime (no Quicker process or RPC pipe).")]
     public bool Standalone { get; set; }
 
-    [Option("package-file", HelpText = "ActionExecutionPackage JSON for standalone run/check.")]
+    [Option("package-file", HelpText = "ActionExecutionPackage JSON for standalone run/check/compile.")]
     public string? PackageFile { get; set; }
+
+    [Option("out", HelpText = "runtime-compile: write csharpScript to UTF-8 file.")]
+    public string? Out { get; set; }
+
+    [Option("script-out", HelpText = "runtime-compile: write intermediate JavaScript to UTF-8 file.")]
+    public string? ScriptOut { get; set; }
+
+    [Option("warmup", Default = 0, HelpText = "runtime-benchmark: warmup iterations before timing (default 3).")]
+    public int BenchmarkWarmup { get; set; }
+
+    [Option("iterations", Default = 0, HelpText = "runtime-benchmark: measurement iterations (default 20).")]
+    public int BenchmarkIterations { get; set; }
+
+    [Option("benchmark-force-gc", HelpText = "runtime-benchmark: force GC between JSON and C# timing.")]
+    public bool BenchmarkForceGc { get; set; }
 
     [Option("verbose-host", HelpText = "Standalone: log IHostServices callbacks to stdout/stderr.")]
     public bool VerboseHost { get; set; }

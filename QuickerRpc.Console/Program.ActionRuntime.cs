@@ -5,6 +5,45 @@ namespace QuickerRpc.Console;
 
 internal static partial class Program
 {
+    private static async Task<int> RunActionRuntimeCompileAsync(ActionOptions options)
+    {
+        if (options.Debug || options.Trace)
+        {
+            return await EmitErrorAndFailAsync(
+                options.Json,
+                "STANDALONE_MODE_CONFLICT",
+                "--debug/--trace are not supported for runtime-compile.")
+                .ConfigureAwait(false);
+        }
+
+        var buildResult = await BuildActionRuntimePackageAsync(options).ConfigureAwait(false);
+        return ActionRuntimeCompileCli.Compile(
+            buildResult,
+            options.Json,
+            options.Out,
+            options.ScriptOut);
+    }
+
+    private static async Task<int> RunActionRuntimeBenchmarkAsync(ActionOptions options)
+    {
+        if (options.Debug || options.Trace)
+        {
+            return await EmitErrorAndFailAsync(
+                options.Json,
+                "STANDALONE_MODE_CONFLICT",
+                "--debug/--trace are not supported for runtime-benchmark.")
+                .ConfigureAwait(false);
+        }
+
+        var buildResult = await BuildActionRuntimePackageAsync(options).ConfigureAwait(false);
+        return ActionRuntimeBenchmarkCli.Benchmark(
+            buildResult,
+            options.Json,
+            options.BenchmarkWarmup,
+            options.BenchmarkIterations,
+            options.BenchmarkForceGc);
+    }
+
     private static async Task<int> RunActionRuntimeCheckAsync(ActionOptions options)
     {
         if (options.Debug || options.Trace)

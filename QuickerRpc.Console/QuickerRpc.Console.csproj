@@ -20,6 +20,8 @@
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
     <ProjectReference Include="..\QuickerRpc.AgentModel\QuickerRpc.AgentModel.csproj" />
     <ProjectReference Include="..\Quicker.ActionRuntime\Quicker.ActionRuntime.Integration\Quicker.ActionRuntime.Integration.csproj" />
+    <ProjectReference Include="..\Quicker.ActionRuntime\Quicker.ActionRuntime.ScriptCompiler\Quicker.ActionRuntime.ScriptCompiler.csproj" />
+    <ProjectReference Include="..\Quicker.ActionRuntime\tests\Quicker.ActionRuntime.Benchmarks\Quicker.ActionRuntime.Benchmarks.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CommandLineParser" />

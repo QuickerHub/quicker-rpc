@@ -86,6 +86,7 @@ internal static class ServeInvokeDispatcher
             "action.run" => await ActionRunAsync(rpc, args, token).ConfigureAwait(false),
             "action.runtime.run" => await ActionRuntimeServeOps.RunAsync(rpc, args, token).ConfigureAwait(false),
             "action.runtime.check" => await ActionRuntimeServeOps.CheckAsync(rpc, args, token).ConfigureAwait(false),
+            "action.runtime.compile" => await ActionRuntimeServeOps.CompileAsync(rpc, args, token).ConfigureAwait(false),
             "action.runtime.keys" => ActionRuntimeServeOps.Keys(),
             "action.float" => await ActionFloatAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit" => await ActionEditAsync(rpc, args, token).ConfigureAwait(false),

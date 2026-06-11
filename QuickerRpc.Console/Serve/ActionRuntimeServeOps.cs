@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Quicker.ActionRuntime.Abstractions;
 using Quicker.ActionRuntime.Integration;
+using Quicker.ActionRuntime.ScriptCompiler;
 using QuickerRpc.AgentModel.XAction.Project;
 using QuickerRpc.Console.ActionRuntime;
 using QuickerRpc.Contracts.Rpc;
@@ -100,6 +101,52 @@ internal static class ActionRuntimeServeOps
             totalStepCount = report.TotalStepCount,
             supportedStepKeys = report.SupportedStepKeys,
             unsupportedStepKeys = report.UnsupportedStepKeys,
+            sourceProgramJson = buildResult.Result.SourceProgramJson,
+            compiledProgramJson = buildResult.Result.CompiledProgramJson,
+            generatedProgramCs = buildResult.Result.GeneratedProgramCs,
+            compiledFiles = SerializeCompiledFiles(buildResult.Result.CompiledFiles),
+        });
+    }
+
+    internal static async Task<ServeInvokeResponse> CompileAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var buildResult = await BuildPackageAsync(rpc, args, token).ConfigureAwait(false);
+        if (buildResult.Error is not null)
+        {
+            return buildResult.Error;
+        }
+
+        if (!buildResult.Result!.Success || buildResult.Result.Package?.Program is null)
+        {
+            return Fail(
+                buildResult.Result.ErrorCode ?? "RUNTIME_PACKAGE_BUILD_FAILED",
+                buildResult.Result.ErrorMessage ?? "Build failed.");
+        }
+
+        var compileResult = new ActionToScriptCompiler().Compile(buildResult.Result.Package.Program);
+        var ok = !string.IsNullOrWhiteSpace(compileResult.CSharpScript);
+        return Ok(new
+        {
+            ok,
+            action = "runtime-compile",
+            standalone = true,
+            actionId = buildResult.Result.Package.ActionId,
+            actionTitle = buildResult.Result.Package.ActionTitle,
+            projectDirectory = buildResult.Result.ProjectDirectory,
+            hasCSharpScript = ok,
+            hasUnsupportedSteps = compileResult.UnsupportedSteps.Count > 0,
+            unsupportedSteps = compileResult.UnsupportedSteps.Select(step => new
+            {
+                stepIndex = step.StepIndex,
+                stepRunnerKey = step.StepRunnerKey,
+                note = step.Note,
+            }),
+            warnings = compileResult.Warnings,
+            script = compileResult.Script,
+            csharpScript = compileResult.CSharpScript,
             sourceProgramJson = buildResult.Result.SourceProgramJson,
             compiledProgramJson = buildResult.Result.CompiledProgramJson,
             generatedProgramCs = buildResult.Result.GeneratedProgramCs,
