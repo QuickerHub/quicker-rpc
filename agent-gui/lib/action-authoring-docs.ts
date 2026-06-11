@@ -96,7 +96,7 @@ type ReferenceCatalogEntry = {
 type TopicsManifest = {
   skillName: string;
   topics: TopicsManifestEntry[];
-  referenceFiles: Record<string, string>;
+  referenceFiles?: Record<string, string>;
   referenceCatalog?: Record<string, ReferenceCatalogEntry[]>;
 };
 
