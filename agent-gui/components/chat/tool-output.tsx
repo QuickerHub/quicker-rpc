@@ -420,7 +420,7 @@ function JsonBlock({
   value: unknown;
   followTail?: boolean;
 }) {
-  if (shouldUseJsonEditor(value)) {
+  if (!followTail && shouldUseJsonEditor(value)) {
     return <ToolJsonEditor value={value} followTail={followTail} />;
   }
   return <JsonBlockPre value={value} followTail={followTail} />;

@@ -67,16 +67,21 @@ export async function checkOfficialQuickerAgentUpdate(): Promise<OfficialUpdateD
   if (process.env.NODE_ENV === "development") return null;
 
   if (isElectronShell()) {
-    const info = await invokeDesktop<OfficialUpdateDescriptor | null>("updater_check");
-    if (!info?.version) {
+    try {
+      const info = await invokeDesktop<OfficialUpdateDescriptor | null>("updater_check");
+      if (!info?.version) {
+        clearPendingOfficialUpdate();
+        return null;
+      }
+      if (isOfficialUpdateSkipped(info.version)) return null;
+      pendingElectronVersion = info.version;
+      pendingTauriUpdate = null;
+      pendingDownloaded = false;
+      return info;
+    } catch {
       clearPendingOfficialUpdate();
       return null;
     }
-    if (isOfficialUpdateSkipped(info.version)) return null;
-    pendingElectronVersion = info.version;
-    pendingTauriUpdate = null;
-    pendingDownloaded = false;
-    return info;
   }
 
   if (!isTauriShell()) return null;

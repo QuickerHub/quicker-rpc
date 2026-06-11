@@ -18,7 +18,7 @@
     "tauri:verify-bundle": "node scripts/verify-tauri-bundle.mjs",
     "electron:dev": "node scripts/electron-dev.mjs",
     "electron:prepare": "node scripts/electron-prepare.mjs",
-    "electron:build": "pnpm electron:prepare && electron-builder --win nsis",
+    "electron:build": "pnpm electron:prepare && electron-builder --win nsis && node scripts/verify-electron-asar.mjs",
     "electron:verify-bundle": "node scripts/verify-desktop-bundle.mjs --resources-dir electron/resources --label electron-staged",
     "electron:check": "node scripts/electron-check.mjs",
     "test:electron-smoke": "pwsh -NoProfile -File ./scripts/Test-QuickerAgentElectronSmoke.ps1 -Action verify",
@@ -112,15 +112,14 @@
     "appId": "ai.quicker.agent.electron",
     "productName": "QuickerAgent",
     "directories": {
+      "app": "electron/shell-app",
       "output": "electron/dist",
       "buildResources": "electron/build"
     },
     "files": [
       "electron/**/*.mjs",
-      "electron/bootstrap.cjs",
-      "package.json",
-      "!node_modules/electron/**/*",
-      "!node_modules/electron-binary/**/*"
+      "electron/**/*.cjs",
+      "package.json"
     ],
     "extraResources": [
       {
@@ -134,16 +133,19 @@
     "win": {
       "target": ["nsis"],
       "icon": "src-tauri/icons/icon.ico",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "executableName": "quicker-agent"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "QuickerAgent-Electron-${version}-setup.${ext}"
+      "artifactName": "quicker-agent-${version}-x64-setup.${ext}",
+      "include": "installer.nsh",
+      "shortcutName": "QuickerAgent"
     },
     "publish": {
       "provider": "generic",
-      "url": "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent-electron"
+      "url": "https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent/"
     }
   },
   "pnpm": {

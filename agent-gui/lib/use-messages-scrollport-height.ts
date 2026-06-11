@@ -12,10 +12,18 @@ export function useMessagesScrollportHeight(
     const root = scrollRootRef.current;
     if (!root) return;
 
+    let lastHeight = -1;
+
     const sync = () => {
+      const height = root.clientHeight;
+      // Ignore scrollbar gutter flicker (~15–17px) that can loop with fill-scrollport min-height.
+      if (lastHeight >= 0 && Math.abs(height - lastHeight) <= 1) {
+        return;
+      }
+      lastHeight = height;
       root.style.setProperty(
         "--messages-scrollport-height",
-        `${root.clientHeight}px`,
+        `${height}px`,
       );
     };
 

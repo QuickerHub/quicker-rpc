@@ -3533,6 +3533,7 @@ html.sidebar-collapsed-init .app-shell {
   /* clip (not hidden) — hidden breaks position:sticky on .msg-turn__prompt */
   overflow-x: clip;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   overscroll-behavior-x: none;
   scroll-behavior: auto;
   padding: 1rem var(--chat-rail-inset-inline, 1.25rem) 0;
@@ -7768,6 +7769,23 @@ button.tool-batch-summary:disabled {
   word-break: break-word;
   color: var(--shell-terminal-fg, #8b949e);
   font-weight: 400;
+}
+
+.terminal-output-editor__output-pre {
+  margin: 0;
+  padding: 0.55rem 0.6rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.78rem;
+  line-height: 1.42;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--shell-terminal-fg, #8b949e);
+  font-weight: 400;
+  background: transparent;
+}
+
+.terminal-output-editor__output-pre--pending {
+  opacity: 0.92;
 }
 
 .terminal-output-editor__cm.file-editor-cm {
@@ -13204,6 +13222,18 @@ button.file-editor-header-open.file-editor-header--compact:hover {
 .file-editor-card--compact .file-editor-body {
   position: relative;
   background: var(--code-bg-overlay);
+}
+
+.file-editor-streaming-pre {
+  margin: 0;
+  padding: 0 0.35rem 0.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--code-text);
+  background: transparent;
 }
 
 .file-editor-card--compact .file-editor-cm .cm-editor {

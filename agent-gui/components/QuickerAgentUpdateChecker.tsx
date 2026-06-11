@@ -93,6 +93,11 @@ function syncAppOverlayFromOfficialProgress(event: OfficialUpdateProgress): void
   });
 }
 
+function isBenignUpdateCheckError(err: unknown): boolean {
+  const text = err instanceof Error ? err.message : String(err);
+  return /404|403|not found|enotfound|econnrefused|etimedout|network error|httperror|ns_error|更新服务未初始化|没有待下载/i.test(text);
+}
+
 /** Desktop release: Tauri plugin-updater or Electron electron-updater. Dev/browser: Bitiful prompt. */
 export function QuickerAgentUpdateChecker() {
   const startedRef = useRef(false);
@@ -209,11 +214,16 @@ export function QuickerAgentUpdateChecker() {
       } catch (err) {
         clearPendingOfficialUpdate();
         resetAppUpdateApply();
+        if (isBenignUpdateCheckError(err)) {
+          hideAppUpdateOverlaySlice();
+          dismissAppUpdateToast();
+          return;
+        }
         patchAppAndSyncToast({
           phase: "error",
           percent: 0,
-          message: err instanceof Error ? err.message : "更新失败",
-          error: err instanceof Error ? err.message : "更新失败",
+          message: err instanceof Error ? err.message.split("\n")[0] : "更新失败",
+          error: err instanceof Error ? err.message.split("\n")[0] : "更新失败",
         });
       }
     })();

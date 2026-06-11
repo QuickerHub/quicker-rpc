@@ -47,7 +47,10 @@ function Test-ElectronArtifacts {
     $latestYml = Join-Path $DistDir 'latest.yml'
     Assert-QuickerAgentElectronLatestYmlFile -Path $latestYml -ExpectedSemVer $expectedSemVer
 
-    $unpackedExe = Join-Path $DistDir 'win-unpacked\QuickerAgent.exe'
+    $unpackedExe = Join-Path $DistDir 'win-unpacked\quicker-agent.exe'
+    if (-not (Test-Path -LiteralPath $unpackedExe)) {
+        $unpackedExe = Join-Path $DistDir 'win-unpacked\QuickerAgent.exe'
+    }
     $hasUnpacked = Test-Path -LiteralPath $unpackedExe
 
     Write-Host 'verify OK:' -ForegroundColor Green
@@ -68,7 +71,7 @@ function Test-ElectronArtifacts {
 }
 
 function Stop-QuickerAgentElectron {
-    Get-Process -Name 'QuickerAgent' -ErrorAction SilentlyContinue | ForEach-Object {
+    Get-Process -Name 'QuickerAgent','quicker-agent' -ErrorAction SilentlyContinue | ForEach-Object {
         Write-Host "Stopping QuickerAgent pid $($_.Id) (tree)" -ForegroundColor DarkYellow
         & taskkill.exe /PID $_.Id /T /F 2>$null | Out-Null
     }
@@ -202,7 +205,7 @@ if ($Action -eq 'verify') {
 
 if ($Action -in @('launch', 'full')) {
     if (-not $artifacts.UnpackedExe) {
-        throw 'launch requires electron\dist\win-unpacked\QuickerAgent.exe (run pnpm electron:build)'
+        throw 'launch requires electron\dist\win-unpacked\quicker-agent.exe (run pnpm electron:build)'
     }
 
     Start-ElectronLaunchSmoke -ExePath $artifacts.UnpackedExe

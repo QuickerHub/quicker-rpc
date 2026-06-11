@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 const electronRoot = join(dirname(fileURLToPath(import.meta.url)));
 
 function isPackagedDesktopShell() {
-  // Match main.mjs: dir/unpacked QuickerAgent.exe may have isPackaged=false.
-  return basename(process.execPath).toLowerCase() === "quickeragent.exe";
+  const exe = basename(process.execPath).toLowerCase();
+  return exe === "quickeragent.exe" || exe === "quicker-agent.exe";
 }
 
 function qkrpcDirHealthy(dir) {

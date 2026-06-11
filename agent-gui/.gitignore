@@ -32,6 +32,7 @@ src-tauri/resources/
 !src-tauri/voice-plugin-metadata/
 src-tauri/gen/
 electron/resources/
+electron/shell-app/
 electron/dist/
 
 # ad-hoc debug log captures (manual stdout/stderr redirects during local dev)

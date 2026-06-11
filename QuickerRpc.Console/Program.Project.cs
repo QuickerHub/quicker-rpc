@@ -251,6 +251,7 @@ internal static partial class Program
                             {
                                 success = false,
                                 error = validateResult.ErrorMessage,
+                                schemaIssues = ToSchemaIssuesArray(validateResult.SchemaIssues),
                                 projectDirectory = ActionProjectCatalog.GetRelativeProjectDirectory(projectDir),
                                 projectDirectoryAbsolute = projectDir,
                                 actionId,
@@ -465,6 +466,7 @@ internal static partial class Program
                             {
                                 success = false,
                                 error = validateResult.ErrorMessage,
+                                schemaIssues = ToSchemaIssuesArray(validateResult.SchemaIssues),
                                 projectDirectory = projectDir,
                                 subProgramId,
                                 editVersion = info.EditVersion,
@@ -723,6 +725,12 @@ internal static partial class Program
 
         return body;
     }
+
+    private static object[] ToSchemaIssuesArray(
+        IList<ProgramWireSchemaValidator.SchemaIssue> issues) =>
+        issues
+            .Select(i => (object)new { code = i.Code, path = i.Path, line = i.Line, message = i.Message })
+            .ToArray();
 
     private static void WriteProjectSuccess(bool json, string action, object payload, IEnumerable<string>? warnings)
     {

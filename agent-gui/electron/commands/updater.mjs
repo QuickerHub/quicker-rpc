@@ -6,6 +6,7 @@ import {
   initElectronUpdater,
   installPendingUpdateAndQuit,
   isUpdateDownloaded,
+  shouldEnableElectronUpdater,
 } from "../updater.mjs";
 
 /**
@@ -19,8 +20,13 @@ export function createUpdaterCommands(deps) {
       return getAppVersion();
     },
     async updater_check() {
-      if (deps.isDev) return null;
-      return checkForUpdate();
+      if (!shouldEnableElectronUpdater(deps.isDev)) return null;
+      try {
+        return await checkForUpdate();
+      } catch (err) {
+        console.error("[electron-updater] updater_check failed:", err);
+        return null;
+      }
     },
     async updater_download() {
       if (deps.isDev) {

@@ -8,6 +8,7 @@ import {
   prepareDesktopBundle,
   readDesktopBundleSemver,
 } from "./desktop-bundle-prepare.mjs";
+import { stageElectronShell } from "./electron-shell-staging.mjs";
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(agentGuiRoot, "..");
@@ -38,6 +39,8 @@ function main() {
     label: "electron-staged",
   });
   syncPackageVersion();
+  const version = readDesktopBundleSemver(repoRoot);
+  stageElectronShell({ version });
   console.log("electron-prepare: done.");
 }
 

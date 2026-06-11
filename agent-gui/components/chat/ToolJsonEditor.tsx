@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useMemo } from "react";
 import { formatJsonDisplayText } from "@/lib/format-json-display";
 import {
   buildPreviewCodeMirrorExtensions,
@@ -14,28 +14,18 @@ type ToolJsonEditorProps = {
   className?: string;
 };
 
-export function ToolJsonEditor({
+function ToolJsonEditorInner({
   value,
-  followTail = false,
   className,
 }: ToolJsonEditorProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const text = useMemo(() => formatJsonDisplayText(value), [value]);
   const extensions = useMemo(
     () => buildPreviewCodeMirrorExtensions("tool-result.json", { language: "json" }),
     [],
   );
 
-  useLayoutEffect(() => {
-    if (!followTail) return;
-    const scroller = scrollRef.current?.querySelector(".cm-scroller");
-    if (!(scroller instanceof HTMLElement)) return;
-    scroller.scrollTop = scroller.scrollHeight;
-  }, [text, followTail]);
-
   return (
     <div
-      ref={scrollRef}
       className={`tool-json-editor file-editor-cm${className ? ` ${className}` : ""}`}
     >
       <CodeMirror
@@ -50,3 +40,5 @@ export function ToolJsonEditor({
     </div>
   );
 }
+
+export const ToolJsonEditor = memo(ToolJsonEditorInner);

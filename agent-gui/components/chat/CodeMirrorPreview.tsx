@@ -1,43 +1,39 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { EditorView } from "@codemirror/view";
-import { TextEditorStatusBar } from "@/components/chat/TextEditorStatusBar";import {
+import { TextEditorStatusBar } from "@/components/chat/TextEditorStatusBar";
+import {
   codeMirrorEditorStatsEqual,
   computeCodeMirrorEditorStats,
   createCodeMirrorStatsExtension,
   statsFromTextContent,
   type CodeMirrorEditorStats,
 } from "@/lib/codemirror-editor-stats";
+import { streamingContentSignature } from "@/lib/preview-tail-lines";
 import {
   buildPreviewCodeMirrorExtensions,
   workspaceCodeMirrorUiTheme,
 } from "@/lib/codemirror-setup";
+
+/** Above this size, skip Lezer syntax highlighting in previews. */
+const LARGE_PREVIEW_PLAIN_CHARS = 32_000;
 
 type CodeMirrorPreviewProps = {
   path: string;
   content: string;
   language?: string;
   className?: string;
-  /** When set, constrains editor height (compact chat snapshots). */
   maxHeight?: string;
   minHeight?: string;
-  /** Fill parent flex area; vertical scroll on CodeMirror scroller. */
   fillAvailable?: boolean;
-  /** Show gutter line numbers (default false). */
   lineNumbers?: boolean;
-  /** Show bottom status bar; defaults to on when fillAvailable. */
   showStatusBar?: boolean;
-  /** Monospace plain text without syntax highlighting. */
   plain?: boolean;
-  /** Dark terminal command palette (shell_exec command pane). */
   terminalDark?: boolean;
-  /** Default true; compact chat code snapshots use false. */
   lineWrapping?: boolean;
-  /** Skip interpolation lint (compact chat previews). */
   skipLint?: boolean;
-  /** Keep the viewport pinned to the last lines (streaming compact preview). */
   scrollToTail?: boolean;
 };
 
@@ -48,7 +44,7 @@ function scrollEditorToTail(view: EditorView): void {
   });
 }
 
-export function CodeMirrorPreview({
+function CodeMirrorPreviewInner({
   path,
   content,
   language,
@@ -65,6 +61,7 @@ export function CodeMirrorPreview({
   scrollToTail = false,
 }: CodeMirrorPreviewProps) {
   const showEditorStatusBar = showStatusBar ?? fillAvailable;
+  const effectivePlain = plain || content.length > LARGE_PREVIEW_PLAIN_CHARS;
   const viewRef = useRef<EditorView | null>(null);
   const [stats, setStats] = useState<CodeMirrorEditorStats>(() =>
     showEditorStatusBar ? statsFromTextContent(content) : statsFromTextContent(""),
@@ -100,7 +97,7 @@ export function CodeMirrorPreview({
       ...buildPreviewCodeMirrorExtensions(path, {
         language,
         lineNumbers,
-        plain,
+        plain: effectivePlain,
         terminalDark,
         lineWrapping,
         lintSourceText: skipLint ? "" : undefined,
@@ -111,7 +108,7 @@ export function CodeMirrorPreview({
       path,
       language,
       lineNumbers,
-      plain,
+      effectivePlain,
       terminalDark,
       lineWrapping,
       skipLint,
@@ -178,3 +175,32 @@ export function CodeMirrorPreview({
     </div>
   );
 }
+
+function codeMirrorPreviewPropsEqual(
+  prev: CodeMirrorPreviewProps,
+  next: CodeMirrorPreviewProps,
+): boolean {
+  if (prev.path !== next.path) return false;
+  if (prev.language !== next.language) return false;
+  if (prev.className !== next.className) return false;
+  if (prev.maxHeight !== next.maxHeight) return false;
+  if (prev.minHeight !== next.minHeight) return false;
+  if (prev.fillAvailable !== next.fillAvailable) return false;
+  if (prev.lineNumbers !== next.lineNumbers) return false;
+  if (prev.showStatusBar !== next.showStatusBar) return false;
+  if (prev.plain !== next.plain) return false;
+  if (prev.terminalDark !== next.terminalDark) return false;
+  if (prev.lineWrapping !== next.lineWrapping) return false;
+  if (prev.skipLint !== next.skipLint) return false;
+  if (prev.scrollToTail !== next.scrollToTail) return false;
+  if (prev.scrollToTail) {
+    return streamingContentSignature(prev.content)
+      === streamingContentSignature(next.content);
+  }
+  return prev.content === next.content;
+}
+
+export const CodeMirrorPreview = memo(
+  CodeMirrorPreviewInner,
+  codeMirrorPreviewPropsEqual,
+);

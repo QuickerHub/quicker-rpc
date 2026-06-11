@@ -15,7 +15,12 @@ function collectMjsFiles(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name === "resources" || entry.name === "dist" || entry.name === "build") {
+      if (
+        entry.name === "resources"
+        || entry.name === "dist"
+        || entry.name === "build"
+        || entry.name === "shell-app"
+      ) {
         continue;
       }
       files.push(...collectMjsFiles(path));

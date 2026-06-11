@@ -30,6 +30,7 @@ Tauri Rust   → 同上 resources 布局
 
 - **开发**：`pwsh ./dev.ps1 -Electron` 与 `-Tauri` 互斥，均复用 `:3000` dev server
 - **发布**：`Publish-QuickerAgent.ps1` 不变（Tauri）；`Publish-QuickerAgent-Electron.ps1` 仅预检/本地 artifact
+- **Windows 安装路径（Electron 试验包）**：与 Tauri 对齐为 `%LOCALAPPDATA%\QuickerAgent\quicker-agent.exe`（`electron/build/installer.nsh` + `win.executableName`）；安装时结束旧进程并删除遗留 `QuickerAgent.exe`。用户数据目录 `%LOCALAPPDATA%\QuickerAgent`（plugins、local/）两壳共用，无需迁移。
 - **切换条件**：P0–P6 验收通过 + `electron:verify-bundle` + 手动 smoke
 
 ## 目录

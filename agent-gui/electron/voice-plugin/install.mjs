@@ -33,7 +33,8 @@ const PARAFORMER_MIN_ONNX_BYTES = 20 * 1024 * 1024;
 const PARAFORMER_MIN_TOKENS_BYTES = 64;
 
 function installIsDev() {
-  if (basename(process.execPath).toLowerCase() === "quickeragent.exe") {
+  const exe = basename(process.execPath).toLowerCase();
+  if (exe === "quickeragent.exe" || exe === "quicker-agent.exe") {
     return false;
   }
   return !app.isPackaged

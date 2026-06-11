@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { CodeMirrorPreview } from "@/components/chat/CodeMirrorPreview";
+import { StreamingCodeTailPreview } from "@/components/chat/StreamingCodeTailPreview";
 import { CodeMirrorLineDiffView } from "@/components/chat/CodeMirrorLineDiffView";
 import {
   buildInterleavedDiffDisplay,
   countLineDiffStats,
 } from "@/lib/file-line-diff";
+import { streamingContentSignature } from "@/lib/preview-tail-lines";
+import { useThrottledStreamValue } from "@/lib/use-throttled-stream-value";
 import { fileIconKindToBadgeLabel, resolveFileIconKind } from "@/lib/file-icon-kind";
 import {
   basenamePath,
@@ -98,7 +101,7 @@ function FileEditorStatDisplay({ stat, compact }: { stat: FileEditorStat; compac
   );
 }
 
-export function FileEditorCard({
+function FileEditorCardInner({
   path,
   content,
   running = false,
@@ -119,6 +122,7 @@ export function FileEditorCard({
   inlineDiffExpanded = false,
 }: FileEditorCardProps) {
   const compact = variant === "compact";
+  const displayContent = useThrottledStreamValue(content, running);
   const showLineNumbers = lineNumbers ?? fillAvailable;
   const showDiff = Boolean(diff) && !running;
   const [revealed, setRevealed] = useState(() => !foldSnapshot);
@@ -159,21 +163,25 @@ export function FileEditorCard({
 
   const previewLineCount = useMemo(() => {
     if (showDiff && diffDisplay) return diffDisplay.displayLineCount;
-    return countLines(content);
-  }, [content, showDiff, diffDisplay]);
+    return countLines(displayContent);
+  }, [displayContent, showDiff, diffDisplay]);
 
   const showBody = showContent && (!compact || revealed || inlineDiffExpanded);
   const isCompactPreview =
     compact && showBody && !expanded && !inlineDiffExpanded;
-  const useTailPreview = running && isCompactPreview;
-  const omittedPreviewLines = useTailPreview
+  const useStreamingPreview = running && showBody;
+  const streamingTailLines = compact && isCompactPreview
+    ? FILE_SNAPSHOT_PREVIEW_LINES
+    : 16;
+  const omittedPreviewLines = useStreamingPreview && compact && isCompactPreview
     ? Math.max(0, previewLineCount - FILE_SNAPSHOT_PREVIEW_LINES)
     : 0;
   const showPreviewFade =
     isCompactPreview
-    && !useTailPreview
+    && !useStreamingPreview
     && previewLineCount > FILE_SNAPSHOT_PREVIEW_LINES;
-  const showPreviewTailFade = useTailPreview && omittedPreviewLines > 0;
+  const showPreviewTailFade =
+    useStreamingPreview && compact && isCompactPreview && omittedPreviewLines > 0;
   const showToggle =
     !inlineDiffExpanded
     && showContent
@@ -244,7 +252,7 @@ export function FileEditorCard({
           : "",
         expanded || inlineDiffExpanded ? "file-editor-card--expanded" : "",
         isCompactPreview ? "file-editor-card--preview" : "",
-        useTailPreview ? "file-editor-card--preview-tail" : "",
+        useStreamingPreview && compact ? "file-editor-card--preview-tail" : "",
         showPreviewFade ? "file-editor-card--preview-fade" : "",
         showPreviewTailFade ? "file-editor-card--preview-tail-fade" : "",
         fillAvailable ? "file-editor-card--fill" : "",
@@ -318,11 +326,18 @@ export function FileEditorCard({
               … {omittedPreviewLines} 行已省略 …
             </div>
           ) : null}
-          {showDiff && diff ? (
+          {useStreamingPreview ? (
+            <StreamingCodeTailPreview
+              path={path}
+              content={displayContent}
+              maxLines={streamingTailLines}
+            />
+          ) : showDiff && diff ? (
             <CodeMirrorLineDiffView
               path={path}
               removed={diff.removed}
               added={diff.added}
+              display={diffDisplay ?? undefined}
               collapse={collapseDiff}
               scrollToFirstChange={isCompactPreview}
               fillAvailable={fillAvailable}
@@ -332,12 +347,11 @@ export function FileEditorCard({
           ) : (
             <CodeMirrorPreview
               path={path}
-              content={content}
+              content={displayContent}
               fillAvailable={fillAvailable}
               lineNumbers={showLineNumbers}
               lineWrapping={!isCompactPreview}
               skipLint={compact && !fillAvailable}
-              scrollToTail={useTailPreview}
             />
           )}
         </div>
@@ -366,6 +380,54 @@ export function FileEditorCard({
     </div>
   );
 }
+
+function fileEditorCardPropsEqual(
+  prev: FileEditorCardProps,
+  next: FileEditorCardProps,
+): boolean {
+  if (prev.path !== next.path) return false;
+  if (prev.running !== next.running) return false;
+  if (prev.variant !== next.variant) return false;
+  if (prev.diffMode !== next.diffMode) return false;
+  if (prev.foldSnapshot !== next.foldSnapshot) return false;
+  if (prev.showContent !== next.showContent) return false;
+  if (prev.showHeader !== next.showHeader) return false;
+  if (prev.fillAvailable !== next.fillAvailable) return false;
+  if (prev.lineNumbers !== next.lineNumbers) return false;
+  if (prev.inlineDiffExpanded !== next.inlineDiffExpanded) return false;
+  if (prev.headerRunning !== next.headerRunning) return false;
+  if (prev.headerError !== next.headerError) return false;
+  if (prev.editActionLabel !== next.editActionLabel) return false;
+  if (prev.summaryMeta !== next.summaryMeta) return false;
+  if (prev.onOpenPreview !== next.onOpenPreview) return false;
+
+  if (prev.stat !== next.stat) {
+    if (!prev.stat || !next.stat) return false;
+    if (
+      prev.stat.label !== next.stat.label
+      || prev.stat.kind !== next.stat.kind
+      || prev.stat.addLines !== next.stat.addLines
+      || prev.stat.removeLines !== next.stat.removeLines
+    ) {
+      return false;
+    }
+  }
+
+  if (prev.diff !== next.diff) {
+    if (!prev.diff || !next.diff) return false;
+    if (prev.diff.removed !== next.diff.removed || prev.diff.added !== next.diff.added) {
+      return false;
+    }
+  }
+
+  if (next.running) {
+    return streamingContentSignature(prev.content) === streamingContentSignature(next.content);
+  }
+
+  return prev.content === next.content;
+}
+
+export const FileEditorCard = memo(FileEditorCardInner, fileEditorCardPropsEqual);
 
 export function buildWriteStat(content: string): FileEditorStat {
   const lines = countLines(content);

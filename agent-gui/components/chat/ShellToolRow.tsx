@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
+import { useThrottledStreamValue } from "@/lib/use-throttled-stream-value";
 import { TerminalOutputEditor } from "@/components/terminal/TerminalOutputEditor";
 import {
   ToolDetailsIconButton,
@@ -27,7 +28,7 @@ type ShellToolRowProps = {
   toolCallId?: string;
 };
 
-export function ShellToolRow({
+function ShellToolRowInner({
   state,
   input,
   output,
@@ -61,7 +62,7 @@ export function ShellToolRow({
   const combined = isLive
     ? watch.output
     : (view?.combined ?? watch.output);
-  const editorContent = useMemo(() => {
+  const rawEditorContent = useMemo(() => {
     if (view?.blocked) {
       const reason = view.blockReason ?? "命令已被安全策略拦截";
       return `[blocked] ${reason}`;
@@ -72,6 +73,7 @@ export function ShellToolRow({
       useCommandLine: false,
     });
   }, [view?.blocked, view?.blockReason, commandLine, combined, isLive]);
+  const editorContent = useThrottledStreamValue(rawEditorContent, isLive);
 
   return (
     <>
@@ -119,3 +121,5 @@ export function ShellToolRow({
     </>
   );
 }
+
+export const ShellToolRow = memo(ShellToolRowInner);

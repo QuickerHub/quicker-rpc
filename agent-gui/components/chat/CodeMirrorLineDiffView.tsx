@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { createDiffLineKindsExtension } from "@/lib/codemirror-diff-extensions";
 import {
   buildInterleavedDiffDisplay,
   FILE_DIFF_CONTEXT_LINES,
   FILE_DIFF_MIN_EQUAL_COLLAPSE,
-  firstChangedDisplayLineNumber,
+  type InterleavedDiffDisplay,
 } from "@/lib/file-line-diff";
 import {
   buildPreviewCodeMirrorExtensions,
@@ -18,6 +18,8 @@ type CodeMirrorLineDiffViewProps = {
   path: string;
   removed: string;
   added: string;
+  /** Precomputed interleaved diff — avoids duplicate LCS when parent already built display. */
+  display?: InterleavedDiffDisplay;
   /** Override language; defaults to guess from path (e.g. json for data.json). */
   language?: string;
   /** When true, fold long unchanged runs (chat preview). */
@@ -33,10 +35,11 @@ type CodeMirrorLineDiffViewProps = {
   lineWrapping?: boolean;
 };
 
-export function CodeMirrorLineDiffView({
+function CodeMirrorLineDiffViewInner({
   path,
   removed,
   added,
+  display: displayProp,
   language,
   collapse = true,
   scrollToFirstChange = false,
@@ -49,11 +52,12 @@ export function CodeMirrorLineDiffView({
 }: CodeMirrorLineDiffViewProps) {
   const display = useMemo(
     () =>
-      buildInterleavedDiffDisplay(removed, added, {
+      displayProp
+      ?? buildInterleavedDiffDisplay(removed, added, {
         contextLines: FILE_DIFF_CONTEXT_LINES,
         minEqualCollapse: collapse ? FILE_DIFF_MIN_EQUAL_COLLAPSE : 999_999,
       }),
-    [removed, added, collapse],
+    [displayProp, removed, added, collapse],
   );
 
   const lintSourceText = useMemo(
@@ -95,11 +99,6 @@ export function CodeMirrorLineDiffView({
       aria-label="文件差异"
     >
       <CodeMirror
-        key={
-          scrollToFirstChange
-            ? `compact-${firstChangedDisplayLineNumber(display.lineKinds)}-${display.displayLineCount}`
-            : "full"
-        }
         value={display.text}
         extensions={extensions}
         theme={workspaceCodeMirrorUiTheme}
@@ -113,3 +112,5 @@ export function CodeMirrorLineDiffView({
     </div>
   );
 }
+
+export const CodeMirrorLineDiffView = memo(CodeMirrorLineDiffViewInner);

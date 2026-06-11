@@ -24,6 +24,13 @@ public static class XActionFileRefCompiler
             return Fail("data.json steps must be an array.");
         }
 
+        // Block save on structural schema errors (unknown/mistyped fields would be silently dropped).
+        var schemaIssues = ProgramWireSchemaValidator.Validate(data);
+        if (schemaIssues.Count > 0)
+        {
+            return Fail(ProgramWireSchemaValidator.FormatMessage(schemaIssues));
+        }
+
         var projectDir = QuickerProjectLayout.ResolveProjectDirectory(projectDirectory);
         var clone = (JObject)data.DeepClone();
         var stepsClone = (JArray)clone["steps"]!;

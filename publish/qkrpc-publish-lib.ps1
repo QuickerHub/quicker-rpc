@@ -440,7 +440,7 @@ function Invoke-QuickerAgentBitifulUpload {
         [string]$InstallerPath,
 
         [Parameter(Mandatory = $true)]
-        [string]$LatestJsonPath,
+        [string]$LatestYmlPath,
 
         [Parameter(Mandatory = $true)]
         [string]$ExpectedSemVer,
@@ -503,14 +503,14 @@ function Invoke-QuickerAgentBitifulUpload {
         throw "Bitiful upload failed with exit code $LASTEXITCODE"
     }
 
-    if (-not (Test-Path -LiteralPath $LatestJsonPath)) {
-        throw "latest.json not found for Bitiful upload: $LatestJsonPath"
+    if (-not (Test-Path -LiteralPath $LatestYmlPath)) {
+        throw "latest.yml not found for Bitiful upload: $LatestYmlPath"
     }
 
-    Assert-QuickerAgentLatestJsonFile -Path $LatestJsonPath -ExpectedSemVer $ExpectedSemVer
+    Assert-QuickerAgentLatestYmlFile -Path $LatestYmlPath -ExpectedSemVer $ExpectedSemVer
 
-    if ($LatestJsonPath) {
-        $latestResolved = (Resolve-Path -LiteralPath $LatestJsonPath -ErrorAction Stop).Path
+    if ($LatestYmlPath) {
+        $latestResolved = (Resolve-Path -LiteralPath $LatestYmlPath -ErrorAction Stop).Path
         $uploadArgs = @(
             $latestResolved,
             '--asset',
@@ -962,23 +962,26 @@ function Get-QuickerAgentBitifulLatestJsonUrl {
     return "$(Get-QuickerAgentBitifulDownloadPrefix)/latest.json"
 }
 
+function Get-QuickerAgentBitifulLatestYmlUrl {
+    return "$(Get-QuickerAgentBitifulDownloadPrefix)/latest.yml"
+}
+
 function Get-QuickerAgentElectronBitifulDownloadPrefix {
-    return 'https://s3.bitiful.net/quicker-pkgs/quicker-rpc/quicker-agent-electron'
+    return Get-QuickerAgentBitifulDownloadPrefix
 }
 
 function Get-QuickerAgentElectronBitifulObjectPrefix {
-    if (-not [string]::IsNullOrWhiteSpace($env:BITIFUL_ELECTRON_OBJECT_PREFIX)) {
-        return $env:BITIFUL_ELECTRON_OBJECT_PREFIX.Trim().Trim('/')
+    if (-not [string]::IsNullOrWhiteSpace($env:BITIFUL_OBJECT_PREFIX)) {
+        return $env:BITIFUL_OBJECT_PREFIX.Trim().Trim('/')
     }
 
-    return 'quicker-rpc/quicker-agent-electron'
+    return 'quicker-rpc/quicker-agent'
 }
 
 function Get-QuickerAgentElectronSetupName {
     param([string]$Version)
 
-    $semver = Get-QuickerRpcSemVerFromVersion -Version $Version
-    return "QuickerAgent-Electron-$semver-setup.exe"
+    return Get-QuickerAgentSetupName -Version $Version
 }
 
 function Get-QuickerAgentElectronBitifulSetupUrl {
@@ -989,14 +992,14 @@ function Get-QuickerAgentElectronBitifulSetupUrl {
 }
 
 function Get-QuickerAgentElectronBitifulLatestYmlUrl {
-    return "$(Get-QuickerAgentElectronBitifulDownloadPrefix)/latest.yml"
+    return Get-QuickerAgentBitifulLatestYmlUrl
 }
 
 function Get-QuickerAgentElectronBitifulVersionTxtUrl {
     return "$(Get-QuickerAgentElectronBitifulDownloadPrefix)/version.txt"
 }
 
-function Assert-QuickerAgentElectronLatestYmlFile {
+function Assert-QuickerAgentLatestYmlFile {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Path,
@@ -1014,13 +1017,25 @@ function Assert-QuickerAgentElectronLatestYmlFile {
         throw "latest.yml version mismatch (expected $ExpectedSemVer): $Path"
     }
 
-    if ($content -notmatch 'path:\s*QuickerAgent-Electron-[\d.]+\-setup\.exe') {
-        throw "latest.yml missing path: QuickerAgent-Electron-*-setup.exe ($Path)"
+    if ($content -notmatch 'path:\s*quicker-agent-[\d.]+\-x64-setup\.exe') {
+        throw "latest.yml missing path: quicker-agent-*-x64-setup.exe ($Path)"
     }
 
     if ($content -notmatch 'sha512:\s*\S+') {
         throw "latest.yml missing sha512 ($Path)"
     }
+}
+
+function Assert-QuickerAgentElectronLatestYmlFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedSemVer
+    )
+
+    Assert-QuickerAgentLatestYmlFile -Path $Path -ExpectedSemVer $ExpectedSemVer
 }
 
 function Invoke-QuickerAgentElectronBitifulUpload {
@@ -1049,7 +1064,7 @@ function Invoke-QuickerAgentElectronBitifulUpload {
         throw 'Bitiful credentials not configured (BITIFUL_ACCESS_KEY, BITIFUL_SECRET_KEY, BITIFUL_BUCKET_NAME).'
     }
 
-    Assert-QuickerAgentElectronLatestYmlFile -Path $LatestYmlPath -ExpectedSemVer $ExpectedSemVer
+    Assert-QuickerAgentLatestYmlFile -Path $LatestYmlPath -ExpectedSemVer $ExpectedSemVer
 
     $uploadScript = Join-Path $PublishDir 'bitiful_upload.py'
     if (-not (Test-Path -LiteralPath $uploadScript)) {
@@ -1068,7 +1083,6 @@ function Invoke-QuickerAgentElectronBitifulUpload {
 
     $installerArgs = @(
         $uploadScript, $resolvedInstaller,
-        '--electron',
         '--endpoint-url', $endpointUrl,
         '--object-prefix', $objectPrefix
     )

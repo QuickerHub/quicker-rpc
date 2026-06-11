@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useCallback, useMemo, useState } from "react";
+import { streamingContentSignature } from "@/lib/preview-tail-lines";
 import {
   basenamePath,
   getWorkspaceFileEditorPreview,
@@ -73,11 +74,15 @@ function FileEditorPreviewBody({
   diffOpen?: boolean;
   onDiffOpenChange?: (open: boolean) => void;
 }) {
-  const preview = getWorkspaceFileEditorPreview(
-    toolName,
-    input,
-    output?.ok ? output.data : undefined,
-    { streaming: running },
+  const preview = useMemo(
+    () =>
+      getWorkspaceFileEditorPreview(
+        toolName,
+        input,
+        output?.ok ? output.data : undefined,
+        { streaming: running },
+      ),
+    [toolName, input, output, running],
   );
 
   if (!preview) return null;
@@ -419,7 +424,57 @@ function WorkspaceFileEditorRowInner({
   );
 }
 
-export const WorkspaceFileEditorRow = memo(WorkspaceFileEditorRowInner);
+function workspaceEditorRowPreviewSig(
+  toolName: string,
+  input: unknown,
+  output: QkrpcToolResult | undefined,
+  running: boolean,
+): string {
+  const preview = getWorkspaceFileEditorPreview(
+    toolName,
+    input,
+    output?.ok ? output.data : undefined,
+    { streaming: running },
+  );
+  if (!preview) return "";
+  const bodySig = running
+    ? streamingContentSignature(preview.content)
+    : preview.content;
+  return `${preview.path}|${bodySig}|${preview.diff?.removed.length ?? 0}|${preview.diff?.added.length ?? 0}`;
+}
+
+function workspaceEditorRowPropsEqual(
+  prev: Parameters<typeof WorkspaceFileEditorRowInner>[0],
+  next: Parameters<typeof WorkspaceFileEditorRowInner>[0],
+): boolean {
+  if (
+    prev.toolName !== next.toolName
+    || prev.displayName !== next.displayName
+    || prev.meta !== next.meta
+    || prev.running !== next.running
+    || prev.inBatch !== next.inBatch
+    || prev.errorText !== next.errorText
+  ) {
+    return false;
+  }
+  if (prev.input === next.input && prev.output === next.output) return true;
+  return workspaceEditorRowPreviewSig(
+    prev.toolName,
+    prev.input,
+    prev.output,
+    prev.running,
+  ) === workspaceEditorRowPreviewSig(
+    next.toolName,
+    next.input,
+    next.output,
+    next.running,
+  );
+}
+
+export const WorkspaceFileEditorRow = memo(
+  WorkspaceFileEditorRowInner,
+  workspaceEditorRowPropsEqual,
+);
 
 export function WorkspaceFileToolBody({
   input,

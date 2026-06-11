@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CodeMirrorPreview } from "@/components/chat/CodeMirrorPreview";
+import { useIdleCmReady } from "@/lib/use-idle-cm-ready";
+import { streamingContentSignature } from "@/lib/preview-tail-lines";
+import { useThrottledStreamValue } from "@/lib/use-throttled-stream-value";
 import { FILE_SNAPSHOT_PREVIEW_LINES } from "@/components/chat/FileEditorCard";
 import {
   resolveShellCommandDisplay,
@@ -82,7 +85,7 @@ function maxHeightForVariant(
   }
 }
 
-export function TerminalOutputEditor({
+function TerminalOutputEditorInner({
   content,
   commandLine,
   shellKind,
@@ -109,7 +112,8 @@ export function TerminalOutputEditor({
     foldCommandUntilExpandProp ?? useBlockTitle;
   const hasFoldableCommand =
     foldCommandUntilExpand && Boolean(commandLine?.trim());
-  const outputText = content.trimEnd();
+  const displayContent = useThrottledStreamValue(content, running);
+  const outputText = displayContent.trimEnd();
   const outputLineCount = countShellOutputLines(outputText);
   const commandDisplay = commandLine
     ? resolveShellCommandDisplay(commandLine, shellKind)
@@ -154,6 +158,8 @@ export function TerminalOutputEditor({
     : null;
   const showChevron = canToggle;
   const liveText = running ? (outputText || "…") : "";
+  const wantOutputCm = !running && Boolean(outputText) && !isCompactPreview;
+  const outputCmReady = useIdleCmReady(wantOutputCm);
 
   useEffect(() => {
     if (wasRunningRef.current && !running) {
@@ -174,20 +180,6 @@ export function TerminalOutputEditor({
     if (!scroller) return;
     scroller.scrollTop = scroller.scrollHeight;
   }, [outputText, followTail, running, showCommandPane]);
-
-  useLayoutEffect(() => {
-    if (!isCompactPreview) return;
-    const root = rootRef.current;
-    if (!root) return;
-    const scroller = root.querySelector<HTMLElement>(
-      ".terminal-output-editor__output-pane .cm-scroller",
-    );
-    if (!scroller) return;
-    // Single long line wraps in CM: clip shows head by default — scroll to tail.
-    if (outputLineCount <= FILE_SNAPSHOT_PREVIEW_LINES) {
-      scroller.scrollTop = scroller.scrollHeight;
-    }
-  }, [isCompactPreview, editorOutputText, outputLineCount]);
 
   if (
     !outputText
@@ -292,22 +284,30 @@ export function TerminalOutputEditor({
         </pre>
       ) : outputText ? (
         <div className="terminal-output-editor__output-pane">
-          <CodeMirrorPreview
-            path="shell.out.txt"
-            content={editorOutputText}
-            plain
-            className={[
-              "terminal-output-editor__cm",
-              "terminal-output-editor__cm--output",
-              "terminal-output-editor__cm--no-gutter",
-              cmAutoHeight,
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            fillAvailable={fillAvailable}
-            maxHeight={fillAvailable ? undefined : maxHeightForVariant(variant)}
-            minHeight={variant === "popup" ? "8rem" : undefined}
-          />
+          {isCompactPreview ? (
+            <pre className="terminal-output-editor__output-pre">{editorOutputText}</pre>
+          ) : outputCmReady ? (
+            <CodeMirrorPreview
+              path="shell.out.txt"
+              content={editorOutputText}
+              plain
+              className={[
+                "terminal-output-editor__cm",
+                "terminal-output-editor__cm--output",
+                "terminal-output-editor__cm--no-gutter",
+                cmAutoHeight,
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              fillAvailable={fillAvailable}
+              maxHeight={fillAvailable ? undefined : maxHeightForVariant(variant)}
+              minHeight={variant === "popup" ? "8rem" : undefined}
+            />
+          ) : (
+            <pre className="terminal-output-editor__output-pre terminal-output-editor__output-pre--pending">
+              {editorOutputText}
+            </pre>
+          )}
         </div>
       ) : (
         <p className="shell-tool-empty tool-muted terminal-output-editor__output-pane terminal-output-editor__output-pane--empty">
@@ -408,3 +408,26 @@ function showCommandInBody(
   return (inlineFold && isExpanded)
     || (!inlineFold && expandedProp !== false);
 }
+
+function terminalOutputEditorPropsEqual(
+  prev: TerminalOutputEditorProps,
+  next: TerminalOutputEditorProps,
+): boolean {
+  if (prev.running !== next.running) return false;
+  if (prev.variant !== next.variant) return false;
+  if (prev.expanded !== next.expanded) return false;
+  if (prev.followTail !== next.followTail) return false;
+  if (prev.isError !== next.isError) return false;
+  if (prev.commandLine !== next.commandLine) return false;
+  if (prev.shellKind !== next.shellKind) return false;
+  if (next.running || prev.running) {
+    return streamingContentSignature(prev.content)
+      === streamingContentSignature(next.content);
+  }
+  return prev.content === next.content;
+}
+
+export const TerminalOutputEditor = memo(
+  TerminalOutputEditorInner,
+  terminalOutputEditorPropsEqual,
+);

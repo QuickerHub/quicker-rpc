@@ -29,7 +29,7 @@ export function formatJsonDisplayText(value: unknown): string {
   }
 }
 
-const JSON_EDITOR_MIN_CHARS = 120;
+const JSON_EDITOR_MIN_CHARS = 320;
 
 /** Use scrollable highlighted editor instead of inline pre/plain text. */
 export function shouldUseJsonEditor(value: unknown): boolean {

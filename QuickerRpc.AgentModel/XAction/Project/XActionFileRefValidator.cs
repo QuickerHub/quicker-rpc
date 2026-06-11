@@ -33,6 +33,9 @@ public static class XActionFileRefValidator
         public int VariableCount { get; set; }
 
         public IList<FileRefEntry> FileRefs { get; set; } = Array.Empty<FileRefEntry>();
+
+        public IList<ProgramWireSchemaValidator.SchemaIssue> SchemaIssues { get; set; } =
+            Array.Empty<ProgramWireSchemaValidator.SchemaIssue>();
     }
 
     public static ValidateResult Validate(JObject data, string projectDirectory)
@@ -51,6 +54,20 @@ public static class XActionFileRefValidator
 
         var projectDir = QuickerProjectLayout.ResolveProjectDirectory(projectDirectory);
         var fileRefs = CollectFileRefs(data, projectDir);
+        var schemaIssues = ProgramWireSchemaValidator.Validate(ReadRawDataForSchemaCheck(projectDir) ?? data);
+        if (schemaIssues.Count > 0)
+        {
+            return new ValidateResult
+            {
+                Success = false,
+                ErrorMessage = ProgramWireSchemaValidator.FormatMessage(schemaIssues),
+                StepCount = steps.Count,
+                VariableCount = variables.Count,
+                FileRefs = fileRefs,
+                SchemaIssues = schemaIssues,
+            };
+        }
+
         var compileResult = XActionFileRefCompiler.Compile(data, projectDir);
         if (!compileResult.Success)
         {
@@ -71,6 +88,30 @@ public static class XActionFileRefValidator
             VariableCount = variables.Count,
             FileRefs = fileRefs,
         };
+    }
+
+    /// <summary>
+    /// Re-reads raw data.json (no wire expansion) so schema issues carry accurate
+    /// line numbers and original key spellings. Returns null when unavailable.
+    /// </summary>
+    private static JObject? ReadRawDataForSchemaCheck(string projectDir)
+    {
+        try
+        {
+            var path = QuickerProjectLayout.GetDataPath(projectDir);
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            return QuickerProjectFiles.TryParseDataRoot(File.ReadAllText(path), out var root, out _)
+                ? root
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public static IList<FileRefEntry> CollectFileRefs(JObject data, string projectDirectory)

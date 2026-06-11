@@ -53,6 +53,7 @@ export function useMsgTurnStickyActive(
   const activeRef = useRef(false);
 
   useLayoutEffect(() => {
+    if (!activeRef.current) return;
     activeRef.current = false;
     setActive(false);
   }, [resetKey]);
@@ -72,14 +73,24 @@ export function useMsgTurnStickyActive(
 
     let rafId = 0;
 
+    let stableClientHeight = messages.clientHeight;
+
     const measure = () => {
       cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
+        const liveClientHeight = messages.clientHeight;
+        if (
+          stableClientHeight <= 0
+          || Math.abs(liveClientHeight - stableClientHeight) > 20
+        ) {
+          stableClientHeight = liveClientHeight;
+        }
+
         const promptEl = turn.querySelector<HTMLElement>(".msg-turn__prompt");
         const promptHeight = promptEl?.offsetHeight ?? 0;
         const next = shouldActivateMsgTurnSticky(
           messages.scrollHeight,
-          messages.clientHeight,
+          stableClientHeight,
           getTurnContentHeight(turn),
           promptHeight,
           activeRef.current,

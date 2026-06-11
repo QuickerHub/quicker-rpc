@@ -36,10 +36,8 @@ const preloadPath = join(electronRoot, "preload.mjs");
 const APP_REQUEST_EXIT_EVENT = "app-request-exit";
 
 function resolveIsDev() {
-  // electron-builder dir/unpacked builds may report isPackaged=false while still
-  // shipping QuickerAgent.exe + extraResources — never treat that as dev shell.
   const exeName = basename(process.execPath).toLowerCase();
-  if (exeName === "quickeragent.exe") {
+  if (exeName === "quickeragent.exe" || exeName === "quicker-agent.exe") {
     return false;
   }
   return !app.isPackaged
