@@ -118,7 +118,8 @@ function verifyRoot({ label, dir }) {
     );
     if (probe.status !== 0) {
       throw new Error(
-        `${label}: bundled node failed to load better-sqlite3 — agent.db persistence broken\n${probe.stderr}`,
+        `${label}: bundled node failed to load better-sqlite3 — agent.db persistence broken ` +
+          `(exit ${probe.status})\nstdout: ${probe.stdout}\nstderr: ${probe.stderr}`,
       );
     }
   }

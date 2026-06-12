@@ -164,15 +164,13 @@ Write-Host "Alias:    $aliasPath" -ForegroundColor Cyan
 Write-Host "Updater:  $latestYmlPublish" -ForegroundColor Cyan
 Write-Host "Endpoint: $(Get-QuickerAgentBitifulLatestYmlUrl)" -ForegroundColor DarkCyan
 
-Write-Host 'Verifying bundled resources (app + node + qkrpc)...' -ForegroundColor Cyan
+Write-Host 'Verifying packaged resources (win-unpacked app + node + qkrpc)...' -ForegroundColor Cyan
 Push-Location $agentGuiDir
 try {
-    $env:VERIFY_BUNDLED = '1'
+    $distResources = Join-Path $distDir 'win-unpacked\resources'
     node (Join-Path $agentGuiDir 'scripts\verify-desktop-bundle.mjs') `
-        --resources-dir electron\resources `
-        --label electron-staged `
-        --check-bundled
-    Remove-Item Env:VERIFY_BUNDLED -ErrorAction SilentlyContinue
+        --resources-dir $distResources `
+        --label electron-dist
     if ($LASTEXITCODE -ne 0) { throw "verify-desktop-bundle failed ($LASTEXITCODE)" }
 }
 finally {

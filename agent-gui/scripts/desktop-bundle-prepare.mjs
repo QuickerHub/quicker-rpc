@@ -331,6 +331,21 @@ export function rebuildBetterSqlite3ForBundledNode(
   if (!existsSync(nativeBinding)) {
     throw new Error(`better-sqlite3 prebuild did not produce ${nativeBinding}`);
   }
+
+  const probe = spawnSync(
+    nodeExe,
+    [
+      "-e",
+      "const D=require('better-sqlite3');new D(':memory:').exec('select 1');console.log('better-sqlite3 ok')",
+    ],
+    { cwd: join(resourcesDir, "app"), encoding: "utf8" },
+  );
+  if (probe.status !== 0) {
+    throw new Error(
+      `better-sqlite3 prebuild does not load under bundled Node v${NODE_VERSION} ` +
+        `(exit ${probe.status})\nstdout: ${probe.stdout}\nstderr: ${probe.stderr}`,
+    );
+  }
   console.log(`better-sqlite3 prebuild ready: ${nativeBinding}`);
 }
 
