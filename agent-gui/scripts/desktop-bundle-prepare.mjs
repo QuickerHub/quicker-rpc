@@ -242,20 +242,27 @@ function stageTerminalRuntime(agentGuiRoot, appRoot) {
  */
 function stageBetterSqlite3(agentGuiRoot, appRoot) {
   const pkgRoot = join(agentGuiRoot, "node_modules", "better-sqlite3");
-  const nativeBinding = join(pkgRoot, "build", "Release", "better_sqlite3.node");
-  if (!existsSync(nativeBinding)) {
+  if (!existsSync(join(pkgRoot, "binding.gyp"))) {
     throw new Error(
-      `Missing better-sqlite3 native binding: ${nativeBinding} — run pnpm install in agent-gui first`,
+      `Missing better-sqlite3 sources: ${pkgRoot} — run pnpm install in agent-gui first`,
     );
   }
 
   const dest = join(appRoot, "node_modules", "better-sqlite3");
   if (existsSync(dest)) rmSync(dest, { recursive: true, force: true });
-  mkdirSync(join(dest, "build", "Release"), { recursive: true });
-  cpSync(join(pkgRoot, "package.json"), join(dest, "package.json"));
-  cpSync(join(pkgRoot, "lib"), join(dest, "lib"), { recursive: true });
-  // Only the compiled addon — build/Release also holds large MSVC intermediates.
-  cpSync(nativeBinding, join(dest, "build", "Release", "better_sqlite3.node"));
+  mkdirSync(dest, { recursive: true });
+  for (const name of ["binding.gyp", "package.json", "lib", "src", "deps"]) {
+    const src = join(pkgRoot, name);
+    if (!existsSync(src)) {
+      throw new Error(`Missing better-sqlite3 ${name}: ${src}`);
+    }
+    const destPath = join(dest, name);
+    if (name === "binding.gyp" || name === "package.json") {
+      cpSync(src, destPath);
+    } else {
+      cpSync(src, destPath, { recursive: true });
+    }
+  }
 
   // Runtime require chain: better-sqlite3 -> bindings -> file-uri-to-path.
   // Resolve through pnpm's .pnpm layout instead of assuming top-level dirs.
@@ -274,7 +281,41 @@ function stageBetterSqlite3(agentGuiRoot, appRoot) {
     cpSync(src, depDest, { recursive: true });
   }
 
-  console.log(`better-sqlite3 staged: ${dest}`);
+  console.log(`better-sqlite3 staged (sources for bundled-node rebuild): ${dest}`);
+}
+
+/** Compile better-sqlite3 against the portable Node staged under resources/node. */
+export function rebuildBetterSqlite3ForBundledNode(resourcesDir) {
+  if (process.platform !== "win32") return;
+
+  const nodeExe = join(resourcesDir, "node", "node.exe");
+  const sqliteDir = join(resourcesDir, "app", "node_modules", "better-sqlite3");
+  if (!existsSync(nodeExe)) {
+    throw new Error(`Bundled Node missing: ${nodeExe}`);
+  }
+  if (!existsSync(join(sqliteDir, "binding.gyp"))) {
+    throw new Error(`better-sqlite3 sources missing: ${sqliteDir}`);
+  }
+
+  const npmCli = join(dirname(nodeExe), "node_modules", "npm", "bin", "npm-cli.js");
+  if (!existsSync(npmCli)) {
+    throw new Error(`npm-cli missing next to bundled Node: ${npmCli}`);
+  }
+
+  console.log(`Rebuilding better-sqlite3 for bundled Node v${NODE_VERSION}...`);
+  run(nodeExe, [npmCli, "run", "build-release"], {
+    cwd: sqliteDir,
+    env: {
+      ...process.env,
+      npm_config_nodedir: dirname(nodeExe),
+    },
+  });
+
+  const nativeBinding = join(sqliteDir, "build", "Release", "better_sqlite3.node");
+  if (!existsSync(nativeBinding)) {
+    throw new Error(`better-sqlite3 rebuild did not produce ${nativeBinding}`);
+  }
+  console.log(`better-sqlite3 rebuilt: ${nativeBinding}`);
 }
 
 /**
@@ -488,6 +529,7 @@ export function prepareDesktopBundle(options) {
   stageNextStandalone(ctx);
   stageVoiceResourceFiles(ctx);
   ensureBundledNode(ctx);
+  rebuildBetterSqlite3ForBundledNode(ctx.resourcesDir);
   ensureBundledRipgrep(ctx);
   stageQkrpcRuntime(ctx);
 
