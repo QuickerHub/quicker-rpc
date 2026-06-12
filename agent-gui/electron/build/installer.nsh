@@ -53,8 +53,7 @@ Var QA_CB_StartMenu
 !macroend
 
 Function QuickerAgentShortcutsPageCreate
-  !insertmacro MUI_HEADER_TEXT "快捷方式" "选择要创建的快捷方式（每次安装均可重新选择）"
-
+  ; PageEx Caption sets the wizard step title; MUI_HEADER_TEXT is unavailable in electron-builder NSIS.
   nsDialogs::Create 1018
   Pop $QA_ShortcutDialog
   ${If} $QA_ShortcutDialog == error
