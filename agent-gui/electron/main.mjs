@@ -33,6 +33,7 @@ import { createEmbeddedBrowserCommands } from "./commands/embedded-browser.mjs";
 import { createWebviewProfileCommands } from "./commands/webview-profile.mjs";
 import { createLegacyChatCommands } from "./commands/legacy-chat.mjs";
 import { createUpdaterCommands } from "./commands/updater.mjs";
+import { createAppNativeIcon } from "./app-icon.mjs";
 
 const electronRoot = dirname(fileURLToPath(import.meta.url));
 const preloadPath = join(electronRoot, "preload.mjs");
@@ -136,12 +137,14 @@ function usesFramelessChrome() {
 }
 
 function createMainWindow(loadUrl) {
+  const appIcon = createAppNativeIcon(isDev());
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     show: false,
     title: "QuickerAgent",
     frame: !usesFramelessChrome(),
+    ...(appIcon ? { icon: appIcon } : {}),
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -186,7 +189,7 @@ function getPluginCtx() {
   };
 }
 
-function initDesktopCommands() {
+async function initDesktopCommands() {
   pluginRuntimeCommands = createPluginRuntimeCommands({ getPluginCtx });
 
   launcher = createLauncherCommands({
@@ -208,7 +211,9 @@ function initDesktopCommands() {
   });
   embeddedBrowserCommands = createEmbeddedBrowserCommands(embeddedBrowserManager);
   const embeddedBrowserAutomation = createEmbeddedBrowserAutomation(embeddedBrowserManager);
-  embeddedBrowserAutomationServer = startEmbeddedBrowserAutomationServer(embeddedBrowserAutomation);
+  embeddedBrowserAutomationServer = await startEmbeddedBrowserAutomationServer(
+    embeddedBrowserAutomation,
+  );
   registerEmbeddedBrowserShutdown(() => {
     embeddedBrowserManager?.teardown();
     void embeddedBrowserAutomationServer?.close().catch(() => {});
@@ -352,7 +357,7 @@ async function main() {
     return;
   }
 
-  initDesktopCommands();
+  await initDesktopCommands();
 
   ipcMain.handle("desktop:invoke", async (_event, payload) => {
     const command = payload?.command;

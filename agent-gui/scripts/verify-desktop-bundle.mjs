@@ -44,6 +44,11 @@ const required = [
   { rel: "node/node.exe", minBytes: 40 * 1024 * 1024 },
   { rel: "qkrpc/qkrpc.exe", minBytes: 100 * 1024 },
   { rel: "rg/rg.exe", minBytes: 100 * 1024 },
+  { rel: "app/browser-runtime/protocol.mjs", minBytes: 100 },
+  { rel: "app/terminal-runtime/server.mjs", minBytes: 100 },
+  { rel: "app/lib/qkrpc-toolchain-env.mjs", minBytes: 100 },
+  { rel: "app/node_modules/node-pty/package.json", minBytes: 10 },
+  { rel: "app/node_modules/ws/package.json", minBytes: 10 },
 ];
 
 const bundledKeyEnv =

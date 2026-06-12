@@ -1,6 +1,6 @@
 {
   "name": "quicker-rpc-agent-gui",
-  "version": "0.14.0",
+  "version": "0.14.3",
   "private": true,
   "main": "electron/bootstrap.cjs",
   "scripts": {
@@ -19,6 +19,8 @@
     "electron:dev": "node scripts/electron-dev.mjs",
     "electron:prepare": "node scripts/electron-prepare.mjs",
     "electron:installer-assets": "node scripts/generate-electron-installer-assets.mjs",
+    "electron:icons": "node scripts/generate-app-icons.mjs",
+    "electron:icons:sync": "node scripts/generate-electron-installer-assets.mjs --regen",
     "electron:build": "pnpm electron:prepare && electron-builder --win nsis && node scripts/verify-electron-asar.mjs",
     "electron:verify-bundle": "node scripts/verify-desktop-bundle.mjs --resources-dir electron/resources --label electron-staged",
     "electron:check": "node scripts/electron-check.mjs",
@@ -116,6 +118,7 @@
   },
   "build": {
     "appId": "ai.quicker.agent.electron",
+    "afterPack": "scripts/patch-electron-exe-icon.mjs",
     "productName": "QuickerAgent",
     "directories": {
       "app": "electron/shell-app",
@@ -135,6 +138,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "src-tauri/icons/icon.ico",
+        "to": "app-icon.ico"
       }
     ],
     "asar": true,
@@ -148,9 +155,9 @@
       "executableName": "quicker-agent"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false,
+      "allowToChangeInstallationDirectory": true,
       "artifactName": "quicker-agent-${version}-x64-setup.${ext}",
       "include": "installer.nsh",
       "installerIcon": "installerIcon.ico",
@@ -164,8 +171,8 @@
       "shortcutName": "QuickerAgent",
       "menuCategory": "QuickerAgent",
       "uninstallDisplayName": "QuickerAgent",
-      "createDesktopShortcut": "always",
-      "createStartMenuShortcut": true,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": false,
       "runAfterFinish": true
     },
     "publish": {
@@ -192,6 +199,7 @@
     "drizzle-kit": "^0.31.10",
     "electron-binary": "npm:electron@33.4.11",
     "electron-builder": "^25.1.8",
+    "rcedit": "4.0.1",
     "tsx": "^4.20.3",
     "typescript": "^5.8.0"
   }

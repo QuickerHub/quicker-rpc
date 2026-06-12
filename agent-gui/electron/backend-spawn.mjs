@@ -143,6 +143,13 @@ function buildBundledChildEnv(host, port, extra = {}) {
     HOSTNAME: host,
     PORT: String(port),
     AGENT_GUI_BUNDLED: "1",
+    QUICKER_EMBEDDED_BROWSER_HOST:
+      process.env.QUICKER_EMBEDDED_BROWSER_HOST
+      ?? process.env.AGENT_GUI_EMBEDDED_BROWSER_HOST
+      ?? host,
+    QUICKER_EMBEDDED_BROWSER_PORT:
+      process.env.QUICKER_EMBEDDED_BROWSER_PORT
+      ?? process.env.AGENT_GUI_EMBEDDED_BROWSER_PORT,
     ...extra,
   };
   for (const key of Object.keys(env)) {

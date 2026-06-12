@@ -171,6 +171,68 @@ function stageBrowserRuntime(agentGuiRoot, appRoot) {
   console.log(`browser-runtime staged: ${dest}`);
 }
 
+/** lib/*.mjs required by terminal-runtime child (not always in Next standalone trace). */
+const TERMINAL_LIB_FILES = [
+  "qkrpc-toolchain-env.mjs",
+  "qkrpc-bin.mjs",
+  "rg-bin.mjs",
+  "qkrpc-serve-lifecycle.mjs",
+  "browser-runtime-lifecycle.mjs",
+];
+
+/** Native / WS deps for terminal-runtime/server.mjs (separate Node child). */
+const TERMINAL_NODE_PACKAGES = ["node-pty", "ws"];
+
+function stageTerminalRuntime(agentGuiRoot, appRoot) {
+  const src = join(agentGuiRoot, "terminal-runtime");
+  const dest = join(appRoot, "terminal-runtime");
+  if (!existsSync(src)) {
+    throw new Error(`Missing terminal-runtime sources: ${src}`);
+  }
+  if (existsSync(dest)) {
+    rmSync(dest, { recursive: true, force: true });
+  }
+  mkdirSync(dest, { recursive: true });
+  for (const ent of readdirSync(src, { withFileTypes: true })) {
+    if (!ent.isFile() || !ent.name.endsWith(".mjs") || ent.name.endsWith(".test.mjs")) {
+      continue;
+    }
+    cpSync(join(src, ent.name), join(dest, ent.name));
+  }
+  const serverEntry = join(dest, "server.mjs");
+  if (!existsSync(serverEntry)) {
+    throw new Error(`terminal-runtime staging incomplete: ${serverEntry}`);
+  }
+
+  const libDestRoot = join(appRoot, "lib");
+  mkdirSync(libDestRoot, { recursive: true });
+  for (const name of TERMINAL_LIB_FILES) {
+    const libSrc = join(agentGuiRoot, "lib", name);
+    if (!existsSync(libSrc)) {
+      throw new Error(`Missing terminal lib dependency: ${libSrc}`);
+    }
+    cpSync(libSrc, join(libDestRoot, name));
+  }
+
+  const nmDestRoot = join(appRoot, "node_modules");
+  mkdirSync(nmDestRoot, { recursive: true });
+  for (const pkg of TERMINAL_NODE_PACKAGES) {
+    const pkgSrc = join(agentGuiRoot, "node_modules", pkg);
+    if (!existsSync(pkgSrc)) {
+      throw new Error(
+        `Missing ${pkg} — run pnpm install in agent-gui before desktop bundle`,
+      );
+    }
+    const pkgDest = join(nmDestRoot, pkg);
+    if (existsSync(pkgDest)) {
+      rmSync(pkgDest, { recursive: true, force: true });
+    }
+    cpSync(pkgSrc, pkgDest, { recursive: true });
+  }
+
+  console.log(`terminal-runtime staged: ${dest}`);
+}
+
 /**
  * @param {{
  *   resourcesDir: string,
@@ -230,6 +292,7 @@ export function stageNextStandalone(ctx) {
   ensureNextStandaloneRuntimes(agentGuiRoot, appDir);
   patchStandaloneServerEntry(appDir);
   stageBrowserRuntime(agentGuiRoot, appDir);
+  stageTerminalRuntime(agentGuiRoot, appDir);
 
   console.log(`Next standalone staged: ${appDir}`);
 }

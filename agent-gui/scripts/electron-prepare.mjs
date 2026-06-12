@@ -41,7 +41,7 @@ async function main() {
   });
   syncPackageVersion();
   const version = readDesktopBundleSemver(repoRoot);
-  await generateElectronInstallerAssets();
+  await generateElectronInstallerAssets({ regenFromSvg: true });
   stageElectronShell({ version });
   console.log("electron-prepare: done.");
 }

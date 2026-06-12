@@ -1,5 +1,5 @@
 /**
- * Verify Electron NSIS assets (one-click: icon + installer.nsh only).
+ * Verify Electron NSIS assets (assisted installer: icon + installer.nsh hooks).
  */
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -35,6 +35,14 @@ for (const { name, minBytes } of required) {
 const nsh = readFileSync(join(buildDir, "installer.nsh"), "utf8");
 if (!nsh.includes("ManifestDPIAware true")) {
   console.error("verify-electron-installer-assets: installer.nsh missing DPI manifest");
+  process.exit(1);
+}
+if (!nsh.includes("customPageAfterChangeDir")) {
+  console.error("verify-electron-installer-assets: installer.nsh missing shortcut options page");
+  process.exit(1);
+}
+if (!nsh.includes("ApplyQuickerAgentShortcutChoices")) {
+  console.error("verify-electron-installer-assets: installer.nsh missing shortcut apply macro");
   process.exit(1);
 }
 
