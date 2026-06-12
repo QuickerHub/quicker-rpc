@@ -3,7 +3,6 @@
 ; User data (plugins, local/, cache) stays under %LOCALAPPDATA%\QuickerAgent — unchanged.
 
 !include "nsDialogs.nsh"
-!include "StrContains.nsh"
 
 ; Crisp UI on HiDPI displays; show file copy progress on assisted installer.
 !macro customHeader
