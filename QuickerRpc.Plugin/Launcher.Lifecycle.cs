@@ -71,7 +71,7 @@ public static partial class Launcher
 
         try
         {
-            _host.StopAsync().GetAwaiter().GetResult();
+            ServiceHost.StopAsync().GetAwaiter().GetResult();
             _status = LauncherStatus.Stopped;
             Logger.LogInformation("QuickerRpc launcher stopped");
         }

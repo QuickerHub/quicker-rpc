@@ -4,6 +4,9 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
 
 const agentGuiRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const distRoot = join(agentGuiRoot, "electron", "dist", "win-unpacked", "resources");
@@ -57,8 +60,19 @@ function main() {
     }
   }
 
+  const { extractAll } = require("@electron/asar");
+  const entries = Object.keys(extractAll(asarPath));
+  const protocolEntry = entries.find((name) =>
+    name.replace(/\\/g, "/").endsWith("browser-runtime/protocol.mjs"),
+  );
+  if (!protocolEntry) {
+    throw new Error(
+      "app.asar missing browser-runtime/protocol.mjs — Electron shell cannot start",
+    );
+  }
+
   console.log(
-    `verify-electron-asar: OK app.asar=${(asarBytes / 1024 / 1024).toFixed(2)} MB`,
+    `verify-electron-asar: OK app.asar=${(asarBytes / 1024 / 1024).toFixed(2)} MB, ${protocolEntry}`,
   );
 }
 

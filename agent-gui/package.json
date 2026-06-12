@@ -125,6 +125,7 @@
     "files": [
       "electron/**/*.mjs",
       "electron/**/*.cjs",
+      "browser-runtime/**/*.mjs",
       "package.json"
     ],
     "extraResources": [

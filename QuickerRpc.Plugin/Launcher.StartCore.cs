@@ -21,9 +21,15 @@ public static partial class Launcher
 {
     private static readonly object LockObject = new();
     private static readonly int _assemblyResolveRegistered = PluginAssemblyResolve.EnsureRegistered();
-    private static readonly IHost _host = CreateHostForQuickerPlugin();
-    private static readonly ILogger Logger = _host.Services.GetRequiredService<ILoggerFactory>()
-        .CreateLogger(typeof(Launcher));
+    // Defer DI host creation until first Start/Stop — QExpr `load` + `type` must finish Costura init first.
+    private static readonly Lazy<IHost> HostLazy = new Lazy<IHost>(
+        CreateHostForQuickerPlugin,
+        LazyThreadSafetyMode.ExecutionAndPublication);
+
+    private static IHost ServiceHost => HostLazy.Value;
+
+    private static ILogger Logger =>
+        ServiceHost.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(Launcher));
 
     private static LauncherStatus _status = LauncherStatus.NotStarted;
     private static volatile bool _launchQuickerAgentAfterStart;
@@ -153,7 +159,7 @@ public static partial class Launcher
                 return;
             }
 
-            await _host.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            await ServiceHost.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
             LauncherStatus statusAfterStart;
             lock (LockObject)
@@ -167,7 +173,7 @@ public static partial class Launcher
 
             if (statusAfterStart == LauncherStatus.Stopped)
             {
-                await _host.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                await ServiceHost.StopAsync(CancellationToken.None).ConfigureAwait(false);
                 QuickerDispatcherInvoke.BeginOnUiThreadIfNeeded(ShowExitPopup);
                 return;
             }

@@ -20,6 +20,30 @@ const shellAppRoot = join(electronRoot, "shell-app");
 
 const SKIP_DIRS = new Set(["resources", "dist", "build", "shell-app"]);
 
+/** @param {string} agentGuiRoot */
+function stageBrowserRuntimeForShell(agentGuiRoot) {
+  const src = join(agentGuiRoot, "browser-runtime");
+  const dest = join(shellAppRoot, "browser-runtime");
+  if (!existsSync(src)) {
+    throw new Error(`Missing browser-runtime sources: ${src}`);
+  }
+  if (existsSync(dest)) {
+    rmSync(dest, { recursive: true, force: true });
+  }
+  mkdirSync(dest, { recursive: true });
+  for (const ent of readdirSync(src, { withFileTypes: true })) {
+    if (!ent.isFile() || !ent.name.endsWith(".mjs") || ent.name.endsWith(".test.mjs")) {
+      continue;
+    }
+    cpSync(join(src, ent.name), join(dest, ent.name));
+  }
+  const protocol = join(dest, "protocol.mjs");
+  if (!existsSync(protocol)) {
+    throw new Error(`browser-runtime staging incomplete: ${protocol}`);
+  }
+  console.log(`electron-shell-staging: browser-runtime -> ${dest}`);
+}
+
 /** @param {string} srcDir @param {string} destDir */
 function copyElectronSources(srcDir, destDir) {
   mkdirSync(destDir, { recursive: true });
@@ -79,6 +103,7 @@ export function stageElectronShell({ version = "0.1.0" } = {}) {
   }
   mkdirSync(shellAppRoot, { recursive: true });
   copyElectronSources(electronRoot, join(shellAppRoot, "electron"));
+  stageBrowserRuntimeForShell(agentGuiRoot);
   writeShellPackageJson(version);
   installShellDeps();
   console.log(`electron-shell-staging: done -> ${shellAppRoot}`);
