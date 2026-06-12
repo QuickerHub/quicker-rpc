@@ -60,8 +60,8 @@ function main() {
     }
   }
 
-  const { extractAll } = require("@electron/asar");
-  const entries = Object.keys(extractAll(asarPath));
+  const { listPackage } = require("@electron/asar");
+  const entries = listPackage(asarPath);
   const protocolEntry = entries.find((name) =>
     name.replace(/\\/g, "/").endsWith("browser-runtime/protocol.mjs"),
   );
