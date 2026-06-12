@@ -41,7 +41,8 @@ async function main() {
   });
   syncPackageVersion();
   const version = readDesktopBundleSemver(repoRoot);
-  await generateElectronInstallerAssets({ regenFromSvg: true });
+  // Icons are committed under src-tauri/icons; regen via `pnpm electron:icons:sync` when app/icon.svg changes.
+  await generateElectronInstallerAssets({ regenFromSvg: false });
   stageElectronShell({ version });
   console.log("electron-prepare: done.");
 }
