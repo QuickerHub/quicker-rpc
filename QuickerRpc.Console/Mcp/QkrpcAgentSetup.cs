@@ -10,14 +10,7 @@ internal static class QkrpcAgentSetup
 {
     private const string ServerName = "qkrpc";
     private const string RulesFileName = "qkrpc.mdc";
-    private static readonly string[] DefaultSkillNames =
-    [
-        "qkrpc",
-        "quicker-rpc-knowledge",
-        "quicker-authoring",
-        "quicker-eval-expression",
-        "quicker-run",
-    ];
+    private static readonly string[] DefaultSkillNames = QkrpcAgentSetupDefaults.DefaultSkillNames;
 
     internal static async Task<int> RunAsync(QkrpcAgentSetupOptions options)
     {
@@ -25,7 +18,7 @@ internal static class QkrpcAgentSetup
         {
             if (options.Check)
             {
-                return RunCheck();
+                return RunCheck(options);
             }
 
             if (options.Upgrade)
@@ -43,7 +36,8 @@ internal static class QkrpcAgentSetup
             foreach (var target in targets)
             {
                 var configPath = Path.GetFullPath(target.ResolveConfigPath());
-                MergeMcpConfig(configPath, target.Format, qkrpcExe, workspace, cliVersion);
+                QkrpcAgentSetupVerification.MergeMcpConfigFile(
+                    configPath, target.Format, qkrpcExe, workspace, cliVersion);
                 results.Add($"MCP {target.DisplayName}: {configPath}");
             }
 
@@ -121,8 +115,23 @@ internal static class QkrpcAgentSetup
             }
 
             global::System.Console.Error.WriteLine("Restart your MCP host (Cursor / VS Code / Claude / Codex) to load servers.");
+            global::System.Console.Error.WriteLine("Verify: qkrpc agent setup --check [--json]");
             global::System.Console.Error.WriteLine("Agent self-install: docs/agent-mcp-self-install.md");
             global::System.Console.Error.WriteLine("Integration guide: docs/agent-mcp-integration.md");
+
+            if (options.Json)
+            {
+                WriteInstallJson(
+                    ok: true,
+                    cliVersion: cliVersion,
+                    workspace: workspace,
+                    results: results,
+                    nextSteps:
+                    [
+                        "Reload MCP host (Cursor: Settings → MCP → Reload)",
+                        "qkrpc agent setup --check",
+                    ]);
+            }
 
             await Task.CompletedTask.ConfigureAwait(false);
             return ExitCodes.Success;
@@ -130,42 +139,127 @@ internal static class QkrpcAgentSetup
         catch (Exception ex)
         {
             global::System.Console.Error.WriteLine("qkrpc agent setup failed: " + ex.Message);
+            if (options.Json)
+            {
+                WriteInstallJson(
+                    ok: false,
+                    cliVersion: ResolveCliVersionSafe(),
+                    workspace: options.Workspace,
+                    results: [],
+                    nextSteps: ["Fix the error above and re-run qkrpc agent setup"],
+                    error: ex.Message);
+            }
+
             return ExitCodes.Error;
         }
     }
 
-    private static int RunCheck()
+    private static string ResolveCliVersionSafe()
     {
+        try
+        {
+            return ResolveCliVersion();
+        }
+        catch
+        {
+            return "unknown";
+        }
+    }
+
+    private static void WriteInstallJson(
+        bool ok,
+        string cliVersion,
+        string? workspace,
+        IReadOnlyList<string> results,
+        IReadOnlyList<string> nextSteps,
+        string? error = null)
+    {
+        var payload = new JsonObject
+        {
+            ["ok"] = ok,
+            ["cliVersion"] = cliVersion,
+            ["workspaceRoot"] = workspace,
+            ["results"] = new JsonArray(results.Select(r => JsonValue.Create(r)).ToArray()),
+            ["nextSteps"] = new JsonArray(nextSteps.Select(s => JsonValue.Create(s)).ToArray()),
+        };
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            payload["error"] = error;
+        }
+
+        global::System.Console.Out.WriteLine(payload.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static int RunCheck(QkrpcAgentSetupOptions options)
+    {
+        var qkrpcExe = ResolveQkrpcExecutable();
         var cliVersion = ResolveCliVersion();
         var manifestPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".qkrpc",
             "agent-setup.json");
 
-        if (!File.Exists(manifestPath))
+        AgentSetupManifest? manifest = null;
+        if (File.Exists(manifestPath))
         {
-            global::System.Console.Error.WriteLine(
-                "qkrpc agent setup: not installed (missing ~/.qkrpc/agent-setup.json). Run: qkrpc agent setup");
-            return ExitCodes.Error;
+            var text = File.ReadAllText(manifestPath, System.Text.Encoding.UTF8);
+            manifest = JsonSerializer.Deserialize<AgentSetupManifest>(text);
         }
 
-        var text = File.ReadAllText(manifestPath, System.Text.Encoding.UTF8);
-        var manifest = JsonSerializer.Deserialize<AgentSetupManifest>(text);
-        if (manifest is null || string.IsNullOrWhiteSpace(manifest.CliVersion))
+        var result = QkrpcAgentSetupVerification.RunCheck(qkrpcExe, cliVersion, manifest, manifestPath);
+
+        if (options.Json)
         {
-            global::System.Console.Error.WriteLine("qkrpc agent setup: invalid manifest. Run: qkrpc agent setup");
-            return ExitCodes.Error;
+            global::System.Console.Out.WriteLine(
+                JsonSerializer.Serialize(result, AgentSetupCheckJson.Options));
+        }
+        else
+        {
+            EmitCheckHumanReadable(result);
         }
 
-        if (!string.Equals(manifest.CliVersion, cliVersion, StringComparison.OrdinalIgnoreCase))
+        return result.Ok ? ExitCodes.Success : ExitCodes.Error;
+    }
+
+    private static void EmitCheckHumanReadable(AgentSetupCheckResult result)
+    {
+        if (result.Ok)
         {
-            global::System.Console.Error.WriteLine(
-                $"qkrpc agent setup: outdated (manifest {manifest.CliVersion}, CLI {cliVersion}). Run: qkrpc agent setup --upgrade");
-            return ExitCodes.Error;
+            global::System.Console.Error.WriteLine($"qkrpc agent setup: OK (CLI {result.CliVersion})");
+            foreach (var mcp in result.McpConfigs)
+            {
+                global::System.Console.Error.WriteLine($"  MCP {mcp.Target}: {mcp.Path}");
+            }
+
+            foreach (var skill in result.Skills.Where(s => s.Installed))
+            {
+                global::System.Console.Error.WriteLine($"  skill: {skill.Name}");
+            }
+
+            if (result.RulesInstalled)
+            {
+                global::System.Console.Error.WriteLine("  rules: qkrpc.mdc");
+            }
+
+            return;
         }
 
-        global::System.Console.Error.WriteLine($"qkrpc agent setup: OK (CLI {cliVersion})");
-        return ExitCodes.Success;
+        global::System.Console.Error.WriteLine("qkrpc agent setup: issues found");
+        foreach (var issue in result.Issues)
+        {
+            global::System.Console.Error.WriteLine($"  [{issue.Code}] {issue.Message}");
+            global::System.Console.Error.WriteLine($"    fix: {issue.Remediation}");
+        }
+
+        if (result.NextSteps.Count > 0)
+        {
+            global::System.Console.Error.WriteLine();
+            global::System.Console.Error.WriteLine("Next steps:");
+            foreach (var step in result.NextSteps)
+            {
+                global::System.Console.Error.WriteLine("  " + step);
+            }
+        }
     }
 
     private static async Task<int> RunUpgradeAsync(QkrpcAgentSetupOptions options)
@@ -346,6 +440,8 @@ internal static class QkrpcAgentSetup
 
     private static IEnumerable<McpInstallTarget> ResolveInstallTargets(QkrpcAgentSetupOptions options)
     {
+        var workspace = ResolveWorkspace(options);
+
         if (options.All)
         {
             foreach (var target in McpInstallTarget.AllUserTargets)
@@ -398,71 +494,20 @@ internal static class QkrpcAgentSetup
 
         if (options.Project)
         {
-            foreach (var target in McpInstallTarget.AllProjectTargets)
+            foreach (var target in McpInstallTarget.ProjectTargets(workspace))
             {
                 yield return target;
             }
         }
     }
 
-    private static void MergeMcpConfig(
-        string configPath,
-        McpConfigFormat format,
-        string qkrpcExe,
-        string workspaceRoot,
-        string cliVersion)
+    private static class AgentSetupCheckJson
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
-
-        JsonObject root;
-        if (File.Exists(configPath))
+        internal static readonly JsonSerializerOptions Options = new()
         {
-            var text = File.ReadAllText(configPath, System.Text.Encoding.UTF8);
-            root = JsonNode.Parse(text)?.AsObject() ?? new JsonObject();
-        }
-        else
-        {
-            root = new JsonObject();
-        }
-
-        var env = new JsonObject
-        {
-            ["QKRPC_WORKSPACE_ROOT"] = workspaceRoot,
-            ["QKRPC_SETUP_VERSION"] = cliVersion,
+            WriteIndented = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
-
-        switch (format)
-        {
-            case McpConfigFormat.VsCodeServers:
-            {
-                var servers = root["servers"] as JsonObject ?? new JsonObject();
-                servers[ServerName] = new JsonObject
-                {
-                    ["type"] = "stdio",
-                    ["command"] = qkrpcExe,
-                    ["args"] = new JsonArray("mcp"),
-                    ["env"] = env,
-                };
-                root["servers"] = servers;
-                break;
-            }
-
-            default:
-            {
-                var servers = root["mcpServers"] as JsonObject ?? new JsonObject();
-                servers[ServerName] = new JsonObject
-                {
-                    ["command"] = qkrpcExe,
-                    ["args"] = new JsonArray("mcp"),
-                    ["env"] = env,
-                };
-                root["mcpServers"] = servers;
-                break;
-            }
-        }
-
-        var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(configPath, json + Environment.NewLine, System.Text.Encoding.UTF8);
     }
 
     private static IEnumerable<string> InstallSkills(
@@ -813,31 +858,5 @@ internal static class QkrpcAgentSetup
         }
 
         return null;
-    }
-
-    private sealed class AgentSetupManifest
-    {
-        [JsonPropertyName("cliVersion")]
-        public string CliVersion { get; set; } = "";
-
-        [JsonPropertyName("installedAt")]
-        public string InstalledAt { get; set; } = "";
-
-        [JsonPropertyName("workspaceRoot")]
-        public string WorkspaceRoot { get; set; } = "";
-
-        [JsonPropertyName("targets")]
-        public IReadOnlyList<string> Targets { get; set; } = [];
-
-        [JsonPropertyName("skills")]
-        public IReadOnlyList<string> Skills { get; set; } = [];
-
-        [JsonPropertyName("scope")]
-        public string Scope { get; set; } = "user";
-    }
-
-    private static class AgentSetupManifestJson
-    {
-        internal static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
     }
 }

@@ -37,15 +37,17 @@ import {
   loadSidebarCollapsed,
 } from "@/lib/sidebar-prefs";
 import {
+  applyThreadMessagesToStore,
   getActiveThread,
   getOpenTabThreads,
-  openThread,
-  hydrateStoreThreadMessagesAsync,
+  hydrateStoreThreadsParallel,
   resolveThreadWorkingDirectory,
   updateThreadMessages,
   updateThreadTitle,
   type ChatStoreData,
 } from "@/lib/chat-store";
+import { activateThreadWithLazyHydration } from "@/lib/chat-thread-activation";
+import { getChatStoreSnapshotSync } from "@/lib/use-chat-store";
 import {
   postLauncherSessionSync,
   subscribeLauncherBridge,
@@ -384,6 +386,21 @@ function ChatPanel({
 
   const messagesForPersistRef = useRef(messages);
   messagesForPersistRef.current = messages;
+
+  // Open-tab panels can mount before lazy thread hydration delivers persisted
+  // messages (boot inlines only the active thread, scope=active). useChat reads
+  // `messages` only when the Chat instance is created, so a late snapshot must
+  // be fed into the still-empty chat or the conversation renders blank until a
+  // full reload. An empty live chat with a non-empty store snapshot is always
+  // the "not yet hydrated" state: persist never writes [] over existing
+  // messages (see updateThreadMessages guard).
+  useEffect(() => {
+    if (ephemeral) return;
+    if (initialMessages.length === 0) return;
+    if (status === "streaming" || status === "submitted") return;
+    if (messagesForPersistRef.current.length > 0) return;
+    setMessages(finalizeStreamingReasoningParts(initialMessages));
+  }, [ephemeral, initialMessages, setMessages, status]);
 
   const busyPersist =
     status === "streaming" || status === "submitted";
@@ -1391,22 +1408,40 @@ export function Chat() {
     value: ChatStoreData;
   } | null>(null);
 
+  const openTabHydrationKey = useMemo(() => {
+    return store.openTabIds
+      .map((id) => {
+        const thread = store.threads.find((item) => item.id === id);
+        if (!thread || thread.messages.length > 0) return null;
+        return id;
+      })
+      .filter((id): id is string => id !== null)
+      .join("\0");
+  }, [store.openTabIds, store.threads]);
+
   useEffect(() => {
-    if (!chatStoreHydrated) return;
+    if (!chatStoreHydrated || !openTabHydrationKey) return;
+    const threadIds = openTabHydrationKey.split("\0");
+    const base = getChatStoreSnapshotSync();
     let cancelled = false;
     void (async () => {
-      let next = store;
-      for (const threadId of store.openTabIds) {
-        next = await hydrateStoreThreadMessagesAsync(next, threadId);
+      const hydrated = await hydrateStoreThreadsParallel(base, threadIds);
+      if (cancelled) return;
+      const latest = getChatStoreSnapshotSync();
+      let next = latest;
+      for (const threadId of threadIds) {
+        const thread = hydrated.threads.find((item) => item.id === threadId);
+        if (!thread || thread.messages.length === 0) continue;
+        next = applyThreadMessagesToStore(next, threadId, thread.messages);
       }
-      if (!cancelled && next !== store) {
-        setHydratedOpenTabs({ source: store, value: next });
+      if (next !== latest) {
+        setHydratedOpenTabs({ source: latest, value: next });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [chatStoreHydrated, store]);
+  }, [chatStoreHydrated, openTabHydrationKey]);
 
   const storeWithOpenTabMessages =
     hydratedOpenTabs && hydratedOpenTabs.source === store
@@ -1463,11 +1498,12 @@ export function Chat() {
 
   const handleActivateThread = useCallback(
     (threadId: string) => {
-      void (async () => {
-        let next = openThread(storeRef.current, threadId);
-        next = await hydrateStoreThreadMessagesAsync(next, threadId);
-        updateStore(next);
-      })();
+      activateThreadWithLazyHydration({
+        threadId,
+        mode: "open",
+        onStoreChange: updateStore,
+        getStore: getChatStoreSnapshotSync,
+      });
     },
     [updateStore],
   );

@@ -49,9 +49,11 @@ qkrpc agent setup --workspace D:\your-quicker-workspace
 
 ```powershell
 qkrpc agent setup --check
+# JSON for automation:
+qkrpc agent setup --check --json
 ```
 
-期望：`qkrpc agent setup: OK (CLI x.y.z.r)`。
+期望：`qkrpc agent setup: OK (CLI x.y.z.r)`，或 JSON 中 `"ok": true`。
 
 然后在 Cursor：**重载 MCP**（Settings → MCP → 重启或 Reload）后应出现 `user-qkrpc` 工具。
 

@@ -17,6 +17,7 @@ internal sealed class QkrpcAgentSetupOptions
     public string? Workspace { get; init; }
     public string? SkillSource { get; init; }
     public bool SkipSkill { get; init; }
+    public bool Json { get; init; }
 
     internal static QkrpcAgentSetupOptions FromMcp(McpOptions options) => new()
     {
@@ -34,6 +35,7 @@ internal sealed class QkrpcAgentSetupOptions
         Workspace = options.Workspace,
         SkillSource = options.SkillSource,
         SkipSkill = options.SkipSkill,
+        Json = options.Json,
     };
 
     internal static QkrpcAgentSetupOptions FromAgent(AgentSetupFlagsOptions options) => new()
@@ -52,5 +54,6 @@ internal sealed class QkrpcAgentSetupOptions
         Workspace = options.Workspace,
         SkillSource = options.SkillSource,
         SkipSkill = options.SkipSkill,
+        Json = options.Json,
     };
 }

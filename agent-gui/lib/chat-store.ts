@@ -683,7 +683,70 @@ export function saveChatStore(data: ChatStoreData): void {
   saveChatStoreToLocalStorage(data);
 }
 
-/** Hydrate one thread's messages from localStorage (sync; tests + legacy). */
+type ResolvedThreadMessages = {
+  messages: AgentUIMessage[];
+  migratedFromLocalStorage: boolean;
+};
+
+const threadMessagesInflight = new Map<string, Promise<ResolvedThreadMessages>>();
+
+/** Load persisted messages for one thread (deduped in-flight; API + localStorage fallback). */
+export async function resolveThreadMessagesAsync(
+  threadId: string,
+): Promise<ResolvedThreadMessages> {
+  const inflight = threadMessagesInflight.get(threadId);
+  if (inflight) return inflight;
+
+  const promise = (async (): Promise<ResolvedThreadMessages> => {
+    const apiMode = getChatStorePersistenceMode() === "api";
+    if (!apiMode) {
+      return {
+        messages: loadThreadMessagesFromStorage(threadId),
+        migratedFromLocalStorage: false,
+      };
+    }
+
+    const fromApi = await fetchThreadMessagesFromApi(threadId);
+    if (fromApi.length > 0) {
+      return { messages: fromApi, migratedFromLocalStorage: false };
+    }
+
+    let messages = loadThreadMessagesFromStorage(threadId);
+    if (messages.length === 0) {
+      messages = loadThreadMessagesFromStorage(threadId, { preferBackup: true });
+    }
+    return {
+      messages,
+      migratedFromLocalStorage: messages.length > 0,
+    };
+  })();
+
+  threadMessagesInflight.set(threadId, promise);
+  try {
+    return await promise;
+  } finally {
+    threadMessagesInflight.delete(threadId);
+  }
+}
+
+/** Merge hydrated messages into an existing store without changing active tab / tabs. */
+export function applyThreadMessagesToStore(
+  store: ChatStoreData,
+  threadId: string,
+  messages: AgentUIMessage[],
+): ChatStoreData {
+  if (messages.length === 0) return store;
+  return {
+    ...store,
+    threads: store.threads.map((item) =>
+      item.id === threadId
+        ? { ...item, messages, messageCount: messages.length }
+        : item,
+    ),
+  };
+}
+
+/** Hydrate one thread's messages from persistence (sync store update after await). */
 export async function hydrateStoreThreadMessagesAsync(
   store: ChatStoreData,
   threadId: string,
@@ -693,32 +756,48 @@ export async function hydrateStoreThreadMessagesAsync(
     return store;
   }
 
-  let messages =
-    getChatStorePersistenceMode() === "api"
-      ? await fetchThreadMessagesFromApi(threadId)
-      : loadThreadMessagesFromStorage(threadId);
-
-  if (messages.length === 0 && getChatStorePersistenceMode() === "api") {
-    messages = loadThreadMessagesFromStorage(threadId);
-    if (messages.length === 0) {
-      messages = loadThreadMessagesFromStorage(threadId, { preferBackup: true });
-    }
-  }
-
+  const { messages, migratedFromLocalStorage } =
+    await resolveThreadMessagesAsync(threadId);
   if (messages.length === 0) {
     return store;
   }
 
-  const next: ChatStoreData = {
-    ...store,
-    threads: store.threads.map((item) =>
-      item.id === threadId
-        ? { ...item, messages, messageCount: messages.length }
-        : item,
-    ),
-  };
+  const next = applyThreadMessagesToStore(store, threadId, messages);
 
-  if (getChatStorePersistenceMode() === "api") {
+  if (migratedFromLocalStorage) {
+    scheduleSaveChatStoreViaApi(next);
+  }
+
+  return next;
+}
+
+/** Hydrate multiple open tabs in parallel (boot / tab strip prefetch). */
+export async function hydrateStoreThreadsParallel(
+  store: ChatStoreData,
+  threadIds: string[],
+): Promise<ChatStoreData> {
+  const pending = [...new Set(threadIds)].filter((threadId) => {
+    const thread = store.threads.find((item) => item.id === threadId);
+    return thread && thread.messages.length === 0;
+  });
+  if (pending.length === 0) return store;
+
+  const resolved = await Promise.all(
+    pending.map(async (threadId) => ({
+      threadId,
+      ...(await resolveThreadMessagesAsync(threadId)),
+    })),
+  );
+
+  let next = store;
+  let migrated = false;
+  for (const { threadId, messages, migratedFromLocalStorage } of resolved) {
+    if (messages.length === 0) continue;
+    next = applyThreadMessagesToStore(next, threadId, messages);
+    migrated ||= migratedFromLocalStorage;
+  }
+
+  if (migrated) {
     scheduleSaveChatStoreViaApi(next);
   }
 

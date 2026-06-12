@@ -1,7 +1,10 @@
 using System;
 using System.IO;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.Catalog;
+using QuickerRpc.AgentModel.XAction.Compression;
 using QuickerRpc.AgentModel.XAction.Proto;
 using QuickerRpc.AgentModel.XAction.Project;
 
@@ -10,6 +13,151 @@ namespace QuickerRpc.Plugin.Test;
 [TestClass]
 public sealed class InputParamWireCoercerTests
 {
+    [TestMethod]
+    public void ExpandInputParams_subprogramVarPrefix_roundTrips()
+    {
+        var inputParams = new JObject
+        {
+            ["var:value.var"] = "seed",
+            ["var:result"] = "answer",
+            ["var:path"] = "@var:workDir",
+        };
+
+        InputParamWireCoercer.ExpandInputParamsObject(inputParams);
+
+        Assert.AreEqual("seed", inputParams["var:value"]!["varKey"]!.Value<string>());
+        Assert.AreEqual("answer", inputParams["var:result"]!["value"]!.Value<string>());
+        Assert.AreEqual("workDir", inputParams["var:path"]!["varKey"]!.Value<string>());
+
+        InputParamWireCoercer.CompactInputParamsObject(inputParams);
+
+        Assert.AreEqual("seed", inputParams["var:value.var"]!.Value<string>());
+        Assert.AreEqual("answer", inputParams["var:result"]!.Value<string>());
+        Assert.AreEqual("workDir", inputParams["var:path.var"]!.Value<string>());
+    }
+
+    [TestMethod]
+    public void ParseNativeXActionJson_reads_escaped_var_subprogram_param_keys()
+    {
+        const string json = """
+            {
+              "Steps": [
+                {
+                  "StepRunnerKey": "sys:subprogram",
+                  "InputParams": {
+                    "var\u001fvalue": { "VarKey": "seed", "Value": "" },
+                    "subProgram": { "Value": "Double" }
+                  }
+                }
+              ],
+              "Variables": []
+            }
+            """;
+
+        var native = XActionDataJsonParser.ParseNativeXActionJson(json);
+
+        Assert.IsTrue(native.Steps[0].InputParams.ContainsKey("var:value"));
+        Assert.AreEqual("seed", native.Steps[0].InputParams["var:value"].VarKey);
+        Assert.AreEqual("Double", native.Steps[0].InputParams["subProgram"].Value);
+    }
+
+    [TestMethod]
+    public void ParseNativeXActionJson_reads_plain_input_param_value()
+    {
+        const string json = """
+            {
+              "Steps": [
+                {
+                  "StepRunnerKey": "sys:assign",
+                  "InputParams": {
+                    "input": { "Value": "hello" }
+                  }
+                }
+              ],
+              "Variables": []
+            }
+            """;
+
+        var native = XActionDataJsonParser.ParseNativeXActionJson(json);
+
+        Assert.AreEqual("hello", native.Steps[0].InputParams["input"].Value);
+    }
+
+    [TestMethod]
+    public void ParseNativeXActionJson_reads_plain_input_param_var_key()
+    {
+        const string json = """
+            {
+              "Steps": [
+                {
+                  "StepRunnerKey": "sys:assign",
+                  "InputParams": {
+                    "input": { "VarKey": "seed" }
+                  }
+                }
+              ],
+              "Variables": []
+            }
+            """;
+
+        var native = XActionDataJsonParser.ParseNativeXActionJson(json);
+
+        Assert.AreEqual("seed", native.Steps[0].InputParams["input"].VarKey);
+    }
+
+    [TestMethod]
+    public void ParseProgramBody_preserves_var_subprogram_input_param_keys()
+    {
+        var steps = new JArray
+        {
+            new JObject
+            {
+                ["stepRunnerKey"] = "sys:subprogram",
+                ["inputParams"] = new JObject
+                {
+                    ["subProgram"] = new JObject { ["value"] = "Double" },
+                    ["var:value"] = new JObject { ["varKey"] = "seed" },
+                },
+            },
+        };
+
+        var native = XActionDataJsonParser.ParseProgramBody(steps, new JArray());
+
+        Assert.IsTrue(native.Steps[0].InputParams.ContainsKey("var:value"), "ParseProgramBody should keep var:* input param keys");
+        Assert.AreEqual("seed", native.Steps[0].InputParams["var:value"].VarKey);
+    }
+
+    [TestMethod]
+    public void Compress_preserves_var_subprogram_wire_scalars()
+    {
+        var steps = new JArray
+        {
+            new JObject
+            {
+                ["stepRunnerKey"] = "sys:subprogram",
+                ["inputParams"] = new JObject
+                {
+                    ["subProgram"] = "Double",
+                    ["var:value.var"] = "seed",
+                },
+            },
+        };
+
+        InputParamWireCoercer.ExpandStepsRecursive(steps);
+        var expanded = steps[0]!["inputParams"] as JObject;
+        Assert.IsNotNull(expanded!["var:value"], "wire expand should produce var:value canonical key");
+        Assert.AreEqual("seed", expanded["var:value"]!["varKey"]!.Value<string>());
+
+        var catalog = new StepRunnerCatalog { Items = new System.Collections.Generic.List<StepRunnerDefinition>() };
+        var compressed = XActionCompressor.Compress(steps, new JArray(), catalog, omitDefaultLiteralInputs: false);
+        var step = (JObject)compressed["steps"]![0]!;
+        var inputParams = step["inputParams"] as JObject;
+        var keys = inputParams?.Properties().Select(p => p.Name).ToList() ?? new System.Collections.Generic.List<string>();
+        var varValue = inputParams?["var:value"] as JObject;
+        Assert.IsNotNull(varValue, $"var:value bind should survive wire scalar → compress; keys=[{string.Join(", ", keys)}]");
+        Assert.AreEqual("seed", varValue!["varKey"]?.ToString());
+    }
+
     [TestMethod]
     public void ExpandInputParams_keepsPascalCaseValue_withoutShadowing()
     {

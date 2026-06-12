@@ -1446,6 +1446,9 @@ public sealed class McpOptions
 
     [Option("skip-skill", HelpText = "Install: do not copy skills")]
     public bool SkipSkill { get; set; }
+
+    [Option("json", HelpText = "Install/check: emit JSON to stdout.")]
+    public bool Json { get; set; }
 }
 
 [Verb("serve", HelpText = "Run local HTTP API with a persistent Quicker RPC connection (for agent-gui).")]

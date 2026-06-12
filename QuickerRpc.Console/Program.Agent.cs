@@ -79,4 +79,7 @@ public sealed class AgentSetupFlagsOptions
 
     [Option("skip-skill", HelpText = "Do not copy skills.")]
     public bool SkipSkill { get; set; }
+
+    [Option("json", HelpText = "Emit JSON to stdout (install result or --check report).")]
+    public bool Json { get; set; }
 }

@@ -884,6 +884,8 @@ internal static class QkrpcCliHelp
 
             Option("skip-skill", "Skip skill copy."),
 
+            Option("json", "Emit JSON to stdout (install result or --check report)."),
+
         };
 
 

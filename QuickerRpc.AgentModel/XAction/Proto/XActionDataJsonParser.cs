@@ -1,5 +1,7 @@
+using System;
 using System.Linq;
 using Google.Protobuf;
+using Google.Protobuf.Collections;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.Core;
@@ -18,9 +20,11 @@ public static class XActionDataJsonParser
 
     public static XActionData ParseProgramBody(JArray steps, JArray variables)
     {
+        var stepsClone = (JArray)steps.DeepClone();
+        InputParamWireCoercer.ExpandStepsRecursive(stepsClone);
         var wrapper = new JObject
         {
-            ["Steps"] = XActionWireJsonNormalizer.ToNativeStepsArray(steps),
+            ["Steps"] = XActionWireJsonNormalizer.ToNativeStepsArray(stepsClone),
             ["Variables"] = XActionWireJsonNormalizer.ToNativeVariablesArray(variables),
             ["LimitSingleInstance"] = false,
             ["SummaryExpression"] = string.Empty,
@@ -32,7 +36,9 @@ public static class XActionDataJsonParser
     public static XActionData ParseNativeXActionJson(string json)
     {
         var normalized = NormalizeNativeXActionJsonForProto(json);
-        return Parser.Parse<XActionData>(normalized);
+        var data = Parser.Parse<XActionData>(normalized);
+        DecodeXActionDataMapKeys(data);
+        return data;
     }
 
     private static string NormalizeNativeXActionJsonForProto(string data)
@@ -84,8 +90,96 @@ public static class XActionDataJsonParser
 
             NormalizeInputParamsObject(step["InputParams"] as JObject);
             NormalizeOutputParamsObject(step["OutputParams"] as JObject);
+            EscapeStepMapKeysForProtoJson(step);
             NormalizeStepsArray(step["IfSteps"] as JArray);
             NormalizeStepsArray(step["ElseSteps"] as JArray);
+        }
+    }
+
+    private static void EscapeStepMapKeysForProtoJson(JObject step)
+    {
+        EscapeParamMapKeys(step["InputParams"] as JObject);
+        EscapeParamMapKeys(step["OutputParams"] as JObject);
+    }
+
+    private static void EscapeParamMapKeys(JObject? map)
+    {
+        if (map is null)
+        {
+            return;
+        }
+
+        foreach (var prop in map.Properties().ToList())
+        {
+            var encoded = ProtoMapKeyEscaping.Encode(prop.Name);
+            if (string.Equals(encoded, prop.Name, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            map[encoded] = prop.Value?.DeepClone();
+            map.Remove(prop.Name);
+        }
+    }
+
+    private static void DecodeXActionDataMapKeys(XActionData data)
+    {
+        foreach (var step in data.Steps)
+        {
+            DecodeStepMapKeys(step);
+        }
+
+        foreach (var subProgram in data.SubPrograms)
+        {
+            foreach (var step in subProgram.Steps)
+            {
+                DecodeStepMapKeys(step);
+            }
+        }
+    }
+
+    private static void DecodeStepMapKeys(XStepData step)
+    {
+        DecodeInputParamMapKeys(step.InputParams);
+        DecodeStringMapKeys(step.OutputParams);
+        foreach (var child in step.IfSteps)
+        {
+            DecodeStepMapKeys(child);
+        }
+
+        foreach (var child in step.ElseSteps)
+        {
+            DecodeStepMapKeys(child);
+        }
+    }
+
+    private static void DecodeInputParamMapKeys(MapField<string, XStepParamData> map)
+    {
+        foreach (var key in map.Keys.ToList())
+        {
+            var decoded = ProtoMapKeyEscaping.Decode(key);
+            if (string.Equals(decoded, key, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            map[decoded] = map[key];
+            map.Remove(key);
+        }
+    }
+
+    private static void DecodeStringMapKeys(MapField<string, string> map)
+    {
+        foreach (var key in map.Keys.ToList())
+        {
+            var decoded = ProtoMapKeyEscaping.Decode(key);
+            if (string.Equals(decoded, key, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            map[decoded] = map[key];
+            map.Remove(key);
         }
     }
 
@@ -111,8 +205,32 @@ public static class XActionDataJsonParser
                 continue;
             }
 
-            prop.Value = InputParamWireCoercer.NormalizeParamBindObject(p);
+            prop.Value = ToProtoJsonParamObject(p);
         }
+    }
+
+    /// <summary>Emit PascalCase bind fields expected by x_action_program.proto JsonParser.</summary>
+    private static JObject ToProtoJsonParamObject(JObject obj)
+    {
+        var normalized = InputParamWireCoercer.NormalizeParamBindObject(obj);
+        var result = new JObject();
+        var varKey = normalized["varKey"]?.Type == JTokenType.String
+            ? normalized["varKey"]!.Value<string>()?.Trim()
+            : null;
+        var value = normalized["value"]?.Type == JTokenType.String
+            ? normalized["value"]!.Value<string>()
+            : normalized["value"]?.ToString();
+        if (!string.IsNullOrEmpty(varKey))
+        {
+            result["VarKey"] = varKey;
+        }
+
+        if (value is not null)
+        {
+            result["Value"] = value;
+        }
+
+        return result;
     }
 
     private static void NormalizeOutputParamsObject(JObject? outputParams)

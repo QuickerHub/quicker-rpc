@@ -57,23 +57,23 @@ internal sealed record McpInstallTarget(string Id, string DisplayName, McpConfig
             "settings",
             "cline_mcp_settings.json"));
 
-    public static McpInstallTarget CursorProject { get; } = new(
+    public static McpInstallTarget CursorProject(string workspaceRoot) => new(
         "cursor-project",
         "Cursor (project .cursor/mcp.json)",
         McpConfigFormat.McpServers,
-        () => Path.Combine(Directory.GetCurrentDirectory(), ".cursor", "mcp.json"));
+        () => Path.Combine(workspaceRoot, ".cursor", "mcp.json"));
 
-    public static McpInstallTarget VscodeProject { get; } = new(
+    public static McpInstallTarget VscodeProject(string workspaceRoot) => new(
         "vscode-project",
         "VS Code (project .vscode/mcp.json)",
         McpConfigFormat.VsCodeServers,
-        () => Path.Combine(Directory.GetCurrentDirectory(), ".vscode", "mcp.json"));
+        () => Path.Combine(workspaceRoot, ".vscode", "mcp.json"));
 
-    public static McpInstallTarget ClaudeCodeProject { get; } = new(
+    public static McpInstallTarget ClaudeCodeProject(string workspaceRoot) => new(
         "claude-code-project",
         "Claude Code (project .mcp.json)",
         McpConfigFormat.McpServers,
-        () => Path.Combine(Directory.GetCurrentDirectory(), ".mcp.json"));
+        () => Path.Combine(workspaceRoot, ".mcp.json"));
 
     public static IReadOnlyList<McpInstallTarget> AllUserTargets { get; } =
     [
@@ -84,12 +84,19 @@ internal sealed record McpInstallTarget(string Id, string DisplayName, McpConfig
         Cline,
     ];
 
-    public static IReadOnlyList<McpInstallTarget> AllProjectTargets { get; } =
+    public static IReadOnlyList<(string Id, string DisplayName)> AllProjectTargetIds { get; } =
     [
-        CursorProject,
-        VscodeProject,
-        ClaudeCodeProject,
+        ("cursor-project", "Cursor (project .cursor/mcp.json)"),
+        ("vscode-project", "VS Code (project .vscode/mcp.json)"),
+        ("claude-code-project", "Claude Code (project .mcp.json)"),
     ];
+
+    public static IEnumerable<McpInstallTarget> ProjectTargets(string workspaceRoot)
+    {
+        yield return CursorProject(workspaceRoot);
+        yield return VscodeProject(workspaceRoot);
+        yield return ClaudeCodeProject(workspaceRoot);
+    }
 
     private static string ResolveAppDataSubPath(params string[] segments)
     {

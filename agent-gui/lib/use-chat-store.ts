@@ -113,6 +113,11 @@ export function isChatStoreHydrated(): boolean {
   return storeHydrated;
 }
 
+/** Latest store after updateStore (safe between React renders during rapid tab switches). */
+export function getChatStoreSnapshotSync(): ChatStoreData {
+  return getChatStoreSnapshot();
+}
+
 function getHydrationSnapshot(): boolean {
   return storeHydrated;
 }

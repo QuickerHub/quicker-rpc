@@ -46,6 +46,7 @@ qkrpc agent setup --workspace $workspace
 # qkrpc agent setup --project --workspace $workspace
 
 qkrpc agent setup --check
+# 机器可读：qkrpc agent setup --check --json
 ```
 
 完成后请用户 **重载 Cursor MCP**。你应能调用 `qkrpc_health`、`docs`、`workspace_program` 等工具。

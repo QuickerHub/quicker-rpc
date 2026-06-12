@@ -7,9 +7,10 @@ import {
   closeTab,
   getActiveThread,
   getOpenTabThreads,
-  hydrateStoreThreadMessagesAsync,
   selectThread,
 } from "@/lib/chat-store";
+import { activateThreadWithLazyHydration } from "@/lib/chat-thread-activation";
+import { getChatStoreSnapshotSync } from "@/lib/use-chat-store";
 import { plainTitleText } from "@/lib/plain-title-text";
 import { DesktopWindowControls } from "@/components/shell/DesktopWindowControls";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
@@ -87,11 +88,12 @@ export function ChatTitlebar({
 
   const handleSelectChat = (threadId: string) => {
     if (threadId === activeThread.id) return;
-    void (async () => {
-      let next = selectThread(store, threadId);
-      next = await hydrateStoreThreadMessagesAsync(next, threadId);
-      commit(next);
-    })();
+    activateThreadWithLazyHydration({
+      threadId,
+      mode: "select",
+      onStoreChange: commit,
+      getStore: getChatStoreSnapshotSync,
+    });
   };
 
   const handleNew = () => {

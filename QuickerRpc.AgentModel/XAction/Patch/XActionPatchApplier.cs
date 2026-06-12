@@ -1096,11 +1096,14 @@ public static class XActionPatchApplier
 
     private static void MergeInputParamsPatch(JObject targetInput, JObject inputParamsPatch)
     {
-        foreach (var prop in inputParamsPatch.Properties())
+        var expandedPatch = (JObject)inputParamsPatch.DeepClone();
+        InputParamWireCoercer.ExpandInputParamsObject(expandedPatch);
+
+        foreach (var prop in expandedPatch.Properties())
         {
             if (prop.Value is null || prop.Value.Type == JTokenType.Null)
             {
-                RemoveInputParamKeysCaseInsensitive(targetInput, prop.Name);
+                RemoveInputParamWireAliases(targetInput, prop.Name);
                 continue;
             }
 
@@ -1109,7 +1112,7 @@ public static class XActionPatchApplier
                 paramPatch = InputParamWireCoercer.CoerceToParamObject(prop.Value);
             }
 
-            RemoveInputParamKeysCaseInsensitive(targetInput, prop.Name);
+            RemoveInputParamWireAliases(targetInput, prop.Name);
 
             if (targetInput[prop.Name] is JObject existing)
             {
@@ -1131,6 +1134,14 @@ public static class XActionPatchApplier
                 inputParams.Remove(prop.Name);
             }
         }
+    }
+
+    /// <summary>Remove canonical key and compact wire aliases (<c>key.var</c>, <c>key.file</c>).</summary>
+    private static void RemoveInputParamWireAliases(JObject inputParams, string baseKey)
+    {
+        RemoveInputParamKeysCaseInsensitive(inputParams, baseKey);
+        RemoveInputParamKeysCaseInsensitive(inputParams, baseKey + InputParamWireCoercer.VarKeySuffix);
+        RemoveInputParamKeysCaseInsensitive(inputParams, baseKey + InputParamWireCoercer.FileKeySuffix);
     }
 
     private static bool TryBuildVariableAddPlan(

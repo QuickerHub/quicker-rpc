@@ -145,11 +145,14 @@ qkrpc serve openapi --out openapi.json
 ```powershell
 qkrpc agent setup
 qkrpc agent setup --check
+qkrpc agent setup --check --json   # 机器可读校验报告
 qkrpc agent setup --upgrade
 qkrpc agent setup --all
 qkrpc agent setup --project
 qkrpc mcp install    # 向后兼容别名
 ```
+
+`--check` 会校验 manifest 版本、MCP 配置路径、`qkrpc.exe` 是否一致，以及 skills/rules 是否已安装；失败时 stderr 列出修复命令。
 
 详见 [agent-mcp-integration.md](agent-mcp-integration.md)、[agent-skill-distribution.md](agent-skill-distribution.md)。
 

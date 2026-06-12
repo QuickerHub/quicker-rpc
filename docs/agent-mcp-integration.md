@@ -23,8 +23,9 @@
 # 推荐：用户级 MCP + skills + rules
 qkrpc agent setup
 
-# 检查配置是否与当前 CLI 版本一致
+# 检查配置是否与当前 CLI 版本一致（含 MCP 路径、skills、rules）
 qkrpc agent setup --check
+qkrpc agent setup --check --json   # Agent 自动化用
 
 # 仅刷新 skills / rules / Claude Code 指引（不改动 MCP 配置）
 qkrpc agent setup --upgrade
