@@ -51,5 +51,23 @@ if (/!insertmacro\s+MUI_HEADER_TEXT/i.test(nsh)) {
   );
   process.exit(1);
 }
+if (!nsh.includes('$LOCALAPPDATA\\QuickerAgent')) {
+  console.error(
+    "verify-electron-installer-assets: installer must default INSTDIR to %LOCALAPPDATA%\\QuickerAgent",
+  );
+  process.exit(1);
+}
+if (nsh.includes("RMDir /r") && nsh.includes("ai.quicker.agent")) {
+  console.error(
+    "verify-electron-installer-assets: installer must not delete ai.quicker.agent (legacy chat profile)",
+  );
+  process.exit(1);
+}
+if (!nsh.includes("customRemoveFiles")) {
+  console.error(
+    "verify-electron-installer-assets: installer.nsh missing customRemoveFiles (preserve user data on update)",
+  );
+  process.exit(1);
+}
 
 console.log("verify-electron-installer-assets: PASS");

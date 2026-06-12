@@ -75,9 +75,27 @@ function isBundledProductionUiNodePath(pathRaw) {
   }
   const installRoot = resolveInstalledQuickerAgentDirectoryNorm();
   if (installRoot) {
-    const nodePrefix = `${installRoot}\\resources\\node\\`;
-    if (pathNorm.includes(nodePrefix) && pathNorm.includes("server.js")) {
-      return true;
+    for (const nodePrefix of [
+      `${installRoot}\\resources\\node\\`,
+      `${installRoot}\\resources\\resources\\node\\`,
+    ]) {
+      if (pathNorm.includes(nodePrefix) && pathNorm.includes("server.js")) {
+        return true;
+      }
+    }
+  }
+  const legacyRoot = resolveInstalledQuickerAgentDirectoryNorm()?.replace(
+    /\\programs\\quickeragent$/,
+    "\\quickeragent",
+  );
+  if (legacyRoot) {
+    for (const nodePrefix of [
+      `${legacyRoot}\\resources\\node\\`,
+      `${legacyRoot}\\resources\\resources\\node\\`,
+    ]) {
+      if (pathNorm.includes(nodePrefix) && pathNorm.includes("server.js")) {
+        return true;
+      }
     }
   }
   return (

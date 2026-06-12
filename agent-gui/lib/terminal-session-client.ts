@@ -39,7 +39,9 @@ function mapSnapshot(snapshot: MultiplexedSessionSnapshot): TerminalSessionSnaps
 
 /** Preload runtime + xterm chunks; optionally start a PTY before panel paints. */
 export function prefetchTerminalStack(cwd?: string, terminalId?: string): void {
-  void warmupTerminalRuntime();
+  void warmupTerminalRuntime().then((ok) => {
+    if (ok) terminalMultiplexer.warmupConnection();
+  });
   void warmupXtermChunks();
   if (cwd === undefined || !terminalId) return;
   prefetchTerminalSession(terminalId, cwd);

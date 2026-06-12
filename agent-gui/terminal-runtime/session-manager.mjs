@@ -8,6 +8,21 @@ const runtimeRoot = dirname(fileURLToPath(import.meta.url));
 const agentGuiRoot = dirname(runtimeRoot);
 
 const OUTPUT_BUFFER_MAX_CHARS = 256 * 1024;
+const SCREEN_CLEAR_RE = /\x1b\[[0-9;?]*[23]J|\x1bc/g;
+
+function mergeReplayBuffer(previous, chunk) {
+  const combined = `${previous}${chunk}`;
+  let lastClearAt = -1;
+  SCREEN_CLEAR_RE.lastIndex = 0;
+  let match = SCREEN_CLEAR_RE.exec(combined);
+  while (match) {
+    lastClearAt = match.index;
+    match = SCREEN_CLEAR_RE.exec(combined);
+  }
+  const next = lastClearAt >= 0 ? combined.slice(lastClearAt) : combined;
+  if (next.length <= OUTPUT_BUFFER_MAX_CHARS) return next;
+  return next.slice(-OUTPUT_BUFFER_MAX_CHARS);
+}
 const MAX_SESSIONS = 24;
 
 /**
@@ -246,10 +261,7 @@ export class TerminalSessionManager {
   /** @param {ManagedTerminalSession} session @param {string} data */
   appendOutput(session, data) {
     if (!data) return;
-    session.buffer += data;
-    if (session.buffer.length > OUTPUT_BUFFER_MAX_CHARS) {
-      session.buffer = session.buffer.slice(-OUTPUT_BUFFER_MAX_CHARS);
-    }
+    session.buffer = mergeReplayBuffer(session.buffer, data);
     this.broadcast(session, {
       type: "output",
       sessionId: session.id,

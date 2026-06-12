@@ -72,7 +72,8 @@ def upload_release_asset(
         raise FileNotFoundError(f"Asset not found: {local_file}")
 
     local_size = local_file.stat().st_size
-    min_bytes = 1 if local_file.suffix.lower() == ".json" else 1024
+    suffix = local_file.suffix.lower()
+    min_bytes = 1 if suffix in {".json", ".yml", ".yaml", ".txt"} else 1024
     if local_size < min_bytes:
         raise RuntimeError(f"Asset too small ({local_size} bytes): {local_file}")
 
@@ -80,8 +81,12 @@ def upload_release_asset(
     object_key = f"{prefix}/{local_file.name}"
 
     resolved_content_type = content_type
-    if local_file.suffix.lower() == ".json":
+    if suffix == ".json":
         resolved_content_type = "application/json; charset=utf-8"
+    elif suffix in {".yml", ".yaml"}:
+        resolved_content_type = "text/yaml; charset=utf-8"
+    elif suffix == ".txt":
+        resolved_content_type = "text/plain; charset=utf-8"
 
     s3_client = boto3.client(
         "s3",

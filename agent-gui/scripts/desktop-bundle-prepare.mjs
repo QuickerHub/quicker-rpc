@@ -11,6 +11,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareBundledLlmRuntime } from "./embed-bundled-llm-secrets.mjs";
@@ -235,6 +236,48 @@ function stageTerminalRuntime(agentGuiRoot, appRoot) {
 }
 
 /**
+ * Native SQLite driver for the Next server (agent.db: chats, settings, llm keys).
+ * It is in `serverExternalPackages`, so Next standalone tracing never copies it —
+ * without this staging the installed app cannot persist anything (see v0.14.3 bug).
+ */
+function stageBetterSqlite3(agentGuiRoot, appRoot) {
+  const pkgRoot = join(agentGuiRoot, "node_modules", "better-sqlite3");
+  const nativeBinding = join(pkgRoot, "build", "Release", "better_sqlite3.node");
+  if (!existsSync(nativeBinding)) {
+    throw new Error(
+      `Missing better-sqlite3 native binding: ${nativeBinding} — run pnpm install in agent-gui first`,
+    );
+  }
+
+  const dest = join(appRoot, "node_modules", "better-sqlite3");
+  if (existsSync(dest)) rmSync(dest, { recursive: true, force: true });
+  mkdirSync(join(dest, "build", "Release"), { recursive: true });
+  cpSync(join(pkgRoot, "package.json"), join(dest, "package.json"));
+  cpSync(join(pkgRoot, "lib"), join(dest, "lib"), { recursive: true });
+  // Only the compiled addon — build/Release also holds large MSVC intermediates.
+  cpSync(nativeBinding, join(dest, "build", "Release", "better_sqlite3.node"));
+
+  // Runtime require chain: better-sqlite3 -> bindings -> file-uri-to-path.
+  // Resolve through pnpm's .pnpm layout instead of assuming top-level dirs.
+  const requireFromPkg = createRequire(join(pkgRoot, "lib", "index.js"));
+  const bindingsRoot = dirname(requireFromPkg.resolve("bindings/package.json"));
+  const requireFromBindings = createRequire(join(bindingsRoot, "bindings.js"));
+  const fileUriRoot = dirname(
+    requireFromBindings.resolve("file-uri-to-path/package.json"),
+  );
+  for (const [name, src] of [
+    ["bindings", bindingsRoot],
+    ["file-uri-to-path", fileUriRoot],
+  ]) {
+    const depDest = join(appRoot, "node_modules", name);
+    if (existsSync(depDest)) rmSync(depDest, { recursive: true, force: true });
+    cpSync(src, depDest, { recursive: true });
+  }
+
+  console.log(`better-sqlite3 staged: ${dest}`);
+}
+
+/**
  * @param {{
  *   resourcesDir: string,
  *   voiceMetadataSrc: string,
@@ -294,6 +337,7 @@ export function stageNextStandalone(ctx) {
   patchStandaloneServerEntry(appDir);
   stageBrowserRuntime(agentGuiRoot, appDir);
   stageTerminalRuntime(agentGuiRoot, appDir);
+  stageBetterSqlite3(agentGuiRoot, appDir);
 
   console.log(`Next standalone staged: ${appDir}`);
 }

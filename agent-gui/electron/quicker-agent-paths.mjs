@@ -5,7 +5,17 @@ import { join } from "node:path";
 const VOICE_ASR_PLUGIN_ID = "voice-asr";
 const CLIPBOARD_HISTORY_PLUGIN_ID = "clipboard-history";
 
+export function quickerAgentInstallDir() {
+  if (process.platform === "win32" && process.env.LOCALAPPDATA) {
+    return join(process.env.LOCALAPPDATA, "QuickerAgent");
+  }
+  return quickerAgentAppDataDir();
+}
+
 export function quickerAgentAppDataDir() {
+  if (process.platform === "win32" && process.env.APPDATA) {
+    return join(process.env.APPDATA, "QuickerAgent");
+  }
   if (process.platform === "win32" && process.env.LOCALAPPDATA) {
     return join(process.env.LOCALAPPDATA, "QuickerAgent");
   }

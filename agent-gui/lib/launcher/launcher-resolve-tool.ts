@@ -1,8 +1,8 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import { tool } from "ai";
 import { z } from "zod";
-import { resolvePersistedDataFilePath } from "@/lib/quicker-agent-persisted-data";
+import { AppKvKey, readAppKvJson } from "@/lib/db/app-kv";
+import { resolveLegacyPersistedJsonPaths } from "@/lib/quicker-agent-persisted-data";
 import {
   formatLauncherResolveForAgent,
   isLauncherResolveDirectEligible,
@@ -24,13 +24,17 @@ const scopesSchema = z
   .optional();
 
 async function loadUserResolvePresets(): Promise<LauncherResolvePresetsFile | null> {
-  const path = resolvePersistedDataFilePath("launcher-resolve-presets.json");
-  try {
-    const text = await readFile(path, "utf8");
-    return JSON.parse(text) as LauncherResolvePresetsFile;
-  } catch {
-    return null;
+  const fromKv = readAppKvJson<LauncherResolvePresetsFile>(AppKvKey.launcherResolvePresets);
+  if (fromKv) return fromKv;
+  for (const path of resolveLegacyPersistedJsonPaths("launcher-resolve-presets.json")) {
+    if (!existsSync(path)) continue;
+    try {
+      return JSON.parse(readFileSync(path, "utf8")) as LauncherResolvePresetsFile;
+    } catch {
+      // try next path
+    }
   }
+  return null;
 }
 
 export async function executeLauncherResolveTool(

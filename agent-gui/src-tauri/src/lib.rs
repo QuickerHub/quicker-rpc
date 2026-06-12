@@ -240,17 +240,29 @@ fn wait_http_response(
     Err(format!("timeout waiting for http://{host}:{port}{path}"))
 }
 
+fn bundled_node_exe(resource: &Path) -> PathBuf {
+    resource.join("node").join(if cfg!(windows) {
+        "node.exe"
+    } else {
+        "bin/node"
+    })
+}
+
+fn is_complete_resource_root(resource: &Path) -> bool {
+    resource.join("app").join("server.js").is_file()
+        && bundled_node_exe(resource).is_file()
+}
+
 fn resource_root(app: &AppHandle) -> Result<PathBuf, String> {
     let base = app.path().resource_dir().map_err(|e| e.to_string())?;
     let nested = base.join("resources");
-    if nested.join("app").join("server.js").is_file() {
-        return Ok(nested);
-    }
-    if base.join("app").join("server.js").is_file() {
-        return Ok(base);
+    for candidate in [&base, &nested] {
+        if is_complete_resource_root(candidate) {
+            return Ok(candidate.to_path_buf());
+        }
     }
     Err(format!(
-        "runtime bundle not found (expected app/server.js under {} or {})",
+        "runtime bundle incomplete (need app/server.js and bundled node under {} or {})",
         nested.display(),
         base.display()
     ))

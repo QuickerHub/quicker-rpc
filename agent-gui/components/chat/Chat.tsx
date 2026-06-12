@@ -86,7 +86,6 @@ import {
 import { WorkspaceExplorerPanel } from "@/components/workspace/WorkspaceExplorerPanel";
 import { AppMainWorkspaceSplit } from "@/components/workspace/AppMainWorkspaceSplit";
 import { EmbeddedBrowserProvider } from "@/lib/embedded-browser-context";
-import { TerminalRuntimePrefetch } from "@/components/terminal/TerminalRuntimePrefetch";
 import { EmbeddedTerminalProvider } from "@/lib/embedded-terminal-context";
 import { EmbeddedTerminalTabsProvider } from "@/lib/embedded-terminal-tabs";
 import { EmbeddedBrowserTabsProvider } from "@/lib/embedded-browser-tabs";
@@ -1593,7 +1592,6 @@ export function Chat() {
               <EmbeddedBrowserProvider>
               <EmbeddedTerminalTabsProvider>
               <EmbeddedTerminalProvider>
-              <TerminalRuntimePrefetch />
               <EmbeddedBrowserTabsProvider>
               <ThreadSidePanelSync activeThreadId={activeThread.id} />
               <WorkspaceMainEditorTabBridgeRegistrar />
@@ -1606,6 +1604,11 @@ export function Chat() {
               <div className="app-content-row">
                 <div className="app-main-shell">
                   <AppMainWorkspaceSplit>
+                    {!chatStoreHydrated ? (
+                      <div className="workspace-loading" role="status">
+                        正在加载对话…
+                      </div>
+                    ) : null}
                     {chatStoreHydrated
                       && openTabThreads.map((thread) => (
                       <ChatPanel

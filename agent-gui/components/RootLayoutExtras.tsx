@@ -11,6 +11,7 @@ import { QuickerAgentUpdateChecker } from "@/components/QuickerAgentUpdateChecke
 import { QuickerAgentUpdateOverlay } from "@/components/QuickerAgentUpdateOverlay";
 import { TauriShellInputGuard } from "@/components/shell/TauriShellInputGuard";
 import { useLauncherGlobalShortcut } from "@/lib/launcher/use-launcher-global-shortcut";
+import { useTerminalRuntimeBootstrap } from "@/lib/use-terminal-runtime-bootstrap";
 import { useVoiceRuntimeBootstrap } from "@/lib/voice-input/use-voice-runtime-bootstrap";
 
 /** Root chrome omitted on /launcher to avoid next/dynamic CSR bailout on a tiny window. */
@@ -18,6 +19,7 @@ export function RootLayoutExtras() {
   const pathname = usePathname();
   const isLauncher = pathname === "/launcher";
   useLauncherGlobalShortcut();
+  useTerminalRuntimeBootstrap();
   useVoiceRuntimeBootstrap();
 
   return (

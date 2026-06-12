@@ -24,6 +24,20 @@ function packagedResourcesBase(app) {
   return null;
 }
 
+/** @param {string} resourceRoot */
+export function bundledNodeExe(resourceRoot) {
+  const win = process.platform === "win32";
+  return join(resourceRoot, "node", win ? "node.exe" : "bin/node");
+}
+
+/** @param {string} dir */
+export function isCompleteResourceRoot(dir) {
+  return (
+    existsSync(join(dir, "app", "server.js")) &&
+    existsSync(bundledNodeExe(dir))
+  );
+}
+
 /**
  * Resolve bundled resources root (app/, node/, qkrpc/, rg/).
  * @param {{ isPackaged: boolean, resourcesPath?: string }} app
@@ -31,16 +45,19 @@ function packagedResourcesBase(app) {
 export function resolveResourceRoot(app) {
   const base = packagedResourcesBase(app);
   if (base) {
-    const nested = join(base, "resources");
-    if (existsSync(join(nested, "app", "server.js"))) return nested;
-    if (existsSync(join(base, "app", "server.js"))) return base;
+    const candidates = [base, join(base, "resources")];
+    for (const root of candidates) {
+      if (isCompleteResourceRoot(root)) {
+        return root;
+      }
+    }
     throw new Error(
-      `runtime bundle not found under ${nested} or ${base}`,
+      `runtime bundle incomplete (need app/server.js and bundled node under ${base} or ${join(base, "resources")})`,
     );
   }
 
   const devStaged = join(electronRoot, "resources");
-  if (existsSync(join(devStaged, "app", "server.js"))) {
+  if (isCompleteResourceRoot(devStaged)) {
     return devStaged;
   }
 
@@ -51,11 +68,6 @@ export function resolveResourceRoot(app) {
 
 export function appRuntimeDir(resourceRoot) {
   return join(resourceRoot, "app");
-}
-
-export function bundledNodeExe(resourceRoot) {
-  const win = process.platform === "win32";
-  return join(resourceRoot, "node", win ? "node.exe" : "bin/node");
 }
 
 /**
@@ -80,6 +92,26 @@ export function resolvePluginMetadataRoot(app, isDev) {
   throw new Error(
     "plugin-registry-bootstrap.json not found — run pnpm electron:prepare or ensure src-tauri/voice-plugin-metadata exists",
   );
+}
+
+/**
+ * Wait for a bundled file after in-place update (NSIS may still be copying).
+ * @param {string} filePath
+ * @param {{ timeoutMs?: number, intervalMs?: number }} [opts]
+ */
+export async function waitForBundledFile(
+  filePath,
+  { timeoutMs = 20_000, intervalMs = 250 } = {},
+) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (existsSync(filePath)) {
+      return;
+    }
+    await new Promise((resolve) => {
+      setTimeout(resolve, intervalMs);
+    });
+  }
 }
 
 export function bundledQkrpcDir(resourceRoot) {

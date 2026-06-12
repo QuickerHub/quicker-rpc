@@ -10717,8 +10717,7 @@ body.workspace-explorer-pane-resizing * {
 }
 
 .workspace-embedded-terminal__xterm--stacked[hidden] {
-  visibility: hidden;
-  pointer-events: none;
+  display: none !important;
 }
 
 .workspace-embedded-terminal__new-tab {

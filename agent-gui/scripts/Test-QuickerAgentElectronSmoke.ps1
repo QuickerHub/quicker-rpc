@@ -82,7 +82,7 @@ function Stop-QuickerAgentElectron {
 function Stop-ElectronOrphanBackends {
     # Force-killing QuickerAgent.exe skips before-quit; bundled node/qkrpc may linger on :3000+.
     $patterns = @(
-        'electron[\\/]dist[\\/]win-unpacked[\\/]resources[\\/]resources',
+        'electron[\\/]dist[\\/]win-unpacked[\\/]resources[\\/]app[\\/]server\.js',
         'electron[\\/]resources[\\/]app[\\/]server\.js'
     )
     $regex = ($patterns -join '|')

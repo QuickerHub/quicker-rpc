@@ -64,6 +64,8 @@ function resolveUserDocumentsDirectory() {
 
 function resolveQuickerAgentAppDataDirectory() {
   if (process.platform === "win32") {
+    const roaming = process.env.APPDATA?.trim();
+    if (roaming) return join(roaming, "QuickerAgent");
     const local = process.env.LOCALAPPDATA?.trim();
     if (local) return join(local, "QuickerAgent");
   }

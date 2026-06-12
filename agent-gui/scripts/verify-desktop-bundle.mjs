@@ -1,6 +1,7 @@
 /**
  * Verify staged/bundled QuickerAgent resources include agent-gui (Next standalone) + qkrpc.
  */
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,6 +50,13 @@ const required = [
   { rel: "app/lib/qkrpc-toolchain-env.mjs", minBytes: 100 },
   { rel: "app/node_modules/node-pty/package.json", minBytes: 10 },
   { rel: "app/node_modules/ws/package.json", minBytes: 10 },
+  { rel: "app/node_modules/better-sqlite3/lib/index.js", minBytes: 100 },
+  {
+    rel: "app/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+    minBytes: 500 * 1024,
+  },
+  { rel: "app/node_modules/bindings/bindings.js", minBytes: 100 },
+  { rel: "app/node_modules/file-uri-to-path/index.js", minBytes: 100 },
 ];
 
 const bundledKeyEnv =
@@ -93,6 +101,24 @@ function verifyRoot({ label, dir }) {
     const size = statSync(path).size;
     if (size < minBytes) {
       throw new Error(`${label}: ${rel} too small (${size} < ${minBytes} bytes)`);
+    }
+  }
+
+  // Load the native SQLite addon with the bundled Node to catch ABI mismatches.
+  const bundledNode = join(dir, "node", "node.exe");
+  if (process.platform === "win32" && existsSync(bundledNode)) {
+    const probe = spawnSync(
+      bundledNode,
+      [
+        "-e",
+        "const D=require('better-sqlite3');new D(':memory:').exec('select 1');console.log('better-sqlite3 ok')",
+      ],
+      { cwd: join(dir, "app"), encoding: "utf8" },
+    );
+    if (probe.status !== 0) {
+      throw new Error(
+        `${label}: bundled node failed to load better-sqlite3 — agent.db persistence broken\n${probe.stderr}`,
+      );
     }
   }
 

@@ -1,5 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { resolvePersistedDataFilePath } from "@/lib/quicker-agent-persisted-data";
+import { existsSync, readFileSync } from "node:fs";
+import { AppKvKey, readAppKvJson, writeAppKvJson } from "@/lib/db/app-kv";
+import { resolveLegacyPersistedJsonPaths } from "@/lib/quicker-agent-persisted-data";
 import {
   parseLlmEndpointGroupsConfig,
   type LlmEndpointGroupsConfig,
@@ -57,7 +58,7 @@ export function resolveRemotePublishConfigUrl(): string {
 }
 
 function resolveRemotePublishConfigCachePath(): string {
-  return resolvePersistedDataFilePath(CACHE_FILE);
+  return resolveLegacyPersistedJsonPaths(CACHE_FILE)[0] ?? "";
 }
 
 function countEndpointsWithApiKey(raw: unknown): number {
@@ -79,11 +80,8 @@ function assertPublishConfigShape(raw: unknown): number {
   return count;
 }
 
-function readCacheFile(): RemotePublishConfigCache | null {
-  const path = resolveRemotePublishConfigCachePath();
-  if (!existsSync(path)) return null;
+function normalizeCacheFile(raw: unknown): RemotePublishConfigCache | null {
   try {
-    const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
     if (typeof raw !== "object" || raw === null) return null;
     const data = raw as Partial<RemotePublishConfigCache>;
     if (data.version !== 1 || typeof data.meta !== "object" || data.meta === null) {
@@ -118,9 +116,28 @@ function readCacheFile(): RemotePublishConfigCache | null {
   }
 }
 
+function readCacheFile(): RemotePublishConfigCache | null {
+  const fromKv = readAppKvJson<RemotePublishConfigCache>(AppKvKey.llmRemotePublishConfig);
+  if (fromKv) return normalizeCacheFile(fromKv);
+  for (const path of resolveLegacyPersistedJsonPaths(CACHE_FILE)) {
+    if (!existsSync(path)) continue;
+    try {
+      const parsed = normalizeCacheFile(
+        JSON.parse(readFileSync(path, "utf8")) as unknown,
+      );
+      if (parsed) {
+        writeCacheFile(parsed);
+        return parsed;
+      }
+    } catch {
+      // try next path
+    }
+  }
+  return null;
+}
+
 function writeCacheFile(cache: RemotePublishConfigCache): void {
-  const path = resolveRemotePublishConfigCachePath();
-  writeFileSync(path, `${JSON.stringify(cache, null, 2)}\n`, "utf8");
+  writeAppKvJson(AppKvKey.llmRemotePublishConfig, cache);
 }
 
 function configsEqual(a: unknown, b: unknown): boolean {

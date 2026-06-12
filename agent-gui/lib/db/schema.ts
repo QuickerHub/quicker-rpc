@@ -42,3 +42,12 @@ export type ChatThreadRow = typeof chatThreads.$inferSelect;
 export type ChatThreadMessageRow = typeof chatThreadMessages.$inferSelect;
 
 export const CHAT_META_SINGLETON_ID = 1;
+
+/** JSON settings migrated from legacy *.json files under app data. */
+export const appKv = sqliteTable("app_kv", {
+  key: text("key").primaryKey(),
+  valueJson: text("value_json").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export type AppKvRow = typeof appKv.$inferSelect;

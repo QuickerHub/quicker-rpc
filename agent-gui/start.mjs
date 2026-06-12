@@ -31,6 +31,10 @@ import {
 import {
   stopTrackedBrowserRuntime,
 } from "./lib/browser-runtime-lifecycle.mjs";
+import {
+  ensureTerminalRuntime,
+  stopTrackedTerminalRuntime,
+} from "./lib/terminal-runtime-lifecycle.mjs";
 import { stopStaleAgentGuiDev } from "./scripts/stop-agent-gui-dev.mjs";
 import {
   nextCacheHasBrokenTurbopackRuntime,
@@ -159,6 +163,8 @@ let qkrpcChild = null;
 let voiceChild = null;
 /** @type {import('node:child_process').ChildProcess | null} */
 let browserChild = null;
+/** @type {import('node:child_process').ChildProcess | null} */
+let terminalChild = null;
 /** @type {import('node:child_process').ChildProcess | null} */
 let nextDevChild = null;
 /** @type {{ port: number, host: string, useTurbo: boolean } | null} */
@@ -384,11 +390,17 @@ function stopBrowserChild() {
   browserChild = null;
 }
 
+function stopTerminalChild() {
+  stopTrackedTerminalRuntime(root, terminalChild);
+  terminalChild = null;
+}
+
 function registerShutdown() {
   const onExit = () => {
     stopQkrpcChild();
     stopVoiceChild();
     stopBrowserChild();
+    stopTerminalChild();
   };
   process.on("SIGINT", onExit);
   process.on("SIGTERM", onExit);
@@ -569,6 +581,17 @@ async function main() {
       );
     }
     // Browser runtime lazy-starts on first tool/API invoke (see browser-runtime-client.server.ts).
+    if (process.env.AGENT_GUI_SKIP_TERMINAL_RUNTIME !== "1") {
+      void ensureTerminalRuntime(root, host)
+        .then((child) => {
+          terminalChild = child;
+        })
+        .catch((err) => {
+          console.warn(
+            `terminal: dev boot warm-up failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
+    }
   }
 
   const port = await resolveUiPort(host);
@@ -603,6 +626,7 @@ main().catch((err) => {
   stopQkrpcChild();
   stopVoiceChild();
   stopBrowserChild();
+  stopTerminalChild();
   console.error(err);
   process.exit(1);
 });

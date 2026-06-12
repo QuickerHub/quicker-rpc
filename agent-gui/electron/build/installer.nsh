@@ -1,6 +1,6 @@
 ; Align Electron NSIS layout with QuickerAgent (per-user):
 ;   %LOCALAPPDATA%\QuickerAgent\quicker-agent.exe
-; User data (plugins, local/, cache) stays under %LOCALAPPDATA%\QuickerAgent — unchanged.
+; User data (plugins, local/, cache) lives alongside the exe — NSIS must not wipe those on update.
 
 !include "nsDialogs.nsh"
 
@@ -176,9 +176,14 @@ FunctionEnd
 !macro customInstall
   ; Legacy Electron trial builds used QuickerAgent.exe in Programs\QuickerAgent.
   Delete "$INSTDIR\QuickerAgent.exe"
-  ; Orphan WebView2 user-data from Tauri (Electron uses Chromium embedded-browser profile).
-  RMDir /r "$LOCALAPPDATA\ai.quicker.agent"
   !insertmacro ApplyQuickerAgentShortcutChoices
+!macroend
+
+; electron-builder wipes $INSTDIR before updates — skip on in-place upgrade so colocated user data survives migration.
+!macro customRemoveFiles
+  ${if} ${isUpdated}
+    !insertmacro quitSuccess
+  ${endif}
 !macroend
 
 !macro customUnInstall

@@ -1,10 +1,10 @@
 import "server-only";
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import { isTextUIPart } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
-import { resolvePersistedDataFilePath } from "@/lib/quicker-agent-persisted-data";
+import { AppKvKey, readAppKvJson, writeAppKvJson } from "@/lib/db/app-kv";
+import { resolveLegacyPersistedJsonPaths } from "@/lib/quicker-agent-persisted-data";
 import { defaultLauncherToolIds } from "@/lib/chat-mode";
 import { newRandomId } from "@/lib/new-id";
 import {
@@ -43,7 +43,7 @@ const ALLOWED_CACHE_TOOL_NAMES = new Set(
 let cache: LauncherCommandCacheFile | null = null;
 
 export function resolveLauncherCommandCachePath(): string {
-  return resolvePersistedDataFilePath("launcher-command-cache.json");
+  return resolveLegacyPersistedJsonPaths("launcher-command-cache.json")[0] ?? "";
 }
 
 function emptyCacheFile(): LauncherCommandCacheFile {
@@ -128,25 +128,28 @@ function parseCacheFile(raw: unknown): LauncherCommandCacheFile {
 
 export function loadLauncherCommandCache(): LauncherCommandCacheFile {
   if (cache) return cache;
-  const path = resolveLauncherCommandCachePath();
-  if (!existsSync(path)) {
-    cache = emptyCacheFile();
+  const fromKv = readAppKvJson<LauncherCommandCacheFile>(AppKvKey.launcherCommandCache);
+  if (fromKv) {
+    cache = parseCacheFile(fromKv);
     return cache;
   }
-  try {
-    const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
-    cache = parseCacheFile(raw);
-    return cache;
-  } catch {
-    cache = emptyCacheFile();
-    return cache;
+  for (const path of resolveLegacyPersistedJsonPaths("launcher-command-cache.json")) {
+    if (!existsSync(path)) continue;
+    try {
+      const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
+      cache = parseCacheFile(raw);
+      saveLauncherCommandCache(cache);
+      return cache;
+    } catch {
+      // try next path
+    }
   }
+  cache = emptyCacheFile();
+  return cache;
 }
 
 function saveLauncherCommandCache(data: LauncherCommandCacheFile): void {
-  const path = resolveLauncherCommandCachePath();
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  writeAppKvJson(AppKvKey.launcherCommandCache, data);
   cache = data;
 }
 

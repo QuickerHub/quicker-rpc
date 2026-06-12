@@ -1,6 +1,6 @@
 /** Client-side fallback when serve has not returned generatedProgramCs yet. */
 
-
+import { expandWireInputParams } from "@/lib/input-param-wire";
 
 type WireParam = { value?: string; varKey?: string; var?: string };
 
@@ -207,17 +207,18 @@ function emitOutputParamsDictionary(step: WireStep, indent: string, lines: strin
 
 
 function collectSubProgramVarInputs(step: WireStep): Array<[string, WireParam]> {
+  const expanded = expandWireInputParams(step.inputParams as Record<string, unknown> | undefined);
   const out: Array<[string, WireParam]> = [];
-  for (const [key, raw] of Object.entries(step.inputParams ?? {})) {
+  for (const [key, param] of Object.entries(expanded)) {
     const lower = key.toLowerCase();
-    if (lower.startsWith("var:") && lower.endsWith(".var")) {
-      out.push([key.slice(4, -4), { varKey: String(raw) }]);
+    if (!lower.startsWith("var:")) {
       continue;
     }
-    if (lower.startsWith("var:") && !key.includes(".")) {
-      const param = typeof raw === "string" ? { value: raw } : raw;
-      out.push([key.slice(4), param]);
+    const spVarName = key.slice(4);
+    if (!spVarName) {
+      continue;
     }
+    out.push([spVarName, param]);
   }
   return out;
 }

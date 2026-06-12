@@ -27,11 +27,25 @@ export function resolveUserDocumentsDirectory(): string {
 }
 
 /**
- * App-managed data (plugins, future local config). Not the agent working directory.
+ * NSIS install root (exe + resources only). Not for user data.
  * Windows: %LOCALAPPDATA%/QuickerAgent
+ */
+export function resolveQuickerAgentInstallDirectory(): string {
+  if (process.platform === "win32") {
+    const local = process.env.LOCALAPPDATA?.trim();
+    if (local) return join(local, QUICKER_AGENT_DIRNAME);
+  }
+  return resolveQuickerAgentAppDataDirectory();
+}
+
+/**
+ * User data root (plugins, SQLite DB, caches). Separate from the install directory.
+ * Windows: %APPDATA%/QuickerAgent (Roaming)
  */
 export function resolveQuickerAgentAppDataDirectory(): string {
   if (process.platform === "win32") {
+    const roaming = process.env.APPDATA?.trim();
+    if (roaming) return join(roaming, QUICKER_AGENT_DIRNAME);
     const local = process.env.LOCALAPPDATA?.trim();
     if (local) return join(local, QUICKER_AGENT_DIRNAME);
   }

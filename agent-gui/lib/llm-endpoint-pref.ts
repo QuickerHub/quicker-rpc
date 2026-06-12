@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { resolvePersistedDataFilePath } from "@/lib/quicker-agent-persisted-data";
+import { existsSync, readFileSync } from "node:fs";
+import { AppKvKey, readAppKvJson, writeAppKvJson } from "@/lib/db/app-kv";
+import { resolveLegacyPersistedJsonPaths } from "@/lib/quicker-agent-persisted-data";
 import type { LlmProviderId } from "@/lib/llm-providers";
 
 export type StickyLlmEndpoint = {
@@ -20,7 +20,7 @@ type LlmEndpointPrefFile = {
 const EMPTY: LlmEndpointPrefFile = { version: 1, providers: {} };
 
 export function resolveLlmEndpointPrefPath(): string {
-  return resolvePersistedDataFilePath("llm-endpoint-pref.json");
+  return resolveLegacyPersistedJsonPaths("llm-endpoint-pref.json")[0] ?? "";
 }
 
 export function endpointFingerprint(endpoint: StickyLlmEndpoint): string {
@@ -36,13 +36,8 @@ function normalizeStickyEndpoint(raw: unknown): StickyLlmEndpoint | undefined {
   return { baseURL, apiKey };
 }
 
-function loadPrefsFile(): LlmEndpointPrefFile {
-  const path = resolveLlmEndpointPrefPath();
-  if (!existsSync(path)) {
-    return { ...EMPTY, providers: {} };
-  }
+function parsePrefsFile(raw: unknown): LlmEndpointPrefFile {
   try {
-    const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
     if (typeof raw !== "object" || raw === null) {
       return { ...EMPTY, providers: {} };
     }
@@ -72,13 +67,24 @@ function loadPrefsFile(): LlmEndpointPrefFile {
   }
 }
 
+function loadPrefsFile(): LlmEndpointPrefFile {
+  const fromKv = readAppKvJson<LlmEndpointPrefFile>(AppKvKey.llmEndpointPref);
+  if (fromKv) return parsePrefsFile(fromKv);
+  for (const path of resolveLegacyPersistedJsonPaths("llm-endpoint-pref.json")) {
+    if (!existsSync(path)) continue;
+    try {
+      const parsed = parsePrefsFile(JSON.parse(readFileSync(path, "utf8")) as unknown);
+      savePrefsFile(parsed);
+      return parsed;
+    } catch {
+      // try next path
+    }
+  }
+  return { ...EMPTY, providers: {} };
+}
+
 function savePrefsFile(data: LlmEndpointPrefFile): void {
-  const path = resolveLlmEndpointPrefPath();
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
+  writeAppKvJson(AppKvKey.llmEndpointPref, data);
 }
 
 export function getStickyEndpoint(

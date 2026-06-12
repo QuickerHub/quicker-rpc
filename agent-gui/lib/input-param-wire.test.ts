@@ -77,3 +77,26 @@ test("legacy @prefix strings still expand on read (compat)", () => {
   assert.deepEqual(parseTypedWireString("@file:files/x.txt"), { file: "files/x.txt" });
   assert.deepEqual(parseTypedWireString("@value:files/x"), { value: "files/x" });
 });
+
+test("expandWireInputParams preserves var: subprogram param keys", () => {
+  assert.deepEqual(parseWireParamKey("var:value.var"), {
+    baseKey: "var:value",
+    kind: "var",
+  });
+  assert.deepEqual(
+    expandWireInputParams({
+      "var:value.var": "seed",
+      "var:result": "answer",
+      "var:path": "@var:workDir",
+    }),
+    {
+      "var:value": { varKey: "seed" },
+      "var:result": { value: "answer" },
+      "var:path": { varKey: "workDir" },
+    },
+  );
+  assert.deepEqual(
+    compactWireInputParam("var:value", { varKey: "seed" }),
+    { "var:value.var": "seed" },
+  );
+});

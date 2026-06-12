@@ -1,8 +1,22 @@
 import {
+  chunkIncludesScreenClear,
+  mergeTerminalReplay,
+} from "@/lib/terminal-ansi-clear";
+import {
+  invalidateTerminalRuntimeWarmup,
   resolveTerminalWebSocketUrl,
   warmupTerminalRuntime,
   type TerminalServerMessage,
 } from "@/lib/terminal-runtime-client";
+
+const TERMINAL_WS_CONNECT_ATTEMPTS = 4;
+const TERMINAL_WS_RETRY_BASE_MS = 400;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 export type MultiplexedSessionPhase =
   | "idle"
@@ -59,6 +73,11 @@ class TerminalMultiplexer {
 
   isOpen(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  /** Open the shared WebSocket channel without creating a PTY session. */
+  warmupConnection(): void {
+    void this.ensureConnection().catch(() => {});
   }
 
   registerSession(sessionId: string, cwd: string): void {
@@ -262,13 +281,43 @@ class TerminalMultiplexer {
     this.connectPromise = this.openConnection();
     try {
       await this.connectPromise;
-    } catch {
+    } catch (err) {
       this.connectPromise = null;
-      throw new Error("WebSocket connection failed");
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        detail.includes("WebSocket")
+          ? detail
+          : `WebSocket connection failed (${detail})`,
+      );
     }
   }
 
-  private openConnection(): Promise<void> {
+  private async openConnection(): Promise<void> {
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < TERMINAL_WS_CONNECT_ATTEMPTS; attempt += 1) {
+      if (attempt > 0) {
+        invalidateTerminalRuntimeWarmup();
+        await sleep(TERMINAL_WS_RETRY_BASE_MS * attempt);
+      }
+      try {
+        await this.openConnectionOnce();
+        return;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (this.ws) {
+          try {
+            this.ws.close();
+          } catch {
+            // ignore
+          }
+          this.ws = null;
+        }
+      }
+    }
+    throw lastError ?? new Error("WebSocket connection failed");
+  }
+
+  private openConnectionOnce(): Promise<void> {
     return new Promise((resolve, reject) => {
       void warmupTerminalRuntime().then((ok) => {
         if (!ok) {
@@ -278,8 +327,17 @@ class TerminalMultiplexer {
 
         const socket = new WebSocket(resolveTerminalWebSocketUrl());
         this.ws = socket;
+        let settled = false;
+
+        const fail = (message: string) => {
+          if (settled) return;
+          settled = true;
+          reject(new Error(message));
+        };
 
         socket.onopen = () => {
+          if (settled) return;
+          settled = true;
           resolve();
         };
 
@@ -295,11 +353,15 @@ class TerminalMultiplexer {
 
         socket.onerror = () => {
           if (socket.readyState !== WebSocket.OPEN) {
-            reject(new Error("WebSocket connection failed"));
+            fail("WebSocket connection failed");
           }
         };
 
         socket.onclose = () => {
+          if (!settled) {
+            fail("WebSocket connection failed");
+            return;
+          }
           if (this.ws === socket) {
             this.ws = null;
           }
@@ -398,10 +460,7 @@ class TerminalMultiplexer {
     }
 
     if (msg.type === "output") {
-      session.outputReplay += msg.data;
-      if (session.outputReplay.length > 256 * 1024) {
-        session.outputReplay = session.outputReplay.slice(-256 * 1024);
-      }
+      session.outputReplay = mergeTerminalReplay(session.outputReplay, msg.data);
       this.emitOutput(sessionId, msg.data, false);
       return;
     }

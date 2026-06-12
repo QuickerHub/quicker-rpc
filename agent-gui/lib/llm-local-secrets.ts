@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { resolvePersistedDataFilePath } from "@/lib/quicker-agent-persisted-data";
+import { existsSync, readFileSync } from "node:fs";
+import { AppKvKey, readAppKvJson, writeAppKvJson } from "@/lib/db/app-kv";
+import { resolveLegacyPersistedJsonPaths } from "@/lib/quicker-agent-persisted-data";
 import {
   normalizeProfiles,
   type LlmCustomProfile,
@@ -38,7 +38,7 @@ const EMPTY: LlmLocalSecrets = { version: 2, providers: {} };
 let cache: LlmLocalSecrets | null = null;
 
 export function resolveLlmSecretsPath(): string {
-  return resolvePersistedDataFilePath("llm-secrets.json");
+  return resolveLegacyPersistedJsonPaths("llm-secrets.json")[0] ?? "";
 }
 
 function normalizeProviderEntry(raw: unknown): LlmLocalProviderSecrets | undefined {
@@ -105,41 +105,44 @@ function normalizeSecrets(raw: unknown): LlmLocalSecrets {
   return migrateLlmLocalSecrets(parseRawLlmSecrets(raw)).secrets;
 }
 
+function loadLlmLocalSecretsFromLegacyFile(): LlmLocalSecrets | null {
+  for (const path of resolveLegacyPersistedJsonPaths("llm-secrets.json")) {
+    if (!existsSync(path)) continue;
+    try {
+      const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
+      return migrateLlmLocalSecrets(parseRawLlmSecrets(raw)).secrets;
+    } catch {
+      // try next path
+    }
+  }
+  return null;
+}
+
 export function loadLlmLocalSecrets(): LlmLocalSecrets {
   if (cache) return cache;
-  const path = resolveLlmSecretsPath();
-  if (!existsSync(path)) {
-    cache = { ...EMPTY };
-    return cache;
-  }
-  try {
-    const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
-    const parsed = parseRawLlmSecrets(raw);
-    const { secrets, changed } = migrateLlmLocalSecrets(parsed);
+  const fromKv = readAppKvJson<LlmLocalSecrets>(AppKvKey.llmSecrets);
+  if (fromKv) {
+    const { secrets, changed } = migrateLlmLocalSecrets(parseRawLlmSecrets(fromKv));
     if (changed) {
       saveLlmLocalSecrets(secrets);
     } else {
       cache = secrets;
     }
     return secrets;
-  } catch {
-    cache = { ...EMPTY };
-    return cache;
   }
+  const fromFile = loadLlmLocalSecretsFromLegacyFile();
+  if (fromFile) {
+    saveLlmLocalSecrets(fromFile);
+    return fromFile;
+  }
+  cache = { ...EMPTY };
+  return cache;
 }
 
 export function saveLlmLocalSecrets(data: LlmLocalSecrets): void {
-  const path = resolveLlmSecretsPath();
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(
-    path,
-    `${JSON.stringify({ ...data, version: 2 }, null, 2)}\n`,
-    {
-      encoding: "utf8",
-      mode: 0o600,
-    },
-  );
-  cache = { ...data, version: 2 };
+  const normalized = { ...data, version: 2 as const };
+  writeAppKvJson(AppKvKey.llmSecrets, normalized);
+  cache = normalized;
 }
 
 export function invalidateLlmLocalSecretsCache(): void {

@@ -38,14 +38,32 @@ export type TerminalRuntimeEnsureResult = {
 };
 
 const DIRECT_HEALTH_TIMEOUT_MS = 700;
+const DIRECT_HEALTH_PROBE_ATTEMPTS = 12;
+const DIRECT_HEALTH_PROBE_INTERVAL_MS = 120;
 
 let runtimeWarmup: Promise<boolean> | null = null;
 let xtermChunkWarmup: Promise<unknown> | null = null;
 
+/** @internal test helper */
+export function resetTerminalRuntimeWarmupForTests(): void {
+  runtimeWarmup = null;
+}
+
+/** Drop cached warmup so the next connect re-probes /api/terminal/runtime. */
+export function invalidateTerminalRuntimeWarmup(): void {
+  runtimeWarmup = null;
+}
+
 /** Warm terminal-runtime once per page load. */
 export function warmupTerminalRuntime(): Promise<boolean> {
   if (!runtimeWarmup) {
-    runtimeWarmup = ensureTerminalRuntime().then((result) => result.ok);
+    runtimeWarmup = ensureTerminalRuntime().then((result) => {
+      if (!result.ok) {
+        runtimeWarmup = null;
+        return false;
+      }
+      return true;
+    });
   }
   return runtimeWarmup;
 }
@@ -89,8 +107,25 @@ async function probeTerminalRuntimeDirect(): Promise<TerminalRuntimeEnsureResult
   }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function probeTerminalRuntimeDirectWithRetry(): Promise<TerminalRuntimeEnsureResult | null> {
+  for (let attempt = 0; attempt < DIRECT_HEALTH_PROBE_ATTEMPTS; attempt += 1) {
+    const direct = await probeTerminalRuntimeDirect();
+    if (direct?.ok) return direct;
+    if (attempt + 1 < DIRECT_HEALTH_PROBE_ATTEMPTS) {
+      await sleep(DIRECT_HEALTH_PROBE_INTERVAL_MS);
+    }
+  }
+  return null;
+}
+
 export async function ensureTerminalRuntime(): Promise<TerminalRuntimeEnsureResult> {
-  const direct = await probeTerminalRuntimeDirect();
+  const direct = await probeTerminalRuntimeDirectWithRetry();
   if (direct?.ok) return direct;
 
   try {

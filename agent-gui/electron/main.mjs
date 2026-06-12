@@ -9,6 +9,7 @@ import {
   bundledQkrpcDir,
   resolvePluginMetadataRoot,
   resolveResourceRoot,
+  waitForBundledFile,
 } from "./paths.mjs";
 import { createPluginRuntimeCommands } from "./commands/plugin-runtime.mjs";
 import { shutdownBackends, startProductionBackends } from "./backend-spawn.mjs";
@@ -332,11 +333,21 @@ async function bootProduction() {
     `boot paths packaged=${app.isPackaged} resourceRoot=${resourceRoot} nodeExe=${nodeExe} qkrpcDir=${qkrpcDir}`,
   );
 
+  const serverJs = join(appDir, "server.js");
+  const waitMs = process.argv.includes("--updated") ? 20_000 : 8_000;
   if (!existsSync(nodeExe)) {
-    throw new Error(`bundled node not found: ${nodeExe}`);
+    writeBootLog(`waiting for bundled node (${waitMs}ms): ${nodeExe}`);
+    await waitForBundledFile(nodeExe, { timeoutMs: waitMs });
+    if (!existsSync(nodeExe)) {
+      throw new Error(`bundled node not found: ${nodeExe}`);
+    }
   }
-  if (!existsSync(join(appDir, "server.js"))) {
-    throw new Error(`app runtime missing server.js under ${appDir}`);
+  if (!existsSync(serverJs)) {
+    writeBootLog(`waiting for app server.js (${waitMs}ms): ${serverJs}`);
+    await waitForBundledFile(serverJs, { timeoutMs: waitMs });
+    if (!existsSync(serverJs)) {
+      throw new Error(`app runtime missing server.js under ${appDir}`);
+    }
   }
 
   const { uiUrl } = await startProductionBackends({

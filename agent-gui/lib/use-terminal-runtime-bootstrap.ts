@@ -3,10 +3,9 @@
 import { useEffect } from "react";
 import { prefetchTerminalStack } from "@/lib/terminal-session-client";
 
-/** Background-warm terminal runtime + xterm chunks after app shell mounts. */
-export function TerminalRuntimePrefetch() {
+/** Warm terminal-runtime + xterm chunks as soon as the app shell mounts. */
+export function useTerminalRuntimeBootstrap(): void {
   useEffect(() => {
     prefetchTerminalStack();
   }, []);
-  return null;
 }

@@ -7,6 +7,7 @@ import {
   type CSSProperties,
 } from "react";
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
+import { chunkIncludesScreenClear } from "@/lib/terminal-ansi-clear";
 import {
   getTerminalSessionClient,
   warmupXtermChunks,
@@ -61,7 +62,11 @@ export function EmbeddedXterm({
 
       let term: import("@xterm/xterm").Terminal | null = null;
       const unsubOutput = client.subscribeOutput((data) => {
-        term?.write(data);
+        if (!term) return;
+        if (chunkIncludesScreenClear(data)) {
+          term.clear();
+        }
+        term.write(data);
       });
 
       void client.ensureConnected(80, 24).catch(() => {});

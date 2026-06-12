@@ -11,10 +11,24 @@ pub fn plugin_cache_dir() -> PathBuf {
     quicker_agent_app_data_dir().join("cache")
 }
 
-/// App-managed data root (plugins). Not the agent working directory.
+/// NSIS install root (exe + resources). Not for user data.
+pub fn quicker_agent_install_dir() -> PathBuf {
+    #[cfg(windows)]
+    {
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            return PathBuf::from(local).join("QuickerAgent");
+        }
+    }
+    quicker_agent_app_data_dir()
+}
+
+/// App-managed data root (plugins, SQLite). Separate from install directory.
 pub fn quicker_agent_app_data_dir() -> PathBuf {
     #[cfg(windows)]
     {
+        if let Ok(roaming) = std::env::var("APPDATA") {
+            return PathBuf::from(roaming).join("QuickerAgent");
+        }
         if let Ok(local) = std::env::var("LOCALAPPDATA") {
             return PathBuf::from(local).join("QuickerAgent");
         }
