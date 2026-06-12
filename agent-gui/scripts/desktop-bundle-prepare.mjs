@@ -281,11 +281,17 @@ function stageBetterSqlite3(agentGuiRoot, appRoot) {
     cpSync(src, depDest, { recursive: true });
   }
 
-  console.log(`better-sqlite3 staged (sources for bundled-node rebuild): ${dest}`);
+  console.log(`better-sqlite3 staged (sources for bundled-node prebuild): ${dest}`);
 }
 
-/** Compile better-sqlite3 against the portable Node staged under resources/node. */
-export function rebuildBetterSqlite3ForBundledNode(resourcesDir) {
+/**
+ * Fetch a native better-sqlite3 binary matching the portable Node under resources/node.
+ * Uses prebuild-install (no Visual Studio) so CI Windows runners can ship agent.db.
+ */
+export function rebuildBetterSqlite3ForBundledNode(
+  resourcesDir,
+  agentGuiRoot = defaultAgentGuiRoot,
+) {
   if (process.platform !== "win32") return;
 
   const nodeExe = join(resourcesDir, "node", "node.exe");
@@ -297,25 +303,35 @@ export function rebuildBetterSqlite3ForBundledNode(resourcesDir) {
     throw new Error(`better-sqlite3 sources missing: ${sqliteDir}`);
   }
 
-  const npmCli = join(dirname(nodeExe), "node_modules", "npm", "bin", "npm-cli.js");
-  if (!existsSync(npmCli)) {
-    throw new Error(`npm-cli missing next to bundled Node: ${npmCli}`);
-  }
+  const pkgJson = join(agentGuiRoot, "node_modules", "better-sqlite3", "package.json");
+  const requireFromPkg = createRequire(pkgJson);
+  const prebuildBin = requireFromPkg.resolve("prebuild-install/bin.js");
 
-  console.log(`Rebuilding better-sqlite3 for bundled Node v${NODE_VERSION}...`);
-  run(nodeExe, [npmCli, "run", "build-release"], {
+  console.log(
+    `Installing better-sqlite3 prebuild for bundled Node v${NODE_VERSION} (win32 x64)...`,
+  );
+  const r = spawnSync(process.execPath, [prebuildBin], {
     cwd: sqliteDir,
+    stdio: "inherit",
     env: {
       ...process.env,
-      npm_config_nodedir: dirname(nodeExe),
+      npm_config_target: NODE_VERSION,
+      npm_config_runtime: "node",
+      npm_config_arch: "x64",
+      npm_config_platform: "win32",
     },
   });
+  if (r.status !== 0) {
+    throw new Error(
+      `prebuild-install failed for better-sqlite3 (target node ${NODE_VERSION} win32 x64)`,
+    );
+  }
 
   const nativeBinding = join(sqliteDir, "build", "Release", "better_sqlite3.node");
   if (!existsSync(nativeBinding)) {
-    throw new Error(`better-sqlite3 rebuild did not produce ${nativeBinding}`);
+    throw new Error(`better-sqlite3 prebuild did not produce ${nativeBinding}`);
   }
-  console.log(`better-sqlite3 rebuilt: ${nativeBinding}`);
+  console.log(`better-sqlite3 prebuild ready: ${nativeBinding}`);
 }
 
 /**
@@ -529,7 +545,7 @@ export function prepareDesktopBundle(options) {
   stageNextStandalone(ctx);
   stageVoiceResourceFiles(ctx);
   ensureBundledNode(ctx);
-  rebuildBetterSqlite3ForBundledNode(ctx.resourcesDir);
+  rebuildBetterSqlite3ForBundledNode(ctx.resourcesDir, agentGuiRoot);
   ensureBundledRipgrep(ctx);
   stageQkrpcRuntime(ctx);
 
