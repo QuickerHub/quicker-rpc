@@ -29,6 +29,7 @@
   Sleep 1500
 !macroend
 
+!ifndef BUILD_UNINSTALLER
 Var QA_WantDesktopShortcut
 Var QA_WantStartMenuShortcut
 Var QA_ShortcutDialog
@@ -107,6 +108,29 @@ FunctionEnd
   PageExEnd
 !macroend
 
+!macro ApplyQuickerAgentShortcutChoices
+  ${If} $QA_WantDesktopShortcut == "1"
+    CreateShortCut "$DESKTOP\${SHORTCUT_NAME}.lnk" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
+    ClearErrors
+    WinShell::SetLnkAUMI "$DESKTOP\${SHORTCUT_NAME}.lnk" "${APP_ID}"
+  ${Else}
+    Delete "$DESKTOP\${SHORTCUT_NAME}.lnk"
+    ClearErrors
+  ${EndIf}
+
+  ${If} $QA_WantStartMenuShortcut == "1"
+    !insertmacro CreateQuickerAgentStartMenuShortcut
+  ${Else}
+    !insertmacro RemoveQuickerAgentStartMenuShortcut
+  ${EndIf}
+
+  ; Legacy Tauri start-menu folder (QuickerAgentTest era).
+  Delete "$SMPROGRAMS\QuickerAgent\QuickerAgent.lnk"
+  RMDir "$SMPROGRAMS\QuickerAgent"
+  System::Call 'Shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'
+!macroend
+!endif
+
 !macro CreateQuickerAgentStartMenuShortcut
   !ifdef MENU_FILENAME
     CreateDirectory "$SMPROGRAMS\${MENU_FILENAME}"
@@ -129,28 +153,6 @@ FunctionEnd
   !endif
 !macroend
 
-!macro ApplyQuickerAgentShortcutChoices
-  ${If} $QA_WantDesktopShortcut == "1"
-    CreateShortCut "$DESKTOP\${SHORTCUT_NAME}.lnk" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
-    ClearErrors
-    WinShell::SetLnkAUMI "$DESKTOP\${SHORTCUT_NAME}.lnk" "${APP_ID}"
-  ${Else}
-    Delete "$DESKTOP\${SHORTCUT_NAME}.lnk"
-    ClearErrors
-  ${EndIf}
-
-  ${If} $QA_WantStartMenuShortcut == "1"
-    !insertmacro CreateQuickerAgentStartMenuShortcut
-  ${Else}
-    !insertmacro RemoveQuickerAgentStartMenuShortcut
-  ${EndIf}
-
-  ; Legacy Tauri start-menu folder (QuickerAgentTest era).
-  Delete "$SMPROGRAMS\QuickerAgent\QuickerAgent.lnk"
-  RMDir "$SMPROGRAMS\QuickerAgent"
-  System::Call 'Shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'
-!macroend
-
 !macro RemoveQuickerAgentShortcuts
   Delete "$DESKTOP\${SHORTCUT_NAME}.lnk"
   !insertmacro RemoveQuickerAgentStartMenuShortcut
@@ -161,11 +163,13 @@ FunctionEnd
 !macro customInit
   ; Default install dir — same as Tauri NSIS (currentUser mode).
   StrCpy $INSTDIR "$LOCALAPPDATA\QuickerAgent"
+  !ifndef BUILD_UNINSTALLER
   !insertmacro InitQuickerAgentShortcutChoices
   ; Never reuse prior shortcut choices from registry (user re-selects each run).
   DeleteRegValue SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" "KeepShortcuts"
   ; Stale Tauri uninstall entry (points at QuickerAgentTest).
   DeleteRegKey SHELL_CONTEXT "Software\Microsoft\Windows\CurrentVersion\Uninstall\QuickerAgent"
+  !endif
   !insertmacro StopQuickerAgentInstallTree
 !macroend
 
