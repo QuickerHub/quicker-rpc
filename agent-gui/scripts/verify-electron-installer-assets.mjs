@@ -45,9 +45,9 @@ if (!nsh.includes("ApplyQuickerAgentShortcutChoices")) {
   console.error("verify-electron-installer-assets: installer.nsh missing shortcut apply macro");
   process.exit(1);
 }
-if (nsh.includes("MUI_HEADER_TEXT")) {
+if (/!insertmacro\s+MUI_HEADER_TEXT/i.test(nsh)) {
   console.error(
-    "verify-electron-installer-assets: MUI_HEADER_TEXT is unavailable in electron-builder NSIS",
+    "verify-electron-installer-assets: MUI_HEADER_TEXT macro is unavailable in electron-builder NSIS",
   );
   process.exit(1);
 }

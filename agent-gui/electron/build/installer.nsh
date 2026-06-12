@@ -53,7 +53,7 @@ Var QA_CB_StartMenu
 !macroend
 
 Function QuickerAgentShortcutsPageCreate
-  ; PageEx Caption sets the wizard step title; MUI_HEADER_TEXT is unavailable in electron-builder NSIS.
+  ; PageEx Caption sets the wizard step title (no MUI header macro in electron-builder NSIS).
   nsDialogs::Create 1018
   Pop $QA_ShortcutDialog
   ${If} $QA_ShortcutDialog == error
