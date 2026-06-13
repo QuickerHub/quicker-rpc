@@ -1,5 +1,5 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
-import { resolveCompactionUsageThreshold } from "@/lib/context-compression";
+import { resolveCompactionUsageThreshold } from "@/lib/context-compression-shared";
 
 export type ContextCompressionScenario = {
   id: string;

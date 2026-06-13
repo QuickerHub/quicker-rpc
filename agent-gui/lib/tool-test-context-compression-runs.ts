@@ -1,5 +1,5 @@
 import type { AgentUIMessage, ContextCompressionMetadata } from "@/lib/chat-types";
-import type { ContextCompressionPreview } from "@/lib/context-compression";
+import type { ContextCompressionPreview } from "@/lib/context-compression-shared";
 
 export type ContextCompressionRunMode = "dry-run" | "chat";
 
