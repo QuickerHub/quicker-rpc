@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "goal": "Distill multi-step Quicker action patterns from library/local exemplars + live benchmarks; retrofit skills and prompt-tier0",
+  "plan": "docs/superpowers/plans/2026-06-13-quicker-action-authoring-learning.md",
+  "spec": "docs/authoring-references/action-patterns/SPEC.md",
+  "updatedAt": "2026-06-13T07:22:00.000Z",
+  "batchSize": 2,
+  "patterns": {
+    "selection-pipeline": {
+      "title": "选中文本 → 处理 → 写回",
+      "status": "done",
+      "batch": 0,
+      "completedAt": "2026-06-13T06:10:00.000Z",
+      "skillName": "quicker-authoring-selection-pipeline"
+    },
+    "clipboard-pipeline": {
+      "title": "剪贴板读写流水线",
+      "status": "done",
+      "batch": 0,
+      "completedAt": "2026-06-13T07:00:00.000Z",
+      "skillName": "quicker-authoring-clipboard-pipeline"
+    },
+    "http-json-api": {
+      "title": "HTTP + JSON 字段提取",
+      "status": "done",
+      "batch": 0,
+      "completedAt": "2026-06-13T06:10:00.000Z",
+      "skillName": "quicker-authoring-http-json-api"
+    },
+    "file-batch": {
+      "title": "多文件批处理",
+      "status": "done",
+      "batch": 1,
+      "completedAt": "2026-06-13T07:15:00.000Z",
+      "skillName": "quicker-authoring-file-batch"
+    },
+    "loop-control": {
+      "title": "循环与 break/continue",
+      "status": "done",
+      "batch": 1,
+      "completedAt": "2026-06-13T07:05:00.000Z",
+      "skillName": "quicker-authoring-loop-control"
+    },
+    "subprogram-extract": {
+      "title": "子程序抽取复用",
+      "status": "done",
+      "batch": 2,
+      "completedAt": "2026-06-13T07:15:00.000Z",
+      "skillName": "quicker-authoring-subprogram-extract"
+    },
+    "expression-first": {
+      "title": "表达式优先于模块",
+      "status": "done",
+      "batch": 2,
+      "completedAt": "2026-06-13T07:18:00.000Z",
+      "skillName": "quicker-authoring-expression-first"
+    },
+    "path-and-exists": {
+      "title": "路径检查与分支",
+      "status": "done",
+      "batch": 3,
+      "completedAt": "2026-06-13T07:18:00.000Z",
+      "skillName": "quicker-authoring-path-and-exists"
+    },
+    "delay-retry": {
+      "title": "延迟与重试",
+      "status": "done",
+      "batch": 3,
+      "completedAt": "2026-06-13T07:19:00.000Z",
+      "skillName": "quicker-authoring-delay-retry"
+    },
+    "ui-automation-lite": {
+      "title": "前台窗口与按键",
+      "status": "done",
+      "batch": 4,
+      "completedAt": "2026-06-13T07:21:00.000Z",
+      "skillName": "quicker-authoring-ui-automation-lite",
+      "notes": "trace: activate+delay UI_OK; keyInput on Electron may fail"
+    }
+  },
+  "benchmarks": {
+    "B01": { "title": "选中文本变换写回", "status": "done", "completedAt": "2026-06-13T06:10:00.000Z" },
+    "B02": { "title": "HTTP GET JSON 提取", "status": "done", "completedAt": "2026-06-13T06:10:00.000Z" },
+    "B03": { "title": "循环条件 break", "status": "done", "completedAt": "2026-06-13T07:05:00.000Z" },
+    "B04": { "title": "子程序复用", "status": "done", "completedAt": "2026-06-13T07:15:00.000Z" },
+    "B05": { "title": "文件批处理", "status": "done", "completedAt": "2026-06-13T07:15:00.000Z" }
+  },
+  "l4RetroCount": 1
+}

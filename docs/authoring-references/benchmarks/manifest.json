@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "plan": "docs/superpowers/plans/2026-06-13-quicker-action-authoring-learning.md",
+  "items": [
+    {
+      "id": "B01",
+      "title": "选中文本 → 大写 → 写回",
+      "acceptance": "trace 显示 text 变量为大写且写回成功",
+      "relatedPatterns": ["selection-pipeline"]
+    },
+    {
+      "id": "B02",
+      "title": "HTTP GET 公开 API → 提取字段",
+      "acceptance": "trace 显示 JSON 字段已写入变量",
+      "relatedPatterns": ["http-json-api"]
+    },
+    {
+      "id": "B03",
+      "title": "列表循环 + 条件 break",
+      "acceptance": "trace 显示在预期项 break",
+      "relatedPatterns": ["loop-control"]
+    },
+    {
+      "id": "B04",
+      "title": "逻辑抽到 global 子程序",
+      "acceptance": "主动作 call 子程序且输出一致",
+      "relatedPatterns": ["subprogram-extract"]
+    },
+    {
+      "id": "B05",
+      "title": "多文件合并写入",
+      "acceptance": "trace 显示输出文件内容正确",
+      "relatedPatterns": ["file-batch"]
+    }
+  ]
+}

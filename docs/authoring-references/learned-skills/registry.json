@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "parentSkill": "quicker-authoring",
+  "draftRoot": ".cursor/skills",
+  "spec": "docs/authoring-references/learned-skills/SPEC.md",
+  "plan": "docs/superpowers/plans/2026-06-13-quicker-action-authoring-learning.md",
+  "updatedAt": "2026-06-13T07:22:00.000Z",
+  "skills": [
+    {
+      "slug": "selection-pipeline",
+      "skillName": "quicker-authoring-selection-pipeline",
+      "status": "review",
+      "patternRef": "docs/authoring-references/action-patterns/selection-pipeline.md",
+      "skillPath": ".cursor/skills/quicker-authoring-selection-pipeline/SKILL.md",
+      "verifiedBy": ["B01", "trace:86b87ec7-a0d2-4c19-ae6a-408f55bc55c7"],
+      "sources": ["exemplar:bfa00a8f-e8e2-4c0a-97c5-08dac9653534", "exemplar:0e85836c-1bad-4209-9970-4d87d3f569df", "library search:选中文本 翻译"],
+      "reviewNotes": "首轮学习产出；benchmark 无头 param 验证通过",
+      "promotedAt": null
+    },
+    {
+      "slug": "http-json-api",
+      "skillName": "quicker-authoring-http-json-api",
+      "status": "review",
+      "patternRef": "docs/authoring-references/action-patterns/http-json-api.md",
+      "skillPath": ".cursor/skills/quicker-authoring-http-json-api/SKILL.md",
+      "verifiedBy": ["B02", "trace:69e84daf-9477-4840-baea-6923abdd8967"],
+      "sources": ["exemplar:99363ea4-da49-4667-95d6-08d66293b929", "kc:http", "live:httpbin.org/json"],
+      "reviewNotes": "首轮学习产出；author=Yours Truly status=200",
+      "promotedAt": null
+    },
+    {
+      "slug": "action-library-search",
+      "skillName": "quicker-action-library-search",
+      "status": "review",
+      "patternRef": "docs/authoring-references/getquicker-library-search/SPEC.md",
+      "skillPath": ".cursor/skills/quicker-action-library-search/SKILL.md",
+      "verifiedBy": ["live:选中文本/HTTP search", "phase0:library+shared+patch-guard"],
+      "sources": ["getquicker.net/Search HTML 2026-06-13", "qkrpc 0.14.4.59+"],
+      "reviewNotes": "P1+P2 已实现并验收（2026-06-13）；MCP qkrpc_action_library_search / qkrpc_action_shared_get",
+      "promotedAt": null
+    },
+    {
+      "slug": "clipboard-pipeline",
+      "skillName": "quicker-authoring-clipboard-pipeline",
+      "status": "review",
+      "patternRef": "docs/authoring-references/action-patterns/clipboard-pipeline.md",
+      "skillPath": ".cursor/skills/quicker-authoring-clipboard-pipeline/SKILL.md",
+      "verifiedBy": ["trace:ee9a6d10-c284-4c38-90d0-2b1aa422df81", "exemplar:99363ea4-da49-4667-95d6-08d66293b929"],
+      "sources": ["library search:剪贴板", "shared get full"],
+      "reviewNotes": "首个 API 闭环 pattern；writeClipboard type=text 用 text.var",
+      "promotedAt": null
+    },
+    {
+      "slug": "loop-control",
+      "skillName": "quicker-authoring-loop-control",
+      "status": "review",
+      "patternRef": "docs/authoring-references/action-patterns/loop-control.md",
+      "skillPath": ".cursor/skills/quicker-authoring-loop-control/SKILL.md",
+      "verifiedBy": ["B03", "trace:3950e311-1d20-40bb-91cc-cb3d7ce348ec"],
+      "sources": ["B03 retro", "each/break/simpleIf step-runner get"],
+      "reviewNotes": "卡点：sys:if 无 Else 用 simpleIf；each 子步骤在 ifSteps",
+      "promotedAt": null
+    },
+    {
+      "slug": "evalexpression-multi-var",
+      "skillName": "quicker-authoring-evalexpression-multi-var",
+      "status": "review",
+      "patternRef": null,
+      "skillPath": ".cursor/skills/quicker-authoring-evalexpression-multi-var/SKILL.md",
+      "verifiedBy": ["SDK-L2-2026-06-13:multi-var-assign", "retro:2026-06-13-sdk-l2-batch.md", "B03:evalexpression list init"],
+      "sources": ["quicker-eval-expression", "trace:b63593ce-d494-40f9-a87e-18011c443d28"],
+      "reviewNotes": "number 字面量 Convert.ToDouble；B03 亦用 evalexpression 建列表",
+      "promotedAt": null
+    },
+    {
+      "slug": "subprogram-extract",
+      "skillName": "quicker-authoring-subprogram-extract",
+      "status": "review",
+      "patternRef": "docs/authoring-references/action-patterns/subprogram-extract.md",
+      "skillPath": ".cursor/skills/quicker-authoring-subprogram-extract/SKILL.md",
+      "verifiedBy": ["B04", "trace:b4b9c75d-970b-41cb-9c5f-1bfd728ef1f5"],
+      "sources": ["subprogram-workflow", "voxtype-run-subprogram.patch.json"],
+      "reviewNotes": "IO wire: var:text / var:result；非 text.var",
+      "promotedAt": null
+    },
+    {
+      "slug": "file-batch",
+      "skillName": "quicker-authoring-file-batch",
+      "status": "review",
+      "patternRef": "docs/authoring-references/action-patterns/file-batch.md",
+      "skillPath": ".cursor/skills/quicker-authoring-file-batch/SKILL.md",
+      "verifiedBy": ["B05", "trace:5a9fba14-0b15-4fb8-9a32-c9be9f3a18ca"],
+      "sources": ["each", "readFile", "WriteTextFile"],
+      "reviewNotes": "无头 each+readFile+WriteTextFile；merged 含 line1/alpha",
+      "promotedAt": null
+    },
+    {
+      "slug": "expression-first",
+      "skillName": "quicker-authoring-expression-first",
+      "status": "review",
+      "patternRef": "docs/authoring-references/action-patterns/expression-first.md",
+      "skillPath": ".cursor/skills/quicker-authoring-expression-first/SKILL.md",
+      "verifiedBy": ["trace:171ea4d1-37eb-406b-9c08-05211d83dc1e", "SDK-L2:clip-lines-expr"],
+      "sources": ["quicker-eval-expression", "evalexpression LINQ dedupe"],
+      "reviewNotes": "单行 evalexpression 去重排序；showText line1/2/3",
+      "promotedAt": null
+    },
+    {
+      "slug": "path-and-exists",
+      "skillName": "quicker-authoring-path-and-exists",
+      "status": "review",
+      "patternRef": "docs/authoring-references/action-patterns/path-and-exists.md",
+      "skillPath": ".cursor/skills/quicker-authoring-path-and-exists/SKILL.md",
+      "verifiedBy": ["trace:dae912f1-6e66-4e56-b3f3-3dd943eb13d0"],
+      "sources": ["checkPathExists", "simpleIf", "b05-a.txt fixture"],
+      "reviewNotes": "isExists 非 isSuccess；双分支 simpleIf",
+      "promotedAt": null
+    },
+    {
+      "slug": "delay-retry",
+      "skillName": "quicker-authoring-delay-retry",
+      "status": "review",
+      "patternRef": "docs/authoring-references/action-patterns/delay-retry.md",
+      "skillPath": ".cursor/skills/quicker-authoring-delay-retry/SKILL.md",
+      "verifiedBy": ["trace:f6e7900d-78da-4deb-b3be-e9e0482ff0e5"],
+      "sources": ["repeat", "delay", "break", "simpleIf"],
+      "reviewNotes": "repeat ifSteps；第3轮 RETRY_OK+break",
+      "promotedAt": null
+    },
+    {
+      "slug": "ui-automation-lite",
+      "skillName": "quicker-authoring-ui-automation-lite",
+      "status": "review",
+      "patternRef": "docs/authoring-references/action-patterns/ui-automation-lite.md",
+      "skillPath": ".cursor/skills/quicker-authoring-ui-automation-lite/SKILL.md",
+      "verifiedBy": ["trace:3dca433f-a294-4044-b87c-c61a93565f45", "activate Cursor UI_OK"],
+      "sources": ["activateProcessMainWindow", "delay", "keyInput trap:Electron"],
+      "reviewNotes": "activate+delay trace OK；keyInput 在 Electron 可能失败；勿激活 Quicker",
+      "promotedAt": null
+    }
+  ]
+}
