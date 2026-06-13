@@ -1,4 +1,8 @@
 import { ACTION_LINK_SUMMARY_PROMPT } from "@/lib/action-link-markup";
+import {
+  AGENT_EXECUTION_PROMPT,
+  LAUNCHER_EXECUTION_PROMPT,
+} from "@/lib/agent-execution-prompt";
 import type { ChatMode } from "@/lib/chat-mode";
 import { CHAT_MODE_LAUNCHER } from "@/lib/chat-mode";
 import { SEARCH_STRATEGY_PROMPT } from "@/lib/search-strategy-prompt";
@@ -23,6 +27,8 @@ export const SYSTEM_INSTRUCTIONS = prompt(
   "- Describe outcomes plainly; execute tools silently. Surface only real decisions (which action, page, scope).",
   "- Be concise; summarize tool JSON briefly. Action query tables render in UI — never paste markdown tables.",
   "- After disk edits: one line pointing user to the right workbench (**已改动** / Diff) — do not paste full diffs unless asked.",
+  "",
+  AGENT_EXECUTION_PROMPT,
   "",
   "## Runtime",
   "- qkrpc via serve (HTTP → plugin), not per-call subprocesses. Sidebar cwd = workspace root for shell, qkrpc, workspace_program.",
@@ -57,6 +63,8 @@ const LAUNCHER_SYSTEM_INSTRUCTIONS_CORE = prompt(
   "",
   "## Communication",
   "User language (default Chinese). All user-visible text in one language per turn — no EN/ZH mix. No tool/CLI/JSON exposure.",
+  "",
+  LAUNCHER_EXECUTION_PROMPT,
   "",
   TOOL_ROUTING_PROMPT,
   "",

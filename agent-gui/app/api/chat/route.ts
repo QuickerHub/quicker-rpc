@@ -51,6 +51,7 @@ import {
   inferUserReplyLanguageFromMessages,
 } from "@/lib/user-reply-language";
 import { resolveSlashCommandForChat } from "@/lib/agent-defs/apply-chat-command.server";
+import { formatChatRuntimeContext } from "@/lib/agent-runtime-context";
 
 export const maxDuration = 120;
 
@@ -229,6 +230,12 @@ async function handleChatPost(req: Request) {
     const replyLanguageBlock = replyLanguage
       ? formatUserLanguageForSystem(replyLanguage)
       : null;
+    const runtimeContextBlock = formatChatRuntimeContext({
+      mode: chatMode,
+      cwd,
+      modelId,
+      enabledToolIds: Object.keys(tools),
+    });
     const launcherCacheBlock =
       chatMode === CHAT_MODE_LAUNCHER
         ? await buildLauncherCommandCachePromptBlock(lastUserText)
@@ -249,6 +256,7 @@ async function handleChatPost(req: Request) {
         ? "You are running in title-test mode for Quicker Agent GUI (/tool-test)."
         : null,
       systemWithScope,
+      runtimeContextBlock,
       replyLanguageBlock,
       launcherCacheBlock,
       titleInstruction,
