@@ -34,6 +34,8 @@ npm 包**仅启动** `qkrpc mcp`，不包含 skills。见 [packages/qkrpc-mcp/RE
 
 Skill 家族（`qkrpc agent setup` 默认）：`qkrpc`、`quicker-rpc-knowledge`、`quicker-authoring`、`quicker-eval-expression`、`quicker-run`。
 
+**Scenario 子 skill**（`quicker-authoring-*`、`quicker-action-library-search` 等 12 个）在 `docs/skills/` 中 **on-demand**，由 QuickerAgent catalog 自动发现，**不**写入 setup 默认列表。见 [docs/README.md](README.md) §Scenario 子 skill。
+
 `quicker-sync` 已 **deprecated**，不再默认安装；磁盘工作流见 skill `quicker-authoring` topic `workspace-editing`。旧安装可手动删除 `~/.cursor/skills/quicker-sync/`。
 
 ### Cursor Marketplace / 远程 registry

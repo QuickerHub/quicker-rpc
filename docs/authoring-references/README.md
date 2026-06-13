@@ -33,13 +33,14 @@ Deep references for Quicker action authoring — **not** generated from `action-
 |------|------|
 | P0–P7 工作流、schema topic | `action-authoring-src/` → `docs:gen` |
 | 单模块深文档、场景 pattern | **本目录**（直接嵌入） |
-| draft 路由 skill | `.cursor/skills/quicker-authoring-*` + [`learned-skills/registry.json`](learned-skills/registry.json) |
+| 场景路由 skill（已晋升） | `action-authoring-src/skills/` → `docs:gen` → `docs/skills/` |
+| 新 draft 路由 skill | `.cursor/skills/quicker-authoring-*` + [`learned-skills/registry.json`](learned-skills/registry.json) |
 
 ## Learned skills（draft → promoted）
 
 当前登记见 [`learned-skills/registry.json`](learned-skills/registry.json)（`status`: draft / review / promoted）。
 
-- **draft / review**：仅 `.cursor/skills/`，QuickerAgent **不** bundled
-- **promoted**：合并进 `action-authoring-src/skills/` → `docs:gen` → `docs/skills/`
+- **draft / review**：`.cursor/skills/`（学习 Agent）；QuickerAgent **不** bundled
+- **promoted**（2026-06）：`action-authoring-src/skills/` → `docs:gen` → `docs/skills/`（on-demand catalog）
 
 流程全文：[learned-skills/SPEC.md](learned-skills/SPEC.md) · 计划：[superpowers/plans/2026-06-13-quicker-action-authoring-learning.md](../superpowers/plans/2026-06-13-quicker-action-authoring-learning.md)

@@ -101,6 +101,19 @@ Draft 编写 skill 登记于 [`learned-skills/registry.json`](../authoring-refer
 
 批量晋升：`node scripts/promote-learned-skills-from-registry.mjs`。子 skill 生成由 `generate-authoring-docs.mjs` 自动扫描（除 `quicker-authoring` / `quicker-eval-expression`）。
 
+## 逻辑目录（Phase 3）
+
+`docs/` 按角色分区索引，**文件路径未搬迁**（AgentModel / `docs:gen` 嵌入路径不变）：
+
+| 索引 | 说明 |
+|------|------|
+| [`product/README.md`](../product/README.md) | 用户、集成、插件 |
+| [`engineering/README.md`](../engineering/README.md) | agent-gui、dev、子项目 |
+| [`authoring/README.md`](README.md) | 本页 + PIPELINE |
+| [`internal/README.md`](../internal/README.md) | superpowers 内部稿 |
+
+物理 `mv`（如 `action-authoring-src` → `authoring/guide-src`）仅在需要时单独 PR，须同步 AgentModel、agent-gui、生成脚本。
+
 ## 参见
 
 - [`action-authoring/README.md`](../action-authoring/README.md) — 生成钩子细节
