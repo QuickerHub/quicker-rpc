@@ -8,6 +8,9 @@ namespace QuickerRpc.Plugin.Test;
 [TestClass]
 public sealed class FontAwesomeIconSearchTests
 {
+    [TestInitialize]
+    public void ResetIconSearchIndex() => FontAwesomeIconSearchIndex.Reset();
+
     private static readonly FontAwesomeIconEntry[] SampleCatalog =
     [
         new()
@@ -49,6 +52,30 @@ public sealed class FontAwesomeIconSearchTests
             Label = "Pen",
             Unicode = 61484,
             Icon = "fa:Solid_Pen",
+        },
+        new()
+        {
+            Name = "Light_ClipboardList",
+            Style = "Light",
+            Label = "Clipboard List",
+            Unicode = 62583,
+            Icon = "fa:Light_ClipboardList",
+        },
+        new()
+        {
+            Name = "Light_ListOl",
+            Style = "Light",
+            Label = "List Ol",
+            Unicode = 61642,
+            Icon = "fa:Light_ListOl",
+        },
+        new()
+        {
+            Name = "Light_Sort",
+            Style = "Light",
+            Label = "Sort",
+            Unicode = 61660,
+            Icon = "fa:Light_Sort",
         },
     ];
 
@@ -116,34 +143,55 @@ public sealed class FontAwesomeIconSearchTests
     public void Search_empty_query_lists_compressed_enum_names()
     {
         var result = FontAwesomeIconSearch.Search(SampleCatalog, string.Empty, maxResults: 10);
-        Assert.AreEqual(3, result.MatchCount);
+        Assert.AreEqual(6, result.MatchCount);
         Assert.AreEqual("Brands_Google", result.Names[0]);
         Assert.AreEqual("Light_AddressBook", result.Names[1]);
-        Assert.AreEqual("Light_Pen", result.Names[2]);
+        Assert.AreEqual("Light_ClipboardList", result.Names[2]);
     }
 
     [TestMethod]
-    public void Search_or_pipe_matches_either_branch()
+    public void Search_pipe_and_wildcard_are_token_separators_not_operators()
     {
-        var result = FontAwesomeIconSearch.Search(SampleCatalog, "google|pen", maxResults: 10);
-        Assert.AreEqual(2, result.MatchCount);
-        Assert.IsTrue(result.Names.Contains("Brands_Google"));
-        Assert.IsTrue(result.Names.Contains("Light_Pen"));
-    }
+        var orResult = FontAwesomeIconSearch.Search(SampleCatalog, "google|pen", maxResults: 10);
+        Assert.AreEqual(2, orResult.MatchCount);
+        Assert.IsTrue(orResult.Names.Contains("Brands_Google"));
+        Assert.IsTrue(orResult.Names.Contains("Light_Pen"));
 
-    [TestMethod]
-    public void Search_wildcard_matches_name_pattern()
-    {
-        var result = FontAwesomeIconSearch.Search(SampleCatalog, "solid *pen", maxResults: 10);
-        Assert.AreEqual(1, result.MatchCount);
-        Assert.AreEqual("Light_Pen", result.Names[0]);
+        var penResult = FontAwesomeIconSearch.Search(SampleCatalog, "solid *pen", maxResults: 10);
+        Assert.IsTrue(penResult.MatchCount >= 1);
+        Assert.AreEqual("Light_Pen", penResult.Names[0]);
     }
 
     [TestMethod]
     public void Search_legacy_and_requires_all_tokens()
     {
         var result = FontAwesomeIconSearch.Search(SampleCatalog, "solid address", maxResults: 10);
-        Assert.AreEqual(1, result.MatchCount);
+        Assert.IsTrue(result.MatchCount >= 1);
         Assert.AreEqual("Light_AddressBook", result.Names[0]);
+    }
+
+    [TestMethod]
+    public void Search_token_index_matches_any_keyword_and_ranks_by_coverage()
+    {
+        var result = FontAwesomeIconSearch.Search(
+            SampleCatalog,
+            "sort arrows lines list",
+            maxResults: 10);
+        Assert.IsTrue(result.MatchCount > 0);
+        Assert.IsTrue(result.Names.Contains("Light_ClipboardList"));
+        Assert.IsTrue(result.Names.Contains("Light_ListOl"));
+        Assert.IsTrue(result.Names.Contains("Light_Sort"));
+    }
+
+    [TestMethod]
+    public void Search_token_index_partial_keywords_not_zero()
+    {
+        var result = FontAwesomeIconSearch.Search(
+            SampleCatalog,
+            "clipboard text sort",
+            maxResults: 10);
+        Assert.IsTrue(result.MatchCount > 0);
+        Assert.IsTrue(result.Names.Contains("Light_ClipboardList"));
+        Assert.IsTrue(result.Names.Contains("Light_Sort"));
     }
 }

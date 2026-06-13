@@ -34,4 +34,14 @@ public sealed class SearchFieldWeights
             ["aliases"] = 5,
             ["body"] = 1,
         });
+
+    public static SearchFieldWeights ForFaIcon() =>
+        new(new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["name"] = 8,
+            ["icon"] = 8,
+            ["glyph"] = 8,
+            ["label"] = 4,
+            ["style"] = 2,
+        });
 }

@@ -51,7 +51,6 @@ public static class FontAwesomeIconSearch
     {
         var limit = ClampLimit(maxResults);
         var kw = (query ?? string.Empty).Trim();
-        var parsed = FontAwesomeIconSearchQuery.Parse(kw);
 
         List<(FontAwesomeIconEntry Entry, int Score)> ranked;
         if (kw.Length == 0)
@@ -63,12 +62,11 @@ public static class FontAwesomeIconSearch
         }
         else
         {
-            ranked = catalog
-                .Select(e => (Entry: e, Score: FontAwesomeIconSearchQuery.ComputeSortScore(e, parsed)))
-                .Where(x => FontAwesomeIconSearchQuery.RowMatches(x.Entry, parsed))
-                .OrderByDescending(x => x.Score)
-                .ThenBy(x => x.Entry.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(x => (x.Entry, x.Score))
+            FontAwesomeIconSearchIndex.EnsurePublished(catalog);
+            ranked = FontAwesomeIconSearchIndex
+                .Search(kw, limit: int.MaxValue)
+                .Take(MaxLimit)
+                .Select(hit => ((FontAwesomeIconEntry)hit.Payload!, hit.Score))
                 .ToList();
         }
 
