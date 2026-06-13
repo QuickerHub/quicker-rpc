@@ -3,7 +3,8 @@
 用于评估 Agent **分析、规划、选型、检索、实现、流程遵守、可运行性**。任务以**自然语言**发出，不要在 prompt 里写工具名。
 
 **数据源**：[`agent-gui/benchmarks/authoring-tasks.json`](../agent-gui/benchmarks/authoring-tasks.json)  
-**代码**：[`agent-gui/lib/authoring-benchmark.ts`](../agent-gui/lib/authoring-benchmark.ts)
+**代码**：[`agent-gui/lib/authoring-benchmark.ts`](../agent-gui/lib/authoring-benchmark.ts)  
+**复制用 prompt 列表**：[agent-test-prompts.txt](agent-test-prompts.txt)
 
 ---
 

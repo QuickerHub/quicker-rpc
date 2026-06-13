@@ -65,11 +65,11 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 
 ## 2. Agent Skills（[agentskills.io](https://agentskills.io/specification)）
 
-加载器：`lib/agent-skills/`（发现 `docs/skills/*/SKILL.md`、解析 frontmatter、渐进披露）。Authoring 专题目录仍由 `lib/action-authoring-docs.ts` 提供 `docs` 工具与 topic 索引。
+加载器：`lib/agent-skills/`（发现 `docs/skills/*/SKILL.md`、解析 frontmatter、渐进披露）。Authoring 专题目录仍由 `lib/action-authoring-docs.ts` 提供 `docs` 工具与 topic 索引。工作区自定义 commands/skills 见 [agent-defs-spec.md](agent-defs-spec.md)。
 
 | Tier | 内容 | 何时 | 实现 |
 |------|------|------|------|
-| 1 Catalog | `name` + `description` | Agent 每次 chat | `formatSkillCatalogForPrompt()` — 非预加载 skill（qkrpc、quicker-run、quicker-sync） |
+| 1 Catalog | `name` + `description` | Agent 每次 chat | `formatSkillCatalogForPrompt()` — 非预加载 skill（qkrpc、quicker-run 等） |
 | 2 Instructions | `prompt-tier0.md` 或 `SKILL.md` body | 预加载 skill | `formatAllPreloadedSkillsForPrompt()` — 当前仅 `quicker-authoring` |
 | 1.5 Search-first | `search-strategy-prompt.ts` | Agent 每次 chat | `SEARCH_STRATEGY_PROMPT`（先 search 再 get/猜） |
 | 2b Topic index | `topics.json` 按 layer（仅 topic id + description） | 与 tier 2 同批 | `formatAuthoringTopicIndexForPrompt()` |

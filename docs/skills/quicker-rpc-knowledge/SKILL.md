@@ -146,7 +146,7 @@ Full decision tree: [references/connectivity.md](references/connectivity.md)
 | Call qkrpc / MCP tools | `qkrpc` |
 | Connection failed (this doc) | `quicker-rpc-knowledge` |
 | Write/edit actions | `quicker-authoring` |
-| `.quicker/` pull/push | `quicker-sync` |
+| `.quicker/` disk edit | `quicker-authoring` → topic `workspace-editing` |
 | Run/debug only | `quicker-run` |
 | After C# changes, hot-reload | `quicker-rpc-build-test` |
 

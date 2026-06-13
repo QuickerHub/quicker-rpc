@@ -41,7 +41,7 @@ qkrpc agent setup --workspace D:\your-quicker-workspace
 | 产物 | 路径 |
 |------|------|
 | MCP | `~/.cursor/mcp.json`（stdio: `qkrpc mcp`） |
-| Skills | `~/.cursor/skills/`：`qkrpc`、`quicker-rpc-knowledge`、`quicker-authoring`、`quicker-sync`、`quicker-run` |
+| Skills | `~/.cursor/skills/`：`qkrpc`、`quicker-rpc-knowledge`、`quicker-authoring`、`quicker-eval-expression`、`quicker-run` |
 | Rules | `~/.cursor/rules/qkrpc.mdc` |
 | Manifest | `~/.qkrpc/agent-setup.json`（`cliVersion` 用于 `--check`） |
 

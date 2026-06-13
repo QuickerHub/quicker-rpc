@@ -22,7 +22,9 @@ QuickerAgent 通过工作区 `.quicker/` 命名空间声明 **commands**、**ski
   agents/
 ```
 
-内置 skills（仓库 `docs/skills/`，仅 skills）随 QuickerAgent 分发。
+内置 skills（仓库 `docs/skills/`，仅 skills）随 QuickerAgent 分发。工作区自定义能力见本文；规范全文即本文档。
+
+相关：[agent-gui-prompt-structure.md](agent-gui-prompt-structure.md)（Skill 如何注入 system prompt）。
 
 ## 发现优先级
 

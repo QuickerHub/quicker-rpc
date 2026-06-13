@@ -453,7 +453,6 @@ internal static class QkrpcAgentSetupDefaults
         "quicker-rpc-knowledge",
         "quicker-authoring",
         "quicker-eval-expression",
-        "quicker-sync",
         "quicker-run",
     ];
 }

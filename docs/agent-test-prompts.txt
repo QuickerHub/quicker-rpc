@@ -1,3 +1,6 @@
+# QuickerAgent 动作编写 Benchmark — 用户 prompt 列表
+# 完整评测说明与评分维度见 docs/agent-authoring-benchmark.md
+
 # --- 窗口与桌面 ---
 
 写一个 把前台窗口设置为屏幕 1/2 比例大小并屏幕居中位置的 动作

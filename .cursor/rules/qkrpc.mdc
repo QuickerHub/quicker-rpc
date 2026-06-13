@@ -14,7 +14,7 @@ alwaysApply: true
 ## Hard rules
 
 - Step-runner: `qkrpc_step_runner_search` → `qkrpc_step_runner_get` — **never** guess `inputParams`
-- Disk edit: change `data.json` / `files/` → `qkrpc_sync push` — **no** inline patch
+- Disk edit: `qkrpc_action_get` / `qkrpc_subprogram_get` → edit `.quicker/` with **host file tools** → headless `action patch` / `subprogram patch` (or QuickerAgent `workspace_program`) — **no** inline patch JSON; deprecated `qkrpc_sync`
 - Connectivity: use `qkrpc_wait` on failure — **no** repeated shell ping/probe
 - On persistent failure: read skill **`quicker-rpc-knowledge`** (QuickerAgent action vs AI agent, bootstrap, user checklist)
 - Prefer MCP `qkrpc_*` tools over shell when configured

@@ -32,7 +32,9 @@ npm 包**仅启动** `qkrpc mcp`，不包含 skills。见 [packages/qkrpc-mcp/RE
 | 仓库源码 | `docs/skills/*` |
 | CLI 安装目录 | `%LOCALAPPDATA%\Programs\qkrpc\skills\` |
 
-Skill 家族：`qkrpc`、`quicker-rpc-knowledge`、`quicker-authoring`、`quicker-eval-expression`、`quicker-sync`、`quicker-run`。
+Skill 家族（`qkrpc agent setup` 默认）：`qkrpc`、`quicker-rpc-knowledge`、`quicker-authoring`、`quicker-eval-expression`、`quicker-run`。
+
+`quicker-sync` 已 **deprecated**，不再默认安装；磁盘工作流见 skill `quicker-authoring` topic `workspace-editing`。旧安装可手动删除 `~/.cursor/skills/quicker-sync/`。
 
 ### Cursor Marketplace / 远程 registry
 
