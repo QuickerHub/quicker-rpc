@@ -139,6 +139,14 @@
       "completedAt": "2026-06-13T09:15:00.000Z",
       "skillName": "quicker-authoring-csv-parse-aggregate",
       "notes": "3,35 trace；parseOk vs clipOk"
+    },
+    "step-comments": {
+      "title": "步骤注释自描述",
+      "status": "done",
+      "batch": 8,
+      "completedAt": "2026-06-13T18:00:00.000Z",
+      "skillName": "quicker-authoring-step-comments",
+      "notes": "sys:comment 分段；structure 自检；todo 强制注释"
     }
   },
   "benchmarks": {
@@ -148,7 +156,7 @@
     "B04": { "title": "子程序复用", "status": "done", "completedAt": "2026-06-13T07:15:00.000Z" },
     "B05": { "title": "文件批处理", "status": "done", "completedAt": "2026-06-13T07:15:00.000Z" }
   },
-  "l4RetroCount": 2,
+  "l4RetroCount": 3,
   "postL2": {
     "discover-library-search": "done",
     "subprogram-var-io-doc": "done",
@@ -169,8 +177,40 @@
   },
   "backlog": {
     "pending": [],
-    "notes": "L2 backlog cleared; next: authoring-tasks eval or new patterns from library"
+    "notes": "Use queue[] for /learn-authoring; patterns L2 complete — incremental library + skill promote"
   },
+  "queue": [
+    {
+      "id": "library-exemplar-round4",
+      "type": "library-exemplar",
+      "title": "动作库解构 Round 4（2–3 sharedId）",
+      "status": "pending",
+      "params": {
+        "count": 3,
+        "keywords": ["剪贴板", "正则", "HTTP"]
+      }
+    },
+    {
+      "id": "promote-step-comments",
+      "type": "skill-promote",
+      "title": "step-comments draft → review/promoted",
+      "status": "pending",
+      "params": {
+        "slug": "step-comments",
+        "skillName": "quicker-authoring-step-comments"
+      }
+    },
+    {
+      "id": "clipboard-pipeline-regex",
+      "type": "pattern-enrich",
+      "title": "clipboard-pipeline 并入 regexExtract exemplar",
+      "status": "pending",
+      "params": {
+        "pattern": "clipboard-pipeline",
+        "sharedIdHint": "99363ea4"
+      }
+    }
+  ],
   "authoringTasksEval": {
     "startedAt": "2026-06-13T09:30:00.000Z",
     "updatedAt": "2026-06-13T17:00:00.000Z",
@@ -214,6 +254,8 @@
       "file-edit-comment": "pass",
       "external-eval-cs": "pass_mock"
     },
-    "docFix": "inputParams JSON vs inline patch clarified; docs:gen ok"
+    "docFix": "inputParams JSON vs inline patch clarified; docs:gen ok",
+    "authoringTasks25": "pass",
+    "libraryExemplarRound3": "docs/authoring-references/benchmarks/retro/2026-06-13-library-exemplar-round3.md"
   }
 }

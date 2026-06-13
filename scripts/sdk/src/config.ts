@@ -11,9 +11,14 @@ const srcDir = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = join(srcDir, "..", "..", "..");
 
 export function resolveQkrpcExe(): string {
-  const publishCli = join(REPO_ROOT, "publish", "cli", "qkrpc.exe");
-  if (existsSync(publishCli)) {
-    return publishCli;
+  const candidates = [
+    join(REPO_ROOT, "publish", "cli-new", "qkrpc.exe"),
+    join(REPO_ROOT, "publish", "cli", "qkrpc.exe"),
+  ];
+  for (const exe of candidates) {
+    if (existsSync(exe)) {
+      return exe;
+    }
   }
 
   const installed = join(

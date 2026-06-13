@@ -7802,6 +7802,7 @@ textarea {
 /* Assistant tool rows: muted summary titles (single cards + batch groups). */
 .msg--assistant .tool-card > .tool-summary,
 .msg--assistant .tool-card--nested > .tool-summary,
+.msg--assistant .tool-card-actions--summary .tool-summary,
 .msg--assistant .tool-batch > .tool-batch-summary {
   padding: 0.06rem 0.35rem;
   line-height: 1.35;
@@ -7809,6 +7810,7 @@ textarea {
 
 .msg--assistant .tool-card > .tool-summary .tool-name,
 .msg--assistant .tool-card--nested > .tool-summary .tool-name,
+.msg--assistant .tool-card-actions--summary .tool-summary .tool-name,
 .msg--assistant .tool-batch > .tool-batch-summary .tool-name,
 .msg--assistant .tool-card--docs-open .tool-docs-open-btn .tool-name,
 .msg--assistant .tool-card--file-open .tool-file-open-btn .tool-name {
@@ -7820,6 +7822,7 @@ textarea {
 
 .msg--assistant .tool-card > .tool-summary .tool-meta,
 .msg--assistant .tool-card--nested > .tool-summary .tool-meta,
+.msg--assistant .tool-card-actions--summary .tool-summary .tool-meta,
 .msg--assistant .tool-batch > .tool-batch-summary .tool-meta,
 .msg--assistant .tool-card--docs-open .tool-docs-open-btn .tool-meta,
 .msg--assistant .tool-card--file-open .tool-file-open-btn .tool-meta,
@@ -7834,6 +7837,7 @@ textarea {
 
 .msg--assistant .tool-card > .tool-summary:hover,
 .msg--assistant .tool-card--nested > .tool-summary:hover,
+.msg--assistant .tool-card-actions--summary .tool-summary:hover,
 .msg--assistant .tool-batch > .tool-batch-summary:hover,
 .msg--assistant .tool-card--docs-open .tool-docs-open-btn:hover,
 .msg--assistant .tool-card--file-open .tool-file-open-btn:hover {
@@ -7842,6 +7846,7 @@ textarea {
 
 .msg--assistant .tool-card > .tool-summary:hover .tool-name,
 .msg--assistant .tool-card--nested > .tool-summary:hover .tool-name,
+.msg--assistant .tool-card-actions--summary .tool-summary:hover .tool-name,
 .msg--assistant .tool-batch > .tool-batch-summary:hover .tool-name,
 .msg--assistant .tool-card--docs-open .tool-docs-open-btn:hover .tool-name,
 .msg--assistant .tool-card--file-open .tool-file-open-btn:hover .tool-name {
@@ -7850,6 +7855,7 @@ textarea {
 
 .msg--assistant .tool-card > .tool-summary:hover .tool-meta:not(.tool-meta--running):not(.tool-meta--err):not(.tool-meta--approval),
 .msg--assistant .tool-card--nested > .tool-summary:hover .tool-meta:not(.tool-meta--running):not(.tool-meta--err):not(.tool-meta--approval),
+.msg--assistant .tool-card-actions--summary .tool-summary:hover .tool-meta:not(.tool-meta--running):not(.tool-meta--err):not(.tool-meta--approval),
 .msg--assistant .tool-batch > .tool-batch-summary:hover .tool-meta:not(.tool-meta--running):not(.tool-meta--err):not(.tool-meta--approval),
 .msg--assistant .tool-card--docs-open .tool-docs-open-btn:hover .tool-meta:not(.tool-meta--running):not(.tool-meta--err):not(.tool-meta--approval),
 .msg--assistant .tool-card--file-open .tool-file-open-btn:hover .tool-meta:not(.tool-meta--running):not(.tool-meta--err):not(.tool-meta--approval) {
@@ -7859,6 +7865,7 @@ textarea {
 
 .msg--assistant .tool-card > .tool-summary .tool-meta--running,
 .msg--assistant .tool-card--nested > .tool-summary .tool-meta--running,
+.msg--assistant .tool-card-actions--summary .tool-summary .tool-meta--running,
 .msg--assistant .tool-batch > .tool-batch-summary .tool-meta--running,
 .msg--assistant .tool-card--file-editor .file-snapshot-tool-title .tool-meta--running {
   color: var(--accent);
@@ -7867,6 +7874,7 @@ textarea {
 
 .msg--assistant .tool-card > .tool-summary .tool-meta--err,
 .msg--assistant .tool-card--nested > .tool-summary .tool-meta--err,
+.msg--assistant .tool-card-actions--summary .tool-summary .tool-meta--err,
 .msg--assistant .tool-batch > .tool-batch-summary .tool-meta--err,
 .msg--assistant .tool-card--file-editor .file-snapshot-tool-title .tool-meta--err {
   color: var(--status-err-text);
@@ -7875,6 +7883,7 @@ textarea {
 
 .msg--assistant .tool-card > .tool-summary .tool-meta--approval,
 .msg--assistant .tool-card--nested > .tool-summary .tool-meta--approval,
+.msg--assistant .tool-card-actions--summary .tool-summary .tool-meta--approval,
 .msg--assistant .tool-batch > .tool-batch-summary .tool-meta--approval {
   color: var(--warn, #cca700);
   opacity: 1;
@@ -8745,7 +8754,12 @@ button.tool-summary:disabled .tool-chevron {
 }
 
 .tool-card-actions--summary {
-  padding: 0.06rem 0.35rem;
+  padding: 0;
+}
+
+.tool-card-actions--summary .tool-summary {
+  flex: 1;
+  min-width: 0;
 }
 
 .tool-card-actions--corner {
@@ -10302,12 +10316,14 @@ button.tool-summary:disabled .tool-chevron {
   font-variant-numeric: tabular-nums;
 }
 
-.tool-card--preview > .tool-summary--static {
+.tool-card--preview > .tool-summary--static,
+.tool-card--preview .tool-card-actions--summary .tool-summary--static {
   cursor: default;
   list-style: none;
 }
 
-.tool-card--preview > .tool-summary--static .tool-chevron {
+.tool-card--preview > .tool-summary--static .tool-chevron,
+.tool-card--preview .tool-card-actions--summary .tool-summary--static .tool-chevron {
   display: none;
 }
 

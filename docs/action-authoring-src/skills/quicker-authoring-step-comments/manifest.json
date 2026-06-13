@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-step-comments",
+  "description": "Quicker 多步动作自描述：sys:comment 分段注释，便于 structure 阅读与 Agent 自检。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

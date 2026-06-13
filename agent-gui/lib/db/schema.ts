@@ -24,6 +24,7 @@ export const chatThreads = sqliteTable("chat_threads", {
   workingDirectory: text("working_directory").notNull().default(""),
   actionDesignerEntityId: text("action_designer_entity_id"),
   actionDesignerIsSubProgram: integer("action_designer_is_sub_program"),
+  authoringFocusJson: text("authoring_focus_json"),
 });
 
 export const chatThreadMessages = sqliteTable("chat_thread_messages", {

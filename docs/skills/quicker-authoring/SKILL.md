@@ -46,6 +46,7 @@ Load sibling skills when the task matches (QuickerAgent catalog / Cursor `docs/s
 | window title branch | **quicker-authoring-window-title-branch** |
 | external `files/*.eval.cs` | **quicker-authoring-external-eval-cs** |
 | clipboard CSV stats | **quicker-authoring-csv-parse-aggregate** |
+| multi-step structure comments | **quicker-authoring-step-comments** |
 
 Run/settings/layout → main agent Capabilities (not this skill).
 

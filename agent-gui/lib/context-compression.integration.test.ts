@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 import type { AgentUIMessage } from "@/lib/chat-types";
-import { prepareCompressedContext } from "@/lib/context-compression";
+import {
+  prepareCompressedContext,
+  resolveCompactionUsageThreshold,
+} from "@/lib/context-compression";
 
 function userMessage(id: string, text: string): AgentUIMessage {
   return {
@@ -42,7 +45,9 @@ describe("prepareCompressedContext integration", () => {
     const messages = buildLongThread(16);
     const latestAssistant = messages[messages.length - 1]!;
     assert.equal(latestAssistant.role, "assistant");
-    latestAssistant.metadata = { inputTokens: 95_000 };
+    latestAssistant.metadata = {
+      inputTokens: resolveCompactionUsageThreshold(128_000),
+    };
 
     const prepared = await prepareCompressedContext({
       messages,
@@ -64,7 +69,7 @@ describe("prepareCompressedContext integration", () => {
     const messages = [
       ...buildLongThread(14),
       assistantMessage("a-summary", "done", {
-        inputTokens: 95_000,
+        inputTokens: resolveCompactionUsageThreshold(128_000) + 1_000,
         contextCompression: {
           summary: "reused summary",
           throughMessageId: "u-10",

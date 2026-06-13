@@ -271,7 +271,7 @@ pattern `done` 且 trace 通过后，按 SPEC §3 判定是否建子 skill；建
 每 3 pattern 触发 Phase 6
 ```
 
-脚本占位（可后续实现）：`scripts/init-action-pattern-learning-progress.mjs`、`scripts/run-action-learning-loop.ps1`。
+脚本：`scripts/action-authoring-learning-progress.mjs`、`scripts/run-action-learning-loop.ps1`。IDE 入口：**`/learn-authoring`**（见 `.cursor/commands/`）。
 
 ---
 

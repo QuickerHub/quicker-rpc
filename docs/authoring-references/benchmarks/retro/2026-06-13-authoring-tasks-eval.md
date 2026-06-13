@@ -98,5 +98,7 @@ $cli = "D:\source\repos\quicker\quicker-rpc\publish\cli\qkrpc.exe"
 
 ## 下一步
 
-1. 可选：live 运行 `HTTP GET origin` 确认 500ms 延时体感
-2. 正式发布含 ActionRuntime if 修复（第三段 +1）
+1. **step-comments** skill：`draft` → 一轮实写带 comment 的 trace 后 `promoted`
+2. 合并 **regexExtract 剪贴板路径** 到 clipboard-pipeline 文档（exemplar 99363ea4）
+3. 正式发布含 ActionRuntime if 修复（第三段 +1）
+4. 浏览器自动化 → Quicker 动作链条（todo 长期项）

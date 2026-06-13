@@ -44,7 +44,7 @@ On-demand — full route table in parent **quicker-authoring** SKILL (`Scenario 
 - Search before guess (see system Search-first); docs search → items[].snippet; docs get(topic) only for full workflow
 - NO guess inputParams without step_runner_search → get
 - NO get-ui / step-runner.getUi
-- NO inline patch / --patch-file (program body); `inputParams` JSON literals OK — action-data-schema
+- NO inline program-body patch / whole-program `--patch-file`; step `inputParams` literals per get
 - After patch trust editVersion; NO re-get to verify
 - P4: load **quicker-eval-expression** skill; expressions / evalexpression → module → csscript last
 

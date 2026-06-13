@@ -7,6 +7,7 @@ import {
 } from "@/lib/context-length";
 import {
   resolveContextSplitIndex,
+  resolveCompactionUsageThreshold,
   selectReusableContextSummary,
   shouldCompressContextMessages,
   previewContextCompression,
@@ -55,12 +56,15 @@ describe("shouldCompressContextMessages", () => {
     assert.equal(shouldCompressContextMessages(messages, 128_000), false);
   });
 
-  it("returns true when latest inputTokens reach 70% of window", () => {
+  it("returns true when latest inputTokens reach ~90% of window", () => {
+    const contextLimit = 128_000;
+    const threshold = resolveCompactionUsageThreshold(contextLimit);
     const messages = [
       userMessage("u1", "hello"),
-      assistantMessage("a1", "hi", { inputTokens: 90_000 }),
+      assistantMessage("a1", "hi", { inputTokens: threshold }),
     ];
-    assert.equal(shouldCompressContextMessages(messages, 128_000), true);
+    assert.equal(shouldCompressContextMessages(messages, contextLimit), true);
+    assert.ok(threshold >= Math.floor(contextLimit * 0.9) - 1);
   });
 });
 
@@ -76,15 +80,18 @@ describe("resolveContextSplitIndex", () => {
 
 describe("previewContextCompression", () => {
   it("reports split and threshold diagnostics", () => {
+    const contextLimit = 128_000;
+    const threshold = resolveCompactionUsageThreshold(contextLimit);
     const messages = [
       ...buildLongThread(16),
-      assistantMessage("a-last", "ok", { inputTokens: 90_000 }),
+      assistantMessage("a-last", "ok", { inputTokens: threshold }),
     ];
-    const preview = previewContextCompression(messages, 128_000);
+    const preview = previewContextCompression(messages, contextLimit);
     assert.equal(preview.shouldCompress, true);
     assert.equal(preview.olderCount, 5);
     assert.equal(preview.recentCount, 12);
-    assert.equal(preview.latestInputTokens, 90_000);
+    assert.equal(preview.latestInputTokens, threshold);
+    assert.equal(preview.usageThreshold, threshold);
   });
 });
 
@@ -167,7 +174,7 @@ describe("prepareCompressedContext reasoning history", () => {
     );
   });
 
-  it("prunes assistant reasoning for non-DeepSeek models", async () => {
+  it("preserves assistant reasoning on short threads without pruning", async () => {
     const messages: AgentUIMessage[] = [
       userMessage("u1", "hi"),
       {
@@ -196,7 +203,7 @@ describe("prepareCompressedContext reasoning history", () => {
     );
     assert.ok(assistant);
     assert.ok(Array.isArray(assistant.content));
-    assert.equal(
+    assert.ok(
       assistant.content.some(
         (part) =>
           typeof part === "object"
@@ -204,8 +211,55 @@ describe("prepareCompressedContext reasoning history", () => {
           && "type" in part
           && part.type === "reasoning",
       ),
-      false,
     );
+  });
+
+  it("preserves tool outputs on short multi-step threads", async () => {
+    const messages: AgentUIMessage[] = [
+      userMessage("u1", "create action"),
+      {
+        id: "a1",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-qkrpc_action_create",
+            toolCallId: "call-create",
+            state: "output-available",
+            input: { info: { title: "Demo" } },
+            output: {
+              ok: true,
+              exitCode: 0,
+              data: { actionId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" },
+            },
+          },
+          { type: "text", text: "created" },
+        ],
+      },
+      userMessage("u2", "continue editing"),
+    ];
+
+    const prepared = await prepareCompressedContext({
+      messages,
+      model: {} as never,
+      contextLimit: 128_000,
+    });
+
+    assert.equal(prepared.compressed, false);
+    let toolResults = 0;
+    for (const message of prepared.modelMessages) {
+      if (!Array.isArray(message.content)) continue;
+      for (const part of message.content) {
+        if (
+          typeof part === "object"
+          && part != null
+          && "type" in part
+          && part.type === "tool-result"
+        ) {
+          toolResults += 1;
+        }
+      }
+    }
+    assert.ok(toolResults > 0, "tool results must survive short-thread path");
   });
 });
 

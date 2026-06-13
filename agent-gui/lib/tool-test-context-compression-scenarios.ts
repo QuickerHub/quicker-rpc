@@ -1,4 +1,5 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
+import { resolveCompactionUsageThreshold } from "@/lib/context-compression";
 
 export type ContextCompressionScenario = {
   id: string;
@@ -7,7 +8,7 @@ export type ContextCompressionScenario = {
   contextLimit: number;
   /** When set, applied to the last assistant message before dry-run / chat. */
   simulatedInputTokens?: number;
-  /** Bypass 70% / 85% thresholds (still requires splitIndex > 0). */
+  /** Bypass ~90% thresholds (still requires splitIndex > 0). */
   force?: boolean;
   buildMessages: () => AgentUIMessage[];
   /** User message sent after seed thread (chat verification mode). */
@@ -88,14 +89,17 @@ export function materializeScenarioMessages(
   return messages;
 }
 
+export const CONTEXT_COMPRESSION_USAGE_THRESHOLD_128K =
+  resolveCompactionUsageThreshold(128_000);
+
 export const CONTEXT_COMPRESSION_SCENARIOS: ContextCompressionScenario[] = [
   {
-    id: "threshold-70",
-    label: "阈值触发（70% usage）",
+    id: "threshold-90",
+    label: "阈值触发（~90% usage）",
     description:
-      "16 轮对话 + 末条 assistant inputTokens≈90K / 128K，应走 LLM 摘要并保留最近 12 条",
+      "16 轮对话 + 末条 assistant inputTokens≈90% / 128K，应走 LLM 摘要并保留最近 12 条",
     contextLimit: 128_000,
-    simulatedInputTokens: 90_000,
+    simulatedInputTokens: CONTEXT_COMPRESSION_USAGE_THRESHOLD_128K,
     buildMessages: () => buildLongThread(16),
     continuePrompt: "用一句话说明：上文摘要里用户最初的目标是什么？",
   },
@@ -105,15 +109,15 @@ export const CONTEXT_COMPRESSION_SCENARIOS: ContextCompressionScenario[] = [
     description:
       "线程里已有 contextCompression 元数据，续写时不应再次调用压缩 LLM",
     contextLimit: 128_000,
-    simulatedInputTokens: 95_000,
+    simulatedInputTokens: CONTEXT_COMPRESSION_USAGE_THRESHOLD_128K + 1_000,
     buildMessages: () => [
       ...buildLongThread(14),
       assistantMessage("a-summary", "已压缩历史。", {
-        inputTokens: 95_000,
+        inputTokens: CONTEXT_COMPRESSION_USAGE_THRESHOLD_128K + 1_000,
         contextCompression: {
           summary: "User wants clipboard sync; steps 0–10 explored paths and errors.",
           throughMessageId: "u-10",
-          sourceInputTokens: 90_000,
+          sourceInputTokens: CONTEXT_COMPRESSION_USAGE_THRESHOLD_128K,
           createdAt: Date.now(),
           recentMessagesKept: 12,
           totalMessagesAtCreation: 14,
@@ -126,7 +130,7 @@ export const CONTEXT_COMPRESSION_SCENARIOS: ContextCompressionScenario[] = [
   {
     id: "below-threshold",
     label: "未达阈值（不压缩）",
-    description: "短线程 + 低 usage，prepareCompressedContext 应原样返回",
+    description: "短线程 + 低 usage：完整 messages 送模，不 prune、不 summary",
     contextLimit: 128_000,
     simulatedInputTokens: 4_000,
     buildMessages: () => buildLongThread(6),

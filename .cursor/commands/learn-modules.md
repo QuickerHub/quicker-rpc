@@ -1,5 +1,7 @@
 # learn-modules — 逐模块学习 step-runner 并蒸馏 authored ref
 
+> L1 单模块（**143/143 维护态**）。动作级 pattern / 动作库学习用 **`/learn-authoring`**；命令索引见 **`/cursor-cli`**。
+
 按 [docs/superpowers/plans/2026-06-13-step-module-learning.md](../../docs/superpowers/plans/2026-06-13-step-module-learning.md) 执行一轮模块学习。
 
 ## 步骤

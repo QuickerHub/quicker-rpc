@@ -67,7 +67,7 @@ export function ToolTestContextCompressionPanel({
   const [running, setRunning] = useState(false);
   const [mode, setMode] = useState<ContextCompressionRunMode>("dry-run");
   const [scenarioId, setScenarioId] = useState(
-    () => CONTEXT_COMPRESSION_SCENARIOS[0]?.id ?? "threshold-70",
+    () => CONTEXT_COMPRESSION_SCENARIOS[0]?.id ?? "threshold-90",
   );
   const [llmOptions, setLlmOptions] = useState<LlmOptionsResponse | null>(null);
   const [llmSelection, setLlmSelection] = useState(
@@ -384,7 +384,7 @@ export function ToolTestContextCompressionPanel({
           )}
         </button>
         <p className="autofix-panel__run-hint">
-          生产逻辑：inputTokens ≥70% 或估算 ≥85% 时保留最近 12 条并摘要旧消息
+          生产逻辑：inputTokens ≥90%（或估算 ≥92%）且消息 &gt;12 条时，保留最近 12 条并摘要旧消息
         </p>
       </div>
     </div>

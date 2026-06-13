@@ -8,7 +8,6 @@ import {
   extractActionScopeFromMessages,
   formatActionScopeForSystem,
 } from "@/lib/action-scope";
-import { listWorkspaceActionProjects } from "@/lib/action-explorer-server";
 import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
 import {
@@ -47,6 +46,10 @@ import { tryRespondWithLauncherResolveDirect } from "@/lib/launcher/launcher-res
 import { createRepairToolCallHandler } from "@/lib/repair-tool-call";
 import { parseSlashCommandInput } from "@/lib/agent-defs/command-expand";
 import { expandSlashTagsInUserText } from "@/lib/composer-slash-tag";
+import {
+  formatUserLanguageForSystem,
+  inferUserReplyLanguageFromMessages,
+} from "@/lib/user-reply-language";
 import { resolveSlashCommandForChat } from "@/lib/agent-defs/apply-chat-command.server";
 
 export const maxDuration = 120;
@@ -73,6 +76,7 @@ async function handleChatPost(req: Request) {
     titleTestOnly,
     chatMode: chatModeRaw,
     contextCompressionForce,
+    threadId: _threadId,
   }: {
     messages: AgentUIMessage[];
     enabledTools?: string[];
@@ -89,6 +93,8 @@ async function handleChatPost(req: Request) {
     contextCompressionForce?: boolean;
     /** agent = full authoring; launcher = quick commands (fixed tools + prompt). */
     chatMode?: string;
+    /** Active thread id (reserved). */
+    threadId?: string;
   } = await req.json();
 
   const chatMode = resolveChatMode(chatModeRaw);
@@ -198,19 +204,7 @@ async function handleChatPost(req: Request) {
   return runWithAgentRequestContextAsync(
     { cwd, chatMode, lastUserText, llmSelectionRaw },
     async () => {
-    const localProjectIds: string[] = [];
-    if (cwd) {
-      const listed = await listWorkspaceActionProjects();
-      if (listed.ok) {
-        for (const project of listed.projects) {
-          if (project.actionId) localProjectIds.push(project.actionId);
-        }
-      }
-    }
-    const actionScope = extractActionScopeFromMessages(
-      messagesForModel,
-      localProjectIds,
-    );
+    const actionScope = extractActionScopeFromMessages(messagesForModel);
 
     return runWithAgentRequestContextAsync(
       { cwd, actionScope, chatMode, lastUserText, llmSelectionRaw },
@@ -231,6 +225,10 @@ async function handleChatPost(req: Request) {
 
     const scopeBlock = formatActionScopeForSystem(actionScope);
     const baseSystem = await buildSystemInstructions(cwd, chatMode);
+    const replyLanguage = inferUserReplyLanguageFromMessages(repairedMessages);
+    const replyLanguageBlock = replyLanguage
+      ? formatUserLanguageForSystem(replyLanguage)
+      : null;
     const launcherCacheBlock =
       chatMode === CHAT_MODE_LAUNCHER
         ? await buildLauncherCommandCachePromptBlock(lastUserText)
@@ -251,6 +249,7 @@ async function handleChatPost(req: Request) {
         ? "You are running in title-test mode for Quicker Agent GUI (/tool-test)."
         : null,
       systemWithScope,
+      replyLanguageBlock,
       launcherCacheBlock,
       titleInstruction,
       preparedContext.systemSuffix,

@@ -2,7 +2,6 @@ import {
   convertToModelMessages,
   generateText,
   isTextUIPart,
-  pruneMessages,
   type LanguageModel,
   type ModelMessage,
 } from "ai";
@@ -12,10 +11,26 @@ import type {
 } from "@/lib/chat-types";
 import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
 import type { LlmSelection } from "@/lib/llm-selection";
-import { modelRequiresReasoningInHistory } from "@/lib/llm-providers";
 
-const COMPRESSION_TRIGGER_RATIO = 0.7;
-const ESTIMATE_TRIGGER_RATIO = 0.85;
+/**
+ * Context compaction thresholds (aligned with mainstream coding agents).
+ *
+ * - Cursor: auto-summarize at ~90% of the context window (official forum).
+ * - Claude Code: compact near the model limit with a fixed headroom buffer.
+ *
+ * We compress only when approaching the hard limit — not at 70% — so short
+ * multi-turn sessions keep full tool history.
+ */
+
+/** Tokens reserved for system, next turn, and the compaction summary call. */
+const COMPACTION_HEADROOM_TOKENS = 4_096;
+
+/** Measured provider inputTokens (Cursor ~90%). */
+const USAGE_TRIGGER_RATIO = 0.9;
+
+/** Char/4 estimate when usage metadata is missing. */
+const ESTIMATE_TRIGGER_RATIO = 0.92;
+
 const DEFAULT_RECENT_MESSAGE_COUNT = 12;
 const MAX_SUMMARY_SOURCE_CHARS = 18_000;
 const MAX_SUMMARY_OUTPUT_TOKENS = 700;
@@ -78,6 +93,22 @@ function approximateTokensFromMessages(messages: AgentUIMessage[]): number {
   return Math.ceil(chars / 4);
 }
 
+/** Token count at which measured usage should trigger compaction. */
+export function resolveCompactionUsageThreshold(contextLimit: number): number {
+  if (contextLimit <= 0) return Number.POSITIVE_INFINITY;
+  const byRatio = Math.floor(contextLimit * USAGE_TRIGGER_RATIO);
+  const byHeadroom = contextLimit - COMPACTION_HEADROOM_TOKENS;
+  return Math.max(1, Math.min(byRatio, byHeadroom));
+}
+
+/** Token count at which char-estimate should trigger compaction. */
+export function resolveCompactionEstimateThreshold(contextLimit: number): number {
+  if (contextLimit <= 0) return Number.POSITIVE_INFINITY;
+  const byRatio = Math.floor(contextLimit * ESTIMATE_TRIGGER_RATIO);
+  const byHeadroom = contextLimit - COMPACTION_HEADROOM_TOKENS;
+  return Math.max(1, Math.min(byRatio, byHeadroom));
+}
+
 /** Whether context compression should run for the next model request. */
 export function shouldCompressContextMessages(
   messages: AgentUIMessage[],
@@ -85,14 +116,11 @@ export function shouldCompressContextMessages(
 ): boolean {
   if (contextLimit <= 0) return false;
   const latestUsage = latestAssistantUsage(messages);
-  if (
-    latestUsage
-    && latestUsage.inputTokens / contextLimit >= COMPRESSION_TRIGGER_RATIO
-  ) {
-    return true;
+  if (latestUsage) {
+    return latestUsage.inputTokens >= resolveCompactionUsageThreshold(contextLimit);
   }
   const estimated = approximateTokensFromMessages(messages);
-  return estimated / contextLimit >= ESTIMATE_TRIGGER_RATIO;
+  return estimated >= resolveCompactionEstimateThreshold(contextLimit);
 }
 
 function summarizePart(
@@ -227,20 +255,6 @@ function buildCompressionMetadata(
   };
 }
 
-function safePruneMessages(
-  messages: ModelMessage[],
-  modelId?: string,
-): ModelMessage[] {
-  const preserveReasoning =
-    modelId != null && modelRequiresReasoningInHistory(modelId);
-  return pruneMessages({
-    messages,
-    reasoning: preserveReasoning ? "none" : "before-last-message",
-    toolCalls: "before-last-2-messages",
-    emptyMessages: "remove",
-  });
-}
-
 export type PrepareCompressedContextOptions = {
   messages: AgentUIMessage[];
   model: LanguageModel;
@@ -270,6 +284,8 @@ export type ContextCompressionPreview = {
   usageRatio: number | null;
   estimateRatio: number;
   contextLimit: number;
+  usageThreshold: number;
+  estimateThreshold: number;
 };
 
 /** Dry-run diagnostics before calling prepareCompressedContext. */
@@ -283,6 +299,8 @@ export function previewContextCompression(
   const force = options?.force === true;
   const latestInputTokens = latestAssistantUsage(messages)?.inputTokens ?? null;
   const estimatedTokens = approximateTokensFromMessages(messages);
+  const usageThreshold = resolveCompactionUsageThreshold(contextLimit);
+  const estimateThreshold = resolveCompactionEstimateThreshold(contextLimit);
   return {
     shouldCompress,
     force,
@@ -298,6 +316,8 @@ export function previewContextCompression(
         : null,
     estimateRatio: contextLimit > 0 ? estimatedTokens / contextLimit : 0,
     contextLimit,
+    usageThreshold,
+    estimateThreshold,
   };
 }
 
@@ -318,35 +338,29 @@ export async function prepareCompressedContext(
       languageModel,
       olderMessages,
     ) => createSummary(languageModel, olderMessages, usageTracking));
-  const modelId = usageTracking?.modelId;
   const baseModelMessages = await convertToModelMessages(messages);
-  const basePruned = safePruneMessages(baseModelMessages, modelId);
   const splitIndex = resolveContextSplitIndex(messages);
   const trigger =
     splitIndex > 0
     && (force || shouldCompressContextMessages(messages, contextLimit));
   if (!trigger) {
-    return { modelMessages: basePruned, compressed: false };
+    return { modelMessages: baseModelMessages, compressed: false };
   }
 
   const olderMessages = messages.slice(0, splitIndex);
   const recentMessages = messages.slice(splitIndex);
   if (olderMessages.length === 0 || recentMessages.length === 0) {
-    return { modelMessages: basePruned, compressed: false };
+    return { modelMessages: baseModelMessages, compressed: false };
   }
 
   const throughMessageId = olderMessages[olderMessages.length - 1]!.id;
   const reuseSummary = selectReusableContextSummary(messages, splitIndex);
   const summary = reuseSummary ?? (await summarize(model, olderMessages));
   if (!summary) {
-    return { modelMessages: basePruned, compressed: false };
+    return { modelMessages: baseModelMessages, compressed: false };
   }
 
   const recentModelMessages = await convertToModelMessages(recentMessages);
-  const prunedRecentModelMessages = safePruneMessages(
-    recentModelMessages,
-    modelId,
-  );
   const sourceInputTokens = latestAssistantUsage(messages)?.inputTokens ?? 0;
   const metadata = buildCompressionMetadata(
     summary,
@@ -355,7 +369,7 @@ export async function prepareCompressedContext(
     messages.length,
   );
   return {
-    modelMessages: prunedRecentModelMessages,
+    modelMessages: recentModelMessages,
     systemSuffix: renderCompressionSystemSuffix(summary),
     contextCompression: metadata,
     compressed: true,

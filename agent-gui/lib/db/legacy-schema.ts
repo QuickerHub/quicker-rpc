@@ -39,4 +39,5 @@ export function patchLegacyChatSchema(sqlite: Database.Database): void {
   addColumnIfMissing(sqlite, "chat_threads", "working_directory", "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing(sqlite, "chat_threads", "action_designer_entity_id", "TEXT");
   addColumnIfMissing(sqlite, "chat_threads", "action_designer_is_sub_program", "INTEGER");
+  addColumnIfMissing(sqlite, "chat_threads", "authoring_focus_json", "TEXT");
 }

@@ -4,7 +4,7 @@
   "skillRoot": "docs/action-authoring-src/skills",
   "spec": "docs/authoring-references/learned-skills/SPEC.md",
   "plan": "docs/superpowers/plans/2026-06-13-quicker-action-authoring-learning.md",
-  "updatedAt": "2026-06-13T07:39:51.617Z",
+  "updatedAt": "2026-06-13T18:00:00.000Z",
   "skills": [
     {
       "slug": "selection-pipeline",
@@ -367,6 +367,19 @@
       "reviewNotes": "3,35 trace；parseOk/clipOk 分离；Convert.ToDouble",
       "promotedAt": "2026-06-13",
       "reviewedBy": "agent"
+    },
+    {
+      "slug": "step-comments",
+      "skillName": "quicker-authoring-step-comments",
+      "status": "draft",
+      "patternRef": "docs/authoring-references/action-patterns/step-comments.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-step-comments/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-step-comments/manifest.json",
+      "verifiedBy": ["authoring-tasks:read-structure-first", "retro:2026-06-13-library-exemplar-round3"],
+      "sources": ["todo:agent step comments", "authored/comment.md"],
+      "reviewNotes": "多步写作期强制 comment；待一轮实写 trace 后 promoted",
+      "promotedAt": null,
+      "reviewedBy": null
     }
   ]
 }

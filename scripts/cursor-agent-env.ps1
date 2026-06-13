@@ -22,9 +22,12 @@ if (-not (Get-Command agent -ErrorAction SilentlyContinue)) {
 $env:QKRPC_WORKSPACE_ROOT = $RepoRoot
 $env:QKRPC_CWD = $RepoRoot
 
-$cliPublish = Join-Path $RepoRoot 'publish\cli'
+$cliPublish = @(
+    (Join-Path $RepoRoot 'publish\cli-new'),
+    (Join-Path $RepoRoot 'publish\cli')
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
 $qkrpcLocal = Join-Path $env:LOCALAPPDATA 'Programs\qkrpc'
-$pathParts = @($cliPublish, $qkrpcLocal) | Where-Object { Test-Path $_ }
+$pathParts = @($cliPublish, $qkrpcLocal) | Where-Object { $_ -and (Test-Path $_) }
 if ($pathParts.Count -gt 0) {
     $env:Path = ($pathParts -join ';') + ';' + $env:Path
 }

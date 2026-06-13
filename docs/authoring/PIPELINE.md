@@ -99,6 +99,8 @@ npm run docs:modules:gen     # 分析 + crawl
 
 登记于 [`learned-skills/registry.json`](../authoring-references/learned-skills/registry.json)（`draft` → `review` → `promoted`）。
 
+IDE 续跑：`/learn-authoring` → `npm run docs:authoring:learning-next`。
+
 ```text
 学习 Agent 写 src → npm run docs:gen → docs/skills/<name>/（on-demand catalog）
 人类审核 → registry promoted（无需从 .cursor 复制）

@@ -346,6 +346,7 @@ function ChatPanel({
   workingDirectoryRef.current = workingDirectory;
   const titleManualRef = useRef(titleManual);
   titleManualRef.current = titleManual;
+  const messagesForPersistRef = useRef<AgentUIMessage[]>(initialMessages);
 
   // useChat only recreates Chat when `id` changes; body must stay stable and
   // read latest composer settings via refs on each request.
@@ -354,6 +355,7 @@ function ChatPanel({
       new DefaultChatTransport({
         api: "/api/chat",
         body: () => ({
+          threadId,
           chatMode: chatModeRef.current,
           enabledTools: resolveEnabledToolsForChatMode(
             chatModeRef.current,
@@ -390,7 +392,6 @@ function ChatPanel({
         lastAssistantMessageIsCompleteWithClientResponses,
     });
 
-  const messagesForPersistRef = useRef(messages);
   messagesForPersistRef.current = messages;
 
   // Open-tab panels can mount before lazy thread hydration delivers persisted

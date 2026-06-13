@@ -5,7 +5,6 @@ import {
   resolveActionCreateManageInput,
   type QkrpcActionCreateToolInput,
 } from "@/lib/action-create-input";
-import { registerLocalActionProject } from "@/lib/action-scope";
 import {
   augmentActionGetWithWorkspace,
   bootstrapActionProjectForCreate,
@@ -49,6 +48,7 @@ import {
 } from "@/lib/launcher/launcher-action-run-guard";
 import {
   getLauncherResolveDirectNext,
+  getRequestActionScope,
   getRequestChatMode,
   getRequestLastUserText,
 } from "@/lib/qkrpc-request-context";
@@ -510,9 +510,6 @@ export async function executeQkrpcActionIdTool(
             error:
               "Action has no steps or variables; skipped extract to avoid writing an empty data.json.",
           };
-      if (sync.ok) {
-        registerLocalActionProject(input.id);
-      }
       return augmentActionGetWithWorkspace(getResult, sync);
     }
     case "publish": {
@@ -803,6 +800,7 @@ export async function executeQkrpcActionTool(
 
 const ACTION_QUERY_DESCRIPTION =
   "Search Quicker actions by keyword, scope, or uses:SubName — use before run/edit when id unknown or user names loosely. "
+  + "When ## Authoring focus is in system context, use that GUID — do not pick another same-title hit. "
   + "Retry with | synonyms or uses: if weak. Launcher: prefer launcher_resolve for run intent; "
   + "if launcher.autoRunBlocked — ask_question, do not run. Empty query = recent actions. UI renders table — summarize counts only.";
 
