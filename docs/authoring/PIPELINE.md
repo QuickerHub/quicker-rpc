@@ -67,8 +67,21 @@ npm run docs:modules:gen     # 分析 + crawl
 |------|----------|
 | 直接改 `action-authoring/cli/authoring-workflow.md` | 改 `action-authoring-src/workflows/`，再 `docs:gen` |
 | 期望在 `cli/references/` 找 module 正文 | 正文只在 `authoring-references/`；manifest 的 `path` 指向该目录 |
-| 在 `.cursor/skills/` 写用户-facing 编写指南 | 改 src → gen → `docs/skills/quicker-authoring` |
+| 维护两份 expressions 正文 | 只改 `action-authoring-src/partials/expressions-body.md`（见下节） |
 | 把 `superpowers/` 当用户文档 | 仅内部 spec/plan |
+
+## Expressions 文档（单一权威源）
+
+| 产出 | 来源 |
+|------|------|
+| `partials/expressions-body.md` | **唯一正文**（$=、evalexpression、multi-var 等） |
+| `schemas/expressions.md` | topic 壳 + `{{#include-partial expressions-body}}` |
+| `cli/expressions.md`、`skills/quicker-authoring/references/expressions.md` | `docs:gen` 从 schema topic |
+| `skills/quicker-eval-expression/references/expressions.md` | **同上 schema**（不再单独 `expressions.src.md`） |
+| `skills/.../evalexpression-examples.md` | 复制 `authoring-references/step-modules/authored/evalexpression.md` |
+| `step-modules` topic / authored `evalexpression` | 步骤 JSON 示例（非语法正文） |
+
+改表达式语法：**只改 `expressions-body.md`**，然后 `npm run docs:gen`。
 
 ## 深参考子系统
 

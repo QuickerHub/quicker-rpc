@@ -32,10 +32,8 @@ const EVAL_SKILL_MANIFEST = path.join(
   SRC,
   "skills/quicker-eval-expression/manifest.json",
 );
-const EVAL_SKILL_EXPR_REF = path.join(
-  SRC,
-  "skills/quicker-eval-expression/references/expressions.src.md",
-);
+/** Same source as `expressions` guide topic — single canonical body via expressions-body partial. */
+const EXPRESSIONS_TOPIC_SRC = path.join(SRC, "schemas/expressions.md");
 const OUT_EVAL_SKILL = path.join(ROOT, "docs/skills/quicker-eval-expression");
 /** Step-module deep docs — not under action-authoring-src; not re-rendered on workflow regen. */
 const REF_SRC = path.join(ROOT, "docs/authoring-references");
@@ -667,12 +665,12 @@ async function computeEvalSkillOutputs(opsData, partials) {
     buildSkillFrontmatter(manifest, skillBody, evalSkillName),
   );
 
-  const exprSrc = normalizeEol(await fs.readFile(EVAL_SKILL_EXPR_REF, "utf8"));
+  const exprSrc = normalizeEol(await fs.readFile(EXPRESSIONS_TOPIC_SRC, "utf8"));
   const exprBody = renderDoc(
     exprSrc,
     opsData,
     "agent",
-    "skills/quicker-eval-expression/references/expressions.src.md",
+    "schemas/expressions.md",
     new Map(),
     partials,
   );

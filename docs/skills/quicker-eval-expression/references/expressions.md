@@ -1,6 +1,6 @@
 # Expressions & interpolation
 
-**When**: P4 — default to $= / sys:evalexpression before dedicated steps or csscript.
+**When**: P4 — default to $= / sys:evalexpression before dedicated steps or csscript. Keys from step_runner_get.
 
 ## Pick (P4)
 

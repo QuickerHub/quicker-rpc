@@ -90,10 +90,9 @@ authoring-references/  ──直接嵌入──►  AgentModel + QuickerAgent do
 |-------------|------|
 | [quicker-action-data-storage.md](quicker-action-data-storage.md) | 动作数据存储架构 |
 | [action-authoring-src/](action-authoring-src/) | **源码**：指南模板与 manifest |
-| [authoring-references/](authoring-references/) | **深参考**：step-modules、patterns、benchmarks |
-| [authoring-references/learned-skills/](authoring-references/learned-skills/) | draft skill 晋升 registry |
-| [authoring-references/action-patterns/](authoring-references/action-patterns/) | 多步编写模式 |
-| [authoring-references/benchmarks/](authoring-references/benchmarks/) | 编写/agent 评测复盘 |
+| [authoring-references/](authoring-references/) | **深参考**：step-modules、patterns、learned-skills registry、benchmarks |
+| [authoring-references/learned-skills/SPEC.md](authoring-references/learned-skills/SPEC.md) | draft skill 创建与晋升流程 |
+| [authoring-references/learned-skills/registry.json](authoring-references/learned-skills/registry.json) | 当前 draft/review 子 skill 登记册 |
 | [action-authoring/cli/](action-authoring/cli/) | 生成物：`qkrpc guide get` |
 | [skills/quicker-authoring/](skills/quicker-authoring/) | 生成物：QuickerAgent / setup |
 
