@@ -73,15 +73,19 @@ qkrpc action get --id <guid> [--return-mode full|structure|metadata] [--json]
 | `full` | 写 patch 前读非默认参数 |
 | `metadata` | 标题、步骤概要 |
 
+**Action Designer 已打开**且 id 匹配时，从设计器内存读取（含未保存草稿）；响应 `readSource` 为 `action-designer`，否则为 `catalog`。详见 [action-designer-agent-routing.md](action-designer-agent-routing.md)。
+
 ### `qkrpc action patch`
 
-局部 patch，**一次调用 = 一次保存**。成功后以响应为准，勿仅为验证再 `action get`。
+局部 patch。**设计器未打开**时一次调用 = 一次 catalog 保存；**设计器已打开**时写入设计器内存（`persisted: false`，需在 Quicker 点保存才落库）。
 
-Patch JSON 除 `steps` / `variables` 外，可在**同一保存**中附带元数据字段：`title`、`description`、`icon`（省略的键不修改；`description` / `icon` 可传空字符串清空）。
+Patch JSON 除 `steps` / `variables` 外，可在**同一 patch** 中附带元数据：`title`、`description`、`icon`、`contextMenuData`（省略的键不修改；`description` / `icon` 可传空字符串清空）。设计器打开时 metadata 与 program 均支持。
 
 ```powershell
 qkrpc action patch --id <guid> --patch-file <path|-> [--expected-edit-version N] [--force] [--json]
 ```
+
+响应含 `readSource`、`appliedToDesigner`、`persisted`、`presentationUpdated`；设计器模式成功时 `warnings` 含 `applied_to_action_designer_memory; save in Quicker to persist to catalog`。
 
 仅改图标示例：
 
@@ -400,7 +404,7 @@ qkrpc subprogram create --name <name> [--description <text>] [--icon <spec>] [--
 
 ### `qkrpc subprogram get` / `patch` / `replace`
 
-无头读写公共子程序（patch 语法与 `action patch` 相同）。
+无头读写公共子程序（patch 语法与 `action patch` 相同）。**Action Designer 已打开**时 get/patch 自动走设计器内存（`readSource`、`persisted` 等同 action）；见 [action-designer-agent-routing.md](action-designer-agent-routing.md)。
 
 ```powershell
 qkrpc subprogram get --id <idOrName> [--return-mode full|structure|metadata] [--json]

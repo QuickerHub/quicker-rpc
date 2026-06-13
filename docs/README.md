@@ -49,6 +49,7 @@
 | 文档 | 说明 |
 |------|------|
 | [quicker-action-data-storage.md](quicker-action-data-storage.md) | Quicker 动作数据存储架构 |
+| [action-designer-agent-routing.md](action-designer-agent-routing.md) | 设计器打开时 `action get/patch` 自动走内存（Agent 无需 designer API） |
 | [action-authoring-src/](action-authoring-src/) | **源码**：内置指南模板与 manifest（只改这里） |
 | [action-authoring/cli/](action-authoring/cli/) | 生成物：`qkrpc guide get` 嵌入内容 |
 | [skills/quicker-authoring/](skills/quicker-authoring/) | 生成物：QuickerAgent / `agent setup` 用的 Skill |

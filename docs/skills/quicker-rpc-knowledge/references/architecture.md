@@ -16,6 +16,8 @@ QuickerRpcServer (plugin) → dispatch on Quicker UI thread
 HeadlessActionProgramService, search, patch, run, …
 ```
 
+When **ActionDesignerWindow** is open for an action/subprogram id, `action get/patch` and `subprogram get/patch` route through in-memory designer state (`ActionDesignerProgramBridge`) instead of catalog persistence. Agents use the same commands; check `readSource`, `persisted`, `appliedToDesigner` in JSON responses. See [action-designer-agent-routing.md](../../../action-designer-agent-routing.md).
+
 Fallback when serve down: agent-gui may spawn `qkrpc <subcommand>` subprocess (slower).
 
 ## Request path (Cursor MCP)
