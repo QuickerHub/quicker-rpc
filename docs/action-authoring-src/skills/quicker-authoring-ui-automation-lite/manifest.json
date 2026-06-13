@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-ui-automation-lite",
+  "description": "Quicker 前台 UI：activateProcessMainWindow + delay + keyInput/sendKeys。向指定窗口发快捷键时加载。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

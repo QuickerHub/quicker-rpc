@@ -23,7 +23,11 @@ const PROMPT_TIER0_SRC = path.join(
 );
 const OUT_CLI = path.join(ROOT, "docs/action-authoring/cli");
 const OUT_SKILLS = path.join(ROOT, "docs/skills/quicker-authoring");
+const OUT_SKILLS_ROOT = path.join(ROOT, "docs/skills");
 const SKILL_NAME = "quicker-authoring";
+const CHILD_SKILLS_SRC = path.join(SRC, "skills");
+/** Parent + eval-expression use dedicated generators; others are on-demand child skills. */
+const BUILTIN_SKILL_DIRS = new Set(["quicker-authoring", "quicker-eval-expression"]);
 const EVAL_SKILL_SRC = path.join(
   SRC,
   "skills/quicker-eval-expression/SKILL.src.md",
@@ -624,6 +628,10 @@ async function computeOutputs(opsData, topicEntries) {
     outputs.set(rel, content);
   }
 
+  for (const [rel, content] of await computeChildSkillOutputs(opsData, partials)) {
+    outputs.set(rel, content);
+  }
+
   return outputs;
 }
 
@@ -694,6 +702,79 @@ async function computeEvalSkillOutputs(opsData, partials) {
     throw new Error("Missing evalexpression module ref: authored/evalexpression.md");
   }
   outputs.set("eval-skills/references/evalexpression-examples.md", evalexpressionExamples);
+
+  return outputs;
+}
+
+/** @returns {Promise<string[]>} */
+async function listChildSkillPackages() {
+  let entries;
+  try {
+    entries = await fs.readdir(CHILD_SKILLS_SRC, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  /** @type {string[]} */
+  const packages = [];
+  for (const ent of entries) {
+    if (!ent.isDirectory() || BUILTIN_SKILL_DIRS.has(ent.name)) continue;
+    const manifestPath = path.join(CHILD_SKILLS_SRC, ent.name, "manifest.json");
+    const skillSrcPath = path.join(CHILD_SKILLS_SRC, ent.name, "SKILL.src.md");
+    try {
+      await fs.access(manifestPath);
+      await fs.access(skillSrcPath);
+    } catch {
+      continue;
+    }
+    packages.push(ent.name);
+  }
+  packages.sort();
+  return packages;
+}
+
+/**
+ * On-demand child skills under docs/action-authoring-src/skills/<name>/.
+ * @param {Record<string, unknown>} opsData
+ * @param {Map<string, string>} partials
+ */
+async function computeChildSkillOutputs(opsData, partials) {
+  /** @type {Map<string, string>} */
+  const outputs = new Map();
+
+  for (const dirName of await listChildSkillPackages()) {
+    const manifestPath = path.join(CHILD_SKILLS_SRC, dirName, "manifest.json");
+    const skillSrcPath = path.join(CHILD_SKILLS_SRC, dirName, "SKILL.src.md");
+    const manifestRaw = normalizeEol(await fs.readFile(manifestPath, "utf8"));
+    const manifest = /** @type {Record<string, unknown>} */ (
+      JSON.parse(manifestRaw)
+    );
+    const skillName = String(manifest.name ?? dirName).trim();
+    if (!skillName) {
+      throw new Error(`Missing name in ${manifestPath}`);
+    }
+
+    const skillSrc = normalizeEol(await fs.readFile(skillSrcPath, "utf8"));
+    const skillBody = renderDoc(
+      skillSrc,
+      opsData,
+      "agent",
+      `skills/${dirName}/SKILL.src.md`,
+      new Map(),
+      partials,
+    );
+    const skillBodyLines = skillBody.trim().split("\n").length;
+    if (skillBodyLines > 120) {
+      throw new Error(
+        `${skillName} SKILL.src.md body too long (${skillBodyLines} lines; keep router ≤120)`,
+      );
+    }
+
+    outputs.set(
+      `child-skills/${skillName}/SKILL.md`,
+      buildSkillFrontmatter(manifest, skillBody, skillName),
+    );
+  }
 
   return outputs;
 }
@@ -786,6 +867,10 @@ function resolveOutputPath(rel) {
       "references",
       rel.slice("eval-skills/references/".length),
     );
+  }
+  if (rel.startsWith("child-skills/")) {
+    const rest = rel.slice("child-skills/".length);
+    return path.join(OUT_SKILLS_ROOT, rest);
   }
   return null;
 }
@@ -936,6 +1021,41 @@ async function pruneOrphanOutputs(topicEntries, opsData) {
   }
 }
 
+/** Remove docs/skills/<child> when no longer generated from action-authoring-src/skills. */
+async function pruneOrphanChildSkillOutputs(expected) {
+  /** @type {Set<string>} */
+  const expectedDirs = new Set();
+  for (const rel of expected.keys()) {
+    if (!rel.startsWith("child-skills/")) continue;
+    const skillName = rel.slice("child-skills/".length).split("/")[0];
+    if (skillName) expectedDirs.add(skillName);
+  }
+
+  const srcPackages = new Set(await listChildSkillPackages());
+
+  let entries;
+  try {
+    entries = await fs.readdir(OUT_SKILLS_ROOT, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const ent of entries) {
+    if (!ent.isDirectory()) continue;
+    if (expectedDirs.has(ent.name)) continue;
+    // Only touch outputs managed by action-authoring-src child packages.
+    const managed =
+      srcPackages.has(ent.name) ||
+      ent.name.startsWith("quicker-authoring-") ||
+      ent.name === "quicker-action-library-search";
+    if (!managed) continue;
+    await fs.rm(path.join(OUT_SKILLS_ROOT, ent.name), {
+      recursive: true,
+      force: true,
+    });
+  }
+}
+
 /** @param {string | undefined} touchPath */
 async function touchStamp(touchPath) {
   if (!touchPath) return;
@@ -968,23 +1088,29 @@ async function generate(opts) {
     return;
   }
 
+  const childSkillCount = (await listChildSkillPackages()).length;
+
   if (opts.force) {
     await writeOutputs(expected);
     await pruneOrphanOutputs(topicEntries, opsData);
+    await pruneOrphanChildSkillOutputs(expected);
     await removeLegacyAgentOutputs();
     console.log(
-      `Generated ${topicEntries.length} topics → docs/action-authoring/cli/ and docs/skills/quicker-authoring/ (single skill, forced).`,
+      `Generated ${topicEntries.length} topics + ${childSkillCount} child skill(s) → docs/action-authoring/cli/ and docs/skills/ (forced).`,
     );
   } else {
     await writeOutputs(expected, stale);
     if (stale.length > 0) {
       await pruneOrphanOutputs(topicEntries, opsData);
+      if (stale.some((rel) => rel.startsWith("child-skills/"))) {
+        await pruneOrphanChildSkillOutputs(expected);
+      }
     }
     if (stale.some((rel) => rel.startsWith("skills/"))) {
       await removeLegacyAgentOutputs();
     }
     console.log(
-      `Generated ${stale.length} file(s) → docs/action-authoring/cli/ and docs/skills/quicker-authoring/ (single skill).`,
+      `Generated ${stale.length} file(s) (${childSkillCount} child skill(s)) → docs/action-authoring/cli/ and docs/skills/.`,
     );
   }
   await touchStamp(opts.touchPath);

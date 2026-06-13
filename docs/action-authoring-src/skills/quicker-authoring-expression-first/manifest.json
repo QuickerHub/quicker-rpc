@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-expression-first",
+  "description": "Quicker 表达式优先：单行 evalexpression 替代多步 stringProcess/assign 链。写去重、排序、拼接、简单变换类动作时加载。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

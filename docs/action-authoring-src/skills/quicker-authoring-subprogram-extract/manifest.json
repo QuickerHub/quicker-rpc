@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-subprogram-extract",
+  "description": "Quicker 公共子程序抽取与 sys:subprogram 调用。写跨动作复用逻辑、global subprogram、callIdentifier 映射时加载。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

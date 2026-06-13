@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-loop-control",
+  "description": "Quicker 列表循环 each + simpleIf + break/continue。写遍历列表、条件跳出循环、提前结束迭代类动作时加载。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

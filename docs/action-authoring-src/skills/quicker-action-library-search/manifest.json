@@ -1,0 +1,6 @@
+{
+  "name": "quicker-action-library-search",
+  "description": "Search getquicker action library and read shared actions for learning via qkrpc API (library search + shared get, read-only). Use when finding exemplar actions before writing Quicker actions.",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

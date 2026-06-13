@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-delay-retry",
+  "description": "Quicker 延迟重试：repeat + simpleIf + break + delay 轮询。等待文件/HTTP/进程就绪时加载。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

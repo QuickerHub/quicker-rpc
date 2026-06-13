@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-clipboard-pipeline",
+  "description": "Quicker 剪贴板流水线：getClipboardText → 变换 → writeClipboard。写剪贴板读写、复制结果到剪贴板、剪贴板文本处理类动作时加载。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-path-and-exists",
+  "description": "Quicker 路径存在检查：checkPathExists + simpleIf 双分支。读写文件或启动程序前的路径守卫。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

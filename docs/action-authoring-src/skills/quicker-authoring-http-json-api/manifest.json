@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-http-json-api",
+  "description": "Quicker HTTP+JSON：sys:http 请求 → sys:jsonExtract 取字段。写 REST 调用、API 集成、JSON 字段读取动作时加载。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

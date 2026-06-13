@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-evalexpression-multi-var",
+  "description": "sys:evalexpression 单步多变量 {var}= 赋值；number 变量字面量陷阱。SDK L2 multi-var-assign 复盘。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

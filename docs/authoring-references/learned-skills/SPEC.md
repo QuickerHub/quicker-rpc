@@ -96,12 +96,12 @@ learned-from: "<pattern slug | benchmark id | exemplar action id>"
 ### 晋升步骤（审核通过后由 Agent / 维护者执行）
 
 1. `registry.json` → `status: "promoted"`，记 `promotedAt`、`reviewedBy`。
-2. 复制为正式源：`docs/action-authoring-src/skills/quicker-authoring-<slug>/SKILL.src.md` + `manifest.json`。
+2. 复制为正式源：`docs/action-authoring-src/skills/<skillName>/SKILL.src.md` + `manifest.json`（或 `node scripts/promote-learned-skills-from-registry.mjs` 批量）。
 3. 在 `docs/action-authoring-src/skills/quicker-authoring/SKILL.src.md` 的 Route 表增加一行指向子 skill。
-4. 扩展 `scripts/generate-authoring-docs.mjs` 注册该 skill（与 `quicker-eval-expression` 同模式）。
-5. `npm run docs:gen` → 产出 `docs/skills/quicker-authoring-<slug>/`。
+4. `scripts/generate-authoring-docs.mjs` 自动扫描 `action-authoring-src/skills/*`（除 parent / eval-expression）→ `docs/skills/<name>/`。
+5. `npm run docs:gen` → 产出 `docs/skills/<skillName>/SKILL.md`。
 6. 默认 **on-demand**（加入 skill catalog）；仅当需要会话开局加载时才改 `PRELOADED_SKILL_NAMES`（需人类决定）。
-7. 可选：删除或保留 `.cursor/skills/` 副本（晋升后建议删除 draft 副本，避免双源）。
+7. 可选：删除 `.cursor/skills/` 副本（晋升后建议删除 draft 副本，避免双源）。
 
 ## 7. registry.json 字段
 

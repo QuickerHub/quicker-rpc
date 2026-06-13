@@ -95,7 +95,11 @@ npm run docs:modules:gen     # 分析 + crawl
 
 ## Skill 晋升
 
-Draft 编写 skill 放在 `.cursor/skills/quicker-authoring-*`，登记于 [`learned-skills/registry.json`](../authoring-references/learned-skills/registry.json)。晋升路径：`review` → 合并进 `action-authoring-src/skills/` → `docs:gen` → 进入 `docs/skills/` 与 setup 列表。
+Draft 编写 skill 登记于 [`learned-skills/registry.json`](../authoring-references/learned-skills/registry.json)。晋升路径：
+
+`review` → `action-authoring-src/skills/<name>/`（`SKILL.src.md` + `manifest.json`）→ `npm run docs:gen` → `docs/skills/<name>/`（on-demand catalog）
+
+批量晋升：`node scripts/promote-learned-skills-from-registry.mjs`。子 skill 生成由 `generate-authoring-docs.mjs` 自动扫描（除 `quicker-authoring` / `quicker-eval-expression`）。
 
 ## 参见
 

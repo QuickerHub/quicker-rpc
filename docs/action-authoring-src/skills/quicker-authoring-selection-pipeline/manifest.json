@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-selection-pipeline",
+  "description": "Quicker 选中文本流水线：getSelectedText/剪贴板读取 → 变换 → outputText 写回。写选区处理、文本变换写回、选中翻译类动作时加载。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}
