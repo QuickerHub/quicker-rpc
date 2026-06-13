@@ -327,4 +327,110 @@ public sealed class InputParamWireCoercerTests
             }
         }
     }
+
+    [TestMethod]
+    public void WriteData_omits_ephemeral_ids_and_non_control_default_input_params()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "qkrpc-wire-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var catalog = new StepRunnerCatalog
+            {
+                Items = new System.Collections.Generic.List<StepRunnerDefinition>
+                {
+                    new()
+                    {
+                        Key = "sys:http",
+                        InputParamDefs = new System.Collections.Generic.List<StepRunnerInputParamDef>
+                        {
+                            new() { Key = "method", DefaultValue = "GET", IsControlField = true },
+                            new() { Key = "timeout", DefaultValue = "30" },
+                            new() { Key = "enabled", VarType = StepRunnerAgentDefaultValue.BooleanVarType, DefaultValue = "1" },
+                        },
+                    },
+                },
+            };
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepId"] = "s-1",
+                        ["stepRunnerKey"] = "sys:http",
+                        ["inputParams"] = new JObject
+                        {
+                            ["method"] = new JObject { ["value"] = "GET" },
+                            ["timeout"] = new JObject { ["value"] = "30" },
+                            ["enabled"] = new JObject { ["value"] = true },
+                            ["url"] = new JObject { ["value"] = "https://example.com" },
+                        },
+                    },
+                },
+                ["variables"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["id"] = "v-1",
+                        ["key"] = "result",
+                    },
+                },
+            };
+
+            QuickerProjectFiles.WriteData(dir, data, catalog);
+
+            var json = File.ReadAllText(QuickerProjectLayout.GetDataPath(dir));
+            Assert.IsFalse(json.Contains("\"stepId\""), json);
+            Assert.IsFalse(json.Contains("\"id\""), json);
+            StringAssert.Contains(json, "\"method\": \"GET\"");
+            Assert.IsFalse(json.Contains("\"timeout\""), json);
+            Assert.IsFalse(json.Contains("\"enabled\""), json);
+            StringAssert.Contains(json, "\"url\": \"https://example.com\"");
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void WriteDataIfChanged_returns_false_for_already_normalized_data()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "qkrpc-wire-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var data = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepRunnerKey"] = "sys:comment",
+                        ["inputParams"] = new JObject
+                        {
+                            ["text"] = new JObject { ["value"] = "hello" },
+                        },
+                    },
+                },
+                ["variables"] = new JArray(),
+            };
+
+            QuickerProjectFiles.WriteData(dir, data);
+            var changed = QuickerProjectFiles.WriteDataIfChanged(dir, QuickerProjectFiles.ReadData(dir));
+
+            Assert.IsFalse(changed);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, true);
+            }
+        }
+    }
 }

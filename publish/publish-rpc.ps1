@@ -6,7 +6,9 @@ param(
     [switch]$SkipPath,
     [switch]$SkipSetup,
     # Test build (-t): skip zip, setup.exe, and publish/plugin (plugin already from qkbuild).
-    [switch]$SkipPackaging
+    [switch]$SkipPackaging,
+    # Dev-only: bundle agent-gui/benchmarks/mock-profiles into publish/cli (not for QuickerAgent).
+    [switch]$IncludeMockProfiles
 )
 
 # Backward-compatible alias for Publish-GitHubRelease.ps1 and older docs.
@@ -76,13 +78,16 @@ New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
 $dotnetQuiet = @('-v:q', '--nologo')
 
 $csproj = Join-Path $repoRoot 'QuickerRpc.Console\QuickerRpc.Console.csproj'
-Write-Host "dotnet publish -> $publishDir" -ForegroundColor Yellow
-dotnet publish $csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:Version=$quickerRpcVersion -o $publishDir @dotnetQuiet
+Write-Host "dotnet publish -> $publishDir (net10.0 production, mock excluded)" -ForegroundColor Yellow
+dotnet publish $csproj -c Release -f net10.0 -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=none -p:Version=$quickerRpcVersion -o $publishDir @dotnetQuiet
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Publish failed (dotnet exit $LASTEXITCODE)." -ForegroundColor Red
     exit $LASTEXITCODE
 }
+
+Get-ChildItem -LiteralPath $publishDir -Filter '*.pdb' -Recurse -File -ErrorAction SilentlyContinue |
+    Remove-Item -Force -ErrorAction SilentlyContinue
 
 Assert-QkrpcPublishGoogleProtobuf -PublishDir $publishDir -RepoRoot $repoRoot
 
@@ -108,12 +113,12 @@ if (Test-Path -LiteralPath $rulesSource) {
 
 $mockProfilesSource = Join-Path $repoRoot 'agent-gui\benchmarks\mock-profiles'
 $mockProfilesDest = Join-Path $publishDir 'benchmarks\mock-profiles'
-if (Test-Path -LiteralPath $mockProfilesSource) {
+if ($IncludeMockProfiles -and (Test-Path -LiteralPath $mockProfilesSource)) {
     if (Test-Path -LiteralPath $mockProfilesDest) {
         Remove-Item -LiteralPath $mockProfilesDest -Recurse -Force
     }
     Copy-Item -LiteralPath $mockProfilesSource -Destination $mockProfilesDest -Recurse -Force
-    Write-Host "Bundled mock profiles -> $mockProfilesDest" -ForegroundColor Cyan
+    Write-Host "Bundled mock profiles (dev) -> $mockProfilesDest" -ForegroundColor Cyan
 }
 
 if (-not $SkipPackaging) {

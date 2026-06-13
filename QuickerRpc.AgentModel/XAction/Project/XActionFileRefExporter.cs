@@ -28,7 +28,9 @@ public static class XActionFileRefExporter
 
     private sealed class FileRefSlot
     {
-        public string StepId { get; set; } = "";
+        public string StepId { get; set; } = string.Empty;
+
+        public string NodePath { get; set; } = string.Empty;
 
         public string ParamKey { get; set; } = "";
 
@@ -123,11 +125,11 @@ public static class XActionFileRefExporter
                 continue;
             }
 
-            if (!valueIndex.TryGetValue(slot.StepId, out var paramMap)
+            if (!TryFindValueMap(valueIndex, slot, out var paramMap)
                 || !paramMap.TryGetValue(slot.ParamKey, out var value))
             {
                 warnings.Add(
-                    $"file ref {slot.RelativeFile} (step {slot.StepId}, {slot.ParamKey}): no matching value in latest program.");
+                    $"file ref {slot.RelativeFile} (step {FormatStepSlot(slot)}, {slot.ParamKey}): no matching value in latest program.");
                 continue;
             }
 
@@ -142,7 +144,7 @@ public static class XActionFileRefExporter
                 if (!TryApplyFileRef(output["steps"] as JArray, slot))
                 {
                     warnings.Add(
-                        $"file ref {slot.RelativeFile} (step {slot.StepId}, {slot.ParamKey}): step not found in latest program.");
+                        $"file ref {slot.RelativeFile} (step {FormatStepSlot(slot)}, {slot.ParamKey}): step not found in latest program.");
                 }
             }
             catch (Exception ex)
@@ -209,22 +211,29 @@ public static class XActionFileRefExporter
         return null;
     }
 
-    private static bool TryApplyFileRef(JArray? steps, FileRefSlot slot)
+    private static bool TryApplyFileRef(JArray? steps, FileRefSlot slot) =>
+        TryApplyFileRef(steps, slot, string.Empty);
+
+    private static bool TryApplyFileRef(JArray? steps, FileRefSlot slot, string parentPath)
     {
         if (steps is null)
         {
             return false;
         }
 
-        foreach (var token in steps)
+        for (var i = 0; i < steps.Count; i++)
         {
-            if (token is not JObject step)
+            if (steps[i] is not JObject step)
             {
                 continue;
             }
 
+            var nodePath = BuildNodePath(parentPath, i);
             var stepId = step.Value<string>("stepId") ?? "";
-            if (string.Equals(stepId, slot.StepId, StringComparison.OrdinalIgnoreCase)
+            var matched = !string.IsNullOrWhiteSpace(slot.StepId)
+                ? string.Equals(stepId, slot.StepId, StringComparison.OrdinalIgnoreCase)
+                : string.Equals(nodePath, slot.NodePath, StringComparison.Ordinal);
+            if (matched
                 && step["inputParams"] is JObject inputParams
                 && inputParams[slot.ParamKey] is JObject paramObj)
             {
@@ -234,12 +243,12 @@ public static class XActionFileRefExporter
                 return true;
             }
 
-            if (step["ifSteps"] is JArray ifSteps && TryApplyFileRef(ifSteps, slot))
+            if (step["ifSteps"] is JArray ifSteps && TryApplyFileRef(ifSteps, slot, nodePath + "/if"))
             {
                 return true;
             }
 
-            if (step["elseSteps"] is JArray elseSteps && TryApplyFileRef(elseSteps, slot))
+            if (step["elseSteps"] is JArray elseSteps && TryApplyFileRef(elseSteps, slot, nodePath + "/else"))
             {
                 return true;
             }
@@ -248,31 +257,36 @@ public static class XActionFileRefExporter
         return false;
     }
 
-    private static Dictionary<string, Dictionary<string, string>> BuildValueIndex(JArray steps)
+    private sealed class ValueIndex
     {
-        var index = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-        IndexSteps(steps, index);
+        public Dictionary<string, Dictionary<string, string>> ByStepId { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public Dictionary<string, Dictionary<string, string>> ByNodePath { get; } =
+            new(StringComparer.Ordinal);
+    }
+
+    private static ValueIndex BuildValueIndex(JArray steps)
+    {
+        var index = new ValueIndex();
+        IndexSteps(steps, index, string.Empty);
         return index;
     }
 
-    private static void IndexSteps(JArray steps, Dictionary<string, Dictionary<string, string>> index)
+    private static void IndexSteps(JArray steps, ValueIndex index, string parentPath)
     {
-        foreach (var token in steps)
+        for (var i = 0; i < steps.Count; i++)
         {
-            if (token is not JObject step)
+            if (steps[i] is not JObject step)
             {
                 continue;
             }
 
+            var nodePath = BuildNodePath(parentPath, i);
             var stepId = step.Value<string>("stepId");
-            if (!string.IsNullOrWhiteSpace(stepId) && step["inputParams"] is JObject inputParams)
+            if (step["inputParams"] is JObject inputParams)
             {
-                if (!index.TryGetValue(stepId, out var paramMap))
-                {
-                    paramMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    index[stepId] = paramMap;
-                }
-
+                var paramMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var prop in inputParams.Properties())
                 {
                     if (prop.Value is not JObject paramObj)
@@ -283,38 +297,59 @@ public static class XActionFileRefExporter
                     var value = paramObj.Value<string>("value") ?? "";
                     paramMap[prop.Name] = value;
                 }
+
+                index.ByNodePath[nodePath] = paramMap;
+                if (!string.IsNullOrWhiteSpace(stepId))
+                {
+                    index.ByStepId[stepId] = paramMap;
+                }
             }
 
             if (step["ifSteps"] is JArray ifSteps)
             {
-                IndexSteps(ifSteps, index);
+                IndexSteps(ifSteps, index, nodePath + "/if");
             }
 
             if (step["elseSteps"] is JArray elseSteps)
             {
-                IndexSteps(elseSteps, index);
+                IndexSteps(elseSteps, index, nodePath + "/else");
             }
         }
+    }
+
+    private static bool TryFindValueMap(
+        ValueIndex index,
+        FileRefSlot slot,
+        out Dictionary<string, string> paramMap)
+    {
+        if (!string.IsNullOrWhiteSpace(slot.StepId)
+            && index.ByStepId.TryGetValue(slot.StepId, out paramMap!))
+        {
+            return true;
+        }
+
+        return index.ByNodePath.TryGetValue(slot.NodePath, out paramMap!);
     }
 
     private static List<FileRefSlot> CollectFileRefs(JArray steps)
     {
         var list = new List<FileRefSlot>();
-        CollectFileRefsRecursive(steps, list);
+        CollectFileRefsRecursive(steps, list, string.Empty);
         return list;
     }
 
-    private static void CollectFileRefsRecursive(JArray steps, List<FileRefSlot> list)
+    private static void CollectFileRefsRecursive(JArray steps, List<FileRefSlot> list, string parentPath)
     {
-        foreach (var token in steps)
+        for (var i = 0; i < steps.Count; i++)
         {
-            if (token is not JObject step)
+            if (steps[i] is not JObject step)
             {
                 continue;
             }
 
+            var nodePath = BuildNodePath(parentPath, i);
             var stepId = step.Value<string>("stepId");
-            if (!string.IsNullOrWhiteSpace(stepId) && step["inputParams"] is JObject inputParams)
+            if (step["inputParams"] is JObject inputParams)
             {
                 foreach (var prop in inputParams.Properties())
                 {
@@ -328,7 +363,8 @@ public static class XActionFileRefExporter
                     {
                         list.Add(new FileRefSlot
                         {
-                            StepId = stepId,
+                            StepId = stepId ?? string.Empty,
+                            NodePath = nodePath,
                             ParamKey = prop.Name,
                             RelativeFile = XActionFileRefPath.NormalizeRelativePath(file),
                         });
@@ -338,15 +374,21 @@ public static class XActionFileRefExporter
 
             if (step["ifSteps"] is JArray ifSteps)
             {
-                CollectFileRefsRecursive(ifSteps, list);
+                CollectFileRefsRecursive(ifSteps, list, nodePath + "/if");
             }
 
             if (step["elseSteps"] is JArray elseSteps)
             {
-                CollectFileRefsRecursive(elseSteps, list);
+                CollectFileRefsRecursive(elseSteps, list, nodePath + "/else");
             }
         }
     }
+
+    private static string BuildNodePath(string parentPath, int index) =>
+        string.IsNullOrEmpty(parentPath) ? index.ToString() : parentPath + "/" + index;
+
+    private static string FormatStepSlot(FileRefSlot slot) =>
+        string.IsNullOrWhiteSpace(slot.StepId) ? slot.NodePath : slot.StepId;
 
     private static Dictionary<string, string> BuildVariableDefaultIndex(JArray? variables)
     {

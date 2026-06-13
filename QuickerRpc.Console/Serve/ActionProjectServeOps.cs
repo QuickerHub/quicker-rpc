@@ -324,6 +324,8 @@ internal static class ActionProjectServeOps
                 });
             }
 
+            var normalizedDataJson = QuickerProjectFiles.WriteDataIfChanged(projectDir, data);
+
             return Ok(new
             {
                 ok = true,
@@ -338,6 +340,7 @@ internal static class ActionProjectServeOps
                     actionId = response.ActionId,
                     editVersion = response.EditVersion,
                     versionConflict = response.VersionConflict,
+                    normalizedDataJson,
                     warnings = HeadlessCliResponses.ToWarningsArray(response.Warnings),
                 },
             });

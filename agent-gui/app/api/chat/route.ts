@@ -46,10 +46,6 @@ import { tryRespondWithLauncherResolveDirect } from "@/lib/launcher/launcher-res
 import { createRepairToolCallHandler } from "@/lib/repair-tool-call";
 import { parseSlashCommandInput } from "@/lib/agent-defs/command-expand";
 import { expandSlashTagsInUserText } from "@/lib/composer-slash-tag";
-import {
-  formatUserLanguageForSystem,
-  inferUserReplyLanguageFromMessages,
-} from "@/lib/user-reply-language";
 import { resolveSlashCommandForChat } from "@/lib/agent-defs/apply-chat-command.server";
 import { formatChatRuntimeContext } from "@/lib/agent-runtime-context";
 
@@ -226,10 +222,6 @@ async function handleChatPost(req: Request) {
 
     const scopeBlock = formatActionScopeForSystem(actionScope);
     const baseSystem = await buildSystemInstructions(cwd, chatMode);
-    const replyLanguage = inferUserReplyLanguageFromMessages(repairedMessages);
-    const replyLanguageBlock = replyLanguage
-      ? formatUserLanguageForSystem(replyLanguage)
-      : null;
     const runtimeContextBlock = formatChatRuntimeContext({
       mode: chatMode,
       cwd,
@@ -257,7 +249,6 @@ async function handleChatPost(req: Request) {
         : null,
       systemWithScope,
       runtimeContextBlock,
-      replyLanguageBlock,
       launcherCacheBlock,
       titleInstruction,
       preparedContext.systemSuffix,

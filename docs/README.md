@@ -107,6 +107,7 @@ authoring-references/  ──直接嵌入──►  AgentModel + QuickerAgent do
 | 文档 / 目录 | 说明 |
 |-------------|------|
 | [quicker-action-data-storage.md](quicker-action-data-storage.md) | 动作数据存储架构 |
+| [action-data-json-normalization.md](action-data-json-normalization.md) | 工作区 `data.json` 写盘规范与 get/patch 幂等约束 |
 | [action-authoring-src/](action-authoring-src/) | **源码**：指南模板与 manifest |
 | [authoring-references/](authoring-references/) | **深参考**：step-modules、patterns、learned-skills registry、benchmarks |
 | [authoring-references/learned-skills/SPEC.md](authoring-references/learned-skills/SPEC.md) | draft skill 创建与晋升流程 |

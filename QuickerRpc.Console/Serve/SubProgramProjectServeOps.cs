@@ -244,6 +244,8 @@ internal static class SubProgramProjectServeOps
                 });
             }
 
+            var normalizedDataJson = QuickerProjectFiles.WriteDataIfChanged(projectDir, data);
+
             return Ok(new
             {
                 ok = true,
@@ -255,6 +257,7 @@ internal static class SubProgramProjectServeOps
                     callIdentifier = response.CallIdentifier,
                     editVersion = response.EditVersion,
                     versionConflict = response.VersionConflict,
+                    normalizedDataJson,
                     warnings = HeadlessCliResponses.ToWarningsArray(response.Warnings),
                 },
             });

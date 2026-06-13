@@ -90,7 +90,7 @@ internal static class ServeInvokeDispatcher
             "action.runtime.check" => await ActionRuntimeServeOps.CheckAsync(rpc, args, token).ConfigureAwait(false),
             "action.runtime.compile" => await ActionRuntimeServeOps.CompileAsync(rpc, args, token).ConfigureAwait(false),
             "action.runtime.keys" => ActionRuntimeServeOps.Keys(),
-            "action.mock.profiles.list" => ActionRuntimeMockServeOps.ListProfiles(),
+            "action.mock.profiles.list" => ActionRuntimeMockProfilesList(),
             "action.float" => await ActionFloatAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit" => await ActionEditAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit-var" => await ActionEditVarAsync(rpc, args, token).ConfigureAwait(false),
@@ -1301,7 +1301,13 @@ internal static class ServeInvokeDispatcher
                 return Fail("MOCK_MODE_CONFLICT", "mock run cannot be combined with trace or debug.");
             }
 
+#if ACTION_RUNTIME_MOCK
             return await ActionRuntimeMockServeOps.RunAsync(rpc, args, token).ConfigureAwait(false);
+#else
+            return Fail(
+                "MOCK_NOT_AVAILABLE",
+                "ActionRuntime mock is only available in dev qkrpc builds (EnableActionRuntimeMock=true).");
+#endif
         }
 
         if (ServeJsonArgs.GetBool(args, "standalone"))
@@ -2326,5 +2332,16 @@ internal static class ServeInvokeDispatcher
         var id = (actionId ?? string.Empty).Trim();
         return id.StartsWith("ephemeral:", StringComparison.OrdinalIgnoreCase)
                || id.StartsWith("inline:", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ServeInvokeResponse ActionRuntimeMockProfilesList()
+    {
+#if ACTION_RUNTIME_MOCK
+        return ActionRuntimeMockServeOps.ListProfiles();
+#else
+        return Fail(
+            "MOCK_NOT_AVAILABLE",
+            "ActionRuntime mock is only available in dev qkrpc builds (EnableActionRuntimeMock=true).");
+#endif
     }
 }

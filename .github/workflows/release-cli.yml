@@ -100,11 +100,14 @@ jobs:
           $publishDir = Join-Path $PWD 'publish/cli'
           New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
           dotnet publish QuickerRpc.Console/QuickerRpc.Console.csproj `
-            -c Release -r win-x64 --self-contained true `
+            -c Release -f net10.0 -r win-x64 --self-contained true `
             -p:PublishSingleFile=false `
+            -p:DebugType=none `
             -p:Version='${{ needs.metadata.outputs.version_full }}' `
             -o $publishDir `
             -v:q --nologo
+          Get-ChildItem -LiteralPath $publishDir -Filter '*.pdb' -Recurse -File -ErrorAction SilentlyContinue |
+            Remove-Item -Force -ErrorAction SilentlyContinue
 
       - name: Create zip
         shell: pwsh

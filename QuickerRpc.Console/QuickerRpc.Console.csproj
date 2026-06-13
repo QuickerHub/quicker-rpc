@@ -2,11 +2,10 @@
   <ItemGroup>
     <InternalsVisibleTo Include="QuickerRpc.Console.Test" />
   </ItemGroup>
+  <!-- net10.0 = production / QuickerAgent bundle; -windows = dev mock verify only. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
-    <DefineConstants Condition="$(TargetFramework.Contains('-windows'))">$(DefineConstants);ACTION_RUNTIME_PACKS</DefineConstants>
+    <TargetFrameworks>net10.0;net10.0-windows10.0.19041.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <ApplicationUTF8Encoding>true</ApplicationUTF8Encoding>
@@ -14,6 +13,12 @@
     <Version Condition="'$(Version)' == ''">0.1.0</Version>
     <RootNamespace>QuickerRpc.Console</RootNamespace>
     <NoWarn>$(NoWarn);VSTHRD002;VSTHRD003;VSTHRD103</NoWarn>
+    <EnableActionRuntimeMock Condition="$(TargetFramework.Contains('-windows'))">true</EnableActionRuntimeMock>
+    <EnableActionRuntimeMock Condition="'$(EnableActionRuntimeMock)' == ''">false</EnableActionRuntimeMock>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(EnableActionRuntimeMock)' == 'true'">
+    <UseWindowsForms>true</UseWindowsForms>
+    <DefineConstants>$(DefineConstants);ACTION_RUNTIME_MOCK;ACTION_RUNTIME_PACKS</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -22,9 +27,16 @@
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
     <ProjectReference Include="..\QuickerRpc.AgentModel\QuickerRpc.AgentModel.csproj" />
     <ProjectReference Include="..\Quicker.ActionRuntime\Quicker.ActionRuntime.Integration\Quicker.ActionRuntime.Integration.csproj" />
-    <ProjectReference Include="..\Quicker.ActionRuntime\Quicker.ActionRuntime.Mocking\Quicker.ActionRuntime.Mocking.csproj" />
     <ProjectReference Include="..\Quicker.ActionRuntime\Quicker.ActionRuntime.ScriptCompiler\Quicker.ActionRuntime.ScriptCompiler.csproj" />
     <ProjectReference Include="..\Quicker.ActionRuntime\tests\Quicker.ActionRuntime.Benchmarks\Quicker.ActionRuntime.Benchmarks.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(EnableActionRuntimeMock)' == 'true'">
+    <ProjectReference Include="..\Quicker.ActionRuntime\Quicker.ActionRuntime.Mocking\Quicker.ActionRuntime.Mocking.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(EnableActionRuntimeMock)' != 'true'">
+    <Compile Remove="ActionRuntime\Mock\**\*.cs" />
+    <Compile Remove="Program.ActionRuntime.Mock.cs" />
+    <Compile Remove="Serve\ActionRuntimeMockServeOps.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CommandLineParser" />

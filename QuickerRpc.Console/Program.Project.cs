@@ -388,6 +388,8 @@ internal static partial class Program
                     .ConfigureAwait(false);
             }
 
+            var normalizedDataJson = QuickerProjectFiles.WriteDataIfChanged(projectDir, data);
+
             HeadlessCliResponses.WriteWarningsToStderr(response.Warnings);
 
             WriteProjectSuccess(
@@ -400,6 +402,7 @@ internal static partial class Program
                     actionId = response.ActionId,
                     editVersion = response.EditVersion,
                     versionConflict = response.VersionConflict,
+                    normalizedDataJson,
                     warnings = HeadlessCliResponses.ToWarningsArray(response.Warnings),
                 },
                 response.Warnings);
@@ -673,6 +676,8 @@ internal static partial class Program
                     .ConfigureAwait(false);
             }
 
+            var normalizedDataJson = QuickerProjectFiles.WriteDataIfChanged(projectDir, data);
+
             HeadlessCliResponses.WriteWarningsToStderr(response.Warnings);
 
             WriteProjectSuccess(
@@ -685,6 +690,7 @@ internal static partial class Program
                     callIdentifier = response.CallIdentifier,
                     editVersion = response.EditVersion,
                     versionConflict = response.VersionConflict,
+                    normalizedDataJson,
                     warnings = HeadlessCliResponses.ToWarningsArray(response.Warnings),
                 },
                 response.Warnings);

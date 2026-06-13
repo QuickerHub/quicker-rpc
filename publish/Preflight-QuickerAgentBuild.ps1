@@ -70,7 +70,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "electron:prepare failed ($LASTEXITCODE)" }
 
     Write-Host 'verify staged bundle...' -ForegroundColor Cyan
-    node scripts/verify-desktop-bundle.mjs --resources-dir electron/resources --label electron-staged
+    $resourcesDir = Join-Path $agentGuiDir 'electron\resources'
+    node scripts/verify-desktop-bundle.mjs --resources-dir $resourcesDir --label electron-staged
     if ($LASTEXITCODE -ne 0) { throw "verify-desktop-bundle failed ($LASTEXITCODE)" }
 }
 finally {

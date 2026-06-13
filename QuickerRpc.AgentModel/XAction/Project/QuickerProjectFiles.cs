@@ -5,6 +5,7 @@ using System.Text;
 using Google.Protobuf.WellKnownTypes;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.AgentModel.Proto.V1;
 using QuickerRpc.AgentModel.XAction.Proto;
 
@@ -82,13 +83,40 @@ public static class QuickerProjectFiles
         return true;
     }
 
-    public static void WriteData(string projectDirectory, JObject data)
+    public static void WriteData(string projectDirectory, JObject data, StepRunnerCatalog? catalog = null)
     {
-        Directory.CreateDirectory(projectDirectory);
+        var path = QuickerProjectLayout.GetDataPath(projectDirectory);
+        WriteDataCore(path, data, catalog, onlyIfChanged: false);
+    }
+
+    public static bool WriteDataIfChanged(string projectDirectory, JObject data, StepRunnerCatalog? catalog = null)
+    {
+        var path = QuickerProjectLayout.GetDataPath(projectDirectory);
+        return WriteDataCore(path, data, catalog, onlyIfChanged: true);
+    }
+
+    private static bool WriteDataCore(
+        string path,
+        JObject data,
+        StepRunnerCatalog? catalog,
+        bool onlyIfChanged)
+    {
         var toWrite = (JObject)data.DeepClone();
+        WorkspaceDataJsonNormalizer.NormalizeForDisk(toWrite, catalog);
         InputParamWireCoercer.CompactStepsRecursive(toWrite["steps"] as JArray);
         VariableDefaultValueWireCoercer.CompactVariablesRecursive(toWrite["variables"] as JArray);
-        WriteJson(QuickerProjectLayout.GetDataPath(projectDirectory), toWrite);
+        var json = JsonConvert.SerializeObject(toWrite, JsonSettings);
+        if (onlyIfChanged && File.Exists(path))
+        {
+            var current = File.ReadAllText(path, Utf8NoBom);
+            if (string.Equals(current, json, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        WriteJsonText(path, json);
+        return true;
     }
 
     public static bool TryParseDataRoot(string json, out JObject? root, out string? error)
@@ -134,12 +162,17 @@ public static class QuickerProjectFiles
 
     private static void WriteJson(string path, object value)
     {
+        WriteJsonText(path, JsonConvert.SerializeObject(value, JsonSettings));
+    }
+
+    private static void WriteJsonText(string path, string json)
+    {
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir))
         {
             Directory.CreateDirectory(dir);
         }
 
-        File.WriteAllText(path, JsonConvert.SerializeObject(value, JsonSettings), Utf8NoBom);
+        File.WriteAllText(path, json, Utf8NoBom);
     }
 }

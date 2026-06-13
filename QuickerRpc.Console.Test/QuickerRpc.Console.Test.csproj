@@ -16,7 +16,9 @@
     <PackageReference Include="MSTest.TestFramework" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\QuickerRpc.Console\QuickerRpc.Console.csproj" />
+    <ProjectReference Include="..\QuickerRpc.Console\QuickerRpc.Console.csproj">
+      <SetTargetFramework>TargetFramework=net10.0-windows10.0.19041.0</SetTargetFramework>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Quicker.ActionRuntime\tests\Quicker.ActionRuntime.Tests\Fixtures\assign-only.json">

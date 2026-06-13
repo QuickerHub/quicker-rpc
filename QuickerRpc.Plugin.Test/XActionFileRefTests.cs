@@ -142,6 +142,62 @@ public sealed class XActionFileRefTests
     }
 
     [TestMethod]
+    public void Export_preserves_file_refs_from_template_without_step_ids_by_node_path()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "qkrpc-file-export-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var latest = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepRunnerKey"] = "sys:csscript",
+                        ["inputParams"] = new JObject
+                        {
+                            ["code"] = new JObject { ["value"] = "updated body" },
+                        },
+                    },
+                },
+                ["variables"] = new JArray(),
+            };
+
+            var template = new JObject
+            {
+                ["steps"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["stepRunnerKey"] = "sys:csscript",
+                        ["inputParams"] = new JObject
+                        {
+                            ["code"] = new JObject { ["file"] = "scripts/main.cs" },
+                        },
+                    },
+                },
+                ["variables"] = new JArray(),
+            };
+
+            var result = XActionFileRefExporter.Export(latest, root, template);
+            Assert.IsTrue(result.Success, result.ErrorMessage);
+            Assert.AreEqual(1, result.ResourceFiles.Count);
+            Assert.AreEqual("updated body", result.ResourceFiles[0].Content);
+
+            var exportedParam = result.ExportedData!["steps"]![0]!["inputParams"]!["code"] as JObject;
+            Assert.AreEqual("scripts/main.cs", exportedParam!.Value<string>("file"));
+            Assert.IsNull(exportedParam["value"]);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void Export_migrates_template_defaultValueFile_and_writes_defaultValue_file_shape()
     {
         var root = Path.Combine(Path.GetTempPath(), "qkrpc-export-var-" + Guid.NewGuid().ToString("N"));
