@@ -137,12 +137,16 @@ export function VarOrValueParamEditor({
   const paramTextTools = useMemo(() => readParamTextTools(def), [def]);
 
   const insertTextToolValue = useCallback(
-    (value: string, mode: "replace" | "append" = "replace"): void => {
+    (value: string, mode: "replace" | "append" | "replaceAll" = "replace"): void => {
+      setModeOverride("input");
+      if (mode === "replaceAll") {
+        onChange({ ...param, varKey: "", value, file: undefined });
+        return;
+      }
       const trimmed = value.trim();
       if (!trimmed) {
         return;
       }
-      setModeOverride("input");
       const prev = (param.value ?? "").trim();
       const nextValue =
         mode === "append" && prev.length > 0
@@ -475,6 +479,7 @@ export function VarOrValueParamEditor({
       <ExternalParamFileStatusHints state={externalFile} />
       <ParamTextToolsStrip
         textTools={paramTextTools}
+        currentValue={param.value ?? ""}
         variables={variables}
         onInsertValue={(value, mode) => insertTextToolValue(value, mode)}
       />

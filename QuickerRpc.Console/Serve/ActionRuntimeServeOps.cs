@@ -169,14 +169,14 @@ internal static class ActionRuntimeServeOps
         });
     }
 
-    private sealed class BuildPackageOutcome
+    internal sealed class BuildPackageOutcome
     {
         public ActionRuntimePackageBuilder.BuildResult? Result { get; init; }
 
         public ServeInvokeResponse? Error { get; init; }
     }
 
-    private static async Task<BuildPackageOutcome> BuildPackageAsync(
+    internal static async Task<BuildPackageOutcome> BuildPackageAsync(
         IQuickerRpcService rpc,
         JsonElement args,
         CancellationToken token)

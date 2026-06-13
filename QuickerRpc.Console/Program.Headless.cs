@@ -534,6 +534,7 @@ internal static partial class Program
                         action = "replace",
                         success = response.Success,
                         errorMessage = response.ErrorMessage,
+                        errorCode = response.ErrorCode,
                         actionId = response.ActionId,
                         editVersion = response.EditVersion,
                         versionConflict = response.VersionConflict,

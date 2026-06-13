@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Quicker.Common;
+using Quicker.Common.Vm;
 using QuickerRpc.AgentModel.Core;
 using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.AgentModel.LocalTime;
@@ -131,6 +134,7 @@ public sealed class HeadlessActionProgramService
             compressedRoot["omitDefaultLiteralInputsApplied"] = omitApplied.Value;
         }
 
+        var readOnly = ActionReadOnlyMutationGuard.IsReadOnlyLibraryTemplate(action!);
         return new QuickerRpcGetCompressedActionResult
         {
             Success = true,
@@ -141,8 +145,144 @@ public sealed class HeadlessActionProgramService
             SubProgramCount = subPrograms.Count,
             ReturnMode = wireMode,
             ReadSource = ActionDesignerProgramBridge.ReadSourceCatalog,
+            ReadOnly = readOnly ? true : null,
+            ReadOnlyReason = readOnly ? ActionReadOnlyMutationGuard.ReadOnlyLibraryErrorCode : null,
+            PatchAllowed = readOnly ? false : null,
         };
     }
+
+    public QuickerRpcGetCompressedSharedActionResult GetCompressedSharedAction(string? sharedActionId, string? returnMode)
+    {
+        var idText = (sharedActionId ?? string.Empty).Trim();
+        if (idText.Length == 0)
+        {
+            return FailSharedGet("sharedActionId is required.");
+        }
+
+        if (!Guid.TryParse(idText, out var sharedId) || sharedId == Guid.Empty)
+        {
+            return FailSharedGet($"Invalid sharedActionId: {idText}", "INVALID_SHARED_ACTION_ID");
+        }
+
+        if (!XActionGetReturnModeParser.TryParse(returnMode, out var mode, out var modeError))
+        {
+            return FailSharedGet(modeError!);
+        }
+
+        if (!QuickerHost.IsRunningInQuicker())
+        {
+            return FailSharedGet("Not running inside Quicker.");
+        }
+
+        SharedActionDto? loadedDto = null;
+        string? payloadJson = null;
+        foreach (var rev in DataServiceSharedActionLoader.EnumerateRevisionCandidates(sharedId, 0))
+        {
+            var dto = DataServiceSharedActionLoader.TryLoad(sharedId, rev);
+            if (SharedActionBodyResolver.TryGetBodyJson(dto) is { } json)
+            {
+                loadedDto = dto;
+                payloadJson = json;
+                break;
+            }
+        }
+
+        if (loadedDto is null || string.IsNullOrWhiteSpace(payloadJson))
+        {
+            return FailSharedGet(
+                $"Shared action program not found (cache/SQL/network): {sharedId:D}",
+                "SHARED_ACTION_NOT_FOUND");
+        }
+
+        var body = JObject.Parse(payloadJson);
+        var (steps, variables, subPrograms) = ActionProgramContent.ReadBodyArrays(body);
+        XActionProgramService.EnsureEphemeralIds(steps, variables);
+
+        var catalog = StepRunnerCatalogFromQuicker.Build();
+        var wireMode = XActionGetReturnModeParser.ToWire(mode);
+        var title = loadedDto.Title ?? string.Empty;
+        var description = loadedDto.Description ?? string.Empty;
+        var icon = loadedDto.Icon ?? string.Empty;
+
+        JObject compressedRoot;
+        bool? omitApplied = null;
+        switch (mode)
+        {
+            case XActionGetReturnMode.Structure:
+                compressedRoot = XActionProgramService.Compress(mode, steps, variables, catalog);
+                break;
+            case XActionGetReturnMode.Metadata:
+                compressedRoot = XActionProgramService.Compress(
+                    mode,
+                    steps,
+                    variables,
+                    catalog,
+                    title: title,
+                    description: description,
+                    icon: icon,
+                    contextMenuData: string.Empty,
+                    subProgramCount: subPrograms.Count);
+                break;
+            case XActionGetReturnMode.Runtime:
+                compressedRoot = new JObject
+                {
+                    ["steps"] = steps,
+                    ["variables"] = variables,
+                };
+                if (subPrograms.Count > 0)
+                {
+                    compressedRoot["subPrograms"] = subPrograms;
+                }
+
+                break;
+            default:
+                compressedRoot = XActionProgramService.Compress(mode, steps, variables, catalog, omitDefaultLiteralInputs: true);
+                omitApplied = true;
+                if (subPrograms.Count > 0)
+                {
+                    compressedRoot["subPrograms"] = ActionEmbeddedSubProgramWire.CompressFromNative(
+                        subPrograms,
+                        catalog,
+                        omitDefaultLiteralInputs: true);
+                }
+
+                break;
+        }
+
+        compressedRoot["sharedActionId"] = sharedId.ToString("D");
+        compressedRoot["returnMode"] = wireMode;
+        compressedRoot["subProgramCount"] = subPrograms.Count;
+        if (omitApplied.HasValue)
+        {
+            compressedRoot["omitDefaultLiteralInputsApplied"] = omitApplied.Value;
+        }
+
+        var localActionId = ActionReadOnlyMutationGuard.TryFindLocalActionIdBySharedId(sharedId);
+        return new QuickerRpcGetCompressedSharedActionResult
+        {
+            Success = true,
+            SharedActionId = sharedId.ToString("D"),
+            ReadOnly = true,
+            ReadOnlyReason = "SHARED_ACTION_LEARNING",
+            PatchAllowed = false,
+            InstalledLocally = localActionId is not null,
+            LocalActionId = localActionId,
+            CompressedJson = JTokenCompat.Compact(compressedRoot),
+            OmitDefaultLiteralInputsApplied = omitApplied,
+            SubProgramCount = subPrograms.Count,
+            ReturnMode = wireMode,
+            ReadSource = "shared-action",
+        };
+    }
+
+    public static async Task<QuickerRpcSearchActionLibraryResult> SearchActionLibraryOnlineAsync(
+        string keyword,
+        int page,
+        int? days,
+        int maxResults,
+        CancellationToken cancellationToken = default) =>
+        await ActionLibrarySearchService.SearchAsync(keyword, page, days, maxResults, cancellationToken)
+            .ConfigureAwait(false);
 
     public QuickerRpcApplyXActionResult ApplyXActionToAction(
         string? actionId,
@@ -189,17 +329,23 @@ public sealed class HeadlessActionProgramService
             return FailApply("Headless action save unavailable.");
         }
 
-        if (!_actions.TryGetById(id, out var action, out var loadError))
+        _actions.TryGetById(id, out var action, out _);
+        if (ActionReadOnlyMutationGuard.TryBuildReplaceFailure(action, id, out var readOnlyApply))
         {
-            return FailApply(loadError ?? $"Action not found: {id}");
+            return readOnlyApply;
         }
 
-        if (!_actions.IsXAction(action!))
+        if (action is null)
+        {
+            return FailApply($"Action not found: {id}");
+        }
+
+        if (!_actions.IsXAction(action))
         {
             return FailApply($"Action {id} is not an XAction program.");
         }
 
-        var versionBefore = _actions.GetEditVersion(action!);
+        var versionBefore = _actions.GetEditVersion(action);
         if (!force && expectedEditVersion.HasValue && expectedEditVersion.Value != versionBefore)
         {
             return new QuickerRpcApplyXActionResult
@@ -259,12 +405,18 @@ public sealed class HeadlessActionProgramService
             return FailMetadata("Headless action save unavailable.");
         }
 
-        if (!_actions.TryGetById(id, out var action, out var loadError))
+        _actions.TryGetById(id, out var action, out _);
+        if (ActionReadOnlyMutationGuard.TryBuildMetadataFailure(action, id, out var readOnlyMetadata))
         {
-            return FailMetadata(loadError ?? $"Action not found: {id}");
+            return readOnlyMetadata;
         }
 
-        var versionBefore = _actions.GetEditVersion(action!);
+        if (action is null)
+        {
+            return FailMetadata($"Action not found: {id}");
+        }
+
+        var versionBefore = _actions.GetEditVersion(action);
         if (!force && expectedEditVersion.HasValue && expectedEditVersion.Value != versionBefore)
         {
             return new QuickerRpcUpdateActionMetadataResult
@@ -367,27 +519,33 @@ public sealed class HeadlessActionProgramService
             return FailPatch(formPreprocess.ErrorMessage ?? "form spec compile failed.");
         }
 
-        if (ActionDesignerProgramBridge.TryApplyActionPatch(id, patch, expectedEditVersion, force, out var designerPatch))
-        {
-            return designerPatch;
-        }
-
         if (_actions is null || !_actions.IsAvailable)
         {
             return FailPatch("Headless action save unavailable.");
         }
 
-        if (!_actions.TryGetById(id, out var action, out var loadError))
+        _actions.TryGetById(id, out var action, out _);
+        if (ActionReadOnlyMutationGuard.TryBuildPatchFailure(action, id, out var readOnlyPatch))
         {
-            return FailPatch(loadError ?? $"Action not found: {id}");
+            return readOnlyPatch;
         }
 
-        if (hasProgramPatch && !_actions.IsXAction(action!))
+        if (ActionDesignerProgramBridge.TryApplyActionPatch(id, patch, expectedEditVersion, force, out var designerPatch))
+        {
+            return designerPatch;
+        }
+
+        if (action is null)
+        {
+            return FailPatch($"Action not found: {id}");
+        }
+
+        if (hasProgramPatch && !_actions.IsXAction(action))
         {
             return FailPatch($"Action {id} is not an XAction program.");
         }
 
-        var versionBefore = _actions.GetEditVersion(action!);
+        var versionBefore = _actions.GetEditVersion(action);
         if (!force && expectedEditVersion.HasValue && expectedEditVersion.Value != versionBefore)
         {
             return new QuickerRpcApplyActionPatchResult
@@ -404,7 +562,7 @@ public sealed class HeadlessActionProgramService
         IList<string> inputParamWarnings = Array.Empty<string>();
         if (hasProgramPatch)
         {
-            var payloadJson = _actions.GetPayloadJson(action!, out var hydrateError);
+            var payloadJson = _actions.GetPayloadJson(action, out var hydrateError);
             if (string.IsNullOrWhiteSpace(payloadJson))
             {
                 return FailPatch(hydrateError ?? $"Action {id} has no XAction payload.");
@@ -798,6 +956,11 @@ public sealed class HeadlessActionProgramService
 
     private static QuickerRpcGetCompressedActionResult FailGet(string message) =>
         new() { Success = false, ErrorMessage = message };
+
+    private static QuickerRpcGetCompressedSharedActionResult FailSharedGet(
+        string message,
+        string? errorCode = null) =>
+        new() { Success = false, ErrorMessage = message, ErrorCode = errorCode };
 
     private static QuickerRpcApplyXActionResult FailApply(string message) =>
         new() { Success = false, ErrorMessage = message };

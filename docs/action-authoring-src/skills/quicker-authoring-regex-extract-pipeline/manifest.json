@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-regex-extract-pipeline",
+  "description": "Quicker 正则提取：regexExtract + match1 尾随空格 wire，或 expression-first Regex.Match 兜底。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

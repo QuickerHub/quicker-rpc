@@ -131,6 +131,14 @@ internal static class QkrpcCliHelp
 
                     opts: ActionHeadlessOpts()),
 
+                Cmd("action library search", "Search the public getquicker.net action library (read-only discovery).", "qkrpc action library search --keyword <text> [--page 1] [--days 30] [--limit 20] [--json]",
+
+                    opts: new[] { Option("keyword", "Search keyword.", shortName: "q"), Option("page", "Page number (1-based).", defaultValue: "1"), Option("days", "Time filter: 7 | 30 | 90 | 365."), Option("limit", "Max items (≤20).", defaultValue: "20"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "10"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("action shared get", "Read-only: pull shared action program by sharedActionId (no local install required).", "qkrpc action shared get --id <sharedActionId> [--return-mode full|structure|metadata] [--json]",
+
+                    opts: ActionHeadlessOpts()),
+
                 Cmd("action patch", "Apply partial XAction patch. When Action Designer is open, applies to designer memory (persisted=false; save in Quicker to catalog). Otherwise one call = one catalog save. Patch JSON may include steps/variables and/or title, description, icon, contextMenuData.", "qkrpc action patch --id <guid> --patch-file <path|-> [--expected-edit-version N] [--force] [--json]",
 
                     opts: ActionPatchOpts()),
@@ -342,9 +350,17 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Action GUID."), Option("yes", "Required.", shortName: "y", required: true), Option("json", "Structured output.") }),
 
-                Cmd("action run", "Run action via Quicker RPC or standalone ActionRuntime.", "qkrpc action run --id <idOrName> [--param <text>] [--debug|--trace] [--wait] [--json] | qkrpc action run --standalone --dir <project> [--param <text>] [--json] | qkrpc action run --standalone --package-file <path> [--json] | qkrpc action run --xaction-file <path|-> --trace [--param <text>] [--json]",
+                Cmd("action run", "Run action via Quicker RPC, standalone ActionRuntime, or mock verify.", "qkrpc action run --id <idOrName> [--param <text>] [--mock --mock-profile <id>] [--assert] [--debug|--trace] [--wait] [--json] | qkrpc action run --standalone --dir <project> [--param <text>] [--json] | qkrpc action run --standalone --package-file <path> [--json] | qkrpc action run --xaction-file <path|-> --trace [--param <text>] [--json]",
 
-                    opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("standalone", "Run via Quicker.ActionRuntime (no Quicker)."), Option("package-file", "ActionExecutionPackage JSON (standalone)."), Option("dir", "Local .quicker project dir (standalone)."), Option("verbose-host", "Standalone: log host callbacks."), Option("debug", "Debug run (Quicker UI or runtime flag)."), Option("trace", "Trace run (plugin terminal debug log, XAction only)."), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
+                    opts: new[] { Option("id", "Action id or name."), Option("param", "Input param.", shortName: "p"), Option("mock", "Deterministic ActionRuntime mock run."), Option("mock-profile", "Benchmark mock profile id."), Option("mock-profile-file", "Explicit mock profile JSON path."), Option("assert", "Evaluate mock profile assertions."), Option("standalone", "Run via Quicker.ActionRuntime (no Quicker)."), Option("package-file", "ActionExecutionPackage JSON (standalone)."), Option("dir", "Local .quicker project dir (standalone)."), Option("verbose-host", "Standalone: log host callbacks."), Option("debug", "Debug run (Quicker UI or runtime flag)."), Option("trace", "Trace run (plugin terminal debug log, XAction only)."), Option("wait", "Wait for result."), Option("json", "Structured output.") }),
+
+                Cmd("action mock-profiles", "List built-in benchmark mock profiles.", "qkrpc action mock-profiles list [--json]",
+
+                    opts: new[] { Option("json", "Structured output.") }),
+
+                Cmd("action mock-trace-diff", "Compare mock synthetic step spine vs plugin trace (developer tool).", "qkrpc action mock-trace-diff --id <guid> --mock-profile <id> [--param <text>] [--json]",
+
+                    opts: new[] { Option("id", "Action id."), Option("mock-profile", "Benchmark mock profile id."), Option("mock-profile-file", "Explicit mock profile JSON path."), Option("param", "Input param.", shortName: "p"), Option("json", "Structured output.") }),
 
                 Cmd("action runtime-check", "Check whether a program is fully supported by ActionRuntime.", "qkrpc action runtime-check --dir <project> [--json] | qkrpc action runtime-check --package-file <path> [--json] | qkrpc action runtime-check --id <guid> [--json]",
 

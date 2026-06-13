@@ -7,7 +7,7 @@ import {
 import { actionPickerModeForTool } from "./textToolActionPicker";
 import { keyCaptureModeForTool } from "./textToolSendKeys";
 
-/** Tools with a web/Tauri implementation in ParamTextToolsStrip (others stay desktop-only). */
+/** Tools handled locally in ParamTextToolsStrip (web dialog / Tauri / browser). */
 export const WEB_TEXT_TOOL_IDS = new Set([
   "SelectSingleFile",
   "SelectMultiFile",
@@ -21,10 +21,19 @@ export const WEB_TEXT_TOOL_IDS = new Set([
   "BoolExpressionHelper",
   "SelectActionId",
   "SelectActionName",
+  "EditInCodeWindow",
 ]);
 
 export function isWebTextTool(toolId: string): boolean {
   return WEB_TEXT_TOOL_IDS.has(toolId);
+}
+
+/** Desktop-only tools that can run via qkrpc plugin when Quicker is online. */
+export function isQkrpcTextTool(toolId: string): boolean {
+  if (!toolId.trim() || toolId === "Na") {
+    return false;
+  }
+  return !isWebTextTool(toolId);
 }
 
 export type TextToolDialogKind =
@@ -33,9 +42,11 @@ export type TextToolDialogKind =
   | "savePath"
   | "keyCapture"
   | "boolExpression"
-  | "actionPicker";
+  | "actionPicker"
+  | "editInCode";
 
 export function resolveTextToolDialogKind(toolId: string): TextToolDialogKind | null {
+  if (toolId === "EditInCodeWindow") return "editInCode";
   if (toolId === "ColorPicker") return "color";
   if (toolId === "ColorPickerArgb") return "colorArgb";
   if (toolId === "SelectSavePath") return "savePath";

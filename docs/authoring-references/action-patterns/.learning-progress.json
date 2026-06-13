@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "goal": "Distill multi-step Quicker action patterns from library/local exemplars + live benchmarks; retrofit skills and prompt-tier0",
+  "goal": "Distill patterns from exemplars + benchmarks; skills land in action-authoring-src/skills (single source)",
   "plan": "docs/superpowers/plans/2026-06-13-quicker-action-authoring-learning.md",
   "spec": "docs/authoring-references/action-patterns/SPEC.md",
-  "updatedAt": "2026-06-13T07:22:00.000Z",
+  "updatedAt": "2026-06-13T17:00:00.000Z",
   "batchSize": 2,
   "patterns": {
     "selection-pipeline": {
@@ -76,6 +76,69 @@
       "completedAt": "2026-06-13T07:21:00.000Z",
       "skillName": "quicker-authoring-ui-automation-lite",
       "notes": "trace: activate+delay UI_OK; keyInput on Electron may fail"
+    },
+    "run-action-delegate": {
+      "title": "委托运行动作",
+      "status": "done",
+      "batch": 5,
+      "completedAt": "2026-06-13T07:35:00.000Z",
+      "skillName": "quicker-authoring-run-action-delegate"
+    },
+    "regex-extract-pipeline": {
+      "title": "正则提取流水线",
+      "status": "done",
+      "batch": 5,
+      "completedAt": "2026-06-13T08:50:00.000Z",
+      "skillName": "quicker-authoring-regex-extract-pipeline",
+      "notes": "match1 尾随空格 wire；expression-first 兜底"
+    },
+    "form-param-input": {
+      "title": "表单参数输入",
+      "status": "done",
+      "batch": 5,
+      "completedAt": "2026-06-13T08:45:00.000Z",
+      "skillName": "quicker-authoring-form-param-input",
+      "notes": "patch OK; trace-exempt UI form; formDef.file for long specs"
+    },
+    "conditional-http": {
+      "title": "条件 HTTP 请求",
+      "status": "done",
+      "batch": 6,
+      "completedAt": "2026-06-13T09:00:00.000Z",
+      "skillName": "quicker-authoring-conditional-http",
+      "notes": "sys:if not simpleIf for else+http"
+    },
+    "file-copy-timestamp": {
+      "title": "文件复制加时间戳",
+      "status": "done",
+      "batch": 6,
+      "completedAt": "2026-06-13T09:00:00.000Z",
+      "skillName": "quicker-authoring-file-copy-timestamp",
+      "notes": "copyTo + Path.Combine timestamp"
+    },
+    "window-title-branch": {
+      "title": "窗口标题分支",
+      "status": "done",
+      "batch": 6,
+      "completedAt": "2026-06-13T09:00:00.000Z",
+      "skillName": "quicker-authoring-window-title-branch",
+      "notes": "getWindowTitle + if + showCmd 3"
+    },
+    "external-eval-cs": {
+      "title": "外置表达式文件",
+      "status": "done",
+      "batch": 7,
+      "completedAt": "2026-06-13T09:15:00.000Z",
+      "skillName": "quicker-authoring-external-eval-cs",
+      "notes": "expression.file + extract/apply；JSON format trace"
+    },
+    "csv-parse-aggregate": {
+      "title": "剪贴板 CSV 聚合",
+      "status": "done",
+      "batch": 7,
+      "completedAt": "2026-06-13T09:15:00.000Z",
+      "skillName": "quicker-authoring-csv-parse-aggregate",
+      "notes": "3,35 trace；parseOk vs clipOk"
     }
   },
   "benchmarks": {
@@ -85,5 +148,72 @@
     "B04": { "title": "子程序复用", "status": "done", "completedAt": "2026-06-13T07:15:00.000Z" },
     "B05": { "title": "文件批处理", "status": "done", "completedAt": "2026-06-13T07:15:00.000Z" }
   },
-  "l4RetroCount": 1
+  "l4RetroCount": 2,
+  "postL2": {
+    "discover-library-search": "done",
+    "subprogram-var-io-doc": "done",
+    "prompt-tier0-scenario-traps": "done",
+    "updatedAt": "2026-06-13T08:35:00.000Z"
+  },
+  "batch5": {
+    "done": ["run-action-delegate", "form-param-input", "regex-extract-pipeline"],
+    "pending": []
+  },
+  "batch6": {
+    "done": ["conditional-http", "file-copy-timestamp", "window-title-branch"],
+    "pending": []
+  },
+  "batch7": {
+    "done": ["external-eval-cs", "csv-parse-aggregate"],
+    "pending": []
+  },
+  "backlog": {
+    "pending": [],
+    "notes": "L2 backlog cleared; next: authoring-tasks eval or new patterns from library"
+  },
+  "authoringTasksEval": {
+    "startedAt": "2026-06-13T09:30:00.000Z",
+    "updatedAt": "2026-06-13T17:00:00.000Z",
+    "retro": "docs/authoring-references/benchmarks/retro/2026-06-13-authoring-tasks-eval.md",
+    "mockPassed": [
+      "discover-library-search",
+      "multi-var-assign",
+      "http-json-origin",
+      "csv-parse-aggregate",
+      "clip-lines-expr",
+      "window-vscode-branch",
+      "file-copy-timestamp",
+      "form-to-clipboard",
+      "conditional-http-cache",
+      "external-eval-cs"
+    ],
+    "mockFailed": [],
+    "runtimeFix": "StepParamReader.ReadConditionBoolean; DeterministicGetSelectedFilesOperations",
+    "unitTests": "IfConditionEvaluationTests 2/2 pass",
+    "l0Cli": {
+      "discover-step-expr": "pass",
+      "discover-docs-workflow": "pass",
+      "discover-library-search": "pass",
+      "org-docs-organization": "pass",
+      "discover-clipboard-actions": "pass",
+      "discover-subprogram-uses": "pass"
+    },
+    "l1Cli": {
+      "meta-create-icon": "pass",
+      "meta-rename-only": "pass",
+      "single-msgbox": "pass"
+    },
+    "l2Cli": {
+      "regression-no-get-after-patch": "pass",
+      "regression-no-inline-patch-json": "pass",
+      "delay-step": "pass",
+      "read-structure-first": "pass"
+    },
+    "l3Cli": {
+      "global-subprogram-call": "pass",
+      "file-edit-comment": "pass",
+      "external-eval-cs": "pass_mock"
+    },
+    "docFix": "inputParams JSON vs inline patch clarified; docs:gen ok"
+  }
 }

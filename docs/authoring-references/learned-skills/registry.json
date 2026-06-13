@@ -1,17 +1,18 @@
 {
-  "version": 1,
+  "version": 2,
   "parentSkill": "quicker-authoring",
-  "draftRoot": ".cursor/skills",
+  "skillRoot": "docs/action-authoring-src/skills",
   "spec": "docs/authoring-references/learned-skills/SPEC.md",
   "plan": "docs/superpowers/plans/2026-06-13-quicker-action-authoring-learning.md",
-  "updatedAt": "2026-06-13T07:23:32.738Z",
+  "updatedAt": "2026-06-13T07:39:51.617Z",
   "skills": [
     {
       "slug": "selection-pipeline",
       "skillName": "quicker-authoring-selection-pipeline",
       "status": "promoted",
       "patternRef": "docs/authoring-references/action-patterns/selection-pipeline.md",
-      "skillPath": ".cursor/skills/quicker-authoring-selection-pipeline/SKILL.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-selection-pipeline/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-selection-pipeline/manifest.json",
       "verifiedBy": [
         "B01",
         "trace:86b87ec7-a0d2-4c19-ae6a-408f55bc55c7"
@@ -23,14 +24,15 @@
       ],
       "reviewNotes": "首轮学习产出；benchmark 无头 param 验证通过",
       "promotedAt": "2026-06-13",
-      "reviewedBy": "agent"
+      "reviewedBy": "maintainer"
     },
     {
       "slug": "http-json-api",
       "skillName": "quicker-authoring-http-json-api",
       "status": "promoted",
       "patternRef": "docs/authoring-references/action-patterns/http-json-api.md",
-      "skillPath": ".cursor/skills/quicker-authoring-http-json-api/SKILL.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-http-json-api/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-http-json-api/manifest.json",
       "verifiedBy": [
         "B02",
         "trace:69e84daf-9477-4840-baea-6923abdd8967"
@@ -42,14 +44,15 @@
       ],
       "reviewNotes": "首轮学习产出；author=Yours Truly status=200",
       "promotedAt": "2026-06-13",
-      "reviewedBy": "agent"
+      "reviewedBy": "maintainer"
     },
     {
       "slug": "action-library-search",
       "skillName": "quicker-action-library-search",
       "status": "promoted",
       "patternRef": "docs/authoring-references/getquicker-library-search/SPEC.md",
-      "skillPath": ".cursor/skills/quicker-action-library-search/SKILL.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-action-library-search/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-action-library-search/manifest.json",
       "verifiedBy": [
         "live:选中文本/HTTP search",
         "phase0:library+shared+patch-guard"
@@ -58,16 +61,17 @@
         "getquicker.net/Search HTML 2026-06-13",
         "qkrpc 0.14.4.59+"
       ],
-      "reviewNotes": "P1+P2 已实现并验收（2026-06-13）；MCP qkrpc_action_library_search / qkrpc_action_shared_get",
+      "reviewNotes": "P1+P2 已实现并验收；MCP qkrpc_action_library_search / qkrpc_action_shared_get",
       "promotedAt": "2026-06-13",
-      "reviewedBy": "agent"
+      "reviewedBy": "maintainer"
     },
     {
       "slug": "clipboard-pipeline",
       "skillName": "quicker-authoring-clipboard-pipeline",
       "status": "promoted",
       "patternRef": "docs/authoring-references/action-patterns/clipboard-pipeline.md",
-      "skillPath": ".cursor/skills/quicker-authoring-clipboard-pipeline/SKILL.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-clipboard-pipeline/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-clipboard-pipeline/manifest.json",
       "verifiedBy": [
         "trace:ee9a6d10-c284-4c38-90d0-2b1aa422df81",
         "exemplar:99363ea4-da49-4667-95d6-08d66293b929"
@@ -76,16 +80,17 @@
         "library search:剪贴板",
         "shared get full"
       ],
-      "reviewNotes": "首个 API 闭环 pattern；writeClipboard type=text 用 text.var",
+      "reviewNotes": "writeClipboard type=text 用 text.var",
       "promotedAt": "2026-06-13",
-      "reviewedBy": "agent"
+      "reviewedBy": "maintainer"
     },
     {
       "slug": "loop-control",
       "skillName": "quicker-authoring-loop-control",
       "status": "promoted",
       "patternRef": "docs/authoring-references/action-patterns/loop-control.md",
-      "skillPath": ".cursor/skills/quicker-authoring-loop-control/SKILL.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-loop-control/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-loop-control/manifest.json",
       "verifiedBy": [
         "B03",
         "trace:3950e311-1d20-40bb-91cc-cb3d7ce348ec"
@@ -94,16 +99,17 @@
         "B03 retro",
         "each/break/simpleIf step-runner get"
       ],
-      "reviewNotes": "卡点：sys:if 无 Else 用 simpleIf；each 子步骤在 ifSteps",
+      "reviewNotes": "sys:if 无 Else 用 simpleIf；each 子步骤在 ifSteps",
       "promotedAt": "2026-06-13",
-      "reviewedBy": "agent"
+      "reviewedBy": "maintainer"
     },
     {
       "slug": "evalexpression-multi-var",
       "skillName": "quicker-authoring-evalexpression-multi-var",
       "status": "promoted",
       "patternRef": null,
-      "skillPath": ".cursor/skills/quicker-authoring-evalexpression-multi-var/SKILL.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-evalexpression-multi-var/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-evalexpression-multi-var/manifest.json",
       "verifiedBy": [
         "SDK-L2-2026-06-13:multi-var-assign",
         "retro:2026-06-13-sdk-l2-batch.md",
@@ -113,16 +119,17 @@
         "quicker-eval-expression",
         "trace:b63593ce-d494-40f9-a87e-18011c443d28"
       ],
-      "reviewNotes": "number 字面量 Convert.ToDouble；B03 亦用 evalexpression 建列表",
+      "reviewNotes": "number 字面量 Convert.ToDouble",
       "promotedAt": "2026-06-13",
-      "reviewedBy": "agent"
+      "reviewedBy": "maintainer"
     },
     {
       "slug": "subprogram-extract",
       "skillName": "quicker-authoring-subprogram-extract",
       "status": "promoted",
       "patternRef": "docs/authoring-references/action-patterns/subprogram-extract.md",
-      "skillPath": ".cursor/skills/quicker-authoring-subprogram-extract/SKILL.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-subprogram-extract/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-subprogram-extract/manifest.json",
       "verifiedBy": [
         "B04",
         "trace:b4b9c75d-970b-41cb-9c5f-1bfd728ef1f5"
@@ -131,16 +138,17 @@
         "subprogram-workflow",
         "voxtype-run-subprogram.patch.json"
       ],
-      "reviewNotes": "IO wire: var:text / var:result；非 text.var",
+      "reviewNotes": "IO wire: var:text / var:result",
       "promotedAt": "2026-06-13",
-      "reviewedBy": "agent"
+      "reviewedBy": "maintainer"
     },
     {
       "slug": "file-batch",
       "skillName": "quicker-authoring-file-batch",
       "status": "promoted",
       "patternRef": "docs/authoring-references/action-patterns/file-batch.md",
-      "skillPath": ".cursor/skills/quicker-authoring-file-batch/SKILL.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-file-batch/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-file-batch/manifest.json",
       "verifiedBy": [
         "B05",
         "trace:5a9fba14-0b15-4fb8-9a32-c9be9f3a18ca"
@@ -150,16 +158,17 @@
         "readFile",
         "WriteTextFile"
       ],
-      "reviewNotes": "无头 each+readFile+WriteTextFile；merged 含 line1/alpha",
+      "reviewNotes": "无头 each+readFile+WriteTextFile",
       "promotedAt": "2026-06-13",
-      "reviewedBy": "agent"
+      "reviewedBy": "maintainer"
     },
     {
       "slug": "expression-first",
       "skillName": "quicker-authoring-expression-first",
       "status": "promoted",
       "patternRef": "docs/authoring-references/action-patterns/expression-first.md",
-      "skillPath": ".cursor/skills/quicker-authoring-expression-first/SKILL.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-expression-first/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-expression-first/manifest.json",
       "verifiedBy": [
         "trace:171ea4d1-37eb-406b-9c08-05211d83dc1e",
         "SDK-L2:clip-lines-expr"
@@ -168,16 +177,17 @@
         "quicker-eval-expression",
         "evalexpression LINQ dedupe"
       ],
-      "reviewNotes": "单行 evalexpression 去重排序；showText line1/2/3",
+      "reviewNotes": "单行 evalexpression 去重排序",
       "promotedAt": "2026-06-13",
-      "reviewedBy": "agent"
+      "reviewedBy": "maintainer"
     },
     {
       "slug": "path-and-exists",
       "skillName": "quicker-authoring-path-and-exists",
       "status": "promoted",
       "patternRef": "docs/authoring-references/action-patterns/path-and-exists.md",
-      "skillPath": ".cursor/skills/quicker-authoring-path-and-exists/SKILL.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-path-and-exists/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-path-and-exists/manifest.json",
       "verifiedBy": [
         "trace:dae912f1-6e66-4e56-b3f3-3dd943eb13d0"
       ],
@@ -186,16 +196,17 @@
         "simpleIf",
         "b05-a.txt fixture"
       ],
-      "reviewNotes": "isExists 非 isSuccess；双分支 simpleIf",
+      "reviewNotes": "isExists 非 isSuccess",
       "promotedAt": "2026-06-13",
-      "reviewedBy": "agent"
+      "reviewedBy": "maintainer"
     },
     {
       "slug": "delay-retry",
       "skillName": "quicker-authoring-delay-retry",
       "status": "promoted",
       "patternRef": "docs/authoring-references/action-patterns/delay-retry.md",
-      "skillPath": ".cursor/skills/quicker-authoring-delay-retry/SKILL.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-delay-retry/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-delay-retry/manifest.json",
       "verifiedBy": [
         "trace:f6e7900d-78da-4deb-b3be-e9e0482ff0e5"
       ],
@@ -207,14 +218,15 @@
       ],
       "reviewNotes": "repeat ifSteps；第3轮 RETRY_OK+break",
       "promotedAt": "2026-06-13",
-      "reviewedBy": "agent"
+      "reviewedBy": "maintainer"
     },
     {
       "slug": "ui-automation-lite",
       "skillName": "quicker-authoring-ui-automation-lite",
       "status": "promoted",
       "patternRef": "docs/authoring-references/action-patterns/ui-automation-lite.md",
-      "skillPath": ".cursor/skills/quicker-authoring-ui-automation-lite/SKILL.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-ui-automation-lite/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-ui-automation-lite/manifest.json",
       "verifiedBy": [
         "trace:3dca433f-a294-4044-b87c-c61a93565f45",
         "activate Cursor UI_OK"
@@ -224,7 +236,135 @@
         "delay",
         "keyInput trap:Electron"
       ],
-      "reviewNotes": "activate+delay trace OK；keyInput 在 Electron 可能失败；勿激活 Quicker",
+      "reviewNotes": "activate+delay trace OK；keyInput 在 Electron 可能失败",
+      "promotedAt": "2026-06-13",
+      "reviewedBy": "maintainer"
+    },
+    {
+      "slug": "run-action-delegate",
+      "skillName": "quicker-authoring-run-action-delegate",
+      "status": "promoted",
+      "patternRef": "docs/authoring-references/action-patterns/run-action-delegate.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-run-action-delegate/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-run-action-delegate/manifest.json",
+      "verifiedBy": [
+        "trace:bb0838d7-1b10-4d7a-a094-2256c5f82e99"
+      ],
+      "sources": [
+        "runAction",
+        "StartAction",
+        "library:运行动作"
+      ],
+      "reviewNotes": "actionId.var + wait True → RUN_OK",
+      "promotedAt": "2026-06-13",
+      "reviewedBy": "agent"
+    },
+    {
+      "slug": "form-param-input",
+      "skillName": "quicker-authoring-form-param-input",
+      "status": "promoted",
+      "patternRef": "docs/authoring-references/action-patterns/form-param-input.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-form-param-input/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-form-param-input/manifest.json",
+      "verifiedBy": [
+        "patch:2063ba96-c200-42b6-b06f-bf72f8301d3d",
+        "form-validate:.local/form-task.spec.json",
+        "trace-exempt:ui-form"
+      ],
+      "sources": [
+        "sys:form",
+        "form-spec",
+        "benchmark:form-to-clipboard"
+      ],
+      "reviewNotes": "form 需 UI；patch+validate OK；长表单用 formDef.file",
+      "promotedAt": "2026-06-13",
+      "reviewedBy": "agent"
+    },
+    {
+      "slug": "regex-extract-pipeline",
+      "skillName": "quicker-authoring-regex-extract-pipeline",
+      "status": "promoted",
+      "patternRef": "docs/authoring-references/action-patterns/regex-extract-pipeline.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-regex-extract-pipeline/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-regex-extract-pipeline/manifest.json",
+      "verifiedBy": [
+        "trace:f9b39e0b-b15d-4c45-bb12-7d5e5289c7dc",
+        "trace:139dca53-18d0-4640-91c0-d8ee8d7c9d8b"
+      ],
+      "sources": [
+        "regexExtract",
+        "match1 wire",
+        "expression-first fallback"
+      ],
+      "reviewNotes": "outputParams match1 尾随空格；ABC123 trace OK",
+      "promotedAt": "2026-06-13",
+      "reviewedBy": "agent"
+    },
+    {
+      "slug": "conditional-http",
+      "skillName": "quicker-authoring-conditional-http",
+      "status": "promoted",
+      "patternRef": "docs/authoring-references/action-patterns/conditional-http.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-conditional-http/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-conditional-http/manifest.json",
+      "verifiedBy": ["trace:54b8937f-6298-4c07-a1d9-0446ab43d70f"],
+      "sources": ["conditional-http-cache", "sys:if", "http"],
+      "reviewNotes": "simpleIf 不跑 else+http；改 sys:if → HTTP_OK",
+      "promotedAt": "2026-06-13",
+      "reviewedBy": "agent"
+    },
+    {
+      "slug": "file-copy-timestamp",
+      "skillName": "quicker-authoring-file-copy-timestamp",
+      "status": "promoted",
+      "patternRef": "docs/authoring-references/action-patterns/file-copy-timestamp.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-file-copy-timestamp/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-file-copy-timestamp/manifest.json",
+      "verifiedBy": ["trace:0a5e79da-891b-45ff-8737-8b28c1b2aa7c"],
+      "sources": ["file-copy-timestamp", "fileOperation copyTo"],
+      "reviewNotes": "b05-a_yyyyMMdd_HHmmss.txt trace OK",
+      "promotedAt": "2026-06-13",
+      "reviewedBy": "agent"
+    },
+    {
+      "slug": "window-title-branch",
+      "skillName": "quicker-authoring-window-title-branch",
+      "status": "promoted",
+      "patternRef": "docs/authoring-references/action-patterns/window-title-branch.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-window-title-branch/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-window-title-branch/manifest.json",
+      "verifiedBy": ["trace:82227d64-a0bb-46b6-a3ea-37f1a7811645", "mock:window-vscode-branch"],
+      "sources": ["window-vscode-branch", "getWindowTitle", "windowOperations show"],
+      "reviewNotes": "NOT_VSCODE live trace；showCmd 3 最大化",
+      "promotedAt": "2026-06-13",
+      "reviewedBy": "agent"
+    },
+    {
+      "slug": "external-eval-cs",
+      "skillName": "quicker-authoring-external-eval-cs",
+      "status": "promoted",
+      "patternRef": "docs/authoring-references/action-patterns/external-eval-cs.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-external-eval-cs/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-external-eval-cs/manifest.json",
+      "verifiedBy": [
+        "trace:997e439c-67e8-4f1e-ae1d-31ccf75144ad",
+        "apply:.local/ws-external-eval"
+      ],
+      "sources": ["external-eval-cs", "expression.file", "extract/apply"],
+      "reviewNotes": "JSON format → clipboard；勿 isSuccess 覆盖 ok",
+      "promotedAt": "2026-06-13",
+      "reviewedBy": "agent"
+    },
+    {
+      "slug": "csv-parse-aggregate",
+      "skillName": "quicker-authoring-csv-parse-aggregate",
+      "status": "promoted",
+      "patternRef": "docs/authoring-references/action-patterns/csv-parse-aggregate.md",
+      "skillSrcPath": "docs/action-authoring-src/skills/quicker-authoring-csv-parse-aggregate/SKILL.src.md",
+      "manifestPath": "docs/action-authoring-src/skills/quicker-authoring-csv-parse-aggregate/manifest.json",
+      "verifiedBy": ["trace:3c4e6247-7781-428c-9902-e2e39ee07a59"],
+      "sources": ["csv-clipboard-stats", "evalexpression"],
+      "reviewNotes": "3,35 trace；parseOk/clipOk 分离；Convert.ToDouble",
       "promotedAt": "2026-06-13",
       "reviewedBy": "agent"
     }

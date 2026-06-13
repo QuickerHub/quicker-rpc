@@ -1,0 +1,21 @@
+{
+  "id": "external-eval-cs",
+  "version": 1,
+  "mocks": {
+    "clipboard": {
+      "unicodeText": "{\"name\":\"demo\",\"n\":1}"
+    }
+  },
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "ok": "True",
+      "clipOk": "True"
+    },
+    "clipboardTextContains": [
+      "\"name\"",
+      "\"n\"",
+      "demo"
+    ]
+  }
+}

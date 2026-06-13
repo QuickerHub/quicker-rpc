@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Quicker.Domain.Actions.X;
 using QuickerRpc.Plugin.Quicker;
@@ -20,6 +22,12 @@ internal static class ActionDesignerUiInjector
     internal const string InjectTabTag = "QuickerRpc.InjectTab";
 
     private static readonly ConditionalWeakTable<TabControl, SelectionChangedEventHandler> ToolContentHooks = new();
+    private static readonly ConditionalWeakTable<TabControl, ToolTabPaddingState> OriginalToolTabPadding = new();
+
+    private sealed class ToolTabPaddingState
+    {
+        public Thickness OriginalPadding;
+    }
 
     public static bool TryInject(Window designer) => TryInjectCore(designer, reload: false, selectTab: false);
 
@@ -89,12 +97,15 @@ internal static class ActionDesignerUiInjector
             return false;
         }
 
+        TryCompactToolTabStrip(toolTab);
+
         if (!reload)
         {
             var existing = FindInjectedTab(toolTab);
             if (existing is not null)
             {
                 EnsureIconHeader(existing);
+                existing.Content = BuildToolsPanel(designer);
                 EnsureToolContentSelectionHook(designer, toolTab);
                 ActionDesignerReflection.TrySyncToolContentForSelectedTab(designer, toolTab);
                 ActionDesignerAgentTabInjector.TryInject(designer, toolTab);
@@ -110,12 +121,7 @@ internal static class ActionDesignerUiInjector
             {
                 Header = ActionDesignerTabHeader.Create(),
                 Tag = InjectTabTag,
-                Content = new ScrollViewer
-                {
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                    Content = BuildToolsPanel(designer),
-                },
+                Content = BuildToolsPanel(designer),
             };
 
             toolTab.Items.Add(tabItem);
@@ -273,6 +279,62 @@ internal static class ActionDesignerUiInjector
 
         toolTab.SelectionChanged += handler;
         ToolContentHooks.Add(toolTab, handler);
+        EnsureToolContentBlankClickGuard(designer);
+    }
+
+    private static readonly ConditionalWeakTable<ContentControl, MouseButtonEventHandler> ToolContentBlankClickGuards = new();
+
+    /// <summary>
+    /// Quicker routes blank <c>ToolContent</c> clicks back to the module toolbox tab; swallow those
+    /// while a plugin tab remains selected.
+    /// </summary>
+    private static void EnsureToolContentBlankClickGuard(Window designer)
+    {
+        if (!ActionDesignerReflection.TryGetToolContent(designer, out var toolContent)
+            || toolContent is null)
+        {
+            return;
+        }
+
+        if (ToolContentBlankClickGuards.TryGetValue(toolContent, out _))
+        {
+            return;
+        }
+
+        MouseButtonEventHandler handler = (_, e) =>
+        {
+            if (!ActionDesignerReflection.TryGetToolTab(designer, out var toolTab)
+                || toolTab?.SelectedItem is not TabItem selectedTab
+                || !ActionDesignerReflection.IsPluginToolTab(selectedTab))
+            {
+                return;
+            }
+
+            if (IsInteractiveClickTarget(e.OriginalSource as DependencyObject))
+            {
+                return;
+            }
+
+            e.Handled = true;
+        };
+
+        toolContent.PreviewMouseDown += handler;
+        ToolContentBlankClickGuards.Add(toolContent, handler);
+    }
+
+    private static bool IsInteractiveClickTarget(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is Button or TextBox or ScrollViewer or ListBox or ComboBox)
+            {
+                return true;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return false;
     }
 
     private static void RemoveInjectedTabs(TabControl toolTab)
@@ -313,60 +375,36 @@ internal static class ActionDesignerUiInjector
         tab.ToolTip = null;
     }
 
-    private static Panel BuildToolsPanel(Window designer)
+    private static void TryCompactToolTabStrip(TabControl toolTab)
     {
-        var panel = new StackPanel
+        if (!OriginalToolTabPadding.TryGetValue(toolTab, out var state))
         {
-            Margin = new Thickness(8),
-        };
-
-        AddButton(panel, "复制动作定义", "fa:Light_Copy:#4C7BD4", () => OnCopyActionDefinition(designer));
-        AddButton(panel, "查看动作 JSON", "fa:Light_BracketsCurly:#8B5CF6", () => OnViewActionJson(designer));
-        AddButton(panel, "粘贴动作定义", "fa:Light_FileImport:#22C55E", () => OnPasteActionDefinition(designer));
-        AddButton(panel, "复制动作 ID", "fa:Light_Fingerprint:#3B82F6", () => OnCopyActionId(designer));
-        AddButton(panel, "复制选中变量", "fa:Light_Sigma:#F59E0B", () => OnCopySelectedVariables(designer));
-        AddButton(panel, "查看变量状态", "fa:Light_Eye:#14B8A6", () => OnViewVariableState(designer));
-        AddButton(panel, "复制步骤", "fa:Light_Clone:#4C7BD4", () => OnCopySteps(designer));
-        AddButton(panel, "粘贴步骤", "fa:Light_Paste:#22C55E", () => OnPasteSteps(designer));
-        AddButton(panel, "获取子程序 ID", "fa:Light_PuzzlePiece:#A855F7", () => OnCopySubProgramId(designer));
-        AddButton(panel, "升级网络子程序", "fa:Light_CloudUpload:#0EA5E9", () => OnUpgradeNetworkSubPrograms(designer));
-        AddButton(panel, "解锁只读", "fa:Light_Unlock:#F59E0B", () => OnUnlockReadOnly(designer));
-        AddButton(panel, "保存", "fa:Light_Save:#16A34A", () => OnSave(designer));
-
-        return panel;
-    }
-
-    private static void AddButton(Panel panel, string label, string? faSpec, Action onClick)
-    {
-        var button = new Button
-        {
-            Content = CreateButtonContent(label, faSpec),
-            Margin = new Thickness(0, 0, 0, 6),
-            Padding = new Thickness(8, 4, 8, 4),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        button.Click += (_, _) => onClick();
-        panel.Children.Add(button);
-    }
-
-    private static UIElement CreateButtonContent(string label, string? faSpec)
-    {
-        var icon = ActionDesignerFaIcon.TryCreate(faSpec);
-        if (icon is null)
-        {
-            return new TextBlock { Text = label };
+            state = new ToolTabPaddingState { OriginalPadding = toolTab.Padding };
+            OriginalToolTabPadding.Add(toolTab, state);
         }
 
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
-        row.Children.Add(icon);
-        row.Children.Add(new TextBlock
-        {
-            Text = label,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-        });
-        return row;
+        toolTab.Padding = new Thickness(0, 2, 0, 0);
     }
+
+    private static UIElement BuildToolsPanel(Window designer) =>
+        ActionDesignerToolsPanel.Build(CreateToolHandlers(designer));
+
+    private static ActionDesignerToolsPanel.Handlers CreateToolHandlers(Window designer) =>
+        new()
+        {
+            CopyActionDefinition = () => OnCopyActionDefinition(designer),
+            PasteActionDefinition = () => OnPasteActionDefinition(designer),
+            ViewActionJson = () => OnViewActionJson(designer),
+            CopyActionId = () => OnCopyActionId(designer),
+            CopySteps = () => OnCopySteps(designer),
+            PasteSteps = () => OnPasteSteps(designer),
+            CopySelectedVariables = () => OnCopySelectedVariables(designer),
+            ViewVariableState = () => OnViewVariableState(designer),
+            CopySubProgramId = () => OnCopySubProgramId(designer),
+            UpgradeNetworkSubPrograms = () => OnUpgradeNetworkSubPrograms(designer),
+            UnlockReadOnly = () => OnUnlockReadOnly(designer),
+            Save = () => OnSave(designer),
+        };
 
     private static void OnCopyActionDefinition(Window designer)
     {
@@ -476,9 +514,9 @@ internal static class ActionDesignerUiInjector
 
     private static void OnCopySteps(Window designer)
     {
-        if (!ActionDesignerReflection.TryInvokeStepListCopy(designer))
+        if (!ActionDesignerReflection.TryInvokeStepListCopy(designer, out var error))
         {
-            PopupMessage.Warning("复制步骤失败（请先选中步骤）。");
+            PopupMessage.Warning(error ?? "复制步骤失败。");
             return;
         }
 
@@ -487,9 +525,9 @@ internal static class ActionDesignerUiInjector
 
     private static void OnPasteSteps(Window designer)
     {
-        if (!ActionDesignerReflection.TryInvokeStepListPaste(designer))
+        if (!ActionDesignerReflection.TryInvokeStepListPaste(designer, out var error))
         {
-            PopupMessage.Warning("粘贴步骤失败。");
+            PopupMessage.Warning(error ?? "粘贴步骤失败。");
             return;
         }
 

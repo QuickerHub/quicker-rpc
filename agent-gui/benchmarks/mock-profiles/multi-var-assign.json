@@ -1,0 +1,10 @@
+{
+  "id": "multi-var-assign",
+  "version": 1,
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "c": "3"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "window-vscode-branch",
+  "version": 1,
+  "mocks": {
+    "window": {
+      "foregroundTitle": "Visual Studio Code - benchmark.mock",
+      "foregroundHandle": 424242
+    }
+  },
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "isVscode": "True"
+    }
+  }
+}

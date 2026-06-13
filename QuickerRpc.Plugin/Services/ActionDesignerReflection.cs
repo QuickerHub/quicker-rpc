@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using Newtonsoft.Json.Linq;
 using Quicker.Common.Entities;
 using Quicker.Domain.Actions.X;
 using Quicker.Domain.Actions.X.Storage;
@@ -45,10 +46,21 @@ internal static class ActionDesignerReflection
         return toolTab is not null;
     }
 
+    public static bool TryGetToolContent(Window designer, out ContentControl? toolContent)
+    {
+        toolContent = null;
+        if (!TryGetField(designer, "ToolContent", out var value))
+        {
+            return false;
+        }
+
+        toolContent = value as ContentControl;
+        return toolContent is not null;
+    }
+
     /// <summary>
-    /// Mirrors Quicker's ToolTab selection handler: newer builds host tab bodies in
-    /// <c>ToolContent</c> while module toolbox lives on <see cref="TheToolbox"/>, not
-    /// <c>TabItem.Content</c>.
+    /// Mirrors Quicker's ToolTab selection handler for native tabs; plugin tabs use
+    /// <see cref="TabItem.Content"/> directly.
     /// </summary>
     public static void TrySyncToolContentForSelectedTab(Window designer, TabControl toolTab)
     {
@@ -62,6 +74,17 @@ internal static class ActionDesignerReflection
             return;
         }
 
+        if (IsPluginToolTab(selectedTab))
+        {
+            var pluginContent = selectedTab.Content;
+            if (pluginContent is not null && !ReferenceEquals(toolContent.Content, pluginContent))
+            {
+                toolContent.Content = pluginContent;
+            }
+
+            return;
+        }
+
         var content = ResolveToolTabPanelContent(designer, toolTab, selectedTab);
         if (content is null || ReferenceEquals(toolContent.Content, content))
         {
@@ -69,6 +92,13 @@ internal static class ActionDesignerReflection
         }
 
         toolContent.Content = content;
+    }
+
+    public static bool IsPluginToolTab(TabItem tab)
+    {
+        var tag = tab.Tag as string;
+        return string.Equals(tag, ActionDesignerUiInjector.InjectTabTag, StringComparison.Ordinal)
+            || string.Equals(tag, ActionDesignerAgentTabInjector.TabTag, StringComparison.Ordinal);
     }
 
     private static object? ResolveToolTabPanelContent(Window designer, TabControl toolTab, TabItem tabItem)
@@ -239,50 +269,154 @@ internal static class ActionDesignerReflection
         return stepListControl is not null;
     }
 
-    public static bool TryInvokeStepListCopy(Window designer)
+    private const string StepsClipboardFormat = "quicker-action-steps";
+
+    public static bool TryInvokeStepListCopy(Window designer, out string? error)
     {
+        error = null;
+        if (!TryGetSelectedSteps(designer, out var steps) || steps.Count == 0)
+        {
+            error = "请先选中要复制的步骤。";
+            return false;
+        }
+
         if (!TryGetActionStepsWrapper(designer, out var wrapper) || wrapper is null)
         {
+            error = "未找到步骤列表。";
             return false;
         }
 
-        var stepList = wrapper.GetType().GetField("ActionStepList", InstanceAll)?.GetValue(wrapper);
-        if (stepList is null)
+        if (!TryInvokeWrapperStepCommand(wrapper, "ExecuteCopySteps"))
         {
+            error = "复制步骤失败。";
             return false;
         }
 
-        var copy = stepList.GetType().GetMethod("Copy", InstanceAll, null, Type.EmptyTypes, null);
-        if (copy is null)
+        var clip = ClipboardSpecialFormatService.Read(StepsClipboardFormat);
+        if (!clip.Success)
         {
+            error = clip.ErrorMessage ?? "读取剪贴板失败。";
             return false;
         }
 
-        copy.Invoke(stepList, null);
+        if (!clip.HasData || string.IsNullOrWhiteSpace(clip.Text))
+        {
+            error = "复制失败（剪贴板未写入步骤数据）。";
+            return false;
+        }
+
         return true;
     }
 
-    public static bool TryInvokeStepListPaste(Window designer)
+    public static bool TryInvokeStepListPaste(Window designer, out string? error)
     {
+        error = null;
+        if (!TryGetClipboardStepCount(out var stepCount, out error))
+        {
+            return false;
+        }
+
         if (!TryGetActionStepsWrapper(designer, out var wrapper) || wrapper is null)
         {
+            error = "未找到步骤列表。";
             return false;
         }
 
-        var stepList = wrapper.GetType().GetField("ActionStepList", InstanceAll)?.GetValue(wrapper);
-        if (stepList is null)
+        if (!TryGetActiveStepListControl(designer, out var stepListControl) || stepListControl is null)
         {
+            error = "未找到当前步骤列表。";
             return false;
         }
 
-        var paste = stepList.GetType().GetMethod("Paste", InstanceAll, null, Type.EmptyTypes, null);
-        if (paste is null)
+        var beforeCount = TryGetStepListNodeCount(stepListControl);
+
+        if (!TryInvokeWrapperStepCommand(wrapper, "ExecutePasteSteps"))
         {
+            error = "粘贴步骤失败。";
             return false;
         }
 
-        paste.Invoke(stepList, null);
+        var afterCount = TryGetStepListNodeCount(stepListControl);
+        if (beforeCount >= 0 && afterCount >= 0 && afterCount <= beforeCount)
+        {
+            error = $"粘贴未生效（剪贴板含 {stepCount} 个步骤，请确认当前列表可编辑）。";
+            return false;
+        }
+
         return true;
+    }
+
+    private static bool TryInvokeWrapperStepCommand(object wrapper, string methodName)
+    {
+        var method = wrapper.GetType().GetMethod(methodName, InstanceAll, null, Type.EmptyTypes, null);
+        if (method is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            method.Invoke(wrapper, null);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryGetClipboardStepCount(out int stepCount, out string? error)
+    {
+        stepCount = 0;
+        error = null;
+        var clip = ClipboardSpecialFormatService.Read(StepsClipboardFormat);
+        if (!clip.Success)
+        {
+            error = clip.ErrorMessage ?? "读取剪贴板失败。";
+            return false;
+        }
+
+        if (!clip.HasData || string.IsNullOrWhiteSpace(clip.Text))
+        {
+            error = "剪贴板中没有步骤数据。";
+            return false;
+        }
+
+        try
+        {
+            var stepsToken = JObject.Parse(clip.Text)["Steps"];
+            if (stepsToken is not JArray steps || steps.Count == 0)
+            {
+                error = "要粘贴的步骤数量为 0。";
+                return false;
+            }
+
+            stepCount = steps.Count;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = "剪贴板步骤数据格式不正确：" + ex.Message;
+            return false;
+        }
+    }
+
+    private static int TryGetStepListNodeCount(object stepListControl)
+    {
+        try
+        {
+            var field = stepListControl.GetType().GetField("_stepList", InstanceAll);
+            if (field?.GetValue(stepListControl) is System.Collections.ICollection collection)
+            {
+                return collection.Count;
+            }
+        }
+        catch
+        {
+            // Best-effort count for paste verification.
+        }
+
+        return -1;
     }
 
     public static bool TryUnlockReadOnly(Window designer, out bool changed, out string? error)

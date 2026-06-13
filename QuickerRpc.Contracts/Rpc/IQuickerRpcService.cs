@@ -256,6 +256,22 @@ public interface IQuickerRpcService
         string? returnMode = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Read a shared action program by sharedActionId (memory/SQL/network). Read-only learning copy.
+    /// </summary>
+    Task<QuickerRpcGetCompressedSharedActionResult> GetCompressedSharedActionAsync(
+        string sharedActionId,
+        string? returnMode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Search the public getquicker.net action library (HTML parse server-side).</summary>
+    Task<QuickerRpcSearchActionLibraryResult> SearchActionLibraryAsync(
+        string keyword,
+        int page = 1,
+        int? days = null,
+        int maxResults = 20,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Replace steps/variables on a local XAction (headless save).</summary>
     Task<QuickerRpcApplyXActionResult> ApplyXActionToActionAsync(
         string actionId,
@@ -475,6 +491,30 @@ public interface IQuickerRpcService
     Task<QuickerRpcDesignerContextResult> GetActionDesignerContextAsync(
         bool includeXAction = false,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Run one Quicker param-editor text tool (TextToolType name) and return selected text.
+    /// Used by the web action designer when native/Electron pickers are unavailable.
+    /// </summary>
+    Task<QuickerRpcTextToolRunResult> RunTextToolAsync(
+        string toolId,
+        string? currentValue = null,
+        int timeoutSeconds = 300,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>Result of <see cref="IQuickerRpcService.RunTextToolAsync"/>.</summary>
+public sealed class QuickerRpcTextToolRunResult
+{
+    public bool Ok { get; set; }
+
+    public bool Cancelled { get; set; }
+
+    public string? Value { get; set; }
+
+    public string? Message { get; set; }
+
+    public string? ErrorCode { get; set; }
 }
 
 /// <summary>One step currently selected in an open designer step list.</summary>

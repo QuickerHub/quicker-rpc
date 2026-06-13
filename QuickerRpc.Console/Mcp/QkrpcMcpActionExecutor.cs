@@ -74,6 +74,52 @@ internal static class QkrpcMcpActionExecutor
             .ConfigureAwait(false);
     }
 
+    internal static Task<string> SharedGetAsync(
+        QkrpcMcpRuntime runtime,
+        string id,
+        string? returnMode,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Task.FromResult(ValidationError("id is required"));
+        }
+
+        return runtime.InvokeOpAsync(
+            "action.shared.get",
+            QkrpcMcpJson.ToElement(new
+            {
+                id = id.Trim(),
+                returnMode = string.IsNullOrWhiteSpace(returnMode) ? "full" : returnMode.Trim(),
+            }),
+            cancellationToken);
+    }
+
+    internal static Task<string> LibrarySearchAsync(
+        QkrpcMcpRuntime runtime,
+        string keyword,
+        int? page,
+        int? days,
+        int? limit,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(keyword))
+        {
+            return Task.FromResult(ValidationError("keyword is required"));
+        }
+
+        return runtime.InvokeOpAsync(
+            "action.library.search",
+            QkrpcMcpJson.ToElement(new
+            {
+                keyword = keyword.Trim(),
+                page = page ?? 1,
+                days,
+                limit = limit ?? 20,
+            }),
+            cancellationToken);
+    }
+
     internal static async Task<string> CreateAsync(
         QkrpcMcpRuntime runtime,
         string title,
@@ -233,15 +279,20 @@ internal static class QkrpcMcpActionExecutor
     internal static Task<string> RunAsync(
         QkrpcMcpRuntime runtime,
         string id,
-        string? param,
-        bool wait,
-        CancellationToken cancellationToken)
+        string? param = null,
+        bool wait = false,
+        string? mode = null,
+        string? mockProfile = null,
+        string? mockProfileFile = null,
+        bool assert = false,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
             return Task.FromResult(ValidationError("id is required"));
         }
 
+        var mock = string.Equals(mode, "mock", StringComparison.OrdinalIgnoreCase);
         return runtime.InvokeOpAsync(
             "action.run",
             QkrpcMcpJson.ToElement(new
@@ -251,6 +302,11 @@ internal static class QkrpcMcpActionExecutor
                 wait,
                 debug = false,
                 trace = false,
+                mock,
+                mode,
+                mockProfile,
+                mockProfileFile,
+                assert,
             }),
             cancellationToken);
     }

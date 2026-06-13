@@ -1,0 +1,22 @@
+{
+  "id": "conditional-http-cache",
+  "version": 1,
+  "mocks": {
+    "http": {
+      "https://httpbin.org/get": {
+        "statusCode": 200,
+        "content": "{\"origin\":\"203.0.113.1\",\"url\":\"https://httpbin.org/get\"}"
+      }
+    }
+  },
+  "initialVars": {
+    "url": "https://httpbin.org/get"
+  },
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "ok": "True",
+      "message": "HTTP_OK:{\"origin\":\"203.0.113.1\",\"url\":\"https://httpbin.org/get\"}"
+    }
+  }
+}

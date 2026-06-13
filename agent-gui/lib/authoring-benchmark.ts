@@ -21,6 +21,8 @@ export type AuthoringBenchmarkRubric = {
 export type AuthoringBenchmarkVerify = {
   manual?: string[];
   auto?: string[];
+  /** Mock profile id under agent-gui/benchmarks/mock-profiles/ */
+  mockProfile?: string;
 };
 
 export type AuthoringBenchmarkTask = {
@@ -144,6 +146,21 @@ export function groupAuthoringBenchmarkTasksByCategory(): {
 export function listAuthoringBenchmarkL2CoreTasks(): AuthoringBenchmarkTask[] {
   return catalog.tasks.filter(
     (t) => t.tier === "L2" && t.category !== "regression",
+  );
+}
+
+/** Resolve mock profile id from task verify block; defaults to task id. */
+export function resolveMockProfileId(task: AuthoringBenchmarkTask): string {
+  const explicit = task.verify?.mockProfile?.trim();
+  return explicit && explicit.length > 0 ? explicit : task.id;
+}
+
+/** Tasks that declare a mock profile for F-axis automated verify. */
+export function listAuthoringBenchmarkTasksWithMockProfile(): AuthoringBenchmarkTask[] {
+  return catalog.tasks.filter(
+    (t) =>
+      typeof t.verify?.mockProfile === "string"
+      && t.verify.mockProfile.trim().length > 0,
   );
 }
 

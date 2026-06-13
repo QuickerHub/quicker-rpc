@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-csv-parse-aggregate",
+  "description": "Quicker 剪贴板 CSV：解析表头、行数与列求和，写回聚合结果。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

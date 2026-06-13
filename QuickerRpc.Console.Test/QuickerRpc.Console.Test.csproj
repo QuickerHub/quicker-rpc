@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <RootNamespace>QuickerRpc.Console.Test</RootNamespace>
     <AssemblyName>QuickerRpc.Console.Test</AssemblyName>
     <Nullable>enable</Nullable>

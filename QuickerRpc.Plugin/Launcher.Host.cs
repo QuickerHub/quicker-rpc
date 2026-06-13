@@ -45,6 +45,7 @@ public static partial class Launcher
                 services.AddSingleton<CodeSyntaxCheckService>();
                 services.AddSingleton<ExpressionExecuteService>();
                 services.AddSingleton<ChromeControlExecuteService>();
+                services.AddSingleton<TextToolRunService>();
                 services.AddSingleton<QuickerSettingsService>();
                 services.AddSingleton<QuickerSettingsUiService>();
                 services.AddSingleton<TriggerTaskService>();

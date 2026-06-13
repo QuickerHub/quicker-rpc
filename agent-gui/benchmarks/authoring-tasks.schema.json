@@ -49,7 +49,8 @@
           "type": "object",
           "properties": {
             "manual": { "type": "array", "items": { "type": "string" } },
-            "auto": { "type": "array", "items": { "type": "string" } }
+            "auto": { "type": "array", "items": { "type": "string" } },
+            "mockProfile": { "type": "string", "pattern": "^[a-z0-9-]+$" }
           }
         }
       }

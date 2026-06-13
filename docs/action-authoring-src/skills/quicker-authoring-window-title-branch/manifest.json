@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-window-title-branch",
+  "description": "Quicker 窗口标题分支：getWindowTitle + if + windowOperations 最大化或提示。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

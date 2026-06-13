@@ -1,0 +1,21 @@
+{
+  "name": "quicker-rpc-cursor-sdk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "hello": "tsx src/hello.ts",
+    "benchmark": "tsx src/run-benchmark-task.ts",
+    "benchmark:batch": "tsx src/run-benchmark-batch.ts",
+    "probe:minimal": "tsx src/probe-minimal.ts",
+    "probe:settings": "tsx src/probe-settings.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cursor/sdk": "^1.0.18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

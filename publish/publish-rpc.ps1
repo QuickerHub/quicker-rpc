@@ -106,6 +106,16 @@ if (Test-Path -LiteralPath $rulesSource) {
     Write-Host "Bundled agent rules -> $rulesDest" -ForegroundColor Cyan
 }
 
+$mockProfilesSource = Join-Path $repoRoot 'agent-gui\benchmarks\mock-profiles'
+$mockProfilesDest = Join-Path $publishDir 'benchmarks\mock-profiles'
+if (Test-Path -LiteralPath $mockProfilesSource) {
+    if (Test-Path -LiteralPath $mockProfilesDest) {
+        Remove-Item -LiteralPath $mockProfilesDest -Recurse -Force
+    }
+    Copy-Item -LiteralPath $mockProfilesSource -Destination $mockProfilesDest -Recurse -Force
+    Write-Host "Bundled mock profiles -> $mockProfilesDest" -ForegroundColor Cyan
+}
+
 if (-not $SkipPackaging) {
     Write-Host "Publishing QuickerRpc plugin (Release, net472)..." -ForegroundColor Green
     $pluginCsproj = Join-Path $repoRoot 'QuickerRpc.Plugin\QuickerRpc.Plugin.csproj'

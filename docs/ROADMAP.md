@@ -32,7 +32,7 @@
 
 ### 质量
 
-- [x] Agent 任务测试集：[`agent-authoring-benchmark.md`](agent-authoring-benchmark.md) + `agent-gui/benchmarks/authoring-tasks.json`（24 条，手动评测就绪）
+- [x] Agent 任务测试集：[`agent-authoring-benchmark.md`](agent-authoring-benchmark.md) + `agent-gui/benchmarks/authoring-tasks.json`（25 条，含 L0 动作库搜索）
 - [x] 明确评测维度：六轴 A–F（规划 / 选型 / 检索 / 实现 / 流程 / 可运行）
 - [ ] Benchmark 接 `/tool-test` Agent E2E 与 trace 半自动打分
 

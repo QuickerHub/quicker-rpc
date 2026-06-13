@@ -13,7 +13,13 @@
 1. 启动 `pwsh ./dev.ps1`，确认 Quicker + 插件已加载。
 2. 新开 Agent 线程，从 JSON 或下表复制 **`userPrompt`**（仅用户话术）。
 3. 等 Agent 完成后，按 [评分](#评分) 填分表。
-4. 对需要运行的任务，在 Quicker 中手动执行或使用 `action_debug`。
+4. 对需要运行的任务，优先用 **`/tool-test` → ActionRuntime → Benchmark Mock 断言**，或 CLI：
+
+```powershell
+qkrpc action run --id <guid> --mock --mock-profile <profile-id> --assert --json
+```
+
+Profile 与任务关联见 `authoring-tasks.json` 的 `verify.mockProfile`（默认同 task id）。仍可在 Quicker 中手动执行或使用 `action_debug` 作补充。
 
 建议首轮跑 **L2 主干**（`tier: L2` 且 `category: authoring`）共 7 条，再看 L0/L3/L4。
 
@@ -28,7 +34,7 @@
 | C | 检索 | 15% | search → get，键名与 controlField |
 | D | 实现 | 15% | patch 成功、逻辑接通 |
 | E | 流程 | 15% | 禁 patch 后 get、禁内联 patch JSON 等 |
-| F | 可运行 | 15% | 跑通、输出符合预期 |
+| F | 可运行 | 15% | mock assert 通过或手动/trace 验证输出 |
 
 每条任务只评其 `axes` 列出的维度。每轴：**0** 失败 · **1** 部分 · **2** 达标。
 
@@ -46,6 +52,7 @@
 | `discover-step-expr` | 我想对剪贴板里的文本按行去重并排序，应该用哪种 Quicker 步骤？请查清楚后列出与表达式/输出相关的参数键名，不要猜。 |
 | `discover-docs-workflow` | 从零新建一个 Quicker 动作并保存，大致要经过哪些阶段？用 5 条以内的要点说明即可。 |
 | `discover-subprogram-uses` | 有哪些动作调用了公共子程序 QuickerRpc_Run？文字总结动作名称和 id 即可。 |
+| `discover-library-search` | 帮我在 getquicker 公开动作库里搜和「选中文本」相关的动作，列出最相关的几个标题和 sharedActionId，并说明这些动作能不能直接修改。 |
 | `org-docs-organization` | 我想整理 Quicker 动作页：移动动作到别的标签页、新建空白页、按子程序归集动作，分别该怎么做？各用一句话说明即可。 |
 
 ### L1 单步 / 元数据
@@ -117,6 +124,28 @@ task id | tier | A | B | C | D | E | F | % | notes
 
 ## 半自动检查（可选）
 
+### F 轴：mock assert（推荐）
+
+L2 主干等带 `verify.mockProfile` 的任务，用 deterministic mock 代替真实 IO：
+
+| 入口 | 说明 |
+|------|------|
+| `/tool-test` → ActionRuntime → **Benchmark Mock 断言** | 填动作 id，一键 `--mock --assert` |
+| CLI | `qkrpc action run --id … --mock --mock-profile … --assert --json` |
+| SDK | `scripts/sdk` `--verify-mock` |
+
+**F=2**：`assertions.passed === true`；**F=1**：mock 跑通但断言部分失败；**F=0**：mock run 失败或 `unsupportedStepKeys`。
+
+响应字段：`outputVars`、`events[]`、`mockLedger`、`fixHints`（见 [mock verify 设计](superpowers/specs/2026-06-13-agent-mock-verify-loop-design.md)）。
+
+开发者对照 mock synthetic trace 与 Plugin trace 步序：
+
+```powershell
+qkrpc action mock-trace-diff --id <guid> --mock-profile clip-lines-expr --json
+```
+
+### 流程轴（E）trace 粗查
+
 从会话 tool trace 粗查：
 
 | 检查 | 失败信号 |
@@ -130,7 +159,7 @@ task id | tier | A | B | C | D | E | F | % | notes
 
 ## 与路线图
 
-对应 [ROADMAP.md](ROADMAP.md) P1「Agent 任务测试集」。后续可接 `/tool-test` Agent E2E suite 与 `action_debug` 自动断言。
+对应 [ROADMAP.md](ROADMAP.md) P1「Agent 任务测试集」。L2 F 轴已接 mock assert；后续可接 `/tool-test` Agent E2E suite。
 
 ---
 

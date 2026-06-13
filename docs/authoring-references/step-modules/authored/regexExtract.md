@@ -18,6 +18,12 @@
 
 复杂解析优先 expressions `Regex.Match`。
 
+## 陷阱（headless patch）
+
+- **`match1`–`match5` 的 `outputParams` 键名带尾随空格**（如 `match1 `）；从 `step-runner get` 复制，写 `match1` 无空格则变量不写回。
+- `matchObj` 在 trace 中可能显示为字符串，勿在 evalexpression 里直接 `.Groups`。
+- 单捕获组简单场景可优先 **expression-first** `Regex.Match(...).Groups[n].Value`。
+
 ## 相关
 
 expressions · stringProcess · step-runner-get

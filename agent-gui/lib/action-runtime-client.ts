@@ -1,4 +1,10 @@
-export type ActionRuntimeInvokeOp = "run" | "check" | "keys" | "validate";
+export type ActionRuntimeInvokeOp =
+  | "run"
+  | "check"
+  | "keys"
+  | "validate"
+  | "mockRun"
+  | "mockProfilesList";
 
 export type ActionRuntimeInvokeArgs = {
   xaction?: unknown;
@@ -6,6 +12,9 @@ export type ActionRuntimeInvokeArgs = {
   id?: string;
   param?: string;
   verboseHost?: boolean;
+  mockProfile?: string;
+  /** Default true for mockRun */
+  assert?: boolean;
 };
 
 export type ActionRuntimeInvokeResult = {

@@ -1,0 +1,23 @@
+{
+  "id": "form-to-clipboard",
+  "version": 1,
+  "mocks": {
+    "host": {
+      "formVariables": {
+        "taskTitle": "Benchmark task",
+        "taskTags": "mock,agent",
+        "taskPriority": "高",
+        "taskNotes": "from mock profile"
+      }
+    }
+  },
+  "assertions": {
+    "success": true,
+    "clipboardTextContains": [
+      "## 任务清单",
+      "Benchmark task",
+      "mock,agent",
+      "高"
+    ]
+  }
+}

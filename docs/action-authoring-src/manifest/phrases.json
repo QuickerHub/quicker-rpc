@@ -84,8 +84,8 @@
     "agent": "`qkrpc_action_get`"
   },
   "subprogram.call.chain": {
-    "cli": "→ `qkrpc step-runner get --key sys:subprogram` → patch with `\"subProgram\": \"<callIdentifier>\"` (or subProgram.var)",
-    "agent": "→ step_runner_get key=sys:subprogram → workspace_program edit_data step → patch"
+    "cli": "→ `qkrpc step-runner get --key sys:subprogram` → patch: `subProgram` + IO **`var:<子程序变量key>`**（非 `text.var`）；见 authored/subprogram",
+    "agent": "→ step_runner_get key=sys:subprogram → patch: subProgram + **var:<ioKey>** in inputParams/outputParams"
   },
   "action-project-files.commands.agent": {
     "cli": "",

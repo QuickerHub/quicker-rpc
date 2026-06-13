@@ -129,6 +129,27 @@ export function argvToInvoke(argv: string[]): QkrpcInvoke | null {
         },
       };
     }
+    if (verb === "library" && positional[2] === "search") {
+      return {
+        op: "action.library.search",
+        args: {
+          keyword:
+            flagStr(flags, "keyword") ?? flagStr(flags, "query") ?? flagStr(flags, "q"),
+          page: flagInt(flags, "page"),
+          days: flagInt(flags, "days"),
+          limit: flagInt(flags, "limit"),
+        },
+      };
+    }
+    if (verb === "shared" && positional[2] === "get") {
+      return {
+        op: "action.shared.get",
+        args: {
+          id: flagStr(flags, "id") ?? flagStr(flags, "code"),
+          returnMode: flagStr(flags, "return-mode"),
+        },
+      };
+    }
     if (verb === "get") {
       return {
         op: "action.get",

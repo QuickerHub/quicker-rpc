@@ -6,7 +6,13 @@ import { runQkrpcCliDirect } from "@/lib/qkrpc";
 import { isQkrpcConnectivityFailure } from "@/lib/qkrpc-connectivity";
 import type { QkrpcRunResult } from "@/lib/qkrpc-types";
 
-export type ActionRuntimeOp = "run" | "check" | "keys" | "validate";
+export type ActionRuntimeOp =
+  | "run"
+  | "check"
+  | "keys"
+  | "validate"
+  | "mockRun"
+  | "mockProfilesList";
 
 const INVOKE_TIMEOUT_MS = 120_000;
 
@@ -38,6 +44,27 @@ function shouldFallbackToCli(result: QkrpcRunResult | null): boolean {
     return true;
   }
   return isQkrpcConnectivityFailure(result);
+}
+
+function appendMockCliFlags(base: string[], args: Record<string, unknown>): string[] {
+  const out = [...base];
+  const profile =
+    typeof args.mockProfile === "string" && args.mockProfile.trim()
+      ? args.mockProfile.trim()
+      : undefined;
+  if (profile) {
+    out.push("--mock-profile", profile);
+  }
+  if (args.assert !== false) {
+    out.push("--assert");
+  }
+  if (typeof args.param === "string" && args.param.trim()) {
+    out.push("--param", args.param.trim());
+  }
+  if (typeof args.id === "string" && args.id.trim()) {
+    out.push("--id", args.id.trim());
+  }
+  return out;
 }
 
 function appendRuntimeCliFlags(base: string[], args: Record<string, unknown>): string[] {
@@ -105,6 +132,14 @@ export async function invokeActionRuntimeCli(
       }
       return runQkrpcCliDirect(base, { timeoutMs });
     }
+    case "mockProfilesList":
+      return runQkrpcCliDirect(["action", "mock-profiles", "list", "--json"], {
+        timeoutMs,
+      });
+    case "mockRun": {
+      const base = appendMockCliFlags(["action", "run", "--mock", "--json"], args);
+      return runQkrpcCliDirect(base, { timeoutMs });
+    }
     default:
       return {
         ok: false,
@@ -121,6 +156,54 @@ export async function invokeActionRuntime(
   op: ActionRuntimeOp,
   args: Record<string, unknown>,
 ): Promise<QkrpcRunResult> {
+  if (op === "mockProfilesList") {
+    const httpResult = await invokeQkrpcHttp(
+      { op: "action.mock.profiles.list", args: {} },
+      { timeoutMs: INVOKE_TIMEOUT_MS },
+    );
+    if (httpResult?.ok || (httpResult && !shouldFallbackToCli(httpResult))) {
+      return httpResult ?? {
+        ok: false,
+        exitCode: 1,
+        stdout: "",
+        stderr: formatServeUnavailableMessage(),
+        parsed: null,
+        truncated: false,
+      };
+    }
+    return invokeActionRuntimeCli(op, args, INVOKE_TIMEOUT_MS);
+  }
+
+  if (op === "mockRun") {
+    const mockArgs = {
+      ...args,
+      mock: true,
+      assert: args.assert !== false,
+    };
+    const httpResult = await invokeQkrpcHttp(
+      { op: "action.run", args: mockArgs },
+      { timeoutMs: INVOKE_TIMEOUT_MS },
+    );
+    if (httpResult?.ok || (httpResult && !shouldFallbackToCli(httpResult))) {
+      return httpResult ?? {
+        ok: false,
+        exitCode: 1,
+        stdout: "",
+        stderr: formatServeUnavailableMessage(),
+        parsed: null,
+        truncated: false,
+      };
+    }
+    const cliResult = await invokeActionRuntimeCli(op, args, INVOKE_TIMEOUT_MS);
+    if (cliResult.ok || cliResult.parsed != null) {
+      return cliResult;
+    }
+    return {
+      ...cliResult,
+      stderr: cliResult.stderr?.trim() || formatServeUnavailableMessage(),
+    };
+  }
+
   const needsQuicker =
     typeof args.id === "string"
     && args.id.trim().length > 0

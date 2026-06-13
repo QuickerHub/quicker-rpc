@@ -15,6 +15,7 @@
     "docs:modules:learning-init": "node scripts/init-step-module-learning-progress.mjs",
     "docs:modules:learning-progress": "node scripts/step-module-learning-progress.mjs",
     "docs:modules:learning-next": "node scripts/step-module-learning-progress.mjs --next",
+    "search:library": "node scripts/search-getquicker-library.mjs",
     "quicker-agent:web": "pwsh ./dev.ps1",
     "quicker-agent:web:browser": "pwsh ./dev.ps1 -Browser",
     "quicker-agent:build": "pwsh ./publish/Publish-QuickerAgent.ps1 -SkipQkrpcBuild",

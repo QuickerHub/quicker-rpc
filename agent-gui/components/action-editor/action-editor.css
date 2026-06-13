@@ -3067,6 +3067,21 @@
   width: min(520px, 100%);
 }
 
+.text-tool-dialog-panel--code {
+  width: min(720px, 100%);
+}
+
+.text-tool-dialog--code {
+  width: min(760px, 100%);
+}
+
+.text-tool-dialog-code-editor {
+  min-height: 280px;
+  border: 1px solid var(--ad-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
 .text-tool-dialog-title {
   margin: 0;
   font-size: 14px;

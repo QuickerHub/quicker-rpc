@@ -40,6 +40,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
     private readonly CodeSyntaxCheckService _codeSyntaxCheckService;
     private readonly ExpressionExecuteService _expressionExecuteService;
     private readonly ChromeControlExecuteService _chromeControlExecuteService;
+    private readonly TextToolRunService _textToolRunService;
     private readonly QuickerSettingsService _settingsService;
     private readonly QuickerSettingsUiService _settingsUiService;
     private readonly TriggerTaskService _triggerTaskService;
@@ -69,6 +70,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         CodeSyntaxCheckService codeSyntaxCheckService,
         ExpressionExecuteService expressionExecuteService,
         ChromeControlExecuteService chromeControlExecuteService,
+        TextToolRunService textToolRunService,
         QuickerSettingsService settingsService,
         QuickerSettingsUiService settingsUiService,
         TriggerTaskService triggerTaskService,
@@ -97,6 +99,7 @@ public sealed class QuickerRpcService : IQuickerRpcService
         _codeSyntaxCheckService = codeSyntaxCheckService;
         _expressionExecuteService = expressionExecuteService;
         _chromeControlExecuteService = chromeControlExecuteService;
+        _textToolRunService = textToolRunService;
         _settingsService = settingsService;
         _settingsUiService = settingsUiService;
         _triggerTaskService = triggerTaskService;
@@ -361,12 +364,12 @@ public sealed class QuickerRpcService : IQuickerRpcService
         bool force = false,
         CancellationToken cancellationToken = default)
     {
-        return InvokeOnDispatcherAsync(
-            () => Task.FromResult(_headlessSubProgramProgramService.ApplyPatchToSubProgram(
+        return InvokeOffUiThreadAsync(
+            () => _headlessSubProgramProgramService.ApplyPatchToSubProgram(
                 subProgramIdOrName,
                 patchJson,
                 expectedEditVersion,
-                force)),
+                force),
             cancellationToken);
     }
 
@@ -377,12 +380,12 @@ public sealed class QuickerRpcService : IQuickerRpcService
         bool force = false,
         CancellationToken cancellationToken = default)
     {
-        return InvokeOnDispatcherAsync(
-            () => Task.FromResult(_headlessSubProgramProgramService.ApplyProgramToSubProgram(
+        return InvokeOffUiThreadAsync(
+            () => _headlessSubProgramProgramService.ApplyProgramToSubProgram(
                 subProgramIdOrName,
                 programJson,
                 expectedEditVersion,
-                force)),
+                force),
             cancellationToken);
     }
 
@@ -867,6 +870,34 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
+    public Task<QuickerRpcGetCompressedSharedActionResult> GetCompressedSharedActionAsync(
+        string sharedActionId,
+        string? returnMode = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessActionProgramService.GetCompressedSharedAction(sharedActionId, returnMode)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcSearchActionLibraryResult> SearchActionLibraryAsync(
+        string keyword,
+        int page = 1,
+        int? days = null,
+        int maxResults = 20,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return HeadlessActionProgramService.SearchActionLibraryOnlineAsync(
+            keyword,
+            page,
+            days,
+            maxResults,
+            cancellationToken);
+    }
+
     public Task<QuickerRpcApplyXActionResult> ApplyXActionToActionAsync(
         string actionId,
         string xActionJson,
@@ -883,12 +914,12 @@ public sealed class QuickerRpcService : IQuickerRpcService
             });
         }
 
-        return InvokeOnDispatcherAsync(
-            () => Task.FromResult(_headlessActionProgramService.ApplyXActionToAction(
+        return InvokeOffUiThreadAsync(
+            () => _headlessActionProgramService.ApplyXActionToAction(
                 actionId.Trim(),
                 xActionJson,
                 expectedEditVersion,
-                force)),
+                force),
             cancellationToken);
     }
 
@@ -908,12 +939,12 @@ public sealed class QuickerRpcService : IQuickerRpcService
             });
         }
 
-        return InvokeOnDispatcherAsync(
-            () => Task.FromResult(_headlessActionProgramService.ApplyActionPatchToAction(
+        return InvokeOffUiThreadAsync(
+            () => _headlessActionProgramService.ApplyActionPatchToAction(
                 actionId.Trim(),
                 patchJson,
                 expectedEditVersion,
-                force)),
+                force),
             cancellationToken);
     }
 
@@ -1371,6 +1402,19 @@ public sealed class QuickerRpcService : IQuickerRpcService
                 Ok = false,
                 Message = "Designer context unavailable.",
             });
+    }
+
+    public Task<QuickerRpcTextToolRunResult> RunTextToolAsync(
+        string toolId,
+        string? currentValue = null,
+        int timeoutSeconds = 300,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var timeoutMs = timeoutSeconds > 0 ? timeoutSeconds * 1000 : 300_000;
+        return InvokeOffUiThreadAsync(
+            () => _textToolRunService.Run(toolId, currentValue, timeoutMs),
+            cancellationToken);
     }
 
     private static string ToSearchIndexRegionName(SearchRegion region) =>

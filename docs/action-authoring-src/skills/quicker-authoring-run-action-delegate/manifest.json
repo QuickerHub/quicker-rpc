@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-run-action-delegate",
+  "description": "Quicker 委托运行动作：runAction StartAction + wait + output。编排层调用另一动作时加载。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

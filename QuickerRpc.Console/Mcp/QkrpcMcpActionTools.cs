@@ -24,6 +24,26 @@ public sealed class QkrpcMcpActionTools
         CancellationToken cancellationToken = default) =>
         QkrpcMcpActionExecutor.QueryAsync(_runtime, query, filter, fields, scope, limit, sort, cancellationToken);
 
+    [McpServerTool(Name = "qkrpc_action_library_search")]
+    [Description(
+        "Search the public getquicker.net action library. Read-only — use qkrpc_action_shared_get to pull program body.")]
+    public Task<string> QkrpcActionLibrarySearch(
+        string keyword,
+        int? page = null,
+        int? days = null,
+        int? limit = null,
+        CancellationToken cancellationToken = default) =>
+        QkrpcMcpActionExecutor.LibrarySearchAsync(_runtime, keyword, page, days, limit, cancellationToken);
+
+    [McpServerTool(Name = "qkrpc_action_shared_get")]
+    [Description(
+        "Read-only: fetch compressed XAction by sharedActionId (GetSharedActionAsync). Do NOT patch or workspace_program.")]
+    public Task<string> QkrpcActionSharedGet(
+        string id,
+        string? returnMode = null,
+        CancellationToken cancellationToken = default) =>
+        QkrpcMcpActionExecutor.SharedGetAsync(_runtime, id, returnMode, cancellationToken);
+
     [McpServerTool(Name = "qkrpc_action_get")]
     [Description(
         "Sync one action from Quicker to .quicker/actions/{id}/ (first time only). "
@@ -107,13 +127,34 @@ public sealed class QkrpcMcpActionTools
             cancellationToken);
 
     [McpServerTool(Name = "qkrpc_action_run")]
-    [Description("Run one action and wait for completion. NOT debug — qkrpc_action_debug.")]
+    [Description("Run one action and wait for completion. mode=mock uses deterministic ActionRuntime verify (mockProfile + assert). NOT debug — qkrpc_action_debug.")]
     public Task<string> QkrpcActionRun(
         string id,
         string? param = null,
         bool wait = false,
+        string? mode = null,
+        string? mockProfile = null,
+        string? mockProfileFile = null,
+        bool assert = false,
         CancellationToken cancellationToken = default) =>
-        QkrpcMcpActionExecutor.RunAsync(_runtime, id, param, wait, cancellationToken);
+        QkrpcMcpActionExecutor.RunAsync(
+            _runtime,
+            id,
+            param,
+            wait,
+            mode,
+            mockProfile,
+            mockProfileFile,
+            assert,
+            cancellationToken);
+
+    [McpServerTool(Name = "qkrpc_action_mock_profiles")]
+    [Description("List benchmark mock profile ids for qkrpc_action_run(mode=mock).")]
+    public Task<string> QkrpcActionMockProfiles(CancellationToken cancellationToken = default) =>
+        _runtime.InvokeOpAsync(
+            "action.mock.profiles.list",
+            QkrpcMcpJson.ToElement(new { }),
+            cancellationToken);
 
     [McpServerTool(Name = "qkrpc_action_debug")]
     [Description("Debug one action with step trace — use when step output is needed.")]

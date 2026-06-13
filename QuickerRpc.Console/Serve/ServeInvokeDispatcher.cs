@@ -70,6 +70,8 @@ internal static class ServeInvokeDispatcher
             "action.search" => await ActionSearchAsync(pool, args, token).ConfigureAwait(false),
             "action.mention-search" => await ActionMentionSearchAsync(pool, args, token).ConfigureAwait(false),
             "action.get" => await ActionGetAsync(rpc, args, token).ConfigureAwait(false),
+            "action.shared.get" => await ActionSharedGetAsync(rpc, args, token).ConfigureAwait(false),
+            "action.library.search" => await ActionLibrarySearchAsync(rpc, args, token).ConfigureAwait(false),
             "action.create" => await ActionCreateAsync(rpc, args, token).ConfigureAwait(false),
             "action.patch" => await ActionPatchAsync(rpc, args, token).ConfigureAwait(false),
             "action.replace" => await ActionReplaceAsync(rpc, args, token).ConfigureAwait(false),
@@ -88,6 +90,7 @@ internal static class ServeInvokeDispatcher
             "action.runtime.check" => await ActionRuntimeServeOps.CheckAsync(rpc, args, token).ConfigureAwait(false),
             "action.runtime.compile" => await ActionRuntimeServeOps.CompileAsync(rpc, args, token).ConfigureAwait(false),
             "action.runtime.keys" => ActionRuntimeServeOps.Keys(),
+            "action.mock.profiles.list" => ActionRuntimeMockServeOps.ListProfiles(),
             "action.float" => await ActionFloatAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit" => await ActionEditAsync(rpc, args, token).ConfigureAwait(false),
             "action.edit-var" => await ActionEditVarAsync(rpc, args, token).ConfigureAwait(false),
@@ -147,6 +150,7 @@ internal static class ServeInvokeDispatcher
             "search-index.status" => await SearchIndexStatusAsync(rpc, token).ConfigureAwait(false),
             "search-index.rebuild" => await SearchIndexRebuildAsync(rpc, args, token).ConfigureAwait(false),
             "designer.context" => await DesignerContextAsync(rpc, args, token).ConfigureAwait(false),
+            "designer.textTool" => await DesignerTextToolAsync(rpc, args, token).ConfigureAwait(false),
             _ => Fail("UNKNOWN_OP", $"Unknown op: {op}"),
         };
     }
@@ -805,6 +809,45 @@ internal static class ServeInvokeDispatcher
         });
     }
 
+    /// <summary>Run one Quicker TextToolType picker for the web action designer.</summary>
+    private static async Task<ServeInvokeResponse> DesignerTextToolAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var toolId = ServeJsonArgs.GetString(args, "toolId")
+            ?? ServeJsonArgs.GetString(args, "tool")
+            ?? ServeJsonArgs.GetString(args, "operation");
+        if (string.IsNullOrWhiteSpace(toolId))
+        {
+            return Fail("MISSING_TOOL", "args.toolId is required.");
+        }
+
+        var currentValue = ServeJsonArgs.GetString(args, "currentValue")
+            ?? ServeJsonArgs.GetString(args, "currValue");
+        var timeoutSeconds = ServeJsonArgs.GetInt(args, "timeoutSeconds")
+            ?? ServeJsonArgs.GetInt(args, "timeout")
+            ?? 300;
+
+        var result = await rpc
+            .RunTextToolAsync(toolId.Trim(), currentValue, timeoutSeconds, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!result.Ok)
+        {
+            return Fail(result.ErrorCode ?? "TEXT_TOOL_FAILED", result.Message ?? "Text tool failed.");
+        }
+
+        return Ok(new
+        {
+            ok = true,
+            action = "designer-text-tool",
+            cancelled = result.Cancelled,
+            value = result.Value,
+            message = result.Message,
+        });
+    }
+
     private static ServeInvokeResponse GuideGet(JsonElement args)
     {
         var topic = ServeJsonArgs.GetString(args, "topic") ?? string.Empty;
@@ -981,6 +1024,44 @@ internal static class ServeInvokeDispatcher
         var response = await rpc.GetCompressedActionByIdAsync(id.Trim(), returnMode, token).ConfigureAwait(false);
         var payload = HeadlessCliResponses.ToGetPayload(response);
         return Ok(new { ok = response.Success, action = "get", payload });
+    }
+
+    private static async Task<ServeInvokeResponse> ActionSharedGetAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var id = ServeJsonArgs.GetString(args, "id", "sharedActionId", "actionId") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return Fail("MISSING_SHARED_ACTION_ID", "args.id (sharedActionId) is required.");
+        }
+
+        var returnMode = ServeJsonArgs.GetString(args, "returnMode", "return-mode");
+        var response = await rpc.GetCompressedSharedActionAsync(id.Trim(), returnMode, token).ConfigureAwait(false);
+        var payload = HeadlessCliResponses.ToSharedGetPayload(response);
+        return Ok(new { ok = response.Success, action = "shared.get", payload });
+    }
+
+    private static async Task<ServeInvokeResponse> ActionLibrarySearchAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var keyword = ServeJsonArgs.GetString(args, "keyword", "query") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(keyword))
+        {
+            return Fail("MISSING_KEYWORD", "args.keyword is required.");
+        }
+
+        var page = ServeJsonArgs.GetInt(args, "page") ?? 1;
+        var days = ServeJsonArgs.GetInt(args, "days") ?? ServeJsonArgs.GetInt(args, "ud");
+        var limit = ServeJsonArgs.GetInt(args, "limit") ?? ServeJsonArgs.GetInt(args, "maxResults") ?? 20;
+        var response = await rpc
+            .SearchActionLibraryAsync(keyword.Trim(), page, days, limit, token)
+            .ConfigureAwait(false);
+        var payload = HeadlessCliResponses.ToLibrarySearchPayload(response);
+        return Ok(new { ok = response.Success, action = "library.search", payload });
     }
 
     private static async Task<ServeInvokeResponse> ActionCreateAsync(
@@ -1201,11 +1282,28 @@ internal static class ServeInvokeDispatcher
         });
     }
 
+    private static bool IsMockRun(JsonElement args) =>
+        ServeJsonArgs.GetBool(args, "mock")
+        || string.Equals(
+            ServeJsonArgs.GetString(args, "mode"),
+            "mock",
+            StringComparison.OrdinalIgnoreCase);
+
     private static async Task<ServeInvokeResponse> ActionRunAsync(
         IQuickerRpcService rpc,
         JsonElement args,
         CancellationToken token)
     {
+        if (IsMockRun(args))
+        {
+            if (ServeJsonArgs.GetBool(args, "trace") || ServeJsonArgs.GetBool(args, "debug"))
+            {
+                return Fail("MOCK_MODE_CONFLICT", "mock run cannot be combined with trace or debug.");
+            }
+
+            return await ActionRuntimeMockServeOps.RunAsync(rpc, args, token).ConfigureAwait(false);
+        }
+
         if (ServeJsonArgs.GetBool(args, "standalone"))
         {
             return await ActionRuntimeServeOps.RunAsync(rpc, args, token).ConfigureAwait(false);

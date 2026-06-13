@@ -112,6 +112,41 @@ internal static class ActionDesignerProgramAccess
         string? contextMenuData,
         out string? error)
     {
+        (bool Ok, string? Error)? outcome = QuickerDispatcherInvoke.OnUiThreadIfNeeded(() =>
+        {
+            var ok = TrySaveOnUiThread(
+                actionId,
+                steps,
+                variables,
+                subProgramsJson,
+                title,
+                description,
+                icon,
+                contextMenuData,
+                out var localError);
+            return (Ok: ok, Error: localError);
+        });
+        if (outcome is null)
+        {
+            error = "WPF dispatcher unavailable.";
+            return false;
+        }
+
+        error = outcome.Value.Error;
+        return outcome.Value.Ok;
+    }
+
+    private static bool TrySaveOnUiThread(
+        string actionId,
+        JArray steps,
+        JArray variables,
+        string subProgramsJson,
+        string? title,
+        string? description,
+        string? icon,
+        string? contextMenuData,
+        out string? error)
+    {
         error = null;
         var id = (actionId ?? string.Empty).Trim();
         if (id.Length == 0)

@@ -16,13 +16,24 @@ type RequestBody = {
 function buildArgs(op: ActionRuntimeOp, raw: Record<string, unknown> | undefined) {
   const args = { ...(raw ?? {}) };
   const cwd = resolveEffectiveWorkingDirectory(getRequestCwd());
-  if (op === "validate" || op === "run" || op === "check") {
+  if (
+    op === "validate"
+    || op === "run"
+    || op === "check"
+    || op === "mockRun"
+  ) {
     if (!args.workspaceRoot && typeof cwd === "string" && cwd.trim()) {
       args.workspaceRoot = cwd;
     }
   }
   if (op === "run" || op === "check") {
     args.standalone = true;
+  }
+  if (op === "mockRun") {
+    args.mock = true;
+    if (args.assert === undefined) {
+      args.assert = true;
+    }
   }
   return args;
 }
@@ -43,9 +54,21 @@ export async function POST(req: Request) {
   }
 
   const op = body.op;
-  if (op !== "run" && op !== "check" && op !== "keys" && op !== "validate") {
+  if (
+    op !== "run"
+    && op !== "check"
+    && op !== "keys"
+    && op !== "validate"
+    && op !== "mockRun"
+    && op !== "mockProfilesList"
+  ) {
     return NextResponse.json(
-      { ok: false, error: "INVALID_OP", message: "op must be run | check | keys | validate" },
+      {
+        ok: false,
+        error: "INVALID_OP",
+        message:
+          "op must be run | check | keys | validate | mockRun | mockProfilesList",
+      },
       { status: 400 },
     );
   }

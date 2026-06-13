@@ -151,8 +151,9 @@ QuickerAgent catalog 自动发现；编写时按场景加载：
 | `quicker-authoring-path-and-exists` | 路径存在检查 |
 | `quicker-authoring-delay-retry` | 延迟重试 |
 | `quicker-authoring-ui-automation-lite` | 前台窗口 + 按键 |
+| `quicker-authoring-run-action-delegate` | 委托运行动作 |
 
-新 draft：`.cursor/skills/quicker-authoring-*` → [`learned-skills/registry.json`](authoring-references/learned-skills/registry.json) → 晋升进 `action-authoring-src/skills/`（见 [SPEC](authoring-references/learned-skills/SPEC.md)）。
+新场景子 skill：直接写 [`action-authoring-src/skills/`](action-authoring-src/skills/) → `npm run docs:gen` → `docs/skills/`；登记 [`learned-skills/registry.json`](authoring-references/learned-skills/registry.json)（见 [SPEC](authoring-references/learned-skills/SPEC.md)）。
 
 ---
 

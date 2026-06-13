@@ -5,6 +5,7 @@ using System.Text;
 using System.Windows;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Quicker.Domain.Actions.X;
 using QuickerRpc.AgentModel.Catalog;
 using QuickerRpc.AgentModel.Core;
 using QuickerRpc.AgentModel.XAction;
@@ -144,19 +145,39 @@ internal static class ActionDesignerProgramBridge
         out QuickerRpcApplyActionPatchResult result)
     {
         result = new QuickerRpcApplyActionPatchResult();
-        var designer = ActionDesignerUiSave.TryFindActionDesignerWindow(actionId, isSubProgram: false);
-        if (designer is null)
+        if (LegacyActionProgramAccessor.TryCreate() is { } actions
+            && actions.TryGetById(actionId, out var action, out _)
+            && ActionReadOnlyMutationGuard.TryBuildPatchFailure(action, actionId, out var readOnlyPatch))
+        {
+            result = readOnlyPatch;
+            return true;
+        }
+
+        if (ActionReadOnlyMutationGuard.TryBuildPatchFailure(null, actionId, out readOnlyPatch))
+        {
+            result = readOnlyPatch;
+            return true;
+        }
+
+        var export = ActionProgramPatchUiGate.TryExportProgramJson(actionId, isSubProgram: false);
+        if (export is null || !export.DesignerFound)
         {
             return false;
         }
 
-        ActionDesignerUiSave.WaitUntilDesignerLoaded(designer);
-        if (!designer.IsLoaded)
+        if (export.DesignerNotLoaded)
         {
             result = FailPatch("Action Designer is not loaded.");
             return true;
         }
 
+        if (!string.IsNullOrWhiteSpace(export.Error))
+        {
+            result = FailPatch(export.Error);
+            return true;
+        }
+
+        var payloadJson = export.PayloadJson;
         var metaTitle = ActionPresentationUpdate.ReadOptionalPatchString(patch["title"]);
         var metaDescription = ActionPresentationUpdate.ReadOptionalPatchString(patch["description"]);
         var metaIcon = ActionPresentationUpdate.ReadOptionalPatchString(patch["icon"]);
@@ -188,10 +209,9 @@ internal static class ActionDesignerProgramBridge
             }
         }
 
-        if (!ActionDesignerContext.TryExportXActionJson(designer, out var payloadJson, out var exportError)
-            || string.IsNullOrWhiteSpace(payloadJson))
+        if (string.IsNullOrWhiteSpace(payloadJson))
         {
-            result = FailPatch(exportError ?? "Designer export failed.");
+            result = FailPatch("Designer export failed.");
             return true;
         }
 
@@ -224,6 +244,7 @@ internal static class ActionDesignerProgramBridge
             var applyResult = new XActionPatchApplier.ApplyResult { Success = true };
             var catalog = StepRunnerCatalogFromQuicker.Build();
             IList<string> inputParamWarnings = Array.Empty<string>();
+            XAction? xActionForDesigner = null;
             if (hasProgramPatch)
             {
                 applyResult = XActionProgramService.ApplyPatch(stepsClone, variablesClone, programPatch);
@@ -243,26 +264,22 @@ internal static class ActionDesignerProgramBridge
                     stepsClone,
                     normalizedVariables,
                     subProgramsJson);
-                var xAction = XActionProgramBodyWriter.DeserializeXAction(mergedBody);
-                if (!ActionDesignerUiSave.TrySyncDesignerMemory(designer, xAction))
-                {
-                    result = FailPatch("Failed to apply patch to open Action Designer.");
-                    return true;
-                }
+                xActionForDesigner = XActionProgramBodyWriter.DeserializeXAction(mergedBody);
             }
 
-            if (hasMeta)
+            if (hasProgramPatch || hasMeta)
             {
-                if (!ActionDesignerUiSave.TrySyncDesignerPresentation(
-                        designer,
-                        isSubProgram: false,
-                        metaTitle,
-                        metaDescription,
-                        metaIcon,
-                        metaContextMenuData,
-                        out var presentationError))
+                var applyUi = ActionProgramPatchUiGate.ApplyProgramToOpenDesigner(
+                    actionId,
+                    isSubProgram: false,
+                    xActionForDesigner,
+                    metaTitle,
+                    metaDescription,
+                    metaIcon,
+                    metaContextMenuData);
+                if (!applyUi.Success)
                 {
-                    result = FailPatch(presentationError ?? "Failed to apply presentation to open Action Designer.");
+                    result = FailPatch(applyUi.Error ?? "Failed to apply patch to open Action Designer.");
                     return true;
                 }
             }
@@ -407,28 +424,25 @@ internal static class ActionDesignerProgramBridge
         out QuickerRpcApplySubProgramPatchResult result)
     {
         result = new QuickerRpcApplySubProgramPatchResult();
-        Window? designer = null;
-        foreach (var isSubProgram in new[] { true, false })
-        {
-            designer = ActionDesignerUiSave.TryFindActionDesignerWindow(subProgramKey, isSubProgram);
-            if (designer is not null)
-            {
-                break;
-            }
-        }
-
-        if (designer is null)
+        var export = ActionProgramPatchUiGate.TryExportSubProgramJson(subProgramKey);
+        if (export is null || !export.DesignerFound)
         {
             return false;
         }
 
-        ActionDesignerUiSave.WaitUntilDesignerLoaded(designer);
-        if (!designer.IsLoaded)
+        if (export.DesignerNotLoaded)
         {
             result = FailSubProgramPatch("Action Designer is not loaded.");
             return true;
         }
 
+        if (!string.IsNullOrWhiteSpace(export.Error))
+        {
+            result = FailSubProgramPatch(export.Error);
+            return true;
+        }
+
+        var payloadJson = export.PayloadJson;
         var metaName = SubProgramPresentationUpdate.ReadOptionalPatchName(patch);
         var metaDescription = ActionPresentationUpdate.ReadOptionalPatchString(patch["description"]);
         var metaIcon = ActionPresentationUpdate.ReadOptionalPatchString(patch["icon"]);
@@ -458,10 +472,9 @@ internal static class ActionDesignerProgramBridge
             }
         }
 
-        if (!ActionDesignerContext.TryExportXActionJson(designer, out var payloadJson, out var exportError)
-            || string.IsNullOrWhiteSpace(payloadJson))
+        if (string.IsNullOrWhiteSpace(payloadJson))
         {
-            result = FailSubProgramPatch(exportError ?? "Designer export failed.");
+            result = FailSubProgramPatch("Designer export failed.");
             return true;
         }
 
@@ -476,11 +489,10 @@ internal static class ActionDesignerProgramBridge
             var revisionBefore = ComputeBodyRevision(stepsClone, variablesClone);
             if (!force && expectedEditVersion.HasValue && expectedEditVersion.Value != revisionBefore)
             {
-                var entityId = ActionDesignerContext.TryReadDesignerEntityId(designer) ?? subProgramKey.Trim();
                 result = new QuickerRpcApplySubProgramPatchResult
                 {
                     Success = false,
-                    SubProgramId = entityId,
+                    SubProgramId = subProgramKey.Trim(),
                     ErrorMessage =
                         "Version conflict: subprogram was modified in Action Designer. Re-read with subprogram get or use force.",
                     VersionConflict = true,
@@ -495,6 +507,7 @@ internal static class ActionDesignerProgramBridge
             var applyResult = new XActionPatchApplier.ApplyResult { Success = true };
             var catalog = StepRunnerCatalogFromQuicker.Build();
             IList<string> inputParamWarnings = Array.Empty<string>();
+            XAction? xActionForDesigner = null;
             if (hasProgramPatch)
             {
                 applyResult = XActionProgramService.ApplyPatch(stepsClone, variablesClone, programPatch);
@@ -513,31 +526,30 @@ internal static class ActionDesignerProgramBridge
                     stepsClone,
                     normalizedVariables,
                     ReadSubProgramsJson(body, programPatch["subPrograms"]));
-                var xAction = XActionProgramBodyWriter.DeserializeXAction(mergedBody);
-                if (!ActionDesignerUiSave.TrySyncDesignerMemory(designer, xAction))
-                {
-                    result = FailSubProgramPatch("Failed to apply patch to open Action Designer.");
-                    return true;
-                }
+                xActionForDesigner = XActionProgramBodyWriter.DeserializeXAction(mergedBody);
             }
 
-            if (hasMeta)
+            string entityIdAfter = subProgramKey.Trim();
+            if (hasProgramPatch || hasMeta)
             {
-                if (!ActionDesignerUiSave.TrySyncDesignerPresentation(
-                        designer,
-                        isSubProgram: true,
-                        metaName,
-                        metaDescription,
-                        metaIcon,
-                        contextMenuData: null,
-                        out var presentationError))
+                var applyUi = ActionProgramPatchUiGate.ApplyProgramToOpenSubProgramDesigner(
+                    subProgramKey,
+                    xActionForDesigner,
+                    metaName,
+                    metaDescription,
+                    metaIcon);
+                if (!applyUi.Success)
                 {
-                    result = FailSubProgramPatch(presentationError ?? "Failed to apply presentation to open Action Designer.");
+                    result = FailSubProgramPatch(applyUi.Error ?? "Failed to apply patch to open Action Designer.");
                     return true;
+                }
+
+                if (!string.IsNullOrWhiteSpace(applyUi.EntityId))
+                {
+                    entityIdAfter = applyUi.EntityId;
                 }
             }
 
-            var entityIdAfter = ActionDesignerContext.TryReadDesignerEntityId(designer) ?? subProgramKey.Trim();
             var revisionAfter = ComputeBodyRevision(stepsClone, variablesClone);
             var warnings = ToWarnings(inputParamWarnings);
             warnings.Add("applied_to_action_designer_memory; save in Quicker to persist to catalog");

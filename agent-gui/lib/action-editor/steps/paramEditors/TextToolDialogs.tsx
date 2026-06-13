@@ -18,6 +18,7 @@ import {
   type TextToolDialogKind,
 } from "./textToolWebSupport";
 import { formatCapturedKey, keyCaptureModeForTool, type KeyCaptureMode } from "./textToolSendKeys";
+import { MonacoExpressionEditor } from "../expression/MonacoExpressionEditor";
 
 export type TextToolDialogState =
   | {
@@ -438,7 +439,72 @@ function BoolExpressionDialog({
   );
 }
 
+function EditInCodeDialog({
+  initialValue,
+  onConfirm,
+  onCancel,
+}: {
+  initialValue?: string;
+  onConfirm: (value: string) => void;
+  onCancel: () => void;
+}): JSX.Element {
+  const [text, setText] = useState(initialValue ?? "");
+
+  const commit = useCallback((): void => {
+    onConfirm(text);
+  }, [onConfirm, text]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        commit();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [commit]);
+
+  return (
+    <div className="text-tool-dialog-panel text-tool-dialog-panel--code">
+      <h3 className="text-tool-dialog-title">在编辑器中修改</h3>
+      <p className="text-tool-dialog-hint">Esc 关闭 · Ctrl+Enter 确定</p>
+      <MonacoExpressionEditor
+        className="text-tool-dialog-code-editor"
+        value={text}
+        onChange={setText}
+        multiline
+        maxMultilineHeight={480}
+      />
+      <div className="text-tool-dialog-actions">
+        <button type="button" className="step-editor-popup-btn secondary" onClick={onCancel}>
+          取消
+        </button>
+        <button type="button" className="step-editor-popup-btn primary" onClick={commit}>
+          确定
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function TextToolDialogs({ state, onConfirm, onCancel }: TextToolDialogsProps): JSX.Element | null {
+  useEffect(() => {
+    if (!state) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      onCancel();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [state, onCancel]);
+
   if (!state) {
     return null;
   }
@@ -470,6 +536,12 @@ export function TextToolDialogs({ state, onConfirm, onCancel }: TextToolDialogsP
       <KeyCaptureDialog toolId={state.toolId} onConfirm={onConfirm} onCancel={onCancel} />
     ) : state.kind === "actionPicker" ? (
       <ActionPickerDialog toolId={state.toolId} onConfirm={onConfirm} onCancel={onCancel} />
+    ) : state.kind === "editInCode" ? (
+      <EditInCodeDialog
+        initialValue={state.initialValue}
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+      />
     ) : (
       <BoolExpressionDialog
         variables={state.variables ?? []}
@@ -477,6 +549,9 @@ export function TextToolDialogs({ state, onConfirm, onCancel }: TextToolDialogsP
         onCancel={onCancel}
       />
     );
+
+  const dialogClassName =
+    state.kind === "editInCode" ? "text-tool-dialog text-tool-dialog--code" : "text-tool-dialog";
 
   return createPortal(
     <div
@@ -489,7 +564,7 @@ export function TextToolDialogs({ state, onConfirm, onCancel }: TextToolDialogsP
       }}
     >
       <div
-        className="text-tool-dialog"
+        className={dialogClassName}
         role="dialog"
         aria-modal="true"
         onMouseDown={(event) => event.stopPropagation()}

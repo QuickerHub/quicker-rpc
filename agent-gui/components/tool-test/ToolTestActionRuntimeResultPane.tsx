@@ -79,7 +79,7 @@ function resolveInputJson(
 }
 
 function shortRunLabel(label: string): string {
-  return label.replace(/^(运行|支持检查|模块列表|工程校验)：/, "");
+  return label.replace(/^(运行|支持检查|模块列表|工程校验|Mock 断言|Mock profiles)：/, "");
 }
 
 function statusLabel(status: ActionRuntimeRunEntry["status"]): string {
@@ -130,6 +130,13 @@ function RunDetailView({
   const unsupported = data?.unsupportedStepKeys as string[] | undefined;
   const keys = data?.keys as string[] | undefined;
   const outputVars = data?.outputVars as Record<string, unknown> | undefined;
+  const assertions = data?.assertions as
+    | { passed?: boolean; results?: unknown[] }
+    | undefined;
+  const fixHints = data?.fixHints as string[] | undefined;
+  const mockLedger = data?.mockLedger as Record<string, unknown> | undefined;
+  const events = data?.events as unknown[] | undefined;
+  const eventCount = data?.eventCount as number | undefined;
   const compiledFiles = (data?.compiledFiles as ActionRuntimeCompiledFile[] | undefined) ?? [];
   const inputJson = data ? resolveInputJson(run, data) : resolveInputJson(run, {});
   const generatedCs = resolveGeneratedProgramCs(data, run.requestArgs);
@@ -209,6 +216,49 @@ function RunDetailView({
       ) : null}
 
       {run.error ? <p className="tool-test-runtime-result__error">{run.error}</p> : null}
+
+      {assertions ? (
+        <div
+          className={[
+            "tool-test-runtime-result__highlight",
+            "tool-test-runtime-result__highlight--compact",
+            assertions.passed ? "tool-test-runtime-result__highlight--pass" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          <span className="tool-test-runtime-result__highlight-label">
+            断言 {assertions.passed ? "通过" : "失败"}
+          </span>
+          {Array.isArray(assertions.results) && assertions.results.length > 0 ? (
+            <pre>{formatJson(assertions.results)}</pre>
+          ) : null}
+        </div>
+      ) : null}
+
+      {fixHints?.length ? (
+        <details className="tool-test-runtime-result__details tool-test-runtime-result__details--compact" open>
+          <summary>fixHints ({fixHints.length})</summary>
+          <ul className="tool-test-runtime-result__list">
+            {fixHints.map((hint) => (
+              <li key={hint}>{hint}</li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+
+      {typeof eventCount === "number" || events?.length ? (
+        <p className="tool-test-runtime-search__status">
+          synthetic trace：{eventCount ?? events?.length ?? 0} events
+        </p>
+      ) : null}
+
+      {mockLedger && Object.keys(mockLedger).length > 0 ? (
+        <details className="tool-test-runtime-result__details tool-test-runtime-result__details--compact">
+          <summary>mockLedger</summary>
+          <pre className="tool-test-runtime-code-pane__pre">{formatJson(mockLedger)}</pre>
+        </details>
+      ) : null}
 
       {outputVars && Object.keys(outputVars).length > 0 ? (
         <dl className="tool-test-runtime-result__vars tool-test-runtime-result__vars--compact">

@@ -6,15 +6,19 @@ import { TEXT_TOOL_CATALOG } from "./textToolCatalog";
 import { parseParamTextToolIds } from "./stepRunnerInputParamUi";
 import { TextToolDialogs, type TextToolDialogState } from "./TextToolDialogs";
 import {
+  isQkrpcTextTool,
   isWebTextTool,
   resolveTextToolDialogKind,
   runNativeFileTextTool,
 } from "./textToolWebSupport";
+import { runQkrpcTextTool } from "./textToolQkrpc";
 
 export type ParamTextToolsStripProps = {
   textTools: string;
+  /** Current bound field value (passed to Quicker pickers as currValue). */
+  currentValue?: string;
   /** Insert or replace value in the bound field (desktop TextToolsControl). */
-  onInsertValue: (value: string, mode: "replace" | "append") => void;
+  onInsertValue: (value: string, mode: "replace" | "append" | "replaceAll") => void;
   variables?: ActionVariable[];
   disabled?: boolean;
 };
@@ -34,6 +38,7 @@ function resolveToolLabel(toolId: string): string {
 
 export function ParamTextToolsStrip({
   textTools,
+  currentValue = "",
   onInsertValue,
   variables = [],
   disabled = false,
@@ -111,9 +116,10 @@ export function ParamTextToolsStrip({
     setDialogState({
       kind,
       toolId,
+      initialValue: kind === "editInCode" ? currentValue : undefined,
       variables: kind === "boolExpression" ? variables : undefined,
     });
-  }, [variables]);
+  }, [variables, currentValue]);
 
   const handleToolClick = useCallback(
     async (toolId: string): Promise<void> => {
@@ -146,9 +152,30 @@ export function ParamTextToolsStrip({
         return;
       }
 
+      if (isQkrpcTextTool(toolId)) {
+        const plugin = await runQkrpcTextTool(toolId, currentValue);
+        if (plugin.status === "success") {
+          commitValue(plugin.value);
+          return;
+        }
+        if (plugin.status === "cancelled") {
+          return;
+        }
+        if (plugin.status === "unavailable") {
+          window.alert(
+            `「${resolveToolLabel(toolId)}」需要 Quicker 桌面版在线（qkrpc 插件）。请启动 Quicker 后重试。`,
+          );
+          return;
+        }
+        if (plugin.status === "error") {
+          window.alert(plugin.message);
+          return;
+        }
+      }
+
       window.alert(`「${resolveToolLabel(toolId)}」需在 Quicker 桌面版步骤编辑器中使用。`);
     },
-    [commitValue, disabled, openBrowserPicker, openDialogForTool],
+    [commitValue, currentValue, disabled, openBrowserPicker, openDialogForTool],
   );
 
   if (ids.length === 0) {
@@ -168,16 +195,20 @@ export function ParamTextToolsStrip({
         />
         {ids.map((toolId) => {
           const webCapable = isWebTextTool(toolId);
+          const pluginCapable = isQkrpcTextTool(toolId);
+          const titleSuffix = webCapable
+            ? ""
+            : pluginCapable
+              ? "（Quicker 插件）"
+              : "（仅桌面版）";
           return (
             <button
               key={toolId}
               type="button"
-              className={`step-param-texttools-btn${webCapable ? " step-param-texttools-btn--web" : ""}`}
-              title={
-                webCapable
-                  ? resolveToolLabel(toolId)
-                  : `${resolveToolLabel(toolId)}（仅桌面版）`
-              }
+              className={`step-param-texttools-btn${
+                webCapable || pluginCapable ? " step-param-texttools-btn--web" : ""
+              }`}
+              title={`${resolveToolLabel(toolId)}${titleSuffix}`}
               disabled={disabled}
               onClick={() => void handleToolClick(toolId)}
             >
@@ -190,7 +221,12 @@ export function ParamTextToolsStrip({
       <TextToolDialogs
         state={dialogState}
         onConfirm={(value) => {
+          const replaceAll = dialogState?.kind === "editInCode";
           setDialogState(null);
+          if (replaceAll) {
+            onInsertValue(value, "replaceAll");
+            return;
+          }
           commitValue(value);
         }}
         onCancel={() => setDialogState(null)}

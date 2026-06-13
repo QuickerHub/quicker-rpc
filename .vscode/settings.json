@@ -1,6 +1,6 @@
 ﻿{
   "terminal.integrated.env.windows": {
-    "PATH": "${workspaceFolder}\\publish\\cli;${env:LOCALAPPDATA}\\Programs\\qkrpc;${env:PATH}",
+    "PATH": "${workspaceFolder}\\publish\\cli;${env:LOCALAPPDATA}\\Programs\\qkrpc;${env:LOCALAPPDATA}\\cursor-agent;${env:PATH}",
     "QKRPC_WORKSPACE_ROOT": "${workspaceFolder}",
     "QKRPC_CWD": "${workspaceFolder}"
   },

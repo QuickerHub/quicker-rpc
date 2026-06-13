@@ -10,9 +10,30 @@
 
 | param | wire | notes |
 |-------|------|-------|
-| 子程序 | `callIdentifier` | 公共子程序用 id 或名称；**禁止**猜名 — `subprogram search/get` |
-| 输入/输出 | 与子程序变量名一一映射 | 键名 = 子程序里勾了输入/输出的变量名 |
+| 子程序 | `callIdentifier` / `subProgram` | 公共子程序用 `%%{guid}` 或名称；**禁止**猜名 — `subprogram search/get` |
+| 输入 | **`var:<子程序变量key>`** | 映射主程序变量，如 `"var:text": { "varKey": "inputText" }` 或 `"var:text": "inputText"` |
+| 输出 | **`var:<子程序变量key>`** | 在 `outputParams`，如 `"var:result": "outputText"` |
 | 列表/词典传参 | 引用同一对象 | 子程序内改列表/词典会影响主程序 |
+
+**不是**普通步骤的 `text.var` / `path.var` 写法。`step-runner get` 静态 schema 可能不列出 `var:*` 键；patch 可出 warning，**运行有效**（B04 验证）。
+
+### 最小示例（主动作调用步）
+
+```json
+{
+  "stepRunnerKey": "sys:subprogram",
+  "inputParams": {
+    "subProgram": "%%<guid>",
+    "var:text": { "varKey": "inputText" }
+  },
+  "outputParams": {
+    "var:result": "outputText",
+    "isSuccess": "spOk"
+  }
+}
+```
+
+键名 `text` / `result` 须与子程序 `variables[]` 里 `isInput` / `isOutput` 的 `key` 一致。参考：`action-patterns/subprogram-extract.md`、`scripts/voxtype-quicker/voxtype-run-subprogram.patch.json`。
 
 ## 模式（子程序类别）
 
@@ -29,6 +50,7 @@
 | 写法 | 问题 |
 |------|------|
 | 未 `subprogram get` 猜 `callIdentifier` | 调用失败 |
+| 用 `text.var` 绑子程序 IO | 运行时不传参；应用 **`var:<key>`** |
 | 改子程序变量名不更新调用步 | IO 映射断裂 |
 
 ## 相关

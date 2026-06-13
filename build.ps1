@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 # Build QuickerRpc plugin (qkbuild) and publish qkrpc CLI (publish-rpc.ps1).
-# On success, launches the Quicker action that loads/reloads the plugin (quicker:runaction).
+# On success, qkbuild updates QuickerRpc_Run version then (after 1s) launches quicker:runaction to reload the plugin.
 # Stops any running qkrpc serve before build (unlocks DLLs), then starts serve from publish/cli.
 # Examples:
 #   pwsh ./build.ps1
@@ -250,6 +250,15 @@ function Start-QkrpcServe {
 }
 
 function Invoke-QuickerRpcPluginRunAction {
+    param(
+        [int]$DelaySeconds = 0
+    )
+
+    if ($DelaySeconds -gt 0) {
+        Write-Host "Waiting ${DelaySeconds}s after version variable update before reloading plugin..." -ForegroundColor DarkGray
+        Start-Sleep -Seconds $DelaySeconds
+    }
+
     Write-Host "=== QuickerRpc plugin (run action) ===" -ForegroundColor Cyan
     try {
         Start-Process $PluginRunActionUri | Out-Null
@@ -316,6 +325,10 @@ try {
         exit $LASTEXITCODE
     }
 
+    # qkbuild updates QuickerRpc_Run version variable via qkrpc; wait briefly so Quicker
+    # picks up the new revision before quicker:runaction reloads the plugin DLL.
+    Invoke-QuickerRpcPluginRunAction -DelaySeconds 1
+
     Write-Host "=== qkrpc CLI (publish-rpc.ps1) ===" -ForegroundColor Cyan
     if ($skipPackaging) {
         Write-Host "SkipCliPackaging: dotnet publish CLI + install only (no zip, setup.exe, publish/plugin)." -ForegroundColor Yellow
@@ -332,8 +345,6 @@ try {
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
-
-    Invoke-QuickerRpcPluginRunAction
 
     if ($shouldStartQkrpcServe) {
         Start-QkrpcServe -RepoRoot $PSScriptRoot

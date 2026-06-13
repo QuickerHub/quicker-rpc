@@ -38,6 +38,14 @@ Load sibling skills when the task matches (QuickerAgent catalog / Cursor `docs/s
 | path exists + branch | **quicker-authoring-path-and-exists** |
 | delay + retry poll | **quicker-authoring-delay-retry** |
 | activate window + send keys | **quicker-authoring-ui-automation-lite** |
+| run another action (delegate) | **quicker-authoring-run-action-delegate** |
+| form → variables → format output | **quicker-authoring-form-param-input** |
+| regex extract from text | **quicker-authoring-regex-extract-pipeline** |
+| conditional HTTP (url guard) | **quicker-authoring-conditional-http** |
+| file copy with timestamp | **quicker-authoring-file-copy-timestamp** |
+| window title branch | **quicker-authoring-window-title-branch** |
+| external `files/*.eval.cs` | **quicker-authoring-external-eval-cs** |
+| clipboard CSV stats | **quicker-authoring-csv-parse-aggregate** |
 
 Run/settings/layout → main agent Capabilities (not this skill).
 

@@ -179,7 +179,7 @@ public sealed class ActionDesignerWindowWatcher : IHostedService
 
         try
         {
-            ActionDesignerUiInjector.ReloadInject(designer, selectTab: false);
+            ActionDesignerUiInjector.ReloadInject(designer, selectTab: true);
         }
         catch (Exception ex)
         {

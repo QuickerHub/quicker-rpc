@@ -1,0 +1,30 @@
+{
+  "id": "file-copy-timestamp",
+  "version": 1,
+  "mocks": {
+    "time": {
+      "fixedUtc": "2026-06-11T04:00:00Z"
+    },
+    "host": {
+      "explorerPath": "D:\\source\\repos\\quicker\\quicker-rpc",
+      "selectedFile": "D:\\source\\repos\\quicker\\quicker-rpc\\.local\\mock-source.txt"
+    },
+    "files": {
+      "seed": [
+        {
+          "path": "D:\\source\\repos\\quicker\\quicker-rpc\\.local\\mock-source.txt",
+          "content": "seed-content"
+        }
+      ]
+    }
+  },
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "copyOk": "True"
+    },
+    "notificationsContain": [
+      "mock-source_20260611_120000"
+    ]
+  }
+}

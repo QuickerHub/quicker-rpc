@@ -1,0 +1,14 @@
+{
+  "id": "window-vscode-branch-not-vscode",
+  "version": 1,
+  "mocks": {
+    "window": {
+      "foregroundTitle": "Notepad",
+      "foregroundHandle": 11111
+    }
+  },
+  "assertions": {
+    "success": true,
+    "notificationsContain": ["VS Code"]
+  }
+}

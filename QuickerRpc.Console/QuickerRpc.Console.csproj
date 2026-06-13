@@ -4,7 +4,9 @@
   </ItemGroup>
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <DefineConstants Condition="$(TargetFramework.Contains('-windows'))">$(DefineConstants);ACTION_RUNTIME_PACKS</DefineConstants>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <ApplicationUTF8Encoding>true</ApplicationUTF8Encoding>
@@ -20,6 +22,7 @@
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj" />
     <ProjectReference Include="..\QuickerRpc.AgentModel\QuickerRpc.AgentModel.csproj" />
     <ProjectReference Include="..\Quicker.ActionRuntime\Quicker.ActionRuntime.Integration\Quicker.ActionRuntime.Integration.csproj" />
+    <ProjectReference Include="..\Quicker.ActionRuntime\Quicker.ActionRuntime.Mocking\Quicker.ActionRuntime.Mocking.csproj" />
     <ProjectReference Include="..\Quicker.ActionRuntime\Quicker.ActionRuntime.ScriptCompiler\Quicker.ActionRuntime.ScriptCompiler.csproj" />
     <ProjectReference Include="..\Quicker.ActionRuntime\tests\Quicker.ActionRuntime.Benchmarks\Quicker.ActionRuntime.Benchmarks.csproj" />
   </ItemGroup>

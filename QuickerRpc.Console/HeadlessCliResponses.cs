@@ -5,6 +5,60 @@ namespace QuickerRpc.Console;
 
 internal static class HeadlessCliResponses
 {
+    public static object ToSharedGetPayload(QuickerRpcGetCompressedSharedActionResult response)
+    {
+        if (!response.Success || string.IsNullOrWhiteSpace(response.CompressedJson))
+        {
+            return new
+            {
+                success = response.Success,
+                errorMessage = response.ErrorMessage,
+                errorCode = response.ErrorCode,
+                sharedActionId = response.SharedActionId,
+                readOnly = response.ReadOnly,
+                readOnlyReason = response.ReadOnlyReason,
+                patchAllowed = response.PatchAllowed,
+                installedLocally = response.InstalledLocally,
+                localActionId = response.LocalActionId,
+                returnMode = response.ReturnMode,
+                readSource = response.ReadSource,
+            };
+        }
+
+        using var doc = JsonDocument.Parse(response.CompressedJson);
+        return new
+        {
+            success = response.Success,
+            errorMessage = response.ErrorMessage,
+            errorCode = response.ErrorCode,
+            sharedActionId = response.SharedActionId,
+            readOnly = response.ReadOnly,
+            readOnlyReason = response.ReadOnlyReason,
+            patchAllowed = response.PatchAllowed,
+            installedLocally = response.InstalledLocally,
+            localActionId = response.LocalActionId,
+            compressed = doc.RootElement.Clone(),
+            omitDefaultLiteralInputsApplied = response.OmitDefaultLiteralInputsApplied,
+            subProgramCount = response.SubProgramCount,
+            returnMode = response.ReturnMode,
+            readSource = response.ReadSource,
+        };
+    }
+
+    public static object ToLibrarySearchPayload(QuickerRpcSearchActionLibraryResult response) =>
+        new
+        {
+            success = response.Success,
+            errorMessage = response.ErrorMessage,
+            keyword = response.Keyword,
+            page = response.Page,
+            days = response.Days,
+            totalCount = response.TotalCount,
+            matchCount = response.MatchCount,
+            searchUrl = response.SearchUrl,
+            items = response.Items,
+        };
+
     public static object ToGetPayload(QuickerRpcGetCompressedActionResult response)
     {
         if (!response.Success || string.IsNullOrWhiteSpace(response.CompressedJson))
@@ -15,6 +69,9 @@ internal static class HeadlessCliResponses
             errorMessage = response.ErrorMessage,
             actionId = response.ActionId,
             editVersion = response.EditVersion,
+            readOnly = response.ReadOnly,
+            readOnlyReason = response.ReadOnlyReason,
+            patchAllowed = response.PatchAllowed,
             returnMode = response.ReturnMode,
             readSource = response.ReadSource,
         };
@@ -27,6 +84,9 @@ internal static class HeadlessCliResponses
             errorMessage = response.ErrorMessage,
             actionId = response.ActionId,
             editVersion = response.EditVersion,
+            readOnly = response.ReadOnly,
+            readOnlyReason = response.ReadOnlyReason,
+            patchAllowed = response.PatchAllowed,
             compressed = doc.RootElement.Clone(),
             omitDefaultLiteralInputsApplied = response.OmitDefaultLiteralInputsApplied,
             subProgramCount = response.SubProgramCount,
@@ -40,6 +100,7 @@ internal static class HeadlessCliResponses
         {
             success = response.Success,
             errorMessage = response.ErrorMessage,
+            errorCode = response.ErrorCode,
             actionId = response.ActionId,
             editVersion = response.EditVersion,
             versionConflict = response.VersionConflict,
@@ -60,6 +121,7 @@ internal static class HeadlessCliResponses
         {
             success = response.Success,
             errorMessage = response.ErrorMessage,
+            errorCode = response.ErrorCode,
             actionId = response.ActionId,
             editVersion = response.EditVersion,
             versionConflict = response.VersionConflict,
@@ -72,6 +134,7 @@ internal static class HeadlessCliResponses
         {
             success = response.Success,
             errorMessage = response.ErrorMessage,
+            errorCode = response.ErrorCode,
             actionId = response.ActionId,
             editVersion = response.EditVersion,
             versionConflict = response.VersionConflict,

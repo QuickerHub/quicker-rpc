@@ -113,15 +113,27 @@ internal static class ActionDesignerUiSave
 
     public static void WaitUntilDesignerLoaded(Window designer, int maxAttempts = 300, int sleepMs = 10)
     {
-        if (designer is null)
+        _ = sleepMs;
+        if (designer is null || designer.IsLoaded)
         {
+            return;
+        }
+
+        var dispatcher = designer.Dispatcher ?? Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            return;
+        }
+
+        if (!dispatcher.CheckAccess())
+        {
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(() => WaitUntilDesignerLoaded(designer, maxAttempts));
             return;
         }
 
         for (var a = 0; a < maxAttempts && !designer.IsLoaded; a++)
         {
             PumpDispatcherOnce();
-            Thread.Sleep(sleepMs);
         }
     }
 
@@ -395,21 +407,18 @@ internal static class ActionDesignerUiSave
             return false;
         }
 
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null)
+        bool? synced = QuickerDispatcherInvoke.OnUiThreadIfNeeded(() =>
         {
-            return false;
-        }
+            var result = TrySyncOpenDesigner(entityId.Trim(), xAction, isSubProgram);
+            for (var i = 0; i < 8; i++)
+            {
+                PumpDispatcherOnce();
+            }
 
-        var synced = false;
-        dispatcher.Invoke(() => synced = TrySyncOpenDesigner(entityId.Trim(), xAction, isSubProgram));
+            return result;
+        });
 
-        for (var i = 0; i < 120; i++)
-        {
-            PumpDispatcherOnce();
-        }
-
-        return synced;
+        return synced ?? false;
     }
 
     private static bool TrySyncOpenDesigner(string entityId, XAction xAction, bool isSubProgram)

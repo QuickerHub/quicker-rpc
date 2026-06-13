@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-conditional-http",
+  "description": "Quicker 条件 HTTP：url 空值守卫 + sys:if + http url.var。可选 URL 请求时加载。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

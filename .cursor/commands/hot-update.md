@@ -31,9 +31,10 @@ pwsh -NoProfile -File ./build.ps1 -t
 脚本会依次：
 
 1. **Stop** 占用中的 `qkrpc serve`（含 `agent-gui/.runtime/qkrpc`）
-2. qkbuild **测试包** + OSS + Quicker **重载插件 DLL**
-3. **dotnet publish** CLI → `publish/cli` → 安装到 `%LOCALAPPDATA%\Programs\qkrpc`
-4. **Start** `qkrpc serve` → `http://127.0.0.1:9477`
+2. qkbuild **测试包** + 更新 `QuickerRpc_Run` **version 变量**
+3. **等待 1s** → `quicker:runaction:…?plugin` **重载插件 DLL**（必做；未执行则插件可能仍是旧版，改代码会像「没修好」）
+4. **dotnet publish** CLI → `publish/cli`（`-t` 时 `-SkipInstall`，避免锁 `clrjit.dll`）
+5. **Start** `qkrpc serve` → `http://127.0.0.1:9477`
 
 ## 验证
 
@@ -56,7 +57,7 @@ qkrpc action list --limit 1 --json
 
 1. 退出码、耗时要点（插件版本来自 `version.json` / 构建日志）。
 2. `GET /health` 或 `qkrpc action list` 结果摘要。
-3. 若 RPC 仍报方法不存在：确认 Quicker 中插件重载动作是否成功。
+3. 若 RPC 仍报方法不存在 / UI 行为像旧版：**确认 Quicker 已启动**，且构建日志里出现 `Started: quicker:runaction:…?plugin`（在 qkbuild 更新 version 变量后约 1s）；可手动再执行一次该 URI 或重跑 `build.ps1 -t`。
 
 ## 禁止
 

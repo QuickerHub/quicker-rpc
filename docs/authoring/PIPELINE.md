@@ -36,7 +36,7 @@
 | [`authoring-references/`](../authoring-references/) | **是** | KC 爬取 + 手写 `authored/` 模块 ref、action-patterns、benchmarks |
 | [`action-authoring/cli/`](../action-authoring/cli/) | **否** | `docs:gen` 输出 topic + `references-manifest.json` |
 | [`skills/`](../skills/) | **慎改** | setup 分发；正文多由 `docs:gen` 从 src 生成 |
-| [`.cursor/skills/`](../../.cursor/skills/) | **是** | 仓库贡献者专用（构建/发布/UI）；**不进** `qkrpc agent setup` 默认列表 |
+| [`.cursor/skills/`](../../.cursor/skills/) | **是** | 仓库贡献者专用（构建/发布/UI）；**场景子 skill 不写此处** |
 
 ## 生成命令
 
@@ -93,13 +93,19 @@ npm run docs:modules:gen     # 分析 + crawl
 | [`authoring-references/benchmarks/`](../authoring-references/benchmarks/) | SDK-L2 / 编写评测复盘 |
 | [`authoring-references/getquicker-library-search/`](../authoring-references/getquicker-library-search/) | 动作库搜索设计 |
 
-## Skill 晋升
+## Skill 学习与发布
 
-Draft 编写 skill 登记于 [`learned-skills/registry.json`](../authoring-references/learned-skills/registry.json)。晋升路径：
+场景子 skill **权威源**：`docs/action-authoring-src/skills/<name>/`（`SKILL.src.md` + `manifest.json`）。
 
-`review` → `action-authoring-src/skills/<name>/`（`SKILL.src.md` + `manifest.json`）→ `npm run docs:gen` → `docs/skills/<name>/`（on-demand catalog）
+登记于 [`learned-skills/registry.json`](../authoring-references/learned-skills/registry.json)（`draft` → `review` → `promoted`）。
 
-批量晋升：`node scripts/promote-learned-skills-from-registry.mjs`。子 skill 生成由 `generate-authoring-docs.mjs` 自动扫描（除 `quicker-authoring` / `quicker-eval-expression`）。
+```text
+学习 Agent 写 src → npm run docs:gen → docs/skills/<name>/（on-demand catalog）
+人类审核 → registry promoted（无需从 .cursor 复制）
+```
+
+批量校验 / 标记 promoted：`node scripts/promote-learned-skills-from-registry.mjs [--promote]`。  
+子 skill 由 `generate-authoring-docs.mjs` 自动扫描（除 `quicker-authoring` / `quicker-eval-expression`）。
 
 ## 逻辑目录（Phase 3）
 

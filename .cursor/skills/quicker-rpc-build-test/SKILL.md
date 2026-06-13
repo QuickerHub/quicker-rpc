@@ -26,7 +26,7 @@ pwsh -NoProfile -File ./build.ps1 -t
 
 | 改了什么 | 热更新做什么 | agent-gui |
 |----------|----------------|-------------|
-| `QuickerRpc.Plugin/**` | `-t` → Quicker 测试包 + **重载插件 DLL**（`quicker:runaction:…`） | 保持打开；RPC 经 serve 重连管道 |
+| `QuickerRpc.Plugin/**` | `-t` → 测试包 + 更新 `QuickerRpc_Run` version → **1s 后** `quicker:runaction` **重载 DLL** | 保持打开；RPC 经 serve 重连管道 |
 | `QuickerRpc.Console/**`、`QuickerRpc.Contracts/**`（影响 RPC/CLI） | `-t` → 发布 `publish/cli` + **停旧 serve → 启新 serve**（默认 `9477`） | 保持打开；必要时 UI **重新检测** |
 | `QuickerRpc.AgentModel/**` | 同上（CLI 与插件均可能依赖） | 同上 |
 | 仅 `agent-gui/**` | **无需** `build.ps1 -t`；Next **HMR** + **`dev_frontend_check` 直到 ok** | 见 `.cursor/skills/quicker-agent-gui-frontend/SKILL.md` |
@@ -40,7 +40,7 @@ pwsh -NoProfile -File ./build.ps1 -t
 4. **跳过 serve 重启**（仅当用户明确要求）：`pwsh ./build.ps1 -t -SkipQkrpcServe` — 只换插件/包，**不**换正在跑的 `qkrpc.exe`。
 5. **验证**：`GET http://127.0.0.1:9477/health` 或 `qkrpc action list --limit 1 --json`；agent-gui 侧栏 **重新检测** Quicker RPC。
 
-前置：Quicker 已启动；`-t` 失败或 RPC 报方法不存在时，确认插件重载动作已执行成功。
+前置：Quicker 已启动；`-t` 失败或 RPC 报方法不存在时，确认构建日志在 qkbuild **更新 version 变量后**出现 `Started: quicker:runaction:…?plugin`（脚本会 **等待 1s** 再触发）。未重载时 Plugin 改动不会生效。
 
 ## 何时执行
 
@@ -75,7 +75,7 @@ pwsh -NoProfile -File ./build.ps1 -t
    - 测试包：`C:\Users\{user}\Documents\Quicker\_packages\quicker.rpc\{前三段版本}`
    - CLI：`%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe`
    - 插件 DLL：`publish/plugin/QuickerRpc.Plugin.*.dll`
-3. `build.ps1` 成功结束时会自动 `Start-Process quicker:runaction:{PluginRunActionId}` 加载/重载插件（与 `QuickerRpcBootstrap` 一致）；若 RPC 仍报方法不存在，确认 Quicker 已启动且动作执行成功
+3. `build.ps1` 在 **qkbuild 成功且更新 version 变量后** 等待 **1s**，再 `Start-Process quicker:runaction:{PluginRunActionId}` 加载/重载插件；若 CLI publish 失败但 qkbuild 已成功，重载动作仍应已执行。RPC 仍报方法不存在 → 确认 Quicker 已启动且上述 URI 已触发
 4. 默认会先 **停止** 占用中的 `qkrpc serve`，构建完成后从 `publish/cli` **重启** `qkrpc serve`（`http://127.0.0.1:9477/health`）；跳过：`build.ps1 -t -SkipQkrpcServe`
 5. 可选冒烟：`qkrpc guide get --topic overview --json` 或 `qkrpc action list --limit 1 --json`
 

@@ -236,6 +236,17 @@ internal static partial class Program
     private static async Task<int> RunActionAsync(ActionOptions options)
     {
         var verb = (options.Command ?? string.Empty).Trim().ToLowerInvariant();
+        var sub = (options.SubCommand ?? string.Empty).Trim().ToLowerInvariant();
+        if (verb == "library" && sub == "search")
+        {
+            return await RunActionLibrarySearchAsync(options).ConfigureAwait(false);
+        }
+
+        if (verb == "shared" && sub == "get")
+        {
+            return await RunActionSharedGetAsync(options).ConfigureAwait(false);
+        }
+
         return verb switch
         {
             "update" => await RunActionUpdateAsync(options).ConfigureAwait(false),
@@ -261,6 +272,8 @@ internal static partial class Program
             "runtime-compile" => await RunActionRuntimeCompileAsync(options).ConfigureAwait(false),
             "runtime-benchmark" => await RunActionRuntimeBenchmarkAsync(options).ConfigureAwait(false),
             "runtime-keys" => await RunActionRuntimeKeysAsync(options).ConfigureAwait(false),
+            "mock-profiles" => await RunActionMockProfilesAsync(options).ConfigureAwait(false),
+            "mock-trace-diff" => await RunActionMockTraceDiffAsync(options).ConfigureAwait(false),
             "float" => await RunActionFloatAsync(options).ConfigureAwait(false),
             "edit-var" => await RunActionEditVarAsync(options).ConfigureAwait(false),
             "shared-info-get" => await RunActionSharedInfoGetAsync(options).ConfigureAwait(false),
@@ -275,7 +288,7 @@ internal static partial class Program
         await EmitErrorAsync(
             options.Json,
             "UNKNOWN_ACTION_VERB",
-            "Use: action create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|mention-search|publish|update|shared-info-get|shared-info-set|shared-info-submit-review|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
+            "Use: action create|get|patch|set-metadata|replace|extract|apply|validate|export|import|list|search|mention-search|publish|update|library search|shared get|shared-info-get|shared-info-set|shared-info-submit-review|move|delete|edit|run|float|edit-var (see qkrpc help --json)")
             .ConfigureAwait(false);
         return ExitCodes.Error;
     }
@@ -818,6 +831,11 @@ internal static partial class Program
 
     private static async Task<int> RunActionRunAsync(ActionOptions options)
     {
+        if (options.Mock)
+        {
+            return await RunActionMockAsync(options).ConfigureAwait(false);
+        }
+
         if (options.Standalone)
         {
             return await RunActionStandaloneAsync(options).ConfigureAwait(false);
@@ -1508,8 +1526,11 @@ public sealed class PingOptions
 [Verb("action", HelpText = "Quicker action operations via RPC.")]
 public sealed class ActionOptions
 {
-    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | replace | extract | apply | validate | export | import | list | search | publish | update | shared-info-get | shared-info-set | move | delete | edit | run | runtime-check | runtime-compile | runtime-benchmark | runtime-keys | float | edit-var")]
+    [Value(0, MetaName = "command", Required = true, HelpText = "create | get | patch | library | shared | ... (see qkrpc help action)")]
     public string? Command { get; set; }
+
+    [Value(1, MetaName = "subcommand", HelpText = "For library: search. For shared: get.")]
+    public string? SubCommand { get; set; }
 
     [Option("id", HelpText = "Action id (GUID). publish/update: local or shared id.")]
     public string? Id { get; set; }
@@ -1549,6 +1570,15 @@ public sealed class ActionOptions
 
     [Option("preflight", HelpText = "Validate publish/update prerequisites without uploading (action publish only).")]
     public bool Preflight { get; set; }
+
+    [Option("keyword", HelpText = "Keyword for action library search (getquicker.net).")]
+    public string? Keyword { get; set; }
+
+    [Option("page", Default = 1, HelpText = "Page number for action library search (1-based).")]
+    public int Page { get; set; }
+
+    [Option("days", HelpText = "Time filter for library search: 7 | 30 | 90 | 365.")]
+    public int? Days { get; set; }
 
     [Option('q', "query", HelpText = "Plain keyword, legacy prefix (source:library|uses:Sub), or JSON query with filter/sort scripts.")]
     public string? Query { get; set; }
@@ -1657,6 +1687,18 @@ public sealed class ActionOptions
 
     [Option("standalone", HelpText = "Run via Quicker.ActionRuntime (no Quicker process or RPC pipe).")]
     public bool Standalone { get; set; }
+
+    [Option("mock", HelpText = "Run via ActionRuntime with deterministic mocks (benchmark verify).")]
+    public bool Mock { get; set; }
+
+    [Option("mock-profile", HelpText = "Mock profile id (agent-gui/benchmarks/mock-profiles/<id>.json).")]
+    public string? MockProfile { get; set; }
+
+    [Option("mock-profile-file", HelpText = "Explicit mock profile JSON file path.")]
+    public string? MockProfileFile { get; set; }
+
+    [Option("assert", HelpText = "Evaluate mock profile assertions (default when profile has assertions).")]
+    public bool Assert { get; set; }
 
     [Option("package-file", HelpText = "ActionExecutionPackage JSON for standalone run/check/compile.")]
     public string? PackageFile { get; set; }

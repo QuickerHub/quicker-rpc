@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-form-param-input",
+  "description": "Quicker 表单参数输入：sys:form variables + formDef/formDef.file → 变量 → 格式化输出。弹窗收集多字段时加载。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

@@ -9,7 +9,7 @@
     "C": { "id": "C", "name": "检索", "weight": 0.15, "description": "search → get，controlField 与键名正确" },
     "D": { "id": "D", "name": "实现", "weight": 0.15, "description": "patch 成功、步骤与变量接通" },
     "E": { "id": "E", "name": "流程", "weight": 0.15, "description": "遵守 patch/get/内联 JSON 等硬规则" },
-    "F": { "id": "F", "name": "可运行", "weight": 0.15, "description": "手动或 debug 跑通、输出符合预期" }
+    "F": { "id": "F", "name": "可运行", "weight": 0.15, "description": "mock assert 通过或手动/trace 验证输出" }
   },
   "tiers": {
     "L0": "只读 / 发现，不写磁盘",
@@ -88,6 +88,22 @@
       "verify": { "manual": ["结果可核对"] }
     },
     {
+      "id": "discover-library-search",
+      "tier": "L0",
+      "category": "discover",
+      "label": "动作库搜索",
+      "hint": "只读：library search + 说明能否修改",
+      "readOnly": true,
+      "axes": ["C", "E"],
+      "userPrompt": "帮我在 getquicker 公开动作库里搜和「选中文本」相关的动作，列出最相关的几个标题和 sharedActionId，并说明这些动作能不能直接修改。",
+      "rubric": {
+        "must": ["使用动作库搜索 API（library search）而非编造", "文字总结", "说明库/分享动作只读、不可 patch"],
+        "should": ["提到 sharedActionId 或搜索结果字段", "区分只读学习与本地新建写作"],
+        "mustNot": ["编造 sharedActionId", "对库/分享动作执行 patch 或 workspace 写回"]
+      },
+      "verify": { "manual": ["命中 library search", "强调 read-only"] }
+    },
+    {
       "id": "meta-create-icon",
       "tier": "L1",
       "category": "authoring",
@@ -148,6 +164,7 @@
         "mustNot": ["sys:csscript 承担主逻辑", "未 get 就写 inputParams"]
       },
       "verify": {
+        "mockProfile": "clip-lines-expr",
         "manual": ["剪贴板多行含重复/空行时结果正确"],
         "auto": ["trace: no sys:csscript as main transform"]
       }
@@ -164,7 +181,7 @@
         "must": ["单个 evalexpression 写多变量", "get 后写入", "显示 c"],
         "mustNot": ["拆成 csscript", "多个 assign 废弃步骤"]
       },
-      "verify": { "manual": ["运行显示 3"], "auto": ["action_debug exit 0"] }
+      "verify": { "mockProfile": "multi-var-assign", "manual": ["运行显示 3"], "auto": ["action_debug exit 0"] }
     },
     {
       "id": "http-json-origin",
@@ -180,7 +197,7 @@
         "should": ["HTTP 与解析分步或逻辑清晰"],
         "mustNot": ["猜 http 模块键名"]
       },
-      "verify": { "manual": ["显示 IP 或 origin 字符串"], "auto": ["needs network"] }
+      "verify": { "mockProfile": "http-json-origin", "manual": ["显示 IP 或 origin 字符串"], "auto": ["needs network"] }
     },
     {
       "id": "window-vscode-branch",
@@ -196,7 +213,7 @@
         "should": ["if 与 simpleIf 选型正确（需要 else 用 if）"],
         "mustNot": ["无分支的单一路径"]
       },
-      "verify": { "manual": ["VS Code 前台时最大化；否则提示"] }
+      "verify": { "mockProfile": "window-vscode-branch", "manual": ["VS Code 前台时最大化；否则提示"] }
     },
     {
       "id": "form-to-clipboard",
@@ -210,7 +227,7 @@
         "must": ["表单步骤", "写剪贴板", "get form 与 clipboard 相关步骤"],
         "mustNot": ["猜表单字段 wire 键名"]
       },
-      "verify": { "manual": ["填表后剪贴板为 Markdown 清单"] }
+      "verify": { "mockProfile": "form-to-clipboard", "manual": ["填表后剪贴板为 Markdown 清单"] }
     },
     {
       "id": "file-copy-timestamp",
@@ -224,7 +241,7 @@
         "must": ["文件选择或路径输入", "复制到 .local/", "文件名含时间戳", "get fileOperation 等"],
         "should": [".local 目录存在或自动创建"]
       },
-      "verify": { "manual": [".local 下出现带时间戳的副本"] }
+      "verify": { "mockProfile": "file-copy-timestamp", "manual": [".local 下出现带时间戳的副本"] }
     },
     {
       "id": "delay-step",
@@ -267,7 +284,10 @@
         "must": ["JSON 校验与格式化逻辑", "长逻辑外置 files/", "file 引用", "patch 成功"],
         "mustNot": ["超长表达式全塞 inputParams"]
       },
-      "verify": { "manual": ["合法 JSON 格式化；非法报错"] }
+      "verify": {
+        "mockProfile": "external-eval-cs",
+        "manual": ["合法 JSON 格式化；非法报错", "mock 用 --dir .local/ws-external-eval-bench"]
+      }
     },
     {
       "id": "file-edit-comment",
@@ -310,7 +330,7 @@
         "should": ["规划清晰，非单步 csscript 糊完"],
         "mustNot": ["主逻辑用 csscript 替代 evalexpression"]
       },
-      "verify": { "manual": ["示例 CSV 结果正确"] }
+      "verify": { "mockProfile": "csv-parse-aggregate", "manual": ["示例 CSV 结果正确"] }
     },
     {
       "id": "conditional-http-cache",
@@ -325,7 +345,7 @@
         "must": ["判断 url 是否为空", "分支内 HTTP GET", "body 变量赋值", "空 url 有提示"],
         "should": ["变量与分支结构清楚"]
       },
-      "verify": { "manual": ["有 url 时 body 有内容"] }
+      "verify": { "mockProfile": "conditional-http-cache", "manual": ["有 url 时 body 有内容"] }
     },
     {
       "id": "regression-no-get-after-patch",

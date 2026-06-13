@@ -1,0 +1,17 @@
+{
+  "id": "csv-parse-aggregate",
+  "version": 1,
+  "mocks": {
+    "clipboard": {
+      "unicodeText": "name,amount\na,10\nb,20\nc,5"
+    }
+  },
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "parseOk": "True",
+      "result": "3,35"
+    },
+    "clipboardText": "3,35"
+  }
+}

@@ -52,7 +52,7 @@ subprogram search/get → workspace_program edit → patch
 subprogram get → callIdentifier → step_runner_get(sys:subprogram) → edit step → patch
 ```
 
-→ step_runner_get key=sys:subprogram → workspace_program edit_data step → patch
+→ step_runner_get key=sys:subprogram → patch: subProgram + **var:<ioKey>** in inputParams/outputParams
 
 ## Related
 

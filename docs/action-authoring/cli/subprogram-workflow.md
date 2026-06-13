@@ -54,7 +54,7 @@ CLI may use `subprogram patch --patch-file` instead of workspace path.
 subprogram get → callIdentifier → step_runner_get(sys:subprogram) → edit step → patch
 ```
 
-→ `qkrpc step-runner get --key sys:subprogram` → patch with `"subProgram": "<callIdentifier>"` (or subProgram.var)
+→ `qkrpc step-runner get --key sys:subprogram` → patch: `subProgram` + IO **`var:<子程序变量key>`**（非 `text.var`）；见 authored/subprogram
 
 ## Related
 

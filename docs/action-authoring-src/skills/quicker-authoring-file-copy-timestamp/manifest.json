@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-file-copy-timestamp",
+  "description": "Quicker 文件复制加时间戳：evalexpression 目标路径 + fileOperation copyTo。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

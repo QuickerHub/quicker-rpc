@@ -5,6 +5,8 @@ import {
   getAuthoringBenchmarkTask,
   groupAuthoringBenchmarkTasksByCategory,
   listAuthoringBenchmarkL2CoreTasks,
+  listAuthoringBenchmarkTasksWithMockProfile,
+  resolveMockProfileId,
   scoreAuthoringBenchmarkTask,
   summarizeAuthoringBenchmarkResults,
 } from "@/lib/authoring-benchmark";
@@ -70,5 +72,14 @@ describe("authoring-benchmark", () => {
     const summary = summarizeAuthoringBenchmarkResults(results);
     assert.equal(summary.overallPercent, 100);
     assert.equal(summary.passOverall, true);
+  });
+
+  it("resolves mock profile ids from verify block", () => {
+    const withProfile = getAuthoringBenchmarkTask("clip-lines-expr");
+    assert.ok(withProfile);
+    assert.equal(resolveMockProfileId(withProfile!), "clip-lines-expr");
+    const mockTasks = listAuthoringBenchmarkTasksWithMockProfile();
+    assert.ok(mockTasks.length >= 5);
+    assert.ok(mockTasks.every((t) => t.verify?.mockProfile));
   });
 });

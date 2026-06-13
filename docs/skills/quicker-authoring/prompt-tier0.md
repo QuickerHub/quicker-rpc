@@ -17,6 +17,23 @@ Headless XAction via agent tools + QuickerRpc plugin. Route/hard rules preloaded
 | publish / update share | qkrpc_action_publish | action-publish-workflow |
 | WebView2/HTML in files/ | workspace_program file_* + patch | webview2-authoring |
 
+## Scenario skills
+
+On-demand — full route table in parent **quicker-authoring** SKILL (`Scenario skills`). Hot: library-search, selection/clipboard pipeline, subprogram `var:*`, run-action-delegate, form-param-input.
+
+## Pattern traps (do not guess)
+
+- Library/shared: **read-only**; local write → `action create`
+- Subprogram IO: **`var:<key>`** — not `text.var`
+- `each`/`repeat` children: **`ifSteps`**; single branch: **`simpleIf`**
+- `checkPathExists` → **`isExists`**; `simpleIf` **`$=`** / expr **`{var}`**
+- `runAction` output: **`wait: True`** + `StartAction` get
+- `sys:form`: long defs → **`formDef.file`**; headless trace **exempt** (UI)
+- `regexExtract` → **`match1 `** (trailing space); `simpleIf` else+http → **`sys:if`**
+- `windowOperations` maximize: **`type: show`** + **`showCmd: 3`**
+- long evalexpression: **`expression.file`** → `files/*.eval.cs` + **apply**
+- number var assign: **`Convert.ToDouble(n)`**; separate **`parseOk`** from `clipOk`
+
 ## P0–P7
 
 ```text
@@ -38,7 +55,7 @@ P7  trust editVersion after save (NO verify re-get)
 - Search before guess (see system Search-first); docs search → items[].snippet; docs get(topic) only for full workflow
 - NO guess inputParams without step_runner_search → get
 - NO get-ui / step-runner.getUi
-- NO inline patch JSON / --patch-file; save via workspace_program patch only
+- NO inline patch / --patch-file (program body); `inputParams` JSON literals OK — action-data-schema
 - After patch trust editVersion; NO re-get to verify
 - P4: load **quicker-eval-expression** skill; expressions / evalexpression → module → csscript last
 
@@ -87,25 +104,15 @@ Quicker DB ←—— patch ——→ .quicker/actions|subprograms/
 
 Deep-read: workspace-editing.
 
-### Checklist
-
-```text
-- [ ] target + id (+ subProgramId?) matches disk path
-- [ ] non-empty body: get before edit; after create NO re-get
-- [ ] data.json: read_data / edit_data / write_data (NOT file_* on data.json)
-- [ ] long script (>4 lines): `paramKey.file` → files/
-- [ ] save: workspace_program patch OR CLI --patch-file (pick one path)
-- [ ] post-patch: trust editVersion; optional diagnostics
-```
-
 ## Steps & file externalization
 
-steps[] + inputParams wire (plain strings): `paramKey` · `paramKey.file` · `paramKey.var` — one bind per paramKey.
+steps[] + inputParams: `paramKey` · `.file` · `.var` (one bind/key). Literals: string/number/bool/array/object per get; expr `$$`/`$=`.
 
 | intent | write | NOT |
 |--------|-------|-----|
 | var bind | `paramKey.var` | `"paramKey":"{varKey}"` |
 | text + var | `$$…{varKey}…` on `paramKey` | `paramKey.var` |
+| list/dict literal | `["a"]` / `{"k":1}` on `paramKey` | multiline guess |
 | enum/literal | pick from step_runner_get `options` | guess value |
 
 Long text → `paramKey.file`. Keys: search → get. Branch: sys:if → ifSteps/elseSteps. Deep-read: **action-data-schema**, expressions, step-runner-get.

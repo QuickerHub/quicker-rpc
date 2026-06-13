@@ -37,6 +37,81 @@ public sealed class QuickerRpcActionSummaryItem
     public int? Score { get; set; }
 }
 
+public sealed class QuickerRpcActionLibrarySearchItem
+{
+    public string SharedActionId { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string? Snippet { get; set; }
+
+    public string? Author { get; set; }
+
+    public string? UpdatedAt { get; set; }
+
+    public int? Likes { get; set; }
+
+    public IList<string> Apps { get; set; } = new List<string>();
+
+    public string PageUrl { get; set; } = string.Empty;
+}
+
+public sealed class QuickerRpcSearchActionLibraryResult
+{
+    public bool Success { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public string? Keyword { get; set; }
+
+    public int Page { get; set; }
+
+    public int? Days { get; set; }
+
+    public int? TotalCount { get; set; }
+
+    public int MatchCount { get; set; }
+
+    public string? SearchUrl { get; set; }
+
+    public IList<QuickerRpcActionLibrarySearchItem> Items { get; set; } =
+        new List<QuickerRpcActionLibrarySearchItem>();
+}
+
+public sealed class QuickerRpcGetCompressedSharedActionResult
+{
+    public bool Success { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public string? ErrorCode { get; set; }
+
+    public string? SharedActionId { get; set; }
+
+    public bool ReadOnly { get; set; } = true;
+
+    public string? ReadOnlyReason { get; set; }
+
+    public bool PatchAllowed { get; set; }
+
+    public bool InstalledLocally { get; set; }
+
+    public string? LocalActionId { get; set; }
+
+    /// <summary>Compressed XAction JSON (steps, variables, metadata).</summary>
+    public string? CompressedJson { get; set; }
+
+    public bool? OmitDefaultLiteralInputsApplied { get; set; }
+
+    public int? SubProgramCount { get; set; }
+
+    /// <summary>full | structure | metadata</summary>
+    public string? ReturnMode { get; set; }
+
+    /// <summary>shared-action</summary>
+    public string? ReadSource { get; set; }
+}
+
 public sealed class QuickerRpcGetCompressedActionResult
 {
     public bool Success { get; set; }
@@ -46,6 +121,12 @@ public sealed class QuickerRpcGetCompressedActionResult
     public string? ActionId { get; set; }
 
     public long? EditVersion { get; set; }
+
+    public bool? ReadOnly { get; set; }
+
+    public string? ReadOnlyReason { get; set; }
+
+    public bool? PatchAllowed { get; set; }
 
     /// <summary>Compressed XAction JSON (steps, variables, metadata).</summary>
     public string? CompressedJson { get; set; }
@@ -67,6 +148,8 @@ public sealed class QuickerRpcApplyXActionResult
 
     public string? ErrorMessage { get; set; }
 
+    public string? ErrorCode { get; set; }
+
     public string? ActionId { get; set; }
 
     public long? EditVersion { get; set; }
@@ -84,6 +167,8 @@ public sealed class QuickerRpcUpdateActionMetadataResult
     public bool Success { get; set; }
 
     public string? ErrorMessage { get; set; }
+
+    public string? ErrorCode { get; set; }
 
     public string? ActionId { get; set; }
 
@@ -107,6 +192,8 @@ public sealed class QuickerRpcApplyActionPatchResult
     public bool Success { get; set; }
 
     public string? ErrorMessage { get; set; }
+
+    public string? ErrorCode { get; set; }
 
     public string? ActionId { get; set; }
 

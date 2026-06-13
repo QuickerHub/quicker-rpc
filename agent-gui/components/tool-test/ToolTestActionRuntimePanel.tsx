@@ -17,6 +17,7 @@ import {
 } from "@/lib/action-runtime-test-runs";
 import { pushAppMessage } from "@/lib/app-messages";
 import { ToolTestActionRuntimeActionPicker } from "@/components/tool-test/ToolTestActionRuntimeActionPicker";
+import { ToolTestActionRuntimeMockPanel } from "@/components/tool-test/ToolTestActionRuntimeMockPanel";
 
 type ToolTestActionRuntimePanelProps = {
   disabled?: boolean;
@@ -30,6 +31,8 @@ const OP_LABELS: Record<ActionRuntimeInvokeOp, string> = {
   check: "支持检查",
   keys: "模块列表",
   validate: "工程校验",
+  mockRun: "Mock 断言",
+  mockProfilesList: "Mock profiles",
 };
 
 export function ToolTestActionRuntimePanel({
@@ -214,6 +217,12 @@ export function ToolTestActionRuntimePanel({
         disabled={disabled}
         busy={busy}
         onRun={runQuickerAction}
+      />
+
+      <ToolTestActionRuntimeMockPanel
+        disabled={disabled}
+        onAppendRun={onAppendRun}
+        onPatchRun={onPatchRun}
       />
 
       <section className="tool-test-runtime-group">

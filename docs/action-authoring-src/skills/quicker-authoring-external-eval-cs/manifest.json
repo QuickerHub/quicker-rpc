@@ -1,0 +1,6 @@
+{
+  "name": "quicker-authoring-external-eval-cs",
+  "description": "Quicker 外置表达式：files/*.eval.cs + expression.file + extract/apply。长 evalexpression 时加载。",
+  "allowed-tools": "docs",
+  "compatibility": "QuickerAgent (on-demand); requires Quicker + QuickerRpc plugin"
+}

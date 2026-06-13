@@ -33,14 +33,14 @@ Deep references for Quicker action authoring — **not** generated from `action-
 |------|------|
 | P0–P7 工作流、schema topic | `action-authoring-src/` → `docs:gen` |
 | 单模块深文档、场景 pattern | **本目录**（直接嵌入） |
-| 场景路由 skill（已晋升） | `action-authoring-src/skills/` → `docs:gen` → `docs/skills/` |
-| 新 draft 路由 skill | `.cursor/skills/quicker-authoring-*` + [`learned-skills/registry.json`](learned-skills/registry.json) |
+| 场景路由 skill | `action-authoring-src/skills/` → `docs:gen` → `docs/skills/` |
 
-## Learned skills（draft → promoted）
+## Learned skills（单源 + registry 门控）
 
-当前登记见 [`learned-skills/registry.json`](learned-skills/registry.json)（`status`: draft / review / promoted）。
+登记见 [`learned-skills/registry.json`](learned-skills/registry.json)。
 
-- **draft / review**：`.cursor/skills/`（学习 Agent）；QuickerAgent **不** bundled
-- **promoted**（2026-06）：`action-authoring-src/skills/` → `docs:gen` → `docs/skills/`（on-demand catalog）
+- **权威源**：`docs/action-authoring-src/skills/<skillName>/`（学习 Agent 直接写）
+- **生成物**：`npm run docs:gen` → `docs/skills/`（QuickerAgent on-demand）
+- **审核**：`registry.json` 的 `status`（非文件路径）
 
 流程全文：[learned-skills/SPEC.md](learned-skills/SPEC.md) · 计划：[superpowers/plans/2026-06-13-quicker-action-authoring-learning.md](../superpowers/plans/2026-06-13-quicker-action-authoring-learning.md)

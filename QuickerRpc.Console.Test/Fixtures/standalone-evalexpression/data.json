@@ -9,7 +9,7 @@
         }
       },
       "outputParams": {
-        "result": "sum"
+        "output": "sum"
       }
     },
     {
@@ -21,7 +21,7 @@
         }
       },
       "outputParams": {
-        "result": "status"
+        "output": "status"
       }
     }
   ],

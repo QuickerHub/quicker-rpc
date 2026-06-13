@@ -1,0 +1,18 @@
+{
+  "id": "clip-lines-expr",
+  "version": 1,
+  "mocks": {
+    "clipboard": {
+      "unicodeText": "b\na\n\na\nc\n"
+    }
+  },
+  "assertions": {
+    "success": true,
+    "outputVars": {
+      "afterCount": "3",
+      "clipOk": "True"
+    },
+    "clipboardText": "a\nb\nc",
+    "notificationsContain": ["3"]
+  }
+}
