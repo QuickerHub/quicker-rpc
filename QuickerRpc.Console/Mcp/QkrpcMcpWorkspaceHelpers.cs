@@ -4,16 +4,17 @@ namespace QuickerRpc.Console.Mcp;
 
 internal static class QkrpcMcpWorkspaceHelpers
 {
-    internal static string RequireWorkspaceRoot(QkrpcMcpRuntime runtime)
+    internal static async Task<string> RequireWorkspaceRootAsync(
+        QkrpcMcpRuntime runtime,
+        string? overrideRoot,
+        CancellationToken cancellationToken)
     {
-        var root = runtime.WorkspaceRoot;
-        if (string.IsNullOrWhiteSpace(root))
+        if (QkrpcMcpWorkspaceResolver.TryNormalizeRoot(overrideRoot, out var explicitRoot))
         {
-            throw new InvalidOperationException(
-                "QKRPC_WORKSPACE_ROOT is not set. Run: qkrpc agent setup --workspace <path>");
+            return explicitRoot;
         }
 
-        return Path.GetFullPath(root);
+        return await runtime.ResolveWorkspaceRootAsync(cancellationToken).ConfigureAwait(false);
     }
 
     internal static string ResolveProjectDir(

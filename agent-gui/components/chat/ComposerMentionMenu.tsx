@@ -20,6 +20,7 @@ type ComposerMentionMenuProps = {
   search: MentionSearchView;
   activeIndex: number;
   onSelect: (action: PinnedAction) => void;
+  designerEmbed?: boolean;
 };
 
 const DEFAULT_VIEWPORT = { width: 1280, height: 720 };
@@ -43,6 +44,7 @@ export function ComposerMentionMenu({
   search,
   activeIndex,
   onSelect,
+  designerEmbed = false,
 }: ComposerMentionMenuProps) {
   const listId = useId();
   const listRef = useRef<HTMLUListElement>(null);
@@ -65,8 +67,11 @@ export function ComposerMentionMenu({
   }, []);
 
   const items = search.items;
-  const header =
-    query.trim().length > 0
+  const header = designerEmbed
+    ? query.trim().length > 0
+      ? `设计器 · 搜索「${query.trim()}」`
+      : "设计器 · 当前动作与选中步骤"
+    : query.trim().length > 0
       ? `搜索「${query.trim()}」`
       : "动作与子程序";
   const showInitialLoading =
@@ -138,8 +143,16 @@ export function ComposerMentionMenu({
         >
           {items.map((item: ActionMentionItem, index) => {
             const meta = formatMentionItemMeta(item);
+            const kindLabel =
+              item.kind === "designer-step"
+                ? "步骤"
+                : item.designerPin
+                  ? "当前"
+                  : item.kind === "subprogram"
+                    ? "子程序"
+                    : null;
             return (
-              <li key={`${item.kind ?? "action"}:${item.id}`}>
+              <li key={`${item.kind ?? "action"}:${item.id}:${item.stepIndex ?? ""}`}>
                 <button
                   type="button"
                   role="option"
@@ -167,8 +180,8 @@ export function ComposerMentionMenu({
                   <span className="action-picker-item-body">
                     <span className="action-picker-item-title-row">
                       <span className="action-picker-item-title">{item.title}</span>
-                      {item.kind === "subprogram" ? (
-                        <span className="action-picker-item-kind">子程序</span>
+                      {kindLabel ? (
+                        <span className="action-picker-item-kind">{kindLabel}</span>
                       ) : null}
                     </span>
                     {meta ? (

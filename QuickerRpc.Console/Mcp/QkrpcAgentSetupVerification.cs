@@ -316,7 +316,7 @@ internal static class QkrpcAgentSetupVerification
         string configPath,
         McpConfigFormat format,
         string qkrpcExe,
-        string workspaceRoot,
+        string? workspaceRoot,
         string cliVersion)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
@@ -334,7 +334,8 @@ internal static class QkrpcAgentSetupVerification
 
         var env = new JsonObject
         {
-            ["QKRPC_WORKSPACE_ROOT"] = workspaceRoot,
+            ["QKRPC_WORKSPACE_ROOT"] = QkrpcMcpWorkspaceResolver.ResolveMcpEnvWorkspace(workspaceRoot),
+            ["QKRPC_CWD"] = QkrpcMcpWorkspaceResolver.ResolveMcpEnvWorkspace(workspaceRoot),
             ["QKRPC_SETUP_VERSION"] = cliVersion,
         };
 

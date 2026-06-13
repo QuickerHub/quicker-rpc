@@ -43,6 +43,11 @@ public sealed class HeadlessActionProgramService
             return FailGet(modeError!);
         }
 
+        if (ActionDesignerProgramBridge.TryGetCompressedAction(id, mode, out var designerResult))
+        {
+            return designerResult;
+        }
+
         if (_actions is null || !_actions.IsAvailable)
         {
             return FailGet("DataService unavailable (not running inside Quicker).");
@@ -135,6 +140,7 @@ public sealed class HeadlessActionProgramService
             OmitDefaultLiteralInputsApplied = omitApplied,
             SubProgramCount = subPrograms.Count,
             ReturnMode = wireMode,
+            ReadSource = ActionDesignerProgramBridge.ReadSourceCatalog,
         };
     }
 
@@ -361,6 +367,11 @@ public sealed class HeadlessActionProgramService
             return FailPatch(formPreprocess.ErrorMessage ?? "form spec compile failed.");
         }
 
+        if (ActionDesignerProgramBridge.TryApplyActionPatch(id, patch, expectedEditVersion, force, out var designerPatch))
+        {
+            return designerPatch;
+        }
+
         if (_actions is null || !_actions.IsAvailable)
         {
             return FailPatch("Headless action save unavailable.");
@@ -471,6 +482,9 @@ public sealed class HeadlessActionProgramService
             AddedVariablesJson = compressedAddedVariables.Count > 0 ? JTokenCompat.Compact(compressedAddedVariables) : null,
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
             Warnings = patchWarnings,
+            ReadSource = ActionDesignerProgramBridge.ReadSourceCatalog,
+            AppliedToDesigner = false,
+            Persisted = true,
         };
     }
 

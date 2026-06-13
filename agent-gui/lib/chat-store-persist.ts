@@ -98,7 +98,22 @@ function normalizeThreadMeta(raw: unknown): ChatThreadMeta | null {
         ? item.messageCount
         : undefined,
     workspaceId: typeof item.workspaceId === "string" ? item.workspaceId : undefined,
+    workingDirectory:
+      typeof item.workingDirectory === "string" ? item.workingDirectory : undefined,
+    actionDesigner: parseActionDesignerRef(
+      (item as { actionDesigner?: unknown }).actionDesigner,
+    ),
   };
+}
+
+function parseActionDesignerRef(
+  raw: unknown,
+): import("@/lib/action-designer-thread").ActionDesignerThreadRef | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const item = raw as { entityId?: string; isSubProgram?: boolean };
+  const entityId = typeof item.entityId === "string" ? item.entityId.trim() : "";
+  if (!entityId) return undefined;
+  return { entityId, isSubProgram: item.isSubProgram === true };
 }
 
 export function parseThreadMessagesFromLegacyJson(
@@ -323,6 +338,13 @@ function indexMetadataChanged(prev: ChatStoreData, next: ChatStoreData): boolean
     if (previous.titleGenerated !== thread.titleGenerated) return true;
     if (previous.titleManual !== thread.titleManual) return true;
     if (previous.workspaceId !== thread.workspaceId) return true;
+    if (previous.workingDirectory !== thread.workingDirectory) return true;
+    if (
+      previous.actionDesigner?.entityId !== thread.actionDesigner?.entityId
+      || previous.actionDesigner?.isSubProgram !== thread.actionDesigner?.isSubProgram
+    ) {
+      return true;
+    }
     if (
       (thread.messages.length > 0 ? thread.messages.length : thread.messageCount)
       !== (previous.messages.length > 0 ? previous.messages.length : previous.messageCount)

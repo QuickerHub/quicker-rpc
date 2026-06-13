@@ -40,6 +40,37 @@ public sealed class QkrpcAgentSetupVerificationTests
     }
 
     [TestMethod]
+    public void MergeMcpConfigFile_FollowAgent_WritesWorkspaceFolderToken()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "qkrpc-setup-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+        var configPath = Path.Combine(temp, "mcp.json");
+        var qkrpcExe = Path.Combine(temp, "qkrpc.exe");
+        File.WriteAllText(qkrpcExe, string.Empty);
+
+        try
+        {
+            QkrpcAgentSetupVerification.MergeMcpConfigFile(
+                configPath,
+                McpConfigFormat.McpServers,
+                qkrpcExe,
+                workspaceRoot: null,
+                "1.2.3.4");
+
+            Assert.IsTrue(QkrpcAgentSetupVerification.TryReadMcpServerEntry(
+                configPath,
+                McpConfigFormat.McpServers,
+                "qkrpc",
+                out var entry));
+            Assert.AreEqual(QkrpcMcpWorkspaceResolver.FollowAgentWorkspaceToken, entry!.WorkspaceRoot);
+        }
+        finally
+        {
+            Directory.Delete(temp, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void MergeMcpConfigFile_VsCodeFormat_WritesServersEntry()
     {
         var temp = Path.Combine(Path.GetTempPath(), "qkrpc-setup-test-" + Guid.NewGuid().ToString("N"));

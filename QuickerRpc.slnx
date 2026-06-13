@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="QuickerRpc.AgentModel/QuickerRpc.AgentModel.csproj" />
   <Project Path="QuickerRpc.Contracts/QuickerRpc.Contracts.csproj" />
+  <Project Path="QuickerRpc.Host.Abstractions/QuickerRpc.Host.Abstractions.csproj" />
   <Project Path="QuickerRpc.Plugin/QuickerRpc.Plugin.csproj" />
   <Project Path="QuickerRpc.Console/QuickerRpc.Console.csproj" />
   <Project Path="QuickerRpc.Plugin.Test/QuickerRpc.Plugin.Test.csproj" />

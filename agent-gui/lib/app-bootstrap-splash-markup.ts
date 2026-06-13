@@ -37,7 +37,7 @@ export const APP_BOOTSTRAP_SPLASH_MARKUP = `
 `.trim();
 
 /** Skip splash on /launcher before first paint. */
-export const APP_BOOTSTRAP_SPLASH_INIT_SCRIPT = `(function(){try{if(location.pathname==="/launcher")document.documentElement.dataset.appBootSkip="1";}catch(e){}})();`;
+export const APP_BOOTSTRAP_SPLASH_INIT_SCRIPT = `(function(){try{var p=location.pathname;var q=new URLSearchParams(location.search);if(p==="/launcher"||q.get("embed")==="action-designer")document.documentElement.dataset.appBootSkip="1";}catch(e){}})();`;
 
 /**
  * Inline dismiss — does not wait for React (usePathname can suspend RootLayoutExtras).

@@ -50,6 +50,11 @@ public sealed class HeadlessSubProgramProgramService
             return FailGet(modeError!);
         }
 
+        if (ActionDesignerProgramBridge.TryGetCompressedSubProgram(key, mode, out var designerResult))
+        {
+            return designerResult;
+        }
+
         if (_subPrograms is null)
         {
             return FailGet("DataService unavailable (not running inside Quicker).");
@@ -113,6 +118,7 @@ public sealed class HeadlessSubProgramProgramService
             CompressedJson = JTokenCompat.Compact(compressedRoot),
             OmitDefaultLiteralInputsApplied = omitApplied,
             ReturnMode = wireMode,
+            ReadSource = ActionDesignerProgramBridge.ReadSourceCatalog,
         };
     }
 
@@ -232,6 +238,11 @@ public sealed class HeadlessSubProgramProgramService
             return FailPatch(formPreprocess.ErrorMessage ?? "form spec compile failed.");
         }
 
+        if (ActionDesignerProgramBridge.TryApplySubProgramPatch(key, patch, expectedEditVersion, force, out var designerPatch))
+        {
+            return designerPatch;
+        }
+
         if (_subPrograms is null)
         {
             return FailPatch("Headless subprogram save unavailable.");
@@ -321,6 +332,9 @@ public sealed class HeadlessSubProgramProgramService
             AddedVariablesJson = compressedAddedVariables.Count > 0 ? JTokenCompat.Compact(compressedAddedVariables) : null,
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
             Warnings = inputParamWarnings.Count > 0 ? new List<string>(inputParamWarnings) : null,
+            ReadSource = ActionDesignerProgramBridge.ReadSourceCatalog,
+            AppliedToDesigner = false,
+            Persisted = true,
         };
     }
 
@@ -513,6 +527,18 @@ public sealed class HeadlessSubProgramProgramService
 
         var keyword = (query ?? string.Empty).Trim();
         var limit = NormalizeMaxCount(maxCount);
+
+        // Parity with action list/search: uses:/ref:/uses-only: reference lookup and shared:/source: filters.
+        if (ActionSearchQuery.TryParseSubProgramReference(keyword, out var referenceSearch))
+        {
+            return ListSubProgramCallers(referenceSearch, limit);
+        }
+
+        if (ActionSearchQuery.TryParseSourceFilter(keyword, out var sourceFilter, out var sourceKeyword))
+        {
+            return ListSubProgramsBySource(sourceFilter, sourceKeyword, limit);
+        }
+
         _searchIndex.ScheduleBuild(SearchRegion.SubProgram);
         var hits = _searchIndex.IsReady(SearchRegion.SubProgram)
             ? _searchHub.Search(
@@ -533,6 +559,92 @@ public sealed class HeadlessSubProgramProgramService
             Ok = true,
             Message = items.Count == 0 ? "No matching global subprograms." : string.Empty,
             Items = items,
+        };
+    }
+
+    /// <summary>Find global subprograms whose steps call the target subprogram (uses:/uses-only:).</summary>
+    private QuickerRpcSubProgramSearchResult ListSubProgramCallers(SubProgramReferenceSearch search, int limit)
+    {
+        if (!ActionSubProgramCallScanner.TryResolveSubProgram(
+                search.SubProgramRef,
+                out _,
+                out _,
+                out var resolveError))
+        {
+            return new QuickerRpcSubProgramSearchResult
+            {
+                Ok = false,
+                Message = resolveError ?? $"Subprogram not found: {search.SubProgramRef}",
+            };
+        }
+
+        var callers = ActionSubProgramCallScanner.FindGlobalSubProgramsCallingSubProgram(
+            search.SubProgramRef,
+            exclusiveSubProgramOnly: search.DedicatedOnly);
+        var items = callers
+            .Where(sp => sp is not null && !string.IsNullOrWhiteSpace(sp.Id))
+            .Select(sp => SubProgramSearchLinear.MapSummary(sp, ActionSearchQuery.SubProgramReferenceScore))
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(limit)
+            .ToList();
+
+        var message = items.Count == 0
+            ? search.DedicatedOnly
+                ? $"No global subprograms dedicated to subprogram '{search.SubProgramRef}'."
+                : $"No global subprograms call subprogram '{search.SubProgramRef}'."
+            : string.Empty;
+
+        return new QuickerRpcSubProgramSearchResult
+        {
+            Ok = true,
+            Message = message,
+            Items = items,
+        };
+    }
+
+    /// <summary>Filter by share state (shared:&lt;id&gt;, source:published, source:local) with optional keyword.</summary>
+    private QuickerRpcSubProgramSearchResult ListSubProgramsBySource(
+        ActionSourceFilter sourceFilter,
+        string keyword,
+        int limit)
+    {
+        if (sourceFilter.Kind == ActionSourceFilterKind.Library)
+        {
+            return new QuickerRpcSubProgramSearchResult
+            {
+                Ok = false,
+                Message = "source:library is not supported for subprograms; use source:published, source:local, or shared:<id>.",
+            };
+        }
+
+        var hits = SubProgramSearchLinear.Search(
+            _subPrograms!.EnumerateAll(),
+            keyword,
+            limit,
+            sp => MatchesSubProgramSourceFilter(sp, sourceFilter),
+            ActionSearchQuery.SourceFilterScore);
+        var items = hits
+            .Select(SubProgramSearchLinear.MapHit)
+            .ToList();
+
+        return new QuickerRpcSubProgramSearchResult
+        {
+            Ok = true,
+            Message = items.Count == 0 ? "No matching global subprograms." : string.Empty,
+            Items = items,
+        };
+    }
+
+    private static bool MatchesSubProgramSourceFilter(SubProgram subProgram, ActionSourceFilter filter)
+    {
+        var sharedId = (subProgram.SharedId ?? string.Empty).Trim();
+        return filter.Kind switch
+        {
+            ActionSourceFilterKind.Published => sharedId.Length > 0,
+            ActionSourceFilterKind.Local => sharedId.Length == 0,
+            ActionSourceFilterKind.SharedId => sharedId.Length > 0
+                && string.Equals(sharedId, (filter.SharedId ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase),
+            _ => false,
         };
     }
 

@@ -37,6 +37,7 @@
 | 随意设附加浏览器参数 | 可能无法多开 |
 | 改变量名不更新 JS | 脚本仍用旧 Quicker 变量名 |
 
+
 ## 示例
 
 <!-- QuickerModuleDoc examples -->

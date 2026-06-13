@@ -33,7 +33,9 @@ const subprogramQuerySchema = z.object({
   query: z
     .string()
     .optional()
-    .describe("Name keyword; empty = list all global subprograms"),
+    .describe(
+      "Name keyword; empty = list all. Prefixes: uses:<idOrName> / uses-only:<idOrName> = subprograms calling the target; source:published|local, shared:<sharedId> = share-state filter",
+    ),
   limit: z.number().int().min(1).max(100).optional().describe("Max items (default 20)"),
 });
 
@@ -371,6 +373,7 @@ export const QKRPC_SUBPROGRAM_QUERY_TOOL_DEF = tool({
   description:
     "Search global subprograms by name — use before sys:subprogram steps when callIdentifier unknown. "
     + "Retry with broader query if empty; then get for callIdentifier. "
+    + "Reference lookup: query uses:<idOrName> finds subprograms calling the target (uses-only: = dedicated wrappers). "
     + "Not for embedded subprograms (workspace_program target=embedded_subprogram).",
   inputSchema: subprogramQuerySchema,
   execute: async (input) => executeQkrpcSubprogramQueryTool(input),

@@ -46,14 +46,30 @@ export function actionFromTagElement(el: HTMLElement): PinnedAction | null {
   const title = el.getAttribute("data-qkrpc-title")?.trim();
   if (!id || !title) return null;
   const kindRaw = el.getAttribute("data-qkrpc-kind")?.trim();
+  const kind =
+    kindRaw === "subprogram"
+      ? "subprogram"
+      : kindRaw === "designer-step"
+        ? "designer-step"
+        : "action";
+  const stepIndexRaw = el.getAttribute("data-qkrpc-step-index")?.trim();
+  const stepIndex =
+    stepIndexRaw && Number.isFinite(Number(stepIndexRaw))
+      ? Number(stepIndexRaw)
+      : undefined;
   return {
     id,
     title,
-    kind: kindRaw === "subprogram" ? "subprogram" : "action",
+    kind,
     lastEditTimeLocal: el.getAttribute("data-qkrpc-last-edit")?.trim() || undefined,
     description: el.getAttribute("data-qkrpc-desc")?.trim() || undefined,
     icon: el.getAttribute("data-qkrpc-icon")?.trim() || undefined,
     callIdentifier: el.getAttribute("data-qkrpc-call-id")?.trim() || undefined,
+    entityId: el.getAttribute("data-qkrpc-entity-id")?.trim() || undefined,
+    isSubProgram: el.getAttribute("data-qkrpc-is-subprogram") === "1",
+    stepIndex,
+    stepId: el.getAttribute("data-qkrpc-step-id")?.trim() || undefined,
+    stepRunnerKey: el.getAttribute("data-qkrpc-step-runner")?.trim() || undefined,
   };
 }
 
@@ -157,12 +173,31 @@ export function createComposerTagElement(action: PinnedAction): HTMLSpanElement 
   span.className = COMPOSER_TAG_CLASS;
   if (action.kind === "subprogram") {
     span.classList.add("composer-prompt-tag--subprogram");
+  } else if (action.kind === "designer-step") {
+    span.classList.add("composer-prompt-tag--designer-step");
   }
   span.contentEditable = "false";
   span.setAttribute("data-qkrpc-id", action.id);
   span.setAttribute("data-qkrpc-title", action.title);
   if (action.kind === "subprogram") {
     span.setAttribute("data-qkrpc-kind", "subprogram");
+  } else if (action.kind === "designer-step") {
+    span.setAttribute("data-qkrpc-kind", "designer-step");
+    if (action.entityId?.trim()) {
+      span.setAttribute("data-qkrpc-entity-id", action.entityId.trim());
+    }
+    if (action.isSubProgram) {
+      span.setAttribute("data-qkrpc-is-subprogram", "1");
+    }
+    if (typeof action.stepIndex === "number" && Number.isFinite(action.stepIndex)) {
+      span.setAttribute("data-qkrpc-step-index", String(action.stepIndex));
+    }
+    if (action.stepId?.trim()) {
+      span.setAttribute("data-qkrpc-step-id", action.stepId.trim());
+    }
+    if (action.stepRunnerKey?.trim()) {
+      span.setAttribute("data-qkrpc-step-runner", action.stepRunnerKey.trim());
+    }
   }
   if (action.lastEditTimeLocal) {
     span.setAttribute("data-qkrpc-last-edit", action.lastEditTimeLocal);

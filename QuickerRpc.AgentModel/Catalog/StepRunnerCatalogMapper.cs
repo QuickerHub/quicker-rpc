@@ -89,6 +89,11 @@ public static class StepRunnerCatalogMapper
             Icon = TrimToNull(row.Icon),
         };
 
+        if (StepRunnerModuleDocRefCatalog.TryGet(row.Key ?? string.Empty, out var docRef))
+        {
+            item.DocReference = docRef;
+        }
+
         if (includeControlField)
         {
             if (rank.MatchedControls.Count > 1)
@@ -219,6 +224,11 @@ public static class StepRunnerCatalogMapper
                 "Pass --control-field <value> (values: "
                 + StepRunnerInputParamVisibility.FormatValidControlValues(control!)
                 + ") to filter inputs/outputs. Each controlField.selection[] entry includes visibleInputKeys and visibleOutputKeys for that mode.";
+        }
+
+        if (StepRunnerModuleDocRefCatalog.TryGet(runner.Key ?? string.Empty, out var docRef))
+        {
+            dto.DocReference = docRef;
         }
 
         if (hasControl && appliedValue.Length > 0 && !filteringAvailable)

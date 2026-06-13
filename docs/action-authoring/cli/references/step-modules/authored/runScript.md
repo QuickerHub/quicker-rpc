@@ -20,6 +20,7 @@
 
 CMD 多行复杂逻辑勿堆本模块 → `csscript` / 外链 `.ps1`。
 
+
 ## 示例
 
 <!-- QuickerModuleDoc examples -->

@@ -17,7 +17,7 @@ One bind per key: `paramKey` / `paramKey.var` / `paramKey.file` (action-data-sch
 | $$ | interpolation |
 | $= | C# expression |
 
-`paramKey.var` = variable key string (not expression). SkipEval fields (evalexpression `expression`): C# body with `{var}`; no `$=` prefix. To expand a declared var in value/defaultValue → `$$`/`$=` or varKey.
+`paramKey.var` = variable key string (not expression). `value`/`default` can be plain literals (no prefix); prefix `$=` only when the whole string is a C# expression, `$$` for interpolation. SkipEval fields (evalexpression `expression`, `*.expr` files): C# body with `{var}` — **no** `$=` prefix.
 
 ## Placeholders
 
@@ -123,15 +123,27 @@ IQuickerApi _qk;              // always
 
 ### Examples
 
+**普通参数 `value`/`default` 写表达式时加 `$=`：**
+
 ```text
 "count": { "value": "$={count} + 1" }
+"isVerbose": { "value": "$=string.Equals({quicker_in_param}, \"verbose\", StringComparison.OrdinalIgnoreCase)" }
+```
+
+**`$$` 插值：**
+
+```text
+"msg": { "value": "$$Param: {quicker_in_param}" }
+```
+
+**sys:evalexpression `expression` — 不加 `$=`：**
+
+```text
 "{total} = {num1} + {num2}"
 "{sum} = {num1} + {num2};\n{product} = {num1} * {num2}"
 "var n = {list}.Count();\n{count} = n;\n{empty} = n == 0"
 "JsonConvert.SerializeObject(_context.GetVariables())"
 "_qk.Text.IsMatch({title}, {pattern})"
-"isVerbose": { "value": "$=string.Equals({quicker_in_param}, \"verbose\", StringComparison.OrdinalIgnoreCase)" }
-"msg": { "value": "$$Param: {quicker_in_param}" }
 ```
 
 ## See also

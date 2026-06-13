@@ -56,6 +56,18 @@ internal static class QuickerAccountAccessor
         }
     }
 
+    internal static string? TryGetCurrentUserId()
+    {
+        var account = TryGetAccountInfo();
+        if (!account.LoggedIn)
+        {
+            return null;
+        }
+
+        var userId = account.UserId?.Trim();
+        return string.IsNullOrEmpty(userId) ? null : userId;
+    }
+
     private static QuickerRpcAccountInfo BuildLoggedIn(
         string userId,
         string? userName,

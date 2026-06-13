@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect } from "react";
+import { isActionDesignerEmbedClient } from "@/lib/action-designer-embed";
 import { ensureChatStoreHydrated } from "@/lib/use-chat-store";
 
 declare global {
@@ -28,6 +29,14 @@ export function AppBootstrapSplash() {
     if (window.location.pathname === "/launcher") {
       document.documentElement.dataset.appBootSkip = "1";
       window.__dismissAppBootstrapSplash?.();
+      return;
+    }
+
+    if (isActionDesignerEmbedClient()) {
+      document.documentElement.dataset.appBootSkip = "1";
+      document.documentElement.classList.add("designer-embed-html");
+      window.__dismissAppBootstrapSplash?.();
+      ensureChatStoreHydrated();
       return;
     }
 

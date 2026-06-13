@@ -1,0 +1,722 @@
+{
+  "generatedAt": "2026-06-13T04:58:57.016Z",
+  "topic": "step-modules",
+  "rationale": "Embedded in step-runner get schema as docReference. Priority: authored > kc.",
+  "refs": {
+    "sys:if": {
+      "topic": "step-modules",
+      "file": "if",
+      "tier": "authored"
+    },
+    "sys:simpleIf": {
+      "topic": "step-modules",
+      "file": "simpleIf",
+      "tier": "authored"
+    },
+    "sys:each": {
+      "topic": "step-modules",
+      "file": "each",
+      "tier": "authored"
+    },
+    "sys:repeat": {
+      "topic": "step-modules",
+      "file": "repeat",
+      "tier": "authored"
+    },
+    "sys:break": {
+      "topic": "step-modules",
+      "file": "break",
+      "tier": "authored"
+    },
+    "sys:continue": {
+      "topic": "step-modules",
+      "file": "continue",
+      "tier": "authored"
+    },
+    "sys:stop": {
+      "topic": "step-modules",
+      "file": "stop",
+      "tier": "authored"
+    },
+    "sys:group": {
+      "topic": "step-modules",
+      "file": "group",
+      "tier": "authored"
+    },
+    "sys:comment": {
+      "topic": "step-modules",
+      "file": "comment",
+      "tier": "authored"
+    },
+    "sys:delay": {
+      "topic": "step-modules",
+      "file": "delay",
+      "tier": "authored"
+    },
+    "sys:waitClipboardChange": {
+      "topic": "step-modules",
+      "file": "waitClipboardChange",
+      "tier": "authored"
+    },
+    "sys:waitKeyboard": {
+      "topic": "step-modules",
+      "file": "waitKeyboard",
+      "tier": "authored"
+    },
+    "sys:fileSystemWatch": {
+      "topic": "step-modules",
+      "file": "fileSystemWatch",
+      "tier": "authored"
+    },
+    "sys:stateStorage": {
+      "topic": "step-modules",
+      "file": "stateStorage",
+      "tier": "authored"
+    },
+    "sys:dependencycheck": {
+      "topic": "step-modules",
+      "file": "dependencycheck",
+      "tier": "authored"
+    },
+    "sys:winservice": {
+      "topic": "step-modules",
+      "file": "winservice",
+      "tier": "authored"
+    },
+    "sys:clouddata": {
+      "topic": "step-modules",
+      "file": "clouddata",
+      "tier": "authored"
+    },
+    "sys:MsgBox": {
+      "topic": "step-modules",
+      "file": "MsgBox",
+      "tier": "authored"
+    },
+    "sys:notify": {
+      "topic": "step-modules",
+      "file": "notify",
+      "tier": "authored"
+    },
+    "sys:showText": {
+      "topic": "step-modules",
+      "file": "showText",
+      "tier": "authored"
+    },
+    "sys:outputText": {
+      "topic": "step-modules",
+      "file": "outputText",
+      "tier": "authored"
+    },
+    "sys:userInput": {
+      "topic": "step-modules",
+      "file": "userInput",
+      "tier": "authored"
+    },
+    "sys:select": {
+      "topic": "step-modules",
+      "file": "select",
+      "tier": "authored"
+    },
+    "sys:showmenu": {
+      "topic": "step-modules",
+      "file": "showmenu",
+      "tier": "authored"
+    },
+    "sys:form": {
+      "topic": "step-modules",
+      "file": "form",
+      "tier": "authored"
+    },
+    "sys:showWaitWin": {
+      "topic": "step-modules",
+      "file": "showWaitWin",
+      "tier": "authored"
+    },
+    "sys:reportProgress": {
+      "topic": "step-modules",
+      "file": "reportProgress",
+      "tier": "authored"
+    },
+    "sys:customwindow": {
+      "topic": "step-modules",
+      "file": "customwindow",
+      "tier": "authored"
+    },
+    "sys:custompanel": {
+      "topic": "step-modules",
+      "file": "custompanel",
+      "tier": "authored"
+    },
+    "sys:getClipboardText": {
+      "topic": "step-modules",
+      "file": "getClipboardText",
+      "tier": "authored"
+    },
+    "sys:writeClipboard": {
+      "topic": "step-modules",
+      "file": "writeClipboard",
+      "tier": "authored"
+    },
+    "sys:getClipboardImage": {
+      "topic": "step-modules",
+      "file": "getClipboardImage",
+      "tier": "authored"
+    },
+    "sys:getClipboardFiles": {
+      "topic": "step-modules",
+      "file": "getClipboardFiles",
+      "tier": "authored"
+    },
+    "sys:fileToClipboard": {
+      "topic": "step-modules",
+      "file": "fileToClipboard",
+      "tier": "authored"
+    },
+    "sys:getSelectedText": {
+      "topic": "step-modules",
+      "file": "getSelectedText",
+      "tier": "authored"
+    },
+    "sys:textSelectTools": {
+      "topic": "step-modules",
+      "file": "textSelectTools",
+      "tier": "authored"
+    },
+    "sys:getSelectedFiles": {
+      "topic": "step-modules",
+      "file": "getSelectedFiles",
+      "tier": "authored"
+    },
+    "sys:readFile": {
+      "topic": "step-modules",
+      "file": "readFile",
+      "tier": "authored"
+    },
+    "sys:WriteTextFile": {
+      "topic": "step-modules",
+      "file": "WriteTextFile",
+      "tier": "authored"
+    },
+    "sys:fileOperation": {
+      "topic": "step-modules",
+      "file": "fileOperation",
+      "tier": "authored"
+    },
+    "sys:selectFile": {
+      "topic": "step-modules",
+      "file": "selectFile",
+      "tier": "authored"
+    },
+    "sys:selectFolder": {
+      "topic": "step-modules",
+      "file": "selectFolder",
+      "tier": "authored"
+    },
+    "sys:zip": {
+      "topic": "step-modules",
+      "file": "zip",
+      "tier": "authored"
+    },
+    "sys:GenTempFilePath": {
+      "topic": "step-modules",
+      "file": "GenTempFilePath",
+      "tier": "authored"
+    },
+    "sys:getExplorerPath": {
+      "topic": "step-modules",
+      "file": "getExplorerPath",
+      "tier": "authored"
+    },
+    "sys:getFolderPath": {
+      "topic": "step-modules",
+      "file": "getFolderPath",
+      "tier": "authored"
+    },
+    "sys:SelectFileInExplorer": {
+      "topic": "step-modules",
+      "file": "SelectFileInExplorer",
+      "tier": "authored"
+    },
+    "sys:everythingsearch": {
+      "topic": "step-modules",
+      "file": "everythingsearch",
+      "tier": "authored"
+    },
+    "sys:checkPathExists": {
+      "topic": "step-modules",
+      "file": "checkPathExists",
+      "tier": "authored"
+    },
+    "sys:pathExtraction": {
+      "topic": "step-modules",
+      "file": "pathExtraction",
+      "tier": "authored"
+    },
+    "sys:stringProcess": {
+      "topic": "step-modules",
+      "file": "stringProcess",
+      "tier": "authored"
+    },
+    "sys:htmlExtract": {
+      "topic": "step-modules",
+      "file": "htmlExtract",
+      "tier": "authored"
+    },
+    "sys:jsonExtract": {
+      "topic": "step-modules",
+      "file": "jsonExtract",
+      "tier": "authored"
+    },
+    "sys:regexExtract": {
+      "topic": "step-modules",
+      "file": "regexExtract",
+      "tier": "authored"
+    },
+    "sys:strReplace": {
+      "topic": "step-modules",
+      "file": "strReplace",
+      "tier": "authored"
+    },
+    "sys:splitString": {
+      "topic": "step-modules",
+      "file": "splitString",
+      "tier": "authored"
+    },
+    "sys:joinList": {
+      "topic": "step-modules",
+      "file": "joinList",
+      "tier": "authored"
+    },
+    "sys:formatString": {
+      "topic": "step-modules",
+      "file": "formatString",
+      "tier": "authored"
+    },
+    "sys:textCounter": {
+      "topic": "step-modules",
+      "file": "textCounter",
+      "tier": "authored"
+    },
+    "sys:strCompare": {
+      "topic": "step-modules",
+      "file": "strCompare",
+      "tier": "authored"
+    },
+    "sys:charInfo": {
+      "topic": "step-modules",
+      "file": "charInfo",
+      "tier": "authored"
+    },
+    "sys:translation": {
+      "topic": "step-modules",
+      "file": "translation",
+      "tier": "authored"
+    },
+    "sys:listOperations": {
+      "topic": "step-modules",
+      "file": "listOperations",
+      "tier": "authored"
+    },
+    "sys:manageList": {
+      "topic": "step-modules",
+      "file": "manageList",
+      "tier": "authored"
+    },
+    "sys:dictOperations": {
+      "topic": "step-modules",
+      "file": "dictOperations",
+      "tier": "authored"
+    },
+    "sys:tableoperation": {
+      "topic": "step-modules",
+      "file": "tableoperation",
+      "tier": "authored"
+    },
+    "sys:dboperation": {
+      "topic": "step-modules",
+      "file": "dboperation",
+      "tier": "authored"
+    },
+    "sys:enc": {
+      "topic": "step-modules",
+      "file": "enc",
+      "tier": "authored"
+    },
+    "sys:numCompare": {
+      "topic": "step-modules",
+      "file": "numCompare",
+      "tier": "authored"
+    },
+    "sys:numberprocess": {
+      "topic": "step-modules",
+      "file": "numberprocess",
+      "tier": "authored"
+    },
+    "sys:randomNum": {
+      "topic": "step-modules",
+      "file": "randomNum",
+      "tier": "authored"
+    },
+    "sys:newGuid": {
+      "topic": "step-modules",
+      "file": "newGuid",
+      "tier": "authored"
+    },
+    "sys:getCurrentTime": {
+      "topic": "step-modules",
+      "file": "getCurrentTime",
+      "tier": "authored"
+    },
+    "sys:computeTime": {
+      "topic": "step-modules",
+      "file": "computeTime",
+      "tier": "authored"
+    },
+    "sys:sendKeys": {
+      "topic": "step-modules",
+      "file": "sendKeys",
+      "tier": "authored"
+    },
+    "sys:keyInput": {
+      "topic": "step-modules",
+      "file": "keyInput",
+      "tier": "authored"
+    },
+    "sys:keyoperation": {
+      "topic": "step-modules",
+      "file": "keyoperation",
+      "tier": "authored"
+    },
+    "sys:mouse": {
+      "topic": "step-modules",
+      "file": "mouse",
+      "tier": "authored"
+    },
+    "sys:inputScript": {
+      "topic": "step-modules",
+      "file": "inputScript",
+      "tier": "authored"
+    },
+    "sys:record": {
+      "topic": "step-modules",
+      "file": "record",
+      "tier": "authored"
+    },
+    "sys:playRecords": {
+      "topic": "step-modules",
+      "file": "playRecords",
+      "tier": "authored"
+    },
+    "sys:imeControl": {
+      "topic": "step-modules",
+      "file": "imeControl",
+      "tier": "authored"
+    },
+    "sys:getWindowTitle": {
+      "topic": "step-modules",
+      "file": "getWindowTitle",
+      "tier": "authored"
+    },
+    "sys:activateProcessMainWindow": {
+      "topic": "step-modules",
+      "file": "activateProcessMainWindow",
+      "tier": "authored"
+    },
+    "sys:checkProcessExists": {
+      "topic": "step-modules",
+      "file": "checkProcessExists",
+      "tier": "authored"
+    },
+    "sys:getActiveProcessInfo": {
+      "topic": "step-modules",
+      "file": "getActiveProcessInfo",
+      "tier": "authored"
+    },
+    "sys:restoreActiveWindow": {
+      "topic": "step-modules",
+      "file": "restoreActiveWindow",
+      "tier": "authored"
+    },
+    "sys:windowOperations": {
+      "topic": "step-modules",
+      "file": "windowOperations",
+      "tier": "authored"
+    },
+    "sys:sendMessage": {
+      "topic": "step-modules",
+      "file": "sendMessage",
+      "tier": "authored"
+    },
+    "sys:uiautomation": {
+      "topic": "step-modules",
+      "file": "uiautomation",
+      "tier": "authored"
+    },
+    "sys:flauiautomation": {
+      "topic": "step-modules",
+      "file": "flauiautomation",
+      "tier": "authored"
+    },
+    "sys:searchBmp": {
+      "topic": "step-modules",
+      "file": "searchBmp",
+      "tier": "authored"
+    },
+    "sys:http": {
+      "topic": "step-modules",
+      "file": "http",
+      "tier": "authored"
+    },
+    "sys:download": {
+      "topic": "step-modules",
+      "file": "download",
+      "tier": "authored"
+    },
+    "sys:websocket": {
+      "topic": "step-modules",
+      "file": "websocket",
+      "tier": "authored"
+    },
+    "sys:httpserver": {
+      "topic": "step-modules",
+      "file": "httpserver",
+      "tier": "authored"
+    },
+    "sys:smtp": {
+      "topic": "step-modules",
+      "file": "smtp",
+      "tier": "authored"
+    },
+    "sys:basic-ocr": {
+      "topic": "step-modules",
+      "file": "basic-ocr",
+      "tier": "authored"
+    },
+    "sys:mathocr": {
+      "topic": "step-modules",
+      "file": "mathocr",
+      "tier": "authored"
+    },
+    "sys:ai": {
+      "topic": "step-modules",
+      "file": "ai",
+      "tier": "authored"
+    },
+    "sys:tempcloudstore": {
+      "topic": "step-modules",
+      "file": "tempcloudstore",
+      "tier": "authored"
+    },
+    "sys:tempImgBed": {
+      "topic": "step-modules",
+      "file": "tempImgBed",
+      "tier": "authored"
+    },
+    "sys:cloud_oss": {
+      "topic": "step-modules",
+      "file": "cloud_oss",
+      "tier": "authored"
+    },
+    "sys:openUrl": {
+      "topic": "step-modules",
+      "file": "openUrl",
+      "tier": "authored"
+    },
+    "sys:chromecontrol": {
+      "topic": "step-modules",
+      "file": "chromecontrol",
+      "tier": "authored"
+    },
+    "sys:getChromeUrl": {
+      "topic": "step-modules",
+      "file": "getChromeUrl",
+      "tier": "authored"
+    },
+    "sys:webview2": {
+      "topic": "step-modules",
+      "file": "webview2",
+      "tier": "authored"
+    },
+    "sys:run": {
+      "topic": "step-modules",
+      "file": "run",
+      "tier": "authored"
+    },
+    "sys:subprogram": {
+      "topic": "step-modules",
+      "file": "subprogram",
+      "tier": "authored"
+    },
+    "sys:runAction": {
+      "topic": "step-modules",
+      "file": "runAction",
+      "tier": "authored"
+    },
+    "sys:evalexpression": {
+      "topic": "step-modules",
+      "file": "evalexpression",
+      "tier": "authored"
+    },
+    "sys:assign": {
+      "topic": "step-modules",
+      "file": "assign",
+      "tier": "authored"
+    },
+    "sys:compute": {
+      "topic": "step-modules",
+      "file": "compute",
+      "tier": "authored"
+    },
+    "sys:csscript": {
+      "topic": "step-modules",
+      "file": "csscript",
+      "tier": "authored"
+    },
+    "sys:pythonscript": {
+      "topic": "step-modules",
+      "file": "pythonscript",
+      "tier": "authored"
+    },
+    "sys:jsscript": {
+      "topic": "step-modules",
+      "file": "jsscript",
+      "tier": "authored"
+    },
+    "sys:runScript": {
+      "topic": "step-modules",
+      "file": "runScript",
+      "tier": "authored"
+    },
+    "sys:shelloperation": {
+      "topic": "step-modules",
+      "file": "shelloperation",
+      "tier": "authored"
+    },
+    "sys:excelreadwrite": {
+      "topic": "step-modules",
+      "file": "excelreadwrite",
+      "tier": "authored"
+    },
+    "sys:excelRange": {
+      "topic": "step-modules",
+      "file": "excelRange",
+      "tier": "authored"
+    },
+    "sys:excelObjects": {
+      "topic": "step-modules",
+      "file": "excelObjects",
+      "tier": "authored"
+    },
+    "sys:officehelper": {
+      "topic": "step-modules",
+      "file": "officehelper",
+      "tier": "authored"
+    },
+    "sys:adobesoftscontrol": {
+      "topic": "step-modules",
+      "file": "adobesoftscontrol",
+      "tier": "authored"
+    },
+    "sys:autocadcontrol": {
+      "topic": "step-modules",
+      "file": "autocadcontrol",
+      "tier": "authored"
+    },
+    "sys:rhinocontrol": {
+      "topic": "step-modules",
+      "file": "rhinocontrol",
+      "tier": "authored"
+    },
+    "sys:screenCapture": {
+      "topic": "step-modules",
+      "file": "screenCapture",
+      "tier": "authored"
+    },
+    "sys:screenCapturePro": {
+      "topic": "step-modules",
+      "file": "screenCapturePro",
+      "tier": "authored"
+    },
+    "sys:WriteImageFile": {
+      "topic": "step-modules",
+      "file": "WriteImageFile",
+      "tier": "authored"
+    },
+    "sys:imgProcess": {
+      "topic": "step-modules",
+      "file": "imgProcess",
+      "tier": "authored"
+    },
+    "sys:imageinfo": {
+      "topic": "step-modules",
+      "file": "imageinfo",
+      "tier": "authored"
+    },
+    "sys:imgToBase64": {
+      "topic": "step-modules",
+      "file": "imgToBase64",
+      "tier": "authored"
+    },
+    "sys:color": {
+      "topic": "step-modules",
+      "file": "color",
+      "tier": "authored"
+    },
+    "sys:createQrCode": {
+      "topic": "step-modules",
+      "file": "createQrCode",
+      "tier": "authored"
+    },
+    "sys:readQrCode": {
+      "topic": "step-modules",
+      "file": "readQrCode",
+      "tier": "authored"
+    },
+    "sys:showImage": {
+      "topic": "step-modules",
+      "file": "showImage",
+      "tier": "authored"
+    },
+    "sys:whiteboard": {
+      "topic": "step-modules",
+      "file": "whiteboard",
+      "tier": "authored"
+    },
+    "sys:playSound": {
+      "topic": "step-modules",
+      "file": "playSound",
+      "tier": "authored"
+    },
+    "sys:recordSound": {
+      "topic": "step-modules",
+      "file": "recordSound",
+      "tier": "authored"
+    },
+    "sys:audioControl": {
+      "topic": "step-modules",
+      "file": "audioControl",
+      "tier": "authored"
+    },
+    "sys:quickeroperations": {
+      "topic": "step-modules",
+      "file": "quickeroperations",
+      "tier": "authored"
+    },
+    "sys:getActionInfo": {
+      "topic": "step-modules",
+      "file": "getActionInfo",
+      "tier": "authored"
+    },
+    "sys:getQuickerInfo": {
+      "topic": "step-modules",
+      "file": "getQuickerInfo",
+      "tier": "authored"
+    },
+    "sys:getSysInfo": {
+      "topic": "step-modules",
+      "file": "getSysInfo",
+      "tier": "authored"
+    }
+  }
+}

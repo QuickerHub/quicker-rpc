@@ -373,6 +373,25 @@ qkrpc subprogram search --query <keyword> [--limit 20] [--json]
 qkrpc subprogram list [--query <keyword>] [--limit 30] [--json]
 ```
 
+**引用查找与来源过滤**（与 `action list/search` 对齐）：
+
+```powershell
+qkrpc subprogram search --query uses:CeaCore_Run --json       # 哪些公共子程序调用了它
+qkrpc subprogram search --query uses-only:CeaCore_Run --json  # 所有步骤均为对它的专用包装
+qkrpc subprogram search --query "source:published" --json     # 已分享（有 sharedId）
+qkrpc subprogram search --query "source:local 关键词" --json   # 未分享 + 关键词
+qkrpc subprogram search --query shared:<sharedId> --json      # 按 sharedId 精确查找
+```
+
+| 查询前缀 | 含义 |
+|----------|------|
+| `uses:<idOrName>` / `ref:<idOrName>` | 任一步调用该公共子程序（`sys:subprogram`） |
+| `uses-only:<idOrName>` | 所有步骤均为对该子程序的专用包装 |
+| `source:published` / `source:local` | 已分享 / 未分享 |
+| `shared:<sharedId>` | 按分享库 id 查找 |
+
+> 查找调用某子程序的**动作**用 `qkrpc action search --query uses:<SubName>`；本命令查找的是调用它的**其他公共子程序**。`source:library` 仅动作支持。
+
 ### `qkrpc subprogram create`
 
 ```powershell

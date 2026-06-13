@@ -26,6 +26,22 @@ Stable id is **`key`** (not row `id`).
 
 **quicker_in_param**: runtime input; NOT in variables[]. See **expressions**.
 
+### Subprogram IO params (`isInput` / `isOutput`)
+
+Subprogram variables[] only: `isInput` / `isOutput` expose the variable as a caller param; `paramName` = label. Per-param options live in **`inputParamInfo`** / **`outputParamInfo`** (camelCase keys, omit defaults; full field list in schema `#/definitions/inputParamInfo`):
+
+| inputParamInfo | effect on caller step |
+|----------------|----------------------|
+| `isRequired`, `multiLine`, `validationPattern` | required flag · multi-line editor · regex check |
+| `selectionItems` (+ `onlyUseSelect` / `allowInput`) | `value\|label` rows → select; lock to options / also allow free text |
+| `isAdvanced` | collapsed into the **advanced** group in step editor |
+| `visibleExpression` | show param only when expression truthy, e.g. `{mode}==1` |
+| `skipEval` | **skip `{var}` interpolation and `$$` / `$=` parsing** — value passed verbatim (Text varType only) |
+
+`outputParamInfo.visibleExpression` — same gating for output params.
+
+**`skipEval` when**: param carries regex / template / code where `{...}` or `$` prefixes are literal payload, not Quicker expressions. Without it the caller's literal is interpolated once at call time.
+
 ## steps[]
 
 `paramKey` names from **step_runner_get** — do not guess or invent `.var` / `.file` on wrong base name.

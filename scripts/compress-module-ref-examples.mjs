@@ -19,10 +19,6 @@ const AUTHORED_DIR = path.join(
   ROOT,
   "docs/authoring-references/step-modules/authored",
 );
-const EXAMPLES_DIR = path.join(
-  ROOT,
-  "docs/authoring-references/step-modules/examples",
-);
 
 /**
  * @param {string} jsonText
@@ -118,10 +114,9 @@ async function compressDir(dir, label) {
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
-  const a = await compressDir(AUTHORED_DIR, "authored");
-  const b = await compressDir(EXAMPLES_DIR, "examples");
+  const updated = await compressDir(AUTHORED_DIR, "authored");
   console.log(
-    `compressed ${a + b} file(s)${dryRun ? " (dry-run)" : ""}`,
+    `compressed ${updated} file(s)${dryRun ? " (dry-run)" : ""}`,
   );
 }
 

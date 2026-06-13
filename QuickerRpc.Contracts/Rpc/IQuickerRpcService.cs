@@ -467,6 +467,59 @@ public interface IQuickerRpcService
     Task<QuickerRpcSearchIndexRebuildResult> RebuildSearchIndexAsync(
         string? region = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Snapshot of open ActionDesigner windows (entity id, selected steps, optional XAction JSON).
+    /// Designed for the embedded QuickerAgent chat (designer AI tab) to read designer context.
+    /// </summary>
+    Task<QuickerRpcDesignerContextResult> GetActionDesignerContextAsync(
+        bool includeXAction = false,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>One step currently selected in an open designer step list.</summary>
+public sealed class QuickerRpcDesignerSelectedStep
+{
+    /// <summary>Zero-based index in the visible step list.</summary>
+    public int Index { get; set; }
+
+    public string? StepId { get; set; }
+
+    public string? StepRunnerKey { get; set; }
+
+    public string? Note { get; set; }
+
+    public bool Disabled { get; set; }
+}
+
+/// <summary>Context of one open ActionDesigner window.</summary>
+public sealed class QuickerRpcDesignerWindowContext
+{
+    /// <summary>Action id or global subprogram id being edited.</summary>
+    public string? EntityId { get; set; }
+
+    public bool IsSubProgram { get; set; }
+
+    /// <summary>True for the focused designer window.</summary>
+    public bool IsActive { get; set; }
+
+    public string? Title { get; set; }
+
+    /// <summary>Full XAction JSON (info + program); only set when includeXAction is true.</summary>
+    public string? XActionJson { get; set; }
+
+    public IList<QuickerRpcDesignerSelectedStep> SelectedSteps { get; set; } =
+        new List<QuickerRpcDesignerSelectedStep>();
+}
+
+public sealed class QuickerRpcDesignerContextResult
+{
+    public bool Ok { get; set; }
+
+    public string? Message { get; set; }
+
+    public IList<QuickerRpcDesignerWindowContext> Designers { get; set; } =
+        new List<QuickerRpcDesignerWindowContext>();
 }
 
 public sealed class QuickerRpcSearchIndexRegionStatus

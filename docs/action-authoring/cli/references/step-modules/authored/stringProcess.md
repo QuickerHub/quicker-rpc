@@ -32,6 +32,7 @@
 | 用本模块做 if/循环 | 应用分支步或 csscript |
 | 截取长度 0 | 表示到末尾（见 get purpose） |
 
+
 ## 示例
 
 <!-- QuickerModuleDoc examples -->

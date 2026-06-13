@@ -174,6 +174,81 @@ public sealed class ProgramWireSchemaValidatorTests
     }
 
     [TestMethod]
+    public void Unknown_inputParamInfo_field_is_reported_with_suggestion()
+    {
+        var data = JObject.Parse("""
+            {
+              "steps": [],
+              "variables": [
+                {
+                  "key": "tpl",
+                  "isInput": true,
+                  "inputParamInfo": { "skipEvaluation": true, "isRequired": "yes" }
+                },
+                {
+                  "key": "result",
+                  "isOutput": true,
+                  "outputParamInfo": { "visibleExpr": "{mode}==1" }
+                }
+              ]
+            }
+            """);
+
+        var issues = ProgramWireSchemaValidator.Validate(data);
+
+        var unknownInput = issues.Single(i => i.Code == "UNKNOWN_INPUT_PARAM_INFO_FIELD");
+        Assert.AreEqual("variables[0].inputParamInfo.skipEvaluation", unknownInput.Path);
+        StringAssert.Contains(unknownInput.Message, "\"skipEval\"");
+
+        Assert.IsTrue(issues.Any(i =>
+            i.Code == "INVALID_FIELD_TYPE" && i.Path == "variables[0].inputParamInfo.isRequired"));
+
+        var unknownOutput = issues.Single(i => i.Code == "UNKNOWN_OUTPUT_PARAM_INFO_FIELD");
+        Assert.AreEqual("variables[1].outputParamInfo.visibleExpr", unknownOutput.Path);
+        StringAssert.Contains(unknownOutput.Message, "\"visibleExpression\"");
+    }
+
+    [TestMethod]
+    public void Valid_inputParamInfo_advanced_fields_pass()
+    {
+        var data = JObject.Parse("""
+            {
+              "steps": [],
+              "variables": [
+                {
+                  "key": "pattern",
+                  "isInput": true,
+                  "paramName": "正则模板",
+                  "inputParamInfo": {
+                    "isAdvanced": true,
+                    "skipEval": true,
+                    "isRequired": true,
+                    "multiLine": true,
+                    "inputMethod": 2,
+                    "variableMode": 0,
+                    "replaceMode": 1,
+                    "selectionItems": "a|A",
+                    "onlyUseSelect": false,
+                    "allowInput": true,
+                    "validationPattern": "^.+$",
+                    "textTools": "OpenFile",
+                    "visibleExpression": "{mode}==1"
+                  }
+                },
+                {
+                  "key": "result",
+                  "isOutput": true,
+                  "outputParamInfo": { "visibleExpression": "{mode}==2" }
+                }
+              ]
+            }
+            """);
+
+        var issues = ProgramWireSchemaValidator.Validate(data);
+        Assert.AreEqual(0, issues.Count, string.Join("\n", issues));
+    }
+
+    [TestMethod]
     public void Valid_wire_passes_including_pascal_case_and_wire_keys()
     {
         var data = JObject.Parse("""

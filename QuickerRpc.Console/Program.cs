@@ -1716,7 +1716,7 @@ public sealed class SubProgramOptions
     [Option("icon", HelpText = "Icon: fa:Light_Name[:#color] or absolute http(s) image URL.")]
     public string? Icon { get; set; }
 
-    [Option('q', "query", HelpText = "Search keyword for subprogram search/list.")]
+    [Option('q', "query", HelpText = "Keyword or prefix query for subprogram search/list: uses:<idOrName> | uses-only:<idOrName> | source:published|local | shared:<sharedId>.")]
     public string? Query { get; set; }
 
     [Option("limit", Default = 20, HelpText = "Max results for subprogram search/list (1-100).")]

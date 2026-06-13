@@ -6,14 +6,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
-$ExamplesDir = Join-Path $Root "docs/authoring-references/step-modules/examples"
+$AuthoredDir = Join-Path $Root "docs/authoring-references/step-modules/authored"
 $ActionRuntime = Join-Path $Root "Quicker.ActionRuntime"
 
-if (-not (Test-Path $ExamplesDir)) {
-    throw "Module examples not found: $ExamplesDir"
+if (-not (Test-Path $AuthoredDir)) {
+    throw "Module authored refs not found: $AuthoredDir"
 }
 
-$env:QUICKER_MODULE_EXAMPLES_DIR = $ExamplesDir
+$env:QUICKER_MODULE_AUTHORED_DIR = $AuthoredDir
 Push-Location $ActionRuntime
 try {
     if ($NoOpen) {

@@ -16,7 +16,9 @@
 | step | role |
 |------|------|
 | search | key, controlField, snippet |
-| get | input keys, valueType, options (when set), required, **default**, fileExt |
+| get | input keys, valueType, options (when set), required, **default**, fileExt, **docReference** |
+
+**docReference** — when present, read module examples/traps via `docs_get_reference({ topic, file })` (from `docReference.topic` / `docReference.file`); prefer authored tier over KC crawl.
 
 **default** — typed in **get** (`Boolean` → `true`/`false`, not `"1"`/`"0"`). **Steps** may use the same JSON types for plain literals, or strings (`"true"`, `$=…`, `$$…`); omit when value equals effective default (see action-data-schema).
 

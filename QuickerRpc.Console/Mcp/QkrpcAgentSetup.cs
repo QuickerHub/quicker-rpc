@@ -36,8 +36,13 @@ internal static class QkrpcAgentSetup
             foreach (var target in targets)
             {
                 var configPath = Path.GetFullPath(target.ResolveConfigPath());
+                var followAgent = QkrpcMcpWorkspaceResolver.ShouldFollowAgentWorkspace(options.Workspace);
                 QkrpcAgentSetupVerification.MergeMcpConfigFile(
-                    configPath, target.Format, qkrpcExe, workspace, cliVersion);
+                    configPath,
+                    target.Format,
+                    qkrpcExe,
+                    followAgent ? null : workspace,
+                    cliVersion);
                 results.Add($"MCP {target.DisplayName}: {configPath}");
             }
 
@@ -69,7 +74,8 @@ internal static class QkrpcAgentSetup
 
             if (options.Codex || options.All)
             {
-                results.AddRange(InstallCodexMcp(qkrpcExe, workspace, cliVersion));
+                var followAgent = QkrpcMcpWorkspaceResolver.ShouldFollowAgentWorkspace(options.Workspace);
+                results.AddRange(InstallCodexMcp(qkrpcExe, followAgent ? null : workspace, cliVersion));
                 results.AddRange(QkrpcAgentSetupGuidance.InstallCodexGuidance(options, workspace));
             }
 
@@ -107,7 +113,15 @@ internal static class QkrpcAgentSetup
 
             global::System.Console.Error.WriteLine();
             global::System.Console.Error.WriteLine($"CLI version: {cliVersion}");
-            global::System.Console.Error.WriteLine($"QKRPC_WORKSPACE_ROOT={workspace}");
+            if (QkrpcMcpWorkspaceResolver.ShouldFollowAgentWorkspace(options.Workspace))
+            {
+                global::System.Console.Error.WriteLine(
+                    $"Workspace: follows MCP host (${QkrpcMcpWorkspaceResolver.FollowAgentWorkspaceToken})");
+            }
+            else
+            {
+                global::System.Console.Error.WriteLine($"QKRPC_WORKSPACE_ROOT={workspace} (fixed)");
+            }
             global::System.Console.Error.WriteLine("User manifest: ~/.qkrpc/agent-setup.json");
             if (options.Project)
             {
@@ -760,13 +774,13 @@ internal static class QkrpcAgentSetup
         }
     }
 
-    private static IEnumerable<string> InstallCodexMcp(string qkrpcExe, string workspaceRoot, string cliVersion)
+    private static IEnumerable<string> InstallCodexMcp(string qkrpcExe, string? workspaceRoot, string cliVersion)
     {
         var codex = FindExecutableOnPath("codex");
         if (codex is null)
         {
             yield return "Codex MCP: skipped (codex not in PATH)";
-            yield return $"Codex MCP manual: codex mcp add {ServerName} --env QKRPC_WORKSPACE_ROOT={workspaceRoot} --env QKRPC_SETUP_VERSION={cliVersion} -- \"{qkrpcExe}\" mcp";
+            yield return BuildCodexMcpManualHint(qkrpcExe, workspaceRoot);
             yield return "Agent doc: docs/agent-mcp-self-install.md";
             yield break;
         }
@@ -785,7 +799,7 @@ internal static class QkrpcAgentSetup
                 yield return "  " + stderr.Trim().Replace('\n', ' ');
             }
 
-            yield return $"Codex MCP manual: codex mcp add {ServerName} --env QKRPC_WORKSPACE_ROOT={workspaceRoot} -- \"{qkrpcExe}\" mcp";
+            yield return BuildCodexMcpManualHint(qkrpcExe, workspaceRoot);
             yield break;
         }
 
@@ -803,7 +817,7 @@ internal static class QkrpcAgentSetup
     private static ProcessStartInfo BuildCodexMcpAddStartInfo(
         string codexExe,
         string qkrpcExe,
-        string workspaceRoot,
+        string? workspaceRoot,
         string cliVersion)
     {
         var start = new ProcessStartInfo
@@ -817,14 +831,28 @@ internal static class QkrpcAgentSetup
         start.ArgumentList.Add("mcp");
         start.ArgumentList.Add("add");
         start.ArgumentList.Add(ServerName);
-        start.ArgumentList.Add("--env");
-        start.ArgumentList.Add($"QKRPC_WORKSPACE_ROOT={workspaceRoot}");
+        if (!string.IsNullOrWhiteSpace(workspaceRoot))
+        {
+            start.ArgumentList.Add("--env");
+            start.ArgumentList.Add($"QKRPC_WORKSPACE_ROOT={workspaceRoot}");
+        }
+
         start.ArgumentList.Add("--env");
         start.ArgumentList.Add($"QKRPC_SETUP_VERSION={cliVersion}");
         start.ArgumentList.Add("--");
         start.ArgumentList.Add(qkrpcExe);
         start.ArgumentList.Add("mcp");
         return start;
+    }
+
+    private static string BuildCodexMcpManualHint(string qkrpcExe, string? workspaceRoot)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceRoot))
+        {
+            return $"Codex MCP manual: codex mcp add {ServerName} --env QKRPC_SETUP_VERSION=<version> -- \"{qkrpcExe}\" mcp";
+        }
+
+        return $"Codex MCP manual: codex mcp add {ServerName} --env QKRPC_WORKSPACE_ROOT={workspaceRoot} --env QKRPC_SETUP_VERSION=<version> -- \"{qkrpcExe}\" mcp";
     }
 
     private static string? FindExecutableOnPath(string name)

@@ -5,18 +5,12 @@ import { WorkingDirectoryDialog } from "@/components/chat/WorkingDirectoryDialog
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
   addThread,
-  addWorkspace,
   deleteThread,
-  defaultWorkspaceLabel,
-  getActiveWorkspace,
-  removeWorkspace,
+  getActiveThread,
   renameThread,
-  resolveStoreWorkingDirectory,
-  selectWorkspace,
-  setWorkspaceRootPath,
-  sortThreads,
+  resolveThreadWorkingDirectory,
+  setThreadWorkingDirectory,
   threadMessageCount,
-  threadsForWorkspace,
   tryRestoreLegacyChatStore,
 } from "@/lib/chat-store";
 import { pushAppMessage } from "@/lib/app-messages";
@@ -26,6 +20,17 @@ import { fetchLegacyChatStoreCandidatesFromDisk } from "@/lib/legacy-chat-restor
 import type { DefaultWorkingDirectoryProfile } from "@/lib/default-working-directory";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import { nativeConfirm } from "@/lib/native-confirm";
+import {
+  formatThreadRelativeTime,
+  groupThreadsByCwd,
+  readCollapsedCwdGroups,
+  SIDEBAR_THREADS_VISIBLE_PER_GROUP,
+  writeCollapsedCwdGroups,
+} from "@/lib/thread-cwd-groups";
+import {
+  groupThreadsByActionDesigner,
+  type ActionDesignerThreadGroup,
+} from "@/lib/action-designer-thread";
 
 function defaultCwdFallbackLabel(profile: DefaultWorkingDirectoryProfile): string {
   switch (profile) {
@@ -48,6 +53,15 @@ type ChatSidebarProps = {
   onChange: (next: ChatStoreData) => void;
   onActivateThread: (threadId: string) => void;
   disabled?: boolean;
+  /** Debug designer embed: group by actionDesigner tag instead of cwd. */
+  groupBy?: "cwd" | "actionDesigner";
+};
+
+type SidebarThreadGroup = {
+  key: string;
+  label: string;
+  title: string;
+  threads: ChatStoreData["threads"];
 };
 
 function shortPath(path: string, fallback: string): string {
@@ -70,13 +84,43 @@ function IconPlus() {
   );
 }
 
-function IconFolder() {
+function IconFolder({ open }: { open?: boolean }) {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+      {open ? (
+        <path
+          d="M1.5 4.5h3l1 1.2H10.5V9.5H1.5V4.5Z"
+          stroke="currentColor"
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+        />
+      ) : (
+        <path
+          d="M1.5 3h3l1 1.2H10.5V9.5H1.5V3Z"
+          stroke="currentColor"
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+        />
+      )}
+    </svg>
+  );
+}
+
+function IconChevron({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      fill="none"
+      aria-hidden
+      className={expanded ? "ws-chevron ws-chevron--open" : "ws-chevron"}
+    >
       <path
-        d="M1.5 3h3l1 1.2H10.5V9.5H1.5V3Z"
+        d="M3 2l3 3-3 3"
         stroke="currentColor"
         strokeWidth="1.2"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>
@@ -169,21 +213,51 @@ export function ChatSidebar({
   onChange,
   onActivateThread,
   disabled = false,
+  groupBy = "cwd",
 }: ChatSidebarProps) {
-  const activeWorkspace = useMemo(() => getActiveWorkspace(store), [store]);
+  const activeThread = useMemo(() => getActiveThread(store), [store]);
   const cwdFallbackLabel = !defaultCwdReady
     ? "…"
     : defaultCwd
       ? defaultCwdFallbackLabel(defaultCwdProfile)
       : "未设置";
-  const workspaceThreads = useMemo(
-    () => sortThreads(threadsForWorkspace(store.threads, store.activeWorkspaceId)),
-    [store.threads, store.activeWorkspaceId],
+
+  const threadGroups = useMemo((): SidebarThreadGroup[] => {
+    if (groupBy === "actionDesigner") {
+      return groupThreadsByActionDesigner(store.threads).map(
+        (group: ActionDesignerThreadGroup) => ({
+          key: group.key,
+          label: group.label,
+          title: group.ref.entityId,
+          threads: group.threads,
+        }),
+      );
+    }
+    return groupThreadsByCwd(store.threads, cwdFallbackLabel).map((group) => ({
+      key: group.key,
+      label: group.label,
+      title:
+        group.path.trim()
+        || resolveThreadWorkingDirectory(group.threads[0]!, store, defaultCwd),
+      threads: group.threads,
+    }));
+  }, [groupBy, store, defaultCwd, cwdFallbackLabel]);
+
+  const activeThreadCwd = activeThread.workingDirectory?.trim() ?? "";
+  const resolvedActiveCwd = resolveThreadWorkingDirectory(
+    activeThread,
+    store,
+    defaultCwd,
   );
-  const effectiveCwd = resolveStoreWorkingDirectory(store, defaultCwd);
+
   const [cwdDialogOpen, setCwdDialogOpen] = useState(false);
-  const [addWorkspaceDialogOpen, setAddWorkspaceDialogOpen] = useState(false);
   const [restoringLegacy, setRestoringLegacy] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() =>
+    readCollapsedCwdGroups(),
+  );
+  const [expandedThreadLists, setExpandedThreadLists] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const commit = useCallback(
     (next: ChatStoreData) => {
@@ -192,32 +266,33 @@ export function ChatSidebar({
     [onChange],
   );
 
-  const handleNewThread = () => {
-    commit(addThread(store, { workspaceId: store.activeWorkspaceId }));
-  };
-
-  const handleSelectWorkspace = (workspaceId: string) => {
-    if (workspaceId === store.activeWorkspaceId) return;
-    const next = selectWorkspace(store, workspaceId);
-    commit(next);
-    onActivateThread(next.activeThreadId);
-  };
-
-  const handleAddWorkspace = (rootPath: string) => {
-    const next = addWorkspace(store, rootPath);
-    commit(next);
-    onActivateThread(next.activeThreadId);
-  };
-
-  const handleRemoveWorkspace = (workspaceId: string) => {
-    void (async () => {
-      if (!(await nativeConfirm("移除此工作区？对话将合并到其它工作区。", { danger: true }))) {
-        return;
+  const toggleGroupCollapsed = useCallback((groupKey: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
       }
-      const next = removeWorkspace(store, workspaceId);
-      commit(next);
-      onActivateThread(next.activeThreadId);
-    })();
+      writeCollapsedCwdGroups(next);
+      return next;
+    });
+  }, []);
+
+  const toggleThreadListExpanded = useCallback((groupKey: string) => {
+    setExpandedThreadLists((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleNewThread = () => {
+    commit(addThread(store));
   };
 
   const handleRenameThread = (threadId: string, currentTitle: string) => {
@@ -271,116 +346,131 @@ export function ChatSidebar({
   return (
     <aside className="workspace-sidebar" aria-label="对话侧栏">
       <div className="workspace-sidebar-inner">
-        <div className="ws-section ws-section--workspaces">
-          <div className="ws-section-head">
-            <span className="ws-section-title">工作区</span>
-            <TitlebarDragRegion className="ws-section-head-drag" />
-            <button
-              type="button"
-              className="ws-icon-btn"
-              onClick={() => setAddWorkspaceDialogOpen(true)}
-              disabled={disabled}
-              title="添加工作区"
-              aria-label="添加工作区"
-            >
-              <IconFolder />
-            </button>
-          </div>
-          <ul className="ws-list ws-workspace-list" role="listbox" aria-label="工作区列表">
-            {(store.workspaces ?? []).map((workspace) => {
-              const selected = workspace.id === store.activeWorkspaceId;
-              const label = defaultWorkspaceLabel(workspace, cwdFallbackLabel);
-              const threadCount = threadsForWorkspace(store.threads, workspace.id).length;
-              return (
-                <li
-                  key={workspace.id}
-                  className={`ws-row ws-workspace-row${selected ? " ws-row--active" : ""}`}
-                >
-                  <button
-                    type="button"
-                    className={`ws-item ws-workspace-item${selected ? " ws-item--active" : ""}`}
-                    onClick={() => handleSelectWorkspace(workspace.id)}
-                    disabled={disabled}
-                    aria-selected={selected}
-                    title={workspace.rootPath.trim() || effectiveCwd}
-                  >
-                    <span className="ws-item-label">{label}</span>
-                    {threadCount > 0 && (
-                      <span className="ws-item-badge">{threadCount}</span>
-                    )}
-                  </button>
-                  {(store.workspaces ?? []).length > 1 ? (
-                    <div className="ws-row-actions">
-                      <RowAction
-                        label="移除工作区"
-                        onClick={() => handleRemoveWorkspace(workspace.id)}
-                        disabled={disabled}
-                      >
-                        <IconTrash />
-                      </RowAction>
-                    </div>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
         <div className="ws-section ws-section--grow ws-section--rail-primary">
           <div className="ws-section-head ws-section-head--titlebar">
-            <span className="ws-section-title">对话</span>
-            <TitlebarDragRegion className="ws-section-head-drag" />
             <button
               type="button"
-              className="ws-icon-btn"
+              className="ws-new-chat-btn"
               onClick={handleNewThread}
               disabled={disabled}
               title="新建对话"
-              aria-label="新建对话"
             >
               <IconPlus />
+              <span>新对话</span>
             </button>
+            <TitlebarDragRegion className="ws-section-head-drag" />
           </div>
-          <ul className="ws-list ws-list--scroll" role="listbox" aria-label="对话列表">
-            {workspaceThreads.map((thread) => {
-              const selected = thread.id === store.activeThreadId;
+
+          <div className="ws-projects-label">
+            {groupBy === "actionDesigner" ? "设计器" : "项目"}
+          </div>
+
+          <div
+            className="ws-list ws-list--scroll ws-project-tree"
+            role="tree"
+            aria-label={
+              groupBy === "actionDesigner"
+                ? "按 ActionDesigner 分组的对话"
+                : "按工作目录分组的对话"
+            }
+          >
+            {threadGroups.length === 0 && groupBy === "actionDesigner" ? (
+              <p className="ws-designer-debug-empty">
+                暂无设计器对话。在 Quicker 动作设计器中打开 AI 标签页后会出现在这里。
+              </p>
+            ) : null}
+            {threadGroups.map((group) => {
+              const collapsed = collapsedGroups.has(group.key);
+              const listExpanded = expandedThreadLists.has(group.key);
+              const visibleThreads = listExpanded
+                ? group.threads
+                : group.threads.slice(0, SIDEBAR_THREADS_VISIBLE_PER_GROUP);
+              const hiddenCount = group.threads.length - visibleThreads.length;
+
               return (
-                <li
-                  key={thread.id}
-                  className={`ws-row${selected ? " ws-row--active" : ""}`}
-                >
+                <div key={group.key} className="ws-cwd-group" role="treeitem" aria-expanded={!collapsed}>
                   <button
                     type="button"
-                    className={`ws-item${selected ? " ws-item--active" : ""}`}
-                    onClick={() => onActivateThread(thread.id)}
+                    className="ws-cwd-group-head"
+                    onClick={() => toggleGroupCollapsed(group.key)}
                     disabled={disabled}
-                    aria-selected={selected}
+                    title={group.title}
                   >
-                    <span className="ws-item-label">{thread.title}</span>
-                    {threadMessageCount(thread) > 0 && (
-                      <span className="ws-item-badge">{threadMessageCount(thread)}</span>
-                    )}
+                    <IconChevron expanded={!collapsed} />
+                    <IconFolder open={!collapsed} />
+                    <span className="ws-cwd-group-label">{group.label}</span>
                   </button>
-                  <div className="ws-row-actions">
-                    <RowAction
-                      label="重命名对话"
-                      onClick={() => handleRenameThread(thread.id, thread.title)}
-                      disabled={disabled}
-                    >
-                      <IconPencil />
-                    </RowAction>
-                    <RowAction
-                      label="删除对话"
-                      onClick={() => handleDeleteThread(thread.id)}
-                      disabled={disabled}
-                    >
-                      <IconTrash />
-                    </RowAction>
-                  </div>
-                </li>
+
+                  {!collapsed ? (
+                    <ul className="ws-list ws-thread-group-list" role="group">
+                      {visibleThreads.map((thread) => {
+                        const selected = thread.id === store.activeThreadId;
+                        return (
+                          <li
+                            key={thread.id}
+                            className={`ws-row ws-thread-row${selected ? " ws-row--active" : ""}`}
+                          >
+                            <button
+                              type="button"
+                              className={`ws-item ws-thread-item${selected ? " ws-item--active" : ""}`}
+                              onClick={() => onActivateThread(thread.id)}
+                              disabled={disabled}
+                              aria-selected={selected}
+                            >
+                              <span className="ws-item-label">{thread.title}</span>
+                              <span className="ws-thread-time">
+                                {formatThreadRelativeTime(thread.updatedAt)}
+                              </span>
+                            </button>
+                            <div className="ws-row-actions">
+                              <RowAction
+                                label="重命名对话"
+                                onClick={() => handleRenameThread(thread.id, thread.title)}
+                                disabled={disabled}
+                              >
+                                <IconPencil />
+                              </RowAction>
+                              <RowAction
+                                label="删除对话"
+                                onClick={() => handleDeleteThread(thread.id)}
+                                disabled={disabled}
+                              >
+                                <IconTrash />
+                              </RowAction>
+                            </div>
+                          </li>
+                        );
+                      })}
+                      {hiddenCount > 0 ? (
+                        <li className="ws-show-more-row">
+                          <button
+                            type="button"
+                            className="ws-show-more-btn"
+                            onClick={() => toggleThreadListExpanded(group.key)}
+                            disabled={disabled}
+                          >
+                            展开显示 ({hiddenCount})
+                          </button>
+                        </li>
+                      ) : listExpanded && group.threads.length > SIDEBAR_THREADS_VISIBLE_PER_GROUP ? (
+                        <li className="ws-show-more-row">
+                          <button
+                            type="button"
+                            className="ws-show-more-btn"
+                            onClick={() => toggleThreadListExpanded(group.key)}
+                            disabled={disabled}
+                          >
+                            收起
+                          </button>
+                        </li>
+                      ) : null}
+                    </ul>
+                  ) : null}
+                </div>
               );
             })}
-          </ul>
+          </div>
+
           <div className="ws-list-restore">
             <button
               type="button"
@@ -397,44 +487,34 @@ export function ChatSidebar({
         </div>
 
         <div className="ws-footer">
+          {groupBy === "cwd" ? (
           <button
             type="button"
             className="ws-footer-path"
             onClick={() => setCwdDialogOpen(true)}
             disabled={disabled}
-            title={effectiveCwd || "点击设置工作目录"}
+            title={resolvedActiveCwd || "点击设置当前对话的工作目录"}
             aria-haspopup="dialog"
           >
             <span className="ws-footer-path-label">工作目录</span>
             <span className="ws-footer-path-value">
-              {shortPath(activeWorkspace.rootPath, cwdFallbackLabel)}
+              {shortPath(activeThreadCwd, cwdFallbackLabel)}
             </span>
           </button>
+          ) : null}
         </div>
       </div>
 
       <WorkingDirectoryDialog
         open={cwdDialogOpen}
         disabled={disabled}
-        value={activeWorkspace.rootPath}
+        value={activeThreadCwd}
         defaultCwd={defaultCwd}
         defaultCwdProfile={defaultCwdProfile}
         onClose={() => setCwdDialogOpen(false)}
-        onSave={(path) =>
-          commit(setWorkspaceRootPath(store, store.activeWorkspaceId, path))
-        }
-      />
-
-      <WorkingDirectoryDialog
-        open={addWorkspaceDialogOpen}
-        disabled={disabled}
-        value=""
-        defaultCwd={defaultCwd}
-        defaultCwdProfile={defaultCwdProfile}
-        onClose={() => setAddWorkspaceDialogOpen(false)}
         onSave={(path) => {
-          handleAddWorkspace(path);
-          setAddWorkspaceDialogOpen(false);
+          commit(setThreadWorkingDirectory(store, activeThread.id, path));
+          setCwdDialogOpen(false);
         }}
       />
     </aside>

@@ -171,13 +171,44 @@ internal static class XActionWireJsonNormalizer
     {
         if (source[camel] is JObject camelObj)
         {
-            result[pascal] = camelObj;
+            result[pascal] = PascalizeNestedKeys(camelObj);
         }
         else if (source[pascal] is JObject pascalObj)
         {
-            result[pascal] = pascalObj;
+            result[pascal] = PascalizeNestedKeys(pascalObj);
         }
     }
+
+    /// <summary>
+    /// x_action_program.proto nested messages (InputParamInfo / OutputParamInfo / TableDef) use
+    /// PascalCase json_name; wire data.json uses camelCase keys (e.g. <c>skipEval</c>) which the
+    /// protobuf JsonParser would otherwise silently drop.
+    /// </summary>
+    private static JObject PascalizeNestedKeys(JObject source)
+    {
+        var result = new JObject();
+        foreach (var prop in source.Properties())
+        {
+            var name = prop.Name.Length == 0
+                ? prop.Name
+                : char.ToUpperInvariant(prop.Name[0]) + prop.Name.Substring(1);
+            if (result[name] != null)
+            {
+                continue;
+            }
+
+            result[name] = PascalizeNestedToken(prop.Value);
+        }
+
+        return result;
+    }
+
+    private static JToken PascalizeNestedToken(JToken token) => token switch
+    {
+        JObject obj => PascalizeNestedKeys(obj),
+        JArray array => new JArray(array.Select(PascalizeNestedToken)),
+        _ => token,
+    };
 
     private static void CopyRename(JObject target, JObject source, string from, string to)
     {

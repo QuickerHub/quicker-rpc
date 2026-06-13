@@ -11,7 +11,10 @@ public sealed class QkrpcMcpSubprogramTools
     public QkrpcMcpSubprogramTools(QkrpcMcpRuntime runtime) => _runtime = runtime;
 
     [McpServerTool(Name = "qkrpc_subprogram_query")]
-    [Description("List/search global subprograms. Empty query = list all.")]
+    [Description(
+        "List/search global subprograms. Empty query = list all. "
+        + "Query prefixes (same as qkrpc_action_query): uses:<idOrName> / uses-only:<idOrName> "
+        + "find subprograms calling the target; source:published|local, shared:<sharedId> filter by share state.")]
     public Task<string> QkrpcSubprogramQuery(
         string? query = null,
         int? limit = null,
@@ -21,6 +24,7 @@ public sealed class QkrpcMcpSubprogramTools
     [McpServerTool(Name = "qkrpc_subprogram_get")]
     [Description(
         "Sync one global subprogram to .quicker/subprograms/ (first time). "
+        + "When Action Designer is open, reads in-memory draft (readSource=action-designer). "
         + "Pulls .quicker/subprograms/. Edit disk with host file tools → workspace_program patch.")]
     public Task<string> QkrpcSubprogramGet(
         string id,

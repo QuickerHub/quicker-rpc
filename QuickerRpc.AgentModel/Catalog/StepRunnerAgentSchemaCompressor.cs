@@ -24,6 +24,14 @@ public static class StepRunnerAgentSchemaCompressor
             Name = source.Name ?? string.Empty,
             Description = TrimToNull(source.Description),
             AgentGuidance = TrimToNull(source.AgentGuidance),
+            DocReference = source.DocReference is null
+                ? null
+                : new StepRunnerModuleDocReference
+                {
+                    Topic = source.DocReference.Topic ?? "step-modules",
+                    File = source.DocReference.File ?? string.Empty,
+                    Tier = TrimToNull(source.DocReference.Tier),
+                },
         };
 
         if (!controlApplied && source.ControlField is not null)

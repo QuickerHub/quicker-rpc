@@ -340,7 +340,7 @@ async function loadReferenceMap(topic) {
     const refSubdirs = subEntries
       .filter((ent) => ent.isDirectory())
       .sort((a, b) => {
-        const order = { authored: 0, examples: 1, kc: 2 };
+        const order = { authored: 0, kc: 1 };
         const ak = order[a.name.toLowerCase()] ?? 9;
         const bk = order[b.name.toLowerCase()] ?? 9;
         return ak - bk || a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
@@ -348,11 +348,12 @@ async function loadReferenceMap(topic) {
 
     for (const ent of refSubdirs) {
       const subName = ent.name.toLowerCase();
-      if (subName !== "authored" && subName !== "examples" && subName !== "kc") continue;
+      if (subName !== "authored" && subName !== "kc") continue;
       const subDir = path.join(topicDir, ent.name);
       const subFiles = (await fs.readdir(subDir)).sort((a, b) =>
         a.localeCompare(b, undefined, { sensitivity: "base" }),
       );
+
       for (const fname of subFiles) {
         if (
           !fname.endsWith(".md")
@@ -363,11 +364,7 @@ async function loadReferenceMap(topic) {
         }
         const baseId = fname.slice(0, -3);
         const refName =
-          subName === "kc"
-            ? `kc/${baseId}`
-            : subName === "examples"
-              ? `examples/${baseId}`
-              : baseId;
+          subName === "kc" ? `kc/${baseId}` : baseId;
         if (map.has(refName)) {
           throw new Error(
             `Duplicate reference id "${refName}" for topic ${topic} (${subName} + other)`,
@@ -532,7 +529,12 @@ async function computeOutputs(opsData, topicEntries) {
 
       if (!refName.startsWith("kc/")) {
         const cliPath = refEntry.outRel;
-        if (!standalone) {
+        if (standalone) {
+          outputs.set(
+            `cli/references/${cliPath}`,
+            injectSearchAliases(refEntry.src, catalogEntry.searchAliases ?? []),
+          );
+        } else {
           const cliRefRendered = renderDoc(
             refEntry.src,
             opsData,
@@ -696,14 +698,24 @@ async function computeEvalSkillOutputs(opsData, partials) {
   );
   outputs.set("eval-skills/references/expressions.md", exprBody);
 
-  const examplesPath = path.join(
+  const evalexpressionRefPath = path.join(
     REF_SRC,
-    "step-modules/examples/evalexpression.md",
+    "step-modules/authored/evalexpression.md",
   );
-  outputs.set(
-    "eval-skills/references/evalexpression-examples.md",
-    normalizeEol(await fs.readFile(examplesPath, "utf8")),
-  );
+  let evalexpressionExamples = "";
+  try {
+    evalexpressionExamples = normalizeEol(
+      await fs.readFile(evalexpressionRefPath, "utf8"),
+    );
+  } catch (err) {
+    if (/** @type {NodeJS.ErrnoException} */ (err).code !== "ENOENT") {
+      throw err;
+    }
+  }
+  if (!evalexpressionExamples) {
+    throw new Error("Missing evalexpression module ref: authored/evalexpression.md");
+  }
+  outputs.set("eval-skills/references/evalexpression-examples.md", evalexpressionExamples);
 
   return outputs;
 }
@@ -912,7 +924,6 @@ async function pruneOrphanOutputs(topicEntries, opsData) {
   }
   for (const { topic } of topicEntries) {
     if (isCliOnlyTopic(opsData, topic)) continue;
-    if (isStandaloneReferenceTopic(topic)) continue;
     const refMap = await loadReferenceMap(topic);
     for (const refEntry of refMap.values()) {
       expectedReferenceRelPaths.add(refEntry.outRel.toLowerCase());
@@ -933,6 +944,12 @@ async function pruneOrphanOutputs(topicEntries, opsData) {
 
   await pruneReferenceTree(
     path.join(OUT_SKILLS, "references"),
+    expectedReferenceRelPaths,
+    "",
+  );
+
+  await pruneReferenceTree(
+    path.join(OUT_CLI, "references"),
     expectedReferenceRelPaths,
     "",
   );

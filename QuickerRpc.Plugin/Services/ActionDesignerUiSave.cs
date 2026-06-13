@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Threading;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -11,6 +11,7 @@ using System.Windows.Interop;
 using System.Windows.Threading;
 using Newtonsoft.Json;
 using Quicker.Domain.Actions.X;
+using QuickerRpc.Plugin.Reflection;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -124,26 +125,135 @@ internal static class ActionDesignerUiSave
         }
     }
 
-    public static bool TryApplyXActionToOpenDesigner(Window designerWindow, XAction action)
+    /// <summary>Update title/description/icon on open designer without persisting to catalog.</summary>
+    public static bool TrySyncDesignerPresentation(
+        Window designerWindow,
+        bool isSubProgram,
+        string? titleOrName,
+        string? description,
+        string? icon,
+        string? contextMenuData,
+        out string? error)
     {
-        if (designerWindow is null || action is null)
+        error = null;
+        if (designerWindow is null)
         {
+            error = "Designer window is required.";
             return false;
         }
 
         try
         {
             var winType = designerWindow.GetType();
-            winType.GetProperty("Action", InstanceAll)?.SetValue(designerWindow, action);
+            var appliedAny = false;
+            foreach (var name in new[] { "EditingActionItem", "ResultActionItem", "EditingActionItem2", "ResultActionItem2" })
+            {
+                var item = winType.GetProperty(name, InstanceAll)?.GetValue(designerWindow);
+                if (item is null)
+                {
+                    continue;
+                }
 
-            var updateUi = winType.GetMethod("UpdateXActionUi", InstanceAll, null, Type.EmptyTypes, null);
-            updateUi?.Invoke(designerWindow, null);
+                if (!DesignerEntityPresentation.TryApply(
+                        item,
+                        isSubProgram,
+                        titleOrName,
+                        description,
+                        icon,
+                        contextMenuData,
+                        out error))
+                {
+                    return false;
+                }
+
+                appliedAny = true;
+            }
+
+            if (!appliedAny)
+            {
+                error = "Designer editing item not found.";
+                return false;
+            }
+
+            if (titleOrName is not null)
+            {
+                var trimmed = titleOrName.Trim();
+                if (trimmed.Length > 0)
+                {
+                    designerWindow.Title = trimmed;
+                }
+            }
+
+            QuickerActionDesignerReflection.TryInvokeUpdateXActionUi(designerWindow, out _);
             return true;
         }
         catch (Exception ex)
         {
-            Trace.TraceWarning("[QuickerRpc.Plugin] TryApplyXActionToOpenDesigner failed: {0}", ex.Message);
+            Trace.TraceWarning("[QuickerRpc.Plugin] TrySyncDesignerPresentation failed: {0}", ex.Message);
+            error = ex.Message;
             return false;
+        }
+    }
+
+    /// <summary>Push patched XAction into open designer UI without persisting to catalog.</summary>
+    public static bool TrySyncDesignerMemory(Window designerWindow, XAction action) =>
+        TryApplyImportedXActionToOpenDesigner(designerWindow, action, out _);
+
+    /// <summary>
+    /// Apply imported program: ReplaceActionContent + stable-surface UI refresh (Release-safe).
+    /// </summary>
+    public static bool TryApplyImportedXActionToOpenDesigner(
+        Window designerWindow,
+        XAction imported,
+        out string? error)
+    {
+        error = null;
+        if (designerWindow is null || imported is null)
+        {
+            error = "Designer or XAction is null.";
+            return false;
+        }
+
+        var stepCount = imported.Steps?.Count ?? 0;
+        var variableCount = imported.Variables?.Count ?? 0;
+        if (stepCount == 0 && variableCount == 0)
+        {
+            error = "Imported action has no steps or variables.";
+            return false;
+        }
+
+        try
+        {
+            ActionDesignerReflection.TryUnlockReadOnly(designerWindow, out _, out _);
+
+            if (!ActionDesignerCurrentActionAccess.TrySetActionDefinition(designerWindow, imported, out error))
+            {
+                error ??= "Failed to apply XAction to designer.";
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Trace.TraceWarning("[QuickerRpc.Plugin] TryApplyImportedXActionToOpenDesigner failed: {0}", ex.Message);
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryApplyXActionToOpenDesigner(Window designerWindow, XAction action) =>
+        TryApplyImportedXActionToOpenDesigner(designerWindow, action, out _);
+
+    internal static void TrySyncResultItemAfterPaste(Window designerWindow) =>
+        SyncResultItemFromDesignerAction(designerWindow);
+
+    private static void SyncResultItemFromDesignerAction(Window designerWindow)
+    {
+        if (ActionDesignerReflection.TryGetActionProperty(designerWindow, out var xActionObj)
+            && xActionObj is XAction xAction)
+        {
+            TryUpdateDesignerResultItem(designerWindow, xAction);
         }
     }
 
@@ -153,6 +263,9 @@ internal static class ActionDesignerUiSave
     /// </summary>
     public static bool TryPersistOpenSubProgramDesignerOnUiThread(string subProgramId, XAction xAction, out string? error) =>
         TryPersistOpenDesignerOnUiThread(subProgramId, xAction, isSubProgram: true, out error);
+
+    public static bool TryPersistOpenActionDesignerOnUiThread(string actionId, XAction xAction, out string? error) =>
+        TryPersistOpenDesignerOnUiThread(actionId, xAction, isSubProgram: false, out error);
 
     private static bool TryPersistOpenDesignerOnUiThread(
         string entityId,

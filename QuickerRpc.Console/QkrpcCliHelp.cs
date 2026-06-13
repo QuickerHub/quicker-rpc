@@ -127,11 +127,11 @@ internal static class QkrpcCliHelp
                         Option("no-bootstrap", "Skip auto-start."),
                     }),
 
-                Cmd("action get", "Read compressed XAction by action id.", "qkrpc action get --id <guid> [--return-mode full|structure|metadata] [--json]",
+                Cmd("action get", "Read compressed XAction by action id. When Action Designer is open for that id, reads in-memory draft (readSource=action-designer); otherwise catalog.", "qkrpc action get --id <guid> [--return-mode full|structure|metadata] [--json]",
 
                     opts: ActionHeadlessOpts()),
 
-                Cmd("action patch", "Apply partial XAction patch (one call = one save). Patch JSON may also include title, description, icon, contextMenuData. On success use response; do not action_get only to verify.", "qkrpc action patch --id <guid> --patch-file <path|-> [--expected-edit-version N] [--force] [--json]",
+                Cmd("action patch", "Apply partial XAction patch. When Action Designer is open, applies to designer memory (persisted=false; save in Quicker to catalog). Otherwise one call = one catalog save. Patch JSON may include steps/variables and/or title, description, icon, contextMenuData.", "qkrpc action patch --id <guid> --patch-file <path|-> [--expected-edit-version N] [--force] [--json]",
 
                     opts: ActionPatchOpts()),
 
@@ -225,13 +225,13 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("query", "Plain keyword; legacy prefixes; or JSON. filter: {source,uses,usesOnly,keyword,script|expr}; sort: {key,script,by,desc}; fields: [actionId,title,...] or *.", shortName: "q"), Option("query-file", "UTF-8 file for --query JSON/text."), Option("fields", "Output projection: comma-separated field names or *."), Option("filter", "Shorthand for plain query: library|installed|local|published."), Option("scope", "Process/scene filter (chrome, global, common, default, agent, profile id)."), Option("limit", "Max results.", defaultValue: "30"), Option("sort", "relevance (default with --query) | lastEdit (default without --query) | title."), Option("json", "Structured output.") }),
 
-                Cmd("subprogram list", "List/search global subprograms (returns callIdentifier for sys:subprogram). Empty --query lists by name; non-empty filters.", "qkrpc subprogram list [--query <keyword>] [--limit 30] [--json]",
+                Cmd("subprogram list", "List/search global subprograms (returns callIdentifier for sys:subprogram). Empty --query lists by name; non-empty filters. Query prefixes (same as action list): uses:<idOrName> / uses-only:<idOrName> find subprograms calling the target; source:published|local and shared:<sharedId> filter by share state.", "qkrpc subprogram list [--query <keyword|uses:SubName>] [--limit 30] [--json]",
 
-                    opts: new[] { Option("query", "Optional keyword filter.", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output.") }),
+                    opts: new[] { Option("query", "Keyword, uses:<idOrName>, uses-only:<idOrName>, source:published|local, or shared:<sharedId>.", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output.") }),
 
-                Cmd("subprogram search", "Alias for subprogram list.", "qkrpc subprogram search [--query <keyword>] [--limit 30] [--json]",
+                Cmd("subprogram search", "Alias for subprogram list (same query prefixes: uses:/uses-only:/source:/shared:).", "qkrpc subprogram search [--query <keyword|uses:SubName>] [--limit 30] [--json]",
 
-                    opts: new[] { Option("query", "Optional keyword filter.", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output.") }),
+                    opts: new[] { Option("query", "Keyword, uses:<idOrName>, uses-only:<idOrName>, source:published|local, or shared:<sharedId>.", shortName: "q"), Option("limit", "Max results.", defaultValue: "30"), Option("json", "Structured output.") }),
 
                 Cmd("profile delete", "Delete empty action profile pages (tabs). Fails when the page still has actions or is protected.", "qkrpc profile delete --id <profileIdOrName> [--ids <guid1,guid2>] [--json]",
 
@@ -298,11 +298,11 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("name", "Unique subprogram name."), Option("description", "Description."), Option("icon", "Icon spec."), Option("json", "Structured output.") }),
 
-                Cmd("subprogram get", "Read compressed subprogram program.", "qkrpc subprogram get --id <idOrName> [--return-mode full|structure|metadata] [--json]",
+                Cmd("subprogram get", "Read compressed subprogram program. When Action Designer is open, reads in-memory draft (readSource=action-designer).", "qkrpc subprogram get --id <idOrName> [--return-mode full|structure|metadata] [--json]",
 
                     opts: SubProgramHeadlessOpts()),
 
-                Cmd("subprogram patch", "Apply partial patch to subprogram (same JSON shape as action patch).", "qkrpc subprogram patch --id <idOrName> --patch-file <path|-> [--expected-edit-version N] [--json]",
+                Cmd("subprogram patch", "Apply partial patch to subprogram (same JSON shape as action patch). When Action Designer is open, applies program and/or name, description, icon to designer memory (persisted=false).", "qkrpc subprogram patch --id <idOrName> --patch-file <path|-> [--expected-edit-version N] [--json]",
 
                     opts: SubProgramPatchOpts()),
 

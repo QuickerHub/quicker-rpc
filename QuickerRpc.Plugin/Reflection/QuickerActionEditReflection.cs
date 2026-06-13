@@ -5,17 +5,19 @@ using Quicker.Common;
 
 namespace QuickerRpc.Plugin.Reflection;
 
-/// <summary>Offline probes for <c>ActionEditMgr.SaveEditingAction(ActionItem)</c> (used by tests only).</summary>
+/// <summary>Offline probes for <c>ActionEditMgr.SaveEditingAction</c> (used by tests only).</summary>
 internal static class QuickerActionEditReflection
 {
     internal static MethodInfo? TryFindSaveEditingActionOnActionEditMgrType(Assembly quicker) =>
-        TryFindSaveEditingActionOnActionEditMgrType(quicker, nameof(ActionItem));
+        TryFindSaveEditingActionOnActionEditMgrType(quicker, "ActionItem2")
+        ?? TryFindSaveEditingActionOnActionEditMgrType(quicker, nameof(ActionItem));
 
     internal static MethodInfo? TryFindSaveEditingActionOnActionEditMgrType(
         Assembly quicker,
         string parameterTypeSimpleName)
     {
-        if (!string.Equals(parameterTypeSimpleName, nameof(ActionItem), StringComparison.Ordinal))
+        if (!string.Equals(parameterTypeSimpleName, nameof(ActionItem), StringComparison.Ordinal)
+            && !string.Equals(parameterTypeSimpleName, "ActionItem2", StringComparison.Ordinal))
         {
             return null;
         }
@@ -29,7 +31,7 @@ internal static class QuickerActionEditReflection
         MethodInfo? match = null;
         foreach (var candidate in mgrType.GetMethods(QuickerAssemblyReflection.InstanceFlags))
         {
-            if (!IsSaveEditingActionSignature(candidate))
+            if (!IsSaveEditingActionSignature(candidate, parameterTypeSimpleName))
             {
                 continue;
             }
@@ -57,7 +59,7 @@ internal static class QuickerActionEditReflection
 
             foreach (var method in type.GetMethods(QuickerAssemblyReflection.InstanceFlags))
             {
-                if (IsSaveEditingActionSignature(method))
+                if (IsSaveEditingActionSignature(method, parameterTypeSimpleName: null))
                 {
                     matches.Add(method);
                 }
@@ -67,7 +69,7 @@ internal static class QuickerActionEditReflection
         return matches;
     }
 
-    internal static bool IsSaveEditingActionSignature(MethodInfo method)
+    internal static bool IsSaveEditingActionSignature(MethodInfo method, string? parameterTypeSimpleName)
     {
         if (method.IsStatic || method.ReturnType != typeof(void))
         {
@@ -80,7 +82,18 @@ internal static class QuickerActionEditReflection
         }
 
         var parameters = method.GetParameters();
-        return parameters.Length == 1
-               && string.Equals(parameters[0].ParameterType.Name, nameof(ActionItem), StringComparison.Ordinal);
+        if (parameters.Length != 1)
+        {
+            return false;
+        }
+
+        var actualName = parameters[0].ParameterType.Name;
+        if (!string.IsNullOrEmpty(parameterTypeSimpleName))
+        {
+            return string.Equals(actualName, parameterTypeSimpleName, StringComparison.Ordinal);
+        }
+
+        return string.Equals(actualName, nameof(ActionItem), StringComparison.Ordinal)
+               || string.Equals(actualName, "ActionItem2", StringComparison.Ordinal);
     }
 }

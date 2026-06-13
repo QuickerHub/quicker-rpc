@@ -16,6 +16,9 @@
   </PropertyGroup>
   <!-- Plugin is net472: resolve ProjectReferences to net472 (version-suffixed Release DLLs). -->
   <ItemGroup>
+    <ProjectReference Include="..\QuickerRpc.Host.Abstractions\QuickerRpc.Host.Abstractions.csproj">
+      <SetTargetFramework>TargetFramework=net472</SetTargetFramework>
+    </ProjectReference>
     <ProjectReference Include="..\QuickerRpc.Contracts\QuickerRpc.Contracts.csproj">
       <SetTargetFramework>TargetFramework=net472</SetTargetFramework>
     </ProjectReference>

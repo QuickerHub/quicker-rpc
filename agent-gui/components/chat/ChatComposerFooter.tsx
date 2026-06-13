@@ -32,6 +32,7 @@ import {
 } from "./ComposerMarkupField";
 import { ComposerPrimaryActionButton } from "./ComposerPrimaryActionButton";
 import { ComposerShortcutCards } from "./ComposerShortcutCards";
+import { DESIGNER_EMBED_ONBOARDING_TIPS } from "@/lib/composer-onboarding-tips";
 import { ComposerOnboardingTips } from "./ComposerOnboardingTips";
 import { ComposerTestPromptsPicker } from "./ComposerTestPromptsPicker";
 import { ActionTagSelector } from "./ActionTagSelector";
@@ -87,6 +88,7 @@ type ChatComposerFooterProps = {
   onEditAnchorDraftChange?: (draft: string) => void;
   voiceInterruptRef?: React.MutableRefObject<(() => void) | null>;
   workingDirectory?: string;
+  designerEmbed?: boolean;
 };
 
 const ChatComposerFooterInner = forwardRef<
@@ -122,6 +124,7 @@ const ChatComposerFooterInner = forwardRef<
     onEditAnchorDraftChange,
     voiceInterruptRef,
     workingDirectory = "",
+    designerEmbed = false,
   },
   ref,
 ) {
@@ -258,7 +261,7 @@ const ChatComposerFooterInner = forwardRef<
 
   return (
     <footer
-      className={`composer${editAnchorMessageId ? " composer--branch-edit" : ""}`}
+      className={`composer${editAnchorMessageId ? " composer--branch-edit" : ""}${designerEmbed ? " composer--designer-embed" : ""}`}
     >
       {editAnchorMessageId ? (
         <div className="composer-edit-banner" role="status">
@@ -277,16 +280,19 @@ const ChatComposerFooterInner = forwardRef<
       {isEmptyThread && !editAnchorMessageId ? (
         <ComposerOnboardingTips
           disabled={busy}
+          tips={designerEmbed ? DESIGNER_EMBED_ONBOARDING_TIPS : undefined}
           onOpenSettings={onOpenSettings}
           onTryMention={() => composerRef.current?.insertMentionTrigger()}
           onFocusComposer={() => composerRef.current?.focus()}
         />
       ) : null}
-      <ComposerShortcutCards
-        settingsOpen={settingsOpen}
-        onToggleSettings={onToggleSettings}
-        disabled={busy}
-      />
+      {!designerEmbed ? (
+        <ComposerShortcutCards
+          settingsOpen={settingsOpen}
+          onToggleSettings={onToggleSettings}
+          disabled={busy}
+        />
+      ) : null}
       {!editAnchorMessageId ? (
         <ComposerMessageQueue
           queuedMessages={queuedMessages}
@@ -313,11 +319,17 @@ const ChatComposerFooterInner = forwardRef<
               placeholder={
                 editAnchorMessageId
                   ? "修改后 Enter 发送，将从此消息处重新对话…（@ 引用动作）"
-                  : queueLength > 0 && busy
-                    ? "Enter 立即发送队列第一条，或输入新消息加入队列…"
-                    : queueLength > 0
-                      ? "Agent 完成后将自动发送队列中的消息…"
-                      : "描述你想在 Quicker 里做的事…（@ 引用动作，/ 斜杠命令）"
+                  : designerEmbed
+                    ? queueLength > 0 && busy
+                      ? "Enter 发送队列…"
+                      : queueLength > 0
+                        ? "Agent 完成后自动发送队列…"
+                        : "描述要如何修改此动作…（@ 引用动作或选中步骤）"
+                    : queueLength > 0 && busy
+                      ? "Enter 立即发送队列第一条，或输入新消息加入队列…"
+                      : queueLength > 0
+                        ? "Agent 完成后将自动发送队列中的消息…"
+                        : "描述你想在 Quicker 里做的事…（@ 引用动作，/ 斜杠命令）"
               }
               onChange={handleDraftChange}
               onSubmit={handleSubmit}
@@ -325,26 +337,28 @@ const ChatComposerFooterInner = forwardRef<
             />
             <div className="composer-toolbar">
               <div className="composer-toolbar-left">
-                <ActionTagSelector
-                  ping={ping}
-                  refreshKey={connectTick}
-                  tagCount={draftState.tagIds.size}
-                  embeddedTagIds={draftState.tagIds}
-                  onSelect={insertDraftActionTag}
-                />
-                {!ephemeral ? (
+                {!designerEmbed ? (
+                  <ActionTagSelector
+                    ping={ping}
+                    refreshKey={connectTick}
+                    tagCount={draftState.tagIds.size}
+                    embeddedTagIds={draftState.tagIds}
+                    onSelect={insertDraftActionTag}
+                  />
+                ) : null}
+                {!ephemeral && !designerEmbed ? (
                   <ChatModeSelector
                     mode={chatMode}
                     onChange={onChatModeChange}
                   />
                 ) : null}
-                {devExperienceEnabled ? (
+                {devExperienceEnabled && !designerEmbed ? (
                   <ToolSelector
                     enabledTools={enabledTools}
                     onChange={onEnabledToolsChange}
                   />
                 ) : null}
-                {devExperienceEnabled ? (
+                {devExperienceEnabled && !designerEmbed ? (
                   <ComposerTestPromptsPicker
                     onSendPrompt={onSendTestPrompt}
                   />

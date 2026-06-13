@@ -137,4 +137,45 @@ public sealed class StepRunnerAgentSchemaCompressorTests
 
         StringAssert.Contains(json, "\"fileExt\":\".js\"");
     }
+
+    [TestMethod]
+    public void Serialize_includes_docReference_when_present()
+    {
+        var schema = new StepRunnerAgentSchema
+        {
+            StepRunnerKey = "sys:run",
+            Name = "Run",
+            DocReference = new StepRunnerModuleDocReference
+            {
+                Topic = "step-modules",
+                File = "run",
+                Tier = "authored",
+            },
+        };
+
+        var json = StepRunnerAgentSchemaJson.Serialize(schema);
+
+        StringAssert.Contains(json, "\"docReference\"");
+        StringAssert.Contains(json, "\"file\":\"run\"");
+        StringAssert.Contains(json, "\"tier\":\"authored\"");
+    }
+
+    [TestMethod]
+    public void GetDetail_includes_docReference_for_modules_with_embedded_ref()
+    {
+        if (!StepRunnerModuleDocRefCatalog.TryGet("sys:windowOperations", out var expected))
+        {
+            Assert.Inconclusive("sys:windowOperations not in doc refs (run docs:modules:analyze first).");
+        }
+
+        var mapped = StepRunnerCatalogMapper.GetDetail(CreateWindowOperationsCatalog(), "sys:windowOperations");
+        Assert.IsTrue(mapped.Success);
+        Assert.IsNotNull(mapped.Schema!.DocReference);
+        Assert.AreEqual(expected.File, mapped.Schema.DocReference!.File);
+        Assert.AreEqual(expected.Topic, mapped.Schema.DocReference.Topic);
+
+        var json = StepRunnerAgentSchemaJson.Serialize(mapped.Schema);
+        StringAssert.Contains(json, "\"docReference\"");
+        StringAssert.Contains(json, "\"file\":\"" + expected.File + "\"");
+    }
 }

@@ -110,28 +110,40 @@
     },
     "inputParamInfo": {
       "type": "object",
+      "notes": "Input UI / binding hints when the variable is a subprogram input (isInput=true). All keys camelCase on wire; omit defaults (0 / false / \"\").",
       "properties": {
-        "inputMethod": { "type": "number", "notes": "Quicker InputMethod enum int." },
+        "inputMethod": {
+          "type": "number",
+          "notes": "Quicker InputMethod enum int: 0 none, 1 TextBox (default), 2 TextEditor, 3 DropDown, 4 Slider, 5 DatePicker, 6 CheckBox, 7 NumberBox, 8 CheckComboBox, 9 ColorPicker, 10 PasswordBox, 11 EditableDropDown, 13 EditableAutoCompleteDropDown, 14 DictEditor."
+        },
         "selectionItems": {
           "type": "string",
-          "notes": "Multi-line option list. Rows: value|label or value|label|hint. onlyUseSelect=true + non-empty → enum-style input."
+          "notes": "Multi-line option list. Rows: value|label or value|label|hint. Non-empty → caller step shows a select; with onlyUseSelect=true the value is locked to listed options."
         },
-        "onlyUseSelect": { "type": "boolean" },
+        "onlyUseSelect": { "type": "boolean", "notes": "With selectionItems: restrict caller to listed options (no free text, no variable bind)." },
         "isRequired": { "type": "boolean" },
-        "validationPattern": { "type": "string" },
-        "textTools": { "type": "string", "notes": "Comma-separated TextToolType names." },
-        "replaceMode": { "type": "number" },
-        "isAdvanced": { "type": "boolean" },
-        "allowInput": { "type": "boolean" },
-        "multiLine": { "type": "boolean" },
-        "visibleExpression": { "type": "string" },
-        "skipEval": { "type": "boolean" }
+        "validationPattern": { "type": "string", "notes": "Regex the input value must match." },
+        "variableMode": {
+          "type": "number",
+          "notes": "ParamVariableMode enum int: 0 UseVarOrInput (default), 1 Input only, 2 UseVar, 3 UseVarOnly. Rarely set; sys:subprogram caller params always use 0 (or 1 when onlyUseSelect)."
+        },
+        "textTools": { "type": "string", "notes": "Comma-separated TextToolType names shown as input helpers." },
+        "replaceMode": { "type": "number", "notes": "TextToolsReplaceMode enum int: 0 ReplaceSelected (default), 1 ReplaceAll, 2 Append, 3 AppendWithSemicolon, 4 AppendWithNewline, 5 AppendWithComma." },
+        "isAdvanced": { "type": "boolean", "notes": "Advanced param: collapsed into the advanced group in the caller step editor." },
+        "allowInput": { "type": "boolean", "notes": "With selectionItems: also allow free-text input besides listed options." },
+        "multiLine": { "type": "boolean", "notes": "Caller edits the value in a multi-line editor." },
+        "visibleExpression": { "type": "string", "notes": "Param visible in caller step editor only when this expression over sibling params is truthy, e.g. {mode}==1." },
+        "skipEval": {
+          "type": "boolean",
+          "notes": "Advanced: pass the caller-supplied value verbatim — skip {var} interpolation and $$ / $= expression parsing at call time. Text varType only. Use for regex/template/code payloads that contain literal braces or $ prefixes."
+        }
       }
     },
     "outputParamInfo": {
       "type": "object",
+      "notes": "Output UI hints when the variable is a subprogram output (isOutput=true).",
       "properties": {
-        "visibleExpression": { "type": "string" }
+        "visibleExpression": { "type": "string", "notes": "Output param visible in caller step editor only when this expression is truthy." }
       }
     },
     "tableDef": {
@@ -184,6 +196,12 @@
           "isInput": true,
           "paramName": "命令行",
           "inputParamInfo": { "multiLine": true, "isRequired": true }
+        },
+        {
+          "key": "pattern",
+          "isInput": true,
+          "paramName": "正则模板",
+          "inputParamInfo": { "isAdvanced": true, "skipEval": true }
         },
         {
           "key": "exitCode",

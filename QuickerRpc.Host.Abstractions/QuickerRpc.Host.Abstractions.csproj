@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net472</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>QuickerRpc.Host</RootNamespace>
+    <Description>QuickerRpc host adapter contracts (V1/V2 plugin implementations call into Quicker via these interfaces).</Description>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+  </PropertyGroup>
+</Project>

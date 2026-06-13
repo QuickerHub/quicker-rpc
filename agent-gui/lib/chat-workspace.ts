@@ -103,15 +103,41 @@ export function threadsForWorkspace(
 }
 
 export function resolveThreadWorkingDirectory(
-  thread: Pick<ChatThread, "workspaceId">,
+  thread: Pick<ChatThread, "workspaceId" | "workingDirectory">,
   store: Pick<ChatStoreData, "workspaces" | "workingDirectory">,
   defaultCwd = "",
 ): string {
+  const threadCwd = thread.workingDirectory?.trim();
+  if (threadCwd) return threadCwd;
+
   const workspace = thread.workspaceId
     ? getWorkspaceById(store, thread.workspaceId)
     : undefined;
   const rootPath = workspace?.rootPath.trim() || store.workingDirectory.trim();
   return rootPath || defaultCwd.trim();
+}
+
+/** Copy active thread cwd for new conversations (empty string = server default). */
+export function inheritThreadWorkingDirectory(
+  data: Pick<ChatStoreData, "threads" | "activeThreadId">,
+): string {
+  const active = data.threads.find((thread) => thread.id === data.activeThreadId);
+  return active?.workingDirectory?.trim() ?? "";
+}
+
+/** Backfill thread.workingDirectory from legacy workspace / store cwd. */
+export function migrateThreadWorkingDirectories(data: ChatStoreData): ChatStoreData {
+  let changed = false;
+  const threads = data.threads.map((thread) => {
+    if (typeof thread.workingDirectory === "string") return thread;
+    changed = true;
+    const workspace = thread.workspaceId
+      ? getWorkspaceById(data, thread.workspaceId)
+      : undefined;
+    const cwd = workspace?.rootPath.trim() || data.workingDirectory.trim() || "";
+    return { ...thread, workingDirectory: cwd };
+  });
+  return changed ? { ...data, threads } : data;
 }
 
 /** Point threads at a known workspace after legacy import (stale v1 workspace ids). */

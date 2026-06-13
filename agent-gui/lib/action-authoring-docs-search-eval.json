@@ -381,7 +381,6 @@
         "inTopK": [
           { "topic": "step-modules", "reference": "kc/chromecontrol" },
           { "topic": "step-modules", "reference": "chromecontrol" },
-          { "topic": "step-modules", "reference": "examples/chromecontrol" },
           { "topic": "chromecontrol-authoring" }
         ]
       }

@@ -1,0 +1,1161 @@
+{
+  "version": 1,
+  "goal": "Learn every step-runner module (kc + step-runner get + optional live run) and distill into authored/<id>.md per SPEC.md, or record skip reason when get suffices",
+  "plan": "docs/superpowers/plans/2026-06-13-step-module-learning.md",
+  "updatedAt": "2026-06-12T21:58:24.932Z",
+  "batchSize": 2,
+  "modules": {
+    "activateProcessMainWindow": {
+      "key": "sys:activateProcessMainWindow",
+      "batch": 1,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "adobesoftscontrol": {
+      "key": "sys:adobesoftscontrol",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "ai": {
+      "key": "sys:ai",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "assign": {
+      "key": "sys:assign",
+      "batch": 1,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "audioControl": {
+      "key": "sys:audioControl",
+      "batch": 2,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "autocadcontrol": {
+      "key": "sys:autocadcontrol",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "basic-ocr": {
+      "key": "sys:basic-ocr",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "break": {
+      "key": "sys:break",
+      "batch": 2,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "skipped",
+      "skipReason": "无 input/output；get 已够，examples 已说明须置于 each/repeat 子步骤内"
+    },
+    "charInfo": {
+      "key": "sys:charInfo",
+      "batch": 3,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "checkPathExists": {
+      "key": "sys:checkPathExists",
+      "batch": 3,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "checkProcessExists": {
+      "key": "sys:checkProcessExists",
+      "batch": 4,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "chromecontrol": {
+      "key": "sys:chromecontrol",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "cloud_oss": {
+      "key": "sys:cloud_oss",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "clouddata": {
+      "key": "sys:clouddata",
+      "batch": 4,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "color": {
+      "key": "sys:color",
+      "batch": 5,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "comment": {
+      "key": "sys:comment",
+      "batch": 5,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "skipped",
+      "skipReason": "仅 note 注释步骤，get+examples 已够，无 wire 陷阱"
+    },
+    "compute": {
+      "key": "sys:compute",
+      "batch": 6,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "skipped",
+      "skipReason": "已废弃，新步骤用 sys:evalexpression；examples 已覆盖迁移"
+    },
+    "computeTime": {
+      "key": "sys:computeTime",
+      "batch": 6,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "continue": {
+      "key": "sys:continue",
+      "batch": 7,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "skipped",
+      "skipReason": "无 input/output；get+examples 已说明须置于 each/repeat 内，与 break 同类"
+    },
+    "createQrCode": {
+      "key": "sys:createQrCode",
+      "batch": 7,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "csscript": {
+      "key": "sys:csscript",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "custompanel": {
+      "key": "sys:custompanel",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "customwindow": {
+      "key": "sys:customwindow",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "dboperation": {
+      "key": "sys:dboperation",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "delay": {
+      "key": "sys:delay",
+      "batch": 8,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "skipped",
+      "skipReason": "单参数 delayMs；get+examples 已覆盖 monitorWaitWin 与 showWaitWin 联动"
+    },
+    "dependencycheck": {
+      "key": "sys:dependencycheck",
+      "batch": 8,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "dictOperations": {
+      "key": "sys:dictOperations",
+      "batch": 9,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "download": {
+      "key": "sys:download",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "each": {
+      "key": "sys:each",
+      "batch": 9,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "enc": {
+      "key": "sys:enc",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "evalexpression": {
+      "key": "sys:evalexpression",
+      "batch": 10,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "everythingsearch": {
+      "key": "sys:everythingsearch",
+      "batch": 10,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "excelObjects": {
+      "key": "sys:excelObjects",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "excelRange": {
+      "key": "sys:excelRange",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "excelreadwrite": {
+      "key": "sys:excelreadwrite",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "fileOperation": {
+      "key": "sys:fileOperation",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "fileSystemWatch": {
+      "key": "sys:fileSystemWatch",
+      "batch": 11,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "fileToClipboard": {
+      "key": "sys:fileToClipboard",
+      "batch": 11,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "flauiautomation": {
+      "key": "sys:flauiautomation",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "form": {
+      "key": "sys:form",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "formatString": {
+      "key": "sys:formatString",
+      "batch": 12,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "skipped",
+      "skipReason": "String.Format 组合；新逻辑用 evalexpression/，examples 已够"
+    },
+    "GenTempFilePath": {
+      "key": "sys:GenTempFilePath",
+      "batch": 12,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "skipped",
+      "skipReason": "单参数 ext 生成路径；get+examples 已够"
+    },
+    "getActionInfo": {
+      "key": "sys:getActionInfo",
+      "batch": 13,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getActiveProcessInfo": {
+      "key": "sys:getActiveProcessInfo",
+      "batch": 13,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getChromeUrl": {
+      "key": "sys:getChromeUrl",
+      "batch": 14,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getClipboardFiles": {
+      "key": "sys:getClipboardFiles",
+      "batch": 14,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getClipboardImage": {
+      "key": "sys:getClipboardImage",
+      "batch": 15,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getClipboardText": {
+      "key": "sys:getClipboardText",
+      "batch": 15,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getCurrentTime": {
+      "key": "sys:getCurrentTime",
+      "batch": 16,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getExplorerPath": {
+      "key": "sys:getExplorerPath",
+      "batch": 16,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getFolderPath": {
+      "key": "sys:getFolderPath",
+      "batch": 17,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getQuickerInfo": {
+      "key": "sys:getQuickerInfo",
+      "batch": 17,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getSelectedFiles": {
+      "key": "sys:getSelectedFiles",
+      "batch": 18,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getSelectedText": {
+      "key": "sys:getSelectedText",
+      "batch": 18,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getSysInfo": {
+      "key": "sys:getSysInfo",
+      "batch": 19,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "getWindowTitle": {
+      "key": "sys:getWindowTitle",
+      "batch": 19,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "group": {
+      "key": "sys:group",
+      "batch": 20,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "htmlExtract": {
+      "key": "sys:htmlExtract",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "http": {
+      "key": "sys:http",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "httpserver": {
+      "key": "sys:httpserver",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "if": {
+      "key": "sys:if",
+      "batch": 20,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "imageinfo": {
+      "key": "sys:imageinfo",
+      "batch": 21,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "imeControl": {
+      "key": "sys:imeControl",
+      "batch": 21,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "imgProcess": {
+      "key": "sys:imgProcess",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "imgToBase64": {
+      "key": "sys:imgToBase64",
+      "batch": 22,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "inputScript": {
+      "key": "sys:inputScript",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "joinList": {
+      "key": "sys:joinList",
+      "batch": 22,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "jsonExtract": {
+      "key": "sys:jsonExtract",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "jsscript": {
+      "key": "sys:jsscript",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "keyInput": {
+      "key": "sys:keyInput",
+      "batch": 23,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "keyoperation": {
+      "key": "sys:keyoperation",
+      "batch": 23,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "listOperations": {
+      "key": "sys:listOperations",
+      "batch": 24,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "manageList": {
+      "key": "sys:manageList",
+      "batch": 24,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "mathocr": {
+      "key": "sys:mathocr",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "mouse": {
+      "key": "sys:mouse",
+      "batch": 25,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "MsgBox": {
+      "key": "sys:MsgBox",
+      "batch": 25,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "newGuid": {
+      "key": "sys:newGuid",
+      "batch": 26,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "notify": {
+      "key": "sys:notify",
+      "batch": 26,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "numberprocess": {
+      "key": "sys:numberprocess",
+      "batch": 27,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "numCompare": {
+      "key": "sys:numCompare",
+      "batch": 27,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "skipped",
+      "skipReason": "两数比较；新逻辑用 if 的 $= 或 evalexpression，examples 已够"
+    },
+    "officehelper": {
+      "key": "sys:officehelper",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "openUrl": {
+      "key": "sys:openUrl",
+      "batch": 28,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "outputText": {
+      "key": "sys:outputText",
+      "batch": 28,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "pathExtraction": {
+      "key": "sys:pathExtraction",
+      "batch": 29,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "playRecords": {
+      "key": "sys:playRecords",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "playSound": {
+      "key": "sys:playSound",
+      "batch": 29,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "pythonscript": {
+      "key": "sys:pythonscript",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "quickeroperations": {
+      "key": "sys:quickeroperations",
+      "batch": 30,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "randomNum": {
+      "key": "sys:randomNum",
+      "batch": 30,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "readFile": {
+      "key": "sys:readFile",
+      "batch": 31,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "readQrCode": {
+      "key": "sys:readQrCode",
+      "batch": 31,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "record": {
+      "key": "sys:record",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "recordSound": {
+      "key": "sys:recordSound",
+      "batch": 32,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "regexExtract": {
+      "key": "sys:regexExtract",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "repeat": {
+      "key": "sys:repeat",
+      "batch": 32,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "reportProgress": {
+      "key": "sys:reportProgress",
+      "batch": 33,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "restoreActiveWindow": {
+      "key": "sys:restoreActiveWindow",
+      "batch": 33,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "rhinocontrol": {
+      "key": "sys:rhinocontrol",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "run": {
+      "key": "sys:run",
+      "batch": 34,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "runAction": {
+      "key": "sys:runAction",
+      "batch": 34,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "runScript": {
+      "key": "sys:runScript",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "screenCapture": {
+      "key": "sys:screenCapture",
+      "batch": 35,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "screenCapturePro": {
+      "key": "sys:screenCapturePro",
+      "batch": 35,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "searchBmp": {
+      "key": "sys:searchBmp",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "select": {
+      "key": "sys:select",
+      "batch": 36,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "selectFile": {
+      "key": "sys:selectFile",
+      "batch": 36,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "SelectFileInExplorer": {
+      "key": "sys:SelectFileInExplorer",
+      "batch": 37,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "selectFolder": {
+      "key": "sys:selectFolder",
+      "batch": 37,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "sendKeys": {
+      "key": "sys:sendKeys",
+      "batch": 38,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "sendMessage": {
+      "key": "sys:sendMessage",
+      "batch": 38,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "shelloperation": {
+      "key": "sys:shelloperation",
+      "batch": 39,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "showImage": {
+      "key": "sys:showImage",
+      "batch": 39,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "showmenu": {
+      "key": "sys:showmenu",
+      "batch": 40,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "showText": {
+      "key": "sys:showText",
+      "batch": 40,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "showWaitWin": {
+      "key": "sys:showWaitWin",
+      "batch": 41,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "simpleIf": {
+      "key": "sys:simpleIf",
+      "batch": 41,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "smtp": {
+      "key": "sys:smtp",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "splitString": {
+      "key": "sys:splitString",
+      "batch": 42,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "stateStorage": {
+      "key": "sys:stateStorage",
+      "batch": 42,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "stop": {
+      "key": "sys:stop",
+      "batch": 43,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "strCompare": {
+      "key": "sys:strCompare",
+      "batch": 43,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "stringProcess": {
+      "key": "sys:stringProcess",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "strReplace": {
+      "key": "sys:strReplace",
+      "batch": 44,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "subprogram": {
+      "key": "sys:subprogram",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "tableoperation": {
+      "key": "sys:tableoperation",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "tempcloudstore": {
+      "key": "sys:tempcloudstore",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "tempImgBed": {
+      "key": "sys:tempImgBed",
+      "batch": 44,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "textCounter": {
+      "key": "sys:textCounter",
+      "batch": 45,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "textSelectTools": {
+      "key": "sys:textSelectTools",
+      "batch": 45,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "translation": {
+      "key": "sys:translation",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "uiautomation": {
+      "key": "sys:uiautomation",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "userInput": {
+      "key": "sys:userInput",
+      "batch": 46,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "waitClipboardChange": {
+      "key": "sys:waitClipboardChange",
+      "batch": 46,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "waitKeyboard": {
+      "key": "sys:waitKeyboard",
+      "batch": 47,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "websocket": {
+      "key": "sys:websocket",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "webview2": {
+      "key": "sys:webview2",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "whiteboard": {
+      "key": "sys:whiteboard",
+      "batch": 47,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": false,
+      "status": "done"
+    },
+    "windowOperations": {
+      "key": "sys:windowOperations",
+      "batch": 48,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "winservice": {
+      "key": "sys:winservice",
+      "batch": 48,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "writeClipboard": {
+      "key": "sys:writeClipboard",
+      "batch": 49,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "WriteImageFile": {
+      "key": "sys:WriteImageFile",
+      "batch": 49,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "WriteTextFile": {
+      "key": "sys:WriteTextFile",
+      "batch": 50,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    },
+    "zip": {
+      "key": "sys:zip",
+      "batch": 0,
+      "hasKc": true,
+      "hasExamples": true,
+      "liveRun": true,
+      "status": "done"
+    }
+  }
+}

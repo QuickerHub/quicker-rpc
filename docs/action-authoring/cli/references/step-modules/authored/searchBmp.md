@@ -17,6 +17,7 @@
 
 截图时勿悬停变色。自动点击用 `mouse`「移动到位图」类操作（不返坐标）。
 
+
 ## 示例
 
 <!-- QuickerModuleDoc examples -->

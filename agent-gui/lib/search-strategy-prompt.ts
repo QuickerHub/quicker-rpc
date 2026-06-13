@@ -6,7 +6,7 @@ const SEARCH_STRATEGY_ROWS = [
   "| Domain | Search | Then | Not |",
   "|--------|--------|------|-----|",
   "| Quicker action id / uses: refs | qkrpc_action_query | run/get/edit | invent GUID |",
-  "| Global subprogram | qkrpc_subprogram_query | get → callIdentifier | guess name |",
+  "| Global subprogram (name / uses: refs) | qkrpc_subprogram_query | get → callIdentifier | guess name |",
   "| Step module key | qkrpc_step_runner_search | qkrpc_step_runner_get | guess inputParams |",
   "| Authoring docs (workflow + references) | docs search → items[].snippet | docs get full topic | invent syntax |",
   "| Icons | qkrpc_fa search | set_metadata | guess fa: names |",

@@ -18,19 +18,24 @@ internal static class SubProgramProgramSerialization
         MissingMemberHandling = MissingMemberHandling.Ignore,
     };
 
-    public static JArray StepsToJArray(object? steps)
+    public static string StepsToJson(object? steps)
     {
         if (steps is null)
         {
-            return new JArray();
+            return "[]";
         }
 
         if (steps is System.Collections.ICollection collection && collection.Count == 0)
         {
-            return new JArray();
+            return "[]";
         }
 
-        var json = JsonConvert.SerializeObject(steps, BodyJson);
+        return JsonConvert.SerializeObject(steps, BodyJson);
+    }
+
+    public static JArray StepsToJArray(object? steps)
+    {
+        var json = StepsToJson(steps);
         return JArray.Parse(json);
     }
 

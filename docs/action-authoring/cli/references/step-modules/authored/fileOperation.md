@@ -33,6 +33,7 @@
 | 未备份即批量删除 | 不可恢复 |
 | 列举用错搜索语法 | 文件用后缀列表；夹用 regex 扫名称 |
 
+
 ## 示例
 
 <!-- QuickerModuleDoc examples -->

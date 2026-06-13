@@ -26,6 +26,10 @@ export function isComposerSubprogramTag(action: PinnedAction): boolean {
   return action.kind === "subprogram";
 }
 
+export function isComposerDesignerStepTag(action: PinnedAction): boolean {
+  return action.kind === "designer-step";
+}
+
 function composerFaIconClassName(isSubprogram: boolean): string {
   return isSubprogram ? COMPOSER_SUBPROGRAM_TAG_ICON_CLASS : COMPOSER_ACTION_FA_ICON_CLASS;
 }
@@ -47,6 +51,14 @@ function createFaSvgIcon(
 
 /** Build the leading icon node for a composer tag chip (DOM). */
 export function createComposerTagIconElement(action: PinnedAction): Element {
+  if (isComposerDesignerStepTag(action)) {
+    const icon = document.createElement("span");
+    icon.className =
+      "composer-prompt-tag__icon composer-prompt-tag__icon--designer-step";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "#";
+    return icon;
+  }
   const isSubprogram = isComposerSubprogramTag(action);
   const spec = resolveComposerTagIconSpec(action);
 

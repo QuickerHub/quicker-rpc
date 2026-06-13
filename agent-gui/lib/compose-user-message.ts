@@ -55,7 +55,17 @@ function pinnedActionFromTagAttrs(attrs: Record<string, string>): PinnedAction |
   const title = attrs["data-title"]?.trim();
   if (!id || !title) return null;
   const kindRaw = attrs["data-kind"]?.trim();
-  const kind = kindRaw === "subprogram" ? "subprogram" : "action";
+  const kind =
+    kindRaw === "subprogram"
+      ? "subprogram"
+      : kindRaw === "designer-step"
+        ? "designer-step"
+        : "action";
+  const stepIndexRaw = attrs["data-step-index"]?.trim();
+  const stepIndex =
+    stepIndexRaw && Number.isFinite(Number(stepIndexRaw))
+      ? Number(stepIndexRaw)
+      : undefined;
   return {
     id,
     title,
@@ -64,6 +74,11 @@ function pinnedActionFromTagAttrs(attrs: Record<string, string>): PinnedAction |
     description: attrs["data-desc"]?.trim() || undefined,
     icon: attrs["data-icon"]?.trim() || undefined,
     callIdentifier: attrs["data-call-id"]?.trim() || undefined,
+    entityId: attrs["data-entity-id"]?.trim() || undefined,
+    isSubProgram: attrs["data-is-subprogram"] === "1",
+    stepIndex,
+    stepId: attrs["data-step-id"]?.trim() || undefined,
+    stepRunnerKey: attrs["data-step-runner"]?.trim() || undefined,
   };
 }
 
@@ -75,6 +90,23 @@ export function formatActionTagMarkup(action: PinnedAction): string {
   ];
   if (action.kind === "subprogram") {
     attrs.push('data-kind="subprogram"');
+  } else if (action.kind === "designer-step") {
+    attrs.push('data-kind="designer-step"');
+    if (action.entityId?.trim()) {
+      attrs.push(`data-entity-id="${escapeAttrValue(action.entityId.trim())}"`);
+    }
+    if (action.isSubProgram) {
+      attrs.push('data-is-subprogram="1"');
+    }
+    if (typeof action.stepIndex === "number" && Number.isFinite(action.stepIndex)) {
+      attrs.push(`data-step-index="${action.stepIndex}"`);
+    }
+    if (action.stepId?.trim()) {
+      attrs.push(`data-step-id="${escapeAttrValue(action.stepId.trim())}"`);
+    }
+    if (action.stepRunnerKey?.trim()) {
+      attrs.push(`data-step-runner="${escapeAttrValue(action.stepRunnerKey.trim())}"`);
+    }
   }
   if (action.lastEditTimeLocal) {
     attrs.push(`data-last-edit="${escapeAttrValue(action.lastEditTimeLocal)}"`);

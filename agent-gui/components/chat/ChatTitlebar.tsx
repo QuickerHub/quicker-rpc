@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import type { ActionDesignerThreadRef } from "@/lib/action-designer-thread";
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
   addThread,
@@ -25,6 +26,10 @@ import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 type ChatTitlebarProps = {
   store: ChatStoreData;
   onChange: (next: ChatStoreData) => void;
+  /** When set, new tabs are tagged for this ActionDesigner window. */
+  actionDesigner?: ActionDesignerThreadRef;
+  /** Compact tabs for ActionDesigner WebView2 embed. */
+  designerEmbed?: boolean;
 };
 
 function IconChatTab() {
@@ -74,6 +79,8 @@ function TitlebarWindowControls({ isDesktop }: { isDesktop: boolean }) {
 export function ChatTitlebar({
   store,
   onChange,
+  actionDesigner,
+  designerEmbed = false,
 }: ChatTitlebarProps) {
   const tabsRef = useRef<HTMLDivElement>(null);
   const activeThread = useMemo(() => getActiveThread(store), [store]);
@@ -97,7 +104,12 @@ export function ChatTitlebar({
   };
 
   const handleNew = () => {
-    commit(addThread(store));
+    commit(
+      addThread(
+        store,
+        actionDesigner ? { actionDesigner } : undefined,
+      ),
+    );
   };
 
   const handleClose = (threadId: string) => {
@@ -144,6 +156,7 @@ export function ChatTitlebar({
   const titlebarClass = [
     "app-titlebar",
     "app-titlebar--tabs-only",
+    designerEmbed ? "app-titlebar--designer-embed" : "",
     shellKind === "tauri" ? "app-titlebar--tauri" : "",
     shellKind === "electron" ? "app-titlebar--electron" : "",
     isDesktop && platform !== "macos" ? "app-titlebar--frameless" : "",
@@ -210,7 +223,9 @@ export function ChatTitlebar({
                 >
                   <IconPlus />
                 </button>
-                <TitlebarDragRegion className="titlebar-drag-fill" />
+                {!designerEmbed ? (
+                  <TitlebarDragRegion className="titlebar-drag-fill" />
+                ) : null}
               </div>
             </div>
           </div>

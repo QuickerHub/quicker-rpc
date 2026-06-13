@@ -16,7 +16,7 @@
 | `adjunct/` | Non-authoring paths (e.g. `quicker-ui`) |
 | `partials/` | `{{#include-partial}}` shared fragments |
 
-Module deep refs (`step-modules/kc`, `authored`, `examples`) live in **`docs/authoring-references/`** — not generated from here.
+Module deep refs (`step-modules/kc`, `step-modules/authored`) live in **`docs/authoring-references/`** — not generated from here.
 
 ## Audience
 

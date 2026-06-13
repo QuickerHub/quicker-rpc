@@ -1,0 +1,25 @@
+---
+description: Quicker/qkrpc routing and hard rules for MCP agents (not QuickerAgent).
+globs:
+alwaysApply: true
+---
+
+# qkrpc agent rules
+
+## Before editing actions
+
+1. `docs_get` topic `overview`, then `authoring-workflow`
+2. For subprograms: `subprogram-workflow`
+
+## Hard rules
+
+- Step-runner: `qkrpc_step_runner_search` → `qkrpc_step_runner_get` — **never** guess `inputParams`
+- Disk edit: change `data.json` / `files/` → `qkrpc_sync push` — **no** inline patch
+- Connectivity: use `qkrpc_wait` on failure — **no** repeated shell ping/probe
+- On persistent failure: read skill **`quicker-rpc-knowledge`** (QuickerAgent action vs AI agent, bootstrap, user checklist)
+- Prefer MCP `qkrpc_*` tools over shell when configured
+- Destructive tools (`qkrpc_action_delete`, `qkrpc_subprogram_delete`) need user confirmation
+
+## Scope
+
+Third-party MCP agents do **not** have `workspace_program`. Use QuickerAgent for visual step editing and browser automation.

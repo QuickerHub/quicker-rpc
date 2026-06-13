@@ -9,14 +9,15 @@ internal static class HeadlessCliResponses
     {
         if (!response.Success || string.IsNullOrWhiteSpace(response.CompressedJson))
         {
-            return new
-            {
-                success = response.Success,
-                errorMessage = response.ErrorMessage,
-                actionId = response.ActionId,
-                editVersion = response.EditVersion,
-                returnMode = response.ReturnMode,
-            };
+        return new
+        {
+            success = response.Success,
+            errorMessage = response.ErrorMessage,
+            actionId = response.ActionId,
+            editVersion = response.EditVersion,
+            returnMode = response.ReturnMode,
+            readSource = response.ReadSource,
+        };
         }
 
         using var doc = JsonDocument.Parse(response.CompressedJson);
@@ -30,6 +31,7 @@ internal static class HeadlessCliResponses
             omitDefaultLiteralInputsApplied = response.OmitDefaultLiteralInputsApplied,
             subProgramCount = response.SubProgramCount,
             returnMode = response.ReturnMode,
+            readSource = response.ReadSource,
         };
     }
 
@@ -48,6 +50,9 @@ internal static class HeadlessCliResponses
             addedVariables = ParseJsonOrNull(response.AddedVariablesJson),
             updatedUtc = response.UpdatedUtc,
             warnings = ToWarningsArray(response.Warnings),
+            readSource = response.ReadSource,
+            appliedToDesigner = response.AppliedToDesigner,
+            persisted = response.Persisted,
         };
 
     public static object ToReplacePayload(QuickerRpcApplyXActionResult response) =>
@@ -90,6 +95,7 @@ internal static class HeadlessCliResponses
                 callIdentifier = response.CallIdentifier,
                 editVersion = response.EditVersion,
                 returnMode = response.ReturnMode,
+                readSource = response.ReadSource,
             };
         }
 
@@ -105,6 +111,7 @@ internal static class HeadlessCliResponses
             compressed = doc.RootElement.Clone(),
             omitDefaultLiteralInputsApplied = response.OmitDefaultLiteralInputsApplied,
             returnMode = response.ReturnMode,
+            readSource = response.ReadSource,
         };
     }
 
@@ -123,6 +130,9 @@ internal static class HeadlessCliResponses
             addedVariables = ParseJsonOrNull(response.AddedVariablesJson),
             updatedUtc = response.UpdatedUtc,
             warnings = ToWarningsArray(response.Warnings),
+            readSource = response.ReadSource,
+            appliedToDesigner = response.AppliedToDesigner,
+            persisted = response.Persisted,
         };
 
     public static object ToStepRunnerDetailPayload(QuickerRpcStepRunnerDetailResult response)

@@ -56,10 +56,20 @@ export async function importChatStoreMergeViaApi(
   return migrated;
 }
 
+const CHAT_STORE_FETCH_TIMEOUT_MS = 5_000;
+
 /** Load chat store from server SQLite; migrate localStorage on first empty DB. */
 export async function fetchChatStoreFromApi(): Promise<ChatStoreData> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    CHAT_STORE_FETCH_TIMEOUT_MS,
+  );
   try {
-    const res = await fetch("/api/chat-store?scope=active", { cache: "no-store" });
+    const res = await fetch("/api/chat-store?scope=active", {
+      cache: "no-store",
+      signal: controller.signal,
+    });
     if (!res.ok) {
       const local = loadLocalStorageForMigration();
       if (chatStoreHasPersistedMessages(local)) {
@@ -108,6 +118,8 @@ export async function fetchChatStoreFromApi(): Promise<ChatStoreData> {
     }
   } catch {
     /* fall through */
+  } finally {
+    window.clearTimeout(timeoutId);
   }
   return defaultChatStore();
 }

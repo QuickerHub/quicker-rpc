@@ -5,12 +5,12 @@
 
 **用途**：经 Quicker 浏览器扩展控制 Chrome/Edge/Firefox 标签页与页面脚本。
 
-**何时读**：`get` 定 `operation` 后；写步骤前读 **chromecontrol-authoring**；示例 JSON 读 `examples/chromecontrol`；KC 全文读 `kc/chromecontrol`。
+**何时读**：`get` 定 `operation` 后；写步骤前读 **chromecontrol-authoring**；KC 全文读 `kc/chromecontrol`。
 
 ## 示例
 
-见 `docs get` → `step-modules` / `reference=examples/chromecontrol`（OpenUrl、RunScript、元素读写、Wait 等 patch JSON）。
+见 **chromecontrol-authoring** 与 `docs_get_reference({ topic: "step-modules", file: "chromecontrol" })`（OpenUrl、RunScript、元素读写、Wait 等）；完整 patch JSON 亦见同文件扩展节。
 
 ## 相关
 
-chromecontrol-authoring · step-modules/examples/chromecontrol · step-runner-get · http
+chromecontrol-authoring · step-runner-get · http

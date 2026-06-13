@@ -72,9 +72,36 @@ public static class ProgramWireSchemaValidator
         "tableDef",
     };
 
+    /// <summary>Subprogram IO input param options (variables[].inputParamInfo) — see action-data-schema.</summary>
+    private static readonly string[] InputParamInfoFields =
+    {
+        "inputMethod",
+        "selectionItems",
+        "onlyUseSelect",
+        "isRequired",
+        "validationPattern",
+        "variableMode",
+        "textTools",
+        "replaceMode",
+        "isAdvanced",
+        "allowInput",
+        "multiLine",
+        "visibleExpression",
+        "skipEval",
+    };
+
+    private static readonly string[] OutputParamInfoFields =
+    {
+        "visibleExpression",
+    };
+
     private static readonly HashSet<string> AcceptedStepFields = BuildAcceptedNames(StepFields);
 
     private static readonly HashSet<string> AcceptedVariableFields = BuildAcceptedNames(VariableFields);
+
+    private static readonly HashSet<string> AcceptedInputParamInfoFields = BuildAcceptedNames(InputParamInfoFields);
+
+    private static readonly HashSet<string> AcceptedOutputParamInfoFields = BuildAcceptedNames(OutputParamInfoFields);
 
     private const string AllowedVarTypeNames =
         "text, number, integer, boolean, list, dict, enum, dateTime, image, table, object, any";
@@ -257,7 +284,70 @@ public static class ProgramWireSchemaValidator
             RequireType(varObj, "inputParamInfo", varPath, issues, JTokenType.Object, "a JSON object");
             RequireType(varObj, "outputParamInfo", varPath, issues, JTokenType.Object, "a JSON object");
             RequireType(varObj, "tableDef", varPath, issues, JTokenType.Object, "a JSON object");
+
+            if (ReadField(varObj, "inputParamInfo") is JObject inputInfo)
+            {
+                ValidateInputParamInfo(inputInfo, $"{varPath}.inputParamInfo", issues);
+            }
+
+            if (ReadField(varObj, "outputParamInfo") is JObject outputInfo)
+            {
+                ValidateOutputParamInfo(outputInfo, $"{varPath}.outputParamInfo", issues);
+            }
         }
+    }
+
+    private static void ValidateInputParamInfo(JObject info, string path, IList<SchemaIssue> issues)
+    {
+        foreach (var prop in info.Properties())
+        {
+            if (!AcceptedInputParamInfoFields.Contains(prop.Name))
+            {
+                Add(issues, "UNKNOWN_INPUT_PARAM_INFO_FIELD", $"{path}.{prop.Name}", prop,
+                    $"Unknown inputParamInfo field \"{prop.Name}\".{SuggestText(prop.Name, InputParamInfoFields)}");
+            }
+        }
+
+        RequireType(info, "selectionItems", path, issues, JTokenType.String, "a string");
+        RequireType(info, "validationPattern", path, issues, JTokenType.String, "a string");
+        RequireType(info, "textTools", path, issues, JTokenType.String, "a string");
+        RequireType(info, "visibleExpression", path, issues, JTokenType.String, "a string");
+        RequireType(info, "onlyUseSelect", path, issues, JTokenType.Boolean, "true or false");
+        RequireType(info, "isRequired", path, issues, JTokenType.Boolean, "true or false");
+        RequireType(info, "isAdvanced", path, issues, JTokenType.Boolean, "true or false");
+        RequireType(info, "allowInput", path, issues, JTokenType.Boolean, "true or false");
+        RequireType(info, "multiLine", path, issues, JTokenType.Boolean, "true or false");
+        RequireType(info, "skipEval", path, issues, JTokenType.Boolean, "true or false");
+        RequireNumber(info, "inputMethod", path, issues);
+        RequireNumber(info, "variableMode", path, issues);
+        RequireNumber(info, "replaceMode", path, issues);
+    }
+
+    private static void ValidateOutputParamInfo(JObject info, string path, IList<SchemaIssue> issues)
+    {
+        foreach (var prop in info.Properties())
+        {
+            if (!AcceptedOutputParamInfoFields.Contains(prop.Name))
+            {
+                Add(issues, "UNKNOWN_OUTPUT_PARAM_INFO_FIELD", $"{path}.{prop.Name}", prop,
+                    $"Unknown outputParamInfo field \"{prop.Name}\".{SuggestText(prop.Name, OutputParamInfoFields)}");
+            }
+        }
+
+        RequireType(info, "visibleExpression", path, issues, JTokenType.String, "a string");
+    }
+
+    private static void RequireNumber(JObject obj, string canonicalField, string parentPath, IList<SchemaIssue> issues)
+    {
+        var token = ReadField(obj, canonicalField);
+        if (token is null
+            || token.Type is JTokenType.Null or JTokenType.Integer or JTokenType.Float)
+        {
+            return;
+        }
+
+        Add(issues, "INVALID_FIELD_TYPE", $"{parentPath}.{canonicalField}", token,
+            $"\"{canonicalField}\" must be a number.");
     }
 
     private static void RequireType(

@@ -16,6 +16,7 @@ public sealed class QkrpcMcpWorkspaceTools
         + "Edit .quicker/.../data.json and files/ with your host Read/Write/StrReplace tools. "
         + "Layout: MCP resource quicker://workspace/readme or docs get topic=workspace-editing. "
         + "actions: projects_list | reindex | patch | validate | diagnostics. "
+        + "Optional workspaceRoot overrides host workspace when needed. "
         + "pull: qkrpc_action_get / qkrpc_subprogram_get.")]
     public Task<string> WorkspaceProgram(
         string action,
@@ -25,7 +26,8 @@ public sealed class QkrpcMcpWorkspaceTools
         bool force = false,
         long? editVersion = null,
         int? waitMs = null,
+        string? workspaceRoot = null,
         CancellationToken cancellationToken = default) =>
         new WorkspaceProgramMcpService(_runtime).ExecuteAsync(
-            action, target, id, subProgramId, force, editVersion, waitMs, cancellationToken);
+            action, target, id, subProgramId, force, editVersion, waitMs, workspaceRoot, cancellationToken);
 }

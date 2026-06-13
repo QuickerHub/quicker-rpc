@@ -49,7 +49,7 @@ One **evalexpression** step can write **many** action variables:
 | `quicker-eval-expression` | `expressions` | full guide (Z.Expressions, globals, multi-var) |
 | `quicker-eval-expression` | `evalexpression-examples` | sys:evalexpression step JSON |
 | `expressions` | — | same full guide (authoring topic alias) |
-| `step-modules` | `examples/evalexpression` | step JSON (catalog path) |
+| `step-modules` | `evalexpression` | step JSON (authored ref) |
 | `implementation-fallback` | — | expressions vs module vs csscript |
 
 Load this skill first for expression tasks; deep-read one topic at a time when stuck.

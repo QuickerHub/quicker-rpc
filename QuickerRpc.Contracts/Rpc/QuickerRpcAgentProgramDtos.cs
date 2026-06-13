@@ -56,6 +56,9 @@ public sealed class QuickerRpcGetCompressedActionResult
 
     /// <summary>full | structure | metadata</summary>
     public string? ReturnMode { get; set; }
+
+    /// <summary>catalog | action-designer — where program body was read.</summary>
+    public string? ReadSource { get; set; }
 }
 
 public sealed class QuickerRpcApplyXActionResult
@@ -130,6 +133,15 @@ public sealed class QuickerRpcApplyActionPatchResult
 
     /// <summary>Non-fatal issues (e.g. unknown inputParams keys). Save may still succeed.</summary>
     public IList<string> Warnings { get; set; } = new List<string>();
+
+    /// <summary>catalog | action-designer</summary>
+    public string? ReadSource { get; set; }
+
+    /// <summary>True when patch was applied to open Action Designer memory only.</summary>
+    public bool? AppliedToDesigner { get; set; }
+
+    /// <summary>False when changes were not written to Quicker catalog storage.</summary>
+    public bool? Persisted { get; set; }
 }
 
 public sealed class QuickerRpcSearchActionSummariesResult
@@ -302,6 +314,9 @@ public sealed class QuickerRpcGetCompressedSubProgramResult
 
     /// <summary>full | structure | metadata</summary>
     public string? ReturnMode { get; set; }
+
+    /// <summary>catalog | action-designer</summary>
+    public string? ReadSource { get; set; }
 }
 
 public sealed class QuickerRpcCreateSubProgramResult
@@ -345,6 +360,13 @@ public sealed class QuickerRpcApplySubProgramPatchResult
 
     /// <summary>Non-fatal issues (e.g. unknown inputParams keys). Save may still succeed.</summary>
     public IList<string> Warnings { get; set; } = new List<string>();
+
+    /// <summary>catalog | action-designer</summary>
+    public string? ReadSource { get; set; }
+
+    public bool? AppliedToDesigner { get; set; }
+
+    public bool? Persisted { get; set; }
 }
 
 /// <summary>Read/write custom clipboard formats (e.g. quicker-action-steps) for web step editor interop.</summary>

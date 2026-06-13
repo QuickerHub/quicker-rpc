@@ -62,6 +62,6 @@ internal static class QkrpcMcpWorkspaceReadme
         - MCP 资源：`quicker://workspace/readme`、`quicker://workspace/index`
         - Skill：**quicker-authoring**
 
-        环境变量：`QKRPC_WORKSPACE_ROOT` = 含 `.quicker` 的项目根目录。
+        环境变量：默认跟随 MCP 宿主当前工作区（`QKRPC_WORKSPACE_ROOT=${workspaceFolder}` 或 MCP roots）。固定目录：`qkrpc agent setup --workspace <path>`。
         """;
 }

@@ -21,6 +21,9 @@ export const chatThreads = sqliteTable("chat_threads", {
   messageCount: integer("message_count"),
   sortIndex: integer("sort_index").notNull().default(0),
   workspaceId: text("workspace_id"),
+  workingDirectory: text("working_directory").notNull().default(""),
+  actionDesignerEntityId: text("action_designer_entity_id"),
+  actionDesignerIsSubProgram: integer("action_designer_is_sub_program"),
 });
 
 export const chatThreadMessages = sqliteTable("chat_thread_messages", {

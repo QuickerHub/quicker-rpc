@@ -75,9 +75,13 @@ import { ChatStoragePortBanner } from "@/components/dev/ChatStoragePortBanner";
 import { ReleasePreviewBanner } from "@/components/dev/ReleasePreviewBanner";
 import { ChatConversationHeader } from "@/components/chat/ChatConversationHeader";
 import { WorkspaceSidePanelTabBar } from "@/components/workspace/WorkspaceSidePanelTabBar";
+import { actionDesignerRefFromEmbed } from "@/lib/action-designer-thread";
+import { useActionDesignerEmbed } from "@/lib/designer-embed-context";
+import { useDesignerContext } from "@/lib/use-designer-context";
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import { useAppMainSplit } from "@/lib/use-app-main-split";
 import { ChatTitlebar } from "@/components/chat/ChatTitlebar";
+import { DesignerEmbedContextBar } from "@/components/chat/DesignerEmbedContextBar";
 import { SidebarToggle } from "@/components/chat/SidebarToggle";
 import { DocsViewerProvider } from "@/lib/docs-viewer";
 import {
@@ -225,6 +229,7 @@ type ChatPanelProps = {
     options?: { notify?: boolean },
   ) => void;
   onAutoTitle: (threadId: string, title: string) => void;
+  designerEmbed?: boolean;
 };
 
 function ChatPanel({
@@ -243,6 +248,7 @@ function ChatPanel({
   onOpenSettings,
   onPersist,
   onAutoTitle,
+  designerEmbed = false,
 }: ChatPanelProps) {
   const [editAnchorLiveDraft, setEditAnchorLiveDraft] = useState("");
   const [editAnchorMessageId, setEditAnchorMessageId] = useState<string | null>(
@@ -1223,7 +1229,7 @@ function ChatPanel({
     <ChatToolActionsProvider addToolOutput={addToolOutput}>
     <div
       ref={appMainRef}
-      className={`app-main${isEmptyThread ? " app-main--empty" : ""}${panelOpen ? " app-main--side-open" : ""}${visible ? "" : " app-main--hidden"}`}
+      className={`app-main${isEmptyThread ? " app-main--empty" : ""}${panelOpen ? " app-main--side-open" : ""}${designerEmbed ? " app-main--designer-embed" : ""}${visible ? "" : " app-main--hidden"}`}
       style={splitStyle}
       aria-hidden={visible ? undefined : true}
     >
@@ -1369,6 +1375,7 @@ function ChatPanel({
         onEditAnchorDraftChange={setEditAnchorLiveDraft}
         voiceInterruptRef={voiceInterruptRef}
         workingDirectory={workingDirectory}
+        designerEmbed={designerEmbed}
       />
         </div>
         {visible ? <WorkspaceExplorerPanel /> : null}
@@ -1379,6 +1386,13 @@ function ChatPanel({
 }
 
 export function Chat() {
+  const designerEmbed = useActionDesignerEmbed();
+  const designerThreadRef = useMemo(
+    () => actionDesignerRefFromEmbed(designerEmbed),
+    [designerEmbed.scoped, designerEmbed.entityId, designerEmbed.isSubProgram],
+  );
+  const showMainChrome = !designerEmbed.enabled;
+  const showDesignerDebugSidebar = designerEmbed.debugMode;
   const { store, defaultCwd, defaultCwdProfile, defaultCwdReady, updateStore } =
     useChatStore();
   const chatStoreHydrated = useIsChatStoreHydrated();
@@ -1462,10 +1476,12 @@ export function Chat() {
   }, [chatStoreHydrated, store, hydratedOpenTabs, updateStore]);
 
   useLayoutEffect(() => {
-    const collapsed = loadSidebarCollapsed();
+    const collapsed = designerEmbed.debugMode
+      ? false
+      : loadSidebarCollapsed();
     setSidebarCollapsed(collapsed);
     applySidebarCollapsed(collapsed);
-  }, []);
+  }, [designerEmbed.debugMode]);
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => {
@@ -1586,7 +1602,7 @@ export function Chat() {
   }, [settingsOpen, closeSettings, openSettings]);
 
   const resolveThreadCwd = useCallback(
-    (thread: { workspaceId?: string }) =>
+    (thread: { workspaceId?: string; workingDirectory?: string }) =>
       resolveThreadWorkingDirectory(thread, store, defaultCwd),
     [store, defaultCwd],
   );
@@ -1599,26 +1615,31 @@ export function Chat() {
   return (
     <WorkspaceExplorerShellProvider>
     <div
-      className={`app-shell${sidebarCollapsed ? " app-shell--sidebar-collapsed" : ""}`}
+      className={`app-shell${sidebarCollapsed ? " app-shell--sidebar-collapsed" : ""}${designerEmbed.enabled ? " app-shell--designer-embed" : ""}${designerEmbed.debugMode ? " app-shell--designer-embed-debug" : ""}`}
       suppressHydrationWarning
     >
-        <div className="app-shell-toggle-slot">
-          <SidebarToggle
-            sidebarOpen={!sidebarCollapsed}
-            onClick={toggleSidebar}
-            className="shell-sidebar-toggle"
-          />
-        </div>
-        <div className="workspace-rail" aria-hidden={sidebarCollapsed}>
-          <ChatSidebar
-            store={store}
-            defaultCwd={defaultCwd}
-            defaultCwdProfile={defaultCwdProfile}
-            defaultCwdReady={defaultCwdReady}
-            onChange={updateStore}
-            onActivateThread={handleActivateThread}
-          />
-        </div>
+        {(showMainChrome || showDesignerDebugSidebar) ? (
+          <div className="app-shell-toggle-slot">
+            <SidebarToggle
+              sidebarOpen={!sidebarCollapsed}
+              onClick={toggleSidebar}
+              className="shell-sidebar-toggle"
+            />
+          </div>
+        ) : null}
+        {(showMainChrome || showDesignerDebugSidebar) ? (
+          <div className="workspace-rail" aria-hidden={sidebarCollapsed}>
+            <ChatSidebar
+              store={store}
+              defaultCwd={defaultCwd}
+              defaultCwdProfile={defaultCwdProfile}
+              defaultCwdReady={defaultCwdReady}
+              onChange={updateStore}
+              onActivateThread={handleActivateThread}
+              groupBy={designerEmbed.debugMode ? "actionDesigner" : "cwd"}
+            />
+          </div>
+        ) : null}
         <div className="app-main-column">
           <WorkspaceExplorerPanelProvider
             cwd={activeThreadWorkingDirectory}
@@ -1629,14 +1650,26 @@ export function Chat() {
               <EmbeddedTerminalTabsProvider>
               <EmbeddedTerminalProvider>
               <EmbeddedBrowserTabsProvider>
-              <ThreadSidePanelSync activeThreadId={activeThread.id} />
-              <WorkspaceMainEditorTabBridgeRegistrar />
+              {showMainChrome ? (
+                <ThreadSidePanelSync activeThreadId={activeThread.id} />
+              ) : null}
+              {showMainChrome ? <WorkspaceMainEditorTabBridgeRegistrar /> : null}
               <ChatTitlebar
                 store={storeWithOpenTabMessages}
                 onChange={updateStore}
+                actionDesigner={designerThreadRef}
+                designerEmbed={designerEmbed.scoped}
               />
-              <ChatStoragePortBanner store={storeWithOpenTabMessages} />
-              <ReleasePreviewBanner />
+              {designerEmbed.scoped ? <DesignerEmbedContextBar /> : null}
+              {designerEmbed.debugMode ? (
+                <div className="designer-embed-debug-banner" role="status">
+                  设计器调试模式 · 左侧列出所有 ActionDesigner 对话
+                </div>
+              ) : null}
+              {showMainChrome ? (
+                <ChatStoragePortBanner store={storeWithOpenTabMessages} />
+              ) : null}
+              {showMainChrome ? <ReleasePreviewBanner /> : null}
               <div className="app-content-row">
                 <div className="app-main-shell">
                   <AppMainWorkspaceSplit>
@@ -1663,6 +1696,7 @@ export function Chat() {
                         onOpenSettings={openSettings}
                         onPersist={persistMessages}
                         onAutoTitle={handleAutoTitle}
+                        designerEmbed={designerEmbed.enabled}
                       />
                     ))}
                     {ephemeralLauncherRuns.map((run) => (

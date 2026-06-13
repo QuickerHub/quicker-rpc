@@ -17,6 +17,7 @@
 
 凭据用 **stateStorage** 等本地存，勿写进可分享动作。禁止群发垃圾邮件。
 
+
 ## 示例
 
 <!-- QuickerModuleDoc examples -->

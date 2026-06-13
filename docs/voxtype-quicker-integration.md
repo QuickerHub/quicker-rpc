@@ -53,7 +53,7 @@ Quicker 动作 / 面板按钮
 ### VoxType_Run 流程
 
 1. **本地扫描** `_packages/voxtype.plugin/*/VoxType.Plugin*.dll`（开发回退）
-2. 若无本地 DLL → **依赖下载_混合模式_v4**（包名 `voxtype.plugin`，zip `VoxType.Plugin`）
+2. 若无本地 DLL → **依赖下载_混合模式_v2**（包名 `voxtype.plugin`，zip `VoxType.Plugin`）
 3. **QExpr** 注册 `load {dll_path}` + `type VoxType.Plugin.Launcher, {dll_path}`
 4. 执行 `Launcher.StartFromQuickerInParam({command}, _context)`
 

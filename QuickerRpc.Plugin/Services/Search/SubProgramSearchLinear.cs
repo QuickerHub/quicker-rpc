@@ -13,7 +13,15 @@ internal static class SubProgramSearchLinear
     public static IReadOnlyList<SearchHit> Search(
         IEnumerable<SubProgram> subPrograms,
         string? query,
-        int limit)
+        int limit) =>
+        Search(subPrograms, query, limit, subProgramFilter: null, emptyKeywordScore: 0);
+
+    public static IReadOnlyList<SearchHit> Search(
+        IEnumerable<SubProgram> subPrograms,
+        string? query,
+        int limit,
+        Func<SubProgram, bool>? subProgramFilter,
+        int emptyKeywordScore)
     {
         var keyword = (query ?? string.Empty).Trim();
         var hits = new List<SearchHit>();
@@ -25,10 +33,15 @@ internal static class SubProgramSearchLinear
                 continue;
             }
 
+            if (subProgramFilter is not null && !subProgramFilter(subProgram))
+            {
+                continue;
+            }
+
             var entry = MapEntry(subProgram);
             var document = entry.ToDocument();
             var score = keyword.Length == 0
-                ? 0
+                ? emptyKeywordScore
                 : SubProgramSearchScorer.ScoreDocument(document, keyword);
             if (keyword.Length > 0 && score <= 0)
             {
@@ -77,6 +90,18 @@ internal static class SubProgramSearchLinear
             Score = hit.Score,
         };
     }
+
+    public static QuickerRpcSubProgramSummary MapSummary(SubProgram subProgram, int score) =>
+        new()
+        {
+            Id = (subProgram.Id ?? string.Empty).Trim(),
+            Name = subProgram.Name ?? string.Empty,
+            Description = NullIfEmpty(subProgram.Description),
+            Score = score,
+            SharedId = NullIfEmpty(subProgram.SharedId),
+            CallIdentifier = DataServiceSubProgramAccessor.GetCallIdentifier(subProgram),
+            Icon = NullIfEmpty(subProgram.Icon),
+        };
 
     private static SubProgramSearchEntry MapEntry(SubProgram subProgram) =>
         new()

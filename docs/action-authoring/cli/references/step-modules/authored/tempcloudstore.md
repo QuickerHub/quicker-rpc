@@ -16,6 +16,7 @@
 
 勿违法内容、勿大规模分发。输出「网址」可配合二维码展示。
 
+
 ## 示例
 
 <!-- QuickerModuleDoc examples -->

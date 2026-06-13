@@ -65,7 +65,9 @@ import {
   preloadComposerTagIcons,
 } from "@/lib/composer-tag-present";
 import { subscribeFaIconCache } from "@/lib/fa-icon-cache";
-import { useActionMentionSearch } from "@/lib/use-action-mention-search";
+import { useActionDesignerEmbed } from "@/lib/designer-embed-context";
+import { useDesignerContext } from "@/lib/use-designer-context";
+import { useDesignerAwareMentionSearch } from "@/lib/use-designer-aware-mention-search";
 import { useComposerTagPreview } from "@/lib/use-composer-tag-preview";
 import { ComposerMentionMenu } from "./ComposerMentionMenu";
 import { ComposerSlashMenu } from "./ComposerSlashMenu";
@@ -163,7 +165,13 @@ export const ComposerMarkupField = forwardRef<
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionAnchorRect, setMentionAnchorRect] = useState<DOMRect | null>(null);
   const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
-  const mentionSearch = useActionMentionSearch(mentionQuery);
+  const designerEmbed = useActionDesignerEmbed();
+  const designerContext = useDesignerContext(designerEmbed.enabled);
+  const mentionSearch = useDesignerAwareMentionSearch(
+    mentionQuery,
+    designerEmbed,
+    designerContext,
+  );
   const mentionOpen = mentionQuery !== null && !disabled;
   const mentionItems = mentionSearch.items;
 
@@ -819,6 +827,7 @@ export const ComposerMarkupField = forwardRef<
         search={mentionSearch}
         activeIndex={mentionActiveIndex}
         onSelect={applyMentionSelection}
+        designerEmbed={designerEmbed.enabled}
       />
       <ComposerSlashMenu
         open={slashOpen}

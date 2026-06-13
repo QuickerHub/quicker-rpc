@@ -42,6 +42,10 @@ subprogram search/get → workspace_program edit → patch
 | edit | workspace_program read/edit (global_subprogram) |
 | save | workspace_program patch |
 
+**IO params**: `isInput` / `isOutput` + `paramName` on variables[]; per-param UI/binding options (`isRequired`, `selectionItems`, `isAdvanced`, `visibleExpression`, `skipEval` = pass value verbatim without `{var}` / `$$` / `$=` parsing) in `inputParamInfo` / `outputParamInfo` — see **action-data-schema**.
+
+**Reference lookup** (same query prefixes as action list/search): `subprogram search` query `uses:<idOrName>` finds global subprograms calling the target; `uses-only:<idOrName>` = dedicated wrappers; `source:published|local` and `shared:<sharedId>` filter by share state. Actions calling a subprogram: `action search` query `uses:<idOrName>`.
+
 ## B. Call from action
 
 ```text

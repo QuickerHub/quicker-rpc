@@ -11,11 +11,14 @@ import {
   ensureWorkspacesMigrated,
   getActiveWorkspace,
   getWorkspaceById,
+  inheritThreadWorkingDirectory,
+  migrateThreadWorkingDirectories,
   remapThreadsToKnownWorkspaces,
   syncLegacyWorkingDirectory,
   threadsForWorkspace,
   type ChatWorkspace,
 } from "@/lib/chat-workspace";
+import type { ActionDesignerThreadRef } from "@/lib/action-designer-thread";
 import { deriveProvisionalThreadTitle } from "@/lib/thread-title";
 import { chatMessagesEqual } from "@/lib/chat-message-signature";
 
@@ -25,6 +28,8 @@ export {
   defaultWorkspaceLabel,
   getActiveWorkspace,
   getWorkspaceById,
+  inheritThreadWorkingDirectory,
+  migrateThreadWorkingDirectories,
   resolveThreadWorkingDirectory,
   threadsForWorkspace,
 } from "@/lib/chat-workspace";
@@ -34,7 +39,11 @@ export type ChatThread = {
   title: string;
   messages: AgentUIMessage[];
   updatedAt: number;
-  /** Workspace this thread belongs to (see ChatStoreData.workspaces). */
+  /** Per-thread working directory; empty = server default cwd. */
+  workingDirectory?: string;
+  /** ActionDesigner that created / owns this thread (embed mode). */
+  actionDesigner?: ActionDesignerThreadRef;
+  /** @deprecated Legacy workspace linkage; prefer workingDirectory. */
   workspaceId?: string;
   /** LLM title applied; legacy threads with a derived title are treated as done. */
   titleGenerated?: boolean;
@@ -112,7 +121,11 @@ export function deriveThreadTitle(messages: AgentUIMessage[]): string {
   return deriveProvisionalThreadTitle(messages);
 }
 
-function createThread(workspaceId?: string): ChatThread {
+function createThread(options?: {
+  workspaceId?: string;
+  workingDirectory?: string;
+  actionDesigner?: ActionDesignerThreadRef;
+}): ChatThread {
   const ts = now();
   return {
     id: createId(),
@@ -122,7 +135,9 @@ function createThread(workspaceId?: string): ChatThread {
     titleGenerated: false,
     titleManual: false,
     messageCount: 0,
-    workspaceId,
+    workingDirectory: options?.workingDirectory?.trim() ?? "",
+    actionDesigner: options?.actionDesigner,
+    workspaceId: options?.workspaceId,
   };
 }
 
@@ -211,7 +226,10 @@ export function compactEmptyThreads(data: ChatStoreData): ChatStoreData {
   const migrated = ensureWorkspacesMigrated(data);
   if (migrated.threads.length === 0) {
     const workspaceId = migrated.activeWorkspaceId;
-    const thread = createThread(workspaceId);
+    const thread = createThread({
+      workspaceId,
+      workingDirectory: inheritThreadWorkingDirectory(migrated),
+    });
     return {
       ...migrated,
       threads: [thread],
@@ -250,7 +268,7 @@ export function compactEmptyThreads(data: ChatStoreData): ChatStoreData {
 
 export function defaultChatStore(): ChatStoreData {
   const workspace = createWorkspace();
-  const thread = createThread(workspace.id);
+  const thread = createThread({ workspaceId: workspace.id, workingDirectory: "" });
   return {
     version: CHAT_STORE_VERSION,
     activeThreadId: thread.id,
@@ -339,8 +357,10 @@ export function coerceChatStoreShape(data: ChatStoreData): ChatStoreData {
 
 /** Normalize tab strip and empty-thread policy after load or legacy merge. */
 export function normalizeLoadedStore(data: ChatStoreData): ChatStoreData {
-  const migrated = remapThreadsToKnownWorkspaces(
-    ensureWorkspacesMigrated(coerceChatStoreShape(data)),
+  const migrated = migrateThreadWorkingDirectories(
+    remapThreadsToKnownWorkspaces(
+      ensureWorkspacesMigrated(coerceChatStoreShape(data)),
+    ),
   );
   const openTabIds = normalizeOpenTabIds(
     migrated.openTabIds,
@@ -469,9 +489,24 @@ function normalizeThreads(raw: unknown): ChatThread[] {
       titleManual: t.titleManual === true,
       messageCount: messages.length,
       workspaceId: typeof t.workspaceId === "string" ? t.workspaceId : undefined,
+      workingDirectory:
+        typeof t.workingDirectory === "string" ? t.workingDirectory : undefined,
+      actionDesigner: normalizeActionDesignerRef(
+        (t as { actionDesigner?: unknown }).actionDesigner,
+      ),
     });
   }
   return threads;
+}
+
+function normalizeActionDesignerRef(
+  raw: unknown,
+): ActionDesignerThreadRef | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const item = raw as Partial<ActionDesignerThreadRef>;
+  const entityId = typeof item.entityId === "string" ? item.entityId.trim() : "";
+  if (!entityId) return undefined;
+  return { entityId, isSubProgram: item.isSubProgram === true };
 }
 
 function normalizeStore(raw: unknown): ChatStoreData {
@@ -933,10 +968,21 @@ export function updateThreadMessages(
 
 export function addThread(
   data: ChatStoreData,
-  options?: { workspaceId?: string },
+  options?: {
+    workspaceId?: string;
+    workingDirectory?: string;
+    actionDesigner?: ActionDesignerThreadRef;
+  },
 ): ChatStoreData {
   const workspaceId = options?.workspaceId ?? data.activeWorkspaceId;
-  const thread = createThread(workspaceId);
+  const workingDirectory =
+    options?.workingDirectory?.trim()
+    ?? inheritThreadWorkingDirectory(data);
+  const active = data.threads.find((item) => item.id === data.activeThreadId);
+  const actionDesigner =
+    options?.actionDesigner
+    ?? active?.actionDesigner;
+  const thread = createThread({ workspaceId, workingDirectory, actionDesigner });
   const activeIndex = data.threads.findIndex((t) => t.id === data.activeThreadId);
   const insertAt = activeIndex >= 0 ? activeIndex + 1 : data.threads.length;
   const threads = [...data.threads];
@@ -995,7 +1041,10 @@ export function closeTab(data: ChatStoreData, threadId: string): ChatStoreData {
         activeThreadId = existingEmpty.id;
         openTabIds.push(existingEmpty.id);
       } else {
-        const thread = createThread(data.activeWorkspaceId);
+        const thread = createThread({
+          workspaceId: data.activeWorkspaceId,
+          workingDirectory: inheritThreadWorkingDirectory(data),
+        });
         threads = [...threads, thread];
         activeThreadId = thread.id;
         openTabIds.push(thread.id);
@@ -1023,7 +1072,10 @@ export function deleteThread(data: ChatStoreData, threadId: string): ChatStoreDa
     } else if (threads.length > 0) {
       activeThreadId = threads[Math.min(index, threads.length - 1)]!.id;
     } else {
-      const thread = createThread(data.activeWorkspaceId);
+      const thread = createThread({
+        workspaceId: data.activeWorkspaceId,
+        workingDirectory: inheritThreadWorkingDirectory(data),
+      });
       threads = [thread];
       activeThreadId = thread.id;
       openTabIds = [thread.id];
@@ -1036,7 +1088,10 @@ export function deleteThread(data: ChatStoreData, threadId: string): ChatStoreDa
       activeThreadId = existingEmpty.id;
       openTabIds = [existingEmpty.id];
     } else {
-      const thread = createThread(data.activeWorkspaceId);
+      const thread = createThread({
+        workspaceId: data.activeWorkspaceId,
+        workingDirectory: inheritThreadWorkingDirectory(data),
+      });
       threads = [...threads, thread];
       activeThreadId = thread.id;
       openTabIds = [thread.id];
@@ -1086,11 +1141,30 @@ export function updateThreadTitle(
   };
 }
 
+export function setThreadWorkingDirectory(
+  data: ChatStoreData,
+  threadId: string,
+  workingDirectory: string,
+): ChatStoreData {
+  const trimmed = workingDirectory.trim();
+  const threads = data.threads.map((thread) =>
+    thread.id === threadId ? { ...thread, workingDirectory: trimmed } : thread,
+  );
+  let next: ChatStoreData = { ...data, threads };
+  if (threadId === data.activeThreadId) {
+    next = syncLegacyWorkingDirectory({
+      ...next,
+      workingDirectory: trimmed,
+    });
+  }
+  return next;
+}
+
 export function setWorkingDirectory(
   data: ChatStoreData,
   workingDirectory: string,
 ): ChatStoreData {
-  return setWorkspaceRootPath(data, data.activeWorkspaceId, workingDirectory);
+  return setThreadWorkingDirectory(data, data.activeThreadId, workingDirectory);
 }
 
 export function selectWorkspace(

@@ -1358,6 +1358,21 @@ public sealed class QuickerRpcService : IQuickerRpcService
         });
     }
 
+    public Task<QuickerRpcDesignerContextResult> GetActionDesignerContextAsync(
+        bool includeXAction = false,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            QuickerDispatcherInvoke.OnUiThreadIfNeeded(
+                () => ActionDesignerContextSnapshot.Collect(includeXAction))
+            ?? new QuickerRpcDesignerContextResult
+            {
+                Ok = false,
+                Message = "Designer context unavailable.",
+            });
+    }
+
     private static string ToSearchIndexRegionName(SearchRegion region) =>
         region switch
         {

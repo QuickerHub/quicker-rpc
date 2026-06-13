@@ -141,6 +141,62 @@ public sealed class QuickerExeReleaseScanTests
             "DataService save wrapper should invoke TriggerSync.");
     }
 
+    [TestMethod]
+    public void Scan_ActionDesigner_paste_refresh_stable_surface()
+    {
+        if (!TryLoadRelease(out var assembly))
+        {
+            return;
+        }
+
+        WriteLine("UpdateXActionUi: CeaQuicker anchor CheckIfCanSave+6, then void()-token fallback.");
+        if (!QuickerActionDesignerReflection.TryVerifyPasteRefreshSurface(assembly, out var missing))
+        {
+            Assert.Fail("Release Quicker.exe: paste refresh surface missing: " + missing);
+        }
+
+        var designerType = QuickerActionDesignerReflection.TryGetDesignerWindowType(assembly);
+        Assert.IsNotNull(designerType);
+
+        var byAnchor = QuickerActionDesignerReflection.TryFindMethodByNameListAnchorOffset(
+            designerType!,
+            QuickerActionDesignerReflection.UpdateUiAnchorMethodName,
+            QuickerActionDesignerReflection.UpdateXActionUiAnchorOffset);
+        Assert.IsNotNull(byAnchor, "CheckIfCanSave+6 did not resolve UpdateXActionUi on Release.");
+
+        var updateUi = QuickerActionDesignerReflection.TryFindUpdateXActionUiMethod(designerType!);
+        Assert.IsNotNull(updateUi, "UpdateXActionUi not resolved on Release.");
+        Assert.AreEqual(byAnchor!.MetadataToken, updateUi!.MetadataToken);
+        QuickerAssemblyReflection.WriteMethodDetail(updateUi, WriteLine);
+
+        var voidMethods = QuickerActionDesignerReflection.GetDeclaredVoidNoArgInstanceMethods(designerType!);
+        Assert.AreEqual(
+            QuickerActionDesignerReflection.ClearNotUsedInternalSubProgramsAnchorName,
+            voidMethods[QuickerActionDesignerReflection.ClearNotUsedInternalSubProgramsAnchorIndex].Name);
+
+        var saveState = QuickerActionDesignerReflection.TryFindDoSaveActionStateMethod(designerType!);
+        if (saveState is not null)
+        {
+            WriteLine("DoSaveActionState candidate:");
+            QuickerAssemblyReflection.WriteMethodDetail(saveState, WriteLine);
+        }
+
+        var restore = QuickerActionDesignerReflection.TryFindRestoreStateMethod(designerType!, assembly);
+        if (restore is not null)
+        {
+            WriteLine("RestoreState(ActionStepsDto) candidate:");
+            QuickerAssemblyReflection.WriteMethodDetail(restore, WriteLine);
+        }
+        else
+        {
+            WriteLine("RestoreState(ActionStepsDto): not uniquely resolved (optional).");
+        }
+
+        var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        Assert.IsNotNull(designerType!.GetField("ToolContent", flags), "Release: ToolContent field required for tab sync.");
+        Assert.IsNotNull(designerType.GetProperty("TheToolbox", flags), "Release: TheToolbox property required for module tab sync.");
+    }
+
     private bool TryLoadRelease(out Assembly assembly)
     {
         var path = QuickerExeProbePaths.ResolveReleaseQuickerExe();

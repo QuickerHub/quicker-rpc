@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { COMPOSER_ONBOARDING_TIPS } from "@/lib/composer-onboarding-tips";
+import type { ComposerOnboardingTip } from "@/lib/composer-onboarding-tips";
 import {
   loadComposerOnboardingDismissed,
   storeComposerOnboardingDismissed,
@@ -12,6 +13,7 @@ import { useSidePanelExplorerToggle } from "@/lib/use-side-panel-explorer-toggle
 
 type ComposerOnboardingTipsProps = {
   disabled?: boolean;
+  tips?: readonly ComposerOnboardingTip[];
   onOpenSettings: (
     targetProviderId?: LlmProviderId,
     tab?: AppSettingsTabId,
@@ -22,6 +24,7 @@ type ComposerOnboardingTipsProps = {
 
 export function ComposerOnboardingTips({
   disabled = false,
+  tips = COMPOSER_ONBOARDING_TIPS,
   onOpenSettings,
   onTryMention,
   onFocusComposer,
@@ -84,7 +87,7 @@ export function ComposerOnboardingTips({
         </button>
       </div>
       <ul className="composer-onboarding__tips">
-        {COMPOSER_ONBOARDING_TIPS.map((tip) => (
+        {tips.map((tip) => (
           <li key={tip.id}>
             <button
               type="button"
@@ -99,10 +102,10 @@ export function ComposerOnboardingTips({
               onClick={() => runTipAction(tip.action)}
             >
               <span className="composer-onboarding__tip-label">
-                {tip.id === "mention" ? (
+                {tip.id === "mention" || tip.id.startsWith("mention-") ? (
                   <>
                     <kbd className="composer-onboarding__kbd">@</kbd>
-                    {" 引用动作"}
+                    {tip.label.replace(/^@\s*/, " ")}
                   </>
                 ) : (
                   tip.label

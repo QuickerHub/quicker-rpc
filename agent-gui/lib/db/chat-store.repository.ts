@@ -1,4 +1,5 @@
 import { asc, count, desc, eq, inArray } from "drizzle-orm";
+import type { ActionDesignerThreadRef } from "@/lib/action-designer-thread";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import {
   normalizeLoadedStore,
@@ -53,6 +54,29 @@ function serializeMessagesBlob(threadId: string, messages: AgentUIMessage[]): st
   });
 }
 
+function actionDesignerFromRow(
+  entityId: string | null | undefined,
+  isSubProgram: number | null | undefined,
+): ActionDesignerThreadRef | undefined {
+  const id = entityId?.trim() ?? "";
+  if (!id) return undefined;
+  return { entityId: id, isSubProgram: isSubProgram === 1 };
+}
+
+function actionDesignerToRow(ref: ActionDesignerThreadRef | undefined): {
+  actionDesignerEntityId: string | null;
+  actionDesignerIsSubProgram: number | null;
+} {
+  const entityId = ref?.entityId?.trim() ?? "";
+  if (!entityId) {
+    return { actionDesignerEntityId: null, actionDesignerIsSubProgram: null };
+  }
+  return {
+    actionDesignerEntityId: entityId,
+    actionDesignerIsSubProgram: ref?.isSubProgram === true ? 1 : 0,
+  };
+}
+
 function rowToThreadMeta(row: {
   id: string;
   title: string;
@@ -61,6 +85,9 @@ function rowToThreadMeta(row: {
   titleManual: number;
   messageCount: number | null;
   workspaceId: string | null;
+  workingDirectory: string | null;
+  actionDesignerEntityId: string | null;
+  actionDesignerIsSubProgram: number | null;
 }): Omit<ChatThread, "messages"> {
   return {
     id: row.id,
@@ -70,6 +97,11 @@ function rowToThreadMeta(row: {
     titleManual: row.titleManual === 1,
     messageCount: row.messageCount === null ? undefined : row.messageCount,
     workspaceId: row.workspaceId ?? undefined,
+    workingDirectory: row.workingDirectory ?? undefined,
+    actionDesigner: actionDesignerFromRow(
+      row.actionDesignerEntityId,
+      row.actionDesignerIsSubProgram,
+    ),
   };
 }
 
@@ -275,6 +307,13 @@ function indexMetadataChanged(prev: ChatStoreData, next: ChatStoreData): boolean
     if (previous.titleGenerated !== thread.titleGenerated) return true;
     if (previous.titleManual !== thread.titleManual) return true;
     if (previous.workspaceId !== thread.workspaceId) return true;
+    if (previous.workingDirectory !== thread.workingDirectory) return true;
+    if (
+      previous.actionDesigner?.entityId !== thread.actionDesigner?.entityId
+      || previous.actionDesigner?.isSubProgram !== thread.actionDesigner?.isSubProgram
+    ) {
+      return true;
+    }
     const nextCount =
       thread.messages.length > 0 ? thread.messages.length : thread.messageCount;
     const prevCount =
@@ -366,6 +405,7 @@ function upsertThread(
 ): void {
   const messageCount =
     thread.messages.length > 0 ? thread.messages.length : thread.messageCount;
+  const designerRow = actionDesignerToRow(thread.actionDesigner);
 
   db.insert(chatThreads)
     .values({
@@ -377,6 +417,8 @@ function upsertThread(
       messageCount: messageCount ?? null,
       sortIndex,
       workspaceId: thread.workspaceId ?? null,
+      workingDirectory: thread.workingDirectory?.trim() ?? "",
+      ...designerRow,
     })
     .onConflictDoUpdate({
       target: chatThreads.id,
@@ -388,6 +430,8 @@ function upsertThread(
         messageCount: messageCount ?? null,
         sortIndex,
         workspaceId: thread.workspaceId ?? null,
+        workingDirectory: thread.workingDirectory?.trim() ?? "",
+        ...designerRow,
       },
     })
     .run();
@@ -535,6 +579,8 @@ export function importChatStoreToDatabase(
           messageCount,
           sortIndex,
           workspaceId: thread.workspaceId ?? null,
+          workingDirectory: thread.workingDirectory?.trim() ?? "",
+          ...actionDesignerToRow(thread.actionDesigner),
         })
         .run();
 

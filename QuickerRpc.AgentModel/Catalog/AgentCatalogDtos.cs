@@ -3,6 +3,18 @@ using System.Text.Json.Serialization;
 
 namespace QuickerRpc.AgentModel.Catalog;
 
+/// <summary>Pointer to <c>docs_get_reference</c> / scoped docs search for a step module.</summary>
+public sealed class StepRunnerModuleDocReference
+{
+    public string Topic { get; set; } = "step-modules";
+
+    /// <summary>Reference file id under the topic (e.g. <c>run</c>, <c>examples/run</c>).</summary>
+    public string File { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Tier { get; set; }
+}
+
 public sealed class StepRunnerSearchItem
 {
     public string Key { get; set; } = string.Empty;
@@ -27,6 +39,9 @@ public sealed class StepRunnerSearchItem
     /// <summary>Quicker icon spec, e.g. fa:Light_WindowMaximize.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Icon { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public StepRunnerModuleDocReference? DocReference { get; set; }
 }
 
 public sealed class SearchStepRunnersResult
@@ -175,6 +190,9 @@ public sealed class StepRunnerAgentSchema
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentGuidance { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public StepRunnerModuleDocReference? DocReference { get; set; }
 
     public List<AgentInputParamSchema> Inputs { get; set; } = new();
 

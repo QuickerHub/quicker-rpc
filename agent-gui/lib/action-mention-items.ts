@@ -1,4 +1,5 @@
 import type { MentionKind, PinnedAction } from "@/lib/action-context";
+import { formatActionIdShort } from "@/lib/action-patch-followup";
 import { resolveGlobalSubProgramIconSpec } from "@/lib/global-subprogram-icon";
 import { getActionSummaryItems } from "@/lib/agent-api";
 import {
@@ -160,6 +161,15 @@ export function resolveMentionItemIcon(item: ActionMentionItem): string | undefi
 
 export function formatMentionItemMeta(item: ActionMentionItem): string | undefined {
   const parts: string[] = [];
+  if (item.designerPin) {
+    parts.push("当前编辑");
+  }
+  if (item.kind === "designer-step") {
+    parts.push("选中步骤");
+    if (item.stepRunnerKey) parts.push(item.stepRunnerKey);
+    if (item.entityId) parts.push(formatActionIdShort(item.entityId));
+    return parts.length > 0 ? parts.join(" · ") : undefined;
+  }
   if (item.kind === "subprogram") {
     parts.push("公共子程序");
     if (item.callIdentifier) parts.push(item.callIdentifier);

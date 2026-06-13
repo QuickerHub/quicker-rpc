@@ -17,12 +17,15 @@ internal sealed class WorkspaceProgramMcpService
         bool force,
         long? editVersion,
         int? waitMs,
+        string? workspaceRootOverride,
         CancellationToken cancellationToken)
     {
         string workspaceRoot;
         try
         {
-            workspaceRoot = QkrpcMcpWorkspaceHelpers.RequireWorkspaceRoot(_runtime);
+            workspaceRoot = await QkrpcMcpWorkspaceHelpers
+                .RequireWorkspaceRootAsync(_runtime, workspaceRootOverride, cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (Exception ex)
         {

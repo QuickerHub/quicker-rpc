@@ -15,6 +15,21 @@ test("defaultChatStore includes one workspace and thread linkage", () => {
   assert.equal(store.workspaces.length, 1);
   assert.equal(store.activeWorkspaceId, store.workspaces[0]!.id);
   assert.equal(store.threads[0]!.workspaceId, store.activeWorkspaceId);
+  assert.equal(store.threads[0]!.workingDirectory, "");
+});
+
+test("addThread inherits active thread working directory", () => {
+  const base = defaultChatStore();
+  const withCwd = {
+    ...base,
+    threads: base.threads.map((thread) => ({
+      ...thread,
+      workingDirectory: "D:\\projects\\demo",
+    })),
+  };
+  const next = addThread(withCwd);
+  const created = next.threads.find((thread) => thread.id === next.activeThreadId);
+  assert.equal(created?.workingDirectory, "D:\\projects\\demo");
 });
 
 test("addWorkspace creates isolated thread list", () => {
@@ -79,6 +94,7 @@ test("normalizeLoadedStore migrates legacy single workingDirectory", () => {
   assert.equal(normalized.workspaces.length, 1);
   assert.equal(normalized.workspaces[0]!.rootPath, "D:\\legacy");
   assert.equal(normalized.threads[0]!.workspaceId, normalized.activeWorkspaceId);
+  assert.equal(normalized.threads[0]!.workingDirectory, "D:\\legacy");
 });
 
 test("normalizeLoadedStore repairs store missing workspaces field", () => {

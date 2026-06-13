@@ -4,6 +4,7 @@ export type StepRunnerGetMeta = {
   key: string;
   name?: string;
   controlField?: string;
+  docReference?: { topic: string; file: string; tier?: string };
 };
 
 export type StepRunnerSearchMeta = {
@@ -94,6 +95,7 @@ function readAction(data: Record<string, unknown>): string | undefined {
 function extractSchemaInfo(payload: Record<string, unknown>): {
   key?: string;
   name?: string;
+  docReference?: StepRunnerGetMeta["docReference"];
 } {
   const schemaJson = payload.schemaJson ?? payload.SchemaJson;
   if (typeof schemaJson === "string" && schemaJson.trim()) {
@@ -102,6 +104,7 @@ function extractSchemaInfo(payload: Record<string, unknown>): {
       return {
         key: readString(parsed, "StepRunnerKey", "stepRunnerKey"),
         name: readString(parsed, "Name", "name"),
+        docReference: readDocReference(parsed.docReference ?? parsed.DocReference),
       };
     } catch {
       /* ignore malformed schemaJson */
@@ -114,10 +117,23 @@ function extractSchemaInfo(payload: Record<string, unknown>): {
     return {
       key: readString(s, "StepRunnerKey", "stepRunnerKey"),
       name: readString(s, "Name", "name"),
+      docReference: readDocReference(s.docReference ?? s.DocReference),
     };
   }
 
   return {};
+}
+
+function readDocReference(raw: unknown): StepRunnerGetMeta["docReference"] | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return undefined;
+  }
+  const obj = raw as Record<string, unknown>;
+  const topic = readString(obj, "topic", "Topic") ?? "step-modules";
+  const file = readString(obj, "file", "File");
+  if (!file) return undefined;
+  const tier = readString(obj, "tier", "Tier");
+  return tier ? { topic, file, tier } : { topic, file };
 }
 
 export function parseStepRunnerGetInput(
@@ -157,7 +173,7 @@ export function parseStepRunnerGetFromQkrpcData(
   if (success === false) return null;
 
   const inputParsed = parseStepRunnerGetInput(input);
-  const { key: schemaKey, name } = extractSchemaInfo(payload);
+  const { key: schemaKey, name, docReference } = extractSchemaInfo(payload);
   const key = inputParsed?.key ?? schemaKey;
   if (!key && !name) return null;
 
@@ -165,6 +181,7 @@ export function parseStepRunnerGetFromQkrpcData(
     key: key ?? "",
     name,
     controlField: inputParsed?.controlField,
+    docReference,
   };
 }
 
@@ -173,6 +190,9 @@ export function formatStepRunnerGetMetaLine(meta: StepRunnerGetMeta): string {
   if (meta.key) parts.push(meta.key);
   if (meta.name) parts.push(meta.name);
   if (meta.controlField) parts.push(`control: ${meta.controlField}`);
+  if (meta.docReference) {
+    parts.push(`doc: ${meta.docReference.topic}/${meta.docReference.file}`);
+  }
   return parts.join(" · ");
 }
 

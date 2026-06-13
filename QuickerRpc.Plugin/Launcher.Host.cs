@@ -14,7 +14,7 @@ public static partial class Launcher
 {
     private static IHost CreateHostForQuickerPlugin()
     {
-        var host = Host.CreateDefaultBuilder()
+        var host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .ConfigureServices((_, services) =>
             {
                 services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Information));
@@ -50,6 +50,7 @@ public static partial class Launcher
                 services.AddSingleton<TriggerTaskService>();
                 services.AddSingleton<LauncherResolveService>();
                 services.AddSingleton<QuickerAgentUpdateCheckService>();
+                services.AddHostedService<ActionDesignerWindowWatcher>();
                 services.AddSingleton<QuickerRpcService>();
                 services.AddSingleton<IQuickerRpcService>(sp => sp.GetRequiredService<QuickerRpcService>());
 

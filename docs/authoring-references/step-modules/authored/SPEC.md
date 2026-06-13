@@ -12,7 +12,7 @@
 | Agent 补充 | **本 reference** | wire 陷阱、controlField 分支、外链文件、协议格式、diagnostics |
 | 原始说明 | [KC 官方](https://getquicker.net/KC/Help/Doc/) | 链接保留；正文压缩摘录 |
 
-KC 爬取稿（`../<id>.md`）= **素材库**（已全部迁移）；手写稿 = **Agent 用压缩版**。`step-module-skip.json` → `keep` 为空，仅 `authored` 有 reference。
+KC 爬取稿（`kc/<id>.md`）= **素材库**；**authored** = Agent 唯一模块 ref（含 JSON 示例 + 陷阱）。
 
 ## 2. 文件与命名
 
@@ -21,6 +21,7 @@ KC 爬取稿（`../<id>.md`）= **素材库**（已全部迁移）；手写稿 =
 - **登记**：放入 `authored/<id>.md` 即可；`npm run docs:modules:analyze` 自动发现（无需改 AUTHORED 列表）
 - 快捷脚手架：`npm run docs:modules:new -- sys:<key> [--keywords 中文,alias]`
 - ref 读取：`docs_get_reference({ topic: "step-modules", file: "<id>" })`
+- **schema 联动**：`qkrpc_step_runner_get` 返回 `docReference: { topic, file, tier }`（`npm run docs:modules:analyze` 生成 `step-module-doc-refs.json` 并嵌入 CLI/插件）；Agent 直接用 `file` 读 `authored/<id>.md`。
 
 ## 3. 文档结构（固定顺序，examples-first）
 

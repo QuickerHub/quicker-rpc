@@ -1,7 +1,7 @@
 # ChromeControl authoring
 <!-- qkrpc-search-aliases: 浏览器, 浏览器控制, 网页自动化, chrome, edge, 标签页, 选择器, 后台命令, chromecontrol -->
 
-**When**: **sys:chromecontrol** steps in a Quicker action (user's Chrome/Edge/Firefox via Quicker extension). After P4 pick, before writing steps. Param keys: **step-runner-get** (`controlField: operation`); examples: **docs get** `step-modules` + `reference=examples/chromecontrol`; KC full text: `reference=kc/chromecontrol`.
+**When**: **sys:chromecontrol** steps in a Quicker action (user's Chrome/Edge/Firefox via Quicker extension). After P4 pick, before writing steps. Param keys: **step-runner-get** (`controlField: operation`); reference: **docs get** `step-modules` + `reference=chromecontrol` (authored); KC full text: `reference=kc/chromecontrol`.
 
 **Not this topic**: QuickerAgent's own **browser** tool (agent reads pages in chat). ChromeControl runs inside the user's action at runtime.
 
@@ -68,7 +68,7 @@ Selectors: CSS; prefix `xpath:` for XPath. Link steps with `tabId` / `tabId.var`
 
 ## Deep reference
 
-- Patch JSON examples: `docs({ action: "get", topic: "step-modules", reference: "examples/chromecontrol" })`
+- Patch JSON examples: `docs({ action: "get", topic: "step-modules", reference: "chromecontrol" })`
 - Full KC text: `reference: "kc/chromecontrol"`
 - Thin wire notes: `reference: "chromecontrol"`
 

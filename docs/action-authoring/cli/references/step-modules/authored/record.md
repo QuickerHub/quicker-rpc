@@ -17,6 +17,7 @@
 
 运行后等 2s 自动开始；右下角控制窗停止/保存。精细自动化优先 **inputScript**。
 
+
 ## 示例
 
 <!-- QuickerModuleDoc examples -->

@@ -13,6 +13,14 @@ import { fetchChatStoreFromApi } from "@/lib/chat-store-api.client";
 import { getChatStorePersistenceMode } from "@/lib/chat-store-backend";
 import { maybeAutoRestoreChatStoreOnBoot } from "@/lib/chat-store-boot-restore";
 import {
+  actionDesignerRefFromEmbed,
+  focusActionDesignerInStore,
+} from "@/lib/action-designer-thread";
+import {
+  isActionDesignerEmbedClient,
+  parseActionDesignerEmbedFromSearchParams,
+} from "@/lib/action-designer-embed";
+import {
   CHAT_STORAGE_KEY,
   defaultChatStore,
   flushPendingChatStoreSave,
@@ -71,8 +79,37 @@ function getChatStoreServerSnapshot(): ChatStoreData {
 
 let hydrationInFlight = false;
 
+function hydrateDesignerEmbedStore(): void {
+  const embed = parseActionDesignerEmbedFromSearchParams(
+    new URLSearchParams(window.location.search),
+  );
+  const designerRef = actionDesignerRefFromEmbed(embed);
+  try {
+    const local = loadChatStoreFromLocalStorage();
+    let store = normalizeLoadedStore(
+      local.threads.length > 0 ? local : defaultChatStore(),
+    );
+    if (designerRef) {
+      store = focusActionDesignerInStore(store, designerRef);
+    }
+    cachedStore = store;
+  } catch {
+    cachedStore = designerRef
+      ? focusActionDesignerInStore(defaultChatStore(), designerRef)
+      : defaultChatStore();
+  }
+  storeHydrated = true;
+  hydrationInFlight = false;
+  notifyChatStoreListeners();
+}
+
 function hydrateChatStoreFromClient(): void {
   if (storeHydrated || hydrationInFlight) return;
+  if (isActionDesignerEmbedClient()) {
+    hydrationInFlight = true;
+    hydrateDesignerEmbedStore();
+    return;
+  }
   hydrationInFlight = true;
   void (async () => {
     try {

@@ -19,17 +19,27 @@ public sealed class QkrpcMcpRuntime : IAsyncDisposable
 
     private readonly QkrpcRpcSessionPool _pool;
     private readonly int _timeoutSeconds;
+    private readonly QkrpcMcpWorkspaceContext _workspace;
 
-    public QkrpcMcpRuntime(int timeoutSeconds, bool tryBootstrap)
+    internal QkrpcMcpRuntime(
+        int timeoutSeconds,
+        bool tryBootstrap,
+        QkrpcMcpWorkspaceContext workspace)
     {
         _timeoutSeconds = Math.Max(1, timeoutSeconds);
         _pool = new QkrpcRpcSessionPool(_timeoutSeconds, tryBootstrap);
+        _workspace = workspace;
     }
 
-    public string WorkspaceRoot =>
-        Environment.GetEnvironmentVariable("QKRPC_WORKSPACE_ROOT")?.Trim()
-        ?? Environment.GetEnvironmentVariable("QKRPC_CWD")?.Trim()
-        ?? string.Empty;
+    internal QkrpcMcpWorkspaceContext Workspace => _workspace;
+
+    public string WorkspaceRoot => _workspace.PeekWorkspaceRoot() ?? string.Empty;
+
+    public Task<string> ResolveWorkspaceRootAsync(CancellationToken cancellationToken = default) =>
+        _workspace.RequireWorkspaceRootAsync(cancellationToken);
+
+    public Task<string?> TryResolveWorkspaceRootAsync(CancellationToken cancellationToken = default) =>
+        _workspace.TryResolveWorkspaceRootAsync(cancellationToken);
 
     public async Task<string> InvokeOpAsync(
         string op,
@@ -49,17 +59,19 @@ public sealed class QkrpcMcpRuntime : IAsyncDisposable
         }
 
         var normalizedOp = (op ?? string.Empty).Trim();
-        var mergedArgs = AttachWorkspaceRoot(normalizedOp, args);
+        var mergedArgs = await AttachWorkspaceRootAsync(normalizedOp, args, cancellationToken).ConfigureAwait(false);
         var response = await ServeInvokeDispatcher
             .InvokeAsync(_pool, normalizedOp, mergedArgs, _timeoutSeconds, cancellationToken)
             .ConfigureAwait(false);
         return QkrpcMcpJson.FormatServeResponse(response);
     }
 
-    private JsonElement AttachWorkspaceRoot(string op, JsonElement args)
+    private async Task<JsonElement> AttachWorkspaceRootAsync(
+        string op,
+        JsonElement args,
+        CancellationToken cancellationToken)
     {
-        var root = WorkspaceRoot;
-        if (string.IsNullOrWhiteSpace(root) || !WorkspaceOps.Contains(op))
+        if (!WorkspaceOps.Contains(op))
         {
             return args;
         }
@@ -67,7 +79,13 @@ public sealed class QkrpcMcpRuntime : IAsyncDisposable
         if (args.ValueKind == JsonValueKind.Object
             && args.TryGetProperty("workspaceRoot", out var existing)
             && existing.ValueKind == JsonValueKind.String
-            && !string.IsNullOrWhiteSpace(existing.GetString()))
+            && QkrpcMcpWorkspaceResolver.TryNormalizeRoot(existing.GetString(), out _))
+        {
+            return args;
+        }
+
+        var root = await _workspace.TryResolveWorkspaceRootAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(root))
         {
             return args;
         }

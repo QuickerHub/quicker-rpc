@@ -14,10 +14,13 @@ internal static class QkrpcMcpWorkspaceSync
         string getJson,
         CancellationToken cancellationToken)
     {
-        if (!TryGetWorkspaceRoot(runtime, out var workspaceRoot))
+        var workspaceResult = await TryGetWorkspaceRootAsync(runtime, cancellationToken).ConfigureAwait(false);
+        if (!workspaceResult.ok)
         {
             return getJson;
         }
+
+        var workspaceRoot = workspaceResult.root;
 
         if (!TryParseOk(getJson, out var root) || root is null)
         {
@@ -85,10 +88,13 @@ internal static class QkrpcMcpWorkspaceSync
             return createJson;
         }
 
-        if (!TryGetWorkspaceRoot(runtime, out var workspaceRoot))
+        var workspaceResult = await TryGetWorkspaceRootAsync(runtime, cancellationToken).ConfigureAwait(false);
+        if (!workspaceResult.ok)
         {
             return createJson;
         }
+
+        var workspaceRoot = workspaceResult.root;
 
         var projectDir = ActionProjectCatalog.ResolveExtractProjectDirectory(
             actionId.Trim(),
@@ -145,10 +151,13 @@ internal static class QkrpcMcpWorkspaceSync
         string getJson,
         CancellationToken cancellationToken)
     {
-        if (!TryGetWorkspaceRoot(runtime, out var workspaceRoot))
+        var workspaceResult = await TryGetWorkspaceRootAsync(runtime, cancellationToken).ConfigureAwait(false);
+        if (!workspaceResult.ok)
         {
             return getJson;
         }
+
+        var workspaceRoot = workspaceResult.root;
 
         if (!TryParseOk(getJson, out var root) || root is null)
         {
@@ -175,16 +184,17 @@ internal static class QkrpcMcpWorkspaceSync
         return root.ToJsonString();
     }
 
-    private static bool TryGetWorkspaceRoot(QkrpcMcpRuntime runtime, out string workspaceRoot)
+    private static async Task<(bool ok, string root)> TryGetWorkspaceRootAsync(
+        QkrpcMcpRuntime runtime,
+        CancellationToken cancellationToken)
     {
-        workspaceRoot = string.Empty;
-        if (string.IsNullOrWhiteSpace(runtime.WorkspaceRoot))
+        var resolved = await runtime.TryResolveWorkspaceRootAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(resolved))
         {
-            return false;
+            return (false, string.Empty);
         }
 
-        workspaceRoot = Path.GetFullPath(runtime.WorkspaceRoot);
-        return true;
+        return (true, resolved);
     }
 
     private static bool TryParseOk(string json, out JsonObject? root)

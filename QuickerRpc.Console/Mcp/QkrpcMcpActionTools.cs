@@ -27,6 +27,7 @@ public sealed class QkrpcMcpActionTools
     [McpServerTool(Name = "qkrpc_action_get")]
     [Description(
         "Sync one action from Quicker to .quicker/actions/{id}/ (first time only). "
+        + "When Action Designer is open for this id, reads in-memory draft (readSource=action-designer). "
         + "Pulls .quicker/ on first get. Edit disk with host file tools → workspace_program patch. NOT run — qkrpc_action_run.")]
     public Task<string> QkrpcActionGet(
         string id,

@@ -15,7 +15,8 @@ internal static partial class Program
             return await QkrpcMcpInstaller.RunAsync(options).ConfigureAwait(false);
         }
 
-        await using var runtime = new QkrpcMcpRuntime(options.TimeoutSeconds, !options.NoBootstrap);
+        var workspaceContext = new QkrpcMcpWorkspaceContext();
+        await using var runtime = new QkrpcMcpRuntime(options.TimeoutSeconds, !options.NoBootstrap, workspaceContext);
 
         var builder = Host.CreateApplicationBuilder(Array.Empty<string>());
         builder.Logging.ClearProviders();
@@ -24,7 +25,9 @@ internal static partial class Program
             consoleLogOptions.LogToStandardErrorThreshold = LogLevel.Trace;
         });
 
+        builder.Services.AddSingleton(workspaceContext);
         builder.Services.AddSingleton(runtime);
+        builder.Services.AddHostedService<QkrpcMcpWorkspaceHostedService>();
         builder.Services
             .AddMcpServer()
             .WithStdioServerTransport()

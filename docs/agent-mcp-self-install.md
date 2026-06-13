@@ -30,8 +30,8 @@ if (-not (Test-Path $qkrpc)) { Get-Command qkrpc -ErrorAction SilentlyContinue |
 # 失败时：& $qkrpc wait --json ；仍失败 → 请用户启动 Quicker 并加载插件，不要连环 ping
 
 # 3) 工作区根（含 .quicker 的目录；无则 setup 会 bootstrap）
-# 默认用当前项目根；用户指定则用其路径
-$workspace = (Get-Location).Path   # 或用户给出的绝对路径
+# 默认跟随 MCP 宿主当前打开的项目；固定目录：qkrpc agent setup --workspace <path>
+$workspace = (Get-Location).Path   # bootstrap / manifest 用；MCP 默认不写死此路径
 ```
 
 记下：`$qkrpc` 绝对路径、`$workspace` 绝对路径。
@@ -61,8 +61,11 @@ qkrpc agent setup --check
 
 ```powershell
 codex mcp add qkrpc `
-  --env "QKRPC_WORKSPACE_ROOT=$workspace" `
+  --env "QKRPC_SETUP_VERSION=$(& $qkrpc --version 2>$null)" `
   -- $qkrpc mcp
+
+# 固定工作区（可选）：
+# codex mcp add qkrpc --env "QKRPC_WORKSPACE_ROOT=$workspace" -- $qkrpc mcp
 
 codex mcp list
 ```
@@ -159,6 +162,6 @@ qkrpc agent setup --check
 安装完成后简短说明：
 
 1. 宿主（Codex / Cursor / …）与配置文件路径
-2. `QKRPC_WORKSPACE_ROOT` 取值
+2. `QKRPC_WORKSPACE_ROOT` 取值（默认 `${workspaceFolder}` / MCP roots 跟随宿主；固定模式见 `--workspace`）
 3. `qkrpc agent setup --check` 或 `codex mcp list` 结果
 4. 若改了 MCP：请用户重开会话或 `/mcp` 刷新

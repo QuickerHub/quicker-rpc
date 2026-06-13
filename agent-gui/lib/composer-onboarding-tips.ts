@@ -38,3 +38,25 @@ export const COMPOSER_ONBOARDING_TIPS: readonly ComposerOnboardingTip[] = [
     action: "toggle-explorer",
   },
 ] as const;
+
+/** Compact hints for ActionDesigner WebView2 embed (~400px column). */
+export const DESIGNER_EMBED_ONBOARDING_TIPS: readonly ComposerOnboardingTip[] = [
+  {
+    id: "mention-action",
+    label: "@ 当前动作",
+    hint: "补全第一项即为正在编辑的程序",
+    action: "try-mention",
+  },
+  {
+    id: "mention-step",
+    label: "@ 选中步骤",
+    hint: "在设计器选中步骤后可精确引用",
+    action: "try-mention",
+  },
+  {
+    id: "describe-edit",
+    label: "描述修改",
+    hint: "说明要添加、调整或修复什么",
+    action: "focus-composer",
+  },
+] as const;

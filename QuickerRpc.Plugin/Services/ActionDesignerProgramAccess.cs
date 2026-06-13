@@ -15,7 +15,7 @@ namespace QuickerRpc.Plugin.Services;
 /// <summary>
 /// Read/write XAction programs the same way as <c>ActionDesignerWindow</c>:
 /// load via <see cref="DataService.GetActionById"/> → <see cref="ActionItem.Data"/>;
-/// save by updating <c>Data</c> and <c>ActionEditMgr.SaveEditingAction(ActionItem)</c>.
+/// save by updating <c>Data</c> and <c>ActionEditMgr.SaveEditingAction(ActionItem2)</c> (via legacy <see cref="ActionItem"/> projection).
 /// </summary>
 internal static class ActionDesignerProgramAccess
 {

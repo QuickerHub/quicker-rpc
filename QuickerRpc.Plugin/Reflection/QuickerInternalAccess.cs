@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using Quicker.Common;
 using Quicker.Domain;
+using Quicker.Utilities;
 
 namespace QuickerRpc.Plugin.Reflection;
 
@@ -19,7 +20,12 @@ internal static class QuickerInternalAccess
 
     private static readonly Lazy<object?> CatalogStore = new(ResolveCatalogStore);
     private static readonly Lazy<object?> ActionEditMgrInstance = new(ResolveActionEditMgr);
-    private static readonly Lazy<Func<ActionItem, bool>?> SaveEditingActionDelegate = new(CreateSaveEditingActionDelegate);
+    private static readonly Lazy<Action<object>?> SaveEditingActionItem2Delegate =
+        new(CreateSaveEditingActionItem2Delegate);
+    private static readonly Lazy<Action<ActionItem>?> SaveEditingActionLegacyDelegate =
+        new(CreateSaveEditingActionLegacyDelegate);
+    private static readonly Lazy<Func<ActionItem, object>?> ActionItem2ConverterDelegate =
+        new(CreateActionItem2ConverterDelegate);
     private static readonly Lazy<Func<string, ActionItem?>?> GetActionByIdDelegate = new(CreateGetActionByIdDelegate);
     private static readonly Lazy<Func<IEnumerable<ActionItem>>?> GetAllActionItemsDelegate = new(CreateGetAllActionItemsDelegate);
 
@@ -77,21 +83,42 @@ internal static class QuickerInternalAccess
             return false;
         }
 
-        var save = SaveEditingActionDelegate.Value;
-        if (save is null)
+        var now = AppHelper.GetUtcNowForDb();
+        action.LastEditTimeUtc = now;
+
+        var convert = ActionItem2ConverterDelegate.Value;
+        var saveItem2 = SaveEditingActionItem2Delegate.Value;
+        if (convert is not null && saveItem2 is not null)
         {
-            error = "SaveEditingAction(ActionItem) unavailable.";
+            try
+            {
+                var action2 = convert(action);
+                TouchActionItem2LastEditTimeUtc(action2, now);
+                saveItem2(action2);
+                return true;
+            }
+            catch (TargetInvocationException ex)
+            {
+                error = ex.InnerException?.Message ?? ex.Message;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        var saveLegacy = SaveEditingActionLegacyDelegate.Value;
+        if (saveLegacy is null)
+        {
+            error = "SaveEditingAction unavailable.";
             return false;
         }
 
         try
         {
-            if (!save(action))
-            {
-                error = "SaveEditingAction returned false.";
-                return false;
-            }
-
+            saveLegacy(action);
             return true;
         }
         catch (TargetInvocationException ex)
@@ -258,7 +285,7 @@ internal static class QuickerInternalAccess
         };
     }
 
-    private static Func<ActionItem, bool>? CreateSaveEditingActionDelegate()
+    private static Action<object>? CreateSaveEditingActionItem2Delegate()
     {
         var mgr = ActionEditMgrInstance.Value;
         if (mgr is null)
@@ -266,22 +293,109 @@ internal static class QuickerInternalAccess
             return null;
         }
 
-        var save = mgr.GetType().GetMethods(InstanceFlags)
-            .FirstOrDefault(m =>
-                string.Equals(m.Name, "SaveEditingAction", StringComparison.Ordinal)
-                && m.ReturnType == typeof(void)
-                && m.GetParameters().Length == 1
-                && m.GetParameters()[0].ParameterType.IsAssignableFrom(typeof(ActionItem)));
+        var save = FindSaveEditingActionMethod(mgr, "ActionItem2");
         if (save is null)
         {
             return null;
         }
 
-        return action =>
+        return action2 => save.Invoke(mgr, new object[] { action2 });
+    }
+
+    private static Func<ActionItem, object>? CreateActionItem2ConverterDelegate()
+    {
+        var converterType = typeof(ActionItem).Assembly.GetType("Quicker.Common.V2.ActionItem2Converter", throwOnError: false);
+        if (converterType is null)
         {
-            save.Invoke(mgr, new object[] { action });
-            return true;
+            return null;
+        }
+
+        var convert = converterType.GetMethod(
+            "Convert",
+            StaticFlags,
+            binder: null,
+            types: new[] { typeof(ActionItem) },
+            modifiers: null);
+        if (convert is null)
+        {
+            return null;
+        }
+
+        return source =>
+        {
+            var converted = convert.Invoke(null, new object[] { source });
+            if (converted is null)
+            {
+                throw new InvalidOperationException("ActionItem2Converter.Convert returned null.");
+            }
+
+            return converted;
         };
+    }
+
+    private static void TouchActionItem2LastEditTimeUtc(object action2, DateTime lastEditUtc)
+    {
+        var metadataProperty = action2.GetType().GetProperty("Metadata", InstanceFlags);
+        if (metadataProperty is null)
+        {
+            return;
+        }
+
+        var metadata = metadataProperty.GetValue(action2);
+        if (metadata is null)
+        {
+            var metadataType = metadataProperty.PropertyType;
+            metadata = Activator.CreateInstance(metadataType!);
+            metadataProperty.SetValue(action2, metadata);
+        }
+
+        metadata!.GetType().GetProperty("LastEditTimeUtc", InstanceFlags)?.SetValue(metadata, lastEditUtc);
+    }
+
+    private static Action<ActionItem>? CreateSaveEditingActionLegacyDelegate()
+    {
+        var mgr = ActionEditMgrInstance.Value;
+        if (mgr is null)
+        {
+            return null;
+        }
+
+        var save = FindSaveEditingActionMethod(mgr, nameof(ActionItem));
+        if (save is null)
+        {
+            return null;
+        }
+
+        return action => save.Invoke(mgr, new object[] { action });
+    }
+
+    private static MethodInfo? FindSaveEditingActionMethod(object mgr, string parameterTypeSimpleName)
+    {
+        MethodInfo? match = null;
+        foreach (var candidate in mgr.GetType().GetMethods(InstanceFlags))
+        {
+            if (!string.Equals(candidate.Name, "SaveEditingAction", StringComparison.Ordinal)
+                || candidate.ReturnType != typeof(void))
+            {
+                continue;
+            }
+
+            var parameters = candidate.GetParameters();
+            if (parameters.Length != 1
+                || !string.Equals(parameters[0].ParameterType.Name, parameterTypeSimpleName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (match is not null)
+            {
+                return null;
+            }
+
+            match = candidate;
+        }
+
+        return match;
     }
 
     private static object? ReadTupleField(object? tuple, string itemName, string? namedField)

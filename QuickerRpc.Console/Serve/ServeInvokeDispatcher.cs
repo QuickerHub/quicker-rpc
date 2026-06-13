@@ -146,6 +146,7 @@ internal static class ServeInvokeDispatcher
             "launcher.resolve" => await LauncherResolveAsync(rpc, args, token).ConfigureAwait(false),
             "search-index.status" => await SearchIndexStatusAsync(rpc, token).ConfigureAwait(false),
             "search-index.rebuild" => await SearchIndexRebuildAsync(rpc, args, token).ConfigureAwait(false),
+            "designer.context" => await DesignerContextAsync(rpc, args, token).ConfigureAwait(false),
             _ => Fail("UNKNOWN_OP", $"Unknown op: {op}"),
         };
     }
@@ -778,6 +779,29 @@ internal static class ServeInvokeDispatcher
             action = "search-index-rebuild",
             region = region ?? "all",
             message = result.Message,
+        });
+    }
+
+    /// <summary>Open ActionDesigner windows context for the embedded QuickerAgent chat.</summary>
+    private static async Task<ServeInvokeResponse> DesignerContextAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken cancellationToken)
+    {
+        var includeXAction = ServeJsonArgs.GetBool(args, "includeXAction");
+        var result = await rpc.GetActionDesignerContextAsync(includeXAction, cancellationToken)
+            .ConfigureAwait(false);
+        if (!result.Ok)
+        {
+            return Fail("DESIGNER_CONTEXT_FAILED", result.Message ?? "Designer context unavailable.");
+        }
+
+        return Ok(new
+        {
+            ok = true,
+            action = "designer-context",
+            message = result.Message,
+            designers = result.Designers,
         });
     }
 
