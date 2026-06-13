@@ -22,7 +22,7 @@
 | 我想… | 读 / 改 | 不要改 |
 |--------|---------|--------|
 | 改 P1–P7 工作流、schema topic | [`action-authoring-src/`](action-authoring-src/) | `action-authoring/cli/`、`skills/.../references/` |
-| 改 step 模块深文档、JSON 示例 | [`authoring-references/step-modules/authored/`](authoring-references/step-modules/authored/) | `cli/references/step-modules/` |
+| 改 step 模块深文档、JSON 示例 | [`authoring-references/step-modules/authored/`](authoring-references/step-modules/authored/) | `action-authoring/cli/*.md`（生成 topic） |
 | 改 Agent 默认 skill 正文 | `action-authoring-src/skills/` → `npm run docs:gen` | 直接改 `docs/skills/` 大段正文 |
 | 改构建 / 发布 / 前端检查 | [`.cursor/skills/`](../.cursor/skills/) | — |
 | 查 CLI 命令 | [cli-commands.md](cli-commands.md) 或 `qkrpc help --json` | — |

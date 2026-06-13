@@ -32,7 +32,7 @@ Force rewrite: `npm run docs:gen:force` or `--force`.
 
 Edit templates under `action-authoring-src/`, not the `cli/` or `skills/` outputs. Commit regenerated `cli/` and `skills/` with template changes.
 
-**Do not edit module bodies under `cli/references/step-modules/`** — runtime embeds from [`authoring-references/`](../authoring-references/). See [authoring/PIPELINE.md](../authoring/PIPELINE.md).
+Reference bodies live only under [`authoring-references/`](../authoring-references/). `cli/references-manifest.json` lists paths into that tree (embedded by AgentModel). See [authoring/PIPELINE.md](../authoring/PIPELINE.md).
 
 ## Consumers
 

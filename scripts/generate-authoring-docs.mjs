@@ -528,31 +528,11 @@ async function computeOutputs(opsData, topicEntries) {
       referenceCatalog[topic].push(catalogEntry);
 
       if (!refName.startsWith("kc/")) {
-        const cliPath = refEntry.outRel;
-        if (standalone) {
-          outputs.set(
-            `cli/references/${cliPath}`,
-            injectSearchAliases(refEntry.src, catalogEntry.searchAliases ?? []),
-          );
-        } else {
-          const cliRefRendered = renderDoc(
-            refEntry.src,
-            opsData,
-            "cli",
-            `${source}#ref:${refName}`,
-            refMap,
-            partials,
-          );
-          outputs.set(
-            `cli/references/${cliPath}`,
-            injectSearchAliases(cliRefRendered, catalogEntry.searchAliases ?? []),
-          );
-        }
         cliReferences.push({
           topic,
           id: refName,
           title: catalogEntry.title,
-          path: cliPath,
+          path: refEntry.outRel,
           ...(Array.isArray(refAliases) && refAliases.length > 0
             ? { searchAliases: refAliases }
             : {}),
@@ -781,13 +761,6 @@ async function isFreshByMtime(topicEntries) {
 
 /** @param {string} rel */
 function resolveOutputPath(rel) {
-  if (rel.startsWith("cli/references/")) {
-    return path.join(
-      OUT_CLI,
-      "references",
-      rel.slice("cli/references/".length),
-    );
-  }
   if (rel === "cli/references-manifest.json") {
     return path.join(OUT_CLI, "references-manifest.json");
   }
@@ -948,11 +921,8 @@ async function pruneOrphanOutputs(topicEntries, opsData) {
     "",
   );
 
-  await pruneReferenceTree(
-    path.join(OUT_CLI, "references"),
-    expectedReferenceRelPaths,
-    "",
-  );
+  // cli/references/ mirror removed — runtime loads authoring-references via manifest paths.
+  await fs.rm(path.join(OUT_CLI, "references"), { recursive: true, force: true });
 
   try {
     for (const ent of await fs.readdir(OUT_SKILLS, { withFileTypes: true })) {

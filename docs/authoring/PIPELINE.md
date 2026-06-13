@@ -34,8 +34,7 @@
 |------|----------|------|
 | [`action-authoring-src/`](../action-authoring-src/) | **是** | 工作流 topic、schema、partials、`manifest/*.json` |
 | [`authoring-references/`](../authoring-references/) | **是** | KC 爬取 + 手写 `authored/` 模块 ref、action-patterns、benchmarks |
-| [`action-authoring/cli/`](../action-authoring/cli/) | **否** | `docs:gen` 输出；`qkrpc guide get` 主题 |
-| [`action-authoring/cli/references/`](../action-authoring/cli/references/) | **否** | 生成镜像；**运行时嵌入用 `authoring-references`**，勿在此改 module 正文 |
+| [`action-authoring/cli/`](../action-authoring/cli/) | **否** | `docs:gen` 输出 topic + `references-manifest.json` |
 | [`skills/`](../skills/) | **慎改** | setup 分发；正文多由 `docs:gen` 从 src 生成 |
 | [`.cursor/skills/`](../../.cursor/skills/) | **是** | 仓库贡献者专用（构建/发布/UI）；**不进** `qkrpc agent setup` 默认列表 |
 
@@ -67,7 +66,7 @@ npm run docs:modules:gen     # 分析 + crawl
 | 错误 | 正确做法 |
 |------|----------|
 | 直接改 `action-authoring/cli/authoring-workflow.md` | 改 `action-authoring-src/workflows/`，再 `docs:gen` |
-| 改 `cli/references/step-modules/authored/foo.md` | 改 `authoring-references/step-modules/authored/foo.md` |
+| 期望在 `cli/references/` 找 module 正文 | 正文只在 `authoring-references/`；manifest 的 `path` 指向该目录 |
 | 在 `.cursor/skills/` 写用户-facing 编写指南 | 改 src → gen → `docs/skills/quicker-authoring` |
 | 把 `superpowers/` 当用户文档 | 仅内部 spec/plan |
 
