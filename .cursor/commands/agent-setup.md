@@ -72,9 +72,14 @@ qkrpc ping --json
 - **Codex**：`qkrpc agent setup --codex --project --workspace <根>`；Agent 逐步说明见 `docs/agent-mcp-self-install.md`。
 - npm `@quickerhub/qkrpc-mcp` 仅 spawn `qkrpc mcp`，**skills 仍须** `agent setup`。
 
+## 本仓库（quicker-rpc 研发）
+
+- 使用 **用户级** `qkrpc agent setup --upgrade`，**不要** `--project`（会生成 `.cursor/mcp.json`、`.vscode/mcp.json`、`.mcp.json`、`.qkrpc/` 等重复本地配置，已 gitignore）。
+- 终端 PATH 以已提交的 `.vscode/settings.json` 为准。
+
 ## 禁止
 
-- 将 `~/.qkrpc/agent-setup.json` 或用户级 `~/.cursor/mcp.json` 提交到本仓库
+- 将 `~/.qkrpc/agent-setup.json`、项目级 `.qkrpc/` 或任意 `mcp.json` 提交到本仓库
 - 用 `--upgrade` 代替首次 `agent setup`（无 manifest 时会失败）
 - 连通失败时反复 shell `qkrpc ping`（用 MCP `qkrpc_wait` 或告知用户检查 Quicker/插件）
 
