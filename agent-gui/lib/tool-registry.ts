@@ -67,11 +67,11 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "编写指南：search→snippet（主）；get→全文工作流；index→目录",
   },
   {
-    id: "shell_exec",
+    id: "Shell",
     label: "终端",
     group: "write",
     category: "runtime",
-    description: "工作目录执行命令/脚本（build/test/git、rg 搜索）；非普通文件读写（用 workspace_file）",
+    description: "工作目录执行命令/脚本（build/test/git、rg 搜索）；非普通文件读写（用 Read/Write/StrReplace）",
   },
   {
     id: "browser",
@@ -139,11 +139,32 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "编辑 .quicker 程序体：data.json/files → patch；改动在侧栏已改动可见",
   },
   {
-    id: "workspace_file",
-    label: "工作区文件",
+    id: "Read",
+    label: "读取文件",
     group: "read",
     category: "workspace",
-    description: "读写 cwd 普通文件（.local 草稿、配置、脚本）；非 .quicker 程序体",
+    description: "读取 cwd 普通文件与目录（.local 草稿、配置）；非 .quicker 程序体",
+  },
+  {
+    id: "Grep",
+    label: "内容搜索",
+    group: "read",
+    category: "workspace",
+    description: "ripgrep 正则搜索 cwd 文件树；跨目录优先于 Read search / Shell rg",
+  },
+  {
+    id: "Write",
+    label: "写入文件",
+    group: "write",
+    category: "workspace",
+    description: "整文件写入 cwd 普通文件；小范围改动用 StrReplace",
+  },
+  {
+    id: "StrReplace",
+    label: "替换文本",
+    group: "write",
+    category: "workspace",
+    description: "oldString/newString 局部编辑 cwd 普通文件；非 .quicker 程序体",
   },
   {
     id: "qkrpc_action_query",
@@ -336,6 +357,14 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     description: "搜索/读/写设置；打开设置页、回收站、搜索框等",
   },
   {
+    id: "quicker_trigger",
+    label: "事件触发器",
+    group: "write",
+    category: "settings",
+    description:
+      "场景→事件动作：events 读 fields[].helpText 写 params → add；filter 用 $={Var} 表达式",
+  },
+  {
     id: "qkrpc_action_delete",
     label: "删除动作",
     group: "destructive",
@@ -359,10 +388,6 @@ export const ALL_QKRPC_TOOL_IDS = QKRPC_TOOL_REGISTRY.map((t) => t.id);
 
 const registryById = new Map(QKRPC_TOOL_REGISTRY.map((t) => [t.id, t]));
 
-export function getToolMeta(id: string): ToolMeta | undefined {
-  return registryById.get(id);
-}
-
 export function defaultEnabledToolIds(): string[] {
   return [...ALL_QKRPC_TOOL_IDS];
 }
@@ -374,7 +399,8 @@ export const TOOLS_REQUIRING_APPROVAL = new Set([
 ]);
 
 export function toolNeedsApproval(toolId: string): boolean {
-  return TOOLS_REQUIRING_APPROVAL.has(toolId);
+  const resolved = LEGACY_TOOL_ID_MAP[toolId] ?? toolId;
+  return TOOLS_REQUIRING_APPROVAL.has(resolved);
 }
 
 export function pickEnabledTools<T extends Record<string, unknown>>(
@@ -409,6 +435,12 @@ export function pickChatTools<T extends Record<string, unknown>>(
 }
 
 export const TOOL_APPROVAL_STORAGE_KEY = "agent-gui-enabled-tools";
+
+/** Consolidated-era host tool ids → split registry tools (prefs migration). */
+const LEGACY_HOST_TOOL_EXPAND: Record<string, readonly string[]> = {
+  workspace_file: ["Read", "Write", "StrReplace", "Grep"],
+  shell_exec: ["Shell"],
+};
 
 /** Consolidated-era mega-tool ids → split registry tools (prefs migration). */
 const LEGACY_MEGA_ACTION_EXPAND: Record<string, readonly string[]> = {
@@ -446,6 +478,9 @@ const LEGACY_MEGA_SUBPROGRAM_EXPAND: Record<string, readonly string[]> = {
 };
 
 const LEGACY_TOOL_ID_MAP: Record<string, string> = {
+  shell_exec: "Shell",
+  workspace_file: "Read",
+  workspace_file_list: "Read",
   qkrpc_guide_get: "docs",
   qkrpc_guide_search: "docs",
   docs_get: "docs",
@@ -497,8 +532,13 @@ const LEGACY_TOOL_ID_MAP: Record<string, string> = {
   workspace_action_file_search: "workspace_program",
   workspace_program_patch: "workspace_program",
   workspace_program_diagnostics: "workspace_program",
-  workspace_file_list: "workspace_file",
 };
+
+export function getToolMeta(id: string): ToolMeta | undefined {
+  const mapped = LEGACY_TOOL_ID_MAP[id];
+  if (mapped) return registryById.get(mapped);
+  return registryById.get(id);
+}
 
 type StoredToolPrefsV1 = {
   v: 1;
@@ -509,6 +549,11 @@ type StoredToolPrefsV1 = {
 function expandLegacyMegaToolIds(ids: string[]): string[] {
   const out: string[] = [];
   for (const id of ids) {
+    const hostExpand = LEGACY_HOST_TOOL_EXPAND[id];
+    if (hostExpand) {
+      out.push(...hostExpand);
+      continue;
+    }
     const actionExpand = LEGACY_MEGA_ACTION_EXPAND[id];
     if (actionExpand) {
       out.push(...actionExpand);

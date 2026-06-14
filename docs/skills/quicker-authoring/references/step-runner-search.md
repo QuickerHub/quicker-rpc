@@ -24,7 +24,7 @@ Maintainers: `obsolete: true` hides module from search; `obsoleteControlValues` 
 | OR | `a\|b\|c` |
 | wildcard | `*clip*`, `sys:*` |
 
-Prefer **sys:evalexpression** for calc/LINQ (implementation-fallback); search still lists dedicated modules.
+Prefer **sys:assign** for single-variable writes (search `赋值`); **sys:evalexpression** for batch `{var}=`, LINQ, or complex C# (implementation-fallback). Search still lists dedicated modules.
 
 ## Related
 

@@ -112,7 +112,7 @@ function ShellToolRowInner({
         onClose={popup.closePopup}
         title={displayTitle}
         subtitle={meta}
-        toolName="shell_exec"
+        toolName="Shell"
         input={input}
         output={output}
         errorText={errorText}

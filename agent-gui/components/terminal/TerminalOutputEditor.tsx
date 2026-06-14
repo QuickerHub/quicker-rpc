@@ -5,13 +5,14 @@ import { CodeMirrorPreview } from "@/components/chat/CodeMirrorPreview";
 import { useIdleCmReady } from "@/lib/use-idle-cm-ready";
 import { streamingContentSignature } from "@/lib/preview-tail-lines";
 import { useThrottledStreamValue } from "@/lib/use-throttled-stream-value";
-import { FILE_SNAPSHOT_PREVIEW_LINES } from "@/components/chat/FileEditorCard";
+import { FILE_SNAPSHOT_PREVIEW_LINES, FILE_SNAPSHOT_EXPANDED_LINES } from "@/components/chat/FileEditorCard";
+import { shellTerminalBlockMaxHeight } from "@/lib/shell-terminal-layout";
 import {
-  resolveShellCommandDisplay,
-  shouldUseStructuredShellCommand,
+  resolveShellCommandEditorView,
 } from "@/lib/shell-command-display";
 import {
   countShellOutputLines,
+  shellOutputExceedsPreviewLines,
   tailShellOutputForPreview,
 } from "@/lib/shell-tool-view";
 import { useFollowScrollTail } from "@/lib/use-follow-scroll-tail";
@@ -82,7 +83,7 @@ function maxHeightForVariant(
       return "min(52vh, 28rem)";
     case "inline":
     default:
-      return "min(360px, 45vh)";
+      return shellTerminalBlockMaxHeight(FILE_SNAPSHOT_EXPANDED_LINES);
   }
 }
 
@@ -116,12 +117,13 @@ function TerminalOutputEditorInner({
   const displayContent = useThrottledStreamValue(content, running);
   const outputText = displayContent.trimEnd();
   const outputLineCount = countShellOutputLines(outputText);
-  const commandDisplay = commandLine
-    ? resolveShellCommandDisplay(commandLine, shellKind)
+  const outputExceedsPreview = shellOutputExceedsPreviewLines(
+    outputText,
+    FILE_SNAPSHOT_PREVIEW_LINES,
+  );
+  const commandEditorView = commandLine
+    ? resolveShellCommandEditorView(commandLine, shellKind)
     : null;
-  const commandTranscript = commandLine ? `$ ${commandLine}` : "";
-  const structuredCommand =
-    commandDisplay && shouldUseStructuredShellCommand(commandDisplay);
 
   const inlineFold = variant === "inline";
   const isExpanded = inlineFold
@@ -140,25 +142,32 @@ function TerminalOutputEditorInner({
   const canToggle =
     inlineFold
     && !running
-    && (outputLineCount > FILE_SNAPSHOT_PREVIEW_LINES || hasFoldableCommand);
+    && (outputExceedsPreview || hasFoldableCommand);
   const showPreviewFade =
-    isCompactPreview && outputLineCount > FILE_SNAPSHOT_PREVIEW_LINES;
+    isCompactPreview && outputExceedsPreview;
   const previewOutputText = useMemo(() => {
-    if (!isCompactPreview || outputLineCount <= FILE_SNAPSHOT_PREVIEW_LINES) {
+    if (!isCompactPreview || !outputExceedsPreview) {
       return outputText;
     }
-    return tailShellOutputForPreview(outputText, FILE_SNAPSHOT_PREVIEW_LINES);
-  }, [isCompactPreview, outputText, outputLineCount]);
+    if (outputLineCount > FILE_SNAPSHOT_PREVIEW_LINES) {
+      return tailShellOutputForPreview(outputText, FILE_SNAPSHOT_PREVIEW_LINES);
+    }
+    return outputText;
+  }, [isCompactPreview, outputExceedsPreview, outputText, outputLineCount]);
   const editorOutputText = isCompactPreview ? previewOutputText : outputText;
   const displayedOutputLineCount = countShellOutputLines(editorOutputText);
   const previewLineCount = isCompactPreview
-    ? Math.min(
-      Math.max(displayedOutputLineCount, 1),
-      FILE_SNAPSHOT_PREVIEW_LINES,
-    )
+    ? (outputExceedsPreview
+      ? FILE_SNAPSHOT_PREVIEW_LINES
+      : Math.min(
+        Math.max(displayedOutputLineCount, 1),
+        FILE_SNAPSHOT_PREVIEW_LINES,
+      ))
     : null;
   const showChevron = canToggle;
   const liveText = running ? (outputText || "…") : "";
+  const hasOutputPane = running || Boolean(outputText);
+  const unifiedScroll = showCommandPane && hasOutputPane;
   const wantOutputCm = !running && Boolean(outputText) && !isCompactPreview;
   const outputCmReady = useIdleCmReady(wantOutputCm);
 
@@ -175,12 +184,16 @@ function TerminalOutputEditorInner({
     if (!followTail || running) return;
     const root = rootRef.current;
     if (!root) return;
-    const scroller = root.querySelector<HTMLElement>(
-      ".terminal-output-editor__output-pane .cm-scroller",
-    );
-    if (!scroller) return;
-    scroller.scrollTop = scroller.scrollHeight;
-  }, [outputText, followTail, running, showCommandPane]);
+    const scrollEl = unifiedScroll
+      ? root.querySelector<HTMLElement>(
+        ".terminal-output-editor__body--unified-scroll",
+      )
+      : root.querySelector<HTMLElement>(
+        ".terminal-output-editor__output-pane .cm-scroller",
+      );
+    if (!scrollEl) return;
+    scrollEl.scrollTop = scrollEl.scrollHeight;
+  }, [outputText, followTail, running, unifiedScroll]);
 
   if (
     !outputText
@@ -224,50 +237,33 @@ function TerminalOutputEditorInner({
     .join(" ");
 
   const body = (
-    <div className="terminal-output-editor__body terminal-output-editor__body--terminal file-editor-body">
-      {showCommandPane ? (
+    <div
+      className={[
+        "terminal-output-editor__body",
+        "terminal-output-editor__body--terminal",
+        "file-editor-body",
+        unifiedScroll ? "terminal-output-editor__body--unified-scroll" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      {showCommandPane && commandEditorView ? (
         <div className="terminal-output-editor__command-pane">
-          {structuredCommand && commandDisplay ? (
-            <div className="terminal-output-editor__command-line">
-              <span className="terminal-output-editor__prompt" aria-hidden>
-                {commandDisplay.prompt}
-              </span>
-              {commandDisplay.invocationPrefix ? (
-                <span className="terminal-output-editor__invocation">
-                  {commandDisplay.invocationPrefix}
-                </span>
-              ) : null}
-              <CodeMirrorPreview
-                path="shell.command.ps1"
-                content={commandDisplay.scriptText}
-                language={commandDisplay.highlightLanguage}
-                terminalDark
-                className={[
-                  "terminal-output-editor__cm",
-                  "terminal-output-editor__cm--command",
-                  "terminal-output-editor__cm--command-inline",
-                  "terminal-output-editor__cm--no-gutter",
-                  cmAutoHeight,
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-              />
-            </div>
-          ) : (
-            <CodeMirrorPreview
-              path="shell.command"
-              content={commandTranscript}
-              language="terminal"
-              className={[
-                "terminal-output-editor__cm",
-                "terminal-output-editor__cm--command",
-                "terminal-output-editor__cm--no-gutter",
-                cmAutoHeight,
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            />
-          )}
+          <CodeMirrorPreview
+            path={commandEditorView.path}
+            content={commandEditorView.content}
+            language={commandEditorView.language}
+            terminalDark={commandEditorView.language !== "terminal"}
+            shellTerminal
+            className={[
+              "terminal-output-editor__cm",
+              "terminal-output-editor__cm--command",
+              "terminal-output-editor__cm--no-gutter",
+              cmAutoHeight,
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          />
         </div>
       ) : null}
       {running ? (
@@ -292,6 +288,7 @@ function TerminalOutputEditorInner({
               path="shell.out.txt"
               content={editorOutputText}
               plain
+              shellTerminal
               className={[
                 "terminal-output-editor__cm",
                 "terminal-output-editor__cm--output",
@@ -301,7 +298,11 @@ function TerminalOutputEditorInner({
                 .filter(Boolean)
                 .join(" ")}
               fillAvailable={fillAvailable}
-              maxHeight={fillAvailable ? undefined : maxHeightForVariant(variant)}
+              maxHeight={
+                fillAvailable || unifiedScroll
+                  ? undefined
+                  : maxHeightForVariant(variant)
+              }
               minHeight={variant === "popup" ? "8rem" : undefined}
             />
           ) : (

@@ -7,7 +7,17 @@ import {
   effectiveGeneralWorkspaceFileToolId,
   isWorkspaceGeneralFileTool,
 } from "@/lib/workspace-general-file-tool";
-import { WORKSPACE_FILE_TOOL } from "@/lib/workspace-general-file-tool.server";
+import {
+  READ_TOOL,
+  STR_REPLACE_TOOL,
+  WRITE_TOOL,
+} from "@/lib/host-tool-constants";
+import { WORKSPACE_FILE_TOOL } from "@/lib/workspace-general-file-tool";
+import {
+  READ_TOOL_DEF,
+  STR_REPLACE_TOOL_DEF,
+  WRITE_TOOL_DEF,
+} from "@/lib/workspace-general-file-tool.server";
 import { effectiveWorkspaceToolId, isWorkspaceFileTool } from "@/lib/workspace-program-tool";
 import {
   hasWorkspaceFileEditorPreviewInChat,
@@ -15,45 +25,75 @@ import {
   workspaceFileToolDisplayName,
 } from "@/lib/workspace-file-tool";
 
-test("workspace_file action helpers", () => {
+test("Read/Write/StrReplace host tool helpers", () => {
+  assert.equal(isWorkspaceGeneralFileTool(READ_TOOL, { path: "a.txt" }), true);
+  assert.equal(isWorkspaceGeneralFileTool(WRITE_TOOL, { path: "a.txt", content: "x" }), true);
+  assert.equal(
+    isWorkspaceGeneralFileTool(STR_REPLACE_TOOL, {
+      path: "a.txt",
+      oldString: "x",
+      newString: "y",
+    }),
+    true,
+  );
   assert.equal(
     isWorkspaceGeneralFileTool(WORKSPACE_FILE_TOOL, { action: "write" }),
     true,
   );
   assert.equal(
-    effectiveGeneralWorkspaceFileToolId(WORKSPACE_FILE_TOOL, { action: "read" }),
+    effectiveGeneralWorkspaceFileToolId(READ_TOOL, { path: "a.txt" }),
     "workspace_action_file_read",
   );
   assert.equal(
-    effectiveWorkspaceToolId(WORKSPACE_FILE_TOOL, { action: "edit" }),
+    effectiveWorkspaceToolId(WRITE_TOOL, { path: "a.txt", content: "x" }),
+    "workspace_action_file_write",
+  );
+  assert.equal(
+    effectiveWorkspaceToolId(STR_REPLACE_TOOL, {
+      path: "a.txt",
+      oldString: "x",
+      newString: "y",
+    }),
     "workspace_action_file_edit",
   );
-  assert.equal(isWorkspaceFileTool(WORKSPACE_FILE_TOOL, { action: "write" }), true);
+  assert.equal(isWorkspaceFileTool(WRITE_TOOL, { path: "a.txt", content: "x" }), true);
   assert.equal(
-    workspaceFileToolDisplayName(WORKSPACE_FILE_TOOL, { action: "write" }),
+    workspaceFileToolDisplayName(WRITE_TOOL, { path: "a.txt", content: "x" }),
     "写入工作区文件",
   );
   assert.equal(
-    isWorkspaceFileReadTool(WORKSPACE_FILE_TOOL, { action: "read" }),
+    workspaceFileToolDisplayName(STR_REPLACE_TOOL, {
+      path: "a.txt",
+      oldString: "x",
+      newString: "y",
+    }),
+    "编辑工作区文件",
+  );
+  assert.equal(
+    isWorkspaceFileReadTool(READ_TOOL, { path: "a.txt" }),
     true,
   );
   assert.equal(
-    hasWorkspaceFileEditorPreviewInChat(WORKSPACE_FILE_TOOL, { action: "write" }),
+    hasWorkspaceFileEditorPreviewInChat(WRITE_TOOL, { path: "a.txt", content: "x" }),
+    true,
+  );
+  assert.equal(
+    hasWorkspaceFileEditorPreviewInChat(STR_REPLACE_TOOL, {
+      path: "a.txt",
+      oldString: "a",
+      newString: "b",
+    }),
     true,
   );
 });
 
-test("workspace_file write and read under .local", async () => {
+test("Write and Read under .local", async () => {
   const root = await mkdtemp(join(tmpdir(), "agent-ws-file-tool-"));
   const prevCwd = process.env.AGENT_GUI_DEFAULT_CWD;
   process.env.AGENT_GUI_DEFAULT_CWD = root;
   try {
-    const { WORKSPACE_FILE_TOOL_DEF } = await import(
-      "@/lib/workspace-general-file-tool.server"
-    );
-    const writeResult = await WORKSPACE_FILE_TOOL_DEF.execute!(
+    const writeResult = await WRITE_TOOL_DEF.execute!(
       {
-        action: "write",
         path: ".local/hello.txt",
         content: "hello agent",
       },
@@ -61,8 +101,8 @@ test("workspace_file write and read under .local", async () => {
     );
     assert.equal((writeResult as { ok?: boolean }).ok, true);
 
-    const readResult = await WORKSPACE_FILE_TOOL_DEF.execute!(
-      { action: "read", path: ".local/hello.txt" },
+    const readResult = await READ_TOOL_DEF.execute!(
+      { path: ".local/hello.txt" },
       { toolCallId: "test" },
     );
     const data = (readResult as { data?: { content?: string } }).data;
@@ -74,7 +114,39 @@ test("workspace_file write and read under .local", async () => {
   }
 });
 
-test("workspace_file blocks program body paths", async () => {
+test("StrReplace edits file under .local", async () => {
+  const root = await mkdtemp(join(tmpdir(), "agent-ws-str-replace-"));
+  const prevCwd = process.env.AGENT_GUI_DEFAULT_CWD;
+  process.env.AGENT_GUI_DEFAULT_CWD = root;
+  try {
+    await WRITE_TOOL_DEF.execute!(
+      { path: ".local/patch.txt", content: "hello world" },
+      { toolCallId: "test" },
+    );
+    const editResult = await STR_REPLACE_TOOL_DEF.execute!(
+      {
+        path: ".local/patch.txt",
+        oldString: "world",
+        newString: "agent",
+      },
+      { toolCallId: "test" },
+    );
+    assert.equal((editResult as { ok?: boolean }).ok, true);
+
+    const readResult = await READ_TOOL_DEF.execute!(
+      { path: ".local/patch.txt" },
+      { toolCallId: "test" },
+    );
+    const data = (readResult as { data?: { content?: string } }).data;
+    assert.equal(data?.content, "hello agent");
+  } finally {
+    if (prevCwd === undefined) delete process.env.AGENT_GUI_DEFAULT_CWD;
+    else process.env.AGENT_GUI_DEFAULT_CWD = prevCwd;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Write blocks program body paths", async () => {
   const root = await mkdtemp(join(tmpdir(), "agent-ws-file-guard-"));
   const prevCwd = process.env.AGENT_GUI_DEFAULT_CWD;
   process.env.AGENT_GUI_DEFAULT_CWD = root;
@@ -83,12 +155,8 @@ test("workspace_file blocks program body paths", async () => {
     await mkdir(join(actionDir, "files"), { recursive: true });
     await writeFile(join(actionDir, "data.json"), "{}", "utf8");
 
-    const { WORKSPACE_FILE_TOOL_DEF } = await import(
-      "@/lib/workspace-general-file-tool.server"
-    );
-    const result = await WORKSPACE_FILE_TOOL_DEF.execute!(
+    const result = await WRITE_TOOL_DEF.execute!(
       {
-        action: "write",
         path: ".quicker/actions/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/data.json",
         content: "{}",
       },

@@ -14,6 +14,7 @@ import {
 import { streamingContentSignature } from "@/lib/preview-tail-lines";
 import {
   buildPreviewCodeMirrorExtensions,
+  shellTerminalCodeMirrorUiTheme,
   workspaceCodeMirrorUiTheme,
 } from "@/lib/codemirror-setup";
 
@@ -32,6 +33,8 @@ type CodeMirrorPreviewProps = {
   showStatusBar?: boolean;
   plain?: boolean;
   terminalDark?: boolean;
+  /** Inline shell terminal command/output — horizontal pad from CSS, not workspace theme. */
+  shellTerminal?: boolean;
   lineWrapping?: boolean;
   skipLint?: boolean;
   scrollToTail?: boolean;
@@ -56,6 +59,7 @@ function CodeMirrorPreviewInner({
   showStatusBar,
   plain = false,
   terminalDark = false,
+  shellTerminal = false,
   lineWrapping = true,
   skipLint = false,
   scrollToTail = false,
@@ -137,7 +141,7 @@ function CodeMirrorPreviewInner({
       <CodeMirror
         value={content}
         extensions={extensions}
-        theme={workspaceCodeMirrorUiTheme}
+        theme={shellTerminal ? shellTerminalCodeMirrorUiTheme : workspaceCodeMirrorUiTheme}
         editable={false}
         readOnly
         basicSetup={false}
@@ -190,6 +194,7 @@ function codeMirrorPreviewPropsEqual(
   if (prev.showStatusBar !== next.showStatusBar) return false;
   if (prev.plain !== next.plain) return false;
   if (prev.terminalDark !== next.terminalDark) return false;
+  if (prev.shellTerminal !== next.shellTerminal) return false;
   if (prev.lineWrapping !== next.lineWrapping) return false;
   if (prev.skipLint !== next.skipLint) return false;
   if (prev.scrollToTail !== next.scrollToTail) return false;

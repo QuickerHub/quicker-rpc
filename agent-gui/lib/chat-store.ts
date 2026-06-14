@@ -741,7 +741,10 @@ export async function resolveThreadMessagesAsync(
       };
     }
 
-    const fromApi = await fetchThreadMessagesFromApi(threadId);
+    let fromApi = await fetchThreadMessagesFromApi(threadId);
+    if (fromApi.length === 0) {
+      fromApi = await fetchThreadMessagesFromApi(threadId, { preferBackup: true });
+    }
     if (fromApi.length > 0) {
       return { messages: fromApi, migratedFromLocalStorage: false };
     }

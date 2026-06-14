@@ -162,11 +162,21 @@ const TOOL_TEST_CALLS: ToolTestCallDef[] = [
     input: { action: "search", query: "快捷键", limit: 5 },
   },
   {
-    toolName: "shell_exec",
+    toolName: "Shell",
     group: "runtime",
     input: {
       description: "Git version",
       command: "git --version",
+    },
+  },
+  {
+    toolName: "Grep",
+    group: "workspace",
+    input: {
+      pattern: "tool-registry",
+      glob: "*.ts",
+      path: "agent-gui/lib",
+      head_limit: 5,
     },
   },
   {
@@ -176,11 +186,10 @@ const TOOL_TEST_CALLS: ToolTestCallDef[] = [
     input: { query: "Quicker automation", limit: 3 },
   },
   {
-    toolName: "workspace_file",
+    toolName: "Write",
     group: "workspace",
     writes: true,
     input: {
-      action: "write",
       path: ".local/tool-test-suite.txt",
       content: "tool-test-suite-ok\n",
     },

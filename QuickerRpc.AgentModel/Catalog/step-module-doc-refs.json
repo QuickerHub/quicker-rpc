@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-13T04:58:57.016Z",
+  "generatedAt": "2026-06-14T11:46:23.332Z",
   "topic": "step-modules",
   "rationale": "Embedded in step-runner get schema as docReference. Priority: authored > kc.",
   "refs": {

@@ -12,6 +12,7 @@ import {
 import {
   openChatDatabaseAt,
   resetChatDatabaseClientForTests,
+  getChatDatabase,
 } from "@/lib/db/client";
 import {
   chatDatabaseHasPersistedMessages,
@@ -21,6 +22,8 @@ import {
   resetDatabasePersistedSnapshotForTests,
   saveChatStoreToDatabase,
 } from "@/lib/db/chat-store.repository";
+import { chatThreadMessages, chatThreadMessagesBackup } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 function sampleMessage(id: string): AgentUIMessage {
   return {
@@ -82,6 +85,42 @@ test("save and load chat store from SQLite with lazy active scope", () => {
 
   const sidebarMessages = loadThreadMessagesFromDatabase(threadB);
   assert.equal(sidebarMessages[0]?.id, "b1");
+});
+
+test("loadThreadMessagesFromDatabase falls back to backup when primary blob is empty", () => {
+  const base = defaultChatStore();
+  const threadId = base.activeThreadId;
+  const store = updateThreadMessages(base, threadId, [sampleMessage("saved")]);
+  saveChatStoreToDatabase(store);
+
+  const db = getChatDatabase();
+  const [primary] = db
+    .select()
+    .from(chatThreadMessages)
+    .where(eq(chatThreadMessages.threadId, threadId))
+    .all();
+  assert.ok(primary?.messagesJson);
+
+  db.insert(chatThreadMessagesBackup)
+    .values({
+      threadId,
+      messagesJson: primary!.messagesJson,
+      updatedAt: primary!.updatedAt,
+    })
+    .onConflictDoUpdate({
+      target: chatThreadMessagesBackup.threadId,
+      set: {
+        messagesJson: primary!.messagesJson,
+        updatedAt: primary!.updatedAt,
+      },
+    })
+    .run();
+  db.delete(chatThreadMessages)
+    .where(eq(chatThreadMessages.threadId, threadId))
+    .run();
+
+  const restored = loadThreadMessagesFromDatabase(threadId);
+  assert.equal(restored[0]?.id, "saved");
 });
 
 test("importChatStoreToDatabase replaces existing rows", () => {

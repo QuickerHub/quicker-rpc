@@ -133,18 +133,38 @@ function ensureSingleInstance() {
   return true;
 }
 
+const MAIN_TITLEBAR_OVERLAY_HEIGHT = 32;
+
 function usesFramelessChrome() {
   return process.platform === "win32" || process.platform === "linux";
 }
 
+function usesWindowControlsOverlay() {
+  return usesFramelessChrome();
+}
+
+/** Initial WCO colors; renderer syncs via set_titlebar_overlay on theme change. */
+function defaultTitleBarOverlay() {
+  return {
+    color: "#23272f",
+    symbolColor: "#e8eaed",
+    height: MAIN_TITLEBAR_OVERLAY_HEIGHT,
+  };
+}
+
 function createMainWindow(loadUrl) {
   const appIcon = createAppNativeIcon(isDev());
+  const frameless = usesFramelessChrome();
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     show: false,
     title: "QuickerAgent",
-    frame: !usesFramelessChrome(),
+    frame: !frameless,
+    ...(frameless ? { titleBarStyle: "hidden" } : {}),
+    ...(usesWindowControlsOverlay()
+      ? { titleBarOverlay: defaultTitleBarOverlay() }
+      : {}),
     ...(appIcon ? { icon: appIcon } : {}),
     webPreferences: {
       preload: preloadPath,
@@ -241,6 +261,25 @@ async function handleDesktopInvoke(command, args) {
   }
   if (command === "prepare_for_update_install") {
     prepareForUpdateInstall(lifecycleCtx());
+    return null;
+  }
+  if (command === "set_titlebar_overlay") {
+    if (!mainWindow || mainWindow.isDestroyed() || !usesWindowControlsOverlay()) {
+      return null;
+    }
+    const overlay = {};
+    if (typeof args?.color === "string" && args.color.trim()) {
+      overlay.color = args.color.trim();
+    }
+    if (typeof args?.symbolColor === "string" && args.symbolColor.trim()) {
+      overlay.symbolColor = args.symbolColor.trim();
+    }
+    if (typeof args?.height === "number" && Number.isFinite(args.height)) {
+      overlay.height = Math.round(args.height);
+    }
+    if (Object.keys(overlay).length > 0) {
+      mainWindow.setTitleBarOverlay(overlay);
+    }
     return null;
   }
   if (command === "launcher_show") {

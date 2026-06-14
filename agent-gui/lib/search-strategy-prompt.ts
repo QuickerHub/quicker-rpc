@@ -10,7 +10,7 @@ const SEARCH_STRATEGY_ROWS = [
   "| Step module key | qkrpc_step_runner_search | qkrpc_step_runner_get | guess inputParams |",
   "| Authoring docs (workflow + references) | docs search → items[].snippet | docs get full topic | invent syntax |",
   "| Icons | qkrpc_fa search | set_metadata | guess fa: names |",
-  "| cwd / repo file contents | shell_exec rg | workspace_file read | invent paths |",
+  "| cwd / repo file contents | Grep | Read (single path) | invent paths |",
   "| Internet / vendor APIs | web_search | browser if need page | docs; qkrpc_action_query |",
 ] as const;
 

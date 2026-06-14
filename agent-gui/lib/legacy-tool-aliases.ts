@@ -50,6 +50,10 @@ import {
 } from "@/lib/qkrpc-subprogram-tool";
 import { executeWorkspaceProgramTool } from "@/lib/workspace-program-tool.server";
 import { workspaceProgramIdSchema } from "@/lib/workspace-program-schema";
+import { SHELL_TOOL_DEF } from "@/lib/shell-tool";
+import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
+import { LEGACY_WORKSPACE_FILE_TOOL } from "@/lib/host-tool-constants";
+import { WORKSPACE_FILE_TOOL_DEF } from "@/lib/workspace-general-file-tool.server";
 
 const returnModeSchema = z.enum(["full", "structure", "metadata"]);
 
@@ -429,4 +433,8 @@ export const legacyQuickerToolAliases = {
     execute: async (input) =>
       executeWorkspaceProgramTool({ action: "file_search", ...input }),
   }),
+
+  [SHELL_EXEC_TOOL]: SHELL_TOOL_DEF,
+
+  [LEGACY_WORKSPACE_FILE_TOOL]: WORKSPACE_FILE_TOOL_DEF,
 };

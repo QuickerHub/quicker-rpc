@@ -105,6 +105,20 @@ function rowToThreadMeta(row: {
   };
 }
 
+function readBackupThreadMessages(
+  db: ChatDatabase,
+  threadId: string,
+): AgentUIMessage[] {
+  const [backup] = db
+    .select()
+    .from(chatThreadMessagesBackup)
+    .where(eq(chatThreadMessagesBackup.threadId, threadId))
+    .limit(1)
+    .all();
+  if (!backup?.messagesJson) return [];
+  return parseMessagesJson(backup.messagesJson, threadId);
+}
+
 function readThreadMessages(
   threadId: string,
   options?: { preferBackup?: boolean },
@@ -112,16 +126,8 @@ function readThreadMessages(
   const db = getChatDatabase();
 
   if (options?.preferBackup) {
-    const [backup] = db
-      .select()
-      .from(chatThreadMessagesBackup)
-      .where(eq(chatThreadMessagesBackup.threadId, threadId))
-      .limit(1)
-      .all();
-    if (backup?.messagesJson) {
-      const messages = parseMessagesJson(backup.messagesJson, threadId);
-      if (messages.length > 0) return messages;
-    }
+    const fromBackup = readBackupThreadMessages(db, threadId);
+    if (fromBackup.length > 0) return fromBackup;
   }
 
   const [row] = db
@@ -130,8 +136,13 @@ function readThreadMessages(
     .where(eq(chatThreadMessages.threadId, threadId))
     .limit(1)
     .all();
-  if (!row?.messagesJson) return [];
-  return parseMessagesJson(row.messagesJson, threadId);
+  if (row?.messagesJson) {
+    const messages = parseMessagesJson(row.messagesJson, threadId);
+    if (messages.length > 0) return messages;
+  }
+
+  // Primary blob missing/empty while backup still holds the last good snapshot.
+  return readBackupThreadMessages(db, threadId);
 }
 
 function loadIndexFromDb(): ChatStoreIndex | null {

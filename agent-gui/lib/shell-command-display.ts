@@ -108,3 +108,29 @@ export function shouldUseStructuredShellCommand(
 ): boolean {
   return parts.highlightLanguage !== "terminal" && Boolean(parts.scriptText);
 }
+
+export type ShellCommandEditorView = {
+  content: string;
+  language: ShellCommandHighlightLanguage;
+  path: string;
+};
+
+/** Full `$ command` line for a single CodeMirror command pane (no external prompt column). */
+export function resolveShellCommandEditorView(
+  commandLine: string,
+  shell?: string,
+): ShellCommandEditorView {
+  const parts = resolveShellCommandDisplay(commandLine, shell);
+  const line = commandLine.trim();
+  const content = line ? `$ ${line}` : "$";
+  if (shouldUseStructuredShellCommand(parts)) {
+    return {
+      content,
+      language: parts.highlightLanguage,
+      path: parts.highlightLanguage === "powershell"
+        ? "shell.command.ps1"
+        : "shell.command.sh",
+    };
+  }
+  return { content, language: "terminal", path: "shell.command" };
+}

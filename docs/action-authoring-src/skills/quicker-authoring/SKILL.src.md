@@ -11,6 +11,7 @@
 | global/embedded subprogram | subprogram-workflow |
 | step module keys | step-runner-search → step-runner-get |
 | icons | action-icons |
+| event trigger / auto-run | trigger-workflow |
 | WebView2/HTML files | webview2-authoring |
 
 ## Scenario skills (on-demand)
@@ -55,14 +56,14 @@ Walkthrough: authoring-workflow. Workspace: workspace-editing.
 - NO get-ui / step-runner.getUi
 - NO inline patch / --patch-file; workspace_program disk edit → patch
 - trust editVersion after patch; NO verify re-get
-- P4: expressions first → module → csscript (load **quicker-eval-expression** skill)
+- P4: **sys:assign** for single-var writes; `$=`/`$$`/batch evalexpression → module → csscript (load **quicker-eval-expression** skill)
 
 ## Deep-read index
 
 | layer | topics |
 |-------|--------|
 | overview | overview |
-| workflows | authoring-workflow, workspace-editing, subprogram-workflow |
+| workflows | authoring-workflow, workspace-editing, subprogram-workflow, trigger-workflow |
 | schemas | action-data-schema, expressions, action-project-files |
 | expressions | **quicker-eval-expression** skill (+ topic `expressions`); multi-var → **quicker-authoring-evalexpression-multi-var** |
 | scenarios | scenario skills table above (on-demand) |

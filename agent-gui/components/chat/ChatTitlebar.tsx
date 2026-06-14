@@ -19,6 +19,7 @@ import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
 import {
   useDesktopShell,
   useDesktopShellKind,
+  useNativeWindowControlsOverlay,
   useShellPlatform,
 } from "@/lib/desktop-shell";
 import { useDevExperienceEnabled } from "@/lib/release-preview.client";
@@ -151,6 +152,7 @@ export function ChatTitlebar({
   const isDesktop = useDesktopShell();
   const shellKind = useDesktopShellKind();
   const platform = useShellPlatform();
+  const usesNativeWco = useNativeWindowControlsOverlay();
   const devExperienceEnabled = useDevExperienceEnabled();
   const showTitlebarTrailing = isDesktop || devExperienceEnabled;
   const titlebarClass = [
@@ -160,6 +162,7 @@ export function ChatTitlebar({
     shellKind === "tauri" ? "app-titlebar--tauri" : "",
     shellKind === "electron" ? "app-titlebar--electron" : "",
     isDesktop && platform !== "macos" ? "app-titlebar--frameless" : "",
+    usesNativeWco ? "app-titlebar--electron-wco" : "",
     isDesktop && platform === "macos" ? "app-titlebar--mac-overlay" : "",
   ]
     .filter(Boolean)
@@ -237,7 +240,7 @@ export function ChatTitlebar({
           <div
             className={[
               "titlebar-actions",
-              isDesktop && platform !== "macos"
+              isDesktop && platform !== "macos" && !usesNativeWco
                 ? "titlebar-actions--with-window-controls"
                 : "",
             ]

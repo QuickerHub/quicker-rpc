@@ -108,9 +108,15 @@ import {
 } from "@/lib/workspace-program-tool.server";
 
 import {
-  WORKSPACE_FILE_TOOL,
-  WORKSPACE_FILE_TOOL_DEF,
+  READ_TOOL,
+  READ_TOOL_DEF,
+  STR_REPLACE_TOOL,
+  STR_REPLACE_TOOL_DEF,
+  WRITE_TOOL,
+  WRITE_TOOL_DEF,
 } from "@/lib/workspace-general-file-tool.server";
+
+import { GREP_TOOL, GREP_TOOL_DEF } from "@/lib/grep-tool.server";
 
 import { legacyQuickerToolAliases } from "@/lib/legacy-tool-aliases";
 
@@ -120,7 +126,7 @@ import { LLM_SETTINGS_TOOL, LLM_SETTINGS_TOOL_DEF } from "@/lib/llm-settings-too
 
 import { DEV_FRONTEND_CHECK_TOOL, DEV_FRONTEND_CHECK_TOOL_DEF } from "@/lib/dev-frontend-check-tool";
 
-import { SHELL_EXEC_TOOL, SHELL_EXEC_TOOL_DEF } from "@/lib/shell-tool";
+import { SHELL_TOOL, SHELL_TOOL_DEF } from "@/lib/shell-tool";
 
 import {
 
@@ -188,7 +194,7 @@ export const quickerTools = {
 
   [LAUNCHER_RESOLVE_TOOL]: LAUNCHER_RESOLVE_TOOL_DEF,
 
-  [SHELL_EXEC_TOOL]: SHELL_EXEC_TOOL_DEF,
+  [SHELL_TOOL]: SHELL_TOOL_DEF,
 
   [BROWSER_TOOL]: BROWSER_TOOL_DEF,
 
@@ -212,7 +218,13 @@ export const quickerTools = {
 
   [WORKSPACE_PROGRAM_TOOL]: WORKSPACE_PROGRAM_TOOL_DEF,
 
-  [WORKSPACE_FILE_TOOL]: WORKSPACE_FILE_TOOL_DEF,
+  [READ_TOOL]: READ_TOOL_DEF,
+
+  [WRITE_TOOL]: WRITE_TOOL_DEF,
+
+  [STR_REPLACE_TOOL]: STR_REPLACE_TOOL_DEF,
+
+  [GREP_TOOL]: GREP_TOOL_DEF,
 
   [QKRPC_ACTION_QUERY_TOOL]: QKRPC_ACTION_QUERY_TOOL_DEF,
 
@@ -397,8 +409,6 @@ export const quickerTools = {
   }),
 
 };
-
-
 
 /** Legacy aliases first; primary quickerTools win on id collision (split tools over routers). */
 

@@ -2,7 +2,9 @@
 
 import { useCallback } from "react";
 import { desktopWindowAction } from "@/lib/desktop-bridge";
-import { useDesktopShell, useShellPlatform } from "@/lib/desktop-shell";
+import {
+  useCustomDesktopWindowControls,
+} from "@/lib/desktop-shell";
 
 function IconMinimize() {
   return (
@@ -43,9 +45,7 @@ function IconClose() {
 }
 
 export function DesktopWindowControls() {
-  const isDesktop = useDesktopShell();
-  const platform = useShellPlatform();
-  const showControls = isDesktop && platform !== "macos" && platform !== "web";
+  const showControls = useCustomDesktopWindowControls();
 
   const onMinimize = useCallback(() => {
     void desktopWindowAction("minimize");

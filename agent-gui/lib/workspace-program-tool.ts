@@ -5,6 +5,12 @@ import {
   workspaceProgramActionDisplayLabel,
 } from "@/lib/chat-tool-display";
 import {
+  LEGACY_WORKSPACE_FILE_TOOL,
+  READ_TOOL,
+  STR_REPLACE_TOOL,
+  WRITE_TOOL,
+} from "@/lib/host-tool-constants";
+import {
   effectiveGeneralWorkspaceFileToolId,
   isWorkspaceGeneralFileTool,
   WORKSPACE_FILE_TOOL,
@@ -123,7 +129,15 @@ export function effectiveWorkspaceToolId(
 ): string {
   const general = effectiveGeneralWorkspaceFileToolId(toolName, input);
   if (general) return general;
-  if (toolName === WORKSPACE_FILE_TOOL) return toolName;
+  if (
+    toolName === WORKSPACE_FILE_TOOL
+    || toolName === LEGACY_WORKSPACE_FILE_TOOL
+    || toolName === READ_TOOL
+    || toolName === WRITE_TOOL
+    || toolName === STR_REPLACE_TOOL
+  ) {
+    return toolName;
+  }
   if (toolName !== WORKSPACE_PROGRAM_TOOL) return toolName;
   const action = readWorkspaceProgramAction(input);
   if (!action) return toolName;

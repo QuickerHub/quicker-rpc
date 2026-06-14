@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { WorkingDirectoryDialog } from "@/components/chat/WorkingDirectoryDialog";
 import type { ChatStoreData } from "@/lib/chat-store";
 import {
@@ -19,7 +26,6 @@ import { getChatStorePersistenceMode } from "@/lib/chat-store-backend";
 import { fetchLegacyChatStoreCandidatesFromDisk } from "@/lib/legacy-chat-restore-client";
 import type { DefaultWorkingDirectoryProfile } from "@/lib/default-working-directory";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
-import { nativeConfirm } from "@/lib/native-confirm";
 import {
   formatThreadRelativeTime,
   groupThreadsByCwd,
@@ -159,6 +165,8 @@ function IconTrash() {
   );
 }
 
+const DELETE_CONFIRM_MS = 1000;
+
 type RowActionProps = {
   label: string;
   onClick: () => void;
@@ -181,6 +189,50 @@ function RowAction({ label, onClick, disabled, children }: RowActionProps) {
     >
       {children}
     </button>
+  );
+}
+
+type ThreadDeleteRowActionProps = {
+  threadId: string;
+  confirming: boolean;
+  disabled?: boolean;
+  onRequestDelete: (threadId: string) => void;
+  onConfirmDelete: (threadId: string) => void;
+};
+
+function ThreadDeleteRowAction({
+  threadId,
+  confirming,
+  disabled,
+  onRequestDelete,
+  onConfirmDelete,
+}: ThreadDeleteRowActionProps) {
+  if (confirming) {
+    return (
+      <button
+        type="button"
+        className="ws-row-confirm-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          onConfirmDelete(threadId);
+        }}
+        disabled={disabled}
+        title="确认删除"
+        aria-label="确认删除对话"
+      >
+        确认
+      </button>
+    );
+  }
+
+  return (
+    <RowAction
+      label="删除对话"
+      onClick={() => onRequestDelete(threadId)}
+      disabled={disabled}
+    >
+      <IconTrash />
+    </RowAction>
   );
 }
 
@@ -237,6 +289,30 @@ export function ChatSidebar({
   const [expandedThreadLists, setExpandedThreadLists] = useState<Set<string>>(
     () => new Set(),
   );
+  const [pendingDeleteThreadId, setPendingDeleteThreadId] = useState<
+    string | null
+  >(null);
+  const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const renamingThreadIdRef = useRef<string | null>(null);
+  renamingThreadIdRef.current = renamingThreadId;
+
+  useEffect(() => {
+    if (!pendingDeleteThreadId) return;
+    const timer = window.setTimeout(() => {
+      setPendingDeleteThreadId(null);
+    }, DELETE_CONFIRM_MS);
+    return () => window.clearTimeout(timer);
+  }, [pendingDeleteThreadId]);
+
+  useEffect(() => {
+    if (!renamingThreadId) return;
+    const input = renameInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, [renamingThreadId]);
 
   const commit = useCallback(
     (next: ChatStoreData) => {
@@ -274,18 +350,52 @@ export function ChatSidebar({
     commit(addThread(store));
   };
 
-  const handleRenameThread = (threadId: string, currentTitle: string) => {
-    const title = window.prompt("对话标题", currentTitle);
-    if (title === null || !title.trim()) return;
-    commit(renameThread(store, threadId, title));
-  };
+  const cancelRename = useCallback(() => {
+    setRenamingThreadId(null);
+    setRenameDraft("");
+  }, []);
 
-  const handleDeleteThread = (threadId: string) => {
-    void (async () => {
-      if (!(await nativeConfirm("删除此对话？", { danger: true }))) return;
+  const commitRename = useCallback(
+    (options?: { threadId?: string; title?: string; clear?: boolean }) => {
+      const threadId = options?.threadId ?? renamingThreadId;
+      if (!threadId) return;
+      const trimmed = (options?.title ?? renameDraft).trim();
+      if (trimmed) {
+        commit(renameThread(store, threadId, trimmed));
+      }
+      if (options?.clear !== false) {
+        setRenamingThreadId(null);
+        setRenameDraft("");
+      }
+    },
+    [commit, renameDraft, renamingThreadId, store],
+  );
+
+  const handleStartRenameThread = useCallback(
+    (threadId: string, currentTitle: string) => {
+      setPendingDeleteThreadId(null);
+      if (renamingThreadId && renamingThreadId !== threadId) {
+        commitRename({ threadId: renamingThreadId, clear: false });
+      }
+      setRenamingThreadId(threadId);
+      setRenameDraft(currentTitle);
+    },
+    [commitRename, renamingThreadId],
+  );
+
+  const handleRequestDeleteThread = useCallback((threadId: string) => {
+    setRenamingThreadId(null);
+    setRenameDraft("");
+    setPendingDeleteThreadId(threadId);
+  }, []);
+
+  const handleConfirmDeleteThread = useCallback(
+    (threadId: string) => {
+      setPendingDeleteThreadId(null);
       commit(deleteThread(store, threadId));
-    })();
-  };
+    },
+    [commit, store],
+  );
 
   const handleRestoreLegacy = () => {
     if (restoringLegacy) return;
@@ -386,38 +496,81 @@ export function ChatSidebar({
                     <ul className="ws-list ws-thread-group-list" role="group">
                       {visibleThreads.map((thread) => {
                         const selected = thread.id === store.activeThreadId;
+                        const renaming = renamingThreadId === thread.id;
                         return (
                           <li
                             key={thread.id}
-                            className={`ws-row ws-thread-row${selected ? " ws-row--active" : ""}`}
+                            className={`ws-row ws-thread-row${selected ? " ws-row--active" : ""}${pendingDeleteThreadId === thread.id ? " ws-row--delete-pending" : ""}${renaming ? " ws-row--renaming" : ""}`}
                           >
-                            <button
-                              type="button"
-                              className={`ws-item ws-thread-item${selected ? " ws-item--active" : ""}`}
-                              onClick={() => onActivateThread(thread.id)}
-                              disabled={disabled}
-                              aria-selected={selected}
-                            >
-                              <span className="ws-item-label">{thread.title}</span>
-                              <span className="ws-thread-time" suppressHydrationWarning>
-                                {formatThreadRelativeTime(thread.updatedAt)}
-                              </span>
-                            </button>
+                            {renaming ? (
+                              <div className="ws-thread-rename">
+                                <input
+                                  ref={renameInputRef}
+                                  type="text"
+                                  className="ws-thread-rename-input"
+                                  value={renameDraft}
+                                  disabled={disabled}
+                                  aria-label="对话标题"
+                                  onChange={(event) => {
+                                    setRenameDraft(event.target.value);
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      event.preventDefault();
+                                      commitRename({
+                                        threadId: thread.id,
+                                        title: renameDraft,
+                                      });
+                                    } else if (event.key === "Escape") {
+                                      event.preventDefault();
+                                      cancelRename();
+                                    }
+                                  }}
+                                  onBlur={() => {
+                                    const savingThreadId = thread.id;
+                                    const title = renameDraft;
+                                    window.setTimeout(() => {
+                                      if (renamingThreadIdRef.current !== savingThreadId) {
+                                        return;
+                                      }
+                                      commitRename({
+                                        threadId: savingThreadId,
+                                        title,
+                                      });
+                                    }, 0);
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className={`ws-item ws-thread-item${selected ? " ws-item--active" : ""}`}
+                                onClick={() => onActivateThread(thread.id)}
+                                disabled={disabled}
+                                aria-selected={selected}
+                              >
+                                <span className="ws-item-label">{thread.title}</span>
+                                <span className="ws-thread-time" suppressHydrationWarning>
+                                  {formatThreadRelativeTime(thread.updatedAt)}
+                                </span>
+                              </button>
+                            )}
                             <div className="ws-row-actions">
                               <RowAction
                                 label="重命名对话"
-                                onClick={() => handleRenameThread(thread.id, thread.title)}
-                                disabled={disabled}
+                                onClick={() =>
+                                  handleStartRenameThread(thread.id, thread.title)}
+                                disabled={disabled || renaming}
                               >
                                 <IconPencil />
                               </RowAction>
-                              <RowAction
-                                label="删除对话"
-                                onClick={() => handleDeleteThread(thread.id)}
+                              <ThreadDeleteRowAction
+                                threadId={thread.id}
+                                confirming={pendingDeleteThreadId === thread.id}
                                 disabled={disabled}
-                              >
-                                <IconTrash />
-                              </RowAction>
+                                onRequestDelete={handleRequestDeleteThread}
+                                onConfirmDelete={handleConfirmDeleteThread}
+                              />
                             </div>
                           </li>
                         );

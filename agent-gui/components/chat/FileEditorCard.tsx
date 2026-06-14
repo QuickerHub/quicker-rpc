@@ -7,6 +7,7 @@ import { CodeMirrorLineDiffView } from "@/components/chat/CodeMirrorLineDiffView
 import {
   buildInterleavedDiffDisplay,
   countLineDiffStats,
+  FILE_DIFF_NO_COLLAPSE,
 } from "@/lib/file-line-diff";
 import { streamingContentSignature } from "@/lib/preview-tail-lines";
 import { useThrottledStreamValue } from "@/lib/use-throttled-stream-value";
@@ -21,6 +22,8 @@ import {
 } from "@/lib/workspace-file-tool";
 
 export const FILE_SNAPSHOT_PREVIEW_LINES = 4;
+/** Expanded inline snapshot / shell output clamp (~12 visible lines, scroll inside). */
+export const FILE_SNAPSHOT_EXPANDED_LINES = 12;
 
 export type FileEditorStatKind = "add" | "remove" | "neutral" | "range";
 
@@ -142,14 +145,12 @@ function FileEditorCardInner({
     [diff, showDiff],
   );
 
-  const collapseDiff = diffMode !== "full";
-
   const diffDisplay = useMemo(() => {
     if (!showDiff || !diff) return null;
     return buildInterleavedDiffDisplay(diff.removed, diff.added, {
-      minEqualCollapse: collapseDiff ? undefined : 999_999,
+      minEqualCollapse: FILE_DIFF_NO_COLLAPSE,
     });
-  }, [diff, showDiff, collapseDiff]);
+  }, [diff, showDiff]);
 
   const diffStat = useMemo(
     () =>
@@ -338,8 +339,12 @@ function FileEditorCardInner({
               removed={diff.removed}
               added={diff.added}
               display={diffDisplay ?? undefined}
-              collapse={collapseDiff}
-              scrollToFirstChange={isCompactPreview}
+              scrollToFirstChange={
+                compact
+                && showDiff
+                && !expanded
+                && (isCompactPreview || inlineDiffExpanded)
+              }
               fillAvailable={fillAvailable}
               lineNumbers={showLineNumbers}
               lineWrapping={!isCompactPreview}

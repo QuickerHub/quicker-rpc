@@ -16,7 +16,7 @@ import {
 } from "./tool-output";
 import { isHiddenChatTool } from "@/lib/hidden-chat-tools";
 import { isAskQuestionAwaitingInput } from "@/lib/ask-question-tool";
-import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
+import { isShellToolName } from "@/lib/host-tool-constants";
 import {
   aggregateWorkspaceWriteToolLineDiff,
   isWorkspaceExplorerFileTool,
@@ -226,7 +226,7 @@ function mergeConsecutiveActivitySegments(
       continue;
     }
 
-    if (segment.kind === "tool" && segment.item.name === SHELL_EXEC_TOOL) {
+    if (segment.kind === "tool" && isShellToolName(segment.item.name)) {
       pending = flushPendingActivity(pending, merged);
       merged.push(segment);
       continue;
@@ -266,7 +266,7 @@ export function segmentMessageParts(
       const name = getToolOrDynamicToolName(part);
       if (!isHiddenChatTool(name)) {
         const item = analyzeToolUiPart(part, index);
-        if (name === SHELL_EXEC_TOOL) {
+        if (isShellToolName(name)) {
           flushActivity();
           segments.push({ kind: "tool", item });
         } else {

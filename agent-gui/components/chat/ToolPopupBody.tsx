@@ -2,6 +2,7 @@
 
 import { isStructuredToolResult } from "@/lib/tool-result";
 import type { ToolPopupViewMode } from "@/lib/tool-popup-ui-prefs";
+import { isDocsTool } from "@/lib/docs-tool";
 import {
   hasWorkspaceFileEditorPreviewInChat,
   isWorkspaceFileReadTool,
@@ -15,7 +16,9 @@ import { FileListView } from "./FileListView";
 import { ProgramDiagnosticsResultView } from "./ProgramDiagnosticsResultView";
 import { ToolPayloadView } from "./tool-output";
 import { ShellToolPopupBody } from "./ShellToolPopupBody";
-import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
+import { isShellToolName } from "@/lib/host-tool-constants";
+import { parseDocsToolInlineResult } from "@/lib/docs-tool-view";
+import { DocsToolOutputView } from "./DocsToolResultViews";
 
 export type { ToolPopupViewMode };
 
@@ -70,7 +73,7 @@ export function ToolPopupBody({
     );
   }
 
-  if (toolName === SHELL_EXEC_TOOL) {
+  if (isShellToolName(toolName)) {
     return (
       <ShellToolPopupBody
         input={input}
@@ -78,6 +81,30 @@ export function ToolPopupBody({
         errorText={errorText}
         followTail={followTail}
       />
+    );
+  }
+
+  if (
+    isDocsTool(toolName)
+    && isStructuredToolResult(output)
+    && output.ok
+    && parseDocsToolInlineResult(output)
+  ) {
+    return (
+      <div className="tool-body tool-body--debug tool-body--popup-docs">
+        {hasInput ? (
+          <ToolPayloadView
+            label="请求"
+            value={input}
+            dense
+            toolName={toolName}
+            input={input}
+            output={output}
+          />
+        ) : null}
+        <DocsToolOutputView output={output} />
+        {errorText ? <pre className="tool-error">{errorText}</pre> : null}
+      </div>
     );
   }
 

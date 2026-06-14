@@ -50,6 +50,14 @@ afterEach(() => {
 
 
 
+test("Grep host tool is registered in picker", () => {
+  assert.ok(ALL_QKRPC_TOOL_IDS.includes("Grep"));
+  const grep = QKRPC_TOOL_REGISTRY.find((t) => t.id === "Grep");
+  assert.ok(grep);
+  assert.equal(grep!.group, "read");
+  assert.equal(grep!.category, "workspace");
+});
+
 test("every registry entry has id", () => {
 
   for (const entry of QKRPC_TOOL_REGISTRY) {

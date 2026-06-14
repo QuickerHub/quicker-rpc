@@ -61,8 +61,11 @@ function ApplyingSection({ slice }: { slice: AppUpdateOverlaySlice }) {
       ) : null}
       <UpdateProgressBar
         percent={slice.percent}
-        message={slice.message || "应用即将关闭并完成安装…"}
-        indeterminate
+        message={
+          slice.message
+          || "应用即将关闭；安装程序窗口会显示文件复制进度，请勿强制结束。"
+        }
+        indeterminate={slice.percent <= 0}
       />
     </section>
   );

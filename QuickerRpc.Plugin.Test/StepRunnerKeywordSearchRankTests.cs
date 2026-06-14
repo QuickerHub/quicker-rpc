@@ -271,7 +271,7 @@ public sealed class StepRunnerKeywordSearchRankTests
     }
 
     [TestMethod]
-    public void Search_excludes_obsolete_module_but_get_still_works()
+    public void Search_includes_assign_and_get_still_works()
     {
         var catalog = new StepRunnerCatalog
         {
@@ -283,7 +283,7 @@ public sealed class StepRunnerKeywordSearchRankTests
         };
 
         var search = StepRunnerCatalogMapper.Search(catalog, "赋值", maxResults: 10);
-        Assert.IsFalse(search.Items.Any(i => i.Key == "sys:assign"));
+        Assert.IsTrue(search.Items.Any(i => i.Key == "sys:assign"));
 
         var detail = StepRunnerCatalogMapper.GetDetail(catalog, "sys:assign");
         Assert.IsTrue(detail.Success);

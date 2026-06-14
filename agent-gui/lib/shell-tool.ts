@@ -14,9 +14,10 @@ import {
   type ShellRunRequest,
 } from "@/lib/shell-types";
 
+import { SHELL_TOOL } from "@/lib/host-tool-constants";
 import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
 
-export { SHELL_EXEC_TOOL };
+export { SHELL_TOOL, SHELL_EXEC_TOOL };
 
 const shellKindSchema = z.enum(["auto", "powershell", "cmd", "bash"]);
 
@@ -24,10 +25,10 @@ const shellInputSchema = z
   .object({
     description: z
       .string()
-      .optional()
+      .min(1)
       .describe(
         "Short human-readable label for the chat UI (what this step does). "
-        + "Required for user-facing clarity — do not rely on the raw command alone.",
+        + "Required — do not rely on the raw command alone.",
       ),
     command: z
       .string()
@@ -79,6 +80,13 @@ const shellInputSchema = z
       || Boolean(value.script?.trim())
       || Boolean(value.scriptPath?.trim()),
     { message: "Provide command, script, or scriptPath" },
+  )
+  .refine(
+    (value) => Boolean(value.description?.trim()),
+    {
+      message: "description is required (short UI label for this shell step)",
+      path: ["description"],
+    },
   );
 
 function toShellRequest(input: z.infer<typeof shellInputSchema>): ShellRunRequest {
@@ -144,13 +152,13 @@ function formatShellToolResult(
   );
 }
 
-export const SHELL_EXEC_TOOL_DEF = tool({
+export const SHELL_TOOL_DEF = tool({
   description:
-    "Run shell commands in sidebar workspace cwd. NOT for plain file I/O — use workspace_file (read/write/edit). "
+    "Run shell commands in sidebar workspace cwd. NOT for plain file I/O — use Read/Write/StrReplace. "
+    + "NOT for regex/content search across the tree — use Grep. "
     + "NOT for Quicker program bodies (workspace_program). "
     + "NOT for showing git diffs to the user — side panel 已改动 has Diff tabs; avoid git status/diff unless headless need. "
-    + "qkrpc and rg (ripgrep) are auto-added to PATH; prefer qkrpc tools for Quicker RPC. "
-    + "Use rg to search cwd before guessing file paths or symbols (e.g. rg -n pattern --glob '*.ts'); retry with broader pattern if empty. "
+    + "qkrpc and rg (ripgrep) are auto-added to PATH; prefer Grep or qkrpc tools over raw rg in Shell. "
     + "On connectivity_failure tell user — no shell ping/probe/serve/build.ps1 loops. "
     + "Always set description (UI label). command | script | scriptPath under cwd. "
     + "Read-only (dotnet build, tests) auto-runs; writes/deletes need Confirm.",
@@ -168,3 +176,6 @@ export const SHELL_EXEC_TOOL_DEF = tool({
     shellPolicyRequiresApproval(toShellRequest(input)),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- needsApproval callback
 } as any);
+
+/** @deprecated Use SHELL_TOOL_DEF */
+export const SHELL_EXEC_TOOL_DEF = SHELL_TOOL_DEF;

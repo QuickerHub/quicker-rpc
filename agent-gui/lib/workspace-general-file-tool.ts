@@ -1,17 +1,25 @@
-/** Client-safe helpers for workspace_file (general cwd files, not Quicker program bodies). */
+/** Client-safe helpers for Read/Write/StrReplace host file tools (not Quicker program bodies). */
 
-export const WORKSPACE_FILE_TOOL = "workspace_file";
+import {
+  LEGACY_WORKSPACE_FILE_TOOL,
+  READ_TOOL,
+  STR_REPLACE_TOOL,
+  WRITE_TOOL,
+} from "@/lib/host-tool-constants";
 
-const FILE_ACTIONS = new Set([
-  "read",
-  "write",
-  "edit",
-  "info",
-  "search",
-  "list",
-]);
+export {
+  LEGACY_WORKSPACE_FILE_TOOL as WORKSPACE_FILE_TOOL,
+  READ_TOOL,
+  STR_REPLACE_TOOL,
+  WRITE_TOOL,
+} from "@/lib/host-tool-constants";
 
-/** Map workspace_file actions to legacy UI tool ids (shared with workspace_program file_*). */
+const READ_ACTIONS = new Set(["read", "info", "search", "list"]);
+const WRITE_ACTIONS = new Set(["write"]);
+const EDIT_ACTIONS = new Set(["edit"]);
+const FILE_ACTIONS = new Set([...READ_ACTIONS, ...WRITE_ACTIONS, ...EDIT_ACTIONS]);
+
+/** Map file tool actions to legacy UI tool ids (shared with workspace_program file_*). */
 export const WORKSPACE_FILE_ACTION_TO_LEGACY: Record<string, string> = {
   read: "workspace_action_file_read",
   write: "workspace_action_file_write",
@@ -29,21 +37,45 @@ export function readWorkspaceFileToolAction(input: unknown): string | null {
   return typeof action === "string" && action.trim() ? action.trim() : null;
 }
 
+function resolveGeneralFileAction(
+  toolName: string,
+  input?: unknown,
+): string | null {
+  if (toolName === READ_TOOL) {
+    const action = readWorkspaceFileToolAction(input);
+    if (action && READ_ACTIONS.has(action)) return action;
+    return "read";
+  }
+  if (toolName === WRITE_TOOL) {
+    const action = readWorkspaceFileToolAction(input);
+    if (action && WRITE_ACTIONS.has(action)) return action;
+    return "write";
+  }
+  if (toolName === STR_REPLACE_TOOL) {
+    return "edit";
+  }
+  if (toolName === LEGACY_WORKSPACE_FILE_TOOL) {
+    const action = readWorkspaceFileToolAction(input);
+    return action && FILE_ACTIONS.has(action) ? action : null;
+  }
+  return null;
+}
+
 export function isWorkspaceGeneralFileTool(
   toolName: string,
   input?: unknown,
 ): boolean {
-  if (toolName !== WORKSPACE_FILE_TOOL) return false;
-  const action = readWorkspaceFileToolAction(input);
-  return action != null && FILE_ACTIONS.has(action);
+  return resolveGeneralFileAction(toolName, input) != null;
 }
 
 export function effectiveGeneralWorkspaceFileToolId(
   toolName: string,
   input?: unknown,
 ): string | null {
-  if (toolName !== WORKSPACE_FILE_TOOL) return null;
-  const action = readWorkspaceFileToolAction(input);
-  if (!action) return toolName;
+  const action = resolveGeneralFileAction(toolName, input);
+  if (!action) return null;
+  if (toolName === LEGACY_WORKSPACE_FILE_TOOL) {
+    return WORKSPACE_FILE_ACTION_TO_LEGACY[action] ?? toolName;
+  }
   return WORKSPACE_FILE_ACTION_TO_LEGACY[action] ?? toolName;
 }

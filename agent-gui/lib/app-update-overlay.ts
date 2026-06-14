@@ -114,7 +114,7 @@ export function showApplyingAppUpdateOverlay(
     installedVersion,
     remoteVersion,
     percent: 0,
-    message: "正在启动安装程序…",
+    message: "正在准备安装，随后将打开安装程序窗口…",
     error: null,
   });
 }

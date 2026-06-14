@@ -56,6 +56,7 @@ import {
   isWebSearchTool,
   summarizeWebSearchOutput,
 } from "@/lib/web-search-tool";
+import { isShellToolName, SHELL_TOOL } from "@/lib/host-tool-constants";
 import { isStructuredToolResult } from "@/lib/tool-result";
 import {
   parseSingleIdInput,
@@ -116,6 +117,8 @@ import {
   summarizeBrowserToolOutput,
 } from "@/lib/browser-tool-result";
 import { BrowserToolResultView } from "./BrowserToolResultView";
+import { parseDocsToolInlineResult } from "@/lib/docs-tool-view";
+import { DocsToolOutputView } from "./DocsToolResultViews";
 
 export type QkrpcToolResult = {
   ok: boolean;
@@ -137,7 +140,7 @@ export function summarizeToolOutput(
 ): string | null {
   if (!isQkrpcToolResult(output)) return null;
 
-  if (toolName === "shell_exec") {
+  if (isShellToolName(toolName)) {
     const view = parseShellToolView(output);
     if (view) return formatShellExitMeta(view);
     const inputSummary = summarizeShellToolInput(input);
@@ -351,7 +354,7 @@ export function formatToolDisplayName(
   const canonical =
     resolveKnownToolName(toolName, defaultEnabledToolIds())
     ?? normalizeToolCallName(toolName);
-  if (canonical === "shell_exec") return "终端";
+  if (canonical === SHELL_TOOL || canonical === "shell_exec") return "终端";
   if (isAskQuestionTool(canonical)) {
     return askQuestionDisplayTitle(input);
   }
@@ -1043,12 +1046,24 @@ export function ActionListToolBody({
 export function DocsToolBody({
   output,
   toolName,
+  input,
 }: {
   output: QkrpcToolResult;
   toolName: string;
+  input?: unknown;
 }) {
+  if (output.ok && parseDocsToolInlineResult(output)) {
+    return <DocsToolOutputView output={output} />;
+  }
   return (
-    <ToolPayloadView label="结果" value={output} compact toolName={toolName} />
+    <ToolPayloadView
+      label="结果"
+      value={output}
+      compact
+      toolName={toolName}
+      input={input}
+      output={output}
+    />
   );
 }
 

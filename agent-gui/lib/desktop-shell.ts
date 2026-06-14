@@ -106,6 +106,36 @@ export function usesFramelessTitlebar(): boolean {
   return getShellPlatform() !== "macos";
 }
 
+/** Electron Win/Linux: native caption buttons via Window Controls Overlay (VS Code style). */
+export function usesNativeWindowControlsOverlay(): boolean {
+  return isElectronShell() && getShellPlatform() !== "macos";
+}
+
+/** SSR-safe: false until after mount, then matches {@link usesNativeWindowControlsOverlay}. */
+export function useNativeWindowControlsOverlay(): boolean {
+  const [value, setValue] = useState(false);
+  useEffect(() => {
+    setValue(usesNativeWindowControlsOverlay());
+  }, []);
+  return value;
+}
+
+/** Tauri Win/Linux frameless windows still use custom HTML min/max/close buttons. */
+export function usesCustomDesktopWindowControls(): boolean {
+  if (!isDesktopShell()) return false;
+  if (getShellPlatform() === "macos") return false;
+  return !usesNativeWindowControlsOverlay();
+}
+
+/** SSR-safe: false until after mount, then matches {@link usesCustomDesktopWindowControls}. */
+export function useCustomDesktopWindowControls(): boolean {
+  const [value, setValue] = useState(false);
+  useEffect(() => {
+    setValue(usesCustomDesktopWindowControls());
+  }, []);
+  return value;
+}
+
 export function usesMacOverlayTitlebar(): boolean {
   return isDesktopShell() && getShellPlatform() === "macos";
 }

@@ -69,5 +69,11 @@ if (!nsh.includes("customRemoveFiles")) {
   );
   process.exit(1);
 }
+if (!nsh.includes("${isUpdated}")) {
+  console.error(
+    "verify-electron-installer-assets: installer.nsh must skip welcome/shortcut pages on in-place update",
+  );
+  process.exit(1);
+}
 
 console.log("verify-electron-installer-assets: PASS");

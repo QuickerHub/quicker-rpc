@@ -10,6 +10,7 @@ import { QuickerAgentExitOverlay } from "@/components/QuickerAgentExitOverlay";
 import { QuickerAgentUpdateChecker } from "@/components/QuickerAgentUpdateChecker";
 import { QuickerAgentUpdateOverlay } from "@/components/QuickerAgentUpdateOverlay";
 import { TauriShellInputGuard } from "@/components/shell/TauriShellInputGuard";
+import { ElectronTitlebarOverlaySync } from "@/components/shell/ElectronTitlebarOverlaySync";
 import { useLauncherGlobalShortcut } from "@/lib/launcher/use-launcher-global-shortcut";
 import { useTerminalRuntimeBootstrap } from "@/lib/use-terminal-runtime-bootstrap";
 import { useVoiceRuntimeBootstrap } from "@/lib/voice-input/use-voice-runtime-bootstrap";
@@ -25,6 +26,7 @@ export function RootLayoutExtras() {
   return (
     <>
       {!isLauncher ? <TauriShellInputGuard /> : null}
+      {!isLauncher ? <ElectronTitlebarOverlaySync /> : null}
       {!isLauncher ? <DevErrorCaptureGate /> : null}
       {!isLauncher ? <DevHooksRecovery /> : null}
       {!isLauncher ? <QuickerAgentExitHandler /> : null}

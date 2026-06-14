@@ -4,12 +4,14 @@ import {
   useCallback,
   useEffect,
   useId,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import { toolPopupHasVisualView } from "@/lib/tool-popup-view";
 import {
+  resolveToolPopupBodyView,
   resolveToolPopupTab,
   storeToolPopupViewMode,
   type ToolPopupViewMode,
@@ -127,15 +129,25 @@ export function ToolResultPopup({
   const panelId = useId();
   const hasVisual = toolPopupHasVisualView(toolName, input, output);
   const [tab, setTab] = useState<ToolPopupViewMode>("visual");
+  const prevOpenRef = useRef(false);
+  const bodyView = resolveToolPopupBodyView(tab, hasVisual);
 
   const setTabPersisted = useCallback((next: ToolPopupViewMode) => {
-    setTab(next);
-    storeToolPopupViewMode(next);
+    setTab((current) => {
+      if (current === next) return current;
+      storeToolPopupViewMode(next);
+      return next;
+    });
   }, []);
 
+  // Initialize tab only when the popup opens — not on every hasVisual twitch while
+  // tool output is still streaming (avoids nested setState update loops).
   useEffect(() => {
-    if (!open) return;
-    setTab(resolveToolPopupTab(hasVisual));
+    const justOpened = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (!justOpened) return;
+    const next = resolveToolPopupTab(hasVisual);
+    setTab((current) => (current === next ? current : next));
   }, [open, hasVisual]);
 
   useEffect(() => {
@@ -198,13 +210,13 @@ export function ToolResultPopup({
         <div
           className="tool-result-popup-body"
           role="tabpanel"
-          id={tab === "visual" ? "tool-popup-panel-visual" : "tool-popup-panel-source"}
+          id={bodyView === "visual" ? "tool-popup-panel-visual" : "tool-popup-panel-source"}
           aria-labelledby={
-            tab === "visual" ? "tool-popup-tab-visual" : "tool-popup-tab-source"
+            bodyView === "visual" ? "tool-popup-tab-visual" : "tool-popup-tab-source"
           }
         >
           <ToolPopupBody
-            view={tab}
+            view={bodyView}
             toolName={toolName}
             input={input}
             output={output}

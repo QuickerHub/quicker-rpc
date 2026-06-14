@@ -374,5 +374,62 @@
       "subProgram": "SubName",
       "scope": "global"
     }
+  },
+  "trigger.events": {
+    "cli": "qkrpc trigger events [--event {{eventType}}] --json",
+    "agent": "quicker_trigger({ action: \"events\", eventType?: \"{{eventType}}\" })",
+    "defaults": {
+      "eventType": "BrowserUrlChanged"
+    }
+  },
+  "trigger.list": {
+    "cli": "qkrpc trigger list [--query {{query}}] [--event {{eventType}}] --json",
+    "agent": "quicker_trigger({ action: \"list\", query?: \"{{query}}\", eventType?: \"{{eventType}}\" })",
+    "defaults": {
+      "query": "keyword",
+      "eventType": "BrowserUrlChanged"
+    }
+  },
+  "trigger.add": {
+    "cli": "qkrpc trigger add --event {{eventType}} --action {{action}} --params '{{params}}' [--note {{note}}] [--filter {{filter}}] [--delay {{delayMs}}] [--json]",
+    "agent": "quicker_trigger({ action: \"add\", eventType: \"{{eventType}}\", actionIdOrName: \"{{action}}\", params: {{params}}, note?: \"{{note}}\", filter?: \"{{filter}}\", delayMs?: {{delayMs}} })",
+    "defaults": {
+      "eventType": "BrowserUrlChanged",
+      "action": "<guid>",
+      "params": "{\"UrlPattern\":\"https://github.com\",\"OnlyActiveTab\":true}",
+      "note": "auto-run on GitHub",
+      "filter": "",
+      "delayMs": "0"
+    }
+  },
+  "trigger.update": {
+    "cli": "qkrpc trigger update --id {{id}} [--params '{{params}}'] [--enabled|--disabled] [--note {{note}}] --json",
+    "agent": "quicker_trigger({ action: \"update\", id: \"{{id}}\", params?: {{params}}, enabled?: true, note?: \"{{note}}\" })",
+    "defaults": {
+      "id": "<guid>",
+      "params": "{\"OnlyActiveTab\":true}",
+      "note": ""
+    }
+  },
+  "trigger.delete": {
+    "cli": "qkrpc trigger delete --id {{id}} --json",
+    "agent": "quicker_trigger({ action: \"delete\", id: \"{{id}}\" })",
+    "defaults": {
+      "id": "<guid>"
+    }
+  },
+  "trigger.enable": {
+    "cli": "qkrpc trigger enable --id {{id}} --json",
+    "agent": "quicker_trigger({ action: \"enable\", id: \"{{id}}\" })",
+    "defaults": {
+      "id": "<guid>"
+    }
+  },
+  "trigger.disable": {
+    "cli": "qkrpc trigger disable --id {{id}} --json",
+    "agent": "quicker_trigger({ action: \"disable\", id: \"{{id}}\" })",
+    "defaults": {
+      "id": "<guid>"
+    }
   }
 }

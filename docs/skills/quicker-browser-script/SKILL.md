@@ -27,7 +27,9 @@ CLI / MCP equivalents: `qkrpc chrome tabs|run` / `qkrpc_chrome_tabs` / `qkrpc_ch
 
 ## P3 — Trigger setup (auto-run)
 
-1. `quicker_trigger({ action: "events" })` — get exact `eventType`, `params` keys, and the **variables** the event passes to the triggered action. Always do this before add/update.
+Full workflow: `docs({ action: "get", topic: "trigger-workflow" })` (Tr0–Tr5). Summary:
+
+1. `quicker_trigger({ action: "events" })` — get exact `eventType`, `fields[].key` / `helpText`, and `variables[].key`. Always before add/update.
 2. Add the rule:
 
 ```js
@@ -43,11 +45,11 @@ quicker_trigger({
 `UrlPattern` is a **URL-prefix match** (semicolon-separated for multiple); use a `regex:` prefix for regular expressions — not bare regex.
 
 3. Manage: `list` (query keyword) / `update` / `enable` / `disable`; `delete` only on explicit user ask.
-4. Optional: `filter` expression against event variables; `delayMs` to wait before running.
+4. Optional: `filter` (`$=` bool on variables); `delayMs` to wait before running.
 
 CLI / MCP equivalents: `qkrpc trigger events|list|add|update|delete --json` / MCP `quicker_trigger`.
 
-Common events for this pipeline:
+Common events (detail in **trigger-workflow**):
 
 | EventType | Fires when | Key params |
 |-----------|------------|------------|

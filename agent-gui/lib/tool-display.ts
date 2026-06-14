@@ -5,24 +5,22 @@ import {
   parseStepRunnerSearchFromQkrpcData,
 } from "./step-runner-tool";
 
-/** Chat tool rows: summary in thread; full payload in click-to-open popup. */
-export function shouldUseStaticToolRow(options: {
-  hasFileEditorPreview: boolean;
-  hasReadFilePreview: boolean;
-  isDocsOpenable: boolean;
-  isWorkspaceFileOpenRow: boolean;
-}): boolean {
-  if (options.hasFileEditorPreview) return false;
-  if (options.hasReadFilePreview) return false;
-  if (options.isDocsOpenable) return false;
-  if (options.isWorkspaceFileOpenRow) return false;
-  return true;
-}
-
 const DELETE_TOOLS = new Set([
   "qkrpc_action_delete",
   "qkrpc_subprogram_delete",
 ]);
+
+/** Chat tool rows: summary in thread; full payload in click-to-open popup. */
+export function shouldUseStaticToolRow(options: {
+  hasFileEditorPreview: boolean;
+  hasReadFilePreview: boolean;
+  isWorkspaceFileOpenRow: boolean;
+}): boolean {
+  if (options.hasFileEditorPreview) return false;
+  if (options.hasReadFilePreview) return false;
+  if (options.isWorkspaceFileOpenRow) return false;
+  return true;
+}
 
 /** @deprecated Chat uses static tool rows; inline preview is disabled in ToolPart. */
 export function toolHasInlinePreview(_toolName: string): boolean {

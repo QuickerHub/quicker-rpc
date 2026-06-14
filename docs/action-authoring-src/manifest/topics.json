@@ -98,7 +98,7 @@
   },
   "implementation-fallback": {
     "title": "Implementation fallback",
-    "description": "P4 fallback: expressions/evalexpression first, then sys:csscript vs runScript. Use when no dedicated module fits.",
+    "description": "P4 fallback: sys:assign single-var, then evalexpression batch/LINQ, then sys:csscript vs runScript. Use when no dedicated module fits.",
     "allowed-tools": "qkrpc_step_runner_search qkrpc_step_runner_get qkrpc_action_patch",
     "metadata": {
       "phase": "P4",
@@ -108,8 +108,8 @@
   },
   "expressions": {
     "title": "Expressions & interpolation",
-    "description": "P4 default: $=, $$, sys:evalexpression (LINQ/string/JSON/multi-{var}=assign). Load quicker-eval-expression skill first; prefer before sys:csscript.",
-    "searchAliases": ["表达式", "插值", "interpolation", "$=", "evalexpression"],
+    "description": "P4: sys:assign for single-var writes; $=, $$ inline; sys:evalexpression for batch {var}= / LINQ. Load quicker-eval-expression skill; csscript last.",
+    "searchAliases": ["表达式", "插值", "interpolation", "$=", "evalexpression", "赋值", "assign"],
     "allowed-tools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch",
     "metadata": {
       "phase": "P4",
@@ -148,6 +148,60 @@
       "layer": "workflow"
     },
     "source": "workflows/action-publish-workflow.md"
+  },
+  "trigger-workflow": {
+    "title": "Event trigger workflow",
+    "description": "Auto-run an action on Quicker events (场景→事件动作): pick eventType from intent table → events schema → write params (触发条件) → add/update. Use before quicker_trigger add/update.",
+    "searchAliases": [
+      "trigger",
+      "事件触发",
+      "事件动作",
+      "触发条件",
+      "自动运行",
+      "自动触发",
+      "quicker_trigger",
+      "BrowserUrlChanged",
+      "WindowActivated",
+      "WindowDeactivated",
+      "ProcessStarted",
+      "ProcessExited",
+      "ClipboardChanged",
+      "FileSystemChange",
+      "Repeat",
+      "IdleTimeExpire",
+      "IdleEnd",
+      "BusyTimeExpire",
+      "网址",
+      "网页",
+      "URL",
+      "标签页",
+      "窗口焦点",
+      "获得焦点",
+      "失去焦点",
+      "进程启动",
+      "进程退出",
+      "剪贴板",
+      "文件监控",
+      "目录监控",
+      "定时",
+      "定时重复",
+      "空闲",
+      "闲置",
+      "蓝牙",
+      "网络连接",
+      "U盘",
+      "磁盘插入",
+      "filter",
+      "UrlPattern",
+      "附加过滤",
+      "事件类型"
+    ],
+    "allowed-tools": "quicker_trigger qkrpc_action_query qkrpc_action_debug docs",
+    "metadata": {
+      "phase": "automation",
+      "layer": "workflow"
+    },
+    "source": "workflows/trigger-workflow.md"
   },
   "action-project-files": {
     "title": "Workspace project layout",

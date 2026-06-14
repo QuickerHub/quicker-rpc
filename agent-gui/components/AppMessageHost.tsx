@@ -71,14 +71,17 @@ function AppMessageProgressBar({
   return (
     <div className="app-message-progress" aria-hidden={false}>
       <div className="app-message-progress-head">
-        <span className="app-message-progress-pct">{percent}%</span>
+        <span className="app-message-progress-pct">
+          {indeterminate ? "…" : `${percent}%`}
+        </span>
       </div>
       <div
         className="app-message-progress-track"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={percent}
+        aria-valuenow={indeterminate ? undefined : percent}
+        aria-busy={indeterminate ? true : undefined}
       >
         <div
           className={`app-message-progress-fill${

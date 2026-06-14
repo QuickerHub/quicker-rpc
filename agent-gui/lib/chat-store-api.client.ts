@@ -117,9 +117,19 @@ export async function fetchChatStoreFromApi(): Promise<ChatStoreData> {
       return normalized;
     }
   } catch {
-    /* fall through */
+    /* fall through to local snapshot — never return a throwaway default over SQLite. */
   } finally {
     window.clearTimeout(timeoutId);
+  }
+  try {
+    const local = loadLocalStorageForMigration();
+    if (local.threads.length > 0) {
+      const normalized = normalizeLoadedStore(local);
+      clientPersistedSnapshot = normalized;
+      return normalized;
+    }
+  } catch {
+    /* ignore */
   }
   return defaultChatStore();
 }

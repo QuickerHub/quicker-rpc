@@ -6,15 +6,14 @@ Headless XAction via agent tools + QuickerRpc plugin. Route/hard rules preloaded
 
 | intent | tools | docs deep-read |
 |--------|-------|----------------|
-| run action | qkrpc_action_run | — |
-| debug action | qkrpc_action_debug | qkrpc_action_run |
-| float action | qkrpc_action_float | — |
+| run / debug / float | qkrpc_action_run / debug / float | — |
 | edit program body | P1–P7 + workspace_program | authoring-workflow |
 | disk .quicker | workspace_program | workspace-editing |
 | global/embedded subprogram | workspace_program + target | subprogram-workflow |
 | step module keys | qkrpc_step_runner_search → get | step-runner-get |
 | metadata icons | qkrpc_fa search | action-icons |
 | publish / update share | qkrpc_action_publish | action-publish-workflow |
+| auto-run on event / trigger | quicker_trigger | trigger-workflow |
 | WebView2/HTML in files/ | workspace_program file_* + patch | webview2-authoring |
 
 ## Scenario skills
@@ -57,7 +56,7 @@ P7  trust editVersion after save (NO verify re-get)
 - NO get-ui / step-runner.getUi
 - NO inline program-body patch / whole-program `--patch-file`; step `inputParams` literals per get
 - After patch trust editVersion; NO re-get to verify
-- P4: load **quicker-eval-expression** skill; expressions / evalexpression → module → csscript last
+- P4: **sys:assign** for single-var writes; load **quicker-eval-expression** for `$=`/`$$`/batch evalexpression; module → csscript last
 
 ## Workspace
 

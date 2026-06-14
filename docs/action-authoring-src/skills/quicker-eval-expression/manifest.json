@@ -1,6 +1,6 @@
 {
   "name": "quicker-eval-expression",
-  "description": "Quicker $=, $$, and sys:evalexpression: C# eval, LINQ, multi-variable {var}= assignment in one step. Use when writing expressions in action params or evalexpression steps (P4), before sys:csscript.",
+  "description": "Quicker $=, $$, sys:assign, and sys:evalexpression: inline expressions, single-var assign step, batch {var}= / LINQ. Use when writing action params or assign/evalexpression steps (P4), before sys:csscript.",
   "allowed-tools": "docs",
   "compatibility": "QuickerAgent (agent-ui); requires Quicker + QuickerRpc plugin"
 }

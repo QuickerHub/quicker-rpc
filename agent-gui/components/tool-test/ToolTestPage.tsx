@@ -40,6 +40,7 @@ import { TitlebarThemeSwitcher } from "@/components/chat/TitlebarThemeSwitcher";
 import {
   useDesktopShell,
   useDesktopShellKind,
+  useNativeWindowControlsOverlay,
   useShellPlatform,
 } from "@/lib/desktop-shell";
 import {
@@ -48,7 +49,7 @@ import {
 } from "@/lib/tool-test-input-format";
 import { ToolTestPromptPanel } from "@/components/tool-test/ToolTestPromptPanel";
 import { ToolTestSuiteDetailDialog } from "@/components/tool-test/ToolTestSuiteDetailDialog";
-import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
+import { isShellToolName } from "@/lib/host-tool-constants";
 import { ToolTestTitleResultPane } from "@/components/tool-test/ToolTestTitleResultPane";
 import type { TitleTestRunEntry } from "@/lib/tool-test-title-runs";
 import { ToolTestAutoFixPanel } from "@/components/tool-test/ToolTestAutoFixPanel";
@@ -259,11 +260,13 @@ export function ToolTestPage() {
   const isDesktop = useDesktopShell();
   const shellKind = useDesktopShellKind();
   const platform = useShellPlatform();
+  const usesNativeWco = useNativeWindowControlsOverlay();
   const titlebarClass = [
     "tool-test-titlebar",
     shellKind === "tauri" ? "app-titlebar--tauri" : "",
     shellKind === "electron" ? "app-titlebar--electron" : "",
     isDesktop && platform !== "macos" ? "app-titlebar--frameless" : "",
+    usesNativeWco ? "app-titlebar--electron-wco" : "",
     isDesktop && platform === "macos" ? "app-titlebar--mac-overlay" : "",
   ]
     .filter(Boolean)
@@ -590,7 +593,7 @@ export function ToolTestPage() {
           const raw = resolveStepInputRaw(overrideKey, step, stepOverrides);
           const input = parseStepInputJson(raw, step.input);
 
-          if (step.toolName === SHELL_EXEC_TOOL) {
+          if (isShellToolName(step.toolName)) {
             await new Promise<void>((resolve) => {
               requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
             });

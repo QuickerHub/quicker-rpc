@@ -1,10 +1,11 @@
 ## Pick (P4)
 
-Data transforms → `$=` / `sys:evalexpression` first; `sys:csscript` only for heavy .cs (implementation-fallback). No csscript Exec boilerplate — multi-statement/LINQ/implicit usings: **Z.Expressions**.
+Single action-var write → **`sys:assign`** step (search `赋值` → get) or inline `$=`/`$$` on other params. Batch multi-`{var}=`, LINQ, or shared logic → **`sys:evalexpression`**. `sys:csscript` only for heavy `.cs` (implementation-fallback).
 
 | case | do |
 |------|-----|
-| short text | inline `paramKey` |
+| one variable, one value | **sys:assign** (`input` + `output`) |
+| short text on another param | inline `paramKey` with `$=` / `$$` |
 | long (>4 lines) | `paramKey.file` → `files/…` or `*.eval.cs` |
 
 ## value / varKey / file
@@ -39,7 +40,7 @@ Condition fields may use `$=` (step_runner_get).
 
 ### Multi-variable assignment (`{varKey}=`)
 
-**One `sys:evalexpression` step can update multiple action variables** — preferred over chaining several `sys:assign` steps when logic shares computation (LINQ, parsing, etc.).
+**One `sys:evalexpression` step can update multiple action variables** — use when batch assign or shared computation (LINQ, parsing, etc.). For **one** variable write, prefer **`sys:assign`** instead of evalexpression.
 
 | authored | runtime | effect |
 |----------|---------|--------|
@@ -63,7 +64,7 @@ Typical patterns:
 "var items = {list}.Where(x => !String.IsNullOrWhiteSpace(x)).ToList();\n{count} = items.Count;\n{result} = String.Join(\",\", items)"
 ```
 
-Inline `$=` on ordinary param `value` fields: single expression returning one value (or one `{var}=` in evalexpression body). For **multiple** action-var writes in one step → `sys:evalexpression`.
+Inline `$=` on ordinary param `value` fields: single expression returning one value. For **one** action-var write as its own step → **`sys:assign`**. For **multiple** action-var writes in one step → `sys:evalexpression`.
 
 ## Z.Expressions
 

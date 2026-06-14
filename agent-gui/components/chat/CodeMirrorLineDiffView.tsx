@@ -5,8 +5,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { createDiffLineKindsExtension } from "@/lib/codemirror-diff-extensions";
 import {
   buildInterleavedDiffDisplay,
-  FILE_DIFF_CONTEXT_LINES,
-  FILE_DIFF_MIN_EQUAL_COLLAPSE,
+  FILE_DIFF_NO_COLLAPSE,
   type InterleavedDiffDisplay,
 } from "@/lib/file-line-diff";
 import {
@@ -22,8 +21,6 @@ type CodeMirrorLineDiffViewProps = {
   display?: InterleavedDiffDisplay;
   /** Override language; defaults to guess from path (e.g. json for data.json). */
   language?: string;
-  /** When true, fold long unchanged runs (chat preview). */
-  collapse?: boolean;
   /** Scroll to first insert/delete line after mount (compact preview). */
   scrollToFirstChange?: boolean;
   className?: string;
@@ -41,7 +38,6 @@ function CodeMirrorLineDiffViewInner({
   added,
   display: displayProp,
   language,
-  collapse = true,
   scrollToFirstChange = false,
   className,
   maxHeight,
@@ -54,10 +50,9 @@ function CodeMirrorLineDiffViewInner({
     () =>
       displayProp
       ?? buildInterleavedDiffDisplay(removed, added, {
-        contextLines: FILE_DIFF_CONTEXT_LINES,
-        minEqualCollapse: collapse ? FILE_DIFF_MIN_EQUAL_COLLAPSE : 999_999,
+        minEqualCollapse: FILE_DIFF_NO_COLLAPSE,
       }),
-    [displayProp, removed, added, collapse],
+    [displayProp, removed, added],
   );
 
   const lintSourceText = useMemo(

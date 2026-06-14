@@ -116,7 +116,7 @@ export function ShellToolPopupBody({
           label="原始结果"
           value={output}
           compact
-          toolName="shell_exec"
+          toolName="Shell"
           followTail={followTail}
         />
       ) : null}

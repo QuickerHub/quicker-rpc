@@ -3474,34 +3474,31 @@
       "linq",
       "eval",
       "表达式",
-      "计算",
-      "assign",
-      "赋值",
-      "set variable",
-      "变量赋值"
+      "multi assign",
+      "批量赋值",
+      "multi-var",
+      "linq assign"
     ],
     "notFor": [
       "http",
       "clipboard",
-      "ui"
+      "ui",
+      "simple assign",
+      "赋值"
     ],
-    "rankBias": 20,
-    "snippet": "Evaluate C# / LINQ; multi-statement; write one or many action vars via {var}=value (preferred over assign & compute)"
+    "rankBias": 12,
+    "snippet": "Evaluate C# / LINQ; batch multi-{var}= assign or complex expressions (simple assign → sys:assign)"
   },
   "sys:assign": {
-    "obsolete": true,
     "keywords": [
       "assign",
       "赋值",
-      "set variable"
+      "set variable",
+      "变量赋值",
+      "计算"
     ],
-    "notFor": [
-      "linq",
-      "expression",
-      "表达式"
-    ],
-    "rankBias": -35,
-    "snippet": "Deprecated assign step; use sys:evalexpression instead"
+    "rankBias": 18,
+    "snippet": "Assign value to action variable (literal, $$, $=, or input.var copy); default for single-var writes"
   },
   "sys:compute": {
     "obsolete": true,

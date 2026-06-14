@@ -247,6 +247,30 @@ export function countShellOutputLines(text: string): number {
   return text.split(/\r?\n/).length;
 }
 
+/** Approximate wrapped visual lines in the inline terminal card (~42rem max width). */
+export const SHELL_OUTPUT_PREVIEW_CHARS_PER_LINE = 56;
+
+export function estimateShellOutputVisualLines(
+  text: string,
+  charsPerLine = SHELL_OUTPUT_PREVIEW_CHARS_PER_LINE,
+): number {
+  if (!text) return 0;
+  return text.split(/\r?\n/).reduce((total, line) => {
+    return total + Math.max(1, Math.ceil(line.length / charsPerLine));
+  }, 0);
+}
+
+/** True when stdout would exceed the inline preview clamp (logical or wrapped lines). */
+export function shellOutputExceedsPreviewLines(
+  text: string,
+  maxLines = 4,
+  charsPerLine = SHELL_OUTPUT_PREVIEW_CHARS_PER_LINE,
+): boolean {
+  if (!text) return false;
+  if (countShellOutputLines(text) > maxLines) return true;
+  return estimateShellOutputVisualLines(text, charsPerLine) > maxLines;
+}
+
 /** Single shell card: command line + output in one editor document. */
 export function formatShellEditorContent(
   commandLine: string,

@@ -189,14 +189,32 @@ export async function downloadPendingOfficialUpdate(
   return { version: update.version };
 }
 
-const UPDATE_INSTALL_RELEASE_DELAY_MS = 3000;
+const UPDATE_INSTALL_RELEASE_DELAY_MS = 1200;
 
-async function prepareForUpdateInstall(): Promise<void> {
+async function prepareForUpdateInstall(
+  onProgress?: (event: OfficialUpdateProgress) => void,
+  remoteVersion?: string,
+): Promise<void> {
+  onProgress?.({
+    phase: "installing",
+    percent: 12,
+    message: "正在关闭后台服务…",
+    remoteVersion,
+  });
+
   try {
     await invokeDesktop("prepare_for_update_install");
   } catch {
     // Ignore when desktop invoke is unavailable.
   }
+
+  onProgress?.({
+    phase: "installing",
+    percent: 28,
+    message: "即将打开安装程序，请在窗口中查看安装进度…",
+    remoteVersion,
+  });
+
   await new Promise((resolve) => {
     window.setTimeout(resolve, UPDATE_INSTALL_RELEASE_DELAY_MS);
   });
@@ -223,13 +241,13 @@ export async function installPendingOfficialUpdateAndRelaunch(
 
   onProgress?.({
     phase: "installing",
-    percent: 0,
-    message: "正在启动安装程序…",
+    percent: 5,
+    message: "正在准备安装…",
     remoteVersion: descriptor.version,
   });
 
   try {
-    await prepareForUpdateInstall();
+    await prepareForUpdateInstall(onProgress, descriptor.version);
 
     if (isElectronShell() && pendingElectronVersion) {
       await invokeDesktop("updater_quit_and_install");
@@ -266,11 +284,16 @@ export async function installPendingOfficialUpdateAndRelaunch(
   }
 }
 
-export async function installPendingOfficialUpdateOnExit(): Promise<void> {
+export async function installPendingOfficialUpdateOnExit(
+  onProgress?: (event: OfficialUpdateProgress) => void,
+): Promise<void> {
   if (!isPendingOfficialUpdateDownloaded()) return;
 
+  const descriptor = getPendingOfficialUpdateDescriptor();
+  const remoteVersion = descriptor?.version;
+
   if (isElectronShell() && pendingElectronVersion) {
-    await prepareForUpdateInstall();
+    await prepareForUpdateInstall(onProgress, remoteVersion);
     await invokeDesktop("updater_quit_and_install");
     clearPendingOfficialUpdate();
     return;
@@ -278,7 +301,7 @@ export async function installPendingOfficialUpdateOnExit(): Promise<void> {
 
   const update = pendingTauriUpdate;
   if (!update) return;
-  await prepareForUpdateInstall();
+  await prepareForUpdateInstall(onProgress, remoteVersion);
   await update.install();
   clearPendingOfficialUpdate();
 }

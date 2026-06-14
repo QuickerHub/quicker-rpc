@@ -161,11 +161,7 @@ export function syncAppUpdateToast(slice: AppUpdateOverlaySlice): void {
   const title = "QuickerAgent 更新";
 
   if (slice.phase === "downloading") {
-    if (slice.percent > 0) {
-      pushAppUpdateProgressToast(slice);
-      return;
-    }
-    dismissAppUpdateToast();
+    pushAppUpdateProgressToast(slice);
     return;
   }
 

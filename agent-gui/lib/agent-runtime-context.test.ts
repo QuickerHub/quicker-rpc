@@ -9,7 +9,7 @@ test("formatChatRuntimeContext includes stable operational context", () => {
     mode: "agent",
     cwd: "D:/repo",
     modelId: "test-model",
-    enabledToolIds: ["workspace_file", "docs", "docs"],
+    enabledToolIds: ["Read", "Write", "docs", "docs"],
   });
 
   assert.ok(block.includes("## Runtime context"));
@@ -18,7 +18,7 @@ test("formatChatRuntimeContext includes stable operational context", () => {
   assert.ok(block.includes("Mode: agent"));
   assert.ok(block.includes("Model: test-model"));
   assert.ok(block.includes("Working directory: D:/repo"));
-  assert.ok(block.includes("Enabled tools: docs, workspace_file"));
+  assert.ok(block.includes("Enabled tools: Read, Write, docs"));
   assert.ok(block.includes("use web_search"));
 });
 

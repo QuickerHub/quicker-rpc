@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-13T04:58:57.016Z",
+  "generatedAt": "2026-06-14T11:46:23.332Z",
   "rationale": "Per-module reference omitted when qkrpc_step_runner_get input/output purpose fields are sufficient. KEEP = KC crawl (docs:modules:gen). AUTHORED = any references/step-modules/authored/<id>.md (auto-discovered).",
   "authored": [
     "sys:GenTempFilePath",

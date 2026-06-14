@@ -5,12 +5,12 @@
 
 ## 何时加载
 
-纯数据变换（去重、排序、拼接、简单解析）且可用 C# 表达式一步完成。不是 HTTP、文件 IO、剪贴板专用链。
+纯数据变换（去重、排序、拼接、简单解析）且需 **C# 表达式/LINQ** 一步完成（非单变量 assign 可覆盖的场景）。不是 HTTP、文件 IO、剪贴板专用链。
 
 ## 步骤骨架
 
 1. 输入变量（参数或上游输出）
-2. **单步** `sys:evalexpression`（`{out} = …`）
+2. 若单变量写入 → **`sys:assign`**；若批量 `{var}=` 或 LINQ → **单步** `sys:evalexpression`
 3. 消费 `result`（showText / writeClipboard / `*.var`）
 
 ## 硬规则

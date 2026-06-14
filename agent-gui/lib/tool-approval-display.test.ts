@@ -57,7 +57,7 @@ test("buildApprovalDockCopy shows full shell commands", () => {
   const copy = buildApprovalDockCopy([
     {
       id: "shell-1",
-      toolName: "shell_exec",
+      toolName: "Shell",
       label: "终端",
       input: { command: "Remove-Item .\\tmp -Recurse -Force" },
       destructive: false,

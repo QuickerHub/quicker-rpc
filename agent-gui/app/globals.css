@@ -2388,6 +2388,38 @@ html.sidebar-collapsed-init .app-shell {
   white-space: nowrap;
 }
 
+.ws-thread-rename {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0.1rem 0.25rem;
+}
+
+.ws-thread-rename-input {
+  width: 100%;
+  min-width: 0;
+  height: 22px;
+  padding: 0 0.35rem;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.74rem;
+  line-height: 1.2;
+  outline: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.ws-thread-rename-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.ws-thread-rename-input:disabled {
+  opacity: 0.55;
+}
+
 .ws-show-more-row {
   list-style: none;
   margin: 0;
@@ -2546,7 +2578,9 @@ html.sidebar-collapsed-init .app-shell {
 }
 
 .ws-row:hover .ws-row-actions,
-.ws-row:focus-within .ws-row-actions {
+.ws-row:focus-within .ws-row-actions,
+.ws-row--delete-pending .ws-row-actions,
+.ws-row--renaming .ws-row-actions {
   opacity: 1;
   pointer-events: auto;
 }
@@ -2558,6 +2592,34 @@ html.sidebar-collapsed-init .app-shell {
 .ws-row-action-btn:hover:not(:disabled) {
   color: var(--text);
   background: var(--hover-overlay-strong);
+}
+
+.ws-row-confirm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  min-width: 22px;
+  padding: 0 0.4rem;
+  border: none;
+  border-radius: 4px;
+  background: var(--err);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: filter 0.1s ease, opacity 0.1s ease;
+}
+
+.ws-row-confirm-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.ws-row-confirm-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .ws-icon-btn {
@@ -8131,12 +8193,27 @@ button.tool-batch-summary:disabled {
 }
 
 .terminal-output-editor__body--terminal {
+  --shell-terminal-font-size: 0.68rem;
+  --shell-terminal-line-height: 1.38;
+  --shell-terminal-pad-x: 0.5rem;
   display: flex;
   flex-direction: column;
   background: #0d1117;
   color: var(--shell-terminal-fg, #8b949e);
   border-color: #30363d;
   font-weight: 400;
+  font-size: var(--shell-terminal-font-size);
+  line-height: var(--shell-terminal-line-height);
+}
+
+.terminal-output-editor__body--terminal.terminal-output-editor__body--unified-scroll {
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.terminal-output-editor__body--terminal .file-editor-cm .cm-content {
+  font-size: var(--shell-terminal-font-size);
+  line-height: var(--shell-terminal-line-height);
 }
 
 .terminal-output-editor__body--terminal .file-editor-cm .cm-editor .cm-line {
@@ -8157,8 +8234,13 @@ button.tool-batch-summary:disabled {
   background: #0d1117;
 }
 
+.terminal-output-editor__command-pane,
+.terminal-output-editor__output-pane {
+  padding-inline: var(--shell-terminal-pad-x, 0.5rem);
+}
+
 .terminal-output-editor__command-pane {
-  flex-shrink: 0;
+  flex-shrink: 1;
   background: #161b22;
 }
 
@@ -8169,11 +8251,23 @@ button.tool-batch-summary:disabled {
   margin-top: 0;
 }
 
+.terminal-output-editor__body--terminal .terminal-output-editor__cm .cm-content {
+  padding: 0.28rem 0 0.3rem;
+}
+
+.terminal-output-editor__command-pane .terminal-output-editor__cm--command .cm-content {
+  padding-bottom: 0.22rem;
+}
+
 .terminal-output-editor__body--terminal
   .terminal-output-editor__command-pane
   + .terminal-output-editor__output-pane
   .terminal-output-editor__cm--output
-  .cm-content {
+  .cm-content,
+.terminal-output-editor__body--terminal
+  .terminal-output-editor__command-pane
+  + .terminal-output-editor__output-pane
+  .terminal-output-editor__output-pre {
   padding-top: 0.15rem;
 }
 
@@ -8182,79 +8276,20 @@ button.tool-batch-summary:disabled {
   background: #0d1117;
 }
 
-.terminal-output-editor__body--terminal
-  .terminal-output-editor__command-pane:has(+ .terminal-output-editor__output-pane)
-  .terminal-output-editor__command-line {
-  padding-bottom: 0.15rem;
-  background: #0d1117;
-}
-
-.terminal-output-editor__command-line {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 0;
-  padding: 0.35rem 0.55rem 0.3rem;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.78rem;
-  line-height: 1.42;
-  color: var(--shell-terminal-fg, #8b949e);
-  font-weight: 400;
-}
-
-.terminal-output-editor__prompt {
-  flex-shrink: 0;
-  margin-right: 0.35rem;
-  color: var(--shell-terminal-prompt, #6e9a7a);
-  font-weight: 400;
-}
-
-.terminal-output-editor__invocation {
-  flex-shrink: 0;
-  color: var(--shell-terminal-fg-soft, #6e7681);
-  white-space: pre-wrap;
-}
-
-.terminal-output-editor__cm--command-inline {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.terminal-output-editor__cm--command-inline.file-editor-cm {
-  display: inline-flex;
-  width: auto;
-  min-width: 0;
-}
-
-.terminal-output-editor__cm--command-inline .cm-editor,
-.terminal-output-editor__cm--command-inline .cm-scroller {
-  min-height: 0 !important;
-  height: auto !important;
-}
-
-.terminal-output-editor__command-line .terminal-output-editor__cm--command-inline .cm-content {
-  padding: 0 !important;
-}
-
 .terminal-output-editor__output-pane {
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
 }
 
 .terminal-output-editor__output-pane--empty {
   margin: 0;
-  padding: 0.55rem 0.65rem;
-  font-size: 0.78rem;
+  padding: 0.45rem 0;
+  font-size: var(--shell-terminal-font-size, 0.68rem);
 }
 
 .terminal-output-editor__output-pane--err,
 .terminal-output-editor__output-pane.terminal-live-output.terminal-output-editor__output-pane--err {
   color: #ffa198;
-}
-
-.terminal-output-editor__cm--command .cm-content,
-.terminal-output-editor__cm--output .cm-content {
-  padding: 0.35rem 0.55rem 0.4rem;
 }
 
 .file-editor-card--compact.file-editor-card--preview-fade
@@ -8450,12 +8485,12 @@ button.tool-batch-summary:disabled {
 .terminal-live-output {
   margin: 0;
   min-height: 0;
-  max-height: 22rem;
-  overflow: auto;
-  padding: 0.55rem 0.6rem;
+  max-height: none;
+  overflow: visible;
+  padding: 0.28rem 0 0.3rem;
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.78rem;
-  line-height: 1.42;
+  font-size: var(--shell-terminal-font-size, 0.68rem);
+  line-height: var(--shell-terminal-line-height, 1.38);
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--shell-terminal-fg, #8b949e);
@@ -8464,10 +8499,10 @@ button.tool-batch-summary:disabled {
 
 .terminal-output-editor__output-pre {
   margin: 0;
-  padding: 0.55rem 0.6rem;
+  padding: 0.28rem 0 0.3rem;
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.78rem;
-  line-height: 1.42;
+  font-size: var(--shell-terminal-font-size, 0.68rem);
+  line-height: var(--shell-terminal-line-height, 1.38);
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--shell-terminal-fg, #8b949e);
@@ -8489,10 +8524,6 @@ button.tool-batch-summary:disabled {
   display: none !important;
 }
 
-.terminal-output-editor__cm--no-gutter .cm-content {
-  padding-left: 0.55rem;
-}
-
 .terminal-output-editor__cm.file-editor-cm .cm-editor {
   background: transparent;
 }
@@ -8503,30 +8534,126 @@ button.tool-batch-summary:disabled {
 
 .terminal-output-editor__cm--auto-height.terminal-output-editor__cm--output .cm-editor,
 .terminal-output-editor__cm--auto-height.terminal-output-editor__cm--output .cm-scroller {
-  min-height: calc(0.78rem * 1.42 + 0.35rem + 0.4rem);
+  min-height: calc(
+    var(--shell-terminal-font-size, 0.68rem) * var(--shell-terminal-line-height, 1.38) + 0.55rem
+  );
+}
+
+/* Unified scroll: command + output share one viewport (body scrolls, not output pane). */
+.terminal-output-block.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--unified-scroll,
+.terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--unified-scroll {
+  max-height: calc(
+    var(--shell-terminal-font-size, 0.68rem) * var(--shell-terminal-line-height, 1.38)
+      * var(--file-snapshot-expanded-lines, 12) + 0.75rem
+  );
+  overflow-y: auto !important;
+  overflow-x: auto;
+}
+
+.terminal-output-block.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--unified-scroll
+  .terminal-output-editor__cm--auto-height
+  .cm-editor,
+.terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--unified-scroll
+  .terminal-output-editor__cm--auto-height
+  .cm-editor,
+.terminal-output-block.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--unified-scroll
+  .terminal-output-editor__cm--auto-height
+  .cm-scroller,
+.terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--unified-scroll
+  .terminal-output-editor__cm--auto-height
+  .cm-scroller {
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+.terminal-output-editor--popup
+  .terminal-output-editor__body--unified-scroll {
+  max-height: min(52vh, 28rem);
 }
 
 /* Collapsed shell preview: height follows actual stdout lines (1–4), set via --terminal-preview-lines. */
 .terminal-output-block.file-editor-card--compact.file-editor-card--preview
-  .terminal-output-editor__output-pane,
+  .terminal-output-editor__body--unified-scroll,
 .terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--preview
-  .terminal-output-editor__output-pane {
-  min-height: calc(0.78rem * 1.42 * var(--terminal-preview-lines, 4) + 0.75rem);
+  .terminal-output-editor__body--unified-scroll {
+  max-height: calc(
+    var(--shell-terminal-font-size, 0.68rem) * var(--shell-terminal-line-height, 1.38)
+      * var(--terminal-preview-lines, 4) + 0.75rem
+  );
+  overflow: hidden;
 }
 
 .terminal-output-block.file-editor-card--compact.file-editor-card--preview
-  .terminal-output-editor__output-pane
+  .terminal-output-editor__body--unified-scroll
   .terminal-output-editor__output-pre,
 .terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--preview
-  .terminal-output-editor__output-pane
+  .terminal-output-editor__body--unified-scroll
   .terminal-output-editor__output-pre {
-  max-height: calc(0.78rem * 1.42 * var(--terminal-preview-lines, 4) + 0.75rem);
+  max-height: none;
+  overflow: visible;
+}
+
+.terminal-output-block.file-editor-card--compact.file-editor-card--preview
+  .terminal-output-editor__output-pane:not(:only-child),
+.terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--preview
+  .terminal-output-editor__output-pane:not(:only-child) {
+  min-height: 0;
+}
+
+.terminal-output-block.file-editor-card--compact.file-editor-card--preview
+  .terminal-output-editor__output-pane:only-child,
+.terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--preview
+  .terminal-output-editor__output-pane:only-child {
+  min-height: calc(
+    var(--shell-terminal-font-size, 0.68rem) * var(--shell-terminal-line-height, 1.38)
+      * var(--terminal-preview-lines, 4) + 0.75rem
+  );
+}
+
+.terminal-output-block.file-editor-card--compact.file-editor-card--preview
+  .terminal-output-editor__output-pane:only-child
+  .terminal-output-editor__output-pre,
+.terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--preview
+  .terminal-output-editor__output-pane:only-child
+  .terminal-output-editor__output-pre {
+  max-height: calc(
+    var(--shell-terminal-font-size, 0.68rem) * var(--shell-terminal-line-height, 1.38)
+      * var(--terminal-preview-lines, 4) + 0.75rem
+  );
   overflow: hidden;
 }
 
 .terminal-output-block--expandable,
 .terminal-output-shell-wrap.terminal-output-block--expandable {
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.terminal-output-block--expandable .terminal-output-block__title,
+.terminal-output-shell-wrap.terminal-output-block--expandable .file-editor-header--compact,
+.terminal-output-block--expandable .file-snapshot-expand,
+.terminal-output-shell-wrap.terminal-output-block--expandable .file-snapshot-expand {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.terminal-output-block--expandable .terminal-output-editor__body--terminal,
+.terminal-output-shell-wrap.terminal-output-block--expandable .terminal-output-editor__body--terminal,
+.terminal-output-block--expandable .terminal-output-editor__output-pre,
+.terminal-output-shell-wrap.terminal-output-block--expandable .terminal-output-editor__output-pre,
+.terminal-output-block--expandable .file-editor-cm,
+.terminal-output-shell-wrap.terminal-output-block--expandable .file-editor-cm {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: auto;
 }
 
 .terminal-output-block.file-editor-card--compact.file-editor-card--preview
@@ -8549,6 +8676,10 @@ button.tool-batch-summary:disabled {
   overscroll-behavior: none;
 }
 
+.terminal-output-editor__body--terminal .terminal-output-editor__cm .cm-editor .cm-line {
+  padding: 0;
+}
+
 .terminal-output-block.file-editor-card--compact.file-editor-card--preview
   .terminal-output-editor__output-pane
   .terminal-output-editor__cm--output
@@ -8557,7 +8688,7 @@ button.tool-batch-summary:disabled {
   .terminal-output-editor__output-pane
   .terminal-output-editor__cm--output
   .cm-content {
-  padding: 0.35rem 0.55rem 0.4rem;
+  padding: 0.28rem 0 0.3rem;
 }
 
 .terminal-output-block.file-editor-card--compact.file-editor-card--preview
@@ -8568,8 +8699,14 @@ button.tool-batch-summary:disabled {
   .terminal-output-editor__output-pane
   .terminal-output-editor__cm--auto-height
   .cm-editor {
-  max-height: calc(0.78rem * 1.42 * var(--terminal-preview-lines, 4) + 0.75rem);
-  min-height: calc(0.78rem * 1.42 * var(--terminal-preview-lines, 4) + 0.75rem);
+  max-height: calc(
+    var(--shell-terminal-font-size, 0.68rem) * var(--shell-terminal-line-height, 1.38)
+      * var(--terminal-preview-lines, 4) + 0.75rem
+  );
+  min-height: calc(
+    var(--shell-terminal-font-size, 0.68rem) * var(--shell-terminal-line-height, 1.38)
+      * var(--terminal-preview-lines, 4) + 0.75rem
+  );
   overflow: hidden;
 }
 
@@ -8581,7 +8718,10 @@ button.tool-batch-summary:disabled {
   .terminal-output-editor__output-pane
   .terminal-output-editor__cm--auto-height
   .cm-scroller {
-  min-height: calc(0.78rem * 1.42 * var(--terminal-preview-lines, 4) + 0.75rem);
+  min-height: calc(
+    var(--shell-terminal-font-size, 0.68rem) * var(--shell-terminal-line-height, 1.38)
+      * var(--terminal-preview-lines, 4) + 0.75rem
+  );
 }
 
 .terminal-output-block.file-editor-card--compact.file-editor-card--expanded
@@ -8591,41 +8731,56 @@ button.tool-batch-summary:disabled {
   min-height: 0;
 }
 
+/* Output-only expanded: scroll inside CodeMirror output pane. */
 .terminal-output-block.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--terminal:not(.terminal-output-editor__body--unified-scroll)
   .terminal-output-editor__output-pane
   .terminal-output-editor__cm--auto-height
   .cm-editor,
 .terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--terminal:not(.terminal-output-editor__body--unified-scroll)
   .terminal-output-editor__output-pane
   .terminal-output-editor__cm--auto-height
   .cm-editor,
 .terminal-output-block.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--terminal:not(.terminal-output-editor__body--unified-scroll)
   .terminal-output-editor__output-pane
   .terminal-output-editor__cm--auto-height
   .cm-scroller,
 .terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--terminal:not(.terminal-output-editor__body--unified-scroll)
   .terminal-output-editor__output-pane
   .terminal-output-editor__cm--auto-height
   .cm-scroller {
-  min-height: calc(0.78rem * 1.42 + 0.35rem + 0.4rem);
+  min-height: calc(
+    var(--shell-terminal-font-size, 0.68rem) * var(--shell-terminal-line-height, 1.38) + 0.55rem
+  );
 }
 
 .terminal-output-block.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--terminal:not(.terminal-output-editor__body--unified-scroll)
   .terminal-output-editor__output-pane
   .terminal-output-editor__cm--auto-height
   .cm-scroller,
 .terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--terminal:not(.terminal-output-editor__body--unified-scroll)
   .terminal-output-editor__output-pane
   .terminal-output-editor__cm--auto-height
   .cm-scroller {
   overflow: auto !important;
+  max-height: calc(
+    var(--shell-terminal-font-size, 0.68rem) * var(--shell-terminal-line-height, 1.38)
+      * var(--file-snapshot-expanded-lines, 12) + 0.75rem
+  ) !important;
 }
 
 .terminal-output-block.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--terminal:not(.terminal-output-editor__body--unified-scroll)
   .terminal-output-editor__output-pane
   .terminal-output-editor__cm--auto-height
   .cm-editor,
 .terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--expanded
+  .terminal-output-editor__body--terminal:not(.terminal-output-editor__body--unified-scroll)
   .terminal-output-editor__output-pane
   .terminal-output-editor__cm--auto-height
   .cm-editor,
@@ -8633,11 +8788,24 @@ button.tool-batch-summary:disabled {
   .terminal-output-editor__output-pane.terminal-live-output,
 .terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--expanded
   .terminal-output-editor__output-pane.terminal-live-output {
-  max-height: min(360px, 45vh);
+  max-height: calc(
+    var(--shell-terminal-font-size, 0.68rem) * var(--shell-terminal-line-height, 1.38)
+      * var(--file-snapshot-expanded-lines, 12) + 0.75rem
+  ) !important;
+  overflow: hidden;
 }
 
-.terminal-output-editor--inline.terminal-output-editor--running .terminal-live-output {
+.terminal-output-editor--inline.terminal-output-editor--running
+  .terminal-output-editor__body--unified-scroll {
   max-height: 22rem;
+  overflow-y: auto !important;
+}
+
+.terminal-output-editor--inline.terminal-output-editor--running
+  .terminal-output-editor__body--terminal:not(.terminal-output-editor__body--unified-scroll)
+  .terminal-live-output {
+  max-height: 22rem;
+  overflow: auto;
 }
 
 .terminal-output-editor--popup .terminal-output-editor__cm .cm-editor {
@@ -9480,6 +9648,219 @@ button.tool-summary:disabled .tool-chevron {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+.tool-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tool-result-list__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.35rem;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.tool-result-list__title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.tool-result-list__sep {
+  color: color-mix(in srgb, var(--text) 45%, var(--muted));
+}
+
+.tool-result-list-table-wrap {
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 0.5rem;
+}
+
+.tool-result-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.tool-result-list-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--surface) 92%, var(--muted));
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+}
+
+.tool-result-list-table td {
+  padding: 0.45rem 0.6rem;
+  vertical-align: top;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.tool-result-list-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tool-result-list-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface) 94%, var(--accent) 6%);
+}
+
+.docs-search-result__items,
+.web-search-result__items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.docs-search-result__item,
+.web-search-result__item {
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+}
+
+.docs-search-result__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.45rem;
+}
+
+.docs-search-result__title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.docs-search-result__title {
+  font-size: 0.84rem;
+}
+
+.docs-search-result__score {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.docs-search-result__topic {
+  font-size: 0.74rem;
+}
+
+.docs-search-result__desc {
+  margin: 0;
+  font-size: 0.74rem;
+  color: color-mix(in srgb, var(--text) 78%, var(--muted));
+}
+
+.docs-search-result__snippet-md {
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--surface) 90%, var(--muted));
+  padding: 0.35rem 0.5rem;
+}
+
+.docs-search-result__snippet-md .markdown-body {
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.docs-index-result__group + .docs-index-result__group {
+  margin-top: 0.35rem;
+}
+
+.docs-index-result__group-title,
+.launcher-resolve-result__section-title,
+.settings-list-result__section-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.docs-index-result__desc,
+.settings-list-result__desc,
+.trigger-events-result__desc {
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.docs-snippet-result__title {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.docs-snippet-result__section,
+.docs-get-result__desc {
+  margin: 0 0 0.35rem;
+  font-size: 0.76rem;
+}
+
+.web-search-result__title {
+  margin: 0 0 0.25rem;
+  font-size: 0.84rem;
+}
+
+.web-search-result__title a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.web-search-result__title a:hover {
+  text-decoration: underline;
+}
+
+.web-search-result__url {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  word-break: break-all;
+}
+
+.web-search-result__snippet {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--text) 82%, var(--muted));
+}
+
+.settings-get-result__value,
+.launcher-resolve-result__next .tool-json {
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--surface) 90%, var(--muted));
+  font-size: 0.74rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.launcher-resolve-result__next,
+.launcher-resolve-result__ranked,
+.launcher-resolve-result__alternatives,
+.settings-list-result__pages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.trigger-list-result__id code {
+  font-size: 0.72rem;
+}
+
+.tool-result-popup-body .tool-doc-markdown {
+  max-height: min(52vh, 36rem);
+  overflow: auto;
 }
 
 .tool-result-popup-body .tool-hint,
@@ -13840,7 +14221,9 @@ body.workspace-explorer-pane-resizing * {
 
 .tool-card--file-editor-fold .tool-body--file-editor-diff .file-editor-card--expanded .file-editor-cm .cm-editor,
 .tool-card--file-editor-fold .tool-body--file-editor-diff .file-editor-card--expanded .file-editor-cm--diff .cm-editor {
-  max-height: min(360px, 45vh);
+  max-height: calc(
+    0.72rem * 1.45 * var(--file-snapshot-expanded-lines, 12) + 0.35rem
+  ) !important;
 }
 
 .tool-card--file-read > .tool-body--file-read {
@@ -14166,7 +14549,7 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   max-height: calc(0.72rem * 1.45 * 4 + 0.35rem);
 }
 
-.file-editor-card--compact.file-editor-card--preview .file-editor-cm .cm-content {
+.file-editor-card--compact.file-editor-card--preview .file-editor-cm:not(.terminal-output-editor__cm) .cm-content {
   padding: 0 0.35rem 0.2rem;
 }
 
@@ -14228,13 +14611,23 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   background: none;
 }
 
+.file-editor-card--compact.file-editor-card--expanded {
+  --file-snapshot-expanded-lines: 12;
+}
+
 .file-editor-card--compact.file-editor-card--expanded .file-editor-cm .cm-scroller {
   overflow: auto !important;
+  max-height: calc(
+    0.72rem * 1.45 * var(--file-snapshot-expanded-lines, 12) + 0.35rem
+  ) !important;
 }
 
 .file-editor-card--compact.file-editor-card--expanded .file-editor-cm .cm-editor,
 .file-editor-card--compact.file-editor-card--expanded .file-editor-cm--diff .cm-editor {
-  max-height: min(360px, 45vh);
+  max-height: calc(
+    0.72rem * 1.45 * var(--file-snapshot-expanded-lines, 12) + 0.35rem
+  ) !important;
+  overflow: hidden;
 }
 
 .file-editor-card--compact.file-editor-card--expanded .file-editor-body::after {

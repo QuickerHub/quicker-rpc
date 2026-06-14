@@ -391,6 +391,40 @@
       "query": "录制",
       "k": 5,
       "expect": { "inTopK": [{ "topic": "step-modules", "reference": "record" }] }
+    },
+    {
+      "id": "topic-trigger-workflow",
+      "category": "topic-id",
+      "query": "trigger-workflow",
+      "expect": { "top": { "topic": "trigger-workflow" } }
+    },
+    {
+      "id": "zh-event-trigger-url",
+      "category": "chinese",
+      "query": "网址变化 自动运行",
+      "k": 5,
+      "expect": { "inTopK": [{ "topic": "trigger-workflow" }] }
+    },
+    {
+      "id": "zh-event-trigger-clipboard",
+      "category": "chinese",
+      "query": "剪贴板 触发",
+      "k": 5,
+      "expect": { "inTopK": [{ "topic": "trigger-workflow" }] }
+    },
+    {
+      "id": "zh-event-trigger-timer",
+      "category": "chinese",
+      "query": "定时重复 事件",
+      "k": 5,
+      "expect": { "inTopK": [{ "topic": "trigger-workflow" }] }
+    },
+    {
+      "id": "agent-trigger-browser-url",
+      "category": "agent-scenario",
+      "query": "BrowserUrlChanged UrlPattern",
+      "k": 5,
+      "expect": { "inTopK": [{ "topic": "trigger-workflow" }] }
     }
   ]
 }

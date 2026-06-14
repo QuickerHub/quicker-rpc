@@ -20,13 +20,14 @@ import {
 } from "@/lib/step-runner-tool";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 import { parseBrowserToolResultView } from "@/lib/browser-tool-result";
-import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
+import { isShellToolName } from "@/lib/host-tool-constants";
 import { isStructuredToolResult } from "@/lib/tool-result";
 import { parseProgramDiagnosticsFromToolData } from "@/lib/program-diagnostics-view";
 import {
   parseWorkspaceFileReadPayload,
   workspaceFileToolHasPopupVisual,
 } from "@/lib/workspace-file-tool";
+import { docsToolHasPopupVisual } from "@/lib/docs-tool-view";
 
 /** Whether the popup can show a structured visual body (not only raw JSON). */
 export function toolPopupHasVisualView(
@@ -34,11 +35,15 @@ export function toolPopupHasVisualView(
   input?: unknown,
   output?: unknown,
 ): boolean {
-  if (toolName === SHELL_EXEC_TOOL) {
+  if (isShellToolName(toolName)) {
     return input !== undefined || output !== undefined;
   }
 
   if (toolName === BROWSER_TOOL && parseBrowserToolResultView(output)) {
+    return true;
+  }
+
+  if (docsToolHasPopupVisual(toolName, input, output)) {
     return true;
   }
 

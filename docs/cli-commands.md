@@ -463,7 +463,7 @@ qkrpc trigger disable --id <guid> [--json]
 qkrpc trigger delete --id <guid> [--json]
 ```
 
-serve / MCP：`trigger.list` / `trigger.events` / `trigger.save` / `trigger.delete` / `trigger.enable` / `trigger.disable`；MCP 工具 `quicker_trigger`。
+serve / MCP：`trigger.list` / `trigger.events` / `trigger.save` / `trigger.delete` / `trigger.enable` / `trigger.disable`；MCP 工具 `quicker_trigger`。Agent 工作流：`docs get --topic trigger-workflow`（或 `docs({ action: "get", topic: "trigger-workflow" })`）。
 
 ---
 

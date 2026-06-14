@@ -24,11 +24,7 @@ import {
   summarizeToolOutput,
 } from "./tool-output";
 import { qkrpcActionCommandRunningMeta } from "@/lib/qkrpc-action-tool";
-import { parseDocsGetDoc, isDocsGetOpenableTool } from "@/lib/docs-tool";
-import { useDocsViewer } from "@/lib/docs-viewer";
-import { getToolMeta } from "@/lib/tool-registry";
 import { ToolSummaryTitle } from "@/components/chat/ToolSummaryTitle";
-import { DocsToolPopup } from "./DocsToolPopup";
 import {
   ToolResultPopup,
   toolCanShowDetails,
@@ -38,9 +34,8 @@ import { WorkspaceFileOpenRow } from "./WorkspaceFileOpenRow";
 import { WorkspaceFileEditorRow } from "./WorkspaceFileToolBody";
 import { WorkspaceFileReadRow } from "./WorkspaceFileReadRow";
 import { ShellToolRow } from "./ShellToolRow";
-import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
+import { isShellToolName } from "@/lib/host-tool-constants";
 import { summarizeShellToolInput } from "@/lib/shell-tool-view";
-import { useWorkspaceExplorerActions } from "@/lib/workspace-explorer";
 import { ActionTraceToolSync } from "./ActionTraceToolSync";
 import { AskQuestionToolRow } from "./AskQuestionToolRow";
 import { ASK_QUESTION_TOOL } from "@/lib/ask-question-tool";
@@ -75,7 +70,7 @@ function ToolPartInner({
       ? summarizeToolOutput(name, output, input)
       : null;
   const runningMeta =
-    isRunning && name === SHELL_EXEC_TOOL
+    isRunning && isShellToolName(name)
       ? summarizeShellToolInput(input)
       : isRunning && isWorkspaceExplorerFileTool(name, input)
         ? workspaceFileRunningMeta(name, input)
@@ -86,13 +81,6 @@ function ToolPartInner({
   const errorText = "errorText" in part ? part.errorText : undefined;
   const isError =
     state === "output-error" || hasFailedStructuredToolOutput(output);
-  const isDocsWithMarkdown =
-    isDocsGetOpenableTool(name, input)
-    && output !== undefined
-    && isQkrpcToolResult(output);
-  const docsDoc =
-    isDocsWithMarkdown && output ? parseDocsGetDoc(output) : null;
-  const isDocsOpenable = Boolean(docsDoc);
 
   const isWorkspaceFile = isWorkspaceExplorerFileTool(name, input);
   const workspaceFileOutput =
@@ -135,7 +123,7 @@ function ToolPartInner({
     );
   }
 
-  if (name === SHELL_EXEC_TOOL) {
+  if (isShellToolName(name)) {
     return (
       <>
         {traceSync}
@@ -158,7 +146,6 @@ function ToolPartInner({
     shouldUseStaticToolRow({
       hasFileEditorPreview: hasWorkspaceFileEditorPreview,
       hasReadFilePreview: hasReadFilePreview,
-      isDocsOpenable: isDocsOpenable && isQkrpcToolResult(output),
       isWorkspaceFileOpenRow,
     })
   ) {
@@ -178,19 +165,6 @@ function ToolPartInner({
           inBatch={inBatch}
         />
       </>
-    );
-  }
-
-  if (isDocsOpenable && docsDoc && isQkrpcToolResult(output)) {
-    return (
-      <DocsToolOpenRow
-        toolName={name}
-        isRunning={isRunning}
-        state={state}
-        doc={docsDoc}
-        inBatch={inBatch}
-        errorText={errorText}
-      />
     );
   }
 
@@ -324,66 +298,6 @@ function PopupToolRow({
         output={output}
         errorText={errorText}
         followTail={isRunning}
-      />
-    </>
-  );
-}
-
-function DocsToolOpenRow({
-  toolName,
-  isRunning,
-  state,
-  doc,
-  inBatch,
-  errorText,
-}: {
-  toolName: string;
-  isRunning: boolean;
-  state: string;
-  doc: NonNullable<ReturnType<typeof parseDocsGetDoc>>;
-  inBatch?: boolean;
-  errorText?: string;
-}) {
-  const { openDoc } = useDocsViewer();
-  const { setPanelOpen } = useWorkspaceExplorerActions();
-  const popup = useToolResultPopup();
-  const toolLabel = getToolMeta(toolName)?.label ?? "指南";
-  const canOpen = Boolean(doc.markdown?.trim()) && !isRunning;
-
-  const handleOpenInExplorer = () => {
-    openDoc(doc);
-    setPanelOpen(true);
-    popup.closePopup();
-  };
-
-  return (
-    <>
-      <div
-        className={`tool-card tool-card--docs tool-card--docs-open tool-card--preview${inBatch ? " tool-card--nested" : ""}`}
-      >
-        <button
-          type="button"
-          className={`tool-summary tool-docs-open-btn${canOpen ? "" : " tool-summary--static"}`}
-          disabled={!canOpen}
-          onClick={() => canOpen && popup.openPopup()}
-          aria-label={canOpen ? `查看 ${doc.title}` : undefined}
-        >
-          <ToolSummaryTitle
-            displayName={doc.title}
-            meta={doc.topic}
-            isRunning={isRunning}
-            state={state}
-            showChevron={canOpen}
-          />
-        </button>
-        {errorText ? <pre className="tool-error">{errorText}</pre> : null}
-      </div>
-      <DocsToolPopup
-        open={popup.open}
-        onClose={popup.closePopup}
-        doc={doc}
-        toolLabel={toolLabel}
-        onOpenInExplorer={handleOpenInExplorer}
       />
     </>
   );

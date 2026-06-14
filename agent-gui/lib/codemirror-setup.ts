@@ -188,6 +188,16 @@ export function workspaceCodeMirrorTheme(): Extension {
 /** Pass to @uiw/react-codemirror `theme` — avoids cm-theme-light wrapper + built-in palette. */
 export const workspaceCodeMirrorUiTheme = workspaceCodeMirrorTheme();
 
+/** Shell terminal rows: no cm-content padding (spacing from terminal-output-editor CSS). */
+export const shellTerminalCodeMirrorUiTheme: Extension = [
+  workspaceCodeMirrorTheme(),
+  EditorView.theme({
+    ".cm-content": {
+      padding: 0,
+    },
+  }),
+];
+
 export function workspaceSyntaxHighlighting(): Extension {
   return syntaxHighlighting(workspaceHighlightStyle, { fallback: true });
 }
@@ -220,7 +230,7 @@ export function readonlyTerminalCommandCodeMirrorExtensions(): Extension[] {
       "&": {
         backgroundColor: "transparent",
         color: "#8b949e",
-        fontSize: "0.78rem",
+        fontSize: "0.68rem",
         fontFamily: "var(--font-mono, ui-monospace, monospace)",
         fontWeight: "400",
       },
@@ -231,7 +241,7 @@ export function readonlyTerminalCommandCodeMirrorExtensions(): Extension[] {
       ".cm-scroller": {
         overflow: "visible",
         fontFamily: "inherit",
-        lineHeight: "1.42",
+        lineHeight: "1.38",
       },
       ".cm-cursor": { display: "none !important" },
     }),
@@ -253,8 +263,8 @@ export function readonlyPlainCodeMirrorExtensions(): Extension[] {
       },
       ".cm-content": {
         fontFamily: "var(--font-mono, ui-monospace, monospace)",
-        fontSize: "0.78rem",
-        lineHeight: "1.42",
+        fontSize: "0.68rem",
+        lineHeight: "1.38",
         fontWeight: "400",
       },
       ".cm-cursor": { display: "none !important" },

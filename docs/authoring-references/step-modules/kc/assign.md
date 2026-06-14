@@ -2,7 +2,7 @@
 
 > **分类**：计算与数据结构 · **来源**：KC 官方文档（`npm run docs:modules:gen`）· [assign](https://getquicker.net/KC/Help/Doc/assign)
 
-**用途**：Deprecated assign step; use sys:evalexpression instead
+**用途**：Assign value to action variable (literal, $$, $=, or input.var copy); default for single-var writes
 
 将指定的内容或变量的值赋予另一个变量。（可以用于变量类型的转换）
 

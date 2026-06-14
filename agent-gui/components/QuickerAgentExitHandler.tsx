@@ -73,7 +73,14 @@ export function QuickerAgentExitHandler() {
             );
             try {
               await Promise.race([
-                installPendingOfficialUpdateOnExit(),
+                installPendingOfficialUpdateOnExit((progress) => {
+                  patchAppUpdateOverlay({
+                    phase: "applying",
+                    percent: progress.percent,
+                    message: progress.message,
+                    error: null,
+                  });
+                }),
                 new Promise<never>((_, reject) => {
                   window.setTimeout(
                     () => reject(new Error("更新安装超时")),

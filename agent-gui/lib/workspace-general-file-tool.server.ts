@@ -2,7 +2,12 @@ import { tool } from "ai";
 import { z } from "zod";
 import { formatLocalToolResult } from "@/lib/tool-result";
 import {
-  WORKSPACE_FILE_TOOL,
+  LEGACY_WORKSPACE_FILE_TOOL,
+  READ_TOOL,
+  STR_REPLACE_TOOL,
+  WRITE_TOOL,
+} from "@/lib/host-tool-constants";
+import {
   readWorkspaceFileToolAction,
 } from "@/lib/workspace-general-file-tool";
 import {
@@ -15,8 +20,6 @@ import {
   readWorkspaceFileSnapshot,
   writeWorkspaceFile,
 } from "@/lib/workspace-fs";
-
-export { WORKSPACE_FILE_TOOL };
 
 const workspaceReadSliceSchema = {
   offset: z
@@ -104,6 +107,18 @@ type WorkspaceFileToolInput = {
   endLine?: number;
   maxLines?: number;
 };
+
+export {
+  LEGACY_WORKSPACE_FILE_TOOL as WORKSPACE_FILE_TOOL,
+  READ_TOOL,
+  STR_REPLACE_TOOL,
+  WRITE_TOOL,
+} from "@/lib/host-tool-constants";
+
+const readActionSchema = z
+  .enum(["read", "list", "info", "search"])
+  .optional()
+  .describe("Default read. list/info/search for directory listing, metadata, or grep in tree.");
 
 async function executeWorkspaceFileTool(
   input: WorkspaceFileToolInput,
@@ -380,30 +395,84 @@ async function executeWorkspaceFileTool(
   }
 }
 
-export const WORKSPACE_FILE_TOOL_DEF = tool({
+export { executeWorkspaceFileTool };
+
+const readWriteCommonSchema = {
+  path: z
+    .string()
+    .optional()
+    .describe("Path relative to workspace cwd (e.g. .local/out.txt, docs/foo.md)"),
+  query: z.string().optional().describe("search: substring in file or directory tree"),
+  maxMatches: z.number().int().min(1).max(50).optional().describe("search: max hits"),
+  caseInsensitive: z.boolean().optional().describe("search: case insensitive"),
+  recursive: z.boolean().optional().describe("list: include subdirectories"),
+  ...workspaceReadSliceSchema,
+};
+
+export const READ_TOOL_DEF = tool({
   description:
-    "Read/write/edit plain files under sidebar workspace cwd. Prefer over shell_exec for file I/O. "
-    + "Scratch/temp → `.local/` (gitignored). Changes show in side panel 已改动. "
-    + "NOT Quicker program bodies (.quicker/actions|subprograms data.json/files) — use workspace_program. "
-    + "NOT run/build/git — use shell_exec or qkrpc tools. "
-    + "Examples: "
-    + "(1) write patch JSON: {action:\"write\", path:\".local/settings-patch.json\", content:\"…\"}; "
-    + "(2) read config: {action:\"read\", path:\"README.md\", startLine:1, endLine:40}; "
-    + "(3) small edit: {action:\"edit\", path:\".local/foo.txt\", oldString:\"a\", newString:\"b\"}.",
+    "Read plain files under sidebar workspace cwd. Prefer over Shell for file I/O. "
+    + "Scratch/temp → `.local/` (gitignored). "
+    + "NOT Quicker program bodies (.quicker/actions|subprograms) — use workspace_program. "
+    + "NOT regex search across tree — use Grep. "
+    + "NOT run/build/git — use Shell. "
+    + "Examples: read file {path, startLine:1, endLine:40}; list dir {action:\"list\", path:\".\"}.",
   inputSchema: z.object({
-    action: actionSchema,
+    action: readActionSchema,
+    ...readWriteCommonSchema,
+  }),
+  execute: async (input) =>
+    executeWorkspaceFileTool({
+      ...input,
+      action: input.action ?? "read",
+    }),
+});
+
+export const WRITE_TOOL_DEF = tool({
+  description:
+    "Write full content to a plain file under sidebar workspace cwd. Prefer over Shell for file I/O. "
+    + "Scratch/temp → `.local/` (gitignored). Changes show in side panel 已改动. "
+    + "NOT Quicker program bodies — use workspace_program. "
+    + "For small in-file edits use StrReplace. "
+    + "Example: {path:\".local/out.json\", content:\"…\"}.",
+  inputSchema: z.object({
+    path: readWriteCommonSchema.path,
+    content: z.string().describe("Full file content"),
+  }),
+  execute: async (input) =>
+    executeWorkspaceFileTool({ ...input, action: "write" }),
+});
+
+export const STR_REPLACE_TOOL_DEF = tool({
+  description:
+    "Replace exact text in a plain cwd file (oldString → newString). Prefer over Write for small patches. "
+    + "Changes show in side panel 已改动. NOT Quicker program bodies — use workspace_program. "
+    + "Example: {path:\".local/foo.txt\", oldString:\"a\", newString:\"b\", replaceAll:false}.",
+  inputSchema: z.object({
     path: z
       .string()
-      .optional()
-      .describe("Path relative to workspace cwd (e.g. .local/out.txt, docs/foo.md)"),
+      .describe("Path relative to workspace cwd (e.g. .local/foo.txt, docs/bar.md)"),
+    oldString: z.string().min(1).describe("Exact text to find"),
+    newString: z.string().describe("Replacement text (empty string deletes match)"),
+    replaceAll: z.boolean().optional().describe("Replace all matches (default first only)"),
+  }),
+  execute: async (input) =>
+    executeWorkspaceFileTool({ ...input, action: "edit" }),
+});
+
+export const WORKSPACE_FILE_TOOL_DEF = tool({
+  description: "Deprecated: use Read, Write, or StrReplace.",
+  inputSchema: z.object({
+    action: actionSchema,
+    path: readWriteCommonSchema.path,
     content: z.string().optional().describe("write: full file content"),
     oldString: z.string().optional().describe("edit: exact text to find"),
     newString: z.string().optional().describe("edit: replacement text"),
     replaceAll: z.boolean().optional().describe("edit: replace all matches"),
-    query: z.string().optional().describe("search: substring in file or directory tree"),
-    maxMatches: z.number().int().min(1).max(50).optional().describe("search: max hits"),
-    caseInsensitive: z.boolean().optional().describe("search: case insensitive"),
-    recursive: z.boolean().optional().describe("list: include subdirectories"),
+    query: readWriteCommonSchema.query,
+    maxMatches: readWriteCommonSchema.maxMatches,
+    caseInsensitive: readWriteCommonSchema.caseInsensitive,
+    recursive: readWriteCommonSchema.recursive,
     ...workspaceReadSliceSchema,
   }),
   execute: async (input) => executeWorkspaceFileTool(input),

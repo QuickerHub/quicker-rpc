@@ -13,7 +13,6 @@ import {
 } from "@codemirror/view";
 import {
   firstChangedDisplayLineNumber,
-  isCollapsedDiffContextLine,
   lineDiffGutterSymbol,
   type LineDiffKind,
 } from "@/lib/file-line-diff";
@@ -29,9 +28,7 @@ function buildDiffLineDecorations(
     const line = doc.line(i + 1);
     const kind = lineKinds[i];
     let className = "cm-diff-line--equal";
-    if (isCollapsedDiffContextLine(line.text)) {
-      className = "cm-diff-line--collapsed";
-    } else if (kind === "insert") {
+    if (kind === "insert") {
       className = "cm-diff-line--insert";
     } else if (kind === "delete") {
       className = "cm-diff-line--delete";
@@ -189,11 +186,6 @@ export function createDiffLineKindsExtension(
         textDecoration: "line-through",
         textDecorationColor:
           "color-mix(in srgb, var(--code-diff-remove) 70%, transparent)",
-      },
-      ".cm-diff-line--collapsed": {
-        color: "color-mix(in srgb, var(--foreground) 48%, transparent)",
-        fontStyle: "italic",
-        backgroundColor: "color-mix(in srgb, var(--foreground) 6%, transparent)",
       },
       ".cm-gutters .cm-lineNumbers .cm-gutterElement": {
         minWidth: "1.6em",

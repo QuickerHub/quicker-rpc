@@ -296,8 +296,24 @@ export async function downloadPendingUpdate() {
   throw lastError ?? new Error("没有可用的更新下载源");
 }
 
+const INSTALL_UI_RELEASE_MS = 450;
+
 export async function installPendingUpdateAndQuit() {
   if (!initialized) return;
   if (!updateDownloaded) return;
-  autoUpdater.quitAndInstall(true, true);
+
+  emitProgress({
+    phase: "installing",
+    percent: 35,
+    message: "即将打开安装程序，请在窗口中查看安装进度…",
+    remoteVersion: pendingVersion ?? undefined,
+  });
+
+  // Let the renderer paint the applying overlay before windows close.
+  await new Promise((resolve) => {
+    setTimeout(resolve, INSTALL_UI_RELEASE_MS);
+  });
+
+  // Assisted NSIS (not /S silent) so users see file-copy progress during update.
+  autoUpdater.quitAndInstall(false, true);
 }

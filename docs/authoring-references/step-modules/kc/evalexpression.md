@@ -2,7 +2,7 @@
 
 > **分类**：计算与数据结构 · **来源**：KC 官方文档（`npm run docs:modules:gen`）· [expression](https://getquicker.net/KC/Help/Doc/expression)
 
-**用途**：Evaluate C# / LINQ; multi-statement; write one or many action vars via {var}=value (preferred over assign & compute)
+**用途**：Evaluate C# / LINQ; batch multi-{var}= assign or complex expressions (simple assign → sys:assign)
 
 # 概述
 

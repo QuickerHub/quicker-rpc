@@ -24,7 +24,7 @@ describe("resolveEnabledToolsForChatMode", () => {
     assert.deepEqual(
       resolveEnabledToolsForChatMode(
         CHAT_MODE_LAUNCHER,
-        ["docs", "shell_exec"],
+        ["docs", "Shell"],
         () => ["docs"],
       ),
       defaultLauncherToolIds(),
@@ -35,10 +35,10 @@ describe("resolveEnabledToolsForChatMode", () => {
     assert.deepEqual(
       resolveEnabledToolsForChatMode(
         CHAT_MODE_AGENT,
-        ["docs", "shell_exec"],
+        ["docs", "Shell"],
         () => ["docs"],
       ),
-      ["docs", "shell_exec"],
+      ["docs", "Shell"],
     );
   });
 

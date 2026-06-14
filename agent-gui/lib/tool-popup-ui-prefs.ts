@@ -21,3 +21,11 @@ export function resolveToolPopupTab(hasVisual: boolean): ToolPopupViewMode {
   if (preferred === "source") return "source";
   return hasVisual ? "visual" : "source";
 }
+
+/** Map selected tab to the body view; visual is coerced when unavailable. */
+export function resolveToolPopupBodyView(
+  tab: ToolPopupViewMode,
+  hasVisual: boolean,
+): ToolPopupViewMode {
+  return tab === "visual" && !hasVisual ? "source" : tab;
+}

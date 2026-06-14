@@ -18,7 +18,7 @@
 | `activateProcessMainWindow` | `sys:activateProcessMainWindow` | Bring process main window to front | [activateprocessmainwindow](https://getquicker.net/KC/Help/Doc/activateprocessmainwindow) |
 | `adobesoftscontrol` | `sys:adobesoftscontrol` | Control Adobe apps (JS script, etc.) | [adobesoftscontrol](https://getquicker.net/KC/Help/Doc/adobesoftscontrol) |
 | `ai` | `sys:ai` | Call third-party AI services | [ai](https://getquicker.net/KC/Help/Doc/ai) |
-| `assign` | `sys:assign` | Deprecated assign step; use sys:evalexpression instead | [assign](https://getquicker.net/KC/Help/Doc/assign) |
+| `assign` | `sys:assign` | Assign value to action variable (literal, $$, $=, or input.var copy); default for single-var writes | [assign](https://getquicker.net/KC/Help/Doc/assign) |
 | `audioControl` | `sys:audioControl` | List or set default audio output devices | [audiocontrol](https://getquicker.net/KC/Help/Doc/audiocontrol) |
 | `autocadcontrol` | `sys:autocadcontrol` | Send commands to AutoCAD | [autocadcontrol](https://getquicker.net/KC/Help/Doc/autocadcontrol) |
 | `basic-ocr` | `sys:basic-ocr` | OCR text from image | [basic-ocr](https://getquicker.net/KC/Help/Doc/basic-ocr) |
@@ -45,7 +45,7 @@
 | `download` | `sys:download` | Download file from URL | [download](https://getquicker.net/KC/Help/Doc/download) |
 | `each` | `sys:each` | Iterate each item in a list | [each](https://getquicker.net/KC/Help/Doc/each) |
 | `enc` | `sys:enc` | Encrypt, decrypt, or hash text/data | [enc](https://getquicker.net/KC/Help/Doc/enc) |
-| `evalexpression` | `sys:evalexpression` | Evaluate C# / LINQ; multi-statement; write one or many action vars via {var}=value (preferred over assign & compute) | [expression](https://getquicker.net/KC/Help/Doc/expression) |
+| `evalexpression` | `sys:evalexpression` | Evaluate C# / LINQ; batch multi-{var}= assign or complex expressions (simple assign → sys:assign) | [expression](https://getquicker.net/KC/Help/Doc/expression) |
 | `everythingsearch` | `sys:everythingsearch` | Search files via Everything | [everythingsearch](https://getquicker.net/KC/Help/Doc/everythingsearch) |
 | `excelObjects` | `sys:excelObjects` | Excel application/workbook/sheet object operations | [excelobjects](https://getquicker.net/KC/Help/Doc/excelobjects) |
 | `excelRange` | `sys:excelRange` | Read/write Excel ranges and cells | [excelrange](https://getquicker.net/KC/Help/Doc/excelrange) |
@@ -262,14 +262,14 @@
 
 | ref id | key | 用途 | 官方 |
 |--------|-----|------|------|
-| `kc/assign` | `sys:assign` | Deprecated assign step; use sys:evalexpression instead | [assign](https://getquicker.net/KC/Help/Doc/assign) |
+| `kc/assign` | `sys:assign` | Assign value to action variable (literal, $$, $=, or input.var copy); default for single-var writes | [assign](https://getquicker.net/KC/Help/Doc/assign) |
 | `kc/color` | `sys:color` | Pick screen color or convert color values | [color](https://getquicker.net/KC/Help/Doc/color) |
 | `kc/compute` | `sys:compute` | Legacy numeric step (prefer sys:evalexpression) | [compute](https://getquicker.net/KC/Help/Doc/compute) |
 | `kc/computeTime` | `sys:computeTime` | Date/time arithmetic on DateTime values | [computetime](https://getquicker.net/KC/Help/Doc/computetime) |
 | `kc/dboperation` | `sys:dboperation` | Run SQL and return results | [dboperation](https://getquicker.net/KC/Help/Doc/dboperation) |
 | `kc/dictOperations` | `sys:dictOperations` | Dictionary step (prefer sys:evalexpression for logic; search 词典 for this module) | [dictoperations](https://getquicker.net/KC/Help/Doc/dictoperations) |
 | `kc/enc` | `sys:enc` | Encrypt, decrypt, or hash text/data | [enc](https://getquicker.net/KC/Help/Doc/enc) |
-| `kc/evalexpression` | `sys:evalexpression` | Evaluate C# / LINQ; multi-statement; write one or many action vars via {var}=value (preferred over assign & compute) | [expression](https://getquicker.net/KC/Help/Doc/expression) |
+| `kc/evalexpression` | `sys:evalexpression` | Evaluate C# / LINQ; batch multi-{var}= assign or complex expressions (simple assign → sys:assign) | [expression](https://getquicker.net/KC/Help/Doc/expression) |
 | `kc/getCurrentTime` | `sys:getCurrentTime` | Get or parse date/time (incl. unix timestamp) | [gettime](https://getquicker.net/KC/Help/Doc/gettime) |
 | `kc/listOperations` | `sys:listOperations` | List step UI modes (prefer sys:evalexpression for LINQ; search 列表操作 for this module) | [listoperations](https://getquicker.net/KC/Help/Doc/listoperations) |
 | `kc/manageList` | `sys:manageList` | Manually sort/edit list in UI | [managelist](https://getquicker.net/KC/Help/Doc/managelist) |

@@ -78,6 +78,12 @@ export function countUnifiedDiffDisplayLines(oldText: string, newText: string): 
 
 export const FILE_DIFF_CONTEXT_LINES = 3;
 export const FILE_DIFF_MIN_EQUAL_COLLAPSE = 8;
+/** Pass as minEqualCollapse to render every diff line (UI default). */
+export const FILE_DIFF_NO_COLLAPSE = 999_999;
+
+function isDiffCollapseEnabled(minCollapse: number): boolean {
+  return minCollapse < FILE_DIFF_NO_COLLAPSE;
+}
 
 export type FileDiffDisplay = {
   /** Collapsed old side for merge/diff editor. */
@@ -106,14 +112,7 @@ function collapseEqualTexts(
   }
   const head = texts.slice(0, contextLines);
   const tail = texts.slice(texts.length - contextLines);
-  const omitted = texts.length - head.length - tail.length;
-  out.push(...head, `… ${omitted} 行未修改 …`, ...tail);
-}
-
-const COLLAPSED_MARKER_RE = /^… \d+ 行未修改 …$/;
-
-export function isCollapsedDiffContextLine(text: string): boolean {
-  return COLLAPSED_MARKER_RE.test(text.trim());
+  out.push(...head, ...tail);
 }
 
 /** Focus diff on changed hunks; collapse long unchanged runs (agent-style). */
@@ -226,13 +225,10 @@ function buildBlockReplaceDisplay(
     if (lines.length >= minCollapse) {
       const head = lines.slice(0, contextLines);
       const tail = lines.slice(lines.length - contextLines);
-      const omitted = lines.length - head.length - tail.length;
       for (const line of head) {
         outLines.push(line);
         outKinds.push(kind);
       }
-      outLines.push(`… ${omitted} 行已省略 …`);
-      outKinds.push("equal");
       for (const line of tail) {
         outLines.push(line);
         outKinds.push(kind);
@@ -274,6 +270,16 @@ export function buildInterleavedDiffDisplay(
   const minCollapse = options?.minEqualCollapse ?? FILE_DIFF_MIN_EQUAL_COLLAPSE;
   const rows = computeLineDiff(oldText, newText);
 
+  if (!isDiffCollapseEnabled(minCollapse)) {
+    const outLines = rows.map((row) => row.text);
+    const outKinds = rows.map((row) => row.kind);
+    return {
+      text: joinDiffLines(outLines),
+      lineKinds: outKinds,
+      displayLineCount: outLines.length,
+    };
+  }
+
   if (shouldUseBlockReplaceDiff(rows)) {
     return buildBlockReplaceDisplay(oldText, newText, options);
   }
@@ -290,13 +296,10 @@ export function buildInterleavedDiffDisplay(
       if (run.length >= minCollapse) {
         const head = run.slice(0, contextLines);
         const tail = run.slice(run.length - contextLines);
-        const omitted = run.length - head.length - tail.length;
         for (const row of head) {
           outLines.push(row.text);
           outKinds.push("equal");
         }
-        outLines.push(`… ${omitted} 行未修改 …`);
-        outKinds.push("equal");
         for (const row of tail) {
           outLines.push(row.text);
           outKinds.push("equal");

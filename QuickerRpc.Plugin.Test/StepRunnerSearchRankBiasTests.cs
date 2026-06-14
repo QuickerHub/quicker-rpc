@@ -35,7 +35,7 @@ public sealed class StepRunnerSearchRankBiasTests
     }
 
     [TestMethod]
-    public void Search_assign_query_ranks_evalexpression_above_assign_and_compute()
+    public void Search_assign_query_ranks_assign_above_evalexpression()
     {
         var catalog = new StepRunnerCatalog
         {
@@ -48,11 +48,11 @@ public sealed class StepRunnerSearchRankBiasTests
             },
         };
 
-        foreach (var query in new[] { "赋值", "assign", "计算" })
+        foreach (var query in new[] { "赋值", "assign" })
         {
             var result = StepRunnerCatalogMapper.Search(catalog, query, maxResults: 5);
             Assert.IsTrue(result.MatchCount >= 1, query);
-            Assert.AreEqual("sys:evalexpression", result.Items[0].Key, query);
+            Assert.AreEqual("sys:assign", result.Items[0].Key, query);
         }
     }
 

@@ -6,6 +6,7 @@ import {
   computeLineDiff,
   countLineDiffStats,
   countUnifiedDiffDisplayLines,
+  FILE_DIFF_NO_COLLAPSE,
   firstChangedDisplayLineNumber,
 } from "./file-line-diff";
 
@@ -59,7 +60,7 @@ test("buildInterleavedDiffDisplay lists deletes and inserts on separate lines", 
   assert.ok(!display.text.includes('[]} "'));
 });
 
-test("buildInterleavedDiffDisplay uses block mode for heavy data.json rewrite", () => {
+test("buildInterleavedDiffDisplay shows full interleaved diff for heavy data.json rewrite", () => {
   const old = `{
   "steps": [],
   "variables": []
@@ -76,13 +77,14 @@ test("buildInterleavedDiffDisplay uses block mode for heavy data.json rewrite", 
   ]
 }
 `;
-  const display = buildInterleavedDiffDisplay(old, neu, { minEqualCollapse: 999 });
+  const display = buildInterleavedDiffDisplay(old, neu, {
+    minEqualCollapse: FILE_DIFF_NO_COLLAPSE,
+  });
   assert.ok(!display.text.includes("变更前"));
   assert.ok(!display.text.includes("变更后"));
-  assert.ok(!display.text.includes('[]\n{'));
-  const firstDelete = display.lineKinds.indexOf("delete");
-  const firstInsert = display.lineKinds.indexOf("insert");
-  assert.ok(firstDelete >= 0 && firstInsert > firstDelete);
+  assert.ok(display.lineKinds.includes("delete"));
+  assert.ok(display.lineKinds.includes("insert"));
+  assert.ok(display.displayLineCount > 10);
 });
 
 test("firstChangedDisplayLineNumber skips leading equal context", () => {
@@ -109,7 +111,8 @@ test("buildCollapsedDiffTexts folds long unchanged runs", () => {
   const newText = `${newLines.join("\n")}\n`;
   const collapsed = buildCollapsedDiffTexts(oldText, newText);
   assert.ok(collapsed.displayLineCount < 20);
-  assert.ok(collapsed.removed.includes("行未修改"));
+  assert.ok(!collapsed.removed.includes("行未修改"));
+  assert.ok(!collapsed.removed.includes("行已省略"));
   assert.deepEqual(
     countLineDiffStats(oldText, newText),
     { addLines: 1, removeLines: 1 },

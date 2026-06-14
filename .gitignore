@@ -47,6 +47,7 @@ llm-bundled-secrets.json
 
 # Maintainer scratch notes (repo root only)
 /todo
+/_tmp*
 
 # Publish output, keep release scripts and changelogs
 publish/**
@@ -77,10 +78,9 @@ publish/**
 !publish/release-cli-ci.md
 **/publish/*.zip
 QuickerRpc.Plugin/publish/
-.tmp*
+/.tmp*
 tmp/
 tmp*.json
-_tmp*.json
 temp/
 
 # Local Quicker source reference for agent/reflection work (not part of this repo)

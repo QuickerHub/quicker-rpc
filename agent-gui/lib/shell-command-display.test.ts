@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   resolveShellCommandDisplay,
+  resolveShellCommandEditorView,
   shouldUseStructuredShellCommand,
 } from "./shell-command-display";
 
@@ -31,5 +32,14 @@ describe("resolveShellCommandDisplay", () => {
     const parts = resolveShellCommandDisplay("Write-Output ok", "powershell");
     assert.equal(parts.highlightLanguage, "powershell");
     assert.equal(shouldUseStructuredShellCommand(parts), true);
+  });
+
+  it("resolveShellCommandEditorView keeps $ inside editor content", () => {
+    const view = resolveShellCommandEditorView(
+      "pwsh -Command Get-Location",
+    );
+    assert.equal(view.content, "$ pwsh -Command Get-Location");
+    assert.equal(view.language, "powershell");
+    assert.match(view.content, /^\$ /);
   });
 });

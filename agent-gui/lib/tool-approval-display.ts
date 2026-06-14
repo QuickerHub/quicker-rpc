@@ -7,7 +7,7 @@ export type PendingToolApproval = {
 };
 
 import { formatShellApprovalCommand } from "@/lib/shell-policy";
-import { SHELL_EXEC_TOOL } from "@/lib/shell-tool-constants";
+import { isShellToolName } from "@/lib/host-tool-constants";
 
 export type ApprovalDockCopy = {
   destructive: boolean;
@@ -165,7 +165,7 @@ export function buildApprovalDockCopy(
   }
 
   const shellApprovals = approvals.filter(
-    (approval) => approval.toolName === SHELL_EXEC_TOOL,
+    (approval) => isShellToolName(approval.toolName),
   );
   if (shellApprovals.length === count) {
     const shellCommands = shellApprovals

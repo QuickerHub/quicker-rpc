@@ -97,15 +97,19 @@ Function QuickerAgentShortcutsPageLeave
 FunctionEnd
 
 !macro customWelcomePage
-  !insertmacro MUI_PAGE_WELCOME
+  ${ifNot} ${isUpdated}
+    !insertmacro MUI_PAGE_WELCOME
+  ${endif}
 !macroend
 
-; Shown on every install (fresh + upgrade); not subject to skipPageIfUpdated.
+; Fresh installs only — in-place updates (--updated) go straight to file copy progress.
 !macro customPageAfterChangeDir
-  PageEx custom
-    PageCallbacks QuickerAgentShortcutsPageCreate QuickerAgentShortcutsPageLeave
-    Caption "快捷方式"
-  PageExEnd
+  ${ifNot} ${isUpdated}
+    PageEx custom
+      PageCallbacks QuickerAgentShortcutsPageCreate QuickerAgentShortcutsPageLeave
+      Caption "快捷方式"
+    PageExEnd
+  ${endif}
 !macroend
 
 !macro ApplyQuickerAgentShortcutChoices

@@ -38,6 +38,7 @@ import {
 } from "@/lib/sidebar-prefs";
 import {
   applyThreadMessagesToStore,
+  flushPendingChatStoreSaveAsync,
   getActiveThread,
   getOpenTabThreads,
   hydrateStoreThreadsParallel,
@@ -405,9 +406,10 @@ function ChatPanel({
     if (ephemeral) return;
     if (initialMessages.length === 0) return;
     if (status === "streaming" || status === "submitted") return;
-    if (messagesForPersistRef.current.length > 0) return;
+    const live = messagesForPersistRef.current;
+    if (live.length > 0) return;
     setMessages(finalizeStreamingReasoningParts(initialMessages));
-  }, [ephemeral, initialMessages, setMessages, status]);
+  }, [ephemeral, initialMessages, setMessages, status, threadId]);
 
   const busyPersist =
     status === "streaming" || status === "submitted";
@@ -449,20 +451,33 @@ function ChatPanel({
     };
   }, [busyPersist, ephemeral, flushThreadPersist, messages, visible]);
 
+  // Persist the user turn immediately; while streaming the debounce stretches to 5s
+  // and a fast refresh can tear down the page before pagehide flush runs.
+  useEffect(() => {
+    if (ephemeral || !visible) return;
+    if (status !== "submitted") return;
+    flushThreadPersist();
+  }, [ephemeral, flushThreadPersist, status, visible]);
+
+  const flushThreadPersistToDisk = useCallback(() => {
+    flushThreadPersist();
+    void flushPendingChatStoreSaveAsync({ keepalive: true });
+  }, [flushThreadPersist]);
+
   useEffect(() => {
     if (ephemeral || !visible) return;
     const interval = window.setInterval(
       flushThreadPersist,
       CHAT_PERSIST_MAX_INTERVAL_MS,
     );
-    const onPageHide = () => flushThreadPersist();
+    const onPageHide = () => flushThreadPersistToDisk();
     window.addEventListener("pagehide", onPageHide);
     return () => {
       window.clearInterval(interval);
       window.removeEventListener("pagehide", onPageHide);
-      flushThreadPersist();
+      flushThreadPersistToDisk();
     };
-  }, [ephemeral, flushThreadPersist, threadId, visible]);
+  }, [ephemeral, flushThreadPersist, flushThreadPersistToDisk, threadId, visible]);
 
   const prevStatusRef = useRef(status);
   useEffect(() => {

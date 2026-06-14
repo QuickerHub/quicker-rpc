@@ -73,7 +73,6 @@ test("shouldUseStaticToolRow defaults to static chat rows", () => {
     shouldUseStaticToolRow({
       hasFileEditorPreview: false,
       hasReadFilePreview: false,
-      isDocsOpenable: false,
       isWorkspaceFileOpenRow: false,
     }),
     true,
@@ -82,7 +81,6 @@ test("shouldUseStaticToolRow defaults to static chat rows", () => {
     shouldUseStaticToolRow({
       hasFileEditorPreview: true,
       hasReadFilePreview: false,
-      isDocsOpenable: false,
       isWorkspaceFileOpenRow: false,
     }),
     false,

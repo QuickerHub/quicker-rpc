@@ -101,9 +101,9 @@ function summarizeToolOutput(part: AgentUIMessage["parts"][number]): string | nu
   if (part.type === "tool-workspace_program") {
     return `[tool:workspace_program] ok=${String(output.ok)} path=${String(output.path ?? "?")}`;
   }
-  if (part.type === "tool-shell_exec") {
+  if (part.type === "tool-Shell" || part.type === "tool-shell_exec") {
     const stderr = typeof output.stderr === "string" ? output.stderr.slice(0, 120) : "";
-    return `[tool:shell_exec] ok=${String(output.ok)} exit=${String(output.exitCode ?? "?")}`
+    return `[tool:Shell] ok=${String(output.ok)} exit=${String(output.exitCode ?? "?")}`
       + (stderr ? ` stderr=${stderr}` : "");
   }
   const err = output.errorMessage ?? output.message;

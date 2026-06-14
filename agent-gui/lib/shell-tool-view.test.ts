@@ -6,6 +6,8 @@ import {
   formatShellDisplayContent,
   formatShellEditorContent,
   collapseShellOutputForPreview,
+  estimateShellOutputVisualLines,
+  shellOutputExceedsPreviewLines,
   tailShellOutputForPreview,
   formatShellExitMeta,
   parseShellToolView,
@@ -102,5 +104,12 @@ describe("shell-tool-view", () => {
     const text = Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join("\n");
     const tail = tailShellOutputForPreview(text, 4);
     assert.equal(tail, "line 7\nline 8\nline 9\nline 10");
+  });
+
+  it("estimates wrapped visual lines for long single-line stdout", () => {
+    const json = `{"ok":true,"items":[${'"x",'.repeat(80)}]}`;
+    assert.ok(estimateShellOutputVisualLines(json) > 4);
+    assert.equal(shellOutputExceedsPreviewLines(json, 4), true);
+    assert.equal(shellOutputExceedsPreviewLines("ok\n", 4), false);
   });
 });

@@ -39,6 +39,10 @@ export function resolveKnownToolName(
   if (sorted.includes(normalized)) return normalized;
 
   for (const id of sorted) {
+    if (normalized.toLowerCase() === id.toLowerCase()) return id;
+  }
+
+  for (const id of sorted) {
     if (normalized === id || normalized.startsWith(`${id}_`)) {
       return id;
     }

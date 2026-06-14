@@ -10,6 +10,12 @@ import {
 } from "@/lib/file-icon-kind";
 import { isStructuredToolResult } from "@/lib/tool-result";
 import {
+  LEGACY_WORKSPACE_FILE_TOOL,
+  READ_TOOL,
+  STR_REPLACE_TOOL,
+  WRITE_TOOL,
+} from "@/lib/host-tool-constants";
+import {
   WORKSPACE_FILE_TOOL,
   readWorkspaceFileToolAction,
 } from "@/lib/workspace-general-file-tool";
@@ -716,7 +722,17 @@ export function workspaceFileToolDisplayName(
   toolName: string,
   input?: unknown,
 ): string | null {
-  if (toolName === WORKSPACE_FILE_TOOL) {
+  if (toolName === READ_TOOL) {
+    const action = readWorkspaceFileToolAction(input) ?? "read";
+    return WORKSPACE_FILE_ACTION_LABELS[action] ?? "读取文件";
+  }
+  if (toolName === WRITE_TOOL) {
+    return WORKSPACE_FILE_ACTION_LABELS.write;
+  }
+  if (toolName === STR_REPLACE_TOOL) {
+    return WORKSPACE_FILE_ACTION_LABELS.edit;
+  }
+  if (toolName === WORKSPACE_FILE_TOOL || toolName === LEGACY_WORKSPACE_FILE_TOOL) {
     const action = readWorkspaceFileToolAction(input);
     if (action) return WORKSPACE_FILE_ACTION_LABELS[action] ?? null;
   }
