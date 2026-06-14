@@ -27,7 +27,7 @@ describe("browser-panel-sync", () => {
     assert.equal(patch?.previewBase64, "abc123");
   });
 
-  it("opens panel and navigates on navigate action", () => {
+  it("opens panel on deferred embedded navigate", () => {
     const intent = browserPanelSyncFromToolOutput({
       ok: true,
       exitCode: 0,
@@ -36,7 +36,7 @@ describe("browser-panel-sync", () => {
         action: "navigate",
         url: "https://example.com/",
         title: "",
-        mode: "native",
+        mode: "embedded",
         deferred: true,
       },
     });
@@ -54,7 +54,7 @@ describe("browser-panel-sync", () => {
       data: {
         action: "evaluate",
         url: "https://example.com/",
-        mode: "playwright",
+        mode: "headless",
         background: true,
         value: { title: "Example" },
       },
@@ -62,7 +62,39 @@ describe("browser-panel-sync", () => {
     assert.equal(intent, null);
   });
 
-  it("opens panel without reload on snapshot action", () => {
+  it("skips panel sync for offscreen embedded without showPanel", () => {
+    const intent = browserPanelSyncFromToolOutput({
+      ok: true,
+      exitCode: 0,
+      source: "local",
+      data: {
+        action: "evaluate",
+        url: "https://example.com/",
+        mode: "embedded",
+        value: { title: "Example" },
+      },
+    });
+    assert.equal(intent, null);
+  });
+
+  it("opens panel when showPanel is true", () => {
+    const intent = browserPanelSyncFromToolOutput({
+      ok: true,
+      exitCode: 0,
+      source: "local",
+      data: {
+        action: "navigate",
+        url: "https://example.com/",
+        mode: "embedded",
+        showPanel: true,
+      },
+    });
+    assert.ok(intent);
+    assert.equal(intent?.openPanel, true);
+    assert.equal(intent?.navigate, true);
+  });
+
+  it("opens panel for panel API sync flag without reload on snapshot", () => {
     const intent = browserPanelSyncFromToolOutput({
       ok: true,
       exitCode: 0,
@@ -71,6 +103,8 @@ describe("browser-panel-sync", () => {
         action: "snapshot",
         url: "https://example.com/",
         title: "Example",
+        mode: "embedded",
+        panelSync: true,
         snapshot: "url: https://example.com/",
       },
     });

@@ -27,7 +27,7 @@ import { SIDE_PANEL_VIEW_BROWSER } from "@/lib/workspace-side-panel-view";
 export type ApplySnapshotOptions = {
   /** Open/focus the side-panel browser tab. */
   openPanel?: boolean;
-  /** Load URL into the Playwright session (never on cold start replay). */
+  /** Load URL into the embedded browser session (never on cold start replay). */
   navigate?: boolean;
 };
 

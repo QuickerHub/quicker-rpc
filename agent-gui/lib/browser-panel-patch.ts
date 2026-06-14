@@ -89,6 +89,18 @@ export function browserPanelSyncFromToolOutput(
   if (data?.background === true) {
     return null;
   }
+  if (data?.mode === "headless") {
+    return null;
+  }
+
+  const shouldOpen =
+    data?.panelSync === true
+    || data?.showPanel === true
+    || data?.deferred === true;
+
+  if (!shouldOpen) {
+    return null;
+  }
 
   const action = pickString(data ?? {}, "action");
   const navigate =
