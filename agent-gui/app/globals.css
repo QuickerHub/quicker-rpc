@@ -362,7 +362,12 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
   .ws-section-head-drag,
 .app-titlebar--electron.app-titlebar--frameless .titlebar-drag-region,
 .app-titlebar--electron.app-titlebar--frameless .titlebar-drag-fill,
+.app-titlebar--electron.app-titlebar--electron-wco .titlebar-drag-region,
+.app-titlebar--electron.app-titlebar--electron-wco .titlebar-drag-fill,
 .app-shell:has(.app-titlebar--electron.app-titlebar--frameless)
+  .workspace-sidebar
+  .ws-section-head-drag,
+.app-shell:has(.app-titlebar--electron.app-titlebar--electron-wco)
   .workspace-sidebar
   .ws-section-head-drag {
   -webkit-app-region: drag;
@@ -389,7 +394,22 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
   .messages,
   .chat-conversation-header
 ),
+.app-shell:has(.app-titlebar--electron.app-titlebar--electron-wco) :is(
+  .app-main,
+  .workspace-rail,
+  .workspace-sidebar,
+  .composer,
+  .messages,
+  .chat-conversation-header
+),
 .tool-test-page:has(.app-titlebar--electron.app-titlebar--frameless) :is(
+  .tool-test-body,
+  .tool-test-tab-rail,
+  .tool-test-sidebar,
+  .tool-test-error,
+  .tool-test-approval
+),
+.tool-test-page:has(.app-titlebar--electron.app-titlebar--electron-wco) :is(
   .tool-test-body,
   .tool-test-tab-rail,
   .tool-test-sidebar,
@@ -466,6 +486,25 @@ html.sidebar-collapsed-init .app-shell .workspace-rail {
 
 .app-titlebar--frameless .titlebar-actions--with-window-controls {
   padding-right: 0.35rem;
+}
+
+/* Electron WCO (VS Code style): native min/max/close flush to the right window edge */
+.app-titlebar--electron-wco {
+  padding-right: 0;
+  height: env(titlebar-area-height, var(--app-titlebar-height));
+  min-height: env(titlebar-area-height, var(--app-titlebar-height));
+}
+
+.app-titlebar--electron-wco .titlebar-trailing--window-controls {
+  margin-right: 0;
+}
+
+.app-titlebar--electron-wco .titlebar-actions {
+  padding-right: 0;
+}
+
+.app-titlebar--electron-wco .titlebar-content-row {
+  max-width: env(titlebar-area-width, 100%);
 }
 
 .tauri-window-controls {
@@ -2300,6 +2339,20 @@ html.sidebar-collapsed-init .app-shell {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ws-folder-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+}
+
+.ws-folder-icon .explorer-tree-svg {
+  width: 12px;
+  height: 12px;
 }
 
 .ws-chevron {
@@ -8461,6 +8514,16 @@ button.tool-batch-summary:disabled {
   min-height: calc(0.78rem * 1.42 * var(--terminal-preview-lines, 4) + 0.75rem);
 }
 
+.terminal-output-block.file-editor-card--compact.file-editor-card--preview
+  .terminal-output-editor__output-pane
+  .terminal-output-editor__output-pre,
+.terminal-output-shell-wrap.file-editor-card--compact.file-editor-card--preview
+  .terminal-output-editor__output-pane
+  .terminal-output-editor__output-pre {
+  max-height: calc(0.78rem * 1.42 * var(--terminal-preview-lines, 4) + 0.75rem);
+  overflow: hidden;
+}
+
 .terminal-output-block--expandable,
 .terminal-output-shell-wrap.terminal-output-block--expandable {
   cursor: pointer;
@@ -9795,6 +9858,17 @@ button.tool-summary:disabled .tool-chevron {
 .tool-status-badge--err {
   background: var(--status-err-bg);
   color: var(--status-err-text);
+}
+
+.browser-runtime-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  background: color-mix(in srgb, var(--accent, #3b82f6) 14%, var(--panel));
+  color: var(--text);
 }
 
 .tool-muted {

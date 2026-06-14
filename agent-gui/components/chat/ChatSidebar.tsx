@@ -31,6 +31,7 @@ import {
   groupThreadsByActionDesigner,
   type ActionDesignerThreadGroup,
 } from "@/lib/action-designer-thread";
+import { ExplorerFolderIcon } from "@/components/workspace/ExplorerTreeIcons";
 
 function defaultCwdFallbackLabel(profile: DefaultWorkingDirectoryProfile): string {
   switch (profile) {
@@ -80,28 +81,6 @@ function IconPlus() {
         strokeWidth="1.5"
         strokeLinecap="round"
       />
-    </svg>
-  );
-}
-
-function IconFolder({ open }: { open?: boolean }) {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-      {open ? (
-        <path
-          d="M1.5 4.5h3l1 1.2H10.5V9.5H1.5V4.5Z"
-          stroke="currentColor"
-          strokeWidth="1.2"
-          strokeLinejoin="round"
-        />
-      ) : (
-        <path
-          d="M1.5 3h3l1 1.2H10.5V9.5H1.5V3Z"
-          stroke="currentColor"
-          strokeWidth="1.2"
-          strokeLinejoin="round"
-        />
-      )}
     </svg>
   );
 }
@@ -397,7 +376,9 @@ export function ChatSidebar({
                     title={group.title}
                   >
                     <IconChevron expanded={!collapsed} />
-                    <IconFolder open={!collapsed} />
+                    <span className="ws-folder-icon" aria-hidden>
+                      <ExplorerFolderIcon expanded={!collapsed} />
+                    </span>
                     <span className="ws-cwd-group-label">{group.label}</span>
                   </button>
 
@@ -418,7 +399,7 @@ export function ChatSidebar({
                               aria-selected={selected}
                             >
                               <span className="ws-item-label">{thread.title}</span>
-                              <span className="ws-thread-time">
+                              <span className="ws-thread-time" suppressHydrationWarning>
                                 {formatThreadRelativeTime(thread.updatedAt)}
                               </span>
                             </button>
