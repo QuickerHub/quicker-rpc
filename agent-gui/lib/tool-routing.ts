@@ -43,6 +43,7 @@ const TOOL_ROUTING_ROWS = [
   "| Internet facts / API docs | web_search | browser; docs; qkrpc_action_query |",
   "| User's logged-in browser (extension) | user_browser | browser (Playwright); shell |",
   "| Web UI / getquicker login (no extension) | browser | user_browser; web_search |",
+  "| Show page in QuickerAgent side panel | browser + showPanel | user_browser |",
   "| Chat LLM profiles | llm_settings | quicker_settings |",
   "| Delete | qkrpc_action_delete / qkrpc_subprogram_delete | only on user ask |",
   "| Launcher run/open (no @ mention) | launcher_resolve → ask_question if ambiguous | qkrpc_action_query + auto run |",

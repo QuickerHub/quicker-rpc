@@ -78,7 +78,16 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
     label: "浏览器",
     group: "write",
     category: "runtime",
-    description: "内置浏览器：侧栏打开页面（navigate）；自动化 snapshot/click 暂不可用；登录态持久",
+    description:
+      "网页自动化：默认 Playwright 后台（evaluate/content 爬取）；showPanel 时在 Electron 内嵌浏览器展示；非用户登录态（登录态用 user_browser）",
+  },
+  {
+    id: "user_browser",
+    label: "用户浏览器",
+    group: "write",
+    category: "runtime",
+    description:
+      "用户真实 Chrome/Edge/Firefox（Quicker Connector 扩展）：已登录 cookie、标签页操作；非 Playwright browser 工具",
   },
   {
     id: "web_search",
