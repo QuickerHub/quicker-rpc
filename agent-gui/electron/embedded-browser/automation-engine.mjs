@@ -44,11 +44,13 @@ export function createEmbeddedBrowserAutomation(manager) {
 
   function getWebContents(sessionId) {
     const browserId = browserIdFromSession(sessionId);
-    const wc = manager.getWebContents(browserId);
+    let wc = manager.getWebContents(browserId);
     if (!wc) {
-      throw new Error(
-        "embedded browser webview is not mounted — call browser navigate first and wait for the side panel to open",
-      );
+      manager.ensureOffscreen(browserId);
+      wc = manager.getWebContents(browserId);
+    }
+    if (!wc) {
+      throw new Error("embedded browser session is not ready");
     }
     if (wc.isDestroyed()) {
       throw new Error("embedded browser webview was destroyed");
@@ -105,6 +107,22 @@ export function createEmbeddedBrowserAutomation(manager) {
       wc.once("did-stop-loading", done);
     });
     await new Promise((r) => setTimeout(r, 200));
+  }
+
+  /**
+   * Optional url on evaluate/content/search — load page before the op (parity with Playwright runtime).
+   * @param {import('electron').WebContents} wc
+   * @param {{ refMap: Record<string, unknown> }} session
+   * @param {Record<string, unknown>} args
+   */
+  async function gotoIfNeeded(wc, session, args) {
+    const url = String(args.url ?? "").trim();
+    if (!url) return false;
+    const timeoutMs = Number(args.timeoutMs ?? 30_000);
+    await loadUrlAndWait(wc, url, timeoutMs);
+    await waitForSettle(wc);
+    session.refMap = {};
+    return true;
   }
 
   /** @param {import('electron').WebContents} wc */
@@ -178,11 +196,13 @@ export function createEmbeddedBrowserAutomation(manager) {
       const includePreview = args.includePreview !== false;
 
       if (op === "status") {
+        const wc = manager.getWebContents(browserId);
         const mounted = manager.isMounted(browserId);
         const nav = manager.readNavigationState(browserId);
         return invokeOk({
-          browserReady: mounted,
-          mode: "native",
+          browserReady: Boolean(wc),
+          mounted,
+          mode: "embedded",
           sessionCount: sessions.size,
           url: nav.url,
           title: nav.title,
@@ -191,6 +211,7 @@ export function createEmbeddedBrowserAutomation(manager) {
       }
 
       if (op === "session.ensure") {
+        manager.ensureOffscreen(browserId);
         const wc = getWebContents(sessionId);
         const meta = await readPageMeta(wc);
         return invokeOk({ sessionId: browserId, ...meta });
@@ -240,6 +261,7 @@ export function createEmbeddedBrowserAutomation(manager) {
       if (op === "page.search") {
         const query = String(args.text ?? args.query ?? "").trim();
         if (!query) return invokeError("text is required for search");
+        await gotoIfNeeded(wc, session, args);
         const limitRaw = Number(args.limit ?? 8);
         const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 20) : 8;
         const found = await searchPage(wc, session, query, limit);
@@ -248,6 +270,7 @@ export function createEmbeddedBrowserAutomation(manager) {
 
       if (op === "page.content") {
         const selector = String(args.selector ?? "").trim();
+        await gotoIfNeeded(wc, session, args);
         const fullText = await wc.executeJavaScript(
           `(${EXTRACT_PAGE_CONTENT})(${JSON.stringify({ selector: selector || null })})`,
           true,
@@ -274,6 +297,7 @@ export function createEmbeddedBrowserAutomation(manager) {
       if (op === "page.evaluate") {
         const script = String(args.script ?? "").trim();
         if (!script) return invokeError("script is required");
+        await gotoIfNeeded(wc, session, args);
         const built = buildEvaluatePageCode(script);
         if (!built.ok) return invokeError(built.error);
         const raw = await wc.executeJavaScript(built.code, true);

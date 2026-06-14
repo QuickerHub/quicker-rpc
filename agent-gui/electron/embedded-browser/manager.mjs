@@ -12,6 +12,9 @@ export const DEFAULT_BROWSER_ID = "default";
 /** @type {Map<string, import('electron').WebContentsView>} */
 const views = new Map();
 
+/** Browser ids whose view is attached to the main window contentView */
+const mountedIds = new Set();
+
 /** @type {import('electron').BrowserWindow | null} */
 let attachedWindow = null;
 
@@ -65,6 +68,28 @@ function readWebContentsHistoryFlags(webContents) {
   };
 }
 
+function createWebContentsView() {
+  const ses = ensureSession();
+  return new WebContentsView({
+    webPreferences: {
+      session: ses,
+      partition: `persist:${WORKSPACE_BROWSER_LABEL}`,
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+}
+
+function createOffscreenView(browserId) {
+  const id = normalizeBrowserId(browserId);
+  const existing = getView(id);
+  if (existing) return existing;
+  const view = createWebContentsView();
+  views.set(id, view);
+  return view;
+}
+
 function normalizeBounds(bounds) {
   const left = Math.round(Number(bounds?.left ?? bounds?.x ?? 0));
   const top = Math.round(Number(bounds?.top ?? bounds?.y ?? 0));
@@ -83,6 +108,7 @@ export function createEmbeddedBrowserManager(deps) {
     const id = normalizeBrowserId(browserId);
     const view = views.get(id);
     views.delete(id);
+    mountedIds.delete(id);
     if (!view) return false;
     if (attachedWindow && !attachedWindow.isDestroyed()) {
       try {
@@ -105,12 +131,17 @@ export function createEmbeddedBrowserManager(deps) {
     for (const id of [...views.keys()]) {
       destroyView(id);
     }
+    mountedIds.clear();
     attachedWindow = null;
   };
 
   return {
     isMounted(browserId) {
-      return getView(browserId) !== null;
+      return mountedIds.has(normalizeBrowserId(browserId));
+    },
+
+    ensureOffscreen(browserId) {
+      return createOffscreenView(browserId);
     },
 
     mount(url, bounds, browserId) {
@@ -138,6 +169,11 @@ export function createEmbeddedBrowserManager(deps) {
 
       const existing = getView(id);
       if (existing) {
+        if (!mountedIds.has(id)) {
+          attachedWindow = win;
+          win.contentView.addChildView(existing);
+          mountedIds.add(id);
+        }
         existing.setBounds(layout);
         existing.setVisible(true);
         // Keep page state when remounting the same URL (e.g. tab switch).
@@ -147,20 +183,10 @@ export function createEmbeddedBrowserManager(deps) {
         return;
       }
 
-      const ses = ensureSession();
-      const view = new WebContentsView({
-        webPreferences: {
-          session: ses,
-          partition: `persist:${WORKSPACE_BROWSER_LABEL}`,
-          nodeIntegration: false,
-          contextIsolation: true,
-          sandbox: true,
-        },
-      });
-
-      views.set(id, view);
+      const view = createOffscreenView(id);
       attachedWindow = win;
       win.contentView.addChildView(view);
+      mountedIds.add(id);
       view.setBounds(layout);
       void view.webContents.loadURL(trimmed);
     },

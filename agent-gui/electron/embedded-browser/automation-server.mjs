@@ -166,7 +166,7 @@ export async function startEmbeddedBrowserAutomationServer(automation, options =
           ok: true,
           protocolVersion: EMBEDDED_BROWSER_PROTOCOL_VERSION,
           runtimeVersion: EMBEDDED_BROWSER_RUNTIME_VERSION,
-          mode: "native",
+          mode: "embedded",
           platform: process.platform,
         });
         return;
