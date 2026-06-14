@@ -88,6 +88,7 @@ authoring-references/  ──直接嵌入──►  AgentModel + QuickerAgent do
 | [agent-gui-chat-storage.md](agent-gui-chat-storage.md) | 对话历史存储 |
 | [agent-gui-plugin-storage.md](agent-gui-plugin-storage.md) | 可选插件目录与下载 |
 | [agent-gui-prompt-structure.md](agent-gui-prompt-structure.md) | 系统提示与 Skill 加载 |
+| [browser-automation.md](browser-automation.md) | 浏览器自动化边界（Playwright / 内嵌 / 扩展） |
 | [agent-defs-spec.md](agent-defs-spec.md) | 工作区 `.quicker/commands|skills|agents` 规范 |
 | [quicker-agent-plugin-spec.md](quicker-agent-plugin-spec.md) | QuickerAgent Plugin manifest / Host API |
 | [dev-supervisor-design.md](dev-supervisor-design.md) | `dev.ps1` 监督进程设计 |

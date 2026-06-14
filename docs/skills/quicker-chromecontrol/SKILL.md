@@ -7,6 +7,8 @@ description: "Control the user's real browser (Quicker Connector) via user_brows
 
 Route for **browser automation** against the user's logged-in browser.
 
+**See also:** [docs/browser-automation.md](../../browser-automation.md) — unified boundary table (Playwright / embedded / extension).
+
 ## Agent vs action browser
 
 | | QuickerAgent **`browser`** | **`user_browser`** / **`qkrpc_chrome_control`** | **sys:chromecontrol** steps |

@@ -108,14 +108,14 @@ Updating the HTML **动作说明** is **built-in qkrpc automation** (`action sha
 
 ### Preview HTML 动作说明 (agent-gui)
 
-Use the **agent-gui** right-side **Playwright** browser panel to preview before uploading to getquicker.
+Use the **agent-gui** right-side **embedded browser** panel to preview before uploading to getquicker.
 
 | step | where | fidelity |
 |------|-------|----------|
-| Draft preview | agent-gui Playwright + preview API | matches HTML uploaded via `shared-info-set` |
-| Live check | Playwright → `https://getquicker.net/Sharedaction?code=<sharedId>` | **ground truth** after upload |
+| Draft preview | agent-gui embedded browser + preview API | matches HTML uploaded via `shared-info-set` |
+| Live check | embedded browser → `https://getquicker.net/Sharedaction?code=<sharedId>` | **ground truth** after upload |
 
-**agent-gui side panel (Playwright tab)**
+**agent-gui side panel (embedded browser)**
 
 1. **Draft** — POST built HTML to the preview API, open the returned URL in the address bar:
    ```http
@@ -125,7 +125,7 @@ Use the **agent-gui** right-side **Playwright** browser panel to preview before 
    ```
 2. **Published** — navigate to `Sharedaction?code=<sharedId>` (refresh after `shared-info-set`).
 
-Open the right **Playwright** panel, paste `previewUrl` or the share link.
+Open the right **embedded browser** side panel, paste `previewUrl` or the share link.
 
 **Upload / sync** (human or release automation, not Agent):
 
