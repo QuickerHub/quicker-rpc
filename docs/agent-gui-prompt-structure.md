@@ -9,7 +9,7 @@
 1. **完整 messages** — 每轮把 UI 消息（含 tool call / tool result）转成 model messages 送入 LLM。
 2. **静态 system** — 角色、能力、工具族说明；不重复工具 schema。
 3. **可选 @-pin** — 仅当用户最新消息里 `@` 了动作时，在 system 追加一行 id 提示（不锁定、不拦截工具）。
-4. **窗口快满才压缩** — 消息数 > 12 且 token 用量 ≥ **90%**（有 provider usage 时）或估算 ≥ **92%** 时，对**更早**轮次做 LLM 摘要进 `systemSuffix`，**近期消息保持完整**（含 tool 输入/输出）。预留 ~4K headroom，避免撞硬上限。不做 `pruneMessages` 式无条件裁剪。
+4. **窗口快满才压缩** — token 用量 ≥ **90%**（有 provider usage 时）或估算 ≥ **92%** 时，按 **token 预算**（约 45% 窗口 − 4K headroom）保留近端完整 messages，对更早轮次做 structured LLM 摘要进 `systemSuffix`；旧 round 的大 tool 输出可先 **microcompact**。若 provider 仍返回 context length / prompt too long，服务端 **reactive compact** 最多重试 1 次（`force: true`）。不做 `pruneMessages` 式无条件裁剪。
 
 动作 id 以对话历史中的 tool 结果为准（如 `qkrpc_action_create` 返回的 `actionId`），不靠线程级状态机或本地 project 列表注入。
 
@@ -113,7 +113,7 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 | **Action scope** | 最新消息含 `@` 动作 | `formatActionScopeForSystem` | 用户 pin 的动作 id（可选提示） |
 | **Launcher cache** | `chatMode === launcher` 且命中缓存 | `buildLauncherCommandCachePromptBlock` | 相似历史指令与步骤，供复用 |
 | **Thread title** | Agent 首条用户消息且未手动标题 | `buildThreadTitleAgentInstruction` | 要求调用隐藏工具 `set_thread_title` |
-| **Context compression** | 消息 > 12 且上下文 ≥ **90%** 预算 | `prepareCompressedContext` → `systemSuffix` | 旧轮次摘要 + 近期完整 messages |
+| **Context compression** | 接近 context 上限（~90% usage）且存在可摘要旧切片 | `prepareCompressedContext` → `systemSuffix` | token 预算内近端完整 messages + 旧轮 structured 摘要；可选 microcompact；压缩后 reinject 最近 patch 文件；provider 拒收时 reactive 重试 |
 
 工作目录解析：`resolveEffectiveWorkingDirectory()`（侧栏设置 → 否则服务端默认：dev 为 repo 根，发布为 `Documents/QuickerAgent/workspace`）。
 
@@ -125,7 +125,7 @@ tools    ← pickChatTools(quickerTools, enabledTools, …)
 |------|------|------|
 | 存储 | UI composer | 用户可见文本；动作 chip 存为 `<qkrpc-action-tag …>` |
 | 送模前 | `expandUserMessageForModel` | tag / `<qka-link>` → `<qka id="uuid">Title</qka>` 行（`lib/compose-user-message.ts`） |
-| 压缩 | `prepareCompressedContext` | 默认完整历史；快满时（~90% usage / 92% 估算）摘要旧轮次，保留近期含 tool 的 messages |
+| 压缩 | `prepareCompressedContext` | 默认完整历史；快满时（~90% usage / 92% 估算）按 **token 预算** 保留近端、摘要远端；旧 tool 输出可先 microcompact；压缩后 reinject 最近 patch 文件片段；多步 tool 回合内 `prepareStep` 再次 microcompact；`/api/chat` 遇 context length 错误时 reactive 重试 1 次 |
 
 Action scope 与 user tag 共用 `<qka>` 解析（`lib/action-scope.ts`）。
 

@@ -1,6 +1,6 @@
 {
   "name": "quicker-rpc-agent-gui",
-  "version": "0.14.5",
+  "version": "0.14.6",
   "private": true,
   "main": "electron/bootstrap.cjs",
   "scripts": {
@@ -35,7 +35,7 @@
     "test:workspace-grep:eval": "tsx scripts/eval-workspace-grep.ts",
     "test:tool-suites": "tsx --test lib/tool-test-suites.test.ts",
     "test:authoring-benchmark": "tsx --test lib/authoring-benchmark.test.ts lib/empty-chat-prompts.test.ts",
-    "test:context-compression": "tsx --test lib/context-compression.test.ts lib/context-compression.integration.test.ts lib/action-project-workflow.test.ts lib/action-project-roundtrip.test.ts lib/action-project-file.test.ts lib/workspace-fs.test.ts lib/action-editor/programWire.test.ts",
+    "test:context-compression": "tsx --test lib/context-compression.test.ts lib/context-compression.integration.test.ts lib/context-compression-reactive.test.ts lib/context-compression-metadata-display.test.ts lib/context-compaction-reinject.test.ts lib/context-step-microcompact.test.ts lib/context-token-estimate.test.ts lib/context-api-rounds.test.ts lib/context-microcompact.test.ts lib/action-project-workflow.test.ts lib/action-project-roundtrip.test.ts lib/action-project-file.test.ts lib/workspace-fs.test.ts lib/action-editor/programWire.test.ts",
     "test:step-editor": "tsx --test lib/action-editor/steps/**/*.test.ts lib/action-editor/steps/stepRunnerKeyResolve.test.ts lib/action-editor/subprograms/globalSubProgramCatalog.test.ts lib/action-editor/variables/variableParamInfoHelpers.test.ts lib/action-editor/programWire.test.ts",
     "test:launcher": "tsx --test lib/launcher/*.test.ts",
     "preflight:fast": "node scripts/preflight-release-gate.mjs",

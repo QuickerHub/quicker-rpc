@@ -8,37 +8,49 @@ import {
 import type {
   AgentUIMessage,
   ContextCompressionMetadata,
+  ContextSplitReason,
 } from "@/lib/chat-types";
 import {
-  DEFAULT_RECENT_MESSAGE_COUNT,
   resolveContextSplitIndex,
   selectReusableContextSummary,
   shouldCompressContextMessages,
+  type ContextSplitResult,
 } from "@/lib/context-compression-shared";
+import { microcompactToolOutputs } from "@/lib/context-microcompact";
 import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
+import type { PostCompactReinjectResult } from "@/lib/context-compaction-reinject";
 import type { LlmSelection } from "@/lib/llm-selection";
 
 export {
   DEFAULT_RECENT_MESSAGE_COUNT,
+  MAX_RECENT_MESSAGES,
+  MIN_RECENT_MESSAGES,
   previewContextCompression,
+  RECENT_BUDGET_RATIO,
   resolveCompactionEstimateThreshold,
   resolveCompactionUsageThreshold,
   resolveContextSplitIndex,
+  resolveRecentTokenBudget,
   selectReusableContextSummary,
   shouldCompressContextMessages,
   type ContextCompressionPreview,
+  type ContextSplitReason,
+  type ContextSplitResult,
 } from "@/lib/context-compression-shared";
 
-const MAX_SUMMARY_SOURCE_CHARS = 18_000;
-const MAX_SUMMARY_OUTPUT_TOKENS = 700;
+const MAX_SUMMARY_SOURCE_CHARS = 24_000;
+const MAX_SUMMARY_OUTPUT_TOKENS = 1800;
 
 const CONTEXT_COMPRESSION_SYSTEM_PROMPT =
   "You compress long chat history for future turns."
-  + " Summarize in concise bullet points while preserving user goals,"
-  + " key decisions, tool outcomes, file or action identifiers, failed attempts,"
-  + " and unresolved tasks."
-  + " Avoid filler and avoid repeating details from recent messages."
-  + " Output plain text only.";
+  + " Output plain text with these sections (use the headings exactly):"
+  + "\n## User goals"
+  + "\n## Key identifiers"
+  + "\n## Decisions and tool outcomes"
+  + "\n## Failures and fixes"
+  + "\n## Unresolved tasks"
+  + "\nPreserve action UUIDs, file paths, settings keys, and error messages."
+  + " Avoid filler and do not repeat details that remain in recent messages.";
 
 type CompressionPreparation = {
   modelMessages: ModelMessage[];
@@ -61,6 +73,44 @@ function latestAssistantUsage(
   return null;
 }
 
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return value != null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function summarizeToolOutput(part: AgentUIMessage["parts"][number]): string | null {
+  if (!part.type.startsWith("tool-") || !("state" in part)) return null;
+  const state = String(part.state ?? "unknown");
+  if (state !== "output-available") {
+    return `[tool:${part.type}] state=${state}`;
+  }
+  const output = readRecord("output" in part ? part.output : null);
+  if (!output) {
+    return `[tool:${part.type}] state=${state}`;
+  }
+  if (output.compact === true) {
+    const actionId = output.actionId ?? readRecord(output.data)?.actionId;
+    return `[tool:${part.type}] compact ok=${String(output.ok ?? "?")}`
+      + (actionId != null ? ` actionId=${String(actionId)}` : "");
+  }
+  if (part.type === "tool-qkrpc_action_create") {
+    const data = readRecord(output.data);
+    return `[tool:create] ok=${String(output.ok)} actionId=${String(data?.actionId ?? "?")}`;
+  }
+  if (part.type === "tool-workspace_program") {
+    return `[tool:workspace_program] ok=${String(output.ok)} path=${String(output.path ?? "?")}`;
+  }
+  if (part.type === "tool-shell_exec") {
+    const stderr = typeof output.stderr === "string" ? output.stderr.slice(0, 120) : "";
+    return `[tool:shell_exec] ok=${String(output.ok)} exit=${String(output.exitCode ?? "?")}`
+      + (stderr ? ` stderr=${stderr}` : "");
+  }
+  const err = output.errorMessage ?? output.message;
+  return `[tool:${part.type}] ok=${String(output.ok ?? "?")}`
+    + (err != null ? ` error=${String(err).slice(0, 120)}` : "");
+}
+
 function summarizePart(
   part: AgentUIMessage["parts"][number],
 ): string | null {
@@ -74,18 +124,8 @@ function summarizePart(
     return null;
   }
 
-  if (
-    part.type === "tool-qkrpc_action"
-    || part.type === "tool-qkrpc_action_query"
-    || part.type === "tool-qkrpc_action_get"
-    || part.type === "tool-qkrpc_action_list"
-    || part.type === "tool-qkrpc_action_patch"
-    || part.type === "tool-qkrpc_action_create"
-    || part.type === "tool-workspace_program"
-  ) {
-    const state = "state" in part ? String(part.state ?? "unknown") : "unknown";
-    return `[tool:${part.type}] state=${state}`;
-  }
+  const toolSummary = summarizeToolOutput(part);
+  if (toolSummary) return toolSummary;
 
   const raw = JSON.stringify(part);
   if (!raw.trim()) return null;
@@ -154,14 +194,27 @@ function buildCompressionMetadata(
   throughMessageId: string,
   sourceInputTokens: number,
   totalMessagesAtCreation: number,
+  split: ContextSplitResult,
+  options: {
+    summaryReused: boolean;
+    microcompactApplied: boolean;
+    reactiveCompactAttempted?: boolean;
+    reinjectPaths?: string[];
+  },
 ): ContextCompressionMetadata {
   return {
     summary,
     throughMessageId,
     sourceInputTokens,
     createdAt: Date.now(),
-    recentMessagesKept: DEFAULT_RECENT_MESSAGE_COUNT,
+    recentMessagesKept: totalMessagesAtCreation - split.splitIndex,
     totalMessagesAtCreation,
+    recentTokensEstimate: split.recentTokenEstimate,
+    splitReason: split.splitReason,
+    microcompactApplied: options.microcompactApplied,
+    summaryReused: options.summaryReused,
+    reactiveCompactAttempted: options.reactiveCompactAttempted,
+    reinjectPaths: options.reinjectPaths,
   };
 }
 
@@ -175,11 +228,17 @@ export type PrepareCompressedContextOptions = {
   };
   /** Test/dev: compress when splitIndex > 0 even below usage thresholds. */
   force?: boolean;
+  /** Set when retrying after provider context-length rejection. */
+  reactiveCompactAttempted?: boolean;
   /** Test hook: override LLM summarization of older messages. */
   summarizeOlderMessages?: (
     model: LanguageModel,
     olderMessages: AgentUIMessage[],
   ) => Promise<string | null>;
+  /** Server hook: reinject recent patch file snippets after compression. */
+  reinjectRecentPatches?: (
+    recentMessages: AgentUIMessage[],
+  ) => Promise<PostCompactReinjectResult>;
 };
 
 export async function prepareCompressedContext(
@@ -191,7 +250,9 @@ export async function prepareCompressedContext(
     contextLimit,
     usageTracking,
     summarizeOlderMessages,
+    reinjectRecentPatches,
     force = false,
+    reactiveCompactAttempted = false,
   } = options;
   const summarize =
     summarizeOlderMessages
@@ -199,23 +260,36 @@ export async function prepareCompressedContext(
       languageModel,
       olderMessages,
     ) => createSummary(languageModel, olderMessages, usageTracking));
-  const baseModelMessages = await convertToModelMessages(messages);
-  const splitIndex = resolveContextSplitIndex(messages);
-  const trigger =
-    splitIndex > 0
-    && (force || shouldCompressContextMessages(messages, contextLimit));
+
+  const usagePressure = force || shouldCompressContextMessages(messages, contextLimit);
+  const split = resolveContextSplitIndex(messages, contextLimit, {
+    usageIndicatesPressure: usagePressure,
+  });
+  const micro = microcompactToolOutputs(messages, { splitIndex: split.splitIndex });
+  const workingMessages = micro.applied ? micro.messages : messages;
+  const workingSplit = micro.applied
+    ? resolveContextSplitIndex(workingMessages, contextLimit, {
+        usageIndicatesPressure: usagePressure,
+      })
+    : split;
+
+  const baseModelMessages = await convertToModelMessages(workingMessages);
+  const trigger = workingSplit.splitIndex > 0 && usagePressure;
   if (!trigger) {
     return { modelMessages: baseModelMessages, compressed: false };
   }
 
-  const olderMessages = messages.slice(0, splitIndex);
-  const recentMessages = messages.slice(splitIndex);
+  const olderMessages = workingMessages.slice(0, workingSplit.splitIndex);
+  const recentMessages = workingMessages.slice(workingSplit.splitIndex);
   if (olderMessages.length === 0 || recentMessages.length === 0) {
     return { modelMessages: baseModelMessages, compressed: false };
   }
 
   const throughMessageId = olderMessages[olderMessages.length - 1]!.id;
-  const reuseSummary = selectReusableContextSummary(messages, splitIndex);
+  const reuseSummary = selectReusableContextSummary(
+    workingMessages,
+    workingSplit.splitIndex,
+  );
   const summary = reuseSummary ?? (await summarize(model, olderMessages));
   if (!summary) {
     return { modelMessages: baseModelMessages, compressed: false };
@@ -223,15 +297,29 @@ export async function prepareCompressedContext(
 
   const recentModelMessages = await convertToModelMessages(recentMessages);
   const sourceInputTokens = latestAssistantUsage(messages)?.inputTokens ?? 0;
+  const reinject = reinjectRecentPatches
+    ? await reinjectRecentPatches(recentMessages)
+    : { block: null, paths: [] };
   const metadata = buildCompressionMetadata(
     summary,
     throughMessageId,
     sourceInputTokens,
-    messages.length,
+    workingMessages.length,
+    workingSplit,
+    {
+      summaryReused: Boolean(reuseSummary),
+      microcompactApplied: micro.applied,
+      reactiveCompactAttempted: reactiveCompactAttempted || undefined,
+      reinjectPaths: reinject.paths.length > 0 ? reinject.paths : undefined,
+    },
   );
+  const systemSuffixParts = [
+    renderCompressionSystemSuffix(summary),
+    reinject.block,
+  ].filter((block): block is string => Boolean(block?.trim()));
   return {
     modelMessages: recentModelMessages,
-    systemSuffix: renderCompressionSystemSuffix(summary),
+    systemSuffix: systemSuffixParts.join("\n\n"),
     contextCompression: metadata,
     compressed: true,
   };

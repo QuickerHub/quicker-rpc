@@ -1,4 +1,6 @@
 import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
   streamText,
   stepCountIs,
 } from "ai";
@@ -34,6 +36,9 @@ import { expandUserMessageForModel } from "@/lib/compose-user-message";
 import { isTextUIPart } from "ai";
 import { resolveModelContextLimit } from "@/lib/llm-context-limits";
 import { prepareCompressedContext } from "@/lib/context-compression";
+import { buildPostCompactReinjectBlock } from "@/lib/context-compaction-reinject.server";
+import { mergeUIMessageStreamWithReactiveCompact } from "@/lib/context-compression-reactive";
+import { createStepMicrocompactPrepareStep } from "@/lib/context-step-microcompact";
 import { repairInterruptedToolCalls } from "@/lib/repair-interrupted-tool-calls";
 import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
 import { withReleasePreviewRoute } from "@/lib/release-preview.server";
@@ -207,17 +212,21 @@ async function handleChatPost(req: Request) {
       { cwd, actionScope, chatMode, lastUserText, llmSelectionRaw },
       async () => {
     const contextLimit = resolveModelContextLimit(modelId).tokens;
-    const preparedContext = await prepareCompressedContext({
+    const compressionBase = {
       messages: messagesForModel,
       model,
       contextLimit,
-      force:
-        process.env.NODE_ENV !== "production"
-        && contextCompressionForce === true,
       usageTracking: {
         selection,
         modelId,
       },
+    } as const;
+    let preparedContext = await prepareCompressedContext({
+      ...compressionBase,
+      reinjectRecentPatches: buildPostCompactReinjectBlock,
+      force:
+        process.env.NODE_ENV !== "production"
+        && contextCompressionForce === true,
     });
 
     const scopeBlock = formatActionScopeForSystem(actionScope);
@@ -243,7 +252,9 @@ async function handleChatPost(req: Request) {
             messages: repairedMessages,
             titleManual: titleManual === true,
           });
-    const system = [
+    const buildSystemForPreparedContext = (
+      context: typeof preparedContext,
+    ) => [
       titleTest
         ? "You are running in title-test mode for Quicker Agent GUI (/tool-test)."
         : null,
@@ -251,58 +262,89 @@ async function handleChatPost(req: Request) {
       runtimeContextBlock,
       launcherCacheBlock,
       titleInstruction,
-      preparedContext.systemSuffix,
+      context.systemSuffix,
     ]
       .filter((block): block is string => Boolean(block?.trim()))
       .join("\n\n");
-    const result = streamText({
-      model,
-      system,
-      messages: preparedContext.modelMessages,
-      tools,
-      experimental_repairToolCall: createRepairToolCallHandler(tools),
-      stopWhen: stepCountIs(titleTest ? 3 : maxStepsForChatMode(chatMode)),
-      onFinish: ({ totalUsage }) => {
-        recordManagedLlmUsageAsync({
-          selection,
-          modelId,
-          source: "chat",
-          inputTokens: totalUsage.inputTokens,
-          outputTokens: totalUsage.outputTokens,
-          totalTokens: totalUsage.totalTokens,
-          reasoningTokens: totalUsage.reasoningTokens,
-        });
+
+    const stream = createUIMessageStream<AgentUIMessage>({
+      originalMessages: repairedMessages,
+      execute: async ({ writer }) => {
+        let reactiveCompactAttempted = false;
+
+        while (true) {
+          const system = buildSystemForPreparedContext(preparedContext);
+          const result = streamText({
+            model,
+            system,
+            messages: preparedContext.modelMessages,
+            tools,
+            experimental_repairToolCall: createRepairToolCallHandler(tools),
+            prepareStep: createStepMicrocompactPrepareStep({ contextLimit }),
+            stopWhen: stepCountIs(titleTest ? 3 : maxStepsForChatMode(chatMode)),
+            onFinish: ({ totalUsage }) => {
+              recordManagedLlmUsageAsync({
+                selection,
+                modelId,
+                source: "chat",
+                inputTokens: totalUsage.inputTokens,
+                outputTokens: totalUsage.outputTokens,
+                totalTokens: totalUsage.totalTokens,
+                reasoningTokens: totalUsage.reasoningTokens,
+              });
+            },
+          });
+
+          const uiStream = result.toUIMessageStream<AgentUIMessage>({
+            sendReasoning: true,
+            messageMetadata: ({ part }) => {
+              if (part.type === "start") {
+                return {
+                  model: modelId,
+                  contextCompression: preparedContext.contextCompression,
+                };
+              }
+              if (part.type === "finish-step" && part.usage) {
+                const u = part.usage;
+                return {
+                  model: modelId,
+                  inputTokens: u.inputTokens,
+                  outputTokens: u.outputTokens,
+                  totalTokens: u.totalTokens,
+                  reasoningTokens: u.reasoningTokens,
+                };
+              }
+              if (part.type === "finish") {
+                return { model: modelId };
+              }
+              return undefined;
+            },
+          });
+
+          const mergeResult = await mergeUIMessageStreamWithReactiveCompact(
+            uiStream.getReader(),
+            writer,
+            { allowReactiveRetry: !reactiveCompactAttempted },
+          );
+
+          if (mergeResult.action === "retry") {
+            reactiveCompactAttempted = true;
+            void result.consumeStream({ onError: () => {} });
+            preparedContext = await prepareCompressedContext({
+              ...compressionBase,
+              force: true,
+              reactiveCompactAttempted: true,
+              reinjectRecentPatches: buildPostCompactReinjectBlock,
+            });
+            continue;
+          }
+
+          break;
+        }
       },
     });
 
-    return result.toUIMessageStreamResponse({
-      originalMessages: repairedMessages,
-      sendReasoning: true,
-      messageMetadata: ({ part }) => {
-        if (part.type === "start") {
-          return {
-            model: modelId,
-            contextCompression: preparedContext.contextCompression,
-          };
-        }
-        // Per-step usage (last finish-step wins). Do not use finish.totalUsage — it sums all tool steps.
-        if (part.type === "finish-step" && part.usage) {
-          const u = part.usage;
-          return {
-            model: modelId,
-            inputTokens: u.inputTokens,
-            outputTokens: u.outputTokens,
-            totalTokens: u.totalTokens,
-            reasoningTokens: u.reasoningTokens,
-          };
-        }
-        // finish has totalUsage only (sums all tool steps); per-step usage comes from finish-step above.
-        if (part.type === "finish") {
-          return { model: modelId };
-        }
-        return undefined;
-      },
-    });
+    return createUIMessageStreamResponse({ stream });
     });
   });
 }

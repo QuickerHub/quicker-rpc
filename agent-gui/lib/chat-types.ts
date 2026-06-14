@@ -5,6 +5,12 @@ import {
   resolveModelContextLimit,
 } from "@/lib/llm-context-limits";
 
+export type ContextSplitReason =
+  | "none"
+  | "token_budget"
+  | "usage_fallback"
+  | "message_cap";
+
 /** Token usage attached to assistant messages via messageMetadata. */
 export type ContextCompressionMetadata = {
   summary: string;
@@ -13,6 +19,14 @@ export type ContextCompressionMetadata = {
   createdAt: number;
   recentMessagesKept: number;
   totalMessagesAtCreation: number;
+  recentTokensEstimate?: number;
+  splitReason?: ContextSplitReason;
+  microcompactApplied?: boolean;
+  summaryReused?: boolean;
+  /** Provider rejected prompt length; server retried with forced compaction. */
+  reactiveCompactAttempted?: boolean;
+  /** Workspace file paths reinjected into system after compression. */
+  reinjectPaths?: string[];
 };
 
 /** Token usage attached to assistant messages via messageMetadata. */

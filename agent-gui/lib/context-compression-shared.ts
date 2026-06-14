@@ -2,7 +2,13 @@ import { isTextUIPart } from "ai";
 import type {
   AgentUIMessage,
   ContextCompressionMetadata,
+  ContextSplitReason,
 } from "@/lib/chat-types";
+import { alignSplitIndexToRoundStart } from "@/lib/context-api-rounds";
+import {
+  estimateMessageTokens,
+  estimateThreadTokens,
+} from "@/lib/context-token-estimate";
 
 /**
  * Context compaction thresholds (aligned with mainstream coding agents).
@@ -15,15 +21,31 @@ import type {
  */
 
 /** Tokens reserved for system, next turn, and the compaction summary call. */
-const COMPACTION_HEADROOM_TOKENS = 4_096;
+export const COMPACTION_HEADROOM_TOKENS = 4_096;
 
 /** Measured provider inputTokens (Cursor ~90%). */
-const USAGE_TRIGGER_RATIO = 0.9;
+export const USAGE_TRIGGER_RATIO = 0.9;
 
 /** Char/4 estimate when usage metadata is missing. */
-const ESTIMATE_TRIGGER_RATIO = 0.92;
+export const ESTIMATE_TRIGGER_RATIO = 0.92;
 
+/** Legacy default; used as usage-fallback slice size when estimate lags API usage. */
 export const DEFAULT_RECENT_MESSAGE_COUNT = 12;
+
+/** Share of context window for the full-fidelity recent slice. */
+export const RECENT_BUDGET_RATIO = 0.45;
+
+export const MIN_RECENT_MESSAGES = 4;
+
+export const MAX_RECENT_MESSAGES = 24;
+
+export type { ContextSplitReason } from "@/lib/chat-types";
+
+export type ContextSplitResult = {
+  splitIndex: number;
+  recentTokenEstimate: number;
+  splitReason: ContextSplitReason;
+};
 
 function latestAssistantUsage(
   messages: AgentUIMessage[],
@@ -54,18 +76,7 @@ function latestContextCompression(
 }
 
 function approximateTokensFromMessages(messages: AgentUIMessage[]): number {
-  let chars = 0;
-  for (const message of messages) {
-    chars += message.role.length + 8;
-    for (const part of message.parts) {
-      if (isTextUIPart(part)) {
-        chars += part.text.length;
-      } else {
-        chars += JSON.stringify(part).length;
-      }
-    }
-  }
-  return Math.ceil(chars / 4);
+  return estimateThreadTokens(messages);
 }
 
 /** Token count at which measured usage should trigger compaction. */
@@ -84,6 +95,12 @@ export function resolveCompactionEstimateThreshold(contextLimit: number): number
   return Math.max(1, Math.min(byRatio, byHeadroom));
 }
 
+export function resolveRecentTokenBudget(contextLimit: number): number {
+  if (contextLimit <= 0) return 0;
+  const byRatio = Math.floor(contextLimit * RECENT_BUDGET_RATIO);
+  return Math.max(1, byRatio - COMPACTION_HEADROOM_TOKENS);
+}
+
 /** Whether context compression should run for the next model request. */
 export function shouldCompressContextMessages(
   messages: AgentUIMessage[],
@@ -98,10 +115,92 @@ export function shouldCompressContextMessages(
   return estimated >= resolveCompactionEstimateThreshold(contextLimit);
 }
 
+function countRecentMessagesFromTail(
+  messages: AgentUIMessage[],
+  recentBudget: number,
+): { recentCount: number; recentTokenEstimate: number } {
+  let recentCount = 0;
+  let recentTokenEstimate = 0;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const messageTokens = estimateMessageTokens(messages[i]!);
+    const nextCount = recentCount + 1;
+    const nextTokens = recentTokenEstimate + messageTokens;
+    if (nextCount > MAX_RECENT_MESSAGES) break;
+    if (nextTokens > recentBudget && recentCount >= 1) break;
+    if (
+      recentCount >= MIN_RECENT_MESSAGES
+      && nextTokens > recentBudget
+    ) {
+      break;
+    }
+    recentCount = nextCount;
+    recentTokenEstimate = nextTokens;
+  }
+  return { recentCount, recentTokenEstimate };
+}
+
 /** Index where older messages end and the recent window begins. */
-export function resolveContextSplitIndex(messages: AgentUIMessage[]): number {
-  if (messages.length <= DEFAULT_RECENT_MESSAGE_COUNT) return 0;
-  return Math.max(0, messages.length - DEFAULT_RECENT_MESSAGE_COUNT);
+export function resolveContextSplitIndex(
+  messages: AgentUIMessage[],
+  contextLimit: number,
+  options?: { usageIndicatesPressure?: boolean },
+): ContextSplitResult {
+  if (messages.length === 0) {
+    return { splitIndex: 0, recentTokenEstimate: 0, splitReason: "none" };
+  }
+
+  const recentBudget = resolveRecentTokenBudget(contextLimit);
+  const totalTokens = estimateThreadTokens(messages);
+  if (totalTokens <= recentBudget) {
+    const usageIndicatesPressure =
+      options?.usageIndicatesPressure
+      ?? shouldCompressContextMessages(messages, contextLimit);
+    if (
+      usageIndicatesPressure
+      && messages.length > MIN_RECENT_MESSAGES
+    ) {
+      const fallbackSplit = alignSplitIndexToRoundStart(
+        messages,
+        Math.max(1, messages.length - DEFAULT_RECENT_MESSAGE_COUNT),
+      );
+      if (fallbackSplit > 0) {
+        return {
+          splitIndex: fallbackSplit,
+          recentTokenEstimate: estimateThreadTokens(messages.slice(fallbackSplit)),
+          splitReason: "usage_fallback",
+        };
+      }
+    }
+    return {
+      splitIndex: 0,
+      recentTokenEstimate: totalTokens,
+      splitReason: "none",
+    };
+  }
+
+  const { recentCount, recentTokenEstimate } = countRecentMessagesFromTail(
+    messages,
+    recentBudget,
+  );
+  let splitIndex = Math.max(0, messages.length - recentCount);
+  splitIndex = alignSplitIndexToRoundStart(messages, splitIndex);
+
+  if (splitIndex <= 0 && messages.length > MIN_RECENT_MESSAGES) {
+    splitIndex = alignSplitIndexToRoundStart(
+      messages,
+      Math.max(1, messages.length - MIN_RECENT_MESSAGES),
+    );
+  }
+
+  if (splitIndex <= 0) {
+    return { splitIndex: 0, recentTokenEstimate: totalTokens, splitReason: "none" };
+  }
+
+  return {
+    splitIndex,
+    recentTokenEstimate: estimateThreadTokens(messages.slice(splitIndex)),
+    splitReason: recentCount >= MAX_RECENT_MESSAGES ? "message_cap" : "token_budget",
+  };
 }
 
 function findMessageIndexById(
@@ -130,6 +229,9 @@ export type ContextCompressionPreview = {
   shouldCompress: boolean;
   force: boolean;
   splitIndex: number;
+  splitReason: ContextSplitReason;
+  recentTokenEstimate: number;
+  recentTokenBudget: number;
   olderCount: number;
   recentCount: number;
   reusableSummary: string | null;
@@ -148,8 +250,10 @@ export function previewContextCompression(
   contextLimit: number,
   options?: { force?: boolean },
 ): ContextCompressionPreview {
-  const splitIndex = resolveContextSplitIndex(messages);
   const shouldCompress = shouldCompressContextMessages(messages, contextLimit);
+  const split = resolveContextSplitIndex(messages, contextLimit, {
+    usageIndicatesPressure: shouldCompress,
+  });
   const force = options?.force === true;
   const latestInputTokens = latestAssistantUsage(messages)?.inputTokens ?? null;
   const estimatedTokens = approximateTokensFromMessages(messages);
@@ -158,10 +262,13 @@ export function previewContextCompression(
   return {
     shouldCompress,
     force,
-    splitIndex,
-    olderCount: splitIndex,
-    recentCount: Math.max(0, messages.length - splitIndex),
-    reusableSummary: selectReusableContextSummary(messages, splitIndex),
+    splitIndex: split.splitIndex,
+    splitReason: split.splitReason,
+    recentTokenEstimate: split.recentTokenEstimate,
+    recentTokenBudget: resolveRecentTokenBudget(contextLimit),
+    olderCount: split.splitIndex,
+    recentCount: Math.max(0, messages.length - split.splitIndex),
+    reusableSummary: selectReusableContextSummary(messages, split.splitIndex),
     estimatedTokens,
     latestInputTokens,
     usageRatio:

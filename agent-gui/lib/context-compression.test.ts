@@ -69,12 +69,39 @@ describe("shouldCompressContextMessages", () => {
 });
 
 describe("resolveContextSplitIndex", () => {
-  it("keeps all messages when count is within recent window", () => {
-    assert.equal(resolveContextSplitIndex(buildLongThread(10)), 0);
+  it("keeps all messages when thread fits recent token budget", () => {
+    const split = resolveContextSplitIndex(buildLongThread(10), 128_000);
+    assert.equal(split.splitIndex, 0);
+    assert.equal(split.splitReason, "none");
   });
 
-  it("splits older messages when count exceeds recent window", () => {
-    assert.equal(resolveContextSplitIndex(buildLongThread(20)), 8);
+  it("splits heavy short thread by token budget", () => {
+    const messages: AgentUIMessage[] = [
+      userMessage("u1", "goal: sync clipboard"),
+      {
+        id: "a1",
+        role: "assistant",
+        parts: [{
+          type: "tool-shell_exec",
+          toolCallId: "c1",
+          state: "output-available",
+          input: { command: "rg foo" },
+          output: { ok: true, stdout: "x".repeat(200_000) },
+        }],
+      },
+      userMessage("u2", "continue"),
+    ];
+    const split = resolveContextSplitIndex(messages, 32_000);
+    assert.ok(split.splitIndex > 0);
+    assert.equal(split.splitReason, "token_budget");
+  });
+
+  it("uses usage fallback when API usage is high but estimate is low", () => {
+    const split = resolveContextSplitIndex(buildLongThread(16), 128_000, {
+      usageIndicatesPressure: true,
+    });
+    assert.ok(split.splitIndex > 0);
+    assert.equal(split.splitReason, "usage_fallback");
   });
 });
 
@@ -88,10 +115,11 @@ describe("previewContextCompression", () => {
     ];
     const preview = previewContextCompression(messages, contextLimit);
     assert.equal(preview.shouldCompress, true);
-    assert.equal(preview.olderCount, 5);
-    assert.equal(preview.recentCount, 12);
+    assert.ok(preview.splitIndex > 0);
+    assert.equal(preview.recentCount, messages.length - preview.splitIndex);
     assert.equal(preview.latestInputTokens, threshold);
     assert.equal(preview.usageThreshold, threshold);
+    assert.ok(preview.recentTokenBudget > 0);
   });
 });
 
@@ -110,7 +138,9 @@ describe("selectReusableContextSummary", () => {
         },
       }),
     ];
-    const splitIndex = resolveContextSplitIndex(messages);
+    const splitIndex = resolveContextSplitIndex(messages, 128_000, {
+      usageIndicatesPressure: true,
+    }).splitIndex;
     assert.equal(selectReusableContextSummary(messages, splitIndex), "prior summary");
   });
 
@@ -128,7 +158,9 @@ describe("selectReusableContextSummary", () => {
         },
       }),
     ];
-    const splitIndex = resolveContextSplitIndex(messages);
+    const splitIndex = resolveContextSplitIndex(messages, 128_000, {
+      usageIndicatesPressure: true,
+    }).splitIndex;
     assert.equal(selectReusableContextSummary(messages, splitIndex), null);
   });
 });

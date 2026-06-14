@@ -61,7 +61,8 @@ describe("prepareCompressedContext integration", () => {
     assert.equal(prepared.contextCompression?.summary, "mock summary bullets");
     assert.equal(prepared.contextCompression?.throughMessageId, "a-3");
     assert.equal(summarizeOlderMessages.mock.callCount(), 1);
-    assert.equal(prepared.modelMessages.length, 12);
+    assert.ok(prepared.modelMessages.length >= 8);
+    assert.equal(prepared.contextCompression?.splitReason, "usage_fallback");
   });
 
   it("reuses prior summary without calling summarizeOlderMessages", async () => {
@@ -92,5 +93,28 @@ describe("prepareCompressedContext integration", () => {
     assert.equal(prepared.compressed, true);
     assert.equal(prepared.contextCompression?.summary, "reused summary");
     assert.equal(summarizeOlderMessages.mock.callCount(), 0);
+  });
+
+  it("appends reinject block when hook returns paths", async () => {
+    const messages = buildLongThread(16);
+    const latestAssistant = messages[messages.length - 1]!;
+    latestAssistant.metadata = {
+      inputTokens: resolveCompactionUsageThreshold(128_000),
+    };
+
+    const prepared = await prepareCompressedContext({
+      messages,
+      model: {} as never,
+      contextLimit: 128_000,
+      summarizeOlderMessages: async () => "mock summary",
+      reinjectRecentPatches: async () => ({
+        block: "Recent workspace files (reinjected after compression):\n### demo/data.json\n{}",
+        paths: ["demo/data.json"],
+      }),
+    });
+
+    assert.equal(prepared.compressed, true);
+    assert.match(prepared.systemSuffix ?? "", /reinjected after compression/);
+    assert.deepEqual(prepared.contextCompression?.reinjectPaths, ["demo/data.json"]);
   });
 });

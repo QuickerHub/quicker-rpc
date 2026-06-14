@@ -97,7 +97,7 @@ export const CONTEXT_COMPRESSION_SCENARIOS: ContextCompressionScenario[] = [
     id: "threshold-90",
     label: "阈值触发（~90% usage）",
     description:
-      "16 轮对话 + 末条 assistant inputTokens≈90% / 128K，应走 LLM 摘要并保留最近 12 条",
+      "16 轮对话 + 末条 assistant inputTokens≈90% / 128K，应走 LLM 摘要并保留 token 预算内近端消息",
     contextLimit: 128_000,
     simulatedInputTokens: CONTEXT_COMPRESSION_USAGE_THRESHOLD_128K,
     buildMessages: () => buildLongThread(16),
@@ -134,6 +134,29 @@ export const CONTEXT_COMPRESSION_SCENARIOS: ContextCompressionScenario[] = [
     contextLimit: 128_000,
     simulatedInputTokens: 4_000,
     buildMessages: () => buildLongThread(6),
+  },
+  {
+    id: "short-thread-heavy-tools",
+    label: "短线程大 tool（token budget）",
+    description: "≤12 条但旧 tool 输出很大；应 split 并 microcompact/summary",
+    contextLimit: 128_000,
+    simulatedInputTokens: CONTEXT_COMPRESSION_USAGE_THRESHOLD_128K,
+    buildMessages: () => [
+      userMessage("u1", "goal: build clipboard sync"),
+      {
+        id: "a1",
+        role: "assistant",
+        parts: [{
+          type: "tool-shell_exec",
+          toolCallId: "c1",
+          state: "output-available",
+          input: { command: "rg clipboard" },
+          output: { ok: true, stdout: "x".repeat(80_000) },
+        }],
+      },
+      userMessage("u2", "continue with action authoring"),
+    ],
+    continuePrompt: "不要调用工具，用一句话复述最初目标。",
   },
   {
     id: "force-summarize",

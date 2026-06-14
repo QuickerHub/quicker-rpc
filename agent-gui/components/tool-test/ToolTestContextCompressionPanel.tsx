@@ -214,6 +214,7 @@ export function ToolTestContextCompressionPanel({
             contextLimit: scenario.contextLimit,
             llmSelection,
             force,
+            workingDirectory: workingDirectory?.trim() || undefined,
           }),
         });
         const data = (await res.json()) as {
@@ -253,7 +254,7 @@ export function ToolTestContextCompressionPanel({
         });
       }
     },
-    [finishRun, llmOptions, llmSelection, onAppendRun],
+    [finishRun, llmOptions, llmSelection, onAppendRun, workingDirectory],
   );
 
   const runChat = useCallback(
@@ -384,7 +385,7 @@ export function ToolTestContextCompressionPanel({
           )}
         </button>
         <p className="autofix-panel__run-hint">
-          生产逻辑：inputTokens ≥90%（或估算 ≥92%）且消息 &gt;12 条时，保留最近 12 条并摘要旧消息
+          生产逻辑：usage ≥90% 或估算 ≥92% 时按 token 预算切分；microcompact → 摘要 → reinject；多步 tool 回合内 prepareStep 再压缩；context length 错误 reactive 重试 1 次
         </p>
       </div>
     </div>

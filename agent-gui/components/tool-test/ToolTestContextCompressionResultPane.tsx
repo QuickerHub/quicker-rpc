@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { ContextCompressionRunEntry } from "@/lib/tool-test-context-compression-runs";
 import type { ToolTestConversationStatus } from "@/lib/tool-test-conversation-run";
 import { getLatestContextCompressionSummary } from "@/lib/context-length";
+import { formatContextCompressionMetadata, hasReinjectBlock } from "@/lib/context-compression-metadata-display";
 import { ToolTestConversationCard } from "@/components/tool-test/ToolTestConversationCard";
 import { ToolTestRunsPaneShell } from "@/components/tool-test/ToolTestRunsPaneShell";
 
@@ -60,8 +61,8 @@ function DryRunCard({ run }: { run: ContextCompressionRunEntry }) {
         <div>
           <dt>分割</dt>
           <dd>
-            older {preview.olderCount} · recent {preview.recentCount} · limit{" "}
-            {preview.contextLimit.toLocaleString()}
+            {preview.splitReason} · older {preview.olderCount} · recent{" "}
+            {preview.recentCount} · budget {preview.recentTokenBudget.toLocaleString()}
           </dd>
         </div>
         <div>
@@ -85,10 +86,21 @@ function DryRunCard({ run }: { run: ContextCompressionRunEntry }) {
           </dd>
         </div>
         <div>
+          <dt>压缩元数据</dt>
+          <dd>{formatContextCompressionMetadata(dry.contextCompression)}</dd>
+        </div>
+        <div>
           <dt>模型消息</dt>
           <dd>{dry.modelMessageCount} 条</dd>
         </div>
       </dl>
+
+      {dry.contextCompression?.reinjectPaths?.length ? (
+        <p className="ctx-compression-run-card__hint">
+          reinject: {dry.contextCompression.reinjectPaths.join(", ")}
+          {hasReinjectBlock(dry.systemSuffix) ? " · 已写入 systemSuffix" : ""}
+        </p>
+      ) : null}
 
       {dry.summary ? (
         <details className="ctx-compression-run-card__details" open>
@@ -131,7 +143,7 @@ function ChatRunCard({
         <dt>contextCompression</dt>
         <dd>
           {compressionMeta
-            ? `through ${compressionMeta.throughMessageId} · kept ${compressionMeta.recentMessagesKept}`
+            ? formatContextCompressionMetadata(compressionMeta)
             : compressionSummary ?? "（本轮未压缩）"}
         </dd>
       </div>

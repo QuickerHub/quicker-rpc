@@ -5,9 +5,12 @@ import {
   previewContextCompression,
   type ContextCompressionPreview,
 } from "@/lib/context-compression";
+import { buildPostCompactReinjectBlock } from "@/lib/context-compaction-reinject.server";
+import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import { resolveModelContextLimit } from "@/lib/llm-context-limits";
 import { resolveChatModelForSelection, resolveLlmSelection } from "@/lib/llm";
 import { LLM_AUTO_SELECTION } from "@/lib/llm-selection";
+import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
 
 export const runtime = "nodejs";
 
@@ -16,6 +19,7 @@ type DevContextCompressionRequest = {
   contextLimit?: number;
   llmSelection?: string;
   force?: boolean;
+  workingDirectory?: string;
 };
 
 function isAgentMessage(value: unknown): value is AgentUIMessage {
@@ -74,31 +78,35 @@ export async function POST(req: Request) {
 
   const reusableBefore = preview.reusableSummary;
   let summarizeCalled = false;
+  const cwd = resolveEffectiveWorkingDirectory(body.workingDirectory);
 
-  const prepared = await prepareCompressedContext({
-    messages,
-    model,
-    contextLimit,
-    force,
-    usageTracking: {
-      selection,
-      modelId,
-    },
-    summarizeOlderMessages: async (_languageModel, olderMessages) => {
-      summarizeCalled = true;
-      const topics = olderMessages
-        .slice(0, 6)
-        .map((message) => {
-          const textPart = message.parts.find((part) => part.type === "text");
-          return textPart && "text" in textPart
-            ? String(textPart.text).slice(0, 80)
-            : "";
-        })
-        .filter(Boolean)
-        .join(" | ");
-      return `[dev dry-run summary] ${olderMessages.length} older messages. ${topics}`;
-    },
-  });
+  const prepared = await runWithAgentRequestContextAsync({ cwd }, async () =>
+    prepareCompressedContext({
+      messages,
+      model,
+      contextLimit,
+      force,
+      reinjectRecentPatches: buildPostCompactReinjectBlock,
+      usageTracking: {
+        selection,
+        modelId,
+      },
+      summarizeOlderMessages: async (_languageModel, olderMessages) => {
+        summarizeCalled = true;
+        const topics = olderMessages
+          .slice(0, 6)
+          .map((message) => {
+            const textPart = message.parts.find((part) => part.type === "text");
+            return textPart && "text" in textPart
+              ? String(textPart.text).slice(0, 80)
+              : "";
+          })
+          .filter(Boolean)
+          .join(" | ");
+        return `[dev dry-run summary] ${olderMessages.length} older messages. ${topics}`;
+      },
+    }),
+  );
 
   const reusedSummary =
     Boolean(reusableBefore)

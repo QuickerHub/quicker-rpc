@@ -253,11 +253,25 @@ type AgentUIMessage = UIMessage<ChatUsageMetadata>;
   "sourceInputTokens": 80000,
   "createdAt": 1710000000000,
   "recentMessagesKept": 12,
-  "totalMessagesAtCreation": 48
+  "totalMessagesAtCreation": 48,
+  "recentTokensEstimate": 52000,
+  "splitReason": "token_budget",
+  "microcompactApplied": true,
+  "summaryReused": false,
+  "reactiveCompactAttempted": false,
+  "reinjectPaths": ["actions/demo/data.json"]
 }
 ```
 
-压缩发生后，旧消息可能仍保留在 `messages` 数组中供 UI 展示，但发给模型的上下文会按服务端逻辑截断/摘要（见 `agent-gui/lib/context-compression.ts` 与 `/api/chat`）。
+| 字段 | 含义 |
+|------|------|
+| `splitReason` | `none` / `token_budget` / `usage_fallback` |
+| `microcompactApplied` | 是否在 split 前对旧 round 大 tool 输出做了占位压缩 |
+| `summaryReused` | 是否复用了上一条 assistant 上的摘要（零额外 LLM 调用） |
+| `reactiveCompactAttempted` | provider 返回 context length 错误后，服务端是否已 force 重试压缩 |
+| `reinjectPaths` | 压缩后从 workspace 重新注入 system 的文件路径 |
+
+压缩发生后，旧消息可能仍保留在 `messages` 数组中供 UI 展示，但发给模型的上下文会按服务端逻辑截断/摘要（见 `agent-gui/lib/context-compression.ts`、`context-compression-reactive.ts` 与 `/api/chat`）。
 
 ---
 
