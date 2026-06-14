@@ -1,5 +1,7 @@
 import { isStructuredToolResult } from "@/lib/tool-result";
 
+export type BrowserRuntimeModeLabel = "headless" | "embedded";
+
 type BrowserToolInputLike = {
   action: string;
   url?: string;
@@ -20,6 +22,10 @@ export type BrowserToolAudience = "agent" | "panel";
 
 export type BrowserToolResultView = {
   action: string;
+  mode?: BrowserRuntimeModeLabel;
+  showPanel?: boolean;
+  fallbackFromNative?: boolean;
+  background?: boolean;
   sessionId?: string;
   url?: string;
   title?: string;
@@ -67,6 +73,36 @@ export function sanitizeBrowserToolDataForAgent(
   return out;
 }
 
+/** Map runtime payload mode to unified headless | embedded labels. */
+export function normalizeBrowserRuntimeMode(
+  raw: unknown,
+): BrowserRuntimeModeLabel | undefined {
+  if (raw === "headless" || raw === "embedded") return raw;
+  if (raw === "playwright") return "headless";
+  if (raw === "native") return "embedded";
+  return undefined;
+}
+
+/** Compact runtime label for tool cards and detail panes. */
+export function formatBrowserRuntimeModeBadge(view: {
+  mode?: BrowserRuntimeModeLabel;
+  showPanel?: boolean;
+  fallbackFromNative?: boolean;
+}): string | null {
+  if (!view.mode) return null;
+  const parts: string[] = [];
+  parts.push(view.mode === "headless" ? "Playwright" : "内嵌");
+  if (view.showPanel) {
+    parts.push("侧栏");
+  } else if (view.mode === "embedded") {
+    parts.push("后台");
+  }
+  if (view.fallbackFromNative) {
+    parts.push("回退");
+  }
+  return parts.join(" · ");
+}
+
 export function parseBrowserToolResultView(
   output: unknown,
 ): BrowserToolResultView | null {
@@ -76,6 +112,10 @@ export function parseBrowserToolResultView(
 
   const view: BrowserToolResultView = {
     action: pickString(data, "action") ?? "browser",
+    mode: normalizeBrowserRuntimeMode(data.mode),
+    showPanel: data.showPanel === true,
+    fallbackFromNative: data.fallbackFromNative === true,
+    background: data.background === true,
     sessionId: pickString(data, "sessionId"),
     url: pickString(data, "url"),
     title: pickString(data, "title"),
@@ -148,64 +188,88 @@ export function summarizeBrowserToolOutput(
   }
 
   const action = readAction(input) || view.action;
+  const badge = formatBrowserRuntimeModeBadge(view);
+
+  let summary: string | null = null;
 
   switch (action) {
     case "status":
-      return view.browserReady ? "browser-runtime 就绪" : "browser-runtime 未就绪";
+      summary = view.browserReady ? "browser-runtime 就绪" : "browser-runtime 未就绪";
+      break;
     case "navigate":
-      return view.nodeCount != null
+      summary = view.nodeCount != null
         ? `打开 ${view.url ? shortUrl(view.url) : "页面"} · ${view.nodeCount} 个可交互元素`
         : view.url
           ? `打开 ${shortUrl(view.url)}`
           : "已导航";
+      break;
     case "snapshot":
-      return view.nodeCount != null
+      summary = view.nodeCount != null
         ? `${view.nodeCount} 个可交互元素`
         : "页面快照";
+      break;
     case "search":
-      return view.matchCount != null
+      summary = view.matchCount != null
         ? `搜索 ${view.matchCount} 个匹配`
         : "页面搜索";
+      break;
     case "content":
-      return view.text
+      summary = view.text
         ? `页面文本 ${view.text.length} 字${view.truncated ? "（已截断）" : ""}`
         : "页面文本";
+      break;
     case "evaluate":
-      return "脚本执行完成";
+      summary = "脚本执行完成";
+      break;
     case "click": {
       const base = view.ref ? `点击 ${view.ref}` : "已点击";
-      if (view.openedTab) return `${base} · 新标签页`;
-      if (view.navigated && view.url) return `${base} · ${shortUrl(view.url)}`;
-      return base;
+      if (view.openedTab) summary = `${base} · 新标签页`;
+      else if (view.navigated && view.url) summary = `${base} · ${shortUrl(view.url)}`;
+      else summary = base;
+      break;
     }
     case "click_xy":
-      return view.openedTab ? "坐标点击 · 新标签页" : "坐标点击";
+      summary = view.openedTab ? "坐标点击 · 新标签页" : "坐标点击";
+      break;
     case "type":
-      return view.ref ? `输入 ${view.ref}` : "已输入";
+      summary = view.ref ? `输入 ${view.ref}` : "已输入";
+      break;
     case "fill":
-      return view.ref ? `填充 ${view.ref}` : "已填充";
+      summary = view.ref ? `填充 ${view.ref}` : "已填充";
+      break;
     case "press":
-      return view.key ? `按键 ${view.key}` : "已按键";
+      summary = view.key ? `按键 ${view.key}` : "已按键";
+      break;
     case "wait":
-      return "等待完成";
+      summary = "等待完成";
+      break;
     case "screenshot":
-      return view.panelPreview ? "截图已更新侧栏预览" : "截图";
+      summary = view.panelPreview ? "截图已更新侧栏预览" : "截图";
+      break;
     case "tabs":
-      return view.tabCount != null ? `${view.tabCount} 个标签页` : "标签页";
+      summary = view.tabCount != null ? `${view.tabCount} 个标签页` : "标签页";
+      break;
     case "tab":
-      return view.url ? `切换标签页 · ${shortUrl(view.url)}` : "切换标签页";
+      summary = view.url ? `切换标签页 · ${shortUrl(view.url)}` : "切换标签页";
+      break;
     case "back":
-      return view.url ? `后退 · ${shortUrl(view.url)}` : "后退";
+      summary = view.url ? `后退 · ${shortUrl(view.url)}` : "后退";
+      break;
     case "forward":
-      return view.url ? `前进 · ${shortUrl(view.url)}` : "前进";
+      summary = view.url ? `前进 · ${shortUrl(view.url)}` : "前进";
+      break;
     case "reload":
-      return view.url ? `刷新 · ${shortUrl(view.url)}` : "已刷新";
+      summary = view.url ? `刷新 · ${shortUrl(view.url)}` : "已刷新";
+      break;
     case "close":
-      return "会话已关闭";
+      summary = "会话已关闭";
+      break;
     default:
-      if (view.url) return shortUrl(view.url);
-      return null;
+      summary = view.url ? shortUrl(view.url) : null;
   }
+
+  if (!summary) return badge;
+  return badge ? `${badge} · ${summary}` : summary;
 }
 
 export function browserToolInputLabel(input: BrowserToolInputLike): string {

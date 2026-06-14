@@ -1,7 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { BrowserToolResultView as BrowserView } from "@/lib/browser-tool-result";
+import {
+  formatBrowserRuntimeModeBadge,
+  type BrowserToolResultView as BrowserView,
+} from "@/lib/browser-tool-result";
 
 function KeyValueRows({
   entries,
@@ -28,7 +31,15 @@ export function BrowserToolResultView({ view }: { view: BrowserView }) {
     return <p className="tool-plain-result tool-error">{view.error}</p>;
   }
 
+  const modeBadge = formatBrowserRuntimeModeBadge(view);
   const entries: Array<{ key: string; value: ReactNode; block?: boolean }> = [];
+
+  if (modeBadge) {
+    entries.push({
+      key: "运行时",
+      value: <span className="browser-runtime-badge">{modeBadge}</span>,
+    });
+  }
 
   if (view.url) {
     entries.push({

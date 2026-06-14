@@ -28,11 +28,46 @@ describe("browser-tool-result", () => {
         ok: true,
         exitCode: 0,
         source: "local",
-        data: { action: "snapshot", nodeCount: 12, snapshot: "url: x\nnodes:" },
+        data: { action: "snapshot", mode: "headless", background: true, nodeCount: 12, snapshot: "url: x\nnodes:" },
       },
       { action: "snapshot" },
     );
-    assert.equal(summary, "12 个可交互元素");
+    assert.equal(summary, "Playwright · 12 个可交互元素");
+  });
+
+  it("includes embedded mode badge in summary", () => {
+    const summary = summarizeBrowserToolOutput(
+      {
+        ok: true,
+        exitCode: 0,
+        source: "local",
+        data: {
+          action: "evaluate",
+          mode: "embedded",
+          showPanel: true,
+          value: "ok",
+        },
+      },
+      { action: "evaluate" },
+    );
+    assert.equal(summary, "内嵌 · 侧栏 · 脚本执行完成");
+  });
+
+  it("maps legacy playwright/native mode labels", () => {
+    const headless = parseBrowserToolResultView({
+      ok: true,
+      exitCode: 0,
+      source: "local",
+      data: { action: "status", mode: "playwright", browserReady: true },
+    });
+    const embedded = parseBrowserToolResultView({
+      ok: true,
+      exitCode: 0,
+      source: "local",
+      data: { action: "status", mode: "native", browserReady: true },
+    });
+    assert.equal(headless?.mode, "headless");
+    assert.equal(embedded?.mode, "embedded");
   });
 
   it("summarizes search match count", () => {
