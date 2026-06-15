@@ -90,7 +90,7 @@ export function WorkspaceExplorerPanel() {
   const activeTabPath = activeTab?.path;
   const actionDataEditorOpen =
     showEditor
-    && Boolean(activeTabPath)
+    && activeTabPath != null
     && isActionProjectDataPath(activeTabPath);
   const showWorkspaceTree =
     activeSideView === SIDE_PANEL_VIEW_EXPLORER || showEditor;
