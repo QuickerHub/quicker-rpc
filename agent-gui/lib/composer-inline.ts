@@ -746,6 +746,10 @@ export function insertComposerMarkupPasteWithUndo(
       fragment.append(createSlashTagElement(segment.ref));
       continue;
     }
+    if (segment.type === "program-step") {
+      fragment.append(createProgramStepTagElement(segment.tag));
+      continue;
+    }
     appendTextWithNewlines(fragment, segment.text);
   }
 
