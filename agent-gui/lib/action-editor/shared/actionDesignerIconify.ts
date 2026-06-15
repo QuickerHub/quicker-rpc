@@ -8,6 +8,7 @@ import download from "@iconify/icons-mdi/download";
 import filter from "@iconify/icons-mdi/filter";
 import plus from "@iconify/icons-mdi/plus";
 import shieldLock from "@iconify/icons-mdi/shield-lock";
+import helpCircleOutline from "@iconify/icons-mdi/help-circle-outline";
 import redo from "@iconify/icons-mdi/redo";
 import swapVertical from "@iconify/icons-mdi/swap-vertical";
 import undo from "@iconify/icons-mdi/undo";
@@ -31,7 +32,8 @@ export const ACTION_DESIGNER_BUNDLED_ICONIFY: Record<string, IconifyIcon> = {
   "mdi:upload": upload,
   "mdi:unfold-less-horizontal": unfoldLessHorizontal,
   "mdi:undo": undo,
-  "mdi:redo": redo
+  "mdi:redo": redo,
+  "mdi:help-circle-outline": helpCircleOutline,
 };
 
 export function getBundledIconifyIcon(iconId: string): IconifyIcon | undefined {
@@ -54,5 +56,7 @@ export const AD_ICONIFY_SPEC = {
   undo: "iconify:mdi:undo",
   redo: "iconify:mdi:redo",
   /** Home / entry cards: open action designer. */
-  actionDesignerCard: "iconify:mdi:draw-pen"
+  actionDesignerCard: "iconify:mdi:draw-pen",
+  help: "iconify:mdi:help-circle-outline",
+  close: "iconify:mdi:close",
 } as const;

@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using Newtonsoft.Json.Linq;
 using Quicker.Domain.Actions.X;
 
 namespace QuickerRpc.Plugin.Services;
@@ -202,5 +203,63 @@ internal static class ActionProgramPatchUiGate
 
         var resolvedEntityId = ActionDesignerContext.TryReadDesignerEntityId(designer) ?? entityId;
         return new DesignerApplyResult { Success = true, EntityId = resolvedEntityId };
+    }
+
+    /// <summary>
+    /// After workspace apply/replace persisted to catalog, refresh open Action Designer if present.
+    /// Best-effort: returns false when no matching designer window is open.
+    /// </summary>
+    public static bool TryRefreshOpenDesignerProgram(
+        string entityId,
+        bool isSubProgram,
+        JArray steps,
+        JArray variables,
+        string? subProgramsJson = null)
+    {
+        try
+        {
+            return QuickerDispatcherInvoke.OnUiThreadIfNeeded(() =>
+                TryRefreshOpenDesignerProgramCore(entityId, isSubProgram, steps, variables, subProgramsJson));
+        }
+        catch
+        {
+            // Designer refresh is best-effort; catalog apply already succeeded.
+            return false;
+        }
+    }
+
+    private static bool TryRefreshOpenDesignerProgramCore(
+        string entityId,
+        bool isSubProgram,
+        JArray steps,
+        JArray variables,
+        string? subProgramsJson)
+    {
+        if (string.IsNullOrWhiteSpace(entityId))
+        {
+            return false;
+        }
+
+        var designer = ActionDesignerUiSave.TryFindActionDesignerWindow(entityId.Trim(), isSubProgram);
+        if (designer is null)
+        {
+            return false;
+        }
+
+        var bodyJson = XActionProgramBodyWriter.MergeAndSerialize(
+            existingData: null,
+            steps,
+            variables,
+            subProgramsJson ?? "[]");
+        var xActionForDesigner = XActionProgramBodyWriter.DeserializeXAction(bodyJson);
+        var applyUi = ApplyProgramToOpenDesigner(
+            entityId,
+            isSubProgram,
+            xActionForDesigner,
+            titleOrName: null,
+            description: null,
+            icon: null,
+            contextMenuData: null);
+        return applyUi.Success;
     }
 }

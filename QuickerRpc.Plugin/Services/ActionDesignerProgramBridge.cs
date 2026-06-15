@@ -59,7 +59,7 @@ internal static class ActionDesignerProgramBridge
             var catalog = StepRunnerCatalogFromQuicker.Build();
             var wireMode = XActionGetReturnModeParser.ToWire(mode);
             TryReadDesignerPresentation(designer, out var title, out var description, out var icon, out var contextMenuData);
-            var editVersion = ComputeBodyRevision(steps, variables);
+            var editVersion = ReadActionCatalogEditVersionMs(actionId);
 
             JObject compressedRoot;
             bool? omitApplied = null;
@@ -145,6 +145,7 @@ internal static class ActionDesignerProgramBridge
         out QuickerRpcApplyActionPatchResult result)
     {
         result = new QuickerRpcApplyActionPatchResult();
+        actionId = ActionReadOnlyMutationGuard.ResolveMutationActionId(actionId);
         if (LegacyActionProgramAccessor.TryCreate() is { } actions
             && actions.TryGetById(actionId, out var action, out _)
             && ActionReadOnlyMutationGuard.TryBuildPatchFailure(action, actionId, out var readOnlyPatch))
@@ -256,9 +257,10 @@ internal static class ActionDesignerProgramBridge
 
                 var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variablesClone);
                 XActionProgramService.NormalizeStepsInputParamKeys(stepsClone, catalog);
-                inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(stepsClone, catalog);
-
                 var subProgramsJson = ReadSubProgramsJson(body, programPatch["subPrograms"]);
+                var inputParamContext = SubProgramStepInputParamsValidation.CreateContext(subProgramsJson);
+                inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(stepsClone, catalog, inputParamContext);
+
                 var mergedBody = XActionProgramBodyWriter.MergeAndSerialize(
                     payloadJson,
                     stepsClone,
@@ -360,7 +362,7 @@ internal static class ActionDesignerProgramBridge
             var catalog = StepRunnerCatalogFromQuicker.Build();
             var wireMode = XActionGetReturnModeParser.ToWire(mode);
             var entityId = ActionDesignerContext.TryReadDesignerEntityId(designer) ?? subProgramKey.Trim();
-            var editVersion = ComputeBodyRevision(steps, variables);
+            var editVersion = ReadSubProgramCatalogEditVersionMs(entityId);
 
             JObject compressedRoot;
             bool? omitApplied = null;
@@ -519,7 +521,12 @@ internal static class ActionDesignerProgramBridge
 
                 var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variablesClone);
                 XActionProgramService.NormalizeStepsInputParamKeys(stepsClone, catalog);
-                inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(stepsClone, catalog);
+                var inputParamContext = SubProgramStepInputParamsValidation.CreateContext(
+                    ReadSubProgramsJson(body, programPatch["subPrograms"]));
+                inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(
+                    stepsClone,
+                    catalog,
+                    inputParamContext);
 
                 var mergedBody = XActionProgramBodyWriter.MergeAndSerialize(
                     payloadJson,
@@ -593,6 +600,22 @@ internal static class ActionDesignerProgramBridge
         using var sha = SHA256.Create();
         var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(payload));
         return Math.Abs(BitConverter.ToInt64(hash, 0));
+    }
+
+    private static long ReadActionCatalogEditVersionMs(string actionId) =>
+        ActionDesignerProgramAccess.ReadEditVersionMs(actionId);
+
+    private static long ReadSubProgramCatalogEditVersionMs(string subProgramKey)
+    {
+        if (DataServiceSubProgramAccessor.TryCreate() is not { } accessor)
+        {
+            return 0;
+        }
+
+        return accessor.TryGetByIdOrName(subProgramKey.Trim(), out var subProgram, out _)
+               && subProgram is not null
+            ? accessor.GetEditVersion(subProgram)
+            : 0;
     }
 
     private static void TryReadDesignerPresentation(

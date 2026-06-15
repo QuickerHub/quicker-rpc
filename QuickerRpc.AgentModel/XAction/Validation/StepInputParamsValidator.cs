@@ -16,7 +16,10 @@ public static class StepInputParamsValidator
     private const int MaxValidKeysListed = 16;
     private const int SuggestMaxEditDistance = 4;
 
-    public static IList<string> CollectWarnings(JArray steps, StepRunnerCatalog? catalog)
+    public static IList<string> CollectWarnings(
+        JArray steps,
+        StepRunnerCatalog? catalog,
+        StepInputParamsValidationContext? context = null)
     {
         if (catalog is null || catalog.Items.Count == 0)
         {
@@ -24,11 +27,15 @@ public static class StepInputParamsValidator
         }
 
         var warnings = new List<string>();
-        CollectWarningsRecursive(steps, catalog, warnings);
+        CollectWarningsRecursive(steps, catalog, context, warnings);
         return warnings;
     }
 
-    private static void CollectWarningsRecursive(JArray steps, StepRunnerCatalog catalog, List<string> warnings)
+    private static void CollectWarningsRecursive(
+        JArray steps,
+        StepRunnerCatalog catalog,
+        StepInputParamsValidationContext? context,
+        List<string> warnings)
     {
         foreach (var token in steps)
         {
@@ -37,7 +44,7 @@ public static class StepInputParamsValidator
                 continue;
             }
 
-            CollectStepWarnings(stepObj, catalog, warnings);
+            CollectStepWarnings(stepObj, catalog, context, warnings);
             if (warnings.Count >= MaxWarnings)
             {
                 return;
@@ -45,17 +52,21 @@ public static class StepInputParamsValidator
 
             if (stepObj["ifSteps"] is JArray ifSteps)
             {
-                CollectWarningsRecursive(ifSteps, catalog, warnings);
+                CollectWarningsRecursive(ifSteps, catalog, context, warnings);
             }
 
             if (stepObj["elseSteps"] is JArray elseSteps)
             {
-                CollectWarningsRecursive(elseSteps, catalog, warnings);
+                CollectWarningsRecursive(elseSteps, catalog, context, warnings);
             }
         }
     }
 
-    private static void CollectStepWarnings(JObject step, StepRunnerCatalog catalog, List<string> warnings)
+    private static void CollectStepWarnings(
+        JObject step,
+        StepRunnerCatalog catalog,
+        StepInputParamsValidationContext? context,
+        List<string> warnings)
     {
         var runnerKey = (step.Value<string>("stepRunnerKey") ?? string.Empty).Trim();
         if (runnerKey.Length == 0)
@@ -91,6 +102,27 @@ public static class StepInputParamsValidator
             validByLower[k] = k;
         }
 
+        var isSubProgramStep = SubProgramStepWireKeys.IsSubProgramStep(runnerKey);
+        IReadOnlyList<string>? resolvedSubProgramVarKeys = null;
+        var subProgramIoResolved = false;
+        if (isSubProgramStep)
+        {
+            var subProgramIdentifier = SubProgramStepWireKeys.ReadSubProgramIdentifier(step);
+            if (!string.IsNullOrWhiteSpace(subProgramIdentifier)
+                && SubProgramStepWireKeys.TryResolveSubProgramInputVarKeys(
+                    subProgramIdentifier,
+                    context,
+                    out var resolvedKeys))
+            {
+                subProgramIoResolved = true;
+                resolvedSubProgramVarKeys = resolvedKeys;
+                foreach (var varKey in resolvedKeys)
+                {
+                    validByLower[varKey] = varKey;
+                }
+            }
+        }
+
         foreach (var prop in inputParams.Properties())
         {
             if (prop.Value is null || prop.Value.Type == JTokenType.Null)
@@ -103,6 +135,25 @@ public static class StepInputParamsValidator
                 continue;
             }
 
+            if (isSubProgramStep && SubProgramStepWireKeys.IsSubProgramVarParamKey(prop.Name))
+            {
+                if (!subProgramIoResolved)
+                {
+                    continue;
+                }
+
+                if (warnings.Count >= MaxWarnings)
+                {
+                    return;
+                }
+
+                warnings.Add(FormatUnknownSubProgramVarKeyWarning(
+                    stepRef,
+                    prop.Name,
+                    resolvedSubProgramVarKeys ?? Array.Empty<string>()));
+                continue;
+            }
+
             if (warnings.Count >= MaxWarnings)
             {
                 return;
@@ -110,6 +161,24 @@ public static class StepInputParamsValidator
 
             warnings.Add(FormatUnknownKeyWarning(stepRef, runnerKey, prop.Name, validKeys));
         }
+    }
+
+    private static string FormatUnknownSubProgramVarKeyWarning(
+        string stepRef,
+        string unknownKey,
+        IReadOnlyList<string> validSubProgramVarKeys)
+    {
+        var sb = new StringBuilder();
+        sb.Append("step ").Append(stepRef).Append(" (sys:subprogram): inputParams key '")
+            .Append(unknownKey).Append("' is not a subprogram input variable.");
+
+        if (validSubProgramVarKeys.Count > 0)
+        {
+            sb.Append(" Valid var: keys: ").Append(FormatKeyList(validSubProgramVarKeys)).Append('.');
+        }
+
+        sb.Append(" Use subprogram get to confirm IO keys (var:<subprogramVariableKey>).");
+        return sb.ToString();
     }
 
     private static string FormatUnknownKeyWarning(

@@ -1,19 +1,29 @@
 /** Server-rendered boot splash — visible before React hydrates. */
 export const APP_BOOTSTRAP_SPLASH_MARKUP = `
-<div id="app-bootstrap-splash" class="app-bootstrap-splash" role="status" aria-live="polite" aria-busy="true">
-  <div class="app-bootstrap-splash__bg" aria-hidden="true">
-    <div class="app-bootstrap-splash__mesh"></div>
-    <div class="app-bootstrap-splash__glow"></div>
-    <div class="app-bootstrap-splash__grid"></div>
+<div id="app-bootstrap-splash" class="app-loading-indicator app-loading-indicator--fullscreen app-bootstrap-splash" role="status" aria-live="polite" aria-busy="true">
+  <div class="app-loading-indicator__bg" aria-hidden="true">
+    <div class="app-loading-indicator__mesh"></div>
+    <div class="app-loading-indicator__glow"></div>
+    <div class="app-loading-indicator__grid"></div>
+    <div class="app-loading-indicator__particles">
+      <span class="app-loading-indicator__particle app-loading-indicator__particle--1"></span>
+      <span class="app-loading-indicator__particle app-loading-indicator__particle--2"></span>
+      <span class="app-loading-indicator__particle app-loading-indicator__particle--3"></span>
+      <span class="app-loading-indicator__particle app-loading-indicator__particle--4"></span>
+      <span class="app-loading-indicator__particle app-loading-indicator__particle--5"></span>
+      <span class="app-loading-indicator__particle app-loading-indicator__particle--6"></span>
+    </div>
   </div>
-  <div class="app-bootstrap-splash__content">
-    <div class="app-bootstrap-splash__logo-wrap" aria-hidden="true">
-      <div class="app-bootstrap-splash__orbit app-bootstrap-splash__orbit--a"></div>
-      <div class="app-bootstrap-splash__orbit app-bootstrap-splash__orbit--b"></div>
-      <div class="app-bootstrap-splash__ring"></div>
-      <svg class="app-bootstrap-splash__mark" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <div class="app-loading-indicator__content">
+    <div class="app-loading-indicator__logo-wrap" aria-hidden="true">
+      <div class="app-loading-indicator__orbit app-loading-indicator__orbit--a"></div>
+      <div class="app-loading-indicator__orbit app-loading-indicator__orbit--b"></div>
+      <div class="app-loading-indicator__ring"></div>
+      <div class="app-loading-indicator__scan"></div>
+      <svg class="app-loading-indicator__mark" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
         <g transform="translate(128, 128)">
           <polygon
+            class="app-loading-indicator__mark-hex"
             points="-77.94,-45 -77.94,45 0,90 77.94,45 77.94,-45 0,-90"
             fill="none"
             stroke="currentColor"
@@ -21,16 +31,19 @@ export const APP_BOOTSTRAP_SPLASH_MARKUP = `
             stroke-linecap="round"
             stroke-linejoin="round"
           />
-          <line x1="0" y1="0" x2="-77.94" y2="-45" stroke="currentColor" stroke-width="18" stroke-linecap="round" />
-          <line x1="0" y1="0" x2="0" y2="90" stroke="currentColor" stroke-width="18" stroke-linecap="round" />
-          <line x1="0" y1="0" x2="77.94" y2="-45" stroke="currentColor" stroke-width="18" stroke-linecap="round" />
+          <line class="app-loading-indicator__mark-spoke" x1="0" y1="0" x2="-77.94" y2="-45" stroke="currentColor" stroke-width="18" stroke-linecap="round" />
+          <line class="app-loading-indicator__mark-spoke" x1="0" y1="0" x2="0" y2="90" stroke="currentColor" stroke-width="18" stroke-linecap="round" />
+          <line class="app-loading-indicator__mark-spoke" x1="0" y1="0" x2="77.94" y2="-45" stroke="currentColor" stroke-width="18" stroke-linecap="round" />
         </g>
       </svg>
     </div>
-    <p class="app-bootstrap-splash__brand">QuickerAgent</p>
-    <p class="app-bootstrap-splash__message startup-message">正在加载界面…</p>
-    <div class="app-bootstrap-splash__bar" aria-hidden="true">
-      <div class="app-bootstrap-splash__bar-fill"></div>
+    <p class="app-loading-indicator__brand"><span class="app-loading-indicator__brand-text">QuickerAgent</span></p>
+    <p class="app-loading-indicator__message startup-message">
+      <span class="app-loading-indicator__message-text">正在加载界面…</span>
+      <span class="app-loading-indicator__dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+    </p>
+    <div class="app-loading-indicator__bar" aria-hidden="true">
+      <div class="app-loading-indicator__bar-fill"></div>
     </div>
   </div>
 </div>

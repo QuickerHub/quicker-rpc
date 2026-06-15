@@ -13,6 +13,7 @@ import {
   type ActionLinkCardPrompt,
 } from "@/lib/action-link-card-prompts";
 import { computeFloatingMenuLayout } from "@/lib/floating-menu-layout";
+import { composerPopupPortalClassNames } from "@/lib/composer-popup-classes";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 
 const MENU_WIDTH_PX = 188;
@@ -21,6 +22,10 @@ const MENU_MAX_HEIGHT_PX = 280;
 type ActionLinkCardPromptMenuProps = {
   disabled?: boolean;
   onSelectPrompt: (promptId: string) => void;
+  prompts?: ActionLinkCardPrompt[];
+  wrapperClassName?: string;
+  triggerClassName?: string;
+  menuLabel?: string;
 };
 
 function IconMoreHorizontal() {
@@ -57,6 +62,10 @@ function PromptMenuItem({
 export function ActionLinkCardPromptMenu({
   disabled = false,
   onSelectPrompt,
+  prompts = ACTION_LINK_CARD_PROMPTS,
+  wrapperClassName,
+  triggerClassName,
+  menuLabel = "Agent 引导",
 }: ActionLinkCardPromptMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuLayout, setMenuLayout] = useState<ReturnType<
@@ -128,9 +137,13 @@ export function ActionLinkCardPromptMenu({
       <div
         ref={menuRef}
         id={menuId}
-        className="composer-popup msg-more-menu-panel msg-more-menu-panel--portal action-link-card-more-panel"
+        className={composerPopupPortalClassNames(
+          "msg-more-menu-panel",
+          "msg-more-menu-panel--portal",
+          "action-link-card-more-panel",
+        )}
         role="menu"
-        aria-label="Agent 引导"
+        aria-label={menuLabel}
         style={{
           position: "fixed",
           top: menuLayout.top,
@@ -140,7 +153,7 @@ export function ActionLinkCardPromptMenu({
           transform: menuLayout.transform,
         }}
       >
-        {ACTION_LINK_CARD_PROMPTS.map((prompt) => (
+        {prompts.map((prompt) => (
           <PromptMenuItem
             key={prompt.id}
             prompt={prompt}
@@ -151,16 +164,26 @@ export function ActionLinkCardPromptMenu({
     ) : null;
 
   return (
-    <div className="action-link-card-more msg-more-menu">
+    <div
+      className={[
+        "action-link-card-more",
+        "msg-more-menu",
+        wrapperClassName,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <button
         ref={buttonRef}
         type="button"
-        className="msg-more-menu-trigger"
-        aria-label="Agent 引导"
+        className={["msg-more-menu-trigger", triggerClassName]
+          .filter(Boolean)
+          .join(" ")}
+        aria-label={menuLabel}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-controls={menuOpen ? menuId : undefined}
-        title="Agent 引导"
+        title={menuLabel}
         disabled={disabled}
         onClick={(event) => {
           event.stopPropagation();

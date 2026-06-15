@@ -252,7 +252,7 @@
         {
           "key": "expression",
           "title": "表达式",
-          "purpose": "要执行的C#表达式或脚本代码，支持使用{变量名}和上下文对象。可以以$=开头。支持 {varname}=value 赋值语法。",
+          "purpose": "C# 表达式/脚本（SkipEval，不要 $= 前缀）。读动作用 {变量名}；单步内中间量优先 var 临时变量；仅当后续步骤要读时才用 {变量名}=值 写回动作变量。",
           "valueType": "Text",
           "required": true,
           "isMultiLine": true

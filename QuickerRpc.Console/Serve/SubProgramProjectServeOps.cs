@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using Newtonsoft.Json.Linq;
 using QuickerRpc.AgentModel.XAction.Project;
@@ -244,7 +245,19 @@ internal static class SubProgramProjectServeOps
                 });
             }
 
-            var normalizedDataJson = QuickerProjectFiles.WriteDataIfChanged(projectDir, data);
+            var warnings = HeadlessCliResponses.ToWarningsArray(response.Warnings);
+            bool normalizedDataJson;
+            try
+            {
+                normalizedDataJson = QuickerProjectFiles.WriteDataIfChanged(projectDir, data);
+            }
+            catch (Exception diskEx)
+            {
+                normalizedDataJson = false;
+                warnings = warnings
+                    .Concat(new[] { "Workspace data.json normalize skipped: " + diskEx.Message })
+                    .ToArray();
+            }
 
             return Ok(new
             {
@@ -258,7 +271,7 @@ internal static class SubProgramProjectServeOps
                     editVersion = response.EditVersion,
                     versionConflict = response.VersionConflict,
                     normalizedDataJson,
-                    warnings = HeadlessCliResponses.ToWarningsArray(response.Warnings),
+                    warnings,
                 },
             });
         }

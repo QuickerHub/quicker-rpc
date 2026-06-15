@@ -49,8 +49,11 @@ public static class XActionProgramService
     public static void NormalizeStepsInputParamKeys(JArray steps, StepRunnerCatalog? catalog) =>
         XActionCompressor.NormalizeStepsInputParamKeys(steps, catalog);
 
-    public static IList<string> CollectStepsInputParamsWarnings(JArray steps, StepRunnerCatalog? catalog) =>
-        StepInputParamsValidator.CollectWarnings(steps, catalog);
+    public static IList<string> CollectStepsInputParamsWarnings(
+        JArray steps,
+        StepRunnerCatalog? catalog,
+        StepInputParamsValidationContext? context = null) =>
+        StepInputParamsValidator.CollectWarnings(steps, catalog, context);
 
     public static JArray NormalizeVariablesForSave(JArray variables) =>
         XActionCompressor.NormalizeVariablesForSave(variables);

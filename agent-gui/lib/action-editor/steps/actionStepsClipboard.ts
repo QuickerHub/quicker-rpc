@@ -6,6 +6,7 @@ import { ActionStep, ActionStepParam, ActionVariable } from "@/lib/action-editor
 import { coerceWireInputParam } from "@/lib/input-param-wire";
 import type { XProgramEditorSurface } from "../program/xProgramEditorSurface";
 import { getActionDesignerBackendBaseUrl } from "../shared/actionDesignerBackendBaseUrl";
+import type { StepSummaryFileContents } from "./stepSummaryFileRefs";
 
 /** Same as Quicker.Domain.ConstValues.STEPS_CLIPBOARD_TYPE */
 export const STEPS_CLIPBOARD_MIME = "quicker-action-steps";
@@ -209,7 +210,8 @@ export function parseActionStepsClipboardJson(text: string): ParsedActionStepsCl
 /** Collect variable keys referenced by steps (subset of XActionUiHelper.AddUsedVarKeys). */
 export function collectUsedVariableKeysForSteps(
   steps: ActionStep[],
-  knownKeys: ReadonlySet<string>
+  knownKeys: ReadonlySet<string>,
+  externalFileContents?: StepSummaryFileContents,
 ): Set<string> {
   const used = new Set<string>();
   const tryAddKey = (k: string | undefined | null): void => {
@@ -228,10 +230,18 @@ export function collectUsedVariableKeysForSteps(
       tryAddKey(m[1]!);
     }
   };
+  const scanExternalParamFile = (p: ActionStepParam | undefined): void => {
+    const file = (p?.file ?? "").trim();
+    if (!file || !externalFileContents) {
+      return;
+    }
+    scanInterpolations(externalFileContents[file]);
+  };
   const walk = (step: ActionStep): void => {
     for (const p of Object.values(step.inputParams ?? {})) {
       tryAddKey(p?.varKey);
       scanInterpolations(p?.value);
+      scanExternalParamFile(p);
     }
     for (const v of Object.values(step.outputParams ?? {})) {
       tryAddKey(typeof v === "string" ? v : String(v));

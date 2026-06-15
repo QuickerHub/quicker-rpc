@@ -78,6 +78,10 @@
   --tool-card-open-bg: rgba(255, 255, 255, 0.035);
   --popup-bg: #2a2f38;
   --popup-shadow: 0 16px 40px rgba(0, 0, 0, 0.48), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --popup-elevated-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.28),
+    0 14px 36px -8px rgba(0, 0, 0, 0.55),
+    var(--popup-shadow);
   --ring-track: rgba(154, 163, 178, 0.28);
   --meter-track: rgba(154, 163, 178, 0.18);
   --btn-on-accent: #ffffff;
@@ -164,6 +168,10 @@
   --tool-card-open-bg: rgba(15, 23, 42, 0.022);
   --popup-bg: #ffffff;
   --popup-shadow: 0 16px 36px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.06);
+  --popup-elevated-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.08),
+    0 14px 36px -8px rgba(15, 23, 42, 0.16),
+    var(--popup-shadow);
   --ring-track: rgba(15, 23, 42, 0.12);
   --meter-track: rgba(15, 23, 42, 0.08);
   --btn-on-accent: #ffffff;
@@ -245,6 +253,10 @@
     --tool-card-open-bg: rgba(15, 23, 42, 0.022);
     --popup-bg: #ffffff;
     --popup-shadow: 0 16px 36px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.06);
+    --popup-elevated-shadow:
+      0 2px 4px rgba(15, 23, 42, 0.08),
+      0 14px 36px -8px rgba(15, 23, 42, 0.16),
+      var(--popup-shadow);
     --ring-track: rgba(15, 23, 42, 0.12);
     --meter-track: rgba(15, 23, 42, 0.08);
     --btn-on-accent: #ffffff;
@@ -327,6 +339,10 @@
     --tool-card-open-bg: rgba(255, 255, 255, 0.035);
     --popup-bg: #2a2f38;
     --popup-shadow: 0 16px 40px rgba(0, 0, 0, 0.48), 0 0 0 1px rgba(255, 255, 255, 0.07);
+    --popup-elevated-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.28),
+      0 14px 36px -8px rgba(0, 0, 0, 0.55),
+      var(--popup-shadow);
     --ring-track: rgba(154, 163, 178, 0.28);
     --meter-track: rgba(154, 163, 178, 0.18);
     --btn-on-accent: #ffffff;

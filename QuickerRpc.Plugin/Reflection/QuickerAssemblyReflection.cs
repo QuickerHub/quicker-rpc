@@ -49,22 +49,33 @@ internal static class QuickerAssemblyReflection
         {
             return ex.Types.Where(t => t is not null)!;
         }
+        catch
+        {
+            return Array.Empty<Type>();
+        }
     }
 
     public static Type? TryGetTypeByFullName(Assembly assembly, string typeFullName)
     {
-        var direct = assembly.GetType(typeFullName, throwOnError: false, ignoreCase: false);
-        if (direct is not null)
+        try
         {
-            return direct;
-        }
-
-        foreach (var type in EnumerateTypes(assembly))
-        {
-            if (string.Equals(type.FullName, typeFullName, StringComparison.Ordinal))
+            var direct = assembly.GetType(typeFullName, throwOnError: false, ignoreCase: false);
+            if (direct is not null)
             {
-                return type;
+                return direct;
             }
+
+            foreach (var type in EnumerateTypes(assembly))
+            {
+                if (string.Equals(type.FullName, typeFullName, StringComparison.Ordinal))
+                {
+                    return type;
+                }
+            }
+        }
+        catch
+        {
+            return null;
         }
 
         return null;

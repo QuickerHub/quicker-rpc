@@ -403,6 +403,10 @@ export const ComposerMarkupField = forwardRef<
       insertProgramStepTag: (tag: ProgramStepTag) => {
         const root = rootRef.current;
         if (!root || disabled) return;
+        if (value !== lastEmitted.current) {
+          renderMarkupIntoRoot(root, value);
+          lastEmitted.current = value;
+        }
         closeMenus();
         const chip = createProgramStepTagElement(tag);
         const spacer = createComposerTagSpacer();
@@ -410,6 +414,7 @@ export const ComposerMarkupField = forwardRef<
         chip.after(spacer);
         placeCaretAfterComposerTagSpacer(spacer, root);
         emitChange();
+        root.focus({ preventScroll: true });
       },
       insertMentionTrigger: () => {
         const root = rootRef.current;

@@ -51,7 +51,7 @@ Icons: fa search. Context menus: common-operation-item.
 
 ## P4 Implementation pick
 
-Read expressions + implementation-fallback. Single-var assign → **sys:assign**; batch/LINQ → evalexpression; dedicated modules → search/get; webview2; csscript last.
+Read expressions + implementation-fallback. Single-var assign → **sys:assign**; batch/LINQ → evalexpression (`var` for in-step scratch; `{var}=` only when downstream reads); dedicated modules → search/get; webview2; csscript last.
 
 ## P5 Step schema (each step)
 

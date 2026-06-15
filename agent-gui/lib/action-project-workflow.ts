@@ -1,6 +1,7 @@
 import { existsSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { create } from "@bufbuild/protobuf";
 import { actionProjectDirFromName } from "@/lib/action-project-path-shared";
 import {
   findActionProjectDirectory,
@@ -23,8 +24,10 @@ import {
   actionProjectInfoFromCreateResponse,
   actionProjectInfoFromMetadataGet,
   formatActionProjectInfoProto,
+  parseActionProjectInfoProto,
   type ActionProjectCreateHints,
 } from "@/lib/action-project-info";
+import { ActionProjectInfoSchema } from "@/lib/gen/action_project_pb";
 import { bootstrapWorkspaceProjectOnCreate } from "@/lib/workspace-project-disk";
 import {
   normalizeEditVersion,
@@ -221,6 +224,46 @@ export function parseQkrpcPayload(
       ? (root.payload as Record<string, unknown>)
       : root;
   return payload;
+}
+
+/** Human-readable failure from formatQkrpcResult / serve invoke errors. */
+export function readStructuredQkrpcFailureMessage(
+  result: Record<string, unknown>,
+  fallback = "提交到 Quicker 失败",
+): string {
+  const data =
+    typeof result.data === "object" && result.data !== null
+      ? (result.data as Record<string, unknown>)
+      : null;
+  const payload =
+    data && typeof data.payload === "object" && data.payload !== null
+      ? (data.payload as Record<string, unknown>)
+      : data;
+
+  const serveMessage =
+    (typeof data?.message === "string" && data.message.trim())
+    || (typeof payload?.message === "string" && payload.message.trim());
+  const serveCode =
+    (typeof data?.error === "string" && data.error.trim())
+    || (typeof payload?.error === "string" && payload.error.trim());
+
+  if (serveMessage) {
+    return serveCode && serveMessage !== serveCode
+      ? `${serveCode}: ${serveMessage}`
+      : serveMessage;
+  }
+  if (serveCode) return serveCode;
+
+  const nestedError =
+    (typeof payload?.error === "string" && payload.error.trim())
+    || (typeof payload?.errorMessage === "string" && payload.errorMessage.trim())
+    || (typeof data?.errorMessage === "string" && data.errorMessage.trim());
+  if (nestedError) return nestedError;
+
+  if (typeof result.stderr === "string" && result.stderr.trim()) {
+    return result.stderr.trim();
+  }
+  return fallback;
 }
 
 function getWorkingDirectory(): string | undefined {
@@ -645,21 +688,34 @@ export async function syncProjectEditVersionOnDisk(
   const resolved = resolveWorkspacePath(infoPath);
   if (!resolved.ok || !existsSync(resolved.absolute)) return;
 
+  const normalized = normalizeEditVersion(editVersion);
+  if (normalized == null) return;
+
   try {
     const raw = stripJsonBom(await readFile(resolved.absolute, "utf8"));
-    const parsed = parseActionProjectInfo(raw);
-    if (!parsed.ok) return;
+    const proto = parseActionProjectInfoProto(raw);
+    if (proto.ok) {
+      const updated = create(ActionProjectInfoSchema, {
+        ...proto.data,
+        editVersion: BigInt(normalized),
+      });
+      await writeFile(
+        resolved.absolute,
+        formatActionProjectInfoProto(updated),
+        "utf8",
+      );
+      await writeActionProjectSyncTrust(projectDir, normalized);
+      return;
+    }
+
     const record = JSON.parse(raw) as Record<string, unknown>;
     if ("editVersion" in record) {
-      record.editVersion = editVersion;
+      record.editVersion = normalized;
     } else {
-      record.EditVersion = editVersion;
+      record.EditVersion = normalized;
     }
     await writeFile(resolved.absolute, `${JSON.stringify(record, null, 2)}\n`, "utf8");
-    const normalized = normalizeEditVersion(editVersion);
-    if (normalized != null) {
-      await writeActionProjectSyncTrust(projectDir, normalized);
-    }
+    await writeActionProjectSyncTrust(projectDir, normalized);
   } catch {
     /* best-effort */
   }
@@ -755,11 +811,34 @@ export async function saveActionFromWorkspace(options: {
   if (options.force) applyArgs.push("--force");
 
   const applyResult = await runQkrpcForTool(applyArgs);
-  if (!applyResult.ok) {
-    return formatQkrpcResultForAgent(applyResult);
-  }
-
   const applyPayload = parseQkrpcPayload(applyResult);
+  const applyFailed =
+    !applyResult.ok || applyPayload?.success === false;
+
+  if (applyFailed) {
+    const message = applyResult.ok
+      ? (
+        (typeof applyPayload?.error === "string" && applyPayload.error)
+        || "提交到 Quicker 失败"
+      )
+      : readStructuredQkrpcFailureMessage(
+        formatQkrpcResultForAgent(applyResult),
+        "提交到 Quicker 失败",
+      );
+    return formatLocalToolResult(
+      {
+        action: "action-save",
+        success: false,
+        phase: "apply",
+        projectDirectory: projectDirRel,
+        projectDirectoryAbsolute: projectDirAbs,
+        errorMessage: message,
+        apply: applyPayload ?? applyResult.parsed,
+      },
+      false,
+      message,
+    );
+  }
   const newVersion = normalizeEditVersion(
     readEditVersionFromGetPayload(applyPayload),
   );

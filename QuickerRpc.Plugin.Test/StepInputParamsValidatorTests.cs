@@ -28,6 +28,139 @@ public sealed class StepInputParamsValidatorTests
             },
         };
 
+    private static StepRunnerCatalog CreateSubProgramCatalog() =>
+        new()
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new()
+                {
+                    Key = "sys:subprogram",
+                    InputParamDefs = new List<StepRunnerInputParamDef>
+                    {
+                        new() { Key = "subProgram" },
+                        new() { Key = "summary" },
+                        new() { Key = "skipDebugOutput" },
+                        new() { Key = "stopIfFail" },
+                    },
+                },
+            },
+        };
+
+    [TestMethod]
+    public void CollectWarnings_subprogram_var_keys_allowed_when_embedded_io_resolved()
+    {
+        var embeddedSubPrograms = new JArray
+        {
+            new JObject
+            {
+                ["id"] = "sp-1",
+                ["name"] = "DialogSp",
+                ["variables"] = new JArray
+                {
+                    new JObject { ["key"] = "markdown", ["isInput"] = true },
+                    new JObject { ["key"] = "title", ["isInput"] = true },
+                    new JObject { ["key"] = "buttons", ["isInput"] = true },
+                },
+            },
+        };
+
+        var steps = new JArray
+        {
+            new JObject
+            {
+                ["stepRunnerKey"] = "sys:subprogram",
+                ["inputParams"] = new JObject
+                {
+                    ["subProgram"] = "DialogSp",
+                    ["var:markdown"] = new JObject { ["varKey"] = "md" },
+                    ["var:title"] = new JObject { ["varKey"] = "dlgTitle" },
+                    ["var:buttons"] = new JObject { ["varKey"] = "btns" },
+                },
+            },
+        };
+
+        var context = new StepInputParamsValidationContext { EmbeddedSubPrograms = embeddedSubPrograms };
+        var warnings = StepInputParamsValidator.CollectWarnings(steps, CreateSubProgramCatalog(), context);
+        Assert.AreEqual(0, warnings.Count);
+    }
+
+    [TestMethod]
+    public void CollectWarnings_subprogram_var_keys_skipped_when_target_unresolved()
+    {
+        var steps = new JArray
+        {
+            new JObject
+            {
+                ["stepRunnerKey"] = "sys:subprogram",
+                ["inputParams"] = new JObject
+                {
+                    ["subProgram"] = "%%unknown-guid",
+                    ["var:markdown"] = new JObject { ["varKey"] = "md" },
+                },
+            },
+        };
+
+        var warnings = StepInputParamsValidator.CollectWarnings(steps, CreateSubProgramCatalog());
+        Assert.AreEqual(0, warnings.Count);
+    }
+
+    [TestMethod]
+    public void CollectWarnings_subprogram_unknown_var_key_when_io_resolved()
+    {
+        var embeddedSubPrograms = new JArray
+        {
+            new JObject
+            {
+                ["id"] = "sp-1",
+                ["variables"] = new JArray
+                {
+                    new JObject { ["key"] = "text", ["isInput"] = true },
+                },
+            },
+        };
+
+        var steps = new JArray
+        {
+            new JObject
+            {
+                ["stepRunnerKey"] = "sys:subprogram",
+                ["inputParams"] = new JObject
+                {
+                    ["subProgram"] = "sp-1",
+                    ["var:markdown"] = new JObject { ["varKey"] = "md" },
+                },
+            },
+        };
+
+        var context = new StepInputParamsValidationContext { EmbeddedSubPrograms = embeddedSubPrograms };
+        var warnings = StepInputParamsValidator.CollectWarnings(steps, CreateSubProgramCatalog(), context);
+        Assert.AreEqual(1, warnings.Count);
+        StringAssert.Contains(warnings[0], "var:markdown");
+        StringAssert.Contains(warnings[0], "var:text");
+    }
+
+    [TestMethod]
+    public void CollectWarnings_subprogram_static_unknown_key_still_warns()
+    {
+        var steps = new JArray
+        {
+            new JObject
+            {
+                ["stepRunnerKey"] = "sys:subprogram",
+                ["inputParams"] = new JObject
+                {
+                    ["subProgram"] = "DialogSp",
+                    ["badStaticKey"] = "x",
+                },
+            },
+        };
+
+        var warnings = StepInputParamsValidator.CollectWarnings(steps, CreateSubProgramCatalog());
+        Assert.AreEqual(1, warnings.Count);
+        StringAssert.Contains(warnings[0], "badStaticKey");
+    }
+
     [TestMethod]
     public void CollectWarnings_unknown_key_includes_valid_keys_and_suggestion()
     {

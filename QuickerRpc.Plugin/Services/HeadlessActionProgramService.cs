@@ -44,6 +44,8 @@ public sealed class HeadlessActionProgramService
             return FailGet("actionId is required.");
         }
 
+        id = ActionReadOnlyMutationGuard.ResolveMutationActionId(id);
+
         if (!XActionGetReturnModeParser.TryParse(returnMode, out var mode, out var modeError))
         {
             return FailGet(modeError!);
@@ -137,7 +139,6 @@ public sealed class HeadlessActionProgramService
             compressedRoot["omitDefaultLiteralInputsApplied"] = omitApplied.Value;
         }
 
-        var readOnly = ActionReadOnlyMutationGuard.IsReadOnlyLibraryTemplate(action!);
         return new QuickerRpcGetCompressedActionResult
         {
             Success = true,
@@ -148,9 +149,6 @@ public sealed class HeadlessActionProgramService
             SubProgramCount = subPrograms.Count,
             ReturnMode = wireMode,
             ReadSource = ActionDesignerProgramBridge.ReadSourceCatalog,
-            ReadOnly = readOnly ? true : null,
-            ReadOnlyReason = readOnly ? ActionReadOnlyMutationGuard.ReadOnlyLibraryErrorCode : null,
-            PatchAllowed = readOnly ? false : null,
         };
     }
 
@@ -299,6 +297,8 @@ public sealed class HeadlessActionProgramService
             return FailApply("actionId is required.");
         }
 
+        id = ActionReadOnlyMutationGuard.ResolveMutationActionId(id);
+
         if (string.IsNullOrWhiteSpace(xActionJson))
         {
             return FailApply("xActionJson is required.");
@@ -364,7 +364,8 @@ public sealed class HeadlessActionProgramService
         var catalog = StepRunnerCatalogFromQuicker.Build();
         var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variables);
         XActionProgramService.NormalizeStepsInputParamKeys(steps, catalog);
-        var inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(steps, catalog);
+        var inputParamContext = SubProgramStepInputParamsValidation.CreateContext(xAction["subPrograms"]);
+        var inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(steps, catalog, inputParamContext);
 
         var subProgramsJson = SerializeSubProgramsJson(_actions.GetPayloadJson(action!, out _), xAction["subPrograms"]);
 
@@ -376,6 +377,20 @@ public sealed class HeadlessActionProgramService
         if (!_actions.TryGetById(id, out var saved, out _))
         {
             return FailApply("save finished but action could not be reloaded.");
+        }
+
+        try
+        {
+            ActionProgramPatchUiGate.TryRefreshOpenDesignerProgram(
+                id,
+                isSubProgram: false,
+                steps,
+                normalizedVariables,
+                subProgramsJson);
+        }
+        catch
+        {
+            // Best-effort: catalog save already succeeded.
         }
 
         return new QuickerRpcApplyXActionResult
@@ -402,6 +417,8 @@ public sealed class HeadlessActionProgramService
         {
             return FailMetadata("actionId is required.");
         }
+
+        id = ActionReadOnlyMutationGuard.ResolveMutationActionId(id);
 
         if (_actions is null || !_actions.IsAvailable)
         {
@@ -473,6 +490,8 @@ public sealed class HeadlessActionProgramService
         {
             return FailPatch("actionId is required.");
         }
+
+        id = ActionReadOnlyMutationGuard.ResolveMutationActionId(id);
 
         if (string.IsNullOrWhiteSpace(patchJson))
         {
@@ -586,9 +605,9 @@ public sealed class HeadlessActionProgramService
             var catalog = StepRunnerCatalogFromQuicker.Build();
             var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variablesClone);
             XActionProgramService.NormalizeStepsInputParamKeys(stepsClone, catalog);
-            inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(stepsClone, catalog);
-
             var subProgramsJson = SerializeSubProgramsJson(payloadJson, programPatch["subPrograms"]);
+            var inputParamContext = SubProgramStepInputParamsValidation.CreateContext(JArray.Parse(subProgramsJson));
+            inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(stepsClone, catalog, inputParamContext);
 
             if (!_actions.TryApplyPayloadAndSave(
                     action!,

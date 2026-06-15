@@ -51,7 +51,8 @@ internal static class DesignerStepRunnerSearchHttp
             ordered = rows
                 .Where(r => StepQuickInsertCatalog.RowMatches(r, patterns))
                 .Select(r => (r, k: StepQuickInsertCatalog.ComputeSortKey(r, patterns)))
-                .OrderByDescending(x => x.k)
+                .OrderBy(x => StepQuickInsertCatalog.QuickInsertSortRankTier(x.r))
+                .ThenByDescending(x => x.k)
                 .ThenBy(x => x.r.Id, StringComparer.Ordinal)
                 .Select(x => x.r)
                 .ToList();

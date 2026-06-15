@@ -18,7 +18,22 @@ type ActionLinkCardDeleteProps = {
   onBusyChange?: (busy: boolean) => void;
   /** Called when the action was removed from Quicker (card can be hidden). */
   onDismissed?: () => void;
+  layout?: "default" | "icon";
 };
+
+function IconTrash() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path
+        d="M3 4.25h8M5.5 4.25V3.1a.6.6 0 0 1 .6-.6h2.8a.6.6 0 0 1 .6.6v1.15M5.75 6.4v4.1M8.25 6.4v4.1M4.6 4.25l.35 7.15a.75.75 0 0 0 .75.7h2.6a.75.75 0 0 0 .75-.7l.35-7.15"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export function ActionLinkCardDelete({
   actionId,
@@ -27,6 +42,7 @@ export function ActionLinkCardDelete({
   disabled = false,
   onBusyChange,
   onDismissed,
+  layout = "default",
 }: ActionLinkCardDeleteProps) {
   const [open, setOpen] = useState(false);
   const [variant, setVariant] = useState<"workspace" | "quicker-only">(
@@ -133,12 +149,19 @@ export function ActionLinkCardDelete({
     <>
       <button
         type="button"
-        className="action-link-card-btn action-link-card-btn--delete"
+        className={[
+          "action-link-card-btn",
+          "action-link-card-btn--delete",
+          layout === "icon" ? "action-link-card-btn--icon" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
         disabled={disabled || dialogBusy}
         title={`删除 · ${actionId}`}
+        aria-label={`删除动作 ${displayTitle}`}
         onClick={() => void openDialog()}
       >
-        {opening ? "…" : "删除"}
+        {opening ? "…" : layout === "icon" ? <IconTrash /> : "删除"}
       </button>
       <ProgramProjectDeleteDialog
         open={open}

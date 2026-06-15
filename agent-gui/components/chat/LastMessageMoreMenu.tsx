@@ -12,6 +12,7 @@ import type { AgentUIMessage } from "@/lib/chat-types";
 import { pushAppMessage } from "@/lib/app-messages";
 import { extractMessageCopyText } from "@/lib/extract-message-copy-text";
 import { computeFloatingMenuLayout } from "@/lib/floating-menu-layout";
+import { composerPopupPortalClassNames } from "@/lib/composer-popup-classes";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 
 const MENU_WIDTH_PX = 168;
@@ -153,7 +154,10 @@ export function LastMessageMoreMenu({
       <div
         ref={menuRef}
         id={menuId}
-        className="composer-popup msg-more-menu-panel msg-more-menu-panel--portal"
+        className={composerPopupPortalClassNames(
+          "msg-more-menu-panel",
+          "msg-more-menu-panel--portal",
+        )}
         role="menu"
         style={{
           position: "fixed",

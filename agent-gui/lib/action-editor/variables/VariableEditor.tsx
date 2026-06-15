@@ -38,6 +38,9 @@ import {
   STEPS_CLIPBOARD_MIME
 } from "../steps/actionStepsClipboard";
 import { collectUsedVariableKeysForSteps } from "../steps/actionStepsClipboard";
+import { fetchStepParamFileContents } from "../steps/useStepParamFileContents";
+import { collectStepParamFilePaths, type StepSummaryFileContents } from "../steps/stepSummaryFileRefs";
+import type { ActionProjectWorkspaceContext } from "../steps/paramEditors/FormDefEditorDialog";
 
 const CLIPBOARD_MIME = STEPS_CLIPBOARD_MIME;
 const COMMENT_STEP_KEY = "sys:comment";
@@ -477,20 +480,28 @@ export type VariableEditorProps = {
   steps: ActionStep[];
   /** Main vs sub program tab: hides subprogram-only variable fields on the main surface. Default `"main"`. */
   programSurface?: XProgramEditorSurface;
+  workspaceContext?: ActionProjectWorkspaceContext;
+  /** Prefetched files/… content for external expression params. */
+  stepParamFileContents?: StepSummaryFileContents;
   /** Records one undo snapshot for both steps and variables (host merges). */
   onCommitVariables: (
     updater: ActionVariable[] | ((prev: ActionVariable[]) => ActionVariable[])
   ) => void;
   /** WPF VariableListViewModel.HighlightVariableInSteps → host filters steps (e.g. var:key). */
   onStepHighlightFilter?: (filterText: string) => void;
+  /** When set (drawer mode), merged toolbar shows a vector close control. */
+  onCloseDrawer?: () => void;
 };
 
 export default function VariableEditor({
   variables,
   steps,
   programSurface = "main",
+  workspaceContext,
+  stepParamFileContents = {},
   onCommitVariables,
-  onStepHighlightFilter
+  onStepHighlightFilter,
+  onCloseDrawer,
 }: VariableEditorProps): JSX.Element {
   const [filterPaneVisible, setFilterPaneVisible] = useState(false);
   const [filterText, setFilterText] = useState("");
@@ -841,10 +852,20 @@ export default function VariableEditor({
     });
   }, [flushVariableFormSync, onCommitVariables, selectedIds, variables, setSingleSelection, showToast]);
 
-  const handleClearUnused = (): void => {
+  const handleClearUnused = async (): Promise<void> => {
     flushVariableFormSync();
     const allKeys = new Set(variables.map((v) => actionVariableRowKey(v).trim()).filter((k) => k.length > 0));
-    const usedVarKeys = collectUsedVariableKeysForSteps(steps, allKeys);
+    let fileContents = stepParamFileContents;
+    if (workspaceContext) {
+      const missingPaths = collectStepParamFilePaths(steps).filter(
+        (path) => !(fileContents[path]?.trim()),
+      );
+      if (missingPaths.length > 0) {
+        const loaded = await fetchStepParamFileContents(workspaceContext, missingPaths);
+        fileContents = { ...fileContents, ...loaded };
+      }
+    }
+    const usedVarKeys = collectUsedVariableKeysForSteps(steps, allKeys, fileContents);
     const keepInterfaceVars = programSurface === "subProgram";
     const removableIds = new Set<string>();
     for (const v of variables) {
@@ -1130,53 +1151,78 @@ export default function VariableEditor({
   return (
     <section className="variable-editor" ref={rootRef} tabIndex={-1}>
       <div className="variable-toolbar">
-        <div className="variable-toolbar-main">
-          <button type="button" className="variable-toolbar-btn" title="增加变量" onClick={handleAdd}>
-            <IconControl spec={AD_ICONIFY_SPEC.plus} size={12} resourceBaseUrl={backendBaseUrl} />
-          </button>
-          <button
-            type="button"
-            className="variable-toolbar-btn variable-toolbar-btn--danger"
-            title="删除所选"
-            onClick={handleRemove}
-            disabled={selectedIds.length === 0}
-          >
-            <IconControl spec={AD_ICONIFY_SPEC.deleteOutline} size={12} resourceBaseUrl={backendBaseUrl} />
-          </button>
-          <button type="button" className="variable-toolbar-btn" title="清除未使用变量" onClick={handleClearUnused}>
-            <IconControl spec={AD_ICONIFY_SPEC.broom} size={12} resourceBaseUrl={backendBaseUrl} />
-          </button>
-          <div className="variable-toolbar-sort-wrap" ref={sortMenuRef}>
+        <div
+          className={`variable-toolbar-main${onCloseDrawer ? " variable-toolbar-main--merged-head" : ""}`}
+        >
+          {onCloseDrawer ? (
+            <span className="variable-toolbar-title">
+              <IconControl
+                spec={AD_ICONIFY_SPEC.variableInput}
+                size={12}
+                resourceBaseUrl={backendBaseUrl}
+              />
+              <span>变量</span>
+            </span>
+          ) : null}
+          <div className="variable-toolbar-actions" role="toolbar" aria-label="变量工具">
+            <button type="button" className="variable-toolbar-btn" title="增加变量" onClick={handleAdd}>
+              <IconControl spec={AD_ICONIFY_SPEC.plus} size={12} resourceBaseUrl={backendBaseUrl} />
+            </button>
             <button
               type="button"
-              className="variable-toolbar-btn"
-              title="排序"
-              onClick={() => setSortMenuOpen((v) => !v)}
+              className="variable-toolbar-btn variable-toolbar-btn--danger"
+              title="删除所选"
+              onClick={handleRemove}
+              disabled={selectedIds.length === 0}
             >
-              <IconControl spec={AD_ICONIFY_SPEC.swapVertical} size={12} resourceBaseUrl={backendBaseUrl} />
+              <IconControl spec={AD_ICONIFY_SPEC.deleteOutline} size={12} resourceBaseUrl={backendBaseUrl} />
             </button>
-            {sortMenuOpen ? (
-              <div className="variable-sort-menu" role="menu">
-                <button type="button" role="menuitem" onClick={() => applySort("name")}>
-                  按变量名称排序
-                </button>
-                <button type="button" role="menuitem" onClick={() => applySort("type")}>
-                  按变量类型排序
-                </button>
-                <button type="button" role="menuitem" onClick={() => applySort("group")}>
-                  按标签 + 名称排序
-                </button>
-              </div>
-            ) : null}
+            <button type="button" className="variable-toolbar-btn" title="清除未使用变量" onClick={handleClearUnused}>
+              <IconControl spec={AD_ICONIFY_SPEC.broom} size={12} resourceBaseUrl={backendBaseUrl} />
+            </button>
+            <div className="variable-toolbar-sort-wrap" ref={sortMenuRef}>
+              <button
+                type="button"
+                className="variable-toolbar-btn"
+                title="排序"
+                onClick={() => setSortMenuOpen((v) => !v)}
+              >
+                <IconControl spec={AD_ICONIFY_SPEC.swapVertical} size={12} resourceBaseUrl={backendBaseUrl} />
+              </button>
+              {sortMenuOpen ? (
+                <div className="variable-sort-menu" role="menu">
+                  <button type="button" role="menuitem" onClick={() => applySort("name")}>
+                    按变量名称排序
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => applySort("type")}>
+                    按变量类型排序
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => applySort("group")}>
+                    按标签 + 名称排序
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              className={`variable-toolbar-btn ${filterPaneVisible ? "variable-toolbar-btn--active" : ""}`}
+              title="筛选变量"
+              onClick={() => setFilterPaneVisible((v) => !v)}
+            >
+              <IconControl spec={AD_ICONIFY_SPEC.filter} size={12} resourceBaseUrl={backendBaseUrl} />
+            </button>
           </div>
-          <button
-            type="button"
-            className={`variable-toolbar-btn ${filterPaneVisible ? "variable-toolbar-btn--active" : ""}`}
-            title="筛选变量"
-            onClick={() => setFilterPaneVisible((v) => !v)}
-          >
-            <IconControl spec={AD_ICONIFY_SPEC.filter} size={12} resourceBaseUrl={backendBaseUrl} />
-          </button>
+          {onCloseDrawer ? (
+            <button
+              type="button"
+              className="variable-toolbar-btn variable-toolbar-btn--close"
+              title="关闭"
+              aria-label="关闭变量面板"
+              onClick={onCloseDrawer}
+            >
+              <IconControl spec={AD_ICONIFY_SPEC.close} size={12} resourceBaseUrl={backendBaseUrl} />
+            </button>
+          ) : null}
         </div>
         {filterPaneVisible ? (
           <div className="variable-filter-row">

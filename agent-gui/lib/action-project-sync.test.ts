@@ -7,6 +7,7 @@ import {
   resolveActionProjectSyncAction,
   resolveActionProjectSyncDecision,
 } from "./action-project-sync-types.ts";
+import { readStructuredQkrpcFailureMessage } from "./action-project-workflow.ts";
 
 test("compareActionEditVersions", () => {
   assert.equal(compareActionEditVersions(3, 3), "in_sync");
@@ -19,6 +20,10 @@ test("compareActionEditVersions", () => {
     compareActionEditVersions(1780917082345, undefined, {
       trustedRemoteEditVersion: 1780917082345,
     }),
+    "in_sync",
+  );
+  assert.equal(
+    compareActionEditVersions(1, 5, { trustedRemoteEditVersion: 5 }),
     "in_sync",
   );
 });
@@ -96,4 +101,25 @@ test("isActionProjectVersionConflictError", () => {
     true,
   );
   assert.equal(isActionProjectVersionConflictError("network error"), false);
+});
+
+test("readStructuredQkrpcFailureMessage prefers serve detail over error code", () => {
+  const message = readStructuredQkrpcFailureMessage({
+    ok: false,
+    data: {
+      ok: false,
+      error: "ACTION_APPLY_FAILED",
+      message: "The calling thread cannot access this object because a different thread owns it.",
+    },
+  });
+  assert.match(message, /ACTION_APPLY_FAILED/);
+  assert.match(message, /calling thread cannot access/);
+});
+
+test("readStructuredQkrpcFailureMessage falls back to stderr", () => {
+  const message = readStructuredQkrpcFailureMessage({
+    ok: false,
+    stderr: "pipe disconnected",
+  });
+  assert.equal(message, "pipe disconnected");
 });

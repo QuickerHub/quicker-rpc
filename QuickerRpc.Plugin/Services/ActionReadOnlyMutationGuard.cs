@@ -1,12 +1,15 @@
 using System;
+using System.Collections.Generic;
 using Quicker.Common;
+using Quicker.Domain;
 using QuickerRpc.Contracts.Rpc;
 using QuickerRpc.Plugin.Reflection;
 
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Blocks headless mutations on action-library templates and uninstalled sharedAction learning ids.
+/// Blocks headless mutations on uninstalled shared-action learning ids (shared get / cache only).
+/// Locally installed actions remain editable even when linked to a library template.
 /// </summary>
 internal static class ActionReadOnlyMutationGuard
 {
@@ -14,10 +17,31 @@ internal static class ActionReadOnlyMutationGuard
     public const string ReadOnlySharedErrorCode = "READ_ONLY_SHARED_ACTION";
 
     public const string ReadOnlyMessage =
-        "Library/shared actions are read-only. Use action create to author a new action.";
+        "Shared action is not installed locally. Use action create to author a new action, or install it first.";
 
-    public static bool IsReadOnlyLibraryTemplate(ActionItem action) =>
-        ActionItemSourceHelper.IsFromActionLibrary(action) && action.UseTemplate;
+    /// <summary>
+    /// When the caller passes a shared/template id, resolve to the installed local action id.
+    /// </summary>
+    public static string ResolveMutationActionId(string actionId)
+    {
+        var id = (actionId ?? string.Empty).Trim();
+        if (id.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        if (!Guid.TryParse(id, out var guid) || guid == Guid.Empty)
+        {
+            return id;
+        }
+
+        if (TryGetLocalActionItem(id) is not null)
+        {
+            return id;
+        }
+
+        return TryFindLocalActionIdBySharedId(guid) ?? id;
+    }
 
     public static bool IsSharedActionLearningId(string id)
     {
@@ -47,7 +71,7 @@ internal static class ActionReadOnlyMutationGuard
     public static string? TryFindLocalActionIdBySharedId(Guid sharedId)
     {
         var key = sharedId.ToString("D");
-        foreach (var action in QuickerInternalAccess.EnumerateAllActionItems())
+        foreach (var action in EnumerateInstalledActionItems())
         {
             if (!ActionItemSourceHelper.MatchesSharedId(action, key))
             {
@@ -67,18 +91,6 @@ internal static class ActionReadOnlyMutationGuard
         out QuickerRpcApplyActionPatchResult failure)
     {
         failure = new QuickerRpcApplyActionPatchResult();
-        if (action is not null && IsReadOnlyLibraryTemplate(action))
-        {
-            failure = new QuickerRpcApplyActionPatchResult
-            {
-                Success = false,
-                ErrorCode = ReadOnlyLibraryErrorCode,
-                ErrorMessage = ReadOnlyMessage,
-                ActionId = action.Id,
-            };
-            return true;
-        }
-
         if (action is null && IsSharedActionLearningId(actionId))
         {
             failure = new QuickerRpcApplyActionPatchResult
@@ -100,18 +112,6 @@ internal static class ActionReadOnlyMutationGuard
         out QuickerRpcApplyXActionResult failure)
     {
         failure = new QuickerRpcApplyXActionResult();
-        if (action is not null && IsReadOnlyLibraryTemplate(action))
-        {
-            failure = new QuickerRpcApplyXActionResult
-            {
-                Success = false,
-                ErrorCode = ReadOnlyLibraryErrorCode,
-                ErrorMessage = ReadOnlyMessage,
-                ActionId = action.Id,
-            };
-            return true;
-        }
-
         if (action is null && IsSharedActionLearningId(actionId))
         {
             failure = new QuickerRpcApplyXActionResult
@@ -133,18 +133,6 @@ internal static class ActionReadOnlyMutationGuard
         out QuickerRpcUpdateActionMetadataResult failure)
     {
         failure = new QuickerRpcUpdateActionMetadataResult();
-        if (action is not null && IsReadOnlyLibraryTemplate(action))
-        {
-            failure = new QuickerRpcUpdateActionMetadataResult
-            {
-                Success = false,
-                ErrorCode = ReadOnlyLibraryErrorCode,
-                ErrorMessage = ReadOnlyMessage,
-                ActionId = action.Id,
-            };
-            return true;
-        }
-
         if (action is null && IsSharedActionLearningId(actionId))
         {
             failure = new QuickerRpcUpdateActionMetadataResult
@@ -158,5 +146,73 @@ internal static class ActionReadOnlyMutationGuard
         }
 
         return false;
+    }
+
+    private static ActionItem? TryGetLocalActionItem(string actionId)
+    {
+        if (DataServiceActionAccess.TryGetById(actionId, out var action, out _) && action is not null)
+        {
+            return action;
+        }
+
+        return QuickerInternalAccess.TryGetActionById(actionId, out var fromStore) ? fromStore : null;
+    }
+
+    private static IEnumerable<ActionItem> EnumerateInstalledActionItems()
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in EnumerateDataServiceActionItems())
+        {
+            var id = (item.Id ?? string.Empty).Trim();
+            if (id.Length == 0 || !seen.Add(id))
+            {
+                continue;
+            }
+
+            yield return item;
+        }
+
+        foreach (var item in QuickerInternalAccess.EnumerateAllActionItems())
+        {
+            var id = (item.Id ?? string.Empty).Trim();
+            if (id.Length == 0 || !seen.Add(id))
+            {
+                continue;
+            }
+
+            yield return item;
+        }
+    }
+
+    private static IEnumerable<ActionItem> EnumerateDataServiceActionItems()
+    {
+        if (!QuickerHost.IsRunningInQuicker())
+        {
+            yield break;
+        }
+
+        var dataService = AppState.DataService;
+        if (dataService is null)
+        {
+            yield break;
+        }
+
+        IEnumerable<ActionItem> items;
+        try
+        {
+            items = dataService.GetAllActionItems();
+        }
+        catch
+        {
+            yield break;
+        }
+
+        foreach (var item in items)
+        {
+            if (item is not null)
+            {
+                yield return item;
+            }
+        }
     }
 }

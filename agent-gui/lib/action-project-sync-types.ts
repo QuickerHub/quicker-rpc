@@ -30,6 +30,11 @@ export function compareActionEditVersions(
   const normRemote = normalizeSyncEditVersion(remote);
   const normTrusted = normalizeSyncEditVersion(options?.trustedRemoteEditVersion);
 
+  // Trust records the catalog version we last pulled/pushed successfully.
+  if (normTrusted != null && normRemote != null && normTrusted === normRemote) {
+    return "in_sync";
+  }
+
   if (normRemote == null) {
     if (
       normLocal != null
@@ -110,13 +115,35 @@ export function isActionProjectVersionConflictError(error: string): boolean {
   return /version conflict/i.test(error);
 }
 
+function formatEditVersionForDisplay(version?: number): string {
+  if (version == null) return "无版本";
+  if (version >= 1_000_000_000_000) {
+    const date = new Date(version);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleString("zh-CN", {
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+    }
+  }
+  return `v${version}`;
+}
+
 export function formatSyncStatusMessage(
   state: ActionProjectSyncState,
   local?: number,
   remote?: number,
 ): string {
-  const localLabel = local != null ? `本地 v${local}` : "本地无版本";
-  const remoteLabel = remote != null ? `Quicker v${remote}` : "Quicker 无版本";
+  const localLabel =
+    local != null ? `本地 ${formatEditVersionForDisplay(local)}` : "本地无版本";
+  const remoteLabel =
+    remote != null
+      ? `Quicker ${formatEditVersionForDisplay(remote)}`
+      : "Quicker 无版本";
   switch (state) {
     case "in_sync":
       return remote != null

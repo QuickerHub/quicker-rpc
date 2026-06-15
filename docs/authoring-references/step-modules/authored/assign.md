@@ -2,7 +2,7 @@
 
 > **分类**：计算与数据结构 · **来源**：仓库手写 · **官方**：[assign](https://getquicker.net/KC/Help/Doc/assign)
 
-**用途**：为动作变量赋值（默认选型）。支持字面量、`$$` 插值、`$=` 表达式，或 `input.var` 复制另一变量。批量多变量或 LINQ 等复杂逻辑再用 `sys:evalexpression`。
+**用途**：为动作变量赋值（默认选型）。支持字面量、`$$` 插值、`$=` 表达式，或 `input.var` 复制另一变量。单步内中间量用 `var`（evalexpression）；仅跨步骤持久化才写动作变量；批量多输出或 LINQ 再用 `sys:evalexpression`。
 
 ## 示例
 

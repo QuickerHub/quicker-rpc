@@ -44,28 +44,65 @@ Condition fields may use `$=` (step_runner_get).
 
 ### Multi-variable assignment (`{varKey}=`)
 
-**One `sys:evalexpression` step can update multiple action variables** — use when batch assign or shared computation (LINQ, parsing, etc.). For **one** variable write, prefer **`sys:assign`** instead of evalexpression.
+**One `sys:evalexpression` step can update multiple action variables** — but only when those values are **needed after this step** (downstream steps, mapped `output`, user-visible state). For **one** variable write, prefer **`sys:assign`** instead of evalexpression.
+
+### Action vars vs `var` locals (do not over-declare)
+
+`{varKey}=` writes the action variable store (synced after eval). **`var local = …` is the default for scratch values** — faster and avoids polluting `variables[]`.
+
+| write | when |
+|-------|------|
+| `var headers = …` | parsing, loop counters, branch scratch — **only used inside this expression** |
+| `{result} = …` | value read by a **later step** (`showText`, `writeClipboard`, `if`, `loop`, `*.var`, subprogram I/O) |
+| `{a}=…; {b}=…` | **two or more** outputs each consumed **downstream** — not when one is just intermediate for the other |
+
+**Do not** add entries to `variables[]` nor `{key}=` for values confined to one evalexpression step.
+
+Anti-pattern (abusing action vars for in-step scratch):
+
+```text
+{hasAmount} = false;
+{amountSum} = 0.0;
+{resultText} = "";
+var lines = ({csvText} ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+// hasAmount / amountSum never read outside this step — should be var locals
+```
+
+Preferred:
+
+```text
+var hasAmount = false;
+var amountSum = 0.0;
+var resultText = "";
+var lines = ({csvText} ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+// … compute with locals …
+{resultText} = resultText   // only persist what downstream needs
+```
+
+Reuse an existing action var when the value is truly shared across steps; create a new `variables[]` entry only when a later step must read it.
 
 | authored | runtime | effect |
 |----------|---------|--------|
-| `{total} = {a} + {b}` | `v_total = v_a + v_b` | writes action var `total` |
-| `{a} = 1;\n{b} = 2` | two statements | writes **both** `a` and `b` |
-| `var tmp = {list}.Count()` | local `tmp` | **not** persisted — use `{count} = …` to save |
+| `{total} = {a} + {b}` | `v_total = v_a + v_b` | writes action var `total` (downstream reads `total`) |
+| `{a} = 1;\n{b} = 2` | two statements | writes **both** `a` and `b` when **both** are used later |
+| `var tmp = {list}.Count()` | local `tmp` | **default** for in-step temps — no action-var sync |
+| `{count} = items.Count` | `v_count = …` | persist only when `count` is read outside this step |
 | `$={count}+1` on other params | single expr | one result only — multi-assign needs **evalexpression** |
 
 Rules:
 
 - LHS **must** be `{declaredVarKey}` from `variables[]` — Quicker rewrites to `v_*` and syncs all touched vars after eval. Author `{key}` only, never `v_key`.
+- **Prefer `var` for intermediates**; each `{varKey}=` has sync cost — use only when the value crosses step boundaries.
 - RHS is normal C#; reference other vars as `{otherKey}`.
 - `expression` is **SkipEval** — write C# directly, **no** leading `$=` (stripped if present).
 - Last statement value → `output` when mapped in `outputParams`; `{varKey}=` writes happen **even without** `output` mapping.
-- Separate statements with `;` and/or newlines; mix `var` locals with any number of `{varKey}=` lines.
+- Separate statements with `;` and/or newlines; mix `var` locals with `{varKey}=` only for outputs downstream needs.
 
 Typical patterns:
 
 ```text
-"{sum} = {num1} + {num2};\n{product} = {num1} * {num2}"
-"var items = {list}.Where(x => !String.IsNullOrWhiteSpace(x)).ToList();\n{count} = items.Count;\n{result} = String.Join(\",\", items)"
+"{sum} = {num1} + {num2};\n{product} = {num1} * {num2}"   // both used later
+"var items = {list}.Where(x => !String.IsNullOrWhiteSpace(x)).ToList();\n{result} = String.Join(\",\", items)"   // items local; result downstream
 ```
 
 Inline `$=` on ordinary param `value` fields: single expression returning one value. For **one** action-var write as its own step → **`sys:assign`**. For **multiple** action-var writes in one step → `sys:evalexpression`.
@@ -107,9 +144,9 @@ IQuickerApi _qk;              // always
 | engine | notes |
 |--------|-------|
 | `{count}` → `v_count` | read placeholder rewrite only (author `{count}`, not `v_count`) |
-| `{a} = …; {b} = …` | each `{varKey}=` writes that action variable |
-| `var x = …` | local temp; does not update action vars |
-| multi-statement + LINQ | evalexpression / `$=`; combine with `{var}=` to persist results |
+| `{a} = …; {b} = …` | each `{varKey}=` writes that action variable (cross-step outputs only) |
+| `var x = …` | **preferred** local temp; no action-var sync |
+| multi-statement + LINQ | `var` for scratch; `{var}=` only for values later steps read |
 | `AutoAddMissingTypes` | types in registered assemblies resolve on first mention |
 
 ### Globals

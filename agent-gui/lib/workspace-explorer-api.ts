@@ -11,6 +11,8 @@ import type {
 
 export type ActionExplorerWatchHandlers = {
   onTree: (tree: ActionExplorerTree, subprogramTree: ActionExplorerTree) => void;
+  /** Fired when a program data.json changes even if the explorer tree signature is unchanged. */
+  onProgramDataChanged?: (paths: string[]) => void;
   onError: (error: string) => void;
 };
 
@@ -77,8 +79,13 @@ export function subscribeActionExplorerTreeWatch(
         type?: string;
         tree?: ActionExplorerTree;
         subprogramTree?: ActionExplorerTree;
+        paths?: string[];
         error?: string;
       };
+      if (data.ok && data.type === "program-data" && Array.isArray(data.paths)) {
+        handlers.onProgramDataChanged?.(data.paths);
+        return;
+      }
       if (data.ok && data.tree && data.subprogramTree) {
         handlers.onTree(data.tree, data.subprogramTree);
         return;

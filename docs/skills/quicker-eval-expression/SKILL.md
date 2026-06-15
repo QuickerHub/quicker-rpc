@@ -29,15 +29,21 @@ Full program editing → **quicker-authoring**. Run-only → **quicker-run**.
 
 ## Multi-var assignment (critical)
 
-One **evalexpression** step can write **many** action variables:
+One **evalexpression** step can write **many** action variables — but **only when downstream steps read them**:
 
 ```text
 {sum} = {num1} + {num2};
 {product} = {num1} * {num2}
 ```
 
+## Vars vs locals (anti-abuse)
+
+- **`var x = …`** — **default** for scratch inside one step (parsing, loops, branches); better perf (no action-var sync).
+- **`{varKey}=`** — only when a **later step** (or mapped `output`) reads that var.
+- **Do not** bulk-define action vars (`{hasAmount}=`, `{amountSum}=`, …) for logic confined to a single evalexpression.
+- Add to `variables[]` only when the value **crosses step boundaries**; reuse existing vars when truly shared.
+
 - LHS: `{declaredVarKey}` from `variables[]` — author `{key}`, never `v_key`
-- `var tmp = …` = local only; persist with `{varKey}=`
 - `expression` is SkipEval — C# body, **no** `$=` prefix
 - `{varKey}=` writes even without `output` mapping; `output` = last expression value only
 - **Do not** use evalexpression when a single **assign** step suffices

@@ -61,6 +61,10 @@ import {
 } from "@/lib/action-editor/wire/programWire";
 import type { ProgramProjectDeleteKind } from "@/lib/use-program-project-delete";
 import { ThemeProvider } from "@/lib/action-editor/shared/ThemeContext";
+import { AD_ICONIFY_SPEC } from "@/lib/action-editor/shared/actionDesignerIconify";
+import { getActionDesignerBackendBaseUrl } from "@/lib/action-editor/shared/actionDesignerBackendBaseUrl";
+import { IconControl } from "@/lib/action-editor/shared/IconControl";
+import { ActionDesignerHelpDialog } from "@/components/action-editor/ActionDesignerHelpDialog";
 import "@/components/action-editor/action-editor-theme.css";
 import "@/components/action-editor/action-editor.css";
 import "@/components/action-editor/action-project-data-editor.css";
@@ -167,6 +171,8 @@ export function ActionProjectDataEditor({
   const [contentTruncated, setContentTruncated] = useState(truncated);
   const [reloadError, setReloadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [pinStepFeedback, setPinStepFeedback] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [hasSavedLocalChanges, setHasSavedLocalChanges] = useState(false);
@@ -176,6 +182,33 @@ export function ActionProjectDataEditor({
   const baselineRef = useRef("");
   const presentRef = useRef<XProgramPresent>({ steps: [], variables: [] });
   const sourceFetchedRef = useRef<Set<string>>(new Set());
+  const editorRootRef = useRef<HTMLDivElement | null>(null);
+  const designerBackendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
+
+  useEffect(() => {
+    if (!helpOpen) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "F1") {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [helpOpen]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "F1" || event.repeat || helpOpen) return;
+      const root = editorRootRef.current;
+      if (!root) return;
+      const target = event.target;
+      if (!(target instanceof Node) || !root.contains(target)) return;
+      event.preventDefault();
+      setHelpOpen(true);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [helpOpen]);
 
   useEffect(() => {
     setEditorContent(content);
@@ -522,16 +555,25 @@ export function ActionProjectDataEditor({
     (stepId: string) => {
       const steps = presentRef.current.steps;
       const nodePath = resolveNodePath(steps, stepId);
-      if (!nodePath) return;
+      if (!nodePath) {
+        setPinStepFeedback("无法定位步骤在 data.json 中的路径");
+        return;
+      }
       const step = findStepById(steps, stepId);
-      if (!step) return;
+      if (!step) {
+        setPinStepFeedback("未找到选中的步骤");
+        return;
+      }
 
       const wireText = serializeProgramWireJson(
         presentRef.current,
         extraTopLevelRef.current,
       );
       const sliceResult = computeProgramStepDiskSlice(wireText, nodePath);
-      if (!sliceResult.ok) return;
+      if (!sliceResult.ok) {
+        setPinStepFeedback(sliceResult.error);
+        return;
+      }
 
       const tag = createProgramStepTag({
         programTarget: programPinMeta.programTarget,
@@ -549,6 +591,8 @@ export function ActionProjectDataEditor({
       });
       chatComposerActionsRef.current.insertProgramStepTag(tag);
       chatComposerActionsRef.current.focusComposer();
+      setPinStepFeedback("已添加到左侧当前对话输入框");
+      window.setTimeout(() => setPinStepFeedback(null), 2500);
     },
     [programPinMeta],
   );
@@ -599,7 +643,7 @@ export function ActionProjectDataEditor({
   }
 
   return (
-    <div className="action-project-data-editor">
+    <div className="action-project-data-editor" ref={editorRootRef}>
       <div className="action-project-data-editor-header">
         <ActionProjectMetaSummary
           icon={metaIcon}
@@ -641,6 +685,8 @@ export function ActionProjectDataEditor({
                 actionId={syncActionId}
                 projectDirectory={syncProjectDirectory}
                 hasLocalChanges={dirty || hasSavedLocalChanges}
+                blocked={dirty}
+                blockReason={dirty ? "请先点击「保存到工作区」再同步到 Quicker" : undefined}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
               />
@@ -693,6 +739,19 @@ export function ActionProjectDataEditor({
         <div className="action-project-data-editor-tab-actions">
           <button
             type="button"
+            className="action-project-data-editor-help"
+            aria-label="动作编辑器说明"
+            title="动作编辑器说明（F1）"
+            onClick={() => setHelpOpen(true)}
+          >
+            <IconControl
+              spec={AD_ICONIFY_SPEC.help}
+              size={14}
+              resourceBaseUrl={designerBackendBaseUrl}
+            />
+          </button>
+          <button
+            type="button"
             className="action-project-data-editor-save"
             disabled={!dirty || saving}
             onClick={() => void handleSave()}
@@ -702,8 +761,22 @@ export function ActionProjectDataEditor({
         </div>
       </div>
 
+      {helpOpen ? <ActionDesignerHelpDialog onClose={() => setHelpOpen(false)} /> : null}
+
       {saveError ? (
         <p className="workspace-explorer-hint workspace-explorer-hint--err">{saveError}</p>
+      ) : null}
+      {pinStepFeedback ? (
+        <p
+          className={`workspace-explorer-hint${
+            pinStepFeedback.startsWith("已添加")
+              ? ""
+              : " workspace-explorer-hint--err"
+          }`}
+          role="status"
+        >
+          {pinStepFeedback}
+        </p>
       ) : null}
 
       {tab === "visual" && normalizedPresent ? (

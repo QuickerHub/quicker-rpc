@@ -285,7 +285,8 @@ public sealed class HeadlessSubProgramProgramService
             var catalog = StepRunnerCatalogFromQuicker.Build();
             var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variablesClone);
             XActionProgramService.NormalizeStepsInputParamKeys(stepsClone, catalog);
-            inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(stepsClone, catalog);
+            var inputParamContext = SubProgramStepInputParamsValidation.CreateContext(null);
+            inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(stepsClone, catalog, inputParamContext);
 
             if (!SubProgramProgramPersistence.TrySave(
                     subProgram.Id!,
@@ -404,7 +405,8 @@ public sealed class HeadlessSubProgramProgramService
         var catalog = StepRunnerCatalogFromQuicker.Build();
         var normalizedVariables = XActionProgramService.NormalizeVariablesForSave(variables);
         XActionProgramService.NormalizeStepsInputParamKeys(steps, catalog);
-        var inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(steps, catalog);
+        var inputParamContext = SubProgramStepInputParamsValidation.CreateContext(null);
+        var inputParamWarnings = XActionProgramService.CollectStepsInputParamsWarnings(steps, catalog, inputParamContext);
 
         if (!SubProgramProgramPersistence.TrySave(
                 subProgram!.Id!,
@@ -418,6 +420,20 @@ public sealed class HeadlessSubProgramProgramService
         if (!_subPrograms.TryGetByIdOrName(subProgram.Id!, out var saved, out _))
         {
             return FailPatch("save finished but subprogram could not be reloaded.");
+        }
+
+        try
+        {
+            ActionProgramPatchUiGate.TryRefreshOpenDesignerProgram(
+                saved!.Id ?? key,
+                isSubProgram: true,
+                steps,
+                normalizedVariables,
+                subProgramsJson: null);
+        }
+        catch
+        {
+            // Best-effort: catalog save already succeeded.
         }
 
         ActionSearchIndexInvalidator.InvalidateSubProgram();

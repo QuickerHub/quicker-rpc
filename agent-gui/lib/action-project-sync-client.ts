@@ -71,7 +71,7 @@ export async function pullActionProjectFromQuicker(
   actionId: string,
   options?: { projectDirectory?: string },
 ): Promise<
-  | { ok: true; message: string; summary?: WorkspaceProjectSummary }
+  | { ok: true; message: string; summary?: WorkspaceProjectSummary; editVersion?: number }
   | { ok: false; error: string }
 > {
   const result = await postActionSync(cwd, {
@@ -84,10 +84,18 @@ export async function pullActionProjectFromQuicker(
     message?: string;
     summary?: WorkspaceProjectSummary;
   };
+  const editVersion =
+    typeof data.summary?.editVersion === "number" && data.summary.editVersion > 0
+      ? data.summary.editVersion
+      : undefined;
+  if (editVersion != null) {
+    markActionProjectSyncedAfterPush(cwd, actionId, editVersion);
+  }
   return {
     ok: true,
     message: data.message ?? "已拉取",
     summary: data.summary,
+    editVersion,
   };
 }
 

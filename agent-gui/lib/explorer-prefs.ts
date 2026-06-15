@@ -202,12 +202,26 @@ export type ExplorerActionTreeViewState = {
 
 export type WorkspacePanelView = "changed" | "all";
 
+export type PersistedEditorTab = {
+  path: string;
+  kind?: "file" | "diff";
+  /** Tab title (defaults to file basename). */
+  label?: string;
+};
+
+export type ExplorerEditorTabsState = {
+  tabs: PersistedEditorTab[];
+  activeTabId: string | null;
+};
+
 export type ExplorerPanelViewState = {
   actionTree: ExplorerActionTreeViewState;
   docsExpanded: boolean;
   projectsExpanded: boolean;
   /** Resource manager sub-view: git changed files vs full tree. */
   workspaceView?: WorkspacePanelView;
+  /** Open file/diff preview tabs in the side panel. */
+  editorTabs?: ExplorerEditorTabsState;
 };
 
 type StoredExplorerPanelViews = {
@@ -261,6 +275,54 @@ function pruneExplorerPanelViewWorkspaces(
   return Object.fromEntries(entries.slice(0, EXPLORER_PANEL_VIEW_MAX_WORKSPACES));
 }
 
+function normalizePersistedEditorTabs(
+  tabs: PersistedEditorTab[] | undefined,
+): PersistedEditorTab[] {
+  if (!Array.isArray(tabs)) return [];
+  const seen = new Set<string>();
+  const normalized: PersistedEditorTab[] = [];
+  for (const tab of tabs) {
+    if (!tab || typeof tab.path !== "string") continue;
+    const path = tab.path.trim().replace(/\\/g, "/").replace(/\/+$/, "");
+    if (!path) continue;
+    const kind = tab.kind === "diff" ? "diff" : "file";
+    const key = `${kind}:${path}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const label = typeof tab.label === "string" ? tab.label.trim() : "";
+    normalized.push({
+      path,
+      kind,
+      ...(label ? { label } : {}),
+    });
+  }
+  return normalized;
+}
+
+function normalizeExplorerEditorTabsState(
+  state: ExplorerEditorTabsState | undefined,
+): ExplorerEditorTabsState {
+  const tabs = normalizePersistedEditorTabs(state?.tabs);
+  const activeTabId =
+    typeof state?.activeTabId === "string" && state.activeTabId.trim()
+      ? state.activeTabId.trim()
+      : null;
+  const activeValid =
+    activeTabId !== null
+    && tabs.some((tab) => {
+      const kind = tab.kind === "diff" ? "diff" : "file";
+      return `${kind}:${tab.path}` === activeTabId;
+    });
+  return {
+    tabs,
+    activeTabId: activeValid
+      ? activeTabId
+      : tabs.length > 0
+        ? `${tabs[tabs.length - 1]!.kind === "diff" ? "diff" : "file"}:${tabs[tabs.length - 1]!.path}`
+        : null,
+  };
+}
+
 function normalizeExplorerTreeViewPaths(paths: string[] | undefined): string[] {
   if (!Array.isArray(paths)) return [];
   const seen = new Set<string>();
@@ -290,6 +352,7 @@ export function loadExplorerPanelView(cwd: string): ExplorerPanelViewState | nul
     docsExpanded: entry.docsExpanded === true,
     projectsExpanded: entry.projectsExpanded === true,
     workspaceView: entry.workspaceView === "changed" ? "changed" : "all",
+    editorTabs: normalizeExplorerEditorTabsState(entry.editorTabs),
   };
 }
 
@@ -318,6 +381,9 @@ export function storeExplorerPanelView(
       patch.workspaceView
       ?? previous?.workspaceView
       ?? "all",
+    editorTabs: normalizeExplorerEditorTabsState(
+      patch.editorTabs ?? previous?.editorTabs,
+    ),
     lastUsed: Date.now(),
   };
 

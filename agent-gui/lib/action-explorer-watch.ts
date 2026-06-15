@@ -19,6 +19,12 @@ export type ActionExplorerWatchEvent =
       tree: ActionExplorerTree;
       subprogramTree: ActionExplorerTree;
     }
+  | {
+      ok: true;
+      type: "program-data";
+      /** Workspace-relative data.json paths that changed on disk. */
+      paths: string[];
+    }
   | { ok: false; type: "error"; error: string };
 
 type WatchSubscriber = {
@@ -37,6 +43,8 @@ type WatchSession = {
   lastTree: ActionExplorerTree | null;
   lastSubprogramTree: ActionExplorerTree | null;
   lastTreeBuiltAt: number;
+  /** data.json paths collected between debounced rebuilds. */
+  pendingProgramDataPaths: Set<string>;
   subscribers: Set<WatchSubscriber>;
   idleTimer: ReturnType<typeof setTimeout> | null;
 };
@@ -62,6 +70,23 @@ function isQuickerWorkspaceRelativePath(relativePath: string): boolean {
     || normalized.startsWith(".quicker/subprograms/")
     || normalized === ".quicker"
   );
+}
+
+/** Map fs.watch filename (relative to watch root) to workspace-relative data.json path. */
+export function resolveProgramDataPathFromWatch(
+  watchRootRel: string,
+  filename: string | null | Buffer,
+): string | null {
+  if (filename == null) return null;
+  const leaf = (
+    typeof filename === "string" ? filename : filename.toString("utf8")
+  ).replace(/\\/g, "/");
+  if (!leaf.toLowerCase().endsWith("data.json")) return null;
+  const root = watchRootRel.replace(/\\/g, "/").replace(/\/+$/, "");
+  const combined = leaf.includes("/")
+    ? `${root}/${leaf}`
+    : `${root}/${leaf}`;
+  return combined.replace(/\/+/g, "/");
 }
 
 function shouldHandleWatchFilename(filename: string | null | Buffer): boolean {
@@ -123,11 +148,32 @@ function notifySubscribers(
   }
 }
 
+function takePendingProgramDataPaths(session: WatchSession): string[] {
+  if (session.pendingProgramDataPaths.size === 0) return [];
+  const paths = [...session.pendingProgramDataPaths];
+  session.pendingProgramDataPaths.clear();
+  return paths;
+}
+
+function notifyProgramDataChanges(
+  session: WatchSession,
+  paths: string[],
+): void {
+  if (paths.length === 0) return;
+  notifySubscribers(session, {
+    ok: true,
+    type: "program-data",
+    paths,
+  });
+}
+
 async function rebuildAndNotify(session: WatchSession): Promise<void> {
   if (session.rebuildInFlight) {
     await session.rebuildInFlight;
     return;
   }
+
+  const changedProgramDataPaths = takePendingProgramDataPaths(session);
 
   session.rebuildInFlight = runWithQkrpcCwdAsync(session.cwd, async () => {
     session.rebuilding = true;
@@ -157,6 +203,7 @@ async function rebuildAndNotify(session: WatchSession): Promise<void> {
         subprogramResult.tree,
       );
       if (session.lastTreeSignature === signature) {
+        notifyProgramDataChanges(session, changedProgramDataPaths);
         return;
       }
       session.lastTreeSignature = signature;
@@ -169,12 +216,16 @@ async function rebuildAndNotify(session: WatchSession): Promise<void> {
         tree: actionResult.tree,
         subprogramTree: subprogramResult.tree,
       });
+      notifyProgramDataChanges(session, changedProgramDataPaths);
     } finally {
       session.rebuilding = false;
       session.rebuildCooldownUntil = Date.now() + REBUILD_COOLDOWN_MS;
     }
   }).finally(() => {
     session.rebuildInFlight = null;
+    if (session.pendingProgramDataPaths.size > 0) {
+      scheduleRebuild(session);
+    }
   });
 
   await session.rebuildInFlight;
@@ -193,26 +244,36 @@ function scheduleRebuild(session: WatchSession): void {
 function ensureWatchers(session: WatchSession): void {
   if (session.watchers.length > 0) return;
 
-  const watchTargets: string[] = [];
+  const watchEntries: { absolute: string; rootRel: string }[] = [];
   for (const rootRel of [getActionsRootRelative(), getGlobalSubProgramsRootRelative()]) {
     const resolved = resolveWorkspacePath(rootRel);
     if (!resolved.ok) continue;
     if (existsSync(resolved.absolute)) {
-      watchTargets.push(resolved.absolute);
+      watchEntries.push({ absolute: resolved.absolute, rootRel });
       continue;
     }
     const parent = dirname(resolved.absolute);
-    if (existsSync(parent)) watchTargets.push(parent);
+    if (existsSync(parent)) {
+      watchEntries.push({ absolute: parent, rootRel });
+    }
   }
 
-  const uniqueTargets = [...new Set(watchTargets)];
-  for (const target of uniqueTargets) {
+  const seenAbs = new Set<string>();
+  for (const entry of watchEntries) {
+    const key = entry.absolute.toLowerCase();
+    if (seenAbs.has(key)) continue;
+    seenAbs.add(key);
     try {
+      const { absolute: target, rootRel } = entry;
       const watcher = watch(
         target,
         { recursive: true },
         (_eventType, filename) => {
           if (!shouldHandleWatchFilename(filename)) return;
+          const programDataPath = resolveProgramDataPathFromWatch(rootRel, filename);
+          if (programDataPath) {
+            session.pendingProgramDataPaths.add(programDataPath);
+          }
           if (session.rebuilding) return;
           if (Date.now() < session.rebuildCooldownUntil) return;
           scheduleRebuild(session);
@@ -251,6 +312,7 @@ function getOrCreateSession(cwd: string): WatchSession {
     lastTree: null,
     lastSubprogramTree: null,
     lastTreeBuiltAt: 0,
+    pendingProgramDataPaths: new Set(),
     subscribers: new Set(),
     idleTimer: null,
   };

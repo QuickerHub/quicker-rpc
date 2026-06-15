@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
   const result = await invokeQkrpcHttp(
     {
-      op: "step-runner.quickInsertSearch",
+      op: "step-runner.quickinsertsearch",
       args: {
         keyword: (body.keyword ?? "").trim(),
         skip: Math.max(0, Number(body.skip ?? 0)),

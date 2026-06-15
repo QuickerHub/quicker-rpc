@@ -24,10 +24,20 @@ import {
   isExplorerTreeDirectoryPath,
   normalizeExplorerTreePath,
 } from "@/lib/action-explorer-tree";
-import { loadExplorerOpen, loadExplorerPanelView, loadChatColumnWidth, storeExplorerOpen, storeExplorerPanelView, storeChatColumnWidth, clampChatColumnWidth } from "@/lib/explorer-prefs";
+import {
+  loadExplorerOpen,
+  loadExplorerPanelView,
+  loadChatColumnWidth,
+  storeExplorerOpen,
+  storeExplorerPanelView,
+  storeChatColumnWidth,
+  clampChatColumnWidth,
+  type PersistedEditorTab,
+} from "@/lib/explorer-prefs";
 import {
   getWorkspaceFileEditorPreview,
   isWorkspaceExplorerFileTool,
+  isWorkspaceFileWriteTool,
 } from "@/lib/workspace-file-tool";
 import {
   fetchActionExplorerTree,
@@ -43,7 +53,9 @@ import {
 } from "@/lib/workbench/preview-tab-id";
 import { notifyWorkbenchGitRefresh } from "@/lib/workbench/workbench-git-refresh";
 import type { StructuredToolResult } from "@/lib/tool-result";
+import { actionExplorerTreeRef } from "@/lib/action-side-panel-focus";
 import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
+import { invalidateWorkspaceFileReadCache } from "@/lib/workspace-file-read-cache";
 import { basenamePath } from "@/lib/workspace-file-tool";
 import { clearWorkspaceMainEditorDoc } from "@/lib/workspace-main-editor-tab";
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
@@ -93,13 +105,6 @@ let pendingRevealActionId: string | null = null;
 export function queueRevealActionProjectById(actionId: string): void {
   const id = actionId.trim().toLowerCase();
   pendingRevealActionId = id || null;
-}
-
-function isWorkspaceFileWriteTool(toolName: string): boolean {
-  return (
-    toolName === "workspace_action_file_write"
-    || toolName === "workspace_action_write_data"
-  );
 }
 
 type CachedFileContent = {
@@ -210,6 +215,21 @@ function restoreExplorerActionTreeView(
 }
 
 const EXPLORER_TREE_VIEW_PERSIST_MS = 250;
+const EXPLORER_EDITOR_TABS_PERSIST_MS = 250;
+
+function explorerTabsToPersisted(
+  tabs: ExplorerFileTab[],
+  activeTabId: string | null,
+): { tabs: PersistedEditorTab[]; activeTabId: string | null } {
+  return {
+    tabs: tabs.map((tab) => ({
+      path: tab.path,
+      kind: tab.kind ?? "file",
+      ...(tab.label?.trim() ? { label: tab.label.trim() } : {}),
+    })),
+    activeTabId,
+  };
+}
 
 function applyExplorerTreeShell(
   treeRef: MutableRefObject<ActionExplorerTree | null>,
@@ -273,7 +293,10 @@ export type WorkspaceExplorerEditorContextValue = {
   openFileFromTool: (toolName: string, input: unknown, output?: StructuredToolResult) => void;
   closeTab: (id: string) => void;
   setActiveTabId: (id: string | null) => void;
-  loadFileContent: (path: string) => Promise<void>;
+  loadFileContent: (
+    path: string,
+    options?: { background?: boolean; force?: boolean },
+  ) => Promise<void>;
   saveWorkspaceFile: (
     path: string,
     content: string,
@@ -432,10 +455,12 @@ export type WorkspaceExplorerActions = Pick<
   | "revealActionProjectById"
   | "setPanelOpen"
   | "refreshTree"
+  | "loadFileContent"
 > & {
   notifyProjectRemoved: () => void;
   setActiveSideView: (viewId: string) => void;
   focusSidePanelView: (viewId: string) => void;
+  reloadProgramDataPaths: (paths: string[]) => void;
 };
 
 const noop = (): void => {};
@@ -448,9 +473,11 @@ const stubExplorerActions: WorkspaceExplorerActions = {
   revealActionProjectById: noop,
   setPanelOpen: noop,
   refreshTree: async () => {},
+  loadFileContent: async () => {},
   notifyProjectRemoved: noop,
   setActiveSideView: noop,
   focusSidePanelView: noop,
+  reloadProgramDataPaths: noop,
 };
 
 /** Updated by the panel provider; chat reads via useWorkspaceExplorerActions without re-rendering on tree changes. */
@@ -498,6 +525,8 @@ export function WorkspaceExplorerPanelProvider({
   const [tabs, setTabs] = useState<ExplorerFileTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [treeWatchRevision, setTreeWatchRevision] = useState(0);
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
   const cwdRef = useRef(cwd);
   const cwdPendingRef = useRef(cwdPending);
   const treeRef = useRef<ActionExplorerTree | null>(null);
@@ -509,11 +538,17 @@ export function WorkspaceExplorerPanelProvider({
   const expandedPathsRef = useRef(expandedPaths);
   expandedPathsRef.current = expandedPaths;
   const persistTreeViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistEditorTabsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeTabIdRef = useRef(activeTabId);
+  activeTabIdRef.current = activeTabId;
+  const editorTabsRestoredForCwdRef = useRef<string | null>(null);
+  const editorTabsRestoringRef = useRef(false);
   const watchSubscriptionRef = useRef<{
     cwd: string;
     unsubscribe: () => void;
   } | null>(null);
   const fullTreeHydrateInFlightRef = useRef<Promise<void> | null>(null);
+  const reloadProgramDataTabsRef = useRef<(paths: string[]) => void>(() => {});
 
   const schedulePersistExplorerTreeView = useCallback(() => {
     const activeCwd = cwdRef.current.trim();
@@ -530,6 +565,24 @@ export function WorkspaceExplorerPanelProvider({
         },
       });
     }, EXPLORER_TREE_VIEW_PERSIST_MS);
+  }, []);
+
+  const schedulePersistEditorTabs = useCallback(() => {
+    const activeCwd = cwdRef.current.trim();
+    if (!activeCwd || editorTabsRestoringRef.current) return;
+    if (persistEditorTabsTimerRef.current) {
+      clearTimeout(persistEditorTabsTimerRef.current);
+    }
+    persistEditorTabsTimerRef.current = setTimeout(() => {
+      persistEditorTabsTimerRef.current = null;
+      if (editorTabsRestoringRef.current) return;
+      storeExplorerPanelView(activeCwd, {
+        editorTabs: explorerTabsToPersisted(
+          tabsRef.current,
+          activeTabIdRef.current,
+        ),
+      });
+    }, EXPLORER_EDITOR_TABS_PERSIST_MS);
   }, []);
 
   const readFileCache = useCallback((path: string): CachedFileContent | undefined => {
@@ -552,6 +605,10 @@ export function WorkspaceExplorerPanelProvider({
     cwdRef.current = cwd;
     cwdPendingRef.current = cwdPending;
   }, [cwd, cwdPending]);
+
+  useEffect(() => {
+    actionExplorerTreeRef.current = tree;
+  }, [tree]);
 
   const treeRootsLoadedForCwdRef = useRef<string | null>(null);
   const treeHydratedForCwdRef = useRef<string | null>(null);
@@ -644,6 +701,10 @@ export function WorkspaceExplorerPanelProvider({
         if (cwdRef.current.trim() !== activeCwd) return;
         applyTreeUpdateRef.current(tree, subprogramTree);
         treeHydratedForCwdRef.current = activeCwd;
+      },
+      onProgramDataChanged: (paths) => {
+        if (cwdRef.current.trim() !== activeCwd) return;
+        reloadProgramDataTabsRef.current(paths);
       },
       onError: (error) => {
         if (cwdRef.current.trim() !== activeCwd) return;
@@ -814,6 +875,28 @@ export function WorkspaceExplorerPanelProvider({
     };
   }, [cwd, expandedPaths, schedulePersistExplorerTreeView]);
 
+  useEffect(() => {
+    const activeCwd = cwd.trim();
+    if (!activeCwd) return;
+    if (editorTabsRestoredForCwdRef.current !== activeCwd) return;
+    schedulePersistEditorTabs();
+    return () => {
+      if (persistEditorTabsTimerRef.current) {
+        clearTimeout(persistEditorTabsTimerRef.current);
+        persistEditorTabsTimerRef.current = null;
+        const latestCwd = cwdRef.current.trim();
+        if (latestCwd && !editorTabsRestoringRef.current) {
+          storeExplorerPanelView(latestCwd, {
+            editorTabs: explorerTabsToPersisted(
+              tabsRef.current,
+              activeTabIdRef.current,
+            ),
+          });
+        }
+      }
+    };
+  }, [cwd, tabs, activeTabId, schedulePersistEditorTabs]);
+
   const expandPath = useCallback((path: string) => {
     clearCollapsedAncestors(collapsedPathsRef.current, path);
     setExpandedPaths((prev) =>
@@ -848,12 +931,18 @@ export function WorkspaceExplorerPanelProvider({
   );
 
   const loadFileContent = useCallback(
-    async (path: string, options?: { background?: boolean }) => {
+    async (path: string, options?: { background?: boolean; force?: boolean }) => {
       const activeCwd = cwdRef.current.trim();
       if (!activeCwd) return;
       const normalizedPath = normalizeExplorerPath(path);
       const tabId = fileTabId(normalizedPath);
       const background = options?.background ?? false;
+      const force = options?.force ?? false;
+
+      if (force) {
+        invalidateWorkspaceFileReadCache(activeCwd, normalizedPath);
+        fileContentCacheRef.current.delete(normalizedPath);
+      }
 
       if (
         isExplorerTreeDirectoryPath(treeRef.current, normalizedPath)
@@ -927,6 +1016,22 @@ export function WorkspaceExplorerPanelProvider({
     },
     [writeFileCache],
   );
+
+  const reloadProgramDataTabs = useCallback(
+    (paths: string[]) => {
+      const normalizedTargets = new Set(
+        paths.map((entry) => normalizeExplorerPath(entry)),
+      );
+      for (const tab of tabsRef.current) {
+        if (tab.kind !== "file" || !isActionProjectDataPath(tab.path)) continue;
+        const tabPath = normalizeExplorerPath(tab.path);
+        if (!normalizedTargets.has(tabPath)) continue;
+        void loadFileContent(tabPath, { background: true, force: true });
+      }
+    },
+    [loadFileContent],
+  );
+  reloadProgramDataTabsRef.current = reloadProgramDataTabs;
 
   const openFile = useCallback(
     (
@@ -1023,11 +1128,53 @@ export function WorkspaceExplorerPanelProvider({
       if (needsFullReload) {
         void loadFileContent(normalizedPath, {
           background: resolvedContent !== "" && !resolvedMeta.truncated,
+          force: true,
         });
       }
     },
     [expandPath, loadFileContent, readFileCache, setActiveSideView, setPanelOpen, writeFileCache],
   );
+
+  const loadDiffContent = useCallback((path: string, tabId: string) => {
+    void (async () => {
+      const activeCwd = cwdRef.current.trim();
+      if (!activeCwd) {
+        setTabs((prev) =>
+          prev.map((tab) =>
+            tab.id === tabId
+              ? { ...tab, loading: false, error: "未设置工作目录" }
+              : tab,
+          ),
+        );
+        return;
+      }
+
+      const result = await fetchWorkspaceDiff(activeCwd, path);
+      if (!result.ok) {
+        setTabs((prev) =>
+          prev.map((tab) =>
+            tab.id === tabId
+              ? { ...tab, loading: false, error: result.error }
+              : tab,
+          ),
+        );
+        return;
+      }
+
+      setTabs((prev) =>
+        prev.map((tab) =>
+          tab.id === tabId
+            ? {
+                ...tab,
+                diff: result.diff,
+                loading: false,
+                error: result.state === "error" ? result.error : undefined,
+              }
+            : tab,
+        ),
+      );
+    })();
+  }, []);
 
   const openDiff = useCallback(
     (path: string) => {
@@ -1053,48 +1200,77 @@ export function WorkspaceExplorerPanelProvider({
       });
       setActiveTabId(tabId);
       clearWorkspaceMainEditorDoc();
-
-      void (async () => {
-        const activeCwd = cwdRef.current.trim();
-        if (!activeCwd) {
-          setTabs((prev) =>
-            prev.map((tab) =>
-              tab.id === tabId
-                ? { ...tab, loading: false, error: "未设置工作目录" }
-                : tab,
-            ),
-          );
-          return;
-        }
-
-        const result = await fetchWorkspaceDiff(activeCwd, normalizedPath);
-        if (!result.ok) {
-          setTabs((prev) =>
-            prev.map((tab) =>
-              tab.id === tabId
-                ? { ...tab, loading: false, error: result.error }
-                : tab,
-            ),
-          );
-          return;
-        }
-
-        setTabs((prev) =>
-          prev.map((tab) =>
-            tab.id === tabId
-              ? {
-                  ...tab,
-                  diff: result.diff,
-                  loading: false,
-                  error: result.state === "error" ? result.error : undefined,
-                }
-              : tab,
-          ),
-        );
-      })();
+      loadDiffContent(normalizedPath, tabId);
     },
-    [setActiveSideView, setPanelOpen],
+    [loadDiffContent, setActiveSideView, setPanelOpen],
   );
+
+  useEffect(() => {
+    const activeCwd = cwd.trim();
+    if (!activeCwd) {
+      editorTabsRestoredForCwdRef.current = null;
+      setTabs([]);
+      setActiveTabId(null);
+      return;
+    }
+
+    if (editorTabsRestoredForCwdRef.current === activeCwd) return;
+    editorTabsRestoredForCwdRef.current = activeCwd;
+    editorTabsRestoringRef.current = true;
+
+    setTabs([]);
+    setActiveTabId(null);
+    setActiveSideView(SIDE_PANEL_VIEW_EXPLORER);
+    clearWorkspaceMainEditorDoc();
+
+    const saved = loadExplorerPanelView(activeCwd);
+    const savedTabs = saved?.editorTabs;
+    if (!savedTabs?.tabs.length) {
+      editorTabsRestoringRef.current = false;
+      return;
+    }
+
+    const restoredTabs: ExplorerFileTab[] = savedTabs.tabs.map((entry) => {
+      const kind = entry.kind === "diff" ? "diff" : "file";
+      const normalizedPath = normalizeExplorerPath(entry.path);
+      const tabId =
+        kind === "diff" ? diffTabId(normalizedPath) : fileTabId(normalizedPath);
+      return {
+        id: tabId,
+        path: normalizedPath,
+        kind,
+        label: entry.label,
+        content: "",
+        diff: kind === "diff" ? "" : undefined,
+        loading: true,
+        error: undefined,
+      };
+    });
+
+    setTabs(restoredTabs);
+    const activeId =
+      savedTabs.activeTabId
+      && restoredTabs.some((tab) => tab.id === savedTabs.activeTabId)
+        ? savedTabs.activeTabId
+        : restoredTabs[restoredTabs.length - 1]?.id ?? null;
+    setActiveTabId(activeId);
+    if (activeId) {
+      setActiveSideView(activeId);
+      setPanelOpen(true);
+    }
+
+    for (const tab of restoredTabs) {
+      if (tab.kind === "diff") {
+        loadDiffContent(tab.path, tab.id);
+      } else {
+        void loadFileContent(tab.path);
+      }
+    }
+
+    queueMicrotask(() => {
+      editorTabsRestoringRef.current = false;
+    });
+  }, [cwd, loadDiffContent, loadFileContent, setActiveSideView, setPanelOpen]);
 
   const revealActionProjectByIdImpl = useCallback(
     (actionId: string): boolean => {
@@ -1150,8 +1326,11 @@ export function WorkspaceExplorerPanelProvider({
         output?.ok
         && (toolName === "workspace_action_file_edit"
           || toolName === "workspace_action_edit_data"
-          || isWorkspaceFileWriteTool(toolName))
+          || isWorkspaceFileWriteTool(toolName, input))
       ) {
+        if (preview.path) {
+          void loadFileContent(preview.path, { force: true, background: true });
+        }
         openFile(preview.path);
         return;
       }
@@ -1164,7 +1343,7 @@ export function WorkspaceExplorerPanelProvider({
         totalChars: preview.totalChars,
       });
     },
-    [openFile],
+    [openFile, loadFileContent],
   );
 
   const saveWorkspaceFile = useCallback(
@@ -1306,9 +1485,11 @@ export function WorkspaceExplorerPanelProvider({
     revealActionProjectById,
     setPanelOpen,
     refreshTree,
+    loadFileContent,
     notifyProjectRemoved,
     setActiveSideView,
     focusSidePanelView,
+    reloadProgramDataPaths: reloadProgramDataTabs,
   };
   workspaceExplorerEditorStateRef.current = { activeTab, closeTab };
 
@@ -1336,8 +1517,14 @@ export function useWorkspaceExplorerTree(): WorkspaceExplorerTreeContextValue {
   return ctx;
 }
 
+export function useOptionalWorkspaceExplorerEditor():
+  | WorkspaceExplorerEditorContextValue
+  | null {
+  return useContext(WorkspaceExplorerEditorContext);
+}
+
 export function useWorkspaceExplorerEditor(): WorkspaceExplorerEditorContextValue {
-  const ctx = useContext(WorkspaceExplorerEditorContext);
+  const ctx = useOptionalWorkspaceExplorerEditor();
   if (!ctx) {
     throw new Error(
       "useWorkspaceExplorerEditor must be used within WorkspaceExplorerPanelProvider",

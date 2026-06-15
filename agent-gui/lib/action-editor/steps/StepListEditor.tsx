@@ -87,12 +87,9 @@ import {
 import { collectStepRunnerSchemaRequestsFromSteps } from "./stepParamVisibility";
 import { ensureFaIconsResolved } from "@/lib/fa-icon-cache";
 import {
-  collectStepParamFilePaths,
   resolveStepListSecondarySummary,
   type StepSummaryFileContents,
 } from "./stepSummaryFileRefs";
-import { projectRelativeFilePath } from "./paramEditors/formSpecModel";
-import { fetchWorkspaceFile } from "@/lib/workspace-explorer-api";
 import { resolveStepRowIconSpec, type SubProgramStepListLabel } from "./stepRowIconSpec";
 import { buildStepFromRunner, type ToolboxDragPayload } from "./toolboxStepFactory";
 import { StepIdManager } from "./stepIdManager";
@@ -255,6 +252,8 @@ export type StepListEditorProps = {
   /** Raw wire JSON passed to QuickerRpc batch summary RPC. */
   embeddedSubProgramsWireJson?: string;
   workspaceContext?: ActionProjectWorkspaceContext;
+  /** Prefetched files/… content for summaries, param editors, and clipboard scans. */
+  stepParamFileContents?: StepSummaryFileContents;
   onPinStepToChat?: (stepId: string) => void;
 };
 
@@ -268,6 +267,7 @@ export default function StepListEditor({
   subPrograms = [],
   embeddedSubProgramsWireJson,
   workspaceContext,
+  stepParamFileContents = {},
   onPinStepToChat,
 }: StepListEditorProps): JSX.Element {
   const stepIdManagerRef = useRef<StepIdManager>(new StepIdManager());
@@ -307,12 +307,7 @@ export default function StepListEditor({
   const quickInsertActiveRef = useRef(false);
   /** Backend GetSummary per stepId; secondary row shows note if set, else backend summary (empty when none). */
   const [summariesByStepId, setSummariesByStepId] = useState<Record<string, string>>({});
-  const [fileContentsByPath, setFileContentsByPath] = useState<StepSummaryFileContents>({});
-
-  const stepFilePathsKey = useMemo(
-    () => collectStepParamFilePaths(collectAllSteps(steps)).sort().join("\0"),
-    [steps],
-  );
+  const fileContentsByPath = stepParamFileContents;
 
   const globalSubProgramIdsKey = useMemo(
     () => collectGlobalSubProgramLiteralIdsForFetch(collectAllSteps(steps), subPrograms).join("\0"),
@@ -537,39 +532,6 @@ export default function StepListEditor({
       window.clearTimeout(timer);
     };
   }, [stepSummariesFingerprint, backendBaseUrl, embeddedSubProgramsWireJson]);
-
-  useEffect(() => {
-    if (!workspaceContext || stepFilePathsKey.length === 0) {
-      setFileContentsByPath((prev) =>
-        Object.keys(prev).length === 0 ? prev : {},
-      );
-      return;
-    }
-
-    const paths = stepFilePathsKey.split("\0").filter(Boolean);
-    let cancelled = false;
-    void (async () => {
-      const entries = await Promise.all(
-        paths.map(async (file) => {
-          const absolute = projectRelativeFilePath(workspaceContext.projectDir, file);
-          const result = await fetchWorkspaceFile(workspaceContext.cwd, absolute);
-          return [file, result.ok ? result.content : ""] as const;
-        }),
-      );
-      if (cancelled) return;
-      const next: Record<string, string> = {};
-      for (const [file, content] of entries) {
-        if (content.trim().length > 0) {
-          next[file] = content;
-        }
-      }
-      setFileContentsByPath(next);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [stepFilePathsKey, workspaceContext]);
 
   useEffect(() => {
     const ids = collectGlobalSubProgramLiteralIdsForFetch(collectAllSteps(steps), subPrograms);
@@ -996,7 +958,7 @@ export default function StepListEditor({
       }
     }
     const keySet = new Set(variables.map((v) => v.key ?? "").filter(Boolean));
-    const used = collectUsedVariableKeysForSteps(toCopy, keySet);
+    const used = collectUsedVariableKeysForSteps(toCopy, keySet, fileContentsByPath);
     const varsOut = variables
       .filter((v) => used.has(v.key ?? ""))
       .map((v) => structuredClone(v) as ActionVariable);
@@ -1006,7 +968,7 @@ export default function StepListEditor({
     } catch {
       notifyClipboard?.("复制到剪贴板失败。", "error");
     }
-  }, [notifyClipboard, selectedIds, steps, variables]);
+  }, [fileContentsByPath, notifyClipboard, selectedIds, steps, variables]);
 
   const pasteStepsFromClipboard = useCallback(async (): Promise<void> => {
     if (editorTargetIdRef.current != null || quickInsertActiveRef.current) {

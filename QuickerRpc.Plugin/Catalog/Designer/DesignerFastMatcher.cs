@@ -1,17 +1,22 @@
 using System;
-using System.IO;
+using System.Linq;
 using System.Reflection;
+using QuickerRpc.Plugin.Reflection;
+using QuickerRpc.Plugin.Services;
 
 namespace QuickerRpc.Plugin.Catalog.Designer;
 
 /// <summary>
-/// Reflection bridge to Quicker <c>Quicker.Pinyin.Fast1.FastMatcher</c> for action-editor search.
+/// Bridge to Quicker <c>Quicker.Pinyin.Fast1.FastMatcher</c> for action-editor quick insert search.
+/// Falls back to literal substring, then <see cref="ActionSearchPinyin"/> when FastMatcher cannot be resolved.
 /// </summary>
 internal static class DesignerFastMatcher
 {
     internal const int MaxMatchLength = 128;
 
-    private static readonly Lazy<Bridge?> Matcher = new(CreateBridge);
+    private static readonly object MatcherLock = new();
+    private static bool _matcherResolved;
+    private static FastMatcherBridge? _matcher;
 
     internal sealed class MatchResult
     {
@@ -38,49 +43,66 @@ internal static class DesignerFastMatcher
             return null;
         }
 
-        var bridge = Matcher.Value;
-        if (bridge is null)
+        var bridge = GetMatcherBridge();
+        if (bridge is not null)
         {
-            return FallbackSubstringMatch(text, patterns);
-        }
-
-        try
-        {
-            var raw = bridge.GetMatchResult(text, patterns);
-            if (raw is null)
+            try
             {
-                return null;
+                var raw = bridge.GetMatchResult(text, patterns);
+                if (raw is not null)
+                {
+                    var wrapped = WrapResult(raw);
+                    if (wrapped.IsMatch)
+                    {
+                        return wrapped;
+                    }
+                }
             }
+            catch
+            {
+                // FastMatcher unavailable or failed; fall through to offline matchers.
+            }
+        }
 
-            return WrapResult(raw);
-        }
-        catch
+        var literal = FallbackSubstringMatch(text, patterns);
+        if (literal is not null)
         {
-            return FallbackSubstringMatch(text, patterns);
+            return literal;
         }
+
+        return TryPinyinMatchAll(text, patterns);
     }
 
     public static bool IsMatch(string? text, string[] patterns)
     {
-        if (string.IsNullOrEmpty(text) || patterns is null || patterns.Length == 0)
+        var result = GetMatchResult(text, patterns);
+        return result is not null && result.IsMatch;
+    }
+
+    private static MatchResult? TryPinyinMatchAll(string text, string[] patterns)
+    {
+        if (!patterns.All(ActionSearchPinyin.IsAsciiPinyinQuery))
         {
-            return false;
+            return null;
         }
 
-        var bridge = Matcher.Value;
-        if (bridge is null)
+        foreach (var p in patterns)
         {
-            return FallbackSubstringMatch(text, patterns)?.IsMatch == true;
+            if (string.IsNullOrEmpty(p) || !ActionSearchPinyin.TryPinyinMatch(text, p))
+            {
+                return null;
+            }
         }
 
-        try
+        var score = patterns.Length == 1
+            ? ActionSearchPinyin.ScoreText(text, patterns[0])
+            : 85;
+        if (score <= 0)
         {
-            return bridge.IsMatchArray(text, patterns);
+            score = 85;
         }
-        catch
-        {
-            return FallbackSubstringMatch(text, patterns)?.IsMatch == true;
-        }
+
+        return new MatchResult(true, score, _ => false);
     }
 
     private static MatchResult? FallbackSubstringMatch(string text, string[] patterns)
@@ -135,89 +157,59 @@ internal static class DesignerFastMatcher
             pos => getPosition?.Invoke(raw, new object[] { pos }) is true);
     }
 
-    private static Bridge? CreateBridge()
+    private static FastMatcherBridge? GetMatcherBridge()
     {
-        var matcherType = ResolveType("Quicker.Pinyin.Fast1.FastMatcher");
+        if (_matcherResolved)
+        {
+            return _matcher;
+        }
+
+        lock (MatcherLock)
+        {
+            if (_matcherResolved)
+            {
+                return _matcher;
+            }
+
+            try
+            {
+                _matcher = CreateFastMatcherBridge();
+            }
+            catch
+            {
+                _matcher = null;
+            }
+
+            _matcherResolved = true;
+            return _matcher;
+        }
+    }
+
+    private static FastMatcherBridge? CreateFastMatcherBridge()
+    {
+        var matcherType = QuickerPinyinReflection.TryResolveFastMatcherType();
         if (matcherType is null)
         {
             return null;
         }
 
-        var getMatchResult = matcherType.GetMethod(
-            "GetMatchResult",
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
-            binder: null,
-            types: new[] { typeof(string), typeof(string[]) },
-            modifiers: null);
-        var isMatchArray = matcherType.GetMethod(
-            "IsMatch",
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
-            binder: null,
-            types: new[] { typeof(string), typeof(string[]) },
-            modifiers: null);
-        if (getMatchResult is null || isMatchArray is null)
+        var getMatchArray = QuickerPinyinReflection.TryGetFastMatcherGetMatchResult(matcherType);
+        var isMatchArray = QuickerPinyinReflection.TryGetFastMatcherIsMatch(matcherType);
+        if (getMatchArray is null || isMatchArray is null)
         {
             return null;
         }
 
-        return new Bridge
+        return new FastMatcherBridge
         {
             GetMatchResult = (text, patterns) =>
-                getMatchResult.Invoke(null, new object[] { text, patterns }),
+                getMatchArray.Invoke(null, new object[] { text, patterns }),
             IsMatchArray = (text, patterns) =>
                 isMatchArray.Invoke(null, new object[] { text, patterns }) is true,
         };
     }
 
-    private static Type? ResolveType(string typeName)
-    {
-        var type = Type.GetType(typeName + ", Quicker", throwOnError: false);
-        if (type is not null)
-        {
-            return type;
-        }
-
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            type = assembly.GetType(typeName, throwOnError: false);
-            if (type is not null)
-            {
-                return type;
-            }
-        }
-
-        var quickerDir = Environment.GetEnvironmentVariable("QUICKER_DLL_PATH");
-        if (string.IsNullOrWhiteSpace(quickerDir))
-        {
-            quickerDir = @"C:\Program Files\Quicker";
-        }
-
-        foreach (var dll in new[] { "Quicker.exe", "Quicker.Public.dll" })
-        {
-            var path = Path.Combine(quickerDir, dll);
-            if (!File.Exists(path))
-            {
-                continue;
-            }
-
-            try
-            {
-                type = Assembly.LoadFrom(path).GetType(typeName, throwOnError: false);
-                if (type is not null)
-                {
-                    return type;
-                }
-            }
-            catch
-            {
-                // try next
-            }
-        }
-
-        return null;
-    }
-
-    private sealed class Bridge
+    private sealed class FastMatcherBridge
     {
         public Func<string, string[], object?> GetMatchResult { get; set; } = null!;
 

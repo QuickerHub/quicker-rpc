@@ -36,6 +36,16 @@ export const ACTION_LINK_CARD_PROMPTS: ActionLinkCardPrompt[] = [
   },
 ];
 
+/** Compact action strip: debug first, then guided prompts. */
+export const ACTION_LINK_COMPACT_PROMPTS: ActionLinkCardPrompt[] = [
+  {
+    id: "debug",
+    label: "Agent 调试",
+    hint: "插入调试指令到输入框",
+  },
+  ...ACTION_LINK_CARD_PROMPTS,
+];
+
 function actionRefMarkup(actionId: string, title: string): string {
   return formatActionTagMarkup({ id: actionId, title: title.trim() || actionId });
 }

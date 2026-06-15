@@ -139,34 +139,25 @@
   box-shadow: -4px 0 16px color-mix(in srgb, var(--foreground, #000) 10%, transparent);
 }
 
-.x-program-editor-variables-drawer-head {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.35rem;
-  padding: 0.35rem 0.4rem 0.35rem 0.55rem;
-  border-bottom: 1px solid var(--ad-border-default);
-}
-
-.x-program-editor-variables-drawer-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ad-fg-section);
-}
-
 .x-program-editor-variables-drawer-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding-left: 8px;
 }
 
 .x-program-editor-variables-drawer-body .variable-editor {
   flex: 1;
   min-height: 0;
+}
+
+.x-program-editor-variables-drawer-body .variable-editor-main {
+  padding: 0 8px 8px;
+}
+
+.x-program-editor-variables-drawer-body .variable-filter-row {
+  padding: 0 8px 4px;
 }
 
 
@@ -475,6 +466,40 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 3px;
+}
+
+.variable-toolbar-main--merged-head {
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 4px 6px 4px 8px;
+  border-bottom: 1px solid var(--ad-border-default);
+}
+
+.variable-toolbar-title {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  margin-right: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ad-fg-section);
+  white-space: nowrap;
+}
+
+.variable-toolbar-actions {
+  display: inline-flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.variable-toolbar-btn--close {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--ad-fg-muted);
 }
 
 .variable-toolbar-sort-wrap {
@@ -3597,23 +3622,30 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 20px;
 }
 
 .shortcut-popup,
 .confirm-popup {
   width: min(420px, 100%);
+  max-height: min(80vh, 560px);
   display: flex;
   flex-direction: column;
   background: var(--ad-bg-panel);
   border: 1px solid var(--ad-border-strong);
-  border-radius: 8px;
+  border-radius: 6px;
   box-shadow: var(--ad-shadow-popup);
   color: var(--ad-fg-primary);
 }
 
 .shortcut-popup-header {
-  padding: 12px 14px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ad-border-panel);
 }
 
 .shortcut-popup-header h2 {
@@ -3622,8 +3654,31 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
   font-weight: 600;
 }
 
+.shortcut-popup-close {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ad-fg-section, var(--ad-fg-secondary));
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.shortcut-popup-close:hover {
+  background: var(--ad-overlay-hover, var(--hover-overlay));
+  color: var(--ad-fg-on-emphasis, var(--ad-fg-primary));
+}
+
 .shortcut-popup-body {
-  padding: 10px 14px 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 14px;
 }
 
 .shortcut-popup-footer {
@@ -3632,7 +3687,39 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 14px;
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ad-border-panel);
+}
+
+.shortcut-popup-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.shortcut-popup-table th,
+.shortcut-popup-table td {
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--ad-border-default);
+  font-size: 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.shortcut-popup-table th {
+  width: 150px;
+  color: var(--ad-fg-section, var(--ad-fg-secondary));
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.shortcut-popup-table td {
+  color: var(--ad-fg-primary);
+}
+
+.shortcut-popup-table tr:last-child th,
+.shortcut-popup-table tr:last-child td {
+  border-bottom: none;
 }
 
 .shortcut-popup-footer.unsaved-leave-footer {

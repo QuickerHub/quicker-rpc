@@ -5,6 +5,7 @@ import {
 import {
   parseQkrpcPayload,
   readActionProjectManifest,
+  readStructuredQkrpcFailureMessage,
   saveActionFromWorkspace,
   syncActionToWorkspace,
 } from "@/lib/action-project-workflow";
@@ -166,12 +167,7 @@ export async function pushActionProjectToQuicker(options: {
       data && typeof data.payload === "object" && data.payload !== null
         ? (data.payload as Record<string, unknown>)
         : data;
-    const message =
-      (typeof payload?.error === "string" && payload.error)
-      || (typeof payload?.errorMessage === "string" && payload.errorMessage)
-      || (typeof data?.errorMessage === "string" && data.errorMessage)
-      || (typeof result.stderr === "string" && result.stderr)
-      || "提交到 Quicker 失败";
+    const message = readStructuredQkrpcFailureMessage(result);
     const phase =
       typeof payload?.phase === "string" ? payload.phase : undefined;
     const versionConflict =

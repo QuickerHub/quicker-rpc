@@ -19,9 +19,9 @@ import {
   pushActionProjectToQuickerApi,
 } from "@/lib/action-project-sync-client";
 import {
-  ACTION_PROJECT_PUSHED_EVENT,
-  type ActionProjectPushedDetail,
   buildInSyncStatusAfterPush,
+  type ActionProjectPushedDetail,
+  ACTION_PROJECT_PUSHED_EVENT,
 } from "@/lib/action-project-sync-events";
 import { ActionProjectSyncConflictDialog } from "@/components/workspace/ActionProjectSyncConflictDialog";
 
@@ -190,7 +190,7 @@ export function ActionProjectSyncBar({
     async (
       op: "pull" | "push",
       fn: () => Promise<
-        | { ok: true; message: string }
+        | { ok: true; message: string; editVersion?: number; summary?: { editVersion?: number } }
         | { ok: false; error: string; versionConflict?: boolean }
       >,
     ) => {
@@ -206,7 +206,7 @@ export function ActionProjectSyncBar({
         });
       }
       let result:
-        | { ok: true; message: string }
+        | { ok: true; message: string; editVersion?: number; summary?: { editVersion?: number } }
         | { ok: false; error: string; versionConflict?: boolean };
       try {
         result = await fn();
@@ -226,32 +226,48 @@ export function ActionProjectSyncBar({
             return false;
           }
         }
-        setSyncUi((prev) => ({
-          ...prev,
+        setSyncUi({
           statusText: result.error,
           statusErr: true,
-        }));
+          syncState: null,
+        });
         writeActionProjectSyncCache(cwd, actionId, {
-          state: syncState,
+          state: null,
           message: result.error,
           error: true,
         });
         return false;
       }
-      setSyncUi((prev) => ({
-        ...prev,
-        statusText: result.message,
-        statusErr: false,
-        syncState:
-          op === "push"
-          && "editVersion" in result
-          && typeof result.editVersion === "number"
-          && result.editVersion > 0
-            ? "in_sync"
-            : prev.syncState,
-      }));
+
+  const syncedEditVersion =
+    "editVersion" in result
+    && typeof result.editVersion === "number"
+    && result.editVersion > 0
+      ? result.editVersion
+      : "summary" in result
+        && result.summary
+        && typeof result.summary.editVersion === "number"
+        && result.summary.editVersion > 0
+        ? result.summary.editVersion
+        : undefined;
+
+      if (syncedEditVersion != null) {
+        applyStatusResult({
+          ok: true,
+          status: buildInSyncStatusAfterPush(syncedEditVersion),
+        });
+      } else {
+        setSyncUi((prev) => ({
+          ...prev,
+          statusText: result.message,
+          statusErr: false,
+        }));
+      }
+
       onSynced?.();
-      await runStatusCheck({ silent: true });
+      if (syncedEditVersion == null) {
+        await runStatusCheck({ silent: true });
+      }
       return true;
     },
     [
@@ -261,7 +277,6 @@ export function ActionProjectSyncBar({
       onSynced,
       projectDirectory,
       runStatusCheck,
-      syncState,
     ],
   );
 

@@ -87,10 +87,11 @@ export function WorkspaceExplorerPanel() {
   const terminalPanelVisible = isSidePanelTerminalView(activeSideView);
   const terminalMounted = defaultTerminalOpen;
   const showEditor = isSidePanelEditorView(activeSideView);
+  const activeTabPath = activeTab?.path;
   const actionDataEditorOpen =
     showEditor
-    && Boolean(activeTab?.path)
-    && isActionProjectDataPath(activeTab.path);
+    && Boolean(activeTabPath)
+    && isActionProjectDataPath(activeTabPath);
   const showWorkspaceTree =
     activeSideView === SIDE_PANEL_VIEW_EXPLORER || showEditor;
   const showTreePanel =

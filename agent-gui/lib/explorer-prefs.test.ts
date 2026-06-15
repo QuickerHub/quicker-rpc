@@ -129,3 +129,33 @@ test("storeExplorerPanelView persists collapsed action roots", () => {
   ]);
   assert.equal(saved?.projectsExpanded, false);
 });
+
+test("storeExplorerPanelView persists editor tabs per workspace", () => {
+  installBrowserStorage();
+
+  storeExplorerPanelView("D:\\repo-a", {
+    editorTabs: {
+      tabs: [
+        {
+          path: ".quicker/actions/a1/data.json",
+          kind: "file",
+          label: "统计页面的动作点赞数",
+        },
+        { path: ".quicker/actions/a1/data.json", kind: "diff" },
+      ],
+      activeTabId: "file:.quicker/actions/a1/data.json",
+    },
+  });
+
+  const saved = loadExplorerPanelView("d:/repo-a");
+  assert.equal(saved?.editorTabs?.tabs.length, 2);
+  assert.equal(saved?.editorTabs?.tabs[0]?.label, "统计页面的动作点赞数");
+  assert.equal(saved?.editorTabs?.activeTabId, "file:.quicker/actions/a1/data.json");
+
+  storeExplorerPanelView("D:\\repo-a", {
+    actionTree: { expandedPaths: [".quicker/actions"], collapsedPaths: [] },
+  });
+  const merged = loadExplorerPanelView("d:/repo-a");
+  assert.equal(merged?.editorTabs?.tabs.length, 2);
+  assert.deepEqual(merged?.actionTree.expandedPaths, [".quicker/actions"]);
+});

@@ -41,7 +41,9 @@ export function shouldActivateMsgTurnSticky(
 
 /**
  * Enable fill-scrollport on the last turn when content is taller than the viewport.
- * Resizes are handled via ResizeObserver; pass a stable resetKey (e.g. threadId).
+ * Resizes are handled via ResizeObserver. resetKey must change when the observed
+ * last turn changes (e.g. `${threadId}:${lastUserMessageId}`) so the observer
+ * re-attaches and sticky state does not leak from a prior tall turn.
  */
 export function useMsgTurnStickyActive(
   messagesRef: RefObject<HTMLElement | null>,
@@ -53,7 +55,6 @@ export function useMsgTurnStickyActive(
   const activeRef = useRef(false);
 
   useLayoutEffect(() => {
-    if (!activeRef.current) return;
     activeRef.current = false;
     setActive(false);
   }, [resetKey]);

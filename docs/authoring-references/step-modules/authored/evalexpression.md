@@ -40,8 +40,23 @@
 ## 陷阱
 
 - 本步 `expression` 为 SkipEval：**不要** `$=` 前缀；普通步骤参数写表达式才用 `$=` / `$$`（详见 `expressions` topic）。
+- **单步内中间量用 `var` 临时变量**；仅当后续步骤要读时才 `{变量}=` 写回动作变量。避免为解析/循环过程大量新增 `variables[]` 条目（性能更好、动作更干净）。
 - `{var}=expr` 写回变量时可不映射 `output`；长表达式用 `expression.file` 外链 `.eval.cs` / `.expr`。
 - `onUiThread: true` 谨慎使用，可能造成死锁；复杂逻辑兜底见 `implementation-fallback` → `csscript`。
+
+### 临时变量 vs 动作变量
+
+```text
+// 不推荐：hasAmount / amountSum 仅在本步使用，却定义为动作变量
+{hasAmount} = false;
+{amountSum} = 0.0;
+
+// 推荐：中间量用 var；只把下游要读的写入动作变量
+var hasAmount = false;
+var amountSum = 0.0;
+// …
+{resultText} = resultText
+```
 
 ## 相关
 

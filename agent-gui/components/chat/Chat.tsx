@@ -6,6 +6,7 @@ import { lastAssistantMessageIsCompleteWithClientResponses } from "@/lib/chat-au
 import { ChatToolActionsProvider } from "@/lib/chat-tool-actions";
 import { collectPendingAskQuestions } from "@/lib/ask-question-tool";
 import { AskQuestionDock } from "@/components/chat/AskQuestionDock";
+import { AppLoadingIndicator } from "@/components/shell/AppLoadingIndicator";
 import {
   useCallback,
   useEffect,
@@ -137,7 +138,10 @@ import { isHotTurnIndex, turnIndicesPrepended } from "@/lib/chat-message-window"
 import { buildChatScrollRevisionKey } from "@/lib/chat-scroll-revision";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
 import type { ProgramStepTag } from "@/lib/program-step-tag";
-import { chatComposerActionsRef } from "@/lib/chat-composer-bridge";
+import {
+  registerChatComposerActions,
+  unregisterChatComposerActions,
+} from "@/lib/chat-composer-bridge";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
 import { useChatMessageWindow } from "@/lib/use-chat-message-window";
 import { findUserTurnStartIndices } from "@/lib/last-user-turn-index";
@@ -159,6 +163,7 @@ import {
   storeChatMode,
 } from "@/lib/chat-mode-prefs";
 import { useActionProjectImportFromMessages } from "@/lib/action-project-import-from-messages";
+import { useReloadProgramDataFromToolMessages } from "@/lib/program-data-reload-from-tools";
 import { useQkrpcPing, type PingState } from "@/lib/use-qkrpc-ping";
 import { isTauriDevShell } from "@/lib/tauri-shell";
 import {
@@ -504,6 +509,7 @@ function ChatPanel({
   }, [ephemeral, flushThreadPersist, setMessages, status]);
 
   useActionProjectImportFromMessages(messages, !ephemeral && visible);
+  useReloadProgramDataFromToolMessages(messages, !ephemeral && visible);
   useBrowserPanelMessageSync(messages, { enabled: !ephemeral && visible });
 
   useThreadTitleFromTool({
@@ -992,23 +998,20 @@ function ChatPanel({
   );
 
   useEffect(() => {
-    if (ephemeral) return;
-    chatComposerActionsRef.current = {
+    if (ephemeral || !visible) return;
+    registerChatComposerActions(threadId, {
       insertPrompt: insertComposerPrompt,
       insertBrowserElementTag: insertComposerBrowserElementTag,
       insertProgramStepTag: insertComposerProgramStepTag,
       focusComposer: focusComposerAtEnd,
-    };
+    });
     return () => {
-      chatComposerActionsRef.current = {
-        insertPrompt: () => {},
-        insertBrowserElementTag: () => {},
-        insertProgramStepTag: () => {},
-        focusComposer: () => {},
-      };
+      unregisterChatComposerActions(threadId);
     };
   }, [
     ephemeral,
+    visible,
+    threadId,
     focusComposerAtEnd,
     insertComposerBrowserElementTag,
     insertComposerProgramStepTag,
@@ -1114,11 +1117,18 @@ function ChatPanel({
     [status, messages, pendingApprovalCount, pendingAskQuestionCount],
   );
 
+  const lastTurnStickyResetKey = useMemo(() => {
+    if (userTurnStarts.length === 0) return threadId;
+    const startIndex = userTurnStarts[userTurnStarts.length - 1]!;
+    const userMessageId = messages[startIndex]?.id ?? String(startIndex);
+    return `${threadId}:${userMessageId}`;
+  }, [threadId, userTurnStarts, messages]);
+
   const lastTurnFillScrollport = useMsgTurnStickyActive(
     messagesRef,
     msgTurnRef,
     visible && userTurnStarts.length > 0,
-    threadId,
+    lastTurnStickyResetKey,
   );
 
   const lastVisibleMessageId = useMemo(() => {
@@ -1754,9 +1764,10 @@ export function Chat() {
                 <div className="app-main-shell">
                   <AppMainWorkspaceSplit>
                     {!chatStoreHydrated ? (
-                      <div className="workspace-loading" role="status">
-                        正在加载对话…
-                      </div>
+                      <AppLoadingIndicator
+                        message="正在加载对话…"
+                        variant="panel"
+                      />
                     ) : null}
                     {chatStoreHydrated
                       && openTabThreads.map((thread) => (

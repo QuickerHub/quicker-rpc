@@ -9,14 +9,30 @@ export type ChatComposerActions = {
   focusComposer: () => void;
 };
 
-const stub: ChatComposerActions = {
+export const emptyChatComposerActions: ChatComposerActions = {
   insertPrompt: () => {},
   insertBrowserElementTag: () => {},
   insertProgramStepTag: () => {},
   focusComposer: () => {},
 };
 
-/** Registered by ChatPanel; side-panel browser uses this to prefill composer. */
+/** Registered by the visible ChatPanel; side-panel tools use this to prefill composer. */
 export const chatComposerActionsRef: MutableRefObject<ChatComposerActions> = {
-  current: stub,
+  current: emptyChatComposerActions,
 };
+
+let registeredComposerOwnerId: string | null = null;
+
+export function registerChatComposerActions(
+  ownerId: string,
+  actions: ChatComposerActions,
+): void {
+  registeredComposerOwnerId = ownerId;
+  chatComposerActionsRef.current = actions;
+}
+
+export function unregisterChatComposerActions(ownerId: string): void {
+  if (registeredComposerOwnerId !== ownerId) return;
+  registeredComposerOwnerId = null;
+  chatComposerActionsRef.current = emptyChatComposerActions;
+}

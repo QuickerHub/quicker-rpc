@@ -1,6 +1,6 @@
 using System;
-using System.IO;
 using System.Reflection;
+using QuickerRpc.Plugin.Reflection;
 
 namespace QuickerRpc.Plugin.Services;
 
@@ -10,7 +10,9 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 internal static class ActionSearchPinyin
 {
-    private static readonly Lazy<PinyinBridge?> Bridge = new(CreateBridge);
+    private static readonly object BridgeLock = new();
+    private static bool _bridgeResolved;
+    private static PinyinBridge? _bridge;
 
     public static bool IsAsciiPinyinQuery(string normalizedKeyword)
     {
@@ -47,7 +49,7 @@ internal static class ActionSearchPinyin
             return 0;
         }
 
-        var bridge = Bridge.Value;
+        var bridge = GetBridge();
         if (bridge is null)
         {
             return 0;
@@ -79,9 +81,54 @@ internal static class ActionSearchPinyin
         return 85;
     }
 
+    /// <summary>Pinyin match for a single pattern (used when FastMatcher bridge is unavailable).</summary>
+    internal static bool TryPinyinMatch(string text, string pattern)
+    {
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(pattern))
+        {
+            return false;
+        }
+
+        if (!IsAsciiPinyinQuery(pattern))
+        {
+            return false;
+        }
+
+        var bridge = GetBridge();
+        return bridge is not null && bridge.IsMatch(text, pattern);
+    }
+
+    private static PinyinBridge? GetBridge()
+    {
+        if (_bridgeResolved)
+        {
+            return _bridge;
+        }
+
+        lock (BridgeLock)
+        {
+            if (_bridgeResolved)
+            {
+                return _bridge;
+            }
+
+            try
+            {
+                _bridge = CreateBridge();
+            }
+            catch
+            {
+                _bridge = null;
+            }
+
+            _bridgeResolved = true;
+            return _bridge;
+        }
+    }
+
     private static PinyinBridge? CreateBridge()
     {
-        var helperType = ResolvePinyinHelperType();
+        var helperType = QuickerPinyinReflection.TryResolvePinyinHelperType();
         if (helperType is null)
         {
             return null;
@@ -119,47 +166,6 @@ internal static class ActionSearchPinyin
             GetMatchString = text =>
                 getMatchString.Invoke(null, new object[] { text }) as string ?? string.Empty,
         };
-    }
-
-    private static Type? ResolvePinyinHelperType()
-    {
-        const string typeName = "Quicker.Utilities.Pinyin.PinyinHelper";
-
-        var fromDomain = Type.GetType($"{typeName}, Quicker.Public", throwOnError: false);
-        if (fromDomain is not null)
-        {
-            return fromDomain;
-        }
-
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            var type = assembly.GetType(typeName, throwOnError: false);
-            if (type is not null)
-            {
-                return type;
-            }
-        }
-
-        var quickerDir = Environment.GetEnvironmentVariable("QUICKER_DLL_PATH");
-        if (string.IsNullOrWhiteSpace(quickerDir))
-        {
-            quickerDir = @"C:\Program Files\Quicker";
-        }
-
-        var publicDll = Path.Combine(quickerDir, "Quicker.Public.dll");
-        if (!File.Exists(publicDll))
-        {
-            return null;
-        }
-
-        try
-        {
-            return Assembly.LoadFrom(publicDll).GetType(typeName, throwOnError: false);
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     private sealed class PinyinBridge

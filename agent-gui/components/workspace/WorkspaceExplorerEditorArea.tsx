@@ -33,7 +33,7 @@ export const WorkspaceExplorerEditorArea = memo(function WorkspaceExplorerEditor
   const handleActionProjectSynced = useCallback(() => {
     void refreshTree();
     const path = activeTab?.path;
-    if (path) void loadFileContent(path);
+    if (path) void loadFileContent(path, { force: true });
   }, [activeTab?.path, loadFileContent, refreshTree]);
 
   return (

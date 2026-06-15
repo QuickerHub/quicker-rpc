@@ -271,9 +271,8 @@ internal static class StepQuickInsertCatalog
             return false;
         }
 
-        // Use GetMatchResult (legacy StepRunnerModuleSearch / MatchHelper parity): for a single pattern it may match
-        // via substring IndexOf on the full text. DesignerFastMatcher.IsMatch only runs DoRegularMatch, which scans at most
-        // DesignerFastMatcher.MaxMatchLength characters — long haystacks would never match past that window.
+        // MatchHelper / FastMatcher parity: GetMatchResult on the full haystack (single-token path includes
+        // substring contains on the entire text; IsMatch alone only scans the first MAX_LEN chars).
         var result = DesignerFastMatcher.GetMatchResult(row.MatchSurface, patterns);
         return result != null && result.IsMatch;
     }
@@ -410,8 +409,22 @@ internal static class StepQuickInsertCatalog
             return long.MinValue;
         }
 
-        var full = DesignerFastMatcher.GetMatchResult(row.MatchSurface, patterns);
-        var surfaceEngine = Math.Max(0, full?.Score ?? 0);
+        var titleHaystack = string.IsNullOrEmpty(row.MatchSurfaceTitle) ? row.Label : row.MatchSurfaceTitle;
+        var titleResult = string.IsNullOrEmpty(titleHaystack)
+            ? null
+            : DesignerFastMatcher.GetMatchResult(titleHaystack, patterns);
+        var labelResult = string.IsNullOrEmpty(row.Label)
+            ? null
+            : DesignerFastMatcher.GetMatchResult(row.Label, patterns);
+        var descResult = string.IsNullOrEmpty(row.MatchSurfaceDesc)
+            ? null
+            : DesignerFastMatcher.GetMatchResult(row.MatchSurfaceDesc, patterns);
+        var fullResult = DesignerFastMatcher.GetMatchResult(row.MatchSurface, patterns);
+
+        var titleEngine = Math.Max(Math.Max(0, titleResult?.Score ?? 0), Math.Max(0, labelResult?.Score ?? 0));
+        var descEngine = Math.Max(0, descResult?.Score ?? 0);
+        // MatchHelper.TryMultiMatchFast: prefer title over description; avoid full-blob score pushing weak hits up.
+        var surfaceEngine = Math.Max(titleEngine, Math.Max(descEngine, Math.Max(0, fullResult?.Score ?? 0)));
 
         var minTier = 99;
         var earlinessSum = 0;
@@ -436,36 +449,40 @@ internal static class StepQuickInsertCatalog
             minTier = 4;
         }
 
-        var labelEngine = 0;
-        var labelMatchesAllPatterns = false;
-        if (!string.IsNullOrEmpty(row.Label) && DesignerFastMatcher.IsMatch(row.Label, patterns))
-        {
-            labelMatchesAllPatterns = true;
-            var lr = DesignerFastMatcher.GetMatchResult(row.Label, patterns);
-            if (lr != null)
-            {
-                labelEngine = Math.Max(0, lr.Score);
-            }
-        }
-
-        var descEngine = 0;
-        if (!string.IsNullOrEmpty(row.Description) && DesignerFastMatcher.IsMatch(row.Description, patterns))
-        {
-            var dr = DesignerFastMatcher.GetMatchResult(row.Description, patterns);
-            if (dr != null)
-            {
-                descEngine = Math.Max(0, dr.Score);
-            }
-        }
+        var labelMatchesAllPatterns = labelResult is { IsMatch: true }
+            || (!string.IsNullOrEmpty(row.Label) && DesignerFastMatcher.IsMatch(row.Label, patterns));
 
         // Tier gap >> engine range (~1e3): multi-keyword “weakest” tier dominates (all in title beats one in description).
         var labelBonus = labelMatchesAllPatterns ? SortKeyLabelFullMatchBonus : 0L;
         return (long)(5 - minTier) * SortKeyTierScale
             + surfaceEngine * 10_000L
-            + labelEngine * SortKeyLabelEngineMultiplier
+            + titleEngine * SortKeyLabelEngineMultiplier
             + descEngine * 50L
             + earlinessSum
             + labelBonus;
+    }
+
+    internal static int QuickInsertSortRankTier(CatalogRow row)
+    {
+        if (!string.Equals(row.Kind, "runner", StringComparison.Ordinal) || row.Payload is null)
+        {
+            return 2;
+        }
+
+        if (!string.IsNullOrWhiteSpace(row.Payload.ControlFieldValue))
+        {
+            return 2;
+        }
+
+        var id = row.Id ?? "";
+        if (!id.StartsWith("r:", StringComparison.Ordinal))
+        {
+            return 1;
+        }
+
+        var rest = id.Length >= 2 ? id.Substring(2) : "";
+        var pk = (row.Payload.StepRunnerKey ?? "").Trim();
+        return rest.Length > 0 && string.Equals(rest, pk, StringComparison.Ordinal) ? 0 : 1;
     }
 
     private static List<(int Start, int End)> MergeAdjacentRuns(IReadOnlyList<int> positions)

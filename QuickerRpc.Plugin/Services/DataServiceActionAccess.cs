@@ -134,7 +134,14 @@ internal static class DataServiceActionAccess
         }
 
         var sharedId = (item.SharedActionId ?? string.Empty).Trim();
-        return sharedId.Length > 0
-            && string.Equals(sharedId, actionId, StringComparison.OrdinalIgnoreCase);
+        if (sharedId.Length > 0
+            && string.Equals(sharedId, actionId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var templateId = (item.TemplateId ?? string.Empty).Trim();
+        return templateId.Length > 0
+            && string.Equals(templateId, actionId, StringComparison.OrdinalIgnoreCase);
     }
 }

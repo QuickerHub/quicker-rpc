@@ -9,16 +9,17 @@
 ## 步骤骨架
 
 1. **准备输入变量** — 动作参数 / 上游模块输出 / `defaultValue`
-2. **单步 evalexpression** — `{out} = …` 多变量赋值或 LINQ 链
+2. **单步 evalexpression** — `var` 处理中间量；仅把下游要读的写入 `{out}` / `{result}` 等动作变量
 3. **消费结果** — `showText` / `writeClipboard` / 下游模块 `*.var`
 
 ## 变量约定
 
-| 角色 | 建议 key | 类型 |
-|------|----------|------|
-| 原始文本 | `text` / `input` | Text |
-| 处理结果 | `result` / `output` | Text |
-| 步骤成功 | `ok` | Boolean |
+| 角色 | 建议 key | 类型 | 说明 |
+|------|----------|------|------|
+| 原始文本 | `text` / `input` | Text | 上游输入，动作变量 |
+| 处理结果 | `result` / `output` | Text | **唯一**需要跨步持久化的输出 |
+| 步骤成功 | `ok` | Boolean | 可选 |
+| 解析/循环中间量 | — | — | **`var` 临时变量**，不要新增动作变量 |
 
 ## 示例（trace ✅）
 
@@ -41,7 +42,8 @@ Patch：`.local/patch-expression-first.json`
 ## 陷阱
 
 - evalexpression 内用 **`{var}`** 读写变量；**不是** `$=` 前缀（`simpleIf` 的 `condition` 才用 `$=`）。
-- 多变量一行：`{a} = 1; {b} = \"x\";`（见 evalexpression-multi-var skill）。
+- 多变量 `{a}=…; {b}=…` 仅当 **a、b 都被后续步骤读取**；单步内 scratch 用 `var`（见 quicker-eval-expression）。
+- **不要**为 CSV 解析、循环计数等过程量批量定义动作变量。
 - `number` 字面量参与运算时用 `Convert.ToDouble(n)`（SDK L2 复盘）。
 - 复杂 UI、文件 IO、HTTP 仍用专用模块；表达式替代的是**纯数据变换**。
 

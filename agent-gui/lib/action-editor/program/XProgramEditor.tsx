@@ -17,6 +17,7 @@ import { isKeyboardInputFocus, isKeyboardInputSurface } from "@/lib/action-edito
 import { ToastProvider, useToast } from "@/lib/action-editor/shared/ToastContext";
 import StepListEditor from "@/lib/action-editor/steps/StepListEditor";
 import VariableEditor from "@/lib/action-editor/variables/VariableEditor";
+import { useStepParamFileContents } from "@/lib/action-editor/steps/useStepParamFileContents";
 import {
   cloneXProgramPresent,
   createInitialXProgramHistoryState,
@@ -135,6 +136,7 @@ function XProgramEditorInner({
   const canRedo = hist.future.length > 0;
   const [variablesOpen, setVariablesOpen] = useState(false);
   const variableCount = hist.present.variables.length;
+  const stepParamFileContents = useStepParamFileContents(hist.present.steps, workspaceContext);
 
   useEffect(() => {
     if (!variablesOpen) return;
@@ -207,6 +209,7 @@ function XProgramEditorInner({
             subPrograms={subPrograms}
             embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
             workspaceContext={workspaceContext}
+            stepParamFileContents={stepParamFileContents}
             onPinStepToChat={onPinStepToChat}
           />
         </div>
@@ -224,24 +227,15 @@ function XProgramEditorInner({
               role="dialog"
               aria-label="变量"
             >
-              <div className="x-program-editor-variables-drawer-head">
-                <span className="x-program-editor-variables-drawer-title">变量</span>
-                <button
-                  type="button"
-                  className="variable-toolbar-btn"
-                  title="关闭"
-                  aria-label="关闭变量面板"
-                  onClick={() => setVariablesOpen(false)}
-                >
-                  ×
-                </button>
-              </div>
               <div className="x-program-editor-variables-drawer-body">
                 <VariableEditor
                   programSurface={programSurface}
                   variables={hist.present.variables}
                   steps={hist.present.steps}
+                  workspaceContext={workspaceContext}
+                  stepParamFileContents={stepParamFileContents}
                   onCommitVariables={commitVariables}
+                  onCloseDrawer={() => setVariablesOpen(false)}
                   onStepHighlightFilter={(filterText) => {
                     showToast(`步骤高亮筛选（占位）：${filterText}`, {
                       variant: "info",
