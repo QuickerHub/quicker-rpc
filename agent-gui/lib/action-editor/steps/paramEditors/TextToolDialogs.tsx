@@ -18,7 +18,7 @@ import {
   type TextToolDialogKind,
 } from "./textToolWebSupport";
 import { formatCapturedKey, keyCaptureModeForTool, type KeyCaptureMode } from "./textToolSendKeys";
-import { MonacoExpressionEditor } from "../expression/MonacoExpressionEditor";
+import { ExpressionEditor } from "../expression/ExpressionEditor";
 
 export type TextToolDialogState =
   | {
@@ -471,7 +471,7 @@ function EditInCodeDialog({
     <div className="text-tool-dialog-panel text-tool-dialog-panel--code">
       <h3 className="text-tool-dialog-title">在编辑器中修改</h3>
       <p className="text-tool-dialog-hint">Esc 关闭 · Ctrl+Enter 确定</p>
-      <MonacoExpressionEditor
+      <ExpressionEditor
         className="text-tool-dialog-code-editor"
         value={text}
         onChange={setText}

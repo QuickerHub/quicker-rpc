@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo, type JSX } from "react";
 import { createPortal } from "react-dom";
-import { preloadMonacoExpressionEditor } from "../expression/ExpressionEditor";
 import type { ActionStep, ActionSubProgram, ActionVariable, ActionStepParam } from "@/lib/action-editor/types/common";
 import type { StepRunnerInputParamDef, StepRunnerOutputParamDef, StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import { ensureParamValue, StepInputParamField } from "./StepInputParamField";
@@ -237,13 +236,6 @@ export function StepEditorPopup({
     }
     loadedSchemaKeyRef.current = "";
   }, [open, step?.stepId, runnerItem]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    void preloadMonacoExpressionEditor();
-  }, [open]);
 
   useEffect(() => {
     if (!open || !step || !workspaceContext) {

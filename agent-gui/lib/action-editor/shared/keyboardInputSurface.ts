@@ -1,6 +1,6 @@
 /**
  * Detect surfaces that should receive native text-editing shortcuts (Ctrl+A/C/V/X, etc.).
- * Monaco often reports `div.view-lines` as event.target instead of its hidden textarea.
+ * CodeMirror often reports `.cm-content` as event.target instead of its hidden textarea.
  */
 export function isKeyboardInputSurface(node: EventTarget | null): boolean {
   if (!(node instanceof HTMLElement)) {
@@ -13,7 +13,7 @@ export function isKeyboardInputSurface(node: EventTarget | null): boolean {
   if (node.isContentEditable) {
     return true;
   }
-  if (node.closest(".monaco-editor") != null) {
+  if (node.closest(".cm-editor") != null) {
     return true;
   }
   return false;

@@ -91,6 +91,10 @@
   --ad-fg-success: #6ca66c;
   --ad-bg-mark: #35506b;
   --ad-fg-mark: #dff0ff;
+  /* Expression editor (CodeMirror) — aligned with former Monaco quicker-dark. */
+  --ad-editor-selection-bg: #35506b;
+  --ad-editor-selection-bg-inactive: #2a3640;
+  --ad-editor-active-line-bg: rgba(255, 255, 255, 0.03);
   --ad-bg-toast: #2d2d30;
   --ad-border-toast: #3f3f46;
   --ad-border-toast-error: #8b4d3c;
@@ -218,6 +222,10 @@ html[data-theme="light"] {
   --ad-fg-success: #2d7a3e;
   --ad-bg-mark: #b8d4f0;
   --ad-fg-mark: #0f3a5c;
+  /* Expression editor (CodeMirror) — aligned with former Monaco quicker-light. */
+  --ad-editor-selection-bg: #b8d4f0;
+  --ad-editor-selection-bg-inactive: #d6e8f7;
+  --ad-editor-active-line-bg: rgba(0, 0, 0, 0.04);
   --ad-bg-toast: #ffffff;
   --ad-border-toast: #c8c8c8;
   --ad-border-toast-error: #c46a5a;

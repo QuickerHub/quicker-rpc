@@ -68,8 +68,8 @@ try {
 
 ## 陷阱
 
-- wire 键 **`expression.file`**（非 `code.file` 除非 legacy）；`step-runner get` 的 `fileExt` 为 `.eval.cs`。
-- **勿** `outputParams.isSuccess` 映射到业务 `ok`（会覆盖表达式写的布尔值）；业务 `ok` 仅在 eval.cs 内 `{ok}=`。
+- wire 键 **`expression.file`**（非 `code.file` 除非 legacy）；`fileExt` 为 `.eval.cs`。正文语法 → **expressions** topic（SkipEval，无 `$=`）。
+- **勿** `outputParams.isSuccess` 映射到业务 `ok`；业务 `ok` 仅在 eval.cs 内 `{ok}=`。
 - extract 拉取后若内联 `{}`，需改回 `expression.file` 再 apply。
 - trace 前用 `writeClipboard` 写入样本 JSON，避免剪贴板污染。
 - **ActionRuntime mock**：eval.cs 内 **Newtonsoft / System.Text.Json** 在 Z.Expressions 不可用；mock bench 用 `.local/ws-external-eval-bench/` 简化 formatter；live/trace 仍用 `.local/ws-external-eval/` + Newtonsoft。

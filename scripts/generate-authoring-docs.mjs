@@ -32,6 +32,10 @@ const EVAL_SKILL_SRC = path.join(
   SRC,
   "skills/quicker-eval-expression/SKILL.src.md",
 );
+const EVAL_PROMPT_TIER2_SRC = path.join(
+  SRC,
+  "skills/quicker-eval-expression/prompt-tier2.src.md",
+);
 const EVAL_SKILL_MANIFEST = path.join(
   SRC,
   "skills/quicker-eval-expression/manifest.json",
@@ -703,6 +707,22 @@ async function computeEvalSkillOutputs(opsData, partials) {
   }
   outputs.set("eval-skills/references/evalexpression-examples.md", evalexpressionExamples);
 
+  let evalPromptTier2Src;
+  try {
+    evalPromptTier2Src = normalizeEol(await fs.readFile(EVAL_PROMPT_TIER2_SRC, "utf8"));
+  } catch {
+    throw new Error(`Missing eval prompt tier2 source: ${EVAL_PROMPT_TIER2_SRC}`);
+  }
+  const evalPromptTier2Body = renderDoc(
+    evalPromptTier2Src,
+    opsData,
+    "agent",
+    "skills/quicker-eval-expression/prompt-tier2.src.md",
+    new Map(),
+    partials,
+  );
+  outputs.set("eval-skills/prompt-tier2.md", `${evalPromptTier2Body.trimEnd()}\n`);
+
   return outputs;
 }
 
@@ -860,6 +880,9 @@ function resolveOutputPath(rel) {
   }
   if (rel === "eval-skills/SKILL.md") {
     return path.join(OUT_EVAL_SKILL, "SKILL.md");
+  }
+  if (rel === "eval-skills/prompt-tier2.md") {
+    return path.join(OUT_EVAL_SKILL, "prompt-tier2.md");
   }
   if (rel.startsWith("eval-skills/references/")) {
     return path.join(

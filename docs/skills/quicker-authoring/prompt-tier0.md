@@ -56,7 +56,7 @@ P7  trust editVersion after save (NO verify re-get)
 - NO get-ui / step-runner.getUi
 - NO inline program-body patch / whole-program `--patch-file`; step `inputParams` literals per get
 - After patch trust editVersion; NO re-get to verify
-- P4: **sys:assign** for single-var writes; load **quicker-eval-expression** for `$=`/`$$`/batch evalexpression; module → csscript last
+- P4: **sys:assign** single-var; **`$=`/`$$`/evalexpression** rules in preloaded **quicker-eval-expression** below; module → csscript last
 
 ## Workspace
 
@@ -114,6 +114,6 @@ steps[] + inputParams: `paramKey` · `.file` · `.var` (one bind/key). **Literal
 | list/dict literal | `["a"]` / `{"k":1}` on `paramKey` | multiline guess |
 | enum/literal | pick from step_runner_get `options` | guess value |
 
-Long text → `paramKey.file`. Keys: search → get. Branch: sys:if → ifSteps/elseSteps. Deep-read: **action-data-schema**, expressions, step-runner-get.
+Long text → `paramKey.file`. Keys: search → get. Branch: sys:if → ifSteps/elseSteps. Deep-read: **action-data-schema**, step-runner-get.
 
 Topic index below; deep-read via docs search (snippet). Full workflow → docs get(topic).

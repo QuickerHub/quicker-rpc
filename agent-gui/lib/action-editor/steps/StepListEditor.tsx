@@ -1135,7 +1135,7 @@ export default function StepListEditor({
         tag === "input" ||
         tag === "textarea" ||
         tag === "select" ||
-        (ae instanceof HTMLElement && ae.closest(".monaco-editor") != null);
+        (ae instanceof HTMLElement && ae.closest(".cm-editor") != null);
       if (!isTextField && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey) {
         const k = event.key.toLowerCase();
         if (k === "a") {

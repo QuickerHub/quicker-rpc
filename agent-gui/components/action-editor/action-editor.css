@@ -2288,6 +2288,7 @@
 .step-editor-popup-body {
   padding: 12px 14px;
   overflow: auto;
+  overscroll-behavior-y: auto;
   min-height: 0;
   flex: 1;
 }
@@ -2823,8 +2824,9 @@
 }
 
 .step-param-varorvalue-shell--multiline .step-param-varorvalue-input .step-param-expression-editor {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 40px;
+  max-height: 200px;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -2840,8 +2842,10 @@
 }
 
 .step-param-external-file-editor .step-param-expression-editor {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
+  max-height: 200px;
+  overflow: hidden;
 }
 
 .step-param-external-file-editor--multiline .step-param-expression-editor {
@@ -2863,7 +2867,7 @@
 }
 
 .step-param-varorvalue-input .expression-editor.expression-editor--inline {
-  padding: 2px 6px;
+  padding: 0;
 }
 
 .step-param-varorvalue-input .expression-editor.expression-editor--loading.expression-editor--inline {
@@ -2877,7 +2881,7 @@
 }
 
 .step-param-varorvalue-input .expression-editor.expression-editor--multiline {
-  padding: 4px 6px;
+  padding: 0;
 }
 
 .step-param-varorvalue-title {
@@ -4311,7 +4315,7 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
 }
 
 .step-param-expression-editor .expression-editor.expression-editor--multiline {
-  padding: 4px 6px;
+  padding: 0;
   min-height: 40px;
 }
 
@@ -4360,7 +4364,7 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
   min-width: 0;
 }
 
-/* ExpressionEditor: Monaco (C# + Quicker `{var}` placeholders). */
+/* ExpressionEditor: CodeMirror (C# + Quicker `{var}` placeholders). */
 .expression-editor {
   background-color: var(--ad-bg-input);
 }
@@ -4369,41 +4373,81 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
   padding: 0;
 }
 
-.expression-editor--monaco {
+.expression-editor--cm {
   position: relative;
   width: 100%;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
+  overscroll-behavior-y: auto;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
-.expression-editor--monaco.expression-editor--multiline {
+.expression-editor--cm.expression-editor--multiline {
   min-height: 40px;
-  max-height: 200px;
 }
 
-.expression-editor--monaco.expression-editor--loading {
-  min-height: 22px;
+.expression-editor--cm .cm-theme,
+.expression-editor--cm .cm-theme-light,
+.expression-editor--cm .cm-theme-none {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
-.expression-editor--monaco .monaco-editor,
-.expression-editor--monaco .monaco-editor .overflow-guard {
-  width: 100% !important;
+.expression-editor--cm .cm-editor {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100% !important;
+  max-height: 100%;
+  overflow: hidden;
+  overscroll-behavior-y: auto;
+  background-color: var(--ad-bg-input);
 }
 
-.expression-editor--monaco .monaco-editor,
-.expression-editor--monaco .monaco-editor-background,
-.expression-editor--monaco .monaco-editor .margin,
-.expression-editor--monaco .monaco-editor .sticky-widget,
-.expression-editor--monaco .monaco-editor .sticky-widget-lines,
-.expression-editor--monaco .monaco-editor .sticky-line-content {
-  background-color: var(--ad-bg-input) !important;
+.expression-editor--cm .cm-scroller {
+  background-color: var(--ad-bg-input);
+  height: 100% !important;
+  max-height: 100%;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: auto;
 }
 
-/* Hide current-line highlight when the field is not focused (Monaco keeps cursor line on blur). */
-.expression-editor--monaco:not(:focus-within) .monaco-editor .view-overlays .current-line {
-  border: none !important;
+.expression-editor--cm .cm-content {
+  padding: 0 4px;
+}
+
+.expression-editor--cm .cm-content ::selection {
   background-color: transparent !important;
+}
+
+.expression-editor--cm .cm-editor:not(.cm-focused) .cm-selectionBackground {
+  background-color: var(--ad-editor-selection-bg-inactive) !important;
+}
+
+.expression-editor--cm .cm-editor.cm-focused .cm-selectionBackground {
+  background-color: var(--ad-editor-selection-bg) !important;
+}
+
+.expression-editor--cm .cm-activeLine {
+  background-color: transparent;
+}
+
+.expression-editor--cm .cm-editor.cm-focused .cm-activeLine {
+  background-color: var(--ad-editor-active-line-bg);
+}
+
+.expression-editor--cm:not(:focus-within) .cm-activeLine {
+  background-color: transparent;
 }
 
 .expression-editor-placeholder {
@@ -4420,21 +4464,15 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
 }
 
 .expression-editor--inline .expression-editor-placeholder {
-  left: 6px;
-  top: 2px;
-  right: 6px;
+  left: 4px;
+  top: 0;
+  right: 4px;
 }
 
 .expression-editor--multiline .expression-editor-placeholder {
-  left: 6px;
-  top: 4px;
-  right: 6px;
-}
-
-.expression-editor-monaco-loading {
-  width: 100%;
-  height: 100%;
-  min-height: 18px;
+  left: 4px;
+  top: 0;
+  right: 4px;
 }
 
 .step-param-expression-editor:focus-within {

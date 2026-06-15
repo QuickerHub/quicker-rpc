@@ -39,8 +39,8 @@
 
 ## 陷阱
 
-- 本步 `expression` 为 SkipEval：**不要** `$=` 前缀；普通步骤参数写表达式才用 `$=` / `$$`（详见 `expressions` topic）。
-- **单步内中间量用 `var` 临时变量**；仅当后续步骤要读时才 `{变量}=` 写回动作变量。避免为解析/循环过程大量新增 `variables[]` 条目（性能更好、动作更干净）。
+- SkipEval：`expression` / `files/*.eval.cs` 为纯 C#，无 `$=` — **`$=`/`$$` 规则见 expressions topic**（wire 前缀在 JSON 字符串首字符，不是 C# 语法）。
+- **单步内中间量用 `var` 临时变量**；仅当后续步骤要读时才 `{变量}=` 写回动作变量。避免为解析/循环过程大量新增 `variables[]` 条目。
 - `{var}=expr` 写回变量时可不映射 `output`；长表达式用 `expression.file` 外链 `.eval.cs` / `.expr`。
 - `onUiThread: true` 谨慎使用，可能造成死锁；复杂逻辑兜底见 `implementation-fallback` → `csscript`。
 

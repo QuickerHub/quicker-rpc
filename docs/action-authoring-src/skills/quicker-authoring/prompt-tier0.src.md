@@ -45,7 +45,7 @@ On-demand — full route table in parent **quicker-authoring** SKILL (`Scenario 
 - NO get-ui / step-runner.getUi
 - NO inline program-body patch / whole-program `--patch-file`; step `inputParams` literals per get
 - After patch trust editVersion; NO re-get to verify
-- P4: **sys:assign** for single-var writes; load **quicker-eval-expression** for `$=`/`$$`/batch evalexpression; module → csscript last
+- P4: **sys:assign** single-var; **`$=`/`$$`/evalexpression** rules in preloaded **quicker-eval-expression** below; module → csscript last
 
 ## Workspace
 

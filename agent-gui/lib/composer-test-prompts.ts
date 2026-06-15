@@ -37,6 +37,13 @@ export const COMPOSER_TEST_PROMPT_GROUPS: readonly TitleTestExampleGroup[] = [
         userText:
           "新建动作：读剪贴板到 raw。若是合法 JSON 则格式化（缩进 2 空格）写回剪贴板；否则弹窗报错。格式化逻辑若超过 4 行请放到 files/format-json.eval.cs 并在步骤里用文件引用。",
       },
+      {
+        id: "new-screenshot-ocr-sum",
+        label: "截图 · OCR 数字求和",
+        description: "框选截图 + OCR + 表达式求和",
+        userText:
+          "帮我做个动作：运行后让我框选屏幕一块区域截图，OCR 识别里面的文字，把识别到的数字全部加起来，弹窗告诉我总和和几个数；要是没识别到数字就提示一下。",
+      },
     ],
   },
   {

@@ -7,7 +7,10 @@ import { resolveQuickerRpcRepoRoot } from "@/lib/repo-root";
 export const DEFAULT_SKILLS_REL = "docs/skills";
 
 /** Skills preloaded into QuickerAgent system prompt (tier 2 at session start). */
-export const PRELOADED_SKILL_NAMES = ["quicker-authoring"] as const;
+export const PRELOADED_SKILL_NAMES = [
+  "quicker-authoring",
+  "quicker-eval-expression",
+] as const;
 
 /**
  * Optional tier-2 body override per skill (QuickerAgent hot-router files).
@@ -15,12 +18,15 @@ export const PRELOADED_SKILL_NAMES = ["quicker-authoring"] as const;
  */
 export const SKILL_TIER2_BODY_FILES: Record<string, string> = {
   "quicker-authoring": "prompt-tier0.md",
+  "quicker-eval-expression": "prompt-tier2.md",
 };
 
 /** One-line scope hint injected above preloaded tier-2 body. */
 export const PRELOADED_SKILL_SCOPES: Record<string, string> = {
   "quicker-authoring":
     "create/edit program bodies (steps, variables, files). Else use main Capabilities.",
+  "quicker-eval-expression":
+    "P4 expressions ($=, $$, evalexpression, .eval.cs) — preloaded; use before writing expression steps.",
 };
 
 /** Resolve the skills root directory (docs/skills in repo, or bundled copy). */
