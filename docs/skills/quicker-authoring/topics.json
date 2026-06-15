@@ -176,7 +176,7 @@
     {
       "topic": "expressions",
       "title": "Expressions & interpolation",
-      "description": "P4: sys:assign for single-var writes; $=, $$ inline; sys:evalexpression for batch {var}= / LINQ. Load quicker-eval-expression skill; csscript last.",
+      "description": "Use when authoring P4 expressions: sys:assign for single-var writes; $=, $$ inline; sys:evalexpression for batch {var}= / LINQ. Load quicker-eval-expression skill; csscript last.",
       "source": "references/expressions.md",
       "templateSource": "schemas/expressions.md",
       "allowedTools": "qkrpc_step_runner_get workspace_action_edit_data workspace_action_write_data qkrpc_action_patch",
