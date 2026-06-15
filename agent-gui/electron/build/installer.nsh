@@ -96,11 +96,16 @@ Function QuickerAgentShortcutsPageLeave
   ${EndIf}
 FunctionEnd
 
-Function QuickerAgentShortcutsPagePre
-  ${if} ${isUpdated}
-    Abort
-  ${endif}
-FunctionEnd
+!macro defineQuickerAgentShortcutsPagePre
+  !ifndef QA_SHORTCUTS_PAGE_PRE_DEFINED
+    !define QA_SHORTCUTS_PAGE_PRE_DEFINED
+    Function QuickerAgentShortcutsPagePre
+      ${if} ${isUpdated}
+        Abort
+      ${endif}
+    FunctionEnd
+  !endif
+!macroend
 
 !macro customWelcomePage
   !insertmacro skipPageIfUpdated
@@ -109,6 +114,7 @@ FunctionEnd
 
 ; Fresh installs only — in-place updates (--updated) go straight to file copy progress.
 !macro customPageAfterChangeDir
+  !insertmacro defineQuickerAgentShortcutsPagePre
   PageEx custom
     PageCallbacks QuickerAgentShortcutsPagePre QuickerAgentShortcutsPageCreate QuickerAgentShortcutsPageLeave
     Caption "快捷方式"
