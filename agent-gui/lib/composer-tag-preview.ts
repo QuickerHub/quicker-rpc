@@ -1,12 +1,18 @@
 import type { PinnedAction } from "@/lib/action-context";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
+import type { ProgramStepTag } from "@/lib/program-step-tag";
 import {
   actionFromTagElement,
   isComposerChipElement,
 } from "@/lib/composer-inline";
 import { browserElementTagFromDom } from "@/lib/browser-element-tag";
+import { programStepTagFromDom } from "@/lib/program-step-tag";
 
-export type ComposerTagPreviewKind = "action" | "subprogram" | "browser-element";
+export type ComposerTagPreviewKind =
+  | "action"
+  | "subprogram"
+  | "browser-element"
+  | "program-step";
 
 export type ComposerTagPreviewRow = {
   label: string;
@@ -97,10 +103,32 @@ export function buildBrowserElementTagPreview(
   };
 }
 
+export function buildProgramStepTagPreview(
+  tag: ProgramStepTag,
+): ComposerTagPreviewModel {
+  const rows: ComposerTagPreviewRow[] = [];
+  pushRow(rows, "路径", tag.dataJsonPath, { mono: true });
+  pushRow(rows, "nodePath", tag.nodePath, { mono: true });
+  pushRow(rows, "行范围", `${tag.startLine}-${tag.endLine}`, { mono: true });
+  pushRow(rows, "stepRunner", tag.stepRunnerKey, { mono: true });
+  pushRow(rows, "contentHash", tag.contentHash, { mono: true });
+  pushRow(rows, "说明", tag.note);
+
+  return {
+    kind: "program-step",
+    title: tag.chipTitle,
+    badge: "设计器步骤",
+    rows,
+    code: tag.content,
+  };
+}
+
 export function buildPreviewFromTagElement(
   el: HTMLElement,
 ): ComposerTagPreviewModel | null {
   if (!isComposerChipElement(el)) return null;
+  const programStep = programStepTagFromDom(el);
+  if (programStep) return buildProgramStepTagPreview(programStep);
   const browser = browserElementTagFromDom(el);
   if (browser) return buildBrowserElementTagPreview(browser);
   const action = actionFromTagElement(el);

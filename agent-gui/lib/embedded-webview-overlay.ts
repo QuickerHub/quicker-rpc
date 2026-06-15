@@ -7,6 +7,7 @@ export const EMBEDDED_WEBVIEW_OVERLAY_SELECTORS = [
   ".tool-result-popup-overlay",
   ".confirm-popup-backdrop",
   ".step-editor-popup-backdrop",
+  ".text-tool-dialog-backdrop",
   ".shortcut-popup-backdrop",
   ".form-def-editor-backdrop",
   ".x-program-editor-variables-backdrop",

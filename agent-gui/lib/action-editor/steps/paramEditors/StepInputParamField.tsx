@@ -32,6 +32,7 @@ import {
 
 export type { StepParamCreateVariableRequest as StepInputParamCreateVariableRequest } from "./stepParamCreateVariable";
 import type { StepParamCreateVariableRequest } from "./stepParamCreateVariable";
+import type { StepSummaryFileContents } from "@/lib/action-editor/steps/stepSummaryFileRefs";
 
 export type StepInputParamFieldProps = {
   def: StepRunnerInputParamDef;
@@ -39,6 +40,7 @@ export type StepInputParamFieldProps = {
   param: ActionStepParam;
   onChange: (next: ActionStepParam) => void;
   workspace?: ActionProjectWorkspaceContext;
+  prefetchedFileContents?: StepSummaryFileContents;
   onRequestCreateVariable?: (request: StepParamCreateVariableRequest) => void;
 };
 
@@ -112,6 +114,7 @@ function StepInputParamFieldInner({
   param,
   onChange,
   workspace,
+  prefetchedFileContents,
   onRequestCreateVariable,
 }: StepInputParamFieldProps): JSX.Element {
   const boolInputId = useId();
@@ -128,7 +131,9 @@ function StepInputParamFieldInner({
   const openFieldPopupRef = useRef<(() => void) | null>(null);
   const closeFieldPopupRef = useRef<(() => void) | null>(null);
   const [enumRect, setEnumRect] = useState<{ top: number; left: number; width: number } | null>(null);
-  const externalFile = useExternalParamFileEditorValue(param, workspace, onChange);
+  const externalFile = useExternalParamFileEditorValue(param, workspace, onChange, {
+    prefetchedFileContents,
+  });
 
   const label = (def.name ?? "").trim() || def.key;
   const desc = (def.description ?? "").trim();
@@ -438,6 +443,7 @@ function StepInputParamFieldInner({
             onChange={onChange}
             multiline={multilineVarOrValue}
             workspace={workspace}
+            prefetchedFileContents={prefetchedFileContents}
             openPopupRef={openFieldPopupRef}
             closePopupRef={closeFieldPopupRef}
             activateLabelRef={activateLabelRef}
@@ -509,6 +515,7 @@ function StepInputParamFieldInner({
         placeholder={def.defaultValue || ""}
         multiline={multiline}
         maxMultilineHeight={STEP_PARAM_SCRIPT_MAX_HEIGHT}
+        prefetchedFileContents={prefetchedFileContents}
       />
     </div>
   ) : multiline ? (
@@ -559,6 +566,7 @@ function stepInputParamFieldPropsEqual(
     prev.def === next.def
     && prev.variables === next.variables
     && prev.workspace === next.workspace
+    && prev.prefetchedFileContents === next.prefetchedFileContents
     && prev.onChange === next.onChange
     && prev.onRequestCreateVariable === next.onRequestCreateVariable
     && (prev.param.varKey ?? "") === (next.param.varKey ?? "")

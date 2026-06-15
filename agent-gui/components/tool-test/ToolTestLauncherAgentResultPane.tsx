@@ -2,7 +2,9 @@
 
 import { getToolOrDynamicToolName, isToolOrDynamicToolUIPart } from "ai";
 import { useEffect, useMemo, useRef } from "react";
-import type { LauncherAgentRunEntry } from "@/lib/tool-test-launcher-agent-runs";
+import {
+  type LauncherAgentRunEntry,
+} from "@/lib/tool-test-launcher-agent-runs";
 import type { ToolTestConversationStatus } from "@/lib/tool-test-conversation-run";
 import {
   computeLauncherAgentResponseDurationMs,
@@ -18,6 +20,7 @@ type ToolTestLauncherAgentResultPaneProps = {
   workingDirectory?: string;
   onClearRuns: () => void;
   addToolOutput?: ChatAddToolOutput | null;
+  activeRunId?: string | null;
 };
 
 function firstToolName(messages: LauncherAgentRunEntry["chatMessages"]): string | null {
@@ -99,10 +102,12 @@ function LauncherAgentRunCard({
   run,
   workingDirectory,
   addToolOutput,
+  activeRunId,
 }: {
   run: LauncherAgentRunEntry;
   workingDirectory?: string;
   addToolOutput?: ChatAddToolOutput | null;
+  activeRunId?: string | null;
 }) {
   const firstTool = firstToolName(run.chatMessages);
   const directLabel = directRunLabel(run.chatMessages);
@@ -184,7 +189,9 @@ function LauncherAgentRunCard({
       streamTick={run.chatMessages[run.chatMessages.length - 1]?.parts.length ?? 0}
       chatVariant="launcher-agent"
       chatError={run.error}
-      addToolOutput={run.status === "running" ? addToolOutput : undefined}
+      addToolOutput={
+        run.id === activeRunId ? addToolOutput : undefined
+      }
       footer={footer}
     />
   );
@@ -195,6 +202,7 @@ export function ToolTestLauncherAgentResultPane({
   workingDirectory,
   onClearRuns,
   addToolOutput,
+  activeRunId,
 }: ToolTestLauncherAgentResultPaneProps) {
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -233,6 +241,7 @@ export function ToolTestLauncherAgentResultPane({
           run={run}
           workingDirectory={workingDirectory}
           addToolOutput={addToolOutput}
+          activeRunId={activeRunId}
         />
       ))}
     </ToolTestRunsPaneShell>

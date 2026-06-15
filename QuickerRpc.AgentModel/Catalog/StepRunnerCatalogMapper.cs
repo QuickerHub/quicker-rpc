@@ -10,16 +10,22 @@ public static class StepRunnerCatalogMapper
 {
     public static SearchStepRunnersResult Search(StepRunnerCatalog catalog, string keyword, int? maxResults)
     {
-        var limit = maxResults is > 0 and <= 200 ? maxResults!.Value : 40;
+        var limit = maxResults is > 0 ? Math.Min(maxResults!.Value, 200) : 40;
         var kw = (keyword ?? string.Empty).Trim();
+        if (StepRunnerSearchQuery.IsBareWildcardQuery(kw))
+        {
+            kw = string.Empty;
+        }
+
         var searchQuery = StepRunnerSearchQuery.Parse(kw);
+        if (searchQuery.IsEmpty)
+        {
+            return SearchBrowse(catalog, limit);
+        }
 
         IEnumerable<StepRunnerDefinition> query = catalog.Items
-            .Where(r => !StepRunnerAgentSearchFilter.IsModuleExcludedFromSearch(r));
-        if (kw.Length > 0)
-        {
-            query = query.Where(r => StepRunnerSearchQuery.RowMatches(r, searchQuery));
-        }
+            .Where(r => !StepRunnerAgentSearchFilter.IsModuleExcludedFromSearch(r))
+            .Where(r => StepRunnerSearchQuery.RowMatches(r, searchQuery));
 
         var ordered = query
             .Select(r => (r, rank: StepRunnerKeywordSearch.ComputeRank(r, searchQuery)))
@@ -27,15 +33,67 @@ public static class StepRunnerCatalogMapper
             .ThenByDescending(x => x.rank.ControlScore)
             .ThenBy(x => x.r.Name, StringComparer.OrdinalIgnoreCase)
             .Take(limit)
-            .Select(x => ToSearchItem(x.r, x.rank, includeControlField: kw.Length > 0))
+            .Select(x => ToSearchItem(x.r, x.rank, includeControlField: true))
             .ToList();
 
         return new SearchStepRunnersResult
         {
             Success = true,
-            Keyword = kw.Length == 0 ? null : kw,
+            Keyword = kw,
             MatchCount = ordered.Count,
             Items = ordered
+        };
+    }
+
+    /// <summary>Full catalog listing for maintainers and UI hydration (not agent keyword search).</summary>
+    public static SearchStepRunnersResult ListCatalog(StepRunnerCatalog catalog, int? maxResults)
+    {
+        const int listLimitMax = 500;
+        var limit = maxResults is > 0 ? Math.Min(maxResults!.Value, listLimitMax) : listLimitMax;
+
+        var items = catalog.Items
+            .Where(r => !StepRunnerAgentSearchFilter.IsModuleExcludedFromSearch(r))
+            .OrderBy(r => r.Key ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .Take(limit)
+            .Select(r => ToSearchItem(r, new StepRunnerSearchRankResult(), includeControlField: false))
+            .ToList();
+
+        return new SearchStepRunnersResult
+        {
+            Success = true,
+            MatchCount = items.Count,
+            Items = items,
+        };
+    }
+
+    private static SearchStepRunnersResult SearchBrowse(StepRunnerCatalog catalog, int limit)
+    {
+        var byKey = catalog.Items
+            .Where(r => !StepRunnerAgentSearchFilter.IsModuleExcludedFromSearch(r))
+            .Where(r => StepRunnerBrowseCatalog.Contains(r.Key ?? string.Empty))
+            .ToDictionary(r => r.Key ?? string.Empty, r => r, StringComparer.OrdinalIgnoreCase);
+
+        var ordered = new List<StepRunnerSearchItem>();
+        foreach (var key in StepRunnerBrowseCatalog.OrderedKeys)
+        {
+            if (!byKey.TryGetValue(key, out var row))
+            {
+                continue;
+            }
+
+            ordered.Add(ToSearchItem(row, new StepRunnerSearchRankResult(), includeControlField: false));
+            if (ordered.Count >= limit)
+            {
+                break;
+            }
+        }
+
+        return new SearchStepRunnersResult
+        {
+            Success = true,
+            Keyword = null,
+            MatchCount = ordered.Count,
+            Items = ordered,
         };
     }
 

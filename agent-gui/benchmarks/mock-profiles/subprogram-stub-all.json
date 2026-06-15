@@ -1,0 +1,12 @@
+{
+  "id": "subprogram-stub-all",
+  "version": 1,
+  "mocks": {
+    "subPrograms": {
+      "stubAll": true
+    }
+  },
+  "assertions": {
+    "success": true
+  }
+}

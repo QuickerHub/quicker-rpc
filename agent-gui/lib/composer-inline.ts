@@ -7,6 +7,14 @@ import {
   formatBrowserElementTagMarkup,
   isBrowserElementTagElement,
 } from "@/lib/browser-element-tag";
+import type { ProgramStepTag } from "@/lib/program-step-tag";
+import {
+  formatProgramStepTagMarkup,
+  isProgramStepTagElement,
+  PROGRAM_STEP_TAG_ATTR,
+  PROGRAM_STEP_TAG_CLASS,
+  programStepTagFromDom,
+} from "@/lib/program-step-tag";
 import {
   createComposerTagIconElement,
   hydrateComposerTagIcons,
@@ -37,6 +45,7 @@ export function isComposerChipElement(el: Element): boolean {
   return (
     isComposerTagElement(el)
     || isBrowserElementTagElement(el)
+    || isProgramStepTagElement(el)
     || isSlashTagElement(el)
   );
 }
@@ -76,6 +85,8 @@ export function actionFromTagElement(el: HTMLElement): PinnedAction | null {
 export function tagElementToMarkup(el: HTMLElement): string {
   const slashTag = slashTagFromDom(el);
   if (slashTag) return formatSlashTagMarkup(slashTag);
+  const programStep = programStepTagFromDom(el);
+  if (programStep) return formatProgramStepTagMarkup(programStep);
   const browserElement = browserElementTagFromDom(el);
   if (browserElement) return formatBrowserElementTagMarkup(browserElement);
   const action = actionFromTagElement(el);
@@ -139,6 +150,55 @@ export function createBrowserElementTagElement(
   const title = document.createElement("span");
   title.className = "composer-prompt-tag__title";
   title.textContent = element.chipTitle;
+  span.append(title);
+
+  return span;
+}
+
+function encodeContentB64ForDom(content: string): string {
+  const bytes = new TextEncoder().encode(content);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
+/** Build a non-editable program-step chip for the composer. */
+export function createProgramStepTagElement(tag: ProgramStepTag): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.className = `${COMPOSER_TAG_CLASS} ${PROGRAM_STEP_TAG_CLASS}`;
+  span.contentEditable = "false";
+  span.setAttribute(PROGRAM_STEP_TAG_ATTR, tag.tagId);
+  span.setAttribute("data-program-step-title", tag.chipTitle);
+  span.setAttribute("data-program-target", tag.programTarget);
+  span.setAttribute("data-program-id", tag.programId);
+  span.setAttribute("data-data-json-path", tag.dataJsonPath);
+  span.setAttribute("data-node-path", tag.nodePath);
+  span.setAttribute("data-step-runner", tag.stepRunnerKey);
+  span.setAttribute("data-content-hash", tag.contentHash);
+  span.setAttribute("data-start-line", String(tag.startLine));
+  span.setAttribute("data-end-line", String(tag.endLine));
+  span.setAttribute("data-content-b64", encodeContentB64ForDom(tag.content));
+  if (tag.subProgramId?.trim()) {
+    span.setAttribute("data-subprogram-id", tag.subProgramId.trim());
+  }
+  if (tag.note?.trim()) {
+    span.setAttribute("data-step-note", tag.note.trim());
+  }
+  if (tag.designerStepId?.trim()) {
+    span.setAttribute("data-designer-step-id", tag.designerStepId.trim());
+  }
+
+  const icon = document.createElement("span");
+  icon.className = "composer-prompt-tag__icon composer-prompt-tag__icon--program-step";
+  icon.setAttribute("aria-hidden", "true");
+  icon.textContent = "⌗";
+  span.append(icon);
+
+  const title = document.createElement("span");
+  title.className = "composer-prompt-tag__title";
+  title.textContent = tag.chipTitle;
   span.append(title);
 
   return span;
@@ -236,6 +296,10 @@ export function renderMarkupIntoRoot(root: HTMLElement, markup: string): void {
       root.append(createBrowserElementTagElement(segment.element));
       continue;
     }
+    if (segment.type === "program-step") {
+      root.append(createProgramStepTagElement(segment.tag));
+      continue;
+    }
     if (segment.type === "slash-tag") {
       root.append(createSlashTagElement(segment.ref));
       continue;
@@ -313,6 +377,12 @@ function resolveTagInRoot(
   if (browserId) {
     return root.querySelector(
       `[${BROWSER_ELEMENT_TAG_ATTR}="${CSS.escape(browserId)}"]`,
+    ) as HTMLElement | null;
+  }
+  const programStepId = el.getAttribute(PROGRAM_STEP_TAG_ATTR);
+  if (programStepId) {
+    return root.querySelector(
+      `[${PROGRAM_STEP_TAG_ATTR}="${CSS.escape(programStepId)}"]`,
     ) as HTMLElement | null;
   }
   const id = el.getAttribute("data-qkrpc-id");

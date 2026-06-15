@@ -31,8 +31,8 @@ internal static class ActionRuntimeServeOps
         var verboseHost = ServeJsonArgs.GetBool(args, "verboseHost")
             || ServeJsonArgs.GetBool(args, "verbose-host");
         var debug = ServeJsonArgs.GetBool(args, "debug");
-        var executor = new ActionRuntimeExecutor(
-            defaultHostServices: verboseHost ? new ConsoleHostServices() : NoopHostServices.Instance);
+        var executor = ActionRuntimeExecutorFactory.Create(
+            verboseHost ? new ConsoleHostServices() : NoopHostServices.Instance);
 
         var package = buildResult.Result.Package;
         var report = executor.AnalyzeSupport(package);
@@ -87,7 +87,7 @@ internal static class ActionRuntimeServeOps
                 buildResult.Result.ErrorMessage ?? "Build failed.");
         }
 
-        var executor = new ActionRuntimeExecutor();
+        var executor = ActionRuntimeExecutorFactory.Create();
         var report = executor.AnalyzeSupport(buildResult.Result.Package);
         return Ok(new
         {
@@ -156,7 +156,7 @@ internal static class ActionRuntimeServeOps
 
     internal static ServeInvokeResponse Keys()
     {
-        var keys = ActionRuntimeBootstrap.GetSupportedStepKeys()
+        var keys = ActionRuntimeExecutorFactory.GetSupportedStepKeys()
             .OrderBy(static key => key, StringComparer.OrdinalIgnoreCase)
             .ToList();
         return Ok(new

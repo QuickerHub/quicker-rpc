@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { WorkingDirectoryDialog } from "@/components/chat/WorkingDirectoryDialog";
@@ -17,7 +18,6 @@ import {
   renameThread,
   resolveThreadWorkingDirectory,
   setThreadWorkingDirectory,
-  threadMessageCount,
   tryRestoreLegacyChatStore,
 } from "@/lib/chat-store";
 import { pushAppMessage } from "@/lib/app-messages";
@@ -27,6 +27,7 @@ import { fetchLegacyChatStoreCandidatesFromDisk } from "@/lib/legacy-chat-restor
 import type { DefaultWorkingDirectoryProfile } from "@/lib/default-working-directory";
 import { TitlebarDragRegion } from "@/components/shell/TitlebarDragRegion";
 import {
+  defaultCwdGroupLabel,
   formatThreadRelativeTime,
   groupThreadsByCwd,
   readCollapsedCwdGroups,
@@ -37,20 +38,18 @@ import {
   groupThreadsByActionDesigner,
   type ActionDesignerThreadGroup,
 } from "@/lib/action-designer-thread";
-import { ExplorerFolderIcon } from "@/components/workspace/ExplorerTreeIcons";
-
-function defaultCwdFallbackLabel(profile: DefaultWorkingDirectoryProfile): string {
-  switch (profile) {
-    case "repo":
-      return "默认（quicker-rpc 仓库根）";
-    case "documents":
-      return "默认（文档/QuickerAgent/workspace）";
-    case "env":
-      return "默认（已配置）";
-    default:
-      return "默认";
-  }
-}
+import {
+  pinThreadId,
+  readPinnedThreadIds,
+  resolvePinnedThreads,
+  unpinThreadId,
+  writePinnedThreadIds,
+} from "@/lib/thread-sidebar-pins";
+import {
+  getThreadRunStatusVersion,
+  isThreadRunBusy,
+  subscribeThreadRunStatus,
+} from "@/lib/thread-run-status";
 
 type ChatSidebarProps = {
   store: ChatStoreData;
@@ -91,24 +90,65 @@ function IconPlus() {
   );
 }
 
-function IconChevron({ expanded }: { expanded: boolean }) {
+/** Quicker FA Light folder glyphs (qkrpc fa resolve). */
+const FA_LIGHT_FOLDER = {
+  width: 512,
+  height: 512,
+  path: "M194.74 96l54.63 54.63c6 6 14.14 9.37 22.63 9.37h192c8.84 0 16 7.16 16 16v224c0 8.84-7.16 16-16 16H48c-8.84 0-16-7.16-16-16V112c0-8.84 7.16-16 16-16h146.74M48 64C21.49 64 0 85.49 0 112v288c0 26.51 21.49 48 48 48h416c26.51 0 48-21.49 48-48V176c0-26.51-21.49-48-48-48H272l-54.63-54.63c-6-6-14.14-9.37-22.63-9.37H48z",
+} as const;
+
+const FA_LIGHT_FOLDER_OPEN = {
+  width: 576,
+  height: 512,
+  path: "M527.95 224H480v-48c0-26.51-21.49-48-48-48H272l-64-64H48C21.49 64 0 85.49 0 112v288c0 26.51 21.49 48 48 48h385.057c28.068 0 54.135-14.733 68.599-38.84l67.453-112.464C588.24 264.812 565.285 224 527.95 224zM48 96h146.745l64 64H432c8.837 0 16 7.163 16 16v48H171.177c-28.068 0-54.135 14.733-68.599 38.84L32 380.47V112c0-8.837 7.163-16 16-16zm493.695 184.232l-67.479 112.464A47.997 47.997 0 0 1 433.057 416H44.823l82.017-136.696A48 48 0 0 1 168 256h359.975c12.437 0 20.119 13.568 13.72 24.232z",
+} as const;
+
+function SidebarFolderIcon({ expanded }: { expanded: boolean }) {
+  const icon = expanded ? FA_LIGHT_FOLDER_OPEN : FA_LIGHT_FOLDER;
   return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 10 10"
-      fill="none"
-      aria-hidden
-      className={expanded ? "ws-chevron ws-chevron--open" : "ws-chevron"}
+    <span className="ws-sidebar-folder-icon" aria-hidden>
+      <svg
+        width={16}
+        height={16}
+        viewBox={`0 0 ${icon.width} ${icon.height}`}
+        fill="currentColor"
+      >
+        <path d={icon.path} />
+      </svg>
+    </span>
+  );
+}
+
+function ThreadRunIndicator({ running }: { running: boolean }) {
+  return (
+    <span
+      className={`ws-thread-status${running ? " ws-thread-status--running" : ""}`}
+      aria-hidden={!running}
+      {...(running ? { "aria-label": "对话进行中" } : {})}
     >
-      <path
-        d="M3 2l3 3-3 3"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+      {running ? (
+        <svg
+          className="ws-thread-status-spinner"
+          viewBox="0 0 16 16"
+          width="16"
+          height="16"
+          aria-hidden
+        >
+          <circle
+            cx="8"
+            cy="8"
+            r="5.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            strokeDasharray="14 10"
+          />
+        </svg>
+      ) : (
+        <span className="ws-thread-status-dot" />
+      )}
+    </span>
   );
 }
 
@@ -138,15 +178,23 @@ function IconHistory() {
   );
 }
 
-function IconPencil() {
+/** Quicker FA Light thumbtack (qkrpc fa resolve fa:Light_Thumbtack). */
+const FA_LIGHT_THUMBTACK = {
+  width: 384,
+  height: 512,
+  path: "M300.8 203.9L290.7 128H328c13.2 0 24-10.8 24-24V24c0-13.2-10.8-24-24-24H56C42.8 0 32 10.8 32 24v80c0 13.2 10.8 24 24 24h37.3l-10.1 75.9C34.9 231.5 0 278.4 0 335.2c0 8.8 7.2 16 16 16h160V472c0 .7.1 1.3.2 1.9l8 32c2 8 13.5 8.1 15.5 0l8-32c.2-.6.2-1.3.2-1.9V351.2h160c8.8 0 16-7.2 16-16 .1-56.8-34.8-103.7-83.1-131.3zM33.3 319.2c6.8-42.9 39.6-76.4 79.5-94.5L128 96H64V32h256v64h-64l15.3 128.8c40 18.2 72.7 51.8 79.5 94.5H33.3z",
+} as const;
+
+function IconThumbtack({ active = false }: { active?: boolean }) {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-      <path
-        d="M8.5 1.5l2 2L4 10H2v-2L8.5 1.5z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
+    <svg
+      className={active ? "ws-pin-icon ws-pin-icon--active" : "ws-pin-icon"}
+      width={12}
+      height={12}
+      viewBox={`0 0 ${FA_LIGHT_THUMBTACK.width} ${FA_LIGHT_THUMBTACK.height}`}
+      aria-hidden
+    >
+      <path fill="currentColor" d={FA_LIGHT_THUMBTACK.path} />
     </svg>
   );
 }
@@ -193,46 +241,149 @@ function RowAction({ label, onClick, disabled, children }: RowActionProps) {
 }
 
 type ThreadDeleteRowActionProps = {
-  threadId: string;
-  confirming: boolean;
   disabled?: boolean;
-  onRequestDelete: (threadId: string) => void;
-  onConfirmDelete: (threadId: string) => void;
+  onRequestDelete: () => void;
 };
 
 function ThreadDeleteRowAction({
-  threadId,
-  confirming,
   disabled,
   onRequestDelete,
-  onConfirmDelete,
 }: ThreadDeleteRowActionProps) {
-  if (confirming) {
-    return (
-      <button
-        type="button"
-        className="ws-row-confirm-btn"
-        onClick={(e) => {
-          e.stopPropagation();
-          onConfirmDelete(threadId);
-        }}
-        disabled={disabled}
-        title="确认删除"
-        aria-label="确认删除对话"
-      >
-        确认
-      </button>
-    );
-  }
-
   return (
     <RowAction
       label="删除对话"
-      onClick={() => onRequestDelete(threadId)}
+      onClick={onRequestDelete}
       disabled={disabled}
     >
       <IconTrash />
     </RowAction>
+  );
+}
+
+type ThreadSidebarRowProps = {
+  thread: ChatStoreData["threads"][number];
+  selected: boolean;
+  pinned: boolean;
+  running: boolean;
+  renaming: boolean;
+  renameDraft: string;
+  pendingDelete: boolean;
+  disabled?: boolean;
+  renameInputRef?: React.RefObject<HTMLInputElement | null>;
+  onActivate: () => void;
+  onStartRename: () => void;
+  onTogglePin: () => void;
+  onRequestDelete: () => void;
+  onConfirmDelete: () => void;
+  onRenameDraftChange: (value: string) => void;
+  onRenameCommit: () => void;
+  onRenameCancel: () => void;
+};
+
+function ThreadSidebarRow({
+  thread,
+  selected,
+  pinned,
+  running,
+  renaming,
+  renameDraft,
+  pendingDelete,
+  disabled,
+  renameInputRef,
+  onActivate,
+  onStartRename,
+  onTogglePin,
+  onRequestDelete,
+  onConfirmDelete,
+  onRenameDraftChange,
+  onRenameCommit,
+  onRenameCancel,
+}: ThreadSidebarRowProps) {
+  return (
+    <li
+      className={`ws-row ws-thread-row${selected ? " ws-row--active" : ""}${pendingDelete ? " ws-row--delete-pending" : ""}${renaming ? " ws-row--renaming" : ""}`}
+    >
+      {renaming ? (
+        <div className="ws-thread-rename">
+          <ThreadRunIndicator running={running} />
+          <input
+            ref={renameInputRef}
+            type="text"
+            className="ws-thread-rename-input"
+            value={renameDraft}
+            disabled={disabled}
+            aria-label="对话标题"
+            onChange={(event) => {
+              onRenameDraftChange(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                onRenameCommit();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                onRenameCancel();
+              }
+            }}
+            onBlur={onRenameCommit}
+          />
+        </div>
+      ) : (
+        <div
+          className={`ws-item ws-thread-item${selected ? " ws-item--active" : ""}`}
+        >
+          <button
+            type="button"
+            className="ws-thread-item-main"
+            onClick={onActivate}
+            onDoubleClick={(event) => {
+              event.preventDefault();
+              onStartRename();
+            }}
+            disabled={disabled}
+            aria-selected={selected}
+          >
+            <ThreadRunIndicator running={running} />
+            <span className="ws-item-label">{thread.title}</span>
+          </button>
+          <span
+            className={`ws-thread-trail${pendingDelete ? " ws-thread-trail--confirm" : ""}`}
+          >
+            {pendingDelete ? (
+              <button
+                type="button"
+                className="ws-row-confirm-btn"
+                onClick={onConfirmDelete}
+                disabled={disabled}
+                title="确认删除"
+                aria-label="确认删除对话"
+              >
+                确认
+              </button>
+            ) : (
+              <>
+                <span className="ws-thread-time" suppressHydrationWarning>
+                  {formatThreadRelativeTime(thread.updatedAt)}
+                </span>
+                <span className="ws-thread-trail-actions">
+                  <RowAction
+                    label={pinned ? "取消置顶" : "置顶对话"}
+                    onClick={onTogglePin}
+                    disabled={disabled}
+                  >
+                    <IconThumbtack active={pinned} />
+                  </RowAction>
+                  <ThreadDeleteRowAction
+                    disabled={disabled}
+                    onRequestDelete={onRequestDelete}
+                  />
+                </span>
+              </>
+            )}
+          </span>
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -250,44 +401,19 @@ export function ChatSidebar({
   const cwdFallbackLabel = !defaultCwdReady
     ? "…"
     : defaultCwd
-      ? defaultCwdFallbackLabel(defaultCwdProfile)
+      ? defaultCwdGroupLabel(defaultCwd)
       : "未设置";
-
-  const threadGroups = useMemo((): SidebarThreadGroup[] => {
-    if (groupBy === "actionDesigner") {
-      return groupThreadsByActionDesigner(store.threads).map(
-        (group: ActionDesignerThreadGroup) => ({
-          key: group.key,
-          label: group.label,
-          title: group.ref.entityId,
-          threads: group.threads,
-        }),
-      );
-    }
-    return groupThreadsByCwd(store.threads, cwdFallbackLabel).map((group) => ({
-      key: group.key,
-      label: group.label,
-      title:
-        group.path.trim()
-        || resolveThreadWorkingDirectory(group.threads[0]!, store, defaultCwd),
-      threads: group.threads,
-    }));
-  }, [groupBy, store, defaultCwd, cwdFallbackLabel]);
-
-  const activeThreadCwd = activeThread.workingDirectory?.trim() ?? "";
-  const resolvedActiveCwd = resolveThreadWorkingDirectory(
-    activeThread,
-    store,
-    defaultCwd,
-  );
 
   const [cwdDialogOpen, setCwdDialogOpen] = useState(false);
   const [restoringLegacy, setRestoringLegacy] = useState(false);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() =>
-    readCollapsedCwdGroups(),
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set(),
   );
   const [expandedThreadLists, setExpandedThreadLists] = useState<Set<string>>(
     () => new Set(),
+  );
+  const [pinnedThreadIds, setPinnedThreadIds] = useState<string[]>(
+    () => [],
   );
   const [pendingDeleteThreadId, setPendingDeleteThreadId] = useState<
     string | null
@@ -297,6 +423,58 @@ export function ChatSidebar({
   const renameInputRef = useRef<HTMLInputElement>(null);
   const renamingThreadIdRef = useRef<string | null>(null);
   renamingThreadIdRef.current = renamingThreadId;
+
+  const pinnedThreadIdSet = useMemo(
+    () => new Set(pinnedThreadIds),
+    [pinnedThreadIds],
+  );
+
+  const threadGroups = useMemo((): SidebarThreadGroup[] => {
+    const sourceThreads = store.threads.filter(
+      (thread) => !pinnedThreadIdSet.has(thread.id),
+    );
+    if (groupBy === "actionDesigner") {
+      return groupThreadsByActionDesigner(sourceThreads).map(
+        (group: ActionDesignerThreadGroup) => ({
+          key: group.key,
+          label: group.label,
+          title: group.ref.entityId,
+          threads: group.threads,
+        }),
+      );
+    }
+    return groupThreadsByCwd(sourceThreads, cwdFallbackLabel).map((group) => ({
+      key: group.key,
+      label: group.label,
+      title:
+        group.path.trim()
+        || resolveThreadWorkingDirectory(group.threads[0]!, store, defaultCwd),
+      threads: group.threads,
+    }));
+  }, [groupBy, store, defaultCwd, cwdFallbackLabel, pinnedThreadIdSet]);
+
+  const pinnedThreads = useMemo(
+    () => resolvePinnedThreads(store.threads, pinnedThreadIds),
+    [store.threads, pinnedThreadIds],
+  );
+
+  const activeThreadCwd = activeThread.workingDirectory?.trim() ?? "";
+  const resolvedActiveCwd = resolveThreadWorkingDirectory(
+    activeThread,
+    store,
+    defaultCwd,
+  );
+
+  useSyncExternalStore(
+    subscribeThreadRunStatus,
+    getThreadRunStatusVersion,
+    () => 0,
+  );
+
+  useEffect(() => {
+    setCollapsedGroups(readCollapsedCwdGroups());
+    setPinnedThreadIds(readPinnedThreadIds());
+  }, []);
 
   useEffect(() => {
     if (!pendingDeleteThreadId) return;
@@ -392,9 +570,82 @@ export function ChatSidebar({
   const handleConfirmDeleteThread = useCallback(
     (threadId: string) => {
       setPendingDeleteThreadId(null);
+      const nextPinned = unpinThreadId(pinnedThreadIds, threadId);
+      if (nextPinned.length !== pinnedThreadIds.length) {
+        setPinnedThreadIds(nextPinned);
+        writePinnedThreadIds(nextPinned);
+      }
       commit(deleteThread(store, threadId));
     },
-    [commit, store],
+    [commit, pinnedThreadIds, store],
+  );
+
+  const handleTogglePinThread = useCallback((threadId: string) => {
+    setPinnedThreadIds((prev) => {
+      const next = prev.includes(threadId)
+        ? unpinThreadId(prev, threadId)
+        : pinThreadId(prev, threadId);
+      writePinnedThreadIds(next);
+      return next;
+    });
+  }, []);
+
+  const renderThreadRow = useCallback(
+    (thread: ChatStoreData["threads"][number]) => {
+      const selected = thread.id === store.activeThreadId;
+      const renaming = renamingThreadId === thread.id;
+      const running = isThreadRunBusy(thread.id);
+      const pinned = pinnedThreadIdSet.has(thread.id);
+      return (
+        <ThreadSidebarRow
+          key={thread.id}
+          thread={thread}
+          selected={selected}
+          pinned={pinned}
+          running={running}
+          renaming={renaming}
+          renameDraft={renameDraft}
+          pendingDelete={pendingDeleteThreadId === thread.id}
+          disabled={disabled}
+          renameInputRef={renameInputRef}
+          onActivate={() => onActivateThread(thread.id)}
+          onStartRename={() => handleStartRenameThread(thread.id, thread.title)}
+          onTogglePin={() => handleTogglePinThread(thread.id)}
+          onRequestDelete={() => handleRequestDeleteThread(thread.id)}
+          onConfirmDelete={() => handleConfirmDeleteThread(thread.id)}
+          onRenameDraftChange={setRenameDraft}
+          onRenameCommit={() => {
+            const savingThreadId = thread.id;
+            const title = renameDraft;
+            window.setTimeout(() => {
+              if (renamingThreadIdRef.current !== savingThreadId) {
+                return;
+              }
+              commitRename({
+                threadId: savingThreadId,
+                title,
+              });
+            }, 0);
+          }}
+          onRenameCancel={cancelRename}
+        />
+      );
+    },
+    [
+      cancelRename,
+      commitRename,
+      disabled,
+      handleConfirmDeleteThread,
+      handleRequestDeleteThread,
+      handleStartRenameThread,
+      handleTogglePinThread,
+      onActivateThread,
+      pendingDeleteThreadId,
+      pinnedThreadIdSet,
+      renameDraft,
+      renamingThreadId,
+      store.activeThreadId,
+    ],
   );
 
   const handleRestoreLegacy = () => {
@@ -450,6 +701,18 @@ export function ChatSidebar({
             <TitlebarDragRegion className="ws-section-head-drag" />
           </div>
 
+          {pinnedThreads.length > 0 ? (
+            <>
+              <div className="ws-projects-label">置顶</div>
+              <ul
+                className="ws-list ws-pinned-thread-list"
+                aria-label="置顶对话"
+              >
+                {pinnedThreads.map((thread) => renderThreadRow(thread))}
+              </ul>
+            </>
+          ) : null}
+
           <div className="ws-projects-label">
             {groupBy === "actionDesigner" ? "设计器" : "项目"}
           </div>
@@ -485,96 +748,13 @@ export function ChatSidebar({
                     disabled={disabled}
                     title={group.title}
                   >
-                    <IconChevron expanded={!collapsed} />
-                    <span className="ws-folder-icon" aria-hidden>
-                      <ExplorerFolderIcon expanded={!collapsed} />
-                    </span>
+                    <SidebarFolderIcon expanded={!collapsed} />
                     <span className="ws-cwd-group-label">{group.label}</span>
                   </button>
 
                   {!collapsed ? (
                     <ul className="ws-list ws-thread-group-list" role="group">
-                      {visibleThreads.map((thread) => {
-                        const selected = thread.id === store.activeThreadId;
-                        const renaming = renamingThreadId === thread.id;
-                        return (
-                          <li
-                            key={thread.id}
-                            className={`ws-row ws-thread-row${selected ? " ws-row--active" : ""}${pendingDeleteThreadId === thread.id ? " ws-row--delete-pending" : ""}${renaming ? " ws-row--renaming" : ""}`}
-                          >
-                            {renaming ? (
-                              <div className="ws-thread-rename">
-                                <input
-                                  ref={renameInputRef}
-                                  type="text"
-                                  className="ws-thread-rename-input"
-                                  value={renameDraft}
-                                  disabled={disabled}
-                                  aria-label="对话标题"
-                                  onChange={(event) => {
-                                    setRenameDraft(event.target.value);
-                                  }}
-                                  onKeyDown={(event) => {
-                                    if (event.key === "Enter") {
-                                      event.preventDefault();
-                                      commitRename({
-                                        threadId: thread.id,
-                                        title: renameDraft,
-                                      });
-                                    } else if (event.key === "Escape") {
-                                      event.preventDefault();
-                                      cancelRename();
-                                    }
-                                  }}
-                                  onBlur={() => {
-                                    const savingThreadId = thread.id;
-                                    const title = renameDraft;
-                                    window.setTimeout(() => {
-                                      if (renamingThreadIdRef.current !== savingThreadId) {
-                                        return;
-                                      }
-                                      commitRename({
-                                        threadId: savingThreadId,
-                                        title,
-                                      });
-                                    }, 0);
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                className={`ws-item ws-thread-item${selected ? " ws-item--active" : ""}`}
-                                onClick={() => onActivateThread(thread.id)}
-                                disabled={disabled}
-                                aria-selected={selected}
-                              >
-                                <span className="ws-item-label">{thread.title}</span>
-                                <span className="ws-thread-time" suppressHydrationWarning>
-                                  {formatThreadRelativeTime(thread.updatedAt)}
-                                </span>
-                              </button>
-                            )}
-                            <div className="ws-row-actions">
-                              <RowAction
-                                label="重命名对话"
-                                onClick={() =>
-                                  handleStartRenameThread(thread.id, thread.title)}
-                                disabled={disabled || renaming}
-                              >
-                                <IconPencil />
-                              </RowAction>
-                              <ThreadDeleteRowAction
-                                threadId={thread.id}
-                                confirming={pendingDeleteThreadId === thread.id}
-                                disabled={disabled}
-                                onRequestDelete={handleRequestDeleteThread}
-                                onConfirmDelete={handleConfirmDeleteThread}
-                              />
-                            </div>
-                          </li>
-                        );
-                      })}
+                      {visibleThreads.map((thread) => renderThreadRow(thread))}
                       {hiddenCount > 0 ? (
                         <li className="ws-show-more-row">
                           <button

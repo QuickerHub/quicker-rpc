@@ -70,6 +70,88 @@ export type ProgramDiagnosticsEvaluation = {
   hint?: string;
 };
 
+export type ProgramDiagnosticsIssueRow = {
+  severity: "error" | "warning";
+  code: string;
+  kind?: string;
+  location?: {
+    read?: {
+      action?: string;
+      path?: string;
+      startLine?: number;
+      endLine?: number;
+      mode?: string;
+    };
+    dataJsonPath?: string;
+    line?: number;
+  };
+};
+
+function readDiagnosticsIssues(
+  payload: Record<string, unknown>,
+): ProgramDiagnosticsIssueRow[] {
+  const raw = payload.issues;
+  if (!Array.isArray(raw)) return [];
+  const rows: ProgramDiagnosticsIssueRow[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const row = entry as Record<string, unknown>;
+    const code = typeof row.code === "string" ? row.code : "";
+    const severity =
+      String(row.severity ?? "error").toLowerCase() === "warning"
+        ? "warning"
+        : "error";
+    const location =
+      typeof row.location === "object" && row.location !== null
+        ? (row.location as ProgramDiagnosticsIssueRow["location"])
+        : undefined;
+    const kind = typeof row.kind === "string" ? row.kind : undefined;
+    rows.push({ severity, code, kind, location });
+  }
+  return rows;
+}
+
+/** Build workspace_program read input from the first compile error (slice when available). */
+export function buildDiagnosticsFixReadInput(
+  payload: Record<string, unknown>,
+  base: {
+    target?: string;
+    id?: string;
+    subProgramId?: string;
+  },
+): Record<string, unknown> | null {
+  const firstError = readDiagnosticsIssues(payload).find(
+    (issue) => issue.severity === "error",
+  );
+  if (!firstError) return null;
+
+  const read = firstError.location?.read;
+  const input: Record<string, unknown> = {
+    action: "read_data",
+    target: base.target,
+    id: base.id,
+    mode: "content",
+  };
+  if (base.subProgramId) {
+    input.subProgramId = base.subProgramId;
+  }
+
+  if (read?.action === "file_read" && read.path) {
+    input.action = "file_read";
+    input.path = read.path;
+    delete input.mode;
+  }
+
+  if (typeof read?.startLine === "number" && read.startLine > 0) {
+    input.startLine = read.startLine;
+  }
+  if (typeof read?.endLine === "number" && read.endLine > 0) {
+    input.endLine = read.endLine;
+  }
+
+  return input;
+}
+
 export function evaluateProgramDiagnosticsPayload(
   payload: Record<string, unknown>,
 ): ProgramDiagnosticsEvaluation {
@@ -83,6 +165,14 @@ export function evaluateProgramDiagnosticsPayload(
     typeof summary?.truncated === "number" ? summary.truncated : 0;
   const ok = (status === "ready" && errorCount === 0) || status === "none";
 
+  const issues = readDiagnosticsIssues(payload);
+  const hasInterpolationWarnings = issues.some(
+    (issue) =>
+      issue.severity === "warning"
+      && (issue.code === "MISSING_INTERPOLATION_PREFIX"
+        || issue.kind === "Interpolation"),
+  );
+
   const hint =
     status === "running"
       ? errorCount > 0 || warningCount > 0
@@ -94,7 +184,11 @@ export function evaluateProgramDiagnosticsPayload(
           ? `Compile lint capped (${truncated} snippet(s) deferred); fix listed issues and re-run diagnostics.`
           : errorCount > 0
             ? "Fix issues using issues[].locationSummary / location.read, patch, then re-run diagnostics."
-            : undefined;
+            : warningCount > 0 && hasInterpolationWarnings
+              ? "Interpolation-prefix warnings are non-blocking — literal {text} may be intentional; add $$/$= only when expansion is intended."
+              : warningCount > 0
+                ? "Warnings listed below do not block patch; fix only when the issue is real."
+                : undefined;
 
   return { status, errorCount, warningCount, truncated, ok, hint };
 }

@@ -3,10 +3,10 @@
 # Prereq: Quicker running + QuickerRpc plugin loaded; qkrpc on PATH or after build.ps1 -t.
 # Usage:
 #   pwsh -NoProfile -File ./scripts/Export-StepRunnersUiCatalog.ps1
-#   pwsh -NoProfile -File ./scripts/Export-StepRunnersUiCatalog.ps1 -Limit 50
+#   pwsh -NoProfile -File ./scripts/Export-StepRunnersUiCatalog.ps1 -Limit 200
 
 param(
-    [int]$Limit = 500,
+    [int]$Limit = 200,
     [string]$OutFile = (Join-Path $PSScriptRoot '..\agent-gui\lib\action-editor\data\step-runners-ui-catalog.json')
 )
 

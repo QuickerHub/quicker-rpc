@@ -1,11 +1,12 @@
 import { tool } from "ai";
 import { z } from "zod";
 import {
+  buildDiagnosticsFixReadInput,
   fetchProgramDiagnostics,
   evaluateProgramDiagnosticsPayload,
   programLabelForLint,
 } from "@/lib/program-syntax-lint";
-import { formatLocalToolResult } from "@/lib/tool-result";
+import { formatLocalToolResult, type ToolFeedback } from "@/lib/tool-result";
 import { DEFAULT_READ_CHARS } from "@/lib/workspace-fs";
 import { WORKSPACE_PROGRAM_TOOL } from "@/lib/workspace-program-tool";
 import { workspaceProgramIdSchema } from "@/lib/workspace-program-schema";
@@ -178,6 +179,75 @@ async function executeDiagnostics(
   const { errorCount, warningCount, truncated, ok, hint } = evaluation;
 
   const label = programLabelForLint(parsed.target);
+  const fixReadInput =
+    buildDiagnosticsFixReadInput(payload, {
+      target: input.target,
+      id: input.id,
+      subProgramId: input.subProgramId,
+    }) ?? {
+      action: "read_data",
+      target: input.target,
+      id: input.id,
+      subProgramId: input.subProgramId,
+      mode: "content",
+    };
+
+  const feedback: ToolFeedback = ok
+    ? warningCount > 0
+      ? {
+          summary: `${label}: diagnostics passed with ${warningCount} warning(s) (non-blocking).`,
+        }
+      : { summary: `${label}: diagnostics passed.` }
+    : status === "running"
+      ? {
+          summary: `${label}: diagnostics still running.`,
+          retryable: true,
+          nextActions: [
+            {
+              tool: "workspace_program",
+              priority: "recommended",
+              reason: "Wait for the background lint pass to finish.",
+              input: {
+                action: "diagnostics",
+                target: input.target,
+                id: input.id,
+                subProgramId: input.subProgramId,
+                editVersion: input.editVersion,
+                waitMs: 30000,
+              },
+            },
+          ],
+        }
+      : status === "stale"
+        ? {
+            summary: `${label}: diagnostics are stale.`,
+            retryable: true,
+            nextActions: [
+              {
+                tool: "workspace_program",
+                priority: "recommended",
+                reason: "Patch again to reschedule diagnostics for the latest edit version.",
+                input: {
+                  action: "patch",
+                  target: input.target,
+                  id: input.id,
+                  subProgramId: input.subProgramId,
+                },
+              },
+            ],
+          }
+        : {
+            summary: `${label}: diagnostics found ${errorCount} syntax error(s).`,
+            nextActions: [
+              {
+                tool: "workspace_program",
+                priority: "required",
+                reason:
+                  "Open the reported slice (location.read startLine/endLine), fix, patch, then rerun diagnostics.",
+                input: fixReadInput,
+              },
+            ],
+          };
 
   return formatLocalToolResult(
     {
@@ -195,6 +265,7 @@ async function executeDiagnostics(
         : status === "stale"
           ? `${label}: diagnostics stale — patch again to reschedule lint`
           : undefined,
+    feedback,
   );
 }
 

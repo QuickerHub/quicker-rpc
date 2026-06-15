@@ -303,6 +303,7 @@ export function ToolTestPromptChatSidebar({
         <span className="tool-test-prompt-field__label">Prompt</span>
         <textarea
           className="tool-test-prompt-field__input tool-test-prompt-chat__textarea"
+          data-testid="tool-test-prompt-input"
           rows={10}
           value={prompt}
           disabled={blocked || !llmSelection.trim()}
@@ -321,6 +322,7 @@ export function ToolTestPromptChatSidebar({
       <button
         type="button"
         className="tool-test-suite-card__run"
+        data-testid="tool-test-prompt-send"
         disabled={blocked || !prompt.trim() || !llmSelection.trim()}
         onClick={sendPrompt}
       >

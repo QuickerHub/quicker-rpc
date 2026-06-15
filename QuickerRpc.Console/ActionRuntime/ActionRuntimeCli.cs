@@ -18,8 +18,8 @@ internal static class ActionRuntimeCli
             return EmitError(json, buildResult.ErrorCode ?? "RUNTIME_PACKAGE_BUILD_FAILED", buildResult.ErrorMessage ?? "Build failed.");
         }
 
-        var executor = new ActionRuntimeExecutor(
-            defaultHostServices: verboseHost ? new ConsoleHostServices() : NoopHostServices.Instance);
+        var executor = ActionRuntimeExecutorFactory.Create(
+            verboseHost ? new ConsoleHostServices() : NoopHostServices.Instance);
 
         var package = buildResult.Package;
         var report = executor.AnalyzeSupport(package);
@@ -42,7 +42,7 @@ internal static class ActionRuntimeCli
 
     internal static int Keys(bool json)
     {
-        var keys = ActionRuntimeBootstrap.GetSupportedStepKeys()
+        var keys = ActionRuntimeExecutorFactory.GetSupportedStepKeys()
             .OrderBy(static key => key, StringComparer.OrdinalIgnoreCase)
             .ToList();
 

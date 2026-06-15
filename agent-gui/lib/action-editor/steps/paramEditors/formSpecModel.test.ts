@@ -4,12 +4,62 @@ import { join } from "node:path";
 import { test } from "node:test";
 import {
   isFormSpecFilePath,
+  normalizeFormSpecField,
   parseFormSpecText,
   prepareFormSpecFileContentForWrite,
   serializeFormSpec,
   suggestFormSpecFileName,
   summarizeFormSpec,
 } from "./formSpecModel.ts";
+
+test("normalizeFormSpecField infers select/number and strips incompatible props", () => {
+  const withOptions = normalizeFormSpecField({
+    key: "proc",
+    label: "Process",
+    type: "text",
+    options: [{ value: "a" }],
+  });
+  assert.equal(withOptions.type, "select");
+  assert.deepEqual(withOptions.options, [{ value: "a" }]);
+
+  const withRange = normalizeFormSpecField({
+    key: "delay",
+    label: "Delay",
+    type: "text",
+    min: 300,
+    max: 1000,
+  });
+  assert.equal(withRange.type, "number");
+  assert.equal(withRange.min, 300);
+  assert.equal(withRange.max, 1000);
+  assert.equal(withRange.options, undefined);
+
+  const serialized = serializeFormSpec({
+    $schema: "qkrpc.form.v1",
+    mode: "variables",
+    title: "T",
+    fields: [
+      {
+        key: "proc",
+        label: "Process",
+        type: "text",
+        options: [{ value: "a" }],
+      },
+      {
+        key: "delay",
+        label: "Delay",
+        type: "text",
+        min: 300,
+        max: 1000,
+      },
+    ],
+  });
+  assert.doesNotMatch(serialized, /"type": "text"/);
+  assert.match(serialized, /"type": "select"/);
+  assert.match(serialized, /"type": "number"/);
+  assert.match(serialized, /"key": "delay"/);
+  assert.doesNotMatch(serialized, /"key": "delay"[\s\S]*"options"/);
+});
 
 test("parseFormSpecText reads qkrpc.form.v1 fixture", () => {
   const fixture = join(

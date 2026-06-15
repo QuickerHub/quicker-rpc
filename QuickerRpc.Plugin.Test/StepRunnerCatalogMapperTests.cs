@@ -135,6 +135,70 @@ public sealed class StepRunnerCatalogMapperTests
     }
 
     [TestMethod]
+    public void Search_empty_query_returns_curated_browse_modules()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new() { Key = "sys:assign", Name = "赋值" },
+                new() { Key = "sys:zzRare", Name = "Rare" },
+                new() { Key = "sys:http", Name = "HTTP" },
+            },
+        };
+
+        var result = StepRunnerCatalogMapper.Search(catalog, string.Empty, maxResults: 10);
+
+        Assert.IsTrue(result.Success);
+        Assert.IsTrue(result.Items.Count >= 1);
+        Assert.AreEqual("sys:assign", result.Items[0].Key);
+        Assert.IsFalse(result.Items.Any(i => i.Key == "sys:zzRare"));
+        foreach (var item in result.Items)
+        {
+            Assert.IsNull(item.ControlField);
+        }
+    }
+
+    [TestMethod]
+    public void Search_bare_wildcard_query_matches_browse_not_all_modules()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new() { Key = "sys:assign", Name = "赋值" },
+                new() { Key = "sys:zzRare", Name = "Rare" },
+            },
+        };
+
+        var result = StepRunnerCatalogMapper.Search(catalog, "*", maxResults: 10);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(1, result.MatchCount);
+        Assert.AreEqual("sys:assign", result.Items[0].Key);
+    }
+
+    [TestMethod]
+    public void ListCatalog_returns_all_searchable_modules_sorted_by_key()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = new List<StepRunnerDefinition>
+            {
+                new() { Key = "sys:http", Name = "HTTP" },
+                new() { Key = "sys:assign", Name = "赋值" },
+            },
+        };
+
+        var result = StepRunnerCatalogMapper.ListCatalog(catalog, maxResults: 500);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(2, result.MatchCount);
+        Assert.AreEqual("sys:assign", result.Items[0].Key);
+        Assert.AreEqual("sys:http", result.Items[1].Key);
+    }
+
+    [TestMethod]
     public void Search_empty_query_omits_control_field()
     {
         var catalog = CreateWindowOperationsCatalog();
@@ -301,6 +365,40 @@ public sealed class StepRunnerCatalogMapperTests
         Assert.IsTrue(withBat.Success);
         var scriptBat = withBat.Schema!.Inputs.First(i => i.Key == "script");
         Assert.AreEqual(".bat", scriptBat.FileExt);
+    }
+
+    [TestMethod]
+    public void Search_limit_above_200_is_clamped_not_reset_to_default()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = Enumerable.Range(0, 50)
+                .Select(i => new StepRunnerDefinition { Key = $"sys:test{i}", Name = $"Test {i}" })
+                .ToList(),
+        };
+
+        var result = StepRunnerCatalogMapper.Search(catalog, "sys:test", maxResults: 500);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(50, result.MatchCount);
+        Assert.AreEqual(50, result.Items.Count);
+    }
+
+    [TestMethod]
+    public void ListCatalog_limit_above_500_is_clamped()
+    {
+        var catalog = new StepRunnerCatalog
+        {
+            Items = Enumerable.Range(0, 50)
+                .Select(i => new StepRunnerDefinition { Key = $"sys:test{i}", Name = $"Test {i}" })
+                .ToList(),
+        };
+
+        var result = StepRunnerCatalogMapper.ListCatalog(catalog, maxResults: 900);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(50, result.MatchCount);
+        Assert.AreEqual(50, result.Items.Count);
     }
 
     [TestMethod]

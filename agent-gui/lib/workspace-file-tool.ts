@@ -539,14 +539,6 @@ export function formatProgramDataSummaryPreview(
       variableKeys.length > 24 ? ` … +${variableKeys.length - 24}` : "";
     lines.push(`variables: ${shown}${more}`);
   }
-  const prefixWarnings =
-    typeof data.valuePrefixWarningCount === "number"
-      && data.valuePrefixWarningCount > 0
-      ? data.valuePrefixWarningCount
-      : 0;
-  if (prefixWarnings > 0) {
-    lines.push(`valuePrefixWarnings: ${prefixWarnings}`);
-  }
   return lines.join("\n");
 }
 

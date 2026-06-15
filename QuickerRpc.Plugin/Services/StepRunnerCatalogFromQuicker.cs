@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using Quicker.Domain;
 using QuickerRpc.AgentModel.Catalog;
+using QuickerRpc.Plugin.Catalog.Designer;
 using QuickerRpc.Plugin.Reflection;
 
 namespace QuickerRpc.Plugin.Services;
@@ -42,6 +43,9 @@ internal static class StepRunnerCatalogFromQuicker
         {
             _cachedCatalog = null;
         }
+
+        StepRunnerCatalogGeneration.Bump();
+        StepRunnerUiCatalogBuilder.InvalidateCache();
     }
 
     private static StepRunnerCatalog BuildCore()

@@ -17,6 +17,13 @@ export function cwdGroupLabel(path: string, defaultLabel: string): string {
   return base || trimmed;
 }
 
+/** Display label for the server default workspace (folder name + 默认). */
+export function defaultCwdGroupLabel(defaultCwd: string): string {
+  const folder = cwdGroupLabel(defaultCwd, "默认");
+  if (!defaultCwd.trim() || folder === "默认") return "默认";
+  return `${folder}（默认）`;
+}
+
 export type CwdThreadGroup = {
   key: string;
   /** Stored cwd on threads in this group (empty = server default). */

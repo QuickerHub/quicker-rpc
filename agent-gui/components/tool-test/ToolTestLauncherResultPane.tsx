@@ -18,7 +18,10 @@ type ToolTestLauncherResultPaneProps = {
   onClearAgentRuns: () => void;
   onClearResolveRuns: () => void;
   onClearIntentRuns: () => void;
-  launcherAgentAddToolOutput?: ChatAddToolOutput | null;
+  launcherAgentChatActions?: {
+    addToolOutput: ChatAddToolOutput;
+    activeRunId: string | null;
+  } | null;
 };
 
 export function ToolTestLauncherResultPane({
@@ -30,7 +33,7 @@ export function ToolTestLauncherResultPane({
   onClearAgentRuns,
   onClearResolveRuns,
   onClearIntentRuns,
-  launcherAgentAddToolOutput,
+  launcherAgentChatActions,
 }: ToolTestLauncherResultPaneProps) {
   if (subTab === "agent") {
     return (
@@ -38,7 +41,8 @@ export function ToolTestLauncherResultPane({
         runs={agentRuns}
         workingDirectory={workingDirectory}
         onClearRuns={onClearAgentRuns}
-        addToolOutput={launcherAgentAddToolOutput}
+        addToolOutput={launcherAgentChatActions?.addToolOutput ?? null}
+        activeRunId={launcherAgentChatActions?.activeRunId ?? null}
       />
     );
   }

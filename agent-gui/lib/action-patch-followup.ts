@@ -8,6 +8,7 @@ import {
   ACTION_SAVE_TOOL_NAMES,
   parseSuccessfulActionPatchFromToolPart,
 } from "@/lib/turn-action-link";
+import { normalizeEditVersion } from "@/lib/action-project-info-from-get";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -46,7 +47,7 @@ function readEditVersionFromPatchOutput(output: unknown): number | undefined {
       ? (root.payload as Record<string, unknown>)
       : root;
   const v = payload.editVersion;
-  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+  return normalizeEditVersion(typeof v === "number" ? v : undefined);
 }
 
 function readStringField(record: Record<string, unknown>, key: string): string | undefined {

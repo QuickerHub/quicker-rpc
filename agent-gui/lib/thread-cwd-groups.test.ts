@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { ChatThread } from "@/lib/chat-store";
 import {
   cwdGroupLabel,
+  defaultCwdGroupLabel,
   formatThreadRelativeTime,
   groupThreadsByCwd,
   normalizeCwdKey,
@@ -29,6 +30,18 @@ test("normalizeCwdKey is case-insensitive and slash-normalized", () => {
 test("cwdGroupLabel uses folder basename or default label", () => {
   assert.equal(cwdGroupLabel("D:\\projects\\quicker-rpc", "默认"), "quicker-rpc");
   assert.equal(cwdGroupLabel("", "默认"), "默认");
+});
+
+test("defaultCwdGroupLabel shows folder name with default suffix", () => {
+  assert.equal(
+    defaultCwdGroupLabel("D:\\source\\repos\\quicker\\quicker-rpc"),
+    "quicker-rpc（默认）",
+  );
+  assert.equal(
+    defaultCwdGroupLabel("C:\\Users\\me\\Documents\\QuickerAgent\\workspace"),
+    "workspace（默认）",
+  );
+  assert.equal(defaultCwdGroupLabel(""), "默认");
 });
 
 test("groupThreadsByCwd groups and sorts by latest activity", () => {

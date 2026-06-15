@@ -61,33 +61,49 @@ internal static class ActionRuntimePackageBuilder
         string? actionId,
         string? xactionInline,
         string? xactionFile,
-        string? inputParam)
+        string? inputParam,
+        string? compressedFile = null)
     {
         var hasPackageFile = !string.IsNullOrWhiteSpace(packageFile);
         var hasProjectDir = !string.IsNullOrWhiteSpace(projectDir);
         var hasActionId = !string.IsNullOrWhiteSpace(actionId);
         var hasXAction = !string.IsNullOrWhiteSpace(xactionInline) || !string.IsNullOrWhiteSpace(xactionFile);
+        var hasCompressedFile = !string.IsNullOrWhiteSpace(compressedFile);
 
         var sourceCount = (hasPackageFile ? 1 : 0)
                           + (hasProjectDir ? 1 : 0)
                           + (hasActionId ? 1 : 0)
-                          + (hasXAction ? 1 : 0);
+                          + (hasXAction ? 1 : 0)
+                          + (hasCompressedFile ? 1 : 0);
         if (sourceCount == 0)
         {
             return BuildResult.Fail(
                 "MISSING_RUNTIME_SOURCE",
-                "Provide --package-file, --dir, --id, or --xaction/--xaction-file.");
+                "Provide --package-file, --dir, --id, --compressed-file, or --xaction/--xaction-file.");
         }
 
         if (sourceCount > 1)
         {
             return BuildResult.Fail(
                 "CONFLICTING_RUNTIME_SOURCE",
-                "Use only one of --package-file, --dir, --id, or --xaction/--xaction-file.");
+                "Use only one of --package-file, --dir, --id, --compressed-file, or --xaction/--xaction-file.");
         }
 
         try
         {
+            if (hasCompressedFile)
+            {
+                var compressedPath = compressedFile!.Trim();
+                var compressedJson = File.ReadAllText(compressedPath, System.Text.Encoding.UTF8);
+                var programId = (actionId ?? string.Empty).Trim();
+                if (programId.Length == 0)
+                {
+                    programId = "shared";
+                }
+
+                return BuildFromQuickerCompressed(programId, actionTitle: null, compressedJson, inputParam);
+            }
+
             if (hasPackageFile)
             {
                 var packagePath = packageFile!.Trim();

@@ -19,6 +19,7 @@ import { CsVarType } from "./csStepEnums";
 import { SelectionItemLabel } from "./stepParamSelectionLabels";
 import { isStepParamVarAssignable } from "./stepParamVarAssign";
 import type { ActionProjectWorkspaceContext } from "./FormDefEditorDialog";
+import type { StepSummaryFileContents } from "@/lib/action-editor/steps/stepSummaryFileRefs";
 import {
   ExternalParamFileBadge,
   ExternalParamFileExpressionEditor,
@@ -27,7 +28,7 @@ import {
   STEP_PARAM_SCRIPT_MAX_HEIGHT,
 } from "./ExternalParamFileExpressionEditor";
 import { resolveStepParamMultiline } from "./stepParamMultiline";
-import { buildEnumSelectionOptions, findEnumSelectionItem } from "./stepParamEnumOptions";
+import { buildEnumSelectionOptions, findEnumSelectionItem, resolveVarOrValueDisplayMode, varOrValueParamAllowsFreeInput } from "./stepParamEnumOptions";
 import { ParamTextToolsStrip } from "./ParamTextToolsStrip";
 import { readParamTextTools } from "./stepRunnerInputParamUi";
 
@@ -38,6 +39,8 @@ export type VarOrValueParamEditorProps = {
   onChange: (next: ActionStepParam) => void;
   multiline?: boolean;
   workspace?: ActionProjectWorkspaceContext;
+  /** Project-relative files/ content prefetched by StepListEditor. */
+  prefetchedFileContents?: StepSummaryFileContents;
   /** Row label / field activator: toggles the mode picker open or closed. */
   openPopupRef?: MutableRefObject<(() => void) | null>;
   /** Double-click on label / field: force-close the mode picker. */
@@ -53,20 +56,6 @@ type PopupRow =
   | { kind: "input"; id: "__input__" }
   | { kind: "enum"; id: string; item: StepRunnerParamSelectionItem }
   | { kind: "variable"; id: string; variable: ActionVariable };
-
-function resolveVarOrValueMode(
-  param: ActionStepParam,
-  selectionItems: readonly StepRunnerParamSelectionItem[]
-): VarOrValueMode {
-  if ((param.varKey ?? "").trim().length > 0) {
-    return "variable";
-  }
-  const value = (param.value ?? "").trim();
-  if (value.length > 0 && findEnumSelectionItem(selectionItems, value) != null) {
-    return "enum";
-  }
-  return "input";
-}
 
 function defaultBooleanSelectionItems(
   param: ActionStepParam,
@@ -94,6 +83,7 @@ export function VarOrValueParamEditor({
   onChange,
   multiline = false,
   workspace,
+  prefetchedFileContents,
   openPopupRef,
   closePopupRef,
   activateLabelRef,
@@ -117,22 +107,32 @@ export function VarOrValueParamEditor({
     anchorTop: number;
   } | null>(null);
   const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
-  const externalFile = useExternalParamFileEditorValue(param, workspace, onChange);
+  const externalFile = useExternalParamFileEditorValue(param, workspace, onChange, {
+    prefetchedFileContents,
+  });
   const effectiveMultiline = useMemo(
     () => multiline || resolveStepParamMultiline(def, param),
     [multiline, def, param],
   );
 
-  const effectiveSelectionItems = useMemo(() => {
+  const baseSelectionItems = useMemo(() => {
     let items = selectionItems;
     if (items.length === 0 && vt === CsVarType.Boolean) {
       items = defaultBooleanSelectionItems(param, def.defaultValue ?? "");
     }
-    if (items.length === 0) {
-      return items;
+    return items;
+  }, [selectionItems, vt, param, def.defaultValue]);
+
+  const effectiveSelectionItems = useMemo(() => {
+    if (baseSelectionItems.length === 0) {
+      return baseSelectionItems;
     }
-    return buildEnumSelectionOptions(items, param.value ?? "", def.allowInput);
-  }, [selectionItems, vt, param.value, def.defaultValue, def.allowInput]);
+    return buildEnumSelectionOptions(
+      baseSelectionItems,
+      param.value ?? "",
+      varOrValueParamAllowsFreeInput(def),
+    );
+  }, [baseSelectionItems, param.value, def]);
 
   const paramTextTools = useMemo(() => readParamTextTools(def), [def]);
 
@@ -158,8 +158,8 @@ export function VarOrValueParamEditor({
   );
 
   const derivedMode = useMemo(
-    () => resolveVarOrValueMode(param, effectiveSelectionItems),
-    [param, effectiveSelectionItems]
+    () => resolveVarOrValueDisplayMode(param, baseSelectionItems),
+    [param, baseSelectionItems],
   );
   /** Mirrors desktop ParamVarMode; overrides value-based inference after popup selection. */
   const [modeOverride, setModeOverride] = useState<VarOrValueMode | null>(null);
@@ -222,7 +222,7 @@ export function VarOrValueParamEditor({
     allUsableVars.find((v) => actionVariableRowKey(v) === (param.varKey ?? "")) ??
     variables.find((v) => actionVariableRowKey(v) === (param.varKey ?? ""));
 
-  const selectedEnumItem = findEnumSelectionItem(effectiveSelectionItems, param.value ?? "");
+  const selectedEnumItem = findEnumSelectionItem(baseSelectionItems, param.value ?? "");
 
   const dismissPopup = useCallback((): void => {
     setPopupOpen(false);
@@ -465,6 +465,7 @@ export function VarOrValueParamEditor({
           maxMultilineHeight={STEP_PARAM_SCRIPT_MAX_HEIGHT}
           fileState={externalFile}
           omitBadge
+          prefetchedFileContents={prefetchedFileContents}
           onValueModeInput={() => setModeOverride("input")}
         />
       </div>

@@ -1,5 +1,6 @@
 import type { ActionProjectSyncStatus } from "@/lib/action-project-sync-types";
 import type { WorkspaceProjectSummary } from "@/lib/action-project-display";
+import { markActionProjectSyncedAfterPush } from "@/lib/action-project-sync-events";
 
 export type ActionSyncOp = "status" | "pull" | "push";
 
@@ -11,7 +12,10 @@ async function postActionSync(
     projectDirectory?: string;
     force?: boolean;
   },
-): Promise<{ ok: true; data: unknown } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; data: unknown }
+  | { ok: false; error: string; versionConflict?: boolean }
+> {
   try {
     const res = await fetch("/api/workspace/action-sync", {
       method: "POST",
@@ -27,9 +31,14 @@ async function postActionSync(
       summary?: WorkspaceProjectSummary;
       editVersion?: number;
       phase?: string;
+      versionConflict?: boolean;
     };
     if (!res.ok || !data.ok) {
-      return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+      return {
+        ok: false,
+        error: data.error ?? `HTTP ${res.status}`,
+        versionConflict: data.versionConflict === true,
+      };
     }
     return { ok: true, data };
   } catch (error) {
@@ -88,18 +97,38 @@ export async function pushActionProjectToQuickerApi(
   options?: { force?: boolean },
 ): Promise<
   | { ok: true; message: string; editVersion?: number }
-  | { ok: false; error: string }
+  | { ok: false; error: string; versionConflict?: boolean }
 > {
   const result = await postActionSync(cwd, {
     op: "push",
     actionId,
     force: options?.force,
   });
-  if (!result.ok) return result;
-  const data = result.data as { message?: string; editVersion?: number };
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error,
+      versionConflict: result.versionConflict,
+    };
+  }
+  const data = result.data as {
+    message?: string;
+    editVersion?: number;
+  };
+  if (typeof data.editVersion === "number" && data.editVersion > 0) {
+    markActionProjectSyncedAfterPush(cwd, actionId, data.editVersion);
+  }
   return {
     ok: true,
     message: data.message ?? "已提交",
     editVersion: data.editVersion,
   };
+}
+
+export function notifyActionProjectPushed(
+  cwd: string,
+  actionId: string,
+  editVersion?: number,
+): void {
+  markActionProjectSyncedAfterPush(cwd, actionId, editVersion);
 }

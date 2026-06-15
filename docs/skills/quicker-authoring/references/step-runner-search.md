@@ -6,7 +6,7 @@
 qkrpc_step_runner_search({ query: "clipboard|sys:*clip*" })
 ```
 
-**Non-empty query**: modules with control enums return **`controlField`** `{ key, value, name? }` on matching items — default sub-mode for keyword. Modules without controls omit it. **Empty query**: browse only; no controlField.
+**Non-empty query**: modules with control enums return **`controlField`** `{ key, value, name? }` on matching items — default sub-mode for keyword. Modules without controls omit it. **Empty query** (or bare `*`): **browse** — returns curated common modules only (`step-runner-browse-modules.json`), no `controlField`. **Full catalog**: `step-runner list` (maintainers / UI), not search.
 
 **OR query** (`|`): multiple control hits → **`controlField`** (best) + **`controlFields`** array (all hits, best first). Pick branch value before get.
 
@@ -22,7 +22,7 @@ Maintainers: `obsolete: true` hides module from search; `obsoleteControlValues` 
 |---------|--------|
 | AND | space-separated |
 | OR | `a\|b\|c` |
-| wildcard | `*clip*`, `sys:*` |
+| wildcard | `*clip*`, `sys:*` (not bare `*` — use empty query for browse) |
 
 Prefer **sys:assign** for single-variable writes (search `赋值`); **sys:evalexpression** for batch `{var}=`, LINQ, or complex C# (implementation-fallback). Search still lists dedicated modules.
 

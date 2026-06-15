@@ -82,3 +82,4 @@ Profile：`agent-gui/benchmarks/mock-profiles/`。规格：`docs/superpowers/spe
 - [cursor-cli.md](./cursor-cli.md) — 命令索引
 - [learn-authoring.md](./learn-authoring.md) — 动作级学习
 - [agent-authoring-benchmark.md](../../docs/agent-authoring-benchmark.md)
+- [agent-gui-eval.md](../../docs/agent-gui-eval.md) — 产品 `/api/chat` 路径评测（Runner B）

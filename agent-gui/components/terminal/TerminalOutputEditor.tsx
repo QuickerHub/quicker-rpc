@@ -205,7 +205,8 @@ function TerminalOutputEditorInner({
   }
 
   const fillAvailable = variant === "panel";
-  const cmAutoHeight = inlineFold ? "terminal-output-editor__cm--auto-height" : "";
+  const cmAutoHeight =
+    unifiedScroll || inlineFold ? "terminal-output-editor__cm--auto-height" : "";
 
   const toggleExpand = () => {
     if (!canToggle) return;
@@ -303,7 +304,9 @@ function TerminalOutputEditorInner({
                   ? undefined
                   : maxHeightForVariant(variant)
               }
-              minHeight={variant === "popup" ? "8rem" : undefined}
+              minHeight={
+                variant === "popup" && !unifiedScroll ? "8rem" : undefined
+              }
             />
           ) : (
             <pre className="terminal-output-editor__output-pre terminal-output-editor__output-pre--pending">

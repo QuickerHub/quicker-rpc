@@ -86,16 +86,21 @@ describe("pickInitialLlmSelection", () => {
     assert.equal(pickInitialLlmSelection(data, stored), stored);
   });
 
-  it("defaults to GPT-5.5 when nothing is stored", () => {
+  it("prefers DeepSeek when nothing is stored", () => {
     const data = mockOptionsResponse();
     const expected = formatLlmSelection({
       kind: "builtin",
-      providerId: LLM_PROVIDER_ID,
+      providerId: "deepseek",
     });
     assert.equal(pickInitialLlmSelection(data, undefined), expected);
   });
 
-  it("does not default to Auto when GPT-5.5 is configured", () => {
+  it("restores stored Auto selection", () => {
+    const data = mockOptionsResponse();
+    assert.equal(pickInitialLlmSelection(data, LLM_AUTO_SELECTION), LLM_AUTO_SELECTION);
+  });
+
+  it("does not default to Auto when DeepSeek is configured", () => {
     const data = mockOptionsResponse();
     assert.notEqual(
       pickInitialLlmSelection(data, undefined),

@@ -24,13 +24,25 @@ import {
   isGlobalSubProgramDataPath,
 } from "@/lib/action-project-data-parse";
 import { resolveActionIdFromProject } from "@/lib/action-project-id";
+import { chatComposerActionsRef } from "@/lib/chat-composer-bridge";
+import { resolveNodePath } from "@/lib/action-editor/program/resolveNodePath";
+import { computeProgramStepDiskSlice } from "@/lib/action-editor/program/stepDiskSlice";
+import { findStepById } from "@/lib/action-editor/steps/stepTreeOps";
+import {
+  createProgramStepTag,
+  type ProgramStepTarget,
+} from "@/lib/program-step-tag";
 import {
   parseActionProjectInfo,
   type ParsedActionProjectInfo,
 } from "@/lib/action-project-info-parse";
+import {
+  buildActionProjectSourceFileTabs,
+  type ActionProjectSourceFileTab,
+} from "@/lib/action-project-source-files";
 import { MAX_READ_CHARS } from "@/lib/workspace-file-helpers";
 import { basenamePath } from "@/lib/workspace-file-tool";
-import { fetchWorkspaceFile } from "@/lib/workspace-explorer-api";
+import { fetchWorkspaceFile, fetchWorkspaceFileList } from "@/lib/workspace-explorer-api";
 import type { ActionSubProgram } from "@/lib/action-editor/types/common";
 import type { XProgramPresent } from "@/lib/action-editor/program/xProgramHistory";
 import {
@@ -59,6 +71,58 @@ const XProgramEditor = dynamic(
 );
 
 type EditorTab = "visual" | "source";
+
+type SourceFilePreview = {
+  content: string;
+  truncated: boolean;
+  totalChars?: number;
+  error?: string;
+  loading: boolean;
+};
+
+function normalizeWorkspacePath(value: string): string {
+  return value.replace(/\\/g, "/");
+}
+
+function ActionProjectSourceFileTabs({
+  tabs,
+  activePath,
+  onSelect,
+}: {
+  tabs: ActionProjectSourceFileTab[];
+  activePath: string;
+  onSelect: (path: string) => void;
+}): JSX.Element | null {
+  if (tabs.length <= 1) return null;
+
+  const normalizedActive = normalizeWorkspacePath(activePath);
+
+  return (
+    <div
+      className="action-project-data-editor-subtabs"
+      role="tablist"
+      aria-label="项目文件"
+    >
+      {tabs.map((fileTab) => {
+        const normalizedPath = normalizeWorkspacePath(fileTab.path);
+        const isActive = normalizedPath === normalizedActive;
+        return (
+          <button
+            key={normalizedPath}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            className={`action-project-data-editor-subtab${isActive ? " active" : ""}`}
+            onClick={() => onSelect(normalizedPath)}
+            title={fileTab.path}
+          >
+            {fileTab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export type ActionProjectDataEditorProps = {
   path: string;
@@ -94,22 +158,32 @@ export function ActionProjectDataEditor({
   onSynced,
 }: ActionProjectDataEditorProps): JSX.Element {
   const [tab, setTab] = useState<EditorTab>("visual");
+  const [sourceFileTab, setSourceFileTab] = useState(() => normalizeWorkspacePath(path));
+  const [sourceFileTabs, setSourceFileTabs] = useState<ActionProjectSourceFileTab[]>([]);
+  const [sourceFilePreviews, setSourceFilePreviews] = useState<
+    Record<string, SourceFilePreview>
+  >({});
   const [editorContent, setEditorContent] = useState(content);
   const [contentTruncated, setContentTruncated] = useState(truncated);
   const [reloadError, setReloadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [hasSavedLocalChanges, setHasSavedLocalChanges] = useState(false);
   const [projectInfo, setProjectInfo] = useState<ParsedActionProjectInfo | null>(null);
   const [infoRefreshKey, setInfoRefreshKey] = useState(0);
   const extraTopLevelRef = useRef<Record<string, unknown>>({});
   const baselineRef = useRef("");
   const presentRef = useRef<XProgramPresent>({ steps: [], variables: [] });
+  const sourceFetchedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     setEditorContent(content);
     setContentTruncated(truncated);
-  }, [content, truncated]);
+    setSourceFileTab(normalizeWorkspacePath(path));
+    setSourceFilePreviews({});
+    sourceFetchedRef.current = new Set();
+  }, [content, truncated, path]);
 
   useEffect(() => {
     if (!truncated || !cwd.trim()) return;
@@ -215,6 +289,109 @@ export function ActionProjectDataEditor({
   const infoJsonPath = useMemo(() => actionProjectInfoPathFromDataPath(path), [path]);
 
   useEffect(() => {
+    if (tab !== "source" || !projectDirectory?.trim() || !cwd.trim()) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const result = await fetchWorkspaceFileList(cwd, projectDirectory, {
+        recursive: true,
+      });
+      if (cancelled) return;
+      if (!result.ok) {
+        setSourceFileTabs(buildActionProjectSourceFileTabs(projectDirectory, path, []));
+        return;
+      }
+      setSourceFileTabs(
+        buildActionProjectSourceFileTabs(projectDirectory, path, result.entries),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cwd, path, projectDirectory, tab, infoRefreshKey]);
+
+  useEffect(() => {
+    const normalizedPath = normalizeWorkspacePath(sourceFileTab);
+    const normalizedDataPath = normalizeWorkspacePath(path);
+    if (normalizedPath === normalizedDataPath) return;
+    if (!cwd.trim()) return;
+    if (sourceFetchedRef.current.has(normalizedPath)) return;
+
+    sourceFetchedRef.current.add(normalizedPath);
+    let cancelled = false;
+    setSourceFilePreviews((prev) => ({
+      ...prev,
+      [normalizedPath]: {
+        content: "",
+        truncated: false,
+        loading: true,
+      },
+    }));
+
+    void (async () => {
+      const result = await fetchWorkspaceFile(cwd, normalizedPath);
+      if (cancelled) return;
+      if (!result.ok) {
+        setSourceFilePreviews((prev) => ({
+          ...prev,
+          [normalizedPath]: {
+            content: "",
+            truncated: false,
+            loading: false,
+            error: result.error,
+          },
+        }));
+        return;
+      }
+      setSourceFilePreviews((prev) => ({
+        ...prev,
+        [normalizedPath]: {
+          content: result.content,
+          truncated: result.truncated,
+          totalChars: result.totalChars,
+          loading: false,
+        },
+      }));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cwd, path, sourceFileTab]);
+
+  const activeSourcePreview = useMemo(() => {
+    const normalizedPath = normalizeWorkspacePath(sourceFileTab);
+    const normalizedDataPath = normalizeWorkspacePath(path);
+    if (normalizedPath === normalizedDataPath) {
+      return {
+        path: normalizedDataPath,
+        content: editorContent,
+        truncated: contentTruncated,
+        totalChars,
+        loading: false,
+        error: undefined as string | undefined,
+      };
+    }
+    const preview = sourceFilePreviews[normalizedPath];
+    return {
+      path: normalizedPath,
+      content: preview?.content ?? "",
+      truncated: preview?.truncated ?? false,
+      totalChars: preview?.totalChars,
+      loading: preview?.loading ?? true,
+      error: preview?.error,
+    };
+  }, [
+    sourceFileTab,
+    path,
+    editorContent,
+    contentTruncated,
+    totalChars,
+    sourceFilePreviews,
+  ]);
+
+  useEffect(() => {
     if (!infoJsonPath) {
       setProjectInfo(null);
       return;
@@ -236,6 +413,9 @@ export function ActionProjectDataEditor({
   }, [cwd, infoJsonPath, infoRefreshKey]);
 
   const handleSynced = useCallback(() => {
+    setHasSavedLocalChanges(false);
+    setSourceFilePreviews({});
+    sourceFetchedRef.current = new Set();
     setInfoRefreshKey((n) => n + 1);
     onSynced?.();
   }, [onSynced]);
@@ -297,6 +477,82 @@ export function ActionProjectDataEditor({
     setDirty((prev) => (prev === meta.dirty ? prev : meta.dirty));
   }, []);
 
+  const programPinMeta = useMemo(() => {
+    const normalizedPath = path.replace(/\\/g, "/");
+    let programTarget: ProgramStepTarget = "action";
+    if (isGlobalSubProgram) {
+      programTarget = "global_subprogram";
+    } else if (isEmbeddedSubProgram) {
+      programTarget = "embedded_subprogram";
+    }
+
+    let programId = "";
+    let subProgramId: string | undefined;
+    if (programTarget === "action") {
+      programId = actionId.trim() || resolveActionIdFromProject(projectFolder) || "";
+    } else if (programTarget === "global_subprogram") {
+      programId =
+        projectInfo?.id?.trim()
+        || projectInfo?.name?.trim()
+        || projectFolder.trim();
+    } else {
+      const embeddedMatch = normalizedPath.match(/\/subprograms\/([^/]+)\/data\.json$/i);
+      subProgramId = embeddedMatch?.[1];
+      programId = parentActionId?.trim() || projectFolder.trim();
+    }
+
+    return {
+      programTarget,
+      programId,
+      subProgramId,
+      dataJsonPath: normalizedPath,
+    };
+  }, [
+    actionId,
+    isEmbeddedSubProgram,
+    isGlobalSubProgram,
+    parentActionId,
+    path,
+    projectFolder,
+    projectInfo?.id,
+    projectInfo?.name,
+  ]);
+
+  const handlePinStepToChat = useCallback(
+    (stepId: string) => {
+      const steps = presentRef.current.steps;
+      const nodePath = resolveNodePath(steps, stepId);
+      if (!nodePath) return;
+      const step = findStepById(steps, stepId);
+      if (!step) return;
+
+      const wireText = serializeProgramWireJson(
+        presentRef.current,
+        extraTopLevelRef.current,
+      );
+      const sliceResult = computeProgramStepDiskSlice(wireText, nodePath);
+      if (!sliceResult.ok) return;
+
+      const tag = createProgramStepTag({
+        programTarget: programPinMeta.programTarget,
+        programId: programPinMeta.programId,
+        subProgramId: programPinMeta.subProgramId,
+        dataJsonPath: programPinMeta.dataJsonPath,
+        nodePath,
+        stepRunnerKey: step.stepRunnerKey ?? "",
+        note: step.note,
+        designerStepId: step.stepId,
+        content: sliceResult.slice.content,
+        contentHash: sliceResult.slice.contentHash,
+        startLine: sliceResult.slice.startLine,
+        endLine: sliceResult.slice.endLine,
+      });
+      chatComposerActionsRef.current.insertProgramStepTag(tag);
+      chatComposerActionsRef.current.focusComposer();
+    },
+    [programPinMeta],
+  );
+
   const handleSave = useCallback(async () => {
     if (!parsed.ok) return;
     setSaving(true);
@@ -310,6 +566,7 @@ export function ActionProjectDataEditor({
     }
     baselineRef.current = fingerprintProgramWire(presentRef.current);
     setDirty(false);
+    setHasSavedLocalChanges(true);
     onSaved?.();
   }, [onSave, onSaved, parsed.ok]);
 
@@ -354,12 +611,14 @@ export function ActionProjectDataEditor({
             <div className="action-project-data-editor-actions-row">
               <ActionProjectToolbar
                 actionId={actionId}
+                layout="inline"
                 className="action-project-data-editor-toolbar"
               />
               <ActionProjectSyncBar
                 cwd={cwd}
                 actionId={actionId}
                 projectDirectory={projectDirectory}
+                hasLocalChanges={dirty || hasSavedLocalChanges}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
               />
@@ -381,6 +640,7 @@ export function ActionProjectDataEditor({
                 cwd={cwd}
                 actionId={syncActionId}
                 projectDirectory={syncProjectDirectory}
+                hasLocalChanges={dirty || hasSavedLocalChanges}
                 className="action-project-data-editor-sync"
                 onSynced={handleSynced}
               />
@@ -457,11 +717,46 @@ export function ActionProjectDataEditor({
               workspaceContext={workspaceContext}
               subPrograms={stepListSubPrograms}
               embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
+              onPinStepToChat={handlePinStepToChat}
             />
           </ThemeProvider>
         </div>
       ) : tab === "source" ? (
-        <FileEditorCard path={path} content={editorContent} showHeader={false} fillAvailable />
+        <div className="action-project-data-editor-source-panel">
+          <ActionProjectSourceFileTabs
+            tabs={sourceFileTabs}
+            activePath={sourceFileTab}
+            onSelect={setSourceFileTab}
+          />
+          {activeSourcePreview.loading ? (
+            <p className="workspace-explorer-hint">
+              加载 {basenamePath(activeSourcePreview.path)}…
+            </p>
+          ) : activeSourcePreview.error ? (
+            <p className="workspace-explorer-hint workspace-explorer-hint--err">
+              {activeSourcePreview.error}
+            </p>
+          ) : (
+            <>
+              {activeSourcePreview.truncated ? (
+                <p className="workspace-explorer-hint workspace-explorer-hint--warn">
+                  {basenamePath(activeSourcePreview.path)} 过大，仅显示前{" "}
+                  {MAX_READ_CHARS.toLocaleString()} 个字符
+                  {activeSourcePreview.totalChars !== undefined
+                    ? `（文件约 ${activeSourcePreview.totalChars.toLocaleString()} 字符）`
+                    : ""}
+                  。
+                </p>
+              ) : null}
+              <FileEditorCard
+                path={activeSourcePreview.path}
+                content={activeSourcePreview.content}
+                showHeader={false}
+                fillAvailable
+              />
+            </>
+          )}
+        </div>
       ) : null}
     </div>
   );

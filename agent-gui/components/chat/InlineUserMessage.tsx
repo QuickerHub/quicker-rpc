@@ -3,6 +3,7 @@
 import { useCallback, type ClipboardEvent } from "react";
 import { ActionPromptTag } from "@/components/chat/ActionPromptTag";
 import { BrowserElementPromptTag } from "@/components/chat/BrowserElementPromptTag";
+import { ProgramStepPromptTag } from "@/components/chat/ProgramStepPromptTag";
 import { SlashPromptTag } from "@/components/chat/SlashPromptTag";
 import {
   hasPasteableUserMessageFormat,
@@ -55,6 +56,15 @@ export function InlineUserMessage({ content }: InlineUserMessageProps) {
             <BrowserElementPromptTag
               key={`${segment.element.tagId}-${index}`}
               element={segment.element}
+              variant="sent"
+            />
+          );
+        }
+        if (segment.type === "program-step") {
+          return (
+            <ProgramStepPromptTag
+              key={`${segment.tag.tagId}-${index}`}
+              tag={segment.tag}
               variant="sent"
             />
           );

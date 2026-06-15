@@ -23,21 +23,27 @@ import {
   LAUNCHER_AGENT_SCENARIOS,
 } from "@/lib/tool-test-launcher-scenarios";
 import type { ChatAddToolOutput } from "@/lib/chat-tool-actions";
+import { buildToolTestChatMessagesPatchKey } from "@/lib/tool-test-chat-messages-patch-key";
 import {
   createLauncherAgentRunId,
   type LauncherAgentRunEntry,
 } from "@/lib/tool-test-launcher-agent-runs";
+import { lastAssistantMessageIsCompleteWithClientResponses } from "@/lib/chat-auto-submit";
 import {
   findFirstExecutionToolName,
   hasAssistantResponseStarted,
 } from "@/lib/tool-test-launcher-agent-timing";
+import { launcherAgentRunAwaitingAskQuestion } from "@/lib/tool-test-launcher-agent-runs";
 
 type ToolTestLauncherAgentPanelProps = {
   disabled?: boolean;
   workingDirectory?: string;
   onAppendRun: (entry: LauncherAgentRunEntry) => void;
   onPatchRun: (id: string, patch: Partial<LauncherAgentRunEntry>) => void;
-  onChatActionsReady?: (actions: { addToolOutput: ChatAddToolOutput } | null) => void;
+  onChatActionsReady?: (actions: {
+    addToolOutput: ChatAddToolOutput;
+    activeRunId: string | null;
+  } | null) => void;
 };
 
 export function ToolTestLauncherAgentPanel({
@@ -48,6 +54,7 @@ export function ToolTestLauncherAgentPanel({
   onChatActionsReady,
 }: ToolTestLauncherAgentPanelProps) {
   const [running, setRunning] = useState(false);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [scenarioId, setScenarioId] = useState(
     () => getDefaultLauncherAgentScenario().id,
   );
@@ -130,6 +137,8 @@ export function ToolTestLauncherAgentPanel({
       messages: [],
       transport: chatTransport,
       experimental_throttle: 80,
+      sendAutomaticallyWhen:
+        lastAssistantMessageIsCompleteWithClientResponses,
     });
 
   const finishRun = useCallback(
@@ -148,6 +157,7 @@ export function ToolTestLauncherAgentPanel({
     ) => {
       onPatchRun(runId, patch);
       activeRunIdRef.current = null;
+      setActiveRunId(null);
       streamStartedRef.current = false;
       lastPatchedMessagesKeyRef.current = "";
       responseStartedAtRef.current = undefined;
@@ -166,19 +176,18 @@ export function ToolTestLauncherAgentPanel({
   }, [status]);
 
   useEffect(() => {
-    onChatActionsReady?.({ addToolOutput });
+    onChatActionsReady?.({ addToolOutput, activeRunId });
     return () => {
       onChatActionsReady?.(null);
     };
-  }, [addToolOutput, onChatActionsReady]);
+  }, [activeRunId, addToolOutput, onChatActionsReady]);
 
   useEffect(() => {
     const runId = activeRunIdRef.current;
     if (!runId || !running) return;
 
     const messages = chatMessages as AgentUIMessage[];
-    const last = messages[messages.length - 1];
-    const messagesKey = `${messages.length}:${last?.id ?? ""}:${last?.parts.length ?? 0}`;
+    const messagesKey = buildToolTestChatMessagesPatchKey(messages);
     if (lastPatchedMessagesKeyRef.current === messagesKey) return;
     lastPatchedMessagesKeyRef.current = messagesKey;
 
@@ -219,7 +228,11 @@ export function ToolTestLauncherAgentPanel({
       executionTool: executionToolRef.current,
     };
 
-    if (status === "ready" && streamStartedRef.current) {
+    if (
+      status === "ready"
+      && streamStartedRef.current
+      && !launcherAgentRunAwaitingAskQuestion(messages)
+    ) {
       const finishPatch = { ...timingPatch };
       if (
         finishPatch.responseCompletedAt == null
@@ -271,6 +284,7 @@ export function ToolTestLauncherAgentPanel({
 
       onAppendRun(run);
       activeRunIdRef.current = run.id;
+      setActiveRunId(run.id);
       streamStartedRef.current = false;
       lastPatchedMessagesKeyRef.current = "";
       responseStartedAtRef.current = undefined;
@@ -352,6 +366,7 @@ export function ToolTestLauncherAgentPanel({
         </div>
         <textarea
           className="autofix-panel__textarea"
+          data-testid="tool-test-launcher-prompt"
           rows={4}
           disabled={disabledAll}
           value={prompt}
@@ -365,6 +380,7 @@ export function ToolTestLauncherAgentPanel({
         <button
           type="button"
           className={`autofix-panel__run-btn${running ? " autofix-panel__run-btn--running" : ""}`}
+          data-testid="tool-test-launcher-run"
           disabled={disabledAll || !prompt.trim() || !llmSelection.trim()}
           onClick={() => void runScenario(undefined)}
         >

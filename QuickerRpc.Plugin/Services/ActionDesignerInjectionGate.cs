@@ -24,7 +24,7 @@ internal static class ActionDesignerInjectionGate
             return false;
         }
 
-        var ownerUserId = ActionDesignerToolOwner.ResolveOwnerUserId(currentUserId, out var bindMessage);
+        var ownerUserId = ActionDesignerToolOwner.ResolveOwnerUserId(currentUserId, out _);
         if (string.IsNullOrEmpty(ownerUserId))
         {
             Disable(logger, "ActionDesigner injection skipped: designer tool owner is not configured.");
@@ -35,19 +35,14 @@ internal static class ActionDesignerInjectionGate
         {
             Disable(
                 logger,
-                $"ActionDesigner injection denied: current user '{currentUserId}' is not the tool owner '{ownerUserId}'.");
+                $"ActionDesigner injection denied: current user '{currentUserId}' is not the private tool owner.");
             ActionDesignerUiInjector.RemoveAllInjectedTabs();
             return false;
         }
 
-        if (!string.IsNullOrEmpty(bindMessage))
-        {
-            logger?.LogInformation("{Message}", bindMessage);
-        }
-
         _ownerUserId = ownerUserId;
         _enabled = true;
-        logger?.LogInformation("ActionDesigner injection authorized for owner user {UserId}.", ownerUserId);
+        logger?.LogInformation("ActionDesigner injection authorized for private owner user {UserId}.", ownerUserId);
         return true;
     }
 

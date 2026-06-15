@@ -10,7 +10,11 @@ import {
   getStickyAutoModel,
   setStickyAutoModel,
 } from "@/lib/llm-endpoint-pref";
-import { LLM_AUTO_SELECTION } from "@/lib/llm-selection";
+import {
+  LLM_AUTO_DESCRIPTION,
+  LLM_AUTO_LABEL,
+  LLM_AUTO_SELECTION,
+} from "@/lib/llm-selection";
 import {
   LLM_AUTO_MODEL_CANDIDATES,
   mergeAutoModelCandidates,
@@ -36,9 +40,11 @@ export const LLM_AUTO_GROUP_ID = "nvidia";
 export const LLM_AUTO_DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1";
 export const LLM_AUTO_DEFAULT_MODEL_ID = LLM_AUTO_MODEL_CANDIDATES[0];
 
-export const LLM_AUTO_LABEL = "Auto";
-export const LLM_AUTO_DESCRIPTION =
-  "自动在 NVIDIA NIM 候选模型间切换（首选 Qwen3 Coder 480B）";
+export {
+  LLM_AUTO_DESCRIPTION,
+  LLM_AUTO_LABEL,
+  LLM_AUTO_QUALITY_HINT,
+} from "@/lib/llm-selection";
 
 export { LLM_AUTO_MODEL_CANDIDATES };
 

@@ -134,7 +134,7 @@ public sealed class QuickerRpcPipeIntegrationTests
         await using var session = await QuickerRpcTestHelper.ConnectOrInconclusiveAsync(TestContext);
         var ct = QuickerRpcClient.CreateRpcCancellationToken(QuickerRpcTestSettings.ConnectTimeoutSeconds);
 
-        // Empty keyword lists catalog head; avoids locale/name drift (e.g. MsgBox vs 消息框).
+        // Empty browse: common modules first (sys:assign is always in browse list).
         var result = await session.Rpc.SearchStepRunnersAsync(string.Empty, maxResults: 5, ct).ConfigureAwait(false);
 
         TestContext.WriteLine("StepRunner Success: " + result.Success + ", MatchCount: " + result.MatchCount);

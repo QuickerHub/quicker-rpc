@@ -8,6 +8,7 @@
     "benchmark:batch": "tsx src/run-benchmark-batch.ts",
     "probe:minimal": "tsx src/probe-minimal.ts",
     "probe:settings": "tsx src/probe-settings.ts",
+    "judge": "tsx src/judge-eval-report.ts",
     "check": "tsc --noEmit"
   },
   "dependencies": {

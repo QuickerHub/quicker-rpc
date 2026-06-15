@@ -1,0 +1,12 @@
+{
+  "id": "subprogram-external-stub",
+  "version": 1,
+  "mocks": {
+    "subPrograms": {
+      "stubExternal": true
+    }
+  },
+  "assertions": {
+    "success": true
+  }
+}

@@ -5,17 +5,23 @@ import { BuiltinModelSponsorLine } from "@/components/chat/BuiltinModelSponsorLi
 import { ProfileBaseUrlField } from "@/components/chat/ProfileBaseUrlField";
 import { ProfileModelsField } from "@/components/chat/ProfileModelsField";
 import {
-  getLlmProviderMeta,
+  DEEPSEEK_API_KEYS_URL,
+  DEEPSEEK_PROVIDER_ID,
+  DEEPSEEK_QUICK_SETUP_MODEL,
   type LlmProviderId,
 } from "@/lib/llm-providers";
 import type { LlmBuiltinSponsor } from "@/lib/llm-builtin-sponsors";
-import { resolveBuiltinSponsor } from "@/lib/llm-builtin-sponsors";
 import {
   dispatchLlmKeysUpdated,
   LLM_KEYS_UPDATED_EVENT,
   type LlmKeysUpdatedDetail,
 } from "@/lib/llm-settings-events";
 import { USER_MODEL_SELECTOR_IDS } from "@/lib/llm-user-providers";
+import {
+  isProfileTitleEmpty,
+  LLM_PROFILE_TITLE_PLACEHOLDER,
+  resolveProfileDisplayTitle,
+} from "@/lib/llm-profile-schema";
 
 type ProviderKeyStatus = {
   configured: boolean;
@@ -216,7 +222,6 @@ type ProfileEditorFieldsProps = {
   keyStatus?: ProviderKeyStatus;
   idPrefix: string;
   profileId?: string;
-  showTitleFields?: boolean;
 };
 
 function ProfileEditorFields({
@@ -226,7 +231,6 @@ function ProfileEditorFields({
   keyStatus,
   idPrefix,
   profileId,
-  showTitleFields = false,
 }: ProfileEditorFieldsProps) {
   const set = (patch: Partial<ProfileDraft>) => onChange({ ...edit, ...patch });
   const modelOptions = edit.selectedModels;
@@ -241,34 +245,31 @@ function ProfileEditorFields({
 
   return (
     <>
-      {showTitleFields && (
-        <>
-          <label className="ws-settings-field" htmlFor={`${idPrefix}-title`}>
-            <span className="ws-settings-field-label">标题</span>
-            <input
-              id={`${idPrefix}-title`}
-              type="text"
-              className="ws-settings-input"
-              value={edit.title}
-              disabled={disabled}
-              onChange={(e) => set({ title: e.target.value })}
-            />
-          </label>
+      <label className="ws-settings-field" htmlFor={`${idPrefix}-title`}>
+        <span className="ws-settings-field-label">标题</span>
+        <input
+          id={`${idPrefix}-title`}
+          type="text"
+          className="ws-settings-input"
+          value={edit.title}
+          placeholder={LLM_PROFILE_TITLE_PLACEHOLDER}
+          disabled={disabled}
+          onChange={(e) => set({ title: e.target.value })}
+        />
+      </label>
 
-          <label className="ws-settings-field" htmlFor={`${idPrefix}-description`}>
-            <span className="ws-settings-field-label">说明</span>
-            <input
-              id={`${idPrefix}-description`}
-              type="text"
-              className="ws-settings-input"
-              value={edit.description}
-              placeholder="可选说明"
-              disabled={disabled}
-              onChange={(e) => set({ description: e.target.value })}
-            />
-          </label>
-        </>
-      )}
+      <label className="ws-settings-field" htmlFor={`${idPrefix}-description`}>
+        <span className="ws-settings-field-label">说明</span>
+        <input
+          id={`${idPrefix}-description`}
+          type="text"
+          className="ws-settings-input"
+          value={edit.description}
+          placeholder="可选说明"
+          disabled={disabled}
+          onChange={(e) => set({ description: e.target.value })}
+        />
+      </label>
 
       <ProfileBaseUrlField
         idPrefix={idPrefix}
@@ -701,13 +702,15 @@ export function LlmKeysSettingsSection({
   const [profileEdits, setProfileEdits] = useState<Record<string, ProfileDraft>>({});
   const [expandedProfileId, setExpandedProfileId] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [refreshingRemoteConfig, setRefreshingRemoteConfig] = useState(false);
   const [selectingBuiltinEndpointId, setSelectingBuiltinEndpointId] = useState<
     string | null
   >(null);
   const [selectingAutoModelId, setSelectingAutoModelId] = useState<string | null>(
     null,
   );
+  const [deepseekApiKey, setDeepseekApiKey] = useState("");
+  const [savingDeepSeek, setSavingDeepSeek] = useState(false);
+  const [deepSeekSaved, setDeepSeekSaved] = useState(false);
   const profilesRef = useRef<HTMLElement | null>(null);
   const profileItemRefs = useRef<Record<string, HTMLElement | null>>({});
   const skipNextBuiltinProbeRef = useRef(false);
@@ -893,9 +896,7 @@ export function LlmKeysSettingsSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           createProfile: {
-            ...(profileDraft.title.trim()
-              ? { title: profileDraft.title.trim() }
-              : {}),
+            title: profileDraft.title.trim(),
             ...(profileDraft.description.trim()
               ? { description: profileDraft.description.trim() }
               : {}),
@@ -921,7 +922,7 @@ export function LlmKeysSettingsSection({
       } else {
         setSavedProfileId("new");
       }
-      window.dispatchEvent(new CustomEvent(LLM_KEYS_UPDATED_EVENT));
+      dispatchLlmKeysUpdated();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -942,7 +943,7 @@ export function LlmKeysSettingsSection({
         body: JSON.stringify({
           updateProfile: {
             id: profile.id,
-            ...(edit.title.trim() ? { title: edit.title.trim() } : {}),
+            title: edit.title.trim(),
             ...(edit.description.trim() ? { description: edit.description.trim() } : {}),
             baseURL: edit.baseURL,
             models,
@@ -963,44 +964,11 @@ export function LlmKeysSettingsSection({
         return next;
       });
       setSavedProfileId(profile.id);
-      window.dispatchEvent(new CustomEvent(LLM_KEYS_UPDATED_EVENT));
+      dispatchLlmKeysUpdated();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSavingProfileId(null);
-    }
-  };
-
-  const formatRemoteConfigFetchedAt = (iso: string): string => {
-    if (!iso.trim()) return "尚未拉取";
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return iso;
-    return date.toLocaleString();
-  };
-
-  const handleRefreshRemotePublishConfig = async () => {
-    setRefreshingRemoteConfig(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/settings/llm-keys/refresh-remote", {
-        method: "POST",
-        cache: "no-store",
-      });
-      const body = (await res.json().catch(() => null)) as {
-        ok?: boolean;
-        error?: string;
-        remotePublishConfig?: RemotePublishConfigStatus;
-      } | null;
-      if (!res.ok || !body?.ok) {
-        throw new Error(body?.error ?? res.statusText);
-      }
-      await loadSettings();
-      await probeBuiltinModels();
-      window.dispatchEvent(new CustomEvent(LLM_KEYS_UPDATED_EVENT));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRefreshingRemoteConfig(false);
     }
   };
 
@@ -1065,6 +1033,39 @@ export function LlmKeysSettingsSection({
     }
   };
 
+  const handleQuickSetupDeepSeek = async () => {
+    const apiKey = deepseekApiKey.trim();
+    if (!apiKey) {
+      setError("请填写 DeepSeek API Key");
+      return;
+    }
+    setSavingDeepSeek(true);
+    setError(null);
+    setDeepSeekSaved(false);
+    try {
+      const res = await fetch("/api/settings/llm-keys", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quickSetupDeepSeek: { apiKey },
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? res.statusText);
+      }
+      const data = (await res.json()) as LlmSettingsResponse;
+      setStatus(data);
+      setDeepseekApiKey("");
+      setDeepSeekSaved(true);
+      dispatchLlmKeysUpdated();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingDeepSeek(false);
+    }
+  };
+
   const handleDeleteProfile = async (profileId: string) => {
     setSavingProfileId(profileId);
     setError(null);
@@ -1081,7 +1082,7 @@ export function LlmKeysSettingsSection({
       const data = (await res.json()) as LlmSettingsResponse;
       setStatus(data);
       if (expandedProfileId === profileId) setExpandedProfileId(null);
-      window.dispatchEvent(new CustomEvent(LLM_KEYS_UPDATED_EVENT));
+      dispatchLlmKeysUpdated();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1089,12 +1090,25 @@ export function LlmKeysSettingsSection({
     }
   };
 
+  const deepseekStatus = status?.providers[DEEPSEEK_PROVIDER_ID];
+  const deepseekConfigured = Boolean(
+    deepseekStatus?.apiKey.configured
+    && (deepseekStatus.apiKey.source === "local"
+      || deepseekStatus.apiKey.source === "env"),
+  );
+  const visibleBuiltinGroups = status?.builtinGroups?.filter(
+    (group) =>
+      group.kind === "auto"
+      || group.endpoints.length > 0
+      || (group.autoModels?.length ?? 0) > 0,
+  ) ?? [];
+
   return (
     <section className="app-settings-section-block">
       <header className="app-settings-section-head app-settings-section-head--inline">
         <h2 className="app-settings-section-title">模型与 API Key</h2>
         <p className="app-settings-section-hint">
-          内置 OpenAI 与 DeepSeek 开箱可用。下方可添加自定义 endpoint，保存后在模型菜单中选择。
+          赞助内置节点已停用，请自行申请 API Key 后配置模型。推荐 DeepSeek：注册后在下方粘贴 Key 即可一键配置。
         </p>
       </header>
 
@@ -1102,83 +1116,106 @@ export function LlmKeysSettingsSection({
 
       {!loading && (
         <div className="llm-settings-layout">
-          <section className="ws-settings-group">
+          <section className="ws-settings-group llm-deepseek-quick-setup">
             <div className="ws-settings-group-head">
-              <span className="ws-settings-group-title">内置模型</span>
+              <span className="ws-settings-group-title">推荐：DeepSeek</span>
               <span className="ws-settings-group-desc">
-                以下模型为热心网友赞助，开箱可用，无需填写 Key。
-                {status?.remotePublishConfig
-                  ? ` 启动时会自动从 OSS 拉取最新 endpoint 配置（上次：${formatRemoteConfigFetchedAt(status.remotePublishConfig.fetchedAt)}，${status.remotePublishConfig.endpointCount} 个 endpoint）。`
-                  : ""}
+                在{" "}
+                <a
+                  href={DEEPSEEK_API_KEYS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="llm-deepseek-quick-setup-link"
+                >
+                  platform.deepseek.com
+                </a>
+                {" "}注册并创建 API Key，粘贴到下方即可自动配置官方 endpoint 与{" "}
+                <code>{DEEPSEEK_QUICK_SETUP_MODEL}</code>
+                。配置后在模型菜单中选择 DeepSeek 即可开始对话。
               </span>
-              {status?.remotePublishConfig && (
-                <div className="app-settings-action-row">
-                  <button
-                    type="button"
-                    className="app-settings-action"
-                    disabled={
-                      disabled
-                      || refreshingRemoteConfig
-                      || status.remotePublishConfig.refreshing
-                    }
-                    onClick={() => void handleRefreshRemotePublishConfig()}
-                  >
-                    {refreshingRemoteConfig || status.remotePublishConfig.refreshing
-                      ? "正在拉取…"
-                      : "拉取最新内置配置"}
-                  </button>
-                </div>
-              )}
             </div>
-            <ul className="llm-config-list" aria-label="内置模型">
-              {(status?.builtinGroups?.length
-                ? status.builtinGroups
-                : USER_MODEL_SELECTOR_IDS.map((providerId) => {
-                    const meta = getLlmProviderMeta(providerId);
-                    const st = status?.providers[providerId];
-                    const baseURL = st?.baseURL ?? meta.defaultBaseURL;
-                    const model = st?.model ?? meta.defaultModel;
-                    return {
-                      id: providerId,
-                      kind: "builtin",
-                      providerId,
-                      label: meta.label,
-                      model,
-                      sponsor: resolveBuiltinSponsor(
-                        status?.sponsors ?? {},
-                        providerId,
-                      ),
-                      endpointCount: 1,
-                      endpoints: [{
-                        id: `${baseURL}\0${providerId}`,
-                        baseURL,
-                        model,
-                        selected: true,
-                      }],
-                    } satisfies BuiltinGroupDisplayRow;
-                  })
-              ).map((group) => (
-                <BuiltinGroupRow
-                  key={group.id}
-                  group={group}
-                  probe={builtinGroupProbe[group.id]}
-                  selectingEndpointId={selectingBuiltinEndpointId}
-                  selectingAutoModelId={selectingAutoModelId}
-                  disabled={disabled}
-                  onSelectEndpoint={(groupId, endpointId, alreadySelected) => {
-                    void handleSelectBuiltinEndpoint(
-                      groupId,
-                      endpointId,
-                      alreadySelected,
-                    );
-                  }}
-                  onSelectAutoModel={(modelId, alreadySelected) => {
-                    void handleSelectAutoModel(modelId, alreadySelected);
-                  }}
-                />
-              ))}
-            </ul>
+
+            {deepseekConfigured ? (
+              <div className="llm-deepseek-quick-setup-status">
+                <span className="llm-config-list-badge llm-config-list-badge--ok">
+                  已配置
+                  {deepseekStatus?.apiKey.masked
+                    ? ` ${deepseekStatus.apiKey.masked}`
+                    : ""}
+                </span>
+                <span className="ws-settings-muted">
+                  模型：{deepseekStatus?.model ?? DEEPSEEK_QUICK_SETUP_MODEL}
+                </span>
+              </div>
+            ) : null}
+
+            <label className="ws-settings-field" htmlFor="deepseek-quick-api-key">
+              <span className="ws-settings-field-label">DeepSeek API Key</span>
+              <input
+                id="deepseek-quick-api-key"
+                type="password"
+                className="ws-settings-input"
+                value={deepseekApiKey}
+                placeholder={
+                  deepseekConfigured
+                    ? deepseekStatus?.apiKey.masked ?? "已配置（留空保持不变）"
+                    : "sk-…"
+                }
+                autoComplete="off"
+                disabled={disabled || savingDeepSeek}
+                onChange={(e) => setDeepseekApiKey(e.target.value)}
+              />
+            </label>
+
+            <div className="app-settings-action-row">
+              <button
+                type="button"
+                className="ws-settings-save"
+                disabled={disabled || savingDeepSeek || !deepseekApiKey.trim()}
+                onClick={() => void handleQuickSetupDeepSeek()}
+              >
+                {savingDeepSeek ? "配置中…" : deepseekConfigured ? "更新 Key" : "一键配置 DeepSeek"}
+              </button>
+            </div>
+            {deepSeekSaved && !error ? (
+              <p className="ws-settings-ok">
+                已保存。请在顶部模型菜单中选择 DeepSeek（{DEEPSEEK_QUICK_SETUP_MODEL}）。
+              </p>
+            ) : null}
           </section>
+
+          {visibleBuiltinGroups.length > 0 && (
+            <section className="ws-settings-group">
+              <div className="ws-settings-group-head">
+                <span className="ws-settings-group-title">其他选项</span>
+                <span className="ws-settings-group-desc">
+                  Auto 为免费备选，效果较差，仅作临时使用。推荐优先在上方配置 DeepSeek API Key。
+                </span>
+              </div>
+              <ul className="llm-config-list" aria-label="内置模型">
+                {visibleBuiltinGroups.map((group) => (
+                  <BuiltinGroupRow
+                    key={group.id}
+                    group={group}
+                    probe={builtinGroupProbe[group.id]}
+                    selectingEndpointId={selectingBuiltinEndpointId}
+                    selectingAutoModelId={selectingAutoModelId}
+                    disabled={disabled}
+                    onSelectEndpoint={(groupId, endpointId, alreadySelected) => {
+                      void handleSelectBuiltinEndpoint(
+                        groupId,
+                        endpointId,
+                        alreadySelected,
+                      );
+                    }}
+                    onSelectAutoModel={(modelId, alreadySelected) => {
+                      void handleSelectAutoModel(modelId, alreadySelected);
+                    }}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section className="ws-settings-group" ref={profilesRef}>
             <div className="ws-settings-group-head">
@@ -1187,7 +1224,7 @@ export function LlmKeysSettingsSection({
                 {profiles.length > 0 ? ` (${profiles.length})` : ""}
               </span>
               <span className="ws-settings-group-desc">
-                填写 Base URL 与 API Key，加载模型列表并勾选启用；未填标题时将自动命名。
+                填写 Base URL 与 API Key，加载模型列表并勾选启用；标题可选，留空显示为「{LLM_PROFILE_TITLE_PLACEHOLDER}」。
               </span>
             </div>
 
@@ -1217,7 +1254,15 @@ export function LlmKeysSettingsSection({
                         onClick={() => toggleProfileExpanded(profile.id)}
                       >
                         <div className="llm-config-list-main">
-                          <span className="llm-config-list-title">{profile.title}</span>
+                          <span
+                            className={`llm-config-list-title${
+                              isProfileTitleEmpty(profile.title)
+                                ? " llm-config-list-title--placeholder"
+                                : ""
+                            }`}
+                          >
+                            {resolveProfileDisplayTitle(profile.title)}
+                          </span>
                           <span className="llm-config-list-meta">
                             {profile.baseURL}
                             {" · "}

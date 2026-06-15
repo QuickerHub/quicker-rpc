@@ -27,6 +27,8 @@ function badgeClass(kind: ComposerTagPreviewModel["kind"]): string {
   switch (kind) {
     case "browser-element":
       return "composer-tag-preview__badge--browser";
+    case "program-step":
+      return "composer-tag-preview__badge--program-step";
     case "subprogram":
       return "composer-tag-preview__badge--subprogram";
     default:

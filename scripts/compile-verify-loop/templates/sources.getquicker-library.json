@@ -1,0 +1,32 @@
+{
+  "kind": "getquicker-library",
+  "description": "getquicker.net 公开动作库只读快照（shared get + xaction runtime-check）",
+  "search": {
+    "keywords": [
+      "剪贴板",
+      "表达式",
+      "文本处理",
+      "子程序",
+      "循环",
+      "变量",
+      "文件",
+      "窗口",
+      "自动化",
+      "HTTP",
+      "OCR",
+      "翻译",
+      "图片",
+      "下载"
+    ],
+    "page": 1,
+    "maxPages": 5,
+    "days": 365,
+    "limit": 15
+  },
+  "postFilter": {
+    "minStepCount": 1,
+    "excludeUsesOnlyWrappers": false,
+    "excludeEmptyTitle": true,
+    "skipHostOnlySteps": true
+  }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { generateId } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { DocsViewerProvider } from "@/lib/docs-viewer";
@@ -14,7 +14,8 @@ import {
   extractProtocolVersionFromPing,
   useAppVersionSnapshot,
 } from "@/lib/use-app-versions";
-import { useChatStore } from "@/lib/use-chat-store";
+import { getChatStoreSnapshotSync, useChatStore } from "@/lib/use-chat-store";
+import { setWorkingDirectory } from "@/lib/chat-store";
 import { computeToolTestCoverage } from "@/lib/tool-test-coverage";
 import {
   TOOL_TEST_SUITES,
@@ -102,6 +103,11 @@ import {
   loadStoredToolTestSidebarTab,
   storeToolTestSidebarTab,
 } from "@/lib/tool-test-sidebar-prefs";
+
+type ToolTestPageProps = {
+  evalTab?: ToolTestSidebarTab;
+  evalCwd?: string;
+};
 
 type StepInputOverrides = Record<string, string>;
 
@@ -249,8 +255,8 @@ function ToolTestSuiteCard({
   );
 }
 
-export function ToolTestPage() {
-  const { store, defaultCwd } = useChatStore();
+export function ToolTestPage({ evalTab, evalCwd }: ToolTestPageProps = {}) {
+  const { store, defaultCwd, updateStore } = useChatStore();
   const workingDirectory =
     store.workingDirectory.trim() || defaultCwd.trim();
   const { ping, refreshPing, connectTick } = useQkrpcPing();
@@ -281,7 +287,7 @@ export function ToolTestPage() {
   );
   const [lastError, setLastError] = useState<string | null>(null);
   const [sidebarTab, setSidebarTab] = useState<ToolTestSidebarTab>(
-    () => defaultToolTestSidebarTab(),
+    () => evalTab ?? defaultToolTestSidebarTab(),
   );
   const [titleTestRuns, setTitleTestRuns] = useState<TitleTestRunEntry[]>([]);
   const [autoFixRuns, setAutoFixRuns] = useState<AutoFixRunEntry[]>([]);
@@ -294,8 +300,10 @@ export function ToolTestPage() {
     useState<AskQuestionScenario | null>(() => getDefaultAskQuestionScenario());
   const [launcherSubTab, setLauncherSubTab] = useState<ToolTestLauncherSubTab>("agent");
   const [launcherAgentRuns, setLauncherAgentRuns] = useState<LauncherAgentRunEntry[]>([]);
-  const [launcherAgentAddToolOutput, setLauncherAgentAddToolOutput] =
-    useState<ChatAddToolOutput | null>(null);
+  const [launcherAgentChatActions, setLauncherAgentChatActions] = useState<{
+    addToolOutput: ChatAddToolOutput;
+    activeRunId: string | null;
+  } | null>(null);
   const [launcherResolveRuns, setLauncherResolveRuns] = useState<LauncherResolveRunEntry[]>([]);
   const [settingsIntentRuns, setSettingsIntentRuns] = useState<SettingsIntentRunEntry[]>([]);
   const [detailSuite, setDetailSuite] = useState<ToolTestSuite | null>(null);
@@ -701,9 +709,23 @@ export function ToolTestPage() {
   const busy = runningSuiteId !== null;
   const panelDisabled = busy || pendingApproval !== null;
 
+  const evalCwdAppliedRef = useRef(false);
+
   useEffect(() => {
+    if (evalTab) {
+      setSidebarTab(evalTab);
+      storeToolTestSidebarTab(evalTab);
+      return;
+    }
     setSidebarTab(loadStoredToolTestSidebarTab());
-  }, []);
+  }, [evalTab]);
+
+  useEffect(() => {
+    const cwd = evalCwd?.trim();
+    if (!cwd || evalCwdAppliedRef.current) return;
+    evalCwdAppliedRef.current = true;
+    updateStore(setWorkingDirectory(getChatStoreSnapshotSync(), cwd));
+  }, [evalCwd, updateStore]);
 
   const handleSidebarTabChange = useCallback((tab: ToolTestSidebarTab) => {
     setSidebarTab(tab);
@@ -779,9 +801,7 @@ export function ToolTestPage() {
         onPatchResolveRun={patchLauncherResolveRun}
         onAppendIntentRun={appendSettingsIntentRun}
         onPatchIntentRun={patchSettingsIntentRun}
-        onLauncherAgentChatActionsReady={(actions) => {
-          setLauncherAgentAddToolOutput(actions?.addToolOutput ?? null);
-        }}
+        onLauncherAgentChatActionsReady={setLauncherAgentChatActions}
       />
     ) : sidebarTab === "action-trace" ? (
       <ToolTestActionTracePanel disabled={panelDisabled} />
@@ -852,7 +872,7 @@ export function ToolTestPage() {
         onClearAgentRuns={clearLauncherAgentRuns}
         onClearResolveRuns={clearLauncherResolveRuns}
         onClearIntentRuns={clearSettingsIntentRuns}
-        launcherAgentAddToolOutput={launcherAgentAddToolOutput}
+        launcherAgentChatActions={launcherAgentChatActions}
       />
     ) : sidebarTab === "action-trace" ? (
       <ToolTestActionTraceMain

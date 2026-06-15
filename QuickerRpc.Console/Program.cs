@@ -1703,6 +1703,9 @@ public sealed class ActionOptions
     [Option("package-file", HelpText = "ActionExecutionPackage JSON for standalone run/check/compile.")]
     public string? PackageFile { get; set; }
 
+    [Option("compressed-file", HelpText = "Quicker compressed XAction JSON (shared get / action get wire format).")]
+    public string? CompressedFile { get; set; }
+
     [Option("out", HelpText = "runtime-compile: write csharpScript to UTF-8 file.")]
     public string? Out { get; set; }
 

@@ -3,6 +3,7 @@
 import type { RefObject } from "react";
 import type { AgentUIMessage } from "@/lib/chat-types";
 import { MessageParts } from "@/components/chat/MessageParts";
+import { AgentRuntimeMetadataView } from "@/components/tool-test/AgentRuntimeMetadataView";
 
 type ToolTestChatMessagesProps = {
   messages: AgentUIMessage[];
@@ -24,7 +25,7 @@ export function ToolTestChatMessages({
   }
 
   return (
-    <div className="tool-test-chat-messages">
+    <div className="tool-test-chat-messages" data-testid="tool-test-chat-messages">
       {messages.map((message) => (
         <div key={message.id} className="msg-turn">
           {message.role === "user" ? (
@@ -42,6 +43,7 @@ export function ToolTestChatMessages({
                     workingDirectory={workingDirectory}
                   />
                 </div>
+                <AgentRuntimeMetadataView message={message} />
               </div>
             </article>
           )}

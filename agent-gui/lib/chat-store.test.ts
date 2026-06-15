@@ -8,6 +8,7 @@ import {
   CHAT_STORE_VERSION,
   countPersistedMessages,
   defaultChatStore,
+  forkThread,
   getOpenTabThreads,
   isThreadEmpty,
   loadChatStore,
@@ -227,6 +228,39 @@ test("addThread can open multiple consecutive empty tabs", () => {
   const tabs = getOpenTabThreads(store);
   assert.equal(tabs.length, 4);
   assert.equal(tabs.filter((thread) => thread.messages.length === 0).length, 4);
+});
+
+test("forkThread copies messages into a numbered sibling tab", () => {
+  let store = defaultChatStore();
+  const sourceId = store.activeThreadId;
+  store = updateThreadMessages(store, sourceId, [
+    sampleMessage("u1"),
+    { ...sampleMessage("a1"), role: "assistant" },
+  ]);
+  store = {
+    ...store,
+    threads: store.threads.map((thread) =>
+      thread.id === sourceId
+        ? { ...thread, title: "Deploy plan", titleGenerated: true }
+        : thread,
+    ),
+  };
+
+  const forked = forkThread(
+    store,
+    sourceId,
+    store.threads.find((thread) => thread.id === sourceId)!.messages,
+    "u1",
+  );
+
+  const tabs = getOpenTabThreads(forked);
+  assert.equal(tabs.length, 2);
+  assert.notEqual(forked.activeThreadId, sourceId);
+  const newThread = forked.threads.find((thread) => thread.id === forked.activeThreadId);
+  assert.equal(newThread?.title, "(1) Deploy plan");
+  assert.equal(newThread?.messages.length, 1);
+  assert.equal(newThread?.messages[0]?.id, "u1");
+  assert.equal(newThread?.titleManual, true);
 });
 
 test("selectThread keeps inactive empty tabs in the tab strip", () => {

@@ -10,6 +10,7 @@ import { filterRunnerItemDefsForStep } from "@/lib/action-editor/steps/stepParam
 import { inferControlFieldKeyFromStep } from "@/lib/action-editor/steps/stepControlFieldInfer";
 import { normalizeStepRunnerKeyTail } from "@/lib/action-editor/steps/actionStepNodeView";
 import { resolveStepRunnerKeyCandidates } from "@/lib/action-editor/steps/stepRunnerKeyResolve";
+import { resolveEssentialStepRunnerFallback } from "@/lib/action-editor/steps/stepRunnerEssentialFallbacks";
 import catalogJson from "./step-runners-ui-catalog.json";
 
 export type StepRunnersUiCatalogFile = {
@@ -111,7 +112,7 @@ export function getStaticStepRunnerItem(
   key: string,
   controlField?: string,
 ): StepRunnerItem | undefined {
-  const base = getMappedBaseItem(key);
+  const base = getMappedBaseItem(key) ?? resolveEssentialStepRunnerFallback(key, controlField);
   if (!base) {
     return undefined;
   }

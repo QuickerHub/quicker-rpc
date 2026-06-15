@@ -870,11 +870,42 @@
 }
 
 .step-node-main {
+  position: relative;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0;
   background: var(--ad-bg-panel);
+}
+
+.step-pin-to-chat {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  padding: 0 0.55rem;
+  min-width: 52px;
+  min-height: 22px;
+  border: 1px solid color-mix(in srgb, var(--ad-accent, #3b82f6) 45%, var(--ad-border, #444));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ad-accent, #3b82f6) 12%, var(--ad-bg-panel, #1e1e1e));
+  color: var(--ad-fg, #ddd);
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.92;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.step-row.selected .step-pin-to-chat,
+.step-row:hover .step-pin-to-chat {
+  opacity: 1;
+}
+
+.step-pin-to-chat:hover {
+  background: color-mix(in srgb, var(--ad-accent, #3b82f6) 22%, var(--ad-bg-panel, #1e1e1e));
 }
 
 .step-node-main--disabled {
@@ -1315,6 +1346,12 @@
   gap: 2px;
   opacity: 0;
   flex: 0 0 auto;
+}
+
+.step-row-trailing:has(.step-pin-to-chat) .row-actions {
+  margin-left: 2px;
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--ad-border, #444) 65%, transparent);
 }
 
 .step-row:hover .row-actions,
@@ -3008,23 +3045,30 @@
 }
 
 .step-param-texttools-btn {
-  border: 1px solid var(--ad-border, #d0d4dc);
+  border: 1px solid var(--ad-border-strong);
   border-radius: 4px;
-  background: var(--ad-surface-elevated, #f6f7f9);
-  color: var(--ad-text-secondary, #5c6370);
+  background: var(--ad-bg-button-secondary);
+  color: var(--ad-fg-button-secondary);
+  font-family: inherit;
   font-size: 11px;
-  line-height: 1.2;
-  padding: 2px 6px;
+  line-height: 1.25;
+  padding: 2px 8px;
+  min-height: 22px;
   cursor: pointer;
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
 }
 
 .step-param-texttools-btn:hover:not(:disabled) {
-  border-color: var(--ad-accent, #4a8af4);
-  color: var(--ad-text, #1a1d21);
+  border-color: color-mix(in srgb, var(--ad-accent) 45%, var(--ad-border-strong));
+  background: color-mix(in srgb, var(--ad-accent) 12%, var(--ad-bg-button-secondary));
+  color: var(--ad-fg-primary);
 }
 
 .step-param-texttools-btn:disabled {
@@ -3033,7 +3077,28 @@
 }
 
 .step-param-texttools-btn--web {
-  color: var(--ad-fg-primary, var(--ad-text, #1a1d21));
+  border-color: color-mix(in srgb, var(--ad-accent) 38%, var(--ad-border-strong));
+  background: color-mix(in srgb, var(--ad-accent) 10%, var(--ad-bg-button-secondary));
+  color: var(--ad-fg-icon-btn);
+}
+
+.step-param-texttools-btn--web:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--ad-accent) 55%, var(--ad-border-strong));
+  background: color-mix(in srgb, var(--ad-accent) 16%, var(--ad-bg-button-secondary));
+  color: var(--ad-accent-bright);
+}
+
+.step-param-texttools-btn:not(.step-param-texttools-btn--web) {
+  border-style: dashed;
+  border-color: var(--ad-border-default);
+  background: transparent;
+  color: var(--ad-fg-muted);
+}
+
+.step-param-texttools-btn:not(.step-param-texttools-btn--web):hover:not(:disabled) {
+  border-color: var(--ad-border-strong);
+  background: var(--ad-bg-hover-soft);
+  color: var(--ad-fg-secondary);
 }
 
 .text-tool-dialog-backdrop {
@@ -3515,8 +3580,99 @@ html[data-theme="light"] .step-editor-popup-btn.secondary {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
   padding: 10px 14px;
   border-top: 1px solid var(--ad-border-panel);
+}
+
+/* Nested modals above step editor (discard prompt, create variable, confirm). */
+.shortcut-popup-backdrop,
+.confirm-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10100;
+  background: var(--ad-backdrop-popup);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.shortcut-popup,
+.confirm-popup {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--ad-bg-panel);
+  border: 1px solid var(--ad-border-strong);
+  border-radius: 8px;
+  box-shadow: var(--ad-shadow-popup);
+  color: var(--ad-fg-primary);
+}
+
+.shortcut-popup-header {
+  padding: 12px 14px 0;
+}
+
+.shortcut-popup-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.shortcut-popup-body {
+  padding: 10px 14px 0;
+}
+
+.shortcut-popup-footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.shortcut-popup-footer.unsaved-leave-footer {
+  justify-content: flex-end;
+}
+
+.unsaved-leave-desc,
+.confirm-popup-message {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ad-fg-secondary);
+}
+
+.shortcut-popup-btn {
+  min-width: 72px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--ad-border-strong);
+  background: var(--ad-bg-button-secondary);
+  color: var(--ad-fg-button-secondary);
+}
+
+.shortcut-popup-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--ad-accent) 45%, var(--ad-border-strong));
+  background: color-mix(in srgb, var(--ad-accent) 10%, var(--ad-bg-button-secondary));
+}
+
+.shortcut-popup-btn--primary {
+  background: var(--ad-bg-button-primary);
+  border-color: var(--ad-border-button-primary);
+  color: var(--ad-fg-on-emphasis);
+}
+
+.shortcut-popup-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .step-editor-popup-btn {

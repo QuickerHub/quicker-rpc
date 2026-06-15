@@ -35,19 +35,25 @@ import {
 import {
   formatContextWindow,
   getModelPickerDisplay,
+  getModelPickerTriggerDisplay,
   getProfilePickerDisplay,
   humanizeModelId,
   matchesModelPickerQuery,
+  shouldShowModelPickerTriggerShortModel,
 } from "@/lib/model-picker-display";
 import {
   dispatchLlmKeysUpdated,
   LLM_KEYS_UPDATED_EVENT,
+  type LlmKeysUpdatedDetail,
 } from "@/lib/llm-settings-events";
 import {
   findLlmModelOption,
+  isPreferredLlmOptionConfigured,
+  isSelectableLlmOption,
   optionMatchesSelection,
   resolveActiveModelIdForOption,
 } from "@/lib/llm-options-shared";
+import { LLM_AUTO_QUALITY_HINT } from "@/lib/llm-selection";
 import {
   formatLlmSelection,
   profileSelection,
@@ -188,7 +194,10 @@ function optionDisplay(option: LlmModelOption, activeSelection?: string) {
     const modelId = activeSelection
       ? resolveActiveModelIdForOption(option, activeSelection)
       : option.modelId;
-    return getProfilePickerDisplay(option.title ?? option.label, modelId);
+    return getProfilePickerDisplay(
+      option.profileTitle ?? option.title ?? option.label,
+      modelId,
+    );
   }
   return getModelPickerDisplay(
     optionProviderId(option),
@@ -198,7 +207,7 @@ function optionDisplay(option: LlmModelOption, activeSelection?: string) {
 }
 
 export function hasConfiguredLlmOption(data: LlmOptionsResponse): boolean {
-  return data.options.some((o) => o.configured);
+  return data.options.some(isPreferredLlmOptionConfigured);
 }
 
 export function pickInitialLlmSelectionFromApi(
@@ -216,7 +225,7 @@ export function pickInitialLauncherLlmSelectionFromApi(
 }
 
 export async function fetchLlmOptions(): Promise<LlmOptionsResponse | null> {
-  const res = await fetch("/api/llm");
+  const res = await fetch("/api/llm", { cache: "no-store" });
   if (!res.ok) return null;
   return (await res.json()) as LlmOptionsResponse;
 }
@@ -308,7 +317,9 @@ export const ModelSelector = memo(function ModelSelector({
   }, [refreshOptions]);
 
   useEffect(() => {
-    const onKeysUpdated = () => {
+    const onKeysUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<LlmKeysUpdatedDetail>).detail;
+      if (detail?.stickyEndpointOnly) return;
       void refreshOptions();
     };
     window.addEventListener(LLM_KEYS_UPDATED_EVENT, onKeysUpdated);
@@ -358,8 +369,21 @@ export const ModelSelector = memo(function ModelSelector({
     const t = window.setTimeout(() => searchRef.current?.focus(), 0);
     return () => window.clearTimeout(t);
   }, [open, hideDetailNow, active?.selection, showDetailFor]);
-  const anyConfigured = options.some((o) => o.configured);
-  const activeDisplay = active ? optionDisplay(active, selection) : null;
+  const anyConfigured = options.some(isPreferredLlmOptionConfigured);
+  const canOpenPicker = options.some(isSelectableLlmOption);
+  const activeModelId = active
+    ? resolveActiveModelIdForOption(active, selection)
+    : undefined;
+  const activeTriggerDisplay = active
+    ? getModelPickerTriggerDisplay({
+        kind: active.kind,
+        providerId: active.providerId,
+        modelId: activeModelId ?? active.modelId,
+        label: active.label,
+        profileTitle: active.profileTitle,
+        title: active.title,
+      })
+    : null;
 
   const filteredOptions = useMemo(() => {
     return options.filter((o) => {
@@ -548,7 +572,7 @@ export const ModelSelector = memo(function ModelSelector({
 
   const select = (nextSelection: string, keepOpen = false) => {
     const opt = findLlmModelOption(options, nextSelection);
-    if (!opt?.configured) {
+    if (!opt || !isSelectableLlmOption(opt)) {
       openSettings(opt ? optionProviderId(opt) : undefined);
       return;
     }
@@ -574,7 +598,7 @@ export const ModelSelector = memo(function ModelSelector({
   };
 
   const togglePanel = () => {
-    if (ready && !anyConfigured) {
+    if (ready && !canOpenPicker) {
       openSettings();
       return;
     }
@@ -677,16 +701,31 @@ export const ModelSelector = memo(function ModelSelector({
   };
 
   const activeBaseURL = active?.baseURL?.trim();
-  const triggerTitle = active?.configured
+  const activeIsAuto = active?.kind === "auto";
+  const triggerTitle = activeIsAuto && active?.configured
     ? [
-        `${activeDisplay?.displayName ?? active.modelId} · ${activeDisplay?.tier ?? active.modelId}`,
+        "Auto · 免费备选，效果较差",
+        LLM_AUTO_QUALITY_HINT,
+        humanizeModelId(activeModelId ?? active.modelId),
+        devExperienceEnabled && activeBaseURL ? activeBaseURL : null,
+      ].filter(Boolean).join("\n")
+    : active?.configured && activeTriggerDisplay && !activeIsAuto
+    ? [
+        shouldShowModelPickerTriggerShortModel(activeTriggerDisplay)
+          ? `${activeTriggerDisplay.title} · ${activeTriggerDisplay.shortModel}`
+          : activeTriggerDisplay.title,
+        humanizeModelId(activeModelId ?? active.modelId),
         devExperienceEnabled && activeBaseURL ? activeBaseURL : null,
       ].filter(Boolean).join("\n")
     : ready && !anyConfigured
-      ? "尚未配置模型，点击打开设置"
+      ? "尚未配置模型：请在设置中申请 API Key 并配置（推荐 DeepSeek）"
       : active && !active.configured
         ? `${active.modelId} 未配置，点击打开设置`
         : "选择对话模型";
+
+  const showTriggerLabels = Boolean(
+    active?.configured && activeTriggerDisplay,
+  );
 
   const pickerPanel = (
     <div
@@ -736,13 +775,20 @@ export const ModelSelector = memo(function ModelSelector({
       )}
 
       <ul className="model-picker-list" role="listbox">
+        {!anyConfigured && !query.trim() ? (
+          <li className="model-picker-note model-picker-note--setup">
+            {filteredOptions.some((o) => o.kind === "auto")
+              ? LLM_AUTO_QUALITY_HINT
+              : "尚未配置可用模型。推荐在设置中一键配置 DeepSeek（仅需 API Key），或添加自定义 endpoint。"}
+          </li>
+        ) : null}
         {filteredOptions.length === 0 ? (
           <li className="model-picker-empty">无匹配模型</li>
         ) : (
           filteredOptions.map((p) => {
             const display = optionDisplay(p, selection);
             const selected = optionMatchesSelection(p, selection);
-            const showEdit = !p.configured && hoveredSelection === p.selection;
+            const showEdit = !isSelectableLlmOption(p) && hoveredSelection === p.selection;
             const detailModelId = resolveActiveModelIdForOption(p, selection);
             return (
               <li
@@ -751,7 +797,9 @@ export const ModelSelector = memo(function ModelSelector({
                 aria-selected={selected}
                 className={`model-picker-row${
                   selected ? " model-picker-row--selected" : ""
-                }${!p.configured ? " model-picker-row--unconfigured" : ""}`}
+                }${!isSelectableLlmOption(p) ? " model-picker-row--unconfigured" : ""}${
+                  p.kind === "auto" ? " model-picker-row--auto" : ""
+                }`}
                 onMouseEnter={() => showDetailFor(p.selection)}
                 onMouseLeave={() => scheduleHideDetail()}
               >
@@ -1029,11 +1077,13 @@ export const ModelSelector = memo(function ModelSelector({
                     <code>{detailModelId}</code>
                   </p>
                 ) : null}
-                {!detailOption.configured && (
+                {(detailOption.kind === "auto" || !detailOption.configured) && (
                   <p className="model-picker-detail-warn">
-                    {detailOption.kind === "profile"
-                      ? "需在设置中添加自定义配置"
-                      : "当前模型 endpoint 未配置"}
+                    {detailOption.kind === "auto"
+                      ? LLM_AUTO_QUALITY_HINT
+                      : detailOption.kind === "profile"
+                        ? "需在设置中添加自定义配置"
+                        : "需在设置中配置 API Key"}
                   </p>
                 )}
               </>
@@ -1076,8 +1126,10 @@ export const ModelSelector = memo(function ModelSelector({
         ref={triggerRef}
         type="button"
         className={`model-picker-trigger${open ? " model-picker-trigger--open" : ""}${
-          ready && !anyConfigured ? " model-picker-trigger--unconfigured" : ""
-        }`}
+          ready && !anyConfigured && !activeIsAuto
+            ? " model-picker-trigger--unconfigured"
+            : ""
+        }${activeIsAuto ? " model-picker-trigger--auto-limited" : ""}`}
         disabled={disabled || !ready}
         aria-expanded={open}
         aria-controls={panelId}
@@ -1086,19 +1138,21 @@ export const ModelSelector = memo(function ModelSelector({
         title={triggerTitle}
       >
         <span className="model-picker-trigger-text">
-          {active?.configured && activeDisplay ? (
+          {showTriggerLabels ? (
             <>
               <span className="model-picker-trigger-name">
-                {activeDisplay.displayName}
+                {activeTriggerDisplay!.title}
               </span>
-              <span className="model-picker-trigger-tier">
-                {activeDisplay.tier}
-              </span>
+              {shouldShowModelPickerTriggerShortModel(activeTriggerDisplay!) ? (
+                <span className="model-picker-trigger-tier">
+                  {activeTriggerDisplay!.shortModel}
+                </span>
+              ) : null}
             </>
           ) : (
             <span className="model-picker-trigger-name">
               {ready && (!anyConfigured || (active && !active.configured))
-                ? "未配置"
+                ? "请配置模型"
                 : ready
                   ? "选择模型"
                   : "…"}

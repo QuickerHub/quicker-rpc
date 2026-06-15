@@ -25,6 +25,7 @@ import {
   designerHostGrpcGetGlobalSubProgramIo,
   designerHostGrpcGetSharedSubProgramIo,
   fetchStepRunnerDetailItem,
+  getCachedStepRunnerDetailItem,
 } from "@/lib/action-editor/shared/designerHostGrpcApi";
 import { areStepParamsEqualAfterCompaction, compactActionStepParams } from "../actionStepSerialization";
 import { StepEditorDiscardDialog } from "./StepEditorDiscardDialog";
@@ -43,6 +44,10 @@ import {
   isParamDefVisibleForStep,
 } from "@/lib/action-editor/steps/stepParamVisibility";
 import { resolveCanonicalStepRunnerKey } from "@/lib/action-editor/steps/stepRunnerKeyResolve";
+import { resolveLocalStepRunnerDetailItem } from "@/lib/action-editor/steps/stepRunnerEssentialFallbacks";
+import { fetchWorkspaceFile } from "@/lib/workspace-explorer-api";
+import { collectStepParamFilePaths, type StepSummaryFileContents } from "@/lib/action-editor/steps/stepSummaryFileRefs";
+import { projectRelativeFilePath } from "./formSpecModel";
 
 export type StepEditorPopupProps = {
   open: boolean;
@@ -54,6 +59,8 @@ export type StepEditorPopupProps = {
   designerHostBaseUrl: string;
   /** Workspace project dir for external form.json editing. */
   workspaceContext?: ActionProjectWorkspaceContext;
+  /** Project-relative files/ content prefetched for step summaries. */
+  prefetchedFileContents?: StepSummaryFileContents;
   runnerItem: StepRunnerItem | undefined;
   runnerTitle: string;
   onClose: () => void;
@@ -98,6 +105,7 @@ type StepInputParamRowProps = {
   param: ReturnType<typeof ensureParamValue>;
   paramKey: string;
   workspaceContext?: ActionProjectWorkspaceContext;
+  prefetchedFileContents?: StepSummaryFileContents;
   setParam: (key: string, value: ActionStepParam) => void;
   onRequestCreateVariable?: (request: StepParamCreateVariableRequest) => void;
 };
@@ -108,6 +116,7 @@ const StepInputParamRow = memo(function StepInputParamRow({
   param,
   paramKey,
   workspaceContext,
+  prefetchedFileContents,
   setParam,
   onRequestCreateVariable,
 }: StepInputParamRowProps): JSX.Element {
@@ -128,6 +137,7 @@ const StepInputParamRow = memo(function StepInputParamRow({
       param={param}
       onChange={onChange}
       workspace={workspaceContext}
+      prefetchedFileContents={prefetchedFileContents}
       onRequestCreateVariable={onRequestCreateVariable ? handleCreateVariable : undefined}
     />
   );
@@ -136,6 +146,7 @@ const StepInputParamRow = memo(function StepInputParamRow({
   && prev.paramKey === next.paramKey
   && prev.variables === next.variables
   && prev.workspaceContext === next.workspaceContext
+  && prev.prefetchedFileContents === next.prefetchedFileContents
   && prev.setParam === next.setParam
   && prev.onRequestCreateVariable === next.onRequestCreateVariable
   && (prev.param.varKey ?? "") === (next.param.varKey ?? "")
@@ -149,6 +160,7 @@ export function StepEditorPopup({
   subPrograms = [],
   designerHostBaseUrl,
   workspaceContext,
+  prefetchedFileContents,
   runnerItem,
   runnerTitle,
   onClose,
@@ -202,11 +214,29 @@ export function StepEditorPopup({
       loadedSchemaKeyRef.current = "";
       return;
     }
-    const cfKey = inferControlFieldKeyFromStep(step, runnerItemRef.current ?? runnerItem);
+    const item = runnerItemRef.current ?? runnerItem;
+    const cfKey = inferControlFieldKeyFromStep(step, item);
     const literal = resolveStepControlFieldLiteral(step, cfKey);
     setSchemaControlLiteral(literal ?? null);
+
+    const runnerKey = resolveCanonicalStepRunnerKey(
+      step.stepRunnerKey ?? "",
+      item ? [item] : undefined,
+    );
+    const fetchKey = `${runnerKey}\0${literal ?? ""}`;
+    const resolvedItem = resolveLocalStepRunnerDetailItem(runnerKey, {
+      catalogItem: item,
+      controlField: literal ?? undefined,
+      cachedDetail: getCachedStepRunnerDetailItem(runnerKey, literal ?? undefined),
+    });
+    if (resolvedItem && (resolvedItem.inputParamDefs?.length ?? 0) > 0) {
+      loadedSchemaKeyRef.current = fetchKey;
+      setHydratedRunnerItem(resolvedItem);
+      setLoadingRunnerSchema(false);
+      return;
+    }
     loadedSchemaKeyRef.current = "";
-  }, [open, step?.stepId]);
+  }, [open, step?.stepId, runnerItem]);
 
   useEffect(() => {
     if (!open) {
@@ -214,6 +244,16 @@ export function StepEditorPopup({
     }
     void preloadMonacoExpressionEditor();
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !step || !workspaceContext) {
+      return;
+    }
+    for (const file of collectStepParamFilePaths([step])) {
+      const absolute = projectRelativeFilePath(workspaceContext.projectDir, file);
+      void fetchWorkspaceFile(workspaceContext.cwd, absolute);
+    }
+  }, [open, step, workspaceContext]);
 
   const resolvedSubProgramRow = useMemo(() => {
     if (!step) {
@@ -390,6 +430,8 @@ export function StepEditorPopup({
     }
   }, [open, step, editorRunnerItem]);
 
+  const runnerItemSchemaFp = runnerSchemaFingerprint(runnerItem);
+
   useEffect(() => {
     if (!open || !step || resolvedSchemaControlLiteral === undefined) {
       if (!open) {
@@ -410,16 +452,30 @@ export function StepEditorPopup({
       return;
     }
 
+    const fetchKey = `${runnerKey}\0${resolvedSchemaControlLiteral ?? ""}`;
     const catalogItem = runnerItemRef.current;
-    const hasCatalogDefs = (catalogItem?.inputParamDefs?.length ?? 0) > 0;
-    if (hasCatalogDefs && !controlFieldKey) {
-      setHydratedRunnerItem(catalogItem);
-      loadedSchemaKeyRef.current = `${runnerKey}\0`;
+    const resolvedItem = resolveLocalStepRunnerDetailItem(runnerKey, {
+      catalogItem,
+      controlField: resolvedSchemaControlLiteral ?? undefined,
+      cachedDetail: getCachedStepRunnerDetailItem(
+        runnerKey,
+        resolvedSchemaControlLiteral ?? undefined,
+      ),
+    });
+    const hasResolvedDefs = (resolvedItem?.inputParamDefs?.length ?? 0) > 0;
+
+    if (hasResolvedDefs && resolvedItem) {
+      loadedSchemaKeyRef.current = fetchKey;
+      setHydratedRunnerItem((prev) => {
+        if (prev && runnerSchemaFingerprint(prev) === runnerSchemaFingerprint(resolvedItem)) {
+          return prev;
+        }
+        return resolvedItem;
+      });
       setLoadingRunnerSchema(false);
       return;
     }
 
-    const fetchKey = `${runnerKey}\0${resolvedSchemaControlLiteral ?? ""}`;
     const currentRunner = hydratedRunnerRef.current;
     if (
       loadedSchemaKeyRef.current === fetchKey
@@ -440,7 +496,16 @@ export function StepEditorPopup({
     )
       .then((detail) => {
         if (ac.signal.aborted || requestSeq !== schemaFetchSeqRef.current) return;
-        const nextItem = detail ?? catalogItem;
+        const nextItem =
+          detail
+          ?? resolveLocalStepRunnerDetailItem(runnerKey, {
+            catalogItem: catalogItem ?? undefined,
+            controlField: resolvedSchemaControlLiteral ?? undefined,
+            cachedDetail: getCachedStepRunnerDetailItem(
+              runnerKey,
+              resolvedSchemaControlLiteral ?? undefined,
+            ),
+          });
         if (!nextItem) {
           setSchemaLoadIssue(
             `无法从后台加载步骤「${runnerKey}」的参数定义。请确认 Quicker 已运行且 qkrpc serve 可用。`,
@@ -475,7 +540,7 @@ export function StepEditorPopup({
         setLoadingRunnerSchema(false);
       }
     };
-  }, [open, step?.stepId, step?.stepRunnerKey, controlFieldKey, resolvedSchemaControlLiteral]);
+  }, [open, step?.stepId, step?.stepRunnerKey, resolvedSchemaControlLiteral, runnerItemSchemaFp]);
 
   const runnerFp = runnerSchemaFingerprint(editorRunnerItem);
   if (runnerFp !== runnerDefsCacheRef.current.fp) {
@@ -609,17 +674,12 @@ export function StepEditorPopup({
     onClose();
   };
 
-  /** Cancel / × / Escape: user already chose to dismiss. */
-  const dismiss = useCallback((): void => {
-    if (discardDialogOpen) {
+  /** Cancel / × / Escape: confirm discard when there are unsaved edits. */
+  const requestClose = useCallback((): void => {
+    if (discardDialogOpen || createVariableRequest) {
       return;
     }
-    onClose();
-  }, [discardDialogOpen, onClose]);
-
-  /** Backdrop click: confirm when there are unsaved edits. */
-  const requestBackdropClose = useCallback((): void => {
-    if (discardDialogOpen) {
+    if (document.querySelector(".text-tool-dialog-backdrop")) {
       return;
     }
     if (!isDirty) {
@@ -627,7 +687,12 @@ export function StepEditorPopup({
       return;
     }
     setDiscardDialogOpen(true);
-  }, [discardDialogOpen, isDirty, onClose]);
+  }, [createVariableRequest, discardDialogOpen, isDirty, onClose]);
+
+  /** Backdrop click: same as requestClose. */
+  const requestBackdropClose = useCallback((): void => {
+    requestClose();
+  }, [requestClose]);
 
   // WPF-style accelerator: Alt+S applies from anywhere while dialog is open (capture so inputs still receive combo).
   useEffect(() => {
@@ -636,13 +701,19 @@ export function StepEditorPopup({
     }
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
+        if (document.querySelector(".text-tool-dialog-backdrop")) {
+          return;
+        }
+        if (createVariableRequest) {
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         if (discardDialogOpen) {
           setDiscardDialogOpen(false);
           return;
         }
-        dismiss();
+        requestClose();
         return;
       }
       if (
@@ -666,7 +737,7 @@ export function StepEditorPopup({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, dismiss, onApply, onClose]);
+  }, [open, step, effectiveDraft, editorRunnerItem, discardDialogOpen, createVariableRequest, requestClose, onApply, onClose]);
 
   if (!open || !step) {
     return null;
@@ -703,6 +774,7 @@ export function StepEditorPopup({
                     variables={variables}
                     param={param}
                     workspaceContext={workspaceContext}
+                    prefetchedFileContents={prefetchedFileContents}
                     setParam={setParam}
                     onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined}
                   />
@@ -747,6 +819,7 @@ export function StepEditorPopup({
                             variables={variables}
                             param={param}
                             workspaceContext={workspaceContext}
+                            prefetchedFileContents={prefetchedFileContents}
                             setParam={setParam}
                             onRequestCreateVariable={onCommitVariables ? handleRequestCreateVariable : undefined}
                           />
@@ -800,7 +873,7 @@ export function StepEditorPopup({
         >
           <header className="step-editor-popup-header">
             <h2 id="step-editor-popup-title">编辑步骤 — {popupHeadingRunner}</h2>
-            <button type="button" className="step-editor-popup-close" aria-label="Close" onClick={dismiss}>
+            <button type="button" className="step-editor-popup-close" aria-label="Close" onClick={requestClose}>
               ×
             </button>
           </header>
@@ -810,7 +883,7 @@ export function StepEditorPopup({
             {body}
           </div>
           <footer className="step-editor-popup-footer">
-            <button type="button" className="step-editor-popup-btn secondary" onClick={dismiss}>
+            <button type="button" className="step-editor-popup-btn secondary" onClick={requestClose}>
               取消
             </button>
             <button

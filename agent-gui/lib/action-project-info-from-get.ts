@@ -1,5 +1,15 @@
 /** Helpers for `action get` payloads (metadata bootstrap). */
 
+/** Quicker may return 0 when LastEditTimeUtc is unset — treat as missing. */
+export function normalizeEditVersion(
+  value: number | undefined,
+): number | undefined {
+  if (value == null || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  return Math.trunc(value);
+}
+
 export function readCompressedFromGetPayload(
   payload: Record<string, unknown> | null,
 ): Record<string, unknown> | null {
@@ -27,7 +37,20 @@ export function readEditVersionFromGetPayload(
   if (!payload) return undefined;
   for (const key of ["editVersion", "EditVersion"]) {
     const value = payload[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const normalized = normalizeEditVersion(value);
+      if (normalized != null) return normalized;
+    }
+  }
+  const compressed = readCompressedFromGetPayload(payload);
+  if (compressed) {
+    for (const key of ["editVersion", "EditVersion"]) {
+      const value = compressed[key];
+      if (typeof value === "number" && Number.isFinite(value)) {
+        const normalized = normalizeEditVersion(value);
+        if (normalized != null) return normalized;
+      }
+    }
   }
   return undefined;
 }

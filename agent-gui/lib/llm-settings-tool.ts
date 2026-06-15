@@ -103,7 +103,7 @@ export const LLM_SETTINGS_TOOL_DEF = tool({
         }
         case "create": {
           const profile = createCustomProfile({
-            ...(input.title?.trim() ? { title: input.title.trim() } : {}),
+            title: input.title?.trim() ?? "",
             apiKey: input.apiKey ?? "",
             baseURL: input.baseURL ?? "",
             models: input.models ?? [],

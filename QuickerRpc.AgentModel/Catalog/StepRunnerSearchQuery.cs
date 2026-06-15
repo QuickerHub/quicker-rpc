@@ -27,10 +27,17 @@ public sealed class StepRunnerSearchQuery
         !IsAdvanced && LegacyPatterns.Length == 0
         || IsAdvanced && Branches.Length == 0;
 
+    /// <summary>Lone <c>*</c> (no other characters) is browse, not match-all wildcard search.</summary>
+    public static bool IsBareWildcardQuery(string? keyword)
+    {
+        var raw = (keyword ?? string.Empty).Trim();
+        return raw.Length > 0 && raw.All(static c => c == '*');
+    }
+
     public static StepRunnerSearchQuery Parse(string? keyword)
     {
         var raw = (keyword ?? string.Empty).Trim();
-        if (raw.Length == 0)
+        if (raw.Length == 0 || IsBareWildcardQuery(raw))
         {
             return new StepRunnerSearchQuery();
         }

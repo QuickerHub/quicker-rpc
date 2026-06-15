@@ -1,0 +1,21 @@
+{
+  "kind": "quicker-local",
+  "description": "本机 local 源组合动作；pull 后逐条 structure 过滤",
+  "list": {
+    "limit": 100,
+    "scope": null,
+    "query": {
+      "filter": { "source": "local" },
+      "sort": { "by": ["lastEdit.desc"] },
+      "fields": ["actionId", "source", "lastEditTimeUtc", "profileName"]
+    }
+  },
+  "postFilter": {
+    "minStepCount": 1,
+    "excludeUsesOnlyWrappers": true,
+    "excludeEmptyTitle": true,
+    "skipHostOnlySteps": true,
+    "excludeExeFiles": []
+  },
+  "caseIdTemplate": "{slug(title)}-{actionIdPrefix}"
+}

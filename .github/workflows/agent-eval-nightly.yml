@@ -1,0 +1,86 @@
+name: Agent eval nightly
+
+on:
+  workflow_dispatch:
+    inputs:
+      preset:
+        description: Eval preset (gui-smoke, gui-agent-defs, gui-launcher, smoke)
+        required: false
+        default: gui-smoke
+      skip_live:
+        description: Skip live /api/chat (validate catalog only)
+        type: boolean
+        default: true
+      unit_only:
+        description: Run deterministic unit tests only
+        type: boolean
+        default: false
+
+jobs:
+  unit:
+    if: ${{ inputs.unit_only == true || inputs.skip_live == true }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: agent-gui/pnpm-lock.yaml
+
+      - name: Install
+        working-directory: agent-gui
+        run: pnpm install --frozen-lockfile
+
+      - name: Agent eval unit tests
+        working-directory: agent-gui
+        run: pnpm test:agent-eval
+
+      - name: Validate nightly preset ids
+        if: inputs.skip_live == true && inputs.unit_only != true
+        working-directory: agent-gui
+        run: pnpm agent-eval:nightly -- --preset ${{ inputs.preset }} --skip-live
+
+  live-windows:
+    if: ${{ inputs.skip_live != true && inputs.unit_only != true }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: agent-gui/pnpm-lock.yaml
+
+      - name: Install
+        working-directory: agent-gui
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit tests
+        working-directory: agent-gui
+        run: pnpm test:agent-eval
+
+      - name: Live eval (requires AGENT_GUI_EVAL_BASE_URL)
+        if: env.AGENT_GUI_EVAL_BASE_URL != ''
+        working-directory: agent-gui
+        env:
+          AGENT_GUI_EVAL_BASE_URL: ${{ secrets.AGENT_GUI_EVAL_BASE_URL }}
+          AGENT_EVAL_LLM_SELECTION: ${{ secrets.AGENT_EVAL_LLM_SELECTION }}
+        run: pnpm agent-eval:nightly -- --preset ${{ inputs.preset }}
+
+      - name: Live eval skipped
+        if: env.AGENT_GUI_EVAL_BASE_URL == ''
+        shell: bash
+        run: |
+          echo "Set repo secret AGENT_GUI_EVAL_BASE_URL to a running agent-gui instance for live nightly eval."
+          exit 0

@@ -76,11 +76,13 @@ export const WorkspaceExplorerEditorPane = memo(function WorkspaceExplorerEditor
     );
   }
 
+  const actionDataEditor = isActionProjectDataPath(activeTab.path);
+
   return (
     <div
       className={`workspace-explorer-editor-inner${
         showEditorSkeleton ? " workspace-explorer-editor-inner--loading" : ""
-      }`}
+      }${actionDataEditor ? " workspace-explorer-editor-inner--action-data" : ""}`}
     >
       {showEditorSkeleton ? (
         <div

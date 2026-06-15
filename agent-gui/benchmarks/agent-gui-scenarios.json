@@ -1,0 +1,118 @@
+{
+  "$schema": "./agent-gui-scenarios.schema.json",
+  "version": 1,
+  "title": "QuickerAgent agent-gui stack scenarios",
+  "description": "Scenarios for production /api/chat path. Launcher cases assert user outcome (settings open / action resolve), not a fixed tool chain.",
+  "scenarios": [
+    {
+      "id": "launcher-open-hotkeys",
+      "category": "launcher",
+      "label": "打开功能快捷键",
+      "userPrompt": "请帮我打开功能快捷键设置页面",
+      "chatMode": "launcher",
+      "readOnly": true,
+      "expect": {
+        "mustNotCall": ["workspace_program", "Write", "StrReplace", "qkrpc_step_runner_search"],
+        "launcher": {
+          "intent": "open-settings",
+          "settingsOpen": { "page": "FunctionHotkeys" }
+        }
+      }
+    },
+    {
+      "id": "launcher-open-recycle-bin",
+      "category": "launcher",
+      "label": "动作回收站",
+      "userPrompt": "请帮我打开 Quicker 的动作回收站",
+      "chatMode": "launcher",
+      "readOnly": true,
+      "expect": {
+        "mustNotCall": ["workspace_program", "Write", "StrReplace"],
+        "launcher": {
+          "intent": "open-settings",
+          "settingsOpen": { "page": "recycle-bin" }
+        }
+      }
+    },
+    {
+      "id": "launcher-open-search",
+      "category": "launcher",
+      "label": "Quicker 搜索",
+      "userPrompt": "请打开 Quicker 的全局搜索功能",
+      "chatMode": "launcher",
+      "readOnly": true,
+      "expect": {
+        "mustNotCall": ["workspace_program", "Write", "StrReplace"],
+        "launcher": {
+          "intent": "open-search",
+          "settingsOpen": { "intent": "open-search" }
+        }
+      }
+    },
+    {
+      "id": "launcher-run-vague",
+      "category": "launcher",
+      "label": "运行动作（模糊）",
+      "userPrompt": "请帮我运行一个和剪贴板相关的动作",
+      "chatMode": "launcher",
+      "readOnly": true,
+      "expect": {
+        "mustNotCall": ["workspace_program", "qkrpc_step_runner_get", "Write", "StrReplace"],
+        "launcher": {
+          "intent": "run-action"
+        }
+      }
+    },
+    {
+      "id": "workspace-structure-readonly",
+      "category": "workspace",
+      "label": "只读分析工作区",
+      "userPrompt": "分析这个项目的代码结构，先不要修改任何文件",
+      "chatMode": "agent",
+      "readOnly": true,
+      "expect": {
+        "mustCallAny": ["Grep", "Read"],
+        "mustNotCall": ["Write", "workspace_program", "StrReplace"]
+      }
+    },
+    {
+      "id": "discover-docs-via-agent",
+      "category": "agent-stack",
+      "label": "文档检索工作流",
+      "userPrompt": "从零新建一个 Quicker 动作并保存，大致要经过哪些阶段？用 5 条以内的要点说明即可。",
+      "chatMode": "agent",
+      "readOnly": true,
+      "expect": {
+        "mustCall": ["docs"],
+        "mustNotCall": ["workspace_program"]
+      }
+    },
+    {
+      "id": "slash-list-actions",
+      "category": "agent-defs",
+      "label": "斜杠命令 list-actions",
+      "userPrompt": "/list-actions 5",
+      "chatMode": "agent",
+      "readOnly": true,
+      "fixture": "eval-workspace",
+      "expect": {
+        "mustCall": ["qkrpc_action_query"],
+        "mustNotCall": ["workspace_program", "Write"]
+      }
+    },
+    {
+      "id": "task-readonly-explore",
+      "category": "agent-defs",
+      "label": "task 子代理 readonly-explore",
+      "userPrompt": "请委派 readonly-explore 子代理：在工作区根目录查找 README 文件并返回路径列表，不要修改任何文件。",
+      "chatMode": "agent",
+      "readOnly": true,
+      "fixture": "eval-workspace",
+      "expect": {
+        "mustCall": ["task"],
+        "mustNotCall": ["workspace_program", "Write"]
+      }
+    }
+  ]
+}
+

@@ -1,5 +1,7 @@
 import {
+  DEEPSEEK_OFFICIAL_BASE_URL,
   DEEPSEEK_PROVIDER_ID,
+  DEEPSEEK_QUICK_SETUP_MODEL,
   getLlmProviderMeta,
   isKnownDeepSeekModelId,
   type LlmProviderId,
@@ -171,6 +173,10 @@ type PutBody = {
   providers?: Partial<Record<LlmProviderId, ProviderPatchBody>>;
   directApiKey?: string;
   activeSelection?: string | null;
+  quickSetupDeepSeek?: {
+    apiKey: string;
+    model?: string;
+  };
   selectBuiltinEndpoint?: {
     groupId: string;
     endpointId: string;
@@ -264,9 +270,7 @@ export async function PUT(req: Request) {
     const raw = body.createProfile;
     try {
       createCustomProfile({
-        ...(typeof raw.title === "string" && raw.title.trim()
-          ? { title: raw.title.trim() }
-          : {}),
+        title: typeof raw.title === "string" ? raw.title.trim() : "",
         apiKey: raw.apiKey ?? "",
         baseURL: raw.baseURL ?? "",
         models: raw.models ?? [],
@@ -305,6 +309,29 @@ export async function PUT(req: Request) {
 
   if (typeof body.deleteProfileId === "string" && body.deleteProfileId.trim()) {
     deleteCustomProfile(body.deleteProfileId.trim());
+  }
+
+  if (body.quickSetupDeepSeek && typeof body.quickSetupDeepSeek === "object") {
+    const apiKey = body.quickSetupDeepSeek.apiKey?.trim();
+    if (!apiKey) {
+      return Response.json({ error: "DeepSeek API Key 不能为空" }, { status: 400 });
+    }
+    const model = body.quickSetupDeepSeek.model?.trim() || DEEPSEEK_QUICK_SETUP_MODEL;
+    if (!isKnownDeepSeekModelId(model)) {
+      return Response.json(
+        { error: `Invalid DeepSeek model: ${model}` },
+        { status: 400 },
+      );
+    }
+    setLocalProviderConfig(DEEPSEEK_PROVIDER_ID, {
+      apiKey,
+      baseURL: DEEPSEEK_OFFICIAL_BASE_URL,
+      model,
+    });
+    setStoredActiveSelection({
+      kind: "builtin",
+      providerId: DEEPSEEK_PROVIDER_ID,
+    });
   }
 
   if (body.selectBuiltinEndpoint && typeof body.selectBuiltinEndpoint === "object") {

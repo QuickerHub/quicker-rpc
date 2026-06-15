@@ -5,11 +5,7 @@ import {
   stepCountIs,
 } from "ai";
 import type { AgentUIMessage } from "@/lib/chat-types";
-import { buildSystemInstructions } from "@/lib/instructions";
-import {
-  extractActionScopeFromMessages,
-  formatActionScopeForSystem,
-} from "@/lib/action-scope";
+import { extractActionScopeFromMessages } from "@/lib/action-scope";
 import { resolveEffectiveWorkingDirectory } from "@/lib/default-working-directory";
 import { runWithAgentRequestContextAsync } from "@/lib/qkrpc-request-context";
 import {
@@ -25,13 +21,7 @@ import {
   resolveChatMode,
   resolveEnabledToolsForChatMode,
 } from "@/lib/chat-mode";
-import { defaultEnabledToolIds, pickChatTools } from "@/lib/tool-registry";
-import {
-  SET_THREAD_TITLE_TOOL,
-  buildThreadTitleAgentInstruction,
-  buildTitleTestChatInstruction,
-} from "@/lib/set-thread-title-tool";
-import { quickerTools } from "@/lib/tools";
+import { defaultEnabledToolIds } from "@/lib/tool-registry";
 import { expandUserMessageForModel } from "@/lib/compose-user-message";
 import { isTextUIPart } from "ai";
 import { resolveModelContextLimit } from "@/lib/llm-context-limits";
@@ -43,7 +33,6 @@ import { repairInterruptedToolCalls } from "@/lib/repair-interrupted-tool-calls"
 import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
 import { withReleasePreviewRoute } from "@/lib/release-preview.server";
 import {
-  buildLauncherCommandCachePromptBlock,
   extractLastUserMessageText,
 } from "@/lib/launcher/launcher-command-cache.server";
 import { tryRespondWithLauncherCacheDirect } from "@/lib/launcher/launcher-cache-direct.server";
@@ -52,7 +41,11 @@ import { createRepairToolCallHandler } from "@/lib/repair-tool-call";
 import { parseSlashCommandInput } from "@/lib/agent-defs/command-expand";
 import { expandSlashTagsInUserText } from "@/lib/composer-slash-tag";
 import { resolveSlashCommandForChat } from "@/lib/agent-defs/apply-chat-command.server";
-import { formatChatRuntimeContext } from "@/lib/agent-runtime-context";
+import {
+  createChatSystemBuilder,
+  selectChatTools,
+} from "@/lib/agent-turn-runtime";
+import { buildAgentRuntimeSnapshot } from "@/lib/agent-runtime-snapshot";
 
 export const maxDuration = 120;
 
@@ -175,11 +168,11 @@ async function handleChatPost(req: Request) {
 
   const effectiveEnabledTools =
     slashCommand.overrides.enabledTools ?? resolvedEnabledTools;
-  const tools = titleTest
-    ? { [SET_THREAD_TITLE_TOOL]: quickerTools[SET_THREAD_TITLE_TOOL] }
-    : pickChatTools(quickerTools, effectiveEnabledTools, [
-        ...(chatMode === "launcher" ? [] : [SET_THREAD_TITLE_TOOL]),
-      ]);
+  const tools = selectChatTools({
+    chatMode,
+    enabledToolIds: effectiveEnabledTools,
+    titleTest,
+  });
   let slashTextApplied = false;
   const messagesForModel: AgentUIMessage[] = repairedMessages.map((message) => {
     if (message.role !== "user") return message;
@@ -229,43 +222,26 @@ async function handleChatPost(req: Request) {
         && contextCompressionForce === true,
     });
 
-    const scopeBlock = formatActionScopeForSystem(actionScope);
-    const baseSystem = await buildSystemInstructions(cwd, chatMode);
-    const runtimeContextBlock = formatChatRuntimeContext({
-      mode: chatMode,
-      cwd,
-      modelId,
+    const runtimeSnapshot = buildAgentRuntimeSnapshot({
+      actionScope,
+      chatMode,
       enabledToolIds: Object.keys(tools),
+      messages: repairedMessages,
+      userText: lastUserText,
     });
-    const launcherCacheBlock =
-      chatMode === CHAT_MODE_LAUNCHER
-        ? await buildLauncherCommandCachePromptBlock(lastUserText)
-        : undefined;
-    const systemWithScope = scopeBlock
-      ? `${baseSystem}\n\n${scopeBlock}`
-      : baseSystem;
-    const titleInstruction = titleTest
-      ? buildTitleTestChatInstruction()
-      : chatMode === "launcher"
-        ? null
-        : buildThreadTitleAgentInstruction({
-            messages: repairedMessages,
-            titleManual: titleManual === true,
-          });
-    const buildSystemForPreparedContext = (
-      context: typeof preparedContext,
-    ) => [
-      titleTest
-        ? "You are running in title-test mode for Quicker Agent GUI (/tool-test)."
-        : null,
-      systemWithScope,
-      runtimeContextBlock,
-      launcherCacheBlock,
-      titleInstruction,
-      context.systemSuffix,
-    ]
-      .filter((block): block is string => Boolean(block?.trim()))
-      .join("\n\n");
+
+    const buildSystemForPreparedContext = await createChatSystemBuilder({
+      actionScope,
+      chatMode,
+      cwd,
+      enabledToolIds: Object.keys(tools),
+      launcherUserText: lastUserText,
+      modelId,
+      repairedMessages,
+      runtimeSnapshot,
+      titleManual: titleManual === true,
+      titleTest,
+    });
 
     const stream = createUIMessageStream<AgentUIMessage>({
       originalMessages: repairedMessages,
@@ -302,6 +278,10 @@ async function handleChatPost(req: Request) {
                 return {
                   model: modelId,
                   contextCompression: preparedContext.contextCompression,
+                  agentTurnState: runtimeSnapshot.turnState,
+                  recoveryDecision: runtimeSnapshot.recoveryDecision,
+                  recentToolFeedbackCount:
+                    runtimeSnapshot.recentToolFeedbackCount,
                 };
               }
               if (part.type === "finish-step" && part.usage) {

@@ -101,6 +101,7 @@ internal static partial class Program
         return verb switch
         {
             "search" => await RunStepRunnerSearchAsync(options).ConfigureAwait(false),
+            "list" => await RunStepRunnerListAsync(options).ConfigureAwait(false),
             "get" => await RunStepRunnerGetAsync(options, forAgent: true).ConfigureAwait(false),
             "get-ui" => await RunStepRunnerGetAsync(options, forAgent: false).ConfigureAwait(false),
             "summaries" => await RunStepRunnerSummariesAsync(options).ConfigureAwait(false),
@@ -110,16 +111,12 @@ internal static partial class Program
 
     private static Task<int> ReportUnknownStepRunnerVerbAsync(StepRunnerOptions options) =>
         EmitErrorAndFailAsync(options.Json, "UNKNOWN_STEP_RUNNER_VERB",
-            "Use: step-runner search | get | get-ui | summaries --request-file <json> [--json]");
+            "Use: step-runner search | list | get | get-ui | summaries --request-file <json> [--json]");
 
     private static async Task<int> RunStepRunnerSearchAsync(StepRunnerOptions options)
     {
         var keyword = (options.Query ?? string.Empty).Trim();
-        // Empty query lists the catalog (same as backend Search with no filter).
-        if (string.IsNullOrWhiteSpace(keyword))
-        {
-            keyword = string.Empty;
-        }
+        // Empty query (or bare "*") returns curated browse modules, not the full catalog.
 
         try
         {
@@ -145,6 +142,39 @@ internal static partial class Program
         catch (Exception ex)
         {
             return await EmitErrorAndFailAsync(options.Json, "STEP_RUNNER_SEARCH_FAILED", ex.Message)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static async Task<int> RunStepRunnerListAsync(StepRunnerOptions options)
+    {
+        const int listLimitDefault = 500;
+        var limit = options.Limit == 40 ? listLimitDefault : Math.Min(Math.Max(options.Limit, 1), listLimitDefault);
+
+        try
+        {
+            await using var session = await ConnectAsync(options.TimeoutSeconds, !options.NoBootstrap).ConfigureAwait(false);
+            var rpcToken = QuickerRpcConnect.CreateRpcCancellationToken(options.TimeoutSeconds);
+            var response = await session.Proxy
+                .ListStepRunnersAsync(limit, rpcToken)
+                .ConfigureAwait(false);
+
+            WriteRpcJson(options.Json, "step-runner-list", response.Success, response);
+            return response.Success ? ExitCodes.Success : ExitCodes.Error;
+        }
+        catch (QuickerRpcClientException ex)
+        {
+            await EmitConnectErrorAsync(options.Json, ex).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (OperationCanceledException)
+        {
+            await EmitRpcTimeoutAsync(options.Json, options.TimeoutSeconds).ConfigureAwait(false);
+            return ExitCodes.Error;
+        }
+        catch (Exception ex)
+        {
+            return await EmitErrorAndFailAsync(options.Json, "STEP_RUNNER_LIST_FAILED", ex.Message)
                 .ConfigureAwait(false);
         }
     }

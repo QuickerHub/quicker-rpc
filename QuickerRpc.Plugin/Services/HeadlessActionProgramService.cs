@@ -15,6 +15,7 @@ using QuickerRpc.AgentModel.XAction.Compression;
 using QuickerRpc.AgentModel.XAction.Patch;
 using QuickerRpc.AgentModel.XAction.Project;
 using QuickerRpc.Contracts.Rpc;
+using QuickerRpc.Plugin.Catalog.Designer;
 using QuickerRpc.Plugin.Services.Search;
 
 namespace QuickerRpc.Plugin.Services;
@@ -24,6 +25,8 @@ namespace QuickerRpc.Plugin.Services;
 /// </summary>
 public sealed class HeadlessActionProgramService
 {
+    private static readonly DesignerStepRunnerSearchService DesignerSearch = new();
+
     private readonly LegacyActionProgramAccessor? _actions;
     private readonly ActionEditMgrAccessor? _actionEditMgr;
 
@@ -838,6 +841,37 @@ public sealed class HeadlessActionProgramService
         };
     }
 
+    public QuickerRpcSearchStepRunnersResult ListStepRunners(int? maxResults)
+    {
+        if (!QuickerHost.IsRunningInQuicker())
+        {
+            return new QuickerRpcSearchStepRunnersResult
+            {
+                Success = false,
+                ErrorMessage = "Not running inside Quicker.",
+            };
+        }
+
+        var catalog = StepRunnerCatalogFromQuicker.Build();
+        var mapped = StepRunnerCatalogMapper.ListCatalog(catalog, maxResults);
+        return new QuickerRpcSearchStepRunnersResult
+        {
+            Success = mapped.Success,
+            ErrorMessage = mapped.ErrorMessage,
+            MatchCount = mapped.MatchCount,
+            Items = mapped.Items
+                .Select(x => new QuickerRpcStepRunnerSearchItem
+                {
+                    Key = x.Key,
+                    Name = x.Name,
+                    Description = x.Description,
+                    Snippet = x.Snippet,
+                    Icon = x.Icon,
+                })
+                .ToList(),
+        };
+    }
+
     private static QuickerRpcStepRunnerSearchControlField? MapSearchControlField(
         StepRunnerControlFieldMatch? match) =>
         match is null
@@ -907,6 +941,15 @@ public sealed class HeadlessActionProgramService
                     : StepRunnerUiSchemaJson.Serialize(mapped.Schema),
         };
     }
+
+    public QuickerRpcDesignerSearchPageResult SearchStepQuickInsert(
+        string? keyword,
+        int skip,
+        IList<QuickerRpcQuickInsertSubProgramInput>? subPrograms) =>
+        DesignerSearch.SearchQuickInsert(keyword, skip, subPrograms);
+
+    public QuickerRpcDesignerSearchPageResult SearchToolboxModules(string? keyword, int skip) =>
+        DesignerSearch.SearchToolbox(keyword, skip);
 
     private static string SerializeSubProgramsJson(string? existingPayloadJson, JToken? subProgramsOverride)
     {

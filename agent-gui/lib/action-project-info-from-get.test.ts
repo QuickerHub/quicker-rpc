@@ -1,58 +1,26 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  actionProjectInfoFromCreateResponse,
-  actionProjectInfoFromMetadataGet,
-  formatActionProjectInfoProto,
-  parseActionProjectInfoProto,
-} from "@/lib/action-project-info";
+  normalizeEditVersion,
+  readEditVersionFromGetPayload,
+} from "@/lib/action-project-info-from-get";
 
-const actionId = "18678f61-a75c-41b3-b0b4-1bfd9a1db084";
+test("normalizeEditVersion treats zero and negative as missing", () => {
+  assert.equal(normalizeEditVersion(0), undefined);
+  assert.equal(normalizeEditVersion(-1), undefined);
+  assert.equal(normalizeEditVersion(undefined), undefined);
+  assert.equal(normalizeEditVersion(1780917082345), 1780917082345);
+});
 
-const metadataPayload = {
-  success: true,
-  actionId,
-  editVersion: 1780439815389,
-  returnMode: "metadata",
-  compressed: {
-    title: "剪贴板文本去重排序",
-    description: "读取剪贴板",
-    icon: "fa:Light_ClipboardList",
-    stepCount: 0,
-    variableCount: 0,
-    subProgramCount: 0,
-    variableKeys: [] as string[],
-    stepOutline: [] as unknown[],
-  },
-};
-
-test("actionProjectInfoFromCreateResponse uses create payload and hints", () => {
-  const info = actionProjectInfoFromCreateResponse(
-    { actionId, editVersion: 42 },
-    { title: "新动作", description: "说明", icon: "fa:Light_Bolt" },
+test("readEditVersionFromGetPayload ignores zero and reads compressed fallback", () => {
+  assert.equal(
+    readEditVersionFromGetPayload({ editVersion: 0 }),
+    undefined,
   );
-  assert.equal(info.id, actionId);
-  assert.equal(info.title, "新动作");
-  assert.equal(info.description, "说明");
-  assert.equal(info.icon, "fa:Light_Bolt");
-  assert.equal(Number(info.editVersion), 42);
-});
-
-test("actionProjectInfoFromMetadataGet builds proto without snapshot", () => {
-  const info = actionProjectInfoFromMetadataGet(actionId, metadataPayload);
-  assert.equal(info.id, actionId);
-  assert.equal(info.title, "剪贴板文本去重排序");
-  assert.equal("snapshot" in info, false);
-  const raw = formatActionProjectInfoProto(info);
-  assert.equal(raw.includes("stepCount"), false);
-  assert.equal(raw.includes("snapshot"), false);
-});
-
-test("format and parse proto info.json round-trip", () => {
-  const info = actionProjectInfoFromMetadataGet(actionId, metadataPayload);
-  const raw = formatActionProjectInfoProto(info);
-  const parsed = parseActionProjectInfoProto(raw);
-  assert.equal(parsed.ok, true);
-  if (!parsed.ok) return;
-  assert.equal(parsed.data.title, "剪贴板文本去重排序");
+  assert.equal(
+    readEditVersionFromGetPayload({
+      compressed: { editVersion: 42 },
+    }),
+    42,
+  );
 });

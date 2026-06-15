@@ -68,7 +68,9 @@ public static class ProgramSyntaxIssueFactory
         string? paramName,
         string? variableKey,
         string code,
-        string message)
+        string message,
+        int? readStartLine = null,
+        int? readEndLine = null)
     {
         var item = new ProgramSyntaxCheckItem
         {
@@ -80,7 +82,25 @@ public static class ProgramSyntaxIssueFactory
             ParamName = paramName,
             VariableKey = variableKey,
         };
-        return Create(item, ProgramSyntaxIssueSeverity.Warning, ProgramSyntaxCheckKind.Interpolation, code, message);
+
+        var location = BuildLocation(item, readStartLine, null);
+        if (readStartLine is > 0 && location.Read is not null)
+        {
+            location.Read.StartLine = Math.Max(1, readStartLine.Value);
+            location.Read.EndLine = readEndLine is > 0
+                ? readEndLine.Value
+                : readStartLine.Value + 4;
+        }
+
+        return new ProgramSyntaxIssue
+        {
+            Severity = ProgramSyntaxIssueSeverity.Warning,
+            Kind = ProgramSyntaxCheckKind.Interpolation,
+            Code = code,
+            Message = message,
+            Location = location,
+            LocationSummary = FormatLocationSummary(location),
+        };
     }
 
     private static ProgramSyntaxIssueLocation BuildLocation(
@@ -147,12 +167,19 @@ public static class ProgramSyntaxIssueFactory
 
         if (!string.IsNullOrWhiteSpace(item.StepPath) || !string.IsNullOrWhiteSpace(item.VariableKey))
         {
-            return new ProgramSyntaxReadHint
+            var hint = new ProgramSyntaxReadHint
             {
                 Tool = WorkspaceProgramTool,
                 Action = "read_data",
                 Mode = "content",
             };
+            if (line is > 0)
+            {
+                hint.StartLine = Math.Max(1, line.Value);
+                hint.EndLine = line.Value + 4;
+            }
+
+            return hint;
         }
 
         return null;

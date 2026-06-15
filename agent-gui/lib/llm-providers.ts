@@ -22,10 +22,10 @@ export type LlmProviderMeta = {
 export const GPT55_PROVIDER: LlmProviderMeta = {
   id: LLM_PROVIDER_ID,
   label: "OpenAI",
-  defaultBaseURL: "https://api.bingleimuzi.eu.cc/v1",
+  defaultBaseURL: "https://api.openai.com/v1",
   defaultModel: "gpt-5.5",
   clientName: "gpt-5.5",
-  description: "默认对话模型 gpt-5.5（内置 endpoint fallback）",
+  description: "OpenAI 兼容模型（需自行配置 API Key）",
 };
 
 /** DeepSeek built-in default (V4 Pro via bundled endpoint). */
@@ -62,13 +62,17 @@ export function modelRequiresReasoningInHistory(modelId: string): boolean {
   return DEEPSEEK_LEGACY_MODEL_IDS.has(lower);
 }
 
+export const DEEPSEEK_OFFICIAL_BASE_URL = "https://api.deepseek.com/v1" as const;
+export const DEEPSEEK_QUICK_SETUP_MODEL = "deepseek-v4-flash" as const;
+export const DEEPSEEK_API_KEYS_URL = "https://platform.deepseek.com/api_keys" as const;
+
 export const DEEPSEEK_PROVIDER: LlmProviderMeta = {
   id: DEEPSEEK_PROVIDER_ID,
   label: "DeepSeek",
-  defaultBaseURL: "https://api.bingleimuzi.eu.cc/v1",
+  defaultBaseURL: DEEPSEEK_OFFICIAL_BASE_URL,
   defaultModel: DEEPSEEK_DEFAULT_MODEL,
   clientName: "deepseek-official",
-  description: "默认 DeepSeek V4 Pro（内置 endpoint，免配置 Key）",
+  description: "DeepSeek 官方 API（推荐 V4 Flash，需自行申请 Key）",
 };
 
 export const CUSTOM_PROVIDER: LlmProviderMeta = {

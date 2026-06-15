@@ -30,6 +30,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Catalog\step-runner-agent-keywords.json" />
+    <EmbeddedResource Include="Catalog\step-runner-browse-modules.json" />
     <EmbeddedResource Include="Catalog\step-module-doc-refs.json" />
     <EmbeddedResource Include="Catalog\quicker-settings-agent-keywords.json" />
     <EmbeddedResource Include="Catalog\quicker-settings-ui-pages.json" />

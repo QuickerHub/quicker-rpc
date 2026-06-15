@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 
@@ -17,7 +18,14 @@ public static class ProgramStaticLint
         var variableKeys = InterpolationPrefixLint.CollectVariableKeys(data["variables"] as JArray);
         if (variableKeys.Count > 0)
         {
-            issues.AddRange(InterpolationPrefixLint.Analyze(data, variableKeys));
+            string? dataJsonText = null;
+            var dataPath = Path.Combine(projectDirectory, "data.json");
+            if (File.Exists(dataPath))
+            {
+                dataJsonText = File.ReadAllText(dataPath);
+            }
+
+            issues.AddRange(InterpolationPrefixLint.Analyze(data, variableKeys, dataJsonText));
         }
 
         issues.AddRange(CollectMissingFileIssues(projectDirectory, data));

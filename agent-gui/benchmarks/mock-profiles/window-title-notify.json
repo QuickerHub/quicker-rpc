@@ -1,0 +1,16 @@
+{
+  "id": "window-title-notify",
+  "version": 1,
+  "mocks": {
+    "window": {
+      "foregroundTitle": "Compile-Verify Mock Window",
+      "foregroundHandle": 424243
+    }
+  },
+  "assertions": {
+    "success": true,
+    "notificationsContain": [
+      "Compile-Verify Mock Window"
+    ]
+  }
+}

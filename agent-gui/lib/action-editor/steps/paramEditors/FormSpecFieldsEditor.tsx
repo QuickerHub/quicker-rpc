@@ -137,7 +137,19 @@ function FormSpecFieldCard({
           <select
             className="step-param-control"
             value={field.type}
-            onChange={(event) => onChange({ type: event.target.value as FormFieldType })}
+            onChange={(event) => {
+              const nextType = event.target.value as FormFieldType;
+              const patch: Partial<FormSpecField> = { type: nextType };
+              if (nextType !== "select") patch.options = undefined;
+              if (nextType !== "number" && nextType !== "integer") {
+                patch.min = undefined;
+                patch.max = undefined;
+              }
+              if (nextType !== "text" && nextType !== "password" && nextType !== "textarea") {
+                patch.pattern = undefined;
+              }
+              onChange(patch);
+            }}
           >
             {FORM_FIELD_TYPES.map((type) => (
               <option key={type} value={type}>

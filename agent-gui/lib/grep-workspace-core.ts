@@ -27,6 +27,18 @@ export type GrepWorkspaceOptions = {
   offset?: number;
 };
 
+export type GrepWorkspaceResult =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      pattern: string;
+      searchPath: string;
+      outputMode: GrepOutputMode;
+      matches: GrepWorkspaceMatch[];
+      truncated: boolean;
+      totalMatches: number;
+    };
+
 type RgJsonLine = {
   type?: string;
   data?: {

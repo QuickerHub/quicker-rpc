@@ -15,11 +15,13 @@ import { computeFloatingMenuLayout } from "@/lib/floating-menu-layout";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 
 const MENU_WIDTH_PX = 168;
-const MENU_MAX_HEIGHT_PX = 120;
+const MENU_MAX_HEIGHT_PX = 160;
 
 type LastMessageMoreMenuProps = {
   message: AgentUIMessage;
   userTextOverride?: string;
+  canFork?: boolean;
+  onFork?: () => void;
 };
 
 function IconMoreHorizontal() {
@@ -61,6 +63,8 @@ async function writeClipboardText(text: string): Promise<boolean> {
 export function LastMessageMoreMenu({
   message,
   userTextOverride,
+  canFork = false,
+  onFork,
 }: LastMessageMoreMenuProps) {
   const copyText = extractMessageCopyText(message, userTextOverride);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -131,7 +135,18 @@ export function LastMessageMoreMenu({
     });
   }, [closeMenu, copyText]);
 
-  if (!copyText) return null;
+  const handleFork = useCallback(() => {
+    if (!canFork || !onFork) return;
+    onFork();
+    closeMenu();
+    pushAppMessage({
+      kind: "success",
+      body: "已在新对话中复制上下文",
+      autoDismissMs: 2200,
+    });
+  }, [canFork, closeMenu, onFork]);
+
+  if (!copyText && !canFork) return null;
 
   const menu =
     menuOpen && menuLayout ? (
@@ -149,14 +164,26 @@ export function LastMessageMoreMenu({
           transform: menuLayout.transform,
         }}
       >
-        <button
-          type="button"
-          className="msg-more-menu-item"
-          role="menuitem"
-          onClick={() => void handleCopy()}
-        >
-          复制
-        </button>
+        {copyText ? (
+          <button
+            type="button"
+            className="msg-more-menu-item"
+            role="menuitem"
+            onClick={() => void handleCopy()}
+          >
+            复制
+          </button>
+        ) : null}
+        {canFork ? (
+          <button
+            type="button"
+            className="msg-more-menu-item"
+            role="menuitem"
+            onClick={handleFork}
+          >
+            分叉对话
+          </button>
+        ) : null}
       </div>
     ) : null;
 

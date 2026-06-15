@@ -26,7 +26,8 @@ public static class InterpolationPrefixLint
 
     public static IList<ProgramSyntaxIssue> Analyze(
         JObject data,
-        IReadOnlyCollection<string> variableKeys)
+        IReadOnlyCollection<string> variableKeys,
+        string? dataJsonText = null)
     {
         if (variableKeys.Count == 0)
         {
@@ -35,18 +36,27 @@ public static class InterpolationPrefixLint
 
         var keySet = new HashSet<string>(variableKeys, StringComparer.OrdinalIgnoreCase);
         var issues = new List<ProgramSyntaxIssue>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
 
         if (data["steps"] is JArray steps)
         {
             ProgramSyntaxStepPaths.Walk(
                 steps,
                 (step, stepPath, stepId, runnerKey) =>
-                    AnalyzeStepInputParams(step, stepPath, stepId, runnerKey, keySet, issues));
+                    AnalyzeStepInputParams(
+                        step,
+                        stepPath,
+                        stepId,
+                        runnerKey,
+                        keySet,
+                        issues,
+                        seen,
+                        dataJsonText));
         }
 
         if (data["variables"] is JArray variables)
         {
-            AnalyzeVariableDefaults(variables, keySet, issues);
+            AnalyzeVariableDefaults(variables, keySet, issues, seen, dataJsonText);
         }
 
         return issues;
@@ -83,7 +93,9 @@ public static class InterpolationPrefixLint
         string stepId,
         string runnerKey,
         IReadOnlyCollection<string> variableKeys,
-        IList<ProgramSyntaxIssue> issues)
+        IList<ProgramSyntaxIssue> issues,
+        ISet<string> seen,
+        string? dataJsonText)
     {
         if (step["inputParams"] is not JObject inputParams)
         {
@@ -97,6 +109,11 @@ public static class InterpolationPrefixLint
                 continue;
             }
 
+            if (prop.Value is JObject paramObj && paramObj["varKey"] is not null)
+            {
+                continue;
+            }
+
             if (!TryReadParamString(prop.Value, out var text))
             {
                 continue;
@@ -106,6 +123,8 @@ public static class InterpolationPrefixLint
                 text,
                 variableKeys,
                 issues,
+                seen,
+                dataJsonText,
                 stepPath,
                 stepId,
                 runnerKey,
@@ -117,7 +136,9 @@ public static class InterpolationPrefixLint
     private static void AnalyzeVariableDefaults(
         JArray variables,
         IReadOnlyCollection<string> variableKeys,
-        IList<ProgramSyntaxIssue> issues)
+        IList<ProgramSyntaxIssue> issues,
+        ISet<string> seen,
+        string? dataJsonText)
     {
         foreach (var token in variables)
         {
@@ -141,6 +162,8 @@ public static class InterpolationPrefixLint
                 text,
                 variableKeys,
                 issues,
+                seen,
+                dataJsonText,
                 stepPath: null,
                 stepId: null,
                 stepRunnerKey: null,
@@ -153,6 +176,8 @@ public static class InterpolationPrefixLint
         string text,
         IReadOnlyCollection<string> variableKeys,
         IList<ProgramSyntaxIssue> issues,
+        ISet<string> seen,
+        string? dataJsonText,
         string? stepPath,
         string? stepId,
         string? stepRunnerKey,
@@ -166,24 +191,54 @@ public static class InterpolationPrefixLint
             return;
         }
 
+        var matchedVars = new List<string>();
         foreach (Match match in BraceToken.Matches(text))
         {
             var name = match.Groups[1].Value;
-            if (!variableKeys.Contains(name))
+            if (variableKeys.Contains(name) && !matchedVars.Contains(name))
             {
-                continue;
+                matchedVars.Add(name);
             }
-
-            issues.Add(ProgramSyntaxIssueFactory.CreateInterpolationWarning(
-                stepPath,
-                stepId,
-                stepRunnerKey,
-                paramName,
-                variableKey,
-                "MISSING_INTERPOLATION_PREFIX",
-                $"Use $$ prefix for string interpolation (e.g. $$…{{{name}}}…); "
-                + $"bare {{{name}}} in a literal value will not expand."));
         }
+
+        if (matchedVars.Count == 0)
+        {
+            return;
+        }
+
+        var dedupeKey = $"{stepPath ?? "var"}|{paramName ?? "?"}|{variableKey ?? ""}|{text}";
+        if (!seen.Add(dedupeKey))
+        {
+            return;
+        }
+
+        var sample = matchedVars[0];
+        int? readStart = null;
+        int? readEnd = null;
+        if (!string.IsNullOrEmpty(dataJsonText))
+        {
+            var range = InterpolationPrefixLineLocator.LineRangeForValueLiteral(
+                dataJsonText,
+                paramName,
+                text);
+            if (range is not null)
+            {
+                readStart = range.Value.StartLine;
+                readEnd = range.Value.EndLine;
+            }
+        }
+
+        issues.Add(ProgramSyntaxIssueFactory.CreateInterpolationWarning(
+            stepPath,
+            stepId,
+            stepRunnerKey,
+            paramName,
+            variableKey,
+            "MISSING_INTERPOLATION_PREFIX",
+            $"Possible missing $$/$= prefix for {{{sample}}} in a literal value "
+            + "(warning only — literal braces may be intentional).",
+            readStart,
+            readEnd));
     }
 
     private static bool TryReadParamString(JToken? paramToken, out string text)

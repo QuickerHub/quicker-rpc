@@ -8,7 +8,7 @@ import {
   listWorkspaceSubProgramProjects,
   saveProgramFromWorkspace,
 } from "@/lib/subprogram-project-workflow";
-import { formatLocalToolResult } from "@/lib/tool-result";
+import { attachToolFeedback, formatLocalToolResult } from "@/lib/tool-result";
 import {
   editWorkspaceFile,
   getWorkspaceFileInfo,
@@ -528,7 +528,23 @@ export async function executeWorkspaceProgramPatch(
   }
   const result = await saveProgramFromWorkspace(parsed.target, { force: input.force });
   maybeScheduleSyntaxLintAfterPatch(parsed.target, result);
-  return result;
+  return attachToolFeedback(result, {
+    summary: "Program patch saved; diagnostics should be checked before reporting completion.",
+    nextActions: [
+      {
+        tool: "workspace_program",
+        priority: "recommended",
+        reason: "Verify the patched program body for expression/script syntax issues.",
+        input: {
+          action: "diagnostics",
+          target: input.target,
+          id: input.id,
+          subProgramId: input.subProgramId,
+          waitMs: 30000,
+        },
+      },
+    ],
+  });
 }
 
 function maybeScheduleSyntaxLintAfterPatch(

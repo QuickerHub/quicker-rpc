@@ -362,7 +362,7 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Action id."), Option("mock-profile", "Benchmark mock profile id."), Option("mock-profile-file", "Explicit mock profile JSON path."), Option("param", "Input param.", shortName: "p"), Option("json", "Structured output.") }),
 
-                Cmd("action runtime-check", "Check whether a program is fully supported by ActionRuntime.", "qkrpc action runtime-check --dir <project> [--json] | qkrpc action runtime-check --package-file <path> [--json] | qkrpc action runtime-check --id <guid> [--json]",
+                Cmd("action runtime-check", "Check whether a program is fully supported by ActionRuntime.", "qkrpc action runtime-check --dir <project> [--json] | qkrpc action runtime-check --package-file <path> [--json] | qkrpc action runtime-check --compressed-file <path> [--json] | qkrpc action runtime-check --id <guid> [--json]",
 
                     opts: new[] { Option("id", "Action id (resolve .quicker project)."), Option("dir", "Local .quicker project dir."), Option("package-file", "ActionExecutionPackage JSON."), Option("xaction-file", "Program JSON file."), Option("json", "Structured output.") }),
 
@@ -390,9 +390,13 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("id", "Subprogram or action id."), Option("var", "Variable key."), Option("value", "New default."), Option("json", "Structured output.") }),
 
-                Cmd("step-runner search", "Search StepRunner catalog (| OR, * wildcard). Non-empty query: items[].controlField on control-field modules (use value for get --control-field). Primary way to pick stepRunnerKey before get.", "qkrpc step-runner search --query <keyword> [--limit 40] [--json]",
+                Cmd("step-runner search", "Keyword search for stepRunnerKey (| OR, * in tokens). Empty query or bare * = curated common modules (browse). Use step-runner list for full catalog.", "qkrpc step-runner search [--query <keyword>] [--limit 40] [--json]",
 
-                    opts: new[] { Option("query", "Filter: AND with spaces, OR with |, * wildcard.", shortName: "q"), Option("limit", "Max results.", defaultValue: "40"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+                    opts: new[] { Option("query", "Filter: AND with spaces, OR with |, * in tokens (not bare *). Omit for browse.", shortName: "q"), Option("limit", "Max results (search max 200).", defaultValue: "40"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
+
+                Cmd("step-runner list", "List all searchable StepRunner modules (maintainers / UI catalog). Not for agent keyword discovery.", "qkrpc step-runner list [--limit 500] [--json]",
+
+                    opts: new[] { Option("limit", "Max results (default 500).", defaultValue: "500"), Option("json", "Structured output."), Option("timeout", "Seconds.", defaultValue: "30"), Option("no-bootstrap", "Skip auto-start.") }),
 
                 Cmd("step-runner get", "Agent step-runner schema (compressed, no icon): input keys/types before patch. Use --control-field when search returned controlField.", "qkrpc step-runner get --key <stepRunnerKey> [--control-field <value>] [--json]",
 

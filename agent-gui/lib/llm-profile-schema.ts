@@ -32,6 +32,17 @@ export type LlmProfilePatch = {
   hidden?: boolean | null;
 };
 
+/** Shown in lists / inputs when the user leaves profile title empty. */
+export const LLM_PROFILE_TITLE_PLACEHOLDER = "未命名配置";
+
+export function resolveProfileDisplayTitle(title: string | undefined): string {
+  return title?.trim() || LLM_PROFILE_TITLE_PLACEHOLDER;
+}
+
+export function isProfileTitleEmpty(title: string | undefined): boolean {
+  return !title?.trim();
+}
+
 function normalizeModelList(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const seen = new Set<string>();
@@ -54,7 +65,7 @@ function normalizeProfile(raw: unknown): LlmCustomProfile | undefined {
   const apiKey = typeof data.apiKey === "string" ? data.apiKey.trim() : "";
   const baseURL = typeof data.baseURL === "string" ? data.baseURL.trim() : "";
   const models = normalizeModelList(data.models);
-  if (!id || !title || !apiKey || !baseURL || models.length === 0) {
+  if (!id || !apiKey || !baseURL || models.length === 0) {
     return undefined;
   }
   const profile: LlmCustomProfile = { id, title, apiKey, baseURL, models };

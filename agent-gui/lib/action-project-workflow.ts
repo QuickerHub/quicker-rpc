@@ -26,6 +26,11 @@ import {
   type ActionProjectCreateHints,
 } from "@/lib/action-project-info";
 import { bootstrapWorkspaceProjectOnCreate } from "@/lib/workspace-project-disk";
+import {
+  normalizeEditVersion,
+  readEditVersionFromGetPayload,
+} from "@/lib/action-project-info-from-get";
+import { writeActionProjectSyncTrust } from "@/lib/action-project-sync-trust";
 
 export type {
   WorkspaceProjectSummary,
@@ -651,6 +656,10 @@ export async function syncProjectEditVersionOnDisk(
       record.EditVersion = editVersion;
     }
     await writeFile(resolved.absolute, `${JSON.stringify(record, null, 2)}\n`, "utf8");
+    const normalized = normalizeEditVersion(editVersion);
+    if (normalized != null) {
+      await writeActionProjectSyncTrust(projectDir, normalized);
+    }
   } catch {
     /* best-effort */
   }
@@ -751,10 +760,9 @@ export async function saveActionFromWorkspace(options: {
   }
 
   const applyPayload = parseQkrpcPayload(applyResult);
-  const newVersion =
-    typeof applyPayload?.editVersion === "number"
-      ? applyPayload.editVersion
-      : undefined;
+  const newVersion = normalizeEditVersion(
+    readEditVersionFromGetPayload(applyPayload),
+  );
   if (newVersion != null) {
     await syncProjectEditVersionOnDisk(projectDirRel, newVersion);
   }

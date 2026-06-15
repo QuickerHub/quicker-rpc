@@ -184,6 +184,22 @@ export function isLlmProviderConfigured(providerId: LlmProviderId): boolean {
   return hasConfiguredFallbacks();
 }
 
+/** User-owned credentials (local / env / custom profiles), excluding bundled publish keys. */
+export function isUserConfiguredLlmProvider(providerId: LlmProviderId): boolean {
+  if (providerId === CUSTOM_PROVIDER_ID) {
+    if (getLocalProviderApiKey(CUSTOM_PROVIDER_ID)) return true;
+    if (envFirst("LLM_CUSTOM_API_KEY")) return true;
+    return listCustomProfiles().some(isCustomProfileConfigured);
+  }
+  if (providerId === DEEPSEEK_PROVIDER_ID) {
+    if (getLocalProviderApiKey(DEEPSEEK_PROVIDER_ID)) return true;
+    return Boolean(envFirst(...DEEPSEEK_ENV_API_KEYS));
+  }
+  if (hasDirectApiKey()) return true;
+  if (getLocalProviderApiKey(LLM_PROVIDER_ID)) return true;
+  return Boolean(envFirst(...GPT55_ENV_API_KEYS));
+}
+
 export type ResolvedLlmConfig = {
   providerId: LlmProviderId;
   apiKey: string;

@@ -41,6 +41,7 @@ export type XProgramEditorProps = {
   subPrograms?: ActionSubProgram[];
   /** Raw wire JSON for QuickerRpc step summary RPC. */
   embeddedSubProgramsWireJson?: string;
+  onPinStepToChat?: (stepId: string) => void;
 };
 
 function XProgramEditorInner({
@@ -51,6 +52,7 @@ function XProgramEditorInner({
   workspaceContext,
   subPrograms = [],
   embeddedSubProgramsWireJson,
+  onPinStepToChat,
 }: XProgramEditorProps): JSX.Element {
   const { showToast } = useToast();
   const [hist, dispatch] = useReducer(
@@ -205,6 +207,7 @@ function XProgramEditorInner({
             subPrograms={subPrograms}
             embeddedSubProgramsWireJson={embeddedSubProgramsWireJson}
             workspaceContext={workspaceContext}
+            onPinStepToChat={onPinStepToChat}
           />
         </div>
 

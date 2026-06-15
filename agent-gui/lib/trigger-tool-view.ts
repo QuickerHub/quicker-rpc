@@ -106,23 +106,7 @@ export function parseTriggerEventsResultView(
         .filter((row): row is TriggerEventRow => row !== null)
     : Array.isArray(data.eventIndex)
       ? data.eventIndex
-          .map((row) => {
-            if (typeof row !== "object" || row === null || Array.isArray(row)) {
-              return null;
-            }
-            const r = row as Record<string, unknown>;
-            const eventType =
-              typeof r.eventType === "string" ? r.eventType : "";
-            if (!eventType) return null;
-            return {
-              eventType,
-              description:
-                typeof r.description === "string" ? r.description : undefined,
-              paramKeys: Array.isArray(r.paramKeys)
-                ? r.paramKeys.filter((k): k is string => typeof k === "string")
-                : [],
-            };
-          })
+          .map(parseEventRow)
           .filter((row): row is TriggerEventRow => row !== null)
       : [];
   return {

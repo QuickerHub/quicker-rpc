@@ -39,7 +39,7 @@ public sealed class InterpolationPrefixLintTests
         var keys = InterpolationPrefixLint.CollectVariableKeys(data["variables"] as JArray);
         var issues = InterpolationPrefixLint.Analyze(data, keys);
 
-        Assert.IsTrue(issues.Count >= 2);
+        Assert.AreEqual(1, issues.Count);
         Assert.IsTrue(issues.All(i => i.Severity == ProgramSyntaxIssueSeverity.Warning));
         Assert.IsTrue(issues.All(i => i.Code == "MISSING_INTERPOLATION_PREFIX"));
         Assert.AreEqual("message", issues[0].Location.ParamName);
@@ -72,6 +72,61 @@ public sealed class InterpolationPrefixLintTests
         var issues = InterpolationPrefixLint.Analyze(data, keys);
 
         Assert.AreEqual(0, issues.Count);
+    }
+
+    [TestMethod]
+    public void Analyze_skips_varKey_binding()
+    {
+        var data = new JObject
+        {
+            ["variables"] = new JArray { new JObject { ["key"] = "lineCount" } },
+            ["steps"] = new JArray
+            {
+                new JObject
+                {
+                    ["stepRunnerKey"] = "sys:MsgBox",
+                    ["inputParams"] = new JObject
+                    {
+                        ["message"] = new JObject { ["varKey"] = "lineCount" },
+                    },
+                },
+            },
+        };
+
+        var keys = InterpolationPrefixLint.CollectVariableKeys(data["variables"] as JArray);
+        var issues = InterpolationPrefixLint.Analyze(data, keys);
+
+        Assert.AreEqual(0, issues.Count);
+    }
+
+    [TestMethod]
+    public void Analyze_includes_read_data_slice_when_json_text_provided()
+    {
+        var data = new JObject
+        {
+            ["variables"] = new JArray { new JObject { ["key"] = "n", ["type"] = "integer" } },
+            ["steps"] = new JArray
+            {
+                new JObject
+                {
+                    ["stepRunnerKey"] = "sys:MsgBox",
+                    ["inputParams"] = new JObject
+                    {
+                        ["message"] = new JObject { ["value"] = "Count: {n}" },
+                    },
+                },
+            },
+        };
+
+        var jsonText = data.ToString(Newtonsoft.Json.Formatting.Indented);
+        var keys = InterpolationPrefixLint.CollectVariableKeys(data["variables"] as JArray);
+        var issues = InterpolationPrefixLint.Analyze(data, keys, jsonText);
+
+        Assert.AreEqual(1, issues.Count);
+        Assert.IsNotNull(issues[0].Location.Read);
+        Assert.AreEqual("read_data", issues[0].Location.Read!.Action);
+        Assert.IsTrue(issues[0].Location.Read.StartLine is > 0);
+        Assert.IsTrue(issues[0].Location.Read.EndLine is > 0);
     }
 
     [TestMethod]

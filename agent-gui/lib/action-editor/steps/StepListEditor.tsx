@@ -65,7 +65,8 @@ import {
 import type { StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import {
   designerHostGrpcGetGlobalSubProgramIo,
-  designerHostGrpcGetSharedSubProgramIo
+  designerHostGrpcGetSharedSubProgramIo,
+  seedStepRunnerDetailCache,
 } from "../shared/designerHostGrpcApi";
 import { StepEditorPopup } from "./paramEditors/StepEditorPopup";
 import type { ActionProjectWorkspaceContext } from "./paramEditors/FormDefEditorDialog";
@@ -76,8 +77,10 @@ import {
   buildStepRunnerLookup,
   collectStepRunnerKeysFromSteps,
   fetchStepRunnersItems,
+  getPrimedStepRunnerCatalogState,
   hydrateMissingStepRunnerEntries,
   hydrateMissingStepRunnerItems,
+  mergeStepRunnerLookupEntries,
   resolveRunnerItemForStep,
   type StepRunnerLookup
 } from "./stepRunnerCatalog";
@@ -252,6 +255,7 @@ export type StepListEditorProps = {
   /** Raw wire JSON passed to QuickerRpc batch summary RPC. */
   embeddedSubProgramsWireJson?: string;
   workspaceContext?: ActionProjectWorkspaceContext;
+  onPinStepToChat?: (stepId: string) => void;
 };
 
 export default function StepListEditor({
@@ -264,13 +268,36 @@ export default function StepListEditor({
   subPrograms = [],
   embeddedSubProgramsWireJson,
   workspaceContext,
+  onPinStepToChat,
 }: StepListEditorProps): JSX.Element {
   const stepIdManagerRef = useRef<StepIdManager>(new StepIdManager());
-  const [runnerLookup, setRunnerLookup] = useState<StepRunnerLookup>({});
-  const [runnerItems, setRunnerItems] = useState<StepRunnerItem[]>([]);
+  const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
+  const primedCatalogRef = useRef(getPrimedStepRunnerCatalogState(backendBaseUrl));
+  const shouldRevalidateStepRunnerCacheRef = useRef(primedCatalogRef.current != null);
+  const [runnerLookup, setRunnerLookup] = useState<StepRunnerLookup>(
+    () => {
+      const primed = primedCatalogRef.current;
+      if (!primed) return {};
+      return mergeStepRunnerLookupEntries(
+        primed.lookup,
+        buildStepRunnerLookup(primed.catalogItems),
+      );
+    },
+  );
+  const [runnerItems, setRunnerItems] = useState<StepRunnerItem[]>(
+    () => primedCatalogRef.current?.catalogItems ?? [],
+  );
   const [runnerSchemaByCacheKey, setRunnerSchemaByCacheKey] = useState<
     Record<string, StepRunnerItem>
-  >({});
+  >(() => primedCatalogRef.current?.schemaByCacheKey ?? {});
+  useEffect(() => {
+    if (primedCatalogRef.current?.schemaByCacheKey) {
+      seedStepRunnerDetailCache(primedCatalogRef.current.schemaByCacheKey);
+    }
+  }, []);
+  useEffect(() => {
+    seedStepRunnerDetailCache(runnerSchemaByCacheKey);
+  }, [runnerSchemaByCacheKey]);
   const [editorTargetId, setEditorTargetId] = useState<string | null>(null);
   /** Toolbox drag: edit before insert; cleared on cancel or after confirm. */
   const [pendingToolboxInsert, setPendingToolboxInsert] = useState<PendingToolboxInsert | null>(null);
@@ -281,7 +308,6 @@ export default function StepListEditor({
   /** Backend GetSummary per stepId; secondary row shows note if set, else backend summary (empty when none). */
   const [summariesByStepId, setSummariesByStepId] = useState<Record<string, string>>({});
   const [fileContentsByPath, setFileContentsByPath] = useState<StepSummaryFileContents>({});
-  const backendBaseUrl = useMemo(() => getActionDesignerBackendBaseUrl(), []);
 
   const stepFilePathsKey = useMemo(
     () => collectStepParamFilePaths(collectAllSteps(steps)).sort().join("\0"),
@@ -312,18 +338,9 @@ export default function StepListEditor({
       try {
         const items = await fetchStepRunnersItems(backendBaseUrl);
         if (!cancelled) {
-          setRunnerLookup((prev) => {
-            const next = buildStepRunnerLookup(items);
-            for (const [key, entry] of Object.entries(prev)) {
-              const icon = entry.icon?.trim();
-              if (!icon) continue;
-              const existing = next[key];
-              if (existing && !existing.icon?.trim()) {
-                next[key] = { ...existing, icon };
-              }
-            }
-            return next;
-          });
+          setRunnerLookup((prev) =>
+            mergeStepRunnerLookupEntries(prev, buildStepRunnerLookup(items)),
+          );
           setRunnerItems(items);
         }
       } catch {
@@ -367,7 +384,10 @@ export default function StepListEditor({
     void (async () => {
       try {
         const prev = runnerLookupRef.current;
-        const hydrated = await hydrateMissingStepRunnerEntries(keys, prev, ac.signal);
+        const hydrated = await hydrateMissingStepRunnerEntries(keys, prev, ac.signal, {
+          revalidate: shouldRevalidateStepRunnerCacheRef.current,
+          baseUrl: backendBaseUrl,
+        });
         if (cancelled) return;
         const changed = keys.some((key) => hydrated[key] !== prev[key]);
         if (changed) {
@@ -393,12 +413,17 @@ export default function StepListEditor({
       try {
         const prev = runnerItemsRef.current;
         const prevSchemas = runnerSchemaByCacheKeyRef.current;
-        const { catalogItems, schemaByCacheKey } = await hydrateMissingStepRunnerItems(
+        const { catalogItems, schemaByCacheKey, schemaChanged } = await hydrateMissingStepRunnerItems(
           steps,
           prev,
           prevSchemas,
           ac.signal,
+          {
+            revalidate: shouldRevalidateStepRunnerCacheRef.current,
+            baseUrl: backendBaseUrl,
+          },
         );
+        shouldRevalidateStepRunnerCacheRef.current = false;
         if (cancelled) return;
         const prevDefs = prev.reduce((n, item) => n + (item.inputParamDefs?.length ?? 0), 0);
         const nextDefs = catalogItems.reduce(
@@ -416,7 +441,7 @@ export default function StepListEditor({
         if (nextDefs > prevDefs) {
           setRunnerItems(catalogItems);
         }
-        if (nextSchemaDefs > prevSchemaDefs) {
+        if (schemaChanged || nextSchemaDefs > prevSchemaDefs) {
           setRunnerSchemaByCacheKey(schemaByCacheKey);
         }
       } catch {
@@ -1817,6 +1842,29 @@ export default function StepListEditor({
                       {Math.round(Number(step.delayMs ?? 0))}
                     </span>
                   ) : null}
+                  {isStepSelected && selectedIds.length === 1 && onPinStepToChat ? (
+                    <span
+                      className="step-pin-to-chat"
+                      role="button"
+                      tabIndex={0}
+                      title="添加到对话"
+                      aria-label="添加步骤到对话"
+                      onMouseDown={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onPinStepToChat(step.stepId);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onPinStepToChat(step.stepId);
+                      }}
+                    >
+                      ＋对话
+                    </span>
+                  ) : null}
                   <span className="row-actions" onMouseDown={(event) => event.stopPropagation()}>
                     <span
                       className="action"
@@ -1930,6 +1978,7 @@ export default function StepListEditor({
         subPrograms={subPrograms}
         designerHostBaseUrl={backendBaseUrl}
         workspaceContext={workspaceContext}
+        prefetchedFileContents={fileContentsByPath}
         runnerItem={popupRunnerItem}
         runnerTitle={popupRunnerTitle}
         onClose={closeStepEditor}

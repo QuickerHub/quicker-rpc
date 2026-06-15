@@ -22,7 +22,10 @@ type ToolTestLauncherPanelProps = {
   onAppendIntentRun: (entry: SettingsIntentRunEntry) => void;
   onPatchIntentRun: (id: string, patch: Partial<SettingsIntentRunEntry>) => void;
   onLauncherAgentChatActionsReady?: (
-    actions: { addToolOutput: ChatAddToolOutput } | null,
+    actions: {
+      addToolOutput: ChatAddToolOutput;
+      activeRunId: string | null;
+    } | null,
   ) => void;
 };
 

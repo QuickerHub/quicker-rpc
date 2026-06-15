@@ -105,6 +105,40 @@ function normalizeFieldType(raw: unknown): FormFieldType {
   return "text";
 }
 
+function isNumericFieldType(type: FormFieldType): boolean {
+  return type === "number" || type === "integer";
+}
+
+function isTextLikeFieldType(type: FormFieldType): boolean {
+  return type === "text" || type === "password" || type === "textarea";
+}
+
+/** Align field type and strip properties that FormSpecValidator rejects. */
+export function normalizeFormSpecField(field: FormSpecField): FormSpecField {
+  let type = field.type;
+  if ((field.options?.length ?? 0) > 0 && type !== "select") {
+    type = "select";
+  } else if ((field.min != null || field.max != null) && !isNumericFieldType(type)) {
+    type = "number";
+  }
+
+  const next: FormSpecField = {
+    ...field,
+    type,
+  };
+  if (type !== "select") {
+    delete next.options;
+  }
+  if (!isNumericFieldType(type)) {
+    delete next.min;
+    delete next.max;
+  }
+  if (!isTextLikeFieldType(type)) {
+    delete next.pattern;
+  }
+  return next;
+}
+
 function parseV1Field(raw: unknown): FormSpecField | null {
   if (!isRecord(raw)) return null;
   const key = typeof raw.key === "string" ? raw.key.trim() : "";
@@ -156,7 +190,7 @@ function parseV1Field(raw: unknown): FormSpecField | null {
       .filter((entry): entry is FormSpecFieldOption => entry !== null);
     if (options.length > 0) field.options = options;
   }
-  return field;
+  return normalizeFormSpecField(field);
 }
 
 function looksLikeNativeForm(root: Record<string, unknown>): boolean {
@@ -220,33 +254,34 @@ export function serializeFormSpec(spec: FormSpecDocument): string {
     mode: spec.mode?.trim() || "variables",
     title: spec.title ?? "",
     fields: spec.fields.map((field) => {
+      const normalized = normalizeFormSpecField(field);
       const next: FormSpecField = {
-        key: field.key.trim(),
-        label: field.label.trim(),
-        type: field.type,
-        target: (field.target ?? field.key).trim() || field.key.trim(),
+        key: normalized.key.trim(),
+        label: normalized.label.trim(),
+        type: normalized.type,
+        target: (normalized.target ?? normalized.key).trim() || normalized.key.trim(),
       };
-      if (field.required) next.required = true;
-      if (field.help?.trim()) next.help = field.help.trim();
-      if (field.group?.trim()) next.group = field.group.trim();
-      if (field.pattern?.trim()) next.pattern = field.pattern.trim();
-      if (field.default !== undefined && field.default !== "") next.default = field.default;
-      if (typeof field.min === "number") next.min = field.min;
-      if (typeof field.max === "number") next.max = field.max;
-      if (field.type === "select" && field.options?.length) {
-        next.options = field.options
+      if (normalized.required) next.required = true;
+      if (normalized.help?.trim()) next.help = normalized.help.trim();
+      if (normalized.group?.trim()) next.group = normalized.group.trim();
+      if (normalized.pattern?.trim()) next.pattern = normalized.pattern.trim();
+      if (normalized.default !== undefined && normalized.default !== "") next.default = normalized.default;
+      if (typeof normalized.min === "number") next.min = normalized.min;
+      if (typeof normalized.max === "number") next.max = normalized.max;
+      if (normalized.type === "select" && normalized.options?.length) {
+        next.options = normalized.options
           .map((option) => ({
             value: option.value.trim(),
             ...(option.label?.trim() ? { label: option.label.trim() } : {}),
           }))
           .filter((option) => option.value.length > 0);
       }
-      if (field.visibleWhen?.field?.trim()) {
-        const visibleWhen: FormSpecVisibleWhen = { field: field.visibleWhen.field.trim() };
-        if (field.visibleWhen.eq?.trim()) {
-          visibleWhen.eq = field.visibleWhen.eq.trim();
-        } else if (field.visibleWhen.ne?.trim()) {
-          visibleWhen.ne = field.visibleWhen.ne.trim();
+      if (normalized.visibleWhen?.field?.trim()) {
+        const visibleWhen: FormSpecVisibleWhen = { field: normalized.visibleWhen.field.trim() };
+        if (normalized.visibleWhen.eq?.trim()) {
+          visibleWhen.eq = normalized.visibleWhen.eq.trim();
+        } else if (normalized.visibleWhen.ne?.trim()) {
+          visibleWhen.ne = normalized.visibleWhen.ne.trim();
         }
         if (visibleWhen.eq || visibleWhen.ne) {
           next.visibleWhen = visibleWhen;

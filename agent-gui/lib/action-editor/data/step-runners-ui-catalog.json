@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "generatedAt": "2026-06-07T08:31:38.890Z",
+  "generatedAt": "2026-06-16T00:00:00.000Z",
   "qkrpcVersion": "0.12.3.2",
-  "schemaCount": 138,
+  "schemaCount": 139,
   "failedKeys": [],
   "schemas": {
     "sys:openUrl": {
@@ -2754,6 +2754,49 @@
           "title": "历史消息",
           "purpose": "消息类型列表对象",
           "valueType": "Object"
+        }
+      ]
+    },
+    "sys:assign": {
+      "stepRunnerKey": "sys:assign",
+      "name": "赋值",
+      "description": "为变量赋值。",
+      "icon": "fa:Light_Edit:#6aaded",
+      "docReference": {
+        "topic": "step-modules",
+        "file": "assign",
+        "tier": "authored"
+      },
+      "inputs": [
+        {
+          "key": "input",
+          "title": "输入",
+          "purpose": "要赋值给变量的内容，可以直接是其他变量，也可以直接输入值或使用插值格式。",
+          "valueType": "Any",
+          "required": true,
+          "isMultiLine": true
+        },
+        {
+          "key": "stopIfFail",
+          "title": "失败后停止",
+          "purpose": "失败后是否停止动作",
+          "valueType": "Boolean",
+          "default": true,
+          "variableMode": 1
+        }
+      ],
+      "outputs": [
+        {
+          "key": "isSuccess",
+          "title": "是否成功",
+          "purpose": "操作是否成功",
+          "valueType": "Boolean"
+        },
+        {
+          "key": "output",
+          "title": "输出",
+          "purpose": "将数据写入到变量中",
+          "valueType": "Any"
         }
       ]
     },

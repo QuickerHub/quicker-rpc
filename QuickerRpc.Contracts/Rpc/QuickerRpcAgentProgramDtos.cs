@@ -354,6 +354,28 @@ public sealed class QuickerRpcStepRunnerDetailResult
     public string? SchemaJson { get; set; }
 }
 
+/// <summary>Embedded subprogram row for action-editor quick insert search (UI only).</summary>
+public sealed class QuickerRpcQuickInsertSubProgramInput
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    public string Description { get; set; } = string.Empty;
+
+    public string Identifier { get; set; } = string.Empty;
+}
+
+/// <summary>Paginated designer search page JSON (items/totalCount/hasMore). UI / serve only.</summary>
+public sealed class QuickerRpcDesignerSearchPageResult
+{
+    public bool Success { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public string? Json { get; set; }
+}
+
 public sealed class QuickerRpcActionStepSummaryInput
 {
     public string StepId { get; set; } = string.Empty;

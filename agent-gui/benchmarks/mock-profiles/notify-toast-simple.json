@@ -1,0 +1,13 @@
+{
+  "id": "notify-toast-simple",
+  "version": 1,
+  "initialVars": {
+    "quicker_in_param": "compile-verify mock toast"
+  },
+  "assertions": {
+    "success": true,
+    "notificationsContain": [
+      "compile-verify mock toast"
+    ]
+  }
+}

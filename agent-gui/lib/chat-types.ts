@@ -1,4 +1,6 @@
 import type { UIMessage } from "ai";
+import type { AgentRecoveryDecision } from "@/lib/agent-recovery-policy";
+import type { AgentTurnState } from "@/lib/agent-turn-state";
 import {
   DEFAULT_MODEL_CONTEXT_TOKENS,
   resolveEnvContextLimit,
@@ -40,6 +42,9 @@ export type ChatUsageMetadata = {
   launcherCacheDirect?: boolean;
   launcherResolveDirect?: boolean;
   resolveQuery?: string;
+  agentTurnState?: AgentTurnState;
+  recoveryDecision?: AgentRecoveryDecision;
+  recentToolFeedbackCount?: number;
 };
 
 export type AgentUIMessage = UIMessage<ChatUsageMetadata>;

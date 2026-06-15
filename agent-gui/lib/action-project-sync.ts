@@ -12,6 +12,7 @@ import { runQkrpcForTool } from "@/lib/qkrpc";
 import {
   readCompressedFromGetPayload,
   readEditVersionFromGetPayload,
+  normalizeEditVersion,
 } from "@/lib/action-project-info-from-get";
 import {
   compareActionEditVersions,
@@ -19,6 +20,10 @@ import {
   type ActionProjectSyncState,
   type ActionProjectSyncStatus,
 } from "@/lib/action-project-sync-types";
+import {
+  readActionProjectSyncTrust,
+  writeActionProjectSyncTrust,
+} from "@/lib/action-project-sync-trust";
 
 export type { ActionProjectSyncState, ActionProjectSyncStatus } from "@/lib/action-project-sync-types";
 export { compareActionEditVersions, formatSyncStatusMessage } from "@/lib/action-project-sync-types";
@@ -84,14 +89,21 @@ export async function getActionProjectSyncStatus(
     };
   }
 
+  const trust = await readActionProjectSyncTrust(manifest.projectDirectory);
+  const localVersion = normalizeEditVersion(manifest.editVersion);
   const state = compareActionEditVersions(
-    manifest.editVersion,
+    localVersion,
     remote.editVersion,
+    { trustedRemoteEditVersion: trust?.editVersion },
   );
+  const remoteForMessage =
+    state === "in_sync" && remote.editVersion == null && localVersion != null
+      ? localVersion
+      : remote.editVersion;
   let message = formatSyncStatusMessage(
     state,
-    manifest.editVersion,
-    remote.editVersion,
+    localVersion,
+    remoteForMessage,
   );
 
   return {
@@ -99,8 +111,8 @@ export async function getActionProjectSyncStatus(
     status: {
       state,
       message,
-      localEditVersion: manifest.editVersion,
-      remoteEditVersion: remote.editVersion,
+      localEditVersion: localVersion,
+      remoteEditVersion: remoteForMessage,
       remoteTitle: remote.title,
       projectDirectory: manifest.projectDirectory,
     },
@@ -122,6 +134,10 @@ export async function pullActionProjectToWorkspace(
   const summary = buildWorkspaceProjectSummary(sync.manifest);
   const version =
     summary.editVersion != null ? ` v${summary.editVersion}` : "";
+  const trustedVersion = normalizeEditVersion(summary.editVersion);
+  if (trustedVersion != null && summary.projectDirectory) {
+    await writeActionProjectSyncTrust(summary.projectDirectory, trustedVersion);
+  }
   return {
     ok: true,
     summary,
@@ -131,7 +147,7 @@ export async function pullActionProjectToWorkspace(
 
 export type ActionProjectPushResult =
   | { ok: true; message: string; editVersion?: number }
-  | { ok: false; error: string; phase?: string };
+  | { ok: false; error: string; phase?: string; versionConflict?: boolean };
 
 export async function pushActionProjectToQuicker(options: {
   actionId: string;
@@ -158,7 +174,10 @@ export async function pushActionProjectToQuicker(options: {
       || "提交到 Quicker 失败";
     const phase =
       typeof payload?.phase === "string" ? payload.phase : undefined;
-    return { ok: false, error: message, phase };
+    const versionConflict =
+      payload?.versionConflict === true
+      || /version conflict/i.test(message);
+    return { ok: false, error: message, phase, versionConflict };
   }
 
   const data =
@@ -170,7 +189,7 @@ export async function pushActionProjectToQuicker(options: {
       ? (data.payload as Record<string, unknown>)
       : data;
 
-  const editVersion = readEditVersionFromGetPayload(payload);
+  const editVersion = normalizeEditVersion(readEditVersionFromGetPayload(payload));
   const version =
     editVersion != null ? `（Quicker v${editVersion}）` : "";
   return {

@@ -118,6 +118,8 @@ internal static class ServeInvokeDispatcher
             "step-runner.get" => await StepRunnerGetAsync(rpc, args, forAgent: true, token).ConfigureAwait(false),
             "step-runner.getUi" => await StepRunnerGetAsync(rpc, args, forAgent: false, token).ConfigureAwait(false),
             "step-runner.summaries" => await StepRunnerSummariesAsync(rpc, args, token).ConfigureAwait(false),
+            "step-runner.quickInsertSearch" => await StepRunnerQuickInsertSearchAsync(rpc, args, token).ConfigureAwait(false),
+            "step-runner.toolboxSearch" => await StepRunnerToolboxSearchAsync(rpc, args, token).ConfigureAwait(false),
             "clipboard.read-special-format" => await ClipboardReadSpecialFormatAsync(rpc, args, token).ConfigureAwait(false),
             "clipboard.write-special-format" => await ClipboardWriteSpecialFormatAsync(rpc, args, token).ConfigureAwait(false),
             "fa.search" => await FaSearchAsync(rpc, args, token).ConfigureAwait(false),
@@ -2099,6 +2101,69 @@ internal static class ServeInvokeDispatcher
             .GetActionStepSummariesAsync(steps, subProgramsJson, token)
             .ConfigureAwait(false);
         return Ok(new { ok = response.Success, action = "step-runner-summaries", payload = response });
+    }
+
+    private static async Task<ServeInvokeResponse> StepRunnerQuickInsertSearchAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var keyword = ServeJsonArgs.GetString(args, "keyword");
+        var skip = ServeJsonArgs.GetInt(args, "skip") ?? 0;
+        var subPrograms = ParseQuickInsertSubPrograms(args);
+        var response = await rpc
+            .SearchStepQuickInsertAsync(keyword, skip, subPrograms, token)
+            .ConfigureAwait(false);
+        return Ok(new { ok = response.Success, action = "step-runner-quick-insert-search", payload = response });
+    }
+
+    private static async Task<ServeInvokeResponse> StepRunnerToolboxSearchAsync(
+        IQuickerRpcService rpc,
+        JsonElement args,
+        CancellationToken token)
+    {
+        var keyword = ServeJsonArgs.GetString(args, "keyword");
+        var skip = ServeJsonArgs.GetInt(args, "skip") ?? 0;
+        var response = await rpc
+            .SearchToolboxModulesAsync(keyword, skip, token)
+            .ConfigureAwait(false);
+        return Ok(new { ok = response.Success, action = "step-runner-toolbox-search", payload = response });
+    }
+
+    private static IList<QuickerRpcQuickInsertSubProgramInput>? ParseQuickInsertSubPrograms(JsonElement args)
+    {
+        if (!args.TryGetProperty("subPrograms", out var arr) || arr.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var list = new List<QuickerRpcQuickInsertSubProgramInput>();
+        foreach (var item in arr.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var ident = ServeJsonArgs.GetString(item, "identifier")
+                ?? ServeJsonArgs.GetString(item, "subProgramIdentifier")
+                ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(ident))
+            {
+                continue;
+            }
+
+            list.Add(
+                new QuickerRpcQuickInsertSubProgramInput
+                {
+                    Id = ServeJsonArgs.GetString(item, "id") ?? string.Empty,
+                    Name = ServeJsonArgs.GetString(item, "name") ?? string.Empty,
+                    Description = ServeJsonArgs.GetString(item, "description") ?? string.Empty,
+                    Identifier = ident.Trim(),
+                });
+        }
+
+        return list.Count > 0 ? list : null;
     }
 
     private static async Task<ServeInvokeResponse> ClipboardReadSpecialFormatAsync(

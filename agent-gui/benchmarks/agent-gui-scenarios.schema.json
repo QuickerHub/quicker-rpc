@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-gui-scenarios.schema.json",
+  "title": "QuickerAgent agent-gui eval scenarios",
+  "type": "object",
+  "required": ["version", "scenarios"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "title": { "type": "string" },
+    "description": { "type": "string" },
+    "scenarios": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/scenario" },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "required": ["id", "category", "label", "userPrompt", "chatMode"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "category": {
+          "enum": ["launcher", "workspace", "agent-stack", "agent-defs"]
+        },
+        "label": { "type": "string", "minLength": 1 },
+        "userPrompt": { "type": "string", "minLength": 10 },
+        "chatMode": { "enum": ["agent", "launcher"] },
+        "readOnly": { "type": "boolean" },
+        "fixture": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "description": "Subdir under benchmarks/fixtures/ used as workingDirectory"
+        },
+        "mockProfile": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "expect": {
+          "type": "object",
+          "properties": {
+            "mustCall": { "type": "array", "items": { "type": "string" } },
+            "mustCallAny": { "type": "array", "items": { "type": "string" } },
+            "mustNotCall": { "type": "array", "items": { "type": "string" } },
+            "finishWithinSteps": { "type": "integer", "minimum": 1 },
+            "launcher": {
+              "type": "object",
+              "required": ["intent"],
+              "properties": {
+                "intent": {
+                  "enum": ["open-settings", "open-search", "run-action"]
+                },
+                "settingsOpen": {
+                  "type": "object",
+                  "properties": {
+                    "page": { "type": "string" },
+                    "preset": { "type": "string" },
+                    "intent": { "type": "string" }
+                  }
+                },
+                "engageAny": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

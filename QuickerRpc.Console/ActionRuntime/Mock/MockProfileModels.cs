@@ -30,6 +30,8 @@ internal sealed class MockProfileMocks
     public MockProfileWindow? Window { get; set; }
 
     public MockProfileFiles? Files { get; set; }
+
+    public MockProfileSubPrograms? SubPrograms { get; set; }
 }
 
 internal sealed class MockProfileWindow
@@ -79,6 +81,15 @@ internal sealed class MockProfileFileSeed
     public string? Path { get; set; }
 
     public string? Content { get; set; }
+}
+
+internal sealed class MockProfileSubPrograms
+{
+    public bool? StubExternal { get; set; }
+
+    public bool? StubAll { get; set; }
+
+    public string? StubResultText { get; set; }
 }
 
 internal sealed class MockProfileAssertions

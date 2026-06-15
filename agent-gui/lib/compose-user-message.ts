@@ -4,6 +4,11 @@ import {
   browserElementTagFromAttrs,
   expandBrowserElementTagForModel,
 } from "@/lib/browser-element-tag";
+import type { ProgramStepTag } from "@/lib/program-step-tag";
+import {
+  expandProgramStepTagForModel,
+  programStepTagFromAttrs,
+} from "@/lib/program-step-tag";
 import {
   expandSlashTagsInUserText,
   slashTagFromAttrs,
@@ -32,13 +37,18 @@ const BROWSER_ELEMENT_TAG_RE = new RegExp(
   "gi",
 );
 
+const PROGRAM_STEP_TAG_RE = new RegExp(
+  "<qkrpc-program-step\\s+([^>]*?)\\s*(?:/>|></qkrpc-program-step>)",
+  "gi",
+);
+
 const SLASH_TAG_MARKUP_RE = new RegExp(
   "<qkrpc-slash-tag\\s+([^>]*?)\\s*(?:/>|></qkrpc-slash-tag>)",
   "gi",
 );
 
 const INLINE_MARKUP_PROBE_RE =
-  /<qkrpc-action-tag|<qkrpc-browser-element|<qkrpc-slash-tag|<qka-link\s|<qka\s/i;
+  /<qkrpc-action-tag|<qkrpc-browser-element|<qkrpc-program-step|<qkrpc-slash-tag|<qka-link\s|<qka\s/i;
 
 const LEGACY_ACTION_LINE_RE =
   /^\[动作:\s*([^\]]+)\]\s*actionId=([^\s,]+)(?:,\s*lastEdit=([^\n,]+))?/;
@@ -163,6 +173,12 @@ export function expandUserMessageForModel(text: string): string {
 
   let expandedAny = withSlashWire !== text;
   const expanded = withSlashWire
+    .replace(PROGRAM_STEP_TAG_RE, (_full, attrStr: string) => {
+      const tag = programStepTagFromAttrs(parseHtmlAttrs(attrStr));
+      if (!tag) return "";
+      expandedAny = true;
+      return expandProgramStepTagForModel(tag);
+    })
     .replace(BROWSER_ELEMENT_TAG_RE, (_full, attrStr: string) => {
       const element = browserElementTagFromAttrs(parseHtmlAttrs(attrStr));
       if (!element) return "";
@@ -191,6 +207,7 @@ export function expandUserMessageForModel(text: string): string {
 export type UserMessageSegment =
   | { type: "tag"; action: PinnedAction }
   | { type: "browser-element"; element: BrowserElementTag }
+  | { type: "program-step"; tag: ProgramStepTag }
   | { type: "slash-tag"; ref: SlashTagRef }
   | { type: "text"; text: string };
 
@@ -221,10 +238,24 @@ function pinnedActionFromQkaRef(
 type InlineUserMarkupHit =
   | { index: number; length: number; kind: "action"; action: PinnedAction }
   | { index: number; length: number; kind: "browser-element"; element: BrowserElementTag }
+  | { index: number; length: number; kind: "program-step"; tag: ProgramStepTag }
   | { index: number; length: number; kind: "slash-tag"; ref: SlashTagRef };
 
 function findInlineUserMarkupHits(text: string): InlineUserMarkupHit[] {
   const hits: InlineUserMarkupHit[] = [];
+
+  const programStepRe = new RegExp(PROGRAM_STEP_TAG_RE.source, "gi");
+  let programStepMatch: RegExpExecArray | null;
+  while ((programStepMatch = programStepRe.exec(text)) !== null) {
+    const tag = programStepTagFromAttrs(parseHtmlAttrs(programStepMatch[1]));
+    if (!tag) continue;
+    hits.push({
+      index: programStepMatch.index,
+      length: programStepMatch[0].length,
+      kind: "program-step",
+      tag,
+    });
+  }
 
   const browserRe = new RegExp(BROWSER_ELEMENT_TAG_RE.source, "gi");
   let browserMatch: RegExpExecArray | null;
@@ -292,6 +323,8 @@ function parseInlineTagSegments(text: string): UserMessageSegment[] {
     }
     if (hit.kind === "browser-element") {
       segments.push({ type: "browser-element", element: hit.element });
+    } else if (hit.kind === "program-step") {
+      segments.push({ type: "program-step", tag: hit.tag });
     } else if (hit.kind === "slash-tag") {
       segments.push({ type: "slash-tag", ref: hit.ref });
     } else {
@@ -312,6 +345,7 @@ export function parseUserMessageSegments(text: string): UserMessageSegment[] {
   if (
     text.includes("<qkrpc-action-tag")
     || text.includes("<qkrpc-browser-element")
+    || text.includes("<qkrpc-program-step")
     || text.includes("<qkrpc-slash-tag")
     || text.includes("<qka-link")
     || text.includes("<qka")
@@ -369,6 +403,7 @@ export function canSendComposedMessage(draft: string): boolean {
     (s) =>
       s.type === "tag"
       || s.type === "browser-element"
+      || s.type === "program-step"
       || s.type === "slash-tag"
       || (s.type === "text" && s.text.trim().length > 0),
   );
@@ -383,6 +418,8 @@ export function formatComposerQueuePreview(text: string, maxLen = 120): string {
       parts.push(`@${segment.action.title}`);
     } else if (segment.type === "browser-element") {
       parts.push(`[${segment.element.chipTitle}]`);
+    } else if (segment.type === "program-step") {
+      parts.push(`[${segment.tag.chipTitle}]`);
     } else if (segment.type === "slash-tag") {
       parts.push(`/${segment.ref.name}`);
     } else if (segment.text.trim()) {
@@ -399,6 +436,7 @@ export function formatComposerQueuePreview(text: string, maxLen = 120): string {
 export function hasPasteableUserMessageFormat(text: string): boolean {
   if (text.includes("<qkrpc-action-tag")) return true;
   if (text.includes("<qkrpc-browser-element")) return true;
+  if (text.includes("<qkrpc-program-step")) return true;
   if (text.includes("<qkrpc-slash-tag")) return true;
   if (text.includes("<qka-link")) return true;
   if (text.includes("<qka")) return true;

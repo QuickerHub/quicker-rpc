@@ -1,0 +1,23 @@
+{
+  "id": "subprogram-external-readfile-stub",
+  "version": 1,
+  "mocks": {
+    "subPrograms": {
+      "stubExternal": true
+    },
+    "files": {
+      "seed": [
+        {
+          "path": "D:\\source\\repos\\quicker\\quicker-rpc\\.local\\compile-verify-loop\\fixtures\\mock-readfile.json",
+          "content": "{\"ok\":true,\"data\":[]}"
+        }
+      ]
+    }
+  },
+  "initialVars": {
+    "filePath": "D:\\source\\repos\\quicker\\quicker-rpc\\.local\\compile-verify-loop\\fixtures\\mock-readfile.json"
+  },
+  "assertions": {
+    "success": true
+  }
+}

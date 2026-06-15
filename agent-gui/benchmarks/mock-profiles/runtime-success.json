@@ -1,0 +1,7 @@
+{
+  "id": "runtime-success",
+  "version": 1,
+  "assertions": {
+    "success": true
+  }
+}

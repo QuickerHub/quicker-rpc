@@ -1,4 +1,8 @@
 import type { ActionExplorerTree } from "@/lib/action-explorer-tree";
+import {
+  fetchWorkspaceFileCached,
+  invalidateWorkspaceFileReadCache,
+} from "@/lib/workspace-file-read-cache";
 import type {
   WorkspaceChangedFile,
   WorkspaceGitDiffResult,
@@ -104,24 +108,57 @@ export function formatWorkspaceFetchError(error: unknown): string {
   return message || "Failed to read file";
 }
 
-export async function fetchWorkspaceFile(
+export type WorkspaceListResponse = {
+  ok: true;
+  path: string;
+  entries: { path: string; kind: "file" | "directory"; sizeBytes?: number }[];
+  truncated: boolean;
+};
+
+export async function fetchWorkspaceFileList(
   cwd: string,
   path: string,
-): Promise<WorkspaceReadResponse | { ok: false; error: string }> {
+  options?: { recursive?: boolean },
+): Promise<WorkspaceListResponse | { ok: false; error: string }> {
   try {
-    const params = new URLSearchParams({ op: "read", cwd, path });
+    const params = new URLSearchParams({ op: "list", cwd, path });
+    if (options?.recursive) {
+      params.set("recursive", "true");
+    }
     const res = await fetch(`/api/workspace?${params}`, { cache: "no-store" });
-    const data = (await res.json()) as WorkspaceReadResponse & {
+    const data = (await res.json()) as WorkspaceListResponse & {
       ok: boolean;
       error?: string;
     };
     if (!data.ok) {
-      return { ok: false, error: data.error ?? "Failed to read file" };
+      return { ok: false, error: data.error ?? "Failed to list files" };
     }
     return data;
   } catch (error) {
     return { ok: false, error: formatWorkspaceFetchError(error) };
   }
+}
+
+export async function fetchWorkspaceFile(
+  cwd: string,
+  path: string,
+): Promise<WorkspaceReadResponse | { ok: false; error: string }> {
+  return fetchWorkspaceFileCached(cwd, path, async () => {
+    try {
+      const params = new URLSearchParams({ op: "read", cwd, path });
+      const res = await fetch(`/api/workspace?${params}`, { cache: "no-store" });
+      const data = (await res.json()) as WorkspaceReadResponse & {
+        ok: boolean;
+        error?: string;
+      };
+      if (!data.ok) {
+        return { ok: false, error: data.error ?? "Failed to read file" };
+      }
+      return data;
+    } catch (error) {
+      return { ok: false, error: formatWorkspaceFetchError(error) };
+    }
+  });
 }
 
 export async function deleteActionProjectApi(
@@ -225,5 +262,6 @@ export async function writeWorkspaceFileApi(
   if (!data.ok) {
     return { ok: false, error: data.error ?? "Failed to write file" };
   }
+  invalidateWorkspaceFileReadCache(cwd, data.path ?? path);
   return { ok: true, path: data.path ?? path };
 }

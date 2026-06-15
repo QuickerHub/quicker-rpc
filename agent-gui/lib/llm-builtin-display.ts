@@ -232,9 +232,18 @@ export function selectBuiltinAutoModel(modelId: string): boolean {
   return selectAutoPreferredModel(modelId);
 }
 
+function shouldShowBuiltinGroupInSettings(group: ResolvedLlmEndpointGroup): boolean {
+  if (isAutoBuiltinGroupId(group.id)) return true;
+  if (GPT55_BUILTIN_GROUP_IDS.has(group.id)) return false;
+  if (group.providerId === DEEPSEEK_PROVIDER_ID) return false;
+  return false;
+}
+
 export function listBuiltinGroupDisplayRows(): BuiltinGroupDisplayRow[] {
   const config = loadMergedBuiltinGroupsConfig();
-  return listResolvedLlmEndpointGroups(config).map((group) => {
+  return listResolvedLlmEndpointGroups(config)
+    .filter(shouldShowBuiltinGroupInSettings)
+    .map((group) => {
     const endpoints = resolveGroupProbeEndpoints(group);
     if (isAutoBuiltinGroupId(group.id)) {
       return buildAutoGroupDisplayRow(group, endpoints);

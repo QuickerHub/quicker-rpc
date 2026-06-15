@@ -83,6 +83,20 @@ internal static class MockProfileApplier
             }
         }
 
+        if (mocks.SubPrograms?.StubAll == true)
+        {
+            builder.StubAllSubPrograms = true;
+        }
+        else if (mocks.SubPrograms?.StubExternal == true)
+        {
+            builder.StubExternalSubPrograms = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(mocks.SubPrograms?.StubResultText))
+        {
+            builder.SubProgramStubResultText = mocks.SubPrograms.StubResultText;
+        }
+
         if (mocks.Window != null)
         {
             if (!string.IsNullOrWhiteSpace(mocks.Window.ForegroundTitle))

@@ -1,5 +1,5 @@
 import type { LlmProviderId } from "@/lib/llm-providers";
-import { LLM_PROVIDER_ID } from "@/lib/llm-providers";
+import { DEEPSEEK_PROVIDER_ID, LLM_PROVIDER_ID } from "@/lib/llm-providers";
 import { parseLlmSelection, LLM_AUTO_SELECTION } from "@/lib/llm-selection";
 export type LlmPickerEndpointOption = {
   id: string;
@@ -27,6 +27,8 @@ export type LlmModelOption = {
   /** Models available under a custom profile row. */
   profileModels?: string[];
   label: string;
+  /** Raw user-defined profile title (empty when unset). */
+  profileTitle?: string;
   title?: string;
   description: string;
   modelId: string;
@@ -79,15 +81,28 @@ export type LlmOptionsResponse = {
   directOverride: boolean;
 };
 
+/** Meaningful user-owned configuration (excludes bundled-only and low-quality Auto). */
+export function isPreferredLlmOptionConfigured(option: LlmModelOption): boolean {
+  return option.configured && option.kind !== "auto";
+}
+
+/** User can select this row in the model picker (includes Auto when available). */
+export function isSelectableLlmOption(option: LlmModelOption): boolean {
+  return option.configured;
+}
+
 export function pickInitialLlmSelection(
   data: LlmOptionsResponse,
   storedRaw: string | undefined,
 ): string {
-  const configured = data.options.filter((o) => o.configured);
+  const configured = data.options.filter(isPreferredLlmOptionConfigured);
 
-  // Agent composer: restore last browser choice before server defaults.
-  if (storedRaw && configured.some((o) => optionMatchesSelection(o, storedRaw))) {
-    return storedRaw;
+  // Restore last choice, including Auto (not used as default when unset).
+  if (storedRaw) {
+    const storedOption = data.options.find((o) => optionMatchesSelection(o, storedRaw));
+    if (storedOption && isSelectableLlmOption(storedOption)) {
+      return storedRaw;
+    }
   }
 
   const parsed = parseLlmSelection(storedRaw);
@@ -98,10 +113,10 @@ export function pickInitialLlmSelection(
     if (legacy) return legacy.selection;
   }
 
-  const gpt55 = configured.find(
-    (o) => o.kind === "builtin" && o.providerId === LLM_PROVIDER_ID,
+  const deepseek = configured.find(
+    (o) => o.kind === "builtin" && o.providerId === DEEPSEEK_PROVIDER_ID,
   );
-  if (gpt55) return gpt55.selection;
+  if (deepseek) return deepseek.selection;
 
   if (
     data.activeSelection

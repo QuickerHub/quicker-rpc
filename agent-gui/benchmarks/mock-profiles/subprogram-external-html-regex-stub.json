@@ -1,0 +1,13 @@
+{
+  "id": "subprogram-external-html-regex-stub",
+  "version": 1,
+  "mocks": {
+    "subPrograms": {
+      "stubExternal": true,
+      "stubResultText": "prefix var biz = \"mock-biz-value\" suffix htmlDecode(\"mock-decoded-value\")"
+    }
+  },
+  "assertions": {
+    "success": true
+  }
+}

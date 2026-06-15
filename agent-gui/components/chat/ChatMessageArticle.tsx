@@ -23,6 +23,8 @@ export type ChatMessageArticleProps = {
   onBeginEdit: (message: AgentUIMessage) => void;
   onFocusComposerAtEnd: () => void;
   onInsertComposerPrompt: (text: string) => void;
+  canForkConversation?: boolean;
+  onForkConversation?: () => void;
 };
 
 function ChatMessageArticleInner({
@@ -41,6 +43,8 @@ function ChatMessageArticleInner({
   onBeginEdit,
   onFocusComposerAtEnd,
   onInsertComposerPrompt,
+  canForkConversation = false,
+  onForkConversation,
 }: ChatMessageArticleProps) {
   const isUser = message.role === "user";
 
@@ -51,7 +55,12 @@ function ChatMessageArticleInner({
     : undefined;
 
   const lastMessageMenu = isLastMessage ? (
-    <LastMessageMoreMenu message={message} userTextOverride={userText} />
+    <LastMessageMoreMenu
+      message={message}
+      userTextOverride={userText}
+      canFork={canForkConversation}
+      onFork={onForkConversation}
+    />
   ) : null;
 
   if (isUser) {

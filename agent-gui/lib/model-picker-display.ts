@@ -6,6 +6,10 @@ import {
   LLM_PROVIDER_ID,
   type LlmProviderId,
 } from "@/lib/llm-providers";
+import {
+  LLM_PROFILE_TITLE_PLACEHOLDER,
+  resolveProfileDisplayTitle,
+} from "@/lib/llm-profile-schema";
 
 export type ModelPickerTier = "Fast" | "Medium" | "High";
 
@@ -14,6 +18,69 @@ export type ModelPickerDisplay = {
   /** Tier label, or humanized model id for profile rows. */
   tier: ModelPickerTier | string;
 };
+
+/** Compact labels for the composer model-picker trigger button. */
+export type ModelPickerTriggerDisplay = {
+  title: string;
+  shortModel: string;
+};
+
+export function formatModelTriggerShortLabel(modelId: string): string {
+  const tail = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
+  if (/^gpt-[\d.]+$/i.test(tail)) {
+    return tail.replace(/^gpt-/i, "GPT-");
+  }
+  if (/^deepseek-/i.test(tail)) {
+    return tail
+      .slice("deepseek-".length)
+      .split("-")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+  return formatModelShortLabel(modelId);
+}
+
+export function getModelPickerTriggerDisplay(input: {
+  kind: "builtin" | "profile" | "auto";
+  providerId?: LlmProviderId;
+  modelId: string;
+  label: string;
+  profileTitle?: string;
+  title?: string;
+}): ModelPickerTriggerDisplay {
+  const shortModel = formatModelTriggerShortLabel(input.modelId);
+
+  if (input.kind === "auto") {
+    return { title: input.label, shortModel };
+  }
+
+  if (input.kind === "profile") {
+    const rawTitle = input.profileTitle?.trim() ?? "";
+    const displayTitle = resolveProfileDisplayTitle(rawTitle);
+    return {
+      title: displayTitle,
+      shortModel: rawTitle || displayTitle !== LLM_PROFILE_TITLE_PLACEHOLDER
+        ? shortModel
+        : "",
+    };
+  }
+
+  const providerId = input.providerId ?? CUSTOM_PROVIDER_ID;
+  if (providerId === CUSTOM_PROVIDER_ID) {
+    return { title: shortModel, shortModel: "" };
+  }
+
+  const meta = getLlmProviderMeta(providerId);
+  return { title: meta.label, shortModel };
+}
+
+export function shouldShowModelPickerTriggerShortModel(
+  display: ModelPickerTriggerDisplay,
+): boolean {
+  const short = display.shortModel.trim();
+  if (!short) return false;
+  return short.toLowerCase() !== display.title.trim().toLowerCase();
+}
 
 export function formatContextWindow(tokens: number): string {
   if (tokens >= 1_000_000) {
@@ -50,9 +117,10 @@ export function getProfilePickerDisplay(
 ): ModelPickerDisplay {
   const title = profileTitle.trim();
   const modelLabel = humanizeModelId(modelId);
+  const displayName = title || resolveProfileDisplayTitle(title);
   return {
-    displayName: title || modelLabel,
-    tier: title ? modelLabel : "Medium",
+    displayName,
+    tier: modelLabel,
   };
 }
 

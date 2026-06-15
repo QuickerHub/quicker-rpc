@@ -20,6 +20,8 @@ import {
 } from "@/lib/chat-workspace";
 import type { ActionDesignerThreadRef } from "@/lib/action-designer-thread";
 import { deriveProvisionalThreadTitle } from "@/lib/thread-title";
+import { deriveNextForkThreadTitle } from "@/lib/thread-fork-title";
+import { finalizeStreamingReasoningParts } from "@/lib/repair-interrupted-tool-calls";
 import { chatMessagesEqual } from "@/lib/chat-message-signature";
 
 export type { ChatWorkspace } from "@/lib/chat-workspace";
@@ -1008,6 +1010,70 @@ export function addThread(
         openTabIds,
       }),
     ),
+  );
+}
+
+function cloneChatMessagesForFork(messages: AgentUIMessage[]): AgentUIMessage[] {
+  return finalizeStreamingReasoningParts(
+    JSON.parse(JSON.stringify(messages)) as AgentUIMessage[],
+  );
+}
+
+/** Open a new tab with messages copied up to `upToMessageId` (inclusive). */
+export function forkThread(
+  data: ChatStoreData,
+  sourceThreadId: string,
+  messages: AgentUIMessage[],
+  upToMessageId: string,
+): ChatStoreData {
+  const source = data.threads.find((thread) => thread.id === sourceThreadId);
+  if (!source) return data;
+
+  const endIndex = messages.findIndex((message) => message.id === upToMessageId);
+  if (endIndex < 0) return data;
+
+  const forkedMessages = cloneChatMessagesForFork(messages.slice(0, endIndex + 1));
+  if (forkedMessages.length === 0) return data;
+
+  const forkTitle = deriveNextForkThreadTitle(
+    data.threads.map((thread) => thread.title),
+    source.title,
+  );
+
+  const thread: ChatThread = {
+    ...createThread({
+      workspaceId: source.workspaceId ?? data.activeWorkspaceId,
+      workingDirectory: source.workingDirectory,
+      actionDesigner: source.actionDesigner,
+    }),
+    title: forkTitle,
+    messages: forkedMessages,
+    messageCount: forkedMessages.length,
+    titleManual: true,
+    titleGenerated: true,
+    updatedAt: now(),
+  };
+
+  const activeIndex = data.threads.findIndex((item) => item.id === sourceThreadId);
+  const insertAt = activeIndex >= 0 ? activeIndex + 1 : data.threads.length;
+  const threads = [...data.threads];
+  threads.splice(insertAt, 0, thread);
+
+  const tabIndex = data.openTabIds.indexOf(sourceThreadId);
+  const openTabIds = [...data.openTabIds];
+  openTabIds.splice(
+    tabIndex >= 0 ? tabIndex + 1 : openTabIds.length,
+    0,
+    thread.id,
+  );
+
+  return withTabStripPersisted(
+    applyOpenTabPolicy({
+      ...data,
+      activeThreadId: thread.id,
+      threads,
+      openTabIds,
+    }),
   );
 }
 

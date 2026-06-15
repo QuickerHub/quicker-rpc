@@ -1,7 +1,7 @@
 import {
   CUSTOM_PROVIDER_ID,
+  DEEPSEEK_PROVIDER_ID,
   getLlmProviderMeta,
-  LLM_PROVIDER_ID,
   type LlmProviderId,
 } from "@/lib/llm-providers";
 import { resolveModelContextLimit } from "@/lib/llm-context-limits";
@@ -16,9 +16,9 @@ import { buildAutoModelOption } from "@/lib/llm-auto";
 import { USER_MODEL_SELECTOR_IDS } from "@/lib/llm-user-providers";
 import {
   getChatModelId,
-  getLlmProviderId,
   isLlmProviderConfigured,
   isLlmSelectionConfigured,
+  isUserConfiguredLlmProvider,
   resolveLlmConfig,
   resolveLlmEndpointChain,
 } from "@/lib/llm";
@@ -68,6 +68,7 @@ function builtinOptions(): LlmModelOption[] {
   const options: LlmModelOption[] = [];
   for (const id of USER_MODEL_SELECTOR_IDS) {
     if (isLlmProviderHidden(id)) continue;
+    if (!isUserConfiguredLlmProvider(id)) continue;
     const meta = getLlmProviderMeta(id);
     const modelId = envModelForProvider(id);
     options.push({
@@ -77,7 +78,7 @@ function builtinOptions(): LlmModelOption[] {
       label: meta.label,
       description: meta.description,
       modelId,
-      configured: isLlmProviderConfigured(id),
+      configured: isUserConfiguredLlmProvider(id),
       baseURL: resolvedBaseURLForBuiltin(id),
       ...contextLimitForModel(modelId, id),
     });
@@ -93,6 +94,7 @@ function profileOptions(): LlmModelOption[] {
     profileModels: item.models,
     label: item.title,
     title: item.title,
+    profileTitle: item.profileTitle,
     description: item.description,
     modelId: item.modelId,
     configured: item.configured,
@@ -155,26 +157,22 @@ export function buildLlmModelOptions(): LlmModelOption[] {
 }
 
 export function pickDefaultSelection(options: LlmModelOption[]): string {
-  const openAi = options.find(
+  const deepseek = options.find(
     (o) =>
       o.kind === "builtin"
-      && o.providerId === LLM_PROVIDER_ID
+      && o.providerId === DEEPSEEK_PROVIDER_ID
       && o.configured,
   );
-  if (openAi) return openAi.selection;
+  if (deepseek) return deepseek.selection;
 
-  const defaultProvider = getLlmProviderId();
-  const builtinDefault = options.find(
-    (o) => o.kind === "builtin" && o.providerId === defaultProvider && o.configured,
+  const firstConfigured = options.find(
+    (o) => o.configured && o.kind !== "auto",
   );
-  if (builtinDefault) return builtinDefault.selection;
-
-  const firstConfigured = options.find((o) => o.configured);
   if (firstConfigured) return firstConfigured.selection;
 
   return options[0]?.selection ?? formatLlmSelection({
     kind: "builtin",
-    providerId: defaultProvider,
+    providerId: DEEPSEEK_PROVIDER_ID,
   });
 }
 

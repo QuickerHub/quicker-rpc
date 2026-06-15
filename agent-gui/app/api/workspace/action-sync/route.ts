@@ -60,7 +60,12 @@ export async function POST(req: Request) {
         });
         if (!result.ok) {
           return Response.json(
-            { ok: false, error: result.error, phase: result.phase },
+            {
+              ok: false,
+              error: result.error,
+              phase: result.phase,
+              versionConflict: result.versionConflict === true,
+            },
             { status: 400 },
           );
         }

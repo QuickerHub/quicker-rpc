@@ -305,6 +305,11 @@ public interface IQuickerRpcService
         int? maxResults = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>List all searchable StepRunner modules (maintainers / UI catalog hydration).</summary>
+    Task<QuickerRpcSearchStepRunnersResult> ListStepRunnersAsync(
+        int? maxResults = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Agent step-runner schema (compressed JSON, no icon). For UI use <see cref="GetStepRunnerUiDetailAsync"/>.</summary>
     Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerDetailAsync(
         string stepRunnerKey,
@@ -321,6 +326,19 @@ public interface IQuickerRpcService
     Task<QuickerRpcActionStepSummariesResult> GetActionStepSummariesAsync(
         IList<QuickerRpcActionStepSummaryInput> steps,
         string? embeddedSubProgramsJson = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Action-editor quick insert search (pinyin). UI / serve only — not for agents or CLI.</summary>
+    Task<QuickerRpcDesignerSearchPageResult> SearchStepQuickInsertAsync(
+        string? keyword,
+        int skip,
+        IList<QuickerRpcQuickInsertSubProgramInput>? subPrograms,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Action-editor toolbox module search. UI / serve only — not for agents or CLI.</summary>
+    Task<QuickerRpcDesignerSearchPageResult> SearchToolboxModulesAsync(
+        string? keyword,
+        int skip,
         CancellationToken cancellationToken = default);
 
     /// <summary>Read custom clipboard format text (e.g. quicker-action-steps).</summary>

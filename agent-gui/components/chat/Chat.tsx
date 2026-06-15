@@ -39,6 +39,7 @@ import {
 import {
   applyThreadMessagesToStore,
   flushPendingChatStoreSaveAsync,
+  forkThread,
   getActiveThread,
   getOpenTabThreads,
   hydrateStoreThreadsParallel,
@@ -80,6 +81,7 @@ import { actionDesignerRefFromEmbed } from "@/lib/action-designer-thread";
 import { useActionDesignerEmbed } from "@/lib/designer-embed-context";
 import { useDesignerContext } from "@/lib/use-designer-context";
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
+import { setThreadRunBusy } from "@/lib/thread-run-status";
 import { useAppMainSplit } from "@/lib/use-app-main-split";
 import { ChatTitlebar } from "@/components/chat/ChatTitlebar";
 import { DesignerEmbedContextBar } from "@/components/chat/DesignerEmbedContextBar";
@@ -134,6 +136,7 @@ import { CollapsedTurnSummary } from "@/components/chat/CollapsedTurnSummary";
 import { isHotTurnIndex, turnIndicesPrepended } from "@/lib/chat-message-window";
 import { buildChatScrollRevisionKey } from "@/lib/chat-scroll-revision";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
+import type { ProgramStepTag } from "@/lib/program-step-tag";
 import { chatComposerActionsRef } from "@/lib/chat-composer-bridge";
 import { useMessagesStickScroll } from "@/lib/use-messages-stick-scroll";
 import { useChatMessageWindow } from "@/lib/use-chat-message-window";
@@ -230,6 +233,11 @@ type ChatPanelProps = {
     options?: { notify?: boolean },
   ) => void;
   onAutoTitle: (threadId: string, title: string) => void;
+  onForkThread?: (
+    threadId: string,
+    messages: AgentUIMessage[],
+    upToMessageId: string,
+  ) => void;
   designerEmbed?: boolean;
 };
 
@@ -249,6 +257,7 @@ function ChatPanel({
   onOpenSettings,
   onPersist,
   onAutoTitle,
+  onForkThread,
   designerEmbed = false,
 }: ChatPanelProps) {
   const [editAnchorLiveDraft, setEditAnchorLiveDraft] = useState("");
@@ -586,6 +595,11 @@ function ChatPanel({
   }, [pendingWorkspaceDeleteKey, workspaceDeleteHits.length]);
 
   const busy = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    setThreadRunBusy(threadId, busy);
+    return () => setThreadRunBusy(threadId, false);
+  }, [threadId, busy]);
 
   const interruptAgentRun = useCallback(() => {
     stop();
@@ -966,21 +980,40 @@ function ChatPanel({
     [editAnchorMessageId, clearError],
   );
 
+  const insertComposerProgramStepTag = useCallback(
+    (tag: ProgramStepTag) => {
+      if (editAnchorMessageId) return;
+      voiceInterruptRef.current();
+      clearError();
+      composerRef.current?.insertProgramStepTag(tag);
+      requestAnimationFrame(() => composerRef.current?.focusAtEnd());
+    },
+    [editAnchorMessageId, clearError],
+  );
+
   useEffect(() => {
     if (ephemeral) return;
     chatComposerActionsRef.current = {
       insertPrompt: insertComposerPrompt,
       insertBrowserElementTag: insertComposerBrowserElementTag,
+      insertProgramStepTag: insertComposerProgramStepTag,
       focusComposer: focusComposerAtEnd,
     };
     return () => {
       chatComposerActionsRef.current = {
         insertPrompt: () => {},
         insertBrowserElementTag: () => {},
+        insertProgramStepTag: () => {},
         focusComposer: () => {},
       };
     };
-  }, [ephemeral, focusComposerAtEnd, insertComposerBrowserElementTag, insertComposerPrompt]);
+  }, [
+    ephemeral,
+    focusComposerAtEnd,
+    insertComposerBrowserElementTag,
+    insertComposerProgramStepTag,
+    insertComposerPrompt,
+  ]);
 
   const handleChatModeChange = useCallback((next: ChatMode) => {
     setChatMode(next);
@@ -1125,6 +1158,13 @@ function ChatPanel({
     threadId,
   ]);
 
+  const handleForkConversation = useCallback(() => {
+    if (ephemeral || !onForkThread || messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage) return;
+    onForkThread(threadId, messages, lastMessage.id);
+  }, [ephemeral, messages, onForkThread, threadId]);
+
   const renderChatMessage = useCallback(
     (
       message: AgentUIMessage,
@@ -1174,6 +1214,8 @@ function ChatPanel({
           onBeginEdit={beginEditFromUserMessage}
           onFocusComposerAtEnd={focusComposerAtEnd}
           onInsertComposerPrompt={insertComposerPrompt}
+          canForkConversation={!ephemeral && !!onForkThread && messages.length > 0}
+          onForkConversation={handleForkConversation}
         />
       );
     },
@@ -1183,11 +1225,14 @@ function ChatPanel({
       editAnchorLiveDraft,
       editAnchorIndex,
       editAnchorMessageId,
+      ephemeral,
+      handleForkConversation,
       insertComposerPrompt,
       focusComposerAtEnd,
       lastTurnFillScrollport,
       lastVisibleMessageId,
       messages,
+      onForkThread,
       userMessageDrafts,
       workingDirectory,
     ],
@@ -1528,6 +1573,25 @@ export function Chat() {
     [updateStore],
   );
 
+  const handleForkThread = useCallback(
+    (
+      threadId: string,
+      messages: AgentUIMessage[],
+      upToMessageId: string,
+    ) => {
+      const next = forkThread(
+        storeRef.current,
+        threadId,
+        messages,
+        upToMessageId,
+      );
+      if (next === storeRef.current) return;
+      storeRef.current = next;
+      updateStore(next);
+    },
+    [updateStore],
+  );
+
   const handleActivateThread = useCallback(
     (threadId: string) => {
       activateThreadWithLazyHydration({
@@ -1712,6 +1776,7 @@ export function Chat() {
                         onOpenSettings={openSettings}
                         onPersist={persistMessages}
                         onAutoTitle={handleAutoTitle}
+                        onForkThread={handleForkThread}
                         designerEmbed={designerEmbed.enabled}
                       />
                     ))}

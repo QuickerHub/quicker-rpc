@@ -53,7 +53,8 @@ internal static class ActionDesignerGlobalSubProgramReferenceInjector
 
     public static bool TryInject(Window designer)
     {
-        if (!ActionDesignerReflection.IsDesignerWindow(designer))
+        if (!ActionDesignerInjectionGate.CanInject()
+            || !ActionDesignerReflection.IsDesignerWindow(designer))
         {
             return false;
         }
@@ -73,7 +74,8 @@ internal static class ActionDesignerGlobalSubProgramReferenceInjector
 
     public static void ScheduleDeferredInject(Window designer)
     {
-        if (!ActionDesignerReflection.IsDesignerWindow(designer))
+        if (!ActionDesignerInjectionGate.CanInject()
+            || !ActionDesignerReflection.IsDesignerWindow(designer))
         {
             return;
         }
@@ -132,7 +134,8 @@ internal static class ActionDesignerGlobalSubProgramReferenceInjector
 
     private static void OnGlobalSubProgramListControlLoaded(object sender, RoutedEventArgs e)
     {
-        if (!ReferenceEquals(sender, e.Source))
+        if (!ActionDesignerInjectionGate.CanInject()
+            || !ReferenceEquals(sender, e.Source))
         {
             return;
         }

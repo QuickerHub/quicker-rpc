@@ -36,7 +36,7 @@ internal static class ActionRuntimeMockRunner
         }
 
         var package = buildResult.Package;
-        var runtime = CreateMockRuntime();
+        var runtime = ActionRuntimeExecutorFactory.CreateRuntime();
         var executor = new ActionRuntimeExecutor(runtime);
         var report = executor.AnalyzeSupport(package);
 
@@ -173,15 +173,6 @@ internal static class ActionRuntimeMockRunner
         };
     }
 
-    private static IActionRuntime CreateMockRuntime()
-    {
-#if ACTION_RUNTIME_PACKS
-        ActionRuntimeOptionalPacks.EnsureCatalogRegistered();
-        return ActionRuntimeBootstrap.CreateRuntime(ActionRuntimeOptionalPacks.DefaultPacks.ToArray());
-#else
-        return ActionRuntimeBootstrap.CreateDefaultRuntime();
-#endif
-    }
 
     private static MockRunExecuteResult Error(string code, string message) =>
         new()

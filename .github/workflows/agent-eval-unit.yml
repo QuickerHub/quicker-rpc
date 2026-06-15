@@ -1,0 +1,51 @@
+name: Agent eval unit tests
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'agent-gui/lib/agent-eval/**'
+      - 'agent-gui/lib/agent-eval/**'
+      - 'agent-gui/benchmarks/**'
+      - 'agent-gui/scripts/run-agent-eval*.ts'
+      - 'agent-gui/scripts/compare-agent-eval-runners.ts'
+      - 'scripts/Invoke-AgentGuiEval.ps1'
+      - '.github/workflows/agent-eval-unit.yml'
+  pull_request:
+    paths:
+      - 'agent-gui/lib/agent-eval/**'
+      - 'agent-gui/lib/agent-eval/**'
+      - 'agent-gui/benchmarks/**'
+      - 'agent-gui/scripts/run-agent-eval*.ts'
+      - 'agent-gui/scripts/compare-agent-eval-runners.ts'
+      - 'scripts/Invoke-AgentGuiEval.ps1'
+      - '.github/workflows/agent-eval-unit.yml'
+
+jobs:
+  agent-eval-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install agent-gui dependencies
+        working-directory: agent-gui
+        run: pnpm install --frozen-lockfile
+
+      - name: Agent eval deterministic tests
+        working-directory: agent-gui
+        run: pnpm test:agent-eval
+
+      - name: Authoring benchmark catalog tests
+        working-directory: agent-gui
+        run: pnpm test:authoring-benchmark

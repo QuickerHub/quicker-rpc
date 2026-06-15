@@ -14,15 +14,100 @@ export type ActionProjectSyncStatus = {
   projectDirectory?: string;
 };
 
+function normalizeSyncEditVersion(value?: number): number | undefined {
+  if (value == null || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  return Math.trunc(value);
+}
+
 export function compareActionEditVersions(
   local?: number,
   remote?: number,
+  options?: { trustedRemoteEditVersion?: number },
 ): ActionProjectSyncState {
-  if (remote == null) return "unknown_remote";
-  if (local == null) return "unknown_local";
-  if (local === remote) return "in_sync";
-  if (local < remote) return "quicker_ahead";
+  const normLocal = normalizeSyncEditVersion(local);
+  const normRemote = normalizeSyncEditVersion(remote);
+  const normTrusted = normalizeSyncEditVersion(options?.trustedRemoteEditVersion);
+
+  if (normRemote == null) {
+    if (
+      normLocal != null
+      && normTrusted != null
+      && normLocal === normTrusted
+    ) {
+      return "in_sync";
+    }
+    return normLocal == null ? "unknown_local" : "unknown_remote";
+  }
+  if (normLocal == null) return "unknown_local";
+  if (normLocal === normRemote) return "in_sync";
+  if (normLocal < normRemote) return "quicker_ahead";
   return "disk_ahead";
+}
+
+/** Recommended one-click sync operation from a resolved sync state. */
+export type ActionProjectSyncAction = "none" | "pull" | "push";
+
+export function resolveActionProjectSyncAction(
+  state: ActionProjectSyncState,
+): ActionProjectSyncAction {
+  switch (state) {
+    case "quicker_ahead":
+    case "unknown_local":
+      return "pull";
+    case "disk_ahead":
+      return "push";
+    default:
+      return "none";
+  }
+}
+
+/** Smart sync decision after status check (may prompt user on conflict). */
+export type ActionProjectSyncDecision =
+  | { kind: "none" }
+  | { kind: "pull" }
+  | { kind: "push" }
+  | { kind: "conflict"; status: ActionProjectSyncStatus };
+
+export function resolveActionProjectSyncDecision(
+  status: ActionProjectSyncStatus,
+  options?: { hasLocalChanges?: boolean },
+): ActionProjectSyncDecision {
+  const localChanges = options?.hasLocalChanges ?? false;
+  const { state } = status;
+
+  if (state === "unknown_remote") {
+    return { kind: "none" };
+  }
+
+  if (state === "unknown_local") {
+    if (localChanges) {
+      return { kind: "push" };
+    }
+    return { kind: "pull" };
+  }
+
+  if (state === "quicker_ahead") {
+    if (localChanges) {
+      return { kind: "conflict", status };
+    }
+    return { kind: "pull" };
+  }
+
+  if (state === "disk_ahead") {
+    return { kind: "push" };
+  }
+
+  if (localChanges) {
+    return { kind: "push" };
+  }
+
+  return { kind: "none" };
+}
+
+export function isActionProjectVersionConflictError(error: string): boolean {
+  return /version conflict/i.test(error);
 }
 
 export function formatSyncStatusMessage(

@@ -1,4 +1,5 @@
 import type { AgentUIMessage } from "@/lib/chat-types";
+import { collectPendingAskQuestions } from "@/lib/ask-question-tool";
 import type { LauncherAgentResponseCompletionKind } from "@/lib/tool-test-launcher-agent-timing";
 
 export type LauncherAgentRunStatus = "running" | "done" | "error";
@@ -37,4 +38,20 @@ export function formatLauncherAgentRunTime(at: number): string {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+/** Hold the run open while ask_question awaits a client-side answer. */
+export function launcherAgentRunAwaitingAskQuestion(
+  messages: AgentUIMessage[],
+): boolean {
+  return collectPendingAskQuestions(messages).length > 0;
+}
+
+export function launcherAgentRunAcceptsLiveToolOutput(
+  run: Pick<LauncherAgentRunEntry, "status" | "chatMessages">,
+): boolean {
+  return (
+    run.status === "running"
+    || launcherAgentRunAwaitingAskQuestion(run.chatMessages)
+  );
 }

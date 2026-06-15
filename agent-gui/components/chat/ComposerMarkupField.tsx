@@ -11,6 +11,7 @@ import {
 } from "react";
 import type { PinnedAction } from "@/lib/action-context";
 import type { BrowserElementTag } from "@/lib/browser-element-tag";
+import type { ProgramStepTag } from "@/lib/program-step-tag";
 import {
   applyComposerMentionTag,
   getComposerMentionAnchorRect,
@@ -39,6 +40,7 @@ import {
   createBrowserElementTagElement,
   createComposerTagElement,
   createComposerTagSpacer,
+  createProgramStepTagElement,
   deleteComposerTagWithUndo,
   endComposerVoiceStream,
   ensureEmptyComposerCaret,
@@ -79,6 +81,7 @@ export type ComposerMarkupFieldHandle = {
   focusAtEnd: () => void;
   insertActionTag: (action: PinnedAction) => void;
   insertBrowserElementTag: (element: BrowserElementTag) => void;
+  insertProgramStepTag: (tag: ProgramStepTag) => void;
   /** Insert @ and open the action mention picker (onboarding / toolbar). */
   insertMentionTrigger: () => void;
   /** Insert plain text at caret (e.g. pasted snippets). */
@@ -391,6 +394,17 @@ export const ComposerMarkupField = forwardRef<
         if (!root || disabled) return;
         closeMenus();
         const chip = createBrowserElementTagElement(element);
+        const spacer = createComposerTagSpacer();
+        insertNodeAtSelection(root, chip);
+        chip.after(spacer);
+        placeCaretAfterComposerTagSpacer(spacer, root);
+        emitChange();
+      },
+      insertProgramStepTag: (tag: ProgramStepTag) => {
+        const root = rootRef.current;
+        if (!root || disabled) return;
+        closeMenus();
+        const chip = createProgramStepTagElement(tag);
         const spacer = createComposerTagSpacer();
         insertNodeAtSelection(root, chip);
         chip.after(spacer);

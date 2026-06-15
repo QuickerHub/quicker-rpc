@@ -27,10 +27,10 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
-  const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") ?? "200")));
+  const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") ?? "500")));
 
   const result = await runQkrpc(
-    ["step-runner", "search", "--query", "sys:*", "--limit", String(limit), "--json"],
+    ["step-runner", "list", "--limit", String(limit), "--json"],
     { timeoutMs: 60_000 },
   );
 
@@ -43,7 +43,7 @@ export async function GET(req: Request) {
       });
     }
     return Response.json(
-      { ok: false, error: result.stderr || "step-runner search failed" },
+      { ok: false, error: result.stderr || "step-runner list failed" },
       { status: 503 },
     );
   }

@@ -6,6 +6,7 @@ import {
 } from "@/lib/llm-local-secrets";
 import {
   normalizeModelIds,
+  resolveProfileDisplayTitle,
   type LlmCustomProfile,
   type LlmCustomProfilePublic,
   type LlmProfilePatch,
@@ -37,7 +38,10 @@ export type LlmProfilePickerOption = {
   profileId: string;
   modelId: string;
   models: string[];
+  /** Display label (placeholder when title empty). */
   title: string;
+  /** Raw user-defined title (may be empty). */
+  profileTitle: string;
   description: string;
   baseURL: string;
   configured: boolean;
@@ -103,7 +107,7 @@ export function listProfileModelOptions(): LlmProfileModelOption[] {
         selection,
         profileId: profile.id,
         modelId,
-        title: profile.title,
+        title: resolveProfileDisplayTitle(profile.title),
         description,
         configured,
       });
@@ -121,7 +125,8 @@ export function listProfilePickerOptions(): LlmProfilePickerOption[] {
       profileId: profile.id,
       modelId: defaultModel,
       models: [...profile.models],
-      title: profile.title,
+      title: resolveProfileDisplayTitle(profile.title),
+      profileTitle: profile.title,
       description,
       baseURL: profile.baseURL,
       configured: isCustomProfileConfigured(profile),
@@ -155,7 +160,7 @@ export function setStoredActiveSelection(selection: LlmSelection | undefined): v
   });
 }
 
-/** Display name when the user skips title during quick profile setup. */
+/** @deprecated Profiles no longer auto-derive titles; kept for one-off migrations if needed. */
 export function deriveProfileTitle(input: {
   baseURL: string;
   models: string[];
@@ -197,12 +202,7 @@ export function createCustomProfile(input: {
   const baseURL = input.baseURL.trim();
   const models = normalizeModelList(input.models);
   const secrets = loadLlmLocalSecrets();
-  const title = input.title?.trim()
-    || deriveProfileTitle({
-      baseURL,
-      models,
-      existingTitles: (secrets.profiles ?? []).map((profile) => profile.title),
-    });
+  const title = input.title?.trim() ?? "";
   if (!apiKey) throw new Error("Profile apiKey is required");
   if (!baseURL) throw new Error("Profile baseURL is required");
   if (models.length === 0) throw new Error("Profile models must not be empty");
@@ -244,14 +244,7 @@ export function updateCustomProfile(
   const next: LlmCustomProfile = { ...prev };
 
   if (patch.title !== undefined) {
-    const title = patch.title?.trim() ?? "";
-    next.title = title || deriveProfileTitle({
-      baseURL: next.baseURL,
-      models: next.models,
-      existingTitles: profiles
-        .filter((_, itemIndex) => itemIndex !== index)
-        .map((profile) => profile.title),
-    });
+    next.title = patch.title?.trim() ?? "";
   }
   if (patch.description !== undefined) {
     const desc = patch.description?.trim() ?? "";

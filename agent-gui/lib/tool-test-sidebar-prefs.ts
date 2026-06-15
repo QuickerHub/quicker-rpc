@@ -1,5 +1,7 @@
 import type { ToolTestSidebarTab } from "@/components/tool-test/ToolTestSidebarTabs";
 
+export type { ToolTestSidebarTab };
+
 export const TOOL_TEST_SIDEBAR_TAB_STORAGE_KEY = "tool-test-sidebar-tab";
 
 const DEFAULT_SIDEBAR_TAB: ToolTestSidebarTab = "prompt-chat";

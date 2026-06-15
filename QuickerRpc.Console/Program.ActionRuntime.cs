@@ -110,7 +110,8 @@ internal static partial class Program
             options.Id ?? options.Code,
             options.XAction,
             options.XActionFile,
-            options.Param);
+            options.Param,
+            options.CompressedFile);
 
         if (ShouldFetchActionFromQuicker(options, buildResult))
         {
@@ -127,6 +128,7 @@ internal static partial class Program
         && string.IsNullOrWhiteSpace(options.Dir)
         && !string.IsNullOrWhiteSpace(options.Id ?? options.Code)
         && string.IsNullOrWhiteSpace(options.PackageFile)
+        && string.IsNullOrWhiteSpace(options.CompressedFile)
         && string.IsNullOrWhiteSpace(options.XAction)
         && string.IsNullOrWhiteSpace(options.XActionFile);
 

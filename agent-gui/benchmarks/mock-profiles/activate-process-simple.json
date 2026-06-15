@@ -1,0 +1,7 @@
+{
+  "id": "activate-process-simple",
+  "version": 1,
+  "assertions": {
+    "success": true
+  }
+}

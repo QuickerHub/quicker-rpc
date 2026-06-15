@@ -4,8 +4,10 @@ import { ExpressionEditor } from "../expression/ExpressionEditor";
 import type { ActionProjectWorkspaceContext } from "./FormDefEditorDialog";
 import {
   useExternalParamFileContent,
+  type ExternalParamFileContentOptions,
   type ExternalParamFileEditorState,
 } from "./externalParamFileContent";
+import type { StepSummaryFileContents } from "@/lib/action-editor/steps/stepSummaryFileRefs";
 
 export function ExternalParamFileBadge({ state }: { state: ExternalParamFileEditorState }): JSX.Element | null {
   if (!state.isExternalFile || !state.filePath) {
@@ -49,6 +51,8 @@ export type ExternalParamFileExpressionEditorProps = {
   omitBadge?: boolean;
   /** Reuse loaded file state from parent to avoid duplicate fetches. */
   fileState?: ExternalParamFileEditorState;
+  /** Project-relative files/ content prefetched by StepListEditor. */
+  prefetchedFileContents?: StepSummaryFileContents;
 };
 
 export function ExternalParamFileExpressionEditor({
@@ -62,8 +66,11 @@ export function ExternalParamFileExpressionEditor({
   onValueModeInput,
   omitBadge = false,
   fileState,
+  prefetchedFileContents,
 }: ExternalParamFileExpressionEditorProps): JSX.Element {
-  const internalState = useExternalParamFileContent(param, workspace, onChange);
+  const internalState = useExternalParamFileContent(param, workspace, onChange, {
+    prefetchedFileContents,
+  });
   const externalFile = fileState ?? internalState;
 
   const editorShellClass = multiline
@@ -93,8 +100,9 @@ export function useExternalParamFileEditorValue(
   param: ActionStepParam,
   workspace: ActionProjectWorkspaceContext | undefined,
   onChange: (next: ActionStepParam) => void,
+  options?: ExternalParamFileContentOptions,
 ): ExternalParamFileEditorState {
-  return useExternalParamFileContent(param, workspace, onChange);
+  return useExternalParamFileContent(param, workspace, onChange, options);
 }
 
 export type { ExternalParamFileEditorState };

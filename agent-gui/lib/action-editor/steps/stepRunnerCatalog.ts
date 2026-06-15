@@ -1,22 +1,28 @@
 import { type StepRunnerItem } from "@/lib/action-editor/types/action_query";
 import type { ActionStep } from "@/lib/action-editor/types/common";
+import {
+  mergeStepRunnerLookupEntries,
+  pickStepRunnerIconForMerge,
+  stepRunnerEntryFromItem,
+  type StepRunnerEntry,
+  type StepRunnerLookup,
+} from "@/lib/action-editor/steps/stepRunnerLookupMerge";
 
-/**
- * Flattened metadata for one step runner key (top-level or sub-item), aligned with WPF toolbox / StepRunner DTO.
- */
-export type StepRunnerEntry = {
-  key: string;
-  name: string;
-  description: string;
-  icon: string;
-  /** Quicker StepType string from backend, e.g. If, Loop, Action. */
-  stepType: string;
+export type { StepRunnerEntry, StepRunnerLookup };
+export {
+  mergeStepRunnerLookupEntries,
+  stepRunnerEntryFromItem,
 };
 
-export type StepRunnerLookup = Record<string, StepRunnerEntry>;
+import { STEPRUNNER_CATALOG_CACHE_VERSION } from "@/lib/action-editor/steps/stepRunnerCatalogVersion";
+import {
+  getStepRunnerBrowserPrimedState,
+  mergeStepRunnerBrowserCache,
+  stepRunnerSchemaMatchesCache,
+  stripStepRunnerItemForCatalogCache,
+} from "@/lib/action-editor/steps/stepRunnerBrowserCache";
 
-/** Bumped when catalog item shape changes (e.g. icon field added). */
-const STEPRUNNER_CATALOG_CACHE_VERSION = 4;
+export { STEPRUNNER_CATALOG_CACHE_VERSION };
 
 function catalogCacheKey(baseUrl: string): string {
   return `${baseUrl.replace(/\/$/, "")}::v${STEPRUNNER_CATALOG_CACHE_VERSION}`;
@@ -35,25 +41,38 @@ import {
   resolveRunnerItemForStepKey,
 } from "@/lib/action-editor/steps/stepRunnerKeyResolve";
 import { designerHostGrpcGetStepRunners, fetchStepRunnerDetailItem } from "../shared/designerHostGrpcApi";
+import { resolveEssentialStepRunnerFallback } from "@/lib/action-editor/steps/stepRunnerEssentialFallbacks";
 
 /**
  * Loads step runner catalog via DesignerHost gRPC-Web (DesignerHostCatalogService.GetStepRunners).
  * Concurrent callers for the same base URL share one request.
+ * Returns in-memory or browser-cached items immediately when available; always revalidates in background.
  */
-export async function fetchStepRunnersItems(baseUrl: string): Promise<StepRunnerItem[]> {
+export async function fetchStepRunnersItems(
+  baseUrl: string,
+  options?: { revalidate?: boolean },
+): Promise<StepRunnerItem[]> {
   const root = catalogCacheKey(baseUrl);
+  const cached = stepRunnersItemsCache.get(root);
+  if (cached && !options?.revalidate) {
+    void revalidateStepRunnersItemsInBackground(baseUrl);
+    return cached;
+  }
+
   let pending = stepRunnersItemsInflight.get(root);
   if (!pending) {
     pending = (async (): Promise<StepRunnerItem[]> => {
       try {
         const parsed = await designerHostGrpcGetStepRunners(baseUrl);
-        const items = parsed.items ?? [];
+        const items = (parsed.items ?? []).map(stripStepRunnerItemForCatalogCache);
         const hasAnyIcon = items.some((i) => (i.icon ?? "").trim().length > 0);
         if (items.length > 0 && !hasAnyIcon) {
           // Stale backend/session: do not pin empty-icon catalog in memory.
           stepRunnersItemsCache.delete(root);
-        } else {
+        } else if (items.length > 0) {
           stepRunnersItemsCache.set(root, items);
+          const lookup = buildStepRunnerLookup(items);
+          mergeStepRunnerBrowserCache(baseUrl, { lookup, catalogItems: items });
         }
         return items;
       } finally {
@@ -65,8 +84,46 @@ export async function fetchStepRunnersItems(baseUrl: string): Promise<StepRunner
   return pending;
 }
 
+function revalidateStepRunnersItemsInBackground(baseUrl: string): void {
+  const root = catalogCacheKey(baseUrl);
+  if (stepRunnersItemsInflight.has(root)) return;
+  void fetchStepRunnersItems(baseUrl, { revalidate: true }).catch(() => {
+    /* ignore background refresh failures */
+  });
+}
+
 export function getCachedStepRunnersItems(baseUrl: string): StepRunnerItem[] | undefined {
-  return stepRunnersItemsCache.get(catalogCacheKey(baseUrl));
+  const root = catalogCacheKey(baseUrl);
+  const mem = stepRunnersItemsCache.get(root);
+  if (mem) return mem;
+  const primed = getStepRunnerBrowserPrimedState(baseUrl);
+  if (primed?.catalogItems.length) {
+    stepRunnersItemsCache.set(root, primed.catalogItems);
+    return primed.catalogItems;
+  }
+  return undefined;
+}
+
+/** Synchronous browser-cache seed for first paint (icon/title). */
+export function getPrimedStepRunnerCatalogState(baseUrl: string): {
+  lookup: StepRunnerLookup;
+  catalogItems: StepRunnerItem[];
+  schemaByCacheKey: Record<string, StepRunnerItem>;
+} | null {
+  const primed = getStepRunnerBrowserPrimedState(baseUrl);
+  if (!primed) return null;
+  const root = catalogCacheKey(baseUrl);
+  if (!stepRunnersItemsCache.has(root) && primed.catalogItems.length > 0) {
+    stepRunnersItemsCache.set(root, primed.catalogItems);
+  }
+  return {
+    lookup: mergeStepRunnerLookupEntries(
+      primed.lookup,
+      buildStepRunnerLookup(primed.catalogItems),
+    ),
+    catalogItems: primed.catalogItems,
+    schemaByCacheKey: primed.schemaByCacheKey,
+  };
 }
 
 export function buildStepRunnerLookup(items: StepRunnerItem[]): StepRunnerLookup {
@@ -77,28 +134,27 @@ export function buildStepRunnerLookup(items: StepRunnerItem[]): StepRunnerLookup
   return out;
 }
 
-export function stepRunnerEntryFromItem(item: StepRunnerItem): StepRunnerEntry {
-  return {
-    key: item.key,
-    name: item.name ?? "",
-    description: item.description ?? "",
-    icon: (item.icon ?? "").trim(),
-    stepType: (item.stepType ?? "").trim(),
-  };
-}
-
-function mergeStepRunnerItemIntoLookup(out: StepRunnerLookup, item: StepRunnerItem): void {
-  const stepType = (item.stepType ?? "").trim();
-  const parent = stepRunnerEntryFromItem(item);
+function mergeStepRunnerItemIntoLookup(
+  out: StepRunnerLookup,
+  item: StepRunnerItem,
+  preserveFrom?: StepRunnerLookup,
+): void {
+  let parent = stepRunnerEntryFromItem(item);
+  const prev = preserveFrom?.[item.key] ?? out[item.key];
+  const icon = pickStepRunnerIconForMerge(parent.icon, prev?.icon);
+  if (icon !== parent.icon) {
+    parent = { ...parent, icon };
+  }
   out[item.key] = parent;
   for (const sub of item.subItems ?? []) {
     const sk = (sub.key ?? "").trim();
     if (!sk) continue;
+    const prevSub = preserveFrom?.[sk] ?? out[sk];
     out[sk] = {
       key: sk,
       name: sub.name ?? "",
       description: (sub.description ?? "").trim() || parent.description,
-      icon: parent.icon,
+      icon: pickStepRunnerIconForMerge(parent.icon, prevSub?.icon),
       stepType: parent.stepType,
     };
   }
@@ -132,7 +188,11 @@ export function resolveRunnerItemForStep(
   if (cacheKey && schemaByCacheKey[cacheKey]?.inputParamDefs?.length) {
     return schemaByCacheKey[cacheKey];
   }
-  return resolveRunnerItemForStepKey(catalogItems, step.stepRunnerKey);
+  const catalogHit = resolveRunnerItemForStepKey(catalogItems, step.stepRunnerKey);
+  if ((catalogHit?.inputParamDefs?.length ?? 0) > 0) {
+    return catalogHit;
+  }
+  return resolveEssentialStepRunnerFallback(step.stepRunnerKey ?? "");
 }
 
 /** Fetch full schemas for steps (control-aware) and catalog entries still missing defs. */
@@ -141,11 +201,14 @@ export async function hydrateMissingStepRunnerItems(
   items: readonly StepRunnerItem[],
   schemaByCacheKey: Readonly<Record<string, StepRunnerItem>>,
   signal?: AbortSignal,
+  options?: { revalidate?: boolean; baseUrl?: string },
 ): Promise<{
   catalogItems: StepRunnerItem[];
   schemaByCacheKey: Record<string, StepRunnerItem>;
+  schemaChanged: boolean;
 }> {
   const nextSchemas: Record<string, StepRunnerItem> = { ...schemaByCacheKey };
+  let schemaChanged = false;
   const requests = collectStepRunnerSchemaRequestsFromSteps(steps);
 
   await Promise.all(
@@ -154,7 +217,8 @@ export async function hydrateMissingStepRunnerItems(
       const cacheKey = req.controlLiteral
         ? `${canonicalKey}\0${req.controlLiteral}`
         : canonicalKey;
-      if ((nextSchemas[cacheKey]?.inputParamDefs?.length ?? 0) > 0) {
+      const hasCachedDefs = (nextSchemas[cacheKey]?.inputParamDefs?.length ?? 0) > 0;
+      if (hasCachedDefs && !options?.revalidate) {
         return;
       }
       try {
@@ -163,11 +227,25 @@ export async function hydrateMissingStepRunnerItems(
           req.controlLiteral,
           signal,
         );
-        if (detail && (detail.inputParamDefs?.length ?? 0) > 0) {
-          nextSchemas[cacheKey] = detail;
+        if (!detail || (detail.inputParamDefs?.length ?? 0) === 0) {
+          const fallback = resolveEssentialStepRunnerFallback(canonicalKey, req.controlLiteral);
+          if (fallback && (fallback.inputParamDefs?.length ?? 0) > 0) {
+            nextSchemas[cacheKey] = fallback;
+            schemaChanged = true;
+          }
+          return;
         }
+        if (hasCachedDefs && stepRunnerSchemaMatchesCache(cacheKey, detail, nextSchemas)) {
+          return;
+        }
+        nextSchemas[cacheKey] = detail;
+        schemaChanged = true;
       } catch {
-        /* ignore per-step failures */
+        const fallback = resolveEssentialStepRunnerFallback(canonicalKey, req.controlLiteral);
+        if (fallback && (fallback.inputParamDefs?.length ?? 0) > 0) {
+          nextSchemas[cacheKey] = fallback;
+          schemaChanged = true;
+        }
       }
     }),
   );
@@ -203,6 +281,7 @@ export async function hydrateMissingStepRunnerItems(
       detailByKey.set(k, detail);
       if (!nextSchemas[k]) {
         nextSchemas[k] = detail;
+        schemaChanged = true;
       }
     }
 
@@ -216,37 +295,65 @@ export async function hydrateMissingStepRunnerItems(
     }
   }
 
-  return { catalogItems: merged, schemaByCacheKey: nextSchemas };
+  if (schemaChanged && options?.baseUrl) {
+    mergeStepRunnerBrowserCache(options.baseUrl, {
+      schemaByCacheKey: nextSchemas,
+    });
+  }
+
+  return { catalogItems: merged, schemaByCacheKey: nextSchemas, schemaChanged };
 }
 
 export async function hydrateMissingStepRunnerEntries(
   keys: readonly string[],
   lookup: StepRunnerLookup,
   signal?: AbortSignal,
+  options?: { revalidate?: boolean; baseUrl?: string },
 ): Promise<StepRunnerLookup> {
   const missing = keys.filter((key) => {
     if (key.length === 0) return false;
     const entry = lookup[key];
     if (entry === undefined) return true;
+    if (options?.revalidate) return false;
     return !(entry.icon ?? "").trim();
   });
-  if (missing.length === 0) return lookup;
+  if (missing.length === 0 && !options?.revalidate) return lookup;
+
+  const keysToFetch = options?.revalidate ? keys.filter((key) => key.length > 0) : missing;
+  if (keysToFetch.length === 0) return lookup;
 
   const extras: StepRunnerLookup = {};
+  let changed = false;
   await Promise.all(
-    missing.map(async (key) => {
+    keysToFetch.map(async (key) => {
       try {
         const item = await fetchStepRunnerDetailItem(key, undefined, signal);
         if (!item?.key) return;
-        mergeStepRunnerItemIntoLookup(extras, item);
+        const before = lookup[key];
+        mergeStepRunnerItemIntoLookup(extras, item, lookup);
+        const after = extras[key];
+        if (!after) return;
+        if (
+          !before ||
+          before.name !== after.name ||
+          before.icon !== after.icon ||
+          before.description !== after.description ||
+          before.stepType !== after.stepType
+        ) {
+          changed = true;
+        }
       } catch {
         /* ignore per-key failures */
       }
     }),
   );
 
-  if (Object.keys(extras).length === 0) return lookup;
-  return { ...lookup, ...extras };
+  if (!changed) return lookup;
+  const merged = mergeStepRunnerLookupEntries(lookup, extras);
+  if (options?.baseUrl) {
+    mergeStepRunnerBrowserCache(options.baseUrl, { lookup: merged });
+  }
+  return merged;
 }
 
 export async function fetchStepRunnersLookup(baseUrl: string): Promise<StepRunnerLookup> {

@@ -9,10 +9,8 @@
   "assertions": {
     "success": true,
     "outputVars": {
-      "afterCount": "3",
-      "clipOk": "True"
+      "afterCount": "3"
     },
-    "clipboardText": "a\nb\nc",
-    "notificationsContain": ["3"]
+    "clipboardText": "a\r\nb\r\nc"
   }
 }

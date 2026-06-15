@@ -13,6 +13,7 @@ import {
   getWorkspaceGitDiff,
   getWorkspaceGitStatus,
 } from "@/lib/workspace-git.server";
+import { listWorkspaceFiles } from "@/lib/workspace-fs";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,27 @@ export async function GET(req: Request) {
           ok: true,
           tree: actionResult.tree,
           subprogramTree: subprogramResult.tree,
+        });
+      }
+
+      if (op === "list") {
+        if (!path) {
+          return Response.json({ ok: false, error: "path is required" }, { status: 400 });
+        }
+        const recursive = url.searchParams.get("recursive") === "true";
+        const result = await listWorkspaceFiles(path, {
+          recursive,
+          maxEntries: 500,
+          includeFileSizes: false,
+        });
+        if (!result.ok) {
+          return Response.json({ ok: false, error: result.error }, { status: 400 });
+        }
+        return Response.json({
+          ok: true,
+          path: result.path,
+          entries: result.entries,
+          truncated: result.truncated,
         });
       }
 

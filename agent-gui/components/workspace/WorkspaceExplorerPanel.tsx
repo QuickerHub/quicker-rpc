@@ -19,7 +19,9 @@ import {
   SIDE_PANEL_VIEW_EXPLORER,
   SIDE_PANEL_VIEW_TRACE,
 } from "@/lib/workspace-side-panel-view";
+import { isActionProjectDataPath } from "@/lib/action-project-data-parse";
 import {
+  useWorkspaceExplorerEditor,
   useWorkspaceExplorerShell,
   workspaceExplorerActionsRef,
 } from "@/lib/workspace-explorer";
@@ -27,6 +29,7 @@ import {
 export function WorkspaceExplorerPanel() {
   const { panelOpen, chatColumnWidth, setChatColumnWidth, activeSideView } =
     useWorkspaceExplorerShell();
+  const { activeTab } = useWorkspaceExplorerEditor();
   const { open: defaultTerminalOpen } = useEmbeddedTerminal();
 
   const handleResizePointerDown = useCallback(
@@ -84,9 +87,19 @@ export function WorkspaceExplorerPanel() {
   const terminalPanelVisible = isSidePanelTerminalView(activeSideView);
   const terminalMounted = defaultTerminalOpen;
   const showEditor = isSidePanelEditorView(activeSideView);
+  const actionDataEditorOpen =
+    showEditor
+    && Boolean(activeTab?.path)
+    && isActionProjectDataPath(activeTab.path);
   const showWorkspaceTree =
     activeSideView === SIDE_PANEL_VIEW_EXPLORER || showEditor;
-  const splitTreeAndEditor = showEditor && showWorkspaceTree;
+  const showTreePanel =
+    showWorkspaceTree
+    && !showBrowser
+    && !showTrace
+    && !terminalPanelVisible
+    && !actionDataEditorOpen;
+  const splitTreeAndEditor = showEditor && showTreePanel;
 
   return (
     <aside
@@ -104,7 +117,7 @@ export function WorkspaceExplorerPanel() {
       <div
         className={`workspace-side-panel-body${splitTreeAndEditor ? " workspace-side-panel-body--split-editor" : ""}`}
       >
-        {showWorkspaceTree && !showBrowser && !showTrace && !terminalPanelVisible ? (
+        {showTreePanel ? (
           <div
             className={`workspace-side-panel-tree${splitTreeAndEditor ? " workspace-side-panel-tree--compact" : ""}`}
           >
@@ -138,7 +151,9 @@ export function WorkspaceExplorerPanel() {
         ) : null}
 
         {showEditor ? (
-          <div className="workspace-side-panel-editor workspace-main-editor workspace-main-editor--fill">
+          <div
+            className={`workspace-side-panel-editor workspace-main-editor workspace-main-editor--fill${actionDataEditorOpen ? " workspace-side-panel-editor--action-data" : ""}`}
+          >
             <WorkspaceExplorerEditorArea
               onRefreshTree={() => {
                 workspaceExplorerActionsRef.current.refreshTree();

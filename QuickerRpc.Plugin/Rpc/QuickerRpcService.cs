@@ -1006,6 +1006,17 @@ public sealed class QuickerRpcService : IQuickerRpcService
             cancellationToken);
     }
 
+    public Task<QuickerRpcSearchStepRunnersResult> ListStepRunnersAsync(
+        int? maxResults = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessActionProgramService.ListStepRunners(maxResults)),
+            cancellationToken);
+    }
+
     public Task<QuickerRpcStepRunnerDetailResult> GetStepRunnerDetailAsync(
         string stepRunnerKey,
         string? controlFieldValue = null,
@@ -1047,6 +1058,32 @@ public sealed class QuickerRpcService : IQuickerRpcService
                 Success = false,
                 ErrorMessage = "Step summaries unavailable.",
             });
+    }
+
+    public Task<QuickerRpcDesignerSearchPageResult> SearchStepQuickInsertAsync(
+        string? keyword,
+        int skip,
+        IList<QuickerRpcQuickInsertSubProgramInput>? subPrograms,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(
+                _headlessActionProgramService.SearchStepQuickInsert(keyword, skip, subPrograms)),
+            cancellationToken);
+    }
+
+    public Task<QuickerRpcDesignerSearchPageResult> SearchToolboxModulesAsync(
+        string? keyword,
+        int skip,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return InvokeOnDispatcherAsync(
+            () => Task.FromResult(_headlessActionProgramService.SearchToolboxModules(keyword, skip)),
+            cancellationToken);
     }
 
     public Task<QuickerRpcClipboardSpecialFormatReadResult> ReadClipboardSpecialFormatAsync(

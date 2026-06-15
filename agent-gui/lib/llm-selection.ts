@@ -29,6 +29,10 @@ export type LlmSelection =
 
 export const LLM_AUTO_SELECTION = "auto" as const;
 export const LLM_AUTO_LABEL = "Auto";
+export const LLM_AUTO_DESCRIPTION =
+  "免费 NVIDIA NIM 备选，效果较差；推荐自行申请 API Key 配置 DeepSeek";
+export const LLM_AUTO_QUALITY_HINT =
+  "Auto 可免费使用但效果较差，推荐在设置中申请 API Key 并配置 DeepSeek";
 
 export const LLM_SELECTION_STORAGE_KEY = "agent-gui-llm-selection";
 

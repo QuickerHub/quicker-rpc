@@ -72,21 +72,20 @@ export function ExplorerRootIcon({ expanded }: { expanded: boolean }) {
   );
 }
 
-export function ExplorerFolderIcon({ expanded }: { expanded: boolean }) {
+export function ExplorerFolderIcon({ expanded = false }: { expanded?: boolean } = {}) {
   if (expanded) {
     return (
-      <ExplorerTreeSvg className="explorer-tree-svg--folder-open">
+      <ExplorerTreeSvg className="explorer-tree-svg--folder-outline">
         <path
           fill="currentColor"
           d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.62l.83.83a.5.5 0 0 0 .35.15H13.5A1.5 1.5 0 0 1 15 4.48V12.5A1.5 1.5 0 0 1 13.5 14h-11A1.5 1.5 0 0 1 1 12.5v-9Z"
         />
-        <path fill="currentColor" d="M1 6.2h14v6.3a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5V6.2Z" opacity={0.72} />
       </ExplorerTreeSvg>
     );
   }
 
   return (
-    <ExplorerTreeSvg className="explorer-tree-svg--folder">
+    <ExplorerTreeSvg className="explorer-tree-svg--folder-outline">
       <path
         fill="currentColor"
         d="M14.25 3.75H7.96l-.9-.9a.5.5 0 0 0-.35-.15H2.5a1.5 1.5 0 0 0-1.5 1.5v7.5a1.5 1.5 0 0 0 1.5 1.5h10.75a1.5 1.5 0 0 0 1.5-1.5v-6.5a1.5 1.5 0 0 0-1.5-1.5Z"
