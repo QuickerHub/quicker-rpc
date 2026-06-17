@@ -167,7 +167,7 @@ internal sealed class EvalExpressionStepRunner : IStepRunner
             var definedKeys = ExpressionVariablePlaceholder.BuildDefinedKeys(action);
             expression = ExpressionVariablePlaceholder.Replace(
                 expression,
-                definedKeys.Contains,
+                definedKeys,
                 varKey =>
                 {
                     var varType = action?.Variables?.FirstOrDefault(
@@ -254,13 +254,13 @@ internal sealed class EvalExpressionStepRunner : IStepRunner
     }
 
     /// <summary>
-    /// Same placeholder rewrite as <see cref="EvalExpressionStepV2"/> (regex), for offline compile-check.
+    /// Same placeholder rewrite as <see cref="EvalExpressionStepV2"/> for offline compile-check.
     /// </summary>
     internal static string ReplaceVariablePlaceholders(
         string expression,
-        Func<string, bool> shouldReplace,
+        HashSet<string> definedKeys,
         Func<string, object?> resolveValue,
         Action<string, object?> setVariable) =>
-        ExpressionVariablePlaceholder.Replace(expression, shouldReplace, resolveValue, setVariable);
+        ExpressionVariablePlaceholder.Replace(expression, definedKeys, resolveValue, setVariable);
 
 }

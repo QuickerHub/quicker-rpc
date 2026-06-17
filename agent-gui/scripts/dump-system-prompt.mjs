@@ -7,25 +7,6 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const SKILL_ROOT = join(ROOT, "docs/skills/quicker-authoring");
 
-const LAYER_ORDER = [
-  "router",
-  "workflow",
-  "schema",
-  "catalog",
-  "adjunct",
-  "cli-only",
-  "other",
-];
-const LAYER_LABELS = {
-  router: "Router",
-  workflow: "Workflow",
-  schema: "Schema",
-  catalog: "Modules",
-  adjunct: "Adjunct",
-  "cli-only": "CLI",
-  other: "Other",
-};
-
 function extractPromptConst(tsSource, constName) {
   const re = new RegExp(
     `export const ${constName} = prompt\\(([\\s\\S]*?)\\);`,
@@ -44,31 +25,6 @@ function extractPromptConst(tsSource, constName) {
         .replace(/\\n/g, "\n"),
     )
     .join("\n");
-}
-
-async function buildTopicIndex(manifest) {
-  const topics = manifest.topics.map((t) => ({
-    ...t,
-    layer: t.layer || t.metadata?.layer || "other",
-    refs: manifest.referenceCatalog?.[t.topic] ?? [],
-  }));
-
-  const byLayer = new Map();
-  for (const t of topics) {
-    if (!byLayer.has(t.layer)) byLayer.set(t.layer, []);
-    byLayer.get(t.layer).push(t);
-  }
-
-  const lines = ["### Topic index (workflows → docs get; references/ → search)"];
-  for (const layer of LAYER_ORDER) {
-    const list = byLayer.get(layer);
-    if (!list?.length) continue;
-    lines.push("", `#### ${LAYER_LABELS[layer] ?? layer}`);
-    for (const t of list.sort((a, b) => a.topic.localeCompare(b.topic))) {
-      lines.push(`- ${t.topic}: ${(t.description ?? "").trim() || t.title}`);
-    }
-  }
-  return lines.join("\n");
 }
 
 async function buildOnDemandCatalog() {
@@ -241,16 +197,13 @@ async function main() {
 
   const scope =
     "create/edit program bodies (steps, variables, files). Else use main Capabilities.";
-  const topicIndex = await buildTopicIndex(manifest);
   const skillBlock = [
     "## Skill: quicker authoring",
     `Scope: ${scope}`,
     "",
     tier0,
     "",
-    'Workflows → docs get (full). references/ → docs search (snippet). No session-start multi-get.',
-    "",
-    topicIndex,
+    'Workflows → docs get (full). references/ → docs search (snippet). No session-start topic index.',
   ].join("\n");
 
   const postPatch = extractJoinedStringConst(
@@ -285,7 +238,6 @@ async function main() {
     workbenchChars: workbench.length,
     skillBlockChars: skillBlock.length,
     tier0Chars: tier0.length,
-    topicIndexChars: topicIndex.length,
     postPatchChars: postPatch.length,
     onDemandCatalogChars: catalog.length,
   };

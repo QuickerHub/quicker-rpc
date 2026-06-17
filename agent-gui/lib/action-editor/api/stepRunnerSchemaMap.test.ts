@@ -90,6 +90,27 @@ test("resolveStepControlFieldLiteral reads literal control value", () => {
   assert.equal(v, "move_ex");
 });
 
+test("mapAgentSchemaToStepRunnerItem maps keyInput keys as Keyboard Input mode", () => {
+  const item = mapAgentSchemaToStepRunnerItem({
+    stepRunnerKey: "sys:keyInput",
+    name: "模拟按键A（录入）",
+    inputs: [
+      {
+        key: "keys",
+        title: "按键",
+        purpose: "模拟的按键内容",
+        valueType: "Keyboard",
+        required: true,
+      },
+      { key: "repeat", title: "重复次数", valueType: "Integer", default: "1" },
+    ],
+    outputs: [],
+  });
+  const keysDef = item.inputParamDefs.find((d) => d.key === "keys");
+  assert.equal(keysDef?.varType, CsVarType.Keyboard);
+  assert.equal(keysDef?.variableMode, ParamVariableMode.Input);
+});
+
 test("mapAgentSchemaToStepRunnerItem marks reference DLL input as multiline", () => {
   const item = mapAgentSchemaToStepRunnerItem({
     stepRunnerKey: "sys:csscript",

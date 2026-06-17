@@ -60,4 +60,13 @@ describe("stepInputParamRoute", () => {
     const field = def({ key: "flag", varType: CsVarType.Boolean, variableMode: ParamVariableMode.Input });
     assert.equal(shouldUseVarOrValueEditor(field), false);
   });
+
+  test("routes Keyboard to dedicated editor not VarOrValue", () => {
+    const field = def({
+      key: "keys",
+      varType: CsVarType.Keyboard,
+      variableMode: ParamVariableMode.UseVarOrInput,
+    });
+    assert.equal(shouldUseVarOrValueEditor(field), false);
+  });
 });

@@ -46,10 +46,10 @@ See [references/mcp-tools.md](references/mcp-tools.md).
 
 | Host | Command |
 |------|---------|
-| Cursor | `qkrpc agent setup --workspace <root>` |
-| Codex | `qkrpc agent setup --codex --project --workspace <root> --skip-skill` |
+| Cursor | `qkrpc agent setup`（插件） |
+| Codex | `qkrpc agent setup --codex --project --workspace <root>` |
 | Check | `qkrpc agent setup --check` |
 | Check (JSON) | `qkrpc agent setup --check --json` |
-| Refresh skills | `qkrpc agent setup --upgrade` |
+| Refresh plugin | `qkrpc agent setup --upgrade` |
 
 Guides: `docs/agent-mcp-self-install.md`, `docs/agent-mcp-integration.md`

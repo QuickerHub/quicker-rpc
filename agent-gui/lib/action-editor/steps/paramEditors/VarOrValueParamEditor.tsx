@@ -221,6 +221,11 @@ export function VarOrValueParamEditor({
   const selectedVariable =
     allUsableVars.find((v) => actionVariableRowKey(v) === (param.varKey ?? "")) ??
     variables.find((v) => actionVariableRowKey(v) === (param.varKey ?? ""));
+  const selectedVarKey = selectedVariable ? actionVariableRowKey(selectedVariable) : "";
+  const selectedVarDesc =
+    selectedVariable && (selectedVariable.desc ?? "").trim() !== selectedVarKey
+      ? (selectedVariable.desc ?? "").trim()
+      : "";
 
   const selectedEnumItem = findEnumSelectionItem(baseSelectionItems, param.value ?? "");
 
@@ -430,10 +435,10 @@ export function VarOrValueParamEditor({
                 resourceBaseUrl={backendBaseUrl}
               />
             </span>
-            <span className="step-param-varorvalue-title">{actionVariableRowKey(selectedVariable)}</span>
-            <span className="step-param-varorvalue-muted">
-              {(selectedVariable.desc ?? "").trim() || (param.varKey ?? "")}
-            </span>
+            <span className="step-param-varorvalue-title">{selectedVarKey}</span>
+            {selectedVarDesc ? (
+              <span className="step-param-varorvalue-muted">{selectedVarDesc}</span>
+            ) : null}
           </>
         ) : (
           <>
@@ -471,6 +476,8 @@ export function VarOrValueParamEditor({
       </div>
     );
 
+  const shellMultiline = effectiveMultiline && mode === "input";
+
   return (
     <div
       className={`step-param-varorvalue${externalFile.isExternalFile ? " step-param-varorvalue--external-file" : ""}`}
@@ -485,7 +492,7 @@ export function VarOrValueParamEditor({
         onInsertValue={(value, mode) => insertTextToolValue(value, mode)}
       />
       <div
-        className={`step-param-varorvalue-shell${effectiveMultiline ? " step-param-varorvalue-shell--multiline" : ""}`}
+        className={`step-param-varorvalue-shell${shellMultiline ? " step-param-varorvalue-shell--multiline" : ""}`}
       >
         <div className="step-param-varorvalue-body">{bodyJsx}</div>
         <button

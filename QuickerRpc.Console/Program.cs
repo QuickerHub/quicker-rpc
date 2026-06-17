@@ -1429,7 +1429,10 @@ public sealed class McpOptions
     [Option("upgrade", HelpText = "Install: refresh skills/rules/Claude guidance only (skip MCP).")]
     public bool Upgrade { get; set; }
 
-    [Option("cursor", HelpText = "Install: write ~/.cursor/mcp.json")]
+    [Option("interactive", HelpText = "Install: interactive wizard when no host flags.")]
+    public bool Interactive { get; set; }
+
+    [Option("cursor", HelpText = "Install: Cursor plugin (~/.cursor/plugins/local/quicker-rpc).")]
     public bool Cursor { get; set; }
 
     [Option("claude", HelpText = "Install: write Claude Desktop config")]
@@ -1464,6 +1467,12 @@ public sealed class McpOptions
 
     [Option("skip-skill", HelpText = "Install: do not copy skills")]
     public bool SkipSkill { get; set; }
+
+    [Option("cursor-plugin", HelpText = "Install: Cursor plugin (~/.cursor/plugins/local/quicker-rpc)")]
+    public bool CursorPlugin { get; set; }
+
+    [Option("codex-plugin", HelpText = "Install: Codex plugin (~/.agents/plugins/quicker-rpc)")]
+    public bool CodexPlugin { get; set; }
 
     [Option("json", HelpText = "Install/check: emit JSON to stdout.")]
     public bool Json { get; set; }

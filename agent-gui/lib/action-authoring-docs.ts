@@ -498,6 +498,7 @@ const PROMPT_LAYER_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+/** Topic index for on-demand use (e.g. docs tool); not injected at session start — use docs search. */
 export async function formatAuthoringTopicIndexForPrompt(): Promise<string> {
   const topics = await listActionAuthoringTopics();
   if (topics.length === 0) return "";
@@ -518,12 +519,9 @@ export async function formatAuthoringTopicIndexForPrompt(): Promise<string> {
   return lines.join("\n");
 }
 
-/** Tier 2 preloaded skill + topic index for system prompt injection. */
+/** Tier 2 preloaded skill for system prompt injection (no topic index — use docs search). */
 export async function formatAuthoringSkillForPrompt(): Promise<string> {
-  const router = await formatAuthoringSkillRouterForPrompt();
-  const index = await formatAuthoringTopicIndexForPrompt();
-  const parts = [router, index].filter(Boolean);
-  return parts.join("\n\n");
+  return formatAuthoringSkillRouterForPrompt();
 }
 
 /** @deprecated Prefer formatAuthoringSkillForPrompt */

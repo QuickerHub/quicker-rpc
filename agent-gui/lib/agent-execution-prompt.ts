@@ -20,3 +20,12 @@ export const LAUNCHER_EXECUTION_PROMPT = [
   "- Do not turn quick launcher tasks into workspace editing or long investigations; hand those to main QuickerAgent.",
   "- On tool failure, make one adjusted retry only when the fix is obvious; otherwise report the blocker briefly.",
 ].join("\n");
+
+export const ASK_EXECUTION_PROMPT = [
+  "## Ask loop (read-only)",
+  "- Answer questions, explain actions/steps, and explore the workspace without making changes.",
+  "- Gather evidence with read/search tools first; summarize findings briefly in the answer.",
+  "- Never write files, patch programs, run/debug actions, change settings, or execute shell commands.",
+  "- If the user wants edits, runs, or publishing, tell them to switch to Agent mode.",
+  "- End with a clear answer; mention Agent mode only when execution is clearly required.",
+].join("\n");

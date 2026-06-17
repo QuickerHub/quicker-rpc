@@ -82,6 +82,8 @@ QuickerRpc.Plugin/publish/
 tmp/
 tmp*.json
 temp/
+.build/
+
 
 # Local Quicker source reference for agent/reflection work (not part of this repo)
 .ref/Quicker/
@@ -94,6 +96,13 @@ temp/
 .cursor/mcp.json
 .vscode/mcp.json
 .mcp.json
+
+# Cursor plugin bundle assets (generated from docs/skills + docs/agent-rules; see scripts/sync-cursor-plugin.ps1)
+cursor-plugin/quicker-rpc/skills/
+cursor-plugin/quicker-rpc/rules/
+
+# Codex plugin bundle assets (generated from docs/skills; see scripts/sync-codex-plugin.ps1)
+codex-plugin/quicker-rpc/skills/
 
 # Python bytecode (repo-wide)
 __pycache__/

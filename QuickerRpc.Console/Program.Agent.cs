@@ -7,18 +7,28 @@ internal static partial class Program
 {
     private static async Task<int> RunAgentFromArgsAsync(string[] args)
     {
+        if (args.Length < 2)
+        {
+            return await QkrpcAgentSetupInteractive.RunAsync().ConfigureAwait(false);
+        }
+
+        var subcommand = args[1];
+        if (string.Equals(subcommand, "install", StringComparison.OrdinalIgnoreCase))
+        {
+            return await QkrpcAgentSetupInteractive.RunAsync().ConfigureAwait(false);
+        }
+
+        if (!string.Equals(subcommand, "setup", StringComparison.OrdinalIgnoreCase)
+            && !subcommand.StartsWith('-'))
+        {
+            global::System.Console.Error.WriteLine("Unknown agent command. Use: qkrpc agent install | qkrpc agent setup");
+            return ExitCodes.Error;
+        }
+
         var setupArgs = new List<string>();
         for (var i = 1; i < args.Length; i++)
         {
             var token = args[i];
-            if (i == 1
-                && !token.StartsWith('-')
-                && !string.Equals(token, "setup", StringComparison.OrdinalIgnoreCase))
-            {
-                global::System.Console.Error.WriteLine("Unknown agent command. Use: qkrpc agent setup");
-                return ExitCodes.Error;
-            }
-
             if (i == 1 && string.Equals(token, "setup", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
@@ -29,7 +39,15 @@ internal static partial class Program
 
         return await Parser.Default.ParseArguments<AgentSetupFlagsOptions>(setupArgs.ToArray())
             .MapResult(
-                (AgentSetupFlagsOptions o) => QkrpcAgentSetup.RunAsync(QkrpcAgentSetupOptions.FromAgent(o)),
+                async (AgentSetupFlagsOptions o) =>
+                {
+                    if (QkrpcAgentSetupInteractive.ShouldUseInteractiveWizard(o))
+                    {
+                        return await QkrpcAgentSetupInteractive.RunAsync().ConfigureAwait(false);
+                    }
+
+                    return await QkrpcAgentSetup.RunAsync(QkrpcAgentSetupOptions.FromAgent(o)).ConfigureAwait(false);
+                },
                 _ => Task.FromResult(ExitCodes.Error))
             .ConfigureAwait(false);
     }
@@ -44,7 +62,10 @@ public sealed class AgentSetupFlagsOptions
     [Option("upgrade", HelpText = "Refresh skills, rules, and Claude guidance only (skip MCP config).")]
     public bool Upgrade { get; set; }
 
-    [Option("cursor", HelpText = "Write ~/.cursor/mcp.json (default when no agent flag).")]
+    [Option("interactive", HelpText = "Interactive wizard (when no --cursor/--codex/--all flags).")]
+    public bool Interactive { get; set; }
+
+    [Option("cursor", HelpText = "Install Cursor plugin (~/.cursor/plugins/local/quicker-rpc).")]
     public bool Cursor { get; set; }
 
     [Option("claude", HelpText = "Write Claude Desktop config.")]
@@ -71,7 +92,7 @@ public sealed class AgentSetupFlagsOptions
     [Option("project-skills", HelpText = "With --project: also copy skills to .cursor/skills/.")]
     public bool ProjectSkills { get; set; }
 
-    [Option("workspace", HelpText = "QKRPC_WORKSPACE_ROOT (default: current directory).")]
+    [Option("workspace", HelpText = "QKRPC_WORKSPACE_ROOT (default: follow ${workspaceFolder}).")]
     public string? Workspace { get; set; }
 
     [Option("skill-source", HelpText = "Path to docs/skills root or a single skill directory.")]
@@ -79,6 +100,12 @@ public sealed class AgentSetupFlagsOptions
 
     [Option("skip-skill", HelpText = "Do not copy skills.")]
     public bool SkipSkill { get; set; }
+
+    [Option("cursor-plugin", HelpText = "Install Cursor plugin (~/.cursor/plugins/local/quicker-rpc). Bundled with qkrpc release.")]
+    public bool CursorPlugin { get; set; }
+
+    [Option("codex-plugin", HelpText = "Install Codex plugin (~/.agents/plugins/quicker-rpc). Bundled with qkrpc release.")]
+    public bool CodexPlugin { get; set; }
 
     [Option("json", HelpText = "Emit JSON to stdout (install result or --check report).")]
     public bool Json { get; set; }

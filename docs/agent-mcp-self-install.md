@@ -8,8 +8,8 @@
 
 | 宿主 | MCP 配置方式 | 规则/技能 |
 |------|----------------|-----------|
-| **Cursor** | `qkrpc agent setup`（首选） | 自动复制 skills + `qkrpc.mdc` |
-| **Codex** | `codex mcp add` 或 `~/.codex/config.toml` | 合并 `docs/agent-rules/codex-qkrpc.md` → 项目 `AGENTS.md` |
+| **Cursor** | `qkrpc agent setup` → 本地插件 | 插件内 skills + `qkrpc.mdc` |
+| **Codex** | `qkrpc agent setup --codex` → 本地插件 + 个人 marketplace | 插件内 skills；项目规则见 `codex-qkrpc.md` → `AGENTS.md` |
 | **Claude Code** | `claude mcp add` 或 `qkrpc agent setup --claude` | `CLAUDE.md` 段（setup 可写） |
 | **其他** | 见 [agent-mcp-integration.md](agent-mcp-integration.md) 手动 JSON | 阅读 `docs/skills/qkrpc/` |
 
@@ -41,23 +41,52 @@ $workspace = (Get-Location).Path   # bootstrap / manifest 用；MCP 默认不写
 ## 2. Cursor（最快）
 
 ```powershell
-qkrpc agent setup --workspace $workspace
-# 团队共享配置：
+qkrpc agent setup
+# 团队共享项目 MCP：
 # qkrpc agent setup --project --workspace $workspace
 
 qkrpc agent setup --check
-# 机器可读：qkrpc agent setup --check --json
 ```
 
-完成后请用户 **重载 Cursor MCP**。你应能调用 `qkrpc_health`、`docs`、`workspace_program` 等工具。
+完成后在 Settings → MCP 确认 qkrpc 已启用（重新安装后 Cursor 会自动加载本地插件，无需退出）。
 
 ---
 
 ## 3. Codex
 
-### 3.1 注册 MCP
+### 3.1 安装插件（推荐）
 
-**优先**：Codex CLI 在 PATH 时：
+```powershell
+qkrpc agent setup --codex
+# 或
+pwsh -NoProfile -File ./scripts/install-codex-plugin.ps1
+```
+
+在 Codex 中运行 `/plugins`，安装或启用 `quicker-rpc`。验证：
+
+```powershell
+codex mcp list
+```
+
+应看到 `qkrpc` 状态为 `enabled`。若插件已启用但列表里没有 `qkrpc`，检查 `~/.codex/plugins/quicker-rpc/.mcp.json` 是否使用 **`mcpServers`**（camelCase）；`mcp_servers` 是 `config.toml` 的键名，写在插件 `.mcp.json` 里不会被加载。修复后重新安装插件：
+
+```powershell
+codex plugin remove quicker-rpc@quickerhub
+codex plugin add quicker-rpc@quickerhub
+codex mcp list
+```
+
+仓库协作者也可：
+
+```powershell
+codex plugin marketplace add QuickerHub/quicker-rpc
+```
+
+（读取仓库根目录 `.agents/plugins/marketplace.json`。）
+
+### 3.2 手动 MCP（旧方式，一般不需要）
+
+若未使用插件，可手写 `codex mcp add`：
 
 ```powershell
 codex mcp add qkrpc `

@@ -54,6 +54,7 @@ export async function createChatSystemBuilder(params: {
   actionScope: ActionScopeHint;
   chatMode: ChatMode;
   cwd: string;
+  designerEmbedBlock?: string;
   enabledToolIds: string[];
   launcherUserText: string;
   modelId: string;
@@ -102,6 +103,7 @@ export async function createChatSystemBuilder(params: {
     composeChatSystemPrompt({
       baseSystem,
       contextSystemSuffix: context.systemSuffix,
+      designerEmbedBlock: params.designerEmbedBlock,
       launcherCacheBlock,
       recoveryDecisionBlock,
       runtimeContextBlock,

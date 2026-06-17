@@ -53,4 +53,4 @@ On-demand — full route table in parent **quicker-authoring** SKILL (`Scenario 
 
 {{#include-partial schema-hot-action-steps}}
 
-Topic index below; deep-read via docs search (snippet). Full workflow → docs get(topic).
+Deep-read: docs search → items[].snippet; full workflow → docs get(topic). No session-start topic/module catalog.

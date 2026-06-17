@@ -37,13 +37,13 @@ public sealed class ExpressionExecuteService
                 globals["vv_cliptext"] = ClipboardHelper.TryGetClipboardText() ?? string.Empty;
             }
 
-            var definedKeys = new HashSet<string>(inputVariables.Keys, StringComparer.Ordinal)
+            var definedKeys = new HashSet<string>(inputVariables.Keys, StringComparer.OrdinalIgnoreCase)
             {
                 ExpressionVariablePlaceholder.QuickerInParamKey,
             };
             expression = ExpressionVariablePlaceholder.Replace(
                 expression,
-                definedKeys.Contains,
+                definedKeys,
                 varKey =>
                 {
                     inputVariables.TryGetValue(varKey, out var value);

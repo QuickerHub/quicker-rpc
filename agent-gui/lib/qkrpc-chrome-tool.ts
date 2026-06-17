@@ -1,6 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { formatQkrpcResultForAgent, runQkrpcForTool } from "@/lib/qkrpc";
+import {
+  appendBrowserRecording,
+  buildRecordingFromUserBrowserCall,
+} from "@/lib/browser-to-action/recording";
 
 export const USER_BROWSER_TOOL = "user_browser";
 
@@ -38,7 +42,15 @@ export async function executeUserBrowserTool(
   }
 
   const raw = await runQkrpcForTool(args);
-  return formatQkrpcResultForAgent(raw);
+  const formatted = formatQkrpcResultForAgent(raw);
+  if (formatted.ok) {
+    const sessionId = input.sessionId?.trim() || "default";
+    appendBrowserRecording(
+      sessionId,
+      buildRecordingFromUserBrowserCall(input as unknown as Record<string, unknown>),
+    );
+  }
+  return formatted;
 }
 
 export const USER_BROWSER_TOOL_DEF = tool({

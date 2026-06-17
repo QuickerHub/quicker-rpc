@@ -6,6 +6,11 @@ type SelectOptions = {
   orderedIds: string[];
 };
 
+type MultiSelectInitialState = {
+  selectedIds?: string[];
+  selectionAnchorId?: string;
+};
+
 type UseMultiSelectResult = {
   selectedId: string;
   selectedIds: string[];
@@ -22,10 +27,17 @@ function uniqueIds(ids: string[]): string[] {
   return Array.from(new Set(ids.filter(Boolean)));
 }
 
-export function useMultiSelect(initialId: string): UseMultiSelectResult {
+export function useMultiSelect(
+  initialId: string,
+  initial?: MultiSelectInitialState,
+): UseMultiSelectResult {
   const [selectedId, setSelectedId] = useState<string>(initialId);
-  const [selectedIds, setSelectedIds] = useState<string[]>(initialId ? [initialId] : []);
-  const [selectionAnchorId, setSelectionAnchorId] = useState<string>(initialId);
+  const [selectedIds, setSelectedIds] = useState<string[]>(
+    initial?.selectedIds ?? (initialId ? [initialId] : []),
+  );
+  const [selectionAnchorId, setSelectionAnchorId] = useState<string>(
+    initial?.selectionAnchorId ?? initialId,
+  );
 
   const setSingleSelection = (id: string): void => {
     setSelectedId(id);

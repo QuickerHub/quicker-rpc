@@ -21,7 +21,7 @@
 | 我想… | 怎么做 |
 |-------|--------|
 | 用 AI 管理 Quicker 动作 | 安装 [QuickerAgent](https://github.com/QuickerHub/quicker-rpc/releases/latest/download/quicker-agent-win-x64-setup.exe)，见 [docs/quicker-agent.md](docs/quicker-agent.md) |
-| 在 Cursor / Claude / VS Code 里写动作 | 安装 `qkrpc` 后执行 `qkrpc agent setup`，见 [docs/agent-mcp-integration.md](docs/agent-mcp-integration.md) |
+| 在 Cursor / Claude / VS Code 里写动作 | 安装 `qkrpc` 后 `qkrpc agent setup`，或 [Cursor 插件从仓库安装](cursor-plugin/quicker-rpc/README.md)，见 [docs/agent-mcp-integration.md](docs/agent-mcp-integration.md) |
 | 写脚本或 CI 调 Quicker | 安装 `qkrpc`，用 `--json` 子命令或 `qkrpc serve` HTTP |
 | 改本仓库代码 | 下文 §开发；Coding Agent 读 [AGENTS.md](AGENTS.md) |
 

@@ -82,6 +82,14 @@ export const QKRPC_TOOL_REGISTRY: ToolMeta[] = [
       "网页自动化：默认 Playwright 后台（evaluate/content 爬取）；showPanel 时在 Electron 内嵌浏览器展示；非用户登录态（登录态用 user_browser）",
   },
   {
+    id: "browser_to_action",
+    label: "浏览器转动作",
+    group: "write",
+    category: "action",
+    description:
+      "将 browser/user_browser 调用序列转为 sys:chromecontrol 步骤草稿（dataJson），供 workspace_program 写入并 patch",
+  },
+  {
     id: "user_browser",
     label: "用户浏览器",
     group: "write",

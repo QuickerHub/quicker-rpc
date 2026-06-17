@@ -175,6 +175,13 @@ function Test-QkrpcServeHealth {
 }
 
 function Stop-QkrpcServe {
+    param([string]$RepoRoot = $PSScriptRoot)
+
+    $publishCli = Join-Path $RepoRoot 'publish\cli'
+    if (Test-Path -LiteralPath $publishCli) {
+        Stop-QkrpcProcessesUsingDirectory -Directory $publishCli -GraceMs 2000 | Out-Null
+    }
+
     $stopped = Stop-QkrpcProcesses -ServeOnly -GraceMs 2000
     if ($stopped -gt 0) {
         Write-Host "Stopped qkrpc serve (see PID log above)." -ForegroundColor Yellow
@@ -302,7 +309,7 @@ try {
     if ($shouldStartQkrpcServe) {
         Write-Host "=== Stop qkrpc serve (pre-build) ===" -ForegroundColor Cyan
         Write-Host "  agent-gui dev on :3000 is left running (only qkrpc serve restarts)." -ForegroundColor DarkGray
-        Stop-QkrpcServe
+        Stop-QkrpcServe -RepoRoot $PSScriptRoot
     }
 
     Write-Host "=== Action authoring docs ===" -ForegroundColor Cyan

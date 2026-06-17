@@ -22,7 +22,7 @@ import type { PingState } from "@/lib/use-qkrpc-ping";
 import type { LlmProviderId } from "@/lib/llm-providers";
 import { ModelSelector } from "./ModelSelector";
 import type { ChatMode } from "@/lib/chat-mode";
-import { CHAT_MODE_AGENT } from "@/lib/chat-mode";
+import { CHAT_MODE_AGENT, CHAT_MODE_ASK } from "@/lib/chat-mode";
 import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
 import { useComposerVoiceToggleShortcut } from "@/lib/voice-input/use-composer-voice-shortcut";
 import { notifyVoiceServiceStarting } from "@/lib/voice-input/voice-input-notify";
@@ -322,7 +322,8 @@ const ChatComposerFooterInner = forwardRef<
               value={draftMessage}
               workingDirectory={workingDirectory}
               enableSlashCommands={
-                chatMode === CHAT_MODE_AGENT && Boolean(workingDirectory.trim())
+                (chatMode === CHAT_MODE_AGENT || chatMode === CHAT_MODE_ASK)
+                && Boolean(workingDirectory.trim())
               }
               placeholder={
                 editAnchorMessageId
@@ -393,11 +394,12 @@ const ChatComposerFooterInner = forwardRef<
                 ) : null}
               </div>
               <div className="composer-toolbar-actions">
-                {!isEmptyThread ? (
+                {!isEmptyThread || designerEmbed ? (
                   <ContextUsage
                     messages={messages}
                     busy={busy}
                     selection={llmSelection}
+                    compact={designerEmbed}
                   />
                 ) : null}
                 {busy ? (

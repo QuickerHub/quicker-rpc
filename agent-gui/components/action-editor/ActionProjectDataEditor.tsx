@@ -785,6 +785,7 @@ export function ActionProjectDataEditor({
             <XProgramEditor
               initialPresent={normalizedPresent}
               baselineFingerprint={wireBaselineFingerprint}
+              programDocumentKey={path}
               onPresentChange={handlePresentChange}
               programSurface={isEmbeddedSubProgram ? "subProgram" : "main"}
               workspaceContext={workspaceContext}

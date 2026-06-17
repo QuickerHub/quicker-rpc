@@ -12,7 +12,8 @@ using QuickerRpc.Plugin.Quicker;
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Injects a QuickerRpc tools tab into <c>ActionDesignerWindow.ToolTab</c>.
+/// Injects QuickerAgent chat + optional owner tools tabs into <c>ActionDesignerWindow.ToolTab</c>.
+/// Owner: auto-select tools tab on first open. Public: chat tab only, no auto-select.
 /// </summary>
 internal static class ActionDesignerUiInjector
 {
@@ -34,11 +35,16 @@ internal static class ActionDesignerUiInjector
     /// <summary>
     /// Removes any existing QuickerRpc tab and injects a fresh tools panel (startup / hot-reload).
     /// </summary>
-    /// <param name="selectTab">When true, select the injected tab (use on designer first open).</param>
+    /// <param name="selectTab">When true, owner auto-selects the QuickerRpc tools tab (designer first open).</param>
     public static bool ReloadInject(Window designer, bool selectTab = false)
     {
-        if (!ActionDesignerInjectionGate.CanInject()
-            || !ActionDesignerReflection.IsDesignerWindow(designer))
+        if (!ActionDesignerInjectionGate.CanInjectChatTab()
+            && !ActionDesignerInjectionGate.CanInjectToolsTab())
+        {
+            return false;
+        }
+
+        if (!ActionDesignerReflection.IsDesignerWindow(designer))
         {
             return false;
         }
@@ -82,12 +88,13 @@ internal static class ActionDesignerUiInjector
 
     private static bool TryInjectCore(Window designer, bool reload, bool selectTab)
     {
-        if (!ActionDesignerInjectionGate.CanInject())
+        if (!ActionDesignerReflection.IsDesignerWindow(designer))
         {
             return false;
         }
 
-        if (!ActionDesignerReflection.IsDesignerWindow(designer))
+        if (!ActionDesignerInjectionGate.CanInjectChatTab()
+            && !ActionDesignerInjectionGate.CanInjectToolsTab())
         {
             return false;
         }
@@ -99,6 +106,58 @@ internal static class ActionDesignerUiInjector
 
         TryCompactToolTabStrip(toolTab);
 
+        var injectedAny = false;
+
+        if (ActionDesignerInjectionGate.CanInjectChatTab())
+        {
+            injectedAny |= ActionDesignerAgentTabInjector.TryInject(designer, toolTab);
+        }
+        else
+        {
+            ActionDesignerAgentTabInjector.Remove(designer, toolTab);
+        }
+
+        if (ActionDesignerInjectionGate.CanInjectToolsTab())
+        {
+            injectedAny |= TryInjectOrRefreshToolsTab(designer, toolTab, reload);
+            ActionDesignerGlobalSubProgramReferenceInjector.TryInject(designer);
+            ActionDesignerGlobalSubProgramReferenceInjector.ScheduleDeferredInject(designer);
+        }
+        else
+        {
+            RemoveInjectedTabs(toolTab);
+        }
+
+        if (injectedAny)
+        {
+            EnsureToolContentSelectionHook(designer, toolTab);
+            ActionDesignerReflection.TrySyncToolContentForSelectedTab(designer, toolTab);
+        }
+
+        if (selectTab)
+        {
+            var tabToSelect = ResolveDefaultSelectTab(toolTab);
+            if (tabToSelect is not null)
+            {
+                ScheduleSelectInjectedTab(designer, toolTab, tabToSelect);
+            }
+        }
+
+        return injectedAny;
+    }
+
+    private static TabItem? ResolveDefaultSelectTab(TabControl toolTab)
+    {
+        if (!ActionDesignerInjectionGate.ShouldAutoSelectToolsTabOnOpen())
+        {
+            return null;
+        }
+
+        return FindInjectedTab(toolTab);
+    }
+
+    private static bool TryInjectOrRefreshToolsTab(Window designer, TabControl toolTab, bool reload)
+    {
         if (!reload)
         {
             var existing = FindInjectedTab(toolTab);
@@ -106,11 +165,6 @@ internal static class ActionDesignerUiInjector
             {
                 EnsureIconHeader(existing);
                 existing.Content = BuildToolsPanel(designer);
-                EnsureToolContentSelectionHook(designer, toolTab);
-                ActionDesignerReflection.TrySyncToolContentForSelectedTab(designer, toolTab);
-                ActionDesignerAgentTabInjector.TryInject(designer, toolTab);
-                ActionDesignerGlobalSubProgramReferenceInjector.TryInject(designer);
-                ActionDesignerGlobalSubProgramReferenceInjector.ScheduleDeferredInject(designer);
                 return true;
             }
         }
@@ -125,21 +179,11 @@ internal static class ActionDesignerUiInjector
             };
 
             toolTab.Items.Add(tabItem);
-            EnsureToolContentSelectionHook(designer, toolTab);
-            ActionDesignerAgentTabInjector.TryInject(designer, toolTab);
-            ActionDesignerGlobalSubProgramReferenceInjector.TryInject(designer);
-            ActionDesignerGlobalSubProgramReferenceInjector.ScheduleDeferredInject(designer);
-            ActionDesignerReflection.TrySyncToolContentForSelectedTab(designer, toolTab);
-            if (selectTab)
-            {
-                ScheduleSelectInjectedTab(designer, toolTab, tabItem);
-            }
-
             return true;
         }
         catch (Exception ex)
         {
-            Trace.TraceWarning("[QuickerRpc.Plugin] ActionDesignerUiInjector.TryInject failed: {0}", ex.Message);
+            Trace.TraceWarning("[QuickerRpc.Plugin] ActionDesignerUiInjector.TryInjectOrRefreshToolsTab failed: {0}", ex.Message);
             return false;
         }
     }
@@ -174,7 +218,8 @@ internal static class ActionDesignerUiInjector
         TabItem tabItem,
         int passIndex)
     {
-        if (!ActionDesignerInjectionGate.CanInject()
+        if ((!ActionDesignerInjectionGate.CanInjectChatTab()
+                && !ActionDesignerInjectionGate.CanInjectToolsTab())
             || !designer.IsLoaded
             || !toolTab.Items.Contains(tabItem))
         {
@@ -222,6 +267,54 @@ internal static class ActionDesignerUiInjector
         }
     }
 
+    public static void RemoveToolsTabs()
+    {
+        if (Application.Current?.Windows is null)
+        {
+            return;
+        }
+
+        foreach (Window window in Application.Current.Windows)
+        {
+            if (!ActionDesignerReflection.IsDesignerWindow(window))
+            {
+                continue;
+            }
+
+            if (!ActionDesignerReflection.TryGetToolTab(window, out var toolTab) || toolTab is null)
+            {
+                continue;
+            }
+
+            RemoveInjectedTabs(toolTab);
+            ActionDesignerReflection.TrySyncToolContentForSelectedTab(window, toolTab);
+        }
+    }
+
+    public static void RemoveChatTabs()
+    {
+        if (Application.Current?.Windows is null)
+        {
+            return;
+        }
+
+        foreach (Window window in Application.Current.Windows)
+        {
+            if (!ActionDesignerReflection.IsDesignerWindow(window))
+            {
+                continue;
+            }
+
+            if (!ActionDesignerReflection.TryGetToolTab(window, out var toolTab) || toolTab is null)
+            {
+                continue;
+            }
+
+            ActionDesignerAgentTabInjector.Remove(window, toolTab);
+            ActionDesignerReflection.TrySyncToolContentForSelectedTab(window, toolTab);
+        }
+    }
+
     public static void RemoveAllInjectedTabs()
     {
         if (Application.Current?.Windows is null)
@@ -255,7 +348,6 @@ internal static class ActionDesignerUiInjector
             return;
         }
 
-        ActionDesignerAgentTabInjector.Remove(designer, toolTab);
         RemoveInjectedTabs(toolTab);
         ActionDesignerReflection.TrySyncToolContentForSelectedTab(designer, toolTab);
     }
@@ -401,9 +493,11 @@ internal static class ActionDesignerUiInjector
             CopySelectedVariables = () => OnCopySelectedVariables(designer),
             ViewVariableState = () => OnViewVariableState(designer),
             CopySubProgramId = () => OnCopySubProgramId(designer),
+            ChangeSubProgramTarget = () => OnChangeSubProgramTarget(designer),
             UpgradeNetworkSubPrograms = () => OnUpgradeNetworkSubPrograms(designer),
             UnlockReadOnly = () => OnUnlockReadOnly(designer),
             Save = () => OnSave(designer),
+            TestCatalogSave = () => OnTestCatalogSave(designer),
         };
 
     private static void OnCopyActionDefinition(Window designer)
@@ -551,6 +645,9 @@ internal static class ActionDesignerUiInjector
         PopupMessage.Success(text.Contains("\n") ? "子程序 ID 已复制到剪贴板。" : text);
     }
 
+    private static void OnChangeSubProgramTarget(Window designer) =>
+        ActionDesignerSubProgramTargetChange.TryChangeSelected(designer);
+
     private static void OnUpgradeNetworkSubPrograms(Window designer)
     {
         if (ActionDesignerNetworkSubProgramUpgrade.TryUpgradeSelected(designer, out var count, out var error))
@@ -575,18 +672,23 @@ internal static class ActionDesignerUiInjector
 
     private static void OnSave(Window designer)
     {
-        if (ActionDesignerContext.TrySave(designer, out var error))
+        if (ActionDesignerUiSave.TrySaveOpenDesignerWithoutClose(designer, out _, out var error))
         {
-            PopupMessage.Success("已保存。");
-            return;
-        }
-
-        if (ActionDesignerUiSave.TryTriggerPrimarySaveClick(designer))
-        {
-            PopupMessage.Success("已触发保存。");
+            PopupMessage.Success("已保存（窗口未关闭）。");
             return;
         }
 
         PopupMessage.Warning(error ?? "保存失败。");
+    }
+
+    private static void OnTestCatalogSave(Window designer)
+    {
+        if (ActionDesignerContext.TryTestCatalogSave(designer, out var summary, out var error))
+        {
+            PopupMessage.Success(summary);
+            return;
+        }
+
+        PopupMessage.Warning(error ?? "入库测试失败。");
     }
 }

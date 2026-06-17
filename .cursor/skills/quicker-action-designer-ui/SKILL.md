@@ -38,6 +38,8 @@ metadata:
 
 **原则**：先读 WPF 实现与注释，再在 `agent-gui` 补差距；不要仅凭 `step-runner get`（Agent 压缩 schema）推断 UI 控件形态。
 
+**主题**：新 param 编辑器、弹窗、代码展示等 CSS **默认**用 `action-editor-theme.css` 的 `--ad-*` token，勿写死 hex；见 `quicker-agent-gui-theme`。
+
 ## 本仓库实现位置
 
 | 区域 | 路径 |
@@ -51,6 +53,7 @@ metadata:
 | 外部参数文件（脚本等） | `ExternalParamFileExpressionEditor.tsx` |
 | 字段可见性 | `agent-gui/lib/action-editor/steps/stepParamVisibility.ts` |
 | 样式 | `agent-gui/components/action-editor/action-editor.css` |
+| 主题 token | `agent-gui/components/action-editor/action-editor-theme.css`（`--ad-*`） |
 | 程序编辑入口 | `agent-gui/lib/action-editor/program/XProgramEditor.tsx` |
 | Step-runner UI schema | 静态 `step-runners-ui-catalog.json`（优先）；live `qkrpc step-runner get-ui`（维护导出 / `STEP_RUNNER_CATALOG_LIVE=1`） |
 | Designer Host gRPC | `agent-gui/lib/action-editor/shared/designerHostGrpcApi.ts` |
@@ -116,6 +119,7 @@ rg "shouldUseVarOrValueEditor" agent-gui/lib/action-editor
 ## 相关
 
 - 前端收尾：`quicker-agent-gui-frontend` / `/frontend-check`
+- **主题 token**：`quicker-agent-gui-theme`（新组件/CSS 默认适配深/浅）
 - Quicker.exe 反射 / 类型探测：`.cursor/skills/quicker-exe-type-probing/SKILL.md`
 - `step-runner get-ui` 说明：`docs/cli-commands.md`、`agent-gui/AGENTS.md`（Action editor）
 - 插件侧设计器接入：`QuickerRpc.Plugin/Services/ActionDesignerProgramAccess.cs`、`ActionDesignerUiSave.cs`

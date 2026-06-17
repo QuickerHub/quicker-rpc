@@ -37,6 +37,7 @@ import {
   SIDE_PANEL_VIEW_BROWSER,
   SIDE_PANEL_VIEW_EXPLORER,
   SIDE_PANEL_VIEW_TERMINAL,
+  SIDE_PANEL_VIEW_TRACE,
   sidePanelBrowserViewId,
 } from "@/lib/workspace-side-panel-view";
 
@@ -187,6 +188,13 @@ export function WorkspaceSidePanelTabBar() {
     if (activeSideView === SIDE_PANEL_VIEW_BROWSER) return;
     if (activeSideView === SIDE_PANEL_VIEW_TERMINAL) return;
     if (isSidePanelTraceView(activeSideView)) {
+      if (activeSideView === SIDE_PANEL_VIEW_TRACE) {
+        if (traceTabs.length === 0) {
+          return;
+        }
+        focusSidePanelView(traceTabs[traceTabs.length - 1]!.tabId);
+        return;
+      }
       if (traceTabs.some((tab) => tab.tabId === activeSideView)) return;
       if (traceTabs.length > 0) {
         focusSidePanelView(traceTabs[traceTabs.length - 1]!.tabId);

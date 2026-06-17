@@ -469,22 +469,20 @@ public sealed class ExpressionExecutePerformanceTests
             var expression = NormalizeExpression(code);
             var inputVariables = ParseVariablesJson(variablesJson);
             var globals = new Dictionary<string, object?>(StringComparer.Ordinal);
-            var processedVars = new HashSet<string>(StringComparer.Ordinal);
 
-            expression = ExpressionExecuteServiceVariablePattern.Replace(expression, match =>
+            var definedKeys = new HashSet<string>(inputVariables.Keys, StringComparer.OrdinalIgnoreCase)
             {
-                var varKey = match.Groups[1].Value;
-                var varName = "v_" + varKey;
-                if (processedVars.Contains(varKey))
+                ExpressionVariablePlaceholder.QuickerInParamKey,
+            };
+            expression = ExpressionVariablePlaceholder.Replace(
+                expression,
+                definedKeys,
+                varKey =>
                 {
-                    return varName;
-                }
-
-                processedVars.Add(varKey);
-                inputVariables.TryGetValue(varKey, out var value);
-                globals[varName] = ExpressionVariableResolver.NormalizeForEvalBinding(value, null);
-                return varName;
-            });
+                    inputVariables.TryGetValue(varKey, out var value);
+                    return ExpressionVariableResolver.NormalizeForEvalBinding(value, null);
+                },
+                (varName, value) => globals[varName] = value);
 
             expression = ExpressionEvalTransforms.EnsureTypedSplitAssignment(expression);
 
@@ -552,9 +550,6 @@ public sealed class ExpressionExecutePerformanceTests
                     .ToDictionary(p => p.Name, p => JsonElementToObject(p.Value), StringComparer.Ordinal),
                 _ => element.GetRawText(),
             };
-
-        private static readonly System.Text.RegularExpressions.Regex ExpressionExecuteServiceVariablePattern =
-            new(@"\{([a-zA-Z_][a-zA-Z0-9_]*)\}", System.Text.RegularExpressions.RegexOptions.Compiled);
     }
 
     private sealed class TimingStats

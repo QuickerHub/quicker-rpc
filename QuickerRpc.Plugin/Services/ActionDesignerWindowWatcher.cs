@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Hooks <c>ActionDesignerWindow</c> load events and injects the QuickerRpc tools tab.
+/// Hooks <c>ActionDesignerWindow</c> load events and injects QuickerRpc chat/tools tabs.
 /// WPF has no <c>UnregisterClassHandler</c>; we gate the handler with <see cref="_active"/>
 /// and remove injected tabs on <see cref="StopAsync"/>.
 /// </summary>
@@ -47,8 +47,7 @@ public sealed class ActionDesignerWindowWatcher : IHostedService
 
     private void StartOnUiThread()
     {
-        if (!ActionDesignerInjectionGate.TryEnableForCurrentUser(_logger)
-            || !ActionDesignerInjectionGate.CanInject())
+        if (!ActionDesignerInjectionGate.TryEnableWatcher(_logger))
         {
             _active = false;
             return;
@@ -77,7 +76,7 @@ public sealed class ActionDesignerWindowWatcher : IHostedService
                 FrameworkElement.LoadedEvent,
                 LoadedHandler);
             ActionDesignerGlobalSubProgramReferenceInjector.RegisterClassHandlers();
-            _logger.LogInformation("ActionDesignerWindow Loaded handler registered for authorized user.");
+            _logger.LogInformation("ActionDesignerWindow Loaded handler registered for logged-in users.");
         }
 
         ReloadExistingDesigners();
@@ -87,7 +86,7 @@ public sealed class ActionDesignerWindowWatcher : IHostedService
 
     private void ReloadExistingDesigners()
     {
-        if (!_active || !ActionDesignerInjectionGate.CanInject())
+        if (!_active || !CanInjectAnyTab())
         {
             return;
         }
@@ -127,7 +126,7 @@ public sealed class ActionDesignerWindowWatcher : IHostedService
                         ActionDesignerUiSave.PumpDispatcherOnce();
                     }
 
-                    if (!ActionDesignerInjectionGate.CanInject())
+                    if (!CanInjectAnyTab())
                     {
                         _active = false;
                         return;
@@ -147,12 +146,7 @@ public sealed class ActionDesignerWindowWatcher : IHostedService
 
     private static void OnDesignerLoaded(object sender, RoutedEventArgs e)
     {
-        if (!_active)
-        {
-            return;
-        }
-
-        if (!ActionDesignerInjectionGate.CanInject())
+        if (!_active || !CanInjectAnyTab())
         {
             return;
         }
@@ -167,23 +161,24 @@ public sealed class ActionDesignerWindowWatcher : IHostedService
 
     private static void TryReloadDesigner(Window designer)
     {
-        if (!_active || !ActionDesignerReflection.IsDesignerWindow(designer))
-        {
-            return;
-        }
-
-        if (!ActionDesignerInjectionGate.CanInject())
+        if (!_active || !ActionDesignerReflection.IsDesignerWindow(designer) || !CanInjectAnyTab())
         {
             return;
         }
 
         try
         {
-            ActionDesignerUiInjector.ReloadInject(designer, selectTab: true);
+            ActionDesignerUiInjector.ReloadInject(
+                designer,
+                selectTab: ActionDesignerInjectionGate.ShouldAutoSelectToolsTabOnOpen());
         }
         catch (Exception ex)
         {
             Trace.TraceWarning("[QuickerRpc.Plugin] TryReloadDesigner failed: {0}", ex.Message);
         }
     }
+
+    private static bool CanInjectAnyTab() =>
+        ActionDesignerInjectionGate.CanInjectChatTab()
+        || ActionDesignerInjectionGate.CanInjectToolsTab();
 }

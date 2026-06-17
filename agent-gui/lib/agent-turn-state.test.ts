@@ -52,6 +52,18 @@ test("buildAgentTurnState includes pinned action targets", () => {
   assert.deepEqual(state.targetRefs, ["00000000-0000-0000-0000-000000000001"]);
 });
 
+test("buildAgentTurnState forces read-only conversation in ask mode", () => {
+  const state = buildAgentTurnState({
+    actionScope: emptyScope,
+    chatMode: "ask",
+    enabledToolIds: ["docs", "workspace_program", "Shell"],
+    userText: "帮我修改动作步骤，然后保存",
+  });
+
+  assert.equal(state.intent, "conversation");
+  assert.equal(state.risk, "read");
+});
+
 test("formatAgentTurnStateForPrompt renders a compact prompt block", () => {
   const block = formatAgentTurnStateForPrompt({
     intent: "workspace",

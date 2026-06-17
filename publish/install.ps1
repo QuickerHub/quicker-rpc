@@ -199,8 +199,8 @@ function Install-QkrpcCli {
         Write-Host '  1. Open a new terminal'
         Write-Host '  2. Load the Quicker plugin (see README)'
         Write-Host '  3. Run: qkrpc ping --json'
-        Write-Host '  4. Run: qkrpc agent setup --workspace <your-project-root>'
-        Write-Host '     (installs MCP + skills for Cursor / other agents; see docs/agent-mcp-integration.md)'
+        Write-Host '  4. Run: qkrpc agent install'
+        Write-Host '     (interactive: pick Cursor / Codex / VS Code / …; or qkrpc agent setup --cursor)'
     }
     finally {
         if (Test-Path -LiteralPath $tempRoot) {

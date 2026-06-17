@@ -1,0 +1,33 @@
+{
+  "name": "quicker-rpc",
+  "version": "0.14.7",
+  "description": "Headless Quicker action authoring: qkrpc MCP, authoring skills, and workspace patch (P0–P7).",
+  "author": {
+    "name": "QuickerHub"
+  },
+  "homepage": "https://github.com/QuickerHub/quicker-rpc",
+  "repository": "https://github.com/QuickerHub/quicker-rpc",
+  "license": "MIT",
+  "keywords": [
+    "quicker",
+    "automation",
+    "mcp",
+    "action-authoring",
+    "qkrpc"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Quicker RPC",
+    "shortDescription": "Quicker action authoring via qkrpc MCP",
+    "longDescription": "Bundle qkrpc MCP with authoring skills for headless Quicker action editing aligned with QuickerAgent.",
+    "developerName": "QuickerHub",
+    "category": "Productivity",
+    "logo": "./assets/logo.png",
+    "composerIcon": "./assets/logo.png",
+    "defaultPrompt": [
+      "Use quicker-rpc to list and edit Quicker actions in this workspace.",
+      "Run qkrpc_health before authoring; use workspace_program to patch .quicker/ after disk edits."
+    ]
+  }
+}

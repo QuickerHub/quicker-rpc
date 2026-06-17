@@ -1,0 +1,27 @@
+{
+  "name": "quickerhub",
+  "interface": {
+    "displayName": "QuickerHub"
+  },
+  "metadata": {
+    "description": "Quicker automation plugins for Codex (qkrpc MCP action authoring)"
+  },
+  "plugins": [
+    {
+      "name": "quicker-rpc",
+      "source": {
+        "source": "local",
+        "path": "./codex-plugin/quicker-rpc"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Productivity",
+      "interface": {
+        "displayName": "Quicker RPC",
+        "shortDescription": "Headless Quicker action authoring via qkrpc MCP"
+      }
+    }
+  ]
+}

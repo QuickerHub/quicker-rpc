@@ -78,7 +78,10 @@ import { ChatStoragePortBanner } from "@/components/dev/ChatStoragePortBanner";
 import { ReleasePreviewBanner } from "@/components/dev/ReleasePreviewBanner";
 import { ChatConversationHeader } from "@/components/chat/ChatConversationHeader";
 import { WorkspaceSidePanelTabBar } from "@/components/workspace/WorkspaceSidePanelTabBar";
-import { actionDesignerRefFromEmbed } from "@/lib/action-designer-thread";
+import {
+  actionDesignerRefFromEmbed,
+  type ActionDesignerThreadRef,
+} from "@/lib/action-designer-thread";
 import { useActionDesignerEmbed } from "@/lib/designer-embed-context";
 import { useDesignerContext } from "@/lib/use-designer-context";
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
@@ -244,6 +247,7 @@ type ChatPanelProps = {
     upToMessageId: string,
   ) => void;
   designerEmbed?: boolean;
+  actionDesigner?: ActionDesignerThreadRef;
 };
 
 function ChatPanel({
@@ -264,6 +268,7 @@ function ChatPanel({
   onAutoTitle,
   onForkThread,
   designerEmbed = false,
+  actionDesigner,
 }: ChatPanelProps) {
   const [editAnchorLiveDraft, setEditAnchorLiveDraft] = useState("");
   const [editAnchorMessageId, setEditAnchorMessageId] = useState<string | null>(
@@ -361,6 +366,8 @@ function ChatPanel({
   workingDirectoryRef.current = workingDirectory;
   const titleManualRef = useRef(titleManual);
   titleManualRef.current = titleManual;
+  const actionDesignerRef = useRef(actionDesigner);
+  actionDesignerRef.current = actionDesigner;
   const messagesForPersistRef = useRef<AgentUIMessage[]>(initialMessages);
 
   // useChat only recreates Chat when `id` changes; body must stay stable and
@@ -381,6 +388,7 @@ function ChatPanel({
           llmProvider: llmSelectionRef.current,
           workingDirectory: workingDirectoryRef.current.trim() || undefined,
           titleManual: titleManualRef.current,
+          actionDesigner: actionDesignerRef.current,
         }),
       }),
     [],
@@ -1789,6 +1797,11 @@ export function Chat() {
                         onAutoTitle={handleAutoTitle}
                         onForkThread={handleForkThread}
                         designerEmbed={designerEmbed.enabled}
+                        actionDesigner={
+                          designerEmbed.scoped
+                            ? (thread.actionDesigner ?? designerThreadRef)
+                            : thread.actionDesigner
+                        }
                       />
                     ))}
                     {ephemeralLauncherRuns.map((run) => (

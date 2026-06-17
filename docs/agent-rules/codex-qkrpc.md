@@ -4,14 +4,15 @@
 
 Configure `qkrpc` MCP per `docs/agent-mcp-self-install.md` in the quicker-rpc repo (or run the steps below once).
 
-**Install (Codex, user-level):**
+**Install (Codex, recommended):**
 
 ```powershell
-codex mcp add qkrpc --env "QKRPC_WORKSPACE_ROOT=<workspace-root>" -- "$env:LOCALAPPDATA\Programs\qkrpc\qkrpc.exe" mcp
+qkrpc agent setup --codex
+# then in Codex: /plugins → install quicker-rpc
 codex mcp list
 ```
 
-Replace `<workspace-root>` with the project directory that contains or will contain `.quicker/`.
+Legacy manual `codex mcp add` (only if not using the plugin):
 
 **Start:** `qkrpc_health` → on failure `qkrpc_wait` (no repeated shell probes).
 

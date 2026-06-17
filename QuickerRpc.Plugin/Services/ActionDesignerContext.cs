@@ -169,6 +169,41 @@ internal static class ActionDesignerContext
         }
     }
 
+    public static void TryReadDesignerPresentation(
+        Window designer,
+        out string? title,
+        out string? description,
+        out string? icon,
+        out string? contextMenuData)
+    {
+        title = null;
+        description = null;
+        icon = null;
+        contextMenuData = null;
+        try
+        {
+            var winType = designer.GetType();
+            var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+            var editing = winType.GetProperty("EditingActionItem2", flags)?.GetValue(designer)
+                ?? winType.GetProperty("EditingActionItem", flags)?.GetValue(designer);
+            if (editing is null)
+            {
+                title = designer.Title;
+                return;
+            }
+
+            var editingType = editing.GetType();
+            title = editingType.GetProperty("Title", flags)?.GetValue(editing) as string ?? designer.Title;
+            description = editingType.GetProperty("Description", flags)?.GetValue(editing) as string;
+            icon = editingType.GetProperty("Icon", flags)?.GetValue(editing) as string;
+            contextMenuData = editingType.GetProperty("ContextMenuData", flags)?.GetValue(editing) as string;
+        }
+        catch
+        {
+            title = designer.Title;
+        }
+    }
+
     public static bool TryCopySelectedVariableKeys(Window designer, out string text, out string? error)
     {
         text = string.Empty;
@@ -183,8 +218,58 @@ internal static class ActionDesignerContext
         return true;
     }
 
-    public static bool TrySave(Window designer, out string? error)
+    /// <summary>
+    /// Persist an open Action Designer window to the Quicker catalog (<c>DoSaveWithoutClose</c>, same as Ctrl+S).
+    /// Returns false with a null <paramref name="error"/> when no designer window matches <paramref name="entityId"/>.
+    /// </summary>
+    public static bool TryCatalogSaveOpenDesigner(string entityId, bool isSubProgram, out string? error)
     {
+        error = null;
+        if (string.IsNullOrWhiteSpace(entityId))
+        {
+            return false;
+        }
+
+        (bool found, bool ok, string? err)? outcome = QuickerDispatcherInvoke.OnUiThreadIfNeeded(() =>
+        {
+            var designer = ActionDesignerUiSave.TryFindActionDesignerWindow(entityId.Trim(), isSubProgram);
+            if (designer is null)
+            {
+                return ((bool found, bool ok, string? err)?)(found: false, ok: false, err: null);
+            }
+
+            if (!isSubProgram
+                && !ActionDesignerTempTitle.TryEnsureOnDesigner(designer, out _, out var tempError))
+            {
+                return ((bool found, bool ok, string? err)?)(found: true, ok: false, err: tempError);
+            }
+
+            var ok = ActionDesignerUiSave.TryPersistDesignerWindowInPlace(designer, out var err);
+            return ((bool found, bool ok, string? err)?)(found: true, ok: ok, err: err);
+        });
+
+        if (outcome is null)
+        {
+            error = "WPF dispatcher unavailable.";
+            return false;
+        }
+
+        if (!outcome.Value.found)
+        {
+            error = null;
+            return false;
+        }
+
+        error = outcome.Value.err;
+        return outcome.Value.ok;
+    }
+
+    /// <summary>
+    /// Manual test (QuickerRpc tools tab): temp title + Ctrl+S save + catalog verify; designer stays open.
+    /// </summary>
+    public static bool TryTestCatalogSave(Window designer, out string summary, out string? error)
+    {
+        summary = string.Empty;
         error = null;
         var entityId = TryReadDesignerEntityId(designer);
         if (string.IsNullOrWhiteSpace(entityId))
@@ -193,34 +278,35 @@ internal static class ActionDesignerContext
             return false;
         }
 
-        if (!ActionDesignerReflection.TryGetActionProperty(designer, out var xActionObj) || xActionObj is null)
+        var id = entityId.Trim();
+        if (!ActionDesignerUiSave.TrySaveOpenDesignerWithoutClose(designer, out var tempTitle, out error))
         {
-            error = "Designer Action is not available.";
             return false;
         }
 
-        if (xActionObj is not XAction xAction)
+        if (!DataServiceActionAccess.TryGetById(id, out var action, out _) || action is null)
         {
-            try
-            {
-                xAction = JsonConvert.DeserializeObject<XAction>(
-                    JsonConvert.SerializeObject(xActionObj))
-                    ?? throw new InvalidOperationException("XAction deserialize returned null.");
-            }
-            catch (Exception ex)
-            {
-                error = ex.Message;
-                return false;
-            }
+            error = "Designer saved but action was not found in Quicker catalog.";
+            return false;
         }
 
-        var isSubProgram = IsSubProgramDesigner(designer);
-        if (isSubProgram)
+        var title = (action.Title ?? string.Empty).Trim();
+        summary = string.IsNullOrWhiteSpace(tempTitle)
+            ? $"入库成功（窗口未关闭）：{title} ({id})"
+            : $"入库成功（临时标题 {tempTitle}，窗口未关闭）：{title} ({id})";
+        return true;
+    }
+
+    public static bool TrySave(Window designer, out string? error)
+    {
+        error = null;
+        if (TryReadDesignerEntityId(designer) is not { Length: > 0 })
         {
-            return ActionDesignerUiSave.TryPersistOpenSubProgramDesignerOnUiThread(entityId, xAction, out error);
+            error = "Action id not found.";
+            return false;
         }
 
-        return ActionDesignerUiSave.TryPersistOpenActionDesignerOnUiThread(entityId, xAction, out error);
+        return ActionDesignerUiSave.TrySaveOpenDesignerWithoutClose(designer, out _, out error);
     }
 
     internal static bool IsSubProgramDesigner(Window designer)

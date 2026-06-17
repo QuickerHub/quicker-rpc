@@ -1,17 +1,74 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using Quicker.Domain.Actions.X.Storage;
 
 namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
-/// Reads <c>sys:subprogram</c> target identifiers from selected designer steps.
+/// Reads and writes <c>sys:subprogram</c> target identifiers on selected designer steps.
 /// </summary>
 internal static class ActionDesignerSubProgramId
 {
-    private const string SubProgramRunnerKey = "sys:subprogram";
-    private const string SubProgramParamKey = "subProgram";
+    internal const string SubProgramRunnerKey = "sys:subprogram";
+    internal const string SubProgramParamKey = "subProgram";
+
+    public static bool TryGetSelectedSubProgramSteps(
+        Window designer,
+        out IReadOnlyList<ActionStep> steps,
+        out string? error)
+    {
+        steps = Array.Empty<ActionStep>();
+        error = null;
+
+        if (!ActionDesignerReflection.TryGetSelectedSteps(designer, out var selected) || selected.Count == 0)
+        {
+            error = "请先选中「运行子程序」步骤。";
+            return false;
+        }
+
+        var subProgramSteps = new List<ActionStep>();
+        var skippedVariableBound = false;
+        var skippedNonSubProgram = false;
+        foreach (var step in selected)
+        {
+            if (!IsSubProgramStep(step))
+            {
+                skippedNonSubProgram = true;
+                continue;
+            }
+
+            if (IsVariableBoundSubProgramStep(step))
+            {
+                skippedVariableBound = true;
+                continue;
+            }
+
+            subProgramSteps.Add(step);
+        }
+
+        if (subProgramSteps.Count == 0)
+        {
+            if (skippedVariableBound)
+            {
+                error = "选中步骤的子程序参数为变量引用，无法修改固定目标。";
+            }
+            else if (skippedNonSubProgram)
+            {
+                error = "选中步骤中没有「运行子程序」步骤。";
+            }
+            else
+            {
+                error = "请先选中「运行子程序」步骤。";
+            }
+
+            return false;
+        }
+
+        steps = subProgramSteps;
+        return true;
+    }
 
     public static bool TryGetSelectedSubProgramIds(Window designer, out string text, out string? error)
     {
@@ -53,14 +110,57 @@ internal static class ActionDesignerSubProgramId
         return true;
     }
 
-    private static bool TryReadSubProgramReference(
+    public static bool TryGetInitialPickerText(IReadOnlyList<ActionStep> steps, out string text)
+    {
+        var references = steps
+            .Select(step =>
+            {
+                return TryReadSubProgramReference(step, out var reference, out _)
+                    ? reference?.Trim()
+                    : null;
+            })
+            .Where(reference => !string.IsNullOrWhiteSpace(reference))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (references.Count == 1)
+        {
+            text = references[0]!;
+            return true;
+        }
+
+        text = string.Empty;
+        return false;
+    }
+
+    public static bool TrySetSubProgramReference(ActionStep step, string reference)
+    {
+        var value = (reference ?? string.Empty).Trim();
+        if (value.Length == 0)
+        {
+            return false;
+        }
+
+        step.InputParams ??= new Dictionary<string, ActionStepParam>(StringComparer.OrdinalIgnoreCase);
+        if (!step.InputParams.TryGetValue(SubProgramParamKey, out var param) || param is null)
+        {
+            param = new ActionStepParam();
+            step.InputParams[SubProgramParamKey] = param;
+        }
+
+        param.VarKey = string.Empty;
+        param.Value = value;
+        return true;
+    }
+
+    internal static bool TryReadSubProgramReference(
         ActionStep step,
         out string? reference,
         out bool variableBound)
     {
         reference = null;
         variableBound = false;
-        if (!string.Equals(step.StepRunnerKey?.Trim(), SubProgramRunnerKey, StringComparison.OrdinalIgnoreCase))
+        if (!IsSubProgramStep(step))
         {
             return false;
         }
@@ -93,5 +193,28 @@ internal static class ActionDesignerSubProgramId
 
         reference = param.Value?.Trim();
         return !string.IsNullOrWhiteSpace(reference);
+    }
+
+    private static bool IsSubProgramStep(ActionStep step) =>
+        string.Equals(step.StepRunnerKey?.Trim(), SubProgramRunnerKey, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsVariableBoundSubProgramStep(ActionStep step)
+    {
+        if (!IsSubProgramStep(step) || step.InputParams is null)
+        {
+            return false;
+        }
+
+        foreach (var pair in step.InputParams)
+        {
+            if (!string.Equals(pair.Key, SubProgramParamKey, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return !string.IsNullOrWhiteSpace(pair.Value?.VarKey);
+        }
+
+        return false;
     }
 }

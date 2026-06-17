@@ -26,10 +26,27 @@ internal static class QkrpcAgentSetup
                 return await RunUpgradeAsync(options).ConfigureAwait(false);
             }
 
+            if (options.IsCodexPluginOnlyInstall())
+            {
+                return CompleteCodexPluginInstall(options);
+            }
+
+            if (options.IsCursorPluginOnlyInstall())
+            {
+                return CompleteCursorPluginInstall(options);
+            }
+
             var qkrpcExe = ResolveQkrpcExecutable();
             var cliVersion = ResolveCliVersion();
             var workspace = ResolveWorkspace(options);
             var targets = ResolveInstallTargets(options).ToList();
+            if (options.UsesCursorPlugin())
+            {
+                targets = targets
+                    .Where(t => !string.Equals(t.Id, "cursor", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+
             var results = new List<string>();
             var installedSkillNames = new List<string>();
 
@@ -46,36 +63,24 @@ internal static class QkrpcAgentSetup
                 results.Add($"MCP {target.DisplayName}: {configPath}");
             }
 
-            if (!options.SkipSkill)
+            if (options.Project && options.ProjectSkills)
             {
-                var userSkillsDir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    ".cursor",
-                    "skills");
-                foreach (var line in InstallSkills(options, userSkillsDir, "user skills", installedSkillNames))
+                var projectSkillsDir = Path.Combine(workspace, ".cursor", "skills");
+                foreach (var line in InstallSkills(options, projectSkillsDir, "project skills", installedSkillNames))
                 {
                     results.Add(line);
                 }
-
-                if (options.Project && options.ProjectSkills)
-                {
-                    var projectSkillsDir = Path.Combine(workspace, ".cursor", "skills");
-                    foreach (var line in InstallSkills(options, projectSkillsDir, "project skills", installedSkillNames))
-                    {
-                        results.Add(line);
-                    }
-                }
             }
-
-            var rulesResults = InstallRules(options, workspace);
-            results.AddRange(rulesResults);
 
             results.AddRange(QkrpcAgentSetupGuidance.InstallClaudeCodeGuidance(options, workspace));
 
             if (options.Codex || options.All)
             {
                 var followAgent = QkrpcMcpWorkspaceResolver.ShouldFollowAgentWorkspace(options.Workspace);
-                results.AddRange(InstallCodexMcp(qkrpcExe, followAgent ? null : workspace, cliVersion));
+                if (!options.UsesCodexPlugin())
+                {
+                    results.AddRange(InstallCodexMcp(qkrpcExe, followAgent ? null : workspace, cliVersion));
+                }
                 results.AddRange(QkrpcAgentSetupGuidance.InstallCodexGuidance(options, workspace));
             }
 
@@ -105,6 +110,16 @@ internal static class QkrpcAgentSetup
                 results.Add($"terminal PATH: {Path.Combine(workspace, ".vscode", "settings.json")}");
             }
 
+            if (options.CursorPlugin)
+            {
+                results.AddRange(QkrpcCursorPluginInstaller.TryInstallPlugin());
+            }
+
+            if (options.CodexPlugin)
+            {
+                results.AddRange(QkrpcCodexPluginInstaller.TryInstallPlugin());
+            }
+
             global::System.Console.Error.WriteLine("qkrpc agent setup completed:");
             foreach (var line in results)
             {
@@ -129,6 +144,10 @@ internal static class QkrpcAgentSetup
             }
 
             global::System.Console.Error.WriteLine("Restart your MCP host (Cursor / VS Code / Claude / Codex) to load servers.");
+            if (options.UsesCursorPlugin())
+            {
+                global::System.Console.Error.WriteLine("Cursor: local plugin reloads automatically after install.");
+            }
             global::System.Console.Error.WriteLine("Verify: qkrpc agent setup --check [--json]");
             global::System.Console.Error.WriteLine("Agent self-install: docs/agent-mcp-self-install.md");
             global::System.Console.Error.WriteLine("Integration guide: docs/agent-mcp-integration.md");
@@ -166,6 +185,69 @@ internal static class QkrpcAgentSetup
 
             return ExitCodes.Error;
         }
+    }
+
+    private static int CompleteCursorPluginInstall(QkrpcAgentSetupOptions options)
+    {
+        var cliVersion = ResolveCliVersion();
+        var results = QkrpcCursorPluginInstaller.TryInstallPlugin().ToList();
+
+        global::System.Console.Error.WriteLine("qkrpc Cursor plugin install completed:");
+        foreach (var line in results)
+        {
+            global::System.Console.Error.WriteLine("  " + line);
+        }
+
+        global::System.Console.Error.WriteLine();
+        global::System.Console.Error.WriteLine($"CLI version: {cliVersion}");
+        global::System.Console.Error.WriteLine("Cursor reloads local plugins automatically after reinstall.");
+
+        if (options.Json)
+        {
+            WriteInstallJson(
+                ok: true,
+                cliVersion: cliVersion,
+                workspace: options.Workspace,
+                results: results,
+                nextSteps:
+                [
+                    "Confirm qkrpc is enabled in Settings → MCP",
+                ]);
+        }
+
+        return ExitCodes.Success;
+    }
+
+    private static int CompleteCodexPluginInstall(QkrpcAgentSetupOptions options)
+    {
+        var cliVersion = ResolveCliVersion();
+        var results = QkrpcCodexPluginInstaller.TryInstallPlugin().ToList();
+
+        global::System.Console.Error.WriteLine("qkrpc Codex plugin install completed:");
+        foreach (var line in results)
+        {
+            global::System.Console.Error.WriteLine("  " + line);
+        }
+
+        global::System.Console.Error.WriteLine();
+        global::System.Console.Error.WriteLine($"CLI version: {cliVersion}");
+        global::System.Console.Error.WriteLine("Open Codex /plugins to install or enable quicker-rpc.");
+
+        if (options.Json)
+        {
+            WriteInstallJson(
+                ok: true,
+                cliVersion: cliVersion,
+                workspace: options.Workspace,
+                results: results,
+                nextSteps:
+                [
+                    "Open Codex /plugins and enable quicker-rpc",
+                    "codex mcp list",
+                ]);
+        }
+
+        return ExitCodes.Success;
     }
 
     private static string ResolveCliVersionSafe()
@@ -291,28 +373,17 @@ internal static class QkrpcAgentSetup
         var results = new List<string> { "MCP: skipped (--upgrade preserves existing config)" };
         var installedSkillNames = new List<string>();
 
-        if (!options.SkipSkill)
+        if (options.Project && options.ProjectSkills)
         {
-            var userSkillsDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".cursor",
-                "skills");
-            foreach (var line in InstallSkills(options, userSkillsDir, "user skills", installedSkillNames))
+            var projectSkillsDir = Path.Combine(workspace, ".cursor", "skills");
+            foreach (var line in InstallSkills(options, projectSkillsDir, "project skills", installedSkillNames))
             {
                 results.Add(line);
             }
-
-            if (options.Project && options.ProjectSkills)
-            {
-                var projectSkillsDir = Path.Combine(workspace, ".cursor", "skills");
-                foreach (var line in InstallSkills(options, projectSkillsDir, "project skills", installedSkillNames))
-                {
-                    results.Add(line);
-                }
-            }
         }
 
-        results.AddRange(InstallRules(options, workspace));
+        results.AddRange(QkrpcCursorPluginInstaller.TryInstallPlugin());
+        results.AddRange(QkrpcCodexPluginInstaller.TryInstallPlugin());
         results.AddRange(QkrpcAgentSetupGuidance.InstallClaudeCodeGuidance(options, workspace));
         if (options.Codex)
         {
@@ -339,7 +410,7 @@ internal static class QkrpcAgentSetup
 
         global::System.Console.Error.WriteLine();
         global::System.Console.Error.WriteLine($"CLI version: {cliVersion}");
-        global::System.Console.Error.WriteLine("MCP configs unchanged. Restart MCP host if you also changed qkrpc.exe path manually.");
+        global::System.Console.Error.WriteLine("MCP configs unchanged. Cursor plugin refreshed (auto-reload; confirm qkrpc in Settings → MCP).");
 
         await Task.CompletedTask.ConfigureAwait(false);
         return ExitCodes.Success;
@@ -475,15 +546,11 @@ internal static class QkrpcAgentSetup
 
             if (!explicitUser)
             {
-                yield return McpInstallTarget.Cursor;
+                // Default: Cursor via plugin (no ~/.cursor/mcp.json).
+                yield break;
             }
             else
             {
-                if (options.Cursor)
-                {
-                    yield return McpInstallTarget.Cursor;
-                }
-
                 if (options.Claude)
                 {
                     yield return McpInstallTarget.ClaudeDesktop;
@@ -756,6 +823,12 @@ internal static class QkrpcAgentSetup
 
         root[key] = existing;
     }
+
+    internal static string? ResolveSkillsRootForInstall(string? explicitSource) =>
+        ResolveSkillsRoot(explicitSource);
+
+    internal static void CopyDirectoryRecursive(string sourceDir, string destDir) =>
+        CopyDirectory(sourceDir, destDir);
 
     private static void CopyDirectory(string sourceDir, string destDir)
     {

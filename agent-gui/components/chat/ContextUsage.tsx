@@ -23,6 +23,8 @@ type ContextUsageProps = {
   messages: AgentUIMessage[];
   busy?: boolean;
   selection: string;
+  /** Narrow designer WebView2 embed: keep ring small, anchor popup to the left. */
+  compact?: boolean;
 };
 
 function lastAssistantModel(messages: AgentUIMessage[]): string | undefined {
@@ -39,6 +41,7 @@ export const ContextUsage = memo(function ContextUsage({
   messages,
   busy,
   selection,
+  compact = false,
 }: ContextUsageProps) {
   const popupId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -107,7 +110,10 @@ export const ContextUsage = memo(function ContextUsage({
   }, [open, close]);
 
   return (
-    <div className="context-ring-wrap" ref={wrapRef}>
+    <div
+      className={`context-ring-wrap${compact ? " context-ring-wrap--compact" : ""}`}
+      ref={wrapRef}
+    >
       <button
         type="button"
         className={`context-ring-btn${busy && !hasData ? " context-ring--pending" : ""}${warn ? " context-ring--warn" : ""}`}
@@ -150,7 +156,7 @@ export const ContextUsage = memo(function ContextUsage({
       {open && (
         <div
           id={popupId}
-          className="composer-popup context-popup"
+          className={`composer-popup context-popup${compact ? " context-popup--compact" : ""}`}
           role="dialog"
           aria-label="上下文使用详情"
         >

@@ -8,13 +8,13 @@ alwaysApply: true
 
 ## Before editing actions
 
-1. `docs_get` topic `overview`, then `authoring-workflow`
+1. `docs` action=get topic `overview`, then `authoring-workflow`
 2. For subprograms: `subprogram-workflow`
 
 ## Hard rules
 
 - Step-runner: `qkrpc_step_runner_search` → `qkrpc_step_runner_get` — **never** guess `inputParams`
-- Disk edit: `qkrpc_action_get` / `qkrpc_subprogram_get` → edit `.quicker/` with **host file tools** → headless `action patch` / `subprogram patch` (or QuickerAgent `workspace_program`) — **no** inline patch JSON; deprecated `qkrpc_sync`
+- Disk edit: `qkrpc_action_get` / `qkrpc_subprogram_get` → edit `.quicker/` with **host file tools** → `workspace_program` action=patch — **no** inline patch JSON; deprecated `qkrpc_sync`
 - Connectivity: use `qkrpc_wait` on failure — **no** repeated shell ping/probe
 - On persistent failure: read skill **`quicker-rpc-knowledge`** (QuickerAgent action vs AI agent, bootstrap, user checklist)
 - Prefer MCP `qkrpc_*` tools over shell when configured
@@ -22,4 +22,4 @@ alwaysApply: true
 
 ## Scope
 
-Third-party MCP agents do **not** have `workspace_program`. Use QuickerAgent for visual step editing and browser automation.
+Cursor MCP has **headless** authoring (`workspace_program`, step-runner tools, run/debug). Use **QuickerAgent** or Quicker Designer for visual step editing, embedded browser, and shell automation.

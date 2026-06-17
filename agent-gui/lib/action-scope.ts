@@ -23,7 +23,7 @@ function extractQkaFromText(text: string): ScopedActionRef[] {
 export type ScopedActionRef = {
   id: string;
   title?: string;
-  source: "user-tag";
+  source: "user-tag" | "designer-default";
 };
 
 /** Optional @-pin hints from the latest user message (not enforced). */
@@ -90,7 +90,9 @@ export function formatActionScopeForSystem(scope: ActionScopeHint | undefined): 
 
   const lines: string[] = ["## @ actions (latest user message)"];
   for (const p of scope.pinnedLatestAll) {
-    lines.push(`- ${p.title ?? "action"} → \`${p.id}\``);
+    const label =
+      p.source === "designer-default" ? "designer default" : "user @";
+    lines.push(`- ${p.title ?? "action"} → \`${p.id}\` (${label})`);
   }
   return lines.join("\n");
 }

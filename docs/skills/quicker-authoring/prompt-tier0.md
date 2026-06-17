@@ -116,4 +116,4 @@ steps[] + inputParams: `paramKey` · `.file` · `.var` (one bind/key). **Literal
 
 Long text → `paramKey.file`. Keys: search → get. Branch: sys:if → ifSteps/elseSteps. Deep-read: **action-data-schema**, step-runner-get.
 
-Topic index below; deep-read via docs search (snippet). Full workflow → docs get(topic).
+Deep-read: docs search → items[].snippet; full workflow → docs get(topic). No session-start topic/module catalog.

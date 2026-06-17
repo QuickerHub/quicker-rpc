@@ -26,10 +26,28 @@ export function parseActionDesignerEmbedFromSearchParams(
   };
 }
 
+function readEmbedSearchParams(): URLSearchParams {
+  if (typeof window === "undefined") return new URLSearchParams();
+  const search = window.location?.search ?? "";
+  return new URLSearchParams(search);
+}
+
 /** Client-only: ActionDesigner WebView2 embed (skip SQLite chat-store API). */
 export function isActionDesignerEmbedClient(): boolean {
   if (typeof window === "undefined") return false;
-  return parseActionDesignerEmbedFromSearchParams(
-    new URLSearchParams(window.location.search),
-  ).enabled;
+  return parseActionDesignerEmbedFromSearchParams(readEmbedSearchParams()).enabled;
+}
+
+/**
+ * Scoped designer embed uses a per-entity localStorage index so multiple designer
+ * WebViews (shared WebView2 profile) do not cross-notify and clobber each other.
+ */
+export function resolveDesignerEmbedChatStorageKey(): string | null {
+  if (typeof window === "undefined") return null;
+  const embed = parseActionDesignerEmbedFromSearchParams(readEmbedSearchParams());
+  if (!embed.scoped) return null;
+  const entityId = embed.entityId.trim().toLowerCase();
+  if (!entityId) return null;
+  const kind = embed.isSubProgram ? "sub" : "action";
+  return `agent-gui-chats-designer-${kind}-${entityId}`;
 }

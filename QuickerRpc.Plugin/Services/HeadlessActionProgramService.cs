@@ -338,18 +338,22 @@ public sealed class HeadlessActionProgramService
             return readOnlyApply;
         }
 
-        if (action is null)
+        var designerSavedFirst = false;
+        if (action is null
+            && !TryMaterializeActionFromOpenDesigner(id, out action, ref designerSavedFirst, out var resolveError))
         {
-            return FailApply($"Action not found: {id}");
+            return FailApply(resolveError ?? $"Action not found: {id}");
         }
 
-        if (!_actions.IsXAction(action))
+        if (!_actions.IsXAction(action!))
         {
             return FailApply($"Action {id} is not an XAction program.");
         }
 
-        var versionBefore = _actions.GetEditVersion(action);
-        if (!force && expectedEditVersion.HasValue && expectedEditVersion.Value != versionBefore)
+        var versionBefore = _actions.GetEditVersion(action!);
+        var skipVersionCheck = designerSavedFirst
+            && expectedEditVersion is null or <= 0;
+        if (!force && !skipVersionCheck && expectedEditVersion.HasValue && expectedEditVersion.Value != versionBefore)
         {
             return new QuickerRpcApplyXActionResult
             {
@@ -393,13 +397,21 @@ public sealed class HeadlessActionProgramService
             // Best-effort: catalog save already succeeded.
         }
 
+        var warnings = ToWarningList(inputParamWarnings);
+        if (designerSavedFirst)
+        {
+            warnings = warnings
+                .Concat(new[] { "Persisted unsaved Action Designer window before workspace apply." })
+                .ToList();
+        }
+
         return new QuickerRpcApplyXActionResult
         {
             Success = true,
             ActionId = id,
             EditVersion = _actions.GetEditVersion(saved!),
             UpdatedUtc = DateTimeOffset.UtcNow.ToString("o"),
-            Warnings = ToWarningList(inputParamWarnings),
+            Warnings = warnings,
         };
     }
 
@@ -557,18 +569,22 @@ public sealed class HeadlessActionProgramService
             return designerPatch;
         }
 
-        if (action is null)
+        var designerSavedFirst = false;
+        if (action is null
+            && !TryMaterializeActionFromOpenDesigner(id, out action, ref designerSavedFirst, out var resolveError))
         {
-            return FailPatch($"Action not found: {id}");
+            return FailPatch(resolveError ?? $"Action not found: {id}");
         }
 
-        if (hasProgramPatch && !_actions.IsXAction(action))
+        if (hasProgramPatch && !_actions.IsXAction(action!))
         {
             return FailPatch($"Action {id} is not an XAction program.");
         }
 
-        var versionBefore = _actions.GetEditVersion(action);
-        if (!force && expectedEditVersion.HasValue && expectedEditVersion.Value != versionBefore)
+        var versionBefore = _actions.GetEditVersion(action!);
+        var skipVersionCheck = designerSavedFirst
+            && expectedEditVersion is null or <= 0;
+        if (!force && !skipVersionCheck && expectedEditVersion.HasValue && expectedEditVersion.Value != versionBefore)
         {
             return new QuickerRpcApplyActionPatchResult
             {
@@ -1015,6 +1031,42 @@ public sealed class HeadlessActionProgramService
         editVersionMs > 0
             ? DateTimeOffset.FromUnixTimeMilliseconds(editVersionMs).ToUniversalTime().ToString("o")
             : string.Empty;
+
+    private bool TryMaterializeActionFromOpenDesigner(
+        string id,
+        out ActionItem? action,
+        ref bool designerSavedFirst,
+        out string? error)
+    {
+        action = null;
+        error = null;
+        if (_actions is null || !_actions.IsAvailable)
+        {
+            error = "Headless action save unavailable.";
+            return false;
+        }
+
+        if (ActionDesignerContext.TryCatalogSaveOpenDesigner(id, isSubProgram: false, out var designerError))
+        {
+            designerSavedFirst = true;
+            if (_actions.TryGetById(id, out action, out _) && action is not null)
+            {
+                return true;
+            }
+
+            error = designerError ?? "Action Designer saved but action could not be reloaded.";
+            return false;
+        }
+
+        if (designerError is not null)
+        {
+            error = designerError;
+            return false;
+        }
+
+        error = $"Action not found: {id}";
+        return false;
+    }
 
     private static QuickerRpcGetCompressedActionResult FailGet(string message) =>
         new() { Success = false, ErrorMessage = message };

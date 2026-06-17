@@ -6,6 +6,7 @@ import { CsVarType } from "@/lib/action-editor/steps/paramEditors/csStepEnums";
 import {
   buildExcelReadWriteStepSummary,
   buildGroupStepSummary,
+  buildKeyInputStepSummary,
   buildPathExtractionStepSummary,
 } from "@/lib/action-editor/steps/stepSummaryDynamic";
 import { buildClientStepSummary } from "@/lib/action-editor/steps/stepSummaryFallback";
@@ -306,4 +307,30 @@ test("buildClientStepSummary uses manual script pattern", () => {
     inputParams: { script: { value: "return 1 + 1;" } },
   });
   assert.equal(buildClientStepSummary(step, runnerItem), "return 1 + 1;");
+});
+
+test("buildKeyInputStepSummary formats wire JSON", () => {
+  const step = ActionStep.fromPartial({
+    stepRunnerKey: "sys:keyInput",
+    inputParams: {
+      keys: { value: '{"CtrlKeys":[162],"Keys":[68]}' },
+      repeat: { value: "1" },
+    },
+  });
+  assert.equal(buildKeyInputStepSummary(step, {} as StepRunnerItem), "LeftCtrl+ [ D ]");
+});
+
+test("buildKeyInputStepSummary includes repeat metadata", () => {
+  const step = ActionStep.fromPartial({
+    stepRunnerKey: "sys:keyInput",
+    inputParams: {
+      keys: { value: '{"CtrlKeys":[],"Keys":[40]}' },
+      repeat: { value: "5" },
+      interval: { value: "50" },
+    },
+  });
+  assert.equal(
+    buildKeyInputStepSummary(step, {} as StepRunnerItem),
+    "↓ 重复:5 间隔:50ms",
+  );
 });

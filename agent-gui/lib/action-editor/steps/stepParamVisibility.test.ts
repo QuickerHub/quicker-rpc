@@ -135,7 +135,7 @@ test("isParamDefVisibleForStep shows validFor params when control value is empty
   );
 });
 
-test("isParamDefVisibleForStep uses varKey-bound control value", () => {
+test("isParamDefVisibleForStep uses varKey-bound control value when it matches a mode", () => {
   const inputDefs = [
     {
       key: "operation",
@@ -155,6 +155,52 @@ test("isParamDefVisibleForStep uses varKey-bound control value", () => {
   const values = { operation: "custom" };
   assert.equal(
     isParamDefVisibleForStep(inputDefs[1]!, values, inputDefs as never),
+    true,
+  );
+});
+
+test("isParamDefVisibleForStep shows all mode params when control is varKey-bound", () => {
+  const item = mapAgentSchemaToStepRunnerItem({
+    stepRunnerKey: "sys:notify",
+    name: "提示消息",
+    controlField: {
+      key: "style",
+      selection: [
+        {
+          key: "Default",
+          name: "默认",
+          visibleInputKeys: ["type", "msg", "maxLines", "style", "clickAction"],
+        },
+        {
+          key: "Style2",
+          name: "风格2",
+          visibleInputKeys: ["type", "msg", "maxLines", "style"],
+        },
+      ],
+    },
+    inputs: [
+      { key: "type", title: "类型", valueType: "Enum" },
+      { key: "msg", title: "消息内容", valueType: "Text" },
+      { key: "style", title: "风格", valueType: "Enum", isControlField: true },
+    ],
+    outputs: [],
+  });
+
+  const step = ActionStep.fromPartial({
+    stepRunnerKey: "sys:notify",
+    inputParams: {
+      style: { varKey: "styleVar", value: "Default" },
+      msg: { value: "hello" },
+    },
+  });
+  const values = buildStepParamValuesForVisibility(step);
+  const inputDefs = item.inputParamDefs ?? [];
+  assert.equal(
+    isParamDefVisibleForStep(
+      inputDefs.find((d) => d.key === "msg")!,
+      values,
+      inputDefs,
+    ),
     true,
   );
 });

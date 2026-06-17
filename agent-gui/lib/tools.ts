@@ -157,6 +157,11 @@ import { BROWSER_TOOL_DEF } from "@/lib/browser-tool.server";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 
 import {
+  BROWSER_TO_ACTION_TOOL,
+  BROWSER_TO_ACTION_TOOL_DEF,
+} from "@/lib/browser-to-action-tool.server";
+
+import {
   USER_BROWSER_TOOL,
   USER_BROWSER_TOOL_DEF,
 } from "@/lib/qkrpc-chrome-tool";
@@ -197,6 +202,8 @@ export const quickerTools = {
   [SHELL_TOOL]: SHELL_TOOL_DEF,
 
   [BROWSER_TOOL]: BROWSER_TOOL_DEF,
+
+  [BROWSER_TO_ACTION_TOOL]: BROWSER_TO_ACTION_TOOL_DEF,
 
   [USER_BROWSER_TOOL]: USER_BROWSER_TOOL_DEF,
 

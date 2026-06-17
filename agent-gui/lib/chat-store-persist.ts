@@ -2,6 +2,7 @@ import type { AgentUIMessage } from "@/lib/chat-types";
 import type { ChatStoreData, ChatThread } from "@/lib/chat-store";
 import type { ChatWorkspace } from "@/lib/chat-workspace";
 import { chatMessagesEqual } from "@/lib/chat-message-signature";
+import { resolveDesignerEmbedChatStorageKey } from "@/lib/action-designer-embed";
 
 export const CHAT_STORAGE_KEY = "agent-gui-chats";
 export const CHAT_STORAGE_BACKUP_KEY = "agent-gui-chats-backup";
@@ -62,6 +63,16 @@ function readLocalStorage(key: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** Index key for the current client (scoped designer embed vs desktop shell). */
+export function getActiveChatStorageKey(): string {
+  if (typeof window === "undefined") return CHAT_STORAGE_KEY;
+  return resolveDesignerEmbedChatStorageKey() ?? CHAT_STORAGE_KEY;
+}
+
+export function getActiveChatStorageBackupKey(): string {
+  return `${getActiveChatStorageKey()}-backup`;
 }
 
 function writeLocalStorage(key: string, value: string): void {
@@ -291,7 +302,10 @@ export function tryParseV3Index(raw: unknown): ChatStoreIndex | null {
 
 /** Migrate monolithic v2 blob to v3 index + per-thread message keys. */
 export function migrateMonolithicStoreToChunked(data: ChatStoreData): ChatStoreData {
-  writeLocalStorage(CHAT_STORAGE_KEY, JSON.stringify(toChatStoreIndex(data)));
+  writeLocalStorage(
+    getActiveChatStorageKey(),
+    JSON.stringify(toChatStoreIndex(data)),
+  );
   for (const thread of data.threads) {
     writeThreadMessagesToStorage(thread.id, thread.messages);
   }
@@ -417,7 +431,10 @@ export function savePersistedChatStore(
   }
 
   if (!previous || indexMetadataChanged(previous, data)) {
-    writeLocalStorage(CHAT_STORAGE_KEY, JSON.stringify(toChatStoreIndex(data)));
+    writeLocalStorage(
+      getActiveChatStorageKey(),
+      JSON.stringify(toChatStoreIndex(data)),
+    );
   }
 
   if (previous && dirtyThreadIds) {
@@ -453,10 +470,11 @@ export function savePersistedChatStore(
 }
 
 export function loadPersistedChatStore(
-  options: { messageScope?: ChatLoadMessageScope } = {},
+  options: { messageScope?: ChatLoadMessageScope; storageKey?: string } = {},
 ): ChatStoreData | null {
   const messageScope = options.messageScope ?? "active";
-  const indexRaw = readLocalStorage(CHAT_STORAGE_KEY);
+  const storageKey = options.storageKey ?? getActiveChatStorageKey();
+  const indexRaw = readLocalStorage(storageKey);
   if (!indexRaw) return null;
 
   try {
@@ -518,7 +536,7 @@ export function hydrateStoreThreadMessages(
 }
 
 export function loadPersistedChatStoreFromBackup(): ChatStoreData | null {
-  const indexRaw = readLocalStorage(CHAT_STORAGE_BACKUP_KEY);
+  const indexRaw = readLocalStorage(getActiveChatStorageBackupKey());
   if (!indexRaw) return null;
 
   try {
@@ -549,7 +567,10 @@ export function loadPersistedChatStoreFromBackup(): ChatStoreData | null {
 }
 
 export function backupPersistedChatStoreIndex(index: ChatStoreIndex): void {
-  writeLocalStorage(CHAT_STORAGE_BACKUP_KEY, JSON.stringify(index));
+  writeLocalStorage(
+    getActiveChatStorageBackupKey(),
+    JSON.stringify(index),
+  );
 }
 
 export function assembleStoreFromV3Parts(

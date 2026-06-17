@@ -1560,7 +1560,7 @@ internal static class ServeInvokeDispatcher
             return Fail("MISSING_VARIABLE", "args.var is required.");
         }
 
-        var value = ServeJsonArgs.GetString(args, "value");
+        var value = ServeJsonArgs.GetStringAllowEmpty(args, "value");
         if (value is null)
         {
             return Fail("MISSING_VALUE", "args.value is required.");
@@ -1941,7 +1941,7 @@ internal static class ServeInvokeDispatcher
             return Fail("MISSING_VARIABLE", "args.var is required.");
         }
 
-        var value = ServeJsonArgs.GetString(args, "value");
+        var value = ServeJsonArgs.GetStringAllowEmpty(args, "value");
         if (value is null)
         {
             return Fail("MISSING_VALUE", "args.value is required.");

@@ -5,6 +5,12 @@ import {
   resolveInputPropertySummary,
 } from "@/lib/action-editor/steps/stepSummaryFromParts";
 import type { StepSummaryFileContents } from "@/lib/action-editor/steps/stepSummaryFileRefs";
+import {
+  describeKeyInputWire,
+  formatKeyInputKeysName,
+  isKeyInputWireJson,
+  parseKeyInputStepData,
+} from "@/lib/action-editor/steps/paramEditors/keyInput/keyInputStepData";
 
 function readControlDirect(step: ActionStep, key: string): string {
   const pin = step.inputParams?.[key];
@@ -154,6 +160,34 @@ export function buildExcelReadWriteStepSummary(
   return `【${operationDisplay}】${body}`.replace(/\s+/g, " ").trim();
 }
 
+/** Mirrors KeyInputStepV2.GetSummary. */
+export function buildKeyInputStepSummary(
+  step: ActionStep,
+  _runnerItem: StepRunnerItem,
+  _fileContentsByPath?: StepSummaryFileContents,
+): string {
+  const pin = step.inputParams?.keys;
+  let keysLabel = "";
+  if (pin) {
+    const varKey = (pin.varKey ?? "").trim();
+    if (varKey) {
+      keysLabel = `{${varKey}}`;
+    } else {
+      const raw = (pin.value ?? "").trim();
+      keysLabel = isKeyInputWireJson(raw)
+        ? formatKeyInputKeysName(parseKeyInputStepData(raw))
+        : describeKeyInputWire(raw);
+    }
+  }
+
+  const repeat = readControlDirect(step, "repeat");
+  if (!repeat || repeat === "1") {
+    return keysLabel.trim();
+  }
+  const interval = readControlDirect(step, "interval");
+  return `${keysLabel}   重复:${repeat} 间隔:${interval}ms`.replace(/\s+/g, " ").trim();
+}
+
 const DYNAMIC_BUILDERS: Record<
   string,
   (step: ActionStep, runnerItem: StepRunnerItem, fileContentsByPath?: StepSummaryFileContents) => string
@@ -162,6 +196,7 @@ const DYNAMIC_BUILDERS: Record<
   "sys:windowOperations": buildWindowOperationsStepSummary,
   "sys:pathExtraction": buildPathExtractionStepSummary,
   "sys:excelreadwrite": buildExcelReadWriteStepSummary,
+  "sys:keyInput": buildKeyInputStepSummary,
 };
 
 export function buildDynamicStepSummary(

@@ -44,6 +44,95 @@ function Stop-QkrpcProcesses {
     return $stopped.Count
 }
 
+function Stop-QkrpcProcessesUsingDirectory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Directory,
+
+        [int]$GraceMs = 1500
+    )
+
+    $prefix = $Directory.TrimEnd('\')
+    if (Test-Path -LiteralPath $prefix) {
+        $prefix = (Get-Item -LiteralPath $prefix).FullName.TrimEnd('\')
+    }
+    $prefixLower = $prefix.ToLowerInvariant()
+
+    $stopped = [System.Collections.Generic.List[int]]::new()
+    $procs = Get-CimInstance Win32_Process -Filter "Name = 'qkrpc.exe'" -ErrorAction SilentlyContinue
+    foreach ($proc in $procs) {
+        $exePath = $proc.ExecutablePath
+        if ([string]::IsNullOrWhiteSpace($exePath)) {
+            continue
+        }
+
+        $exeLower = $exePath.ToLowerInvariant()
+        if (-not $exeLower.StartsWith($prefixLower)) {
+            continue
+        }
+
+        $procId = $proc.ProcessId
+        try {
+            & taskkill.exe /PID $procId /T /F 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                $stopped.Add($procId) | Out-Null
+                continue
+            }
+        }
+        catch {
+            # fall through to Stop-Process
+        }
+
+        Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+        $stopped.Add($procId) | Out-Null
+    }
+
+    if ($stopped.Count -gt 0) {
+        Write-Host "Stopped qkrpc using $prefix (PID(s): $($stopped -join ', '))" -ForegroundColor DarkYellow
+        Start-Sleep -Milliseconds $GraceMs
+    }
+
+    return $stopped.Count
+}
+
+function Clear-QkrpcPublishDirectory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PublishDir,
+
+        [int]$MaxAttempts = 8,
+        [int]$RetryDelayMs = 400
+    )
+
+    if (-not (Test-Path -LiteralPath $PublishDir)) {
+        return
+    }
+
+    Write-Host "Cleaning previous publish output..." -ForegroundColor Yellow
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        Stop-QkrpcProcessesUsingDirectory -Directory $PublishDir -GraceMs 2000 | Out-Null
+        if ($attempt -eq 1) {
+            # build.ps1 stops serve only; also stop any other qkrpc.exe loaded from publish/cli.
+            Stop-QkrpcProcesses -ServeOnly -GraceMs 1000 | Out-Null
+        }
+
+        try {
+            Remove-Item -LiteralPath $PublishDir -Recurse -Force -ErrorAction Stop
+            return
+        }
+        catch {
+            if ($attempt -ge $MaxAttempts) {
+                Write-Warning "Could not remove $PublishDir ($($_.Exception.Message)); publishing in-place overlay."
+                Write-Host "  Close qkrpc serve/MCP using publish/cli, then re-run if stale runtime DLLs remain." -ForegroundColor DarkGray
+                return
+            }
+
+            Start-Sleep -Milliseconds ($RetryDelayMs * $attempt)
+        }
+    }
+}
+
 function Get-ExpectedGoogleProtobufAssemblyVersion {
     param([string]$RepoRoot)
 

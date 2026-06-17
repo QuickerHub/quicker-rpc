@@ -207,6 +207,159 @@ internal static class ActionDesignerUiSave
         }
     }
 
+    /// <summary>Read the action text label from <c>ActionUIEditor.TxtActionTitle</c>.</summary>
+    internal static bool TryReadDesignerActionTitleText(Window designerWindow, out string? title)
+    {
+        title = null;
+        if (designerWindow is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var uiEditor = designerWindow.GetType().GetField("UiEditor", InstanceAll)?.GetValue(designerWindow);
+            if (uiEditor is null)
+            {
+                return false;
+            }
+
+            var editorType = uiEditor.GetType();
+            if (editorType.GetField("TxtActionTitle", InstanceAll)?.GetValue(uiEditor) is TextBox titleBox)
+            {
+                title = titleBox.Text;
+                return true;
+            }
+
+            if (editorType.GetProperty("ActionTitle", InstanceAll)?.GetValue(uiEditor) is string actionTitle)
+            {
+                title = actionTitle;
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.TraceWarning("[QuickerRpc.Plugin] TryReadDesignerActionTitleText failed: {0}", ex.Message);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Write the action text label into <c>ActionUIEditor</c> (same surface Ctrl+S reads via SaveAllData).
+    /// </summary>
+    internal static bool TrySetDesignerActionTitleText(Window designerWindow, string title, out string? error)
+    {
+        error = null;
+        var trimmed = (title ?? string.Empty).Trim();
+        if (trimmed.Length == 0)
+        {
+            error = "title cannot be empty.";
+            return false;
+        }
+
+        try
+        {
+            var winType = designerWindow.GetType();
+            ActionDesignerContext.TryReadDesignerPresentation(
+                designerWindow,
+                out _,
+                out var description,
+                out var icon,
+                out _);
+
+            var uiEditor = winType.GetField("UiEditor", InstanceAll)?.GetValue(designerWindow);
+            if (uiEditor is null)
+            {
+                error = "ActionUIEditor not found on designer.";
+                return false;
+            }
+
+            var editorType = uiEditor.GetType();
+            var setUiData = editorType.GetMethod(
+                "SetUiData",
+                InstanceAll,
+                binder: null,
+                types: new[] { typeof(string), typeof(string), typeof(string) },
+                modifiers: null);
+            if (setUiData is not null)
+            {
+                setUiData.Invoke(uiEditor, new object?[] { trimmed, description ?? string.Empty, icon ?? string.Empty });
+            }
+            else if (editorType.GetField("TxtActionTitle", InstanceAll)?.GetValue(uiEditor) is TextBox titleBox)
+            {
+                titleBox.Text = trimmed;
+            }
+            else
+            {
+                error = "ActionUIEditor title field not found.";
+                return false;
+            }
+
+            var saveToAction = editorType.GetMethod("SaveToAction", InstanceAll);
+            if (saveToAction is not null)
+            {
+                foreach (var itemName in new[] { "EditingActionItem", "ResultActionItem", "EditingActionItem2", "ResultActionItem2" })
+                {
+                    var item = winType.GetProperty(itemName, InstanceAll)?.GetValue(designerWindow);
+                    if (item is not null)
+                    {
+                        saveToAction.Invoke(uiEditor, new[] { item });
+                    }
+                }
+            }
+
+            foreach (var itemName in new[] { "EditingActionItem", "ResultActionItem", "EditingActionItem2", "ResultActionItem2" })
+            {
+                var item = winType.GetProperty(itemName, InstanceAll)?.GetValue(designerWindow);
+                if (item is null)
+                {
+                    continue;
+                }
+
+                DesignerEntityPresentation.TryApply(
+                    item,
+                    isSubProgram: false,
+                    trimmed,
+                    description: null,
+                    icon: null,
+                    contextMenuData: null,
+                    out _);
+            }
+
+            designerWindow.Title = trimmed;
+            QuickerActionDesignerReflection.TryInvokeUpdateXActionUi(designerWindow, out _);
+            PumpDispatcherOnce();
+
+            if (TryReadDesignerActionTitleText(designerWindow, out var verifyTitle)
+                && !string.IsNullOrWhiteSpace(verifyTitle)
+                && string.Equals(verifyTitle.Trim(), trimmed, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (TryReadDesignerActionTitleText(designerWindow, out verifyTitle)
+                && ActionDesignerTempTitle.NeedsTempTitle(verifyTitle))
+            {
+                error = "Action text label was not applied to the designer UI.";
+                return false;
+            }
+
+            return true;
+        }
+        catch (TargetInvocationException ex)
+        {
+            error = ex.InnerException?.Message ?? ex.Message;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Trace.TraceWarning("[QuickerRpc.Plugin] TrySetDesignerActionTitleText failed: {0}", ex.Message);
+            error = ex.Message;
+            return false;
+        }
+    }
+
     /// <summary>Push patched XAction into open designer UI without persisting to catalog.</summary>
     public static bool TrySyncDesignerMemory(Window designerWindow, XAction action) =>
         TryApplyImportedXActionToOpenDesigner(designerWindow, action, out _);
@@ -279,6 +432,77 @@ internal static class ActionDesignerUiSave
     public static bool TryPersistOpenActionDesignerOnUiThread(string actionId, XAction xAction, out string? error) =>
         TryPersistOpenDesignerOnUiThread(actionId, xAction, isSubProgram: false, out error);
 
+    /// <summary>
+    /// Save in-memory designer state to catalog without pushing an external <see cref="XAction"/> payload first.
+    /// </summary>
+    public static bool TryPersistOpenActionDesignerInPlaceOnUiThread(string actionId, out string? error) =>
+        TryPersistOpenDesignerInPlaceOnUiThread(actionId, isSubProgram: false, out error);
+
+    public static bool TryPersistOpenSubProgramDesignerInPlaceOnUiThread(string subProgramId, out string? error) =>
+        TryPersistOpenDesignerInPlaceOnUiThread(subProgramId, isSubProgram: true, out error);
+
+    public static bool TryPersistDesignerWindowInPlaceOnUiThread(Window designer, out string? error)
+    {
+        error = null;
+        if (designer is null)
+        {
+            return false;
+        }
+
+        (bool ok, string? err)? outcome = QuickerDispatcherInvoke.OnUiThreadIfNeeded(() =>
+            TryPersistDesignerWindowInPlace(designer, out var localError)
+                ? ((bool ok, string? err)?)(ok: true, err: null)
+                : ((bool ok, string? err)?)(ok: false, err: localError));
+
+        if (outcome is null)
+        {
+            error = "WPF dispatcher unavailable.";
+            return false;
+        }
+
+        error = outcome.Value.err;
+        return outcome.Value.ok;
+    }
+
+    private static bool TryPersistOpenDesignerInPlaceOnUiThread(
+        string entityId,
+        bool isSubProgram,
+        out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(entityId))
+        {
+            return false;
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            return false;
+        }
+
+        var persisted = false;
+        string? localError = null;
+        dispatcher.Invoke(() =>
+        {
+            var designer = TryFindActionDesignerWindow(entityId.Trim(), isSubProgram);
+            if (designer is null)
+            {
+                return;
+            }
+
+            persisted = TryPersistDesignerWindowInPlace(designer, out localError);
+        });
+
+        for (var i = 0; i < 120; i++)
+        {
+            PumpDispatcherOnce();
+        }
+
+        error = localError;
+        return persisted;
+    }
+
     private static bool TryPersistOpenDesignerOnUiThread(
         string entityId,
         XAction xAction,
@@ -340,41 +564,68 @@ internal static class ActionDesignerUiSave
         }
 
         TryUpdateDesignerResultItem(designer, xAction);
+        return TryInvokeDesignerCatalogSave(designer, out error);
+    }
 
-        var winType = designer.GetType();
+    internal static bool TryPersistDesignerWindowInPlace(Window designer, out string? error)
+    {
+        error = null;
+        WaitUntilDesignerLoaded(designer);
+        if (!designer.IsLoaded)
+        {
+            error = "Action Designer is not loaded.";
+            return false;
+        }
+
+        return TryInvokeDesignerCatalogSave(designer, out error);
+    }
+
+    /// <summary>
+    /// Ctrl+S equivalent: temp title (if needed) + <c>DoSaveWithoutClose</c>, keep the designer open.
+    /// </summary>
+    public static bool TrySaveOpenDesignerWithoutClose(Window designer, out string? appliedTempTitle, out string? error)
+    {
+        appliedTempTitle = null;
+        if (!ActionDesignerContext.IsSubProgramDesigner(designer)
+            && !ActionDesignerTempTitle.TryEnsureOnDesigner(designer, out appliedTempTitle, out error))
+        {
+            return false;
+        }
+
+        if (!TryInvokeDesignerCatalogSave(designer, out error))
+        {
+            return false;
+        }
+
+        if (!designer.IsLoaded)
+        {
+            error = "Action Designer closed unexpectedly after save.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryInvokeDesignerCatalogSave(Window designer, out string? error)
+    {
+        error = null;
+
         try
         {
-            winType.GetMethod("SaveAllData", InstanceAll)?.Invoke(designer, null);
-
-            var doSave = winType.GetMethod("DoSaveWithoutClose", InstanceAll);
-            if (doSave is not null)
+            if (!QuickerActionDesignerReflection.TryInvokeDoSaveWithoutClose(designer, out error))
             {
-                var taskObj = doSave.Invoke(designer, null);
-                if (taskObj is Task<bool> boolTask)
-                {
-                    if (!boolTask.GetAwaiter().GetResult())
-                    {
-                        error = "DoSaveWithoutClose returned false.";
-                        return false;
-                    }
-
-                    return true;
-                }
-
-                if (taskObj is Task task)
-                {
-                    task.GetAwaiter().GetResult();
-                    return true;
-                }
+                error ??= "Action Designer save (Ctrl+S) failed.";
+                return false;
             }
 
-            if (TryTriggerPrimarySaveClick(designer))
+            PumpDispatcherOnce();
+            if (!designer.IsLoaded)
             {
-                return true;
+                error = "Action Designer closed unexpectedly after save.";
+                return false;
             }
 
-            error = "Action Designer save entry point not found.";
-            return false;
+            return true;
         }
         catch (TargetInvocationException ex)
         {

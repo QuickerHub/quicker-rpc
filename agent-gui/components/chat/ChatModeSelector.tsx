@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CHAT_MODE_AGENT,
+  CHAT_MODE_ASK,
   CHAT_MODE_DESCRIPTIONS,
   CHAT_MODE_LABELS,
   CHAT_MODE_LAUNCHER,
@@ -10,7 +11,18 @@ import {
 } from "@/lib/chat-mode";
 import { useMountedAriaControlsId } from "@/lib/use-mounted-aria-controls-id";
 
-const MODE_ORDER: ChatMode[] = [CHAT_MODE_AGENT, CHAT_MODE_LAUNCHER];
+const MODE_ORDER: ChatMode[] = [CHAT_MODE_AGENT, CHAT_MODE_ASK, CHAT_MODE_LAUNCHER];
+
+function triggerClassName(mode: ChatMode): string {
+  const base = "tool-selector-trigger tool-selector-trigger--active";
+  if (mode === CHAT_MODE_LAUNCHER) {
+    return `${base} chat-mode-selector-trigger--launcher`;
+  }
+  if (mode === CHAT_MODE_ASK) {
+    return `${base} chat-mode-selector-trigger--ask`;
+  }
+  return base;
+}
 
 type ChatModeSelectorProps = {
   mode: ChatMode;
@@ -40,12 +52,12 @@ export function ChatModeSelector({
     <div className="chat-mode-selector tool-selector" ref={rootRef}>
       <button
         type="button"
-        className={`tool-selector-trigger tool-selector-trigger--active${mode === CHAT_MODE_LAUNCHER ? " chat-mode-selector-trigger--launcher" : ""}`}
+        className={triggerClassName(mode)}
         disabled={disabled}
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
-        title="选择 Agent 工作模式"
+        title="选择工作模式"
       >
         {CHAT_MODE_LABELS[mode]}
       </button>

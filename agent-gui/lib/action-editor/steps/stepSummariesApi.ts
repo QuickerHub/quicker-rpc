@@ -17,6 +17,47 @@ export function flattenStepsForSummaries(items: ActionStep[]): ActionStep[] {
   return out;
 }
 
+export type StepSummaryCacheEntry = {
+  bodyFingerprint: string;
+  summary: string;
+};
+
+/** Per-step wire JSON fingerprint — invalidates cached backend summary after edits or tab switch. */
+export function stepBodyFingerprint(step: ActionStep): string {
+  return JSON.stringify(ActionStep.toJSON(step));
+}
+
+export function resolveCachedStepSummary(
+  step: ActionStep,
+  cache: Readonly<Record<string, StepSummaryCacheEntry>>,
+): string {
+  const id = (step.stepId ?? "").trim();
+  if (!id) {
+    return "";
+  }
+  const entry = cache[id];
+  if (!entry || entry.bodyFingerprint !== stepBodyFingerprint(step)) {
+    return "";
+  }
+  return entry.summary.trim();
+}
+
+export function buildStepSummaryCacheFromBatch(
+  steps: readonly ActionStep[],
+  batch: Readonly<Record<string, string>>,
+): Record<string, StepSummaryCacheEntry> {
+  const out: Record<string, StepSummaryCacheEntry> = {};
+  for (const step of steps) {
+    const id = (step.stepId ?? "").trim();
+    const summary = (batch[id] ?? "").trim();
+    if (!id || !summary) {
+      continue;
+    }
+    out[id] = { bodyFingerprint: stepBodyFingerprint(step), summary };
+  }
+  return out;
+}
+
 /** Stable fingerprint to skip redundant batch RPC when step payloads are unchanged. */
 export function buildStepSummariesFingerprint(steps: ActionStep[]): string {
   const flat = flattenStepsForSummaries(steps);

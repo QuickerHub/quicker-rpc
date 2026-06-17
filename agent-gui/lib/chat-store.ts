@@ -80,6 +80,8 @@ export {
   CHAT_STORAGE_BACKUP_KEY,
   CHAT_STORE_VERSION,
   CHAT_THREAD_KEY_PREFIX,
+  getActiveChatStorageKey,
+  getActiveChatStorageBackupKey,
   threadStorageKey,
   threadBackupStorageKey,
 } from "@/lib/chat-store-persist";
@@ -100,6 +102,8 @@ import {
   CHAT_STORE_VERSION,
   CHAT_THREAD_BACKUP_KEY_PREFIX,
   CHAT_THREAD_KEY_PREFIX,
+  getActiveChatStorageKey,
+  getActiveChatStorageBackupKey,
   threadStorageKey,
   threadBackupStorageKey,
 } from "@/lib/chat-store-persist";
@@ -190,7 +194,7 @@ function tryLoadChatStoreBackup(): ChatStoreData | null {
       return chunked;
     }
 
-    const backup = localStorage.getItem(CHAT_STORAGE_BACKUP_KEY);
+    const backup = localStorage.getItem(getActiveChatStorageBackupKey());
     if (!backup) return null;
     const store = normalizeStore(JSON.parse(backup) as Partial<ChatStoreData>);
     return chatStoreHasPersistedMessages(store) ? store : null;
@@ -642,12 +646,16 @@ export function loadChatStoreFromLocalStorage(): ChatStoreData {
   if (typeof window === "undefined") return defaultChatStore();
 
   try {
-    const current = localStorage.getItem(CHAT_STORAGE_KEY);
+    const storageKey = getActiveChatStorageKey();
+    const current = localStorage.getItem(storageKey);
     if (current) {
       const raw = JSON.parse(current) as Partial<ChatStoreData>;
 
       if (raw.version === CHAT_STORE_VERSION) {
-        const chunked = loadPersistedChatStore({ messageScope: "active" });
+        const chunked = loadPersistedChatStore({
+          messageScope: "active",
+          storageKey,
+        });
         if (chunked) {
           const restored = maybeRestoreFromBackup(chunked);
           const normalized = normalizeLoadedStore(restored);

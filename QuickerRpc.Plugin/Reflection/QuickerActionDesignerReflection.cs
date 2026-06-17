@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Quicker.Domain.Actions.X;
 
@@ -28,6 +29,9 @@ internal static class QuickerActionDesignerReflection
 
     /// <summary>Fallback: declared-only void() sorted by metadata token.</summary>
     internal const int UpdateXActionUiVoidMethodIndex = 10;
+
+    /// <summary>Release: declared void() after UpdateXActionUi / tutorial helpers, before ClearNotUsedInternalSubPrograms.</summary>
+    internal const int SaveAllDataVoidMethodIndex = 13;
 
     internal const int DoSaveActionStateVoidMethodIndex = 4;
 
@@ -284,6 +288,141 @@ internal static class QuickerActionDesignerReflection
             designerWindowType,
             DoSaveActionStateVoidMethodIndex,
             validateAnchor: true);
+    }
+
+    /// <summary>
+    /// Pull UI edits into <c>ResultActionItem2</c> before catalog save. Release: void()-token index fallback.
+    /// </summary>
+    public static MethodInfo? TryFindSaveAllDataMethod(Type designerWindowType)
+    {
+        var byName = designerWindowType.GetMethod("SaveAllData", DeclaredInstanceAll)
+            ?? designerWindowType.GetMethod("SaveAllData", InstanceAll);
+        if (byName is not null)
+        {
+            return byName;
+        }
+
+        return TryGetVoidNoArgMethodByIndex(
+            designerWindowType,
+            SaveAllDataVoidMethodIndex,
+            validateAnchor: true);
+    }
+
+    public static bool TryInvokeSaveAllData(object designerWindow, out string? error)
+    {
+        error = null;
+        if (designerWindow is null)
+        {
+            error = "Designer window is null.";
+            return false;
+        }
+
+        var saveAll = TryFindSaveAllDataMethod(designerWindow.GetType());
+        if (saveAll is null)
+        {
+            error = "SaveAllData not found on Action Designer.";
+            return false;
+        }
+
+        try
+        {
+            saveAll.Invoke(designerWindow, null);
+            return true;
+        }
+        catch (TargetInvocationException ex)
+        {
+            error = ex.InnerException?.Message ?? ex.Message;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Ctrl+S / toolbar Save (no close). Release: sole declared <c>Task&lt;bool&gt;()</c> on
+    /// <c>ActionDesignerWindow</c> (obfuscated name).
+    /// </summary>
+    public static MethodInfo? TryFindDoSaveWithoutCloseMethod(Type designerWindowType)
+    {
+        var byName = designerWindowType.GetMethod("DoSaveWithoutClose", DeclaredInstanceAll)
+            ?? designerWindowType.GetMethod("DoSaveWithoutClose", InstanceAll);
+        if (byName is not null)
+        {
+            return byName;
+        }
+
+        var candidates = designerWindowType
+            .GetMethods(DeclaredInstanceAll)
+            .Where(m =>
+                !m.IsStatic
+                && m.GetParameters().Length == 0
+                && m.ReturnType.IsGenericType
+                && m.ReturnType.GetGenericTypeDefinition() == typeof(Task<>)
+                && m.ReturnType.GetGenericArguments()[0] == typeof(bool))
+            .ToList();
+
+        return candidates.Count == 1 ? candidates[0] : candidates.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Same entry point as Action Designer Ctrl+S / Ctrl+click Save (persist without closing the window).
+    /// Calls <see cref="TryInvokeSaveAllData"/> then <c>DoSaveWithoutClose</c>.
+    /// QuickerPc: regular actions always return <c>false</c> from <c>DoSaveWithoutClose</c> after a successful save
+    /// (<c>ViewModel.ClearHasChanged(); return false;</c>) — only exceptions indicate failure.
+    /// </summary>
+    public static bool TryInvokeDoSaveWithoutClose(object designerWindow, out string? error)
+    {
+        error = null;
+        if (designerWindow is null)
+        {
+            error = "Designer window is null.";
+            return false;
+        }
+
+        if (!TryInvokeSaveAllData(designerWindow, out error))
+        {
+            return false;
+        }
+
+        var designerType = designerWindow.GetType();
+        var doSave = TryFindDoSaveWithoutCloseMethod(designerType);
+        if (doSave is null)
+        {
+            error = "DoSaveWithoutClose not found on Action Designer.";
+            return false;
+        }
+
+        try
+        {
+            var taskObj = doSave.Invoke(designerWindow, null);
+            if (taskObj is Task<bool> boolTask)
+            {
+                _ = boolTask.GetAwaiter().GetResult();
+                return true;
+            }
+
+            if (taskObj is Task task)
+            {
+                task.GetAwaiter().GetResult();
+                return true;
+            }
+
+            error = "DoSaveWithoutClose returned unexpected type.";
+            return false;
+        }
+        catch (TargetInvocationException ex)
+        {
+            error = ex.InnerException?.Message ?? ex.Message;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
     }
 
     private static string? _ceaUpdateUiMethodName;

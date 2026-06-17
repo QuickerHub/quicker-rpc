@@ -76,7 +76,7 @@ internal static class ActionDesignerAgentTabInjector
         UnhookSelection(designer, toolTab);
     }
 
-    private static TabItem? FindAgentTab(TabControl toolTab)
+    internal static TabItem? FindAgentTab(TabControl toolTab)
     {
         foreach (var item in toolTab.Items)
         {

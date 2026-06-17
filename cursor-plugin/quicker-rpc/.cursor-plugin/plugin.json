@@ -1,0 +1,24 @@
+{
+  "name": "quicker-rpc",
+  "displayName": "Quicker RPC",
+  "description": "Quicker action authoring in Cursor: qkrpc MCP tools, authoring skills, and hard rules aligned with QuickerAgent.",
+  "version": "0.14.7.16",
+  "author": {
+    "name": "QuickerHub"
+  },
+  "homepage": "https://github.com/QuickerHub/quicker-rpc",
+  "repository": "https://github.com/QuickerHub/quicker-rpc",
+  "license": "MIT",
+  "keywords": [
+    "quicker",
+    "automation",
+    "mcp",
+    "action-authoring",
+    "qkrpc"
+  ],
+  "logo": "assets/logo.svg",
+  "rules": "rules",
+  "skills": "skills",
+  "commands": "commands",
+  "mcpServers": "mcp.json"
+}

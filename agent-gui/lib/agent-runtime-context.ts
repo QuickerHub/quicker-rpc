@@ -1,5 +1,5 @@
 import type { ChatMode } from "@/lib/chat-mode";
-import { CHAT_MODE_LAUNCHER } from "@/lib/chat-mode";
+import { CHAT_MODE_ASK, CHAT_MODE_LAUNCHER } from "@/lib/chat-mode";
 
 export type ChatRuntimeContextInput = {
   now?: Date;
@@ -39,9 +39,12 @@ export function formatChatRuntimeContext({
   modelId,
   enabledToolIds,
 }: ChatRuntimeContextInput): string {
-  const modeLabel = mode === CHAT_MODE_LAUNCHER
-    ? "launcher (quick commands)"
-    : "agent (full workbench)";
+  const modeLabel =
+    mode === CHAT_MODE_LAUNCHER
+      ? "launcher (quick commands)"
+      : mode === CHAT_MODE_ASK
+        ? "ask (read-only)"
+        : "agent (full workbench)";
   const lines = [
     "## Runtime context",
     `Now: ${formatDateForPrompt(now)}`,

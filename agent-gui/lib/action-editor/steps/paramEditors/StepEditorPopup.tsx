@@ -28,11 +28,9 @@ import {
 } from "@/lib/action-editor/shared/designerHostGrpcApi";
 import { areStepParamsEqualAfterCompaction, compactActionStepParams } from "../actionStepSerialization";
 import { StepEditorDiscardDialog } from "./StepEditorDiscardDialog";
-import { resolveStepControlFieldLiteral } from "@/lib/action-editor/api/stepRunnerSchemaMap";
 import {
   buildStepEditorDraft,
   draftParamsFingerprint,
-  inferControlFieldKeyFromStep,
   mergeRunnerSchemaIntoStepDraft,
   runnerSchemaFingerprint,
   stepEditorDraftFingerprint,
@@ -179,63 +177,11 @@ export function StepEditorPopup({
   const schemaFetchSeqRef = useRef(0);
   const hydratedRunnerRef = useRef(hydratedRunnerItem);
   hydratedRunnerRef.current = hydratedRunnerItem;
-  const controlFieldKeyRef = useRef("");
-  /** undefined = popup closed / not seeded; null = base schema; string = filtered by control field. */
-  const [schemaControlLiteral, setSchemaControlLiteral] = useState<string | null | undefined>(
-    undefined,
-  );
   const runnerDefsCacheRef = useRef<{
     fp: string;
     input: StepRunnerInputParamDef[];
     output: StepRunnerOutputParamDef[];
   }>({ fp: "", input: [], output: [] });
-
-  const controlFieldKey = useMemo(
-    () => inferControlFieldKeyFromStep(step, runnerItemRef.current ?? runnerItem),
-    [step, runnerItem],
-  );
-  controlFieldKeyRef.current = controlFieldKey;
-
-  const resolvedSchemaControlLiteral = useMemo((): string | null | undefined => {
-    if (!open || !step) {
-      return undefined;
-    }
-    if (schemaControlLiteral !== undefined) {
-      return schemaControlLiteral;
-    }
-    const cfKey = inferControlFieldKeyFromStep(step, runnerItemRef.current ?? runnerItem);
-    return resolveStepControlFieldLiteral(step, cfKey) ?? null;
-  }, [open, step, schemaControlLiteral, runnerItem]);
-
-  useEffect(() => {
-    if (!open || !step) {
-      setSchemaControlLiteral(undefined);
-      loadedSchemaKeyRef.current = "";
-      return;
-    }
-    const item = runnerItemRef.current ?? runnerItem;
-    const cfKey = inferControlFieldKeyFromStep(step, item);
-    const literal = resolveStepControlFieldLiteral(step, cfKey);
-    setSchemaControlLiteral(literal ?? null);
-
-    const runnerKey = resolveCanonicalStepRunnerKey(
-      step.stepRunnerKey ?? "",
-      item ? [item] : undefined,
-    );
-    const fetchKey = `${runnerKey}\0${literal ?? ""}`;
-    const resolvedItem = resolveLocalStepRunnerDetailItem(runnerKey, {
-      catalogItem: item,
-      controlField: literal ?? undefined,
-      cachedDetail: getCachedStepRunnerDetailItem(runnerKey, literal ?? undefined),
-    });
-    if (resolvedItem && (resolvedItem.inputParamDefs?.length ?? 0) > 0) {
-      loadedSchemaKeyRef.current = fetchKey;
-      setHydratedRunnerItem(resolvedItem);
-      setLoadingRunnerSchema(false);
-      return;
-    }
-    loadedSchemaKeyRef.current = "";
-  }, [open, step?.stepId, runnerItem]);
 
   useEffect(() => {
     if (!open || !step || !workspaceContext) {
@@ -425,7 +371,7 @@ export function StepEditorPopup({
   const runnerItemSchemaFp = runnerSchemaFingerprint(runnerItem);
 
   useEffect(() => {
-    if (!open || !step || resolvedSchemaControlLiteral === undefined) {
+    if (!open || !step) {
       if (!open) {
         loadedSchemaKeyRef.current = "";
         setHydratedRunnerItem(runnerItemRef.current);
@@ -444,20 +390,15 @@ export function StepEditorPopup({
       return;
     }
 
-    const fetchKey = `${runnerKey}\0${resolvedSchemaControlLiteral ?? ""}`;
     const catalogItem = runnerItemRef.current;
     const resolvedItem = resolveLocalStepRunnerDetailItem(runnerKey, {
       catalogItem,
-      controlField: resolvedSchemaControlLiteral ?? undefined,
-      cachedDetail: getCachedStepRunnerDetailItem(
-        runnerKey,
-        resolvedSchemaControlLiteral ?? undefined,
-      ),
+      cachedDetail: getCachedStepRunnerDetailItem(runnerKey, undefined),
     });
     const hasResolvedDefs = (resolvedItem?.inputParamDefs?.length ?? 0) > 0;
 
     if (hasResolvedDefs && resolvedItem) {
-      loadedSchemaKeyRef.current = fetchKey;
+      loadedSchemaKeyRef.current = runnerKey;
       setHydratedRunnerItem((prev) => {
         if (prev && runnerSchemaFingerprint(prev) === runnerSchemaFingerprint(resolvedItem)) {
           return prev;
@@ -469,10 +410,7 @@ export function StepEditorPopup({
     }
 
     const currentRunner = hydratedRunnerRef.current;
-    if (
-      loadedSchemaKeyRef.current === fetchKey
-      && (currentRunner?.inputParamDefs?.length ?? 0) > 0
-    ) {
+    if (loadedSchemaKeyRef.current === runnerKey && (currentRunner?.inputParamDefs?.length ?? 0) > 0) {
       setLoadingRunnerSchema(false);
       return;
     }
@@ -481,22 +419,14 @@ export function StepEditorPopup({
     const requestSeq = ++schemaFetchSeqRef.current;
     setLoadingRunnerSchema((currentRunner?.inputParamDefs?.length ?? 0) === 0);
     setSchemaLoadIssue(undefined);
-    void fetchStepRunnerDetailItem(
-      runnerKey,
-      resolvedSchemaControlLiteral ?? undefined,
-      ac.signal,
-    )
+    void fetchStepRunnerDetailItem(runnerKey, undefined, ac.signal)
       .then((detail) => {
         if (ac.signal.aborted || requestSeq !== schemaFetchSeqRef.current) return;
         const nextItem =
           detail
           ?? resolveLocalStepRunnerDetailItem(runnerKey, {
             catalogItem: catalogItem ?? undefined,
-            controlField: resolvedSchemaControlLiteral ?? undefined,
-            cachedDetail: getCachedStepRunnerDetailItem(
-              runnerKey,
-              resolvedSchemaControlLiteral ?? undefined,
-            ),
+            cachedDetail: getCachedStepRunnerDetailItem(runnerKey, undefined),
           });
         if (!nextItem) {
           setSchemaLoadIssue(
@@ -512,7 +442,7 @@ export function StepEditorPopup({
         } else {
           setSchemaLoadIssue(undefined);
         }
-        loadedSchemaKeyRef.current = fetchKey;
+        loadedSchemaKeyRef.current = runnerKey;
         setHydratedRunnerItem((prev) => {
           if (prev && runnerSchemaFingerprint(prev) === runnerSchemaFingerprint(nextItem)) {
             return prev;
@@ -532,7 +462,7 @@ export function StepEditorPopup({
         setLoadingRunnerSchema(false);
       }
     };
-  }, [open, step?.stepId, step?.stepRunnerKey, resolvedSchemaControlLiteral, runnerItemSchemaFp]);
+  }, [open, step?.stepId, step?.stepRunnerKey, runnerItemSchemaFp]);
 
   const runnerFp = runnerSchemaFingerprint(editorRunnerItem);
   if (runnerFp !== runnerDefsCacheRef.current.fp) {
@@ -586,10 +516,6 @@ export function StepEditorPopup({
       next.inputParams = { ...next.inputParams, [key]: nextParam };
       return next;
     });
-    if (key !== controlFieldKeyRef.current) return;
-    if ((value.varKey ?? "").trim().length > 0) return;
-    const literal = (value.value ?? "").trim();
-    setSchemaControlLiteral(literal.length > 0 ? literal : null);
   }, []);
 
   const setOutputParam = useCallback((key: string, varName: string) => {

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "qkrpc": {
+      "command": "qkrpc",
+      "args": ["mcp"],
+      "env": {
+        "QKRPC_WORKSPACE_ROOT": "${workspaceFolder}",
+        "QKRPC_CWD": "${workspaceFolder}"
+      }
+    }
+  }
+}

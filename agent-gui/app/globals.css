@@ -4862,8 +4862,22 @@ html.designer-embed-html body {
   gap: 0.15rem;
 }
 
-.app-shell--designer-embed .composer--designer-embed .context-ring-wrap {
-  display: none;
+/* Context ring stays visible in designer embed (compact toolbar; see context-ring styles). */
+.app-shell--designer-embed .composer--designer-embed .context-ring-wrap--compact .context-ring-btn {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.app-shell--designer-embed .composer--designer-embed .context-ring-wrap--compact .context-ring-svg {
+  width: 0.8125rem;
+  height: 0.8125rem;
+}
+
+.app-shell--designer-embed .composer--designer-embed .context-popup--compact {
+  right: 0;
+  left: auto;
+  min-width: 13.5rem;
+  max-width: min(16rem, calc(100vw - 1rem));
 }
 
 .app-shell--designer-embed .titlebar-trailing {
@@ -17009,6 +17023,10 @@ button.file-editor-header-open.file-editor-header--compact:hover {
 }
 
 .chat-mode-selector-trigger--launcher {
+  color: var(--text);
+}
+
+.chat-mode-selector-trigger--ask {
   color: var(--text);
 }
 

@@ -42,6 +42,12 @@ export const COMPOSER_ONBOARDING_TIPS: readonly ComposerOnboardingTip[] = [
 /** Compact hints for ActionDesigner WebView2 embed (~400px column). */
 export const DESIGNER_EMBED_ONBOARDING_TIPS: readonly ComposerOnboardingTip[] = [
   {
+    id: "default-target",
+    label: "默认编辑当前程序",
+    hint: "无需 @ 也会编辑左侧设计器中的这个动作/子程序",
+    action: "focus-composer",
+  },
+  {
     id: "mention-action",
     label: "@ 当前动作",
     hint: "补全第一项即为正在编辑的程序",

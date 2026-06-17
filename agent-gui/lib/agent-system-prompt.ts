@@ -1,6 +1,7 @@
 export type ChatSystemPromptBlocks = {
   baseSystem: string;
   contextSystemSuffix?: string;
+  designerEmbedBlock?: string;
   launcherCacheBlock?: string;
   recoveryDecisionBlock?: string;
   runtimeContextBlock?: string;
@@ -23,6 +24,7 @@ export function composeChatSystemPrompt(
       ? "You are running in title-test mode for Quicker Agent GUI (/tool-test)."
       : null,
     systemWithScope,
+    blocks.designerEmbedBlock,
     blocks.runtimeContextBlock,
     blocks.turnStateBlock,
     blocks.toolFeedbackBlock,

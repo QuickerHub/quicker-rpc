@@ -6,6 +6,10 @@ import type {
   BrowserPanelToolInput,
   BrowserToolInput,
 } from "@/lib/browser/input-types";
+import {
+  appendBrowserRecording,
+  buildRecordingFromBrowserCall,
+} from "@/lib/browser-to-action/recording";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
 import type { BrowserToolAudience } from "@/lib/browser-tool-result";
 
@@ -58,7 +62,23 @@ export async function executeBrowserTool(
   input: BrowserToolInput,
   options?: ExecuteBrowserToolOptions,
 ): Promise<Record<string, unknown>> {
-  return executeBrowserAutomation(input, options);
+  const result = await executeBrowserAutomation(input, options);
+  if (
+    options?.audience !== "panel"
+    && result.ok
+    && "action" in input
+    && typeof input.action === "string"
+  ) {
+    const sessionId = input.sessionId?.trim() || "default";
+    appendBrowserRecording(
+      sessionId,
+      buildRecordingFromBrowserCall(
+        input as unknown as Record<string, unknown>,
+        result,
+      ),
+    );
+  }
+  return result;
 }
 
 export const BROWSER_TOOL_DEF = tool({

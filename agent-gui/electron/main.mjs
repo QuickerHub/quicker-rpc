@@ -22,6 +22,7 @@ import {
 import { getUiBaseUrl, setProductionUiUrl } from "./ui-base-url.mjs";
 import { createLauncherCommands } from "./commands/launcher.mjs";
 import { createGlobalShortcutCommands } from "./commands/global-shortcut.mjs";
+import { createKeyInputCaptureCommands } from "./commands/key-input-capture.mjs";
 import { createVoicePluginCommands } from "./commands/voice-plugin.mjs";
 import {
   createClipboardHistoryCommands,
@@ -90,6 +91,9 @@ let launcher = null;
 
 /** @type {ReturnType<typeof createGlobalShortcutCommands> | null} */
 let globalShortcutCommands = null;
+
+/** @type {ReturnType<typeof createKeyInputCaptureCommands> | null} */
+let keyInputCaptureCommands = null;
 
 /** @type {ReturnType<typeof createPluginRuntimeCommands> | null} */
 let pluginRuntimeCommands = null;
@@ -252,6 +256,12 @@ async function initDesktopCommands() {
       }
     },
   });
+
+  keyInputCaptureCommands = createKeyInputCaptureCommands({
+    getMainWindow: () => mainWindow,
+    emitDesktopEvent,
+    globalShortcutCommands,
+  });
 }
 
 async function handleDesktopInvoke(command, args) {
@@ -296,6 +306,10 @@ async function handleDesktopInvoke(command, args) {
   }
   if (command === "launcher_sync_global_shortcut") {
     return globalShortcutCommands?.launcher_sync_global_shortcut(args);
+  }
+  if (keyInputCaptureCommands && command in keyInputCaptureCommands) {
+    const handler = keyInputCaptureCommands[command];
+    return handler(args);
   }
   if (command === "plugin_registry_refresh") {
     return pluginRuntimeCommands?.plugin_registry_refresh();
@@ -453,6 +467,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  keyInputCaptureCommands?.key_input_capture_end();
   globalShortcutCommands?.unregisterAll();
   if (!isDev()) shutdownBackends();
 });

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   isActionDesignerEmbedClient,
   parseActionDesignerEmbedFromSearchParams,
+  resolveDesignerEmbedChatStorageKey,
 } from "@/lib/action-designer-embed";
 import {
   actionDesignerRefFromEmbed,
@@ -86,6 +87,23 @@ test("isActionDesignerEmbedClient is true for debug embed URL", () => {
   } as Window & typeof globalThis;
   try {
     assert.equal(isActionDesignerEmbedClient(), true);
+  } finally {
+    globalThis.window = prev;
+  }
+});
+
+test("resolveDesignerEmbedChatStorageKey scopes storage per entity", () => {
+  const prev = globalThis.window;
+  globalThis.window = {
+    location: {
+      search: "?embed=action-designer&entityId=ABC-GUID&isSubProgram=1",
+    },
+  } as Window & typeof globalThis;
+  try {
+    assert.equal(
+      resolveDesignerEmbedChatStorageKey(),
+      "agent-gui-chats-designer-sub-abc-guid",
+    );
   } finally {
     globalThis.window = prev;
   }

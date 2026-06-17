@@ -40,9 +40,25 @@ export function createGlobalShortcutCommands(deps) {
 
   return {
     getAutoVoice: () => autoVoice,
+    getCurrentShortcut: () => currentShortcut,
     initDefault,
     unregisterAll() {
       globalShortcut.unregisterAll();
+    },
+    /** Pause launcher global shortcut while recording key chords. */
+    suspendForKeyCapture() {
+      if (!globalShortcut.isRegistered(currentShortcut)) {
+        return false;
+      }
+      unregisterCurrent();
+      return true;
+    },
+    resumeAfterKeyCapture() {
+      try {
+        registerShortcut(currentShortcut);
+      } catch (err) {
+        console.error("[launcher-shortcut] resume after key capture failed:", err);
+      }
     },
     launcher_sync_global_shortcut(args) {
       const trimmed = String(args?.shortcut ?? "").trim();

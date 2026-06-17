@@ -1,0 +1,24 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Quicker RPC">
+  <defs>
+    <linearGradient id="qkrpc-bg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="48%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="qkrpc-shine" x1="128" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#qkrpc-bg)"/>
+  <rect width="256" height="256" rx="56" fill="url(#qkrpc-shine)"/>
+  <g transform="translate(128 128)" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <polygon
+      points="-72,-41.57 -72,41.57 0,83.14 72,41.57 72,-41.57 0,-83.14"
+      stroke-width="14"/>
+    <line x1="0" y1="0" x2="-72" y2="-41.57" stroke-width="14"/>
+    <line x1="0" y1="0" x2="0" y2="83.14" stroke-width="14"/>
+    <line x1="0" y1="0" x2="72" y2="-41.57" stroke-width="14"/>
+    <circle cx="0" cy="0" r="7" fill="#fff" stroke="none"/>
+  </g>
+</svg>

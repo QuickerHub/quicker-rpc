@@ -1,0 +1,16 @@
+{
+  "name": "quickerhub",
+  "owner": {
+    "name": "QuickerHub"
+  },
+  "metadata": {
+    "description": "Quicker automation for Cursor — qkrpc MCP action authoring"
+  },
+  "plugins": [
+    {
+      "name": "quicker-rpc",
+      "source": "cursor-plugin/quicker-rpc",
+      "description": "Headless Quicker action authoring: qkrpc MCP, authoring skills, workspace patch (P0–P7)"
+    }
+  ]
+}

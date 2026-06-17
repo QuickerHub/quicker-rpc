@@ -192,7 +192,7 @@ public sealed class CodeSyntaxCheckService
         string expression,
         IDictionary<string, string>? variableTypes)
     {
-        var definedKeys = new HashSet<string>(StringComparer.Ordinal)
+        var definedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             ExpressionVariablePlaceholder.QuickerInParamKey,
         };
@@ -204,9 +204,9 @@ public sealed class CodeSyntaxCheckService
             }
         }
 
-        return EvalExpressionStepRunner.ReplaceVariablePlaceholders(
+        return ExpressionVariablePlaceholder.Replace(
             expression,
-            definedKeys.Contains,
+            definedKeys,
             key => CreateDummyValue(variableTypes != null && variableTypes.TryGetValue(key, out var t) ? t : null),
             (name, value) => eval.RegisterGlobalVariable(name, value));
     }

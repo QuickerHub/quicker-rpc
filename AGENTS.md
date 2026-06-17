@@ -136,6 +136,7 @@ qkrpc action run --id <guid> [--param <text>] --trace --json
 | `$=` / evalexpression / 多变量赋值 | `quicker-eval-expression`（`docs/skills/quicker-eval-expression/`） |
 | 热更新 | `quicker-rpc-build-test` / `/hot-update` |
 | agent-gui UI / 前端自动检查 | `quicker-agent-gui-frontend` / `/frontend-check` |
+| agent-gui 主题 / 新组件样式 | `quicker-agent-gui-theme`（`--ad-*`、`theme.css`） |
 | 动作设计器字段 | `quicker-action-designer-ui`（对齐 `../Quicker/QuickerPc/Quicker`） |
 | LLM API Key / 发布 publish config | `quicker-agent-llm-apikey-config` / `/publish-llm-config` |
 | voice-asr runtime 发布 | `quicker-voice-runtime-publish` / `/publish-voice-runtime` |

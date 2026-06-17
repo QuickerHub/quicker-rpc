@@ -17,56 +17,53 @@
 
 ## 一键安装
 
-默认 **用户级**（写入 `~/.cursor/mcp.json`、`~/.cursor/skills/`、`~/.cursor/rules/`），不修改当前仓库。
+**Cursor（推荐）**：安装 qkrpc 后默认装 **本地插件**（含 MCP、skills、rules），**不写** `~/.cursor/mcp.json` 与用户级 `~/.cursor/skills/`。
 
 ```powershell
-# 推荐：用户级 MCP + skills + rules
+# 交互式向导
+qkrpc agent install
+
+# 默认：仅 Cursor 插件
 qkrpc agent setup
 
-# 检查配置是否与当前 CLI 版本一致（含 MCP 路径、skills、rules）
+# 其它宿主
+qkrpc agent setup --codex --project --workspace D:\my-quicker-workspace
+qkrpc agent setup --all          # 全部 MCP；Cursor 仍走插件
+
+# 检查 / 刷新
 qkrpc agent setup --check
-qkrpc agent setup --check --json   # Agent 自动化用
+qkrpc agent setup --check --json
+qkrpc agent setup --upgrade      # 刷新 Cursor 插件 + Claude 指引
 
-# 仅刷新 skills / rules / Claude Code 指引（不改动 MCP 配置）
-qkrpc agent setup --upgrade
-
-# 所有主流 Agent 用户级 MCP
-qkrpc agent setup --all
-
-# 团队 opt-in：额外写入项目级配置（可 commit）
+# 团队 opt-in：项目级 MCP（可 commit）
 qkrpc agent setup --project --workspace D:\my-quicker-workspace
 
 # 向后兼容别名
 qkrpc mcp install
 ```
 
-| 标志 | 写入位置 | 配置格式 |
-|------|----------|----------|
-| `--cursor`（默认） | `~/.cursor/mcp.json` | `mcpServers` |
-| `--claude` | `%APPDATA%\Claude\claude_desktop_config.json` | `mcpServers` |
-| `--vscode` | VS Code 用户 `mcp.json` | `servers` + `type: stdio` |
-| `--windsurf` | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` |
-| `--cline` | Cline `cline_mcp_settings.json` | `mcpServers` |
-| `--codex` | `codex mcp add` → `~/.codex/config.toml`；`--project` 合并 `AGENTS.md` | TOML |
-| `--all` | 上表全部用户级路径 + Codex | — |
-| `--project` | 当前目录 `.cursor/mcp.json`、`.vscode/mcp.json`、`.mcp.json` | 按宿主 |
+| 标志 | 行为 |
+|------|------|
+| 默认 / `--cursor` / `--cursor-plugin` | Cursor 本地插件 `~/.cursor/plugins/local/quicker-rpc` |
+| `--codex` / `--codex-plugin` | Codex 本地插件 `~/.codex/plugins/quicker-rpc` + 个人 marketplace |
+| `--claude` | `%APPDATA%\Claude\claude_desktop_config.json` |
+| `--vscode` | VS Code 用户 `mcp.json` |
+| `--windsurf` | `~/.codeium/windsurf/mcp_config.json` |
+| `--cline` | Cline `cline_mcp_settings.json` |
+| `--codex` | `codex mcp add`；`--project` 合并 `AGENTS.md`（插件已含 MCP 时通常无需手配） |
+| `--all` | 上表 MCP 宿主 + Cursor 插件 |
+| `--project` | 当前目录 `.cursor/mcp.json`、`.vscode/mcp.json`、`.mcp.json` |
 
-安装还会（用户级默认）：
+安装还会：
 
-- 设置 MCP env：`QKRPC_WORKSPACE_ROOT`、`QKRPC_SETUP_VERSION`
-- 复制 skills：`qkrpc`、`quicker-rpc-knowledge`、`quicker-authoring`、`quicker-run` → `~/.cursor/skills/`
-- 复制 rules：`qkrpc.mdc` → `~/.cursor/rules/`
-- 合并 Claude Code 指引：`~/.claude/CLAUDE.md`（`<!-- qkrpc-agent-setup -->` 段）
-- 写入 manifest：`~/.qkrpc/agent-setup.json`
+- 非 Cursor 宿主：写入对应 `mcp.json` / Codex TOML，env 含 `QKRPC_WORKSPACE_ROOT`
+- Cursor：插件内 `mcp.json` + skills + rules（**勿**再手动复制到 `~/.cursor/skills`）
+- Claude Code：`~/.claude/CLAUDE.md` 指引段
+- manifest：`~/.qkrpc/agent-setup.json`
 
-**仅 `--project` 时**额外：
+**仅 `--project` 时**额外：项目 MCP、`.vscode/settings.json` PATH、`.quicker/` bootstrap；可选 `--project-skills` 复制到项目 `.cursor/skills/`。
 
-- 项目 `.cursor/mcp.json`、`.vscode/mcp.json`、`.mcp.json`
-- `.vscode/settings.json` 终端 PATH
-- `.quicker/` bootstrap
-- 可选 `--project-skills` 复制 skills 到项目 `.cursor/skills/`
-
-**重启** 对应 Agent / 重载 MCP 面板后生效。
+**Cursor**：重新安装或 `qkrpc agent setup --upgrade` 后插件会自动加载，无需退出 Cursor；在 Settings → MCP 确认 qkrpc 已启用。其它宿主重载 MCP 面板即可。
 
 ---
 
@@ -138,7 +135,7 @@ claude mcp add qkrpc -- qkrpc mcp
 
 ```powershell
 # 一键（需 codex 在 PATH）
-qkrpc agent setup --codex --project --workspace D:\your-workspace --skip-skill
+qkrpc agent setup --codex --project --workspace D:\your-workspace
 
 # 或手动
 codex mcp add qkrpc --env QKRPC_WORKSPACE_ROOT=D:\your-workspace -- "%LOCALAPPDATA%\Programs\qkrpc\qkrpc.exe" mcp

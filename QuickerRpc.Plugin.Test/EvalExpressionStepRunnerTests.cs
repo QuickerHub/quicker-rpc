@@ -24,7 +24,7 @@ public sealed class EvalExpressionStepRunnerTests
 
         var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
             expression,
-            key => string.Equals(key, "clipText", StringComparison.Ordinal),
+            DefinedKeys("clipText"),
             key => key,
             (name, value) => boundVariables[name] = value);
 
@@ -43,7 +43,7 @@ public sealed class EvalExpressionStepRunnerTests
 
         var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
             expression,
-            key => key is "lineEnding" or "realVariable",
+            DefinedKeys("lineEnding", "realVariable"),
             key => key,
             (name, value) => boundVariables[name] = value);
 
@@ -61,7 +61,7 @@ public sealed class EvalExpressionStepRunnerTests
 
         var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
             expression,
-            key => string.Equals(key, "realVariable", StringComparison.Ordinal),
+            DefinedKeys("realVariable"),
             key => key,
             (name, value) => boundVariables[name] = value);
 
@@ -78,7 +78,7 @@ public sealed class EvalExpressionStepRunnerTests
 
         var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
             expression,
-            key => string.Equals(key, "definedVar", StringComparison.Ordinal),
+            DefinedKeys("definedVar"),
             key => key,
             (name, value) => boundVariables[name] = value);
 
@@ -95,13 +95,66 @@ public sealed class EvalExpressionStepRunnerTests
 
         var result = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
             expression,
-            key => string.Equals(key, "text", StringComparison.Ordinal),
+            DefinedKeys("text"),
             key => key,
             (name, value) => boundVariables[name] = value);
 
         Assert.AreEqual("Regex.IsMatch(v_text, @\"[\\p{L}\\p{N}_]+\")", result);
         Assert.AreEqual(1, boundVariables.Count);
         Assert.AreEqual("text", boundVariables["v_text"]);
+    }
+
+    [TestMethod]
+    public void ReplaceVariablePlaceholders_fastPath_matches_regexPath()
+    {
+        const string expression =
+            "{a} + {b} + \"{c}\" + new[] {{ \"x\" }} + {a}";
+
+        var boundFast = new Dictionary<string, object?>();
+        var boundRegex = new Dictionary<string, object?>();
+        var keys = DefinedKeys("a", "b", "c", "d", "e");
+
+        var fast = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
+            expression,
+            keys,
+            key => key,
+            (name, value) => boundFast[name] = value);
+
+        // Force regex path: many defined keys + sparse placeholders.
+        var manyKeys = DefinedKeys();
+        for (var i = 0; i < 100; i++)
+        {
+            manyKeys.Add("k" + i);
+        }
+
+        manyKeys.Add("a");
+        manyKeys.Add("b");
+        manyKeys.Add("c");
+
+        var regex = EvalExpressionStepRunner.ReplaceVariablePlaceholders(
+            expression,
+            manyKeys,
+            key => key,
+            (name, value) => boundRegex[name] = value);
+
+        Assert.AreEqual(fast, regex);
+        CollectionAssert.AreEquivalent(boundFast.Keys, boundRegex.Keys);
+    }
+
+    private static HashSet<string> DefinedKeys(params string[] keys)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in keys)
+        {
+            set.Add(key);
+        }
+
+        return set;
+    }
+
+    private static HashSet<string> DefinedKeys()
+    {
+        return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
     private static Assembly? ResolveQuickerAssembly(object? sender, ResolveEventArgs args)

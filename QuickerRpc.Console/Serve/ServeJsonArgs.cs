@@ -28,6 +28,30 @@ internal static class ServeJsonArgs
         return null;
     }
 
+    /// <summary>
+    /// Like <see cref="GetString"/> but preserves empty/whitespace values when the property is present.
+    /// Returns null only when no matching property exists.
+    /// </summary>
+    public static string? GetStringAllowEmpty(JsonElement args, params string[] names)
+    {
+        if (args.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        foreach (var name in names)
+        {
+            if (!args.TryGetProperty(name, out var prop))
+            {
+                continue;
+            }
+
+            return ReadStringValue(prop) ?? string.Empty;
+        }
+
+        return null;
+    }
+
     private static string? ReadStringValue(JsonElement prop) =>
         prop.ValueKind switch
         {

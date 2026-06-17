@@ -6,11 +6,19 @@ export function isTextToolsParamKey(key: string): boolean {
   return (key ?? "").trim().toLowerCase() === "texttools";
 }
 
+/** sys:keyInput keys param — dedicated recorder UI (Quicker VarType.Keyboard + Input mode). */
+export function shouldUseKeyboardParamEditor(def: StepRunnerInputParamDef): boolean {
+  return def.varType === CsVarType.Keyboard;
+}
+
 /** Mirrors WPF InputParamEditorControl: Input is checkbox/enum-only; UseVar uses VarAndValue. */
 export function shouldUseVarOrValueEditor(
   def: StepRunnerInputParamDef,
   param?: ActionStepParam,
 ): boolean {
+  if (shouldUseKeyboardParamEditor(def)) {
+    return false;
+  }
   const vm = def.variableMode;
   if (vm === ParamVariableMode.UseVarOrInput || vm === ParamVariableMode.UseVar) {
     return true;

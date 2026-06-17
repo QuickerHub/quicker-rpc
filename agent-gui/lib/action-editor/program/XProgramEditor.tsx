@@ -42,6 +42,8 @@ export type XProgramEditorProps = {
   subPrograms?: ActionSubProgram[];
   /** Raw wire JSON for QuickerRpc step summary RPC. */
   embeddedSubProgramsWireJson?: string;
+  /** data.json path (or equivalent) — remounts StepListEditor on workspace tab switch. */
+  programDocumentKey?: string;
   onPinStepToChat?: (stepId: string) => void;
 };
 
@@ -53,6 +55,7 @@ function XProgramEditorInner({
   workspaceContext,
   subPrograms = [],
   embeddedSubProgramsWireJson,
+  programDocumentKey,
   onPinStepToChat,
 }: XProgramEditorProps): JSX.Element {
   const { showToast } = useToast();
@@ -200,6 +203,7 @@ function XProgramEditorInner({
             onCommitSteps={commitSteps}
             variables={hist.present.variables}
             programSurface={programSurface}
+            programDocumentKey={programDocumentKey}
             onCommitProgram={(present) =>
               dispatch({ type: "commitProgram", present: cloneXProgramPresent(present) })
             }

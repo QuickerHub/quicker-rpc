@@ -6,7 +6,8 @@
 
 | 场景 | 命令 |
 |------|------|
-| 首次在本机 Cursor 接入 qkrpc | `qkrpc agent setup` |
+| 首次安装（交互选 Cursor / Codex / …） | `qkrpc agent install` |
+| 首次在本机 Cursor 接入 qkrpc（非交互） | `qkrpc agent setup` |
 | 热更新 / 升级 CLI 后刷新 skills、rules | `qkrpc agent setup --upgrade` |
 | 研发中改了 `docs/skills/*` 或 `docs/agent-rules/*` | `qkrpc agent setup --upgrade`（在仓库根目录，自动从 `docs/skills` 复制） |
 | 检查本机配置是否与 CLI 版本一致 | `qkrpc agent setup --check` |

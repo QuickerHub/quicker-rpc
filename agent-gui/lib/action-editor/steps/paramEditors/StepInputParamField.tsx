@@ -21,10 +21,13 @@ import { resolveStepParamMultiline } from "./stepParamMultiline";
 import { enrichStepParamVariableCandidates } from "./stepParamBuiltinVariables";
 import {
   isTextToolsParamKey,
+  shouldUseKeyboardParamEditor,
   shouldUseVarOrValueEditor,
   shouldUseVariableOnlyPicker,
 } from "./stepInputParamRoute";
 import { TextToolsParamEditor } from "./TextToolsParamEditor";
+import { KeyboardParamEditor } from "./keyInput/KeyboardParamEditor";
+import { isKeyInputWireJson } from "./keyInput/keyInputStepData";
 import {
   buildEnumSelectionOptions,
   findEnumSelectionItem,
@@ -131,12 +134,17 @@ function StepInputParamFieldInner({
   const openFieldPopupRef = useRef<(() => void) | null>(null);
   const closeFieldPopupRef = useRef<(() => void) | null>(null);
   const [enumRect, setEnumRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [keyboardAdvanced, setKeyboardAdvanced] = useState(false);
   const externalFile = useExternalParamFileEditorValue(param, workspace, onChange, {
     prefetchedFileContents,
   });
 
   const label = (def.name ?? "").trim() || def.key;
   const desc = (def.description ?? "").trim();
+
+  useEffect(() => {
+    setKeyboardAdvanced(false);
+  }, [def.key]);
 
   const setValue = (value: string): void => {
     onChange({ ...param, value });
@@ -412,6 +420,65 @@ function StepInputParamFieldInner({
     );
   }
 
+  if (shouldUseKeyboardParamEditor(def)) {
+    const boundVar = (param.varKey ?? "").trim();
+    const raw = (param.value ?? "").trim();
+    const expressionLike = raw.startsWith("$=") || raw.startsWith("$$");
+    const invalidWire = raw.length > 0 && !isKeyInputWireJson(raw) && !expressionLike;
+    const useAdvanced = keyboardAdvanced || boundVar.length > 0 || expressionLike || invalidWire;
+
+    if (!useAdvanced) {
+      return (
+        <div className="step-param-row">
+          <StepParamLabel label={label} />
+          <div className="step-param-field-col">
+            <KeyboardParamEditor
+              def={def}
+              param={param}
+              onChange={onChange}
+              description={desc || undefined}
+              onAdvancedMode={() => setKeyboardAdvanced(true)}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    const boundToVariable = boundVar.length > 0;
+    return (
+      <div className={`step-param-row${!boundToVariable ? "" : " step-param-row--compact-value"}`}>
+        <StepParamLabel
+          label={label}
+          labelRef={activateLabelRef}
+          onActivate={() => openFieldPopupRef.current?.()}
+          onDoubleClickActivate={() => closeFieldPopupRef.current?.()}
+        />
+        <div className="step-param-field-col">
+          <VarOrValueParamEditor
+            def={def}
+            variables={allUsableVars}
+            param={param}
+            onChange={onChange}
+            workspace={workspace}
+            prefetchedFileContents={prefetchedFileContents}
+            openPopupRef={openFieldPopupRef}
+            closePopupRef={closeFieldPopupRef}
+            activateLabelRef={activateLabelRef}
+            onRequestCreateVariable={onRequestCreateVariable ? requestCreateVariable : undefined}
+          />
+          <button
+            type="button"
+            className="step-editor-popup-btn secondary keyboard-param-back-visual"
+            onClick={() => setKeyboardAdvanced(false)}
+          >
+            返回录制/选择
+          </button>
+          {desc && !boundToVariable ? <div className="step-param-hint">{desc}</div> : null}
+        </div>
+      </div>
+    );
+  }
+
   if (hasSelectionEnum && vm === ParamVariableMode.Input) {
     return (
       <div className="step-param-row">
@@ -426,9 +493,11 @@ function StepInputParamFieldInner({
 
   if (shouldUseVarOrValueEditor(def, param)) {
     const multilineVarOrValue = isMultilineVarOrValueField(def, param);
+    const boundToVariable = (param.varKey ?? "").trim().length > 0;
+    const compactRow = !multilineVarOrValue || boundToVariable;
 
     return (
-      <div className={`step-param-row${multilineVarOrValue ? "" : " step-param-row--compact-value"}`}>
+      <div className={`step-param-row${compactRow ? " step-param-row--compact-value" : ""}`}>
         <StepParamLabel
           label={label}
           labelRef={activateLabelRef}
@@ -449,7 +518,7 @@ function StepInputParamFieldInner({
             activateLabelRef={activateLabelRef}
             onRequestCreateVariable={onRequestCreateVariable ? requestCreateVariable : undefined}
           />
-          {desc ? <div className="step-param-hint">{desc}</div> : null}
+          {desc && !boundToVariable ? <div className="step-param-hint">{desc}</div> : null}
         </div>
       </div>
     );

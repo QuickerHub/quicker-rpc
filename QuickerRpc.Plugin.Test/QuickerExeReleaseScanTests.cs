@@ -181,6 +181,14 @@ public sealed class QuickerExeReleaseScanTests
             QuickerAssemblyReflection.WriteMethodDetail(saveState, WriteLine);
         }
 
+        var saveAllData = QuickerActionDesignerReflection.TryFindSaveAllDataMethod(designerType!);
+        Assert.IsNotNull(saveAllData, "Release Quicker.exe: SaveAllData not resolved.");
+        QuickerAssemblyReflection.WriteMethodDetail(saveAllData!, WriteLine);
+
+        var saveWithoutClose = QuickerActionDesignerReflection.TryFindDoSaveWithoutCloseMethod(designerType!);
+        Assert.IsNotNull(saveWithoutClose, "Release Quicker.exe: DoSaveWithoutClose (Ctrl+S) not resolved.");
+        QuickerAssemblyReflection.WriteMethodDetail(saveWithoutClose!, WriteLine);
+
         var restore = QuickerActionDesignerReflection.TryFindRestoreStateMethod(designerType!, assembly);
         if (restore is not null)
         {

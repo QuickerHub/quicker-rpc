@@ -46,6 +46,13 @@ import {
   selectChatTools,
 } from "@/lib/agent-turn-runtime";
 import { buildAgentRuntimeSnapshot } from "@/lib/agent-runtime-snapshot";
+import { fetchDesignerContextSnapshot } from "@/lib/designer-context.server";
+import { resolveDesignerWindowContext } from "@/lib/designer-embed-layout";
+import {
+  formatDesignerEmbedContextForSystem,
+  mergeDesignerDefaultActionScope,
+  parseActionDesignerChatContext,
+} from "@/lib/designer-embed-prompt";
 
 export const maxDuration = 120;
 
@@ -72,6 +79,7 @@ async function handleChatPost(req: Request) {
     chatMode: chatModeRaw,
     contextCompressionForce,
     threadId: _threadId,
+    actionDesigner: actionDesignerRaw,
   }: {
     messages: AgentUIMessage[];
     enabledTools?: string[];
@@ -90,6 +98,8 @@ async function handleChatPost(req: Request) {
     chatMode?: string;
     /** Active thread id (reserved). */
     threadId?: string;
+    /** Action Designer embed: default program to edit in this chat. */
+    actionDesigner?: { entityId: string; isSubProgram?: boolean };
   } = await req.json();
 
   const chatMode = resolveChatMode(chatModeRaw);
@@ -199,7 +209,29 @@ async function handleChatPost(req: Request) {
   return runWithAgentRequestContextAsync(
     { cwd, chatMode, lastUserText, llmSelectionRaw },
     async () => {
-    const actionScope = extractActionScopeFromMessages(messagesForModel);
+    let actionScope = extractActionScopeFromMessages(messagesForModel);
+    const actionDesigner = parseActionDesignerChatContext(actionDesignerRaw);
+    let designerEmbedBlock = "";
+
+    if (actionDesigner && chatMode !== CHAT_MODE_LAUNCHER) {
+      const designerSnapshot = await fetchDesignerContextSnapshot(false);
+      const windowContext = resolveDesignerWindowContext(designerSnapshot, {
+        enabled: true,
+        scoped: true,
+        debugMode: false,
+        entityId: actionDesigner.entityId,
+        isSubProgram: actionDesigner.isSubProgram,
+      });
+      designerEmbedBlock = formatDesignerEmbedContextForSystem(
+        actionDesigner,
+        windowContext,
+      );
+      actionScope = mergeDesignerDefaultActionScope(
+        actionScope,
+        actionDesigner,
+        windowContext?.title,
+      );
+    }
 
     return runWithAgentRequestContextAsync(
       { cwd, actionScope, chatMode, lastUserText, llmSelectionRaw },
@@ -234,6 +266,7 @@ async function handleChatPost(req: Request) {
       actionScope,
       chatMode,
       cwd,
+      designerEmbedBlock: designerEmbedBlock || undefined,
       enabledToolIds: Object.keys(tools),
       launcherUserText: lastUserText,
       modelId,

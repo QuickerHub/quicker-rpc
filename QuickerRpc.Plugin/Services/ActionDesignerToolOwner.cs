@@ -4,11 +4,11 @@ namespace QuickerRpc.Plugin.Services;
 
 /// <summary>
 /// Private designer-tool owner id (same identity source as <c>qkrpc quicker.account.get</c> / <see cref="QuickerAccountAccessor"/>).
-/// Experimental ActionDesigner tabs are enabled only for this account until the feature is ready to ship.
+/// Private ActionDesigner tools-tab owner (AI chat tab is public to all logged-in users).
 /// </summary>
 internal static class ActionDesignerToolOwner
 {
-    /// <summary>Quicker user id allowed to receive ActionDesigner tab injection.</summary>
+    /// <summary>Quicker user id allowed to receive the private ActionDesigner tools tab.</summary>
     private const string PrivateOwnerUserId = "a3f5a32b2e62b523f575b3a998da8b7a";
 
     /// <summary>Optional local override for development (never set in production builds).</summary>

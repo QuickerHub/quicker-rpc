@@ -82,6 +82,33 @@ function normalizeControlCompareValue(raw: string): string {
   return value;
 }
 
+function controlSelectionValues(
+  inputDefs: readonly StepRunnerInputParamDef[],
+  controlKey: string,
+): string[] {
+  const def = inputDefs.find((d) => d.key === controlKey);
+  return (def?.selectionItems ?? [])
+    .map((x) => (x.value ?? "").trim())
+    .filter((x) => x.length > 0);
+}
+
+/** Unknown control literal / varKey name → empty compare (show all mode-specific params). */
+function normalizeKnownControlCompareValue(
+  raw: string,
+  inputDefs: readonly StepRunnerInputParamDef[],
+  controlKey: string,
+): string {
+  const value = normalizeControlCompareValue(raw);
+  if (!value) {
+    return "";
+  }
+  const known = controlSelectionValues(inputDefs, controlKey);
+  if (known.length === 0) {
+    return value;
+  }
+  return known.some((k) => equalsIgnoreCase(k, value)) ? value : "";
+}
+
 function resolveCompareValueForConditionList(
   validList: string[],
   invalidList: string[],
@@ -95,7 +122,11 @@ function resolveCompareValueForConditionList(
 
   const matchedControlKey = findControlParamKeyForConditionList(conditionList, inputDefs);
   if (matchedControlKey) {
-    return normalizeControlCompareValue(paramValues[matchedControlKey] ?? "");
+    return normalizeKnownControlCompareValue(
+      paramValues[matchedControlKey] ?? "",
+      inputDefs,
+      matchedControlKey,
+    );
   }
 
   let legacyFallback = "";
@@ -103,7 +134,11 @@ function resolveCompareValueForConditionList(
     if (def.isControlField && (def.selectionItems?.length ?? 0) > 0) {
       const currentValue = paramValues[def.key];
       if (currentValue != null) {
-        legacyFallback = normalizeControlCompareValue(currentValue);
+        legacyFallback = normalizeKnownControlCompareValue(
+          currentValue,
+          inputDefs,
+          def.key,
+        );
       }
     }
   }

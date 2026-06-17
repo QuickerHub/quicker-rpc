@@ -1,5 +1,6 @@
 import type { ActionScopeHint } from "@/lib/action-scope";
 import type { ChatMode } from "@/lib/chat-mode";
+import { CHAT_MODE_ASK, CHAT_MODE_LAUNCHER } from "@/lib/chat-mode";
 
 export type AgentTurnIntent =
   | "action_authoring"
@@ -185,12 +186,16 @@ export function buildAgentTurnState(params: {
   enabledToolIds: readonly string[];
   userText: string;
 }): AgentTurnState {
-  const intent = params.chatMode === "launcher"
+  const intent = params.chatMode === CHAT_MODE_LAUNCHER
     ? "action_runtime"
-    : inferIntent(params.userText);
+    : params.chatMode === CHAT_MODE_ASK
+      ? "conversation"
+      : inferIntent(params.userText);
   return {
     intent,
-    risk: inferRisk(params.userText, params.enabledToolIds),
+    risk: params.chatMode === CHAT_MODE_ASK
+      ? "read"
+      : inferRisk(params.userText, params.enabledToolIds),
     targetRefs: params.actionScope.pinnedLatestAll.map((ref) => ref.id),
     recommendedToolIds: recommendEnabledTools(intent, params.enabledToolIds),
     verificationHints: verificationHintsForIntent(intent),

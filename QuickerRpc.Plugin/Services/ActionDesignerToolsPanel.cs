@@ -22,9 +22,11 @@ internal static class ActionDesignerToolsPanel
         public required Action CopySelectedVariables { get; init; }
         public required Action ViewVariableState { get; init; }
         public required Action CopySubProgramId { get; init; }
+        public required Action ChangeSubProgramTarget { get; init; }
         public required Action UpgradeNetworkSubPrograms { get; init; }
         public required Action UnlockReadOnly { get; init; }
         public required Action Save { get; init; }
+        public required Action TestCatalogSave { get; init; }
     }
 
     public static UIElement Build(Handlers handlers)
@@ -51,8 +53,10 @@ internal static class ActionDesignerToolsPanel
 
         stack.Children.Add(BuildFooterSection(
             handlers.CopySubProgramId,
+            handlers.ChangeSubProgramTarget,
             handlers.UpgradeNetworkSubPrograms,
             handlers.UnlockReadOnly,
+            handlers.TestCatalogSave,
             handlers.Save));
 
         var root = new Border
@@ -157,29 +161,25 @@ internal static class ActionDesignerToolsPanel
 
     private static UIElement BuildFooterSection(
         Action copySubProgramId,
+        Action changeSubProgramTarget,
         Action upgradeNetwork,
         Action unlockReadOnly,
+        Action testCatalogSave,
         Action save)
     {
         var card = CreateCard();
         var inner = (StackPanel)card.Child;
         inner.Children.Add(CreateSectionTitle("子程序 · 维护"));
 
-        var row = new DockPanel { LastChildFill = false };
-        var chips = new StackPanel { Orientation = Orientation.Horizontal };
+        var chips = CreateChipWrapPanel();
         chips.Children.Add(CreateChip("子程序 ID", "fa:Light_PuzzlePiece:#A855F7", "获取子程序 ID", copySubProgramId));
+        chips.Children.Add(CreateChip("改目标", "fa:Light_Bullseye:#22C55E", "修改选中步骤的目标子程序", changeSubProgramTarget));
         chips.Children.Add(CreateChip("升级", "fa:Light_CloudUpload:#0EA5E9", "升级网络子程序", upgradeNetwork));
         chips.Children.Add(CreateChip("解锁", "fa:Light_Unlock:#F59E0B", "解锁只读", unlockReadOnly));
-        DockPanel.SetDock(chips, Dock.Left);
-        row.Children.Add(chips);
+        chips.Children.Add(CreateChip("入库保存", "fa:Light_Flask:#EC4899", "Ctrl+S 同款：临时标题 + 入库（不关闭编辑窗口）", testCatalogSave));
+        chips.Children.Add(CreatePrimaryButton("保存", "fa:Light_Save:#FFFFFF", "Ctrl+S 同款保存（不关闭窗口）", save));
 
-        var saveButton = CreatePrimaryButton("保存", "fa:Light_Save:#FFFFFF", "保存", save);
-        saveButton.Margin = new Thickness(8, 0, 0, 0);
-        saveButton.VerticalAlignment = VerticalAlignment.Bottom;
-        DockPanel.SetDock(saveButton, Dock.Right);
-        row.Children.Add(saveButton);
-
-        inner.Children.Add(row);
+        inner.Children.Add(chips);
         return card;
     }
 
@@ -212,7 +212,7 @@ internal static class ActionDesignerToolsPanel
 
     private static UIElement CreateChipRow(params ToolChip[] chips)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        var row = CreateChipWrapPanel();
         foreach (var chip in chips)
         {
             row.Children.Add(CreateChip(chip.Caption, chip.FaSpec, chip.ToolTip, chip.Handler));
@@ -220,6 +220,12 @@ internal static class ActionDesignerToolsPanel
 
         return row;
     }
+
+    private static WrapPanel CreateChipWrapPanel() =>
+        new()
+        {
+            Orientation = Orientation.Horizontal,
+        };
 
     private static Button CreateChip(string caption, string faSpec, string toolTip, Action onClick)
     {
@@ -249,7 +255,7 @@ internal static class ActionDesignerToolsPanel
             MinWidth = 42,
             MinHeight = 44,
             Padding = new Thickness(6, 4, 6, 4),
-            Margin = new Thickness(0, 0, 4, 0),
+            Margin = new Thickness(0, 0, 4, 4),
             BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
         };
@@ -287,6 +293,7 @@ internal static class ActionDesignerToolsPanel
             MinWidth = 64,
             MinHeight = 36,
             Padding = new Thickness(10, 6, 10, 6),
+            Margin = new Thickness(0, 0, 4, 4),
             BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
         };

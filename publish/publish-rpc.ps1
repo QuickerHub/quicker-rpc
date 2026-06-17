@@ -67,11 +67,8 @@ Write-Host "Publishing qkrpc.exe (QuickerRpc.Console, non-single-file, win-x64, 
 Write-Host "Version (version.json): $quickerRpcVersion ($semver)" -ForegroundColor Cyan
 
 $publishDir = Join-Path $repoRoot 'publish\cli'
-if (Test-Path -LiteralPath $publishDir) {
-    Write-Host "Cleaning previous publish output..." -ForegroundColor Yellow
-    # Remove the whole folder so stale net8 runtime DLLs cannot survive a net10 publish.
-    Remove-Item -LiteralPath $publishDir -Recurse -Force
-}
+# Stop qkrpc loaded from publish/cli (serve locks clrjit.dll) before removing the folder.
+Clear-QkrpcPublishDirectory -PublishDir $publishDir
 Write-Host "Creating publish directory: $publishDir" -ForegroundColor Yellow
 New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
 
@@ -109,6 +106,44 @@ if (Test-Path -LiteralPath $rulesSource) {
     }
     Copy-Item -LiteralPath $rulesSource -Destination $rulesDest -Recurse -Force
     Write-Host "Bundled agent rules -> $rulesDest" -ForegroundColor Cyan
+}
+
+$cursorSyncScript = Join-Path $repoRoot 'scripts\sync-cursor-plugin.ps1'
+if (Test-Path -LiteralPath $cursorSyncScript) {
+    & pwsh -NoProfile -File $cursorSyncScript
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "sync-cursor-plugin failed (exit $LASTEXITCODE)." -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
+}
+
+$cursorPluginSource = Join-Path $repoRoot 'cursor-plugin\quicker-rpc'
+$cursorPluginDest = Join-Path $publishDir 'cursor-plugin'
+if (Test-Path -LiteralPath $cursorPluginSource) {
+    if (Test-Path -LiteralPath $cursorPluginDest) {
+        Remove-Item -LiteralPath $cursorPluginDest -Recurse -Force
+    }
+    Copy-Item -LiteralPath $cursorPluginSource -Destination $cursorPluginDest -Recurse -Force
+    Write-Host "Bundled Cursor plugin -> $cursorPluginDest" -ForegroundColor Cyan
+}
+
+$codexSyncScript = Join-Path $repoRoot 'scripts\sync-codex-plugin.ps1'
+if (Test-Path -LiteralPath $codexSyncScript) {
+    & pwsh -NoProfile -File $codexSyncScript
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "sync-codex-plugin failed (exit $LASTEXITCODE)." -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
+}
+
+$codexPluginSource = Join-Path $repoRoot 'codex-plugin\quicker-rpc'
+$codexPluginDest = Join-Path $publishDir 'codex-plugin'
+if (Test-Path -LiteralPath $codexPluginSource) {
+    if (Test-Path -LiteralPath $codexPluginDest) {
+        Remove-Item -LiteralPath $codexPluginDest -Recurse -Force
+    }
+    Copy-Item -LiteralPath $codexPluginSource -Destination $codexPluginDest -Recurse -Force
+    Write-Host "Bundled Codex plugin -> $codexPluginDest" -ForegroundColor Cyan
 }
 
 $mockProfilesSource = Join-Path $repoRoot 'agent-gui\benchmarks\mock-profiles'
@@ -192,6 +227,7 @@ Write-Host ""
 Write-Host "User install (after GitHub Release upload):" -ForegroundColor Yellow
 Write-Host "  Download: $(Get-QkrpcLatestSetupDownloadUrl)"
 Write-Host "  Or run: publish\$(Get-QkrpcLatestCliSetupName) (after Build-QkrpcSetup)"
+Write-Host "  Cursor plugin: qkrpc agent setup --cursor-plugin"
 Write-Host ""
 
 if (-not $SkipInstall) {

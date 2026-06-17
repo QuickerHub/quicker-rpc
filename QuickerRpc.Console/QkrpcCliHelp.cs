@@ -84,7 +84,10 @@ internal static class QkrpcCliHelp
 
                     opts: new[] { Option("timeout", "Per-tool RPC timeout (seconds).", defaultValue: "120"), Option("no-bootstrap", "Skip auto-start.") }),
 
-                Cmd("agent setup", "Install MCP + skills + rules for AI agents (user-level default).", "qkrpc agent setup [--cursor] [--claude] [--vscode] [--windsurf] [--cline] [--all] [--project] [--project-skills] [--workspace <path>] [--skill-source <dir>] [--skip-skill] [--check]",
+                Cmd("agent install", "Interactive wizard: pick Cursor / Codex / Claude / VS Code / etc.", "qkrpc agent install",
+                    opts: new object[] { }),
+
+                Cmd("agent setup", "Install qkrpc for AI agents (default: Cursor plugin).", "qkrpc agent setup [--interactive] [--cursor] [--cursor-plugin] [--claude] [--vscode] [--windsurf] [--cline] [--codex] [--all] [--project] [--project-skills] [--workspace <path>] [--check]",
 
                     opts: AgentSetupOptions()),
 
@@ -879,6 +882,8 @@ internal static class QkrpcCliHelp
             Option("check", "Verify ~/.qkrpc/agent-setup.json matches CLI version."),
 
             Option("upgrade", "Refresh skills, rules, Claude guidance only (skip MCP config)."),
+
+            Option("interactive", "Interactive wizard when no --cursor/--codex/--all flags."),
 
             Option("cursor", "Write ~/.cursor/mcp.json (default when no agent flag)."),
 

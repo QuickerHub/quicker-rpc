@@ -27,9 +27,16 @@ import {
   writeStepsClipboard
 } from "./actionStepsClipboard";
 import {
+  resolveStepListInitialSelection,
+  setStepListEditorSession,
+} from "./stepListEditorSession";
+import {
   buildStepSummariesFingerprint,
+  buildStepSummaryCacheFromBatch,
   fetchStepSummariesBatch,
-  flattenStepsForSummaries
+  flattenStepsForSummaries,
+  resolveCachedStepSummary,
+  type StepSummaryCacheEntry,
 } from "./stepSummariesApi";
 import { IconControl } from "../shared/IconControl";
 import { dragGhostInlineColors } from "../shared/themeCssVars";
@@ -254,6 +261,11 @@ export type StepListEditorProps = {
   workspaceContext?: ActionProjectWorkspaceContext;
   /** Prefetched files/… content for summaries, param editors, and clipboard scans. */
   stepParamFileContents?: StepSummaryFileContents;
+  /**
+   * Stable id for the program document (e.g. data.json path).
+   * Used as React key so tab switches remount editor-local state while runner schema cache stays shared.
+   */
+  programDocumentKey?: string;
   onPinStepToChat?: (stepId: string) => void;
 };
 
@@ -268,6 +280,7 @@ export default function StepListEditor({
   embeddedSubProgramsWireJson,
   workspaceContext,
   stepParamFileContents = {},
+  programDocumentKey,
   onPinStepToChat,
 }: StepListEditorProps): JSX.Element {
   const stepIdManagerRef = useRef<StepIdManager>(new StepIdManager());
@@ -305,8 +318,10 @@ export default function StepListEditor({
   const [quickInsert, setQuickInsert] = useState<QuickInsertSession | null>(null);
   const editorTargetIdRef = useRef<string | null>(null);
   const quickInsertActiveRef = useRef(false);
-  /** Backend GetSummary per stepId; secondary row shows note if set, else backend summary (empty when none). */
-  const [summariesByStepId, setSummariesByStepId] = useState<Record<string, string>>({});
+  /** Backend GetSummary per stepId, scoped to step body fingerprint (avoids cross-tab / stale merge). */
+  const [summariesByStepId, setSummariesByStepId] = useState<
+    Record<string, StepSummaryCacheEntry>
+  >({});
   const fileContentsByPath = stepParamFileContents;
 
   const globalSubProgramIdsKey = useMemo(
@@ -517,7 +532,7 @@ export default function StepListEditor({
             embeddedSubProgramsWireJson,
           );
           if (!cancelled) {
-            setSummariesByStepId((prev) => ({ ...prev, ...next }));
+            setSummariesByStepId(buildStepSummaryCacheFromBatch(flat, next));
           }
         } catch {
           if (!cancelled) {
@@ -682,16 +697,35 @@ export default function StepListEditor({
     }
   }, [editorTargetId, steps, pendingToolboxInsert]);
 
+  const initialSelectionRef = useRef(
+    resolveStepListInitialSelection(programDocumentKey, flattenStepIds(steps)),
+  );
+
   const {
     selectedId,
     selectedIds,
+    selectionAnchorId,
     setSelectedId,
     setSelectedIds,
     setSelectionAnchorId,
     setSingleSelection,
     selectItem
-  } = useMultiSelect(steps[0]?.stepId ?? "");
+  } = useMultiSelect(initialSelectionRef.current.selectedId, {
+    selectedIds: initialSelectionRef.current.selectedIds,
+    selectionAnchorId: initialSelectionRef.current.selectionAnchorId,
+  });
   const [draggingIds, setDraggingIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!programDocumentKey) {
+      return;
+    }
+    setStepListEditorSession(programDocumentKey, {
+      selectedId,
+      selectedIds,
+      selectionAnchorId: selectionAnchorId ?? selectedId,
+    });
+  }, [programDocumentKey, selectedId, selectedIds, selectionAnchorId]);
 
   useEffect(() => {
     const ids = flattenStepIds(steps);
@@ -1612,7 +1646,7 @@ export default function StepListEditor({
           const summaryTrim = resolveStepListSecondarySummary(
             step,
             runnerItem,
-            summariesByStepId[step.stepId] ?? "",
+            resolveCachedStepSummary(step, summariesByStepId),
             fileContentsByPath,
           ).trim();
           const secondaryText = resolveSubProgramStepListSecondaryText(step, subPrograms, {

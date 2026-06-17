@@ -63,3 +63,32 @@ test("focusActionDesignerInStore tags legacy untagged active thread", () => {
   const next = focusActionDesignerInStore(legacy, designerA);
   assert.equal(next.threads[0]!.actionDesigner?.entityId, designerA.entityId);
 });
+
+test("focusActionDesignerInStore tags untagged active tab even when other designer threads exist", () => {
+  const tagged = {
+    id: "tagged-thread",
+    title: "旧对话",
+    messages: [],
+    updatedAt: 100,
+    actionDesigner: designerA,
+    messageCount: 0,
+  };
+  const untaggedActive = {
+    id: "active-thread",
+    title: "当前",
+    messages: [{ id: "m1", role: "user" as const, parts: [{ type: "text" as const, text: "hi" }] }],
+    updatedAt: 200,
+    messageCount: 1,
+  };
+  const base = {
+    ...defaultChatStore(),
+    threads: [tagged, untaggedActive],
+    openTabIds: ["active-thread"],
+    activeThreadId: "active-thread",
+  };
+  const next = focusActionDesignerInStore(base, designerA);
+  const active = next.threads.find((thread) => thread.id === "active-thread");
+  assert.equal(active?.actionDesigner?.entityId, designerA.entityId);
+  assert.equal(next.activeThreadId, "active-thread");
+  assert.ok(next.openTabIds.includes("active-thread"));
+});

@@ -1,10 +1,11 @@
 import { ACTION_LINK_SUMMARY_PROMPT } from "@/lib/action-link-markup";
 import {
   AGENT_EXECUTION_PROMPT,
+  ASK_EXECUTION_PROMPT,
   LAUNCHER_EXECUTION_PROMPT,
 } from "@/lib/agent-execution-prompt";
 import type { ChatMode } from "@/lib/chat-mode";
-import { CHAT_MODE_LAUNCHER } from "@/lib/chat-mode";
+import { CHAT_MODE_ASK, CHAT_MODE_LAUNCHER } from "@/lib/chat-mode";
 import { SEARCH_STRATEGY_PROMPT } from "@/lib/search-strategy-prompt";
 import { TOOL_ROUTING_PROMPT } from "@/lib/tool-routing";
 import { WORKBENCH_AGENT_PROMPT } from "@/lib/workbench-agent-prompt";
@@ -48,12 +49,40 @@ export const SYSTEM_INSTRUCTIONS = prompt(
   "**Settings**: quicker_settings list/get/set/apply; action=open preset for UI panels.",
   "**Triggers**: quicker_trigger events (query=意图关键词) / list — pick eventType; docs get trigger-workflow.",
   "**Local disk**: Read/Write/StrReplace/Grep (plain files, `.local/` scratch); workspace_program (`.quicker` program bodies); Shell (build/test/git); user reviews in workbench 已改动.",
-  "**Web**: web_search for discovery; browser — evaluate(script, url) for background scrape/extract; navigate+search for interactive refs; click/type via ref. **LLM**: llm_settings.",
+  "**Web**: web_search for discovery; browser — evaluate(script, url) for background scrape/extract; navigate+search for interactive refs; click/type via ref. After browser prototyping, **browser_to_action** → workspace_program for sys:chromecontrol steps. **LLM**: llm_settings.",
   "**Safety**: delete only on user ask (UI Confirm); ask_question for 2–5 preferences not deletes.",
   "**Dev UI**: dev_frontend_check after agent-gui edits until ok=true (agent-gui/AGENTS.md).",
   "",
   "## Skills",
   "Preloaded tier-2 instructions below (agentskills.io). On-demand skills in catalog; authoring via docs search (snippet), docs get for full workflow only.",
+);
+
+const ASK_SYSTEM_INSTRUCTIONS = prompt(
+  "## Role",
+  "QuickerAgent Ask — read-only assistant. Answer questions, explain actions/steps, and explore the workspace without making changes.",
+  "",
+  "## Communication",
+  "- Reply in the user's language (default Chinese). Never expose tool names, CLI, or JSON shapes in user-facing text.",
+  "- Describe findings plainly; execute read tools silently. Be concise.",
+  "- Action query tables render in UI — never paste markdown tables.",
+  "",
+  ASK_EXECUTION_PROMPT,
+  "",
+  "## Runtime",
+  "- qkrpc via serve (HTTP → plugin). Sidebar cwd = workspace root for reads and workspace_program read_data only.",
+  "- On connectivity_failure: brief error + check Quicker/plugin/serve. No shell workarounds.",
+  "",
+  SEARCH_STRATEGY_PROMPT,
+  "",
+  "## Capabilities (read-only)",
+  "**Explore**: docs, Read/Grep, workspace_program read_data/diagnostics only (no patch).",
+  "**Quicker**: qkrpc_action_query/get, qkrpc_subprogram_query/get, qkrpc_step_runner_search/get, qkrpc_fa, launcher_resolve, quicker_settings list/get/search.",
+  "**Web**: web_search; browser evaluate for page content — no mutating clicks unless user needs visible state.",
+  "**Clarify**: ask_question for ambiguous preferences.",
+  "",
+  "## Out of scope → Agent mode",
+  "Writes, patches, Shell, runs/debug, settings apply/set, delete, llm_settings, task subagents, browser_to_action.",
+  "When the user clearly wants execution or edits, tell them to switch to Agent mode.",
 );
 
 const LAUNCHER_SYSTEM_INSTRUCTIONS_CORE = prompt(
@@ -93,7 +122,9 @@ export async function buildSystemInstructions(
   const base =
     mode === CHAT_MODE_LAUNCHER
       ? LAUNCHER_SYSTEM_INSTRUCTIONS
-      : SYSTEM_INSTRUCTIONS;
+      : mode === CHAT_MODE_ASK
+        ? ASK_SYSTEM_INSTRUCTIONS
+        : SYSTEM_INSTRUCTIONS;
 
   const parts = [base];
 

@@ -19,9 +19,12 @@ import {
 import {
   isActionDesignerEmbedClient,
   parseActionDesignerEmbedFromSearchParams,
+  resolveDesignerEmbedChatStorageKey,
 } from "@/lib/action-designer-embed";
 import {
   CHAT_STORAGE_KEY,
+  CHAT_THREAD_KEY_PREFIX,
+  chatStoreHasPersistedMessages,
   defaultChatStore,
   flushPendingChatStoreSave,
   flushPendingChatStoreSaveAsync,
@@ -29,6 +32,7 @@ import {
   normalizeLoadedStore,
   scheduleSaveChatStore,
 } from "@/lib/chat-store";
+import { loadPersistedChatStore } from "@/lib/chat-store-persist";
 
 let cachedStore: ChatStoreData | undefined;
 
@@ -79,16 +83,75 @@ function getChatStoreServerSnapshot(): ChatStoreData {
 
 let hydrationInFlight = false;
 
+function loadDesignerEmbedStoreFromLocalStorage(
+  designerRef: ReturnType<typeof actionDesignerRefFromEmbed>,
+): ChatStoreData {
+  const designerKey = resolveDesignerEmbedChatStorageKey();
+  let local = loadChatStoreFromLocalStorage();
+  if (
+    designerKey
+    && designerKey !== CHAT_STORAGE_KEY
+    && !chatStoreHasPersistedMessages(local)
+    && designerRef
+  ) {
+    const legacy = loadPersistedChatStore({
+      messageScope: "active",
+      storageKey: CHAT_STORAGE_KEY,
+    });
+    if (legacy && chatStoreHasPersistedMessages(legacy)) {
+      local = legacy;
+    }
+  }
+  return normalizeLoadedStore(
+    local.threads.length > 0 ? local : defaultChatStore(),
+  );
+}
+
+function reloadChatStoreFromStorage(): void {
+  if (!storeHydrated || typeof window === "undefined") return;
+  if (isActionDesignerEmbedClient()) {
+    hydrateDesignerEmbedStore();
+    return;
+  }
+  void (async () => {
+    try {
+      cachedStore = normalizeLoadedStore(await readChatStoreFromClient());
+    } catch {
+      try {
+        cachedStore = normalizeLoadedStore(loadChatStoreFromLocalStorage());
+      } catch {
+        if (!cachedStore) {
+          cachedStore = defaultChatStore();
+        }
+      }
+    }
+    notifyChatStoreListeners();
+  })();
+}
+
+function isExternalChatStoreStorageKey(key: string | null): boolean {
+  if (!key) return false;
+  if (
+    key === CHAT_STORAGE_KEY
+    || key === `${CHAT_STORAGE_KEY}-backup`
+    || key.startsWith(CHAT_THREAD_KEY_PREFIX)
+  ) {
+    return true;
+  }
+  const activeKey = resolveDesignerEmbedChatStorageKey();
+  if (activeKey) {
+    if (key === activeKey || key === `${activeKey}-backup`) return true;
+  }
+  return key.startsWith("agent-gui-chats-designer-");
+}
+
 function hydrateDesignerEmbedStore(): void {
   const embed = parseActionDesignerEmbedFromSearchParams(
     new URLSearchParams(window.location.search),
   );
   const designerRef = actionDesignerRefFromEmbed(embed);
   try {
-    const local = loadChatStoreFromLocalStorage();
-    let store = normalizeLoadedStore(
-      local.threads.length > 0 ? local : defaultChatStore(),
-    );
+    let store = loadDesignerEmbedStoreFromLocalStorage(designerRef);
     if (designerRef) {
       store = focusActionDesignerInStore(store, designerRef);
     }
@@ -178,12 +241,8 @@ function subscribeChatStore(onStoreChange: () => void): () => void {
   listeners.add(onStoreChange);
 
   const onStorage = (event: StorageEvent) => {
-    if (event.key === CHAT_STORAGE_KEY) {
-      cachedStore = undefined;
-      if (storeHydrated) {
-        onStoreChange();
-      }
-    }
+    if (!isExternalChatStoreStorageKey(event.key)) return;
+    reloadChatStoreFromStorage();
   };
   window.addEventListener("storage", onStorage);
 
@@ -252,7 +311,17 @@ export function useChatStore() {
 
   const updateStore = useCallback(
     (next: ChatStoreData, options?: { notify?: boolean }) => {
-      const normalized = normalizeLoadedStore(next);
+      let normalized = normalizeLoadedStore(next);
+      if (typeof window !== "undefined" && isActionDesignerEmbedClient()) {
+        const designerRef = actionDesignerRefFromEmbed(
+          parseActionDesignerEmbedFromSearchParams(
+            new URLSearchParams(window.location.search),
+          ),
+        );
+        if (designerRef) {
+          normalized = focusActionDesignerInStore(normalized, designerRef);
+        }
+      }
       if (normalized === cachedStore) return;
       scheduleSaveChatStore(normalized);
       cachedStore = normalized;

@@ -106,12 +106,28 @@ export function focusActionDesignerInStore(
   ref: ActionDesignerThreadRef,
 ): ChatStoreData {
   let scoped = data;
+  const active = scoped.threads.find((thread) => thread.id === scoped.activeThreadId);
+  if (
+    active
+    && !active.actionDesigner?.entityId?.trim()
+    && scoped.openTabIds.includes(active.id)
+  ) {
+    const threads = scoped.threads.map((thread) =>
+      thread.id === active.id ? { ...thread, actionDesigner: ref } : thread,
+    );
+    scoped = { ...scoped, threads };
+  }
+
   let designerThreads = threadsForActionDesigner(scoped.threads, ref);
   if (designerThreads.length === 0) {
-    const active = scoped.threads.find((thread) => thread.id === scoped.activeThreadId);
-    if (active && !active.actionDesigner?.entityId?.trim()) {
+    const activeAfterTag = scoped.threads.find(
+      (thread) => thread.id === scoped.activeThreadId,
+    );
+    if (activeAfterTag && !activeAfterTag.actionDesigner?.entityId?.trim()) {
       const threads = scoped.threads.map((thread) =>
-        thread.id === active.id ? { ...thread, actionDesigner: ref } : thread,
+        thread.id === activeAfterTag.id
+          ? { ...thread, actionDesigner: ref }
+          : thread,
       );
       scoped = { ...scoped, threads };
       designerThreads = threadsForActionDesigner(threads, ref);

@@ -108,6 +108,10 @@ Cursor：**`/frontend-check`**（读 `.cursor/commands/frontend-check.md`）。
 | `agent-gui/llm-publish.config.json` | `quicker-agent-llm-apikey-config`；勿 `-t` |
 | `QuickerRpc.Plugin` / `Console` / … | `quicker-rpc-build-test` / `build.ps1 -t` |
 
+## 主题适配（新增 UI 默认必做）
+
+新增/修改可见组件或 CSS 时，**默认**深浅主题可切换：用 `--ad-*`（action-editor）或 `theme.css` 变量，**禁止**写死 `#f4f4f4`/`#666` 等作为主色。细则与 token 表见 **`quicker-agent-gui-theme`**。
+
 ## 生产 / 发布
 
 - `dev_frontend_check` 在 **`NODE_ENV=production` 不可用**。

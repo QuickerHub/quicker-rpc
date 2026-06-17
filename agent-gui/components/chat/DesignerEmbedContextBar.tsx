@@ -51,7 +51,7 @@ export function DesignerEmbedContextBar() {
         </div>
       ) : (
         <span className="designer-embed-context-bar__hint">
-          选中步骤后输入 @ 可引用
+          默认编辑此{kindLabel}；选中步骤后 @ 可精确引用
         </span>
       )}
     </div>

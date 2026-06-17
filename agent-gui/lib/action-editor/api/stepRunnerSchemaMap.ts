@@ -153,6 +153,9 @@ function inferVariableModeFromAgentInput(
     }
     return ParamVariableMode.Input;
   }
+  if (varType === CsVarType.Keyboard || varType === CsVarType.Mouse) {
+    return ParamVariableMode.Input;
+  }
   return ParamVariableMode.UseVarOrInput;
 }
 
