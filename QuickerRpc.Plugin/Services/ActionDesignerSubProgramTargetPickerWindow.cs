@@ -175,8 +175,8 @@ internal sealed class ActionDesignerSubProgramTargetPickerWindow : Window
         }
 
         _statusText.Text = _rows.Count == 0
-            ? "未找到匹配的公共子程序。可继续输入名称、ID 或粘贴 %%id / %名称% 后重试。"
-            : $"找到 {_rows.Count} 个公共子程序。双击或选中后点「确定」。";
+            ? "未找到匹配的公共子程序。可继续输入名称（支持模糊匹配）、ID 或粘贴 %%id / %名称% 后重试。"
+            : $"找到 {_rows.Count} 个公共子程序（名称支持模糊匹配）。双击或选中后点「确定」。";
     }
 
     private void UpdateStatusForSelection()

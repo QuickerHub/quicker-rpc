@@ -15,6 +15,9 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="StreamJsonRpc" />
+    <!-- net472 Quicker plugin only: pin Pipelines 7.0.0.0 (Quicker AppDomain load-order with cea.clip.quicker). -->
+    <!-- netstandard2.0 (qkrpc CLI): StreamJsonRpc transitive Pipelines is fine — separate process, not Quicker AppDomain. -->
+    <PackageReference Include="System.IO.Pipelines" Condition="'$(TargetFramework)' == 'net472'" />
   </ItemGroup>
   <Import Project="$(MSBuildThisFileDirectory)..\build\AssemblyVersionFileNameSuffix.props" Condition="'$(UseAssemblyVersionFileNameSuffix)' == 'true'" />
 </Project>

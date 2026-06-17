@@ -76,7 +76,60 @@ internal static class ActionDesignerSubProgramTargetSearch
             TryAddDirectLookup(accessor, alt, rows);
         }
 
+        AddFuzzyNameMatches(accessor, keyword, rows);
+
         return OrderRows(rows.Values, limit);
+    }
+
+    /// <summary>
+    /// Resolves a stored call identifier (%%id / %name%) to the global subprogram display name for picker prefill.
+    /// </summary>
+    public static bool TryResolveNameFromReference(string? reference, out string name)
+    {
+        name = string.Empty;
+        var keyword = (reference ?? string.Empty).Trim();
+        if (keyword.Length == 0)
+        {
+            return false;
+        }
+
+        var accessor = DataServiceSubProgramAccessor.TryCreate();
+        if (accessor is null)
+        {
+            return false;
+        }
+
+        foreach (var key in EnumerateLookupKeys(keyword).Prepend(keyword))
+        {
+            if (!accessor.TryGetByIdOrName(key, out var subProgram, out _) || subProgram is null)
+            {
+                continue;
+            }
+
+            var resolved = (subProgram.Name ?? string.Empty).Trim();
+            if (resolved.Length == 0)
+            {
+                continue;
+            }
+
+            name = resolved;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Best-effort search keyword when only the stored call identifier is known (name preferred, else stripped token).
+    /// </summary>
+    internal static string GetSearchKeywordFromReference(string? reference)
+    {
+        if (TryResolveNameFromReference(reference, out var name) && name.Length > 0)
+        {
+            return name;
+        }
+
+        return ExtractBareTokenFromCallIdentifier(reference);
     }
 
     public static bool TryResolveCallIdentifier(string? query, out string? callIdentifier)
@@ -197,6 +250,70 @@ internal static class ActionDesignerSubProgramTargetSearch
             CallIdentifier = callIdentifier,
             Score = hit.Score,
         };
+    }
+
+    private static void AddFuzzyNameMatches(
+        DataServiceSubProgramAccessor accessor,
+        string keyword,
+        Dictionary<string, Row> rows)
+    {
+        if (keyword.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var subProgram in accessor.EnumerateAll())
+        {
+            var id = (subProgram.Id ?? string.Empty).Trim();
+            if (id.Length == 0)
+            {
+                continue;
+            }
+
+            var name = subProgram.Name ?? string.Empty;
+            var description = NullIfEmpty(subProgram.Description);
+            var callIdentifier = DataServiceSubProgramAccessor.GetCallIdentifier(subProgram);
+            var score = ActionSearchFuzzyMatch.ComputeScore(keyword, id, name, description);
+            if (score <= 0)
+            {
+                score = ActionSearchFuzzyMatch.ComputeScore(keyword, id, callIdentifier, description);
+            }
+
+            if (score <= 0)
+            {
+                continue;
+            }
+
+            if (rows.TryGetValue(id, out var existing) && existing.Score >= score)
+            {
+                continue;
+            }
+
+            rows[id] = new Row
+            {
+                Id = id,
+                Name = name,
+                Description = description,
+                CallIdentifier = callIdentifier,
+                Score = score,
+            };
+        }
+    }
+
+    private static string ExtractBareTokenFromCallIdentifier(string? reference)
+    {
+        var trimmed = (reference ?? string.Empty).Trim();
+        if (trimmed.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        foreach (var key in EnumerateLookupKeys(trimmed))
+        {
+            return key;
+        }
+
+        return trimmed;
     }
 
     private static IReadOnlyList<Row> OrderRows(IEnumerable<Row> rows, int limit) =>

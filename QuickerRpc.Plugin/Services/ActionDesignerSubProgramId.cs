@@ -125,8 +125,8 @@ internal static class ActionDesignerSubProgramId
 
         if (references.Count == 1)
         {
-            text = references[0]!;
-            return true;
+            text = ActionDesignerSubProgramTargetSearch.GetSearchKeywordFromReference(references[0]);
+            return text.Length > 0;
         }
 
         text = string.Empty;
