@@ -14,5 +14,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
+    <!-- Quicker AppDomain: pin Pipelines 7.0.0.0 (matches cea.clip.quicker load order). -->
+    <PackageReference Include="System.IO.Pipelines" VersionOverride="$(Net472SystemIOPipelinesVersion)" />
   </ItemGroup>
 </Project>
