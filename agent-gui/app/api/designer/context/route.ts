@@ -1,5 +1,3 @@
-import type { DesignerContextSnapshot } from "@/lib/designer-context-types";
-import { parseDesignerContext } from "@/lib/designer-context-parse";
 import { fetchDesignerContextSnapshot } from "@/lib/designer-context.server";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +12,3 @@ export async function GET(req: Request) {
   }
   return Response.json(snapshot);
 }
-
-export { parseDesignerContext };
-export type { DesignerContextSnapshot };
