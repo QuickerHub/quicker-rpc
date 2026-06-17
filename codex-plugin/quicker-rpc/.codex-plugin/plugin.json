@@ -1,6 +1,6 @@
 {
   "name": "quicker-rpc",
-  "version": "0.14.7",
+  "version": "0.14.8",
   "description": "Headless Quicker action authoring: qkrpc MCP, authoring skills, and workspace patch (P0–P7).",
   "author": {
     "name": "QuickerHub"

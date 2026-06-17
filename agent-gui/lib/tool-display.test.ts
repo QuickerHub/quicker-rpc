@@ -22,16 +22,15 @@ const deleteOutput = {
 };
 
 test("shouldCollapseToolBatchWhenIdle when all tools finished without errors", () => {
+  const idle = { allTerminal: true, needsAttention: false };
+  assert.equal(shouldCollapseToolBatchWhenIdle(idle, true), true);
+  assert.equal(shouldCollapseToolBatchWhenIdle(idle, false), false);
   assert.equal(
-    shouldCollapseToolBatchWhenIdle({ allTerminal: true, needsAttention: false }),
-    true,
-  );
-  assert.equal(
-    shouldCollapseToolBatchWhenIdle({ allTerminal: true, needsAttention: true }),
+    shouldCollapseToolBatchWhenIdle({ allTerminal: true, needsAttention: true }, true),
     false,
   );
   assert.equal(
-    shouldCollapseToolBatchWhenIdle({ allTerminal: false, needsAttention: false }),
+    shouldCollapseToolBatchWhenIdle({ allTerminal: false, needsAttention: false }, true),
     false,
   );
 });

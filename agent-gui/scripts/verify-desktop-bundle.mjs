@@ -105,6 +105,19 @@ function verifyRoot({ label, dir }) {
     }
   }
 
+  for (const rel of [
+    "app/cursor-sdk-runtime/server.mjs",
+    "app/cursor-sdk-runtime/node_modules/@cursor/sdk/package.json",
+    "app/node_modules/@cursor/sdk/package.json",
+  ]) {
+    const path = join(dir, rel);
+    if (existsSync(path)) {
+      throw new Error(
+        `${label}: dev-only ${rel} must not be bundled in release artifacts`,
+      );
+    }
+  }
+
   // Load the native SQLite addon with the bundled Node to catch ABI mismatches.
   const bundledNode = join(dir, "node", "node.exe");
   if (process.platform === "win32" && existsSync(bundledNode)) {

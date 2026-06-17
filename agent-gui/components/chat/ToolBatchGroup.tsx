@@ -18,14 +18,23 @@ import { ToolPart } from "./ToolPart";
 type ToolBatchGroupProps = {
   messageId: string;
   items: ToolUiPartAnalysis[];
+  /** True when a non-empty assistant text segment appears later in the same message. */
+  hasFollowingAssistantText: boolean;
 };
 
-export function ToolBatchGroup({ messageId, items }: ToolBatchGroupProps) {
+export function ToolBatchGroup({
+  messageId,
+  items,
+  hasFollowingAssistantText,
+}: ToolBatchGroupProps) {
   const summary = useMemo(() => buildToolBatchSummary(items), [items]);
-  const batchIdle = shouldCollapseToolBatchWhenIdle(summary);
+  const shouldCollapse = shouldCollapseToolBatchWhenIdle(
+    summary,
+    hasFollowingAssistantText,
+  );
   const batchNeedsAttention = summary.needsAttention;
-  const [userOpen, setUserOpen] = useState(() => !batchIdle);
-  const wasIdleRef = useRef(batchIdle);
+  const [userOpen, setUserOpen] = useState(() => !shouldCollapse);
+  const wasShouldCollapseRef = useRef(shouldCollapse);
 
   const batchRunning = items.some((i) => i.isRunning);
   const batchErr = items.some((i) => i.state === "output-error");
@@ -54,12 +63,12 @@ export function ToolBatchGroup({ messageId, items }: ToolBatchGroupProps) {
       setUserOpen((open) => (open ? open : true));
     }
 
-    if (batchIdle && !wasIdleRef.current) {
+    if (shouldCollapse && !wasShouldCollapseRef.current) {
       setUserOpen((open) => (open ? false : open));
     }
 
-    wasIdleRef.current = batchIdle;
-  }, [forcedOpen, batchRunning, batchIdle, batchNeedsAttention]);
+    wasShouldCollapseRef.current = shouldCollapse;
+  }, [forcedOpen, batchRunning, shouldCollapse, batchNeedsAttention]);
 
   if (workspaceFileBatch && !batchApproval) {
     return (

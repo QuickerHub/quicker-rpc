@@ -65,6 +65,8 @@ export function nextCacheHasBrokenTurbopackRuntime(nextDir) {
 
 export function logChunkIndicatesCorruptNextCache(chunk) {
   const text = chunk.replace(/\u001b\[[0-9;]*m/g, "");
+  if (text.includes("React Client Manifest")) return true;
+  if (text.includes("builtin/global-error")) return true;
   if (!text.includes("ENOENT")) return false;
   if (!text.includes(".next")) return false;
   return (

@@ -21,6 +21,7 @@ import type { AppSettingsTabId } from "@/lib/app-settings-tabs";
 import type { PingState } from "@/lib/use-qkrpc-ping";
 import type { LlmProviderId } from "@/lib/llm-providers";
 import { ModelSelector } from "./ModelSelector";
+import { ComposerCursorSdkLink } from "./ComposerCursorSdkLink";
 import type { ChatMode } from "@/lib/chat-mode";
 import { CHAT_MODE_AGENT, CHAT_MODE_ASK } from "@/lib/chat-mode";
 import { useVoiceInput } from "@/lib/voice-input/use-voice-input";
@@ -377,6 +378,9 @@ const ChatComposerFooterInner = forwardRef<
                   onChange={onLlmSelectionChange}
                   onNeedSettings={handleModelNeedSettings}
                 />
+                {!designerEmbed ? (
+                  <ComposerCursorSdkLink disabled={busy} />
+                ) : null}
                 {voiceInput.errorHint ? (
                   <span className="composer-hint" role="status">
                     <span className="composer-voice-hint composer-voice-hint--err">

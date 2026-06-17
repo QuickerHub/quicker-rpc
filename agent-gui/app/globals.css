@@ -17030,6 +17030,17 @@ button.file-editor-header-open.file-editor-header--compact:hover {
   color: var(--text);
 }
 
+.composer-cursor-sdk-link {
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.composer-cursor-sdk-link--disabled {
+  pointer-events: none;
+  opacity: 0.45;
+}
+
 .tool-selector-panel {
   left: 0;
   bottom: calc(100% + 0.4rem);
@@ -23068,4 +23079,190 @@ html[data-app-ready] #app-bootstrap-splash {
 .qa-error-page__btn--primary:hover {
   background: var(--accent-dim);
   border-color: transparent;
+}
+
+/* Cursor SDK page (/cursor-sdk) — reuses main chat shell */
+.cursor-sdk-shell {
+  min-height: 100dvh;
+}
+
+.cursor-sdk-titlebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.cursor-sdk-titlebar__back {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.cursor-sdk-titlebar__back:hover {
+  color: var(--text);
+}
+
+.cursor-sdk-titlebar__title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cursor-sdk-titlebar__cwd {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cursor-sdk-titlebar__ping {
+  font-size: 0.72rem;
+}
+
+.cursor-sdk-titlebar__refresh {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  border-radius: 6px;
+}
+
+.cursor-sdk-titlebar__refresh:hover {
+  color: var(--text);
+  background: var(--hover-overlay);
+}
+
+.cursor-sdk-messages-empty {
+  padding: 1.5rem var(--chat-rail-inset-inline, 1.25rem) 0.5rem;
+  color: var(--text-muted);
+}
+
+.cursor-sdk-messages-empty__title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cursor-sdk-messages-empty__hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.cursor-sdk-inline-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.cursor-sdk-inline-link:hover {
+  text-decoration: underline;
+}
+
+.cursor-sdk-example-shortcuts {
+  padding-inline: var(--chat-rail-inset-inline, 1.25rem);
+  margin-bottom: 0.35rem;
+}
+
+.composer--cursor-sdk {
+  gap: 0.35rem;
+}
+
+.composer--cursor-sdk .composer-field--markup {
+  min-height: 3.35rem;
+  padding: 0.65rem 0.75rem 0.45rem;
+}
+
+.composer--cursor-sdk .composer-inline-input {
+  min-height: 1.65rem;
+  max-height: 9rem;
+  overflow-y: auto;
+  line-height: 1.45;
+}
+
+.composer--cursor-sdk .composer-toolbar {
+  padding: 0.35rem 0.55rem 0.45rem;
+}
+
+.composer--cursor-sdk .composer-toolbar-left {
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
+}
+
+.cursor-sdk-model-picker {
+  flex-shrink: 0;
+}
+
+.cursor-sdk-model-picker__panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.cursor-sdk-model-picker__head {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.6rem 0.4rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.cursor-sdk-model-picker__title {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cursor-sdk-model-picker__hint {
+  font-size: 0.62rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.cursor-sdk-model-picker__list {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  padding-bottom: 0.35rem;
+}
+
+.cursor-sdk-model-picker__panel .model-picker-item-tier {
+  font-size: 0.58rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  opacity: 0.72;
+}
+
+.composer-cursor-sdk-new-session {
+  white-space: nowrap;
+}
+
+.composer-hint--warn {
+  color: var(--warning, #d97706);
+  font-size: 0.78rem;
+}
+
+.cursor-sdk-banner {
+  margin: 0;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.cursor-sdk-banner--warn {
+  background: color-mix(in srgb, var(--warning, #f59e0b) 12%, transparent);
+  color: var(--text);
+}
+
+.cursor-sdk-banner--error {
+  background: color-mix(in srgb, var(--danger, #ef4444) 12%, transparent);
+  color: var(--text);
 }

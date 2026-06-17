@@ -13,7 +13,15 @@ const distRoot = join(agentGuiRoot, "electron", "dist", "win-unpacked", "resourc
 
 const MAX_ASAR_BYTES = 40 * 1024 * 1024;
 const MAX_UNPACKED_BYTES = 5 * 1024 * 1024;
-const FORBIDDEN_UNPACKED = ["@next", "next", "playwright", "monaco-editor", "better-sqlite3", "@img"];
+const FORBIDDEN_UNPACKED = [
+  "@next",
+  "next",
+  "playwright",
+  "monaco-editor",
+  "better-sqlite3",
+  "@img",
+  "@cursor",
+];
 
 function dirSizeBytes(root) {
   let total = 0;

@@ -10,7 +10,9 @@ m=String(m);
 return m.indexOf("Loading chunk")>=0
 ||m.indexOf("ChunkLoadError")>=0
 ||m.indexOf("Failed to fetch dynamically imported module")>=0
-||m.indexOf("Importing a module script failed")>=0;
+||m.indexOf("Importing a module script failed")>=0
+||m.indexOf("React Client Manifest")>=0
+||m.indexOf("builtin/global-error")>=0;
 }
 function reload(){
 var n=parseInt(sessionStorage.getItem(KEY)||"0",10);

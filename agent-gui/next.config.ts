@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
     "*": [
       "agent-gui/src-tauri/**",
       "agent-gui/.next/**",
+      "agent-gui/cursor-sdk-runtime/**",
       "publish/**",
       "voice-asr-runtime/**",
       "../browser-runtime/**",

@@ -1,5 +1,6 @@
 # dependencies
 node_modules/
+cursor-sdk-runtime/node_modules/
 
 # next.js
 .next/

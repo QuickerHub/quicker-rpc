@@ -358,12 +358,19 @@ export function buildToolBatchSummary(items: ToolUiPartAnalysis[]): {
   return { title, meta, lineDiff, allTerminal, needsAttention };
 }
 
-/** Collapse batch UI when every tool finished and none need attention (errors stay open). */
-export function shouldCollapseToolBatchWhenIdle(summary: {
-  allTerminal: boolean;
-  needsAttention: boolean;
-}): boolean {
-  return summary.allTerminal && !summary.needsAttention;
+/** Collapse batch UI once tools finished, none need attention, and assistant text follows. */
+export function shouldCollapseToolBatchWhenIdle(
+  summary: {
+    allTerminal: boolean;
+    needsAttention: boolean;
+  },
+  hasFollowingAssistantText: boolean,
+): boolean {
+  return (
+    hasFollowingAssistantText
+    && summary.allTerminal
+    && !summary.needsAttention
+  );
 }
 
 function buildCompletedExploreBatchMeta(

@@ -95,6 +95,24 @@ function stripNestedBundleArtifacts(appRoot) {
       console.log(`Removed traced ${name} from staged app: ${nested}`);
     }
   }
+  stripCursorSdkDevArtifacts(appRoot);
+}
+
+/** Dev-only Cursor SDK runtime must never ship in desktop installers. */
+function stripCursorSdkDevArtifacts(appRoot) {
+  const relPaths = ["cursor-sdk-runtime"];
+  for (const rel of relPaths) {
+    const target = join(appRoot, rel);
+    if (!existsSync(target)) continue;
+    rmSync(target, { recursive: true, force: true });
+    console.log(`Removed dev-only cursor-sdk-runtime from staged app: ${target}`);
+  }
+
+  const cursorSdkPkg = join(appRoot, "node_modules", "@cursor");
+  if (existsSync(cursorSdkPkg)) {
+    rmSync(cursorSdkPkg, { recursive: true, force: true });
+    console.log(`Removed traced @cursor/* from staged app: ${cursorSdkPkg}`);
+  }
 }
 
 function ensureNextStandaloneRuntimes(agentGuiRoot, appRoot) {

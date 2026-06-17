@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { SettingsGearIcon } from "@/components/SettingsGearIcon";
+import { isAgentGuiDebugMode, isCursorSdkDevEnabled } from "@/lib/agent-gui-debug";
 import { useDevExperienceEnabled } from "@/lib/release-preview.client";
 
 type EmptyChatPromptsProps = {
@@ -52,19 +53,34 @@ export function EmptyChatPrompts({
         <span className="empty-chat-shortcut-btn__hint">模型、工具、工作目录</span>
       </button>
       {devExperienceEnabled ? (
-      <Link
-        href="/tool-test"
-        className={`empty-chat-shortcut-btn empty-chat-shortcut-btn--link${disabled ? " empty-chat-shortcut-btn--disabled" : ""}`}
-        aria-disabled={disabled || undefined}
-        tabIndex={disabled ? -1 : undefined}
-        onClick={(e) => {
-          if (disabled) e.preventDefault();
-        }}
-      >
-        <IconToolTest />
-        <span className="empty-chat-shortcut-btn__label">测试</span>
-        <span className="empty-chat-shortcut-btn__hint">工具套件与标题/Prompt 测试</span>
-      </Link>
+        <Link
+          href="/tool-test"
+          className={`empty-chat-shortcut-btn empty-chat-shortcut-btn--link${disabled ? " empty-chat-shortcut-btn--disabled" : ""}`}
+          aria-disabled={disabled || undefined}
+          tabIndex={disabled ? -1 : undefined}
+          onClick={(e) => {
+            if (disabled) e.preventDefault();
+          }}
+        >
+          <IconToolTest />
+          <span className="empty-chat-shortcut-btn__label">测试</span>
+          <span className="empty-chat-shortcut-btn__hint">工具套件与标题/Prompt 测试</span>
+        </Link>
+      ) : null}
+      {isCursorSdkDevEnabled() ? (
+        <Link
+          href="/cursor-sdk"
+          className={`empty-chat-shortcut-btn empty-chat-shortcut-btn--link${disabled ? " empty-chat-shortcut-btn--disabled" : ""}`}
+          aria-disabled={disabled || undefined}
+          tabIndex={disabled ? -1 : undefined}
+          onClick={(e) => {
+            if (disabled) e.preventDefault();
+          }}
+        >
+          <IconToolTest />
+          <span className="empty-chat-shortcut-btn__label">Cursor SDK</span>
+          <span className="empty-chat-shortcut-btn__hint">@cursor/sdk 编写对话</span>
+        </Link>
       ) : null}
     </div>
   );

@@ -33,7 +33,10 @@ function MessagePartsInner({
 
   return (
     <>
-      {segments.map((segment) => {
+      {segments.map((segment, segmentIndex) => {
+        const hasFollowingAssistantText = segments
+          .slice(segmentIndex + 1)
+          .some((s) => s.kind === "text");
         if (segment.kind === "reasoning") {
           const lead = segment.items[0];
           if (!lead) return null;
@@ -104,6 +107,7 @@ function MessagePartsInner({
             key={batchKey}
             messageId={message.id}
             items={segment.items}
+            hasFollowingAssistantText={hasFollowingAssistantText}
           />
         );
       })}

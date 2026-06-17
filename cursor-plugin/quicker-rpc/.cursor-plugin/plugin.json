@@ -2,7 +2,7 @@
   "name": "quicker-rpc",
   "displayName": "Quicker RPC",
   "description": "Quicker action authoring in Cursor: qkrpc MCP tools, authoring skills, and hard rules aligned with QuickerAgent.",
-  "version": "0.14.7.16",
+  "version": "0.14.8.0",
   "author": {
     "name": "QuickerHub"
   },
