@@ -216,9 +216,7 @@ async function handleChatPost(req: Request) {
     if (actionDesigner && chatMode !== CHAT_MODE_LAUNCHER) {
       const designerSnapshot = await fetchDesignerContextSnapshot(false);
       const windowContext = resolveDesignerWindowContext(designerSnapshot, {
-        enabled: true,
         scoped: true,
-        debugMode: false,
         entityId: actionDesigner.entityId,
         isSubProgram: actionDesigner.isSubProgram,
       });

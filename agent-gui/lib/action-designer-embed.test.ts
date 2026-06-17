@@ -33,9 +33,7 @@ test("parseActionDesignerEmbedFromSearchParams debug when entityId omitted", () 
 test("actionDesignerRefFromEmbed only returns ref when scoped", () => {
   assert.equal(
     actionDesignerRefFromEmbed({
-      enabled: true,
       scoped: false,
-      debugMode: true,
       entityId: "",
       isSubProgram: false,
     }),
@@ -43,9 +41,7 @@ test("actionDesignerRefFromEmbed only returns ref when scoped", () => {
   );
   assert.deepEqual(
     actionDesignerRefFromEmbed({
-      enabled: true,
       scoped: true,
-      debugMode: false,
       entityId: "guid",
       isSubProgram: false,
     }),
