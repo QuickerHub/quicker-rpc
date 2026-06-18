@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
+using Newtonsoft.Json.Linq;
 using Quicker.Common;
 using Quicker.Domain;
 using Quicker.Domain.Actions;
@@ -114,13 +115,20 @@ public sealed class XActionTraceRunService
         IProgress<QuickerRpcActionTraceEvent>? progress,
         IQuickerRpcClientCallbacks? streamCallbacks)
     {
+        var programSteps = TryReadProgramSteps(actionItem);
+        var stepIdToPath = programSteps is null
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : ActionTraceLocationResolver.BuildStepIdToPathMap(programSteps);
+
         var appServer = AppState.AppServer;
         if (appServer is null)
         {
             return Fail("AppServer unavailable.", actionId, actionTitle);
         }
 
-        var logger = new TerminalActionLogger(CreateStreamHandler(progress, streamCallbacks));
+        var logger = new TerminalActionLogger(
+            CreateStreamHandler(progress, streamCallbacks),
+            stepIdToPath);
         var sw = Stopwatch.StartNew();
 
         ActionExecuteContext? context = null;
@@ -139,17 +147,23 @@ public sealed class XActionTraceRunService
 
         if (runException is not null)
         {
-            return Fail(runException.Message, actionId, actionTitle, logger.Events, sw.ElapsedMilliseconds);
+            return WithFailureLocation(
+                Fail(runException.Message, actionId, actionTitle, logger.Events, sw.ElapsedMilliseconds),
+                logger.Events,
+                programSteps);
         }
 
         if (context is null)
         {
-            return Fail(
-                "Action execution did not produce a context.",
-                actionId,
-                actionTitle,
+            return WithFailureLocation(
+                Fail(
+                    "Action execution did not produce a context.",
+                    actionId,
+                    actionTitle,
+                    logger.Events,
+                    sw.ElapsedMilliseconds),
                 logger.Events,
-                sw.ElapsedMilliseconds);
+                programSteps);
         }
 
         logger.EndFile();
@@ -157,32 +171,93 @@ public sealed class XActionTraceRunService
         var returnResult = string.IsNullOrWhiteSpace(context.ReturnResult) ? null : context.ReturnResult;
         if (TryReadExecutionFailure(context, out var runtimeError, out var stopFlag))
         {
-            return new QuickerRpcActionTraceRunResult
+            return WithFailureLocation(
+                new QuickerRpcActionTraceRunResult
+                {
+                    Ok = false,
+                    ActionId = actionId,
+                    ActionTitle = actionTitle,
+                    ReturnResult = returnResult,
+                    ErrorMessage = runtimeError,
+                    StopFlag = stopFlag,
+                    Message = runtimeError ?? "动作执行失败。",
+                    DurationMs = sw.ElapsedMilliseconds,
+                    EventCount = logger.Events.Count,
+                    Events = [.. logger.Events],
+                },
+                logger.Events,
+                programSteps);
+        }
+
+        return WithFailureLocation(
+            new QuickerRpcActionTraceRunResult
             {
-                Ok = false,
+                Ok = true,
                 ActionId = actionId,
                 ActionTitle = actionTitle,
                 ReturnResult = returnResult,
-                ErrorMessage = runtimeError,
-                StopFlag = stopFlag,
-                Message = runtimeError ?? "动作执行失败。",
+                Message = string.IsNullOrWhiteSpace(returnResult) ? "动作已运行。" : returnResult,
                 DurationMs = sw.ElapsedMilliseconds,
                 EventCount = logger.Events.Count,
                 Events = [.. logger.Events],
-            };
+            },
+            logger.Events,
+            programSteps);
+    }
+
+    private static QuickerRpcActionTraceRunResult WithFailureLocation(
+        QuickerRpcActionTraceRunResult result,
+        IReadOnlyList<QuickerRpcActionTraceEvent> events,
+        JArray? programSteps)
+    {
+        if (result.Events.Count == 0 && events.Count > 0)
+        {
+            result.Events = [.. events];
+            result.EventCount = events.Count;
         }
 
-        return new QuickerRpcActionTraceRunResult
+        return ActionTraceLocationResolver.AttachFailureLocation(result, programSteps);
+    }
+
+    private JArray? TryReadProgramSteps(ActionItem actionItem)
+    {
+        if (_actions is null)
         {
-            Ok = true,
-            ActionId = actionId,
-            ActionTitle = actionTitle,
-            ReturnResult = returnResult,
-            Message = string.IsNullOrWhiteSpace(returnResult) ? "动作已运行。" : returnResult,
-            DurationMs = sw.ElapsedMilliseconds,
-            EventCount = logger.Events.Count,
-            Events = [.. logger.Events],
-        };
+            return TryReadProgramStepsFromData(actionItem.Data);
+        }
+
+        var payloadJson = _actions.GetPayloadJson(actionItem, out _);
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            return TryReadProgramStepsFromData(actionItem.Data);
+        }
+
+        try
+        {
+            var body = JObject.Parse(payloadJson);
+            return ActionProgramContent.ReadBodyArrays(body).Steps;
+        }
+        catch
+        {
+            return TryReadProgramStepsFromData(actionItem.Data);
+        }
+    }
+
+    private static JArray? TryReadProgramStepsFromData(string? dataJson)
+    {
+        if (!ActionProgramContent.IsXActionBody(dataJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return ActionProgramContent.ReadBodyArrays(JObject.Parse(dataJson!)).Steps;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static ActionExecuteContext CreateTraceContext(

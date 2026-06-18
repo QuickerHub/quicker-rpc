@@ -11,12 +11,14 @@ import type {
   ContextSplitReason,
 } from "@/lib/chat-types";
 import {
+  getLatestContextCompression,
   resolveContextSplitIndex,
   selectReusableContextSummary,
   shouldCompressContextMessages,
   type ContextSplitResult,
 } from "@/lib/context-compression-shared";
 import { microcompactToolOutputs } from "@/lib/context-microcompact";
+import { stripToolDisplayDataFromMessages } from "@/lib/tool-result-model-messages";
 import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
 import type { PostCompactReinjectResult } from "@/lib/context-compaction-reinject";
 import type { LlmSelection } from "@/lib/llm-selection";
@@ -33,6 +35,7 @@ export {
   resolveRecentTokenBudget,
   selectReusableContextSummary,
   shouldCompressContextMessages,
+  getLatestContextCompression,
   type ContextCompressionPreview,
   type ContextSplitReason,
   type ContextSplitResult,
@@ -91,7 +94,9 @@ function summarizeToolOutput(part: AgentUIMessage["parts"][number]): string | nu
   }
   if (output.compact === true) {
     const actionId = output.actionId ?? readRecord(output.data)?.actionId;
+    const summary = typeof output.summary === "string" ? output.summary : null;
     return `[tool:${part.type}] compact ok=${String(output.ok ?? "?")}`
+      + (summary ? ` ${summary.slice(0, 120)}` : "")
       + (actionId != null ? ` actionId=${String(actionId)}` : "");
   }
   if (part.type === "tool-qkrpc_action_create") {
@@ -100,6 +105,14 @@ function summarizeToolOutput(part: AgentUIMessage["parts"][number]): string | nu
   }
   if (part.type === "tool-workspace_program") {
     return `[tool:workspace_program] ok=${String(output.ok)} path=${String(output.path ?? "?")}`;
+  }
+  if (part.type === "tool-qkrpc_action_debug") {
+    const data = readRecord(output.data);
+    const loc = readRecord(data?.failureLocation);
+    const pointer =
+      typeof loc?.dataJsonPointer === "string" ? loc.dataJsonPointer : undefined;
+    return `[tool:debug] ok=${String(output.ok ?? "?")}`
+      + (pointer ? ` at=${pointer}` : "");
   }
   if (part.type === "tool-Shell" || part.type === "tool-shell_exec") {
     const stderr = typeof output.stderr === "string" ? output.stderr.slice(0, 120) : "";
@@ -273,8 +286,16 @@ export async function prepareCompressedContext(
       })
     : split;
 
-  const baseModelMessages = await convertToModelMessages(workingMessages);
-  const trigger = workingSplit.splitIndex > 0 && usagePressure;
+  const baseModelMessages = await convertToModelMessages(
+    stripToolDisplayDataFromMessages(workingMessages),
+  );
+  const compressionPressure = micro.applied
+    ? force
+      || shouldCompressContextMessages(workingMessages, contextLimit, {
+        preferTokenEstimate: true,
+      })
+    : usagePressure;
+  const trigger = workingSplit.splitIndex > 0 && compressionPressure;
   if (!trigger) {
     return { modelMessages: baseModelMessages, compressed: false };
   }
@@ -285,17 +306,23 @@ export async function prepareCompressedContext(
     return { modelMessages: baseModelMessages, compressed: false };
   }
 
-  const throughMessageId = olderMessages[olderMessages.length - 1]!.id;
   const reuseSummary = selectReusableContextSummary(
     workingMessages,
     workingSplit.splitIndex,
   );
+  const priorCompression = getLatestContextCompression(workingMessages);
+  const throughMessageId =
+    reuseSummary && priorCompression?.throughMessageId
+      ? priorCompression.throughMessageId
+      : olderMessages[olderMessages.length - 1]!.id;
   const summary = reuseSummary ?? (await summarize(model, olderMessages));
   if (!summary) {
     return { modelMessages: baseModelMessages, compressed: false };
   }
 
-  const recentModelMessages = await convertToModelMessages(recentMessages);
+  const recentModelMessages = await convertToModelMessages(
+    stripToolDisplayDataFromMessages(recentMessages),
+  );
   const sourceInputTokens = latestAssistantUsage(messages)?.inputTokens ?? 0;
   const reinject = reinjectRecentPatches
     ? await reinjectRecentPatches(recentMessages)

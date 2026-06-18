@@ -1,0 +1,33 @@
+[
+  {
+    "kind": "step_begin",
+    "stepId": "r1",
+    "stepRunnerKey": "sys:evalexpression",
+    "note": "first",
+    "stepPath": "0"
+  },
+  {
+    "kind": "step_end",
+    "stepId": "r1",
+    "stepPath": "0"
+  },
+  {
+    "kind": "step_begin",
+    "stepId": "r2",
+    "stepRunnerKey": "sys:evalexpression",
+    "note": "second",
+    "stepPath": "1"
+  },
+  {
+    "kind": "input",
+    "stepId": "r2",
+    "stepPath": "1",
+    "paramKey": "expression"
+  },
+  {
+    "kind": "error",
+    "stepId": "r2",
+    "stepPath": "1",
+    "message": "failed"
+  }
+]

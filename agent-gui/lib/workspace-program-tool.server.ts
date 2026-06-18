@@ -7,6 +7,7 @@ import {
   programLabelForLint,
 } from "@/lib/program-syntax-lint";
 import { formatLocalToolResult, type ToolFeedback } from "@/lib/tool-result";
+import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import { DEFAULT_READ_CHARS } from "@/lib/workspace-fs";
 import { WORKSPACE_PROGRAM_TOOL } from "@/lib/workspace-program-tool";
 import { workspaceProgramIdSchema } from "@/lib/workspace-program-schema";
@@ -427,7 +428,12 @@ export const WORKSPACE_PROGRAM_TOOL_DEF = tool({
       .describe("diagnostics: wait for lint (default 0, max 30000 recommended)"),
     ...workspaceReadSliceSchema,
   }),
-  execute: async (input) => executeWorkspaceProgramTool(input),
+  execute: async (input) =>
+    formatToolResultForAgent(
+      WORKSPACE_PROGRAM_TOOL,
+      input,
+      await executeWorkspaceProgramTool(input),
+    ),
 });
 
 export { WORKSPACE_PROGRAM_TOOL };

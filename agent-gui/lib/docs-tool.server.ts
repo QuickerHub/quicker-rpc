@@ -15,6 +15,7 @@ import {
   groupTopicsByLayer,
 } from "@/lib/action-authoring-docs.shared";
 import { formatLocalToolResult } from "@/lib/tool-result";
+import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import { DOCS_TOOL } from "@/lib/docs-tool";
 
 /** Public actions for the consolidated docs tool. */
@@ -237,7 +238,8 @@ export const DOCS_TOOL_DEF = tool({
       .optional()
       .describe("Required for get — topic id (e.g. authoring-workflow)"),
   }),
-  execute: executeDocsTool,
+  execute: async (input) =>
+    formatToolResultForAgent(DOCS_TOOL, input, await executeDocsTool(input)),
 });
 
 export { DOCS_TOOL };

@@ -1,0 +1,56 @@
+name: Action trace failure location
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'QuickerRpc.Contracts/Rpc/QuickerRpcActionTrace.cs'
+      - 'QuickerRpc.Plugin/Debugging/**'
+      - 'QuickerRpc.Plugin/Services/XActionTraceRunService.cs'
+      - 'QuickerRpc.Plugin.Test/ActionTrace*.cs'
+      - 'QuickerRpc.Plugin.Test/Fixtures/trace-failure-location/**'
+      - 'QuickerRpc.Plugin.Test/Fixtures/workspace-actions/trace-fail-evalexpression/**'
+      - 'agent-gui/lib/action-trace*.ts'
+      - 'agent-gui/lib/qkrpc-action-tool*.ts'
+      - 'agent-gui/lib/context-compression.ts'
+      - 'scripts/Test-ActionTraceLocation.ps1'
+      - '.github/workflows/action-trace-location.yml'
+  pull_request:
+    paths:
+      - 'QuickerRpc.Contracts/Rpc/QuickerRpcActionTrace.cs'
+      - 'QuickerRpc.Plugin/Debugging/**'
+      - 'QuickerRpc.Plugin/Services/XActionTraceRunService.cs'
+      - 'QuickerRpc.Plugin.Test/ActionTrace*.cs'
+      - 'QuickerRpc.Plugin.Test/Fixtures/trace-failure-location/**'
+      - 'QuickerRpc.Plugin.Test/Fixtures/workspace-actions/trace-fail-evalexpression/**'
+      - 'agent-gui/lib/action-trace*.ts'
+      - 'agent-gui/lib/qkrpc-action-tool*.ts'
+      - 'agent-gui/lib/context-compression.ts'
+      - 'scripts/Test-ActionTraceLocation.ps1'
+      - '.github/workflows/action-trace-location.yml'
+
+jobs:
+  action-trace-location:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Run automated trace location tests
+        shell: pwsh
+        run: ./scripts/Test-ActionTraceLocation.ps1

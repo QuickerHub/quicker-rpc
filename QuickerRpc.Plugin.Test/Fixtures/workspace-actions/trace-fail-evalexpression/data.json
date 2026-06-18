@@ -1,0 +1,38 @@
+{
+  "steps": [
+    {
+      "stepId": "s-ok",
+      "stepRunnerKey": "sys:evalexpression",
+      "inputParams": {
+        "expression": {
+          "value": "$=1 + 1"
+        }
+      },
+      "outputParams": {
+        "result": "sum"
+      }
+    },
+    {
+      "stepId": "s-fail",
+      "stepRunnerKey": "sys:evalexpression",
+      "inputParams": {
+        "expression": {
+          "value": "$=int.Parse(\"not-a-number\")"
+        }
+      },
+      "outputParams": {
+        "result": "bad"
+      }
+    }
+  ],
+  "variables": [
+    {
+      "key": "sum",
+      "defaultValue": ""
+    },
+    {
+      "key": "bad",
+      "defaultValue": ""
+    }
+  ]
+}

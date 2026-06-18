@@ -1,0 +1,27 @@
+{
+  "steps": [
+    {
+      "stepRunnerKey": "sys:if",
+      "inputParams": {
+        "condition": { "value": "$=true" }
+      },
+      "ifSteps": [
+        {
+          "stepId": "s-inner",
+          "stepRunnerKey": "sys:evalexpression",
+          "inputParams": {
+            "expression": { "value": "$=bad" }
+          }
+        }
+      ],
+      "elseSteps": [
+        {
+          "stepRunnerKey": "sys:delay",
+          "inputParams": {
+            "delayMs": { "value": "1" }
+          }
+        }
+      ]
+    }
+  ]
+}

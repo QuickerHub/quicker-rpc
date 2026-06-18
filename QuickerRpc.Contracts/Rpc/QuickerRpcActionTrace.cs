@@ -33,6 +33,27 @@ public sealed class QuickerRpcActionTraceEvent
     public string? VarKey { get; set; }
 
     public long ElapsedMs { get; set; }
+
+    /// <summary>Step index path in data.json (e.g. <c>1</c>, <c>0/if/0</c>) — aligned with patch/diagnostics stepPath.</summary>
+    public string? StepPath { get; set; }
+}
+
+/// <summary>Resolved failure location for agent patch workflow (data.json step + param).</summary>
+public sealed class QuickerRpcActionTraceFailureLocation
+{
+    public string? StepId { get; set; }
+
+    public string? StepPath { get; set; }
+
+    public string? StepRunnerKey { get; set; }
+
+    public string? ParamKey { get; set; }
+
+    public string? DataJsonPointer { get; set; }
+
+    public string? Message { get; set; }
+
+    public string? MatchMethod { get; set; }
 }
 
 public sealed class QuickerRpcActionTraceRunResult
@@ -56,4 +77,6 @@ public sealed class QuickerRpcActionTraceRunResult
     public int EventCount { get; set; }
 
     public List<QuickerRpcActionTraceEvent> Events { get; set; } = [];
+
+    public QuickerRpcActionTraceFailureLocation? FailureLocation { get; set; }
 }

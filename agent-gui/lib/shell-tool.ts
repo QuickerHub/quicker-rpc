@@ -1,6 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { formatLocalToolResult } from "@/lib/tool-result";
+import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
+import { SHELL_TOOL } from "@/lib/host-tool-constants";
 import { summarizeShellRequest } from "@/lib/shell-policy";
 import { normalizeShellRunRequest } from "@/lib/shell-request-normalize";
 import { buildShellCombinedOutput } from "@/lib/shell-tool-view";
@@ -123,6 +125,7 @@ function toShellRequest(input: z.infer<typeof shellInputSchema>): ShellRunReques
 }
 
 function formatShellToolResult(
+  input: z.infer<typeof shellInputSchema>,
   request: ShellRunRequest,
   result: Awaited<ReturnType<typeof runShellRequest>>,
 ) {
@@ -145,10 +148,14 @@ function formatShellToolResult(
   if (output) data.output = output;
   if (result.truncated) data.truncated = true;
 
-  return formatLocalToolResult(
-    data,
-    result.ok,
-    result.ok ? undefined : result.stderr || result.blockReason || "shell command failed",
+  return formatToolResultForAgent(
+    SHELL_TOOL,
+    input,
+    formatLocalToolResult(
+      data,
+      result.ok,
+      result.ok ? undefined : result.stderr || result.blockReason || "shell command failed",
+    ),
   );
 }
 
@@ -170,7 +177,7 @@ export const SHELL_TOOL_DEF = tool({
     const request = toShellRequest(input);
     const sessionId = options?.toolCallId?.trim() || undefined;
     const result = await runShellRequest(request, { sessionId });
-    return formatShellToolResult(request, result);
+    return formatShellToolResult(input, request, result);
   },
   needsApproval: async (input: z.infer<typeof shellInputSchema>) =>
     shellPolicyRequiresApproval(toShellRequest(input)),

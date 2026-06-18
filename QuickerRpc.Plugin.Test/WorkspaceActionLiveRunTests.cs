@@ -17,6 +17,7 @@ public sealed class WorkspaceActionLiveRunTests
     public TestContext TestContext { get; set; } = null!;
 
     [TestMethod]
+    [TestCategory("LiveQuicker")]
     public async Task LiveRun_fixture_via_sandbox_trace_succeeds()
     {
         await using var session = await WorkspaceActionLiveTestHelper.ConnectOrInconclusiveAsync(TestContext);
@@ -43,6 +44,37 @@ public sealed class WorkspaceActionLiveRunTests
     }
 
     [TestMethod]
+    [TestCategory("LiveQuicker")]
+    public async Task LiveRun_failing_fixture_emits_failure_location()
+    {
+        await using var session = await WorkspaceActionLiveTestHelper.ConnectOrInconclusiveAsync(TestContext);
+        var ct = QuickerRpcClient.CreateRpcCancellationToken(20);
+
+        var load = LoadFixture("trace-fail-evalexpression");
+        Assert.IsTrue(load.Success, load.ErrorMessage);
+
+        var (trace, sandboxId) = await WorkspaceActionLiveRunner
+            .RunAsync(session.Rpc, load.Project!, cancellationToken: ct)
+            .ConfigureAwait(false);
+
+        TestContext.WriteLine(
+            $"sandbox={sandboxId} ok={trace.Ok} failurePath={trace.FailureLocation?.StepPath} pointer={trace.FailureLocation?.DataJsonPointer}");
+
+        Assert.IsFalse(trace.Ok, "fixture step 2 should fail");
+        Assert.IsNotNull(trace.FailureLocation, "trace should include failureLocation");
+        Assert.AreEqual("1", trace.FailureLocation!.StepPath, "failure should map to step index 1");
+        Assert.AreEqual("s-fail", trace.FailureLocation.StepId);
+        Assert.AreEqual("sys:evalexpression", trace.FailureLocation.StepRunnerKey);
+        Assert.IsTrue(
+            trace.FailureLocation.DataJsonPointer?.Contains("steps[1]", StringComparison.Ordinal) == true,
+            "dataJsonPointer should reference failing step");
+        Assert.IsTrue(
+            trace.Events.Any(e => string.Equals(e.Kind, "error", StringComparison.Ordinal)),
+            "trace should include error event");
+    }
+
+    [TestMethod]
+    [TestCategory("LiveQuicker")]
     public async Task LiveRun_repo_workspace_action_when_configured()
     {
         var actionKey = WorkspaceActionTestSettings.WorkspaceActionKey;
@@ -71,13 +103,16 @@ public sealed class WorkspaceActionLiveRunTests
         Assert.IsTrue(trace.Ok, trace.ErrorMessage ?? trace.Message);
     }
 
-    private static WorkspaceActionTestEnvironment.LoadResult LoadDefaultFixture()
+    private static WorkspaceActionTestEnvironment.LoadResult LoadDefaultFixture() =>
+        LoadFixture(WorkspaceActionTestSettings.FixtureName);
+
+    private static WorkspaceActionTestEnvironment.LoadResult LoadFixture(string fixtureName)
     {
         var dir = System.IO.Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory,
             "Fixtures",
             "workspace-actions",
-            WorkspaceActionTestSettings.FixtureName);
+            fixtureName);
         return WorkspaceActionTestEnvironment.TryLoadFromDirectory(dir);
     }
 }

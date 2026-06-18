@@ -24,6 +24,8 @@ export type AppMessageInput = {
   actions?: AppMessageAction[];
   /** When set, renders an inline progress bar (for long-running tasks). */
   progress?: AppMessageProgress;
+  /** Click the toast body to run (e.g. jump to a background conversation). */
+  onClick?: () => void | Promise<void>;
   /** Default true. */
   dismissible?: boolean;
   autoDismissMs?: number;
@@ -36,6 +38,7 @@ export type AppMessage = {
   body: string;
   actions: AppMessageAction[];
   progress?: AppMessageProgress;
+  onClick?: () => void | Promise<void>;
   dismissible: boolean;
   autoDismissMs?: number;
   createdAt: number;
@@ -75,6 +78,7 @@ function normalizeInput(input: AppMessageInput): AppMessage {
     body: input.body,
     actions: input.actions ?? [],
     progress: input.progress,
+    onClick: input.onClick,
     dismissible: input.dismissible !== false,
     autoDismissMs: input.autoDismissMs,
     createdAt: Date.now(),

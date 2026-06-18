@@ -1,0 +1,10 @@
+{
+  "steps": [
+    {
+      "stepRunnerKey": "sys:evalexpression",
+      "inputParams": {
+        "expression": { "value": "$=1" }
+      }
+    }
+  ]
+}

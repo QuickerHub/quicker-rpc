@@ -9,6 +9,7 @@ import {
 import { grepWorkspace } from "@/lib/grep-workspace.server";
 import { GREP_TOOL } from "@/lib/grep-tool";
 import { formatLocalToolResult } from "@/lib/tool-result";
+import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 
 export { GREP_TOOL };
 
@@ -106,5 +107,6 @@ export const GREP_TOOL_DEF = tool({
     + "NOT literal single-file substring — use Read({ action: \"search\" }). "
     + "Example: { pattern: \"tool-registry\", glob: \"*.ts\", path: \"agent-gui/lib\" }.",
   inputSchema: grepInputSchema,
-  execute: async (input) => executeGrepTool(input),
+  execute: async (input) =>
+    formatToolResultForAgent(GREP_TOOL, input, await executeGrepTool(input)),
 });

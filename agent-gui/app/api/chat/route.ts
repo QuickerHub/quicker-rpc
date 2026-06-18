@@ -28,7 +28,6 @@ import { resolveModelContextLimit } from "@/lib/llm-context-limits";
 import { prepareCompressedContext } from "@/lib/context-compression";
 import { buildPostCompactReinjectBlock } from "@/lib/context-compaction-reinject.server";
 import { mergeUIMessageStreamWithReactiveCompact } from "@/lib/context-compression-reactive";
-import { createStepMicrocompactPrepareStep } from "@/lib/context-step-microcompact";
 import { repairInterruptedToolCalls } from "@/lib/repair-interrupted-tool-calls";
 import { recordManagedLlmUsageAsync } from "@/lib/llm-usage-tracker.server";
 import { withReleasePreviewRoute } from "@/lib/release-preview.server";
@@ -287,7 +286,6 @@ async function handleChatPost(req: Request) {
             messages: preparedContext.modelMessages,
             tools,
             experimental_repairToolCall: createRepairToolCallHandler(tools),
-            prepareStep: createStepMicrocompactPrepareStep({ contextLimit }),
             stopWhen: stepCountIs(titleTest ? 3 : maxStepsForChatMode(chatMode)),
             onFinish: ({ totalUsage }) => {
               recordManagedLlmUsageAsync({

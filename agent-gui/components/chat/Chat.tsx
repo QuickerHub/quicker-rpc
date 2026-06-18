@@ -86,6 +86,7 @@ import { useActionDesignerEmbed } from "@/lib/designer-embed-context";
 import { useDesignerContext } from "@/lib/use-designer-context";
 import { dispatchWorkspaceLayoutResize } from "@/lib/embedded-webview-bounds";
 import { setThreadRunBusy } from "@/lib/thread-run-status";
+import { notifyBackgroundThreadRunComplete } from "@/lib/thread-run-complete-notify";
 import { useAppMainSplit } from "@/lib/use-app-main-split";
 import { ChatTitlebar } from "@/components/chat/ChatTitlebar";
 import { DesignerEmbedContextBar } from "@/components/chat/DesignerEmbedContextBar";
@@ -246,6 +247,7 @@ type ChatPanelProps = {
     messages: AgentUIMessage[],
     upToMessageId: string,
   ) => void;
+  onActivateThread?: () => void;
   designerEmbed?: boolean;
   actionDesigner?: ActionDesignerThreadRef;
 };
@@ -267,6 +269,7 @@ function ChatPanel({
   onPersist,
   onAutoTitle,
   onForkThread,
+  onActivateThread,
   designerEmbed = false,
   actionDesigner,
 }: ChatPanelProps) {
@@ -542,6 +545,38 @@ function ChatPanel({
   );
   const pendingAskQuestionCount = pendingAskQuestions.length;
   const activePendingAskQuestion = pendingAskQuestions[0] ?? null;
+
+  const onActivateThreadRef = useRef(onActivateThread);
+  onActivateThreadRef.current = onActivateThread;
+
+  const prevBackgroundRunStatusRef = useRef(status);
+  useEffect(() => {
+    const prev = prevBackgroundRunStatusRef.current;
+    prevBackgroundRunStatusRef.current = status;
+    const wasBusy = prev === "streaming" || prev === "submitted";
+    const isIdle = status === "ready" || status === "error";
+    if (!wasBusy || !isIdle || ephemeral || visible) return;
+    if (!onActivateThreadRef.current) return;
+
+    notifyBackgroundThreadRunComplete({
+      threadId,
+      threadTitle,
+      status,
+      pendingApprovalCount,
+      pendingAskQuestionCount,
+      visible,
+      ephemeral,
+      onActivate: () => onActivateThreadRef.current?.(),
+    });
+  }, [
+    ephemeral,
+    pendingApprovalCount,
+    pendingAskQuestionCount,
+    status,
+    threadId,
+    threadTitle,
+    visible,
+  ]);
 
   const pendingActionDeleteIds = useMemo(() => {
     const ids: string[] = [];
@@ -1796,6 +1831,7 @@ export function Chat() {
                         onPersist={persistMessages}
                         onAutoTitle={handleAutoTitle}
                         onForkThread={handleForkThread}
+                        onActivateThread={() => handleActivateThread(thread.id)}
                         designerEmbed={designerEmbed.enabled}
                         actionDesigner={
                           designerEmbed.scoped

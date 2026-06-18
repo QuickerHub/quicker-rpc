@@ -5,6 +5,7 @@ export type ActionTraceEvent = {
   kind?: string;
   depth?: number;
   stepId?: string | null;
+  stepPath?: string | null;
   stepRunnerKey?: string | null;
   stepRunnerName?: string | null;
   note?: string | null;
@@ -165,6 +166,7 @@ export function parseActionTraceEvent(raw: unknown): ActionTraceEvent | null {
     kind,
     depth: readTraceNumber(obj, "depth", "Depth"),
     stepId: readTraceString(obj, "stepId", "StepId"),
+    stepPath: readTraceString(obj, "stepPath", "StepPath"),
     stepRunnerKey: readTraceString(obj, "stepRunnerKey", "StepRunnerKey"),
     stepRunnerName: readTraceString(obj, "stepRunnerName", "StepRunnerName"),
     note: readTraceString(obj, "note", "Note"),

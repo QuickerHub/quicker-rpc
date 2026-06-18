@@ -5901,6 +5901,21 @@ html.designer-embed-html body {
   word-break: break-word;
 }
 
+.app-message--clickable {
+  cursor: pointer;
+}
+
+.app-message--clickable .app-message-main:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.app-message--clickable .app-message-main:hover .app-message-body,
+.app-message--clickable .app-message-main:hover .app-message-title {
+  color: var(--text);
+}
+
 .app-message-main {
   flex: 1;
   min-width: 0;
@@ -10510,6 +10525,86 @@ button.tool-summary:disabled .tool-chevron {
 .tool-hint {
   margin: 0;
   font-size: 0.72rem;
+}
+
+.tool-agent-view {
+  margin: 0.5rem 0 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--muted) 8%, transparent);
+}
+
+.tool-agent-view--dense {
+  margin-top: 0.35rem;
+  padding: 0.45rem 0.55rem;
+}
+
+.tool-agent-view__title {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tool-agent-view__summary {
+  margin: 0.25rem 0 0.35rem;
+  font-size: 0.78rem;
+}
+
+.tool-agent-view__meta {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.tool-agent-view__meta div {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 0.35rem;
+}
+
+.tool-agent-view__meta dt {
+  margin: 0;
+  color: var(--muted);
+}
+
+.tool-agent-view__meta dd {
+  margin: 0;
+}
+
+.tool-agent-view__refetch {
+  word-break: break-word;
+}
+
+.ctx-compression-panel__agent-view {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.ctx-compression-panel__agent-view-runs {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.ctx-compression-panel__agent-view-output {
+  margin-top: 0.55rem;
+}
+
+.ctx-compression-panel__agent-view-output summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: var(--muted);
+  user-select: none;
+}
+
+.ctx-compression-panel__agent-view-output .tool-json {
+  margin-top: 0.35rem;
+  max-height: 280px;
 }
 
 .tool-kv {

@@ -1,0 +1,21 @@
+[
+  {
+    "kind": "step_begin",
+    "stepId": "s-repeat",
+    "stepRunnerKey": "sys:repeat",
+    "stepPath": "0"
+  },
+  {
+    "kind": "step_begin",
+    "stepId": "s-expr-0",
+    "stepRunnerKey": "sys:evalexpression",
+    "note": "loop body",
+    "stepPath": "0/if/0"
+  },
+  {
+    "kind": "error",
+    "stepId": "s-expr-0",
+    "stepPath": "0/if/0",
+    "message": "表达式计算失败"
+  }
+]

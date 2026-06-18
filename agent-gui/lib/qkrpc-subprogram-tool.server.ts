@@ -23,6 +23,7 @@ import {
   runQkrpcWithProgramForTool,
 } from "@/lib/qkrpc";
 import { formatLocalToolResult } from "@/lib/tool-result";
+import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 
 const returnModeSchema = z.enum(["full", "structure", "metadata"]);
 
@@ -160,7 +161,11 @@ export async function executeQkrpcSubprogramQueryTool(
   const args = ["subprogram", "list"];
   if (input.query?.trim()) args.push("--query", input.query.trim());
   if (input.limit != null) args.push("--limit", String(input.limit));
-  return formatQkrpcResultForAgent(await runQkrpcForTool(args));
+  return formatToolResultForAgent(
+    QKRPC_SUBPROGRAM_QUERY_TOOL,
+    input,
+    await formatQkrpcResultForAgent(await runQkrpcForTool(args)),
+  );
 }
 
 export async function executeQkrpcSubprogramIdTool(
@@ -177,7 +182,11 @@ export async function executeQkrpcSubprogramIdTool(
       const { augmentSubprogramGetWithWorkspace, syncSubprogramGetToWorkspace } =
         await import("@/lib/subprogram-project-workflow");
       const sync = await syncSubprogramGetToWorkspace(input.id, getResult);
-      return augmentSubprogramGetWithWorkspace(getResult, sync);
+      return formatToolResultForAgent(
+        QKRPC_SUBPROGRAM_GET_TOOL,
+        input,
+        augmentSubprogramGetWithWorkspace(getResult, sync),
+      );
     }
     case "patch": {
       const base = ["subprogram", "patch", "--id", input.id];

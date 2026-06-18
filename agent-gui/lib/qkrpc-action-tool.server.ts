@@ -40,8 +40,10 @@ import {
   runQkrpcForTool,
   runQkrpcWithXactionForTool,
 } from "@/lib/qkrpc";
+import { enrichDebugResultWithDataJsonLocation } from "@/lib/action-trace-data-json-location.server";
 import { runActionTraceForAgentTool } from "@/lib/action-trace-stream.server";
 import { formatLocalToolResult } from "@/lib/tool-result";
+import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import {
   checkLauncherActionRunAllowed,
   shouldBlockLauncherActionQueryAutoRun,
@@ -410,9 +412,13 @@ export async function executeQkrpcActionQueryTool(
   else if (!serialized && !input.queryFile) args.push("--sort", "lastEdit");
   const result = formatQkrpcResultForAgent(await runQkrpcForTool(args));
   if (getRequestChatMode() === "launcher" && result.ok) {
-    return annotateLauncherActionQueryResult(result);
+    return formatToolResultForAgent(
+      QKRPC_ACTION_QUERY_TOOL,
+      input,
+      annotateLauncherActionQueryResult(result),
+    );
   }
-  return result;
+  return formatToolResultForAgent(QKRPC_ACTION_QUERY_TOOL, input, result);
 }
 
 /** Replay shim: consolidated-era qkrpc_action_run may pass action/debug/trace on input. */
@@ -469,11 +475,18 @@ export async function executeQkrpcActionRunTool(
         await runQkrpcForTool(["action", "float", "--id", input.id]),
       );
     case "debug":
-      return formatQkrpcResultForAgent(
-        await runActionTraceForAgentTool({
-          id: input.id,
-          param: input.param,
-        }),
+      return formatToolResultForAgent(
+        QKRPC_ACTION_DEBUG_TOOL,
+        input,
+        await enrichDebugResultWithDataJsonLocation(
+          input.id,
+          formatQkrpcResultForAgent(
+            await runActionTraceForAgentTool({
+              id: input.id,
+              param: input.param,
+            }),
+          ),
+        ),
       );
     case "run": {
       const args = ["action", "run", "--id", input.id];
@@ -510,7 +523,11 @@ export async function executeQkrpcActionIdTool(
             error:
               "Action has no steps or variables; skipped extract to avoid writing an empty data.json.",
           };
-      return augmentActionGetWithWorkspace(getResult, sync);
+      return formatToolResultForAgent(
+        QKRPC_ACTION_GET_TOOL,
+        input,
+        augmentActionGetWithWorkspace(getResult, sync),
+      );
     }
     case "publish": {
       const args = ["action", "publish", "--id", input.id];
@@ -910,7 +927,8 @@ export const QKRPC_ACTION_RUN_TOOL_DEF = tool({
 
 export const QKRPC_ACTION_DEBUG_TOOL_DEF = tool({
   description:
-    "Debug one action with step trace in side panel — use when step output is needed.",
+    "Debug one action with step trace in side panel — use when step output is needed. "
+    + "On failure, returns failureLocation (data.json nodePath, pointer, line range) for workspace_program patch.",
   inputSchema: z.object({
     id: z.string().describe("Action GUID"),
     param: z.string().optional().describe("quicker_in_param"),

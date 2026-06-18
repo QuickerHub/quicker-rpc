@@ -57,7 +57,7 @@ import {
   summarizeWebSearchOutput,
 } from "@/lib/web-search-tool";
 import { isShellToolName, SHELL_TOOL } from "@/lib/host-tool-constants";
-import { isStructuredToolResult } from "@/lib/tool-result";
+import { isStructuredToolResult, resolveToolResultForDisplay } from "@/lib/tool-result";
 import {
   parseSingleIdInput,
   shouldOmitCompactToolResultBody,
@@ -119,11 +119,13 @@ import {
 import { BrowserToolResultView } from "./BrowserToolResultView";
 import { parseDocsToolInlineResult } from "@/lib/docs-tool-view";
 import { DocsToolOutputView } from "./DocsToolResultViews";
+import { AgentViewMetaSection } from "./AgentViewMetaSection";
 
 export type QkrpcToolResult = {
   ok: boolean;
   exitCode: number;
   data: unknown;
+  displayData?: unknown;
   stderr?: string;
   truncated?: boolean;
   source?: "local" | "qkrpc";
@@ -801,12 +803,15 @@ function QkrpcToolResultView({
   input?: unknown;
 }) {
   const inputId = parseSingleIdInput(input);
+  const displayResult = isStructuredToolResult(result)
+    ? resolveToolResultForDisplay(result)
+    : result;
 
   if (shouldOmitCompactToolResultBody(input, result)) {
     return null;
   }
 
-  const data = result.data;
+  const data = displayResult.data;
   const actionList =
     result.ok && toolName
       ? parseActionListFromQkrpcData(toolName, data, input)
@@ -981,6 +986,8 @@ function QkrpcToolResultView({
       {result.truncated && (
         <p className="tool-hint tool-muted">输出已截断，请缩小查询范围</p>
       )}
+
+      <AgentViewMetaSection output={result} dense={compact} />
 
       {resultBody !== null && (
         <div className="tool-result-body">{resultBody}</div>

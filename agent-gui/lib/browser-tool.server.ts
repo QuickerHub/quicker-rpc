@@ -11,6 +11,7 @@ import {
   buildRecordingFromBrowserCall,
 } from "@/lib/browser-to-action/recording";
 import { BROWSER_TOOL } from "@/lib/browser-tool-constants";
+import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import type { BrowserToolAudience } from "@/lib/browser-tool-result";
 
 export { BROWSER_TOOL };
@@ -78,7 +79,14 @@ export async function executeBrowserTool(
       ),
     );
   }
-  return result;
+  if (options?.audience === "panel") {
+    return result;
+  }
+  return formatToolResultForAgent(
+    BROWSER_TOOL,
+    input,
+    result,
+  );
 }
 
 export const BROWSER_TOOL_DEF = tool({

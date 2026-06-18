@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { formatLocalToolResult } from "@/lib/tool-result";
+import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import { runWebSearch } from "@/lib/web-search.server";
 import { WEB_SEARCH_TOOL } from "@/lib/web-search-tool-constants";
 
@@ -15,12 +16,16 @@ export async function executeWebSearchTool(
   try {
     const result = await runWebSearch(input.query, input.limit);
     const summary = `${result.results.length} 条结果 · ${result.provider}`;
-    return formatLocalToolResult({
-      action: "web-search",
-      success: true,
-      summary,
-      ...result,
-    });
+    return formatToolResultForAgent(
+      WEB_SEARCH_TOOL,
+      input,
+      formatLocalToolResult({
+        action: "web-search",
+        success: true,
+        summary,
+        ...result,
+      }),
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return formatLocalToolResult(
@@ -57,5 +62,3 @@ export const WEB_SEARCH_TOOL_DEF = tool({
   }),
   execute: async (input: WebSearchToolInput) => executeWebSearchTool(input),
 });
-
-export { WEB_SEARCH_TOOL };

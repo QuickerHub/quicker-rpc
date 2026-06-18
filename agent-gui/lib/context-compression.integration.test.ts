@@ -92,6 +92,8 @@ describe("prepareCompressedContext integration", () => {
 
     assert.equal(prepared.compressed, true);
     assert.equal(prepared.contextCompression?.summary, "reused summary");
+    assert.equal(prepared.contextCompression?.throughMessageId, "u-10");
+    assert.equal(prepared.contextCompression?.summaryReused, true);
     assert.equal(summarizeOlderMessages.mock.callCount(), 0);
   });
 
@@ -116,5 +118,39 @@ describe("prepareCompressedContext integration", () => {
     assert.equal(prepared.compressed, true);
     assert.match(prepared.systemSuffix ?? "", /reinjected after compression/);
     assert.deepEqual(prepared.contextCompression?.reinjectPaths, ["demo/data.json"]);
+  });
+
+  it("skips LLM summary when microcompact brings estimate below threshold", async () => {
+    const summarizeOlderMessages = mock.fn(async () => "should not run");
+    const messages: AgentUIMessage[] = [
+      userMessage("u1", "goal: sync clipboard"),
+      {
+        id: "a1",
+        role: "assistant",
+        parts: [{
+          type: "tool-shell_exec",
+          toolCallId: "c1",
+          state: "output-available",
+          input: { command: "rg foo" },
+          output: { ok: true, stdout: "x".repeat(200_000) },
+        }],
+      },
+      userMessage("u2", "mid"),
+      assistantMessage("a2", "ok mid"),
+      userMessage("u3", "continue"),
+      assistantMessage("a3", "ok", {
+        inputTokens: resolveCompactionUsageThreshold(32_000),
+      }),
+    ];
+
+    const prepared = await prepareCompressedContext({
+      messages,
+      model: {} as never,
+      contextLimit: 32_000,
+      summarizeOlderMessages,
+    });
+
+    assert.equal(prepared.compressed, false);
+    assert.equal(summarizeOlderMessages.mock.callCount(), 0);
   });
 });

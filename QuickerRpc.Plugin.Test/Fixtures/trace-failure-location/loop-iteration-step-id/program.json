@@ -1,0 +1,21 @@
+{
+  "steps": [
+    {
+      "stepId": "s-repeat",
+      "stepRunnerKey": "sys:repeat",
+      "inputParams": {
+        "count": { "value": "2" }
+      },
+      "ifSteps": [
+        {
+          "stepId": "s-expr",
+          "stepRunnerKey": "sys:evalexpression",
+          "note": "loop body",
+          "inputParams": {
+            "expression": { "value": "$=bad" }
+          }
+        }
+      ]
+    }
+  ]
+}

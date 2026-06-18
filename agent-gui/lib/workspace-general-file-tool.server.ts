@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { formatLocalToolResult } from "@/lib/tool-result";
+import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 import {
   LEGACY_WORKSPACE_FILE_TOOL,
   READ_TOOL,
@@ -422,10 +423,14 @@ export const READ_TOOL_DEF = tool({
     ...readWriteCommonSchema,
   }),
   execute: async (input) =>
-    executeWorkspaceFileTool({
-      ...input,
-      action: input.action ?? "read",
-    }),
+    formatToolResultForAgent(
+      READ_TOOL,
+      input,
+      await executeWorkspaceFileTool({
+        ...input,
+        action: input.action ?? "read",
+      }),
+    ),
 });
 
 export const WRITE_TOOL_DEF = tool({
@@ -440,7 +445,11 @@ export const WRITE_TOOL_DEF = tool({
     content: z.string().describe("Full file content"),
   }),
   execute: async (input) =>
-    executeWorkspaceFileTool({ ...input, action: "write" }),
+    formatToolResultForAgent(
+      WRITE_TOOL,
+      input,
+      await executeWorkspaceFileTool({ ...input, action: "write" }),
+    ),
 });
 
 export const STR_REPLACE_TOOL_DEF = tool({
@@ -457,7 +466,11 @@ export const STR_REPLACE_TOOL_DEF = tool({
     replaceAll: z.boolean().optional().describe("Replace all matches (default first only)"),
   }),
   execute: async (input) =>
-    executeWorkspaceFileTool({ ...input, action: "edit" }),
+    formatToolResultForAgent(
+      STR_REPLACE_TOOL,
+      input,
+      await executeWorkspaceFileTool({ ...input, action: "edit" }),
+    ),
 });
 
 export const WORKSPACE_FILE_TOOL_DEF = tool({

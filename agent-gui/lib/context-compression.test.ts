@@ -66,6 +66,21 @@ describe("shouldCompressContextMessages", () => {
     assert.equal(shouldCompressContextMessages(messages, contextLimit), true);
     assert.ok(threshold >= Math.floor(contextLimit * 0.9) - 1);
   });
+
+  it("preferTokenEstimate ignores high usage metadata when bodies are small", () => {
+    const contextLimit = 128_000;
+    const threshold = resolveCompactionUsageThreshold(contextLimit);
+    const messages = [
+      userMessage("u1", "hello"),
+      assistantMessage("a1", "hi", { inputTokens: threshold }),
+    ];
+    assert.equal(
+      shouldCompressContextMessages(messages, contextLimit, {
+        preferTokenEstimate: true,
+      }),
+      false,
+    );
+  });
 });
 
 describe("resolveContextSplitIndex", () => {

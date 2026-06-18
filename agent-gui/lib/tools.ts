@@ -121,6 +121,7 @@ import { GREP_TOOL, GREP_TOOL_DEF } from "@/lib/grep-tool.server";
 import { legacyQuickerToolAliases } from "@/lib/legacy-tool-aliases";
 
 import { formatQkrpcResultForAgent, runQkrpcForTool } from "@/lib/qkrpc";
+import { formatToolResultForAgent } from "@/lib/tool-result-agent-view";
 
 import { LLM_SETTINGS_TOOL, LLM_SETTINGS_TOOL_DEF } from "@/lib/llm-settings-tool";
 
@@ -362,10 +363,12 @@ export const quickerTools = {
 
       if (limit != null) args.push("--limit", String(limit));
 
-      return formatQkrpcResultForAgent(
-
-        await runQkrpcForTool(args, { timeoutMs: 180_000 }),
-
+      return formatToolResultForAgent(
+        "qkrpc_step_runner_search",
+        { query, limit },
+        formatQkrpcResultForAgent(
+          await runQkrpcForTool(args, { timeoutMs: 180_000 }),
+        ),
       );
 
     },
@@ -405,10 +408,12 @@ export const quickerTools = {
 
       if (controlField) args.push("--control-field", controlField);
 
-      return formatQkrpcResultForAgent(
-
-        await runQkrpcForTool(args, { timeoutMs: 180_000 }),
-
+      return formatToolResultForAgent(
+        "qkrpc_step_runner_get",
+        { key, controlField },
+        formatQkrpcResultForAgent(
+          await runQkrpcForTool(args, { timeoutMs: 180_000 }),
+        ),
       );
 
     },

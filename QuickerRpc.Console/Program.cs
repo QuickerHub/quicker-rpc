@@ -1015,6 +1015,7 @@ internal static partial class Program
                         stopFlag = result.StopFlag,
                         message = result.Message,
                         events = result.Events,
+                        failureLocation = result.FailureLocation,
                     },
                     QkrpcJson.CliOutput));
             }
@@ -1097,6 +1098,7 @@ internal static partial class Program
                         stopFlag = result.StopFlag,
                         message = result.Message,
                         events = result.Events,
+                        failureLocation = result.FailureLocation,
                     },
                     QkrpcJson.CliOutput));
             }

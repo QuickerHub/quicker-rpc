@@ -24,6 +24,7 @@ import {
 import { resolveLlmSelectionLabel } from "@/lib/tool-test-title-model-label";
 import { LLM_AUTO_SELECTION } from "@/lib/llm-selection";
 import { loadStoredLlmSelectionRaw, storeLlmSelectionRaw } from "@/lib/llm-prefs";
+import { ToolTestAgentViewSection } from "@/components/tool-test/ToolTestAgentViewSection";
 
 type ToolTestContextCompressionPanelProps = {
   disabled?: boolean;
@@ -388,6 +389,8 @@ export function ToolTestContextCompressionPanel({
           生产逻辑：usage ≥90% 或估算 ≥92% 时按 token 预算切分；microcompact → 摘要 → reinject；多步 tool 回合内 prepareStep 再压缩；context length 错误 reactive 重试 1 次
         </p>
       </div>
+
+      <ToolTestAgentViewSection disabled={disabledAll} />
     </div>
   );
 }

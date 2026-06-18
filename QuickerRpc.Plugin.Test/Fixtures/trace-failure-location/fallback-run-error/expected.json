@@ -1,0 +1,8 @@
+{
+  "stepPath": "0",
+  "stepId": "runtime-1",
+  "stepRunnerKey": "sys:evalexpression",
+  "dataJsonPointer": "steps[0]",
+  "matchMethod": "stepRunnerSequence",
+  "fallbackErrorMessage": "action stopped without trace error event"
+}

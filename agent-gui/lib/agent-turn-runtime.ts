@@ -6,20 +6,11 @@ import {
   formatActionScopeForSystem,
   type ActionScopeHint,
 } from "@/lib/action-scope";
-import { formatChatRuntimeContext } from "@/lib/agent-runtime-context";
-import {
-  formatAgentTurnStateForPrompt,
-} from "@/lib/agent-turn-state";
-import { formatRecoveryDecisionForPrompt } from "@/lib/agent-recovery-policy";
 import {
   buildAgentRuntimeSnapshot,
   type AgentRuntimeSnapshot,
 } from "@/lib/agent-runtime-snapshot";
 import { buildSystemInstructions } from "@/lib/instructions";
-import {
-  collectRecentToolFeedback,
-  formatRecentToolFeedbackForPrompt,
-} from "@/lib/tool-feedback-context";
 import {
   buildLauncherCommandCachePromptBlock,
 } from "@/lib/launcher/launcher-command-cache.server";
@@ -65,27 +56,6 @@ export async function createChatSystemBuilder(params: {
 }) {
   const scopeBlock = formatActionScopeForSystem(params.actionScope);
   const baseSystem = await buildSystemInstructions(params.cwd, params.chatMode);
-  const runtimeContextBlock = formatChatRuntimeContext({
-    mode: params.chatMode,
-    cwd: params.cwd,
-    modelId: params.modelId,
-    enabledToolIds: params.enabledToolIds,
-  });
-  const runtimeSnapshot =
-    params.runtimeSnapshot
-    ?? buildAgentRuntimeSnapshot({
-      actionScope: params.actionScope,
-      chatMode: params.chatMode,
-      enabledToolIds: params.enabledToolIds,
-      messages: params.repairedMessages,
-      userText: params.launcherUserText,
-    });
-  const turnStateBlock = formatAgentTurnStateForPrompt(runtimeSnapshot.turnState);
-  const recentToolFeedback = collectRecentToolFeedback(params.repairedMessages);
-  const toolFeedbackBlock = formatRecentToolFeedbackForPrompt(recentToolFeedback);
-  const recoveryDecisionBlock = formatRecoveryDecisionForPrompt(
-    runtimeSnapshot.recoveryDecision,
-  );
   const launcherCacheBlock =
     params.chatMode === CHAT_MODE_LAUNCHER
       ? await buildLauncherCommandCachePromptBlock(params.launcherUserText)
@@ -105,12 +75,8 @@ export async function createChatSystemBuilder(params: {
       contextSystemSuffix: context.systemSuffix,
       designerEmbedBlock: params.designerEmbedBlock,
       launcherCacheBlock,
-      recoveryDecisionBlock,
-      runtimeContextBlock,
       scopeBlock,
       titleInstruction,
       titleTest: params.titleTest,
-      toolFeedbackBlock,
-      turnStateBlock,
     });
 }

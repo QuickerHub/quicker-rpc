@@ -319,6 +319,20 @@ export function formatQkrpcActionCommandResultMeta(
       if (typeof data.durationMs === "number") {
         parts.push(`${Math.round(data.durationMs)}ms`);
       }
+      const failureLocation = data.failureLocation;
+      if (
+        typeof failureLocation === "object"
+        && failureLocation !== null
+        && !Array.isArray(failureLocation)
+      ) {
+        const loc = failureLocation as Record<string, unknown>;
+        const summary = typeof loc.locationSummary === "string"
+          ? loc.locationSummary.trim()
+          : "";
+        if (summary) {
+          parts.push(summary.length > 56 ? `${summary.slice(0, 53)}…` : summary);
+        }
+      }
       return parts.length > 1 ? parts.join(" · ") : `${title} · 调试输出`;
     }
     if (message && message.length <= 48) {

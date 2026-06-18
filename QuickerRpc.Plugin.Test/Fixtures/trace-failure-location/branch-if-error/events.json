@@ -1,0 +1,26 @@
+[
+  {
+    "kind": "step_begin",
+    "stepId": "s-if",
+    "stepRunnerKey": "sys:if",
+    "stepPath": "0"
+  },
+  {
+    "kind": "step_begin",
+    "stepId": "s-inner",
+    "stepRunnerKey": "sys:evalexpression",
+    "stepPath": "0/if/0"
+  },
+  {
+    "kind": "input",
+    "stepId": "s-inner",
+    "stepPath": "0/if/0",
+    "paramKey": "expression"
+  },
+  {
+    "kind": "error",
+    "stepId": "s-inner",
+    "stepPath": "0/if/0",
+    "message": "表达式计算失败"
+  }
+]

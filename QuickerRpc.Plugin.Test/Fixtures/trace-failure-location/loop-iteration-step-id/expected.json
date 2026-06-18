@@ -1,0 +1,7 @@
+{
+  "stepPath": "0/if/0",
+  "stepId": "s-expr-0",
+  "stepRunnerKey": "sys:evalexpression",
+  "dataJsonPointer": "steps[0/if/0]",
+  "matchMethod": "stepRunnerSequence"
+}

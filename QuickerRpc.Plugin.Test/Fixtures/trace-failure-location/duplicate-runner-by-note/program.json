@@ -1,0 +1,18 @@
+{
+  "steps": [
+    {
+      "stepRunnerKey": "sys:evalexpression",
+      "note": "first",
+      "inputParams": {
+        "expression": { "value": "$=1" }
+      }
+    },
+    {
+      "stepRunnerKey": "sys:evalexpression",
+      "note": "second",
+      "inputParams": {
+        "expression": { "value": "$=bad" }
+      }
+    }
+  ]
+}

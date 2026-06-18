@@ -61,7 +61,7 @@ function latestAssistantUsage(
   return null;
 }
 
-function latestContextCompression(
+export function getLatestContextCompression(
   messages: AgentUIMessage[],
 ): ContextCompressionMetadata | null {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
@@ -105,14 +105,19 @@ export function resolveRecentTokenBudget(contextLimit: number): number {
 export function shouldCompressContextMessages(
   messages: AgentUIMessage[],
   contextLimit: number,
+  options?: { preferTokenEstimate?: boolean },
 ): boolean {
   if (contextLimit <= 0) return false;
+  const estimated = approximateTokensFromMessages(messages);
+  const estimateThreshold = resolveCompactionEstimateThreshold(contextLimit);
+  if (options?.preferTokenEstimate) {
+    return estimated >= estimateThreshold;
+  }
   const latestUsage = latestAssistantUsage(messages);
   if (latestUsage) {
     return latestUsage.inputTokens >= resolveCompactionUsageThreshold(contextLimit);
   }
-  const estimated = approximateTokensFromMessages(messages);
-  return estimated >= resolveCompactionEstimateThreshold(contextLimit);
+  return estimated >= estimateThreshold;
 }
 
 function countRecentMessagesFromTail(
@@ -215,7 +220,7 @@ export function selectReusableContextSummary(
   messages: AgentUIMessage[],
   splitIndex: number,
 ): string | null {
-  const lastCompression = latestContextCompression(messages);
+  const lastCompression = getLatestContextCompression(messages);
   if (!lastCompression) return null;
   const throughIndex = findMessageIndexById(
     messages,

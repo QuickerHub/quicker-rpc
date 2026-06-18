@@ -1,0 +1,7 @@
+{
+  "stepPath": "1",
+  "stepRunnerKey": "sys:evalexpression",
+  "paramKey": "expression",
+  "dataJsonPointer": "steps[1].inputParams.expression",
+  "matchMethod": "stepRunnerSequence"
+}

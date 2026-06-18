@@ -17,13 +17,25 @@ internal sealed class TerminalActionLogger : IActionLogger
     private const int MaxValueLength = 800;
 
     private readonly Action<QuickerRpcActionTraceEvent>? _onEvent;
+    private readonly IReadOnlyDictionary<string, string> _stepIdToPath;
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private readonly List<QuickerRpcActionTraceEvent> _events = [];
     private readonly Stack<int> _depthStack = new();
     private int _sequence;
 
-    public TerminalActionLogger(Action<QuickerRpcActionTraceEvent>? onEvent = null) =>
+    private string? _currentStepId;
+    private string? _currentStepPath;
+    private string? _currentStepRunnerKey;
+    private string? _currentStepRunnerName;
+    private string? _currentNote;
+
+    public TerminalActionLogger(
+        Action<QuickerRpcActionTraceEvent>? onEvent = null,
+        IReadOnlyDictionary<string, string>? stepIdToPath = null)
+    {
         _onEvent = onEvent;
+        _stepIdToPath = stepIdToPath ?? new Dictionary<string, string>(StringComparer.Ordinal);
+    }
 
     public IReadOnlyList<QuickerRpcActionTraceEvent> Events => _events;
 
@@ -46,12 +58,19 @@ internal sealed class TerminalActionLogger : IActionLogger
 
     public void BeginStep(ActionStep step, string stepId)
     {
+        _currentStepId = NullIfEmpty(stepId);
+        _currentStepRunnerKey = NullIfEmpty(step.StepRunnerKey);
+        _currentStepRunnerName = NullIfEmpty(step.StepRunnerName);
+        _currentNote = NullIfEmpty(step.Note);
+        _currentStepPath = ResolveStepPath(stepId);
+
         Emit(
             "step_begin",
             stepId: stepId,
             stepRunnerKey: step.StepRunnerKey,
             stepRunnerName: step.StepRunnerName,
             note: step.Note,
+            stepPath: _currentStepPath,
             pushDepth: true);
     }
 
@@ -62,13 +81,16 @@ internal sealed class TerminalActionLogger : IActionLogger
             _depthStack.Pop();
         }
 
-        Emit("step_end");
+        Emit("step_end", stepId: _currentStepId, stepPath: _currentStepPath);
+        ClearCurrentStep();
     }
 
     public void LogInput(StepInParamDef inputParam, object? paramValue, string? paramExpression, ActionStep step) =>
         Emit(
             "input",
+            stepId: _currentStepId,
             stepRunnerKey: step.StepRunnerKey,
+            stepPath: _currentStepPath,
             paramKey: inputParam.Key,
             paramExpression: paramExpression,
             paramValue: FormatValue(paramValue),
@@ -77,6 +99,8 @@ internal sealed class TerminalActionLogger : IActionLogger
     public void LogOutput(StepOutParamDef outputParam, string? varName, object? paramValue) =>
         Emit(
             "output",
+            stepId: _currentStepId,
+            stepPath: _currentStepPath,
             paramKey: outputParam.Key,
             varName: varName,
             paramValue: FormatValue(paramValue),
@@ -86,12 +110,33 @@ internal sealed class TerminalActionLogger : IActionLogger
 
     public void LogFileName() { }
 
-    public void LogWarning(string message) => Emit("warning", message: message);
+    public void LogWarning(string message) =>
+        Emit(
+            "warning",
+            message: message,
+            stepId: _currentStepId,
+            stepPath: _currentStepPath,
+            stepRunnerKey: _currentStepRunnerKey);
 
-    public void LogError(string message) => Emit("error", message: message);
+    public void LogError(string message) =>
+        Emit(
+            "error",
+            message: message,
+            stepId: _currentStepId,
+            stepPath: _currentStepPath,
+            stepRunnerKey: _currentStepRunnerKey,
+            stepRunnerName: _currentStepRunnerName,
+            note: _currentNote);
 
     public void LogError(string message, Exception exception) =>
-        Emit("error", message: string.IsNullOrWhiteSpace(message) ? exception.Message : $"{message}: {exception.Message}");
+        Emit(
+            "error",
+            message: string.IsNullOrWhiteSpace(message) ? exception.Message : $"{message}: {exception.Message}",
+            stepId: _currentStepId,
+            stepPath: _currentStepPath,
+            stepRunnerKey: _currentStepRunnerKey,
+            stepRunnerName: _currentStepRunnerName,
+            note: _currentNote);
 
     public void Flush() { }
 
@@ -115,6 +160,41 @@ internal sealed class TerminalActionLogger : IActionLogger
     public void LogLoadState(string varKey, string? value) =>
         Emit("var_state", varKey: varKey, paramValue: value);
 
+    private void ClearCurrentStep()
+    {
+        _currentStepId = null;
+        _currentStepPath = null;
+        _currentStepRunnerKey = null;
+        _currentStepRunnerName = null;
+        _currentNote = null;
+    }
+
+    private string? ResolveStepPath(string stepId)
+    {
+        if (string.IsNullOrWhiteSpace(stepId))
+        {
+            return null;
+        }
+
+        if (_stepIdToPath.TryGetValue(stepId.Trim(), out var path))
+        {
+            return path;
+        }
+
+        var parts = stepId.Trim().Split('-');
+        while (parts.Length > 1 && int.TryParse(parts[^1], out _))
+        {
+            Array.Resize(ref parts, parts.Length - 1);
+            var candidate = string.Join("-", parts);
+            if (_stepIdToPath.TryGetValue(candidate, out path))
+            {
+                return path;
+            }
+        }
+
+        return null;
+    }
+
     private void Emit(
         string kind,
         string? stepId = null,
@@ -127,6 +207,7 @@ internal sealed class TerminalActionLogger : IActionLogger
         string? paramValue = null,
         string? varName = null,
         string? varKey = null,
+        string? stepPath = null,
         bool pushDepth = false)
     {
         var depth = _depthStack.Count;
@@ -141,6 +222,7 @@ internal sealed class TerminalActionLogger : IActionLogger
             Kind = kind,
             Depth = depth,
             StepId = NullIfEmpty(stepId),
+            StepPath = NullIfEmpty(stepPath),
             StepRunnerKey = NullIfEmpty(stepRunnerKey),
             StepRunnerName = NullIfEmpty(stepRunnerName),
             Note = NullIfEmpty(note),

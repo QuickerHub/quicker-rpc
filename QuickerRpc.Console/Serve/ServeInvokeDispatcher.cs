@@ -1374,6 +1374,7 @@ internal static class ServeInvokeDispatcher
                 errorMessage = traceResponse.ErrorMessage,
                 stopFlag = traceResponse.StopFlag,
                 events = traceResponse.Events,
+                failureLocation = traceResponse.FailureLocation,
             });
         }
 

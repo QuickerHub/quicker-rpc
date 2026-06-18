@@ -104,15 +104,46 @@ function AppMessageCard({
   message: AppMessage;
   onDismiss: (id: string) => void;
 }) {
+  const runPrimaryAction = useCallback(async () => {
+    if (!message.onClick) return;
+    try {
+      await message.onClick();
+    } finally {
+      onDismiss(message.id);
+    }
+  }, [message, onDismiss]);
+
+  const clickable = Boolean(message.onClick) && !message.progress;
+
   return (
     <div
       className={`app-message app-message--${message.kind}${
         message.progress ? " app-message--progress" : ""
-      }`}
+      }${clickable ? " app-message--clickable" : ""}`}
       role={message.kind === "error" ? "alert" : "status"}
       aria-live="polite"
     >
-      <div className="app-message-main">
+      <div
+        className="app-message-main"
+        role={clickable ? "button" : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        onClick={
+          clickable
+            ? () => {
+                void runPrimaryAction();
+              }
+            : undefined
+        }
+        onKeyDown={
+          clickable
+            ? (event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                void runPrimaryAction();
+              }
+            : undefined
+        }
+      >
         {message.title ? (
           <p className="app-message-title">{message.title}</p>
         ) : null}

@@ -2,6 +2,7 @@ import type { ModelMessage } from "ai";
 import {
   resolveCompactionEstimateThreshold,
 } from "@/lib/context-compression-shared";
+import { buildMicrocompactPayloadFromAgentView } from "@/lib/tool-result-agent-view";
 
 const COMPACT_PLACEHOLDER =
   "[compact: large tool output omitted; see recent tool results]";
@@ -34,6 +35,9 @@ export function estimateModelMessagesTokens(messages: ModelMessage[]): number {
 function compactJsonToolValue(value: unknown): unknown {
   const record = readRecord(value);
   if (!record) return value;
+  if ("agentView" in record || typeof record.summary === "string") {
+    return buildMicrocompactPayloadFromAgentView(record);
+  }
   const compact: Record<string, unknown> = {
     compact: true,
     note: COMPACT_PLACEHOLDER,

@@ -3,15 +3,12 @@ export type ChatSystemPromptBlocks = {
   contextSystemSuffix?: string;
   designerEmbedBlock?: string;
   launcherCacheBlock?: string;
-  recoveryDecisionBlock?: string;
-  runtimeContextBlock?: string;
   scopeBlock?: string;
   titleInstruction?: string | null;
   titleTest: boolean;
-  toolFeedbackBlock?: string;
-  turnStateBlock?: string;
 };
 
+/** Stable prefix first; only append blocks that must change per turn at the end. */
 export function composeChatSystemPrompt(
   blocks: ChatSystemPromptBlocks,
 ): string {
@@ -25,10 +22,6 @@ export function composeChatSystemPrompt(
       : null,
     systemWithScope,
     blocks.designerEmbedBlock,
-    blocks.runtimeContextBlock,
-    blocks.turnStateBlock,
-    blocks.toolFeedbackBlock,
-    blocks.recoveryDecisionBlock,
     blocks.launcherCacheBlock,
     blocks.titleInstruction,
     blocks.contextSystemSuffix,
